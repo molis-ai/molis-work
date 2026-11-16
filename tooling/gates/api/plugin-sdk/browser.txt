@@ -70,6 +70,7 @@ export interface SubtaskConversationSource {
     read(target: string, signal: AbortSignal): Promise<SubtaskConversationRead>;
     subscribe?(target: string, invalidate: () => void, signal: AbortSignal): Promise<() => void>;
     composer(view: MwSubtaskConversationView): SubtaskComposerOptions;
+    check(target: string, requestId: string, signal: AbortSignal): Promise<SubtaskActionOutcome>;
     act(view: MwSubtaskConversationView, action: MwSubtaskAction, requestId: string, signal: AbortSignal): Promise<SubtaskActionOutcome>;
 }
 

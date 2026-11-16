@@ -13,14 +13,15 @@ export function workOwner() {
   const listeners: Array<{ target: string; invalidate: () => void; closed: boolean }> = [];
   const sends: Array<{ target: string; binding: string; input: ComposerSubmission }> = [];
   const controls: Array<{ target: string; binding: string; action: string; request: string }> = [];
+  const queries: Array<{ target: string; requestId: string }> = [];
   const receipts = new Map<string, "sent" | "not-sent" | "unknown">();
   const adapters = new Map<string, ComposerDraftAdapter>();
   let readBarrier: ReturnType<typeof deferred<SubtaskConversationRead>> | undefined;
   let readyBarrier: ReturnType<typeof deferred<void>> | undefined;
   let actionBarrier: ReturnType<typeof deferred<void>> | undefined;
   let sendBarrier: ReturnType<typeof deferred<void>> | undefined;
-  let failRead = false, rejectAction = false;
-  let unknownInput: boolean | "reject" = false;
+  let failRead = false, failCheck = false; let rejectAction: boolean | "accepted" = false;
+  let unknownInput: boolean | "reject" | "accepted-reject" = false;
   const reads: string[] = [];
   const record = (target: string) => records.get(target)!;
   const invalidate = (target: string) => listeners.filter(item => item.target === target && !item.closed).forEach(item => item.invalidate());
@@ -63,14 +64,24 @@ export function workOwner() {
           sends.push({ target: snapshot.target, binding: snapshot.binding, input }); const item = record(snapshot.target);
           if (sendBarrier) { const gate = sendBarrier; sendBarrier = undefined; await gate.promise; }
           if (snapshot.binding !== `${snapshot.target}:${item.generation}` || !item.allowed) return { state: "failed", message: "Stale execution" };
-          if (unknownInput) {
+          if (unknownInput && unknownInput !== "accepted-reject") {
             item.pending = { kind: "input", requestId: input.request_id, message: "Confirm original send", check: { id: "check", ref: input.request_id, label: "Check original" } };
             if (unknownInput === "reject") throw new Error("send reply disconnected");
             return { state: "unknown", check: async () => settle(snapshot.target, input.request_id) };
           }
           item.messages = [...item.messages, { id: input.request_id, role: "user", content: { text: input.text } }];
-          receipts.set(input.request_id, "sent"); settle(snapshot.target, input.request_id); return { state: "sent" };
+          receipts.set(input.request_id, "sent"); settle(snapshot.target, input.request_id);
+          if (unknownInput === "accepted-reject") throw new Error("accepted send reply lost");
+          return { state: "sent" };
         } };
+    },
+    async check(target, requestId): Promise<SubtaskActionOutcome> {
+      queries.push({ target, requestId });
+      if (failCheck) { failCheck = false; throw new Error("receipt temporarily offline"); }
+      if (!record(target).allowed) throw new Error("Access removed");
+      const outcome = settle(target, requestId);
+      return outcome === "sent" ? { state: "applied" } : outcome === "not-sent" ? { state: "not-applied", reason: "Not accepted" }
+        : { state: "unknown", check: () => source.check(target, requestId, new AbortController().signal) };
     },
     async act(snapshot, action, request): Promise<SubtaskActionOutcome> {
       controls.push({ target: snapshot.target, binding: snapshot.binding, action: action.ref, request });
@@ -82,23 +93,26 @@ export function workOwner() {
       const item = record(snapshot.target);
       item.pending = { kind: "action", requestId: request, message: "Confirm original control", check: { id: "check", ref: request, label: "Check original" } };
       if (actionBarrier) { const gate = actionBarrier; actionBarrier = undefined; await gate.promise; }
-      if (rejectAction) throw new Error("reply disconnected");
+      if (rejectAction === true) throw new Error("reply disconnected");
       if (!item.allowed || snapshot.binding !== `${snapshot.target}:${item.generation}`) { item.pending = undefined; return { state: "not-applied", reason: "Stale execution" }; }
       item.running = action.id !== "stop"; if (item.running) item.generation++;
-      item.pending = undefined; receipts.set(request, "sent"); return { state: "applied" };
+      item.pending = undefined; receipts.set(request, "sent");
+      if (rejectAction === "accepted") throw new Error("accepted control reply lost");
+      return { state: "applied" };
     },
   };
-  return { source, records, listeners, reads, sends, controls, receipts, record, view, invalidate,
+  return { source, records, listeners, reads, sends, controls, receipts, queries, record, view, invalidate,
     blockRead() { const gate = deferred<SubtaskConversationRead>(); readBarrier = gate; return gate; },
     blockReady() { const gate = deferred<void>(); readyBarrier = gate; return gate; },
     blockAction() { const gate = deferred<void>(); actionBarrier = gate; return gate; },
     blockSend() { const gate = deferred<void>(); sendBarrier = gate; return gate; },
-    failRead() { failRead = true; }, unknownInput(value: boolean | "reject" = true) { unknownInput = value; }, rejectAction(value = true) { rejectAction = value; } };
+    failRead() { failRead = true; }, failCheck() { failCheck = true; }, unknownInput(value: boolean | "reject" | "accepted-reject" = true) { unknownInput = value; }, rejectAction(value: boolean | "accepted" = true) { rejectAction = value; } };
 }
 
 /** A second, event-shaped owner: SDK child events and attempts, without Work records or Work projection code. */
 export function sdkOwner() {
   const events: Array<{ seq: number; who: "user" | "assistant"; words: string }> = [{ seq: 1, who: "assistant", words: "SDK child original" }];
+  const receipts = new Set<string>();
   const calls: string[] = []; let attempt = 3, active = false, draft = "SDK draft";
   const adapter = { read: async () => draft, write: async (text: string) => { draft = text; } };
   const source: SubtaskConversationSource = {
@@ -107,8 +121,9 @@ export function sdkOwner() {
       messages: events.map(event => ({ id: `event:${event.seq}`, role: event.who, content: { text: event.words } })),
       actions: [{ id: active ? "stop" : "continue", ref: `attempt/${attempt}`, label: active ? "Stop" : "Continue" }] } }; },
     composer(snapshot) { return { kind: "ai", entry: "sdk-child", labels: COMPOSER_AI_LABELS, sources: false, draft: { adapter },
-      submit: async input => { calls.push(snapshot.binding); events.push({ seq: events.length + 1, who: "user", words: input.text }); return { state: "sent" }; } }; },
-    async act(snapshot, action) { calls.push(`${snapshot.binding}:${action.ref}`); active = !active; if (active) attempt++; return { state: "applied" }; },
+      submit: async input => { calls.push(snapshot.binding); receipts.add(input.request_id); events.push({ seq: events.length + 1, who: "user", words: input.text }); return { state: "sent" }; } }; },
+    async check(target, requestId): Promise<SubtaskActionOutcome> { return receipts.has(requestId) ? { state: "applied" } : { state: "unknown", check: () => source.check(target, requestId, new AbortController().signal) }; },
+    async act(snapshot, action, requestId) { receipts.add(requestId); calls.push(`${snapshot.binding}:${action.ref}`); active = !active; if (active) attempt++; return { state: "applied" }; },
   };
   return { source, events, calls };
 }

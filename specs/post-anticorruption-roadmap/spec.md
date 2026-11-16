@@ -143,8 +143,8 @@
 |  | [切换后新入口文字与翻译复核](reference/batches/56.md#batch-56-item-2) |
 |  | [N22 全量迁移与收口](reference/batches/56.md#batch-56-item-3) |
 | [57](reference/batches/57.md) | [个人工作完整路径](reference/batches/57.md#batch-57-item-1)（M1 移到 [REL-5](#release-batch)） |
-| [58](reference/batches/58.md) | [子代理公共交互组件](reference/batches/58.md#batch-58-item-1) |
-| [59](reference/batches/59.md) | [子代理双入口接入](reference/batches/59.md#batch-59-item-1) |
+| [58](reference/batches/58.md) | [子代理公共交互组件](reference/batches/58.md#batch-58-item-1)：公共视图与交互端口已实现，最终评审合入中；本人验收保留 |
+| [59](reference/batches/59.md) | [子代理双入口接入](reference/batches/59.md#batch-59-item-1)：消费 58 的公开入口；助理业务子工作路径先核 43-1 实际派发接线 |
 | [60](reference/batches/60.md) | [Sessions 控制与交接](reference/batches/60.md#batch-60-item-1) |
 | [61](reference/batches/61.md) | [服务矩阵、现有连接与统一搜索](reference/batches/61.md#batch-61-item-1) |
 |  | [自动化推荐与采用](reference/batches/61.md#batch-61-item-2) |

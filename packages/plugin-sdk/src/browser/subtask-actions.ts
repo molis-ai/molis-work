@@ -14,9 +14,7 @@ export function subtaskActions(source: SubtaskConversationSource, changed: (targ
   async function reconcile(target: string, requestId: string): Promise<SubtaskActionOutcome> {
     const check = () => reconcile(target, requestId);
     try {
-      const signal = new AbortController().signal, result = await source.read(target, signal);
-      if (result.state !== "available" || result.view.pending?.requestId !== requestId) return { state: "unknown", check };
-      return await source.act(result.view, result.view.pending.check, crypto.randomUUID(), signal);
+      return await source.check(target, requestId, new AbortController().signal);
     } catch { return { state: "unknown", check }; }
   }
   async function run(view: MwSubtaskConversationView, action: MwSubtaskAction | undefined, signal: AbortSignal) {
@@ -29,7 +27,7 @@ export function subtaskActions(source: SubtaskConversationSource, changed: (targ
     operation.state = "working"; operations.set(view.target, operation); changed(view.target);
     let outcome: SubtaskActionOutcome;
     try { outcome = action ? await source.act(view, action, action === view.pending?.check ? crypto.randomUUID() : original, signal) : await check!(); }
-    catch { outcome = { state: "unknown", check: () => reconcile(view.target, operation.requestId) }; }
+    catch { outcome = { state: "unknown", check: check ?? (() => reconcile(view.target, operation.requestId)) }; }
     // Revocation / destroy may have discarded this operation while the owner was replying.
     if (operations.get(view.target) !== operation) return;
     if (outcome.state === "applied") operations.delete(view.target);

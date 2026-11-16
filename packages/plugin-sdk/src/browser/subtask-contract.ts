@@ -20,6 +20,8 @@ export interface SubtaskConversationSource {
    * Receipt checks use the original request id and current read permission, even if the execution generation has advanced.
    */
   composer(view: MwSubtaskConversationView): SubtaskComposerOptions;
+  /** Query the original persisted receipt under current read permission, including after pending removal or execution changes. Never retries the effect. */
+  check(target: string, requestId: string, signal: AbortSignal): Promise<SubtaskActionOutcome>;
   /**
    * The entire view, action reference and requestId are frozen at the click. Persist unresolved operations before acting.
    * A pending.check action reports the original operation's outcome. A rejected Promise is unconfirmed, never proof of non-acceptance.

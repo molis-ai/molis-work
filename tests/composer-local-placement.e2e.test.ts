@@ -3,11 +3,25 @@ import test from "node:test";
 import { build } from "esbuild";
 import { COMPOSER_AI_LABELS } from "./fixtures/composer-labels.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 
 // B58-01/B58-03: the real frame bridge must not register a child float as the bar's new receiver.
 test("B58-03: local framed AI input keeps the main bar's node, receiver, draft and delivery independent", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
+  await pluginFrameInitScript(t, b, `
+    let uiFactory;
+    globalThis.localCleanupCount = 0;
+    Object.defineProperty(globalThis, 'molisFrameUi', { configurable: true, get: () => uiFactory, set(factory) {
+      uiFactory = () => { const ui = factory(), mount = ui.mountPluginClient;
+        ui.mountPluginClient = root => { const scope = mount(root); if (!scope) return scope;
+          const own = scope.own;
+          scope.own = cleanup => { localCleanupCount++; let active = true;
+            return own(() => { if (active) { active = false; localCleanupCount--; } cleanup(); }); };
+          return scope;
+        }; return ui;
+      };
+    } });
+  `);
   const child = await pluginFrameBrowser(t, b, "lingguang");
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/` }, b.sessionId));
   await b.click('[data-plugin-picker-popover] [data-plugin-id="lingguang"]');
@@ -57,4 +71,13 @@ test("B58-03: local framed AI input keeps the main bar's node, receiver, draft a
   await child.evaluate("globalThis.localPlacement = placementMount('child', 'local', document.getElementById('placement-child'))");
   await child.waitFor("!document.getElementById('placement-child').hasAttribute('data-composer-remote')");
   await child.evaluate("localPlacement.destroy()");
+  // B58-03: closing a local input releases its frame-owned cleanup immediately, including repeated root reuse.
+  assert.deepEqual(await child.evaluate(`(() => {
+    const before = localCleanupCount, root = document.createElement('div'), counts = [];
+    document.body.append(root);
+    try {
+      for (let n=0;n<4;n++) { const handle=placementMount('child','local',root); counts.push(localCleanupCount-before); handle.destroy(); handle.destroy(); counts.push(localCleanupCount-before); }
+      return counts;
+    } finally { root.remove(); }
+  })()`), [1, 0, 1, 0, 1, 0, 1, 0]);
 });

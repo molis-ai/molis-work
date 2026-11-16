@@ -96,4 +96,19 @@ test("B58-06: subtask board states, local input, recovery, IME and touch targets
   const unavailable = '#subtask-conversation [data-subtask-demo-state="unavailable"]';
   assert.equal(await evaluate(`document.querySelector('${unavailable} textarea').disabled`), true);
   assert.doesNotMatch(await evaluate<string>(`document.querySelector('${unavailable} [data-subtask-composer]').textContent`), /new attempt/i, "withdrawal retains its own reason rather than a continue hint");
+  // B58-02/03: the board's real nested demo owns a separate receiver, draft, messages and controls.
+  await b.click('[data-subtask-demo="reset"]');
+  await waitFor(`${first}.querySelector('[data-subtask-action="stop"]')`);
+  await evaluate(`const parentField=${first}.querySelector('textarea'); parentField.value='parent draft'; parentField.dispatchEvent(new Event('input',{bubbles:true})); ${first}.querySelector('[data-subtask-open="mobile"]').click()`);
+  await waitFor(`${first}.querySelector('[data-subtask-head] strong').textContent.includes('narrow-screen')`);
+  assert.equal(await evaluate(`${first}.querySelector('textarea').value`), "");
+  assert.match(await evaluate<string>(`${first}.querySelector('.mw-composer__to').textContent`), /narrow-screen/i);
+  await evaluate(`const nestedField=${first}.querySelector('textarea'); nestedField.value='nested only'; nestedField.dispatchEvent(new Event('input',{bubbles:true})); ${first}.querySelector('[data-composer-send]').click()`);
+  await waitFor(`${first}.querySelector('[data-subtask-messages]').textContent.includes('nested only')`);
+  await evaluate(`${first}.querySelector('[data-subtask-action="stop"]').click()`);
+  await waitFor(`${first}.querySelector('[data-subtask-action="continue"]')`);
+  await evaluate(`${first}.querySelector('[data-subtask-back]').click()`);
+  await waitFor(`${first}.querySelector('textarea').value === 'parent draft'`);
+  assert.ok(await evaluate(`${first}.querySelector('[data-subtask-action="stop"]') !== null`));
+  assert.doesNotMatch(await evaluate<string>(`${first}.querySelector('[data-subtask-messages]').textContent`), /nested only/);
 });

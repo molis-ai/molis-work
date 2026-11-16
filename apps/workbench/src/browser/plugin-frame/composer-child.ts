@@ -91,8 +91,9 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       mounted.get(root)?.();
       delete root.dataset.composerRemote;
       const handle = local(root, options);
-      mounted.set(root, handle.destroy); scope.own(handle.destroy);
-      return handle;
+      const destroy = scope.own(handle.destroy);
+      mounted.set(root, destroy);
+      return { ...handle, destroy };
     }
     if (options.kind !== "ai" || options.draft && "conversation" in options.draft) return local(root, options);
     // One AI receiver per frame: the bar follows the latest mount (`live`); an earlier one on another root stays mounted but no longer

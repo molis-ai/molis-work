@@ -1,6 +1,6 @@
 # 子代理查看、直接对话与父子任务动线
 
-状态：第 58 批公共交互组件实施中（2026-11-16），负责人 Codex（本机）58 主会话；用户已确认第四版右侧浮窗方案，先落组件板标本并合审，再写消费它的产品代码。第 31 批已交 SAI-03（子 Run 转话记成人）与 SDK 侧 SAI-05/08，第 33 批另已接通 Coding 子任务重试与尝试预算；这不等于完整直接对话。助理业务会话子代理接线仍归 43-1，双入口接入与完整产品验收归第 59 批；本需求整体仍以内部完整为目标。已有统一协作、输入回执及交互线负责人保持原归属。
+状态：第 58 批公共交互组件实施中（2026-11-16），负责人 Codex（本机）58 主会话；用户已确认第四版右侧浮窗方案，组件板前置合审已通过，公共实现正在做最终合审与整批验证。第 31 批已交 SAI-03（子 Run 转话记成人）与 SDK 侧 SAI-05/08，第 33 批另已接通 Coding 子任务重试与尝试预算；这不等于完整直接对话。助理业务会话子代理接线仍归 43-1，双入口接入与完整产品验收归第 59 批；本需求整体仍以内部完整为目标。已有统一协作、输入回执及交互线负责人保持原归属。
 
 ## 1. 目标与现状
 
@@ -239,7 +239,8 @@ Prologue 提供无 UI 的公共合同，不包含 Molis Work 文案、组件、W
 | `createSubtaskConversation(root, options)`（SDK `browser`） | `open(target)` 只读取，不启动；`refresh()` 只重读；`close()` 释放读取/订阅与子输入 handle，但保留同一个挂载 DOM 节点及本实例的阅读位置；`destroy()` 再释放本实例所有监听。外壳掌握右侧浮窗的位置和任务卡内容，`onBack(parent)`/`onClose()` 负责回到原位置；组件内部可打开同一公开树里的子级。主输入从不传入此函数。 |
 | `source.read(target, signal)` / `source.subscribe(target, invalidate, signal)` | 每个可见子任务一个读取/订阅；`subscribe` 返回 `Promise<() => void>`，就绪后才首读，重连就绪须再 invalidate。首读/读取中的通知合并为一次补读。`read` 返回 `{ state: "available", view } | { state: "denied", reason }`；denied 立即清除本目标缓存和 DOM、停用输入。临时读取失败仅保留此前同目标内容并可重读。每次 open 的代次与 signal 使 A→B→A 的旧回调也失效。 |
 | `source.composer(view)` | 返回该已读视图的 `ComposerOptions` AI 变体（`draft.adapter` 必填且同 target 对象稳定，停止/继续走独立动作）。每次新 submit 调用前捕获当时已读 view 及其对应 options，既有请求不随 read 更新。接收者固定、无 reset/choose，`placement` 固定 local。组件保留同一个挂载根，刷新不重建输入；跨对象重挂由现行 composer 以原根+adapter 保留未决回执。适配器必须将未确认的中断作为 unknown 返回并按原 request_id 查询；只有确知未受理才 failed。持久 pending 经 read 恢复时 hold，新草稿由 owner 按提交版本结算。 |
-| `source.act(view, action, requestId, signal)` | 用户点击结构化动作才调用，完整 view/binding、action.ref 和新 requestId 在点击时冻结。返回 `{ state: "applied" } | { state: "not-applied", reason } | { state: "unknown", check: () => Promise<SubtaskActionOutcome> }`。仅已证实未受理可重试；unknown 查询沿原操作引用，不凭当前运行状态推断成功。意外 rejection 视为未知并要求重新读取 owner 的 pending，不能重发；owner 必须在执行前登记原操作，撤权/代次变化在服务端拒绝。结果只触发重读，不猜业务状态。 |
+| `source.act(view, action, requestId, signal)` | 用户点击结构化动作才调用，完整 view/binding、action.ref 和新 requestId 在点击时冻结。返回 `{ state: "applied" } | { state: "not-applied", reason } | { state: "unknown", check: () => Promise<SubtaskActionOutcome> }`。仅已证实未受理可重试；unknown 查询沿原操作引用，不凭当前运行状态推断成功。意外 rejection 视为未知并调用 `source.check(target, requestId, signal)` 查询原持久回执，不能重发；owner 必须在执行前登记原操作，撤权/代次变化在服务端拒绝。结果只触发重读，不猜业务状态。 |
+| `source.check(target, requestId, signal)` | 必需的只读原请求查询，按当前读取权限查持久回执；即使 owner 已移除 pending 或执行代次改变，也能返回原输入/控制的 `SubtaskActionOutcome`。unknown 继续核对同一请求，明确 not-applied 才允许重试；不以当前视图状态推断结果。 |
 | 历史、过程与已有卡片 | 消息 id 来自原历史，不用文字或数组位置做身份。HTML 内容变化按已有流式补丁方式更新，未变化节点保留；过程按稳定 id 保存展开状态。浏览器首次与更新都用 SDK 现行 `contentHtml` 过滤正文后交流式补丁，正文内的 `data-subtask-*` 钩子全部被移除；点击还须位于独立动作/导航区域。字符串渲染器 HTML 分支只接 owner 已经清洗的可信 HTML，默认纯文本分支无 Markdown 依赖。问题、审批和成果可通过已登记具名动作打开原卡片；普通对话不隐式批准或整合。历史较长时 owner 可给「读取更早」动作，更新同一视图时保留屏上锚点。 |
 | 测试与边界 | 两个独立 owner 适配器分别提供助理 Work 形状与 SDK 子任务形状，测试只通过上述公共入口，不 import 两个业务插件。制造读/发/切换/关闭/撤权及迟到回执交错，检查实际 callback 目标、调用次数、草稿和 DOM；不会把模拟 reply 当作真实模型处理。第三方干净包消费者应只装 contracts+SDK。 |
 
@@ -250,7 +251,7 @@ Prologue 提供无 UI 的公共合同，不包含 Molis Work 文案、组件、W
 
 1. **明确本地输入。** `ComposerCommonOptions` 增加 `placement?: "local"`；共享子对话固定传 `local`，插件 frame 仍经公开 `molisComposer` 挂在给定节点。省略字段沿现行底栏登记，不增加私有挂载入口。公开快照涉及 `page-globals`，同时更新统一输入 §10.2 的用户已定例外。B58-01/03 在 Host 托管 frame 中同时保留真实底栏输入和本地子输入，检查 DOM、草稿及实际投递目标。
 2. **逻辑键与写入引用分开。** `target` 只作阅读与草稿键，不能自行授权写入。`view.binding` 是 owner 给出的不可解释的精确执行引用／预期代次；`source.composer(view)` 的 submit 在发送时捕获该引用，控件回调同样拿完整已读 view 和其 `action.ref`。界面刷新可更新待发输入的绑定，已经发出的请求不改绑；服务端在生效前拒绝旧引用，不能静默改投现执行。`source.act(view, action, requestId, signal)` 的结果是 `applied`、`not-applied`（理由）或 `unknown`（按原操作查询的闭包）；仅 `not-applied` 可由用户重试，查询不能用「当前正在运行」推断原操作成功。
-3. **消息与控制的未知结果。** 同一组件实例始终复用同一个子输入挂载节点，各目标复用自己的草稿 adapter。已发出的 submit 若因关闭/切换取消等待，适配器按原请求向 owner 核对；不能将网络中断作为确认未受理。跨页面恢复由 `read` 返回 owner 持久记录的 `pending`（原输入/操作引用、已翻译提示及查询动作）。组件用现行 `ComposerHandle.hold` 禁止新发送，并在浮窗提示区显示待核对与原查询按钮，不新增 Composer 回执注入状态机。同页重开时，组件记住原 submit 的 requestId，匹配到该请求的 pending 不另加一个查询入口或锁：沿同根+adapter 保留的 Composer 原 check 结算。页面刷新后没有本地未决输入，由浮窗 pending 查询结算。查到已受理或确认未受理都移除 owner 该 pending，并在当前仍允许输入时解除这笔请求的 hold；已受理只结算原提交草稿版本，新草稿不被清空，确认未受理才可重试。仍未知继续保持。查询按原 requestId 与当前读取权限执行，不要求原执行代次仍是当前代次。组件销毁不删除 owner 的未决记录。
+3. **消息与控制的未知结果。** 同一组件实例始终复用同一个子输入挂载节点，各目标复用自己的草稿 adapter。已发出的 submit 若因关闭/切换取消等待，适配器按原请求向 owner 核对；不能将网络中断作为确认未受理。跨页面恢复由 `read` 返回 owner 持久记录的 `pending`（原输入/操作引用、已翻译提示及查询动作）。组件用现行 `ComposerHandle.hold` 禁止新发送，并在浮窗提示区显示待核对与原查询按钮，不新增 Composer 回执注入状态机。同页重开时，组件记住原 submit 的 requestId，匹配到该请求的 pending 不另加一个查询入口或锁：沿同根+adapter 保留的 Composer 原 check 结算。页面刷新后没有本地未决输入，由浮窗 pending 查询结算；确认终态后重挂输入，重新载入 owner 已按原提交版本结算的草稿，正常刷新不重挂。查到已受理或确认未受理都移除 owner 该 pending，并在当前仍允许输入时解除这笔请求的 hold；已受理只结算原提交草稿版本，新草稿不被清空，确认未受理才可重试。仍未知继续保持。查询按原 requestId 与当前读取权限执行，不要求原执行代次仍是当前代次。组件销毁不删除 owner 的未决记录。
 4. **首读、重连和撤权。** `source.subscribe(target, invalidate, signal)` 返回 Promise，resolve 表示监听已就绪（只读来源省略 subscribe）；先就绪后首读。监听建立或读取期间收到的 invalidation 合并成一次补读；每次重连就绪也调用 invalidate。每次 open 都新建本地代次，A→B→A 也不接受第一次 A 的旧回调。读取返回 `available`（view）或 `denied`（公开理由）；网络/临时失败保留本目标已读内容，`denied` 立即撤下消息、过程及操作、停用输入，不能沿暂时失败分支保留内容。
 5. **正文的安全两包路径。** 消息和过程正文采用 `{ text: string } | { html: string }`：纯文本首绘和更新均转义；HTML 仅接受受信 owner 经现行富文本清洗后的结果，浏览器每次再经现行内容过滤，不允许正文生成 `data-subtask-*` 动作钩子。操作来自独立结构化 `actions`。两包消费者默认用纯文本即可，富文本可由宿主清洗，不要求作者安装可选 Markdown peer。对应拒绝测试验证注入的动作钩子不触发控制。
 
@@ -263,6 +264,8 @@ Prologue 提供无 UI 的公共合同，不包含 Molis Work 文案、组件、W
 2026-11-16 D 轨在 `3832788c5e` 确认全部标本 P1 关闭，组件板合审通过，可以进入公共组件实现。证据为实际开发 Host `/__ui/catalog` 的 `tests/subtask-conversation-board.e2e.test.ts`（包括与样例同文的真实发送后原位切语言保护）；构建与定向回归通过。这只关闭标本前置，B58 控制器、消费者端口、最终 PR 与本人产品验收仍待后续。
 
 ### 11.7 公共实现与分层证据（2026-11-16）
+
+实际代码首轮合审在 `98feaef410` 退回五项 P1，修正约束如下（两处合同修正已通过同一合同台设计复核，实际代码与回归待新头复核）：刷新恢复的原输入查证终态后，重新载入 owner 已按提交版本结算的草稿，既清除已受理旧稿也保留后来新稿；仅这次恢复结算重挂输入，正常刷新不重挂。`source.check(target, requestId, signal)` 为必需的原请求只读查询端口，按当前访问权查持久回执，即使 pending 已移除或执行代次已变也返回原操作结果；异常查询可继续查询同一请求，不从 pending 是否存在推断结果。组件用自有可写对象代理最新参数，允许 owner 返回冻结对象；本地 frame 输入的 destroy 释放自己的 scope 登记；组件板的父子目标分别保存草稿、消息和执行状态。此五项均补独立回归后再提交同一合同台复核。
 
 公共部件已移到 SDK 的 `ui/subtask-conversation.ts`，浏览器端口与生命周期在 `browser/subtask-*.ts`；样式在 design-system 的 `styles/subtask-conversation.ts`。Workbench 删除私有部件和样式副本，组件板的演示 owner 也通过公开控制器读取、输入与控制。框架中的 `placement: "local"` 沿同一统一输入挂载生命周期，主输入从不交给子组件。
 
@@ -279,3 +282,5 @@ Prologue 提供无 UI 的公共合同，不包含 Molis Work 文案、组件、W
 定向证据：`tests/subtask-conversation.e2e.test.ts` 9/9、`tests/subtask-conversation-board.e2e.test.ts` 1/1、`tests/composer-local-placement.e2e.test.ts` 1/1、`tests/plugin-sample.e2e.test.ts` 1/1。前两项在最后纯文本换行修复后重跑；后两项验证真实 frame 与两包安装路径。测试调用真实公共实现和统一输入；owner 数据是独立夹具，不冒充模型、真实助理或 Coding 服务。
 
 页面资源实测相对基点 `4a08c41ca7615081c8554beba0e7a402d64507e5`：arrival.css 627427 → 631305（+3878），workbench.css 1164718 → 1168596（+3878），plugin-frame.js 309656 → 309804（+148），无新增资源。共享样式来自已选定部件；本批独立许可为 `tooling/gates/page-asset-allowances/batch-58-subtask-conversation.json`，提交实际代码合审核对。最终同步后仍按真实基点比较，不把诊断测量当作门禁通过。
+
+实际代码五项 P1 的修复定向通过：公共控制器 10/10，组件板 1/1，真实 Host frame 1/1。新增验证分别断言已受理旧稿清空且不能再次发送、同页原输入 DOM 不重建、pending 已移除后的原回执查询及再次断网恢复、冻结选项、真实 frame 的 scope 清理计数回到原值、嵌套目标接收者/草稿/消息/控制隔离。最终代码合审与整批回归仍待结算。资源复测：两份公共 CSS 仍各 +3878 字节，框架 JS +156 字节，无新资源。

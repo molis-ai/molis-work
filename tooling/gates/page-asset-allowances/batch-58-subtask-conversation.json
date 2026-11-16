@@ -1,9 +1,9 @@
 {
-  "reason": "第 58 批将已定样的子任务对话样式提供给 Home 与项目页面，复用现有统一输入和框架；没有新增资源。两份公共样式各净增 3878 字节，本地输入挂载分支使既有框架脚本净增 148 字节。",
+  "reason": "第 58 批将已定样的子任务对话样式提供给 Home 与项目页面，复用现有统一输入和框架；没有新增资源。两份公共样式各净增 3878 字节，本地输入挂载分支使既有框架脚本净增 156 字节。",
   "review": "specs/subagent-interaction/spec.md §11.7 页面资源实测；随第 58 批实际代码提交公共合同台及 D 轨最终合审",
   "assets": {
     "/assets/molis-work-arrival.css": 3878,
-    "/assets/molis-work-plugin-frame.js": 148,
+    "/assets/molis-work-plugin-frame.js": 156,
     "/assets/molis-work-workbench.css": 3878
   }
 }

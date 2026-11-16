@@ -1,6 +1,6 @@
 # 审查覆盖记录
 
-状态：代表入口静态检查完成，动态验证进展见报告；初始基线 `efdaa3376`；增量同步至 `bd537b7d9`（2026-11-16）。本表只记录已做的检查，不将登记核对或构建通过当成业务路径验收。全部 73 个包的路径、成熟度、公开出口已从登记表和 package.json 核对；各包均按下表选择代表入口检查实际调用链；“静态检查”不等于全文件逐行审计或真实外部服务验收。动态证据仅限报告列明的测试。
+状态：代表入口静态检查完成，动态验证进展见报告；初始基线 `efdaa3376`；增量同步至 `0dceaca09`（2026-11-16）。本表只记录已做的检查，不将登记核对或构建通过当成业务路径验收。全部 73 个包的路径、成熟度、公开出口已从登记表和 package.json 核对；各包均按下表选择代表入口检查实际调用链；“静态检查”不等于全文件逐行审计或真实外部服务验收。动态证据仅限报告列明的测试。
 
 | 包 | 登记成熟度 | 公开入口 | 路径审查进度 |
 | --- | --- | --- | --- |
@@ -31,7 +31,7 @@
 | `modules/shelf` | slice | `.`、`./contract` | jobs、job-steps、copy-checks：只读原件副本、任务生命期、写前权限和结果提交；取消后不补业务失败记录。 |
 | `modules/characters` | slice | `.` | service 与工作台 client：草稿 CAS、冻结发布、启停/删除、保留未提交内容；确认是否可减少列策略。 |
 | `modules/judgment-rules` | production | `.` | authoring-actions、declared-rules：预览/发布前样本、绑定场景、await 后 beforeEffect；规则版本仍归 owner。 |
-| `horizontal/account` | slice | `.` | session-refresh 与 session-state：Host 单次轮换、多请求各自取消；不取消仍被合法等待者使用的刷新。 |
+| `horizontal/account` | slice | `.` | session-refresh 与 session-state：Host 单次轮换、多请求各自取消；不取消仍被合法等待者使用的刷新。#2094增量核对authentication:37-65、authentication-protocol:70-77与Host三条登录HTTP入口的句柄、世代和取消检查；中央事实仍归Auth。 |
 | `horizontal/agent-host` | production | `.` | prologue-run-store、approvals、reviews、恢复：账本终态与控制意图区分；显示时间另有阻塞耦合 QF-06。未新增真实模型调用。 |
 | `horizontal/connector-host` | production | `.` | `src/index.ts:38,67`：受控驱动调用、超时、当前连接复核和闭合失败；Provider 数据仍在集成边界解析。 |
 | `horizontal/runtime-host` | slice | `.` | adapters/terminal-pty：独立 PTY、环境键过滤、辅助程序与回放上限；未启动用户真实终端任务。 |

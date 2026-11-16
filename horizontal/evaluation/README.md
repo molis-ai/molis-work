@@ -23,6 +23,11 @@
 
 设计与取舍见 [specs/observation-collection/evaluation-path-design.md](../../specs/observation-collection/evaluation-path-design.md)。
 
+## 当前限制
+
+- 证据快照目前逐条调用 `observation.evidence.get@1`；一个有 N 条证据记录的大样本会产生 N 次动作调用（记录查询本身已分页，且默认读完整个样本，不再停在 500 条）。批量解封需要 observation 提供新的公开读取动作，记 [BL-evaluation-read-cost](../../specs/backlog/BL-evaluation-read-cost.md)。
+- 隔离回放阻断的是外部连接器、发送/发布和外部 MCP 写；场景内的本地业务写按设计要在隔离临时项目里做，不能把“外部无副作用”理解成“任何写都不发生”。
+
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24.15+ 与仓库配置的 pnpm。

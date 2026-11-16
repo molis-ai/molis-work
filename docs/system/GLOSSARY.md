@@ -277,8 +277,13 @@
 
 ### 2.5 其他易混的词
 
-- **观测和采集层**：平台共用的产品能力（包 `horizontal/observation`，用户看到的名字是「工作记录」），记录获准的用户行为、过程、结果与当时条件，提供工作记录、证据快照、覆盖登记与缺口；读取动作、用途与跨项目权限、保留与清理、界面归第 29 批，评测留存与回放归第 30 批。评测负责判断效果，主动助理负责理解与建议，二者共用记录。第 28 批已接入写入面（#2059，2026-11-14 合入 `4417d2bcd3`）；见[独立需求](../../specs/observation-collection/spec.md)与[合同稿](../../specs/observation-collection/contract-design.md)。
+- **观测和采集层**：平台共用的产品能力（包 `horizontal/observation`，用户看到的名字是「工作记录」），记录获准的用户行为、过程、结果与当时条件，提供工作记录、证据快照、覆盖登记与缺口、样本留存；读取动作、用途与跨项目权限、保留与清理、界面归第 29 批，样本留存由第 30 批接入（`observation.db` v2、`observation.holds.*@1`）。评测负责判断效果，主动助理负责理解与建议，二者共用记录。第 28 批已接入写入面（#2059，2026-11-14 合入 `4417d2bcd3`）；见[独立需求](../../specs/observation-collection/spec.md)、[合同稿](../../specs/observation-collection/contract-design.md)与[评测设计](../../specs/observation-collection/evaluation-path-design.md)。
 - **工作记录**：采集层写成的一条条记录（谁、在哪、什么时候、哪个阶段、结果、当时条件、证据引用和覆盖状态）。它不是业务事实，业务状态仍向主人读；写入面见 `horizontal/observation`。
+- **端到端评测**：包 `horizontal/evaluation`、系统动作 `system.evaluation`；从初始意图与条件到真实交付，按冻结样本的独立预期判定、比较和复查。它只持有评测样本、冻结预期、运行结论与人工复查（`<Home>/evaluation/evaluation.db` v1），原始记录、证据与样本留存仍归观测采集层。
+- **评测样本留存**：`observation.holds.{put,release,list}@1` 在采集层为评测样本关联的记录与加密快照挂的豁免；有效期默认 120 天，过期失去豁免，删项目或清插件数据优先。
+- **隔离回放**：在 `withObservationSource("replay", ...)` 中重跑样本，目标动作的记录标 `source_class: "replay"`；外部发送/连接器写动作被受控 client 阻断并记回执，真实工作查询默认排除回放。它不重写历史事实，内部本地写仍须由场景使用隔离临时项目。
+- **未知与失败**：评测结论的闭集是 `passed`/`failed`/`unknown`；覆盖缺口、证据缺失、窗口未完、未曝光、待人工复查归 `unknown`，只有观察到硬违例才判 `failed`。
+- **六阶段**：`understanding`、`materials`、`skill`、`interaction`、`execution`、`delivery`，用于定位失败和跨版本差异；没有预期的阶段是未评测，不是通过。
 - **证据快照**：主人不保留历史的内容（页面正文、提示词与 Skill 正文、模型实际收到的请求、当时呈现的候选），由采集层按内容摘要加密存一份只读副本，随记录的保留期和清除一起删；主人已有固定版本的只放引用（[D1](../../specs/observation-collection/spec.md#9-决策记录)）。
 - **覆盖登记与缺口**：`coverage` 与 `coverage_gaps` 两张登记，按主人、事实、入口、项目记完整／未接入／暂不可用／丢失／截断／已脱敏／到期清除／已清除（`purged`）／不适用／按规则不记；缺记录不能当成没有行为。
 - **来源类别**：`real`、`first_read`、`catch_up`、`imported`、`trial`、`replay`、`demo`、`system_check` 八类；前四类区分真实发生、首次读取已有、断线补读与用户导入，后四类是模拟，主动助理、评测与导出默认不进真实成果与效果口径；本人回看保留并标注来源。

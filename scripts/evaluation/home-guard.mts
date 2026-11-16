@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { isAbsolute, join, relative } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { DEFAULT_HOME_DIRNAME, resetSecretStoreCache, resolveHomeDirectory } from "@molis-ai/molis-work-storage";
 
 export class EvaluationCliUsageError extends Error {
@@ -43,6 +43,18 @@ export function assertIsolatedScratchHome(candidate: string): string {
 export interface WithIsolatedHomeOptions {
   readonly requestedHome?: string;
   readonly keepHome?: boolean;
+}
+
+/** Refuse a report file inside the real product Home: `--json` must not write into data the command promised not to touch. */
+export function assertOutputPathOutsideRealHome(candidate: string): string {
+  const resolved = resolveHomeDirectory(candidate);
+  const realHome = resolveRealProductHome();
+  if (isSameOrInside(realHome, resolved)) {
+    throw new EvaluationCliUsageError(
+      `REFUSED: 报告输出 ${candidate} 位于真实产品 Home（${realHome}）内；请把 --json 写到隔离目录。`,
+    );
+  }
+  return resolve(candidate);
 }
 
 export function assertEnvEvaluationHomeSafe(requestedHome?: string): void {

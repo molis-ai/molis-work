@@ -614,6 +614,9 @@ test("EC-16 OCL-12 OCL-14 PWA-54 PWA-55: sample holds survive cleanup while unhe
   const skillStageDiff = comparison.stage_diffs.find((s) => s.stage === "skill");
   assert.equal(skillStageDiff?.baseline_verdict, "failed");
   assert.equal(skillStageDiff?.candidate_verdict, "passed");
+  const understandingStageDiff = comparison.stage_diffs.find((s) => s.stage === "understanding");
+  assert.equal(understandingStageDiff?.baseline_verdict, "unknown", "a stage with no expectation is not evaluated");
+  assert.equal(understandingStageDiff?.candidate_verdict, "unknown", "a stage with no expectation is not evaluated");
 
   // Cross-purpose comparison (tuning vs validation) is explicitly marked incomparable (PWA-54):
   const crossPurpose = await fx.service.invoke(person(), evaluationActions.runsCompare, {
@@ -627,6 +630,7 @@ test("EC-16 OCL-12 OCL-14 PWA-54 PWA-55: sample holds survive cleanup while unhe
     purpose: "validation",
   });
   assert.equal(validationMetrics.purpose, "validation");
+  assert.equal(validationMetrics.sample_count, 2);
   assert.equal(validationMetrics.denominator, 2);
   assert.equal(validationMetrics.evaluable_count, 1);
   assert.equal(validationMetrics.verdict_counts.passed, 1);
@@ -637,6 +641,7 @@ test("EC-16 OCL-12 OCL-14 PWA-54 PWA-55: sample holds survive cleanup while unhe
     purpose: "tuning",
   });
   assert.equal(tuningMetrics.purpose, "tuning");
+  assert.equal(tuningMetrics.sample_count, 2);
   assert.equal(tuningMetrics.denominator, 3);
   assert.equal(tuningMetrics.verdict_counts.passed, 1);
   assert.equal(tuningMetrics.verdict_counts.failed, 1);
@@ -944,4 +949,164 @@ test("PWA-55 PWA-56 OCL-08 OCL-14: incomplete observation window, partial missin
   assert.equal(pinnedRun.expectation_results[1]?.effective_verdict, "unknown");
   assert.deepEqual(pinnedRun.expectation_results[1]?.unknown_reasons, ["evidence_missing"]);
   assert.equal(pinnedRun.effective_verdict, "unknown");
+});
+
+test("OCL-08 PWA-55: a coverage gap in scope makes the run unknown even when every expectation passes", async (t) => {
+  const fx = createEvaluationFixture(t);
+  await fx.service.invoke(pluginCaller("pages", "p1"), observationActions.report, {
+    facts: [
+      { fact: "pages.gap_sample", outcome: "succeeded", occurred_at: "2026-09-01T08:00:00.000Z", work: { work_ref: "work-gap" } },
+      { fact: "pages.gap_sample", outcome: "succeeded", occurred_at: "2026-11-15T09:00:00.000Z", work: { work_ref: "work-gap" } },
+    ],
+  });
+  fx.layer.flush();
+
+  const cleaned = await fx.service.invoke(person(), observationActions.cleanupApply, {
+    time_range: "before_30d",
+    project_id: "p1",
+  });
+  assert.equal(cleaned.deleted_records, 1);
+
+  await fx.service.invoke(person(), evaluationActions.samplesPut, {
+    sample_id: "coverage-gap-with-passing-rule",
+    version: 1,
+    title: "覆盖缺口不能被通过的规则掩盖",
+    purpose: "validation",
+    work_mode: "manual_plugin",
+    project_id: "p1",
+    initial_intent: "范围内存在到期清理缺口时整次运行必须判 unknown",
+    query: { project_id: "p1", work_ref: "work-gap" },
+    expectations: [
+      {
+        expectation_id: "exp-source-only",
+        stage: "execution",
+        description: "剩余记录都来自真实工作",
+        source: "deterministic",
+        rule: { check: "source_isolation", source_classes: ["real"] },
+      },
+    ],
+  });
+
+  const run = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "coverage-gap-with-passing-rule" });
+  assert.equal(run.expectation_results[0]?.automated_verdict, "passed");
+  assert.equal(run.effective_verdict, "unknown");
+  assert.equal(run.unknown_reasons.includes("coverage_gap_expired"), true);
+  assert.equal(run.coverage_limitations.length > 0, true);
+});
+
+test("OCL-08 PWA-55: empty matches do not pass absence or self-certifying checks", async (t) => {
+  const fx = createEvaluationFixture(t);
+  await fx.service.invoke(person(), evaluationActions.samplesPut, {
+    sample_id: "empty-match-not-success",
+    version: 1,
+    title: "没有匹配记录不能当成通过",
+    purpose: "validation",
+    work_mode: "manual_plugin",
+    project_id: "p1",
+    initial_intent: "空匹配的缺证据与禁自证检查必须判 unknown",
+    query: { project_id: "p1", fact: "pages.none_such_fact" },
+    expectations: [
+      {
+        expectation_id: "exp-absence",
+        stage: "delivery",
+        description: "没有匹配证据可核对",
+        source: "deterministic",
+        rule: { check: "evidence_absent", forbids_any: ["绝不能留存的片段"] },
+      },
+      {
+        expectation_id: "exp-self-cert",
+        stage: "execution",
+        description: "没有记录可核对自证成功",
+        source: "deterministic",
+        rule: { check: "no_self_certifying_success" },
+      },
+    ],
+  });
+
+  const run = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "empty-match-not-success" });
+  assert.equal(run.observed_conditions.record_count, 0);
+  assert.equal(run.effective_verdict, "unknown");
+  assert.equal(run.unknown_reasons.includes("no_matching_records"), true);
+  assert.equal(run.expectation_results.every((item) => item.automated_verdict === "unknown"), true);
+  assert.equal(run.expectation_results.every((item) => item.unknown_reasons.includes("no_matching_records")), true);
+});
+
+test("PWA-51 OCL-14: evaluation reads a work larger than the 500-record page instead of truncating it", async (t) => {
+  const fx = createEvaluationFixture(t);
+  for (let batch = 0; batch < 6; batch += 1) {
+    const facts = Array.from({ length: 100 }, (_, index) => ({
+      fact: "pages.bulk_record",
+      outcome: "succeeded" as const,
+      occurred_at: new Date(Date.parse("2026-11-15T08:00:00.000Z") + (batch * 100 + index) * 1000).toISOString(),
+      work: { work_ref: "work-bulk" },
+      detail: { ordinal: batch * 100 + index },
+    }));
+    await fx.service.invoke(pluginCaller("pages", "p1"), observationActions.report, { facts });
+  }
+  fx.layer.flush();
+
+  await fx.service.invoke(person(), evaluationActions.samplesPut, {
+    sample_id: "large-work-over-page",
+    version: 1,
+    title: "超过单页上限的完整工作",
+    purpose: "validation",
+    work_mode: "manual_plugin",
+    project_id: "p1",
+    initial_intent: "600 条记录必须全部读到，不能只读第一页",
+    query: { project_id: "p1", work_ref: "work-bulk" },
+    expectations: [
+      {
+        expectation_id: "exp-all-records",
+        stage: "execution",
+        description: "完整读取 600 条记录",
+        source: "deterministic",
+        rule: { check: "record_count", fact: "pages.bulk_record", min_count: 600 },
+      },
+    ],
+  });
+
+  const run = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "large-work-over-page" });
+  assert.equal(run.observed_conditions.record_count, 600);
+  assert.equal(run.effective_verdict, "passed");
+});
+
+test("PWA-53 OCL-13: a simulated run excludes real records by default", async (t) => {
+  const fx = createEvaluationFixture(t);
+  await fx.service.invoke(pluginCaller("pages", "p1"), observationActions.report, {
+    facts: [{ fact: "pages.real_work", outcome: "succeeded", work: { work_ref: "work-sim" } }],
+  });
+  await withObservationSource("trial", async () => {
+    await fx.service.invoke(pluginCaller("pages", "p1"), observationActions.report, {
+      facts: [{ fact: "pages.trial_work", outcome: "succeeded", work: { work_ref: "work-sim" } }],
+    });
+  });
+  fx.layer.flush();
+
+  await fx.service.invoke(person(), evaluationActions.samplesPut, {
+    sample_id: "simulated-source-isolation",
+    version: 1,
+    title: "模拟运行不混入真实记录",
+    purpose: "validation",
+    work_mode: "manual_plugin",
+    project_id: "p1",
+    initial_intent: "默认只读 demo/trial/replay/system_check 来源",
+    query: { project_id: "p1", work_ref: "work-sim" },
+    expectations: [
+      {
+        expectation_id: "exp-only-demo",
+        stage: "execution",
+        description: "记录全部来自模拟来源",
+        source: "deterministic",
+        rule: { check: "source_isolation", source_classes: ["trial"] },
+      },
+    ],
+  });
+
+  const run = await fx.service.invoke(person(), evaluationActions.runsExecute, {
+    sample_id: "simulated-source-isolation",
+    execution_kind: "simulated",
+  });
+  assert.deepEqual(run.observed_conditions.source_classes, ["trial"]);
+  assert.equal(run.observed_conditions.record_count, 1);
+  assert.equal(run.effective_verdict, "passed");
 });

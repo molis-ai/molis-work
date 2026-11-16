@@ -7,10 +7,12 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { seedBoard } from "./fixtures/goal-application.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
-async function openImport(t: Parameters<typeof openGoalBrowser>[0]) {
+async function openImport(t: Parameters<typeof openGoalBrowser>[0], language: "zh" | "en" = "zh") {
   const b = await openGoalBrowser(t, "user", seedBoard, null);
   if (!b) return null;
-  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/` }, b.sessionId));
+  const target = `/projects/${b.projectId}/`;
+  const entry = language === "en" ? `/locale?lang=en&next=${encodeURIComponent(target)}` : target;
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + entry }, b.sessionId));
   await b.waitFor("Boolean(document.querySelector('[data-knowledge-import-dialog]'))", 15_000);
   await b.evaluate("document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'files' } }))");
   await b.waitFor("Boolean(document.querySelector('[data-knowledge-import-open]')?.getClientRects().length)", 10_000);
@@ -27,7 +29,7 @@ async function openImport(t: Parameters<typeof openGoalBrowser>[0]) {
 }
 
 test("QEA-05 importing a batch keeps the remaining selection and stores each file exactly once", { timeout: 360_000 }, async t => {
-  const b = await openImport(t); if (!b) return;
+  const b = await openImport(t, "en"); if (!b) return;
   const folder = join(b.homeDirectory, "chosen"); await mkdir(folder);
   const files = Array.from({ length: 201 }, (_, index) => join(folder, `document-${index}.txt`));
   await Promise.all(files.map((file, index) => writeFile(file, `Document ${index}: independently identifiable content.`)));
@@ -35,6 +37,19 @@ test("QEA-05 importing a batch keeps the remaining selection and stores each fil
   await b.waitFor("document.querySelectorAll('[data-knowledge-import-picked] li').length === 200");
   await b.click("[data-knowledge-import-submit]"); await b.idle();
   assert.equal(b.records().length, 200);
+  await b.setViewport(390, 844);
+  await b.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, b.sessionId);
+  await b.waitFor("document.documentElement.dataset.resolvedTheme === 'light'");
+  assert.match(await b.evaluate<string>("document.querySelector('[data-knowledge-import-status]').textContent"), /1 file remains\. Select Import to continue\./);
+  assert.equal(await b.evaluate(`(() => {
+    const dialog = document.querySelector('[data-knowledge-import-dialog]'), box = dialog.getBoundingClientRect();
+    return box.left >= 0 && box.right <= innerWidth && dialog.scrollWidth <= dialog.clientWidth;
+  })()`), true, "the remaining-file result fits the narrow English dialog");
+  const evidence = `${REVIEW_EVIDENCE}/quality-experience-audit`;
+  await mkdir(evidence, { recursive: true });
+  const shot = await b.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, b.sessionId);
+  await writeFile(`${evidence}/import-remaining-en-390-light.png`, Buffer.from(shot.data, "base64"));
+  await b.setViewport(1440, 900);
   assert.equal(await b.evaluate("document.querySelector('[data-knowledge-import-submit]').disabled"), false, "the 201st file is still selected");
   await b.click("[data-knowledge-import-submit]"); await b.idle();
   assert.deepEqual(await b.rows(), [{ name: "document-200.txt", failed: false, done: true }]);

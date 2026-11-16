@@ -1,6 +1,6 @@
 # 审查覆盖记录
 
-状态：代表入口静态检查完成，动态验证进展见报告；基线 `efdaa3376`。本表只记录已做的检查，不将登记核对或构建通过当成业务路径验收。全部 73 个包的路径、成熟度、公开出口已从登记表和 package.json 核对；各包均按下表选择代表入口检查实际调用链；“静态检查”不等于全文件逐行审计或真实外部服务验收。动态证据仅限报告列明的测试。
+状态：代表入口静态检查完成，动态验证进展见报告；初始基线 `efdaa3376`；增量同步至 `bd537b7d9`（2026-11-16）。本表只记录已做的检查，不将登记核对或构建通过当成业务路径验收。全部 73 个包的路径、成熟度、公开出口已从登记表和 package.json 核对；各包均按下表选择代表入口检查实际调用链；“静态检查”不等于全文件逐行审计或真实外部服务验收。动态证据仅限报告列明的测试。
 
 | 包 | 登记成熟度 | 公开入口 | 路径审查进度 |
 | --- | --- | --- | --- |
@@ -37,7 +37,7 @@
 | `horizontal/runtime-host` | slice | `.` | adapters/terminal-pty：独立 PTY、环境键过滤、辅助程序与回放上限；未启动用户真实终端任务。 |
 | `horizontal/scheduler` | production | `.` | `src/index.ts:252,274,392`：持久租约、唤醒、续租、取消和最终 lease 检查；与插件业务排期分离。 |
 | `horizontal/observation` | slice | `.` | service、records：调用出口采集、事实归属、覆盖缺口与 call/invocation 关联；采集失败不回滚业务。 |
-| `horizontal/evaluation` | slice | `.` | run-executor、observation-bridge：获准样本→观测证据/隔离回放→unknown 分类；未把 mock 评测当真实体验。 |
+| `horizontal/evaluation` | slice | `.` | run-executor、observation-bridge：获准样本→观测证据/隔离回放→unknown分类；补核#2100的完整分页、留存事实复核、取消补偿和样本统计；相关3文件20项通过。逐条证据读取归PF-13；未把mock评测当真实体验。 |
 | `horizontal/memory` | production | `.` | service.write、run-recipe、Host memory-sources：显式原话/来源、插件命名空间、作用域与写入；Coding 特判见 PF-03。 |
 | `horizontal/knowledge` | production | `.` | organize、catalog：索引→惰性正文→模型卡片；正文版本复核、截断标识与未知来源保留策略。 |
 | `horizontal/search` | production | `.` | query/open 及索引同步：目录发现→等待→原调用身份复核→读；第二次 discover 是安全边界。 |

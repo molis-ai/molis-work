@@ -539,4 +539,18 @@ test("S-evaluation-isolation 6: late cancellation after the nested hold write le
   fx.setCancelBeforeEffect(null);
   assert.deepEqual((await fx.service.invoke(person(), evaluationActions.runsList, { sample_id: "late-cancel-run" })).runs, []);
   assert.deepEqual((await fx.service.invoke(person(), observationActions.holdsList, {})).holds, []);
+
+  // Re-putting an already held sample and failing must not delete the earlier retention.
+  const existingHeld = sampleFixture({ sample_id: "existing-held", hold_records: true });
+  await fx.service.invoke(person(), evaluationActions.samplesPut, existingHeld);
+  const before = await fx.service.invoke(person(), observationActions.holdsList, { sample_id: "existing-held@1" });
+  assert.equal(before.holds.length, 1);
+  fx.setCancelBeforeEffect("evaluation.samples.put", 3);
+  await assert.rejects(
+    fx.service.invoke(person(), evaluationActions.samplesPut, existingHeld),
+    refused("actions.cancelled"),
+  );
+  fx.setCancelBeforeEffect(null);
+  const after = await fx.service.invoke(person(), observationActions.holdsList, { sample_id: "existing-held@1" });
+  assert.equal(after.holds.length, 1, "an idempotent failed put keeps the existing hold");
 });

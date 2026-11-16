@@ -46,6 +46,8 @@ export interface RunExecutionContext {
   readonly scenarios: ReadonlyMap<string, EvaluationReplayScenario>;
   readonly runInReplayScope?: <T>(fn: () => Promise<T>) => Promise<T>;
   readonly nowIso: () => string;
+  /** Lets the action owner compensate exactly when this run committed the nested hold and then failed. */
+  readonly onHoldCommitted?: () => void;
 }
 
 async function collectEvaluationRecords(
@@ -202,6 +204,7 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
       sample,
       records.map((r) => r.record_id),
     );
+    ctx.onHoldCommitted?.();
     caller.signal?.throwIfAborted();
     await caller.beforeEffect();
   }

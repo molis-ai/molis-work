@@ -138,6 +138,8 @@ export class EvaluationService {
     const origin = originOf(caller, evaluationActions.samplesPut);
     const client = this.options.clientFor(caller);
     const holdId = input.hold_records ? `eval:${input.sample_id}:v${input.version}` : null;
+    const existingSample = this.store.getSample(input.sample_id, input.version);
+    let holdWritten = false;
     try {
       const holdRecordIds = input.hold_records
         ? await resolveSampleHoldRecordIds(client, retainActionAuthority(caller, origin), input)
@@ -149,12 +151,17 @@ export class EvaluationService {
       if (input.hold_records && holdRecordIds && holdRecordIds.length > 0) {
         const writeNested = retainActionAuthority(caller, origin, caller.beforeEffect);
         hold = await commitEvaluationSampleHold(client, writeNested, input, holdRecordIds);
+        holdWritten = true;
         caller.signal?.throwIfAborted();
         await caller.beforeEffect();
       }
       return this.store.putSample(input, hold, this.nowIso());
     } catch (error) {
-      if (holdId) await this.releaseHoldBestEffort(client, caller, origin, holdId);
+      // Only a hold this call actually wrote (and only if the sample had none before) is ours to remove. A failed
+      // idempotent put over an existing held sample must not delete that earlier retention.
+      if (holdWritten && holdId && (!existingSample || existingSample.hold_id === null)) {
+        await this.releaseHoldBestEffort(client, caller, origin, holdId);
+      }
       throw error;
     }
   }
@@ -194,6 +201,7 @@ export class EvaluationService {
     }
     const origin = originOf(caller, evaluationActions.runsExecute);
     const holdId = input.hold_records ? `eval:${sample.sample_id}:v${sample.version}` : null;
+    let holdCommitted = false;
     try {
       const { runView, outcomeCounts } = await executeSampleEvaluationRun({
         caller,
@@ -204,12 +212,15 @@ export class EvaluationService {
         scenarios: this.scenarios,
         ...(this.options.runInReplayScope ? { runInReplayScope: this.options.runInReplayScope } : {}),
         nowIso: () => this.nowIso(),
+        onHoldCommitted: () => { holdCommitted = true; },
       });
       caller.signal?.throwIfAborted();
       this.store.insertRun(runView, outcomeCounts);
       return runView;
     } catch (error) {
-      if (holdId) await this.releaseHoldBestEffort(this.options.clientFor(caller), caller, origin, holdId);
+      if (holdCommitted && holdId && sample.hold_id === null) {
+        await this.releaseHoldBestEffort(this.options.clientFor(caller), caller, origin, holdId);
+      }
       throw error;
     }
   }

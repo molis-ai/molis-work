@@ -756,7 +756,7 @@ export const skillDraftActions = {
     result_view: { summary: "已起草技能草稿，打开后可以改、回放和采用；采用前不生效", title_pointer: "/fields/name",
       link: { label: "打开草稿", href_template: "/projects/{project_id}/settings/kit?draft={/draft_id}" } },
     result_subject: { id: "draft_id", revision: "revision" },
-    undo: { capability_id: "skills.drafts.discard", version: 1, input: { draft_id: "draft_id" } } } } as ActionDefinition<SkillDraftCreateRequest, SkillDraft>,
+    undo: { capability_id: "skills.drafts.discard", version: /* @version action.skills.drafts.discard */ 1, input: { draft_id: "draft_id" } } } } as ActionDefinition<SkillDraftCreateRequest, SkillDraft>,
   update: { capability_id: "skills.drafts.update", version: /* @version action.skills.drafts.update */ 1, operation: "command", action: { ...personDraft,
     title: "保存技能草稿", description: "本人边写边存一份草稿的字段（和改一份通用技能时换掉的占位符），按读到的 expected_revision 提交；字段可以暂时空着，采用时才检查。不影响任何一轮。",
     input_schema: inputSchemaFor<SkillDraftUpdateRequest>()(object({ draft_id: draftId, expected_revision: revision, fields: draftFieldsSchema, replacements }, ["draft_id", "expected_revision", "fields"])),

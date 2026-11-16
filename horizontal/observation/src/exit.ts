@@ -1,5 +1,6 @@
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { platformErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
+import { EVALUATION_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/evaluation";
 import { OBSERVATION_PROVIDER_ID, type ObservationFactInput, type ObservationOutcome } from "@molis-ai/molis-work-contracts/services/observation";
 import { pendingRecord, type ObservationEnvironment, type PendingEvidence, type PendingRecord } from "./records.js";
 
@@ -27,10 +28,12 @@ export interface ExitObservation {
 }
 
 /**
- * The calls the exit never records: the ones the observation layer itself answered (one report would make another record). Known by the
- * provider that answered, not by a name, so another provider's action that happens to start with `observation.` is recorded like any.
+ * The calls the exit never records: the ones the observation layer or the evaluation runner itself answered (recording them would pollute
+ * real work records with observation/evaluation meta-calls; OCL-17). Replayed target actions run under their own providers inside
+ * `withObservationSource("replay", ...)` and ARE recorded as `source_class: "replay"`.
  */
-export const exitSkips = (action: Pick<ExitAction, "provider_id">): boolean => action.provider_id === OBSERVATION_PROVIDER_ID;
+export const exitSkips = (action: Pick<ExitAction, "provider_id">): boolean =>
+  action.provider_id === OBSERVATION_PROVIDER_ID || action.provider_id === EVALUATION_PROVIDER_ID;
 
 const json = (value: unknown): string | undefined => {
   try { return value === undefined ? undefined : JSON.stringify(value); }

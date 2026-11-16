@@ -50,6 +50,8 @@ export declare const KNOWLEDGE_RECEIPT_DAYS = 30;
 
 export declare const KNOWLEDGE_RECEIPT_MAX = 5000;
 
+export declare const KNOWLEDGE_REF_HEX_CHARS = 7;
+
 export declare const KNOWLEDGE_REF_PATTERN = "^[kK][0-9a-fA-F]{7}$";
 
 export declare const KNOWLEDGE_ROUND_READ_CHARS = 60000;
@@ -443,6 +445,10 @@ export declare const knowledgeManageActions: {
     organize: ActionDefinition<KnowledgeOrganizeRequest, KnowledgeOrganizeResponse>;
     receipts: ActionDefinition<KnowledgeReceiptsRequest, KnowledgeReceiptsResponse>;
 };
+
+export declare function knowledgeRefFromDigestHex(digestHex: string): string;
+
+export declare function knowledgeSubjectHashInput(subject: ActionSubject): string;
 
 export declare const servicesKnowledgeContract: {
     readonly contractId: "io.molis.work.service.knowledge.v1";

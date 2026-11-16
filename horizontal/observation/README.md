@@ -22,6 +22,7 @@
 | [src/report.ts](src/report.ts) | `observation.report@1`：上报方、前缀、单次与每天限额、暂停短路 |
 | [src/read-actions.ts](src/read-actions.ts) | `observation.records.query@1`、`evidence.get@1`、`coverage.get@1`：查询、增量游标、证据解封、对象可解析性核对 |
 | [src/management-actions.ts](src/management-actions.ts) | `observation.settings.get/set@1`、`space.get@1`、`cleanup.preview/apply@1`：暂停／恢复、用途开关、保留期限与手动清理 |
+| [src/holds.ts](src/holds.ts) | `observation.holds.put/release/list@1`：评测样本留存登记、释放、列表与有效留存记录计算 |
 | [src/access.ts](src/access.ts) | 本人校验、用途开关即时拦截（`use_disabled`）与 S-74 跨项目读取边界 |
 | [src/classification.ts](src/classification.ts) | 五类记录（`user`、`ai`、`content`、`flow`、`present`）与覆盖分组纯函数 |
 | [src/cleanup.ts](src/cleanup.ts) | 手动与到期自动清理：预览、单事务删除、回收无引用快照、记录 `expired` 缺口 |
@@ -52,8 +53,8 @@ node scripts/run-tests.mjs tests/observation-layer.test.ts
 
 ## 开发要求
 
-- 负责：工作记录、证据快照、覆盖登记与缺口、上报动作 `observation.report@1`、历史查询与证据读取动作（`records.query@1`、`evidence.get@1`、`coverage.get@1`）、记录管理与清理动作（`settings.get/set@1`、`space.get@1`、`cleanup.preview/apply@1`）、用途开关、暂停／恢复、自动与手动清理、空间占用与容量提醒、来源范围、删项目与清除插件数据时的清理。
-- 不负责：任何业务事实（各主人自己的）；评测样本留存与对比执行（第 30 批）。
+- 负责：工作记录、证据快照、覆盖登记与缺口、上报动作 `observation.report@1`、历史查询与证据读取动作（`records.query@1`、`evidence.get@1`、`coverage.get@1`）、记录管理与清理动作（`settings.get/set@1`、`space.get@1`、`cleanup.preview/apply@1`）、评测样本留存动作（`holds.put/release/list@1`）、用途开关、暂停／恢复、自动与手动清理（留存豁免）、空间占用与容量提醒、来源范围、删项目与清除插件数据时的清理。
+- 不负责：任何业务事实（各主人自己的）；评测样本期望、判分与对比运行（归 `horizontal/evaluation`）。
 - 公开入口：`@molis-ai/molis-work-service-observation`（`src/index.ts`）；合同 `@molis-ai/molis-work-contracts/services/observation`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用 `defineAction`、`redactSecrets`）、`@molis-ai/molis-work-storage`（建库与本机正文保护）。依赖方向只向下：不 import `apps/`、任何插件包或另一个横向服务的实现；宿主只装配本包。
 - 不变量：
@@ -65,5 +66,5 @@ node scripts/run-tests.mjs tests/observation-layer.test.ts
   - 证据先脱敏再存，摘要带密钥，正文加密；密钥只在 Home 的密钥库。
   - 缺失原因各管一件事：`expired` 与 `purged` 只由本包写。
   - 覆盖计划里说「完整」的每种事实都有代码在写，Host 接上的每个服务 sink 都在计划里（`tests/observation-coverage-plan.test.ts`）。
-- 改动后必跑：`node scripts/run-tests.mjs tests/observation-layer.test.ts tests/observation-management.test.ts tests/observation-coverage-plan.test.ts tests/security-invariants-observation-records.test.ts`；改了外壳上报或工作流程的交接加跑 `tests/observation-shell-stages.test.ts tests/observation-workflow-steps.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/observation-layer.test.ts tests/observation-management.test.ts tests/observation-evaluation-holds.test.ts tests/observation-coverage-plan.test.ts tests/security-invariants-observation-records.test.ts`；改了外壳上报或工作流程的交接加跑 `tests/observation-shell-stages.test.ts tests/observation-workflow-steps.test.ts`
 - 相关手册：[docs/horizontal/observation.md](../../docs/horizontal/observation.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

@@ -1,6 +1,7 @@
 import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import type { AgentDraftTextResult, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { HISTORY_DIGEST_MARKER, HISTORY_DIGEST_TASK_HEAD, originalTask } from "./continuation.js";
+import { activeLeafSteps } from "./recovery-parts.js";
 
 /**
  * Carrying a long session forward once its history no longer fits.
@@ -41,7 +42,6 @@ function commandReceiptEnd(item: AgentRunView["activity"][number]): "ok" | "fail
   if (!["run-command", "start-command"].includes(item.name)) return null;
   if (item.state === "failed") return "failed";
   if (item.state !== "completed") return "unknown";
-  if (item.name === "start-command") return "unknown";
   const line = /^exit (\S+)/.exec(item.output ?? "")?.[1];
   if (line && /^-?\d+$/.test(line)) return Number(line) === 0 ? "ok" : "failed";
   return line === "timed-out" ? "failed" : "unknown";
@@ -65,9 +65,9 @@ function roundVerificationFacts(run: AgentRunView): {
     else if (end === "unknown") unknownCommands.push(clip(item.target || item.name, 140));
   });
   const staleAfterEdit = lastEditIndex >= 0 && lastPassIndex >= 0 && lastEditIndex > lastPassIndex;
-  const unfinishedSteps = (run.step_board?.nodes ?? [])
-    .filter(node => !["succeeded", "cancelled"].includes(node.state))
-    .map(node => `${node.title ? `「${clip(node.title, 60)}」` : node.id}（${node.state}）`);
+  const unfinishedSteps = activeLeafSteps(run.step_board?.nodes ?? [])
+    .filter(node => node.unknown_outcome || !["succeeded", "cancelled"].includes(node.state))
+    .map(node => `${node.title ? `「${clip(node.title, 60)}」` : node.id}（${node.unknown_outcome ? "needs-reconciliation" : node.state}）`);
   return { failedCommands, unknownCommands, staleAfterEdit, unfinishedSteps };
 }
 

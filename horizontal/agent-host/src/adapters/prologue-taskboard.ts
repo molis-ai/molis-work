@@ -191,12 +191,14 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
       if (!attempt?.frozen.execution_plan) return undefined;
       const place = placeOf(attempt);
       if (!place) throw new Error("原计划没有可读取的任务图");
-      return shape(runtime, runtime.boards.get(place.ref), place, run.session_id, alive, attempt.reconciled_steps);
+      const unknown = await unknownStepsOf?.(place, run.session_id);
+      return shape(runtime, runtime.boards.get(place.ref), place, run.session_id, alive, attempt.reconciled_steps, unknown);
     },
     /** A person's change to the running plan (prologue-plan-steps.ts). */
     async amend(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actor: string, ledger: RoundLedger): Promise<AgentStepBoard> {
       const attempt = await original(run), place = placeOf(attempt);
       if (!place) throw new Error("这一轮没有确认计划的任务图");
+      const unknown = await unknownStepsOf?.(place, run.session_id);
       const board = await amendPlan(
         runtime,
         place,
@@ -207,9 +209,11 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
         ledger,
         attempt!.reconciled_steps,
         onReconcileStep ? (stepId, entry) => onReconcileStep(run, stepId, entry) : undefined,
+        unknown,
       );
       const updatedAttempt = await original(run);
-      return shape(runtime, board, place, run.session_id, alive, updatedAttempt?.reconciled_steps ?? attempt!.reconciled_steps);
+      const updatedUnknown = await unknownStepsOf?.(place, run.session_id);
+      return shape(runtime, board, place, run.session_id, alive, updatedAttempt?.reconciled_steps ?? attempt!.reconciled_steps, updatedUnknown);
     },
     close() { runtime.hooks.unregister(hook); unsubscribe(); for (const id of [...following.keys()]) stopFollowing(id); },
   };

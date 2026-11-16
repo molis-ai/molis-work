@@ -1,5 +1,6 @@
 import { controls } from "./controls.js";
 import { renderCommandRows } from "./command-rows.js";
+import { drawEnvironmentReadiness } from "./configuration.js";
 import { following } from "./helpers.js";
 import { drawRun } from "./run-block.js";
 import { renderFacts } from "./run-facts.js";
@@ -7,16 +8,21 @@ import { renderNextSteps, renderOutcomes, renderPill } from "./run-summary.js";
 import type { Page } from "./page.js";
 import type { RunView } from "./shapes.js";
 
-/** An empty session shows the welcome with its suggestions; the first round takes it away. */
+/** An empty session shows the welcome with its suggestions and current workspace readiness; the first round takes it away. */
 function welcome(page: Page, all: readonly RunView[]) {
-  const { input, q, root, turns } = page;
-  turns.toggleAttribute("data-coding-welcoming", !all.length);
-  if (all.length || turns.querySelector("[data-coding-saved-history]")) {
+  const { input, q, root, s, turns } = page;
+  const showWelcome = !all.length && !turns.querySelector("[data-coding-saved-history]");
+  turns.toggleAttribute("data-coding-welcoming", showWelcome);
+  if (!showWelcome) {
     root.querySelector("[data-coding-welcome]")?.remove();
-  } else if (!root.querySelector("[data-coding-welcome]")) {
-    turns.append(q<HTMLTemplateElement>("[data-coding-welcome-template]").content.cloneNode(true));
-    const name = root.dataset.codingWorkspaceName;
-    if (name) turns.querySelectorAll("[data-coding-welcome-workspace]").forEach(node => { node.textContent = name; });
+    turns.querySelector(":scope > [data-coding-env-checklist]")?.remove();
+  } else {
+    if (!root.querySelector("[data-coding-welcome]")) {
+      turns.append(q<HTMLTemplateElement>("[data-coding-welcome-template]").content.cloneNode(true));
+      const name = root.dataset.codingWorkspaceName;
+      if (name) turns.querySelectorAll("[data-coding-welcome-workspace]").forEach(node => { node.textContent = name; });
+    }
+    drawEnvironmentReadiness(page, s.state.environment_readiness);
   }
   turns.querySelectorAll<HTMLButtonElement>("[data-coding-prompt]").forEach(button => { button.disabled = Boolean(input.value.trim()); });
 }

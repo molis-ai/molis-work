@@ -171,11 +171,11 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     owner: async id => (await index.read(id).catch(() => undefined))?.owner });
   const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, {
     forRun: runId => state.dispatchChecks.get(runId),
-    onAdmitted: ({ parentRunId, parentSessionId, childSessionId, node }) => {
-      void index.update(parentSessionId, saved => {
+    onAdmitted: async ({ parentRunId, parentSessionId, childSessionId, node }) => {
+      await index.update(parentSessionId, saved => {
         const attempt = saved.attempts.find(item => item.run_id === parentRunId) ?? saved.attempts.at(-1);
         if (attempt) (attempt.subagent_nodes ??= {})[childSessionId] = node;
-      }).catch(() => undefined);
+      });
     },
   }, checks.checkers, memoryAuthority, state.modelRequests);
   const closeRuntime = onFailureClose(() => runtime.shutdown());

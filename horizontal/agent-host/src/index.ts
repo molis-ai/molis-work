@@ -40,7 +40,7 @@ export { AgentReviewQueue } from "./reviews.js";
 export { isValidFibonacciStoryPoints } from "./execution-plan.js";
 export { applyUnknownCommandOutcomes, computeWeightedStepBoardProgress } from "./adapters/prologue-plan-steps.js";
 export { pinnedMaterialRevisions } from "./adapters/prologue-action-tools.js";
-export { prologueActionGateway, withPinnedKnowledgeRevision } from "./adapters/prologue-action-gateway.js";
+export { assertPinnedMaterialResult, prologueActionGateway, withPinnedKnowledgeRevision } from "./adapters/prologue-action-gateway.js";
 export { effectiveContextWindow, effectiveCompactionAboveTokens } from "./adapters/prologue-frozen.js";
 export { SUBAGENT_DEFAULT_MAX_ATTEMPTS } from "./adapters/prologue-subagents.js";
 export { SUBAGENT_KEY_PATTERN } from "./adapters/prologue-collaboration.js";

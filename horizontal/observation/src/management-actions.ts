@@ -11,6 +11,7 @@ import type {
 import { assertPersonCaller, resolveLiveReadableProjects } from "./access.js";
 import { applyCleanup, previewCleanup, sweepExpiredRecords } from "./cleanup.js";
 import { observationErrors } from "./errors.js";
+import { computeEvaluationHoldsSummary } from "./holds.js";
 import {
   readStoredSettings,
   retentionDaysOf,
@@ -34,18 +35,21 @@ function openForManagement(writer: ObservationWriter): DatabaseSync {
   return opened.db;
 }
 
-export function handleSettingsGet(deps: ManagementActionDeps, caller: ActionCallContext): ObservationSettingsView {
+export async function handleSettingsGet(deps: ManagementActionDeps, caller: ActionCallContext): Promise<ObservationSettingsView> {
   assertPersonCaller(caller);
+  const readable = await resolveLiveReadableProjects(deps.env);
   const db = openForManagement(deps.writer);
-  return settingsViewOf(db, readStoredSettings(db));
+  const nowIso = deps.env.now().toISOString();
+  return settingsViewOf(db, readStoredSettings(db), computeEvaluationHoldsSummary(db, nowIso, readable));
 }
 
-export function handleSettingsSet(
+export async function handleSettingsSet(
   deps: ManagementActionDeps,
   caller: ActionCallContext,
   input: ObservationSettingsUpdateInput,
-): ObservationSettingsView {
+): Promise<ObservationSettingsView> {
   assertPersonCaller(caller);
+  const readable = await resolveLiveReadableProjects(deps.env);
   // Flush queued records BEFORE applying a pause so everything that occurred prior to pausing is preserved.
   const db = openForManagement(deps.writer);
   const now = deps.env.now();
@@ -91,7 +95,7 @@ export function handleSettingsSet(
     sweepExpiredRecords(db, now);
   }
 
-  return settingsViewOf(db, readStoredSettings(db));
+  return settingsViewOf(db, readStoredSettings(db), computeEvaluationHoldsSummary(db, nowIso, readable));
 }
 
 export function handleSpaceGet(deps: ManagementActionDeps, caller: ActionCallContext): ObservationSpaceView {

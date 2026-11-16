@@ -68,8 +68,11 @@ fn file_skip_reason(name: &str) -> Option<&'static str> {
         .extension()
         .and_then(|value| value.to_str())
         .unwrap_or("");
-    let secret = lower == ".env"
-        || lower.starts_with(".env.")
+    let env_template = matches!(
+        lower.as_str(),
+        ".env.example" | ".env.sample" | ".env.template"
+    );
+    let secret = (!env_template && (lower == ".env" || lower.starts_with(".env.")))
         || matches!(
             extension,
             "pem" | "key" | "p12" | "pfx" | "keystore" | "jks"
@@ -78,7 +81,11 @@ fn file_skip_reason(name: &str) -> Option<&'static str> {
             .iter()
             .any(|key| lower == *key || lower == format!("{key}.pub"))
         || (lower.starts_with("credentials") && lower.ends_with(".json"))
-        || (lower.starts_with("service-account") && lower.ends_with(".json"))
+        || ((lower.starts_with("service-account") || lower.starts_with("service_account"))
+            && lower.ends_with(".json"))
+        || (lower.starts_with("client_secret") && lower.ends_with(".json"))
+        || lower == "auth.json"
+        || matches!(lower.as_str(), ".npmrc" | ".netrc" | ".pypirc" | ".pgpass")
         || lower.starts_with("secrets.")
         || lower.starts_with("secret.")
         || extension == "tfstate"
@@ -87,7 +94,8 @@ fn file_skip_reason(name: &str) -> Option<&'static str> {
     if secret {
         return Some("secret");
     }
-    let hidden = lower.starts_with('.')
+    let hidden = !env_template
+        && lower.starts_with('.')
         && !HIDDEN_KEPT
             .iter()
             .any(|kept| lower == *kept || lower.starts_with(&format!("{kept}.")));
@@ -627,6 +635,9 @@ mod tests {
             "LICENSE",
             "Makefile",
             ".gitignore",
+            ".env.example",
+            ".env.sample",
+            ".env.template",
             "notes.weird-suffix",
             "paper.pdf",
             "brief.docx",
@@ -642,6 +653,7 @@ mod tests {
             ".DS_Store",
             ".env",
             ".env.local",
+            ".env.example.local",
             "certs/server.pem",
             "id_rsa",
             "logo.png",
@@ -651,11 +663,47 @@ mod tests {
             "old.xlsx",
             "credentials.json",
             "service-account-prod.json",
+            "service_account.json",
+            "client_secret_app.json",
+            "auth.json",
+            ".npmrc",
+            ".netrc",
+            ".pypirc",
+            ".pgpass",
             "secrets.yaml",
+            "secrets.prod.yaml",
             "prod.tfstate",
             "prod.tfvars",
         ] {
             assert!(relative_components(path).is_err(), "{path} is left out");
+        }
+        for secret_name in [
+            ".env",
+            ".env.local",
+            ".env.example.local",
+            "credentials.json",
+            "service-account-prod.json",
+            "service_account.json",
+            "client_secret_app.json",
+            "auth.json",
+            ".npmrc",
+            ".netrc",
+            ".pypirc",
+            ".pgpass",
+            "secrets.prod.yaml",
+        ] {
+            assert_eq!(
+                file_skip_reason(secret_name),
+                Some("secret"),
+                "{secret_name} is secret"
+            );
+        }
+        for safe_template in [".env.example", ".env.sample", ".env.template"] {
+            assert_eq!(
+                file_skip_reason(safe_template),
+                None,
+                "{safe_template} is allowed template"
+            );
         }
     }
     #[test]

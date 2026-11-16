@@ -15,14 +15,16 @@ import {
 } from "./context-onboarding-store.js";
 import { codeRoot, contextFilePath, contextSources, readContextSource } from "./context-onboarding-sources.js";
 import {
-  applyHeldSecretDecision,
   classifyContextModelFailure,
+  commitHeldSecretDecision,
   computeScopeDelta,
   deduplicateSelectedReferences,
   mergeSourceIncrementally,
+  prepareHeldSecretDecision,
+  readScopePathTags,
+  stageHeldSecretDecision,
 } from "./context-onboarding-delta.js";
 import { importAdoptedMaterialsAndSummary } from "./context-onboarding-adopt.js";
-export { classifyContextModelFailure };
 import {
   diskFull,
   dropStagedNotes,
@@ -150,25 +152,48 @@ export async function decideContextSecret(
   id: string,
   input: Record<string, unknown>,
   ports: ContextOnboardingPorts,
+  guard?: { readonly signal?: AbortSignal; readonly beforeEffect?: () => Promise<void> | void },
 ): Promise<ContextJourney> {
+  guard?.signal?.throwIfAborted();
   const sKey = typeof input.key === "string" && isStagedDigest(input.key) ? input.key : "";
   const decision = input.decision === "strip" || input.decision === "raw" || input.decision === "exclude" ? input.decision : null;
   if (!sKey || !decision) throw new Error("密钥处理选项无效");
-  const journey = readContextJourney(home, id);
+  const snapshot = readContextJourney(home, id);
+  if (snapshot.requires_reselection) throw new Error(snapshot.error!);
+  if (snapshot.adoption || snapshot.phase === "complete") throw new Error("当前正在保存或已经采用，不能更改来源");
+  const { prepared } = await prepareHeldSecretDecision(home, snapshot, sKey, decision, guard?.signal);
+  guard?.signal?.throwIfAborted();
+  await guard?.beforeEffect?.();
+  const staged = prepared ? await stageHeldSecretDecision(home, id, prepared) : undefined;
+  const k = key(home, id);
+  const wasRunning = running.has(k);
+  if (wasRunning) {
+    controllers.get(k)?.abort();
+    controllers.delete(k);
+    running.delete(k);
+  }
+  const journey = wasRunning ? withContextJourneys(home, store => store.get(id)) : readContextJourney(home, id);
+  if (journey.staging_removed && journey.phase !== "complete") {
+    journey.requires_reselection = true;
+    journey.error = "这轮整理超过 30 天没有继续，暂存的文件已清理以腾出空间。原记录已保留，请重新选择资料开始一轮整理。";
+  }
   if (journey.requires_reselection) throw new Error(journey.error!);
   if (journey.adoption || journey.phase === "complete") throw new Error("当前正在保存或已经采用，不能更改来源");
-  if (running.has(key(home, id))) {
-    controllers.get(key(home, id))?.abort();
-    controllers.delete(key(home, id));
-    running.delete(key(home, id));
-  }
   journey.epoch = (journey.epoch ?? 0) + 1;
-  await applyHeldSecretDecision(home, journey, sKey, decision);
-  const reorganize = input.reorganize !== false && (decision === "strip" || decision === "raw") && journey.phase !== "selecting";
+  commitHeldSecretDecision(journey, sKey, decision, staged);
+  const selected = journey.sources.filter(s => s.selected);
+  const remainingHeld = selected.some(s => (s.held_secrets?.length ?? 0) > 0 || (s.reading?.held_secrets?.length ?? 0) > 0);
+  const hasReadable = selected.some(s => (s.references?.length ?? 0) > 0 || !s.references);
+  const reorganize = wasRunning || (input.reorganize !== false && journey.phase !== "selecting" && (
+    decision === "strip" || decision === "raw" || (decision === "exclude" && journey.phase === "failed" && !remainingHeld && hasReadable)
+  ));
   if (reorganize && journey.summary) {
     journey.stale_summary = { title: journey.summary.title, body: journey.summary.body, at: journey.updated_at, model: journey.model };
     journey.summary = null;
     journey.phase = "failed";
+  } else if (!reorganize && decision === "exclude" && journey.phase === "failed" && !remainingHeld && !hasReadable) {
+    journey.error = "已排除疑似密钥文件；当前没有其余可读材料，请返回调整来源或直接创建空白项目。";
+    journey.failure_kind = null;
   }
   withContextJourneys(home, store => store.save(journey));
   return reorganize ? startContextJourney(home, id, ports) : readContextJourney(home, id);
@@ -341,7 +366,7 @@ async function organize(home: string, journey: ContextJourney, runEpoch: number,
     }
     bytes.done = bytes.total;
     const selectedSources = journey.sources.filter(s => s.selected);
-    journey.last_read_paths = selectedSources.flatMap(s => (s.references ?? []).map(r => `${s.kind}:${r.path}`));
+    journey.last_read_paths = readScopePathTags(selectedSources);
     const unique = deduplicateSelectedReferences(selectedSources);
     save();
     if (!unique.length) {

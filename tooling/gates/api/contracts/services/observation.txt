@@ -271,6 +271,62 @@ export interface ObservationFactInput {
     readonly evidence?: readonly ObservationEvidenceInput[];
 }
 
+export interface ObservationHoldListInput {
+    readonly project_id?: string | null;
+    readonly sample_id?: string;
+    readonly include_expired?: boolean;
+}
+
+export interface ObservationHoldListOutput {
+    readonly holds: readonly ObservationHoldView[];
+    readonly summary: {
+        readonly count: number;
+        readonly bytes: number;
+        readonly retention_days: number;
+    };
+}
+
+export interface ObservationHoldPutInput {
+    readonly hold_id: string;
+    readonly sample_id: string;
+    readonly owner?: string;
+    readonly project_id?: string | null;
+    readonly record_ids: readonly string[];
+    readonly expires_at?: string | null;
+    readonly note?: string;
+}
+
+export interface ObservationHoldPutResult {
+    readonly hold: ObservationHoldView;
+    readonly held_record_ids: readonly string[];
+    readonly missing_record_ids: readonly string[];
+}
+
+export interface ObservationHoldReleaseInput {
+    readonly hold_id?: string;
+    readonly sample_id?: string;
+}
+
+export interface ObservationHoldReleaseResult {
+    readonly released_hold_ids: readonly string[];
+    readonly released_record_count: number;
+}
+
+export interface ObservationHoldView {
+    readonly hold_id: string;
+    readonly owner: string;
+    readonly sample_id: string;
+    readonly project_id: string | null;
+    readonly record_ids: readonly string[];
+    readonly active_record_count: number;
+    readonly bytes: number;
+    readonly created_at: string;
+    readonly updated_at: string;
+    readonly expires_at: string | null;
+    readonly expired: boolean;
+    readonly note?: string;
+}
+
 export interface ObservationMissing {
     readonly kind: "missing";
     readonly reason: ObservationMissingReason;
@@ -531,6 +587,9 @@ export interface ObservationWork {
 export type ObservationWriterMissingReason = (typeof OBSERVATION_WRITER_MISSING_REASONS)[number];
 
 export declare const observationActions: {
+    holdsPut: ActionDefinition<import("services/observation-holds").ObservationHoldPutInput, import("services/observation-holds").ObservationHoldPutResult>;
+    holdsRelease: ActionDefinition<import("services/observation-holds").ObservationHoldReleaseInput, import("services/observation-holds").ObservationHoldReleaseResult>;
+    holdsList: ActionDefinition<import("services/observation-holds").ObservationHoldListInput, import("services/observation-holds").ObservationHoldListOutput>;
     report: ActionDefinition<ObservationReportInput, ObservationReportResult>;
     recordsQuery: ActionDefinition<ObservationQueryInput, ObservationQueryOutput>;
     evidenceGet: ActionDefinition<ObservationEvidenceGetInput, ObservationEvidenceGetOutput>;

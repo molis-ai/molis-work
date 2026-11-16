@@ -402,15 +402,20 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     if(!next)return;event.preventDefault();next.focus();if(open){select(next.dataset.sideTab);save();}
   });
   let growTimer=0;
-  // A tab widens in place (VUX-07): where the strip runs short it scrolls by what the glyph moved, so the glyph stays put, and
+  // A tab widens in place (VUX-07): where the strip runs short, by as little as a fraction of a pixel (which already turns its
+  // safe end alignment to the start), it scrolls by what the glyph moved, so the glyph stays put, and
   // keeps it there while the strip is resized around it (the tabs before it share their widths again on the next frame).
   const grown=button=>button.parentElement.classList.contains('is-grown');
   let anchor=null;
   const iconLeft=button=>(button.querySelector('.tab-item-icon')??button).getBoundingClientRect().left;
-  const keep=()=>{if(!anchor||!anchor.button.isConnected||!grown(anchor.button))return;const moved=iconLeft(anchor.button)-anchor.at;if(Math.abs(moved)>0.5)strip.scrollLeft+=moved;};
+  // A scroll range stops at a whole pixel, so the last fraction (a glyph that widens at the strip's far end) is drawn back by
+  // the glyph itself; a transform, so nothing is laid out again.
+  const nudge=(button,by)=>{const icon=button.querySelector('.tab-item-icon');if(icon)icon.style.translate=by?(-by)+'px 0':'';};
+  const keep=()=>{if(!anchor||!anchor.button.isConnected||!grown(anchor.button))return;nudge(anchor.button,0);const moved=iconLeft(anchor.button)-anchor.at;if(Math.abs(moved)>0.01)strip.scrollLeft+=moved;
+    const rest=iconLeft(anchor.button)-anchor.at;if(Math.abs(rest)>0.01&&Math.abs(rest)<1)nudge(anchor.button,rest);};
   const grow=button=>{
     anchor=button&&!grown(button)?{button,at:iconLeft(button)}:button?anchor:null;
-    strip.querySelectorAll('[data-side-tab]').forEach(node=>node.parentElement.classList.toggle('is-grown',node===button));
+    strip.querySelectorAll('[data-side-tab]').forEach(node=>{node.parentElement.classList.toggle('is-grown',node===button);if(node!==button)nudge(node,0);});
     keep();
   };
   if('ResizeObserver' in window)new ResizeObserver(keep).observe(strip);

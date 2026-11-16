@@ -27,8 +27,8 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 - `molisBarReceivers`（`apps/workbench/src/browser/plugin-frame/composer-parent.ts`）：挂了 AI 输入框、又在可见窗格里登记成底栏收件人的框架页面集合；`front()` 给出焦点窗格里那一个（没有就是号助理的），`column()` 给出页面对话栏的位置，底栏据此把输入框放到它的宽度上。
 - `molisBarReceiverChanged`（同文件）：收件人集合或前台页面变了时由框架桥叫一次，底栏据此换手（谁拥有输入框、要不要重挂）。
-- `molisWorkBarPlace`（`apps/workbench/src/browser/bar-column.ts`）：让底栏重新量列宽并安放输入框；窗格焦点/尺寸、收件人的对话栏、窗口缩放变化时调用。
-- `molisWorkBarColumn`（同文件）：工作台启动、外壳画完之后调用一次，开始测量；页面画底栏时带 `data-bar-placing`，第一次量好位置前输入框不可见，量好后去掉，避免先按默认列画出再滑动。
+- `molisWorkBarPlace`（`apps/workbench/src/browser/work-line-layout.ts`）：让线重新量列宽并安放输入框；窗格焦点/尺寸、收件人的对话栏、窗口缩放变化时调用。
+- 工作台启动、外壳画完之后由同一模块先排一次；原来的 `bar-column.ts`、`molisWorkBarColumn` 与 `data-bar-placing` 已随第 32 批删除，输入框在第一次排好前不再按旧列画出。
 
 ## 3. 嵌入
 

@@ -47,12 +47,18 @@ const AUDIT = String.raw`(async () => {
     const next = el.nextElementSibling && shown(el.nextElementSibling) ? el.nextElementSibling : null;
     for (const [state, apply] of states) {
       const read = (state === 'focus' && glyphOf(el)) || el;
+      const layout = () => [read, el, el.parentElement].map(node => {
+        const style = getComputedStyle(node);
+        return { at: name(node), box: box(node), padding: style.padding, border: style.borderWidth, gap: style.gap,
+          direction: style.flexDirection, justify: style.justifyContent, width: style.width, maxWidth: style.maxWidth };
+      });
+      const beforeLayout = layout();
       const before = box(read), after0 = next && box(next);
       const undo = apply(el); if (!undo) continue;
       await frame();
-      const now = box(read), nextNow = next && box(next);
+      const now = box(read), nextNow = next && box(next), afterLayout = layout();
       undo(); await frame();
-      if (moved(before, now)) out.push({ kind: 'state-moves-box', state, at: name(el) + (read === el ? '' : ' (its glyph)'), text: (el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 30), before: before.map(Math.round), after: now.map(Math.round) });
+      if (moved(before, now)) out.push({ kind: 'state-moves-box', state, at: name(el) + (read === el ? '' : ' (its glyph)'), text: (el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 30), before: before.map(Math.round), after: now.map(Math.round), beforeLayout, afterLayout });
       else if (next && moved(after0, nextNow)) out.push({ kind: 'state-moves-next', state, at: name(el), next: name(next) });
     }
   }

@@ -5,7 +5,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { prepareContextDocument } from "../apps/local-host/src/context-onboarding-documents.js";
+import { detectMaterialSecret, prepareContextDocument, stripMaterialSecrets } from "../apps/local-host/src/context-onboarding-documents.js";
 import { contextSources, includedContextFiles, readContextSource } from "../apps/local-host/src/context-onboarding-sources.js";
 
 const { zipSync, strToU8 } = createRequire(new URL("../apps/local-host/package.json", import.meta.url))("fflate");
@@ -107,4 +107,28 @@ test("ONB-37 source code, config and files with no suffix are read for their tex
   assert.deepEqual(references.map(r => r.path), ["src/main.ts", "README", "Cargo.toml"], "ONB-37: read by what they hold, not by a list of suffixes");
   assert.deepEqual(issues.map(i => i.path), ["data.weird"]);
   assert.match(issues[0]!.reason, /编码|二进制/, "ONB-38: a file that is not text says why, and is not counted as read");
+});
+
+test("S-onboarding-secret-hold: .env and credential filenames are held even when the body has no long token", () => {
+  assert.ok(detectMaterialSecret(".env", "FOO=short\n"));
+  assert.ok(detectMaterialSecret(".env.local", "JWT_SECRET=short\n"));
+  assert.ok(detectMaterialSecret("certs/server.pem", "certificate only\n"));
+  assert.ok(detectMaterialSecret("id_rsa", "not a key block\n"));
+  assert.ok(detectMaterialSecret("notes.txt", "password=hunter2\n"));
+  assert.ok(detectMaterialSecret("config.json", '{"password":"hunter2"}\n'));
+  assert.ok(detectMaterialSecret("config.yaml", "db_password: hunter2\n"));
+});
+
+test("S-onboarding-secret-hold: strip leaves every variable name and removes short, lowercase and JSON values", () => {
+  const stripped = stripMaterialSecrets([
+    "FOO=abc123",
+    "DB_PASSWORD=abc123",
+    "baz=topsecret",
+    '{"password": "hunter2"}',
+    'TOKEN="abc"',
+    "API_URL=https://example.test",
+  ].join("\n"));
+  for (const value of ["abc123", "topsecret", "hunter2", '"abc"', "https://example.test"]) assert.equal(stripped.includes(value), false, value);
+  for (const name of ["FOO", "DB_PASSWORD", "baz", "password", "TOKEN", "API_URL"]) assert.equal(stripped.includes(name), true, name);
+  assert.match(stripped, /<REDACTED>/);
 });

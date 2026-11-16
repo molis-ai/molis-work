@@ -509,8 +509,8 @@
         "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "codeChallengeMethod": "S256",
         "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-        "purpose": "EMAIL_SIGNUP",
-        "method": "EMAIL_CODE"
+        "purpose": "LOGIN",
+        "method": "ACCOUNT_PASSWORD"
       }
     },
     {
@@ -524,12 +524,8 @@
         "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "codeChallengeMethod": "S256",
         "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-        "purpose": "REAUTH",
-        "method": "EMAIL_PASSWORD",
-        "operation": "BIND_METHOD",
-        "target": {
-          "method": "EMAIL"
-        }
+        "purpose": "LOGIN",
+        "method": "EMAIL_CODE"
       }
     },
     {
@@ -543,12 +539,8 @@
         "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "codeChallengeMethod": "S256",
         "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-        "purpose": "REAUTH",
-        "method": "EMAIL_PASSWORD",
-        "operation": "REPLACE_METHOD",
-        "target": {
-          "bindingId": "xxxxxxxx"
-        }
+        "purpose": "EMAIL_SIGNUP",
+        "method": "EMAIL_CODE"
       }
     },
     {
@@ -564,9 +556,9 @@
         "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "purpose": "REAUTH",
         "method": "EMAIL_PASSWORD",
-        "operation": "UNLINK_METHOD",
+        "operation": "BIND_METHOD",
         "target": {
-          "bindingId": "xxxxxxxx"
+          "method": "EMAIL"
         }
       }
     },
@@ -583,9 +575,9 @@
         "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "purpose": "REAUTH",
         "method": "EMAIL_PASSWORD",
-        "operation": "CHANGE_PASSWORD",
+        "operation": "REPLACE_METHOD",
         "target": {
-          "kind": "PASSWORD"
+          "bindingId": "xxxxxxxx"
         }
       }
     },
@@ -601,10 +593,10 @@
         "codeChallengeMethod": "S256",
         "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "purpose": "REAUTH",
-        "method": "PHONE_OTP",
-        "operation": "BIND_METHOD",
+        "method": "EMAIL_PASSWORD",
+        "operation": "UNLINK_METHOD",
         "target": {
-          "method": "EMAIL"
+          "bindingId": "xxxxxxxx"
         }
       }
     },
@@ -620,10 +612,10 @@
         "codeChallengeMethod": "S256",
         "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "purpose": "REAUTH",
-        "method": "PHONE_OTP",
-        "operation": "REPLACE_METHOD",
+        "method": "EMAIL_PASSWORD",
+        "operation": "CHANGE_PASSWORD",
         "target": {
-          "bindingId": "xxxxxxxx"
+          "kind": "PASSWORD"
         }
       }
     },
@@ -640,9 +632,9 @@
         "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "purpose": "REAUTH",
         "method": "PHONE_OTP",
-        "operation": "UNLINK_METHOD",
+        "operation": "BIND_METHOD",
         "target": {
-          "bindingId": "xxxxxxxx"
+          "method": "EMAIL"
         }
       }
     },
@@ -659,9 +651,9 @@
         "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "purpose": "REAUTH",
         "method": "PHONE_OTP",
-        "operation": "CHANGE_PASSWORD",
+        "operation": "REPLACE_METHOD",
         "target": {
-          "kind": "PASSWORD"
+          "bindingId": "xxxxxxxx"
         }
       }
     },
@@ -677,10 +669,10 @@
         "codeChallengeMethod": "S256",
         "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "purpose": "REAUTH",
-        "method": "GOOGLE",
-        "operation": "BIND_METHOD",
+        "method": "PHONE_OTP",
+        "operation": "UNLINK_METHOD",
         "target": {
-          "method": "EMAIL"
+          "bindingId": "xxxxxxxx"
         }
       }
     },
@@ -696,10 +688,10 @@
         "codeChallengeMethod": "S256",
         "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "purpose": "REAUTH",
-        "method": "GOOGLE",
-        "operation": "REPLACE_METHOD",
+        "method": "PHONE_OTP",
+        "operation": "CHANGE_PASSWORD",
         "target": {
-          "bindingId": "xxxxxxxx"
+          "kind": "PASSWORD"
         }
       }
     },
@@ -716,6 +708,44 @@
         "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "purpose": "REAUTH",
         "method": "GOOGLE",
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-17",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "GOOGLE",
+        "operation": "REPLACE_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-18",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "GOOGLE",
         "operation": "UNLINK_METHOD",
         "target": {
           "bindingId": "xxxxxxxx"
@@ -723,7 +753,7 @@
       }
     },
     {
-      "name": "CreateTransactionRequest:variant-17",
+      "name": "CreateTransactionRequest:variant-19",
       "schema": "CreateTransactionRequest",
       "valid": true,
       "value": {
@@ -742,7 +772,7 @@
       }
     },
     {
-      "name": "CreateTransactionRequest:variant-18",
+      "name": "CreateTransactionRequest:variant-20",
       "schema": "CreateTransactionRequest",
       "valid": true,
       "value": {
@@ -761,7 +791,7 @@
       }
     },
     {
-      "name": "CreateTransactionRequest:variant-19",
+      "name": "CreateTransactionRequest:variant-21",
       "schema": "CreateTransactionRequest",
       "valid": true,
       "value": {
@@ -780,7 +810,7 @@
       }
     },
     {
-      "name": "CreateTransactionRequest:variant-20",
+      "name": "CreateTransactionRequest:variant-22",
       "schema": "CreateTransactionRequest",
       "valid": true,
       "value": {
@@ -799,7 +829,7 @@
       }
     },
     {
-      "name": "CreateTransactionRequest:variant-21",
+      "name": "CreateTransactionRequest:variant-23",
       "schema": "CreateTransactionRequest",
       "valid": true,
       "value": {
@@ -818,7 +848,7 @@
       }
     },
     {
-      "name": "CreateTransactionRequest:variant-22",
+      "name": "CreateTransactionRequest:variant-24",
       "schema": "CreateTransactionRequest",
       "valid": true,
       "value": {
@@ -833,7 +863,7 @@
       }
     },
     {
-      "name": "CreateTransactionRequest:variant-23",
+      "name": "CreateTransactionRequest:variant-25",
       "schema": "CreateTransactionRequest",
       "valid": true,
       "value": {
@@ -849,7 +879,7 @@
       }
     },
     {
-      "name": "CreateTransactionRequest:variant-24",
+      "name": "CreateTransactionRequest:variant-26",
       "schema": "CreateTransactionRequest",
       "valid": true,
       "value": {
@@ -864,7 +894,7 @@
       }
     },
     {
-      "name": "CreateTransactionRequest:variant-25",
+      "name": "CreateTransactionRequest:variant-27",
       "schema": "CreateTransactionRequest",
       "valid": true,
       "value": {
@@ -880,7 +910,7 @@
       }
     },
     {
-      "name": "CreateTransactionRequest:variant-26",
+      "name": "CreateTransactionRequest:variant-28",
       "schema": "CreateTransactionRequest",
       "valid": true,
       "value": {
@@ -895,7 +925,7 @@
       }
     },
     {
-      "name": "CreateTransactionRequest:variant-27",
+      "name": "CreateTransactionRequest:variant-29",
       "schema": "CreateTransactionRequest",
       "valid": true,
       "value": {
@@ -911,7 +941,7 @@
       }
     },
     {
-      "name": "CreateTransactionRequest:variant-28",
+      "name": "CreateTransactionRequest:variant-30",
       "schema": "CreateTransactionRequest",
       "valid": true,
       "value": {
@@ -926,7 +956,7 @@
       }
     },
     {
-      "name": "CreateTransactionRequest:variant-29",
+      "name": "CreateTransactionRequest:variant-31",
       "schema": "CreateTransactionRequest",
       "valid": true,
       "value": {
@@ -942,7 +972,7 @@
       }
     },
     {
-      "name": "CreateTransactionRequest:variant-30",
+      "name": "CreateTransactionRequest:variant-32",
       "schema": "CreateTransactionRequest",
       "valid": true,
       "value": {
@@ -1441,6 +1471,24 @@
       "value": null
     },
     {
+      "name": "PasswordLoginRequest:variant-1",
+      "schema": "PasswordLoginRequest",
+      "valid": true,
+      "value": {
+        "email": "sample@example.invalid",
+        "password": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PasswordLoginRequest:variant-2",
+      "schema": "PasswordLoginRequest",
+      "valid": true,
+      "value": {
+        "identifier": "sample@example.invalid",
+        "password": "xxxxxxxx"
+      }
+    },
+    {
       "name": "EmailSignupRequest:minimal-valid",
       "schema": "EmailSignupRequest",
       "valid": true,
@@ -1469,6 +1517,213 @@
       "schema": "PhoneLoginRequest",
       "valid": false,
       "value": null
+    },
+    {
+      "name": "CodeLoginRequest:minimal-valid",
+      "schema": "CodeLoginRequest",
+      "valid": true,
+      "value": {
+        "verificationProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "name": "CodeLoginRequest:wrong-root-type",
+      "schema": "CodeLoginRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginContext:minimal-valid",
+      "schema": "LoginContext",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "name": "LoginContext:wrong-root-type",
+      "schema": "LoginContext",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginPasswordRequest:minimal-valid",
+      "schema": "LoginPasswordRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "identifier": "sample@example.invalid",
+        "password": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "LoginPasswordRequest:wrong-root-type",
+      "schema": "LoginPasswordRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SendLoginVerificationRequest:minimal-valid",
+      "schema": "SendLoginVerificationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "LOGIN",
+        "channel": "EMAIL",
+        "address": "sample@example.invalid"
+      }
+    },
+    {
+      "name": "SendLoginVerificationRequest:wrong-root-type",
+      "schema": "SendLoginVerificationRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SendLoginVerificationRequest:variant-1",
+      "schema": "SendLoginVerificationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "LOGIN",
+        "channel": "EMAIL",
+        "address": "sample@example.invalid"
+      }
+    },
+    {
+      "name": "SendLoginVerificationRequest:variant-2",
+      "schema": "SendLoginVerificationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "LOGIN",
+        "channel": "SMS",
+        "address": "+8613800000000"
+      }
+    },
+    {
+      "name": "LoginVerification:minimal-valid",
+      "schema": "LoginVerification",
+      "valid": true,
+      "value": {
+        "verificationId": "xxxxxxxx",
+        "expiresAt": "2026-11-04T08:00:00Z",
+        "retryAfterSeconds": 1
+      }
+    },
+    {
+      "name": "LoginVerification:wrong-root-type",
+      "schema": "LoginVerification",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginCodeRequest:minimal-valid",
+      "schema": "LoginCodeRequest",
+      "valid": true,
+      "value": {
+        "verificationId": "xxxxxxxx",
+        "code": "123456"
+      }
+    },
+    {
+      "name": "LoginCodeRequest:wrong-root-type",
+      "schema": "LoginCodeRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginResult:minimal-valid",
+      "schema": "LoginResult",
+      "valid": true,
+      "value": {
+        "kind": "LOGIN_CODE",
+        "code": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "state": "xxxxxxxxxxxxxxxx",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "LoginResult:wrong-root-type",
+      "schema": "LoginResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductLoginPasswordRequest:minimal-valid",
+      "schema": "ProductLoginPasswordRequest",
+      "valid": true,
+      "value": {
+        "identifier": "sample@example.invalid",
+        "password": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductLoginPasswordRequest:wrong-root-type",
+      "schema": "ProductLoginPasswordRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductSendVerificationRequest:minimal-valid",
+      "schema": "ProductSendVerificationRequest",
+      "valid": true,
+      "value": {
+        "purpose": "LOGIN",
+        "channel": "EMAIL",
+        "address": "sample@example.invalid"
+      }
+    },
+    {
+      "name": "ProductSendVerificationRequest:wrong-root-type",
+      "schema": "ProductSendVerificationRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductSendVerificationRequest:variant-1",
+      "schema": "ProductSendVerificationRequest",
+      "valid": true,
+      "value": {
+        "purpose": "LOGIN",
+        "channel": "EMAIL",
+        "address": "sample@example.invalid"
+      }
+    },
+    {
+      "name": "ProductSendVerificationRequest:variant-2",
+      "schema": "ProductSendVerificationRequest",
+      "valid": true,
+      "value": {
+        "purpose": "LOGIN",
+        "channel": "SMS",
+        "address": "+8613800000000"
+      }
     },
     {
       "name": "VerifiedResult:minimal-valid",
@@ -1898,6 +2153,27 @@
     {
       "name": "Membership:wrong-root-type",
       "schema": "Membership",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TenantMember:minimal-valid",
+      "schema": "TenantMember",
+      "valid": true,
+      "value": {
+        "membershipId": "xxxxxxxx",
+        "tenantId": "xxxxxxxx",
+        "userId": "xxxxxxxx",
+        "role": "OWNER",
+        "status": "ACTIVE",
+        "version": 1,
+        "displayName": "xxxxxxxx",
+        "email": "sample@example.invalid"
+      }
+    },
+    {
+      "name": "TenantMember:wrong-root-type",
+      "schema": "TenantMember",
       "valid": false,
       "value": null
     },
@@ -3345,8 +3621,8 @@
       "schema": "ProductTransactionRequest",
       "valid": true,
       "value": {
-        "purpose": "EMAIL_SIGNUP",
-        "method": "EMAIL_CODE"
+        "purpose": "LOGIN",
+        "method": "ACCOUNT_PASSWORD"
       }
     },
     {
@@ -3354,7 +3630,7 @@
       "schema": "ProductTransactionRequest",
       "valid": true,
       "value": {
-        "purpose": "PASSWORD_RESET",
+        "purpose": "LOGIN",
         "method": "EMAIL_CODE"
       }
     },
@@ -3363,9 +3639,8 @@
       "schema": "ProductTransactionRequest",
       "valid": true,
       "value": {
-        "purpose": "BIND",
-        "method": "EMAIL_CODE",
-        "reauthHandle": "xxxxxxxx"
+        "purpose": "EMAIL_SIGNUP",
+        "method": "EMAIL_CODE"
       }
     },
     {
@@ -3373,10 +3648,8 @@
       "schema": "ProductTransactionRequest",
       "valid": true,
       "value": {
-        "purpose": "REPLACE",
-        "method": "EMAIL_CODE",
-        "reauthHandle": "xxxxxxxx",
-        "bindingId": "xxxxxxxx"
+        "purpose": "PASSWORD_RESET",
+        "method": "EMAIL_CODE"
       }
     },
     {
@@ -3385,7 +3658,7 @@
       "valid": true,
       "value": {
         "purpose": "BIND",
-        "method": "PHONE_OTP",
+        "method": "EMAIL_CODE",
         "reauthHandle": "xxxxxxxx"
       }
     },
@@ -3395,7 +3668,7 @@
       "valid": true,
       "value": {
         "purpose": "REPLACE",
-        "method": "PHONE_OTP",
+        "method": "EMAIL_CODE",
         "reauthHandle": "xxxxxxxx",
         "bindingId": "xxxxxxxx"
       }
@@ -3406,7 +3679,7 @@
       "valid": true,
       "value": {
         "purpose": "BIND",
-        "method": "GOOGLE",
+        "method": "PHONE_OTP",
         "reauthHandle": "xxxxxxxx"
       }
     },
@@ -3416,7 +3689,7 @@
       "valid": true,
       "value": {
         "purpose": "REPLACE",
-        "method": "GOOGLE",
+        "method": "PHONE_OTP",
         "reauthHandle": "xxxxxxxx",
         "bindingId": "xxxxxxxx"
       }
@@ -3427,12 +3700,33 @@
       "valid": true,
       "value": {
         "purpose": "BIND",
-        "method": "GITHUB",
+        "method": "GOOGLE",
         "reauthHandle": "xxxxxxxx"
       }
     },
     {
       "name": "ProductTransactionRequest:variant-14",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "REPLACE",
+        "method": "GOOGLE",
+        "reauthHandle": "xxxxxxxx",
+        "bindingId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:variant-15",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "BIND",
+        "method": "GITHUB",
+        "reauthHandle": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:variant-16",
       "schema": "ProductTransactionRequest",
       "valid": true,
       "value": {
@@ -3751,8 +4045,8 @@
       "schema": "ProductSubmitRequest",
       "valid": true,
       "value": {
-        "step": "EMAIL_SIGNUP",
-        "email": "sample@example.invalid",
+        "step": "PASSWORD_LOGIN",
+        "identifier": "sample@example.invalid",
         "password": "xxxxxxxx"
       }
     },
@@ -3761,7 +4055,9 @@
       "schema": "ProductSubmitRequest",
       "valid": true,
       "value": {
-        "step": "PHONE_LOGIN"
+        "step": "EMAIL_SIGNUP",
+        "email": "sample@example.invalid",
+        "password": "xxxxxxxx"
       }
     },
     {
@@ -3769,11 +4065,27 @@
       "schema": "ProductSubmitRequest",
       "valid": true,
       "value": {
-        "step": "START_PROVIDER"
+        "step": "CODE_LOGIN"
       }
     },
     {
       "name": "ProductSubmitRequest:variant-7",
+      "schema": "ProductSubmitRequest",
+      "valid": true,
+      "value": {
+        "step": "PHONE_LOGIN"
+      }
+    },
+    {
+      "name": "ProductSubmitRequest:variant-8",
+      "schema": "ProductSubmitRequest",
+      "valid": true,
+      "value": {
+        "step": "START_PROVIDER"
+      }
+    },
+    {
+      "name": "ProductSubmitRequest:variant-9",
       "schema": "ProductSubmitRequest",
       "valid": true,
       "value": {
@@ -4544,6 +4856,107 @@
       }
     },
     {
+      "name": "ManagementHandoffRequest:minimal-valid",
+      "schema": "ManagementHandoffRequest",
+      "valid": true,
+      "value": {
+        "redirectUri": "https://auth.example.invalid",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "name": "ManagementHandoffRequest:wrong-root-type",
+      "schema": "ManagementHandoffRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ManagementHandoffApproval:minimal-valid",
+      "schema": "ManagementHandoffApproval",
+      "valid": true,
+      "value": {
+        "handoffId": "xxxxxxxx",
+        "initiatorProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "name": "ManagementHandoffApproval:wrong-root-type",
+      "schema": "ManagementHandoffApproval",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ManagementHandoffView:minimal-valid",
+      "schema": "ManagementHandoffView",
+      "valid": true,
+      "value": {
+        "handoffId": "xxxxxxxx",
+        "redirectUrl": "https://auth.example.invalid",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "ManagementHandoffView:wrong-root-type",
+      "schema": "ManagementHandoffView",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductLoginResult:minimal-valid",
+      "schema": "ProductLoginResult",
+      "valid": true,
+      "value": {
+        "account": {
+          "state": "ANONYMOUS"
+        }
+      }
+    },
+    {
+      "name": "ProductLoginResult:wrong-root-type",
+      "schema": "ProductLoginResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginResultResponse:minimal-valid",
+      "schema": "LoginResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "kind": "LOGIN_CODE",
+          "code": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "state": "xxxxxxxxxxxxxxxx",
+          "expiresAt": "2026-11-04T08:00:00Z"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "LoginResultResponse:wrong-root-type",
+      "schema": "LoginResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginVerificationResponse:minimal-valid",
+      "schema": "LoginVerificationResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "verificationId": "xxxxxxxx",
+          "expiresAt": "2026-11-04T08:00:00Z",
+          "retryAfterSeconds": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "LoginVerificationResponse:wrong-root-type",
+      "schema": "LoginVerificationResponse",
+      "valid": false,
+      "value": null
+    },
+    {
       "name": "TransactionCreatedResponse:minimal-valid",
       "schema": "TransactionCreatedResponse",
       "valid": true,
@@ -4689,6 +5102,25 @@
     {
       "name": "ProviderStartResultResponse:wrong-root-type",
       "schema": "ProviderStartResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ManagementHandoffViewResponse:minimal-valid",
+      "schema": "ManagementHandoffViewResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "handoffId": "xxxxxxxx",
+          "redirectUrl": "https://auth.example.invalid",
+          "expiresAt": "2026-11-04T08:00:00Z"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ManagementHandoffViewResponse:wrong-root-type",
+      "schema": "ManagementHandoffViewResponse",
       "valid": false,
       "value": null
     },
@@ -5659,6 +6091,25 @@
     {
       "name": "EntitlementCheckResultResponse:wrong-root-type",
       "schema": "EntitlementCheckResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductLoginResultResponse:minimal-valid",
+      "schema": "ProductLoginResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "account": {
+            "state": "ANONYMOUS"
+          }
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductLoginResultResponse:wrong-root-type",
+      "schema": "ProductLoginResultResponse",
       "valid": false,
       "value": null
     },

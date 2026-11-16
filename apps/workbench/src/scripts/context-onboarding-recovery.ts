@@ -4,7 +4,58 @@
  * upload persistence across refreshes, joined into the onboarding browser program (33-2, ONB-35..46, C1..C11).
  */
 export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
-  let stopCounting = false, pausedScan = null, mrFilter = 'all', scopeVisible = {}, scanningDirId = '', scanResumeBase = { kept: 0, bytes: 0 }, partialRestoredKinds = new Set();
+  let stopCounting = false, pausedScan = null, pausedUploads = new Map(), mrFilter = 'all', scopeVisible = {}, scanningDirId = '', scanResumeBase = { kept: 0, bytes: 0 }, partialRestoredKinds = new Set();
+  // ONB-35 file details: metadata the page already holds; no material body is read or returned here.
+  function buildFileDetail(input) {
+    const lines = [];
+    let title = '', status = '';
+    if (input.kind === 'file' || input.kind === 'issue') {
+      const src = input.source;
+      if (!src) return null;
+      if (input.kind === 'file') {
+        const file = src.metadata?.files?.[input.index ?? -1];
+        if (!file) return null;
+        title = file.path;
+        lines.push(file.path);
+        lines.push([input.size(file.size ?? 0), file.modified_ms ? new Date(file.modified_ms).toISOString().slice(0, 10) : '', src.path || input.sourceLabel].filter(Boolean).join(' · '));
+        status = input.text((src.excluded || []).some(path => file.path === path || file.path.startsWith(path + '/')) ? 'workbench.context-onboarding.not-read' : 'workbench.context-onboarding.read');
+      } else {
+        const issue = (src.issues || []).find(item => item.path === input.issuePath);
+        if (!issue) return null;
+        title = issue.path;
+        lines.push(issue.path);
+        lines.push([src.path || input.sourceLabel, issue.reason].filter(Boolean).join(' · '));
+        status = input.text('workbench.context-onboarding.not-read');
+      }
+    } else {
+      const reference = (input.references || []).find(item => item.label === input.referenceLabel);
+      if (!reference) return null;
+      title = reference.title;
+      lines.push(input.text('workbench.context-onboarding.path-version-version', { path: reference.path, version: reference.version }));
+      lines.push([input.size(reference.original?.size_bytes || reference.text?.bytes || 0), reference.original?.sha256 ? reference.original.sha256.slice(0, 16) : reference.text?.sha256?.slice(0, 16), reference.original?.filename || reference.title].filter(Boolean).join(' · '));
+      if (reference.duplicate_of) lines.push(input.text('workbench.context-onboarding.mr-duplicate-of', { path: reference.duplicate_of }));
+      status = reference.duplicate_of ? input.text('workbench.context-onboarding.mr-duplicate') : reference.secret_mode === 'strip' ? input.text('workbench.context-onboarding.mr-secret-stripped') : reference.recognized_by_content ? input.text('workbench.context-onboarding.mr-by-content') : reference.adopted ? input.text('workbench.context-onboarding.mr-step-adopted') : reference.used_in_summary ? input.text('workbench.context-onboarding.mr-used') : input.text('workbench.context-onboarding.read');
+    }
+    if (status) lines.push(status);
+    return { title, lines };
+  }
+  function showFileDetail(button) {
+    const content = buildFileDetail({
+      kind: button.dataset.detailKind,
+      source: source(button.dataset.detailSource || ''),
+      index: Number(button.dataset.detailIndex),
+      issuePath: button.dataset.detailIssue,
+      referenceLabel: button.dataset.detailRef,
+      references: journey.summary?.references,
+      sourceLabel: globalThis.t.text(names[button.dataset.detailSource || '']),
+      size,
+      text: (key, values) => globalThis.t.text(key, values),
+    });
+    if (!content) return;
+    opener = button;
+    dialog.innerHTML = '<h2 id="cx-dialog-title">' + esc(globalThis.t.text('workbench.context-onboarding.details')) + '</h2><p class="cx-source-meta">' + esc(content.title) + '</p><div class="cx-source-body">' + content.lines.map(esc).join('<br>') + '</div><div class="cx-actions">' + btn({ variant: 'secondary', size: 'md', label: globalThis.t.text('common.control.close'), attrs: { 'data-close': true } }) + '</div>';
+    dialog.showModal();
+  }
   if (native && globalThis.__TAURI__?.event?.listen) {
     globalThis.__TAURI__.event.listen('molis:directory-scan-progress', ev => {
       const p = ev?.payload;
@@ -61,26 +112,33 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
       catch { res(); }
     });
   }
-  async function saveUploadFiles(kind, list, partial) {
+  async function saveUploadFiles(kind, list, chosen, partial, state) {
     if (partial) partialRestoredKinds.add(kind); else partialRestoredKinds.delete(kind);
-    if (journey) await withUploads('readwrite', st => st.put({ key: journey.id + ':' + kind, files: list, partial: Boolean(partial) }));
+    if (!partial) pausedUploads.delete(kind);
+    if (journey) await withUploads('readwrite', st => st.put({
+      key: journey.id + ':' + kind, files: chosen, partial: Boolean(partial),
+      ...(partial ? { all: list, index: state.index, total: state.total, bytes: state.bytes, reasons: state.reasons, rules: state.rules, baseEntries: state.baseEntries, dupEntries: state.dupEntries } : {}),
+    }));
   }
   async function dropUploadFiles(kind) {
-    partialRestoredKinds.delete(kind);
+    partialRestoredKinds.delete(kind); pausedUploads.delete(kind);
     if (journey) await withUploads('readwrite', st => st.delete(journey.id + ':' + kind));
   }
   async function clearJourneyUploads(id) {
-    partialRestoredKinds.clear();
+    partialRestoredKinds.clear(); pausedUploads.clear();
     if (id) await withUploads('readwrite', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; if (String(c.key).startsWith(id + ':')) c.delete(); c.continue(); }; });
   }
   async function restoreUploadFiles() {
-    partialRestoredKinds.clear();
-    if (journey) await withUploads('readonly', st => { const p = journey.id + ':', r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; const k = String(c.key); if (k.startsWith(p)) { const sk = k.slice(p.length); if (Array.isArray(c.value?.files) && c.value.files.length) uploads.set(sk, c.value.files); if (c.value?.partial) partialRestoredKinds.add(sk); } c.continue(); }; });
+    partialRestoredKinds.clear(); pausedUploads.clear();
+    if (journey) await withUploads('readonly', st => { const p = journey.id + ':', r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; const k = String(c.key); if (k.startsWith(p)) { const sk = k.slice(p.length); if (Array.isArray(c.value?.files) && c.value.files.length) uploads.set(sk, c.value.files); if (c.value?.partial) {
+      partialRestoredKinds.add(sk);
+      if (Array.isArray(c.value.all)) pausedUploads.set(sk, { kind: sk, list: c.value.all, index: c.value.index || 0, chosen: c.value.files || [], bytes: c.value.bytes || 0, reasons: c.value.reasons || { ignored: 0, secret: 0, unreadable: 0 }, rules: c.value.rules || [], baseEntries: c.value.baseEntries || 0, dupEntries: c.value.dupEntries || 0 });
+    } } c.continue(); }; });
   }
   async function runUploadCount(el, resumeFrom) {
     const kind = resumeFrom ? resumeFrom.kind : el.dataset.upload;
     const s = source(kind);
-    const list = resumeFrom ? resumeFrom.list : el.files, total = list.length;
+    const list = resumeFrom ? resumeFrom.list : [...el.files], total = list.length;
     const prevMeta = !resumeFrom && s.kind !== 'directory' && uploads.has(s.kind) ? s.metadata : null;
     const prevFiles = prevMeta ? (uploads.get(s.kind) || []) : [];
     const prevKeys = new Set(prevFiles.map(f => (f.webkitRelativePath || f.name) + '\0' + (f.size || 0)));
@@ -125,7 +183,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
         counting = { done: index, total, kept: chosen.length, bytes };
         if (index < total && index % 5000 === 0) {
           applyUploadMeta(true);
-          await saveUploadFiles(s.kind, [...chosen], true);
+          await saveUploadFiles(s.kind, list, [...chosen], true, { index, total, bytes, reasons: { ...reasons }, rules: [...ruleSet], baseEntries, dupEntries });
           save().catch(() => {});
         }
         if (Date.now() - drawn >= 250 || index === total) { drawn = Date.now(); render(); await new Promise(resolve => setTimeout(resolve, 0)); }
@@ -139,7 +197,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     if (!chosen.length && total > 0 && !stoppedEarly) throw new Error(readText("workbench.context-onboarding.no-supported-files-found"));
     applyUploadMeta(stoppedEarly); error = '';
     if (total > 2500) { counting = { done: index, total, kept: chosen.length, bytes, saving: true }; render(); await new Promise(resolve => setTimeout(resolve, 0)); }
-    await saveUploadFiles(s.kind, chosen, stoppedEarly);
+    await saveUploadFiles(s.kind, list, chosen, stoppedEarly, { index, total, bytes, reasons: { ...reasons }, rules: [...ruleSet], baseEntries, dupEntries });
   }
   function acceptUpload(el) { return runUploadCount(el, null); }
   function invalidateSourceForEdit(s) {
@@ -221,7 +279,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
         const act = reauth
           ? { variant: 'secondary', size: 'sm', label: readText("workbench.context-onboarding.choose-authorize"), attrs: { 'data-authorize': s.kind } }
           : { variant: 'ghost', size: 'sm', label: readText("workbench.context-onboarding.adjust-sources"), attrs: { 'data-action': 'restart' } };
-        items.push(fileRow({ cls: 'is-issue', name: iss.path, size: readText(names[s.kind]), state: mrTrack(2, 3, true, readText("workbench.context-onboarding.not-read"), 'blocked') })
+        items.push(fileRow({ cls: 'is-issue', name: iss.path, size: readText(names[s.kind]), state: mrTrack(2, 3, true, readText("workbench.context-onboarding.not-read"), 'blocked'), detail: { label: readText("workbench.context-onboarding.details"), attrs: { 'data-detail-kind': 'issue', 'data-detail-source': s.kind, 'data-detail-issue': iss.path } } })
           + recParts.renderMaterialIssueRow({ reason: iss.reason, error: true, actions: [act] }));
       }
     }
@@ -239,7 +297,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
         : r.recognized_by_content ? readText("workbench.context-onboarding.mr-by-content")
         : journey.summary && r.used_in_summary ? readText("workbench.context-onboarding.mr-used")
         : readText("workbench.context-onboarding.read");
-      items.push(fileRow({ name: r.path || r.title, size: noteParts.join(' · '), state: mrTrack(step, stopAt, false, stLabel, dup ? 'quiet' : 'done') }));
+      items.push(fileRow({ name: r.path || r.title, size: noteParts.join(' · '), state: mrTrack(step, stopAt, false, stLabel, dup ? 'quiet' : 'done'), detail: { label: readText("workbench.context-onboarding.details"), attrs: { 'data-detail-kind': 'ref', 'data-detail-ref': r.label } } }));
     }
     if (shownRefs.length > 200) items.push('<li class="ob-more-row"><small class="ob-quiet">' + esc(readText("workbench.context-onboarding.n-more-files-included", { n: shownRefs.length - 200 })) + '</small></li>');
     const ruleSummary = (skippedIgnored + skippedSecret + skippedUnreadable) > 0

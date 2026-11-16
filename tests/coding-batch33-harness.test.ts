@@ -324,6 +324,11 @@ test("B1, B5 & B7: withPinnedKnowledgeRevision gateway pinning, client progress 
       activity: [{ call_id: "k1", name: "knowledge.read@1", target: "art-pdf", state: "completed" }],
     });
     assert.match(afterHtml, /已接着读/);
+    const productionToolHtml = buildRoundMaterialsHtml({
+      frozen: baseFrozen,
+      activity: [{ call_id: "k2", name: "molis-action-gateway-0123456789ab", target: "art-pdf", state: "completed" }],
+    });
+    assert.match(productionToolHtml, /已接着读/, "the real molis-action-* tool name is recognized, not only the synthetic test name");
   });
 });
 

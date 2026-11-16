@@ -76,7 +76,7 @@ export function installAcceptance(route: (path: string) => string, request: UiRe
       if (panel && !watched) { watched = true; new MutationObserver(() => { if (open && !panel.hidden) { open = null; back = false; opener = null; draw(); } }).observe(panel, { attributes: true, attributeFilter: ["hidden"] }); }
       draw(); column.querySelector("[data-lead]")?.scrollIntoView({ block: "nearest" });
       column.querySelector<HTMLElement>("[data-lead] [data-acceptance-accept], [data-acceptance-close]")?.focus();
-    } else { draw(); if (back) dialog(true); back = false; 
+    } else { draw(); if (back) dialog(true); back = false;
       // Back where it was opened from: the same button, the one drawn in its place since, or (its panel gone) what opens the task panel.
       const again = opener?.isConnected ? opener : [...document.querySelectorAll<HTMLElement>("[data-acceptance-open]")].find(one => one.dataset.acceptanceOpen === was && one.getClientRects().length > 0);
       (again ?? document.querySelector<HTMLElement>("[data-task-mark]"))?.focus(); opener = null;

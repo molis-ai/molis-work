@@ -156,10 +156,9 @@ function renumber(state: Plans, editor: Editor, map: (n: number) => number | nul
       step.parent = nextParent !== null && nextParent < index + 1 ? nextParent : undefined;
     }
     const after = afterOf(step.after.value);
-    if (after?.length) {
-      const next = after.map(map).filter((n): n is number => n !== null);
-      step.after.value = next.length ? afterText(state.ports.translate, next) : "";
-    }
+    if (!after?.length) continue;
+    const next = after.map(map).filter((n): n is number => n !== null);
+    step.after.value = next.length ? afterText(state.ports.translate, next) : "";
   }
 }
 

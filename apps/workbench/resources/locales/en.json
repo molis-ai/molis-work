@@ -6560,10 +6560,22 @@
     "workbench.sessions.dir-linked-hint": "Only discovers sessions in folders you linked to a project (and verified Git worktrees); unconfirmed tool-brought folders stay excluded.",
     "workbench.sessions.dir-linked-only": "Folders linked to projects only",
     "workbench.sessions.dir-scope-heading": "Folder scope",
-    "workbench.sessions.droid-matched": "Droid search matched {count} sessions",
+    "workbench.sessions.droid-matched": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Droid search matched {count} session",
+        "other": "Droid search matched {count} sessions"
+      }
+    },
     "workbench.sessions.droid-search-hint": "List search checks titles, folders, and tool names; run Droid search to search Droid session bodies.",
     "workbench.sessions.droid-search-run": "Search in Droid",
-    "workbench.sessions.droid-skipped": "Skipped {count} results outside your read scope",
+    "workbench.sessions.droid-skipped": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Skipped {count} result outside your read scope",
+        "other": "Skipped {count} results outside your read scope"
+      }
+    },
     "workbench.sessions.empty-list-body": "No external sessions match the current view or filter.",
     "workbench.sessions.empty-list-title": "No external sessions",
     "workbench.sessions.entry-truncated": "Entry truncated at size limit",
@@ -6631,7 +6643,13 @@
     "workbench.sessions.select-prompt": "Select an external session on the left to read its conversation.",
     "workbench.sessions.show-unsupported": "Show unsupported tools and reasons",
     "workbench.sessions.source-complete": "Ready",
-    "workbench.sessions.source-count": "{count} sessions",
+    "workbench.sessions.source-count": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} session",
+        "other": "{count} sessions"
+      }
+    },
     "workbench.sessions.source-failed": "Failed",
     "workbench.sessions.source-needs-login": "Needs sign-in",
     "workbench.sessions.source-not-allowed": "Off",

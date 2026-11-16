@@ -39,18 +39,19 @@ export function directoryKeyForPath(directoryPath: string): string {
   return `dir_${createHash("sha256").update(directoryPath).digest("hex").slice(0, 24)}`;
 }
 
-export function workspaceDirectoryKey(canonicalPath: string): string {
-  return `wsdir_${createHash("sha256").update(canonicalPath).digest("hex").slice(0, 24)}`;
-}
-
-export function computeDirectorySnapshotDigest(snapshot: SessionProjectSnapshot): string {
+export function computeDirectorySnapshotDigest(snapshot: SessionProjectSnapshot, homeDirectory?: string): string {
+  const normHome = homeDirectory ? path.resolve(homeDirectory) : null;
+  const normalizeWorkspacePath = (p: string): string =>
+    normHome && (p === normHome || p.startsWith(`${normHome}${path.sep}`))
+      ? `$MOLIS_HOME/${path.relative(normHome, p).split(path.sep).join("/")}`
+      : p;
   const projects = [...snapshot.projects]
     .map(item => ({ project_id: item.project_id, display_name: item.display_name }))
     .sort((a, b) => (a.project_id < b.project_id ? -1 : a.project_id > b.project_id ? 1 : 0));
   const directories = [...snapshot.directories]
     .map(item => ({
       workspace_id: item.workspace_id,
-      canonical_path: item.canonical_path,
+      canonical_path: normalizeWorkspacePath(item.canonical_path),
       realpath_verified: item.realpath_verified,
       project_ids: [...item.project_ids].sort(),
       person_project_ids: [...item.person_project_ids].sort(),

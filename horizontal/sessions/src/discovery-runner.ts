@@ -142,7 +142,7 @@ function commitDiscoveredBatch(params: {
     if (tool.surface === "cloud") assertCloudConnectionActive(currentScope.connection_id, ports);
 
     const prepared = prepareLinkedWorkspaces(snapshot, pathValue => ports.directories.identify(pathValue));
-    const dirDigest = computeDirectorySnapshotDigest(snapshot);
+    const dirDigest = computeDirectorySnapshotDigest(snapshot, store.homeDirectory);
     const bindingDigest = computeBindingSnapshotDigest(snapshot);
     const duplicateLocal = store.duplicateLocalNativeKeys();
     const decisionMap = store.decisions.allAttributionDecisions();

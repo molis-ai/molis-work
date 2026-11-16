@@ -302,7 +302,7 @@ export async function runToolSearch(
   const limit = Math.min(Math.max(1, input.limit ?? EXTERNAL_SESSION_LIST_DEFAULT), EXTERNAL_SESSION_LIST_MAX);
   const signal = caller.signal ?? AbortSignal.any([]);
 
-  const precheck = await ports.projects.read(() => {
+  const precheck = await ports.projects.read(snapshot => {
     const tool = findTopLevelTool(input.entry_id);
     const adapter = tool ? getSessionAdapter(tool.id) : undefined;
     if (!tool || !adapter?.searchTool) throw sessionsErrors.source_unsupported("该外部工具不支持自带搜索");
@@ -312,6 +312,7 @@ export async function runToolSearch(
       const conn = scope.connection_id ? ports.connections.current(scope.connection_id) : null;
       if (!scope.connection_id || !conn || !conn.enabled) throw sessionsErrors.needs_login("云端账号登录已失效或未连接");
     }
+    resolveDerivedSnapshot(snapshot, store, ports);
     const root = tool.surface === "cloud" ? null : resolveLocalToolRoot(tool, ports).root;
     return { tool, adapter, root, connectionId: scope.connection_id };
   });

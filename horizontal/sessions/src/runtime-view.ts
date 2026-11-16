@@ -18,11 +18,11 @@ import {
   matchRuntimeBindingForSession,
   prepareLinkedWorkspaces,
   resolveSessionAttribution,
-  workspaceDirectoryKey,
   type PreparedLinkedWorkspace,
   type ResolvedAttribution,
   type StoredAttributionDecision,
 } from "./attribution.js";
+import type { SessionDirectoryIdentity } from "./git-files.js";
 import { type DiscoveryCoordinator, resolveLocalToolRoot } from "./discovery.js";
 import { readSessionSourceFailure, type SessionProjectSnapshot, type SessionsPorts } from "./ports.js";
 import {
@@ -111,24 +111,20 @@ export function isSessionInScopeWithMaps(
 export function upsertWorkspaceDirectoryCache(
   snapshot: SessionProjectSnapshot,
   workspaces: readonly PreparedLinkedWorkspace[],
-  dirDigest: string,
+  _dirDigest: string,
   store: SessionsStore,
 ): void {
-  store.deleteWorkspaceDirectories();
   const byCanonical = new Map(workspaces.map(ws => [ws.canonical_path, ws]));
+  const entries = new Map<string, SessionDirectoryIdentity | null>();
   for (const record of snapshot.directories) {
     if (!record.realpath_verified) continue;
-    const wsKey = workspaceDirectoryKey(record.canonical_path);
     const ws = byCanonical.get(record.canonical_path);
-    if (ws) {
-      const identity = { real_path: ws.real_path, repository_key: ws.repository_key, worktree_relative: ws.worktree_relative };
-      const derived = evaluateDerivedDirectory(identity, workspaces, "automatic");
-      store.upsertDirectory({ directory_key: wsKey, path: ws.real_path, kind: "workspace", identity, derived, directory_digest: dirDigest });
-    } else {
-      const derived = evaluateDerivedDirectory(null, workspaces, null);
-      store.upsertDirectory({ directory_key: wsKey, path: record.canonical_path, kind: "workspace", identity: null, derived, directory_digest: dirDigest });
-    }
+    entries.set(
+      record.canonical_path,
+      ws ? { real_path: ws.real_path, repository_key: ws.repository_key, worktree_relative: ws.worktree_relative } : null,
+    );
   }
+  store.setWorkspaceCache(entries);
 }
 
 export interface ResolvedDerivedSnapshot {
@@ -146,13 +142,14 @@ export function resolveDerivedSnapshot(
 ): ResolvedDerivedSnapshot {
   const allowDisk = options?.allowDiskIdentify !== false;
   const projectMap = new Map(snapshot.projects.map(p => [p.project_id, { project_id: p.project_id, display_name: p.display_name }]));
-  const dirDigest = computeDirectorySnapshotDigest(snapshot);
+  const dirDigest = computeDirectorySnapshotDigest(snapshot, store.homeDirectory);
   const bindingDigest = computeBindingSnapshotDigest(snapshot);
   const storedDirDigest = store.getMeta("directory_snapshot_digest");
   const storedBindingDigest = store.getMeta("binding_snapshot_digest");
   const initialDirs = store.allDirectories();
 
-  const reconstructWorkspaces = (dirMap: ReadonlyMap<string, StoredDirectoryRow>) => {
+  const reconstructWorkspaces = () => {
+    const wsCache = store.workspaceCache();
     const workspaces: PreparedLinkedWorkspace[] = [];
     let missingCache = false;
     for (const record of snapshot.directories) {
@@ -161,18 +158,18 @@ export function resolveDerivedSnapshot(
       const personSet = new Set(personIds);
       const toolOnlyIds = record.project_ids.filter(id => projectMap.has(id) && !personSet.has(id));
       if (personIds.length === 0 && toolOnlyIds.length === 0) continue;
-      const wsRow = dirMap.get(workspaceDirectoryKey(record.canonical_path));
-      if (!wsRow || wsRow.kind !== "workspace") {
+      if (!wsCache.has(record.canonical_path)) {
         missingCache = true;
         continue;
       }
-      if (!wsRow.realpath_verified) continue;
+      const identity = wsCache.get(record.canonical_path) ?? null;
+      if (!identity) continue;
       workspaces.push({
         workspace_id: record.workspace_id,
         canonical_path: record.canonical_path,
-        real_path: wsRow.path,
-        repository_key: wsRow.repository_key,
-        worktree_relative: wsRow.worktree_relative,
+        real_path: identity.real_path,
+        repository_key: identity.repository_key,
+        worktree_relative: identity.worktree_relative,
         person_project_ids: personIds,
         tool_only_project_ids: toolOnlyIds,
       });
@@ -181,7 +178,7 @@ export function resolveDerivedSnapshot(
   };
 
   if (!allowDisk) {
-    const { workspaces } = reconstructWorkspaces(initialDirs);
+    const { workspaces } = reconstructWorkspaces();
     if (storedDirDigest === dirDigest) {
       return { dirDigest, projectMap, workspaces, dirMap: initialDirs };
     }
@@ -208,7 +205,7 @@ export function resolveDerivedSnapshot(
     return { dirDigest, projectMap, workspaces, dirMap: recomputed };
   }
 
-  const cached = reconstructWorkspaces(initialDirs);
+  const cached = reconstructWorkspaces();
   if (storedDirDigest === dirDigest && !cached.missingCache) {
     if (storedBindingDigest === bindingDigest) {
       return { dirDigest, projectMap, workspaces: cached.workspaces, dirMap: initialDirs };

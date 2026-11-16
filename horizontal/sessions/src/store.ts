@@ -149,11 +149,14 @@ function parseDirectoryRow(raw: Record<string, unknown>): StoredDirectoryRow {
  * Internal SQLite repository over `external-sessions/external-sessions.db`. Not exported from the package root.
  */
 export class SessionsStore {
+  readonly homeDirectory: string;
   readonly db: DatabaseSync;
   readonly decisions: SessionsDecisionStore;
+  private workspaceIdentities = new Map<string, SessionDirectoryIdentity | null>();
   private closed = false;
 
   constructor(homeDirectory: string) {
+    this.homeDirectory = homeDirectory;
     this.db = openBaselineHomeSqlite(homeDirectory, EXTERNAL_SESSIONS_STORE, EXTERNAL_SESSIONS_BASELINE);
     this.decisions = new SessionsDecisionStore(this.db);
   }
@@ -263,8 +266,12 @@ export class SessionsStore {
     return map;
   }
 
-  deleteWorkspaceDirectories(): void {
-    this.db.prepare("DELETE FROM session_directories WHERE kind = 'workspace'").run();
+  workspaceCache(): ReadonlyMap<string, SessionDirectoryIdentity | null> {
+    return this.workspaceIdentities;
+  }
+
+  setWorkspaceCache(entries: ReadonlyMap<string, SessionDirectoryIdentity | null>): void {
+    this.workspaceIdentities = new Map(entries);
   }
 
   upsertDirectory(input: {

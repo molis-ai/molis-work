@@ -4359,6 +4359,13 @@
     "workbench.import.document-tool-not-connected-yet-connect-capabilities-connections": "This document tool is not connected yet. Connect it in Capabilities → Connections, then come back to import.",
     "workbench.import.done-imported-failed-not-imported-reasons-above": "{done} imported, {failed} not imported (reasons above).",
     "workbench.import.done-imported-organizing-now": "{done} imported; organizing now.",
+    "workbench.import.remaining-files": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} file remains. Select Import to continue.",
+        "other": "{count} files remain. Select Import to continue."
+      }
+    },
     "workbench.import.downloading-transcription-model-only-once": "Downloading the transcription model (only this once)",
     "workbench.import.enter-document-s-https-url": "Enter the document’s HTTPS URL.",
     "workbench.import.file-cannot-be-read-save-text-files-utf": "The file cannot be read. Save text files as UTF-8 and try again.",
@@ -7971,7 +7978,7 @@
     "workbench.side-panel-files.find-knowledge": "Find in knowledge",
     "workbench.side-panel-files.found-content": "Found by content",
     "workbench.side-panel-files.import": "Import",
-    "workbench.side-panel-files.imported": "Imported",
+    "workbench.side-panel-files.imported": "Import",
     "workbench.side-panel-files.imported-files-documents-saved-project-where-its-agents": "Imported files and documents are saved in the project, where its agents can find them; the text of PDFs, Office documents and e-books is read out, images are recognized and audio and video are transcribed. Later changes to the original are not synced.",
     "workbench.side-panel-files.kept-agents": "Kept from agents",
     "workbench.side-panel-files.keyword": "Keyword",
@@ -8001,7 +8008,7 @@
     "workbench.side-panel-files.these-plugins-have-no-pieces-yet": "These plugins have no pieces yet",
     "workbench.side-panel-files.title": "Title",
     "workbench.side-panel-files.title-only": "Title only",
-    "workbench.side-panel-files.up-6-mb-per-file-200-files-time": "Up to 6 MB per file and 200 files at a time. In a folder, hidden files and folders such as node_modules are skipped.",
+    "workbench.side-panel-files.up-6-mb-per-file-200-files-time": "Text files can be up to 6 MB. Import 200 files per batch, then continue with the remaining files. Hidden files and folders such as node_modules are skipped.",
     "workbench.side-panel-files.waiting": "Waiting",
     "workbench.side-panel-tab.background-tasks": "Background tasks",
     "workbench.side-panel-tab.browser": "Browser",

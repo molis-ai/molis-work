@@ -1,3 +1,4 @@
+// QEA-09: these calls exercise the shared binding through real Feed actions, including owner rules and persistence.
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";

@@ -21,7 +21,7 @@ const wanted = (path: string) => !path.split("/").some((segment, index, all) => 
 async function dropped(items: DataTransferItemList): Promise<Picked[]> {
   const out: Picked[] = [];
   const walk = async (entry: FileSystemEntry, prefix: string): Promise<void> => {
-    if (out.length >= MAX_FILES * 2) return;
+    if (!wanted(prefix + entry.name + (entry.isDirectory ? "/" : ""))) return;
     if (entry.isFile) {
       const file = await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject));
       out.push({ file, path: prefix + file.name });
@@ -150,15 +150,19 @@ export function bindKnowledgeImport(root: HTMLElement): void {
   };
   const take = (items: Picked[]) => {
     const seen = new Set(picked.map(item => item.path));
-    picked = [...picked, ...items.filter(item => wanted(item.path) && !seen.has(item.path))];
-    drawPicked();
+    picked = [...picked, ...items.filter(item => {
+      if (!wanted(item.path) || seen.has(item.path)) return false;
+      seen.add(item.path); return true;
+    })];
+    // The running batch owns its result rows; new selections wait for the next batch.
+    if (!busy) drawPicked();
   };
   // Each kind says only its own state: the files picked (and whether there are any to import), or the chosen tool's connection.
   const switchKind = async () => {
     const online = kind() === "online";
     $("[data-knowledge-import-local]").hidden = online;
     $("[data-knowledge-import-online]").hidden = !online;
-    if (online) { status.textContent = ""; await connections(); } else drawPicked();
+    if (online) { if (!busy) status.textContent = ""; await connections(); } else if (!busy) drawPicked();
   };
   async function connections() {
     const note = $("[data-knowledge-import-connection-note]");
@@ -178,7 +182,9 @@ export function bindKnowledgeImport(root: HTMLElement): void {
   async function importFiles() {
     const queue = picked.slice(0, MAX_FILES);
     if (!queue.length) return;
+    drawPicked();
     let done = 0, failed = 0, bytes: number | null = null;
+    const imported = new Set<Picked>();
     const rows = [...pickedList.children] as HTMLElement[], untranscribed: Untranscribed[] = [];
     consent.reset();
     for (const [index, item] of queue.entries()) {
@@ -190,6 +196,7 @@ export function bindKnowledgeImport(root: HTMLElement): void {
         const saved = rawOriginal(item.file) ? await request()<Imported>(originalRoute(base, false), { file: item.file, headers: originalHeaders(item.file), fallback: FAILED() })
           : await one(await bodyOf(item.file));
         done += 1;
+        imported.add(item);
         if (saved.model_required) { untranscribed.push({ item, row: rows[index] }); bytes ??= saved.model_required.approximate_bytes; }
         // A file still waiting on the speech model is not done yet: its note stays neutral until it is transcribed.
         if (!saved.model_required) rows[index]?.classList.add("is-done");
@@ -200,8 +207,11 @@ export function bindKnowledgeImport(root: HTMLElement): void {
         note(mark, request().text(error));
       }
     }
-    status.textContent = failed ? uiText.text("workbench.import.done-imported-failed-not-imported-reasons-above", { done, failed }) : uiText.text("workbench.import.done-imported-organizing-now", { done });
-    picked = queue.filter((_, index) => rows[index]?.classList.contains("is-failed"));
+    // Keep the unattempted tail ahead of failures, so a rejected batch cannot block later files forever.
+    picked = [...picked.slice(queue.length), ...queue.filter(item => !imported.has(item))];
+    const result = failed ? uiText.text("workbench.import.done-imported-failed-not-imported-reasons-above", { done, failed }) : uiText.text("workbench.import.done-imported-organizing-now", { done });
+    const remaining = picked.length - failed;
+    status.textContent = result + (remaining ? " " + uiText.text("workbench.import.remaining-files", { count: remaining }) : "");
     if (untranscribed.length) consent.ask(untranscribed, bytes);
   }
 
@@ -248,6 +258,6 @@ export function bindKnowledgeImport(root: HTMLElement): void {
   accept(drop, false);
   const browse = root.querySelector<HTMLElement>("[data-side-files-browse]");
   if (browse) accept(browse, true);
-  const open = () => { status.textContent = ""; dialog.showModal(); void switchKind(); };
+  const open = () => { if (!busy) status.textContent = ""; dialog.showModal(); void switchKind(); };
   root.querySelector("[data-knowledge-import-open]")?.addEventListener("click", open);
 }

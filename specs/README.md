@@ -18,6 +18,8 @@
 
 刚合入、等真实 Home 采用或本人验收的项也留在这里，状态写在条目上。
 
+- [quality-experience-audit](quality-experience-audit/spec.md)：六方向代码质量与实际体验审查、逻辑缺陷、需求实现度和 BL 清理；2026-11-15 执行中，负责人 Codex，基线 `efdaa3376`，代表入口检查与三批本地定向验收完成，首屏路径批准及CI Full待完成，阶段未结项。
+
 - [batch-06-shared-tools](batch-06-shared-tools/spec.md)：第 06 批成果固定、平台资料产生者与 SDK 公用工具；已随 #2009 合入 `a720834a09`（2026-11-13），剩余真实 Home 采用与本人验收。
 - [batch-06-call-cost](batch-06-call-cost/spec.md)：第 06 批调用成本整治；已随 #2009 合入 `a720834a09`，剩余 N42 首片范围与 BL-943 后续；BCC-09 直测已补。
 - [batch-06-runtime-cost](batch-06-runtime-cost/spec.md)：第 06 批各包调用成本；已随 #2009 合入 `a720834a09`，N47/N48/N49/N50/N51 的实现与定向证据见文内，绝对计数为探针证据。
@@ -25,7 +27,7 @@
 - [workbench-experience-upgrade](workbench-experience-upgrade/spec.md) 工作台体验走查与升级方案。含现状截图、界面样稿、交互动效和六项待评审决定。2026-11-13 方案整理，需求维护 Codex；第一轮全局设计语言（色彩搭配、动效语法、组件板分章）已随 #2056 合入（2026-11-13），五项设计决定用户已采纳，其余实施待分配。
 - [documentation-consolidation](documentation-consolidation/spec.md)：文档状态、索引与事实来源收口；2026-11-13 审计后立项，P0 状态修正、五份已完成 spec 归档与批次回填已完成；P1 主体完成、P2 主体完成（工作线保留两份），见正文。
 
-- [state-machine-platform](state-machine-platform/spec.md)：状态与状态机的平台能力——平台能力状态统一登记、插件声明状态与迁移、启动兑现、只读登记、统一家族显示、可选的插件自管流水账；内置先强制、第三方先提示、对外开放后的阶段二第三方也强制，创作台生成必须申报，公开家族照搬现有 21 类。2026-11-08 需求已整理、用户就十二项方向拍板，并确认按 §13 并入路线书 26-7／27-6／47-2／48-5、迁移进统一待办；尚未实现。
+- [state-machine-platform](state-machine-platform/spec.md)：状态与状态机的平台能力——平台能力状态统一登记、插件声明状态与迁移、启动兑现、只读登记、统一家族显示、可选的插件自管流水账；内置先强制、第三方先提示、对外开放后的阶段二第三方也强制，创作台生成必须申报，公开家族照搬现有 21 类。2026-11-08 用户已确认十二项方向；第26批已交付 Manifest 声明、SDK 状态机、公开词汇首片、只报告门禁及作者文档。Runtime 兑现、创作台合同和只读动作由第47批接续，安装预演展示由第48批接续，存量迁移仍在统一待办。
 
 - [plugin-equal-standing](plugin-equal-standing/spec.md)：插件同等地位收口——Goals 减负（项目指导、可信决定、规划方法搬出，平台合同去掉 Goal 一等概念，宿主与工作台去私路，Goals 可移除），并清掉 Feed、Coding、Inbox、Todo、Pages、灵光、Images 在平台里被点名的地方；只保留此前定过的平台部件（Shelf、成果库、Sessions、创作台、Alchemist、Characters）。2026-11-13 需求已整理、用户已拍板 D1～D8（新项目不默认装 Goals，删桌面胶囊、CLI 的 Goals 命令与 `goal-advance` Skill；要求—证据—认可与工作终端抽成平台能力），排期为路线书第 44 批（原 44～89 顺延为 45～90；可信决定并进 39、规划方法并进 41），并含对路线书后续批次与已合入代码的复查（§9a）；片 4 已随第 41 批 #2078 完成，其余尚未实现。
 

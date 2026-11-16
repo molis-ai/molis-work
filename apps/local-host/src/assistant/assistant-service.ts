@@ -302,16 +302,12 @@ export class AssistantService {
     return this.reads.publicWork(work, hasSession ? await this.reads.stateSafely(work) : "idle");
   }
 
-  private async createWork(text: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot | null, caller: AssistantCaller,
-    choice: AssistantSendInput["executor"], main = false, serves?: StoredWork["serves"]): Promise<StoredWork> {
+  private async createWork(text: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot | null, caller: AssistantCaller, choice: AssistantSendInput["executor"], main = false, serves?: StoredWork["serves"]): Promise<StoredWork> {
     const wanted = sendScope(scope, caller, choice);
     // Chosen only among the executors this project offers now, and kept by the plugin's id.
     const executor = choice?.kind === "plugin" ? await this.dispatcher.executorOf({ project_ref: caller.project_ref }, choice.plugin_id) : null;
     const scopeTitle = wanted.kind === "project" ? await this.ports.projectTitle?.(wanted.project_id).catch(() => null) : null;
-    const origin = context && !hasExternalSessionContext(context) ? context.source : null;
-    return this.store.create({ actor_id: this.actorId, title: main ? "" : titleFrom(text), scope: wanted, origin, ...(scopeTitle ? { scope_title: scopeTitle } : {}), ...(main ? { main: true as const } : {}), ...(serves ? { serves } : {}),
-      ...(executor ? { executor: { kind: "plugin" as const, plugin_id: executor.provider.plugin_id, title: executor.provider.title, session_id: null } } : {}),
-      ...(wanted.kind === "project" ? { project_ref: caller.project_ref! } : {}) });
+    return this.store.create({ actor_id: this.actorId, title: main ? "" : titleFrom(text), scope: wanted, origin: context && !hasExternalSessionContext(context) ? context.source : null, ...(scopeTitle ? { scope_title: scopeTitle } : {}), ...(main ? { main: true as const } : {}), ...(serves ? { serves } : {}), ...(executor ? { executor: { kind: "plugin" as const, plugin_id: executor.provider.plugin_id, title: executor.provider.title, session_id: null } } : {}), ...(wanted.kind === "project" ? { project_ref: caller.project_ref! } : {}) });
   }
 
   /** What an interrupted round really did, from the runtime's receipts. Nothing is replayed. */

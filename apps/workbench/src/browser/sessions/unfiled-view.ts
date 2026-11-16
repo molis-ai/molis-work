@@ -54,25 +54,11 @@ function renderUnfiledCard(row: ExternalSessionRow, input: UnfiledRenderInput): 
   const options = input.projects.map((proj) =>
     `<option value="${escapeHtml(proj.project_id)}"${proj.project_id === selectedProject ? " selected" : ""}>${escapeHtml(proj.display_name)}</option>`).join("");
   const active = input.selectedKey === row.session_key ? " is-selected" : "";
-  return `<article class="sessions-unfiled-card" data-unfiled-card="${escapeHtml(row.session_key)}" data-suggested-project="${escapeHtml(suggestedId)}">
-    <button class="sessions-row${active}" type="button" data-session-key="${escapeHtml(row.session_key)}">
-      <span class="sessions-row-head"><span class="sessions-row-title">${escapeHtml(title)}</span><time class="sessions-row-time">${escapeHtml(formatActivityTime(row.last_activity_at))}</time></span>
-      <span class="sessions-row-meta"><span>${escapeHtml(row.tool.display_name)}</span>${row.directory ? `<span class="sessions-row-dir">${escapeHtml(row.directory)}</span>` : ""}</span>
-    </button>
-    ${suggestLine}
-    <div class="sessions-unfiled-controls">
-      <select class="mw-input" data-unfiled-select="${escapeHtml(row.session_key)}" aria-label="${uiText("workbench.sessions.target-project")}"${input.projects.length === 0 ? " disabled" : ""}>${options}</select>
-      <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-unfiled-file="${escapeHtml(row.session_key)}"${!selectedProject ? " disabled" : ""}>${uiText("workbench.sessions.file-to-project")}</button>
-      <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-unfiled-keep="${escapeHtml(row.session_key)}">${uiText("workbench.sessions.keep-unfiled")}</button>
-    </div>
-  </article>`;
+  return `<article class="sessions-unfiled-card" data-unfiled-card="${escapeHtml(row.session_key)}" data-suggested-project="${escapeHtml(suggestedId)}"><button class="sessions-row${active}" type="button" data-session-key="${escapeHtml(row.session_key)}"><span class="sessions-row-head"><span class="sessions-row-title">${escapeHtml(title)}</span><time class="sessions-row-time">${escapeHtml(formatActivityTime(row.last_activity_at))}</time></span><span class="sessions-row-meta"><span>${escapeHtml(row.tool.display_name)}</span>${row.directory ? `<span class="sessions-row-dir">${escapeHtml(row.directory)}</span>` : ""}</span></button>${suggestLine}<div class="sessions-unfiled-controls"><select class="mw-input" data-unfiled-select="${escapeHtml(row.session_key)}" aria-label="${uiText("workbench.sessions.target-project")}"${input.projects.length === 0 ? " disabled" : ""}>${options}</select><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-unfiled-file="${escapeHtml(row.session_key)}"${!selectedProject ? " disabled" : ""}>${uiText("workbench.sessions.file-to-project")}</button><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-unfiled-keep="${escapeHtml(row.session_key)}">${uiText("workbench.sessions.keep-unfiled")}</button></div></article>`;
 }
 
 export function renderUnfiledList(input: UnfiledRenderInput): string {
-  const note = `<div class="sessions-unfiled-note">
-    <span>${uiText("workbench.sessions.unfiled-payload-note")}</span>
-    <span>${uiText("workbench.sessions.unfiled-permit-note")}</span>
-  </div>`;
+  const note = `<div class="sessions-unfiled-note"><span>${uiText("workbench.sessions.unfiled-payload-note")}</span><span>${uiText("workbench.sessions.unfiled-permit-note")}</span></div>`;
   if (input.rows.length === 0) {
     return `${note}<div class="sessions-empty-card"><strong>${uiText("workbench.sessions.unfiled-empty-title")}</strong><span>${uiText("workbench.sessions.unfiled-empty-body")}</span></div>`;
   }

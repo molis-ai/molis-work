@@ -20,7 +20,7 @@ import {
   type ExternalSessionScopeView,
 } from "@molis-ai/molis-work-contracts/services/sessions";
 import { hasSessionAdapter } from "./adapters/index.js";
-import { isSessionDirectoryAllowedByScope, prepareLinkedWorkspaces, type PreparedLinkedWorkspace } from "./attribution.js";
+import { isSessionDirectoryAllowedByScope, type PreparedLinkedWorkspace } from "./attribution.js";
 import { type DiscoveryCoordinator, resolveLocalToolRoot } from "./discovery.js";
 import type { SessionProjectSnapshot, SessionsPorts } from "./ports.js";
 import {
@@ -30,7 +30,7 @@ import {
   isSourceCurrentlyAllowed,
   materializeFullRow,
   nowIso,
-  syncDerivedCaches,
+  resolveDerivedSnapshot,
   topLevelTools,
   type SessionsCaller,
 } from "./runtime-view.js";
@@ -170,17 +170,16 @@ export function buildScopeViewSync(
   store: SessionsStore,
   ports: SessionsPorts,
 ): ExternalSessionScopeView {
-  const prepared = prepareLinkedWorkspaces(snapshot, pathValue => ports.directories.identify(pathValue));
-  const { dirMap } = syncDerivedCaches(snapshot, prepared, store, ports);
+  const { dirMap, workspaces } = resolveDerivedSnapshot(snapshot, store, ports);
   const scopes = store.decisions.readScopes();
   const sources = buildScopeSources(scopes, ports);
   const aiReadsMap = store.decisions.projectAiReads();
   const countsMap = includeCounts
-    ? foldProjectSessionCounts(snapshot, scopes, dirMap, prepared.workspaces, store, ports)
+    ? foldProjectSessionCounts(snapshot, scopes, dirMap, workspaces, store, ports)
     : null;
 
   const dirsByProject = new Map<string, string[]>();
-  for (const ws of prepared.workspaces) {
+  for (const ws of workspaces) {
     for (const pid of ws.person_project_ids) {
       const list = dirsByProject.get(pid) ?? [];
       list.push(ws.canonical_path);
@@ -348,11 +347,11 @@ export async function runProjectAiReadSet(
   return ports.projects.read(snapshot => {
     const project = snapshot.projects.find(item => item.project_id === projectId);
     if (!project) throw sessionsErrors.project_unavailable("目标项目不存在或已被移除");
-    const prepared = prepareLinkedWorkspaces(snapshot, pathValue => ports.directories.identify(pathValue));
+    const { workspaces } = resolveDerivedSnapshot(snapshot, store, ports);
     const updated = store.inTransaction(() =>
       store.decisions.setProjectAiRead(projectId, input.allowed, input.expected_revision, caller.actor_id, nowIso(ports)),
     );
-    const directories = prepared.workspaces.filter(ws => ws.person_project_ids.includes(projectId)).map(ws => ws.canonical_path);
+    const directories = workspaces.filter(ws => ws.person_project_ids.includes(projectId)).map(ws => ws.canonical_path);
     return {
       project: { project_id: project.project_id, display_name: project.display_name },
       directories, current: true, allowed: updated.allowed, revision: updated.revision, decided_at: updated.decided_at, counts: null,
@@ -405,17 +404,16 @@ export async function runAttributionSet(
   const row = await ports.projects.read(snapshot => {
     const session = store.getSession(input.session_key);
     if (!session) throw sessionsErrors.not_found("外部会话不存在或不在读取范围内");
-    const prepared = prepareLinkedWorkspaces(snapshot, pathValue => ports.directories.identify(pathValue));
-    const { dirMap } = syncDerivedCaches(snapshot, prepared, store, ports);
+    const { dirMap, workspaces, projectMap } = resolveDerivedSnapshot(snapshot, store, ports);
     const scopeMap = new Map(store.decisions.readScopes().map(s => [`${s.entry_id}\0${s.location_key}`, s]));
-    if (!isSessionInScopeWithMaps(session, scopeMap, dirMap, prepared.workspaces, ports)) {
+    if (!isSessionInScopeWithMaps(session, scopeMap, dirMap, workspaces, ports)) {
       throw sessionsErrors.not_found("外部会话不存在或不在读取范围内");
     }
 
     let targetProjectId: string | null = null;
     let basis: "user_chose" | "suggestion_accepted" | null = null;
     if (input.decision.kind === "project") {
-      if (!prepared.projectMap.has(input.decision.project_id)) {
+      if (!projectMap.has(input.decision.project_id)) {
         throw sessionsErrors.project_unavailable("目标项目不存在或已被移除");
       }
       targetProjectId = input.decision.project_id;
@@ -432,7 +430,7 @@ export async function runAttributionSet(
 
     const materialized = materializeFullRow(
       session, dirMap, store.decisions.allAttributionDecisions(),
-      store.decisions.allSuggestions(), snapshot.bindings, prepared.projectMap, store.duplicateLocalNativeKeys(),
+      store.decisions.allSuggestions(), snapshot.bindings, projectMap, store.duplicateLocalNativeKeys(),
     );
     if (materialized.resolved.reported_project_id !== session.reported_project_id) {
       store.updateReportedProjectId(session.session_key, materialized.resolved.reported_project_id);

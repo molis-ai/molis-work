@@ -57,36 +57,21 @@ function endpoint(path: string, projectOverride?: string): string {
   return `${currentRoutePrefix()}${path}`;
 }
 
+const post = <T>(path: string, body: unknown, proj?: string): Promise<T> =>
+  req()(endpoint(path, proj), { method: "POST", body }) as Promise<T>;
+
 export const sessionsApi = {
-  list(input: ExternalSessionListInput): Promise<PersonSessionListOutput> {
-    return req()(endpoint("/api/sessions/list"), { method: "POST", body: input }) as Promise<PersonSessionListOutput>;
-  },
-  history(input: ExternalSessionHistoryInput): Promise<ExternalSessionHistoryOutput> {
-    return req()(endpoint("/api/sessions/history"), { method: "POST", body: input }) as Promise<ExternalSessionHistoryOutput>;
-  },
-  scopeRead(includeCounts = true): Promise<SessionScopeWithMeta> {
-    const suffix = includeCounts ? "" : "?counts=0";
-    return req()(endpoint(`/api/sessions/scope${suffix}`), { method: "GET" }) as Promise<SessionScopeWithMeta>;
-  },
-  scopeSet(input: ExternalSessionScopeSetInput): Promise<SessionScopeWithMeta> {
-    return req()(endpoint("/api/sessions/scope"), { method: "POST", body: input }) as Promise<SessionScopeWithMeta>;
-  },
-  projectAiReadSet(projectId: string, input: ExternalSessionProjectAiReadSetInput): Promise<ExternalSessionProjectAiRead> {
-    const target = projectId && projectId !== currentProjectId() ? projectId : undefined;
-    return req()(endpoint("/api/sessions/project-ai-read", target), { method: "POST", body: input }) as Promise<ExternalSessionProjectAiRead>;
-  },
-  discoveryRun(input: ExternalSessionDiscoveryRunInput = {}): Promise<ExternalSessionDiscoveryRunOutput> {
-    return req()(endpoint("/api/sessions/discovery"), { method: "POST", body: input }) as Promise<ExternalSessionDiscoveryRunOutput>;
-  },
-  attributionSet(input: ExternalSessionAttributionInput): Promise<ExternalSessionRow> {
-    return req()(endpoint("/api/sessions/attribution"), { method: "POST", body: input }) as Promise<ExternalSessionRow>;
-  },
-  attributionSuggest(input: ExternalSessionAttributionSuggestInput): Promise<ExternalSessionAttributionSuggestOutput> {
-    return req()(endpoint("/api/sessions/suggest"), { method: "POST", body: input }) as Promise<ExternalSessionAttributionSuggestOutput>;
-  },
-  toolSearch(input: ExternalSessionToolSearchInput): Promise<ExternalSessionToolSearchOutput> {
-    return req()(endpoint("/api/sessions/tool-search"), { method: "POST", body: input }) as Promise<ExternalSessionToolSearchOutput>;
-  },
+  list: (input: ExternalSessionListInput) => post<PersonSessionListOutput>("/api/sessions/list", input),
+  history: (input: ExternalSessionHistoryInput) => post<ExternalSessionHistoryOutput>("/api/sessions/history", input),
+  scopeRead: (includeCounts = true) =>
+    req()(endpoint(`/api/sessions/scope${includeCounts ? "" : "?counts=0"}`), { method: "GET" }) as Promise<SessionScopeWithMeta>,
+  scopeSet: (input: ExternalSessionScopeSetInput) => post<SessionScopeWithMeta>("/api/sessions/scope", input),
+  projectAiReadSet: (projectId: string, input: ExternalSessionProjectAiReadSetInput) =>
+    post<ExternalSessionProjectAiRead>("/api/sessions/project-ai-read", input, projectId && projectId !== currentProjectId() ? projectId : undefined),
+  discoveryRun: (input: ExternalSessionDiscoveryRunInput = {}) => post<ExternalSessionDiscoveryRunOutput>("/api/sessions/discovery", input),
+  attributionSet: (input: ExternalSessionAttributionInput) => post<ExternalSessionRow>("/api/sessions/attribution", input),
+  attributionSuggest: (input: ExternalSessionAttributionSuggestInput) => post<ExternalSessionAttributionSuggestOutput>("/api/sessions/suggest", input),
+  toolSearch: (input: ExternalSessionToolSearchInput) => post<ExternalSessionToolSearchOutput>("/api/sessions/tool-search", input),
 };
 
 export async function copyPlainText(value: string): Promise<boolean> {

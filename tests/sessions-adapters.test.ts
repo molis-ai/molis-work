@@ -135,7 +135,7 @@ test("SRB-01 SRB-02 SRB-10 local file adapters (Claude, Gemini, Pi, Qoder, Kimi,
     const ports: SessionsPorts = {
       ...base,
       projects: { read: async op => op(EMPTY_SNAPSHOT) },
-      directories: { identify: p => identifySessionDirectory(p, { homeRoot: userHome }) },
+      directories: { identify: p => identifySessionDirectory(p, { homeDir: userHome }) },
     };
 
     const svc = new SessionsService(homeDir, ports);
@@ -218,6 +218,14 @@ test("SRB-01 SRB-07 SRB-12 SRB-13 command/protocol/cloud adapters (Codex + subag
       `${JSON.stringify({ sessionId: "partial-sess", cwd: repoDir, timestamp: "2026-11-10T07:00:00Z", message: { role: "user", content: "Valid line before corruption" } })}\n{NOT_VALID_JSON\n`,
     );
     await writeFile(
+      path.join(claudeDir, "mid-corrupt.jsonl"),
+      [
+        JSON.stringify({ sessionId: "mid-corrupt", cwd: repoDir, timestamp: "2026-11-10T07:00:30Z", message: { role: "user", content: "First line" } }),
+        "{MID_FILE_BROKEN_JSON",
+        JSON.stringify({ sessionId: "mid-corrupt", cwd: repoDir, timestamp: "2026-11-10T07:00:35Z", message: { role: "assistant", content: "After broken" } }),
+      ].join("\n") + "\n",
+    );
+    await writeFile(
       path.join(claudeDir, "empty-corrupt.jsonl"),
       `${JSON.stringify({ sessionId: "empty-corrupt", cwd: repoDir, timestamp: "2026-11-10T07:01:00Z", type: "session" })}\n`,
     );
@@ -227,7 +235,7 @@ test("SRB-01 SRB-07 SRB-12 SRB-13 command/protocol/cloud adapters (Codex + subag
     const ports: SessionsPorts = {
       ...base,
       projects: { read: async op => op(EMPTY_SNAPSHOT) },
-      directories: { identify: p => identifySessionDirectory(p, { homeRoot: userHome }) },
+      directories: { identify: p => identifySessionDirectory(p, { homeDir: userHome }) },
       protocols: {
         codexThreadList: async () => ({
           threads: [
@@ -331,12 +339,19 @@ test("SRB-01 SRB-07 SRB-12 SRB-13 command/protocol/cloud adapters (Codex + subag
       assert.equal(searched.sessions.length, 1);
       assert.equal(searched.sessions[0]?.identity.native_id, "droid-sess-1");
 
-      // Partial read returns read entries + `read_state: "partial"`; corrupt-from-byte-0 raises instead of faking an empty session.
+      // Trailing half-written line returns read entries + `read_state: "partial"` (`retryable: true`); mid-file corruption is non-retryable.
       const partialRow = rows.find(r => r.identity.native_id === "partial-sess")!;
       const partialHist = await svc.historyRead({ session_key: partialRow.session_key }, PERSON);
       assert.equal(partialHist.read_state, "partial");
       assert.equal(partialHist.entries.length, 1);
-      assert.equal(partialHist.stopped?.code, "sessions.version_unreadable");
+      assert.equal(partialHist.stopped?.code, "sessions.read_failed");
+      assert.equal(partialHist.stopped?.retryable, true);
+
+      const midRow = rows.find(r => r.identity.native_id === "mid-corrupt")!;
+      const midHist = await svc.historyRead({ session_key: midRow.session_key }, PERSON);
+      assert.equal(midHist.read_state, "partial");
+      assert.equal(midHist.stopped?.code, "sessions.version_unreadable");
+      assert.equal(midHist.stopped?.retryable, false);
 
       await writeFile(path.join(claudeDir, "empty-corrupt.jsonl"), "{BROKEN_LINE_ONLY\n");
       const emptyCorruptRow = rows.find(r => r.identity.native_id === "empty-corrupt")!;
@@ -366,12 +381,16 @@ test("SRB-13 Claude Code reports unreadable_version source state instead of sile
       path.join(claudeDir, "future-v99.jsonl"),
       `${JSON.stringify({ schemaVersion: 99, type: "claude_v99_envelope", sessionId: "future-v99" })}\n`,
     );
+    await writeFile(
+      path.join(claudeDir, "snapshot-shell.jsonl"),
+      `${JSON.stringify({ type: "file-history-snapshot", messageId: "m-1", snapshot: {} })}\n`,
+    );
 
     const base = createHostSessionsPorts(homeDir, () => undefined, () => {}, { homeRoot: userHome, env: {} });
     const ports: SessionsPorts = {
       ...base,
       projects: { read: async op => op(EMPTY_SNAPSHOT) },
-      directories: { identify: p => identifySessionDirectory(p, { homeRoot: userHome }) },
+      directories: { identify: p => identifySessionDirectory(p, { homeDir: userHome }) },
     };
 
     const svc = new SessionsService(homeDir, ports);

@@ -158,6 +158,9 @@ test("S-sessions-read-only-commands 1: unknown executable, disallowed subcommand
 
   for (const forbiddenSearch of [
     ["exec", "rm -rf"],
+    ["search", "--json", "--flag-injection"],
+    ["search", "--json", "   --flag-injection"],
+    ["search", "--json", "   "],
     ["search", "--output-format", "json", "--flag-injection"],
     ["search", "--output-format", "json", "bad\0query"],
   ]) {
@@ -290,7 +293,7 @@ test("S-sessions-recheck-before-return 1: disabling a source or narrowing its di
         }),
       },
       projects: { read: async op => op(snapshot) },
-      directories: { identify: p => identifySessionDirectory(p, { homeRoot: userHome }) },
+      directories: { identify: p => identifySessionDirectory(p, { homeDir: userHome }) },
     };
 
     const svc = new SessionsService(homeDir, ports);
@@ -331,6 +334,11 @@ test("S-sessions-recheck-before-return 1: disabling a source or narrowing its di
       const narrowedSearch = await svc.toolSearch({ entry_id: "droid", location_key: droidLoc, query: "Droid" }, PERSON);
       assert.equal(narrowedSearch.sessions.length, 0);
       assert.equal(narrowedSearch.skipped_count, 1);
+
+      await assert.rejects(
+        () => svc.toolSearch({ entry_id: "droid", location_key: droidLoc, query: "   --exec" }, PERSON),
+        (err: unknown) => err instanceof ActionError && err.code === "actions.input_invalid",
+      );
 
       // Re-open `all`, then disable mid-flight during `historyRead`: must throw `sessions.scope_changed` with zero leaked content!
       const s3 = await svc.scopeSet(
@@ -466,7 +474,7 @@ test("S-sessions-untrusted-text 1: prompt-injection, HTML, script and tool paylo
     const svc = new SessionsService(homeDir, {
       ...base,
       projects: { read: async op => op(snapshot) },
-      directories: { identify: p => identifySessionDirectory(p, { homeRoot: userHome }) },
+      directories: { identify: p => identifySessionDirectory(p, { homeDir: userHome }) },
       suggester: {
         promptVersion: () => 1,
         suggest: async input => {
@@ -583,7 +591,7 @@ test("S-sessions-person-decides 1: plugins, workflows, MCP, project agents and d
     const svc = new SessionsService(homeDir, {
       ...base,
       projects: { read: async op => op(snapshot) },
-      directories: { identify: p => identifySessionDirectory(p, { homeRoot: userHome }) },
+      directories: { identify: p => identifySessionDirectory(p, { homeDir: userHome }) },
     });
 
     try {
@@ -651,7 +659,7 @@ test("S-sessions-person-decides 2: model attribution suggestions never write ses
     const svc = new SessionsService(homeDir, {
       ...base,
       projects: { read: async op => op(snapshot) },
-      directories: { identify: p => identifySessionDirectory(p, { homeRoot: userHome }) },
+      directories: { identify: p => identifySessionDirectory(p, { homeDir: userHome }) },
       suggester: {
         promptVersion: () => 1,
         suggest: async () => ({
@@ -807,8 +815,8 @@ test("S-sessions-git-files-only 1: worktree resolution reads only .git, commondi
     await writeFile(path.join(wtAdmin, "gitdir"), `${path.join(wtRoot, ".git")}\n`, "utf8");
 
     const readFiles: string[] = [];
-    const mainId = identifySessionDirectory(mainRepo, { homeRoot: root, onFileRead: f => readFiles.push(path.basename(f)) });
-    const wtId = identifySessionDirectory(wtSub, { homeRoot: root, onFileRead: f => readFiles.push(path.basename(f)) });
+    const mainId = identifySessionDirectory(mainRepo, { homeDir: root, onFileRead: f => readFiles.push(path.basename(f)) });
+    const wtId = identifySessionDirectory(wtSub, { homeDir: root, onFileRead: f => readFiles.push(path.basename(f)) });
 
     assert.ok(mainId?.repository_key);
     assert.equal(wtId?.repository_key, mainId?.repository_key, "verified bidirectional worktree shares repository_key with main repo");
@@ -835,7 +843,7 @@ test("S-sessions-git-files-only 2: one-way, mismatched, symlinked or oversized g
     const spoofWt = path.join(root, "spoof-wt");
     await mkdir(spoofWt, { recursive: true });
     await writeFile(path.join(spoofWt, ".git"), `gitdir: ${victimWtAdmin}\n`, "utf8");
-    assert.equal(identifySessionDirectory(spoofWt, { homeRoot: root })?.repository_key, null);
+    assert.equal(identifySessionDirectory(spoofWt, { homeDir: root })?.repository_key, null);
 
     // 2. Missing `commondir`: `repository_key` stays null.
     const noCommonWt = path.join(root, "nocommon-wt");
@@ -844,23 +852,89 @@ test("S-sessions-git-files-only 2: one-way, mismatched, symlinked or oversized g
     await mkdir(noCommonAdmin, { recursive: true });
     await writeFile(path.join(noCommonWt, ".git"), `gitdir: ${noCommonAdmin}\n`, "utf8");
     await writeFile(path.join(noCommonAdmin, "gitdir"), `${path.join(noCommonWt, ".git")}\n`, "utf8");
-    assert.equal(identifySessionDirectory(noCommonWt, { homeRoot: root })?.repository_key, null);
+    assert.equal(identifySessionDirectory(noCommonWt, { homeDir: root })?.repository_key, null);
 
     // 3. Oversized (> 4096 bytes) `.git` file and NUL-byte `.git` file: refused cleanly (`repository_key: null`).
     const oversizedWt = path.join(root, "oversized-wt");
     await mkdir(oversizedWt, { recursive: true });
     await writeFile(path.join(oversizedWt, ".git"), `gitdir: ${"a".repeat(5000)}\n`, "utf8");
-    assert.equal(identifySessionDirectory(oversizedWt, { homeRoot: root })?.repository_key, null);
+    assert.equal(identifySessionDirectory(oversizedWt, { homeDir: root })?.repository_key, null);
 
     const nulWt = path.join(root, "nul-wt");
     await mkdir(nulWt, { recursive: true });
     await writeFile(path.join(nulWt, ".git"), `gitdir: ${victimWtAdmin}\0evil\n`, "utf8");
-    assert.equal(identifySessionDirectory(nulWt, { homeRoot: root })?.repository_key, null);
+    assert.equal(identifySessionDirectory(nulWt, { homeDir: root })?.repository_key, null);
 
     // 4. Symlinked `.git` pointer file: refused cleanly (`repository_key: null`).
     const symGitWt = path.join(root, "symgit-wt");
     await mkdir(symGitWt, { recursive: true });
     await symlink(path.join(legitWt, ".git"), path.join(symGitWt, ".git"));
-    assert.equal(identifySessionDirectory(symGitWt, { homeRoot: root })?.repository_key, null);
+    assert.equal(identifySessionDirectory(symGitWt, { homeDir: root })?.repository_key, null);
+  });
+});
+
+test("S-sessions-recheck-before-return 3: unlinking a root-exact workspace directory revokes automatic attribution and steady-state reads skip disk identify", async () => {
+  await withSandbox(async root => {
+    const homeDir = path.join(root, "home");
+    const userHome = path.join(root, "user");
+    const exactRepo = path.join(root, "exact-repo");
+    const claudeDir = path.join(userHome, ".claude", "projects", "p-exact");
+    for (const d of [homeDir, userHome, path.join(exactRepo, ".git"), claudeDir]) await mkdir(d, { recursive: true });
+    await writeFile(
+      path.join(claudeDir, "exact-sess.jsonl"),
+      `${JSON.stringify({ sessionId: "exact-sess", cwd: exactRepo, timestamp: "2026-11-10T09:00:00Z", message: { role: "user", content: "Root exact session" } })}\n`,
+    );
+
+    let identifyCalls = 0;
+    const base = createHostSessionsPorts(homeDir, () => undefined, () => {}, { homeRoot: userHome, env: {} });
+    const snapshot: SessionProjectSnapshot = {
+      projects: [{ project_id: "proj-exact", display_name: "Exact" }],
+      directories: [{ workspace_id: "ws-exact", canonical_path: exactRepo, realpath_verified: true, display_name: "exact", project_ids: ["proj-exact"], person_project_ids: ["proj-exact"], created_at: NOW_ISO, updated_at: NOW_ISO }],
+      bindings: [],
+    };
+    const svc = new SessionsService(homeDir, {
+      ...base,
+      projects: { read: async op => op(snapshot) },
+      directories: {
+        identify: p => {
+          identifyCalls++;
+          return identifySessionDirectory(p, { homeDir: userHome });
+        },
+      },
+    });
+    const agentCaller: ActionCallContext = { actor_id: "agent:prologue", project_id: "proj-exact", audience: "agent", permissions: [] };
+    try {
+      const s0 = await svc.scopeRead({}, PERSON);
+      await svc.scopeSet({ expected_revision: s0.scope_revision, sources: [{ entry_id: "claude-code", allowed: true, directories: { mode: "all" } }] }, PERSON);
+      await svc.waitForDiscoveryIdle();
+      await svc.projectAiReadSet({ allowed: true, expected_revision: 0 }, { ...PERSON, project_id: "proj-exact" });
+
+      // Steady-state calls after discovery hit cached `wsdir_*` + `dir_*` rows with zero disk `identify()` calls.
+      identifyCalls = 0;
+      const beforeList = await svc.list({ view: "all" }, PERSON);
+      assert.equal(beforeList.sessions[0]?.attribution.state, "automatic");
+      const exactKey = beforeList.sessions[0]!.session_key;
+      const agentHist = await svc.historyRead({ session_key: exactKey }, agentCaller);
+      assert.equal(agentHist.entries.length, 1);
+      assert.equal(identifyCalls, 0, "steady-state list and historyRead perform zero disk identify calls");
+
+      // Unlinking the root-exact directory mid-flight during AI `historyRead` aborts with `sessions.scope_changed` (and zero disk identify in tail check).
+      identifyCalls = 0;
+      await assert.rejects(
+        () => svc.historyRead({ session_key: exactKey }, { ...agentCaller, async beforeEffect() { snapshot.directories = []; } }),
+        (err: unknown) => err instanceof ActionError && err.code === "sessions.scope_changed",
+      );
+      assert.equal(identifyCalls, 0, "tail check detects unlinked root-exact workspace with zero disk identify calls");
+
+      // Subsequent person `list` re-evaluates `dir_*` row to `unfiled` (`relation_gone`) and AI `list` sees 0 sessions.
+      const afterUnlink = await svc.list({ view: "all" }, PERSON);
+      assert.equal(afterUnlink.sessions[0]?.attribution.state, "unfiled");
+      if (afterUnlink.sessions[0]?.attribution.state === "unfiled") {
+        assert.equal(afterUnlink.sessions[0].attribution.reason, "relation_gone");
+      }
+      assert.equal((await svc.list({ view: "project" }, agentCaller)).sessions.length, 0);
+    } finally {
+      svc.close();
+    }
   });
 });

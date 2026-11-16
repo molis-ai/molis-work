@@ -500,7 +500,16 @@ export function parseMessageJsonlLines(lines: readonly JsonlLineRecord[], initia
   let parseErrors = 0;
   let unsupportedRecords = 0;
 
-  for (const record of lines) {
+  let lastNonEmptyIdx = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i]!.line.trim()) {
+      lastNonEmptyIdx = i;
+      break;
+    }
+  }
+
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const record = lines[lineIdx]!;
     const trimmed = record.line.trim();
     if (!trimmed) continue;
     nonEmptyLines++;
@@ -510,10 +519,11 @@ export function parseMessageJsonlLines(lines: readonly JsonlLineRecord[], initia
     } catch {
       parseErrors++;
       if (entries.length > 0) {
+        const trailingAppend = lineIdx === lastNonEmptyIdx;
         partialStop = {
-          code: "sessions.version_unreadable",
+          code: trailingAppend ? "sessions.read_failed" : "sessions.version_unreadable",
           at: entries[entries.length - 1]!.position,
-          retryable: false,
+          retryable: trailingAppend,
         };
         break;
       }

@@ -15,52 +15,36 @@ export interface DiscoveryPoller {
   stop(): void;
 }
 
+export function nextRovingTab(tabs: readonly HTMLButtonElement[], cur: HTMLButtonElement, key: string): HTMLButtonElement | undefined {
+  if (key === "Home") return tabs[0];
+  if (key === "End") return tabs.at(-1);
+  if (key === "ArrowLeft" || key === "ArrowRight") return tabs[(tabs.indexOf(cur) + (key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length];
+  return undefined;
+}
+
 export function createDiscoveryPoller(options: DiscoveryPollerOptions): DiscoveryPoller {
   let timer = 0;
   let step = 0;
   let running = false;
-
-  const clear = () => {
-    if (timer) {
-      window.clearTimeout(timer);
-      timer = 0;
-    }
-  };
-
+  const clear = () => { if (timer) { clearTimeout(timer); timer = 0; } };
   const canPoll = () => document.visibilityState === "visible" && options.isActive();
-
   const schedule = () => {
     clear();
     if (!canPoll()) return;
-    const delay = DELAYS_MS[Math.min(step, DELAYS_MS.length - 1)]!;
     timer = window.setTimeout(async () => {
       timer = 0;
       if (!canPoll() || running) return;
       running = true;
-      try {
-        const stillReading = await options.onTick();
-        step = Math.min(step + 1, DELAYS_MS.length - 1);
-        if (stillReading && canPoll()) schedule();
-      } catch {
-        step = Math.min(step + 1, DELAYS_MS.length - 1);
-        if (canPoll()) schedule();
-      } finally {
-        running = false;
-      }
-    }, delay);
+      let again = true;
+      try { again = await options.onTick(); } catch { /* retry on next backoff */ }
+      running = false;
+      step = Math.min(step + 1, 3);
+      if (again && canPoll()) schedule();
+    }, DELAYS_MS[step]!);
   };
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState !== "visible") clear();
-    else if (options.isActive()) schedule();
-  });
-
+  document.addEventListener("visibilitychange", () => { if (canPoll()) schedule(); else clear(); });
   return {
-    kick(resetStep = false) {
-      if (resetStep) step = 0;
-      if (canPoll()) schedule();
-      else clear();
-    },
+    kick(resetStep = false) { if (resetStep) step = 0; if (canPoll()) schedule(); else clear(); },
     stop: clear,
   };
 }

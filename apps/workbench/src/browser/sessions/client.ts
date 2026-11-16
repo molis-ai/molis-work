@@ -1,46 +1,32 @@
 import { escapeHtml, renderBadge } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { ProjectSelection } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { ExternalSessionRow, ExternalSessionSource, ExternalSessionSuggestion } from "@molis-ai/molis-work-contracts/services/sessions";
+import type { ExternalSessionRow, ExternalSessionSuggestion } from "@molis-ai/molis-work-contracts/services/sessions";
 import { currentProjectId, formatActivityTime, sessionsApi, type SessionToolMeta } from "./api.js";
 import { createDiscoveryPoller, type DiscoveryPoller } from "./poll.js";
 import { bindSourcesEvents, renderSourcesSection } from "./sources-bar.js";
 import { pickSuggestBatchKeys, renderUnfiledList } from "./unfiled-view.js";
-import { renderDetailPane, type DetailViewState } from "./detail-view.js";
-import { bindSessionsClientEvents, type SessionsViewMode } from "./client-events.js";
+import { ensureAttributionDialog, renderDetailPane } from "./detail-view.js";
+import { bindSessionsClientEvents, type SessionsSurfaceMutable } from "./client-events.js";
 import type { ScopeSheetController } from "./scope-sheet.js";
 
 const uiText = globalThis.t;
 
-interface SurfaceCtx {
-  readonly root: HTMLElement;
+interface SurfaceCtx extends SessionsSurfaceMutable {
   readonly sourcesEl: HTMLElement;
   readonly bodyEl: HTMLElement;
-  readonly detailEl: HTMLElement;
   readonly detailEmptyEl: HTMLElement;
-  readonly toolSelect: HTMLSelectElement;
-  readonly searchInput: HTMLInputElement;
   readonly droidBar: HTMLElement;
-  readonly droidHint: HTMLElement;
   readonly unfiledBadge: HTMLElement;
-  readonly attrDialog: HTMLDialogElement | null;
   poller: DiscoveryPoller;
-  view: SessionsViewMode;
-  toolFilter: string;
-  searchQuery: string;
   sourcesExpanded: boolean;
-  rows: ExternalSessionRow[];
-  droidRows: ExternalSessionRow[] | null;
-  sources: ExternalSessionSource[];
   toolMeta: readonly SessionToolMeta[];
-  projects: ProjectSelection[];
   selectedKey: string | null;
-  detail: DetailViewState | null;
-  readonly dirtyChoices: Map<string, string>;
+  listSeq: number;
+  detailSeq: number;
   readonly liveSuggestions: Map<string, ExternalSessionSuggestion>;
 }
 
 function renderSessionRows(rows: readonly ExternalSessionRow[], selectedKey: string | null, showProjectBadge: boolean): string {
-  return rows.map((row) => {
+  const items = rows.map((row) => {
     const title = row.title?.trim() || row.tool.display_name;
     const active = row.session_key === selectedKey ? " is-selected" : "";
     const projBadge = showProjectBadge && (row.attribution.state === "confirmed" || row.attribution.state === "automatic" || row.attribution.state === "reported")
@@ -48,11 +34,9 @@ function renderSessionRows(rows: readonly ExternalSessionRow[], selectedKey: str
       : row.attribution.state === "unfiled"
         ? renderBadge({ label: uiText.text("workbench.sessions.view-unfiled") })
         : "";
-    return `<button class="sessions-row${active}" type="button" role="listitem" data-session-key="${escapeHtml(row.session_key)}">
-      <span class="sessions-row-head"><span class="sessions-row-title">${escapeHtml(title)}</span><time class="sessions-row-time">${escapeHtml(formatActivityTime(row.last_activity_at))}</time></span>
-      <span class="sessions-row-meta"><span>${escapeHtml(row.tool.display_name)}</span>${projBadge}${row.directory ? `<span class="sessions-row-dir">${escapeHtml(row.directory)}</span>` : ""}</span>
-    </button>`;
+    return `<button class="sessions-row${active}" type="button" role="listitem" data-session-key="${escapeHtml(row.session_key)}"><span class="sessions-row-head"><span class="sessions-row-title">${escapeHtml(title)}</span><time class="sessions-row-time">${escapeHtml(formatActivityTime(row.last_activity_at))}</time></span><span class="sessions-row-meta"><span>${escapeHtml(row.tool.display_name)}</span>${projBadge}${row.directory ? `<span class="sessions-row-dir">${escapeHtml(row.directory)}</span>` : ""}</span></button>`;
   }).join("");
+  return `<div class="sessions-row-list" role="list">${items}</div>`;
 }
 
 function paintSurfaceList(ctx: SurfaceCtx): void {
@@ -60,7 +44,9 @@ function paintSurfaceList(ctx: SurfaceCtx): void {
     const on = btn.dataset.sessionsView === ctx.view;
     btn.classList.toggle("is-current", on);
     btn.setAttribute("aria-selected", String(on));
+    btn.tabIndex = on ? 0 : -1;
   });
+  ctx.bodyEl.setAttribute("aria-labelledby", `sessions-tab-${ctx.view}`);
   ctx.droidBar.hidden = !ctx.toolMeta.find((m) => m.id === ctx.toolFilter)?.can_tool_search;
   renderSourcesSection(ctx.sourcesEl, ctx.sources, ctx.sourcesExpanded);
   if (!ctx.sources.some((s) => s.state !== "not_allowed" && s.state !== "unsupported")) {
@@ -92,7 +78,9 @@ async function loadSurfaceScopeMeta(ctx: SurfaceCtx): Promise<void> {
 }
 
 async function loadSurfaceList(ctx: SurfaceCtx, withSuggest = true): Promise<void> {
+  const seq = ++ctx.listSeq;
   const out = await sessionsApi.list({ view: ctx.view, ...(ctx.toolFilter ? { entry_ids: [ctx.toolFilter as never] } : {}) });
+  if (seq !== ctx.listSeq) return;
   ctx.rows = out.sessions;
   ctx.sources = out.sources;
   ctx.unfiledBadge.hidden = !out.unfiled_count;
@@ -111,16 +99,19 @@ async function loadSurfaceList(ctx: SurfaceCtx, withSuggest = true): Promise<voi
 }
 
 async function openSurfaceSession(ctx: SurfaceCtx, sessionKey: string, query = ""): Promise<void> {
+  const seq = ++ctx.detailSeq;
   ctx.selectedKey = sessionKey;
   ctx.root.dataset.expanded = "true";
   paintSurfaceList(ctx);
   let row = (ctx.droidRows ?? ctx.rows).find((r) => r.session_key === sessionKey);
   if (!row) row = (await sessionsApi.list({ view: "all" })).sessions.find((r) => r.session_key === sessionKey);
-  if (!row) return;
+  if (!row || seq !== ctx.detailSeq) return;
   try {
     const hist = await sessionsApi.history({ session_key: sessionKey, ...(query ? { query } : {}) });
+    if (seq !== ctx.detailSeq) return;
     ctx.detail = { row, entries: hist.entries, olderCursor: hist.older_cursor, loadingEarlier: false, query, history: hist, error: null };
   } catch (err) {
+    if (seq !== ctx.detailSeq) return;
     ctx.detail = { row, entries: [], olderCursor: null, loadingEarlier: false, query, history: null, error: (err as Error)?.message || uiText.text("workbench.sessions.read-failed") };
   }
   renderDetailPane(ctx.detailEl, ctx.detailEmptyEl, ctx.detail);
@@ -129,12 +120,18 @@ async function openSurfaceSession(ctx: SurfaceCtx, sessionKey: string, query = "
 async function loadEarlierEntries(ctx: SurfaceCtx): Promise<void> {
   const olderCursor = ctx.detail?.olderCursor;
   if (!ctx.detail || !olderCursor || ctx.detail.loadingEarlier) return;
+  const seq = ctx.detailSeq;
+  const key = ctx.detail.row.session_key;
   ctx.detail = { ...ctx.detail, loadingEarlier: true };
   renderDetailPane(ctx.detailEl, ctx.detailEmptyEl, ctx.detail);
   try {
-    const hist = await sessionsApi.history({ session_key: ctx.detail.row.session_key, from: { before: olderCursor } });
+    const hist = await sessionsApi.history({ session_key: key, from: { before: olderCursor } });
+    if (seq !== ctx.detailSeq || ctx.detail?.row.session_key !== key) return;
     ctx.detail = { ...ctx.detail, entries: [...hist.entries, ...ctx.detail.entries], olderCursor: hist.older_cursor, loadingEarlier: false };
-  } catch { ctx.detail = { ...ctx.detail, loadingEarlier: false }; }
+  } catch {
+    if (seq !== ctx.detailSeq || !ctx.detail) return;
+    ctx.detail = { ...ctx.detail, loadingEarlier: false };
+  }
   renderDetailPane(ctx.detailEl, ctx.detailEmptyEl, ctx.detail);
 }
 
@@ -155,28 +152,21 @@ export function mountSessionsSurface(
     toolSelect: q("[data-sessions-tool-filter]"), searchInput: q("[data-sessions-search]"),
     droidBar: q("[data-sessions-droid-bar]"), droidHint: q("[data-sessions-droid-hint]"),
     unfiledBadge: q("[data-sessions-unfiled-count]"),
-    attrDialog: document.querySelector<HTMLDialogElement>("[data-sessions-attribution-dialog]"),
+    attrDialog: ensureAttributionDialog(),
     poller,
     view: currentProjectId() ? "project" : "all", toolFilter: "", searchQuery: "", sourcesExpanded: false,
     rows: [], droidRows: null, sources: [], toolMeta: [], projects: [],
-    selectedKey: null, detail: null, dirtyChoices: new Map(), liveSuggestions: new Map(),
+    selectedKey: null, detail: null, listSeq: 0, detailSeq: 0, dirtyChoices: new Map(), liveSuggestions: new Map(),
   };
   bindSourcesEvents(ctx.sourcesEl, {
     onToggle: () => { ctx.sourcesExpanded = !ctx.sourcesExpanded; renderSourcesSection(ctx.sourcesEl, ctx.sources, ctx.sourcesExpanded); },
     onRetry: (entryId) => { void sessionsApi.discoveryRun({ entry_id: entryId as never }).then(() => { ctx.poller.kick(true); return loadSurfaceList(ctx, false); }); },
     onToast: (msg) => showToast?.(msg, false),
   });
-  bindSessionsClientEvents({
-    root, detailEl: ctx.detailEl, droidHint: ctx.droidHint, toolSelect: ctx.toolSelect, searchInput: ctx.searchInput, attrDialog: ctx.attrDialog,
-    getView: () => ctx.view, setView: (v) => { ctx.view = v; },
-    getToolFilter: () => ctx.toolFilter, setToolFilter: (v) => { ctx.toolFilter = v; },
-    getSearchQuery: () => ctx.searchQuery, setSearchQuery: (v) => { ctx.searchQuery = v; },
-    getRows: () => ctx.rows, setDroidRows: (v) => { ctx.droidRows = v; },
-    getSources: () => ctx.sources, getProjects: () => ctx.projects, getDetailState: () => ctx.detail,
-    setDirtyChoice: (k, p) => { ctx.dirtyChoices.set(k, p); },
+  bindSessionsClientEvents(ctx, {
     loadList: (w) => loadSurfaceList(ctx, w), paintList: () => paintSurfaceList(ctx),
     openSession: (id, s) => openSurfaceSession(ctx, id, s), loadEarlier: () => loadEarlierEntries(ctx),
-    clearDetail: () => { ctx.selectedKey = null; ctx.detail = null; root.dataset.expanded = "false"; renderDetailPane(ctx.detailEl, ctx.detailEmptyEl, null); paintSurfaceList(ctx); },
+    clearDetail: () => { ++ctx.detailSeq; ctx.selectedKey = null; ctx.detail = null; root.dataset.expanded = "false"; renderDetailPane(ctx.detailEl, ctx.detailEmptyEl, null); paintSurfaceList(ctx); },
     applyAttribution: async (row, decision) => {
       const updated = await sessionsApi.attributionSet({ session_key: row.session_key, decision, expected_revision: row.attribution_revision });
       ctx.dirtyChoices.delete(row.session_key);

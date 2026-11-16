@@ -311,13 +311,10 @@ export class AssistantDispatch {
       throw error;
     }
     await beforeStart?.();
-    this.store.markTold(this.actorId, prepared.told);
     const persisted = stripExternalSessionPersistence(materials, context);
-    this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials: persisted.materials, context: persisted.context, started_at: startedAt, ...(writtenBy ? { written_by: writtenBy } : {}), ...(work.character ? { character: { ...work.character } } : {}),
-      ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }), ...(this.recalled.get(work.work_id) ? { memory_receipt: this.recalled.get(work.work_id)! } : {}) });
-    this.recalled.delete(work.work_id);
-    this.chosenMemory.delete(work.work_id);
-    this.starting.delete(work.work_id);
+    this.store.markTold(this.actorId, prepared.told);
+    this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials: persisted.materials, context: persisted.context, started_at: startedAt, ...(writtenBy ? { written_by: writtenBy } : {}), ...(work.character ? { character: { ...work.character } } : {}), ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }), ...(this.recalled.get(work.work_id) ? { memory_receipt: this.recalled.get(work.work_id)! } : {}) });
+    this.recalled.delete(work.work_id); this.chosenMemory.delete(work.work_id); this.starting.delete(work.work_id);
     this.link.continuations.watch(work, handle.ref);
     return this.result(work, "started", handle.ref.run_id, stillCurrent, intent?.draftCurrent, Boolean(intent?.report_only));
   }

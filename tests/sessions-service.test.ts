@@ -59,7 +59,7 @@ function buildTestPorts(
       read: async <T>(op: (snap: SessionProjectSnapshot) => T): Promise<T> => op(state.snapshot),
     },
     directories: {
-      identify: (dirPath: string) => identifySessionDirectory(dirPath, { homeRoot: userHome }),
+      identify: (dirPath: string) => identifySessionDirectory(dirPath, { homeDir: userHome }),
     },
     suggester: state.suggester ?? null,
   };

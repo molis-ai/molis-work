@@ -41,14 +41,10 @@ const REASON_NOTES = {
 function renderSourceActions(source: ExternalSessionSource): string {
   const id = escapeHtml(source.entry_id);
   if (source.state === "needs_login" && source.reason === "account_changed") {
-    return `<div class="sessions-source-actions">
-      <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-source-retry="${id}">${icon("refresh")}<span>${uiText("workbench.sessions.account-switched-back")}</span></button>
-      <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-sessions-open-scope="tools">${uiText("workbench.sessions.switch-connection-in-scope")}</button>
-    </div>`;
+    return `<div class="sessions-source-actions"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-source-retry="${id}">${icon("refresh")}<span>${uiText("workbench.sessions.account-switched-back")}</span></button><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-sessions-open-scope="tools">${uiText("workbench.sessions.switch-connection-in-scope")}</button></div>`;
   }
   if (source.state === "needs_login" && source.reason === "login_expired" && source.entry_id === "copilot-coding-agent") {
-    return `<div class="sessions-source-code"><code>${GH_SCOPE_CMD}</code><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-source-copy-cmd="${escapeHtml(GH_SCOPE_CMD)}">${icon("copy")}<span>${uiText("workbench.sessions.copy-command")}</span></button></div>
-      <div class="sessions-source-actions"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-source-retry="${id}">${icon("refresh")}<span>${uiText("workbench.sessions.recheck-login")}</span></button></div>`;
+    return `<div class="sessions-source-code"><code>${GH_SCOPE_CMD}</code><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-source-copy-cmd="${escapeHtml(GH_SCOPE_CMD)}">${icon("copy")}<span>${uiText("workbench.sessions.copy-command")}</span></button></div><div class="sessions-source-actions"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-source-retry="${id}">${icon("refresh")}<span>${uiText("workbench.sessions.recheck-login")}</span></button></div>`;
   }
   if (source.state === "needs_login") {
     return `<div class="sessions-source-actions"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-sessions-open-scope="tools">${uiText("workbench.sessions.open-scope-connections")}</button></div>`;
@@ -73,11 +69,7 @@ function renderSourceRow(source: ExternalSessionSource): string {
       : uiText.text("workbench.sessions.reading-progress", { read: source.progress.read })
     : uiText.text("workbench.sessions.source-count", { count: source.session_count });
   const note = source.reason ? `<p class="sessions-source-note">${uiText(REASON_NOTES[source.reason])}</p>` : "";
-  return `<div class="sessions-source-item" data-source-entry="${escapeHtml(source.entry_id)}">
-    <div class="sessions-source-top"><strong>${escapeHtml(source.display_name)}</strong>${mark}</div>
-    <p class="sessions-source-note">${escapeHtml(progress)}</p>
-    ${note}${renderSourceActions(source)}
-  </div>`;
+  return `<div class="sessions-source-item" data-source-entry="${escapeHtml(source.entry_id)}"><div class="sessions-source-top"><strong>${escapeHtml(source.display_name)}</strong>${mark}</div><p class="sessions-source-note">${escapeHtml(progress)}</p>${note}${renderSourceActions(source)}</div>`;
 }
 
 export function renderSourcesSection(
@@ -97,10 +89,7 @@ export function renderSourcesSection(
   const showOpen = expanded || reading > 0 || attention > 0;
   const summary = uiText.text("workbench.sessions.sources-summary", { ready, reading, attention });
   container.hidden = false;
-  container.innerHTML = `<button class="sessions-sources-summary" type="button" data-sources-toggle aria-expanded="${String(showOpen)}">
-      <span>${escapeHtml(summary)}</span>${icon(showOpen ? "chevron-up" : "chevron-down")}
-    </button>
-    <div class="sessions-sources-list"${showOpen ? "" : " hidden"}>${active.map(renderSourceRow).join("")}</div>`;
+  container.innerHTML = `<button class="sessions-sources-summary" type="button" data-sources-toggle aria-expanded="${String(showOpen)}"><span>${escapeHtml(summary)}</span>${icon(showOpen ? "chevron-up" : "chevron-down")}</button><div class="sessions-sources-list"${showOpen ? "" : " hidden"}>${active.map(renderSourceRow).join("")}</div>`;
 }
 
 export function bindSourcesEvents(

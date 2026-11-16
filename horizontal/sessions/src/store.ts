@@ -263,6 +263,10 @@ export class SessionsStore {
     return map;
   }
 
+  deleteWorkspaceDirectories(): void {
+    this.db.prepare("DELETE FROM session_directories WHERE kind = 'workspace'").run();
+  }
+
   upsertDirectory(input: {
     directory_key: string;
     path: string;

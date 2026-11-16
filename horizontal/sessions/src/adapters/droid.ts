@@ -81,7 +81,8 @@ export const droidAdapter: ExternalSessionSourceAdapter = {
     if (spec.via !== "command") {
       throw sessionSourceFailure("version_mismatch", "Droid search capability not configured", false);
     }
-    const argv = spec.argv.map(part => (part === "{query}" ? query : part));
+    const trimmed = query.trim();
+    const argv = spec.argv.map(part => (part === "{query}" ? trimmed : part));
     const res = await context.ports.commands.run(context.entry_id, argv, signal);
     if (res.exit_code !== 0) {
       throw sessionSourceFailure("read_error", res.stderr || "droid search failed", true);

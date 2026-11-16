@@ -15,22 +15,12 @@ import { pluginPageRequest } from "./plugin-page-authority.js";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "./web-http.js";
 import { currentLocale } from "./web-locale.js";
 
-const EN_TOOL_NAMES: Readonly<Record<string, string>> = {
-  "codex-ide": "Codex IDE Extension", "codex-desktop": "Codex Desktop", "codex-cloud": "Codex Cloud Tasks",
-  "claude-code-desktop": "Claude Code Desktop", "claude-code-web": "Claude Code Web",
-  "antigravity-cli": "Antigravity CLI", "antigravity-desktop": "Antigravity Desktop",
-  "copilot-ide": "Copilot IDE Sessions", "copilot-coding-agent": "Copilot Coding Agent",
-  "cursor-editor": "Cursor Editor", "cursor-cloud": "Cursor Cloud Agent",
-  "devin-cloud": "Devin Cloud", "windsurf-cascade": "Windsurf / Cascade", "amp-web": "Amp Web",
-  "lingma": "Tongyi Lingma", "qoder": "Qoder CLI (Global)", "qoder-ide": "Qoder IDE (Global)",
-  "qoder-cn": "Qoder CLI (CN)", "qoder-cn-ide": "Qoder IDE (CN)",
-  "codebuddy": "CodeBuddy Code (Global)", "codebuddy-cn": "CodeBuddy (CN)",
-  "trae": "TRAE (Global)", "trae-cn": "TRAE (CN)", "solo": "SOLO (Global)", "solo-cn": "SOLO (CN)",
-  "minimax-agent": "MiniMax Agent", "comate": "Wenxin Comate", "codearts-agent": "CodeArts Agent",
-};
+const TOOL_EN_BY_ID = new Map<string, string>(
+  (EXTERNAL_TOOLS as readonly ExternalToolEntry[]).map((tool) => [tool.id, tool.display_name_en ?? tool.display_name]),
+);
 
 function localizedToolName(entryId: string, defaultName: string): string {
-  return currentLocale() === "en" ? (EN_TOOL_NAMES[entryId] ?? defaultName) : defaultName;
+  return currentLocale() === "en" ? (TOOL_EN_BY_ID.get(entryId) ?? defaultName) : defaultName;
 }
 
 function invokeBody<Input, Output>(client: BoundActionClient, definition: ActionDefinition<Input, Output>, body: unknown): Promise<Output> {
@@ -87,10 +77,20 @@ export function buildSessionToolMeta(sources: readonly ExternalSessionScopeSourc
   });
 }
 
+function localizeSessionRow<Row extends { tool: { entry_id: string; display_name: string } }>(row: Row): Row {
+  if (currentLocale() !== "en") return row;
+  return { ...row, tool: { ...row.tool, display_name: localizedToolName(row.tool.entry_id, row.tool.display_name) } };
+}
+
 function withToolMeta(view: ExternalSessionScopeView) {
   return {
     ...view,
     sources: view.sources.map((s) => ({ ...s, display_name: localizedToolName(s.entry_id, s.display_name) })),
+    project_ai_reads: currentLocale() === "en"
+      ? view.project_ai_reads.map((row) => row.counts
+          ? { ...row, counts: { ...row.counts, blocked: row.counts.blocked.map((b) => ({ ...b, display_name: localizedToolName(b.entry_id, b.display_name) })) } }
+          : row)
+      : view.project_ai_reads,
     tool_meta: buildSessionToolMeta(view.sources),
   };
 }
@@ -99,7 +99,7 @@ function localizeListOutput(out: ExternalSessionListOutput): ExternalSessionList
   if (currentLocale() !== "en") return out;
   return {
     ...out,
-    sessions: out.sessions.map((row) => ({ ...row, tool: { ...row.tool, display_name: localizedToolName(row.tool.entry_id, row.tool.display_name) } })) as ExternalSessionListOutput["sessions"],
+    sessions: out.sessions.map(localizeSessionRow) as ExternalSessionListOutput["sessions"],
     sources: out.sources.map((s) => ({ ...s, display_name: localizedToolName(s.entry_id, s.display_name) })) as ExternalSessionListOutput["sources"],
   };
 }
@@ -214,7 +214,7 @@ export async function handleSessionsHttp(
       }
       case "/api/sessions/attribution": {
         if (method !== "POST") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
-        sendJson(response, 200, await invokeBody(client, sessionsActions.attributionSet, await readBody(request)));
+        sendJson(response, 200, localizeSessionRow(await invokeBody(client, sessionsActions.attributionSet, await readBody(request))));
         return true;
       }
       case "/api/sessions/suggest": {
@@ -224,7 +224,8 @@ export async function handleSessionsHttp(
       }
       case "/api/sessions/tool-search": {
         if (method !== "POST") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
-        sendJson(response, 200, await invokeBody(client, sessionsActions.toolSearch, await readBody(request)));
+        const out = await invokeBody(client, sessionsActions.toolSearch, await readBody(request));
+        sendJson(response, 200, currentLocale() === "en" ? { ...out, sessions: out.sessions.map(localizeSessionRow) } : out);
         return true;
       }
       default:

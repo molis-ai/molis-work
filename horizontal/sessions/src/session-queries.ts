@@ -29,7 +29,7 @@ import {
 import { redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
 import { getSessionAdapter } from "./adapters/index.js";
 import { literalRanges } from "./adapters/shared.js";
-import { prepareLinkedWorkspaces, sessionKeyForIdentity, toRowSummary } from "./attribution.js";
+import { sessionKeyForIdentity, toRowSummary } from "./attribution.js";
 import { type DiscoveryCoordinator, resolveLocalToolRoot } from "./discovery.js";
 import type { AdapterSourceContext, ExternalSessionSourceAdapter, SessionsPorts } from "./ports.js";
 import {
@@ -41,8 +41,8 @@ import {
   isSourceCurrentlyAllowed,
   materializeFullRow,
   maybeTriggerStaleDiscovery,
+  resolveDerivedSnapshot,
   rethrowAdapterError,
-  syncDerivedCaches,
   toSummarySource,
   type RegisteredToolEntry,
   type SessionsCaller,
@@ -76,8 +76,7 @@ export async function runSessionList(
       }
     }
 
-    const prepared = prepareLinkedWorkspaces(snapshot, pathValue => ports.directories.identify(pathValue));
-    const { dirMap } = syncDerivedCaches(snapshot, prepared, store, ports);
+    const { dirMap, workspaces, projectMap } = resolveDerivedSnapshot(snapshot, store, ports);
     const scopes = store.decisions.readScopes();
     const scopeMap = new Map(scopes.map(s => [`${s.entry_id}\0${s.location_key}`, s]));
     const sourceRows = store.sources();
@@ -94,12 +93,12 @@ export async function runSessionList(
     const filteredRows: ExternalSessionRow[] = [];
 
     for (const session of store.activeSessionsOrdered()) {
-      if (!isSessionInScopeWithMaps(session, scopeMap, dirMap, prepared.workspaces, ports)) continue;
+      if (!isSessionInScopeWithMaps(session, scopeMap, dirMap, workspaces, ports)) continue;
       const sourceKey = `${session.entry_id}\0${session.location_key}`;
       inScopeCountsBySource.set(sourceKey, (inScopeCountsBySource.get(sourceKey) ?? 0) + 1);
 
       const { row, resolved } = materializeFullRow(
-        session, dirMap, decisionMap, suggestionMap, snapshot.bindings, prepared.projectMap, duplicateLocal,
+        session, dirMap, decisionMap, suggestionMap, snapshot.bindings, projectMap, duplicateLocal,
       );
       if (resolved.attribution.state === "unfiled") unfiledCount++;
 
@@ -195,17 +194,16 @@ function precheckHistoryRead(
       }
     }
 
-    const prepared = prepareLinkedWorkspaces(snapshot, pathValue => ports.directories.identify(pathValue));
-    const { dirMap } = syncDerivedCaches(snapshot, prepared, store, ports);
+    const { dirMap, workspaces, projectMap } = resolveDerivedSnapshot(snapshot, store, ports);
     const scopeMap = new Map([[`${scope.entry_id}\0${scope.location_key}`, scope]]);
-    if (!isSessionInScopeWithMaps(session, scopeMap, dirMap, prepared.workspaces, ports)) {
+    if (!isSessionInScopeWithMaps(session, scopeMap, dirMap, workspaces, ports)) {
       throw sessionsErrors.not_found("外部会话不存在或不在读取范围内");
     }
 
     if (!isPerson) {
       const { resolved } = materializeFullRow(
         session, dirMap, store.decisions.allAttributionDecisions(),
-        store.decisions.allSuggestions(), snapshot.bindings, prepared.projectMap, store.duplicateLocalNativeKeys(),
+        store.decisions.allSuggestions(), snapshot.bindings, projectMap, store.duplicateLocalNativeKeys(),
       );
       if (resolved.effective_project_id !== caller.project_id) {
         throw sessionsErrors.not_found("外部会话不存在或不在读取范围内");
@@ -252,14 +250,13 @@ export async function runHistoryRead(
 
     const liveSession = store.getSession(input.session_key);
     if (!liveSession) throw sessionsErrors.scope_changed("会话在读取期间已移出当前范围");
-    const prepared = prepareLinkedWorkspaces(postSnapshot, pathValue => ports.directories.identify(pathValue));
-    const { dirMap } = syncDerivedCaches(postSnapshot, prepared, store, ports);
+    const { dirMap, workspaces, projectMap } = resolveDerivedSnapshot(postSnapshot, store, ports, { allowDiskIdentify: false });
     const currentScope = store.decisions.getReadScope(liveSession.entry_id, liveSession.location_key);
     if (
       !currentScope
       || currentScope.connection_id !== precheck.connectionId
       || !isSessionInScopeWithMaps(
-        liveSession, new Map([[`${currentScope.entry_id}\0${currentScope.location_key}`, currentScope]]), dirMap, prepared.workspaces, ports,
+        liveSession, new Map([[`${currentScope.entry_id}\0${currentScope.location_key}`, currentScope]]), dirMap, workspaces, ports, false,
       )
     ) {
       throw sessionsErrors.scope_changed("读取范围在读取期间已变化");
@@ -272,7 +269,7 @@ export async function runHistoryRead(
       }
       const { resolved } = materializeFullRow(
         liveSession, dirMap, store.decisions.allAttributionDecisions(),
-        store.decisions.allSuggestions(), postSnapshot.bindings, prepared.projectMap, store.duplicateLocalNativeKeys(),
+        store.decisions.allSuggestions(), postSnapshot.bindings, projectMap, store.duplicateLocalNativeKeys(),
       );
       if (resolved.effective_project_id !== caller.project_id) {
         throw sessionsErrors.scope_changed("会话的项目归属在读取期间已变化");
@@ -298,6 +295,10 @@ export async function runToolSearch(
   ports: SessionsPorts,
 ): Promise<ExternalSessionToolSearchOutput> {
   assertPersonalCaller(caller);
+  const query = typeof input.query === "string" ? input.query.trim() : "";
+  if (!query || query.length > 400 || query.startsWith("-")) {
+    throw new ActionError("actions.input_invalid", "搜索词不能为空且不能以连字符开头");
+  }
   const limit = Math.min(Math.max(1, input.limit ?? EXTERNAL_SESSION_LIST_DEFAULT), EXTERNAL_SESSION_LIST_MAX);
   const signal = caller.signal ?? AbortSignal.any([]);
 
@@ -322,7 +323,7 @@ export async function runToolSearch(
 
   let found: Awaited<ReturnType<NonNullable<ExternalSessionSourceAdapter["searchTool"]>>>;
   try {
-    found = await precheck.adapter.searchTool!(ctx, input.query, limit, signal);
+    found = await precheck.adapter.searchTool!(ctx, query, limit, signal);
   } catch (error) {
     rethrowAdapterError(error, precheck.tool.id, input.location_key, store, ports);
   }
@@ -336,8 +337,7 @@ export async function runToolSearch(
       throw sessionsErrors.scope_changed("读取范围在搜索期间已变化");
     }
 
-    const prepared = prepareLinkedWorkspaces(postSnapshot, pathValue => ports.directories.identify(pathValue));
-    const { dirMap } = syncDerivedCaches(postSnapshot, prepared, store, ports);
+    const { dirMap, workspaces, projectMap } = resolveDerivedSnapshot(postSnapshot, store, ports, { allowDiskIdentify: false });
     const scopeMap = new Map([[`${currentScope!.entry_id}\0${currentScope!.location_key}`, currentScope!]]);
     const decisionMap = store.decisions.allAttributionDecisions();
     const suggestionMap = store.decisions.allSuggestions();
@@ -351,11 +351,11 @@ export async function runToolSearch(
       if (seenKeys.has(key)) continue;
       seenKeys.add(key);
       const stored = store.getSession(key);
-      if (!stored || !isSessionInScopeWithMaps(stored, scopeMap, dirMap, prepared.workspaces, ports)) {
+      if (!stored || !isSessionInScopeWithMaps(stored, scopeMap, dirMap, workspaces, ports, false)) {
         skippedCount++;
         continue;
       }
-      const { row } = materializeFullRow(stored, dirMap, decisionMap, suggestionMap, postSnapshot.bindings, prepared.projectMap, duplicateLocal);
+      const { row } = materializeFullRow(stored, dirMap, decisionMap, suggestionMap, postSnapshot.bindings, projectMap, duplicateLocal);
       sessions.push(row);
       if (sessions.length >= limit) break;
     }
@@ -372,14 +372,13 @@ export async function runSearchEntries(
 ): Promise<SearchEntriesPage> {
   assertPersonalCaller(caller);
   return ports.projects.read(snapshot => {
-    const prepared = prepareLinkedWorkspaces(snapshot, pathValue => ports.directories.identify(pathValue));
-    const { dirDigest, dirMap } = syncDerivedCaches(snapshot, prepared, store, ports);
+    const { dirDigest, dirMap, workspaces } = resolveDerivedSnapshot(snapshot, store, ports);
     const scopes = store.decisions.readScopes();
     const scopeMap = new Map(scopes.map(s => [`${s.entry_id}\0${s.location_key}`, s]));
 
     const entries: SearchEntry[] = [];
     for (const session of store.activeSessionsOrdered()) {
-      if (!isSessionInScopeWithMaps(session, scopeMap, dirMap, prepared.workspaces, ports)) continue;
+      if (!isSessionInScopeWithMaps(session, scopeMap, dirMap, workspaces, ports)) continue;
       const tool = findTopLevelTool(session.entry_id);
       if (!tool) continue;
       entries.push(
@@ -409,10 +408,9 @@ export async function runSubjectRead(
   return ports.projects.read(snapshot => {
     const session = store.getSession(request.subject_id);
     if (!session) throw sessionsErrors.not_found("外部会话不存在或不在读取范围内");
-    const prepared = prepareLinkedWorkspaces(snapshot, pathValue => ports.directories.identify(pathValue));
-    const { dirMap } = syncDerivedCaches(snapshot, prepared, store, ports);
+    const { dirMap, workspaces } = resolveDerivedSnapshot(snapshot, store, ports);
     const scopeMap = new Map(store.decisions.readScopes().map(s => [`${s.entry_id}\0${s.location_key}`, s]));
-    if (!isSessionInScopeWithMaps(session, scopeMap, dirMap, prepared.workspaces, ports)) {
+    if (!isSessionInScopeWithMaps(session, scopeMap, dirMap, workspaces, ports)) {
       throw sessionsErrors.not_found("外部会话不存在或不在读取范围内");
     }
     const tool = findTopLevelTool(session.entry_id);

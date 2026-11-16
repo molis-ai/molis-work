@@ -21,6 +21,7 @@ import {
   type AdapterSourceContext,
   type SessionsPorts,
 } from "./ports.js";
+import { upsertWorkspaceDirectoryCache } from "./runtime-view.js";
 import type { SessionsStore, StoredSourceRow } from "./store.js";
 
 export interface DiscoveryStartState {
@@ -208,6 +209,7 @@ function commitDiscoveredBatch(params: {
           session_count: store.countActiveSessionsForSource(entryId, locationKey),
           skipped_count: counters.skippedCount, completed_at: now, checked_at: now,
         });
+        upsertWorkspaceDirectoryCache(snapshot, prepared.workspaces, dirDigest, store);
         store.setMeta("directory_snapshot_digest", dirDigest);
         store.setMeta("binding_snapshot_digest", bindingDigest);
       }

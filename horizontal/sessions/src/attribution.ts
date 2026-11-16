@@ -39,6 +39,10 @@ export function directoryKeyForPath(directoryPath: string): string {
   return `dir_${createHash("sha256").update(directoryPath).digest("hex").slice(0, 24)}`;
 }
 
+export function workspaceDirectoryKey(canonicalPath: string): string {
+  return `wsdir_${createHash("sha256").update(canonicalPath).digest("hex").slice(0, 24)}`;
+}
+
 export function computeDirectorySnapshotDigest(snapshot: SessionProjectSnapshot): string {
   const projects = [...snapshot.projects]
     .map(item => ({ project_id: item.project_id, display_name: item.display_name }))

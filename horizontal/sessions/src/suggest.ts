@@ -14,7 +14,7 @@ import {
 import { canonicalJsonText, redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
 import { cutCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { getSessionAdapter } from "./adapters/index.js";
-import { canonicalEntryId, prepareLinkedWorkspaces, type PreparedLinkedWorkspace } from "./attribution.js";
+import { canonicalEntryId, type PreparedLinkedWorkspace } from "./attribution.js";
 import { resolveLocalToolRoot } from "./discovery.js";
 import type {
   AdapterSourceContext,
@@ -27,6 +27,7 @@ import type {
   SessionSuggestProjectMaterial,
   SessionsPorts,
 } from "./ports.js";
+import { isSessionInScopeWithMaps, resolveDerivedSnapshot } from "./runtime-view.js";
 import { materializeSuggestion, type SessionsStore, type StoredExternalSessionRow } from "./store.js";
 
 const OPENING_MAX_MESSAGES = 3;
@@ -137,17 +138,16 @@ function prepareSuggestionGroups(
   promptVersion: number,
   store: SessionsStore,
   ports: SessionsPorts,
-  isSessionInScopeSync: (session: StoredExternalSessionRow, snapshot: SessionProjectSnapshot, workspaces: readonly PreparedLinkedWorkspace[]) => boolean,
 ): Promise<InitialSuggestionPlan> {
   return ports.projects.read(snapshot => {
-    const prepared = prepareLinkedWorkspaces(snapshot, pathValue => ports.directories.identify(pathValue));
-    const { materials: projectMaterials, projectIdsByRef } = buildProjectMaterials(snapshot, prepared.workspaces);
+    const { dirMap, workspaces, projectMap } = resolveDerivedSnapshot(snapshot, store, ports);
+    const { materials: projectMaterials, projectIdsByRef } = buildProjectMaterials(snapshot, workspaces);
     const scopeMap = new Map(store.decisions.readScopes().map(s => [`${s.entry_id}\0${s.location_key}`, s]));
 
     const inScopeRows: StoredExternalSessionRow[] = [];
     for (const key of input.session_keys) {
       const row = store.getSession(key);
-      if (row && isSessionInScopeSync(row, snapshot, prepared.workspaces)) inScopeRows.push(row);
+      if (row && isSessionInScopeWithMaps(row, scopeMap, dirMap, workspaces, ports)) inScopeRows.push(row);
     }
 
     const groupMap = new Map<string, StoredExternalSessionRow[]>();
@@ -185,7 +185,7 @@ function prepareSuggestionGroups(
         return Boolean(existing && existing.status !== "failed" && existing.input_digest === digest && existing.prompt_version === promptVersion);
       })) {
         for (const row of rows) {
-          const materialized = materializeSuggestion(store.decisions.getSuggestion(row.session_key), prepared.projectMap);
+          const materialized = materializeSuggestion(store.decisions.getSuggestion(row.session_key), projectMap);
           if (materialized) cachedResults.set(row.session_key, materialized);
         }
         continue;
@@ -289,13 +289,12 @@ export async function runAttributionSuggest(
   caller: ActionCallContext & Partial<Pick<ActionExecutionContext, "beforeEffect">>,
   store: SessionsStore,
   ports: SessionsPorts,
-  isSessionInScopeSync: (session: StoredExternalSessionRow, snapshot: SessionProjectSnapshot, workspaces: readonly PreparedLinkedWorkspace[]) => boolean,
 ): Promise<ExternalSessionAttributionSuggestOutput> {
   const signal = caller.signal ?? AbortSignal.any([]);
   const suggester = typeof ports.suggester === "function" ? ports.suggester() : ports.suggester;
   const promptVersion = suggester ? suggester.promptVersion() : 0;
 
-  const initial = await prepareSuggestionGroups(input, promptVersion, store, ports, isSessionInScopeSync);
+  const initial = await prepareSuggestionGroups(input, promptVersion, store, ports);
   if (initial.inScopeOrder.length === 0) return { suggestions: [] };
 
   if (initial.uncachedGroups.length === 0) {
@@ -314,7 +313,8 @@ export async function runAttributionSuggest(
   return ports.projects.read(postSnapshot => {
     signal.throwIfAborted();
     caller.assert_authority_current?.();
-    const prepared = prepareLinkedWorkspaces(postSnapshot, pathValue => ports.directories.identify(pathValue));
+    const { dirMap, workspaces, projectMap } = resolveDerivedSnapshot(postSnapshot, store, ports, { allowDiskIdentify: false });
+    const postScopeMap = new Map(store.decisions.readScopes().map(s => [`${s.entry_id}\0${s.location_key}`, s]));
     const draftByGroup = new Map<number, SessionSuggestDraftItem>();
     if (draft && Array.isArray(draft.items)) {
       for (const item of draft.items) {
@@ -328,10 +328,10 @@ export async function runAttributionSuggest(
     store.inTransaction(() => {
       for (let idx = 0; idx < initial.uncachedGroups.length; idx++) {
         const group = initial.uncachedGroups[idx]!;
-        const sanitized = sanitizeDraftItem(draftByGroup.get(idx), modelFailed, initial.projectIdsByRef, prepared.projectMap);
+        const sanitized = sanitizeDraftItem(draftByGroup.get(idx), modelFailed, initial.projectIdsByRef, projectMap);
         for (const sessionRow of group.sessions) {
           const liveRow = store.getSession(sessionRow.session_key);
-          if (!liveRow || !isSessionInScopeSync(liveRow, postSnapshot, prepared.workspaces)) {
+          if (!liveRow || !isSessionInScopeWithMaps(liveRow, postScopeMap, dirMap, workspaces, ports, false)) {
             freshByKey.delete(sessionRow.session_key);
             continue;
           }
@@ -347,14 +347,14 @@ export async function runAttributionSuggest(
             created_at: nowIso,
           };
           store.decisions.upsertSuggestion(stored);
-          const materialized = materializeSuggestion(stored, prepared.projectMap);
+          const materialized = materializeSuggestion(stored, projectMap);
           if (materialized) freshByKey.set(liveRow.session_key, materialized);
         }
       }
 
       for (const [sessionKey] of [...freshByKey.entries()]) {
         const liveRow = store.getSession(sessionKey);
-        if (!liveRow || !isSessionInScopeSync(liveRow, postSnapshot, prepared.workspaces)) {
+        if (!liveRow || !isSessionInScopeWithMaps(liveRow, postScopeMap, dirMap, workspaces, ports, false)) {
           freshByKey.delete(sessionKey);
         }
       }

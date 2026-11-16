@@ -154,7 +154,7 @@ async function querySubjectState(access: KnowledgeAccess, subject: ActionSubject
 }
 
 const allowedForPlugin = (view: ActionView) =>
-  !(isSubjectReader(view.action) || isSearchEntriesSource(view.action)) || actionReachesAudience(view.action, view.capability_id, "plugin");
+  !(isSubjectReader(view.action) || isSearchEntriesSource(view.action)) || actionReachesAudience(view.action, view.capability_id, "agent");
 
 function pluginKnowledgeClient(client: HostActionClient): HostActionClient {
   return {

@@ -87,7 +87,8 @@ function matchesTemplateArg(templateArg: string, actualArg: string): boolean {
     return !actualArg.startsWith("-") && EXTERNAL_SESSION_NATIVE_ID_PATTERN.test(actualArg);
   }
   if (templateArg === "{query}") {
-    return actualArg.length > 0 && actualArg.length <= 400 && !actualArg.startsWith("-");
+    const trimmed = actualArg.trim();
+    return trimmed.length > 0 && actualArg.length <= 400 && !trimmed.startsWith("-");
   }
   return templateArg === actualArg;
 }

@@ -35,7 +35,7 @@ type Declared = Parameters<typeof isSubjectReader>[0] & {
  */
 export function pluginReferenceKinds(plugin_id: string, installation: string, actions: readonly Declared[]): ReferenceKindCandidate[] {
   const read = new Set(actions.filter(action => isSubjectReader(action) && action.audiences.includes("agent")).flatMap(action => action.subject_kinds));
-  return actions.filter(action => action.audiences.includes("agent")).flatMap(action => action.search_source?.kinds ?? []).filter(entry => read.has(entry.kind)).map(entry => ({ plugin_id, installation, kind: entry.kind, title: entry.title }));
+  return actions.flatMap(action => action.search_source?.kinds ?? []).filter(entry => read.has(entry.kind)).map(entry => ({ plugin_id, installation, kind: entry.kind, title: entry.title }));
 }
 
 /**

@@ -13,11 +13,12 @@ import { hasSessionAdapter } from "./adapters/index.js";
 import {
   computeBindingSnapshotDigest,
   computeDirectorySnapshotDigest,
-  directoryKeyForPath,
   evaluateDerivedDirectory,
   isSessionDirectoryAllowedByScope,
   matchRuntimeBindingForSession,
+  prepareLinkedWorkspaces,
   resolveSessionAttribution,
+  workspaceDirectoryKey,
   type PreparedLinkedWorkspace,
   type ResolvedAttribution,
   type StoredAttributionDecision,
@@ -90,6 +91,7 @@ export function isSessionInScopeWithMaps(
   dirMap: ReadonlyMap<string, StoredDirectoryRow>,
   workspaces: readonly PreparedLinkedWorkspace[],
   ports: SessionsPorts,
+  allowDiskIdentify = true,
 ): boolean {
   const tool = findTopLevelTool(session.entry_id);
   if (!tool || !hasSessionAdapter(session.entry_id)) return false;
@@ -102,79 +104,166 @@ export function isSessionInScopeWithMaps(
     ? (dirRow.realpath_verified
         ? { real_path: dirRow.path, repository_key: dirRow.repository_key, worktree_relative: dirRow.worktree_relative }
         : null)
-    : (session.directory_path ? ports.directories.identify(session.directory_path) : null);
+    : (allowDiskIdentify && session.directory_path ? ports.directories.identify(session.directory_path) : null);
   return isSessionDirectoryAllowedByScope(scope!.directories, identity, workspaces);
 }
 
-export function isSessionInScopeSync(
-  session: StoredExternalSessionRow,
-  store: SessionsStore,
-  ports: SessionsPorts,
+export function upsertWorkspaceDirectoryCache(
+  snapshot: SessionProjectSnapshot,
   workspaces: readonly PreparedLinkedWorkspace[],
-): boolean {
-  const scopeMap = new Map(store.decisions.readScopes().map(s => [`${s.entry_id}\0${s.location_key}`, s]));
-  const dirMap = store.allDirectories();
-  return isSessionInScopeWithMaps(session, scopeMap, dirMap, workspaces, ports);
+  dirDigest: string,
+  store: SessionsStore,
+): void {
+  store.deleteWorkspaceDirectories();
+  const byCanonical = new Map(workspaces.map(ws => [ws.canonical_path, ws]));
+  for (const record of snapshot.directories) {
+    if (!record.realpath_verified) continue;
+    const wsKey = workspaceDirectoryKey(record.canonical_path);
+    const ws = byCanonical.get(record.canonical_path);
+    if (ws) {
+      const identity = { real_path: ws.real_path, repository_key: ws.repository_key, worktree_relative: ws.worktree_relative };
+      const derived = evaluateDerivedDirectory(identity, workspaces, "automatic");
+      store.upsertDirectory({ directory_key: wsKey, path: ws.real_path, kind: "workspace", identity, derived, directory_digest: dirDigest });
+    } else {
+      const derived = evaluateDerivedDirectory(null, workspaces, null);
+      store.upsertDirectory({ directory_key: wsKey, path: record.canonical_path, kind: "workspace", identity: null, derived, directory_digest: dirDigest });
+    }
+  }
 }
 
-export function syncDerivedCaches(
+export interface ResolvedDerivedSnapshot {
+  dirDigest: string;
+  projectMap: Map<string, { project_id: string; display_name: string }>;
+  workspaces: PreparedLinkedWorkspace[];
+  dirMap: Map<string, StoredDirectoryRow>;
+}
+
+export function resolveDerivedSnapshot(
   snapshot: SessionProjectSnapshot,
-  prepared: { projectMap: Map<string, { project_id: string; display_name: string }>; workspaces: PreparedLinkedWorkspace[] },
   store: SessionsStore,
   ports: SessionsPorts,
-): { dirDigest: string; dirMap: Map<string, StoredDirectoryRow> } {
+  options?: { allowDiskIdentify?: boolean },
+): ResolvedDerivedSnapshot {
+  const allowDisk = options?.allowDiskIdentify !== false;
+  const projectMap = new Map(snapshot.projects.map(p => [p.project_id, { project_id: p.project_id, display_name: p.display_name }]));
   const dirDigest = computeDirectorySnapshotDigest(snapshot);
   const bindingDigest = computeBindingSnapshotDigest(snapshot);
   const storedDirDigest = store.getMeta("directory_snapshot_digest");
   const storedBindingDigest = store.getMeta("binding_snapshot_digest");
+  const initialDirs = store.allDirectories();
 
-  if (storedDirDigest === dirDigest && storedBindingDigest === bindingDigest) {
-    return { dirDigest, dirMap: store.allDirectories() };
+  const reconstructWorkspaces = (dirMap: ReadonlyMap<string, StoredDirectoryRow>) => {
+    const workspaces: PreparedLinkedWorkspace[] = [];
+    let missingCache = false;
+    for (const record of snapshot.directories) {
+      if (!record.realpath_verified) continue;
+      const personIds = record.person_project_ids.filter(id => projectMap.has(id));
+      const personSet = new Set(personIds);
+      const toolOnlyIds = record.project_ids.filter(id => projectMap.has(id) && !personSet.has(id));
+      if (personIds.length === 0 && toolOnlyIds.length === 0) continue;
+      const wsRow = dirMap.get(workspaceDirectoryKey(record.canonical_path));
+      if (!wsRow || wsRow.kind !== "workspace") {
+        missingCache = true;
+        continue;
+      }
+      if (!wsRow.realpath_verified) continue;
+      workspaces.push({
+        workspace_id: record.workspace_id,
+        canonical_path: record.canonical_path,
+        real_path: wsRow.path,
+        repository_key: wsRow.repository_key,
+        worktree_relative: wsRow.worktree_relative,
+        person_project_ids: personIds,
+        tool_only_project_ids: toolOnlyIds,
+      });
+    }
+    return { workspaces, missingCache };
+  };
+
+  if (!allowDisk) {
+    const { workspaces } = reconstructWorkspaces(initialDirs);
+    if (storedDirDigest === dirDigest) {
+      return { dirDigest, projectMap, workspaces, dirMap: initialDirs };
+    }
+    const recomputed = new Map<string, StoredDirectoryRow>();
+    for (const [key, dirRow] of initialDirs.entries()) {
+      if (dirRow.kind !== "session") {
+        recomputed.set(key, dirRow);
+        continue;
+      }
+      const identity = dirRow.realpath_verified
+        ? { real_path: dirRow.path, repository_key: dirRow.repository_key, worktree_relative: dirRow.worktree_relative }
+        : null;
+      const derived = evaluateDerivedDirectory(identity, workspaces, dirRow.derived_state);
+      recomputed.set(key, {
+        ...dirRow,
+        derived_state: derived.derived_state,
+        derived_project_id: derived.derived_project_id,
+        evidence_kind: derived.evidence_kind,
+        evidence_path: derived.evidence_path,
+        candidates: derived.candidates,
+        directory_digest: dirDigest,
+      });
+    }
+    return { dirDigest, projectMap, workspaces, dirMap: recomputed };
   }
 
-  store.inTransaction(() => {
-    if (storedDirDigest !== dirDigest) {
-      for (const ws of prepared.workspaces) {
-        const wsKey = directoryKeyForPath(ws.real_path);
-        const identity = { real_path: ws.real_path, repository_key: ws.repository_key, worktree_relative: ws.worktree_relative };
-        const derived = evaluateDerivedDirectory(identity, prepared.workspaces, "automatic");
-        store.upsertDirectory({ directory_key: wsKey, path: ws.real_path, kind: "workspace", identity, derived, directory_digest: dirDigest });
-      }
-      for (const dirRow of store.allDirectories().values()) {
-        if (dirRow.kind !== "session") continue;
-        const identity = ports.directories.identify(dirRow.path);
-        const derived = evaluateDerivedDirectory(identity, prepared.workspaces, dirRow.derived_state);
-        store.upsertDirectory({
-          directory_key: dirRow.directory_key, path: identity?.real_path ?? dirRow.path,
-          kind: "session", identity, derived, directory_digest: dirDigest,
-        });
-      }
-      store.setMeta("directory_snapshot_digest", dirDigest);
+  const cached = reconstructWorkspaces(initialDirs);
+  if (storedDirDigest === dirDigest && !cached.missingCache) {
+    if (storedBindingDigest === bindingDigest) {
+      return { dirDigest, projectMap, workspaces: cached.workspaces, dirMap: initialDirs };
     }
+    store.inTransaction(() => {
+      recomputeReportedProjects(snapshot, projectMap, initialDirs, store);
+      store.setMeta("binding_snapshot_digest", bindingDigest);
+    });
+    return { dirDigest, projectMap, workspaces: cached.workspaces, dirMap: initialDirs };
+  }
 
-    const freshDirs = store.allDirectories();
-    const decisions = store.decisions.allAttributionDecisions();
-    const duplicateLocal = store.duplicateLocalNativeKeys();
-    for (const session of store.activeSessionsOrdered()) {
-      const dirRow = session.directory_key ? freshDirs.get(session.directory_key) : undefined;
-      const derived = dirRow
-        ? {
-            derived_state: dirRow.derived_state, derived_project_id: dirRow.derived_project_id,
-            evidence_kind: dirRow.evidence_kind, evidence_path: dirRow.evidence_path, candidates: dirRow.candidates,
-          }
-        : { derived_state: "no_relation" as const, derived_project_id: null, evidence_kind: null, evidence_path: null, candidates: [] };
-      const binding = matchRuntimeBindingForSession(session, snapshot.bindings, prepared.projectMap, duplicateLocal);
-      const resolved = resolveSessionAttribution({
-        decision: decisions.get(session.session_key) ?? null, derived, binding, suggestion: null, projectMap: prepared.projectMap,
+  const prepared = prepareLinkedWorkspaces(snapshot, pathValue => ports.directories.identify(pathValue));
+  store.inTransaction(() => {
+    upsertWorkspaceDirectoryCache(snapshot, prepared.workspaces, dirDigest, store);
+    for (const dirRow of initialDirs.values()) {
+      if (dirRow.kind !== "session") continue;
+      const identity = ports.directories.identify(dirRow.path);
+      const derived = evaluateDerivedDirectory(identity, prepared.workspaces, dirRow.derived_state);
+      store.upsertDirectory({
+        directory_key: dirRow.directory_key, path: identity?.real_path ?? dirRow.path,
+        kind: "session", identity, derived, directory_digest: dirDigest,
       });
-      if (resolved.reported_project_id !== session.reported_project_id) {
-        store.updateReportedProjectId(session.session_key, resolved.reported_project_id);
-      }
     }
+    store.setMeta("directory_snapshot_digest", dirDigest);
+    recomputeReportedProjects(snapshot, prepared.projectMap, store.allDirectories(), store);
     store.setMeta("binding_snapshot_digest", bindingDigest);
   });
 
-  return { dirDigest, dirMap: store.allDirectories() };
+  return { dirDigest, projectMap: prepared.projectMap, workspaces: prepared.workspaces, dirMap: store.allDirectories() };
+}
+
+function recomputeReportedProjects(
+  snapshot: SessionProjectSnapshot,
+  projectMap: ReadonlyMap<string, { project_id: string; display_name: string }>,
+  freshDirs: ReadonlyMap<string, StoredDirectoryRow>,
+  store: SessionsStore,
+): void {
+  const decisions = store.decisions.allAttributionDecisions();
+  const duplicateLocal = store.duplicateLocalNativeKeys();
+  for (const session of store.activeSessionsOrdered()) {
+    const dirRow = session.directory_key ? freshDirs.get(session.directory_key) : undefined;
+    const derived = dirRow && dirRow.kind === "session"
+      ? {
+          derived_state: dirRow.derived_state, derived_project_id: dirRow.derived_project_id,
+          evidence_kind: dirRow.evidence_kind, evidence_path: dirRow.evidence_path, candidates: dirRow.candidates,
+        }
+      : { derived_state: "no_relation" as const, derived_project_id: null, evidence_kind: null, evidence_path: null, candidates: [] };
+    const binding = matchRuntimeBindingForSession(session, snapshot.bindings, projectMap, duplicateLocal);
+    const resolved = resolveSessionAttribution({
+      decision: decisions.get(session.session_key) ?? null, derived, binding, suggestion: null, projectMap,
+    });
+    if (resolved.reported_project_id !== session.reported_project_id) {
+      store.updateReportedProjectId(session.session_key, resolved.reported_project_id);
+    }
+  }
 }
 
 export function materializeFullRow(

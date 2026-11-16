@@ -26,7 +26,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/sessions";
 import { DiscoveryCoordinator } from "./discovery.js";
 import type { SessionsPorts } from "./ports.js";
-import { assertPersonalCaller, isSessionInScopeSync, type SessionsCaller } from "./runtime-view.js";
+import { assertPersonalCaller, type SessionsCaller } from "./runtime-view.js";
 import {
   runAttributionSet,
   runConnectorUsages,
@@ -175,13 +175,7 @@ export class SessionsService {
     caller: SessionsCaller,
   ): Promise<ExternalSessionAttributionSuggestOutput> {
     assertPersonalCaller(caller);
-    return runAttributionSuggest(
-      input,
-      caller,
-      this.store,
-      this.ports,
-      (session, _snapshot, workspaces) => isSessionInScopeSync(session, this.store, this.ports, workspaces),
-    );
+    return runAttributionSuggest(input, caller, this.store, this.ports);
   }
 
   toolSearch(input: ExternalSessionToolSearchInput, caller: SessionsCaller): Promise<ExternalSessionToolSearchOutput> {

@@ -28,6 +28,16 @@ function isClaudeSessionJsonl(relative: string, fileName: string): { candidate: 
   return { candidate: true, stem: fileName.slice(0, -".jsonl".length) };
 }
 
+function parseClaudeCursor(cursor: string | null): { offset: number; seenSessions: number; seenUnsupported: number } {
+  if (!cursor) return { offset: 0, seenSessions: 0, seenUnsupported: 0 };
+  const [rawOffset, rawSeen, rawUnsupported] = cursor.split(":");
+  return {
+    offset: Math.max(0, Number.parseInt(rawOffset ?? "0", 10) || 0),
+    seenSessions: Math.max(0, Number.parseInt(rawSeen ?? "0", 10) || 0),
+    seenUnsupported: Math.max(0, Number.parseInt(rawUnsupported ?? "0", 10) || 0),
+  };
+}
+
 export const claudeCodeAdapter: ExternalSessionSourceAdapter = {
   entry_id: "claude-code",
 
@@ -35,12 +45,11 @@ export const claudeCodeAdapter: ExternalSessionSourceAdapter = {
     if (!context.root) return { sessions: [], skipped_count: 0, next_cursor: null, total: 0 };
     const walked = await walkFilesUnderRoot(context.ports, context.root, signal, 3);
     const jsonlFiles = walked.files.filter(item => isClaudeSessionJsonl(item.relative, item.entry.name).candidate);
-    const startOffset = cursor ? Math.max(0, Number.parseInt(cursor, 10) || 0) : 0;
+    const { offset: startOffset, seenSessions, seenUnsupported } = parseClaudeCursor(cursor);
     const batchFiles = jsonlFiles.slice(startOffset, startOffset + DISCOVERY_BATCH_SIZE);
 
     let skippedCount = startOffset === 0 ? walked.skipped : 0;
     let unsupportedVersionFiles = 0;
-    let benignEmptyOrSidechainFiles = 0;
     const sessions = [];
 
     for (const item of batchFiles) {
@@ -57,8 +66,6 @@ export const claudeCodeAdapter: ExternalSessionSourceAdapter = {
         if (meta.validJsonCount === 0 || meta.sidechainOnly || !meta.hasSessionContent) {
           if (!meta.hasSessionContent && meta.unsupportedVersionCount > 0) {
             unsupportedVersionFiles++;
-          } else if (meta.validJsonCount > 0) {
-            benignEmptyOrSidechainFiles++;
           }
           skippedCount++;
           continue;
@@ -80,20 +87,16 @@ export const claudeCodeAdapter: ExternalSessionSourceAdapter = {
     }
 
     const nextOffset = startOffset + batchFiles.length;
-    if (
-      startOffset === 0 &&
-      nextOffset >= jsonlFiles.length &&
-      sessions.length === 0 &&
-      unsupportedVersionFiles > 0 &&
-      benignEmptyOrSidechainFiles === 0
-    ) {
+    const totalSessions = seenSessions + sessions.length;
+    const totalUnsupported = seenUnsupported + unsupportedVersionFiles;
+    if (nextOffset >= jsonlFiles.length && totalSessions === 0 && totalUnsupported > 0) {
       throw sessionSourceFailure("version_mismatch", "Claude Code 会话记录版本暂不支持解析", false);
     }
 
     return {
       sessions,
       skipped_count: skippedCount,
-      next_cursor: nextOffset < jsonlFiles.length ? String(nextOffset) : null,
+      next_cursor: nextOffset < jsonlFiles.length ? `${nextOffset}:${totalSessions}:${totalUnsupported}` : null,
       total: jsonlFiles.length,
     };
   },

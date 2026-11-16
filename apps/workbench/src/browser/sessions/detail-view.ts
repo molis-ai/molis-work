@@ -42,9 +42,12 @@ function renderReturnAction(row: ExternalSessionRow): { button: string; quietLin
       quietLine: `<p class="sessions-resume-cmd"><code>${escapeHtml(target.label)}</code></p>`,
     };
   }
-  if (target?.kind === "url") {
+  if (target?.kind === "url" && /^https:\/\//iu.test(target.label)) {
+    const labelKey = /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\//iu.test(target.label)
+      ? "workbench.sessions.open-github-pr"
+      : "common.control.open";
     return {
-      button: `<a class="mw-btn mw-btn--secondary mw-btn--sm" href="${escapeHtml(target.label)}" target="_blank" rel="noopener noreferrer">${icon("external")}<span>${uiText("workbench.sessions.open-github-pr")}</span></a>`,
+      button: `<a class="mw-btn mw-btn--secondary mw-btn--sm" href="${escapeHtml(target.label)}" target="_blank" rel="noopener noreferrer">${icon("external")}<span>${uiText(labelKey)}</span></a>`,
       quietLine: "",
     };
   }
@@ -57,19 +60,10 @@ function renderReturnAction(row: ExternalSessionRow): { button: string; quietLin
 function renderAttributionBanner(row: ExternalSessionRow): string {
   const attr = row.attribution;
   if (attr.state === "reported") {
-    return `<div class="sessions-attr-banner">
-      <span>${uiText("workbench.sessions.reported-banner", { project: attr.project.display_name })}</span>
-      <div class="sessions-detail-actions">
-        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-detail-confirm-project="${escapeHtml(attr.project.project_id)}">${uiText("workbench.sessions.confirm-attribution")}</button>
-        <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-detail-change-attr>${uiText("workbench.sessions.change-attribution")}</button>
-      </div>
-    </div>`;
+    return `<div class="sessions-attr-banner"><span>${uiText("workbench.sessions.reported-banner", { project: attr.project.display_name })}</span><div class="sessions-detail-actions"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-detail-confirm-project="${escapeHtml(attr.project.project_id)}">${uiText("workbench.sessions.confirm-attribution")}</button><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-detail-change-attr>${uiText("workbench.sessions.change-attribution")}</button></div></div>`;
   }
   if (attr.state === "automatic" && attr.tool_reported_other) {
-    return `<div class="sessions-attr-banner">
-      <span>${uiText("workbench.sessions.tool-reported-other", { current: attr.project.display_name, other: attr.tool_reported_other.project.display_name })}</span>
-      <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-detail-change-attr>${uiText("workbench.sessions.change-attribution")}</button>
-    </div>`;
+    return `<div class="sessions-attr-banner"><span>${uiText("workbench.sessions.tool-reported-other", { current: attr.project.display_name, other: attr.tool_reported_other.project.display_name })}</span><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-detail-change-attr>${uiText("workbench.sessions.change-attribution")}</button></div>`;
   }
   return "";
 }
@@ -114,34 +108,14 @@ export function renderDetailPane(container: HTMLElement, emptyEl: HTMLElement, s
         ? { label: uiText.text("workbench.sessions.load-earlier"), loading: state.loadingEarlier, attrs: { "data-detail-load-earlier": true } }
         : undefined,
     });
-  container.innerHTML = `<header class="sessions-detail-head">
-      <div class="sessions-detail-top">
-        <div class="sessions-detail-actions">
-          <button class="mw-btn mw-btn--ghost mw-btn--sm sessions-mobile-back" type="button" data-sessions-back>${icon("chevron-left")}<span>${uiText("workbench.sessions.back-to-list")}</span></button>
-          <h2 class="sessions-detail-title">${escapeHtml(title)}</h2>
-        </div>
-        <div class="sessions-detail-actions">
-          ${ret.button}
-          <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-detail-change-attr>${uiText("workbench.sessions.change-attribution")}</button>
-        </div>
-      </div>
-      <div class="sessions-detail-meta">
-        ${renderBadge({ label: row.tool.display_name })}
-        ${renderBadge({ label: attributionLabel(row) })}
-        ${row.directory ? `<code>${escapeHtml(row.directory)}</code>` : ""}
-        <time>${escapeHtml(formatActivityTime(row.last_activity_at))}</time>
-      </div>
-      <div class="sessions-readonly-bar">
-        <span>${icon("eye-off")} ${uiText("workbench.sessions.readonly-notice")}</span>
-        ${ret.quietLine}
-      </div>
-      ${renderAttributionBanner(row)}
-      <div class="sessions-detail-search">
-        <label class="mw-input-group" style="flex:1 1 auto">${icon("search")}<input class="mw-input" type="search" data-detail-query value="${escapeHtml(state.query)}" placeholder="${uiText("workbench.sessions.search-in-session")}" aria-label="${uiText("workbench.sessions.search-in-session")}" autocomplete="off"></label>
-        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-detail-search-run>${uiText("workbench.sessions.search-btn")}</button>
-      </div>
-    </header>
-    <div class="sessions-detail-scroll">${stoppedBanner}${body}</div>`;
+  container.innerHTML = `<header class="sessions-detail-head"><div class="sessions-detail-top"><div class="sessions-detail-actions"><button class="mw-btn mw-btn--ghost mw-btn--sm sessions-mobile-back" type="button" data-sessions-back>${icon("chevron-left")}<span>${uiText("workbench.sessions.back-to-list")}</span></button><h2 class="sessions-detail-title">${escapeHtml(title)}</h2></div><div class="sessions-detail-actions">${ret.button}<button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-detail-change-attr>${uiText("workbench.sessions.change-attribution")}</button></div></div><div class="sessions-detail-meta">${renderBadge({ label: row.tool.display_name })}${renderBadge({ label: attributionLabel(row) })}${row.directory ? `<code>${escapeHtml(row.directory)}</code>` : ""}<time>${escapeHtml(formatActivityTime(row.last_activity_at))}</time></div><div class="sessions-readonly-bar"><span>${icon("eye-off")} ${uiText("workbench.sessions.readonly-notice")}</span>${ret.quietLine}</div>${renderAttributionBanner(row)}<div class="sessions-detail-search"><label class="mw-input-group">${icon("search")}<input class="mw-input" type="search" data-detail-query value="${escapeHtml(state.query)}" placeholder="${uiText("workbench.sessions.search-in-session")}" aria-label="${uiText("workbench.sessions.search-in-session")}" autocomplete="off"></label><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-detail-search-run>${uiText("workbench.sessions.search-btn")}</button></div></header><div class="sessions-detail-scroll">${stoppedBanner}${body}</div>`;
+}
+
+export function ensureAttributionDialog(): HTMLDialogElement {
+  const existing = document.querySelector<HTMLDialogElement>("[data-sessions-attribution-dialog]");
+  if (existing) return existing;
+  document.body.insertAdjacentHTML("beforeend", `<dialog class="mw-dialog mw-dialog--form sessions-attribution-dialog" data-sessions-attribution-dialog aria-labelledby="sessions-attr-title"><form class="mw-form mw-dialog__shell" method="dialog" data-sessions-attr-form><header class="mw-form__header"><h2 id="sessions-attr-title">${uiText("workbench.sessions.change-attribution")}</h2></header><section class="mw-form__body"><p class="sessions-scope-hint" data-sessions-attr-session></p><label>${uiText("workbench.sessions.target-project")}<select class="mw-input" data-sessions-attr-select></select></label><p class="sessions-scope-hint">${uiText("workbench.sessions.change-attribution-tool-note")}</p><p class="sessions-scope-hint" data-sessions-attr-error role="alert" hidden></p></section><footer class="mw-form__footer"><button class="mw-btn mw-btn--secondary" type="button" data-sessions-attr-cancel>${uiText("common.control.cancel")}</button><button class="mw-btn mw-btn--primary" type="submit" data-sessions-attr-submit>${uiText("workbench.sessions.save-attribution")}</button></footer></form></dialog>`);
+  return document.querySelector<HTMLDialogElement>("[data-sessions-attribution-dialog]")!;
 }
 
 export function populateAttributionDialog(

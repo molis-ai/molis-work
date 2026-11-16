@@ -5,7 +5,7 @@
 store	owner	version	structure	upgrades
 acceptance/acceptance.db	modules/acceptance	1	4ef2c09436f61dfb	-
 agent-declarations/agent-declarations.db	apps/local-host	1	90aa329cbf64815e	-
-agent-definitions/agent-definitions.db	apps/local-host	2	f9bb7a644cbb6051	1
+agent-definitions/agent-definitions.db	apps/local-host	3	abe1e1d1ffb9dfb9	1,2
 alchemist/projects/*/search.sqlite	apps/local-host	1	d7365cb6761c89e8	-
 alchemist/projects/*/studio.sqlite	apps/local-host	1	d7686ca8b5832e96	-
 assistant/assistant.db	apps/local-host	1	5fe9a8806f24bf58	-

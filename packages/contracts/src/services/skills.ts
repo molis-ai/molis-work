@@ -333,12 +333,7 @@ export interface SkillDraftRequest {
  * package of own Skills' next version, exactly as batch 41's saving did.
  */
 
-/** A connector-category placeholder a general Skill writes (`~~project tracker`, `~~项目管理工具`): what a copy replaces with the person's own. */
-export const SKILL_PLACEHOLDER_PATTERN = /~~[^\s~`*_，。、；：！？,.;:!?()（）[\]【】<>「」"']+(?: [a-z][a-z-]*)?/gu;
-/** The distinct placeholders a text still has, in the order they first appear. */
-export function skillPlaceholders(text: string): string[] {
-  return [...new Set(text.match(SKILL_PLACEHOLDER_PATTERN) ?? [])];
-}
+export { SKILL_PLACEHOLDER_PATTERN, skillPlaceholders } from "./skill-placeholders.js";
 
 /** One installed Skill a draft or a copy comes from, as it was when read: enough to find it again and say which version it was. */
 export interface SkillSourceRef {
@@ -753,7 +748,7 @@ export const skillDraftActions = {
     title: "读取一份技能草稿", description: "本人一次读出一份草稿：字段、修订号、已知答案、最近一次回放，以及拿来对照的版本（自己的技能现在在用的那一版，或改的那份通用技能）。",
     input_schema: inputSchemaFor<SkillDraftReadRequest>()(object({ draft_id: draftId })), output_schema: draftSchema } } as ActionDefinition<SkillDraftReadRequest, SkillDraft>,
   create: { capability_id: "skills.drafts.create", version: /* @version action.skills.drafts.create */ 1, operation: "command", action: { ...drafter,
-    title: "起一份技能草稿", description: `把一种做法起成技能草稿，交给用户在设置里改、回放、采用；草稿不生效，也不给 AI 任何新权限。用户说「存成技能」或者刚才的过程明显值得反复用时，从这次真实的过程里提取固定步骤、可变参数（写成「先弄清」里要问的事）和要问用户的地方，写进 fields（正文是给 AI 读的做法，不写这次的具体内容），再把这次的任务、材料摘要和用户认可的结果作为 case 一起给（已知答案，采用前要回放）。target 为 new 起新技能；own 改用户自己的某个技能（from_version 从旧版恢复）；custom 改一份别的技能（通用技能），记住来源。scope 为 project 放在当前项目，home 放在个人空间。`,
+    title: "起一份技能草稿", description: `把一种做法起成技能草稿，交给用户在设置里改、回放、采用；草稿不生效，也不给 AI 任何新权限。用户说「存成技能」或者刚才的过程明显值得反复用时，从这次真实的过程里提取固定步骤、可变参数（写成「先弄清」里要问的事）和要问用户的地方，写进 fields（正文是给 AI 读的做法，不写这次的具体内容；会发送、花钱、发布或删除的步骤写明要什么授权，按已有的许可放行，不写成每次都要批准的关卡），再把这次的任务、材料摘要和用户认可的结果作为 case 一起给（已知答案，采用前要回放）。target 为 new 起新技能；own 改用户自己的某个技能（from_version 从旧版恢复）；custom 改一份别的技能（通用技能），记住来源。scope 为 project 放在当前项目，home 放在个人空间。`,
     input_schema: inputSchemaFor<SkillDraftCreateRequest>()(object({ scope, target: { oneOf: [object({ kind: { const: "new" } }),
       object({ kind: { const: "own" }, skill_id: skillIdText, from_version: skillVersion, from_source: { const: true } }, ["kind", "skill_id"]), object({ kind: { const: "custom" }, ref: skillRef })] },
       fields: draftFieldsSchema, case: object({ ...caseFields }, [...caseRequired]) }, ["scope", "target"])),

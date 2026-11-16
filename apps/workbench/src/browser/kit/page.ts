@@ -2,7 +2,6 @@ import type { KitEntry } from "@molis-ai/molis-work-contracts/platform/kit-repor
 import type { KitCatalog } from "@molis-ai/molis-work-contracts/services/kit";
 import { renderAlert, renderEmpty, renderSkeleton, type AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { act, button, esc, kitOf, readText, post, skillUi, updateKitWords, type Kit } from "./common.js";
-import { ownership } from "./authoring.js";
 import { skillWriting, type WritingFocus } from "./writing.js";
 import { applyPicked, exportPack, handPackage, importPanel, readKitFile, type ExportPart } from "./files.js";
 import { packViews, type View } from "./view.js";
@@ -49,11 +48,12 @@ export function mountKit(root: HTMLElement): () => void {
     if (importing) return importPanel(source, project, importing);
     const ids = [...body.querySelectorAll<HTMLElement>('[data-kit-act="pack"]')].map(row => row.dataset.kitV);
     const packs = ids.flatMap(id => source.catalog.packs.find(pack => pack.pack_id === id) ?? []);
-    const result = kitMarkup(source, view, pluginsHref, packs, false, writing.markup()), region = document.createElement("div");
+    if (view.workshop) return writing.workshop() ?? "";
+    const result = kitMarkup(source, view, pluginsHref, packs, false, writing.asking(), writing.strip()), region = document.createElement("div");
     region.innerHTML = result.html;
     if (result.entry?.kind === "skill") {
       const box = region.querySelector<HTMLElement>("[data-kit-skill]")!;
-      drawSkill(box, result.entry, writing.isMine(result.entry.skill), project, notice, () => {});
+      drawSkill(box, result.entry, project, notice, () => {}, writing.decorate);
     }
     return region.innerHTML;
   }
@@ -70,25 +70,30 @@ export function mountKit(root: HTMLElement): () => void {
         Array.from({ length: 6 }, () => `<li class="mw-item">${renderSkeleton({ className: "mw-mark" })}${renderSkeleton()}</li>`).join("")}</ul></section></div></div>`;
       return;
     }
-    if (view.importing && !view.authoring) {
+    if (view.workshop) {
+      body.innerHTML = writing.workshop() ?? "";
+      writing.focus(body, focus);
+      return;
+    }
+    if (view.importing && !view.asking) {
       body.innerHTML = importPanel(kit, project, view.importing);
       if (focus === "import") root.querySelector<HTMLElement>("#kit-import-title")?.focus();
       return;
     }
     const packs = packViews(kit, view, pluginsHref).shown();
     if (packs.length && !packs.some(pack => pack.pack_id === view.pack)) { view.pack = packs[0]!.pack_id; view.item = undefined; }
-    const { entry, html } = kitMarkup(kit, view, pluginsHref, packs, entering, writing.markup());
+    const { entry, html } = kitMarkup(kit, view, pluginsHref, packs, entering, writing.asking(), writing.strip());
     body.innerHTML = html;
     entering = false;
     const skillBox = body.querySelector<HTMLElement>("[data-kit-skill]");
     // A Skill's state redraws the page (its row's word changes too); the focus stays on the choice it was on.
     // 08's own detail goes in after the way back, and what the kit adds stays last.
     if (skillBox && entry?.kind === "skill") {
-      drawSkill(skillBox, entry, writing.isMine(entry.skill), project, notice, () => {
+      drawSkill(skillBox, entry, project, notice, () => {
         const kept = skillBox.contains(document.activeElement) && !document.activeElement?.closest(".mw-list-detail__trail, .kit-outer");
         draw();
         if (kept) body.querySelector<HTMLElement>("[data-kit-skill] input:checked")?.focus();
-      });
+      }, writing.decorate);
     }
     writing.focus(body, focus);
     if (focus === "detail") body.querySelector<HTMLElement>(".kit-detail h3")?.focus();
@@ -151,7 +156,7 @@ export function mountKit(root: HTMLElement): () => void {
     }
   });
   draw();
-  void load();
+  void load().then(() => writing.fromAddress());
   return () => {
     const language = selectedLanguage();
     if (language !== requestedLanguage && root.getClientRects().length) void load(true);
@@ -165,15 +170,16 @@ function notify(notice: HTMLElement, text: string, tone: "success" | "danger", n
   if (next) notice.scrollIntoView({ block: "nearest" });
 }
 
-function drawSkill(box: HTMLElement, entry: Extract<KitEntry, { kind: "skill" }>, mine: boolean, project: string, notice: HTMLElement, redraw: () => void): void {
+function drawSkill(box: HTMLElement, entry: Extract<KitEntry, { kind: "skill" }>, project: string, notice: HTMLElement, redraw: () => void,
+  decorate: (box: HTMLElement, entry: Extract<KitEntry, { kind: "skill" }>) => void): void {
   const outer = box.querySelector(".kit-outer");
   skillUi()?.detail(box, entry.skill, project, { notice, redraw });
-  // Whose it is, under 08's heading: change or delete one's own, or start a copy of any other (batch 41).
-  box.querySelector(":scope > header")?.insertAdjacentHTML("afterend", ownership(entry.key, mine));
   if (outer) box.append(outer);
+  // Under 08's heading: a draft, a source's newer version, whose it is (batch 41); its versions above what the kit adds (batch 42).
+  decorate(box, entry);
 }
 
-function kitMarkup(kit: Kit, view: View, pluginsHref: string, packs: KitCatalog["packs"], entering: boolean, writing?: string) {
+function kitMarkup(kit: Kit, view: View, pluginsHref: string, packs: KitCatalog["packs"], entering: boolean, writing?: string, drafts = "") {
   const { packRow, packDetail, itemDetail, summary, onlyBuiltin } = packViews(kit, view, pluginsHref);
   const pack = packs.find(candidate => candidate.pack_id === view.pack);
   const entry = pack && view.item && !writing ? kit.byKey.get(view.item) : undefined;
@@ -181,5 +187,5 @@ function kitMarkup(kit: Kit, view: View, pluginsHref: string, packs: KitCatalog[
   const list = packs.length ? `<ul class="mw-items">${packs.map(packRow).join("")}</ul>` : `<p class="kit-inline-empty">${esc(readText("workbench.kit.no-matches"))}${clear}</p>`;
   const right = writing ?? (pack ? (entry ? itemDetail(pack, entry) : packDetail(pack))
     : renderEmpty({ icon: "search", title: readText("workbench.kit.no-matches"), body: readText("workbench.kit.try-other-search"), action: clear ? `<div class="kit-chips">${clear}</div>` : "" }));
-  return { entry, html: `${summary(packs)}${onlyBuiltin()}<div class="mw-list-detail" data-sticky-detail${view.detail && (pack || writing) ? " data-detail" : ""}><div class="mw-list-detail__body"><section class="mw-list-detail__list" aria-label="${esc(readText("workbench.kit.title"))}">${list}</section><section class="mw-list-detail__detail kit-detail${entering ? " is-entering" : ""}"${entry?.kind === "skill" ? " data-kit-skill" : ""} aria-label="${esc(readText(entry ? "workbench.kit.entry-detail" : "workbench.kit.title"))}">${right}</section></div></div>` };
+  return { entry, html: `${summary(packs)}${onlyBuiltin()}${drafts}<div class="mw-list-detail" data-sticky-detail${view.detail && (pack || writing) ? " data-detail" : ""}><div class="mw-list-detail__body"><section class="mw-list-detail__list" aria-label="${esc(readText("workbench.kit.title"))}">${list}</section><section class="mw-list-detail__detail kit-detail${entering ? " is-entering" : ""}"${entry?.kind === "skill" ? " data-kit-skill" : ""} aria-label="${esc(readText(entry ? "workbench.kit.entry-detail" : "workbench.kit.title"))}">${right}</section></div></div>` };
 }

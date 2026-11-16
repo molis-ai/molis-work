@@ -364,8 +364,9 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const projectSection = projectSectionFromPath(url.pathname);
     if (!projectSection) return false;
     projectSettings ||= bindProject();
-    const memoryTarget = projectSection === "memory" && (url.searchParams.has("memory_session_kind") || url.searchParams.has("memory_session_id"));
-    openProjectSettings(projectSection, memoryTarget ? url.pathname + (fromPage === true ? keptAddress(url, PROJECT_DEFAULTS, PROJECT_QUERY_EXTRAS, projectSection) : url.search) : undefined);
+    // A memory session or a Skill draft the address names is opened with the address; other pages open as they are.
+    const addressed = (projectSection === "memory" || projectSection === "kit") && declared(PROJECT_QUERY_EXTRAS, projectSection).split(" ").some((name) => url.searchParams.has(name));
+    openProjectSettings(projectSection, addressed ? url.pathname + (fromPage === true ? keptAddress(url, PROJECT_DEFAULTS, PROJECT_QUERY_EXTRAS, projectSection) : url.search) : undefined);
     return true;
   };
   const openGlobalSettingsFromUrl = (href, fromPage) => {

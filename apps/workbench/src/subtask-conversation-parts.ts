@@ -84,8 +84,8 @@ export function subtaskDetails(view: MwSubtaskConversationView): string {
 }
 export function subtaskChildren(view: MwSubtaskConversationView, labels: MwSubtaskConversationLabels): string {
   if (!view.children?.length) return "";
-  return `<p>${escapeHtml(labels.children)}</p>${view.children.map(child => renderButton({ label: child.title, variant: "ghost", size: "sm", icon: "chevron-right",
-    attrs: { "data-subtask-open": child.target, title: child.title, ...(child.unread ? { "aria-description": labels.unread } : {}) } })).join("")}`;
+  return `<p>${escapeHtml(labels.children)}</p>${view.children.map(child => `<div class="mw-subtask__child">${renderButton({ label: child.title, variant: "ghost", size: "sm", icon: "chevron-right",
+    attrs: { "data-subtask-open": child.target, title: child.title, ...(child.unread ? { "aria-description": labels.unread } : {}) } })}${child.unread ? renderStateRing({ state: "unread", label: labels.unread }) : ""}</div>`).join("")}`;
 }
 
 /** The inside of the existing task float. The caller owns the float and its position; no main conversation is touched. */

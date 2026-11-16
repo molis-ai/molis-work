@@ -9640,6 +9640,10 @@
     "workbench.subtask-conversation.continue": "Continue subtask",
     "workbench.subtask-conversation.input": "Add instructions to this step",
     "workbench.subtask-conversation.title": "Subtask conversation",
-    "workbench.subtask-conversation.specimen-note": "New component: subtask messages and input stay inside the right task float; the main assistant remains independent. The task owner supplies the state. These are examples; no tasks run here."
+    "workbench.subtask-conversation.specimen-note": "New component: subtask messages and input stay inside the right task float; the main assistant remains independent. The task owner supplies the state. These are examples; no tasks run here.",
+    "workbench.subtask-conversation.approval-scope": "View the page only; do not publish. Permission applies to this operation only.",
+    "workbench.subtask-conversation.demo-history": "Add long history",
+    "workbench.subtask-conversation.demo-read-error": "Simulate read failure",
+    "workbench.subtask-conversation.demo-reset": "Reset demo"
   }
 }

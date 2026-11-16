@@ -4,6 +4,7 @@ import { renderLanguageHead } from "./language-resource.js";
 import { escapeHtml, icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   ARRIVAL_MOTION_CLIENT_SCRIPT,
+  COMPOSER_LOADER_CLIENT_SCRIPT,
   THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
   registeredIconNames,
@@ -24,6 +25,7 @@ import { PLATFORM_AREA_SECTION_SCRIPT, PLATFORM_AREA_SECTION_STYLES, renderPlatf
 import { CONNECTION_NEED_SECTION_STYLES, renderConnectionNeedSection } from "./connection-need-specimens.js";
 import { COLLAB_SECTION_SCRIPT, COLLAB_SECTION_STYLES, renderCollabSection } from "./collab-specimens.js";
 import { NAVIGATION_SECTION_STYLES, renderNavigationSection } from "./navigation-specimens.js";
+import { SUBTASK_SPECIMEN_SCRIPT } from "./subtask-conversation-demo.js";
 import { renderWorkLineIndexLink, renderWorkLineSection } from "./work-line-specimens.js";
 import { renderSessionSourceSection, SESSION_SOURCE_SECTION_STYLES } from "./session-source-specimens.js";
 import { renderSubtaskConversationSection, SUBTASK_SPECIMEN_STYLES } from "./subtask-conversation-specimen.js";
@@ -268,8 +270,8 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
     <div class="mw-catalog-top__tools">${languages}${themes}</div>
   </header>
   ${catalog}
-  <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
-  <script>${ARRIVAL_MOTION_CLIENT_SCRIPT}${SPECIMEN_SCRIPT}${COLLAB_SECTION_SCRIPT}${SERVICE_CONNECTION_SECTION_SCRIPT}${PLATFORM_AREA_SECTION_SCRIPT}</script>${environment ? `\n  <script>${ENVIRONMENT_SECTION_SCRIPT}</script>` : ""}
+  <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}${COMPOSER_LOADER_CLIENT_SCRIPT}</script>
+  <script>${ARRIVAL_MOTION_CLIENT_SCRIPT}${SPECIMEN_SCRIPT}${COLLAB_SECTION_SCRIPT}${SERVICE_CONNECTION_SECTION_SCRIPT}${PLATFORM_AREA_SECTION_SCRIPT}${SUBTASK_SPECIMEN_SCRIPT}</script>${environment ? `\n  <script>${ENVIRONMENT_SECTION_SCRIPT}</script>` : ""}
 </body>
 </html>`;
 }

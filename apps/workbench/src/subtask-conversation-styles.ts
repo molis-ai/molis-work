@@ -1,6 +1,7 @@
 /** Pending D-track review. The selected right-hand task float uses these parts; its owner supplies width and height. */
 export const SUBTASK_CONVERSATION_STYLES = `
   .mw-subtask { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; overflow: hidden; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-card); box-shadow: var(--lift-2); }
+  .mw-subtask[hidden] { display: none; }
   .mw-subtask__head { display: flex; align-items: center; gap: 6px; padding: 8px; border-bottom: 1px solid var(--line); flex: none; }
   .mw-subtask__head > strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: var(--weight-title); }
   .mw-subtask__head > .mw-btn { flex: none; }
@@ -33,7 +34,9 @@ export const SUBTASK_CONVERSATION_STYLES = `
   .mw-subtask__children { display: grid; gap: 6px; }
   .mw-subtask__children:empty { display: none; }
   .mw-subtask__children > p { font-size: 12px; color: var(--muted); margin: 0; }
-  .mw-subtask__children > .mw-btn { justify-content: flex-start; min-width: 0; }
+  .mw-subtask__child > .mw-btn { flex: 1; justify-content: flex-start; min-width: 0; }
+  .mw-subtask__child { display: flex; align-items: center; min-width: 0; gap: 6px; }
+  .mw-subtask__child > .mw-state-ring { width: 14px; height: 14px; flex: none; }
   .mw-subtask__children [data-slot="button-label"] { overflow: hidden; text-overflow: ellipsis; }
   .mw-subtask__feedback { flex: none; max-height: 30%; overflow: auto; padding: 10px 12px; font-size: 12px; color: var(--ink-soft); }
   .mw-subtask__feedback:empty { display: none; }
@@ -45,4 +48,9 @@ export const SUBTASK_CONVERSATION_STYLES = `
   .mw-subtask__composer [data-composer-stop] { display: none; }
   .mw-subtask__composer textarea { min-height: 56px; max-height: 110px; }
   .mw-subtask :is(button, summary, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (pointer: coarse), (max-width: 600px) {
+    .mw-subtask .mw-btn, .mw-subtask__detail > summary { min-height: 44px; }
+    .mw-subtask__head > .mw-btn { width: 44px; min-width: 44px; }
+    .mw-subtask__context { flex-wrap: wrap; }
+  }
 `;

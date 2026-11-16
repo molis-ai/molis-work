@@ -3,7 +3,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import { installTextForTest } from "../../../packages/plugin-sdk/dist/ui/text.js";
 import { renderSubtaskConversationSection, SUBTASK_SPECIMEN_STYLES } from "../../../apps/workbench/dist/subtask-conversation-specimen.js";
 import { SUBTASK_CONVERSATION_STYLES } from "../../../apps/workbench/dist/subtask-conversation-styles.js";
-import { COMPOSER_STYLES } from "../../../packages/design-system/dist/index.js";
+import { SUBTASK_SPECIMEN_SCRIPT } from "../../../apps/workbench/dist/subtask-conversation-demo.js";
+import { COMPOSER_STYLES, COMPOSER_CLIENT_SCRIPT } from "../../../packages/design-system/dist/index.js";
 
 const packs = await Promise.all(["zh", "en"].map(async lang => JSON.parse(await readFile(new URL(`../../../apps/workbench/resources/locales/${lang}.json`, import.meta.url), "utf8"))));
 for (const lang of ["zh", "en"]) {
@@ -24,5 +25,7 @@ document.getElementById('icons').innerHTML=window.mwKitSprite;
 const s=document.createElement('script');s.textContent=window.mwKitClient;document.body.append(s);
 const theme=new URLSearchParams(location.search).get('theme')||'light';
 document.documentElement.dataset.theme=theme;document.documentElement.dataset.resolvedTheme=theme;
-</script></body></html>`);
+</script><script>${COMPOSER_CLIENT_SCRIPT}
+window.molisComposer = window.molisComposerProgram;
+${SUBTASK_SPECIMEN_SCRIPT}</script></body></html>`);
 }

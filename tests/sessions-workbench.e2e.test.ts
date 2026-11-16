@@ -5,12 +5,13 @@ import path from "node:path";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
+import { sessionSourceFailure } from "@molis-ai/molis-work-service-sessions";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // SRB-01..SRB-16: Real Chrome E2E verification of the Workbench Sessions surface, Read Scope Sheet (both tabs + overlay),
 // Unfiled view, Droid search bar, Project Settings tool-brought folder confirmation, and Assistant untrusted context strip.
 
-async function setupSessionsBrowser(t: TestContext) {
+async function setupSessionsBrowser(t: TestContext, sessionsOptions: Record<string, unknown> = {}) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Sessions Workbench E2E"); return null; }
   const rawRoot = await mkdtemp(path.join(os.tmpdir(), "swb-e2e-"));
@@ -38,7 +39,7 @@ async function setupSessionsBrowser(t: TestContext) {
   // `node:test` executes `t.after` callbacks in registration (FIFO) order: close Chrome first, then Host/HTTP, then remove temp dir.
   let harness: ChromeHarness | undefined;
   t.after(async () => { await harness?.close(); });
-  const home = await serveHomeRuntime(t, { sessions: { homeRoot: userHome, env: {} } });
+  const home = await serveHomeRuntime(t, { sessions: { homeRoot: userHome, env: {}, ...sessionsOptions } });
   t.after(() => rm(rawRoot, { recursive: true, force: true }));
 
   const alpha = await home.project("Alpha");
@@ -111,7 +112,7 @@ async function setupSessionsBrowser(t: TestContext) {
   return { home, alpha, beta, harness: cdp, sessionId, evaluate, waitFor, goto };
 }
 
-test("SRB-01 SRB-08 SRB-12: Sessions surface empty-scope -> Read Scope Sheet -> transcript, search highlight, Droid bar, mobile 390px, and English locale", { timeout: 180_000 }, async (t) => {
+test("SRB-01 SRB-02 SRB-08 SRB-12: Sessions surface empty-scope -> Read Scope Sheet -> transcript, search highlight, Droid bar, mobile 390px, and English locale", { timeout: 180_000 }, async (t) => {
   const ctx = await setupSessionsBrowser(t);
   if (!ctx) return;
   const { alpha, harness, sessionId, evaluate, waitFor, goto } = ctx;
@@ -204,7 +205,7 @@ test("SRB-01 SRB-08 SRB-12: Sessions surface empty-scope -> Read Scope Sheet -> 
   assert.equal(enWords.match(/[㐀-鿿]+/gu)?.join(" ") ?? "", "", "zero Chinese characters in English Sessions UI");
 });
 
-test("SRB-03 SRB-09 SRB-14: Unfiled filing, AI permit sheet + overlay return, Project Settings tool-brought confirmation, and Assistant untrusted strip", { timeout: 180_000 }, async (t) => {
+test("SRB-11 SRB-14 SRB-15 SRB-16: Unfiled filing, AI permit sheet + overlay return, Project Settings tool-brought confirmation, and Assistant untrusted strip", { timeout: 180_000 }, async (t) => {
   const ctx = await setupSessionsBrowser(t);
   if (!ctx) return;
   const { home, alpha, beta, evaluate, waitFor, goto } = ctx;
@@ -222,7 +223,7 @@ test("SRB-03 SRB-09 SRB-14: Unfiled filing, AI permit sheet + overlay return, Pr
   await evaluate("document.querySelector('[data-sessions-view=\"unfiled\"]').click()");
   await waitFor("document.querySelectorAll('[data-unfiled-card]').length === 1");
   const unfiledText = await evaluate<string>("document.querySelector('[data-sessions-body]').textContent || ''");
-  assert.match(unfiledText, /AI 归属建议仅向你已配置的模型发送目录名/u);
+  assert.match(unfiledText, /AI 归属建议仅向你已配置的模型发送标题、脱敏目录、开头几句/u);
   await evaluate(`(() => {
     const sel = document.querySelector('[data-unfiled-select]');
     sel.value = ${JSON.stringify(beta.project_id)};
@@ -234,6 +235,9 @@ test("SRB-03 SRB-09 SRB-14: Unfiled filing, AI permit sheet + overlay return, Pr
   // 2. Overlay `molisOpenSessionsScope("project_ai_read", { overlay: true })`: toggle on reveals `回到对话`, toggle off shows irrevocable note.
   await evaluate("globalThis.molisOpenSessionsScope('project_ai_read', { overlay: true })");
   await waitFor("Boolean(document.querySelector('[data-sessions-scope-sheet][open] [data-permit-project].is-current'))");
+  const permitText = await evaluate<string>("document.querySelector('[data-permit-project].is-current .mw-permit__meta')?.textContent || ''");
+  assert.match(permitText, /归到这里 \d+ 条/);
+  assert.doesNotMatch(permitText, /\{|\}/);
   await evaluate(`document.querySelector('[data-permit-switch="${alpha.project_id}"]').click()`);
   await waitFor("document.querySelector('[data-sessions-scope-return]')?.hidden === false");
   await evaluate(`document.querySelector('[data-permit-switch="${alpha.project_id}"]').click()`);
@@ -259,4 +263,41 @@ test("SRB-03 SRB-09 SRB-14: Unfiled filing, AI permit sheet + overlay return, Pr
   assert.match(rowText, /工具带入 · 待确认/u);
   await evaluate("document.querySelector('[data-tool-brought=\"true\"] [data-act=\"confirm-input\"]').click()");
   await waitFor("document.querySelector('[data-project-directories]')?.dataset.state === 'ready' && !document.querySelector('[data-project-directories]').hasAttribute('aria-busy') && !document.querySelector('[data-project-directories] [data-tool-brought=\"true\"]')");
+});
+
+test("SRB-06 SRB-12: cloud connection row and account_changed recovery (login_expired -> account_changed -> two exits)", { timeout: 180_000 }, async (t) => {
+  let mode: "login_expired" | "account_changed" = "login_expired";
+  const fakeConnections = {
+    current: (id: string) => id === "conn-gh" ? { enabled: true, account_label: "alice" } : null,
+    choices: () => ({ choices: [{ connection_id: "conn-gh", display_name: "GitHub CLI", account_label: "alice" }], connect_service_id: "github" }),
+    request: async () => ({ status: 404, headers: {}, body: "" }),
+    command: async () => {
+      if (mode === "account_changed") throw sessionSourceFailure("account_changed", "GitHub CLI 当前登录账号已变为另一账号", false);
+      return { exit_code: 1, stderr: "HTTP 403: Resource not accessible by personal access token", stdout: "" };
+    },
+  };
+  const ctx = await setupSessionsBrowser(t, { ports: { connections: fakeConnections } });
+  if (!ctx) return;
+  const { alpha, evaluate, waitFor, goto } = ctx;
+  const scope = await (await ctx.home.request("/api/sessions/scope")).json() as { scope_revision: number };
+  // The cloud row is visible and its connection can be selected; save enables discovery.
+  await goto(`/projects/${alpha.project_id}/?openPlugin=sessions`, 1440, 900, "zh");
+  await waitFor("Boolean(document.querySelector('[data-work-surface=\"sessions\"] .sessions-empty-card'))");
+  await evaluate("document.querySelector('[data-work-surface=\"sessions\"] [data-sessions-open-scope=\"tools\"]').click()");
+  await waitFor("Boolean(document.querySelector('[data-sessions-scope-sheet][open] [data-scope-allow=\"copilot-coding-agent\"]'))");
+  await evaluate(`(() => {
+    document.querySelector('input[name="sessions-dir-mode"][value="all"]').click();
+    const box = document.querySelector('[data-scope-allow="copilot-coding-agent"]');
+    if (!box.checked) box.click();
+    document.querySelector('[data-sessions-scope-save]').click();
+  })()`);
+  await waitFor("document.querySelector('[data-source-entry=\"copilot-coding-agent\"]')?.textContent.includes('gh auth refresh')");
+  // Retry after the terminal account changed: the source becomes account_changed and both exits are visible.
+  mode = "account_changed";
+  await evaluate("document.querySelector('[data-source-entry=\"copilot-coding-agent\"] [data-source-retry]').click()");
+  await waitFor("(document.querySelector('[data-source-entry=\"copilot-coding-agent\"]')?.textContent || '').includes('切回原账号')");
+  const actions = await evaluate<string>("document.querySelector('[data-source-entry=\"copilot-coding-agent\"]')?.textContent || ''");
+  assert.match(actions, /我已在终端切回原账号，重新核对/u);
+  assert.match(actions, /去读取范围改用新账号的连接/u);
+  assert.ok(scope.scope_revision >= 0);
 });

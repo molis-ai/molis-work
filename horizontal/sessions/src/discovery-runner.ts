@@ -3,13 +3,11 @@ import { getSessionAdapter } from "./adapters/index.js";
 import {
   canonicalEntryId,
   computeBindingSnapshotDigest,
-  computeDirectorySnapshotDigest,
   directoryKeyForPath,
   evaluateDerivedDirectory,
   isSessionDirectoryAllowedByScope,
   localLocationKey,
   matchRuntimeBindingForSession,
-  prepareLinkedWorkspaces,
   resolveSessionAttribution,
   sessionKeyForIdentity,
 } from "./attribution.js";
@@ -21,7 +19,7 @@ import {
   type AdapterSourceContext,
   type SessionsPorts,
 } from "./ports.js";
-import { upsertWorkspaceDirectoryCache } from "./runtime-view.js";
+import { resolveDerivedSnapshot } from "./runtime-view.js";
 import type { SessionsStore, StoredSourceRow } from "./store.js";
 
 export interface DiscoveryStartState {
@@ -141,8 +139,11 @@ function commitDiscoveredBatch(params: {
     }
     if (tool.surface === "cloud") assertCloudConnectionActive(currentScope.connection_id, ports);
 
-    const prepared = prepareLinkedWorkspaces(snapshot, pathValue => ports.directories.identify(pathValue));
-    const dirDigest = computeDirectorySnapshotDigest(snapshot, store.homeDirectory);
+    // Reuse the same digest-keyed workspace cache as list/history; only a changed directory snapshot or a missing cache entry
+    // reads disk. The old path identified every linked folder again for every discovery batch.
+    const snapshotView = resolveDerivedSnapshot(snapshot, store, ports);
+    const workspaces = snapshotView.workspaces;
+    const dirDigest = snapshotView.dirDigest;
     const bindingDigest = computeBindingSnapshotDigest(snapshot);
     const duplicateLocal = store.duplicateLocalNativeKeys();
     const decisionMap = store.decisions.allAttributionDecisions();
@@ -151,14 +152,14 @@ function commitDiscoveredBatch(params: {
     store.inTransaction(() => {
       for (const candidate of batch.sessions) {
         const identity = candidate.directory ? (identifiedByPath.get(candidate.directory) ?? null) : null;
-        if (!isSessionDirectoryAllowedByScope(currentScope.directories, identity, prepared.workspaces)) continue;
+        if (!isSessionDirectoryAllowedByScope(currentScope.directories, identity, workspaces)) continue;
 
         const canonicalPath = identity?.real_path ?? candidate.directory;
         const dirKey = canonicalPath ? directoryKeyForPath(canonicalPath) : null;
-        let derived = evaluateDerivedDirectory(identity, prepared.workspaces, null);
+        let derived = evaluateDerivedDirectory(identity, workspaces, null);
         if (dirKey && canonicalPath) {
           const prevDir = store.getDirectory(dirKey);
-          derived = evaluateDerivedDirectory(identity, prepared.workspaces, prevDir?.derived_state ?? null);
+          derived = evaluateDerivedDirectory(identity, workspaces, prevDir?.derived_state ?? null);
           store.upsertDirectory({ directory_key: dirKey, path: canonicalPath, kind: "session", identity, derived, directory_digest: dirDigest });
         }
 
@@ -169,11 +170,11 @@ function commitDiscoveredBatch(params: {
         const seenVia = candidate.seen_via ? [entryId, candidate.seen_via] : [entryId];
         const binding = matchRuntimeBindingForSession(
           { entry_id: entryId, location_key: locationKey, native_id: candidate.native_id, seen_via: seenVia },
-          snapshot.bindings, prepared.projectMap, duplicateLocal,
+          snapshot.bindings, snapshotView.projectMap, duplicateLocal,
         );
         const resolved = resolveSessionAttribution({
           decision: decisionMap.get(sessionKey) ?? null,
-          derived, binding, suggestion: null, projectMap: prepared.projectMap,
+          derived, binding, suggestion: null, projectMap: snapshotView.projectMap,
         });
 
         store.upsertSession({
@@ -209,7 +210,6 @@ function commitDiscoveredBatch(params: {
           session_count: store.countActiveSessionsForSource(entryId, locationKey),
           skipped_count: counters.skippedCount, completed_at: now, checked_at: now,
         });
-        upsertWorkspaceDirectoryCache(snapshot, prepared.workspaces, dirDigest, store);
         store.setMeta("directory_snapshot_digest", dirDigest);
         store.setMeta("binding_snapshot_digest", bindingDigest);
       }

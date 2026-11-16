@@ -46,7 +46,7 @@
 | Runtime（AI Runtime） | 能运行 Agent 或与用户对话的 AI 环境，含外部 AI 工具这个产品（Claude Code、Codex 等） | Runtime、执行工具（另有处写「本地 Agent」「Agent」指它，见 U6） | 把外部产品叫 Agent；与 Plugin Runtime、项目运行对象混写（见 2.3） |
 | 外部工具 | 登记表（`platform/external-tools`）里的一个外部 AI 开发工具；范围比外部 Runtime 大，Molis 只读其会话、不运行的也算（见 2.3） | 无 | 把它和 Runtime 当同义词；厂商、插件 |
 | 产品入口 | 外部工具的一个可用形态，登记表一行一个：CLI、IDE、桌面、云端分开，国内、国际分开 | 无 | 把同品牌的几个入口当成一个 |
-| 外部会话 | 外部工具自己保有的对话会话；Molis 在本人打开的读取范围内只建索引、按来源实时只读正文，不存正文副本、不发消息、不托管运行（见 2.3） | 外部会话、历史会话 | 把它和 Coding 会话、个人助理的「工作」或已退役的旧 Sessions 库混写 |
+| 外部会话 | 外部工具自己保有的对话会话；Molis 在本人打开的读取范围内只建索引、按来源实时只读正文，不存对话全文（标题与建议短引文除外）、不发消息、不托管运行（见 2.3） | 外部会话、历史会话 | 把它和 Coding 会话、个人助理的「工作」或已退役的旧 Sessions 库混写 |
 | 会话来源 | 一个产品入口在某个位置（本机目录或已连接账号）可被读取的一组会话（`entry_id` + `location_key`） | 来源、读取来源 | 把同品牌的本机与云端混成一个来源 |
 | 读取范围 | 本人对每个会话来源设的开关、目录白名单与账号连接选择，以及每个项目的「允许个人助理读取本项目外部会话」开关 | 读取范围 | 默认全开扫描；把项目文件夹授权当成外部会话读取授权 |
 | 待归类 | 还没唯一对应到某个现存项目的外部会话（含无项目线索、多项目歧义、工具上报未确认、本人留作待归类、原项目已删除） | 待归类 | 未分配、孤儿会话 |
@@ -212,10 +212,10 @@
 
 **外部会话、会话来源、读取范围、待归类**
 
-- 定义：**外部会话**是外部工具自己保有的对话会话，身份是 `(entry_id, location_key, native_id)` 派生的 `session_key`（前缀 `xs_`，`packages/contracts/src/services/sessions.ts`）。`horizontal/sessions` 只在 `<Home>/external-sessions/external-sessions.db` 里存索引、目录关系缓存、来源进度、读取范围、本人归属决定与模型归属建议；对话正文每次向原来源实时只读，不落盘，也不向外部工具发消息或恢复进程。
+- 定义：**外部会话**是外部工具自己保有的对话会话，身份是 `(entry_id, location_key, native_id)` 派生的 `session_key`（前缀 `xs_`，`packages/contracts/src/services/sessions.ts`）。`horizontal/sessions` 只在 `<Home>/external-sessions/external-sessions.db` 里存索引、目录关系缓存、来源进度、读取范围、本人归属决定与模型归属建议；对话全文每次向原来源实时只读，不落盘（标题与 AI 建议短引文是短摘要，不是转录副本），也不向外部工具发消息或恢复进程。
 - **会话来源**是一个产品入口在某个位置的一份可读来源，由 `(entry_id, location_key)` 唯一标识（如本机默认目录 `local:default` 或已绑定连接 `connection:<id>`）。没有适配器的入口如实报 `unsupported`（区分 `tool_gap` 与 `adapter_pending`），不伪装成空列表。
 - **读取范围**是本人对每个会话来源显式设置的允许开关、可选的目录范围与连接选择（`session_read_scopes`），外加每个项目独立的「允许个人助理读取归入本项目的外部会话」开关（`session_project_ai_reads`，默认关闭）。默认不扫任何外部工具目录；每次列会话、读正文、工具内搜索、系统搜索与个人助理单轮引用都在返回前重新核对读取范围（`S-sessions-recheck-before-return`）。
-- **待归类**指尚未由本人归入现存项目、也未能通过唯一项目文件夹或经双向核对的 Git worktree 自动归入单个项目的外部会话（覆盖 `left_unfiled`、`project_gone`、`ambiguous`、`reported`、`tool_linked`、`relation_gone`、`no_relation` 七档）。模型归属建议（`sessions.attribution.suggest@1`）只给出候选与理由，最终归属只由本人决定（`S-sessions-person-decides`）。
+- **待归类**指尚未由本人归入现存项目、也未能通过唯一项目文件夹或经双向核对的 Git worktree 自动归入单个项目的外部会话（覆盖 `left_unfiled`、`project_gone`、`ambiguous`、`tool_linked`、`relation_gone`、`no_relation` 六档；`reported` 是工具上报绑定下的独立归属状态，不属于待归类）。模型归属建议（`sessions.attribution.suggest@1`）只给出候选、理由与依据，最终归属只由本人决定（`S-sessions-person-decides`）。
 
 **Agent role（角色声明）**
 

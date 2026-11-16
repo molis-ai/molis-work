@@ -30,8 +30,11 @@ test("waiting plugin notifications reach the dock bell, which opens the market o
   assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /detail\.plugin_events_pending === "number" && detail\.started > pluginHeldSince\) pluginWaiting = detail\.plugin_events_pending/);
   assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /addEventListener\("molis-work:plugin-events", \(event\) => \{ pluginHeldSince = performance\.now\(\); pluginWaiting = /);
   assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /new CustomEvent\("molis-work:plugin-events-open"\)/);
-  // Batch 15: objects the owners mark as needing the person (the attention projection) count beside them.
-  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /\.length \+ pluginWaiting \+ attentionObjectsCount;/, "they count as something waiting for the person");
+  // Batch 15: objects the owners mark as needing the person (the attention projection) count beside them. Since WLN-39 a project
+  // page's line head says how many of those wait, and the bell takes that number in their place; plugin items still add to it.
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /const offLine = open\.filter\(\(notice\) => URGENT\.has\(notice\.kind\)\)\.length \+ pluginWaiting;/, "they count as something waiting for the person");
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /const listed = offLine \+ attentionObjectsCount;/);
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /const urgent = head \? \(Number\(head\.dataset\.waiting\) \|\| 0\) \+ offLine : listed;/);
   const english = pageText("en");
   assert.equal(english("workbench.assistant-notice.plugin-review", { count: 1 }), "1 plugin notification to check");
   assert.equal(english("workbench.assistant-notice.plugin-review", { count: 2 }), "2 plugin notifications to check");

@@ -14,7 +14,7 @@ export interface ModelWire { system?: unknown; tools?: unknown; messages: Array<
  * The Home's configured text model, on 127.0.0.1: it records every request the Host's real path sends (instructions resolved from
  * the register, the Host's system text, the data) and answers each with `answer(request)`.
  */
-export async function recordingTextModel(t: TestContext, home: string, answer: (request: ModelWire) => string) {
+export async function recordingTextModel(t: TestContext, home: string, answer: (request: ModelWire) => string | Promise<string>) {
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   const requests: ModelWire[] = [];
   const model = createServer(async (request, response) => {
@@ -26,7 +26,7 @@ export async function recordingTextModel(t: TestContext, home: string, answer: (
     const emit = (type: string, value: object) => response.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
     emit("message_start", { message: { id: randomUUID(), type: "message", role: "assistant", model: "fixture-model", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } });
     emit("content_block_start", { index: 0, content_block: { type: "text", text: "" } });
-    emit("content_block_delta", { index: 0, delta: { type: "text_delta", text: review ?? answer(wire) } });
+    emit("content_block_delta", { index: 0, delta: { type: "text_delta", text: review ?? await answer(wire) } });
     emit("content_block_stop", { index: 0 });
     emit("message_delta", { delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });
     emit("message_stop", {}); response.end();

@@ -1,5 +1,5 @@
 import type { ComposerControl } from "@molis-ai/molis-work-plugin-sdk/page-globals";
-import { escapeHtml, format, icon, renderAlert, renderBadge, type MwButtonOptions } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, fileKindExtension, format, icon, renderAlert, renderBadge, type MwButtonOptions } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "../dom.js";
 import type { Page } from "./page.js";
 import type { RunView } from "./shapes.js";
@@ -98,9 +98,6 @@ function row(options: { kind: string; name: string; size: string; title?: string
     + `<span class="mw-file-row__name">${escapeHtml(options.name)}</span></span><span class="mw-file-row__size">${escapeHtml(options.size)}</span>${options.state ?? ""}</li>`;
 }
 
-/** The file kind mark the component board draws for a name: its extension, up to four letters; a name without one is text. */
-function extension(path: string): string {
-  const name = path.split("/").at(-1) ?? path, dot = name.lastIndexOf(".");
-  return (dot > 0 ? name.slice(dot + 1) : "txt").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4) || "txt";
-}
+/** The one shared file-kind rule (the component board and onboarding use it too), so `.env*` is ENV here as well. */
+const extension = (path: string): string => fileKindExtension(path);
 

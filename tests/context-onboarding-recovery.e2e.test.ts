@@ -177,6 +177,14 @@ test("ONB-36, ONB-38, ONB-39, ONB-40, ONB-42, C2, C3, C6: real browser upload pe
   await setInputFiles([readmePath, dockerfilePath, envPath]);
   await waitFor("document.querySelector('.ob-right')?.textContent.includes('Dockerfile') && document.querySelector('.ob-right')?.textContent.includes('.env.local')");
   assert.equal(await evaluate("Boolean(document.querySelector('.ob-right .mw-file-kind--env'))"), true, ".env.local renders .mw-file-kind--env file badge");
+  // ONB-35: a compact row still opens one file's metadata without toggling its checkbox.
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-detail-kind=file]'))"), true, "file row offers a detail control");
+  await evaluate("document.querySelector('[data-detail-kind=file]')?.click()");
+  await waitFor("document.querySelector('#cx-dialog')?.open === true");
+  const detailText = await evaluate<string>("document.querySelector('#cx-dialog')?.textContent || ''");
+  assert.ok((detailText.includes("README.md") || detailText.includes("Dockerfile")) && detailText.includes(" B") && (detailText.includes("已读取") || detailText.includes("Read")), `file details show metadata without reading the body: ${detailText}`);
+  await evaluate("document.querySelector('#cx-dialog [data-close]')?.click()");
+  await waitFor("document.querySelector('#cx-dialog')?.open !== true");
 
   // C6 & ONB-36: reload BEFORE starting; IndexedDB restores chosen uploads so the person does not have to re-pick!
   await b.navigate(() => command("Page.reload", {}, sessionId));
@@ -188,6 +196,8 @@ test("ONB-36, ONB-38, ONB-39, ONB-40, ONB-42, C2, C3, C6: real browser upload pe
 
   // C2 & ONB-38: .env.local is held for explicit user decision while README + Dockerfile finish; 5-number funnel & 5-cell track render!
   await waitFor("Boolean(document.querySelector('[data-action=adopt]:not(:disabled)')) && Boolean(document.querySelector('[data-slot=\"materials-verification\"]')) && Boolean(document.querySelector('[data-secret-decision=\"strip\"]'))", 20_000);
+  assert.equal(await evaluate("Array.from(document.querySelectorAll('.mw-mr-funnel li b')).at(-1)?.textContent"), "—", "C3: the fifth funnel stage is not claimed as adopted before adoption");
+  assert.equal(await evaluate("Array.from(document.querySelectorAll('.mw-mr-cells')).some(cell => cell.querySelectorAll('.mw-mr-track i.is-on').length === 5)"), false, "C3: no material row shows all five stages before adoption");
 
   for (const width of [1440, 1024, 390, 320]) {
     for (const theme of ["light", "dark"] as const) {

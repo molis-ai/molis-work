@@ -441,6 +441,7 @@ export { attachHostPresence, homeHostUrl, readHostEndpoint, removeHostEndpoint, 
 export { residentHostAddress } from "./resident-host-request.js";
 export { webEntryDoor, webEntryProvider, type WebEntryDoor, type WebEntryCall } from "./web-entry-actions.js";
 export { createHostObservation, observationPluginDataCleared, scheduleWakeupRecords, type HostObservation } from "./observation-host.js";
+export { registerEvaluationReplayScenario, type HostEvaluationOwner } from "./evaluation-host.js";
 export type { GrantChangedBy } from "./observation-grants.js";
 export { observationShellDoor } from "./observation-shell-entry.js";
 export { contextOnboardingActions, contextOnboardingProvider } from "./context-onboarding-actions.js";

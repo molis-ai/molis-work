@@ -116,3 +116,5 @@ export type MaterialWebsiteReader = (url: string, options?: {
 export declare function codeRootFile(path: string): boolean;
 
 export declare function contextFileSkip(path: string): "ignored" | "secret" | "unreadable" | null;
+
+export declare function contextSkipRuleName(path: string): string;

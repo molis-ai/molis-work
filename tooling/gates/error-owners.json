@@ -453,6 +453,14 @@
         "modules/sync-replication/"
       ],
       "reason": "Personal synchronization policy and transport errors; business validation remains with each owner."
+    },
+    "evaluation": {
+      "paths": [
+        "horizontal/evaluation/",
+        "apps/local-host/src/evaluation-host.ts",
+        "packages/contracts/src/services/evaluation.ts"
+      ],
+      "reason": "The end-to-end work evaluation service (batch 30, specs/observation-collection/evaluation-path-design.md): frozen sample immutability, isolated replay side-effect blocking, human review recording, and metrics summarization."
     }
   }
 }

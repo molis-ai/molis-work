@@ -162,7 +162,7 @@ export const SUBAGENT_KEY_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
 /** What the Host asks of a parent round before its child is let out: the round's own pre-dispatch check (authority, install, cancel). */
 export interface DispatchChecks {
   forRun(runId: string): import("./prologue-node-kit.js").DispatchGuard | undefined;
-  onAdmitted?(request: { parentRunId: string; parentSessionId: string; childSessionId: string; node: string }): void;
+  onAdmitted?(request: { parentRunId: string; parentSessionId: string; childSessionId: string; node: string }): void | Promise<void>;
 }
 
 /**
@@ -203,12 +203,20 @@ export function createCollaborationHost(checks: DispatchChecks, starts: Continua
         return { admit: false, code: (error as { code?: unknown }).code === undefined ? "agent.dispatch_refused" : String((error as { code: unknown }).code).slice(0, 64),
           note: (error instanceof Error ? error.message : String(error)).slice(0, 200) };
       }
-      checks.onAdmitted?.({
-        parentRunId: request.parent.run.id,
-        parentSessionId: request.parent.session.id,
-        childSessionId: request.child.session.id,
-        node: request.node,
-      });
+      try {
+        await checks.onAdmitted?.({
+          parentRunId: request.parent.run.id,
+          parentSessionId: request.parent.session.id,
+          childSessionId: request.child.session.id,
+          node: request.node,
+        });
+      } catch (error) {
+        return {
+          admit: false,
+          code: "agent.storage_busy",
+          note: `子任务节点索引保存失败：${(error instanceof Error ? error.message : String(error)).slice(0, 160)}`,
+        };
+      }
       return { admit: true };
     },
   };

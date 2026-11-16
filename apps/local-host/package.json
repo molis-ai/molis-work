@@ -91,6 +91,7 @@
     "@molis-ai/molis-work-service-agent-host": "workspace:*",
     "@molis-ai/molis-work-service-appearance": "workspace:*",
     "@molis-ai/molis-work-service-connector-host": "workspace:*",
+    "@molis-ai/molis-work-service-evaluation": "workspace:*",
     "@molis-ai/molis-work-service-kit": "workspace:*",
     "@molis-ai/molis-work-service-knowledge": "workspace:*",
     "@molis-ai/molis-work-service-mainline": "workspace:*",

@@ -115,7 +115,19 @@ function classifyMaterialReadError(error: unknown): { failure_kind: "not_found" 
  */
 export async function resolveMaterials(context: PluginStartContext, materials: readonly CodingMaterial[], control?: Control): Promise<AgentTextMaterial[]> {
   const actions = context.services?.actions;
-  if (materials.length && !actions) throw new Error("现在读不到项目资料，请稍后再试或移除材料");
+  if (materials.length && !actions) {
+    throw Object.assign(codingMaterialErrors.material_unreadable("现在读不到项目资料，请稍后再试或移除材料"), {
+      details: {
+        failed_materials: materials.map((material, index): CodingFailedMaterial => ({
+          index,
+          key: materialKey(material),
+          title: material.title,
+          reason: "项目资料服务暂不可用",
+          failure_kind: "unavailable",
+        })),
+      },
+    });
+  }
   const resolved: Array<{ material: CodingMaterial; inline: AgentTextMaterial; overflow: AgentMaterialChecklistItem & { pointer: string } }> = [];
   const failed: CodingFailedMaterial[] = [];
   for (let index = 0; index < materials.length; index += 1) {
@@ -196,7 +208,9 @@ function fromMaterials(material: CodingPickedMaterial, read: MaterialsReadResult
   return {
     inline,
     overflow: {
+      material_id: inline.material_id,
       title,
+      ...(inline.subject ? { subject: inline.subject } : {}),
       material_ref: pinnedRef,
       ...(inline.source_artifact_id !== undefined ? { source_artifact_id: inline.source_artifact_id, source_version: inline.source_version } : {}),
       read_revision: read.read_revision,
@@ -222,7 +236,9 @@ function fromKnowledge(material: CodingMaterial, read: KnowledgeReadResponse): {
   return {
     inline,
     overflow: {
+      material_id: inline.material_id,
       title,
+      ...(inline.subject ? { subject: inline.subject } : {}),
       ...("ref" in material ? { material_ref: readRef(material.ref, read.revision) } : {}),
       ...(inline.source_artifact_id !== undefined ? { source_artifact_id: inline.source_artifact_id, source_version: inline.source_version } : {}),
       read_revision: read.revision,
@@ -244,6 +260,7 @@ function envelope(
   // A fixed version keeps its own identity; anything else is named by its subject, and its version is the revision read.
   const plain = {
     material_id: `${key.length > 160 ? createHash("sha256").update(key).digest("hex").slice(0, 32) : key}@${revision.slice(0, 64)}`,
+    subject: { kind: subject.kind, id: subject.id },
     title, text, read_revision: revision,
     delivery: meta.delivery,
     total_chars: meta.total_chars,

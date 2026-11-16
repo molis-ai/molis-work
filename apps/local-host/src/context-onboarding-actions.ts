@@ -69,7 +69,10 @@ export const contextOnboardingActions = {
         },
       },
     }, required: ["journey", "body"], additionalProperties: false } },
-  async (entry, input) => structuredClone(await decideContextSecret(entry.home, input.journey, { ...input.body }, entry.ports))),
+  async (entry, input, caller) => structuredClone(await decideContextSecret(entry.home, input.journey, { ...input.body }, entry.ports, {
+    signal: caller.signal,
+    beforeEffect: () => caller.beforeEffect(),
+  }))),
 };
 
 export const contextOnboardingProvider = () => webEntryProvider("system.onboarding", "首次引导", Object.values(contextOnboardingActions));

@@ -80,6 +80,10 @@
     {
       "path": "work-brief/work-brief.db",
       "reason": "第 19 批新增的 Home 库；现有金样没有安装或启用 Work Brief，也没有种子简报。首个真实简报保存后再纳入金样；加入前由 tests/work-brief-plugin.test.ts 与库结构快照覆盖创建、读写和删项目。"
+    },
+    {
+      "path": "evaluation/evaluation.db",
+      "reason": "第 30 批新增的端到端评测 Home 库（按需懒打开，普通使用不产生空文件）；现有历史金样生成时未跑评测样本，由 tests/evaluation-service.test.ts、tests/home-store-baselines.test.ts 与库结构快照覆盖建库、读写、离线快照和删项目。"
     }
   ],
   "writes": {
@@ -206,6 +210,9 @@
     },
     "work-brief/work-brief.db": {
       "none": "Work Brief 的库只在插件运行时保存或刷新时写；现有金样不安装 Work Brief，生成时也没有种子简报。首个真实简报的保存路径由 tests/work-brief-plugin.test.ts 覆盖。"
+    },
+    "evaluation/evaluation.db": {
+      "none": "端到端评测库只在调用 evaluation.*@1 登记样本或执行评测时懒打开写入；现有金样未登记评测样本，读写与删项目由 tests/evaluation-service.test.ts 和 tests/home-snapshot-cli.test.ts 覆盖。"
     },
     "plugin-runtime/plugin-runtime.db": {
       "none": "没有最小写入用例：回放的第三方样本那一步装、写、升级，这个库就写过了（§4 第 7 步）"

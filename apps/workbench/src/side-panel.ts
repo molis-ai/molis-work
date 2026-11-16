@@ -103,6 +103,9 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
 // layout script marks it on the root (data-side-shared, assistant-layout.ts), so no rule here re-checks the whole page (VUX-36).
 const SHARED_BROWSER = "html body.immersive-workbench[data-side-shared]";
 
+/* 760 and under (--side-sheet-h below) the sheet stands over the lower half of the work. In a short window, with the title bar's
+ * two rows above and the line below, half the window would leave the work no height at all (700×420), so the sheet takes the
+ * smaller of 52dvh and what is left over 160px for the work, but never less than half of the room between the title bar and the line. */
 /* On a phone the layout button ends the title bar's first row, after the right side's glyphs, and the main tabs take the whole
  * second row (linear-density.ts gives them the row's width; workbench-navigation.ts places the button). The zero-width drag line
  * is left out there, so the bar keeps two rows. */
@@ -140,9 +143,6 @@ body:not([data-side-open=true]) .side-panel-divider{display:none}
 html body.is-side-resizing :is([data-plugin-stage],.side-panel){transition:none!important}
 body.is-side-resizing iframe,body.is-side-resizing [data-side-browser] canvas{pointer-events:none!important}
 body.is-side-resizing{cursor:col-resize;user-select:none}
-/* 760 and under the sheet stands over the lower half of the work. In a short window, with the title bar's two rows above and the
-   line below, half the window would leave the work no height at all (700×420), so the sheet takes the smaller of 52dvh and what is
-   left over 160px for the work, but never less than half of the room between the title bar and the line. */
 @media(max-width:760px){
  html body.immersive-workbench{--side-room:calc(100dvh - var(--workbench-titlebar-bottom,var(--desktop-titlebar-height,48px)) - var(--dock-h,48px) - 24px);--side-sheet-h:min(52dvh,max(calc(var(--side-room)*.5),calc(var(--side-room) - 160px)))}
  html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:8px;margin-bottom:calc(var(--side-sheet-h) + var(--side-gap) + var(--sheet-inset,14px))}

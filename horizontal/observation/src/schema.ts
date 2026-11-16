@@ -3,13 +3,7 @@ import type { HomeStoreDeclaration, SqliteBaseline } from "@molis-ai/molis-work-
 /** The Home store of the observation layer: `<Home>/observation/observation.db` (contract-design §2). */
 export const OBSERVATION_STORE = "observation";
 
-/**
- * Records, their evidence snapshots and the coverage register (contract-design §3, §6, §8). Only this package reads or writes these
- * tables. A record keeps its lists and small values as JSON; evidence bodies are stored once per digest, compressed and encrypted, and kept
- * while a record refers to them. Evaluation holds come with batch 30, by an upgrade step. `writer_state` keeps when the last batch was
- * written, so a run that ended before writing its queue is shown as a gap the next time.
- */
-export const OBSERVATION_BASELINE: SqliteBaseline = { version: /* @version database.observation_baseline */ 1, schema: `
+const OBSERVATION_V1_SCHEMA_SQL = `
   CREATE TABLE records (
     seq INTEGER PRIMARY KEY,
     record_id TEXT NOT NULL UNIQUE,
@@ -101,7 +95,41 @@ export const OBSERVATION_BASELINE: SqliteBaseline = { version: /* @version datab
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
-` };
+`;
+
+const EVALUATION_HOLDS_SCHEMA_SQL = `
+  CREATE TABLE evaluation_holds (
+    hold_id TEXT PRIMARY KEY,
+    owner TEXT NOT NULL,
+    sample_id TEXT NOT NULL,
+    project_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    expires_at TEXT,
+    note TEXT
+  );
+  CREATE INDEX evaluation_holds_sample ON evaluation_holds (sample_id);
+  CREATE INDEX evaluation_holds_project ON evaluation_holds (project_id);
+  CREATE TABLE evaluation_hold_records (
+    hold_id TEXT NOT NULL,
+    record_id TEXT NOT NULL,
+    seq INTEGER,
+    PRIMARY KEY (hold_id, record_id)
+  );
+  CREATE INDEX evaluation_hold_records_seq ON evaluation_hold_records (seq);
+  CREATE INDEX evaluation_hold_records_record ON evaluation_hold_records (record_id);
+`;
+
+/**
+ * Records, their evidence snapshots, the coverage register, and evaluation sample holds (contract-design §3, §6, §8;
+ * evaluation-path-design §2). Only this package reads or writes these tables. 1 → 2 adds `evaluation_holds` and `evaluation_hold_records`
+ * while preserving all existing records, encrypted snapshots, coverage rows, and `writer_state`.
+ */
+export const OBSERVATION_BASELINE: SqliteBaseline = {
+  version: /* @version database.observation_baseline */ 2,
+  schema: `${OBSERVATION_V1_SCHEMA_SQL}${EVALUATION_HOLDS_SCHEMA_SQL}`,
+  upgrades: [{ from: 1, sql: EVALUATION_HOLDS_SCHEMA_SQL }],
+};
 
 /** The library as the Home's store registry lists it: snapshotted with the Home (its evidence sealed), removed by a purge of user data. */
 export const OBSERVATION_HOME_STORE: HomeStoreDeclaration = { path: OBSERVATION_STORE, library: { baseline: OBSERVATION_BASELINE } };

@@ -2,6 +2,7 @@ import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { randomUUID } from "node:crypto";
 import { createPrologueError, DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, actionFieldLabelSource, actionFieldValue, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { agentErrors } from "../errors.js";
 import { presentToolReview, reviewField, reviewText, type ToolReviewField } from "../review-presentation.js";
@@ -198,9 +199,26 @@ export function withPinnedKnowledgeRevision(
   input: unknown,
   pinned: ReadonlyMap<string, string> | undefined,
 ): unknown {
-  if (!pinned?.size || reference.provider_id !== KNOWLEDGE_PROVIDER_ID || reference.capability_id !== knowledgeActions.read.capability_id) return input;
-  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+  if (!pinned?.size || !input || typeof input !== "object" || Array.isArray(input)) return input;
   const record = input as Record<string, unknown>;
+  if (reference.capability_id === materialsActions.read.capability_id) {
+    const rawRef = record.ref;
+    if (!rawRef || typeof rawRef !== "object" || Array.isArray(rawRef)) return input;
+    const refRec = rawRef as { subject?: unknown; pin?: unknown };
+    const sub = refRec.subject as { kind?: unknown; id?: unknown } | undefined;
+    if (!sub || typeof sub.kind !== "string" || typeof sub.id !== "string") return input;
+    const expected = pinned.get(`subject:${sub.kind}\u0000${sub.id}`);
+    if (expected === undefined) return input;
+    const pin = refRec.pin as { mode?: unknown; read_revision?: unknown } | undefined;
+    if (pin && typeof pin === "object" && pin.mode === "current") {
+      if (pin.read_revision !== undefined && pin.read_revision !== expected) {
+        throw agentErrors.pinned_revision_mismatch("本轮材料已锁定在开始时的版本，不能在续读时改用其他 read_revision");
+      }
+      return { ...record, ref: { ...rawRef, pin: { ...pin, read_revision: expected } } };
+    }
+    return input;
+  }
+  if (reference.provider_id !== KNOWLEDGE_PROVIDER_ID || reference.capability_id !== knowledgeActions.read.capability_id) return input;
   const rawSubject = record.subject;
   let expected: string | undefined;
   if (typeof rawSubject === "string") {
@@ -216,6 +234,24 @@ export function withPinnedKnowledgeRevision(
     throw agentErrors.pinned_revision_mismatch("本轮材料已锁定在开始时的版本，不能在续读时改用其他 expected_revision");
   }
   return { ...record, expected_revision: expected };
+}
+
+export function assertPinnedMaterialResult(
+  reference: ExactActionReference,
+  input: unknown,
+  result: unknown,
+  pinned: ReadonlyMap<string, string> | undefined,
+): void {
+  if (!pinned?.size || reference.capability_id !== materialsActions.read.capability_id) return;
+  if (!input || typeof input !== "object" || Array.isArray(input)) return;
+  const sub = ((input as { ref?: { subject?: { kind?: unknown; id?: unknown } } }).ref?.subject);
+  if (!sub || typeof sub.kind !== "string" || typeof sub.id !== "string") return;
+  const expected = pinned.get(`subject:${sub.kind}\u0000${sub.id}`);
+  if (expected === undefined || !result || typeof result !== "object") return;
+  const out = result as { state?: unknown; read_revision?: unknown };
+  if (out.state === "changed" || (typeof out.read_revision === "string" && out.read_revision !== expected)) {
+    throw agentErrors.pinned_revision_mismatch("本轮材料在开始后已发生变更，不能静默混读新旧版本");
+  }
 }
 
 function gatewayToolDefinitions(timeoutMs: number) {
@@ -301,15 +337,17 @@ export function prologueActionGateway(
     try {
       const reference = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
       const rawInput = gatewayInput(view, args);
+      const preparedInput = write ? rawInput : withPinnedKnowledgeRevision(reference, rawInput, pinnedRevisions);
       const call = gateway.client.invoke(
         reference,
-        write ? rawInput : withPinnedKnowledgeRevision(reference, rawInput, pinnedRevisions),
+        preparedInput,
         local.signal,
       );
       call.catch(() => undefined);
       // A change is not waited on past a stop or deadline: its owner may still finish it, so it ends as "not known".
       const result = write ? await Promise.race([call, abortedBy(local.signal)]) : await call;
       local.signal.throwIfAborted();
+      if (!write) assertPinnedMaterialResult(reference, preparedInput, result, pinnedRevisions);
       return JSON.stringify(result) ?? "null";
     } catch (error) {
       const code = (error as { code?: unknown })?.code;

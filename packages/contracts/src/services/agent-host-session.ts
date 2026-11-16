@@ -180,6 +180,8 @@ export interface AgentStepBoard {
     /** Leaf completion fraction 0..1; succeeded is 1, running/stopped preserve reported progress < 1 (CHO-31..33). */
     progress?: number;
     progress_basis?: string;
+    /** Explicitly skipped by a person (remains in active denominator, unlike scope_removed) (CHO-32). */
+    skipped?: true;
     /** Explicitly removed from scope (excluded from denominator, unlike unfinished stopped steps) (CHO-32). */
     scope_removed?: true;
     /** A command in this step ended with an unknown outcome; excluded from completion until a person checks it (BL-222). */

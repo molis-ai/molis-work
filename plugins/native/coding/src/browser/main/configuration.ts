@@ -10,7 +10,6 @@ import { api, status } from "./request.js";
 import { surfaceChanged } from "./select.js";
 import type { StateRead } from "./shapes.js";
 import { showWorkspace } from "./workspace.js";
-export { buildEnvironmentChecklistHtml };
 
 /** Puts the session's remembered start (intent, model, directory, effort) back on the composer. */
 export function applyConfiguration(page: Page) {
@@ -97,10 +96,35 @@ function drawWorkspaces(page: Page, result: StateRead) {
 }
 
 export function drawEnvironmentReadiness(page: Page, readiness: StateRead["environment_readiness"]) {
-  page.q("[data-coding-composer]").querySelector("[data-coding-env-bar]")?.remove();
-  const mounted = page.turns.querySelector<HTMLElement>("[data-coding-env-checklist]");
+  const { s, turns } = page;
+  const welcoming = turns.hasAttribute("data-coding-welcoming");
+  const matchesSelected = Boolean(readiness) && !s.worktree && (!s.workspaceId || readiness?.workspace_id === s.workspaceId);
+  if (welcoming) {
+    const html = matchesSelected ? buildEnvironmentChecklistHtml(readiness) : "";
+    let box = turns.querySelector<HTMLElement>(":scope > [data-coding-env-checklist]");
+    if (!html) {
+      box?.remove();
+      return;
+    }
+    if (!box) {
+      box = el("div", "", "coding-env-checklist");
+      box.dataset.codingEnvChecklist = "";
+      turns.append(box);
+    }
+    if (box.dataset.html !== html) {
+      box.dataset.html = html;
+      setContentHtml(box, html);
+    }
+    return;
+  }
+  turns.querySelector(":scope > [data-coding-env-checklist]")?.remove();
+  const mounted = turns.querySelector<HTMLElement>("[data-run] > [data-coding-env-checklist]");
   if (!mounted) return;
-  const html = buildEnvironmentChecklistHtml(readiness);
+  const last = s.lastRun;
+  const matchesLastRun = Boolean(readiness)
+    && last?.frozen?.directories?.execution.kind !== "worktree"
+    && (!last?.frozen?.directory?.canonical_path || !readiness?.canonical_path || last.frozen.directory.canonical_path === readiness.canonical_path);
+  const html = matchesLastRun ? buildEnvironmentChecklistHtml(readiness) : "";
   if (!html) {
     mounted.remove();
     return;
@@ -114,15 +138,17 @@ export function drawEnvironmentReadiness(page: Page, readiness: StateRead["envir
 async function readState(page: Page) {
   const { composerModels } = page.refs, { s } = page;
   const before = s.current && s.state.sessions.find(item => item.session_id === s.current)?.title;
-  const result = await api<StateRead>(page, "/state");
+  const defaultOutput = s.state.workspaces?.find(item => Array.isArray(item.roles) && item.roles.includes("output"))?.workspace_id;
+  const path = s.workspaceId && s.workspaceId !== defaultOutput ? "/state?workspace_id=" + encodeURIComponent(s.workspaceId) : "/state";
+  const result = await api<StateRead>(page, path);
   s.state = result;
   s.stateLoaded = true;
   retitle(page, s.current, before, s.current && result.sessions.find(item => item.session_id === s.current)?.title);
   composerModels.fill(result.models);
   drawWorkspaces(page, result);
-  drawEnvironmentReadiness(page, result.environment_readiness);
   drawIntents(page, result);
   applyConfiguration(page);
+  drawEnvironmentReadiness(page, result.environment_readiness);
   renderDirectory(page);
   controls(page);
 }

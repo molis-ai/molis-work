@@ -1,6 +1,8 @@
 import { TAB_SASH_GUTTER, TAB_SASH_HIT, TAB_SPLIT_EDGE_X_CSS, TAB_SPLIT_EDGE_Y_CSS } from "../tab-split-drop.js";
 import { TAB_SHARE_MAX } from "../tab-strip-share.js";
 
+// At 760 and under only the focused pane shows, so a tile's 「在旁边打开」 (PFG-23) would have nothing to open beside; it is left
+// out, and the tile's hover buttons stop at the pin and add or remove instead of covering the middle of a 268px row.
 // `[data-split-narrow]` repeats the narrow layout for a stage too small for every pane's minimum (VUX-24); while a divider moves,
 // `.is-resizing` holds its cursor over the panes and selects nothing under it.
 export const TAB_WORKSPACE_STYLES = `
@@ -142,8 +144,6 @@ export const TAB_WORKSPACE_STYLES = `
     body.immersive-workbench .tab-split { display: contents; }
     body.immersive-workbench .tab-sash, body.immersive-workbench .tab-pane:not(.is-focused) { display: none; }
     body.immersive-workbench .tab-pane.is-focused { flex: 1; }
-    /* Only the focused pane shows here, so a tile's 「在旁边打开」 (PFG-23) would have nothing to open beside; it is left out, and
-       the tile's hover buttons stop at the pin and add or remove instead of covering the middle of a 268px row. */
     html body.immersive-workbench .plugin-rail-tile > .plugin-rail-ops > .rail-beside { display: none; }
   }
   body.immersive-workbench .tab-workspace[data-split-narrow] .tab-workspace-panes > :is(.tab-split, .tab-pane:not(.is-focused), .tab-content-frame:not(.is-focused)) { display: none; }

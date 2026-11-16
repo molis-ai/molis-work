@@ -62,6 +62,13 @@ export type KnowledgeMatchLayer = "title" | "summary" | "content" | "card" | "re
  * listed, so an agent names it without copying the subject's id (an Artifact's is itself a JSON string). Workspace files have none.
  */
 export const KNOWLEDGE_REF_PATTERN = "^[kK][0-9a-fA-F]{7}$";
+export const KNOWLEDGE_REF_HEX_CHARS = 7;
+export function knowledgeSubjectHashInput(subject: ActionSubject): string {
+  return `${subject.kind}\u0000${subject.id}`;
+}
+export function knowledgeRefFromDigestHex(digestHex: string): string {
+  return `k${digestHex.slice(0, KNOWLEDGE_REF_HEX_CHARS).toLowerCase()}`;
+}
 /** Where a call names a piece: its subject as given, or its ref. */
 export type KnowledgePieceName = ActionSubject | string;
 export interface KnowledgeCard {

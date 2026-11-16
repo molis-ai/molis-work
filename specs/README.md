@@ -43,7 +43,7 @@
 
 - [plugin-builder-upgrade](plugin-builder-upgrade/spec.md)：插件创作工作台整体升级；首要解决用户至今未跑通的端到端交付与整体体验，平台同时提供手动／个人助理共用的场景组装能力，保留新能力插件的创作，Alchemist 并为完整落地场景；2026-10-27 需求已整理，尚未实现。需求维护 Codex，实现待分配；与三项场景包／Onboarding 需求独立。
 
-- [prologue-memory-strategy](prologue-memory-strategy/spec.md)：以记忆更精准、好用、省 token 为目标；App 自定义分类与读写策略矩阵、Prologue 多策略组合、首期质量闭环及 40 项验收。C0/Q0 已独立交付，Prologue C0 与 S1 已合并。Memory V0 按路线书决定 36 单独成批收口（[#2020](https://github.com/molis-ai/molis-work/pull/2020)），原验收、历史失败及 BL-1071～BL-1077 的去向见正文。
+- [prologue-memory-strategy](prologue-memory-strategy/spec.md)：以记忆更精准、好用、省 token 为目标；App 自定义分类与读写策略矩阵、Prologue 多策略组合、首期质量闭环及 40 项验收。C0/Q0 已独立交付，Prologue C0 与 S1 已合并。Memory V0 按路线书决定 36 单独成批收口（[#2020](https://github.com/molis-ai/molis-work/pull/2020)）；Memory P1 已随第 31 批落地（有界历史/恢复、Molis 信封 v1 的 `state`/`applies.objects`、通用关联对象、单一写主人）；SDK Export v2/`maxEntries` 分批、显示副本与直接旧 SDK 降写三项边界见 [BL-memory-p1-residuals](backlog/BL-memory-p1-residuals.md)；原验收、历史失败及 BL-1071～BL-1077 的去向见正文。
 - [unified-input-voice](unified-input-voice/spec.md)：平台统一输入组件与本地语音；第 10 批已实现公共组件、首页与助理接入（#1991，2026-11-09 合入 main）；第 11 批 K4 Coding 与 K5「待办」来源随 #2016 合入（2026-11-11），框架页来源按 BL 留待 K6 灵光之前；其余入口与语音待后续批。10-27 已定整体体验归属、插件开放注册与补充／排队／打断操作。
 - [observation-collection](observation-collection/spec.md)：观测和采集层，统一记录全平台获准的用户行为、过程、结果与历史条件，供评测和主动助理共用；2026-10-27 从主动助理需求迁出，需求已整理；第 28 批已接入写入面（[#2059](https://github.com/molis-ai/molis-work/pull/2059)、[#2073](https://github.com/molis-ai/molis-work/pull/2073)），第 29 批接入历史查询与证据读取、用途与跨项目权限、暂停与保留清理、空间占用及「设置 › 工作记录」界面与组件板标本（实物验收见 [BL-work-records-acceptance](backlog/BL-work-records-acceptance.md)），评测留存与回放归第 30 批。需求维护 Codex；实施沿用 C 轨。
 - [proactive-assistant](proactive-assistant/spec.md)：个人助理的主动协助、场景 Skill 与后台任务；需求已整理，尚未实现（§13 的 PWA-27／PWA-137 常驻运行与错过提示已随第 25 批 #2034 于 2026-11-12 实现，其余未实现）。含工作记忆例程、路由、技能生成与跨源搜索；2026-10-28 补讨论中的诉求识别、主对话持续可用、连续交办和任务可视化。明确交办先在阶段 2 接通，主动工作阶段 3 复用；共用采集与维护由 observation-collection 承接，助理与评测分别消费。
@@ -80,7 +80,7 @@
 - [onboarding-coverage](onboarding-coverage/spec.md)：先接通真实文件选择、模型整理、失败恢复与材料进入项目/Coding；再扩场景包、动态引导、全局/项目/任务设置、项目助理团与 AI 交互首页；2026-11-02 补页面帮助与下一步进入引导、复用配置并返回原任务（ONB-47～49）。整项尚未实现，本轮只改文档，F 轨统筹；需求维护：Codex。
 - [plugin-frame-desktop-load](plugin-frame-desktop-load/spec.md)：桌面 WebKit 里沙箱插件框要能加载脚本；页面策略写上本次请求自己的回环 origin。2026-10-26，待验收。
 - [prologue-strategies](prologue-strategies/spec.md)：Prologue Context、MCP、Skill、Tool 四份策略合并为一份总纲 + 四份子文档；需求已整理，尚未实施。
-- [post-anticorruption-roadmap](post-anticorruption-roadmap/spec.md)：防腐后的执行目录，01～90 与服务端批每项一行；交付详情、需求来源、依赖、轨道、决策、阶段验收及历史分别放在 [reference 分类](post-anticorruption-roadmap/spec.md#reference)。[开发手册](post-anticorruption-roadmap/reference/development-workflow.md)规定每项／每片开工前先讲清具体工作。01 已交单；02～27 中至少 18 个批次已有合入记录，最近合入包括 15 #2017、16 #2031、17 #2058、22 #2038、25 #2034、27 #2010；实时认领与分支看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)。
+- [post-anticorruption-roadmap](post-anticorruption-roadmap/spec.md)：防腐后的执行目录，01～90 与服务端批每项一行；交付详情、需求来源、依赖、轨道、决策、阶段验收及历史分别放在 [reference 分类](post-anticorruption-roadmap/spec.md#reference)。[开发手册](post-anticorruption-roadmap/reference/development-workflow.md)规定每项／每片开工前先讲清具体工作。01 已交单；02～27 中至少 18 个批次已有合入记录，最近合入包括 15 #2017、16 #2031、17 #2058、22 #2038、25 #2034、27 #2010、31 #2087、41 #2086；实时认领与分支看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)。
 
 - [ci-conflict-reduction](ci-conflict-reduction/spec.md)：减少页面资源预算与其他高频生成记录的冲突及重复 CI；2026-11-06 已获实施授权，历史 PR 核查、实现与本地回归完成，待独立 CI 实测，负责人 Codex。
 

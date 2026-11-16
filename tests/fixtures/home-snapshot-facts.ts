@@ -45,6 +45,8 @@ function libraryFacts(project: string): Record<string, Seed> {
     observation: { table: "records", values: { record_id: id, owner_kind: "plugin", owner_id: "io.snapshot.fixture", fact: "io.snapshot.fixture.saved", outcome: "succeeded", actor_id: actor,
       audience: "plugin", entry: "plugin", project_id: project, occurred_at: at, received_at: at, source_class: "real", subjects: "[]", conditions: "{}", detail: JSON.stringify({ note: title }), evidence: "[]" }, field: "detail" },
     acceptance: { table: "acceptance_subjects", values: { subject_no: 7, project_id: project, provider_id: "plugin:io.snapshot.fixture", subject_kind: "snapshot_item", subject_id: title, created_at: at }, field: "subject_id" },
+    evaluation: { table: "evaluation_samples", values: { sample_id: id, version: 1, purpose: "validation", work_mode: "manual_plugin", project_id: project,
+      frozen_digest: "snapshot-digest", spec_json: JSON.stringify({ title }), hold_id: null, held_record_count: 0, created_at: at }, field: "spec_json" },
   };
 }
 

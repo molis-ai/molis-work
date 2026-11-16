@@ -65,7 +65,14 @@ class CentralAccountService implements AccountService {
   }
 
   async invoke(operationId: string, input: AccountOperationInput, control: AccountCallControl): Promise<AccountEnvelope> {
-    return this.execute(operationId, input, control, await this.credential(control));
+    const credential = await this.credential(control);
+    if (operationId === "listLoginMethods") {
+      // Auth owns both profile and presentation policy; this action only projects its snapshot.
+      const result = await this.execute("getMe", input, control, credential);
+      if (!isRecord(result.data) || !isRecord(result.data.user)) throw accountErrors.upstream_invalid("Invalid account profile");
+      return { ...result, data: { loginMethods: result.data.loginMethods, version: result.data.user.version } };
+    }
+    return this.execute(operationId, input, control, credential);
   }
 
   private async execute(operationId: string, input: AccountOperationInput, control: AccountCallControl, credential: AccountCredentialReference | null): Promise<AccountEnvelope> {

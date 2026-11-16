@@ -320,6 +320,14 @@ export type ProductTransactionRequest = ({
     readonly method: "GITHUB";
 }) | ({
     readonly returnTo?: string;
+    readonly purpose: "LOGIN";
+    readonly method: "ACCOUNT_PASSWORD";
+}) | ({
+    readonly returnTo?: string;
+    readonly purpose: "LOGIN";
+    readonly method: "EMAIL_CODE";
+}) | ({
+    readonly returnTo?: string;
     readonly purpose: "EMAIL_SIGNUP";
     readonly method: "EMAIL_CODE";
 }) | ({

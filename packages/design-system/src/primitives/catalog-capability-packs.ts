@@ -1,6 +1,6 @@
 // The board's specimens of the AI kit parts (capability-pack.ts holds the parts: their rules and renderers, shared with the
 // 「能力包」 settings page). Only the board's own layout of the specimens is added here.
-import { escapeHtml, icon, renderAttrs, renderBadge, renderButton, renderStatusMark, type AttrValue, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, icon, renderAttrs, renderBadge, renderButton, renderCheckbox, renderStatusMark, type AttrValue, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderMenuGroup, renderMenuItem } from "./overlay.js";
 import { section, specimen } from "./catalog-parts.js";
 import type { Say } from "./catalog-composer.js";
@@ -158,21 +158,25 @@ export function leaveBarSection(say: Say): string {
 const improve = (say: Say, key: string, values?: Record<string, string | number>) => say(`workbench.skill-improve.${key}`, values);
 export function adoptBarSection(say: Say): string {
   const discard = renderButton({ label: improve(say, "discard"), variant: "ghost", size: "sm" });
+  const adopt = (variant: "primary" | "secondary") => renderButton({ label: improve(say, "adopt-version", { v: 3 }), variant, size: "sm", icon: "check" });
+  const saved = improve(say, "saved-at", { at: say("workbench.catalog-kit.just-now") });
   return section("adopt-bar", say("workbench.catalog-kit.adopt-bar"), `<div class="mw-catalog__specimens">
-    ${specimen(say("workbench.catalog-kit.ready-to-adopt"), renderAdoptBar({ primary: renderButton({ label: improve(say, "adopt-version", { v: 3 }), variant: "primary", size: "sm", icon: "check" }), actions: discard,
-      status: improve(say, "saved-at", { at: say("workbench.catalog-kit.just-now") }) }))}
+    ${specimen(say("workbench.catalog-kit.ready-to-adopt"), renderAdoptBar({ primary: adopt("primary"), actions: discard, status: saved }))}
     ${specimen(say("workbench.catalog-kit.replay-owed"), renderAdoptBar({ primary: renderButton({ label: improve(say, "replay-first"), variant: "primary", size: "sm", icon: "play" }), actions: discard,
-      status: improve(say, "not-replayed"), owed: true }))}
-    ${specimen(say("workbench.catalog-kit.asked-again-in-place"), renderAdoptBar({ primary: renderButton({ label: improve(say, "adopt-version", { v: 3 }), variant: "primary", size: "sm", icon: "check" }), actions: discard,
-      status: improve(say, "saved-at", { at: say("workbench.catalog-kit.just-now") }), confirm: { id: "board-adopt-confirm", text: improve(say, "confirm-differs", { n: 1 }),
-        actions: renderButton({ label: improve(say, "adopt-anyway"), variant: "primary", size: "sm" }) + renderButton({ label: improve(say, "go-back"), variant: "ghost", size: "sm" }) } }))}
+      status: improve(say, "not-replayed"), state: "owed" }))}
+    ${specimen(say("workbench.catalog-kit.saving-a-change"), renderAdoptBar({ primary: adopt("primary"), actions: discard, status: improve(say, "saving"), state: "saving" }))}
+    ${specimen(say("workbench.catalog-kit.a-change-not-saved"), renderAdoptBar({ primary: adopt("primary"), actions: discard,
+      status: improve(say, "save-failed", { m: say("workbench.catalog-kit.sample-save-failure") }), state: "failed" }))}
+    ${specimen(say("workbench.catalog-kit.asked-again-in-place"), renderAdoptBar({ primary: adopt("secondary"), actions: discard, status: saved,
+      confirm: { id: "board-adopt-confirm", text: improve(say, "confirm-differs", { n: 1 }),
+        actions: renderButton({ label: improve(say, "go-back"), variant: "ghost", size: "sm" }) + renderButton({ label: improve(say, "adopt-anyway"), variant: "primary", size: "sm" }) } }))}
   </div>`);
 }
 
 function verdictCell(say: Say, column: string, verdict: ReplayCell["verdict"], differences: string[] = []): ReplayCell {
   const mark = verdict === "match" ? renderStatusMark({ label: improve(say, "verdict-match"), tone: "done", state: "done" })
     : verdict === "differs" ? renderStatusMark({ label: improve(say, "verdict-differs", { n: differences.length }), tone: "attention", state: "verify" })
-    : verdict === "unknown" ? renderStatusMark({ label: improve(say, "verdict-unknown"), tone: "quiet", state: "paused" }) : renderStatusMark({ label: improve(say, "verdict-none"), tone: "quiet", state: "idle" });
+    : verdict === "unknown" ? renderStatusMark({ label: improve(say, "verdict-unknown"), tone: "quiet", icon: "question" }) : renderStatusMark({ label: improve(say, "verdict-none"), tone: "quiet", state: "idle" });
   return { column, verdict, mark, differences, ...(verdict === "none" ? {} : { action: renderButton({ label: improve(say, "see-result"), variant: "link", size: "sm" }) }) };
 }
 export function replayGridSection(say: Say): string {
@@ -190,7 +194,7 @@ export function replayGridSection(say: Say): string {
 
 export function askRowSection(say: Say): string {
   const row = (id: string, state: "idle" | "busy" | "changed") => renderAskRow({ id, label: improve(say, "ask-label"), placeholder: improve(say, "ask-placeholder"),
-    value: state === "idle" ? "" : say("workbench.catalog-kit.sample-ask"), go: renderButton({ label: improve(say, "ask-go"), size: "sm" }),
+    value: state === "idle" ? "" : say("workbench.catalog-kit.sample-ask"), go: renderButton({ label: improve(say, "ask-go"), size: "sm", type: "submit" }),
     ...(state === "busy" ? { busy: renderStatusMark({ label: improve(say, "ask-busy"), tone: "progress", state: "running" }) } : {}),
     ...(state === "changed" ? { after: renderBadge({ label: improve(say, "ask-changed", { n: 2 }), tone: "info" }) + renderButton({ label: improve(say, "see-change"), variant: "link", size: "sm" }) } : {}) });
   return section("ask-row", say("workbench.catalog-kit.ask-row"), `<div class="mw-catalog__specimens">
@@ -201,12 +205,14 @@ export function askRowSection(say: Say): string {
 }
 
 export function placeholderListSection(say: Say): string {
-  const list = (left: number) => renderPlaceholderList({ title: improve(say, "placeholders-title"), lead: improve(say, "placeholders-lead"),
+  const tracker = say("workbench.catalog-kit.sample-placeholder-tracker"), chat = say("workbench.catalog-kit.sample-placeholder-chat");
+  const list = (id: string, left: number) => renderPlaceholderList({ id, title: improve(say, "placeholders-title"), lead: improve(say, "placeholders-lead"), name: improve(say, "placeholder-name"),
     ...(left ? { badge: renderBadge({ label: improve(say, "placeholders-left", { n: left }), tone: "neutral" }) } : {}),
-    rows: [{ placeholder: "~~project tracker", value: left > 1 ? "" : "Linear", hint: improve(say, "placeholder-hint") }, { placeholder: "~~chat", value: left ? "" : "Slack", hint: improve(say, "placeholder-hint") }] });
+    rows: [{ placeholder: tracker, value: left > 1 ? "" : "Linear", hint: improve(say, "placeholder-hint") }, { placeholder: chat, value: left ? "" : "Slack", hint: improve(say, "placeholder-hint") }],
+    ...(left ? {} : { after: renderCheckbox({ label: improve(say, "turn-off-source"), checked: true }) }) });
   return section("placeholder-list", say("workbench.catalog-kit.placeholder-list"), `<div class="mw-catalog__specimens">
-    ${specimen(say("workbench.catalog-kit.some-left"), list(2))}
-    ${specimen(say("workbench.catalog-kit.all-replaced"), list(0))}
+    ${specimen(say("workbench.catalog-kit.some-left"), list("board-placeholders-left", 2))}
+    ${specimen(say("workbench.catalog-kit.all-replaced-and-the-original"), list("board-placeholders-done", 0))}
   </div>`);
 }
 

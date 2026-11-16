@@ -32,7 +32,7 @@ const PAGE_STYLES = `
 .au-foot__state { flex: 1 1 auto; min-width: 8px; color: var(--muted); font-size: 12px; }
 .au-readonly { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 12px; border-radius: var(--r-card, 12px); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); font-size: 13px; line-height: 1.5; }
 .au-readonly > span { flex: 1 1 200px; min-width: 0; }
-.au-failure:focus-visible, .mw-leave-bar:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
+.au-failure:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
 .kit-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 16px; min-width: 0; }
 .kit-search { position: relative; display: inline-flex; align-items: center; flex: 1 1 240px; min-width: 0; max-width: 420px; }
 .kit-search > svg { position: absolute; left: 10px; width: 16px; height: 16px; color: var(--muted); pointer-events: none; }

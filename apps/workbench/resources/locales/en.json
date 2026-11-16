@@ -9452,6 +9452,12 @@
     "workbench.catalog-kit.changed": "Changed",
     "workbench.catalog-kit.some-left": "Some left",
     "workbench.catalog-kit.all-replaced": "All replaced",
+    "workbench.catalog-kit.saving-a-change": "Saving",
+    "workbench.catalog-kit.a-change-not-saved": "Not saved: a mark and the blocked tone, not words alone",
+    "workbench.catalog-kit.sample-save-failure": "the local service did not answer",
+    "workbench.catalog-kit.sample-placeholder-tracker": "~~project tracker",
+    "workbench.catalog-kit.sample-placeholder-chat": "~~chat",
+    "workbench.catalog-kit.all-replaced-and-the-original": "All replaced; the original can be turned off on adopting",
     "workbench.skill-improve.adopt-version": "Adopt as version {v}",
     "workbench.skill-improve.adopt-new": "Adopt as a new skill",
     "workbench.skill-improve.replay-first": "Replay first",
@@ -9459,8 +9465,14 @@
     "workbench.skill-improve.saved-at": "Saved automatically · {at}",
     "workbench.skill-improve.saving": "Saving…",
     "workbench.skill-improve.save-failed": "Not saved: {m}",
-    "workbench.skill-improve.not-replayed": "This revision has not been replayed yet; replay it once before adopting",
-    "workbench.skill-improve.confirm-differs": "The replay still differs from the result you accepted in {n} places. Adopt anyway?",
+    "workbench.skill-improve.not-replayed": "Replay this draft once before adopting it.",
+    "workbench.skill-improve.confirm-differs": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "The replay still differs from the result you accepted in {n} place. Adopt anyway?",
+        "other": "The replay still differs from the result you accepted in {n} places. Adopt anyway?"
+      }
+    },
     "workbench.skill-improve.adopt-anyway": "Adopt anyway",
     "workbench.skill-improve.go-back": "Go back and edit",
     "workbench.skill-improve.col-current": "Version {v} in use",
@@ -9468,8 +9480,14 @@
     "workbench.skill-improve.col-draft": "Draft",
     "workbench.skill-improve.entry-assistant": "Assistant",
     "workbench.skill-improve.entry-coding": "Coding",
-    "workbench.skill-improve.verdict-match": "Matches",
-    "workbench.skill-improve.verdict-differs": "{n} differences",
+    "workbench.skill-improve.verdict-match": "Matches your result",
+    "workbench.skill-improve.verdict-differs": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{n} difference",
+        "other": "{n} differences"
+      }
+    },
     "workbench.skill-improve.verdict-unknown": "Cannot tell",
     "workbench.skill-improve.verdict-none": "Not replayed",
     "workbench.skill-improve.see-result": "See result",
@@ -9478,11 +9496,25 @@
     "workbench.skill-improve.ask-placeholder": "For example: group by owner and add a risks section at the end",
     "workbench.skill-improve.ask-go": "Change it",
     "workbench.skill-improve.ask-busy": "The assistant is changing it…",
-    "workbench.skill-improve.ask-changed": "{n} changes",
+    "workbench.skill-improve.ask-changed": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{n} change",
+        "other": "{n} changes"
+      }
+    },
     "workbench.skill-improve.see-change": "See the change",
-    "workbench.skill-improve.placeholders-title": "Placeholders in the general version",
-    "workbench.skill-improve.placeholders-lead": "Replace them with what you use; any left as they are, the AI reads in their general sense.",
-    "workbench.skill-improve.placeholders-left": "{n} left",
-    "workbench.skill-improve.placeholder-hint": "What you use"
+    "workbench.skill-improve.placeholders-title": "Use your own names",
+    "workbench.skill-improve.placeholders-lead": "Replace them with the names you use. Any you leave are read in their general sense.",
+    "workbench.skill-improve.placeholders-left": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{n} left",
+        "other": "{n} left"
+      }
+    },
+    "workbench.skill-improve.placeholder-hint": "What you use",
+    "workbench.skill-improve.placeholder-name": "Replace with:",
+    "workbench.skill-improve.turn-off-source": "Turn off the original general skill when adopting"
   }
 }

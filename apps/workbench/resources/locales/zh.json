@@ -8736,6 +8736,12 @@
     "workbench.catalog-kit.changed": "改完",
     "workbench.catalog-kit.some-left": "还剩几处",
     "workbench.catalog-kit.all-replaced": "都换好了",
+    "workbench.catalog-kit.saving-a-change": "正在保存",
+    "workbench.catalog-kit.a-change-not-saved": "没存上：标记加阻塞色，不只靠文字",
+    "workbench.catalog-kit.sample-save-failure": "本机服务没有响应",
+    "workbench.catalog-kit.sample-placeholder-tracker": "~~项目管理工具",
+    "workbench.catalog-kit.sample-placeholder-chat": "~~聊天工具",
+    "workbench.catalog-kit.all-replaced-and-the-original": "都换好了，采用时可以把原来的关掉",
     "workbench.skill-improve.adopt-version": "采用为第 {v} 版",
     "workbench.skill-improve.adopt-new": "采用为新技能",
     "workbench.skill-improve.replay-first": "先回放",
@@ -8752,7 +8758,7 @@
     "workbench.skill-improve.col-draft": "草稿",
     "workbench.skill-improve.entry-assistant": "助理",
     "workbench.skill-improve.entry-coding": "Coding",
-    "workbench.skill-improve.verdict-match": "一致",
+    "workbench.skill-improve.verdict-match": "和你的结果一致",
     "workbench.skill-improve.verdict-differs": "{n} 处不同",
     "workbench.skill-improve.verdict-unknown": "判断不了",
     "workbench.skill-improve.verdict-none": "还没回放",
@@ -8764,9 +8770,11 @@
     "workbench.skill-improve.ask-busy": "助理在改…",
     "workbench.skill-improve.ask-changed": "改了 {n} 处",
     "workbench.skill-improve.see-change": "看改动",
-    "workbench.skill-improve.placeholders-title": "通用写法里的占位符",
+    "workbench.skill-improve.placeholders-title": "换成你用的",
     "workbench.skill-improve.placeholders-lead": "换成你自己用的；没换的留着原样，AI 会按通用的意思理解。",
     "workbench.skill-improve.placeholders-left": "还剩 {n} 处",
-    "workbench.skill-improve.placeholder-hint": "你用的"
+    "workbench.skill-improve.placeholder-hint": "你用的",
+    "workbench.skill-improve.placeholder-name": "把它换成：",
+    "workbench.skill-improve.turn-off-source": "采用后把原来的通用技能关掉"
   }
 }

@@ -117,7 +117,14 @@ try {
     await clickText('使用 ' + name + ' 登录'); await page.wait("document.querySelector('.account-form')?.textContent.includes('浏览器')");
     if (desktop) { const url = await page.evaluate('globalThis.__openedProvider'); assert.ok(url.startsWith(authOrigin + '/api/v2/auth/external/github/browser-start?ticket=')); providerPage = await browser.page(); await providerPage.command('Page.navigate', { url }); }
     else { const targets = (await browser.command('Target.getTargets')).targetInfos; const target = targets.find(t => t.type === 'page' && !beforeTargets.has(t.targetId)); assert.ok(target); providerPage = await browser.page(target.targetId); }
-    await providerPage.wait("Boolean(document.querySelector('button[name=outcome]'))"); await providerPage.command('Network.enable');
+    // A popup starts at about:blank before the provider navigation replaces its execution context.
+    // Retry only that document replacement; missing controls and other CDP errors must still fail.
+    const providerDeadline = Date.now() + 14_000;
+    for (;;) {
+      try { await providerPage.wait("Boolean(document.querySelector('button[name=outcome]'))", { timeoutMs: Math.max(1, providerDeadline - Date.now()) }); break; }
+      catch (error) { if (!String(error).includes('"message":"Execution context was destroyed."') || Date.now() >= providerDeadline) throw error; }
+    }
+    await providerPage.command('Network.enable');
     // Observe the navigation response before the opener closes its completed popup; do not inspect a destroyed document.
     const [returned] = await Promise.all([
       browser.event('Network.responseReceived', event => event.response?.url.startsWith(origin + '/account/callback?')),

@@ -16,6 +16,8 @@
 
 `account-authentication.test.mjs`、`account-provider.test.mjs`、`account-installation.test.mjs`、`central-account.test.mjs` 覆盖上述场景。中央跨产品撤销用独立的 Work/Club 中央会话验证；Club BFF 的真实联调在 Club 自身 CI 运行，不把中央会话测试描述为 Club 界面测试。外部提供方均为隔离替身，不是生产 Google/GitHub 验收。
 
+登录完成交付时撤销此前匿名入口的页面证明，防止旧页面迟到自动登录覆盖新 Cookie；异步身份读取前后复核尝试与原页面，刷新后仍可重新验证。`space-surface-account-race.test.ts` 明确断言旧入口 403、无 Set-Cookie、无隐藏 pending 及新入口恢复；真实安装浏览器回归覆盖 A→A→B→A。
+
 账号客户端、会话、安全边界及 CI 判定定向测试通过；健康门禁通过。完整产品套件在 GitHub 分片运行，最终结果记录于 PR。真实部署不是本次任务。
 
 ## 合同与资源评审

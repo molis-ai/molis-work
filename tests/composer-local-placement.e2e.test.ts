@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { build } from "esbuild";
 import { COMPOSER_AI_LABELS } from "./fixtures/composer-labels.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -37,6 +38,19 @@ test("B58-03: local framed AI input keeps the main bar's node, receiver, draft a
   await b.evaluate(`${bar}.querySelector('[data-composer-send]').click()`);
   await child.waitFor("placementSeen.main.length === 1");
   assert.deepEqual(await child.evaluate("[placementSeen.main, placementSeen.child]"), [["main draft"], ["child draft"]]);
+  // The actual public subtask controller also stays local in a Host-managed plugin frame.
+  const bundled = await build({ entryPoints: ["tests/fixtures/subtask-probe.ts"], bundle: true, write: false, format: "iife", globalName: "SubtaskProbe", platform: "browser" });
+  await b.evaluate(`keptBarField.value='parent preserved'; keptBarField.dispatchEvent(new Event('input',{bubbles:true}))`);
+  await child.evaluate(bundled.outputFiles[0]!.text);
+  await child.evaluate("globalThis.probe = SubtaskProbe.mountProbe(); probe.handle.open('a')");
+  await child.waitFor("document.querySelector('#subtask-probe textarea')?.value === 'a draft'");
+  await child.evaluate("probe.fill('public child input'); probe.send()");
+  await child.waitFor("probe.owner.sends.length === 1");
+  await child.evaluate("probe.handle.open('b')");
+  await child.waitFor("document.querySelector('#subtask-probe textarea')?.value === 'b draft'");
+  assert.deepEqual(await child.evaluate("probe.owner.sends.map(x=>[x.target,x.binding,x.input.text])"), [["a", "a:1", "public child input"]]);
+  assert.deepEqual(await b.evaluate(`[keptBarField === ${bar}.querySelector('textarea'), keptBarField.value, ${bar}.querySelector('.mw-composer__to').textContent.includes('main')]`), [true, "parent preserved", true]);
+  await child.evaluate("probe.handle.destroy()");
   // Reusing a root follows the public mount lifetime in both directions; no hidden mirror or listener survives.
   await child.evaluate("globalThis.localPlacement = placementMount('child', undefined, document.getElementById('placement-child'))");
   await b.waitFor(`${bar}.querySelector('.mw-composer__to').textContent.includes('child')`);

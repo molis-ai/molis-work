@@ -1,6 +1,6 @@
 # 58 · 子任务对话定样
 
-状态：2026-11-16，Codex（本机）58 主会话；按一骏补充的「子Agent的对话框就在浮窗里」完成消息与输入同在浮窗的第四版样稿。用户于 2026-11-16 明确答复「按这版继续实现」，确认原型 `9af2092b10`；正式产品验收仍待完成。未写产品代码，未做产品或本人验收。本批原需求唯一入口为 [subagent-interaction §11](../../../specs/subagent-interaction/spec.md#11-第-58-批开工与定样2026-11-16)。
+状态：2026-11-16，Codex（本机）58 主会话；按一骏补充的「子Agent的对话框就在浮窗里」完成消息与输入同在浮窗的第四版样稿。用户于 2026-11-16 明确答复「按这版继续实现」，确认原型 `9af2092b10`；正式产品验收仍待完成。公共组件已进入实现，标本合审通过；正式产品本人验收仍未完成。本批原需求唯一入口为 [subagent-interaction §11](../../../specs/subagent-interaction/spec.md#11-第-58-批开工与定样2026-11-16)。
 
 沿第 32 批已选的 E 整体版：主助理对话保留在中间，右上角展开已有任务浮窗。点任务卡里的步骤，**只把右侧浮窗内容切成子任务对话**；左上角返回任务卡，嵌套子任务返回上级。主助理的内容、滚动位置和标签都不变，背后文档不换页。当前只落实这条用户指定动线，不再提供主窗切换的 A/B 选项。
 
@@ -58,6 +58,6 @@ python3 -m http.server 4458 --bind 127.0.0.1 --directory docs/design
 
 ## 组件板实施（58，2026-11-16）
 
-第四版用户已确认。新增标本在 `/__ui/catalog#subtask-conversation`；实现暂存于 Workbench 的 `subtask-conversation-{parts,styles,specimen}.ts`，D 轨通过后同一部件移动到 SDK／design-system，产品不保留第二份。`node docs/design/subagent-interaction-58/board.mjs` 从当前构建生成本目录 `dist/board-zh.html` 与 `dist/board-en.html`，是同一组件板标本的独立预览，`?theme=dark` 看深色。
+第四版用户已确认。新增标本在 `/__ui/catalog#subtask-conversation`；D 轨已于 `3832788c5e` 通过标本。部件现移至 SDK 的 `ui/subtask-conversation.ts`，样式移至 design-system 的 `styles/subtask-conversation.ts`；组件板经公开 `createSubtaskConversation` 使用同一公共控制器，Workbench 只保留示例事实和展示编排。`node docs/design/subagent-interaction-58/board.mjs` 从当前构建生成本目录 `dist/board-zh.html` 与 `dist/board-en.html`，是同一组件板标本的独立预览，`?theme=dark` 看深色。
 
-9 个状态的中英、深浅色、1440/1024/390 共 12 组合检查了布局、输入完整性和图标；使用当前组件板 settings.css 与默认字体。这里是标本视觉证据，控件接线、真实 plugin-frame 中本地输入、回执恢复与撤权仍待下一片验证；不记为 B58 整项通过。公共合同台首轮五项 P1 及处理方案已收进原需求 §11.6。
+9 个状态的中英、深浅色、1440/1024/390 共 12 组合检查了布局、输入完整性和图标；使用当前组件板 settings.css 与默认字体。这里是标本视觉证据；公共控制器、真实 plugin-frame 的本地输入、原回执恢复和撤权由 `tests/subtask-conversation.e2e.test.ts`、`tests/composer-local-placement.e2e.test.ts` 与实际组件板回归另行验证。工程、真实双入口和本人验收仍分别记录，不以标本结论关闭整批。公共合同台首轮五项 P1 及处理方案已收进原需求 §11.6。

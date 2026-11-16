@@ -61,6 +61,10 @@ test("B58-06: subtask board states, local input, recovery, IME and touch targets
   await waitFor(`!${first}.querySelector('textarea').disabled`);
   await b.click('[data-subtask-demo="history"]');
   assert.ok(await evaluate(`${first}.querySelector('[data-subtask-thread]').scrollHeight > 3000`));
+  await evaluate(`${first}.scrollIntoView({block:"center"})`);
+  const scrollAt = await evaluate<{ x: number; y: number }>(`(() => { const box = ${first}.querySelector('[data-subtask-thread]').getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 }; })()`);
+  await command("Input.dispatchMouseEvent", { type: "mouseWheel", ...scrollAt, deltaX: 0, deltaY: -8000 }, sessionId);
+  await waitFor(`${first}.querySelector('[data-subtask-thread]').dataset.follow === 'detached'`);
   await evaluate(`${first}.querySelector('[data-subtask-thread]').scrollTop = 200`);
   await b.click('[data-subtask-demo="read-error"]');
   assert.equal(await evaluate(`${first}.querySelector('[data-subtask-messages]').children.length`), 83);

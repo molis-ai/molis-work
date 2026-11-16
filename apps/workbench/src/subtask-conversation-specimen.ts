@@ -1,6 +1,6 @@
 import { escapeHtml, renderButton, renderComposer, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantComposerLabels } from "./assistant-composer-labels.js";
-import { renderSubtaskConversation, type MwSubtaskConversationLabels, type MwSubtaskConversationView } from "./subtask-conversation-parts.js";
+import { renderSubtaskConversation, type MwSubtaskConversationLabels, type MwSubtaskConversationView } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const say = (key: string) => t.text(`workbench.subtask-conversation.${key}`);
 export function subtaskConversationLabels(): MwSubtaskConversationLabels {
@@ -15,22 +15,22 @@ export function subtaskSpecimenView(state: SubtaskSpecimenState): MwSubtaskConve
   const question = state === "answer" || state === "approval";
   const running = state === "running" || question;
   return {
-    target: "writer", title: say("task"), parent: { target: "beta", title: say("parent") },
+    target: "writer", binding: "specimen-attempt:1", title: say("task"), parent: { target: "beta", title: say("parent") },
     status: { state, label: say(state) }, summary: say("brief"), running,
     ...(held ? { inputUnavailable: say(state === "unavailable" ? "reassigned" : "continue-note") } : {}),
     messages: [
-      { id: "user-1", role: "user", html: text("sample-user"), receipt: say("receipt") },
-      { id: "assistant-1", role: "assistant", name: say("writer"), html: text("sample-reply") },
+      { id: "user-1", role: "user", content: { html: text("sample-user") }, receipt: say("receipt") },
+      { id: "assistant-1", role: "assistant", name: say("writer"), content: { html: text("sample-reply") } },
     ],
     details: [
-      { id: "process", title: say("process"), html: text("process-text") },
-      ...(question ? [{ id: state, title: say(state === "answer" ? "question" : "approval-question"), html: text(state === "approval" ? "approval-scope" : "question-note"), expanded: true,
-        actions: state === "answer" ? [{ id: "answer-short", label: say("short") }, { id: "answer-long", label: say("long") }]
-          : [{ id: "approve", label: say("approve") }, { id: "deny", label: say("deny") }] }] : []),
+      { id: "process", title: say("process"), content: { html: text("process-text") } },
+      ...(question ? [{ id: state, title: say(state === "answer" ? "question" : "approval-question"), content: { html: text(state === "approval" ? "approval-scope" : "question-note") }, expanded: true,
+        actions: state === "answer" ? [{ id: "answer-short", ref: "specimen:answer-short", label: say("short") }, { id: "answer-long", ref: "specimen:answer-long", label: say("long") }]
+          : [{ id: "approve", ref: "specimen:approve", label: say("approve") }, { id: "deny", ref: "specimen:deny", label: say("deny") }] }] : []),
     ],
     children: [{ target: "mobile", title: say("nested"), unread: true }],
-    actions: running ? [{ id: "stop", label: say("stop") }]
-      : state === "round-ended" || held && state !== "unavailable" ? [{ id: "continue", label: say("continue"), title: say("continue-note") }] : [],
+    actions: running ? [{ id: "stop", ref: "specimen:stop", label: say("stop") }]
+      : state === "round-ended" || held && state !== "unavailable" ? [{ id: "continue", ref: "specimen:continue", label: say("continue"), title: say("continue-note") }] : [],
   };
 }
 export function renderSubtaskSpecimen(state: SubtaskSpecimenState): string {

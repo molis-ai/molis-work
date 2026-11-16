@@ -293,3 +293,6 @@ export function setContentHtml(target: Element, markup: string): void {
 export function contentHtml(markup: string, ownerDocument: Document = document): string {
   const target = ownerDocument.createElement("div"); setContentHtml(target, markup); return target.innerHTML;
 }
+
+export { createSubtaskConversation } from "./browser/subtask-conversation.js";
+export type { SubtaskConversationRead, SubtaskActionOutcome, SubtaskComposerOptions, SubtaskConversationSource, SubtaskConversationOptions, SubtaskConversationHandle } from "./browser/subtask-contract.js";

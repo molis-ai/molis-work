@@ -2,7 +2,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { installTextForTest } from "../../../packages/plugin-sdk/dist/ui/text.js";
 import { renderSubtaskConversationSection, SUBTASK_SPECIMEN_STYLES } from "../../../apps/workbench/dist/subtask-conversation-specimen.js";
-import { SUBTASK_CONVERSATION_STYLES } from "../../../apps/workbench/dist/subtask-conversation-styles.js";
+import { SUBTASK_CONVERSATION_STYLES } from "../../../packages/design-system/dist/index.js";
 import { build } from "esbuild";
 import { fileURLToPath } from "node:url";
 const demo = await build({ stdin: { contents: 'import {mountSubtaskSpecimenDemo} from "./apps/workbench/src/browser/board/subtask-conversation.ts"; mountSubtaskSpecimenDemo();', resolveDir: fileURLToPath(new URL("../../../", import.meta.url)) }, bundle: true, write: false, format: "iife", platform: "browser", minify: true });

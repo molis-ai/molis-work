@@ -1,4 +1,4 @@
-/** Pending D-track review. The selected right-hand task float uses these parts; its owner supplies width and height. */
+/** D-reviewed B58 float body; its owner supplies width and height. Shared by hosted plugin pages and the workbench. */
 export const SUBTASK_CONVERSATION_STYLES = `
   .mw-subtask { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; overflow: hidden; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-card); box-shadow: var(--lift-2); }
   .mw-subtask[hidden] { display: none; }
@@ -44,6 +44,7 @@ export const SUBTASK_CONVERSATION_STYLES = `
   .mw-subtask__latest[hidden] { display: none; }
   .mw-subtask__composer { flex: none; min-width: 0; padding: 10px; border-top: 1px solid var(--line); background: var(--surface-soft); }
   .mw-subtask__composer .mw-composer { width: 100%; box-shadow: none; }
+  .mw-subtask__plain { white-space: pre-wrap; }
   /* This float has one owner control in its context row; the shared composer handles messages only. */
   .mw-subtask__composer [data-composer-stop] { display: none; }
   .mw-subtask__composer textarea { min-height: 56px; max-height: 110px; }

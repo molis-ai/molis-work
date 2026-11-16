@@ -28,7 +28,7 @@ import { NAVIGATION_SECTION_STYLES, renderNavigationSection } from "./navigation
 import { renderWorkLineIndexLink, renderWorkLineSection } from "./work-line-specimens.js";
 import { renderSessionSourceSection, SESSION_SOURCE_SECTION_STYLES } from "./session-source-specimens.js";
 import { renderSubtaskConversationSection, SUBTASK_SPECIMEN_STYLES } from "./subtask-conversation-specimen.js";
-import { SUBTASK_CONVERSATION_STYLES } from "./subtask-conversation-styles.js";
+import { SUBTASK_CONVERSATION_STYLES } from "@molis-ai/molis-work-design-system";
 import { ENVIRONMENT_SECTION_SCRIPT, ENVIRONMENT_SECTION_STYLES } from "./environment-specimens.js";
 import { renderImmersiveHeader, renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";

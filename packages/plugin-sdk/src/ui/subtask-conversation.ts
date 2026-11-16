@@ -1,9 +1,15 @@
-import { escapeHtml, renderButton, renderStateRing, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml } from "./html.js";
+import { renderButton } from "./button.js";
+import { renderStateRing } from "./state-ring.js";
+import type { StateRingState } from "./state-ring-states.js";
 
-/** Pending D-track review: the selected B58 float's parts. Move this same implementation to the SDK after review. */
+/** The selected B58 float's shared parts. Task facts, precise execution references and permissions belong to the source. */
+export type MwSubtaskContent = { readonly text: string } | { readonly html: string };
 export interface MwSubtaskLink { readonly target: string; readonly title: string; readonly unread?: boolean }
 export interface MwSubtaskAction {
   readonly id: string;
+  /** Opaque owner reference to this operation; never inferred from its label or the selected task. */
+  readonly ref: string;
   readonly label: string;
   readonly title?: string;
   readonly disabled?: string;
@@ -13,21 +19,23 @@ export interface MwSubtaskMessage {
   readonly id: string;
   readonly role: "user" | "assistant" | "notice";
   readonly name?: string;
-  /** Trusted, sanitized rich text; never raw model HTML. */
-  readonly html: string;
+  /** Plain text by default; the HTML variant must already be sanitized by its trusted owner. Never raw model HTML. */
+  readonly content: MwSubtaskContent;
   readonly receipt?: string;
 }
 export interface MwSubtaskDetail {
   readonly id: string;
   readonly title: string;
-  /** Trusted, sanitized rich text. Questions and approvals remain the owner's separate actions. */
-  readonly html: string;
+  /** Plain text or owner-sanitized rich text. Questions and approvals remain the owner's separate actions. */
+  readonly content: MwSubtaskContent;
   readonly actions?: readonly MwSubtaskAction[];
   readonly expanded?: boolean;
 }
 export interface MwSubtaskConversationView {
-  /** Opaque owner key. A reassigned execution must not silently reuse a former target's key. */
+  /** Stable logical key for navigation and drafts, not a write authority. */
   readonly target: string;
+  /** Exact execution reference / expected generation, opaque to the component. The owner rejects stale writes. */
+  readonly binding: string;
   readonly title: string;
   readonly parent: MwSubtaskLink;
   readonly status: { readonly state: StateRingState; readonly label: string };
@@ -39,6 +47,8 @@ export interface MwSubtaskConversationView {
   readonly running: boolean;
   /** Owner's reason sending is unavailable; does not hide accessible history. */
   readonly inputUnavailable?: string;
+  /** Unresolved original request restored from its owner. A check reports that original outcome, not just that the query ran. */
+  readonly pending?: { readonly kind: "input" | "action"; readonly requestId: string; readonly message: string; readonly check: MwSubtaskAction };
 }
 export interface MwSubtaskConversationLabels {
   readonly back: string;
@@ -58,7 +68,7 @@ export interface MwSubtaskConversationLabels {
 
 export function subtaskAction(action: MwSubtaskAction): string {
   return renderButton({ label: action.label, variant: "secondary", size: "sm", disabled: Boolean(action.disabled),
-    attrs: { "data-subtask-action": action.id, title: action.disabled ?? action.title } });
+    attrs: { "data-subtask-action": action.id, "data-subtask-action-ref": action.ref, title: action.disabled ?? action.title } });
 }
 export function subtaskHeader(view: MwSubtaskConversationView | undefined, labels: MwSubtaskConversationLabels): string {
   return `${renderButton({ label: labels.back, icon: "chevron-left", iconOnly: true, variant: "ghost", size: "sm", attrs: { "data-subtask-back": true } })}`
@@ -73,13 +83,16 @@ export function subtaskIntroduction(view: MwSubtaskConversationView): string {
   return `<h3>${escapeHtml(view.title)}</h3>${view.summary ? `<p>${escapeHtml(view.summary)}</p>` : ""}`
     + `<span class="mw-subtask__state">${renderStateRing({ state: view.status.state, label: view.status.label })}<span>${escapeHtml(view.status.label)}</span></span>`;
 }
+function body(content: MwSubtaskContent): string {
+  return "text" in content ? `<p class="mw-subtask__plain">${escapeHtml(content.text)}</p>` : content.html;
+}
 export function subtaskMessage(message: MwSubtaskMessage): string {
-  return `${message.name ? `<div class="mw-subtask__who">${escapeHtml(message.name)}</div>` : ""}<div class="mw-subtask__words" translate="no">${message.html}</div>`
+  return `${message.name ? `<div class="mw-subtask__who">${escapeHtml(message.name)}</div>` : ""}<div class="mw-subtask__words" translate="no">${body(message.content)}</div>`
     + `${message.receipt ? `<p class="mw-subtask__receipt">${escapeHtml(message.receipt)}</p>` : ""}`;
 }
 export function subtaskDetails(view: MwSubtaskConversationView): string {
   return (view.details ?? []).map(detail => `<details class="mw-subtask__detail" data-subtask-detail="${escapeHtml(detail.id)}"${detail.expanded ? " open" : ""}>`
-    + `<summary>${escapeHtml(detail.title)}</summary><div class="mw-subtask__detail-body" translate="no">${detail.html}</div>`
+    + `<summary>${escapeHtml(detail.title)}</summary><div class="mw-subtask__detail-body" translate="no">${body(detail.content)}</div>`
     + `${detail.actions?.length ? `<div class="mw-subtask__answers">${detail.actions.map(subtaskAction).join("")}</div>` : ""}</details>`).join("");
 }
 export function subtaskChildren(view: MwSubtaskConversationView, labels: MwSubtaskConversationLabels): string {

@@ -26,6 +26,7 @@ import {
   fetchObservationEvidenceMap,
   queryAllObservationRecords,
   readObservationCoverage,
+  sampleHasActiveHold,
 } from "./observation-bridge.js";
 import { executeIsolatedReplay, type EvaluationReplayScenario } from "./replay.js";
 import { evaluateExpectation } from "./rules.js";
@@ -171,8 +172,10 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
   );
   // A sample whose records are under a live evaluation hold has its own basis retained. A project-wide expired/purged
   // gap can belong to another work in the same project (EC-16 held vs unheld); do not turn the held run unknown for it.
-  // Lost/paused gaps are not protected by a hold and still propagate, as does every gap for an unheld sample.
-  const holdProtectsRetention = sample.hold_id !== null && sample.held_record_count > 0;
+  // Lost/paused gaps are not protected by a hold and still propagate, as does every gap for an unheld sample. Ask the
+  // observation layer whether the hold is still active instead of trusting the sample row's cached hold count.
+  const holdProtectsRetention = sample.hold_id !== null && sample.held_record_count > 0
+    && await sampleHasActiveHold(client, readNested, sample);
   const propagatedCoverageUnknowns = holdProtectsRetention
     ? runCoverageUnknowns.filter((reason) => reason !== "coverage_gap_expired" && reason !== "coverage_gap_purged")
     : runCoverageUnknowns;

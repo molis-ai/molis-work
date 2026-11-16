@@ -15,6 +15,7 @@ import {
   type ObservationEvidenceGetOutput,
   type ObservationEvidenceItemView,
   type ObservationHoldPutResult,
+  type ObservationHoldListOutput,
   type ObservationHoldReleaseResult,
   type ObservationQueriedRecord,
   type ObservationQueryInput,
@@ -139,6 +140,18 @@ export async function commitEvaluationSampleHold(
     record_ids: recordIds,
   }) as ObservationHoldPutResult;
   return { holdId: result.hold.hold_id, heldCount: result.hold.active_record_count };
+}
+
+/** Whether the sample's hold is still active, so a project-wide expired/purged gap may belong to other work. */
+export async function sampleHasActiveHold(
+  client: ActionClient,
+  nestedCaller: ActionCallContext,
+  sample: Pick<EvaluationSampleView, "sample_id" | "version">,
+): Promise<boolean> {
+  const result = await client.invoke(nestedCaller, obsRef(observationActions.holdsList), {
+    sample_id: `${sample.sample_id}@${sample.version}`,
+  }) as ObservationHoldListOutput;
+  return result.holds.length > 0;
 }
 
 export async function releaseEvaluationSampleHolds(

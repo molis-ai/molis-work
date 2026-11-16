@@ -143,6 +143,17 @@ export function mountKit(root: HTMLElement): () => void {
   search.addEventListener("input", () => { view.query = search.value; draw(); });
   kindSelect.addEventListener("change", () => { view.kind = kindSelect.value as View["kind"]; view.item = undefined; draw(); });
   groupSelect.addEventListener("change", () => { view.group = groupSelect.value as View["group"]; draw(); });
+  listenForImports(root, project, view, focus => draw(focus), say);
+  draw();
+  void load().then(() => writing.fromAddress());
+  return () => {
+    const language = selectedLanguage();
+    if (language !== requestedLanguage && root.getClientRects().length) void load(true);
+  };
+}
+
+/** A file chosen to import is read into the import panel; a picked part of it is kept for applying. */
+function listenForImports(root: HTMLElement, project: string, view: View, draw: (focus?: "import") => void, say: (text: string, tone: "danger") => void): void {
   root.addEventListener("change", event => {
     const target = event.target as HTMLInputElement;
     if (target.dataset.kitPick !== undefined && view.importing) {
@@ -155,12 +166,6 @@ export function mountKit(root: HTMLElement): () => void {
       readKitFile(project, chosen).then(importing => { view.importing = importing; draw("import"); }, cause => say((cause as Error)?.message || String(cause), "danger"));
     }
   });
-  draw();
-  void load().then(() => writing.fromAddress());
-  return () => {
-    const language = selectedLanguage();
-    if (language !== requestedLanguage && root.getClientRects().length) void load(true);
-  };
 }
 
 /** The page's notice under the toolbar. One that offers a next step is said where the person can see it, wherever the detail's focus scrolled the page. */

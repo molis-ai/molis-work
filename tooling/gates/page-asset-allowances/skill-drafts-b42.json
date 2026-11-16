@@ -1,0 +1,8 @@
+{
+  "reason": "第 42 批 Skill 创作与改进（SKP-11、PWA-14、PWA-103、PWA-105、BL-166）。能力包页的草稿工作区是新功能：左边改（问一句让助理改、占位符替换、表单）、右边试用与比较（已知答案、回放结果表、比做法与比结果），采用条、版本列表的对照与恢复、来源新版提示、回执链接直达草稿（kit/workshop.ts、kit/drafts.ts、kit/writing.ts 约 30 KB）；比较复用平台的文字比较（plugin-sdk diff-view 与 text-diff，约 7.5 KB），没有另写一份。占位符工具已拆到 contracts/services/skill-placeholders，省下整份 services/skills（约 37 KB）。只在设置 › 能力包页加载，不在首屏。",
+  "review": "specs/post-anticorruption-roadmap/reference/batches/42.md 与分支 batch/42 的 PR 评审。本机对照 merge-base 9882d23fca 的隔离构建实测（node scripts/gates/page-assets.mjs --base origin/main）：/assets/molis-work-kit.js 83636 → 121116（+37480），/assets/molis-work-workbench.js −14，其余不变。",
+  "userApproval": "用户 2026-11-16 在第 42 批主会话弹窗先批准「+31 KB」（按本机文件估的），隔离构建实测为 +37,480 B 后再次弹窗选「Approve +37.5 KB」。",
+  "assets": {
+    "/assets/molis-work-kit.js": 37480
+  }
+}

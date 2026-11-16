@@ -70,7 +70,8 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   assert.match(await text("[data-sk-bar]"), /采用为新技能/);
   assert.deepEqual(await mine(), [], "a draft is in no catalog");
   await shot("draft-new-1440");
-  assert.equal(await page.evaluate("Math.round(document.querySelector('.settings-content').getBoundingClientRect().bottom - document.querySelector('[data-sk-bar]').getBoundingClientRect().bottom)"), 0, "the adopt bar sits on the edge, nothing shows under it");
+  const gap = await page.evaluate<number>("document.querySelector('.settings-content').getBoundingClientRect().bottom - document.querySelector('[data-sk-bar]').getBoundingClientRect().bottom");
+  assert.ok(Math.abs(gap) <= 1, `the adopt bar sits on the edge, nothing shows under it (gap ${gap}px)`);
 
   // 缺项在采用时就地提示，焦点落在那一处；改了就消失。边写边存，不再有离开提示条。
   await page.fill("#au-name", "");

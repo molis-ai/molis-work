@@ -1,7 +1,7 @@
 import type { MwSubtaskAction, MwSubtaskConversationView } from "../ui/subtask-conversation.js";
 import type { SubtaskActionOutcome, SubtaskConversationSource } from "./subtask-contract.js";
 
-interface Operation {
+interface SubtaskOperation {
   readonly requestId: string;
   state: "working" | "unknown" | "failed" | "settled";
   reason?: string;
@@ -11,7 +11,7 @@ interface Operation {
 
 /** Operations belong to their clicked target, even when another target is being read by the time they settle. */
 export function subtaskActions(source: SubtaskConversationSource, changed: (target: string) => void, reloadDraft: (target: string) => Promise<void>) {
-  const operations = new Map<string, Operation>();
+  const operations = new Map<string, SubtaskOperation>();
   function observe(view: MwSubtaskConversationView, localInput: boolean) {
     const pending = view.pending, old = operations.get(view.target);
     if (!pending || (pending.kind === "input" && localInput) || old?.requestId === pending.requestId || old?.state === "working" || old?.state === "unknown") return;
@@ -29,7 +29,7 @@ export function subtaskActions(source: SubtaskConversationSource, changed: (targ
   async function run(view: MwSubtaskConversationView, action: MwSubtaskAction | undefined, signal: AbortSignal) {
     const old = operations.get(view.target);
     if (old?.state === "working" || action?.disabled || (action && old?.state === "unknown")) return;
-    const operation: Operation = action ? { requestId: crypto.randomUUID(), state: "working" } : old!;
+    const operation: SubtaskOperation = action ? { requestId: crypto.randomUUID(), state: "working" } : old!;
     if (!operation || (!action && !operation.check)) return;
     const check = operation.check;
     operation.state = "working"; operations.set(view.target, operation); changed(view.target);

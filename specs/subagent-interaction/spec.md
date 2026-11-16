@@ -265,7 +265,7 @@ Prologue 提供无 UI 的公共合同，不包含 Molis Work 文案、组件、W
 
 ### 11.7 公共实现与分层证据（2026-11-16）
 
-公共交互代码头 `69d6f22c5c`。SDK 公开 renderer、浏览器控制器及 source 端口由同一份组件板和第三方页面消费，Workbench 私有部件/样式副本已删除；样式进入现有 arrival/workbench 样式表，没有新资源。任务卡外壳拥有浮窗位置，主对话和主输入不传给子对话组件。
+公共交互行为头 `69d6f22c5c`，公共按钮字号修复头 `99bb1e833d`。SDK 公开 renderer、浏览器控制器及 source 端口由同一份组件板和第三方页面消费，Workbench 私有部件/样式副本已删除；样式进入现有 arrival/workbench 样式表，没有新资源。任务卡外壳拥有浮窗位置，主对话和主输入不传给子对话组件。
 
 **恢复约束。** `source.check(target, requestId, signal)` 始终查询原持久回执，不依赖 pending 仍在，也不因执行代次变化改查新请求。恢复后原请求的锁一直保留到查询明确终态、首次草稿读取结束及 owner 已结算草稿重新读回；pending 消失/被替换、读取失败或 A→B→A 均不能提前解锁。回填只更新原输入节点，不触发 input 或额外持久写回；未变化节点、选区及同页未决输入仍保留。unknown.check 后续查询闭包与再次断网后的原查询均保留。
 
@@ -285,8 +285,10 @@ Prologue 提供无 UI 的公共合同，不包含 Molis Work 文案、组件、W
 
 定向回归调用真实公共实现及统一输入：`tests/subtask-conversation.e2e.test.ts` 13/13，`tests/subtask-conversation-board.e2e.test.ts` 1/1，`tests/composer-local-placement.e2e.test.ts` 1/1，`tests/composer-cold-load.e2e.test.ts` 1/1。两包安装路径由 `tests/plugin-sample.e2e.test.ts` 验证并进入统一回归。Work/SDK owner 是独立测试夹具，不冒充真实模型或业务接入。实际代码审查发现的恢复、冻结选项、清理、父子隔离、冷加载及桥接问题均在本批修复；公共合同台已于 2026-11-16 只读复核 `e325f3034b` 并确认剩余 P1 全部关闭，实际代码合审通过；最终 PR 上仍需以相同代码和最新提交补齐评论结论。
 
-页面资源相对 `4a08c41ca7615081c8554beba0e7a402d64507e5`：arrival/workbench CSS 各 +3,863 B，composer JS +77 B，plugin-frame JS +1,688 B，workbench JS +420 B，无新增资源。独立许可 `tooling/gates/page-asset-allowances/batch-58-subtask-conversation.json` 记录本批实测；最后同步 main 后重新核门禁，不把诊断测量当作门禁通过。
+页面资源相对 `4a08c41ca7615081c8554beba0e7a402d64507e5`：arrival/workbench CSS 各 +3,863 B，composer JS +77 B，plugin-frame JS +1,688 B，workbench JS +420 B，无新增资源。独立许可 `tooling/gates/page-asset-allowances/batch-58-subtask-conversation.json` 记录本批实测；`99bb1e833d` 的独立基线构建门禁已通过（66 项资源），最后同步 main 后仍按新基点核门禁。
 
 现有页面严格视觉对比：66 张中 64 张逐像素一致，22/22 样式快照完全一致。最终采集余下设置外观 1440 浅色 59 个单级色差像素、文件侧栏 1024 浅色 20 个像素差异；前一次采集侧栏完全一致，同基线复拍也出现过设置页 1024 的 7 个单级差异。同一构建的复拍逐点重现了设置页 59 个像素的两组取值；未改动基线的两次复拍也逐点重现侧栏 20 个像素的两组取值，侧栏选中按钮的焦点、几何和记录样式完全相同。D 轨于 `69d6f22c5c` 按采集波动结案。原零容差 64/66 结果保留；成对诊断另有 4/4 图片、4/4 样式完全一致，后续基线控制复拍又保留了侧栏 20 像素差异，不混写成原严格检查全绿。
 
 统一回归补正：`visual-order.e2e.test.ts` 指出上级任务按钮被局部覆盖成 11px，不符合公共按钮字号。已删除该覆盖并复用原按钮样式；完整视觉秩序与实际组件板均已复跑通过（各 1/1），沿用原断言。另 `onboarding-journey.e2e.test.ts` 的 FSS-37 在当前分支和干净 `4a08c41ca7` 基线均为语言切换重建欢迎区、同一断言失败（13/14 通过）；未改该文件或断言，独立后续登记 [BL-onboarding-language-node-retention](../backlog/BL-onboarding-language-node-retention.md)。最近主线夜间 Full `43763763068` 在较早 `ddda618006` 通过，当前无夜间红项 issue、quarantine 为空，因此不据此自动豁免最终 CI。
+
+本机启动器复现：`workbench-current-tabs.e2e.test.ts` 的跨进程重启场景在本批与干净基线均为 2/3 通过，第一次退出后临时资料被本机启动器清理；该用例自己拥有并在 finally 删除资料。保留测试自己的资料生命周期、仍用专用 headless 浏览器复跑后，本批 3/3 通过，未改产品或断言。API 完整性回归发现本批私有 `Operation` 名与别处泛型参数撞名，改成范围明确的 `SubtaskOperation`；不改公开合同、生成快照或门禁规则，针对性断言已通过，完整回归继续结算。

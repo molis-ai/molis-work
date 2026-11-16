@@ -1,5 +1,5 @@
 import type { ComposerMaterial } from "@molis-ai/molis-work-contracts/platform/composer";
-import type { ComposerCommand, ComposerControl, ComposerHandle, ComposerNotice, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import type { ComposerCommand, ComposerControl, ComposerHandle, ComposerNotice, ComposerOptions, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type { BridgedCommand, BridgedControl, ComposerCalls, ComposerDown, ComposerSnapshot, ComposerUp } from "./composer-bridge.js";
 import type { FrameScope } from "./types.js";
 
@@ -18,6 +18,23 @@ function bridgedNotice(notice: ComposerNotice | null): ComposerSnapshot["notice"
 function command(item: ComposerCommand): BridgedCommand {
   return { slash: item.slash, label: item.label, ...(item.hint ? { hint: item.hint } : {}), ...(item.keywords ? { keywords: [...item.keywords] } : {}),
     ...(item.icon ? { icon: item.icon } : {}), ...(item.add === false ? { add: false as const } : {}) };
+}
+
+function childSnapshot(ai: Extract<ComposerOptions, { kind: "ai" }>, root: HTMLElement, field: HTMLTextAreaElement | null, running: boolean, hold: string | null): ComposerSnapshot {
+  // The box around the root (the page's conversation column): the bar stands over it.
+  const box = root.parentElement?.getBoundingClientRect();
+  const column = box && box.width > 0 ? { left: Math.round(box.left), width: Math.round(box.width) } : null;
+  const receiver = ai.receiver?.() ?? null, pause = ai.pause?.() ?? null;
+  return {
+    entry: ai.entry, labels: { ...ai.labels }, placeholder: field?.placeholder ?? "",
+    receiver: receiver ? { label: receiver.label, ...(receiver.icon ? { icon: receiver.icon } : {}), ...(receiver.detail ? { detail: receiver.detail } : {}),
+      ...(receiver.others ? { others: receiver.others.map(one => ({ id: one.id, label: one.label, ...(one.detail ? { detail: one.detail } : {}) })) } : {}) } : null,
+    delivery: ai.delivery?.() ?? null, pause: pause ? { label: pause.label, title: pause.title, ...(pause.busy ? { busy: true } : {}) } : null,
+    stop: Boolean(ai.stop), controls: (ai.controls ?? []).map(control), commands: (ai.commands ?? []).map(command),
+    mentions: Boolean(ai.mentions), attachments: ai.attachments ? { ...(ai.attachments.accept ? { accept: ai.attachments.accept } : {}) } : null,
+    sources: ai.sources ?? true, near: ai.near?.() ?? null, ...(ai.voice ? { voice: ai.voice } : {}), required: ai.required?.() ?? null,
+    notice: bridgedNotice(ai.notice?.() ?? null), submitKeys: ai.submitKeys !== false, draft: Boolean(ai.draft), column, running, hold,
+  };
 }
 
 /**
@@ -69,6 +86,14 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
   const mounted = new WeakMap<HTMLElement, () => void>();
 
   window.molisComposer = (root, options) => {
+    // B58-03: the child conversation stays inside the task float. Mounting it must never replace the main bar's receiver.
+    if (options.placement === "local") {
+      mounted.get(root)?.();
+      delete root.dataset.composerRemote;
+      const handle = local(root, options);
+      mounted.set(root, handle.destroy); scope.own(handle.destroy);
+      return handle;
+    }
     if (options.kind !== "ai" || options.draft && "conversation" in options.draft) return local(root, options);
     // One AI receiver per frame: the bar follows the latest mount (`live`); an earlier one on another root stays mounted but no longer
     // takes the bar.
@@ -78,26 +103,9 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
     const calls = new Map<number, AbortController>(), checks = new Map<number, () => Promise<"sent" | "not-sent" | "unknown">>();
     let running = false, hold: string | null = null, materials: readonly ComposerMaterial[] = [], gone = false, last = "", queued = false;
     root.dataset.composerRemote = "";
-    // The box around the root (the page's conversation column): the bar stands over it.
-    const column = () => {
-      const box = root.parentElement?.getBoundingClientRect();
-      return box && box.width > 0 ? { left: Math.round(box.left), width: Math.round(box.width) } : null;
-    };
     const sizes = new ResizeObserver(() => changed());
     if (root.parentElement) sizes.observe(root.parentElement);
-    const snapshot = (): ComposerSnapshot => {
-      const receiver = ai.receiver?.() ?? null, pause = ai.pause?.() ?? null;
-      return {
-        entry: ai.entry, labels: { ...ai.labels }, placeholder: field?.placeholder ?? "",
-        receiver: receiver ? { label: receiver.label, ...(receiver.icon ? { icon: receiver.icon } : {}), ...(receiver.detail ? { detail: receiver.detail } : {}),
-          ...(receiver.others ? { others: receiver.others.map(one => ({ id: one.id, label: one.label, ...(one.detail ? { detail: one.detail } : {}) })) } : {}) } : null,
-        delivery: ai.delivery?.() ?? null, pause: pause ? { label: pause.label, title: pause.title, ...(pause.busy ? { busy: true } : {}) } : null,
-        stop: Boolean(ai.stop), controls: (ai.controls ?? []).map(control), commands: (ai.commands ?? []).map(command),
-        mentions: Boolean(ai.mentions), attachments: ai.attachments ? { ...(ai.attachments.accept ? { accept: ai.attachments.accept } : {}) } : null,
-        sources: ai.sources ?? true, near: ai.near?.() ?? null, ...(ai.voice ? { voice: ai.voice } : {}), required: ai.required?.() ?? null,
-        notice: bridgedNotice(ai.notice?.() ?? null), submitKeys: ai.submitKeys !== false, draft: Boolean(ai.draft), column: column(), running, hold,
-      };
-    };
+    const snapshot = () => childSnapshot(ai, root, field, running, hold);
     // Every call of the handle may change what the bar shows: sent once per turn of the page's script, and only when it changed.
     const changed = () => {
       if (queued || gone) return;
@@ -192,6 +200,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       gone = true; sizes.disconnect(); port.removeEventListener("message", listen); stand.release();
       for (const controller of calls.values()) controller.abort();
       calls.clear(); checks.clear();
+      delete root.dataset.composerRemote;
       if (live === id) send({ type: "composer-destroy", id });
     }
     scope.own(destroy); mounted.set(root, destroy);

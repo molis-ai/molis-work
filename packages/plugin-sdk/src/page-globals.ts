@@ -169,6 +169,8 @@ export type ComposerOptions = ComposerCommonOptions & (
 );
 
 export interface ComposerCommonOptions {
+  /** Keep this instance in its given root, including an AI composer in a plugin frame. Omit to use the workbench bar's normal receiver routing. */
+  placement?: "local";
   /** The entry's name, unique inside the plugin ("session"). */
   entry: string;
   /**

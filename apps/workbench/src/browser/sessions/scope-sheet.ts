@@ -55,7 +55,7 @@ function renderAiPanel(rows: readonly ExternalSessionProjectAiRead[], filter: st
       ? uiText.text("workbench.sessions.permit-counts", { filed: row.counts.filed, readable: row.counts.ai_readable, reported: row.counts.reported, blocked: blockedTotal })
       : uiText.text("workbench.sessions.permit-default-desc");
     const blocked = row.counts && row.counts.blocked.length > 0
-      ? `<p class="sessions-scope-hint">${escapeHtml(uiText.text("workbench.sessions.permit-blocked-tools", { tools: row.counts.blocked.map(item => `${item.display_name} ${item.count}`).join("、") }))}</p>`
+      ? `<p class="sessions-scope-hint">${escapeHtml(uiText.text("workbench.sessions.permit-blocked-tools", { tools: row.counts.blocked.map(item => `${item.display_name} ${item.count}`).join(uiText.text("common.list.separator")) }))}</p>`
       : "";
     const badges = row.current ? renderBadge({ label: uiText.text("workbench.sessions.current-project-badge") }) : "";
     const control = renderSwitch({ checked: row.allowed, label: row.project.display_name, attrs: { "data-permit-switch": pid, "aria-describedby": descId } });

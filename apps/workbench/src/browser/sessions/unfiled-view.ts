@@ -50,7 +50,7 @@ function renderUnfiledCard(row: ExternalSessionRow, input: UnfiledRenderInput): 
     ? `<div class="sessions-unfiled-evidence"><span>${uiText("workbench.sessions.ai-suggestion-evidence")}</span><ul>${suggestion.evidence.map(item => `<li>${escapeHtml(item.text)}</li>`).join("")}</ul></div>`
     : "";
   const alternatives = suggestion?.status === "ready" && suggestion.alternatives.length > 0
-    ? `<p class="sessions-unfiled-alternatives">${uiText("workbench.sessions.ai-suggestion-alternatives", { projects: suggestion.alternatives.map(project => project.display_name).join("、") })}</p>`
+    ? `<p class="sessions-unfiled-alternatives">${uiText("workbench.sessions.ai-suggestion-alternatives", { projects: suggestion.alternatives.map(project => project.display_name).join(uiText.text("common.list.separator")) })}</p>`
     : "";
   const suggestLine = suggestion?.status === "ready" && suggestion.project
     ? `<p class="sessions-unfiled-suggest">${uiText("workbench.sessions.ai-suggested-project", { project: suggestion.project.display_name })} · ${escapeHtml(suggestion.reason)}</p>${evidence}${alternatives}`

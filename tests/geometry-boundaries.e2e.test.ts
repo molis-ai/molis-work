@@ -43,16 +43,18 @@ const AUDIT = String.raw`(async () => {
   // where it was (glyph-tabs.ts). For such a tab, focus is read on its glyph, which must not move; its selection, and every other
   // control's states, are read on the control's own box as before.
   const glyphOf = (el) => el.closest('.tab-item[data-glyph-only]')?.querySelector('.tab-item-icon') || null;
+  const scrollBox = (el) => { const strip = el.closest('[data-side-tabs]'); if (!strip) return null;
+    return { left: strip.scrollLeft, width: strip.clientWidth, content: strip.scrollWidth, box: box(strip) }; };
   for (const el of controls) {
     const next = el.nextElementSibling && shown(el.nextElementSibling) ? el.nextElementSibling : null;
     for (const [state, apply] of states) {
       const read = (state === 'focus' && glyphOf(el)) || el;
-      const before = box(read), after0 = next && box(next);
+      const before = box(read), after0 = next && box(next), scrollBefore = read !== el && scrollBox(el);
       const undo = apply(el); if (!undo) continue;
       await frame();
-      const now = box(read), nextNow = next && box(next);
+      const now = box(read), nextNow = next && box(next), scrollAfter = read !== el && scrollBox(el);
       undo(); await frame();
-      if (moved(before, now)) out.push({ kind: 'state-moves-box', state, at: name(el) + (read === el ? '' : ' (its glyph)'), text: (el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 30), before: before.map(Math.round), after: now.map(Math.round) });
+      if (moved(before, now)) out.push({ kind: 'state-moves-box', state, at: name(el) + (read === el ? '' : ' (its glyph)'), text: (el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 30), before, after: now, ...(scrollBefore ? { scrollBefore, scrollAfter } : {}) });
       else if (next && moved(after0, nextNow)) out.push({ kind: 'state-moves-next', state, at: name(el), next: name(next) });
     }
   }

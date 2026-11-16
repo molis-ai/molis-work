@@ -217,6 +217,9 @@ const pages: Record<string, Draw> = {
 // background-tasks tab and page are gone from a project page (the task panel beside the dialog replaces them). Every page state
 // grew by the same amount in each language and no document or settings record moved, so no Goals markup changed here. The 16
 // were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// QEA-03/05: independently built main bd537b7d9 matched all 52 accepted records. Only the import-help text and English
+// Import button were replaced in those baseline draws: +7 zh / +38 en in the 16 whole pages. Candidate draws matched each
+// derived expectation byte for byte; all 36 fragment records stayed exact. No candidate RECORD mode or normalization change.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

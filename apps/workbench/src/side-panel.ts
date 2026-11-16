@@ -140,9 +140,13 @@ body:not([data-side-open=true]) .side-panel-divider{display:none}
 html body.is-side-resizing :is([data-plugin-stage],.side-panel){transition:none!important}
 body.is-side-resizing iframe,body.is-side-resizing [data-side-browser] canvas{pointer-events:none!important}
 body.is-side-resizing{cursor:col-resize;user-select:none}
+/* 760 and under the sheet stands over the lower half of the work. In a short window, with the title bar's two rows above and the
+   line below, half the window would leave the work no height at all (700×420), so the sheet takes the smaller of 52dvh and what is
+   left over 160px for the work, but never less than half of the room between the title bar and the line. */
 @media(max-width:760px){
- html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:8px;margin-bottom:calc(52dvh + var(--side-gap) + var(--sheet-inset,14px))}
- html body.immersive-workbench .side-panel{inset:auto 8px calc(var(--dock-h,48px) + 8px) 8px;width:auto;height:52dvh;transform:translateY(12px)}
+ html body.immersive-workbench{--side-room:calc(100dvh - var(--workbench-titlebar-bottom,var(--desktop-titlebar-height,48px)) - var(--dock-h,48px) - 24px);--side-sheet-h:min(52dvh,max(calc(var(--side-room)*.5),calc(var(--side-room) - 160px)))}
+ html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:8px;margin-bottom:calc(var(--side-sheet-h) + var(--side-gap) + var(--sheet-inset,14px))}
+ html body.immersive-workbench .side-panel{inset:auto 8px calc(var(--dock-h,48px) + 8px) 8px;width:auto;height:var(--side-sheet-h);transform:translateY(12px)}
  body[data-side-open=true] .side-strip{min-width:0}
  .side-strip{max-width:100%;padding-block:2px;overflow-x:auto;justify-content:safe flex-end}
  .immersive-titlebar>.side-strip{flex:1 0 100%}
@@ -388,16 +392,28 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     save();
   });
   strip.addEventListener('keydown',event=>{
-    // In the order the glyphs are drawn: a phone draws a Home tool with a chord first (the styles above).
-    const list=tabs().sort((a,b)=>a.getBoundingClientRect().left-b.getBoundingClientRect().left),at=list.findIndex(button=>button===document.activeElement);if(at<0)return;
+    // In the order the glyphs are drawn: a phone draws a Home tool with a chord first (the styles above). That is their flex order,
+    // then the document's: on a phone the Home tool sticks to the row's start while the rest scroll under it, so where they stand
+    // on screen is not their order.
+    const list=tabs().sort((a,b)=>(+getComputedStyle(a.parentElement).order)-(+getComputedStyle(b.parentElement).order)||(a.compareDocumentPosition(b)&Node.DOCUMENT_POSITION_FOLLOWING?-1:1)),at=list.findIndex(button=>button===document.activeElement);if(at<0)return;
     if(event.key==='Delete'){event.preventDefault();close(list[at]);return;}
     if(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10'){event.preventDefault();menuFor(list[at]);return;}
     const next=event.key==='ArrowRight'?list[(at+1)%list.length]:event.key==='ArrowLeft'?list[(at-1+list.length)%list.length]:event.key==='Home'?list[0]:event.key==='End'?list.at(-1):null;
     if(!next)return;event.preventDefault();next.focus();if(open){select(next.dataset.sideTab);save();}
   });
   let growTimer=0;
-  const grow=button=>strip.querySelectorAll('[data-side-tab]').forEach(node=>node.parentElement.classList.toggle('is-grown',node===button));
+  // A tab widens in place (VUX-07): where the strip runs short it scrolls by what the glyph moved, so the glyph stays put, and
+  // keeps it there while the strip is resized around it (the tabs before it share their widths again on the next frame).
   const grown=button=>button.parentElement.classList.contains('is-grown');
+  let anchor=null;
+  const iconLeft=button=>(button.querySelector('.tab-item-icon')??button).getBoundingClientRect().left;
+  const keep=()=>{if(!anchor||!anchor.button.isConnected||!grown(anchor.button))return;const moved=iconLeft(anchor.button)-anchor.at;if(Math.abs(moved)>0.5&&strip.scrollWidth>strip.clientWidth+1)strip.scrollLeft+=moved;};
+  const grow=button=>{
+    anchor=button&&!grown(button)?{button,at:iconLeft(button)}:button?anchor:null;
+    strip.querySelectorAll('[data-side-tab]').forEach(node=>node.parentElement.classList.toggle('is-grown',node===button));
+    keep();
+  };
+  if('ResizeObserver' in window)new ResizeObserver(keep).observe(strip);
   strip.addEventListener('pointerover',event=>{
     const button=event.target.closest?.('[data-side-tab]');if(!button||grown(button))return;
     clearTimeout(growTimer);growTimer=setTimeout(()=>grow(button),strip.querySelector('.is-grown')?0:140);

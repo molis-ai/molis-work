@@ -142,6 +142,9 @@ export const TAB_WORKSPACE_STYLES = `
     body.immersive-workbench .tab-split { display: contents; }
     body.immersive-workbench .tab-sash, body.immersive-workbench .tab-pane:not(.is-focused) { display: none; }
     body.immersive-workbench .tab-pane.is-focused { flex: 1; }
+    /* Only the focused pane shows here, so a tile's 「在旁边打开」 (PFG-23) would have nothing to open beside; it is left out, and
+       the tile's hover buttons stop at the pin and add or remove instead of covering the middle of a 268px row. */
+    html body.immersive-workbench .plugin-rail-tile > .plugin-rail-ops > .rail-beside { display: none; }
   }
   body.immersive-workbench .tab-workspace[data-split-narrow] .tab-workspace-panes > :is(.tab-split, .tab-pane:not(.is-focused), .tab-content-frame:not(.is-focused)) { display: none; }
   body.immersive-workbench .tab-workspace[data-split-narrow] .tab-workspace-panes > .tab-pane.is-focused { left: 0 !important; top: 0 !important; width: 100% !important; height: 100% !important; }

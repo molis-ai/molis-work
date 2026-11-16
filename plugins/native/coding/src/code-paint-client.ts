@@ -34,7 +34,7 @@ declare const MutationObserver: new (changed: () => void) => PaintObserver;
 declare const document: { createTextNode(text: string): PaintText; createElement(tag: string): PaintElement;
   fonts: { addEventListener(event: string, changed: () => void): void; removeEventListener(event: string, changed: () => void): void } };
 declare function requestAnimationFrame(step: () => void): number;
-declare function getComputedStyle(node: PaintElement): { font: string; display: string };
+declare function getComputedStyle(node: PaintElement): { font: string; display: string; paddingInlineEnd: string };
 type Tokens = (text: string, language: string, from?: number) => Piece[];
 
 /**
@@ -83,18 +83,24 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
     for (let at = 0; at < fresh.length; at += 4096) region.content.append(...fresh.slice(at, at + 4096));
     region.pieces = pieces; region.nodes = [...region.nodes.slice(0, same), ...fresh];
   };
-  // An inline code line also contains its parent's font strut. Keep both fonts: Coding's pre is 13px, its code 12px.
+  // An inline code line also contains its parent's font strut. Keep both fonts: Coding's pre is 13px, its code 12px. The block
+  // that scrolls (the parent of inline code) gives its end padding to each slice.
   const frame = (target: PaintElement, job: Job) => {
     if (!target.isConnected) return;
-    const style = getComputedStyle(target), outer = style.display === "inline" && target.parentElement ? getComputedStyle(target.parentElement).font : style.font;
-    for (const region of job.regions) { region.node.style.setProperty("font", outer); region.content.style.setProperty("font", style.font); }
+    const style = getComputedStyle(target), block = style.display === "inline" && target.parentElement ? getComputedStyle(target.parentElement) : style;
+    for (const region of job.regions) {
+      region.node.style.setProperty("font", block.font); region.content.style.setProperty("font", style.font);
+      region.node.style.setProperty("padding-inline-end", block.paddingInlineEnd);
+    }
     job.framed = true;
   };
   const readAtOnce = (target: PaintElement, job: Job) => {
     let index = 0;
     for (let start = 0; start < job.text.length; index += 1) {
       const end = throughLine(job.text, start); let region = job.regions[index];
-      if (!region) { const node = document.createElement("span"), content = document.createElement("span"); node.style.setProperty("display", "block"); node.append(content);
+      // A slice is as wide as its longest line and carries the scrolling block's end padding (set with its fonts below), VUX-33:
+      // text laid straight into the block counts that padding in its scroll extent, a block slice's overflow does not.
+      if (!region) { const node = document.createElement("span"), content = document.createElement("span"); node.style.setProperty("display", "block"); node.style.setProperty("width", "max-content"); node.style.setProperty("min-width", "100%"); node.append(content);
         region = { start, end, node, content, pieces: [], nodes: [] }; job.regions.push(region); target.append(node); }
       region.start = start; region.end = end;
       if (end > job.at) {

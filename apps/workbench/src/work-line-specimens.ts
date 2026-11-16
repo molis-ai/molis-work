@@ -73,14 +73,14 @@ function composer(to: { readonly name: string; readonly character?: boolean }): 
 const assistant = () => ({ name: uiText.text("workbench.assistant-dock.assistant") });
 const linxia = () => ({ name: say("linxia"), character: true });
 
-function line(kind: "ok" | "wait" | "empty" | "unreadable", above = ""): string {
+function line(kind: "ok" | "wait" | "empty" | "unreadable", above = "", mini = ""): string {
   const e = events(), waiting = kind === "wait";
   const head = renderLineHead({ menu: "", name: nav("website-revamp"), waiting: waiting ? 1 : 0 });
   const slot = `${above ? `<div class="mw-wls__above">${above}</div>` : ""}${composer(assistant())}`;
-  if (kind === "empty") return renderWorkLine({ head, past: [], active: [], next: [], slot });
+  if (kind === "empty") return renderWorkLine({ head, past: [], active: [], next: [], slot, mini });
   return renderWorkLine({
     head, past: kind === "unreadable" ? [e.plan] : [e.weekly, e.plan, e.exported, e.merge], active: waiting ? [e.talk, e.fix, e.quote] : [e.fix], next: [e.upgrade, e.review, e.brand],
-    unreadable: kind === "unreadable" ? ["Feed"] : [], slot,
+    unreadable: kind === "unreadable" ? ["Feed"] : [], slot, mini,
   });
 }
 
@@ -211,7 +211,7 @@ export function renderWorkLineSpecimens(specimen: Specimen): string {
     + `<div class="mw-wls__slot">${renderReplyPeek({ who: linxia(), body: p("peek-reply-character"), mark: renderTaskMark({ count: 3, lead: "answer", needsYou: true }) })}</div>`
     + `<div class="mw-wls__slot">${renderReplyMini(renderTaskMark({ count: 2, lead: "running" }))}</div>`);
   const whole = specimen("wl-line", "", say("whole-line"), say("whole-line-note"),
-    `${state("ok")}${line("ok", renderReplyMini(renderTaskMark({ count: 2, lead: "running" })))}${state("something-needs-you")}${line("wait", renderReplyPeek({ who: assistant(), returned: say("compare-three-quotes"), body: p("needs-you-reply"), mark: renderTaskMark({ count: 4, lead: "answer", needsYou: true }) }))}`
+    `${state("ok")}${line("ok", "", renderReplyMini(renderTaskMark({ count: 2, lead: "running" })))}${state("something-needs-you")}${line("wait", renderReplyPeek({ who: assistant(), returned: say("compare-three-quotes"), body: p("needs-you-reply"), mark: renderTaskMark({ count: 4, lead: "answer", needsYou: true }) }))}`
     + `${state("nothing-on-line-yet")}${line("empty")}${state("source-unreadable")}${line("unreadable")}`);
   const dialogs = specimen("wl-dialog", "", say("dialog-composed"), say("dialog-composed-note"),
     `${state("main-conversation-panel-open")}${dialog("main")}${state("panel-over-dialog")}${dialog("narrow")}${state("event-tab")}${dialog("event")}${state("disconnected")}${dialog("offline")}`);
@@ -237,11 +237,10 @@ export const WORK_LINE_FRAME_STYLES = `.mw-wls__row{flex-wrap:nowrap;overflow-x:
 .mw-wls__above{position:absolute;left:0;right:0;bottom:calc(100% + 8px);display:flex;flex-direction:column}
 .mw-navs .work-line{min-height:64px;padding:8px 0}
 .mw-navs .work-line-row:has(.mw-wls__above){margin-top:112px}
-.mw-navs .work-line-row:has(.work-reply-mini){margin-top:48px}
 .mw-wls__stage{position:relative;display:flex;align-items:flex-start;height:500px;min-width:0;padding:8px 4px;overflow:hidden;transform:translate(0)}
 .mw-wls__stage[data-narrow]{max-width:700px}
 html body.mw-navs-page .mw-wls__stage .assistant-panel[data-side]{position:relative;inset:auto;flex:0 1 560px;min-width:0;width:auto;height:480px;animation:none}
-@container work-line (max-width:959px){.mw-navs .work-line-row:is(:has(.mw-wls__above),:has(.work-reply-mini)){margin-top:0}.mw-wls__above{position:static}}
+@container work-line (max-width:959px){.mw-navs .work-line-row:has(.mw-wls__above){margin-top:0}.mw-wls__above{position:static}}
 @media (max-width:760px){.mw-wls__stage{height:560px}html body.mw-navs-page .mw-wls__stage .assistant-panel[data-side]{flex-basis:100%;height:540px}}`;
 
 /** The board's section: the frame above, in the board's language, at a fixed height that scrolls inside. */

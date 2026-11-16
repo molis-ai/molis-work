@@ -38,7 +38,7 @@ ${TOP}>.dock-pins{order:1;flex:0 1 auto;height:36px;margin:0 2px;padding:3px;gap
 ${TOP}>.dock-pins::before,${TOP} .dock-pin[aria-current]::after,${TOP}>.plugin-picker::after{content:none}
 ${TOP} .dock-pin{border-radius:var(--r-control,8px)}
 ${TOP} .dock-pin:hover{transform:none}
-${TOP} .dock-pin svg{width:17px;height:17px}
+${TOP} .dock-pin svg{width:16px;height:16px}
 .dock-pin-name{display:none}
 ${TOP} .dock-pin[aria-current]{display:inline-flex;align-items:center;gap:6px;width:auto;max-width:160px;padding:0 10px 0 8px;font:inherit;font-size:12px;font-weight:500}
 ${TOP} .dock-pin[aria-current]>.dock-pin-name{display:block;${ELLIPSIS}}
@@ -50,6 +50,9 @@ ${TOP} .dock-pin.is-fixed::before{content:none}
    runs short the tabs narrow first, down to that floor while it leaves the rest of the strip 500px (the right side's glyphs slide in what is left); then the kept plugins
    fold; then the tabs slide. */
 ${TOP}>[data-titlebar-tabs]{flex:0 1000 var(--tabs-hug,auto);min-width:clamp(120px,var(--tabs-floor,120px),100% - 500px)}
+/* The right side's glyphs line up over the side panel while there is room; where the strip runs short they slide in their own box (down to one glyph) before anything is pushed off the window. */
+${TOP}>.side-strip{flex:0 1 auto;min-width:var(--dock-btn,32px);overflow-x:auto;justify-content:safe flex-end}
+@media (min-width:761px){body[data-side-open=true] ${TOP}>.side-strip{flex-basis:calc(var(--side-panel-width,35vw) + var(--sheet-inset,14px) - 8px);min-width:var(--dock-btn,32px)}}
 ${TOP}>.desktop-titlebar-drag{flex:1 1 0;width:auto;min-width:0}
 ${TOP} .tab-add-button{display:none}
 ${TOP}>.plugin-picker{order:2;position:static;flex:none;max-width:none;padding:0}
@@ -71,7 +74,7 @@ ${TOP}>.titlebar-end{order:8;flex:none;display:flex;align-items:center;gap:8px;m
   ${TOP}>.dock-pins{order:1;flex:1 1 0;min-width:var(--dock-btn);height:44px;margin:0;padding:0;gap:0;overflow:hidden;background:none;box-shadow:none}
   ${TOP} .dock-pin[aria-current]{width:var(--dock-btn);padding:0;justify-content:center}
   ${TOP} .dock-pin[aria-current]>.dock-pin-name{display:none}
-  ${TOP}>.side-strip{order:2;flex:1 1 var(--dock-btn);min-width:var(--dock-btn);max-width:max-content;justify-content:flex-start}
+  ${TOP}>.side-strip{order:2;flex:0 1 auto;min-width:var(--dock-btn);max-width:max-content;justify-content:flex-start}
   ${TOP}>.titlebar-layout{order:2;padding:0}
   ${TOP}>.titlebar-end{order:3;margin-left:0;gap:0}
   ${TOP}>.titlebar-end>.workspace-chrome{margin-left:0}
@@ -98,6 +101,8 @@ ${TOP}>.titlebar-end{order:8;flex:none;display:flex;align-items:center;gap:8px;m
    composer is centred from 1444px up and sits a little right of centre below that. */
 .work-line{min-width:0;container:work-line/inline-size}
 .work-line-row{position:relative;display:grid;grid-template-columns:minmax(min(420px,40%),1fr) minmax(320px,540px) minmax(200px,1fr);grid-template-rows:minmax(0,1fr);align-items:center;gap:12px;min-width:0;height:var(--dock-min,62px)}
+/* Where the line is one row the composer stands over the work (UIV-19): browser/work-line-layout.ts writes the three columns. */
+.work-line .work-line-row[data-slot-placed]{grid-template-columns:var(--slot-columns)}
 .work-line-row::before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:var(--line-strong);pointer-events:none}
 .work-line-track{display:contents}
 .work-line-now{display:none}
@@ -269,7 +274,7 @@ html body.immersive-workbench[data-acceptance-open=true] [data-plugin-stage]{mar
 .work-reqs-head>strong{font-size:15px}
 .work-reqs-head>span,.work-req-meta>span:last-child{min-width:0;${ELLIPSIS};color:var(--muted);font-size:12px}
 .work-reqs-fill{flex:1}
-.work-reqs-sum{display:flex;gap:12px;margin:0;min-width:0;overflow-x:auto;scrollbar-width:none;white-space:nowrap;color:var(--ink-soft);font-size:12px}
+.work-reqs-sum{display:flex;gap:12px;margin:0;min-width:0;overflow-x:auto;white-space:nowrap;color:var(--ink-soft);font-size:12px}
 .work-reqs-sum>[data-tone=open]{color:var(--amber-ink,var(--ink))}
 .work-reqs>*,.work-reqs-list>*{flex:none}
 .work-reqs>.work-reqs-list{flex:1;display:flex;flex-direction:column;gap:8px;min-height:0;overflow-y:auto}
@@ -281,7 +286,7 @@ html body.immersive-workbench[data-acceptance-open=true] [data-plugin-stage]{mar
 .work-req-note,.work-reqs-round{margin:0;color:var(--ink-soft);font-size:12px}
 .work-req-note{${ELLIPSIS}}
 .work-req-why{padding:4px 8px;border-radius:var(--r-tag,6px);background:var(--amber-soft);color:var(--ink);font-size:12px}
-.work-req-evidence{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.work-req-evidence{display:flex;gap:6px;overflow-x:auto}
 .work-req-chip{flex:none;display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--r-tag,6px);background:var(--soft);font-size:12px;white-space:nowrap}
 .work-req-history{color:var(--muted);font-size:12px}
 .work-req-history>summary{display:inline-flex;align-items:center;gap:5px;min-height:24px;cursor:pointer;list-style:none;white-space:nowrap}
@@ -313,10 +318,12 @@ html body.immersive-workbench[data-acceptance-open=true] [data-plugin-stage]{mar
 .work-reply-peek-head{display:flex;align-items:center;gap:6px;min-width:0;color:var(--muted);font-size:11px;white-space:nowrap}
 .work-reply-peek-fill{flex:1 1 auto}
 .work-reply-peek p{margin:0}
-[data-assistant-island]>:is(.work-reply-mini,.work-reply-peek){position:absolute;z-index:49;right:0;bottom:calc(100% + 8px + var(--next-row,0px) + var(--context-row,0px))}
-[data-assistant-island]>.work-reply-peek{left:0}
+[data-assistant-island]>.work-reply-peek{position:absolute;z-index:49;right:0;bottom:calc(100% + 8px + var(--next-row,0px) + var(--context-row,0px));left:0}
 .work-reply-peek-body{max-height:4.95em;overflow:hidden;overflow-wrap:anywhere}
-.work-reply-mini{align-self:flex-end;display:inline-flex;align-items:center;gap:2px;padding:4px;border-radius:var(--r-card,12px);background:var(--popover);box-shadow:var(--lift-2);animation:craft-rise-from-bar var(--dur-hover) var(--ease-quint)}
+/* Folded, the dialog's row is the line's own right end (user decision 2026-11-15): on the line, over nothing of the work, and the next wing stops before it. */
+.work-reply-mini{display:inline-flex;align-items:center;gap:4px;animation:craft-rise-from-bar var(--dur-hover) var(--ease-quint)}
+.work-line-row>.work-reply-mini{position:absolute;z-index:3;top:50%;right:0;height:44px;margin-top:-22px}
+.work-line[data-mini] .work-line-wing[data-wing="next"]{padding-inline-end:var(--mini-room,72px)}
 /* A dialog tab is as wide as its name (96 to 184), and the strip scrolls: an event's tab has to say which event it is. */
 ${W} .assistant-tabs[data-work-tabs] .assistant-tab{flex:0 0 auto;width:auto;min-width:96px;max-width:184px}
 @media (prefers-reduced-motion:reduce){${ANIMATED}{animation:none}}
@@ -332,6 +339,7 @@ html[data-craft-still] ${ANIMATED}{animation:none}
   .work-line-row::before{top:22px}
   .work-line-now{grid-column:2;grid-row:1;position:relative;display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;background:var(--action);color:var(--action-ink);font-size:11px;font-weight:600}
   .work-line-slot{grid-column:1/-1;grid-row:2;align-self:auto;justify-self:center;width:min(100%,640px)}
+  .work-line-row>.work-reply-mini{top:0;margin-top:0}
 }
 /* A phone (the line is 540px or less): one track above the composer that slides sideways and rests on whole capsules, the head and any unreadable source fixed at its start. */
 @container work-line (max-width:540px){
@@ -354,8 +362,9 @@ html[data-craft-still] ${ANIMATED}{animation:none}
   .work-event,.work-line-wing[data-wing="past"] .work-event{height:44px;max-width:min(240px,var(--cap-max,240px))}
   .work-line-wing[data-wing="past"] .work-line-run>:last-child{max-width:min(240px,var(--near-max,240px))}
   /* The closed dialog's row is above the input here too: it is the end of the track, over nothing of the work, and the events stop before it. */
-  [data-assistant-island]>.work-reply-mini{bottom:calc(100% + 6px);height:48px;padding:0 0 0 4px;border-radius:0;background:var(--desk);box-shadow:-6px 0 6px -2px var(--desk);animation:none}
+  .work-line-row>.work-reply-mini{height:48px;padding:0 0 0 4px;background:var(--desk);box-shadow:-6px 0 6px -2px var(--desk);animation:none}
   .work-line[data-mini] .work-line-track{margin-inline-end:96px}
+  .work-line[data-mini] .work-line-wing[data-wing="next"]{padding-inline-end:0}
 }
 @media (max-width:760px){
   ${W} .assistant-tabs[data-work-tabs] .assistant-tab:not([data-current]){display:flex}
@@ -368,8 +377,9 @@ html[data-craft-still] ${ANIMATED}{animation:none}
 /* Pressed by a finger: a phone's width, or any window whose pointer is coarse (a phone held sideways, a tablet). Everything on
    the strip and the line is a 44px target there, whatever the width. */
 @media (max-width:760px),(pointer:coarse){
-  .work-task-mark{height:36px;min-width:36px;justify-content:center}
-  .work-task-mark::after{content:"";position:absolute;inset:-4px}
+  .work-task-mark{height:44px;min-width:44px;justify-content:center}
+  /* The side path's own switch row (「每步先问我」) is a target like any row of the island. */
+  label.assistant-item{min-height:44px}
   :is(.work-task-panel-head,.work-card-head,.work-reply-peek-head,.work-reply-mini) .mw-btn.mw-btn--icon-only{width:44px;height:44px;min-width:44px}
   ${BUTTON_GROUNDS} .mw-btn{min-width:44px;min-height:44px}
   .work-task-row-main{min-height:48px}

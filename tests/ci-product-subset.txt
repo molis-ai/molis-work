@@ -90,8 +90,6 @@ tests/artifact-subject-context.test.ts
 tests/assistant-answers.test.ts
 tests/assistant-attachments.test.ts
 tests/assistant-attention.test.ts
-tests/assistant-line.test.ts
-tests/assistant-main-conversation.test.ts
 tests/assistant-character.test.ts
 tests/assistant-executor.test.ts
 tests/assistant-executor-product.test.ts
@@ -127,9 +125,7 @@ tests/characters-prologue.test.ts
 tests/coding-artifacts.test.ts
 tests/coding-background-tasks.test.ts
 tests/coding-work-events.test.ts
-tests/mainline-background-tasks.test.ts
 tests/mainline-line-read.test.ts
-tests/mainline-place.test.ts
 tests/coding-background-wait.test.ts
 tests/coding-changeset-http.test.ts
 tests/coding-checkers-settings.test.ts

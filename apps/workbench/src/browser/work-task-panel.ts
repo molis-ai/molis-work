@@ -88,16 +88,18 @@ function installDialogRow(panel: string, paint: () => void): void {
   const who = () => { const tab = island.querySelector<HTMLElement>(".assistant-tab[data-current][data-character]"), name = tab?.querySelector(".assistant-tab-title")?.textContent?.trim();
     return name ? { name, character: true } : { name: uiText.text("workbench.common.assistant") }; };
   const row = () => {
-    const peek = island.querySelector<HTMLElement>("[data-reply-peek]"), mini = island.querySelector("[data-reply-mini]"), said = dialog.hidden && !narrow.matches ? latest() : "";
-    // A phone's line stands the row at the end of its track (the sheet reads this mark and leaves the track room for it).
-    island.closest("[data-work-line]")?.toggleAttribute("data-mini", dialog.hidden && !(said && said !== folded));
+    // The folded row stands at the line's right end, on the line and over nothing of the work (user decision 2026-11-15); the
+    // line's mark leaves its wing room for it.
+    const line = island.closest("[data-work-line]"), lineRow = line?.querySelector<HTMLElement>(".work-line-row") ?? island;
+    const peek = island.querySelector<HTMLElement>("[data-reply-peek]"), mini = lineRow.querySelector("[data-reply-mini]"), said = dialog.hidden && !narrow.matches ? latest() : "";
+    line?.toggleAttribute("data-mini", dialog.hidden && !(said && said !== folded));
     if (!dialog.hidden && (peek || mini)) { peek?.remove(); mini?.remove(); shown = ""; return; }
     if (!dialog.hidden) return;
     if (said && said !== folded) {
       if (peek && shown !== said) peek.querySelector<HTMLElement>(".work-reply-peek-body")!.textContent = said;
       else if (!peek) { mini?.remove(); island.insertAdjacentHTML("beforeend", renderReplyPeek({ who: who(), body: escapeHtml(said), mark: renderTaskMark({ count: 0, panel }) })); paint(); }
       shown = said;
-    } else if (!mini) { peek?.remove(); shown = ""; island.insertAdjacentHTML("beforeend", renderReplyMini(renderTaskMark({ count: 0, panel }))); paint(); }
+    } else if (!mini) { peek?.remove(); shown = ""; lineRow.insertAdjacentHTML("beforeend", renderReplyMini(renderTaskMark({ count: 0, panel }))); paint(); }
   };
   new MutationObserver(row).observe(dialog, { attributes: true, attributeFilter: ["hidden"] });
   if (thread) new MutationObserver(() => { if (dialog.hidden) row(); }).observe(thread, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-text"] });

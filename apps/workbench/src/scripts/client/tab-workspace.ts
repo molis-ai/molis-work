@@ -290,11 +290,18 @@ ${TAB_WORKSPACE_DRAG_PART}
     "project-settings": '[data-directory-open="project-settings"]',
     market: ':is([data-dock], [data-global-menu]) [data-plugin-id="market"]',
   };
+  /* Shared on the next frame: sharing writes the titlebar strip's own width (--tabs-hug), and a change made to a box while its
+     size is being delivered is a ResizeObserver loop. */
+  const sharing = new Set();
+  let sharingFrame = 0;
   const tabShareObserver = new ResizeObserver((entries) => {
-    for (const entry of entries) {
-      const node = entry.target;
-      shareTabStrip(node.matches("[data-tab-scroll]") ? node : node.querySelector("[data-tab-scroll]"));
-    }
+    for (const entry of entries) sharing.add(entry.target);
+    if (sharingFrame) return;
+    sharingFrame = requestAnimationFrame(() => {
+      sharingFrame = 0;
+      const nodes = [...sharing]; sharing.clear();
+      for (const node of nodes) if (node.isConnected) shareTabStrip(node.matches("[data-tab-scroll]") ? node : node.querySelector("[data-tab-scroll]"));
+    });
   });
   const titlebarStrip = document.querySelector("[data-titlebar-tabs]");
   if (titlebarStrip) new ResizeObserver(() => {

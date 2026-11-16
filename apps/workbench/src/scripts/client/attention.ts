@@ -78,7 +78,13 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   // project chooser's route follows the project chosen, and another one is asked.
   const gone = new Set();
   const LONGEST = 120000;
-  let heard = null, stream = null, streamAt = "", retry = 0, delay = 1000, lost = false;
+  // A stream that spoke and was lost connects again at once; one the Host never answered waits 30 s, then twice as long each time (N54).
+  let heard = null, stream = null, streamAt = "", retry = 0, delay = 1000, lost = false, spoke = false;
+  // One stream for every window of a project (FSS-06: a browser holds six connections to one Host): the window holding the lock listens
+  // and passes each word on; the others hear it on the channel, so a window keeps one long connection (its appearance) to the Host.
+  // Where a browser has neither, each window listens itself.
+  const shared = typeof BroadcastChannel === "function" && Boolean(navigator.locks);
+  let lease = null, ear = null;
   const read = async () => {
     if (document.hidden || gone.has(route("/api/attention"))) return;
     if (reading) { again = true; return; }
@@ -99,16 +105,19 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     // all the time is read at most twice a second, never back to back.
     finally { reading = false; if (again) { reading = true; setTimeout(() => { reading = false; void read(); }, Math.max(0, 500 - (performance.now() - started))); } else if (route("/api/attention/events") !== streamAt) void listen(); }
   };
-  const close = () => { clearTimeout(retry); if (stream) { const open = stream; stream = null; open.abort(); } };
+  const unreachable = () => { if (!lost) { lost = true; document.dispatchEvent(new CustomEvent("molis-work:attention-unreachable", { detail: { since: heard } })); } };
+  const close = () => {
+    clearTimeout(retry); streamAt = "";
+    if (stream) { const open = stream; stream = null; open.abort(); }
+    if (lease) { lease.abort(); lease = null; }
+    if (ear) { ear.close(); ear = null; }
+  };
   // The Host's word that something here may have changed (WLN-27): one stream, read again on each word. There is no beat; a lost
-  // stream is the page losing the Host (said once, as of the last read), and it connects again, waiting twice as long each time.
-  const listen = async () => {
+  // stream is the page losing the Host (said once, as of the last read), and it connects again, waiting longer each time.
+  const connect = async (address) => {
     clearTimeout(retry);
-    const address = route("/api/attention/events");
-    if (document.hidden || gone.has(route("/api/attention"))) { close(); return; }
-    if (stream && streamAt === address) return;
-    close();
-    const connection = new AbortController(); stream = connection; streamAt = address;
+    if (streamAt !== address || stream) return;
+    const connection = new AbortController(); stream = connection;
     try {
       const reply = await molisWorkRequest(address, { as: "response", signal: connection.signal, headers: { accept: "text/event-stream" } });
       if (reply.status === 404) { gone.add(route("/api/attention")); return; }
@@ -121,23 +130,53 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
         for (let end = buffer.indexOf("\\n\\n"); end >= 0; end = buffer.indexOf("\\n\\n")) {
           const block = buffer.slice(0, end); buffer = buffer.slice(end + 2);
           // The stream opens with a word: only then is the Host there, so one that answers and closes at once keeps backing off.
-          if (/^event: changed$/m.test(block)) { delay = 1000; lost = false; void read(); }
+          if (/^event: changed$/m.test(block)) { delay = 1000; lost = false; spoke = true; ear?.postMessage("changed"); void read(); }
         }
       }
     } catch { /* told below */ }
     finally {
       if (stream === connection) {
         stream = null;
-        if (!connection.signal.aborted && !document.hidden && !gone.has(route("/api/attention"))) {
-          if (!lost) { lost = true; document.dispatchEvent(new CustomEvent("molis-work:attention-unreachable", { detail: { since: heard } })); }
-          retry = setTimeout(listen, delay); delay = Math.min(delay * 2, LONGEST);
+        if (!connection.signal.aborted && streamAt === address && !document.hidden && !gone.has(route("/api/attention"))) {
+          unreachable(); ear?.postMessage("lost");
+          if (!spoke) delay = Math.max(delay, 30000);
+          spoke = false;
+          retry = setTimeout(() => void connect(address), delay); delay = Math.min(delay * 2, LONGEST);
         }
       }
     }
   };
+  const listen = () => {
+    const address = route("/api/attention/events");
+    if (document.hidden || gone.has(route("/api/attention"))) { close(); return; }
+    if (streamAt === address) return;
+    close(); streamAt = address;
+    if (!shared) { void connect(address); return; }
+    const name = "molis-work-attention:" + address, held = new AbortController(), channel = new BroadcastChannel(name);
+    lease = held; ear = channel;
+    channel.onmessage = (event) => { if (event.data === "changed") { lost = false; void read(); } else if (event.data === "lost") unreachable(); };
+    // Holding the lock is listening: it is given back when this window stops (hidden, gone, another project), and the next
+    // window waiting takes the stream, whose first word everyone reads.
+    const lead = () => new Promise((release) => {
+      if (held.signal.aborted) { release(); return; }
+      held.signal.addEventListener("abort", () => release(), { once: true });
+      void connect(address);
+    });
+    // A window that joins another one already listening reads once itself, then waits its turn.
+    navigator.locks.request(name, { ifAvailable: true }, (lock) => {
+      if (lock) return lead();
+      if (held.signal.aborted) return;
+      void read();
+      navigator.locks.request(name, { signal: held.signal }, lead).catch(() => {});
+    }).catch(() => {});
+  };
   document.addEventListener("molis-work:attention-refresh", read);
-  // A hidden page hears nothing (N54); coming back it connects again, and the stream's first word reads.
-  document.addEventListener("visibilitychange", () => { if (document.hidden) close(); else void listen(); });
+  // A hidden page hears nothing (N54); coming back it connects again, and the stream's first word reads. A page told it is shown
+  // while its stream is still open reads once: what changed outside the Host's word (a store a crash left) shows when it is looked at.
+  document.addEventListener("visibilitychange", () => { if (document.hidden) close(); else if (streamAt === route("/api/attention/events")) void read(); else void listen(); });
   document.querySelector(".plugin-rail-items")?.addEventListener("click", () => setTimeout(read, 300));
-  void listen();
+  // The chooser's address follows the project chosen: its stream (whose first word reads) is that project's at once.
+  const chooser = document.querySelector(".chooser");
+  if (chooser) new MutationObserver(() => listen()).observe(chooser, { attributes: true, attributeFilter: ["data-selected"] });
+  listen();
 }`;

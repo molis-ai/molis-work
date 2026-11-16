@@ -88,18 +88,18 @@ export function renderLineHead(head: { readonly name: string; readonly waiting: 
  */
 export function renderWorkLine(line: {
   readonly head: string; readonly past: readonly LineEventView[]; readonly active: readonly LineEventView[]; readonly next: readonly LineEventView[];
-  readonly unreadable?: readonly string[]; readonly slot: string;
+  readonly unreadable?: readonly string[]; readonly slot: string; readonly mini?: string;
 }): string {
   const run = (events: readonly LineEventView[]) => events.map(renderLineEvent).join("");
   const earlier = `<button type="button" class="work-line-earlier" data-work-line-earlier aria-label="${uiText("workbench.work-line.earlier-events")}" hidden>`
     + `${icon("chevron-left")}<span data-count></span><span class="work-line-earlier-attn" data-attn-count hidden>${icon("circle-alert")}<span data-n></span></span></button>`;
   const latest = `<button type="button" class="work-line-earlier work-line-latest" data-work-line-latest aria-label="${uiText("workbench.work-line.back-to-now")}" title="${uiText("workbench.work-line.back-to-now")}" hidden>${icon("chevron-right")}</button>`;
-  return `<div class="work-line" data-work-line role="region" aria-label="${uiText("workbench.work-line.work-line")}">`
+  return `<div class="work-line" data-work-line${line.mini ? " data-mini" : ""} role="region" aria-label="${uiText("workbench.work-line.work-line")}">`
     + `<div class="work-line-row"><div class="work-line-track" data-work-line-track><div class="work-line-wing" data-wing="past"><div class="work-line-lead">${line.head}${(line.unreadable ?? []).map(renderLineUnreadable).join("")}</div>${earlier}`
     + `<div class="work-line-run" role="group" aria-label="${uiText("workbench.work-line.done-and-in-progress")}">${run(line.past)}${run(line.active)}</div>${latest}</div>`
     + `<span class="work-line-now" aria-hidden="true">${uiText("workbench.work-line.now")}</span>`
     + `<div class="work-line-wing" data-wing="next"><div class="work-line-run" data-overflow-fade role="group" aria-label="${uiText("workbench.work-line.next")}">${run(line.next)}</div><span class="work-line-label" aria-hidden="true">${uiText("workbench.work-line.next")}</span></div></div>`
-    + `<div class="work-line-slot" data-work-line-slot>${line.slot}</div></div></div>`;
+    + `<div class="work-line-slot" data-work-line-slot>${line.slot}</div>${line.mini ?? ""}</div></div>`;
 }
 
 /** Who a reply is from: the Assistant's glyph, or a Character's initial. */
@@ -351,7 +351,7 @@ export function renderReplyPeek(peek: { readonly who: { readonly name: string; r
     + `${iconButton("chevron-up", uiText.text("workbench.work-line.open-conversation"), { "data-dialog-open": "" })}</div><div class="work-reply-peek-body" role="status">${peek.body}</div></div>`;
 }
 
-/** Once the person has clicked the work surface the reply folds away: only the task mark and the way to open the dialog stay. */
+/** Once the person has clicked the work surface the reply folds away: only the task mark and the way to open the dialog stay, at the line's own right end (user decision 2026-11-15: on the line, never over the work). */
 export function renderReplyMini(taskMark: string): string {
   return `<div class="work-reply-mini" data-reply-mini>${taskMark}${iconButton("chevron-up", uiText.text("workbench.work-line.open-conversation"), { "data-dialog-open": "" })}</div>`;
 }

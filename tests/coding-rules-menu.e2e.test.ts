@@ -5,7 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
-import { CODING_COMPOSER, CODING_TAKEN, codingControl } from "./fixtures/coding-composer.js";
+import { CODING_COMPOSER, CODING_TAKEN, codingControl, codingControlsShown } from "./fixtures/coding-composer.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { asideReply } from "./fixtures/ending-review.js";
 
@@ -97,6 +97,7 @@ test("BCD-05 BCD-08 BCD-10 BCD-14 the rules menu shows what each round was given
     return bodies.at(-1)!;
   };
   const openMenu = async () => {
+    await b.evaluate(codingControlsShown);
     await b.click(RULES);
     await child.waitFor(`document.querySelector(${JSON.stringify(DIALOG)})?.open === true`);
     return child.evaluate<string>(`document.querySelector(${JSON.stringify(DIALOG)}).textContent.replace(/\\s+/g,' ')`);

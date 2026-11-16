@@ -66,7 +66,8 @@ test("WLN-37: a source that cannot be read is in the line's lead, outside what s
   const lines = whole.split('<div class="work-line" data-work-line').slice(1);
   assert.equal(lines.length, 4);
   for (const line of lines) {
-    assert.match(line, /^ role="region" aria-label="事项线"/u);
+    // The first line has the folded dialog row at its right end, and says so for its wing (data-mini).
+    assert.match(line, /^(?: data-mini)? role="region" aria-label="事项线"/u);
     const run = line.indexOf('class="work-line-run"');
     const earlier = line.indexOf("data-work-line-earlier");
     assert.ok(earlier > 0 && earlier < run, "the way back to earlier events stands before the run, after the head");

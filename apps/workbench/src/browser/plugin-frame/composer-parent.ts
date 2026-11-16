@@ -11,7 +11,7 @@ let scheduled = 0, watching: MutationObserver | null = null;
 /** Told once per frame, so a burst of changes (a tab switch hides one page and shows another) moves the bar once. */
 function changed(): void {
   if (scheduled) return;
-  scheduled = requestAnimationFrame(() => { scheduled = 0; globalThis.molisBarReceiverChanged?.(); });
+  scheduled = requestAnimationFrame(() => { scheduled = 0; globalThis.molisBarReceiverChanged?.(); globalThis.molisWorkBarPlace?.(); });
 }
 
 /** The page shown in the focused pane, if it takes words now (it names who they go to); else none, and the bar is the Assistant's. */
@@ -236,7 +236,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
   });
   const apply = () => {
     const where = JSON.stringify(snapshot?.column ?? null);
-    if (where !== placed) placed = where;
+    if (where !== placed) { placed = where; globalThis.molisWorkBarPlace?.(); }
     // A page that starts or stops naming a receiver (a session opened or closed) takes the bar or gives it back.
     if (Boolean(snapshot?.receiver) !== named) { named = !named; changed(); }
     if (!snapshot || !receiver) return;

@@ -5,11 +5,13 @@ import test from "node:test";
 import { ActionError, defineSubjectContextAction, objectLink, objectLinkAt, objectLinkTemplate, validActionResultView, type ActionCallContext, type ActionClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mainlineActions } from "@molis-ai/molis-work-contracts/services/mainline";
 import { openObject } from "@molis-ai/molis-work-service-mainline";
+import { installTextForTest, parseLocalePack } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 // specs/work-line/contract-design.md §7 (platform capability audit 2026-11-14, item 2): one writer of workbench addresses, and
 // one action that says where an object opens. WLN-11's 「打开」 and every later notification, reminder and search hit go through them.
 
 const root = path.resolve(import.meta.dirname, "..");
+const packOf = (file: string) => { const pack = parseLocalePack(readFileSync(path.join(root, file), "utf8"), { file }); assert.ok(pack.ok); return pack.value; };
 
 test("WLN-11 objectLink writes every workbench address: a place, an object by reference, and a result template with its placeholders as written", () => {
   assert.equal(objectLink("p 1", { surface: "pages", id: "d/1", title: "季度 计划" }), "/projects/p%201/?openPlugin=pages&openItem=d%2F1&openTitle=%E5%AD%A3%E5%BA%A6%20%E8%AE%A1%E5%88%92");
@@ -58,7 +60,9 @@ function clientOf(views: ActionView[], read: (subjectId: string) => unknown): { 
   return { calls, client };
 }
 
-test("WLN-11 objects.open@1 asks the owner's reader as the caller: its place is the target, an object without a page has none, and what the caller cannot read gives no place", async () => {
+test("WLN-11 objects.open@1 asks the owner's reader as the caller: its place is the target, an object without a page has none, and what the caller cannot read gives no place", async t => {
+  // The label is the host's own words, said in the reader's language (e42534c294): the reader's text is installed as a request installs it.
+  t.after(installTextForTest({ locale: "zh", packs: [packOf("apps/workbench/resources/locales/zh.json")] }));
   assert.deepEqual([mainlineActions.open.capability_id, mainlineActions.open.version, mainlineActions.open.action.effect, mainlineActions.open.action.audiences], ["objects.open", 1, "read", ["user", "agent", "workflow", "mcp"]]);
   const note = { subject: { kind: "note", id: "n1" }, revision: "3", title: "季度计划", content: "…", truncated: false };
   const paged = clientOf([reader("note"), reader("thing")], () => ({ ...note, open: { surface: "pages", id: "n1" } }));

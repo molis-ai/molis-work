@@ -11,6 +11,14 @@ const NEXT_RUN = '.work-line-wing[data-wing="next"] .work-line-run';
 const FADE = 24;
 /** The states worth saying about events out of sight: one needs the person, failed, or has a result to check. */
 const URGENT = new Set(["wait", "failed", "verify"]);
+/**
+ * What a size change sets off runs on the next frame, once however many sizes changed: each of these marks or measures what it
+ * watches (or what the work's own observers watch), and a change made while sizes are being delivered is a ResizeObserver loop.
+ */
+const nextFrame = (run: () => void): (() => void) => {
+  let frame = 0;
+  return () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; run(); }); };
+};
 
 /** A capsule that cannot hold its name whole drops its note first: the name and the state word say more. */
 function fitEvents(scope: ParentNode): void {
@@ -125,7 +133,7 @@ function installPastWing(run: HTMLElement): void {
     if (Math.abs(turned) < 48) return;
     go(beside(turned < 0 ? -1 : 1), "auto"); turned = 0;
   }, { passive: false });
-  settle(); new ResizeObserver(settle).observe(run);
+  settle(); new ResizeObserver(nextFrame(settle)).observe(run);
   // The line is drawn again into the same wing (a read brought other events): it settles as after a resize.
   new MutationObserver(settle).observe(run, { childList: true });
 }
@@ -133,7 +141,7 @@ function installPastWing(run: HTMLElement): void {
 function installNextWing(run: HTMLElement): void {
   // The edge that has more fades by the shared overflow fade (the run is marked data-overflow-fade); nothing is measured here for it.
   const settle = () => fitEvents(run);
-  settle(); new ResizeObserver(settle).observe(run);
+  settle(); new ResizeObserver(nextFrame(settle)).observe(run);
   new MutationObserver(settle).observe(run, { childList: true });
 }
 
@@ -154,7 +162,8 @@ function installTrack(track: HTMLElement): void {
     const lead = leadWidth();
     track.style.setProperty("--lead-width", `${lead}px`);
     // The event next to now is no wider than what the fixed lead and now leave of the track: it shows whole in any language.
-    track.style.setProperty("--near-max", `${Math.max(96, track.clientWidth - lead - now.offsetWidth - 24)}px`);
+    // Its floor is a mark and a short name: a track the folded dialog row shortens still keeps now in sight.
+    track.style.setProperty("--near-max", `${Math.max(72, track.clientWidth - lead - now.offsetWidth - 24)}px`);
     // No event is wider than the track beside the lead: each can rest whole at the lead's edge.
     track.style.setProperty("--cap-max", `${Math.max(96, track.clientWidth - lead - 8)}px`);
     const box = track.getBoundingClientRect(), nearest = track.querySelector<HTMLElement>(`${PAST_RUN} > :last-child`);
@@ -189,7 +198,7 @@ function installTrack(track: HTMLElement): void {
     const box = track.getBoundingClientRect(), at = item.getBoundingClientRect(), edge = box.left + leadWidth();
     if (at.left < edge - 1 || at.right > box.right + 1) track.scrollBy({ left: at.left - edge, behavior: "instant" });
   });
-  rest(); new ResizeObserver(rest).observe(track);
+  rest(); new ResizeObserver(nextFrame(rest)).observe(track);
   new MutationObserver(rest).observe(track, { childList: true, subtree: true });
 }
 
@@ -201,7 +210,7 @@ function installTabs(tabs: HTMLElement): void {
     if (tab.right > box.right) tabs.scrollLeft += tab.right - box.right + FADE;
     else if (tab.left < box.left) tabs.scrollLeft -= box.left - tab.left + FADE;
   };
-  rest(); new ResizeObserver(rest).observe(tabs);
+  rest(); new ResizeObserver(nextFrame(rest)).observe(tabs);
 }
 
 /**
@@ -216,7 +225,7 @@ function installFloat(float: HTMLElement): void {
   const frame = float.closest<HTMLElement>("[data-work-float-frame]");
   // The line may be drawn after the dialog: it is looked up at each placing, and watched once found.
   let line: HTMLElement | null = null;
-  const watch = new ResizeObserver(() => place());
+  const watch = new ResizeObserver(nextFrame(() => place()));
   const stop = () => { watch.disconnect(); window.removeEventListener("resize", place); };
   const place = (): void => {
     if (!float.isConnected || !dialog.isConnected) { stop(); return; }
@@ -262,9 +271,56 @@ function installRise(slot: HTMLElement): void {
     }
   };
   measure();
-  const watch = new ResizeObserver(measure);
+  // What it marks (the work surface yielding) resizes what the surface's own observers watch: measured on the next frame.
+  const watch = new ResizeObserver(nextFrame(measure));
   watch.observe(slot); watch.observe(row);
   window.addEventListener("resize", measure, { passive: true });
+}
+
+/**
+ * The input's least width where the line is one row (the sheet's narrowest middle column); what the next wing keeps (the folded
+ * dialog's mark and 展开对话, 72px, and the start of a capsule: the sheet's own floor under 1120px is none); a pane's inset.
+ */
+const LEAST_SLOT = 300, LEAST_NEXT = 120, INSET = 24;
+
+/**
+ * The input stands over the work, not over the window (UIV-19, which the line keeps: specs/work-line §10). Where the line is one
+ * row, the composer's column is centred on the focused pane, or on the conversation column the page in front names (that page
+ * then stands as wide as the input, `--mw-bar-column`), and never reaches past the work's right edge: an open side keeps it, and
+ * what rises above it, clear of the side. It keeps the width the sheet gives it while there is room; short of room it narrows down
+ * to the sheet's least, and then the left wing gives up its 420px. Where the line stands above the composer (or on a phone) the
+ * sheet's own layout stands. The page in front tells it when its column changes (`molisWorkBarPlace`).
+ */
+function installPlace(slot: HTMLElement): void {
+  const row = slot.parentElement, stage = document.querySelector<HTMLElement>("[data-plugin-stage]");
+  if (!row || !stage || !("ResizeObserver" in window)) return;
+  const pane = (): DOMRect | null => {
+    const box = (stage.querySelector<HTMLElement>(".tab-workspace-panes > [data-tab-pane].is-focused:not([hidden])") ?? stage).getBoundingClientRect();
+    return box.width > 0 ? box : null;
+  };
+  const place = (): void => {
+    row.removeAttribute("data-slot-placed"); row.style.removeProperty("--slot-columns");
+    const work = pane(), style = getComputedStyle(row);
+    if (!work || style.display !== "grid" || getComputedStyle(slot).gridRowStart !== "1") return;
+    const page = globalThis.molisBarReceivers?.front()?.column() ?? null;
+    const column = page && page.width > 0 ? page : { left: work.left + INSET, width: work.width - 2 * INSET };
+    const box = row.getBoundingClientRect(), gap = parseFloat(style.columnGap) || 0, natural = slot.getBoundingClientRect().width;
+    const least = Math.min(420, box.width * 0.4) + gap;
+    const most = Math.min(work.right - box.left, box.width - gap - LEAST_NEXT);
+    let width = Math.min(natural, column.width), left = column.left + column.width / 2 - width / 2 - box.left;
+    if (most - least >= width) left = Math.min(Math.max(left, least), most - width);
+    else { width = Math.max(LEAST_SLOT, Math.min(width, most - least)); left = Math.max(gap, most - width); }
+    row.style.setProperty("--slot-columns", `${Math.round(left - gap)}px ${Math.round(width)}px minmax(0,1fr)`);
+    row.setAttribute("data-slot-placed", "");
+  };
+  const soon = nextFrame(place);
+  const sizes = new ResizeObserver(soon);
+  sizes.observe(row); sizes.observe(stage);
+  // Panes split, close and take focus by class and children; the window moves the stage without resizing it.
+  new MutationObserver(soon).observe(stage, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "hidden"] });
+  window.addEventListener("resize", soon, { passive: true });
+  globalThis.molisWorkBarPlace = soon;
+  place();
 }
 
 const installed = new WeakSet<Element>();
@@ -282,5 +338,5 @@ export function installWorkLineLayout(root: ParentNode = document): void {
   each("[data-work-line-track]", installTrack);
   each(".assistant-tabs[data-work-tabs]", installTabs);
   each("[data-work-task-float]", installFloat);
-  each(".work-line-slot", installRise);
+  each(".work-line-slot", (slot) => { installRise(slot); installPlace(slot); });
 }

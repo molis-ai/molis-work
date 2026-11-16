@@ -55,6 +55,8 @@ export function installAcceptance(route: (path: string) => string, request: UiRe
     const now = open ? known.get(open) : undefined;
     if (now && column.hidden) place();
     column.hidden = !now; document.body.dataset.acceptanceOpen = String(Boolean(now));
+    if (now?.view.review_reference) { column.dataset.reviewReference = now.view.review_reference.id; column.dataset.reviewVersion = now.view.review_reference.version; }
+    else { delete column.dataset.reviewReference; delete column.dataset.reviewVersion; }
     const html = now ? renderRequirementColumn(now.view, ui) : "";
     if (html === drawn) return;
     // A redraw keeps the place in the list: an answer to the fifth item does not throw the person back to the first.

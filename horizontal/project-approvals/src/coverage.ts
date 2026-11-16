@@ -7,7 +7,7 @@ import { tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 const invalid = () => new ActionError("actions.input_invalid", "审查的要求或证据无法对应到原目标和版本");
 const key = (value: unknown): value is string => typeof value === "string" && value.length <= 2800 && value.trim().length > 0;
 const same = (a: unknown, b: unknown) => canonicalJsonText(a) === canonicalJsonText(b);
-type Owner = Extract<ReviewTarget["owner"], { kind: "plugin"; scope: "project" }>;
+type Owner = Extract<ReviewTarget["owner"], { scope: "project" }>;
 type ReadDecision = (id: string) => ProjectTrustedDecision | null;
 
 function reviewTarget(value: unknown, owner: Owner): ReviewTarget {
@@ -20,7 +20,12 @@ function reference(value: unknown, projectId: string): ReviewDecisionReference {
   if (!isRecord(value) || !key(value.decision_id) || !isRecord(value.reference) || !key(value.reference.id) || !key(value.reference.version)
     || !isRecord(value.reference.owner)) throw invalid();
   const { owner, id, version } = value.reference;
-  if (owner.project_id !== projectId || !key(owner.plugin_id) || !key(owner.install_id)) throw invalid();
+  if (owner.project_id !== projectId) throw invalid();
+  if (owner.kind === "trusted-decision" && owner.scope === "project" && key(owner.provider_id) && !("plugin_id" in owner)) return {
+    decision_id: value.decision_id,
+    reference: { owner: { kind: "trusted-decision", scope: "project", project_id: projectId, provider_id: owner.provider_id }, id, version },
+  };
+  if (!key(owner.plugin_id) || !key(owner.install_id)) throw invalid();
   const base = { project_id: projectId, plugin_id: owner.plugin_id, install_id: owner.install_id };
   if (owner.kind === "trusted-decision" && owner.scope === "project" && key(owner.installation_generation)) return {
     decision_id: value.decision_id, reference: { owner: { ...base, kind: "trusted-decision", scope: "project",
@@ -68,7 +73,9 @@ function readRequirements(values: unknown, owner: Owner, read?: ReadDecision): R
 export function assertProjectReviewCoverage(value: unknown, owner: ProjectTrustedDecision["reference"]["owner"]): ProjectReviewCoverage {
   if (!isRecord(value) || !Array.isArray(value.requirements) || value.requirements.length > 100) throw invalid();
   if (!isRecord(value.target) || !isRecord(value.target.owner) || !key(value.target.owner.provider_id)) throw invalid();
-  const targetOwner: Owner = { ...owner, kind: "plugin", provider_id: value.target.owner.provider_id };
+  const targetOwner: Owner = "plugin_id" in owner
+    ? { ...owner, kind: "plugin", provider_id: value.target.owner.provider_id }
+    : { kind: "system", scope: "project", project_id: owner.project_id, provider_id: owner.provider_id };
   const target = reviewTarget(value.target, targetOwner);
   const requirements = value.requirements.map((row: unknown) => {
     if (!isRecord(row) || (row.disposition !== "accepted" && row.disposition !== "returned")) throw invalid();
@@ -87,9 +94,10 @@ export function reviewRequirementCoverage(requirements: readonly ReviewRequireme
 }
 
 function choiceText(value: unknown, owner: Owner, stored: boolean) {
-  if (!stored || !isRecord(value) || !Object.hasOwn(value, "owner")) return tryOwnedTextRef(value, owner.plugin_id);
+  const textOwner = owner.kind === "plugin" ? owner.plugin_id : owner.provider_id;
+  if (!stored || !isRecord(value) || !Object.hasOwn(value, "owner")) return tryOwnedTextRef(value, textOwner);
   const { owner: _owner, ...declared } = value;
-  const bound = tryOwnedTextRef(declared, owner.plugin_id);
+  const bound = tryOwnedTextRef(declared, textOwner);
   return same(bound, value) ? bound : null;
 }
 
@@ -127,7 +135,7 @@ export function projectReviewPresentation(value: unknown, owner: Owner, read?: R
 export function assertFrozenProjectReview(value: unknown, coverage: ProjectReviewCoverage, choiceId: string, actorId: string) {
   if (value === undefined) return;
   const { owner } = coverage.target;
-  if (owner.kind !== "plugin" || owner.scope !== "project" || (canonicalJsonText(value)?.length ?? 100_001) > 100_000) throw invalid();
+  if ((owner.kind !== "plugin" && owner.kind !== "system") || owner.scope !== "project" || (canonicalJsonText(value)?.length ?? 100_001) > 100_000) throw invalid();
   const presentation = projectReviewPresentation(value, owner);
   const choice = presentation.choices.find(item => item.id === choiceId);
   if (!same(value, presentation) || !choice?.availability.available || (presentation.approver.actor_id && presentation.approver.actor_id !== actorId)

@@ -37,9 +37,23 @@ export function projectReviewForWrite(projectId: string | undefined, instance: P
   if (scope?.definition.action.requires_trusted_decision !== true) return;
   if (!inPluginInstance(scope, instance)) throw new ActionError("actions.forbidden", "本次项目决定属于原动作和安装");
   const held = reservations.get(scope.caller);
-  if (!projectId || !held || held.command.reference.owner.project_id !== projectId
+  if (!projectId || !held || !("install_id" in held.command.reference.owner)
+    || held.command.reference.owner.project_id !== projectId
     || held.command.reference.owner.installation_generation !== instance.installation_generation
     || held.command.reference.owner.install_id !== instance.install_id) throw new ActionError("actions.forbidden", "原本人决定已失效");
   requireSynchronous(scope.caller.assert_authority_current?.());
   return { ...held, row: scope.definition.action.trusted_decision_row };
+}
+
+export function projectReviewForSystemWrite(caller: ActionExecutionContext, projectId: string, providerId: string) {
+  const held = reservations.get(caller);
+  if (!held || "install_id" in held.command.reference.owner
+    || held.command.reference.owner.project_id !== projectId
+    || held.command.reference.owner.provider_id !== providerId) throw new ActionError("actions.forbidden", "原本人决定已失效");
+  requireSynchronous(caller.assert_authority_current?.());
+  return {
+    held,
+    submit: () => markTrustedDecisionSubmitted(caller),
+    rolledBack: () => markTrustedDecisionRolledBack(caller),
+  };
 }

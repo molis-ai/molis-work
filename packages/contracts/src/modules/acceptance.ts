@@ -1,6 +1,6 @@
 import { inputSchemaFor } from "../platform/action-input.js";
 import { ACTION_SUBJECT_SCHEMA, defineErrorCodes, type ActionDefinition, type ActionSubject } from "../platform/actions.js";
-import type { ReviewEvidence } from "../platform/reviews.js";
+import { REVIEW_REFERENCE_SCHEMA, type ReviewEvidence, type ReviewOwner, type ReviewReference } from "../platform/reviews.js";
 
 /**
  * Requirements, what was delivered against them, how each was checked and what the person decided (specs/proactive-assistant §7.3.1,
@@ -19,6 +19,21 @@ export const ACCEPTANCE_REQUIREMENT_MAX = 40;
 export const ACCEPTANCE_EVIDENCE_MAX = 8;
 /** Objects one read answers for: a page reads every card it shows in one call. */
 export const ACCEPTANCE_READ_MAX = 32;
+export const ACCEPTANCE_REVIEW_SUBJECT_KINDS = ["acceptance_subject", "acceptance_requirement", "acceptance_check"] as const;
+
+/** The canonical request identifier for an object's acceptance review on the platform's trusted-decision entry (APR-15, APR-16). */
+export function acceptanceRequestId(subject: AcceptanceSubject): string {
+  return `${encodeURIComponent(subject.provider_id.trim())}/${encodeURIComponent(subject.subject.kind.trim())}/${encodeURIComponent(subject.subject.id.trim())}`;
+}
+
+export function parseAcceptanceRequestId(requestId: string): AcceptanceSubject | null {
+  const parts = requestId.split("/");
+  if (parts.length !== 3) return null;
+  try {
+    const [provider_id, kind, id] = parts.map(part => decodeURIComponent(part).trim()) as [string, string, string];
+    return provider_id && kind && id ? { provider_id, subject: { kind, id } } : null;
+  } catch { return null; }
+}
 
 /** The object requirements hang on: whose it is and which one. The record is kept per project; the object stays with its owner. */
 export interface AcceptanceSubject { provider_id: string; subject: ActionSubject }
@@ -120,6 +135,8 @@ export interface AcceptanceView {
   complete: boolean;
   /** What the current round changed, as its deliverer said: only on a second or later delivery. */
   changes: { summary: string | null; touched: string[] } | null;
+  /** The canonical review reference of the current delivered state, shared by the acceptance card and the decision request card (APR-16). */
+  review_reference?: ReviewReference<ReviewOwner>;
 }
 
 export interface AcceptanceSetRequest { subject: AcceptanceSubject; requirements: AcceptanceRequirementInput[] }
@@ -142,6 +159,10 @@ export interface AcceptanceDecideRequest {
   version: string;
   accepts: Array<{ id: string; version: number }>;
   returns: Array<{ id: string; version: number; note: string }>;
+}
+export interface AcceptanceReviewRequest {
+  request_id: string;
+  draft?: Readonly<Record<string, unknown>>;
 }
 
 export const acceptanceErrors = defineErrorCodes("acceptance", {
@@ -177,7 +198,8 @@ const REPORT = { type: "object", properties: { requirement_id: id, verdict: { en
 const ITEM = { type: "object", properties: { id, version: { type: "integer", minimum: 1 } }, required: ["id", "version"], additionalProperties: false } as const;
 /** The view is the owner's projection; a consumer reads it whole. */
 const VIEW = { type: "object", properties: { subject: SUBJECT, version: { type: ["string", "null"] }, round: { type: "integer", minimum: 0 }, requirements: { type: "array", items: { type: "object" } },
-  counts: { type: "object" }, complete: { type: "boolean" }, changes: { type: ["object", "null"] } }, required: ["subject", "version", "round", "requirements", "counts", "complete", "changes"], additionalProperties: false } as const;
+  counts: { type: "object" }, complete: { type: "boolean" }, changes: { type: ["object", "null"] }, review_reference: REVIEW_REFERENCE_SCHEMA }, required: ["subject", "version", "round", "requirements", "counts", "complete", "changes"], additionalProperties: false } as const;
+const REVIEW_INPUT = { type: "object", properties: { request_id: text(240), draft: { type: "object" } }, required: ["request_id"], additionalProperties: false } as const;
 
 const metadata = { scope: "project" as const, scheduling: "concurrent" as const, subject_kinds: [] };
 export const acceptanceActions = {
@@ -201,8 +223,13 @@ export const acceptanceActions = {
     kind: "query", effect: "read", audiences: ["user", "agent", "workflow"], permissions: [ACCEPTANCE_READ_PERMISSION],
     input_schema: inputSchemaFor<AcceptanceReadRequest>()({ type: "object", properties: { subjects: { type: "array", minItems: 1, maxItems: ACCEPTANCE_READ_MAX, items: SUBJECT } }, required: ["subjects"], additionalProperties: false } as const),
     output_schema: { type: "object", properties: { views: { type: "array", items: VIEW } }, required: ["views"], additionalProperties: false } } } as ActionDefinition<AcceptanceReadRequest, AcceptanceReadResult>,
-  decide: { capability_id: "acceptance.decide", version: /* @version action.acceptance.decide */ 1, operation: "command", action: { ...metadata,
-    title: "认可或退回各项要求", description: "用户本人对列出的要求逐项认可或退回（退回要写原因），一次可以定多项。每项写明所针对的要求版本和正在看的交付版本；其中任何一项在显示之后变过，整次决定不生效。没列出的要求不受影响。",
+  review: { capability_id: "acceptance.review", version: /* @version action.acceptance.review */ 1, operation: "query", action: { ...metadata, subject_kinds: [...ACCEPTANCE_REVIEW_SUBJECT_KINDS],
+    title: "查看交付要求的待审状态与选项", description: "读取一件已交付对象的各项要求、依据、延续认可和当前可决定的选项，供受保护可信决定入口与双卡引用共用；只读。",
+    kind: "query", effect: "read", audiences: ["user"], permissions: [ACCEPTANCE_READ_PERMISSION],
+    input_schema: inputSchemaFor<AcceptanceReviewRequest>()(REVIEW_INPUT), output_schema: { type: "object" } } } as ActionDefinition<AcceptanceReviewRequest, object>,
+  decide: { capability_id: "acceptance.decide", version: /* @version action.acceptance.decide */ 1, operation: "command", action: { ...metadata, subject_kinds: [...ACCEPTANCE_REVIEW_SUBJECT_KINDS],
+    requires_trusted_decision: true, trusted_decision_request: { capability_id: "acceptance.review", version: 1 },
+    title: "认可或退回各项要求", description: "用户本人经受保护可信决定入口对列出的要求逐项认可或退回（退回要写原因），一次可以定多项。每项写明所针对的要求版本和正在看的交付版本；其中任何一项在显示之后变过，整次决定不生效。没列出的要求不受影响。",
     kind: "operation", effect: "write", audiences: ["user"], permissions: [ACCEPTANCE_DECIDE_PERMISSION],
     input_schema: inputSchemaFor<AcceptanceDecideRequest>()({ type: "object", properties: { subject: SUBJECT, version: id, accepts: { type: "array", maxItems: ACCEPTANCE_REQUIREMENT_MAX, items: ITEM },
       returns: { type: "array", maxItems: ACCEPTANCE_REQUIREMENT_MAX, items: { ...ITEM, properties: { ...ITEM.properties, note: text(2000) }, required: ["id", "version", "note"] } } },

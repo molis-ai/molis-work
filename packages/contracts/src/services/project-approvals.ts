@@ -50,9 +50,16 @@ export interface TrustedReviewOffer {
 }
 
 const id = { type: "string", minLength: 1, maxLength: 240, pattern: "\\S" } as const;
-const projectOwner = { type: "object", properties: { kind: { const: "trusted-decision" }, project_id: id,
-  scope: { const: "project" }, plugin_id: id, install_id: id, installation_generation: id },
-  required: ["kind", "project_id", "scope", "plugin_id", "install_id", "installation_generation"], additionalProperties: false } as const;
+const projectOwner = {
+  oneOf: [
+    { type: "object", properties: { kind: { const: "trusted-decision" }, project_id: id,
+      scope: { const: "project" }, plugin_id: id, install_id: id, installation_generation: id },
+      required: ["kind", "project_id", "scope", "plugin_id", "install_id", "installation_generation"], additionalProperties: false },
+    { type: "object", properties: { kind: { const: "trusted-decision" }, project_id: id,
+      scope: { const: "project" }, provider_id: id },
+      required: ["kind", "project_id", "scope", "provider_id"], additionalProperties: false },
+  ],
+} as const;
 const reference = { type: "object", properties: { owner: projectOwner, id: { ...id, maxLength: 2800 }, version: id },
   required: ["owner", "id", "version"], additionalProperties: false } as const;
 export const TRUSTED_REVIEW_COMMAND_SCHEMA = { type: "object", properties: {

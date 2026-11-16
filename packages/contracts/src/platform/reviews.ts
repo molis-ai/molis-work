@@ -16,11 +16,32 @@ type AgentReviewOwner = {
   readonly install_id: string;
 };
 
-/** The installation that owns a request, pinned by the platform once for the life of that request. */
-export type ReviewOwner = AgentReviewOwner | {
+/** The installation or system provider that owns a request, pinned by the platform once for the life of that request. */
+export type ReviewOwner = AgentReviewOwner | ({
   readonly kind: "trusted-decision";
   readonly project_id: string;
-} & StageSceneMetadataAuthority["owner"];
+} & (
+  | StageSceneMetadataAuthority["owner"]
+  | { readonly scope: "project"; readonly provider_id: string }
+));
+
+const reviewIdField = { type: "string", minLength: 1, maxLength: 240, pattern: "\\S" } as const;
+export const REVIEW_OWNER_SCHEMA = {
+  oneOf: [
+    { type: "object", properties: { kind: { enum: ["agent-review", "goal-acceptance"] }, project_id: reviewIdField, plugin_id: reviewIdField, install_id: reviewIdField },
+      required: ["kind", "project_id", "plugin_id", "install_id"], additionalProperties: false },
+    { type: "object", properties: { kind: { const: "trusted-decision" }, project_id: reviewIdField, scope: { enum: ["home", "project"] }, plugin_id: reviewIdField, install_id: reviewIdField, installation_generation: reviewIdField },
+      required: ["kind", "project_id", "scope", "plugin_id", "install_id", "installation_generation"], additionalProperties: false },
+    { type: "object", properties: { kind: { const: "trusted-decision" }, project_id: reviewIdField, scope: { const: "project" }, provider_id: reviewIdField },
+      required: ["kind", "project_id", "scope", "provider_id"], additionalProperties: false },
+  ],
+} as const;
+export const REVIEW_REFERENCE_SCHEMA = {
+  type: "object",
+  properties: { owner: REVIEW_OWNER_SCHEMA, id: { ...reviewIdField, maxLength: 2800 }, version: reviewIdField },
+  required: ["owner", "id", "version"],
+  additionalProperties: false,
+} as const;
 
 /** A reference routes a review to its fact owner; it is never permission to decide or execute. */
 export interface ReviewReference<Owner extends ReviewOwner = AgentReviewOwner> {

@@ -83,7 +83,7 @@ export const assistantReviewDisplay = (review: AssistantPendingReview) => displa
 export function projectAssistantReview(request: AgentReviewRequest, titleOf: (value: string) => string | null, decisions: AgentReviewDecisions): AssistantPendingReview {
   const { document } = request, change = document.kind === "text-edit" ? changedMiddle(document.before_text, document.after_text) : undefined;
   const raw = describeReview(document, change), display = displayReview(document, raw, change, titleOf);
-  const pending = { review_id: request.review_id, version: request.reference.version, decisions, kind: document.kind, run_id: request.run?.run_id ?? null, ...raw,
+  const pending: AssistantPendingReview = { review_id: request.review_id, version: request.reference.version, reference: request.reference, decisions, kind: document.kind, run_id: request.run?.run_id ?? null, ...raw,
     requested_at: request.requested_at, expires_at: request.expires_at };
   displays.set(pending, display);
   return pending;

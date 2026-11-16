@@ -17,7 +17,10 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 const missing = () => new ActionError("actions.missing", "找不到当前项目和原安装的决定请求");
 const stale = () => new ActionError("actions.conflict", "待审对象、范围或选项已变化，请重新查看");
 const fullId = (owner: TrustedReviewReference["owner"], action: ExactActionReference, requestId: string, roundId?: string) =>
-  JSON.stringify([owner.install_id, owner.installation_generation, action.capability_id, action.version, action.provider_id, requestId, ...(roundId ? [roundId] : [])]);
+  JSON.stringify([
+    ...("install_id" in owner ? [owner.install_id, owner.installation_generation] : ["system", owner.provider_id]),
+    action.capability_id, action.version, action.provider_id, requestId, ...(roundId ? [roundId] : []),
+  ]);
 const same = (left: unknown, right: unknown) => canonicalJsonText(left) === canonicalJsonText(right);
 const draftLifetime = 10 * 60_000;
 const drafts = new WeakMap<MolisWorkLocalHost, Map<string, { project: string; actor: string; lookup: TrustedReviewLookup; expires: number }>>();
@@ -28,7 +31,13 @@ export interface ProtectedReviewEntry {
   assertCurrent(): void;
 }
 
-export async function readProjectReview(host: MolisWorkLocalHost, project: LocalHostProjectReference, input: unknown, entry: ProtectedReviewEntry): Promise<ReviewRequest> {
+export interface ReadReviewEntry {
+  readonly caller: ActionCallContext;
+  readonly action?: ActionUserAction;
+  assertCurrent(): void;
+}
+
+export async function readProjectReview(host: MolisWorkLocalHost, project: LocalHostProjectReference, input: unknown, entry: ReadReviewEntry): Promise<ReviewRequest> {
   assertActionInput(TRUSTED_REVIEW_READ_SCHEMA, input);
   const read = input as TrustedReviewRead;
   if ("reference" in read) return readByReference(host, project, read.reference, entry);
@@ -40,7 +49,7 @@ export async function readProjectReview(host: MolisWorkLocalHost, project: Local
   return presentReview(held, record);
 }
 
-async function readByReference(host: MolisWorkLocalHost, project: LocalHostProjectReference, reference: TrustedReviewReference, entry: ProtectedReviewEntry) {
+async function readByReference(host: MolisWorkLocalHost, project: LocalHostProjectReference, reference: TrustedReviewReference, entry: ReadReviewEntry) {
   if (reference.owner.project_id !== project.project_id) throw missing();
   const locator = reviewLookup(reference);
   const registered = await holdCommand(host, project, locator, entry);
@@ -170,15 +179,31 @@ export async function decideProjectReview(host: MolisWorkLocalHost, project: Loc
   }));
 }
 
-async function holdCommand(host: MolisWorkLocalHost, project: LocalHostProjectReference, lookup: TrustedReviewLookup, entry: ProtectedReviewEntry) {
+async function holdCommand(host: MolisWorkLocalHost, project: LocalHostProjectReference, lookup: TrustedReviewLookup, entry: ReadReviewEntry) {
   entry.assertCurrent();
-  const caller: ActionCallContext = { ...entry.caller, actor_kind: "user", user_action: entry.action };
+  const caller: ActionCallContext = { ...entry.caller, actor_kind: "user", ...(entry.action ? { user_action: entry.action } : {}) };
   const rows = host.inspectActionMetadata(caller, project);
   const row = rows.find(view => view.capability_id === lookup.action.capability_id && view.version === lookup.action.version
-    && view.provider.provider_id === lookup.action.provider_id && view.provider.project_id === project.project_id && view.provider.kind === "plugin"
+    && view.provider.provider_id === lookup.action.provider_id && view.action.scope === "project"
+    && (view.provider.kind === "system" || view.provider.project_id === project.project_id && view.provider.kind === "plugin")
     && view.action.requires_trusted_decision === true);
-  if (!row?.provider.plugin_id || !row.provider.plugin_install_id || !row.action.trusted_decision_request) throw missing();
+  if (!row?.action.trusted_decision_request) throw missing();
   const reader = { ...row.action.trusted_decision_request, provider_id: row.provider.provider_id };
+  if (row.provider.kind === "system") {
+    const related = rows.find(view => view.capability_id === reader.capability_id && view.version === reader.version
+      && view.provider.provider_id === reader.provider_id && view.provider.kind === "system");
+    if (!related) throw missing();
+    const owner = { kind: "trusted-decision", scope: "project", project_id: project.project_id, provider_id: row.provider.provider_id } as const;
+    const preparedReader = host.prepareActionReview(caller, { ...related, availability: { available: true } },
+      { request_id: lookup.request_id }, project, lookup.action);
+    const assertCurrent = () => { entry.assertCurrent(); preparedReader.assertCurrent(); };
+    await preparedReader.beforeEffect();
+    assertCurrent();
+    const targetOwner = { kind: "system", scope: "project", project_id: project.project_id, provider_id: reader.provider_id } as const;
+    return { caller, definition: { ...row, availability: { available: true as const } }, reader, owner,
+      targetOwner, publisherSignature: `system:${row.provider.provider_id}`, assertCurrent };
+  }
+  if (!row.provider.plugin_id || !row.provider.plugin_install_id) throw missing();
   const related = rows.find(view => view.capability_id === reader.capability_id && view.version === reader.version
     && view.provider.provider_id === reader.provider_id && view.provider.plugin_install_id === row.provider.plugin_install_id);
   if (!related) throw missing();
@@ -202,7 +227,7 @@ async function holdCommand(host: MolisWorkLocalHost, project: LocalHostProjectRe
     targetOwner, publisherSignature: install.publisher_signature, assertCurrent };
 }
 
-async function loadOffer(host: MolisWorkLocalHost, project: LocalHostProjectReference, lookup: TrustedReviewLookup, entry: ProtectedReviewEntry,
+async function loadOffer(host: MolisWorkLocalHost, project: LocalHostProjectReference, lookup: TrustedReviewLookup, entry: ReadReviewEntry,
   existing?: Awaited<ReturnType<typeof holdCommand>>) {
   const held = existing ?? await holdCommand(host, project, lookup, entry);
   const { rules, decisions } = await host.withProject(project, ({ store }) => ({
@@ -273,15 +298,17 @@ function reviewOffer(value: unknown, kinds: readonly string[], owner: Parameters
 function reviewLookup(reference: TrustedReviewReference): TrustedReviewLookup {
   let parts: unknown;
   try { parts = JSON.parse(reference.id); } catch { throw missing(); }
-  if (!Array.isArray(parts) || (parts.length !== 6 && parts.length !== 7)
-    || parts[0] !== reference.owner.install_id || parts[1] !== reference.owner.installation_generation) throw missing();
+  const ownerMatches = Array.isArray(parts) && ("install_id" in reference.owner
+    ? parts[0] === reference.owner.install_id && parts[1] === reference.owner.installation_generation
+    : parts[0] === "system" && parts[1] === reference.owner.provider_id);
+  if (!Array.isArray(parts) || (parts.length !== 6 && parts.length !== 7) || !ownerMatches) throw missing();
   const [, , capability_id, version, provider_id, request_id] = parts;
   const lookup = { action: { capability_id, version, provider_id }, request_id };
   assertActionInput(TRUSTED_REVIEW_LOOKUP_SCHEMA, lookup);
   return lookup;
 }
 
-async function inReviewLibrary<T>(host: MolisWorkLocalHost, project: LocalHostProjectReference, entry: ProtectedReviewEntry,
+async function inReviewLibrary<T>(host: MolisWorkLocalHost, project: LocalHostProjectReference, entry: ReadReviewEntry,
   read: (decisions: ReturnType<typeof projectReviewDecisions>) => T): Promise<T> {
   return host.withProject(project, runtime => { entry.assertCurrent(); return read(projectReviewDecisions(runtime.store.db, project.project_id)); });
 }

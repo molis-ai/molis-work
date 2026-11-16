@@ -1179,6 +1179,115 @@ export declare const BACKGROUND_TASK_COLLECTION_SCHEMA: {
                                     maxLength: number;
                                     type: string;
                                 };
+                                reference: {
+                                    readonly type: "object";
+                                    readonly properties: {
+                                        readonly owner: {
+                                            readonly oneOf: readonly [{
+                                                readonly type: "object";
+                                                readonly properties: {
+                                                    readonly kind: {
+                                                        readonly enum: readonly ["agent-review", "goal-acceptance"];
+                                                    };
+                                                    readonly project_id: {
+                                                        readonly type: "string";
+                                                        readonly minLength: 1;
+                                                        readonly maxLength: 240;
+                                                        readonly pattern: "\\S";
+                                                    };
+                                                    readonly plugin_id: {
+                                                        readonly type: "string";
+                                                        readonly minLength: 1;
+                                                        readonly maxLength: 240;
+                                                        readonly pattern: "\\S";
+                                                    };
+                                                    readonly install_id: {
+                                                        readonly type: "string";
+                                                        readonly minLength: 1;
+                                                        readonly maxLength: 240;
+                                                        readonly pattern: "\\S";
+                                                    };
+                                                };
+                                                readonly required: readonly ["kind", "project_id", "plugin_id", "install_id"];
+                                                readonly additionalProperties: false;
+                                            }, {
+                                                readonly type: "object";
+                                                readonly properties: {
+                                                    readonly kind: {
+                                                        readonly const: "trusted-decision";
+                                                    };
+                                                    readonly project_id: {
+                                                        readonly type: "string";
+                                                        readonly minLength: 1;
+                                                        readonly maxLength: 240;
+                                                        readonly pattern: "\\S";
+                                                    };
+                                                    readonly scope: {
+                                                        readonly enum: readonly ["home", "project"];
+                                                    };
+                                                    readonly plugin_id: {
+                                                        readonly type: "string";
+                                                        readonly minLength: 1;
+                                                        readonly maxLength: 240;
+                                                        readonly pattern: "\\S";
+                                                    };
+                                                    readonly install_id: {
+                                                        readonly type: "string";
+                                                        readonly minLength: 1;
+                                                        readonly maxLength: 240;
+                                                        readonly pattern: "\\S";
+                                                    };
+                                                    readonly installation_generation: {
+                                                        readonly type: "string";
+                                                        readonly minLength: 1;
+                                                        readonly maxLength: 240;
+                                                        readonly pattern: "\\S";
+                                                    };
+                                                };
+                                                readonly required: readonly ["kind", "project_id", "scope", "plugin_id", "install_id", "installation_generation"];
+                                                readonly additionalProperties: false;
+                                            }, {
+                                                readonly type: "object";
+                                                readonly properties: {
+                                                    readonly kind: {
+                                                        readonly const: "trusted-decision";
+                                                    };
+                                                    readonly project_id: {
+                                                        readonly type: "string";
+                                                        readonly minLength: 1;
+                                                        readonly maxLength: 240;
+                                                        readonly pattern: "\\S";
+                                                    };
+                                                    readonly scope: {
+                                                        readonly const: "project";
+                                                    };
+                                                    readonly provider_id: {
+                                                        readonly type: "string";
+                                                        readonly minLength: 1;
+                                                        readonly maxLength: 240;
+                                                        readonly pattern: "\\S";
+                                                    };
+                                                };
+                                                readonly required: readonly ["kind", "project_id", "scope", "provider_id"];
+                                                readonly additionalProperties: false;
+                                            }];
+                                        };
+                                        readonly id: {
+                                            readonly maxLength: 2800;
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                            readonly pattern: "\\S";
+                                        };
+                                        readonly version: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                            readonly maxLength: 240;
+                                            readonly pattern: "\\S";
+                                        };
+                                    };
+                                    readonly required: readonly ["owner", "id", "version"];
+                                    readonly additionalProperties: false;
+                                };
                                 ask: {
                                     maxLength: number;
                                     minLength: number;
@@ -1325,6 +1434,115 @@ export declare const BACKGROUND_TASK_DECISION_SCHEMA: {
             minLength: number;
             maxLength: number;
             type: string;
+        };
+        reference: {
+            readonly type: "object";
+            readonly properties: {
+                readonly owner: {
+                    readonly oneOf: readonly [{
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly kind: {
+                                readonly enum: readonly ["agent-review", "goal-acceptance"];
+                            };
+                            readonly project_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly maxLength: 240;
+                                readonly pattern: "\\S";
+                            };
+                            readonly plugin_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly maxLength: 240;
+                                readonly pattern: "\\S";
+                            };
+                            readonly install_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly maxLength: 240;
+                                readonly pattern: "\\S";
+                            };
+                        };
+                        readonly required: readonly ["kind", "project_id", "plugin_id", "install_id"];
+                        readonly additionalProperties: false;
+                    }, {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly kind: {
+                                readonly const: "trusted-decision";
+                            };
+                            readonly project_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly maxLength: 240;
+                                readonly pattern: "\\S";
+                            };
+                            readonly scope: {
+                                readonly enum: readonly ["home", "project"];
+                            };
+                            readonly plugin_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly maxLength: 240;
+                                readonly pattern: "\\S";
+                            };
+                            readonly install_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly maxLength: 240;
+                                readonly pattern: "\\S";
+                            };
+                            readonly installation_generation: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly maxLength: 240;
+                                readonly pattern: "\\S";
+                            };
+                        };
+                        readonly required: readonly ["kind", "project_id", "scope", "plugin_id", "install_id", "installation_generation"];
+                        readonly additionalProperties: false;
+                    }, {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly kind: {
+                                readonly const: "trusted-decision";
+                            };
+                            readonly project_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly maxLength: 240;
+                                readonly pattern: "\\S";
+                            };
+                            readonly scope: {
+                                readonly const: "project";
+                            };
+                            readonly provider_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly maxLength: 240;
+                                readonly pattern: "\\S";
+                            };
+                        };
+                        readonly required: readonly ["kind", "project_id", "scope", "provider_id"];
+                        readonly additionalProperties: false;
+                    }];
+                };
+                readonly id: {
+                    readonly maxLength: 2800;
+                    readonly type: "string";
+                    readonly minLength: 1;
+                    readonly pattern: "\\S";
+                };
+                readonly version: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                    readonly maxLength: 240;
+                    readonly pattern: "\\S";
+                };
+            };
+            readonly required: readonly ["owner", "id", "version"];
+            readonly additionalProperties: false;
         };
         ask: {
             maxLength: number;
@@ -1559,6 +1777,115 @@ export declare const BACKGROUND_TASK_SCHEMA: {
                         maxLength: number;
                         type: string;
                     };
+                    reference: {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly owner: {
+                                readonly oneOf: readonly [{
+                                    readonly type: "object";
+                                    readonly properties: {
+                                        readonly kind: {
+                                            readonly enum: readonly ["agent-review", "goal-acceptance"];
+                                        };
+                                        readonly project_id: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                            readonly maxLength: 240;
+                                            readonly pattern: "\\S";
+                                        };
+                                        readonly plugin_id: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                            readonly maxLength: 240;
+                                            readonly pattern: "\\S";
+                                        };
+                                        readonly install_id: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                            readonly maxLength: 240;
+                                            readonly pattern: "\\S";
+                                        };
+                                    };
+                                    readonly required: readonly ["kind", "project_id", "plugin_id", "install_id"];
+                                    readonly additionalProperties: false;
+                                }, {
+                                    readonly type: "object";
+                                    readonly properties: {
+                                        readonly kind: {
+                                            readonly const: "trusted-decision";
+                                        };
+                                        readonly project_id: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                            readonly maxLength: 240;
+                                            readonly pattern: "\\S";
+                                        };
+                                        readonly scope: {
+                                            readonly enum: readonly ["home", "project"];
+                                        };
+                                        readonly plugin_id: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                            readonly maxLength: 240;
+                                            readonly pattern: "\\S";
+                                        };
+                                        readonly install_id: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                            readonly maxLength: 240;
+                                            readonly pattern: "\\S";
+                                        };
+                                        readonly installation_generation: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                            readonly maxLength: 240;
+                                            readonly pattern: "\\S";
+                                        };
+                                    };
+                                    readonly required: readonly ["kind", "project_id", "scope", "plugin_id", "install_id", "installation_generation"];
+                                    readonly additionalProperties: false;
+                                }, {
+                                    readonly type: "object";
+                                    readonly properties: {
+                                        readonly kind: {
+                                            readonly const: "trusted-decision";
+                                        };
+                                        readonly project_id: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                            readonly maxLength: 240;
+                                            readonly pattern: "\\S";
+                                        };
+                                        readonly scope: {
+                                            readonly const: "project";
+                                        };
+                                        readonly provider_id: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                            readonly maxLength: 240;
+                                            readonly pattern: "\\S";
+                                        };
+                                    };
+                                    readonly required: readonly ["kind", "project_id", "scope", "provider_id"];
+                                    readonly additionalProperties: false;
+                                }];
+                            };
+                            readonly id: {
+                                readonly maxLength: 2800;
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly pattern: "\\S";
+                            };
+                            readonly version: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly maxLength: 240;
+                                readonly pattern: "\\S";
+                            };
+                        };
+                        readonly required: readonly ["owner", "id", "version"];
+                        readonly additionalProperties: false;
+                    };
                     ask: {
                         maxLength: number;
                         minLength: number;
@@ -1736,6 +2063,7 @@ export interface BackgroundTaskCommand {
 
 export interface BackgroundTaskDecision {
     id: string;
+    reference?: ReviewReference<ReviewOwner>;
     ask: string;
     why?: string;
     changes: Array<{

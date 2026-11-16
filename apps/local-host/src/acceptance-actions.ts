@@ -1,7 +1,13 @@
-import { ActionError, bindActionHandler, type ActionCallContext, type ActionClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionHandler, requireSynchronous, type ActionCallContext, type ActionClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ACCEPTANCE_PROVIDER_ID, acceptanceActions, acceptanceErrors } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { openAcceptance, type AcceptanceCaller, type AcceptanceEvidencePorts, type AcceptanceService } from "@molis-ai/molis-work-module-acceptance";
 import { hostBoundSession } from "@molis-ai/molis-work-plugin-sdk";
+import { projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
+import { acceptanceSubjectFromReview, assertAcceptanceObjectReadable, buildAcceptanceReviewOffer } from "./acceptance-review.js";
+import { attentionChanged } from "./attention-changes.js";
+import { projectReviewForSystemWrite } from "./project-review-effect.js";
+import type { MolisWorkLocalHost } from "./project-host.js";
 
 const CHECK_EVIDENCE = { capability_id: "agent.evidence.check", version: /* @version action.agent.evidence.check */ 1 } as const;
 const READ_ARTIFACT = { capability_id: "artifacts.read", version: /* @version action.artifacts.read */ 1 } as const;
@@ -32,21 +38,88 @@ function evidencePorts(caller: ActionCallContext, client: ActionClient): Accepta
 }
 
 /**
- * Requirements and acceptance in the Host (`modules/acceptance`), registered once as `system.acceptance`. The store is the Home's;
- * each call opens it, works in the caller's project and closes it, so nothing is held between calls.
+ * Requirements and acceptance in the Host (`modules/acceptance`), registered once as `system.acceptance`. `acceptance.decide@1`
+ * requires a platform trusted decision (`project-review-commands.ts`), committing an immutable `ProjectTrustedDecision` in the
+ * project database alongside the item decisions in `acceptance.db` (BL-acceptance-first-slice-limits ③, APR-15, APR-16).
  */
-export function acceptanceProvider(homeDirectory: string, clientFor: (caller: ActionCallContext) => ActionClient): ActionProviderRegistration {
+export function acceptanceProvider(
+  homeDirectory: string,
+  clientFor: (caller: ActionCallContext) => ActionClient,
+  localHost?: MolisWorkLocalHost,
+  resolveProject?: (projectId: string) => Promise<LocalHostProjectReference | null>,
+): ActionProviderRegistration {
   const run = async <T>(work: (service: AcceptanceService) => T | Promise<T>): Promise<T> => {
     const opened = openAcceptance(homeDirectory);
     try { return await work(opened.service); } finally { opened.close(); }
   };
+  const projectOf = async (projectId: string): Promise<LocalHostProjectReference | undefined> => (await resolveProject?.(projectId)) ?? undefined;
   const A = acceptanceActions;
-  return { provider: { provider_id: ACCEPTANCE_PROVIDER_ID, title: "要求、证据与认可", kind: "system" }, definitions: [A.set, A.deliver, A.report, A.read, A.decide],
+  return {
+    provider: { provider_id: ACCEPTANCE_PROVIDER_ID, title: "要求、证据与认可", kind: "system" },
+    definitions: [A.set, A.deliver, A.report, A.read, A.review, A.decide],
     handlers: [
       bindActionHandler(A.set, (input, caller) => run(service => service.set(callerOf(caller), input))),
       bindActionHandler(A.deliver, (input, caller) => run(service => service.deliver(callerOf(caller), input, evidencePorts(caller, clientFor(caller))))),
       bindActionHandler(A.report, (input, caller) => run(service => service.report(callerOf(caller), input, evidencePorts(caller, clientFor(caller))))),
       bindActionHandler(A.read, (input, caller) => run(service => service.read(callerOf(caller), input))),
-      bindActionHandler(A.decide, (input, caller) => run(service => service.decide(callerOf(caller), input))),
-    ] };
+      bindActionHandler(A.review, async (input, caller) => {
+        const person = callerOf(caller);
+        if (!person.person) throw acceptanceErrors.scope("只有用户本人能查看或提交交付要求的认可决定");
+        const subject = acceptanceSubjectFromReview(input);
+        const project = await projectOf(person.project_id);
+        await assertAcceptanceObjectReadable(caller, clientFor(caller), localHost, project, subject);
+        const view = await run(service => service.read(person, { subjects: [subject] }).views[0]!);
+        if (!localHost || !project) return buildAcceptanceReviewOffer(view, person.project_id, input, () => null);
+        return localHost.withProject(project, ({ store }) => {
+          const decisions = projectReviewDecisions(store.db, person.project_id);
+          return buildAcceptanceReviewOffer(view, person.project_id, input, decisions.findCommitted);
+        });
+      }),
+      bindActionHandler(A.decide, async (input, caller) => {
+        const person = callerOf(caller);
+        if (!person.person) throw acceptanceErrors.scope("只有用户本人能认可或退回");
+        await caller.beforeEffect();
+        const check = () => {
+          caller.signal?.throwIfAborted();
+          requireSynchronous(caller.assert_authority_current?.());
+        };
+        check();
+        const bound = projectReviewForSystemWrite(caller, person.project_id, ACCEPTANCE_PROVIDER_ID);
+        const project = await projectOf(person.project_id);
+        if (!localHost || !project) throw new ActionError("actions.service_unavailable", "当前宿主未挂载项目审批库");
+        const result = await localHost.withProject(project, ({ store }) => {
+          const checkCommit = () => {
+            check();
+            if (bound.held.deadline !== undefined && Date.now() >= bound.held.deadline) {
+              throw new ActionError("actions.expired", "原决定请求已过期");
+            }
+            if (projectApprovalRules(store.db, person.project_id).read(false).revision !== bound.held.rulesRevision) {
+              throw new ActionError("actions.conflict", "项目审批规则已变化，请重新查看");
+            }
+          };
+          const view = store.db.transaction(() => {
+            checkCommit();
+            const decided = openAcceptance(homeDirectory);
+            let next: ReturnType<AcceptanceService["decide"]>;
+            try { next = decided.service.decide(person, input, bound.held.decisionId); }
+            finally { decided.close(); }
+            projectReviewDecisions(store.db, person.project_id).commit(
+              bound.held.command,
+              { actor_id: bound.held.actor_id, source: { kind: "person", actor_id: bound.held.actor_id, entry: bound.held.entry } },
+              bound.held.frozenChoice,
+              bound.held.review,
+              new Date().toISOString(),
+              checkCommit,
+              bound.held.decisionId,
+            );
+            return next;
+          }).immediate();
+          try { attentionChanged(person.project_id); } catch { /* the write is done */ }
+          return view;
+        });
+        bound.submit();
+        return result;
+      }),
+    ],
+  };
 }

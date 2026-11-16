@@ -4,6 +4,7 @@ import { computerHolderFor } from "../computer/computer-surfaces.js";
 import { assertHumanReview } from "../computer/computer-policy.js";
 import { pluginInstallRecords } from "../plugin-install-records.js";
 import { HomeConsentLedger } from "../home-plugin-store.js";
+import { assistantLineAcceptance } from "../acceptance-review.js";
 import { assistantLineRegistration, assistantLineSource, personTaskTable } from "./assistant-line-actions.js";
 import { AssistantTaskReports, type AssistantReportRounds } from "./assistant-task-reports.js";
 import { onAttentionChangeOf } from "../attention-changes.js";
@@ -290,7 +291,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: id => service.closeForProjectDeletion(id) }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
   const threadActions = assistantThreadRegistration(threads), relatedActions = assistantRelatedRegistration(() => relatedSource(service)), lineActions = assistantLineRegistration(() => assistantLineSource(store, personTaskTable(ports.projectReference, personClient), service, WEB_ACTOR,
-    review => assertHumanReview(computerHolderFor(ports.localHost)?.(), review.run?.session_id)));
+    review => assertHumanReview(computerHolderFor(ports.localHost)?.(), review.run?.session_id), assistantLineAcceptance(ports)));
   try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service, ports.homeDirectory,
     { definitions: [...threadActions.definitions, ...relatedActions.definitions, ...lineActions.definitions], handlers: [...threadActions.handlers, ...relatedActions.handlers, ...lineActions.handlers] }); }
   catch (error) { hostLog.warn("assistant", "rule_actions_registration_failed", error); }

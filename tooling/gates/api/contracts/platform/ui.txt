@@ -186,10 +186,13 @@ export type ReviewEvidence = {
     readonly decision: ReviewDecisionReference;
 });
 
-export type ReviewOwner = AgentReviewOwner | {
+export type ReviewOwner = AgentReviewOwner | ({
     readonly kind: "trusted-decision";
     readonly project_id: string;
-} & StageSceneMetadataAuthority["owner"];
+} & (StageSceneMetadataAuthority["owner"] | {
+    readonly scope: "project";
+    readonly provider_id: string;
+}));
 
 export interface ReviewReference<Owner extends ReviewOwner = AgentReviewOwner> {
     readonly owner: Owner;

@@ -13,7 +13,7 @@ type Owner = Extract<ApprovalRuleOwner, { kind: "plugin" }>;
 
 export function decisionOwnerMatches(record: DecisionHistory, owner: Owner): boolean {
   return "kind" in record ? record.owner.plugin_id === owner.plugin_id && record.owner.publisher_signature === owner.publisher_signature
-    : record.reference.owner.plugin_id === owner.plugin_id && record.publisher_signature === owner.publisher_signature;
+    : "plugin_id" in record.reference.owner && record.reference.owner.plugin_id === owner.plugin_id && record.publisher_signature === owner.publisher_signature;
 }
 
 function fingerprint(input: TrustedReviewCommand, actorId: string, frozenChoice: unknown) {

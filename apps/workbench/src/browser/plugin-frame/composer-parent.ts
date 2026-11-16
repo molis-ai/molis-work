@@ -175,11 +175,11 @@ const shape = (snapshot: ComposerSnapshot) => JSON.stringify([snapshot.entry, sn
  */
 export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLElement, frame: HTMLIFrameElement, pack: FramePack, visible: () => boolean) {
   let id = 0, snapshot: ComposerSnapshot | null = null, receiver: BarReceiver | null = null, bound: ComposerHandle | null = null, field: HTMLTextAreaElement | null = null;
-  let retitle: (() => void) | undefined;
+  let retitle: (() => void) | undefined, selected: (() => boolean) | undefined;
   let sequence = 0, shown = "", text = "", generation = 0;
   const answers = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>();
   const post = (message: ComposerDown) => port.postMessage(message);
-  const readiness = parentComposerReadiness(post, () => ({ id, handle: bound, visible: visible(), alive: scope.alive }));
+  const readiness = parentComposerReadiness(post, () => ({ id, handle: bound, visible: Boolean(selected?.()), alive: scope.alive }));
   // The bar's text, as the page last heard it; sent again after anything that may have changed it without an input event.
   const down = () => { if (field && bound && field.value !== text) { text = field.value; post({ type: "composer-text", id, text }); } };
   const typed = (event: Event) => { if (event.target === field) down(); };
@@ -258,10 +258,10 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
         const column = snapshot?.column, box = frame.getBoundingClientRect();
         return column && box.width > 0 ? { left: box.left + Math.max(0, column.left), width: Math.min(column.width, box.width) } : null;
       },
-      bind(handle, box, updateWords) {
+      bind(handle: ComposerHandle | null, box?: HTMLTextAreaElement, updateWords?: () => void, owns?: () => boolean) {
         if (bound !== handle) readiness.discard();
         if (bound && box !== field) field?.removeEventListener("input", typed);
-        bound = handle; field = handle ? box ?? null : null; retitle = updateWords; shown = ""; width = 0; measure.disconnect();
+        bound = handle; field = handle ? box ?? null : null; retitle = updateWords; selected = owns; shown = ""; width = 0; measure.disconnect();
         if (!handle) return;
         field?.addEventListener("input", typed);
         const input = field?.closest<HTMLElement>(".mw-composer");
@@ -276,7 +276,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     for (const pending of answers.values()) pending.reject(new Error("View closed"));
     answers.clear();
     if (receiver) { receivers.delete(receiver); receiver = null; watch(); changed(); }
-    bound = null; field = null; snapshot = null; retitle = undefined;
+    bound = null; field = null; snapshot = null; retitle = selected = undefined;
   };
   scope.own(drop);
   // Shown or hidden (another tab, another pane), the bar may have to change hands.
@@ -292,8 +292,11 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       if (remount) make(); else apply();
       return;
     }
+    if (message.type === "composer-ready") {
+      if (message.id !== id) post({ ...message, ready: false }); else readiness.request(message);
+      return;
+    }
     if (message.id !== id) return;
-    if (message.type === "composer-ready") { readiness.request(message); return; }
     if (message.type === "composer-destroy") { drop(); id = 0; return; }
     if (message.type === "composer-answer") {
       const pending = answers.get(message.call); answers.delete(message.call);

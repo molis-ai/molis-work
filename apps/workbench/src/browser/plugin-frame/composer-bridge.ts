@@ -102,5 +102,6 @@ export interface BarReceiver {
   column(): { left: number; width: number } | null;
   readonly options: import("@molis-ai/molis-work-plugin-sdk/page-globals").ComposerOptions;
   /** The bar mounted the composer on it (with the text box it uses), or let it go (null). */
-  bind(handle: import("@molis-ai/molis-work-plugin-sdk/page-globals").ComposerHandle | null, field?: HTMLTextAreaElement, retitle?: () => void): void;
+  bind(handle: null): void;
+  bind(handle: import("@molis-ai/molis-work-plugin-sdk/page-globals").ComposerHandle, field: HTMLTextAreaElement, retitle: () => void, selected: () => boolean): void;
 }

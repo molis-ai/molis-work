@@ -296,3 +296,9 @@ ready 生命周期：宿主栏就绪查询只绑定发起时的 Composer 实例�
 冷加载修订验证：根构建通过；`composer-cold-load.e2e.test.ts` 在真实 Host 插件 frame 拦截实际脚本请求，延迟首屏不可编辑、失败后原回执可再次核对、重试期间保持锁、已发送草稿清空且不重复发送、冷加载销毁拒绝且迟到脚本不再挂载均通过。`composer-local-placement.e2e.test.ts` 验证宿主栏换接收者拒绝挂起 ready、旧结果不改变新挂载、重新绑定可查，以及主子输入隔离；实际组件板 1/1、公共控制器 13/13 通过。测试曾因等待挂起 Promise 以及用旧 DOM 标题代替新挂载就绪而失败，两处测试时序已修，未改产品语义或弱化断言。
 
 本次最终资源实测相对 `4a08c41ca7`：arrival/workbench CSS 各 +3,878 B，composer JS +77 B，plugin-frame JS +1,658 B，workbench JS +407 B，无新资源；独立许可已同步，最终主线重验另记。
+
+宿主栏初始化补充：挂载同一拍的 ready 可能早于注册消息；父端对尚未注册或已过期的 id 明确返回未激活，不丢弃查询。回归另验真实切到 Goals 后，同一 child mount 的挂起查询由 parent 解绑拒绝，再切回原 frame 可查询新绑定。
+
+宿主栏的 ready 发起与结算均由底栏 owner 的当前收件人选择函数确认归属；页面仍可见但已撤掉收件人、助理面板接管或切页时，不能趁下一帧解绑前把旧绑定报为就绪。桥只消费选择结果，不复制第二套底栏选择规则。
+
+初始化与换绑修订验证：`ready-order-build3.log` 根构建、`ready-order-test.log` 真实 frame 均通过。同一拍 mount→ready 明确拒绝未激活，阻住宿主计划解绑后撤回收件人，迟到原查询与新查询仍拒绝；真实 Goals 标签切换保留同一 child handle，解绑拒绝挂起查询、回到原 frame 后新绑定可查。最终资源更新为 plugin-frame JS +1,688 B、workbench JS +420 B，其余同上；独立许可同步。

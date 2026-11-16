@@ -34,13 +34,16 @@ test("B58-03: local framed AI input keeps the main bar's node, receiver, draft a
     globalThis.placementSeen = { main: [], child: [], drafts: {main:'', child:''} };
     globalThis.placementMount = (key, placement, root) => window.molisComposer(root, {
       kind: 'ai', entry: key, placement, labels, sources: false,
-      receiver: () => ({label: key}),
+      receiver: () => placementSeen.hideReceiver && key === 'main' ? null : ({label: key}),
       draft: {adapter: {read: async () => placementSeen.drafts[key], write: async text => { placementSeen.drafts[key] = text; }}},
       submit: async input => { placementSeen[key].push(input.text); return {state:'sent'}; }
     });
     const main = document.createElement('div'); main.id = 'placement-main'; document.body.prepend(main);
     globalThis.mainPlacement = placementMount('main', undefined, main);
+    globalThis.sameTurnReady='waiting'; void mainPlacement.ready().then(()=>sameTurnReady='ready',()=>sameTurnReady='inactive');
   })()`);
+  await child.waitFor("sameTurnReady !== 'waiting'");
+  assert.equal(await child.evaluate("sameTurnReady"), "inactive", "query before registration must reject, not hang");
   const bar = "document.querySelector('[data-assistant-island]')";
   await b.waitFor(`${bar}.dataset.receiver === 'page' && ${bar}.querySelector('.mw-composer__to').textContent.includes('main')`);
   assert.equal(await child.evaluate("mainPlacement.ready().then(()=>true,()=>false)"), true);
@@ -54,6 +57,32 @@ test("B58-03: local framed AI input keeps the main bar's node, receiver, draft a
   await b.evaluate("globalThis.previousMainReady=mainReadyHandle");
   await child.evaluate("otherPlacement.destroy(); mainPlacement=placementMount('main',undefined,document.getElementById('placement-main'))");
   await b.waitFor(`mainReadyHandle !== previousMainReady && ${bar}.querySelector('.mw-composer__to').textContent.includes('main')`);
+  assert.equal(await child.evaluate("mainPlacement.ready().then(()=>true,()=>false)"), true);
+  // Freeze the scheduled unbind, so the original result arrives after receiver withdrawal but before cleanup.
+  await b.evaluate(`globalThis.savedBarSync=molisBarReceiverChanged; molisBarReceiverChanged=()=>{};
+    globalThis.savedProgramReady=mainReadyHandle.ready; mainReadyHandle.ready=()=>new Promise(resolve=>{globalThis.releaseWithdrawnReady=resolve})`);
+  await child.evaluate("globalThis.withdrawnReady='waiting'; void mainPlacement.ready().then(()=>withdrawnReady='ready',()=>withdrawnReady='inactive')");
+  await b.waitFor("globalThis.releaseWithdrawnReady");
+  await child.evaluate("placementSeen.hideReceiver=true; mainPlacement.refresh()");
+  await b.waitFor("molisBarReceivers.front() === null");
+  assert.equal(await b.evaluate(`${bar}.dataset.receiver`), "page", "old binding is deliberately still present");
+  await b.evaluate("releaseWithdrawnReady()");
+  await child.waitFor("withdrawnReady === 'inactive'");
+  assert.equal(await child.evaluate("mainPlacement.ready().then(()=>false,()=>true)"), true, "new query also refuses the withdrawn receiver");
+  await child.evaluate("placementSeen.hideReceiver=false; mainPlacement.refresh()");
+  await b.waitFor("molisBarReceivers.front() !== null");
+  await b.evaluate("mainReadyHandle.ready=savedProgramReady; molisBarReceiverChanged=savedBarSync; savedBarSync()");
+  assert.equal(await child.evaluate("mainPlacement.ready().then(()=>true,()=>false)"), true);
+  // Keep the same child mount; only a real Host tab switch unbinds the parent bar.
+  await b.evaluate("globalThis.beforeTabReady=mainReadyHandle; mainReadyHandle.ready=()=>new Promise(resolve=>{globalThis.releaseTabReady=resolve})");
+  await child.evaluate("globalThis.parentReady='waiting'; void mainPlacement.ready().then(()=>parentReady='ready',()=>parentReady='inactive')");
+  await b.waitFor("globalThis.releaseTabReady");
+  await b.click('[data-plugin-strip] [data-plugin-id="goals"]');
+  await child.waitFor("parentReady === 'inactive'");
+  await b.evaluate("releaseTabReady()");
+  assert.equal(await child.evaluate("parentReady"), "inactive");
+  await b.click('[data-plugin-picker-popover] [data-plugin-id="lingguang"]');
+  await b.waitFor(`mainReadyHandle !== beforeTabReady && ${bar}.querySelector('.mw-composer__to').textContent.includes('main')`);
   assert.equal(await child.evaluate("mainPlacement.ready().then(()=>true,()=>false)"), true);
   await b.evaluate(`globalThis.keptBarField = ${bar}.querySelector('textarea'); keptBarField.value = 'main draft'; keptBarField.dispatchEvent(new Event('input', {bubbles:true}))`);
   await child.evaluate(`(() => { const root = document.createElement('div'); root.id = 'placement-child'; root.style.cssText='width:330px;min-height:180px'; document.body.prepend(root); globalThis.localPlacement = placementMount('child','local',root); })()`);

@@ -1,13 +1,13 @@
 /* Demonstration only: task facts, replies and transport outcomes are simulated here. */
 (() => {
-  const K = window.mwKit, esc = K.escapeHtml;
+  const K = window.mwKit, W = window.prototypeWorkLine, esc = K.escapeHtml;
   const query = new URLSearchParams(location.search);
   let lang = query.get('lang') === 'en' ? 'en' : 'zh';
   let scheme = query.get('scheme') === 'B' ? 'B' : 'A';
   let theme = query.get('theme') === 'dark' ? 'dark' : 'light';
   let selected = query.get('task') || 'parent', fault = 'normal', handle;
   const tx = pair => pair[lang === 'en' ? 1 : 0];
-  const key = 'molis-prototype-58:';
+  const key = 'molis-prototype-58-v2:';
   const drafts = new Map(), reading = new Map(), expanded = new Set(), pending = new Map();
   const base = {
     parent: { name: ['准备墨问西东内测发布', 'Prepare Mowen for private beta'], role: ['个人助理', 'Personal assistant'], state: 'running',
@@ -30,6 +30,8 @@
   try { const saved = JSON.parse(localStorage.getItem(key + 'state') || 'null'); if (saved) for (const id of Object.keys(base)) if (saved[id]) Object.assign(tasks[id], saved[id]); } catch { /* Demo may start fresh. */ }
   if (!tasks[selected]) selected = 'parent';
   const siblings = ['research', 'copy', 'check'];
+  const visited = new Set(selected === 'parent' ? [] : [selected]);
+  let panelOpen = query.has('panel'), panelMode = query.get('panel') === 'list' ? 'list' : 'task', dialogOpen = true;
   const stateLabels = {
     running: ['进行中', 'Working'], answer: ['等你回答', 'Needs your answer'], 'round-ended': ['本轮结束', 'Round ended'],
     failed: ['未完成', 'Could not finish'], stopped: ['已停止', 'Stopped'], interrupted: ['已中断', 'Interrupted'],
@@ -46,7 +48,7 @@
   function prototypeBar() {
     const option = (v, label, current) => `<option value="${v}" ${v === current ? 'selected' : ''}>${esc(tx(label))}</option>`;
     document.getElementById('prototype').innerHTML = `<b>${tx(['58 · 子任务对话样稿', '58 · Subtask conversation prototype'])}</b>
-      <label>${tx(['布局', 'Layout'])}<select id="scheme">${option('A', ['A 同卡聚焦', 'A Focus in card'], scheme)}${option('B', ['B 拆解常驻', 'B Keep step list'], scheme)}</select></label>
+      <label>${tx(['面板内', 'Inside dialog'])}<select id="scheme">${option('A', ['A 同面板标签', 'A Shared dialog tabs'], scheme)}${option('B', ['B 对话内聚焦', 'B Focus within dialog'], scheme)}</select></label>
       <label><select id="fault" aria-label="${tx(['演示状态', 'Demo state'])}">${Object.entries({ normal: ['正常', 'Normal'], failed: ['发送失败', 'Send fails'], unknown: ['发送结果未知', 'Send outcome unknown'], unreadable: ['读取失败', 'Read fails'], revoked: ['子任务已收回', 'Subtask reassigned'], interrupted: ['重启后中断', 'Interrupted after restart'], approval: ['等待审批', 'Awaiting approval'], long: ['长对话', 'Long conversation'] }).map(([v,l]) => option(v,l,fault)).join('')}</select></label>
       ${btn(['后台来一条更新', 'Background update'], 'background')}
       ${btn(lang === 'zh' ? ['EN', 'EN'] : ['中文', '中文'], 'language')}
@@ -54,58 +56,86 @@
       ${btn(['重置演示', 'Reset demo'], 'reset', { variant: 'ghost' })}`;
   }
   function frame() {
-    rememberView();
+    rememberView(); window.prototypeLocale(lang);
     document.documentElement.lang = lang;
     document.documentElement.dataset.resolvedTheme = theme;
     document.documentElement.dataset.theme = theme;
     prototypeBar();
-    document.getElementById('workspace-nav').innerHTML = `<div class="brand">molis work</div><div class="nav-item">${icon('home')} ${tx(['今天', 'Today'])}</div><div class="nav-item current">${icon('message')} ${tx(['助理', 'Assistant'])}</div><div class="nav-project">${tx(['当前项目', 'Current project'])}</div><div class="nav-item">${icon('folder')} ${tx(['墨问西东', 'Mowen'])}</div>`;
-    document.getElementById('stage-header').innerHTML = `<h1>${tx(['墨问西东', 'Mowen'])}</h1><span>${tx(['演示数据 · 不调用模型', 'Demo data · no model calls'])}</span>`;
-    document.getElementById('intro').innerHTML = `<div class="speaker">${icon('message')} ${tx(['个人助理', 'Personal assistant'])}</div><p>${tx(['邀请文案和体验核对都在推进。需要你决定的一项，已放进任务卡。', 'The invitation and experience checks are moving along. One step needs your decision.'])}</p>`;
-    drawCard(); mountComposer();
+    document.getElementById('desktop').innerHTML = `<header class="desktop-top">${icon('home')}<span class="desktop-tab">${icon('file')} ${tx(['内测发布计划', 'Private beta plan'])}</span><span class="project">${tx(['墨问西东', 'Mowen'])}</span></header><article class="document"><div class="eyebrow">${tx(['项目文档 · 草稿', 'Project document · Draft'])}</div><h1>${tx(['让第一个观点，值得听。', 'Make the first perspective worth hearing.'])}</h1><p>${tx(['墨问西东 · 首轮内测计划', 'Mowen · First private beta'])}</p><h2>${tx(['这一次想知道什么', 'What we want to learn'])}</h2><p>${tx(['一段 90 秒的语音观点，能否让人愿意听完，再往下探索？先邀请 20 位朋友，留下他们在第一次收听时最自然的反应。', 'Can a 90-second perspective make someone want to listen and explore? Invite twenty friends and capture their first reactions.'])}</p><div class="document-row">${icon('check')} ${tx(['访谈摘要', 'Interview summary'])}<small>${tx(['8 份已整理', '8 interviews reviewed'])}</small></div><div class="document-row">${icon('file')} ${tx(['邀请文案', 'Invitation copy'])}<small>${tx(['助理正在处理', 'Assistant is working'])}</small></div><div class="document-row">${icon('play')} ${tx(['首次收听样例', 'First listening sample'])}<small>${tx(['待选择', 'Awaiting a choice'])}</small></div></article>`;
+    handle?.destroy();
+    const owner = { name: tx(['助理', 'Assistant']), glyph: 'sparkles', hue: 'blue' };
+    document.getElementById('line-zone').innerHTML = W.renderWorkLine({
+      head: W.renderLineHead({ name: tx(['墨问西东', 'Mowen']), waiting: 1 }), past: [],
+      active: [{ id: 'beta', title: tx(['内测发布', 'Private beta']), owner, kind: tx(['发布准备', 'Launch preparation']), state: 'running', stateLabel: tx(['在办', 'In progress']), tasks: { count: 3, lead: 'answer' } }],
+      next: [{ id: 'invite', title: tx(['邀请第一批听众', 'Invite first listeners']), owner, kind: tx(['待办', 'Next step']), state: '', stateLabel: tx(['接下来', 'Next']) }],
+      slot: `<div class="bar-center" data-assistant-island><section id="assistant-panel" class="assistant-panel" data-side="closed" aria-label="${tx(['个人助理对话', 'Personal assistant conversation'])}"></section><div class="task-float" id="task-float"></div><div id="peek" class="peek" hidden></div><div id="composer"></div></div>`
+    });
+    drawCard(); mountComposer(); placeFloat();
   }
   function row(id) {
-    const t = tasks[id];
-    return `<button class="task-row" data-task="${id}" aria-current="${selected === id}">${ring(id)}<span><strong>${esc(tx(t.name))}</strong><small>${esc(tx(t.role))}${t.attempt ? ` · ${tx(['第', 'Attempt '])}${t.attempt}${tx(['次', ''])}` : ''}</small></span><span class="trailing">${t.unread ? K.renderBadge({ label: tx(['有更新', 'Updated']), tone: 'info' }) : badge(id)}${icon('chevron-right')}</span></button>`;
+    return `<button class="task-link" data-task="${id}">${ring(id)}<span>${esc(tx(tasks[id].name))}</span><small>${esc(tx(status(id)))}</small>${icon('chevron-right')}</button>`;
   }
-  function heading(id) { return `<div class="card-heading">${ring(id)}<div class="heading-copy"><h2>${esc(tx(tasks[id].name))}</h2><p>${esc(tx(tasks[id].brief))}</p></div></div>`; }
+  function tabHtml(id) {
+    const t=tasks[id], current=selected===id || (scheme==='B' && id==='parent');
+    return `<div class="assistant-tab" ${current ? 'data-current="true"' : ''}><button type="button" class="assistant-tab-main" role="tab" aria-selected="${current}" data-task="${id}" title="${esc(tx(t.name))}">${id==='parent' ? icon('sparkles') : ring(id)}<span class="assistant-tab-title">${esc(tx(id==='parent' ? ['助理','Assistant'] : t.name))}</span>${t.unread ? K.renderBadge({label:tx(['新','New']),tone:'info'}) : ''}</button>${id==='parent' ? '' : `<button class="assistant-tab-close" data-close-task="${id}" aria-label="${tx(['关闭子任务对话','Close subtask conversation'])}">${icon('x')}</button>`}</div>`;
+  }
   function drawCard() {
-    const card = document.getElementById('task-card');
-    if (selected === 'parent') {
-      card.innerHTML = `${heading('parent')}<div class="task-summary"><p>${esc(tx(tasks.parent.messages[0][1]))}</p>${badge('parent')}</div><div class="section-label"><span>${tx(['任务拆解', 'Steps'])}</span><span>${tx(['3 个步骤', '3 steps'])}</span></div>${siblings.map(row).join('')}`;
-      return;
-    }
-    const id = selected, t = tasks[id], list = t.parent ? ['mobile'] : siblings, index = list.indexOf(id);
-    card.innerHTML = `<div class="child-toolbar">${btn(t.parent ? ['返回体验核对', 'Back to experience check'] : ['返回父任务', 'Back to parent task'], 'parent', { icon: 'chevron-left', variant: 'ghost' })}<div class="siblings">${btn(['上一个', 'Previous'], 'previous', { icon: 'chevron-left', iconOnly: true, disabled: index === 0 })}<span class="count">${index + 1} / ${list.length}</span>${btn(['下一个', 'Next'], 'next', { icon: 'chevron-right', iconOnly: true, disabled: index === list.length - 1 })}</div></div>
-      <div class="child-body ${scheme === 'B' ? 'split' : ''}">${scheme === 'B' ? `<nav class="task-index" aria-label="${tx(['同级步骤', 'Sibling steps'])}">${list.map(row).join('')}</nav>` : ''}
-      <div class="conversation">${heading(id)}<div class="conversation-head">${badge(id)}<span class="message-meta">${esc(tx(t.role))}${t.attempt ? ` · ${tx(['第', 'Attempt '])}${t.attempt}${tx(['次尝试', ''])}` : ''}</span><div class="control">${['running','answer','approval'].includes(t.state) ? btn(['停止', 'Stop'], 'stop') : t.state !== 'unavailable' ? btn(['继续此子任务', 'Continue subtask'], 'continue') : ''}</div></div>
-      <div class="local-feedback" id="local-feedback">${['stopped','failed','interrupted'].includes(t.state) ? K.renderAlert({ tone: 'warning', title: tx(t.state === 'stopped' ? ['子任务已停止', 'This subtask is stopped'] : t.state === 'interrupted' ? ['上次执行已中断', 'The last attempt was interrupted'] : ['这次没有完成', 'This attempt did not finish']), body: tx(['此前的对话和结果仍保留。选择「继续此子任务」会开始一次新的尝试。', 'Earlier messages and results are preserved. Continue subtask starts a new attempt.']) }) : t.state === 'unavailable' ? K.renderAlert({ tone: 'warning', title: tx(['这一步已交给其他执行者', 'This step has been reassigned']), body: tx(['这里可以查看原对话。请返回父任务，找到现在负责这一步的对象。', 'You can read this conversation. Return to the parent task to find the current owner.']) }) : ''}</div>
-      <div class="message-list" id="message-list" tabindex="0" aria-label="${tx(['子任务对话', 'Subtask conversation'])}"></div><div class="latest-row" id="latest-row"></div></div></div>`;
+    const panel=document.getElementById('assistant-panel'); if(!panel)return;
+    const id=selected,t=tasks[id], child=id!=='parent';
+    panel.hidden=!dialogOpen;
+    const mark=W.renderTaskMark({count:3,lead:'answer',needsYou:true,expanded:panelOpen,panel:'tasks-popover'});
+    const source=child ? `<div class="subtask-strip"><div class="source">${scheme==='B' ? btn(['回主对话','Main chat'],'parent',{icon:'chevron-left',variant:'ghost'}) : icon('git-branch')}<span>${tx(['来自','From'])} · ${esc(tx(tasks.parent.name))}</span></div><div class="control">${['running','answer','approval'].includes(t.state) ? btn(['停止','Stop'],'stop') : t.state!=='unavailable' ? btn(['继续','Continue'],'continue') : ''}</div></div>` : '';
+    panel.innerHTML=`<header class="assistant-tabbar"><div class="assistant-tabs" data-work-tabs role="tablist" aria-label="${tx(['对话对象','Conversations'])}">${tabHtml('parent')}${scheme==='A' ? [...visited].map(tabHtml).join('') : ''}</div><span class="assistant-tabbar-actions">${mark}<button class="dock-window-action" data-action="minimize" aria-label="${tx(['收起助理','Minimize assistant'])}">${icon('chevron-down')}</button></span></header>${source}<div class="local-feedback" id="local-feedback">${['stopped','failed','interrupted'].includes(t.state) ? K.renderAlert({tone:'warning',title:tx(t.state==='stopped'?['已停止','Stopped']:['本次未完成','This attempt did not finish']),body:tx(['对话与旧结果已保留。点「继续」会开始新尝试。','Messages and earlier results are kept. Continue starts a new attempt.'])}) : t.state==='unavailable' ? K.renderAlert({tone:'warning',title:tx(['这一步已收回','This step was reassigned']),body:tx(['保留可读历史；请回主对话查看当前负责人。','You can read the history. Return to the main chat for the current owner.'])}) : ''}</div><div class="assistant-body"><div class="assistant-main"><div class="assistant-thread" id="message-list" tabindex="0" role="log" aria-label="${tx(child?['子任务对话','Subtask conversation']:['助理主对话','Main assistant conversation'])}"></div></div></div><div class="latest-row" id="latest-row"></div>`;
     drawMessages();
-    const scroller = document.getElementById('message-list');
-    scroller.scrollTop = reading.get(id) || 0;
-    scroller.addEventListener('scroll', () => reading.set(id, scroller.scrollTop), { passive: true });
+    const scroller=document.getElementById('message-list'); scroller.scrollTop=reading.get(id)||0;
+    scroller.addEventListener('scroll',()=>reading.set(id,scroller.scrollTop),{passive:true});
+    const peek=document.getElementById('peek');peek.hidden=dialogOpen;
+    peek.innerHTML=`<span>${esc(tx(t.role))} · ${tx(['有进展，点开继续看','Updates available'])}</span>${btn(['展开对话','Open conversation'],'expand')}${mark}`;
+    drawTaskFloat();
+    requestAnimationFrame(()=>{placeFloat();panel.querySelector('.assistant-tab[data-current]')?.scrollIntoView({block:'nearest',inline:'nearest'});});
   }
+  function drawTaskFloat() {
+    const root=document.getElementById('task-float'); if(!root)return;
+    document.querySelectorAll('.work-task-mark').forEach(mark=>mark.setAttribute('aria-expanded',String(panelOpen)));
+    root.hidden=!panelOpen;
+    if(!panelOpen)return;
+    if(panelMode==='list') {
+      root.innerHTML=W.renderTaskPanel({id:'tasks-popover',live:[{id:'parent',title:tx(tasks.parent.name),ring:'running',step:tx(['邀请文案与体验核对正在推进','Invitation and experience checks underway']),serves:tx(['内测发布','Private beta'])}],returned:[]});
+    } else {
+      root.innerHTML=W.renderTaskCard({id:'parent',panel:'tasks-popover',title:tx(tasks.parent.name),owner:{name:tx(['助理','Assistant']),glyph:'sparkles',hue:'blue'},ring:'running',state:tx(['进行中','Working']),who:tx(['个人助理','Personal assistant']),serves:tx(['内测发布','Private beta']),returnsTo:tx(['助理主对话','Main assistant conversation']),steps:siblings.map(id=>({name:tx(tasks[id].name),at:tasks[id].state==='round-ended'?'done':'current',ring:tasks[id].state,who:tx(tasks[id].role)})),actions:btn(['回主对话','Main conversation'],'main-chat')});
+      root.querySelectorAll('.work-task-step').forEach((step,i)=>{const button=document.createElement('button');button.type='button';button.className=step.className;button.dataset.step=step.dataset.step;button.dataset.task=siblings[i];button.setAttribute('aria-current',String(selected===siblings[i]));button.innerHTML=step.innerHTML+icon('chevron-right');step.replaceWith(button);});
+    }
+    placeFloat();
+  }
+  function placeFloat() {
+    const panel=document.getElementById('assistant-panel'),float=document.getElementById('task-float');if(!panel||!float)return;
+    if(!panel.hidden){panel.style.height='';const box=panel.getBoundingClientRect(),bar=document.getElementById('prototype').getBoundingClientRect();panel.style.height=Math.min(box.height,Math.max(180,box.bottom-bar.bottom-52))+'px';}
+    const top=panel.hidden?-340:panel.offsetTop+(innerWidth<=1250?42:0);
+    float.style.top=top+'px';float.style.setProperty('--panel-height',panel.clientHeight+'px');
+    document.getElementById('desktop').style.top=document.getElementById('prototype').getBoundingClientRect().height+'px';
+  }
+
   function messageHtml(entry, id, index) {
     const [who, content] = entry;
-    const name = who === 'user' ? ['你', 'You'] : who === 'receipt' ? ['', ''] : tasks[id].role;
-    return `<article class="message ${who}" data-message="${index}">${who !== 'receipt' ? `<div class="message-meta"><strong>${esc(tx(name))}</strong><span>${tx(['刚刚', 'Just now'])}</span></div>` : ''}<p>${esc(tx(content))}</p></article>`;
+    if (who === 'receipt') return `<div class="receipt" data-message="${index}">${esc(tx(content))}</div>`;
+    return `<div class="assistant-round"><div class="assistant-msg assistant-msg--${who==='user'?'user':'assistant'}" data-message="${index}">${who==='assistant'?`<div class="message-meta"><strong>${esc(tx(tasks[id].role))}</strong></div>`:''}<p>${esc(tx(content))}</p></div></div>`;
   }
   function drawMessages() {
     const list = document.getElementById('message-list'); if (!list) return;
     const id = selected, t = tasks[id];
+    if (id === 'parent') { list.innerHTML = messageHtml(['user',['帮我准备第一轮内测邀请。文案和首次体验一起看看。','Help prepare the first beta invitation. Review the copy and first-use experience together.']], id, 0) + t.messages.map((m,i)=>messageHtml(m,id,i+1)).join('') + `<button class="task-link" data-action="open-task">${ring('parent')}<span>${esc(tx(t.name))}</span><small>${tx(['看任务 · 3 步','View task · 3 steps'])}</small>${icon('chevron-right')}</button>`; return; }
     if (fault === 'unreadable') { list.innerHTML = K.renderAlert({ tone: 'warning', title: tx(['暂时读不到对话', 'The conversation could not load']), body: tx(['任务仍在原处。重试只重新读取，不会重新派出子任务。', 'The task is still here. Retry reads it again without starting work.']), actions: [{ label: tx(['重新读取', 'Retry reading']), variant: 'secondary', attrs: { 'data-action': 'reload' } }] }); return; }
     const history = fault === 'long' ? Array.from({ length: 30 }, (_, i) => ['assistant', [`第 ${i + 1} 项核对：保留已确认的内容，继续核对手机上的阅读与播放。`, `Check ${i + 1}: preserve the confirmed content and continue checking mobile reading and playback.`]]) : [];
-    list.innerHTML = [...history, ...t.messages].map((m,i) => messageHtml(m,id,i)).join('') + (t.process ? `<details class="process" data-process="${id}" ${expanded.has(id) ? 'open' : ''}><summary>${tx(['查看过程', 'View activity'])}</summary><p>${esc(tx(t.process))}</p></details>` : '') + (t.state === 'answer' ? `<section class="question"><h3>${tx(['首次收听先给哪段样例？', 'Which sample should play first?'])}</h3><p>${tx(['普通补充不会替你选；在这里回答后才继续。', 'An ordinary message does not answer this. Choose here to continue.'])}</p><div class="actions">${btn(['90 秒观点', '90-second perspective'], 'answer-short', { variant: 'primary' })}${btn(['完整访谈片段', 'Full interview excerpt'], 'answer-long')}</div></section>` : '') + (t.state === 'approval' ? `<section class="question"><h3>${tx(['允许访问内测发布页？', 'Allow access to the beta page?'])}</h3><p>${tx(['仅查看页面，不发布。聊天补充不会代替这次审查。', 'Read the page only; no publishing. A message does not approve this request.'])}</p><div class="actions">${btn(['允许这一次', 'Allow once'], 'approve', { variant: 'primary' })}${btn(['不允许', 'Deny'], 'deny')}</div></section>` : '') + (id === 'check' ? `<div class="section-label">${tx(['这一步的拆解', 'Steps within this task'])}</div>${row('mobile')}` : '');
+    list.innerHTML = `<div><h2 class="subtask-title">${esc(tx(t.name))}</h2><p class="subtask-brief">${esc(tx(t.brief))}</p>${badge(id)}</div>` + [...history, ...t.messages].map((m,i) => messageHtml(m,id,i)).join('') + (t.process ? `<details class="process" data-process="${id}" ${expanded.has(id) ? 'open' : ''}><summary>${tx(['查看过程', 'View activity'])}</summary><p>${esc(tx(t.process))}</p></details>` : '') + (t.state === 'answer' ? `<section class="question"><h3>${tx(['首次收听先给哪段样例？', 'Which sample should play first?'])}</h3><p>${tx(['普通补充不会替你选；在这里回答后才继续。', 'An ordinary message does not answer this. Choose here to continue.'])}</p><div class="actions">${btn(['90 秒观点', '90-second perspective'], 'answer-short', { variant: 'primary' })}${btn(['完整访谈片段', 'Full interview excerpt'], 'answer-long')}</div></section>` : '') + (t.state === 'approval' ? `<section class="question"><h3>${tx(['允许访问内测发布页？', 'Allow access to the beta page?'])}</h3><p>${tx(['仅查看页面，不发布。聊天补充不会代替这次审查。', 'Read the page only; no publishing. A message does not approve this request.'])}</p><div class="actions">${btn(['允许这一次', 'Allow once'], 'approve', { variant: 'primary' })}${btn(['不允许', 'Deny'], 'deny')}</div></section>` : '') + (id === 'check' ? `<div class="section-label">${tx(['这一步的拆解', 'Steps within this task'])}</div>${row('mobile')}` : '');
     list.querySelectorAll('details').forEach(d => d.addEventListener('toggle', () => d.open ? expanded.add(id) : expanded.delete(id)));
   }
   function navigate(id, focus = true) {
     if (!tasks[id]) return;
     const field = document.querySelector('#composer textarea');
     if (field) localStorage.setItem(key + 'draft:' + selected, field.value);
-    handle?.destroy(); selected = id; tasks[id].unread = false; save(); rememberView();
+    handle?.destroy(); selected = id; if(id!=='parent')visited.add(id); dialogOpen=true; tasks[id].unread = false; if(innerWidth<=1250)panelOpen=false; save(); rememberView();
     drawCard(); mountComposer();
-    if (focus) document.querySelector(id === 'parent' ? `[data-task="${siblings[0]}"]` : '[data-action="parent"]')?.focus();
+    if (focus) document.querySelector(`.assistant-tabs [data-task="${scheme==='B'?'parent':id}"]`)?.focus();
   }
   function adapter(id) {
     if (!drafts.has(id)) drafts.set(id, { read: async () => localStorage.getItem(key + 'draft:' + id) || '', write: async text => localStorage.setItem(key + 'draft:' + id, text) });
@@ -147,16 +177,26 @@
     if (['stopped','failed','interrupted','unavailable'].includes(t.state)) handle.hold(tx(['当前不能发送，已保留草稿', 'Sending is unavailable; your draft is kept']));
   }
   function updateVisible(id) {
-    if (selected !== id) { tasks[id].unread = true; save(); if (selected === 'parent') drawCard(); else if (scheme === 'B') document.querySelector('.task-index')?.replaceChildren(...new DOMParser().parseFromString(siblings.map(row).join(''), 'text/html').body.childNodes); return; }
+    if (selected !== id) { tasks[id].unread = true; save(); drawTaskFloat(); const tab=document.querySelector(`.assistant-tabs [data-task="${id}"]`); if(tab&&!tab.querySelector('.mw-badge'))tab.insertAdjacentHTML('beforeend',K.renderBadge({label:tx(['新','New']),tone:'info'})); return; }
     const list = document.getElementById('message-list'); if (!list) return;
     const y = list.scrollTop, bottom = list.scrollHeight - y - list.clientHeight < 45;
     drawMessages(); list.scrollTop = bottom ? list.scrollHeight : y;
     document.getElementById('latest-row').innerHTML = bottom ? '' : btn(['有新消息 ↓', 'New message ↓'], 'latest');
   }
   document.addEventListener('click', event => {
+    const close=event.target.closest('[data-close-task]');if(close){visited.delete(close.dataset.closeTask);if(selected===close.dataset.closeTask)navigate('parent');else drawCard();return;}
+    if(event.target.closest('.work-task-mark')){panelOpen=!panelOpen;panelMode='list';drawTaskFloat();return;}
+    if(event.target.closest('[data-task-panel-close]')){panelOpen=false;drawTaskFloat();return;}
+    if(event.target.closest('[data-task-panel-list]')){panelMode='list';drawTaskFloat();return;}
+    if(event.target.closest('[data-task-open]')){panelMode='task';drawTaskFloat();return;}
+    if(event.target.closest('[data-work-line-head]')||event.target.closest('.work-event')){panelOpen=true;panelMode='task';dialogOpen=true;drawCard();return;}
     const task = event.target.closest('[data-task]'); if (task) return navigate(task.dataset.task);
     const action = event.target.closest('[data-action]')?.dataset.action; if (!action) return;
     const t = tasks[selected];
+    if(action==='open-task'){panelOpen=true;panelMode='task';return drawCard();}
+    if(action==='main-chat'){panelOpen=false;return navigate('parent');}
+    if(action==='minimize'){dialogOpen=false;panelOpen=false;return drawCard();}
+    if(action==='expand'){dialogOpen=true;return drawCard();}
     if (action === 'parent') return navigate(t.parent || 'parent');
     if (action === 'previous' || action === 'next') return navigate(siblings[siblings.indexOf(selected) + (action === 'next' ? 1 : -1)]);
     if (action === 'language') { lang = lang === 'zh' ? 'en' : 'zh'; return frame(); }
@@ -184,7 +224,18 @@
       drawCard(); mountComposer();
     }
   });
+  document.addEventListener('keydown', event => {
+    if(event.defaultPrevented || event.isComposing)return;
+    if(event.key==='Escape' && panelOpen){panelOpen=false;drawTaskFloat();document.querySelector('#assistant-panel .work-task-mark')?.focus();event.preventDefault();return;}
+    const tab=event.target.closest('.assistant-tab-main');
+    if(tab && ['ArrowLeft','ArrowRight'].includes(event.key)){
+      const list=scheme==='A'?['parent',...visited]:['parent'];
+      const i=list.indexOf(tab.dataset.task), next=(i+(event.key==='ArrowRight'?1:-1)+list.length)%list.length;
+      navigate(list[next]);event.preventDefault();
+    }
+  });
   document.getElementById('icons').innerHTML = window.mwKitSprite;
   const client = document.createElement('script'); client.textContent = window.mwKitClient; document.body.appendChild(client);
+  window.addEventListener('resize', placeFloat);
   frame();
 })();

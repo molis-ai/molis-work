@@ -36,6 +36,591 @@
     }
   ],
   "paths": {
+    "/api/v2/auth/login/password": {
+      "post": {
+        "operationId": "loginPassword",
+        "tags": [
+          "API-02"
+        ],
+        "x-implementation-status": "CONTRACT_ONLY",
+        "x-authority": "initiator",
+        "security": [],
+        "parameters": [
+          {
+            "name": "X-Auth-Initiator-Proof",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "./schemas.json#/$defs/OpaqueSecret"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LoginResultResponse",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/LoginResultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error400",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error400"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error401",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error401"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error403",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error403"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error404",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error404"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error409",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error409"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error429",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error429"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Error501",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error501"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error503",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error503"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schemas.json#/$defs/LoginPasswordRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/auth/verification-codes": {
+      "post": {
+        "operationId": "sendLoginVerification",
+        "tags": [
+          "API-02"
+        ],
+        "x-implementation-status": "CONTRACT_ONLY",
+        "x-authority": "initiator",
+        "security": [],
+        "parameters": [
+          {
+            "name": "X-Auth-Initiator-Proof",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "./schemas.json#/$defs/OpaqueSecret"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LoginVerificationResponse",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/LoginVerificationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error400",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error400"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error401",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error401"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error403",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error403"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error404",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error404"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error409",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error409"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error429",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error429"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Error501",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error501"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error503",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error503"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schemas.json#/$defs/SendLoginVerificationRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/auth/login/code": {
+      "post": {
+        "operationId": "loginCode",
+        "tags": [
+          "API-02"
+        ],
+        "x-implementation-status": "CONTRACT_ONLY",
+        "x-authority": "initiator",
+        "security": [],
+        "parameters": [
+          {
+            "name": "X-Auth-Initiator-Proof",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "./schemas.json#/$defs/OpaqueSecret"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LoginResultResponse",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/LoginResultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error400",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error400"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error401",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error401"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error403",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error403"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error404",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error404"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error409",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error409"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error429",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error429"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Error501",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error501"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error503",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error503"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schemas.json#/$defs/LoginCodeRequest"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v2/auth/transactions": {
       "post": {
         "operationId": "createTransaction",
@@ -1448,6 +2033,209 @@
         }
       }
     },
+    "/api/v2/auth/transactions/{transactionId}/code": {
+      "post": {
+        "operationId": "signInCode",
+        "tags": [
+          "API-02"
+        ],
+        "x-implementation-status": "CONTRACT_ONLY",
+        "x-authority": "initiator",
+        "security": [],
+        "parameters": [
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "./schemas.json#/$defs/Id"
+            }
+          },
+          {
+            "name": "X-Auth-Initiator-Proof",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "./schemas.json#/$defs/OpaqueSecret"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "VerifiedResultResponse",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/VerifiedResultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error400",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error400"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error401",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error401"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error403",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error403"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error404",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error404"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error409",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error409"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error429",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error429"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Error501",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error501"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error503",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error503"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schemas.json#/$defs/CodeLoginRequest"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v2/auth/transactions/{transactionId}/complete": {
       "post": {
         "operationId": "completeTransaction",
@@ -2254,6 +3042,386 @@
             "application/json": {
               "schema": {
                 "$ref": "./schemas.json#/$defs/Empty"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/auth/management-handoffs": {
+      "post": {
+        "operationId": "createManagementHandoff",
+        "tags": [
+          "API-02"
+        ],
+        "x-implementation-status": "CONTRACT_ONLY",
+        "x-authority": "session",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "ManagementHandoffViewResponse",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/ManagementHandoffViewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error400",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error400"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error401",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error401"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error403",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error403"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error404",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error404"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error409",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error409"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error429",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error429"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Error501",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error501"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error503",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error503"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schemas.json#/$defs/ManagementHandoffRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/auth/management-handoffs/approve": {
+      "post": {
+        "operationId": "approveManagementHandoff",
+        "tags": [
+          "API-02"
+        ],
+        "x-implementation-status": "CONTRACT_ONLY",
+        "x-authority": "session",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "ManagementHandoffViewResponse",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/ManagementHandoffViewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error400",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error400"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error401",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error401"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error403",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error403"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error404",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error404"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error409",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error409"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error429",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error429"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Error501",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error501"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error503",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error503"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schemas.json#/$defs/ManagementHandoffApproval"
               }
             }
           }
@@ -16830,6 +17998,576 @@
         }
       }
     },
+    "/api/account/auth/login/password": {
+      "post": {
+        "operationId": "productLoginPassword",
+        "tags": [
+          "API-08"
+        ],
+        "x-implementation-status": "CONTRACT_ONLY",
+        "x-authority": "product",
+        "security": [
+          {
+            "productSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "ProductLoginResultResponse",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/ProductLoginResultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error400",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error400"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error401",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error401"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error403",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error403"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error404",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error404"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error409",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error409"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error429",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error429"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Error501",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error501"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error503",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error503"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schemas.json#/$defs/ProductLoginPasswordRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/auth/verification-codes": {
+      "post": {
+        "operationId": "productSendLoginVerification",
+        "tags": [
+          "API-08"
+        ],
+        "x-implementation-status": "CONTRACT_ONLY",
+        "x-authority": "product",
+        "security": [
+          {
+            "productSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "LoginVerificationResponse",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/LoginVerificationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error400",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error400"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error401",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error401"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error403",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error403"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error404",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error404"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error409",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error409"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error429",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error429"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Error501",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error501"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error503",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error503"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schemas.json#/$defs/ProductSendVerificationRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/auth/login/code": {
+      "post": {
+        "operationId": "productLoginCode",
+        "tags": [
+          "API-08"
+        ],
+        "x-implementation-status": "CONTRACT_ONLY",
+        "x-authority": "product",
+        "security": [
+          {
+            "productSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "ProductLoginResultResponse",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/ProductLoginResultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error400",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error400"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error401",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error401"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error403",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error403"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error404",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error404"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error409",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error409"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error429",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error429"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Error501",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error501"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error503",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error503"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schemas.json#/$defs/LoginCodeRequest"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/account/session": {
       "get": {
         "operationId": "productSession",
@@ -19005,6 +20743,186 @@
               "application/json": {
                 "schema": {
                   "$ref": "./schemas.json#/$defs/LoginMethodsViewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error400",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error400"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error401",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error401"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error403",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error403"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error404",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error404"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error409",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error409"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error429",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error429"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Error501",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error501"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error503",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/Error503"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/me": {
+      "get": {
+        "operationId": "product_getMe",
+        "tags": [
+          "API-08"
+        ],
+        "x-implementation-status": "CONTRACT_ONLY",
+        "x-authority": "product",
+        "security": [
+          {
+            "productSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "MeViewResponse",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas.json#/$defs/MeViewResponse"
                 }
               }
             }

@@ -1,0 +1,10 @@
+{
+  "reason": "登录表单复用 Work 分段选择和文字按钮，收紧第三方登录间距并增加分隔线；两个 CSS 各增加 241 字节，主脚本在此前许可之外增加 129 字节。",
+  "review": "2026-11-15 用户确认本次登录表单样式与 Molis Work 对齐。",
+  "userApproval": "2026-11-15 用户明确回复：批准本次额外 611 字节。",
+  "assets": {
+    "/assets/molis-work-arrival.css": 241,
+    "/assets/molis-work-workbench.css": 241,
+    "/assets/molis-work-workbench.js": 129
+  }
+}

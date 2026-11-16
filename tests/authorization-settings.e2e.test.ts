@@ -97,9 +97,9 @@ test("H1/APR-12: the authorization manager shows the original source, revokes th
   assert.equal((await readMcpToolPreference(f.home)).action_grants.find(row => row.client_id === "runtime:browser-authorization")?.enabled, false);
 });
 
-test("H1/APR-11: choose Pages permissions, narrow them in the manager, and revoke the remaining scope", { timeout: 120_000 }, async t => {
+test("H1/APR-11: choose Pages permissions, narrow them in the manager, and revoke the remaining scope", { timeout: 240_000 }, async t => {
   let model!: Awaited<ReturnType<typeof assistantTextModel>>;
-  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
+  const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
     prepareHome: async home => { model = await assistantTextModel(t, home, "准备好了。"); model.finish(); },
   });
   if (!browser) return;

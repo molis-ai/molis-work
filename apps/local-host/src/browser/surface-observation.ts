@@ -92,7 +92,7 @@ export async function observeBrowserSurface(round: BrowserSurfaceRound, kind: Ho
     `页面：${outline.title || "（无标题）"}`, `地址：${outline.path}`,
     `视口：${outline.vw}×${outline.vh}，已向下滚动 ${outline.sy}/${outline.max}`, "",
     "可操作的元素（点击元素时把完整标识填入 node；@ 后是当前中心坐标）：",
-    ...outline.elements.map(element => `node=${element.node} ${element.role}「${element.name || "无名称"}」${element.value ? ` 值=${element.value}` : ""}${element.href ? ` → ${element.href}` : ""}${element.states.length ? ` （${element.states.join("、")}）` : ""} @(${element.x},${element.y})`),
+    ...outline.elements.map(element => `node=${element.node} ${element.role}「${element.name || "无名称"}」${element.value ? ` 值=${element.value}` : ""}${element.href ? ` → ${element.href}` : ""}${element.states.length ? ` (${element.states.join(", ")})` : ""} @(${element.x},${element.y})`),
     ...(outline.elements.length >= ELEMENT_LIMIT ? ["（元素较多，只列出前 300 个）"] : []), "", "视口里的文字：", ...outline.text,
   ].join("\n"));
 }

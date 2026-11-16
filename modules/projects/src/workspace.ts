@@ -150,7 +150,7 @@ export class ProjectWorkspaceService {
       const own = this.repository.workspaces.projectDirectoryRows(project).find(row => row.workspace_id === workspace);
       if (!own) return "absent";
       if (own.roles.includes("output")) return "output_kept";
-      if (this.repository.workspaces.isPersonMembership(workspace, project)) return "person_kept";
+      if (own.is_person) return "person_kept";
       // Who acted is asked for only when something is recorded, as the event needs it.
       const actor = this.requiredActorId(actorId);
       this.repository.workspaces.removeWorkspaceMembership(workspace, project);
@@ -366,7 +366,7 @@ function instructionsOf(repository: ProjectsRepository, projectId: string, rows:
   const setting = repository.workspaces.instructionSetting(projectId);
   const output = rows.find(row => row.roles.includes("output"));
   const own = Boolean(output) && output!.workspace_id !== projectOutputId(repository.db, projectId);
-  const chosen = own && (repository.workspaces.isPersonMembership(output!.workspace_id, projectId) || setting?.confirmed_workspace_id === output!.workspace_id);
+  const chosen = own && (output!.is_person || setting?.confirmed_workspace_id === output!.workspace_id);
   const off = setting?.off ?? false;
   const whyNot = !own ? "default_output" as const : off ? "off" as const : !chosen ? "not_chosen" as const : undefined;
   return { view: { off, trusted: chosen && !off, ...(whyNot ? { why_not: whyNot } : {}) }, facts: [off, setting?.confirmed_workspace_id ?? null, chosen] };
@@ -386,7 +386,7 @@ function setInstructions(repository: ProjectsRepository, current: ProjectDirecto
  */
 function revisionOf(rows: readonly ProjectDirectoryRow[], links: readonly { source_workspace_id: string; workspace_id: string }[],
   instructions: readonly unknown[]): string {
-  const facts = { rows: rows.map(row => [row.workspace_id, row.stored_path, row.display_name, row.roles]).sort(), links: links.map(link => [link.source_workspace_id, link.workspace_id]).sort(),
+  const facts = { rows: rows.map(row => [row.workspace_id, row.stored_path, row.display_name, row.roles, row.is_person]).sort(), links: links.map(link => [link.source_workspace_id, link.workspace_id]).sort(),
     instructions };
   return createHash("sha256").update(JSON.stringify(facts)).digest("hex").slice(0, 32);
 }

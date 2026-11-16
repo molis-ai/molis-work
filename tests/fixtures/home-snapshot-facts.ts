@@ -47,6 +47,7 @@ function libraryFacts(project: string): Record<string, Seed> {
     acceptance: { table: "acceptance_subjects", values: { subject_no: 7, project_id: project, provider_id: "plugin:io.snapshot.fixture", subject_kind: "snapshot_item", subject_id: title, created_at: at }, field: "subject_id" },
     evaluation: { table: "evaluation_samples", values: { sample_id: id, version: 1, purpose: "validation", work_mode: "manual_plugin", project_id: project,
       frozen_digest: "snapshot-digest", spec_json: JSON.stringify({ title }), hold_id: null, held_record_count: 0, created_at: at }, field: "spec_json" },
+    "external-sessions": { table: "external_sessions", values: { session_key: id, entry_id: "claude-code", location_key: "local", native_id: id, seen_via: "file", title, activity: "idle", last_activity_at: at }, field: "title" },
   };
 }
 

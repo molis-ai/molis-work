@@ -38,6 +38,8 @@ export interface SearchHost {
   readonly service: SearchService;
   /** A command of this provider succeeded (from any entry). */
   changed(providerId: string, projectId: string | null): void;
+  /** Drop indexed entries for a provider immediately when its read scope may have narrowed, then refresh in the background. */
+  clearProvider(providerId: string, projectId: string | null): void;
   /** A provider was registered or withdrawn: install, enable, upgrade, disable, uninstall. */
   providerChanged(provider: Pick<ActionProvider, "provider_id" | "project_id">): void;
   projectDeleted(projectId: string): void;
@@ -110,6 +112,7 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
   return {
     service,
     changed: (providerId, projectId) => { service.markChanged(providerId, projectId); knowledge.changed(projectId); },
+    clearProvider: (providerId, projectId) => { service.clearProvider(providerId, projectId); knowledge.changed(projectId); },
     providerChanged: provider => service.markRegistration(provider.provider_id, provider.project_id ?? null),
     projectDeleted: projectId => { service.removeProject(projectId); knowledge.projectDeleted(projectId); },
     confirmReferences: async (projectId, picked, kinds) => (await read(projectId, picked, kinds)).map(found => found !== null),

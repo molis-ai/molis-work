@@ -6,6 +6,7 @@ import { PROJECT_WORKSPACE_PROVIDER_ID, projectPluginActions } from "@molis-ai/m
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleSearchHttp } from "./search-http.js";
+import { handleSessionsHttp } from "./sessions-http.js";
 import { handleRuntimeOverviewHttp } from "./runtime-overview-http.js";
 import { pagePluginDirectory } from "./plugin-directory.js";
 import { handleComposerDraftsHttp, handleComposerSourcesHttp } from "./composer-sources-http.js";
@@ -99,6 +100,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   // Without a project, search covers personal content only; the caller's context has no project to widen it.
   { id: "search", handle: ({ request, response, url, localHost }) => handleSearchHttp(request, response, url,
     signal => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS, { signal })) },
+  { id: "sessions", handle: ({ request, response, url, localHost }) => handleSessionsHttp(request, response, url, (signal) => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS, { signal }), false) },
   // Outside a project the unified input lists the Home sources only (S-composer-source-call).
   { id: "composer-sources", handle: ({ request, response, url, localHost }) => handleComposerSourcesHttp(request, response, url,
     (signal) => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS, { signal }), runningHomePluginText(localHost)) },

@@ -63,6 +63,7 @@
 | 要求与认可 | `acceptance/acceptance.db` | 1 | `user_version` | `modules/acceptance/src/schema.ts#ACCEPTANCE_BASELINE` | 低版本升级，高版本拒绝（第 32 批新建，从版本 1 起） |
 | 工作记录 | `observation/observation.db` | 2 | `user_version` | `horizontal/observation/src/schema.ts#OBSERVATION_BASELINE` | 低版本升级（1 → 2 新增评测样本留存表 `evaluation_holds` 与 `evaluation_hold_records`，保留既有记录、证据快照、覆盖登记与设置），高版本拒绝 |
 | 端到端评测 | `evaluation/evaluation.db` | 1 | `user_version` | `horizontal/evaluation/src/schema.ts#EVALUATION_BASELINE` | 低版本升级，高版本拒绝（只停工作记录／评测设置面，不挡 Home） |
+| 外部会话 | `external-sessions/external-sessions.db` | 1 | `user_version` | `horizontal/sessions/src/schema.ts#EXTERNAL_SESSIONS_BASELINE` | 低版本升级，高版本拒绝（第 34 批新建，从版本 1 起） |
 | Form | `form/form.db` | 1 | `user_version` | `plugins/native/form/src/database.ts#FORM_DATABASE` | 低版本升级，高版本拒绝 |
 | 放置 | `placement/placement.db` | 1 | `user_version` | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE` | 低版本升级，高版本拒绝 |
 | Agent 定义 | `agent-definitions/agent-definitions.db` | 2 | `user_version` | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE` | 低版本升级，高版本拒绝 |

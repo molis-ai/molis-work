@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-16 质量与体验审查第十三批：`sessions.list@1` 增加可选 `query`，复用现行200字符上限，字面匹配标题/目录/工具名后再按原 keyset 分页；`sessions.history.read@1` 增加必填 `session` 元数据，同次末尾授权下本人得到完整行、非本人得到既有摘要。工作台直达、分页、范围变化后的重读及 Host 消费者同批迁移，不枚举列表找 key、不保留旧输出兜底。阶段一原位更新 API/动作快照；未改许可、库结构或自有版本。
+
 2026-11-16 质量与体验审查第十二批：成果 `ArtifactImportResult` 和 `artifacts.import.file/external@1` 输出增加必填 `text_available`，从该次保存/复用的 document.content 推导，不入库、不新增提取状态。工作台转写按此字段计完成、保留无正文项供重试；原件保存、模型下载授权和取消检查保持。阶段一原位扩充，所有调用方同批采用当前合同，无旧形状兜底；API/动作快照同步。可控 native helper 只证明失败/空正文/超时回复与恢复语义，不作为模型效果验证。
 
 2026-11-16 质量与体验审查第九批：`contracts/services/agent-host` 新增 `AgentReviewDecisionOptions` 与 Queue 的只读 `decisionOptions(reviewId)`；Host `/api/agent/reviews` 每行及工作台 `AgentReviewRow` 必须携带当前可决定动作，原状态/回执不变。来源是现有决定处理器与原安装 authority，不入库、不授予权限；无当前执行处理器的 pending 不能假称可以拒绝，停止/撤权的活操作仅可拒绝。工作台和全部渲染夹具同批迁移，无旧形状兜底。Coding 使用的只读 `agent.run.reviews` 不画决定按钮，其动作输出合同不变；不改变审查消费、恢复或 SDK 派发。

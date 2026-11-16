@@ -9,7 +9,7 @@ installHostUiText();
 // W5-06 余项第一片（PG-060，RAC-80～84）：/__ui/catalog 的底栏样张（/__ui/catalog/bar）用同一个构建期插件目录画插件格，
 // 并像新项目那样分亮格与灰格。亮格是样例项目默认启用的插件（现行 Dock 默认插件加个人插件），灰格是目录里其余插件；
 // 格子数随目录增减，不再写插件名单。developer 插件（Text Stats）不进目录，也就不进样张。
-// PG-077: the platform Artifact tile is always available to open and has no Plugin membership toggle.
+// PG-077 / BL-177: the platform Artifact and Sessions tiles are always available to open and have no Plugin membership toggle.
 
 // The Dock's default pins are what the Manifests declare (`pinned_default`, W5-02 PG-074), the plugins a new project starts with,
 // before any personal plugin is added.
@@ -27,7 +27,6 @@ test("RAC-80/81: the bar specimen draws the plugin directory with the sample pro
   const enabled = new Set(shownProjectPlugins([...DOCK_DEFAULT_PINS]));
   const directory = pluginMarketCards().map(card => card.id);
 
-  assert.doesNotMatch(html, /data-plugin-(?:tile|toggle)="sessions"/, "SC-4 removed Sessions from the directory and the sample must keep it absent");
   for (const pin of DOCK_DEFAULT_PINS) assert.ok(bright.includes(pin), `${pin} is a Dock default pin and stays bright`);
   for (const id of bright) assert.ok(enabled.has(id), `${id} is bright because the sample project has it enabled`);
   // The plugin studio is a personal plugin, so the sample project has it enabled — but the rail draws it as the switcher's
@@ -39,12 +38,14 @@ test("RAC-80/81: the bar specimen draws the plugin directory with the sample pro
     "the grey cells are exactly the directory's plugins the sample project has not added");
   assert.ok(bright.length > 0 && grey.length > 0, "both states are visible");
   assert.match(html, /class="plugin-rail-tile is-available[^"]*" data-plugin-tile="/, "a grey tile carries the not-added class");
-  assert.deepEqual(tiles(html).filter(id => id === "artifacts"), ["artifacts"], "the platform Artifact surface is present once");
-  assert.equal(directory.includes("artifacts"), false, "the platform surface is not in the Plugin market");
-  assert.doesNotMatch(html, /data-plugin-toggle="artifacts"/, "the platform surface cannot be added or removed as a Plugin");
-  assert.match(html, /class="plugin-rail-tile(?: is-kept)?" data-plugin-tile="artifacts"/, "the platform surface is available to open, not a grey unavailable Plugin");
-  assert.match(html, /data-plugin-id="artifacts"[^>]*data-work-surface-open="artifacts"/, "the tile opens the existing platform work surface");
-  for (const id of tiles(html).filter(id => id !== "artifacts")) assert.ok(bright.includes(id) || grey.includes(id), `${id} is drawn as bright or grey`);
+  for (const surface of ["artifacts", "sessions"] as const) {
+    assert.deepEqual(tiles(html).filter(id => id === surface), [surface], `the platform ${surface} surface is present once`);
+    assert.equal(directory.includes(surface), false, `the platform ${surface} surface is not in the Plugin market`);
+    assert.doesNotMatch(html, new RegExp(`data-plugin-toggle="${surface}"`), `the platform ${surface} surface cannot be added or removed as a Plugin`);
+    assert.match(html, new RegExp(`class="plugin-rail-tile(?: is-kept)?" data-plugin-tile="${surface}"`), `the platform ${surface} surface is available to open, not a grey unavailable Plugin`);
+    assert.match(html, new RegExp(`data-plugin-id="${surface}"[^>]*data-work-surface-open="${surface}"`), `the ${surface} tile opens the existing platform work surface`);
+  }
+  for (const id of tiles(html).filter(id => id !== "artifacts" && id !== "sessions")) assert.ok(bright.includes(id) || grey.includes(id), `${id} is drawn as bright or grey`);
 });
 
 test("RAC-82: the developer plugin stays out of the bar specimen, as it stays out of the plugin directory", () => {

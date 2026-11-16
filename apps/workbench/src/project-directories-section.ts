@@ -1,4 +1,4 @@
-import { t as uiText, escapeHtml, icon, renderButton, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, icon, renderButton, renderStatusMark, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderMenu, renderMenuGroup, renderMenuItem } from "@molis-ai/molis-work-design-system";
 import { renderWriteCheckersSection } from "./write-checkers-section.js";
 
@@ -24,6 +24,7 @@ export function renderProjectDirectoriesSection(readText: Say, prefix: string): 
     source_former_default: uiText.text("workbench.project-directories-section.project-s-earlier-default-output-folder"), stands: uiText.text("workbench.project-directories-section.stands-source"), input_role: uiText.text("workbench.project-directories-section.input-folder"), output_role: uiText.text("workbench.project-directories-section.output-folder"), choose_output: uiText.text("workbench.project-directories-section.where-output-goes-now"), choose_source: uiText.text("workbench.project-directories-section.where-read-folder"),
     instructions_on: uiText.text("workbench.project-directories-section.instructions-on"), instructions_off: uiText.text("workbench.project-directories-section.instructions-off"),
     instructions_default: uiText.text("workbench.project-directories-section.instructions-default"), instructions_unconfirmed: uiText.text("workbench.project-directories-section.instructions-unconfirmed"),
+    confirmed: uiText.text("workbench.project-directories-section.confirmed-name-now-person-linked"), confirm_named: uiText.text("workbench.project-directories-section.confirm-link-name"),
   }));
   const button = (label: string, act: string, variant: "secondary" | "ghost" = "secondary", extra: Record<string, string | boolean> = {}) =>
     renderButton({ label, variant, size: "sm", attrs: { "data-act": act, ...extra } });
@@ -31,13 +32,14 @@ export function renderProjectDirectoriesSection(readText: Say, prefix: string): 
   const row = `<template data-pd="row"><div class="settings-setting-row project-directory" data-directory-row>
       <span class="project-directory__glyph" data-if="input-glyph">${icon("folder")}</span><span class="project-directory__glyph" data-if="output-glyph">${icon("output")}</span>
       <span class="setting-copy project-directory__copy">
-        <strong class="project-directory__head"><span class="project-directory__name" data-text="name"></span><span class="project-directory__roles"><span class="mw-badge mw-badge--neutral" data-slot="badge" data-if="input">${uiText("workbench.project-directories-section.input-folder")}</span><span class="mw-badge mw-badge--info" data-slot="badge" data-if="output">${uiText("workbench.project-directories-section.output-folder")}</span></span></strong>
+        <strong class="project-directory__head"><span class="project-directory__name" data-text="name"></span><span class="project-directory__roles"><span class="mw-badge mw-badge--neutral" data-slot="badge" data-if="input">${uiText("workbench.project-directories-section.input-folder")}</span><span class="mw-badge mw-badge--info" data-slot="badge" data-if="output">${uiText("workbench.project-directories-section.output-folder")}</span><span data-if="tool-brought">${renderStatusMark({ label: uiText.text("workbench.project-directories-section.tool-brought-pending"), tone: "attention" })}</span></span></strong>
         <span class="project-directory__path" data-text="path"></span>
+        <span class="project-directory__note" data-if="tool-brought-note">${icon("circle-alert")}<span>${uiText("workbench.project-directories-section.tool-brought-consequence")}</span></span>
         <span class="project-directory__note is-warning" data-if="missing">${icon("circle-alert")}<span>${uiText("workbench.project-directories-section.can-t-find-folder-earlier-references-kept-read")}</span></span>
         <span class="project-directory__note" data-if="unmade">${icon("clock")}<span>${uiText("workbench.project-directories-section.not-made-yet-made-first-time-used-reads")}</span></span>
         <span class="project-directory__note" data-if="same">${icon("edit")}<span>${uiText("workbench.project-directories-section.both-input-output-tasks-can-change-files-here")}</span></span>
       </span>
-      <div class="setting-value">${button(uiText.text("workbench.project-directories-section.find-again"), "repair", "secondary", { "data-if": "repair" })}${button(uiText.text("workbench.project-directories-section.make-output"), "set-output", "secondary", { "data-if": "set-output" })}${button(uiText.text("workbench.project-directories-section.change"), "change-output", "secondary", { "data-if": "change-output", "aria-haspopup": "dialog" })}${renderButton({ label: uiText.text("workbench.project-directories-section.remove"), variant: "ghost", size: "sm", icon: "trash", iconOnly: true, attrs: { "data-act": "remove", "data-if": "remove" } })}</div>
+      <div class="setting-value">${button(uiText.text("workbench.project-directories-section.confirm-link"), "confirm-input", "secondary", { "data-if": "confirm-input" })}${button(uiText.text("workbench.project-directories-section.find-again"), "repair", "secondary", { "data-if": "repair" })}${button(uiText.text("workbench.project-directories-section.make-output"), "set-output", "secondary", { "data-if": "set-output" })}${button(uiText.text("workbench.project-directories-section.change"), "change-output", "secondary", { "data-if": "change-output", "aria-haspopup": "dialog" })}${renderButton({ label: uiText.text("workbench.project-directories-section.remove"), variant: "ghost", size: "sm", icon: "trash", iconOnly: true, attrs: { "data-act": "remove", "data-if": "remove" } })}</div>
     </div></template>`;
   // Which folder of another device this one is read for (B1 ④): change it or unlink it here, as from where the reference was met.
   const link = `<template data-pd="link"><div class="project-directory-link" data-directory-link>

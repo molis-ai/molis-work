@@ -220,6 +220,14 @@ const pages: Record<string, Draw> = {
 // QEA-03/05: independently built main bd537b7d9 matched all 52 accepted records. Only the import-help text and English
 // Import button were replaced in those baseline draws: +7 zh / +38 en in the 16 whole pages. Candidate draws matched each
 // derived expectation byte for byte; all 36 fragment records stayed exact. No candidate RECORD mode or normalization change.
+// Batch 34 (external sessions, SRB-08), on the merge of main 0d45ba58b: the 16 whole pages moved by +5805 zh / +6358 en and all 36
+// fragment, document and settings records stayed byte-identical. Only the shell changed: the `sessions` picker/rail tile, the deferred
+// `<section data-work-surface="sessions">` stage, the Read Scope `<dialog data-sessions-scope-sheet>` overlay, and the `"sessions"` entry
+// in the shell's plugin title map. Every whole-page state grew by the exact same constant in each language; no Goals markup or JSON
+// changed, and the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// QEA integration of main 4a08c41ca: all 16 normalized whole pages reproduce main's accepted hash and length exactly when only
+// this audit's import-help sentence and English import-submit label are reversed (+7 zh / +38 en). Those two proved changes are
+// retained in the merged expectations; the other 36 records are unchanged. Candidate RECORD mode and normalization were not changed.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

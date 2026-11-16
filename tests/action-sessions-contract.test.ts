@@ -49,7 +49,7 @@ const row = (attribution: unknown): ExternalSessionRow => ({
 });
 const list = (sessions: readonly object[], sources: readonly object[] = [source]) =>
   ({ sessions, sources, unfiled_count: 0, next_cursor: null, scope_revision: 1, trust: "untrusted" }) as ExternalSessionListOutput;
-const history: ExternalSessionHistoryOutput = { session_key: KEY, entries: [{ position: "p:1", role: "you", at: null, text: "你好", truncated: false }], older_cursor: null, newer_cursor: null,
+const history: ExternalSessionHistoryOutput = { session_key: KEY, session: row({ state: "unfiled", reason: "no_relation", candidates: [], suggestion: null }), entries: [{ position: "p:1", role: "you", at: null, text: "你好", truncated: false }], older_cursor: null, newer_cursor: null,
   matches: [], search: null, read_state: "complete", stopped: null, activity: "idle", trust: "untrusted" };
 const permit: ExternalSessionProjectAiRead = { project: PROJECT, directories: ["/work/app"], current: true, allowed: false, revision: 0, decided_at: null, counts: null };
 const scope: ExternalSessionScopeView = { project_ai_reads: [permit], scope_revision: 0, sources: [
@@ -60,7 +60,7 @@ const scope: ExternalSessionScopeView = { project_ai_reads: [permit], scope_revi
 
 test("SRB-11: Sessions declares these actions and no control action", () => {
   assert.deepEqual(definitions.map(reference), ["sessions.list@1", "sessions.history.read@1", "sessions.scope.read@1", "sessions.scope.set@1", "sessions.project_ai_read.set@1", "sessions.discovery.run@1",
-    "sessions.attribution.set@1", "sessions.attribution.suggest@1", "sessions.search.entries@1", "sessions.subject.read@1", "sessions.tool.search@1"]);
+    "sessions.attribution.set@1", "sessions.attribution.suggest@1", "sessions.search.entries@1", "sessions.subject.read@1", "sessions.tool.search@1", "sessions.connector.usages@1"]);
   assert.equal(SESSIONS_PROVIDER_ID, "system.sessions");
   assert.deepEqual([...SESSIONS_PERMISSIONS], ["sessions:read", "sessions:history", "sessions:manage"]);
   for (const definition of definitions) assert.doesNotMatch(definition.capability_id, /resume|send|stop|handoff/u);
@@ -76,7 +76,8 @@ test("the actions pass the platform's declaration rules, every schema compiles, 
 });
 
 test("SRB-12: reading is a concurrent read: it neither writes nor waits in the Home's queue", () => {
-  for (const definition of [sessionsActions.list, sessionsActions.historyRead, sessionsActions.scopeRead, sessionsActions.searchEntries, sessionsActions.subject, sessionsActions.toolSearch]) {
+  for (const definition of [sessionsActions.list, sessionsActions.historyRead, sessionsActions.scopeRead, sessionsActions.searchEntries, sessionsActions.subject, sessionsActions.toolSearch,
+    sessionsActions.connectorUsages]) {
     assert.equal(definition.operation, "query");
     assert.equal(actionEffect(definition.action, definition.capability_id), "read", reference(definition));
     assert.equal(definition.action.scheduling, "concurrent");
@@ -87,7 +88,7 @@ test("SRB-12: reading is a concurrent read: it neither writes nor waits in the H
 
 test("SRB-06: only the person changes what may be read; the two reads are one registration for every audience", () => {
   for (const definition of [sessionsActions.scopeRead, sessionsActions.scopeSet, sessionsActions.projectAiReadSet, sessionsActions.discoveryRun, sessionsActions.attributionSet, sessionsActions.attributionSuggest,
-    sessionsActions.searchEntries, sessionsActions.subject, sessionsActions.toolSearch]) {
+    sessionsActions.searchEntries, sessionsActions.subject, sessionsActions.toolSearch, sessionsActions.connectorUsages]) {
     assert.deepEqual([...definition.action.audiences], ["user"], reference(definition));
     for (const audience of ["agent", "workflow", "mcp", "plugin"] as const) assert.equal(actionReachesAudience(definition.action, definition.capability_id, audience), false, `${reference(definition)} reached ${audience}`);
   }
@@ -328,7 +329,7 @@ test("SRB-13: the refusals are distinct codes of the sessions owner, none of the
     ["project_ai_read_off", "sessions.project_ai_read_off", "forbidden"], ["scope_conflict", "sessions.scope_conflict", "conflict"], ["needs_login", "sessions.needs_login", "unavailable"],
     ["version_unreadable", "sessions.version_unreadable", "unavailable"], ["read_failed", "sessions.read_failed", "upstream"], ["source_unsupported", "sessions.source_unsupported", "unavailable"],
     ["project_required", "sessions.project_required", "invalid"], ["project_unavailable", "sessions.project_unavailable", "invalid"], ["attribution_conflict", "sessions.attribution_conflict", "conflict"],
-    ["cursor_invalid", "sessions.cursor_invalid", "invalid"], ["suggestion_unavailable", "sessions.suggestion_unavailable", "unavailable"], ["too_many_groups", "sessions.too_many_groups", "too_large"],
+    ["cursor_invalid", "sessions.cursor_invalid", "invalid"], ["too_many_groups", "sessions.too_many_groups", "too_large"],
   ]);
   const { details } = sessionsErrors.project_ai_read_off("这个项目的 AI 读取许可关着", { next_step: "open_project_ai_read" });
   assert.deepEqual(details, { next_step: "open_project_ai_read" });

@@ -64,7 +64,7 @@
 
 ## 4. 合同稿（`services/skills`，C1）
 
-新增动作都登记在 `system.skills`：
+新增动作登记在 `system.skills`（技能目录的提供方）；只有 `skills.drafts.adopt@1` 登记在插件安装的提供方，因为采用要在同一提供方里签名安装「我的技能」包（实现时定，见第 42 批文件「偏离」）：
 
 | 动作 | 谁能调 | 做什么 |
 | --- | --- | --- |
@@ -73,14 +73,14 @@
 | `skills.drafts.create@1` | 本人、Agent | 开一份草稿：新技能、自己的某个技能（可带 `from_version` 恢复）、改一份通用技能；可带已知答案 |
 | `skills.drafts.update@1` | 本人 | 边写边存，`expected_revision` 防覆盖 |
 | `skills.drafts.revise@1` | 本人 | 「告诉助理怎么改」：一句话改草稿，返回改后的字段（等模型，`concurrent`） |
-| `skills.drafts.discard@1` | 本人 | 放弃，带 `undo` 可在清理前撤回 |
-| `skills.drafts.adopt@1` | 本人 | 采用：校验、回放门、签名安装为新技能或下一版、记来源、可选把原来的改成关 |
+| `skills.drafts.discard@1` | 本人、Agent | 放弃，带 `restore` 可在 7 天清理前撤回；也是 `drafts.create` 回执的撤销 |
+| `skills.drafts.adopt@1` | 本人 | 采用：校验、回放门、签名安装为新技能或下一版、记来源；结果带 `source`，「把原来的改成关」由页面接着调 `skills.settings.set@1`（实现时定：采用不顺带改另一个技能的设置） |
 | `skills.cases.put@1`／`remove@1` | 本人 | 给草稿加、删已知答案 |
 | `skills.trials.run@1` | 本人、Agent | 回放（等模型，`concurrent`，`beforeEffect()` 前按读到的修订提交） |
 | `skills.versions.list@1` | 本人 | 自己的某个技能的各版 |
 | `skills.lineage.dismiss@1` | 本人 | 「先不管」：记下已看过的来源版本 |
 
-目录项 `SkillCatalogEntry` 加可选 `based_on`、`draft`（有没有草稿），`KitEntry` 的版本变化对技能也给 `default_updated`。第 41 批的 `skills.authored.save` 由 `drafts.adopt` 取代、`skills.authored.draft` 由 `drafts.create`＋起草取代（阶段一，同一 PR 改完全部消费者）；`skills.authored.read`、`remove` 保留。错误码用 `defineErrorCodes` 加在 `skills` 下：`draft_unknown`、`draft_conflict`、`trial_required`、`trial_differs`、`case_invalid`。
+目录项 `SkillCatalogEntry` 加可选 `based_on`、`draft`（有没有草稿），`KitEntry` 的版本变化对技能也给 `default_updated`。第 41 批的 `skills.authored.save` 由 `drafts.adopt` 取代（阶段一，同一 PR 改完全部消费者）；`skills.authored.read`、`remove`、`draft`（一句话起草表单）保留：新建技能时页面先用 `authored.draft` 填表，再 `drafts.create` 开草稿（实现时定，原稿写的是一并取代）。错误码用 `defineErrorCodes` 加在 `skills` 下：`draft_unknown`、`draft_conflict`、`trial_required`、`trial_differs`、`case_invalid`。
 
 ## 5. 开工前检查（需求开发流程第 4 节）
 

@@ -62,7 +62,13 @@ export {
   renderUsage,
   renderTextCount,
   renderLeaveBar,
+  renderAdoptBar,
+  renderReplayGrid,
+  renderAskRow,
+  renderPlaceholderList,
   type NowMenu,
+  type ReplayCell,
+  type ReplayVerdict,
   type PickRow,
 } from "./capability-pack.js";
 export {

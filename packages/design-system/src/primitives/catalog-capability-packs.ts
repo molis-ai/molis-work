@@ -6,14 +6,16 @@ import { section, specimen } from "./catalog-parts.js";
 import type { Say } from "./catalog-composer.js";
 import { statusLine } from "./catalog-skill-packs.js";
 import {
-  CAPABILITY_PACK_STYLES, renderCells, renderDetailTrail, renderIconCounts, renderItemGroup, renderLeaveBar, renderNowBlock, renderPickRow, renderStateRows, renderTextCount, renderUsage, type NowMenu,
+  CAPABILITY_PACK_STYLES, renderAdoptBar, renderAskRow, renderCells, renderDetailTrail, renderIconCounts, renderItemGroup, renderLeaveBar, renderNowBlock, renderPickRow, renderPlaceholderList,
+  renderReplayGrid, renderStateRows, renderTextCount, renderUsage, type NowMenu, type ReplayCell,
 } from "./capability-pack.js";
 
 export const CAPABILITY_PACK_BOARD_STYLES = CAPABILITY_PACK_STYLES + `
-  .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"], [data-primitive="text-count"], [data-primitive="leave-bar"]) .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
-  .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"], [data-primitive="text-count"], [data-primitive="leave-bar"]) .mw-catalog__row { display: grid; gap: 10px; min-width: 0; }
+  .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"], [data-primitive="text-count"], [data-primitive="leave-bar"], [data-primitive="adopt-bar"], [data-primitive="ask-row"], [data-primitive="placeholder-list"]) .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
+  .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"], [data-primitive="text-count"], [data-primitive="leave-bar"], [data-primitive="adopt-bar"], [data-primitive="replay-grid"], [data-primitive="ask-row"], [data-primitive="placeholder-list"]) .mw-catalog__row { display: grid; gap: 10px; min-width: 0; }
   .mw-catalog [data-primitive="icon-counts"] .mw-items { width: 100%; }
   .mw-catalog :is([data-primitive="sticky-detail"], [data-primitive="state-rows"]) .mw-catalog__specimens { grid-template-columns: minmax(0, 1fr); }
+  .mw-catalog [data-primitive="replay-grid"] .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 560px), 1fr)); align-items: start; }
   .mw-catalog [data-primitive="sticky-detail"] .mw-catalog__row { display: block; }
   .mw-catalog [data-sticky-frame] { height: var(--settings-view-h); overflow: auto; padding: 12px; border-radius: var(--sk-r-item, 8px); box-shadow: inset 0 0 0 1px var(--line); }
   .mw-catalog [data-sticky-frame] > p { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
@@ -148,6 +150,63 @@ export function leaveBarSection(say: Say): string {
     + renderButton({ label: say("workbench.skill-authoring.leave-stay"), variant: "ghost", size: "sm" });
   return section("leave-bar", say("workbench.catalog-kit.leave-bar"), `<div class="mw-catalog__specimens">
     ${specimen(say("workbench.catalog-kit.asked-once-above-the-form"), renderLeaveBar({ text: say("workbench.skill-authoring.leave-title", { n: say("workbench.catalog-skill-packs.write-the-weekly-review") }), actions }))}
+  </div>`);
+}
+
+/* 11–14 · Making a Skill better (batch 42, docs/design/skill-improvement scheme B): adopting a draft, the replay's results, telling the
+   Assistant what to change, and the placeholders of a copy of a general Skill. */
+const improve = (say: Say, key: string, values?: Record<string, string | number>) => say(`workbench.skill-improve.${key}`, values);
+export function adoptBarSection(say: Say): string {
+  const discard = renderButton({ label: improve(say, "discard"), variant: "ghost", size: "sm" });
+  return section("adopt-bar", say("workbench.catalog-kit.adopt-bar"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog-kit.ready-to-adopt"), renderAdoptBar({ primary: renderButton({ label: improve(say, "adopt-version", { v: 3 }), variant: "primary", size: "sm", icon: "check" }), actions: discard,
+      status: improve(say, "saved-at", { at: say("workbench.catalog-kit.just-now") }) }))}
+    ${specimen(say("workbench.catalog-kit.replay-owed"), renderAdoptBar({ primary: renderButton({ label: improve(say, "replay-first"), variant: "primary", size: "sm", icon: "play" }), actions: discard,
+      status: improve(say, "not-replayed"), owed: true }))}
+    ${specimen(say("workbench.catalog-kit.asked-again-in-place"), renderAdoptBar({ primary: renderButton({ label: improve(say, "adopt-version", { v: 3 }), variant: "primary", size: "sm", icon: "check" }), actions: discard,
+      status: improve(say, "saved-at", { at: say("workbench.catalog-kit.just-now") }), confirm: { id: "board-adopt-confirm", text: improve(say, "confirm-differs", { n: 1 }),
+        actions: renderButton({ label: improve(say, "adopt-anyway"), variant: "primary", size: "sm" }) + renderButton({ label: improve(say, "go-back"), variant: "ghost", size: "sm" }) } }))}
+  </div>`);
+}
+
+function verdictCell(say: Say, column: string, verdict: ReplayCell["verdict"], differences: string[] = []): ReplayCell {
+  const mark = verdict === "match" ? renderStatusMark({ label: improve(say, "verdict-match"), tone: "done", state: "done" })
+    : verdict === "differs" ? renderStatusMark({ label: improve(say, "verdict-differs", { n: differences.length }), tone: "attention", state: "verify" })
+    : verdict === "unknown" ? renderStatusMark({ label: improve(say, "verdict-unknown"), tone: "quiet", state: "paused" }) : renderStatusMark({ label: improve(say, "verdict-none"), tone: "quiet", state: "idle" });
+  return { column, verdict, mark, differences, ...(verdict === "none" ? {} : { action: renderButton({ label: improve(say, "see-result"), variant: "link", size: "sm" }) }) };
+}
+export function replayGridSection(say: Say): string {
+  const current = improve(say, "col-current", { v: 2 }), draft = improve(say, "col-draft");
+  const grouped = say("workbench.catalog-kit.sample-difference-grouping");
+  const both = renderReplayGrid({ label: improve(say, "replay-results"), columns: [current, draft], rows: [
+    { entry: improve(say, "entry-assistant"), icon: "message", cells: [verdictCell(say, current, "differs", [grouped]), verdictCell(say, draft, "match")] },
+    { entry: improve(say, "entry-coding"), icon: "code", cells: [verdictCell(say, current, "unknown"), verdictCell(say, draft, "match")] } ] });
+  const fresh = renderReplayGrid({ label: improve(say, "replay-results"), columns: [draft], rows: [{ entry: improve(say, "entry-assistant"), icon: "message", cells: [verdictCell(say, draft, "differs", [grouped])] }] });
+  return section("replay-grid", say("workbench.catalog-kit.replay-grid"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog-kit.two-entries-two-versions"), both)}
+    ${specimen(say("workbench.catalog-kit.a-new-skill-only-the-draft"), fresh)}
+  </div>`);
+}
+
+export function askRowSection(say: Say): string {
+  const row = (id: string, state: "idle" | "busy" | "changed") => renderAskRow({ id, label: improve(say, "ask-label"), placeholder: improve(say, "ask-placeholder"),
+    value: state === "idle" ? "" : say("workbench.catalog-kit.sample-ask"), go: renderButton({ label: improve(say, "ask-go"), size: "sm" }),
+    ...(state === "busy" ? { busy: renderStatusMark({ label: improve(say, "ask-busy"), tone: "progress", state: "running" }) } : {}),
+    ...(state === "changed" ? { after: renderBadge({ label: improve(say, "ask-changed", { n: 2 }), tone: "info" }) + renderButton({ label: improve(say, "see-change"), variant: "link", size: "sm" }) } : {}) });
+  return section("ask-row", say("workbench.catalog-kit.ask-row"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog-kit.waiting-for-a-sentence"), row("board-ask-idle", "idle"))}
+    ${specimen(say("workbench.catalog-kit.the-assistant-is-changing-it"), row("board-ask-busy", "busy"))}
+    ${specimen(say("workbench.catalog-kit.changed"), row("board-ask-changed", "changed"))}
+  </div>`);
+}
+
+export function placeholderListSection(say: Say): string {
+  const list = (left: number) => renderPlaceholderList({ title: improve(say, "placeholders-title"), lead: improve(say, "placeholders-lead"),
+    ...(left ? { badge: renderBadge({ label: improve(say, "placeholders-left", { n: left }), tone: "neutral" }) } : {}),
+    rows: [{ placeholder: "~~project tracker", value: left > 1 ? "" : "Linear", hint: improve(say, "placeholder-hint") }, { placeholder: "~~chat", value: left ? "" : "Slack", hint: improve(say, "placeholder-hint") }] });
+  return section("placeholder-list", say("workbench.catalog-kit.placeholder-list"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog-kit.some-left"), list(2))}
+    ${specimen(say("workbench.catalog-kit.all-replaced"), list(0))}
   </div>`);
 }
 

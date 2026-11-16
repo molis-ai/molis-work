@@ -108,6 +108,57 @@ export const CAPABILITY_PACK_STYLES = `
   .mw-leave-bar__text { flex: 1 1 160px; min-width: 0; margin: 0; }
   .mw-leave-bar__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
 
+  /* 11 · An adopt bar (batch 42, docs/design/skill-improvement): at the foot of a draft, the main act first, then the others, then one
+     sentence of where it stands; while a replay is still owed the sentence carries a mark. Asking once more (the replay differs) is a
+     line above it, in place, never a dialog. */
+  .mw-adopt-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--line); }
+  .mw-adopt-bar__status { display: inline-flex; align-items: flex-start; gap: 6px; flex: 1 1 160px; min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .mw-adopt-bar__status[data-owed] { color: var(--ink-soft); }
+  .mw-adopt-bar__status .mw-icon { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--muted); }
+  .mw-adopt-confirm { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; padding: 10px 12px; border-radius: var(--r-card, 12px); background: var(--amber-soft, var(--surface-soft)); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--ink); font-size: 13px; line-height: 1.5; }
+  .mw-adopt-confirm__text { flex: 1 1 160px; min-width: 0; margin: 0; }
+  .mw-adopt-confirm__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+
+  /* 12 · A replay grid (batch 42): one row per entry (the Assistant, Coding), one column per version (the one in use, the draft); each
+     cell its verdict, where it differs and the way to its result. Narrow, each cell takes the row and names its column itself. */
+  .mw-replay-grid { container: mw-replay-grid / inline-size; display: grid; gap: 6px; min-width: 0; }
+  .mw-replay-grid__row { display: grid; grid-template-columns: minmax(84px, 120px) repeat(var(--mw-replay-cols, 2), minmax(0, 1fr)); gap: 6px; align-items: stretch; min-width: 0; }
+  .mw-replay-grid__head > span { padding: 0 2px; color: var(--muted); font-size: 12px; }
+  .mw-replay-grid__entry { display: inline-flex; align-items: flex-start; gap: 6px; padding-top: 10px; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
+  .mw-replay-grid__entry .mw-icon { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--muted); }
+  .mw-replay-cell { display: grid; gap: 6px; align-content: start; min-width: 0; padding: 10px 12px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); }
+  .mw-replay-cell[data-verdict="match"] { box-shadow: inset 0 0 0 1px var(--line), inset 3px 0 0 var(--green); }
+  .mw-replay-cell[data-verdict="differs"] { box-shadow: inset 0 0 0 1px var(--line), inset 3px 0 0 var(--amber); }
+  .mw-replay-cell .mw-status { max-width: 100%; height: auto; min-height: 22px; white-space: normal; }
+  .mw-replay-cell > .mw-btn { justify-self: start; }
+  .mw-replay-cell__col { display: none; color: var(--muted); font-size: 11.5px; }
+  .mw-replay-cell__diffs { display: grid; gap: 2px; margin: 0; padding-left: 18px; color: var(--ink-soft); font-size: 12.5px; line-height: 1.5; }
+  @container mw-replay-grid (max-width: 480px) {
+    .mw-replay-grid__row { grid-template-columns: minmax(0, 1fr); }
+    .mw-replay-grid__head { display: none; }
+    .mw-replay-grid__entry { padding-top: 4px; }
+    .mw-replay-cell__col { display: block; }
+  }
+
+  /* 13 · An ask row (batch 42): one sentence to the Assistant about the text being written, and after it how much it changed. */
+  .mw-ask-row { display: grid; gap: 6px; min-width: 0; padding: 10px 12px; border-radius: var(--r-card, 12px); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); }
+  .mw-ask-row > label { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
+  .mw-ask-row > label .mw-icon { width: 14px; height: 14px; color: var(--accent); }
+  .mw-ask-row__line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+  .mw-ask-row__line > .mw-input { flex: 1 1 200px; min-width: 0; }
+  .mw-ask-row__line > :is(.mw-btn, .mw-status) { flex: none; }
+  .mw-ask-row__after { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; }
+
+  /* 14 · A placeholder list (batch 42): what a general Skill leaves to fill, one per row, the placeholder on the left and the person's own on the right. */
+  .mw-placeholders { container: mw-placeholders / inline-size; display: grid; gap: 8px; min-width: 0; padding: 12px; border-radius: var(--r-card, 12px); box-shadow: inset 0 0 0 1px var(--line); }
+  .mw-placeholders > h4 { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); }
+  .mw-placeholders > p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .mw-placeholders > ul { display: grid; grid-template-columns: fit-content(45%) 16px minmax(0, 1fr); gap: 6px 8px; margin: 0; padding: 0; list-style: none; }
+  .mw-placeholders li { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; min-width: 0; }
+  .mw-placeholders li > code { color: var(--ink-soft); font-size: 12px; overflow-wrap: anywhere; }
+  .mw-placeholders li > .mw-icon { width: 14px; height: 14px; color: var(--muted); }
+  @container mw-placeholders (max-width: 420px) { .mw-placeholders > ul { grid-template-columns: minmax(0, 1fr); } .mw-placeholders li { grid-template-columns: minmax(0, 1fr); gap: 4px; } .mw-placeholders li > .mw-icon { display: none; } }
+
   /* 8 · List and detail with the detail kept in view, only where a page asks (data-sticky-detail): it stays at the top of the
      scrolling area and scrolls itself when taller; at its end the scroll goes on to the page (no overscroll containment). The
      area's height comes from the settings shell (--settings-view-h); outside it, the window's. One side at a time, it is in flow. */
@@ -218,5 +269,51 @@ export function renderTextCount(options: { hint: string; count: string; over?: b
 export function renderLeaveBar(options: { text: string; actions: string; id?: string; attrs?: Record<string, AttrValue> }): string {
   const id = escapeHtml(options.id ?? "mw-leave-bar-text");
   return `<div class="mw-leave-bar" data-slot="leave-bar" role="group" aria-labelledby="${id}" tabindex="-1"${renderAttrs(options.attrs)}><p class="mw-leave-bar__text" id="${id}">${escapeHtml(options.text)}</p><div class="mw-leave-bar__actions">${options.actions}</div></div>`;
+}
+/**
+ * 11 · An adopt bar: the main act (`primary`), the others (`actions`), then `status`, one sentence of where it stands (`owed`: a step
+ * is still owed before the main act, and the sentence says which). `confirm` is asked once above it, in place: its sentence and its
+ * two ways on, the main one first; it takes the focus where it appears.
+ */
+export function renderAdoptBar(options: { primary: string; actions?: string; status: string; owed?: boolean; confirm?: { text: string; actions: string; id?: string };
+  attrs?: Record<string, AttrValue> }): string {
+  const confirm = options.confirm ? `<div class="mw-adopt-confirm" data-slot="adopt-confirm" role="group" tabindex="-1" aria-labelledby="${escapeHtml(options.confirm.id ?? "mw-adopt-confirm-text")}"><p class="mw-adopt-confirm__text" id="${
+    escapeHtml(options.confirm.id ?? "mw-adopt-confirm-text")}">${escapeHtml(options.confirm.text)}</p><div class="mw-adopt-confirm__actions">${options.confirm.actions}</div></div>` : "";
+  return `${confirm}<div class="mw-adopt-bar" data-slot="adopt-bar"${renderAttrs(options.attrs)}>${options.primary}${options.actions ?? ""}<span class="mw-adopt-bar__status"${options.owed ? " data-owed" : ""} role="status">${
+    options.owed ? icon("info") : ""}<span>${escapeHtml(options.status)}</span></span></div>`;
+}
+
+export type ReplayVerdict = "match" | "differs" | "unknown" | "none";
+export interface ReplayCell { column: string; verdict: ReplayVerdict; mark: string; differences?: readonly string[]; action?: string }
+/**
+ * 12 · A replay grid: `columns` names each version, each row one entry with its cells in the same order. A cell is its verdict's
+ * `mark` (a status mark), where the result differs, and its `action` (the way to the result).
+ */
+export function renderReplayGrid(options: { label: string; columns: readonly string[]; rows: ReadonlyArray<{ entry: string; icon: PluginIconName; cells: readonly ReplayCell[] }> }): string {
+  const head = `<div class="mw-replay-grid__row mw-replay-grid__head" aria-hidden="true"><span></span>${options.columns.map((column) => `<span>${escapeHtml(column)}</span>`).join("")}</div>`;
+  const rows = options.rows.map((row) => `<div class="mw-replay-grid__row" role="group" aria-label="${escapeHtml(row.entry)}"><span class="mw-replay-grid__entry">${icon(row.icon)}${escapeHtml(row.entry)}</span>${row.cells.map((cell) =>
+    `<div class="mw-replay-cell" data-verdict="${cell.verdict}"><span class="mw-replay-cell__col" aria-hidden="true">${escapeHtml(cell.column)}</span><span class="mw-sr-only">${escapeHtml(cell.column)}</span>${cell.mark}${
+      cell.differences?.length ? `<ul class="mw-replay-cell__diffs">${cell.differences.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}${cell.action ?? ""}</div>`).join("")}</div>`).join("");
+  return `<div class="mw-replay-grid" data-slot="replay-grid" role="group" aria-label="${escapeHtml(options.label)}" style="--mw-replay-cols:${options.columns.length}">${head}${rows}</div>`;
+}
+
+/**
+ * 13 · An ask row: a labelled one-line field and its button (`go`), or, while the Assistant works, `busy` (a status mark) in the
+ * button's place; `after` is what it changed (a badge and the way to see it).
+ */
+export function renderAskRow(options: { id: string; label: string; placeholder: string; value?: string; go: string; busy?: string; after?: string; inputAttrs?: Record<string, AttrValue> }): string {
+  return `<div class="mw-ask-row" data-slot="ask-row"><label for="${escapeHtml(options.id)}">${icon("sparkles")}${escapeHtml(options.label)}</label><div class="mw-ask-row__line"><input class="mw-input" data-slot="input" type="text" autocomplete="off" id="${
+    escapeHtml(options.id)}" placeholder="${escapeHtml(options.placeholder)}" value="${escapeHtml(options.value ?? "")}"${options.busy ? " disabled" : ""}${renderAttrs(options.inputAttrs)}>${options.busy ?? options.go}</div>${
+    options.after ? `<p class="mw-ask-row__after">${options.after}</p>` : ""}</div>`;
+}
+
+/**
+ * 14 · A placeholder list: each placeholder a general Skill writes beside the person's own word for it (`attrs` on each field);
+ * `badge` says how many are left, `after` holds what goes with the list (a choice about the original).
+ */
+export function renderPlaceholderList(options: { title: string; lead: string; badge?: string; rows: ReadonlyArray<{ placeholder: string; value: string; hint: string; attrs?: Record<string, AttrValue> }>; after?: string }): string {
+  return `<section class="mw-placeholders" data-slot="placeholders"><h4>${escapeHtml(options.title)}${options.badge ?? ""}</h4><p>${escapeHtml(options.lead)}</p><ul>${options.rows.map((row) =>
+    `<li><code>${escapeHtml(row.placeholder)}</code>${icon("arrow")}<input class="mw-input" data-slot="input" type="text" autocomplete="off" value="${escapeHtml(row.value)}" placeholder="${escapeHtml(row.hint)}" aria-label="${
+      escapeHtml(row.placeholder)}"${renderAttrs(row.attrs)}></li>`).join("")}</ul>${options.after ?? ""}</section>`;
 }
 export { renderMenuGroup, renderMenuItem } from "./overlay.js";

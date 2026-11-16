@@ -96,3 +96,10 @@ export const KNOWLEDGE_LOCATE = defineInstructionPrompt({
   purpose: "Agent 带着一个问题和几份资料来问先读哪几节时，看这几份资料的分节树（标题、层级、整理时写的每节一句摘要），挑出最可能写着答案的几节", used_by: ["项目资料"],
   ...promptBody("knowledge.locate"),
 });
+
+/** External sessions asks the model for non-binding project filing suggestions over directory groups (`sessions.attribution.suggest@1`). */
+export const SESSIONS_SUGGEST = defineInstructionPrompt({
+  owner_id: "system:sessions", prompt_id: "sessions.attribution.suggest", version: /* @version prompt.sessions.attribution.suggest */ 1, title: "外部会话归属建议",
+  purpose: "用户在外部会话页点“让 AI 建议归属”时，根据未归档目录组的目录尾名与会话标题，在当前项目里推荐可能对应的项目；只出建议，由用户确认归档", used_by: ["外部会话"],
+  ...promptBody("sessions.attribution.suggest"),
+});

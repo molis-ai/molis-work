@@ -19,6 +19,8 @@ const kit=new URL('../dist/kit-client.js',import.meta.url);
 writeFileSync(kit,compactClientScript(readFileSync(kit,'utf8')));
 const workRecords=new URL('../dist/work-records-client.js',import.meta.url);
 writeFileSync(workRecords,compactClientScript(readFileSync(workRecords,'utf8')));
+const sessions=new URL('../dist/sessions-client.js',import.meta.url);
+writeFileSync(sessions,compactClientScript(readFileSync(sessions,'utf8')));
 
 // Keep the request bootstrap byte-for-byte first. Local bindings and equivalent syntax may be shortened;
 // property names, public globals, event names and literal contents stay intact.

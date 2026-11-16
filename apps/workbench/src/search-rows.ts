@@ -5,6 +5,7 @@ import { pluginRecordRows, pluginSearchRows } from "./plugin-workbench.js";
  * (the platform owns it, as it owns the settings page the row sits on), so its one search row is named here.
  */
 const CHARACTERS_SEARCH_ROW: [string, string, string] = ["characters", "[data-character-id]", "characterId"];
+const SESSIONS_SEARCH_ROW: [string, string, string] = ["sessions", "[data-session-key]", "sessionKey"];
 
 /**
  * Feed's search hit is a source (it switches the Feed to that source), not an entry, so it is not the `recordRow` its registration
@@ -20,5 +21,5 @@ export function recordRows(): Array<[string, string, string]> {
 
 /** Every row a search hit is opened from: the plugins' declared `searchRow`s, then the two above. */
 export function searchRows(): Array<[string, string, string]> {
-  return [...pluginSearchRows(), FEED_SOURCE_SEARCH_ROW, CHARACTERS_SEARCH_ROW];
+  return [...pluginSearchRows(), FEED_SOURCE_SEARCH_ROW, CHARACTERS_SEARCH_ROW, SESSIONS_SEARCH_ROW];
 }

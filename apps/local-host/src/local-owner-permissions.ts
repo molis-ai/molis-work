@@ -23,6 +23,7 @@ import { MAINLINE_CONTROL_PERMISSION, MAINLINE_PLACE_PERMISSION, MAINLINE_PROVID
 import { PLACEMENT_PERMISSIONS, PLACEMENT_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/placement";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { KNOWLEDGE_PERMISSIONS, KNOWLEDGE_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { SESSIONS_PERMISSIONS, SESSIONS_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/sessions";
 import { ARTIFACT_ACTION_PERMISSIONS, ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
 import { agentTaskGrantActions } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 import { SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS, skillAuthoringActions, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
@@ -85,6 +86,7 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [ASSISTANT_RULES_PROVIDER, asks([...Object.values(ASSISTANT_RULE_ACTIONS), ...Object.values(ASSISTANT_FOLLOW_UP_ACTIONS), ...Object.values(ASSISTANT_RUNS_ACTIONS), ...Object.values(assistantThreadActions)])],
     [SEARCH_PROVIDER_ID, SEARCH_PERMISSIONS],
     [KNOWLEDGE_PROVIDER_ID, [...KNOWLEDGE_PERMISSIONS, "model:invoke"]],
+    [SESSIONS_PROVIDER_ID, [...SESSIONS_PERMISSIONS, "model:invoke"]],
     [PLACEMENT_PROVIDER_ID, PLACEMENT_PERMISSIONS],
     [MEMORY_PROVIDER_ID, MEMORY_PERMISSIONS],
     // The person sets a task's grants (`set` is offered to `user` alone; S-task-grant-subjects ⑤).

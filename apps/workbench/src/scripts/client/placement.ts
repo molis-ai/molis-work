@@ -4,13 +4,13 @@
  * plugin asks for when it made, imported, converted or exported something. Everything is read from the placement service;
  * a plugin only declares its current object (`data-assistant-context`) and leaves a `data-placement-slot`.
  */
-import { pluginSearchRows } from "../../plugin-workbench.js";
+import { searchRows } from "../../search-rows.js";
 import { SIDE_FILE_SOURCES_CLIENT_SCRIPT } from "../../side-file-sources-client.js";
 
 export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   const { translate: readText, route, headers, openItem, openPluginRecord, itemTabs: ITEM_TABS } = host;
   /* The same rule as search: some plugins open an object as a tab, others by its row in their own list. */
-  const RECORD_ROWS = ${JSON.stringify(pluginSearchRows().map(([plugin]) => plugin))};
+  const RECORD_ROWS = ${JSON.stringify(searchRows().map(([plugin]) => plugin))};
   const here = () => document.body.dataset.projectId || null;
   const hereTitle = () => here() === "personal" ? globalThis.t.text("workbench.placement.personal-space") : (host.projectTitle ? globalThis.t.text("workbench.placement.project-name", { name: host.projectTitle }) : globalThis.t.text("workbench.placement.current-project"));
   const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined && text !== null) value.textContent = text; if (className) value.className = className; return value; };

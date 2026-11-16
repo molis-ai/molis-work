@@ -1,6 +1,6 @@
 # Horizontal Services
 
-`horizontal/` 目录下有 **15 个包**，分两类（定义见[系统架构 §3](../system/ARCHITECTURE.md)，逐包清单见 [SSOT-MATRIX §6](../SSOT-MATRIX.md)）：5 个横向运行服务和 10 个平台产品服务。
+`horizontal/` 目录下有 **16 个包**，分两类（定义见[系统架构 §3](../system/ARCHITECTURE.md)，逐包清单见 [SSOT-MATRIX §6](../SSOT-MATRIX.md)）：5 个横向运行服务和 11 个平台产品服务。
 
 **横向运行服务**是多种业务都会复用的可靠运行能力。它保存 cursor、lease、retry、process handle 等可恢复技术状态，但不拥有正式业务事实，也不替 Module 做业务决定。
 
@@ -24,6 +24,7 @@
 - [Appearance](../../horizontal/appearance/README.md)：Home 的外观选择、应用与撤销，以及没有页面的工作所用的最近语言。
 - [Surfaces](../../horizontal/surfaces/README.md)：按调用方、位置和对象排出确定呈现组合，并保存本人的位置纠正；合同见 [surface-composition](../../specs/surface-composition/spec.md) §2、§3、§14。
 - [Kit](../../horizontal/kit/README.md)：现算某个范围里的能力包，给条目盖来源与所属的包、读出包状态；不存注册表。
+- [Sessions](sessions.md)：在本人打开的读取范围内发现外部 AI 开发工具的会话，按来源实时只读正文、做项目归属与模型归属建议，供个人检索与个人助理单轮显式引用；不存对话正文，不发消息，不管理运行进程。
 
 情境排序（`packages/kernel/src/contextual.ts`）同属平台产品服务，位置不变，合同与边界见 [action-architecture §3 的复核小节](../../specs/action-architecture/spec.md)。它是纯函数，只给工作台的选区条用，不登记成系统动作：只有工作台的 HTTP 传输（`/api/contextual/*`），准备输入与上报信号都经调用者自己的动作，判断只排序、不执行；删除条件是助理、工作流、MCP 或插件要用情境推荐时，把它做成只读的系统动作。与内核核心的边界见 [内核 README](../../packages/kernel/README.md)。
 

@@ -44,6 +44,7 @@
 - [定时任务能读的数据：可点的定样（路线书第 18 批 P1）](schedule-task-grants/README.md)
 - [服务与模型连接：可点的定样（路线书第 13 批）](service-connections/README.md)
 - [外部会话：可点的定样（路线书第 22 批）](sessions-sources/README.md)
+- [外部会话来源差异与接入边界：可点的定样（路线书第 34 批）](sessions-34/README.md)
 - [技能包：安装预览、启用和管理的可点定样（路线书第 08 批）](skill-packs/README.md)
 - [技能选用：选用解释、改选与停用的可点定样（路线书第 41 批）](skill-selection/README.md)
 - [写自己的技能：新建、修改和「改一份我的」的可点定样（路线书第 41 批第 2 项，已定 B）](skill-authoring/README.md)

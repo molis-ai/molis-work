@@ -14,8 +14,8 @@ const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.ur
 test("RAC-2340 platform Artifact navigation and declared surfaces remain reachable without any project Plugins", () => withPageText("zh", [], () => {
   assert.equal(BUILTIN_PLUGIN_CATALOG.some(entry => entry.project_plugin_id === "artifacts"), false);
   const nav = railEntries([], []);
-  assert.deepEqual(nav.map(entry => [entry.id, entry.chosen]), [["artifacts", false]]);
-  assert.deepEqual(clientPluginDirectory([]), [{ id: "artifacts", accepts_objects: true, hue: "pink" }]);
+  assert.deepEqual(nav.map(entry => [entry.id, entry.chosen]), [["artifacts", false], ["sessions", false]]);
+  assert.deepEqual(clientPluginDirectory([]), [{ id: "artifacts", accepts_objects: true, hue: "pink" }, { id: "sessions", accepts_objects: false, hue: "indigo" }]);
   const host = createWorkbenchUiHost([]);
   assert.equal(host.list().length, 2);
   const html = host.mountDeclared({ contribution_id: "io.molis.work.native.artifacts.reference.v1", surface: "reference",

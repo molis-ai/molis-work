@@ -7,6 +7,7 @@ import type { AssistantCard, AssistantContextSnapshot, AssistantPageCardInput, A
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { cardInputValues, dismissActionCard, draftActionCard, runActionCard, sweepActionCard, type ActionCardPorts, type ActionCardRefusal } from "@molis-ai/molis-work-plugin-sdk";
 import { assistantCardHtml, cardView } from "./assistant-card-view.js";
+import { isExternalSessionObject, isExternalSessionSurface } from "./assistant-external-sessions.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantJobs } from "./assistant-jobs.js";
 import type { AssistantStore, StoredCard, StoredWork } from "./assistant-store.js";
@@ -98,6 +99,9 @@ export class AssistantOffers {
       ? { surface: input.source.surface.trim().slice(0, 120), ...(typeof input.source.title === "string" && input.source.title.trim() ? { title: input.source.title.trim().slice(0, 120) } : {}) }
       : null;
     if (!source) throw this.ports.fail("assistant.invalid", "需要说明来自哪个页面");
+    if (isExternalSessionSurface(source) || isExternalSessionObject(card.source_object)) {
+      throw this.ports.fail("assistant.unsupported", "外部会话内容只限单轮带入，不能存成长期保留的操作卡");
+    }
     // The same message places its card once: a second delivery shows the first.
     const placed = this.ports.store.setting(this.ports.actorId, `page-card:${messageId}`);
     if (placed) {

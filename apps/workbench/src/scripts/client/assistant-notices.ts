@@ -107,17 +107,16 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
   };
   // Only what needs the person (a decision, a failure, a reminder that is due) shows before the input; news about a work
   // is a mark on that work's tab and in the list of works, gone once it is seen.
-  // On a project page the line's head says how many of the owners' objects wait on the person (WLN-39), and this count takes
-  // that same number in place of its own read of them; what waits off the line (a due reminder, a failure, a plugin's item for a
-  // decision) adds to it, as before. The head says it as an attribute; a change repaints here.
+  // On a project page the line's head says how much waits on the person, and this count is that same number (WLN-39): the
+  // list behind it is still the notices and the plugins' items. The head says it as an attribute; a change repaints here.
   let headWatched = null;
   const paintAttention = () => {
     const open = notices.filter((notice) => !notice.held);
     const head = document.querySelector("[data-work-line-head]");
     if (head && head !== headWatched) { headWatched = head; new MutationObserver(() => paintAttention()).observe(head, { attributes: true, attributeFilter: ["data-waiting"] }); }
-    const offLine = open.filter((notice) => URGENT.has(notice.kind)).length + pluginWaiting;
-    const listed = offLine + attentionObjectsCount;
-    const urgent = head ? (Number(head.dataset.waiting) || 0) + offLine : listed;
+    // With nothing on the line waiting, what the list holds keeps the bell in reach, without a number of its own.
+    const listed = open.filter((notice) => URGENT.has(notice.kind)).length + pluginWaiting + attentionObjectsCount;
+    const urgent = head ? Number(head.dataset.waiting) || 0 : listed;
     if (noticeBtn) {
       if (urgent > lastUrgent) { noticeBtn.removeAttribute("data-bump"); void noticeBtn.offsetWidth; noticeBtn.setAttribute("data-bump", ""); }
       lastUrgent = urgent;

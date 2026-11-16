@@ -4,9 +4,9 @@
   const query = new URLSearchParams(location.search);
   let lang = query.get('lang') === 'en' ? 'en' : 'zh';
   let theme = query.get('theme') === 'dark' ? 'dark' : 'light';
-  let selected = query.get('task') || 'parent', fault = 'normal', handle;
+  let selected = query.get('task') || 'parent', fault = 'normal', mainHandle, childHandle, mountedChild;
   const tx = pair => pair[lang === 'en' ? 1 : 0];
-  const key = 'molis-prototype-58-v3:';
+  const key = 'molis-prototype-58-v4:';
   const drafts = new Map(), reading = new Map(), expanded = new Set(), pending = new Map();
   const base = {
     parent: { name: ['准备墨问西东内测发布', 'Prepare Mowen for private beta'], role: ['个人助理', 'Personal assistant'], state: 'running',
@@ -59,7 +59,9 @@
     document.documentElement.dataset.theme = theme;
     prototypeBar();
     document.getElementById('desktop').innerHTML = `<header class="desktop-top">${icon('home')}<span class="desktop-tab">${icon('file')} ${tx(['内测发布计划', 'Private beta plan'])}</span><span class="project">${tx(['墨问西东', 'Mowen'])}</span></header><article class="document"><div class="eyebrow">${tx(['项目文档 · 草稿', 'Project document · Draft'])}</div><h1>${tx(['让第一个观点，值得听。', 'Make the first perspective worth hearing.'])}</h1><p>${tx(['墨问西东 · 首轮内测计划', 'Mowen · First private beta'])}</p><h2>${tx(['这一次想知道什么', 'What we want to learn'])}</h2><p>${tx(['一段 90 秒的语音观点，能否让人愿意听完，再往下探索？先邀请 20 位朋友，留下他们在第一次收听时最自然的反应。', 'Can a 90-second perspective make someone want to listen and explore? Invite twenty friends and capture their first reactions.'])}</p><div class="document-row">${icon('check')} ${tx(['访谈摘要', 'Interview summary'])}<small>${tx(['8 份已整理', '8 interviews reviewed'])}</small></div><div class="document-row">${icon('file')} ${tx(['邀请文案', 'Invitation copy'])}<small>${tx(['助理正在处理', 'Assistant is working'])}</small></div><div class="document-row">${icon('play')} ${tx(['首次收听样例', 'First listening sample'])}<small>${tx(['待选择', 'Awaiting a choice'])}</small></div></article>`;
-    handle?.destroy();
+    const mainField=document.querySelector('#composer textarea');
+    if(mainField)localStorage.setItem(key+'draft:parent',mainField.value);
+    mainHandle?.destroy();unmountChild();
     const owner = { name: tx(['助理', 'Assistant']), glyph: 'sparkles', hue: 'blue' };
     document.getElementById('line-zone').innerHTML = W.renderWorkLine({
       head: W.renderLineHead({ name: tx(['墨问西东', 'Mowen']), waiting: 1 }), past: [],
@@ -67,7 +69,7 @@
       next: [{ id: 'invite', title: tx(['邀请第一批听众', 'Invite first listeners']), owner, kind: tx(['待办', 'Next step']), state: '', stateLabel: tx(['接下来', 'Next']) }],
       slot: `<div class="bar-center" data-assistant-island><section id="assistant-panel" class="assistant-panel" data-side="closed" aria-label="${tx(['个人助理对话', 'Personal assistant conversation'])}"></section><div class="task-float" id="task-float"></div><div id="peek" class="peek" hidden></div><div id="composer"></div></div>`
     });
-    drawCard(); mountComposer(); placeFloat();
+    drawCard(); mainHandle=mountComposer('parent',document.getElementById('composer')); placeFloat();
   }
   function row(id) {
     return `<button class="task-link" data-task="${id}">${ring(id)}<span>${esc(tx(tasks[id].name))}</span><small>${esc(tx(status(id)))}</small>${icon('chevron-right')}</button>`;
@@ -89,16 +91,17 @@
   }
   function childDialog() {
     const id=selected,t=tasks[id];
-    const feedback=['stopped','failed','interrupted'].includes(t.state) ? K.renderAlert({tone:'warning',title:tx(t.state==='stopped'?['已停止','Stopped']:['本次未完成','This attempt did not finish']),body:tx(['对话与旧结果已保留。点「继续」会开始新尝试。','Messages and earlier results are kept. Continue starts a new attempt.'])}) : t.state==='unavailable' ? K.renderAlert({tone:'warning',title:tx(['这一步已收回','This step was reassigned']),body:tx(['保留可读历史；请回任务卡查看当前负责人。','You can read the history. Return to the task card for the current owner.'])}) : '';
-    return `<section class="work-task-panel subtask-dialog" id="tasks-popover" role="region" aria-label="${esc(tx(t.name))}"><header class="subtask-float-head">${btn(t.parent?['返回上级子任务','Back to parent subtask']:['返回任务卡','Back to task card'],'parent',{icon:'chevron-left',iconOnly:true,variant:'ghost'})}<strong>${esc(tx(t.role))}</strong>${btn(['关闭','Close'],'close-float',{icon:'x',iconOnly:true,variant:'ghost'})}</header><div class="subtask-strip"><div class="source">${icon('git-branch')}<span>${esc(tx(tasks[t.parent||'parent'].name))}</span></div><div class="control">${['running','answer','approval'].includes(t.state) ? btn(['停止','Stop'],'stop') : t.state!=='unavailable' ? btn(['继续','Continue'],'continue') : ''}</div></div><div class="local-feedback">${feedback}</div><div class="subtask-thread" id="message-list" tabindex="0" role="log" aria-label="${tx(['子任务对话','Subtask conversation'])}"></div><div class="latest-row" id="latest-row"></div></section>`;
+    return `<section class="work-task-panel subtask-dialog" id="tasks-popover" role="region" aria-label="${esc(tx(t.name))}"><header class="subtask-float-head">${btn(t.parent?['返回上级子任务','Back to parent subtask']:['返回任务卡','Back to task card'],'parent',{icon:'chevron-left',iconOnly:true,variant:'ghost'})}<strong>${esc(tx(t.role))}</strong>${btn(['关闭','Close'],'close-float',{icon:'x',iconOnly:true,variant:'ghost'})}</header><div class="subtask-strip"><div class="source">${icon('git-branch')}<span>${esc(tx(tasks[t.parent||'parent'].name))}</span></div><div class="control">${['running','answer','approval'].includes(t.state) ? btn(['停止','Stop'],'stop') : t.state!=='unavailable' ? btn(['继续','Continue'],'continue') : ''}</div></div><div class="subtask-thread" id="message-list" tabindex="0" role="log" aria-label="${tx(['子任务对话','Subtask conversation'])}"></div><div class="latest-row" id="latest-row"></div><div class="child-composer" id="child-composer"></div></section>`;
   }
   function drawTaskFloat() {
     const root=document.getElementById('task-float'); if(!root)return;
     document.querySelectorAll('.work-task-mark').forEach(mark=>mark.setAttribute('aria-expanded',String(panelOpen)));
+    unmountChild();
     root.hidden=!panelOpen;
     if(!panelOpen)return;
     if(panelMode==='conversation' && selected!=='parent') {
       root.innerHTML=childDialog();drawMessages();
+      mountedChild=selected;childHandle=mountComposer(selected,document.getElementById('child-composer'));
       const scroller=document.getElementById('message-list');scroller.scrollTop=reading.get(selected)||0;
       const id=selected;scroller.addEventListener('scroll',()=>reading.set(id,scroller.scrollTop),{passive:true});
     } else if(panelMode==='list') {
@@ -132,43 +135,45 @@
     list.innerHTML = `<div><h2 class="subtask-title">${esc(tx(t.name))}</h2><p class="subtask-brief">${esc(tx(t.brief))}</p>${badge(id)}</div>` + [...history, ...t.messages].map((m,i) => messageHtml(m,id,i)).join('') + (t.process ? `<details class="process" data-process="${id}" ${expanded.has(id) ? 'open' : ''}><summary>${tx(['查看过程', 'View activity'])}</summary><p>${esc(tx(t.process))}</p></details>` : '') + (t.state === 'answer' ? `<section class="question"><h3>${tx(['首次收听先给哪段样例？', 'Which sample should play first?'])}</h3><p>${tx(['普通补充不会替你选；在这里回答后才继续。', 'An ordinary message does not answer this. Choose here to continue.'])}</p><div class="actions">${btn(['90 秒观点', '90-second perspective'], 'answer-short', { variant: 'primary' })}${btn(['完整访谈片段', 'Full interview excerpt'], 'answer-long')}</div></section>` : '') + (t.state === 'approval' ? `<section class="question"><h3>${tx(['允许访问内测发布页？', 'Allow access to the beta page?'])}</h3><p>${tx(['仅查看页面，不发布。聊天补充不会代替这次审查。', 'Read the page only; no publishing. A message does not approve this request.'])}</p><div class="actions">${btn(['允许这一次', 'Allow once'], 'approve', { variant: 'primary' })}${btn(['不允许', 'Deny'], 'deny')}</div></section>` : '') + (id === 'check' ? `<div class="section-label">${tx(['这一步的拆解', 'Steps within this task'])}</div>${row('mobile')}` : '');
     list.querySelectorAll('details').forEach(d => d.addEventListener('toggle', () => d.open ? expanded.add(id) : expanded.delete(id)));
   }
+  function unmountChild() {
+    const field=document.querySelector('#child-composer textarea');
+    if(field&&mountedChild)localStorage.setItem(key+'draft:'+mountedChild,field.value);
+    childHandle?.destroy();childHandle=undefined;mountedChild=undefined;
+  }
   function navigate(id, focus = true) {
     if (!tasks[id]) return;
-    const field = document.querySelector('#composer textarea');
-    if (field) localStorage.setItem(key + 'draft:' + selected, field.value);
-    handle?.destroy(); selected=id; dialogOpen=true; panelOpen=true;panelMode=id==='parent'?'task':'conversation';tasks[id].unread=false;save();rememberView();
-    drawCard();mountComposer();
+    unmountChild();selected=id;dialogOpen=true;panelOpen=true;panelMode=id==='parent'?'task':'conversation';tasks[id].unread=false;save();rememberView();
+    drawCard();
     if(focus)document.querySelector(id==='parent'?'#task-float [data-task]':'#task-float [data-action=parent]')?.focus();
   }
   function adapter(id) {
     if (!drafts.has(id)) drafts.set(id, { read: async () => localStorage.getItem(key + 'draft:' + id) || '', write: async text => localStorage.setItem(key + 'draft:' + id, text) });
     return drafts.get(id);
   }
-  function mountComposer() {
-    handle?.destroy();
-    const id = selected, t = tasks[id];
-    handle = window.molisComposerProgram(document.getElementById('composer'), {
+  function mountComposer(id, root) {
+    const t=tasks[id];
+    const instance=window.molisComposerProgram(root, {
       kind: 'ai', entry: 'subtask-prototype-58', labels: { ...window.prototypeLabels(lang), input: tx(id === 'parent' ? ['给个人助理发消息', 'Message your assistant'] : ['直接给这一步补充要求', 'Add instructions to this step']) },
       sources: false, draft: { adapter: adapter(id) },
-      receiver: () => ({ label: tx(id === 'parent' ? t.role : t.name), detail: tx(id === 'parent' ? ['父任务', 'Parent task'] : ['子任务', 'Subtask']), others: ['parent', ...siblings].filter(k => k !== id).map(k => ({ id: k, label: tx(tasks[k].name), detail: tx(tasks[k].role) })), choose: next => navigate(next), open: () => navigate(id) }),
-      notice: () => ['stopped','failed','interrupted','unavailable'].includes(t.state) ? { text: tx(t.state === 'unavailable' ? ['已收回，无法向原执行者发送。', 'Reassigned; the former owner cannot receive messages.'] : ['先继续此子任务，再发送补充。', 'Continue this subtask before sending.']) } : null,
+      receiver: () => ({ label: tx(t.role), detail: tx(id==='parent'?['主助理','Main assistant']:t.name) }),
+      notice: () => ['stopped','failed','interrupted','unavailable'].includes(t.state) ? { text: tx(t.state === 'unavailable' ? ['已收回，无法向原执行者发送。', 'Reassigned; the former owner cannot receive messages.'] : ['继续会开始新尝试；对话和草稿已保留。', 'Continue starts a new attempt. History and draft are kept.']) } : null,
       required: () => ['stopped','failed','interrupted','unavailable'].includes(t.state) ? tx(['当前不能发送', 'Sending is not available']) : null,
       delivery: () => ({ 'next-boundary': { available: true }, interrupt: { available: false, reason: tx(['此样稿只演示下一边界补充', 'This prototype demonstrates delivery at the next boundary']) }, 'after-run': { available: true } }),
       submit: async input => {
         // The closure freezes id. Switching the visible task does not change this request's destination.
-        const sentFault = fault;
+        const sentFault=id==='parent'?'normal':fault;
         await new Promise(resolve => setTimeout(resolve, 900));
         if (sentFault === 'failed') return { state: 'failed', message: tx(['没有送达。文字已保留，可恢复正常后重试。', 'Not delivered. Your text is kept; retry after restoring the connection.']) };
         if (t.state === 'unavailable' || t.state === 'stopped') return { state: 'failed', message: tx(['任务状态已改变，消息未投递。', 'The task changed state. Your message was not delivered.']) };
         const accept = () => {
           if (pending.has(input.request_id)) return;
           pending.set(input.request_id, id);
-          t.messages.push(['user', [input.text, input.text]], ['receipt', ['已接收 · 等待子任务下一次处理', 'Received · waiting for the subtask’s next processing boundary']]);
+          t.messages.push(['user', [input.text, input.text]], ['receipt', ['已接收 · 等待下一次处理', 'Received · waiting for the next processing boundary']]);
           if (t.state === 'round-ended') { t.attempt = (t.attempt || 1) + 1; t.state = 'running'; }
           save(); updateVisible(id);
           setTimeout(() => {
             if (!['running','answer','approval'].includes(t.state)) return;
-            t.messages.push(['assistant', [t.state === 'answer' ? '补充已记下。上面的样例选择仍需要你回答，普通消息不会替你做选择。' : t.state === 'approval' ? '补充已记下。访问请求仍在等你审查，我还没有打开页面。' : '收到。我会按这条补充继续，保留此前的结果；有影响整体任务的变化会回报给父任务。', t.state === 'answer' ? 'Your note is recorded. The sample choice above still needs your answer.' : t.state === 'approval' ? 'Your note is recorded. Page access still awaits approval; I have not opened it.' : 'Understood. I’ll use this instruction, preserve earlier results, and report relevant changes to the parent task.']]);
+            t.messages.push(['assistant', [t.state === 'answer' ? '补充已记下。上面的样例选择仍需要你回答，普通消息不会替你做选择。' : t.state === 'approval' ? '补充已记下。访问请求仍在等你审查，我还没有打开页面。' : id==='parent' ? '收到，我会在主任务里处理这条补充，继续汇总各步骤的进展。' : '收到。我会按这条补充继续，保留此前的结果；有影响整体任务的变化会回报给父任务。', t.state === 'answer' ? 'Your note is recorded. The sample choice above still needs your answer.' : t.state === 'approval' ? 'Your note is recorded. Page access still awaits approval; I have not opened it.' : id==='parent' ? 'Understood. I’ll handle this in the main task and keep collecting progress from each step.' : 'Understood. I’ll use this instruction, preserve earlier results, and report relevant changes to the parent task.']]);
             tasks.parent.unread = true; save(); updateVisible(id);
           }, 1600);
         };
@@ -176,8 +181,9 @@
         accept(); return { state: 'sent' };
       }
     });
-    handle.setRunning(['running','answer','approval'].includes(t.state));
-    if (['stopped','failed','interrupted','unavailable'].includes(t.state)) handle.hold(tx(['当前不能发送，已保留草稿', 'Sending is unavailable; your draft is kept']));
+    instance.setRunning(['running','answer','approval'].includes(t.state));
+    if (['stopped','failed','interrupted','unavailable'].includes(t.state)) instance.hold(tx(['当前不能发送，已保留草稿', 'Sending is unavailable; your draft is kept']));
+    return instance;
   }
   function updateVisible(id) {
     if(id!==selected && id!=='parent') { tasks[id].unread=true;save();if(panelMode!=='conversation')drawTaskFloat();return; }
@@ -211,11 +217,11 @@
     if (action === 'background') { const id = selected === 'research' ? 'copy' : 'research'; tasks[id].messages.push(['assistant', ['补充核对完成，已把新的来源附在原结果后。', 'An additional check is complete; the source is attached to the earlier result.']]); return updateVisible(id); }
     if (action === 'latest') { const list = document.getElementById('message-list'); list.scrollTop = list.scrollHeight; document.getElementById('latest-row').innerHTML = ''; return; }
     if (action === 'reload') { fault = 'normal'; prototypeBar(); return drawMessages(); }
-    if (action === 'stop') { t.state = 'stopped'; save(); drawCard(); handle.setRunning(false); handle.hold(tx(['已停止；先继续此子任务，再发送', 'Stopped; continue this subtask before sending'])); return; }
-    if (action === 'continue') { t.attempt = (t.attempt || 1) + 1; t.state = 'running'; t.messages.push(['receipt', ['已开始新尝试 · 旧结果仍保留', 'New attempt started · previous results preserved']]); save(); drawCard(); mountComposer(); return; }
+    if (action === 'stop') { t.state='stopped';save();drawCard();return; }
+    if (action === 'continue') { t.attempt = (t.attempt || 1) + 1; t.state = 'running'; t.messages.push(['receipt', ['已开始新尝试 · 旧结果仍保留', 'New attempt started · previous results preserved']]); save(); drawCard(); return; }
     if (action.startsWith('answer-') || action === 'approve' || action === 'deny') {
       t.messages.push(['user', action === 'answer-short' ? ['选择 90 秒观点。', 'Use the 90-second perspective.'] : action === 'answer-long' ? ['选择完整访谈片段。', 'Use the full interview excerpt.'] : action === 'approve' ? ['允许这一次访问。', 'Allow this access once.'] : ['不允许访问。', 'Deny access.']]);
-      t.state = action === 'deny' ? 'stopped' : 'running'; save(); drawCard(); mountComposer();
+      t.state = action === 'deny' ? 'stopped' : 'running'; save(); drawCard();
     }
   });
   document.addEventListener('change', event => {
@@ -226,7 +232,7 @@
       if (fault === 'interrupted') tasks[selected].state = 'interrupted';
       if (fault === 'approval') tasks[selected].state = 'approval';
       if (fault === 'normal') tasks[selected].state = base[selected].state;
-      drawCard(); mountComposer();
+      drawCard();
     }
   });
   document.addEventListener('keydown', event => {

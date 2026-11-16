@@ -12,8 +12,8 @@ const FADE = 24;
 /** The states worth saying about events out of sight: one needs the person, failed, or has a result to check. */
 const URGENT = new Set(["wait", "failed", "verify"]);
 /**
- * Run on the next frame, once however many sizes changed: what rises over the input and where the input stands both change the
- * boxes their observers measure (a Coding stage loops its ResizeObservers otherwise); the line's other observers mark in place.
+ * Run on the next frame, once however many sizes changed: what rises over the input changes the box its observer measures (a
+ * Coding stage loops its ResizeObservers otherwise); the line's other observers mark in place.
  */
 const nextFrame = (run: () => void): (() => void) => {
   let frame = 0;
@@ -313,12 +313,11 @@ function installPlace(slot: HTMLElement): void {
     row.style.setProperty("--slot-columns", `${Math.round(left - gap)}px ${Math.round(width)}px minmax(0,1fr)`);
     row.setAttribute("data-slot-placed", "");
   };
-  // A size change is placed on the next frame (placing changes the row it was measured on, which would loop the observer); the
-  // rest is placed before the frame paints, so a page that loads does not first paint the input where it stood (VUX-31).
-  const soon = nextFrame(place);
+  // Placed before the frame paints, so a page that loads does not first paint the input where it stood (VUX-31). What placing
+  // writes is the row's columns, which size the input and the wings inside it, not the row or the stage the observer measures.
   let queued = false;
   const now = (): void => { if (!queued) { queued = true; queueMicrotask(() => { queued = false; place(); }); } };
-  const sizes = new ResizeObserver(soon);
+  const sizes = new ResizeObserver(place);
   sizes.observe(row); sizes.observe(stage);
   // Panes split, close and take focus by class and children; the window moves the stage without resizing it.
   new MutationObserver(now).observe(stage, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "hidden"] });

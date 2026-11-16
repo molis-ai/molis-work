@@ -137,8 +137,11 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     const style = getComputedStyle(tray), need = Math.ceil(home.offsetWidth + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)) + 'px';
     if (tray.style.minWidth !== need) tray.style.minWidth = need;
   };
+  // The strip shows once its kept plugins are drawn and the current one named (work-line.ts holds it unseen until then).
+  const drawn = () => { if (dockPainted && !dock.hasAttribute('data-dock-drawn')) dock.setAttribute('data-dock-drawn', ''); };
   const paintCurrent = () => {
-    if (paintQueued || !current) return;
+    if (!current) { drawn(); return; }
+    if (paintQueued) return;
     paintQueued = true;
     requestAnimationFrame(() => {
       paintQueued = false;
@@ -152,7 +155,7 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
         current.parentElement?.classList.remove('is-split');
         dock.querySelectorAll('[data-dock-pin][aria-current]').forEach((button) => button.removeAttribute('aria-current'));
         trays.forEach((tray) => tray.more.classList.remove('has-current'));
-        holdHome();
+        holdHome(); drawn();
         return;
       }
       const entries = shown();
@@ -165,7 +168,7 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
         if (on) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
       });
       trays.forEach((tray) => tray.more.classList.toggle('has-current', [...tray.pins.querySelectorAll('[data-dock-pin][hidden]')].some((pin) => pin.hasAttribute('aria-current'))));
-      holdHome();
+      holdHome(); drawn();
     });
   };
 

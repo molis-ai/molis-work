@@ -1,9 +1,9 @@
 {
   "reason": "第 42 批 Skill 创作与改进（SKP-11、PWA-14、PWA-103、PWA-105、BL-166）。能力包页的草稿工作区是新功能：左边改（问一句让助理改、占位符替换、表单）、右边试用与比较（已知答案、回放结果表、比做法与比结果），采用条、版本列表的对照与恢复、来源新版提示、回执链接直达草稿（kit/workshop.ts、kit/drafts.ts、kit/writing.ts 约 30 KB）；比较复用平台的文字比较（plugin-sdk diff-view 与 text-diff，约 7.5 KB），没有另写一份。占位符工具已拆到 contracts/services/skill-placeholders，省下整份 services/skills（约 37 KB）。只在设置 › 能力包页加载，不在首屏。 草稿工作区与组件板四件标本的中英词条随工作台语言包下发，词包因新增词条换内容寻址路径，首屏冷启动各页 +1.7～1.8 KB，热启动不变。",
-  "review": "specs/post-anticorruption-roadmap/reference/batches/42.md 与分支 batch/42 的 PR 评审。合入 main 4a08c41ca 后对照该 merge-base 的隔离构建实测（node scripts/gates/page-assets.mjs --base origin/main）：/assets/molis-work-kit.js 83636 → 122295（+38659），/assets/molis-work-workbench.js −14，其余不变；首屏（node scripts/gates/first-screen.mjs --base origin/main）：到达页与选择页冷 zh +1829／en +1675，工作台默认与全部插件冷 zh +1815／en +1661，热 0。",
-  "userApproval": "用户 2026-11-16 在第 42 批主会话弹窗：先按本机估值批准「+31 KB」，隔离构建实测 +37,480 B 后批准「+37.5 KB」；合入 main 4a08c41ca 并按健康门禁拆分页面脚本后实测 +38,659 B，再批准「+38.7 KB」；同时批准工作台中英文词包因新增词条换内容寻址路径与首屏冷启动增长（热 0）。",
+  "review": "specs/post-anticorruption-roadmap/reference/batches/42.md 与分支 batch/42 的 PR 评审。合入 main 4a08c41ca 后对照该 merge-base 的隔离构建实测（node scripts/gates/page-assets.mjs --base origin/main）：/assets/molis-work-kit.js 83636 → 122295（+38659）；评审整改（按入口的使用次数、回放下一个还没回放的已知答案）后 83636 → 122666（+39030），/assets/molis-work-workbench.js −14，其余不变；首屏（node scripts/gates/first-screen.mjs --base origin/main）：到达页与选择页冷 zh +1829／en +1675，工作台默认与全部插件冷 zh +1815／en +1661，热 0。",
+  "userApproval": "用户 2026-11-16 在第 42 批主会话弹窗：先按本机估值批准「+31 KB」，隔离构建实测 +37,480 B 后批准「+37.5 KB」；合入 main 4a08c41ca 并按健康门禁拆分页面脚本后实测 +38,659 B，再批准「+38.7 KB」；同时批准工作台中英文词包因新增词条换内容寻址路径与首屏冷启动增长（热 0）。 评审整改后实测 +39,030 B，用户 2026-11-16 弹窗批准「+39.0 KB」。",
   "assets": {
-    "/assets/molis-work-kit.js": 38659
+    "/assets/molis-work-kit.js": 39030
   },
   "entryApprovals": [
     {

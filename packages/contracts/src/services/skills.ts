@@ -27,10 +27,7 @@ export const SKILLS_PROVIDER_ID = "system.skills";
 export const SKILLS_READ_PERMISSION = "skills:read";
 /** Changing a Skill's state in a scope and importing Skills: the person's own. */
 export const SKILLS_MANAGE_PERMISSION = "skills:manage";
-/**
- * Opening a draft of a Skill and replaying it (batch 42): the person's, and the Assistant's from a piece of work. A draft is used by
- * nothing and grants nothing; adopting one stays `skills:manage`, the person's alone.
- */
+/** Opening a draft of a Skill and replaying it (batch 42): the person's, and the Assistant's from a piece of work. A draft is used by nothing and grants nothing; adopting one stays `skills:manage`, the person's alone. */
 export const SKILLS_DRAFT_PERMISSION = "skills:draft";
 export const SKILLS_PERMISSIONS = [SKILLS_READ_PERMISSION, SKILLS_MANAGE_PERMISSION, SKILLS_DRAFT_PERMISSION] as const;
 
@@ -142,15 +139,9 @@ export interface SkillCatalogEntry {
   enabled?: { at: string; by: string; scope: SkillScope };
   availability: SkillAvailability;
   last_used?: { at: string; caller: "assistant" | "coding" | "agent"; run_ref?: string };
-  /**
-   * How many of the uses kept for this Skill in this scope each entry made (the latest `USES_KEPT` per Skill, not a total): after
-   * adopting a version, the person sees it used from the Assistant and from Coding (batch 42, across-entry check). Entries with none are left out.
-   */
+  /** How many of the uses kept for this Skill in this scope each entry made (the latest `USES_KEPT` per Skill, not a total): after adopting a version, the person sees it used from the Assistant and from Coding (batch 42, across-entry check). Entries with none are left out. */
   recent_uses?: { assistant?: number; coding?: number; agent?: number };
-  /**
-   * Only on the person's view of one of their own Skills that is a copy (batch 42): where it came from, and the source's newer version
-   * when one is installed that the person has not looked at and left. The copy stays in use as it is either way.
-   */
+  /** Only on the person's view of one of their own Skills that is a copy (batch 42): where it came from, and the source's newer version when one is installed that the person has not looked at and left. The copy stays in use as it is either way. */
   based_on?: { source: SkillSourceRef; newer_version?: number };
   /** Only on the person's view: an open draft of this Skill (one of their own) or a copy of it in this scope. */
   draft?: { draft_id: string };
@@ -349,10 +340,7 @@ export interface SkillSourceRef {
   name: string;
 }
 
-/**
- * What a draft changes: a new Skill; the next version of one of the person's own Skills, read at `base_version`; or the person's own
- * copy of another Skill (a general one that came with the system or was installed), which remembers where it came from.
- */
+/** What a draft changes: a new Skill; the next version of one of the person's own Skills, read at `base_version`; or the person's own copy of another Skill (a general one that came with the system or was installed), which remembers where it came from. */
 export type SkillDraftTarget =
   | { kind: "new" }
   | { kind: "own"; skill_id: string; base_version: number; /** The copy's source at a newer version this draft was brought up to. */ rebase?: SkillSourceRef }
@@ -368,10 +356,7 @@ export interface SkillDraftOrigin {
 /** Most known answers one draft keeps. */
 export const SKILL_CASES_MAX = 5;
 export const SKILL_CASE_LIMITS = { titleChars: 80, taskChars: 4000, materialChars: 8000, expectedChars: 8000 } as const;
-/**
- * A known answer: a task, the material it was done on, and the result the person accepted. A draft from a conversation carries the
- * one that piece of work gave; the person can add others. Replaying it is how a draft is checked before it is adopted.
- */
+/** A known answer: a task, the material it was done on, and the result the person accepted. A draft from a conversation carries the one that piece of work gave; the person can add others. Replaying it is how a draft is checked before it is adopted. */
 export interface SkillCaseFields {
   title: string;
   task: string;

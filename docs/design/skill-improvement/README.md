@@ -1,6 +1,6 @@
 # 技能的生成、试用、比较、采用与恢复：可点定样（路线书第 42 批）
 
-状态：**待用户选**。这是参考原型，不是产品界面。产品实现在「能力包」设置页（`apps/workbench/src/browser/kit/`）和助理对话里。
+状态：用户已定（2026-11-16）：**B 左边改、右边试**；同时确认「改动先是草稿、采用才生效」与存储的建表。决定写进[技能包 spec §9](../../../specs/skill-packs/spec.md)；A、C 留着对照，不实现。这是参考原型，不是产品界面。产品实现在「能力包」设置页（`apps/workbench/src/browser/kit/`）和助理对话里。
 
 - 需求：[技能包 SKP-11](../../../specs/skill-packs/spec.md)、[主动助理 §5.9 / §6](../../../specs/proactive-assistant/spec.md)（PWA-14、16、83、103～106）、[BL-166](../../../specs/backlog/BL-166.md)（通用技能包定制）。
 - 排期：[第 42 批](../../../specs/post-anticorruption-roadmap/reference/batches/42.md)；设计稿：[skill-packs/authoring-path-design.md](../../../specs/skill-packs/authoring-path-design.md)。

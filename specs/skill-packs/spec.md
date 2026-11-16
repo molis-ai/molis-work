@@ -152,6 +152,13 @@ argument_hint: "<周期，可选>"
 - **2026-11-08 用户定（C-3 落在 02③ 重建之后）**：旧三键写法（`methods: [{ name, purpose, body }]`）的签名沙箱包不兼容、不迁移，照阶段一 Manifest 原地改的规则明确失败（`plugin.declaration_invalid`），作者重新打包、重新签名；创作台发布的包不带 `methods`，不受影响。否掉的：先读真实 Home 数一遍再定（要动真实 Home，而结论不随数量变）；保留旧写法的读取（宿主得替包编 `description`／`applies_to`，违背「宿主不编默认值」的设计，还要长期维护）。
 
 - **2026-11-08 08-8 写手定（带连字符的键，按「只认现行取值」）**：frontmatter 里带连字符、换成下划线就是本读法认的键的（`argument-hint`、`user-invocable`、`when-to-use`、`when-not-to-use`、`applies-to`、`connector-categories`），不当成下划线那个键读，也不悄悄丢掉：`skillDeclarationFromFrontmatter` 以 `plugin.declaration_invalid` 拒绝并写出该用的写法（「argument-hint 要写成 argument_hint」）；导入里只把那一个 Skill 标为不能导入。别的工具自己的键（如 Claude Code 的 `allowed-tools`）照旧不读、不拒。否掉的：两种写法等同（等于给旧写法留读取兜底，要长期维护两份写法）；连字符的键一律拒（会挡住只写了别的工具自己的键的 Skill）。CLI `pack-content` 用同一个读法，同样拒绝。
+- **2026-11-16 用户定（第 42 批「先定样：生成、试用、比较、采用及恢复」）**：选 **B 左边改、右边试**。可点原型与状态表见 [docs/design/skill-improvement/](../../docs/design/skill-improvement/README.md)，设计稿见 [authoring-path-design.md](authoring-path-design.md)。
+  - **版面**：打开草稿时列表收起，左边是第 41 批那张表单（加「告诉助理怎么改」和通用技能的占位符），右边是「试用／比较」；底下钉着采用条；1100 以下右栏变成页签（同 A）。
+  - **三个方案共有、一并定下的做法**：改动先是草稿，边写边存；只有本人「采用」才成为「我的技能」包的下一版（取代第 41 批的「保存＝新版本、马上生效」，用户同日确认，步数不变）；从对话起草的草稿自带已知答案，采用前先回放；回放只调模型、不调工具；改已有技能时现在的版本与草稿、助理与 Coding 并排回放；恢复先开草稿对照、采用为下一版；改一份通用技能记住来源与版本，占位符逐个换，原来的出新版时你的照旧在用。
+  - **否掉的**：A 详情里分页（每改一句都要切页签看结果）；C 在对话里改（长正文在卡里不好改，从设置里开始改的没有对话可依）。
+  - **代价**：打开草稿时看不到别的技能（顶上留「← 技能」）。
+  - **组件板新增**（补标本、D 轨合审后再写产品代码）：采用条、回放结果表、「告诉助理怎么改」、占位符列表。C 的对话草稿卡不做。
+- **2026-11-16 用户定（第 42 批的存储）**：同意 `agent-definitions` 2 → 3 只新建 `skill_drafts`、`skill_cases`、`skill_trials`、`skill_lineage` 四张空表，登记进[合同变更流程](../../docs/system/CONTRACT-CHANGES.md)「当前保留机制」，不动已有数据。否掉的：不存（草稿与回放就做不成）。
 - **2026-11-08 用户定（导入的「给谁用」与项目目录来源）**：① 外部 Skill 没写 `applies_to` 的，导入时由本人选「给谁用」：预览给整次导入一个选择、可逐项改，按来源预选（编程工具的技能目录，即现在 `CHARACTER_IMPORT_RUNTIMES` 的五种，预选 `coding`；别的来源预选 `both`）；只有本人确认里带上的取值才算，预选本身不算；SKILL.md 自己写了 `applies_to` 的照它的，不能改。只缺 `applies_to` 不再让 Skill 不能导入；缺 `description`、多行值等别的原因照旧。宿主仍不替谁编取值：进签名包的，要么是作者写的，要么是本人确认的。C-2 合同原版本改（阶段一）。② 从项目目录导入不在本批：`project_directory` 来源照旧以 `skills.import_source_unavailable` 拒绝；它要先定自己的读取授权（已有的目录授权属于某个插件安装，借来用会改变它的含义），一个办法是系统的目录选择器当一次性授权，记为 [BL-skill-import-project-directory](../backlog/BL-skill-import-project-directory.md)，留给后面的批次。
 
 ## 10. 开工前检查（第 08 批主会话，2026-11-06）

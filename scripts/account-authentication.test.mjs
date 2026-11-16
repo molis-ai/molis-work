@@ -17,7 +17,7 @@ const origin=`http://127.0.0.1:${port}`, authOrigin='http://127.0.0.1:8787';
 const proxy=await getRustProxy({AUTH_ORIGIN:authOrigin,UNIFIED_ACCOUNT_CONFIG:JSON.stringify({environmentId:'unified-local',kind:'LOCAL',authOrigin,deliveryMode:'MOCK',providerMode:'MOCK'})});
 const home=await mkdtemp(join(tmpdir(),'work03-auth-')),control=randomBytes(32).toString('hex');
 process.env.MOLIS_WORK_SECRET_BACKEND='file';process.env.MOLIS_WORK_ENCRYPTION_KEY='';
-let host,server,browser,exchangeGate;
+let host,server,browser,exchangeGate,capabilityReply;
 const config={environmentId:'unified-local',environmentKind:'LOCAL',authOrigin,productOrigin:origin,clientId:'molis-work-unified-local',applicationId:'molis-work-unified-local-app',policyProfile:'unified-account-v2',redirectAllowlist:[origin+'/account/callback'],providerMode:'MOCK',deliveryMode:'MOCK'};
 const allSecrets=[];
 async function api(path,body,status=200,headers={}) {
@@ -34,7 +34,8 @@ async function verify(tx,target) {const sent=await step(tx,{step:'REQUEST_CHALLE
 try {
  await initializeLocalRuntime(proxy,false);
  for(const sql of readFileSync(resolve(source,'worker/unified-account-local-seed.sql'),'utf8').replaceAll('http://127.0.0.1:4207',origin).replace(/--[^\n]*/g,'').split(';').map(v=>v.trim()).filter(Boolean))await proxy.env.DB.prepare(sql).run();
- host=createMolisWorkLocalHost({homeDirectory:home,completeText:null});server=createDesktopWebCore({ptyClientFilePath:()=>join(home,'unused.js')})({homeDirectory:home,localHost:host,controlToken:control,account:{environment:config,fetch:async(url,init)=>{const req=new Request(url,init);const response=await proxy.fetch(req);if(exchangeGate&&new URL(req.url).pathname==='/api/v2/auth/token'){const gate=exchangeGate;exchangeGate=undefined;gate.enter();await gate.wait;}return response;}}});await new Promise(r=>server.listen(port,'127.0.0.1',r));
+ host=createMolisWorkLocalHost({homeDirectory:home,completeText:null});server=createDesktopWebCore({ptyClientFilePath:()=>join(home,'unused.js')})({homeDirectory:home,localHost:host,controlToken:control,account:{environment:config,fetch:async(url,init)=>{const req=new Request(url,init);if(capabilityReply&&new URL(req.url).pathname==='/api/v2/auth/capabilities')return capabilityReply();const response=await proxy.fetch(req);if(exchangeGate&&new URL(req.url).pathname==='/api/v2/auth/token'){const gate=exchangeGate;exchangeGate=undefined;gate.enter();await gate.wait;}return response;}}});await new Promise(r=>server.listen(port,'127.0.0.1',r));
+ assert.deepEqual((await api('/auth/capabilities')).methods,['ACCOUNT_PASSWORD','EMAIL_CODE','PHONE_OTP','GOOGLE','GITHUB']);
  const email='work03@example.test',password=randomBytes(20).toString('base64url');allSecrets.push(password);
  let tx=await create('EMAIL_SIGNUP','EMAIL_CODE');let verified=await verify(tx,email);assert.equal(verified.nextStep,'EMAIL_SIGNUP');
  await step(tx,{step:'EMAIL_SIGNUP',email,password});let result=await step(tx,{step:'COMPLETE'});assert.equal(result.account.state,'AUTHENTICATED');const user=result.account.user.userId;await end();
@@ -60,6 +61,20 @@ try {
  assert.ok(await page.evaluate("document.querySelector('[data-account-link]')?.getAttribute('aria-expanded')==='false' && document.querySelector('#mw-account-menu')?.hidden"),'Unified entry leaves the Personal space menu closed');
  // K03-01 / UAS-08: help is reachable before login and in security, without changing form/session state.
  const help=async()=>{await page.click('.account-dialog .mw-disclosure summary');await page.wait('document.querySelector(".account-dialog .mw-disclosure").open');const text=await page.evaluate('document.querySelector(".account-dialog .mw-disclosure").innerText');for(const part of ['还有可用方式','找回密码','邮箱服务商','手机运营商','Google','GitHub','暂不提供人工账号恢复','不会自动继承'])assert.ok(text.includes(part),part);assert.equal(await page.evaluate('document.querySelectorAll(".account-dialog .mw-disclosure button,.account-dialog .mw-disclosure form").length'),0);};
+ // LOGIN-P1-04: failed or limited capability reads cannot expose unavailable login buttons.
+ await page.click('.account-dialog>button');
+ capabilityReply=()=>Response.json({error:{code:'UPSTREAM_UNAVAILABLE'},requestId:crypto.randomUUID()},{status:503});
+ await page.click('[data-unified-account-link]');
+ await page.wait("Boolean(document.querySelector('.account-message')?.textContent)");
+ assert.ok(await page.evaluate("[...document.querySelectorAll('.account-modes button,.account-social button')].every(b=>!b.checkVisibility())"));
+ assert.equal(await page.evaluate("document.querySelector('.account-form input')"),null);
+ await page.click('.account-dialog>button');
+ capabilityReply=()=>Response.json({data:{methods:['ACCOUNT_PASSWORD']},requestId:crypto.randomUUID()});
+ await page.click('[data-unified-account-link]');await page.wait("Boolean(document.querySelector('.account-form input[name=password]'))");
+ assert.equal(await page.evaluate("[...document.querySelectorAll('.account-modes button')].filter(b=>b.checkVisibility()).length"),1);
+ assert.ok(await page.evaluate("[...document.querySelectorAll('.account-social button')].every(b=>!b.checkVisibility())"));
+ await page.click('.account-dialog>button');capabilityReply=undefined;
+ await page.click('[data-unified-account-link]');await page.wait("Boolean(document.querySelector('.account-form input[name=password]'))");
  await page.fill('.account-form input[name=address]',email);assert.equal(await page.evaluate('document.querySelector(".account-dialog .mw-disclosure").hidden'),true);assert.deepEqual(await page.evaluate('Array.from(document.querySelector(".account-dialog .account-modes").children).map(b=>b.textContent)'),['账号密码','邮箱验证','手机验证']);
  const screenshots=resolve('.impeccable/qa/review/account');await mkdir(screenshots,{recursive:true});
  for(const width of [1440,1024,390])for(const theme of ['light','dark']){await page.viewport(width,900);await page.evaluate(`document.documentElement.dataset.theme=document.documentElement.dataset.resolvedTheme=${JSON.stringify(theme)}`);const bounds=()=>page.evaluate('JSON.stringify([document.querySelector(".account-dialog").getBoundingClientRect().height,document.querySelector(".account-social").getBoundingClientRect().top,document.querySelector(".account-form button[type=submit]").getBoundingClientRect().top])');const original=await bounds();for(const index of [1,2,0]){await page.click(`.account-modes button:nth-child(${index+1})`);assert.equal(await bounds(),original,'login modes keep dialog and action positions stable');}await page.fill('.account-form input[name=address]',email);await page.screenshot(join(screenshots,`login-${width}-${theme}.png`));assert.ok(await page.evaluate('document.querySelector(".account-dialog").getBoundingClientRect().right<=innerWidth'));}

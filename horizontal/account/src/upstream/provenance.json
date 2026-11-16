@@ -1,15 +1,17 @@
 {
   "source": "auth/contracts/unified-account",
   "sourceDirectory": "contracts/unified-account",
-  "version": "1.2.0",
-  "sourceBaseCommit": "2b95e5ef15723fc294704e3cab662493c3410ac3",
+  "version": "1.3.0",
+  "sourceBaseCommit": "c41725c164122ede0a1fa58bf0ae115f31d91f7c",
   "sourceIncludesUncommittedContract": false,
   "sha256": {
-    "schemas.json": "e5a405a00e34a1855cbc7bd52992457d645ab395fd657b9278a91aba10be3d89",
-    "openapi.json": "4cedeac74574bf97a06e195767382919b4c41897fa0373e6de7cb79562e67bb9",
-    "policy.json": "cd1c853a6544909b1760297755ef5ec4b85e3740d590226a4d3b37fc6ca0e136",
-    "fixtures.json": "23a80d6aafe8a8700d9ba04456e8804bdf2bab40382df8334e249a872e3ac1a6",
+    "schemas.json": "02ae9396da4dee2935027cb88cc3673e29ace4ad611abb6d167e17275f8e1c13",
+    "openapi.json": "b6cf3c6884ff5ea7f6d014d5b0ddbc6a08e354a827471fc1b9dc5a0001b54164",
+    "policy.json": "dbbcc1e739f28f4b16a5019f878d7e860bf890cb7fac2fb76398b00c21a77c87",
+    "fixtures.json": "bbe3c2328af0dbf2232c6119667d07518d167f09b1d8636bea1f7159e49b533d",
     "validator-profile.json": "8bd2bb85a58a08d12d8f0ab27dd30d1b29d21123fbde6b39527c64867bb3180c",
     "validate.ts": "aa89b77100cf1844d0b2f2e436764c01bb3d31597f4bff43815a8e22c917a320"
-  }
+  },
+  "sourceRepository": "https://github.com/molis-ai/auth",
+  "sourceNote": "Immutable Auth source commit; deploy Auth before these consumers."
 }

@@ -19,3 +19,4 @@ export { imagesSync, imagesCollection, imagesTracking } from "./replication.js";
 export { imagesCopy } from "./copy.js";
 export { createImagesSyncContent } from "./sync-files.js";
 export { syncBindings as createImagesSyncBindings } from "./sync-binding.js";
+export { ENDED_SHOWN_MS, imagesBackgroundTasks, imagesBackgroundTasksOf } from "./background.js";

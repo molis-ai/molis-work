@@ -1,10 +1,11 @@
 import { readOriginalInput, resolveOriginalInput } from "./prologue-original-inputs.js";
-import { createHash } from "node:crypto";
-import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type PendingAnswer, type QueuedTask, type Runtime } from "@prologue/sdk";
+import { createHash, randomUUID } from "node:crypto";
+import { realpath } from "node:fs/promises";
+import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type PendingAnswer, type QueuedTask, type Runtime, type SessionOpeningReader } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef, AgentWriteCheckNote } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
-import { createCollaborationHost, readyStep, sessionBlock, type DispatchChecks } from "./prologue-collaboration.js";
+import { createCollaborationHost, readyStep, sessionBlock, type ContinuationStarts, type DispatchChecks } from "./prologue-collaboration.js";
 import { createPrologueDocuments } from "./prologue-documents.js";
 import { createPrologueGitReviews } from "./prologue-git.js";
 import { MAX_BROADCAST } from "./prologue-messages.js";
@@ -13,14 +14,17 @@ import { answerProblems, ownedReferences, projectQuestion, questionUnavailable }
 import { queuedInput, type createPrologueRecovery } from "./prologue-recovery.js";
 import { startPrologueRun, type RunDeps } from "./prologue-run.js";
 import type { PrologueEffects } from "./prologue-effects.js";
+import { runModelParams } from "./prologue-run-params.js";
 import type { createPrologueSchedule } from "./prologue-schedule.js";
-import { createPrologueSubagents, runLineage } from "./prologue-subagents.js";
+import { createPrologueSubagents, exactCharacterKey, runLineage, SUBAGENT_DEFAULT_MAX_ATTEMPTS, type PrologueSubagentHooks } from "./prologue-subagents.js";
 import { surfaceRules, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { codingExecutionRules } from "./prologue-taskboard.js";
 import type { PrologueAdapterOptions, PrologueRuntimePort } from "./prologue.js";
 import { PROLOGUE_RUNTIME_ID } from "./prologue-adapter-capabilities.js";
 import { agentErrors } from "../errors.js";
-import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, type CommandEvent, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import { withDispatchControl } from "./prologue-dispatch.js";
+import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, unexecutedApprovalCallOf, type CommandEvent, type DispatchControl, type DispatchGuard, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
 import { SESSION_INDEX_SCHEMA, type SessionIndexStore } from "./prologue-session-index.js";
 import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 import type { ReviewDecisionStore } from "../review-decisions.js";
@@ -34,15 +38,16 @@ import type { ReviewDecisionStore } from "../review-decisions.js";
 export const SUBAGENT_DEFAULT_TURNS = 20;
 
 /** The Prologue runtime on the Node host, with the Host's limits, posture and the rules every round runs under. */
-export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAccess: ReturnType<typeof createPrologueMemoryAuthority>, modelRequests: RoundState["modelRequests"]) {
+export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAccess: ReturnType<typeof createPrologueMemoryAuthority>, modelRequests: RoundState["modelRequests"], starts: ContinuationStarts) {
   return createRuntime({
     app: options.app,
     host,
     memoryAuthority: memoryAccess.authority,
     ...(memoryAccess.promotion ? { memoryPromotion: memoryAccess.promotion } : {}),
     ...(memoryAccess.sources ? { memorySources: memoryAccess.sources } : {}),
-    // Before each child a round dispatches, the Host asks that round's own check again (specs/prologue-adoption §4.6.10).
-    collaborationHost: createCollaborationHost(dispatchChecks),
+    // Before each child a round dispatches, the Host asks that round's own check again (specs/prologue-adoption §4.6.10); a
+    // continuation that may go on by itself goes to the starter the composition root serves (specs/work-line, result return).
+    collaborationHost: createCollaborationHost(dispatchChecks, starts),
     // What a step may wait on outside the runtime: the Host's checkers, each look checked again against the round (prologue-checkers.ts).
     conditionCheckers,
     // Screenshots leave only after the driver covered password, card and one-time-code fields (spec D10).
@@ -121,6 +126,7 @@ export function createNodeGitReviews(options: PrologueNodeAdapterOptions, host: 
 
 interface PortDeps extends RunDeps {
   readonly host: NodeHost;
+  readonly starts: ContinuationStarts;
   readonly schedule: ReturnType<typeof createPrologueSchedule>;
   readonly effects: PrologueEffects;
   readonly recovery: ReturnType<typeof createPrologueRecovery>;
@@ -302,6 +308,175 @@ async function openSessionOf(deps: PortDeps, sessionId: string, unreadable: stri
   return session;
 }
 
+async function continueSubagentAttempt(
+  deps: PortDeps,
+  { parentRun, child, baseTask, reason, source, attemptNumber }: Parameters<NonNullable<PrologueSubagentHooks["continueChild"]>>[0],
+): Promise<void> {
+  const { runtime, state } = deps;
+  const parentIndex = await deps.index.read(parentRun.session_id);
+  const parentAttempt = parentIndex?.attempts.find(item => item.run_id === parentRun.run_id);
+  if (!parentIndex || !parentAttempt) throw agentErrors.run_unknown("父任务执行记录不可用，不能重试子任务");
+  const childIndex = await deps.index.read(child.session.id).catch(() => undefined);
+  const role = child.character ? new Map(parentAttempt.subagent_roles ?? []).get(exactCharacterKey(child.character)) : undefined;
+  const rootRef = childIndex?.attempts[0]?.root_ref;
+  const baseFrozen = childIndex?.attempts[0]?.frozen;
+  const model = parentAttempt.model_selection
+    ? await deps.options.modelConfiguration(parentAttempt.model_selection)
+    : parentAttempt.frozen_model ?? await deps.options.modelConfiguration();
+  if (!model) throw agentErrors.model_not_configured("当前未配置可用模型，不能重试子任务");
+  const credentialRef = await deps.credentials.prologueRefFor(model.credential_ref);
+  const params = runModelParams(model, parentAttempt.frozen.budget ?? null, parentAttempt.frozen.reasoning_effort);
+  const cache = model.prompt_cache === undefined || model.prompt_cache === "off" ? {} : { promptCache: model.prompt_cache };
+  const retryText = reason?.trim()
+    ? `${baseTask}\n\n[第 ${attemptNumber} 次尝试（来源：${source}）补充说明：${reason.trim()}]`
+    : `${baseTask}\n\n[第 ${attemptNumber} 次尝试（来源：${source}）：请先核对前次尝试的结果与失败点，再继续完成任务。]`;
+  const firstRunId = (child.attempts?.[0] ?? child.run).id;
+  const retryTasksSnapshot = { ...parentAttempt.subagent_retry_tasks };
+  const readOpening: SessionOpeningReader = async ({ sessionRef, runRef }) => {
+    if (!sameRef(sessionRef, child.session) || runRef.kind !== "run" || runRef.revision !== 1) return { status: "unavailable" };
+    if (runRef.id === firstRunId) return { status: "original", user: [baseTask] };
+    const priorTask = retryTasksSnapshot[runRef.id];
+    return priorTask ? { status: "original", user: [priorTask] } : { status: "unavailable" };
+  };
+  await deps.effects.beforeEffect();
+  deps.effects.assertCurrent();
+  const fallbackGuard: DispatchGuard = async () => {
+    const latestParent = await deps.index.read(parentRun.session_id);
+    if (!latestParent) throw agentErrors.session_unknown("父会话已不存在，不能继续子任务");
+    const childDir = baseFrozen?.directory?.canonical_path ?? parentAttempt.frozen.directory?.canonical_path;
+    if (childDir) {
+      const resolved = await realpath(childDir).catch(() => undefined);
+      if (resolved !== childDir) throw agentErrors.directory_unauthorized("子任务工作区路径不可读或已变更");
+      if (deps.options.checks?.directoryAuthorized && !(await deps.options.checks.directoryAuthorized(latestParent.owner.project_id, childDir))) {
+        throw agentErrors.directory_unauthorized("子任务工作区已不再授权");
+      }
+    }
+    await deps.mcpLibrary.validate(latestParent.owner, parentAttempt.frozen.mcp_tools ?? []);
+    await deps.mcpLibrary.validateSources(latestParent.owner, parentAttempt.frozen.mcp_sources ?? []);
+    return () => {};
+  };
+  const guard = state.dispatchChecks.get(parentRun.run_id) ?? fallbackGuard;
+  const parentActive = state.activeRuns.get(parentRun.run_id);
+  const assertCurrent = () => { parentActive?.assertAuthority(); deps.effects.assertCurrent(); };
+  const control: DispatchControl = {
+    assertCurrent,
+    prepareDispatch: guard,
+    beforeEffect: async () => { const fence = await guard(); requireSynchronous(fence?.()); assertCurrent(); },
+  };
+  const continued = await deps.effects.detach(() => withDispatchControl(deps.dispatchGuards, control, () => runtime.subagents.continue({
+    child: child.ref,
+    history: "session",
+    readOpening,
+    start: {
+      protocol: model.protocol,
+      endpoint: model.endpoint,
+      model: model.model,
+      credentialRef,
+      ...(Object.keys(params).length ? { params } : {}),
+      timeoutMs: 180_000,
+      messages: [{ role: "user", text: retryText }],
+      ...cache,
+    },
+    agent: {
+      idempotencyKey: `molis-child-retry-${child.ref.id}-${attemptNumber}-${randomUUID()}`,
+      mode: child.envelope?.mode ?? "autonomous",
+      toolNames: child.tools ? [...child.tools] : [],
+    },
+  })));
+  const newRunId = continued.run.ref.id;
+  const childRun = { session_id: child.session.id, run_id: newRunId };
+  state.activeRuns.set(newRunId, {
+    live: () => ["prepared", "running"].includes(continued.run.state),
+    assertAuthority: () => { parentActive?.assertAuthority(); },
+    steer: async text => { await continued.control.steer({ text }); },
+  });
+  state.liveSessions.set(child.session.id, newRunId);
+  if (rootRef) state.runRoots.set(newRunId, rootRef);
+  const bridgeFailed = async () => {
+    const failReason = "子任务的宿主审查或归属记录失败，已停止执行；请核对原工具结果后继续";
+    const errors = state.subagentBridgeErrors.get(parentRun.run_id) ?? {};
+    errors[newRunId] = failReason;
+    state.subagentBridgeErrors.set(parentRun.run_id, errors);
+    continued.control.stop("cancelled");
+    try {
+      await deps.index.update(parentRun.session_id, saved => {
+        const attempt = saved.attempts.find(item => item.run_id === parentRun.run_id);
+        if (attempt) attempt.subagent_errors = { ...attempt.subagent_errors, [newRunId]: failReason };
+      });
+    } catch {
+      errors[newRunId] = failReason + "；失败原因未能持久保存，请保留当前记录";
+    }
+  };
+  continued.run.subscribe(event => {
+    if (["completed", "failed", "cancelled", "tripped", "circuit-tripped"].includes(event.type)) {
+      if (state.liveSessions.get(child.session.id) === newRunId) state.liveSessions.delete(child.session.id);
+      state.activeRuns.delete(newRunId);
+      state.runRoots.delete(newRunId);
+    }
+    if (!rootRef && !role) return;
+    if (event.type === "command-receipt") {
+      const events = state.commandEvents.get(newRunId) ?? [];
+      if (!events.some(saved => sameRef(saved.receiptRef, event.receiptRef))) events.push(event);
+      state.commandEvents.set(newRunId, events);
+    }
+    if (event.type === "awaiting-approval" && deps.approvals) {
+      void deps.approvals.mirrorPending({ pendingRef: event.pendingRef, owner: parentIndex.owner, run: childRun })
+        .catch(rootRef ? bridgeFailed : () => continued.control.stop("cancelled"));
+    }
+  });
+  try {
+    await deps.index.update(parentRun.session_id, saved => {
+      const attempt = saved.attempts.find(item => item.run_id === parentRun.run_id);
+      if (!attempt) return;
+      (attempt.subagent_attempt_sources ??= {})[newRunId] = source;
+      if (reason?.trim()) (attempt.subagent_attempt_reasons ??= {})[newRunId] = reason.trim();
+      (attempt.subagent_retry_tasks ??= {})[newRunId] = retryText;
+    });
+    if (childIndex && rootRef && baseFrozen) {
+      await deps.index.update(child.session.id, saved => {
+        saved.attempts.push({ started_at: new Date().toISOString(), task: retryText, run_id: newRunId, root_ref: rootRef, frozen: structuredClone(baseFrozen) });
+      });
+    }
+  } catch (error) {
+    continued.control.stop("cancelled");
+    throw error;
+  }
+}
+
+function nodeSubagentsPort(deps: PortDeps): NonNullable<PrologueRuntimePort["subagents"]> {
+  return {
+    workspaces: true as const,
+    ...createPrologueSubagents(deps.runtime, async run => {
+      const index = await deps.index.read(run.session_id), attempts = index?.attempts.filter(attempt => attempt.run_id === run.run_id) ?? [], attempt = attempts[0];
+      if (!attempt?.frozen.directory) throw agentErrors.directory_unauthorized("原父任务没有工作区归属，不能分派目录子任务");
+      return {
+        child_openings: attempts.length === 1 && !attempt.refused ? attempt.child_openings : undefined,
+        path: attempt.frozen.directory.canonical_path,
+        roles: attempt.subagent_roles ?? [],
+        roots: attempt.subagent_roots,
+        step_prefix: attempt.step_prefix,
+        budgets: attempt.subagent_budgets,
+        attempt_sources: attempt.subagent_attempt_sources,
+        attempt_reasons: attempt.subagent_attempt_reasons,
+        nodes: attempt.subagent_nodes,
+        errors: { ...attempt.subagent_errors, ...deps.state.subagentBridgeErrors.get(run.run_id) },
+      };
+    }, {
+      defaultMaxTurns: SUBAGENT_DEFAULT_TURNS,
+      async extendBudget(parentRun, subagentId, addAttempts) {
+        await deps.index.update(parentRun.session_id, saved => {
+          const attempt = saved.attempts.find(item => item.run_id === parentRun.run_id);
+          if (!attempt) throw agentErrors.run_unknown("父任务执行记录不可用，不能调整子任务预算");
+          const budgets = attempt.subagent_budgets ??= {};
+          const current = budgets[subagentId]?.max_attempts ?? SUBAGENT_DEFAULT_MAX_ATTEMPTS;
+          budgets[subagentId] = { max_attempts: current + addAttempts };
+        });
+      },
+      continueChild: input => continueSubagentAttempt(deps, input),
+    }),
+  };
+}
+
 /** The port the adapter drives: every capability the Node composition offers, each from its own part. */
 export function createNodePort(deps: PortDeps): PrologueRuntimePort {
   const { runtime, state, stepBoards, messages, mcpLibrary } = deps;
@@ -313,24 +488,14 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
       state.modelRequests.add(heard); return () => { state.modelRequests.delete(heard); };
     },
     unexecutedApprovalCall(run, waiting) {
-      if (waiting.effect_revision === undefined || waiting.pending_revision === undefined) return undefined;
-      const effectRef = { kind: "effect" as const, id: waiting.effect_id, revision: waiting.effect_revision };
-      const effect = runtime.effects.get(effectRef), pending = effect?.pending, origin = effect?.proposal.origin;
-      if (!effect || !pending || !sameRef(effect.ref, effectRef) || pending.kind !== "effect-approval"
-        || pending.ref.id !== waiting.pending_id || pending.ref.revision !== waiting.pending_revision
-        || !pending.effectRef || !sameRef(pending.effectRef, effectRef) || pending.state === "settled"
-        || !["awaiting-approval", "cancelled", "denied"].includes(effect.state)
-        || origin?.session !== run.session_id || origin.run !== run.run_id
-        || pending.origin?.session !== run.session_id || pending.origin.run !== run.run_id
-        || pending.origin?.toolCall !== origin.toolCall) return undefined;
-      return origin.toolCall;
+      return unexecutedApprovalCallOf(runtime, run, waiting);
     },
     readStepBoard: run => stepBoards.read(run),
     messages: { read: (project, sessionId) => messages.read(project, sessionId), cancel: (project, id) => messages.cancel(project, id),
       sendForPeople: (project, input, actorId) => messages.sendForPeople(project, input, actorId),
       act: (project, id, action, detail, actorId) => messages.act(project, id, action, detail, actorId),
       prioritize: prioritize(deps) },
-    collaboration: { ...deps.waitsPort.collaboration, revise: (run, amendment, expectedVersion, actor, ledger) => stepBoards.amend(run, amendment, expectedVersion, actor, ledger), works: deps.workGraphs.port },
+    collaboration: { ...deps.waitsPort.collaboration, serveStarts: starter => deps.starts.serve(starter), revise: (run, amendment, expectedVersion, actor, ledger) => stepBoards.amend(run, amendment, expectedVersion, actor, ledger), works: deps.workGraphs.port },
     // A supplement that is to wait for the next round, or whose round has ended: the session keeps it, under its key, and gives it back while it still waits.
     queue: {
       add: async (sessionId, input) => (await openSession(sessionId, "这条会话读不到，补充留不到下一轮")).queueInput(input),
@@ -342,12 +507,7 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     memory: deps.platformMemory.capability,
     schedule: deps.schedule.port(runtime, deps.index, deps.effects),
     recovery: deps.recovery.port,
-    ...(deps.options.reviewQueue ? { subagents: { workspaces: true as const, ...createPrologueSubagents(runtime, async run => {
-      const index = await deps.index.read(run.session_id), attempts = index?.attempts.filter(attempt => attempt.run_id === run.run_id) ?? [], attempt = attempts[0];
-      if (!attempt?.frozen.directory) throw new Error("原父任务没有工作区归属，不能分派目录子任务");
-      return { child_openings: attempts.length === 1 && !attempt.refused ? attempt.child_openings : undefined, path: attempt.frozen.directory.canonical_path, roles: attempt.subagent_roles ?? [], roots: attempt.subagent_roots,
-        errors: { ...attempt.subagent_errors, ...state.subagentBridgeErrors.get(run.run_id) } };
-    }) } } : {}),
+    ...(deps.options.reviewQueue ? { subagents: nodeSubagentsPort(deps) } : {}),
     workspaceNone: true,
     workspaceBusiness: true,
     inlineMethods: true,

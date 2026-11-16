@@ -28,6 +28,7 @@ export const RESERVED_EVENT_NAMESPACES = ["molis.", "host."] as const;
 export const HOST_REVIEW_SETTLED_EVENT = "host.review.settled";
 export const HOST_WORKSPACE_CHANGED_EVENT = "host.workspace.changed";
 export const HOST_CONNECTION_CHANGED_EVENT = "host.connection.changed";
+export const HOST_AGENT_CONTINUATION_READY_EVENT = "host.agent.continuation.ready";
 /** What a subscriber to `host.connection.changed@1` holds, and what `connectors.connection.availability` asks: to learn that a connection changed and whether it can be used now, never its account, label or credentials. */
 export const HOST_CONNECTIONS_OBSERVE_PERMISSION = "connections:observe";
 
@@ -43,6 +44,7 @@ export const HOST_EVENT_TYPES: readonly HostEventType[] = [
   { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: /* @version event.host.review.settled */ 1, delivery: "addressed" },
   { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: /* @version event.host.workspace.changed */ 1, delivery: "broadcast", permission: "workspace:read" },
   { event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: /* @version event.host.connection.changed */ 1, delivery: "broadcast", permission: HOST_CONNECTIONS_OBSERVE_PERMISSION },
+  { event_type_id: HOST_AGENT_CONTINUATION_READY_EVENT, type_version: /* @version event.host.agent.continuation.ready */ 1, delivery: "addressed" },
 ];
 
 /** `source_plugin_id` and `source_install_id` of a host event's record. Never a plugin id: those are `io.molis.work.…`. */
@@ -58,6 +60,20 @@ export interface HostReviewSettledPayload {
   operation_id: string;
   workspace_id: string;
   outcome: "succeeded" | "failed" | "unknown";
+}
+
+/**
+ * `host.agent.continuation.ready@1`: a wait one of this installation's Agent sessions was waiting on is over, the step may go on by
+ * itself, and the session has no round going or starting (specs/work-line/spec.md, result return). It goes only to the installation
+ * that owns the session. The installation starts the session's next round under `request_key` (the Host's start takes the
+ * continuation up and checks the round as always), or leaves it for the person; nothing is started for it. An installation that is
+ * not running when one is sent reads its sessions' continuations (`agent.collaboration.read`) when it next starts.
+ */
+export interface HostAgentContinuationReadyPayload {
+  runtime_id: string;
+  session_id: string;
+  request_key: string;
+  wait_id: string;
 }
 
 /**

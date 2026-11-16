@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { MEMORY_FORMAL_KINDS, type MemoryCandidate, type MemoryCandidateRecord, type MemoryChange, type MemoryChangeRecord, type MemoryExportPackage, type MemoryFormalKind, type MemoryRevision, type MemoryRevisionView, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+import { MEMORY_FORMAL_KINDS, type MemoryCandidate, type MemoryCandidateRecord, type MemoryChange, type MemoryChangeRecord, type MemoryExportPackage, type MemoryFormalKind, type MemoryRevision, type MemoryRevisionView } from "@molis-ai/molis-work-contracts/services/memory";
 import { completeRevisionSnapshot } from "./classification.js";
 import { memoryErrors } from "./errors.js";
 import { fromAppliesWhen } from "./facts.js";
@@ -9,6 +9,8 @@ import type { MemoryCaller } from "./service.js";
 
 /** The longest memory text, in characters. */
 export const MAX_TEXT = 400;
+/** The Molis memory package envelope version; the SDK export payload is versioned separately. */
+export const MEMORY_PACKAGE_VERSION = /* @version format.memory.export */ 1 as const;
 
 /** What a work's memory use is called in 最近用于: the work, the caller's own label, or the consumer. */
 export function useTitle(caller: MemoryCaller, usedFor?: string): string {
@@ -16,12 +18,6 @@ export function useTitle(caller: MemoryCaller, usedFor?: string): string {
   if (caller.work) return `工作「${caller.work.title.slice(0, 40)}」`;
   if (label) return label;
   return caller.consumer === "plugin" && caller.plugin_id ? `插件 ${caller.plugin_id}` : CONSUMER_LABELS[caller.consumer];
-}
-
-/** One fingerprint for what a clear will remove across its Prologue scopes (a single scope keeps Prologue's own). */
-export function joinedFingerprint(parts: ReadonlyArray<{ scope: MemoryScope; owner: string; count: number; fingerprint: string }>): string {
-  const counted = parts.filter((part, index) => index === 0 || part.count > 0);
-  return counted.length === 1 ? counted[0]!.fingerprint : counted.map(part => `${part.scope}:${part.owner}=${part.fingerprint}`).join("|");
 }
 
 export function candidateView(record: MemoryCandidateRecord): MemoryCandidate {
@@ -52,13 +48,39 @@ export function revisionView(sdkRev: { version: number; text: string; origin: st
   };
 }
 
+function normalizeImportState(
+  raw: unknown,
+  at: string,
+  refuse: (why: string) => never,
+): MemoryExportPackage["entries"][number]["state"] {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) refuse(`${at}的状态字段损坏`);
+  if (Object.keys(raw).some(key => key !== "disabled" && key !== "paused")) refuse(`${at}的状态字段损坏`);
+  const state = raw as { disabled?: unknown; paused?: unknown };
+  if (state.disabled !== undefined && state.paused !== undefined) refuse(`${at}同时带停用和暂停`);
+  const normalizeMark = (mark: unknown): { reason?: string; at: string | null } => {
+    if (!mark || typeof mark !== "object" || Array.isArray(mark)
+      || Object.keys(mark).some(key => key !== "reason" && key !== "at")) refuse(`${at}的状态字段损坏`);
+    const record = mark as { reason?: unknown; at?: unknown };
+    const reason = record.reason === undefined ? undefined
+      : typeof record.reason === "string" ? record.reason.trim() : refuse(`${at}的状态说明损坏`);
+    if (reason !== undefined && (!reason || reason.length > 200)) refuse(`${at}的状态说明损坏`);
+    const markAt = record.at === null || record.at === undefined ? null
+      : typeof record.at === "string" && Number.isFinite(Date.parse(record.at)) ? record.at
+        : refuse(`${at}的状态时间损坏`);
+    return { ...(reason === undefined ? {} : { reason }), at: markAt };
+  };
+  return {
+    ...(state.disabled !== undefined ? { disabled: normalizeMark(state.disabled) } : {}),
+    ...(state.paused !== undefined ? { paused: normalizeMark(state.paused) } : {}),
+  };
+}
 /** A package is read whole before anything is written: one malformed entry and the whole import is refused. */
 export function readPackage(pack: unknown): MemoryExportPackage["entries"] {
   const refuse = (why: string): never => { throw memoryErrors.invalid(`记忆包无法导入：${why}；没有写入任何一条`); };
   if (!pack || typeof pack !== "object") refuse("不是记忆包");
   const value = pack as Partial<MemoryExportPackage>;
   if (value.format !== "molis.memory") refuse("格式不认识");
-  if (value.version !== /* @version format.memory.export */ 1) refuse(`版本 ${String(value.version)} 不认识`);
+  if (value.version !== MEMORY_PACKAGE_VERSION) refuse(`版本 ${String(value.version)} 不认识`);
   if (!Array.isArray(value.entries) || value.entries.length > 2000) refuse("条目缺失或太多");
   return value.entries!.map((item, index) => {
     const at = `第 ${index + 1} 条`;
@@ -67,7 +89,8 @@ export function readPackage(pack: unknown): MemoryExportPackage["entries"] {
     if (!MEMORY_FORMAL_KINDS.includes(item.kind)) refuse(`${at}的类别不认识`);
     if (typeof item.origin !== "string") refuse(`${at}缺少出处`);
     if (item.applies !== undefined) {
-      if (typeof item.applies !== "object" || item.applies === null || Array.isArray(item.applies) || "goal_ids" in item.applies) refuse(`${at}的适用情境损坏`);
+      if (typeof item.applies !== "object" || item.applies === null || Array.isArray(item.applies)) refuse(`${at}的适用情境损坏`);
+      if ("goal_ids" in item.applies) refuse(`${at}的适用情境损坏（旧版 goal_ids 已退役，请使用 applies.objects）`);
       if (item.applies.objects !== undefined && (!Array.isArray(item.applies.objects) || item.applies.objects.length > 20
         || item.applies.objects.some(obj => !obj || typeof obj !== "object" || Array.isArray(obj)
           || typeof obj.plugin_id !== "string" || !obj.plugin_id.trim()
@@ -86,17 +109,10 @@ export function readPackage(pack: unknown): MemoryExportPackage["entries"] {
       || !Number.isSafeInteger(session.revision) || session.revision < 1)) refuse(`${at}的会话关联损坏`);
     if (item.namespace !== undefined && (typeof item.namespace !== "string" || !item.namespace.trim())) refuse(`${at}的命名空间损坏`);
     if (item.basis !== null && !["explicit", "repeated", "inferred"].includes(item.basis)) refuse(`${at}的依据类别损坏`);
-    if (item.state !== undefined) {
-      if (!item.state || typeof item.state !== "object" || Array.isArray(item.state)) refuse(`${at}的状态损坏`);
-      for (const mark of [item.state.disabled, item.state.paused]) {
-        if (mark !== undefined && (!mark || typeof mark !== "object" || Array.isArray(mark)
-          || (mark.reason !== undefined && typeof mark.reason !== "string")
-          || (mark.at !== null && (typeof mark.at !== "string" || !Number.isFinite(Date.parse(mark.at)))))) refuse(`${at}的状态损坏`);
-      }
-    }
+    const normalizedState = item.state === undefined ? undefined : normalizeImportState(item.state, at, refuse);
     return { text: item.text.trim(), kind: item.kind, source: "imported", basis: item.basis, applies: structuredClone(item.applies ?? {}), origin: item.origin, expires_at: item.expires_at ?? null,
       classification: structuredClone(classification!), ...(session ? { session_ref: { ...session } } : {}), ...(item.namespace ? { namespace: item.namespace } : {}),
-      ...(item.state ? { state: structuredClone(item.state) } : {}) };
+      ...(normalizedState && (normalizedState.disabled || normalizedState.paused) ? { state: normalizedState } : {}) };
   });
 }
 

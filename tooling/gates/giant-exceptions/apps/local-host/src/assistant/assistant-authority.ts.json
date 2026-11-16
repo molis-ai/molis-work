@@ -3,7 +3,7 @@
     "function apps/local-host/src/assistant/assistant-authority.ts#assistantAuthority": {
       "kind": "cohesive-unit",
       "reason": "为同一助理轮次装配可信动作上下文，发现、审查与执行共享原调用、当前目录和权限检查，调用结束后清理原信号。",
-      "size": 152
+      "size": 155
     }
   }
 }

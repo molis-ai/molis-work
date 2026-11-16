@@ -21,7 +21,7 @@ function registered() {
     async readSession(ref) { return { session: ref, owner, title: "Owned", runs: [{ session_id: "own-session", run_id: "own-run" }], latest_run: null }; },
     async read() { return { turns: structuredClone(turns) }; },
     collaboration: {
-      async read() { return []; }, async awaitReady() { return []; }, async control() { throw new Error("not in this test"); },
+      async read() { return []; }, serveStarts() { return () => {}; }, async control() { throw new Error("not in this test"); },
       async revise(run, amendment, version, actor) { revised.push({ run, amendment, version, actor }); return { project_id: "p", version: version + 1, terminal: false, nodes: [] }; },
     },
   } as AgentRuntimeAdapter;

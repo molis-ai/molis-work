@@ -62,6 +62,12 @@ export function guardedSubagents(subagents: AgentSubagentsCapability, read: (run
     ...(subagents.workspaces ? { workspaces: true as const } : {}),
     list: async run => { await read(run); return subagents.list(run); },
     cancel: async (run, id, actor) => { await read(run); await subagents.cancel(run, id, actor); },
+    ...(subagents.retry ? {
+      retry: async (run, id, input) => { await read(run); return subagents.retry!(run, id, input); },
+    } : {}),
+    ...(subagents.extendBudget ? {
+      extendBudget: async (run, id, addAttempts, actor) => { await read(run); return subagents.extendBudget!(run, id, addAttempts, actor); },
+    } : {}),
   };
 }
 

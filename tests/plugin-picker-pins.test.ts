@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { installTextForTest, parseLocalePack } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderPluginRail, renderWorkbenchBar } from "../apps/workbench/src/immersive-shell.ts";
+import { renderImmersiveHeader, renderPluginRail } from "../apps/workbench/src/immersive-shell.ts";
 import { RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, dockDefaultPins, extendPluginIds, pluginMarketCards } from "../apps/workbench/src/plugin-catalog.ts";
 
 // The switcher lists every plugin a project could have, once, as a tile that reads the same in both states, and each tile
@@ -66,14 +66,14 @@ test("DOCK-01 every plugin the market offers is listed once, and the Dock has no
     if (card.id === "plugin-builder") continue;
     assert.equal(html.split(`data-plugin-tile="${card.id}"`).length - 1, 1, `${card.id} is listed once`);
   }
-  const bar = renderWorkbenchBar(primitives, { rail: html, projectChrome: "", enabled: ["goals"] });
+  const bar = renderImmersiveHeader(primitives, false, [], { rail: html, projectChrome: "", enabled: ["goals"] });
   assert.doesNotMatch(bar, /data-dock-choices|class="dock-choices"|常驻在 Dock<\/p>/);
   assert.doesNotMatch(bar, /dock-settings|personal-sidebar-footer/, "and no list at the foot of the switcher");
 });
 
 test("DOCK-01 DOCK-13 the market and the plugin studio are two buttons at the head of the switcher, beside search and above the project's own entry", () => {
   const enabled = ["goals", "plugin-builder"];
-  const bar = renderWorkbenchBar(primitives, { rail: renderPluginRail(primitives, enabled), projectChrome: "", enabled });
+  const bar = renderImmersiveHeader(primitives, false, [], { rail: renderPluginRail(primitives, enabled), projectChrome: "", enabled });
   const head = bar.slice(bar.indexOf('<div class="plugin-picker-head">'), bar.indexOf('class="plugin-rail-items"'));
   assert.match(head, /data-global-search-open[\s\S]*<div class="plugin-picker-extend" data-global-menu[^>]*>[\s\S]*data-plugin-id="market"[\s\S]*data-plugin-id="plugin-builder"/, "search, then the market, then the studio");
   for (const id of ["market", "plugin-builder"]) {
@@ -85,7 +85,7 @@ test("DOCK-01 DOCK-13 the market and the plugin studio are two buttons at the he
   assert.ok(bar.indexOf('class="plugin-picker-extend"') < bar.indexOf('data-plugin-id="home"'), "above the project's own entry");
   assert.doesNotMatch(bar, /dock-settings|personal-sidebar-footer/, "nothing at the foot");
   // Without the studio plugin there is one button, not an empty slot.
-  const without = renderWorkbenchBar(primitives, { rail: renderPluginRail(primitives, ["goals"]), projectChrome: "", enabled: ["goals"] });
+  const without = renderImmersiveHeader(primitives, false, [], { rail: renderPluginRail(primitives, ["goals"]), projectChrome: "", enabled: ["goals"] });
   assert.match(without, /data-plugin-id="market"/);
   assert.doesNotMatch(without, /data-plugin-id="plugin-builder"/);
 });

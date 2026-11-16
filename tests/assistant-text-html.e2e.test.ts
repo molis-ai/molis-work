@@ -30,6 +30,7 @@ test("VUX-33: Assistant fences keep literal code during an open, closed or corre
   assert.match(prose, /<li>60 分钟<\/li><li>30 分钟<\/li>/);
 });
 
+// WLN-31: the reply streams before the round ends; placement is a tool call later in the same round, so it never waits for it.
 test("PAS-15 / BBA-02: Host text streams, keeps reading state, copies exact code, opens named objects and submits real review decisions", { timeout: 180_000 }, async t => {
   const pageTitle = "代码验证文档";
   // VUX-33: indentation, mixed line endings, list-like patch lines and a shorter fence are literal code.

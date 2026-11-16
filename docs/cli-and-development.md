@@ -67,6 +67,8 @@ review-request | review-decide
 
 插件作者可以用 `molis-work plugin validate` 检查 Manifest、文件和声明。声明了 `state_machines` 时输出相应机器清单。检查只读包元数据。写法见[状态机 Skill](../skills/molis-plugin-dev/state-machine.md)。
 
+隔离 Home 最小真实评测命令用 `pnpm eval:run`（`tsx scripts/run-evaluation.mts`）：默认 `--mode stand-in` 在临时隔离 Home 启动真实宿主、插件、Prologue 运行时与 `system.observation`／`system.evaluation` 并自动清理临时目录；`--verify-reproducible` 在两个独立临时 Home 校验判定摘要一致；`--mode live` 默认按 Gemini 系列（`gemini-2.5-flash`、`https://generativelanguage.googleapis.com/v1beta/openai`）内联读取 `GEMINI_API_KEY`（或 `MOLIS_EVAL_API_KEY`），严拒读写 `~/.molis-work`。说明见 [Evaluation 服务文档](horizontal/evaluation.md)。
+
 ## 项目结构
 
 > 仓库是插件基座加多插件的 Monorepo：包清单以 `scripts/workspace-packages.mjs` 为准，当前数量由 `pnpm workspace:check` 输出；成熟度按 [SSOT-MATRIX](SSOT-MATRIX.md) §2 的四个词（`production`、`experimental`、`slice`、`absent`）标注，其中 `absent` 只用于尚未建包的目标路径。根包只装配产品启动器，不导出代码。真实状态和 owner 见 [架构 SSOT 索引](SSOT-MATRIX.md)。

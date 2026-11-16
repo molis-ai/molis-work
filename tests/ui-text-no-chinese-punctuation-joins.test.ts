@@ -97,7 +97,6 @@ const EMBEDDED_JOIN_ALLOWED: ReadonlyArray<{ readonly file: RegExp; readonly rea
  * may not grow and a new file may not appear, and a fall must be written down here (the last test fails while it is stale).
  */
 const JOINED_BASELINE: Readonly<Record<string, number>> = {
-  "apps/local-host/src/assistant/assistant-delegation.ts": 1,
   "apps/local-host/src/assistant/assistant-directory.ts": 4,
   "apps/local-host/src/assistant/assistant-followups.ts": 2,
   "apps/local-host/src/assistant/assistant-present.ts": 2,
@@ -147,7 +146,7 @@ const JOINED_BASELINE: Readonly<Record<string, number>> = {
   "plugins/native/goals/src/module/planning/goal-graph.ts": 2,
   "plugins/native/goals/src/proposal-normalizer.ts": 2,
   "plugins/native/goals/src/terminal-actions.ts": 3,
-  "plugins/native/inbox/src/home-events.ts": 2,
+  "plugins/native/inbox/src/work-events.ts": 2,
   "plugins/native/pages/src/actions.ts": 1,
   "plugins/native/shelf/src/ai.ts": 1,
   "plugins/native/todo/src/browser/list-rows.ts": 1,

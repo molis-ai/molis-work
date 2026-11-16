@@ -1,6 +1,6 @@
 /** The agent-host contract (`services/agent-host`): what a run is started with, frozen when it starts — workspace, materials, references, budget, the Character and its role, the action client — and the authority checks the Host adds. */
 import type { UiLanguageTag } from "../platform/ui-text.js";
-import type { ActionCallOrigin, ExactActionReference, ActionView } from "../platform/actions.js";
+import type { ActionCallOrigin, ActionSubject, ExactActionReference, ActionView } from "../platform/actions.js";
 import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
 import type { MaterialRef } from "../platform/project-materials.js";
 import type { CharacterContent } from "../modules/characters.js";
@@ -48,12 +48,35 @@ type AgentMaterialSource =
   | { source_artifact_id: string; source_version: number }
   | { source_artifact_id?: never; source_version?: never };
 
+export type AgentMaterialDeliveryMode = "full" | "clipped" | "on-demand";
+
+export interface AgentMaterialChecklistItem {
+  material_id?: string;
+  title: string;
+  subject?: ActionSubject;
+  material_ref?: MaterialRef;
+  source_artifact_id?: string;
+  source_version?: number;
+  read_revision?: string;
+  delivery: AgentMaterialDeliveryMode;
+  total_chars?: number;
+  delivered_chars?: number;
+}
+
 /**
  * Where a piece the person chose came from, kept with the round that received it (materials-ui-contract §2): the exact reference,
  * a live one carrying the revision read for this round, and that revision. A round from before they were kept has neither, and
  * says the source version was not recorded; it is never guessed from the file as it is now.
  */
-export interface AgentMaterialOrigin { material_ref?: MaterialRef; read_revision?: string }
+export interface AgentMaterialOrigin {
+  subject?: ActionSubject;
+  material_ref?: MaterialRef;
+  read_revision?: string;
+  delivery?: AgentMaterialDeliveryMode;
+  total_chars?: number;
+  delivered_chars?: number;
+  overflow_materials?: AgentMaterialChecklistItem[];
+}
 
 export type AgentTextMaterial = {
   material_id: string;
@@ -75,19 +98,20 @@ export interface AgentImageMaterial {
 
 /** Metadata and verbatim body share one data resource, never a role/system prompt. */
 export function agentTextMaterialContent(material: AgentTextMaterial): string {
-  if (!material || typeof material.title !== "string" || material.title.length > 2000
-    || typeof material.material_id !== "string" || !material.material_id || material.material_id.length > 240
-    || typeof material.text !== "string") throw new Error("固定材料的标题、来源或版本无效");
+  const okStr = (v: unknown, max: number) => typeof v === "string" && v.length > 0 && v.length <= max;
+  if (!material || typeof material.title !== "string" || material.title.length > 2000 || !okStr(material.material_id, 240) || typeof material.text !== "string") {
+    throw new Error("固定材料的标题、来源或版本无效");
+  }
   const sourced = "source_artifact_id" in material || "source_version" in material;
-  if (sourced && (typeof material.source_artifact_id !== "string" || !material.source_artifact_id || material.source_artifact_id.length > 200
-    || typeof material.source_version !== "number" || !Number.isSafeInteger(material.source_version) || material.source_version < 1)) throw new Error("固定材料的标题、来源或版本无效");
-  if (material.material_ref !== undefined && (!material.material_ref || typeof material.material_ref !== "object")
-    || material.read_revision !== undefined && (typeof material.read_revision !== "string" || !material.read_revision || material.read_revision.length > 200)) throw new Error("材料的来源引用或读取版本无效");
-  const header = JSON.stringify(sourced
-    ? { title: material.title, artifact_id: material.source_artifact_id, version: material.source_version }
-    : { title: material.title, material_id: material.material_id });
+  if (sourced && (!okStr(material.source_artifact_id, 200) || typeof material.source_version !== "number" || !Number.isSafeInteger(material.source_version) || material.source_version < 1)) {
+    throw new Error("固定材料的标题、来源或版本无效");
+  }
+  const badSubj = material.subject !== undefined && (!material.subject || typeof material.subject !== "object" || !okStr(material.subject.kind, 200) || !okStr(material.subject.id, 16_584));
+  if (badSubj || (material.material_ref !== undefined && (!material.material_ref || typeof material.material_ref !== "object")) || (material.read_revision !== undefined && !okStr(material.read_revision, 200))) {
+    throw new Error("材料的来源引用或读取版本无效");
+  }
+  const header = JSON.stringify(sourced ? { title: material.title, artifact_id: material.source_artifact_id, version: material.source_version } : { title: material.title, material_id: material.material_id });
   const content = `${header}\n\n${material.text}`;
-  // Prologue's required text resources reject more than 20,000 UTF-16 units.
   if (content.length > 20_000) throw new Error("材料连同来源超过 20,000 字符，请在文件中选择较小片段后重新保存");
   return content;
 }
@@ -127,11 +151,32 @@ export type AgentReasoningEffort = "low" | "medium" | "high";
 
 export const AGENT_REASONING_EFFORTS: readonly AgentReasoningEffort[] = ["low", "medium", "high"];
 
+/** Common initial Fibonacci presets; any positive deduplicated Fibonacci integer passes `isValidFibonacciStoryPoints` (CHO-29). */
+export const FIBONACCI_STORY_POINTS = [1, 2, 3, 5, 8, 13, 21, 34, 55] as const;
+/** Positive deduplicated Fibonacci story-point estimate (`1, 2, 3, 5, 8, 13, 21, 34, 55, ...`, CHO-29). */
+export type AgentStoryPoints = number;
+export type AgentEstimateSource = "agent" | "human";
+
+export function isValidFibonacciStoryPoints(value: unknown): value is AgentStoryPoints {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) return false;
+  if (value === 1) return true;
+  let prev = 1;
+  let curr = 2;
+  while (curr < value) {
+    const next = prev + curr;
+    prev = curr;
+    curr = next;
+  }
+  return curr === value;
+}
+
 export interface AgentRunBudget {
   max_turns?: number;
   max_output_tokens?: number;
   max_total_tokens?: number;
   max_duration_ms?: number;
+  /** Optional Host/session cap narrowing the model's context window (CHO-08). */
+  context_window_tokens?: number;
 }
 
 /** Runtime limits are explicit positive safe integers; omitted values keep SDK defaults. */
@@ -139,7 +184,7 @@ export function parseAgentRunBudget(value: AgentRunBudget | undefined): AgentRun
   if (value === undefined) return undefined;
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("执行预算格式无效");
   const budget: AgentRunBudget = {};
-  for (const field of ["max_turns", "max_output_tokens", "max_total_tokens", "max_duration_ms"] as const) {
+  for (const field of ["max_turns", "max_output_tokens", "max_total_tokens", "max_duration_ms", "context_window_tokens"] as const) {
     const limit = value[field];
     if (limit === undefined) continue;
     if (!Number.isSafeInteger(limit) || limit < 1 || field === "max_duration_ms" && limit > 2_147_483_647) throw new Error(`执行预算 ${field} 必须为有效的正整数`);
@@ -153,7 +198,16 @@ export interface AgentExecutionPlan {
   source: ArtifactReference;
   title: string;
   /** `depends_on` names earlier steps this one waits for; absent, a step waits for the one before it. */
-  steps: Array<{ id: string; title: string; acceptance: string; depends_on?: string[] }>;
+  steps: Array<{
+    id: string;
+    title: string;
+    acceptance: string;
+    depends_on?: string[];
+    parent_id?: string;
+    story_points?: AgentStoryPoints | null;
+    estimate_source?: AgentEstimateSource;
+    estimate_reason?: string;
+  }>;
 }
 
 /**
@@ -205,10 +259,11 @@ interface AgentFrozenStartFields {
   /** The ending review's prompt (D1②), the person's edit included; absent when the Agent declares none. */
   ending_review?: { prompt_id: string; version: number; user_revision?: number };
   /**
-   * The window this Run was packed against (the model's own, capped by the runtime), and whether the provider's input
-   * count already includes cached prompt tokens. Absent on runs started before it was recorded.
+   * The window this Run was packed against (the model's own, narrowed only by an explicit budget cap), and whether the provider's input
+   * count already includes cached prompt tokens. `stated_window_tokens` is recorded when a budget cap narrowed the model's stated window;
+   * `window_unknown` is set when neither model metadata nor an explicit budget cap supplied a window size, so the runtime used its conservative fallback (CHO-08).
    */
-  model_context?: { window_tokens: number; prompt_includes_cache: boolean };
+  model_context?: { window_tokens: number; prompt_includes_cache: boolean; stated_window_tokens?: number; window_unknown?: true };
   /** Present when this Run started from the Host's digest of earlier rounds instead of their verbatim history. */
   history?: "digest";
   /** Present when the model was asked to think before answering (the provider's setting when the Run started). */
@@ -287,6 +342,40 @@ export interface AgentSubagentWorkspace {
  * runtime has no sub-agents of its own). Each delegated work is a real work with its own session: its changes still
  * wait for the person's confirmation, and it cannot delegate further.
  */
+/** One thing a delegated work's result must satisfy, as the delegating round states it. The Host numbers them r1, r2, … in order. */
+export interface AgentDelegatedRequirement {
+  statement: string;
+  expected?: string;
+  /** The person must look at this one themselves. Left out, no approval step is added for it. */
+  requires_person?: boolean;
+}
+
+/**
+ * Where a delegated work's requirements stand, as the platform found it (`modules/acceptance`): which delivered version, what
+ * was verified and what the person decided. Never the work's own word: a check that rests only on what the work said is not verified.
+ */
+export interface AgentDelegatedAcceptance {
+  /** The delivered version these findings are about; null while the work has reported none. */
+  version: string | null;
+  counts: { total: number; verified: number; needs_person: number; accepted: number; satisfied: number };
+  /** `reported`: the work reported a check of this item on the version it stands on. `person`: `pending` whenever the item waits for the person — asked of them, or delivered without a machine check. */
+  items: Array<{ id: string; statement: string; reported: boolean; verified: boolean; gap: string | null; person: "accepted" | "returned" | "pending" | "not_needed"; returned_because?: string }>;
+}
+
+/** What a delegated work reports when it hands its result back: what changed and, requirement by requirement, what it checked and saw. */
+export interface AgentDeliveryReport {
+  summary: string;
+  /** From the second delivery on: the requirements this round changed anything for. The rest keep what was found and decided. */
+  touched?: string[];
+  checks: Array<{ requirement_id: string; verdict: "supports" | "contradicts"; method: string; observed: string; hands_on?: boolean;
+    artifacts?: Array<{ artifact_id: string; version: number }>; command_call_ids?: string[] }>;
+}
+
+/** A delegated work with requirements records its delivery through this, on its own object and as itself; the Host names the object and the round. */
+export interface AgentDelivery {
+  report(input: AgentDeliveryReport, signal?: AbortSignal): Promise<AgentDelegatedAcceptance & { note: string }>;
+}
+
 export interface AgentDelegatedWork {
   work_id: string;
   title: string;
@@ -302,11 +391,17 @@ export interface AgentDelegatedWork {
   taken_back?: boolean;
   /** What the delegating round should make of this state, in words (set when the person took it back). */
   note?: string;
+  /** Its requirements and where each stands, when it was handed any. */
+  requirements?: AgentDelegatedAcceptance;
 }
 
 export interface AgentDelegation {
-  /** `character`: one of the professional roles offered this round (its id); the sub-task then runs as exactly that role. */
-  start(input: { title: string; brief: string; acceptance: string; materials?: Array<{ title: string; text: string }>; character?: string }): Promise<AgentDelegatedWork>;
+  /**
+   * `character`: one of the professional roles offered this round (its id); the sub-task then runs as exactly that role.
+   * `for_event`: the event on the work line it is done for; `track`: it becomes an event of its own (specs/work-line §5). Neither: it belongs to no event.
+   * `requirements`: what the result must satisfy, item by item; they are hung on the sub-task's own object and the person can go through them (specs/proactive-assistant §7.3.1).
+   */
+  start(input: { title: string; brief: string; acceptance: string; materials?: Array<{ title: string; text: string }>; character?: string; for_event?: { kind: string; id: string }; track?: true; requirements?: AgentDelegatedRequirement[] }): Promise<AgentDelegatedWork>;
   /** The delegated works (all, or the given ones), waiting up to `wait_ms` for them to finish or need the person. */
   status(input: { work_ids?: string[]; wait_ms?: number }, signal?: AbortSignal): Promise<AgentDelegatedWork[]>;
   /** Tell a delegated work what to fix or add (its next round); bounded per work. */
@@ -360,6 +455,8 @@ export interface AgentActionClient {
   reader?: "work";
   /** Delegate sub-tasks to separate works (see AgentDelegation). Absent: this round cannot delegate. */
   delegate?: AgentDelegation;
+  /** Report what this work delivers against the requirements it was handed (see AgentDelivery). Absent: it was handed none. */
+  deliver?: AgentDelivery;
   /** Authorized memory tools for the person (see AgentMemoryTools). Absent: this round has no memory tools. */
   memory?: AgentMemoryTools;
   /** Record a proposal for the person; validated against the current capability. Absent: this caller takes none. */
@@ -395,7 +492,7 @@ export interface AgentFrozenRole {
   version: number;
   execution: AgentRoleExecution;
   /** Separate selection prompt: never composed into the executing role. */
-  compaction?: { prompt: AgentPromptText; above_tokens: number };
+  compaction?: { prompt: AgentPromptText; above_tokens: number; window_ratio?: number };
   /** Separate review prompt, the same: never composed into the executing role. */
   ending_review?: { prompt: AgentPromptText };
   /** Prompt bodies in composition order. */

@@ -27,6 +27,8 @@ import { stateOf, spokenTurns, roundDiagnostics, stopInWords, presentActivity, t
 import type { AssistantDispatch } from "./assistant-dispatch.js";
 import type { AssistantOutcomes } from "./assistant-outcomes.js";
 import type { AssistantRoundMaterials } from "./assistant-round-materials.js";
+import { workTitle } from "./assistant-work-title.js";
+import { stepReview } from "./assistant-step-gate.js";
 
 /** A signed role in one installation, as a work offers it. */
 const roleMethod = (role: SignedRoleView, installation: SignedAgentInstallation): Extract<AssistantMethod, { kind: "role" }> => ({ kind: "role", method_id: `signed/${role.role_id}`,
@@ -67,7 +69,7 @@ export class AssistantWorkReads {
     const waiting = new Set(rounds.filter(round => round.phase === "awaiting-review").map(round => round.run_id));
     // What each run really took from memory, from the runtime's own event.
     const memory = new Map([...views].filter(([, view]) => view.memory_recalled).map(([runId, view]) => [runId, view.memory_recalled!]));
-    return { rounds, sourceViews: [...views.values()], reviews: (await this.reviewsFor(host, work)).filter(review => review.run_id !== null && waiting.has(review.run_id)), recovery: Boolean(recovery), memory,
+    return { rounds, sourceViews: [...views.values()], reviews: [...(await this.reviewsFor(host, work)).filter(review => review.run_id !== null && waiting.has(review.run_id)), ...stepReview(work)], recovery: Boolean(recovery), memory,
       queued: queuedInputs(session),
       ...sessionProblem(recovery, rounds, session) };
   }
@@ -233,7 +235,7 @@ export class AssistantWorkReads {
     for (const row of rows) {
       const work = whenThere(() => this.store.get(this.actorId, row.work_id));
       if (!work || work.archived) continue;
-      out.push({ work_id: work.work_id, title: work.title, state: await this.stateSafely(work), relation: row.relation, recorded_revision: row.object.revision, updated_at: work.updated_at });
+      out.push({ work_id: work.work_id, title: workTitle(work), state: await this.stateSafely(work), relation: row.relation, recorded_revision: row.object.revision, updated_at: work.updated_at });
     }
     return out.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   }

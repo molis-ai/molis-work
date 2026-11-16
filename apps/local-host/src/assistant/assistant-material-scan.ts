@@ -1,5 +1,5 @@
 import { assistantWords } from "./assistant-saved-text.js";
-import { isSubjectReader, HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, type ActionSubjectContext, type ActionView, type HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isSubjectReader, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, type ActionSubjectContext, type ActionView, type WorkEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PersonActions } from "./assistant-executor.js";
 import type { WorkIdentity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -57,7 +57,7 @@ export async function scanNewMaterialOnce(env: ScanEnvironment): Promise<number>
     try { actions = await withinTime(scopeActions?.(group[0]!) ?? Promise.resolve(null)); } catch (error) { actions = null; looked.problem = error instanceof Error ? error.message : String(error); }
     if (!actions) continue;
     const views = await withinTime(actions.discover()).catch((error: unknown) => { looked.problem = error instanceof Error ? error.message : String(error); return [] as ActionView[]; });
-    const providers = views.filter(view => view.action.input_type === HOME_EVENTS_INPUT_TYPE && view.action.output_type === HOME_EVENTS_OUTPUT_TYPE && view.availability.available);
+    const providers = views.filter(view => view.action.input_type === WORK_EVENTS_INPUT_TYPE && view.action.output_type === WORK_EVENTS_OUTPUT_TYPE && view.availability.available);
     looked.capabilities = views.length; looked.sources = providers.length;
     const readers = views.filter(view => isSubjectReader(view.action) && view.availability.available);
     const read = async (subject: { kind: string; id: string }): Promise<ActionSubjectContext | null> => {
@@ -81,8 +81,8 @@ export async function scanNewMaterialOnce(env: ScanEnvironment): Promise<number>
     looked.events = 0;
     const window = { from: from.toISOString(), to: new Date(now.getTime() + 1).toISOString(), now: now.toISOString() };
     for (const provider of providers) {
-      let collection: HomeEventCollection;
-      try { collection = await withinTime(actions.invoke({ capability_id: provider.capability_id, version: provider.version, provider_id: provider.provider.provider_id }, window)) as HomeEventCollection; }
+      let collection: WorkEventCollection;
+      try { collection = await withinTime(actions.invoke({ capability_id: provider.capability_id, version: provider.version, provider_id: provider.provider.provider_id }, window)) as WorkEventCollection; }
       catch (error) { materialSourceFailures.failed(`${projectId}:${provider.capability_id}`, error, { project_id: projectId, capability_id: provider.capability_id }); continue; }
       materialSourceFailures.worked(`${projectId}:${provider.capability_id}`);
       // New items (occurred) and newly open attention items (active); standing status lines (today) are not material.

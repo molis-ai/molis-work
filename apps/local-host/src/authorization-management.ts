@@ -93,7 +93,7 @@ async function listAuthorizations(ports: AuthorizationManagementPorts, filter: A
       return entries;
     },
     "assistant-policy": async () => {
-      const policies = ports.assistant().actionPolicies(LOCAL_PERSON_ACTOR_ID), known = await titles();
+      const policies = ports.assistant().policies.read(LOCAL_PERSON_ACTOR_ID), known = await titles();
       return [...new Set([...policies.disabled, ...policies.confirmation])].map(key => assistantPolicyEntry(key, policies.forAction(key), undefined, known.get(key)));
     },
   };

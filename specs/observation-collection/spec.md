@@ -1,8 +1,8 @@
 # 观测和采集层需求书
 
-状态：需求已整理（2026-10-27）；2026-11-04 第 21 批完成事实来源盘点、设计稿、评测案例与界面四块定样（[盘点](inventory-2026-11.md)、[设计](design.md)、[评测案例](eval-cases.md)，定样见 §9）；2026-11-05 用户定 D1（证据快照归采集层），合同归第 28 批第一片。**2026-11-14：第 28 批已随 #2059 合入 main（`4417d2bcd3`），写入面按 §2～§3 接入**——动作出口、服务 sink、`observation.report@1`、证据快照、覆盖登记与逐入口接入；读取动作、用途与跨项目权限、保留与清理、占用与界面留给第 29 批，评测留存与回放留给第 30 批。功能目标完成程度为**内部完整**：在产品支持且获准的范围内，连续记录用户行为、工作过程、结果与当时条件，供评测、主动助理及其他平台消费者共同使用。本次复核把「已接入写入面」与「尚未接的读取/保留/评测」分开写，不再用一句「尚未实现」概括；逐入口的完整、部分与未接见批次文件矩阵，写入面接入不表示读取、保留或评测已经可用。
+状态：需求已整理（2026-10-27）；2026-11-04 第 21 批完成事实来源盘点、设计稿、评测案例与界面四块定样（[盘点](inventory-2026-11.md)、[设计](design.md)、[评测案例](eval-cases.md)，定样见 §9）；2026-11-05 用户定 D1（证据快照归采集层），合同归第 28 批第一片。**2026-11-14：第 28 批已随 #2059（`4417d2bcd3`）与复核 #2073 合入写入面，第 29 批完成 §2.4～§3 的历史查询、用途与跨项目边界、保留与清理、空间占用及「设置 › 工作记录」四个页签与两个组件板标本**（见 [contract-design.md](contract-design.md) §16～17 与[第 29 批记录](../post-anticorruption-roadmap/reference/batches/29.md)）；**2026-11-15：第 30 批接入评测样本留存、独立预期判定、隔离回放与隔离 Home 可复现评测命令**（合同与设计见 [evaluation-path-design.md](evaluation-path-design.md)），实物与连续工作走查见 [BL-work-records-acceptance](../backlog/BL-work-records-acceptance.md)。功能目标完成程度为**内部完整**：在产品支持且获准的范围内，连续记录用户行为、工作过程、结果与当时条件，并经公开动作供页面、主动助理、评测及其他平台消费者按权限读取与管理。
 
-需求维护：Codex；实施沿用[后续演进计划](../post-anticorruption-roadmap/spec.md)的 C 轨（平台与 Prologue，Claude 兼管合同评审）。第 28 批已接入写入面（#2059，2026-11-14 合入 `4417d2bcd3`）；读取、保留与清理在 29，评测在 30。各入口与插件的接入仍由原负责人落实。
+需求维护：Codex；实施沿用[后续演进计划](../post-anticorruption-roadmap/spec.md)的 C 轨。第 28 批已接入写入面，第 29 批已接入历史查询、记录管理与设置界面；评测留存与回放在第 30 批。各入口与插件的接入仍由原负责人落实。
 
 ## 1 目标与职责
 
@@ -197,9 +197,41 @@ flowchart LR
 | 2026-11-04 | **范围告知用「分类清单」**（用户定，定样 [`docs/design/work-records/`](../../docs/design/work-records/README.md) 记了什么·方案 A）。全局设置「工作记录」一节顶上是记录状态（记录中／首次接入在读现有资料／已暂停，含「完整记录从何时开始、早期历史能取到哪里」与暂停入口）；下面五类记录（你的操作、AI 做的事、内容的变化、工作流与后台任务、呈现与反馈）各一行、颜色固定，点开看「记／不记」；再下面是「可以用在哪里」的开关（本机回看始终可用，主动助理、效果评测、导出分别开关，上传这一版没有）；末尾一句「只存在这台 Mac 上」。 | 最短、最好扫。没选 B「用一件最近的真实工作举例」（新用户没有例子可举）、C「底栏常驻标记加首次告知卡」（底栏再多一个常驻东西） |
 | 2026-11-04 | **保留与清理用「期限加手动清理」**（用户定，方案 A）。「自动清理」一个下拉：一直保留（默认）、一年、半年、90 天、30 天、不自动清理我自己清；选了期限就逐条列周报、跨两个月比较、评测样本原始记录各要多长、保得住还是会失去，短于所需时提示并给「仍然用」「改回一直保留」，不悄悄延长。「手动清理」打开对话框，按时间（早于／某一段）、项目、记录种类选，先给大小与条数，再列清掉以后会怎样（含原文、Pages 版本、已存简报都还在，评测样本按自己的期限留着）。评测样本单独一块，写明自己的期限。异常状态：清理中（别的功能照常）、一处没清成只重试这一项、清理后提示「到期清除」并能跳到缺口。 | 用组件板已有控件就能做。没选 B 时间轴（影响一眼看到，但要新做时间轴控件） |
 | 2026-11-04 | **占用用「数字加分类条」**（用户定，方案 A）。大数字、按记录种类分色的条与图例；「容量提醒」默认不设，设了以后显示「到 N GB 时提醒我」与一条带提醒线的度量条，写明「提醒线不是上限：到了只提醒，不会删记录」；到期清理单独一行。异常状态：接近提醒线、超过提醒线（照常记录，不自动删）、磁盘不足有记录没保存（已发生的操作照常生效，跳到缺口与清理）、正在计算（显示上次的值）。 | 没选 B 增长趋势（估计到线日期可能不准）、C 存储总览一行（工作记录细节藏得深） |
-| 2026-11-04 | **覆盖与缺口用「先列缺口」**（用户定，方案 B）。顶上一句总况（几处需要注意、完整记录从何时开始、几处还没接入）；可按入口、插件、后台筛，也可按版本；「需要注意」逐条写来源与记录种类、状态、时间段、原因，点开看影响与处理（看占用、重新连接）；「还没接入」单独一段；完整与不适用折叠，不适用写明「本来就没有这类事，不算缺记录」。九种状态：完整、未接入、暂不可用、丢失、截断、已脱敏、到期清除、不适用、按规则不记。 | 先看到要管的事。没选 A 覆盖表（格子多、窄屏要横滚）、C 时间线（看不出是哪类记录） |
+| 2026-11-04 | **覆盖与缺口用「先列缺口」**（用户定，方案 B）。顶上一句总况（几处需要注意、完整记录从何时开始、几处还没接入）；可按入口、插件、后台筛，也可按版本；「需要注意」逐条写来源与记录种类、状态、时间段、原因，点开看影响与处理（看占用、重新连接）；「还没接入」单独一段；完整与不适用折叠，不适用写明「本来就没有这类事，不算缺记录」。九种状态：完整、未接入、暂不可用、丢失、截断、已脱敏、到期清除、不适用、按规则不记（第 28 批清除插件数据后补 `purged`，现为十种，见合同）。 | 先看到要管的事。没选 A 覆盖表（格子多、窄屏要横滚）、C 时间线（看不出是哪类记录） |
 | 2026-11-04 | **按组件板实件重做，用户确认**。四个已定方案的原型改用组件板现行样式与控件（`mw.css` 是设置页样式加组件板页内样式的生成快照，图标与状态环取 `renderIconSprite()`、`renderStateRing()`），页面外壳照真实全局设置页；版式和上面四行的取舍不变，只画定下的方案。组件板新增两项：「分类条」与「种类色标记」（颜色取 DESIGN.md 的五种 `--mark-*` 色），由 D 轨先补标本。 | 用户 11-04 定的定样规则：所有已选定、有界面的原型都按组件板实件重做（[开发流程 §5](../post-anticorruption-roadmap/reference/development-workflow.md)）。没选的方案留在提交 `a63034326` |
 | 2026-11-05 | **主人留不住历史的内容由采集层存证据快照**（用户定，设计 §9 D1 方案 A）。Pages 正文、默认提示词与 Skill 正文、检索当时的结果、模型实际收到的消息、界面上呈现的候选，这些主人不留历史版本的内容，由工作记录存一份只读快照，相同内容只存一份；快照跟着记录的保留期和手动清理一起删，计入「占用」，也受「可以用在哪里」各用途开关约束。主人已经有固定版本的，记录里只放引用。 | 一处保留、一处删除，主人不用各改一遍；能满足 OCL-05「取回当时材料」。没选 B「各主人补版本历史」（Pages、提示词、搜索、模型运行四处各改，清理也要四处各做）、C「只留摘要与指纹」（复查不到原文，不满足 OCL-05）。代价：用户内容在本机多存一份，已计入占用与清理 |
 
 四块都挂在全局设置「个人」组「记忆」之后的新分区「工作记录」，四个页签。原型已经用组件板的 `mw-*` 实件画（设置行、条目、开关、下拉、数字框、度量条、数字卡片、提示条、对话框、分段、折叠、状态标记），产品代码照它的构件写。组件板上还没有、要由 D 轨先补标本的两项（原型里标「组件板新增」，按 2026-11-04 的定样规则，见[开发流程 §5](../post-anticorruption-roadmap/reference/development-workflow.md)）：占用里按记录种类分段的「分类条」（Meter 与 Progress 只显示一个数）；记录种类的「种类色标记」（组件板的 Mark 是中性色，五类记录要一眼分开，界面通用规则 11-03）。对照表见[原型 README](../../docs/design/work-records/README.md#对照组件板)。
+
+## 10 第 29 批开工前检查（历史查询与记录管理）
+
+按[需求开发流程第 4 节](../post-anticorruption-roadmap/reference/development-workflow.md#4-开工前检查)（含第 4.1 节平台能力检查与第 15 项五个全局场景）及[平台能力核对报告](../../docs/reviews/platform-capability-audit-2026-11-14.md)逐项回答：
+
+| # | 项 | 回答 |
+| --- | --- | --- |
+| 1 | 事实主人 | 观测采集层（`horizontal/observation`）只拥有观察记录、证据快照、覆盖登记、记录开关、用途开关、保留期限与容量提醒线。业务对象与版本归各插件／平台主人；读取时如需核对对象与版本是否仍可解析，经宿主回调查询原主人，不在采集层复制业务事实。 |
+| 2 | 插件同等待遇 | 读取动作对插件、Agent、工作流、MCP 与本人走同一组动作合同与权限检查；插件记录按同一套五类归属、同一套保留与清理规则处理，不为特定内置插件开私路。 |
+| 3 | 能力注册 | 新增 8 个系统动作（`system.observation`）：`observation.records.query@1`、`observation.evidence.get@1`、`observation.coverage.get@1`（只读查询，按受众与用途检查）以及 `observation.settings.get@1`、`observation.settings.set@1`、`observation.space.get@1`、`observation.cleanup.preview@1`、`observation.cleanup.apply@1`（管理面，仅 `user` 非委托会话）。全部同步读写本地 SQLite，不等模型、不声明 `concurrent`。 |
+| 4 | 合同 | 在 `@molis-ai/molis-work-contracts/services/observation` 扩展读取与管理动作及类型，成熟度从 `"partial"` 升为 `"implemented"`；更新 API 快照（`tooling/gates/api/contracts/services/observation.txt`）与 `tooling/gates/actions/host-actions.tsv`。既有 `observation.report@1` 无破坏性变更，不加历史兼容分支。 |
+| 5 | 放在哪个包 | 服务逻辑全部落在 `horizontal/observation`；组件板两个新标本（`分类条`、`种类色标记`）落在 `packages/design-system/src/primitives/work-records.ts`（导出子路径 `@molis-ai/molis-work-design-system/work-records`）与 `catalog-work-records.ts`；宿主只做动作装配（`apps/local-host/src/observation-host.ts`）与 `/api/observation/*` 经 `bindLocalWebActions` 的薄路由转发（`observation-http.ts`）；全局设置界面落在 `apps/workbench/src/browser/work-records/`。 |
+| 6 | 表与存储 | 复用 `<Home>/observation/observation.db` 第 1 版基线的 `records`、`evidence_blobs`、`record_evidence`、`coverage`、`coverage_gaps`、`writer_state`，无需新增表或升库版本；暂停状态、用途开关、自动清理期限、容量提醒线与上次清理摘要存于 `writer_state`（表主人仍为 `horizontal/observation`）。 |
+| 7 | 兼容与迁移 | 不加。读取时只认现行取值；清理过的时间段在 `coverage_gaps` 记 `expired`，不从旧副本回填。 |
+| 8 | 安全边界 | 扩展 `docs/system/security-invariants/S-observation-records.md`（8～10）与 `docs/system/SECURITY-INVARIANTS.md`：① 跨项目读取遵循 S-74，仅本人非委托会话且经宿主现算的未关闭可读项目集合可跨项目查询或使用 `lookback`，`agent`／`mcp`／`workflow`／`plugin` 或委托会话请求 `all_projects`、非当前项目或 `lookback` 一律拒 `forbidden`；② 用途开关关闭后，对应 `use`（含非本人默认的 `assistant`、`evaluation`、`export`、`upload`）调 `records.query`、`evidence.get`、`coverage.get` 立即拒 `use_disabled`，不能借已拿到的 `record_id` 或 `digest` 读旧快照；③ 管理动作（`settings.*`、`space.get`、`cleanup.*`）仅本人非委托会话可调，其他受众或委托会话拒 `forbidden`。每条均配拒绝测试（`tests/security-invariants-observation-records.test.ts`）。 |
+| 9 | 调用次数 | 读取按 `after_seq` 游标与 `limit` 有界分页；全局设置「工作记录」首次进入时并发 3 个只读请求（`settings`、`space`、`coverage`），切四个页签纯本地切换零额外请求，改设置时 1 次写请求、随后刷新占用与覆盖（2 个只读）；点清理时 1 次预览或执行请求，执行成功后刷新（3 个只读），后台不轮询；`bindLocalWebActions` 单请求只解析一次上下文（`tests/call-budget.test.ts`）。 |
+| 10 | 升级与数据 | 观测库保持版本 1；管理设置存于 `writer_state`，重启后保持；升级说明页（`platform-upgrade-stores.ts`）对 `observation` 库升级失败改为局部阻断 `/settings/work-records`，不阻断工作台与项目其余功能。 |
+| 11 | 成果与过程项 | 工作记录与证据快照不进成果库，也不是过程项；手动或自动清理工作记录不删除成果库版本、Pages 历史版本、已存简报或已留存评测样本。 |
+| 12 | 页面、外壳与文字 | 全局设置「个人」组在「记忆」后挂「工作记录」（`/settings/work-records`），不出独立整页；按需脚本资源 `/assets/molis-work-work-records.js` 与启动词包入口更新已弹窗获用户批准（[决定 47](../post-anticorruption-roadmap/reference/decisions.md#decision-47)，`tooling/gates/page-asset-allowances/batch-29.json`）；所有中英文文案走 `t("workbench.settings-work-records.*", …)`，数字日期走 `format`，颜色与间距只用语义变量；数据库只存枚举键与数值，不存译文。 |
+| 13 | 错误 | 在 `horizontal/observation/src/errors.ts` 的 `observationErrors`（`defineErrorCodes("observation", …)`）新增 `forbidden`、`use_disabled`、`not_found`、`invalid_query`、`store_unavailable`，不建 Error 子类。 |
+| 14 | 冲突面 | 合同快照（`tooling/gates/actions/host-actions.tsv`、`tooling/gates/api/contracts/services/observation.txt`）、组件板（`packages/design-system/src/primitives/catalog.ts`）与词包（`apps/workbench/resources/locales/{zh,en}.json`）已在开 PR 前同步 `origin/main` 并重跑生成脚本与资源预算实测。 |
+| 15 | 全局最优（五场景） | ① **插件**：所有官方／个人／第三方插件写入的事实按同一套五类规则归类、保留、清理与按权限查询，无需插件额外适配；② **平台**：统一收在 `horizontal/observation` 与 `@molis-ai/molis-work-design-system/work-records`，Host 仅做薄装配与路由，无第二套存储；③ **助理**：主动助理与评测经 `observation.records.query@1`、`evidence.get@1`、`coverage.get@1` 直接按受众与 `use` 调用，无 UI 也能完成增量回看与核查；④ **各类平台能力**：接通动作网关授权、S-74 跨项目规则、升级局部降级与全局搜索 DOM 定位回执，与成果库／过程项／业务表严格分界；⑤ **后续开发**：第 30 批评测、第 32／64 批主动助理直接复用 `after_seq` 游标与证据解封，并顺手收掉第 28 批遗留项（离页循环排空队列、取消不记失败步骤、嵌套子代理请求归属、EC-09、EC-13）。 |
+
+**第 4.1 节平台能力检查：**
+
+1. **别的插件／线会不会也要做？** 会：第 30 批效果评测、第 32／64 批主动助理与简报、工作流、插件与 MCP 都需要按权限查询历史记录、解封当时证据快照与查看覆盖缺口；组件板的「种类色标记」与「分类条」也供多分类占比场景复用。
+2. **平台里有没有现成的？** 第 28 批已建 `horizontal/observation` 写入面与 `observation.report@1`；本批在同一平台服务与合同上补齐读取与管理动作，不另起服务。
+3. **是不是插件之间怎样协作的问题？** 是跨插件工作事实的统一回看与证据核查问题，通过统一公共动作与 `ObservationSubject`／`ObservationOwnerVersionRef` 解决，不按插件写分支。
+4. **第三方插件能不能用同样的方式做到？** 能：第三方插件同样通过动作目录按项目权限调用只读动作，其上报的事实同样进入五类占用、覆盖与保留清理。
+5. **助理和 Agent 能不能发现、调用它？** 能：`records.query@1`、`evidence.get@1`、`coverage.get@1` 均登记在动作目录（含 `agent`、`mcp`、`workflow`、`plugin`、`user` 受众），受用途开关与 S-74 约束。
+- **结论：现在收进平台**（`horizontal/observation` 公共动作 + `@molis-ai/molis-work-design-system/work-records` 公共部件）。
+
 

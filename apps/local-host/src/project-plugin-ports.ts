@@ -4,6 +4,7 @@ import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { observeReviewSettlements, type AgentWritePlaces } from "./review-settlement-events.js";
+import { agentContinuationStarts } from "./agent-continuation-starts.js";
 import { ensureInstalledPlugins, runningInstalledPluginPlatform } from "./installed-plugin-host.js";
 import { installedPluginEntries, installedPluginManifest } from "./plugin-installation-directory.js";
 import { pluginInstallRecords } from "./plugin-install-records.js";
@@ -266,7 +267,7 @@ export function ensureProjectPluginActions(source: ProjectPluginHost, reference:
     dependencyCheck: hostDependencyCheck(host.client(reference)),
     actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, scenes: host.sceneClient(reference), project_id: reference.project_id },
     ...(agents() ? { observeReviewSettlements: listener => observeReviewSettlements(agents()!.agentHost.reviews, runtime.project_id, listener,
-      agentWritePlaces(source, runtime.project_id)) } : {}),
+      agentWritePlaces(source, runtime.project_id)), observeContinuations: listener => agentContinuationStarts(agents()!.agentHost).observeProject(runtime.project_id, listener) } : {}),
   }));
 }
 

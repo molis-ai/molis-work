@@ -150,6 +150,24 @@ export function createRoundState(): RoundState {
 export const sameRef = (a: { kind?: unknown; id?: unknown; revision?: unknown } | undefined, b: { kind: string; id: string; revision: number }) =>
   a?.kind === b.kind && a.id === b.id && a.revision === b.revision;
 
+export function unexecutedApprovalCallOf(
+  runtime: Runtime,
+  run: { readonly session_id: string; readonly run_id: string },
+  waiting: import("./prologue-stream.js").PrologueApprovalWaiting,
+): string | undefined {
+  if (waiting.effect_revision === undefined || waiting.pending_revision === undefined) return undefined;
+  const effectRef = { kind: "effect" as const, id: waiting.effect_id, revision: waiting.effect_revision };
+  const effect = runtime.effects.get(effectRef), pending = effect?.pending, origin = effect?.proposal.origin;
+  if (!effect || !pending || !sameRef(effect.ref, effectRef) || pending.kind !== "effect-approval"
+    || pending.ref.id !== waiting.pending_id || pending.ref.revision !== waiting.pending_revision
+    || !pending.effectRef || !sameRef(pending.effectRef, effectRef) || pending.state === "settled"
+    || !["awaiting-approval", "cancelled", "denied"].includes(effect.state)
+    || origin?.session !== run.session_id || origin.run !== run.run_id
+    || pending.origin?.session !== run.session_id || pending.origin.run !== run.run_id
+    || pending.origin?.toolCall !== origin.toolCall) return undefined;
+  return origin.toolCall;
+}
+
 /** A text resource the person brought, read whole (bounded at 1 MiB). */
 export async function readResourceText(runtime: Runtime, ref: ExactRef<"resource">): Promise<string> {
   const handle = runtime.resources.inspect(ref);

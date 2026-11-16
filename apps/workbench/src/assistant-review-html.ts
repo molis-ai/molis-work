@@ -1,4 +1,4 @@
-import type { AssistantPendingReview } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_NEXT_STEP_REVIEW, type AssistantPendingReview } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { OwnedTextRef, UiSayTool } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { AssistantReviewDisplay, AssistantReviewField, AssistantReviewWords, FormattedReviewField } from "@molis-ai/molis-work-ui-host";
 import { assistantCodeHtml, assistantEscape, type AssistantTextPorts } from "./assistant-text-parts.js";
@@ -22,6 +22,10 @@ export function renderAssistantReviewHtml(review: AssistantPendingReview, ports:
   const [, kind, kindIcon] = REVIEW_KIND.find(([pattern]) => pattern.test(String(review.kind || ""))) || REVIEW_KIND[REVIEW_KIND.length - 1]!;
   const copy = (words: AssistantReviewWords) => words.map(word => typeof word === "string" ? '<span translate="no">' + escaped(word) + '</span>' : fixedWord(word, read(word))).join("");
   const say = (key: string) => fixedWord({ owner: "workbench", key }, ports.say(key));
+  // 「接着做下一步？」 (PWA-156): nothing is held but the step itself, so it asks to go on, not to run something.
+  if (review.kind === ASSISTANT_NEXT_STEP_REVIEW) return `<div class="assistant-card-head"><span class="assistant-card-kicker is-attention"><span class="assistant-state-ring" data-mw-state="approval" aria-hidden="true"></span>${say("workbench.assistant-step-gate.kicker")}</span></div><p class="assistant-card-title">${copy([review.summary])}</p>`
+    + review.fields.map(field => `<p class="assistant-muted">${copy([field.value])}</p>`).join("")
+    + `<div class="assistant-card-actions"><button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-assistant-decision="approve">${say("workbench.assistant-step-gate.go-on-short")}</button><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-assistant-decision="reject">${say("workbench.assistant-step-gate.not-now-short")}</button></div><p class="assistant-card-hint">${say("workbench.assistant-step-gate.hint")}</p>`;
   const fields: readonly AssistantReviewField[] = display?.fields ?? review.fields.map(field => ({ label: [field.label], value: [field.value] }));
   let html = `<div class="assistant-card-head"><span class="assistant-card-kicker is-attention"><span class="assistant-state-ring" data-mw-state="approval" aria-hidden="true"></span>${say("workbench.assistant-review.confirm-before-running")}</span><span class="assistant-card-badge"><span data-assistant-review-glyph="${kindIcon}"></span>${say(kind)}</span></div><p class="assistant-card-title">${copy(display?.summary ?? [review.summary])}</p>`;
   const plain = fields.filter(field => !field.format);

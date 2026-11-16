@@ -88,7 +88,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
 ${ASSISTANT_CHOOSERS_PART}
 ${ASSISTANT_BROWSER_HANDBACK_PART}
 
-  const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:readText("workbench.assistant-island.assistant-could-not-finish-right-now")});
+  // A main conversation is named here, in the reader's language, by who it is with: its stored title is not shown.
+  const nameMain=(work)=>{if(work&&work.main)work.title=work.character?work.character.title:globalThis.t.text("workbench.assistant-tabs.main-conversation");return work;};
+  const named=(res)=>{if(res&&res.work)nameMain(res.work);if(res&&Array.isArray(res.works))res.works.forEach(nameMain);return res;};
+  const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:readText("workbench.assistant-island.assistant-could-not-finish-right-now")}).then(named);
   let executorRequest = 0;
   const loadExecutors = async () => {
     if (!project) return;
@@ -120,7 +123,7 @@ ${ASSISTANT_PERMISSIONS_PART}
     if (!executorsHere() && nextExec !== "assistant") nextExec = "assistant";
     // A page that knows what the person is looking at (the project list) may say so in the placeholder of a new work.
     const hint = !work && nextExec === "assistant" && host.placeholder ? host.placeholder(project) : "";
-    input.placeholder = work?.reply_target ? readText("workbench.assistant-island.return-original-comment-continue") : work ? readText("workbench.assistant-island.add-answer-correct") : nextExec !== "assistant" && executorOffer(nextExec) ? readText("workbench.assistant-island.ask-name-do-something", { name: executorOffer(nextExec).title })
+    input.placeholder = work?.reply_target ? readText("workbench.assistant-island.return-original-comment-continue") : curEvent ? readText("workbench.assistant-island.about-this-event") : work ? readText("workbench.assistant-island.add-answer-correct") : nextExec !== "assistant" && executorOffer(nextExec) ? readText("workbench.assistant-island.ask-name-do-something", { name: executorOffer(nextExec).title })
       : hint ? hint : searchKey() ? readText("workbench.assistant-island.ask-assistant-press-key-search", { key: searchKey() }) : readText("workbench.assistant-island.ask-assistant-do-something");
     if (sync) syncComposer();
   };
@@ -133,6 +136,12 @@ ${ASSISTANT_PERMISSIONS_PART}
   let tabs = savedTabs();
   const seenAt = new Map();
   const saveTabs = () => store.set(scoped("tabs"), tabs.length ? JSON.stringify(tabs) : null);
+  let fresh = false; // A press on ＋ starts a separate work instead of the main conversation (mains() and the rest: assistant-tabs.ts).
+  // Events of the work line opened as tabs here, and the one in front (specs/work-line §4.4; the rest is in assistant-tabs.ts).
+  const WORK_KIND = "assistant_work";
+  let eventTabs = [], curEvent = null;
+  // Words not yet sent with no work in front are kept per place: the event's tab, or a new work (WLN-13).
+  const newDraftKey = () => scoped(curEvent ? "event-draft:" + curEvent : nextChar && !fresh ? "talk-draft:" + nextChar.artifact_id : "new-draft");
   // A tab keeps its place; when there are too many, the one looked at longest ago (never the current one) closes.
   const openTab = (id) => {
     if (!id) return;
@@ -149,6 +158,7 @@ ${ASSISTANT_PERMISSIONS_PART}
   };
   // Closing a tab only puts the work away: it stays in the list of works, and its notices still open it.
   const closeTab = (id) => {
+    if (id.startsWith("event:")) return closeEvent(id.slice(6));
     const at = tabs.indexOf(id);
     if (at < 0) return;
     tabs.splice(at, 1); saveTabs();
@@ -157,10 +167,14 @@ ${ASSISTANT_PERMISSIONS_PART}
   };
 ${ASSISTANT_LAYOUT_PART}
 
-  const switchTo = async (id) => { if (id !== curId) await showWork(id); };
-  const showWork = async (id) => {
-    curId = id; remember(); problem = null; view = null; pendingChar = undefined;
-    openTab(id); if (!spacious()) drawerOpen = false;
+  const switchTo = async (id) => { const to = id || (fresh ? null : mainId()); if (to !== curId || curEvent) await showWork(to); else if (!id) drawTabs(); };
+  // \`about\`: the event whose tab this is. A work that is the conversation of an open event tab is shown in that tab.
+  const showWork = async (id, about = null) => {
+    if (id && !about) about = eventTabs.find((one) => aboutEvent(one.subject)?.work_id === id)?.key || null;
+    if (id) fresh = false; else if (!fresh && !about) id = mainId();
+    curEvent = about; curId = id; remember(); problem = null; view = null; pendingChar = undefined;
+    if (!about) openTab(id);
+    if (!spacious()) drawerOpen = false;
     thread.querySelectorAll(":scope > [data-round], :scope > .assistant-problem").forEach((node) => node.remove());
     thread.querySelectorAll(":scope > [data-review]").forEach(removeReview);
     render(); paintLayout();
@@ -449,12 +463,13 @@ ${ASSISTANT_TABS_PART}
       else memoryButton.removeAttribute("href");
     }
     renderAttention(work); renderPath(work); surroundings.paint(work); sideContext.paint(); renderResults(work); renderUsage(work);
-    if (empty) empty.hidden = Boolean(curId);
+    if (empty) empty.hidden = Boolean(curId || curEvent);
     paintEmpty(); receipts.paint(work && view.rounds[view.rounds.length - 1]);
     const rounds = work ? view.rounds : [];
     if (work) announceEffects(work, rounds);
     [...thread.children].forEach((node) => { if (node.dataset.round && !rounds.some((round) => round.run_id === node.dataset.round)) node.remove(); });
     const put = placer(thread);
+    eventSurface(put);
     if (empty) put(empty);
     const fromPages = work ? (view.cards || []).filter((card) => card.status !== "dismissed" && pageCard(card)) : [];
     [...thread.children].forEach((node) => { if (node.dataset.card && !fromPages.some((card) => card.card_id === node.dataset.card)) node.remove(); });
@@ -462,7 +477,8 @@ ${ASSISTANT_TABS_PART}
     const putPageCards = (before) => {
       while (placed < fromPages.length && (before === null || fromPages[placed].created_at < before)) { placeCard(thread, work, fromPages[placed], put); placed += 1; }
     };
-    rounds.forEach((round) => { putPageCards(round.started_at); put(renderRound(work, round)); });
+    placedRows(work, rounds, -1); waitingRows(work, rounds); waitingRows(work, rounds, -1, put);
+    rounds.forEach((round, at) => { putPageCards(round.started_at); put(renderRound(work, round)); placedRows(work, rounds, at, put); waitingRows(work, rounds, at, put); });
     putPageCards(null);
     conversationSurface(work, rounds, put);
     receipts.after(thread, put, work && view);
@@ -531,7 +547,7 @@ ${ASSISTANT_TABS_PART}
     const focused = document.activeElement && workNav.contains(document.activeElement) ? document.activeElement.dataset.workId || "new" : null;
     workNav.replaceChildren();
     const fresh = el("button", "assistant-works-item assistant-works-new", readText("workbench.assistant-island.new-work-2")); fresh.type = "button"; fresh.dataset.workId = "new";
-    fresh.addEventListener("click", () => { setWorks(false); switchTo(null); input.focus(); });
+    fresh.addEventListener("click", () => { setWorks(false); startFresh(); input.focus(); });
     workNav.append(fresh);
     if (!works.length) workNav.append(el("p", "assistant-muted", readText("workbench.assistant-island.no-work-yet-send-message-start-first-one")));
     // Grouped the way the person looks for them: what waits on them, what is running, then the rest by recency.
@@ -584,12 +600,23 @@ ${ASSISTANT_TABS_PART}
       const res = await api("/works", "GET", undefined, at);
       if (generation !== worksGeneration || at !== worksAt || at !== host.route("/api/assistant/works") || !island.isConnected) return;
       const drafts = new Map(works.map((work) => [work.work_id, { draft: work.draft, draft_revision: work.draft_revision }]));
+      const states = (list) => list.map((work) => work.work_id + ":" + work.state).join(" "), was = states(works);
       works = (res.works || []).map((work) => ({ ...work, ...(work.work_id === curId ? drafts.get(work.work_id) : undefined) }));
+      // A work began, ended or came to wait: the line and the task panel paint from the page's one attention read, asked again now.
+      if (was && was !== states(works)) document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
       if (curId && !works.some((work) => work.work_id === curId)) { curId = null; remember(); view = null; }
+      // With no work in front the main conversation is: shown as soon as the list says there is one.
+      // An event's tab takes the conversation about it once there is one (said elsewhere), unless words are being written here.
+      const about = !curId && curEvent && !String(input.value || "").trim() ? aboutEvent(eventOf().subject) : null;
+      if (about) { curId = about.work_id; remember(); queueMicrotask(() => { if (curId === about.work_id && !view) reload().then(poll); }); }
+      // Not while words written before it existed wait here, or a Send of them is unconfirmed (its first Send is what opened it): they
+      // stay with what they were written for until sent or checked, and the reply then brings the main conversation in front.
+      const held = String(input.value || "").trim() || store.get(newDraftKey()) || store.get(scoped("unsent") + ":new");
+      if (!curId && !fresh && !curEvent && !held) { const main = mainId(); if (main) { curId = main; remember(); queueMicrotask(() => { if (curId === main && !view) reload().then(poll); }); } }
       // A tab whose work is gone closes; the work in front always has one.
       const kept = tabs.filter((id) => works.some((work) => work.work_id === id));
       if (kept.length !== tabs.length) { tabs = kept; saveTabs(); }
-      openTab(curId);
+      if (!curEvent) openTab(curId);
       paintList(); paintAim(); paintSum(); drawTabs();
     } catch { /* the list stays as it was; the next refresh retries */ }
   };
@@ -607,7 +634,7 @@ ${ASSISTANT_TABS_PART}
   };
   // A work is followed while it, its last round (stopped, the work answers before the round has ended) or a sub-task it handed out is live.
   const followed = (seen) => isLive(seen.work.state) || /^(starting|running|compacting)$/.test(seen.rounds?.at(-1)?.phase || "") || (seen.delegated || []).some((child) => !child.taken_back && isLive(child.state));
-  const follower = (${ASSISTANT_FOLLOW_FACTORY_SCRIPT})({ route: host.route, headers: host.headers, followed, current: () => curId, show: (next) => { view = next; render(); } });
+  const follower = (${ASSISTANT_FOLLOW_FACTORY_SCRIPT})({ route: host.route, headers: host.headers, followed, current: () => curId, show: (next) => { view = named(next); render(); } });
   const poll = () => { if (curId && view && view.work.work_id === curId && followed(view)) follower.follow(curId); else follower.stop(); };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { reload().then(poll); loadWorks(); } });
   // Another window may have changed this work (a mode, a new round): coming back to this one reads it again.
@@ -662,7 +689,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     await control(btnEl.dataset.assistantControl, btnEl.hasAttribute("data-keep-connections") ? { keep_connections: true } : {});
     btnEl.disabled = false;
   }));
-  newButton?.addEventListener("click", () => { switchTo(null); input.focus(); });
+  newButton?.addEventListener("click", () => { startFresh(); input.focus(); });
   worksToggle?.addEventListener("click", () => setWorks(workNav.hidden));
   workNav?.addEventListener("keydown", (event) => {
     if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setWorks(false); worksToggle?.focus(); return; }
@@ -684,8 +711,12 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
       if (height) document.body.style.setProperty("--dock-h", height + "px"); else document.body.style.removeProperty("--dock-h");
       bar.toggleAttribute("data-dock-hidden", !height);
       if (titlebar) document.body.style.setProperty("--workbench-titlebar-bottom", Math.ceil(titlebar.getBoundingClientRect().bottom) + "px");
+      // How far the input sits below the bar's top (the line stacks over it at a phone's width): what rides above the bar starts there.
+      const inset = parseFloat(getComputedStyle(bar).paddingTop) || 0;
+      island.style.setProperty("--center-rise", Math.max(0, Math.round(island.getBoundingClientRect().top - bar.getBoundingClientRect().top - inset)) + "px");
     });
     watcher.observe(bar);
+    watcher.observe(island);
     if (titlebar) watcher.observe(titlebar);
     watchers.push(watcher);
   }
@@ -703,7 +734,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     if (!panel.hidden && !spacious()) drawerOpen = false;
     paintLayout();
     if (panel.hidden) { conversationObjects?.clear(); setWorks(false); restIfStale(); }
-    else { void conversationObjects?.update(false); drawTabs(); paintJump(); }
+    else { void conversationObjects?.update(false); cardHandle?.update(); drawTabs(); paintJump(); }
   }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
   // The list of works is a dropdown under the tabs: a click anywhere else in the panel puts it away.
   panel?.addEventListener("pointerdown", (event) => {
@@ -728,12 +759,20 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     fill: (text) => { setWords(text); input.focus(); },
     /** Search's 问助理: the words go now, to where the next Send goes. */
     ask: (text) => say(text, {}),
+    /** The work line's press on an event: its tab in the dialog, opened and in front (specs/work-line §4.4). */
+    openEvent,
+    /** The dialog put away or brought back with its tabs as they were: the requirement column takes its place while open. */
+    dialog: (open) => setPanel(open),
+    /** The card of this event went to the side panel: its tab is put away and the dialog closes (WLN-14). */
+    parked: (subject) => { if (subject.kind === WORK_KIND) closeTab(subject.id); else closeEvent(eventKey(subject)); setPanel(false); },
+    /** Back to now (Esc on the line): the main conversation in front, the caret in the input. */
+    toNow: () => { fresh = false; void switchTo(null).then(() => input.focus()); },
     /** Where a new work goes, as the page changes what it is about: a project, or null for the person's own space. */
     setProject: (next) => {
       const chosen = next?.id ? next : null;
       if (chosen?.id === project?.id) { project = chosen; paintAim(); paintSum(); return; }
-      project = chosen; tabs = savedTabs(); nextScope = project ? "project" : "personal";
+      project = chosen; tabs = savedTabs(); eventTabs = []; nextScope = project ? "project" : "personal";
       void showWork(store.get(scoped("current")));
     },
-    dispose: () => { executorRequest++; document.removeEventListener("molis-work:language-changed", retitleReviews); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
+    dispose: () => { executorRequest++; document.removeEventListener("molis-work:language-changed", retitleReviews); document.removeEventListener("molis-work:attention", placedMoved); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
 }`;

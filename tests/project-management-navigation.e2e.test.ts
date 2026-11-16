@@ -24,9 +24,9 @@ test("Manage projects leaves a Coding session and returns from a responsive dire
     await child.waitFor("!!document.querySelector('[data-coding-session][aria-current=\"true\"]')");
     const codingSessionId = await child.evaluate<string>("document.querySelector('[data-coding-session][aria-current=\"true\"]').dataset.codingSession");
     t.diagnostic("Coding session ready, desktop=" + desktop);
-    const href = await evaluate<string>("document.querySelector('.bar-end .navigator-project-manage').getAttribute('href')");
+    const href = await evaluate<string>("document.querySelector('.titlebar-end .navigator-project-manage').getAttribute('href')");
     assert.equal(href, desktop ? "/?desktop=1" : "/");
-    await navigate(() => click(".bar-end .navigator-project-manage"));
+    await navigate(() => click(".titlebar-end .navigator-project-manage"));
     t.diagnostic("manage projects navigated, desktop=" + desktop);
     await waitFor("document.body.classList.contains('arrival-page') && !!document.querySelector('.chooser-dir [role=option]')");
     assert.equal(await evaluate("location.pathname"), "/");

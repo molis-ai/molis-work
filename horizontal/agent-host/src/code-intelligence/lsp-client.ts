@@ -63,6 +63,12 @@ function connect(child: ChildProcess, spec: LanguageServerSpec & { readonly time
   const failAll = (error: Error) => {
     for (const [id, held] of pending) { clearTimeout(held.timer); held.reject(error); pending.delete(id); }
   };
+  const poison = (reason: string) => {
+    alive = false;
+    buffer = Buffer.alloc(0);
+    failAll(new Error(reason));
+    try { child.kill("SIGKILL"); } catch { /* process already gone */ }
+  };
   const send = (message: unknown) => {
     if (!alive) throw new Error("the language server is not running");
     const body = Buffer.from(JSON.stringify({ jsonrpc: "2.0", ...(message as object) }), "utf8");
@@ -70,22 +76,22 @@ function connect(child: ChildProcess, spec: LanguageServerSpec & { readonly time
     child.stdin!.write(body);
   };
   child.stdout!.on("data", (chunk: Buffer) => {
+    if (!alive) return;
     buffer = Buffer.concat([buffer, chunk]);
     for (;;) {
       const headerEnd = buffer.indexOf("\r\n\r\n");
       if (headerEnd < 0) {
-        if (buffer.length > MAX_HEADER) { failAll(new Error("the language server sent an over-long frame header")); buffer = Buffer.alloc(0); }
+        if (buffer.length > MAX_HEADER) poison("the language server sent an over-long frame header");
         return;
       }
       const header = buffer.subarray(0, headerEnd).toString("ascii");
       const length = /(^|\r\n)Content-Length: (\d+)(\r\n|$)/i.exec(header)?.at(2);
-      if (length === undefined) { failAll(new Error("the language server sent a frame without Content-Length")); buffer = buffer.subarray(headerEnd + 4); continue; }
+      if (length === undefined) { poison("the language server sent a frame without Content-Length"); return; }
       const size = Number(length);
       const start = headerEnd + 4;
       if (!Number.isSafeInteger(size) || size < 0 || size > MAX_BODY) {
-        failAll(new Error(`the language server sent a frame body of ${length} bytes; the maximum is ${MAX_BODY}`));
-        buffer = Buffer.alloc(0);
-        continue;
+        poison(`the language server sent a frame body of ${length} bytes; the maximum is ${MAX_BODY}`);
+        return;
       }
       if (buffer.length < start + size) return;
       const body = buffer.subarray(start, start + size).toString("utf8");

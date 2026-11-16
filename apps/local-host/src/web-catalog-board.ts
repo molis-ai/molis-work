@@ -10,6 +10,9 @@ import { drawAssistantReply } from "./assistant/assistant-view-html.js";
 import { questionErrors } from "./agent-question-card.js";
 import { readText, currentLocale, htmlLang, isWebLocale, runWithLocale, WEB_LOCALES, type WebLocale } from "./web-locale.js";
 
+/** Which sheet the navigation frame is asked for: the project page's (the default), the arrival page's, or the work line's specimens. */
+const catalogSheet = (value: string | null) => value === "arrival" || value === "work-line" ? value : "workbench";
+
 /**
  * The component board's pages (a development tool, not in the person's navigation): the board, the bottom bar in its own
  * workbench context, the conditions frame and the Assistant frame (specs/visual-ui-experience VUX-39), whose own language
@@ -24,7 +27,7 @@ export function handleComponentBoardHttp(request: IncomingMessage, response: Ser
   const lang = url.searchParams.get("lang"), board = (locale: WebLocale) => runWithLocale(locale, () => renderMolisWorkPrimitiveCatalog(t, locale, environmentSection(locale), appearance?.current(), t.text("workbench.composer.next-boundary")));
   const page = url.pathname === "/__ui/catalog" ? () => board(isWebLocale(lang) ? lang : currentLocale())
     : url.pathname === "/__ui/catalog/bar" ? renderMolisWorkBarSpecimen
-      : url.pathname === "/__ui/catalog/navigation" ? () => runWithLocale(isWebLocale(lang) ? lang : currentLocale(), () => renderMolisWorkNavigationSpecimen(t, htmlLang(), url.searchParams.get("sheet") === "arrival" ? "arrival" : "workbench"))
+      : url.pathname === "/__ui/catalog/navigation" ? () => runWithLocale(isWebLocale(lang) ? lang : currentLocale(), () => renderMolisWorkNavigationSpecimen(t, htmlLang(), catalogSheet(url.searchParams.get("sheet"))))
       : url.pathname === "/__ui/catalog/conditions" ? () => {
         const options = parseConditionFrame(url.searchParams);
         return runWithLocale(options.lang, () => renderMolisWorkConditionsSpecimen(options, { readText, htmlLang }));

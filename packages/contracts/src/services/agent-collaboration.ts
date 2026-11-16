@@ -97,11 +97,43 @@ export type AgentCollaborationControl =
    */
   | { kind: "continue-now"; wait_id: string; note?: string };
 
+/**
+ * A continuation that may go on by itself now (its wait is over, it is `auto`, its session has no round going or starting):
+ * which session, under which request key, from which wait, and the installation that owns the session.
+ */
+export interface AgentContinuationStartRequest {
+  runtime_id: string;
+  project_id: string;
+  session_id: string;
+  owner: { plugin_id: string; install_id: string };
+  request_key: string;
+  wait_id: string;
+  graph_id: string;
+  node_id: string;
+}
+
+/**
+ * The starter's answer. `run`: a round of the session was started under the request key. `refused`: it should not go on by
+ * itself (no authority, out of budget, the work stopped); the continuation is held for the person with the code. `later`:
+ * not now (a person's round is being sent, or the owner starts it itself); it stays eligible, is asked again once the
+ * session's next round ends, and the owner may start it under the key at any time.
+ */
+export type AgentContinuationStartAnswer =
+  | { run: AgentRunRef }
+  | { refused: { code: string; note?: string } }
+  | { later: { code: string; note?: string } };
+
+export type AgentContinuationStarter = (request: AgentContinuationStartRequest) => Promise<AgentContinuationStartAnswer>;
+
 /** The Agent Host runtime's side: the project's waits and continuations, read and controlled; the views are always read anew. */
 export interface AgentCollaborationPort {
   read(project: string, sessionId?: string): Promise<AgentCollaborationSessionView[]>;
-  /** Continuations that are eligible, or held for a person, but for `exclude` (request keys); waits up to `timeoutMs` for one. */
-  awaitReady(project: string, timeoutMs: number, exclude?: string[], signal?: AbortSignal): Promise<AgentCollaborationSessionView[]>;
+  /**
+   * Who starts a continuation once it may go on by itself (specs/work-line/spec.md, result return): the runtime asks
+   * `starter` each time, and only when the session has no round going or starting. One starter at a time; the returned
+   * function withdraws it. Without one, every ask is answered `later` and the continuation stays eligible.
+   */
+  serveStarts(starter: AgentContinuationStarter): () => void;
   control(project: string, control: AgentCollaborationControl, actorId: string): Promise<AgentCollaborationSessionView>;
   /** A person changes a round's plan on the graph; `expectedVersion` is the board version they saw. */
   revise(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actorId: string): Promise<AgentStepBoard>;
@@ -152,9 +184,9 @@ export interface AgentWorkJobQuery {
  * stands on it, as that round ended; the root stays open while the work goes on. The graph owns states, holders and
  * generations; the work keeps only the graph's id, and a part only its step.
  *
- * Hand-back (§6.0n): the root waits, by the Host, for every unfinished part under it: a part is a step a session holds,
- * so a job the work follows (§6.0o) is not one. Once they have all ended the root's
- * continuation may go on: a round of the work running then takes it at its next model boundary; otherwise the work's next
+ * Hand-back (§6.0n, specs/work-line/contract-design.md §9): the root waits, by the Host, for every unfinished part under it:
+ * a part is a step a session holds, so a job the work follows (§6.0o) is not one. Each time one of them ends the root's
+ * continuation may go on, and the work's next round waits again for the rest: a round of the work running then takes it at its next model boundary; otherwise the work's next
  * round is started under the continuation's request key, which takes it up. One step has one continuation: the Host
  * changes only the waits it armed, and hands nothing out while the root waits on one its round armed.
  */
@@ -206,19 +238,28 @@ export interface AgentCollaborationReviseInput { runtime_id: string; session_id:
 /** A step of the round's plan: a confirmed step (`step-N`) or one a person inserted (`user-N`). */
 const STEP = { type: "string", pattern: "^(step|user)-\\d{1,3}$" } as const;
 const WORDS = (maxLength: number) => ({ type: "string", minLength: 1, maxLength, pattern: "\\S" }) as const;
+const STORY_POINTS = { anyOf: [{ type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER }, { type: "null" }] } as const;
 /** One person's change, each kind with exactly its own fields (`AgentStepAmendment`). */
 const AMENDMENT = { oneOf: [
   { type: "object", required: ["kind", "node", "reason"], additionalProperties: false, properties: { kind: { const: "skip" }, node: STEP, reason: WORDS(300) } },
   { type: "object", required: ["kind", "after", "title", "acceptance"], additionalProperties: false,
-    properties: { kind: { const: "insert" }, after: STEP, title: WORDS(120), acceptance: WORDS(300), mine: { const: true }, origin: { type: "string", minLength: 1, maxLength: 200 } } },
+    properties: { kind: { const: "insert" }, after: STEP, title: WORDS(120), acceptance: WORDS(300), mine: { const: true }, origin: { type: "string", minLength: 1, maxLength: 200 }, parent_id: STEP, story_points: STORY_POINTS, estimate_source: { enum: ["agent", "human"] }, estimate_reason: WORDS(500) } },
   { type: "object", required: ["kind", "node", "note"], additionalProperties: false, properties: { kind: { const: "unblock" }, node: STEP, note: WORDS(500) } },
   { type: "object", required: ["kind", "node", "direction"], additionalProperties: false, properties: { kind: { const: "move" }, node: STEP, direction: { enum: ["up", "down"] } } },
   { type: "object", required: ["kind", "node", "to"], additionalProperties: false, properties: { kind: { const: "assign" }, node: STEP, to: { enum: ["me", "session"] } } },
   { type: "object", required: ["kind", "node", "state", "note"], additionalProperties: false,
     properties: { kind: { const: "resolve" }, node: STEP, state: { enum: ["succeeded", "failed"] }, note: WORDS(500) } },
+  { type: "object", required: ["kind", "node", "story_points"], additionalProperties: false,
+    properties: { kind: { const: "estimate" }, node: STEP, story_points: STORY_POINTS, reason: WORDS(500) } },
+  { type: "object", required: ["kind", "node", "progress", "basis"], additionalProperties: false,
+    properties: { kind: { const: "progress" }, node: STEP, progress: { type: "number", minimum: 0, maximum: 1 }, basis: WORDS(500) } },
+  { type: "object", required: ["kind", "node", "reason"], additionalProperties: false,
+    properties: { kind: { const: "remove-scope" }, node: STEP, reason: WORDS(300) } },
+  { type: "object", required: ["kind", "node", "action", "note"], additionalProperties: false,
+    properties: { kind: { const: "reconcile" }, node: STEP, action: { enum: ["confirm-done", "rerun"] }, note: WORDS(500) } },
 ] } as const;
 
-/** Read and control the project's waits; waiting for a continuation to be ready is the `agentHostCapabilities.awaitContinuations` action. */
+/** Read and control the project's waits. A plugin hears that one of its sessions may go on as the host event `host.agent.continuation.ready@1`. */
 export const agentCollaborationActions = {
   read: {
     capability_id: "agent.collaboration.read", version: /* @version action.agent.collaboration.read */ 1, operation: "query",

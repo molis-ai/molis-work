@@ -42,7 +42,8 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   // craft-finish round 4 retired the left plugin rail, its project island and the Dock line; the bottom-bar test below
   // covers the current shell. This test keeps to the Goal and Feed lists themselves.
   await waitFor("document.body.dataset.desktopSurface === 'home'");
-  assert.equal(await evaluate("Math.round(document.querySelector('.immersive-titlebar').getBoundingClientRect().height)"), 32, "Titlebar is a 32px Linear-height row");
+  // The strip holds the kept plugins, ＋ and the project since the work line took the foot (specs/work-line §6.5): 44px.
+  assert.equal(await evaluate("Math.round(document.querySelector('.immersive-titlebar').getBoundingClientRect().height)"), 44, "the titlebar strip is one 44px row");
   assert.equal(await evaluate("document.querySelector('[data-directory-list-title]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-directory-list-region]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=goals]')"), null);
@@ -51,21 +52,21 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=goals]')?.getAttribute('aria-current') === 'page' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && document.querySelector('[data-goal-stage-chrome] [data-open-create]') && document.querySelector('[data-goal-stage-list] [data-tree-root]')");
   const addLayout = await evaluate<{ ok: boolean; dump: string }>(`(()=>{
     const tabs=[...document.querySelectorAll('[data-titlebar-tabs] .tab-item')].filter((tab)=>tab.getClientRects().length);
-    const last=tabs.at(-1), add=document.querySelector('[data-titlebar-tabs] .tab-add-button'), split=document.querySelector('.immersive-titlebar > .titlebar-layout [data-layout-open]'), titlebar=document.querySelector('.immersive-titlebar'), strip=titlebar?.querySelector('[data-side-tabs]');
-    if(!last||!add||!split||!titlebar) return {ok:false, dump:'missing'};
-    const l=last.getBoundingClientRect(), a=add.getBoundingClientRect(), s=split.getBoundingClientRect(), t=titlebar.getBoundingClientRect();
+    const titlebar=document.querySelector('.immersive-titlebar'), last=tabs.at(-1), add=titlebar?.querySelector('[data-plugin-picker-toggle]'), split=titlebar?.querySelector(':scope > .titlebar-layout [data-layout-open]'), strip=titlebar?.querySelector('[data-side-tabs]'), project=titlebar?.querySelector('.titlebar-end .navigator-project-selector');
+    if(!last||!add||!split||!titlebar||!project) return {ok:false, dump:'missing'};
+    const l=last.getBoundingClientRect(), a=add.getBoundingClientRect(), s=split.getBoundingClientRect(), t=titlebar.getBoundingClientRect(), p=project.getBoundingClientRect();
     const g=strip?.checkVisibility() ? strip.getBoundingClientRect() : null;
     return {
-      // 07-S2: the layout button left the strip for the titlebar's right end; ＋ stays with the tabs. 07-S1: the right side's glyph
-      // strip sits before it. 07-1 S4b: the titlebar has no Home tools any more (they are the person's own, in the switcher and the
-      // bar's right tray), so the glyph strip follows ＋ and nothing sits between them. So: tabs, ＋ … the glyph strip, the layout
-      // button at the right end.
-      ok: Math.abs((a.top+a.bottom)/2-(s.top+s.bottom)/2)<4 && a.left>=l.right+24 && Math.abs(t.right-s.right)<20
-        && !titlebar.querySelector('[data-home-plugin-open]') && (g ? g.left>=a.right && s.left>=g.right-1 : s.left>=a.right),
-      dump: JSON.stringify({lastRight:Math.round(l.right), addLeft:Math.round(a.left), addRight:Math.round(a.right), splitLeft:Math.round(s.left), splitRight:Math.round(s.right), titlebarRight:Math.round(t.right), stripLeft:g&&Math.round(g.left), stripRight:g&&Math.round(g.right), addCy:Math.round((a.top+a.bottom)/2), splitCy:Math.round((s.top+s.bottom)/2)})
+      // The strip since the work line took the foot (specs/work-line §6.5): the tabs, then ＋ (the start page; the tab strip has no
+      // ＋ of its own), … the right side's glyph strip, the layout button, and the project at the right end. 07-1 S4b: no Home tools
+      // in the titlebar (they are the person's own, on the start page and in the strip's own tray).
+      ok: Math.abs((a.top+a.bottom)/2-(s.top+s.bottom)/2)<4 && a.left>=l.right-1 && s.right<=p.left+1 && Math.abs(t.right-p.right)<24
+        && !titlebar.querySelector('[data-home-plugin-open]') && !titlebar.querySelector('[data-titlebar-tabs] .tab-add-button')?.getClientRects().length
+        && (g ? g.left>=a.right && s.left>=g.right-1 : s.left>=a.right),
+      dump: JSON.stringify({lastRight:Math.round(l.right), addLeft:Math.round(a.left), addRight:Math.round(a.right), splitLeft:Math.round(s.left), splitRight:Math.round(s.right), projectLeft:Math.round(p.left), projectRight:Math.round(p.right), titlebarRight:Math.round(t.right), stripLeft:g&&Math.round(g.left), stripRight:g&&Math.round(g.right)})
     };
   })()`);
-  assert.ok(addLayout.ok, "ISSUE-30, PFG-22: Add stays after the tabs; no Home tools in the titlebar; the right side's glyph strip (when shown), then the layout button at the titlebar's right end, without overlap " + addLayout.dump);
+  assert.ok(addLayout.ok, "ISSUE-30, PFG-22, WLN-16: ＋ follows the tabs; no Home tools in the titlebar; the right side's glyph strip (when shown), the layout button, then the project at the titlebar's right end, without overlap " + addLayout.dump);
   assert.ok(await evaluate("(()=>{const create=document.querySelector('[data-goal-stage-chrome] [data-open-create]'),filter=document.querySelector('[data-goal-stage-chrome] [data-tree-filter-trigger]'),board=document.querySelector('[data-goal-stage-chrome] [data-board-switch]'),shell=document.querySelector('[data-goal-canvas-shell]');if(!create||!filter||!board||!shell)return false;const c=create.getBoundingClientRect(),f=filter.getBoundingClientRect(),b=board.getBoundingClientRect(),s=shell.getBoundingClientRect();return c.left-s.left<40 && f.left-s.left<200 && b.left>=f.right && b.left-f.right<16 && Math.abs(b.top-f.top)<8 && s.right-b.right>80 && Math.abs(c.top-s.top)<28 && Math.abs(f.top-s.top)<28;})()"), "New Goal, filter, and icon view switch sit together in the stage top-left");
   assert.ok(await evaluate("(()=>{const search=document.querySelector('[data-workspace-chrome] [data-global-search-open]'),settings=document.querySelector('.titlebar-chrome .navigator-project-settings'),toggle=document.querySelector('.titlebar-chrome [data-directory-toggle]');return search.closest('.navigator-project-primary') && settings?.closest('.navigator-project-menu-popover') && getComputedStyle(toggle).display==='none';})()"), "Project settings live in the project menu; desktop hides directory collapse even on plugins without a directory");
   const create = await evaluate<{ bg: string; color: string; radius: string; icon: string; border: string }>("(()=>{const button=document.querySelector('[data-open-create]'),icon=button.querySelector('svg');const s=getComputedStyle(button);return {bg:s.backgroundColor,color:s.color,radius:s.borderRadius,icon:getComputedStyle(icon).color,border:s.borderTopColor};})()");
@@ -306,25 +307,26 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   assert.deepEqual(await evaluate("window.__uiErrors"), []);
 });
 
-test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从输入框前切换；右侧只有侧栏按钮；Dock 放不下就收进 +N", { timeout: 60_000 }, async t => {
+test("顶条与事项线：输入框常驻在线上，回答在上方先写问题；插件在顶条切换；常驻插件放不下就收进 +N", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId, 20_000));
-  await waitFor("document.querySelector('[data-dock] [data-assistant-composer] .mw-composer__input') && document.querySelector('[data-dock-pins] [data-dock-pin=home]')");
-  // The Assistant sits in the middle of the bar; nothing in the bar overlaps anything else.
-  assert.ok(await evaluate(`(()=>{
-    const bar=document.querySelector('[data-dock]').getBoundingClientRect();
-    const composer=document.querySelector('[data-assistant-composer]').getBoundingClientRect();
-    const start=document.querySelector('.bar-start').getBoundingClientRect();
-    // 07-1 S4b: the right of the bar is the person's own tray (shown once one of theirs is kept), then the project.
-    const own=document.querySelector('.bar-end > .bar-own'), side=own.checkVisibility() ? own.getBoundingClientRect() : null;
-    const project=document.querySelector('.bar-end .navigator-project-selector').getBoundingClientRect();
-    return Math.abs((composer.left+composer.right)/2-(bar.left+bar.right)/2)<2
-      && start.right<=composer.left && (side ? composer.right<=side.left && side.right<=project.left : composer.right<=project.left)
-      && project.right<=innerWidth && project.bottom<=innerHeight && project.width>=39;
-  })()`), "the bar reads switcher and Dock · Assistant · the person's own · project, left to right, none covering another");
+  await waitFor("document.querySelector('[data-work-bar] [data-assistant-composer] .mw-composer__input') && document.querySelector('[data-dock-pins] [data-dock-pin=home]')");
+  // The strip reads the kept plugins · the tabs · ＋ · the person's own · the project, none covering another; the foot is the
+  // line, and the Assistant's input stands on it between what happened and what comes next (specs/work-line §4.1, §6.5).
+  assert.deepEqual(await evaluate(`(()=>{
+    const box=(selector)=>document.querySelector(selector).getBoundingClientRect();
+    const strip='.workbench-header[data-dock] ';
+    const pins=box(strip+'[data-dock-pins]'), tabs=box(strip+'[data-titlebar-tabs]'), picker=box(strip+'.plugin-picker'), project=box(strip+'.titlebar-end .navigator-project-selector');
+    const own=document.querySelector(strip+'[data-bar-own]'), side=own.checkVisibility() ? own.getBoundingClientRect() : null;
+    const composer=box('[data-work-line] .work-line-slot [data-assistant-composer]'), past=box('[data-work-line] [data-wing=past]'), next=box('[data-work-line] [data-wing=next]');
+    return { strip: pins.right<=tabs.left && tabs.right<=picker.left && (side ? picker.right<=side.left && side.right<=project.left : picker.right<=project.left),
+      project: [project.right<=innerWidth, Math.round(project.width)],
+      line: past.right<=composer.left+1 && composer.right<=next.left+1 && composer.bottom<=innerHeight,
+      foot: document.querySelectorAll('.workbench-bar[data-work-bar] :is([data-dock-pin],[data-plugin-picker-toggle],.navigator-project-selector)').length };
+  })()`), { strip: true, project: [true, 30], line: true, foot: 0 }, "the strip reads kept plugins · tabs · ＋ · the person's own · project; the input stands on the line; the foot holds no plugin entry");
   // At rest the bar is the input (K3, UIV-12): its receiver names the project and the Assistant, with nothing to reset
   // and no chooser nobody changed; “+” only adds (files, methods, capabilities) — who carries a new work and where it lives
   // are chosen in its tab.
@@ -350,10 +352,10 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   // instead of three the middle is wider, so the window that puts it under 560px is narrower than the 900px it was; and with
   // nothing of the person's own on the right, that column is only as wide as the project button, so it is 780px, not 820px —
   // 07-1 S4b.)
-  const roomy = (floor: number) => `(()=>{const f=document.querySelector('[data-assistant-composer]'),end=document.querySelector('.bar-end').getBoundingClientRect();
-    return f.querySelector('[data-assistant-composer] .mw-composer__input').getBoundingClientRect().width >= ${floor} && f.scrollWidth <= f.clientWidth + 1 && f.getBoundingClientRect().right <= end.left;})()`;
+  const roomy = (floor: number) => `(()=>{const f=document.querySelector('[data-assistant-composer]');
+    return f.querySelector('[data-assistant-composer] .mw-composer__input').getBoundingClientRect().width >= ${floor} && f.scrollWidth <= f.clientWidth + 1 && f.getBoundingClientRect().right <= innerWidth && f.getBoundingClientRect().left >= 0;})()`;
   await command("Emulation.setDeviceMetricsOverride", { width: 780, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await waitFor(`document.querySelector('.bar-center').getBoundingClientRect().width < 560 && ${roomy(120)}`);
+  await waitFor(`document.querySelector('[data-work-line] .work-line-slot').getBoundingClientRect().width < 700 && ${roomy(120)}`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await evaluate(`(()=>{const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.value='hello';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await click("[data-assistant-composer] [data-composer-send]");
@@ -361,14 +363,15 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   await waitFor("!document.querySelector('[data-assistant-panel]').hidden && /模型/.test(document.querySelector('[data-assistant-thread] .assistant-problem')?.textContent || '')");
   assert.equal(await evaluate("document.querySelector('[data-assistant-thread] .assistant-problem a')?.getAttribute('href')"), "/settings/models", "the next step is one click away");
   assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input')?.value"), "hello", "a failed question stays in the input");
-  assert.match(await evaluate("document.querySelector('[data-assistant-work-title]')?.textContent"), /hello/, "the work exists, named after what was asked");
+  // What is typed on the line goes to the main conversation (specs/work-line §4.2): it makes no new work.
+  assert.match(await evaluate("document.querySelector('[data-assistant-work-title]')?.textContent"), /主对话/, "the question is in the main conversation");
   assert.ok(await evaluate(`(()=>{const p=document.querySelector('[data-assistant-panel]').getBoundingClientRect(),c=document.querySelector('[data-assistant-composer]').getBoundingClientRect();return p.bottom<=c.top && p.top>=0;})()`), "the panel opens above the input, inside the window");
-  // The work is a tab; a wide window shows its side pane beside the conversation, which stays right above the input.
-  assert.match(await evaluate("document.querySelector('.assistant-tab[data-current]')?.textContent || ''"), /hello/, "the new work is the current tab");
+  // The main conversation is the first tab; a wide window shows its side pane beside the conversation, which stays right above the input.
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('.assistant-tab')].map((tab) => [tab.textContent.trim(), tab.hasAttribute('data-current')])"), [["主对话", true]], "the main conversation is the only tab, and the current one");
   assert.ok(await evaluate(`(()=>{const s=document.querySelector('[data-assistant-side]').getBoundingClientRect(),m=document.querySelector('.assistant-main').getBoundingClientRect(),c=document.querySelector('[data-assistant-composer]').getBoundingClientRect(),p=document.querySelector('[data-assistant-panel]').getBoundingClientRect();
     return s.width>0 && s.right<=m.left+1 && m.left<=c.left && m.right>=c.right && p.left>=0;})()`), "side pane on the left, the conversation over the input, all inside the window");
   assert.match(await evaluate("document.querySelector('[data-assistant-meta]')?.textContent || ''"), /属于/, "the side pane says where the work belongs");
-  assert.match(await evaluate<string>("document.querySelector('[data-assistant-composer] .mw-composer__to')?.textContent || ''"), /发给：.*hello/, "with the panel open the receiver row names the work the next message goes to");
+  assert.match(await evaluate<string>("document.querySelector('[data-assistant-composer] .mw-composer__to')?.textContent || ''"), /发给：主对话/, "with the panel open the receiver row names where the next message goes");
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home", "asking leaves the work area where it was");
   // With the panel open and the bar crowded, the input still keeps a place, and nothing runs under the bar's end.
   await command("Emulation.setDeviceMetricsOverride", { width: 900, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -385,7 +388,7 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   // Shelf and 灵光 are tabs of the side panel (side-shelf §3.1). Since 07-1 S4b the right of the bar is the person's own tray, with
   // no side button: the side opens from its current glyph in the titlebar and closes from the layout menu (收起右侧).
   assert.equal(await evaluate("document.querySelector('[data-side-toggle]')"), null);
-  assert.equal(await evaluate("document.querySelector('.bar-end > .bar-own')?.getAttribute('aria-label')"), "你自己的");
+  assert.equal(await evaluate("document.querySelector('.workbench-header [data-bar-own]')?.getAttribute('aria-label')"), "你自己的");
   await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
   await waitFor("document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]').parentElement.getAttribute('aria-current') === 'page'");
   await click("[data-layout-open]"); await click("[data-layout-action=side]");
@@ -412,7 +415,7 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   await waitFor("document.querySelector('[data-plugin-picker-popover]').hidden");
   await command("Emulation.setDeviceMetricsOverride", { width: 1024, height: 760, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor("!document.querySelector('[data-dock-more]')?.hidden && document.querySelector('[data-dock-more]')?.isConnected");
-  assert.ok(await evaluate(`(()=>{const start=document.querySelector('.bar-start').getBoundingClientRect(),composer=document.querySelector('[data-assistant-composer]').getBoundingClientRect();return start.right<=composer.left;})()`), "the Dock ends before the Assistant starts");
+  assert.ok(await evaluate(`(()=>{const pins=document.querySelector('.workbench-header [data-dock-pins]').getBoundingClientRect(),tabs=document.querySelector('.workbench-header [data-titlebar-tabs]').getBoundingClientRect();return pins.right<=tabs.left;})()`), "the kept plugins end before the tabs start");
   await click("[data-dock-more]");
   await waitFor("!document.querySelector('[data-dock-overflow]').hidden && document.querySelectorAll('[data-dock-overflow] [data-dock-pin]').length > 0");
   const folded = await evaluate<string>("document.querySelector('[data-dock-overflow] [data-dock-pin]').dataset.dockPin");

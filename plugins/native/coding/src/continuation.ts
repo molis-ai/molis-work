@@ -1,5 +1,6 @@
 import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import type { AgentCommandOutput, AgentReviewReceipt, AgentReviewRequest, AgentRunView, AgentSubagentView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { activeLeafSteps } from "./recovery-parts.js";
 
 /**
  * Continuing an unfinished round from where it stopped.
@@ -69,7 +70,7 @@ export function originalTask(run: AgentRunView): string {
 
 export function codingContinuation(input: ContinuationInput): { task: string; intent: string } {
   const { run } = input;
-  const left = run.step_board?.nodes.filter(node => !["succeeded", "cancelled"].includes(node.state)).length ?? 0;
+  const left = activeLeafSteps(run.step_board?.nodes ?? []).filter(node => node.unknown_outcome || !["succeeded", "cancelled"].includes(node.state)).length;
   if (!(["failed", "stopped", "cancelled"].includes(run.phase) || run.phase === "completed" && input.plan_unfinished && left)) {
     throw new Error(run.phase === "completed" ? "这一轮已经完成；需要继续时请直接写下一步要求" : "这一轮还没有结束，不能从断点继续");
   }
@@ -103,13 +104,23 @@ export function codingContinuation(input: ContinuationInput): { task: string; in
       else if (!settled && receipt?.status !== "approved") commands.push(`未运行：${line}`);
     }
   }
-  for (const entry of run.activity) {
-    const output = entry.name === "run-command" ? outputs.get(entry.call_id) : undefined;
+  let lastEditIndex = -1, lastPassedCommandIndex = -1;
+  run.activity.forEach((entry, idx) => {
+    if (["edit", "write"].includes(entry.name) && entry.state === "completed") lastEditIndex = idx;
+    const output = (entry.name === "run-command" || entry.name === "start-command") ? outputs.get(entry.call_id) : undefined;
     if (output === null) commands.push(`回执无法读取，结果未知：${clip(entry.target, 200)}`);
     if (output) {
       const state = output.timed_out ? "超时" : output.cancelled ? "已取消" : output.exit_code === null ? "退出码未知" : `exit ${output.exit_code}`;
+      if (!output.timed_out && !output.cancelled && output.exit_code === 0) lastPassedCommandIndex = idx;
       commands.push(`已运行：${clip(output.command, 200)} → ${state}`);
+    } else if ((entry.name === "run-command" || entry.name === "start-command") && entry.state === "completed" && output === undefined) {
+      const code = /^exit (-?\d+)/.exec(entry.output ?? "")?.[1];
+      if (code === "0") lastPassedCommandIndex = idx;
+      else if (!code) commands.push(`退出状态未知，请先核对：${clip(entry.target, 200)}`);
     }
+  });
+  if (lastEditIndex >= 0 && lastPassedCommandIndex >= 0 && lastEditIndex > lastPassedCommandIndex) {
+    commands.push("注意：最后一次通过的检查之后又改动过文件，该检查只代表改动前的旧状态，继续时需重新验证");
   }
   const reads = [...new Set(run.activity.filter(entry => ["read", "read-file"].includes(entry.name) && entry.state === "completed" && entry.target).map(entry => entry.target))];
   const unfinished = run.activity.filter(entry => entry.state === "started" || entry.state === "unknown")
@@ -117,14 +128,20 @@ export function codingContinuation(input: ContinuationInput): { task: string; in
   // What the person put on the graph between rounds (a decision, a skip, an added step) travels with the step: a
   // step reading only "可开始" after being blocked leaves the model guessing, and it stalls rather than act.
   const personNote = (node: NonNullable<AgentRunView["step_board"]>["nodes"][number]) => [...(node.reports ?? [])].reverse().find(report => report.note.startsWith("用户"))?.note;
-  const steps = run.step_board?.nodes.map((node, index) => { const note = personNote(node);
-    return `${node.title ? `「${clip(node.title, 80)}」` : `步骤 ${index + 1}`}（${node.id}）：${{ "not-started": "未开始", ready: "可开始", running: "进行中", waiting: "在等", succeeded: "已回报完成", failed: "已回报失败", cancelled: "已取消", blocked: "受阻", "needs-reconciliation": "需核对" }[node.state]}${note ? `；${clip(note, 240)}` : ""}`; }) ?? [];
+  const boardNodes = run.step_board?.nodes ?? [];
+  const parentIds = new Set(boardNodes.map(node => node.parent_id).filter(Boolean));
+  const steps = boardNodes.filter(node => !parentIds.has(node.id)).map((node, index) => {
+    const note = personNote(node);
+    const label = node.unknown_outcome ? "需核对（结果未知）"
+      : { "not-started": "未开始", ready: "可开始", running: "进行中", waiting: "在等", succeeded: "已回报完成", failed: "已回报失败", cancelled: "已取消", blocked: "受阻", "needs-reconciliation": "需核对" }[node.state];
+    return `${node.title ? `「${clip(node.title, 80)}」` : `步骤 ${index + 1}`}（${node.id}）：${label}${note ? `；${clip(note, 240)}` : ""}`;
+  });
   // A round that only announced its next step and ended did nothing; replayed as it was, the model tends to do the
   // same again. The continuation says so plainly and asks for the first tool call straight away.
   const said = [...run.turns].reverse().find(turn => turn.kind === "assistant")?.text.trim() ?? "";
   const stallNote = run.phase === "completed" && said && !run.activity.some(entry => entry.name !== "reasoning")
     ? `\n\n上一轮你只说了「${clip(said, 120)}」就结束了，没有调用任何工具，所以什么都还没做。这一轮不要先宣布打算，直接调用工具开始（例如先 board-read）。` : "";
-  const decided = run.step_board?.nodes.some(node => node.state !== "succeeded" && personNote(node)?.startsWith("用户决定"));
+  const decided = boardNodes.some(node => (node.unknown_outcome || node.state !== "succeeded") && personNote(node)?.startsWith("用户决定"));
   const planNote = input.plan_unfinished ? "\n\n这一轮沿用同一张任务图继续：先 board-read，从第一个没完成的步骤接着做，已完成的步骤不要重报。把剩下的步骤依次做完——只要还有可以开始的步骤，就不要结束这一轮；全部完成或遇到需要我决定的阻塞时，再说明做了什么。"
     + (decided ? "写着「用户决定」的步骤，我已经给出决定：按这个决定直接做，不要再把它报告为受阻或再问我。" : "") : "";
 

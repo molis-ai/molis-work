@@ -1,6 +1,6 @@
 # 术语表
 
-状态：现行（2026-10-08，按 main `bf99c8cb` 的代码核对，并按同日全部 27 项用户决定修订）。第 4 节的界面用词等用户批准；第 5 节的代码改名尚未执行。
+状态：现行（2026-10-08，按 main `bf99c8cb` 的代码核对，并按同日全部 27 项用户决定修订；2026-11-15 补 §2.9 记忆四项）。第 4 节的界面用词等用户批准；第 5 节的代码改名尚未执行。
 
 这份表回答「同一个东西在仓库里该叫什么」。依据是用户 2026-10-08 的决定（`specs/archive/repository-anti-corruption/spec.md` §1「术语表收敛范围」）：文档里一个概念一个名字、一个定义；代码内部标识符随之改名；用户看得见的用词变化先列清单、经用户批准再发。任务来源是 `docs/prompts/repository-anti-corruption.md` §4.15。
 
@@ -38,7 +38,8 @@
 | 能力包（kit） | 做一类事要用的东西放在一起看：技能、MCP、工具，以及搭配的角色和角色的提示词。是现算的聚合视图，不存：一个插件的安装就是一个包，另有「Molis Work 自带」和「你的角色」两个；条目由各自的事实主人上报，`horizontal/kit` 只汇总、拼包（`kit.catalog.list@1`）。定义见 2.3 | 能力包（设置 › 能力包；英文 AI kits） | 技能包（那是只带技能的内容插件）、套件、方法库；`kit` 只用在代码、路由和键里 |
 | 提示词改写文件 | 本人对提示词的改写导出成的文件（`format: "molis.prompt-overrides"`），导回时逐条看过、版本对得上才套用；是用户自己的数据，不是包，从不安装，也不随内容包走 | 能力包「导入文件」里的「提示词改写」 | 把它算进内容包；「提示词包」 |
 | Skill 目录 | 一个范围（某个项目，或个人空间）里装着的全部 Skill，每项带精确引用 `SkillRef`、在这个范围的状态（关、自动、仅手动）和能不能用；归宿主的 Agent 定义登记，由 `system.skills` 的 `skills.catalog.list@1` 等动作读写（`packages/contracts/src/services/skills.ts`，`specs/skill-packs/contract-design.md` 第 8 节）。助理和 Coding 读同一份，不各存名单 | 设置里「技能」一节 | 共同目录（指它时；共同目录是动作目录的旧称，不指 Skill）、方法目录、平台方法目录 |
-| 规划方法 | Goals 里可选采用的规划方法包 | 规划方法 | 方法包（method pack） |
+| 规划方法 | 技能目录里随系统自带的技能包（`plugins/content/planning-methods`，37 个）；和 Goals 没有关系 | 规划方法、规划与拆解 | Goals 的方法库、方法包（method pack） |
+| 我的技能 | 本人在能力包页新建／修改、用这台电脑的发布身份签名的一个内容包（项目与个人空间各一个）；与从本机导入的同类 | 能力包页的「我的技能」 | 个人方法库、自建方法 |
 | 研究方法 | 炼金术士里用户确认保存、可沿用的研究做法 | 研究方法 | playbook |
 | 连接方式 | 一个服务的授权途径（OAuth、命令行、令牌、MCP） | 连接方式 | method（代码里的 `ConnectorMethod*`） |
 | Agent | 多轮、带工具、按角色运行并受审查的 AI 工作者；外部的叫外部 Agent，是在外部 Runtime 里运行的工作者 | 内置 Agent、外部 Agent（另有「原生 Agent」等写法，见 U6） | 把 Claude Code、Codex 这类产品叫 Agent（它们是 Runtime） |
@@ -89,6 +90,15 @@
 | 送达方式 | AI 运行中再发一句时的三种送法：补充（默认，模型边界读到）、打断并改向、下一轮再做；键位说明里「下一轮再做」叫排队 | 补充、打断并改向、下一轮再做；英文 Add、Interrupt and redirect、Do it next turn | 这一轮结束后再做、打断（单写，指它时） |
 | 接收者（发给谁） | 输入框里这句话发给的对象：助理、某项工作或任务、子任务、项目讨论的群或话题。一个输入框（§10.2 甲）里页面登记给底栏的接收对象，代码与框架桥里也叫「收件人」，与这个是同一件事 | 「发给：对象」；英文 Send to；代码与框架桥「收件人」 | 目标（界面上「目标」只指 Goal）、发到 |
 | 一个输入框（one input） | 第 11 批按用户 2026-11-10 选「甲」：工作台底栏的唯一输入框；插件页面不挂自己的框，登记为收件人，底栏在前台是它时发给它（specs/unified-input-voice/spec.md §10.2～§10.4） | 一个输入框、收件人 | 三个入口各挂一个输入框、第二个框 |
+| 事项（work item） | 一件要办成的事的容器：事项线的线头显示并切换的那一个（一条线属于一个事项；没选时是项目的线）。事项的事实归主线服务（`specs/mainline/spec.md`） | 事项 | 把线上的一项叫事项（那是事件）、任务（指它时） |
+| 线上的事件（work event） | 事项线上的一项：插件或助理按 Manifest 声明的事件读取动作登记的一件值得跟的事，名字与状态词由登记方当次给出，平台不存标题（`specs/work-line/spec.md` §5、WLN-37）。界面与文档里单写「事件」只在事项线的语境里指它，别处加限定（见 2.5） | 事件 | 事项（指它时）、任务（指它时）、插件事件／宿主事件（那是另外几种事件） |
+| 后台任务（事项线的） | 一个事件背后的一次后台执行，或一项不属于任何事件的后台执行：谁在办、到哪一步、为哪个事件、结果交回给谁。各插件与平台按同一形状报到后台任务总表，在助理对话框的后台任务面板里看（`specs/work-line/spec.md` §4.5、§6.4，WLN-39）。和「后台作业」的关系见 2.5 | 后台任务（面板标题）；任务（行与卡里） | 事件（指它时）、后台作业（指面板里的一项时） |
+| 事项线 | 工作台底部那条高度固定的线：线头（事项）、左翼（发生过和正在办的事件）、输入框、右翼（接下来的事件）。后台任务不在线上，在后台任务面板里（用户 2026-11-14 定） | 无（用户看到的是线本身） | 后台任务条、任务线、Dock（指它时） |
+| 要求（挂在对象上的） | 对一个对象（助理的后台任务、待办、Goal 等，按「提供方 + 对象」定位）逐条写明的、要它满足的事；每条自带「要不要本人认可」，改了字或改了这一项就升一个版本，之前的核对与认可不再算数。事实归 `modules/acceptance`（`specs/proactive-assistant/spec.md` §7.3.1、PWA-144～147） | 要求 | 验收标准（指这份记录时）、检查表 |
+| 交付版本 | 执行方说「这一版做好了」时记下的确切版本；每条要求按最后一次动到它的那一版来核，没动到的沿用上一轮 | 所核版本 | 最新版（指具体哪一版时） |
+| 核对（check） | 对一条要求、一个确切版本的一次检查记录：结论、方法、看到了什么、引用的证据。层级由平台算，不由报告方写：只有执行方自己的说明是「自述」，引用的命令回执与成果版本都查得到、确实属于这一版才是「机器核过」 | 工程检查、产品实操；只有自述、没有证据、证据过期、核错了对象、证据读不到、检查没通过 | 验证通过（没有层级时） |
+| 认可、退回 | 本人对一条要求的结论：认可是这一项在这一版上算数；退回必须带原因，这一项回到返工。只有本人自己的页面能做（S-acceptance-person-decides），执行成功、核验通过、本人认可是三种分开的读数 | 认可、退回；你已认可；已退回 · 在返工 | 验收通过（指单条要求时）、批准 |
+| 要求栏 | 事件卡上点「逐项审阅」后出现在工作面左侧的一栏：一条要求一张卡，在这里认可、退回、改要求；打开时助理对话框收起 | 逐项对照、逐项审阅 | 检查表面板、验收面板 |
 
 ## 2. 定义
 
@@ -270,14 +280,14 @@
 - **观测和采集层**：平台共用的产品能力（包 `horizontal/observation`，用户看到的名字是「工作记录」），记录获准的用户行为、过程、结果与当时条件，提供工作记录、证据快照、覆盖登记与缺口；读取动作、用途与跨项目权限、保留与清理、界面归第 29 批，评测留存与回放归第 30 批。评测负责判断效果，主动助理负责理解与建议，二者共用记录。第 28 批已接入写入面（#2059，2026-11-14 合入 `4417d2bcd3`）；见[独立需求](../../specs/observation-collection/spec.md)与[合同稿](../../specs/observation-collection/contract-design.md)。
 - **工作记录**：采集层写成的一条条记录（谁、在哪、什么时候、哪个阶段、结果、当时条件、证据引用和覆盖状态）。它不是业务事实，业务状态仍向主人读；写入面见 `horizontal/observation`。
 - **证据快照**：主人不保留历史的内容（页面正文、提示词与 Skill 正文、模型实际收到的请求、当时呈现的候选），由采集层按内容摘要加密存一份只读副本，随记录的保留期和清除一起删；主人已有固定版本的只放引用（[D1](../../specs/observation-collection/spec.md#9-决策记录)）。
-- **覆盖登记与缺口**：`coverage` 与 `coverage_gaps` 两张登记，按主人、事实、入口、项目记完整／未接入／暂不可用／丢失／截断／已脱敏／到期清除／不适用／按规则不记；缺记录不能当成没有行为。
-- **来源类别**：`real`、`first_read`、`catch_up`、`imported`、`trial`、`replay`、`demo`、`system_check` 八类；前四类区分真实发生、首次读取已有、断线补读与用户导入，后四类是模拟，默认不进真实成果与效果口径。
+- **覆盖登记与缺口**：`coverage` 与 `coverage_gaps` 两张登记，按主人、事实、入口、项目记完整／未接入／暂不可用／丢失／截断／已脱敏／到期清除／已清除（`purged`）／不适用／按规则不记；缺记录不能当成没有行为。
+- **来源类别**：`real`、`first_read`、`catch_up`、`imported`、`trial`、`replay`、`demo`、`system_check` 八类；前四类区分真实发生、首次读取已有、断线补读与用户导入，后四类是模拟，主动助理、评测与导出默认不进真实成果与效果口径；本人回看保留并标注来源。
 - **提供方**与**供应商**：提供方是动作的提供者（`ActionProvider`）；供应商是模型厂商。
 - **运行状态**在界面上指宿主与后台任务此刻在不在运行（在运行／等着／没在运行）；包清单里的「运行状态」指包的运行方式（在用／Runtime／构建期／非产品）。文档指后者写全「包运行状态」。
 - **错过的事**归事实主人（Schedule、Feed、助理定时），平台不另存；「没在运行」是宿主停了这个容器层面的状态，「错过」是某一件到点没跑的工作层面状态，两者不混。
 - **工具**必须加限定：MCP 工具（动作的呈现）、Agent 工具（内置 Agent 一轮里的工具，如 `ask-user`、`find-capabilities`）、执行工具（界面「AI 与执行工具」页里的外部 Runtime）。
-- **后台作业**必须加限定：已受理的后台执行（`services.background.start`，一次声明了 `background_job` 的命令受理后继续做完，随那次调用的授权，撤权就停，S-18）；随激活作业（`services.background.keep`，随插件这次激活存活，属于安装，S-52）。
-- **事件**必须加限定：插件事件（运行中的插件经 `services.events.publish` 发，落项目库、按订阅者续投）；宿主事件（宿主自己发，如定向的 `host.review.settled@1`、广播的 `host.workspace.changed@1`，只投给收件安装、不落库，S-54）；领域事件（构建期插件与 Module 写进项目库事件流的事件，X-6 的另一种来源，还没有订阅口）；页面里的 DOM 事件（`CustomEvent`，登记在 `packages/contracts/src/platform/dom-events.ts`）。
+- **后台作业**必须加限定：事项线的后台任务（面板里的一项，按后台任务总表的统一形状报上来；下面两种作业各报成一项任务，见速查「后台任务」）；已受理的后台执行（`services.background.start`，一次声明了 `background_job` 的命令受理后继续做完，随那次调用的授权，撤权就停，S-18）；随激活作业（`services.background.keep`，随插件这次激活存活，属于安装，S-52）。
+- **事件**必须加限定：线上的事件（事项线上的一项，登记方按 Manifest 声明的事件读取动作报上来，见速查「线上的事件」；只有在事项线的界面和 `specs/work-line/` 里可以单写「事件」）；插件事件（运行中的插件经 `services.events.publish` 发，落项目库、按订阅者续投）；宿主事件（宿主自己发，如定向的 `host.review.settled@1`、广播的 `host.workspace.changed@1`，只投给收件安装、不落库，S-54）；领域事件（构建期插件与 Module 写进项目库事件流的事件，X-6 的另一种来源，还没有订阅口）；页面里的 DOM 事件（`CustomEvent`，登记在 `packages/contracts/src/platform/dom-events.ts`）。
 - **角色**在外观里另有两个意思：令牌角色（共同规格里的一个令牌，如 `ink`、`r-card`）和字体角色（`body`、`control`、`title`、`display`、`code` 这类用途）。它们是 `ui-spec.json` 的字段，和 Character、Agent role 无关；文档写全「令牌角色」「字体角色」，不裸写「角色」。
 - **Function**：在代码里同时指判断规则（`modules/judgment-rules`）和工作流程的模板转换（衔接类型 `function`）；文档写判断规则或模板转换。
 - **呈现形态（名字片、行、卡片、速览）**：智能呈现的四种公共展示形态。名字片只给图标、名字、主人与打开；行加字段与状态；卡片加色带与操作；速览是锚定浮层（窄屏或触屏为底部弹层）。声明归插件 Manifest，确定组合归 `horizontal/surfaces`，渲染入口是 SDK 的 `renderPresentationForm`；不要把首页的插件卡（plugin card）也叫「卡片」。
@@ -337,6 +347,15 @@
 | 登记 | 从定义和已安装发行包的 Manifest 读取出来的机器元数据投影 |
 | 流水账 | 状态主人为中断恢复或幂等留在自身库里的操作记录 |
 
+### 2.9 记忆
+
+| 术语 | 含义 |
+| --- | --- |
+| 有界历史 | 一条记忆只保留最近 N 版正本快照的窗口（默认 20，`config.memory.maxRevisionsPerEntry`），由 Prologue SDK 在单条密文记录里持有；被裁掉的版本明确拒绝恢复 |
+| 恢复（restore） | 按保留窗口内的版本把旧正文追加成新版本，重新过写入门；不是回滚，也不改历史 |
+| 空 `resident` | 本轮没有常驻记忆引用（`resident: []`）；SDK 不发 resident 召回、不读存储、不做授权往返，但仍留 `outcome: "none"` 的回执 |
+| 通用关联对象（`applies.objects`） | 记忆适用条件里的 `{ plugin_id, kind, id }` 引用，用来替代只指向 Goals 的 `goal_ids`；不在记忆合同里点名某个插件 |
+
 ## 3. 插件的名字
 
 ### 3.1 五样名字
@@ -353,7 +372,7 @@
 
 - 讲产品时先写界面显示名；要精确指代时写 `project_plugin_id`。路径、包名、`plugin_id` 只在讲代码或身份时写。
 - `manifest.name` 应与界面显示名一致，因为上面几处会把它直接显示出来。曾经只有 `characters` 不一致（名称 Characters，界面「角色」）；它按 2.3 的决定并入宿主后（CHR-1，2026-10-22）这个差异已消失。
-- 内置插件清单以各包 `src/registration.ts` 为准，`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 从它们生成（现行代码共 23 个：项目插件 9 个，个人插件 14 个；Files 第 06 批退役，项目文件夹的阅读与快照归平台资料服务；Characters 按 2.3 的决定并入宿主后（CHR-1，2026-10-22）已不在其中）。官方集成的 `plugin_id` 是 `io.molis.work.integration.<连接器>`（`plugins/official-integrations/*/src/index.ts`）。
+- 内置插件清单以各包 `src/registration.ts` 为准，`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 从它们生成（现行代码共 24 个：项目插件 10 个，个人插件 14 个；Files 第 06 批退役，项目文件夹的阅读与快照归平台资料服务；Characters 按 2.3 的决定并入宿主后（CHR-1，2026-10-22）已不在其中）。官方集成的 `plugin_id` 是 `io.molis.work.integration.<连接器>`（`plugins/official-integrations/*/src/index.ts`）。
 
 ### 3.3 内置插件的名字对照
 
@@ -385,8 +404,9 @@
 | `workflows` | 工作流程 | 工作流程 | Manifest 的 `plugin_id` 是 `io.molis.work.native.workflows`，比其他插件多一段 `.native.`（表后第 1 条） |
 | `issues` | Issue | Issue | |
 | `risk` | 风险 | 风险 | |
+| `work-brief` | Work Brief | Work Brief | |
 
-中文界面里显示名中英文混用：16 个用英文（Goals、Inbox、Feed、Schedule、Coding、Git、Diff、Text stats、Cognia、Jelly、Shelf、Pages、Forms、Dataset、PPT、Issue），8 个用中文（成果、插件创作工作台、图片、灵光、待办、炼金术士、工作流程、风险）。Characters 是设置的一节而不是插件（2.3，CHR-1，2026-10-22 已并入宿主），不在这张清单里。实验插件（`experiments`）2026-10-10 已删（`specs/archive/repository-anti-corruption/spec.md` §1），不在清单里。
+中文界面里显示名中英文混用：17 个用英文（Goals、Inbox、Feed、Schedule、Coding、Git、Diff、Text stats、Cognia、Jelly、Shelf、Pages、Forms、Dataset、PPT、Issue、Work Brief），8 个用中文（成果、插件创作工作台、图片、灵光、待办、炼金术士、工作流程、风险）。Characters 是设置的一节而不是插件（2.3，CHR-1，2026-10-22 已并入宿主），不在这张清单里。实验插件（`experiments`）2026-10-10 已删（`specs/archive/repository-anti-corruption/spec.md` §1），不在清单里。
 
 表外的几处不规则：
 

@@ -27,14 +27,14 @@ const exactTree = (directory: string) => Object.fromEntries(Object.entries(homeS
 const originals = (directory: string) => fs.readdirSync(directory).filter(name => name.startsWith(".molis-home-restore-")).sort();
 
 /** Observe the ledger version only on a private complete committed DB/WAL copy, never by opening the source. */
-function assertLedgerTwo(home: string, directory: string) {
+function assertLedgerThree(home: string, directory: string) {
   const privateRoot = fs.mkdtempSync(join(directory, "ledger-observation-")), copy = join(privateRoot, "memory.db");
   for (const suffix of ["", "-wal", "-journal"]) {
     const source = join(home, "memory", "memory.db") + suffix;
     if (fs.existsSync(source)) fs.copyFileSync(source, copy + suffix);
   }
   const database = new DatabaseSync(copy, { readOnly: true });
-  try { assert.equal(database.prepare("PRAGMA user_version").get()!.user_version, 2); }
+  try { assert.equal(database.prepare("PRAGMA user_version").get()!.user_version, 3); }
   finally { database.close(); }
 }
 
@@ -118,7 +118,7 @@ test("MEM-40: old Host, Web, MCP and delayed binding refuse a genuinely initiali
     assert.deepEqual(ledger.forgetting.read().decisions, []);
   } finally { ledger.close(); }
   const before = preserved(f.home), beforeOriginals = originals(f.directory);
-  assertLedgerTwo(f.home, f.directory);
+  assertLedgerThree(f.home, f.directory);
   const paths = Object.keys(homeBusinessTree(f.home)).sort();
   const probe = `
     import assert from "node:assert/strict";
@@ -152,7 +152,7 @@ test("MEM-40: old Host, Web, MCP and delayed binding refuse a genuinely initiali
     assert.match(result.output, /"code":"memory\.forgetting_invalid"/u);
     assert.deepEqual(preserved(f.home), before, entry);
     assert.deepEqual(Object.keys(homeBusinessTree(f.home)).sort(), paths, entry);
-    assertLedgerTwo(f.home, f.directory);
+    assertLedgerThree(f.home, f.directory);
     assert.equal(fs.existsSync(join(f.root, ".molis-home-restore.json")), false);
     assert.deepEqual(originals(f.directory), beforeOriginals);
   }
@@ -182,7 +182,7 @@ test(`MEM-40: old ${independent ? "independent restore without prior snapshot" :
   const unchanged = () => {
     assert.deepEqual(preserved(f.home), before);
     assert.deepEqual(exactTree(f.snapshot), archiveBefore);
-    assertLedgerTwo(f.home, f.directory);
+    assertLedgerThree(f.home, f.directory);
     assert.equal(fs.existsSync(join(f.root, ".molis-home-restore.json")), false);
     assert.deepEqual(originals(f.directory), beforeOriginals, "a refusal must never create an originals area");
   };
@@ -218,7 +218,7 @@ test("MEM-40: the current initializer never adopts a legacy-name-only Home", asy
   assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(join(f.home, "upgrade", "state.json"), "utf8"))).sort(), ["completed_at", "fingerprint", "home_identity", "schema_version"]);
   assert.deepEqual(afterFiles, filesOf(before));
   assert.deepEqual(Object.keys(after).filter(path => path !== "upgrade" && path !== "upgrade/state.json"), Object.keys(before), "no other entry is added or removed");
-  assertLedgerTwo(f.home, f.directory);
+  assertLedgerThree(f.home, f.directory);
   assert.equal(fs.existsSync(join(f.root, ".molis-home-restore.json")), false);
   assert.deepEqual(originals(f.directory), beforeOriginals);
 });
@@ -230,7 +230,7 @@ test("MEM-40: the existing snapshot and restore inventory refuses mixed current 
   const before = preserved(f.home), archiveBefore = exactTree(f.snapshot), beforeOriginals = originals(f.directory), rejected = join(f.directory, "mixed-snapshot");
   const unchanged = () => {
     assert.deepEqual(preserved(f.home), before); assert.deepEqual(exactTree(f.snapshot), archiveBefore);
-    assertLedgerTwo(f.home, f.directory);
+    assertLedgerThree(f.home, f.directory);
     assert.equal(fs.existsSync(join(f.root, ".molis-home-restore.json")), false);
     assert.deepEqual(originals(f.directory), beforeOriginals);
   };

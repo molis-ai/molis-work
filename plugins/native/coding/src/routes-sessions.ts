@@ -17,6 +17,7 @@ import { codingSkillChoices } from "./skill-choices.js";
 import { codingInputPatch } from "./inputs.js";
 import type { CodingSessionRecord } from "./store.js";
 import { projectDirectories, projectFolders } from "./project-folders.js";
+import { inspectCodingEnvironment } from "./environment-prep.js";
 import { ActionError, defineErrorCodes, parseExactActionReferences, searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -63,13 +64,14 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
   const mcp = library && supports(library, "mcp") ? await actions.invoke(agent.listMcp, [library.runtime_id]) : [];
   const folders = await unlessMissing(projectDirectories(api), null);
   const shown = await Promise.all(sessions.map(async record => ({ ...record, execution_state: await executionState(actions, record) })));
+  const outputWorkspace = folders?.directories.find(folder => folder.roles.includes("output")) ?? null;
   return { sessions: shown, skills: await codingSkillChoices(a, actions), mcp, models: execution.models.list(),
     // The Runtime a new session runs on; the page reads the role matrix of the open session's Runtime, or this one when none is open.
     project_runtime_id: library?.runtime_id ?? null,
     // Where the page's new rounds run unless the person picks another folder on the page: the project's output (SSC-17). Which folder
     // the page shows is the page's own state, never a setting (specs/shared-sources-and-surfaces §4).
     // A host without workspace settings offers none of these: sessions still list and open, and a round asks for a directory.
-    workspace: folders?.directories.find(folder => folder.roles.includes("output")) ?? null,
+    workspace: outputWorkspace,
     workspaces: folders?.directories ?? [],
     // Whether the next round reads the output's instruction files, and if not why (batch12-design §3.7): the rules menu's buttons.
     ...(folders ? { instructions: folders.instructions } : {}),
@@ -78,6 +80,23 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
     }))),
   };
 };
+
+async function readWorkspaceEnvironment(
+  a: CodingActivation,
+  base: Awaited<ReturnType<typeof readState>>,
+  requestedWorkspaceId: string | undefined,
+  beforeWrite: CodingBeforeWrite,
+) {
+  const target = (requestedWorkspaceId ? base.workspaces.find(folder => folder.workspace_id === requestedWorkspaceId) : undefined) ?? base.workspace;
+  if (!target?.realpath_verified) return null;
+  const hasRunningSession = base.sessions.some(item => item.state === "running" || item.state === "waiting-approval" || item.state === "waiting-answer");
+  const cacheKey = `${target.workspace_id}:${hasRunningSession ? "live" : "idle"}`;
+  const cached = a.environmentChecks.get(cacheKey);
+  if (cached && Date.now() - cached.at < 15_000) return cached.value;
+  const pending = inspectCodingEnvironment(a.context, target.workspace_id, target.canonical_path, hasRunningSession, beforeWrite).catch(() => null);
+  a.environmentChecks.set(cacheKey, { at: Date.now(), value: pending });
+  return pending;
+}
 /** The workspace a send names, as the directory it will run in. */
 const directoryOf = async (api: Capabilities, workspaceId: unknown) => {
   const workspace = (await projectFolders(api)).find(entry => entry.workspace_id === workspaceId);
@@ -119,14 +138,19 @@ const ROUTES: RouteMaker[] = [
   }),
   (a) => {
     const { route } = a;
-    return route("coding.state", async (_request, api, execution, beforeWrite) => {
+    return route("coding.state", async (request, api, execution, beforeWrite) => {
       // Every open page polls this, and each read asks the Host about every session, one call at a time in the
       // project's queue. However many pages ask, one read runs and at most one waits behind it; a request that arrives
-      // mid-read gets the next one, so it still sees what was just changed. Each caller gets its own copy.
+      // mid-read gets the next one, so it still sees what was just changed. Each caller gets its own copy, plus the
+      // environment readiness of the requested workspace (or the project's output folder by default).
       const run = () => { a.state.read = readState(a, api!, execution, beforeWrite).finally(() => { a.state.read = null; }); return a.state.read; };
-      if (!a.state.read) return structuredClone(await run());
-      a.state.next ??= a.state.read.catch(() => undefined).then(() => { a.state.next = null; return a.state.read ?? run(); });
-      return structuredClone(await a.state.next);
+      const basePromise = (!a.state.read
+        ? run()
+        : (a.state.next ??= a.state.read.catch(() => undefined).then(() => { a.state.next = null; return a.state.read ?? run(); }))) as Promise<Awaited<ReturnType<typeof readState>>>;
+      const base = structuredClone(await basePromise);
+      const requestedWorkspace = typeof request.query.workspace_id === "string" && request.query.workspace_id ? request.query.workspace_id : undefined;
+      const environment_readiness = await readWorkspaceEnvironment(a, base, requestedWorkspace, beforeWrite);
+      return environment_readiness ? { ...base, environment_readiness: structuredClone(environment_readiness) } : base;
     });
   },
   (a) => {

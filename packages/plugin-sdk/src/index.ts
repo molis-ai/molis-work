@@ -81,9 +81,9 @@ export type {
 export type { SubjectOffersInput, SubjectActionOffer, SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
 /** Putting what the person has in hand somewhere: declare `intake` (this command creates an Item) or `attach` (it adds to one) on the command itself. */
 export type { ActionIntake, ActionAttach, ItemAttachPosition } from "@molis-ai/molis-work-contracts/platform/actions";
-export { defineHomeEventsAction, withinHomeEventWindow, assertHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineWorkEventsAction, withinWorkEventWindow, assertWorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 /** The Home title bar's background tasks: a read-only project query the Home asks in every open project (`home_aggregate`). */
-export { defineHomeBackgroundTasksAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineBackgroundTasksAction, defineTaskServesAction, TASK_SERVES_RELATION } from "@molis-ai/molis-work-contracts/platform/actions";
 /** System search: list what your plugin can find (by version) and read it through your subject reader. */
 export { defineSearchEntriesAction, bindSearchEntriesHandler, searchEntriesPage, searchText, searchRevisionOf, SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFileEntriesAction, defineFileContentAction, bindFileEntriesHandler, fileEntriesPage, fileContentOf, FILE_SOURCE_AUDIENCES, FILE_CONTENT_MAX_BYTES } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -95,8 +95,9 @@ export type { SearchEntry, SearchEntriesInput, SearchEntriesPage, SearchOpenTarg
 /** Intelligent surfaces: the owner's values for the fields its presentation declaration shows, and the plugin's overview (`/presentation` has the checks). */
 export { definePresentationValuesAction, bindPresentationValuesHandler, isPresentationValuesAction, definePresentationOverviewAction, PRESENTATION_VALUES_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/presentation";
 export type { PresentationValuesInput, PresentationValues, PresentationValueItem, PresentationOverview } from "@molis-ai/molis-work-contracts/platform/presentation";
-export type { HomeEventWindow, HomeEvent, HomeEventCollection, HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
-export type { HomeBackgroundTask, HomeBackgroundTaskCollection, HomeBackgroundTaskCommand, HomeBackgroundTaskPhrase } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkEventWindow, WorkEvent, WorkEventCollection, OpenTarget, ObjectLinkPlace } from "@molis-ai/molis-work-contracts/platform/actions";
+export { objectLink, objectLinkAt, objectLinkTemplate } from "@molis-ai/molis-work-contracts/platform/object-link";
+export type { BackgroundTask, BackgroundTaskCollection, BackgroundTaskCommand, BackgroundTaskExecutor, BackgroundTaskPhrase, TaskServesBindInput, TaskServesInput, TaskServesResult, TaskServesRole } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionSubject, ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionExecutionContext, ActionExecutionPolicy, ActionResultView, ActionResultPresentation, ActionDefinition, ActionCallContext, ActionHandlerBinding, ActionSceneDefinition, ActionSceneHandlerBinding,
   ActionSceneReference, ActionSceneBinding, ActionSceneTargetDefinition, ActionSceneTarget, ActionSceneConfigureOptions, ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";

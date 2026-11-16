@@ -79,7 +79,7 @@ async function ownerFixture(t: TestContext) {
       const current = await web.get<AssistantWorkView>(`${prefix}/api/assistant/works/${sent.work.work_id}`);
       for (const review of current.reviews) if (!decided.has(review.review_id)) {
         const decision = decisions.shift(); assert.ok(decision, `unexpected review: ${review.summary}`); decided.add(review.review_id);
-        await web.post(`${prefix}/api/assistant/works/${sent.work.work_id}/reviews/${review.review_id}`, { decision });
+        await web.post(`${prefix}/api/assistant/works/${sent.work.work_id}/reviews/${review.review_id}`, { decision, version: review.version });
       }
       if (current.work.state === "failed" && options.expected_failure === "MEMORY_SCOPE_DENIED") {
         const round = current.rounds.at(-1); assert.ok(round && current.work.session_id);
@@ -110,7 +110,7 @@ async function ownerFixture(t: TestContext) {
     const view = await untilSetup(async () => {
       for (const review of system.agentHost.reviews.list(f.project.project_id, "pending")) if (!decided.has(review.review_id)) {
         const decision = pending.shift(); assert.ok(decision, "unexpected Coding write review"); decided.add(review.review_id);
-        await system.agentHost.reviews.respond({ review_id: review.review_id, actor_id: LOCAL_PERSON_ACTOR_ID, decision });
+        await system.agentHost.reviews.respond({ review_id: review.review_id, version: review.reference.version, actor_id: LOCAL_PERSON_ACTOR_ID, decision });
       }
       const current = await adapter.read(started.run.ref);
       assert.ok(!["failed", "cancelled"].includes(current.phase), JSON.stringify(current));

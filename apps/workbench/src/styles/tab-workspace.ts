@@ -1,6 +1,8 @@
 import { TAB_SASH_GUTTER, TAB_SASH_HIT, TAB_SPLIT_EDGE_X_CSS, TAB_SPLIT_EDGE_Y_CSS } from "../tab-split-drop.js";
 import { TAB_SHARE_MAX } from "../tab-strip-share.js";
 
+// At 760 and under only the focused pane shows, so a tile's 「在旁边打开」 (PFG-23) would have nothing to open beside; it is left
+// out, and the tile's hover buttons stop at the pin and add or remove instead of covering the middle of a 268px row.
 // `[data-split-narrow]` repeats the narrow layout for a stage too small for every pane's minimum (VUX-24); while a divider moves,
 // `.is-resizing` holds its cursor over the panes and selects nothing under it.
 export const TAB_WORKSPACE_STYLES = `
@@ -142,6 +144,7 @@ export const TAB_WORKSPACE_STYLES = `
     body.immersive-workbench .tab-split { display: contents; }
     body.immersive-workbench .tab-sash, body.immersive-workbench .tab-pane:not(.is-focused) { display: none; }
     body.immersive-workbench .tab-pane.is-focused { flex: 1; }
+    html body.immersive-workbench .plugin-rail-tile > .plugin-rail-ops > .rail-beside { display: none; }
   }
   body.immersive-workbench .tab-workspace[data-split-narrow] .tab-workspace-panes > :is(.tab-split, .tab-pane:not(.is-focused), .tab-content-frame:not(.is-focused)) { display: none; }
   body.immersive-workbench .tab-workspace[data-split-narrow] .tab-workspace-panes > .tab-pane.is-focused { left: 0 !important; top: 0 !important; width: 100% !important; height: 100% !important; }
@@ -209,8 +212,8 @@ export const TAB_WORKSPACE_STYLES = `
   /* 独看 on the right side: the side takes the stage, the main area and the divider step aside, kept. */
   body[data-side-solo] #side-panel { inset: var(--desktop-titlebar-height, 32px) var(--sheet-inset, 14px) var(--dock-h, 48px); width: auto; height: auto; }
   body[data-side-solo] :is([data-plugin-stage], .side-panel-divider) { visibility: hidden; }
-  /* 601–760: the right side's strip is the title bar's second row (side-panel.ts), so 独看 starts below it, where the side's
-     sheet does: the strip row's 8px gap, 4px block padding and 8px of air, the sheet's 8px sides and its 8px over the Dock. */
+  /* 601–760: the title bar is two rows (the tabs are its second, specs/work-line §6.5), so 独看 starts below both, where the
+     side's sheet does: the strip row's 8px gap, 4px block padding and 8px of air, the sheet's 8px sides and its 8px over the line. */
   @media (min-width: 601px) and (max-width: 760px) {
     body[data-side-solo] #side-panel { inset: calc(var(--desktop-titlebar-height) + var(--tab-strip-h) + 20px) 8px calc(var(--dock-h, 48px) + 8px); }
   }
@@ -229,6 +232,14 @@ export const TAB_WORKSPACE_STYLES = `
   .workspace-tab-menu-colors button { position:relative; width:var(--swatch); height:var(--swatch); min-width:var(--swatch); min-height:var(--swatch); padding:0; border:0; border-radius:50%; background:transparent; }
   .workspace-tab-menu-colors button::before { content:""; position:absolute; inset:calc((var(--swatch) - 18px) / 2); border-radius:50%; background:var(--group-color); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent); }
   .workspace-tab-menu-colors button[aria-current]::before { box-shadow:inset 0 0 0 2px var(--ink); }
+  /* The start page (specs/work-line §6.5, user 2026-11-15): what the tab strip's ＋ menu said, on the tiles. */
+  /* A plugin already open says where (PFG-24): at the tile's end, beside the name; the tile's buttons take its place's room, not its place. */
+  html body.immersive-workbench:not([data-pane-embedded]) .workbench-header .plugin-picker-popover .plugin-rail-item:has(> .plugin-rail-where) { grid-template-columns: 16px minmax(0, 1fr) auto; }
+  html body.immersive-workbench:not([data-pane-embedded]) .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-item[data-rail-zone] > span.plugin-rail-where { grid-column: 3; grid-row: 1 / -1; align-self: center; overflow: visible; font-size: 12px; font-weight: 400; line-height: 16px; color: var(--muted); }
+  html body.immersive-workbench:not([data-pane-embedded]) .workbench-header .plugin-picker-popover .plugin-rail-tile.is-kept .plugin-rail-where { margin-right: 22px; }
+  /* What was just closed, last: rows of the same grid, the first with the key that reopens it. */
+  html body.immersive-workbench:not([data-pane-embedded]) .workbench-header .plugin-picker-popover .plugin-rail-recent .plugin-rail-item[data-rail-zone] { grid-template-columns: 16px minmax(0, 1fr) auto; grid-template-rows: auto; }
+  html body.immersive-workbench:not([data-pane-embedded]) .workbench-header .plugin-picker-popover .plugin-rail-recent kbd { grid-column: 3; color: var(--muted); font: inherit; font-size: 12px; }
   @media(max-width:760px),(pointer:coarse) {
     .workspace-layout-menu .mw-menu__item, .workspace-tab-menu input { min-height:44px; }
     .workspace-tab-menu-colors { --swatch: 44px; }

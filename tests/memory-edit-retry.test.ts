@@ -212,4 +212,33 @@ test("MEM-10 MEM-19 bounded 20-revision history window prunes older versions, al
   const current = (await service.list(caller("list-after-pruned"), { scope: "project" })).items.find(item => item.memory_id === created.memory_id)!;
   assert.equal(current.version, 24);
   assert.equal(current.text, "第 4 版正文");
+
+  // 22+ state-only transitions (disable/enable) advance version without SDK content revisions:
+  // history() must still return a non-empty bounded page and prune stale ledger rows through pruned_through_version.
+  const stateHeavy = (await service.write(caller("seed-state-heavy"), { scope: "project", text: "状态切换不清空历史页", kind: "preference" })).memory!;
+  for (let i = 0; i < 22; i++) {
+    const action = i % 2 === 0 ? "disable" : "enable";
+    await service.change(caller(`toggle-${i}`), { action, memory_id: stateHeavy.memory_id, expected_version: 1 + i });
+  }
+  const stateHistory = await service.history(caller("read-state-history"), stateHeavy.memory_id);
+  assert.ok(stateHistory.revisions.length >= 1, "history() never returns empty revisions for an existing memory after >=20 state transitions");
+  assert.equal(stateHistory.revisions.at(-1)!.text, "状态切换不清空历史页");
+  for (const row of f.ledger().revisions(stateHeavy.memory_id)) {
+    assert.ok(row.version > stateHistory.pruned_through_version, "ledger revisions <= pruned_through_version are pruned");
+  }
+});
+
+test("MEM-10 the public history page honors before_version and a tail limit", { timeout: 60_000 }, async t => {
+  const f = await memoryServiceHome(t, { projects: ["project-a"], now: () => new Date(START) });
+  const service = await f.open();
+  const created = (await service.write(caller("seed-page"), { scope: "project", text: "第 1 版", kind: "convention" })).memory!;
+  for (let version = 2; version <= 6; version++) {
+    await service.change(caller(`edit-page-${version}`), { action: "update", memory_id: created.memory_id, expected_version: version - 1, text: `第 ${version} 版` });
+  }
+  const bounded = await f.raw().history({ scope: "project", owner: "project-a", memory_id: created.memory_id, before_version: 6, limit: 2 });
+  assert.deepEqual(bounded.revisions.map(revision => revision.version), [4, 5]);
+  const none = await f.raw().history({ scope: "project", owner: "project-a", memory_id: created.memory_id, limit: 0 });
+  assert.deepEqual(none.revisions, []);
+  const all = await f.raw().history({ scope: "project", owner: "project-a", memory_id: created.memory_id });
+  assert.deepEqual(all.revisions.map(revision => revision.version), [1, 2, 3, 4, 5, 6]);
 });

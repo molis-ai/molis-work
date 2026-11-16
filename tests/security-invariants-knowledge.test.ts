@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MATERIALS_PROVIDER_ID, materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
+import { assertPinnedMaterialResult, pinnedMaterialRevisions, withPinnedKnowledgeRevision } from "@molis-ai/molis-work-service-agent-host";
 import { KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, locateSections, type KnowledgeLocateDraftInput } from "@molis-ai/molis-work-service-knowledge";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
@@ -159,4 +161,96 @@ test("D0244-04 S-41 the real search catalog cannot revive a held organizer after
   const before = f.cards.list("a");
   f.search.markRegistration("pages", "a"); release.resolve(); await work;
   assert.deepEqual(f.cards.list("a"), before, "the new registration never authorizes an old draft or a failure record");
+});
+
+test("S-41 C13 knowledge.read refuses a drifted expected_revision only after caller authorization passes", async t => {
+  const f = await fixture(t);
+  const pagesOnly = f.access(agent("a", ["pages:read", "search:read"]));
+  await assert.rejects(
+    () => f.knowledge.read(pagesOnly, { subject: { kind: "goal", id: "g1" }, expected_revision: "stale-revision" }),
+    (error: unknown) => error instanceof ActionError && error.code.startsWith("actions.") && error.code !== "knowledge.revision_changed",
+    "unauthorized callers never learn whether expected_revision matched",
+  );
+  const authorized = f.access(agent("a"));
+  const current = await f.knowledge.read(authorized, { subject: { kind: "goal", id: "g1" } });
+  const pinned = await f.knowledge.read(authorized, { subject: { kind: "goal", id: "g1" }, expected_revision: current.revision });
+  assert.equal(pinned.revision, current.revision);
+  await assert.rejects(
+    () => f.knowledge.read(authorized, { subject: { kind: "goal", id: "g1" }, expected_revision: `${current.revision}-stale` }),
+    refused("knowledge.revision_changed"),
+    "a round with a pinned revision refuses drifted content instead of stitching two revisions together",
+  );
+});
+
+test("S-41 C13 materials.read refuses a drifted revision or mismatched pin on a round-pinned subject", () => {
+  const matRef = { provider_id: MATERIALS_PROVIDER_ID, capability_id: materialsActions.read.capability_id, version: 1 };
+  const pinned = pinnedMaterialRevisions([
+    {
+      material_id: "workspace_file:ws1:docs/spec.md@sha-round-start",
+      title: "spec.md",
+      text: "initial body",
+      read_revision: "sha-round-start",
+    },
+  ]);
+  assert.throws(
+    () => withPinnedKnowledgeRevision(
+      matRef,
+      { ref: { subject: { kind: "workspace_file", id: "ws1:docs/spec.md" }, pin: { mode: "current", read_revision: "sha-other" } }, mode: "text" },
+      pinned,
+    ),
+    refused("agent.pinned_revision_mismatch"),
+  );
+  const validInput = withPinnedKnowledgeRevision(
+    matRef,
+    { ref: { subject: { kind: "workspace_file", id: "ws1:docs/spec.md" }, pin: { mode: "current", read_revision: "sha-round-start" } }, mode: "text" },
+    pinned,
+  );
+  assert.throws(
+    () => assertPinnedMaterialResult(matRef, validInput, { state: "changed", read_revision: "sha-mutated" }, pinned),
+    refused("agent.pinned_revision_mismatch"),
+  );
+});
+
+test("S-41 C13 long-key recorded materials (>160 chars, hashed material_id without colon) retain subject revision pinning for inline and overflow items", () => {
+  const knowledgeRef = { provider_id: "system.knowledge", capability_id: "knowledge.read", version: 1 };
+  const inlineSubject = { kind: "goal", id: `goal-${"a".repeat(210)}` };
+  const overflowSubject = { kind: "page", id: `page-${"b".repeat(220)}` };
+  const pinned = pinnedMaterialRevisions([
+    {
+      material_id: `${"1".repeat(32)}@rev-inline-1`,
+      subject: inlineSubject,
+      title: "Long Inline Goal",
+      text: "body",
+      read_revision: "rev-inline-1",
+    },
+    {
+      material_id: "coding-materials-overflow@1",
+      title: "Overflow Directory",
+      text: "directory",
+      delivery: "on-demand",
+      overflow_materials: [
+        {
+          material_id: `${"2".repeat(32)}@rev-overflow-1`,
+          subject: overflowSubject,
+          title: "Long Overflow Page",
+          read_revision: "rev-overflow-1",
+          delivery: "on-demand",
+        },
+      ],
+    },
+  ]);
+
+  const injectedInline = withPinnedKnowledgeRevision(knowledgeRef, { subject: inlineSubject }, pinned) as { expected_revision?: string };
+  assert.equal(injectedInline.expected_revision, "rev-inline-1", "long-key inline material without material_ref injects pinned expected_revision");
+  assert.throws(
+    () => withPinnedKnowledgeRevision(knowledgeRef, { subject: inlineSubject, expected_revision: "rev-stale" }, pinned),
+    refused("agent.pinned_revision_mismatch"),
+  );
+
+  const injectedOverflow = withPinnedKnowledgeRevision(knowledgeRef, { subject: overflowSubject }, pinned) as { expected_revision?: string };
+  assert.equal(injectedOverflow.expected_revision, "rev-overflow-1", "long-key overflow material without material_ref injects pinned expected_revision");
+  assert.throws(
+    () => withPinnedKnowledgeRevision(knowledgeRef, { subject: overflowSubject, expected_revision: "rev-drifted" }, pinned),
+    refused("agent.pinned_revision_mismatch"),
+  );
 });

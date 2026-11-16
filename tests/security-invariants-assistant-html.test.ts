@@ -25,7 +25,7 @@ test("PAS-15 S-24: Assistant words, code, object titles and links cannot become 
 
 test("PAS-15 S-24: review summaries and every field remain text, including code and exact parameters", () => {
   const attack = '<script>evil()</script> & "quoted"';
-  const review: AssistantPendingReview = { review_id: "r1", decisions: { approve: { available: true }, reject: { available: true } }, run_id: "run1", kind: "command", summary: attack, requested_at: "", expires_at: null,
+  const review: AssistantPendingReview = { review_id: "r1", version: "v1", decisions: { approve: { available: true }, reject: { available: true } }, run_id: "run1", kind: "command", summary: attack, requested_at: "", expires_at: null,
     fields: [{ label: attack, value: attack }, { label: "命令", value: attack }, { label: "完整参数", value: attack }, { label: "能力", value: attack }] };
   const display: AssistantReviewDisplay = { summary: [attack], fields: [{ label: [attack], value: [attack] },
     { label: ["命令"], value: attack + "\r\n", format: "sh" }, { label: ["完整参数"], value: attack, format: "exact" }, { label: ["能力"], value: attack, format: "exact" }] };
@@ -75,7 +75,7 @@ test("PAS-15 S-24: unknown language and review labels never resolve through obje
     const html = assistantTextHtml(`\`\`\`${hint}\nplain <img> code\n\`\`\``, [], say);
     assert.match(html, /<pre><code>plain &lt;img&gt; code<\/code><\/pre>/);
     assert.doesNotMatch(html, /<script>|<img>/);
-    const review = assistantReviewHtml({ review_id: "r1", decisions: { approve: { available: true }, reject: { available: true } }, kind: "command", run_id: null, summary: "unknown labels", fields: [{ label: hint, value: "plain <img> code" }], requested_at: "", expires_at: null }, say);
+    const review = assistantReviewHtml({ review_id: "r1", version: "v1", decisions: { approve: { available: true }, reject: { available: true } }, kind: "command", run_id: null, summary: "unknown labels", fields: [{ label: hint, value: "plain <img> code" }], requested_at: "", expires_at: null }, say);
     assert.match(review, /<dd><span translate="no">plain &lt;img&gt; code<\/span><\/dd>/);
     assert.doesNotMatch(review, /assistant-field-code/);
   }

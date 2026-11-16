@@ -1,17 +1,15 @@
 import type { UiContribution, UiContributionDeclaration, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { renderPluginStageShell, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 
-export { WORK_BRIEF_STYLES } from "./styles.js";
-
 export const WORK_BRIEF_UI_CONTRIBUTION_ID = "io.molis.work.native.work-brief.ui";
 /**
  * Where the page shows objects of other plugins: the shell draws each as its owner presents it (name, state, open, peek), outside
  * the page. A page has at most four such places, so they go by section: the basis of the sentence in hand, what waits for the
  * person, what changed since the version before, and the object of a next step.
  */
-export const WORK_BRIEF_SLOTS = { cite: "work-brief.cite", attention: "work-brief.attention", changed: "work-brief.changed", next: "work-brief.next" } as const;
+const WORK_BRIEF_SLOTS = { cite: "work-brief.cite", attention: "work-brief.attention", changed: "work-brief.changed", next: "work-brief.next" } as const;
 
-export const workBriefUiDescriptor: UiContributionDeclaration = {
+const workBriefUiDescriptor: UiContributionDeclaration = {
   contribution_id: WORK_BRIEF_UI_CONTRIBUTION_ID,
   kind: "primary-page",
   navigation_id: "work-brief",

@@ -194,6 +194,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-integration-rss",
       "@molis-ai/molis-work-integration-youtube",
       "@molis-ai/molis-work-kernel",
+      "@molis-ai/molis-work-module-acceptance",
       "@molis-ai/molis-work-module-artifacts",
       "@molis-ai/molis-work-module-attention-resumption",
       "@molis-ai/molis-work-module-characters",
@@ -216,7 +217,9 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-service-kit",
       "@molis-ai/molis-work-service-observation",
       "@molis-ai/molis-work-service-project-approvals",
+      "@molis-ai/molis-work-service-evaluation",
       "@molis-ai/molis-work-service-knowledge",
+      "@molis-ai/molis-work-service-mainline",
       "@molis-ai/molis-work-service-memory",
       "@molis-ai/molis-work-service-surfaces",
       "@molis-ai/molis-work-storage",
@@ -336,6 +339,15 @@ export const WORKSPACE_PACKAGES = [
       "context.edges.v1"
     ]
   }),
+  entry("modules/acceptance", "@molis-ai/molis-work-contracts/modules/acceptance", {
+    maturity: "slice",
+    capabilities: [
+      "acceptance.requirements.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-storage"
+    ]
+  }),
   entry("modules/attention-resumption", "@molis-ai/molis-work-contracts/modules/attention-resumption", {
     maturity: "slice",
     extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"],
@@ -415,7 +427,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-storage"
     ],
     extraDependencies: {
-      "@prologue/sdk": "file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-surface-detach.tgz"
+      "@prologue/sdk": "file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz"
     }
   }),
   entry("horizontal/connector-host", "@molis-ai/molis-work-contracts/services/connector-host", {
@@ -458,6 +470,19 @@ export const WORKSPACE_PACKAGES = [
     maturity: "slice",
     extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk", "@molis-ai/molis-work-storage"],
   }),
+  entry("horizontal/evaluation", "@molis-ai/molis-work-contracts/services/evaluation", {
+    maturity: "slice",
+    capabilities: [
+      "evaluation.samples.v1",
+      "evaluation.runs.v1",
+      "evaluation.reviews.v1",
+      "evaluation.metrics.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-storage"
+    ]
+  }),
   entry("horizontal/memory", "@molis-ai/molis-work-contracts/services/memory", {
     maturity: "production",
     capabilities: [
@@ -499,6 +524,15 @@ export const WORKSPACE_PACKAGES = [
     maturity: "production",
     capabilities: [
       "kit.catalog.v1"
+    ]
+  }),
+  entry("horizontal/mainline", "@molis-ai/molis-work-contracts/services/mainline", {
+    maturity: "slice",
+    capabilities: [
+      "background.tasks.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
     ]
   }),
   entry("horizontal/placement", "@molis-ai/molis-work-contracts/services/placement", {

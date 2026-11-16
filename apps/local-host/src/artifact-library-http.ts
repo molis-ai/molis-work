@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { logPreviewFailure } from "./host-log.js";
-import type { BoundActionClient, HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
+import { objectLinkAt, type BoundActionClient, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import {
   ARTIFACTS_PLUGIN_ID, artifactsErrors, documentErrors, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf, openArtifactOriginal,
@@ -75,7 +75,7 @@ async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations
         : compared === "missing" ? uiText.text("workbench.browser-ui.original-deleted-notice", version) : undefined;
   // A moved object is not in this project to open; only an object that is here gets the way back.
   return { body_html: languagePreview ? "" : renderFilePreviewHtml(content, primitives), ...(notice ? { notice } : {}),
-    source_href: pinned && compared !== "missing" && compared !== "moved" ? `${context.routePrefix}/?openPlugin=${encodeURIComponent(declaration.surface)}&openItem=${encodeURIComponent(pinned.id)}&openTitle=${encodeURIComponent(artifact.title)}` : "",
+    source_href: pinned && compared !== "missing" && compared !== "moved" ? objectLinkAt(context.routePrefix, { surface: declaration.surface, id: pinned.id, title: artifact.title }) : "",
     source_label: pinned ? uiText.text("workbench.browser-ui.open-original-in-plugin", { plugin: pluginTitle ?? artifact.producer_plugin_id }) : "",
     plugin_id: declaration.surface, item_id: pinned?.id ?? "" };
 }

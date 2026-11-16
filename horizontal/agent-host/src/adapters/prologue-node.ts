@@ -22,6 +22,7 @@ import { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 import { readResource, readResourceText, createRoundState, type DispatchGuards, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 import { createNodeCoordination, createNodeInference, createNodeProjectWork } from "./prologue-node-parts.js";
 import { createWorkGraphs } from "./prologue-work-graphs.js";
+import { createContinuationStarts } from "./prologue-collaboration.js";
 import { answerPending, createNodeGitReviews, createNodePort, createNodeRuntime, directoriesIdle, questionReader } from "./prologue-node-port.js";
 import { createPrologueRecovery } from "./prologue-recovery.js";
 import { actionDispatchReceipts } from "./prologue-review-effects.js";
@@ -182,7 +183,18 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   // Bound to the runtime once it exists; nothing is looked at before a wait is registered.
   const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id,
     owner: async id => (await index.read(id).catch(() => undefined))?.owner });
-  runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) }, checks.checkers, memoryAuthority, state.modelRequests);
+  // Who starts a continuation that may go on by itself: the starter the composition root serves, asked per session owner.
+  const starts = createContinuationStarts(async id => (await index.read(id).catch(() => undefined))?.owner);
+  runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, {
+    forRun: runId => state.dispatchChecks.get(runId),
+    onAdmitted: async ({ parentRunId, parentSessionId, childSessionId, node }) => {
+      await index.update(parentSessionId, saved => {
+        const attempt = saved.attempts.find(item => item.run_id === parentRunId) ?? saved.attempts.at(-1);
+        if (attempt) (attempt.subagent_nodes ??= {})[childSessionId] = node;
+      });
+    },
+  }, checks.checkers, memoryAuthority, state.modelRequests, starts);
+  starts.bind(runtime);
   let runtimeClosing: Promise<unknown> | undefined;
   const surfaceFailures = new Set<unknown>();
   const closeRuntime = onFailureClose(() => runtimeClosing ??= runtime.shutdown().catch(error => {
@@ -222,7 +234,6 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   // A part's round that ended while the Host stopped before its step's end was written: its step ends now (§6.0n).
   await workGraphs.reconcile();
   const { messages, waitsPort, stepBoards } = createNodeCoordination(runtime, index, state, projectWork);
-  const closeWaits = onFailureClose(() => waitsPort.close());
   const closeMessages = onFailureClose(() => messages.close());
   const closeStepBoards = onFailureClose(() => stepBoards.close());
   const reviews = { runtime, host, state, index, options, surfaces, projectWork, decisions };
@@ -242,13 +253,13 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const closeInference = onFailureClose(stopInference);
   const recovery = createPrologueRecovery({ runtime, index, state, checkpoints });
   const readQuestion = questionReader(runtime);
-  const port = createNodePort({ runtime, effects, memoryAuthority, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork, workGraphs, delegations,
+  const port = createNodePort({ runtime, starts, effects, memoryAuthority, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork, workGraphs, delegations,
     messages, waitsPort, checkpoints, approvals, schedule, recovery, readQuestion,
     shutdown: async () => {
       await closeReceipts();
       for (const controller of state.actionControllers.values()) controller.abort();
       state.actionControllers.clear();
-      await closeNodeResources(closeSurfaces, [closeMemoryAuthority, closeEffects, closeMcp, closeInference, closeStepBoards, closeMessages, closeWaits, closeChecks,
+      await closeNodeResources(closeSurfaces, [closeMemoryAuthority, closeEffects, closeMcp, closeInference, closeStepBoards, closeMessages, closeChecks,
         closeReviews, closeCheckpoints, closeGit, closeDelegations, closeRuntime]);
     } });
 

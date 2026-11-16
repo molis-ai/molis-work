@@ -6,6 +6,8 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-328 | 已完成并删除 | 第 30 批「最小真实评测路径」补齐隔离 Home 可复现评测命令 `pnpm eval:run`（`scripts/run-evaluation.mts`），严拒 `~/.molis-work`、默认 stand-in 可复现校验并支持 Gemini 在线模式内联读取密钥跑完删 Home；见 [30.md](../specs/post-anticorruption-roadmap/reference/batches/30.md) |
+| BL-051、BL-182、BL-222、BL-540 | 已完成并删除 | 第 33 批（2026-11-14）：子任务尝试预算与「再给 3 次」、子任务重试带 `source: "host"`、命令未知结局与四节收尾报告及步骤进度扣除、Coding 经宿主公开启动时刻判断中断（不再调 `process.uptime()`）；实物走查集中收成 [BL-batch33-acceptance](../specs/backlog/BL-batch33-acceptance.md) |
 | BL-041、BL-102、BL-112、BL-138、BL-910、BL-958 | 第 27 批验收集中跟踪 | 第 27 批 #2010 收成 [BL-batch27-acceptance](../specs/backlog/BL-batch27-acceptance.md)；原条目删除 |
 | BL-091、BL-096、BL-103、BL-131、BL-367、BL-569、BL-701、BL-803、BL-819、BL-821、BL-901、BL-911、BL-913、BL-914、BL-915、BL-918、BL-919、BL-920 | 已完成并删除 | 第 27 批 #2010（`539d2d7d46`，2026-11-12）；验收余项见 BL-batch27-acceptance |
 | BL-plugin-dev-state-dir-before-locale-check、BL-catalog-specimen-default-margin | 已完成并删除 | 第 14 批登记的两条小缺口，2026-11-13 14／27 收口 PR 修掉；见 [14.md 合入记录](../specs/post-anticorruption-roadmap/reference/batches/14.md#实现进度与合入记录) |
@@ -20,7 +22,7 @@
 | BL-golden-prompt-uses-flaky、BL-materials-object-link | 已完成并删除 | 第 06 批合后审计（2026-11-13）：golden-prompt 偶发由生成期屏蔽知识整理 2 秒定时器稳定（`tests/golden-home.test.ts` 42/42）；资料对象链接恢复（`tests/appearance-side-windows.e2e.test.ts` 3/3，页面资源许可 +155 B）；见 [06.md 合入记录](../specs/post-anticorruption-roadmap/reference/batches/06.md#batch-06-audit) |
 | BL-1071 | 已关闭；两个历史事项曾同号 | 2026-11-07 #1921 删除 S-102 的条目；Memory 的 SDK 采用随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入。编号不再复用 |
 | BL-memory-p0-closure | 已完成并删除 | Memory P0 经 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入；继续跟踪的事项已列在 [BACKLOG](../specs/BACKLOG.md) |
-| BL-memory-p1-contract | 已完成并删除 | 第 31 批「SDK 窗口一」完成 Memory P1 合同四问拍板并落地 SDK / Host 接线；见 [31.md](../specs/post-anticorruption-roadmap/reference/batches/31.md) |
+| BL-memory-p1-contract | 已完成并删除 | 第 31 批「SDK 窗口一」完成 Memory P1 合同四问拍板并落地 SDK / Host 接线（① 20 版计数历史覆盖整理撤销窗口且每条自动改动记结构化 `policy` + `trigger_evidence`；② `memory/memory.db` `2 → 3` 正文单一写主人；③ Export v2 嵌于 Molis 信封 v1 并整包拒绝旧 `goal_ids`；④ 适用条件切为通用对象引用 `applies.objects`）；见 [31.md](../specs/post-anticorruption-roadmap/reference/batches/31.md) |
 | BL-1076、BL-1077 | 已按用户决定关闭 | 随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入；[本人走查](../specs/backlog/BL-memory-own-app-walkthrough.md)另列，历史真实 Home 影响仍未知 |
 | BL-161、BL-164 | 已完成并删除 | 第 12 批第一项（`4d8bc20bf2`）：计划卡与任务板按位置编号、「未开始」统一为「等待前一步」；见 [12.md 合入记录](../specs/post-anticorruption-roadmap/reference/batches/12.md) |
 | BL-feed-wake-resets-page、BL-assistant-card-press-scrolls | 已修复并删除 | 随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入，Feed FBR-07/FSS-35 与助理 AC-05 在[最终 Linux 全量](https://github.com/molis-ai/molis-work/actions/runs/43467505571)首轮通过 |

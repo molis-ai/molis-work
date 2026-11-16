@@ -50,7 +50,7 @@ export const codingAgentManifest: AgentManifest = {
     { role_id: "coding-builder", version: /* @version role.coding-builder */ 2, name: "独立实现", parent_role_ids: ["writers"], execution: "workspace-write", host_tools: ["read-file", "list", "search", "write", "edit-file", "run-command"] },
   ] },
   mcp: true,
-  compaction: { prompt_id: "coding-compaction", above_tokens: 12_000 },
+  compaction: { prompt_id: "coding-compaction", above_tokens: 12_000, window_ratio: 0.4 },
   // A writable round that called no tool has its last words checked against the round's facts (D1②): the person's
   // 2026-09-28 decision to continue an ending that only announces covers Coding too.
   ending_review: { prompt_id: "coding-ending-review" },
@@ -59,9 +59,9 @@ export const codingAgentManifest: AgentManifest = {
   // claim on its own input ledger and shows the round each supplement's id only when it lists the tool (receipts 3e-0b).
   roles: [
     {
-      role_id: CODING_PLANNER_ROLE, version: /* @version role.planner */ 1, name: "规划者", execution: "read-only",
+      role_id: CODING_PLANNER_ROLE, version: /* @version role.planner */ 2, name: "规划者", execution: "read-only",
       prompts: ["coding-base", "coding-planner"],
-      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "acknowledge-inputs", "read-file", "list", "search"],
+      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "find-symbol"],
     },
     {
       role_id: CODING_READER_ROLE,
@@ -74,13 +74,13 @@ export const codingAgentManifest: AgentManifest = {
     },
     {
       role_id: CODING_REVIEWER_ROLE,
-      version: /* @version role.reviewer */ 1,
+      version: /* @version role.reviewer */ 2,
       name: "评审者",
       // Reviewing is reading with a different question in mind, so it stays
       // read-only: a reviewer that could edit would be fixing, not reviewing.
       execution: "read-only",
       prompts: ["coding-base", "coding-reviewer"],
-      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "acknowledge-inputs", "read-file", "list", "search"],
+      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "find-symbol"],
     },
     {
       role_id: CODING_COORDINATOR_ROLE,
@@ -92,43 +92,43 @@ export const codingAgentManifest: AgentManifest = {
       // session-send: it may ask another session of the project, or answer one (they are neighbours on the project's board), without a review each time (the person's decision).
       // Background commands: started and stopped under review like any command; reading and waiting on them are reads.
       // board-read / board-report: held so its children can report the steps handed to them (a child never holds a tool its parent lacks).
-      // find-symbol: held so its read-only children can be given it (a child never holds a tool its parent lacks).
+      // find-symbol: the official coding pack's symbol lookup, for inspecting the main workspace before dispatching.
       host_tools: ["suggest-action", "context-remaining", "find-tools", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "find-symbol", "run-command", "start-command", "command-output", "command-stop", "await-commands", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report", "session-send"],
     },
     {
       role_id: CODING_WRITERS_ROLE,
-      version: /* @version role.writers */ 1,
+      version: /* @version role.writers */ 2,
       name: "并行写入",
       // Parallel writers work in their own worktrees; the parent itself only
       // reads and reports; integration is a separate reviewed Host operation.
       execution: "read-only",
       subagent_workspaces: "required",
       prompts: ["coding-base", "coding-writers"],
-      host_tools: ["context-remaining", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report", "session-send"],
+      host_tools: ["context-remaining", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "find-symbol", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report", "session-send"],
     },
     {
       role_id: CODING_BUILDER_ROLE,
-      version: /* @version role.builder */ 1,
+      version: /* @version role.builder */ 2,
       name: "构建者",
       // Edits and runs commands. Needs a Runtime that supports both under Host
       // approval, so it stays unavailable until one does.
       execution: "workspace-write",
       prompts: ["coding-base", "coding-builder", "coding-background"],
       // board-wait: the step waits on something outside (a result file, a read-only query's state) with the round over; a wait is a read.
-      host_tools: ["suggest-action", "context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "write", "edit-file", "run-command", "start-command", "command-output", "command-stop", "await-commands", "board-read", "board-report", "board-wait", "session-send"],
+      host_tools: ["suggest-action", "context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "find-symbol", "write", "edit-file", "run-command", "start-command", "command-output", "command-stop", "await-commands", "board-read", "board-report", "board-wait", "session-send"],
     },
     {
       role_id: CODING_WRITER_ROLE,
-      version: /* @version role.writer */ 1,
+      version: /* @version role.writer */ 2,
       name: "改写者",
       // File-only work does not request command permission.
       execution: "text-edit",
       prompts: ["coding-base", "coding-writer"],
-      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "write", "edit-file", "session-send"],
+      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "find-symbol", "write", "edit-file", "session-send"],
     },
   ],
   prompts: [
-    { prompt_id: "coding-planner", version: /* @version prompt.coding-planner */ 2 },
+    { prompt_id: "coding-planner", version: /* @version prompt.coding-planner */ 3 },
     { prompt_id: "coding-compaction", version: /* @version prompt.coding-compaction */ 1 },
     { prompt_id: "coding-ending-review", version: /* @version prompt.coding-ending-review */ 2 },
     // The product's own constraints, shared by every role. Its own layer so a
@@ -147,7 +147,7 @@ export const codingAgentManifest: AgentManifest = {
 /** The prompt bodies this package ships. The Host composes a role from these. */
 export const codingPrompts: readonly AgentPromptText[] = [
   {
-    prompt_id: "coding-planner", version: /* @version prompt.coding-planner */ 2,
+    prompt_id: "coding-planner", version: /* @version prompt.coding-planner */ 3,
     ...promptBody("coding-planner"),
   },
   {

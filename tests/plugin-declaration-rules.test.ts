@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import {
-  DUE_REMINDERS_INPUT_TYPE, FILE_ENTRIES_INPUT_TYPE, FRAGMENT_OFFERS_INPUT_TYPE, HOME_EVENTS_INPUT_TYPE, PLACEMENT_MOVE_INPUT_TYPE,
+  DUE_REMINDERS_INPUT_TYPE, FILE_ENTRIES_INPUT_TYPE, FRAGMENT_OFFERS_INPUT_TYPE, WORK_EVENTS_INPUT_TYPE, PLACEMENT_MOVE_INPUT_TYPE,
   SEARCH_ENTRIES_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, SUBJECT_REFERENCE_TYPE, WORKFLOW_CONTENT_SCHEMAS,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineArtifactPreviewAction, inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
@@ -109,7 +109,7 @@ const ACTION_RULES: ReadonlyArray<{ rule: string; actions: unknown; scenes?: unk
   { rule: "the subject context type with the wrong schemas", actions: [defined({ input_type: SUBJECT_REFERENCE_TYPE })], expected: [`能力 ${KEY} 没有兑现对象上下文协议 v1 的输入输出合同`] },
   { rule: "the subject offers type with the wrong schemas", actions: [defined({ output_type: SUBJECT_OFFERS_OUTPUT_TYPE })], expected: [`能力 ${KEY} 没有兑现事项动作协议 v1 的输入输出合同`] },
   { rule: "subject offer choices on an action that is not the offers query", actions: [defined({ subject_offer_choices: [] })], expected: [`能力 ${KEY} 的事项推荐选项必须有唯一标识、名称及本提供方的目标动作版本`] },
-  { rule: "the home event type with the wrong schemas", actions: [defined({ input_type: HOME_EVENTS_INPUT_TYPE })], expected: [`${KEY} 首页事件查询必须使用完整规范合同`] },
+  { rule: "the home event type with the wrong schemas", actions: [defined({ input_type: WORK_EVENTS_INPUT_TYPE })], expected: [`${KEY} 首页事件查询必须使用完整规范合同`] },
   { rule: "the due reminder type with the wrong schemas", actions: [defined({ input_type: DUE_REMINDERS_INPUT_TYPE })], expected: [`${KEY} 到期提醒查询必须是 Home 范围、使用完整规范合同`] },
   { rule: "a background job that names nothing", actions: [defined({ background_job: {} })], expected: [`能力 ${KEY} 的后台任务声明必须是命令，并写明状态查询、任务标识与状态的位置和结束状态`] },
   { rule: "an undo that names nothing", actions: [defined({ undo: {} })], expected: [`能力 ${KEY} 的撤销声明必须是可撤回的命令，并写明同一提供方的撤销命令与其输入在本次输出里的位置`] },

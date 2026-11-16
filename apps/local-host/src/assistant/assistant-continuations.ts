@@ -1,42 +1,68 @@
-import { setTimeout as pause } from "node:timers/promises";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { isTerminalAgentPhase, type AgentActionReviewControl, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { AgentCollaborationSessionView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
+import type { AgentCollaborationSessionView, AgentContinuationStartAnswer, AgentContinuationStartRequest } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { ASSISTANT_PERSONAL_OWNER, type AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
-import { repeatingFailure } from "../host-log.js";
 import { whenThere } from "./assistant-errors.js";
 import { inAssistantWorkEffect } from "./assistant-work-permissions.js";
+import { agentContinuationStarts } from "../agent-continuation-starts.js";
+import { DELEGATION_LIMITS } from "./assistant-delegation.js";
+import { assistantWords } from "./assistant-saved-text.js";
+import { repeatingFailure } from "../host-log.js";
+import { AssistantStepGate } from "./assistant-step-gate.js";
 
 const owner = (work: StoredWork) => work.project_ref?.project_id ?? ASSISTANT_PERSONAL_OWNER;
 const RUNTIME = "prologue";
 type Ports = {
   store: AssistantStore; actorId: string; host(): Promise<AgentHost>;
-  start(work: StoredWork, text: string, current: () => boolean, continuedFrom?: AgentRunRef): Promise<unknown>;
+  start(work: StoredWork, text: string, current: () => boolean, continuedFrom?: AgentRunRef): Promise<{ run_id?: string } | unknown>;
   changed(work: StoredWork, current: () => boolean): Promise<void>;
+  /** A notice for the person (the work stopped going on by itself), raised once per key. */
+  notify?(work: StoredWork, text: { label: ReturnType<typeof assistantWords>; original: string }, key: string): void;
   holdSetups?(sessionId: string, revision: string): void;
 };
 
-/** Watches SDK-owned continuations, never the login endpoint. No model calls are made while a wait is pending. */
+/**
+ * Starts this person's works again when a wait they were waiting on is over (specs/work-line/spec.md, result return): the
+ * runtime asks, only when the work's session has no round going or starting, and the answer is the round started, `later`, or a
+ * refusal that holds the continuation for the person. No model call is made while a wait is pending, and nothing is polled.
+ */
 export class AssistantContinuations {
   private readonly busy = new Map<string, number>();
+  private readonly starts = new Map<string, Promise<AgentContinuationStartAnswer>>();
+  /** The runtime could not be reached to serve the starter: written when it starts failing, again once it has been served. */
+  private readonly starterFailures = repeatingFailure("assistant", "continuation_starter_failed");
   private readonly inputs = new Map<string, symbol>();
-  private readonly loops = new Set<string>();
   private readonly stopped = new AbortController();
   private readonly observers = new Set<() => void>();
-  private readonly nudges = new Map<string, AbortController>();
-  private readonly offChanges: () => void;
-  private readonly watchFailures = repeatingFailure("assistant", "continuation_watch_failed"); // A failing watch is retried every 5 s; written when it starts failing.
-  constructor(private readonly ports: Ports) { this.offChanges = ports.store.onChange(id => {
-    // Deleted work has no scope to wake; a store that cannot be read fails this listener, which the store writes.
-    const work = whenThere(() => ports.store.get(ports.actorId, id));
-    if (work) this.nudges.get(owner(work))?.abort();
-  }); }
-  close(): void { this.stopped.abort(); this.offChanges(); for (const nudge of this.nudges.values()) nudge.abort(); for (const off of this.observers) off(); this.observers.clear(); }
+  private serving: Promise<void> | undefined;
+  private withdraw_: (() => void) | undefined;
+  /**
+   * 「每步先问我」 (PWA-156): the steps a work would go on to by itself, held for the person's yes. A yes to a hand-back reads the
+   * work's graph again (as a round ending does); a yes to a continuation takes it up here.
+   */
+  readonly stepGate: AssistantStepGate;
+  constructor(private readonly ports: Ports) {
+    this.stepGate = new AssistantStepGate({ store: ports.store, actorId: ports.actorId, now: () => new Date(),
+      goOn: async (work, gate) => { if (gate.path === "hand-back") await ports.changed(work, () => !this.stopped.signal.aborted); else await this.takeUp(work); } });
+  }
+  close(): void { this.stopped.abort(); this.withdraw_?.(); for (const off of this.observers) off(); this.observers.clear(); }
   private works() { return this.ports.store.list(this.ports.actorId, { limit: Number.MAX_SAFE_INTEGER }).filter(work => work.executor.kind === "assistant" && work.session_id && !work.reply_target); }
   /** The existing observed-state projection makes an interrupted or waiting work start the runtime on Host restart. */
-  pending(): boolean { return this.works().some(work => !work.continuation_hold && ["running", "waiting-input", "waiting-review"].includes(this.ports.store.observed(this.ports.actorId, work.work_id) ?? "")); }
-  attach(): void { for (const work of this.works()) this.watchScope(owner(work)); }
+  pending(): boolean { return this.works().some(work => !work.continuation_hold && ["running", "waiting-input", "waiting-review"].includes(this.ports.store.observed.of(this.ports.actorId, work.work_id) ?? "")); }
+  /**
+   * Serve the Home's starter for the Assistant's sessions, then take up what may go on now: a continuation that became eligible
+   * while nothing served the starter was answered `later`, and the runtime asks again only after the session's next round.
+   */
+  attach(): void {
+    if (this.stopped.signal.aborted) return;
+    this.serving ??= this.ports.host().then(host => {
+      if (this.stopped.signal.aborted) return;
+      this.withdraw_ = agentContinuationStarts(host).serveAssistant(request => this.startFor(request));
+      this.starterFailures.worked("home");
+    }).catch(error => { this.serving = undefined; this.starterFailures.failed("home", error); throw error; });
+    void this.serving.then(() => this.takeUpWaiting()).catch(() => undefined);
+  }
   async view(work: StoredWork): Promise<AgentCollaborationSessionView | undefined> {
     if (!work.session_id || work.executor.kind !== "assistant" || work.reply_target) return undefined;
     const adapter = (await this.ports.host()).adapter(RUNTIME);
@@ -45,6 +71,8 @@ export class AssistantContinuations {
   }
   async state(work: StoredWork, fallback: AssistantWorkState, inspectActual = false): Promise<AssistantWorkState> {
     if (work.continuation_hold && work.executor.kind === "assistant") return work.continuation_hold === "input" ? "paused" : work.continuation_hold;
+    // A step held for the person's yes waits on them, whatever the session last said (PWA-156).
+    if (work.step_gate && work.executor.kind === "assistant") return "waiting-review";
     if (!["completed", "idle"].includes(fallback)) return fallback;
     const view = await this.view(work).catch(error => { if (inspectActual) throw error; return undefined; });
     return view?.wait?.state === "waiting" || view?.continuation?.state === "eligible" ? "waiting-input"
@@ -57,7 +85,7 @@ export class AssistantContinuations {
     const current = () => this.inputs.get(work.work_id) === token;
     const end = () => { if (current()) this.inputs.delete(work.work_id); this.end(work.work_id); };
     try {
-      const updated = this.ports.store.update(this.ports.actorId, work.work_id, null, { ...(writeDraft ? { draft: text } : {}), continuation_hold: "input" }, false);
+      const updated = this.ports.store.update(this.ports.actorId, work.work_id, null, { ...(writeDraft ? { draft: text } : {}), continuation_hold: "input", step_gate: undefined }, false);
       if (updated.session_id) this.ports.holdSetups?.(updated.session_id, String(updated.revision));
       return { work: updated, current, accept: () => {
         if (current() && this.ports.store.get(this.ports.actorId, work.work_id).continuation_hold === "input")
@@ -84,7 +112,6 @@ export class AssistantContinuations {
     return true;
   }
   watch(work: StoredWork, run: AgentRunRef): void {
-    this.watchScope(owner(work));
     void this.ports.host().then(host => {
       if (this.stopped.signal.aborted) return;
       let off: (() => void) | undefined, ended = false;
@@ -94,58 +121,83 @@ export class AssistantContinuations {
       if (ended) off(); else this.observers.add(off);
     }).catch(() => undefined);
   }
-  private watchScope(scope: string): void {
-    if (this.loops.has(scope) || this.stopped.signal.aborted) return;
-    this.loops.add(scope);
-    void this.keepWatching(scope).finally(() => this.loops.delete(scope));
-  }
-  private async keepWatching(scope: string): Promise<void> {
-    while (!this.stopped.signal.aborted) {
-      try { await this.loop(scope); return; }
-      catch (error) { if (this.stopped.signal.aborted) return; this.watchFailures.failed(scope, error, { scope }); await pause(5_000, undefined, { signal: this.stopped.signal }).catch(() => undefined); }
-    }
-  }
-  private async loop(scope: string): Promise<void> {
-    const collaboration = (await this.ports.host()).adapter(RUNTIME).collaboration;
-    if (!collaboration) return;
-    const held = new Map<string, { work_id?: string; revision?: number }>();
-    while (!this.stopped.signal.aborted) {
-      const works = this.works().filter(work => owner(work) === scope);
-      for (const [key, saved] of held) if (saved.work_id && works.find(work => work.work_id === saved.work_id)?.revision !== saved.revision) held.delete(key);
-      const nudge = new AbortController(); this.nudges.set(scope, nudge);
-      const views = await collaboration.awaitReady(scope, 25_000, [...held.keys()], AbortSignal.any([this.stopped.signal, nudge.signal]));
+  /** What may go on now among this person's works, taken up once each (the runtime asks again only after a round). */
+  private async takeUpWaiting(): Promise<void> {
+    for (const work of this.works()) {
       if (this.stopped.signal.aborted) return;
-      this.watchFailures.worked(scope);
-      let retry = false;
-      for (const view of views) {
-        const next = view.continuation;
-        if (!next) continue;
-        if (view.wait?.by === "app") { held.set(next.request_key, {}); continue; }
-        const work = this.works().find(work => owner(work) === scope && work.session_id === view.session_id);
-        if (!work) { held.set(next.request_key, {}); continue; }
-        if (work.continuation_hold || next.state !== "eligible" || !next.auto || view.wait?.state !== "satisfied") {
-          await this.ports.changed(work, () => !this.stopped.signal.aborted); held.set(next.request_key, { work_id: work.work_id, revision: work.revision }); continue;
-        }
-        if (this.busy.has(work.work_id)) { retry = true; continue; }
-        const adapter = (await this.ports.host()).adapter(RUNTIME);
-        const session = await adapter.readSession({ runtime_id: RUNTIME, session_id: view.session_id });
-        if (session.recovery || session.latest_run && !isTerminalAgentPhase(session.latest_run.phase)) { retry = true; continue; }
-        const revision = work.revision;
-        const current = () => {
-          if (this.stopped.signal.aborted || (this.busy.get(work.work_id) ?? 0) > 1) return false;
-          const now = whenThere(() => this.ports.store.get(this.ports.actorId, work.work_id)); // A store that cannot be read is thrown: the watch writes it.
-          return now !== null && now.revision === revision && !now.archived && !now.continuation_hold;
-        };
-        if (!current()) { retry = true; continue; }
-        this.enter(work.work_id);
-        try {
-          await this.ports.start(work, `（Molis 转告）这项工作等待的条件已有结果：${view.wait.reason}。请读取当前状态，依照本对话最新有效的要求，从尚未完成的地方继续；不要重复已完成的操作。等待结果只证明它报告的事实，不证明原任务已经完成。`, current, session.latest_run?.ref);
-        } catch {
-          // A revoked/stale start changes no wait and writes no diagnostic business record. A future activation may retry.
-          if (current()) held.set(next.request_key, { work_id: work.work_id, revision: work.revision }); else retry = true;
-        } finally { this.end(work.work_id); }
-      }
-      if (retry) await pause(500, undefined, { signal: this.stopped.signal });
+      await this.takeUp(work).catch(() => undefined);
     }
+  }
+
+  /** Start the work's continuation if it may go on now (after the Host attached, or once the person said yes to it). */
+  async takeUp(work: StoredWork): Promise<AgentContinuationStartAnswer | undefined> {
+    const view = await this.view(work), next = view?.continuation;
+    if (!view?.wait || !next || next.state !== "eligible" || !next.auto) return undefined;
+    // The Host asking itself: `startFor` finds the work by project and session and never reads `owner`, which names a plugin's
+    // installation only on a runtime's own ask.
+    return this.startFor({ runtime_id: RUNTIME, project_id: owner(work), session_id: work.session_id!, owner: { plugin_id: "", install_id: "" },
+      request_key: next.request_key, wait_id: view.wait.wait_id, graph_id: next.graph_id, node_id: next.node_id });
+  }
+
+  /**
+   * The runtime asks to start a work's continuation. A wait the Host armed for a work's parts is the hand-back's (assistant-delegation.ts)
+   * and is left to it; a work the person stopped, is sending to now, or that went on by itself too many rounds in a row is not started.
+   */
+  async startFor(request: AgentContinuationStartRequest): Promise<AgentContinuationStartAnswer> {
+    const later = (code: string): AgentContinuationStartAnswer => ({ later: { code } });
+    const work = this.works().find(one => owner(one) === request.project_id && one.session_id === request.session_id);
+    if (!work || this.stopped.signal.aborted) return later("assistant.continuation_not_mine");
+    // One start of a work at a time: the runtime's ask and the Host's own take-up after attaching may come together, and the
+    // second waits for the first instead of both stepping back from each other.
+    const before = this.starts.get(work.work_id);
+    if (before) { await before.catch(() => undefined); return later("assistant.start_in_progress"); }
+    const started = this.startWork(request, work);
+    this.starts.set(work.work_id, started);
+    try { return await started; } finally { if (this.starts.get(work.work_id) === started) this.starts.delete(work.work_id); }
+  }
+
+  private async startWork(request: AgentContinuationStartRequest, work: StoredWork): Promise<AgentContinuationStartAnswer> {
+    const later = (code: string): AgentContinuationStartAnswer => ({ later: { code } });
+    const view = await this.view(work);
+    if (!view?.wait || view.wait.wait_id !== request.wait_id) return later("assistant.handback_by_delegations");
+    if (work.continuation_hold || view.wait.state !== "satisfied") {
+      await this.ports.changed(work, () => !this.stopped.signal.aborted).catch(() => undefined);
+      return later(work.continuation_hold ? "assistant.work_held" : "assistant.wait_not_satisfied");
+    }
+    if (this.busy.has(work.work_id)) return later("assistant.send_in_progress");
+    const adapter = (await this.ports.host()).adapter(RUNTIME);
+    const session = await adapter.readSession({ runtime_id: RUNTIME, session_id: request.session_id });
+    if (session.recovery || session.latest_run && !isTerminalAgentPhase(session.latest_run.phase)) return later("agent.session_busy");
+    // So many rounds in a row that no person wrote: the work stops here and says so; the person's next word starts the count again.
+    const rounds = this.ports.store.rounds(work.work_id);
+    let auto = 0;
+    while (auto < rounds.length && rounds[rounds.length - 1 - auto]!.written_by === "host") auto++;
+    if (auto >= DELEGATION_LIMITS.autoRounds) {
+      this.ports.notify?.(work, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: work.title }),
+        original: `已经连续自己接着做了 ${DELEGATION_LIMITS.autoRounds} 轮，先停下来等你看一眼；你再说一句，它就接着做` }, `auto-cap-${request.request_key}`.slice(0, 80));
+      return { refused: { code: "assistant.auto_round_cap", note: "连续自己接着做的轮数到了上限，等用户看一眼" } };
+    }
+    if (!this.stepGate.pass(work, "continuation", request.request_key, session.latest_run?.ref.run_id ?? null)) {
+      await this.ports.changed(this.ports.store.get(this.ports.actorId, work.work_id), () => !this.stopped.signal.aborted).catch(() => undefined);
+      return later("assistant.step_asked");
+    }
+    const revision = work.revision;
+    const current = () => {
+      if (this.stopped.signal.aborted || (this.busy.get(work.work_id) ?? 0) > 1) return false;
+      const now = whenThere(() => this.ports.store.get(this.ports.actorId, work.work_id));
+      return now !== null && now.revision === revision && !now.archived && !now.continuation_hold;
+    };
+    if (!current()) return later("assistant.work_changed");
+    this.enter(work.work_id);
+    try {
+      const started = await this.ports.start(work, `（Molis 转告）这项工作等待的条件已有结果：${view.wait.reason}。请读取当前状态，依照本对话最新有效的要求，从尚未完成的地方继续；不要重复已完成的操作。等待结果只证明它报告的事实，不证明原任务已经完成。`, current, session.latest_run?.ref);
+      const runId = (started as { run_id?: unknown } | undefined)?.run_id;
+      return typeof runId === "string" ? { run: { run_id: runId, session_id: request.session_id } } : later("assistant.not_started");
+    } catch (error) {
+      // A revoked or stale start changes no wait and writes no business record: it stays eligible for the next round.
+      if (!current()) return later("assistant.work_changed");
+      const code = (error as { code?: unknown } | undefined)?.code;
+      return { refused: { code: typeof code === "string" ? code.slice(0, 64) : "assistant.start_failed", note: (error instanceof Error ? error.message : String(error)).slice(0, 200) } };
+    } finally { this.end(work.work_id); }
   }
 }

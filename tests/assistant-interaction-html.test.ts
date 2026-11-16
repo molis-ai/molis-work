@@ -17,7 +17,7 @@ const say = pageText("zh");
 
 test("BL-360: Assistant review cards show only decisions the original owner still accepts", () => {
   const blocked = { available: false as const, code: "agent.review_not_permitted", reason: { owner: "workbench", key: "workbench.agent-review.authority-ended" } };
-  const review = { review_id: "r", decisions: { approve: blocked, reject: { available: true as const } }, run_id: "run", kind: "change", summary: "保存页面", fields: [], requested_at: "", expires_at: null };
+  const review = { review_id: "r", version: "v1", decisions: { approve: blocked, reject: { available: true as const } }, run_id: "run", kind: "change", summary: "保存页面", fields: [], requested_at: "", expires_at: null };
   const rejectOnly = withPageText("zh", [], () => assistantReviewHtml(review, say));
   assert.doesNotMatch(rejectOnly, /data-assistant-decision="approve"/);
   assert.match(rejectOnly, /data-assistant-decision="reject"/);
@@ -158,7 +158,7 @@ test("FSS-36: Assistant next steps carry fixed words separately from original ti
   const raw = "From an action card", option = "原选项 <raw>", pending: AgentPendingQuestion = { ...questionnaire, pending_id: "one", prompt: raw,
     questions: [{ index: 0, prompt: raw, type: "choice", required: true, multiple: false, allow_other: false, options: [{ index: 0, label: option, recommended: true }] }] };
   const shown = view("running", { cards: [{ ...card("ready"), title: raw }, { ...card("unknown"), card_id: "needs-check", title: option }],
-    delegated: [{ work_id: "child", title: raw, state: "waiting-input", follow_ups: 0 }] });
+    delegated: [{ work_id: "child", title: raw, state: "waiting-input", follow_ups: 0, created_at: "2026-10-02T09:00:00.000Z" }] });
   shown.rounds[0]!.awaiting_input = [pending];
   const { next_all_html } = assistantStepRow(shown, pageText("en"));
   const encoded = /<template data-assistant-next-words="([^"]+)"><\/template>/.exec(next_all_html)?.[1];
@@ -188,12 +188,12 @@ test("SLOT-01: the outcome slot follows whatever waits on the person; the row st
   const done = view("completed", { cards: [card("ready")], objects: [made("a"), made("b"), made("c")] });
   assert.deepEqual(ids(assistantStepRow(done, say).next_all_html), ["card:card-1:run", "open:page:a", "open:page:b"], "the card that waits first, then two outcomes");
   const crowded = view("completed", { cards: done.cards, objects: done.objects,
-    reviews: [{ review_id: "r1", decisions: { approve: { available: true }, reject: { available: true } }, run_id: "run-1", kind: "change", summary: "删除「报销」", fields: [], requested_at: "", expires_at: null }] });
+    reviews: [{ review_id: "r1", version: "v1", decisions: { approve: { available: true }, reject: { available: true } }, run_id: "run-1", kind: "change", summary: "删除「报销」", fields: [], requested_at: "", expires_at: null }] });
   const row = assistantStepRow(crowded, say);
   assert.deepEqual(ids(row.next_html), ["review:r1", "card:card-1:run", "open:page:a"]);
   assert.match(row.next_html, /data-ix-steps-more="1" data-secondary>还有 1 项</, "an outcome never pushes what waits out of the first three");
   const delegated = assistantStepRow(view("completed", { objects: done.objects, reviews: crowded.reviews,
-    delegated: [{ work_id: "child-1", title: "查价格", state: "waiting-input", follow_ups: 0 }] }), say);
+    delegated: [{ work_id: "child-1", title: "查价格", state: "waiting-input", follow_ups: 0, created_at: "2026-10-02T09:00:00.000Z" }] }), say);
   assert.deepEqual(ids(delegated.next_all_html), ["review:r1", "work:child-1", "open:page:a", "open:page:b"]);
   assert.deepEqual(ids(delegated.next_html), ["review:r1", "work:child-1", "open:page:a"], "nor a sub-task that waits on the person");
   const shut = made("b"); delete shut.open;
@@ -250,9 +250,9 @@ test("AC-06-3, SLOT-01: the card's result takes the outcome slot alone, after wh
 
 test("FLOW-04, FLOW-05: the row above the input puts what waits first, shows three and folds the rest; nothing in it re-runs an unknown result", () => {
   const busy = view("needs-check", { work: { work_id: "w1", state: "needs-check", executor: { kind: "assistant" } } as AssistantWorkView["work"],
-    reviews: [{ review_id: "r1", decisions: { approve: { available: true }, reject: { available: true } }, run_id: "run-1", kind: "change", summary: "删除「报销」", fields: [], requested_at: "", expires_at: null }],
+    reviews: [{ review_id: "r1", version: "v1", decisions: { approve: { available: true }, reject: { available: true } }, run_id: "run-1", kind: "change", summary: "删除「报销」", fields: [], requested_at: "", expires_at: null }],
     cards: [card("ready"), { ...card("unknown"), card_id: "card-2" }, { ...card("done"), card_id: "card-3" }],
-    delegated: [{ work_id: "child-1", title: "查价格", state: "waiting-input", follow_ups: 0 }, { work_id: "child-2", title: "已收回", state: "waiting-input", follow_ups: 0, taken_back: true }] });
+    delegated: [{ work_id: "child-1", title: "查价格", state: "waiting-input", follow_ups: 0, created_at: "2026-10-02T09:00:00.000Z" }, { work_id: "child-2", title: "已收回", state: "waiting-input", follow_ups: 0, taken_back: true }] });
   const { next_html, next_all_html } = assistantStepRow(busy, say);
   const ids = (html: string) => [...html.matchAll(/data-ix-step-id="([^"]*)"/g)].map(match => match[1]);
   assert.deepEqual(ids(next_all_html), ["review:r1", "card:card-1:run", "card:card-2", "check", "work:child-1"]);
@@ -319,7 +319,7 @@ test("AC-03, R4: among other questions, a questionnaire's one text question is m
 test("PAS-15: reply projection redraws text and reviews in direct and wrapped views without trusting supplied HTML", () => {
   const raw = view("running");
   raw.rounds[0]!.turns = [{ turn_id: "t1", kind: "assistant", text: "**first**", at: "" }, { turn_id: "u1", kind: "user", text: "<b>person</b>", at: "" }];
-  raw.reviews = [{ review_id: "r1", decisions: { approve: { available: true }, reject: { available: true } }, run_id: "run-1", kind: "file", summary: "<not markup>", fields: [{ label: "改动", value: "+ saved" }], requested_at: "", expires_at: null }];
+  raw.reviews = [{ review_id: "r1", version: "v1", decisions: { approve: { available: true }, reject: { available: true } }, run_id: "run-1", kind: "file", summary: "<not markup>", fields: [{ label: "改动", value: "+ saved" }], requested_at: "", expires_at: null }];
   const drawn = structuredClone(raw), ports = { say, drafts: () => ({}), card: () => "" };
   Object.assign(drawn.rounds[0]!.turns[0]!, { html: "<script>untrusted</script>" });
   drawAssistantReply(drawn, ports);

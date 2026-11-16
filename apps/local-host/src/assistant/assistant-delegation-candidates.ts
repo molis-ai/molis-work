@@ -144,7 +144,7 @@ export async function resolveAssistantDelegationChoices(host: MolisWorkLocalHost
             return { unavailable: unavailable("完整操作参数超出可预览范围") };
           if (redactSecrets(inputJson) !== inputJson) return { unavailable: unavailable("参数包含敏感内容，这项操作需要本人逐次确认") };
           const original = host.prepareActionReview({ ...context, permissions: view.action.permissions }, view, choice.input, work.project_ref);
-          const policy = store.holdActionPolicy(work.actor_id, actionKey(choice.action), true);
+          const policy = store.policies.hold(work.actor_id, actionKey(choice.action), true);
           checks.add(() => {
             original.assertCurrent(); mcp.assertCurrent(); policy();
             if (store.disabledActions(work.actor_id).has(actionKey(choice.action)) || store.confirmAlways(work.actor_id).has(actionKey(choice.action)))
@@ -157,7 +157,7 @@ export async function resolveAssistantDelegationChoices(host: MolisWorkLocalHost
     const provider = owners.installation(view.provider);
     if (!provider) return { unavailable: unavailable("无法确认原能力提供方的安装") };
     const identity = { action: actionReference(view), declaration_digest: actionDigest(view), provider_installation_generation: provider.generation };
-    const assertPolicy = store.holdActionPolicy(work.actor_id, actionKey(identity.action), true);
+    const assertPolicy = store.policies.hold(work.actor_id, actionKey(identity.action), true);
     const registered = () => {
       const latest = host.inspectActionMetadata(base, work.project_ref).find(row => actionKey(actionReference(row)) === actionKey(identity.action));
       if (latest?.action !== view.action || latest.provider !== view.provider) throw assistantErrors.action_revoked("原能力提供方已变化，请重新查看权限范围");

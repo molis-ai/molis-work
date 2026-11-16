@@ -314,6 +314,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
   const wiring = options.wiring;
   const { database, artifacts } = artifactDatabaseServices(options, context, parts);
   return Object.freeze({ ...context,
+    ...(options.home?.startedAt ? { host_started_at: options.home.startedAt } : {}),
     project_id: options.project_id,
     actor_id: options.actor_id,
     sync: syncActivation(options.home?.directory, manifest, context, assertActive),

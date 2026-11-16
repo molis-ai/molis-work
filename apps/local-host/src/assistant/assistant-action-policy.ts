@@ -13,7 +13,7 @@ type Metadata = Omit<ActionView, "availability">;
 const matchesAction = (view: Metadata, action: ExactActionReference) =>
   view.capability_id === action.capability_id && view.version === action.version && view.provider.provider_id === action.provider_id;
 
-function policyOf(view: Metadata, policies: ReturnType<AssistantStore["actionPolicies"]>) {
+function policyOf(view: Metadata, policies: ReturnType<AssistantStore["policies"]["read"]>) {
   const action = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
   const key = actionKey(action), reversible = Boolean(view.action.undo && view.operation === "command");
   return { ...action, ...policies.forAction(key), reversible,
@@ -23,7 +23,7 @@ function policyOf(view: Metadata, policies: ReturnType<AssistantStore["actionPol
 
 export async function assistantActionPolicies(host: MolisWorkLocalHost, store: AssistantStore, reference?: LocalHostProjectReference) {
   const catalog = await host.inspectPreparedActionMetadata(metadataCaller(reference), reference);
-  const policies = store.actionPolicies(LOCAL_PERSON_ACTOR_ID);
+  const policies = store.policies.read(LOCAL_PERSON_ACTOR_ID);
   return catalog.map(view => policyOf(view, policies));
 }
 
@@ -36,7 +36,7 @@ export async function assistantActionPolicyView(host: MolisWorkLocalHost, store:
     const current = host.inspectActionMetadata(caller, reference).find(matches);
     if (!current || current.action !== selected.action || current.provider !== selected.provider) throw assistantErrors.conflict("能力或提供方已经变化，请刷新后再决定");
   };
-  return { ...policyOf(selected, store.actionPolicies(LOCAL_PERSON_ACTOR_ID)), assertCurrent };
+  return { ...policyOf(selected, store.policies.read(LOCAL_PERSON_ACTOR_ID)), assertCurrent };
 }
 
 export async function changeAssistantActionPolicy(host: MolisWorkLocalHost, store: AssistantStore, reference: LocalHostProjectReference | undefined,
@@ -50,7 +50,7 @@ export async function writeAssistantActionPolicy(store: AssistantStore, selected
   input: { expected: string; enabled?: boolean; confirm_always?: boolean }, control: { beforeEffect(): void | Promise<void>; assertCurrent(): void }) {
   if (input.confirm_always !== undefined && !selected.reversible) throw assistantErrors.invalid("这项能力没有可改的确认方式");
   await control.beforeEffect();
-  return store.changeActionPolicy(LOCAL_PERSON_ACTOR_ID, actionKey(selected), input, () => {
+  return store.policies.change(LOCAL_PERSON_ACTOR_ID, actionKey(selected), input, () => {
     control.assertCurrent(); selected.assertCurrent();
   });
 }

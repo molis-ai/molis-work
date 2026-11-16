@@ -1,6 +1,6 @@
 //! Metadata and bytes stay beneath an open authorized directory descriptor.
 //! openat/O_NOFOLLOW prevents a changed directory or symlink from redirecting access.
-use crate::context_directories::{DirectoryPreview, FilePreview};
+use crate::context_directories::{DirectoryPreview, FilePreview, SkippedReasons};
 use std::ffi::{CStr, CString};
 use std::fs::{File, Metadata, OpenOptions};
 use std::io::{Read, Write};
@@ -8,13 +8,16 @@ use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::macos::fs::MetadataExt as _;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-// Onboarding reads any number of files of any size (user 2026-10-22); the page asks for them one at a time. What stays bounded
-// is the walk: how many directory entries one preview visits and how deep it goes, so pointing at a huge tree (a home
-// directory, a mounted volume) cannot keep the walk going without end. Those bound directories, not the files chosen.
-const MAX_ENTRIES: usize = 10_000;
-const MAX_DEPTH: usize = 8;
+// Onboarding reads any number of files of any size (user 2026-10-22); the page asks for them one at a time. The walk emits live
+// progress and checks `cancel_scan` so the person can stop a huge tree at any time and keep what was scanned; a high safety ceiling
+// bounds runaway volumes (ONB-36, C4).
+const MAX_ENTRIES: usize = 500_000;
+const MAX_DEPTH: usize = 16;
+const PROGRESS_STRIDE: usize = 250;
+const MAX_IGNORED_RULES: usize = 24;
 
 // Which entries onboarding takes in: the same rule as `contextFileSkip` in the contracts' services/materials (the Host checks the
 // selection with that one; this is the shell's copy for its own walk, as the shell keeps its own loopback test). A folder that is
@@ -58,34 +61,56 @@ const UNREADABLE: [&str; 69] = [
 fn ignored_folder(name: &str) -> bool {
     name.starts_with('.') || IGNORED_FOLDERS.contains(&name.to_ascii_lowercase().as_str())
 }
-/// A file onboarding does not take in by its name alone.
-fn skipped_file(name: &str) -> bool {
-    let name = name.to_ascii_lowercase();
-    let extension = Path::new(&name)
+/// Why a file is not taken in by its name alone (`secret`, `ignored`, or `unreadable`).
+fn file_skip_reason(name: &str) -> Option<&'static str> {
+    let lower = name.to_ascii_lowercase();
+    let extension = Path::new(&lower)
         .extension()
         .and_then(|value| value.to_str())
         .unwrap_or("");
-    let secret = name == ".env"
-        || name.starts_with(".env.")
+    let env_template = matches!(
+        lower.as_str(),
+        ".env.example" | ".env.sample" | ".env.template"
+    );
+    let secret = (!env_template && (lower == ".env" || lower.starts_with(".env.")))
         || matches!(
             extension,
             "pem" | "key" | "p12" | "pfx" | "keystore" | "jks"
         )
         || ["id_rsa", "id_ed25519", "id_ecdsa", "id_dsa"]
             .iter()
-            .any(|key| name == *key || name == format!("{key}.pub"))
-        || (name.starts_with("credentials") && name.ends_with(".json"))
-        || (name.starts_with("service-account") && name.ends_with(".json"))
-        || name.starts_with("secrets.")
-        || name.starts_with("secret.")
+            .any(|key| lower == *key || lower == format!("{key}.pub"))
+        || (lower.starts_with("credentials") && lower.ends_with(".json"))
+        || ((lower.starts_with("service-account") || lower.starts_with("service_account"))
+            && lower.ends_with(".json"))
+        || (lower.starts_with("client_secret") && lower.ends_with(".json"))
+        || lower == "auth.json"
+        || matches!(lower.as_str(), ".npmrc" | ".netrc" | ".pypirc" | ".pgpass")
+        || lower.starts_with("secrets.")
+        || lower.starts_with("secret.")
         || extension == "tfstate"
         || extension == "tfvars"
-        || name.contains(".tfstate.");
-    let hidden = name.starts_with('.')
+        || lower.contains(".tfstate.");
+    if secret {
+        return Some("secret");
+    }
+    let hidden = !env_template
+        && lower.starts_with('.')
         && !HIDDEN_KEPT
             .iter()
-            .any(|kept| name == *kept || name.starts_with(&format!("{kept}.")));
-    secret || hidden || UNREADABLE.contains(&extension)
+            .any(|kept| lower == *kept || lower.starts_with(&format!("{kept}.")));
+    if hidden {
+        return Some("ignored");
+    }
+    if UNREADABLE.contains(&extension) {
+        return Some("unreadable");
+    }
+    None
+}
+
+/// A file onboarding does not take in by its name alone.
+fn skipped_file(name: &str) -> bool {
+    file_skip_reason(name).is_some()
 }
 fn modified_ms(seconds: i64, nanos: i64) -> u64 {
     (i128::from(seconds) * 1000 + i128::from(nanos) / 1_000_000).max(0) as u64
@@ -141,15 +166,45 @@ impl Drop for DirectoryStream {
     }
 }
 
-struct Scan {
+struct Scan<'a> {
     files: Vec<FilePreview>,
+    bytes: u64,
     skipped: usize,
     visited: usize,
+    resume_offset: usize,
     truncated: bool,
+    cancelled: bool,
     since_ms: u64,
+    reasons: SkippedReasons,
+    ignored_rules: Vec<String>,
+    cancel: &'a AtomicBool,
+    on_progress: &'a mut dyn FnMut(usize, usize, u64, &str),
 }
 
-fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan) -> Result<(), String> {
+impl Scan<'_> {
+    fn record_rule(&mut self, rule: &str) {
+        if rule.is_empty() || self.ignored_rules.len() >= MAX_IGNORED_RULES {
+            return;
+        }
+        if !self.ignored_rules.iter().any(|existing| existing == rule) {
+            self.ignored_rules.push(rule.to_string());
+        }
+    }
+
+    fn record_skipped_file(&mut self, name: &str, reason: &str) {
+        self.skipped += 1;
+        match reason {
+            "secret" => self.reasons.secret += 1,
+            "ignored" => {
+                self.reasons.ignored += 1;
+                self.record_rule(name);
+            }
+            _ => self.reasons.unreadable += 1,
+        }
+    }
+}
+
+fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan<'_>) -> Result<(), String> {
     // A fresh descriptor gives readdir its own offset and leaves the caller's handle intact.
     let stream_fd = unsafe {
         libc::openat(
@@ -168,33 +223,60 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan) -> Resu
         }
         return Err("无法预览目录，请重新选择".into());
     }
-    let stream = DirectoryStream(stream);
-    loop {
-        unsafe {
-            *libc::__error() = 0;
-        }
-        let entry = unsafe { libc::readdir(stream.0) };
-        if entry.is_null() {
-            if unsafe { *libc::__error() } != 0 {
-                return Err("部分目录无法访问，请刷新预览".into());
+    // Collect and sort entries deterministically so a cancelled scan can resume from `resume_offset` without duplicating or dropping items.
+    let mut raw_entries: Vec<(Vec<u8>, u8)> = Vec::new();
+    {
+        let stream = DirectoryStream(stream);
+        loop {
+            unsafe {
+                *libc::__error() = 0;
             }
+            let entry = unsafe { libc::readdir(stream.0) };
+            if entry.is_null() {
+                if unsafe { *libc::__error() } != 0 {
+                    return Err("部分目录无法访问，请刷新预览".into());
+                }
+                break;
+            }
+            let name_bytes = unsafe { CStr::from_ptr((*entry).d_name.as_ptr()) }.to_bytes();
+            if name_bytes == b"." || name_bytes == b".." {
+                continue;
+            }
+            raw_entries.push((name_bytes.to_vec(), unsafe { (*entry).d_type }));
+        }
+    }
+    raw_entries.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+    for (raw_name, d_type) in raw_entries {
+        if output.cancel.load(Ordering::Relaxed) {
+            output.cancelled = true;
+            output.truncated = true;
             break;
         }
-        let name = unsafe { CStr::from_ptr((*entry).d_name.as_ptr()) };
-        if name.to_bytes() == b"." || name.to_bytes() == b".." {
-            continue;
-        }
-        if output.visited >= MAX_ENTRIES {
+        if output.visited.saturating_sub(output.resume_offset) >= MAX_ENTRIES {
             output.truncated = true;
             break;
         }
         output.visited += 1;
-        let Ok(name) = name.to_str() else {
-            output.skipped += 1;
+        let skipping_prior = output.visited <= output.resume_offset;
+        let Ok(name) = std::str::from_utf8(&raw_name) else {
+            if !skipping_prior {
+                output.skipped += 1;
+                output.reasons.unreadable += 1;
+            }
             continue;
         };
-        if name.starts_with('.') && skipped_file(name) {
-            output.skipped += 1;
+        if skipping_prior
+            && ((d_type != libc::DT_DIR && d_type != libc::DT_UNKNOWN)
+                || ignored_folder(name)
+                || depth >= MAX_DEPTH)
+        {
+            continue;
+        }
+        if let Some(reason) = (!skipping_prior && name.starts_with('.'))
+            .then(|| file_skip_reason(name))
+            .flatten()
+        {
+            output.record_skipped_file(name, reason);
             continue;
         }
         let component = CString::new(name).map_err(|_| "文件名称无效")?;
@@ -208,12 +290,18 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan) -> Resu
             )
         };
         if result != 0 {
-            output.skipped += 1;
+            if !skipping_prior {
+                output.skipped += 1;
+                output.reasons.unreadable += 1;
+            }
             continue;
         }
         let info = unsafe { info.assume_init() };
         if info.st_flags & libc::UF_HIDDEN != 0 {
-            output.skipped += 1;
+            if !skipping_prior {
+                output.skipped += 1;
+                output.reasons.ignored += 1;
+            }
             continue;
         }
         let path = if prefix.is_empty() {
@@ -224,55 +312,99 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan) -> Resu
         match info.st_mode & libc::S_IFMT {
             libc::S_IFDIR => {
                 // A hidden folder and a folder by these names are left out, as the host's rule does; a file named `build` or `out` is read.
+                let lower = name.to_ascii_lowercase();
                 if ignored_folder(name) {
-                    output.skipped += 1;
+                    if !skipping_prior {
+                        output.skipped += 1;
+                        output.reasons.ignored += 1;
+                        output.record_rule(if name.starts_with('.') { name } else { &lower });
+                    }
                     continue;
                 }
                 if depth >= MAX_DEPTH {
-                    output.skipped += 1;
-                    output.truncated = true;
+                    if !skipping_prior {
+                        output.skipped += 1;
+                        output.reasons.ignored += 1;
+                        output.truncated = true;
+                    }
                     continue;
                 }
                 match open_child(directory, name, true) {
                     Ok(child) => {
-                        if scan(&child, &path, depth + 1, output).is_err() {
+                        if scan(&child, &path, depth + 1, output).is_err() && !skipping_prior {
                             output.skipped += 1;
+                            output.reasons.unreadable += 1;
                         }
                     }
-                    Err(_) => output.skipped += 1,
+                    Err(_) => {
+                        if !skipping_prior {
+                            output.skipped += 1;
+                            output.reasons.unreadable += 1;
+                        }
+                    }
                 }
-                if output.visited >= MAX_ENTRIES && output.truncated {
+                if output.cancelled
+                    || (output.visited.saturating_sub(output.resume_offset) >= MAX_ENTRIES
+                        && output.truncated)
+                {
                     break;
                 }
             }
-            libc::S_IFREG if !skipped_file(name) => {
-                let modified_ms = modified_ms(info.st_mtime, info.st_mtime_nsec);
-                if modified_ms < output.since_ms {
-                    output.skipped += 1;
-                    continue;
+            libc::S_IFREG => {
+                if !skipping_prior {
+                    match file_skip_reason(name) {
+                        Some(reason) => output.record_skipped_file(name, reason),
+                        None => {
+                            let modified_ms = modified_ms(info.st_mtime, info.st_mtime_nsec);
+                            if modified_ms < output.since_ms {
+                                output.skipped += 1;
+                                output.reasons.time += 1;
+                            } else {
+                                let size = info.st_size.max(0) as u64;
+                                output.bytes = output.bytes.saturating_add(size);
+                                output.files.push(FilePreview {
+                                    path: path.clone(),
+                                    size,
+                                    modified_ms,
+                                    identity: format!(
+                                        "{}:{}:{}:{}:{}:{}",
+                                        info.st_dev,
+                                        info.st_ino,
+                                        info.st_mtime,
+                                        info.st_mtime_nsec,
+                                        info.st_ctime,
+                                        info.st_ctime_nsec
+                                    ),
+                                });
+                            }
+                        }
+                    }
                 }
-                output.files.push(FilePreview {
-                    path,
-                    size: info.st_size.max(0) as u64,
-                    modified_ms,
-                    identity: format!(
-                        "{}:{}:{}:{}:{}:{}",
-                        info.st_dev,
-                        info.st_ino,
-                        info.st_mtime,
-                        info.st_mtime_nsec,
-                        info.st_ctime,
-                        info.st_ctime_nsec
-                    ),
-                });
             }
-            _ => output.skipped += 1,
+            _ => {
+                if !skipping_prior {
+                    output.skipped += 1;
+                    output.reasons.unreadable += 1;
+                }
+            }
+        }
+        if !skipping_prior && output.visited % PROGRESS_STRIDE == 0 {
+            (output.on_progress)(output.visited, output.files.len(), output.bytes, &path);
         }
     }
     Ok(())
 }
 
-pub(crate) fn preview(directory: &File, days: u16) -> Result<DirectoryPreview, String> {
+pub(crate) fn preview_with_progress<F>(
+    directory: &File,
+    days: u16,
+    resume_offset: usize,
+    cancel: &AtomicBool,
+    mut on_progress: F,
+) -> Result<DirectoryPreview, String>
+where
+    F: FnMut(usize, usize, u64, &str),
+{
     if ![0, 7, 30, 90].contains(&days) {
         return Err("时间范围无效".into());
     }
@@ -287,10 +419,17 @@ pub(crate) fn preview(directory: &File, days: u16) -> Result<DirectoryPreview, S
     };
     let mut output = Scan {
         files: Vec::new(),
+        bytes: 0,
         skipped: 0,
         visited: 0,
+        resume_offset,
         truncated: false,
+        cancelled: false,
         since_ms,
+        reasons: SkippedReasons::default(),
+        ignored_rules: Vec::new(),
+        cancel,
+        on_progress: &mut on_progress,
     };
     scan(directory, "", 0, &mut output)?;
     output.files.sort_by(|left, right| {
@@ -299,11 +438,25 @@ pub(crate) fn preview(directory: &File, days: u16) -> Result<DirectoryPreview, S
             .cmp(&left.modified_ms)
             .then(left.path.cmp(&right.path))
     });
+    let skipped_reasons = if output.skipped > 0 {
+        Some(output.reasons)
+    } else {
+        None
+    };
     Ok(DirectoryPreview {
         files: output.files,
         skipped: output.skipped,
         truncated: output.truncated,
+        cancelled: output.cancelled,
+        total_entries: output.visited,
+        skipped_reasons,
+        ignored_rules: output.ignored_rules,
     })
+}
+
+#[cfg(test)]
+pub(crate) fn preview(directory: &File, days: u16) -> Result<DirectoryPreview, String> {
+    preview_with_progress(directory, days, 0, &AtomicBool::new(false), |_, _, _, _| {})
 }
 
 fn relative_components(path: &str) -> Result<Vec<&str>, String> {
@@ -482,6 +635,9 @@ mod tests {
             "LICENSE",
             "Makefile",
             ".gitignore",
+            ".env.example",
+            ".env.sample",
+            ".env.template",
             "notes.weird-suffix",
             "paper.pdf",
             "brief.docx",
@@ -497,6 +653,7 @@ mod tests {
             ".DS_Store",
             ".env",
             ".env.local",
+            ".env.example.local",
             "certs/server.pem",
             "id_rsa",
             "logo.png",
@@ -506,11 +663,47 @@ mod tests {
             "old.xlsx",
             "credentials.json",
             "service-account-prod.json",
+            "service_account.json",
+            "client_secret_app.json",
+            "auth.json",
+            ".npmrc",
+            ".netrc",
+            ".pypirc",
+            ".pgpass",
             "secrets.yaml",
+            "secrets.prod.yaml",
             "prod.tfstate",
             "prod.tfvars",
         ] {
             assert!(relative_components(path).is_err(), "{path} is left out");
+        }
+        for secret_name in [
+            ".env",
+            ".env.local",
+            ".env.example.local",
+            "credentials.json",
+            "service-account-prod.json",
+            "service_account.json",
+            "client_secret_app.json",
+            "auth.json",
+            ".npmrc",
+            ".netrc",
+            ".pypirc",
+            ".pgpass",
+            "secrets.prod.yaml",
+        ] {
+            assert_eq!(
+                file_skip_reason(secret_name),
+                Some("secret"),
+                "{secret_name} is secret"
+            );
+        }
+        for safe_template in [".env.example", ".env.sample", ".env.template"] {
+            assert_eq!(
+                file_skip_reason(safe_template),
+                None,
+                "{safe_template} is allowed template"
+            );
         }
     }
     #[test]
@@ -675,5 +868,164 @@ mod tests {
             .iter()
             .any(|file| file.path == "0.txt"));
         assert!(preview(&fixture.root(), 1).is_err());
+    }
+    #[test]
+    fn reports_total_entries_skipped_reasons_and_ignored_rules() {
+        let fixture = Fixture::new();
+        std::fs::write(fixture.0.join("notes.md"), "hello").unwrap();
+        std::fs::write(fixture.0.join(".env"), "API_KEY=secret").unwrap();
+        std::fs::write(fixture.0.join("photo.png"), [1, 2, 3]).unwrap();
+        std::fs::write(fixture.0.join(".DS_Store"), "meta").unwrap();
+        std::fs::create_dir(fixture.0.join("node_modules")).unwrap();
+        std::fs::write(fixture.0.join("node_modules/pkg.js"), "x").unwrap();
+        std::fs::write(fixture.0.join("old.txt"), "old").unwrap();
+        let old_path = CString::new(fixture.0.join("old.txt").to_str().unwrap()).unwrap();
+        let old = libc::timespec {
+            tv_sec: 1,
+            tv_nsec: 0,
+        };
+        assert_eq!(
+            unsafe { libc::utimensat(libc::AT_FDCWD, old_path.as_ptr(), [old, old].as_ptr(), 0) },
+            0
+        );
+        let result = preview(&fixture.root(), 7).unwrap();
+        assert_eq!(result.files.len(), 1);
+        assert_eq!(result.total_entries, 6);
+        assert_eq!(result.skipped, 5);
+        assert!(!result.cancelled);
+        assert_eq!(
+            result.skipped_reasons,
+            Some(SkippedReasons {
+                ignored: 2,
+                secret: 1,
+                unreadable: 1,
+                time: 1,
+            })
+        );
+        assert!(result
+            .ignored_rules
+            .iter()
+            .any(|rule| rule == "node_modules"));
+        assert!(result.ignored_rules.iter().any(|rule| rule == ".DS_Store"));
+    }
+    #[test]
+    fn scans_past_ten_thousand_entries_with_progress_and_supports_cancellation() {
+        let fixture = Fixture::new();
+        std::fs::create_dir(fixture.0.join("sub")).unwrap();
+        for index in 0..10_500 {
+            std::fs::write(fixture.0.join(format!("sub/f-{index}.txt")), "x").unwrap();
+        }
+        let mut ticks = 0_usize;
+        let full = preview_with_progress(
+            &fixture.root(),
+            0,
+            0,
+            &AtomicBool::new(false),
+            |visited, kept, _bytes, path| {
+                ticks += 1;
+                assert!(visited >= kept);
+                assert!(!path.is_empty());
+            },
+        )
+        .unwrap();
+        assert_eq!(full.files.len(), 10_500);
+        assert_eq!(full.total_entries, 10_501);
+        assert!(!full.truncated);
+        assert!(!full.cancelled);
+        assert!(ticks >= 40);
+
+        let cancel = AtomicBool::new(false);
+        let partial = preview_with_progress(&fixture.root(), 0, 0, &cancel, |visited, _, _, _| {
+            if visited >= 500 {
+                cancel.store(true, Ordering::SeqCst);
+            }
+        })
+        .unwrap();
+        assert!(partial.cancelled);
+        assert!(partial.truncated);
+        assert!(!partial.files.is_empty());
+        assert!(partial.files.len() < 10_500);
+    }
+    #[test]
+    fn cancels_and_resumes_from_offset_without_duplicating_or_dropping_files() {
+        let fixture = Fixture::new();
+        std::fs::create_dir(fixture.0.join("alpha")).unwrap();
+        std::fs::create_dir(fixture.0.join("beta")).unwrap();
+        std::fs::create_dir(fixture.0.join("node_modules")).unwrap();
+        std::fs::write(fixture.0.join("node_modules/pkg.js"), "ignored").unwrap();
+        std::fs::write(fixture.0.join(".env"), "SECRET=1").unwrap();
+        std::fs::write(fixture.0.join(".DS_Store"), "meta").unwrap();
+        std::fs::write(fixture.0.join("beta/cover.png"), [1, 2, 3]).unwrap();
+        for index in 0..400 {
+            std::fs::write(fixture.0.join(format!("alpha/a-{index:03}.md")), "a").unwrap();
+            std::fs::write(fixture.0.join(format!("beta/b-{index:03}.md")), "b").unwrap();
+        }
+        let full = preview(&fixture.root(), 0).unwrap();
+        assert_eq!(full.files.len(), 800);
+        assert_eq!(full.skipped, 4);
+
+        let cancel_first = AtomicBool::new(false);
+        let first =
+            preview_with_progress(&fixture.root(), 0, 0, &cancel_first, |visited, _, _, _| {
+                if visited >= 250 {
+                    cancel_first.store(true, Ordering::SeqCst);
+                }
+            })
+            .unwrap();
+        assert!(first.cancelled);
+        assert!(first.truncated);
+        assert!(first.total_entries >= 250 && first.total_entries < full.total_entries);
+
+        let cancel_second = AtomicBool::new(false);
+        let second = preview_with_progress(
+            &fixture.root(),
+            0,
+            first.total_entries,
+            &cancel_second,
+            |visited, _, _, _| {
+                if visited >= first.total_entries + 250 {
+                    cancel_second.store(true, Ordering::SeqCst);
+                }
+            },
+        )
+        .unwrap();
+        assert!(second.cancelled);
+        assert!(second.total_entries > first.total_entries);
+
+        let third = preview_with_progress(
+            &fixture.root(),
+            0,
+            second.total_entries,
+            &AtomicBool::new(false),
+            |_, _, _, _| {},
+        )
+        .unwrap();
+        assert!(!third.cancelled);
+        assert!(!third.truncated);
+        assert_eq!(third.total_entries, full.total_entries);
+
+        let mut combined_paths: Vec<String> = first
+            .files
+            .iter()
+            .chain(second.files.iter())
+            .chain(third.files.iter())
+            .map(|file| file.path.clone())
+            .collect();
+        combined_paths.sort();
+        let mut expected_paths: Vec<String> =
+            full.files.iter().map(|file| file.path.clone()).collect();
+        expected_paths.sort();
+        assert_eq!(combined_paths, expected_paths);
+        assert_eq!(first.skipped + second.skipped + third.skipped, full.skipped);
+        let sum_reason = |pick: fn(&SkippedReasons) -> usize| {
+            first.skipped_reasons.as_ref().map_or(0, pick)
+                + second.skipped_reasons.as_ref().map_or(0, pick)
+                + third.skipped_reasons.as_ref().map_or(0, pick)
+        };
+        let expected_reasons = full.skipped_reasons.unwrap();
+        assert_eq!(sum_reason(|r| r.ignored), expected_reasons.ignored);
+        assert_eq!(sum_reason(|r| r.secret), expected_reasons.secret);
+        assert_eq!(sum_reason(|r| r.unreadable), expected_reasons.unreadable);
+        assert_eq!(sum_reason(|r| r.time), expected_reasons.time);
     }
 }

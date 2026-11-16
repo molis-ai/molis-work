@@ -10,7 +10,7 @@
 - 做完一条就删掉对应条目文件，在提交说明里写编号。不改编号，不复用编号。
 - 只抽取与归并，不重新设计需求。几处说法冲突的，列在「待你决定」。
 
-新增条目使用 `BL-<语义名称>.md`，不争抢连续编号；旧编号不改、不复用。每个文件保留分组和原来的八列信息。统一查看：`node scripts/backlog-index.mjs`（摘要、分组计数、`--group/--type/--priority/--owner/--list` 筛选）或 `node scripts/gates/backlog-rows.mjs --report`（原始逐条）；不提交重复汇总表。以下各节保留分组说明，正文都在独立条目里。当前 514 条；计数由 `backlog-index` 现算。已删除、已并入或只在分支的历史编号见 [REMOVED.md](../docs/backlog-removed.md)。
+新增条目使用 `BL-<语义名称>.md`，不争抢连续编号；旧编号不改、不复用。每个文件保留分组和原来的八列信息。统一查看：`node scripts/backlog-index.mjs`（摘要、分组计数、`--group/--type/--priority/--owner/--list` 筛选）或 `node scripts/gates/backlog-rows.mjs --report`（原始逐条）；不提交重复汇总表。以下各节保留分组说明，正文都在独立条目里。条数以 `backlog-index` 现算为准。已删除、已并入或只在分支的历史编号见 [REMOVED.md](../docs/backlog-removed.md)。
 
 类型：**待你验收**（做完了、等用户本人试用）、**待你决定**（要用户拍板）、**未实现**、**部分实现**、**明确后续做**（原 spec 写明了留到以后）、**已知缺口**（实现里如实标注的限制）。
 
@@ -18,7 +18,7 @@
 
 ## 1. 待你验收
 
-按[第 01 批本人试用单](post-anticorruption-roadmap/reference/acceptance-01.md)逐项试：已有实现与前置条件分别写明。BL-010／013 尚待对应实现，BL-929 的真实 Home 已重建、待你试；BL-001 已委托，BL-017 已接受已有验证、个人账号路径未实测。第 16 批外观/首屏/组件板本人验收见 [BL-b16-appearance-acceptance](backlog/BL-b16-appearance-acceptance.md)；第 19 批 Work Brief 本人验收见 [BL-b19-work-brief-acceptance](backlog/BL-b19-work-brief-acceptance.md)。不要把本节整体当作可立即验收或已获认可。
+按[第 01 批本人试用单](post-anticorruption-roadmap/reference/acceptance-01.md)逐项试：已有实现与前置条件分别写明。BL-010／013 尚待对应实现，BL-929 的真实 Home 已重建、待你试；BL-001 已委托，BL-017 已接受已有验证、个人账号路径未实测。第 16 批外观/首屏/组件板本人验收见 [BL-b16-appearance-acceptance](backlog/BL-b16-appearance-acceptance.md)；第 19 批 Work Brief 本人验收见 [BL-b19-work-brief-acceptance](backlog/BL-b19-work-brief-acceptance.md)；第 41 批 Skill 选用与自写技能见 [BL-b41-acceptance](backlog/BL-b41-acceptance.md)；第 33 批 Coding 与材料恢复闭环本人验收见 [BL-batch33-acceptance](backlog/BL-batch33-acceptance.md)。第 32 批事项线、交办与结果回流、逐项认可见 [BL-b32-acceptance](backlog/BL-b32-acceptance.md)。不要把本节整体当作可立即验收或已获认可。
 
 第 39 批本人验收见[授权、人审与统一管理页的验收表](agent-approval/spec.md#batch-39-kickoff)和[项目建议的 Skill 使用与撤销](automation-recommender/spec.md#第-39-批证据)。随本批最终交付在隔离 Home 操作权限选择、授权管理及审批来源。
 
@@ -71,7 +71,7 @@
 
 ### 写后检查
 
-随第 24、31 批处理检查回执、展示与证明。
+随第 24、31 批处理检查回执、展示与证明。[BL-run-terminal-cleanup](backlog/BL-run-terminal-cleanup.md) 记终态清理的四个相邻消费者、失败措辞/运行视图一致性与 adapter 生命周期测试余项。
 
 
 ### Prologue 上游
@@ -81,7 +81,7 @@
 
 ### 记忆误记与默认设置
 
-Memory P0 已随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入 main；Memory P1（有界历史与恢复、导出 v2、历史正文单一写主人与通用关联对象适用条件）及短合同已随第 31 批落地。暖读延迟 [BL-1072](backlog/BL-1072.md)、总 token [BL-1073](backlog/BL-1073.md) 与[本人走查](backlog/BL-memory-own-app-walkthrough.md)继续跟踪；P2 按触发条件登记，2026-11-14 起整理、去重、衰减拟由 64-9 承接（[决定 46](post-anticorruption-roadmap/reference/decisions.md#decision-46)，待用户确认），主题导览按 [BL-memory-topic-guide](backlog/BL-memory-topic-guide.md) 触发。
+Memory P0 已随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入 main；Memory P1（有界历史与恢复、SDK 侧 Export v2、历史正文权威单一写主人与通用关联对象适用条件；Molis 信封保持 v1）及短合同已随第 31 批落地。暖读延迟 [BL-1072](backlog/BL-1072.md)、总 token [BL-1073](backlog/BL-1073.md) 与[本人走查](backlog/BL-memory-own-app-walkthrough.md)继续跟踪；三项产品边界（Molis 信封内嵌 SDK Export v2／`maxEntries` 分批、显示副本、直接旧 SDK 降写）记 [BL-memory-p1-residuals](backlog/BL-memory-p1-residuals.md)；P2 按触发条件登记，2026-11-14 起整理、去重、衰减拟由 64-9 承接（[决定 46](post-anticorruption-roadmap/reference/decisions.md#decision-46)，待用户确认），主题导览按 [BL-memory-topic-guide](backlog/BL-memory-topic-guide.md) 触发。
 
 
 ### 模型本身的能力

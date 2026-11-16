@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { KnowledgeCardStorePort, KnowledgePieceName } from "@molis-ai/molis-work-contracts/services/knowledge";
+import {
+  knowledgeRefFromDigestHex,
+  knowledgeSubjectHashInput,
+  type KnowledgeCardStorePort,
+  type KnowledgePieceName,
+} from "@molis-ai/molis-work-contracts/services/knowledge";
 import { WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { knowledgeErrors } from "./errors.js";
 
@@ -13,7 +18,7 @@ export function knowledgeRef(subject: ActionSubject): string;
 export function knowledgeRef(subject: ActionSubject, workspace: "allow"): string | null;
 export function knowledgeRef(subject: ActionSubject, workspace?: "allow"): string | null {
   if (workspace && subject.kind === WORKSPACE_FILE_SUBJECT_KIND) return null;
-  return `k${createHash("sha256").update(`${subject.kind}\u0000${subject.id}`).digest("hex").slice(0, 7)}`;
+  return knowledgeRefFromDigestHex(createHash("sha256").update(knowledgeSubjectHashInput(subject)).digest("hex"));
 }
 
 /** The pieces a call names, each by its subject or its ref; a ref is looked up among the project's cards. */

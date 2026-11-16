@@ -1,6 +1,6 @@
 # 场景搭建与渐进式 Onboarding：首次使用、新项目与任务设置
 
-状态：需求已整理（2026-10-27），整项尚未实现；2026-11-14 [第 12 批](../post-anticorruption-roadmap/reference/batches/12.md)（[#2061](https://github.com/molis-ai/molis-work/pull/2061)）交付了 ONB-37（代码目录的源码、配置、脚本与无后缀文本能读）与 ONB-44、ONB-46 的代码文件夹接续：采用时交给 Manifest 声明可承接的插件（`onboarding.takes`，Coding 首个声明），多来源补选与本人实走未做。本轮只整合需求、实际使用反馈、设置覆盖和依赖顺序，不开发产品。需求维护负责人：Codex；实施沿[演进计划](../post-anticorruption-roadmap/spec.md)的 F 轨统筹，其他轨道保留原归属，已按批次陆续实现（见本段开头的第 12 批交付）。产品目标完成程度为**内部完整**：用户表达用途后，获得真实可用的场景、配置和交互首页，完成第一件实际工作，并能调整、恢复和再次使用。文档完成不代表产品实现或验收通过。
+状态：需求已整理（2026-10-27），整项尚未实现；2026-11-14 [第 12 批](../post-anticorruption-roadmap/reference/batches/12.md)（[#2061](https://github.com/molis-ai/molis-work/pull/2061)）交付了 ONB-37（代码目录的源码、配置、脚本与无后缀文本能读）与 ONB-44、ONB-46 的代码文件夹接续：采用时交给 Manifest 声明可承接的插件（`onboarding.takes`，Coding 首个声明），多来源补选与本人实走未做；2026-11-15 [第 33 批](../post-anticorruption-roadmap/reference/batches/33.md)（[#2082](https://github.com/molis-ai/molis-work/pull/2082)）补齐了 §3.14 的材料、大清单与重启接续（ONB-35～46、C1～C14）：桌面分批进度清点与停止/继续、浏览器选件 IndexedDB 跨刷新保留、疑似含密钥文件默认扣留与三选一外发控制（`S-onboarding-secret-hold`）、五格进度漏斗与问题筛选、增量改范围与换模型「这次只做这些」卡及迟到旧结果丢弃、模型六分类恢复、采用前对账防重及进入 Coding 的轮次材料接续；本人验收集中记于 [BL-batch33-acceptance](../backlog/BL-batch33-acceptance.md)。本轮只整合需求、实际使用反馈、设置覆盖和依赖顺序，不开发产品。需求维护负责人：Codex；实施沿[演进计划](../post-anticorruption-roadmap/spec.md)的 F 轨统筹，其他轨道保留原归属，已按批次陆续实现（见本段开头的第 12、33 批交付）。产品目标完成程度为**内部完整**：用户表达用途后，获得真实可用的场景、配置和交互首页，完成第一件实际工作，并能调整、恢复和再次使用。文档完成不代表产品实现或验收通过。
 
 2026-10-27 用户决定：三项需求合进本书——场景与能力包搭建、参考 Adeptify 的动态渐进引导、覆盖全局与项目设置并推广到任务设置。秘书沿用**跨项目的个人助理**；各项目配置自己的**助理团**；首页允许 **AI 生成新的交互页面**，不限定为已有模块的排列。原 ONB-01～15 保留，新增标准接续编号。
 
@@ -440,3 +440,14 @@ node scripts/check-spec-coverage.mjs
 | 15 全局最优 | **插件**：第三方和官方沿同一 Blueprint／adopts，作者不写安装器；**平台**：复用 Runtime／Projects／动作授权，SDK 只做共同校验；**助理**：可读候选与生成草稿，采用仍由本人确认，不扩大身份；**各类平台能力**：08 Skill、05 呈现／资料、连接器、工作流程和成果库都沿主人合同，统一输入／MCP 不另开通路，观测／同步／团队本批不扩能力；**后续开发**：36 交角色层次，37 接页面运行，45 接引导与行业观察与写作／写代码两套场景，52 接个人事务与每日简报场景，26 接正式签包。选择共用声明而非按官方场景硬编码；代价是依赖没到时只能交合同证据，后续各批补真实路径，不把代价变成降低验收 |
 
 本批合同层验收用 [SPC-C01～08](../scene-and-page-contract/spec.md#141-本批合同层验收)，SPC-01～16、ONB-53～56 与 WBR-21～27 原行为标准保留。P-3a 具体 schema、事务与 ABA 验证见场景合同第 10.1 节。工程通过、最终真实路径与用户验收分别记；本节自身不宣布其中任何一级通过。
+
+<a id="batch-33-preflight"></a>
+
+## 12. 开工前检查与验证（路线书第 33 批：材料、大清单与重启接续）
+
+2026-11-15 开工前检查与验证记录，覆盖 `33-2`（ONB-35～46、C1～C14）与同批 `33-1`；完整 15 项结论合记于 [Coding 与 Agent 工作流优化需求书 §12](../coding-harness-optimization/spec.md#batch-33-preflight)。`BL-106`、`BL-107` 留归后续第 45／57 批按原排期处理，不随本批关闭。
+
+- **工程通过：** `tests/context-onboarding-batch33.test.ts`（4/4，覆盖 `ONB-35～46`、`C1～C11`）、`tests/security-invariants-onboarding-secrets.test.ts`（3/3，覆盖 `S-onboarding-secret-hold` 疑似密钥文件阻断外发与阻断导入）、`cargo +1.96.0 test context_director`（15/15，覆盖桌面 Tauri 大目录确定性遍历、分批进度事件、取消令牌、`resume_offset` 继续清点无重无漏及 `total_entries / skipped_reasons / ignored_rules` 统计，`C4`）、`tests/sdk-ui-markup.test.ts`（8/8，覆盖五格漏斗、五格进度条 `aria-label`、增量改范围卡、`.env* -> ENV` 原语及工作台独立样式表覆盖）。
+- **实操（自动化浏览器）：** `tests/context-onboarding-recovery.e2e.test.ts`（2/2，覆盖组件板 `#recovery-closures` 中英文、1440／1024／390／320 浅深双色布局与无裸中文审计，以及 `/onboarding` 浏览器上传 IndexedDB 跨刷新保留、桌面目录 `resume_offset` 继续清点、`.env* -> ENV` 标签、疑似密钥选择、五格核对漏斗与增量改范围卡）、`tests/onboarding-journey.e2e.test.ts`（14/14）。
+- **本人验收：** 未执行（含 `ONB-49[人工]`），集中登记于 [BL-batch33-acceptance](../backlog/BL-batch33-acceptance.md)。
+

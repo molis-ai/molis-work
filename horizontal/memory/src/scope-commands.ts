@@ -11,7 +11,7 @@ import { memoryErrors } from "./errors.js";
 import { belongsToMemorySession } from "./classification.js";
 import { fromEntryMeta } from "./facts.js";
 import { isExpired, personOnly, placeOf, visibleTo } from "./places.js";
-import { packageFingerprint, readPackage } from "./shapes.js";
+import { MEMORY_PACKAGE_VERSION, packageFingerprint, readPackage } from "./shapes.js";
 
 export interface Located { scope: MemoryScope; owner: string; entry: MemoryBackendEntry; meta: MemoryMetaRecord; project?: string | null }
 type ClearPlan = { scope: MemoryScope; owner: string; parts: Array<{ scope: MemoryScope; owner: string } & AgentMemoryScopePreview>;
@@ -261,7 +261,7 @@ export class MemoryScopeCommands {
     }
     if (selected.some(one => this.ports.hidden(one.scope, one.owner, one.entry.memory_id)))
       throw memoryErrors.conflict("导出期间记忆已被遗忘，没有生成记忆包");
-    return { format: "molis.memory", version: /* @version format.memory.export */ 1, exported_at: this.ports.now().toISOString(), scope, entries, redactions: [...redactions].map(([kind, count]) => ({ kind, count })) };
+    return { format: "molis.memory", version: MEMORY_PACKAGE_VERSION, exported_at: this.ports.now().toISOString(), scope, entries, redactions: [...redactions].map(([kind, count]) => ({ kind, count })) };
   }
 
   /**
@@ -289,9 +289,14 @@ export class MemoryScopeCommands {
           const located = (await this.located(child, scope, where.owner)).find(one => one.entry.memory_id === res.memory!.memory_id);
           if (located) {
             const state = item.state.disabled ? "disabled" : "paused";
-            const reason = (item.state.disabled ? item.state.disabled.reason : item.state.paused?.reason) ?? (state === "disabled" ? "你停用了" : "依据当前不可用");
+            const rawReason = item.state.disabled ? item.state.disabled.reason : item.state.paused?.reason;
+            const reason = rawReason?.trim() || (state === "disabled" ? "你停用了" : "依据当前不可用");
             const req = { scope, owner: where.owner, memory_id: located.entry.memory_id, ...this.ports.operations.formal(child, located, state), reason };
-            await (state === "disabled" ? this.ports.backend.withCaller(child).disable(req) : this.ports.backend.withCaller(child).pause(req));
+            const updated = await (state === "disabled" ? this.ports.backend.withCaller(child).disable(req) : this.ports.backend.withCaller(child).pause(req));
+            this.ports.ledger.transaction(() => {
+              const mark = this.ports.operations.find(child, `${state}:${located.entry.memory_id}`);
+              if (mark) this.ports.operations.committed(child, mark, { memory_id: updated.memory_id, version: updated.version });
+            });
           }
         }
         return res;

@@ -35,7 +35,7 @@ export interface PlansClient {
 }
 
 type PlanField<Kind extends "input" | "textarea"> = { node: HTMLLabelElement; input: HTMLElementTagNameMap[Kind] };
-type StepFields = { title: HTMLInputElement; acceptance: HTMLTextAreaElement; after: HTMLInputElement };
+type StepFields = { title: HTMLInputElement; acceptance: HTMLTextAreaElement; after: HTMLInputElement; points: HTMLInputElement; estimateReason: HTMLInputElement; parent?: number; basePoints?: number; baseSource?: "agent" | "human" };
 
 /** The plan being edited: its inputs, and what it was opened from. */
 interface Editor {
@@ -61,7 +61,7 @@ interface Plans {
   renderKey: string;
 }
 
-type EditedStep = { title: string; acceptance: string; after?: number[] };
+type EditedStep = { title: string; acceptance: string; after?: number[]; parent?: number; story_points?: number; estimate_source?: "agent" | "human"; estimate_reason?: string };
 
 const ENDED = ["completed", "failed", "stopped", "cancelled"];
 
@@ -91,6 +91,11 @@ function describe(_L: PlanPorts["translate"], parent: HTMLElement, content: Codi
   for (const [index, step] of content.steps.entries()) {
     const item = el("li");
     item.append(el("p", step.title), el("p", uiText.text("coding.board.acceptance", { acceptance: step.acceptance })));
+    if (step.story_points !== undefined) {
+      const src = step.estimate_source === "human" ? uiText.text("coding.board.points-by-user") : uiText.text("coding.board.points-by-agent");
+      const line = [uiText.text("coding.board.points", { points: step.story_points }), src, step.estimate_reason || "", step.story_points >= 13 ? uiText.text("coding.board.split-hint") : ""].filter(Boolean).join(" · ");
+      item.append(el("p", line, "coding-plan-points-line"));
+    }
     if (index && step.after) item.append(el("p", step.after.length ? uiText.text("coding.plan.after", { steps: step.after.join(uiText.text("coding.list.joiner")) }) : uiText.text("coding.plan.after-none-long"), "coding-plan-after"));
     list.append(item);
   }
@@ -100,7 +105,7 @@ function describe(_L: PlanPorts["translate"], parent: HTMLElement, content: Codi
 }
 
 /** The plan as the editor compares it with what it was opened from. */
-const shape = (content: Partial<CodingPlanContent> | undefined) => JSON.stringify({ title: content?.title || "", steps: (content?.steps || []).map(step => ({ title: step.title || "", acceptance: step.acceptance || "", ...(step.after ? { after: step.after } : {}) })), blockers: content?.blockers || "", change_reason: content?.change_reason || "" });
+const shape = (content: Partial<CodingPlanContent> | undefined) => JSON.stringify({ title: content?.title || "", steps: (content?.steps || []).map(step => ({ title: step.title || "", acceptance: step.acceptance || "", ...(step.after ? { after: step.after } : {}), ...(step.parent !== undefined ? { parent: step.parent } : {}), ...(step.story_points !== undefined ? { story_points: step.story_points } : {}), ...(step.estimate_reason ? { estimate_reason: step.estimate_reason } : {}) })), blockers: content?.blockers || "", change_reason: content?.change_reason || "" });
 
 // A step's waits are typed as earlier step numbers: empty keeps the default (the step before), 无 means none.
 const afterOf = (text: string): number[] | undefined => {
@@ -112,9 +117,21 @@ const afterOf = (text: string): number[] | undefined => {
 const afterText = (_L: PlanPorts["translate"], after: readonly number[] | undefined) => after === undefined ? "" : after.length ? after.join(uiText.text("coding.list.joiner")) : uiText.text("coding.plan.none");
 
 function values(editor: Editor): CodingPlanContent {
-  const steps: EditedStep[] = editor.steps.map(step => {
+  const steps: EditedStep[] = editor.steps.map((step, index) => {
     const after = afterOf(step.after.value);
-    return { title: step.title.value, acceptance: step.acceptance.value, ...(after === undefined ? {} : { after }) };
+    const rawPoints = step.points.value.trim();
+    const parsedPoints = rawPoints ? Number(rawPoints) : undefined;
+    const reason = step.estimateReason.value.trim();
+    const estimateSource = parsedPoints === undefined ? undefined : parsedPoints !== step.basePoints ? "human" as const : (step.baseSource ?? "human" as const);
+    const parent = step.parent !== undefined && step.parent >= 1 && step.parent < index + 1 ? step.parent : undefined;
+    return {
+      title: step.title.value,
+      acceptance: step.acceptance.value,
+      ...(after === undefined ? {} : { after }),
+      ...(parent === undefined ? {} : { parent }),
+      ...(parsedPoints === undefined ? {} : { story_points: parsedPoints, estimate_source: estimateSource }),
+      ...(parsedPoints !== undefined && reason ? { estimate_reason: reason } : {}),
+    };
   });
   return { title: editor.title.value, steps, blockers: editor.blockers.value, change_reason: editor.reason.value };
 }
@@ -131,9 +148,13 @@ function remember(state: Plans) {
   } catch { /* storage closed: the edits stay in the dialog */ }
 }
 
-// Reordering or removing steps renumbers them; every typed wait follows its step, and a wait on a removed step is dropped.
+// Reordering or removing steps renumbers them; every typed wait and parent follows its step, and a removed or later parent is dropped.
 function renumber(state: Plans, editor: Editor, map: (n: number) => number | null) {
-  for (const step of editor.steps) {
+  for (const [index, step] of editor.steps.entries()) {
+    if (step.parent !== undefined) {
+      const nextParent = map(step.parent);
+      step.parent = nextParent !== null && nextParent < index + 1 ? nextParent : undefined;
+    }
     const after = afterOf(step.after.value);
     if (!after?.length) continue;
     const next = after.map(map).filter((n): n is number => n !== null);
@@ -159,9 +180,15 @@ function addStep(state: Plans, editor: Editor, steps: HTMLElement, value: Edited
   const after = field(uiText.text("coding.plan.after-field"), afterText(readText, value.after), "input");
   after.input.inputMode = "numeric";
   after.node.dataset.codingPlanAfter = "";
-  const entry: StepFields = { title: title.input, acceptance: acceptance.input, after: after.input };
+  const points = field(uiText.text("coding.plan.points-field"), value.story_points !== undefined ? String(value.story_points) : "", "input");
+  points.input.inputMode = "numeric";
+  points.input.placeholder = "1, 2, 3, 5, 8, 13, 21";
+  points.node.dataset.codingPlanPoints = "";
+  const estimateReason = field(uiText.text("coding.plan.points-reason-field"), value.estimate_reason || "", "input");
+  estimateReason.node.dataset.codingPlanPointsReason = "";
+  const entry: StepFields = { title: title.input, acceptance: acceptance.input, after: after.input, points: points.input, estimateReason: estimateReason.input, ...(value.parent !== undefined ? { parent: value.parent } : {}), basePoints: value.story_points, baseSource: value.estimate_source };
   editor.steps.push(entry);
-  row.append(title.node, acceptance.node, after.node);
+  row.append(title.node, acceptance.node, after.node, points.node, estimateReason.node);
   row.append(button(state, uiText.text("coding.plan.move-up"), () => {
     const index = editor.steps.indexOf(entry), above = editor.steps[index - 1];
     if (index > 0 && above) {

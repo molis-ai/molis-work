@@ -151,14 +151,23 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
     if (refocus) plusAnchor?.focus({ preventScroll: true });
   };
   ["pointerdown", "focusin"].forEach((type) => document.addEventListener(type, (event) => { if (!plusMenu.contains(event.target) && !plusAnchor?.contains(event.target)) closePlus(false); }));
+  // Where a plugin is open, as seen from a column: the ＋ list and the start page say the same (PFG-24).
+  const placeText = (plugin, paneId) => {
+    const at = Object.hasOwn(SIDE_OPENED, plugin) ? state.side.tabs.some((tab) => tab.itemId === SIDE_OPENED[plugin]) && { side: true } : ops.locate(state, plugin);
+    return !at ? "" : at.side ? globalThis.t.text("workbench.tab-workspace-menus.right") : at.paneId === paneId ? globalThis.t.text("workbench.tab-workspace-menus.pane") : globalThis.t.text("workbench.tab-workspace-menus.pane-n", { n: ops.paneNumber(state, at.paneId) });
+  };
+  /* The start page (the top strip's ＋) says what this list says, while the top strip's own ＋ is put away (specs/work-line §6.5):
+     where an open plugin is, seen from the focused column, and what was just closed. */
+  const startPage = {
+    placeOf: (plugin) => placeText(plugin, state.focusedPaneId),
+    recent: () => pluginGroups.recent().map((entry) => ({ plugin: entry.record.plugin, title: entry.record.tab ? entry.record.title : ops.pluginTitle(entry.record.plugin) })),
+    reopen: (index) => { const entry = pluginGroups.recent()[index]; if (entry) { column = "main"; pluginGroups.reopen(entry); } },
+  };
   const openPlusMenu = (paneId, anchor) => {
     if (plusMenu.matches(":popover-open")) { closePlus(true); return; }
     plusAnchor = anchor; anchor.setAttribute("aria-expanded", "true");
     const go = (run) => () => { closePlus(false); state.focusedPaneId = paneId; column = "main"; run(); };
-    const where = (plugin) => {
-      const at = Object.hasOwn(SIDE_OPENED, plugin) ? state.side.tabs.some((tab) => tab.itemId === SIDE_OPENED[plugin]) && { side: true } : ops.locate(state, plugin);
-      return !at ? "" : at.side ? globalThis.t.text("workbench.tab-workspace-menus.right") : at.paneId === paneId ? globalThis.t.text("workbench.tab-workspace-menus.pane") : globalThis.t.text("workbench.tab-workspace-menus.pane-n", { n: ops.paneNumber(state, at.paneId) });
-    };
+    const where = (plugin) => placeText(plugin, paneId);
     const row = ({ id }) => {
       const name = ops.pluginTitle(id), place = where(id), wrap = document.createElement("div"), beside = document.createElement("button");
       const item = menuRow(name, tabIcon(id), go(() => openPlugin(id)), { key: "open-" + id, data: { plusOpen: id } });

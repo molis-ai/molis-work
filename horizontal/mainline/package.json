@@ -1,0 +1,31 @@
+{
+  "name": "@molis-ai/molis-work-service-mainline",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The mainline service: reads what the event registrants and the background-task providers of a project say right now, and runs a task's own command after asking its provider again. Stores nothing.",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
+  }
+}

@@ -392,6 +392,9 @@ test("EVD-20: a library at Goals' version 1 is taken to the current version with
     objects.push("planning_method_packs", ...version1Triggers.keys());
     before.prepare("UPDATE plugin_project_databases SET version=1,tables_json=? WHERE plugin_id=?").run(JSON.stringify(objects.sort()), goalsManifest.plugin_id);
     const count = (db: DatabaseSync, table: string) => Number((db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n);
+    // The version 3 library really has a method row: the 3→4 step drops the table and its data, not only an empty shape.
+    before.exec("INSERT INTO planning_method_packs(project_id, method_id, version, enabled, pack_json, created_at, updated_at) SELECT project_id, 'method-1', 1, 1, '{}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z' FROM boards LIMIT 1");
+    assert.equal(count(before, "planning_method_packs"), 1);
     const judgments = count(before, "goal_work_event_judgments"), conclusions = count(before, "goal_event_requirement_conclusions");
     assert.ok(judgments > 0);
     assert.deepEqual(runSqliteUpgrade(before, ":memory:", PROJECT_DATABASE_BASELINE), { from: 3, to: PROJECT_DATABASE_BASELINE.version });

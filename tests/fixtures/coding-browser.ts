@@ -35,7 +35,7 @@ export async function openCoding(t: TestContext, before = "") {
       if(method==='PATCH'&&hold.slow)return new Promise(resolve=>setTimeout(resolve,hold.slow)).then(()=>originalFetch(input,init));
       const fake=fakes.find(one=>one.method===method&&path.includes(one.path));
       if(fake)return Promise.resolve(new Response(JSON.stringify(fake.body),{status:200,headers:{'content-type':'application/json'}}));
-      if(method==='GET'&&path.endsWith('/api/plugins/io.molis.work.coding/state'))stateReads++;
+      if(method==='GET'&&(path.endsWith('/api/plugins/io.molis.work.coding/state')||path.includes('/api/plugins/io.molis.work.coding/state?')))stateReads++;
       const read=/\\/api\\/plugins\\/io\\.molis\\.work\\.coding\\/sessions\\/([^/?]+)\\?window=6$/.exec(path);
       const create=method==='POST'&&path.endsWith('/api/plugins/io.molis.work.coding/sessions');
       const first=method==='GET'&&read&&decodeURIComponent(read[1])!==hold.except;

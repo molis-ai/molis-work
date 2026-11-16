@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, realpath, readFile, writeFile, rename, readdir, rm } from 'node:fs/promises';
 import { join, relative, isAbsolute } from 'node:path';
-import { collectRun, fillSkillBody, prepareSkillIntent, type ExactRef, type Runtime, type ScenarioPack, type Skill, type ToolRunner } from '@prologue/sdk';
+import { DEFAULT_CONTEXT_WINDOW_TOKENS, collectRun, fillSkillBody, prepareSkillIntent, type ExactRef, type Runtime, type ScenarioPack, type Skill, type ToolRunner } from '@prologue/sdk';
 import { MAX_COMPOSED_INSTRUCTION_CHARS, stageInstructions } from './prologue-node-kit.js';
+import { runModelParams } from './prologue-run-params.js';
 import type { PrologueModelConfiguration } from './prologue.js';
 import type { ReviewDecisionControl } from '../review-decisions.js';
 
@@ -202,9 +203,19 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
       // Recheck after awaits: two starts cannot acquire the same directory.
       if (closing || current) throw new Error('This build already has an active run');
       const abort = new AbortController();
+      const windowTokens = model.context_tokens ?? DEFAULT_CONTEXT_WINDOW_TOKENS;
+      const effort = model.reasoning_effort ? request.reasoningEffort : undefined;
+      const rawCeiling = model.thinking ? Math.max(MAX_OUTPUT_TOKENS[request.role], 32_768) : MAX_OUTPUT_TOKENS[request.role];
+      const outputCeiling = Math.min(rawCeiling, Math.max(1_024, Math.floor(windowTokens / 2)));
+      const modelParams = runModelParams(model, { max_output_tokens: outputCeiling }, effort);
       const record: BuilderAgentRecord = { id: randomUUID(), role: request.role, promptVersion: request.promptVersion,
         contractRevision: request.contractRevision, instruction: request.instruction, input: request.task, output: '',
-        configuredModel: model.model, reportedModels: [], phase: 'running', startedAt: new Date().toISOString(), activity: [], usage: [] };
+        configuredModel: model.model, reportedModels: [],
+        ...(model.thinking ? { thinking: model.thinking } : {}),
+        ...(effort ? { reasoningEffort: effort } : {}),
+        maxOutputTokens: modelParams.maxOutputTokens ?? outputCeiling,
+        windowTokens,
+        phase: 'running', startedAt: new Date().toISOString(), activity: [], usage: [] };
       current = { request, abort, record };
       const configuration = JSON.stringify(model);
       const guard = async () => {
@@ -246,7 +257,8 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
             instructionsRef, tools }).ref);
           abort.signal.throwIfAborted();
           const started = await sdk.startAgentRun({ session, rootRef: authorized.ref, grants: { toolNames: tools, paths: request.role === 'coder' ? ['.'] : [] },
-            start: { protocol: model.protocol, endpoint: model.endpoint, model: model.model, credentialRef, params: { maxOutputTokens: MAX_OUTPUT_TOKENS[request.role] },
+            context: { windowTokens },
+            start: { protocol: model.protocol, endpoint: model.endpoint, model: model.model, credentialRef, params: modelParams,
               timeoutMs: options.modelCallTimeoutMs ?? MODEL_CALL_LIMIT_MS[request.role],
               ...(model.prompt_cache && model.prompt_cache !== 'off' ? { promptCache: model.prompt_cache } : {}),
               messages: [{ role: 'user', text: request.task }], ...(images.length ? { attachments: images.map(ref => ({ ref, as: 'original' as const })) } : {}) },

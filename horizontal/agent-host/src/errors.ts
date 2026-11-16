@@ -27,6 +27,7 @@ export const agentErrors = defineErrorCodes("agent", {
   offer_unknown: "not_found",
   pending_not_open: "invalid",
   pending_unknown: "invalid",
+  pinned_revision_mismatch: "conflict",
   review_already_decided: "invalid",
   review_expired: "invalid",
   review_not_approved: "invalid",

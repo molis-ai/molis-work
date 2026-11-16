@@ -54,11 +54,13 @@ export async function controlAssistantWork(work: StoredWork, control: Exclude<As
     if (control.kind !== "stop") await assistantWorkEnding(host, work)?.read().then(state => {
       if (state?.lifecycle === "ending" || state?.lifecycle === "ended") throw assistantErrors.state("原工作已经停止，请先重新授权");
     });
-    if (!closeForDeletion && !running && !wait?.wait && !activeChildren.length && !retry && !(control.kind === "stop" && ports.delegations.isHandingBack(work.work_id))) throw assistantErrors.state("这项工作当前没有在执行或等待的工作");
+    if (!closeForDeletion && !running && !wait?.wait && !activeChildren.length && !retry && !(control.kind === "stop" && (ports.delegations.isHandingBack(work.work_id) || work.step_gate))) throw assistantErrors.state("这项工作当前没有在执行或等待的工作");
     const finish = control.kind === "stop" ? await beginAssistantWorkEnds(host, ports.store, [work, ...children], closeForDeletion ? "deleted" : "stopped", caller) : undefined;
     const effect = assistantEndControl(ports.store, work, caller);
     await effect.beforeEffect(); effect.assertCurrent();
     ports.continuations.invalidateInput(work.work_id);
+    // A stop also takes back the step held for the person's yes (PWA-156): nothing asks any more.
+    if (control.kind === "stop" && work.step_gate) ports.store.update(ports.actorId, work.work_id, null, { step_gate: undefined }, false);
     if (running || wait?.wait) ports.store.update(ports.actorId, work.work_id, null, { continuation_hold: control.kind === "resume" ? undefined : control.kind === "pause" ? "paused" : "stopped" }, false);
     if (control.kind === "stop") {
       await ports.delegations.hold(work, effect);

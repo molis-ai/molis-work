@@ -31,7 +31,7 @@ for (const restart of [false, true]) test(`ASC-09 ASC-18 ASC-25 ASC-33: the Assi
   }, undefined, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
   const sent = await home.web.post<AssistantSendResult>("/api/assistant/send", { text: "帮我接入工作服务，完成后读取接入状态", request_id: crypto.randomUUID() });
   const review = await untilSetup(async () => (await read(home, sent.work.work_id)).reviews[0], "setup approval");
-  await home.web.post(`/api/assistant/works/${sent.work.work_id}/reviews/${review.review_id}`, { decision: "approve" });
+  await home.web.post(`/api/assistant/works/${sent.work.work_id}/reviews/${review.review_id}`, { decision: "approve", version: review.version });
   const waiting = await untilSetup(async () => { const view = await read(home, sent.work.work_id); return view.work.state === "waiting-input" && view.rounds[0]?.phase === "completed" ? view : undefined; }, "durable setup wait");
   assert.equal(waiting.rounds.length, 1);
   assert.match(authorization, /^[0-9a-f-]{36}$/);
@@ -95,15 +95,15 @@ test("ASC-33 ASC-34: latest Send holds the original setup; an explicit retain su
     return "已只读核对接入状态。";
   }, undefined, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
   const sent = await home.web.post<AssistantSendResult>("/api/assistant/send", { text: "接入工作服务后保存资料", request_id: crypto.randomUUID() });
-  const approve = async (reviewId: string) => home.web.post(`/api/assistant/works/${sent.work.work_id}/reviews/${reviewId}`, { decision: "approve" });
+  const approve = async (review: AssistantWorkView["reviews"][number]) => home.web.post(`/api/assistant/works/${sent.work.work_id}/reviews/${review.review_id}`, { decision: "approve", version: review.version });
   const initialReview = await untilSetup(async () => (await read(home, sent.work.work_id)).reviews[0], "initial setup approval");
-  await approve(initialReview.review_id);
+  await approve(initialReview);
   await untilSetup(async () => { const view = await read(home, sent.work.work_id); return view.work.state === "waiting-input" && view.rounds[0]?.phase === "completed" ? view : undefined; }, "initial wait");
   await home.web.post("/api/assistant/send", { work_id: sent.work.work_id, text: latest, request_id: crypto.randomUUID() });
   const retainedReview = await untilSetup(async () => (await read(home, sent.work.work_id)).reviews.find(review => review.review_id !== initialReview.review_id), "latest intent approval");
   assert.equal((await authorizationState(home, authorization)).commit_held, true);
   assert.match(JSON.stringify(model.requests[6]?.messages), new RegExp(latest));
-  await approve(retainedReview.review_id);
+  await approve(retainedReview);
   await untilSetup(async () => { const view = await read(home, sent.work.work_id); return view.work.state === "waiting-input" && view.rounds.length === 2 && view.rounds[1]?.phase === "completed" ? view : undefined; }, "new wait under latest intent");
   assert.notEqual((await authorizationState(home, authorization)).commit_held, true);
   assert.equal(model.requests.length, 9);

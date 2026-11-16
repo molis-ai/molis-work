@@ -1,5 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { codingIntentOptions } from "../../composer-labels.js";
+import { buildEnvironmentChecklistHtml } from "../../recovery-parts.js";
 import { el, errorMessage } from "../dom.js";
 import { renderDirectory } from "./directory.js";
 import { controls } from "./controls.js";
@@ -76,6 +78,7 @@ export function drawIntents(page: Page, result: StateRead) {
 /** The directories the person may run rounds in, as the composer's choice. */
 function drawWorkspaces(page: Page, result: StateRead) {
   const { q } = page, { s } = page;
+  const prevWorking = s.workspaceId || "";
   const selected = result.workspaces.find(item => item.workspace_id === s.workspaceId) || result.workspace || (result.workspaces.length === 1 ? result.workspaces[0] : null);
   const config = s.current ? s.configurations.get(s.current) : undefined;
   if (!config) s.workspaceId = selected?.workspace_id || "";
@@ -89,7 +92,8 @@ function drawWorkspaces(page: Page, result: StateRead) {
   }
   showWorkspace(page, selected?.canonical_path, uiText.text("coding.workspace.choose-first"));
   const choice = q<HTMLSelectElement>("[data-coding-workspace-choice]"), key = JSON.stringify(result.workspaces);
-  if (choice.dataset.options !== key) {
+  const workspacesChanged = choice.dataset.options !== key;
+  if (workspacesChanged) {
     choice.replaceChildren(...result.workspaces.map(item => {
       const option = el("option", item.canonical_path);
       option.value = item.workspace_id;
@@ -99,12 +103,55 @@ function drawWorkspaces(page: Page, result: StateRead) {
     choice.value = s.workspaceId;
   }
   if (!q<HTMLDialogElement>("[data-coding-workspace-dialog]").open) choice.value = s.workspaceId;
+  if (workspacesChanged || prevWorking !== s.workspaceId) page.refs.filesFace?.follow(s.workspaceId);
+}
+
+export function drawEnvironmentReadiness(page: Page, readiness: StateRead["environment_readiness"]) {
+  const { s, turns } = page;
+  const welcoming = turns.hasAttribute("data-coding-welcoming");
+  const matchesSelected = Boolean(readiness) && !s.worktree && (!s.workspaceId || readiness?.workspace_id === s.workspaceId);
+  if (welcoming) {
+    const html = matchesSelected ? buildEnvironmentChecklistHtml(readiness) : "";
+    let box = turns.querySelector<HTMLElement>(":scope > [data-coding-env-checklist]");
+    if (!html) {
+      box?.remove();
+      return;
+    }
+    if (!box) {
+      box = el("div", "", "coding-env-checklist");
+      box.dataset.codingEnvChecklist = "";
+      turns.append(box);
+    }
+    if (box.dataset.html !== html) {
+      box.dataset.html = html;
+      setContentHtml(box, html);
+    }
+    return;
+  }
+  turns.querySelector(":scope > [data-coding-env-checklist]")?.remove();
+  const mounted = turns.querySelector<HTMLElement>("[data-run] > [data-coding-env-checklist]");
+  if (!mounted) return;
+  const last = s.lastRun;
+  const matchesLastRun = Boolean(readiness)
+    && last?.frozen?.directories?.execution.kind !== "worktree"
+    && (!last?.frozen?.directory?.canonical_path || !readiness?.canonical_path || last.frozen.directory.canonical_path === readiness.canonical_path);
+  const html = matchesLastRun ? buildEnvironmentChecklistHtml(readiness) : "";
+  if (!html) {
+    mounted.remove();
+    return;
+  }
+  if (mounted.dataset.html !== html) {
+    mounted.dataset.html = html;
+    setContentHtml(mounted, html);
+  }
 }
 
 async function readState(page: Page) {
   const { composerModels } = page.refs, { s } = page;
   const before = s.current && s.state.sessions.find(item => item.session_id === s.current)?.title;
-  const result = await api<StateRead>(page, "/state");
+  const defaultOutput = s.state.workspaces?.find(item => Array.isArray(item.roles) && item.roles.includes("output"))?.workspace_id;
+  const path = s.workspaceId && s.workspaceId !== defaultOutput ? "/state?workspace_id=" + encodeURIComponent(s.workspaceId) : "/state";
+  const result = await api<StateRead>(page, path);
   s.state = result;
   s.stateLoaded = true;
   retitle(page, s.current, before, s.current && result.sessions.find(item => item.session_id === s.current)?.title);
@@ -115,6 +162,7 @@ async function readState(page: Page) {
   drawWorkspaces(page, result);
   drawIntents(page, result);
   applyConfiguration(page);
+  drawEnvironmentReadiness(page, result.environment_readiness);
   renderDirectory(page);
   controls(page);
 }

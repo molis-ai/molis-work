@@ -5,6 +5,8 @@ import { OBSERVATION_LIMITS, type ObservationCoverageState } from "@molis-ai/mol
 import { collectUnreferenced, resolveEvidence } from "./evidence.js";
 import type { ObservationKeys } from "./keys.js";
 import { clearProjectRows, purgePluginRows, type PluginPurge } from "./lifecycle.js";
+import { sweepExpiredRecords } from "./cleanup.js";
+import { readStoredSettings } from "./management-state.js";
 import type { CoverageKey, ObservationEnvironment, PendingRecord } from "./records.js";
 import { OBSERVATION_BASELINE, OBSERVATION_STORE } from "./schema.js";
 
@@ -46,12 +48,24 @@ export class ObservationWriter {
   private readonly cleared = new Set<string>();
   private readonly statements = new Map<string, StatementSync>();
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private paused: boolean | undefined;
   private closed = false;
 
   constructor(private readonly options: ObservationWriterOptions) {}
 
+  /** Whether the person has paused recording (loaded from `writer_state` on first library open). */
+  isPaused(): boolean {
+    if (this.paused === undefined) this.tryOpen();
+    return this.paused === true;
+  }
+
+  /** Synchronize the in-memory pause gate after `observation.settings.set@1` commits. */
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+  }
+
   enqueue(record: PendingRecord): void {
-    if (this.closed) return;
+    if (this.closed || this.isPaused()) return;
     const project = record.row.project_id;
     if (project && this.cleared.has(project)) {
       if (this.options.env.projectClass(project) === undefined) return;
@@ -196,6 +210,9 @@ export class ObservationWriter {
       if (state("open") === "1") this.gaps.push({ key: { ...WRITER_KEY, project_id: "" }, state: "lost", reason: "unknown_exit", started: state("last_write_at") ?? now, ended: now, count: 0 });
       db.prepare("INSERT INTO writer_state (key, value) VALUES ('open', '1') ON CONFLICT (key) DO UPDATE SET value = '1'").run();
       this.keys = this.options.keys(() => db.prepare("SELECT 1 FROM evidence_blobs LIMIT 1").get() !== undefined);
+      const stored = readStoredSettings(db);
+      this.paused = stored.paused;
+      try { sweepExpiredRecords(db, this.options.env.now()); } catch { /* retention sweep retries on next open */ }
       return this.db = db;
     } catch {
       return undefined;

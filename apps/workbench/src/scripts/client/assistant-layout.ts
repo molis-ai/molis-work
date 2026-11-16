@@ -38,6 +38,6 @@ export const ASSISTANT_LAYOUT_PART = String.raw`  // A narrow panel shows the si
   window.addEventListener("resize", () => { if (sideWidth()) sideChanged(); });
   const sideP = document.querySelector("[data-side-panel]"), sideB = sideP?.querySelector(":scope>[data-side-browser]"), root = document.body;
   const markShared = () => root.toggleAttribute("data-side-shared", root.dataset.sideOpen == "true" && !root.hasAttribute("data-side-solo") && !!sideB
-    && !sideP.hidden && !sideP.inert && !sideB.hidden && !island.parentElement.hasAttribute("data-dock-hidden") && !!panel && !panel.hidden);
-  if ("MutationObserver" in window) { const o = new MutationObserver(markShared); for (const n of [root, sideP, sideB, island.parentElement, panel]) if (n) o.observe(n, { attributes: true, attributeFilter: ["data-side-open", "data-side-solo", "hidden", "inert", "data-dock-hidden"] }); }
+    && !sideP.hidden && !sideP.inert && !sideB.hidden && !island.closest(".workbench-bar").hasAttribute("data-dock-hidden") && !!panel && !panel.hidden);
+  if ("MutationObserver" in window) { const o = new MutationObserver(markShared); for (const n of [root, sideP, sideB, island.closest(".workbench-bar"), panel]) if (n) o.observe(n, { attributes: true, attributeFilter: ["data-side-open", "data-side-solo", "hidden", "inert", "data-dock-hidden"] }); }
   markShared();`;

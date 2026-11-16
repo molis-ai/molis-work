@@ -117,7 +117,7 @@ export async function readAssistantPolicy(host: MolisWorkLocalHost, owner: Assis
   const action: ExactActionReference = { capability_id, version, provider_id };
   const row = await assistantActionPolicyView(host, owner, reference, action);
   if (!row) {
-    const policy = owner.actionPolicies(actor).forAction(id);
+    const policy = owner.policies.read(actor).forAction(id);
     if (!change && (!policy.enabled || policy.confirm_always)) return { ...assistantPolicyEntry(id, policy), availability: "unavailable", changes: [] };
     throw missing();
   }

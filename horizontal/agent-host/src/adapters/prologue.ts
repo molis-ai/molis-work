@@ -33,6 +33,7 @@ import { inputsPort } from "./prologue-inputs.js";
 import { settleProloguePending } from "./prologue-stream.js";
 import { guardedCheckpoints, guardedRecovery, guardedSubagents, prologueDescriptor, PROLOGUE_RUNTIME_ID } from "./prologue-adapter-capabilities.js";
 import type { PrologueAdapterOptions, PrologueAdapterPorts, PrologueRuntimePort } from "./prologue-ports.js";
+import { applyUnknownCommandOutcomes } from "./prologue-plan-steps.js";
 import { isEnded, PrologueRunStore } from "./prologue-run-store.js";
 import { startPrologueRun } from "./prologue-run-start.js";
 
@@ -48,6 +49,48 @@ export type {
   PrologueRuntimePort,
   PrologueStartInput,
 } from "./prologue-ports.js";
+
+async function readOpenStepCounts(
+  readStepBoard: PrologueRuntimePort["readStepBoard"],
+  planned: AgentRunRef | undefined,
+): Promise<AgentSessionStatus["steps"]> {
+  if (!planned || !readStepBoard) return undefined;
+  try {
+    const board = await readStepBoard(planned);
+    const open = board && !board.terminal
+      ? board.nodes.filter(node => !node.scope_removed && (node.unknown_outcome || !["succeeded", "failed", "cancelled"].includes(node.state)))
+      : [];
+    const count = (kind: string) => open.filter(node => node.owner?.kind === kind).length;
+    return open.length ? { mine: count("person"), subtasks: count("subtask"), unowned: count("none") } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function hydrateStartCommandReceipts(
+  readCommandOutput: PrologueRuntimePort["readCommandOutput"],
+  run: AgentRunRef,
+  view: AgentRunView,
+): Promise<void> {
+  if (!readCommandOutput || !view.command_outputs?.length) return;
+  const knownOutputs = new Set(view.command_outputs.map(ref => ref.call_id));
+  await Promise.all(view.activity.map(async item => {
+    if (item.name !== "start-command" || !knownOutputs.has(item.call_id) || /^exit \S+/.test(item.output ?? "")) return;
+    try {
+      const receipt = await readCommandOutput(run.session_id, { run_id: run.run_id, call_id: item.call_id });
+      const header = receipt.exit_code !== null
+        ? `exit ${receipt.exit_code}`
+        : receipt.timed_out || receipt.stop_reason === "timed-out"
+          ? "exit timed-out"
+          : receipt.cancelled || receipt.stop_reason === "cancelled"
+            ? "exit cancelled"
+            : "exit none";
+      item.output = item.output ? `${header}\n${item.output}` : header;
+    } catch {
+      // Receipt unreadable stays unknown; never synthesize success.
+    }
+  }));
+}
 
 /**
  * The only seam to Prologue.
@@ -173,15 +216,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const latest = record?.runs.at(-1);
     const planned = record ? [...record.runs].reverse().find(ref => this.#store.requireRun(ref.run_id).view.frozen.execution_plan) : projected?.planned;
     // Who holds the unfinished steps of the latest planned round: a directory shows what waits on the person.
-    let steps: AgentSessionStatus["steps"];
-    if (planned && this.#runtime.readStepBoard) {
-      try {
-        const board = await this.#runtime.readStepBoard(planned);
-        const open = board && !board.terminal ? board.nodes.filter(node => !["succeeded", "failed", "cancelled"].includes(node.state)) : [];
-        const count = (kind: string) => open.filter(node => node.owner?.kind === kind).length;
-        if (open.length) steps = { mine: count("person"), subtasks: count("subtask"), unowned: count("none") };
-      } catch { /* an unreadable graph shows no counts, never made-up ones */ }
-    }
+    const steps = await readOpenStepCounts(record ? async ref => (await this.read(ref)).step_board : this.#runtime.readStepBoard, planned);
     // A live run may end while the step graph is being read; sample its phase at return.
     const facts = record ?? projected!;
     const phase = record ? (latest ? this.#store.requireRun(latest.run_id).view.phase : null)
@@ -238,10 +273,12 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const record = this.#store.requireRun(run.run_id);
     await this.#memoryUsage.record(record, session.owner);
     const view = structuredClone(record.view);
+    await hydrateStartCommandReceipts(this.#runtime.readCommandOutput, run, view);
     if (view.frozen.execution_plan) {
       try {
         view.step_board = await this.#runtime.readStepBoard?.(run);
         if (!view.step_board) throw new Error("原步骤图不可读取");
+        view.step_board = applyUnknownCommandOutcomes(view, view.step_board);
       } catch { view.step_board_error = "原步骤回报暂不可读；不能据此判断完成情况。"; }
     }
     if (this.#runtime.readPendingQuestion) {
@@ -282,7 +319,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       if (later.some(view => view.frozen.execution_plan || !isEnded(view.phase))) throw agentErrors.session_busy("这一轮之后已有新的计划轮或仍在进行的一轮，它的计划图不再调整；请在最新的计划轮上调整");
       if (!current.step_board || current.step_board.terminal) throw agentErrors.session_busy("这一轮的计划图已经结束，不再调整；请调整计划后开始新一轮");
     }
-    return this.#runtime.collaboration!.revise(run, amendment, expectedVersion, actorId, () => this.#store.requireRun(run.run_id).state.turns);
+    await this.#runtime.collaboration!.revise(run, amendment, expectedVersion, actorId, () => this.#store.requireRun(run.run_id).state.turns);
+    const updated = await this.read(run);
+    if (!updated.step_board) throw new Error(updated.step_board_error ?? "原步骤图不可读取");
+    return updated.step_board;
   }
 
   async control(run: AgentRunRef, control: AgentRunControl): Promise<void> {

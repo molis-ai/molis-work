@@ -2,6 +2,7 @@ import { assistantErrors, whenThere } from "./assistant-errors.js";
 import type { WorkExecutor } from "./assistant-executor.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
+import { promptTitle } from "./assistant-work-title.js";
 
 /** The store as these steps use it: a work, its relations, and its executor once the session is known. */
 type SessionStore = Pick<AssistantStore, "get" | "update" | "relations">;
@@ -38,7 +39,7 @@ export async function adoptSession(store: SessionStore, actorId: string, work: S
 /** The executor's new session for a plugin-carried work that has none yet, linked to the work; opened in `mode` when one is given. */
 export async function openSession(store: SessionStore, actorId: string, work: StoredWork, executor: WorkExecutor, mode?: string, assertCurrent?: () => void): Promise<SessionWork> {
   if (work.executor.kind !== "plugin") throw assistantErrors.invalid("这项工作不由执行方插件承担");
-  const sessionId = await executor.createSession(work.title, mode);
+  const sessionId = await executor.createSession(promptTitle(work), mode);
   assertCurrent?.();
   const opened = store.update(actorId, work.work_id, null, { executor: { ...work.executor, session_id: sessionId } });
   store.relations.link(identity(opened), "session", { kind: executor.provider.session_kind, id: sessionId, revision: null }, `「${executor.provider.title}」的会话承接这项工作`);

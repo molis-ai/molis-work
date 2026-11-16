@@ -3,7 +3,7 @@ import { createCodeIntelligence, unavailableSymbolIndex, unconfiguredSymbolIndex
 import { FIND_SYMBOL_HOST_TOOL, FIND_SYMBOL_TOOL, withSymbolTool } from "../code-intelligence/coding-tools.js";
 import { gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
 import { PrologueActionReviews } from "./prologue-action-reviews.js";
-import { prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
+import { pinnedMaterialRevisions, prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
 import type { RunDeps } from "./prologue-run.js";
 import type { RoundMcp } from "./prologue-round-mcp.js";
 import { actionWorkVerdict, workToolVerdict, type PrologueWorkDelegation } from "./prologue-work-delegation.js";
@@ -41,11 +41,12 @@ export function roundGateway(deps: Pick<RunDeps, "state" | "runtime" | "options"
       ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
     } } : {}),
   } } : input.action_gateway;
-  const gatewayTools = none || !gatewayForRun ? undefined : prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, reviews);
+  const pinnedRevisions = none ? undefined : pinnedMaterialRevisions(input.text_materials);
+  const gatewayTools = none || !gatewayForRun ? undefined : prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, reviews, pinnedRevisions);
   const actionTools = none ? undefined : gatewayTools ? { ...gatewayTools, scope: "gateway" }
     : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, input.character.tools.includes(SUGGEST_HOST_TOOL),
       // The symbol tool is part of this pack's identity (the catalog allows one registration per name and `prepare` compares content).
-      !none && input.root_path !== undefined && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL), reviews);
+      !none && input.root_path !== undefined && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL), reviews, pinnedRevisions);
   const gateway = gatewayForRun && { ...gatewayForRun, declare: gatewayTools?.declare };
   if (gateway) {
     state.gatewayRuns.set(input.session_id, gateway);

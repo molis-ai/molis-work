@@ -16,8 +16,9 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     lostSends.delete(intent.body.request_id);
     if (unsent(intent.unsentKey).id === intent.body.request_id) store.set(intent.unsentKey, null);
   };
-  const sendTarget = () => curId || JSON.stringify([project?.id, nextScope, nextExec, nextMode, nextChar]);
+  const sendTarget = () => curId || JSON.stringify([project?.id, nextScope, nextExec, nextMode, nextChar, curEvent]);
   const retainSent = (work) => {
+    nameMain(work);
     const index = works.findIndex(row => row.work_id === work.work_id);
     const cached = works[index];
     if (cached && (cached.draft_revision > work.draft_revision || writing.has(work.work_id))) work = { ...work, draft: cached.draft, draft_revision: cached.draft_revision };
@@ -37,7 +38,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       const visible = sendTarget() === intent.target && host.route("/api/assistant/send") === intent.route;
       retainSent(res.work); takeMaterials(intent, visible);
       if (visible) {
-        if (!intent.work) handedOver = true; curId = res.work.work_id; remember(); openTab(curId);
+        if (!intent.work) handedOver = true; fresh = false; curId = res.work.work_id; remember(); if (!curEvent) openTab(curId);
         if (pendingChar === intent.character) pendingChar = undefined;
         if (nextChar === intent.character) nextChar = null;
         await reload();
@@ -77,7 +78,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     return state === "sent";
   }
   async function post(text, extra = {}) {
-    const target = sendTarget(), route = host.route("/api/assistant/send"), unsentKey = scoped("unsent") + ":" + encodeURIComponent(curId || "new"), kept = unsent(unsentKey);
+    const target = sendTarget(), route = host.route("/api/assistant/send"), unsentKey = scoped("unsent") + ":" + encodeURIComponent(curId || (curEvent ? "event:" + curEvent : "new")), kept = unsent(unsentKey);
     const pending = [...lostSends.values()].filter(one => one.body.text === text);
     let again = extra.named ? undefined : pending.find(one => one.target === target && one.route === route && one.body.submission_id === extra.request_id)
       || (!curId ? pending.find(one => !one.work && (one.target !== target || one.route !== route)) : undefined);
@@ -98,7 +99,13 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       body.executor = { kind: "plugin", plugin_id: nextExec };
       const session = executorSession(nextExec);
       if (session) body.executor_session_id = session; else if (nextMode) body.mode = nextMode;
-    } else body.scope = nextScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" };
+    } else {
+      body.scope = nextScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" };
+      // Said with no work in front: the main conversation with this counterpart (specs/work-line §3.2), unless ＋ began a separate work.
+      if (!fresh && !extra.named && !curEvent) body.main = true;
+    }
+    // Said in an event's tab with no conversation yet: a new work in this project, done for that event (WLN-12).
+    if (!curId && curEvent && project) { body.scope = { kind: "project", project_id: project.id }; body.for_event = eventOf().subject; }
     if (!again && !extra.named) again = pending.find(one => one.target === target && one.route === route && contentOf(one.body) === contentOf(body));
     if (again) recovering = false;
     const intent = again?.body.text === text ? again
@@ -111,7 +118,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     const consumed = intent.target === target && intent.route === route;
     const here = () => sendTarget() === intent.target && host.route("/api/assistant/send") === intent.route;
     // The work a new work's Send made is where the words are now: the composer moves to it without writing them anywhere else.
-    const chooseSent = (work) => { if (!intent.work) handedOver = true; curId = work.work_id; remember(); openTab(curId); };
+    const chooseSent = (work) => { if (!intent.work) handedOver = true; fresh = false; curId = work.work_id; remember(); if (!curEvent) openTab(curId); };
     // A refused draft save has not submitted anything and must not discard an older uncertain request key.
     if (extra.before) { const revision = await extra.before; if (!again && typeof revision === "number") intent.body.draft_revision = revision; }
     problem = null; setPanel(true); scrollOwner()?.toLatest();

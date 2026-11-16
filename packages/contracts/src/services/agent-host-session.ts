@@ -141,10 +141,23 @@ export interface AgentStepReportAuthor {
   title?: string;
 }
 
+export interface AgentStepProgressSummary {
+  /** Weighted completion percentage (0..100), clamped below 100 while any in-scope leaf is incomplete (CHO-33). Null when zero in-scope leaves carry story points. */
+  weighted_percent: number | null;
+  completed_points: number;
+  total_points: number;
+  estimated_leaves: number;
+  unestimated_leaves: number;
+  completed_unestimated_leaves: number;
+  removed_scope_leaves: number;
+  removed_scope_points: number;
+}
+
 export interface AgentStepBoard {
   project_id: string;
   version: number;
   terminal: boolean;
+  progress_summary?: AgentStepProgressSummary;
   /** In execution order: dependencies first, the original plan order breaking ties. */
   nodes: Array<{
     id: string;
@@ -155,10 +168,24 @@ export interface AgentStepBoard {
     /** The SDK node title; a person's inserted step carries its own. */
     title?: string;
     depends_on?: string[];
+    parent_id?: string;
     /** Added by a person during the run, not part of the confirmed plan. */
     inserted?: boolean;
     /** The inputs this step was added for, as the runtime's board records them (pointers only; the session owns the inputs). Absent: none. */
     origins?: import("./agent-inputs.js").AgentInputRef[];
+    /** Positive Fibonacci story points (1, 2, 3, 5, 8, 13, 21, 34, ...) or null when unestimated (CHO-29). */
+    story_points?: import("./agent-host-start.js").AgentStoryPoints | null;
+    estimate_source?: import("./agent-host-start.js").AgentEstimateSource;
+    estimate_reason?: string;
+    /** Leaf completion fraction 0..1; succeeded is 1, running/stopped preserve reported progress < 1 (CHO-31..33). */
+    progress?: number;
+    progress_basis?: string;
+    /** Explicitly skipped by a person (remains in active denominator, unlike scope_removed) (CHO-32). */
+    skipped?: true;
+    /** Explicitly removed from scope (excluded from denominator, unlike unfinished stopped steps) (CHO-32). */
+    scope_removed?: true;
+    /** A command in this step ended with an unknown outcome; excluded from completion until a person checks it (BL-222). */
+    unknown_outcome?: true;
   }>;
 }
 
@@ -172,10 +199,18 @@ export type AgentStepAmendment =
    * `mine`: the person takes the new step on themselves. `origin`: the supplement the step is for, one input of this round
    * (the AI said it is a new task, and the person added it); the Host checks it is this round's and not taken back.
    */
-  | { kind: "insert"; after: string; title: string; acceptance: string; mine?: true; origin?: string }
+  | { kind: "insert"; after: string; title: string; acceptance: string; mine?: true; origin?: string; parent_id?: string; story_points?: import("./agent-host-start.js").AgentStoryPoints | null; estimate_source?: import("./agent-host-start.js").AgentEstimateSource; estimate_reason?: string }
   | { kind: "unblock"; node: string; note: string }
   | { kind: "move"; node: string; direction: "up" | "down" }
   /** Hand an unfinished step to the person themselves, or back to the round's session. */
   | { kind: "assign"; node: string; to: "me" | "session" }
   /** The person's own result on a step they hold. */
-  | { kind: "resolve"; node: string; state: "succeeded" | "failed"; note: string };
+  | { kind: "resolve"; node: string; state: "succeeded" | "failed"; note: string }
+  /** Set or clear Fibonacci story points on a step (CHO-29, CHO-35). */
+  | { kind: "estimate"; node: string; story_points: import("./agent-host-start.js").AgentStoryPoints | null; reason?: string }
+  /** Record partial progress (0..1) and its factual basis on a step (CHO-32). */
+  | { kind: "progress"; node: string; progress: number; basis: string }
+  /** Explicitly move a step out of scope so it leaves the weighted denominator with a recorded reason (CHO-32). */
+  | { kind: "remove-scope"; node: string; reason: string }
+  /** Reconcile a step whose command outcome was unknown: either confirm it completed or reset it to run again (BL-222). */
+  | { kind: "reconcile"; node: string; action: "confirm-done" | "rerun"; note: string };

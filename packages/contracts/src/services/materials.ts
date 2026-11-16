@@ -82,22 +82,32 @@ export interface MaterialSourceContent {
  * the same cases by its test `file_rule_matches_the_hosts`.
  */
 export function contextFileSkip(path: string): "ignored" | "secret" | "unreadable" | null {
-  const parts = path.split("/"), name = (parts.at(-1) ?? "").toLowerCase();
-  const ignoredFolders = ["node_modules", "vendor", "dist", "build", "target", "out", "coverage", "__pycache__", "venv", "pods", "carthage"];
-  if (parts.slice(0, -1).some(part => part.startsWith(".") || ignoredFolders.includes(part.toLowerCase()))) return "ignored";
-  // Hidden files that only say how a project is kept; any other hidden file may hold a credential and is not sent.
+  const parts = path.split("/"), name = (parts.at(-1) ?? "").toLowerCase(), envTpl = /^\.env\.(example|sample|template)$/u.test(name);
+  const ignored = ["node_modules", "vendor", "dist", "build", "target", "out", "coverage", "__pycache__", "venv", "pods", "carthage"];
+  if (parts.slice(0, -1).some(part => part.startsWith(".") || ignored.includes(part.toLowerCase()))) return "ignored";
   const hiddenKept = [".gitignore", ".gitattributes", ".editorconfig", ".dockerignore", ".prettierrc", ".eslintrc", ".nvmrc", ".node-version", ".tool-versions"];
-  if (/^\.env(\..*)?$/u.test(name) || /\.(pem|key|p12|pfx|keystore|jks)$/u.test(name) || /^id_(rsa|ed25519|ecdsa|dsa)(\.pub)?$/u.test(name)
-    || /^credentials.*\.json$/u.test(name) || /^service-account.*\.json$/u.test(name) || /^secrets?\.[a-z0-9]+$/u.test(name)
-    || /\.tfstate(\..*)?$/u.test(name) || /\.tfvars$/u.test(name)) return "secret";
-  if (name.startsWith(".") && !hiddenKept.some(kept => name === kept || name.startsWith(kept + "."))) return "ignored";
-  const extension = /\.([a-z0-9]+)$/u.exec(name)?.[1] ?? "";
-  const unreadable = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "heic", "heif", "ico", "icns", "psd", "sketch", "fig",
-    "mp3", "wav", "m4a", "aac", "aiff", "aif", "flac", "ogg", "mp4", "mov", "m4v", "webm", "avi", "mkv",
-    "zip", "gz", "tgz", "bz2", "xz", "7z", "rar", "tar", "dmg", "pkg", "iso", "jar", "war",
-    "exe", "dll", "so", "dylib", "a", "o", "obj", "class", "pyc", "wasm", "bin", "dat", "db", "sqlite", "sqlite3",
-    "woff", "woff2", "ttf", "otf", "eot", "doc", "xls", "xlsx", "ppt", "pptx", "numbers", "pages"];
-  return unreadable.includes(extension) ? "unreadable" : null;
+  if ((!envTpl && /^\.env(\..+)?$/u.test(name)) || /\.(pem|key|p12|pfx|keystore|jks|tfvars)$/u.test(name) || /\.tfstate(\..+)?$/u.test(name)
+    || /^(id_(rsa|ed25519|ecdsa|dsa)(\.pub)?|(credentials|service[-_]account|client_secret).*\.json|auth\.json|\.(npmrc|netrc|pypirc|pgpass)|secrets?\..+)$/u.test(name)) return "secret";
+  if (!envTpl && name.startsWith(".") && !hiddenKept.some(kept => name === kept || name.startsWith(kept + "."))) return "ignored";
+  const ext = /\.([a-z0-9]+)$/u.exec(name)?.[1] ?? "";
+  const bin = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "heic", "heif", "ico", "icns", "psd", "sketch", "fig", "mp3", "wav", "m4a", "aac", "aiff", "aif", "flac", "ogg", "mp4", "mov", "m4v", "webm", "avi", "mkv", "zip", "gz", "tgz", "bz2", "xz", "7z", "rar", "tar", "dmg", "pkg", "iso", "jar", "war", "exe", "dll", "so", "dylib", "a", "o", "obj", "class", "pyc", "wasm", "bin", "dat", "db", "sqlite", "sqlite3", "woff", "woff2", "ttf", "otf", "eot", "doc", "xls", "xlsx", "ppt", "pptx", "numbers", "pages"];
+  return bin.includes(ext) ? "unreadable" : null;
+}
+
+/**
+ * Which rule name (`node_modules`, `.git`, `.DS_Store`, ...) caused `contextFileSkip` to return `"ignored"`.
+ * Self-contained for the same reason as `contextFileSkip`: the onboarding page runs it as its source text.
+ */
+export function contextSkipRuleName(path: string): string {
+  const parts = String(path || "").split("/");
+  const ignoredFolders = ["node_modules", "vendor", "dist", "build", "target", "out", "coverage", "__pycache__", "venv", "pods", "carthage"];
+  for (const part of parts.slice(0, -1)) {
+    const low = part.toLowerCase();
+    if (part.startsWith(".")) return part;
+    if (ignoredFolders.includes(low)) return low;
+  }
+  const last = parts.at(-1) ?? "";
+  return last.startsWith(".") ? last : "";
 }
 
 /**

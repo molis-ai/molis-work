@@ -16,24 +16,34 @@ const send = (message) => {
   process.stdout.write(body);
 };
 
-const location = (line, character) => ({ uri: "file:///work/src/a.ts", range: { start: { line, character }, end: { line, character: character + 5 } } });
+const location = (uri, line, character) => ({
+  uri: process.env.FAKE_LSP_OVERRIDE_URI || uri || "file:///work/src/a.ts",
+  range: { start: { line, character }, end: { line, character: character + 5 } },
+});
 
 const answer = (message) => {
   const { id, method, params } = message;
   note(method ?? "notification");
   if (method === "initialize") {
-    send({ id, result: { capabilities: { definitionProvider: true, referencesProvider: true, documentSymbolProvider: true }, serverInfo: { name: "fake" } } });
+    const respond = () => send({ id, result: { capabilities: { definitionProvider: true, referencesProvider: true, documentSymbolProvider: true }, serverInfo: { name: "fake" } } });
+    const delayMs = Number(process.env.FAKE_LSP_DELAY_INIT_MS || "0");
+    if (delayMs > 0) setTimeout(respond, delayMs);
+    else respond();
     return;
   }
   if (method === "initialized") return;
   if (method === "textDocument/didOpen") { note(`opened:${params.textDocument.uri}`); return; }
   if (method === "textDocument/definition") {
     if (!initialized) { send({ id, error: { code: -32002, message: "not initialized" } }); return; }
-    send({ id, result: [location(2, 9)] });
+    if (process.env.FAKE_LSP_BAD_HEADER === "1") {
+      process.stdout.write("X-Broken-Header: nope\r\n\r\n");
+      return;
+    }
+    send({ id, result: [location(params?.textDocument?.uri, 2, 9)] });
     return;
   }
   if (method === "textDocument/references") {
-    send({ id, result: [location(8, 4), location(12, 2)] });
+    send({ id, result: [location(params?.textDocument?.uri, 8, 4), location(params?.textDocument?.uri, 12, 2)] });
     // A crash after the answer, so a test can see a restarted client open the same document again.
     if (process.env.FAKE_LSP_EXIT_AFTER_DEFINITION) setTimeout(() => { note("exited-after-definition"); process.exit(0); }, 10);
     return;

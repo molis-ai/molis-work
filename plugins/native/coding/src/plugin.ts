@@ -1,4 +1,5 @@
 import { syncBindings } from "./sync-binding.js";
+import { HOST_AGENT_CONTINUATION_READY_EVENT, type HostAgentContinuationReadyPayload } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   PluginAppContribution,
   PluginDefinition,
@@ -16,7 +17,8 @@ import { codingSurface } from "./routes.js";
 import { codingGoalTitles } from "./goal-titles.js";
 import { codingArtifactPreviewHandler } from "./artifact-preview.js";
 import { codingResultDocumentHandler } from "./results-document.js";
-import { codingHomeBackgroundTasksHandler } from "./home-background.js";
+import { codingBackgroundTasksHandler } from "./home-background.js";
+import { codingWorkEventsHandler } from "./work-events.js";
 import { CODING_INSTRUCTIONS } from "./prompts.js";
 
 /**
@@ -52,18 +54,26 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
       // (goal-titles.ts); the routes and the directory share this one cache.
       const sessions = new CodingSessionStore(database), goalTitles = codingGoalTitles(context);
       const surface = codingSurface(context, sessions, goalTitles);
-      // No round survives the Home process: what the Home lists as under way from before this process started was cut off
+      // No round survives the Home process: what the Home lists as under way from before this Home Host started was cut off
       // (home-background.ts). Stopping and starting Coding again is not a restart: it stops only this activation's background jobs
-      // (the follower and the wake loop, PG-038, S-52), while the round itself stays in the Home-level agent host. So the boundary is
-      // when this process started, not when this activation did.
-      const startedAt = new Date(Date.now() - process.uptime() * 1000).toISOString();
+      // (the follower and the wake loop, PG-038, S-52), while the round itself stays in the Home-level agent host. The platform stamps
+      // `host_started_at` from the Home Host instance (BL-540), so Coding never reads `process`.
+      if (!context.host_started_at) throw new Error("宿主没有提供启动时刻（host_started_at），Coding 无法判断后台中断边界");
+      const startedAt = context.host_started_at;
       return {
         kind: "app",
         sync:syncBindings(context),
         // The page's session directory is read from this store at render, not by the Host from Coding's tables.
         views: [codingUiView(() => toDirectoryEntries(sessions.list(context.project_id ?? ""), goalTitles.known)), codingSettingsContribution],
         routes: surface.routes,
-        actions: [...surface.actions, ...createCodingPresentationHandlers(context.project_id ?? "", sessions, context.actor_id), codingArtifactPreviewHandler, codingResultDocumentHandler(context), codingHomeBackgroundTasksHandler(context, sessions, startedAt)],
+        actions: [...surface.actions, ...createCodingPresentationHandlers(context.project_id ?? "", sessions, context.actor_id), codingArtifactPreviewHandler, codingResultDocumentHandler(context), codingBackgroundTasksHandler(context, sessions, startedAt), codingWorkEventsHandler(context, sessions)],
+        // A wait one of this installation's sessions was waiting on is over and it may go on: the Host tells only this
+        // installation (`host.agent.continuation.ready@1`), and Coding starts the session's next round itself (wake-loop.ts).
+        onEvent: (event, delivery) => {
+          if (event.event_type_id !== HOST_AGENT_CONTINUATION_READY_EVENT) return;
+          delivery.beforeEffect();
+          surface.continuationReady(event.payload as HostAgentContinuationReadyPayload);
+        },
       };
     },
     // The rounds' followers and the wake loop are the activation's jobs: the platform stops them before this runs (PG-038).

@@ -150,6 +150,7 @@ test("a work keeps what it used and produced; an edit by hand shows as changed a
   } finally { await f.close(); }
 });
 
+// PWA-136: a hand edit is not overwritten by an older pending change.
 test("an object edited by hand while a change to it waits for approval is not overwritten; the round shows the conflict", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { ...ref("fixture.notes.update"), input: { id: "n9", text: "assistant rewrite", expected_version: 1 } } }),

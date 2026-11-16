@@ -184,6 +184,7 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
       if (toggle.dataset.state === state) continue;
       toggle.dataset.state = state;
       tile.querySelector('.dock-keep').disabled = !added;
+      tile.querySelector('.rail-beside').disabled = !added;
       toggle.title = readText(added ? "workbench.immersive-shell.turn-off-project-its-data-stays-comes-back" : "workbench.immersive-shell.add-project");
       const label = readText(added ? "workbench.immersive-shell.remove-name" : "workbench.immersive-shell.add-name", { name: nameOf(id) });
       toggle.setAttribute('aria-label', label);

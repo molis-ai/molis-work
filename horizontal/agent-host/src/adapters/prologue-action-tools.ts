@@ -2,9 +2,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { DEFAULT_TOOL_LIMITS, type EffectOrigin, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
-import { ActionError, actionEffect, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AgentFrozenRole, AgentRunOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { capabilityInput, GATEWAY_TOOLS, offerWords } from "./prologue-action-gateway.js";
+import { ActionError, actionEffect, type ActionSubject, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { knowledgeRefFromDigestHex, knowledgeSubjectHashInput } from "@molis-ai/molis-work-contracts/services/knowledge";
+import type { AgentFrozenRole, AgentRunOffer, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { assertPinnedMaterialResult, capabilityInput, GATEWAY_TOOLS, offerWords, withPinnedKnowledgeRevision } from "./prologue-action-gateway.js";
 import { actionReads } from "./prologue-gateway-declared.js";
 import { actionDigest } from "../action-digest.js";
 import { afterWriteTool } from "./prologue-after-write.js";
@@ -28,11 +29,52 @@ export const SUGGEST_TOOL_PREFIX = "molis-suggest-";
 /** Below the SDK's tool observation limit (64 KiB), so a recorded suggestion is never truncated. */
 const SUGGEST_RESULT_BYTES = 32 * 1024;
 
+function knowledgeSubjectHashRef(subject: ActionSubject): string {
+  return knowledgeRefFromDigestHex(createHash("sha256").update(knowledgeSubjectHashInput(subject)).digest("hex"));
+}
+
+/** Build round-pinned revisions from text materials so mid-round `knowledge.read` on the same piece cannot silently mix two revisions (C13). */
+export function pinnedMaterialRevisions(materials: readonly AgentTextMaterial[] | undefined): ReadonlyMap<string, string> {
+  const map = new Map<string, string>();
+  const pinOne = (entry: { material_id?: string; subject?: ActionSubject; material_ref?: AgentTextMaterial["material_ref"]; source_artifact_id?: string; source_version?: number; read_revision?: string }) => {
+    const rev = entry.read_revision ?? (entry.material_ref?.pin.mode === "current" ? entry.material_ref.pin.read_revision : undefined);
+    let subject: ActionSubject | undefined = entry.subject
+      ?? entry.material_ref?.subject
+      ?? (entry.source_artifact_id && entry.source_version !== undefined
+        ? { kind: "artifact", id: `${entry.source_artifact_id}@${entry.source_version}` }
+        : undefined);
+    if (!subject && rev && entry.material_id) {
+      const suffix = `@${rev.slice(0, 64)}`;
+      if (entry.material_id.endsWith(suffix)) {
+        const key = entry.material_id.slice(0, -suffix.length);
+        const colon = key.indexOf(":");
+        if (colon > 0 && colon < key.length - 1) subject = { kind: key.slice(0, colon), id: key.slice(colon + 1) };
+      }
+    }
+    if (!subject || !rev) return;
+    map.set(`subject:${subject.kind}\u0000${subject.id}`, rev);
+    map.set(`ref:${knowledgeSubjectHashRef(subject)}`, rev);
+  };
+  for (const item of materials ?? []) {
+    pinOne(item);
+    for (const overflow of item.overflow_materials ?? []) pinOne(overflow);
+  }
+  return map;
+}
+
 /**
  * SDK session-scoped callbacks; declarations are a projection of the authorized action directory. With `suggest`, one
  * more tool offers the person one of these same actions as a button: only an action frozen here, checked as it is now.
  */
-export function prologueActionTools(actions: AgentFrozenRole["actions"], timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal, suggest = false, symbols = false, reviews?: PrologueActionReviews) {
+export function prologueActionTools(
+  actions: AgentFrozenRole["actions"],
+  timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs,
+  runSignal?: AbortSignal,
+  suggest = false,
+  symbols = false,
+  reviews?: PrologueActionReviews,
+  pinnedRevisions?: ReadonlyMap<string, string>,
+) {
   const tools = [...(actions?.tools ?? [])].sort((a, b) => compareCodeUnits(JSON.stringify([a.capability_id, a.version, a.provider.provider_id]),
     JSON.stringify([b.capability_id, b.version, b.provider.provider_id])));
   // A pack owns its tool names in the SDK's shared catalog, which keeps the first declaration under an id for the whole
@@ -64,8 +106,11 @@ export function prologueActionTools(actions: AgentFrozenRole["actions"], timeout
         if (held) { await held.control.beforeEffect(); held.control.assertCurrent(); }
         else await currentAction(actions!, view);
         abort.signal.throwIfAborted();
-        const result = await actions!.client.invoke(reference, wrapped ? call.args.input : call.args, abort.signal, undefined, held?.control);
+        const rawInput = wrapped ? call.args.input : call.args;
+        const preparedInput = withPinnedKnowledgeRevision(reference, rawInput, pinnedRevisions);
+        const result = await actions!.client.invoke(reference, preparedInput, abort.signal, undefined, held?.control);
         abort.signal.throwIfAborted();
+        assertPinnedMaterialResult(reference, preparedInput, result, pinnedRevisions);
         return JSON.stringify(result) ?? "null";
       } finally { reviews?.release(call.callId); unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); }
     };

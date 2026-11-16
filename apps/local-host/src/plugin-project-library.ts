@@ -15,6 +15,7 @@ import { ProjectStatementProcess, type StatementLimits } from "./project-stateme
 import { freezeGoalApprovalOutcome } from "./project-approval-sync-links.js";
 import { commitProjectReview } from "./project-review-commit.js";
 import { decisionOwnerMatches, projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
+import { attentionChanged } from "./attention-changes.js";
 
 /** The Host's own connection to a project's library, and the file it is. */
 export interface ProjectLibrary {
@@ -84,6 +85,7 @@ export function openPluginProjectLibrary(library: ProjectLibrary, manifest: Plug
       ...(approvalHistory ? { approvalHistory: Object.freeze(approvalHistory) } : {}),
       joinProjectDecision: (decision, check) => commitProjectReview(library.db as SqliteDatabase, decision, check),
       freezeProjectOutcome: outcome => freezeGoalApprovalOutcome(library.db as SqliteDatabase, manifest, outcome),
+      ...(projectId ? { committed: () => attentionChanged(projectId) } : {}),
       check: (connection, sql, parameters, mode) => (connection === reader ? reads : writes)(sql, parameters, mode) }, declaration, authorize, instance, () => closed, journal);
     const processes = new ProjectStatementProcess(library.path, record, statementLimits);
     const statements = isolatedProjectStatements(processes, declaration, authorize, instance, () => closed, projectId);

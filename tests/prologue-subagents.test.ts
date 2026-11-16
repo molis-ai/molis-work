@@ -221,7 +221,7 @@ for (const indexed of [false, true]) test(`C3 real Node child exact caller survi
       const view = await adapter.read(parent.ref);
       if (["completed", "failed", "cancelled"].includes(view.phase)) { assert.equal(view.phase, "completed", view.stop_reason); break; }
       assert.ok(Date.now() < deadline, JSON.stringify({ requests, view }));
-      for (const review of queue.list("p", "pending")) if (!approved.has(review.review_id)) { approved.add(review.review_id); await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "person" }); }
+      for (const review of queue.list("p", "pending")) if (!approved.has(review.review_id)) { approved.add(review.review_id); await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "person" }); }
       await new Promise(resolve => setTimeout(resolve, 10));
     }
     const children = await adapter.subagents!.list(parent.ref); assert.equal(children.length, 1); assert.equal(childCalls, 1);

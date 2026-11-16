@@ -220,3 +220,59 @@
 | 建议 | 插件作为调用方发出的调用记录也带它的数据 | §6：清除时一起去掉 `install_id` 是它的调用记录的证据 |
 | 建议 | 限流在处理器前，看不到条数 | §4：每分钟一层只按次数记 |
 | 第 3 版复核 | 快照的 `redacted` 标记与缺失原因同名易混；外壳会不会和插件共用每天的额度 | §6 写明是快照标记；§4 写明外壳单独一份额度。20,000 条够不够，接完回放实测后再定（§9） |
+
+## 16 第 29 批合同设计：读取、用途权限、保留清理与空间提醒
+
+状态：第 29 批第一片（2026-11-14，第 29 批主会话）。承接 §1「留给 29」的全部能力，将 `@molis-ai/molis-work-contracts/services/observation` 的 `maturity` 从 `"partial"` 升为 `"implemented"`。
+
+### 16.1 五类记录与用途分类
+
+- **五类记录**（`OBSERVATION_RECORD_KINDS`）：`"user"`（你的操作）、`"ai"`（AI 做的事）、`"content"`（内容的变化）、`"flow"`（工作流与后台任务）、`"present"`（呈现与反馈）。每条存储记录通过纯函数映射为唯一一类（`ui.candidates*` 或 `owner.id === "assistant"`／`assistant.*` 为 `"present"`；`entry` 为 `workflow`／`schedule`／`background` 或 `owner.id` 为 `workflows`／`scheduler`／`schedule`／`connections` 为 `"flow"`；`owner.id === "agent"`／`agent.*` 或受众／入口为 `agent`／`mcp` 为 `"ai"`；插件或首次读取／补读／导入变化及插件写命令为 `"content"`；`ui.open`／`ui.dwell*`／`ui.locate` 与其余本人操作和授权为 `"user"`），保证占用按种类分色与手动清理按种类筛选完全一致。
+- **用途分类**（`OBSERVATION_USES`）：`"lookback"`（本机回看，始终 `true`）、`"assistant"`（主动助理与报告，默认 `true`）、`"evaluation"`（效果评测，默认 `true`）、`"export"`（导出与诊断包，默认 `false`）、`"upload"`（上传，本版不开放，恒为 `false`）。
+
+### 16.2 公开动作清单（`system.observation`）
+
+所有新增动作均为 `scope: "home"`（观测库为 Home 级独立库；项目范围在上下文与入参里核对），不等外部模型或网络，不声明 `concurrent`。
+
+| 动作 | 方向与效果 | 受众 | 输入要点 | 输出要点 |
+| --- | --- | --- | --- | --- |
+| `observation.records.query@1` | `query` / `read` | `user,agent,workflow,plugin,mcp` | `use?`、`project_id?`、`all_projects?`、`work_ref?`、`call_id?`、`invocation_id?`、`runtime_session_id?`、`run_id?`、`subject?`、`fact?`、`owner_kind?`、`owner_id?`、`entry?`、`actor_id?`、`outcomes?`、`source_classes?`、`include_simulated?`、`kinds?`、`since?`、`until?`、`platform_version?`、`after_seq?`、`limit?`、`resolve_subjects?` | `records`（含 `kind`、`late`、`subject_status?`）、`next_seq`、`has_more`、`recording`（含 `state`、`paused_at?`、`complete_since`） |
+| `observation.evidence.get@1` | `query` / `read` | `user,agent,workflow,plugin,mcp` | `record_id`、`role?`、`use?` | `record_id`、`items`（每项 `status: "available" \| "owner_ref" \| "missing"`，快照解封后给 `text`、`media_type`、`bytes`、`redacted`；主人引用给 `owner_resolvable`；缺失给七种 `reason` 之一） |
+| `observation.coverage.get@1` | `query` / `read` | `user,agent,workflow,plugin,mcp` | `use?`、`project_id?`、`all_projects?`、`scope_filter?`、`platform_version?`、`since?`、`until?` | `recording`、`entries`（合并 `OBSERVATION_COVERAGE_PLAN` 与库内 `coverage`）、`gaps`、`versions`、`activity_summary`（区分「无活动」与「缺数据」） |
+| `observation.settings.get@1` | `query` / `read` | `user` | 无 | `recording`、`uses`、`retention`（含 `mode`、三项 `requirements`、`shortfall`、上次清理摘要）、`space_reminder_bytes`、`evaluation_holds` |
+| `observation.settings.set@1` | `command` / `write` | `user` | `paused?`、`uses?`（`assistant?`、`evaluation?`、`export?`）、`retention_mode?`、`space_reminder_bytes?` | 更新后的 `ObservationSettingsView` |
+| `observation.space.get@1` | `query` / `read` | `user` | 无 | `total_bytes`、`total_records`、`total_snapshots`、`by_kind`（五类记录＋`files`）、`reminder_bytes`、`reminder_status`（`none \| ok \| near \| exceeded`）、`write_failure` |
+| `observation.cleanup.preview@1` | `query` / `read` | `user` | `time_range`（`before_90d \| before_30d \| before_7d \| custom`）、`before?`、`since?`、`until?`、`project_id?`、`kinds?` | `scope`、`matching_records`、`estimated_freed_bytes`、`unreferenced_snapshots`、`preserved`、`impacts` |
+| `observation.cleanup.apply@1` | `command` / `write` | `user` | 同 `cleanup.preview@1` | `deleted_records`、`deleted_snapshots`、`freed_bytes`、`gap_recorded`、`cleaned_at` |
+
+### 16.3 权限、用途与安全不变量（`S-observation-records` 扩展）
+
+1. **跨项目读取（S-74）**：
+   - 在项目上下文调用时，非 `user` 受众只能读当前 `context.project_id` 的记录；请求 `all_projects: true` 或其他 `project_id` 一律拒 `observation.forbidden`。
+   - `all_projects: true`（或跨项目列表）仅对 `user` 受众开放，可访问的项目集合由宿主在每次调用时根据当前项目目录现算（排除正在关闭或已删除的项目），不信调用方传入的名单。
+2. **用途开关即时阻断（OCL-11）**：
+   - 非 `user` 受众默认 `use = "assistant"`，且不得传 `use: "lookback"`（传 `"lookback"` 拒 `observation.forbidden`）。
+   - 当某项用途为 `false`（如关掉 `assistant`、`evaluation`、`export`，或任何调用方传 `upload`）时，`observation.records.query@1`、`observation.evidence.get@1`、`observation.coverage.get@1` 对该 `use` 立即拒 `observation.use_disabled`。即使消费者此前缓存了 `record_id` 或 `digest`，关掉开关后调 `observation.evidence.get@1` 同样被拒。
+3. **暂停记录（OCL-09、design §6）**：
+   - 本人调 `observation.settings.set@1({ paused: true })` 时，先刷完队列中暂停前已发生的记录，记下 `paused_at`；暂停期间新的写入不再落库，所有读取动作返回的 `recording` 状态均带 `state: "paused"` 与 `paused_at`（消费者可见「记录截至何时」）；恢复记录时写入一段 `state: "by_rule", reason: "recording_paused"` 的覆盖缺口。
+4. **保留期限、手动清理与容量提醒（OCL-12、PWA-111、PWA-112）**：
+   - 自动清理期限默认 `"keep"`（一直保留），可选 `"365"`、`"180"`、`"90"`、`"30"`、`"manual"`。对比周报依据（7 天）、跨两个月比较（60 天）、评测样本原始记录（120 天，与定样 `docs/design/work-records/data.js` 一致）给出 `requirements` 与 `shortfall`，绝不静默延长用户所选期限。
+   - 手动与自动清理在同一个 SQLite 事务中：删除命中范围的 `records` 与 `record_evidence`、回收不再被任何剩余记录引用的 `evidence_blobs`、在 `coverage_gaps` 记一段 `state: "expired"` 的缺口；绝不删除业务原对象、成果库版本、Pages 版本、已存简报及已留存评测样本。
+   - 容量提醒线存于 `writer_state`（重启后保持），达到或超过提醒线只返回 `reminder_status: "near" | "exceeded"`，绝不自动删记录或阻断写入。
+5. **读取时核对对象主人可解析性（§13 偏离落地）**：
+   - `observation.records.query@1` 传 `resolve_subjects: true` 或调 `observation.evidence.get@1` 时，由宿主注入的 `resolveSubject(project_id, subject)` 检查对应业务对象与版本是否仍存在，返回 `"resolved" | "missing" | "unverified"`，已删除或不可达的对象如实标为 `"missing"`。
+6. **合审（`f6bc4f4f9`）通过后收进实现的四点细节**：
+   - `observation.evidence.get@1` 先按 `record_id` 查出 `row.project_id` 再核对调用方项目归属与可读项目集合，防止凭 `record_id` 跨项目越权解封快照。
+   - 非 `user` 受众从 Home 上下文（`context.project_id === null`）调用读取动作且指定 `project_id` 或 `all_projects: true`（或目标记录属于项目）时一律拒 `observation.forbidden`。
+   - 五类记录绑定定样五色（`user`→`blue`、`ai`→`plum`、`content`→`slate`、`flow`→`ochre`、`present`→`clay`）。
+   - 暂停记录期间 `observation.report@1` 在调用 `writer.admit()` 之前短路返回，不消耗当日上报额度、不刷出额外 `lost` 缺口。
+
+## 17 第 30 批预期与样本只读审阅（第 29 批可并行项）
+
+对 `specs/observation-collection/eval-cases.md`（EC-01～EC-18）及 `specs/proactive-assistant/spec.md` §14／[BL-328](../../docs/backlog-removed.md) 做只读核查，确认第 29 批读取合同对第 30 批「最小真实评测路径」的支撑完备性：
+
+1. **证据链完整性**：EC-01～EC-06、EC-08～EC-09 需要的请求原话、检索候选、模型完整请求（`agent.model_request`）、工具入参与结果、交付物引用与最终状态，均可通过 `observation.records.query@1`（按 `call_id`、`run_id`、`work_ref` 或 `after_seq`）与 `observation.evidence.get@1`（`use: "evaluation"`）一次取回。
+2. **模拟与回放隔离**：`source_class = "replay"` 已在合同闭集内，`withObservationSource("replay", run)` 可直接包住第 30 批的隔离回放；`observation.records.query@1` 在 `use: "assistant"`、`"evaluation"`、`"export"` 下默认过滤 `replay`/`demo`/`trial`/`system_check`；本人 `use: "lookback"` 保留原始记录并标注 `source_class`。`use: "evaluation"` 仍可按 `source_classes: ["real"]` 或 `["replay"]`（或 `include_simulated: true`）精确对比原过程与回放结果（PWA-53、OCL-13）。
+3. **未知与缺口不误判为失败**：`observation.coverage.get@1` 返回 `activity_summary`、`entries` 与 `gaps`，使第 30 批评测器在遇到 `not_connected`、`unavailable`、`lost`、`expired`、`recording_paused` 时能够将样本判定为「未知（insufficient_evidence）」，而不会误判为业务失败或拒绝（PWA-55、OCL-08、EC-16）。
+4. **留存衔接**：`ObservationSettingsView.evaluation_holds` 已在合同预留 `{ count, bytes, retention_days }`，第 30 批只需增加评测样本留存关联，即可无缝接入手动清理的保留豁免与到期提醒。
+

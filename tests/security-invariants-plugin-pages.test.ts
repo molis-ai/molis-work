@@ -744,3 +744,16 @@ test("A4-M S-47 memory settings retain only their two declared session navigatio
   // Another dialog page reads its own names only; the memory session names do not follow the person there.
   assert.equal(openSettingsAddress("/settings/models?memory_session_kind=assistant&memory_session_id=work-1&evil=1"), "/settings/models");
 });
+
+test("S-skill-authoring a plugin page cannot call the authored Skills routes through its page authority", async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("Skills authoring page");
+  const prefix = `/projects/${project.project_id}`;
+  const opened = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: "io.molis.work.plugin-builder" } });
+  assert.equal(opened.status, 200, await opened.clone().text());
+  const headers = { "x-molis-plugin-page": (await opened.json()).page_id as string };
+  for (const route of ["save", "draft", "remove"]) {
+    const response = await f.request(`${prefix}/api/plugin-trust/skills/authored/${route}`, { method: "POST", headers,
+      body: { name: "p", description: "d", applies_to: "assistant", body: "b", scope: "project", intent: "i", skill_id: "s", expected_version: 1 } });
+    assert.equal(response.status, 403, `${route}: ${await response.text()}`);
+  }
+});

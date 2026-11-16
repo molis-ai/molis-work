@@ -37,6 +37,8 @@ export interface PluginDatabaseConnections<Connection extends PluginDatabaseConn
   readonly approvalHistory?: NonNullable<PluginProjectDatabase["approvalHistory"]>;
   joinProjectDecision?(decision: ProjectReviewCommit, assertCurrent: () => void): ProjectTrustedDecision;
   freezeProjectOutcome?(decision: ProjectTrustedDecision): void;
+  /** Told after a transaction that changed rows committed (the Host's change word to its pages, WLN-27); never fails the write. */
+  committed?(): void;
 }
 
 /** How many compiled statements each connection of a client keeps (`prepared`). */
@@ -119,7 +121,8 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
         if (!connections.inTransaction()) throw new ActionError("actions.forbidden", "事务已被数据库回滚，不能继续访问");
         permitWrite();
       };
-      let savepoints = 0;
+      // A transaction that touched no row is no change to tell the pages about (Schedule reconciles every few seconds).
+      let savepoints = 0, wrote = false;
       let record: ProjectTrustedDecision | undefined;
       const handle: PluginDatabaseTransaction | PluginProjectDatabaseTransaction = Object.freeze({ ...reads(writer, check),
           ...(journal ? { journal: journal.writer(check) } : {}),
@@ -128,7 +131,9 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
             check();
             assertWriteStatement(sql);
             connections.check?.(writer, sql, parameters, "write");
-            return perform(writer, sql, parameters, "write", () => prepared(writer, sql).run(...parameters) as { changes: number | bigint });
+            const result = perform(writer, sql, parameters, "write", () => prepared(writer, sql).run(...parameters) as { changes: number | bigint });
+            if (Number(result.changes) > 0) wrote = true;
+            return result;
           },
           // The point's name is the platform's: nothing the plugin passes reaches the SQL text.
           savepoint<T>(body: () => { readonly keep: boolean; readonly value: T }): T {
@@ -160,6 +165,7 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
         if (record) connections.freezeProjectOutcome?.(record);
         check();
         writer.exec("COMMIT");
+        if (wrote || record) try { connections.committed?.(); } catch { /* the write is done */ }
       } catch (error) {
         try { if (connections.inTransaction()) writer.exec("ROLLBACK"); }
         catch (rollbackError) { hostLog.error("plugin_database", "rollback_failed", rollbackError); }

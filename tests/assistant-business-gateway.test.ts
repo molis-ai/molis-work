@@ -387,6 +387,7 @@ test("an action the person switched off for the Assistant is neither found nor r
   } finally { await f.close(); }
 });
 
+// PWA-127 PWA-129: an answered question starts nothing else; a retry takes the order once, a supplement reaches the round it belongs to.
 test("a repeated Send starts nothing twice; a new Send while running reaches the same round", { timeout: 60_000 }, async t => {
   let release!: () => void;
   const hold = new Promise<void>(resolve => { release = resolve; });
@@ -403,6 +404,10 @@ test("a repeated Send starts nothing twice; a new Send while running reaches the
     release();
     const done = await until(async () => { const v = await f.service.read(first.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
     assert.equal(done.rounds.length, 1, "one round, one run");
+    // PWA-127: a question answered at once is that one work and nothing more: no sub-task, no event of its own to follow.
+    const works = await f.service.list();
+    assert.deepEqual(works.map(work => work.work_id), [first.work.work_id], "PWA-127 no other work was started");
+    assert.equal(works[0]!.line_event, undefined, "PWA-127 nor put on the line");
   } finally { release(); await f.close(); }
 });
 
@@ -654,7 +659,8 @@ test("PREP-108-04: a change the stop reaches before it is sent never runs, and t
   } finally { await f.close(); }
 });
 
-test("APR-08/11 ADH-12: stopping a change preserves the original unknown effect, then records its owner's late receipt for a freshly authorized round", { timeout: 60_000 }, async t => {
+// PWA-136: an effect of unknown outcome is shown as not known and checked, never re-sent.
+test("APR-08/11 ADH-12: stopping a change preserves the original unknown effect, then records its owner's late receipt for a freshly authorized round (PWA-136)", { timeout: 60_000 }, async t => {
   const slow: ActionDefinition = { ...write, capability_id: "fixture.slow.write", action: { ...write.action, title: "Save slowly",
     subject_kinds: ["note"], result_subject: { id: "id", revision: "version" },
     output_schema: { type: "object", required: ["id", "version"], properties: { id: { type: "string" }, version: { type: "integer" } } } } };
@@ -983,6 +989,7 @@ test("W2-18-JOB-04: a work that 500 newer works have passed still answers for th
   } finally { await f.close(); }
 });
 
+// PWA-136: a stop withdraws a held change; nothing runs.
 test("stopping a round withdraws its held change: nothing runs and nothing is left to approve", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "never" } } }),
@@ -1731,8 +1738,8 @@ test("PA-22: gateway tools say they read only when they change nothing; the Host
   assert.deepEqual(Object.entries(kinds).filter(([, kind]) => kind === "safe-read").map(([name]) => name).sort(),
     ["check-delegated-work", "find-capabilities", "list-memories", "read-capability"]);
   for (const name of ["suggest-action", "delegate-work", "follow-up-delegated-work", "stop-delegated-work", "remember", "forget-memory", "suggest-memory",
-    "change-capability", "change-reversible"]) assert.equal(kinds[name], "mutate-external", name);
-  assert.deepEqual([...HOST_GOVERNED_TOOLS].sort(), ["delegate-work", "follow-up-delegated-work", "forget-memory", "remember", "stop-delegated-work", "suggest-action", "suggest-memory"]);
+    "report-delivery", "change-capability", "change-reversible"]) assert.equal(kinds[name], "mutate-external", name);
+  assert.deepEqual([...HOST_GOVERNED_TOOLS].sort(), ["delegate-work", "follow-up-delegated-work", "forget-memory", "remember", "report-delivery", "stop-delegated-work", "suggest-action", "suggest-memory"]);
 });
 
 // Adoption §6.0f: the gateway's tools stay the same few (BL-145), and the capabilities a round found ride on their `input`:

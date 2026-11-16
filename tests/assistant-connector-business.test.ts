@@ -105,7 +105,7 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
       const view = await read();
       for (const review of view.reviews) if (!approved.has(review.review_id)) {
         approved.add(review.review_id);
-        await server.web.post(`${prefix}/api/assistant/works/${sent.work.work_id}/reviews/${review.review_id}`, { decision: "approve" });
+        await server.web.post(`${prefix}/api/assistant/works/${sent.work.work_id}/reviews/${review.review_id}`, { decision: "approve", version: review.version });
       }
       return predicate(view) ? view : undefined;
     }, label, 75_000).catch(async error => {

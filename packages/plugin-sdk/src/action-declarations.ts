@@ -1,7 +1,7 @@
 import { canonicalJsonText, isRecord } from "./json-value.js";
 import {
   DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, DUE_REMINDER_COLLECTION_SCHEMA, DUE_REMINDER_WINDOW_SCHEMA,
-  HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, HOME_EVENT_COLLECTION_SCHEMA, HOME_EVENT_WINDOW_SCHEMA,
+  WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, WORK_EVENT_COLLECTION_SCHEMA, WORK_EVENT_WINDOW_SCHEMA,
   RUNS_OVERVIEW_INPUT_TYPE, RUNS_OVERVIEW_OUTPUT_TYPE, RUNS_OVERVIEW_SCHEMA, RUNS_WINDOW_SCHEMA,
   RUN_DECISION_INPUT_TYPE, RUN_DECISION_OUTPUT_TYPE, RUN_DECISION_SCHEMA, RUN_DECIDED_SCHEMA,
   SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN,
@@ -194,11 +194,11 @@ function offerChoiceProblems(key: string, a: ActionBody): string[] {
 
 function homeProtocolProblems(key: string, operation: unknown, a: ActionBody): string[] {
   const problems: string[] = [];
-  if (a.input_type === HOME_EVENTS_INPUT_TYPE || a.output_type === HOME_EVENTS_OUTPUT_TYPE) {
+  if (a.input_type === WORK_EVENTS_INPUT_TYPE || a.output_type === WORK_EVENTS_OUTPUT_TYPE) {
     if (operation !== "query" || a.kind !== "query" || a.scope !== "project" || !a.subject_kinds.length
-      || a.input_type !== HOME_EVENTS_INPUT_TYPE || a.output_type !== HOME_EVENTS_OUTPUT_TYPE
-      || canonicalSchema(a.input_schema) !== canonicalSchema(HOME_EVENT_WINDOW_SCHEMA)
-      || canonicalSchema(a.output_schema) !== canonicalSchema(HOME_EVENT_COLLECTION_SCHEMA)) {
+      || a.input_type !== WORK_EVENTS_INPUT_TYPE || a.output_type !== WORK_EVENTS_OUTPUT_TYPE
+      || canonicalSchema(a.input_schema) !== canonicalSchema(WORK_EVENT_WINDOW_SCHEMA)
+      || canonicalSchema(a.output_schema) !== canonicalSchema(WORK_EVENT_COLLECTION_SCHEMA)) {
       problems.push(`${key} 首页事件查询必须使用完整规范合同`);
     }
   }

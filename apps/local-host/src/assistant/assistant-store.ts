@@ -1,17 +1,20 @@
+import { AssistantActionPolicies } from "./assistant-action-policies.js";
 import { AssistantPermissionTransitions } from "./assistant-permission-transitions.js";
 import { AssistantRequests } from "./assistant-requests.js";
 import type { ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantThreadRound } from "./assistant-thread-types.js";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { assistantErrors } from "./assistant-errors.js";
 import { AssistantFollowUpRecords } from "./assistant-followups.js";
-import { applySqliteBaseline, openBaselineHomeSqlite, rollbackPreservingError, type openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, openBaselineHomeSqlite, type openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
-import type { AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
+import { AssistantObservedStates } from "./assistant-observed-states.js";
+import type { AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { eachListener } from "../host-log.js";
+import { attentionChanged } from "../attention-changes.js";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
@@ -88,11 +91,19 @@ export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by"
    * On a delegated work: the step it was handed out as on its delegating work's graph, that work's title when it asked,
    * what it was asked to deliver, and when the person took it back. Which work asked and its follow-ups are on the graph.
    */
-  delegated_by?: { graph_id: string; node_id: string; title: string; acceptance: string; taken_back_at?: string };
+  /** `requirements`: how many item-by-item requirements were hung on it when it was handed over (`modules/acceptance` keeps them). */
+  delegated_by?: { graph_id: string; node_id: string; title: string; acceptance: string; taken_back_at?: string; requirements?: number };
   /** Half-written answers to the questions its rounds wait on, by pending id, as the question card's fields hold them. Never shown as the work. */
   question_drafts?: Record<string, Record<string, unknown>>;
   /** The person's explicit choice to hold automatic continuation; the SDK still owns the actual wait. */
   continuation_hold?: "input" | "paused" | "stopped";
+  /**
+   * 「每步先问我」 (PWA-156): the step the work would go on to by itself, held for the person's yes — the hand-back of its parts or
+   * the runtime's continuation of a wait, by that continuation's request key. Cleared by the answer, by the person's next word, and by a stop.
+   */
+  step_gate?: { id: string; path: "hand-back" | "continuation"; request_key: string; run_id: string | null; asked_at: string };
+  /** The person's answer to the latest ask, for the continuation it was about: a yes lets that one start, a no keeps it from asking again. */
+  step_answer?: { request_key: string; decision: "approve" | "reject" };
 }
 
 /** A change that can be taken back: the public view plus the exact undo to run. */
@@ -167,10 +178,12 @@ export class AssistantStore {
   readonly usage: AssistantUsageLedger;
   /** The person's timed rounds on their works (the follow-ups collaborator's table). */
   readonly followUps: AssistantFollowUpRecords;
+  /** The state the Host last saw each work in. */
+  readonly observed: AssistantObservedStates;
 
   /** Who hears that a work's stored facts changed (record, rounds, cards, follow-ups, jobs, undos, usage): the page's wait. */
   readonly #changes = new Set<(workId: string) => void>();
-  readonly #actionPolicyChanges = new Map<string, { access?: object; confirmation?: object }>();
+  readonly policies: AssistantActionPolicies;
   readonly permissionTransitions = new AssistantPermissionTransitions();
 
   constructor(private readonly db: DatabaseSync, private readonly now = () => new Date()) {
@@ -179,6 +192,8 @@ export class AssistantStore {
     this.requests = new AssistantRequests(db, now);
     this.usage = new AssistantUsageLedger(db);
     this.followUps = new AssistantFollowUpRecords(db, workId => this.#changed(workId));
+    this.observed = new AssistantObservedStates(db);
+    this.policies = new AssistantActionPolicies(db, (actorId, key, value) => this.setSetting(actorId, key, value));
   }
 
   onChange(listener: (workId: string) => void): () => void {
@@ -188,17 +203,18 @@ export class AssistantStore {
 
   #changed(workId: string): void {
     eachListener("assistant", "work_changes", this.#changes, listener => listener(workId)); // A listener never fails a write.
+    attentionChanged(null);
   }
 
   create(input: { actor_id: string; title: string; scope: AssistantScope; scope_title?: string; origin: AssistantSurfaceRef | null; project_ref?: LocalHostProjectReference; executor?: AssistantExecutor;
-    delegated_by?: StoredWork["delegated_by"] }): StoredWork {
+    delegated_by?: StoredWork["delegated_by"]; main?: true; serves?: StoredWork["serves"]; line_event?: true }): StoredWork {
     const at = this.now().toISOString();
     const work: StoredWork = { work_id: `work-${randomUUID()}`, revision: 1, title: input.title, scope: structuredClone(input.scope), origin: input.origin ? structuredClone(input.origin) : null,
       ...(input.scope_title ? { scope_title: input.scope_title } : {}),
       executor: input.executor ?? { kind: "assistant" },
       session_id: null, draft: "", draft_revision: 1, created_at: at, updated_at: at, archived: false, actor_id: input.actor_id,
       ...(input.project_ref ? { project_ref: structuredClone(input.project_ref) } : {}),
-      ...(input.delegated_by ? { delegated_by: { ...input.delegated_by } } : {}) };
+      ...(input.delegated_by ? { delegated_by: { ...input.delegated_by } } : {}), ...(input.main ? { main: true as const } : {}), ...(input.serves?.length ? { serves: input.serves.map(one => ({ ...one })) } : {}), ...(input.line_event ? { line_event: true as const } : {}) };
     this.db.prepare("INSERT INTO assistant_works(work_id,actor_id,revision,updated_at,archived,body) VALUES (?,?,?,?,0,?)")
       .run(work.work_id, work.actor_id, work.revision, work.updated_at, JSON.stringify(work));
     return work;
@@ -219,7 +235,7 @@ export class AssistantStore {
   }
 
   /** Optimistic: a caller holding an older revision gets a conflict instead of overwriting a newer change. */
-  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "graph_id" | "delegated_by" | "budget_tokens" | "question_drafts" | "reply_target" | "thread_round" | "continuation_hold">>, touch = true): StoredWork {
+  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "graph_id" | "delegated_by" | "budget_tokens" | "question_drafts" | "reply_target" | "thread_round" | "continuation_hold" | "serves" | "line_event" | "ask_each_step" | "step_gate" | "step_answer">>, touch = true): StoredWork {
     const current = this.get(actorId, workId);
     if (expected !== null && current.revision !== expected) throw assistantErrors.conflict("这项工作已在别处更新，请刷新后再改");
     if (Object.hasOwn(patch, "session_id")) {
@@ -284,58 +300,8 @@ export class AssistantStore {
     if (enabled === !current.has(key)) return current;
     if (enabled) current.delete(key); else current.add(key);
     this.setSetting(actorId, "disabled_actions", JSON.stringify([...current].sort()));
-    this.#recordActionPolicyChange(actorId, key, "access");
+    this.policies.recordChange(actorId, key, "access");
     return current;
-  }
-
-  actionPolicies(actorId: string) {
-    const rows = this.db.prepare("SELECT key, value, revision FROM assistant_settings WHERE actor_id=? AND key IN ('disabled_actions', 'confirm_always')").all(actorId);
-    const values = (name: string) => {
-      const row = rows.find(item => item.key === name);
-      return { keys: new Set(JSON.parse(String(row?.value ?? "[]")) as string[]), revision: Number(row?.revision ?? 0) };
-    };
-    const disabled = values("disabled_actions"), confirmation = values("confirm_always");
-    return { disabled: disabled.keys, confirmation: confirmation.keys, forAction: (key: string) => ({
-      enabled: !disabled.keys.has(key), confirm_always: confirmation.keys.has(key),
-      expected: createHash("sha256").update(JSON.stringify([actorId, key, disabled.revision, confirmation.revision])).digest("hex"),
-    }) };
-  }
-
-  /** Both switches belong to this exact action and change under one check on the original settings rows. */
-  changeActionPolicy(actorId: string, key: string, input: { expected: string; enabled?: boolean; confirm_always?: boolean }, assertCurrent: () => void) {
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
-      const policies = this.actionPolicies(actorId), current = policies.forAction(key);
-      if (input.expected !== current.expected) throw assistantErrors.conflict("这项能力的授权已变化，请刷新后再决定", { current });
-      const enabled = input.enabled ?? current.enabled, confirm = input.confirm_always ?? current.confirm_always;
-      assertCurrent();
-      const update = (name: string, keys: Set<string>, add: boolean) => {
-        if (add) keys.add(key); else keys.delete(key);
-        this.setSetting(actorId, name, JSON.stringify([...keys].sort()));
-      };
-      if (enabled !== current.enabled) update("disabled_actions", policies.disabled, !enabled);
-      if (confirm !== current.confirm_always) update("confirm_always", policies.confirmation, confirm);
-      this.db.exec("COMMIT");
-      if (enabled !== current.enabled) this.#recordActionPolicyChange(actorId, key, "access");
-      if (confirm !== current.confirm_always) this.#recordActionPolicyChange(actorId, key, "confirmation");
-      return this.actionPolicies(actorId).forAction(key);
-    } catch (error) { rollbackPreservingError(error, () => this.db.exec("ROLLBACK")); throw error; }
-  }
-
-  #recordActionPolicyChange(actorId: string, key: string, field: "access" | "confirmation"): void {
-    const id = JSON.stringify([actorId, key]);
-    this.#actionPolicyChanges.set(id, { ...this.#actionPolicyChanges.get(id), [field]: {} });
-  }
-
-  /** An old action approval remains revoked even after the person turns the same switch back on. */
-  holdActionPolicy(actorId: string, key: string, includeConfirmation = false): () => void {
-    const id = JSON.stringify([actorId, key]), previous = this.#actionPolicyChanges.get(id);
-    return () => {
-      const current = this.#actionPolicyChanges.get(id);
-      if (current?.access !== previous?.access || includeConfirmation && current?.confirmation !== previous?.confirmation) {
-        throw assistantErrors.action_revoked("原操作的权限已变化，旧确认不能继续使用");
-      }
-    };
   }
 
   /** Raise a notice once: the same dedupe key never raises a second (a repeated or retried event stays one notice). */
@@ -343,6 +309,7 @@ export class AssistantStore {
     const stored: StoredNotice = { ...notice, notice_id: randomUUID(), state: "new", created_at: this.now().toISOString() };
     const changed = this.db.prepare("INSERT OR IGNORE INTO assistant_notices(notice_id,actor_id,work_id,kind,state,dedupe,created_at,body) VALUES (?,?,?,?,?,?,?,?)")
       .run(stored.notice_id, actorId, stored.work_id, stored.kind, stored.state, dedupe, stored.created_at, JSON.stringify(stored)).changes;
+    if (changed) attentionChanged(null);
     return changed ? stored : null;
   }
 
@@ -358,11 +325,13 @@ export class AssistantStore {
 
   /** Mark notices seen, dismissed or resolved: one, or every open one of a work (optionally only of some kinds). */
   settleNotices(actorId: string, target: { notice_id?: string; work_id?: string; kinds?: readonly string[] }, state: Exclude<StoredNotice["state"], "new">): number {
-    if (target.notice_id) return Number(this.db.prepare("UPDATE assistant_notices SET state=? WHERE actor_id=? AND notice_id=? AND state='new'").run(state, actorId, target.notice_id).changes);
-    if (!target.work_id) return 0;
     const kinds = target.kinds?.length ? target.kinds : null;
-    return Number(this.db.prepare(`UPDATE assistant_notices SET state=? WHERE actor_id=? AND work_id=? AND state='new'${kinds ? ` AND kind IN (${kinds.map(() => "?").join(",")})` : ""}`)
-      .run(state, actorId, target.work_id, ...(kinds ?? [])).changes);
+    const settled = target.notice_id ? Number(this.db.prepare("UPDATE assistant_notices SET state=? WHERE actor_id=? AND notice_id=? AND state='new'").run(state, actorId, target.notice_id).changes)
+      : !target.work_id ? 0
+      : Number(this.db.prepare(`UPDATE assistant_notices SET state=? WHERE actor_id=? AND work_id=? AND state='new'${kinds ? ` AND kind IN (${kinds.map(() => "?").join(",")})` : ""}`)
+        .run(state, actorId, target.work_id, ...(kinds ?? [])).changes);
+    if (settled) attentionChanged(null);
+    return settled;
   }
 
   /**
@@ -371,18 +340,10 @@ export class AssistantStore {
    */
   settleNoticesByDedupe(actorId: string, prefix: string, state: Exclude<StoredNotice["state"], "new">, keep?: string): number {
     const like = (value: string) => `${value.replace(/[\\%_]/g, character => `\\${character}`)}%`;
-    return Number(this.db.prepare(`UPDATE assistant_notices SET state=? WHERE actor_id=? AND state='new' AND dedupe LIKE ? ESCAPE '\\'${keep ? " AND dedupe NOT LIKE ? ESCAPE '\\'" : ""}`)
+    const settled = Number(this.db.prepare(`UPDATE assistant_notices SET state=? WHERE actor_id=? AND state='new' AND dedupe LIKE ? ESCAPE '\\'${keep ? " AND dedupe NOT LIKE ? ESCAPE '\\'" : ""}`)
       .run(state, actorId, like(prefix), ...(keep ? [like(keep)] : [])).changes);
-  }
-
-  /** The state the Host last saw a work in (kept apart from the work, so noticing never conflicts with the person's edits). */
-  observed(actorId: string, workId: string): AssistantWorkState | null {
-    const row = this.db.prepare("SELECT state FROM assistant_observed WHERE actor_id=? AND work_id=?").get(actorId, workId);
-    return row ? String(row.state) as AssistantWorkState : null;
-  }
-
-  observe(actorId: string, workId: string, state: AssistantWorkState): void {
-    this.db.prepare("INSERT INTO assistant_observed(actor_id,work_id,state) VALUES (?,?,?) ON CONFLICT(actor_id,work_id) DO UPDATE SET state=excluded.state").run(actorId, workId, state);
+    if (settled) attentionChanged(null);
+    return settled;
   }
 
   /** Changes left running when a round ended, newest last; `untold` only those the next round has not been told of. */
@@ -444,7 +405,7 @@ export class AssistantStore {
     if (on === keys.has(key)) return;
     if (on) keys.add(key); else keys.delete(key);
     this.setSetting(actorId, "confirm_always", JSON.stringify([...keys]));
-    this.#recordActionPolicyChange(actorId, key, "confirmation");
+    this.policies.recordChange(actorId, key, "confirmation");
   }
 
   /** What a round that has started was told: those undone changes and settled changes are not told again. */

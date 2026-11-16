@@ -1,6 +1,7 @@
 import { codingReportStepsMarkdown, type CodingReportSteps } from "./report-steps.js";
 import { codingReportInputsMarkdown } from "./report-inputs.js";
 import { requestText } from "./continuation.js";
+import { activeLeafSteps } from "./recovery-parts.js";
 import type { ArtifactReference, FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentCommandOutput, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -99,6 +100,42 @@ export function createCodingExecutionReport(input: {
   const activity = run.activity.filter(item => item.name !== "reasoning").map(item => `${item.name} · ${item.target} · ${
     item.state === "completed" ? "已返回（不等于任务通过）" : item.state === "failed" ? "失败" : "结果未知，未收到结束回执"
   }`).join("\n");
+  const changedFiles = [...new Set(run.activity.filter(item => ["edit", "write"].includes(item.name) && item.state === "completed" && item.target).map(item => item.target))];
+  let lastEditAt = -1, lastPassAt = -1;
+  const cmdMap = new Map(input.commands.map(entry => [entry.call_id, entry.output]));
+  run.activity.forEach((item, idx) => {
+    if (["edit", "write"].includes(item.name) && item.state === "completed") lastEditAt = idx;
+    if (item.name === "run-command" || item.name === "start-command") {
+      const out = cmdMap.get(item.call_id);
+      if (out && !out.timed_out && !out.cancelled && out.exit_code === 0) lastPassAt = idx;
+    }
+  });
+  const staleCheck = lastEditAt >= 0 && lastPassAt >= 0 && lastEditAt > lastPassAt;
+  const unknownCmdCount = input.commands.filter(({ output }) => !output || (!output.timed_out && !output.cancelled && output.exit_code === null)).length;
+  const failedCmdCount = input.commands.filter(({ output }) => Boolean(output && (output.timed_out || (output.exit_code !== null && output.exit_code !== 0)))).length;
+  const passedCmdCount = input.commands.filter(({ output }) => Boolean(output && !output.timed_out && !output.cancelled && output.exit_code === 0)).length;
+  const openSteps = activeLeafSteps(run.step_board?.nodes ?? []).filter(node => node.unknown_outcome || !["succeeded", "cancelled"].includes(node.state));
+  const deliveredSummary = changedFiles.length
+    ? `本轮已写入 ${changedFiles.length} 个文件：${changedFiles.slice(0, 12).join(codingText("coding.list.joiner"))}${changedFiles.length > 12 ? ` 等 ${changedFiles.length} 个` : ""}。`
+    : "本轮没有写入工作区文件。";
+  const verifiedSummary = input.commands.length === 0
+    ? "本轮未记录验证命令（无验证证据，不等于检查通过）。"
+    : [
+        `共记录 ${input.commands.length} 条命令：通过 ${passedCmdCount} 条，失败 ${failedCmdCount} 条，结果未知 ${unknownCmdCount} 条。`,
+        staleCheck ? "注意：最后一次通过的检查之后又改动过文件，旧检查不算对最终改动的验证。" : "",
+        unknownCmdCount > 0 ? "含退出状态未知的命令，结果待核对，不视作验证通过。" : "",
+      ].filter(Boolean).join(" ");
+  const remainingSummary = [
+    openSteps.length ? `计划尚余 ${openSteps.length} 步未完成（${openSteps.slice(0, 6).map(n => n.title ?? n.id).join(codingText("coding.list.joiner"))}）。` : "",
+    run.awaiting_input.length ? `遗留 ${run.awaiting_input.length} 个待回答问题。` : "",
+    unknownCmdCount > 0 ? `${unknownCmdCount} 条命令结果待核对。` : "",
+    run.phase !== "completed" ? `本轮以「${phase[run.phase as keyof typeof phase]}」结束，原任务可能尚未收尾。` : "",
+  ].filter(Boolean).join(" ") || "当前记录中无未结计划步骤或遗留提问（仍以人工审阅为准）。";
+  const lastCheckpoint = run.turn_changes?.at(-1)?.files?.at(-1)?.checkpoint_id;
+  const whereSummary = [
+    run.frozen.directories?.execution.kind === "worktree" ? `运行位置：独立工作树 ${run.frozen.directories.execution.worktree_id}。` : "运行位置：项目当前授权输出目录。",
+    changedFiles.length ? `工作区含本轮 ${changedFiles.length} 个改动文件${lastCheckpoint ? `（最近检查点 ${lastCheckpoint}）` : ""}，尚未自动提交 Git。` : "工作区无本轮文件改动。",
+  ].join(" ");
   const usage = codingUsageSummary(run.usage, codingText);
   const { directory: _directory, ...frozen } = run.frozen;
   return {
@@ -111,6 +148,10 @@ export function createCodingExecutionReport(input: {
     frozen: structuredClone(frozen), usage: structuredClone(run.usage), commands: structuredClone(input.commands),
     body_markdown: [
       `## 执行状态\n${phase[run.phase as keyof typeof phase]}。运行结束不代表需求完成或用户验收。\n结束时间：${run.ended_at ?? "未记录，不推断原结束时刻"}。${run.stop_reason ? `\n${literal(run.stop_reason)}` : ""}`,
+      `## 交付了什么\n${deliveredSummary}`,
+      `## 怎么验证的\n${verifiedSummary}`,
+      `## 没做完的\n${remainingSummary}`,
+      `## 代码停在哪\n${whereSummary}`,
       `## 本轮任务\n${task || "任务正文未保存，不能补造。"}`,
       ...(input.steps ? [codingReportStepsMarkdown(run, input.steps, literal)] : []),
       ...(input.goal_source_error ? [`## 目标来源暂不可读\n本轮回答和执行证据仍已保留。无法确认原目标归属，不使用会话后来选择的目标替代，也不能据此回写 Goal 进展。\n${literal(`${input.goal_source_error.reason}\n原固定来源：${input.goal_source_error.references.map(ref => `${ref.artifact_id} v${ref.version}`).join("、")}`)}`] : []),

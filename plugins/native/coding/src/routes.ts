@@ -1,6 +1,6 @@
 import type { ActionHandlerBinding, ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus, isCodedFailure } from "@molis-ai/molis-work-plugin-sdk";
-import type { PluginRouteBinding, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HostAgentContinuationReadyPayload, PluginRouteBinding, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingMemoryLearning } from "./memory-learning.js";
 import { codingCharacters, type CodingCharacters } from "./character-source.js";
 import { codingGoalTitles, type CodingGoalTitles } from "./goal-titles.js";
@@ -40,10 +40,12 @@ export interface CodingExecution {
   readonly locale?: ActionLocale;
 }
 
-// A refused answer's problems, with the questions they are about, for the Host to word beside each field.
+// A refused answer's problems (or structured recovery details such as unreadable materials), for the Host/page to show.
 const problemsOf = (error: unknown) => {
-  const { problems, questions } = error as { problems?: unknown; questions?: unknown };
-  return Array.isArray(problems) ? { details: { problems, ...(Array.isArray(questions) ? { questions } : {}) } } : {};
+  const { problems, questions, details } = error as { problems?: unknown; questions?: unknown; details?: unknown };
+  if (Array.isArray(problems)) return { details: { problems, ...(Array.isArray(questions) ? { questions } : {}) } };
+  if (details && typeof details === "object" && !Array.isArray(details)) return { details };
+  return {};
 };
 
 // Every code Coding names carries its kind, so a coded failure answers by kind (D26) as the SDK's edge does. A plain error
@@ -60,7 +62,11 @@ const failure = (error: unknown) => {
  * are in their own file (routes-*.ts) and share one activation (route-activation.ts). `goalTitles` is the one cache the page's
  * synchronous directory and the routes share (plugin.ts); a caller with none gets its own.
  */
-export function codingSurface(context: PluginStartContext, sessions: CodingSessionStore, goalTitles: CodingGoalTitles = codingGoalTitles(context)): { routes: PluginRouteBinding[]; actions: ActionHandlerBinding[] } {
+export function codingSurface(context: PluginStartContext, sessions: CodingSessionStore, goalTitles: CodingGoalTitles = codingGoalTitles(context)): {
+  routes: PluginRouteBinding[]; actions: ActionHandlerBinding[];
+  /** `host.agent.continuation.ready@1`: one of this installation's sessions may go on; the runtime's wake loop reads again. */
+  continuationReady(payload: HostAgentContinuationReadyPayload): void;
+} {
   const actions: ActionHandlerBinding[] = [];
   const execution: CodingExecution = { sessions, models: codingModels(context), goalTitles, characters: codingCharacters(context), savedHistoryView: context.services?.savedHistory?.view };
   const activation = startCodingActivation(context, execution, actions, failure);
@@ -70,5 +76,5 @@ export function codingSurface(context: PluginStartContext, sessions: CodingSessi
   codingOnboarding(activation);
   codingMemoryLearning(activation);
   startCodingObservation(activation);
-  return { routes, actions };
+  return { routes, actions, continuationReady: payload => activation.waits.continuationReady(execution, payload.runtime_id, payload.request_key) };
 }

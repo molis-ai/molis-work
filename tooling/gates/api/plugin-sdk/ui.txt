@@ -83,6 +83,8 @@ export interface MessageFormatOptions {
     readonly problem?: (code: string) => void;
 }
 
+export type MwBadgeTone = MwTone;
+
 export interface MwButtonOptions {
     variant?: MwButtonVariant;
     size?: MwControlSize;
@@ -99,6 +101,28 @@ export interface MwButtonOptions {
 }
 
 export type MwButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "danger-outline" | "link";
+
+export interface MwCodingRoundMaterialItem {
+    readonly state: StateRingState;
+    readonly name: string;
+    readonly how: string;
+    readonly statusLabel: string;
+    readonly statusTone: MwStatusTone;
+    readonly statusIcon?: PluginIconName;
+}
+
+export interface MwCodingRoundMaterialsOptions {
+    readonly title: string;
+    readonly summaryLabel: string;
+    readonly summaryTone: MwStatusTone;
+    readonly items: readonly MwCodingRoundMaterialItem[];
+    readonly recovery?: MwInlineRecoveryBlock;
+    readonly footer?: {
+        readonly title: string;
+        readonly detail: string;
+    };
+    readonly attrs?: Record<string, AttrValue>;
+}
 
 export interface MwComposerAiLabels extends MwComposerLabels {
     to: string;
@@ -202,7 +226,128 @@ export interface MwComposerStatus {
 
 export type MwControlSize = "sm" | "md" | "lg" | "icon";
 
+export interface MwEnvCheckRowOptions {
+    readonly state: StateRingState;
+    readonly label: string;
+    readonly value: string;
+    readonly badge?: {
+        readonly label: string;
+        readonly tone?: MwBadgeTone;
+    };
+    readonly status?: {
+        readonly label: string;
+        readonly tone: MwStatusTone;
+        readonly icon?: PluginIconName;
+    };
+    readonly recovery?: MwInlineRecoveryBlock;
+}
+
+export interface MwEnvChecklistOptions {
+    readonly title: string;
+    readonly statusLabel: string;
+    readonly statusTone: MwStatusTone;
+    readonly statusIcon?: PluginIconName;
+    readonly rows: readonly MwEnvCheckRowOptions[];
+    readonly footer?: {
+        readonly title: string;
+        readonly detail: string;
+        readonly action?: MwButtonOptions;
+    };
+    readonly attrs?: Record<string, AttrValue>;
+}
+
+export interface MwInlineRecoveryBlock {
+    readonly title: string;
+    readonly body: string;
+    readonly tone?: "info" | "warning" | "danger";
+    readonly actions?: readonly MwButtonOptions[];
+}
+
+export interface MwMaterialIssueRowOptions {
+    readonly reason: string;
+    readonly error?: boolean;
+    readonly actions?: readonly MwButtonOptions[];
+}
+
+export interface MwMaterialsTrackOptions {
+    readonly step: number;
+    readonly stopAt?: number;
+    readonly error?: boolean;
+    readonly label: string;
+    readonly tone?: MwStatusTone;
+    readonly ariaLabel?: string;
+    readonly title?: string;
+}
+
+export interface MwRoundReportCardOptions {
+    readonly statusLabel: string;
+    readonly statusTone: MwStatusTone;
+    readonly statusIcon?: PluginIconName;
+    readonly finishedAtLabel: string;
+    readonly accepted?: boolean;
+    readonly headings: {
+        readonly delivered: string;
+        readonly verified: string;
+        readonly remaining: string;
+        readonly cleanup?: string;
+    };
+    readonly codeRevisionTitle?: string;
+    readonly delivered: readonly MwRoundReportCheck[];
+    readonly verified: readonly MwRoundReportCheck[];
+    readonly remaining: readonly MwRoundReportCheck[];
+    readonly cleanup?: readonly MwRoundReportCheck[];
+    readonly actions?: readonly MwButtonOptions[];
+    readonly attrs?: Record<string, AttrValue>;
+}
+
+export interface MwRoundReportCheck {
+    readonly state: StateRingState;
+    readonly text: string;
+    readonly quiet?: boolean;
+    readonly codeRevision?: string;
+    readonly badge?: {
+        readonly label: string;
+        readonly tone?: MwBadgeTone;
+    };
+    readonly status?: {
+        readonly label: string;
+        readonly tone: MwStatusTone;
+        readonly icon?: PluginIconName;
+    };
+    readonly action?: MwButtonOptions;
+}
+
+export interface MwScopeDeltaCardOptions {
+    readonly title: string;
+    readonly subtitle?: string;
+    readonly items: readonly MwScopeDeltaItem[];
+    readonly attrs?: Record<string, AttrValue>;
+}
+
+export interface MwScopeDeltaItem {
+    readonly kind: "add" | "rem" | "keep" | "redo";
+    readonly glyph: PluginIconName;
+    readonly title: string;
+    readonly detail?: string;
+}
+
 export type MwStatusTone = "idle" | "progress" | "attention" | "hold" | "blocked" | "done" | "quiet";
+
+export interface MwTaskAttemptBudgetOptions {
+    readonly headerText: string;
+    readonly budgetPercent: number;
+    readonly meterLabel?: string;
+    readonly retryReasonLabel?: string;
+    readonly retryReasonTone?: MwBadgeTone;
+    readonly summaryText?: string;
+    readonly pastSummaryLabel?: string;
+    readonly pastAttempts?: ReadonlyArray<{
+        readonly state: StateRingState;
+        readonly text: string;
+    }>;
+    readonly actions?: readonly MwButtonOptions[];
+    readonly attrs?: Record<string, AttrValue>;
+}
 
 export type MwTone = "neutral" | "info" | "success" | "warning" | "danger";
 
@@ -391,6 +536,8 @@ export declare function escapeAttribute(value: string | number | undefined): str
 
 export declare const escapeHtml: (value: unknown) => string;
 
+export declare function fileKindExtension(name: string): string;
+
 export declare function fontFaceRules(font: UiResolvedFont, registry: UiResourceRegistry): UiFileResult<string>;
 
 export declare function fontTokenDeclarations(font: UiResolvedFont, names?: readonly string[]): string;
@@ -541,6 +688,8 @@ export declare function renderChoice(options: {
     attrs?: Record<string, AttrValue>;
 }): string;
 
+export declare function renderCodingRoundMaterials(options: MwCodingRoundMaterialsOptions): string;
+
 export declare function renderComposer(options: MwComposerOptions): string;
 
 export declare function renderDatePicker(options: {
@@ -569,6 +718,10 @@ export declare function renderEmpty(options: {
     className?: string;
 }): string;
 
+export declare function renderEnvCheckRow(options: MwEnvCheckRowOptions): string;
+
+export declare function renderEnvChecklist(options: MwEnvChecklistOptions): string;
+
 export declare function renderField(options: {
     label: string;
     hint?: string;
@@ -584,6 +737,8 @@ export declare function renderFieldset(options: {
     body: string;
     className?: string;
 }): string;
+
+export declare function renderFileKind(name: string): string;
 
 export declare function renderForm(options: {
     header: string;
@@ -643,6 +798,15 @@ export declare function renderLabel(options: {
     forId?: string;
     className?: string;
 }): string;
+
+export declare function renderMaterialIssueRow(options: MwMaterialIssueRowOptions): string;
+
+export declare function renderMaterialsFunnel(counts: ReadonlyArray<{
+    readonly label: string;
+    readonly value: number | string;
+}>, ariaLabel: string): string;
+
+export declare function renderMaterialsTrack(options: MwMaterialsTrackOptions): string;
 
 export declare function renderMenu(options: {
     items: string;
@@ -753,6 +917,10 @@ export declare function renderReturnBar(options: {
     state?: ReturnBarState;
     className?: string;
 }): string;
+
+export declare function renderRoundReportCard(options: MwRoundReportCardOptions): string;
+
+export declare function renderScopeDeltaCard(options: MwScopeDeltaCardOptions): string;
 
 export declare function renderScrollArea(options: {
     body: string;
@@ -868,6 +1036,8 @@ export declare function renderTable(options: {
     rows: ReadonlyArray<ReadonlyArray<string>>;
     className?: string;
 }): string;
+
+export declare function renderTaskAttemptBudget(options: MwTaskAttemptBudgetOptions): string;
 
 export declare function renderTextarea(options?: MwInputOptions & {
     rows?: number;

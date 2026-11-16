@@ -43,7 +43,7 @@ const full = (end: "completed" | "failed" | "stopped" | "cancelled" = "completed
   turn("a1", "好的", undefined, "assistant"),
 ], {
   objects: [result("a", "周报"), result("b", "纪要", { state: "missing" }), result("c", "附件", { open: undefined }), { ...result("d", "来源页"), relation: "origin" }, { ...result("e", "素材"), relation: "material" }],
-  delegated: [{ work_id: "c1", title: "查数据", state: "completed", follow_ups: 0 }, { work_id: "c2", title: "排版", state: "running", follow_ups: 0 }, { work_id: "c3", title: "被收回的", state: "running", follow_ups: 0, taken_back: true }],
+  delegated: [{ work_id: "c1", title: "查数据", state: "completed", follow_ups: 0, created_at: "2026-10-02T09:00:00.000Z" }, { work_id: "c2", title: "排版", state: "running", follow_ups: 0, created_at: "2026-10-02T09:00:00.000Z" }, { work_id: "c3", title: "被收回的", state: "running", follow_ups: 0, taken_back: true }],
   queued_inputs: [{ input_id: "q1", text: "顺便发给团队", source: "person" }, { input_id: "q2", text: "Molis 补的一句", source: "host" }, { input_id: "q3", text: "另一个会话说的", source: "peer" }] satisfies AgentQueuedInput[],
 });
 
@@ -169,7 +169,7 @@ test("RCPT-372: what is still missing lists every open item, and a queue that wa
   const lacks = (rounds: AssistantWorkView) => groups(html(rounds))["还差什么"] ?? "";
   const base = view("completed", [turn("t1", "附上图表", steer("s3", "unread", { questions: [{ pending_id: "p1", state: "open" }, { pending_id: "p2", state: "unresolved" }, { pending_id: "p3", state: "settled" }] }))], {
     objects: [result("b", "纪要", { state: "missing" }), result("u", "草稿", { state: "unavailable" }), result("f", "成稿")],
-    delegated: [{ work_id: "c1", title: "查数据", state: "completed", follow_ups: 0 }, { work_id: "c2", title: "排版", state: "waiting-input", follow_ups: 0 }],
+    delegated: [{ work_id: "c1", title: "查数据", state: "completed", follow_ups: 0, created_at: "2026-10-02T09:00:00.000Z" }, { work_id: "c2", title: "排版", state: "waiting-input", follow_ups: 0, created_at: "2026-10-02T09:00:00.000Z" }],
   });
   base.rounds[0]!.activity = [{ call_id: "k1", verb: "change", target: "周报", state: "unknown" }, { call_id: "k2", verb: "file-change", target: "报告.md", state: "started" }, { call_id: "k3", verb: "change", target: "预算表", state: "completed" }, { call_id: "k4", verb: "read", target: "旧稿", state: "unknown" }];
   const text = lacks(base);
@@ -226,7 +226,7 @@ test("RCPT-374: the person's words and every title stay text, however they are w
   const attack = '<img src=x onerror="alert(1)">';
   const rich = view("completed", [turn("t1", attack + "再加上数字", steer("s1", "read", { model_claim: { treatment: "apply-now", targets: [], impacts: ["scope"], revisions: 1 } })), turn("t2", "改一下", steer("s2", "unread", { about: "s1" }))], {
     objects: [result("a", attack, { moved_to: undefined }), result("b", attack, { state: "moved", open: undefined, moved_to: { title: attack, kind: "project" } }), result("c", "x\"onclick=\"y")],
-    delegated: [{ work_id: "c1", title: attack, state: "running", follow_ups: 0 }],
+    delegated: [{ work_id: "c1", title: attack, state: "running", follow_ups: 0, created_at: "2026-10-02T09:00:00.000Z" }],
     queued_inputs: [{ input_id: "q1", text: attack, source: "host" }],
   });
   rich.rounds[0]!.activity = [{ call_id: "k1", verb: "change", target: attack, state: "completed" }];
@@ -246,7 +246,7 @@ test("RCPT-374: every line of the note has its English, and what is new is writt
   wide.rounds[0]!.steps = steps;
   wide.rounds[0]!.activity = [{ call_id: "k1", verb: "change", target: "周报", state: "completed" }, { call_id: "k2", verb: "change", target: "预算", state: "unknown" }, { call_id: "k3", verb: "change", target: "表", state: "failed" }];
   wide.objects.push(result("m", "移走的", { state: "moved", open: undefined, moved_to: { title: "别处", kind: "project" } }), result("n", "挪去别处", { state: "moved", open: undefined }), result("u", "读不到", { state: "unavailable", open: undefined }), result("g", "改过", { state: "changed" }));
-  wide.delegated = ["idle", "running", "waiting-input", "waiting-review", "paused", "completed", "failed", "stopped", "needs-check"].map((state, index) => ({ work_id: `c${index}`, title: state, state: state as "idle", follow_ups: 0 }));
+  wide.delegated = ["idle", "running", "waiting-input", "waiting-review", "paused", "completed", "failed", "stopped", "needs-check"].map((state, index) => ({ work_id: `c${index}`, title: state, state: state as "idle", follow_ups: 0, created_at: "2026-10-02T09:00:00.000Z" }));
   for (const phase of ["completed", "failed", "stopped"] as const) deliveryNoteHtml(deliveryNote({ ...wide, rounds: [{ ...wide.rounds[0]!, phase }] })!, recording);
   deliveryNoteHtml(deliveryNote({ ...wide, rounds: [{ ...wide.rounds[0]!, phase: "completed" }], work: { ...wide.work, state: "needs-check" } })!, recording);
   deliveryNoteHtml(deliveryNote({ ...wide, queued_inputs: [] })!, recording);

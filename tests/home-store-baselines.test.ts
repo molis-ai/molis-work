@@ -42,9 +42,9 @@ test("FI-6: Feed's Home reference ledger freezes its accepted v1 schema, with no
 // Alchemist store's directory, one per project, so it is not a registered library of its own. Changing a baseline means a
 // new version and a new fixture, never a silent drift.
 for (const [name, baseline] of [...libraries.filter(([name]) => !WITHOUT_REAL_HOME_FIXTURE.includes(name) && name !== "plugin-runtime"), ["alchemist-search", ALCHEMIST_SEARCH_BASELINE] as const]) {
-  // B10-R3: the Assistant stays at v1; the agent-definitions owner still has its own v2.
+  // B10-R3: the Assistant stays at v1; agent-definitions and observation are at v2, and the memory ledger is at v3 (Memory P1).
   test(`N41-PERSONAL-01 the ${name} store has its declared version and complete frozen schema`, () => {
-    assert.equal(baseline.version, name === "agent-definitions" || name === "memory" ? 2 : 1);
+    assert.equal(baseline.version, name === "memory" ? 3 : name === "agent-definitions" || name === "observation" ? 2 : 1);
     const existing = shape(readFileSync(new URL(`./fixtures/home-store-schemas/${name}.sql`, import.meta.url), "utf8")), want = shape(baseline.schema);
     // RAC-2384: the fixture carries the complete current schema; no missing-table allowance remains.
     assert.deepEqual(want, existing, `${name}: complete frozen schema`);
@@ -196,5 +196,41 @@ test("SKC-05: Agent definitions upgrade creates empty Skill tables and preserves
     assert.deepEqual(db.prepare("SELECT * FROM skill_uses").all(), []);
     assert.deepEqual(describeSqliteSchema(db), shape(baseline.schema));
     applySqliteBaseline(db, "agent-definitions", baseline);
+  } finally { db.close(); }
+});
+
+test("OCL-12: Observation library 1 -> 2 upgrade creates empty evaluation hold tables while preserving populated records, blobs, coverage and settings", () => {
+  const baseline = homeStores().stores.find(store => store.path === "observation")!.library!.baseline;
+  const db = new DatabaseSync(":memory:");
+  try {
+    db.exec(readFileSync(new URL("./fixtures/observation-v1.sql", import.meta.url), "utf8") + " PRAGMA user_version=1;");
+    db.prepare(`
+      INSERT INTO records (
+        seq, record_id, owner_kind, owner_id, fact, provider_id, stage, outcome, actor_id, actor_kind, audience,
+        delegated_by, entry, project_id, install_id, occurred_at, received_at, clock_adjusted, call_id, invocation_id,
+        parent_invocation_id, runtime_session_id, run_id, work_ref, source_class, subjects, conditions, detail, evidence,
+        coalesced_count, coalesced_last_at
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `).run(
+      1, "obs-1", "service", "gateway", "action.call", "io.molis.work.goals", null, "succeeded", "local-person", "user", "user",
+      null, "workbench", "proj-a", null, "2026-11-10T00:00:00.000Z", "2026-11-10T00:00:00.100Z", 0, "call-1", "inv-1",
+      null, null, null, "work-1", "real", "[{\"kind\":\"goal\",\"id\":\"g-1\"}]", "{\"platform_version\":\"0.1.0\"}",
+      "{\"action\":\"goals.read@1\",\"operation\":\"query\"}", "[{\"role\":\"input\",\"ref\":{\"kind\":\"snapshot\",\"digest\":\"d-1\",\"bytes\":12,\"media_type\":\"application/json\"}}]",
+      null, null,
+    );
+    db.prepare("INSERT INTO evidence_blobs VALUES (?,?,?,?,?)").run("d-1", 12, "application/json", Buffer.from("sealed-bytes"), "2026-11-10T00:00:00.100Z");
+    db.prepare("INSERT INTO record_evidence VALUES (?,?)").run(1, "d-1");
+    db.prepare("INSERT INTO coverage VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").run("service:gateway", "action.call", "workbench", "proj-a", "complete", "2026-11-10T00:00:00.000Z", "0.1.0", null, 0, 0, 0, "2026-11-10T00:00:00.100Z");
+    db.prepare("INSERT INTO writer_state VALUES (?,?)").run("settings", "{\"paused\":false,\"uses\":{\"assistant\":true,\"evaluation\":true,\"export\":false},\"retention_mode\":\"90\",\"space_reminder_bytes\":null}");
+
+    const tables = ["records", "evidence_blobs", "record_evidence", "coverage", "coverage_gaps", "report_quota", "writer_state"];
+    const before = tables.map(table => db.prepare(`SELECT * FROM ${table}`).all());
+    assert.throws(() => applySqliteBaseline(db, "observation", baseline), { code: "storage.upgrade_pending" });
+    assert.deepEqual(runSqliteUpgrade(db, "observation", baseline), { from: 1, to: 2 });
+    assert.deepEqual(tables.map(table => db.prepare(`SELECT * FROM ${table}`).all()), before);
+    assert.deepEqual(db.prepare("SELECT * FROM evaluation_holds").all(), []);
+    assert.deepEqual(db.prepare("SELECT * FROM evaluation_hold_records").all(), []);
+    assert.deepEqual(describeSqliteSchema(db), shape(baseline.schema));
+    applySqliteBaseline(db, "observation", baseline);
   } finally { db.close(); }
 });

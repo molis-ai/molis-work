@@ -21,8 +21,9 @@ import { titleIn, type CapabilityTitles } from "./assistant-present.js";
 import type { AssistantWorkReads } from "./assistant-work-reads.js";
 import type { AssistantDispatch } from "./assistant-dispatch.js";
 import { assistantEndControl, holdAssistantWorkLifetime, inAssistantWorkEffect } from "./assistant-work-permissions.js";
+import type { AssistantStepGate } from "./assistant-step-gate.js";
 
-export type AssistantOutcomesLinks = Pick<AssistantDispatch, "executorOf" | "dispatch"> & Pick<AssistantWorkReads, "latestRun"> & { read(workId: string): Promise<AssistantWorkView>; jobs: Pick<AssistantJobs, "follow"> };
+export type AssistantOutcomesLinks = Pick<AssistantDispatch, "executorOf" | "dispatch"> & Pick<AssistantWorkReads, "latestRun"> & { read(workId: string): Promise<AssistantWorkView>; jobs: Pick<AssistantJobs, "follow">; stepGate?: Pick<AssistantStepGate, "answer"> };
 
 /**
  * What the person decides and what a round produced: answers and confirmations, results handed back or made, the undo
@@ -76,6 +77,8 @@ export class AssistantOutcomes {
 
   async decide(workId: string, input: { review_id: string; version: string; decision: "approve" | "reject"; note?: string }, boundary?: Parameters<AgentHost["reviews"]["respond"]>[1]): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
+    // 「接着做下一步？」 is the Host's own confirmation (PWA-156), answered here the same as through the task's row.
+    if (work.step_gate?.id === input.review_id && await this.link.stepGate?.answer(workId, input.review_id, input.version, input.decision)) return this.link.read(workId);
     const host = await this.ports.host();
     const review = host.reviews.get(String(input.review_id));
     // A plugin-carried work's confirmations are the plugin's own, in the same queue its page decides from.

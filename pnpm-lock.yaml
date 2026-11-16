@@ -64,6 +64,9 @@ importers:
       '@molis-ai/molis-work-kernel':
         specifier: workspace:*
         version: link:packages/kernel
+      '@molis-ai/molis-work-module-acceptance':
+        specifier: workspace:*
+        version: link:modules/acceptance
       '@molis-ai/molis-work-module-artifacts':
         specifier: workspace:*
         version: link:modules/artifacts
@@ -190,12 +193,18 @@ importers:
       '@molis-ai/molis-work-service-connector-host':
         specifier: workspace:*
         version: link:horizontal/connector-host
+      '@molis-ai/molis-work-service-evaluation':
+        specifier: workspace:*
+        version: link:horizontal/evaluation
       '@molis-ai/molis-work-service-kit':
         specifier: workspace:*
         version: link:horizontal/kit
       '@molis-ai/molis-work-service-knowledge':
         specifier: workspace:*
         version: link:horizontal/knowledge
+      '@molis-ai/molis-work-service-mainline':
+        specifier: workspace:*
+        version: link:horizontal/mainline
       '@molis-ai/molis-work-service-memory':
         specifier: workspace:*
         version: link:horizontal/memory
@@ -353,6 +362,9 @@ importers:
       '@molis-ai/molis-work-kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
+      '@molis-ai/molis-work-module-acceptance':
+        specifier: workspace:*
+        version: link:../../modules/acceptance
       '@molis-ai/molis-work-module-artifacts':
         specifier: workspace:*
         version: link:../../modules/artifacts
@@ -479,12 +491,18 @@ importers:
       '@molis-ai/molis-work-service-connector-host':
         specifier: workspace:*
         version: link:../../horizontal/connector-host
+      '@molis-ai/molis-work-service-evaluation':
+        specifier: workspace:*
+        version: link:../../horizontal/evaluation
       '@molis-ai/molis-work-service-kit':
         specifier: workspace:*
         version: link:../../horizontal/kit
       '@molis-ai/molis-work-service-knowledge':
         specifier: workspace:*
         version: link:../../horizontal/knowledge
+      '@molis-ai/molis-work-service-mainline':
+        specifier: workspace:*
+        version: link:../../horizontal/mainline
       '@molis-ai/molis-work-service-memory':
         specifier: workspace:*
         version: link:../../horizontal/memory
@@ -691,8 +709,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/storage
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-surface-detach.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-surface-detach.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz
 
   horizontal/appearance:
     dependencies:
@@ -730,6 +748,18 @@ importers:
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
 
+  horizontal/evaluation:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+
   horizontal/kit:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -737,6 +767,15 @@ importers:
         version: link:../../packages/contracts
 
   horizontal/knowledge:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+
+  horizontal/mainline:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
@@ -816,6 +855,15 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
+
+  modules/acceptance:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
 
   modules/artifacts:
     dependencies:
@@ -1832,8 +1880,8 @@ packages:
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-surface-detach.tgz':
-    resolution: {integrity: sha512-2haAWrBnTrtyYBb2ocwSe6V92YEJWiK3pa4BfJN7SNYTgtpg5VyKXNduNEqEUPnK0IYR7qbJCn+o8E9KzeTQOQ==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-surface-detach.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz':
+    resolution: {integrity: sha512-84AMh3wHTm2KQTzouAcCiv641XB57ZiAr93l3Ir7bEM6/QGMAWD7SDthQ9K41HMeGSY2CYE8w3SAxubSj607lA==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':
@@ -3693,7 +3741,7 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-surface-detach.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

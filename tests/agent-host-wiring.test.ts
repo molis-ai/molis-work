@@ -15,6 +15,7 @@ import {
   registerAgentHostCapabilities,
 } from "@molis-ai/molis-work-service-agent-host";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import type {
   AgentManifest,
   AgentRuntimeAdapter,
@@ -101,7 +102,7 @@ test("组合根把 Agent Host 接进宿主之后，插件经动作够得到它",
     );
 
     // 插件以自己的身份调（R8 第 4 批）
-    const plugin = callerPlugin("wiring", "project", {}, [agentHostCapabilities.listRuntimes, agentHostCapabilities.availableRoles, agentHostCapabilities.awaitContinuations]
+    const plugin = callerPlugin("wiring", "project", {}, [agentHostCapabilities.listRuntimes, agentHostCapabilities.availableRoles, agentCollaborationActions.read, agentCollaborationActions.control]
       .map(definition => definition.capability_id));
     await startPlugin(localHost, reference, store, plugin);
     const client = localHost.client(reference), actions = plugin.actions(reference.project_id);
@@ -111,9 +112,10 @@ test("组合根把 Agent Host 接进宿主之后，插件经动作够得到它",
     const roles = await actions.invoke(agentHostCapabilities.availableRoles, ["fixture-read-only"]);
     assert.deepEqual(roles, [{ role_id: "reader", available: true }]);
 
-    // W2-18-CODING-WAKE-02: a runtime without a task graph is unavailable, not an immediately successful long poll.
+    // W2-18-CODING-WAKE-02: a runtime without a task graph has no wait to read, and controlling one is unavailable, not a success.
+    assert.deepEqual(await actions.invoke(agentCollaborationActions.read, { runtime_id: "fixture-read-only" }), { sessions: [] });
     await assert.rejects(
-      () => actions.invoke(agentHostCapabilities.awaitContinuations, ["fixture-read-only", 25_000, []]),
+      () => actions.invoke(agentCollaborationActions.control, { runtime_id: "fixture-read-only", kind: "cancel-wait", wait_id: "w1" }),
       (error: unknown) => (error as { code?: string }).code === "agent.capability_unavailable",
     );
 

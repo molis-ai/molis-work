@@ -1,48 +1,232 @@
+import { agentErrors } from "../errors.js";
 import { childCallerTask } from "./prologue-session-opening.js";
 import type { ChildOpeningFact } from "./prologue-session-index.js";
-import type { Runtime, SubagentStartedObserver, ExactRef } from "@prologue/sdk";
-import type { AgentFrozenSubagentRole, AgentRunRef, AgentSubagentsCapability, AgentSubagentView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { Runtime, SubagentHandle, SubagentStartedObserver, ExactRef } from "@prologue/sdk";
+import type {
+  AgentFrozenSubagentRole,
+  AgentRunRef,
+  AgentSubagentAttemptSummary,
+  AgentSubagentRetrySource,
+  AgentSubagentsCapability,
+  AgentSubagentView,
+} from "@molis-ai/molis-work-contracts/services/agent-host";
 import { applyRunEvent, emptyPrologueStreamState } from "./prologue-stream.js";
+
+export const SUBAGENT_DEFAULT_MAX_ATTEMPTS = 2;
 
 export interface PrologueSubagentRoot {
   id: string;
   rootRef: ExactRef<"authorized-root">;
   path: string;
 }
+
+interface PrologueSubagentProvenance {
+  path: string;
+  roles: Array<[string, AgentFrozenSubagentRole]>;
+  roots?: PrologueSubagentRoot[];
+  errors?: Record<string, string>;
+  child_openings?: ChildOpeningFact[];
+  step_prefix?: string;
+  budgets?: Record<string, { max_attempts: number }>;
+  attempt_sources?: Record<string, AgentSubagentRetrySource>;
+  attempt_reasons?: Record<string, string>;
+  nodes?: Record<string, string>;
+}
+
+export interface PrologueSubagentHooks {
+  defaultMaxTurns?: number;
+  extendBudget?(run: AgentRunRef, subagentId: string, addAttempts: number): Promise<void>;
+  continueChild?(input: {
+    parentRun: AgentRunRef;
+    child: SubagentHandle;
+    baseTask: string;
+    reason?: string;
+    source: AgentSubagentRetrySource;
+    actorId: string;
+    attemptNumber: number;
+  }): Promise<void>;
+}
+
 const sameRoot = (a: ExactRef<"authorized-root">, b: ExactRef<"authorized-root">) => a.id === b.id && a.revision === b.revision;
 
-/** SDK owns parent/child identity and the event ledger. This is a read projection. */
-export function createPrologueSubagents(runtime: Runtime, provenanceOf: (run: AgentRunRef) => Promise<{ path: string; roles: Array<[string, AgentFrozenSubagentRole]>; roots?: PrologueSubagentRoot[]; errors?: Record<string, string>; child_openings?: ChildOpeningFact[] }>): AgentSubagentsCapability {
-  const owned = (run: AgentRunRef) => runtime.subagents.list().filter(child => child.parentSession.id === run.session_id && child.parentRun.id === run.run_id);
-  return {
-    async list(run) {
-      const provenance = await provenanceOf(run), roles = new Map(provenance.roles);
-      const result: AgentSubagentView[] = [];
-      for (const child of owned(run)) {
-        const session = await runtime.sessions.open(child.session);
-        if (!session) throw new Error("子任务原始会话不可读取，不能当作空结果");
-        const terminal = (await session.terminalRuns()).find(ref => ref.id === child.run.id);
-        const events = terminal ? await session.replay(terminal) : await session.readRunProgress(child.run);
-        const stream = emptyPrologueStreamState();
-        for (const event of events) applyRunEvent(stream, event, null);
-        const role = child.character ? roles.get(exactCharacterKey(child.character)) : undefined;
-        if (!role) throw new Error("原子角色来源不可读取，不能猜测其权限与身份");
-        const root = child.workspace && provenance.roots?.find(root => root.id === child.workspace!.id && sameRoot(root.rootRef, child.workspace!.rootRef));
-        if (child.workspace && !root || provenance.roots?.length && !root) throw new Error("子任务原目录来源不可读取，不能显示为主工作区");
-        const task = childCallerTask(provenance.child_openings ?? [], run.run_id, child.session, child.run, events);
-        result.push({ continuation_task: task === undefined ? { status: "unavailable" } : { status: "available", text: task }, subagent_id: child.ref.id, parent_run: { ...run }, child_run: { session_id: child.session.id, run_id: child.run.id },
-          role_id: role.role_id, role_name: role.name, task: stream.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => turn.text).join("\n\n"),
-          state: child.state, result: stream.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text).join("\n\n") || null,
-          workspace_path: root?.path ?? provenance.path, activity: stream.activity, usage: stream.usage, host_tools: [...role.host_tools],
-          ...(provenance.errors?.[child.run.id] || stream.stop_reason ? { error: provenance.errors?.[child.run.id] ?? stream.stop_reason } : {}) });
+async function projectSubagentView(
+  runtime: Runtime,
+  run: AgentRunRef,
+  child: SubagentHandle,
+  provenance: PrologueSubagentProvenance,
+  roles: ReadonlyMap<string, AgentFrozenSubagentRole>,
+  defaultMaxTurns: number,
+): Promise<AgentSubagentView> {
+  const session = await runtime.sessions.open(child.session);
+  if (!session) throw new Error("子任务原始会话不可读取，不能当作空结果");
+  const terminals = await session.terminalRuns();
+  const attemptRefs = child.attempts?.length ? child.attempts : [child.run];
+  const attemptSummaries: AgentSubagentAttemptSummary[] = [];
+  let firstAttemptEvents: Awaited<ReturnType<typeof session.replay>> | undefined;
+  let latestStream = emptyPrologueStreamState();
+
+  for (const [idx, attemptRef] of attemptRefs.entries()) {
+    const terminal = terminals.find(ref => ref.id === attemptRef.id);
+    let events: Awaited<ReturnType<typeof session.replay>>;
+    if (terminal) {
+      events = await session.replay(terminal);
+    } else {
+      try {
+        events = await session.readRunProgress(attemptRef);
+      } catch (err) {
+        if ((err as { code?: string } | null)?.code !== "RUN_NOT_REPLAYABLE") throw err;
+        events = await session.replay(attemptRef);
       }
-      return result;
+    }
+    if (idx === 0) firstAttemptEvents = events;
+    const stream = emptyPrologueStreamState();
+    for (const event of events) applyRunEvent(stream, event, null);
+    if (idx === attemptRefs.length - 1) latestStream = stream;
+    const terminalEvent = [...events].reverse().find(event => event.type === "completed" || event.type === "failed" || event.type === "cancelled");
+    const state: AgentSubagentView["state"] = terminalEvent
+      ? terminalEvent.type
+      : idx === attemptRefs.length - 1
+        ? child.state
+        : "failed";
+    const attemptSource = idx === 0 ? undefined : (provenance.attempt_sources?.[attemptRef.id] ?? "user-requested");
+    const attemptReason = idx === 0 ? undefined : provenance.attempt_reasons?.[attemptRef.id];
+    const attemptError = provenance.errors?.[attemptRef.id] ?? stream.stop_reason;
+    attemptSummaries.push({
+      attempt: idx + 1,
+      run_id: attemptRef.id,
+      state,
+      ...(attemptSource ? { source: attemptSource } : {}),
+      ...(attemptReason ? { reason: attemptReason } : {}),
+      ...(stream.usage ? { usage: stream.usage } : {}),
+      ...(attemptError ? { error: attemptError } : {}),
+    });
+  }
+
+  const role = child.character ? roles.get(exactCharacterKey(child.character)) : undefined;
+  if (!role) throw new Error("原子角色来源不可读取，不能猜测其权限与身份");
+  const root = child.workspace && provenance.roots?.find(entry => entry.id === child.workspace!.id && sameRoot(entry.rootRef, child.workspace!.rootRef));
+  if (child.workspace && !root || provenance.roots?.length && !root) throw new Error("子任务原目录来源不可读取，不能显示为主工作区");
+  const firstRunRef = attemptRefs[0]!;
+  const task = firstAttemptEvents
+    ? childCallerTask(provenance.child_openings ?? [], run.run_id, child.session, firstRunRef, firstAttemptEvents)
+    : undefined;
+  const maxAttempts = Math.max(1, provenance.budgets?.[child.ref.id]?.max_attempts ?? SUBAGENT_DEFAULT_MAX_ATTEMPTS);
+  const usedAttempts = attemptRefs.length;
+  const latestRunId = attemptRefs[attemptRefs.length - 1]!.id;
+  const latestRetrySource = usedAttempts > 1 ? (provenance.attempt_sources?.[latestRunId] ?? "user-requested") : undefined;
+  const latestRetryReason = usedAttempts > 1 ? provenance.attempt_reasons?.[latestRunId] : undefined;
+  const usedTokens = latestStream.usage
+    ? (latestStream.usage.tokens.input ?? 0) + (latestStream.usage.tokens.output ?? 0)
+    : undefined;
+  const effectiveState = attemptSummaries.at(-1)?.state ?? child.state;
+  const exhausted = usedAttempts >= maxAttempts && effectiveState !== "running" && effectiveState !== "completed";
+  const rawNode = provenance.nodes?.[child.session.id];
+  const nodeId = rawNode && provenance.step_prefix && rawNode.startsWith(`${provenance.step_prefix}.`)
+    ? rawNode.slice(provenance.step_prefix.length + 1)
+    : rawNode;
+
+  return {
+    continuation_task: task === undefined ? { status: "unavailable" } : { status: "available", text: task },
+    subagent_id: child.ref.id,
+    parent_run: { ...run },
+    child_run: { session_id: child.session.id, run_id: child.run.id },
+    ...(nodeId ? { node_id: nodeId } : {}),
+    role_id: role.role_id,
+    role_name: role.name,
+    task: latestStream.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => turn.text).join("\n\n"),
+    state: effectiveState,
+    result: latestStream.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text).join("\n\n") || null,
+    workspace_path: root?.path ?? provenance.path,
+    activity: latestStream.activity,
+    usage: latestStream.usage,
+    host_tools: [...role.host_tools],
+    budget: {
+      attempt: usedAttempts,
+      max_attempts: maxAttempts,
+      max_turns: defaultMaxTurns,
+      ...(usedTokens !== undefined ? { used_tokens: usedTokens } : {}),
+      ...(exhausted ? { exhausted: true as const } : {}),
+      ...(latestRetrySource ? { retry_source: latestRetrySource } : {}),
+      ...(latestRetryReason ? { retry_reason: latestRetryReason } : {}),
+      ...(attemptSummaries.length > 1 ? { prior_attempts: attemptSummaries.slice(0, -1) } : {}),
     },
+    ...(provenance.errors?.[child.run.id] || latestStream.stop_reason ? { error: provenance.errors?.[child.run.id] ?? latestStream.stop_reason } : {}),
+  };
+}
+
+/** SDK owns parent/child identity and the event ledger. This projects and governs subagent attempts and budgets (BL-051). */
+export function createPrologueSubagents(
+  runtime: Runtime,
+  provenanceOf: (run: AgentRunRef) => Promise<PrologueSubagentProvenance>,
+  hooks: PrologueSubagentHooks = {},
+): AgentSubagentsCapability {
+  const owned = (run: AgentRunRef) => runtime.subagents.list().filter(child => child.parentSession.id === run.session_id && child.parentRun.id === run.run_id);
+  const defaultMaxTurns = hooks.defaultMaxTurns ?? 20;
+
+  const list: AgentSubagentsCapability["list"] = async run => {
+    const provenance = await provenanceOf(run), roles = new Map(provenance.roles);
+    const result: AgentSubagentView[] = [];
+    for (const child of owned(run)) {
+      result.push(await projectSubagentView(runtime, run, child, provenance, roles, defaultMaxTurns));
+    }
+    return result;
+  };
+
+  return {
+    list,
     async cancel(run, id, _actor) {
       const child = owned(run).find(child => child.ref.id === id);
-      if (!child) throw new Error("子任务不属于这一轮执行");
+      if (!child) throw agentErrors.collaboration_unknown("子任务不属于这一轮执行");
       await runtime.subagents.cancel(child.ref);
     },
+    ...(hooks.extendBudget ? {
+      async extendBudget(run, id, addAttempts, _actor) {
+        const child = owned(run).find(entry => entry.ref.id === id);
+        if (!child) throw agentErrors.collaboration_unknown("子任务不属于这一轮执行");
+        if (!Number.isSafeInteger(addAttempts) || addAttempts < 1 || addAttempts > 10) {
+          throw agentErrors.collaboration_unknown("每次增加的尝试预算需为 1–10 次整数");
+        }
+        await hooks.extendBudget!(run, child.ref.id, addAttempts);
+        const updated = (await list(run)).find(entry => entry.subagent_id === id);
+        if (!updated) throw agentErrors.control_failed("子任务状态读取失败");
+        return updated;
+      },
+    } : {}),
+    ...(hooks.continueChild ? {
+      async retry(run, id, input) {
+        const child = owned(run).find(entry => entry.ref.id === id);
+        if (!child) throw agentErrors.collaboration_unknown("子任务不属于这一轮执行");
+        if (child.state === "running") {
+          throw agentErrors.session_busy("这个子任务仍在执行中；请等它结束或先终止后再重试");
+        }
+        if (input.extend_attempts !== undefined && input.extend_attempts > 0) {
+          if (!hooks.extendBudget) throw agentErrors.capability_unavailable("当前运行时不支持扩展子任务预算");
+          await hooks.extendBudget(run, child.ref.id, input.extend_attempts);
+        }
+        const current = (await list(run)).find(entry => entry.subagent_id === id);
+        if (!current) throw agentErrors.control_failed("子任务状态读取失败");
+        if (current.budget && current.budget.attempt >= current.budget.max_attempts) {
+          throw agentErrors.capability_unavailable(
+            `这个子任务已用完 ${current.budget.attempt}/${current.budget.max_attempts} 次尝试预算；如需继续，请先点「再给 3 次」或直接终止`,
+          );
+        }
+        if (current.continuation_task?.status !== "available") {
+          throw agentErrors.capability_unavailable("子任务原开场任务不可核验，不能自动发起新尝试");
+        }
+        await hooks.continueChild!({
+          parentRun: run,
+          child,
+          baseTask: current.continuation_task.text,
+          reason: input.reason,
+          source: input.source,
+          actorId: input.actor_id,
+          attemptNumber: (current.budget?.attempt ?? 1) + 1,
+        });
+        const refreshed = (await list(run)).find(entry => entry.subagent_id === id);
+        if (!refreshed) throw agentErrors.control_failed("重试后读取子任务状态失败");
+        return refreshed;
+      },
+    } : {}),
   };
 }
 
@@ -68,7 +252,7 @@ export function exactCharacterKey(ref: ExactRef<"character">): string { return r
 export function runLineage(runtime: Runtime, runId: string, depth = 8): string[] {
   const lineage: string[] = [], children = runtime.subagents.list();
   for (let at = runId; lineage.length < depth;) {
-    const child = children.find(one => one.run.id === at);
+    const child = children.find(one => one.run.id === at || one.attempts?.some(attempt => attempt.id === at));
     if (!child) break;
     lineage.push(at = child.parentRun.id);
   }

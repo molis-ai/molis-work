@@ -6,6 +6,7 @@ import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, type AgentStart
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type ActionDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
+import { readyWithin } from "./continuation-ready.js";
 
 /**
  * A Coding builder round on the real Node adapter that registers a step's wait on something outside (specs/prologue-adoption
@@ -183,7 +184,7 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
    * project's sessions may go on, it starts each one's next round, which takes the continuation up. Returns the rounds it started.
    */
   const wake = async (task: string, extra: object = {}, ms = 10_000) => {
-    const ready = (await adapter.collaboration!.awaitReady("p", ms)).filter(view => view.session_id === session.session_id);
+    const ready = (await readyWithin(adapter.collaboration!, "p", ms)).filter(view => view.session_id === session.session_id);
     const started = [];
     while (started.length < ready.length) started.push(await start(task, extra));
     return started;

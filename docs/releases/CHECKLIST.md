@@ -59,9 +59,11 @@
 | 插件原文件登记 | `plugin-originals/plugin-originals.db` | 1 | `user_version` | `apps/local-host/src/material-original-files.ts#ORIGINAL_FILES_BASELINE` | 低版本升级，高版本拒绝 |
 | Issue | `issues/issues.db` | 1 | `user_version` | `plugins/native/issues/src/database.ts#ISSUES_DATABASE` | 低版本升级，高版本拒绝 |
 | Feed 的正文引用账 | `feed-content/feed-content.db` | 1 | `user_version` | `plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE` | 低版本升级，高版本拒绝 |
-| 记忆 | `memory/memory.db` | 2 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 低版本升级（1 → 2 清掉旧记忆的账本记录，保留开关并补空的按类别限制，下次启动永久删除两个旧布局记忆目录并建新的空遗忘文件；真实 Home 先备份），高版本拒绝；新Home创建完整reviewed偏好，不重设已有设置 |
+| 记忆 | `memory/memory.db` | 3 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 低版本升级（1 → 2 清掉旧记忆的账本记录，保留开关并补空的按类别限制，下次启动永久删除两个旧布局记忆目录并建新的空遗忘文件；2 → 3 清洗 `memory_revisions` 只留 `{version, change, by, at}` 无正文归因并清掉非 `pending` 的 `memory_markers` 里的 `merge` 暂态字段，收紧读取校验；真实 Home 先备份），高版本拒绝；新Home创建完整reviewed偏好，不重设已有设置 |
 | 项目资料 | `knowledge/knowledge.db` | 1 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 低版本升级，高版本拒绝 |
-| 工作记录 | `observation/observation.db` | 1 | `user_version` | `horizontal/observation/src/schema.ts#OBSERVATION_BASELINE` | 低版本升级，高版本拒绝（第 28 批新建，从版本 1 起） |
+| 要求与认可 | `acceptance/acceptance.db` | 1 | `user_version` | `modules/acceptance/src/schema.ts#ACCEPTANCE_BASELINE` | 低版本升级，高版本拒绝（第 32 批新建，从版本 1 起） |
+| 工作记录 | `observation/observation.db` | 2 | `user_version` | `horizontal/observation/src/schema.ts#OBSERVATION_BASELINE` | 低版本升级（1 → 2 新增评测样本留存表 `evaluation_holds` 与 `evaluation_hold_records`，保留既有记录、证据快照、覆盖登记与设置），高版本拒绝 |
+| 端到端评测 | `evaluation/evaluation.db` | 1 | `user_version` | `horizontal/evaluation/src/schema.ts#EVALUATION_BASELINE` | 低版本升级，高版本拒绝（只停工作记录／评测设置面，不挡 Home） |
 | Form | `form/form.db` | 1 | `user_version` | `plugins/native/form/src/database.ts#FORM_DATABASE` | 低版本升级，高版本拒绝 |
 | 放置 | `placement/placement.db` | 1 | `user_version` | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE` | 低版本升级，高版本拒绝 |
 | Agent 定义 | `agent-definitions/agent-definitions.db` | 2 | `user_version` | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE` | 低版本升级，高版本拒绝 |
@@ -106,6 +108,8 @@ Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-
 - Home Plugin Runtime当前结构1保留项目访问同意范围、批准能力及publisher_trust、plugin_consents与plugin_publishers；新Home启动按Manifest幂等登记常开同意，撤销不复活。旧项目/Runtime升级路线已取消，相关片删除工具。
 - Sessions已下线，用户2026-10-30确认删除其离线技术登记与reader；新Home不建sessions目录，未知旧目录不被快照读取，旧Home整体搬开后保留。
 - 每次发布把这张表和上个版本的对比写进发布说明的「兼容与升级」，标出变了的行。上个版本没有这张表时，用 `git show <上个 tag>:<定义处文件>` 逐行取旧值。
+
+**第 41 批之前带 Goals Home 库的 Home**：新版升级轮会直接删 `goals/`（宿主 `REMOVED_HOME_STORES`，用户 2026-11-14 定「直接删」）。升级前先用**旧版程序**做完整、可恢复的备份，并确认旧版能打开；新版不迁移这个目录，删后不可恢复。
 
 ## 4. 真实 Home：搬开后干净重建
 

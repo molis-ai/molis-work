@@ -22,6 +22,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./modules/acceptance": {
+      "types": "./dist/modules/acceptance.d.ts",
+      "import": "./dist/modules/acceptance.js"
+    },
     "./modules/artifacts": {
       "types": "./dist/modules/artifacts.d.ts",
       "import": "./dist/modules/artifacts.js"
@@ -73,6 +77,10 @@
     "./platform/kernel": {
       "types": "./dist/platform/kernel.d.ts",
       "import": "./dist/platform/kernel.js"
+    },
+    "./platform/object-link": {
+      "types": "./dist/platform/object-link.d.ts",
+      "import": "./dist/platform/object-link.js"
     },
     "./platform/loopback": {
       "types": "./dist/platform/loopback.d.ts",
@@ -250,6 +258,10 @@
       "types": "./dist/services/project-approvals.d.ts",
       "import": "./dist/services/project-approvals.js"
     },
+    "./services/evaluation": {
+      "types": "./dist/services/evaluation.d.ts",
+      "import": "./dist/services/evaluation.js"
+    },
     "./services/surface-composition": {
       "types": "./dist/services/surface-composition.d.ts",
       "import": "./dist/services/surface-composition.js"
@@ -265,6 +277,10 @@
     "./services/kit": {
       "types": "./dist/services/kit.d.ts",
       "import": "./dist/services/kit.js"
+    },
+    "./services/mainline": {
+      "types": "./dist/services/mainline.d.ts",
+      "import": "./dist/services/mainline.js"
     },
     "./modules/characters": {
       "types": "./dist/modules/characters.d.ts",

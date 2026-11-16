@@ -4,6 +4,10 @@ import { computerHolderFor } from "../computer/computer-surfaces.js";
 import { assertHumanReview } from "../computer/computer-policy.js";
 import { pluginInstallRecords } from "../plugin-install-records.js";
 import { HomeConsentLedger } from "../home-plugin-store.js";
+import { assistantLineRegistration, assistantLineSource, personTaskTable } from "./assistant-line-actions.js";
+import { AssistantTaskReports, type AssistantReportRounds } from "./assistant-task-reports.js";
+import { onAttentionChangeOf } from "../attention-changes.js";
+import { homeAggregatePorts } from "../home-aggregate.js";
 import { assistantRelatedRegistration, relatedWorks, type RelatedWorksSource } from "./assistant-related-action.js";
 import { executorInputActions } from "./assistant-executor-input.js";
 import { AssistantThreads } from "./assistant-threads.js";
@@ -17,7 +21,7 @@ import { ASSISTANT_INSTALL_ID, type AssistantControl, type AssistantHandover, ty
 import { dispatchNativePluginJsonHttp, type NativePluginJsonResult, writeNativePluginJsonResponse } from "../native-plugin-http.js";
 import { activeLocale, readText, pageLocale, type WebLocale } from "../web-locale.js";
 import { modelRoundLocale } from "../reply-language.js";
-import { lastUsedLocale, rememberUiLocale } from "../ui-locale-memory.js";
+import { lastUsedLocale, rememberUiLocale, runBackgroundWorkIn } from "../ui-locale-memory.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
@@ -99,12 +103,29 @@ function pageRoundLanguage(ports: Pick<AssistantHttpPorts, "homeDirectory">): { 
 /** Half-written answers to a work's questions, kept with the work. */
 const questionDrafts = (store: AssistantStore) => new AssistantQuestionDrafts({ store, actorId: WEB_ACTOR, fail: (code, message) => assistantErrors[code.slice("assistant.".length) as keyof typeof assistantErrors](message) });
 
+/**
+ * Tasks no conversation started report to the Assistant once they end (`reports_to: "assistant"`), read where something changed.
+ * Only a project open now is read (the Home never opens one to read it), kept open while it is, in the language last used.
+ */
+function watchTaskReports(ports: AssistantHttpPorts, tableOf: (projectId: string) => ReturnType<ReturnType<typeof personTaskTable>>, rounds: AssistantReportRounds): AssistantTaskReports {
+  const aggregate = homeAggregatePorts(ports.localHost);
+  const reports = new AssistantTaskReports({ changes: onAttentionChangeOf, reportsTo: projectId => rounds.reportsTo(projectId), report: report => rounds.report(report),
+    table: async projectId => {
+      const reference = aggregate.openProjects().find(one => one.project_id === projectId);
+      const read = reference && await aggregate.whileOpen(reference, () => runBackgroundWorkIn(ports.homeDirectory, () => tableOf(projectId)));
+      return read ?? { tasks: [], issues: [] };
+    } });
+  reports.start();
+  return reports;
+}
+
 /** One Assistant per Home. Its store is opened once and lives as long as the Host that serves it. */
-const services = new WeakMap<MolisWorkLocalHost, { home: string; service: AssistantService; store: AssistantStore; threads: AssistantThreads; surroundings: ReturnType<typeof assistantSurroundings> }>();
+const services = new WeakMap<MolisWorkLocalHost, { home: string; service: AssistantService; store: AssistantStore; threads: AssistantThreads; surroundings: ReturnType<typeof assistantSurroundings>; reports: AssistantTaskReports }>();
 
 /** The Host owns the shared Assistant; closing a borrowed HTTP transport does not release it. */
 export function closeAssistantService(host: MolisWorkLocalHost): void {
   services.get(host)?.service.continuations.close();
+  services.get(host)?.reports.close();
   services.delete(host);
 }
 
@@ -189,7 +210,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       view => service.dispatcher.noteDispatched(work, view), () => {
         const snapshot = store.rounds(work.work_id).at(-1)?.context;
         return snapshot ? { url: null, title: snapshot.source.title ?? snapshot.source.surface, provenance: "client_reported" } : undefined;
-      }, locale, namedSkills, autoSkills, (key, automatic) => store.holdActionPolicy(WEB_ACTOR, key, automatic)),
+      }, locale, namedSkills, service.delivery(work), autoSkills, (key, automatic) => store.policies.hold(WEB_ACTOR, key, automatic)),
       project_prompts: await assistantProjectPrompts(ports.localHost, work),
       assertBeforeDispatch: () => { if (ports.localHost.lifecycle() !== "running") throw assistantErrors.state("运行环境已经关闭"); },
       // The platform memory, under the Assistant's switch: re-read and injected by the runtime as data.
@@ -260,7 +281,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     client: project => ports.localHost.actionClient(project), caller: project => localWebActionContext(ports.localHost, project, LOCAL_OWNER_PERMISSIONS),
     alive: () => ports.localHost.lifecycle() === "running",
   });
-  const entry = { home: ports.homeDirectory, service, store, threads, surroundings };
+  const entry = { home: ports.homeDirectory, service, store, threads, surroundings, reports: watchTaskReports(ports, personTaskTable(ports.projectReference, personClient), service.reports) };
   services.set(ports.localHost, entry);
   // The runtime looks at the background jobs these works follow with the work's own authority, from its first look on.
   registerWorkAuthority(ports.localHost, at => service.jobs.authority(at));
@@ -268,9 +289,10 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: { key: "workbench.project-deletion.assistant" }, alive: () => ports.localHost.lifecycle() === "running",
     clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: id => service.closeForProjectDeletion(id) }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
-  const threadActions = assistantThreadRegistration(threads), relatedActions = assistantRelatedRegistration(() => relatedSource(service));
+  const threadActions = assistantThreadRegistration(threads), relatedActions = assistantRelatedRegistration(() => relatedSource(service)), lineActions = assistantLineRegistration(() => assistantLineSource(store, personTaskTable(ports.projectReference, personClient), service, WEB_ACTOR,
+    review => assertHumanReview(computerHolderFor(ports.localHost)?.(), review.run?.session_id)));
   try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service, ports.homeDirectory,
-    { definitions: [...threadActions.definitions, ...relatedActions.definitions], handlers: [...threadActions.handlers, ...relatedActions.handlers] }); }
+    { definitions: [...threadActions.definitions, ...relatedActions.definitions, ...lineActions.definitions], handlers: [...threadActions.handlers, ...relatedActions.handlers, ...lineActions.handlers] }); }
   catch (error) { hostLog.warn("assistant", "rule_actions_registration_failed", error); }
   return entry;
 }
@@ -347,6 +369,8 @@ export const assistantPanelActions = {
   undo: panel("works.undo", /* @version action.assistant.panel.works.undo */ 1, "撤销一项已做的操作", ofItem, (entry, input) => of(entry).service.outcomes.undo(input.work_id, input.item)),
   budget: panel("works.budget", /* @version action.assistant.panel.works.budget */ 1, "设定工作用量上限", ofWork,
     (entry, input) => of(entry).service.budget.saveWorkBudget(input.work_id, input.body.budget_tokens)),
+  askEachStep: panel("works.ask_each_step", /* @version action.assistant.panel.works.ask_each_step */ 1, "设定每步先问我", ofWork,
+    async (entry, input) => { await of(entry).service.continuations.stepGate.set(input.work_id, input.body.on); return of(entry).service.read(input.work_id); }),
   results: panel("works.results", /* @version action.assistant.panel.works.results */ 1, "交回页面里的结果", ofWork, (entry, input) => of(entry).service.outcomes.receiveResult(input.work_id, input.body)),
   handover: panel("works.handover", /* @version action.assistant.panel.works.handover */ 1, "转交给执行方", ofWork, (entry, input, caller) => of(entry).service.dispatcher.handover(input.work_id,
     { to: pageBody<Pick<AssistantHandover, "to">>(input.body).to, ...(typeof input.body.mode === "string" ? { mode: input.body.mode } : {}) }, assistantPermissionCaller(caller, entry.page))),
@@ -397,7 +421,7 @@ async function panelWrite(parts: readonly string[], body: Readonly<Record<string
   if (parts[0] !== "works" || !parts[1]) return undefined;
   const work_id = parts[1];
   if (parts.length === 3) {
-    const own = named<Panel<typeof ofWork>>({ control: a.control, draft: a.draft, rename: a.rename, mode: a.mode, "take-back": a.takeBack, budget: a.budget,
+    const own = named<Panel<typeof ofWork>>({ control: a.control, draft: a.draft, rename: a.rename, mode: a.mode, "take-back": a.takeBack, budget: a.budget, "ask-each-step": a.askEachStep,
       results: a.results, handover: a.handover, recovery: a.recovery, archive: a.archive, answer: a.answer, "question-draft": a.questionDraft }, parts[2]);
     return own && run(own.definition, { work_id, body });
   }

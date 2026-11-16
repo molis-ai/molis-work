@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
+import { readyWithin } from "./fixtures/continuation-ready.js";
 
 const response = (text: string, tool?: { name: string; input: unknown }) => {
   const events: string[] = [], emit = (type: string, value: any) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
@@ -99,7 +100,7 @@ test("a round leaves a long command running in the background and parks on it: n
     assert.equal((await adapter.background!.read("b", park.session.session_id))[0]!.state, "running");
     assert.equal(seen.PARK!.length, 3, "no model call while it runs");
     // Its end ends the wait: the step's continuation may go on, and the App learns it without polling.
-    const fired = await adapter.collaboration!.awaitReady("b", 10_000);
+    const fired = await readyWithin(adapter.collaboration!, "b", 10_000);
     assert.deepEqual(fired.map(view => [view.session_id, view.wait?.state, view.wait?.conditions[0]?.last.status, view.continuation?.state]),
       [[park.session.session_id, "satisfied", "satisfied", "eligible"]]);
     assert.equal((await adapter.background!.read("b", park.session.session_id))[0]!.exit_code, 0);
@@ -122,7 +123,7 @@ test("a round leaves a long command running in the background and parks on it: n
     await until("the live round goes on", () => (seen.LIVE?.length ?? 0) >= 4);
     assert.match(seen.LIVE![3]!, /the wait on your step is over; go on from here\.(?:\\+n)+You were waiting for: 等 live/);
     assert.deepEqual(await adapter.collaboration!.read("b", live.session.session_id), [{ session_id: live.session.session_id }], "the round under way took it up");
-    assert.deepEqual(await adapter.collaboration!.awaitReady("b", 0), []);
+    assert.deepEqual(await readyWithin(adapter.collaboration!, "b", 0), []);
     // A later round stops what an earlier one left running: the card names the command, and it stops.
     const left = await run("留着跑", "LEAVE_TASK 起一条长命令");
     const stopping = await host.start("prologue", { ...owner, session: left.session, directory, role_id: "builder", task: "STOP_TASK 停掉上一轮留下的命令", session_title: "留着跑" } as never, authority);
@@ -139,7 +140,7 @@ test("a round leaves a long command running in the background and parks on it: n
     ({ adapter, host, queue } = await open());
     assert.deepEqual((await adapter.background!.read("b", cut.session.session_id)).map(task => task.state), ["interrupted"]);
     // An interrupted command will say nothing again: the wait is the person's to reconcile, not an outcome made up.
-    const afterRestart = await adapter.collaboration!.awaitReady("b", 5_000);
+    const afterRestart = await readyWithin(adapter.collaboration!, "b", 5_000);
     assert.deepEqual(afterRestart.map(view => [view.session_id, view.wait?.reason, view.wait?.state, view.wait?.conditions[0]?.last.note]),
       [[cut.session.session_id, "等长任务", "needs-reconciliation", "interrupted"]]);
     // The person gives it up: the step is given back and nothing is left to go on; it cannot be given up twice.

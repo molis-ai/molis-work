@@ -1,4 +1,4 @@
-import { ActionError, type ActionCallContext, type ActionSceneDefinition, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneExecutionContext, type ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, objectLink, type ActionCallContext, type ActionSceneDefinition, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneExecutionContext, type ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, INBOX_NEXT_SCENE_ID, SYSTEM_INBOX_NEXT_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 
 export const inboxNextScene: ActionSceneDefinition = {
@@ -45,7 +45,7 @@ export function createInboxSceneHandler(ports: InboxScenePorts): ActionSceneHand
     scene_id: inboxNextScene.scene_id, version: inboxNextScene.version,
     bindings: () => { const binding = ports.binding(); return binding ? [binding] : []; },
     targets: () => { const binding = ports.binding(); return [{ binding_id: inboxSceneBindingId(ports.projectId), title: "Inbox 下一步",
-      href: `/projects/${encodeURIComponent(ports.projectId)}/?openPlugin=inbox`, revision: binding?.revision ?? null }]; },
+      href: objectLink(ports.projectId, { surface: "inbox" }), revision: binding?.revision ?? null }]; },
     bind: (caller, binding, options) => {
       if (!caller.permissions.includes("inbox:write")) throw new ActionError("actions.forbidden", "缺少 Inbox 配置权限");
       if (binding.binding_id !== inboxSceneBindingId(ports.projectId)) throw new ActionError("actions.binding_invalid", "Inbox 只接受当前项目的下一步绑定");

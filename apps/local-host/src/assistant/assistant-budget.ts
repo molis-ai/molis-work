@@ -5,6 +5,7 @@ import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { startOfToday } from "./assistant-usage-ledger.js";
 import { RUNTIME, type AssistantServicePorts } from "./assistant-service-shared.js";
+import { workTitle } from "./assistant-work-title.js";
 
 export type AssistantBudgetLinks = { read(workId: string): Promise<AssistantWorkView>; delegations: Pick<AssistantDelegations, "parentOf"> };
 
@@ -55,7 +56,7 @@ export class AssistantBudget {
     await this.settleUsage(ids.flatMap(id => this.store.rounds(id).map(round => ({ work_id: id, round }))));
     const used = this.store.usage.of(this.actorId, ids);
     return { tokens: used.input + used.output, rounds: used.rounds, budget_tokens: owner.budget_tokens ?? null,
-      ...(owner.work_id !== work.work_id ? { budget_of: { work_id: owner.work_id, title: owner.title } } : {}) };
+      ...(owner.work_id !== work.work_id ? { budget_of: { work_id: owner.work_id, title: workTitle(owner) } } : {}) };
   }
 
   /** The person's cap on one work (its sub-tasks included), or none. A sub-task is held to its delegating work's cap. */

@@ -34,6 +34,7 @@ const write: ActionDefinition = { capability_id: "fixture.notes.write", version:
   title: "写笔记", description: "在项目里保存一条笔记", kind: "operation", scope: "project", audiences: ["agent"], permissions: ["notes:write"], subject_kinds: [],
   input_schema: { type: "object", properties: { text: { type: "string", title: "内容" } }, required: ["text"], additionalProperties: false } } };
 
+// PWA-129 PWA-136: an answer goes to its own question; a late or misplaced one starts nothing.
 test("an answer continues its own question; a rejection stays a rejection; a late or misplaced answer or approval starts nothing", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-answers-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });

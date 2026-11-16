@@ -81,3 +81,12 @@ test("CPK-01: the sticky detail is opt-in, so 08's skill page is unchanged, and 
   assert.doesNotMatch(renderMolisWorkSettingsStylesheet(), /data-sticky-detail/u, "no product sheet opts in yet");
   assert.match(workbenchClientSource(), /--settings-view-h/u, "the workbench's settings stage measures its scrolling area");
 });
+
+test("SKL-11: the selection line and its why panel are board sections in both languages", () => {
+  const board = runWithLocale("zh", () => renderPrimitiveCatalog()), english = runWithLocale("en", () => renderPrimitiveCatalog());
+  for (const id of ["skill-line", "skill-why"]) {
+    assert.ok(board.includes(`id="${id}"`), `${id} is on the board`);
+    assert.ok(sectionOf(board, id).includes("data-slot") || sectionOf(board, id).includes("mw-"), `${id} has its specimen`);
+    assert.deepEqual(sectionOf(english, id).replace(/<style>[\s\S]*?<\/style>/g, "").match(/[㐀-鿿]+/gu) ?? [], [], `no Chinese is left in ${id}`);
+  }
+});

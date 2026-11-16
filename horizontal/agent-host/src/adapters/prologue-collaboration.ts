@@ -1,5 +1,7 @@
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AgentContinuationStarter } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import type { CollaborationHost, ExactRef, Runtime } from "@prologue/sdk";
+import { PROLOGUE_RUNTIME_ID } from "./prologue-adapter-capabilities.js";
 
 /**
  * Molis's side of the SDK's collaboration (specs/prologue-adoption §4.6.10): which step of which task graph a round is
@@ -53,18 +55,51 @@ export async function sessionBlock(runtime: Runtime, board: ExactRef<"task-board
 /** The prefix of a new plan's steps in the session's block: the plan's number in the session. */
 export const planPrefix = (block: string, nth: number) => `${block}.p${nth}`;
 
-/** A continuation of this session that may go on now, on any of the boards it stands on: the next round takes it up. */
+/** The continuations the runtime is asking the Host to start right now (it claimed them first), by runtime. */
+const STARTING = new WeakMap<Runtime, ReadonlySet<string>>();
+const hostStarting = (runtime: Runtime, key: string) => STARTING.get(runtime)?.has(key) === true;
+
+/**
+ * A continuation of this session that may go on now, on any of the boards it stands on: the next round takes it up. One the
+ * runtime claimed to ask the Host to start it is one too, while that ask lasts: the round the Host starts for it binds to it.
+ */
 export function eligibleContinuation(runtime: Runtime, session: ExactRef<"session">, boards: readonly ExactRef<"task-board">[]): { board: string; node: string; requestKey: string } | undefined {
   for (const ref of boards) {
     let nodes: ReturnType<Runtime["boards"]["get"]>["nodes"];
     try { nodes = runtime.boards.get(ref).nodes; } catch { continue; }
     for (const node of nodes) {
       const continuation = node.continuation;
-      if (continuation?.state === "eligible" && continuation.target.session.id === session.id) return { board: ref.id, node: node.id, requestKey: continuation.requestKey };
+      const asked = continuation?.state === "claimed" && continuation.claim?.mode === "start" && hostStarting(runtime, continuation.requestKey);
+      if ((continuation?.state === "eligible" || asked) && continuation!.target.session.id === session.id) return { board: ref.id, node: node.id, requestKey: continuation!.requestKey };
     }
   }
   return undefined;
 }
+
+/** Who owns a session: its project and installation (the session index's record). */
+export type SessionOwnerOf = (sessionId: string) => Promise<{ project_id: string; plugin_id: string; install_id: string } | undefined>;
+
+/**
+ * The Host's side of the runtime's continuation starts (specs/work-line/spec.md, result return). The composition root serves
+ * one starter; until it does, or after it withdraws it, every ask is answered `later` and the continuation stays eligible.
+ */
+export function createContinuationStarts(ownerOf: SessionOwnerOf) {
+  let starter: AgentContinuationStarter | undefined;
+  const starting = new Set<string>();
+  return {
+    starting: starting as ReadonlySet<string>,
+    ownerOf,
+    current: () => starter,
+    /** Bound once the runtime exists: its rounds see which continuations are being started. */
+    bind(runtime: Runtime): void { STARTING.set(runtime, starting); },
+    serve(next: AgentContinuationStarter): () => void {
+      starter = next;
+      return () => { if (starter === next) starter = undefined; };
+    },
+    mark(key: string): () => void { starting.add(key); return () => { starting.delete(key); }; },
+  };
+}
+export type ContinuationStarts = ReturnType<typeof createContinuationStarts>;
 
 /**
  * Make the step a round stands on one it may bind to. A step held for the person (blocked, or needing reconciliation
@@ -115,13 +150,19 @@ export async function canTakeUp(runtime: Runtime, at: At): Promise<boolean> {
 export async function releaseStartClaim(runtime: Runtime, at: At): Promise<void> {
   const ref = boardRef(at.board), step = runtime.boards.get(ref).nodes.find(one => one.id === at.node), continuation = step?.continuation;
   if (continuation?.state !== "claimed" || continuation.claim?.mode !== "start" || continuation.requestKey !== at.requestKey) return;
+  // The runtime's own claim while it asks the Host to start it: the runtime gives it back by the Host's answer.
+  if (hostStarting(runtime, at.requestKey)) return;
   if (step!.attempts.some(one => one.requestKey === `start:${at.requestKey}` && one.run !== undefined)) return;
   await runtime.boards.releaseContinuation({ ref, nodeId: at.node, revision: continuation.revision, to: "eligible" }).catch(CONTINUATION_CONFLICT);
 }
 
+/** Valid `idempotencyKey` format for `dispatch-subagent` (BL-051): alphanumeric start, bounded identifier chars. */
+export const SUBAGENT_KEY_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
+
 /** What the Host asks of a parent round before its child is let out: the round's own pre-dispatch check (authority, install, cancel). */
 export interface DispatchChecks {
   forRun(runId: string): import("./prologue-node-kit.js").DispatchGuard | undefined;
+  onAdmitted?(request: { parentRunId: string; parentSessionId: string; childSessionId: string; node: string }): void | Promise<void>;
 }
 
 /**
@@ -129,16 +170,57 @@ export interface DispatchChecks {
  * disabled caller lets no child out. Roles and directories are checked when the child starts (`verifySubagentStart`),
  * before its first model request. A refusal is a code the Runtime records on the attempt; nothing is dispatched.
  */
-export function createCollaborationHost(checks: DispatchChecks): CollaborationHost {
+export function createCollaborationHost(checks: DispatchChecks, starts: ContinuationStarts): CollaborationHost {
   return {
+    /**
+     * A continuation may go on by itself: the starter the composition root serves decides who starts it. The runtime asks only
+     * when the session has no round going or starting, and gives the claim back by the answer (`later` keeps it eligible).
+     */
+    async startContinuation({ continuation, scope }) {
+      const starter = starts.current();
+      if (!starter) return { later: { code: "agent.continuation_no_starter" } };
+      const sessionId = continuation.target.session.id, owner = await starts.ownerOf(sessionId).catch(() => undefined);
+      if (!owner) return { refused: { code: "agent.continuation_unknown", note: "接着做的会话已经不在了" } };
+      const done = starts.mark(continuation.requestKey);
+      try {
+        const answer = await starter({ runtime_id: PROLOGUE_RUNTIME_ID, project_id: owner.project_id, session_id: sessionId, owner: { plugin_id: owner.plugin_id, install_id: owner.install_id },
+          request_key: continuation.requestKey, wait_id: continuation.wait.ref.id, graph_id: scope.board, node_id: scope.node });
+        if ("run" in answer) return { run: { kind: "run", id: answer.run.run_id, revision: 1 } as ExactRef<"run"> };
+        return "refused" in answer ? { refused: bounded(answer.refused) } : { later: bounded(answer.later) };
+      } finally { done(); }
+    },
     async admitDispatch(request) {
+      if (!SUBAGENT_KEY_PATTERN.test(request.key)) {
+        return {
+          admit: false,
+          code: "agent.subagent_key_invalid",
+          note: "idempotencyKey 必须以字母或数字开头，只含字母、数字、点、下划线、冒号或连字符（最长 128 字符）",
+        };
+      }
       const check = checks.forRun(request.parent.run.id);
       if (!check) return { admit: false, code: "agent.collaboration_not_bound", note: "这一轮没有可用的派出检查" };
       try { const fence = await check(); requireSynchronous(fence?.(), "最终派发检查必须同步完成"); } catch (error) {
         return { admit: false, code: (error as { code?: unknown }).code === undefined ? "agent.dispatch_refused" : String((error as { code: unknown }).code).slice(0, 64),
           note: (error instanceof Error ? error.message : String(error)).slice(0, 200) };
       }
+      try {
+        await checks.onAdmitted?.({
+          parentRunId: request.parent.run.id,
+          parentSessionId: request.parent.session.id,
+          childSessionId: request.child.session.id,
+          node: request.node,
+        });
+      } catch (error) {
+        return {
+          admit: false,
+          code: "agent.storage_busy",
+          note: `子任务节点索引保存失败：${(error instanceof Error ? error.message : String(error)).slice(0, 160)}`,
+        };
+      }
       return { admit: true };
     },
   };
 }
+
+/** A reason the runtime records: a code and an optional note, both bounded. */
+const bounded = (reason: { code: string; note?: string }) => ({ code: reason.code.slice(0, 64), ...(reason.note ? { note: reason.note.slice(0, 200) } : {}) });

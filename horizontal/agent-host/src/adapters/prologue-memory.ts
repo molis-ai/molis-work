@@ -4,7 +4,7 @@ import { candidateView, fromSdkMemoryMeta, memoryView, memoryPageView, toSdkMemo
 import { randomUUID } from "node:crypto";
 import type { PrologueEffects } from "./prologue-effects.js";
 import { agentErrors } from "../errors.js";
-import { redactText, screenInbound, isPrologueError, exportMemories, importMemories, type ExactRef, type Runtime, type MemoryCallerContext, type MemoryPackage } from "@prologue/sdk";
+import { redactText, screenInbound, isPrologueError, type ExactRef, type Runtime, type MemoryCallerContext } from "@prologue/sdk";
 import type { AgentMemoryCaller, AgentMemoryFormationContext, AgentMemoryMutation, AgentMemoryChange, AgentMemoryExecutionControl, AgentMemoryCapability, AgentMemoryEntry } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /**
@@ -60,27 +60,23 @@ const mapPrunedError = (error: unknown): never => {
 };
 
 function historyAndPortabilityCapability(call: <T>(work: (bound: Bound) => Promise<T>) => Promise<T>, explicit?: boolean):
-  Pick<AgentMemoryCapability, "history" | "restore" | "exportScope" | "importScope" | "previewBatch" | "applyBatch" | "previewScope" | "clearScope"> {
+  Pick<AgentMemoryCapability, "history" | "restore" | "previewBatch" | "applyBatch" | "previewScope" | "clearScope"> {
   return {
     history: input => call(async bound => {
       const page = await bound.memory.history(await formal(bound, input), { scope: input.scope, owner: input.owner, ...(input.signal ? { signal: input.signal } : {}) });
       if (!page) throw agentErrors.capability_unavailable("没有找到这条记忆");
+      const all = page.revisions.map(rev => ({ version: rev.version, text: rev.text, origin: rev.origin, tags: [...rev.tags], meta: fromSdkMemoryMeta(rev.meta ?? {}),
+        ...(page.key ? { key: { ...page.key } } : {}), created_at_ms: rev.updatedAtMs, updated_at_ms: rev.updatedAtMs, ...(rev.note === undefined ? {} : { note: rev.note }) }));
+      // The SDK keeps the bounded window; the public page contract still offers an exact version window and a tail limit.
+      const beforeVersion = input.before_version;
+      const bounded = beforeVersion === undefined ? all : all.filter(rev => rev.version < beforeVersion);
+      const limit = input.limit === undefined ? undefined : Math.max(0, Math.trunc(input.limit));
       return { memory_id: page.ref.id, scope: page.scope as Entry["scope"], owner: page.owner, current_version: page.currentVersion,
         ...(page.prunedThroughVersion === undefined ? {} : { pruned_through_version: page.prunedThroughVersion }),
-        revisions: page.revisions.map(rev => ({ version: rev.version, text: rev.text, origin: rev.origin, tags: [...rev.tags], meta: fromSdkMemoryMeta(rev.meta ?? {}),
-          ...(page.key ? { key: { ...page.key } } : {}), created_at_ms: rev.updatedAtMs, updated_at_ms: rev.updatedAtMs, ...(rev.note === undefined ? {} : { note: rev.note }) })) };
+        revisions: limit === undefined ? bounded : limit === 0 ? [] : bounded.slice(-limit) };
     }),
     restore: input => call(async bound => memoryView(await bound.memory.restore(await formal(bound, input, explicit), {
       ...mutation(input), version: input.version, ...(input.note === undefined ? {} : { note: input.note }) }))).catch(mapPrunedError),
-    exportScope: input => call(async bound => {
-      await bound.memory.hydrate([{ scope: input.scope, owner: input.owner }]);
-      return exportMemories({ store: bound.memory, scopes: [{ scope: input.scope, owner: input.owner }], ownerMapping: { [input.owner]: input.owner } });
-    }),
-    importScope: input => call(async bound => {
-      await bound.memory.hydrate([{ scope: input.scope, owner: input.owner }]);
-      return importMemories({ store: bound.memory, pack: input.pack as MemoryPackage, operationId: randomUUID(),
-        ...(input.max_entries === undefined ? {} : { maxEntries: input.max_entries }), ...(input.signal ? { signal: input.signal } : {}) });
-    }),
     previewBatch: input => call(async bound => {
       const items = [];
       for (const item of input.items) items.push({ ref: await formal(bound, { ...input, memory_id: item.memory_id }),

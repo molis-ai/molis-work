@@ -45,7 +45,7 @@ test("SYS-15 S-47 registered HTTP pages allow only their own concrete routes and
     ["io.molis.work.alchemist", "/api/alchemist/studio/api/v1/bootstrap", "/api/plugin-builder/studio/state"]]) {
     const headers = await open(id), second = await open(id);
     assert.equal((await f.request(prefix + read, { headers })).status, 200);
-    for (const path of [foreign, "/api/settings/models", `/api/plugins/${id}/view-revision`, "/api/host/directory-grants", "/api/host/plugin-page-actions", "/api/host/plugin-page-files"]) {
+    for (const path of [foreign, "/api/settings/models", `/api/plugins/${id}/view-revision`, "/api/host/directory-grants", "/api/host/plugin-page-actions", "/api/host/plugin-page-files", "/api/sessions/list", "/api/sessions/scope"]) {
       const result = await f.request(prefix + path, { headers, ...(path.startsWith("/api/host/") ? { method: "POST", body: {} } : {}) });
       assert.equal(result.status, 403, path + ": " + await result.text());
     }

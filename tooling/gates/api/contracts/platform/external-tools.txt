@@ -498,7 +498,7 @@ export declare const EXTERNAL_TOOLS: readonly [{
     };
     readonly checked: {
         readonly on: "2026-11-15";
-        readonly version: "1.0.77";
+        readonly version: "1.0.62";
     };
 }, {
     readonly id: "codex-ide";
@@ -1340,7 +1340,7 @@ export declare const EXTERNAL_TOOLS: readonly [{
     };
     readonly checked: {
         readonly on: "2026-11-15";
-        readonly version: "2.103.3";
+        readonly version: "2.96.0";
     };
 }, {
     readonly id: "cursor-editor";

@@ -1,6 +1,6 @@
 import { sessionsErrors, type ExternalSessionEntry } from "@molis-ai/molis-work-contracts/services/sessions";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
-import type { AdapterDiscoveryBatch, AdapterReadOutput, AdapterSourceContext, ExternalSessionSourceAdapter } from "../ports.js";
+import { sessionSourceFailure, type AdapterDiscoveryBatch, type AdapterReadOutput, type AdapterSourceContext, type ExternalSessionSourceAdapter } from "../ports.js";
 import {
   buildCliResumeTarget,
   extractJsonlMetadata,
@@ -164,6 +164,7 @@ export const piAgentAdapter: ExternalSessionSourceAdapter = {
     const batch = jsonlFiles.slice(startOffset, startOffset + DISCOVERY_BATCH_SIZE);
 
     let skippedCount = startOffset === 0 ? walked.skipped : 0;
+    let unsupportedVersionFiles = 0;
     const sessions = [];
 
     for (const item of batch) {
@@ -174,6 +175,11 @@ export const piAgentAdapter: ExternalSessionSourceAdapter = {
         const { lines } = await readJsonlLines(stream, signal, DISCOVERY_SCAN_BYTES);
         const meta = extractJsonlMetadata(lines, item.entry.mtime_ms);
         if (meta.validJsonCount === 0) {
+          skippedCount++;
+          continue;
+        }
+        if (!meta.hasSessionContent) {
+          if (meta.unsupportedVersionCount > 0) unsupportedVersionFiles++;
           skippedCount++;
           continue;
         }
@@ -202,6 +208,10 @@ export const piAgentAdapter: ExternalSessionSourceAdapter = {
         if (signal.aborted) throw error;
         skippedCount++;
       }
+    }
+
+    if (startOffset === 0 && sessions.length === 0 && unsupportedVersionFiles > 0) {
+      throw sessionSourceFailure("version_mismatch", "Pi Agent 会话记录版本暂不支持解析", false);
     }
 
     const nextOffset = startOffset + batch.length;

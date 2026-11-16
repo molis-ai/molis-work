@@ -102,8 +102,12 @@ async function collectEvaluationRecords(
     };
   }
 
+  const simulatedSources = ["trial", "replay", "demo", "system_check"] as const;
   const extra: Partial<ObservationQueryInput> = executionKind === "simulated"
-    ? { include_simulated: true }
+    ? {
+        include_simulated: true,
+        ...(sample.query.source_classes === undefined ? { source_classes: [...simulatedSources] } : {}),
+      }
     : sample.query.source_classes === undefined && sample.query.include_simulated === undefined
       ? { include_simulated: false }
       : {};
@@ -165,15 +169,22 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
   const failedStages = Array.from(
     new Set(expectationResults.filter((r) => r.automated_verdict === "failed").map((r) => r.stage)),
   );
+  // A sample whose records are under a live evaluation hold has its own basis retained. A project-wide expired/purged
+  // gap can belong to another work in the same project (EC-16 held vs unheld); do not turn the held run unknown for it.
+  // Lost/paused gaps are not protected by a hold and still propagate, as does every gap for an unheld sample.
+  const holdProtectsRetention = sample.hold_id !== null && sample.held_record_count > 0;
+  const propagatedCoverageUnknowns = holdProtectsRetention
+    ? runCoverageUnknowns.filter((reason) => reason !== "coverage_gap_expired" && reason !== "coverage_gap_purged")
+    : runCoverageUnknowns;
   const finalUnknowns = Array.from(
     new Set<EvaluationUnknownReason>([
-      ...(runCoverageUnknowns.includes("window_incomplete") ? (["window_incomplete"] as const) : []),
+      ...propagatedCoverageUnknowns,
       ...expectationResults.flatMap((r) => (r.automated_verdict === "unknown" ? r.unknown_reasons : [])),
     ]),
   );
   const automatedVerdict: EvaluationVerdict = failedStages.length > 0
     ? "failed"
-    : expectationResults.some((r) => r.automated_verdict === "unknown") || runCoverageUnknowns.includes("window_incomplete")
+    : finalUnknowns.length > 0 || expectationResults.some((r) => r.automated_verdict === "unknown")
       ? "unknown"
       : "passed";
 

@@ -438,15 +438,9 @@ export class EvaluationStore {
       view: applyReviewsToRun(JSON.parse(row.run_json) as EvaluationRunView, reviewsByRun.get(row.run_id) ?? []),
       outcomeCounts: JSON.parse(row.outcome_counts) as Readonly<Partial<Record<ObservationOutcome, number>>>,
     }));
-    const sampleClauses = ["purpose = ?"];
-    const sampleParams: SQLInputValue[] = [filter.purpose];
-    if (filter.project_id === null) sampleClauses.push("project_id IS NULL");
-    else if (typeof filter.project_id === "string") { sampleClauses.push("project_id = ?"); sampleParams.push(filter.project_id); }
-    if (filter.work_mode) { sampleClauses.push("work_mode = ?"); sampleParams.push(filter.work_mode); }
-    const sampleRow = rowsAs<{ readonly total: number }>(
-      db.prepare(`SELECT COUNT(DISTINCT sample_id) AS total FROM evaluation_samples WHERE ${sampleClauses.join(" AND ")}`).all(...sampleParams),
-    )[0];
-    return { runs, sampleCount: Number(sampleRow?.total ?? 0) };
+    // The sample count is the distinct samples represented by the runs inside the same purpose/project/work-mode/window
+    // filter. Counting every stored sample instead makes a sample with no run in the window look evaluable (PWA-55).
+    return { runs, sampleCount: new Set(rows.map((row) => row.sample_id)).size };
   }
 
   appendReview(review: EvaluationHumanReview): EvaluationRunView {

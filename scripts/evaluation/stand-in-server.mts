@@ -10,7 +10,6 @@ export const STAND_IN_DUMMY_TOKEN = "stand-in-eval-token-not-a-secret";
 
 export interface StandInModelServer {
   readonly baseUrl: string;
-  readonly requestCount: () => number;
   close(): Promise<void>;
 }
 
@@ -44,14 +43,12 @@ function deterministicReplyFor(rawBody: string): { readonly model: string; reado
 }
 
 export async function startEvaluationStandInServer(): Promise<StandInModelServer> {
-  let count = 0;
   const server: Server = createServer((request, response) => {
     const chunks: Buffer[] = [];
     request.on("data", (chunk: Buffer) => {
       chunks.push(Buffer.from(chunk));
     });
     request.on("end", () => {
-      count += 1;
       const raw = Buffer.concat(chunks).toString("utf8");
       const reply = deterministicReplyFor(raw);
       if (reply.stream) {
@@ -80,7 +77,6 @@ export async function startEvaluationStandInServer(): Promise<StandInModelServer
   }
   return {
     baseUrl: `http://127.0.0.1:${address.port}/v1`,
-    requestCount: () => count,
     close: () =>
       new Promise<void>((resolve) => {
         server.closeAllConnections();

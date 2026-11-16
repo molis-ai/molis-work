@@ -1,6 +1,6 @@
 # 最小真实评测路径合同与设计（第 30 批）
 
-状态：已定稿并进入实施（2026-11-15，第 30 批 `#batch-30-item-1`，承接 [contract-design.md](contract-design.md) §1、§6 D1-Q2、§16～17，[观测和采集层需求](spec.md) §1、§2.2、§2.5、§2.6、§3、§5、§6 `OCL-12`/`OCL-13`/`OCL-14`/`OCL-17`，[主动助理需求](../proactive-assistant/spec.md) §14 `PWA-51`～`PWA-56`，以及 `BL-328` 的隔离 Home 可复现评测命令）。
+状态：已实施并随第 30 批 #2096 合入 `main`（合并提交 `ddda618006`，2026-11-15；验证头 `f1fa92ef5`）。本文原为设计定稿（2026-11-15，第 30 批 `#batch-30-item-1`，承接 [contract-design.md](contract-design.md) §1、§6 D1-Q2、§16～17，[观测和采集层需求](spec.md) §1、§2.2、§2.5、§2.6、§3、§5、§6 `OCL-12`/`OCL-13`/`OCL-14`/`OCL-17`，[主动助理需求](../proactive-assistant/spec.md) §14 `PWA-51`～`PWA-56`，以及 `BL-328` 的隔离 Home 可复现评测命令）。
 
 ---
 

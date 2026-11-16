@@ -76,11 +76,21 @@ function setupHarness(t: test.TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "sec-eval-"));
   const observation = createHostObservation(directory);
   let cancelBeforeEffectCapability: string | null = null;
+  let cancelBeforeEffectOnCall = 0;
+  let cancelBeforeEffectCalls = 0;
+  let beforeEffectHoldCounts: number[] = [];
   const service = new ActionService(undefined, {
     observed: (caller, action, value) => observation.observed(caller, action, value),
     beforeEffect: (_caller, reference) => {
       if (cancelBeforeEffectCapability !== null && reference.capability_id === cancelBeforeEffectCapability) {
-        throw new ActionError("actions.cancelled", `并发操作在落库前已取消：${reference.capability_id}`);
+        cancelBeforeEffectCalls += 1;
+        const db = observation.layer.writer.database()?.db;
+        beforeEffectHoldCounts.push(db
+          ? Number((db.prepare("SELECT COUNT(*) AS n FROM evaluation_holds").get() as { n: number }).n)
+          : -1);
+        if (cancelBeforeEffectOnCall === 0 || cancelBeforeEffectCalls === cancelBeforeEffectOnCall) {
+          throw new ActionError("actions.cancelled", `并发操作在落库前已取消：${reference.capability_id}`);
+        }
       }
     },
   });
@@ -101,9 +111,13 @@ function setupHarness(t: test.TestContext) {
     service,
     observation,
     evaluation,
-    setCancelBeforeEffect: (capabilityId: string | null) => {
+    setCancelBeforeEffect: (capabilityId: string | null, onCall = 0) => {
       cancelBeforeEffectCapability = capabilityId;
+      cancelBeforeEffectOnCall = onCall;
+      cancelBeforeEffectCalls = 0;
+      beforeEffectHoldCounts = [];
     },
+    beforeEffectHoldCounts: () => [...beforeEffectHoldCounts],
   };
 }
 
@@ -495,4 +509,34 @@ test("S-evaluation-isolation 6: cancelled or revoked beforeEffect calls write ze
   const reread = await service.invoke(person(), evaluationActions.runsGet, { run_id: validRun.run_id });
   assert.deepEqual(reread.human_reviews, []);
   assert.equal(reread.verdict_source, "automated");
+});
+
+test("S-evaluation-isolation 6: late cancellation after the nested hold write leaves no evaluation hold", async (t) => {
+  const fx = setupHarness(t);
+  await fx.service.invoke(pluginCaller("notes"), observationActions.report, {
+    facts: [{ fact: "notes.saved", outcome: "succeeded" }],
+  });
+  fx.observation.layer.flush();
+
+  // Action start, service beforeEffect, then the nested hold is written; the third check throws.
+  fx.setCancelBeforeEffect("evaluation.samples.put", 3);
+  await assert.rejects(
+    fx.service.invoke(person(), evaluationActions.samplesPut, sampleFixture({ sample_id: "late-cancel-sample", hold_records: true })),
+    refused("actions.cancelled"),
+  );
+  assert.equal(fx.beforeEffectHoldCounts()[2], 1, "the hold was committed before the late cancellation");
+  fx.setCancelBeforeEffect(null);
+  assert.deepEqual((await fx.service.invoke(person(), evaluationActions.samplesList, {})).samples, []);
+  assert.deepEqual((await fx.service.invoke(person(), observationActions.holdsList, {})).holds, []);
+
+  await fx.service.invoke(person(), evaluationActions.samplesPut, sampleFixture({ sample_id: "late-cancel-run", hold_records: false }));
+  fx.setCancelBeforeEffect("evaluation.runs.execute", 3);
+  await assert.rejects(
+    fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "late-cancel-run", hold_records: true }),
+    refused("actions.cancelled"),
+  );
+  assert.equal(fx.beforeEffectHoldCounts()[2], 1, "the run's hold was committed before the late cancellation");
+  fx.setCancelBeforeEffect(null);
+  assert.deepEqual((await fx.service.invoke(person(), evaluationActions.runsList, { sample_id: "late-cancel-run" })).runs, []);
+  assert.deepEqual((await fx.service.invoke(person(), observationActions.holdsList, {})).holds, []);
 });

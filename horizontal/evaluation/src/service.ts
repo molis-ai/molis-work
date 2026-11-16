@@ -49,7 +49,6 @@ export interface EvaluationServiceOptions {
   readonly clientFor: (caller: ActionCallContext) => ActionClient;
   readonly runInReplayScope?: <T>(fn: () => Promise<T>) => Promise<T>;
   readonly now?: () => Date;
-  readonly replayScenarios?: Readonly<Record<string, EvaluationReplayScenario>>;
 }
 
 function assertPersonCaller(caller: ActionCallContext): void {
@@ -94,9 +93,6 @@ export class EvaluationService {
 
   constructor(private readonly options: EvaluationServiceOptions) {
     this.store = new EvaluationStore(options.home);
-    for (const [id, fn] of Object.entries(options.replayScenarios ?? {})) {
-      this.scenarios.set(id, fn);
-    }
   }
 
   registerReplayScenario(id: string, scenario: EvaluationReplayScenario): () => void {
@@ -110,6 +106,30 @@ export class EvaluationService {
     return (this.options.now ? this.options.now() : new Date()).toISOString();
   }
 
+  /**
+   * A hold and the evaluation row live in two SQLite files, so they cannot share a transaction. If the parent action
+   * is cancelled after the nested hold write and before the row write, remove the hold this same action just made.
+   * This is a best-effort compensation (the caller's own revocation may also refuse the release); the action still
+   * rethrows the original cancellation, and no evaluation sample/run is written.
+   */
+  private async releaseHoldBestEffort(
+    client: ActionClient,
+    caller: ActionExecutionContext,
+    origin: ActionReference,
+    holdId: string,
+  ): Promise<void> {
+    try {
+      const cleanup = {
+        ...retainActionAuthority(caller, origin),
+        signal: undefined,
+        beforeEffect: async () => {},
+      };
+      await releaseEvaluationSampleHolds(client, cleanup, [holdId]);
+    } catch {
+      // The original cancellation/error is the result; a failed compensation must not hide it.
+    }
+  }
+
   async putSample(caller: ActionExecutionContext, input: EvaluationSampleInput): Promise<EvaluationSamplePutOutput> {
     assertPersonCaller(caller);
     validateWindow(input.window);
@@ -117,20 +137,26 @@ export class EvaluationService {
     this.store.assertSampleImmutable(input);
     const origin = originOf(caller, evaluationActions.samplesPut);
     const client = this.options.clientFor(caller);
-    const holdRecordIds = input.hold_records
-      ? await resolveSampleHoldRecordIds(client, retainActionAuthority(caller, origin), input)
-      : undefined;
-    caller.signal?.throwIfAborted();
-    await caller.beforeEffect();
-    this.store.assertSampleImmutable(input);
-    let hold: { readonly holdId: string | null; readonly heldCount: number } = { holdId: null, heldCount: 0 };
-    if (input.hold_records && holdRecordIds && holdRecordIds.length > 0) {
-      const writeNested = retainActionAuthority(caller, origin, caller.beforeEffect);
-      hold = await commitEvaluationSampleHold(client, writeNested, input, holdRecordIds);
+    const holdId = input.hold_records ? `eval:${input.sample_id}:v${input.version}` : null;
+    try {
+      const holdRecordIds = input.hold_records
+        ? await resolveSampleHoldRecordIds(client, retainActionAuthority(caller, origin), input)
+        : undefined;
       caller.signal?.throwIfAborted();
       await caller.beforeEffect();
+      this.store.assertSampleImmutable(input);
+      let hold: { readonly holdId: string | null; readonly heldCount: number } = { holdId: null, heldCount: 0 };
+      if (input.hold_records && holdRecordIds && holdRecordIds.length > 0) {
+        const writeNested = retainActionAuthority(caller, origin, caller.beforeEffect);
+        hold = await commitEvaluationSampleHold(client, writeNested, input, holdRecordIds);
+        caller.signal?.throwIfAborted();
+        await caller.beforeEffect();
+      }
+      return this.store.putSample(input, hold, this.nowIso());
+    } catch (error) {
+      if (holdId) await this.releaseHoldBestEffort(client, caller, origin, holdId);
+      throw error;
     }
-    return this.store.putSample(input, hold, this.nowIso());
   }
 
   async removeSample(caller: ActionExecutionContext, input: EvaluationSampleRemoveInput): Promise<EvaluationSampleRemoveOutput> {
@@ -149,8 +175,8 @@ export class EvaluationService {
           pending.holdIds,
         )
       : [];
-    caller.signal?.throwIfAborted();
-    await caller.beforeEffect();
+    // The first beforeEffect is the commit point for release + delete. Rechecking after the release would strand the
+    // sample without its hold if the caller cancelled in between; a cancelled call therefore stops before either write.
     const { removedVersions } = this.store.removeSample(input.sample_id, input.version);
     return { removed_versions: removedVersions, released_hold_ids: releasedHoldIds };
   }
@@ -166,19 +192,26 @@ export class EvaluationService {
           : `评测样本 ${input.sample_id} 不存在`,
       );
     }
-    const { runView, outcomeCounts } = await executeSampleEvaluationRun({
-      caller,
-      origin: originOf(caller, evaluationActions.runsExecute),
-      clientFor: (c) => this.options.clientFor(c),
-      sample,
-      input,
-      scenarios: this.scenarios,
-      ...(this.options.runInReplayScope ? { runInReplayScope: this.options.runInReplayScope } : {}),
-      nowIso: () => this.nowIso(),
-    });
-    caller.signal?.throwIfAborted();
-    this.store.insertRun(runView, outcomeCounts);
-    return runView;
+    const origin = originOf(caller, evaluationActions.runsExecute);
+    const holdId = input.hold_records ? `eval:${sample.sample_id}:v${sample.version}` : null;
+    try {
+      const { runView, outcomeCounts } = await executeSampleEvaluationRun({
+        caller,
+        origin,
+        clientFor: (c) => this.options.clientFor(c),
+        sample,
+        input,
+        scenarios: this.scenarios,
+        ...(this.options.runInReplayScope ? { runInReplayScope: this.options.runInReplayScope } : {}),
+        nowIso: () => this.nowIso(),
+      });
+      caller.signal?.throwIfAborted();
+      this.store.insertRun(runView, outcomeCounts);
+      return runView;
+    } catch (error) {
+      if (holdId) await this.releaseHoldBestEffort(this.options.clientFor(caller), caller, origin, holdId);
+      throw error;
+    }
   }
 
   async recordReview(caller: ActionExecutionContext, input: EvaluationReviewRecordInput): Promise<EvaluationReviewRecordOutput> {

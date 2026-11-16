@@ -219,3 +219,11 @@ Prologue 提供无 UI 的公共合同，不包含 Molis Work 文案、组件、W
 | 状态与验证 | 组件只持有选择、未读呈现、滚动/展开状态及订阅寿命，不持有业务运行状态机。组件级浏览器测试用两个独立 owner 适配器制造真实异步交错；59 再验证真实双入口、上下文、通知与重启。 |
 
 该草案尚未声明新增服务、动作、表、兼容读取或 SDK 换包。若真实接线核对证明缺公开能力，先在本节列最小缺口、所属批次与受影响验收，再按既有授权处理；不把原型模拟函数当作已批准的产品接口。
+
+**当前接口核对（2026-11-16，源码检查，未作运行验收）：**
+
+- 子列表的 `task`、`result` 和 `activity` 不是消息历史：[子任务投影](../../horizontal/agent-host/src/adapters/prologue-subagents.ts)按执行尝试读取 SDK 事件，但返回的视图把当前尝试的用户开场与助手文本分别合并；先前尝试只给预算摘要。完整对话必须保留原消息、回执及执行尝试的关联，不能拆分这些合并文本来伪造历史。
+- 不能把 `child_run` 一律交给普通 `agent.session.read` / `agent.run.read` / 输入接口。现 [watchChild](../../horizontal/agent-host/src/adapters/prologue-run.ts)只为有宿主审查需要的子任务保存独立 Host 索引；主目录的只读子任务等情况直接返回。[通用 Session 恢复](../../horizontal/agent-host/src/adapters/prologue-recovery.ts)要求原索引，[输入动作](../../horizontal/agent-host/src/session-actions.ts)又先经 `requireRun` 核对归属。[会话协调](../../horizontal/agent-host/src/adapters/prologue-node-parts.ts)另有从父索引证明无独立索引子任务归属的路径，但这不自动赋予普通历史/输入接口同样能力。
+- 已有输入动作通过 `trustedSupplementInput` 取得可信原件并返回原回执；[deliverSteer](../../horizontal/agent-host/src/adapters/prologue-inputs.ts)在运行结束或 `after-run` 时只把输入排入原 Session，**不会启动下一次执行**。因此「已排队」与「继续已开始」必须分开；不能用成功回执证明 SAI-05 接续已完成。
+
+对 58 的影响：公共读写接缝必须能表达上述原生历史、回执、不可用原因和显式继续；合同核对时用无独立 Host 索引的只读子任务以及有索引的写入子任务分别验证。若公共 Host 投影不足，在本节确定最小通用补口后实现；不先补造索引或把私有 SDK 账本交给浏览器。对 59 的影响：消费者真实接入仍须证明两类子任务的历史、输入、已结束续跑和重启路径，不能以普通会话路径通过代替。43-1 的助理业务派发归属不变。以上是接入限制及验证范围，未冻结新方法名，也未开始产品实现。

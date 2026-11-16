@@ -91,6 +91,7 @@ test("W2-18-SEND-01: text written after Send survives in A while B remains curre
 });
 
 // W2-18-SEND-01: returning to A before its receipt must read A's later draft, even after B rereads the work list.
+// PWA-130: switching A to B to A keeps each draft.
 test("W2-18-SEND-01: A to B to A before the receipt retains A's later draft on screen, in Host and after reload", { timeout: 90_000 }, async t => {
   const browser = await sendBrowser(t); if (!browser) return;
   const a = await seedWork(browser, "工作 A"), b = await seedWork(browser, "工作 B");
@@ -156,6 +157,7 @@ test("W2-18-SEND-01: A to B to A before the receipt retains A's later draft on s
 });
 
 // W3-10-4-01 and W2-18-SEND-02: even the chooser's trusted HTTP project route and an unknown result's retry stay fixed at the click.
+// PWA-129: a lost receipt retries the same order exactly once.
 test("W2-18-SEND-02: chooser changes and a lost receipt retry the original scope, materials and request_id exactly once", { timeout: 90_000 }, async t => {
   const browser = await sendBrowser(t); if (!browser) return;
   const a = await seedWork(browser, "等待草稿的旧工作");
@@ -359,7 +361,9 @@ for (const stage of ["Request", "Response"]) test(`B10-R3: after reload a lost $
     await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === ''");
     assert.equal(await browser.evaluate("document.querySelectorAll('[data-assistant-composer] .mw-upload').length"), 0);
     const work = await waitWork(browser, await browser.evaluate<string>(CURRENT_WORK), view => view.work.state === "completed");
-    assert.equal(work.rounds.length, 1); assert.equal(work.rounds[0]!.materials?.[0]?.title, "new-after-reload.txt");
+    // What is said at 「现在」 goes to the project's main conversation (WLN-06): after a lost Response its first round is there
+    // already and the new content is its next round; a lost Request never reached it, so the new content is its first.
+    assert.equal(work.rounds.length, stage === "Response" ? 2 : 1); assert.equal(work.rounds.at(-1)!.materials?.[0]?.title, "new-after-reload.txt");
     assert.match(JSON.stringify(browser.model!.requests.at(-1)), /刷新后新加的正文/, "the submitted attachment reaches the actual model request");
   } finally { await barrier.close(); }
 });

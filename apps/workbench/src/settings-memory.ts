@@ -449,7 +449,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
             : globalThis.t.text(CHANGE[change.kind] || change.kind) + (change.moved_to ? " · " + globalThis.t.text(change.moved_to === "personal" ? "workbench.settings-memory.moved-to-personal" : "workbench.settings-memory.moved-to-project")
               : change.memory_id && change.kind !== "removed" ? " · " + globalThis.t.text("workbench.settings-memory.since-deleted-its-text-not-kept") : "");
         copy.append(el("strong", "", head));
-        const meta = [day(change.at), change.rule, change.reason, change.work ? globalThis.t.text("workbench.settings-memory.work-named", { title: change.work.title }) : ""].filter(Boolean).join(" · ");
+        const meta = [day(change.at), change.rule, change.reason, change.work ? (change.work.title ? globalThis.t.text("workbench.settings-memory.work-named", { title: change.work.title }) : globalThis.t.text("workbench.settings-memory.work-main")) : ""].filter(Boolean).join(" · ");
         if (meta) copy.append(el("span", "settings-muted", meta));
         row.append(copy);
         if (change.undoable && change.state === "active") {
@@ -475,7 +475,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         meta.append(el("span", "memory-tag", globalThis.t.text(KIND[candidate.kind] || candidate.kind)));
         // Held by the gate, the reason it waits is its whole basis: said once, below, not twice.
         if (candidate.why && candidate.why !== candidate.hold_reason) meta.append(el("span", "", globalThis.t.text("workbench.settings-memory.because-named", { why: candidate.why })));
-        if (candidate.work) meta.append(el("span", "", globalThis.t.text("workbench.settings-memory.work-named", { title: candidate.work.title })));
+        // A main conversation keeps no title, so a memory learned there names it by what it is.
+        if (candidate.work) meta.append(el("span", "", candidate.work.title ? globalThis.t.text("workbench.settings-memory.work-named", { title: candidate.work.title }) : globalThis.t.text("workbench.settings-memory.work-main")));
         copy.append(meta);
         if (candidate.hold_reason) copy.append(el("span", "memory-hold", candidate.hold_reason));
         const actions = el("div", "memory-actions");

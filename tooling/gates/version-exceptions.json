@@ -432,6 +432,26 @@
     "reason": "新插件模板里样例成果类型的初始版本，生成后归插件作者自己管理。"
   },
   {
+    "entry": "action.assistant.background.decide",
+    "reason": "只在 Home 的助手服务上登记，动作快照读的是一个项目的目录，所以没有行；版本照样由这一条目维护。"
+  },
+  {
+    "entry": "action.assistant.background.read",
+    "reason": "只在 Home 的助手服务上登记，动作快照读的是一个项目的目录，所以没有行；版本照样由这一条目维护。"
+  },
+  {
+    "entry": "action.assistant.background.stop",
+    "reason": "只在 Home 的助手服务上登记，动作快照读的是一个项目的目录，所以没有行；版本照样由这一条目维护。"
+  },
+  {
+    "entry": "action.assistant.background.tasks",
+    "reason": "只在 Home 的助手服务上登记，动作快照读的是一个项目的目录，所以没有行；版本照样由这一条目维护。"
+  },
+  {
+    "entry": "action.assistant.events",
+    "reason": "只在 Home 的助手服务上登记，动作快照读的是一个项目的目录，所以没有行；版本照样由这一条目维护。"
+  },
+  {
     "entry": "action.assistant.followups.add",
     "reason": "只在 Home 的助手服务上登记，动作快照读的是一个项目的目录，所以没有行；版本照样由这一条目维护。"
   },
@@ -465,6 +485,22 @@
   },
   {
     "entry": "action.assistant.rules.remove",
+    "reason": "只在 Home 的助手服务上登记，动作快照读的是一个项目的目录，所以没有行；版本照样由这一条目维护。"
+  },
+  {
+    "entry": "action.assistant.serves.bind",
+    "reason": "只在 Home 的助手服务上登记，动作快照读的是一个项目的目录，所以没有行；版本照样由这一条目维护。"
+  },
+  {
+    "entry": "action.assistant.serves.create",
+    "reason": "只在 Home 的助手服务上登记，动作快照读的是一个项目的目录，所以没有行；版本照样由这一条目维护。"
+  },
+  {
+    "entry": "action.assistant.serves.list",
+    "reason": "只在 Home 的助手服务上登记，动作快照读的是一个项目的目录，所以没有行；版本照样由这一条目维护。"
+  },
+  {
+    "entry": "action.assistant.serves.release",
     "reason": "只在 Home 的助手服务上登记，动作快照读的是一个项目的目录，所以没有行；版本照样由这一条目维护。"
   },
   {

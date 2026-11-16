@@ -18,11 +18,14 @@ import { projectScopeEntries } from "./plugin-scope-entries.js";
 import { installationSwitchedOff, projectPluginEnablement, projectPluginEnablementRefresh, type ProjectPluginRefreshResult } from "./project-plugin-enablement.js";
 import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
 import { reviewSettlementForwarder, type ObserveReviewSettlements } from "./review-settlement-events.js";
+import { continuationForwarder, type ObserveContinuations } from "./agent-continuation-starts.js";
 import { projectRuntimeDeclarations } from "./plugin-registry.js";
 
 export interface ProjectPluginPorts {
   /** Settled person-reviewed plugin operations, sent to the installation that asked as `host.review.settled@1` (X-6). */
   observeReviewSettlements?: ObserveReviewSettlements;
+  /** Continuations of the project's plugins' Agent sessions that may go on, sent to the owner as `host.agent.continuation.ready@1`. */
+  observeContinuations?: ObserveContinuations;
   store: LocalProjectDatabase;
   /** The library's 成果库 and process items: the runtime's one pair, which the platform writes through too (D3). */
   artifacts: ProjectVersionStores["artifacts"];
@@ -127,7 +130,7 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
       || existing.ports.actions.project_id !== ports.actions.project_id) throw new Error("项目插件实例的 Home、用户或项目身份不一致");
     if (inLanguagePreview()) return existing.ready;
     // Entry-point adapters can arrive after headless discovery; identity and storage stay bound.
-    for (const key of ["routePrefix", "observeReviewSettlements"] as const) {
+    for (const key of ["routePrefix", "observeReviewSettlements", "observeContinuations"] as const) {
       if (ports[key] !== undefined) Object.assign(existing.ports, { [key]: ports[key] });
     }
     const state = await existing.ready;
@@ -175,9 +178,9 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     });
     record.platform = platform;
     let closed = false;
-    const settlements = reviewSettlementForwarder(platform.hostEvents);
-    record.updateObservers = () => { if (!closed) settlements.update(ports.observeReviewSettlements); };
-    record.stopObservers = () => { closed = true; settlements.stop(); };
+    const settlements = reviewSettlementForwarder(platform.hostEvents), continuations = continuationForwarder(platform.hostEvents);
+    record.updateObservers = () => { if (!closed) { settlements.update(ports.observeReviewSettlements); continuations.update(ports.observeContinuations); } };
+    record.stopObservers = () => { closed = true; settlements.stop(); continuations.stop(); };
     record.updateObservers();
     const enabled = await projectPluginEnablement(ports.homeDirectory, ports.projectId);
     // Validate the declared halves before a per-project database refusal removes one from this start attempt.

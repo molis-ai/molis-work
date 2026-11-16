@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { defineDueRemindersAction, defineHomeEventsAction, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineDueRemindersAction, defineWorkEventsAction, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { AssistantService, AssistantStore, ComputerDesk, ComputerRecords, ComputerSettings, LocalHost, PluginInstallService, SandboxPackageStore, assistantAuthority, captureHostLog,
@@ -184,7 +184,7 @@ test("RAC-1114 W5-13-16 a background look that keeps failing (a source of new ma
   const local = newLocalHost();
   t.after(() => local.close());
   let eventsBroken = true, remindersBroken = true;
-  const events = defineHomeEventsAction("fixture.material.events", 1, ["note"], "事项", []);
+  const events = defineWorkEventsAction("fixture.material.events", 1, ["note"], "事项", []);
   local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.material", kind: "plugin", title: "Material" }, definitions: [events],
     handlers: [{ ...events, handle: () => { if (eventsBroken) throw failure("fixture.events_down"); return { source: { surface: "notes", title: "Notes", icon: "note" }, events: [] }; } }] });
   const reminders = defineDueRemindersAction("fixture.material.reminders", 1, ["note"], "提醒", []);
@@ -215,10 +215,11 @@ test("RAC-1114 W5-13-16 a background look that keeps failing (a source of new ma
   await service.followUps.sweepReminders();
   assert.notEqual(store.setting("web-user", "reminder_sweep"), null, "a source that answers again moves the look on");
 
-  // A continuation watch whose runtime cannot be reached is retried every 5 seconds: written once, by scope, when it starts failing.
+  // The continuation starter whose runtime cannot be reached (the Assistant serves it when it attaches, and attaches again later):
+  // written once when it starts failing, however often it is tried.
   store.update("web-user", work.work_id, null, { session_id: "session-1" }, false);
-  const watched = await captured(async () => { service.continuations.attach(); service.continuations.attach(); await new Promise(resolve => setTimeout(resolve, 50)); });
-  assert.deepEqual(of(watched.entries, "continuation_watch_failed").map(entry => [entry.area, entry.fields?.scope, entry.error?.code]),
-    [["assistant", "project", "fixture.runtime_down"]]);
+  const watched = await captured(async () => { service.continuations.attach(); await new Promise(resolve => setTimeout(resolve, 20)); service.continuations.attach(); await new Promise(resolve => setTimeout(resolve, 50)); });
+  assert.deepEqual(of(watched.entries, "continuation_starter_failed").map(entry => [entry.area, entry.error?.code]),
+    [["assistant", "fixture.runtime_down"]]);
   assert.ok(!JSON.stringify([looks.entries, swept.entries, watched.entries]).includes("secret"), "no message or path reaches the log");
 });

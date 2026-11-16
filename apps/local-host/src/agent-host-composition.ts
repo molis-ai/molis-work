@@ -41,6 +41,7 @@ import { modelRoundLocale, replyLanguage } from "./reply-language.js";
 import { workAuthorityCheck } from "./agent-work-authority.js";
 import { currentNamedSkills, ownSkillSource, roundSkillCatalog } from "./agent-round-skills.js";
 import { pluginInstallRecords } from "./plugin-install-records.js";
+import { agentContinuationStarts } from "./agent-continuation-starts.js";
 
 /**
  * Wires the Agent Host into a running Host.
@@ -141,7 +142,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       });
       const adapter = await initialization;
       if (disposed) return;
-      prologue = adapter; agentHost.register(adapter); markStarted();
+      prologue = adapter; agentHost.register(adapter); agentContinuationStarts(agentHost); markStarted();
     })()
       .catch(error => { ready = undefined; throw error; });
   };

@@ -8,6 +8,8 @@ export declare const ASSISTANT_INSTALL_ID = "system";
 
 export declare const ASSISTANT_MESSAGE_EVENT = "molis:assistant-message";
 
+export declare const ASSISTANT_NEXT_STEP_REVIEW = "next-step";
+
 export declare const ASSISTANT_PERSONAL_OWNER = "home";
 
 export declare const ASSISTANT_PLUGIN_ID = "io.molis.work.assistant";
@@ -640,6 +642,11 @@ export type AssistantScope = {
 
 export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
     work_id?: string;
+    main?: true;
+    for_event?: {
+        kind: string;
+        id: string;
+    };
     executor?: AssistantExecutorChoice;
     mode?: string;
     executor_session_id?: string;
@@ -755,6 +762,13 @@ export interface AssistantWork {
         taken_back_at?: string;
     };
     budget_tokens?: number;
+    ask_each_step?: true;
+    main?: true;
+    serves?: Array<{
+        kind: string;
+        id: string;
+    }>;
+    line_event?: true;
 }
 
 export interface AssistantWorkConnection {
@@ -845,6 +859,12 @@ export interface AssistantWorkView {
         state: AssistantWorkState;
         follow_ups: number;
         taken_back?: boolean;
+        created_at: string;
+        serves?: Array<{
+            kind: string;
+            id: string;
+        }>;
+        line_event?: true;
     }>;
     scheduled?: AssistantFollowUp[];
     schedule_survives_close?: boolean;

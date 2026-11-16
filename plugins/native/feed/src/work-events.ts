@@ -1,17 +1,17 @@
-import { defineHomeEventsAction, withinHomeEventWindow, assertHomeEventWindow, type HomeEvent, type HomeEventWindow, type ActionCallContext, type ActionSubject, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineWorkEventsAction, withinWorkEventWindow, assertWorkEventWindow, type WorkEvent, type WorkEventWindow, type ActionCallContext, type ActionSubject, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import type { FeedHydrate } from "./item-hydration.js";
 
-export const feedHomeEventsAction = defineHomeEventsAction("feed.home.events", /* @version action.feed.home.events */ 1, ["feed_item", "source"], "Feed 首页事项", ["feed:read", "inbox:read"]);
+export const feedWorkEventsAction = defineWorkEventsAction("feed.events", /* @version action.feed.events */ 1, ["feed_item", "source"], "Feed 事件", ["feed:read", "inbox:read"]);
 const organization = new Set(["github", "gmail", "youtube_channel"]);
 export function createFeedHomeEventsHandler(feed: FeedApplication, board: string, hydrate: FeedHydrate,
   readSubject?: (subject: ActionSubject, caller: ActionCallContext) => Promise<ActionSubjectContext>) {
-  return { ...feedHomeEventsAction, handle: async (caller: ActionCallContext, value: unknown) => {
-    const window = value as HomeEventWindow; assertHomeEventWindow(window);
+  return { ...feedWorkEventsAction, handle: async (caller: ActionCallContext, value: unknown) => {
+    const window = value as WorkEventWindow; assertWorkEventWindow(window);
     const inbox = feed.listInboxEntries(board);
     const inboxed = new Set(inbox.filter(entry => entry.subject_type === "feed_item").map(entry => entry.subject_id));
     const faults = new Set(inbox.filter(entry => entry.subject_type === "source_fault").map(entry => entry.subject_id));
-    const events: HomeEvent[] = [];
+    const events: WorkEvent[] = [];
     for (const source of feed.sources.list(board)) {
       const needsAttention = source.status === "disconnected" || source.status === "error" || source.last_error_code === "feed.auth_required"
         || (source.last_outcome === "failed" && !!source.last_error_code);
@@ -26,7 +26,7 @@ export function createFeedHomeEventsHandler(feed: FeedApplication, board: string
     }
     for (const original of feed.reads.items(board)) {
       const occurred = original.source_created_at || original.imported_at;
-      if (inboxed.has(original.item_id) || !withinHomeEventWindow(occurred, window)) continue;
+      if (inboxed.has(original.item_id) || !withinWorkEventWindow(occurred, window)) continue;
       const item = await hydrate(feed.getFeedItem(board, original.item_id));
       let goalLabel = item.linked_goal_id ? "目标 · " + item.linked_goal_id : "Feed";
       if (item.linked_goal_id && readSubject) {

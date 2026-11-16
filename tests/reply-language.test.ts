@@ -7,7 +7,8 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { activeLocale, AssistantService, AssistantStore, assistantAuthority, captureHostLog, lastUsedLocale, LOCALE_COOKIE, LocalHost, MolisWorkLocalHost, pageLocale, readUiLocale, rememberUiLocale, replyLanguagePrompt, runBackgroundWork, runWithLocale, UI_LOCALE_RELATIVE_PATH, type HostLogEntry, type WebLocale } from "@molis-ai/molis-work-app-local-host";
-import { ASSISTANT_INSTALL_ID, type AssistantSendResult, type AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID, type AssistantSendResult, type AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AgentContinuationStarter } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
@@ -258,15 +259,25 @@ test("FSS-71 a timed round reads the language last used when it starts, not the 
 
 test("FSS-71 a continuation reads the language last used, not the page whose round registered the wait", { timeout: 90_000 }, async t => {
   const a = await assistantOn(t);
-  let ready: unknown[] = [];
-  t.mock.method(a.adapter.collaboration!, "awaitReady", async () => { const views = ready; ready = []; await tick(20); return views; });
+  // The starter the Home serves to the runtime: the runtime asks it when a continuation may go on by itself.
+  let starter: AgentContinuationStarter | undefined;
+  t.mock.method(a.adapter.collaboration!, "serveStarts", (served: AgentContinuationStarter) => { starter = served; return () => {}; });
   rememberUiLocale(a.home, "en");
   const text = "帮我等结果";
   const sent = await runWithLocale("en", () => a.service.send({ text, request_id: "req-continue-1" }, { reply_locale: "en", original_input: {
     input_id: "req-continue-1", text, written_by: "person", occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID } }));
   await a.completed(sent.work.work_id, 1);
   rememberUiLocale(a.home, "zh");
-  ready = [{ session_id: a.store.get("web-user", sent.work.work_id).session_id, wait: { state: "satisfied", by: "agent", reason: "条件满足", wait_id: "w" }, continuation: { state: "eligible", auto: true, request_key: "k" } }];
+  a.service.continuations.attach();
+  await until(() => starter !== undefined, "the Assistant serves the Home's starter");
+  const session_id = a.store.get("web-user", sent.work.work_id).session_id!;
+  const reading = t.mock.method(a.adapter.collaboration!, "read", async () => [{ session_id, wait: { state: "satisfied", by: "agent", reason: "条件满足", wait_id: "w" },
+    continuation: { state: "eligible", auto: true, request_key: "k", graph_id: "g", node_id: "n", session_id } }]);
+  const answer = await starter!({ runtime_id: "prologue", project_id: ASSISTANT_PERSONAL_OWNER, session_id, owner: { plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID },
+    request_key: "k", wait_id: "w", graph_id: "g", node_id: "n" });
+  assert.ok("run" in answer, JSON.stringify(answer));
+  // The round started takes the continuation up: the record no longer shows the wait.
+  reading.mock.restore();
   await a.completed(sent.work.work_id, 2);
   assertToldOnly(a.requests[0], "en", "the first round");
   assertToldOnly(a.requests.at(-1), "zh", "the round the Host continued on its own");

@@ -108,7 +108,7 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     await call(feedRuleActions.delete.capability_id, { rule_id: capture.rule.rule_id });
     assert.equal((await call<{ rules: FeedOutRuleRecord[] }>(feedRuleActions.list.capability_id, {})).rules.some(rule => rule.rule_id === capture.rule.rule_id), false);
     // The names an Inbox event shows are Feed's: a client that reads them through Inbox needs Feed's brief action granted as well, and without it the entry shows without names.
-    await served.grant(clientId, project.project_id, views([homeActions.events.capability_id, homeActions.openEvent.capability_id, "inbox.home.events", "feed.briefs.read"]));
+    await served.grant(clientId, project.project_id, views([homeActions.events.capability_id, homeActions.openEvent.capability_id, "inbox.events", "feed.briefs.read"]));
     const now = new Date();
     const window = { from: new Date(now.getTime() - 86400000).toISOString(), to: new Date(now.getTime() + 86400000).toISOString(), now: now.toISOString() };
     const events = await call<HomeEventsResult>(homeActions.events.capability_id, window);
@@ -119,7 +119,7 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     const webEvents = await fetch(`${prefix}/api/home/events`, { method: "POST", headers: { "content-type": "application/json", origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "home-events-web-read" }, body: JSON.stringify(window) });
     assert.equal(webEvents.status, 200, await webEvents.clone().text());
     assert.deepEqual(((await webEvents.json()) as HomeEventsResult).events.find(event => event.id === homeItem.id), homeItem);
-    const eventGrant = views(["inbox.home.events"]);
+    const eventGrant = views(["inbox.events"]);
     await served.revoke(clientId, project.project_id, eventGrant);
     assert.equal((await call<HomeEventsResult>(homeActions.events.capability_id, window)).events.some(event => event.id === homeItem.id), false);
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(homeActions.openEvent), arguments: navigation })).isError, true);

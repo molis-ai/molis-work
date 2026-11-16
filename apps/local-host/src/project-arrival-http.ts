@@ -5,7 +5,7 @@ import { projectOrNull } from "./catalog-lookup.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { goalsHostActions } from "./goal-callers.js";
 import { composeProjectBrief, currentBriefGoal, summarizeProjectBrief, type BriefEvent, type BriefGoal, type ProjectBriefInput, type ProjectBriefModel, type ProjectBriefSummary } from "@molis-ai/molis-work-app-workbench";
-import type { HomeEventView, HomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { WorkEventView, WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { homeActions } from "./home-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
@@ -65,12 +65,12 @@ async function settle<T>(read: Promise<T>): Promise<{ ok: true; value: T } | { o
   }
 }
 
-function eventWindow(now: Date): HomeEventWindow {
+function eventWindow(now: Date): WorkEventWindow {
   const day = 24 * 60 * 60 * 1000;
   return { from: new Date(now.getTime() - EVENT_WINDOW.before_days * day).toISOString(), to: new Date(now.getTime() + EVENT_WINDOW.after_days * day).toISOString(), now: now.toISOString() };
 }
 
-function briefEvent(event: HomeEventView): BriefEvent {
+function briefEvent(event: WorkEventView): BriefEvent {
   const open = event.open;
   return {
     event_id: event.event_id, title: event.title, summary: event.summary, occurred_at: event.occurred_at, placement: event.placement, needs_attention: event.needs_attention,

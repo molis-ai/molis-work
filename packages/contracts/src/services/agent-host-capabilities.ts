@@ -1,7 +1,6 @@
 import type { ActionDefinition, ActionView } from "../platform/actions.js";
 import { MATERIAL_REF_SCHEMA } from "../platform/project-materials.js";
 import { memoryClassRestrictionsSchema } from "./memory.js";
-import type { AgentCollaborationSessionView } from "./agent-collaboration.js";
 import type { AgentDraftTextRequest, AgentDraftTextResult } from "./agent-host.js";
 import type { AgentMcpServerInput, AgentMcpServerView, AgentCheckpoint, AgentRecoveryReport, AgentSubagentRetrySource, AgentSubagentView } from "./agent-host-ports.js";
 import type { AgentReviewReceipt, AgentReviewRequest } from "./agent-host-reviews.js";
@@ -372,20 +371,6 @@ export const agentHostCapabilities = {
         properties: { session: sessionRef, directory: { type: "string", minLength: 1, maxLength: 4096 }, task: { type: "string", minLength: 1, maxLength: 1_000_000 }, after: entryId,
           title: { type: "string", maxLength: 2000 } } }] } },
   } as ActionDefinition<[runtimeId: string, input: { session: AgentSessionRef; directory: string; task: string; after: string; title?: string }], AgentProjectWork>,
-  /**
-   * Continuations of the calling plugin's own sessions that are ready to go on, or held for the person, but for `exclude`
-   * (request keys); waits up to `timeoutMs` for one, as `waitRun` waits (concurrent, a ceiling, dropped if cancelled).
-   * Reading and controlling them are the actions in agent-collaboration.
-   */
-  awaitContinuations: {
-    capability_id: "agent.collaboration.await", version: /* @version action.agent.collaboration.await */ 1, operation: "query",
-    action: { title: "等会话接续", description: "等调用插件自己的会话里有一个能接着走或等人处理的接续；到时没有就回空表。", kind: "query", ...pluginOnly,
-      scheduling: "concurrent", execution: { timeout_ms: 30_000 },
-      input_schema: { type: "array", minItems: 2, maxItems: 3, additionalItems: false,
-        items: [runtimeId, { type: "integer", minimum: 0, maximum: 25_000 }, ids(200)] },
-      output_schema: { type: "array", items: { type: "object", required: ["session_id"], additionalProperties: false, properties: {
-        session_id: { type: "string" }, wait: object, continuation: object } } } },
-  } as ActionDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentCollaborationSessionView[]>,
   /** The project's background commands; one session's when named. */
   readBackground: {
     capability_id: "agent.background.read", version: /* @version action.agent.background.read */ 1, operation: "query",

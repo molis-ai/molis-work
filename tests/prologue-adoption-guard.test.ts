@@ -8,6 +8,7 @@ import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-a
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRunRef, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { endingReviewAnswer } from "./fixtures/ending-review.js";
+import { readyWithin } from "./fixtures/continuation-ready.js";
 
 // S-23 (PA-23), specs/prologue-adoption §4.6.10 (P3a): a yield is the SDK's — dispatch, the step waits on the child's step, the run
 // ends — and the step goes on only when the Host starts the session's next round, through the same start checks.
@@ -113,14 +114,14 @@ for (const graph of ["project", "work"] as const) test(`PA-23: after a yield on 
     await terminal(adapter, second.ref, world.queue);
     // Taken up, it is no longer one to go on (the view keeps only open waits and continuations not yet taken up).
     assert.deepEqual(await adapter.collaboration!.read("project", session.session_id), [{ session_id: session.session_id }]);
-    assert.deepEqual(await adapter.collaboration!.awaitReady("project", 0), []);
+    assert.deepEqual(await readyWithin(adapter.collaboration!, "project", 0), []);
     assert.deepEqual(world.requests.map(one => one.who), ["parent", "child", "parent"]);
     assert.match(world.requests[2]!.body, /README 一共三节/, "the child's report reaches the round that goes on");
     assert.deepEqual((await adapter.readSession(session)).runs, [first.ref, second.ref]);
     await adapter.close(); adapter = await world.make();
     const reopened = await adapter.readSession(session);
     assert.deepEqual(reopened.runs, [first.ref, second.ref], "recovery creates no parent run");
-    assert.deepEqual(await adapter.collaboration!.awaitReady("project", 0), [], "reopening makes nothing eligible again");
+    assert.deepEqual(await readyWithin(adapter.collaboration!, "project", 0), [], "reopening makes nothing eligible again");
     await new Promise(resolve => setTimeout(resolve, 300));
     assert.equal(world.requests.length, 3, "reopening asks no model");
   } finally { await adapter.close(); await world.close(); }

@@ -29,7 +29,7 @@ export const ASSISTANT_CHOOSERS_PART = String.raw`  let executors = [];
     if (held && Date.now() - held.at < 60000) return held.choices;
     characterCache.set(key, { at: Date.now(), choices: held ? held.choices : null });
     api("/characters" + (work ? "?work=" + encodeURIComponent(work.work_id) : "")).then((res) => {
-      characterCache.set(key, { at: Date.now(), choices: res.characters || [] }); paintSum(); paintAim();
+      characterCache.set(key, { at: Date.now(), choices: res.characters || [] }); paintSum(); paintAim(); if (sendToOpen()) paintSendTo();
     }).catch(() => { characterCache.set(key, { at: Date.now(), choices: [] }); });
     return held ? held.choices : null;
   };`;

@@ -20,6 +20,13 @@ export const CODING_OPEN = `(${CODING_TAKEN} && !document.querySelector(${JSON.s
 /** A control in the bar by its id: `intent`, `model`, `effort` (a select) or `model-switch` (a button). */
 export const codingControl = (id: string) => `${CODING_COMPOSER} [data-composer-control="${id}"]`;
 
+/**
+ * A script (top document) that brings the bar's controls into sight: the line's input at rest is one row and folds them behind
+ * 更多 while it is 600px or narrower (craft-finish-bar.ts), so 更多 is opened when it shows and is not open yet.
+ */
+export const codingControlsShown = `(()=>{const more=document.querySelector(${JSON.stringify(`${CODING_COMPOSER} [data-composer-more]`)});
+  if(more&&more.checkVisibility()&&more.getAttribute('aria-expanded')!=='true')more.click();})()`;
+
 /** A script (top document) that opens ＋ (unless it is open) and presses the command found by `/slash` (`materials`, `character`, `actions`…). */
 export const codingAdd = (slash: string) => `(()=>{const shell=document.querySelector(${JSON.stringify(CODING_COMPOSER)});
   if(!shell.querySelector('[data-compose-menu]:not([hidden]) [data-composer-command]'))shell.querySelector('[data-composer-add]').click();

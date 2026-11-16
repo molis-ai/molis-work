@@ -58,21 +58,23 @@ test("UIV-18 UIV-21 UIV-22 UIV-23 S-composer-source-call item 5: a framed page's
   assert.equal(await child.evaluate("seen.sent[0].text"), "你好，探针");
   await browser.waitFor(`${BOX}.value === ''`);
   await child.waitFor("document.querySelector('#probe .mw-composer__input').value === ''");
-  // UIV-23 (O4): the tag opens 「发给」 — this page's receiver, the Assistant (a new conversation) and the page's other receivers.
+  // UIV-23 (O4): the tag opens 「发给」 — this page's receiver, who is spoken to at now (the Assistant), the events of the project's
+  // work line (specs/work-line §4.4; whatever this project's line shows) and the page's other receivers.
   const MENU = "document.querySelector('[data-assistant-send-to]')";
-  const pick = (label: string) => browser.evaluate(`[...${MENU}.querySelectorAll('[role=menuitemradio]')].find(item => item.textContent.includes(${JSON.stringify(label)})).click()`);
+  const pick = (label: string) => browser.evaluate(`[...${MENU}.querySelectorAll('[role=menuitemradio]')].find(item => item.querySelector('[data-slot=menu-item-label] > span').textContent === ${JSON.stringify(label)}).click()`);
+  const LINE = "线上的事件", rowsOutsideLine = `[...${MENU}.querySelectorAll('[role=menuitemradio]')].filter(item => item.closest('[role=group]').getAttribute('aria-label') !== ${JSON.stringify(LINE)})`;
   const openMenu = async () => { await browser.evaluate(`${BAR}.querySelector('[data-composer-receiver]').click()`); await browser.waitFor(`${MENU}.matches(':popover-open')`); };
   await openMenu();
-  assert.deepEqual(await browser.evaluate(`[[...${MENU}.querySelectorAll('.mw-menu__label')].map(node => node.textContent), [...${MENU}.querySelectorAll('[role=menuitemradio]')].map(item => item.getAttribute('aria-checked') + ':' + item.querySelector('[data-slot=menu-item-label] > span').textContent), ${MENU}.querySelectorAll('img').length]`),
-    [["这一页", "助理", "别的会话"], ["true:" + PROBE_LABEL, "false:新对话", "false:另一个探针"], 0], "the page's names are text in the menu too");
+  assert.deepEqual(await browser.evaluate(`[[...${MENU}.querySelectorAll('.mw-menu__label')].map(node => node.textContent).filter(label => label !== ${JSON.stringify(LINE)}), ${rowsOutsideLine}.map(item => item.getAttribute('aria-checked') + ':' + item.querySelector('[data-slot=menu-item-label] > span').textContent), ${MENU}.querySelectorAll('img').length]`),
+    [["这一页", "现在", "别的会话"], ["true:" + PROBE_LABEL, "false:助理", "false:另一个探针"], 0], "the page's names are text in the menu too");
   // Choosing the Assistant keeps the bar the Assistant's on this page, with its own draft; the page keeps its own.
-  await pick("新对话");
+  await pick("助理");
   await browser.waitFor(`!${BAR}.dataset.receiver && !${MENU}.matches(':popover-open') && globalThis.molisBarReceivers.front() !== null`);
   await browser.evaluate(`(() => { const box = ${BOX}; box.value = '给助理的字'; box.dispatchEvent(new InputEvent('input', { bubbles: true, data: '字', inputType: 'insertText' })); })()`);
   await new Promise(resolve => setTimeout(resolve, 300));
   assert.equal(await child.evaluate("seen.drafts.at(-1)"), "", "the Assistant's words are not the page's draft");
   await openMenu();
-  assert.deepEqual(await browser.evaluate(`[...${MENU}.querySelectorAll('[role=menuitemradio]')].map(item => item.getAttribute('aria-checked'))`), ["false", "true", "false"]);
+  assert.deepEqual(await browser.evaluate(`${rowsOutsideLine}.map(item => item.getAttribute('aria-checked'))`), ["false", "true", "false"]);
   await pick(PROBE_LABEL);
   await browser.waitFor(`${BAR}.dataset.receiver === 'page' && ${BOX}.value === ''`);
   // Another of the page's receivers reaches the page only as the id the page listed.
@@ -80,7 +82,7 @@ test("UIV-18 UIV-21 UIV-22 UIV-23 S-composer-source-call item 5: a framed page's
   await pick("另一个探针");
   await child.waitFor("seen.acts.includes('choose:s2')");
   // The Assistant's draft is still its own: picked again, it comes back; cleared for what follows.
-  await openMenu(); await pick("新对话");
+  await openMenu(); await pick("助理");
   await browser.waitFor(`!${BAR}.dataset.receiver && ${BOX}.value === '给助理的字'`);
   await browser.evaluate(`(() => { const box = ${BOX}; box.value = ''; box.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await openMenu(); await pick(PROBE_LABEL);
@@ -92,7 +94,7 @@ test("UIV-18 UIV-21 UIV-22 UIV-23 S-composer-source-call item 5: a framed page's
 
   // S-composer-source-call item 5: away from the page, the bar is the Assistant's; the page's text, insert, focus and send do nothing
   // to it, and the Assistant's words never reach the page.
-  await browser.click(".bar-start [data-plugin-id=home]");
+  await browser.click(".workbench-header [data-plugin-id=home]");
   await browser.waitFor(`!${BAR}.dataset.receiver && globalThis.molisBarReceivers.front() === null`);
   const assistantWords = await browser.evaluate<string>(`${BOX}.value`);
   await browser.evaluate(`(() => { const box = ${BOX}; box.value = '只给助理的字'; box.dispatchEvent(new InputEvent('input', { bubbles: true, data: '字', inputType: 'insertText' })); box.blur(); })()`);

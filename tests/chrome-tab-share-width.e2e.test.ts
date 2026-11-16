@@ -21,7 +21,7 @@ test("titlebar tabs hug short titles and share width when they overflow the stri
 
   const compact = await evaluate<{ widths: number[]; lastRight: number; addLeft: number }>(`(() => {
     const tabs = [...document.querySelectorAll('[data-titlebar-tabs] .tab-item:not([data-pinned])')];
-    const add = document.querySelector('[data-titlebar-tabs] .tab-add-button');
+    const add = document.querySelector('.immersive-titlebar [data-plugin-picker-toggle]');
     return {
       widths: tabs.map((tab) => Math.round(tab.getBoundingClientRect().width)),
       lastRight: Math.round(tabs.at(-1).getBoundingClientRect().right),

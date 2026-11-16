@@ -9,7 +9,7 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 路径: a line from who 
     const scheduled = work && view.scheduled ? view.scheduled : [];
     const signature = JSON.stringify([work && work.work_id, work && work.executor, work && work.origin, parent, children,
       objects.filter((o) => o.relation === "origin" || o.relation === "session").map((o) => [o.relation, o.subject.id, o.state, o.title, o.current_revision]),
-      scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last]), work && view.schedule_survives_close, latestSteps(work), waitsOn(work)]);
+      scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last]), work && view.schedule_survives_close, latestSteps(work), waitsOn(work), work && work.ask_each_step]);
     if (node.dataset.signature === signature) return;
     node.dataset.signature = signature;
     keepFocus(node, () => {
@@ -95,7 +95,22 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 路径: a line from who 
       }));
       const done = children.filter((child) => child.state === "completed" || child.taken_back).length;
       const stepsDone = steps.filter((item) => item.state === "done").length;
-      paintBlock(node, globalThis.t.text("workbench.assistant-side-path.path"), "workflow", line.children.length ? line : null,
+      /* 「每步先问我」 (PWA-156): on a work the Assistant carries, each step it would go on to by itself first asks the person. */
+      let content = line.children.length ? line : null;
+      if (work && work.executor.kind !== "plugin" && !work.reply_target) {
+        const row = el("label", "assistant-item"), copy = el("span", "assistant-item-text");
+        copy.append(el("span", "assistant-item-title", globalThis.t.text("workbench.assistant-side-path.ask-each-step")), el("span", "assistant-item-sub", globalThis.t.text("workbench.assistant-side-path.ask-each-step-hint")));
+        const control = el("span", "mw-switch"), toggle = el("input"), track = el("span", "mw-switch__track");
+        toggle.type = "checkbox"; toggle.setAttribute("role", "switch"); toggle.checked = Boolean(work.ask_each_step); track.setAttribute("aria-hidden", "true"); control.append(toggle, track);
+        toggle.addEventListener("change", async () => {
+          toggle.disabled = true;
+          try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/ask-each-step", "POST", { on: toggle.checked }); render(); }
+          catch (error) { toggle.checked = !toggle.checked; toggle.disabled = false; host.showToast?.(error); }
+        });
+        row.append(copy, control);
+        if (content) { const list = el("div", "assistant-group-list"); list.append(content, row); content = list; } else content = row;
+      }
+      paintBlock(node, globalThis.t.text("workbench.assistant-side-path.path"), "workflow", content,
         steps.length ? globalThis.t.text("workbench.assistant-side-path.steps-count", { done: stepsDone, total: steps.length }) : children.length ? globalThis.t.text("workbench.assistant-side-path.sub-task-count", { done, total: children.length }) : "",
         children.some((child) => WAITING.has(child.state) && !child.taken_back) || (steps.some((item) => item.state === "in-progress") && waitsOn(work)));
     });

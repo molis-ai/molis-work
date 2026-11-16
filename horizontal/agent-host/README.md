@@ -172,7 +172,7 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 
 每次派子任务之前，宿主协作口（`admitDispatch`）都会再跑一遍这一轮自己的派出前复核。让出（`yield`）、`board-wait`、带 `wait` / `park` 的简写，都只登记等待并结束这一轮，Runtime 不会自己起父跑。等待满足后，接续停在可以接着做；下一轮由宿主照常开跑时，才把接续接过去（`tests/prologue-adoption-guard.test.ts`）。
 
-等待与接续的视图在 `services/agent-collaboration`，读与控制是两个动作，等到能接着做是一个宿主等待（`agent.collaboration.await`）。
+等待与接续的视图在 `services/agent-collaboration`，读与控制是两个动作。一条接续可以自己接着做时，运行时问组合根经 `collaboration.serveStarts` 给的起跑者（`adapters/prologue-collaboration.ts`）；宿主把插件的会话转成宿主事件 `host.agent.continuation.ready@1`，助理的会话由助理起（`apps/local-host/src/agent-continuation-starts.ts`）。
 
 等外面的结果（P3c）：`board-wait` 的 `external` 条件由 `prologue-checkers.ts` 里的两个检查器去看，不经模型。`molis.action-query@1` 只查这一轮此刻能调用的只读查询（`operation` 与 `kind` 都是 `query`、effect 是 `read`）；模型给的是动作工具名，`remember()` 时用 `prologue-action-tools.ts` 的 `actionToolRefs` 按这一轮的冻结动作建好名字到引用的表，检查器不自己算名字；`molis.file-present@1` 只看这一轮授权目录里的相对路径。登记时一个 `tool-before` 钩子先拒掉写类、判断、声明了 `model:invoke` 的查询、导航和这一轮没给的动作；之后每次看都重新复核：轮次还被记得、这一轮自己的 `beforeDispatch` 通过、动作经统一动作服务用这一轮的授权重新发现，目录经宿主的 `checks.directoryAuthorized` 端口确认仍授权。不过就回 `refused`，等待停下（`docs/system/SECURITY-INVARIANTS.md` S-27，`tests/prologue-external-checks.test.ts`、`tests/security-invariants-external-checks.test.ts`）。
 

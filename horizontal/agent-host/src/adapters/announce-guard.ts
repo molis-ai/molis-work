@@ -1,5 +1,5 @@
 import { APP_MODE_SURFACE_TOOLS, APP_MODE_SYSTEM_TOOLS, decodeJsonOutput } from "@prologue/sdk";
-import { DELEGATION_TOOLS, GATEWAY_TOOLS, HOST_GOVERNED_TOOLS, MEMORY_TOOLS } from "./prologue-action-gateway.js";
+import { DELEGATION_TOOLS, DELIVERY_TOOLS, GATEWAY_TOOLS, HOST_GOVERNED_TOOLS, MEMORY_TOOLS } from "./prologue-action-gateway.js";
 
 /**
  * What a round's ending is held for, and what the model then reads. Whether a reply claims something its round did
@@ -51,7 +51,7 @@ export const BUTTON_CLAIM_HELD =
  * Held once whatever the round's execution: nothing it wrote happened.
  */
 // Every tool a business round can be given, from the same constants that register them: a new tool is covered by itself.
-export const GUARDED_TOOL_NAMES: readonly string[] = [...Object.values(GATEWAY_TOOLS), ...Object.values(DELEGATION_TOOLS), ...Object.values(MEMORY_TOOLS),
+export const GUARDED_TOOL_NAMES: readonly string[] = [...Object.values(GATEWAY_TOOLS), ...Object.values(DELEGATION_TOOLS), ...Object.values(DELIVERY_TOOLS), ...Object.values(MEMORY_TOOLS),
   ...APP_MODE_SYSTEM_TOOLS, ...APP_MODE_SURFACE_TOOLS];
 const TOOL_NAMES = GUARDED_TOOL_NAMES.join("|");
 const WRITTEN_CALL = new RegExp(`\\[\\/?(?:${TOOL_NAMES})\\]|<\\/?(?:${TOOL_NAMES})>|(?:^|\\n)\\s*(?:capability_id|provider_id)\\s*[:=：]|"capability_id"\\s*:`);

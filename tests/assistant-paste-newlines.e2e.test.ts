@@ -20,7 +20,7 @@ test("BL-953 底栏/助理输入框：粘贴多行中文后换行还在，输入
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId, 20_000));
-  await waitFor("document.querySelector('[data-dock] [data-assistant-composer] .mw-composer__input')");
+  await waitFor("document.querySelector('[data-work-bar] [data-assistant-composer] .mw-composer__input')");
 
   // One shared field, and one that can hold a line break.
   assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').tagName"), "TEXTAREA", "the composer holds more than one line");

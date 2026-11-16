@@ -3,6 +3,7 @@
 # SQLite reports after running the creation statements; upgrades is the `from` of each step, or -. scripts/gates/store-schemas.mjs fails a
 # row whose structure changed while its version stayed.
 store	owner	version	structure	upgrades
+acceptance/acceptance.db	modules/acceptance	1	4ef2c09436f61dfb	-
 agent-declarations/agent-declarations.db	apps/local-host	1	90aa329cbf64815e	-
 agent-definitions/agent-definitions.db	apps/local-host	2	f9bb7a644cbb6051	1
 alchemist/projects/*/search.sqlite	apps/local-host	1	d7365cb6761c89e8	-

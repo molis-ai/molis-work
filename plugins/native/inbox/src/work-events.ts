@@ -1,13 +1,13 @@
-import { defineHomeEventsAction, assertHomeEventWindow, type HomeEventWindow, type ActionCallContext, type HomeEvent } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineWorkEventsAction, assertWorkEventWindow, type WorkEventWindow, type ActionCallContext, type WorkEvent } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InboxBriefs, InboxContentPorts } from "./content-actions.js";
 
-export const inboxHomeEventsAction = defineHomeEventsAction("inbox.home.events", /* @version action.inbox.home.events */ 1, ["inbox_entry"], "Inbox 首页事项", ["inbox:read", "feed:read"]);
+export const inboxWorkEventsAction = defineWorkEventsAction("inbox.events", /* @version action.inbox.events */ 1, ["inbox_entry"], "Inbox 事件", ["inbox:read", "feed:read"]);
 export function createInboxHomeEventsHandler(ports: InboxContentPorts, briefsOf: (caller: ActionCallContext, entries: readonly ReturnType<InboxContentPorts["entries"]>[number][]) => Promise<InboxBriefs>) {
-  return { ...inboxHomeEventsAction, handle: async (caller: ActionCallContext, value: unknown) => {
-    assertHomeEventWindow(value as HomeEventWindow);
+  return { ...inboxWorkEventsAction, handle: async (caller: ActionCallContext, value: unknown) => {
+    assertWorkEventWindow(value as WorkEventWindow);
     const entries = ports.entries().filter(entry => entry.status === "open" || entry.status === "in_progress");
     const { items, sources } = await briefsOf(caller, entries);
-    const events = await Promise.all(entries.map(async (entry): Promise<HomeEvent | null> => {
+    const events = await Promise.all(entries.map(async (entry): Promise<WorkEvent | null> => {
       const relatedKind = entry.subject_type === "feed_item" ? "feed_item" : entry.subject_type === "goal_decision" ? "goal" : "source";
       let related;
       try { related = await ports.readSubject?.({ kind: relatedKind, id: entry.subject_id }, caller); } catch { /* Keep the attention reference, without unavailable content. */ }
@@ -36,6 +36,6 @@ export function createInboxHomeEventsHandler(ports: InboxContentPorts, briefsOf:
         facts: [["来自", sourceLabel], ["状态", entry.status === "in_progress" ? "处理中" : "待处理"], ["挂在", goalLabel]],
         needs_attention: true, open: target };
     }));
-    return { source: { surface: "inbox", title: "Inbox", icon: "inbox" }, events: events.filter((event): event is HomeEvent => event !== null) };
+    return { source: { surface: "inbox", title: "Inbox", icon: "inbox" }, events: events.filter((event): event is WorkEvent => event !== null) };
   } };
 }

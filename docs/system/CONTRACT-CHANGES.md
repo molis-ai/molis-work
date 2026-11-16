@@ -191,6 +191,7 @@
 | `projects/<project_id>/molis-work.db#goals` | 3 → 4 | 第 41 批第 2 项（用户 2026-11-14：规划与拆解方法是随系统自带的技能，和 Goals 没有关系，不迁移）：删 `planning_method_packs` 表和 `goal_event_config_versions.adopted_planning_json` 列，升级段声明 `reduces_rows`；同批删掉 Goals 的 Home 库 `goals/goals.db`（宿主 `REMOVED_HOME_STORES`，升级轮里连目录删除，个人方法不搬） | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE#3→4` |
 | `memory/memory.db` | 2 → 3 | 第 31 批合后复查 #2087（2026-11-15）：权威正文与有界历史快照归 Prologue SDK 唯一持有（变更流/配对/候选的显示副本不是事实主人），账本 `memory_revisions.body` 升级清洗为 `{version, change, by, at}` 无正文归因并移除非 `pending` 的 `memory_markers.body` 中 `$.merge`，收紧现行读取校验 | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE#2→3` |
 | `observation/observation.db` | 1 → 2 | 第 30 批（新增评测样本留存表 `evaluation_holds` 与 `evaluation_hold_records`，留存记录与证据快照豁免到期与手动清理） | `horizontal/observation/src/schema.ts#OBSERVATION_BASELINE#1→2` |
+| `agent-definitions/agent-definitions.db` | 2 → 3 | 第 42 批 #2107（用户 2026-11-16 批准：新增技能草稿 `skill_drafts`、已知答案 `skill_cases`、回放 `skill_trials`、来源 `skill_lineage` 四张空表，已有的技能设置与用量不动） | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#2→3` |
 
 ## 4. 阶段二：起点之后，读取兼容
 

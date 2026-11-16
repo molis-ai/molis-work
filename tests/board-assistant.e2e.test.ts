@@ -299,7 +299,9 @@ test("VUX-39 the board's Assistant shows delegated sub-tasks, the bell's notices
       folds: [...pop.querySelectorAll('.assistant-notice-list > details > summary')].map((n) => n.textContent) };`);
   const first = await bell();
   t.diagnostic("bell: " + JSON.stringify(first));
-  assert.deepEqual(first.rows, ["「安排试用复盘」等你确认创建日程", "「整理上周的 Feed 摘要」没有完成：模型服务暂时不可用", "到时间了：订会议室"]);
+  // The plan is already open above: its notice was seen, while the other work and reminder remain unread.
+  assert.deepEqual(first.rows, ["「整理上周的 Feed 摘要」没有完成：模型服务暂时不可用", "到时间了：订会议室"]);
+  assert.equal(await inFrame("return d.querySelector('[data-notice-id=n-plan]');"), null, "the open work has no unread notice");
   assert.deepEqual(first.folds, ["有 1 条新结果", "按你的规则暂缓 1 条"]);
   // The count is the work line's head (WLN-39; user 2026-11-15): nothing waits on this frame's line, so the bell has no number
   // of its own and stays in reach for what its list holds.

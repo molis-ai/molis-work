@@ -85,12 +85,11 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   assert.deepEqual(stored.open, { surface: "shelf", id: item.item_id, title: item.name, project_id: projectId }, "with the `open` it was stored with");
   const bell = "[data-assistant-attention]";
   await waitFor(`!document.querySelector(${JSON.stringify(bell)}).hidden && document.querySelector(${JSON.stringify(bell)}).checkVisibility()`, 30_000);
-  assert.match(String(await evaluate(`document.querySelector(${JSON.stringify(bell)}).getAttribute('aria-label')`)), /^\d+ 件事等你处理$/u, "the bell counts the notices that wait");
-  // Since batch 15 the bell also counts the owner objects that wait for the person (等你, the surface-attention read), so
-  // settling this notice takes its one off the count rather than always putting the bell away.
-  const waiting = `(() => { const node = document.querySelector(${JSON.stringify(bell)}); return node.hidden ? 0 : Number(/^(\\d+) 件事等你处理$/u.exec(node.getAttribute('aria-label') ?? '')?.[1] ?? 0); })()`;
+  // WLN-39: the bell reads the line head's count; a notice remains reachable without adding a second count.
+  const waiting = "Number(document.querySelector('[data-work-line-head]').dataset.waiting) || 0";
   const waitingBefore = await evaluate<number>(waiting);
-  assert.ok(waitingBefore >= 1, "the notice is among what waits");
+  const count = "document.querySelector('[data-assistant-attention-count]').textContent";
+  assert.equal(await evaluate(count), waitingBefore ? `等你 ${waitingBefore}` : "");
   // The main area as it is before the notice is opened.
   const mainArea = `({ surface: document.body.dataset.desktopSurface ?? null, tabs: [...document.querySelectorAll('[data-titlebar-tabs] [data-tab-id]')].map((tab) => tab.textContent.trim() + ':' + String(tab.hasAttribute('aria-current'))),
     shelf: Boolean(document.querySelector('[data-work-surface=shelf], [data-titlebar-tabs] [data-plugin=shelf]')) })`;
@@ -103,9 +102,10 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   await click(open);
   await landed("the Assistant notice");
   assert.deepEqual(await evaluate(mainArea), before, "the main area is as it was: same surface, same tabs, nothing of Shelf in it");
-  // Opened, the notice is settled by the product itself: it leaves the API and the bell goes.
+  // Opened, the notice leaves the API; the line-owned count is unaffected.
   await waitFor(`fetch(document.body.dataset.routePrefix + '/api/assistant/notices', { headers: molisWorkControlHeaders(), cache: 'no-store' }).then((r) => r.json()).then((body) => !body.notices.some((one) => one.notice_id === ${JSON.stringify(seeded.notice_id)}))`, 10_000);
-  await waitFor(`${waiting} === ${waitingBefore - 1}`, 30_000);
+  assert.equal(await evaluate(waiting), waitingBefore);
+  assert.equal(await evaluate(count), waitingBefore ? `等你 ${waitingBefore}` : "");
 });
 
 test("SIDE-FWD-01 a side view's placement events reach the page; an unlisted event stays in the view", { timeout: 60_000 }, async (t) => {

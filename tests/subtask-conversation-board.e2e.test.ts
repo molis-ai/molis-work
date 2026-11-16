@@ -68,11 +68,18 @@ test("B58-06: subtask board states, local input, recovery, IME and touch targets
   await waitFor(`!${first}.querySelector('[data-subtask-feedback]').textContent`);
   assert.equal(await evaluate(`${first}.querySelector('[data-subtask-messages]').children.length`), 83, "rereading retains already read history");
   assert.equal(await evaluate(`${first}.querySelector('[data-subtask-thread]').scrollTop`), 200);
-  // The page's language switch keeps the document. Later actions must read its new language, not startup templates.
-  await b.click('[data-board-lang="zh"]');
-  await waitFor("document.documentElement.dataset.uiLanguageTag === 'zh'");
+  // Start in Chinese, copy a translated specimen verbatim, then switch once. A text-equality translator must not rewrite the user's send.
+  await b.navigate(() => command("Page.navigate", { url: `${b.origin}/__ui/catalog?lang=zh&scenario=translation#subtask-conversation` }, sessionId));
+  await waitFor(`globalThis.molisComposerProgram && ${first}.querySelector('textarea')`);
+  const copied = await evaluate<string>(`${first}.querySelector('[data-role="assistant"] .mw-subtask__words').textContent`);
+  await evaluate(`${first}.querySelector('textarea').focus()`);
+  await command("Input.insertText", { text: copied }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await waitFor(`${first}.querySelectorAll('[data-subtask-messages] article').length === 3`);
   await b.click('[data-board-lang="en"]');
   await waitFor("document.documentElement.dataset.uiLanguageTag === 'en'");
+  assert.equal(await evaluate<string>(`${first}.querySelector('[data-subtask-messages] article:last-child').textContent`), copied);
   await b.click(`${ROOT} [data-subtask-action="stop"]`);
   await waitFor(`${first}.querySelector('[data-subtask-action="continue"]')`);
   assert.doesNotMatch(await evaluate<string>(`[...${first}.querySelectorAll("[data-subtask-head], [data-subtask-context], [data-subtask-intro], [data-subtask-composer]")].map(el => el.textContent).join(" ")`), /[㐀-鿿]/u, "actions after a live language switch stay in that language");

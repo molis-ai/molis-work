@@ -74,12 +74,12 @@ export function subtaskIntroduction(view: MwSubtaskConversationView): string {
     + `<span class="mw-subtask__state">${renderStateRing({ state: view.status.state, label: view.status.label })}<span>${escapeHtml(view.status.label)}</span></span>`;
 }
 export function subtaskMessage(message: MwSubtaskMessage): string {
-  return `${message.name ? `<div class="mw-subtask__who">${escapeHtml(message.name)}</div>` : ""}<div class="mw-subtask__words">${message.html}</div>`
+  return `${message.name ? `<div class="mw-subtask__who">${escapeHtml(message.name)}</div>` : ""}<div class="mw-subtask__words" translate="no">${message.html}</div>`
     + `${message.receipt ? `<p class="mw-subtask__receipt">${escapeHtml(message.receipt)}</p>` : ""}`;
 }
 export function subtaskDetails(view: MwSubtaskConversationView): string {
   return (view.details ?? []).map(detail => `<details class="mw-subtask__detail" data-subtask-detail="${escapeHtml(detail.id)}"${detail.expanded ? " open" : ""}>`
-    + `<summary>${escapeHtml(detail.title)}</summary><div class="mw-subtask__detail-body">${detail.html}</div>`
+    + `<summary>${escapeHtml(detail.title)}</summary><div class="mw-subtask__detail-body" translate="no">${detail.html}</div>`
     + `${detail.actions?.length ? `<div class="mw-subtask__answers">${detail.actions.map(subtaskAction).join("")}</div>` : ""}</details>`).join("");
 }
 export function subtaskChildren(view: MwSubtaskConversationView, labels: MwSubtaskConversationLabels): string {

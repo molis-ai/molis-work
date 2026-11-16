@@ -26,7 +26,7 @@ function specimenDemo(root: HTMLElement) {
       sources: false, draft: { adapter }, receiver: () => ({ label: say("writer"), icon: "user" }),
       submit: async input => {
         const item = document.createElement("article"); item.className = "mw-subtask__message"; item.dataset.role = "user";
-        const words = document.createElement("div"); words.className = "mw-subtask__words"; words.textContent = input.text;
+        const words = document.createElement("div"); words.className = "mw-subtask__words"; words.translate = false; words.textContent = input.text;
         item.append(words); messages.append(item); thread.scrollTop = thread.scrollHeight;
         return { state: "sent" };
       },

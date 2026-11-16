@@ -12,7 +12,16 @@
 - **逐项认可**：新模块 `modules/acceptance` 与 Home 库 `acceptance/acceptance.db` 第 1 版；`acceptance.requirements.set`、`deliveries.record`、`reports.submit`、`read`（一次至多 32 个对象）、`decide` 由 Host 装配为 `system.acceptance`；不经 Goals；要求版本、证据层级、返工复核与历史保留。
 - **合同与外观**：`platform/background-tasks`、`platform/work-events`、`platform/object-link` 等新形状；页面资源 `workbench.js`/`workbench.css` 按用户 2026-11-15 弹窗上调；首屏 `32-first-screen.json` 按实测放行；`DESIGN.md` 的顶部一条与事项线一节按用户认可改写。
 - **Prologue**：换到上游 main `02a11ac5`（#124 结果回流、#125 评审跟进、#126 授权变化时放回占用），旧包记入 `patch-history.json`。
-- **未完成/待验收**：本人验收（`BL-b32-acceptance`）与部分用例缺口（`BL-b32-acceptance-test-gaps`）；合入头 full-suite 的 5 个文件红由合后 #2098 收口（最终头 Full 48/48、CI 全绿，待合入 main）；32-2 认可入口、无来源同时汇报与后台 provider 覆盖的余项见对应 BL。
+- **未完成/待验收**：本人验收（`BL-b32-acceptance`）与部分用例缺口（`BL-b32-acceptance-test-gaps`）；合入头 full-suite 的 5 个文件红由合后 #2098 收口（最终头 Full 48/48、CI 全绿，已合入 main `0d45ba58`）；32-2 认可入口、无来源同时汇报与后台 provider 覆盖的余项见对应 BL。
+
+### Coding 与材料恢复闭环（2026-11-15，#2082）
+
+- **Coding 上下文与完成闭环**：按模型有效窗口动态缩放预算与压缩阈值（Coding 声明 `window_ratio: 0.4`，窗口未知回退固定阈值）；跨轮摘要保留失败/未知命令与未完步骤；环境准备清单含依赖、脚本端口、`.env` 样例变量名核对、独立工作树与基线测试行；四节收尾报告卡带验证 commit 与重跑入口；无上界正整数斐波那契估点、叶子加权进度、`skipped` 与 `scope_removed` 分开；未知命令的步骤标「结果未知，待核对」并从完成数/加权进度扣除。
+- **子任务与材料**：`agent.subagents.retry@1` 继承父轮冻结的模型/预算/推理档位，输出尝试额度、`prior_attempts` 与重试来源，用完给「再给 3 次」；宿主发起的无预算追加记 `source: "host"`。Coding 一轮下方材料清单复用恢复原语，运行中补读实时更新，读不到接 12 恢复块；超 30 份只全文读前 30 份，其余用 head/200 字核对并固定版本；`knowledge.read@1` 的 `expected_revision` 在动作工具与业务网关两处统一注入（`S-41`）。
+- **引导材料与重启**：文件行可打开详情（路径、大小、修改时间、来源、状态，不读正文）；代码/无后缀文本按内容识别、`.env*` 标 ENV；疑似密钥文件默认扣留，`onboarding.context.secret@1` 三选一（默认扣留，推荐只发变量名去值），`S-onboarding-secret-hold` 配拒绝测试；Tauri 大目录分批进度/取消/`resume_offset`/统计；浏览器 IndexedDB 跨刷新保留，中断清点可继续；五格漏斗、问题行、范围增删卡、增量改范围与旧纪元迟到结果丢弃；模型错误六类恢复；采用前对账项目/文稿/待办与 `onboarding.takes` 代码根目录，幂等。
+- **合同**：`agent-host` 窗口比例、宿主启动时刻、估点/加权进度、子任务重试、材料交付与 `knowledge.read` 版本钉住；`onboarding.context.secret@1`；全部在 @1 原版本内扩展或新增，API/动作快照同批更新。CONTRACT-CHANGES、GLOSSARY、CALL-CHAINS 与设计说明同步。
+- **合后五维收口（PR #2095）**：`knowledge.read@1` 与 `materials.read@1` 在动作工具和业务网关两个出口都按轮次冻结版本钉住；任务板/进度统一按叶子节点汇总并持久化 `skipped`，跨轮接续保留 `progress_basis`／`scope_removed`／`unknown_outcome`／`skipped`；目录扫描与 Tauri 枚举同步识别 `client_secret*.json`、`auth.json`、`.npmrc`、`.netrc`、`.pypirc`、`.pgpass`；`onboarding.context.secret@1` 写前复核，取消/过期不写旅程；删除 19 条死词条与服务端预翻译字段，环境清单按所选目录展示。
+- **未完成/待验收**：本人实物走查（[BL-batch33-acceptance](../../specs/backlog/BL-batch33-acceptance.md)）；页面资源在最终头重测后更新许可；`BL-106`、`BL-107` 按原排期留第 45／57 批。
 
 ### 工作记录：历史查询与记录管理（2026-11-15，#2084、#2088）
 

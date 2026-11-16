@@ -9505,7 +9505,7 @@
     },
     "workbench.skill-improve.see-change": "See the change",
     "workbench.skill-improve.placeholders-title": "Use your own names",
-    "workbench.skill-improve.placeholders-lead": "Replace them with the names you use. Any you leave are read in their general sense.",
+    "workbench.skill-improve.placeholders-lead": "These spots in the general method stand for a tool. Put the one your team uses; any you leave are read in their general sense.",
     "workbench.skill-improve.placeholders-left": {
       "plural_arg": "n",
       "forms": {
@@ -9514,7 +9514,7 @@
       }
     },
     "workbench.skill-improve.placeholder-hint": "What you use",
-    "workbench.skill-improve.placeholder-name": "Replace with:",
+    "workbench.skill-improve.placeholder-name": "Replace {p} with",
     "workbench.skill-improve.turn-off-source": "Turn off the original general skill when adopting"
   }
 }

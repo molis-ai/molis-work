@@ -206,9 +206,10 @@ export function askRowSection(say: Say): string {
 
 export function placeholderListSection(say: Say): string {
   const tracker = say("workbench.catalog-kit.sample-placeholder-tracker"), chat = say("workbench.catalog-kit.sample-placeholder-chat");
-  const list = (id: string, left: number) => renderPlaceholderList({ id, title: improve(say, "placeholders-title"), lead: improve(say, "placeholders-lead"), name: improve(say, "placeholder-name"),
+  const list = (id: string, left: number) => renderPlaceholderList({ id, title: improve(say, "placeholders-title"), lead: improve(say, "placeholders-lead"),
     ...(left ? { badge: renderBadge({ label: improve(say, "placeholders-left", { n: left }), tone: "neutral" }) } : {}),
-    rows: [{ placeholder: tracker, value: left > 1 ? "" : "Linear", hint: improve(say, "placeholder-hint") }, { placeholder: chat, value: left ? "" : "Slack", hint: improve(say, "placeholder-hint") }],
+    rows: [{ placeholder: tracker, label: improve(say, "placeholder-name", { p: tracker }), value: left > 1 ? "" : "Linear", hint: improve(say, "placeholder-hint") },
+      { placeholder: chat, label: improve(say, "placeholder-name", { p: chat }), value: left ? "" : "Slack", hint: improve(say, "placeholder-hint") }],
     ...(left ? {} : { after: renderCheckbox({ label: improve(say, "turn-off-source"), checked: true }) }) });
   return section("placeholder-list", say("workbench.catalog-kit.placeholder-list"), `<div class="mw-catalog__specimens">
     ${specimen(say("workbench.catalog-kit.some-left"), list("board-placeholders-left", 2))}

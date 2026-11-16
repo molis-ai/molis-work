@@ -151,6 +151,7 @@ export const CAPABILITY_PACK_STYLES = `
   .mw-ask-row__line > .mw-input { flex: 1 1 200px; min-width: 0; }
   .mw-ask-row__go { display: inline-flex; flex: none; }
   .mw-ask-row__after { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; animation: craft-rise var(--dur-move) var(--ease-quint); }
+  @media (prefers-reduced-motion: reduce) { .mw-leave-bar[data-tone="attention"], .mw-ask-row__after { animation: none; } }
   .mw-ask-row__after:empty { display: none; }
 
   /* 14 · A placeholder list (batch 42): what a general Skill leaves to fill, one per row, the placeholder on the left and the person's own on the right. */
@@ -283,8 +284,9 @@ export function renderLeaveBar(options: { text: string; actions: RenderedHtml; i
  * that sentence: `owed` (a step is still owed before the main act, and the sentence says which), `saving`, or `failed` (the last
  * change was not saved; the blocked tone and a mark, never grey words alone). The sentence keeps its node across saves, so a page
  * updates its text (`[data-adopt-status]`) rather than redrawing it; it is announced only when owed or failed. `confirm` is asked once
- * above it, in place: a leave bar in the attention tone with its sentence and two ways on; while it is shown, the page lowers the
- * bar's own main act to a secondary one, so there is one main act in view.
+ * above it, in place: a leave bar in the attention tone with its sentence and two ways on, inserted once when it is asked and not
+ * redrawn after (it arrives with a rise); while it is shown, the page lowers the bar's own main act to a secondary one, so there is one
+ * main act in view.
  */
 export function renderAdoptBar(options: { primary: RenderedHtml; actions?: RenderedHtml; status: string; state?: "owed" | "saving" | "failed";
   confirm?: { text: string; actions: RenderedHtml; id?: string }; attrs?: Record<string, AttrValue> }): string {
@@ -312,28 +314,30 @@ export function renderReplayGrid(options: { label: string; columns: readonly str
 
 /**
  * 13 · An ask row: a form with a labelled one-line field and its submit button (`go`, a `type="submit"` button, so Enter is the
- * button), or, while the Assistant works, `busy` (a status mark) in the button's place. While busy the field is read-only and
- * `aria-busy`, never disabled, so the focus stays in it; when the change is in, the page keeps the focus there. `after` is what it
- * changed (a badge and the way to see it). The button's place and `after` are live regions, so both are heard as they change.
+ * button), or, while the Assistant works, `busy` (a status mark) in the button's place. The page handles `submit` with
+ * `preventDefault`, ignores it while the form is `data-busy`, and on submitting puts the focus back in the field, which stays there:
+ * while busy it is read-only and `aria-busy`, never disabled. `after` is what it changed (a badge and the way to see it). The busy
+ * mark and `after` are announced; the button coming back is not.
  */
 export function renderAskRow(options: { id: string; label: string; placeholder: string; value?: string; go: RenderedHtml; busy?: RenderedHtml; after?: RenderedHtml;
   inputAttrs?: Record<string, AttrValue>; attrs?: Record<string, AttrValue> }): string {
-  return `<form class="mw-ask-row" data-slot="ask-row"${renderAttrs(options.attrs)}><label for="${escapeHtml(options.id)}">${icon("sparkles")}${escapeHtml(options.label)}</label><div class="mw-ask-row__line"><input class="mw-input" data-slot="input" type="text" autocomplete="off" id="${
-    escapeHtml(options.id)}" placeholder="${escapeHtml(options.placeholder)}" value="${escapeHtml(options.value ?? "")}"${options.busy ? ' readonly aria-busy="true"' : ""}${renderAttrs(options.inputAttrs)}><span class="mw-ask-row__go" role="status">${
-    options.busy ?? options.go}</span></div><p class="mw-ask-row__after" role="status">${options.after ?? ""}</p></form>`;
+  return `<form class="mw-ask-row" data-slot="ask-row"${options.busy ? " data-busy" : ""}${renderAttrs(options.attrs)}><label for="${escapeHtml(options.id)}">${icon("sparkles")}${escapeHtml(options.label)}</label><div class="mw-ask-row__line"><input class="mw-input" data-slot="input" type="text" autocomplete="off" id="${
+    escapeHtml(options.id)}" placeholder="${escapeHtml(options.placeholder)}" value="${escapeHtml(options.value ?? "")}"${options.busy ? ' readonly aria-busy="true"' : ""}${renderAttrs(options.inputAttrs)}><span class="mw-ask-row__go">${
+    options.busy ? `<span role="status">${options.busy}</span>` : options.go}</span></div><p class="mw-ask-row__after" role="status">${options.after ?? ""}</p></form>`;
 }
 
 /**
- * 14 · A placeholder list: each placeholder a general Skill writes beside the person's own word for it (`attrs` on each field), each
- * field named by its placeholder and `name` (“replace … with”), not by the bare placeholder; `badge` says how many are left, `after`
- * holds what goes with the list (a choice about the original). The title is a label, not a heading: the page owns its outline.
+ * 14 · A placeholder list: each placeholder a general Skill writes beside the person's own word for it (`attrs` on each field). Each
+ * field is named by its row's `label`, a sentence that says which way the replacing goes (“replace ~~… with”), never by the bare
+ * placeholder; `badge` says how many are left, `after` holds what goes with the list (a choice about the original). The title is a
+ * label, not a heading: the page owns its outline.
  */
-export function renderPlaceholderList(options: { id: string; title: string; lead: string; badge?: RenderedHtml; name: string;
-  rows: ReadonlyArray<{ placeholder: string; value: string; hint: string; attrs?: Record<string, AttrValue> }>; after?: RenderedHtml }): string {
+export function renderPlaceholderList(options: { id: string; title: string; lead: string; badge?: RenderedHtml;
+  rows: ReadonlyArray<{ placeholder: string; label: string; value: string; hint: string; attrs?: Record<string, AttrValue> }>; after?: RenderedHtml }): string {
   const id = escapeHtml(options.id);
   return `<section class="mw-placeholders" data-slot="placeholders" aria-labelledby="${id}-title"><p class="mw-placeholders__title" id="${id}-title">${escapeHtml(options.title)}${options.badge ?? ""}</p><p>${
-    escapeHtml(options.lead)}</p><span class="mw-sr-only" id="${id}-name">${escapeHtml(options.name)}</span><ul>${options.rows.map((row, index) =>
-    `<li><code id="${id}-${index}">${escapeHtml(row.placeholder)}</code>${icon("arrow")}<input class="mw-input" data-slot="input" type="text" autocomplete="off" value="${escapeHtml(row.value)}" placeholder="${
-      escapeHtml(row.hint)}" aria-labelledby="${id}-name ${id}-${index}"${renderAttrs(row.attrs)}></li>`).join("")}</ul>${options.after ?? ""}</section>`;
+    escapeHtml(options.lead)}</p><ul>${options.rows.map((row) =>
+    `<li><code>${escapeHtml(row.placeholder)}</code>${icon("arrow")}<input class="mw-input" data-slot="input" type="text" autocomplete="off" value="${escapeHtml(row.value)}" placeholder="${
+      escapeHtml(row.hint)}" aria-label="${escapeHtml(row.label)}"${renderAttrs(row.attrs)}></li>`).join("")}</ul>${options.after ?? ""}</section>`;
 }
 export { renderMenuGroup, renderMenuItem } from "./overlay.js";

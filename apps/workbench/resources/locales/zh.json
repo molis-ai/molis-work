@@ -8771,10 +8771,10 @@
     "workbench.skill-improve.ask-changed": "改了 {n} 处",
     "workbench.skill-improve.see-change": "看改动",
     "workbench.skill-improve.placeholders-title": "换成你用的",
-    "workbench.skill-improve.placeholders-lead": "换成你自己用的；没换的留着原样，AI 会按通用的意思理解。",
+    "workbench.skill-improve.placeholders-lead": "通用写法里的这些地方，换成你团队用的工具或叫法；没换的，AI 按通用的意思理解。",
     "workbench.skill-improve.placeholders-left": "还剩 {n} 处",
     "workbench.skill-improve.placeholder-hint": "你用的",
-    "workbench.skill-improve.placeholder-name": "把它换成：",
+    "workbench.skill-improve.placeholder-name": "把 {p} 换成",
     "workbench.skill-improve.turn-off-source": "采用后把原来的通用技能关掉"
   }
 }

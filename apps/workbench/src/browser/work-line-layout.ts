@@ -12,8 +12,8 @@ const FADE = 24;
 /** The states worth saying about events out of sight: one needs the person, failed, or has a result to check. */
 const URGENT = new Set(["wait", "failed", "verify"]);
 /**
- * What a size change sets off runs on the next frame, once however many sizes changed: each of these marks or measures what it
- * watches (or what the work's own observers watch), and a change made while sizes are being delivered is a ResizeObserver loop.
+ * Run on the next frame, once however many sizes changed: what rises over the input and where the input stands both change the
+ * boxes their observers measure (a Coding stage loops its ResizeObservers otherwise); the line's other observers mark in place.
  */
 const nextFrame = (run: () => void): (() => void) => {
   let frame = 0;
@@ -133,7 +133,7 @@ function installPastWing(run: HTMLElement): void {
     if (Math.abs(turned) < 48) return;
     go(beside(turned < 0 ? -1 : 1), "auto"); turned = 0;
   }, { passive: false });
-  settle(); new ResizeObserver(nextFrame(settle)).observe(run);
+  settle(); new ResizeObserver(settle).observe(run);
   // The line is drawn again into the same wing (a read brought other events): it settles as after a resize.
   new MutationObserver(settle).observe(run, { childList: true });
 }
@@ -141,7 +141,7 @@ function installPastWing(run: HTMLElement): void {
 function installNextWing(run: HTMLElement): void {
   // The edge that has more fades by the shared overflow fade (the run is marked data-overflow-fade); nothing is measured here for it.
   const settle = () => fitEvents(run);
-  settle(); new ResizeObserver(nextFrame(settle)).observe(run);
+  settle(); new ResizeObserver(settle).observe(run);
   new MutationObserver(settle).observe(run, { childList: true });
 }
 
@@ -198,7 +198,7 @@ function installTrack(track: HTMLElement): void {
     const box = track.getBoundingClientRect(), at = item.getBoundingClientRect(), edge = box.left + leadWidth();
     if (at.left < edge - 1 || at.right > box.right + 1) track.scrollBy({ left: at.left - edge, behavior: "instant" });
   });
-  rest(); new ResizeObserver(nextFrame(rest)).observe(track);
+  rest(); new ResizeObserver(rest).observe(track);
   new MutationObserver(rest).observe(track, { childList: true, subtree: true });
 }
 
@@ -210,7 +210,7 @@ function installTabs(tabs: HTMLElement): void {
     if (tab.right > box.right) tabs.scrollLeft += tab.right - box.right + FADE;
     else if (tab.left < box.left) tabs.scrollLeft -= box.left - tab.left + FADE;
   };
-  rest(); new ResizeObserver(nextFrame(rest)).observe(tabs);
+  rest(); new ResizeObserver(rest).observe(tabs);
 }
 
 /**
@@ -225,7 +225,7 @@ function installFloat(float: HTMLElement): void {
   const frame = float.closest<HTMLElement>("[data-work-float-frame]");
   // The line may be drawn after the dialog: it is looked up at each placing, and watched once found.
   let line: HTMLElement | null = null;
-  const watch = new ResizeObserver(nextFrame(() => place()));
+  const watch = new ResizeObserver(() => place());
   const stop = () => { watch.disconnect(); window.removeEventListener("resize", place); };
   const place = (): void => {
     if (!float.isConnected || !dialog.isConnected) { stop(); return; }
@@ -313,13 +313,17 @@ function installPlace(slot: HTMLElement): void {
     row.style.setProperty("--slot-columns", `${Math.round(left - gap)}px ${Math.round(width)}px minmax(0,1fr)`);
     row.setAttribute("data-slot-placed", "");
   };
+  // A size change is placed on the next frame (placing changes the row it was measured on, which would loop the observer); the
+  // rest is placed before the frame paints, so a page that loads does not first paint the input where it stood (VUX-31).
   const soon = nextFrame(place);
+  let queued = false;
+  const now = (): void => { if (!queued) { queued = true; queueMicrotask(() => { queued = false; place(); }); } };
   const sizes = new ResizeObserver(soon);
   sizes.observe(row); sizes.observe(stage);
   // Panes split, close and take focus by class and children; the window moves the stage without resizing it.
-  new MutationObserver(soon).observe(stage, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "hidden"] });
-  window.addEventListener("resize", soon, { passive: true });
-  globalThis.molisWorkBarPlace = soon;
+  new MutationObserver(now).observe(stage, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "hidden"] });
+  window.addEventListener("resize", now, { passive: true });
+  globalThis.molisWorkBarPlace = now;
   place();
 }
 

@@ -168,8 +168,10 @@ test("H1/APR-11: choose Pages permissions, narrow them in the manager, and revok
   await openManager("zh");
   await waitFor(`document.querySelectorAll('${operationCheckboxes}').length === 2`);
   assert.deepEqual(await labels(), ["编辑文档", "移动文档"]);
-  await click(detail + " .authorization-operation:nth-of-type(2) > label > input");
   const narrow = detail + " .authorization-actions > button:first-of-type";
+  assert.equal(await evaluate(`document.querySelector('${narrow}').disabled`), true);
+  await click(detail + " .authorization-operation:nth-of-type(2) > label > input");
+  assert.equal(await evaluate(`document.querySelector('${narrow}').disabled`), false);
   assert.equal(await evaluate(`document.querySelector('${narrow}').textContent`), "保存收窄");
   await click(narrow);
   await waitFor(`document.querySelector('${detail} [data-authorization-status]').textContent.includes('权限已更新')`);

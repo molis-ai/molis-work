@@ -106,8 +106,8 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     const scope = el("div", "authorization-scope"), change = el("div", "authorization-actions");
     const edits = current.changes.includes("narrow");
     const allowed = key => !removed.has(key);
-    const setAllowed = (key, on) => on ? removed.delete(key) : removed.add(key);
-    let selection;
+    let selection, narrow;
+    const setAllowed = (key, on) => { on ? removed.delete(key) : removed.add(key); if (narrow) narrow.disabled = !removed.size; };
     const check = (title, checked, update) => {
       const label = el("label", "settings-check"), box = Object.assign(el("input"), { type: "checkbox", checked, disabled: !edits, onchange: () => update(box.checked) });
       label.append(box, title);
@@ -165,7 +165,7 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
       scope.append(facts);
     }
     if (scope.childElementCount) detail.append(scope);
-    if (edits && selection) change.append(button(text("narrow"), () => void save(current, "narrow", selection())));
+    if (edits && selection) { narrow = button(text("narrow"), () => void save(current, "narrow", selection())); narrow.disabled = !removed.size; change.append(narrow); }
     const message = errorMessage();
     const announce = muted(feedback); announce.dataset.authorizationStatus = ""; announce.setAttribute("role", "status");
     for (const kind of current.changes.filter(item => item !== "narrow")) {

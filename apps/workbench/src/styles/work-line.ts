@@ -44,12 +44,18 @@ ${TOP} .dock-pin[aria-current]{display:inline-flex;align-items:center;gap:6px;wi
 ${TOP} .dock-pin[aria-current]>.dock-pin-name{display:block;${ELLIPSIS}}
 ${TOP} .dock-pin.is-fixed{flex:none;margin-right:0}
 ${TOP} .dock-pin.is-fixed::before{content:none}
+/* The kept plugins are this browser's choice, so the page's script draws them, and names the current one, after the first paint:
+   until it has, what they would push along is held unseen, so the strip is not laid out a second way while it loads (VUX-31).
+   Should the script never get there, the strip shows anyway. */
+${TOP}:not([data-dock-drawn])>:not(.workspace-history){visibility:hidden;animation:work-strip-shown 0s forwards;animation-delay:3s}
+@keyframes work-strip-shown{to{visibility:visible}}
 /* The tabs take what they need and ＋ follows them; the strip's own ＋ (a list of plugins to open) is the start page now.
    What they need is written by the script that shares their widths (--tabs-hug: every tab at its own width; --tabs-floor:
    every tab at its narrowest), so the strip's box never hangs on the widths that script then gives the tabs. Where the strip
    runs short the tabs narrow first, down to that floor while it leaves the rest of the strip 500px (the right side's glyphs slide in what is left); then the kept plugins
-   fold; then the tabs slide. */
-${TOP}>[data-titlebar-tabs]{flex:0 1000 var(--tabs-hug,auto);min-width:clamp(120px,var(--tabs-floor,120px),100% - 500px)}
+   fold; then the tabs slide. Until the script has measured, the strip starts at its floor (0px, held at 120px), where an empty
+   or one-tab strip ends up, so the first paint does not lay the bar out a second way (VUX-31). */
+${TOP}>[data-titlebar-tabs]{flex:0 1000 var(--tabs-hug,0px);min-width:clamp(120px,var(--tabs-floor,120px),100% - 500px)}
 /* The right side's glyphs line up over the side panel while there is room; where the strip runs short they slide in their own box (down to one glyph) before anything is pushed off the window. */
 ${TOP}>.side-strip{flex:0 1 auto;min-width:var(--dock-btn,32px);overflow-x:auto;justify-content:safe flex-end}
 @media (min-width:761px){body[data-side-open=true] ${TOP}>.side-strip{flex-basis:calc(var(--side-panel-width,35vw) + var(--sheet-inset,14px) - 8px);min-width:var(--dock-btn,32px)}}
@@ -78,7 +84,8 @@ ${TOP}>.titlebar-end{order:8;flex:none;display:flex;align-items:center;gap:8px;m
   ${TOP}>.titlebar-layout{order:2;padding:0}
   ${TOP}>.titlebar-end{order:3;margin-left:0;gap:0}
   ${TOP}>.titlebar-end>.workspace-chrome{margin-left:0}
-  ${TOP}>[data-titlebar-tabs]{order:5;flex:1 1 0;min-width:0}
+  /* The row is as tall from the first paint as the strip draws it (52px, workbench-navigation.ts), before the tabs are in it. */
+  ${TOP}>[data-titlebar-tabs]{order:5;flex:1 1 0;min-width:0;min-height:52px}
   ${TOP}>.plugin-picker{order:6}
   ${TOP}>.bar-own{order:7;flex:0 1 auto;min-width:var(--dock-btn);max-width:max(var(--dock-btn),100% - 330px);height:44px;gap:0;overflow:hidden}
   ${TOP}>.bar-own:not(:has([data-dock-pin])){display:none}

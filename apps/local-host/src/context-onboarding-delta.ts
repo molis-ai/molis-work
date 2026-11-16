@@ -184,7 +184,6 @@ export function computeScopeDelta(journey: ContextJourney): ContextJourney["scop
     removed: removed.slice(0, 20),
     removed_count: removed.length,
     reused,
-    previous_model: journey.model,
   };
 }
 

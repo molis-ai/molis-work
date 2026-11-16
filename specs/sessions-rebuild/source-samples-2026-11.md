@@ -6,7 +6,7 @@
 
 第 22 批已经把外部会话的公共合同定好（[合同设计](contract-design.md)），第 34 批要按全量来源清单把发现、读取、搜索和自动归属做出来。做之前最容易踩坑的是「文档写有这个命令，真正跑起来参数、输出格式或权限对不上」。本文把三件事核清：
 
-1. 本机实装二进制（`gh 2.103.3`、`grok 1.0.77`）的 `--help` 实测标志与 [合同设计 §12](contract-design.md#12-和现状对不上的地方) 第 8、27、28、35、36 行的逐条对照；
+1. 审计机重新实测的二进制（`gh 2.96.0`、`grok 1.0.62`；原稿曾记 `gh 2.103.3`、`grok 1.0.77`，说明版本证据随机器而变）的 `--help` 实测标志与 [合同设计 §12](contract-design.md#12-和现状对不上的地方) 第 8、27、28、35、36 行的逐条对照；
 2. 第一批要落适配器的 CLI／本地文件来源（Claude Code、Codex、Gemini CLI、Qwen Code、Qoder／Qoder CN、Droid、Amp、Kimi Code、OpenCode、Pi Agent、Copilot Coding Agent、Grok Build、MiniMax Code）的记录结构、字段边界与异常样本清单；
 3. 第 34 批测试夹具必须覆盖的损坏、截断、版本升级与权限缺口样本，确保读不到时报 `unreadable_version`／`failed`／`auth_required`，绝不静默返回空列表冒充「没有历史」（SRB-13）。
 
@@ -14,8 +14,8 @@
 
 | 来源 `entry_id` | 本机实测版本 | 实测命令与标志 | 对第 34 批实现的直接结论 |
 | --- | --- | --- | --- |
-| `copilot-coding-agent`（经 `gh`） | `gh version 2.103.3 (2026-10-26)` | `gh agent-task list -L <n> --json completedAt,createdAt,id,name,pullRequestNumber,pullRequestState,pullRequestTitle,pullRequestUrl,repository,state,updatedAt,user`；单条详情 `gh agent-task view <session-id> [-R HOST/OWNER/REPO] --json ...`；日志 `gh agent-task view <session-id> --log` | 1. **列表有完整结构化 JSON**，`id` 为 UUID（如 `e2fa49d2-...`），不能用 PR 号作主键（同一 PR 可有多次任务，官方 `--help` 明写非交互场景不要用 PR 号）；<br>2. **正文只有 `--log` 纯文本日志**，没有按消息轮次切分的结构化 JSON，读取器应映射为有序步骤／日志段并标明来源，不伪造不存在的用户多轮气泡；<br>3. **权限范围（对应[合同设计 §12](contract-design.md#12-和现状对不上的地方) 第 28 行）**：`repository` 与 PR 元数据走 GitHub 仓库／PR 权限，现有 `CONNECTOR_CLIS.github` 的 `notifications,read:user` 对私有仓库不够，读私有库会话需 `repo`（或细粒度 Pull requests + Metadata 只读），权限不足时必报 `auth_required` 而非空列表。 |
-| `grok-build` | `grok 1.0.77 (50ca579fa996)` | `grok sessions list [-n <LIMIT>]`、`grok sessions search`、`grok -c`、`grok --cwd <CWD>`、`grok --fork-session`；无 `--json` 标志；带 `--leader-socket <PATH>`（默认 `~/.grok/leader.sock`） | 1. **证实[合同设计 §12](contract-design.md#12-和现状对不上的地方) 第 8 行**：`grok sessions list` 在 `1.0.77` 上**没有 `--json` 机器读输出**，且依赖 `~/.grok/leader.sock` 守护套接字；<br>2. 只读发现不应悄悄拉起常驻守护进程改写 `~/.grok/leader.sock`；若按 `~/.grok/`（或 `GROK_HOME`）本地记录解析，须按版本号钉住并在表结构不符时报 `unreadable_version`。 |
+| `copilot-coding-agent`（经 `gh`） | `gh version 2.96.0 (2026-07-02)`（审计机；原稿 2.103.3 未复现） | `gh agent-task list -L <n> --json completedAt,createdAt,id,name,pullRequestNumber,pullRequestState,pullRequestTitle,pullRequestUrl,repository,state,updatedAt,user`；单条详情 `gh agent-task view <session-id> [-R HOST/OWNER/REPO] --json ...`；日志 `gh agent-task view <session-id> --log` | 1. **列表有完整结构化 JSON**，`id` 为 UUID（如 `e2fa49d2-...`），不能用 PR 号作主键（同一 PR 可有多次任务，官方 `--help` 明写非交互场景不要用 PR 号）；<br>2. **正文只有 `--log` 纯文本日志**，没有按消息轮次切分的结构化 JSON，读取器应映射为有序步骤／日志段并标明来源，不伪造不存在的用户多轮气泡；<br>3. **权限范围（对应[合同设计 §12](contract-design.md#12-和现状对不上的地方) 第 28 行）**：`repository` 与 PR 元数据走 GitHub 仓库／PR 权限，现有 `CONNECTOR_CLIS.github` 的 `notifications,read:user` 对私有仓库不够，读私有库会话需 `repo`（或细粒度 Pull requests + Metadata 只读），权限不足时必报 `auth_required` 而非空列表。 |
+| `grok-build` | `grok 1.0.62 (1474f9cbdd91)`（审计机；原稿 1.0.77 未复现） | `grok sessions list [-n <LIMIT>]`、`grok sessions search`、`grok -c`、`grok --cwd <CWD>`、`grok --fork-session`；无 `--json` 标志；带 `--leader-socket <PATH>`（默认 `~/.grok/leader.sock`） | 1. **证实[合同设计 §12](contract-design.md#12-和现状对不上的地方) 第 8 行**：`grok sessions list` 在 `1.0.62`／原稿 `1.0.77` 上**没有 `--json` 机器读输出**，且依赖 `~/.grok/leader.sock` 守护套接字；<br>2. 只读发现不应悄悄拉起常驻守护进程改写 `~/.grok/leader.sock`；若按 `~/.grok/`（或 `GROK_HOME`）本地记录解析，须按版本号钉住并在表结构不符时报 `unreadable_version`。 |
 
 ## 2. 各来源记录样本结构与解析边界
 

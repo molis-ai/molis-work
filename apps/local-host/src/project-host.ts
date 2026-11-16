@@ -3,6 +3,8 @@ import { DraftReferences } from "./contextual/draft-references.js";
 import { skillCatalogProviderFor } from "./agent-definitions/skill-catalog-host.js";
 import type { ProjectPluginHost } from "./project-plugin-ports.js";
 import { kitProviders } from "./kit-actions.js";
+import { mainlineProvider } from "./mainline-actions.js";
+import { acceptanceProvider } from "./acceptance-actions.js";
 import { withConnectorsKitReport } from "./kit-mcp-reports.js";
 import { accountActionProvider } from "@molis-ai/molis-work-service-account";
 import { accountSessionForHost } from "./account-host.js";
@@ -45,6 +47,7 @@ import { pluginConsentProvider } from "./installed-plugin-consent-actions.js";
 import { pluginInstallProviderFor } from "./plugin-trust-actions.js";
 import { taskGrantActionProvider, taskGrantHostPorts } from "./task-grant-actions.js";
 import { appearanceForHome, closeHomeAppearance } from "./ui-locale-memory.js";
+import { closeHomeEvaluation, evaluationForHome } from "./evaluation-host.js";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { SystemFunctionsActions } from "./judgment-rules-actions.js";
 import { seedSceneRules, type FunctionsHostOptions } from "./judgment-rules-host.js";
@@ -281,8 +284,8 @@ export class MolisWorkLocalHost {
     const platform: ActionProviderRegistration[] = [
       accountActionProvider(() => accountSessionForHost(this)), ...(this.observation ? [this.observation.provider] : []),
       actionUsagesProvider(callerClient, options.homeDirectory), contextOnboardingProvider(), agentReviewProvider(), assistantPanelProvider(), // the pages' writes, behind their doors (B9)
-      ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
-      ...(options.homeDirectory ? [appearanceForHome(options.homeDirectory).provider(), skillCatalogProviderFor(options.homeDirectory, this.plugins, options.systemSkillsDirectory), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
+      mainlineProvider(callerClient), ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
+      ...(options.homeDirectory ? [acceptanceProvider(options.homeDirectory, callerClient), appearanceForHome(options.homeDirectory).provider(), evaluationForHome(options.homeDirectory, callerClient).provider(), skillCatalogProviderFor(options.homeDirectory, this.plugins, options.systemSkillsDirectory), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
         projectId => projectReachDetails(projectId, options.homeDirectory, this.catalogRunner, this, this.host, molisWorkHostProjectReference)), pluginInstallProviderFor(options.homeDirectory, this.plugins, projectId => this.catalogRunner ? this.catalogRunner({ homeDirectory: options.homeDirectory }, async catalog => {
         const project = catalog.getProject(projectId);
         return project ? molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }) : null;
@@ -471,7 +474,7 @@ export class MolisWorkLocalHost {
     return closeHomeStorageLifetime(this, this.closing, [
         ["page-drafts", () => this.draftReferences.close()], ["search", () => this.search?.close()], ["placement", () => this.placement?.close()],
         ["projects", () => this.host?.close()], ["functions", () => this.systemFunctions?.dispose()],
-        ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()], ["observation", () => this.observation?.close()], ["appearance", () => closeHomeAppearance(this.personalPlanningHome)],
+        ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()], ["observation", () => this.observation?.close()], ["appearance", () => closeHomeAppearance(this.personalPlanningHome)], ["evaluation", () => closeHomeEvaluation(this.personalPlanningHome)],
     ], () => this.webCatalog?.access.close(), [["connectors", () => closeConnectorResources(this.options.homeDirectory, this.connectorMcp)],
       ["home-side", () => releaseHomeSide(this)], ["alchemist", () => this.alchemist?.close()]]);
   }

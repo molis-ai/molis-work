@@ -317,3 +317,72 @@ test("S-observation-records 10: management actions and /api/observation routes r
   });
   assert.equal(missingToken.status, 403, "POST without control token refused");
 });
+
+test("S-observation-records 11: evaluation hold actions enforce person-only access, evaluation use switch and project reach", async t => {
+  const liveProjects = new Set(["proj-a", "proj-b"]);
+  const { service, observation } = home(t, { readableProjects: async () => [...liveProjects] });
+
+  observation.layer.sink("assistant").bind({ kind: "background", entry: "workbench", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "proj-a" })
+    .record({ fact: "assistant.work", outcome: "succeeded", subjects: [{ kind: "goal", id: "goal-a" }], detail: { step: "draft" } });
+  observation.layer.sink("assistant").bind({ kind: "background", entry: "workbench", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "proj-b" })
+    .record({ fact: "assistant.work", outcome: "succeeded", subjects: [{ kind: "goal", id: "goal-b" }], detail: { step: "draft" } });
+  observation.layer.flush();
+
+  const queried = await service.invoke(person({ project_id: "proj-a" }), observationActions.recordsQuery, { use: "evaluation", all_projects: true });
+  const recA = queried.records.find(rec => rec.project_id === "proj-a")!;
+  const recB = queried.records.find(rec => rec.project_id === "proj-b")!;
+  assert.ok(recA && recB);
+
+  const holdCalls = [
+    [observationActions.holdsPut, { hold_id: "h-1", sample_id: "s-1", record_ids: [recA.record_id] }],
+    [observationActions.holdsList, {}],
+    [observationActions.holdsRelease, { hold_id: "h-1" }],
+  ] as const;
+
+  for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {
+    const caller = audience === "plugin" ? plugin("notes") : person({ audience, actor_kind: "runtime", actor_id: `${audience}-1`, project_id: "proj-a" });
+    const discovered = new Set((await service.discover(caller)).map(view => view.capability_id));
+    for (const [action, input] of holdCalls) {
+      assert.ok(!discovered.has(action.capability_id), `${audience} does not discover ${action.capability_id}`);
+      await assert.rejects(service.invoke(caller, action as never, input as never), (error: unknown) => error instanceof ActionError, `${audience} refused ${action.capability_id}`);
+    }
+  }
+  const delegated = person({ delegated_by: "io.molis.work.example" });
+  for (const [action, input] of holdCalls) {
+    await assert.rejects(service.invoke(delegated, action as never, input as never), refused("observation.forbidden"), `delegated user refused ${action.capability_id}`);
+  }
+
+  // Project mismatch and closing/deleted project refusal
+  await assert.rejects(
+    service.invoke(person(), observationActions.holdsPut, { hold_id: "h-mismatch", sample_id: "s-1", project_id: "proj-a", record_ids: [recB.record_id] }),
+    refused("observation.forbidden"),
+    "record outside declared project_id refused",
+  );
+  liveProjects.delete("proj-b");
+  await assert.rejects(
+    service.invoke(person(), observationActions.holdsPut, { hold_id: "h-closed", sample_id: "s-1", record_ids: [recB.record_id] }),
+    refused("observation.forbidden"),
+    "record in closing/deleted project refused",
+  );
+  await assert.rejects(
+    service.invoke(person(), observationActions.holdsList, { project_id: "proj-b" }),
+    refused("observation.forbidden"),
+    "listing holds for closing/deleted project refused",
+  );
+
+  // Place valid hold on proj-a, then turn off `evaluation` use: put and list are refused immediately, while release remains allowed
+  await service.invoke(person(), observationActions.holdsPut, { hold_id: "h-valid", sample_id: "s-1", project_id: "proj-a", record_ids: [recA.record_id] });
+  await service.invoke(person(), observationActions.settingsSet, { uses: { evaluation: false } });
+  await assert.rejects(
+    service.invoke(person(), observationActions.holdsPut, { hold_id: "h-valid-2", sample_id: "s-2", record_ids: [recA.record_id] }),
+    refused("observation.use_disabled"),
+    "holds.put refused when evaluation use is disabled",
+  );
+  await assert.rejects(
+    service.invoke(person(), observationActions.holdsList, {}),
+    refused("observation.use_disabled"),
+    "holds.list refused when evaluation use is disabled",
+  );
+  const released = await service.invoke(person(), observationActions.holdsRelease, { hold_id: "h-valid" });
+  assert.deepEqual(released.released_hold_ids, ["h-valid"]);
+});

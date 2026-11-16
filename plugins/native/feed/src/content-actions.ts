@@ -1,6 +1,6 @@
 import { retainActionAuthority, ActionError, defineSubjectContextAction, subjectContext, bindSearchEntriesHandler, defineSearchEntriesAction, searchRevisionOf, searchText, type SearchEntry, bindWorkflowContentHandlers, defineWorkflowContentActions, type WorkflowPayload, type ActionSubject, type ActionSubjectContext, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
-import { createFeedHomeEventsHandler } from "./home-events.js";
+import { createFeedHomeEventsHandler } from "./work-events.js";
 import { handInSourceFor, isHandInSource } from "./hand-in-sources.js";
 import { feedArtifactPreviewHandler } from "./artifact-preview.js";
 import type { FeedHydrate } from "./item-hydration.js";

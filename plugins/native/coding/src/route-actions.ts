@@ -64,8 +64,8 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
       output_schema: closed({ sessions: { type: "array", items: sessionRecord }, next_cursor: { type: ["string", "null"] } }) } },
     toInput: request => ({ archived: request.query.archived === "true" ? true : request.query.archived === "false" ? false : request.query.archived, ...fromRequest(request, ["limit", "cursor"]) }),
     toRequest: input => ({ method: "GET", params: {}, query: { archived: String(input.archived), ...query(input, ["limit", "cursor"]) }, body: {} }) },
-  "coding.state": { definition: define("state", /* @version action.coding.state */ 1, "Coding 概况", "读取本项目的编码会话、可用模型、运行时、方法与当前工作目录", "query", closed({}), ["artifact:read"], READS),
-    toInput: () => ({}), toRequest: () => ({ method: "GET", params: {}, query: {}, body: {} }) },
+  "coding.state": { definition: define("state", /* @version action.coding.state */ 1, "Coding 概况", "读取本项目的编码会话、可用模型、运行时、方法与当前工作目录", "query", closed({ workspace_id: id }, []), ["artifact:read"], READS),
+    toInput: request => fromRequest(request, ["workspace_id"]), toRequest: input => ({ method: "GET", params: {}, query: query(input, ["workspace_id"]), body: {} }) },
   "coding.create-session": { definition: codingCreateSessionAction,
     toInput: request => body(request).title === undefined ? {} : { title: body(request).title }, toRequest: input => ({ method: "POST", params: {}, query: {}, body: input }) },
   "coding.read-session": { definition: define("sessions.read", /* @version action.coding.sessions.read */ 1, "读取编码会话", "读取会话、最近几轮执行与草稿；window 限制完整读取的轮次", "query",
@@ -112,5 +112,10 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
   "coding.confirm-plan": { definition: define("plans.confirm", /* @version action.coding.plans.confirm */ 1, "确认编码计划", "把当前计划确认为固定版本，之后可按此计划执行", "command", open(session), ["artifact:read", "artifact:write"], LOCAL),
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
+  // The table of background tasks offers this as a row's command (home-background.ts): the same stop the session's own panel has.
+  "coding.background-stop": { definition: define("background.stop", /* @version action.coding.background.stop */ 1, "停止后台命令", "停止会话里一条还在跑的后台命令，与会话面板里的停止相同", "command",
+      closed({ ...session, task_id: id }), ["artifact:read", "storage:private"], LOCAL),
+    toInput: request => ({ session_id: request.params.sessionId, task_id: request.params.taskId }),
+    toRequest: input => ({ method: "POST", params: { ...params(input), taskId: String(input.task_id ?? "") }, query: {}, body: {} }) },
 };
 export const CODING_ACTIONS: readonly ActionDefinition[] = Object.values(codingRouteActions).map(entry => entry.definition);

@@ -5,7 +5,7 @@ import { feedArtifactPreview } from "./artifact-preview.js";
 import { feedContentActions, feedSearchEntriesAction, feedSourceSubjectAction, feedSubjectAction } from "./content-actions.js";
 import { FEED_CONTENT_LEDGER_ACTIONS } from "./content-ledger-actions.js";
 import { feedPresentationActions } from "./presentation.js";
-import { feedHomeEventsAction } from "./home-events.js";
+import { feedWorkEventsAction } from "./work-events.js";
 import { FEED_INBOX_ACTIONS, feedInboxActions } from "./inbox-actions.js";
 import { feedItemActions } from "./item-actions.js";
 import { FEED_NOTIFICATION_ACTIONS, feedNotificationActions } from "./notification-actions.js";
@@ -43,7 +43,7 @@ const PLATFORM_NEEDS: ReadonlyMap<ActionDefinition, readonly string[]> = new Map
   [feedInboxActions.material, [CONNECTIONS, EVIDENCE]], [feedQueryActions.connections, [CONNECTOR_PULL]],
   // The actions that give an item's retained text decrypt its bodies through the platform (`evidence.read`), which the action must declare and the caller hold (4e-2f decision).
   [feedQueryActions.snapshot, [EVIDENCE]], [feedQueryActions.item, [EVIDENCE]], [feedInboxActions.content, [EVIDENCE]], [feedRuleActions.previewJudgment, [EVIDENCE, ...SCENE]],
-  [feedRuleActions.preview, [EVIDENCE]], [feedContentActions.read, [EVIDENCE]], [feedSubjectAction, [EVIDENCE]], [feedHomeEventsAction, [EVIDENCE]],
+  [feedRuleActions.preview, [EVIDENCE]], [feedContentActions.read, [EVIDENCE]], [feedSubjectAction, [EVIDENCE]], [feedWorkEventsAction, [EVIDENCE]],
   // A Goal's linked material is the item's text, and a capture recommendation holds only while the judged text is unchanged, so both read the bodies (FI-C-03).
   [feedQueryActions.linkedContext, [EVIDENCE]], [feedRuleActions.recommendations, [EVIDENCE]],
   // A notification the platform delivers is admitted to the Inbox as it is received, and judged by the capture rules.
@@ -83,7 +83,7 @@ export const GOAL_CONTRACT = { capability_id: "goals.contract.read", version: /*
 export const FEED_PROJECT_ACTIONS: ActionDefinition[] = [
   ...[feedArtifactPreview, ...Object.values(feedContentActions), ...Object.values(feedQueryActions), ...Object.values(feedRuleActions), ...Object.values(feedItemActions),
     ...Object.values(feedSourceActions), ...FEED_INBOX_ACTIONS, ...FEED_NOTIFICATION_ACTIONS, feedSubjectAction, feedSourceSubjectAction, feedSearchEntriesAction,
-    feedHomeEventsAction, ...Object.values(feedRunsActions)].map(runtimeAction),
+    feedWorkEventsAction, ...Object.values(feedRunsActions)].map(runtimeAction),
   WAKE, feedDemoSeedAction, ...feedPresentationActions,
 ];
 

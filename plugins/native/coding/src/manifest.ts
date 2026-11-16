@@ -2,7 +2,7 @@ import { memoryLearningActions } from "@molis-ai/molis-work-contracts/services/m
 import { searchActions, SEARCH_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/search";
 import { CHARACTER_ARTIFACT_TYPE, characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_AGENT_CONTINUATION_READY_EVENT, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities, agentOfferActions } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
@@ -27,7 +27,8 @@ import { codingOnboardingTake } from "./onboarding-take.js";
 import { codingArtifactPreview } from "./artifact-preview.js";
 import { CODING_ARTIFACT_SCHEMA_VERSIONS } from "./artifacts.js";
 import { codingSync } from './session-replication.js';
-import { codingHomeBackgroundTasks } from "./home-background.js";
+import { codingBackgroundTasks } from "./home-background.js";
+import { codingWorkEventsAction } from "./work-events.js";
 import { codingResultDocument } from "./contract.js";
 import { CODING_PROJECT_DATABASE } from "./database.js";
 
@@ -141,7 +142,8 @@ export const codingManifest: PluginManifest = {
       { event_type_id: CODING_WORKSPACE_INVALIDATED_EVENT, type_version: /* @version event.io.molis.work.coding.workspace-invalidated */ 1 },
       { event_type_id: CODING_PREFERENCE_EVENT, type_version: /* @version event.io.molis.work.coding.preference */ 1 },
     ],
-    subscribes: [],
+    // What the Host tells Coding alone: one of its sessions may go on by itself now (result return).
+    subscribes: [{ event_type_id: HOST_AGENT_CONTINUATION_READY_EVENT, type_version: /* @version event.host.agent.continuation.ready */ 1 }],
   },
   agent: codingAgentManifest,
   databases: { project: CODING_PROJECT_DATABASE },
@@ -157,7 +159,7 @@ export const codingManifest: PluginManifest = {
   presentation: codingPresentation,
   // 可承接上手材料 (batch12-design §7): onboarding hands Coding the person's code folder through this action, never by name.
   onboarding: { takes: [{ kind: "code_root", capability_id: codingOnboardingTake.capability_id, version: codingOnboardingTake.version }] },
-  actions: [memoryLearningActions.run, ...CODING_ACTIONS, ...codingPresentationActions, ...Object.values(codingExecutorActions), codingOnboardingTake, codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
+  actions: [memoryLearningActions.run, ...CODING_ACTIONS, ...codingPresentationActions, ...Object.values(codingExecutorActions), codingOnboardingTake, codingArtifactPreview, codingResultDocument, codingBackgroundTasks, codingWorkEventsAction],
   routes: [
     { route_id: "coding.evaluate-step", method: "POST", path: "/sessions/:sessionId/runs/:runId/steps/:stepId" },
     { route_id: "coding.writer-directories", method: "GET", path: "/workspaces/:workspaceId/writers" },

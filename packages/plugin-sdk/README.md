@@ -300,7 +300,7 @@ bindActionHandler(read, (input, caller) => load(input.id, caller.project_id), { 
 
 ### 首页事项
 
-用 `defineHomeEventsAction(capabilityId, version, subjectKinds, title, permissions)` 声明事项查询，并把定义与处理器注册到同一套 `actions`。查询接收 `{ from, to, now }`，均为带时区的时间字符串；窗口含 `from`、不含 `to`，`now` 位于窗口内。处理器先调用 `assertHomeEventWindow` 检查窗口顺序，再用 `withinHomeEventWindow` 筛选普通事项。处理器读取插件自己的原记录，返回 `{ source: { surface, title, icon }, events }`，不要另存一份首页数据。
+用 `defineWorkEventsAction(capabilityId, version, subjectKinds, title, permissions)` 声明事项查询，并把定义与处理器注册到同一套 `actions`。查询接收 `{ from, to, now }`，均为带时区的时间字符串；窗口含 `from`、不含 `to`，`now` 位于窗口内。处理器先调用 `assertWorkEventWindow` 检查窗口顺序，再用 `withinWorkEventWindow` 筛选普通事项。处理器读取插件自己的原记录，返回 `{ source: { surface, title, icon }, events }`，不要另存一份首页数据。
 
 每条事项包含稳定的 `event_id`、原对象 `subject: { kind, id }`、`occurred_at`、标题/摘要/正文、`facts` 二元字符串数组、`category`（`personal` 或 `organization`）和 `needs_attention`。`placement: occurred` 按发生日显示；`active` 把窗口外仍未处理的旧事项放到今天；`today` 始终放到今天。处理完成的记录应由提供方撤回。对象类型须在声明中列出，同一查询不能返回重复 `event_id`；Home 会再按提供方与查询能力隔离身份，避免不同插件互相覆盖。
 
@@ -337,10 +337,18 @@ result_view: {
   text_pointer: "/note/excerpt",
   link: {
     label: "打开笔记",
-    href_template: "/projects/{project_id}/?openPlugin=notes&openItem={/note/id}&openTitle={/note/title}",
+    href_template: objectLinkTemplate({ surface: "notes", id: "{/note/id}", title: "{/note/title}" }),
   },
 }
 ```
+
+工作台的地址只用 SDK 的这组函数写，不手拼 `?openPlugin=…&openItem=…`（`tests/object-link.test.ts` 会拦）：
+
+- `objectLink(projectId, { surface, id?, title?, params?, fragment? })`：项目里某个界面、其中一项；`params` 是这个界面自己从地址里读的参数。
+- `objectLink(projectId, { kind, id })`：只知道对象引用时这样写；打开时工作台用系统动作 `objects.open@1` 向对象主人的读取器问它开在哪里（读取器返回的 `open`），读不到的人打不开。
+- `objectLinkTemplate({ … })`：同一个地址作为 `href_template`，`{project_id}` 与 `{/指针}` 原样保留。
+- `objectLinkAt(prefix, …)`：手里已有路由前缀时用。
+
 
 操作卡在成功返回后也保存同一有界展示快照；助理与 Coding 的卡片重开不会重跑原动作或改用新版声明。`ActionCardPorts.projectId` 由卡片 owner 的可信项目作用域提供，不能从卡片输入或动作输出取。卡片只保存声明选取的展示字段，站内链接按导航打开原请求或成果；失败、未知结果与后台未完成的工作没有成功入口。
 

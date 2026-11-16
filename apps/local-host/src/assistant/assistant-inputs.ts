@@ -21,7 +21,9 @@ type RoundInputOutcome = "answered" | "steered" | "queued";
  */
 export interface SendIntent { id?: string; target?: AssistantSendInput["target"]; delivery?: AgentSteerMode; byHost?: boolean; about?: string; original_input?: Omit<HostOfferedOriginalInput, "action">; continued_from?: AgentRunRef; reply_locale?: WebLocale; draftCurrent?: () => boolean;
   /** False: the person asked for this round without automatic Skills (`AssistantSendInput.auto_skills`). */
-  auto_skills?: false }
+  auto_skills?: false;
+  /** A round the Host starts only to report a task no conversation started: it reads, and does nothing else (`reportOnlyAuthority`). */
+  report_only?: true }
 
 /** Source identities point into the Runtime's immutable originals; run_id is only the route used to re-read them. */
 export interface AssistantMemorySourceRef { run_id: string; input_id: string | null; /** @record-revision Initial revision of immutable source input. */ version: "1"; original?: AgentOriginalInputRef }

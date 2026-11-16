@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
+import { readyWithin } from "./fixtures/continuation-ready.js";
 
 const response = (text: string, tool?: { name: string; input: unknown }) => {
   const events: string[] = [], emit = (type: string, value: any) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
@@ -184,7 +185,7 @@ test("sessions hand work over, tell everyone whose work overlaps, and are stoppe
     releaseK();
     assert.equal((await ended(kRound.ref)).phase, "failed");
     // A wait on an answer goes on when it fails too (the SDK's park): J's next round may go on, and is told it failed.
-    const woke = (await adapter.collaboration!.awaitReady("b", 10_000)).filter(view => view.session_id === j.session.session_id);
+    const woke = (await readyWithin(adapter.collaboration!, "b", 10_000)).filter(view => view.session_id === j.session.session_id);
     assert.deepEqual(woke.map(view => [view.wait?.conditions.map(one => [one.kind, one.last.status, one.last.note]), view.wait?.state, view.continuation?.state]),
       [[[["envelope", "failed", "cancelled"]], "failed", "eligible"]]);
     const letter = (await adapter.messages!.read("b", j.session.session_id))[0]!;

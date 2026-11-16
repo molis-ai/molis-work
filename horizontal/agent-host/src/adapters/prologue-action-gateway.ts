@@ -2,6 +2,7 @@ import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { randomUUID } from "node:crypto";
 import { createPrologueError, DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, actionFieldLabelSource, actionFieldValue, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { agentErrors } from "../errors.js";
 import { presentToolReview, reviewField, reviewText, type ToolReviewField } from "../review-presentation.js";
@@ -11,6 +12,8 @@ import { CAPABILITY_PARAMETERS, declaredCapabilities, SUGGEST_PARAMETERS } from 
 export const GATEWAY_TOOLS = { find: "find-capabilities", read: "read-capability", change: "change-capability", suggest: "suggest-action", direct: "change-reversible" } as const;
 /** Tools for handing sub-tasks to separate works, present only where the caller offers delegation. */
 export const DELEGATION_TOOLS = { start: "delegate-work", check: "check-delegated-work", follow: "follow-up-delegated-work", stop: "stop-delegated-work" } as const;
+/** A delegated work's report of what it delivers against its requirements, present only where it was handed some. */
+export const DELIVERY_TOOLS = { report: "report-delivery" } as const;
 /** The person's memory, present only where the caller lets this round form memories. */
 export const MEMORY_TOOLS = { remember: "remember", list: "list-memories", forget: "forget-memory", propose: "suggest-memory" } as const;
 const PACK_ID = "molis-action-gateway";
@@ -20,7 +23,7 @@ const PACK_ID = "molis-action-gateway";
  * speaking and may later fold its old output into "call it again", and neither is right for something that happened.
  * The Runtime lets exactly these run with an allow rule (prologue-node.ts); every capability change still asks.
  */
-export const HOST_GOVERNED_TOOLS: readonly string[] = [GATEWAY_TOOLS.suggest, DELEGATION_TOOLS.start, DELEGATION_TOOLS.follow, DELEGATION_TOOLS.stop,
+export const HOST_GOVERNED_TOOLS: readonly string[] = [GATEWAY_TOOLS.suggest, DELEGATION_TOOLS.start, DELEGATION_TOOLS.follow, DELEGATION_TOOLS.stop, DELIVERY_TOOLS.report,
   MEMORY_TOOLS.remember, MEMORY_TOOLS.forget, MEMORY_TOOLS.propose];
 const FIND_LIMIT = 8;
 /** Bound the amount of stored memory returned to the model by an explicit lookup. */
@@ -56,6 +59,9 @@ const describe = (view: ActionView, direct = false) => {
 /** A memory tool is offered where the round was given memory, and remember, forget and suggest-memory only where it was given that one. */
 const memoryToolOffered = (name: string, memory: AgentActionClient["memory"]): boolean => !(Object.values(MEMORY_TOOLS) as string[]).includes(name)
   || (!!memory && (name !== MEMORY_TOOLS.remember || !!memory.remember) && (name !== MEMORY_TOOLS.forget || !!memory.forget) && (name !== MEMORY_TOOLS.propose || !!memory.propose));
+/** Whether a round of this gateway may call the tool: each is offered only where the caller gave what it calls into. */
+const toolOffered = (name: string, gateway: Gateway): boolean => Boolean((name !== GATEWAY_TOOLS.suggest || gateway.client.offer) && (name !== GATEWAY_TOOLS.direct || (gateway.operate && gateway.client.direct))
+  && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate) && (name !== DELIVERY_TOOLS.report || gateway.client.deliver) && memoryToolOffered(name, gateway.client.memory));
 
 /** The person's memory tools; each refuses when the round was not given memory, or not that tool. */
 type GatewayToolRun = (args: Record<string, unknown>, signal: AbortSignal, operationId: string) => Promise<string>;
@@ -193,9 +199,26 @@ export function withPinnedKnowledgeRevision(
   input: unknown,
   pinned: ReadonlyMap<string, string> | undefined,
 ): unknown {
-  if (!pinned?.size || reference.provider_id !== KNOWLEDGE_PROVIDER_ID || reference.capability_id !== knowledgeActions.read.capability_id) return input;
-  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+  if (!pinned?.size || !input || typeof input !== "object" || Array.isArray(input)) return input;
   const record = input as Record<string, unknown>;
+  if (reference.capability_id === materialsActions.read.capability_id) {
+    const rawRef = record.ref;
+    if (!rawRef || typeof rawRef !== "object" || Array.isArray(rawRef)) return input;
+    const refRec = rawRef as { subject?: unknown; pin?: unknown };
+    const sub = refRec.subject as { kind?: unknown; id?: unknown } | undefined;
+    if (!sub || typeof sub.kind !== "string" || typeof sub.id !== "string") return input;
+    const expected = pinned.get(`subject:${sub.kind}\u0000${sub.id}`);
+    if (expected === undefined) return input;
+    const pin = refRec.pin as { mode?: unknown; read_revision?: unknown } | undefined;
+    if (pin && typeof pin === "object" && pin.mode === "current") {
+      if (pin.read_revision !== undefined && pin.read_revision !== expected) {
+        throw agentErrors.pinned_revision_mismatch("本轮材料已锁定在开始时的版本，不能在续读时改用其他 read_revision");
+      }
+      return { ...record, ref: { ...rawRef, pin: { ...pin, read_revision: expected } } };
+    }
+    return input;
+  }
+  if (reference.provider_id !== KNOWLEDGE_PROVIDER_ID || reference.capability_id !== knowledgeActions.read.capability_id) return input;
   const rawSubject = record.subject;
   let expected: string | undefined;
   if (typeof rawSubject === "string") {
@@ -211,6 +234,24 @@ export function withPinnedKnowledgeRevision(
     throw agentErrors.pinned_revision_mismatch("本轮材料已锁定在开始时的版本，不能在续读时改用其他 expected_revision");
   }
   return { ...record, expected_revision: expected };
+}
+
+export function assertPinnedMaterialResult(
+  reference: ExactActionReference,
+  input: unknown,
+  result: unknown,
+  pinned: ReadonlyMap<string, string> | undefined,
+): void {
+  if (!pinned?.size || reference.capability_id !== materialsActions.read.capability_id) return;
+  if (!input || typeof input !== "object" || Array.isArray(input)) return;
+  const sub = ((input as { ref?: { subject?: { kind?: unknown; id?: unknown } } }).ref?.subject);
+  if (!sub || typeof sub.kind !== "string" || typeof sub.id !== "string") return;
+  const expected = pinned.get(`subject:${sub.kind}\u0000${sub.id}`);
+  if (expected === undefined || !result || typeof result !== "object") return;
+  const out = result as { state?: unknown; read_revision?: unknown };
+  if (out.state === "changed" || (typeof out.read_revision === "string" && out.read_revision !== expected)) {
+    throw agentErrors.pinned_revision_mismatch("本轮材料在开始后已发生变更，不能静默混读新旧版本");
+  }
 }
 
 function gatewayToolDefinitions(timeoutMs: number) {
@@ -231,7 +272,7 @@ function gatewayToolDefinitions(timeoutMs: number) {
         brief: { type: "string", description: "What to do, with the context it needs. It does not see this conversation." },
         acceptance: { type: "string", description: "How to tell it is done and right: what must exist and hold." },
         materials: { type: "array", items: { type: "object", properties: { title: { type: "string" }, text: { type: "string" } }, required: ["title", "text"] }, description: "Only the text it needs (at most 4)." },
-        character: { type: "string", description: "Optional: the id of one professional role from \"可委托的专业角色\" when this part needs that role; the sub-task then runs as exactly that role. Leave it out when none fits: the sub-task then runs as the Assistant." },
+        character: { type: "string", description: "Optional: the id of one professional role from \"可委托的专业角色\" when this part needs that role; the sub-task then runs as exactly that role. Leave it out when none fits: the sub-task then runs as the Assistant." }, ...DELEGATE_REQUIREMENTS, ...DELEGATE_PLACEMENT,
       } }, "mutate-external"),
     tool(DELEGATION_TOOLS.check, "Read the delegated works (all, or given work_ids): state, latest reply, objects they produced. With wait_seconds (≤50) it waits for them to finish or to need the person. A work's own report is not proof: check its results against the acceptance bar before relying on them.",
       { type: "object", additionalProperties: false, properties: { work_ids: { type: "array", items: { type: "string" } }, wait_seconds: { type: "integer", minimum: 0, maximum: 50 } } }, "safe-read"),
@@ -239,6 +280,7 @@ function gatewayToolDefinitions(timeoutMs: number) {
       { type: "object", additionalProperties: false, required: ["work_id", "text"], properties: { work_id: { type: "string" }, text: { type: "string" } } }, "mutate-external"),
     tool(DELEGATION_TOOLS.stop, "Stop a delegated work that is no longer needed or keeps falling short.",
       { type: "object", additionalProperties: false, required: ["work_id"], properties: { work_id: { type: "string" } } }, "mutate-external"),
+    tool(DELIVERY_TOOLS.report, DELIVERY_REPORT.description, DELIVERY_REPORT.input, "mutate-external"),
     tool(MEMORY_TOOLS.remember, "Keep a preference, project background, fact summary or experience the person explicitly asked to retain as reference for later relevant work (e.g. concise answers or a project's audience), not instructions. Ongoing project rules belong to Goals long-term instructions; reusable procedures belong to Skill creation/update, not installation. Find those capabilities in the directory; if unavailable or unsuccessful, report not saved rather than storing in memory instead. Never keep a one-off choice, credentials or secrets. Something they want only for today, this week or this month is kept with expires_at. When correcting a memory already in your Context, pass its id as replaces (history remains); the gate itself recognises what is already kept. Report what was actually kept, its scope and where to manage it; pending or not kept is not saved.",
       { type: "object", additionalProperties: false, required: ["text", "scope", "said"], properties: {
         text: { type: "string", description: "What to remember. To be recorded as the person's own words it must be the whole of one message they wrote to you in this work, copied exactly: no word, number, address or mark added, dropped or moved, not one sentence out of several, not words from two messages, no project name put in (only letter case, full-/half-width forms, spaces, the style of quotation marks and one full stop at the very end may differ). Anything else (a tidier sentence, a shortening, a summary) is not recorded as theirs: it is only suggested, and waits for them to accept." },
@@ -295,15 +337,17 @@ export function prologueActionGateway(
     try {
       const reference = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
       const rawInput = gatewayInput(view, args);
+      const preparedInput = write ? rawInput : withPinnedKnowledgeRevision(reference, rawInput, pinnedRevisions);
       const call = gateway.client.invoke(
         reference,
-        write ? rawInput : withPinnedKnowledgeRevision(reference, rawInput, pinnedRevisions),
+        preparedInput,
         local.signal,
       );
       call.catch(() => undefined);
       // A change is not waited on past a stop or deadline: its owner may still finish it, so it ends as "not known".
       const result = write ? await Promise.race([call, abortedBy(local.signal)]) : await call;
       local.signal.throwIfAborted();
+      if (!write) assertPinnedMaterialResult(reference, preparedInput, result, pinnedRevisions);
       return JSON.stringify(result) ?? "null";
     } catch (error) {
       const code = (error as { code?: unknown })?.code;
@@ -346,6 +390,7 @@ export function prologueActionGateway(
       } catch (error) { throw await inputRefusal(error, view.action.input_schema, fitsContract(gateway.client, view, parsed)); }
     }),
     ...delegationExecutors(gateway.client.delegate, guarded),
+    ...deliveryExecutors(gateway.client.deliver, guarded),
     ...memoryExecutors(gateway.client.memory, guarded),
     [GATEWAY_TOOLS.change]: guarded(async (args, signal) => {
       if (!gateway.operate) throw new ActionError("actions.forbidden", "This role may only read.");
@@ -367,12 +412,72 @@ export function prologueActionGateway(
   // The runtime keeps one declaration per pack and one per tool name, so every session declares the same full set;
   // what a round may call is its own list of names (and a tool outside it refuses in its executor anyway).
   const all = tools.map(one => one.registration.name);
-  const names = all.filter(name => (name !== GATEWAY_TOOLS.suggest || gateway.client.offer) && (name !== GATEWAY_TOOLS.direct || (gateway.operate && gateway.client.direct)) && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate)
-    && memoryToolOffered(name, gateway.client.memory));
-  const pack: ScenarioPack = { id: PACK_ID, version: /* @version protocol.prologue.pack.action-gateway */ "1.0.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
+  const names = all.filter(name => toolOffered(name, gateway));
+  const pack: ScenarioPack = { id: PACK_ID, version: /* @version protocol.prologue.pack.action-gateway */ "1.1.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
     permissions: { tools: all, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
   return { pack, executors, names, known, offered, declare: declared.note, parameterBranches: declared.parameterBranches };
+}
+
+/** What a sub-task's result must satisfy, item by item (specs/proactive-assistant §7.3.1): hung on the sub-task's own object where the work has a project. */
+const DELEGATE_REQUIREMENTS = {
+  requirements: { type: "array", maxItems: 20, description: "Optional: what the result must satisfy, one item each, when the person asked for several things or will want to go through the result item by item. The sub-task reports against each, the platform records which were verified, and the person can accept or return them one by one. Set requires_person only on an item the person said they want to look at themselves.",
+    items: { type: "object", additionalProperties: false, required: ["statement"], properties: { statement: { type: "string", description: "One requirement, in one sentence." }, expected: { type: "string", description: "What should be seen when it holds." }, requires_person: { type: "boolean" } } } },
+} as const;
+
+/** The delivery report's declaration: no field names the object, the version or the round (S-assistant-delivery-own-object). */
+const DELIVERY_REPORT = {
+  description: "Record what you deliver against the requirements you were handed, once your part is done and before your last reply: what you made or changed, and for each requirement what you checked, how, and what you saw. It is saved as it is and shown to the person; whether an item counts as verified is the platform's finding, not yours, so report an item that falls short as contradicts. After a follow-up, report again and name the requirements this round touched.",
+  input: { type: "object", additionalProperties: false, required: ["summary", "checks"], properties: {
+    summary: { type: "string", description: "What this delivery is, and from the second one on what changed." },
+    touched: { type: "array", items: { type: "string" }, description: "From the second delivery on: the ids of the requirements this round changed anything for." },
+    checks: { type: "array", minItems: 1, maxItems: 40, items: { type: "object", additionalProperties: false, required: ["requirement_id", "verdict", "method", "observed"], properties: {
+      requirement_id: { type: "string" }, verdict: { enum: ["supports", "contradicts"] }, method: { type: "string", description: "How it was checked." }, observed: { type: "string", description: "What was seen." },
+      hands_on: { type: "boolean", description: "True when the product was tried by hand, as opposed to an engineering check." },
+      artifacts: { type: "array", maxItems: 8, items: { type: "object", additionalProperties: false, required: ["artifact_id", "version"], properties: { artifact_id: { type: "string" }, version: { type: "integer", minimum: 1 } } }, description: "Exact versions in the 成果库 that show it." },
+      command_call_ids: { type: "array", maxItems: 8, items: { type: "string" }, description: "Commands the platform ran in this round that show it." } } } },
+  } },
+};
+
+/** Where a sub-task belongs on the work line (specs/work-line §5): an event there, an event of its own, or neither. */
+const DELEGATE_PLACEMENT = {
+  for_event: { type: "object", additionalProperties: false, required: ["kind", "id"], properties: { kind: { type: "string" }, id: { type: "string" } }, description: "Optional: the event on the work line this sub-task is done for, exactly as the line read gave its subject. Leave it out when it belongs to no event on the line." },
+  track: { type: "boolean", description: "Optional: true puts this sub-task on the work line as an event of its own, for work the person will want to follow (it makes something, or they said to keep an eye on it). Not together with for_event; leave both out for a passing errand, which then shows only in the background task panel." },
+} as const;
+
+/** A delegated work's delivery report: a thin call into the caller's own record of it (which names the object, the version and the round). */
+function deliveryExecutors(given: Gateway["client"]["deliver"], guarded: (run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>) => ToolRunner): Record<string, ToolRunner> {
+  const text = (value: unknown, field: string, max: number) => {
+    if (typeof value !== "string" || !value.trim() || value.length > max) throw new ActionError("actions.reference_invalid", `"${field}" must be 1–${max} characters.`);
+    return value.trim();
+  };
+  const ids = (value: unknown, field: string) => {
+    if (value === undefined) return undefined;
+    if (!Array.isArray(value) || value.length > 40) throw new ActionError("actions.reference_invalid", `"${field}" must be a list of at most 40 ids.`);
+    return value.map((item, index) => text(item, `${field}[${index}]`, 200));
+  };
+  return {
+    [DELIVERY_TOOLS.report]: guarded(async (args, signal) => {
+      if (!given) throw new ActionError("actions.forbidden", "This work was handed no requirements to report against; say what you did in your reply.");
+      // The object, the version and the round are the Host's to name (S-assistant-delivery-own-object): the tool's declared input has no
+      // field for any of them, the runtime refuses a call that carries one, and nothing below reads one.
+      if (!Array.isArray(args.checks) || !args.checks.length || args.checks.length > 40) throw new ActionError("actions.reference_invalid", "\"checks\" must list 1–40 requirements.");
+      const checks = args.checks.map((raw, index) => {
+        const item = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>, at = `checks[${index}]`;
+        if (item.verdict !== "supports" && item.verdict !== "contradicts") throw new ActionError("actions.reference_invalid", `"${at}.verdict" must be supports or contradicts.`);
+        const artifacts = item.artifacts === undefined ? undefined : Array.isArray(item.artifacts) && item.artifacts.length <= 8 ? item.artifacts.map((one, place) => {
+          const artifact = (one && typeof one === "object" ? one : {}) as Record<string, unknown>;
+          if (!Number.isInteger(artifact.version) || (artifact.version as number) < 1) throw new ActionError("actions.reference_invalid", `"${at}.artifacts[${place}].version" must be the exact version number.`);
+          return { artifact_id: text(artifact.artifact_id, `${at}.artifacts[${place}].artifact_id`, 200), version: artifact.version as number };
+        }) : (() => { throw new ActionError("actions.reference_invalid", `"${at}.artifacts" must be a list of at most 8.`); })();
+        const calls = ids(item.command_call_ids, `${at}.command_call_ids`);
+        return { requirement_id: text(item.requirement_id, `${at}.requirement_id`, 200), verdict: item.verdict as "supports" | "contradicts", method: text(item.method, `${at}.method`, 1000), observed: text(item.observed, `${at}.observed`, 2000),
+          ...(item.hands_on === true ? { hands_on: true } : {}), ...(artifacts?.length ? { artifacts } : {}), ...(calls?.length ? { command_call_ids: calls } : {}) };
+      });
+      const touched = ids(args.touched, "touched");
+      return JSON.stringify({ delivery: await given.report({ summary: text(args.summary, "summary", 2000), ...(touched ? { touched } : {}), checks }, signal) });
+    }),
+  };
 }
 
 /** The delegation tools, each a thin call into the caller's delegation (which owns limits and the works themselves). */
@@ -389,8 +494,17 @@ function delegationExecutors(given: Gateway["client"]["delegate"], guarded: (run
       const materials = Array.isArray(args.materials) ? args.materials.flatMap(item => item && typeof item === "object" && typeof (item as { title?: unknown }).title === "string" && typeof (item as { text?: unknown }).text === "string"
         ? [{ title: (item as { title: string }).title.slice(0, 200), text: (item as { text: string }).text.slice(0, 20_000) }] : []).slice(0, 4) : [];
       const character = typeof args.character === "string" && args.character.trim() ? args.character.trim().slice(0, 200) : undefined;
-      const started = await delegate.start({ title: text(args.title, "title", 80), brief: text(args.brief, "brief", 8000), acceptance: text(args.acceptance, "acceptance", 2000), ...(materials.length ? { materials } : {}), ...(character ? { character } : {}) });
-      return JSON.stringify({ delegated: started, note: "It runs on its own now. Use check-delegated-work to follow it; do not redo its part yourself meanwhile." });
+      const event = args.for_event as { kind?: unknown; id?: unknown } | undefined;
+      const for_event = event && typeof event === "object" ? { kind: text(event.kind, "for_event.kind", 120), id: text(event.id, "for_event.id", 256) } : undefined;
+      if (for_event && args.track === true) throw new ActionError("actions.reference_invalid", "Give for_event or track, not both.");
+      if (args.requirements !== undefined && (!Array.isArray(args.requirements) || args.requirements.length > 20)) throw new ActionError("actions.reference_invalid", "\"requirements\" must be a list of at most 20 items.");
+      const requirements = ((args.requirements as unknown[] | undefined) ?? []).map((raw, index) => {
+        const item = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+        return { statement: text(item.statement, `requirements[${index}].statement`, 1000), ...(item.expected === undefined ? {} : { expected: text(item.expected, `requirements[${index}].expected`, 1000) }), ...(item.requires_person === true ? { requires_person: true } : {}) };
+      });
+      const started = await delegate.start({ title: text(args.title, "title", 80), brief: text(args.brief, "brief", 8000), acceptance: text(args.acceptance, "acceptance", 2000), ...(materials.length ? { materials } : {}), ...(character ? { character } : {}),
+        ...(for_event ? { for_event } : {}), ...(args.track === true ? { track: true } : {}), ...(requirements.length ? { requirements } : {}) });
+      return JSON.stringify({ delegated: started, note: "It runs in the background now and you will be told when it ends or needs the person: answer the person now and end this round; do not wait for it with check-delegated-work, and do not redo its part yourself meanwhile." });
     }),
     [DELEGATION_TOOLS.check]: guarded(async (args, signal) => {
       const ids = Array.isArray(args.work_ids) ? args.work_ids.filter((id): id is string => typeof id === "string").slice(0, 20) : undefined;

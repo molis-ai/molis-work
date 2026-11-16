@@ -86,4 +86,4 @@ node --import tsx --test tests/inbox-native-plugin.test.ts tests/inbox-plugin.te
 
 项目首页按本项目 Inbox 的原记录挑选五条可读待处理事项。只借 Feed 和 Goals 的公开读取权限显示原件标题及来源，等待后核对事项的 revision、状态和关联原件；有原判断记录时才显示建议。打开回到 Inbox 的实际条目，处理仍走原 contextual 准备、确认及状态动作。
 
-`inbox.home.events` 保留给仍消费事项窗口的调用方，继续从原注意力记录提供事项。完成或忽略后撤回，正文和目标关联仍走共同对象查询。
+`inbox.events` 保留给仍消费事项窗口的调用方，继续从原注意力记录提供事项。完成或忽略后撤回，正文和目标关联仍走共同对象查询。

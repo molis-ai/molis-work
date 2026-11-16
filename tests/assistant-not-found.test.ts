@@ -99,13 +99,15 @@ test("RAC-1144 BL-810 a timed round: a work that cannot be read is written once,
   assert.deepEqual(late.service.followUps.list(late.kept.work_id), late.before);
 });
 
-test("RAC-1143 BL-810 a change heard by the continuations: a store that cannot be read is written as the listener's failure, and the write still went through", async t => {
+test("RAC-1143 BL-810 a change heard by a listener that reads the work: a store that cannot be read is written as the listener's failure, and the write still went through", async t => {
   const { store, work, breakReads } = assistant(t);
   const kept = work();
+  // A listener that reads the work it hears of (the continuations held one until they were asked by the runtime instead, batch 32).
+  t.after(store.onChange(id => { store.get("web-user", id); }));
   const entries: HostLogEntry[] = [];
   const restore = captureHostLog(entries);
   try {
-    breakReads(1); // The write reads the work once; the continuations' listener then reads it again.
+    breakReads(1); // The write reads the work once; the listener then reads it again.
     assert.equal(store.update("web-user", kept.work_id, null, { title: "整理周报" }).title, "整理周报");
   } finally { restore(); }
   assert.deepEqual(entries.filter(entry => entry.event === "listener_failed").map(entry => [entry.area, entry.fields?.of, entry.error?.code]),

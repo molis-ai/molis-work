@@ -1,6 +1,6 @@
 /** The agent-host contract (`services/agent-host`): what a run is started with, frozen when it starts — workspace, materials, references, budget, the Character and its role, the action client — and the authority checks the Host adds. */
 import type { UiLanguageTag } from "../platform/ui-text.js";
-import type { ActionCallOrigin, ExactActionReference, ActionView } from "../platform/actions.js";
+import type { ActionCallOrigin, ActionSubject, ExactActionReference, ActionView } from "../platform/actions.js";
 import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
 import type { MaterialRef } from "../platform/project-materials.js";
 import type { CharacterContent } from "../modules/characters.js";
@@ -39,11 +39,17 @@ type AgentMaterialSource =
   | { source_artifact_id: string; source_version: number }
   | { source_artifact_id?: never; source_version?: never };
 
+export type AgentMaterialDeliveryMode = "full" | "clipped" | "on-demand";
+
 export interface AgentMaterialChecklistItem {
+  material_id?: string;
   title: string;
+  subject?: ActionSubject;
   material_ref?: MaterialRef;
+  source_artifact_id?: string;
+  source_version?: number;
   read_revision?: string;
-  delivery: "full" | "clipped" | "on-demand";
+  delivery: AgentMaterialDeliveryMode;
   total_chars?: number;
   delivered_chars?: number;
 }
@@ -54,9 +60,10 @@ export interface AgentMaterialChecklistItem {
  * says the source version was not recorded; it is never guessed from the file as it is now.
  */
 export interface AgentMaterialOrigin {
+  subject?: ActionSubject;
   material_ref?: MaterialRef;
   read_revision?: string;
-  delivery?: "full" | "clipped" | "on-demand";
+  delivery?: AgentMaterialDeliveryMode;
   total_chars?: number;
   delivered_chars?: number;
   overflow_materials?: AgentMaterialChecklistItem[];
@@ -82,19 +89,20 @@ export interface AgentImageMaterial {
 
 /** Metadata and verbatim body share one data resource, never a role/system prompt. */
 export function agentTextMaterialContent(material: AgentTextMaterial): string {
-  if (!material || typeof material.title !== "string" || material.title.length > 2000
-    || typeof material.material_id !== "string" || !material.material_id || material.material_id.length > 240
-    || typeof material.text !== "string") throw new Error("固定材料的标题、来源或版本无效");
+  const okStr = (v: unknown, max: number) => typeof v === "string" && v.length > 0 && v.length <= max;
+  if (!material || typeof material.title !== "string" || material.title.length > 2000 || !okStr(material.material_id, 240) || typeof material.text !== "string") {
+    throw new Error("固定材料的标题、来源或版本无效");
+  }
   const sourced = "source_artifact_id" in material || "source_version" in material;
-  if (sourced && (typeof material.source_artifact_id !== "string" || !material.source_artifact_id || material.source_artifact_id.length > 200
-    || typeof material.source_version !== "number" || !Number.isSafeInteger(material.source_version) || material.source_version < 1)) throw new Error("固定材料的标题、来源或版本无效");
-  if (material.material_ref !== undefined && (!material.material_ref || typeof material.material_ref !== "object")
-    || material.read_revision !== undefined && (typeof material.read_revision !== "string" || !material.read_revision || material.read_revision.length > 200)) throw new Error("材料的来源引用或读取版本无效");
-  const header = JSON.stringify(sourced
-    ? { title: material.title, artifact_id: material.source_artifact_id, version: material.source_version }
-    : { title: material.title, material_id: material.material_id });
+  if (sourced && (!okStr(material.source_artifact_id, 200) || typeof material.source_version !== "number" || !Number.isSafeInteger(material.source_version) || material.source_version < 1)) {
+    throw new Error("固定材料的标题、来源或版本无效");
+  }
+  const badSubj = material.subject !== undefined && (!material.subject || typeof material.subject !== "object" || !okStr(material.subject.kind, 200) || !okStr(material.subject.id, 16_584));
+  if (badSubj || (material.material_ref !== undefined && (!material.material_ref || typeof material.material_ref !== "object")) || (material.read_revision !== undefined && !okStr(material.read_revision, 200))) {
+    throw new Error("材料的来源引用或读取版本无效");
+  }
+  const header = JSON.stringify(sourced ? { title: material.title, artifact_id: material.source_artifact_id, version: material.source_version } : { title: material.title, material_id: material.material_id });
   const content = `${header}\n\n${material.text}`;
-  // Prologue's required text resources reject more than 20,000 UTF-16 units.
   if (content.length > 20_000) throw new Error("材料连同来源超过 20,000 字符，请在文件中选择较小片段后重新保存");
   return content;
 }
@@ -325,6 +333,40 @@ export interface AgentSubagentWorkspace {
  * runtime has no sub-agents of its own). Each delegated work is a real work with its own session: its changes still
  * wait for the person's confirmation, and it cannot delegate further.
  */
+/** One thing a delegated work's result must satisfy, as the delegating round states it. The Host numbers them r1, r2, … in order. */
+export interface AgentDelegatedRequirement {
+  statement: string;
+  expected?: string;
+  /** The person must look at this one themselves. Left out, no approval step is added for it. */
+  requires_person?: boolean;
+}
+
+/**
+ * Where a delegated work's requirements stand, as the platform found it (`modules/acceptance`): which delivered version, what
+ * was verified and what the person decided. Never the work's own word: a check that rests only on what the work said is not verified.
+ */
+export interface AgentDelegatedAcceptance {
+  /** The delivered version these findings are about; null while the work has reported none. */
+  version: string | null;
+  counts: { total: number; verified: number; needs_person: number; accepted: number; satisfied: number };
+  /** `reported`: the work reported a check of this item on the version it stands on. `person`: `pending` whenever the item waits for the person — asked of them, or delivered without a machine check. */
+  items: Array<{ id: string; statement: string; reported: boolean; verified: boolean; gap: string | null; person: "accepted" | "returned" | "pending" | "not_needed"; returned_because?: string }>;
+}
+
+/** What a delegated work reports when it hands its result back: what changed and, requirement by requirement, what it checked and saw. */
+export interface AgentDeliveryReport {
+  summary: string;
+  /** From the second delivery on: the requirements this round changed anything for. The rest keep what was found and decided. */
+  touched?: string[];
+  checks: Array<{ requirement_id: string; verdict: "supports" | "contradicts"; method: string; observed: string; hands_on?: boolean;
+    artifacts?: Array<{ artifact_id: string; version: number }>; command_call_ids?: string[] }>;
+}
+
+/** A delegated work with requirements records its delivery through this, on its own object and as itself; the Host names the object and the round. */
+export interface AgentDelivery {
+  report(input: AgentDeliveryReport, signal?: AbortSignal): Promise<AgentDelegatedAcceptance & { note: string }>;
+}
+
 export interface AgentDelegatedWork {
   work_id: string;
   title: string;
@@ -340,11 +382,17 @@ export interface AgentDelegatedWork {
   taken_back?: boolean;
   /** What the delegating round should make of this state, in words (set when the person took it back). */
   note?: string;
+  /** Its requirements and where each stands, when it was handed any. */
+  requirements?: AgentDelegatedAcceptance;
 }
 
 export interface AgentDelegation {
-  /** `character`: one of the professional roles offered this round (its id); the sub-task then runs as exactly that role. */
-  start(input: { title: string; brief: string; acceptance: string; materials?: Array<{ title: string; text: string }>; character?: string }): Promise<AgentDelegatedWork>;
+  /**
+   * `character`: one of the professional roles offered this round (its id); the sub-task then runs as exactly that role.
+   * `for_event`: the event on the work line it is done for; `track`: it becomes an event of its own (specs/work-line §5). Neither: it belongs to no event.
+   * `requirements`: what the result must satisfy, item by item; they are hung on the sub-task's own object and the person can go through them (specs/proactive-assistant §7.3.1).
+   */
+  start(input: { title: string; brief: string; acceptance: string; materials?: Array<{ title: string; text: string }>; character?: string; for_event?: { kind: string; id: string }; track?: true; requirements?: AgentDelegatedRequirement[] }): Promise<AgentDelegatedWork>;
   /** The delegated works (all, or the given ones), waiting up to `wait_ms` for them to finish or need the person. */
   status(input: { work_ids?: string[]; wait_ms?: number }, signal?: AbortSignal): Promise<AgentDelegatedWork[]>;
   /** Tell a delegated work what to fix or add (its next round); bounded per work. */
@@ -383,6 +431,8 @@ export interface AgentActionClient {
   reader?: "work";
   /** Delegate sub-tasks to separate works (see AgentDelegation). Absent: this round cannot delegate. */
   delegate?: AgentDelegation;
+  /** Report what this work delivers against the requirements it was handed (see AgentDelivery). Absent: it was handed none. */
+  deliver?: AgentDelivery;
   /** Authorized memory tools for the person (see AgentMemoryTools). Absent: this round has no memory tools. */
   memory?: AgentMemoryTools;
   /** Record a proposal for the person; validated against the current capability. Absent: this caller takes none. */

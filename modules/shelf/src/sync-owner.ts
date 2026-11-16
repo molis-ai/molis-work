@@ -1,6 +1,7 @@
 import type {SyncReplicaAdapter} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import { createHash } from 'node:crypto';
 import type { SyncDocumentOwner } from '@molis-ai/molis-work-plugin-sdk';
+import { objectLinkAt } from '@molis-ai/molis-work-contracts/platform/object-link';
 import type { CatalogFile, StoredItem } from './catalog-shape.js';
 import type { ShelfSyncOptions } from './sync-catalog.js';
 import { SHELF_PORTABLE_ITEM_FIELDS, SHELF_PORTABLE_JOB_FIELDS, shelfSyncKey, validateShelfPortable, type ShelfPortableRecord, type ShelfPortableJob } from './sync-shape.js';
@@ -59,5 +60,5 @@ export function shelfCatalogOwner(context:ShelfSyncOptions,assertIdle?: (catalog
 
 /** Independent Home copies retain provenance, never project ownership. Cursor access preserves the account/format fence. */
 export function shelfHomeReplica(replica:SyncReplicaAdapter,collect?:()=>number):SyncReplicaAdapter {
- return {...replica,...(collect?{maintain(){replica.cursor();collect();replica.cursor();}}:{}),hasProjectChanges(_projectId){replica.cursor();return false;},locate(key){replica.cursor();const {id}=shelfSyncKey(key);return '/?openPlugin=shelf&openItem='+encodeURIComponent(id);}};
+ return {...replica,...(collect?{maintain(){replica.cursor();collect();replica.cursor();}}:{}),hasProjectChanges(_projectId){replica.cursor();return false;},locate(key){replica.cursor();const {id}=shelfSyncKey(key);return objectLinkAt('',{surface:'shelf',id});}};
 }

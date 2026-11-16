@@ -1,0 +1,91 @@
+{
+  "reason": "第 32 批事项线：底栏换成顶条与线、后台任务总表与「等你」统一读取、助理交办与结果回流、逐项要求与认可。工作台脚本与样式的增长在 32-work-line*.json 里按资源许可；首屏门另按页面量冷／热加载：四张页面都多拉工作台的中英词包（本批新加的界面文字随工作台语言包下发，首屏门把它算作新入口），工作台页与选择项目页的冷加载随 workbench.js／workbench.css 一起长，选择项目页的热加载多了线与顶条的样式规则。 逐条入口：工作台样式表在四张页面都长过 10 KB（线、顶条、任务浮窗与要求栏的规则，32-work-line.json）；工作台脚本在两张工作台页长过 10 KB（32-work-line-script.json）；选择项目页的页面本身长过 10 KB（页面里内联的顶条与线的外壳）。",
+  "review": "分支 batch/32 合入 main 06f86d244d 后，本机 `node scripts/gates/first-screen.mjs --base origin/main` 实测（最终头）：到达页冷 zh +49458 / en +49167、热 +2669；选择项目页冷 zh +82259 / en +81976、热 zh +35470 / en +35478；工作台默认冷 zh +151523 / en +150915、热 zh +10203 / en +9886；全部插件冷 zh +151802 / en +151180、热 zh +10482 / en +10151。许可照实测数写。",
+  "userApproval": "用户 2026-11-15 弹窗两次：先对首屏字节门选「放行（推荐）」（约 +147 KB 冷／+10 KB 热的工作台页、+47～78 KB 冷的到达与选择页，并批准中英词包的新入口）；合入 main 与全量修复后重量略超，再选「按这次实测放行（推荐）」：许可按上列实测数写，词包新入口一并批准。 逐条入口的增长批准（工作台样式表在四张页面、工作台脚本在两张工作台页、选择项目页的页面本身）是这次弹窗里列出的各页冷／热实测数的组成部分，随同一次放行。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "both",
+      "entry": "/assets/molis-work-workbench.css",
+      "change": "growth"
+    },
+    {
+      "pages": [
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "both",
+      "entry": "/assets/molis-work-workbench.js",
+      "change": "growth"
+    },
+    {
+      "pages": [
+        "chooser"
+      ],
+      "locale": "both",
+      "entry": "<page>",
+      "change": "growth"
+    }
+  ],
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 49458,
+      "warm": 2669
+    },
+    "arrival-empty/en": {
+      "cold": 49167,
+      "warm": 2669
+    },
+    "chooser/zh": {
+      "cold": 82259,
+      "warm": 35470
+    },
+    "chooser/en": {
+      "cold": 81976,
+      "warm": 35478
+    },
+    "workbench-default/zh": {
+      "cold": 151523,
+      "warm": 10203
+    },
+    "workbench-default/en": {
+      "cold": 150915,
+      "warm": 9886
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 151802,
+      "warm": 10482
+    },
+    "workbench-all-plugins/en": {
+      "cold": 151180,
+      "warm": 10151
+    }
+  }
+}

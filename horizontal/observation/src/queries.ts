@@ -28,6 +28,18 @@ interface RecordRowRead {
 /** SQLite hands back loosely typed rows; the columns read here are this package's own (schema.ts). */
 export const rowsAs = <T>(rows: readonly unknown[]): T[] => rows as T[];
 
+export const RECORD_ROW_BYTES_SQL = `
+  (64
+   + LENGTH(CAST(record_id AS BLOB))
+   + LENGTH(CAST(fact AS BLOB))
+   + LENGTH(CAST(subjects AS BLOB))
+   + LENGTH(CAST(conditions AS BLOB))
+   + LENGTH(CAST(detail AS BLOB))
+   + LENGTH(CAST(evidence AS BLOB)))
+`;
+
+export const BLOB_STORED_BYTES_SQL = `(32 + LENGTH(CAST(digest AS BLOB)) + LENGTH(body))`;
+
 const optional = <K extends string, V>(key: K, value: V | null): { [P in K]?: V } => (value === null ? {} : { [key]: value }) as { [P in K]?: V };
 
 function recordOf(row: RecordRowRead): ObservationRecord {

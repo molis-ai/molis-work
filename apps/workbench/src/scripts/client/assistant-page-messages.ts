@@ -25,7 +25,7 @@ export const ASSISTANT_PAGE_MESSAGES_PART = String.raw`  /* ─── What plugi
   const delegate = async (message) => {
     if (sending) { showOffer(message, false); return; }
     if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id);
-    else if (message.work_id || curId) await switchTo(null);
+    else await aboutObject(message.work_id ? null : message.object);
     await executorsLoaded;
     if (!message.work_id && message.executor && executorOffer(message.executor)) { nextExec = message.executor; nextMode = ""; paintAim(); paintSum(); } // e.g. the 成果库's 「交给 Coding」
     bring(message);
@@ -39,7 +39,7 @@ export const ASSISTANT_PAGE_MESSAGES_PART = String.raw`  /* ─── What plugi
     if (named && !works.some((work) => work.work_id === named)) await loadWorks(true);
     // The work on show reads itself again, so a card just placed in it shows now.
     if (named && works.some((work) => work.work_id === named)) await (named === curId ? reload().then(poll) : switchTo(named));
-    else if (detail.new === true || named) await switchTo(null);
+    else if (detail.new === true || named) await startFresh();
     const source = detail.source && typeof detail.source.surface === "string" && detail.source.surface
       ? { surface: detail.source.surface.slice(0, 80), title: typeof detail.source.title === "string" && detail.source.title ? detail.source.title.slice(0, 80) : detail.source.surface.slice(0, 80) } : null;
     // What was in hand goes in the strip with the object it came from, so the work is linked under it; no words are

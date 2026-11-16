@@ -55,7 +55,7 @@ async function openPicker(t: TestContext, width = 1440, height = 900) {
   return { ...b, centre, hover, press, away, key, state, settled, stayed, dock, frames };
 }
 
-test("DOCK-03 at rest an entry shows no buttons; looked at, it shows its two, and its text gives up the room", async t => {
+test("DOCK-03 at rest an entry shows no buttons; looked at, it shows its three, and its text gives up the room", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, hover, away } = b;
@@ -66,7 +66,7 @@ test("DOCK-03 at rest an entry shows no buttons; looked at, it shows its two, an
   })()`);
   await away();
   const rest = await probe();
-  assert.equal(rest.opsCount, 2, "a pin and a plus");
+  assert.equal(rest.opsCount, 3, "open beside (PFG-23), a pin and a plus");
   assert.equal(rest.ops, "0", "no buttons while nobody looks");
   assert.equal(rest.events, "none", "and nothing to hit");
   assert.ok(rest.padding < 20, "the entry has the whole row");
@@ -74,7 +74,7 @@ test("DOCK-03 at rest an entry shows no buttons; looked at, it shows its two, an
   const looked = await probe();
   assert.equal(looked.ops, "1");
   assert.equal(looked.events, "auto");
-  assert.ok(looked.padding >= 70, `the entry yields the room (${looked.padding}px)`);
+  assert.ok(looked.padding >= 104, `the entry yields the room of three buttons (${looked.padding}px)`);
   await away();
   assert.equal((await probe()).ops, "0", "and takes them back when the look goes");
 });
@@ -387,18 +387,23 @@ test("DOCK-08 Coding comes in place: its page and its row in the settings list, 
   assert.equal(await stayed(), true, "no reload at all");
 });
 
-test("DOCK-10 the keyboard reaches the buttons: → into them, ← back, ↑ ↓ along the same kind; Enter on the trash can asks, Escape takes it back first", async t => {
+test("DOCK-10 PFG-23 the keyboard reaches the buttons: → into them (在旁边打开, the pin, the plus), ← back, ↑ ↓ along the same kind; Enter on the trash can asks, Escape takes it back first", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, key, state, waitFor } = b;
-  const focused = () => evaluate<string>("(() => { const e = document.activeElement; return e ? (e.dataset.dockChoice ? 'pin:' + e.dataset.dockChoice : e.dataset.pluginToggle ? 'toggle:' + e.dataset.pluginToggle : e.dataset.pluginId ? 'entry:' + e.dataset.pluginId : e.className) : ''; })()");
+  const focused = () => evaluate<string>("(() => { const e = document.activeElement; return e ? (e.dataset.dockChoice ? 'pin:' + e.dataset.dockChoice : e.dataset.railBeside ? 'beside:' + e.dataset.railBeside : e.dataset.pluginToggle ? 'toggle:' + e.dataset.pluginToggle : e.dataset.pluginId ? 'entry:' + e.dataset.pluginId : e.className) : ''; })()");
   await evaluate("document.querySelector('[data-plugin-tile=\"pages\"] > .plugin-rail-item').focus()");
   assert.equal(await focused(), "entry:pages");
+  await key("ArrowRight", 39); assert.equal(await focused(), "beside:pages");
   await key("ArrowRight", 39); assert.equal(await focused(), "pin:pages");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-plugin-tile=\"pages\"] .plugin-rail-ops button')).opacity"), "1", "focus shows the buttons as a look does");
   await key("ArrowRight", 39); assert.equal(await focused(), "toggle:pages");
-  await key("ArrowLeft", 37); await key("ArrowLeft", 37); assert.equal(await focused(), "entry:pages");
+  await key("ArrowLeft", 37); await key("ArrowLeft", 37); await key("ArrowLeft", 37); assert.equal(await focused(), "entry:pages");
   await key("ArrowRight", 39); await key("ArrowDown", 40);
+  assert.match(await focused(), /^beside:/, "↓ from 在旁边打开 goes to the next one");
+  await key("ArrowRight", 39);
+  assert.match(await focused(), /^pin:/);
+  await key("ArrowDown", 40);
   assert.match(await focused(), /^pin:/, "↓ from a pin goes to the next pin");
   await key("ArrowRight", 39); assert.match(await focused(), /^toggle:/);
   await evaluate("document.activeElement.click()");

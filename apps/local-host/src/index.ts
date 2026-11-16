@@ -288,6 +288,7 @@ export { announceConnectionChanged } from "./connection-change-events.js";
 export { builtinMarketDirectory, homePluginDirectory, mergePluginDirectories, runningPluginDirectory, type DirectorySource } from "./plugin-directory.js";
 export { runningPluginText, type RunningPluginText, type RunningRelease } from "./running-plugin-text.js";
 export { observeReviewSettlements, reviewSettlementForwarder, type AgentWritePlaces, type ObserveReviewSettlements, type ReviewSettlement } from "./review-settlement-events.js";
+export { agentContinuationStarts, continuationForwarder, type AgentContinuationStarts, type ContinuationStartHost, type ObserveContinuations } from "./agent-continuation-starts.js";
 export { createGitWorktreePort, hostWriterId, type GitWorktreePort } from "./workspace-git-worktrees.js";
 export { readWriterIntegration, prepareWriterIntegration } from "./workspace-git-integration.js";
 export { draftText } from "./model-draft.js";
@@ -311,6 +312,9 @@ export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "
 export { raiseConnectionNotice } from "./assistant/assistant-connection-notices.js";
 export { assistantConnectionCard } from "./assistant/assistant-connection-card.js";
 export { AssistantService } from "./assistant/assistant-service.js";
+export { AssistantReportRounds, AssistantTaskReports, reportOnlyAuthority, type TaskReport } from "./assistant/assistant-task-reports.js";
+export { ASSISTANT_AGENT, ASSISTANT_REPORT_ROLE_ID } from "./assistant/assistant-agent.js";
+export { roundStartInput } from "./assistant/assistant-round-start.js";
 // The Home's one Assistant as the Host composes it, its person clients included: what a check of who it calls as runs against.
 export { assistantPanelActions, assistantPanelProvider, assistantServiceFor, closeAssistantService, type AssistantHttpPorts } from "./assistant/assistant-http.js";
 export { assistantSurroundings, repositoryName } from "./assistant/assistant-surroundings.js";
@@ -333,6 +337,7 @@ export { registerMemoryProjectDeletion } from "./memory/memory-project-deletion.
 export { COMPUTER_RECORD_FILE, ComputerRecords } from "./computer/computer-records.js";
 export { handleComputerHttp, type ComputerShelf } from "./computer/computer-http.js";
 export { assistantRelatedAction, assistantRelatedRegistration, type RelatedWorksSource } from "./assistant/assistant-related-action.js";
+export { ASSISTANT_LINE_ACTIONS, ASSISTANT_TASK_TABLE_ACTION, ASSISTANT_WORK_KIND, assistantBackgroundTasks, assistantLineRegistration, type AssistantLineSource } from "./assistant/assistant-line-actions.js";
 export { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
 export { ComputerDesk } from "./computer/computer-desk.js";
 export { ComputerSettings } from "./computer/computer-settings.js";
@@ -369,6 +374,7 @@ export { lastUsedLocale, readUiLocale, rememberUiLocale, UI_LOCALE_RELATIVE_PATH
 export { replyLanguage, replyLanguagePrompt } from "./reply-language.js";
 export { hostTextProblems, installHostUiText } from "./ui-text-provider.js";
 export { handleAttentionHttp, type AttentionSources } from "./attention-http.js";
+export { attentionChanged, onAttentionChange, onAttentionChangeOf } from "./attention-changes.js";
 export { handleBrowserHttp } from "./browser/browser-http.js";
 export { homeBackgroundTasks, type HomeBackgroundTaskRow } from "./home-background-tasks.js";
 export { startWebProjectSchedulers } from "./web-project-schedulers.js";
@@ -435,6 +441,7 @@ export { attachHostPresence, homeHostUrl, readHostEndpoint, removeHostEndpoint, 
 export { residentHostAddress } from "./resident-host-request.js";
 export { webEntryDoor, webEntryProvider, type WebEntryDoor, type WebEntryCall } from "./web-entry-actions.js";
 export { createHostObservation, observationPluginDataCleared, scheduleWakeupRecords, type HostObservation } from "./observation-host.js";
+export { registerEvaluationReplayScenario, type HostEvaluationOwner } from "./evaluation-host.js";
 export type { GrantChangedBy } from "./observation-grants.js";
 export { observationShellDoor } from "./observation-shell-entry.js";
 export { contextOnboardingActions, contextOnboardingProvider } from "./context-onboarding-actions.js";

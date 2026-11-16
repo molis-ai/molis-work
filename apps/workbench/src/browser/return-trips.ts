@@ -5,6 +5,7 @@
  * functions over small structural types, with no DOM library, so the unit tests import them through the package entry.
  */
 import { UI_RETURN_CARRY_LIMITS as CARRY } from "@molis-ai/molis-work-contracts/platform/ui";
+import { objectLinkAt } from "@molis-ai/molis-work-contracts/platform/object-link";
 
 export const RETURN_TRIP_RULES = {
   keys: { trips: "molis-work:return-trips", window: "molis-work:return-window", handoff: "molis-work:return-window-handoff" },
@@ -169,7 +170,7 @@ export function samePlace(a: ReturnPlace | null | undefined, b: ReturnPlace | nu
 /** The workbench's own object link for a surface (and an object on it); null when either does not pass (§2.3). */
 export function returnLink(prefix: string, surface: string, objectId?: string): string | null {
   if (!RETURN_TRIP_RULES.surface.test(surface) || objectId !== undefined && !returnText(objectId, RETURN_TRIP_RULES.objectId)) return null;
-  return prefix + "/?openPlugin=" + encodeURIComponent(surface) + (objectId === undefined ? "" : "&openItem=" + encodeURIComponent(objectId));
+  return objectLinkAt(prefix, objectId === undefined ? { surface } : { surface, id: objectId });
 }
 
 /** What an ordinary settings link asks for, from its address alone (§2.3): never `setup`, which only the platform gives. */

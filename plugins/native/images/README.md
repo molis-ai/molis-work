@@ -17,7 +17,7 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 生成动作 `images.jobs.start@1` 使用 Runtime 并发后台受理并要求 `model:invoke`，后台状态查询指向 `images.jobs.get@1`。`images.jobs.list/get/cancel@1` 的终态结果允许 `connection_id` 为空，表示同步或复制后的历史没有本机生图绑定；列出历史、预览和下载不要求配置服务。运行中记录仍要求非空连接；新生成输入仍要求有效本机服务和当前授权。HTTP/页面从共同描述符取版本，MCP 使用对应新版本名，旧固定引用须重新选择，不提供别名；数据库和同步格式不变。
 生成动作 `images.jobs.start@1` 使用 Runtime 并发后台受理并要求 `model:invoke` 与 `images:files:write`；删除动作 `images.jobs.delete@1` 要求 `images:delete` 与 `images:files:write`。输入输出保持，旧固定版本须重新选择，MCP 当前工具为 `images.jobs.start__v1`、`images.jobs.delete__v1`。已授权给 MCP 客户端、工作流步骤的调用方要补授 `images:files:write`（内置安装默认同意）。
 
-插件声明统一动作：`images.connections.list/save/delete`、`images.jobs.list/start/get/cancel/delete` 和 `images.images.read`。HTTP 仅转发到同一动作服务；标准 MCP 导出相同合同。配置操作遵守 Home 权限，任务和图片遵守项目权限；模型参数不能改变调用者的项目。启动返回持久任务，`request_id` 对相同输入去重；图片读取返回实际 Base64 字节、MIME 和文件名。
+插件声明统一动作：`images.connections.list/save/delete`、`images.jobs.list/start/get/cancel/delete` 和 `images.images.read`。还在等厂商的生成由 `images.background.tasks@1`（`src/background.ts`，只读、要 `images:read`）报到平台的后台任务总表，行上的「停止」就是 `images.jobs.cancel@1`；结束的生成是页面上的记录，不是任务。HTTP 仅转发到同一动作服务；标准 MCP 导出相同合同。配置操作遵守 Home 权限，任务和图片遵守项目权限；模型参数不能改变调用者的项目。启动返回持久任务，`request_id` 对相同输入去重；图片读取返回实际 Base64 字节、MIME 和文件名。
 
 数据：`{home}/images/images.db` 与 `{home}/images/assets/`。一个 Home Runtime 实例拥有配置与任务，Web、MCP 通过同一个动作服务调用；原表结构保持版本 1。数据库、文件和生图由宿主注入的有限服务提供，插件不持有 Home 路径或凭据解析器；文件声明在 Manifest 的 `owner_files`（`IMAGES_OWNER_FILES`：根 `images`，顶层目录 `assets`，读 `images:read`、写 `images:files:write`，根与自己的库同在），动作之内由动作和原调用者的权限决定。启动前由 Runtime 检查安装当前的必需授权（`storage:private` 与 `images:files:write`）。任务在后台保留原调用者的可撤销授权，普通请求断开不取消已受理任务；撤权、停用和项目删除后不写晚到结果或失败记录。停止不写业务状态。
 

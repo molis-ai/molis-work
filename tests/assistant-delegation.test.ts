@@ -36,6 +36,7 @@ function reply(tool?: { name: string; input: unknown }, text = "好的。"): Res
   return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
 }
 
+// PWA-127: explicitly handed-off work runs in the background as a work of its own, with nothing proactive switched on in this fixture.
 test("a work hands an independent part to a work of its own, waits for it, reads back what it did; one level deep and bounded", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
@@ -71,6 +72,9 @@ test("a work hands an independent part to a work of its own, waits for it, reads
     assert.equal(done.delegated!.length, 1);
     const child = await service.read(done.delegated![0]!.work_id);
     assert.deepEqual(child.work.delegated_by, { work_id: sent.work.work_id, title: sent.work.title, acceptance: "恰好三条、每条一句话" });
+    // WLN-32, WLN-09: the board says when each part was handed out and where it stands on the line: a part of a work that is an
+    // event of the line is done for that event unless the round placed it elsewhere (a personal work has no line).
+    assert.deepEqual([done.delegated![0]!.created_at, done.delegated![0]!.serves, done.delegated![0]!.line_event], [child.work.created_at, sent.work.scope.kind === "project" ? [{ kind: "assistant_work", id: sent.work.work_id }] : undefined, undefined]);
     assert.equal(child.work.state, "completed");
     assert.deepEqual(child.rounds[0]!.materials.map(material => material.title), ["访谈记录"], "the child gets only the material handed to it");
     assert.ok(parentTools[0]!.includes("delegate-work"), "the parent may delegate");
@@ -183,6 +187,7 @@ test("a sub-task whose session opened under the Assistant's own role carries its
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+// PWA-134: stopping a work stops its sub-tasks (the subtree), nothing else.
 test("stopping a work also stops the sub-tasks it handed out that are still running, even after its own round ended", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-stop-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
@@ -222,6 +227,7 @@ test("stopping a work also stops the sub-tasks it handed out that are still runn
   } finally { releaseChild(); service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+// PWA-134: taking a sub-task back acts on that sub-task.
 test("the person takes a sub-task back: it stops, the board says so, no more follow-ups go to it, and the delegating work finishes that part", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-takeback-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
@@ -336,7 +342,8 @@ test("a sub-task the person put away still counts for the work that handed it ou
     assert.equal((await f.service.read(sent.work.work_id)).delegated, undefined, "the board no longer shows a sub-task put away");
     assert.deepEqual((await f.service.read(sent.work.work_id)).usage, before, "its tokens and rounds still count toward the work's cap");
 
-    // Its place among the six also stays: three more handed out and three put away leave no room.
+    // There is no cap on how many a work hands out in all (specs/work-line/contract-design.md §10): with six there already,
+    // some put away, a seventh still starts.
     const made = [childId];
     for (let index = 0; index < 5; index++) {
       const extra = f.store.create({ actor_id: "web-user", title: `子任务 ${index}`, scope: { kind: "project", project_id: "board" }, origin: null, project_ref: f.project,
@@ -345,9 +352,8 @@ test("a sub-task the person put away still counts for the work that handed it ou
     }
     for (const id of made.slice(1, 3)) await f.service.archive(id, true);
     const delegation = f.service.delegation(f.store.get("web-user", sent.work.work_id))!;
-    // W2-18-A4-LIMITS-01
-    await assert.rejects(delegation.start({ title: "第七个", brief: "再来一个。", acceptance: "完成" }), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid"
-      && error.message === "这项工作已经委托了 6 个子任务，不能再多；请自己完成剩下的部分或告诉用户");
+    // (No round of the work runs here, so the hand-out itself may be refused for that; what matters is that the count is not why.)
+    await delegation.start({ title: "第七个", brief: "再来一个。", acceptance: "完成" }).then(() => undefined, (error: unknown) => assert.notEqual((error as { code?: string }).code, "assistant.limit"));
 
     // Put away is the person's decision and archives its execution session with it: the work that handed it out cannot set it going again.
     const rounds = f.store.rounds(childId).length;
@@ -367,24 +373,25 @@ test("a sub-task the person put away still counts for the work that handed it ou
   } finally { release(); await f.close(); }
 });
 
-// W2-18-A4-LIMITS-01: three parts with a step still going leave no room for a fourth, in the words the model has always been told.
-test("W2-18-A4-LIMITS-01 three sub-tasks still going leave no room for another one", { timeout: 60_000 }, async t => {
+// W2-18-A4-LIMITS-01, PWA-131: five parts with a step still going leave no room for a sixth; it is refused, not shown as running.
+// PWA-128: no room for another sub-task is said as refused, not shown as running.
+test("W2-18-A4-LIMITS-01 five sub-tasks still going leave no room for another one", { timeout: 60_000 }, async t => {
   const f = await delegationFixture(t, [() => reply({ name: "delegate-work", input: { title: "起草", brief: "起草一段话。", acceptance: "一段话" } }), () => reply(undefined, "已交给子任务。")],
     async () => reply(undefined, "草稿。"));
   try {
     const sent = await f.service.send({ text: "分给子任务起草", request_id: "req-delegation-active" }, { project_ref: f.project });
     await until(async () => { const view = await f.service.read(sent.work.work_id); return view.work.state === "completed" && view.rounds.length === 2 && view.delegated?.[0]?.state === "completed" ? view : undefined; }, "child done, handed back");
     const parent = f.store.get("web-user", sent.work.work_id), works = f.adapter.collaboration!.works!;
-    // Three parts whose step has not ended (the finished one is not going).
-    for (let index = 0; index < 3; index++) {
+    // Five parts whose step has not ended (the finished one is not going).
+    for (let index = 0; index < 5; index++) {
       const node_id = `p-going-${index}`;
       await works.add({ graph_id: parent.graph_id!, node_id, under: "work", session_id: parent.session_id!, title: `子任务 ${index}` });
       f.store.create({ actor_id: "web-user", title: `子任务 ${index}`, scope: { kind: "project", project_id: "board" }, origin: null, project_ref: f.project,
         delegated_by: { graph_id: parent.graph_id!, node_id, title: parent.title, acceptance: "完成" } });
     }
     await assert.rejects(f.service.delegation(f.store.get("web-user", sent.work.work_id))!.start({ title: "第五个", brief: "再来一个。", acceptance: "完成" }),
-      (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.message === "已有 3 个子任务在进行，等其中一个结束再委托");
-    assert.equal(f.store.delegatedBy("web-user", parent).length, 4, "the refused one left no work behind");
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.message === "已有 5 个子任务在办：这一件没有开始。告诉用户它在排队，等其中一个交回后再委托");
+    assert.equal(f.store.delegatedBy("web-user", parent).length, 6, "the refused one left no work behind");
   } finally { await f.close(); }
 });
 

@@ -31,45 +31,46 @@ test("The project button holds settings and the account, and opens settings in t
     await command("Emulation.setDeviceMetricsOverride",{width,height:844,deviceScaleFactor:1,mobile:width<=600},sessionId);
     for(const theme of ["light","dark"]){
       await evaluate(`document.documentElement.dataset.resolvedTheme=${JSON.stringify(theme)}`);
-      // The person rides with the project: capabilities, settings and the account open from the round button at the foot.
-      await evaluate("document.querySelector('.bar-end [data-project-menu]').open=true");
+      // The person rides with the project: capabilities, settings and the account open from the round button at the top bar's end.
+      await evaluate("document.querySelector('.titlebar-end [data-project-menu]').open=true");
       await waitFor("getComputedStyle(document.querySelector('.personal-account')).color===getComputedStyle(document.querySelector('.navigator-project-manage')).color");
       await evaluate("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
-      const metrics=await evaluate<any>(`(()=>{const account=document.querySelector('.personal-account'),avatar=account.querySelector('.personal-account-avatar'),icon=avatar.querySelector('svg'),popover=account.closest('.navigator-project-menu-popover'),button=document.querySelector('.bar-end .navigator-project-selector');const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};return {avatar:rect(avatar),icon:rect(icon),account:rect(account),popover:rect(popover),button:rect(button),copyDisplay:getComputedStyle(account.querySelector('.personal-account-copy')).display,name:account.querySelector('strong').getBoundingClientRect().width,decoration:getComputedStyle(account).textDecorationLine}})()`);
+      const metrics=await evaluate<any>(`(()=>{const account=document.querySelector('.personal-account'),avatar=account.querySelector('.personal-account-avatar'),icon=avatar.querySelector('svg'),popover=account.closest('.navigator-project-menu-popover'),button=document.querySelector('.titlebar-end .navigator-project-selector');const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};return {avatar:rect(avatar),icon:rect(icon),account:rect(account),popover:rect(popover),button:rect(button),copyDisplay:getComputedStyle(account.querySelector('.personal-account-copy')).display,name:account.querySelector('strong').getBoundingClientRect().width,decoration:getComputedStyle(account).textDecorationLine}})()`);
       assert.notEqual(metrics.copyDisplay,"none",width+theme+": the account shows its name and space");
       assert.ok(metrics.name>0,width+theme+": the name is readable");
       assert.equal(metrics.decoration,"none",width+theme);
-      assert.ok(await evaluate("Boolean(document.querySelector('[data-plugin-id=settings]').closest('.bar-end [data-project-menu] [data-personal-menu]'))"),width+theme+": settings live under the project button");
+      assert.ok(await evaluate("Boolean(document.querySelector('[data-plugin-id=settings]').closest('.titlebar-end [data-project-menu] [data-personal-menu]'))"),width+theme+": settings live under the project button");
       assert.ok(Math.abs(metrics.avatar.x+metrics.avatar.width/2-metrics.icon.x-metrics.icon.width/2)<1,width+theme+": avatar centered horizontally");
       assert.ok(Math.abs(metrics.avatar.y+metrics.avatar.height/2-metrics.icon.y-metrics.icon.height/2)<1,width+theme+": avatar centered vertically");
       assert.ok(metrics.popover.x>=0 && metrics.popover.right<=width && metrics.popover.y>=0,width+theme+": the menu stays on screen");
-      assert.ok(metrics.popover.bottom<=metrics.button.y,width+theme+": the menu opens above the button, never over it");
+      // Since WLN-16 the project button ends the top bar (specs/work-line「顶条」), so its menu drops below it.
+      assert.ok(metrics.popover.y>=metrics.button.bottom,width+theme+": the menu opens below the button, never over it");
       // The project menu's rows are menu rows: 30–36px on a desktop, 44px targets at phone width (W2-18 decision 10, DESIGN.md
       // "Focus and accessibility": what the bar opens is 44px on a phone or with a coarse pointer).
       const [low,high]=width<=600?[44,44]:[30,36];
       assert.ok(metrics.account.height>=low && metrics.account.height<=high,width+theme+": the account is one menu row like the others ("+low+"–"+high+"px) "+metrics.account.height);
       const shot=await command<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false},sessionId);
       await writeFile(new URL("footer-"+width+"-"+theme+".png",directory),Buffer.from(shot.data,"base64"));
-      await evaluate("document.querySelector('.bar-end [data-project-menu]').open=false");
+      await evaluate("document.querySelector('.titlebar-end [data-project-menu]').open=false");
     }
   }
   await command("Emulation.setDeviceMetricsOverride",{width:1440,height:900,deviceScaleFactor:1,mobile:false},sessionId);
   await evaluate("dispatchEvent(new Event('resize'))");
   await evaluate("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
-  await click(".bar-end .navigator-project-selector");
-  await click(".bar-end [data-account-link]");
+  await click(".titlebar-end .navigator-project-selector");
+  await click(".titlebar-end [data-account-link]");
   await waitFor("!document.querySelector('#mw-account-menu').hidden");
   assert.equal(await evaluate("location.pathname"), "/projects/"+projectId+"/");
   // WORK-03 / T01-ACCOUNT-ENTRY-01: the enabled account entry opens in place and can return to this project.
-  await click(".bar-end .navigator-project-selector");
-  await click(".bar-end [data-unified-account-link]");
+  await click(".titlebar-end .navigator-project-selector");
+  await click(".titlebar-end [data-unified-account-link]");
   await waitFor("!!document.querySelector('.account-dialog[open] .account-form')");
   assert.equal(await evaluate("document.querySelector('#account-title').textContent"), "Molis account");
   assert.equal(await evaluate("location.pathname"), "/projects/"+projectId+"/");
   await click(".account-dialog > button");
   await waitFor("!document.querySelector('.account-dialog')");
-  assert.equal(await evaluate("document.activeElement === document.querySelector('.bar-end .navigator-project-selector')"), true);
-  await click(".bar-end .navigator-project-selector");
+  assert.equal(await evaluate("document.activeElement === document.querySelector('.titlebar-end .navigator-project-selector')"), true);
+  await click(".titlebar-end .navigator-project-selector");
   await click("[data-plugin-id=settings]");
   await waitFor("document.querySelector('#goal-tree-pane').dataset.desktopDirectory==='settings' && document.querySelector('#goal-tree-pane').getBoundingClientRect().width>80 && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='settings' && document.querySelector('[data-work-surface=settings] [data-theme-option=dark]')");
   assert.equal(await evaluate("location.pathname"), "/projects/"+projectId+"/");

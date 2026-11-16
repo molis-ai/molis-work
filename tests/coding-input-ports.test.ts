@@ -266,15 +266,21 @@ test("W5-01-CODING-30 S-15 once the person has withdrawn the grant, the listed a
 test("W5-01-CODING-31 SYS15-Q2 recovery retries after a failed Agent read without a page; coding.state never starts a loop", { timeout: 60_000 }, async t => {
   const waits: unknown[] = [];
   const s = await codingSdkRuntime(t);
-  // The wait for a continuation (an action, R8 batch 4) reaches the task graph and fails there, as when the runtime is not up.
-  t.mock.method(s.adapter.collaboration!, "awaitReady", async (...args: unknown[]) => { waits.push(args); throw new Error("Agent 运行时没有起来"); });
+  // The wake loop's read of the project's waits (an action, R8 batch 4) reaches the task graph and fails there, as when the runtime is not up.
+  const original = s.adapter.collaboration!.read.bind(s.adapter.collaboration);
+  t.mock.method(s.adapter.collaboration!, "read", async (project: string, sessionId?: string) => {
+    if (sessionId !== undefined) return original(project, sessionId);
+    waits.push([project]); throw new Error("Agent 运行时没有起来");
+  });
   assert.equal(waits.length, 0, "a project with no session tied to an Agent run starts no loop");
   await s.sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "tied", title: "重启前的会话", runtime_id: "prologue", at });
   await s.sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "tied", "sdk", at);
   await s.platform.supervisor.restart(CODING_PLUGIN_ID);
   await until(() => waits.length >= 1);
   await until(() => waits.length >= 2, 10_000);
-  const beforeQuery = waits.length;
   assert.equal((await callOf(s.call)("/state")).status, 200);
-  assert.equal(waits.length, beforeQuery, "a query does not revive the failed loop");
+  // The query reads the waits itself (it shows them); a loop it revived would read again at once, which none does.
+  const afterQuery = waits.length;
+  await new Promise(resolve => setTimeout(resolve, 1_000));
+  assert.equal(waits.length, afterQuery, "a query does not revive the failed loop");
 });

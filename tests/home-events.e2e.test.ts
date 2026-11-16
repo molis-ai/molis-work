@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { definePlugin, defineHomeEventsAction, defineSubjectContextAction, subjectContext, defineSubjectOffersAction } from "@molis-ai/molis-work-plugin-sdk";
-import type { ActionDefinition, ActionReference, HomeEventView, SubjectActionOffer, SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { definePlugin, defineWorkEventsAction, defineSubjectContextAction, subjectContext, defineSubjectOffersAction } from "@molis-ai/molis-work-plugin-sdk";
+import type { ActionDefinition, ActionReference, WorkEventView, SubjectActionOffer, SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("an unknown plugin keeps its Home Events and contextual actions while the visible Home no longer requests Events", { timeout: 120_000 }, async t => {
@@ -16,7 +16,7 @@ test("an unknown plugin keeps its Home Events and contextual actions while the v
   store.db.prepare("INSERT INTO fixture_home_notes VALUES (?, ?, 0, 1)").run("own-note", "插件自己的原始记录");
   const read = () => store.db.prepare("SELECT content, done, revision FROM fixture_home_notes WHERE id = ?").get("own-note") as { content: string; done: number; revision: number };
   const subject = { kind: "fixture-note", id: "own-note" };
-  const events = defineHomeEventsAction("unknown.notes.home", 1, [subject.kind], "笔记首页事项", ["fixture:read"]);
+  const events = defineWorkEventsAction("unknown.notes.home", 1, [subject.kind], "笔记首页事项", ["fixture:read"]);
   const context = defineSubjectContextAction("unknown.notes.context", 1, subject.kind, "笔记上下文", ["fixture:read"]);
   const offers = defineSubjectOffersAction("unknown.notes.offers", 1, [subject.kind], "笔记动作", ["fixture:read"]);
   const complete: ActionDefinition = { capability_id: "unknown.notes.complete", version: 1, operation: "command", action: {
@@ -45,7 +45,7 @@ test("an unknown plugin keeps its Home Events and contextual actions while the v
   const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
   const prefix = "/projects/" + projectId;
   const window = { from: new Date(Date.now() - 60_000).toISOString(), to: new Date(Date.now() + 60_000).toISOString(), now: new Date().toISOString() };
-  const eventRead = () => web.post<{ events: HomeEventView[]; issues: string[] }>(prefix + "/api/home/events", window);
+  const eventRead = () => web.post<{ events: WorkEventView[]; issues: string[] }>(prefix + "/api/home/events", window);
   const ownEvent = (reply: Awaited<ReturnType<typeof eventRead>>) => reply.events.find(event => event.subject.kind === subject.kind && event.subject.id === subject.id);
   const request_id = crypto.randomUUID();
   try {

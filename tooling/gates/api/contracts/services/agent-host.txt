@@ -10,6 +10,7 @@ export interface AgentActionClient {
     discover(): Promise<readonly ActionView[]>;
     reader?: "work";
     delegate?: AgentDelegation;
+    deliver?: AgentDelivery;
     memory?: AgentMemoryTools;
     offer?(offer: AgentActionOffer): Promise<{
         offer_id: string;
@@ -131,6 +132,32 @@ export type AgentCreateSessionInput = {
 
 export type AgentCreateSessionRequest = AgentCreateSessionInput & AgentSessionOwner;
 
+export interface AgentDelegatedAcceptance {
+    version: string | null;
+    counts: {
+        total: number;
+        verified: number;
+        needs_person: number;
+        accepted: number;
+        satisfied: number;
+    };
+    items: Array<{
+        id: string;
+        statement: string;
+        reported: boolean;
+        verified: boolean;
+        gap: string | null;
+        person: "accepted" | "returned" | "pending" | "not_needed";
+        returned_because?: string;
+    }>;
+}
+
+export interface AgentDelegatedRequirement {
+    statement: string;
+    expected?: string;
+    requires_person?: boolean;
+}
+
 export interface AgentDelegatedWork {
     work_id: string;
     title: string;
@@ -144,6 +171,7 @@ export interface AgentDelegatedWork {
     follow_ups: number;
     taken_back?: boolean;
     note?: string;
+    requirements?: AgentDelegatedAcceptance;
 }
 
 export interface AgentDelegation {
@@ -156,6 +184,12 @@ export interface AgentDelegation {
             text: string;
         }>;
         character?: string;
+        for_event?: {
+            kind: string;
+            id: string;
+        };
+        track?: true;
+        requirements?: AgentDelegatedRequirement[];
     }): Promise<AgentDelegatedWork>;
     status(input: {
         work_ids?: string[];
@@ -163,6 +197,29 @@ export interface AgentDelegation {
     }, signal?: AbortSignal): Promise<AgentDelegatedWork[]>;
     follow_up(workId: string, text: string): Promise<AgentDelegatedWork>;
     stop(workId: string): Promise<AgentDelegatedWork>;
+}
+
+export interface AgentDelivery {
+    report(input: AgentDeliveryReport, signal?: AbortSignal): Promise<AgentDelegatedAcceptance & {
+        note: string;
+    }>;
+}
+
+export interface AgentDeliveryReport {
+    summary: string;
+    touched?: string[];
+    checks: Array<{
+        requirement_id: string;
+        verdict: "supports" | "contradicts";
+        method: string;
+        observed: string;
+        hands_on?: boolean;
+        artifacts?: Array<{
+            artifact_id: string;
+            version: number;
+        }>;
+        command_call_ids?: string[];
+    }>;
 }
 
 export interface AgentDocumentCapability {
@@ -382,18 +439,25 @@ export interface AgentImageMaterial {
 }
 
 export interface AgentMaterialChecklistItem {
+    material_id?: string;
     title: string;
+    subject?: ActionSubject;
     material_ref?: MaterialRef;
+    source_artifact_id?: string;
+    source_version?: number;
     read_revision?: string;
-    delivery: "full" | "clipped" | "on-demand";
+    delivery: AgentMaterialDeliveryMode;
     total_chars?: number;
     delivered_chars?: number;
 }
 
+export type AgentMaterialDeliveryMode = "full" | "clipped" | "on-demand";
+
 export interface AgentMaterialOrigin {
+    subject?: ActionSubject;
     material_ref?: MaterialRef;
     read_revision?: string;
-    delivery?: "full" | "clipped" | "on-demand";
+    delivery?: AgentMaterialDeliveryMode;
     total_chars?: number;
     delivered_chars?: number;
     overflow_materials?: AgentMaterialChecklistItem[];
@@ -672,7 +736,6 @@ export interface AgentMemoryCapability {
             };
             created_at_ms: number;
             updated_at_ms: number;
-            restored_from_version?: number;
             note?: string;
         }>;
     }>;
@@ -1953,6 +2016,7 @@ export interface AgentStepBoard {
         estimate_reason?: string;
         progress?: number;
         progress_basis?: string;
+        skipped?: true;
         scope_removed?: true;
         unknown_outcome?: true;
     }>;
@@ -2337,7 +2401,6 @@ export declare const agentHostCapabilities: {
         after: string;
         title?: string;
     }], AgentProjectWork>;
-    readonly awaitContinuations: ActionDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentCollaborationSessionView[]>;
     readonly readBackground: ActionDefinition<[runtimeId: string, sessionId?: string], AgentBackgroundTask[]>;
     readonly stopBackground: ActionDefinition<[runtimeId: string, taskId: string], boolean>;
     readonly releaseProjectRound: ActionDefinition<[runtimeId: string, workId: string, note: string], void>;

@@ -32,16 +32,17 @@ test("PFG-22 PFG-24 the side's tabs live in the title bar, collapse with ⌘\\, 
   };
 
   // Collapsed, the glyphs stay at the right end of the title bar; the title bar has no background-tasks button of its own,
-  // and the strip has no "+".
+  // and the strip has no "+". The background tasks are no side tab: their mark is the line's dialog's (batch 32).
   const shown = await evaluate<string[]>(`[...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility()).map(tab => tab.dataset.sideTab)`);
-  assert.ok(shown.includes(SHELF) && shown.includes("tasks"), JSON.stringify(shown));
+  assert.ok(shown.includes(SHELF) && shown.includes("files") && !shown.includes("tasks"), JSON.stringify(shown));
   assert.equal(await evaluate("document.querySelector('[data-background-tasks]')"), null);
   assert.equal(await evaluate(`document.querySelector('${strip} [data-tab-add], ${strip} [aria-label*="新"]')`), null);
-  // 07-S2 (口径 6): the title bar ends with its one layout button; the strip ends right before it.
-  const [edge, layoutEdge] = await evaluate<[number, number]>(`(() => { const layout = document.querySelector('[data-layout-open]').getBoundingClientRect();
-    return [layout.left - [...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility()).at(-1).getBoundingClientRect().right, innerWidth - layout.right]; })()`);
+  // 07-S2 (口径 6): the strip ends right before the one layout button; WLN-16: only the project follows it, ending the title bar.
+  const [edge, layoutEdge, projectEdge] = await evaluate<[number, number, number]>(`(() => { const layout = document.querySelector('[data-layout-open]').getBoundingClientRect(), project = document.querySelector('.titlebar-end').getBoundingClientRect();
+    return [layout.left - [...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility()).at(-1).getBoundingClientRect().right, project.left - layout.right, innerWidth - project.right]; })()`);
   assert.ok(edge >= 0 && edge < 24, `the strip ends right before the layout button (${edge}px between)`);
-  assert.ok(layoutEdge >= 0 && layoutEdge < 24, `the layout button ends the title bar (${layoutEdge}px left)`);
+  assert.ok(layoutEdge >= 0 && layoutEdge < 24, `the project follows the layout button (${layoutEdge}px between)`);
+  assert.ok(projectEdge >= 0 && projectEdge < 24, `the project ends the title bar (${projectEdge}px left)`);
 
   // A context tab (Pages' comments) leaves and comes back with its plugin, as the page the server renders after a picker
   // change says: the whole glyph tab goes and comes, never an empty item or a bare trigger.
@@ -179,7 +180,7 @@ test("PFG-22 a saved layout with a plugin taken out of the project keeps that pl
   await waitFor("document.body.dataset.desktopSurface === 'todo' && !document.querySelector('[data-tab-removed-stage]')", 15_000);
 });
 
-// Review evidence (ignored folder unless MOLIS_WORK_REVIEW_EVIDENCE=1): the side collapsed and open on the background tasks,
+// Review evidence (ignored folder unless MOLIS_WORK_REVIEW_EVIDENCE=1): the side collapsed and open on one of its own views,
 // at three widths, in both languages and both themes.
 test("PFG-22 review shots of the right side at 1440, 1024 and 390, Chinese and English, light and dark", { timeout: 240_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
@@ -191,51 +192,24 @@ test("PFG-22 review shots of the right side at 1440, 1024 and 390, Chinese and E
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 760 }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=${lang}&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
-    await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]')`, 15_000);
+    await waitFor(`document.querySelector('${strip} [data-side-tab="files"]')`, 15_000);
     // The page collapses the side from the layout menu (收起右侧); the side has no close event of its own (07-1 S4b).
     await waitFor("document.body.dataset.sideOpen === 'false' || (document.querySelector('[data-layout-open]').click(), document.querySelector('[data-layout-action=side]').click(), false)", 5_000);
     const name = `${lang}-${theme}-${width}`;
     await shot(name + "-collapsed");
-    await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'tasks' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
-    await waitFor("!document.querySelector('[data-side-body=\"tasks\"]').hidden");
+    await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'computer' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
+    await waitFor("!document.querySelector('[data-side-body=\"computer\"]').hidden");
     await new Promise(resolve => setTimeout(resolve, 450));
-    await shot(name + "-tasks");
+    await shot(name + "-computer");
   }
 
-  // The badge's first time in the product (design README 13): two tasks not finished, one running and one waiting on the
-  // person. The attention read answers with them; everything else in it is the Host's own answer.
-  const at = new Date().toISOString();
-  const rows = [
-    { project_id: projectId, project_name: "Demo", surface: "coding", id: "shot-running", title: "整理发布说明", state: "running", updated_at: at, waiting: false, standing: [{ text: "你负责 {n} 步", count: 2 }], commands: [] },
-    { project_id: projectId, project_name: "Demo", surface: "coding", id: "shot-waiting", title: "检查迁移脚本", state: "waiting", updated_at: at, waiting: true, standing: [{ text: "等你审查" }], commands: [] },
-  ];
-  await command("Fetch.enable", { patterns: [{ urlPattern: "*/api/attention*", requestStage: "Response" }] }, sessionId);
-  const stop = browser.on("Fetch.requestPaused", (event, session) => {
-    if (session !== sessionId) return;
-    const requestId = String(event.requestId);
-    void (async () => {
-      const { body, base64Encoded } = await command<{ body: string; base64Encoded: boolean }>("Fetch.getResponseBody", { requestId }, sessionId);
-      const answer = JSON.parse(base64Encoded ? Buffer.from(body, "base64").toString("utf8") : body) as Record<string, unknown>;
-      await command("Fetch.fulfillRequest", { requestId, responseCode: 200, responseHeaders: [{ name: "content-type", value: "application/json" }], body: Buffer.from(JSON.stringify({ ...answer, background_tasks: rows })).toString("base64") }, sessionId);
-    })();
-  });
-  t.after(() => { stop(); });
-  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId);
-  for (const lang of ["zh", "en"] as const) for (const [width, height] of [[1440, 900], [700, 900]] as const) {
-    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
-    await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=${lang}&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
-    await waitFor(`document.querySelector('${strip} [data-background-tasks-count]')?.textContent === '2' && !document.querySelector('${strip} [data-background-tasks-count]').hidden`, 15_000);
-    await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'tasks' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
-    await waitFor("document.querySelectorAll('[data-background-tasks-list] .background-task').length === 2");
-    await new Promise(resolve => setTimeout(resolve, 450));
-    await shot(`${lang}-light-${width}-tasks-badge`);
-  }
+  // The background tasks' count is the line's (work-line-event-tab shows it), not a side tab's.
 });
 
-// 07-S1 review B3: from 601 to 760 the side's strip is a row of its own, as on a phone (S3 sets its final look), so every tab,
-// the background tasks with their count among them, shows; on the narrowest phone, where it still scrolls, the current tab is
+// 07-S1 review B3: from 601 to 760 every side tab shows; since WLN-16 the side's strip shares the first row with the way back, the
+// kept plugins (which fold first) and the layout button, and the main tabs are the second; on the narrowest phone, where it still scrolls, the current tab is
 // kept in view.
-test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phone's strip keeps the current tab in view while the layout button ends the tabs' row", { timeout: 150_000 }, async t => {
+test("PFG-22 between 601 and 760 every side tab shows in the first row, and a phone's strip keeps the current tab in view while the layout button ends the tabs' row", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
@@ -244,14 +218,14 @@ test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phon
   for (const [width, height] of [[601, 900], [700, 900], [760, 900], [700, 420]]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-    await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]')`, 15_000);
-    await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'tasks' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
+    await waitFor(`document.querySelector('${strip} [data-side-tab="files"]')`, 15_000);
+    await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'computer' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
     const tabs = await evaluate<string[]>(`${shown}.map(tab => tab.dataset.sideTab)`);
-    assert.ok(tabs.includes("tasks") && tabs.length >= 6, `${width}×${height}: ${JSON.stringify(tabs)}`);
+    assert.ok(tabs.includes("files") && tabs.length >= 6, `${width}×${height}: ${JSON.stringify(tabs)}`);
     assert.deepEqual(await evaluate<string[]>(outside), [], `${width}×${height}: every tab is inside the strip and the window`);
     assert.equal(await evaluate<boolean>(`(() => { const s = document.querySelector('${strip}'); return s.scrollWidth <= s.clientWidth + 1; })()`), true, `${width}×${height}: nothing scrolled out of sight`);
     const rows = await evaluate<{ strip: number; tabs: number }>(`(() => ({ strip: document.querySelector('${strip}').getBoundingClientRect().top, tabs: document.querySelector('[data-titlebar-tabs]').getBoundingClientRect().top }))()`);
-    assert.ok(rows.strip > rows.tabs, `${width}×${height}: the side's strip is on a row below the main tabs (${JSON.stringify(rows)})`);
+    assert.ok(rows.strip < rows.tabs, `${width}×${height}: the side's strip is in the first row, the main tabs in the second (WLN-16, ${JSON.stringify(rows)})`);
     // The strip's own box, not the title bar's: a bar pinned at one row lets the strip spill over the work below it.
     const below = await evaluate<{ strip: number; stage: number; panel: number; corner: boolean }>(`(() => {
       const stage = document.querySelector('[data-plugin-stage]').getBoundingClientRect();
@@ -270,7 +244,7 @@ test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phon
   for (const width of [390, 360, 320]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-    await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]') && document.querySelector('[data-layout-open]')`, 15_000);
+    await waitFor(`document.querySelector('${strip} [data-side-tab="files"]') && document.querySelector('[data-layout-open]')`, 15_000);
     const bar = await evaluate<{ tabs: { top: number; bottom: number; fits: boolean; clipped: string[] }; layout: { top: number; left: number; right: number }; strip: number; stripRight: number; history: number; below: string[] }>(`(() => {
       const box = selector => document.querySelector(selector).getBoundingClientRect();
       const tabs = box('[data-titlebar-tabs]');
@@ -288,7 +262,7 @@ test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phon
   }
   await command("Emulation.setDeviceMetricsOverride", { width: 320, height: 720, deviceScaleFactor: 1, mobile: true }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]')`, 15_000);
+  await waitFor(`document.querySelector('${strip} [data-side-tab="files"]')`, 15_000);
   const ends = await evaluate<string[]>(`${shown}.map(tab => tab.dataset.sideTab)`);
   for (const tab of [ends[0], ends.at(-1)]) {
     await waitFor(`(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: ${JSON.stringify(tab)} }, cancelable: true })), document.querySelector('${strip} [aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(tab)})`, 5_000);
@@ -298,14 +272,15 @@ test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phon
   // opens it) is the one shown, and 主区 | 右侧 says 右侧.
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]') && document.querySelector('[data-pane-switch=side]')`, 15_000);
-  await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'tasks' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
+  await waitFor(`document.querySelector('${strip} [data-side-tab="files"]') && document.querySelector('[data-pane-switch=side]')`, 15_000);
+  await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'computer' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
   await waitFor("document.querySelector('[data-pane-switch=side]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('[data-pane-switch=main]')?.getAttribute('aria-pressed') === 'false'", 5_000)
     .catch(async () => assert.fail(`390: the side opened by an event shows 右侧 pressed (${await evaluate<string>("JSON.stringify([...document.querySelectorAll('[data-pane-switch]')].map(b => b.dataset.paneSwitch + ':' + b.getAttribute('aria-pressed')))")})`));
-  // 07-1 S3: just after a group closes, a 360 or 320 phone row cannot hold the switch, a 98px current tab, the undo chip,
-  // 全部标签 and ＋ at once (English is the wider switch). The row scrolls rather than clips, as scheme A narrows the tabs to
-  // 96px and then scrolls: the current tab is in view as the chip comes in, each part shows whole once scrolled to, and ＋ is
-  // reached that way and takes the press.
+  // 07-1 S3: just after a group closes, a 360 or 320 phone row cannot hold the switch, a 98px current tab, the undo chip and
+  // 全部标签 at once (English is the wider switch). The row scrolls rather than clips, as scheme A narrows the tabs to
+  // 96px and then scrolls: the current tab is in view as the chip comes in and each part shows whole once scrolled to. Since
+  // WLN-16 the tab row's own ＋ is folded and the top bar's ＋ (the start page) is the one way to open a plugin
+  // (specs/work-line「顶条」, decided 2026-11-15): it stays whole in the window and takes the press.
   for (const width of [360, 320]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=en&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
@@ -326,15 +301,16 @@ test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phon
         const own = child.scrollWidth <= child.clientWidth + 1 || child.classList.contains('tab-scroll');
         return inside(child) && own ? [] : [String(child.className).split(' ').pop() + ' ' + Math.round(child.getBoundingClientRect().left) + '→' + Math.round(child.getBoundingClientRect().right)];
       });
-      const add = strip.querySelector('.tab-add-button'); add.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      const add = document.querySelector('[data-plugin-picker-toggle]'); add.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       const box = add.getBoundingClientRect(), hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
-      return { en: document.documentElement.lang.startsWith('en'), scrolls, current, parts, plus: { inside: inside(add), hit: Boolean(hit && add.contains(hit)) } };
+      const whole = box.width > 0 && box.left >= -0.5 && box.right <= innerWidth + 0.5 && box.top >= -0.5;
+      return { en: document.documentElement.lang.startsWith('en'), scrolls, current, parts, plus: { inside: whole, hit: Boolean(hit && add.contains(hit)) } };
     })()`);
     assert.equal(row.en, true, `${width}: the page is in English`);
     assert.ok(row.current.width >= 98 && row.current.inView, `${width}: the current tab keeps its 98px and is in view as the undo chip comes in (${JSON.stringify(row)})`);
     assert.ok(row.scrolls, `${width}: a row that cannot hold it all scrolls rather than clips (${JSON.stringify(row)})`);
     assert.deepEqual(row.parts, [], `${width}: every part of the row shows whole once scrolled to (${JSON.stringify(row)})`);
-    assert.ok(row.plus.inside && row.plus.hit, `${width}: ＋ is reached by scrolling and takes the press (${JSON.stringify(row)})`);
+    assert.ok(row.plus.inside && row.plus.hit, `${width}: the top bar's ＋ is whole in the window and takes the press (${JSON.stringify(row)})`);
   }
 });
 
@@ -349,32 +325,32 @@ test("PFG-22 定样第 9 条 a narrow window loads with the side collapsed and i
   const load = async (width: number, height: number, mobile: boolean) => {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-    await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]') && document.body.dataset.sideOpen`, 15_000);
+    await waitFor(`document.querySelector('${strip} [data-side-tab="files"]') && document.body.dataset.sideOpen`, 15_000);
   };
   await load(1440, 900, false);
-  await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'tasks' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
-  await waitFor(`${stored}?.side?.open === true && ${current} === 'tasks'`, 5_000);
+  await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'computer' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
+  await waitFor(`${stored}?.side?.open === true && ${current} === 'computer'`, 5_000);
   const tabs = await evaluate<string[]>(shown);
 
   await load(1440, 900, false);
-  await waitFor(`document.body.dataset.sideOpen === 'true' && ${current} === 'tasks'`, 5_000);
+  await waitFor(`document.body.dataset.sideOpen === 'true' && ${current} === 'computer'`, 5_000);
 
   await load(390, 844, true);
   // Give a late restore the chance to open it before reading that it stayed collapsed.
   await evaluate("new Promise(resolve => setTimeout(resolve, 600))");
   assert.equal(await evaluate("document.body.dataset.sideOpen"), "false", "a phone loads with the side collapsed");
   assert.deepEqual(await evaluate<string[]>(shown), tabs, "every side tab is still there");
-  assert.equal(await evaluate(current), "tasks", "the current tab is kept");
+  assert.equal(await evaluate(current), "computer", "the current tab is kept");
   assert.equal(await evaluate(`${stored}?.side?.open`), true, "the saved layout keeps the side open for a wide window");
-  await click(`${strip} [data-side-tab="tasks"]`);
-  await waitFor(`document.body.dataset.sideOpen === 'true' && ${current} === 'tasks' && !document.querySelector('[data-side-body="tasks"]').hidden`, 5_000);
+  await click(`${strip} [data-side-tab="computer"]`);
+  await waitFor(`document.body.dataset.sideOpen === 'true' && ${current} === 'computer' && !document.querySelector('[data-side-body="computer"]').hidden`, 5_000);
 
   // 601 to 760 counts as narrow too.
   await load(700, 900, false);
   await evaluate("new Promise(resolve => setTimeout(resolve, 600))");
   assert.equal(await evaluate("document.body.dataset.sideOpen"), "false", "700 wide loads with the side collapsed");
   await load(1440, 900, false);
-  await waitFor(`document.body.dataset.sideOpen === 'true' && ${current} === 'tasks'`, 5_000);
+  await waitFor(`document.body.dataset.sideOpen === 'true' && ${current} === 'computer'`, 5_000);
 });
 
 // 07-S1 review, small fix 2: a plugin taken out of the project keeps its side tab where it was, marked removed, as the main

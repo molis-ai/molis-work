@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { createPrologueNodeAdapter, AgentHost, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { ASSISTANT_STORE_BASELINE, AssistantService, AssistantStore } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AgentContinuationStarter } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 
 test("ASC-18: rejecting controls on an idle work changes neither its stored choice nor its setup requests", async () => {
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
@@ -110,6 +112,7 @@ test("ASC-34: a newer Send whose setup hold fails invalidates the older Send bef
   } finally { service.continuations.close(); db.close(); }
 });
 
+// PWA-136: a late acceptance does not resume a work its parent stopped.
 test("ASC-34: late Send acceptance preserves a delegated work stopped directly by its parent", async () => {
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
   const host = new AgentHost({ reviews: new AgentReviewQueue() });
@@ -161,33 +164,33 @@ test("ASC-36: explicit keep-connections stops and withdraws business before reta
   } finally { service.continuations.close(); db.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("ASC-18 ASC-25: closing the Assistant aborts its runtime wait and does not reattach on later store changes", async t => {
+test("ASC-18 ASC-25: closing the Assistant withdraws its continuation starter and does not serve it again on later store changes", async t => {
   const directory = await mkdtemp(join(tmpdir(), "assistant-watcher-close-"));
   const host = new AgentHost({ reviews: new AgentReviewQueue() });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.wait-close", appVersion: "1.0.0" }, storageRoot: directory,
     modelConfiguration: async () => null, resolveCredential: () => null });
   host.register(adapter);
+  // The starter the Home serves to the runtime, as the runtime holds it.
+  let starter: AgentContinuationStarter | undefined;
+  const serving = t.mock.method(adapter.collaboration!, "serveStarts", (served: AgentContinuationStarter) => { starter = served; return () => {}; });
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => { throw new Error("No round should start"); } }, "user");
-  const entered = Promise.withResolvers<AbortSignal>(), settled = Promise.withResolvers<void>();
-  const actualWait = adapter.collaboration!.awaitReady.bind(adapter.collaboration);
-  const waiting = t.mock.method(adapter.collaboration!, "awaitReady", async (project, timeout, exclude, signal) => {
-    assert.ok(signal); entered.resolve(signal);
-    try { return await actualWait(project, timeout, exclude, signal); } finally { settled.resolve(); }
-  });
+  const ask = () => starter!({ runtime_id: "prologue", project_id: ASSISTANT_PERSONAL_OWNER, session_id: "owned-session", owner: { plugin_id: ASSISTANT_PLUGIN_ID, install_id: "assistant" },
+    request_key: "k", wait_id: "w", graph_id: "g", node_id: "n" });
   try {
     const work = store.create({ actor_id: "user", title: "Pending work", scope: { kind: "personal" }, origin: null });
     store.update("user", work.work_id, null, { session_id: "owned-session" });
     service.continuations.attach();
-    const signal = await entered.promise;
-    assert.equal(signal.aborted, false);
+    for (let i = 0; i < 100 && !starter; i++) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.ok(starter, "the Assistant serves the Home's starter");
+    assert.notDeepEqual(await ask(), { later: { code: "assistant.not_attached" } }, "the Assistant answers while attached");
     service.continuations.close();
-    assert.equal(signal.aborted, true);
-    await settled.promise;
+    assert.deepEqual(await ask(), { later: { code: "assistant.not_attached" } }, "closed, it answers no start");
     store.update("user", work.work_id, null, { title: "A later change" });
     service.continuations.attach();
     await new Promise(resolve => setImmediate(resolve));
-    assert.equal(waiting.mock.callCount(), 1, "the closed owner cannot create another long wait");
+    assert.deepEqual(await ask(), { later: { code: "assistant.not_attached" } }, "the closed owner does not serve again");
+    assert.equal(serving.mock.callCount(), 1, "the runtime was served one starter");
   } finally { service.continuations.close(); await adapter.close(); db.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -208,7 +211,7 @@ for (const change of ["close", "latest-input"] as const) test(`ASC-18 ASC-34: a 
       directory: { canonical_path: directory, realpath_verified: true }, title: change });
     const work = store.create({ actor_id: "user", title: change, scope: { kind: "personal" }, origin: null });
     const saved = store.update("user", work.work_id, null, { session_id: session.session_id });
-    store.observe("user", work.work_id, "running");
+    store.observed.set("user", work.work_id, "running");
     service.continuations.watch(saved, { runtime_id: "prologue", session_id: session.session_id, run_id: "finished-round" });
     // Freeze the read after the terminal notification; the production callback still owns the eventual write.
     (await observer.promise)({ phase: "completed" } as never);
@@ -216,7 +219,7 @@ for (const change of ["close", "latest-input"] as const) test(`ASC-18 ASC-34: a 
     if (change === "close") service.continuations.close();
     else store.update("user", work.work_id, null, { continuation_hold: "paused", draft: "Newest intent" });
     release.resolve(); await new Promise(resolve => setImmediate(resolve));
-    assert.equal(store.observed("user", work.work_id), "running", "the obsolete observation must not be committed");
+    assert.equal(store.observed.of("user", work.work_id), "running", "the obsolete observation must not be committed");
     assert.deepEqual(service.notices.notices(null), [], "there is no false completed notification");
     if (change === "latest-input") assert.equal(store.get("user", work.work_id).draft, "Newest intent");
   } finally { release.resolve(); service.continuations.close(); await adapter.close(); db.close(); await rm(directory, { recursive: true, force: true }); }

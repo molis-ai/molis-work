@@ -240,7 +240,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
         next.focus();
         return;
       }
-      const buttons = op ? usable(railItems.querySelectorAll(OPS)).filter((button) => button.className.split(" ").some((name) => ["dock-keep", "plugin-toggle"].includes(name) && op.classList.contains(name))) : railButtons();
+      const buttons = op ? usable(railItems.querySelectorAll(OPS)).filter((button) => button.className.split(" ").some((name) => ["rail-beside", "dock-keep", "plugin-toggle"].includes(name) && op.classList.contains(name))) : railButtons();
       const index = buttons.indexOf(op || entry);
       if (index < 0) return;
       event.preventDefault();

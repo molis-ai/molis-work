@@ -15,6 +15,7 @@ import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/
 import { ensureProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
+import { continuationEvents } from "./fixtures/continuation-ready.js";
 
 for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as const) test(`Coding background follower ${mode}${mode === "stop" ? " (W5-01-CODING-21: a stopped follower writes no state)" : mode.endsWith("-receipt") ? " (W5-01-CODING-19: a refused caller saves no running state)" : ""}`, { timeout: 30_000 }, async () => {
   const stop = mode === "stop", interruptedReceipt = mode === "cancel-receipt" || mode === "revoke-receipt";
@@ -129,18 +130,18 @@ async function codingJobs() {
   const sessions = codingSessions(store), now = () => new Date().toISOString();
   // No Agent session yet: the activation has nothing to recover, so the only loop is one a round asks for.
   await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "s", title: "会话", runtime_id: "prologue", at: now() });
-  const calls = { createSession: 0, startRun: 0, awaitContinuations: 0 };
-  const on: { readMessages?(): void; awaitContinuations?(): Promise<HeldWait[]> } = {};
+  // `reads` counts the wake loop's reads of the project's waits (no session named); `on.read` answers one in place of the table.
+  const calls = { createSession: 0, startRun: 0, reads: 0 };
+  const on: { readMessages?(): void; read?(): Promise<HeldWait[]> } = {};
   // The first round ends waiting on an answer, as the task graph keeps it; `fire` lets its step go on.
   let held: HeldWait | undefined;
   const fire = () => { held!.wait.state = "satisfied"; held!.wait.conditions[0]!.last = { status: "satisfied", at: now() }; held!.continuation.state = "eligible"; };
-  const ready = async () => {
-    for (const deadline = Date.now() + 200; Date.now() < deadline; await new Promise(resolve => setTimeout(resolve, 20))) if (held?.continuation.state === "eligible") return [structuredClone(held)];
-    return [];
-  };
-  const actions = pluginActions(store, DEMO_PROJECT_ID);
+  const actions = pluginActions(store, DEMO_PROJECT_ID), events = continuationEvents(store, DEMO_PROJECT_ID);
   actions.registry.registerProvider({ provider: { provider_id: "fixture.agent-host", title: "fixture", kind: "system" }, definitions: [collaboration.read], handlers: [
-    { ...collaboration.read, handle: async () => ({ sessions: held ? [structuredClone(held)] : [] }) }] });
+    { ...collaboration.read, handle: async (_caller, input) => {
+      if ((input as { session_id?: string }).session_id === undefined) { calls.reads++; if (on.read) return { sessions: await on.read() }; }
+      return { sessions: held ? [structuredClone(held)] : [] };
+    } }] });
   const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
     const id = definition.capability_id, input = args as unknown[];
     if (id === projectDirectoryActions.get.capability_id) return [{ workspace_id: "work", canonical_path: root, display_name: "work" }] as Output;
@@ -160,11 +161,10 @@ async function codingJobs() {
       return { ref: { session_id: "sdk", run_id: `r${calls.startRun}` }, frozen: {} } as Output;
     }
     if (id === agent.waitRun.capability_id) return { version: "v1", view: { ref: input[1], phase: "completed", frozen: { role_id: "builder", text_materials: [] }, turns: [], activity: [], awaiting_input: [] } } as Output;
-    if (id === agent.awaitContinuations.capability_id) { calls.awaitContinuations++; return await (on.awaitContinuations ?? ready)() as Output; }
     throw new Error(`Unexpected capability ${id}`);
   } };
   const host = () => withFakeAgentHost({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
-    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value, agentHost,
+    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value, observeContinuations: events.observeContinuations, agentHost,
   });
   const platform = (await ensureProjectPlugins(host())).platform!, install = platform.supervisor.state("io.molis.work.coding")!.install_id!;
   const send = (execution: { signal: AbortSignal; beforeEffect(): Promise<void>; assert_authority_current(): void }) => platform.router().dispatch({ method: "POST",
@@ -175,7 +175,9 @@ async function codingJobs() {
     for (const deadline = Date.now() + ms; !check();) { if (Date.now() > deadline) throw new Error(`timed out: ${what}`); await new Promise(resolve => setTimeout(resolve, 20)); }
   };
   const close = async () => { await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); };
-  return { store, sessions, platform, install, calls, on, fire, held: () => held!, send, accepted, until, close };
+  // What the runtime's start request does once the step may go on: the Host tells Coding (host.agent.continuation.ready@1).
+  const tell = async () => { assert.ok(await events.tell(held!), "Coding heard the continuation"); };
+  return { store, sessions, platform, install, calls, on, fire, tell, held: () => held!, send, accepted, until, close };
 }
 
 for (const refused of [false, true]) test(`a caller ${refused ? "refused after its Run was accepted has that Run's result recorded and nothing set off in its name" : "whose round ends waiting has the wake job take the next round up"} (W5-01-CODING-82)`, { timeout: 30_000 }, async () => {
@@ -191,12 +193,13 @@ for (const refused of [false, true]) test(`a caller ${refused ? "refused after i
     await jobs.until("the follower records that the round ended waiting", () => jobs.sessions.get(DEMO_PROJECT_ID, "s").state === "queued");
     jobs.fire();
     if (!refused) {
+      await jobs.tell();
       await jobs.until("the wake job takes the continuation up", () => jobs.calls.startRun === 2);
-      assert.ok(jobs.calls.awaitContinuations > 0);
+      assert.ok(jobs.calls.reads > 0);
       return;
     }
     await new Promise(resolve => setTimeout(resolve, 600));
-    assert.deepEqual(jobs.calls, { createSession: 1, startRun: 1, awaitContinuations: 0 }, "the follower asked for no loop, and no round was started on the refused call's account");
+    assert.deepEqual(jobs.calls, { createSession: 1, startRun: 1, reads: 0 }, "the follower asked for no loop, and no round was started on the refused call's account");
   } finally { await jobs.close(); }
 });
 
@@ -206,12 +209,12 @@ test("the wake job's back-off ends when the plugin stops: no Agent call after, n
   process.on("uncaughtException", keep); process.on("unhandledRejection", keep);
   try {
     // The Agent runtime cannot be read for now: the loop a request asked for backs off 5 s before it asks again.
-    jobs.on.awaitContinuations = async () => { throw new Error("暂时读不了"); };
+    jobs.on.read = async () => { throw new Error("暂时读不了"); };
     assert.equal((await jobs.send(jobs.accepted()))?.status, 200);
-    await jobs.until("the loop asked once and backs off", () => jobs.calls.awaitContinuations === 1);
+    await jobs.until("the loop asked once and backs off", () => jobs.calls.reads === 1);
     jobs.platform.supervisor.revoke("io.molis.work.coding"); await jobs.platform.runtime.stop(jobs.install);
     await new Promise(resolve => setTimeout(resolve, 5_500));
-    assert.equal(jobs.calls.awaitContinuations, 1, "the back-off's timer went with the job: the loop never asked again");
+    assert.equal(jobs.calls.reads, 1, "the back-off's timer went with the job: the loop never asked again");
     assert.deepEqual([jobs.calls.startRun, jobs.calls.createSession], [1, 1]);
     assert.deepEqual(stray, [], "nothing the stopped plugin left behind threw outside a call");
   } finally { process.off("uncaughtException", keep); process.off("unhandledRejection", keep); await jobs.close(); }
@@ -222,12 +225,13 @@ test("revoked as a continuation is handed over: the wake job starts no Run, open
   try {
     const privateStorage = new SqlitePluginPrivateStorage(jobs.store.db);
     assert.equal((await jobs.send(jobs.accepted()))?.status, 200);
-    await jobs.until("the round waits and the loop asks", () => jobs.sessions.get(DEMO_PROJECT_ID, "s").state === "queued" && jobs.calls.awaitContinuations > 0);
-    const before = privateStorage.snapshotInstallationData(jobs.install), asked = jobs.calls.awaitContinuations;
+    await jobs.until("the round waits and the loop asks", () => jobs.sessions.get(DEMO_PROJECT_ID, "s").state === "queued" && jobs.calls.reads > 0);
+    const before = privateStorage.snapshotInstallationData(jobs.install), asked = jobs.calls.reads;
     // The installation is withdrawn just as the continuation is handed over. The activation has not stopped yet: only the job's own
     // check before each write stands between the ready continuation and a new round.
-    jobs.on.awaitContinuations = async () => { jobs.platform.supervisor.revoke("io.molis.work.coding"); jobs.fire(); return [structuredClone(jobs.held())]; };
-    await jobs.until("the continuation is handed over", () => jobs.calls.awaitContinuations > asked);
+    jobs.on.read = async () => { jobs.platform.supervisor.revoke("io.molis.work.coding"); jobs.fire(); return [structuredClone(jobs.held())]; };
+    await jobs.tell();
+    await jobs.until("the continuation is handed over", () => jobs.calls.reads > asked);
     await new Promise(resolve => setTimeout(resolve, 500));
     assert.deepEqual([jobs.calls.startRun, jobs.calls.createSession], [1, 1], "no new Run and no new session");
     assert.deepEqual(privateStorage.snapshotInstallationData(jobs.install), before, "no note was kept for the person, nothing queued was dropped");

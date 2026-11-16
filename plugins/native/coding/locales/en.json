@@ -788,6 +788,7 @@
     "coding.goal.search": "Search loaded goals",
     "coding.goal.title": "Goal for the next turn",
     "coding.goal.why": "Why",
+    "coding.home-background.open-session": "Open session",
     "coding.home-background.in-progress": "In progress",
     "coding.home-background.n-steps-with-subtasks": {
       "plural_arg": "n",
@@ -1425,7 +1426,6 @@
     "coding.server.goal-unreadable": "The fixed goal can’t be read",
     "coding.server.goal-view-first": "Look at the original goal’s current version before confirming progress",
     "coding.server.intent": "That way of working isn’t valid",
-    "coding.server.materials-30": "The plan, goal and materials can be at most 30 per turn; remove one material and try again",
     "coding.server.materials-busy": "A task or a delivery is being taken in; change the materials shortly",
     "coding.server.materials-full": "The next turn already has {max} materials; remove one before taking this delivery",
     "coding.server.mcp-action": "That MCP action isn’t valid",
@@ -1950,45 +1950,7 @@
     "coding.card.extend-budget": "Allow 3 more",
     "coding.card.retry-prompt": "Please dispatch the sub-task “{role}” again with its original assignment and a fresh idempotencyKey (reusing the old key returns the stopped result without re-running){reason}. Original assignment:\n{task}",
     "coding.card.retry-reason-suffix": "; why the last attempt stopped: {error}",
-    "coding.env.deps-missing": "{manager} · dependencies not installed",
     "coding.env.deps-none": "No package manifest",
-    "coding.env.deps-ok": "{manager} · dependencies ready",
-    "coding.env.example-keys": "Env template ({file}, variable names only, never reads .env values): {keys}",
-    "coding.env.git-branch": "Branch {branch} · {dirty} uncommitted",
-    "coding.env.git-detail": "Git: {summary}",
-    "coding.env.keys-count": {
-      "plural_arg": "count",
-      "forms": {
-        "one": "{count} env key",
-        "other": "{count} env keys"
-      }
-    },
-    "coding.env.needs-prep": "Environment needs setup",
-    "coding.env.not-git": "Not a Git repo",
-    "coding.env.ports": "Ports {ports}",
-    "coding.env.ready": "Environment ready",
-    "coding.env.scripts-count": {
-      "plural_arg": "count",
-      "forms": {
-        "one": "{count} script",
-        "other": "{count} scripts"
-      }
-    },
-    "coding.env.scripts-detail": "Scripts: {script_names}",
-    "coding.env.worktrees-count": {
-      "plural_arg": "count",
-      "forms": {
-        "one": "{count} worktree",
-        "other": "{count} worktrees"
-      }
-    },
-    "coding.env.worktrees-detail": {
-      "plural_arg": "count",
-      "forms": {
-        "one": "{count} separate worktree registered",
-        "other": "{count} separate worktrees registered"
-      }
-    },
     "coding.field.plan-estimate-reason": "Estimate reason",
     "coding.material.delivery.inline": "Full text",
     "coding.material.delivery.on-demand": "Listed; read on demand",
@@ -2049,7 +2011,7 @@
     "coding.skills.choose": "Choose one",
     "coding.board.progress-basis-input": "Progress basis (e.g. 2/4 tests passing)",
     "coding.board.progress-edit": "Log progress",
-    "coding.board.progress-percent": "Completion percent (1-99)",
+    "coding.board.progress-percent": "Completion percent (0-99)",
     "coding.board.progress-save": "Save progress",
     "coding.board.reconcile-confirm": "Confirm done",
     "coding.board.reconcile-confirm-note": "Check note (confirm operation finished)",
@@ -2120,8 +2082,6 @@
     "coding.env.scripts.summary": "Scripts {scriptList}",
     "coding.env.status.attention": "{count} need attention",
     "coding.env.status.ready": "All ready",
-    "coding.env.summary.deps-ready": "Dependencies ready",
-    "coding.env.summary.existing-dirty": "{count} existing changes",
     "coding.env.title": "Environment checklist",
     "coding.env.vars.checked": "Checked {file} (secret values never read)",
     "coding.env.vars.missing": "No local .env found; {file} declares {keys}",
@@ -2158,8 +2118,6 @@
     "coding.material.status.on-demand": "On demand",
     "coding.material.status.truncated": "First 12,000 chars",
     "coding.material.status.unreadable": "Unreadable",
-    "coding.round.card.accept": "Accept round result",
-    "coding.round.card.accepted": "Round result accepted",
     "coding.round.card.cleanup": "Cleaned up at round end",
     "coding.round.card.cleanup-commands": "{count} check commands from this round have exited",
     "coding.round.card.code-version-title": "Code revision verified by this check",

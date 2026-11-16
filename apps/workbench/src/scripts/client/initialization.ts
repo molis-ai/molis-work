@@ -72,9 +72,21 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       leavePlugin: (plugin) => tabWorkspace?.leavePlugin?.(plugin) === true,
       open: (plugin, origin) => openSurfaceEntry(plugin, origin),
       shownPlugin: () => tabWorkspace?.shownPlugin?.() || null,
+      startPage: () => tabWorkspace?.startPage, openBeside: (plugin) => tabWorkspace?.openBeside(plugin),
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
     });
-    if (!document.body.hasAttribute('data-pane-embedded')) globalThis.molisWorkBarColumn?.();
+    // An object named by reference (an address written by objectLink, a result named on a card): its owner's reader says where it opens (the object-open action).
+    const openObject = (subject) => molisWorkRequest(route("/api/mainline/open"), { body: { subject } }).then((found) => {
+      const to = found && found.target;
+      if (!to) { showToast(readText("workbench.initialization.object-has-no-page")); return false; }
+      if (to.kind === "surface" || !to.id) openSurfaceEntry(to.surface); else tabWorkspace?.openItem(to.surface, to.id, to.title);
+      return true;
+    }).catch((error) => { showToast(error, true); return false; });
+    { const asked = new URL(location.href), kind = asked.searchParams.get("openObject"), id = asked.searchParams.get("openItem");
+      if (kind && id && !asked.searchParams.has("openPlugin")) { asked.searchParams.delete("openObject"); asked.searchParams.delete("openItem"); history.replaceState(history.state, "", asked); void openObject({ kind, id }); } }
+    const workLine = document.body.hasAttribute('data-pane-embedded') ? null : globalThis.molisWorkBar?.({ route, openObject, openEvent: (event) => assistantIsland?.openEvent(event), toNow: () => assistantIsland?.toNow(), parked: (subject) => assistantIsland?.parked(subject), dialog: (open) => assistantIsland?.dialog(open),
+      positions: () => projectPositions, positionRead: (path, body, signal) => molisWorkRequest(route(path), { body, signal }),
+      openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openSurface: (plugin) => openSurfaceEntry(plugin) });
     (${ATTENTION_FACTORY_SCRIPT})({ translate: readText, route, projectId: state.project?.project_id,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
     (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ projectId: state.project?.project_id });
@@ -164,7 +176,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
     assistantIsland = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: readText, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
-      positions: projectPositions, positionRead,
+      positions: projectPositions, positionRead, lineFocus: (subject) => workLine?.focus(subject), lineEvent: (subject) => workLine?.event(subject) || null, lineEvents: workLine ? () => workLine.events() : undefined,
+      linePlaced: (task) => workLine?.placed(task) || '', lineWaiting: () => workLine?.waiting() || [], lineWaitingGo: (key) => workLine?.goWaiting(key), linePlace: (subject) => workLine?.place(subject), lineCard: workLine ? (slot, card) => workLine.card(slot, card) : undefined,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
       project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || "" },
     });

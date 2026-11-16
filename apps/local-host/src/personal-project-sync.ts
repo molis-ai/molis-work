@@ -1,7 +1,7 @@
 import { verifySyncPluginDistribution } from './sync-distribution.js';
 import { projectSyncCatalog } from './project-sync-catalog.js';
 import { replicaError } from './project-replication-errors.js';
-import { createSyncConflictState } from '@molis-ai/molis-work-plugin-sdk';
+import { createSyncConflictState, objectLink } from '@molis-ai/molis-work-plugin-sdk';
 import { createSqliteReplica, namespacedReplicaDatabase } from '@molis-ai/molis-work-storage';
 import { privateValueReplicaOwner, validatePrivateValueReplication } from '@molis-ai/molis-work-plugin-runtime';
 import { assertPassiveSyncIdle } from './passive-sync-execution.js';
@@ -25,7 +25,7 @@ export function createPersonalProjectRegistrations(home:string,spaceId:string,_u
   const projectId=(key:string)=>{const parts:unknown=JSON.parse(key);if(!Array.isArray(parts)||parts.length!==3||parts[1]!==binding.kind||typeof parts[0]!=='string'||typeof parts[2]!=='string')throw replicaError('replica_key_invalid');return parts[0];};
   const authorizeKey=(key:string)=>{project(projectId(key));};
   const content=binding.content?.({spaceId,authorize:check});
-  return [{selection,dependencies,locate:key=>{authorizeKey(key);return '/projects/'+encodeURIComponent(projectId(key))+'/?openPlugin='+encodeURIComponent(entry.project_plugin_id);},title:collection.title,
+  return [{selection,dependencies,locate:key=>{authorizeKey(key);return objectLink(projectId(key),{surface:entry.project_plugin_id});},title:collection.title,
    ...(content?{content:{
     ...(content.prepare?{async prepare(key,value){authorizeKey(key);await content.prepare!(key,value);authorizeKey(key);}}:{}),
     encode(key,value){authorizeKey(key);const result=content.encode(key,value);authorizeKey(key);return result;},

@@ -1,5 +1,5 @@
 import { WORKBENCH, SHELL, ASSIST, RAIL_LINK, PAGES } from "./craft-finish-selectors.js";
-import { composerRestRules, composerRestTouch } from "../composer-styles.js";
+import { composerFoldRules, composerRestRules, composerRestTouch } from "../composer-styles.js";
 
 /** The finish layer, first part: tokens, the desk and sheet, titlebar tabs, the plugin rail and the bottom bar down to the switcher and the work tabs. */
 export const CRAFT_BAR_STYLES = `
@@ -221,11 +221,6 @@ export const CRAFT_BAR_STYLES = `
     display: grid; grid-template-columns: minmax(150px, 1fr) minmax(200px, 660px) minmax(max-content, 1fr); align-items: end; gap: 24px;
     padding: 0 var(--sheet-inset); background: var(--desk);
   }
-  /* The input stands over the work (UIV-19): bar-column.ts measures the focused pane and gives the first two columns their width,
-     so the input's edges are the page's; the right group keeps what its buttons need. */
-  /* Until that first measure the input is not shown, so it appears where it stays rather than sliding over (VUX-31). */
-  @media (min-width: 761px) { ${SHELL} .workbench-bar[data-bar-placing] > .bar-center { visibility: hidden; } }
-  @media (min-width: 761px) { ${SHELL} .workbench-bar[data-bar-column] { grid-template-columns: minmax(150px, var(--bar-start-w)) minmax(200px, var(--bar-column-w)) minmax(max-content, 1fr); } }
   /* Each side stays inside its column: the Dock folds what does not fit instead of running under the Assistant. */
   /* The composer grows upward; the two sides stay in the rest band at the bottom, level with its foot. */
   ${SHELL} .bar-start { justify-self: start; position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; min-height: var(--dock-min); }
@@ -298,8 +293,8 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} .dock-pin.dock-pin-more { width: auto; min-width: var(--dock-btn); padding: 0 8px; font: inherit; font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
   ${SHELL} .dock-pin.dock-pin-more:is([aria-expanded="true"], .has-current) { background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); }
   ${SHELL} .dock-overflow {
-    position: absolute; z-index: 60; bottom: calc(100% + 10px); display: grid; gap: 1px; width: 212px; max-height: min(60dvh, 480px); overflow: auto; padding: 8px;
-    border-radius: 14px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom left; animation: craft-rise-from-bar 250ms var(--ease-quint) both;
+    position: absolute; z-index: 60; top: calc(100% + 6px); display: grid; gap: 1px; width: 212px; max-height: min(60dvh, 480px); overflow: auto; padding: 8px;
+    border-radius: 14px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: top left; animation: craft-fade-in var(--dur-move) var(--ease-quint) both;
   }
   ${SHELL} .dock-overflow[hidden] { display: none; }
   ${SHELL} .dock-overflow-item {
@@ -336,6 +331,9 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} .assistant-composer :is(.mw-compose__menu, .mw-composer__controls) { z-index: 60; }
   /* At rest the bar's input is one row at every size (user 2026-11-10, one input): ＋, who it goes to, the hint, the scene
      controls, send; writing grows it. Only the bar has this class, so the short scope. */${composerRestRules(".assistant-composer > .mw-composer[data-rest]")}
+  /* Where the one row cannot hold them and still leave the words their room, the scene controls wait behind 更多 (the bar has no
+     side columns since its plugin icons moved up, so its box is wider than the narrow box's 480px, but not wide enough for them). */
+  @container mw-composer (max-width: 600px) {${composerFoldRules(".assistant-composer > .mw-composer[data-rest]")} }
   @media (min-width: 601px) { ${SHELL} .assistant-composer > .mw-composer[data-rest] > .mw-composer__box { box-sizing: border-box; min-height: var(--bar-row); } }
   /* A fine pointer keeps the bar's sizes from 601px (touch-targets.ts): at rest the box's buttons follow --bar-row rather than the
      narrow window's 44px controls, so in a short window the input is the Dock's height too and the work keeps those 8px. */
@@ -385,104 +383,104 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} .is-split .plugin-picker-chip { padding: 0 8px; border-radius: 6px; color: var(--muted); }
   ${SHELL} .is-split .plugin-picker-chip.is-focused { background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); }
   ${SHELL} .plugin-picker-trigger:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover {
-    position: absolute; z-index: 60; left: -8px; bottom: calc(100% + 16px); width: 560px; max-height: min(80dvh, 760px, calc(100dvh - var(--desktop-titlebar-height, 0px) - var(--dock-h, 76px) - 32px)); overflow: auto; padding: 8px;
+  html ${SHELL} .workbench-header .plugin-picker-popover {
+    position: fixed; z-index: 60; left: var(--sheet-inset); top: calc(var(--desktop-titlebar-height, 44px) + 4px); width: 560px; max-height: min(80dvh, 760px, calc(100dvh - var(--desktop-titlebar-height, 0px) - var(--dock-h, 76px) - 32px)); overflow: auto; padding: 8px;
     border-radius: 14px; background: var(--paper); box-shadow: var(--lift-3);
   }
-  html ${SHELL} .workbench-bar .plugin-picker-popover[hidden] { display: none; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail { position: static; display: block; width: auto; height: auto; overflow: visible; background: transparent; border: 0; padding: 0; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail::before { content: none; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items { display: flex; flex-direction: column; align-items: stretch; gap: 1px; padding: 0; overflow: visible; background: transparent; box-shadow: none; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items [data-rail-zone] { display: flex !important; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items p[data-rail-zone] { display: block !important; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-toggle { display: none !important; }
+  html ${SHELL} .workbench-header .plugin-picker-popover[hidden] { display: none; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail { position: static; display: block; width: auto; height: auto; overflow: visible; background: transparent; border: 0; padding: 0; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail::before { content: none; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items { display: flex; flex-direction: column; align-items: stretch; gap: 1px; padding: 0; overflow: visible; background: transparent; box-shadow: none; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items [data-rail-zone] { display: flex !important; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items p[data-rail-zone] { display: block !important; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-toggle { display: none !important; }
   /* A launcher: two columns of entries, each a name with one line saying what the person gets there. */
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 8px; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 8px; }
   @media (min-width: 1100px) {
-    html ${SHELL} .workbench-bar .plugin-picker-popover { width: 880px; }
-    html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    html ${SHELL} .workbench-header .plugin-picker-popover { width: 880px; }
+    html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
   /* Each entry ends in a button, so a wide window gives the names and their one line more room. */
   @media (min-width: 1360px) {
-    html ${SHELL} .workbench-bar .plugin-picker-popover { width: 980px; }
+    html ${SHELL} .workbench-header .plugin-picker-popover { width: 980px; }
   }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items p[data-rail-zone] { grid-column: 1 / -1; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[data-rail-zone] {
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items p[data-rail-zone] { grid-column: 1 / -1; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-item[data-rail-zone] {
     display: grid !important; grid-template-columns: 16px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 12px; row-gap: 0; align-items: center; align-content: center;
     width: 100%; height: auto; min-height: 44px; padding: 4px 12px; border-radius: 8px; text-align: left;
   }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item > span { position: static; width: auto; height: auto; margin: 0; clip: auto; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; line-height: 18px; color: var(--ink); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item .plugin-rail-hint { display: block; grid-column: 2; grid-row: 2; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; line-height: 16px; color: var(--muted); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item:not(:has(.plugin-rail-hint)) { grid-template-rows: auto; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item svg { grid-row: 1; width: 16px; height: 16px; color: var(--ink-soft); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover :is(.plugin-rail-group, .plugin-rail-subgroup) {
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-item > span { position: static; width: auto; height: auto; margin: 0; clip: auto; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; line-height: 18px; color: var(--ink); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-item .plugin-rail-hint { display: block; grid-column: 2; grid-row: 2; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; line-height: 16px; color: var(--muted); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-item:not(:has(.plugin-rail-hint)) { grid-template-rows: auto; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-item svg { grid-row: 1; width: 16px; height: 16px; color: var(--ink-soft); }
+  html ${SHELL} .workbench-header .plugin-picker-popover :is(.plugin-rail-group, .plugin-rail-subgroup) {
     width: auto; height: auto; margin: 8px 0 4px; padding: 0 12px; background: none; overflow: visible; color: var(--muted); font-size: 11px; font-weight: 500; line-height: 18px;
   }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items[data-seg-thumb]::before { display: none; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] { background: var(--nav-active); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] > span { color: var(--ink); font-weight: 500; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] svg { color: var(--ink); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item:not([aria-current]):hover { background: var(--nav-hover); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items[data-seg-thumb]::before { display: none; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] { background: var(--nav-active); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] > span { color: var(--ink); font-weight: 500; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] svg { color: var(--ink); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-item:not([aria-current]):hover { background: var(--nav-hover); }
   /* One tile per plugin: the entry, and at its end two small buttons (keep it in the Dock; add it to / remove it from the
      project) that are there only while the tile is looked at (the pointer on it, or keyboard focus within; a press leaves no trace). The row yields to them the way DropAgent's directory rows do:
      its text gives up the room at once, the buttons ease in, and nothing slides under the pointer. */
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-tile { position: relative; min-width: 0; border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-quint); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-tile > .plugin-rail-item[data-rail-zone] { width: 100%; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-tile:has(> .plugin-rail-item[aria-current]) { background: var(--nav-active); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-tile:not(:has(> .plugin-rail-item[aria-current])):hover { background: var(--nav-hover); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-tile > .plugin-rail-item:is([aria-current], :hover) { background: transparent; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-tile:is(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-item[data-rail-zone] { padding-right: var(--tile-yield, 72px); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-ops { position: absolute; top: 0; right: 6px; bottom: 0; display: flex; align-items: center; gap: 4px; pointer-events: none; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-tile { position: relative; min-width: 0; border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-quint); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-tile > .plugin-rail-item[data-rail-zone] { width: 100%; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-tile:has(> .plugin-rail-item[aria-current]) { background: var(--nav-active); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-tile:not(:has(> .plugin-rail-item[aria-current])):hover { background: var(--nav-hover); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-tile > .plugin-rail-item:is([aria-current], :hover) { background: transparent; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-tile:is(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-item[data-rail-zone] { padding-right: var(--tile-yield, 72px); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-ops { position: absolute; top: 0; right: 6px; bottom: 0; display: flex; align-items: center; gap: 4px; pointer-events: none; }
   /* The two buttons are the floor's size (--control-h: 32px, 28px compact; 44px on touch, in touch-targets.ts), and the row gives up their room. */
-  .plugin-picker-popover { --ops-btn: var(--control-h, 32px); --tile-yield: calc(var(--ops-btn) * 2 + 16px); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-ops > .mw-btn {
+  .plugin-picker-popover { --ops-btn: var(--control-h, 32px); --tile-yield: calc(var(--ops-btn) * 3 + 20px); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-ops > .mw-btn {
     width: var(--ops-btn); min-width: var(--ops-btn); min-height: var(--ops-btn);
     opacity: 0; transform: translateX(8px) scale(.92);
     transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint);
   }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-ops > .mw-btn:disabled { --ops-opacity: .4; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile:is(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-ops { pointer-events: auto; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile:is(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-ops > .mw-btn { opacity: var(--ops-opacity, 1); transform: none; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile:is(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-ops > .mw-btn + .mw-btn { transition-delay: 32ms, 32ms, 0s, 0s; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile:is(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-ops > .mw-btn:active:not(:disabled) { transform: scale(.94); transition-duration: var(--dur-press); transition-delay: 0s; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-ops > .mw-btn:disabled { --ops-opacity: .4; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile:is(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-ops { pointer-events: auto; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile:is(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-ops > .mw-btn { opacity: var(--ops-opacity, 1); transform: none; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile:is(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-ops > .mw-btn + .mw-btn { transition-delay: 32ms, 32ms, 0s, 0s; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile:is(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-ops > .mw-btn:active:not(:disabled) { transform: scale(.94); transition-duration: var(--dur-press); transition-delay: 0s; }
   /* A kept plugin carries a small pin at rest (its text leaves it room); looked at, the buttons take its place. */
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-tile.is-kept:not(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-item[data-rail-zone] { padding-right: 36px; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-mark { position: absolute; top: 50%; right: 14px; display: grid; place-items: center; width: 14px; height: 14px; margin-top: -7px; color: var(--faint); opacity: 0; font-style: normal; pointer-events: none; transition: opacity var(--dur-hover) var(--ease-quint); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-mark svg { grid-row: auto; width: 13px; height: 13px; color: inherit; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-kept:not(:hover, :has(:focus-visible), .is-confirming) .plugin-rail-mark { opacity: 1; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-tile.is-kept:not(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-item[data-rail-zone] { padding-right: 36px; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-mark { position: absolute; top: 50%; right: 14px; display: grid; place-items: center; width: 14px; height: 14px; margin-top: -7px; color: var(--faint); opacity: 0; font-style: normal; pointer-events: none; transition: opacity var(--dur-hover) var(--ease-quint); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-mark svg { grid-row: auto; width: 13px; height: 13px; color: inherit; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-kept:not(:hover, :has(:focus-visible), .is-confirming) .plugin-rail-mark { opacity: 1; }
   /* The glyphs: the pin stands up when kept. The toggle holds both a plus and a trash can and shows the one that fits — the plus
      while the plugin is not in the project, a red trash can once it is — swapping in place (opacity and transform only). */
-  html ${SHELL} .workbench-bar .plugin-picker-popover .dock-keep svg, html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-toggle svg { width: 14px; height: 14px; transition: transform var(--dur-move) var(--ease-spring); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .dock-keep[aria-pressed="false"] svg { transform: rotate(32deg); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-toggle { display: inline-grid; place-items: center; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-toggle > svg { grid-area: 1 / 1; transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-available .plugin-toggle > .plugin-toggle-remove { opacity: 0; transform: scale(.5) rotate(-18deg); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile:not(.is-available) .plugin-toggle > .plugin-toggle-add { opacity: 0; transform: scale(.5) rotate(45deg); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile:not(.is-available) .plugin-toggle:not(:disabled) { color: var(--red); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile:not(.is-available, .is-confirming) .plugin-toggle:not(:disabled):hover { background: color-mix(in srgb, var(--red) 13%, var(--control-fill)); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .dock-keep svg, html ${SHELL} .workbench-header .plugin-picker-popover .plugin-toggle svg { width: 14px; height: 14px; transition: transform var(--dur-move) var(--ease-spring); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .dock-keep[aria-pressed="false"] svg { transform: rotate(32deg); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-toggle { display: inline-grid; place-items: center; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-toggle > svg { grid-area: 1 / 1; transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-available .plugin-toggle > .plugin-toggle-remove { opacity: 0; transform: scale(.5) rotate(-18deg); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile:not(.is-available) .plugin-toggle > .plugin-toggle-add { opacity: 0; transform: scale(.5) rotate(45deg); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile:not(.is-available) .plugin-toggle:not(:disabled) { color: var(--red); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile:not(.is-available, .is-confirming) .plugin-toggle:not(:disabled):hover { background: color-mix(in srgb, var(--red) 13%, var(--control-fill)); }
   /* Not in this project: the whole entry is grey and inert; it wakes (tone only) when the plugin comes in. */
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile .plugin-rail-item > span,
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile .plugin-rail-item > svg,
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile .plugin-rail-hint { transition: color var(--dur-move) var(--ease-quint); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-available > .plugin-rail-item { cursor: default; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-available .plugin-rail-item > span,
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-available .plugin-rail-item > svg,
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-available .plugin-rail-hint { color: var(--faint); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-available:hover { background: transparent; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile .plugin-rail-item > span,
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile .plugin-rail-item > svg,
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile .plugin-rail-hint { transition: color var(--dur-move) var(--ease-quint); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-available > .plugin-rail-item { cursor: default; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-available .plugin-rail-item > span,
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-available .plugin-rail-item > svg,
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-available .plugin-rail-hint { color: var(--faint); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-available:hover { background: transparent; }
   /* Removing asks once, in the tile's own second line: the hint gives way to what will go, the trash can fills red. */
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-confirm { grid-row: 2; grid-column: 2; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; line-height: 16px; color: var(--tone-blocked); opacity: 0; transition: opacity var(--dur-hover) var(--ease-quint); pointer-events: none; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile .plugin-rail-hint { transition: opacity var(--dur-hover) var(--ease-quint), color var(--dur-move) var(--ease-quint); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-confirming .plugin-rail-hint { opacity: 0; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-confirming .plugin-rail-confirm { opacity: 1; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-confirming .plugin-toggle:not(:disabled) { border-color: var(--danger-action); background: var(--danger-action); color: var(--danger-action-ink); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-busy > .plugin-rail-ops { pointer-events: none; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-busy > .plugin-rail-ops > .mw-btn { --ops-opacity: .55; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-confirm { grid-row: 2; grid-column: 2; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; line-height: 16px; color: var(--tone-blocked); opacity: 0; transition: opacity var(--dur-hover) var(--ease-quint); pointer-events: none; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile .plugin-rail-hint { transition: opacity var(--dur-hover) var(--ease-quint), color var(--dur-move) var(--ease-quint); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-confirming .plugin-rail-hint { opacity: 0; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-confirming .plugin-rail-confirm { opacity: 1; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-confirming .plugin-toggle:not(:disabled) { border-color: var(--danger-action); background: var(--danger-action); color: var(--danger-action-ink); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-busy > .plugin-rail-ops { pointer-events: none; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-busy > .plugin-rail-ops > .mw-btn { --ops-opacity: .55; }
   /* Without a pointer to look with, the buttons stay and the row keeps their room. */
   @media (hover: none) {
-    html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-tile > .plugin-rail-item[data-rail-zone] { padding-right: var(--tile-yield, 72px); }
-    html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-ops { pointer-events: auto; }
-    html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-ops > .mw-btn { opacity: var(--ops-opacity, 1); transform: none; }
-    html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-mark { display: none; }
+    html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-tile > .plugin-rail-item[data-rail-zone] { padding-right: var(--tile-yield, 72px); }
+    html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-ops { pointer-events: auto; }
+    html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-ops > .mw-btn { opacity: var(--ops-opacity, 1); transform: none; }
+    html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-mark { display: none; }
   }
   /* The switcher at the bar's left: where you are, and every plugin; at its head, search and the market and the studio. */
   ${SHELL} .bar-start .plugin-picker { flex: none; max-width: 60%; }
@@ -495,27 +493,27 @@ export const CRAFT_BAR_STYLES = `
   /* The head: search, and beside it the two ways to get more plugins — the market and the studio — as buttons, not rows among
      the places. Where the room runs out the buttons wrap under search; on a window it stays in view while a long list scrolls
      under it (and what is scrolled to keeps clear of it). */
-  html ${SHELL} .workbench-bar .plugin-picker-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -8px -8px 0; padding: 8px 8px 6px; border-radius: 14px 14px 0 0; background: var(--paper); }
+  html ${SHELL} .workbench-header .plugin-picker-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -8px -8px 0; padding: 8px 8px 6px; border-radius: 14px 14px 0 0; background: var(--paper); }
   @media (min-width: 761px) {
-    html ${SHELL} .workbench-bar .plugin-picker-popover { scroll-padding-top: 52px; }
-    html ${SHELL} .workbench-bar .plugin-picker-head { position: sticky; top: -8px; z-index: 3; }
+    html ${SHELL} .workbench-header .plugin-picker-popover { scroll-padding-top: 52px; }
+    html ${SHELL} .workbench-header .plugin-picker-head { position: sticky; top: -8px; z-index: 3; }
   }
-  html ${SHELL} .workbench-bar .plugin-picker-head .plugin-picker-search { flex: 1 1 200px; width: auto; min-width: 0; margin: 0; }
-  html ${SHELL} .workbench-bar .plugin-picker-extend { flex: 0 1 auto; display: flex; gap: 8px; min-width: 0; }
-  html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 auto; justify-content: flex-start; gap: 8px; height: var(--menu-row, 34px); min-height: var(--menu-row, 34px); padding: 0 12px; border-radius: 8px; font-size: 13px; white-space: nowrap; }
-  html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn svg { width: 15px; height: 15px; color: var(--ink-soft); }
-  html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn[aria-current] { background: var(--nav-active); box-shadow: inset 0 0 0 1px var(--line-strong); }
-  html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn[aria-current] svg { color: var(--ink); }
-  html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-rail-update-count { position: static; margin-left: 2px; }
+  html ${SHELL} .workbench-header .plugin-picker-head .plugin-picker-search { flex: 1 1 200px; width: auto; min-width: 0; margin: 0; }
+  html ${SHELL} .workbench-header .plugin-picker-extend { flex: 0 1 auto; display: flex; gap: 8px; min-width: 0; }
+  html ${SHELL} .workbench-header .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 auto; justify-content: flex-start; gap: 8px; height: var(--menu-row, 34px); min-height: var(--menu-row, 34px); padding: 0 12px; border-radius: 8px; font-size: 13px; white-space: nowrap; }
+  html ${SHELL} .workbench-header .plugin-picker-extend .plugin-picker-extend-btn svg { width: 15px; height: 15px; color: var(--ink-soft); }
+  html ${SHELL} .workbench-header .plugin-picker-extend .plugin-picker-extend-btn[aria-current] { background: var(--nav-active); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  html ${SHELL} .workbench-header .plugin-picker-extend .plugin-picker-extend-btn[aria-current] svg { color: var(--ink); }
+  html ${SHELL} .workbench-header .plugin-picker-extend .plugin-rail-update-count { position: static; margin-left: 2px; }
   /* Search heads the list: finding a place is part of going there (⌘K opens it from anywhere). */
-  html ${SHELL} .workbench-bar .plugin-picker-search { display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; margin: 0 0 6px; padding: 0 10px; border: 0; border-radius: 8px;
+  html ${SHELL} .workbench-header .plugin-picker-search { display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; margin: 0 0 6px; padding: 0 10px; border: 0; border-radius: 8px;
     background: var(--wash); color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
-  html ${SHELL} .workbench-bar .plugin-picker-search:hover { background: var(--nav-hover); color: var(--ink); }
-  html ${SHELL} .workbench-bar .plugin-picker-search:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  html ${SHELL} .workbench-bar .plugin-picker-search svg { flex: none; width: 15px; height: 15px; }
-  html ${SHELL} .workbench-bar .plugin-picker-search > span { flex: 1; text-align: left; }
-  html ${SHELL} .workbench-bar .plugin-picker-search kbd { padding: 0 4px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line-strong); font: inherit; font-size: 11px; line-height: 16px; }
-  @media (hover: none) { html ${SHELL} .workbench-bar .plugin-picker-search kbd { display: none; } }
+  html ${SHELL} .workbench-header .plugin-picker-search:hover { background: var(--nav-hover); color: var(--ink); }
+  html ${SHELL} .workbench-header .plugin-picker-search:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  html ${SHELL} .workbench-header .plugin-picker-search svg { flex: none; width: 15px; height: 15px; }
+  html ${SHELL} .workbench-header .plugin-picker-search > span { flex: 1; text-align: left; }
+  html ${SHELL} .workbench-header .plugin-picker-search kbd { padding: 0 4px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line-strong); font: inherit; font-size: 11px; line-height: 16px; }
+  @media (hover: none) { html ${SHELL} .workbench-header .plugin-picker-search kbd { display: none; } }
   /* Its answers open above the bar and stay until closed: one tab per open work, the work's side pane on the left
      (what it is, how it got here, what it used, what it made) and the conversation on the right, right above the input. */
   ${ASSIST} .assistant-panel {

@@ -505,7 +505,6 @@ const MCP = [agent.listMcp, agent.saveMcp, agent.controlMcp];
 const LIBRARY = "fixture-library";
 const READER = { roles: [{ role_id: "reader", version: 1, execution: "read-only" as const, prompts: ["reader"], host_tools: [] }], prompts: [{ prompt_id: "reader", version: 1 }], mcp: true };
 const server = (id: string) => ({ id, version: 1, label: id, enabled: true, transport: "http" as const, timeout_ms: 1000, credential: "none" as const, health: "connected" as const, tools: [], resources: [] });
-const continuation = (session_id: string) => ({ session_id, continuation: { graph_id: "g", node_id: session_id, session_id, request_key: `key-${session_id}`, state: "eligible", auto: true } });
 
 async function librarySetup(t: TestContext, home = false) {
   const directory = await mkdtemp(join(tmpdir(), "agent-host-library-"));
@@ -517,8 +516,8 @@ async function librarySetup(t: TestContext, home = false) {
   const workspaceFor = async () => { await gate.current; return null; };
   const composition = home ? localHost.ensureAgentService(directory, () => composeAgentHost({ localHost, homeDirectory: directory, workspaceFor }))
     : composeAgentHost({ localHost, workspaceFor });
-  // What the Runtime was asked, with the owner it was asked for; whose each session is; which continuations are ready.
-  const seen: Array<[string, unknown]> = [], controlled: string[] = [], sessions = new Map<string, Record<string, string>>(), ready: Array<ReturnType<typeof continuation>> = [], excluded: string[][] = [];
+  // What the Runtime was asked, with the owner it was asked for; whose each session is.
+  const seen: Array<[string, unknown]> = [], controlled: string[] = [], sessions = new Map<string, Record<string, string>>();
   const listing: { current?: Promise<void> } = {}, tooling: { current?: Promise<void> } = {}, toolVersion = { current: 1 }, observers = new Set<unknown>();
   // Every MCP provider the Host registers in the project's directory, by provider id: what a list republished.
   const mcpRegistrations: string[] = [], registryOf = localHost.actionRegistry.bind(localHost);
@@ -553,17 +552,11 @@ async function librarySetup(t: TestContext, home = false) {
       read: async (_project: string, sessionId?: string) => [...sessions.keys()].filter(id => !sessionId || id === sessionId).map(id => ({ session_id: id, wait: { wait_id: `wait-${id}`, session_id: id } })) as never,
       control: async (_project: string, control: { wait_id: string }) => { controlled.push(control.wait_id); return { session_id: control.wait_id.slice(5) }; },
       revise: unused,
-      async awaitReady(_project: string, timeoutMs: number, exclude: string[] = [], signal?: AbortSignal) {
-        excluded.push([...exclude]);
-        const found = ready.filter(view => !exclude.includes(view.continuation.request_key));
-        if (found.length) return found as never;
-        await new Promise<void>(resolve => { const timer = setTimeout(resolve, timeoutMs); signal?.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true }); });
-        return [];
-      },
+      serveStarts: () => () => {},
     },
   } as AgentRuntimeAdapter);
   const store = new LocalProjectDatabase(join(directory, "plugins.sqlite"));
-  const consumes = [...DIRECTORY, ...MCP, agent.awaitContinuations, agent.waitRun, collaboration.read, collaboration.control].map(definition => definition.capability_id);
+  const consumes = [...DIRECTORY, ...MCP, agent.waitRun, collaboration.read, collaboration.control].map(definition => definition.capability_id);
   const consumer = callerPlugin("library", "project", {}, consumes), other = callerPlugin("library-other", "project", {}, consumes), bystander = callerPlugin("library-bystander", "project");
   consumer.definition.manifest.agent = READER;
   consumer.definition.agent_prompts = [{ prompt_id: "reader", version: 1, body: "Answer from the supplied context only.", layer: "role" }];
@@ -574,7 +567,7 @@ async function librarySetup(t: TestContext, home = false) {
   const ownerOf = (plugin: typeof consumer) => ({ project_id: PROJECT, plugin_id: plugin.id, install_id: plugin.context(PROJECT).install_id, actor_id: "web-user" });
   sessions.set("mine", ownerOf(consumer)); sessions.set("theirs", ownerOf(other));
   t.after(async () => { if (!home) composition.dispose(); store.close(); await localHost.closeProject(reference); await localHost.close(); await rm(directory, { recursive: true, force: true }); });
-  return { localHost, reference, seen, controlled, ready, excluded, gate, listing, tooling, toolVersion, mcpRegistrations, observers, consumer, other, bystander, consumerRuntime: started[0]!, methodOwner: (plugin: typeof consumer) => ({ project_id: PROJECT, plugin_id: plugin.id }) };
+  return { localHost, reference, seen, controlled, gate, listing, tooling, toolVersion, mcpRegistrations, observers, consumer, other, bystander, consumerRuntime: started[0]!, methodOwner: (plugin: typeof consumer) => ({ project_id: PROJECT, plugin_id: plugin.id }) };
 }
 
 /** A call stopped while the Host reads its authority, after it started and before it writes: `stop` ends it, `gate` lets the read go on. */
@@ -589,7 +582,7 @@ async function stoppedMidway(gate: { current?: Promise<void> }, call: (signal: A
 }
 
 test("RAC-182 the runtime directory, roles and actions are plugin-only reads that answer for the caller's own declarations", async t => {
-  for (const definition of [...DIRECTORY, ...MCP, agent.awaitContinuations] as ActionDefinition[]) {
+  for (const definition of [...DIRECTORY, ...MCP] as ActionDefinition[]) {
     assert.deepEqual([definition.action.scope, definition.action.audiences, definition.action.permissions], ["project", ["plugin"], []], definition.capability_id);
   }
   const { localHost, reference, seen, consumer, other, bystander } = await librarySetup(t), actions = consumer.actions(PROJECT);
@@ -602,7 +595,7 @@ test("RAC-182 the runtime directory, roles and actions are plugin-only reads tha
   for (const definition of [agent.availableRoles, agent.listActions, agent.listMcp])
     await assert.rejects(actions.invoke(definition as ActionDefinition, [LIBRARY, other.id]), { code: "actions.input_invalid" }, definition.capability_id);
   await assert.rejects(actions.invoke(agent.listRuntimes as ActionDefinition, [LIBRARY]), { code: "actions.input_invalid" });
-  for (const definition of [...DIRECTORY, ...MCP, agent.awaitContinuations] as ActionDefinition[]) {
+  for (const definition of [...DIRECTORY, ...MCP] as ActionDefinition[]) {
     await assert.rejects(bystander.actions(PROJECT).invoke(definition, [LIBRARY]), { code: "actions.forbidden" }, definition.capability_id);
     for (const audience of ["user", "agent", "workflow", "mcp"] as const)
       await assert.rejects(localHost.actionClient(reference).invoke(person(audience), definition, [LIBRARY]), { code: "actions.forbidden" }, `${definition.capability_id} ${audience}`);
@@ -658,56 +651,6 @@ test("RAC-184 MCP servers are the caller's own; a list republishes the caller's 
   // The changed tool is registered again by a list that goes through: the refusals above are what kept it out.
   await other.actions(PROJECT).invoke(agent.listMcp, [LIBRARY]);
   assert.deepEqual(mcpRegistrations.slice(registrations), [`${other.id}#mcp:s1`]);
-});
-
-test("RAC-185 the wait for a continuation answers the caller's own sessions only, as a concurrent query sharing waitRun's 8 places either way", async t => {
-  const definition = agent.awaitContinuations as ActionDefinition;
-  assert.deepEqual([definition.operation, definition.action.scheduling, definition.action.execution], ["query", "concurrent", { timeout_ms: 30_000 }]);
-  const { localHost, ready, excluded, observers, consumer } = await librarySetup(t, true), actions = consumer.actions(PROJECT);
-  const rows = () => localHost.callLog!.list(PROJECT).filter(row => row.capability_id === agent.awaitContinuations.capability_id);
-  const awaitFor = (timeoutMs: number, signal?: AbortSignal) => actions.invoke(agent.awaitContinuations, [LIBRARY, timeoutMs, []], { signal, beforeEffect: async () => {} });
-  // Another plugin's session is ready: it is not in the answer, and the wait goes on past it, so it neither shows nor ends the wait early.
-  ready.push(continuation("theirs"));
-  const started = Date.now();
-  assert.deepEqual(await awaitFor(60), [], "only another plugin's continuation was ready: the wait reached its time with none");
-  assert.ok(Date.now() - started >= 50, "another plugin's continuation did not end the wait early");
-  assert.deepEqual(excluded.at(-1), ["key-theirs"], "the wait went on with that continuation set aside");
-  ready.push(continuation("mine"));
-  assert.deepEqual((await awaitFor(1_000)).map(view => view.session_id), ["mine"]);
-  assert.deepEqual(rows(), [], "answered waits leave no row");
-  // A caller that cancels its own wait leaves the one code-only row a cancelled call leaves.
-  ready.length = 0;
-  const cancelled = new AbortController(), pending = awaitFor(25_000, cancelled.signal);
-  await new Promise(resolve => setTimeout(resolve, 20));
-  cancelled.abort(new ActionError("actions.cancelled", "page closed"));
-  await assert.rejects(pending);
-  assert.deepEqual(rows().map(row => [row.ok, row.code, row.message]), [[false, "actions.cancelled", undefined]]);
-  // Eight places per installation, shared with following a round: a ninth wait of either kind is refused before it waits.
-  const held = Array.from({ length: 8 }, () => new AbortController()), open = held.map(control => awaitFor(25_000, control.signal).catch(() => undefined));
-  await new Promise(resolve => setTimeout(resolve, 20));
-  const asked = excluded.length;
-  await assert.rejects(awaitFor(25_000), { code: "agent.wait_limit_reached" });
-  await assert.rejects(actions.invoke(agent.waitRun, [{ runtime_id: LIBRARY, session_id: "mine" }, { session_id: "mine", run_id: "r1" }, null, 0]), { code: "agent.wait_limit_reached" });
-  assert.equal(excluded.length, asked, "the refused wait asked the task graph nothing");
-  assert.equal(observers.size, 0, "and the refused follow followed nothing");
-  for (const control of held) control.abort();
-  await Promise.all(open);
-  // And the other way: eight rounds followed fill the same places, so a wait for a continuation is refused before it asks anything.
-  const session = { runtime_id: LIBRARY, session_id: "mine" }, run = { session_id: "mine", run_id: "r1" };
-  const { version } = await actions.invoke(agent.waitRun, [session, run, null, 0], { beforeEffect: async () => {} });
-  const following = Array.from({ length: 8 }, () => new AbortController());
-  const followed = following.map(control => actions.invoke(agent.waitRun, [session, run, version, 25_000], { signal: control.signal, beforeEffect: async () => {} }).catch(() => undefined));
-  await new Promise(resolve => setTimeout(resolve, 20));
-  assert.equal(observers.size, 8);
-  const looked = excluded.length;
-  await assert.rejects(awaitFor(25_000), { code: "agent.wait_limit_reached" });
-  assert.equal(excluded.length, looked, "the refused wait for a continuation asked the task graph nothing");
-  for (const control of following) control.abort();
-  await Promise.all(followed);
-  assert.deepEqual(await awaitFor(0), [], "the places are given back");
-  for (const timeoutMs of [25_001, -1, 1.5])
-    await assert.rejects(actions.invoke(agent.awaitContinuations, [LIBRARY, timeoutMs, []]), { code: "actions.input_invalid" }, String(timeoutMs));
-  await assert.rejects(actions.invoke(agent.awaitContinuations, [LIBRARY, 0, Array.from({ length: 201 }, (_, index) => `key-${index}`)]), { code: "actions.input_invalid" });
 });
 
 test("RAC-185 the waits a plugin reads or controls are its own sessions' alone: another's are not listed, and naming one is refused", async t => {

@@ -12,6 +12,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isolatedProjectStatements } from "./plugin-project-isolation.js";
 import { openPluginTables } from "./project-plugin-databases.js";
 import { ProjectStatementProcess, type StatementLimits } from "./project-statement-process.js";
+import { attentionChanged } from "./attention-changes.js";
 
 /** The Host's own connection to a project's library, and the file it is. */
 export interface ProjectLibrary {
@@ -62,6 +63,7 @@ export function openPluginProjectLibrary(library: ProjectLibrary, manifest: Plug
     const journal = library.journal
       ? projectJournalBinding({ ...library.journal, reader: storage }, authorize, instance, manifest.plugin_id) : noJournal;
     const client = pluginDatabaseClient({ reader, writer: library.db, inTransaction: () => library.db.inTransaction === true,
+      ...(projectId ? { committed: () => attentionChanged(projectId) } : {}),
       check: (connection, sql, parameters, mode) => (connection === reader ? reads : writes)(sql, parameters, mode) }, declaration, authorize, instance, () => closed, journal);
     const processes = new ProjectStatementProcess(library.path, record, statementLimits);
     const statements = isolatedProjectStatements(processes, declaration, authorize, instance, () => closed);

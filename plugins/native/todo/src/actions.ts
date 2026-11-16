@@ -8,7 +8,7 @@ import { withProjectReach } from "./reach.js";
 import type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLinkInput, TodoStores } from "./store.js";
 import { selectView, todoFlags, viewCounts, type TodoFlag } from "./views.js";
 import { createTodoSearchHandlers, todoSearchActions } from "./search.js";
-import { createTodoHomeEventsHandler, todoHomeEventsAction } from "./home-events.js";
+import { createTodoHomeEventsHandler, todoWorkEventsAction } from "./work-events.js";
 import { createTodoOrganizeHandlers, todoOrganizeActions } from "./organize-actions.js";
 import type { ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -137,7 +137,7 @@ export const todoActions = {
   dueWindow: withProjectReach(defineDueRemindersAction("todo.reminders.window", /* @version action.todo.reminders.window */ 1, [TODO_SUBJECT_KIND], "到期提醒", [...TODO_READ])),
   // The placement panel's “移到…”: Todo keeps where each todo belongs, so the move is Todo's own (only the person, at Home).
   move: withProjectReach(defineObjectMoveAction("todo.placement.move", /* @version action.todo.placement.move */ 1, [TODO_SUBJECT_KIND], "待办", TODO_WRITE, "home")),
-  homeEvents: todoHomeEventsAction,
+  homeEvents: todoWorkEventsAction,
   searchEntries: todoSearchActions.entries,
   searchProjectEntries: todoSearchActions.projectEntries,
   subject: todoSearchActions.subject,

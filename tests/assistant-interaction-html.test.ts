@@ -145,7 +145,7 @@ test("FSS-36: Assistant next steps carry fixed words separately from original ti
   const raw = "From an action card", option = "原选项 <raw>", pending: AgentPendingQuestion = { ...questionnaire, pending_id: "one", prompt: raw,
     questions: [{ index: 0, prompt: raw, type: "choice", required: true, multiple: false, allow_other: false, options: [{ index: 0, label: option, recommended: true }] }] };
   const shown = view("running", { cards: [{ ...card("ready"), title: raw }, { ...card("unknown"), card_id: "needs-check", title: option }],
-    delegated: [{ work_id: "child", title: raw, state: "waiting-input", follow_ups: 0 }] });
+    delegated: [{ work_id: "child", title: raw, state: "waiting-input", follow_ups: 0, created_at: "2026-10-02T09:00:00.000Z" }] });
   shown.rounds[0]!.awaiting_input = [pending];
   const { next_all_html } = assistantStepRow(shown, pageText("en"));
   const encoded = /<template data-assistant-next-words="([^"]+)"><\/template>/.exec(next_all_html)?.[1];
@@ -180,7 +180,7 @@ test("SLOT-01: the outcome slot follows whatever waits on the person; the row st
   assert.deepEqual(ids(row.next_html), ["review:r1", "card:card-1:run", "open:page:a"]);
   assert.match(row.next_html, /data-ix-steps-more="1" data-secondary>还有 1 项</, "an outcome never pushes what waits out of the first three");
   const delegated = assistantStepRow(view("completed", { objects: done.objects, reviews: crowded.reviews,
-    delegated: [{ work_id: "child-1", title: "查价格", state: "waiting-input", follow_ups: 0 }] }), say);
+    delegated: [{ work_id: "child-1", title: "查价格", state: "waiting-input", follow_ups: 0, created_at: "2026-10-02T09:00:00.000Z" }] }), say);
   assert.deepEqual(ids(delegated.next_all_html), ["review:r1", "work:child-1", "open:page:a", "open:page:b"]);
   assert.deepEqual(ids(delegated.next_html), ["review:r1", "work:child-1", "open:page:a"], "nor a sub-task that waits on the person");
   const shut = made("b"); delete shut.open;
@@ -239,7 +239,7 @@ test("FLOW-04, FLOW-05: the row above the input puts what waits first, shows thr
   const busy = view("needs-check", { work: { work_id: "w1", state: "needs-check", executor: { kind: "assistant" } } as AssistantWorkView["work"],
     reviews: [{ review_id: "r1", run_id: "run-1", kind: "change", summary: "删除「报销」", fields: [], requested_at: "", expires_at: null }],
     cards: [card("ready"), { ...card("unknown"), card_id: "card-2" }, { ...card("done"), card_id: "card-3" }],
-    delegated: [{ work_id: "child-1", title: "查价格", state: "waiting-input", follow_ups: 0 }, { work_id: "child-2", title: "已收回", state: "waiting-input", follow_ups: 0, taken_back: true }] });
+    delegated: [{ work_id: "child-1", title: "查价格", state: "waiting-input", follow_ups: 0, created_at: "2026-10-02T09:00:00.000Z" }, { work_id: "child-2", title: "已收回", state: "waiting-input", follow_ups: 0, taken_back: true }] });
   const { next_html, next_all_html } = assistantStepRow(busy, say);
   const ids = (html: string) => [...html.matchAll(/data-ix-step-id="([^"]*)"/g)].map(match => match[1]);
   assert.deepEqual(ids(next_all_html), ["review:r1", "card:card-1:run", "card:card-2", "check", "work:child-1"]);

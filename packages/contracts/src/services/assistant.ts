@@ -6,6 +6,7 @@ export type { AssistantMemory, AssistantMemoryCandidate, AssistantMemoryPrefs, A
 import type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
 export type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
 import type { AssistantActivity } from "./assistant-activity.js";
+import type { AssistantPendingReview } from "./assistant-review.js";
 export type { AssistantActivity, AssistantActivityFailure } from "./assistant-activity.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { DirectoryReadOrigin } from "../platform/plugin-directory.js";
@@ -288,16 +289,16 @@ export interface AssistantWork {
   created_at: string;
   updated_at: string;
   archived: boolean;
-  /**
-   * The Character the person chose to carry this work's rounds: an exact published version, in force from the next
-   * round on. Absent means the Assistant itself. Only project work can have one (Characters are published per project).
-   */
+  /** The Character the person chose to carry this work's rounds: an exact published version, in force from the next round on.
+   * Absent means the Assistant itself. Only project work can have one (Characters are published per project). */
   character?: AssistantCharacter;
-  /** Set on a work another work delegated: which one, and what it was asked to deliver. */
-  /** `taken_back_at`: the person took this part back into the work that delegated it (it stopped; what it made stays). */
+  /** Set on a work another work delegated: which one, what it was asked to deliver, and (`taken_back_at`) when the person took this part back into it (it stopped; what it made stays). */
   delegated_by?: { work_id: string; title: string; acceptance: string; taken_back_at?: string };
   /** The person's cap on this work's tokens (input plus output, its sub-tasks included). Absent means no cap of its own. */
   budget_tokens?: number;
+  ask_each_step?: true; // 「每步先问我」 (PWA-156): before each step it would go on to by itself (a part handed back, a wait that ended), it asks the person first.
+  main?: true; // The standing conversation of its scope with one counterpart (the Assistant, or `character`): what is said at 「现在」 goes here and its background tasks report back to it (specs/work-line §3.2).
+  serves?: Array<{ kind: string; id: string }>; line_event?: true; // On a background task: the events on the work line it is done for (the `serves` relation), and whether it is an event in its own right.
 }
 
 /** An exact published Character version, as the person chose it. */
@@ -350,16 +351,7 @@ export interface AssistantRound {
 }
 
 /** An effect held for the person's decision in this work, exactly as the Runtime will execute it. */
-export interface AssistantPendingReview {
-  review_id: string;
-  /** What is held: a business change, a file edit, a command, an MCP call… The fields read accordingly. */
-  kind: string;
-  run_id: string | null;
-  summary: string;
-  fields: Array<{ label: string; value: string }>;
-  requested_at: string;
-  expires_at: string | null;
-}
+export { ASSISTANT_NEXT_STEP_REVIEW, type AssistantPendingReview } from "./assistant-review.js";
 
 /**
  * How a work relates to an object, as Context Ledger edges the Assistant owns. The object itself, its content and its
@@ -456,8 +448,7 @@ export interface AssistantWorkView {
   cards: AssistantCard[];
   /** The objects this work started from, used, produced and handed to, as their owners have them now. */
   objects: AssistantWorkObject[];
-  /** Sub-tasks this work handed to works of their own (its task board): each one's state and follow-ups. */
-  delegated?: Array<{ work_id: string; title: string; state: AssistantWorkState; follow_ups: number; taken_back?: boolean }>;
+  delegated?: Array<{ work_id: string; title: string; state: AssistantWorkState; follow_ups: number; taken_back?: boolean; created_at: string; serves?: Array<{ kind: string; id: string }>; line_event?: true }>; // Sub-tasks this work handed to works of their own (its task board): each one's state and follow-ups, when it was handed out, and where it stands on the work line (as on the work itself).
   /** Timed rounds the person asked this work to run. */
   scheduled?: AssistantFollowUp[];
   /** Whether those timed rounds still run with the window closed (the runtime queue's own claim). */
@@ -491,6 +482,7 @@ export type { AssistantRecovery } from "./assistant-recovery.js";
 export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   /** Omitted starts a new work. */
   work_id?: string;
+  main?: true; for_event?: { kind: string; id: string }; // `main`, without `work_id`: the main conversation of this scope with this counterpart (`character`, or the Assistant), opened on first use. `for_event`, for a new work said in an event's tab: the event on the person's work line it is done for (the Host reads the line as the person).
   /** For a new work: who carries it. An existing work keeps its executor. */
   executor?: AssistantExecutorChoice;
   /** For a new work carried by a plugin: the mode of its first round. Later rounds use the session's own setting. */

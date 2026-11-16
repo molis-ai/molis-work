@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+### 事项线第一片、明确交办与逐项认可（2026-11-16，#2093）
+
+- **事项线第一片**：工作台顶部一条放标签与插件图标，底部整条成线（线头、已办、输入、接下来）；事件由插件在 Manifest 声明的事件读取动作登记（助理、Coding、待办、Feed、Inbox 与沙箱插件同一路），事件卡、事件标签、停到侧边、390 宽与键盘路径；原右侧「后台任务」页删除，后台任务改从助理对话框右上角的图标打开的面板看。
+- **主线服务**：新横向包 `horizontal/mainline`（不存存储），系统动作 `mainline.line.read`、`attention.waiting.read`、`mainline.place`、`background.tasks.read`、`background.tasks.command`、`background.tasks.decide`、`objects.open`；线读取随返回带上同一次读到的任务总表。
+- **明确交办与结果回流**：主对话持续接单；任务办完、失败、缺信息、要决定、等待满足回到派出对话；`reports_to: "assistant"` 的无对话来源任务只汇报；新增宿主事件 `host.agent.continuation.ready@1`（载荷只有 `runtime_id`/`session_id`/`request_key`/`wait_id`），插件会话自己起轮；删 `agent.collaboration.await@1` 与助理、Coding 两处 25 秒长请求。
+- **逐项认可**：新模块 `modules/acceptance` 与 Home 库 `acceptance/acceptance.db` 第 1 版；`acceptance.requirements.set`、`deliveries.record`、`reports.submit`、`read`（一次至多 32 个对象）、`decide` 由 Host 装配为 `system.acceptance`；不经 Goals；要求版本、证据层级、返工复核与历史保留。
+- **合同与外观**：`platform/background-tasks`、`platform/work-events`、`platform/object-link` 等新形状；页面资源 `workbench.js`/`workbench.css` 按用户 2026-11-15 弹窗上调；首屏 `32-first-screen.json` 按实测放行；`DESIGN.md` 的顶部一条与事项线一节按用户认可改写。
+- **Prologue**：换到上游 main `02a11ac5`（#124 结果回流、#125 评审跟进、#126 授权变化时放回占用），旧包记入 `patch-history.json`。
+- **未完成/待验收**：本人验收（`BL-b32-acceptance`）与部分用例缺口（`BL-b32-acceptance-test-gaps`）；合入头 full-suite 的 5 个文件红由合后 #2098 收口（最终头 Full 48/48、CI 全绿，待合入 main）；32-2 认可入口、无来源同时汇报与后台 provider 覆盖的余项见对应 BL。
+
 ### 工作记录：历史查询与记录管理（2026-11-15，#2084、#2088）
 
 - **公共动作**：`system.observation` 新增 8 个 `@1` 动作：只读 `records.query`／`evidence.get`／`coverage.get`，本人管理 `settings.get/set`／`space.get`／`cleanup.preview/apply`；按受众、用途开关、S-74 与模拟来源隔离裁决；支持当时证据快照解封、主人版本引用核对、`after_seq` 增量与迟到标记。既有 `observation.report@1` 形状不变，合同成熟度升为 `implemented`。

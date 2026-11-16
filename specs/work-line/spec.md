@@ -449,7 +449,7 @@
 
 ## 14. 证据
 
-**第 32 批（第一片，[#2093](https://github.com/molis-ai/molis-work/pull/2093)，2026-11-15）。** 工程通过：下表用例、健康门禁、页面资源与 CI 全量（结果在 PR 上）。实操：主会话在 dev 环境 1440／1024／390、中英文、深浅色走完交错路径（交办两件、问另一个问题、补充第一件、第二件要你定、第一件交回后接着派、回到对话）与「每步先问我」。本人验收未做，见 [BL-b32-acceptance](../backlog/BL-b32-acceptance.md)；用例只证明一部分的几处见 [BL-b32-acceptance-test-gaps](../backlog/BL-b32-acceptance-test-gaps.md)。
+**第 32 批（第一片，[#2093](https://github.com/molis-ai/molis-work/pull/2093)，2026-11-15）。** 工程：下表定向用例、健康门禁、页面资源通过；合入头 full-suite 5 文件红；合后 #2098 最终头 Full 48/48、CI 全绿（待合入 main，见批次文件合入记录）。实操：主会话在 dev 环境 1440／1024／390、中英文、深浅色走完交错路径（交办两件、问另一个问题、补充第一件、第二件要你定、第一件交回后接着派、回到对话）与「每步先问我」。本人验收未做，见 [BL-b32-acceptance](../backlog/BL-b32-acceptance.md)；用例只证明一部分的几处见 [BL-b32-acceptance-test-gaps](../backlog/BL-b32-acceptance-test-gaps.md)。
 
 | 编号 | 证据（`tests/` 下） |
 | --- | --- |

@@ -347,19 +347,79 @@
     <div class="sp-stage">${codingC}${sideSheet}</div>${footD({ head: H_WAIT, past: P_WAIT, next: N_ALL(), cap: CODING_CAP })}</div></div>`;
   const openD = `<div class="sp-fit"><div class="sp-win c d">${oneC(true, TABS(-1))}<div class="sp-stage">${home}</div>${footD({ head: headD("", true, 1), past: `${orb("sparkles", "s3 run")}${C_WAIT}`, next: `${C_NEXT()}${orb("", "next s3")}${orb("", "next s4")}${orb("", "next s5")}`, cols: "minmax(0,1fr) 680px minmax(0,1fr)", cap: { text: "直接改，并补上测试" } })}${dialog.replace('class="sp-dlg" style="width:680px"', 'class="sp-dlg docked" style="width:680px"').replace(`<span class="sp-tasks">${ic("activity")}2</span>`, "")}</div></div>`;
 
-  // 定稿（用户 2026-11-15、11-16）：顶部用方案 C，底部用「一张纸 · 景深」。第 1–6 屏和分屏按这两样重画。
-  const winC = (topHtml, stage, foot, over = "") => `<div class="sp-fit"><div class="sp-win c d">${topHtml}<div class="sp-stage">${stage}</div>${foot}${over}</div></div>`;
-  const footF = (cap = {}, sel = "") => footD({ head: H_WAIT, past: P_WAIT, next: N_ALL(C_NEXT(sel)), cap });
-  const footOpen = (cap = {}, sel = "") => footD({ head: headD("", true, 1), past: `${orb("sparkles", "s3 run")}${C_WAIT}`, next: `${C_NEXT(sel)}${orb("", "next s3")}${orb("", "next s4")}${orb("", "next s5")}`, cols: "minmax(0,1fr) 680px minmax(0,1fr)", cap });
-  const docked = (html) => html.replace('class="sp-dlg"', 'class="sp-dlg docked"').replace(/<span class="sp-tasks[^>]*>.*?<\/span>/, "");
-  const eventC = docked(eventDialog.replace(/<div class="sp-drawer">[\s\S]*$/, "</div></div>")).replace("width:720px", "width:680px");
+  // 底栏第四版（用户 2026-11-16）：回到第 17 屏的样子（没有底部那张纸），改三样——
+  // 线头是事项菜单，不是事件菜单；事件一件一个样（状态看轮廓，种类看图形，放得下就出字）；
+  // 点一件事件，它移到中间，凸在输入框（对话框开着时是对话框）的上沿，接着说的话就是对它说的。
+  const mk = (icon, cls = "", style = "") => `<span class="sp-m ${cls}"${style ? ` style="${style}"` : ""}>${/todo/.test(cls) ? `<i class="box"></i>` : ic(icon, "s")}</span>`;
+  const e4 = (icon, cls, name, word = "", extra = "") => `<span class="sp-e ${cls}">${mk(icon, cls)}<b>${name}</b>${word ? `<small>${word}</small>` : ""}${extra}</span>`;
+  const more4 = (t, warn = "") => `<span class="sp-more4">${t}${warn ? `<i>${warn}</i>` : ""}</span>`;
+  const ring4 = (p = 60) => `<span class="sp-ring4" style="--p:${p}%"></span>`;
+  const head4 = ({ name = "发布 v2.3", n = 0, p = 60, project = false, short = false, open = "" } = {}) => `<span class="sp-h4${open ? " open" : ""}">${project ? ic("folder", "s") : ring4(p)}${short ? "" : `<span class="cut">${name}</span>`}${n ? `<span class="n">${n}</span>` : ""}${ic("chevron-down", "xs")}${open}</span>`;
+  const ear4 = (icon, cls, name, word = "", acts = "") => `<span class="sp-ear4">${mk(icon, cls)}<b>${name}</b>${word ? `<small>${word}</small>` : ""}${acts ? `<span class="acts">${acts}</span>` : ""}<span class="sp-ib">${ic("x")}</span></span>`;
+  const SLOT4 = `<span class="sp-m slot"></span>`;
+  const TASKS4 = `<span class="sp-m run num" style="--p:40%"><b>2</b></span>`;
+  const END4 = `${TASKS4}${ib("chevron-up")}`;
+  const line4 = ({ head = head4({ n: 1 }), past = "", next = "", cap = {}, end = END4, cols = "" } = {}) => `<div class="sp-line c v4"${cols ? ` style="grid-template-columns:${cols}"` : ""}><div class="sp-wing past">${head}<span class="grow"></span>${past}</div>${capC(cap)}<div class="sp-wing next">${next}<span class="grow"></span><span class="sp-endc">${end}</span></div></div>`;
+  const E_WAIT = e4("code", "wait", "发布说明按版本分节", "等你");
+  const E_RUN = e4("code", "run", "补边界测试", "第 2 步", "", );
+  const E_NEW = e4("file", "done new", "v2.3 发布说明", "交回了");
+  const E_DONE = e4("inbox", "done", "评审反馈");
+  const E_FAIL = e4("sparkles", "fail", "查竞品定价", "没跑通");
+  const E_TODO = (cls = "", extra = "") => e4("check", `next todo ${cls}`, "给王总回电话", "15:00", extra);
+  const E_MEET = (cls = "", extra = "") => e4("calendar", `next ${cls}`, "发布评审会", "16:30", extra);
+  const E_HINT = e4("sparkles", "hint", "补 release.ts 的边界测试", "建议");
+  const PAST4_REST = `${more4("更早 3")}${mk("inbox", "done")}${mk("file", "done new")}${E_RUN}`;
+  const PAST4_WAIT = `${mk("file", "done new")}${mk("code", "run")}${E_WAIT}`;
+  const NEXT4 = (first = E_TODO(), second = E_MEET()) => `${first}${second}${more4("之后 3")}`;
+  const TODO_ACTS = `${btn("勾掉", "secondary", "check")}${btn("改到明天", "ghost")}`;
+  const EAR_TODO = ear4("check", "next todo", "给王总回电话", "今天 15:00", TODO_ACTS);
+  const NEXT4_MOVED = `${SLOT4}${E_MEET()}${more4("之后 3")}`;
+  const peek4 = `<span class="sp-peek"><span class="src">日程 · 今天 16:30，45 分钟</span><strong>发布评审会</strong><span class="note">过一遍 v2.3 的发布说明和检查表</span><span class="acts">${btn("看议程", "secondary")}${btn("让助理备材料", "ghost", "sparkles")}</span></span>`;
+  // 事项菜单：从线头向上展开。最近切过的 3 件、折叠的分组、新建 / 整理主线 / 不选事项（主线 MLN-23、WLN-19）
+  const wrow = (p, name, fact, n = 0, cur = false) => `<span class="r${cur ? " cur" : ""}">${ring4(p)}<span class="t"><b class="cut">${name}</b><small class="cut">${fact}</small></span>${n ? `<span class="n">${n}</span>` : ""}${cur ? ic("check", "s") : ""}</span>`;
+  const wgrp = (name, count, n = 0) => `<span class="g">${ic("chevron-right", "xs")}<span class="cut grow">${name}</span>${n ? `<span class="n">${n}</span>` : ""}<small>${count} 件</small></span>`;
+  const wmenu = `<span class="sp-wmenu"><span class="sp-search">${ic("search")}找事项…</span><span class="h">最近</span>${wrow(60, "发布 v2.3", "Coding 在等你确认方案", 1, true)}${wrow(35, "定价页改版", "对比表交回了，等你看", 1)}${wrow(80, "用户访谈整理", "助理正在归类 · 第 3 步")}<span class="h">全部事项</span>${wgrp("产品发布", 4, 1)}${wgrp("市场", 3, 1)}${wgrp("没分组的", 2)}<span class="sep"></span><span class="a">${ic("plus", "s")}新建事项</span><span class="a">${ic("list", "s")}整理主线</span><span class="a">${ic("folder", "s")}不选事项<small>看整个项目的线</small></span></span>`;
+  const leg = (name, rule, chip, bead) => `<div class="sp-leg"><span class="k"><b>${name}</b>${rule}</span><span class="v">${chip}${bead}</span></div>`;
+  const legend = `<div class="sp-legs">
+    ${leg("做完", "灰底，没有边。看过的就这样", E_DONE, mk("inbox", "done"))}
+    ${leg("交回了，还没看", "做完的样子加一个绿点和「交回了」", E_NEW, mk("file", "done new"))}
+    ${leg("在办", "白底细边，图形外面一圈真实进度", E_RUN, mk("code", "run"))}
+    ${leg("等你", "琥珀色，挪到输入框旁边", E_WAIT, mk("code", "wait"))}
+    ${leg("没跑通", "白底红环，红字说怎么了", E_FAIL, mk("sparkles", "fail"))}
+    ${leg("到时间的待办", "虚线边，前面是一个能直接勾的圈", E_TODO(), mk("check", "next todo"))}
+    ${leg("到时间的会", "虚线边，日历图形，后面是几点", E_MEET(), mk("calendar", "next"))}
+    ${leg("建议", "没有边，只是一句话：它还不是一件事", E_HINT, mk("sparkles", "hint"))}
+  </div>`;
+  const states4 = `<div class="sp-fit"><div class="sp-ui sp-states">
+    <div class="sp-state"><div class="l"><b>事件的长相</b><span>每件事三样东西都看得出：是谁的（图形）、怎样了（轮廓加一个词）、叫什么（名字）。每格左边是出字的样子，右边是放不下名字时的样子，轮廓不变。</span></div>${legend}</div>
+    ${lrow("静止", "从输入框向外，放得下就出字；放不下的留图形和轮廓，大小不变；再放不下的收成「更早 3」。左边是发生过的，右边是还没发生的。", line4({ head: head4(), past: PAST4_REST, next: NEXT4() }))}
+    ${lrow("该你了", "等你的那一件挪到输入框旁边；线头的数字是这件事项里等你的件数。", line4({ past: PAST4_WAIT, next: NEXT4() }))}
+    ${lrow("有一件没跑通", "红环和红字，不挪位置；指着它看原因和「再试一次」。", line4({ head: head4(), past: `${mk("file", "done new")}${E_FAIL}${mk("code", "run")}`, next: NEXT4() }))}
+    ${lrow("指着一件", "90ms 后它上面出一张小卡：是什么、怎样了、主人给的一两个动作。只有图形的那些也一样。", line4({ past: PAST4_WAIT, next: NEXT4(E_TODO(), E_MEET("hover", peek4)) }), "tall")}
+    ${lrow("点一件：它移到中间", "它离开原来的位置，凸在输入框的上沿，和输入框是同一张纸；原位留一个空圈。主人给的动作就在凸起上，接着说的话就是对它说的。", line4({ past: PAST4_WAIT, next: NEXT4_MOVED, cap: { above: EAR_TODO, ph: "关于这件事，说点什么…" } }), "mid")}
+    ${lrow("对着它说一句", "收件人还是助理，不用再写一遍事件名；发送键亮起墨蓝。点 × 或按 Esc，它回到原位。", line4({ past: PAST4_WAIT, next: NEXT4_MOVED, cap: { above: EAR_TODO, text: "帮我列三个要问的预算问题" } }), "mid")}
+    ${lrow("它回了一句", "回应那一行夹在凸起和输入框之间；点这一行展开成对话框，凸起跟着升到对话框的上沿。", line4({ past: PAST4_WAIT, next: NEXT4_MOVED, cap: { above: `${EAR_TODO}${replyBar(`<span class="grow cut">三个问题：今年的预算上限、能不能分两期、谁签字。要记进这条待办吗？</span>`)}`, ph: "关于这件事，说点什么…" } }), "mid2")}
+    ${lrow("点线头：换事项", "线头是事项菜单。事项是一件要办成的事（这里是「发布 v2.3」），两翼才是它的事件。菜单向上展开：最近切过的 3 件、折叠的分组、新建、整理主线、不选事项。别的事项有事等你时，数字包含它们，列表里看得出是哪一件。", line4({ head: head4({ n: 2, open: wmenu }), past: PAST4_WAIT, next: NEXT4() }), "menu")}
+    ${lrow("没选事项", "线头写项目名，线是整个项目的线。", line4({ head: head4({ project: true, name: "目录交互验证", n: 2 }), past: `${mk("code", "run")}${E_WAIT}`, next: NEXT4() }))}
+    ${lrow("窄窗口", "先收字，轮廓还在；线头只留环和计数。始终一行。", line4({ head: head4({ short: true, n: 1 }), past: `${mk("code", "run")}${mk("code", "wait")}`, next: `${mk("check", "next todo")}${mk("calendar", "next")}`, cols: "minmax(0,1fr) 420px minmax(0,1fr)", end: ib("chevron-up") }), "", 820)}
+  </div></div>`;
+
+  // 定稿：顶部用方案 C（用户 2026-11-15）。底部用第四版（用户 2026-11-16 改回第 17 屏的样子，待看）。第 1–6 屏、分屏和首页按这两样重画。
+  const winC = (topHtml, stage, foot, over = "") => `<div class="sp-fit"><div class="sp-win c">${topHtml}<div class="sp-stage">${stage}</div>${foot}${over}</div></div>`;
+  const footF = (cap = {}, o = {}) => line4({ past: PAST4_WAIT, next: NEXT4(), cap, ...o });
+  const footOpen = (cap = {}, o = {}) => line4({ past: PAST4_WAIT, next: NEXT4(), cap: { ...cap, joined: true }, end: "", ...o });
+  const docked = (html) => html.replace('class="sp-dlg"', 'class="sp-dlg joined"').replace(/<span class="sp-tasks[^>]*>.*?<\/span>/, TASKS4);
+  const eventC = docked(eventDialog.replace(/<div class="sp-drawer">[\s\S]*$/, "</div></div>")).replace("width:720px", "width:680px")
+    .replace(dhead([["sparkles", "主对话", false], ["check", "给王总回电话", true, true]], true).replace(/<span class="sp-tasks[^>]*>.*?<\/span>/, TASKS4), dhead([["sparkles", "主对话", false]]).replace(/<span class="sp-tasks[^>]*>.*?<\/span>/, TASKS4))
+    .replace('class="sp-dlg joined"', 'class="sp-dlg joined eared"').replace('<div class="sp-dlghd">', `${ear4("check", "next todo", "给王总回电话", "今天 15:00")}<div class="sp-dlghd">`);
+  const F_MENU = winC(oneC(false, CODING_TABS), codingC, footF(CODING_CAP, { head: head4({ n: 2, open: wmenu }) }));
   const SET_TABS = [...TABS(-1), ["设置", true, "settings", true]];
   const startC = start.replace("留用　↵ 打开", "钉住　↵ 打开").replace('style="left:258px;width:560px"', 'style="left:-4px;top:36px;width:560px"');
   const menuC = sideMenu.replace('style="right:56px;width:208px;padding:6px"', 'style="left:18px;top:36px;width:208px;padding:6px"');
   const topStart = topC("minmax(0,1fr) 320px", [`${leadC(true)}${ears(TABS(-1).slice(0, 2))}<span class="sp-anchor">${ib("plus", "on")}${startC}</span>`, `<span class="sp-anchor">${sideEar}${menuC}</span><span class="grow"></span>${toolsC(true)}`]);
   const F_CODING = winC(oneC(false, CODING_TABS), codingC, footF(CODING_CAP));
-  const F_DIALOG = winC(oneC(true, TABS(-1)), home, footOpen({ text: "直接改，并补上测试" }), docked(dialog));
-  const F_EVENT = winC(oneC(true, TABS(-1)), home, footOpen({ to: ["check", "给王总回电话"], toX: true, ph: "关于这件事…" }, "sel"), eventC);
+  const F_DIALOG = winC(oneC(true, TABS(-1)), home, footOpen({ text: "直接改，并补上测试" }), docked(dialog).replace(/<span class="sp-dtab">(?:(?!<span class="sp-dtab).)*?给王总回电话.*?<\/span><\/span>/, ""));
+  const F_EVENT = winC(oneC(true, TABS(-1)), home, footOpen({ ph: "关于这件事，说点什么…" }, { next: NEXT4_MOVED }), eventC);
   const F_START = winC(topStart, `${home}${sideSheet}`, footF());
   const F_SET_A = winC(oneC(false, SET_TABS), settingsAssistant, footF());
   const F_SET_R = winC(oneC(false, SET_TABS), settingsRuntimes, footF());
@@ -411,13 +471,13 @@
   const SHOTS = [
     { id: "coding", title: "1 · Coding：一轮结束", lead: "定稿的顶部和底部，加 Coding 的目标长相。这一屏唯一的墨蓝是「看改动」。",
       html: F_CODING,
-      notes: ["顶部只有页签：当前会话的页签长在它那张纸上；是哪个插件，看页签的图形和纸上第一行。", "右上角只有侧边开合、布局、项目三个图形。", "目录列：名字占满，常态一个状态点，只有「等你」出字。新建收成列头的 ＋。", "准备信息收成一行，回答在前；回合结束是一句「改了什么」加主操作。", "底部是一张纸：等你的那一件是琥珀色的卡，挨着输入框；别的由近到远变小变淡。", "输入框底排四个控件：＋、收件人、模式、发送。"] },
-    { id: "dialog", title: "2 · 助理对话框", lead: "对话框从底部那张纸上长出来，和输入框同一条中轴、同宽（680px），高度随内容。详情栏默认关。",
+      notes: ["顶部只有页签：当前会话的页签长在它那张纸上；是哪个插件，看页签的图形和纸上第一行。", "右上角只有侧边开合、布局、项目三个图形。", "目录列：名字占满，常态一个状态点，只有「等你」出字。新建收成列头的 ＋。", "准备信息收成一行，回答在前；回合结束是一句「改了什么」加主操作。", "底部（第四版，见第 23 屏）：线头是事项「发布 v2.3」；等你的那一件是琥珀色的片，挨着输入框；别的各有各的轮廓。", "输入框底排四个控件：＋、收件人、模式、发送。"] },
+    { id: "dialog", title: "2 · 助理对话框", lead: "对话框压在输入框上，和它是同一张纸、同一条中轴，高度随内容。详情栏默认关。",
       html: F_DIALOG.replace(home, homeBrief.replace("mw-btn--primary", "mw-btn--secondary")),
-      notes: ["头部左边是页签，右边两个键：更多、收起。后台任务不在这里，在底部左边那条流里。", "回复里小标题 15/600，正文 13；没有「这一轮没用技能」那一行。", "回复下面给可以直接点的下一句，少打一次字。", "输入框有字时发送键是墨蓝，是这一屏唯一的墨蓝：对话框开着时，身后那一页的主按钮退成普通按钮。", "对话框开着时两边各少一档，线头收成图形加计数。"] },
-    { id: "event", title: "3 · 事件卡", lead: "点底部的一件待办：对话框换到它的页签，事件卡三段写满，主人声明的动作就在卡上。",
+      notes: ["头部左边是页签，右边是后台任务的环、更多、收起：对话框开着时，线尾的后台任务收进这里。", "回复里小标题 15/600，正文 13；没有「这一轮没用技能」那一行。", "回复下面给可以直接点的下一句，少打一次字。", "输入框有字时发送键是墨蓝，是这一屏唯一的墨蓝：对话框开着时，身后那一页的主按钮退成普通按钮。", "对话框开着时两边的事件流照旧，等你的那件仍贴着输入框。"] },
+    { id: "event", title: "3 · 事件卡", lead: "点底部的一件待办：它离开原位移到中间，凸在对话框的上沿；事件卡三段写满，主人声明的动作就在卡上。",
       html: F_EVENT.replace(home, homeBrief.replace("mw-btn--primary", "mw-btn--secondary")),
-      notes: ["事件卡：来源和状态一行；标题、备注、日期；勾掉、改期、打开。", "收件人只写对象名加 ×，不写项目名；底部它的那张卡描一圈墨色。", "对话框高度随内容，不再有大片空白。"] },
+      notes: ["事件卡：来源和状态一行；标题、备注、日期；勾掉、改期、打开。", "凸起就是这件事件的页签，和顶部「页签长在纸上」是同一种形状；原位留一个空圈，点 × 或 Esc 它回去。", "收件人还是助理，不用再写一遍事件名：接着说的话就是对这件事说的。", "对话框高度随内容，不再有大片空白。"] },
     { id: "start", title: "4 · 起始页与侧边菜单", lead: "两个浮层各自从触发它的控件下面长出。这里画在同一张图上，实际不会同时出现。",
       html: F_START.replace(home, homeBrief),
       notes: ["起始页锚在 ＋ 下面，宽 560px：先搜索，再最近，然后按用途分组。换插件走这里或 ⌘K。", "每项一行；说明只在选中的那行出现；想留在手边的，打开以后把页签钉住。", "侧边的视图名长在侧边那张纸上，点它换视图；八项都带名字，当前视图打勾。"] },
@@ -430,7 +490,7 @@
     { id: "tabs", title: "7 · （方案 A，留作记录）跨插件的页签", lead: "方案 A 的顶部：保留托盘。定稿用的是方案 C，各状态见第 13 屏。",
       html: states, notes: ["页签不随插件切换而消失：从 Coding 的会话点到 Pages 的文档是一步。这一条在方案 C 里不变。", "方案 A 里挪进托盘的「插件自己的那一页」，在方案 C 里是一个页签或一个钉住的图形。"] },
     { id: "split", title: "8 · 分屏", lead: "左栏有焦点（Coding 的会话），右栏是 Goals 里的一个目标。两张纸各自长着自己的页签。",
-      html: F_SPLIT, notes: ["有焦点的那张，当前页签顶上一道雾蓝；没焦点的仍连着纸，没有那道线。", "底部只有一张纸，输入框位置不变；收件人跟着有焦点的一栏。", "窄栏里 Coding 的目录列自动收起，头部左边的键再打开。", "前进后退只有一对，作用在有焦点的一栏。"] },
+      html: F_SPLIT, notes: ["有焦点的那张，当前页签顶上一道雾蓝；没焦点的仍连着纸，没有那道线。", "底部只有一条，输入框位置不变；收件人跟着有焦点的一栏。", "窄栏里 Coding 的目录列自动收起，头部左边的键再打开。", "前进后退只有一对，作用在有焦点的一栏。"] },
     { id: "b-strip", title: "9 · 方案 B：顶部去掉插件", lead: "托盘整个拿掉。左边一个位置键写着当前插件，点开换插件；中间只有页签；右边一个侧边开关。两头各一个同样长相的键，中间是你开着的东西。",
       html: statesB, notes: ["顶部只剩三样：我在哪（位置键）、开着什么（页签）、旁边看什么（侧边开关）。四个没名字的插件图标没有了，页签多出约 100px。", "纸片只有一个：在插件自己的那一页时它是位置键，打开了某个东西时它是那个页签。", "留用的插件没丢：在位置键菜单的第一行，⌥1…⌥9 直达，按住 ⌥ 浮出快切条。", "＋ 的意思变成「在当前插件里新开一个」（新会话、新文档）；换插件归位置键。", "代价：用鼠标去一个没有页签开着的留用插件，从点一次变成点两次。"] },
     { id: "b-switch", title: "10 · 方案 B：点位置键换插件", lead: "原来的起始页搬到位置键下面。第一行是留用的，带快捷键；然后是这一栏开着东西的插件；再往下按用途分组。",
@@ -448,20 +508,24 @@
       html: statesLine, notes: ["珠子里是来源的图形；状态看形状：实心是做完，走着的环是在办，琥珀环是等你，空心是接下来，红环是失败。", "出字的规则只有一条：每一侧离输入框最近的那一处出字，等你的优先。其余的指一下就出。", "窗口变窄时先收字再减珠子，不会出现被切半的胶囊，也不用折行。", "线头去掉了框，只是线的起点上的一个名字。"] },
     { id: "c-foot", title: "16 · 方案 C：底部重做（各状态）", lead: "去掉那条贯通的线。时间从输入框向两边走：左边是走过的（实线，淡出），右边是将来的（虚线，淡出）。输入框、一句回应、对话框是同一个东西的三种高度。",
       html: statesFoot, notes: ["线不再从窗口一边画到另一边：它只在「现在」附近看得见，越远越淡，所以不再像一道划痕。", "实和虚本身就是意思：发生过的是实的（实线、实心珠子、有底色的片），还没发生的是虚的（虚线、空心珠子、虚线边的片）。", "出字的那一件是一枚片，不是裸字：珠子和字在同一个底色里，读起来是一件东西。", "隔天的地方有一个很小的「明天」，时间不只是先后，还看得出是哪天。", "输入框向上长一行，就是一句回应；再向上长，就是对话框。三种高度之间没有另起的浮层。"] },
-    { id: "c-open", title: "17 · 方案 C：对话框展开", lead: "对话框和输入框是同一张纸：对话框压在输入框上，连接处和顶部「页签连着纸」是同一种形状，只是倒过来。",
+    { id: "c-open", title: "17 · 方案 C：对话框展开", lead: "第四版（第 23 屏）以这一屏为底。对话框和输入框是同一张纸：对话框压在输入框上，连接处和顶部「页签连着纸」是同一种形状，只是倒过来。",
       html: openC, notes: ["上面：页签在纸的上方，连着纸。下面：输入框在对话框的下方，连着对话框。同一种语言用了两次。", "对话框开着时，线尾的后台任务收进对话框头部；两边的事件流照旧，等你的那件仍贴着输入框。", "点事件流里的一件，对话框就换到它的页签；它的那一颗描一圈墨色。"] },
-    { id: "d-hero", title: "18 · 底部是一张纸：整屏", lead: "桌面上有三张纸：工作面、侧边、底部。底部那张里，两边的事向输入框汇拢：越近越大、越实，越远越小、越淡。",
+    { id: "d-hero", title: "18 · （第三版，留作记录）底部是一张纸：整屏", lead: "用户 2026-11-16 改回第 17 屏的样子，现行见第 23、24 屏。桌面上有三张纸：工作面、侧边、底部。底部那张里，两边的事向输入框汇拢：越近越大、越实，越远越小、越淡。",
       html: heroD, notes: ["注意力留在中间。输入框两侧各一张卡片说全了最要紧的一件，再往外只是余光里的形状。", "左边是发生过的（实底），右边是还没发生的（虚线边）。", "整张纸上的颜色只有琥珀：等你的那张卡，和线头下面的「1 件等你」。", "没有标签、没有计数的小方块；想看全部，点项目名下面那句话。"] },
-    { id: "d-foot", title: "19 · 底部是一张纸：各状态", lead: "四档：卡片（两行）→ 小片（一行）→ 圆（只有图形）→ 点。每一件事随着远近换档，不换位置的规矩。",
+    { id: "d-foot", title: "19 · （第三版，留作记录）底部是一张纸：各状态", lead: "现行见第 23 屏。四档：卡片（两行）→ 小片（一行）→ 圆（只有图形）→ 点。每一件事随着远近换档，不换位置的规矩。",
       html: statesD, notes: ["档位就是重要程度：等你的永远在最里面，其次是在办的，做完的往外退，最后淡成点。", "打字的时候两边自己退后，只留等你的那张；这是「不打断」的那一半。", "在办的卡底边有一道很细的进度，是真实步骤，不是装饰。", "收窄时从远处开始收，所以最要紧的一件总是最后才变小。"] },
-    { id: "d-open", title: "20 · 底部是一张纸：对话框展开", lead: "对话框是从底部这张纸上长出来的一大片，底边和纸连在一起；输入框就在它正下方。",
+    { id: "d-open", title: "20 · （第三版，留作记录）底部是一张纸：对话框展开", lead: "现行见第 2、3 屏。对话框是从底部这张纸上长出来的一大片，底边和纸连在一起；输入框就在它正下方。",
       html: openD, notes: ["顶部：页签从工作面上长出来。底部：回应和对话框从底部那张纸上长出来。整个窗口只有「纸」和「纸上长出来的东西」两种形状。", "对话框开着时输入框放宽到和对话框一样宽（680px），两边各少一档，线头收成图形加计数。等你的那件仍挨着输入框。"] },
     { id: "home", title: "21 · 首页：项目的第一页", lead: "定稿（用户 2026-11-16）。首页不再陈列插件。它回答一个问题：这个项目现在怎么样。几句话、自你上次来变了什么、目标走到哪、下一步；插件只剩每一行前面的小图形，和右边页边上的一列依据。",
       html: F_HOME,
-      notes: ["排法按工作，不按插件：没有卡片、色带和一排「打开」。没有新内容的插件不出现。", "开头几句是 Work Brief 的简报；每句后面的小号数字对着右边页边的依据，点它看是哪一条、截至何时。", "整页的颜色只有两处琥珀（等你的那半句、等你的那一行）和一个墨蓝按钮。", "右边页边就是原来的插件卡片表剩下的东西：一个来源一行，一个词说轮到谁。", "和底部的分工：底部是此刻的事（等你、在办、接下来），跟着你到每一页；首页是整个项目的样子，要读的时候才来。", "换插件、找插件不在这里：走 ＋ 的起始页或 ⌘K。"] },
+      notes: ["排法按工作，不按插件：没有卡片、色带和一排「打开」。没有新内容的插件不出现。", "开头几句是 Work Brief 的简报；每句后面的小号数字对着右边页边的依据，点它看是哪一条、截至何时。", "整页的颜色只有两处琥珀（等你的那半句、等你的那一行）和一个墨蓝按钮。", "右边页边就是原来的插件卡片表剩下的东西：一个来源一行，一个词说轮到谁。", "和底部的分工：底部是当前事项此刻的事件（等你、在办、接下来），跟着你到每一页；首页是整个项目的样子，要读的时候才来。", "换插件、找插件不在这里：走 ＋ 的起始页或 ⌘K。"] },
     { id: "home-brief", title: "22 · 首页和 Work Brief：同一页，写没写成话", lead: "每一行是首页的上半截。Work Brief 不是换一个首页，是把同一页的开头写成几句话；没装、没写、读不到，都还是这一页。",
       html: statesHome,
-      notes: ["没有「看基础首页」这个切换了：两种首页长得一样，差别只在标题下面那一段。", "事实部分（自你上次来、目标、下一步）归平台，从各插件公开的概况读，不用模型。", "那几句话、版本、依据和修订归 Work Brief；点版本条进它自己的页看历次版本、改句子。", "要你处理的事不在首页另列一份：它在底部那张纸上，首页只在句子里点到。"] },
+      notes: ["没有「看基础首页」这个切换了：两种首页长得一样，差别只在标题下面那一段。", "事实部分（自你上次来、目标、下一步）归平台，从各插件公开的概况读，不用模型。", "那几句话、版本、依据和修订归 Work Brief；点版本条进它自己的页看历次版本、改句子。", "要你处理的事不在首页另列一份：它在底部的事件流里，首页只在句子里点到。"] },
+    { id: "e-line", title: "23 · 底栏第四版：事件各有各的样子", lead: "回到第 17 屏的样子：没有底部那张纸，输入框是这一条上唯一的盒子。改三样：线头是事项菜单；事件一件一个样；点一件事件，它移到中间，凸在输入框的上沿。",
+      html: states4, notes: ["状态看轮廓，不只看颜色：灰底是做完，白底加一圈进度是在办，琥珀是等你，红环是没跑通，虚线边是到时间的，没有边的是建议。", "种类看图形：待办是一个能勾的圈，会是日历，Coding 是代码，交回的东西是文件，助理的是星。图形比第 17 屏大一号。", "出字不再是「每侧只有一处」：从输入框向外，放得下就出字，每一件都带一个状态词或时间。放不下的留图形，大小和轮廓不变，不再缩成点。", "更早的、之后的收成「更早 3」「之后 3」，点开在侧边列出。", "线头是事项：环是这件事项走到哪，数字是等你的件数，点开换事项。两翼才是事件。", "点一件事件，它移到中间，凸在输入框上沿；主人给的动作在凸起上，接着说的话就是对它说的。"] },
+    { id: "e-menu", title: "24 · 底栏第四版：点线头，换事项", lead: "线头是事项菜单，向上展开。事项是一件要办成的事（这里是「发布 v2.3」）；换了事项，两翼、页签和侧边都换成那件事的。",
+      html: F_MENU, notes: ["顶上是最近切过的 3 件，每行：进度环、名字、最近一次动作、等你的件数。当前这件打勾。", "下面是折叠的分组，组头带件数和等你的件数；有搜索。", "底下三项：新建事项、整理主线、不选事项（看整个项目的线）。", "别的事项有事等你时，线头的数字包含它们（这里是 2），列表里看得出是哪一件。", "列表的内容和规则照主线现行写法（最近 3 件加折叠分组），这里只定它在线头上的长相。"] },
   ];
 
   const only = new URLSearchParams(location.search).get("only");

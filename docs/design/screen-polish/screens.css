@@ -447,3 +447,85 @@ html[data-resolved-theme="dark"] .sp-rear{filter:drop-shadow(0 0 .6px rgba(255,2
 .sp-pgbox .sp-pg{padding-top:24px;grid-template-columns:minmax(0,1fr) 640px 48px 216px minmax(0,1fr)}
 .sp-pgbox .sp-pg>.mg{padding-top:66px}
 .sp-pg .ask .mw-btn{flex:none}
+
+/* 底栏第四版（用户 2026-11-16）：回到第 17 屏的样子，没有底部那张纸。
+   线头是事项菜单；事件一件一个样——状态看轮廓，种类看图形，放得下就出字；点一件事件，它凸在输入框的上沿 */
+.sp-line.v4 .sp-wing{gap:8px}
+.sp-m{position:relative;flex:none;box-sizing:border-box;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:var(--ink-soft)}
+.sp-m>svg,.sp-m>b,.sp-m>i{position:relative}
+.sp-m.done{background:color-mix(in srgb,var(--ink) 10%,var(--desk))}
+.sp-m.new::after{content:"";position:absolute;right:-1px;top:-1px;width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 2px var(--desk)}
+.sp-m.run{background:conic-gradient(var(--accent) 0 var(--p,52%),var(--line-strong) 0);color:var(--accent-strong)}
+.sp-m.run::before{content:"";position:absolute;inset:2.5px;border-radius:50%;background:var(--paper)}
+.sp-m.num b{font-size:11px;font-weight:600;color:var(--ink)}
+.sp-m.wait{background:var(--amber-soft);box-shadow:inset 0 0 0 1.5px var(--amber),0 0 0 4px color-mix(in srgb,var(--amber) 12%,transparent);color:var(--amber)}
+.sp-m.fail{background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--red);color:var(--red)}
+.sp-m.next{background:var(--desk);border:1.25px dashed var(--line-strong);color:var(--muted)}
+.sp-m .box{box-sizing:border-box;width:14px;height:14px;border-radius:50%;border:1.5px solid var(--muted)}
+.sp-m.hint{background:var(--desk);color:var(--faint)}
+.sp-m.slot{background:var(--desk);border:1.5px dotted color-mix(in srgb,var(--ink) 34%,var(--desk))}
+.sp-e{position:relative;flex:none;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;height:30px;max-width:232px;padding:0 11px 0 3px;border-radius:15px;font-size:13px;white-space:nowrap}
+.sp-e>b{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.sp-e>small{flex:none;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.sp-e>.sp-m{width:24px;height:24px}
+.sp-e.done{background:color-mix(in srgb,var(--ink) 6%,var(--desk))}.sp-e.done>b{color:var(--ink-soft)}
+.sp-e.done>.sp-m{background:var(--paper)}
+.sp-e.new>.sp-m::after{box-shadow:0 0 0 2px color-mix(in srgb,var(--ink) 6%,var(--desk))}
+.sp-e.new>small{color:var(--green);font-weight:500}
+.sp-e.run{background:var(--paper);box-shadow:inset 0 0 0 1px var(--line-strong)}
+.sp-e.run>small{color:var(--accent-strong);font-weight:500}
+.sp-e.wait{background:var(--amber-soft);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--amber) 40%,transparent),0 0 0 4px color-mix(in srgb,var(--amber) 10%,transparent)}
+.sp-e.wait>.sp-m{background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--amber)}
+.sp-e.wait>small{color:var(--amber);font-weight:500}
+.sp-e.fail{background:var(--paper);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--red) 45%,transparent)}
+.sp-e.fail>small{color:var(--red);font-weight:500}
+.sp-e.next{background:var(--desk);border:1px dashed var(--line-strong);padding:0 10px 0 2px}
+.sp-e.next>.sp-m{border:0;background:transparent}
+.sp-e.next>small{color:var(--ink-soft)}
+.sp-e.todo>.sp-m{width:20px}
+.sp-e.hint{background:var(--desk);padding:0 6px 0 0;gap:3px}
+.sp-e.hint>b{font-weight:400;color:var(--muted)}.sp-e.hint>small{color:var(--faint)}
+.sp-e.hint>.sp-m{background:transparent}
+.sp-e.hover{border:0;padding:0 11px 0 3px;background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--ink)}
+.sp-e .sp-peek{left:-6px;font-weight:400}
+.sp-more4{flex:none;display:inline-flex;gap:4px;padding:0 4px;background:var(--desk);font-size:11px;color:var(--muted);white-space:nowrap}
+.sp-more4 i{font-style:normal;color:var(--amber);font-weight:500}
+/* 线头：事项菜单。环是这件事项走到哪，数字是等你的件数 */
+.sp-h4{position:relative;flex:none;display:inline-flex;align-items:center;gap:7px;height:32px;max-width:176px;padding:0 8px 0 6px;margin-left:-6px;border-radius:10px;font-size:13px;font-weight:600;white-space:nowrap}
+.sp-h4.open{background:var(--control-fill)}
+.sp-h4>svg{color:var(--faint)}.sp-h4>svg:first-child{color:var(--ink-soft)}
+.sp-h4 .n,.sp-wmenu .n{flex:none;box-sizing:border-box;display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--amber-soft);color:var(--amber);font-size:11px;font-weight:600}
+.sp-ring4{flex:none;width:16px;height:16px;border-radius:50%;background:conic-gradient(var(--ink-soft) 0 var(--p,60%),var(--line-strong) 0);-webkit-mask:radial-gradient(circle,transparent 5.3px,#000 5.8px);mask:radial-gradient(circle,transparent 5.3px,#000 5.8px)}
+.sp-wmenu{position:absolute;left:0;bottom:calc(100% + 12px);z-index:6;box-sizing:border-box;width:336px;display:flex;flex-direction:column;gap:1px;padding:8px;border-radius:14px;background:var(--popover);box-shadow:var(--lift-3);font-weight:400;white-space:normal;color:var(--ink)}
+.sp-wmenu .sp-search{height:32px;margin-bottom:2px}
+.sp-wmenu .h{padding:8px 8px 3px;font-size:11px;font-weight:500;color:var(--muted)}
+.sp-wmenu .r{display:flex;align-items:center;gap:10px;height:44px;padding:0 8px;border-radius:10px}
+.sp-wmenu .r.cur{background:var(--accent-soft)}
+.sp-wmenu .r .t{flex:1;min-width:0;display:flex;flex-direction:column}
+.sp-wmenu .r b{font-size:13px;font-weight:500;line-height:18px}.sp-wmenu .r small{font-size:12px;line-height:17px;color:var(--muted)}
+.sp-wmenu .r>svg{color:var(--accent-strong)}
+.sp-wmenu .g{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px 0 10px;border-radius:10px;color:var(--ink-soft)}
+.sp-wmenu .g>svg{color:var(--faint)}.sp-wmenu .g small{font-size:11px;color:var(--muted)}
+.sp-wmenu .sep{height:1px;margin:6px 4px;background:var(--line)}
+.sp-wmenu .a{display:flex;align-items:center;gap:9px;height:30px;padding:0 8px;border-radius:10px;color:var(--ink-soft)}
+.sp-wmenu .a>svg{color:var(--muted)}.sp-wmenu .a small{margin-left:auto;font-size:11px;color:var(--faint)}
+/* 点一件事件：它凸在输入框的上沿（对话框开着时是对话框的上沿），和下面是同一张纸 */
+.sp-ear4{position:absolute;left:28px;bottom:100%;z-index:1;box-sizing:border-box;display:flex;align-items:center;gap:7px;height:38px;max-width:calc(100% - 56px);padding:0 4px 0 7px;border-radius:13px 13px 0 0;background:var(--popover);box-shadow:var(--lift-2);clip-path:inset(-40px -40px 0 -40px);font-size:13px;white-space:nowrap}
+.sp-ear4::before,.sp-ear4::after{content:"";position:absolute;bottom:0;width:12px;height:12px;pointer-events:none}
+.sp-ear4::before{left:-12px;background:radial-gradient(circle at 0 0,transparent 11.5px,var(--popover) 12px)}
+.sp-ear4::after{right:-12px;background:radial-gradient(circle at 100% 0,transparent 11.5px,var(--popover) 12px)}
+.sp-ear4>b{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.sp-ear4>small{flex:none;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.sp-ear4 .acts{flex:none;display:flex;gap:4px;margin-left:8px}
+.sp-ear4>.sp-ib{color:var(--faint)}
+.sp-ear4>.sp-m.next{width:20px;border:0;background:transparent}
+.sp-cap:has(.sp-replybar) .sp-ear4{bottom:calc(100% + 40px)}
+.sp-dlg.eared{overflow:visible}
+.sp-dlg>.sp-ear4{left:24px}
+.sp-linebox.mid2{height:auto;padding-top:96px}.sp-linebox.mid2 .sp-line{height:68px}
+.sp-linebox.menu{height:auto;padding-top:452px}.sp-linebox.menu .sp-line{height:68px}
+/* 图例：每格左边是出字的样子，右边是只有图形的样子 */
+.sp-legs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;border-radius:12px;overflow:hidden;background:var(--line);box-shadow:var(--lift-1)}
+.sp-leg{display:flex;flex-direction:column;gap:12px;padding:14px 16px 18px;background:var(--desk)}
+.sp-leg .k{display:flex;flex-direction:column;font-size:12px;color:var(--muted)}.sp-leg .k b{font-size:13px;font-weight:600;color:var(--ink)}
+.sp-leg .v{display:flex;align-items:center;gap:14px;min-height:34px}

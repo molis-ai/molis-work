@@ -238,9 +238,20 @@ Prologue 提供无 UI 的公共合同，不包含 Molis Work 文案、组件、W
 | `renderSubtaskConversation`（SDK `ui`） | 画浮窗内部的身份/返回/关闭/控制、可滚动消息、读取提示与输入挂载槽；不负责再开窗口，也不寻找或替换主助理 DOM。复用现行状态环、按钮、统一输入和富文本样式。文字由调用方翻译；模型文字须经现行富文本消毒后才给 HTML 字段。 |
 | `createSubtaskConversation(root, options)`（SDK `browser`） | `open(target)` 只读取，不启动；`refresh()` 只重读；`close()` 释放读取/订阅与子输入，保留本实例的阅读位置；`destroy()` 再释放本实例所有监听。外壳掌握右侧浮窗的位置和任务卡内容，`onBack(parent)`/`onClose()` 负责回到原位置；组件内部可打开同一公开树里的子级。主输入从不传入此函数。 |
 | `source.read(target, signal)` / `source.subscribe(target, invalidate, signal)` | 每个可见子任务一个读取/订阅；订阅只通知失效，重读合并并发通知。切换时中止旧读取并释放旧订阅，过期结果不得覆盖当前任务。读取失败保留此前的同目标内容并提供重读，首次失败不当成空历史或任务完成。不能将其他目标内容作为读取失败的兜底。 |
-| `source.composer(target)` | 返回该目标的现行 `ComposerOptions`（AI 模式），包含固定接收者、同目标复用的草稿 adapter、发送与未知结果 `check`。组件只挂载/刷新原统一输入，不另实现输入法或请求回执状态机；发送闭包绑定给定 target，不能回头读取当前选择。源对象应在服务端复查目标当前权限和代次。 |
+| `source.composer(view)` | 返回该已读视图的现行 `ComposerOptions`（AI 模式，停止/继续走独立 control 动作），包含固定接收者、同目标复用的草稿 adapter、发送与未知结果 `check`。组件只挂载/刷新原统一输入，不另实现输入法或请求回执状态机；发送闭包绑定给定 target，不能回头读取当前选择。源对象应在服务端复查目标当前权限和代次。 |
 | `source.act(target, action, signal)` | 用户点击某个声明的动作才调用，target/action 在点击时冻结；动作进行中就地反馈，失败保留内容并显示可重试的原因；结果未知提供查询，不能自动重复启动。停止、继续、问题回答、审批分别由 owner 的具名动作承接，聊天提交不走此入口。控制完成只重读真实状态，不自行把状态改为成功。 |
 | 历史、过程与已有卡片 | 消息 id 来自原历史，不用文字或数组位置做身份。HTML 内容变化按已有流式补丁方式更新，未变化节点保留；过程按稳定 id 保存展开状态。问题、审批和成果可通过已登记具名动作打开原卡片；普通对话不隐式批准或整合。历史较长时 owner 可给「读取更早」动作，更新同一视图时保留屏上锚点。 |
 | 测试与边界 | 两个独立 owner 适配器分别提供助理 Work 形状与 SDK 子任务形状，测试只通过上述公共入口，不 import 两个业务插件。制造读/发/切换/关闭/撤权及迟到回执交错，检查实际 callback 目标、调用次数、草稿和 DOM；不会把模拟 reply 当作真实模型处理。第三方干净包消费者应只装 contracts+SDK。 |
 
 实现路径：组件板先用 `apps/workbench/src/subtask-conversation-specimen.ts` 与其私有部件/样式落定样，D 轨通过后将同一部件移入 `packages/plugin-sdk/src/ui/subtask-conversation.ts`、浏览器生命周期置于 `packages/plugin-sdk/src/browser/subtask-conversation.ts`，由现有 `ui.ts`/`browser.ts` 出口暴露。样式归 design-system，标本改用公开导出；无新浏览器资源或平台全局函数，消费者按需 bundle SDK 浏览器入口并使用已有 `molisComposer`。不在 Workbench/Coding 分别复制一套组件。
+
+
+**公共合同台首轮修订（5 项 P1，2026-11-16）：** 原稿 `b8b4def73f` 暂未通过；以下是本片必须兑现的设计，不作为已经实现的证据。
+
+1. **明确本地输入。** `ComposerCommonOptions` 增加 `placement?: "local"`；共享子对话固定传 `local`，插件 frame 仍经公开 `molisComposer` 挂在给定节点。省略字段沿现行底栏登记，不增加私有挂载入口。公开快照涉及 `page-globals`，同时更新统一输入 §10.2 的用户已定例外。B58-01/03 在 Host 托管 frame 中同时保留真实底栏输入和本地子输入，检查 DOM、草稿及实际投递目标。
+2. **逻辑键与写入引用分开。** `target` 只作阅读与草稿键，不能自行授权写入。`view.binding` 是 owner 给出的不可解释的精确执行引用／预期代次；`source.composer(view)` 的 submit 在发送时捕获该引用，控件回调同样拿完整已读 view 和其 `action.ref`。界面刷新可更新待发输入的绑定，已经发出的请求不改绑；服务端在生效前拒绝旧引用，不能静默改投现执行。`source.act(view, action, requestId, signal)` 的结果是 `applied`、`not-applied`（理由）或 `unknown`（按原操作查询的闭包）；仅 `not-applied` 可由用户重试，查询不能用「当前正在运行」推断原操作成功。
+3. **消息与控制的未知结果。** 同一组件实例始终复用同一个子输入挂载节点，各目标复用自己的草稿 adapter。已发出的 submit 若因关闭/切换取消等待，适配器按原请求向 owner 核对；不能将网络中断作为确认未受理。跨页面恢复由 `read` 返回 owner 持久记录的 `pending`（原输入/操作引用、已翻译提示及查询动作）。组件用现行 `ComposerHandle.hold` 禁止新发送，并在浮窗提示区显示待核对与原查询按钮，不新增 Composer 回执注入状态机。owner 确认未受理后才解除 hold，确认受理只结算原提交的草稿版本；新草稿不被清空。组件销毁不删除 owner 的未决记录。
+4. **首读、重连和撤权。** `source.subscribe(target, invalidate, signal)` 返回 Promise，resolve 表示监听已就绪（只读来源省略 subscribe）；先就绪后首读。监听建立或读取期间收到的 invalidation 合并成一次补读；每次重连就绪也调用 invalidate。每次 open 都新建本地代次，A→B→A 也不接受第一次 A 的旧回调。读取返回 `available`（view）或 `denied`（公开理由）；网络/临时失败保留本目标已读内容，`denied` 立即撤下消息、过程及操作、停用输入，不能沿暂时失败分支保留内容。
+5. **正文的安全两包路径。** 消息和过程正文采用 `{ text: string } | { html: string }`：纯文本首绘和更新均转义；HTML 仅接受受信 owner 经现行富文本清洗后的结果，浏览器每次再经现行内容过滤，不允许正文生成 `data-subtask-*` 动作钩子。操作来自独立结构化 `actions`。两包消费者默认用纯文本即可，富文本可由宿主清洗，不要求作者安装可选 Markdown peer。对应拒绝测试验证注入的动作钩子不触发控制。
+
+上述 public source 是 UI 适配合同，不能替代后端事实。59 的真实业务接入须提供确切执行绑定、原消息和未决请求读取；读不到原生子历史、无法查证原操作或无法拒绝旧代次时，不得给出已可继续的适配器。58 组件回归用有独立 owner 存储的适配器检验这些约束；真实 SDK/Host 双入口与升级恢复仍由 59 收口。

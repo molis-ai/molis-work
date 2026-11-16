@@ -1,0 +1,54 @@
+import { escapeHtml, renderButton, renderComposer, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { assistantComposerLabels } from "./assistant-composer-labels.js";
+import { renderSubtaskConversation, type MwSubtaskConversationLabels, type MwSubtaskConversationView } from "./subtask-conversation-parts.js";
+
+const say = (key: string) => t.text(`workbench.subtask-conversation.${key}`);
+export function subtaskConversationLabels(): MwSubtaskConversationLabels {
+  return { back: say("back"), close: say("close"), loading: say("loading"), readFailed: say("read-failed"), retry: say("retry"),
+    latest: say("latest"), messages: say("messages"), children: say("children"), unread: say("unread"), working: say("working"),
+    actionFailed: say("action-failed"), unknown: say("unknown"), check: say("check") };
+}
+export type SubtaskSpecimenState = "running" | "round-ended" | "answer" | "approval" | "stopped" | "failed" | "interrupted" | "unavailable";
+export function subtaskSpecimenView(state: SubtaskSpecimenState): MwSubtaskConversationView {
+  const held = ["stopped", "failed", "interrupted", "unavailable"].includes(state);
+  const text = (key: string) => `<p>${escapeHtml(say(key))}</p>`;
+  const question = state === "answer" || state === "approval";
+  return {
+    target: "writer", title: say("task"), parent: { target: "beta", title: say("parent") },
+    status: { state, label: say(state) }, summary: say("brief"), running: state === "running",
+    ...(held ? { inputUnavailable: say(state === "unavailable" ? "reassigned" : "continue-note") } : {}),
+    messages: [
+      { id: "user-1", role: "user", html: text("sample-user"), receipt: say("receipt") },
+      { id: "assistant-1", role: "assistant", name: say("writer"), html: text("sample-reply") },
+    ],
+    details: [
+      { id: "process", title: say("process"), html: text("process-text") },
+      ...(question ? [{ id: state, title: say(state === "answer" ? "question" : "approval-question"), html: text("question-note"), expanded: true,
+        actions: state === "answer" ? [{ id: "answer-short", label: say("short") }, { id: "answer-long", label: say("long") }]
+          : [{ id: "approve", label: say("approve") }, { id: "deny", label: say("deny") }] }] : []),
+    ],
+    children: [{ target: "mobile", title: say("nested"), unread: true }],
+    actions: state === "running" ? [{ id: "stop", label: say("stop") }]
+      : state === "round-ended" || held && state !== "unavailable" ? [{ id: "continue", label: say("continue"), title: say("continue-note") }] : [],
+  };
+}
+export function renderSubtaskSpecimen(state: SubtaskSpecimenState): string {
+  const view = subtaskSpecimenView(state);
+  const input = renderComposer({ kind: "ai", labels: { ...assistantComposerLabels(t.text, true), input: say("input") }, add: false,
+    receiver: { label: say("writer"), icon: "user" }, ...(view.running ? { state: "running" as const } : {}),
+    ...(view.inputUnavailable ? { disabled: { caption: view.status.label, reason: view.inputUnavailable } } : {}) });
+  return renderSubtaskConversation({ view, labels: subtaskConversationLabels(), composerHtml: input });
+}
+export function renderSubtaskConversationSection(): string {
+  const states: readonly SubtaskSpecimenState[] = ["running", "round-ended", "answer", "approval", "stopped", "failed", "interrupted", "unavailable"];
+  const figures = states.map(state => `<figure class="mw-catalog__specimen"><figcaption>${escapeHtml(say(state))}</figcaption><div class="mw-subtask-specimen">${renderSubtaskSpecimen(state)}</div></figure>`).join("");
+  const unreadable = renderSubtaskSpecimen("running").replace('<div class="mw-subtask__feedback" data-subtask-feedback role="status"></div>',
+    `<div class="mw-subtask__feedback" data-subtask-feedback role="status">${escapeHtml(say("read-failed"))} ${renderButton({ label: say("retry"), variant: "link", attrs: { "data-subtask-retry": true } })}</div>`);
+  return `<section class="mw-catalog__section" id="subtask-conversation" data-primitive="subtask-conversation"><h2>${escapeHtml(say("title"))}</h2>`
+    + `<p class="mw-catalog__hint">${escapeHtml(say("specimen-note"))}</p><div class="mw-catalog__specimens mw-subtask-specimens">${figures}`
+    + `<figure class="mw-catalog__specimen"><figcaption>${escapeHtml(say("read-failed"))}</figcaption><div class="mw-subtask-specimen">${unreadable}</div></figure></div></section>`;
+}
+export const SUBTASK_SPECIMEN_STYLES = `
+  .mw-subtask-specimens { grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); }
+  .mw-subtask-specimen { width: min(100%, 330px); height: 570px; min-width: 0; }
+`;

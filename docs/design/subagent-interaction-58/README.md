@@ -54,3 +54,10 @@ python3 -m http.server 4458 --bind 127.0.0.1 --directory docs/design
 第二版把子任务加入主窗标签或在主窗内临时聚焦，一骏进一步明确「在右侧的浮窗里，点击之后切换吧，不在主窗」。这两案均作废，第三版改为右侧同一任务浮窗内部切换。方向已由用户指定，修正后的实物待确认；没有把这次纠正当作产品代码或完整产品验收通过。
 
 用户随后补充「子Agent的对话框就在浮窗里吧」。第四版将子任务输入框也移入浮窗，底部主输入保持主助理；这替代第三版复用底部唯一输入的安排。仍使用同一统一输入组件，没有增加第二套发送、草稿或回执机制。
+
+
+## 组件板实施（58，2026-11-16）
+
+第四版用户已确认。新增标本在 `/__ui/catalog#subtask-conversation`；实现暂存于 Workbench 的 `subtask-conversation-{parts,styles,specimen}.ts`，D 轨通过后同一部件移动到 SDK／design-system，产品不保留第二份。`node docs/design/subagent-interaction-58/board.mjs` 从当前构建生成本目录 `dist/board-zh.html` 与 `dist/board-en.html`，是同一组件板标本的独立预览，`?theme=dark` 看深色。
+
+9 个状态的中英、深浅色、1440/1024/390 共 12 组合检查了布局、输入完整性和图标；使用当前组件板 settings.css 与默认字体。这里是标本视觉证据，控件接线、真实 plugin-frame 中本地输入、回执恢复与撤权仍待下一片验证；不记为 B58 整项通过。公共合同台首轮五项 P1 及处理方案已收进原需求 §11.6。

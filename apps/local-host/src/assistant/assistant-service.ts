@@ -195,7 +195,6 @@ export class AssistantService {
         return carried ? (await (await this.dispatcher.executorOf(work, carried.plugin_id)).read(carried.session_id, 1).catch(() => null))?.runs.at(-1)?.ref : undefined; } }, workId, since, timeoutMs, signal);
   }
 
-  
   /**
    * Work the Host starts by itself runs in a language scope of its own, the one last used as of now, so it does not keep the language of the
    * page whose request its async chain happened to begin in (FSS-69).

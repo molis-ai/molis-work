@@ -1,4 +1,4 @@
-import { createSubtaskConversation } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { createSubtaskConversation } from "@molis-ai/molis-work-plugin-sdk/subtask-conversation";
 import { workOwner, sdkOwner } from "./subtask-owners.js";
 export function mountProbe() {
   const root = document.createElement("div"); root.id = "subtask-probe";

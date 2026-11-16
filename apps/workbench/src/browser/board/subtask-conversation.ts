@@ -1,5 +1,5 @@
 import { t, type MwSubtaskMessage } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { createSubtaskConversation, type SubtaskConversationSource } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { createSubtaskConversation, type SubtaskConversationSource } from "@molis-ai/molis-work-plugin-sdk/subtask-conversation";
 import { assistantComposerLabels } from "../../assistant-composer-labels.js";
 import { subtaskConversationLabels, subtaskSpecimenView, type SubtaskSpecimenState } from "../../subtask-conversation-specimen.js";
 

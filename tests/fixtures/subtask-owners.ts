@@ -1,5 +1,5 @@
 import type { MwSubtaskConversationView } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { SubtaskConversationRead, SubtaskConversationSource, SubtaskActionOutcome } from "@molis-ai/molis-work-plugin-sdk/browser";
+import type { SubtaskConversationRead, SubtaskConversationSource, SubtaskActionOutcome } from "@molis-ai/molis-work-plugin-sdk/subtask-conversation";
 import type { ComposerDraftAdapter, ComposerSubmission } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { COMPOSER_AI_LABELS } from "./composer-labels.js";
 

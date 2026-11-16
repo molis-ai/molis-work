@@ -88,13 +88,25 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     // B58-01: the public plain-text child view and browser controller load with only the two packed public packages.
     const childView = spawnSync(process.execPath, ["--input-type=module", "-e", `
       import { renderSubtaskConversation } from "@molis-ai/molis-work-plugin-sdk/ui";
-      import { createSubtaskConversation } from "@molis-ai/molis-work-plugin-sdk/browser";
+      import { createSubtaskConversation } from "@molis-ai/molis-work-plugin-sdk/subtask-conversation";
       const labels={back:"Back",close:"Close",loading:"Loading",readFailed:"Read failed",retry:"Retry",latest:"Latest",messages:"Messages",children:"Children",unread:"Unread",working:"Working",actionFailed:"Failed",unknown:"Unknown",check:"Check"};
       const html=renderSubtaskConversation({labels,view:{target:"child",binding:"original:1",title:"Child",parent:{target:"parent",title:"Parent"},running:false,status:{state:"round-ended",label:"Ended"},messages:[{id:"original-message",role:"assistant",content:{text:"<button data-subtask-action='stop'>unsafe</button>"}}]}});
       console.log(JSON.stringify({controller:typeof createSubtaskConversation,escaped:html.includes("&lt;button"),raw:html.includes("<button data-subtask-action='stop'>")}));
     `], { cwd: project, encoding: "utf8" });
     assert.equal(childView.status, 0, childView.stderr);
     assert.deepEqual(JSON.parse(childView.stdout), { controller: "function", escaped: true, raw: false });
+    // B58-01: a typed author's import must resolve the packed declaration, not workspace source or an untyped JS fallback.
+    const authorTypes = join(project, "author-types.mts");
+    writeFileSync(authorTypes, `
+      import { createSubtaskConversation, type SubtaskConversationSource, type SubtaskConversationHandle } from "@molis-ai/molis-work-plugin-sdk/subtask-conversation";
+      import type { MwSubtaskConversationLabels } from "@molis-ai/molis-work-plugin-sdk/ui";
+      declare const root: HTMLElement, source: SubtaskConversationSource, labels: MwSubtaskConversationLabels;
+      const conversation: SubtaskConversationHandle = createSubtaskConversation(root, { source, labels, onBack() {}, onClose() {} });
+      void conversation.open("child");
+    `);
+    const typedAuthor = spawnSync(process.execPath, [fileURLToPath(import.meta.resolve("typescript/lib/tsc.js")), "--noEmit", "--strict", "--skipLibCheck", "--module", "NodeNext", "--target", "ES2022", authorTypes], { cwd: project, encoding: "utf8" });
+    assert.equal(typedAuthor.status, 0, typedAuthor.stdout + typedAuthor.stderr);
+    rmSync(authorTypes);
     const definition = (await import(pathToFileURL(join(project, "index.mjs")).href)).default as PluginDefinition;
     assert.equal(definition.manifest.plugin_id, validated.plugin_id);
     assert.equal(definition.manifest.schema_version, 1);

@@ -26,61 +26,11 @@ export interface FloatingSize {
 
 export declare const NON_TEXT_TAGS: readonly ["script", "style", "textarea", "option", "xmp", "noscript", "template", "iframe", "object", "embed", "svg", "math", "form"];
 
-export type SubtaskActionOutcome = {
-    readonly state: "applied";
-} | {
-    readonly state: "not-applied";
-    readonly reason: string;
-} | {
-    readonly state: "unknown";
-    readonly check: () => Promise<SubtaskActionOutcome>;
-};
-
-export type SubtaskComposerOptions = Omit<Extract<ComposerOptions, {
-    kind: "ai";
-}>, "draft" | "placement" | "stop" | "pause"> & {
-    readonly draft: {
-        readonly adapter: ComposerDraftAdapter;
-    };
-};
-
-export interface SubtaskConversationHandle {
-    open(target: string): Promise<void>;
-    refresh(): Promise<void>;
-    close(): void;
-    destroy(): void;
-}
-
-export interface SubtaskConversationOptions {
-    readonly labels: MwSubtaskConversationLabels;
-    readonly source: SubtaskConversationSource;
-    onBack(parent: MwSubtaskLink | undefined): void;
-    onClose(): void;
-}
-
-export type SubtaskConversationRead = {
-    readonly state: "available";
-    readonly view: MwSubtaskConversationView;
-} | {
-    readonly state: "denied";
-    readonly reason: string;
-};
-
-export interface SubtaskConversationSource {
-    read(target: string, signal: AbortSignal): Promise<SubtaskConversationRead>;
-    subscribe?(target: string, invalidate: () => void, signal: AbortSignal): Promise<() => void>;
-    composer(view: MwSubtaskConversationView): SubtaskComposerOptions;
-    check(target: string, requestId: string, signal: AbortSignal): Promise<SubtaskActionOutcome>;
-    act(view: MwSubtaskConversationView, action: MwSubtaskAction, requestId: string, signal: AbortSignal): Promise<SubtaskActionOutcome>;
-}
-
 export declare function clampTo(value: number, limit: number, length: number): number;
 
 export declare const codeOf: (error: unknown) => string | undefined;
 
 export declare function contentHtml(markup: string, ownerDocument?: Document): string;
-
-export declare function createSubtaskConversation(root: HTMLElement, options: SubtaskConversationOptions): SubtaskConversationHandle;
 
 export declare function followScroll(panel: Element, run: () => void): () => void;
 

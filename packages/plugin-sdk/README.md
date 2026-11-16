@@ -89,13 +89,14 @@ Integration Manifest 用 `source_presentations` 声明纯展示；`definePolling
 - 这个子路径只加载 SDK 自己的文件和合同包，不需要任何第三方包；页面上的行号评论（`data-coding-line-side`、`data-coding-line`）、折叠（`data-diff-unfold`、`data-diff-folded`）与切换文件（`data-action="diff.show-file"`）这些属性的名字是合同的一部分，工作台的页面脚本按它们找元素。
 - 改动来自哪里、怎样合并多次写入（例如 Coding 的净改动）是插件自己的事，SDK 只比较和画。`tests/plugin-sdk-subpaths.test.ts` 的 PG062-08 核对只加载合同包，PG062-10 核对仓库里只有这一份比较和画法。
 
-## 界面部件子路径 `/ui`、`/browser`、`/page-globals`
+## 界面部件子路径 `/ui`、`/browser`、`/subtask-conversation`、`/page-globals`
 
 插件画界面的部件由 SDK 公开，内置插件、创作台生成的插件和第三方插件用同一套（PG-055，2026-10-18「插件同等待遇」）；插件不再 import 私有的 design-system（边界规则 `plugin-private-ui-dependency`，只有创作台例外）。
 
 - `@molis-ai/molis-work-plugin-sdk/ui`：纯字符串部件，数据进、HTML 出，不碰 DOM、不依赖任何包。`icon(name)`（名字表是 `PluginIconName`，一份名单，design-system 的图标表按它逐个画）、`renderPluginStageShell`（插件整页舞台的外壳）、`renderButton`、`renderStateRing` 与 `renderStatusMark`、`renderBadge`、`renderEmpty`、`renderAlert`、`renderToast`、输入类（`renderInput`、`renderField`、`renderCheckbox`、`renderSelect`、`renderSwitch` 等）、`renderCalendar` 与 `renderDatePicker`、目录与侧栏（`renderDirectoryPanel`、`renderDirectoryRow`、`renderSidebar` 等）、`processFold`（折叠样式文本）、`renderComposer`（统一输入的多行输入框首屏，`kind: "plain"` 或 `"ai"`，结构照组件板 `#composer`；外壳的样式规则随第 10 批 K2 已进宿主样式表，产品里画出来就是组件板的样子；`kind: "ai"` 还可传 `idleDelivery`（2026-11-09 合后审计修复）：空闲时也画分体按钮与 ▾ 菜单，给已有工作、开始过一轮、此刻不在运行时的「下一轮再做」排队用，不传时只在运行中出现分体按钮）。`icon()` 只写一行引用 `<use href="#icon-名">`，图形在宿主页面带的图标雪碧图里，所以 SDK 不带图形数据。
 - `/ui` 里还有界面文字与外观的工具（第 14 批，写法见 [文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md)）：`t`、`say`、`format` 和 `dateArg`、`numberArg`；`TextRef` 的检查与绑主人（`textRefProblems`、`ownedTextRef`、`tryOwnedTextRef`）；语言文件的 `parseLocalePack`、`inspectLocaleSet`、`matchLocale`，给定语言包查词的 `createTextReader`，测试用的 `installTextForTest`；外观文件的解析与取值（`parseUiSpecFile`、`parseSkinFile`、`parseFontScheme`、`parseResourceRegistry`、`resolveSkin`、`resolveFontScheme`、`resolveUiEnvironment` 等）。开发入口 `molis-work plugin dev` 中，`--locale <语言>` 选画页面的语言，不在 `ui.locales.available` 里报 `actions.input_invalid` 并列出可选的，没写 `ui.locales` 却传 `--locale` 也报错并提示先写 `ui.locales`；`validate` 只缺译文的提示放进输出的 `locale_notes`。
 - `@molis-ai/molis-work-plugin-sdk/browser`：会被打进插件自己页面包的 DOM 工具，没有 import、不碰 Node。`placeFloating`、`placeOverlay`、`pinAt`（浮层放哪里）、`followScroll`、`scrollShouldFollow`（跟随滚动）。 页面用 `requiredQuery` 绑定缺失节点的诊断，`textCell` 显示带完整提示的单行文字。JSON 请求用 `pluginRequest` 委托页面的 `molisWorkRequest`。调用方按路由传项目参数、回退文案、拒绝说明、挂载作用域及单次取消信号。
+- `@molis-ai/molis-work-plugin-sdk/subtask-conversation`：子任务浮窗的公共控制器及读取、输入、控制端口类型；按需打进页面包，只依赖 SDK 自有模块和合同包。它单向复用 `/browser` 的内容过滤，原 `/browser` 继续保持叶子合同。
 - `@molis-ai/molis-work-plugin-sdk/page-globals`：宿主往每个插件页面注入的全局（`window.molisReflow`、`molisShowMore`、`molisMediaZoom`、统一输入 `molisComposer` 等）与页面端口（`InteractionClient`、`Reflow`、`ComposerOptions` 等）的类型。`molisComposer` 的客户端随第 10 批 K2 已装上。插件的浏览器文件用 `import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals"` 纳入，运行时什么也不加载。
 - 标记和类名是合同：部件写出的 `mw-btn`、`data-slot`、`data-work-surface` 等由宿主的样式表和页面脚本定义，一个类名都不能没有规则。`tests/sdk-ui-markup.test.ts` 把每个部件用典型输入渲染一遍，收集类名，逐个核对宿主样式表里有规则（RAC-551）；公开形状进 `tooling/gates/api/plugin-sdk/` 的快照，改它走 `pnpm api:update` 并在 PR 里写对插件作者的影响。
 - 接住「内容在别处变了」的部件（[定样](../../docs/design/rule-stale-reload/README.md)）：`renderAlert` 的 `actions`（提示里的按钮，`MwButtonOptions` 的列表，默认 ghost，转义归 `renderButton`）、`state`（标题前的状态环）、`rise`（第一次出现时升起、对勾落定，重绘时不传）、`role`（默认 `status`，外层已有常驻读屏区时传 `null`）、`attrs`；不传时输出不变。`renderKept`（你写的、最新版那一行）、`renderStepDot`（步骤数字上的小点，带可读名称）。样式现在是组件板自己的（`packages/design-system/src/primitives/catalog-keep-edits.ts`），N14 的界面把它们挪进页面样式表之前，页面用了也不成样；`tests/keep-edits-parts.test.ts` 的 `UNTIL_N14` 正好列着还差规则的类名。
@@ -375,7 +376,7 @@ FI-C-02：轮询集成的 `health(control)` 与 `sync(input, control)` 必须透
 
 ### 子任务浮窗对话
 
-`/ui` 的 `renderSubtaskConversation` 画现有任务浮窗的内部；`/browser` 的 `createSubtaskConversation(root, options)` 挂接读取、父子导航、具名动作和统一输入。外壳仍拥有任务卡及浮窗位置，组件只收到子任务根节点，主对话和底部输入保持独立。`open(target)` / `refresh()` 只读；`close()` 释放订阅和输入实例并保留阅读位置，`destroy()` 释放此组件全部监听。样式由宿主现有工作台样式提供。
+`/ui` 的 `renderSubtaskConversation` 画现有任务浮窗的内部；`/subtask-conversation` 的 `createSubtaskConversation(root, options)` 挂接读取、父子导航、具名动作和统一输入。外壳仍拥有任务卡及浮窗位置，组件只收到子任务根节点，主对话和底部输入保持独立。`open(target)` / `refresh()` 只读；`close()` 释放订阅和输入实例并保留阅读位置，`destroy()` 释放此组件全部监听。样式由宿主现有工作台样式提供。
 
 `source.read` 给稳定的逻辑 `target`、不透明的精确执行 `binding`、原消息稳定 id、权限和原 owner 的控制引用；`subscribe` 就绪后才首读，重连时再次通知失效。临时读取失败保留同目标内容；`denied` 撤下消息、过程和操作。`source.composer(view)` 为每个逻辑目标复用稳定的 `draft.adapter`，发送绑定点击时的已读执行，浮窗输入固定 `placement: "local"`。`source.act(view, action, requestId, signal)` 只在独立动作区被点击时调用；owner 必须核对当前权限、原执行代次并在执行前登记请求，不把这些字符串视为授权。
 

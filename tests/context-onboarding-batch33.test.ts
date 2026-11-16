@@ -8,6 +8,7 @@ import { test, type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { contextFileSkip } from "@molis-ai/molis-work-contracts/services/materials";
 import {
+  classifyContextModelFailure,
   MolisWorkLocalHost,
   waitContextJourney,
   withConnectorConnections,
@@ -58,14 +59,13 @@ interface JourneyStateView {
     removed: string[];
     removed_count: number;
     reused: number;
-    previous_model: string | null;
-  } | null;
+    } | null;
   takers?: Array<{ plugin_id: string; name: string }>;
 }
 
 async function setupOnboardingHttp(
   t: TestContext,
-  answer: (bodyText: string) => string = () => "# 项目概览\n核心结论引用 [S1]。",
+  answer: (bodyText: string) => string | Promise<string> = () => "# 项目概览\n核心结论引用 [S1]。",
 ) {
   const dir = await mkdtemp(join(tmpdir(), "molis-onb-b33-"));
   const model = await recordingTextModel(t, dir, (wire) => answer(JSON.stringify(wire.messages)));
@@ -163,8 +163,12 @@ test("ONB-35, ONB-36, ONB-37, ONB-38, C1, C3, C5, C6: mixed code/extensionless m
 test("ONB-40, ONB-42, C7, C8, C11: incremental scope delta reuses unchanged files, allows mid-run reopen, and drops late superseded responses", { timeout: 45_000 }, async t => {
   let slowFirstPass = false;
   let releaseSlowPass: () => void = () => {};
-  const { dir, model, served, stageUpload } = await setupOnboardingHttp(t, (bodyText) => {
+  let firstPassStarted: () => void = () => {};
+  const started = new Promise<void>(resolve => { firstPassStarted = resolve; });
+  const held = new Promise<void>(resolve => { releaseSlowPass = resolve; });
+  const { dir, model, served, stageUpload } = await setupOnboardingHttp(t, async (bodyText) => {
     if (bodyText.includes("新增补充材料")) return "# 扩充后概览\n包含新增材料 [S1] [S2]。";
+    if (slowFirstPass) { firstPassStarted(); await held; }
     return "# 初次概览\n初次整理结果 [S1]。";
   });
 
@@ -201,10 +205,9 @@ test("ONB-40, ONB-42, C7, C8, C11: incremental scope delta reuses unchanged file
   const pass2Paths = pass2.summary?.references.map(r => r.path).sort();
   assert.deepEqual(pass2Paths, ["alpha.md", "gamma.md"], "removed material beta.md is excluded from new summary");
 
-  // C8 & C11: reopen while reading/generating is allowed (cancels active epoch) and late older epoch cannot overwrite new selection!
+  // C8 & C11: reopen while reading/generating is allowed (cancels active epoch) and a late older response cannot overwrite it.
   assert.equal(slowFirstPass, false);
   slowFirstPass = true;
-  const holdPromise = new Promise<void>(resolve => { releaseSlowPass = resolve; });
   const origRequests = model.requests.length;
   await served.web.post(`/api/onboarding/context/${id}/reopen`, {});
   const deltaFile = await stageUpload(id, "delta.md", "# Delta\n触发重新整理。");
@@ -212,15 +215,17 @@ test("ONB-40, ONB-42, C7, C8, C11: incremental scope delta reuses unchanged file
     sources: [{ kind: "files", selected: true, files: [alpha, deltaFile] }],
   });
 
-  // Start pass 3 and immediately reopen mid-flight (C8): reopen succeeds with phase="selecting" and bumps epoch (C11).
+  // Start pass 3 and wait until its model call is actually held, then reopen mid-flight (C8): the old epoch returns late.
   await served.web.post(`/api/onboarding/context/${id}/start`, {});
+  await started;
   const reopenedMidRun = await served.web.post<JourneyStateView>(`/api/onboarding/context/${id}/reopen`, {});
   releaseSlowPass();
-  await holdPromise;
   assert.equal(reopenedMidRun.phase, "selecting", "reopen during active reading/synthesis transitions cleanly back to selecting (C8)");
   await waitContextJourney(dir, id);
   const settled = await served.web.get<JourneyStateView>(`/api/onboarding/context/${id}`);
   assert.equal(settled.phase, "selecting", "superseded pass never overwrites reopened selecting state (C11)");
+  assert.ok(settled.late_ignored, "C11: the late response of the superseded epoch is recorded as ignored");
+  assert.equal(settled.summary, null, "C11: the late old summary is not written back");
   assert.ok(model.requests.length >= origRequests);
 });
 
@@ -359,4 +364,14 @@ test("ONB-43, ONB-44, ONB-45, ONB-46, C10: end-to-end code folder adoption, Codi
   } finally {
     store.close();
   }
+});
+
+test("ONB-41, C9: the model-failure classifier covers all six recoverable classes and unknown", () => {
+  assert.equal(classifyContextModelFailure({ status: 401 }), "auth");
+  assert.equal(classifyContextModelFailure({ status: 429 }), "rate_limit");
+  assert.equal(classifyContextModelFailure(Object.assign(new Error("empty"), { code: "agent.inference.empty" })), "invalid_output");
+  assert.equal(classifyContextModelFailure({ name: "TimeoutError" }), "timeout");
+  assert.equal(classifyContextModelFailure(new Error("fetch failed")), "connection");
+  assert.equal(classifyContextModelFailure(new Error("maximum context length exceeded")), "context_limit");
+  assert.equal(classifyContextModelFailure(new Error("something else")), "unknown");
 });

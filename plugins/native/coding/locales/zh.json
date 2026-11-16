@@ -1835,7 +1835,7 @@
     "coding.material.pinned-note": "用开始时的版本",
     "coding.material.reason.deleted": "在项目里找不到（可能已删除）",
     "coding.material.reason.forbidden": "当前没有读取权限",
-    "coding.material.round-overflow-summary": "已读 {inline} 份，其余 {rest} 份要时再读",
+    "coding.material.round-overflow-summary": "前 {inline} 份已读，其余 {rest} 份已核对、要时再读",
     "coding.material.round-summary": "本轮带入 {count} 份材料",
     "coding.material.start-without": "不带材料开始",
     "coding.material.unreadable-banner": "有材料暂不可读：{materials}。草稿与其他材料已保留。",

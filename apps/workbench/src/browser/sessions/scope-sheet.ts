@@ -50,12 +50,16 @@ function renderAiPanel(rows: readonly ExternalSessionProjectAiRead[], filter: st
   const list = visible.map((row) => {
     const pid = row.project.project_id;
     const descId = `permit-desc-${pid}`;
+    const blockedTotal = row.counts ? row.counts.blocked.reduce((sum, item) => sum + item.count, 0) : 0;
     const desc = row.counts
-      ? uiText.text("workbench.sessions.permit-counts", { readable: row.counts.ai_readable, reported: row.counts.reported })
+      ? uiText.text("workbench.sessions.permit-counts", { filed: row.counts.filed, readable: row.counts.ai_readable, reported: row.counts.reported, blocked: blockedTotal })
       : uiText.text("workbench.sessions.permit-default-desc");
+    const blocked = row.counts && row.counts.blocked.length > 0
+      ? `<p class="sessions-scope-hint">${escapeHtml(uiText.text("workbench.sessions.permit-blocked-tools", { tools: row.counts.blocked.map(item => `${item.display_name} ${item.count}`).join(uiText.text("common.list.separator")) }))}</p>`
+      : "";
     const badges = row.current ? renderBadge({ label: uiText.text("workbench.sessions.current-project-badge") }) : "";
     const control = renderSwitch({ checked: row.allowed, label: row.project.display_name, attrs: { "data-permit-switch": pid, "aria-describedby": descId } });
-    return renderPermitRow({ project: { id: pid, name: row.project.display_name }, badges, description: desc, descriptionId: descId, control, current: row.current, note: notes.get(pid), attrs: { "data-permit-project": pid } });
+    return renderPermitRow({ project: { id: pid, name: row.project.display_name }, badges, description: desc, descriptionId: descId, control, current: row.current, note: notes.get(pid), attrs: { "data-permit-project": pid } }) + blocked;
   }).join("");
   return `<p class="sessions-scope-hint">${uiText("workbench.sessions.ai-panel-intro")}</p>${search}<div class="mw-settings">${list}</div>`;
 }

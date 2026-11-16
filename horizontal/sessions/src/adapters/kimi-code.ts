@@ -1,6 +1,12 @@
 import { sessionsErrors } from "@molis-ai/molis-work-contracts/services/sessions";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
-import type { AdapterDiscoveryBatch, AdapterReadOutput, AdapterSourceContext, ExternalSessionSourceAdapter } from "../ports.js";
+import {
+  sessionSourceFailure,
+  type AdapterDiscoveryBatch,
+  type AdapterReadOutput,
+  type AdapterSourceContext,
+  type ExternalSessionSourceAdapter,
+} from "../ports.js";
 import {
   buildCliResumeTarget,
   extractJsonlMetadata,
@@ -13,22 +19,108 @@ import {
   readWholeTextBounded,
   walkFilesUnderRoot,
   withFileTranscriptCache,
+  type ParsedTranscriptResult,
 } from "./shared.js";
 
 const DISCOVERY_BATCH_SIZE = 50;
 const DISCOVERY_SCAN_BYTES = 2 * 1024 * 1024;
 
-function resolveKimiCandidate(relative: string, fileName: string): { candidate: boolean; stem: string; metaSibling: string | null } {
-  if (!fileName.endsWith(".jsonl")) return { candidate: false, stem: "", metaSibling: null };
-  // Kimi Code writes `<workdir-hash>/<session-id>/context.jsonl` alongside optional `wire.jsonl` and `metadata.json`.
-  if (fileName === "wire.jsonl") return { candidate: false, stem: "", metaSibling: null };
-  if (fileName === "context.jsonl") {
-    const parts = relative.split("/");
-    const parent = parts.length >= 2 ? parts[parts.length - 2]! : "";
-    const metaSibling = parts.length >= 2 ? [...parts.slice(0, -1), "metadata.json"].join("/") : "metadata.json";
-    return { candidate: parent.length > 0, stem: parent, metaSibling };
+interface KimiSessionFiles {
+  /** Relative session directory (`<workdir-hash>/<session-id>`). */
+  dir: string;
+  context: string | null;
+  wire: string | null;
+  metadata: string | null;
+  state: string | null;
+  mtime: number;
+}
+
+function collectKimiSessions(files: readonly { relative: string; entry: { name: string; mtime_ms: number } }[]): KimiSessionFiles[] {
+  const byDir = new Map<string, KimiSessionFiles>();
+  for (const item of files) {
+    const name = item.entry.name;
+    if (name !== "context.jsonl" && name !== "wire.jsonl" && name !== "metadata.json" && name !== "state.json") continue;
+    const parts = item.relative.split("/");
+    if (parts.length < 2) continue;
+    const dir = parts.slice(0, -1).join("/");
+    const record = byDir.get(dir) ?? { dir, context: null, wire: null, metadata: null, state: null, mtime: 0 };
+    if (name === "context.jsonl") record.context = item.relative;
+    else if (name === "wire.jsonl") record.wire = item.relative;
+    else if (name === "metadata.json") record.metadata = item.relative;
+    else record.state = item.relative;
+    record.mtime = Math.max(record.mtime, item.entry.mtime_ms);
+    byDir.set(dir, record);
   }
-  return { candidate: true, stem: fileName.slice(0, -".jsonl".length), metaSibling: null };
+  return [...byDir.values()]
+    .filter(record => record.context !== null || record.wire !== null)
+    .sort((a, b) => b.mtime - a.mtime || (a.dir < b.dir ? -1 : 1));
+}
+
+function nativeIdFromDir(dir: string): string {
+  return dir.split("/").pop() ?? "";
+}
+
+async function readMetadata(
+  context: AdapterSourceContext,
+  relative: string | null,
+  signal: AbortSignal,
+): Promise<Record<string, unknown> | null> {
+  if (!relative || !context.root) return null;
+  const stat = await context.ports.files.stat(context.root, relative, signal);
+  if (!stat) return null;
+  try {
+    const stream = await context.ports.files.open(context.root, relative, signal);
+    const { text } = await readWholeTextBounded(stream, signal, 64 * 1024);
+    const parsed = JSON.parse(text) as unknown;
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readKimiJsonl(
+  context: AdapterSourceContext,
+  relative: string,
+  signal: AbortSignal,
+  maxBytes?: number,
+): Promise<{ lines: Awaited<ReturnType<typeof readJsonlLines>>["lines"]; stopped: Awaited<ReturnType<typeof readJsonlLines>>["stopped"] }> {
+  if (!context.root) throw sessionsErrors.not_found("外部会话不存在或已被移除");
+  const stream = await context.ports.files.open(context.root, relative, signal);
+  return readJsonlLines(stream, signal, maxBytes);
+}
+
+async function parseKimiTranscript(
+  context: AdapterSourceContext,
+  relative: string,
+  signal: AbortSignal,
+  discovery: boolean,
+  fallbackMtimeMs = 0,
+): Promise<{ meta: ReturnType<typeof extractJsonlMetadata>; parsed: ParsedTranscriptResult | null }> {
+  const { lines, stopped } = await readKimiJsonl(context, relative, signal, discovery ? DISCOVERY_SCAN_BYTES : undefined);
+  return {
+    meta: extractJsonlMetadata(lines, fallbackMtimeMs),
+    parsed: discovery ? null : parseMessageJsonlLines(lines, stopped),
+  };
+}
+
+function metadataValues(metadata: Record<string, unknown> | null): {
+  sessionId: string | null;
+  title: string | null;
+  directory: string | null;
+  updatedAt: string | null;
+  forkedFrom: string | null;
+} {
+  if (!metadata) return { sessionId: null, title: null, directory: null, updatedAt: null, forkedFrom: null };
+  const rawId = metadata.session_id ?? metadata.sessionId ?? metadata.id;
+  const rawParent = metadata.parentSession ?? metadata.forkedFrom ?? metadata.forked_from;
+  const rawDir = metadata.work_dir ?? metadata.workdir ?? metadata.cwd ?? metadata.workingDirectory;
+  return {
+    sessionId: typeof rawId === "string" && isValidNativeId(rawId) ? rawId : null,
+    title: normalizeTitle(metadata.title ?? metadata.name),
+    directory: typeof rawDir === "string" && rawDir.trim() ? rawDir.trim() : null,
+    updatedAt: normalizeIsoTimestamp(metadata.updated_at ?? metadata.last_updated),
+    forkedFrom: typeof rawParent === "string" && isValidNativeId(rawParent) ? rawParent : null,
+  };
 }
 
 export const kimiCodeAdapter: ExternalSessionSourceAdapter = {
@@ -37,61 +129,57 @@ export const kimiCodeAdapter: ExternalSessionSourceAdapter = {
   async discoverPage(context: AdapterSourceContext, cursor: string | null, signal: AbortSignal): Promise<AdapterDiscoveryBatch> {
     if (!context.root) return { sessions: [], skipped_count: 0, next_cursor: null, total: 0 };
     const walked = await walkFilesUnderRoot(context.ports, context.root, signal, 4);
-    const candidates = walked.files.filter(item => resolveKimiCandidate(item.relative, item.entry.name).candidate);
+    const candidates = collectKimiSessions(walked.files);
     const startOffset = cursor ? Math.max(0, Number.parseInt(cursor, 10) || 0) : 0;
     const batch = candidates.slice(startOffset, startOffset + DISCOVERY_BATCH_SIZE);
 
     let skippedCount = startOffset === 0 ? walked.skipped : 0;
-    const sessions = [];
+    let unsupportedVersionFiles = 0;
+    const sessions: AdapterDiscoveryBatch["sessions"] = [];
 
-    for (const item of batch) {
+    for (const candidate of batch) {
       signal.throwIfAborted();
-      const info = resolveKimiCandidate(item.relative, item.entry.name);
-      if (!isValidNativeId(info.stem)) {
-        skippedCount++;
-        continue;
-      }
+      const stem = nativeIdFromDir(candidate.dir);
       try {
-        const stream = await context.ports.files.open(context.root, item.relative, signal);
-        const { lines } = await readJsonlLines(stream, signal, DISCOVERY_SCAN_BYTES);
-        const meta = extractJsonlMetadata(lines, item.entry.mtime_ms);
-        if (meta.validJsonCount === 0) {
+        const metadata = metadataValues(await readMetadata(context, candidate.state ?? candidate.metadata, signal));
+        const primaryPath = candidate.context ?? candidate.wire!;
+        let parsed = await parseKimiTranscript(context, primaryPath, signal, true, candidate.mtime);
+        if (!parsed.meta.hasSessionContent && candidate.wire && candidate.context) {
+          const wire = await parseKimiTranscript(context, candidate.wire, signal, true, candidate.mtime);
+          if (wire.meta.hasSessionContent) parsed = wire;
+        }
+        if (!parsed.meta.hasSessionContent) {
+          if (parsed.meta.unsupportedVersionCount > 0) unsupportedVersionFiles++;
           skippedCount++;
           continue;
         }
-        let metaTitle: string | null = null;
-        let metaCwd: string | null = null;
-        let metaUpdated: string | null = null;
-        if (info.metaSibling) {
-          const siblingStat = await context.ports.files.stat(context.root, info.metaSibling, signal);
-          if (siblingStat) {
-            try {
-              const metaStream = await context.ports.files.open(context.root, info.metaSibling, signal);
-              const { text } = await readWholeTextBounded(metaStream, signal, 64 * 1024);
-              const parsedMeta = JSON.parse(text) as unknown;
-              if (isRecord(parsedMeta)) {
-                metaTitle = normalizeTitle(parsedMeta.title ?? parsedMeta.name);
-                if (typeof parsedMeta.work_dir === "string" && parsedMeta.work_dir.trim()) metaCwd = parsedMeta.work_dir.trim();
-                else if (typeof parsedMeta.cwd === "string" && parsedMeta.cwd.trim()) metaCwd = parsedMeta.cwd.trim();
-                metaUpdated = normalizeIsoTimestamp(parsedMeta.updated_at ?? parsedMeta.last_updated);
-              }
-            } catch { /* ignore optional metadata.json error */ }
-          }
+        const nativeId = metadata.sessionId
+          ?? (parsed.meta.sessionId && isValidNativeId(parsed.meta.sessionId) ? parsed.meta.sessionId : null)
+          ?? (isValidNativeId(stem) ? stem : null);
+        if (!nativeId) {
+          skippedCount++;
+          continue;
         }
-        const nativeId = meta.sessionId && isValidNativeId(meta.sessionId) ? meta.sessionId : info.stem;
+        const lastActivity = metadata.updatedAt && metadata.updatedAt > parsed.meta.lastActivityAt
+          ? metadata.updatedAt
+          : parsed.meta.lastActivityAt;
         sessions.push({
           native_id: nativeId,
-          title: metaTitle ?? meta.title,
-          directory: meta.cwd ?? metaCwd,
-          last_activity_at: metaUpdated && metaUpdated > meta.lastActivityAt ? metaUpdated : meta.lastActivityAt,
+          title: metadata.title ?? parsed.meta.title,
+          directory: metadata.directory ?? parsed.meta.cwd,
+          last_activity_at: lastActivity,
           activity: "unknown" as const,
-          forked_from_native_id: meta.forkedFrom,
+          forked_from_native_id: metadata.forkedFrom ?? parsed.meta.forkedFrom,
           return_target: buildCliResumeTarget(context.tool, nativeId),
         });
       } catch (error) {
         if (signal.aborted) throw error;
         skippedCount++;
       }
+    }
+
+    if (startOffset === 0 && sessions.length === 0 && unsupportedVersionFiles > 0) {
+      throw sessionSourceFailure("version_mismatch", "Kimi Code 会话记录版本暂不支持解析", false);
     }
 
     const nextOffset = startOffset + batch.length;
@@ -108,24 +196,27 @@ export const kimiCodeAdapter: ExternalSessionSourceAdapter = {
       throw sessionsErrors.not_found("外部会话不存在或已被移除");
     }
     const walked = await walkFilesUnderRoot(context.ports, context.root, signal, 4);
-    let matchedRelative: string | null = null;
-    for (const item of walked.files) {
-      const info = resolveKimiCandidate(item.relative, item.entry.name);
-      if (info.candidate && info.stem === nativeId) {
-        matchedRelative = item.relative;
-        break;
-      }
+    const candidates = collectKimiSessions(walked.files);
+    let matched: KimiSessionFiles | null = null;
+    for (const candidate of candidates) {
+      if (nativeIdFromDir(candidate.dir) === nativeId) { matched = candidate; break; }
+      const metadata = metadataValues(await readMetadata(context, candidate.state ?? candidate.metadata, signal));
+      if (metadata.sessionId === nativeId) { matched = candidate; break; }
+      const parsed = await parseKimiTranscript(context, candidate.context ?? candidate.wire!, signal, true);
+      if (parsed.meta.sessionId === nativeId) { matched = candidate; break; }
     }
-    if (!matchedRelative) {
-      throw sessionsErrors.not_found("外部会话不存在或已被移除");
-    }
+    if (!matched) throw sessionsErrors.not_found("外部会话不存在或已被移除");
+
     const root = context.root;
-    const relative = matchedRelative;
-    const parsed = await withFileTranscriptCache(context.ports, root, relative, signal, async () => {
-      const stream = await context.ports.files.open(root, relative, signal);
-      const { lines, stopped } = await readJsonlLines(stream, signal);
-      return parseMessageJsonlLines(lines, stopped);
+    const relative = matched.context ?? matched.wire!;
+    const transcript = await withFileTranscriptCache(context.ports, root, relative, signal, async () => {
+      let parsed = await parseKimiTranscript(context, relative, signal, false) as { parsed: ParsedTranscriptResult };
+      if (parsed.parsed.entries.length === 0 && matched!.wire && matched!.context) {
+        const wire = await parseKimiTranscript(context, matched!.wire, signal, false) as { parsed: ParsedTranscriptResult };
+        if (wire.parsed.entries.length > 0) parsed = wire;
+      }
+      return parsed.parsed;
     });
-    return paginateAndSearchTranscript(parsed, input);
+    return paginateAndSearchTranscript(transcript, input);
   },
 };

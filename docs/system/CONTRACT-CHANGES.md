@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-16 第 34 批 Sessions：`packages/contracts/src/platform/external-tools.ts` 的 `ExternalToolEntry` 新增可选 `display_name_en`（28 条中文显示名补齐，页面仍不直接导入登记表，由 `/api/sessions/*` 投影）；`services/sessions` 包成熟度 `contract-only` → `partial`，新增系统动作 `sessions.connector.usages@1`，删除无抛出路径的 `sessions.suggestion_unavailable`；`modules/private-work-context` 提取 `WORK_CONTEXT_PERSON_RELATION_KEPT_CODE` 常量（类型值不变）。均为阶段一原地变更，无旧值读取、无库迁移；动作/API/库结构快照随本批更新。
+
 2026-11-14 第 12 批合后审计：`UiPageWorkspaces.readInstructions()` 的返回从 `Promise<void>` 改为 `Promise<UiPageInstructionSettings>`（`off`/`trusted`/`why_not`，与 `ProjectDirectories.instructions` 同形），工作台框桥把回执交给页面，Coding 直接更新规则菜单而不再整页重读；`contracts/platform/ui` 的 API 快照随改。阶段一原地改，不保留旧返回值读取；调用方只有本仓库的工作台框桥与 Coding。
 
 2026-11-05索引Home增量：Memory ledger现行索引采用格式为2，DDL/业务行不变，仅授权隔离的真正空容器建2；Home恢复journal现行schema为1（#1837 统一起点；用户 2026-11-12 定保持 1），形状和原phase不变，但旧App不得按旧路径权限回滚新索引材料。普通打开拒绝旧/未来版本、不兜底；旧Home的记忆账本只经下方「当前保留机制」登记的 1 → 2 升级段进入第 2 版。生产/冷维护显式 `indexed-v1`，snapshot新增SDK共享DB及精确侧车拒入/目标reset；MemoryRestoreSdkPort签名不变，purge材料语义为SDK已确认的现存权威文件，不能假设一条独占一文件或删除共享DB。公开API没有因此新增类型；原API快照由统筹核对。新容器不得交旧App或改版本回退，回退使用原隔离树和原Home。

@@ -255,10 +255,10 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `apps/cli` | 应用 | 4 | 159 | `command-dispatch.ts` 63 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `apps/desktop` | 应用 | 7 | 806 | `capsule-shell.ts` 615 | 1 | 6 | 0 | 在用 | 中 | 已审 |
-| `apps/local-host` | 应用 | 916 | 99,105 | `browser/browser-host.ts` 784 | 1 | 65 | 1 | 在用 | 深 | 待审 |
+| `apps/local-host` | 应用 | 935 | 101,938 | `context-onboarding-service.ts` 798 | 1 | 68 | 1 | 在用 | 深 | 待审 |
 | `apps/mcp` | 应用 | 15 | 997 | `runtime-context-tools.ts` 193 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `apps/server` | 应用 | 3 | 103 | `main.ts` 87 | 1 | 3 | 0 | 在用 | 浅 | 已审 |
-| `apps/workbench` | 应用 | 423 | 60,908 | `i18n/en.ts` 3,243 | 2 | 29 | 1 | 在用 | 深 | 已审 |
+| `apps/workbench` | 应用 | 500 | 65,675 | `tab-workspace-ops.ts` 794 | 2 | 30 | 1 | 在用 | 深 | 已审 |
 | `horizontal/account` | 横向 | 14 | 1,225 | `session-manager.ts` 262 | 1 | 1 | 1 | 在用 | 中 | 待审 |
 | `horizontal/agent-host` | 横向 | 99 | 13,928 | `adapters/prologue-stream.ts` 723 | 1 | 3 | 1 | 在用 | 深 | 已审 |
 | `horizontal/appearance` | 横向 | 6 | 536 | `selection.ts` 164 | 1 | 4 | 1 | 在用 | 浅 | 待审 |
@@ -273,7 +273,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `horizontal/runtime-host` | 横向 | 2 | 436 | `adapters/terminal-pty.ts` 424 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
 | `horizontal/scheduler` | 横向 | 2 | 622 | `index.ts` 541 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `horizontal/search` | 横向 | 2 | 722 | `index.ts` 648 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `horizontal/sessions` | 横向 | 25 | 6,270 | `adapters/shared.ts` 625 | 1 | 3 | 1 | 在用 | 中 | 待审 |
+| `horizontal/sessions` | 横向 | 25 | 6,664 | `adapters/shared.ts` 705 | 1 | 3 | 1 | 在用 | 中 | 待审 |
 | `horizontal/surfaces` | 横向 | 13 | 1,214 | `objects.ts` 277 | 1 | 2 | 1 | 在用 | 中 | 待审 |
 | `modules/acceptance` | 模块 | 5 | 442 | `service.ts` 195 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
 | `modules/artifacts` | 模块 | 30 | 2,693 | `service.ts` 339 | 1 | 2 | 2 | 在用 | 中 | 待审 |
@@ -285,7 +285,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `modules/projects` | 模块 | 8 | 1,215 | `repository.ts` 470 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/sync-replication` | 模块 | 21 | 875 | `index.ts` 272 | 1 | 2 | 1 | 在用 | 深 | 待审 |
 | `modules/shelf` | 模块 | 36 | 3,634 | `contract.ts` 364 | 2 | 2 | 2 | 在用 | 中 | 已审 |
-| `packages/contracts` | 基础 | 178 | 27,096 | `services/memory.ts` 847 | 78 | 0 | 70 | 在用 | 深 | 待审 |
+| `packages/contracts` | 基础 | 187 | 29,017 | `services/memory.ts` 847 | 82 | 0 | 73 | 在用 | 深 | 待审 |
 | `packages/design-system` | 基础 | 137 | 19,778 | `styles/primitives.ts` 1,161 | 2 | 2 | 5 | 在用 | 深 | 已审 |
 | `packages/im-ui` | 基础 | 24 | 1,920 | `views.ts` 171 | 1 | 3 | 3 | 在用 | 中 | 已审 |
 | `packages/kernel` | 基础 | 14 | 1,879 | `action-service.ts` 487 | 2 | 2 | 1 | 在用 | 深 | 已审 |

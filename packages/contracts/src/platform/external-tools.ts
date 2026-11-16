@@ -152,7 +152,7 @@ export const EXTERNAL_TOOLS = [
       send: gap("unverified", "公开资料未查到", "unverified", "export"),
       stop: gap("unverified", "公开资料未查到", "unverified", "export"),
       export: { via: "command", argv: ["export", "{session_id}"], output: "text", trust: "help" } },
-    checked: { on: "2026-11-15", version: "1.0.77" } },
+    checked: { on: "2026-11-15", version: "1.0.62" } },
 
   { id: "codex-ide", display_name: "Codex IDE 扩展", display_name_en: "Codex IDE Extension", vendor: "OpenAI", surface: "ide", region: "global", data_root: null, sessions: ALL_PENDING, checked: CHECKED },
   { id: "codex-desktop", display_name: "Codex 桌面", display_name_en: "Codex Desktop", vendor: "OpenAI", surface: "desktop", region: "global", data_root: null, sessions: ALL_PENDING, checked: { on: "2026-11-05", version: "0.166.0" } },
@@ -185,7 +185,7 @@ export const EXTERNAL_TOOLS = [
       list: { via: "command", argv: ["agent-task", "list", "--json", "completedAt,createdAt,id,name,pullRequestNumber,pullRequestState,pullRequestTitle,pullRequestUrl,repository,state,updatedAt,user", "-L", "100"], output: "json", trust: "help" },
       read: { via: "command", argv: ["agent-task", "view", "{session_id}", "--log"], output: "text", trust: "help" },
       resume: gap("not_offered", "官方没有续接云端任务的入口", "official") },
-    checked: { on: "2026-11-15", version: "2.103.3" } },
+    checked: { on: "2026-11-15", version: "2.96.0" } },
   { id: "cursor-editor", display_name: "Cursor 编辑器", display_name_en: "Cursor Editor", vendor: "Cursor", surface: "ide", region: "global", data_root: null, sessions: PRIVATE_APP, checked: CHECKED },
   { id: "cursor-cloud", display_name: "Cursor 云端 Agent", display_name_en: "Cursor Cloud Agent", vendor: "Cursor", surface: "cloud", region: "global",
     sessions: { ...ALL_PENDING, discover: lead("`GET /v0/agents`"), list: lead("`GET /v0/agents`"), read: lead("`/conversation`"), send: lead("followup"), stop: lead("stop") }, checked: CHECKED },

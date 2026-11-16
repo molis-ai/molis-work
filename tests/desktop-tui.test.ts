@@ -591,11 +591,13 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     }
     assert.doesNotMatch(pluginStrip, /data-plugin-id="shelf"/, "Shelf is a 常开插件, a tab of the side panel, not an entry of the switcher");
     assert.match(pluginStrip, /data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"/);
-    // No rail: one bar at the foot. At its left the switcher, which holds, under search and the two buttons that get more
-    // plugins (the market, the studio), every plugin (each with its own Dock button), then the Dock; the Assistant is only an
-    // input; at the right the person's own tray (07-1 S4b: no side button; the side opens from its glyphs in the titlebar), then
-    // the project, whose menu holds the person.
-    assert.match(browser, /class="workbench-bar" data-dock[^>]*>\s*<div class="bar-start">[\s\S]*data-plugin-picker-toggle[\s\S]*data-global-menu[\s\S]*class="plugin-rail-items"[\s\S]*data-dock-pins[\s\S]*<div class="bar-center" data-assistant-island data-system-view-owner="assistant">[\s\S]*data-assistant-composer[\s\S]*class="mw-composer__input"[\s\S]*<div class="bar-end">\s*<div class="bar-side bar-own" data-bar-own role="toolbar" aria-label="你自己的"><\/div>[\s\S]*id="side-panel"[\s\S]*data-project-menu/);
+    // No rail (WLN-16, 第 32 批): the top strip carries the Dock, the open tabs and the ＋ that opens the start page (search,
+    // the two buttons that get more plugins, every plugin with its own Dock button), then the person's own tray, the side's
+    // glyphs and the project, whose menu holds the person. The foot is the work line alone, with the Assistant's input in
+    // its slot and the side panel beside it.
+    assert.match(browser, /<header class="workbench-header immersive-titlebar" data-dock[^>]*>[\s\S]*data-dock-pins[\s\S]*data-titlebar-tabs[\s\S]*data-plugin-picker-toggle[\s\S]*data-global-menu[\s\S]*class="plugin-rail-items"[\s\S]*<div class="bar-side bar-own" data-bar-own role="toolbar" aria-label="你自己的"><\/div>[\s\S]*<div class="titlebar-end">[\s\S]*data-project-menu[\s\S]*<\/header>/);
+    assert.match(browser, /class="workbench-bar" data-work-bar[^>]*>\s*<div class="work-line"[\s\S]*data-work-line-head[\s\S]*data-assistant-island data-system-view-owner="assistant"[\s\S]*data-assistant-composer[\s\S]*class="mw-composer__input"[\s\S]*id="side-panel"/);
+    assert.doesNotMatch(browser.slice(browser.indexOf('class="workbench-bar"'), browser.indexOf('id="side-panel"')), /data-plugin-picker|data-dock-pins|data-project-menu/, "the foot holds the line, not the plugins or the project");
     assert.doesNotMatch(browser, /data-side-toggle/, "the bar has no side button (07-1 S4b)");
     assert.doesNotMatch(browser, /data-bar-resident|data-dock-toggle|data-dock-window|dock-window-im/, "the side panel has one button and no group-chat names (side-shelf §7)");
     assert.doesNotMatch(browser, /class="plugin-stack"|class="workbench-dock"|data-navigation-labels-toggle/);
@@ -610,7 +612,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(pluginStrip, /class="personal-sidebar-footer"/);
     assert.doesNotMatch(browser, /class="account-global-popover dock-settings"/, "no second list at the foot of the switcher");
     assert.doesNotMatch(extend, /data-plugin-id="(characters|settings)"|personal-account|capabilities/, "the person, settings and capabilities live under the project button");
-    const projectMenu = browser.slice(browser.indexOf('<div class="bar-end">')).match(/<details[^>]*data-project-menu>[\s\S]*?<\/details>/)?.[0] ?? "";
+    const projectMenu = browser.slice(browser.indexOf('<div class="titlebar-end">')).match(/<details[^>]*data-project-menu>[\s\S]*?<\/details>/)?.[0] ?? "";
     // The menu is the project and the person; the discussion is a side tab, opened from its glyph in the titlebar.
     assert.doesNotMatch(projectMenu, /data-side-toggle/);
     assert.match(projectMenu, /navigator-project-manage[\s\S]*data-personal-menu[\s\S]*class="personal-account"[\s\S]*href="\/capabilities\/library[^"]*"[^>]*data-capabilities-open[\s\S]*data-plugin-id="settings"/);
@@ -773,10 +775,8 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(titlebarMarkup, /data-tauri-drag-region="deep"/);
     assert.match(titlebarMarkup, /data-workspace-history="back"/);
     assert.match(titlebarMarkup, /data-titlebar-tabs/);
-    assert.doesNotMatch(titlebarMarkup, /navigator-project-selector/);
-    assert.doesNotMatch(titlebarMarkup, /data-global-search-open/);
-    assert.match(desktop, /data-project-island[\s\S]*navigator-project-selector/);
-    assert.match(desktop, /data-project-island[\s\S]*data-global-search-open/);
+    // WLN-16: the project button and the start page's search are in the top strip; the foot is the work line.
+    assert.match(titlebarMarkup, /data-global-search-open[\s\S]*data-project-island[\s\S]*navigator-project-selector/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /\.workspace-chrome \{/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /\.workspace-chrome\.project-island \{/);
     assert.doesNotMatch(renderMolisWorkWorkbenchStylesheet(), /\.immersive-titlebar > \.workspace-chrome \{/);

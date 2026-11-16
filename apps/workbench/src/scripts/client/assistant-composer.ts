@@ -106,6 +106,9 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   };
   // Every method and capability is listed (the menu scrolls); the composer's "/" narrows them by the words typed after it.
   const commands = () => [
+    // 手边 (specs/work-line §4.2): the side pages plugins keep things on, one press from the input; what is picked there goes with the next send.
+    ...(project ? Array.from(document.querySelectorAll("[data-side-tabs] :is([data-side-tab='files'],[data-side-tab][data-side-plugin]:not([data-side-context-owner]):not([data-side-keys]))")).map((tab) => ({ slash: readText("workbench.work-line.at-hand"), icon: "sidebar",
+      label: tab.getAttribute("aria-label") || "", hint: readText("workbench.work-line.at-hand-hint"), run: () => document.dispatchEvent(new CustomEvent("molis:side-open", { detail: { tab: tab.dataset.sideTab } })) })) : []),
     // Each kind keeps the glyph Coding gives the same kind (its ＋), so a method or a capability looks the same wherever it is added.
     ...startersFor().map((starter) => ({ slash: readText("workbench.context-onboarding.begin"), icon: "sparkles", label: starter.label + (starter.kind ? " · " + starter.kind : ""), ...(starter.hint ? { hint: starter.hint } : {}),
       run: () => { if (useStarter(starter)) input.focus(); } })),
@@ -132,16 +135,21 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   const receiverNow = () => {
     const work = getWork();
     // With a page in front that takes words, the tag opens 「发给」 (O4), so the person can go back to it.
-    const open = globalThis.molisBarReceivers?.front() ? openSendTo : openConversation;
+    const open = globalThis.molisBarReceivers?.front() || (project && host.lineEvents) ? openSendTo : openConversation;
     // A new work names where it will be put first (this project, or personal), so a personal request typed on a project page is not filed there unseen.
     const place = scopeLabel(nextScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" });
-    if (!work) return { open, icon: "sparkles", label: place + " · " + (nextExec !== "assistant" && executorOffer(nextExec) ? executorOffer(nextExec).title : readText("workbench.common.assistant")) };
+    // An event's tab in front: the words are about that event (WLN-03); the cross goes back to now.
+    const about = eventOf();
+    if (about && !work?.reply_target) return { open, icon: "sparkles", label: about.title, reset: () => { void switchTo(null); input.focus(); }, resetLabel: readText("workbench.assistant-dock.start-new-work-instead") };
+    if (!work) return { open, icon: "sparkles", label: place + " · " + (nextExec !== "assistant" && executorOffer(nextExec) ? executorOffer(nextExec).title : nextChar ? nextChar.title : readText("workbench.common.assistant")),
+      ...(nextChar && !fresh ? { reset: () => { void talkTo(null); }, resetLabel: readText("workbench.assistant-dock.start-new-work-instead") } : {}) };
     const where = work.scope?.project_id !== project?.id ? scopeLabel(work.scope, work.scope_title) : "";
     // With a page in front that takes words, say plainly that this Send goes to the Assistant, not to that page.
     const to = globalThis.molisBarReceivers?.front() ? readText("workbench.common.assistant") + " · " : "";
     return { open, icon: "sparkles", label: to + (work.reply_target ? readText("workbench.assistant-composer.original-comment-title", { title: work.reply_target.title }) : (where ? where + " · " : "") + work.title),
       // Words carried from this work into a new one are no longer this work's draft: they would come back on returning to it.
-      reset: () => { const from = curId, carried = String(input.value || ""); void switchTo(null).then(() => {
+      // The cross starts a separate new work (its label says so), the main conversation's included: 「现在」 would only lead back here.
+      reset: () => { const from = curId, carried = String(input.value || ""); void Promise.resolve(startFresh()).then(() => {
         if (from && carried.trim() && String(input.value || "") === carried) void draftFor(from).write("").catch(() => undefined); }); input.focus(); }, resetLabel: readText("workbench.assistant-dock.start-new-work-instead") };
   };
   /* The choices that are the next Send's, in the bar only once they differ from the default and while the side pane, where they
@@ -205,12 +213,12 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   const going = new Map(), later = new Map(), writing = new Map();
   const draftAdapters = new Map();
   const draftFor = (id) => {
-    const key = id || scoped("new-draft");
+    const key = id || newDraftKey();
     if (!draftAdapters.has(key)) draftAdapters.set(key, makeDraft(id));
     return draftAdapters.get(key);
   };
   const makeDraft = (id) => {
-    if (!id) { const key = scoped("new-draft"); return { read: async () => store.get(key) || "", write: async (text) => store.set(key, text || null) }; }
+    if (!id) { const key = newDraftKey(); return { read: async () => store.get(key) || "", write: async (text) => store.set(key, text || null) }; }
     const route = host.route("/api/assistant/works/" + encodeURIComponent(id) + "/draft");
     let unsaved = false;
     return {
@@ -280,7 +288,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   const mountComposer = () => {
     island.removeAttribute("data-receiver"); paintAim(false);
     refreshComposerWords = assistantInputName; refreshComposerWords();
-    mountedFor = curId || scoped("new-draft"); draftHere = draftFor(curId); painted = shown();
+    mountedFor = curId || newDraftKey(); draftHere = draftFor(curId); painted = shown();
     composer = window.molisComposer(compose, { kind: "ai", entry: "assistant", labels: words, draft: { adapter: draftHere },
       receiver: receiverNow, delivery: deliveryNow, get controls() { return controlsNow(); }, get commands() { return commands(); },
       attachments: { accept: upload.accept, upload: (file) => upload.upload(file) }, onMaterials: () => paintMats(),
@@ -296,7 +304,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     const page = pageInFront();
     // The person opened another receiver: the composer moves now, even with a Send on its way (its outcome is the Host's and the
     // thread's). A new work's first Send moving it to that work waits until the composer has settled the Send.
-    if (mountedFor !== (page ? page.key : curId || scoped("new-draft")) && !(sending && handedOver && !page)) {
+    if (mountedFor !== (page ? page.key : curId || newDraftKey()) && !(sending && handedOver && !page)) {
       // Destroy flushes captured edits, including typing before the shared script arrived.
       composer?.destroy(); boundPage?.bind(null); boundPage = null;
       handedOver = false; closeSendTo(false);
@@ -377,10 +385,28 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     group.append(head, ...items);
     return group;
   };
+  const whoMark = (name) => { const mark = el("span", "work-reply-who", Array.from(name)[0] || ""); mark.setAttribute("aria-hidden", "true"); return mark; };
   const paintSendTo = () => {
     const page = globalThis.molisBarReceivers?.front() || null, named = page?.options.receiver?.() || null;
-    if (!page || !named) return false;
-    const onPage = boundPage === page, mark = pageGlyph(named.icon), spark = glyphOf(sendToGlyphs.sparkles);
+    // On a project the line's events and who can be spoken to are listed too (specs/work-line §4.4, WLN-40): the same events as the line.
+    const line = project && host.lineEvents ? host.lineEvents() : null;
+    if (!named && !line) return false;
+    const onPage = Boolean(named) && boundPage === page, mark = named ? pageGlyph(named.icon) : null, spark = glyphOf(sendToGlyphs.sparkles);
+    if (line) {
+      const leave = () => { if (page) declined = page; };
+      const here = getWork(), now = !onPage && !curEvent && !fresh && (!here || here.main), to = now ? chosenCharacter() : null;
+      const spoken = mains().filter((work) => work.character).map((work) => work.character);
+      const offered = (characterChoices() || []).filter((one) => one.available && !spoken.some((had) => had.artifact_id === one.reference.artifact_id)).map((one) => ({ artifact_id: one.reference.artifact_id, version: one.reference.version, title: one.title }));
+      const talk = (ref) => () => { leave(); void talkTo(ref).then(syncComposer); };
+      sendTo.replaceChildren(
+        ...(named ? [sendToGroup(readText("workbench.assistant-composer.this-page"), [sendToItem(mark, named.label, named.detail || "", onPage, () => { declined = null; syncComposer(); })])] : []),
+        sendToGroup(readText("workbench.work-line.now"), [sendToItem(spark, readText("workbench.common.assistant"), readText("workbench.assistant-tabs.main-conversation"), now && !to, talk(null)),
+          ...[...spoken, ...offered].map((one) => sendToItem(whoMark(one.title), one.title, "", Boolean(now && to && to.artifact_id === one.artifact_id), talk(one)))]),
+        ...(line.length ? [sendToGroup(readText("workbench.work-line.events-on-line"), line.map((event) => sendToItem(glyphOf(event.mark), event.title, "",
+          !onPage && (curEvent ? curEvent === eventKey(event.subject) : event.subject.kind === WORK_KIND && event.subject.id === curId), () => { leave(); void openEvent(event); syncComposer(); })))] : []),
+        ...(named?.others?.length ? [sendToGroup(readText("workbench.assistant-composer.other-sessions"), named.others.map((one) => sendToItem(mark, one.label, one.detail || "", false, () => named.choose?.(one.id))))] : []));
+      return true;
+    }
     const recent = works.filter((work) => !work.reply_target).sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || ""))).slice(0, 3);
     const assistant = (id) => () => { declined = page; void switchTo(id); syncComposer(); };
     sendTo.replaceChildren(

@@ -6,7 +6,7 @@ import {
 } from '@molis-ai/molis-work-module-artifacts';
 import { createSyncConflictState, createSyncJsonContent } from '@molis-ai/molis-work-plugin-sdk';
 import type { SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
-import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
+import { defineErrorCodes, objectLink } from '@molis-ai/molis-work-contracts/platform/actions';
 import { createSqliteReplica, namespacedReplicaDatabase, ensureStorageSpace, queueReplicaChange, readDatabaseSpace } from '@molis-ai/molis-work-storage';
 import { partitionedReplica, syncCutoverLane, type ProcessItemsTakeoverOutcome, type SyncRegistration, syncNamespace } from '@molis-ai/molis-work-module-sync-replication';
 import { verifyProcessItemsRecovery } from './process-items-recovery.js';
@@ -140,7 +140,7 @@ function createVersionRegistration(home: string, spaceId: string, userId: string
     };
   };
   const registration: SyncRegistration = {
-    locate:key=>'/projects/'+encodeURIComponent(decode(key)[0])+'/?openPlugin='+'artifacts'+'&openItem='+encodeURIComponent(decode(key)[2]),selection: declared.selection, dependencies: [], title: declared.title,
+    locate:key=>objectLink(decode(key)[0]!,{surface:'artifacts',id:decode(key)[2]!}),selection: declared.selection, dependencies: [], title: declared.title,
     content: library ? createArtifactSyncContent(spaceId) : createSyncJsonContent({ spaceId, authorize: check }),
     async refresh() {
       check();

@@ -13,6 +13,7 @@ import { memoryLearningSources } from "./assistant-inputs.js";
 import { RUNTIME, type AssistantServicePorts } from "./assistant-service-shared.js";
 import type { AssistantWorkReads } from "./assistant-work-reads.js";
 import { assistantWords } from "./assistant-saved-text.js";
+import { filledNotice } from "./assistant-work-title.js";
 
 /** The rule that holds a notice of this kind on this surface now, if any. Rules apply exactly as written. */
 export function holdingRule(rules: readonly AssistantRule[], kind: AssistantNoticeKind, surface: string | null): AssistantRule | undefined {
@@ -27,7 +28,7 @@ export type AssistantNoticesLinks = Pick<AssistantWorkReads, "assistantPart" | "
  * other collaborators come through `link`.
  */
 export class AssistantNotices {
-  constructor(private readonly store: Pick<AssistantStore, "activeSince" | "get" | "list" | "observe" | "observed" | "openNotices" | "raiseNotice" | "relations" | "rounds" | "rules" | "setSetting" | "setting" | "settleNotices">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly link: AssistantNoticesLinks) {}
+  constructor(private readonly store: Pick<AssistantStore, "activeSince" | "get" | "list" | "observed" | "openNotices" | "raiseNotice" | "relations" | "rounds" | "rules" | "setSetting" | "setting" | "settleNotices">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly link: AssistantNoticesLinks) {}
 
   /**
    * A change of a work's state is what raises a notice — failed, waiting on the person, done — once per round and kind.
@@ -35,9 +36,9 @@ export class AssistantNotices {
    * awaited stops asking. Notices never start anything.
    */
   notice(work: StoredWork, state: AssistantWorkState): void {
-    const before = this.store.observed(this.actorId, work.work_id);
+    const before = this.store.observed.of(this.actorId, work.work_id);
     if (before === state) return;
-    this.store.observe(this.actorId, work.work_id, state);
+    this.store.observed.set(this.actorId, work.work_id, state);
     if (before === null) return;
     if (!["waiting-input", "waiting-review"].includes(state)) this.store.settleNotices(this.actorId, { work_id: work.work_id, kinds: ["needs-decision"] }, "resolved");
     if (state === "running") this.store.settleNotices(this.actorId, { work_id: work.work_id, kinds: ["failed", "completed"] }, "resolved");
@@ -71,7 +72,9 @@ export class AssistantNotices {
         if (shownMaterial.has(notice.work_id)) return [];
         shownMaterial.set(notice.work_id, 1);
       }
-      const { state: _state, ...view } = notice;
+      const { state: _state, ...stored } = notice;
+      // A main conversation's notice names it in the reader's language: its stored title is empty.
+      const view = filledNotice(stored, notice.work_id ? whenThere(() => this.store.get(this.actorId, notice.work_id)) : null);
       const count = notice.kind === "material" ? open.filter(item => item.kind === "material" && item.work_id === notice.work_id && Date.parse(item.created_at) >= stale).length : 1;
       const shown = count > 1 ? { ...view, additional_count: count - 1 } : view;
       const rule = holdingRule(rules, notice.kind, surface);

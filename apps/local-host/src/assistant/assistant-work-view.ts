@@ -1,6 +1,7 @@
 import type { AssistantRound, AssistantWork, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { StoredWork } from "./assistant-store.js";
+import { workTitle } from "./assistant-work-title.js";
 
 /** The fields `T` may leave out. */
 type OptionalOf<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? K : never }[keyof T];
@@ -12,11 +13,12 @@ type OptionalOf<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? K : never }[key
  */
 export function workView(work: StoredWork, state: AssistantWorkState, delegated_by: AssistantWork["delegated_by"]): AssistantWork {
   const view: AssistantWork = {
-    work_id: work.work_id, executor: work.executor, revision: work.revision, title: work.title, scope: work.scope, origin: work.origin, state,
+    work_id: work.work_id, executor: work.executor, revision: work.revision, title: workTitle(work), scope: work.scope, origin: work.origin, state,
     session_id: work.session_id, draft: work.draft, draft_revision: work.draft_revision, created_at: work.created_at, updated_at: work.updated_at, archived: work.archived,
   };
   const optional: { [K in OptionalOf<AssistantWork>]-?: AssistantWork[K] | undefined } = {
-    reply_target: work.reply_target, scope_title: work.scope_title, character: work.character, delegated_by, budget_tokens: work.budget_tokens,
+    reply_target: work.reply_target, scope_title: work.scope_title, character: work.character, delegated_by, budget_tokens: work.budget_tokens, ask_each_step: work.ask_each_step,
+    main: work.main, serves: work.serves, line_event: work.line_event,
   };
   // An optional field is in the view only when the work has it.
   for (const key of Object.keys(optional) as Array<keyof typeof optional>) if (optional[key] !== undefined) Object.assign(view, { [key]: optional[key] });

@@ -4,12 +4,13 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 /**
  * W4-10: an idle project home tab asks the Host for little. What waits on the person (background tasks, the Assistant's
- * notices, plugin deliveries) is one read every 15 seconds (`/api/attention`), and the home's own refresh is every 30;
- * nothing else polls while the person does nothing. The budget is per minute of a visible, untouched tab.
+ * notices, plugin deliveries) is read when the Host says something changed (`/api/attention/events`, WLN-27, user decision
+ * 2026-11-15), not on a beat: an idle minute with nothing changing reads it not at all. The budget is per minute of a
+ * visible, untouched tab.
  */
 const BUDGET_PER_MINUTE = 6;
 
-test("W4-10-02 an idle home tab stays within its request budget: one attention read every 15 seconds and the home's own refresh", { timeout: 150_000 }, async t => {
+test("W4-10-02 WLN-27 an idle home tab stays within its request budget: what waits on the person is read on the Host's word, not on a beat", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
   const { origin, projectId, command, sessionId, navigate, waitFor, evaluate } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -25,7 +26,7 @@ test("W4-10-02 an idle home tab stays within its request budget: one attention r
   const requests = await evaluate<Array<{ at: number; url: string }>>(`window.__requests.filter(request => request.at > ${start})`);
   const byPath = requests.reduce<Record<string, number>>((counts, request) => ({ ...counts, [request.url]: (counts[request.url] ?? 0) + 1 }), {});
   assert.ok(requests.length <= BUDGET_PER_MINUTE, `an idle minute asked ${requests.length} times: ${JSON.stringify(byPath)}`);
-  assert.equal(byPath[`/projects/${projectId}/api/attention`], 4, `what waits on the person is read every 15 seconds: ${JSON.stringify(byPath)}`);
+  assert.equal(byPath[`/projects/${projectId}/api/attention`], undefined, `nothing changed, so what waits on the person is not read again: ${JSON.stringify(byPath)}`);
   for (const old of ["/api/background-tasks", `/projects/${projectId}/api/plugins/runtime/events`, `/projects/${projectId}/api/assistant/notices`]) {
     assert.equal(byPath[old], undefined, `${old} is no longer polled on its own`);
   }

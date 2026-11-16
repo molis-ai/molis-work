@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { escapeHtml, icon, renderButton, renderComposer, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantComposerLabels } from "./assistant-composer-labels.js";
 import { builtinPluginDirectory } from "./plugin-catalog.js";
+import { WORK_LINE_FRAME_STYLES, renderWorkLineSpecimens, workLineSpecimenTitle } from "./work-line-specimens.js";
 import {
   THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, renderIconSprite, renderMenuGroup, renderMenuItem, renderProjectMonogram, renderToggleGroup,
 } from "@molis-ai/molis-work-design-system";
@@ -234,10 +235,13 @@ function sheetSpecimen(readText: Say): string {
     `<div class="mw-navs__row mw-navs__row--end" data-nav-sheet-row>${sideGlyphs(readText, { current: "talk", grown: "shelf" })}</div>`);
 }
 
-/** The frame the board's 工作台导航 section loads, in the board's language. */
-export function renderMolisWorkNavigationSpecimen(readText: Say, htmlLang: string, sheet: "workbench" | "arrival" = "workbench"): string {
+/**
+ * The frame the board's 工作台导航 section loads, in the board's language. `sheet: "work-line"` is the same frame (a workbench
+ * page with the workbench sheet) holding the 事项线 section's specimens instead (work-line-specimens.ts).
+ */
+export function renderMolisWorkNavigationSpecimen(readText: Say, htmlLang: string, sheet: "workbench" | "arrival" | "work-line" = "workbench"): string {
   // The arrival sheet has the glyph row but not the project page's tab rules, so its frame draws only that row.
-  const arrival = sheet === "arrival";
+  const arrival = sheet === "arrival", workLine = sheet === "work-line";
   const bars = specimen("bar", "15 · 16", uiText.text("workbench.navigation-specimens.three-zone-bar"), uiText.text("workbench.navigation-specimens.left-switcher-glyph-then-after-hairline-dock-project"),
     `<p class="mw-navs__state">${escapeHtml(uiText.text("workbench.navigation-specimens.ok"))}</p><div class="mw-navs__bar">${bar(readText, "ok")}</div><p class="mw-navs__state">${escapeHtml(uiText.text("workbench.navigation-specimens.personal-plugin-didn-t-start"))}</p><div class="mw-navs__bar">${bar(readText, "wrong")}</div>`);
   const bars2 = specimen("titlebar", "", uiText.text("workbench.navigation-specimens.titlebar"), uiText.text("workbench.navigation-specimens.main-strip-right-side-s-glyphs-top-right"),
@@ -247,15 +251,15 @@ export function renderMolisWorkNavigationSpecimen(readText: Say, htmlLang: strin
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(uiText.text("workbench.navigation-specimens.workbench-navigation"))} · Molis Work</title>
+  <title>${escapeHtml(workLine ? workLineSpecimenTitle() : uiText.text("workbench.navigation-specimens.workbench-navigation"))} · Molis Work</title>
   ${renderLanguageHead(htmlLang)}
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-${arrival ? "arrival" : "workbench"}.css">
-  <style>${FRAME_STYLES}</style>
+  <style>${FRAME_STYLES}${workLine ? WORK_LINE_FRAME_STYLES : ""}</style>
 </head>
 <body class="${arrival ? "arrival-page " : ""}immersive-workbench mw-navs-page" data-nav-sheet="${sheet}">
   ${renderIconSprite()}
-  <main class="mw-navs" data-nav-board>${arrival ? sheetSpecimen(readText) : `${partSpecimens(readText)}${bars2}${bars}`}</main>
+  <main class="mw-navs" data-nav-board>${arrival ? sheetSpecimen(readText) : workLine ? renderWorkLineSpecimens(specimen) : `${partSpecimens(readText)}${bars2}${bars}`}</main>
   <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}${NAVIGATION_FRAME_SCRIPT}</script>
 </body>
 </html>`;

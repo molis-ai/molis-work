@@ -29,6 +29,8 @@ export function roundStartInput(work: StoredWork, round: {
   actor_id: string; session: AgentSessionRef; role_id: string; task: string; text_materials: AgentTextMaterial[];
   materials: readonly AssistantMaterial[]; tokens_left?: number;
   original_input?: Omit<HostOfferedOriginalInput, "action">; continued_from?: AgentRunRef;
+  /** A round that only reports: it never drives the side panel's browser. */
+  report_only?: true;
 }): AgentStartRequest {
   const { materials } = round;
   return {
@@ -43,7 +45,7 @@ export function roundStartInput(work: StoredWork, round: {
       .map(item => ({ material_id: item.material_id, title: item.title, resource: { id: item.image!.resource_id, revision: item.image!.revision }, media_type: item.image!.media_type })) } : {}),
     history: "session", queued: "carry", budget: { max_turns: ROUND_TURNS, ...(round.tokens_left === undefined ? {} : { max_total_tokens: round.tokens_left }) }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
     // The project's side panel browser is the person's work surface: a work delegated in the background never drives it.
-    ...(work.delegated_by || work.reply_target ? { browser: false as const } : {}),
+    ...(work.delegated_by || work.reply_target || round.report_only ? { browser: false as const } : {}),
     // The chosen Character really carries the round: the Host freezes its exact version or refuses, never another.
     ...(work.character ? { character: { artifact_id: work.character.artifact_id, version: work.character.version } } : {}),
   };

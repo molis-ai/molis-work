@@ -788,6 +788,7 @@
     "coding.goal.search": "Search loaded goals",
     "coding.goal.title": "Goal for the next turn",
     "coding.goal.why": "Why",
+    "coding.home-background.open-session": "Open session",
     "coding.home-background.in-progress": "In progress",
     "coding.home-background.n-steps-with-subtasks": {
       "plural_arg": "n",

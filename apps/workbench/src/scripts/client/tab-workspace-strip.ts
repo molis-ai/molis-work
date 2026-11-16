@@ -164,6 +164,13 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     if (strip.hasAttribute("data-titlebar-tabs")) strip.toggleAttribute("data-overflow-fade", phone);
     if (all) all.hidden = !phone;
     let allotted = allot();
+    // The titlebar's strip is as wide as its tabs want (＋ follows them). Its box takes that from here, not from its content, so
+    // sharing the widths below cannot move the box it was measured in.
+    if (strip.hasAttribute("data-titlebar-tabs")) {
+      const around = reserved + (innerWidth - allotted) + (strip.clientWidth - innerWidth) + 1;
+      const sizes = { "--tabs-hug": hugs.reduce((sum, hug) => sum + hug, 0), "--tabs-floor": hugs.reduce((sum, hug) => sum + Math.min(hug, min), 0) };
+      for (const name in sizes) { const value = Math.ceil(around + sizes[name]) + "px"; if (strip.style.getPropertyValue(name) !== value) strip.style.setProperty(name, value); }
+    }
     if (all && !phone && reserved + hugs.reduce((sum, hug) => sum + Math.min(hug, min), 0) > allotted + 0.5) { all.hidden = false; allotted = allot(); }
     const share = tabShareWidth(allotted - reserved, hugs, min);
     if (share == null) {

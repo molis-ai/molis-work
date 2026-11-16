@@ -1,6 +1,9 @@
 import { PLUGIN_ID } from "@molis-ai/molis-work-plugin-sdk";
 import { handleSkillSettingsHttp } from "./agent-definitions/skill-settings-http.js";
 import { handleKitSettingsHttp } from "./kit-settings-http.js";
+import { handleMainlineHttp, mainlineAttention } from "./mainline-http.js";
+import { handleAcceptanceHttp } from "./acceptance-http.js";
+import { handleMainlineEventSurfacesHttp } from "./mainline-event-surfaces-http.js";
 import { handlePluginPageHttp } from "./plugin-page-http.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -27,6 +30,7 @@ import { isPluginEventManagementPath } from "./plugin-event-http.js";
 import { handleProjectPluginHttp, pluginEventsPending } from "./project-plugin-http.js";
 import { assistantNotices, assistantServiceFor, handleAssistantHttp } from "./assistant/assistant-http.js";
 import { handleAttentionHttp } from "./attention-http.js";
+import { onAttentionChange } from "./attention-changes.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
@@ -40,9 +44,6 @@ import { handleMaterialsHttp } from "./materials-http.js";
 import { handlePluginTrustHttp } from "./plugin-trust-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { handleContextualHttp } from "./contextual/contextual-http.js";
-import { homeBackgroundTasks } from "./home-background-tasks.js";
-import { homeAggregatePorts } from "./home-aggregate.js";
-import { projectNavigation } from "./web-project-presentation.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody, requestHeader } from "./web-http.js";
 import { htmlLang } from "./web-locale.js";
@@ -267,6 +268,11 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     handleSkillSettingsHttp(request, response, url, localHost, hostReference).then(handled => handled || handlePluginTrustHttp(request, response, url, { localHost, projectRef: hostReference })) },
   // The 「能力包」 page (specs/capability-pack §4.7, §4.9): the kit, its exports and prompt edits brought back, as the person in this project.
   { id: "kit", handle: ({ request, response, url, localHost, hostReference }) => handleKitSettingsHttp(request, response, url, localHost, hostReference) },
+  // The task panel (specs/work-line §6): the project's background tasks and the commands their rows offer, as the person.
+  { id: "mainline-event-surfaces", handle: ({ request, response, url, localHost, hostReference }) => handleMainlineEventSurfacesHttp(request, response, url, localHost, hostReference) },
+  { id: "mainline", handle: ({ request, response, url, localHost, hostReference }) => handleMainlineHttp(request, response, url, localHost, hostReference) },
+  // The requirement column (specs/proactive-assistant §7.3.1): what was asked of a piece of work, how each item was checked, and the person's accept or return.
+  { id: "acceptance", handle: ({ request, response, url, localHost, hostReference }) => handleAcceptanceHttp(request, response, url, localHost, hostReference) },
   // The shell's UI stages in this project, through the same door as the Home's (observation-collection §4).
   { id: "observation-ui", handle: ({ request, response, url, localHost, hostReference }) => handleObservationShellHttp(request, response, url, localHost, hostReference) },
   { id: "observation-api", handle: ({ request, response, url, localHost, hostReference }) => handleObservationHttp(request, response, url, localHost, hostReference) },
@@ -294,10 +300,10 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
   } },
   { id: "attention", handle: async context => {
     const assistant = projectAssistant(context);
-    const { request, response, url, composition, serverOptions, store, options, pluginPorts, localHost } = context;
+    const { request, response, url, store, options, pluginPorts, localHost, hostReference } = context;
     return Boolean(assistant) && await handleAttentionHttp(request, response, url, {
-      backgroundTasks: async () => homeBackgroundTasks(homeAggregatePorts(localHost), await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.listProjects().map(projectNavigation))),
       notices: surface => assistantNotices(assistant!, surface), boardCursor: () => store.eventCursor(options.projectId),
+      mainline: mainlineAttention(request, localHost, hostReference), changes: listener => onAttentionChange(options.projectId, listener),
       ...(options.project ? { pluginEventsPending: () => pluginEventsPending(pluginPorts) } : {}) });
   } },
 ];

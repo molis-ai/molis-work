@@ -38,7 +38,7 @@ export const TOUCH_TARGET_STYLES = `
   @media (max-width: 600px), (pointer: coarse) {
     ${SHELL} { --dock-btn: 44px; --menu-row: 44px; }
     ${SHELL} .plugin-picker-trigger { justify-content: center; min-width: 44px; }
-    html ${SHELL} .workbench-bar .bar-end .navigator-project-selector { grid-template-columns: 44px; width: 44px; height: 44px; min-height: 44px; }
+    html ${SHELL} .workbench-header .titlebar-end .navigator-project-selector { grid-template-columns: 44px; width: 44px; height: 44px; min-height: 44px; }
     /* The bell on the composer's receiver row: the row stays one line, the target reaches past it. */
     ${ASSIST} .assistant-attention { min-width: 44px; } ${ASSIST} .assistant-attention::after { content: ""; position: absolute; inset: -12px 0; }
     ${ASSIST} .assistant-strip-chip { height: 44px; }

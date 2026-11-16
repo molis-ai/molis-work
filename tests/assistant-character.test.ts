@@ -175,3 +175,50 @@ test("with no role chosen, the Assistant hands a part to a professional role by 
     assert.equal(done.delegated!.length, 1, "the role not on offer started nothing");
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+test("WLN-40 PWA-158: said to a Character, the words go to its own main conversation; a task it hands to the background is done by it and comes back to it; the Assistant's main conversation is another work", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-character-main-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project", storage_key: "memory:project" };
+  const childRequests: Array<{ messages: unknown }> = [];
+  let step = 0;
+  const script: Array<() => Response> = [
+    () => toolReply("delegate-work", { title: "润色开头", brief: "把这句周报开头改得更精炼。", acceptance: "给出一版改写" }),
+    () => reply("已经放到后台改，改好告诉你。"),
+  ];
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(text), async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array)) as { messages: unknown };
+    if (JSON.stringify(body.messages).includes("委托的子任务")) { childRequests.push(body); return reply("改写：本周完成三项交付。"); }
+    return (script[step++] ?? (() => reply()))();
+  }));
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-character-main-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)),
+      resolveCharacter: reference => { if (reference.version !== 2) throw new Error("所选 Character 版本不可用"); return structuredClone(EDITOR); } }),
+    characters: async () => [{ reference: { artifact_id: EDITOR.reference.artifact_id, version: 2 }, title: EDITOR.title, available: true }],
+    projectTitle: async () => "项目" }, "web-user");
+  const editor = { artifact_id: EDITOR.reference.artifact_id, version: 2 };
+  try {
+    const sent = await service.send({ text: "帮我改改周报开头", main: true, character: editor, request_id: "req-character-main-1" }, { project_ref: project });
+    assert.deepEqual([sent.work.main, sent.work.character?.title], [true, "严格的编辑"]);
+    const done = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" && view.delegated?.[0]?.state === "completed" ? view : undefined; }, "the Character's conversation and its task");
+    // The task names no role: it is done by the one the person is talking to, and the board of that conversation has it.
+    const child = await service.read(done.delegated![0]!.work_id);
+    assert.deepEqual(child.work.character, { ...editor, title: "严格的编辑" });
+    assert.deepEqual(child.rounds[0]!.character, { ...editor, title: "严格的编辑" }, "the task's round says who carried it");
+    assert.ok(JSON.stringify(childRequests[0]).includes("每次回答先列出三处可改进的地方"), "the Character's instructions reach the task's model");
+    assert.equal(child.work.delegated_by?.work_id, sent.work.work_id, "it reports back to the Character's conversation");
+    // The Assistant's main conversation of the same project is its own work, with its own draft and nothing of the Character's.
+    const own = await service.send({ text: "今天有什么要办", main: true, request_id: "req-character-main-2" }, { project_ref: project });
+    assert.notEqual(own.work.work_id, sent.work.work_id);
+    assert.equal(own.work.character, undefined);
+    assert.equal((await service.read(own.work.work_id)).delegated?.length ?? 0, 0, "the Character's task is not on the Assistant's board");
+    // Said again to the Character: the same standing conversation.
+    const again = await service.send({ text: "再短一点", main: true, character: editor, request_id: "req-character-main-3" }, { project_ref: project });
+    assert.equal(again.work.work_id, sent.work.work_id);
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});

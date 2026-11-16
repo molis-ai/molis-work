@@ -5,7 +5,7 @@ import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRu
 import type { AgentReviewReceipt, AgentRunRef, AgentWriteCheckNote } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
-import { createCollaborationHost, readyStep, sessionBlock, type DispatchChecks } from "./prologue-collaboration.js";
+import { createCollaborationHost, readyStep, sessionBlock, type ContinuationStarts, type DispatchChecks } from "./prologue-collaboration.js";
 import { createPrologueDocuments } from "./prologue-documents.js";
 import { createPrologueGitReviews } from "./prologue-git.js";
 import { MAX_BROADCAST } from "./prologue-messages.js";
@@ -34,15 +34,16 @@ import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.
 export const SUBAGENT_DEFAULT_TURNS = 20;
 
 /** The Prologue runtime on the Node host, with the Host's limits, posture and the rules every round runs under. */
-export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAccess: ReturnType<typeof createPrologueMemoryAuthority>, modelRequests: RoundState["modelRequests"]) {
+export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAccess: ReturnType<typeof createPrologueMemoryAuthority>, modelRequests: RoundState["modelRequests"], starts: ContinuationStarts) {
   return createRuntime({
     app: options.app,
     host,
     memoryAuthority: memoryAccess.authority,
     ...(memoryAccess.promotion ? { memoryPromotion: memoryAccess.promotion } : {}),
     ...(memoryAccess.sources ? { memorySources: memoryAccess.sources } : {}),
-    // Before each child a round dispatches, the Host asks that round's own check again (specs/prologue-adoption §4.6.10).
-    collaborationHost: createCollaborationHost(dispatchChecks),
+    // Before each child a round dispatches, the Host asks that round's own check again (specs/prologue-adoption §4.6.10); a
+    // continuation that may go on by itself goes to the starter the composition root serves (specs/work-line, result return).
+    collaborationHost: createCollaborationHost(dispatchChecks, starts),
     // What a step may wait on outside the runtime: the Host's checkers, each look checked again against the round (prologue-checkers.ts).
     conditionCheckers,
     // Screenshots leave only after the driver covered password, card and one-time-code fields (spec D10).
@@ -118,6 +119,7 @@ export function createNodeGitReviews(options: PrologueNodeAdapterOptions, host: 
 
 interface PortDeps extends RunDeps {
   readonly host: NodeHost;
+  readonly starts: ContinuationStarts;
   readonly schedule: ReturnType<typeof createPrologueSchedule>;
   readonly recovery: ReturnType<typeof createPrologueRecovery>;
   readonly checkpoints: ReturnType<typeof createPrologueCheckpoints> | undefined;
@@ -477,7 +479,7 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
       sendForPeople: (project, input, actorId) => messages.sendForPeople(project, input, actorId),
       act: (project, id, action, detail, actorId) => messages.act(project, id, action, detail, actorId),
       prioritize: prioritize(deps) },
-    collaboration: { ...deps.waitsPort.collaboration, revise: (run, amendment, expectedVersion, actor, ledger) => stepBoards.amend(run, amendment, expectedVersion, actor, ledger), works: deps.workGraphs.port },
+    collaboration: { ...deps.waitsPort.collaboration, serveStarts: starter => deps.starts.serve(starter), revise: (run, amendment, expectedVersion, actor, ledger) => stepBoards.amend(run, amendment, expectedVersion, actor, ledger), works: deps.workGraphs.port },
     // A supplement that is to wait for the next round, or whose round has ended: the session keeps it, under its key, and gives it back while it still waits.
     queue: {
       add: async (sessionId, input) => (await openSession(sessionId, "这条会话读不到，补充留不到下一轮")).queueInput(input),

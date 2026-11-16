@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { ActionError, type ActionCallContext, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, objectLink, type ActionCallContext, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FEED_OPEN_OPTION_ID, INBOX_ADMIT_OPTION_ID, SYSTEM_INBOX_ADMIT_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FeedItemRecord, FeedOutRuleRecord } from "./projection.js";
 import { feedOutRuleMatches } from "./out-rules.js";
@@ -27,7 +27,7 @@ export function feedRuleBinding(projectId: string, rule: FeedOutRuleRecord): Act
   if (!rule.judgment) return null;
   return { binding_id: feedSceneBindingId(rule.rule_id), scene_id: feedCaptureScene.scene_id, scene_version: feedCaptureScene.version,
     project_id: projectId, function: rule.judgment, enabled: rule.enabled, revision: rule.revision, title: rule.name,
-    href: `/projects/${encodeURIComponent(projectId)}/?openPlugin=feed&feedRule=${encodeURIComponent(rule.rule_id)}` };
+    href: objectLink(projectId, { surface: "feed", params: { feedRule: rule.rule_id } }) };
 }
 interface CaptureState { item: FeedItemRecord; rule: FeedOutRuleRecord; content: string }
 export interface FeedCaptureScenePorts {
@@ -58,7 +58,7 @@ export function createFeedCaptureSceneHandler(ports: FeedCaptureScenePorts): Act
     scene_id: feedCaptureScene.scene_id, version: feedCaptureScene.version,
     bindings: () => ports.rules().flatMap(rule => { const binding = feedRuleBinding(ports.projectId, rule); return binding ? [binding] : []; }),
     targets: caller => ports.rules().map(rule => ({ binding_id: feedSceneBindingId(rule.rule_id), title: rule.name,
-      href: `/projects/${encodeURIComponent(ports.projectId)}/?openPlugin=feed&feedRule=${encodeURIComponent(rule.rule_id)}`, revision: rule.revision ?? null,
+      href: objectLink(ports.projectId, { surface: "feed", params: { feedRule: rule.rule_id } }), revision: rule.revision ?? null,
       ...(rule.admission === "inbox" ? { activation_permissions: ["inbox:write"],
         ...(!caller.permissions.includes("inbox:write") ? { activation_availability: { available: false as const, code: "actions.forbidden", reason: "启用自动入箱需要 Inbox 写入权限" } } : {}) } : {}) })),
     bind: (caller, binding, options) => {

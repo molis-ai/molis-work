@@ -1,6 +1,7 @@
 import type { BoundedInferenceReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { objectLinkTemplate } from "@molis-ai/molis-work-contracts/platform/object-link";
 import type { MaterialExtractor, MaterialWebsiteReader } from "@molis-ai/molis-work-contracts/services/materials";
 import type { PluginOwnerFilesReader } from "@molis-ai/molis-work-contracts/platform/plugin";
 
@@ -92,7 +93,7 @@ export const SHELF_ADMIT_ACTION: ActionDefinition<ShelfAdmitActionInput, { item:
       required: ["item"], additionalProperties: false,
     },
     result_view: { summary: "已接收材料", title_pointer: "/item/name",
-      link: { label: "打开材料", href_template: "/projects/{project_id}/?openPlugin=shelf&openItem={/item/item_id}&openTitle={/item/name}" } },
+      link: { label: "打开材料", href_template: objectLinkTemplate({ surface: "shelf", id: "{/item/item_id}", title: "{/item/name}" }) } },
   },
 };
 

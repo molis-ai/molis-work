@@ -1,7 +1,7 @@
 import { defineSubjectContextAction, subjectContext, bindSearchEntriesHandler, defineSearchEntriesAction, searchRevisionOf, type SearchEntry, type ActionSubject, type ActionSubjectContext, ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionCallContext,
   type WorkflowPayload, type WorkflowReceiveInput, type WorkflowItemRef } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import { createInboxHomeEventsHandler } from "./home-events.js";
+import { createInboxHomeEventsHandler } from "./work-events.js";
 
 export const inboxContentActions = defineWorkflowContentActions({ id: "inbox", title: "Inbox", icon: "inbox", subject_kind: "inbox_entry",
   read_permissions: ["inbox:read", "feed:read"], write_permissions: ["inbox:write", "feed:write", "feed:read"], receive_scheduling: "concurrent" });

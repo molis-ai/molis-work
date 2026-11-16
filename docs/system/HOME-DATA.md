@@ -34,15 +34,11 @@ W5-16 A：Home 的排他使用由 storage 的同一 SQLite owner 提供，锁仍
 
 ## 2. 总览
 
-Home 里有 33 种 SQLite 文件：权威库 29 种（Home 级 26 种，按项目 3 种）、派生库 1 种、锁库 3 种。29 种权威库按版本方案分：
+Home 里有 34 种 SQLite 文件：权威库 30 种（Home 级 27 种，按项目 3 种）、派生库 1 种、锁库 3 种。30 种权威库按版本方案分：
 
 | 版本方案 | 个数 | 哪些 |
 | --- | --- | --- |
-<<<<<<< HEAD
-| `PRAGMA user_version`，经 `applySqliteBaseline` | 28 | 项目库（1）、Alchemist 工作室库与搜索库、assistant（1）、memory（1）、placement、agent-definitions、agent-declarations、connectors、context-onboarding、plugin-originals、functions（1）、12 个个人插件库、Home Runtime 安装库、server、characters、external-sessions |
-=======
-| `PRAGMA user_version`，经 `applySqliteBaseline` | 28 | 项目库（1）、Alchemist 工作室库与搜索库、assistant（1）、memory（1）、placement、agent-definitions、agent-declarations、connectors、context-onboarding、plugin-originals、functions（1）、evaluation（1）、12 个个人插件库、Home Runtime 安装库、server、characters |
->>>>>>> origin/main
+| `PRAGMA user_version`，经 `applySqliteBaseline` | 29 | 项目库（1）、Alchemist 工作室库与搜索库、assistant（1）、memory（1）、placement、agent-definitions、agent-declarations、connectors、context-onboarding、plugin-originals、functions（1）、evaluation（1）、12 个个人插件库、Home Runtime 安装库、server、characters、external-sessions（1） |
 | 自己的 meta 表 | 1 | `projects/catalog.db`（catalog_meta）；退役Sessions登记与reader已删除 |
 
 派生库 `search/search.db` 用 `search_meta`，版本不符就重建，不属于“拒绝”。
@@ -203,7 +199,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 - `events` 和 `idempotency_records` 由 `packages/storage` 定义（`src/sqlite.ts`），不属于任何模块或插件自己的声明。storage 自己的 `LocalSqliteJournal` 有完整的日志函数：`eventCursor`、`appendEvent`、`getIdempotency`、`putIdempotency`，都在项目库的同一条连接上，所以模块自己的事务里调用它，事件和它记的事实照样同事务提交。Goals 插件包里的 Goal 与 Governance 存储模块（原 `modules/goals`、`modules/governance-collaboration`）只依赖 `packages/contracts`、没法 import storage，现在由宿主在装配时注入一个日志端口（`GoalsJournal`、`GovernanceJournal`，结构上就是 storage 的那四个函数；Artifacts 用函数注入，做法同类），两个模块里不再有指向这两张表的语句（PG-094 S9-1，`tests/goals-storage-plugin-legal-sql.test.ts`），`tooling/gates/table-owners.json` 里这两条 `shared` 登记已删。
 - 一个包新加一句 `CREATE TABLE <别的包已建的表>` 不会让它成为这张表的 owner：同一张表被不止一个包建，必须登记在 `same_name`（表名、建它的包、理由），门禁两头核对。现有两项：`workspaces`（`modules/projects` 的目录库、炼金术士每项目一个的 `studio.sqlite`）和 `jobs`（炼金术士的 `studio.sqlite`、Images 的 `images.db`），都是不同库里互不相干的表（`specs/archive/repository-anti-corruption/spec.md` §9.5 第 9 条定为不改名）。
 - 原先 4 处跨 owner 直接 SQL 已去掉，门禁另量到 2 处，一并改了。都改成 owner 导出的函数：
-  - `apps/local-host/src/coding-background-tasks.ts` 读 Coding 的 `coding_sessions`：当时改成 Coding 导出 `listCodingBackgroundSessions`，宿主的路由把它传给跨项目列表。2026-10-21（C4，PG-043）再改：这个文件和导出都删了，Coding 把列表声明成自己的查询 `coding.home.background-tasks@1`（`home_aggregate`，`plugins/native/coding/src/home-background.ts`），宿主的 `apps/local-host/src/home-background-tasks.ts` 对每个已打开的项目问这类查询（`apps/local-host/src/home-aggregate.ts`，S-49），不再打开任何项目库、也不认识 Coding。
+  - `apps/local-host/src/coding-background-tasks.ts` 读 Coding 的 `coding_sessions`：当时改成 Coding 导出 `listCodingBackgroundSessions`，宿主的路由把它传给跨项目列表。2026-10-21（C4，PG-043）再改：这个文件和导出都删了，Coding 把列表声明成自己的查询 `coding.background.tasks@1`（`home_aggregate`，`plugins/native/coding/src/home-background.ts`），宿主的 `apps/local-host/src/home-background-tasks.ts` 对每个已打开的项目问这类查询（`apps/local-host/src/home-aggregate.ts`，S-49），不再打开任何项目库、也不认识 Coding。
   - `apps/local-host/src/demo-seed.ts` 更新 Goals 的 `boards`：改用 `setActiveGoal`，所以演示项目的日志里多一条 `board.active_goal_changed`（与用户在界面上设当前目标是同一条路径）。
   - `apps/local-host/src/im-server.ts` 读 `server` 的 `mw_projects`、`mw_members`：`server` 包的 `ContinuityService.projectOwner` 给出项目的所有者。`apps/server/src/main.ts` 的同类 SQL（`mw_access`、`mw_members`、`mw_projects`、`mw_codes`）改成 `Identity.roleOf`、`hasMember`、`memberAccess` 和 `ContinuityService.closeProjectsExcept`。
   - `modules/projects/src/installation-inspection.ts` 读 storage 的 `catalog_meta`：模块只列目录里的项目（`listCatalogProjectsForUninstall`），目录是不是 Molis Work 的由宿主用 storage 的 `LocalCatalogMetadata` 判断。一个没有 `catalog_meta` 表的 `catalog.db` 现在报「项目 catalog 不属于 Molis Work」，以前报「无法安全读取项目 catalog」，两者都是冲突、都挡住卸载。
@@ -358,7 +354,7 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 
 ## 9. 卸载覆盖
 
-`uninstall --purge-user-data` 删除的路径：`homeStores()` 登记的每一项（`installer/uninstall.ts` 的 `purgeDataPaths` 只读登记，不再手列；决定 #20「清除覆盖所有登记的库」）。现行条目以登记为准（退役Sessions不再登记）：`projects/`、`logs/`、`backups/`、`shelf/`；宿主的库 `plugin-runtime`、`plugin-libraries`（装进来的插件的库账本，账本里每个库名的目录也一起清）、`assistant`、`placement`、`agent-definitions`、`agent-declarations`、`connectors`、`context-onboarding`、`plugin-originals` 与 `alchemist/` 目录；模块的 `functions`、`characters`；横向与存储层的 `memory`、`observation`、`external-sessions`、`search`、`feed/`；讨论库 `server/`；插件的 `issues`、`cognia`、`images`、`jelly`、`lingguang`、`todo`、`pages`、`form`、`dataset`、`ppt`、`workflows`；`agent-runtime/`、`runtime/`、`runtime-config-backups/`、`runtime-integrations/`、`runtime-integration-attempts/`、`browser/`、`plugin-builder/`、`plugin-files/`、`cache/`、`git-operation-details.json`、`config/` 里属于人的 `onboarding.json`、`project-arrival.json`、`mcp-tools.json`、`external-mcp-tools.json`、`connector-mcp-tools.json`、`desktop.json`，宿主这一次运行的 `run/`，以及 `directory-access/`。普通与 purge 都会删安装器自有的程序文件：当前 3 个启动脚本、`config/installation.json`、有效的 `config/web-control-token`、符合当前完整 release 元数据形状的 `releases/*`（`installer/uninstall-files.ts`）。清完后只有 `config/`、`bin/`、`releases/`、Home 本身是空目录时才会删（`installer/uninstall.ts`）。
+`uninstall --purge-user-data` 删除的路径：`homeStores()` 登记的每一项（`installer/uninstall.ts` 的 `purgeDataPaths` 只读登记，不再手列；决定 #20「清除覆盖所有登记的库」）。现行条目以登记为准（退役Sessions不再登记）：`projects/`、`logs/`、`backups/`、`shelf/`；宿主的库 `plugin-runtime`、`plugin-libraries`（装进来的插件的库账本，账本里每个库名的目录也一起清）、`assistant`、`placement`、`agent-definitions`、`agent-declarations`、`connectors`、`context-onboarding`、`plugin-originals` 与 `alchemist/` 目录；模块的 `functions`、`characters`；横向与存储层的 `memory`、`observation`、`evaluation`、`external-sessions`、`search`、`feed/`；讨论库 `server/`；插件的 `issues`、`cognia`、`images`、`jelly`、`lingguang`、`todo`、`pages`、`form`、`dataset`、`ppt`、`workflows`；`agent-runtime/`、`runtime/`、`runtime-config-backups/`、`runtime-integrations/`、`runtime-integration-attempts/`、`browser/`、`plugin-builder/`、`plugin-files/`、`cache/`、`git-operation-details.json`、`config/` 里属于人的 `onboarding.json`、`project-arrival.json`、`mcp-tools.json`、`external-mcp-tools.json`、`connector-mcp-tools.json`、`desktop.json`，宿主这一次运行的 `run/`，以及 `directory-access/`。普通与 purge 都会删安装器自有的程序文件：当前 3 个启动脚本、`config/installation.json`、有效的 `config/web-control-token`、符合当前完整 release 元数据形状的 `releases/*`（`installer/uninstall-files.ts`）。清完后只有 `config/`、`bin/`、`releases/`、Home 本身是空目录时才会删（`installer/uninstall.ts`）。
 
 测试覆盖到哪里：
 

@@ -10,7 +10,8 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
  *   on to its end), closes the interrupted round once it is checked, and settles the bell's notices — so the success path
  *   is on the board beside the failure.
  * - The bell's notices come through the page's own attention reader, which the frame runs as the workbench does: the
- *   stand-in answers its `/api/attention` read with the samples' notices and no background tasks.
+ *   stand-in answers its `/api/attention` read with the samples' notices and no background tasks, and says once on its
+ *   `/api/attention/events` stream that there is something to read.
  * - Every other request to `/api/` is refused too: nothing in the frame reaches the real Host.
  * - The island's per-viewer memory (`molis.assistant.*`: the open work, its tabs, drafts) is kept in memory, so the frame never
  *   changes what the workbench on this computer remembers; theme and density stay the page's own.
@@ -121,6 +122,15 @@ window.molisWorkUiTransport = (input, init) => {
   const url = new URL(input, location.href), method = (init.method ?? "GET").toUpperCase();
   if (url.origin === location.origin && url.pathname === PREFIX + "/api/attention" && method === "GET") {
     return Promise.resolve(json({ background_tasks: [], notices: copy(S.notices), plugin_events_pending: 0, board_cursor: null }));
+  }
+  // The Host's word that something here may have changed (WLN-27): the page reads its attention on each word and on none else, so
+  // the stand-in says it once on connecting and then stays quiet until the page closes the stream.
+  if (url.origin === location.origin && url.pathname === PREFIX + "/api/attention/events" && method === "GET") {
+    const body = new ReadableStream<Uint8Array>({ start(controller) {
+      controller.enqueue(new TextEncoder().encode("event: changed\ndata: {}\n\n"));
+      init?.signal?.addEventListener("abort", () => { try { controller.close(); } catch { /* already closed */ } });
+    } });
+    return Promise.resolve(new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }));
   }
   if (url.origin === location.origin && url.pathname.startsWith(PREFIX + "/api/assistant/")) return Promise.resolve(answer(url, method, typeof init?.body === "string" ? init.body : null, init?.signal));
   return Promise.resolve(refuse());

@@ -266,6 +266,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `horizontal/evaluation` | 横向 | 11 | 2,069 | `store.ts` 446 | 1 | 3 | 1 | 在用 | 中 | 待审 |
 | `horizontal/kit` | 横向 | 1 | 224 | `index.ts` 224 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/knowledge` | 横向 | 11 | 1,388 | `index.ts` 426 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
+| `horizontal/mainline` | 横向 | 1 | 269 | `index.ts` 269 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/memory` | 横向 | 23 | 3,180 | `service.ts` 1,151 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `horizontal/observation` | 横向 | 21 | 2,721 | `read-actions.ts` 520 | 1 | 3 | 1 | 在用 | 中 | 待审 |
 | `horizontal/placement` | 横向 | 6 | 908 | `index.ts` 617 | 1 | 2 | 1 | 在用 | 中 | 已审 |
@@ -274,6 +275,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `horizontal/search` | 横向 | 2 | 722 | `index.ts` 648 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `horizontal/sessions` | 横向 | 25 | 6,270 | `adapters/shared.ts` 625 | 1 | 3 | 1 | 在用 | 中 | 待审 |
 | `horizontal/surfaces` | 横向 | 13 | 1,214 | `objects.ts` 277 | 1 | 2 | 1 | 在用 | 中 | 待审 |
+| `modules/acceptance` | 模块 | 5 | 442 | `service.ts` 195 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
 | `modules/artifacts` | 模块 | 30 | 2,693 | `service.ts` 339 | 1 | 2 | 2 | 在用 | 中 | 待审 |
 | `modules/attention-resumption` | 模块 | 3 | 470 | `index.ts` 424 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
 | `modules/characters` | 模块 | 17 | 990 | `action-handlers.ts` 147 | 1 | 3 | 1 | 在用 | 浅 | 已审 |

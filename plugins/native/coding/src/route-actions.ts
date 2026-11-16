@@ -112,5 +112,10 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
   "coding.confirm-plan": { definition: define("plans.confirm", /* @version action.coding.plans.confirm */ 1, "确认编码计划", "把当前计划确认为固定版本，之后可按此计划执行", "command", open(session), ["artifact:read", "artifact:write"], LOCAL),
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
+  // The table of background tasks offers this as a row's command (home-background.ts): the same stop the session's own panel has.
+  "coding.background-stop": { definition: define("background.stop", /* @version action.coding.background.stop */ 1, "停止后台命令", "停止会话里一条还在跑的后台命令，与会话面板里的停止相同", "command",
+      closed({ ...session, task_id: id }), ["artifact:read", "storage:private"], LOCAL),
+    toInput: request => ({ session_id: request.params.sessionId, task_id: request.params.taskId }),
+    toRequest: input => ({ method: "POST", params: { ...params(input), taskId: String(input.task_id ?? "") }, query: {}, body: {} }) },
 };
 export const CODING_ACTIONS: readonly ActionDefinition[] = Object.values(codingRouteActions).map(entry => entry.definition);

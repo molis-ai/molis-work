@@ -59,7 +59,7 @@ const FRAME_STYLES = `body.mw-asst-page{display:flex;flex-direction:column;margi
 
 export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions, ports: AssistantFramePorts): string {
   const { readText } = ports;
-  const bar = renderWorkbenchBar({ readText, escapeHtml, icon }, { rail: "", projectChrome: "", enabled: [] });
+  const bar = renderWorkbenchBar({ readText, escapeHtml, icon });
   const data = JSON.stringify({ samples: ports.samples, current: WORK_IDS[options.work], answer: options.answer }).replaceAll("<", "\\u003c");
   // The language switch updates these words in place before the island reads its mode choices again.
   const modeWords = ports.samples.executors.flatMap(offer => offer.modes.map(mode =>

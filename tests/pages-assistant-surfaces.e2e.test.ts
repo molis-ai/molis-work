@@ -329,7 +329,7 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   }
   await checkAssistantStage(browser);
   await click('[data-assistant-retract]');
-  await waitFor("document.querySelector('[data-dock] [data-assistant-composer] .mw-composer__input') && !document.querySelector('.tab-item[data-tab-kind=system]')");
+  await waitFor("document.querySelector('[data-work-bar] [data-assistant-composer] .mw-composer__input') && !document.querySelector('.tab-item[data-tab-kind=system]')");
   assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input') === window.originalComposer"), true);
   const saved = openPagesStore(homeDirectory);
   try { assert.match(JSON.stringify(saved.get(a.id, projectId!).body), /在侧栏保存的备注/);assert.equal(saved.comments.list(a.id, projectId!).length, 2);assert.equal(saved.comments.list(b.id, projectId!).length, 0); }

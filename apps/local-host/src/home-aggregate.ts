@@ -16,6 +16,8 @@ export interface HomeAggregateAnswer<Output> {
   readonly source: Required<ActionReference>;
   /** The plugin behind the provider, when a plugin answered: where the Home opens what the answer names. */
   readonly plugin_id: string | null;
+  /** The object kinds the provider declared it reports. */
+  readonly subject_kinds: readonly string[];
   readonly output: Output;
 }
 
@@ -96,7 +98,7 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
             }
             try {
               const output = await beforeDeadline(collection.signal, providerSignal => client.invoke({ ...caller, signal: providerSignal }, source, input)) as Output;
-              return { answers: [{ project_id, source, plugin_id: view.provider.plugin_id ?? null, output }], issues: [] };
+              return { answers: [{ project_id, source, plugin_id: view.provider.plugin_id ?? null, subject_kinds: view.action.subject_kinds ?? [], output }], issues: [] };
             } catch (error) {
               signal?.throwIfAborted();
               return { answers: [], issues: closing(error) ? [] : [{ project_id, source, code: codeOf(error) }] };

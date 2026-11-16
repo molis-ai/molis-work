@@ -22,6 +22,7 @@ import { RUNTIME, belongsElsewhere, whereNow, type AssistantServicePorts, type R
 import { RELATION_WORDS, describeObjects } from "./assistant-present.js";
 import type { AssistantWorkReads } from "./assistant-work-reads.js";
 import type { AssistantMemoryBridge } from "./assistant-memory-bridge.js";
+import { promptTitle } from "./assistant-work-title.js";
 
 /** One chosen or listed method, whatever else the page sent with it: a Skill by its installation and id, a role by its installation and entry. */
 function methodKey(method: AssistantMethodSelection | AssistantMethod): string {
@@ -74,7 +75,7 @@ export class AssistantRoundMaterials {
       : `项目「${(await this.ports.projectTitle?.(work.scope.project_id).catch(() => null)) ?? work.scope.project_id}」中的工作（只使用这个项目的能力与资料）`;
     // Pictures ride only on the round they came with; history keeps the words, so say what the model saw back then.
     const pictured = [...new Set(this.store.rounds(work.work_id).flatMap(round => round.materials.filter(item => item.kind === "image").map(item => item.title)))];
-    const situation = [`现在是 ${local}（时区 ${zone}，${now.toISOString()}）。`, `这项工作：「${work.title}」，${where}。`,
+    const situation = [`现在是 ${local}（时区 ${zone}，${now.toISOString()}）。`, `这项工作：「${promptTitle(work)}」，${where}。`,
       work.origin ? `工作最初从「${work.origin.title ?? work.origin.surface}」页面发起。` : "",
       pictured.length ? `之前的轮次里用户附过图片（${pictured.slice(0, 5).map(title => `「${title}」`).join("、")}），你当时看到了图；图片只在附带的那一轮可见，现在看不到。` : "", knowledgeFact(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered)].filter(Boolean).join("\n");
     const setup = this.ports.setupMaterial?.(work, offered, previousWaitWithdrawn), out: AgentTextMaterial[] = [{ material_id: "situation", title: "本轮情况", text: situation }, ...(setup ? [setup] : [])];

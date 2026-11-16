@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
-import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { objectLink, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { withContextJourneys, type ContextJourney } from "./context-onboarding-store.js";
@@ -119,7 +119,7 @@ export async function importAdoptedMaterialsAndSummary(options: {
     }
     if (ref.artifact) handed.push({ version: ref.artifact, title: ref.title });
   }
-  const sources = refs.map(r => `[${r.label}] [${r.title.replace(/[\[\]]/gu, "")}](/projects/${journey.project_id}/?openPlugin=pages&openItem=${r.documents![0]}&openTitle=${encodeURIComponent(r.title)}) · ${r.path} · 版本 ${r.version}`).join("\n\n");
+  const sources = refs.map(r => `[${r.label}] [${r.title.replace(/[\[\]]/gu, "")}](${objectLink(journey.project_id, { surface: "pages", id: r.documents![0]!, title: r.title })}) · ${r.path} · 版本 ${r.version}`).join("\n\n");
   const text = journey.adoption!.body + (sources ? "\n\n## " + uiText.text("workbench.context-onboarding-service.sources") + "\n\n" + sources : "");
   const summaryTitle = uiText.text("workbench.context-onboarding-service.title-work-summary", { title: journey.adoption!.title });
   const summaryText = [...summaryTitle].length > 80 ? `${uiText.text("workbench.context-onboarding-service.project-title", { title: journey.adoption!.title })}\n\n${text}` : text;

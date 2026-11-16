@@ -11,6 +11,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { HOME_MODEL_SETTINGS_CLIENT_SCRIPT } from "./scripts/home-model-settings.js";
 import { homeToolKeysScript } from "./home-plugin-navigation.js";
 import { PLACEMENT_FACTORY_SCRIPT } from "./scripts/client/placement.js";
+import { objectLinkAt } from "@molis-ai/molis-work-contracts/platform/object-link";
 import type { WorkbenchRendererPorts } from "./renderer.js";
 import { appearanceClientTag, appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
 import { renderAppearanceRecovery } from "./settings-appearance.js";
@@ -62,7 +63,7 @@ export function renderHomePluginPage(entry: Pick<PluginRegistration, "project_pl
       </div>
     </dialog>${renderAppearanceRecovery(readText, appearance)}
     <script>${UI_REQUEST_CLIENT_SCRIPT}${appearance ? DEVICE_PREFERENCES_CLIENT_SCRIPT : ""}</script>${appearanceClientTag(appearance)}<script src="/assets/molis-work-plugin-frame.js"></script><script>
-    ${`if(window===top) globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({translate:globalThis.t.text,route:path=>${JSON.stringify(route)}+path,headers:()=>molisWorkControlHeaders(),projectTitle:${JSON.stringify(project?.display_name ?? "")},openItem:(plugin,id)=>location.assign(${JSON.stringify(route)}+'/?openPlugin='+encodeURIComponent(plugin)+'&openItem='+encodeURIComponent(id)),openPluginRecord:(plugin,id)=>location.assign(${JSON.stringify(route)}+'/?openPlugin='+encodeURIComponent(plugin)+'&openItem='+encodeURIComponent(id))});`}
+    ${`if(window===top) globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({translate:globalThis.t.text,route:path=>${JSON.stringify(route)}+path,headers:()=>molisWorkControlHeaders(),projectTitle:${JSON.stringify(project?.display_name ?? "")},openItem:(plugin,id)=>location.assign((${objectLinkAt.toString()})(${JSON.stringify(route)},{surface:plugin,id})),openPluginRecord:(plugin,id)=>location.assign((${objectLinkAt.toString()})(${JSON.stringify(route)},{surface:plugin,id}))});`}
     const root = document.querySelector('[data-deferred-surface]');
     if(root) void molisPluginFrames.mount(root,{side:${side},mountPluginClient:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})(),route:path=>${JSON.stringify(route)}+path,projectId:()=>${JSON.stringify(project?.project_id ?? "")},projectTitle:()=>${JSON.stringify(project?.display_name ?? "")}${side ? `,page:(${SIDE_PAGE_SCRIPT}),status:status=>parent.postMessage({type:'molis:side-status',status},location.origin)` : ""}},{id:${JSON.stringify(id)},plugin_id:${JSON.stringify(entry.manifest.plugin_id)},bundle:${JSON.stringify(client?.bundle ?? id)},assets:${JSON.stringify(client?.assets ?? [])},searchRow:${JSON.stringify(client?.searchRow)}}).catch(error=>{const note=document.querySelector('[data-home-status]');molisWorkRequest.show(note,error);note.hidden=false;});
     document.querySelector('[data-home-lifecycle]')?.addEventListener('click',async(event)=>{

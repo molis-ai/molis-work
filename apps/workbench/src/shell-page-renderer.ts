@@ -224,13 +224,12 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   ${renderPluginTabTitlesData(pluginTabTitles(directory))}
   <div class="app">
     <main class="immersive-workspace${parts?.workspace_classes?.length ? ` ${escapeHtml(parts.workspace_classes.join(" "))}` : ""}${directoryEmpty ? " is-plugin-directory-empty" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
-      ${renderImmersiveHeader(primitives, desktopShell, sideTabs)}
-      ${renderWorkbenchBar(primitives, { placing: true,
+      ${renderImmersiveHeader(primitives, desktopShell, sideTabs, {
         enabled: enabledPlugins,
         rail: renderPluginRail(primitives, enabledPlugins, directory, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }),
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives, !!appearance))),
-        sideTabs,
       })}
+      ${renderWorkbenchBar(primitives, { head: view.project?.display_name, sideTabs })}
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${uiText("workbench.shell-page-renderer.app-directory")}">
         <div class="mw-scroll directory-content-scroll">
         ${renderDirectoryPluginSections(primitives, enabledPlugins, directoryPanels, directory, initialDesktopDirectory, settingsDirectory)}

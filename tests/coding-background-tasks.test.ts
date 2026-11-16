@@ -3,34 +3,34 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { homeAggregatePorts, homeBackgroundTasks, LOCALE_COOKIE, LocalProjectDatabase, type HomeBackgroundTaskRow } from "@molis-ai/molis-work-app-local-host";
-import { HOME_BACKGROUND_TASKS_OUTPUT_TYPE } from "@molis-ai/molis-work-contracts/platform/actions";
+import { BACKGROUND_TASKS_OUTPUT_TYPE } from "@molis-ai/molis-work-contracts/platform/actions";
 import * as codingPackage from "@molis-ai/molis-work-plugin-coding";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
-import { backgroundPlugin, backgroundRig, BACKGROUND_PLUGIN_ID } from "./fixtures/home-background-plugin.js";
+import { backgroundPlugin, backgroundRig } from "./fixtures/home-background-plugin.js";
 import { startProjectPlugins } from "./fixtures/plugin-callers.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
 /*
  * PG-043 (C4): the title bar's list of background work is gathered from the plugins that declare a `home_aggregate` query of one type,
  * not read from Coding's tables by the Host. Coding declares the query and answers it from its own store (W5-01-CODING-32, 33, 34);
- * its stop route is the one the session already had (35); the Home and the page know no plugin (36, 37, 38); asking writes nothing and
+ * a command it left running is stopped by Coding's own action, bound to the route the session already had (35); the Home and the
+ * page know no plugin, and a row's command is only ever an action of the provider that answered (36, 37, 38); asking writes nothing and
  * a cancelled ask is not made (39); a failing project is written once (49, in tests/host-log-catches.test.ts); every sentence Coding
  * says has its English (50).
  */
 
-const CODING_ID = "io.molis.work.coding";
 const source = (path: string) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8");
 
 test("W5-01-CODING-32 Coding declares its background tasks as a read-only project query the Home may gather; its reader and the Host's old one are gone", () => {
-  const declared = codingManifest.actions?.find(action => action.capability_id === "coding.home.background-tasks");
+  const declared = codingManifest.actions?.find(action => action.capability_id === "coding.background.tasks");
   assert.ok(declared, "Coding's Manifest declares the query");
   assert.equal(declared.version, 1);
   assert.equal(declared.operation, "query");
   assert.equal(declared.action.scope, "project");
   assert.equal(declared.action.home_aggregate, true);
-  assert.equal(declared.action.output_type, HOME_BACKGROUND_TASKS_OUTPUT_TYPE);
+  assert.equal(declared.action.output_type, BACKGROUND_TASKS_OUTPUT_TYPE);
   assert.ok(isHomeAggregateQuery(declared), "it passes the rule the Home checks again before each call (S-49)");
   assert.ok(declared.action.permissions.every(permission => permission === "artifact:read"), "it asks for nothing beyond reading");
   assert.ok(!declared.action.permissions.includes("model:invoke"));
@@ -82,43 +82,48 @@ test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in
 
   const attention = await home.web.get<{ background_tasks: HomeBackgroundTaskRow[] }>("/api/attention");
   const rows = attention.background_tasks;
-  assert.deepEqual(rows.map(row => [row.project_name, row.id, row.state, row.waiting]), [
-    ["Alpha", "a4", "waiting-answer", true], ["Alpha", "a9", "done", false], ["Alpha", "a8", "queued", true], ["Alpha", "a7", "waiting-answer", true],
-    ["Alpha", "a6", "paused", true], ["Alpha", "a3", "waiting-approval", true], ["Alpha", "a1", "running", false],
-    ["Beta", "b4", "running", false], ["Beta", "b1", "reconcile-required", false], ["Beta", "b2", "reconcile-required", true],
+  assert.deepEqual(rows.map(row => [row.project_name, row.subject.id, row.state, row.waiting]), [
+    ["Alpha", "a4", "answer", true], ["Alpha", "a9", "round-ended", false], ["Alpha", "a8", "queued", true], ["Alpha", "a7", "answer", true],
+    ["Alpha", "a6", "paused", true], ["Alpha", "a3", "approval", true], ["Alpha", "a1", "running", false],
+    ["Beta", "b4", "running", false], ["Beta", "b1", "verify", false], ["Beta", "b2", "verify", true],
   ], "a finished session with nothing left for the person is not listed; a session cut off by a restart is shown as waiting to be checked, not as running");
-  assert.ok(rows.every(row => row.surface === "coding"));
+  assert.ok(rows.every(row => row.origin.surface === "coding" && row.subject.kind === "coding_session" && row.scope === "project" && row.executor.kind === "plugin"));
+  // A session is the event its rounds are done for, and where the row opens.
+  assert.ok(rows.every(row => row.serves.length === 1 && row.serves[0]!.id === row.subject.id && row.open?.kind === "item" && row.open.surface === "coding" && row.open.id === row.subject.id));
+  assert.equal(new Set(rows.map(row => row.id)).size, rows.length, "each row has its own id");
   assert.deepEqual(rows.map(row => row.project_id), [...Array(7).fill(alpha.project_id), ...Array(3).fill(beta.project_id)]);
   assert.equal(rows[0]!.title, "a4 的任务");
-  assert.deepEqual(Object.fromEntries(rows.map(row => [row.id, row.standing])), {
-    a4: [{ text: "本轮已结束" }, { text: "你负责 1 步" }], a9: [{ text: "本轮已结束" }], a8: [{ text: "挂起等待" }],
-    a7: [{ text: "等你回答" }, { text: "没人认领 3 步" }], a6: [{ text: "已暂停" }], a3: [{ text: "等你审查" }],
-    a1: [{ text: "进行中" }, { text: "2 步在子任务手上" }], b4: [{ text: "进行中" }], b1: [{ text: "服务重启前没有结束，打开后核对" }], b2: [{ text: "需要核对" }],
+  const said = (list: HomeBackgroundTaskRow[]) => Object.fromEntries(list.map(row => [row.subject.id, [row.step?.text, ...row.details.map(({ text }) => text)]]));
+  assert.deepEqual(said(rows), {
+    a4: ["本轮已结束", "你负责 1 步"], a9: ["本轮已结束"], a8: ["挂起等待"],
+    a7: ["等你回答", "没人认领 3 步"], a6: ["已暂停"], a3: ["等你审查"],
+    a1: ["进行中", "2 步在子任务手上"], b4: ["进行中"], b1: ["服务重启前没有结束，打开后核对"], b2: ["需要核对"],
   });
   assert.equal(rows.filter(row => row.waiting).length, 6, "the button counts the sessions that wait on the person");
 
-  // W5-01-CODING-35: a command a session left running is stopped through that session's own route, in the project it belongs to.
+  // W5-01-CODING-35: a command a session left running is stopped by Coding's own action, with the session and the command as its
+  // input; the action is bound to the route the session's panel already used.
   const stopRoute = codingManifest.routes?.find(route => route.route_id === "coding.background-stop");
-  assert.equal(stopRoute?.method, "POST");
-  const commands = rows.flatMap(row => row.commands.map(command => ({ project: row.project_id, session: row.id, ...command })));
-  assert.deepEqual(commands.map(command => [command.session, command.task_id, command.summary]), [["a9", "t9", "命令 t9"], ["b4", "t1", "命令 t1"]]);
-  for (const command of commands) {
-    assert.equal(command.stop_url, `/projects/${command.project}/api/plugins/${CODING_ID}/sessions/${command.session}/background/${command.task_id}/stop`);
-    const route = `/sessions/:sessionId/background/:taskId/stop`;
-    assert.equal(stopRoute?.path, route);
-    assert.match(command.stop_url.slice(`/projects/${command.project}/api/plugins/${CODING_ID}`.length), /^\/sessions\/[^/]+\/background\/[^/]+\/stop$/, "a path the Manifest's route takes");
-  }
+  assert.deepEqual([stopRoute?.method, stopRoute?.path], ["POST", "/sessions/:sessionId/background/:taskId/stop"]);
+  const stopAction = codingManifest.actions?.find(action => action.capability_id === "coding.background.stop");
+  assert.deepEqual([stopAction?.version, stopAction?.operation, stopAction?.action.audiences], [1, "command", ["user"]]);
+  const commands = rows.flatMap(row => row.commands.map(command => ({ row, ...command })));
+  assert.deepEqual(commands.map(command => [command.role, command.action.capability_id, command.action.version, command.input, command.summary]), [
+    ["stop", "coding.background.stop", 1, { session_id: "a9", task_id: "t9" }, "命令 t9"], ["stop", "coding.background.stop", 1, { session_id: "b4", task_id: "t1" }, "命令 t1"]]);
+  assert.ok(commands.every(command => command.action.provider_id === command.row.source.provider_id), "the action is the answering provider's own");
 
   // W5-01-CODING-50: Coding answers the same read in the selected language, including the plural forms.
   const english = await fetch(home.origin + "/api/attention", { headers: { cookie: LOCALE_COOKIE + "=en", accept: "application/json" } });
   assert.equal(english.status, 200);
   const localized: HomeBackgroundTaskRow[] = (await english.json()).background_tasks;
-  assert.deepEqual(localized.map(({ standing: _standing, ...row }) => row), rows.map(({ standing: _standing, ...row }) => row));
-  assert.deepEqual(Object.fromEntries(localized.map(row => [row.id, row.standing.map(({ text }) => text)])), {
+  const unsaid = ({ step: _step, details: _details, open: _open, ...row }: HomeBackgroundTaskRow) => row;
+  assert.deepEqual(localized.map(unsaid), rows.map(unsaid));
+  assert.deepEqual(said(localized), {
     a4: ["The round ended", "1 step with you"], a9: ["The round ended"], a8: ["Queued"],
     a7: ["Waiting for your answer", "3 unclaimed steps"], a6: ["Paused"], a3: ["Waiting for your review"],
     a1: ["In progress", "2 steps with subtasks"], b4: ["In progress"], b1: ["This did not finish before the service restarted. Open it to check."], b2: ["Needs checking"],
   });
+  assert.equal(localized[0]!.open?.label, "Open session");
 });
 
 test("W5-01-CODING-51 stopping and starting Coding again is not a Home restart: a round recorded as running is still running, not cut off", { timeout: 90_000 }, async t => {
@@ -134,8 +139,8 @@ test("W5-01-CODING-51 stopping and starting Coding again is not a Home restart: 
   assert.equal(await home.host.closeProject(project.reference), true);
   await startProjectPlugins(home.host, project.reference);
   const attention = await home.web.get<{ background_tasks: HomeBackgroundTaskRow[] }>("/api/attention");
-  const row = attention.background_tasks.find(item => item.id === "r1");
-  assert.deepEqual(row && [row.state, row.waiting, row.standing], ["running", false, [{ text: "进行中" }]],
+  const row = attention.background_tasks.find(item => item.subject.id === "r1");
+  assert.deepEqual(row && [row.state, row.waiting, row.step, row.details], ["running", false, { text: "进行中" }, []],
     "the round goes on in the Home's agent host; only the Home process starting would cut it");
   // BL-540: the boundary comes from the platform's Home Host startup timestamp (`context.host_started_at`), never `process`.
   assert.match(source("plugins/native/coding/src/plugin.ts"), /context\.host_started_at/);
@@ -181,39 +186,59 @@ test("W5-01-CODING-34 Coding's reader lists the sessions that are active or hold
   assert.equal(everything(), before, "reading the list changed no row");
 });
 
+const SOURCE = { surface: "example", title: "示例", icon: "list" };
+const fixtureTask = (extra: Record<string, unknown> = {}, commands: unknown[] = []) => ({ subject: { kind: "homebg_task", id: "j" }, title: "任务", state: "running", details: [], waiting: false,
+  updated_at: "2026-10-01T10:00:00.000Z", executor: { kind: "plugin", label: "示例" }, serves: [], scope: "project", commands, decisions: [], open: null, ...extra });
+
 test("W5-01-CODING-36 the Home lists what any plugin declares for it: another plugin's tasks show on its own surface, in the projects where it is on and open, and nothing else is asked", { timeout: 60_000 }, async t => {
-  const task = (project: string, updated: string) => ({ id: `job-${project}`, title: "导出", state: "running", updated_at: updated, waiting: false,
-    standing: [{ text: "跑了 {n} 项", count: 3 }], commands: [{ task_id: "j1", summary: "导出到文件", stop_path: "/jobs/j1/stop" }] });
-  const plugin = backgroundPlugin(() => ({ source: { surface: "example" }, tasks: [] }));
+  const task = (project: string, updated: string) => fixtureTask({ subject: { kind: "homebg_task", id: `job-${project}` }, title: "导出", updated_at: updated, step: { text: "跑了 3 项" },
+    serves: [{ kind: "note", id: "n1" }], open: { kind: "item", surface: "example", id: `job-${project}`, title: "导出", label: "打开" } },
+    [{ role: "stop", action: { capability_id: "homebg.stop", version: 1 }, input: { job: "j1" }, summary: "导出到文件" }]);
+  const plugin = backgroundPlugin(() => ({ source: SOURCE, tasks: [] }));
   const rig = await backgroundRig(t, plugin, ["A", "B", "Off", "Closed"], { off: ["Off"], closed: ["Closed"] });
   const a = rig.project("A").project_id, b = rig.project("B").project_id;
-  plugin.state.answer = project => ({ source: { surface: "example" }, tasks: [task(project, project === a ? "2026-10-01T10:00:00.000Z" : "2026-10-01T11:00:00.000Z")] });
+  plugin.state.answer = project => ({ source: SOURCE, tasks: [task(project, project === a ? "2026-10-01T10:00:00.000Z" : "2026-10-01T11:00:00.000Z")] });
 
   const rows = await homeBackgroundTasks(homeAggregatePorts(rig.host), rig.catalog);
-  assert.deepEqual(rows.map(row => [row.project_name, row.surface, row.id, row.state, row.waiting, row.standing]), [
-    ["B", "example", `job-${b}`, "running", false, [{ text: "跑了 {n} 项", count: 3 }]],
-    ["A", "example", `job-${a}`, "running", false, [{ text: "跑了 {n} 项", count: 3 }]],
+  assert.deepEqual(rows.map(row => [row.project_name, row.origin, row.subject.id, row.state, row.waiting, row.step, row.serves, row.open?.id]), [
+    ["B", SOURCE, `job-${b}`, "running", false, { text: "跑了 3 项" }, [{ kind: "note", id: "n1" }], `job-${b}`],
+    ["A", SOURCE, `job-${a}`, "running", false, { text: "跑了 3 项" }, [{ kind: "note", id: "n1" }], `job-${a}`],
   ], "the plugin the Home has never heard of is listed, newest first; the project where it is off and the one never opened are not");
-  assert.deepEqual(rows.map(row => row.commands), [b, a].map(project => [{ task_id: "j1", summary: "导出到文件", stop_url: `/projects/${project}/api/plugins/${BACKGROUND_PLUGIN_ID}/jobs/j1/stop` }]),
-    "its stop route is built from the plugin the answer came from and the project it was asked in");
+  assert.deepEqual(rows.map(row => row.commands), rows.map(row => [{ role: "stop", action: { capability_id: "homebg.stop", version: 1, provider_id: row.source.provider_id }, input: { job: "j1" }, summary: "导出到文件" }]),
+    "its command is its own action, pinned to the provider the answer came from");
   assert.deepEqual(plugin.state.calls.map(call => call.project).sort(), [a, b].sort(), "one call in each open project where the plugin is on");
   assert.ok(plugin.state.calls.every(call => call.query_only), "each call is marked read-only");
 });
 
-test("W5-01-CODING-37 a plugin's answer is checked before the page draws it: a surface or a stop path that is not plain is not offered", { timeout: 60_000 }, async t => {
-  const row = (extra: Record<string, unknown> = {}, commands: unknown[] = []) => ({ id: "j", title: "任务", state: "running", updated_at: "2026-10-01T10:00:00.000Z", waiting: false, standing: [], commands, ...extra });
-  const plugin = backgroundPlugin(() => ({ source: { surface: "example" }, tasks: [] }));
+test("W5-01-CODING-37, WLN-34 a plugin's answer is checked before the page draws it: a row that is not well formed draws nothing, and a command that is not the answering provider's own action is not offered", { timeout: 60_000 }, async t => {
+  const plugin = backgroundPlugin(() => ({ source: SOURCE, tasks: [] }));
   const rig = await backgroundRig(t, plugin, ["A"]);
   const ask = async (answer: unknown) => { plugin.state.answer = () => answer; return await homeBackgroundTasks(homeAggregatePorts(rig.host), rig.catalog); };
-  const stops = async (...paths: string[]) => (await ask({ source: { surface: "example" }, tasks: [row({}, paths.map((stop_path, index) => ({ task_id: `t${index}`, summary: "命令", stop_path })))] }))[0]?.commands.map(command => command.task_id);
 
-  assert.deepEqual(await ask({ source: { surface: "../elsewhere" }, tasks: [row()] }), [], "a surface that is not a plain name draws nothing");
-  assert.deepEqual(await ask({ source: { surface: "example" }, tasks: "none" }), [], "tasks that are not a list draw nothing");
-  assert.deepEqual(await ask({ tasks: [row()] }), []);
-  assert.deepEqual((await ask({ source: { surface: "example" }, tasks: [row(), row({ id: "" }), row({ waiting: "yes" }), row({ title: 7 }), row({ state: "" }), row({ standing: Array(9).fill({ text: "x" }) }), row({ standing: [{ text: "x", count: 1.5 }] }), null] }))
-    .map(item => item.id), ["j"], "only the well-formed task of a mixed answer is kept");
-  assert.deepEqual(await stops("/jobs/j1/stop", "/jobs/%2e%2e/x", "/jobs/../../x", "jobs/j1/stop", "//evil.test/x", "/jobs/a\\b/stop", "/jobs/%5c/x", "/jobs/%00/x", "/jobs/%zz/x", "/a/b/c/d/e/f/g/h/i/j/k/l/m/n"),
-    ["t0"], "a path that leaves the plugin, is not made of plain segments or is very deep is not offered; the plain one is");
+  assert.deepEqual(await ask({ source: { ...SOURCE, surface: "../elsewhere" }, tasks: [fixtureTask()] }), [], "a surface that is not a plain name draws nothing");
+  assert.deepEqual(await ask({ source: SOURCE, tasks: "none" }), [], "tasks that are not a list draw nothing");
+  assert.deepEqual(await ask({ tasks: [fixtureTask()] }), []);
+  const mixed = await ask({ source: SOURCE, tasks: [fixtureTask(), fixtureTask({ subject: { kind: "homebg_task", id: "" } }), fixtureTask({ subject: { kind: "someone_elses", id: "x" } }), fixtureTask({ waiting: "yes" }),
+    fixtureTask({ title: 7 }), fixtureTask({ state: "" }), fixtureTask({ state: "made-up" }), fixtureTask({ details: Array(9).fill({ text: "x" }) }), fixtureTask({ details: [{ text: "x", count: 1.5 }] }), fixtureTask({ scope: "everywhere" }),
+    fixtureTask({ executor: { kind: "person", label: "x" } }), fixtureTask({ serves: [{ kind: "note" }] }), fixtureTask({ open: { kind: "item", surface: "../x", id: "1", title: "t", label: "l" } }), null] });
+  assert.deepEqual(mixed.map(item => item.subject.id), ["j"], "only the well-formed task of a mixed answer is kept; a kind the provider did not declare is not");
+  // PWA-155: a row a plugin keeps a short while after it ended (to hand back to the Assistant) is not on the Home's list of what is running.
+  const ended = await ask({ source: SOURCE, tasks: ["done", "saved", "partial", "failed", "running"].map(state => fixtureTask({ subject: { kind: "homebg_task", id: state }, state })) });
+  assert.deepEqual(ended.map(item => item.subject.id).sort(), ["failed", "running"], "PWA-155 ended rows (done, saved, partial) are left out of the Home list; a failed one still waits for the person");
+
+  // The refusal: a row cannot put another provider's action behind a button the person presses.
+  const own = mixed[0]!.source.provider_id;
+  const offered = (await ask({ source: SOURCE, tasks: [fixtureTask({}, [
+    { role: "stop", action: { capability_id: "homebg.stop", version: 1 }, input: { job: "plain" }, summary: "自己的动作" },
+    { role: "stop", action: { capability_id: "homebg.stop", version: 1, provider_id: own }, input: { job: "named" }, summary: "写明自己" },
+    { role: "stop", action: { capability_id: "projects.delete", version: 1, provider_id: "system.projects" }, input: { project_id: "p" }, summary: "别人的动作" },
+    { role: "delete", action: { capability_id: "homebg.stop", version: 1 }, input: {}, summary: "没有的角色" },
+    { role: "stop", action: { capability_id: "homebg.stop" }, input: {}, summary: "没有版本" },
+    { role: "stop", action: { capability_id: "homebg.stop", version: 1 }, input: "j1", summary: "输入不是对象" },
+    { role: "stop", stop_path: "/jobs/j1/stop", summary: "插件自己的路径" },
+  ])] }))[0]!.commands;
+  assert.deepEqual(offered.map(command => [command.input.job, command.action.provider_id]), [["plain", own], ["named", own]],
+    "only the answering provider's own actions are offered, each pinned to it; another provider's action, an unknown role, a missing version, a plain route and a non-object input are not");
 });
 
 test("W5-01-CODING-38 the Home and the page name no plugin: the sources that gather and draw the list never say Coding", () => {
@@ -235,10 +260,10 @@ test("W5-01-CODING-39 asking for the list writes nothing in a project, and a can
     objects: store.db.prepare("SELECT type, name FROM sqlite_master ORDER BY name").all(), journal: store.db.prepare("SELECT count(*) AS n FROM events").get() });
   const before = snapshot();
   const attention = await home.web.get<{ background_tasks: HomeBackgroundTaskRow[] }>("/api/attention");
-  assert.deepEqual(attention.background_tasks.map(row => row.id), ["q1"]);
+  assert.deepEqual(attention.background_tasks.map(row => row.subject.id), ["q1"]);
   assert.equal(snapshot(), before, "the project's database is as it was");
 
-  const plugin = backgroundPlugin(() => ({ source: { surface: "example" }, tasks: [] }));
+  const plugin = backgroundPlugin(() => ({ source: SOURCE, tasks: [] }));
   const rig = await backgroundRig(t, plugin, ["A", "B"]);
   const controller = new AbortController(); controller.abort();
   await assert.rejects(homeBackgroundTasks(homeAggregatePorts(rig.host), rig.catalog, controller.signal), { name: "AbortError" });

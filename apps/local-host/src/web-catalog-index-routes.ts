@@ -9,6 +9,7 @@ import { projectOrNull } from "./catalog-lookup.js";
 import { assistantNotices, assistantServiceFor, handleAssistantHttp, type AssistantHttpPorts } from "./assistant/assistant-http.js";
 import { installedPagesPort } from "./assistant/assistant-pages.js";
 import { handleAttentionHttp } from "./attention-http.js";
+import { onAttentionChange } from "./attention-changes.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleUnscopedAgentReviews } from "./agent-review-http.js";
 import { computerHolderFor } from "./computer/computer-surfaces.js";
@@ -41,7 +42,8 @@ export const CATALOG_INDEX_ROUTES: readonly WebRoute<CatalogIndexContext>[] = [
   { id: "assistant", handle: async ({ request, response, url, assistant }) =>
     Boolean(assistant) && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, assistant!) },
   { id: "attention", handle: async ({ request, response, url, assistant, projects, localHost }) => Boolean(assistant) && await handleAttentionHttp(request, response, url,
-    { backgroundTasks: () => homeBackgroundTasks(homeAggregatePorts(localHost), projects), notices: surface => assistantNotices(assistant!, surface) }) },
+    { backgroundTasks: () => homeBackgroundTasks(homeAggregatePorts(localHost), projects), notices: surface => assistantNotices(assistant!, surface),
+      changes: listener => onAttentionChange(null, listener) }) },
   { id: "side-files", handle: async ({ request, response, url, serverOptions }) => Boolean(serverOptions.homeDirectory)
     && url.pathname.startsWith("/api/side/files/") && await handleUnscopedComputerFiles(request, response, url, serverOptions.homeDirectory!) },
   { id: "agent-reviews", handle: ({ request, response, url, agentHost, localHost, agentReady }) => handleUnscopedAgentReviews(request, response, url,

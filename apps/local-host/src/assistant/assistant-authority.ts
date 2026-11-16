@@ -1,5 +1,5 @@
 import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentActionOffer, AgentDelegation, AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentActionOffer, AgentDelegation, AgentDelivery, AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
@@ -53,6 +53,8 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   pageContext?: () => ActionCallContext["page_context"], locale?: WebLocale,
   /** The Skills the person named for this round (its materials): the round's frozen list, so a `manual` one can be read. */
   roundSkills: readonly SkillRef[] = [],
+  /** A delegated work's report of what it delivers against the requirements it was handed (absent when it was handed none). */
+  delivery?: AgentDelivery,
   /** False when the person asked for this round without automatic Skills (「这次不用技能」): only the named ones can be read. */
   autoSkills = true): AgentStartAuthority {
   const reference = work.project_ref;
@@ -104,6 +106,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       discover: () => discover(validate),
       ...(offer ? { offer: async (proposal: AgentActionOffer) => offer(proposal, await service().discover(await context(validate))) } : {}),
       ...(delegation ? { delegate: delegation } : {}),
+      ...(delivery ? { deliver: delivery } : {}),
       ...(memory ? { memory } : {}),
       // A delegated work reports to the work that handed it over, which reads it with the identifiers it needs.
       ...(work.delegated_by ? { reader: "work" as const } : {}),

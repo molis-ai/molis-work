@@ -64,6 +64,9 @@ importers:
       '@molis-ai/molis-work-kernel':
         specifier: workspace:*
         version: link:packages/kernel
+      '@molis-ai/molis-work-module-acceptance':
+        specifier: workspace:*
+        version: link:modules/acceptance
       '@molis-ai/molis-work-module-artifacts':
         specifier: workspace:*
         version: link:modules/artifacts
@@ -196,6 +199,9 @@ importers:
       '@molis-ai/molis-work-service-knowledge':
         specifier: workspace:*
         version: link:horizontal/knowledge
+      '@molis-ai/molis-work-service-mainline':
+        specifier: workspace:*
+        version: link:horizontal/mainline
       '@molis-ai/molis-work-service-memory':
         specifier: workspace:*
         version: link:horizontal/memory
@@ -353,6 +359,9 @@ importers:
       '@molis-ai/molis-work-kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
+      '@molis-ai/molis-work-module-acceptance':
+        specifier: workspace:*
+        version: link:../../modules/acceptance
       '@molis-ai/molis-work-module-artifacts':
         specifier: workspace:*
         version: link:../../modules/artifacts
@@ -485,6 +494,9 @@ importers:
       '@molis-ai/molis-work-service-knowledge':
         specifier: workspace:*
         version: link:../../horizontal/knowledge
+      '@molis-ai/molis-work-service-mainline':
+        specifier: workspace:*
+        version: link:../../horizontal/mainline
       '@molis-ai/molis-work-service-memory':
         specifier: workspace:*
         version: link:../../horizontal/memory
@@ -745,6 +757,15 @@ importers:
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
 
+  horizontal/mainline:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+
   horizontal/memory:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -816,6 +837,15 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
+
+  modules/acceptance:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
 
   modules/artifacts:
     dependencies:
@@ -1833,7 +1863,7 @@ packages:
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
   '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz':
-    resolution: {integrity: sha512-UURGHogGmbiJ9YhZPEW7w8hPbn50rLfMGDO/mmxostHV/JNMjB2PxkAGYvdx0PMBH7+nt9b9oHilVkYKWeztWw==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz}
+    resolution: {integrity: sha512-zXzR5MglS0vXl6GMMTs5XE1S3nMmGZh2TqTLLiqqd/F5NB/OR52cCeFYDQnjUbVxFC3cgPPFr5YTzanc6SGKCw==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':

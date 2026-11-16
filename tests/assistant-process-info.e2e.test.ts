@@ -455,7 +455,9 @@ test("Memory receipts in a real failed Work show a pending candidate and no chan
   await waitFor("location.pathname.includes('/settings/memory') || Boolean(document.querySelector('[data-memory-list]'))");
   // Reopen the same real Work from the existing bar after visiting Memory, then use its original failed round's result card.
   // The unified composer (UIC-05) names the open work as its receiver; an empty ⌘↵ opens that work without sending anything.
-  await waitFor(`document.querySelector('[data-assistant-composer] [data-composer-receiver]')?.textContent.includes(${JSON.stringify(retry.work.title)})`);
+  // What was said at 「现在」 went to the project's main conversation (WLN-06), named on the bar by what it is, not its stored title.
+  const receiverName = retry.work.main ? "主对话" : retry.work.title;
+  await waitFor(`document.querySelector('[data-assistant-composer] [data-composer-receiver]')?.textContent.includes(${JSON.stringify(receiverName)})`);
   await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);

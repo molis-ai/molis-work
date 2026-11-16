@@ -35,6 +35,7 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     "delegate-check": ["workbench.assistant-process.delegate-check.bare", "workbench.assistant-process.delegate-check.started", "workbench.assistant-process.delegate-check.completed"],
     "delegate-follow-up": ["workbench.assistant-process.delegate-follow-up.bare", "workbench.assistant-process.delegate-follow-up.started", "workbench.assistant-process.delegate-follow-up.completed"],
     "delegate-stop": ["workbench.assistant-process.delegate-stop.bare", "workbench.assistant-process.delegate-stop.started", "workbench.assistant-process.delegate-stop.completed"],
+    deliver: ["workbench.assistant-process.deliver.bare", "workbench.assistant-process.deliver.started", "workbench.assistant-process.deliver.completed"],
     "memory-keep": ["workbench.assistant-process.memory-keep.bare", "workbench.assistant-process.memory-keep.started", "workbench.assistant-process.memory-keep.completed"],
     "memory-list": ["workbench.assistant-process.memory-list.bare", "workbench.assistant-process.memory-list.started", "workbench.assistant-process.memory-list.completed"],
     "memory-forget": ["workbench.assistant-process.memory-forget.bare", "workbench.assistant-process.memory-forget.started", "workbench.assistant-process.memory-forget.completed"],
@@ -58,7 +59,7 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
   const REASONS = { "not-authorized": "workbench.assistant-process.not-authorized-nothing-done", declined: "workbench.assistant-process.declined-nothing-done", interrupted: "workbench.assistant-process.turn-stopped-did-not-run", unavailable: "workbench.assistant-process.switched-off-no-longer-available-nothing-done" };
   const VERB_GLYPH = { lookup: "search", "lookup-tools": "search", "file-search": "search", read: "note", "file-read": "file", "file-list": "list", change: "edit",
     "file-change": "code", command: "terminal", "command-output": "terminal", ask: "question", todo: "list", suggest: "zap", delegate: "workflow", "delegate-check": "workflow",
-    "delegate-follow-up": "workflow", "delegate-stop": "workflow", "memory-keep": "sparkles", "memory-list": "sparkles", "memory-forget": "sparkles", "memory-suggest": "sparkles",
+    "delegate-follow-up": "workflow", "delegate-stop": "workflow", deliver: "list", "memory-keep": "sparkles", "memory-list": "sparkles", "memory-forget": "sparkles", "memory-suggest": "sparkles",
     "auto-continue": "refresh", compact: "refresh", "browser-list": "globe", "browser-look": "globe", "browser-act": "globe", "computer-list": "system", "computer-look": "system", "computer-act": "system", "ended-on-promise": "alert" };
   const verbGlyph = (item) => item.state === "started" ? spinner() : item.state === "failed" || item.state === "unknown" ? spinner(item.state === "failed" ? "failed" : "verify") : glyph(VERB_GLYPH[item.verb] || "circle");
   // form: 0 bare, 1 under way, 2 done. A line starts with its verb, so it starts with a capital where the language has them.

@@ -80,7 +80,8 @@ test("声明的事件与带校验器的实现一一对应，不多不少", async
   for (const id of published) {
     assert.match(id, /^io\.molis\.work\.coding\./, `${id} 不在插件命名空间下`);
   }
-  assert.deepEqual(codingManifest.events?.subscribes, [], "Coding 目前不订阅任何人");
+  // 第 32 批（PWA-155，用户 2026-11-15 定）：Coding 只订阅宿主的接续就绪事件，收到后用请求键自己起一轮；不订阅别的插件
+  assert.deepEqual(codingManifest.events?.subscribes, [{ event_type_id: "host.agent.continuation.ready", type_version: 1 }], "Coding 只订阅宿主的接续就绪");
 });
 
 test("偏好事件只接受本插件声明过的角色", async () => {

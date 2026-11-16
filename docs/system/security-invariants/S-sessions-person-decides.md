@@ -1,0 +1,5 @@
+# S-sessions-person-decides
+
+| ID | 不变量（拒绝什么） | 代码位置 | 测试（CI 里跑） | 测试（只在本机跑） |
+| --- | --- | --- | --- | --- |
+| S-sessions-person-decides | 外部会话的读取范围、项目 AI 读取开关与归属决定只由本人作出，插件、MCP、工作流与项目内 Agent 不可访问，模型建议不自动落决定（第 34 批，设计 `specs/sessions-rebuild/contract-design.md` §4、§6、§8、§9.4）：① 十个面向本人的 `sessions.*` 动作只对非委托 `user` 受众开放，插件、工作流、MCP、项目内 Agent 及 `delegated_by` 委托调用发现不到且调用即拒 `actions.forbidden`；② `sessions.attribution.suggest@1` 只写 `session_suggestions` 缓存表，任何模型输出都不能写 `session_attributions`、`session_read_scopes` 或 `session_project_ai_reads`，只有本人显式调用 `sessions.attribution.set@1` 才落归属决定且 `clear` 后单调递增的修订号不回退。 | `apps/local-host/src/sessions-actions.ts`、`horizontal/sessions/src/scope-commands.ts`、`horizontal/sessions/src/store-decisions.ts`、`horizontal/sessions/src/suggest.ts` | `tests/security-invariants-external-sessions.test.ts`「S-sessions-person-decides 1: plugins, workflows, MCP, project agents and delegated callers cannot discover or invoke person-only session actions」「S-sessions-person-decides 2: model attribution suggestions never write session_attributions and require the person's explicit action」 | — |

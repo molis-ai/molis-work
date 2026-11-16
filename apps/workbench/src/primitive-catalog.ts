@@ -31,6 +31,7 @@ import { renderImmersiveHeader, renderPluginRail, renderWorkbenchBar, renderWork
 import { renderPersonalMenuItems } from "./settings-directory.js";
 import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
+import { SESSIONS_NAVIGATION } from "./sessions/navigation.js";
 import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
 
 /**
@@ -46,6 +47,7 @@ const SAMPLE_PROJECT_PLUGINS = ["goals", "inbox", "feed", "issues", "cognia", "p
 const SURFACE_GLYPHS: readonly CatalogPluginIcon[] = [
   { id: "home", name: "项目首页", icon: "home" }, { id: "characters", name: "Characters", icon: "user" }, { id: "market", name: "插件市场", icon: "grid" },
   { id: ARTIFACT_NAVIGATION.id, name: ARTIFACT_NAVIGATION.label, icon: ARTIFACT_NAVIGATION.glyph },
+  { id: SESSIONS_NAVIGATION.id, name: SESSIONS_NAVIGATION.label, icon: SESSIONS_NAVIGATION.glyph },
 ];
 
 /** The icon inventory's plugin rows: the glyph each built-in plugin's Manifest declares (the one the rail, tabs and market draw), after the workbench's own surfaces. */

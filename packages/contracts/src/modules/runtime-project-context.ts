@@ -49,12 +49,14 @@ export interface UnbindRuntimeWorkContextInput {
   project_id?: string;
 }
 
+export const WORK_CONTEXT_PERSON_RELATION_KEPT_CODE = "work.context.person_relation_kept" as const;
+
 export interface MolisWorkRuntimeContextUnbindResult {
   resolution: MolisWorkRuntimeContextResolution;
   unbound_project: MolisWorkProjectSelection | null;
   changed: boolean;
   /** Only when nothing was unlinked because the person made this directory relation: a tool cannot undo it, the person does so in the project's settings. */
-  kept?: { code: "work.context.person_relation_kept"; message: string };
+  kept?: { code: typeof WORK_CONTEXT_PERSON_RELATION_KEPT_CODE; message: string };
 }
 
 export interface RejectRuntimeContextSuggestionInput {

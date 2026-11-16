@@ -46,8 +46,10 @@ ${BUTTON_STYLES}
     background-position: right 8px center;
     background-size: 14px 14px;
   }
-  html[data-resolved-theme="dark"] .mw-select { /* the dark theme's generic select rule (momentum.ts) resets repeat, position and size with its background shorthand */
-    background-repeat: no-repeat; background-position: right 8px center; background-size: 14px 14px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394949c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  /* Dark theme's generic select rule (momentum.ts) resets repeat, position and size with its background shorthand. */
+  html[data-resolved-theme="dark"] .mw-select {
+    background-repeat: no-repeat; background-position: right 8px center; background-size: 14px 14px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394949c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   }
   .mw-input::placeholder, .mw-textarea::placeholder { color: var(--muted); }
   .mw-input:hover:where(:not(:disabled, :focus-visible)),
@@ -1073,8 +1075,10 @@ ${BUTTON_STYLES}
   .mw-dir-row .mw-dir-row__status svg:not(.mw-state-ring) { width: 12px; height: 12px; color: inherit; }
   .mw-dir-row.is-selected .mw-dir-row__status, .mw-dir-row[aria-current="page"] .mw-dir-row__status { color: var(--status-tone, var(--muted)); }
   /* Light rows darken when hovered, pressed or selected; these tones keep their hue but take 20% ink (or ink-soft) so the word stays at 4.5:1. */
-  html:not([data-resolved-theme="dark"]) .mw-dir-row .mw-dir-row__status:is(.mw-status--attention, .mw-status--progress, .mw-status--blocked, .mw-status--done, .mw-status--hold) { color: color-mix(in srgb, var(--status-tone) 80%, var(--ink)); } html:not([data-resolved-theme="dark"]) .mw-dir-row .mw-dir-row__status:is(.mw-status--quiet, .mw-status--idle) { color: var(--ink-soft); }
-  .mw-dir-row-wrap:hover { background: var(--nav-hover); } .mw-dir-row-wrap:active { background: var(--nav-press); }
+  :root:not([data-resolved-theme="dark"]) .mw-dir-row .mw-dir-row__status:is(.mw-status--attention, .mw-status--progress, .mw-status--blocked, .mw-status--done, .mw-status--hold) { color: color-mix(in srgb, var(--status-tone) 80%, var(--ink)); }
+  :root:not([data-resolved-theme="dark"]) .mw-dir-row .mw-dir-row__status:is(.mw-status--quiet, .mw-status--idle) { color: var(--ink-soft); }
+  .mw-dir-row-wrap:hover { background: var(--nav-hover); }
+  .mw-dir-row-wrap:active { background: var(--nav-press); }
   .mw-dir-row-wrap:hover .mw-dir-row,
   .mw-dir-row-wrap:active .mw-dir-row { color: var(--ink); background: transparent; }
   .mw-dir-row-wrap:has(.is-selected),
@@ -1099,13 +1103,9 @@ ${BUTTON_STYLES}
   }
   .mw-dir-row-wrap.is-yield .mw-dir-row {
     /* The row yields room to its actions at once; only the tone eases. */
-    transition:
-      background-color 130ms var(--ease-quint),
-      color 130ms var(--ease-quint);
+    transition: background-color 130ms var(--ease-quint), color 130ms var(--ease-quint);
   }
-  .mw-dir-row-wrap.is-yield:is(:hover, :focus-within, :has(.is-selected), :has([aria-current="page"])) .mw-dir-row {
-    padding-right: var(--dir-yield, 72px);
-  }
+  .mw-dir-row-wrap.is-yield:is(:hover, :focus-within, :has(.is-selected), :has([aria-current="page"])) .mw-dir-row { padding-right: var(--dir-yield, 72px); }
   .mw-dir-row-wrap.is-yield .mw-dir-row__ops {
     position: absolute; right: 2px; top: 0; bottom: 0;
     display: flex; align-items: center; gap: 0;
@@ -1115,12 +1115,8 @@ ${BUTTON_STYLES}
   }
   .mw-dir-row-wrap.is-yield:has(.is-selected) .mw-dir-row__ops,
   .mw-dir-row-wrap.is-yield:has([aria-current="page"]) .mw-dir-row__ops { background: var(--nav-active); }
-  .mw-dir-row-wrap.is-yield:is(:hover, :focus-within, :has(.is-selected), :has([aria-current="page"])) .mw-dir-row__ops {
-    opacity: 1; pointer-events: auto;
-  }
-  .mw-dir-row-wrap.is-yield .mw-dir-row__ops .mw-btn {
-    width: 22px; min-width: 22px; min-height: 22px;
-  }
+  .mw-dir-row-wrap.is-yield:is(:hover, :focus-within, :has(.is-selected), :has([aria-current="page"])) .mw-dir-row__ops { opacity: 1; pointer-events: auto; }
+  .mw-dir-row-wrap.is-yield .mw-dir-row__ops .mw-btn { width: 22px; min-width: 22px; min-height: 22px; }
   .mw-dir-row-wrap > :not(.mw-dir-row).mw-btn,
   .mw-dir-row-wrap > :not(.mw-dir-row) .mw-btn {
     width: 28px; min-width: 28px; min-height: 28px; padding: 0;
@@ -1138,9 +1134,7 @@ ${BUTTON_STYLES}
     font: inherit; font-size: 13px; font-weight: var(--weight-control, 500); text-align: left; cursor: pointer;
   }
   .mw-dir > [data-slot="directory-add"]:first-child,
-  .mw-dir__tools + [data-slot="directory-add"] {
-    margin-top: 0; margin-bottom: 4px;
-  }
+  .mw-dir__tools + [data-slot="directory-add"] { margin-top: 0; margin-bottom: 4px; }
   .mw-dir__add svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
   .mw-dir__add:hover { color: var(--ink); background: var(--nav-hover); }
   .mw-dir__footer { display: none; }
@@ -1161,8 +1155,11 @@ ${BUTTON_STYLES}
 
   @media (max-width: 760px), (pointer: coarse) {
     .mw-form__footer .mw-btn:not(.mw-btn--icon-only), .mw-btn--lg, .mw-menu__item { min-height: 44px; }
-    .mw-btn--sm { min-height: var(--control-h, 44px); } .mw-switch input { inset: -11px -4px; } /* a 44 × 44 target round the 36 × 22 switch; it looks the same */
-    .mw-input, .mw-textarea, .mw-select { font-size: 16px; } .mw-input-group svg { width: 16px; height: 16px; }
+    .mw-btn--sm { min-height: var(--control-h, 44px); }
+    /* A 44 × 44 touch target round the 36 × 22 switch; callers must leave >= 11px vertical and >= 4px horizontal clearance to adjacent controls. */
+    .mw-switch input { inset: -11px -4px; }
+    .mw-input, .mw-textarea, .mw-select { font-size: 16px; }
+    .mw-input-group svg { width: 16px; height: 16px; }
     dialog.mw-sheet { inset: 0; width: 100vw; height: 100dvh; max-height: 100dvh; }
     dialog.mw-dialog--form { width: calc(100vw - 24px); max-height: calc(100dvh - 32px); }
     dialog.mw-dialog--form > .mw-form { max-height: calc(100dvh - 32px); }

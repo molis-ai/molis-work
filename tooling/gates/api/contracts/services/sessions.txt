@@ -384,7 +384,7 @@ export declare const servicesSessionsContract: {
     readonly contractId: "io.molis.work.service.sessions.v1";
     readonly kind: "service";
     readonly schemaVersion: 1;
-    readonly maturity: "contract-only";
+    readonly maturity: "partial";
     readonly ssot: "specs/sessions-rebuild/contract-design.md";
 };
 
@@ -400,6 +400,9 @@ export declare const sessionsActions: {
     searchEntries: ActionDefinition<import("platform/search-sources").SearchEntriesInput, import("platform/search-sources").SearchEntriesPage>;
     subject: ActionDefinition<SubjectContextRequest, ActionSubjectContext>;
     toolSearch: ActionDefinition<ExternalSessionToolSearchInput, ExternalSessionToolSearchOutput>;
+    connectorUsages: ActionDefinition<ConnectorUsagesInput, {
+        usages: ConnectorUsage[];
+    }>;
 };
 
 export declare const sessionsErrors: import("platform/action-errors").ErrorCodeRaisers<{
@@ -416,6 +419,5 @@ export declare const sessionsErrors: import("platform/action-errors").ErrorCodeR
     readonly project_unavailable: "invalid";
     readonly attribution_conflict: "conflict";
     readonly cursor_invalid: "invalid";
-    readonly suggestion_unavailable: "unavailable";
     readonly too_many_groups: "too_large";
 }>;

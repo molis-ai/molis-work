@@ -78,9 +78,25 @@ test("22 external sessions: the board's permit row and conversation, in both lan
   }
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId);
 
-  // 390: the switch's press reaches 44 × 44 round its 36 × 22 track.
+  // 390: the switch's press reaches 44 × 44 round its 36 × 22 track, without overlapping any adjacent interactive control.
   await open("zh", 390);
-  const target = await evaluate<{ input: [number, number]; track: [number, number] }>(`(() => { const s = document.querySelector('#session-sources .mw-switch'), i = s.querySelector('input').getBoundingClientRect(), t = s.querySelector('.mw-switch__track').getBoundingClientRect();
-    return { input: [Math.round(i.width), Math.round(i.height)], track: [Math.round(t.width), Math.round(t.height)] }; })()`);
-  assert.deepEqual(target, { input: [44, 44], track: [36, 22] }, "at 390 the switch answers a 44 × 44 press and still looks 36 × 22");
+  const target = await evaluate<{ input: [number, number]; track: [number, number]; overlaps: string[] }>(`(() => {
+    const visible = (el) => { const box = el.getBoundingClientRect(); return box.width > 0 && box.height > 0; };
+    const s = document.querySelector('#session-sources .mw-switch'), i = s.querySelector('input').getBoundingClientRect(), t = s.querySelector('.mw-switch__track').getBoundingClientRect();
+    const switches = [...document.querySelectorAll('.mw-switch input')].filter(visible);
+    const others = [...document.querySelectorAll('button, input, select, textarea, a[href], summary')].filter(visible);
+    const overlaps = [];
+    for (const sw of switches) {
+      const a = sw.getBoundingClientRect();
+      for (const other of others) {
+        if (other === sw || sw.closest('.mw-switch') === other.closest('.mw-switch')) continue;
+        const b = other.getBoundingClientRect();
+        if (a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top) {
+          overlaps.push((sw.getAttribute('aria-label') || 'switch') + ' vs ' + other.tagName.toLowerCase());
+        }
+      }
+    }
+    return { input: [Math.round(i.width), Math.round(i.height)], track: [Math.round(t.width), Math.round(t.height)], overlaps };
+  })()`);
+  assert.deepEqual(target, { input: [44, 44], track: [36, 22], overlaps: [] }, "at 390 the switch answers a 44 × 44 press, still looks 36 × 22, and never overlaps adjacent controls");
 });

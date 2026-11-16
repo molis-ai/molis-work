@@ -20,7 +20,8 @@ export function workOwner() {
   let readyBarrier: ReturnType<typeof deferred<void>> | undefined;
   let actionBarrier: ReturnType<typeof deferred<void>> | undefined;
   let sendBarrier: ReturnType<typeof deferred<void>> | undefined;
-  let failRead = false, failCheck = false; let rejectAction: boolean | "accepted" = false;
+  let draftBarrier: ReturnType<typeof deferred<string>> | undefined;
+  let failRead = false, failCheck = false, failDraft = false; let rejectAction: boolean | "accepted" = false;
   let unknownInput: boolean | "reject" | "accepted-reject" = false;
   const reads: string[] = [];
   const record = (target: string) => records.get(target)!;
@@ -58,7 +59,11 @@ export function workOwner() {
     },
     composer(snapshot) {
       let adapter = adapters.get(snapshot.target);
-      if (!adapter) { adapter = { read: async () => record(snapshot.target).draft, write: async text => { record(snapshot.target).draft = text; }, sent: async () => {} }; adapters.set(snapshot.target, adapter); }
+      if (!adapter) { adapter = { read: async () => {
+        if (failDraft) { failDraft = false; throw new Error("draft temporarily offline"); }
+        if (draftBarrier) { const gate = draftBarrier; draftBarrier = undefined; return gate.promise; }
+        return record(snapshot.target).draft;
+      }, write: async text => { record(snapshot.target).draft = text; }, sent: async () => {} }; adapters.set(snapshot.target, adapter); }
       return { kind: "ai", entry: "work", labels: COMPOSER_AI_LABELS, sources: false, draft: { adapter },
         submit: async input => {
           sends.push({ target: snapshot.target, binding: snapshot.binding, input }); const item = record(snapshot.target);
@@ -106,6 +111,8 @@ export function workOwner() {
     blockReady() { const gate = deferred<void>(); readyBarrier = gate; return gate; },
     blockAction() { const gate = deferred<void>(); actionBarrier = gate; return gate; },
     blockSend() { const gate = deferred<void>(); sendBarrier = gate; return gate; },
+    blockDraft() { const gate = deferred<string>(); draftBarrier = gate; return gate; },
+    failDraft() { failDraft = true; },
     failRead() { failRead = true; }, failCheck() { failCheck = true; }, unknownInput(value: boolean | "reject" | "accepted-reject" = true) { unknownInput = value; }, rejectAction(value: boolean | "accepted" = true) { rejectAction = value; } };
 }
 

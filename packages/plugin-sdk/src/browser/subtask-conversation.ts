@@ -13,7 +13,7 @@ export function createSubtaskConversation(root: HTMLElement, options: SubtaskCon
   let target: string | undefined, view: MwSubtaskConversationView | undefined, readFailed = false, dead = false;
   const changed = (key: string) => { if (target === key && !dead) { paint(); void reader.refresh(); } };
   const composer = subtaskComposer(dom.composer, options.source, changed);
-  const actions = subtaskActions(options.source, changed);
+  const actions = subtaskActions(options.source, changed, composer.reload);
   const reader = subtaskReader(options.source, accept, () => { readFailed = true; paint(); });
   function feedback(message: string, control?: "retry" | "check", label?: string) {
     const html = escapeHtml(message) + (control ? ` ${renderButton({ label: label ?? options.labels[control], variant: "link", attrs: { [`data-subtask-${control}`]: true } })}` : "");
@@ -23,15 +23,15 @@ export function createSubtaskConversation(root: HTMLElement, options: SubtaskCon
     if (!target) return;
     const labels = options.labels;
     if (!view) { feedback(readFailed ? labels.readFailed : labels.loading, readFailed ? "retry" : undefined); return; }
-    const operation = actions.get(view.target), pending = view.pending && !composer.local(view) ? view.pending : undefined;
-    const hold = operation?.state === "working" ? labels.working : operation?.state === "unknown" ? labels.unknown : pending?.message;
+    actions.observe(view, composer.local(view));
+    const operation = actions.get(view.target);
+    const hold = operation?.state === "working" ? labels.working : operation?.state === "unknown" ? operation.recovered?.message ?? labels.unknown : undefined;
     const blocked = (action: NonNullable<MwSubtaskConversationView["actions"]>[number]) => hold ? { ...action, disabled: action.disabled ?? hold } : action;
     dom.draw({ ...view, actions: view.actions?.map(blocked), details: view.details?.map(detail => ({ ...detail, actions: detail.actions?.map(blocked) })) });
     dom.composer.hidden = false;
     if (!composer.show(view, view.inputUnavailable ?? hold ?? null)) { dom.composer.hidden = true; feedback(labels.readFailed, "retry"); return; }
     if (operation?.state === "working") feedback(labels.working);
-    else if (operation?.state === "unknown") feedback(labels.unknown, "check");
-    else if (pending) feedback(pending.message, "check", pending.check.label);
+    else if (operation?.state === "unknown") feedback(operation.recovered?.message ?? labels.unknown, "check", operation.recovered?.check.label);
     else if (readFailed) feedback(labels.readFailed, "retry");
     else feedback(operation?.state === "failed" ? operation.reason ?? labels.actionFailed : "");
   }
@@ -61,7 +61,7 @@ export function createSubtaskConversation(root: HTMLElement, options: SubtaskCon
     else if (view) {
       const child = view.children?.find(item => item.target === button.dataset.subtaskOpen);
       if (child && button.closest("[data-subtask-children]")) { await open(child.target); return; }
-      const action = button.hasAttribute("data-subtask-check") ? (actions.get(view.target)?.state === "unknown" ? undefined : view.pending?.check)
+      const action = button.hasAttribute("data-subtask-check") ? undefined
         : [...(view.actions ?? []), ...(view.details ?? []).flatMap(detail => detail.actions ?? [])].find(item => item.id === button.dataset.subtaskAction && item.ref === button.dataset.subtaskActionRef);
       if (!action && !button.hasAttribute("data-subtask-check")) return;
       if (!button.closest("[data-subtask-context], .mw-subtask__answers, [data-subtask-feedback]")) return;

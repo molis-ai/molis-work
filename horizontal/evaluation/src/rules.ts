@@ -59,7 +59,8 @@ function pointersFor(
   records: readonly ObservationQueriedRecord[],
   evidenceByRecord: ReadonlyMap<string, readonly ObservationEvidenceItemView[]>,
 ): readonly EvaluationEvidencePointer[] {
-  return records.slice(0, 16).flatMap((record) => buildEvidencePointers(record, evidenceByRecord.get(record.record_id)));
+  // Keep every matched record: an evaluation result must be traceable to the whole basis it used, not just its first page.
+  return records.flatMap((record) => buildEvidencePointers(record, evidenceByRecord.get(record.record_id)));
 }
 
 function absentVerdict(ctx: RuleEvaluationContext, description: string): RawVerdict {
@@ -70,6 +71,18 @@ function absentVerdict(ctx: RuleEvaluationContext, description: string): RawVerd
     return { verdict: "unknown", unknownReasons: ["no_matching_records"], rationale: `窗口内无匹配工作记录：${description}`, pointers: [] };
   }
   return { verdict: "failed", unknownReasons: [], rationale: `未观察到预期记录：${description}`, pointers: pointersFor(ctx.records.slice(0, 4), ctx.evidenceByRecord) };
+}
+
+/**
+ * A rule that can only assert "nothing bad was seen" must not turn a window with nothing to inspect into a pass.
+ * Unlike `absentVerdict`, a non-empty window whose fact filter matched nothing is still unknown here: the absence rule
+ * had no matching evidence to inspect, so neither a violation nor a clean result is established (OCL-08, PWA-55).
+ */
+function noCheckableMatchVerdict(ctx: RuleEvaluationContext, description: string): RawVerdict {
+  if (ctx.runCoverageUnknowns.length > 0) {
+    return { verdict: "unknown", unknownReasons: ctx.runCoverageUnknowns, rationale: `因覆盖受限无法核对：${description}`, pointers: [] };
+  }
+  return { verdict: "unknown", unknownReasons: ["no_matching_records"], rationale: `没有可核对的工作记录：${description}`, pointers: [] };
 }
 
 function evalStageSequence(rule: EvaluationDeterministicRule, ctx: RuleEvaluationContext): RawVerdict {
@@ -178,6 +191,24 @@ function evalEvidenceText(rule: EvaluationDeterministicRule, matched: readonly O
   return { verdict: "passed", unknownReasons: [], rationale: "证据快照内容符合预期约束", pointers: pointersFor(matched, ctx.evidenceByRecord) };
 }
 
+function evalNoSelfCertifyingSuccess(ctx: RuleEvaluationContext, matched: readonly ObservationQueriedRecord[]): RawVerdict {
+  if (ctx.records.length === 0) return noCheckableMatchVerdict(ctx, "模型自证成功检查");
+  const failedCalls = new Set(
+    ctx.records.filter((r) => r.fact === "action.call" && (r.outcome === "failed" || r.outcome === "refused") && r.work.call_id).map((r) => r.work.call_id!),
+  );
+  const succeededWrites = new Set(
+    ctx.records.filter((r) => r.fact === "action.call" && r.outcome === "succeeded" && r.detail.operation === "command" && r.work.call_id).map((r) => r.work.call_id!),
+  );
+  const offenders = ctx.records.filter(
+    (r) => r.detail.self_certified === true
+      || (r.fact.startsWith("agent.") && r.outcome === "succeeded" && r.work.call_id !== null && failedCalls.has(r.work.call_id) && !succeededWrites.has(r.work.call_id)),
+  );
+  if (offenders.length > 0) {
+    return { verdict: "failed", unknownReasons: [], rationale: "发现模型或流程在底层动作失败且无落库变更时自证成功", pointers: pointersFor(offenders, ctx.evidenceByRecord) };
+  }
+  return { verdict: "passed", unknownReasons: [], rationale: "不存在脱离真实结果证据的模型自证成功", pointers: pointersFor(matched, ctx.evidenceByRecord) };
+}
+
 function evalDeterministic(rule: EvaluationDeterministicRule, ctx: RuleEvaluationContext): RawVerdict {
   if (rule.require_exposure_for_feedback && ctx.funnel.presented === 0) {
     return { verdict: "unknown", unknownReasons: ["unexposed"], rationale: "机会或建议尚未向用户呈现，不能计为正负反馈", pointers: [] };
@@ -210,6 +241,9 @@ function evalDeterministic(rule: EvaluationDeterministicRule, ctx: RuleEvaluatio
     case "evidence_text":
       return evalEvidenceText(rule, matched, ctx);
     case "evidence_absent": {
+      if (ctx.records.length === 0 || matched.length === 0) {
+        return noCheckableMatchVerdict(ctx, "不应留存明文证据检查");
+      }
       for (const record of matched) {
         for (const item of ctx.evidenceByRecord.get(record.record_id) ?? []) {
           if (rule.evidence_role && item.role !== rule.evidence_role) continue;
@@ -244,22 +278,8 @@ function evalDeterministic(rule: EvaluationDeterministicRule, ctx: RuleEvaluatio
       }
       return { verdict: "failed", unknownReasons: [], rationale: "调用链缺少共享 call_id 或合法的 parent_invocation_id", pointers: pointersFor(matched, ctx.evidenceByRecord) };
     }
-    case "no_self_certifying_success": {
-      const failedCalls = new Set(
-        ctx.records.filter((r) => r.fact === "action.call" && (r.outcome === "failed" || r.outcome === "refused") && r.work.call_id).map((r) => r.work.call_id!),
-      );
-      const succeededWrites = new Set(
-        ctx.records.filter((r) => r.fact === "action.call" && r.outcome === "succeeded" && r.detail.operation === "command" && r.work.call_id).map((r) => r.work.call_id!),
-      );
-      const offenders = ctx.records.filter(
-        (r) => r.detail.self_certified === true
-          || (r.fact.startsWith("agent.") && r.outcome === "succeeded" && r.work.call_id !== null && failedCalls.has(r.work.call_id) && !succeededWrites.has(r.work.call_id)),
-      );
-      if (offenders.length > 0) {
-        return { verdict: "failed", unknownReasons: [], rationale: "发现模型或流程在底层动作失败且无落库变更时自证成功", pointers: pointersFor(offenders, ctx.evidenceByRecord) };
-      }
-      return { verdict: "passed", unknownReasons: [], rationale: "不存在脱离真实结果证据的模型自证成功", pointers: pointersFor(matched, ctx.evidenceByRecord) };
-    }
+    case "no_self_certifying_success":
+      return evalNoSelfCertifyingSuccess(ctx, matched);
     case "funnel_stage_separation": {
       const f = ctx.funnel;
       if (ctx.records.length === 0) return absentVerdict(ctx, "呈现至采用漏斗核对");

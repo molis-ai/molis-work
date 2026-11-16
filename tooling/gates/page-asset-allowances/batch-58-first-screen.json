@@ -1,6 +1,6 @@
 {
   "reason": "第58批公共子任务对话的组件板文案进入工作台中英文词包，内容定址文件名变化；公共样式与输入就绪程序增加现有首屏字节。仅申请当前实测增量，功能与已定交互不变。",
-  "review": "PR #2108，头 e1381c13fea30ec344ac80b836de1e69a3209df1；CI 43932292008 / Package boundaries 作业133528138992对基点4a08c41ca7615081c8554beba0e7a402d64507e5隔离构建实测。许可按本次逐页实测数写，用户批准后由同一PR增量评审。",
+  "review": "PR #2108；同步主线 #2106 后，头 1f6bd544d1df4f3789cc96ff6033180eda5bdf46 对基点 9ff073d13cf31f3b056dca0b9155c46ef04df027 的隔离 Host 构建实测通过。中文与热加载增量不变，四类英文冷加载各减少 8 B，许可同步收紧；不扩大原用户批准范围。",
   "entryApprovals": [
     {
       "pages": [
@@ -31,7 +31,7 @@
       "warm": 0
     },
     "arrival-empty/en": {
-      "cold": 10355,
+      "cold": 10347,
       "warm": 0
     },
     "chooser/zh": {
@@ -39,7 +39,7 @@
       "warm": 415
     },
     "chooser/en": {
-      "cold": 10847,
+      "cold": 10839,
       "warm": 415
     },
     "workbench-default/zh": {
@@ -47,7 +47,7 @@
       "warm": 0
     },
     "workbench-default/en": {
-      "cold": 6989,
+      "cold": 6981,
       "warm": 0
     },
     "workbench-all-plugins/zh": {
@@ -55,7 +55,7 @@
       "warm": 0
     },
     "workbench-all-plugins/en": {
-      "cold": 6989,
+      "cold": 6981,
       "warm": 0
     }
   },

@@ -20,12 +20,16 @@
 import { objectLinkAt } from "@molis-ai/molis-work-contracts/platform/object-link";
 
 export const ATTENTION_FACTORY_SCRIPT = `(host) => {
-  const { translate: readText, projectId, openItem, route } = host;
+  const { translate: readText, projectId, openItem, route: contextRoute, home = false } = host;
+  const route = (path) => { const address = contextRoute(path); return home ? address + (address.includes("?") ? "&" : "?") + "view=home" : address; };
   if (document.body.dataset.paneEmbedded === "true") return;
   const tab = document.querySelector('[data-side-tab="tasks"]');
   const count = tab?.parentElement?.querySelector("[data-background-tasks-count]");
   const list = document.querySelector("[data-background-tasks-list]");
-  let tasks = [], key = "", reading = false, again = false;
+  let background = { tasks: [], incomplete: true }, key = "", reading = null, scheduled = 0, again = false, readSequence = 0;
+  // These are this page's command attempts, not the provider's task states. A refreshed row keeps the same in-flight attempt.
+  const commands = new Map();
+  const commandKey = (task, command) => JSON.stringify([task.project_id, task.id, command.role, command.action, command.input]);
   const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined) value.textContent = text; if (className) value.className = className; return value; };
   const when = (at) => { const date = new Date(at); return Number.isNaN(date.getTime()) ? "" : globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: date.toISOString(), style: "time" } }); };
   const linkAt = (${objectLinkAt.toString()});
@@ -36,11 +40,18 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   };
   const render = () => {
     if (!tab || !list) return;
+    const { tasks, incomplete } = background;
     // Every task the attention read lists is unfinished: running, or waiting on the person.
     count.hidden = !tasks.length;
-    count.textContent = String(tasks.length);
+    count.textContent = String(tasks.length) + (incomplete ? "+" : "");
     tab.setAttribute("aria-label", globalThis.t.text("workbench.attention.background-job") + (tasks.length ? " · " + globalThis.t.text("workbench.attention.n-background-n-not-finished", { n: tasks.length }) : ""));
-    list.replaceChildren(...(tasks.length ? [] : [node("p", globalThis.t.text("workbench.attention.no-background-tasks-right-now"), "side-tasks-empty")]));
+    list.replaceChildren(...(tasks.length || incomplete ? [] : [node("p", globalThis.t.text("workbench.attention.no-background-tasks-right-now"), "side-tasks-empty")]));
+    if (incomplete) {
+      const problem = node("div", undefined, "mw-alert"); problem.dataset.backgroundTasksProblem = ""; problem.setAttribute("role", "status");
+      const retry = node("button", globalThis.t.text("common.control.retry"), "mw-btn mw-btn--ghost"); retry.type = "button"; retry.dataset.backgroundTasksRetry = "";
+      retry.addEventListener("click", async () => { retry.disabled = true; try { await read(); } finally { retry.disabled = false; } });
+      problem.append(node("p", globalThis.t.text("workbench.attention.tasks-incomplete")), retry); list.append(problem);
+    }
     for (const task of tasks) {
       const row = node("a", undefined, "background-task"); row.href = hrefFor(task); row.dataset.state = task.state;
       const head = node("span", undefined, "background-task-head");
@@ -58,20 +69,40 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       // What the row offers to stop: the mainline service asks the provider again and runs the command only if it is still offered (specs/work-line §6).
       for (const command of task.commands || []) {
         if (command.role !== "stop") continue;
+        const id = commandKey(task, command), attempt = commands.get(id);
+        if (attempt?.state === "succeeded") continue;
         const line = node("div", undefined, "background-task-command");
         const stop = node("button", globalThis.t.text("workbench.attention.stop"), "mw-btn mw-btn--ghost"); stop.type = "button";
+        stop.disabled = attempt?.state === "pending";
         const feedback = node("div", "", "background-task-detail"); feedback.setAttribute("role", "alert");
+        if (attempt?.state === "failed") molisWorkRequest.show(feedback, attempt.error);
         stop.addEventListener("click", async () => {
+          if (["pending", "succeeded"].includes(commands.get(id)?.state)) return;
+          commands.set(id, { state: "pending" });
           stop.disabled = true; feedback.replaceChildren();
           try {
             await molisWorkRequest("/projects/" + encodeURIComponent(task.project_id) + "/api/mainline/tasks/command", { body: { source: task.source, subject: task.subject, command } });
-            line.remove(); key = ""; void read();
-          } catch (error) { if (!list.contains(feedback)) list.append(feedback); molisWorkRequest.show(feedback, error); stop.disabled = false; }
+            commands.set(id, { state: "succeeded", after: readSequence }); key = ""; void read();
+          } catch (error) { commands.set(id, { state: "failed", error }); }
+          finally { render(); }
         });
         line.append(node("span", globalThis.t.text("workbench.attention.background-command"), "background-task-command-label"), node("code", command.summary), stop);
         list.append(line, feedback);
       }
     }
+  };
+  const showTasks = (result, sequence) => {
+    if (!tab) return;
+    const value = { tasks: result ? result.tasks : background.tasks, incomplete: !result || result.issues.length > 0 };
+    // Only a read started after the receipt may replace that receipt's short-lived feedback with the owner's current offer.
+    let commandChanged = false;
+    if (result) for (const [id, attempt] of commands) if (attempt.state === "succeeded" && sequence > attempt.after) { commands.delete(id); commandChanged = true; }
+    if (!value.incomplete) {
+      const offered = new Set(value.tasks.flatMap(task => task.commands.map(command => commandKey(task, command))));
+      for (const [id, attempt] of commands) if (attempt.state !== "pending" && !offered.has(id)) commands.delete(id);
+    }
+    const next = JSON.stringify(value);
+    if (next !== key || commandChanged) { key = next; background = value; render(); }
   };
   const surface = () => { const shown = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]"); return shown ? shown.dataset.pluginId : ""; };
   // A 404 means the project (or Home) this address reads is gone: an old tab stops asking it (N54). It is kept by address: the
@@ -85,25 +116,40 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   // Where a browser has neither, each window listens itself.
   const shared = typeof BroadcastChannel === "function" && Boolean(navigator.locks);
   let lease = null, ear = null;
+  const readAddress = () => route("/api/attention?surface=" + encodeURIComponent(surface()));
+  const discardRead = () => {
+    const previous = reading; reading = null; previous?.controller.abort();
+    clearTimeout(scheduled); scheduled = 0; again = false;
+  };
   const read = async () => {
     if (document.hidden || gone.has(route("/api/attention"))) return;
-    if (reading) { again = true; return; }
-    reading = true; again = false;
-    const started = performance.now();
+    const address = readAddress();
+    if (reading && reading.address !== address) discardRead();
+    if (reading || scheduled) { again = true; return; }
+    const current = { address, controller: new AbortController() };
+    reading = current; again = false;
+    const started = performance.now(), sequence = ++readSequence;
     try {
-      const data = await molisWorkRequest(route("/api/attention?surface=" + encodeURIComponent(surface())));
-      const rows = data.background_tasks, next = JSON.stringify(rows);
-      if (Array.isArray(rows) && next !== key) { key = next; tasks = rows; render(); }
+      const data = await molisWorkRequest(address, { signal: current.controller.signal });
+      if (reading !== current || address !== readAddress()) return;
+      showTasks(data.background_tasks, sequence);
       document.dispatchEvent(new CustomEvent("molis-work:attention", { detail: Object.assign(data, { started }) }));
       heard = new Date().toISOString();
     } catch (error) {
+      if (reading !== current || address !== readAddress()) return;
       // Any other failure keeps what it showed; the next word from the stream reads again.
       if (error && error.status === 404) { gone.add(route("/api/attention")); close(); }
-      else document.dispatchEvent(new CustomEvent("molis-work:attention-unreachable", { detail: { since: heard } }));
+      else { showTasks(null); document.dispatchEvent(new CustomEvent("molis-work:attention-unreachable", { detail: { since: heard } })); }
     }
     // Words that came while reading are one more read, half a second after this one began at the soonest: a round that writes
     // all the time is read at most twice a second, never back to back.
-    finally { reading = false; if (again) { reading = true; setTimeout(() => { reading = false; void read(); }, Math.max(0, 500 - (performance.now() - started))); } else if (route("/api/attention/events") !== streamAt) void listen(); }
+    finally {
+      if (reading === current) {
+        reading = null;
+        if (again) scheduled = setTimeout(() => { scheduled = 0; void read(); }, Math.max(0, 500 - (performance.now() - started)));
+        else if (route("/api/attention/events") !== streamAt) void listen();
+      }
+    }
   };
   const unreachable = () => { if (!lost) { lost = true; document.dispatchEvent(new CustomEvent("molis-work:attention-unreachable", { detail: { since: heard } })); } };
   const close = () => {
@@ -120,6 +166,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     const connection = new AbortController(); stream = connection;
     try {
       const reply = await molisWorkRequest(address, { as: "response", signal: connection.signal, headers: { accept: "text/event-stream" } });
+      if (stream !== connection || streamAt !== address) return;
       if (reply.status === 404) { gone.add(route("/api/attention")); return; }
       if (reply.status !== 200 || !reply.body) throw new Error("no stream");
       const reader = reply.body.getReader(), decoder = new TextDecoder();
@@ -148,8 +195,9 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   };
   const listen = () => {
     const address = route("/api/attention/events");
-    if (document.hidden || gone.has(route("/api/attention"))) { close(); return; }
+    if (document.hidden || gone.has(route("/api/attention"))) { discardRead(); close(); return; }
     if (streamAt === address) return;
+    discardRead(); heard = null;
     close(); streamAt = address;
     if (!shared) { void connect(address); return; }
     const name = "molis-work-attention:" + address, held = new AbortController(), channel = new BroadcastChannel(name);

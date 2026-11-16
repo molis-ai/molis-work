@@ -67,7 +67,8 @@ test("document file HTTP import registers, previews, exports, reuses and survive
   const file = { source: "file", filename: "导入验收.md", content: markdown };
   const response = await post(file, "first-file-import");
   assert.equal(response.status, 201);
-  const imported = await response.json() as { artifact_id: string; version: number; reused: boolean; url: string; warnings: string[] };
+  const imported = await response.json() as { artifact_id: string; version: number; reused: boolean; url: string; warnings: string[]; text_available: boolean };
+  assert.equal(imported.text_available, true); // QEA-28: the import result reports text, not just a saved version.
   assert.equal(imported.version, 1);
   assert.equal(imported.reused, false);
   assert.deepEqual(imported.warnings, []);
@@ -234,6 +235,7 @@ test("external document snapshots preserve exact old versions and isolate the sa
   };
   const input = { source: "notion", url: document.source_url };
   const first = await importArtifactDocument(input, ports);
+  assert.equal(first.text_available, true); // QEA-28: external snapshots use the same result contract.
   const original = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first)!;
   assert.ok(first.url.startsWith("/projects/current/artifacts/"));
   assert.deepEqual(observed, [input]);
@@ -582,6 +584,7 @@ test("ONB-LIM-08 an original over 2 GB is kept whole without its text, and the i
   };
   const result = await importArtifactDocument({ source: "file", filename: "录像.mov", original_file: { filename: "录像.mov", mime: "video/quicktime" } }, ports);
   assert.equal(readText, 0, "no text is read from bytes the Host could not hold");
+  assert.equal(result.text_available, false); // QEA-28: an original-only result remains successful without claiming text.
   assert.deepEqual(result.warnings, ["文件超过 2 GB，没有读取正文；原件完整保存。"]);
   const original = (library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)!.payload as { original_file: Record<string, unknown> }).original_file;
   assert.deepEqual([original.sha256, original.size_bytes], [stored.sha256, stored.size_bytes]);

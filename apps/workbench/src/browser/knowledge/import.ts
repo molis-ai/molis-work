@@ -1,4 +1,5 @@
 import { WORKSPACE_SKIPPED_FOLDERS } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import type { ArtifactImportResult as Imported } from "@molis-ai/molis-work-module-artifacts";
 import type { DropMark } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { el, request } from "./common.js";
 
@@ -12,7 +13,6 @@ const TEXT_FILE = /\.(md|markdown|txt|html|htm)$/iu;
 const SLOW_FILE = /\.(pdf|png|jpe?g|webp|heic|heif|tiff?|bmp|gif|mp3|wav|m4a|aac|aiff?|flac|mp4|mov|m4v|webm)$/iu;
 const skipped = new Set<string>(WORKSPACE_SKIPPED_FOLDERS);
 interface Picked { file: File; path: string }
-interface Imported { title: string; reused: boolean; warnings?: string[]; model_required?: { approximate_bytes: number | null } }
 interface ImportSources { sources: Record<string, boolean>; connections: Array<{ connection_id: string; service_id: string; display_name: string; state: string }> }
 
 /** A folder's files keep their path inside it; hidden ones and build or dependency folders are left out, as the workspace listing does. */
@@ -58,42 +58,60 @@ const originalHeaders = (file: File, accept?: string): Record<string, string> =>
 /** A row's note, cut to one line; the whole of it on hover. */
 const note = (mark: HTMLElement | null | undefined, text: string) => { if (mark) { mark.textContent = text; mark.title = text; } };
 const FAILED = () => uiText.text("workbench.import.import-failed-check-file-link-document-permissions-connector");
-type Untranscribed = { item: Picked; row: HTMLElement | undefined };
+type ImportBatch = { kind: "files" | "online" | "transcription"; phase: "running" | "stopping" };
+const stopping = (batch: ImportBatch): boolean => batch.phase === "stopping";
 
 /**
  * The speech model is downloaded only on the person's yes, asked in the import dialog with 灵光's words; then each audio or video
  * file is imported again with that yes, its download's and transcription's progress shown (specs/project-knowledge PMAT-48).
  */
-function bindModelConsent(dialog: HTMLDialogElement, base: string, exclusive: (run: () => Promise<void>) => Promise<void>) {
+function bindModelConsent(dialog: HTMLDialogElement, base: string, exclusive: (run: (batch: ImportBatch) => Promise<void>) => Promise<void>) {
   const $ = <T extends Element = HTMLElement>(selector: string) => dialog.querySelector<T>(selector)!;
   const model = $("[data-knowledge-import-model]"), text = $("[data-knowledge-import-model-text]"), status = $("[data-knowledge-import-status]");
   const bar = $<HTMLProgressElement>("[data-knowledge-import-model-progress]"), choices = $("[data-knowledge-import-model-choices]");
-  let waiting: Untranscribed[] = [];
+  let waiting: Picked[] = [];
   const reset = () => { waiting = []; model.hidden = true; };
-  async function transcribe() {
+  async function transcribe(batch: ImportBatch) {
     const queue = waiting;
+    const rows = queue.map(item => { const row = el("li"); row.append(el("span", "", item.path), el("small")); return row; });
+    $("[data-knowledge-import-picked]").replaceChildren(...rows);
     waiting = []; choices.hidden = true; bar.hidden = false; bar.removeAttribute("value");
-    let done = 0;
-    for (const { item, row } of queue) {
+    let done = 0, attempted = 0;
+    const retry: Picked[] = [];
+    for (const [index, item] of queue.entries()) {
+      if (stopping(batch)) break;
+      const row = rows[index];
+      attempted++;
       const mark = row?.querySelector("small");
       text.textContent = uiText.text("workbench.import.transcribing-name", { name: item.path });
       try {
+        const body = rawOriginal(item.file) ? undefined : await bodyOf(item.file);
+        if (stopping(batch)) { attempted--; break; }
+        row?.classList.remove("is-failed");
         const saved = await request().stream<Imported>(rawOriginal(item.file) ? originalRoute(base, true) : base + "/import", {
           ...rawOriginal(item.file) ? { file: item.file, headers: originalHeaders(item.file, "application/x-ndjson") }
-            : { body: { ...await bodyOf(item.file), allow_model_download: true }, headers: { accept: "application/x-ndjson" } }, fallback: FAILED(), onProgress: event => {
+            : { body: { ...body, allow_model_download: true }, headers: { accept: "application/x-ndjson" } }, fallback: FAILED(), onProgress: event => {
             text.textContent = event.stage === "downloading" || event.stage === "model_download" ? uiText.text("workbench.import.downloading-transcription-model-only-once")
               : event.stage === "loading" ? uiText.text("workbench.import.loading-model") : uiText.text("workbench.import.transcribing-name", { name: item.path });
             bar.value = Math.max(0, Math.min(1, event.progress));
           } });
-        if (!saved.model_required) { done += 1; row?.classList.add("is-done"); }
-        note(mark, saved.warnings?.[0] ?? uiText.text("workbench.import.imported"));
+        if (saved.text_available) { done += 1; row?.classList.add("is-done"); }
+        else { retry.push(item); row?.classList.add("is-failed"); }
+        note(mark, saved.warnings[0] ?? uiText.text("workbench.import.imported"));
       } catch (error) {
+        retry.push(item);
         row?.classList.add("is-failed");
         note(mark, request().text(error));
       }
     }
-    model.hidden = true;
-    status.textContent = done === queue.length ? uiText.text("workbench.import.transcribed-done-organizing", { done }) : uiText.text("workbench.import.transcribed-done-failed-not-transcribed-reasons-above", { done, failed: queue.length - done });
+    waiting = [...queue.slice(attempted), ...retry];
+    model.hidden = waiting.length === 0;
+    if (waiting.length) {
+      choices.hidden = false; bar.hidden = true;
+      text.textContent = uiText.text("workbench.import.transcription-remaining", { count: waiting.length });
+      $("[data-knowledge-import-model-yes]").textContent = uiText.text("workbench.import.continue-transcribing");
+    }
+    status.textContent = batch.phase === "stopping" ? uiText.text("workbench.import.transcription-stopped", { done, remaining: waiting.length }) : done === queue.length ? uiText.text("workbench.import.transcribed-done-organizing", { done }) : uiText.text("workbench.import.transcribed-done-failed-not-transcribed-reasons-above", { done, failed: queue.length - done });
   }
   $("[data-knowledge-import-model-yes]").addEventListener("click", () => void exclusive(transcribe));
   $("[data-knowledge-import-model-no]").addEventListener("click", () => {
@@ -102,11 +120,12 @@ function bindModelConsent(dialog: HTMLDialogElement, base: string, exclusive: (r
   });
   return {
     reset,
-    ask(files: Untranscribed[], bytes: number | null) {
-      waiting = files;
+    ask(files: Picked[], bytes: number | null) {
+      waiting = [...waiting, ...files];
       const size = bytes ? Math.round(bytes / 1024 / 1024) : 0;
-      text.textContent = (files.length > 1 ? uiText.text("workbench.import.count-audio-video-files-have-no-text-yet", { count: files.length }) : "")
+      text.textContent = (waiting.length > 1 ? uiText.text("workbench.import.count-audio-video-files-have-no-text-yet", { count: waiting.length }) : "")
         + (size ? uiText.text("workbench.import.transcription-needs-local-speech-model-size-mb-used", { size }) : uiText.text("workbench.import.transcription-needs-local-speech-model-used-only-machine"));
+      $("[data-knowledge-import-model-yes]").textContent = uiText.text("workbench.side-panel-files.download-continue");
       bar.hidden = true; choices.hidden = false; model.hidden = false;
     },
   };
@@ -125,18 +144,28 @@ export function bindKnowledgeImport(root: HTMLElement): void {
   const status = $("[data-knowledge-import-status]");
   const pickedList = $("[data-knowledge-import-picked]");
   const submit = $<HTMLButtonElement>("[data-knowledge-import-submit]");
-  let picked: Picked[] = [], busy = false, sources: ImportSources | null = null, connected = false;
-  // Audio and video saved without text because the speech model is not downloaded yet: asked about once the batch is done (PMAT-48).
-  const consent = bindModelConsent(dialog, base, async run => {
-    if (busy) return;
-    busy = true; submit.disabled = true; dialog.setAttribute("aria-busy", "true");
-    try { await run(); }
+  const cancel = $<HTMLButtonElement>("footer [data-knowledge-import-close]");
+  let picked: Picked[] = [], active: ImportBatch | null = null, sources: ImportSources | null = null, connected = false;
+  const kind = () => (dialog.querySelector<HTMLInputElement>("input[name=kind]:checked")?.value ?? "files");
+  const controls = () => {
+    submit.disabled = !!active || (kind() === "online" ? !connected : !picked.length);
+    cancel.disabled = active?.phase === "stopping";
+    for (const selector of ["[data-knowledge-import-model-yes]", "[data-knowledge-import-model-no]"]) $<HTMLButtonElement>(selector).disabled = !!active;
+    cancel.textContent = uiText.text(active ? active.kind === "online" ? "workbench.import.hide" : "workbench.import.stop-remaining" : "common.control.cancel");
+    if (active) dialog.setAttribute("aria-busy", "true"); else dialog.removeAttribute("aria-busy");
+  };
+  async function exclusive(batchKind: ImportBatch["kind"], run: (batch: ImportBatch) => Promise<void>) {
+    if (active) return;
+    const batch: ImportBatch = { kind: batchKind, phase: "running" };
+    active = batch; controls();
+    try { await run(batch); }
     finally {
-      busy = false; submit.disabled = !picked.length; dialog.removeAttribute("aria-busy");
+      active = null; controls();
       root.querySelector<HTMLButtonElement>("[data-side-files-action=refresh]")?.click();
     }
-  });
-  const kind = () => (dialog.querySelector<HTMLInputElement>("input[name=kind]:checked")?.value ?? "files");
+  }
+  // Audio and video saved without text because the speech model is not downloaded yet: asked about once the batch is done (PMAT-48).
+  const consent = bindModelConsent(dialog, base, run => exclusive("transcription", run));
 
   const drawPicked = () => {
     pickedList.replaceChildren(...picked.slice(0, MAX_FILES).map(item => {
@@ -144,7 +173,7 @@ export function bindKnowledgeImport(root: HTMLElement): void {
       row.append(el("span", "", item.path), el("small", "", item.file.size > MAX_BYTES && TEXT_FILE.test(item.path) ? uiText.text("workbench.import.over-6-mb") : ""));
       return row;
     }));
-    if (kind() !== "online") submit.disabled = busy || !picked.length;
+    if (kind() !== "online") submit.disabled = !!active || !picked.length;
     status.textContent = picked.length > MAX_FILES ? uiText.text("workbench.import.count-chosen-only-first-max-imported-time", { count: picked.length, max: MAX_FILES })
       : picked.length ? uiText.text("workbench.import.count-count-chosen", { count: picked.length }) : "";
   };
@@ -152,14 +181,14 @@ export function bindKnowledgeImport(root: HTMLElement): void {
     // A display path can name different files; content reuse belongs to the import service.
     picked = [...picked, ...items.filter(item => wanted(item.path))];
     // The running batch owns its result rows; new selections wait for the next batch.
-    if (!busy) drawPicked();
+    if (!active) drawPicked();
   };
   // Each kind says only its own state: the files picked (and whether there are any to import), or the chosen tool's connection.
   const switchKind = async () => {
     const online = kind() === "online";
     $("[data-knowledge-import-local]").hidden = online;
     $("[data-knowledge-import-online]").hidden = !online;
-    if (online) { if (!busy) status.textContent = ""; await connections(); } else if (!busy) drawPicked();
+    if (online) { if (!active) status.textContent = ""; await connections(); } else if (!active) drawPicked();
   };
   async function connections() {
     const note = $("[data-knowledge-import-connection-note]");
@@ -172,32 +201,35 @@ export function bindKnowledgeImport(root: HTMLElement): void {
     select.replaceChildren(...rows.map(row => new Option(row.display_name, row.connection_id)));
     note.textContent = rows.length ? uiText.text("workbench.import.document-read-account-needs-read-access") : uiText.text("workbench.import.document-tool-not-connected-yet-connect-capabilities-connections");
     connected = rows.length > 0;
-    if (kind() === "online") submit.disabled = busy || !connected;
+    if (kind() === "online") submit.disabled = !!active || !connected;
   }
 
   const one = async (body: Record<string, unknown>) => request()<Imported>(base + "/import", { body, fallback: FAILED() });
-  async function importFiles() {
+  async function importFiles(batch: ImportBatch) {
     const queue = picked.slice(0, MAX_FILES);
     if (!queue.length) return;
     drawPicked();
-    let done = 0, failed = 0, bytes: number | null = null;
+    let done = 0, failed = 0, attempted = 0, bytes: number | null = null;
     const imported = new Set<Picked>();
-    const rows = [...pickedList.children] as HTMLElement[], untranscribed: Untranscribed[] = [];
-    consent.reset();
+    const rows = [...pickedList.children] as HTMLElement[], untranscribed: Picked[] = [];
     for (const [index, item] of queue.entries()) {
+      if (stopping(batch)) break;
+      attempted++;
       const mark = rows[index]?.querySelector("small");
       status.textContent = SLOW_FILE.test(item.path) ? uiText.text("workbench.import.importing-count-name-recognizing-text-transcribing-takes-moment", { at: index + 1, count: queue.length, name: item.path })
         : uiText.text("workbench.import.importing-count-name", { at: index + 1, count: queue.length, name: item.path });
       try {
         if (item.file.size > MAX_BYTES && !rawOriginal(item.file)) throw new Error(uiText.text("workbench.import.over-6-mb"));
+        const body = rawOriginal(item.file) ? undefined : await bodyOf(item.file);
+        if (stopping(batch)) { attempted--; break; }
         const saved = rawOriginal(item.file) ? await request()<Imported>(originalRoute(base, false), { file: item.file, headers: originalHeaders(item.file), fallback: FAILED() })
-          : await one(await bodyOf(item.file));
+          : await one(body!);
         done += 1;
         imported.add(item);
-        if (saved.model_required) { untranscribed.push({ item, row: rows[index] }); bytes ??= saved.model_required.approximate_bytes; }
+        if (saved.model_required) { untranscribed.push(item); bytes ??= saved.model_required.approximate_bytes; }
         // A file still waiting on the speech model is not done yet: its note stays neutral until it is transcribed.
         if (!saved.model_required) rows[index]?.classList.add("is-done");
-        note(mark, saved.model_required ? uiText.text("workbench.import.no-text-yet") : saved.reused ? uiText.text("workbench.import.unchanged") : saved.warnings?.length ? saved.warnings[0]! : uiText.text("workbench.import.imported"));
+        note(mark, saved.model_required ? uiText.text("workbench.import.no-text-yet") : saved.reused ? uiText.text("workbench.import.unchanged") : saved.warnings.length ? saved.warnings[0]! : uiText.text("workbench.import.imported"));
       } catch (error) {
         failed += 1;
         rows[index]?.classList.add("is-failed");
@@ -205,10 +237,10 @@ export function bindKnowledgeImport(root: HTMLElement): void {
       }
     }
     // Keep the unattempted tail ahead of failures, so a rejected batch cannot block later files forever.
-    picked = [...picked.slice(queue.length), ...queue.filter(item => !imported.has(item))];
+    picked = [...queue.slice(attempted), ...picked.slice(queue.length), ...queue.slice(0, attempted).filter(item => !imported.has(item))];
     const result = failed ? uiText.text("workbench.import.done-imported-failed-not-imported-reasons-above", { done, failed }) : uiText.text("workbench.import.done-imported-organizing-now", { done });
     const remaining = picked.length - failed;
-    status.textContent = result + (remaining ? " " + uiText.text("workbench.import.remaining-files", { count: remaining }) : "");
+    status.textContent = batch.phase === "stopping" ? uiText.text("workbench.import.stopped", { done, failed, remaining }) : result + (remaining ? " " + uiText.text("workbench.import.remaining-files", { count: remaining }) : "");
     if (untranscribed.length) consent.ask(untranscribed, bytes);
   }
 
@@ -222,14 +254,12 @@ export function bindKnowledgeImport(root: HTMLElement): void {
     } catch (error) { status.textContent = request().text(error); }
   }
 
-  submit.addEventListener("click", async () => {
-    if (busy) return;
-    busy = true; submit.disabled = true; dialog.setAttribute("aria-busy", "true");
-    try { await (kind() === "online" ? importOnline() : importFiles()); }
-    finally {
-      busy = false; submit.disabled = kind() === "online" ? !connected : !picked.length; dialog.removeAttribute("aria-busy");
-      root.querySelector<HTMLButtonElement>("[data-side-files-action=refresh]")?.click();
-    }
+  submit.addEventListener("click", () => void (kind() === "online" ? exclusive("online", importOnline) : exclusive("files", importFiles)));
+  cancel.addEventListener("click", () => {
+    if (!active) { picked = []; consent.reset(); drawPicked(); dialog.close(); return; }
+    if (active.kind === "online") { dialog.close(); return; }
+    active.phase = "stopping"; controls();
+    status.textContent = uiText.text("workbench.import.stopping");
   });
   dialog.querySelectorAll<HTMLInputElement>("input[name=kind]").forEach(input => input.addEventListener("change", () => void switchKind()));
   $("[data-knowledge-import-source]").addEventListener("change", () => void connections());
@@ -237,8 +267,7 @@ export function bindKnowledgeImport(root: HTMLElement): void {
     const input = $<HTMLInputElement>(selector);
     input.addEventListener("change", () => { take([...input.files ?? []].map(file => ({ file, path: file.webkitRelativePath || file.name }))); input.value = ""; });
   }
-  dialog.querySelectorAll("[data-knowledge-import-close]").forEach(control => control.addEventListener("click", () => dialog.close()));
-  dialog.addEventListener("close", () => { if (!busy) { picked = []; consent.reset(); drawPicked(); } });
+  dialog.querySelectorAll("header [data-knowledge-import-close]").forEach(control => control.addEventListener("click", () => dialog.close()));
   // Files dropped on the dialog's area, or on the side panel's list (which opens the dialog with them).
   const drop = $("[data-knowledge-import-drop]");
   const accept = (target: HTMLElement, opens: boolean) => {
@@ -255,6 +284,6 @@ export function bindKnowledgeImport(root: HTMLElement): void {
   accept(drop, false);
   const browse = root.querySelector<HTMLElement>("[data-side-files-browse]");
   if (browse) accept(browse, true);
-  const open = () => { if (!busy) status.textContent = ""; dialog.showModal(); void switchKind(); };
+  const open = () => { if (!active) status.textContent = ""; dialog.showModal(); void switchKind(); };
   root.querySelector("[data-knowledge-import-open]")?.addEventListener("click", open);
 }

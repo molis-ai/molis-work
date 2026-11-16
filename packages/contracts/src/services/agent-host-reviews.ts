@@ -128,6 +128,12 @@ export interface AgentReviewDecisionInput {
   remember?: "session" | "app-this-round";
 }
 
+/** Current decision choices, derived by the review owner; never stored as an approval or an execution receipt. */
+export type AgentReviewDecisionOptions =
+  | { decisions: readonly ["approve", "reject"]; blocked_reason: null }
+  | { decisions: readonly ["reject"]; blocked_reason: "authority-unavailable" }
+  | { decisions: readonly []; blocked_reason: "execution-unavailable" | null };
+
 export interface AgentReviewReceipt {
   review_id: string;
   status: AgentReviewStatus;
@@ -181,5 +187,6 @@ export interface AgentReviewQueueApi {
   get(reviewId: string): AgentReviewRequest | null;
   decide(input: AgentReviewDecisionInput): AgentReviewReceipt;
   receipt(reviewId: string): AgentReviewReceipt | null;
+  decisionOptions(reviewId: string): AgentReviewDecisionOptions | null;
   observe(listener: (request: AgentReviewRequest) => void): () => void;
 }

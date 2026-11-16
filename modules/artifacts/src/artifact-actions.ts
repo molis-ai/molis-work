@@ -15,8 +15,8 @@ import { text, id, version, reference, consumerTypes, record } from "./plugin-ac
 const selection = { selected: nullable(record), requested: nullable(reference), compatibility: nullable(object({ artifact: reference,
   consumable: { type: "boolean" }, reason: { enum: ["compatible_consumer", "consumer_missing", "artifact_unavailable", "artifact_archived"] } })) };
 const browser = object({ versions: array(record), ...selection });
-const imported = object({ artifact_id: id, version, title: text, reused: { type: "boolean" }, url: text, warnings: array(text),
-  model_required: object({ approximate_bytes: nullable({ type: "integer", minimum: 1 }) }) }, ["artifact_id", "version", "title", "reused", "url", "warnings"]);
+const imported = object({ artifact_id: id, version, title: text, reused: { type: "boolean" }, url: text, warnings: array(text), text_available: { type: "boolean" },
+  model_required: object({ approximate_bytes: nullable({ type: "integer", minimum: 1 }) }) }, ["artifact_id", "version", "title", "reused", "url", "warnings", "text_available"]);
 const sources = { enum: ["notion", "feishu", "lark", "google-docs"] };
 const read = ["artifacts:read"], write = [...read, "artifacts:write"];
 const subjectDefinition = defineSubjectContextAction("artifacts.subject.read", /* @version action.artifacts.subject.read */ 1, ARTIFACT_SUBJECT_KIND, "固定版本成果", read);
@@ -34,6 +34,8 @@ export interface ArtifactFileImport { source: "file"; filename: string; content?
   allow_model_download?: boolean }
 export interface ArtifactExternalImport { source: ExternalDocumentSource; url: string; connection_id?: string }
 export interface ArtifactImportResult { artifact_id: string; version: number; title: string; reused: boolean; url: string; warnings: string[];
+  /** Whether the saved or reused version contains readable text. Saving an original alone does not imply successful extraction. */
+  text_available: boolean;
   /** The transcription needs the local speech model first (PMAT-48): ask the person, then import again with `allow_model_download`. */
   model_required?: ModelRequired }
 function define<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions = read, scheduling?: ActionDefinition['action']['scheduling']): ActionDefinition<I, O> {

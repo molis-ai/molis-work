@@ -1,6 +1,59 @@
 # 审查覆盖记录
 
-状态：代表入口静态检查完成，动态验证进展见报告；初始基线 `efdaa3376`；增量同步至 `0dceaca09`（2026-11-16）。本表只记录已做的检查，不将登记核对或构建通过当成业务路径验收。全部 73 个包的路径、成熟度、公开出口已从登记表和 package.json 核对；各包均按下表选择代表入口检查实际调用链；“静态检查”不等于全文件逐行审计或真实外部服务验收。动态证据仅限报告列明的测试。
+状态：深入检查进行中（2026-11-16）；下表保留首轮代表入口静态证据，不能据此宣称原任务已完整验收。初始基线 `efdaa3376`，增量同步至 `70aaa976b`。全部 73 个包的路径、成熟度、公开出口已从登记表和 package.json 核对；各包首轮选择代表入口检查实际调用链。接续按 spec 的真实路径分组补齐六方向检查、调用方与动态证据；登记核对、静态检查、构建通过均不等于业务路径或外部服务验收。
+
+## 主干新增 Sessions（待整合与实操）
+
+主干增量 `4a08c41ca` 新增 `horizontal/sessions`（登记表新增一包，当前验证工作树尚未合入）。已独立核其公开动作/HTTP、后台发现、正常 UI、系统搜索与助理材料路径。状态：范围/归属/发现事实归 Sessions，UI detailSeq 与云账号身份有缺口；防御：文件根、只读命令与尾检有真实边界依据，模型前漏业务范围复核；干扰：分页缺失、旧命中直达与换账号保存中断；冗余：保存后额外发现、正常文件流监听清理候选；边界：原工具拥有正文，Sessions 管许可/索引/归属，Projects 管目录，AgentHost 发模型；平台：复用原读取与动作目录，详情需按 key 获取合适的 owner 元数据，不新造状态库。具体位置/处置在报告 QF-16～19。此记录只有静态调用链证据，实操与改造仍在本轮待办，不能算已验收。
+
+## 接续深查：搜索与引用（进行中）
+
+实际链：Home/项目 `/api/search/{query,open,status,references}` → `handleSearchHttp` → `bindLocalWebActions` → Kernel → `SearchService` / `findReferenceCandidates` → 注册来源与对象读取器 → `openTextSearchIndex` / HTTP 回执。另核对 composer `pick`、MCP 原授权测试、Knowledge 的 `indexedCatalog` 及后台 `refreshKnown`，避免把所有等待都当作用户请求的状态。
+
+| 方向 | 深查依据与判断 |
+| --- | --- |
+| 状态 | `inflight` 是 source-key 去重的共享索引任务，`changed/syncedSeq` 是失效代次；query 的 caller.signal 是单次请求控制。QEA-12 验证一个请求放弃不取消共享工作、不重复列表/正文读取。 |
+| 防御 | `queryAuthority` 的异步与同步尾检保留。`open` 和 `ownerRead` 把取消当作不可用的 catch 已复现；第五批改由原调用信号拒绝，不进行错误的存在性恢复。 |
+| 用户路径 | 真正 HTTP 断连后 Home/项目 owner 读取原来继续，导致放弃无效；下一次同操作和正常完成均纳入测试。Home 引用读取仍按既有合同拒绝缺项目，未擅改语义。 |
+| 冗余 | Host 已有 `responseAbortSignal`，搜索采用这一份，不复制 composer 的手写监听。来源发现的等待前/后读取承担不同授权职责，不删除。 |
+| 边界 | Host 拥有传输生命周期，Kernel 拥有最终执行控制，Search 拥有索引；插件拥有正文。个人空间 `open` 原来换 access 丢信号，直接服务回归已证实。 |
+| 平台化 | 复用现有 Host 传输信号与统一动作控制；共享索引不能归入每次请求。余下 HTTP 手写监听按真实语义分别检查（一次动作、SSE、长时后台不同），不机械合成一个生命周期。 |
+
+修复前证据：`system-search-cancellation` 的 Home/项目断连失败；`system-search` 的个人空间取消拒绝失败、共享索引共用成功；`search-references` 的取消拒绝失败。首次测试夹具错误（不存在的 Host 方法、缺少必需 open 字段、Home 引用范围假设）已修正，不能算产品缺陷。第五批工程及回归待完成；其余路径组仍进行中。
+
+## 接续深查：Home 后台任务（第六批，定向验收通过，完整门禁待验）
+
+实际链：Home 首屏/恢复可见/attention changed → `/api/attention` → `homeBackgroundTasks` → `collectHomeAggregate` → 已打开项目的公开来源 → Kernel 只读调用 → Mainline 行投影 → side tasks。停止命令另经 `background.tasks.command` 重新核对来源当前仍提供该命令，不信页面旧按钮。
+
+| 方向 | 深查依据与处置 |
+| --- | --- |
+| 状态 | 插件持有任务状态；Home 仅投影当前可读任务与读取完整性。来源读失败不能推断任务结束；整段读取失败保留上次行但明确暂时不可用。 |
+| 防御 | 保留 `isHomeAggregateQuery`、只读上下文、当前暴露和异步权限复核，这是跨插件信任边界。无效整份回答记 issue；单行过滤沿既有 Mainline 合同，不借本次删除拒绝检查。 |
+| 用户路径 | 已安装来源全部失败目前显示空态、部分失败数量缺少提示。QEA-14/15 将从真实来源故障走 HTTP 和正常页面验收，原位重试只读不重发命令。 |
+| 冗余 | Home 重复 `backgroundTaskOrigin`、tasks 数组和逐行装配；改用现有 `backgroundTaskRows`，终结行过滤仍由 Home 列表语义决定。 |
+| 边界 | Host 拥有打开项目集合与来源聚合；Mainline 拥有通用行投影；插件拥有事实/命令。工作台只解释完整性，不按插件名猜恢复方式，不显示诊断原文。 |
+| 平台化 | 补齐已有 Home attention 消费合同，与项目后台表使用同样的 tasks/issues 语义；不增加另一轮询器、缓存、状态机或来源名单。Coding、Images、第三方 fixture 及真实停止消费者同步迁移。 |
+
+静态证据：`home-background-tasks.ts` 丢弃 `collectHomeAggregate` 已保留的 issues；客户端仅认数组。真实 HTTP 基线 `home-background-completeness.test.ts` 已复现：Beta 来源抛错，回答没有 issues，期望 1、实际 undefined；故障原始内容未被当作页面材料。正常 Home 浏览器验收进一步复现选中项目时走项目 attention、得不到 Home 任务；已在原单一读取上补 Home view，并保持可信插件页面拒绝。
+
+修复后串行构建/验收：`home-background-completeness.e2e` 2/2、`coding-background-tasks` 8/8、`security-invariants-home-aggregate` 6/6、`home-background-completeness` 1/1、`attention-route` 8/8、`host-log-catches` 7/7、`home-aggregate` 9/9，合计 7 文件 41 项通过。12 张中英文/三宽/明暗截图已生成，实看英文390深色与中文1440浅色，说明、真实任务、重试和数量下界可见且无溢出。补充原 Coding 子进程停止 1/1、插件页面边界 34/34 通过。尚未完成新 head 的资源、全部必跑和 CI；不等于全任务完成。
+
+## 接续深查：项目任务操作与 attention 上下文（第七批，定向验收通过）
+
+入口：项目工作线任务标记 → 列表/任务卡/事件卡 → `/api/mainline/tasks/command` → Mainline 再读取精确来源 → 插件命令 → owner 事实 → attention；Home chooser 选择项目 → chosenRoute → 同一个 attention 读取及订阅 → 助理提示/后台列表。
+
+| 方向 | 实际检查与处置 |
+| --- | --- |
+| 状态 | 页面尝试与任务事实分开；进行中尝试跨重绘共享，成功只等同一来源的新读取。请求持有自己的地址和 controller，旧 finally 不影响新请求。 |
+| 防御 | 保留 Mainline 的当前命令/输入复核；删除以命令数量猜测任务未变的缓存判断。迟到回答按实际请求身份拒收，不逐消费者各加一套猜测。 |
+| 使用体验 | 用户不再重复点击等待中的停止；同参数命令重新合法提供时可继续操作；切项目不用等旧项目响应，旧 404/网络错误不污染新页面。 |
+| 冗余 | 完整投影替换人工维护的字段子集；三个任务展示位置复用同一个控制器，不各绑一次正在执行状态。 |
+| 边界 | 插件拥有任务与命令，Mainline 拥有发现/执行复核；工作台只拥有一次 UI 尝试和读取目标。失败来源精确到 ActionReference，不能用整个 provider 替代来源身份。 |
+| 平台化 | 继续复用现有后台任务合同、Mainline 命令入口、共享 UiRequest 和单一 attention 流。Home/项目的展示位置不同，但不复制业务状态机或为 Coding/第三方开专路。 |
+
+旧构建已复现 pending 重画可再点、等长新命令仍提交旧参数、切项目阻塞。第一次修正另被双来源用例证明 provider 粒度过宽，已修为 provider/capability/version。最终 QEA-17 双来源 1/1 与 QEA-18 三种迟到结果 3/3 通过；原 Coding 实际子进程与持久投影 1/1、Home 故障/停止 2/2、助理读取次数 1/1、客户端未声明变量 5/5、工作线标本 12/12、chooser 11/11 通过。context 的首轮错误场景被 CDP 测试拦截器拦住切回请求，修正夹具后 3/3 通过，没有放宽断言/上限。完整门禁、其他必跑和 CI 仍待完成。
+
+## 首轮逐包证据
 
 | 包 | 登记成熟度 | 公开入口 | 路径审查进度 |
 | --- | --- | --- | --- |
@@ -79,3 +132,33 @@
 | `plugins/native/workflows` | production | `.`、`./registration` | run-control/continuation/handoff：持久停用 fence、原请求身份、CAS 交接与部分成功回执；重试不重演未知副作用。 |
 
 另查：`server/src/sync`（Rust 业务）与 `apps/sync-worker`（Cloudflare 入口）不计入 pnpm 包数，已核：Cloudflare fetch/scheduled 直接委托 server/src/sync；round 按空间/策略 revision 查询，变更中拒绝部分结果。未执行线上迁移。
+
+
+## 接续深查：执行终态与时间保存（第八批，定向验收通过）
+
+实际链：Coding/助理 → AgentHost.start/readRun → Prologue Adapter → SDK 账本事件 → run-store → Node 会话索引 → 恢复读取/运行观测。六方向核查：状态以 SDK 账本为准，显示时间不得重写执行 phase；账本未提交仍保留准入拒绝，不删真实边界；用户不再因为显示元数据收到假 running/session_busy；删除两行错误状态覆盖，复用每轮唯一时间保存；迟到 publish 只触及原 run_id，索引按最新记录更新；无需新平台调度器、重试或第二事实账。
+
+四种终态 × 时间延迟/失败的旧构建 8 项均复现，当前 8 项与真实 Node 恢复/停止及其他消费者共 7 文件 58 项通过。关闭仍等待原资源；真实 Node 的时间写入与启动意图仍共享串行 index.update，不宣称挂住的磁盘事务可被新执行越过。完整门禁与 CI 待完成。
+
+## 接续深查：审查决定的当前可用性（第九批，实操复验中）
+
+真实链：Git 正常准备 → agent-host Queue 的原安装权限/活处理器 → Host GET 投影 → 主审查面与浏览器/电脑侧栏 → 原 respond/decide/consume/SDK 派发。Coding 的变更集/时间线只读能力不提供决定，保持原事实合同。
+
+| 方向 | 独立核查与处置 |
+| --- | --- |
+| 状态 | pending 不等于能批准或拒绝；现有 receipt、decider、authority 推导选项，不持久化另一份状态。 |
+| 防御 | UI 不再提供必拒操作；决定/消费/异步派发复核仍保护真正边界，未删除。 |
+| 干扰 | 不能执行的按钮消失，以短句说明重新发起或恢复执行方；不假称全部 pending 都能拒绝。 |
+| 冗余 | 三个消费者消费同一 Queue 投影，移除各自只按 pending 推断的规则；有实际语义的人工确认保留。 |
+| 边界 | Agent-host 维护活执行方与权限，Host 只投影，UI 不推导安装授权，不恢复旧安装的执行权。 |
+| 平台 | 复用既有公共 Review 合同，覆盖三个真实消费端；BL-360 的重启前提现已失效，按现行缺口补齐而不另造恢复服务。 |
+
+当前完整构建、三个消费者和正常 Git 实操通过；隐藏独立 Git 页仍有 Coding 嵌入，运行实例保持，必须关闭最后依赖入口才使旧授权失效，该语义也已验证。更完整的视觉采样与最终门禁/CI 待完成；电脑 WebSocket 为页面消费夹具，Review HTTP/Queue 为真实 Host，不声称已验证操作系统权限或原生控制。
+
+## 接续深查：导入全链与纯动作绑定（第十至十二批，未验收）
+
+导入入口包括资料对话框文件/目录、在线文档、原件上传与模型同意后的流式转写。事实与写入仍由 artifacts 拥有，Host 负责上传临时文件/提取/传输，UI 只拥有待选与待转写队列。状态检查归并两个 busy 入口；防御检查保留最终授权与取消 fence，补丢失的传输 signal；体验区分停止后续与收起；冗余检查移除转写长期保留旧 DOM 行及重复的忙碌控制；边界沿 concurrent 动作追到 beforeSave 与固定版本；平台能力直接复用 responseAbortSignal、BoundActionClient control、NDJSON 上限，不造第二套任务服务。模型原生失败仅保存原件的合同/完成提示另列 QF-14 待实操，未冒称已解决。
+
+Dataset/Form/Todo organizer/Cognia/Images 的公开注册 → Kernel schema → bind → owner 服务/事务逐份核对。纯 bind 迁入已有 contracts 能力；9 处可用性规则随真实调用保留。状态与业务写入仍归插件，最终授权规则不移到转换层；无 UI/数据合同变化。Images DELETE 请求封装、Pages/PPT 权限与 Workflows 上下文包装语义不同，保留。各插件业务其他状态/恢复路径仍须继续审，不以 5 份 bind 迁移宣称五个插件全审完成。
+
+第十二批进一步追原生提取的部分成功：失败/超时回复/空正文仍可保存原件，不能由 UI 用缺少下载需求推断已有文字。成果 owner 从写入 payload 的 content 推导 text_available，两个 import 动作采用同一必填输出，工作台转写据此保留重试。无新状态表，无 warning 字符串解析，无旧结果形状兜底。真实入口的失败/恢复基线与固定版本断言待运行，工程及模型效果分开记录。

@@ -21,6 +21,7 @@ import { currentLocale, inLanguagePreview } from "./web-locale.js";
 import type { ReadArtifactDisplay } from "./artifact-display-words.js";
 import { requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
+import { responseAbortSignal } from "./web-entry-actions.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
 
 export interface ArtifactHttpContext {
@@ -99,6 +100,9 @@ function offeredFilename(raw: string | undefined): string {
  * that one to the 成果库's import, which keeps it inline up to 6 MB and in its store above (onboarding limits, 2026-10-22).
  */
 async function importRawOriginal(request: IncomingMessage, response: ServerResponse, context: ArtifactHttpContext): Promise<void> {
+  const stop = new AbortController();
+  const signal = AbortSignal.any([responseAbortSignal(response), stop.signal]);
+  const control = { signal, beforeEffect: async () => signal.throwIfAborted() };
   const filename = offeredFilename(requestHeader(request, "x-molis-work-filename"));
   const mime = (requestHeader(request, "content-type") ?? "application/octet-stream").split(";")[0]!.trim().toLowerCase() || "application/octet-stream";
   const directory = await mkdtemp(join(tmpdir(), "molis-artifact-original-"));
@@ -108,10 +112,10 @@ async function importRawOriginal(request: IncomingMessage, response: ServerRespo
     const input: ArtifactFileImport = { source: "file", filename, original_file: { filename, mime },
       ...new URL(request.url ?? "/", "http://host").searchParams.get("allow_model_download") === "true" ? { allow_model_download: true } : {} };
     const answer = async (on_progress?: (event: ActionProgressEvent) => void) => {
-      const saved = await context.offeredActions({ path, install_id: ARTIFACTS_PLUGIN_ID }).invoke(artifactsActions.importFile, input, undefined, on_progress ? { on_progress } : undefined);
-      return { status: saved.reused ? 200 : 201, body: { ...saved, url: context.routePrefix + artifactVersionPath(saved), warnings: saved.warnings.map(warning => warning) } };
+      const saved = await context.offeredActions({ path, install_id: ARTIFACTS_PLUGIN_ID }).invoke(artifactsActions.importFile, input, control, on_progress ? { on_progress } : undefined);
+      return { status: saved.reused ? 200 : 201, body: { ...saved, url: context.routePrefix + artifactVersionPath(saved) } };
     };
-    if (requestHeader(request, "accept")?.includes("application/x-ndjson")) await answerPluginRouteStream(response, emit => answer(emit), () => undefined);
+    if (requestHeader(request, "accept")?.includes("application/x-ndjson")) await answerPluginRouteStream(response, emit => answer(emit), () => stop.abort());
     else { const result = await answer(); sendLocalWebJson(response, result.status, result.body); }
   } finally { await rm(directory, { recursive: true, force: true }); }
 }
@@ -123,6 +127,9 @@ export function createLocalArtifactHttp() {
   ): Promise<boolean> {
     try {
       if (pathname === "/api/artifacts/import" && request.method === "POST") {
+        const stop = new AbortController();
+        const signal = AbortSignal.any([responseAbortSignal(response), stop.signal]);
+        const control = { signal, beforeEffect: async () => signal.throwIfAborted() };
         const input = await readArtifactImportBody(request);
         // Preserve the established HTTP wire errors; the shared action contract
         // still validates the complete input before any business operation.
@@ -135,13 +142,13 @@ export function createLocalArtifactHttp() {
         const answer = async (on_progress?: (event: ActionProgressEvent) => void) => {
           const transport = on_progress ? { on_progress } : undefined;
           const saved = input.source === "file"
-            ? await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importFile, input, undefined, transport)
-            : await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importExternal, input, undefined, transport);
+            ? await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importFile, input, control, transport)
+            : await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importExternal, input, control, transport);
           const result = { ...saved, url: context.routePrefix + artifactVersionPath(saved) };
-          return { status: result.reused ? 200 : 201, body: { ...result, warnings: result.warnings.map(warning => warning) } };
+          return { status: result.reused ? 200 : 201, body: result };
         };
         // A page that waits on a slow reading (the speech model's download, a transcription) asks for its progress as NDJSON (PMAT-48).
-        if (requestHeader(request, "accept")?.includes("application/x-ndjson")) return answerPluginRouteStream(response, emit => answer(emit), () => undefined);
+        if (requestHeader(request, "accept")?.includes("application/x-ndjson")) return answerPluginRouteStream(response, emit => answer(emit), () => stop.abort());
         const result = await answer();
         sendLocalWebJson(response, result.status, result.body);
         return true;
@@ -250,7 +257,7 @@ export function createLocalArtifactHttp() {
       return true;
     } catch (error) {
       const failure = actionErrorResponse(error);
-      sendLocalWebJson(response, failure.status, failure.body);
+      if (!response.destroyed) sendLocalWebJson(response, failure.status, failure.body);
       return true;
     }
   };

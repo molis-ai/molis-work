@@ -1,6 +1,7 @@
 import { dateArg, t as uiText, renderStateRing, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   AgentReviewDocument,
+  AgentReviewDecisionOptions,
   AgentReviewReceipt,
   AgentReviewRequest,
   AgentReviewStatus,
@@ -27,7 +28,9 @@ export interface AgentReviewPrimitives {
 
 export interface AgentReviewRow {
   request: AgentReviewRequest;
-  /** Absent while the item is still pending. */
+  /** Current choices from the Host review owner, independent of effect outcome. */
+  decisionOptions: AgentReviewDecisionOptions;
+  /** Optional only for a proposal whose receipt is not supplied by the presenter. */
   receipt?: AgentReviewReceipt;
 }
 
@@ -131,7 +134,7 @@ export function reviewPhase(row: AgentReviewRow): AgentReviewPhase {
 
 /** Only a pending item can still be decided. Everything else is settled history. */
 export function isDecidable(row: AgentReviewRow): boolean {
-  return reviewPhase(row) === "pending" && readable(row.request.document);
+  return reviewPhase(row) === "pending" && row.decisionOptions.decisions.length > 0 && readable(row.request.document);
 }
 
 function readable(document: AgentReviewDocument): boolean {
@@ -233,20 +236,24 @@ export function leakedMarkup(text: string): boolean {
 }
 
 function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPrimitives): string {
+  const unavailable = reviewPhase(row) === "pending" && row.decisionOptions.blocked_reason;
+  const notice = unavailable ? `<p class="agent-review-meta">${p.escape(uiText.text(unavailable === "authority-unavailable"
+    ? "workbench.agent-review.authority-unavailable" : "workbench.agent-review.execution-unavailable"))}</p>` : "";
   if (decidable) {
+    const canApprove = row.decisionOptions.decisions.some(decision => decision === "approve");
     const reviewId = p.escape(row.request.review_id);
     // A round's own proposals (edits, commands, dispatches, MCP calls) of any plugin can be refused with a reason the round receives.
-    return `${row.request.run && ["text-edit", "command", "tool-operation", "mcp"].includes(row.request.document.kind) ? `<label class="mw-field agent-review-feedback"><span class="mw-field__label">${uiText("workbench.agent-review.feedback")}</span><textarea class="mw-textarea" data-slot="textarea" data-agent-review-feedback aria-label="${uiText("workbench.agent-review.feedback")}" maxlength="2000" rows="1" placeholder="${uiText("workbench.agent-review.feedback-placeholder")}"></textarea><span class="mw-field__hint">${uiText("workbench.agent-review.feedback-hint")}</span></label>` : ""}<footer class="agent-review-actions">
-      ${row.request.document.kind === "command" && row.request.document.escalate === false && row.request.document.grants === undefined && row.request.run ? `<label class="agent-review-remember"><input type="checkbox" data-agent-review-remember>${p.escape(uiText.text("workbench.agent-review.remember-session"))}</label>` : ""}
+    return `${notice}${row.request.run && ["text-edit", "command", "tool-operation", "mcp"].includes(row.request.document.kind) ? `<label class="mw-field agent-review-feedback"><span class="mw-field__label">${uiText("workbench.agent-review.feedback")}</span><textarea class="mw-textarea" data-slot="textarea" data-agent-review-feedback aria-label="${uiText("workbench.agent-review.feedback")}" maxlength="2000" rows="1" placeholder="${uiText("workbench.agent-review.feedback-placeholder")}"></textarea><span class="mw-field__hint">${uiText("workbench.agent-review.feedback-hint")}</span></label>` : ""}<footer class="agent-review-actions">
+      ${canApprove && row.request.document.kind === "command" && row.request.document.escalate === false && row.request.document.grants === undefined && row.request.run ? `<label class="agent-review-remember"><input type="checkbox" data-agent-review-remember>${p.escape(uiText.text("workbench.agent-review.remember-session"))}</label>` : ""}
       <button class="mw-btn" type="button" data-agent-review-reject="${reviewId}">${p.escape(uiText.text("workbench.agent-review.reject"))}</button>
-      <button class="mw-btn mw-btn--primary" type="button" data-agent-review-approve="${reviewId}">${p.escape(uiText.text("workbench.agent-review.approve-once"))}</button>
+      ${canApprove ? `<button class="mw-btn mw-btn--primary" type="button" data-agent-review-approve="${reviewId}">${p.escape(uiText.text("workbench.agent-review.approve-once"))}</button>` : ""}
     </footer>`;
   }
   // A settled item offers no action: a decision already consumed cannot be
   // re-granted from another entry point.
   const note = row.receipt?.note;
   const error = row.receipt?.effect_error;
-  return `<footer class="agent-review-settled">
+  return `<footer class="agent-review-settled">${notice}
     ${row.receipt?.decided_by === null || row.receipt?.decided_by === undefined
       ? ""
       : `<span>${p.escape(row.receipt.decided_by)}</span>`}

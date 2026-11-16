@@ -2041,6 +2041,8 @@
         "other": "{n} background tasks not finished"
       }
     },
+    "workbench.attention.loading-background-tasks": "Loading background tasks…",
+    "workbench.attention.tasks-incomplete": "The background task list is incomplete.",
     "workbench.attention.no-background-tasks-right-now": "No background tasks right now",
     "workbench.attention.stop": "Stop",
     "workbench.board-plugin-rows.container": "Container",
@@ -8032,7 +8034,6 @@
     "workbench.side-panel.its-tabs-content-still-here-add-back-project": "Its tabs and content are still here. Add it back to this project to carry on.",
     "workbench.side-panel.loading-discussion": "Loading discussion…",
     "workbench.side-panel.move-main-area": "Move to the main area",
-    "workbench.side-panel.no-background-tasks-right-now": "No background tasks right now",
     "workbench.side-panel.plugin-was-removed-project": "{plugin} was removed from this project",
     "workbench.side-panel.project-discussion": "Project discussion",
     "workbench.side-panel.project-knowledge": "Project knowledge",
@@ -9447,6 +9448,15 @@
     "workbench.assistant-step-gate.not-now-short": "Not now",
     "workbench.assistant-step-gate.hint": "If not now, it waits for your next word.",
     "workbench.assistant-side-path.ask-each-step": "Ask before each step",
-    "workbench.assistant-side-path.ask-each-step-hint": "Asks you before it goes on by itself"
+    "workbench.assistant-side-path.ask-each-step-hint": "Asks you before it goes on by itself",
+    "workbench.agent-review.authority-unavailable": "The plugin’s permissions or activation changed. You can reject this request, or start a new operation to continue.",
+    "workbench.agent-review.execution-unavailable": "The execution owner is unavailable, so decisions cannot be delivered. Restore it and refresh, or start a new operation.",
+    "workbench.import.stop-remaining": "Stop remaining",
+    "workbench.import.stopping": "Waiting for the current file’s result. No other files will start.",
+    "workbench.import.stopped": "Stopped: {done} saved, {failed} failed, {remaining} waiting to import.",
+    "workbench.import.transcription-remaining": "{count} files still need transcription. You can continue.",
+    "workbench.import.continue-transcribing": "Continue transcribing",
+    "workbench.import.transcription-stopped": "Stopped: {done} transcribed, {remaining} still to transcribe.",
+    "workbench.import.hide": "Hide"
   }
 }

@@ -1919,6 +1919,8 @@
     "workbench.attention.background-command": "后台命令",
     "workbench.attention.background-job": "后台任务",
     "workbench.attention.n-background-n-not-finished": "{n} 个后台任务没做完",
+    "workbench.attention.loading-background-tasks": "正在读取后台任务…",
+    "workbench.attention.tasks-incomplete": "后台任务列表暂时不完整。",
     "workbench.attention.no-background-tasks-right-now": "现在没有后台任务",
     "workbench.attention.stop": "停止",
     "workbench.board-plugin-rows.container": "容器",
@@ -7478,7 +7480,6 @@
     "workbench.side-panel.its-tabs-content-still-here-add-back-project": "标签和内容都还在；把它加回这个项目，就能接着用。",
     "workbench.side-panel.loading-discussion": "正在加载讨论…",
     "workbench.side-panel.move-main-area": "移到主区",
-    "workbench.side-panel.no-background-tasks-right-now": "现在没有后台任务",
     "workbench.side-panel.plugin-was-removed-project": "{plugin} 已从这个项目移除",
     "workbench.side-panel.project-discussion": "项目讨论",
     "workbench.side-panel.project-knowledge": "项目资料",
@@ -8725,6 +8726,15 @@
     "workbench.assistant-step-gate.not-now-short": "先不做",
     "workbench.assistant-step-gate.hint": "先不做的话，它等你再说一句。",
     "workbench.assistant-side-path.ask-each-step": "每步先问我",
-    "workbench.assistant-side-path.ask-each-step-hint": "自己接着做之前，先问你一句"
+    "workbench.assistant-side-path.ask-each-step-hint": "自己接着做之前，先问你一句",
+    "workbench.agent-review.authority-unavailable": "插件权限或运行状态已变化，这项操作只能拒绝。需要继续时请重新发起。",
+    "workbench.agent-review.execution-unavailable": "这项操作的执行方尚未接通，当前无法提交决定。请恢复执行方后刷新，或重新发起操作。",
+    "workbench.import.stop-remaining": "停止后续",
+    "workbench.import.stopping": "正在等待当前文件的结果；之后不会开始其他文件。",
+    "workbench.import.stopped": "已停止后续导入：{done} 份已保存，{failed} 份失败，{remaining} 份待导入。",
+    "workbench.import.transcription-remaining": "还有 {count} 份文件等待转写，可继续处理。",
+    "workbench.import.continue-transcribing": "继续转写",
+    "workbench.import.transcription-stopped": "已停止后续转写：{done} 份已完成，{remaining} 份尚未完成。",
+    "workbench.import.hide": "收起"
   }
 }

@@ -1489,6 +1489,17 @@ export interface AgentReviewDecisionInput {
     remember?: "session" | "app-this-round";
 }
 
+export type AgentReviewDecisionOptions = {
+    decisions: readonly ["approve", "reject"];
+    blocked_reason: null;
+} | {
+    decisions: readonly ["reject"];
+    blocked_reason: "authority-unavailable";
+} | {
+    decisions: readonly [];
+    blocked_reason: "execution-unavailable" | null;
+};
+
 export type AgentReviewDocument = AgentTextReviewDocument | AgentCommandReviewDocument | AgentToolOperationReviewDocument | AgentMcpReviewDocument | AgentGitIndexReviewDocument | AgentGitIntegrationReviewDocument | AgentRewindReviewDocument;
 
 export type AgentReviewKind = "text-edit" | "command" | "tool-operation" | "mcp" | "rewind" | "git-index" | "git-integration";
@@ -1498,6 +1509,7 @@ export interface AgentReviewQueueApi {
     get(reviewId: string): AgentReviewRequest | null;
     decide(input: AgentReviewDecisionInput): AgentReviewReceipt;
     receipt(reviewId: string): AgentReviewReceipt | null;
+    decisionOptions(reviewId: string): AgentReviewDecisionOptions | null;
     observe(listener: (request: AgentReviewRequest) => void): () => void;
 }
 

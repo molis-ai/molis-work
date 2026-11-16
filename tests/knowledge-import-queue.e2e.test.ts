@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, truncate, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { openProjectVersionStores, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { seedBoard } from "./fixtures/goal-application.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
@@ -176,4 +176,145 @@ test("QEA-06 same-named selections keep distinct contents and repeated content r
   await b.click("[data-knowledge-import-submit]"); await b.idle();
   assert.deepEqual(b.records().map(row => row.artifact_id).sort(), ids, "reselecting the same content reuses the stored artifact");
   assert.deepEqual(await b.rows(), [{ name: "report.txt", failed: false, done: true }]);
+});
+
+for (const rejected of [false, true]) test(`QEA-23 stopping after the current ${rejected ? "failed" : "saved"} file retains untouched selections and never repeats saved files`, { timeout: 120_000 }, async t => {
+  const b = await openImport(t); if (!b) return;
+  const names = ["saved", "current", "remaining", "added"];
+  const files = names.map(name => join(b.homeDirectory, `${name}.txt`));
+  await Promise.all(files.map((file, index) => writeFile(file, rejected && index === 1 ? "x".repeat(3 * 1024 * 1024) : `Document ${names[index]}.`)));
+  // Hold the second actual success/refusal after the Host completes it. No fabricated result or store write.
+  await b.evaluate(`(() => {
+    const original = window.molisWorkRequest; window.__importCalls = 0;
+    window.molisWorkRequest = Object.assign(async (...args) => {
+      if (!String(args[0]).endsWith('/api/artifacts/import')) return original(...args);
+      const call = ++window.__importCalls;
+      try { return await original(...args); }
+      finally { if (call === 2) { window.__importHeld = true; await new Promise(resolve => { window.__releaseImport = resolve; }); } }
+    }, original);
+  })()`);
+  await b.pick(files.slice(0, 3)); await b.click("[data-knowledge-import-submit]");
+  await b.waitFor("window.__importHeld === true", 30_000);
+  await b.pick([files[3]!]);
+  let staysOpen: unknown;
+  try {
+    await b.click("[data-knowledge-import-dialog] footer [data-knowledge-import-close]");
+    staysOpen = await b.evaluate("document.querySelector('[data-knowledge-import-dialog]').open");
+    if (staysOpen) {
+      assert.equal(await b.evaluate("document.querySelector('[data-knowledge-import-dialog] footer [data-knowledge-import-close]').disabled"), true);
+      assert.match(await b.evaluate<string>("document.querySelector('[data-knowledge-import-status]').textContent"), /当前文件/);
+    }
+  } finally { await b.evaluate("window.__releaseImport()"); }
+  await b.idle();
+  assert.equal(staysOpen, true, "stop retains the actual in-flight result instead of closing and silently continuing");
+  assert.equal(await b.evaluate("window.__importCalls"), 2, "no remaining file was dispatched after stop");
+  assert.deepEqual(b.records().map(row => row.title).sort(), rejected ? ["saved"] : ["current", "saved"]);
+  assert.equal(await b.evaluate("document.querySelector('[data-knowledge-import-submit]').disabled"), false);
+  assert.match(await b.evaluate<string>("document.querySelector('[data-knowledge-import-status]').textContent"), /2.*待导入|2.*剩余/);
+  if (!rejected) await captureStoppedImport(b, "files-zh");
+  await b.click("[data-knowledge-import-dialog] header [data-knowledge-import-close]");
+  await b.click("[data-knowledge-import-open]");
+  assert.equal(await b.evaluate("document.querySelector('[data-knowledge-import-submit]').disabled"), false, "hiding a stopped batch retains its remaining selection");
+  await b.click("[data-knowledge-import-submit]"); await b.idle();
+  assert.deepEqual((await b.rows()).map(row => [row.name, row.failed]), [
+    ["remaining.txt", false], ["added.txt", false], ...rejected ? [["current.txt", true]] : [],
+  ]);
+  assert.deepEqual(b.records().map(row => [row.title, row.version]).sort(),
+    (rejected ? ["added", "remaining", "saved"] : names).sort().map(name => [name, 1]));
+  assert.equal(await b.evaluate("window.__importCalls"), rejected ? 5 : 4);
+});
+
+// QEA-25: the native speech helper is a deterministic model stand-in. HTTP and stored versions are real;
+// one pre-dispatch transport failure is injected to verify that failed and untouched clips remain resumable.
+test("QEA-25 stopped transcription keeps failed and untouched clips across hiding, then resumes only those clips", { timeout: 120_000, skip: process.platform !== "darwin" }, async t => {
+  const b = await openImport(t, "en"); if (!b) return;
+  const helper = join(b.homeDirectory, "speech-helper");
+  await writeFile(helper, `#!${process.execPath}
+const fs=require('node:fs');
+if(!process.argv.includes('--allow-model-download')){process.stdout.write(JSON.stringify({error:'model_required',message:'Consent needed',approximate_bytes:1000000}));process.exit(1);}
+process.stderr.write(JSON.stringify({stage:'transcribing',progress:0.5})+'\\n');
+process.stdout.write(JSON.stringify({text:fs.readFileSync(process.argv[3],'utf8'),extractor:'fixture',pages:[],coverage:{status:'sufficient',processed_pages:0,total_pages:0,issues:[]}}));
+`, { mode: 0o700 });
+  const previous = process.env.MOLIS_MATERIAL_WHISPER_HELPER;
+  process.env.MOLIS_MATERIAL_WHISPER_HELPER = helper;
+  t.after(() => { if (previous === undefined) delete process.env.MOLIS_MATERIAL_WHISPER_HELPER; else process.env.MOLIS_MATERIAL_WHISPER_HELPER = previous; });
+  const files = ["first", "second", "third"].map(name => join(b.homeDirectory, `${name}.m4a`));
+  await Promise.all(files.map((file, index) => writeFile(file, `Clip ${index}.`)));
+  await b.pick(files); await b.click("[data-knowledge-import-submit]"); await b.idle();
+  const originals = b.records(); assert.equal(originals.length, 3);
+  assert.ok(originals.every(row => row.version === 1 && (row.payload as Record<string, unknown>).content === ""));
+  await b.evaluate(`(() => {
+    const original=window.molisWorkRequest.stream; window.__transcribeCalls=0;
+    window.molisWorkRequest.stream=async (...args)=>{
+      const call=++window.__transcribeCalls;
+      if(call===1)throw new Error('Fixture: transport unavailable before dispatch');
+      const saved=await original(...args);
+      if(call===2){window.__transcribeHeld=true;await new Promise(resolve=>{window.__releaseTranscribe=resolve;});}
+      return saved;
+    };
+  })()`);
+  await b.click("[data-knowledge-import-model-yes]"); await b.waitFor("window.__transcribeHeld === true", 30_000);
+  try {
+    await b.click("[data-knowledge-import-dialog] footer [data-knowledge-import-close]");
+    assert.equal(await b.evaluate("document.querySelector('[data-knowledge-import-dialog]').open"), true);
+  } finally { await b.evaluate("window.__releaseTranscribe()"); }
+  await b.idle();
+  assert.equal(await b.evaluate("window.__transcribeCalls"), 2);
+  assert.equal(await b.evaluate("document.querySelector('[data-knowledge-import-model]').hidden"), false);
+  assert.match(await b.evaluate<string>("document.querySelector('[data-knowledge-import-status]').textContent"), /1 transcribed, 2 still/);
+  assert.deepEqual(await b.rows(), [{ name: "first.m4a", failed: true, done: false }, { name: "second.m4a", failed: false, done: true }, { name: "third.m4a", failed: false, done: false }]);
+  await captureStoppedImport(b, "transcription-en");
+  await b.click("[data-knowledge-import-dialog] header [data-knowledge-import-close]"); await b.click("[data-knowledge-import-open]");
+  await b.click("[data-knowledge-import-model-yes]"); await b.idle();
+  assert.equal(await b.evaluate("window.__transcribeCalls"), 4);
+  assert.deepEqual(await b.rows(), [{ name: "third.m4a", failed: false, done: true }, { name: "first.m4a", failed: false, done: true }]);
+  assert.equal(await b.evaluate("document.querySelector('[data-knowledge-import-model]').hidden"), true);
+  for (const row of originals) {
+    const latest = openProjectVersionStores(b.store).artifacts.query.latestArtifactVersion(b.projectId!, row.artifact_id)!;
+    assert.equal(latest.version, 2, "each original gets one transcribed version, including the already-completed second clip");
+    assert.equal((latest.payload as Record<string, unknown>).content, `Clip ${["first", "second", "third"].indexOf(row.title)}.`);
+  }
+});
+
+async function captureStoppedImport(b: NonNullable<Awaited<ReturnType<typeof openImport>>>, name: string) {
+  const evidence = `${REVIEW_EVIDENCE}/quality-experience-audit`; await mkdir(evidence, { recursive: true });
+  for (const width of [1440, 1024, 390]) for (const theme of ["light", "dark"]) {
+    await b.setViewport(width, 900);
+    await b.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, b.sessionId);
+    await b.waitFor(`document.documentElement.dataset.resolvedTheme === '${theme}'`);
+    assert.equal(await b.evaluate(`(() => {const d=document.querySelector('[data-knowledge-import-dialog]'),r=d.getBoundingClientRect();return r.left>=0 && r.right<=innerWidth && d.scrollWidth<=d.clientWidth;})()`), true);
+    const shot = await b.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, b.sessionId);
+    await writeFile(`${evidence}/import-stopped-${name}-${width}-${theme}.png`, Buffer.from(shot.data, "base64"));
+  }
+  await b.setViewport(1440, 900);
+}
+
+// QEA-25: a real connected source enables the normal form; a held pre-dispatch transport failure avoids external network access.
+test("QEA-25 online import offers Hide while waiting and retains the result on reopening", { timeout: 90_000 }, async t => {
+  const b = await openImport(t, "en"); if (!b) return;
+  withConnectorConnections(b.homeDirectory, store => store.createToken({ serviceId: "notion", displayName: "Fixture", token: "fixture-only-unused-token" }));
+  await b.evaluate(`document.querySelector('[data-knowledge-import-source]').value='notion'`);
+  await b.click('[data-knowledge-import-dialog] input[name="kind"][value="online"]');
+  await b.waitFor("!document.querySelector('[data-knowledge-import-submit]').disabled");
+  await b.evaluate(`document.querySelector('[data-knowledge-import-url]').value='https://www.notion.so/fixture'`);
+  await b.evaluate(`(() => {
+    const original=window.molisWorkRequest;
+    window.molisWorkRequest=Object.assign(async (...args)=>{
+      if(!String(args[0]).endsWith('/api/artifacts/import'))return original(...args);
+      window.__onlineHeld=true;
+      await new Promise(resolve=>{window.__releaseOnline=resolve;});
+      throw new Error('Fixture: document transport unavailable');
+    },original);
+  })()`);
+  await b.click("[data-knowledge-import-submit]"); await b.waitFor("window.__onlineHeld === true");
+  try {
+    assert.equal(await b.evaluate("document.querySelector('[data-knowledge-import-dialog] footer [data-knowledge-import-close]').textContent"), "Hide");
+    await b.click("[data-knowledge-import-dialog] footer [data-knowledge-import-close]");
+    assert.equal(await b.evaluate("document.querySelector('[data-knowledge-import-dialog]').open"), false);
+    await b.click("[data-knowledge-import-open]");
+    assert.equal(await b.evaluate("document.querySelector('[data-knowledge-import-dialog]').hasAttribute('aria-busy')"), true);
+  } finally { await b.evaluate("window.__releaseOnline()"); }
+  await b.idle();
+  assert.match(await b.evaluate<string>("document.querySelector('[data-knowledge-import-status]').textContent"), /document transport unavailable/);
+  assert.equal(b.records().length, 0);
 });

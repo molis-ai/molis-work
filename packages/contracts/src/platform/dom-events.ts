@@ -219,7 +219,7 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis-work:attention", kind: "announcement", owner: "attention", on: "document",
-    detail: "the /api/attention answer ({ background_tasks, notices, plugin_events_pending, board_cursor, line, tasks }) and started; a part that could not be read or that this page does not have is null, started is the read's performance.now()",
+    detail: "the /api/attention answer ({ background_tasks: { tasks, issues }, notices, plugin_events_pending, board_cursor, line, tasks }) and started; a part that could not be read or that this page does not have is null, started is the read's performance.now()",
     summary: "The page read what waits on the person; the Assistant's bell (with the plugin notification count) paints from it, the board refreshes when its cursor moved, and on a project page the work line and the task panel paint from its line and tasks.",
   },
   {

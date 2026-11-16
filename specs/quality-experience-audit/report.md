@@ -1,16 +1,24 @@
 # Molis Work 审查报告与优化策略
 
-状态：六方向审查、三组生产改造及第四批回归完成；本地实操、已知基线失败及资源结果见下文。最终 CI、视觉验收与合并状态由 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) 持续记录。负责人 Codex；初始基线 `efdaa3376`，2026-11-16已合入 main `0dceaca09`（2026-11-16同步快照）。[需求与验收](spec.md) · [逐包覆盖](coverage.md)。
+状态：进行中。已有六方向代表入口检查和前四批成果保留；搜索取消、Home 完整性、任务操作与切换上下文、Run 时间四条链已补深查及定向验收，审查选项与导入停止继续实施/验收；2026-11-16 按用户原始范围继续深入检查与分批改造，不将原“留后续”当作已获批准的排除。当前同步 main `70aaa976b`；旧头 `77e2cc0d5` 的 CI 仅覆盖旧批次。负责人 Codex，草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101)。[需求与验收](spec.md) · [逐包覆盖](coverage.md)。
 
 ## 当前判断
+
+2026-11-16 追加同步检查：已 fetch 到 `origin/main=4a08c41ca`（Sessions #2097），当前验证中的工作树尚未合入。新增 `horizontal/sessions` 及其 UI/搜索/助理链纳入接续范围，不能继续沿用 73 包作为最新主干总数。BL-177 在该主干已改“部分实现”，保留 35/45/60 批和本人验收，不按新实现标题关闭整项。先完成在跑验收并保存现有改造，再整合这一增量。
+
+第九批视觉补验已通过，12 张中英文/三宽/两主题截图生成，人工复核英文390深色与中文1440浅色，Git 固定差异已加载。第十批当前构建的 HTTP 取消 6/6、导入浏览器 8/8 通过；完整相关回归仍在跑。新增第十二批正文可用性合同尚未构建，不能将这些第十批结果算到第十二批。英文导入中的旧中文警告另列 QF-15，未宣称语言全通过。
 
 平台已有统一动作、授权、事务、插件装配和对象链接能力。当前重点是核实实际消费与恢复路径，而不是继续增加抽象。旧报告中有多项建议会破坏已有语义：把表单关闭设成终态会取消重新开始收集；删掉搜索的第二次目录读取会撤掉异步等待后的权限复核；审批投递失败自动重试可能重复执行已经接受的批准。
 
 构建通过只支持工程判断，尚不能宣称整个平台内部完整。登记表有 73 个包；初始审查基线的统一 BL 有 527 条，其中 64 条为待本人验收、202 条明确后续做，不能直接当作死账删除。需求族判断与逐项清理决定见下文；不按条数计算完成率。
 
-本轮完成三组生产改造：导入保留剩余选择与准确重试、Feed等待清理、三组纯动作绑定迁移；第四批独立复现侧栏聚焦抖动并增加回归，最终采用同步进来的主干#2098完整修复，不再保留重复实现。各阶段实际验证与最新验收入口见下文。用户因此少重选文件、少重复导入已成功文件、少看错位的结果；开发者少维护 DOM 派生的队列事实、遗留的取消回调和三份换参包装。其余问题按影响与合同成本排入后续策略，不能把本报告的全部建议都算作已修复。
+前四批成果保留；第五至十一批已落实搜索取消、Home 列表完整性、停止/切项目交错、Run 终态、三个审查 UI、导入停止/断连和五插件纯绑定迁移，相关定向验证通过。第十二批正文可用性反馈已构建，三个正常转写失败/恢复用例及相关回归正在验收。尚未取得本次最终提交的 CI 证据，不能与旧头 CI 混算；73 包的代表检查也不能冒称全部真实入口均已查深。最新 Sessions 增量、Git 草稿、框架材料来源等仍在原任务内按优先级推进，不以改动文件数或局部通过结项。
 
 ## 发现与处置（是否实施逐项注明）
+
+第十二批验收：`/tmp/quality-audit-transcription-acceptance.log` 11 文件65项全部通过（10.3分钟），涵盖三个原生结果失败/恢复实操、实际原件下载、固定版本、模型同意、HTTP取消、MCP/公开动作和真实插件成果消费。API生成无新增差异，动作输出快照仅两个 import 行变化，包边界检查零错误。去掉 warnings 必填数组的两处可选链是此构建后的等价合同清理，随主干整合重新构建；最终门禁/CI仍待完成。原中文警告 QF-15 保留未解决，不用功能回归替代语言验收。
+
+最新定向验收（第十/十一批构建）：`/tmp/quality-audit-import-binding-acceptance.log` 的 14 个文件、126 项全部通过（16.9 分钟）。其中导入队列 8 项、HTTP 断连/流上限 6 项、正常 Git 审查与 12 幅视觉采样 1 项，五个插件动作及知识/模型授权/流式生命周期回归均过。第十二批新增 `text_available` 及新断言是在该构建之后修改，须另行构建验收。构建首次发现 control 缺必填 beforeEffect，已按 signal 边界修正后重建通过；没有改公开 control 合同或加空检查来绕过类型要求。
 
 ### QF-01 / P1：资料批量导入丢失尚未处理的选择，并让重试结果错位
 
@@ -33,19 +41,48 @@
 
 - 位置：`plugins/native/git/src/drafts.ts:52-108` 仅由本包导出与 `tests/git-plugin.test.ts:70-79` 使用；实际页面 `plugins/native/git/src/browser/source.ts:28-38,100-101` 只读取 Coding 交来的提交说明，`plugins/native/git/src/browser/conflicts.ts:70-86` 每次打开冲突直接用文件正文替换编辑区。
 - 影响：用户自己输入的提交说明、分支/PR 表单与冲突解决文本没有共同的恢复路径；尤其再打开同一冲突文件会覆盖尚未提交的编辑。现有草稿 round-trip 单测不证明页面保留输入。这里指整页重载/重新挂载及重新打开冲突文件；同一页面内刷新 summary、隐藏再恢复 PR 表单已由 `tests/git-source-controls.e2e.test.ts:152-249` 覆盖保留，不能一概说“刷新就丢稿”。本轮未新增 Git 浏览器复现。`parseStoredDrafts` 还截短字段为 4096，但没有实际页面调用，不能把它冒称为当前入口的数据截断事故。
-- 决定：留后续 Git 完整草稿恢复批。状态归 Git 编辑器，以项目/工作目录/文件与读取修订定位；复用现有页面草稿机制前确认冲突正文大小与隐私边界。先接正常页面、切换/刷新/冲突改版实操，再删被替代的工具和镜像单测。公开导出先走合同废弃核对，不直接删除。成本中。
+- 决定：接续任务内分批完成 Git 草稿恢复。状态归 Git 编辑器，以项目/工作目录/文件与读取修订定位；复用现有页面草稿机制前确认冲突正文大小与隐私边界。先接正常页面、切换/刷新/冲突改版实操，再删被替代的工具和镜像单测。公开导出先走合同废弃核对，不直接删除。成本中。
 
 ### QF-04 / P2：Home 后台汇总把读取失败显示为空任务
 
 - 位置：`apps/local-host/src/home-background-tasks.ts:23-36` 丢弃聚合的 `issues`，只写诊断；`apps/local-host/src/attention-http.ts:46-51` 将数组传到 Home；`apps/workbench/src/scripts/client/attention.ts:43,95-96` 收到 `[]` 就画「现在没有后台任务」。
 - 触发与影响：所有已安装来源超时或报错时，用户看到“没有任务”；部分来源失败时总数也无不完整标记。与查询整体失败时返回 null、保留上次显示的策略不同。这会让仍在执行的任务看起来消失。
-- 决定：补齐 Home 汇总结果合同，保留 `tasks + issues`，复用项目后台表已有的 `MainlineIssue` 语义（`horizontal/mainline/src/index.ts:116-127`），由工作台显示一次“部分任务暂时读不到”和重试入口。来源负责事实，汇总负责完整性，页面不推断任务结束。不加弹窗、不把诊断原文直接曝光。成本中，需合同与 HTTP/UI 迁移，列后续批；验证全失败、部分成功、恢复和停用来源正常不计错。
+- 决定：补齐 Home 汇总结果合同，保留 `tasks + issues`，复用项目后台表已有的 `MainlineIssue` 语义（`horizontal/mainline/src/index.ts:116-127`），由工作台显示一次“部分任务暂时读不到”和重试入口。来源负责事实，汇总负责完整性，页面不推断任务结束。不加弹窗、不把诊断原文直接曝光。成本中，第六批已实施合同与 HTTP/UI 迁移；全失败、部分成功与恢复的定向验收通过，最终门禁/CI 待完成。未安装来源跳过，已安装但不可用仍报告问题；不把所有停用来源一律忽略。
+
+接续真实入口补查（第六批，2026-11-16）：`apps/workbench/src/arrival/chooser.ts:137` 将 attention 绑到选中项目，旧项目入口没有 Home 后台任务；这使选择项目后的 Home 列表一直拿不到跨项目任务。新 HTTP 聚合测试已通过，但第一轮浏览器在部分恢复等不到任务、停止用例在首屏等不到按钮，属于真实入口接线缺口，不能把它们当成停止交错已复现。正在同批修正 Home 投影范围与变更订阅，保留项目助理上下文；Home 不消费项目事项线，避免重复读选中项目的任务。
+
+复核另发现 `attention.ts` 重画会丢失停止按钮的 DOM disabled 状态；本批以页面持有的命令进行中/结果投影跨重画保留，等待真实 Home 实操。相邻项目入口 `apps/workbench/src/browser/work-task-panel.ts:191` 没有进行中保护，列为下一项真实交错检查；不把项目旧测试当作 Home 的验收证据。chooser 切换时在途 attention 的归属与迟到通知也待核对。
 
 ### QF-05 / P2：动作绑定有现成公共实现，局部包装仍重复维护
 
 - 位置：`packages/contracts/src/platform/action-input.ts:8-12` 已提供 `bindActionHandler`；相同换参包装仍在 Dataset `plugins/native/dataset/src/actions.ts:69`、Form `plugins/native/form/src/actions.ts:84`、Todo `plugins/native/todo/src/organize-actions.ts:101`、Cognia `plugins/native/cognia/src/actions.ts:60`、Images `plugins/native/images/src/actions.ts:45`。
 - 影响：各插件重复把 Kernel 已验证的 unknown 转为输入类型，后续扩执行元数据容易各自漏接；这些包装没有独立业务职责。
-- 决定：直接复用现有公共绑定，不新建平台抽象；逐个迁移调用方，保留 availability。Pages/PPT 的本地包装还固定授权，Workflows 还构建业务上下文，不能用文本替换一刀切。成本低但跨包，本轮第三批已迁移 Feed 的 query-actions、inbox-actions、rule-actions 共三处纯绑定，其他包留后续；以真实动作入口的拒绝、异步撤权和正常保存回归证明。
+- 决定：直接复用现有公共绑定，不新建平台抽象；逐个迁移调用方，保留 availability。Pages/PPT 的本地包装还固定授权，Workflows 还构建业务上下文，不能用文本替换一刀切。成本低但跨包，本轮第三批已迁移 Feed 的 query-actions、inbox-actions、rule-actions 共三处纯绑定，第十一批已将上述另外五包迁到同一公开绑定，9 个 availability 调用保持，尚待构建/验收；以真实动作入口的拒绝、异步撤权和正常保存回归证明。
+
+### QF-14 / P2（已复现，修复验收中）：转写失败的回执不足以支持准确完成提示
+
+`apps/local-host/src/artifact-original-text.ts:36-44,62-65` 在原生读取失败/超时时返回空正文和 warning，仍可保存原件；`apps/workbench/src/browser/knowledge/import.ts` 的转写分支只用 `model_required` 是否缺省判断完成，因此可能把“仅保存原件、没有转写文字”累计为转写完成。前者是保留文件的正确业务语义，后者需要明确文本提取结果，不能由页面解析翻译后的 warning 猜测。
+
+处置：第十二批成果 import owner 输出 `text_available`，从实际保存/复用的正文推导，工作台转写消费同一公开类型并保留无正文项重试；保留原件保存与既有取消 fence。原生失败、超时回复及空正文的正常入口旧构建 3/3 有效失败（52.0 秒），失败后原件实际下载正常，错误在重试入口消失。修复完整构建通过，正常路径/恢复验收中。API 生成无新增差异；两个 import 动作输出快照更新（现行阶段一原版本），没有输入、权限或持久结构变化。不增加第二套转写任务表。超时 helper 回复不等于实测平台 30 分钟截止，模型替身也不算真实语音效果验收。
+
+### QF-15 / P2：原件提取提示仍以中文正文跨层保存并显示
+
+位置：`apps/local-host/src/artifact-original-text.ts:18-45,65` 组装中文 warnings，`modules/artifacts/src/artifact-document-import.ts:20-35,128-147` 随固定版本保存，`apps/workbench/src/browser/knowledge/import.ts:100,232` 直接呈现。英文 390px 转写实操截图 `import-stopped-transcription-en-390-dark.png` 已出现“正文是转写出的文字，可能有错字；原件完整保存。”，因此是实际语言混用，不只是字符串扫描命中。
+
+影响与处置：用户切到英文仍收到中文提取结果；页面不应据该文案决定状态，也不能靠翻译字符串反推失败种类。QF-14 先把完成判断交还 owner 的正文事实。提示本身应由提取 owner 提供稳定键/参数，展示时翻译；固定版本历史 warnings 的格式处理必须沿现有内容版本/升级约定，不静默改历史版本，不为英文临时覆盖原警告。此项已确认，语义迁移与历史处置尚待实施；不能把当前双语截图整体称为语言验收通过。
+
+## 最新主干 Sessions 增量：静态已确认，待合入与实操
+
+以下位置均指 `origin/main=4a08c41ca`，不是当前尚未整合该提交的工作树。根会话已沿关键实现复核只读 reviewer 的结论；未运行动态复现，不能把它们标成已验收修复。
+
+| 发现 | 位置与实际路径 | 影响、归属和处置 |
+| --- | --- | --- |
+| QF-16 / P1 模型前缺少读取范围复核 | `horizontal/sessions/src/suggest.ts:214,232,308`：读取开头消息后调用模型，只传通用 caller.beforeEffect；`apps/local-host/src/sessions-ports.ts:401-408` 转交此闭包。Sessions 范围只在初始和模型后重读 | 在异步读取期间撤回来源，原文仍可能发给模型。Sessions owner 在实际派发前复核本批材料的当前范围，保留最终提交检查；通用动作权限不能代替业务范围。先卡住真实 adapter 读取验证模型外发为零。 |
+| QF-17 / P1 列表未消费分页，旧搜索直达打不开 | `apps/workbench/src/browser/sessions/client.ts:80,107` 只读默认50条，搜索只滤当前数组；缺失 key 再读 all 第一页后静默返回 | 用户无法浏览或找到较早会话。补正常分页与完整检索；按 key 读取详情所需元数据归 Sessions 公开合同，不遍历全部列表冒充直达，不把上限改大当修复。 |
+| QF-18 / P1 撤回范围后详情和迟到结果未失效 | 同 `client.ts:88,179`：列表找不到原行时不清正文，范围保存后也不递增 detailSeq；`detail-view.ts:80,89` 只有清空详情才移除助理上下文 | 已撤回原文及上下文继续展示，旧历史响应仍可回填。范围变更须取消/隔离旧读取，再按 owner 当前可读性核对所选项；当前分页没找到不等于撤权。覆盖撤回前后响应交错和仍合法的当前项。 |
+| QF-19 / P1 云账号切换后再保存范围会拒绝 | `scope-sheet.ts:102-112` 遍历 owner 保留的同来源多个账号行，却从同一 entry_id 下拉取当前账号；`scope-commands.ts:273-275` 正确拒绝重复完整身份 | A→B 后再次保存或取消来源时两行都变成 B。表单只序列化实际选择的唯一目标，保留 owner 历史账号与重复拒绝，验证连续换账号、再保存、关来源。 |
+
+另列三个已找到具体实现的 P2 候选：范围保存后 UI 额外 discoveryRun 会重复发现（`scope-sheet.ts:112`）；“开头消息”实际取最新100条中的前三条用户消息（`suggest.ts:121`）；文件流每次注册 abort、正常结束未清监听（`apps/local-host/src/sessions-file-roots.ts:218`）。先复用 owner 保存后的发现与现有流生命周期，真实复现后决定修改，不造第二个扫描调度器。
 
 ## 旧报告复核：不能直接执行的建议
 
@@ -65,8 +102,8 @@
 | 方向 | 检查方式与已确认结果 | 处置 |
 | --- | --- | --- |
 | 隐式状态 | 对照持久事实、内存执行句柄和 DOM 状态；导入队列曾由数组与 DOM 共同决定，Feed 等待没有完成清理。Coding 的业务归档和执行归档是不同 owner 的事实，不能强并 | QF-01/02 已改；Run 显示时间耦合另列 QF-06；业务状态声明按第 47 批兑现 |
-| 过度防御 | 从 HTTP/动作 schema 到 owner 写入核对校验；Home 把读取故障降成空列表确实掩盖故障。Search、SQLite、RSS 的重复外观检查分别保护等待后的权限、实际 SQL 和实际网络地址 | QF-04 待补完整性；保留真实信任边界，不按 catch/if 数量删代码 |
-| 用户干扰 | 核资料导入/重试、任务查看、Git 编辑、模型接入返回、审批、角色启停和账号切换 | 导入减少重选与无效重试提示；“取消”仅关闭的剩余语义差异见 QF-10；审批无效按钮 QF-07、Git 恢复 QF-03 列后续。删除、账号权限与模型下载等有实际决定的确认保留 |
+| 过度防御 | 从 HTTP/动作 schema 到 owner 写入核对校验；Home 把读取故障降成空列表确实掩盖故障。Search、SQLite、RSS 的重复外观检查分别保护等待后的权限、实际 SQL 和实际网络地址 | QF-04 已补完整性并通过定向验收；保留真实信任边界，不按 catch/if 数量删代码 |
+| 用户干扰 | 核资料导入/重试、任务查看、Git 编辑、模型接入返回、审批、角色启停和账号切换 | 导入减少重选与无效重试提示；“取消”仅关闭的剩余语义差异见 QF-10；审批选项 QF-07 在验收，Git 恢复 QF-03 仍待接续实施。删除、账号权限与模型下载等有实际决定的确认保留 |
 | 冗余代码 | 从注册到实际调用方，区分私有重复、公共导出和未完成能力 | Feed 三处纯绑定已删；Git drafts、WebQuery/YouTube 工厂与旧 Home events 是待核退役候选，不能连仍被使用的 channel 工具一起删 |
 | 边界与调用链 | UI/HTTP、Agent、后台、CLI/MCP 沿公开动作追到事务和反馈；73 包静态边界门禁通过 | 明确事实 owner、执行身份、最终写入与反馈；发现搜索取消传递中断 QF-08。没有把边界门禁通过误作所有业务正确 |
 | 平台化 | 同时从平台声明向下追消费者、从插件特判向上找 owner | 下表 13 项处置逐项区分已有能力、采用缺口、合同待补、共享工具及插件业务；优先补采用，不再建第二套目录或任务事实 |
@@ -77,19 +114,21 @@
 
 `horizontal/agent-host/src/adapters/prologue-run-store.ts:131-133,214-228` 在执行账本已经终结后，仍把公开 phase 暂时设为 running，等待 `saveRunTiming`；`latestEnded` 又依据该公开 phase 判断是否结束。`tests/prologue-recovery.test.ts:449` 已有用延迟提交控制这条路径的测试。因此这是现行设计耦合，不是本轮声称复现的随机卡死：非业务的显示时间写入会延长用户等待；无限等待的极端场景本轮未实测。
 
-处置：中成本，归 agent-host。保留“执行账本提交后才终结”的正确边界，把时间元数据的保存/失败与执行终态分开；不得直接删账本等待。需验证下一轮可启动、重启后的时间未知、迟到完成不改写新 Run、取消与保存失败。涉及共享核心及现行恢复合同，留后续专项。
+处置：中成本，归 agent-host。保留“执行账本提交后才终结”的正确边界，把时间元数据的保存/失败与执行终态分开；不得直接删账本等待。需验证下一轮可启动、重启后的时间未知、迟到完成不改写新 Run、取消与保存失败。第八批已实施，公开 Adapter 四终态 × 时间延迟/失败及真实 Node 恢复等共 7 文件 58 项通过；时间与启动意图在真实 Node 仍共享 index.update 队列，不承诺跳过挂起磁盘事务。最终门禁/CI 未完成。
 
 ### QF-07 / P2：当前不能批准的待审项仍有批准按钮
 
-`horizontal/agent-host/src/reviews.ts:140,265-268` 恢复的插件操作没有当前进程授权，批准会拒绝；`apps/workbench/src/agent-review-surface.ts:203,235-243` 对可决定的 pending 项仍画批准与拒绝。现有 [BL-360](../backlog/BL-360.md) 经本轮代码复核仍成立，用户会多点一次后收到拒绝。
+`horizontal/agent-host/src/reviews.ts:193-215,252-278`：当前插件操作的批准仍要求原安装持有授权；`apps/workbench/src/agent-review-surface.ts:136,240` 原来只按 pending 与文档可读提供批准/拒绝。第九批 HTTP 旧构建已复现：原 authority 失效后批准按钮仍在，服务端拒绝。
 
-处置：中成本，审查队列投影提供当前可执行决定及原因，页面照投影显示，保留服务端最终拒绝；批准权限不由页面猜，不恢复旧授权。验重启、撤权、停用、过期与正常批准。并入原 BL，提升体验修复顺序，不另立重复事项。
+[BL-360](../backlog/BL-360.md) 的重启前提已过时：`prologue-git.ts:98-104`、`prologue-checkpoints.ts:181-189` 和 `prologue-review-documents.ts:297-304` 会撤回失去执行方的原等待。没有当前决定处理器的 raw pending 也不能称“能拒绝”。处置：队列按状态、处理器、原安装授权实时投影 `decisionOptions`，页面只画可执行按钮；保留决定与派发复核，不恢复旧授权。正常 Git 关闭最后依赖入口、重新激活后旧操作只能拒绝的实操已通过（47.5 秒），暂存区与 HEAD 不变；服务/侧栏与真实 SDK 恢复回归通过。原 BL 保留到最终资源、门禁与 CI 验收完成。
 
 ### QF-08 / P2：搜索请求取消没有穿过 HTTP 入口
 
-`apps/local-host/src/search-http.ts:11,17-28` 创建无 signal 的 BoundActionClient，四个路由没有请求中止绑定；实际调用方 `web-project-platform-routes.ts:244` 与 `web-catalog-routes.ts:70,100` 也未给绑定客户端传 signal；[BL-search-query-abort](../backlog/BL-search-query-abort.md) 所述缺口仍在。浏览器放弃旧查询，来源仍可能继续读，浪费工作并拖慢新查询；本轮是调用链确认，没有新增耗时测量。
+`apps/local-host/src/search-http.ts` 的四条路由及 `web-project-platform-routes.ts` / `web-catalog-routes.ts` 原来都不把断连交给 BoundActionClient。[BL-search-query-abort](../backlog/BL-search-query-abort.md) 的传输缺口成立，但“每次搜索把各来源跑完”需纠正：`horizontal/search/src/index.ts` 的 `catchUp → sync → indexer` 是由 Search owner 维护、供多个查询复用的索引工作，不能随某个查询取消。`docs/horizontal/search.md` 明确没有按查询触发的外部来源协议。
 
-处置：低到中成本，归 Host 传输适配；沿 composer 已有方式把请求/连接关闭接到动作 signal，保留 Search 的异步后权限复核。验来源确实收到取消、迟到结果无写入、下一请求正常只执行一次、监听释放。不把取消做成失败弹窗。并入原 BL。
+2026-11-16 深查又确认两处同链缺口：`SearchService.open` 切到个人空间时整体替换 access，丢失原信号；对象读取 catch 会将取消降为不可用并继续查存在。`horizontal/search/src/references.ts:ownerRead` 则把取消吞成 null，直接服务调用方无法区分放弃与对象缺失。根因是传输生命周期、共享索引和单请求读取没有被分别保留。
+
+处置：第五批已实施并通过定向验收。Host 采用已有 `responseAbortSignal`；Search 保留个人空间调用的原信号，并让取消越过不可用兜底；共享索引及异步后权限复核保持。修复前的隔离 Home 实操测试已复现 Home/项目 HTTP 断连后 owner 读取继续；直接服务测试复现个人空间 open 与引用读取缺少预期拒绝。共享索引测试在修复前通过：两次查询共用一次列表和正文读取，取消第一请求后第二请求取得真实落库正文，这条正确语义作为回归保留。第五批完整构建、HTTP/服务/权限与 MCP 消费者定向验证通过，明细见接续批次验证；最终整合门禁/CI 未完成。
 
 ### QF-09 / P2：需求索引与现行 spec 的阶段不一致
 
@@ -97,11 +136,13 @@
 
 处置：低成本，本轮已依据原spec校正索引，明确第26批交付范围与第47/48批接续；没有改成“全部完成”，没有更改原spec或各批验收结论。存量迁移与待本人验收继续保留在原待办。
 
-### QF-10 / P2：导入中的“取消”实际只关闭对话框
+### QF-10 / P1：导入停止与传输生命周期脱节，失败回复仍可能写入成果
 
 `apps/workbench/src/side-panel-files.ts:78` 的取消按钮与标题栏关闭使用同一 `data-knowledge-import-close`；`apps/workbench/src/browser/knowledge/import.ts:240-241` 只执行 `dialog.close()`，busy 时还特意保留队列。`importFiles:188-210` 不检查关闭或取消，继续处理本批。QEA-06 实操证明关闭/重开后仍完成真实导入；这证明恢复原界面有效，不证明“取消操作”已提供。
 
-影响：用户在导入中点“取消”，仍可能继续写入后续文件；当前文字与执行语义不同。已成功保存的文件不应因取消而回滚。处置：中成本，工作台负责区分“收起继续”和“停止剩余”，Host/成果 owner 负责当前请求中止与最终写入回执；停止后保留未处理项，结果未知按既有幂等身份核对再重试。需要实际点击取消、等待中止、已完成/未处理/结果未知分开验收。本轮只修队列与恢复，不把关闭悄悄改成取消，不宣称导入全生命周期已经完整；与 QF-03/04 同属下一批连续性修复。
+影响：用户在导入中点“取消”，仍可能继续写入后续文件。第十批改为明确“停止后续”，等待当前真实回执、不再发出下一项，保留剩余与失败项；标题栏/Escape 收起可恢复，在线单项处理中页脚写“收起”。转写队列不再持有旧 DOM 行作为事实，续传前重画真实待处理项，失败与未开始项保留。两个忙碌入口归为一个当前批次对象，running/stopping 与控件从它推导。
+
+Host JSON、原件上传原来都没有把断连传给已支持取消的 artifacts concurrent 动作；现在在 HTTP 中用既有 responseAbortSignal 和 BoundActionClient control 传入，NDJSON 超界也撤销本次控制。owner 的读取/写入前 fence、固定版本身份与临时原件 finally 清理保持原样。主动停止后续不切断当前回执，避免人为制造结果未知；真正断连发生在已提交之后仍不承诺回滚，不自动重试。旧构建 QEA-23 两项、QEA-25 两项已复现界面行为；正常初始化后 QEA-24 六项也复现：四种断连没停提取，两种流式超界返回 actions.output_invalid 后仍有真实成果版本，故传输部分升级为 P1。修复正构建，尚未计为验收完成。
 
 ### QF-11 / P2：侧栏标签的近似溢出判断漏掉真实一像素位移
 
@@ -110,12 +151,28 @@
 - 根因：`scrollWidth > clientWidth + 1` 用取整尺寸重复判断可滚动性，排除了正好一像素的真实溢出；原0.5 px的位移标准本身没有问题。属于第32批已有路径，本轮导入/Feed改动未涉及此逻辑。
 - 决定：第四批先验证删除门槛能够修复此复现（QEA-10原位移1.125、滚动0，修复后通过）。最终同步的主干#2098包含同一修复及小于1px残余位移处理，采用其完整实现；本轮side-panel生产差异归零，只新增QEA-10回归；几何诊断最终采用#2094主干完整文件，不重复建设或重复记功。最新共享消费者、视觉与Full按PR记录验收。
 
+### QF-12 / P1：项目任务重绘丢失停止操作的进行中状态，并保留旧命令参数
+
+位置：`apps/workbench/src/browser/work-task-panel.ts:takeTasks/stopTask`，调用方是任务列表、任务卡及事件卡；`work-bar.ts` 从同一个 attention 回答交入投影。原 `stopTask` 每次点击都会生成新请求；`takeTasks` 只比较 `commands.length` 等局部字段，等长新命令不进入 `tasks`。前者可能重复命令，后者让用户点仍可见的按钮却被 Mainline 的当前命令检查拒绝。
+
+依据：旧构建的真实 Coding 路径持有停止回执、刷新 owner 状态后 disabled 为 false；真实第三方插件只把命令 `input.job` 从 `export-1` 改为 `export-2`，页面已收到新回答，实际 POST 仍发 `export-1`。均为独立断言失败，不以超时推断。
+
+处置：第七批已实现并通过定向验收，最终门禁/CI 待完成。工作台唯一面板控制器维护本页尝试，三个展示位置共用；成功后的新读取交回 owner，明确失败可由用户再试。比较完整任务投影，删除不完整缓存键；Mainline 原执行前复核保持。QEA-17 的真实停止重画、同数命令新输入及同插件双来源已通过，原真实进程停止/未知回执不自动重试继续保留。
+
+### QF-13 / P2：切换项目后旧 attention 请求阻塞并可能覆盖新上下文
+
+位置：`apps/workbench/src/scripts/client/attention.ts:read/listen`，真实入口 `arrival/chooser.ts:chosenRoute` 和 chooser 项目选择。原全局 reading 布尔值跨路由继续持有旧请求；成功回答无目标核对，404 分支还读取当前路由登记 gone。用户切到 B 后仍等 A，旧失败可能使 B 看起来已删除或离线。
+
+依据：正常 chooser 持有 A 的真实回答后切 B，成功/404/网络失败三种旧结果均让 B 的读取超时；这直接证明阻塞。迟到覆盖与错误 gone 归属来自调用链检查，修复后通过释放旧回答的消费者事件断言验收，不冒称基线已动态覆盖每个副作用。
+
+处置：第七批已实现并通过定向验收，最终门禁/CI 待完成。每个读固定地址与 AbortController，切换取消旧等待并使其回调失效，旧 finally 不能收走新请求；同地址仍合并刷新。沿原单一事件流，不新增轮询或业务状态。QEA-18 已验证切回 A、迟到错误不污染当前上下文，Home 列表回归通过。
+
 ## 平台化与通用化检查及处置
 
 | 候选与当前实现/消费者 | 定制造成的问题 | 事实与规则 owner；处置 | 顺序/成本 |
 | --- | --- | --- | --- |
 | PF-01 对象引用、跨插件呈现：`packages/contracts/src/platform/object-link.ts:12`、`horizontal/surfaces/src/position.ts:20-34`、`apps/local-host/src/surface-slot-http.ts:75,122` 已有受控 plugin-slot；Inbox `plugins/native/inbox/src/browser/client.ts:40`、Risk `plugins/native/risk/src/browser/client.ts:45`、Work Brief `plugins/native/work-brief/src/browser/client.ts:22` 已使用，PPT `plugins/native/ppt/src/plugin.ts:35-45` 经 Pages 公开动作读内容 | 未发现这条 PPT→Pages 路径跨实现直连。组合槽已有 UI contribution 声明、Host 兑现和真实消费者，不能只搜 manifest.ts 就误报未采用，更不应重建底座 | 插件拥有内容/修订；平台拥有位置、身份及授权。保持 surfaceSlot 与 objectLink；新增组合沿相同入口验停用、撤权、对象删除和返回，不开放任意 iframe、不解除 mountDeclared 的 owner 限制 | 保持现有方案 |
-| PF-02 输入的材料来源：`apps/workbench/src/browser/plugin-frame/composer-parent.ts:215` 固定 sources:false；底栏菜单和来源服务已存在 | 框架插件用户仍需复制粘贴，统一输入的能力因承载方式不同而缺一截 | 平台父页持本人身份获取选择，向插件传受限材料引用；补引用续接/大小/失效验证，复用原菜单。归 [BL-composer-frame-sources](../backlog/BL-composer-frame-sources.md)，不是取消 frame 权限隔离 | P1体验/中 |
+| PF-02 输入的材料来源：`apps/workbench/src/browser/plugin-frame/composer-parent.ts:215` 固定 sources:false；底栏菜单和来源服务已存在 | 现有唯一生产框架 AI 消费者 Coding 也明确 sources:false，虽有自己的材料选择，却缺共同来源菜单；只翻父页开关不会改善真实路径 | 平台父页持本人身份获取选择，只在本人发送时交材料引用；当前 onMaterials 即时回传与 child composer-send 必须一起约束，不能让子页绕过本人发送。Coding 要实际消费 input.materials，并核首次/后续/steer 及失败引用留存；大小约束须与 owner 对齐，复用原菜单。归 [BL-composer-frame-sources](../backlog/BL-composer-frame-sources.md)，不是取消 frame 权限隔离 | P1体验/中 |
 | PF-03 Memory 会话来源：`apps/local-host/src/memory/memory-sources.ts:13`、`apps/local-host/src/memory/memory-session-binding.ts:51-64`、`apps/local-host/src/memory/memory-runtime.ts:20` 点名 Coding/Assistant | 第三个插件有合法 Agent 会话也要改 Host；来源资格和业务状态检查散在宿主 | 平台拥有可信会话身份/授权与记忆策略；插件提供来源可读性/业务状态的声明 reader。随 plugin-equal-standing 收口，迁移 Coding 实际路径再删特判，不能把资格交给输入字符串 | P2/高 |
 | PF-04 后台任务：`apps/local-host/src/home-background-tasks.ts:22` 与 mainline；Coding/Images 已贡献，项目引导整理仍只有后台执行 | 有工作却不在任务入口；汇总失败又看似无工作 | 任务状态仍归业务 owner，平台管发现/完整性/可执行命令。接入既有 background_tasks/reports_to，修 QF-04；引导归 [BL-107](../backlog/BL-107.md) | P1体验/中 |
 | PF-05 设置：`packages/contracts/src/platform/settings.ts:16,30` 有层级/CAS/request_id；`packages/plugin-sdk/src/sandbox-agent-declarations.ts:51` 仍拒绝沙箱 settings_entries；原生插件没有声明消费者 | 有合同不等于作者可用，局部设置仍各做继承、修订、返回 | 设置值/规则归 owner，平台管声明、继承呈现和调用。先完成 Runtime 读写兑现、选一个真实设置迁入再推广；本轮不建立全局配置大仓 | P2/高 |
@@ -124,7 +181,7 @@
 | PF-08 等待/调度/取消：`packages/plugin-sdk/src/execution-lifetime.ts`、`packages/plugin-runtime/src/activation-jobs.ts`、`horizontal/scheduler/src/index.ts:252,274,392` 租约、Workflow/Alchemist 自有进程记录 | 散落的计时器容易泄漏；但不同业务终态强并会破坏恢复 | 复用资源生命期工具；业务流程状态及租约回执留原 owner。Feed QF-02 已修；不再造通用万能 Job 表 | P2/低到中 |
 | PF-09 调用追踪：`packages/kernel/src/action-settlement.ts:107,152,175`、`horizontal/observation/src/records.ts:164` 已有 call_id/invocation_id/parent_invocation_id；本轮 request-failure-call-id 浏览器回归覆盖故障详情 | 这部分已有跨层身份，不是应重新建设的缺口；本轮未证明所有插件业务写入均已完整关联 | Kernel 管调用身份，owner 管 subject/revision/事务结果，Workbench 管可见反馈。保留现有观测/查询；后续按具体未关联写入补证，不把泛化风险登记成已复现缺陷，不建立第二套日志身份 | 保持现有方案 |
 | PF-10 HTTP 中止：Search 入口未透传、composer 已透传 | 调用方取消了，后台继续做；重复请求叠加 | Host 负责 transport→Action signal，SDK/Runtime 负责停止和写入 fence；修 QF-08，不为每插件造 AbortController 框架 | P2/低到中 |
-| PF-11 动作绑定：公共 bindActionHandler 与多插件本地副本 | 纯换参/类型断言重复、元数据接入容易漂移 | 公共合同管绑定，插件保留业务上下文。Feed query/inbox/rule 三处已迁移；其他包按同样的真实消费者验收逐批跟进 | 本轮已做/低 |
+| PF-11 动作绑定：公共 bindActionHandler 与多插件本地副本 | 纯换参/类型断言重复、元数据接入容易漂移 | 公共合同管绑定，插件保留业务上下文。Feed query/inbox/rule 三处已验；另五插件已迁移，9 处 availability 保留，QEA-26 实际消费者待验收 | 本轮已做/低 |
 | PF-12 固定成果与过程项：`plugins/native/dataset/src/promote.ts`、`plugins/native/ppt/src/promote.ts` 已用 owner 事务与 artifacts 联合提交；成果导入走同一服务 | 局部再存一份最终正文或把过程项当成果，会产生两个版本主人 | 业务编辑稿归插件；固定可引用成果归 artifacts，过程项走声明。复用已有联合提交，不统一各插件的编辑状态 | 保持并检查采用/中 |
 | PF-13 批量证据读取：`horizontal/evaluation/src/observation-bridge.ts:71-85` 的fetchObservationEvidenceMap对每条记录调用 `observation.evidence.get@1`；当前消费者为评测执行器 | 新main已修复500条静默截断，完整大样本随后产生N次解封动作；正确性保持，但调用成本随证据数线性增加 | 观测层拥有证据解封、用途及跨项目授权；评测拥有样本选择和unknown判定。归现有[BL-evaluation-read-cost](../backlog/BL-evaluation-read-cost.md)，补观测批量公开动作并迁移实际评测消费者；保留逐项拒绝/不可读原因，不跨读私有表、不让评测复制授权规则 | P3/中 |
 
@@ -166,8 +223,8 @@ PF-03/05/07/13 是采用或职责收口候选，即使目前只有一个实际�
 | [BL-117](../backlog/BL-117.md) | 策略、版本检查与0.3.0候选已有；公开发布资格仍在发布记录 | 与发行检查单保持一个剩余清单入口，不删除 Developer ID/公证/公开发布待办 |
 | [BL-943](../backlog/BL-943.md) | 第06批有70→66、68→64的历史探针；仍未到原预算 | 与 Inbox 性能项关联同一目录 owner 代次方案；合并技术实施，不删原验收约束、不删权限复核。本轮未重测这些绝对数字 |
 | [BL-inbox-update-blocks-host](../backlog/BL-inbox-update-blocks-host.md) | 当前 scene→availability→安装记录链仍存在；旧实测10秒级，不是本轮新测 | 保留高优先，先复测/剖析，再做一次操作内有失效代次的复用与让出事件循环；不通过放宽 UI 超时消账 |
-| [BL-360](../backlog/BL-360.md) | 当前审批投影/按钮与服务端拒绝仍不一致，见 QF-07 | 保留并提前；修可执行决定投影后用重启/撤权 UI 证明，不能只靠服务端拒绝测试关闭 |
-| [BL-search-query-abort](../backlog/BL-search-query-abort.md) | 当前 HTTP 路由仍没有 signal，见 QF-08 | 保留；可单独低成本修，验真实来源收到取消后再删除 |
+| [BL-360](../backlog/BL-360.md) | 撤权/停用的活等待仍有无效按钮；“重启后只能拒绝”已过时，见 QF-07 | 保留并提前；修可执行决定投影后用重启/撤权 UI 证明，不能只靠服务端拒绝测试关闭 |
+| [BL-search-query-abort](../backlog/BL-search-query-abort.md) | 第五批已补 HTTP/个人空间/引用 signal，真实取消与共享索引测试通过，见 QF-08 | 已改正文去除“每次查询把所有来源跑完”的错误前提；待最终 CI 后按原流程关闭 |
 | [BL-home-events-endpoint-unused](../backlog/BL-home-events-endpoint-unused.md) | 全仓生产客户端查询无调用；路由与测试仍在。MCP 使用公开动作，不证明包外 HTTP 没人用 | 代码退役候选：核对既有外部公开约定后，路由、只读放行、专属用例一起删；目前不据零命中直接删公共端点 |
 | [BL-plugin-release-module-source](../backlog/BL-plugin-release-module-source.md) | 已有明确待用户决定，涉及库内保留内容及恢复路径 | 保留决定；“现在通常用不到”不等于授权删库/兼容机制 |
 | [BL-composer-frame-sources](../backlog/BL-composer-frame-sources.md) | 旧阻碍“框架不能直接读”已部分被父页底栏接管替代，但 sources:false 仍在 | 保留真实缺口，技术方案转为父页受控材料交接，见 PF-02 |
@@ -178,7 +235,7 @@ PF-03/05/07/13 是采用或职责收口候选，即使目前只有一个实际�
 | [BL-1064](../backlog/BL-1064.md) | 锁定 Node 已有；本轮也发现默认24.14与要求24.15不符，切换后相关初始化恢复 | 保留 Homebrew 动态库/发行入口的未验证部分；开发环境切对 Node 不能证明所有安装用户问题已解决 |
 | 待本人验收64条/第32批验收缺口 | 工程通过与本人认可分开，且部分真实模型/多事项场景没有确定证据 | 不批量删除、不代签；只合并重复的“验收入口”，保留原编号与负责人 |
 
-BL-1039/1040 可在保留第27批本人验收和墓碑映射后清理工程待办。其余条目没有足够证据整条删除；可立即做的是删除失效子描述、把已完成子项移回证据、合并同一实施路径的剩余工作。新增的 QF-03/04/06/10 本轮未实施，需在下批认领时进入统一 BL，不能把这份报告当成第二套持续更新的任务台账。
+BL-1039/1040 可在保留第27批本人验收和墓碑映射后清理工程待办。其余条目没有足够证据整条删除；可立即做的是删除失效子描述、把已完成子项移回证据、合并同一实施路径的剩余工作。接续任务已实施 QF-04 和 QF-08，定向证据见后；QF-03/06/10 仍在本任务待实施范围。现有 BL 仍是跨任务归属，不能把这份报告当成第二套持续更新的任务台账。
 
 ## 分批优化策略
 
@@ -198,6 +255,20 @@ BL-1039/1040 可在保留第27批本人验收和墓碑映射后清理工程待�
 | 跨项目复制 | placement 预览/确认 → 持久身份计划 → 各 owner prepare/apply | 各 owner 只写自己的事实，最后发布项目 | 稳定 operation 回执；失败保留未完成副本，同一身份接续 |
 
 所有结论都以本基线为准。真实模型、外部账号、线上云同步、用户真实 Home 和本人认可没有在本轮被代替验证。
+
+## 接续批次验证（main 70aaa976b，尚未整体验收）
+
+- 第五批搜索：修复后 HTTP 取消 4/4、服务 37/37、Host 1/1、刷新预算 1/1、引用 4/4、对象引用权限 3/3 通过；独立重跑真实 stdio MCP 授权 12/12 通过。保留前次 7 项超时，原因未确认，不以重复通过删除记录；未调等待上限或放宽断言。Search 健康检查通过，giant 数量不增。
+- 第六批 Home：构建后 7 文件 41 项通过；原 Coding 子进程停止 1/1、插件页拒绝 Home attention 扩权 34/34 通过。QEA-14～16 的来源失败、超时、恢复、实际 Home/项目入口与等待中重画均有覆盖。12 张截图与实看结果见 coverage；资源增量、其他必跑、最终 CI 待完成。
+- 第七批：旧构建三项问题已复现，修复构建通过。最终 QEA-17 同插件双来源 1/1、QEA-18 三种迟到结果 3/3 通过；原 Coding 停止、Home 完整性及相关客户端/工作线/chooser 通过，详见 coverage。错误场景首轮切回失败来自测试拦截器未关闭，修正后通过；没有调整产品断言。尚无最终提交或 CI 证据。
+- 第八批：公开 Adapter 的完成/失败/取消/停止 × 时间保存延迟/失败 8 项在旧构建全部复现错误 running；控制先结束但 SDK 账本未终结的拒绝边界在同一用例成立。已移除显示时间覆盖 phase 的逻辑，完整构建通过；7 文件 58 项通过（运行交错 8、恢复 22、停止 1、预算 6、SDK effects 13、运行观测 4、搜索取消 4）。只读评审未见 Blocker/P1。真实 Node 的时间与启动意图仍共用串行 index.update；本批不声称磁盘挂住时可以绕过持久队列。完整门禁/CI 未完成。
+- 第九批审查选项：旧 HTTP 用例已复现撤权后仍提供批准。Queue 即时投影与 Host、主审查面、浏览器/电脑侧栏三个消费者已迁移，完整构建通过。首轮 13 文件中 9 文件通过；另外新增 HTTP 的状态码预期应为现行 409 而非 403，两个浏览器夹具分别漏一次性操作键/显式 Host，另有一个命令文件名误写，均已修正并在复验。第二轮 6 文件中 5 文件通过：侧栏 2、HTTP 11、checkpoint 4、浏览器目标 4、Coding 时间线 3；Git 实操发现测试误把隐藏独立 Git 页当停用实例，实际 Coding 仍嵌入 Git，故继续可批准正确。已加断言保留该语义，再关闭最后的 Coding 入口检验旧激活失效，待复验。原 Git 正常批准/拒绝 2、review kinds 安全 14、浏览器目标 4、电脑消费 13、审查渲染 19、SDK Git 7、反馈 2、Queue 2、standing 3 项通过；不能算新增正常入口已验收。
+- 第九批正常入口补验：Git 关闭最后依赖后旧操作只能拒绝，再激活仍不能继承旧权，实际拒绝后索引/HEAD 不变，1/1 通过（47.5 秒）。四张中英文 1440/390 图已生成并查看英文390、中文1440；截图当时 diff 还在读取，已补等内容完成与1024/深浅色采样，扩大视觉复验待跑。该结果不覆盖后续新增导入改动。
+- 第十批导入：旧构建 QEA-23 两项均在真实当前回执等待后复现“停止关闭窗口”；转写停止和在线 Cancel/Hide 两项也在旧构建复现。首轮 6 个 HTTP 用例尚未到达提取进程，不计作缺陷复现；补正常项目初始化后，第二轮 6 项均有效失败：四种断连后提取未退出、两种进度超界仍登记实际版本（77.8 秒）。修复构建/验收中。静态只读复核未见 Blocker/P1，指出缺少超界取消分支验证，已补 JSON/raw 两个真实 helper 超界场景；尚未运行，不能以代码评审代替通过。原件缓存与成果版本分开，断言零版本不承诺磁盘零文件。
+- 第十一批公共动作绑定：Dataset、Form、Todo organizer、Cognia、Images 已迁移，删去 5 份换参/断言，保留 9 个 availability 与全部业务/授权规则。既有公开动作及实际 owner 测试标注 QEA-26，尚待构建/验收。必跑及新增验收清单累计 181 个去重文件，未将清单数量当已通过数量。
+- 额外执行 `pnpm typecheck:tests` 未通过，首次有 4,095 条诊断，最新为 4,090 条；忽略行列号比较未增加诊断、消除 5 条。新审查入口及侧栏测试没有直接诊断；另移除旧 HTTP 测试中不存在且未使用的 AgentHost 导入（尚未重跑类型检查）。本轮新测试的三处直接问题（未用导入、未声明 caller 类型、旧 steer 返回形状）已修正。检查到 Coding、Host 日志、插件页及 MCP 授权的列出错误位于未修改行，但尚未完成全量基线归因，不将此命令算通过，也不把诊断条数当作业务 Bug 数。
+
+下列记录属于接续前批次，保留原证据与限制，不能覆盖本次新改动。
 
 ## 验证记录
 

@@ -111,6 +111,7 @@ export type {
   AgentReviewStatus,
   AgentReviewRequest,
   AgentReviewDecisionInput,
+  AgentReviewDecisionOptions,
   AgentReviewReceipt,
   AgentGitIndexObservation,
   AgentReviewRecoveryView,

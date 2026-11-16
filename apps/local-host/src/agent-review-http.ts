@@ -151,6 +151,7 @@ export async function handleAgentReviewHttp(
         || sessionId && review.operation?.session_id === sessionId || workspaceId && review.operation?.workspace_id === workspaceId)
       .map((review) => ({
         request: review,
+        decisionOptions: ports.agentHost.reviews.decisionOptions(review.review_id)!,
         // The receipt carries whether the effect really happened. A pending
         // item has none, and an approved one keeps `effect_settled: false`
         // until the Runtime returns a real result.

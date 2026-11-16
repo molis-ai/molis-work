@@ -1,5 +1,13 @@
 # 合同变更流程
 
+2026-11-16 质量与体验审查第十二批：成果 `ArtifactImportResult` 和 `artifacts.import.file/external@1` 输出增加必填 `text_available`，从该次保存/复用的 document.content 推导，不入库、不新增提取状态。工作台转写按此字段计完成、保留无正文项供重试；原件保存、模型下载授权和取消检查保持。阶段一原位扩充，所有调用方同批采用当前合同，无旧形状兜底；API/动作快照同步。可控 native helper 只证明失败/空正文/超时回复与恢复语义，不作为模型效果验证。
+
+2026-11-16 质量与体验审查第九批：`contracts/services/agent-host` 新增 `AgentReviewDecisionOptions` 与 Queue 的只读 `decisionOptions(reviewId)`；Host `/api/agent/reviews` 每行及工作台 `AgentReviewRow` 必须携带当前可决定动作，原状态/回执不变。来源是现有决定处理器与原安装 authority，不入库、不授予权限；无当前执行处理器的 pending 不能假称可以拒绝，停止/撤权的活操作仅可拒绝。工作台和全部渲染夹具同批迁移，无旧形状兜底。Coding 使用的只读 `agent.run.reviews` 不画决定按钮，其动作输出合同不变；不改变审查消费、恢复或 SDK 派发。
+
+2026-11-16 质量与体验审查第八批：AgentHost 已收到 SDK 账本终态时立即投影该终态，显示时间保存不再临时把 phase 改回 running 或因此拒绝下一轮（实际 Node 持久队列仍串行）；控制意图先结束、账本尚未提交时仍等待原终态事件。公开类型、状态取值、动作、持久形状和版本不变；旧轮次时间只写原 run_id，失败后的重启时间仍未知。消费者为 AgentHost 下一轮准入、Coding/助理运行视图；保存和关停回归见 QEA-19/20。
+
+2026-11-16 质量与体验审查第六批：`contracts/services/mainline` 增加 `HomeBackgroundTaskRow`、`HomeBackgroundTasksReadResult`；Home 的 `homeBackgroundTasks` 与 `/api/attention.background_tasks` 从数组改为 `{ tasks, issues }`，整部分失败或页面不适用仍为 `null`。调用方为工作台 Home 后台列表、助理组件板和仓内 HTTP/浏览器消费者；同批迁移，不读旧数组。阶段一原地改，无持久结构或动作 schema 变化，公开 API 快照同步；项目 Mainline 的既有结果不变。Home 选择器的同一 attention 请求和变更流带 `view=home`：保留选中项目的助理上下文，提供跨项目后台列表，不再读取 Home 不展示的项目事项线。普通项目和插件页面的范围不扩大。
+
 2026-11-14 第 12 批合后审计：`UiPageWorkspaces.readInstructions()` 的返回从 `Promise<void>` 改为 `Promise<UiPageInstructionSettings>`（`off`/`trusted`/`why_not`，与 `ProjectDirectories.instructions` 同形），工作台框桥把回执交给页面，Coding 直接更新规则菜单而不再整页重读；`contracts/platform/ui` 的 API 快照随改。阶段一原地改，不保留旧返回值读取；调用方只有本仓库的工作台框桥与 Coding。
 
 2026-11-05索引Home增量：Memory ledger现行索引采用格式为2，DDL/业务行不变，仅授权隔离的真正空容器建2；Home恢复journal现行schema为1（#1837 统一起点；用户 2026-11-12 定保持 1），形状和原phase不变，但旧App不得按旧路径权限回滚新索引材料。普通打开拒绝旧/未来版本、不兜底；旧Home的记忆账本只经下方「当前保留机制」登记的 1 → 2 升级段进入第 2 版。生产/冷维护显式 `indexed-v1`，snapshot新增SDK共享DB及精确侧车拒入/目标reset；MemoryRestoreSdkPort签名不变，purge材料语义为SDK已确认的现存权威文件，不能假设一条独占一文件或删除共享DB。公开API没有因此新增类型；原API快照由统筹核对。新容器不得交旧App或改版本回退，回退使用原隔离树和原Home。

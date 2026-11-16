@@ -134,6 +134,8 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 ## 开发要求
 
+成果导入 JSON 与原件上传的 HTTP 调用通过既有 BoundActionClient control 绑定响应断连信号；流式进度超界也取消本次动作，实际读取/登记前复核仍在原 owner。当前文件已提交后不承诺因断连回滚，也不自动重发；原件内容缓存和成果版本分开，取消未登记版本不代表未暂存原件。定向回归：`tests/artifact-import-cancellation.test.ts`（QEA-24 的原生提取替身仅 macOS；真实传输、动作与版本写入）。
+
 Knowledge 状态薄桥在本次目录中固定同 provider/plugin/project/当前 install 的 source、reader 和 state Action，沿原调用生命周期控制执行；不能按 kind 换主人。缺口只会收紧为 unknown，不凭卡或 token 给权限。Assistant 的开场目录沿现 personContext 与项目 ActionClient 异步核本次有界资料，旧 offered views 只用于筛目录，不替代当前授权。当前卡/索引没有历史安装代字段，因此不宣称跨重启重装身份隔离已完成。
 
 Memory 自动学习共享原 `memory.learn` kind 和 runner。Coding 任务只保存 canonical refs、当前安装身份及持久 installation_generation；queued 重启经正常项目装配重新进入当前安装的自有 Action，running 重启仍由 SDK 标为需对账，不重放。当前 owner 在尚未返回的嵌套形成内同步核完整来源并集，原 Run 冻结配方与当前 Memory 策略求交；缺少持久队列、来源证明或当前 owner 时明确拒绝。

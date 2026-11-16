@@ -167,12 +167,17 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
   const renderApproval=(row)=>{
     if(!row){approval.hidden=true;approval.innerHTML='';reviewing=null;reviewMode=null;return;}
     const held=state?.control?.mode==='taken-over'||state?.control?.mode==='paused';
-    if(reviewing===row.request.review_id&&reviewMode===held)return;
-    reviewing=row.request.review_id;reviewMode=held;
+    const choices=row.decisionOptions,mode=JSON.stringify([held,choices]);
+    if(reviewing===row.request.review_id&&reviewMode===mode)return;
+    reviewing=row.request.review_id;reviewMode=mode;
     const doc=row.request.document||{},fields=doc.fields||[],roundAllow=doc.round_allow;
-    approval.innerHTML='<h2>'+esc(globalThis.t.text("workbench.side-panel-computer.assistant-asks-confirm"))+'</h2><p>'+esc(doc.summary||'')+'</p><dl>'+fields.map(f=>'<dt>'+esc(f.label)+'</dt><dd>'+esc(f.value)+'</dd>').join('')+'</dl>'+(held
-      ?'<p>'+esc(globalThis.t.text("workbench.side-panel-computer.while-have-paused-taken-over-step-will-not"))+'</p><div class="side-computer-approval-row">'+btn('reject',globalThis.t.text("workbench.side-panel-computer.dont-allow"),'ghost')+'</div>'
-      :'<div class="side-computer-approval-row">'+btn('approve',globalThis.t.text("workbench.side-panel-computer.allow-once"),'primary')+btn('reject',globalThis.t.text("workbench.side-panel-computer.dont-allow"),'')+'</div>'+(roundAllow?'<div class="side-computer-approval-row">'+btn('approve-round',globalThis.t.text("workbench.side-panel-computer.allow-acting-app-turn",{app:roundAllow.label}),'ghost')+'</div>':''));
+    const canApprove=!held&&choices.decisions.includes('approve'),canReject=choices.decisions.includes('reject');
+    const note=choices.blocked_reason?'<p>'+esc(choices.blocked_reason==='authority-unavailable'
+      ?globalThis.t.text("workbench.agent-review.authority-unavailable"):globalThis.t.text("workbench.agent-review.execution-unavailable"))+'</p>':'';
+    approval.innerHTML='<h2>' +esc(globalThis.t.text("workbench.side-panel-computer.assistant-asks-confirm"))+'</h2><p>'+esc(doc.summary||'')+'</p><dl>'+fields.map(f=>'<dt>'+esc(f.label)+'</dt><dd>'+esc(f.value)+'</dd>').join('')+ '</dl>'+note+(held?'<p>'+esc(globalThis.t.text("workbench.side-panel-computer.while-have-paused-taken-over-step-will-not"))+'</p>':'')
+      +'<div class="side-computer-approval-row">'+(canApprove?btn('approve',globalThis.t.text("workbench.side-panel-computer.allow-once"),'primary'):'')
+      +(canReject?btn('reject',globalThis.t.text("workbench.side-panel-computer.dont-allow"),'ghost'):'')+'</div>'
+      +(canApprove&&roundAllow?'<div class="side-computer-approval-row">'+btn('approve-round',globalThis.t.text("workbench.side-panel-computer.allow-acting-app-turn",{app:roundAllow.label}),'ghost')+'</div>':'');
     approval.hidden=false;
     if(!visible())document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'computer'}}));
   };

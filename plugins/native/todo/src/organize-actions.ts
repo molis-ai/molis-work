@@ -1,5 +1,5 @@
 import { createActionDefinition, nullableSchema as nullable, objectSchema as object, arraySchema } from "@molis-ai/molis-work-plugin-sdk";
-import { ActionError, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler as bind, ActionError, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { TODO_PROJECT_PLUGIN_ID, type TodoBatch } from "./contract.js";
 import { localDate } from "./dates.js";
@@ -98,8 +98,6 @@ export function batchText(batch: TodoBatch): string {
 }
 
 export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHandlerBinding[] {
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({
-    capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const reading = <T>(run: (value: TodoOrganizer) => T) => ports.read(store => run(new TodoOrganizer(store)));
   const writing = <T>(caller: ActionExecutionContext, run: (value: TodoOrganizer) => T) => ports.write(caller, store => run(new TodoOrganizer(store)));
   return [
@@ -140,7 +138,7 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
       }
       return writing(caller, value => value.create({ title: input.title ?? "", origin: input.origin === "onboarding" ? "onboarding" : caller.audience === "agent" ? "assistant" : "manual", method: method.prompt_id,
         materials: input.materials, candidates: drafts, reference_only: reference, unverified, request_id: input.request_id }, access));
-    }, () => ports.modelAvailability()),
+    }, { availability: () => ports.modelAvailability() }),
     bind(todoOrganizeActions.list, (input, caller) => reading(value => ({ batches: value.list(ports.access(caller, "listed"), input.status ?? "open") }))),
     bind(todoOrganizeActions.get, (input, caller) => reading(value => ({ batch: value.get(input.id, ports.access(caller, "listed")) }))),
     bind(todoOrganizeActions.apply, (input, caller) => writing(caller, value => {

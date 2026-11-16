@@ -25,6 +25,8 @@ ArtifactsModule（成果库）与 ProcessItemsModule（过程项）通过 query/
 
 ## 接入与边界
 
+导入回执的 `text_available` 只由本次固定版本的正文推导。原件保存成功可以没有正文；转写消费者必须据此判断是否完成，不能用缺少 `model_required` 推断提取成功。模型下载需求只属于本次调用，不落入成果版本。失败后重试仍走同一导入、同正文版本复用（QEA-27/28）。
+
 平台不解释 Plugin 自定义 payload，也不凭旧字符串虚构 Artifact。个人范围是默认路径，Team 共享需要授权；缺少兼容消费者时仍可作为 opaque 数据读取。
 
 个人同步按身份打包全部固定 inline 版本。`createArtifactReplication` 与 `createProcessItemReplication` 复用同一个私有版本引擎，分别读写成果库和过程项的原 owner 表；过程项不因同步进入成果库。`validateArtifactReplication` / `validateProcessItemReplication` 为可信 Host 在创建目标项目之前校验完整内容，校验本身不写库。两集合各自选择、各有日志和游标，不使用生产者名单猜测覆盖。

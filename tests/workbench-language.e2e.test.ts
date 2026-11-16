@@ -909,7 +909,7 @@ test("FSS-35 FSS-36 an opened Git review retitles the retained view without anot
   const view: AgentReviewRecoveryView = { review_id: request.review_id, message: { owner: "workbench", key: "workbench.agent-review.recovery-matches-before" },
     receipt: { review_id: request.review_id, status: "approved", decided_by: "tester", decided_at: date, note: null, effect_settled: false, effect_error: null, effect_uncertain: raw },
     observation: { revision: "exact", observed_at: date, files: [{ path: "原路径", text: original, mode: "100644" }], matches_before: true, matches_after: false }, can_confirm_not_happened: true };
-  const rows = [{ request, receipt: view.receipt }];
+  const rows = [{ request, receipt: view.receipt, decisionOptions: { decisions: [] as const, blocked_reason: null } }];
   const payload = (locale: string) => runWithLocale(locale, () => ({ reviews: rows,
     html: renderAgentReviewSurface({ rows, primitives: { escape: escapeHtml, icon, formatDate: at => format.date(at, "datetime") } }),
     recovery: renderAgentReviewRecovery(view, escapeHtml), omitted: 0 }));

@@ -26,6 +26,7 @@ const p: AgentReviewPrimitives = {
 
 function row(overrides: Partial<AgentReviewRow> = {}): AgentReviewRow {
   return {
+    decisionOptions: { decisions: ["approve", "reject"], blocked_reason: null },
     request: {
       review_id: "r1",
       run: { run_id: "run-1", session_id: "s-1" },
@@ -296,4 +297,19 @@ test("RING-07 review rings distinguish approval, pending effect, success, failur
     assert.match(html, /data-ring-segments/);
     assert.doesNotMatch(html, /data-icon="(?:clock|circle-alert|check|x|alert)"/);
   }
+});
+
+
+test("QEA-21 decision choices come from the review owner, including rejection-only and disconnected proposals", () => {
+  const limited = row({ decisionOptions: { decisions: ["reject"], blocked_reason: "authority-unavailable" } });
+  const html = renderAgentReviewSurface({ rows: [limited], primitives: p });
+  assert.equal(isDecidable(limited), true);
+  assert.match(html, /data-agent-review-reject/);
+  assert.doesNotMatch(html, /data-agent-review-approve|data-agent-review-remember/);
+  assert.match(html, /只能拒绝/);
+  const offline = row({ decisionOptions: { decisions: [], blocked_reason: "execution-unavailable" } });
+  assert.equal(isDecidable(offline), false);
+  const unavailable = renderAgentReviewSurface({ rows: [offline], primitives: p });
+  assert.doesNotMatch(unavailable, /data-agent-review-(approve|reject|feedback|remember)/);
+  assert.match(unavailable, /执行方尚未接通/);
 });

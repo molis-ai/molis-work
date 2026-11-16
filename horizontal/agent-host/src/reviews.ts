@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import type {
 
   AgentReviewDecisionInput,
+  AgentReviewDecisionOptions,
   AgentReviewQueueApi,
   AgentReviewReceipt,
   AgentReviewRequest,
@@ -276,6 +277,18 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
       ...(automatic ? { standing_rule: { ...automatic } } : {}),
     };
     return structuredClone(row.receipt);
+  }
+
+  /** A view of existing owner facts, not authority to decide: respond/decide and the effect still recheck. */
+  decisionOptions(reviewId: string): AgentReviewDecisionOptions | null {
+    const row = this.#rows.get(reviewId);
+    if (!row) return null;
+    if (this.#status(row) !== "pending") return { decisions: [], blocked_reason: null };
+    if (!this.#deciders.has(reviewId)) return { decisions: [], blocked_reason: "execution-unavailable" };
+    if (pluginOperation(row.request) && !this.#authorities.get(reviewId)?.holds()) {
+      return { decisions: ["reject"], blocked_reason: "authority-unavailable" };
+    }
+    return { decisions: ["approve", "reject"], blocked_reason: null };
   }
 
   receipt(reviewId: string): AgentReviewReceipt | null {

@@ -1,3 +1,4 @@
+// QEA-26: Images public actions, cancellation/revocation and stored jobs after migration to the shared binder.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";

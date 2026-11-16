@@ -74,6 +74,8 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 ## 开发要求
 
+资料导入的选择队列归工作台：进行中“停止后续”等待当前文件真实回执，再停止启动其余文件；成功项不重发，未开始和失败项保留。标题栏/Escape 只收起，空闲页脚取消才清空选择；在线单项进行中写“收起”。转写等待单独保留待处理文件，不长期保存 DOM 行引用，继续时重画对应结果。两种执行入口用同一批次生命周期控制，资料版本及内容复用仍由 artifacts owner 维护（QEA-23～25）。
+
 插件设置中，双实例的项目可选权限只读定位到个人空间，Home disabled/crashed 仍按安装、插件、发布者签名与信任配对；可信内部安装 ID 标识避免 Home 缺失时回落项目开关。required/requested/granted 仍表示各安装自己的声明与记录。回归：`tests/plugin-permission-switch.e2e.test.ts`（RAC-2910）。
 
 目录 SSR 与目录 section 共用实际 `data-directory-panel` 身份；owner 提供的另一目录别名不代表 owner 自己有目录。已存目录宽度从同项目/collection 的 session UI 键在首绘前应用到本页 workspace，和 resizer 共用 `directory-width.ts` 的边界；嵌入 pane 跳过，缺少偏好仍由响应式 CSS 决定。回归见 `tests/declared-stages.test.ts` 与原完整 `tests/load-geometry.e2e.test.ts`。
@@ -96,7 +98,8 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
   - 侧栏脚本（`side-panel*.ts`）发出时去掉整行注释：说明留在源码里，不进页面资源。
   - 跨请求的页面操作固定点击时的对象：浏览器文件选择绑定 chooser 与网页，网站决定绑定原审查和显示的网站；文件预览绑定 source/kind/id 与本次打开。迟到结果不改后来打开的对象，设置与引用预览的失败也遵守同一约束。判断规则样例与草稿删除更新原记录，保留另一规则或同一规则的新编辑。标签恢复只收当前保存格式，保留当前组、分屏与设置页撤下规则。回归见 `tests/workbench-browser-targets.e2e.test.ts`、`tests/workbench-async-targets.e2e.test.ts`、`tests/workbench-functions-late.e2e.test.ts`、`tests/workbench-current-tabs.e2e.test.ts`。
   - Goal Frame 跨窗口同步只改变相机、块与展开状态没变时，保留正在交互的块和已加载正文，不重复读取 owner；删除或换引用、版本时仍更新并使旧手势失效。真实跨窗口 storage、可信点击、正文加载与持久化回归见 `tests/workbench-frame-container.e2e.test.ts`（FCS-01～04）。
-  - 插件市场从 Host 重读项目成员；既有 `molis-work:plugins-changed` 使这份投影失效，过期读取不覆盖新事实。后台命令停止失败通过共同 UiRequest 显示拒绝、结果未知与可复制的诊断编号，不自动重试；真实命令状态及 Coding 的持久投影仍归它们的 owner。回归见 `tests/workbench-async-targets.e2e.test.ts`、`tests/workbench-stop-feedback.e2e.test.ts`；后者用公开 Runtime 端口控制隔离子进程，不调用模型。
+  - 插件市场从 Host 重读项目成员；既有 `molis-work:plugins-changed` 使这份投影失效，过期读取不覆盖新事实。后台命令停止失败通过共同 UiRequest 显示拒绝、结果未知与可复制的诊断编号，不自动重试；真实命令状态及 Coding 的持久投影仍归它们的 owner。列表、任务卡和事件卡共享本页的进行中尝试，重绘不再次提交；成功后的新读取接回 owner 当前命令，不能仅比较命令数量缓存旧参数。回归见 `tests/workbench-async-targets.e2e.test.ts`、`tests/workbench-stop-feedback.e2e.test.ts`、`tests/work-task-command.e2e.test.ts`；停止反馈用公开 Runtime 端口控制隔离子进程，不调用模型。
+  - chooser 和插件切换后的 attention 回答只交给原地址与 surface；切换释放旧读取，迟到成功、404 和连接失败不更新新上下文或关闭新订阅。Home 的完整性重试沿同一读取，不另加轮询。回归：`tests/attention-context.e2e.test.ts`、`tests/home-background-completeness.e2e.test.ts`。
   - 导航与区域从 Manifest 派生（`BUILTIN_PLUGIN_CATALOG`），不按插件名写分支。
   - 公开入口 `src/index.ts` 不转出任何 `@molis-ai/molis-work-plugin-*` 包的名字（含经 `browser-assets` 转出的），没有 `export *`（含 `export type *`、`export * as`）：新增的 helper 不会自动变成公开面，宿主与测试要插件的名字就从该插件的公开入口取。没有文本使用者、只因宿主的声明文件生成必须点名而留在入口的类型只有 `ChooserArrival`、`ProjectSettingsFoldId`、`SideViewDocumentInput` 三个（`tests/workbench-entry-exports.test.ts` 的 RAC-1115 钉住，多一个就要在那里写理由）。平台成果的绘制（`artifactWorkbench`）与工作台自己的目录是工作台的东西，不算转出。
   - 终端用 xterm 的命名空间导入并兼容 default 导出，两种打包形态都能加载；终端的请求走共同 UiRequest，不直接 `fetch`。改 `src/terminal/` 加跑 `node scripts/run-tests.mjs tests/work-terminal-client.test.ts tests/desktop-tui.test.ts`。
@@ -178,3 +181,5 @@ WORK-07 的订阅、席位与平台变更专项联调：构建后以 `MOLIS_AUTH
 ### 内容选择器的 owner 分页
 
 冷启动内容选择器仍只投影 owner 的惰性 HTML 元数据。需要跨页完整枚举的 owner，在已授权页面上声明 `data-frame-assets-input`（字符串输入对象的 JSON）；每页在 `data-frame-assets-next-input` 声明下一页输入，末页省略。输入只经既有 Manifest 舞台参数合同，平台不识别具体插件或过滤值。每页读取前后校验同一个 producer/page 授权，重复输入拒绝；一位 owner 的任一页失败就不交付该 owner 的部分候选。对象解析可在找到精确引用后停止；拖拽仍必须先通过原句柄的投影范围检查，不以新页面放大旧句柄权限。FBR-05 的跨200条/归档候选、伪造与撤回拒绝由 `tests/workbench-frame-container.e2e.test.ts` 覆盖。
+
+审查按钮取自 AgentReviewQueue 的 `decisionOptions`，pending 本身不表示仍可批准或拒绝。原安装授权失效仅给拒绝，无执行处理器则说明暂不能提交；已批准但结果未知保持原核对路径。必跑：`tests/agent-review-surface.test.ts`、`tests/agent-review-http.test.ts`、`tests/agent-review-availability.e2e.test.ts`、`tests/plugin-page-reviews.e2e.test.ts`。

@@ -105,7 +105,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
     modelRequired = read?.model_required;
     return read;
   });
-  const told = () => modelRequired ? { model_required: modelRequired } : {};
+  const told = () => ({ text_available: document.content.trim().length > 0, ...modelRequired ? { model_required: modelRequired } : {} });
   ports.signal?.throwIfAborted();
   if (source === "file") document = await readFileDocument(input, { readHtml: ports.readHtml, ...readFileText ? { readFileText } : {}, ...ports.offered ? { offered: ports.offered } : {} });
   else if (EXTERNAL_DOCUMENT_SOURCES.includes(source as ExternalDocumentSource)) {

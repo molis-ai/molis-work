@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 
-import { AgentHost, MolisWorkLocalHost, handleAgentReviewHttp, installHostUiText, resolveWebLocale, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, handleAgentReviewHttp, installHostUiText, resolveWebLocale, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import type { AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /** 宿主的审查队列走 HTTP：只有宿主能决定，而且批准不等于已发生。 */
@@ -244,5 +244,50 @@ test('Git recovery enforces project ownership, explicit confirmation and Host-ow
     assert.match(english.html, /Complete tail<\/p>/u);
     const result = await post({ review_id: 'mine', action: 'not-happened', confirmed: true, actor_id: 'forged', reason: 'actual evidence', revision: 'host-version', observation: { matches_before: true }, document: { kind: 'git-index' } });
     assert.equal(result.status, 200); assert.equal(resolves, 1); assert.equal(reads, 3);
+  } finally { item.server.close(); }
+});
+
+// QEA-21: the queue owns actionable decisions; neither the HTTP projection nor a page guesses from pending alone.
+test("QEA-21 a revoked live review only offers rejection, while a disconnected pending offers no decision", async () => {
+  const item = await fixture();
+  try {
+    let held = true, effects = 0;
+    const request: AgentReviewRequest = { ...pending("held-operation"), run: null, kind: "tool-operation",
+      operation: { kind: "git-operation", operation_id: "operation-held-123", workspace_id: "main" },
+      document: { kind: "tool-operation", tool: "git-commit", summary: "Commit reviewed files", fields: [] } };
+    item.agentHost.reviews.request(request, { plugin_id: request.plugin_id, install_id: "original", holds: () => held });
+    item.agentHost.reviews.registerDecisionHandler(request.review_id, async input => {
+      const receipt = item.agentHost.reviews.decide(input);
+      if (input.decision === "approve") { item.agentHost.reviews.consumeApproval(input.review_id); effects++; }
+      return receipt;
+    });
+    type Listed = { html: string; reviews: Array<{ decisionOptions: { decisions: string[]; blocked_reason: string | null } }> };
+    const read = async (): Promise<Listed> => (await fetch(`${item.base}/api/agent/reviews?workspace_id=main`)).json() as Promise<Listed>;
+    const decide = (decision: "approve" | "reject") => fetch(`${item.base}/api/agent/reviews/decide`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ review_id: request.review_id, decision }),
+    });
+    assert.match((await read()).html, /data-agent-review-approve/);
+    held = false;
+    const revoked = await read();
+    assert.doesNotMatch(revoked.html, /data-agent-review-approve/, "do not offer an approval that the owner refuses");
+    assert.match(revoked.html, /data-agent-review-reject/);
+    assert.deepEqual(revoked.reviews[0]?.decisionOptions, { decisions: ["reject"], blocked_reason: "authority-unavailable" });
+    assert.equal(item.agentHost.reviews.receipt(request.review_id)?.status, "pending", "reading records no decision");
+    const denied = await decide("approve");
+    assert.equal(denied.status, 409, "the existing HTTP decision boundary reports a conflict");
+    assert.equal((await denied.json() as { code: string }).code, "agent.review_not_permitted", "the owner rejects forged or stale approval");
+    assert.equal(item.agentHost.reviews.receipt(request.review_id)?.status, "pending");
+    assert.equal((await decide("reject")).status, 200);
+    assert.equal(item.agentHost.reviews.receipt(request.review_id)?.status, "rejected");
+    assert.deepEqual((await read()).reviews[0]?.decisionOptions, { decisions: [], blocked_reason: null });
+    assert.equal(effects, 0);
+
+    item.agentHost.reviews.restoreDecision({ ...request, review_id: "no-execution", operation: { ...request.operation!, operation_id: "no-execution-123" } }, null);
+    const disconnected = await read();
+    assert.doesNotMatch(disconnected.html, /data-agent-review-(approve|reject)=/);
+    assert.deepEqual(disconnected.reviews[1]?.decisionOptions, { decisions: [], blocked_reason: "execution-unavailable" });
+    await assert.rejects(item.agentHost.reviews.respond({ review_id: "no-execution", decision: "reject", actor_id: "user" }), { code: "agent.capability_unavailable" });
+    assert.equal(item.agentHost.reviews.receipt("no-execution")?.status, "pending");
+    assert.equal(effects, 0);
   } finally { item.server.close(); }
 });

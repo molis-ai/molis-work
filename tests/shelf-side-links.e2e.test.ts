@@ -104,8 +104,10 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   await click(open);
   await landed("the Assistant notice");
   assert.deepEqual(await evaluate(mainArea), before, "the main area is as it was: same surface, same tabs, nothing of Shelf in it");
-  // Opened, the notice is settled by the product itself: it leaves both the API and list, while the line's count stays.
+  // Opened, the notice is settled by the product itself: it leaves the API and, when reopened, the list. Hidden lists do
+  // not repaint; reopen as a person would, then check that the line's count stays independent of this notice.
   await waitFor(`fetch(document.body.dataset.routePrefix + '/api/assistant/notices', { headers: molisWorkControlHeaders(), cache: 'no-store' }).then((r) => r.json()).then((body) => !body.notices.some((one) => one.notice_id === ${JSON.stringify(seeded.notice_id)}))`, 10_000);
+  await click(bell);
   await waitFor(`!document.querySelector('[data-assistant-notices] [data-notice-id=${JSON.stringify(seeded.notice_id)}]')`, 10_000);
   assert.equal(await evaluate(waiting), waitingBefore, "settling a notice outside the line leaves its waiting count unchanged");
 });

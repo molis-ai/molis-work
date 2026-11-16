@@ -1,16 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { actionReachesAudience } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SKILL_AUTHORED_PLUGIN_IDS, skillAuthoringActions } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_AUTHORED_PLUGIN_IDS, skillAuthoringActions, skillDraftActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { SkillAuthoringService, type SkillAuthoringPorts } from "@molis-ai/molis-work-app-local-host";
 
-// S-skill-authoring: the four authored actions are the person's alone and are not MCP/Agent/plugin/workflow tools; a package of the
-// same id from another publisher is not the person's even when this Home once signed the same version.
+// S-skill-authoring: adopting a draft and the other authoring actions are the person's alone and are not MCP/Agent/plugin/workflow
+// tools; the Assistant may only start a draft, replay it and take its own draft back. A package of the same id from another
+// publisher is not the person's even when this Home once signed the same version.
 
-test("S-skill-authoring the four authored actions are user-only and reach no MCP, Agent, workflow or plugin caller", () => {
-  for (const action of Object.values(skillAuthoringActions)) {
+const ASSISTANT_DRAFTING = new Set([skillDraftActions.create, skillDraftActions.discard, skillDraftActions.runTrial]);
+
+test("S-skill-authoring adopting and the authored actions are user-only and reach no MCP, Agent, workflow or plugin caller", () => {
+  for (const action of [...Object.values(skillAuthoringActions), ...Object.values(skillDraftActions).filter(action => !ASSISTANT_DRAFTING.has(action))]) {
     assert.deepEqual(action.action.audiences, ["user"], action.capability_id);
     for (const audience of ["mcp", "agent", "workflow", "plugin"] as const)
+      assert.equal(actionReachesAudience(action.action, action.capability_id, audience), false, `${action.capability_id} must not reach ${audience}`);
+  }
+  assert.ok(Object.values(skillDraftActions).includes(skillDraftActions.adopt));
+  for (const action of ASSISTANT_DRAFTING) {
+    assert.deepEqual([...action.action.audiences].sort(), ["agent", "user"], action.capability_id);
+    for (const audience of ["mcp", "workflow", "plugin"] as const)
       assert.equal(actionReachesAudience(action.action, action.capability_id, audience), false, `${action.capability_id} must not reach ${audience}`);
   }
 });

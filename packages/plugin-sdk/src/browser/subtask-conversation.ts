@@ -4,20 +4,21 @@ import type { MwSubtaskConversationView } from "../ui/subtask-conversation.js";
 import { subtaskActions } from "./subtask-actions.js";
 import { subtaskComposer } from "./subtask-composer.js";
 import type { SubtaskConversationHandle, SubtaskConversationOptions, SubtaskConversationRead } from "./subtask-contract.js";
-import { subtaskDom } from "./subtask-dom.js";
+import { patch, subtaskDom } from "./subtask-dom.js";
 import { subtaskReader } from "./subtask-read.js";
 
 /** Mount the shared conversation inside the caller's existing task float. No main-input or shell DOM is consulted. */
 export function createSubtaskConversation(root: HTMLElement, options: SubtaskConversationOptions): SubtaskConversationHandle {
   const dom = subtaskDom(root, () => options.labels);
   let target: string | undefined, view: MwSubtaskConversationView | undefined, readFailed = false, dead = false;
+  let backFocus: { parent: string; child: string; from: HTMLElement } | undefined;
   const changed = (key: string) => { if (target === key && !dead) { paint(); void reader.refresh(); } };
   const composer = subtaskComposer(dom.composer, options.source, changed);
   const actions = subtaskActions(options.source, changed, composer.reload);
   const reader = subtaskReader(options.source, accept, () => { readFailed = true; paint(); });
   function feedback(message: string, control?: "retry" | "check", label?: string) {
     const html = escapeHtml(message) + (control ? ` ${renderButton({ label: label ?? options.labels[control], variant: "link", attrs: { [`data-subtask-${control}`]: true } })}` : "");
-    if (dom.find("feedback").innerHTML !== html) dom.find("feedback").innerHTML = html;
+    patch(dom.find("feedback"), html);
   }
   function paint() {
     if (!target) return;
@@ -46,21 +47,36 @@ export function createSubtaskConversation(root: HTMLElement, options: SubtaskCon
   function close() { reader.stop(); composer.close(); dom.hide(); target = undefined; }
   async function open(next: string) {
     if (dead) return;
+    const returning = backFocus?.parent === next ? backFocus : undefined;
     reader.stop(); composer.close();
     if (view?.target !== next) view = undefined;
     target = next; readFailed = false; dom.show(next); dom.composer.hidden = !view;
-    if (!view) dom.idle(); paint(); await reader.open(next);
+    if (!view) dom.idle(); paint();
+    const opening = reader.open(next), life = reader.signal(); await opening;
+    const active = root.ownerDocument.activeElement;
+    if (returning && life === reader.signal() && !root.hidden && (active === returning.from || active === root.ownerDocument.body)) {
+      const entry = Array.from(dom.find("children").querySelectorAll<HTMLElement>("button")).find(button => button.dataset.subtaskOpen === returning.child);
+      (entry ?? dom.find("head").querySelector<HTMLElement>("button"))?.focus();
+    }
   }
   async function clicked(event: MouseEvent) {
     const button = (event.target as Element).closest<HTMLButtonElement>("button");
     if (!button || !root.contains(button) || button.disabled || button.closest(".mw-subtask__words, .mw-subtask__detail-body")) return;
-    if (button.hasAttribute("data-subtask-back")) { const parent = view?.parent; close(); options.onBack(parent); }
+    const startedHere = root.ownerDocument.activeElement === button;
+    const enter = () => {
+      if (startedHere && !root.hidden && root.ownerDocument.activeElement === root.ownerDocument.body) dom.find("head").querySelector<HTMLElement>("button")?.focus();
+    };
+    if (button.hasAttribute("data-subtask-back")) {
+      const parent = view?.parent, child = target; close();
+      if (startedHere && parent && child) backFocus = { parent: parent.target, child, from: button };
+      try { options.onBack(parent); } finally { backFocus = undefined; }
+    }
     else if (button.hasAttribute("data-subtask-close")) { close(); options.onClose(); }
     else if (button.hasAttribute("data-subtask-follow")) dom.latest();
     else if (button.hasAttribute("data-subtask-retry")) await reader.refresh();
     else if (view) {
       const child = view.children?.find(item => item.target === button.dataset.subtaskOpen);
-      if (child && button.closest("[data-subtask-children]")) { await open(child.target); return; }
+      if (child && button.closest("[data-subtask-children]")) { await open(child.target); if (target === child.target) enter(); return; }
       const action = button.hasAttribute("data-subtask-check") ? undefined
         : [...(view.actions ?? []), ...(view.details ?? []).flatMap(detail => detail.actions ?? [])].find(item => item.id === button.dataset.subtaskAction && item.ref === button.dataset.subtaskActionRef);
       if (!action && !button.hasAttribute("data-subtask-check")) return;

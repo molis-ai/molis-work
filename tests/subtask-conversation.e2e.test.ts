@@ -39,10 +39,28 @@ test("B58-01..05: public child conversation, two owners, original receipts and r
     await evaluate(`probe.textNode = ${root}.querySelector('.mw-subtask__words').firstChild; probe.fill('a unsent'); ${field}.focus(); ${field}.setSelectionRange(2,4);`);
     await evaluate("probe.owner.record('a').messages = [...probe.owner.record('a').messages,{id:'later',role:'assistant',content:{text:'new later words'}}]; probe.handle.refresh()");
     assert.deepEqual(await evaluate(`[probe.textNode === ${root}.querySelector('.mw-subtask__words').firstChild,document.activeElement === ${field},${field}.selectionStart,${field}.selectionEnd]`), [true, true, 2, 4]);
-    await evaluate(`${root}.querySelector('[data-subtask-open="nested"]').click()`);
+    for (const name of ["back", "close"]) {
+      await evaluate(`probe.focused = ${control(name)}; probe.focused.focus(); probe.handle.refresh()`);
+      assert.deepEqual(await evaluate(`[probe.focused === ${control(name)}, document.activeElement === probe.focused]`), [true, true], "a background refresh preserves the actual focused control");
+    }
+    const enter = async () => {
+      await b.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" }, b.sessionId);
+      await b.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, b.sessionId);
+    };
+    await evaluate(`${root}.querySelector('[data-subtask-open="nested"]').focus()`);
+    await enter();
     await wait(`${control("head")}.textContent.includes('nested')`);
-    await evaluate(`${control("back")}.click()`);
+    assert.equal(await evaluate(`document.activeElement === ${control("back")}`), true, "keyboard child navigation enters the new conversation");
+    await enter();
+    await wait(`${control("head")}.querySelector('strong').textContent === 'a'`);
+    assert.equal(await evaluate(`document.activeElement === ${root}.querySelector('[data-subtask-open="nested"]')`), true, "keyboard return restores its original child entry after the parent read");
     assert.deepEqual(await evaluate("probe.backs"), ["a"]);
+    await evaluate(`probe.navigation = probe.owner.blockRead(); ${root}.querySelector('[data-subtask-open="nested"]').focus()`);
+    await enter();
+    await evaluate("probe.outside=document.createElement('button'); probe.outside.textContent='Outside'; document.body.append(probe.outside); probe.outside.focus(); probe.navigation.resolve({state:'available',view:probe.owner.view('nested')})");
+    await wait(`${control("head")}.textContent.includes('nested')`);
+    assert.equal(await evaluate("document.activeElement === probe.outside"), true, "a late navigation read cannot steal focus back");
+    await evaluate("probe.outside.remove()");
     await evaluate("probe.handle.open('b')");
     await wait(`${field}.value === 'b draft'`);
     await evaluate("probe.fill('b unsent'); probe.handle.open('a')");
@@ -50,6 +68,8 @@ test("B58-01..05: public child conversation, two owners, original receipts and r
     await evaluate("probe.owner.failRead(); probe.handle.refresh()");
     assert.equal(await evaluate(`${control("messages")}.children.length`), 3);
     assert.match(await evaluate<string>(`${control("feedback")}.textContent`), /Cannot read/);
+    await evaluate(`probe.retry = ${control("retry")}; probe.retry.focus(); probe.owner.failRead(); probe.handle.refresh()`);
+    assert.deepEqual(await evaluate(`[probe.retry === ${control("retry")}, document.activeElement === probe.retry]`), [true, true], "unchanged retry feedback preserves its keyboard control");
     await evaluate(`${control("retry")}.click()`);
     await wait(`!${control("feedback")}.textContent`);
     await evaluate("probe.owner.record('a').allowed = false; probe.handle.refresh()");

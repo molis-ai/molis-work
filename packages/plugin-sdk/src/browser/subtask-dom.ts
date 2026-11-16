@@ -8,9 +8,18 @@ const htmlOf = (content: MwSubtaskContent, document: Document) => "text" in cont
   ? `<p class="mw-subtask__plain">${escapeHtml(content.text)}</p>` : contentHtml(content.html, document);
 
 /** Keep unchanged controls and text nodes; rich content gets the existing content filter before the stream patcher. */
-function patch(node: HTMLElement, html: string, stream = false) {
-  if (node.innerHTML === html) return;
-  if (stream && window.molisStreamText) window.molisStreamText(node, html); else node.innerHTML = html;
+export function patch(node: HTMLElement, html: string, stream = false) {
+  const template = node.ownerDocument.createElement("template"); template.innerHTML = html;
+  if (node.innerHTML === template.innerHTML) return;
+  if (stream && window.molisStreamText) { window.molisStreamText(node, html); return; }
+  // Compare parsed nodes: DOM serialization adds empty values to the renderer's boolean attributes.
+  // Keep equal siblings too, so a new task title does not replace its unchanged Back and Close buttons.
+  const current = Array.from(node.childNodes), incoming = Array.from(template.content.childNodes);
+  incoming.forEach((next, index) => {
+    const old = current[index];
+    if (!old) node.append(next); else if (!old.isEqualNode(next)) old.replaceWith(next);
+  });
+  for (const old of current.slice(incoming.length)) old.remove();
 }
 function textChild(parent: HTMLElement, className: string, text: string | undefined, before?: Element) {
   let child = parent.querySelector<HTMLElement>(`:scope > .${className}`);

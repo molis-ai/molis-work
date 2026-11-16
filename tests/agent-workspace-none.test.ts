@@ -55,7 +55,7 @@ function characterAuthority() {
     source: { owner_actor_id: owner.actor_id, draft_revision: 3 }, published_at: "2026-09-26T00:00:00Z",
     producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "original-binding" } };
   const granted: AgentStartAuthority = { ...authority, manifest: { ...authority.manifest,
-    characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["analyst", "reader"] } },
+    characters: { selection: "optional-role", scope: "owner", role_ids: ["analyst", "reader"] } },
     resolveCharacter() { if (!active) throw new Error("Character disabled"); return character; } };
   return { granted, character, activate(value: boolean) { active = value; } };
 }

@@ -536,14 +536,6 @@
     "reason": "页面展示能力的合同常量，由工作台在页面里提供，不经动作目录登记，所以快照里没有行。"
   },
   {
-    "entry": "action.characters.from_template",
-    "reason": "P-2b 仅发布角色采用合同；第 36 批 Characters 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.characters.roles.read",
-    "reason": "P-2b 仅发布角色批读合同；第 36 批 Characters 实际登记后删除本条。"
-  },
-  {
     "entry": "action.blueprints.adoption.apply",
     "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
   },

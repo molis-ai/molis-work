@@ -2,23 +2,32 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
 
-/** A published Character as a Run names it. */
-export interface CharacterRef { readonly artifact_id: string; readonly version: number }
+/** A role as a session keeps it: one of the person's originals or a member of this project (never a version: the Host pins it). */
+export type CharacterRef = { readonly kind: "personal"; readonly character_id: string } | { readonly kind: "project"; readonly member_id: string };
 
 interface ImportedSkill { readonly id: string; readonly name: string; readonly compatibility: string }
 
-/** One Character the person can pick, as `GET /sessions/<id>/characters` lists it. */
+/** One role the person can pick, as `GET /sessions/<id>/characters` lists it. */
 interface CharacterRow {
-  readonly reference: CharacterRef | null;
+  readonly ref: CharacterRef | null;
   readonly title: string;
   readonly available: boolean;
   readonly reason?: string;
-  readonly instructions?: string;
+  readonly note?: string;
   readonly host_tools?: readonly string[] | null;
   readonly imported_skills?: readonly ImportedSkill[];
 }
 
-interface CharactersRead { readonly characters: readonly CharacterRow[]; readonly limits_verified: boolean }
+type DefaultRef = CharacterRef | { readonly kind: "assistant" } | null;
+interface CharactersRead {
+  readonly characters: readonly CharacterRow[];
+  readonly limits_verified: boolean;
+  readonly defaults: { readonly personal: DefaultRef; readonly project: DefaultRef };
+}
+
+/** Why a role cannot be picked, in the person's words; Characters gives the reason as a code. */
+const reasonText = (reason: string | undefined) => reason === "disabled" || reason === "original_disabled" || reason === "unsaved"
+  ? uiText.text(`coding.character.reason-${reason}`) : reason || uiText.text('coding.character.unavailable');
 
 export interface CharacterPorts extends PagePorts {
   /** The Character each session's next round names, and the title it was picked under. */
@@ -31,12 +40,12 @@ export interface CharacterPorts extends PagePorts {
   readonly controls: () => void;
 }
 
-/** Exact published selection for the next Run; never derives history from the current library. */
+/** The role for the session's next round, as a stable choice; history shows the version each round froze, never this. */
 export function characterChoice(ports: CharacterPorts) {
   const { lifetime, q, api, current, selections, titles, skillSelections, save, controls, status } = ports;
   const dialog = q<HTMLDialogElement>('[data-coding-character-dialog]'), list = q('[data-coding-character-list]'), error = q('[data-coding-character-error]'), submit = q<HTMLButtonElement>('[data-coding-character-save]');
   const closeButton = q<HTMLButtonElement>('[data-coding-character-close]');
-  const key = (ref: CharacterRef | null) => ref ? JSON.stringify([ref.artifact_id, ref.version]) : '';
+  const key = (ref: DefaultRef | undefined) => !ref || ref.kind === 'assistant' ? '' : ref.kind === 'personal' ? 'personal:' + ref.character_id : 'project:' + ref.member_id;
   let ticket = 0, session = '', busy = false;
   let rows: CharacterRow[] = [], candidate: CharacterRef | null = null, selectedSkills: string[] = [];
   const close = () => { if (busy)
@@ -57,11 +66,15 @@ export function characterChoice(ports: CharacterPorts) {
       const data = await api<CharactersRead>('/sessions/' + encodeURIComponent(id) + '/characters');
       if (request !== ticket || current() !== id || !dialog.open)
         return;
-      rows = data.characters.map(item => ({ ...item, available: item.available && data.limits_verified, reason: data.limits_verified ? item.reason : uiText.text('coding.character.runtime') }));
-      if (candidate && !rows.some(item => key(item.reference) === key(candidate)))
-        rows.unshift({ reference: candidate, title: titles.get(id) || uiText.text('coding.character.gone-title'), available: false, reason: uiText.text('coding.character.gone') });
+      // Where each role stands for a new session: the project's default, else the person's (the same words as the Assistant's picker).
+      const tag = (ref: CharacterRef) => key(ref) === key(data.defaults.project) ? uiText.text('coding.character.project-default')
+        : !data.defaults.project && key(ref) === key(data.defaults.personal) ? uiText.text('coding.character.my-default') : '';
+      rows = data.characters.map(item => ({ ...item, title: item.title + (item.ref && tag(item.ref) ? ' · ' + tag(item.ref) : ''),
+        available: item.available && data.limits_verified, reason: data.limits_verified ? reasonText(item.reason) : uiText.text('coding.character.runtime') }));
+      if (candidate && !rows.some(item => key(item.ref) === key(candidate)))
+        rows.unshift({ ref: candidate, title: titles.get(id) || uiText.text('coding.character.gone-title'), available: false, reason: uiText.text('coding.character.gone') });
       list.replaceChildren();
-      const options = [{ reference: null, title: uiText.text('coding.character.no-character'), available: true, instructions: uiText.text('coding.character.no-character-note') }, ...rows];
+      const options: CharacterRow[] = [{ ref: null, title: uiText.text('coding.character.no-character'), available: true, note: uiText.text('coding.character.no-character-note') }, ...rows];
       for (const [index, item] of options.entries()) {
         const row = document.createElement('section'), label = document.createElement('label'), radio = document.createElement('input'), name = document.createElement('span');
         row.className = 'coding-material';
@@ -70,26 +83,27 @@ export function characterChoice(ports: CharacterPorts) {
         radio.type = 'radio';
         radio.name = 'coding-character-choice';
         radio.value = String(index);
-        radio.checked = key(candidate) === key(item.reference);
+        radio.checked = key(candidate) === key(item.ref);
         radio.disabled = !item.available;
-        name.textContent = item.title + (item.reference ? ' · v' + item.reference.version : '');
+        name.textContent = item.title;
         label.append(radio, name);
         row.append(label);
         lifetime.listen(radio, 'change', () => { if (busy)
-          return; candidate = structuredClone(item.reference); selectedSkills = []; list.querySelectorAll<HTMLInputElement>('[data-character-skill]').forEach(input => { input.checked = false; input.disabled = input.dataset.owner !== key(candidate) || input.dataset.compatible !== 'true'; }); submit.disabled = false; error.textContent = ''; });
+          return; candidate = structuredClone(item.ref); selectedSkills = []; list.querySelectorAll<HTMLInputElement>('[data-character-skill]').forEach(input => { input.checked = false; input.disabled = input.dataset.owner !== key(candidate) || input.dataset.compatible !== 'true'; }); submit.disabled = false; error.textContent = ''; });
         if (!item.available) {
           const reason = document.createElement('p');
           reason.textContent = item.reason || uiText.text('coding.character.unavailable');
           row.append(reason);
         }
-        if (item.reference && typeof item.instructions === 'string') {
-          const detail = document.createElement('details'), summary = document.createElement('summary'), body = document.createElement('pre'), scope = document.createElement('p');
-          summary.textContent = uiText.text('coding.character.content');
-          body.textContent = item.instructions;
-          const hostTools = item.host_tools ?? null;
+        if (!item.ref && item.note) {
+          const note = document.createElement('p');
+          note.textContent = item.note;
+          row.append(note);
+        }
+        if (item.ref) {
+          const scope = document.createElement('p'), hostTools = item.host_tools ?? null;
           scope.textContent = uiText.text('coding.character.tools', { tools: hostTools === null ? uiText.text('coding.character.tools-inherit') : hostTools.length ? hostTools.join(uiText.text('coding.list.joiner')) : uiText.text('coding.character.tools-none') });
-          detail.append(summary, body, scope);
-          row.append(detail);
+          row.append(scope);
         }
         if (item.imported_skills?.length) {
           const skills = document.createElement('details'), summary = document.createElement('summary');
@@ -101,10 +115,10 @@ export function characterChoice(ports: CharacterPorts) {
             check.type = 'checkbox';
             check.className = 'mw-check';
             check.dataset.characterSkill = skill.id;
-            check.dataset.owner = key(item.reference);
+            check.dataset.owner = key(item.ref);
             check.dataset.compatible = String(skill.compatibility === 'portable');
-            check.disabled = key(candidate) !== key(item.reference) || skill.compatibility !== 'portable';
-            check.checked = key(candidate) === key(item.reference) && selectedSkills.includes(skill.id);
+            check.disabled = key(candidate) !== key(item.ref) || skill.compatibility !== 'portable';
+            check.checked = key(candidate) === key(item.ref) && selectedSkills.includes(skill.id);
             title.textContent = skill.name + (skill.compatibility !== 'portable' ? uiText.text('coding.character.native') : '');
             label.append(check, title);
             skills.append(label);
@@ -119,7 +133,7 @@ export function characterChoice(ports: CharacterPorts) {
         note.textContent = uiText.text('coding.character.none');
         list.append(note);
       }
-      submit.disabled = Boolean(candidate && !rows.some(item => key(item.reference) === key(candidate) && item.available));
+      submit.disabled = Boolean(candidate && !rows.some(item => key(item.ref) === key(candidate) && item.available));
     }
     catch (failure) {
       if (request === ticket && current() === id)
@@ -136,7 +150,7 @@ export function characterChoice(ports: CharacterPorts) {
       error.textContent = uiText.text('coding.character.session-changed');
       return;
     }
-    const id = session, selected = rows.find(item => key(item.reference) === key(candidate));
+    const id = session, selected = rows.find(item => key(item.ref) === key(candidate));
     if (candidate && !selected?.available)
       return;
     selections.set(id, structuredClone(candidate));

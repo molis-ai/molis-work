@@ -97,21 +97,13 @@ export interface AssistantCard {
     updated_at: string;
 }
 
-export interface AssistantCharacter extends AssistantCharacterRef {
+export interface AssistantCharacter {
+    ref: AssistantCharacterRef;
     title: string;
+    character_id: string;
 }
 
-export interface AssistantCharacterChoice {
-    reference: AssistantCharacterRef;
-    title: string;
-    available: boolean;
-    reason?: string;
-}
-
-export interface AssistantCharacterRef {
-    artifact_id: string;
-    version: number;
-}
+export type AssistantCharacterRef = PersonalCharacterRef | ProjectCharacterMemberRef;
 
 export interface AssistantContextSnapshot {
     source: AssistantSurfaceRef;
@@ -507,7 +499,9 @@ export interface AssistantReplyTarget {
 export interface AssistantRound {
     run_id: string;
     executor?: "assistant" | "plugin";
-    character?: AssistantCharacter;
+    character?: AssistantCharacter & {
+        version?: CharacterRoleVersionRef;
+    };
     text: string;
     written_by?: "host";
     materials: Array<Pick<AssistantMaterial, "material_id" | "kind" | "title" | "explicit" | "draft" | "source" | "object">>;
@@ -563,8 +557,7 @@ export interface AssistantRoundDiagnostics {
         };
         execution: string;
         character: {
-            artifact_id: string;
-            version: number;
+            version: CharacterRoleVersionRef;
             title: string;
         } | null;
         prompts: Array<{

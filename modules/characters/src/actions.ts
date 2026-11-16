@@ -2,8 +2,8 @@ import { createActionDefinition, objectSchema as object } from "@molis-ai/molis-
 import { defineActionUsagesAction, defineSearchEntriesAction, defineSubjectContextAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineKitReportAction } from "@molis-ai/molis-work-contracts/platform/kit-report";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { characterArtifactPreviewAction, characterPluginActions, type CharacterDraft, type CharacterState } from "@molis-ai/molis-work-contracts/modules/characters";
-import type { CharacterLaunchInput, CharacterUpdateInput } from "./action-handlers.js";
+import { characterArtifactPreviewAction, characterRoleActions, type CharacterDraft, type CharacterState } from "@molis-ai/molis-work-contracts/modules/characters";
+import type { CharacterCreateInput, CharacterLaunchInput, CharacterUpdateInput } from "./action-handlers.js";
 import type { CharacterNativeRun } from "./runs.js";
 
 const text = { type: "string" };
@@ -29,18 +29,31 @@ function define<I, O>(name: string, version: number, title: string, description:
 export const charactersActions = {
   /** A published character as the 成果库 and side panel show it (artifact-positioning A4): Markdown of its instructions and tools. */
   artifactPreview: characterArtifactPreviewAction,
-  /** Defined in the contracts, where Coding (which consumes it) finds it too. */
-  list: characterPluginActions.list,
+  /** The roles (role-service-design §3), defined in the contracts where the Assistant, Coding and plugins find them. */
+  fromTemplate: characterRoleActions.fromTemplate,
+  rolesRead: characterRoleActions.read,
+  rolesList: characterRoleActions.list,
+  resolve: characterRoleActions.resolve,
+  versions: characterRoleActions.versions,
+  memberAdd: characterRoleActions.memberAdd,
+  memberSave: characterRoleActions.memberSave,
+  memberSection: characterRoleActions.memberSection,
+  memberState: characterRoleActions.memberState,
+  restore: characterRoleActions.restore,
+  defaults: characterRoleActions.defaults,
   actions: define<Record<string, never>, { actions: unknown[] }>("actions.catalog", /* @version action.characters.actions.catalog */ 1, "角色可选能力", "读取可交给内置 Agent 的授权能力目录，用于角色的能力范围",
     "query", object({}), object({ actions: { type: "array" } }), ["artifact:read"]),
-  create: define<Record<string, never>, { draft: CharacterDraft }>("create", /* @version action.characters.create */ 1, "新建角色", "新建一份标题为「新角色」、做事方式为空的角色草稿并返回它；只创建，不发布。填写内容用「修改角色草稿」，固定成项目里的版本用「发布角色」", "command", object({}), object({ draft }), []),
-  update: define<CharacterUpdateInput, { draft: CharacterDraft }>("update", /* @version action.characters.update */ 1, "修改角色草稿", "按读取时的修订号保存标题、做事方式与工具范围；过期修改被拒绝",
+  create: define<CharacterCreateInput, { draft: CharacterDraft; version: number }>("create", /* @version action.characters.create */ 1, "新建角色",
+    "按给出的名称、做事方式与工具范围新建我的一个角色，并保存成第 1 版；保存后就能选来做任务", "command",
+    object({ title: text, instructions: text, host_tools: { anyOf: [{ type: "array", items: text }, { type: "null" }] }, action_tools: { anyOf: [{ type: "array", items: exact }, { type: "null" }] } },
+      ["title", "instructions", "host_tools"]), object({ draft, version: revision }), []),
+  update: define<CharacterUpdateInput, { draft: CharacterDraft; version: number }>("update", /* @version action.characters.update */ 1, "保存角色", "按读取时的修订号保存标题、做事方式与工具范围；内容有变就存成下一版，过期修改被拒绝",
     "command", object({ id, expected_revision: revision, title: text, instructions: text, host_tools: { anyOf: [{ type: "array", items: text }, { type: "null" }] },
-      action_tools: { anyOf: [{ type: "array", items: exact }, { type: "null" }] } }, ["id", "expected_revision"]), object({ draft }), []),
+      action_tools: { anyOf: [{ type: "array", items: exact }, { type: "null" }] } }, ["id", "expected_revision"]), object({ draft, version: revision }), []),
   state: define<{ id: string; expected_revision: number; state: CharacterState }, { draft: CharacterDraft }>("state", /* @version action.characters.state */ 1, "启用或停用角色",
     "启用、停用或删除角色；启用前核对所选能力仍可用", "command", object({ id, expected_revision: revision, state: { enum: ["active", "disabled", "tombstoned"] } }), object({ draft }), []),
-  publish: define<{ id: string; expected_revision: number }, { reference: ArtifactReference; publication: unknown; replayed: boolean }>("publish", /* @version action.characters.publish */ 1, "发布角色",
-    "把当前草稿发布为本项目的固定版本；内容未变时返回原版本", "command", object({ id, expected_revision: revision }),
+  publish: define<{ id: string; expected_revision: number }, { reference: ArtifactReference; publication: unknown; replayed: boolean }>("publish", /* @version action.characters.publish */ 1, "存进成果库",
+    "把当前角色存进本项目的成果库，作为可引用的固定成果；选角色做任务不需要这一步。内容未变时返回原版本", "command", object({ id, expected_revision: revision }),
     object({ reference, publication: { type: "object" }, replayed: { type: "boolean" } }), ["artifact:read", "artifact:write"]),
   /** Sessions cleanup SC-2: Characters' own records, without the terminal output. */
   runs: define<{ id: string }, { runs: CharacterNativeRun[] }>("runs", /* @version action.characters.runs */ 1, "角色运行记录", "读取用本机 Agent 运行此角色的记录：何时、哪个版本、在哪个目录、是否派发成功；不含终端输出",
@@ -56,8 +69,6 @@ export const charactersActions = {
     { type: "object", required: ["reference"] }, { type: "object" }, ["artifact:read"], LOCAL),
   execution: define<{ reference: ArtifactReference }, unknown>("execution", /* @version action.characters.execution */ 1, "角色运行准备", "读取用本机 Agent 运行此发布版本所需的程序与工作目录",
     "query", object({ reference }), { type: "object" }, ["artifact:read"], LOCAL),
-  /** Defined in the contracts, where Coding (which consumes it) finds it too: whether a version can run, without the launch details. */
-  runnable: characterPluginActions.runnable,
   /** Where a capability sits in this person's Character scopes; the capability library reads it next to other owners' references. */
   usages: defineActionUsagesAction("characters.usages", /* @version action.characters.usages */ 1, "角色里的使用位置", []),
   /** The person's Characters as AI kit roles, in the 「你的角色」 pack (specs/capability-pack/contract-design.md §4.8). */

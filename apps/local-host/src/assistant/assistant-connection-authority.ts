@@ -5,7 +5,6 @@ import type { PrologueNodeAdapterOptions } from "@molis-ai/molis-work-service-ag
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { connectorSetupChecker, type ConnectorSetupCheckScope } from "../connector-setup-checker.js";
 import { connectorManagementActions, type ManagedConnectorView } from "../connector-management-actions.js";
-import { freezeProjectCharacter } from "../characters-host.js";
 import { assistantAuthority } from "./assistant-authority.js";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { connectorReadyChecker } from "../connector-ready-checker.js";
@@ -23,12 +22,7 @@ async function withConnectionActions<T>(home: string, localHost: MolisWorkLocalH
     const current = () => {
       if (store.get(scope.actor_id, work.work_id).revision !== work.revision || grants() !== expectedGrants) throw new ActionError("actions.forbidden", "等待期间工作或权限已变化，请按最新要求重新核对");
     };
-    if (work.character) {
-      if (!work.project_ref) throw new ActionError("actions.forbidden", "原角色不属于这项工作");
-      await localHost.withProject(work.project_ref, async runtime => {
-        freezeProjectCharacter(home, scope.actor_id, scope.project_id, runtime.artifacts.query, work.character!);
-      });
-    }
+    // The role this work carries is the round's own: its pinned version is checked by the round's guards, not again here.
     const authority = assistantAuthority(localHost, work, () => store.disabledActions(scope.actor_id));
     const actions = await authority.actions!("prologue", current);
     const expected = required;

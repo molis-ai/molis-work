@@ -150,6 +150,11 @@ ${BUTTON_STYLES}
   }
   .mw-field__label { display: flex; align-items: baseline; gap: 8px; color: var(--ink); font-weight: var(--weight-control, 500); }
   .mw-field__label small, .mw-field__hint { color: var(--muted); font-family: var(--type-note-font, var(--font)); font-weight: var(--type-note-weight, 400); font-size: var(--type-note-size, 12px); line-height: var(--type-note-line-height, 1.6); letter-spacing: var(--type-note-tracking, 0); }
+  /* The quiet note (\`renderNote\`): the field hint's type with a mark; a warning one marks in the attention tone, in shape too. */
+  .mw-note { display: flex; align-items: flex-start; gap: 8px; min-width: 0; margin: 0; color: var(--muted); font-family: var(--type-note-font, var(--font)); font-weight: var(--type-note-weight, 400); font-size: var(--type-note-size, 12px); line-height: var(--type-note-line-height, 1.6); letter-spacing: var(--type-note-tracking, 0); }
+  .mw-note > svg { flex: none; width: 14px; height: 14px; margin-top: 3px; }
+  .mw-note > span { min-width: 0; overflow-wrap: anywhere; }
+  .mw-note.is-warning > svg { color: var(--tone-attention); }
   /* An error says so in shape as well as colour: an alert glyph leads the message, centred on its first line. */
   .mw-field__error { display: flex; gap: 6px; margin: 0; color: var(--red); font-size: 12px; line-height: 1.6; }
   .mw-field__error::before {

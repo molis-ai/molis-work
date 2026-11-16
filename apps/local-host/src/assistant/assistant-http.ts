@@ -1,3 +1,4 @@
+import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pluginInstallRecords } from "../plugin-install-records.js";
 import { HomeConsentLedger } from "../home-plugin-store.js";
@@ -38,9 +39,9 @@ import { assistantSurroundings } from "./assistant-surroundings.js";
 import { assistantErrors } from "./assistant-errors.js";
 import type { PersonActions } from "./assistant-executor.js";
 import { ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE, AssistantStore } from "./assistant-store.js";
-import { freezeProjectCharacter } from "../characters-host.js";
-import { assistantCharacterChoices } from "./assistant-characters.js";
-import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { readRoleVersion, resolveRoleCharacter } from "../characters-host.js";
+import { assistantResolveRole, assistantRoleCatalog } from "./assistant-characters.js";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { assistantContributions } from "./assistant-contributions.js";
 import { registerAssistantRuleActions } from "./assistant-rule-actions.js";
 import { agentDefinitionsFor } from "../agent-definitions/agent-definitions.js";
@@ -198,10 +199,11 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       project_prompts: await assistantProjectPrompts(ports.localHost, work),
       // The platform memory, under the Assistant's switch: re-read and injected by the runtime as data.
       memory: task => service.memory.memoryForRound(work, task),
-      // A Character published in the work's project, frozen at its exact version for the round (the Host checks it again at dispatch).
-      ...(work.project_ref ? { resolveCharacter: await characterFreezer(ports, work.project_ref) } : {}) }),
-    // The Characters the person may choose, read as the person from Characters' own actions (PG-086).
-    characters: project => assistantCharacterChoices(personClient(project)),
+      // The person's role for the round: a new choice resolved now, or the session's pinned version (the Host checks it again at dispatch).
+      ...await roleResolvers(ports, work.project_ref) }),
+    // The roles the person may choose, read as the person from Characters' own actions; personal work reads them in the personal space.
+    characters: async project => { const where = project ?? await personalSpace(ports);return where ? assistantRoleCatalog(personClient(where)) : null; },
+    resolveRole: async project => { const where = project ?? await personalSpace(ports);return where ? assistantResolveRole(personClient(where)) : null; },
     projectTitle: ports.projectTitle,
     // Role material from the Home's registry of Agent definitions; Skills from the shared catalog, read as the person.
     methods: { roles: () => definitions().signedRoles(),
@@ -285,10 +287,21 @@ function personMaterialReader(host: MolisWorkLocalHost): NonNullable<AssistantSe
     .invoke(materialsActions.read, { ref, mode: "text" });
 }
 
-/** One exact published Character of the work's project, frozen for a round: the Host checks the version again at dispatch. */
-async function characterFreezer(ports: AssistantHttpPorts, project: LocalHostProjectReference) {
-  const { board, artifacts } = await ports.localHost.withProject(project, async runtime => ({ board: runtime.project_id, artifacts: runtime.artifacts.query }));
-  return (reference: ArtifactReference) => freezeProjectCharacter(ports.homeDirectory, WEB_ACTOR, board, artifacts, reference);
+/**
+ * The role resolvers a round of this work is given: in project work its project, in personal work the personal space (where only the
+ * person's originals are). Characters resolves a new choice now and reads a pinned version; the Host checks it again at dispatch.
+ */
+async function roleResolvers(ports: AssistantHttpPorts, project: LocalHostProjectReference | undefined): Promise<Pick<AgentStartAuthority, "resolveCharacter" | "characterVersion">> {
+  const board = project ? await ports.localHost.withProject(project, async runtime => runtime.project_id) : PERSONAL_SPACE_PROJECT_ID;
+  return { resolveCharacter: (choice, actorId) => resolveRoleCharacter(ports.homeDirectory, actorId, board, choice),
+    characterVersion: (version, actorId) => readRoleVersion(ports.homeDirectory, actorId, board, version) };
+}
+
+/** The personal space, where a personal work reads the person's roles; undefined before it exists (the catalog has no such project). */
+async function personalSpace(ports: AssistantHttpPorts): Promise<LocalHostProjectReference | undefined> {
+  if (!ports.projectReference) throw new Error("项目连接目录尚未装配");
+  try { return await ports.projectReference(PERSONAL_SPACE_PROJECT_ID); }
+  catch (error) { if ((error as { code?: unknown }).code === "catalog.project_not_found") return undefined; throw error; }
 }
 
 /** What deserves the person's attention now, and on which surface (their rules hold some while it matches). */
@@ -438,7 +451,7 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
       // Characters the person may choose here: for a work (its own project), or for a new work on this page.
       if (method === "GET" && parts.length === 1 && parts[0] === "characters") {
         const work = url.searchParams.get("work") ?? undefined;
-        return { status: 200, body: { characters: await service.characters(work, ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
+        return { status: 200, body: { catalog: await service.characters(work, ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
       }
       // The plugins that can carry a work here: the person picks one for a new work, or hands an open one over.
       if (method === "GET" && parts.length === 1 && parts[0] === "executors") {

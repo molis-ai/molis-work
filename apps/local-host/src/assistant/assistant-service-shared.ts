@@ -1,3 +1,4 @@
+import type { CharacterRoleCatalog, CharacterRoleResolution } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
@@ -9,7 +10,7 @@ import type { AgentSessionRef, AgentTextMaterial } from "@molis-ai/molis-work-co
 import type { ActionSubjectContext, ActionView, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MaterialRef, MaterialsReadResult } from "@molis-ai/molis-work-contracts/platform/project-materials";
-import type { AssistantCharacterChoice, AssistantWorkObject } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantWorkObject } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { WebLocale } from "../web-locale.js";
 import type { AssistantRoundFactPorts } from "./assistant-directory.js";
 import { withinTime } from "./assistant-material-scan.js";
@@ -59,8 +60,13 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   readMaterial?(project: LocalHostProjectReference, ref: MaterialRef): Promise<MaterialsReadResult>;
   /** The person's own actions in their Home, for reading the reminders they set in Plugins. */
   homeActions?(): Promise<PersonActions>;
-  /** The Characters the person published in a project, each saying whether it can run now. */
-  characters?(project: LocalHostProjectReference): Promise<AssistantCharacterChoice[]>;
+  /**
+   * The person's roles where a work is (null: personal work), read once: originals, this project's members, defaults, the new-task role.
+   * Null when personal work has no personal space yet: there is nowhere its roles are read, so it has none to offer.
+   */
+  characters?(project: LocalHostProjectReference | null): Promise<CharacterRoleCatalog | null>;
+  /** The role a new work gets there now, as a stable choice and its title (`characters.roles.resolve`); null as above. */
+  resolveRole?(project: LocalHostProjectReference | null): Promise<CharacterRoleResolution | null>;
   /**
    * What a work may follow (specs/capability-pack/contract-design.md §2.2): the role material running signed packages offer, bound to
    * the installations in the work's scope, and the shared Skill catalog read as the person for the Assistant.

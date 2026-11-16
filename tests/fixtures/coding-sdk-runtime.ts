@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { LocalHost, LocalProjectDatabase, createPluginPlatform, homeStores, installHostUiText, registeredBuiltinText, runWithLocale, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
-import { projectDirectories } from "./plugin-actions.js";
+import { projectDirectories, withoutRoles } from "./plugin-actions.js";
 import { parseArtifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -49,6 +49,7 @@ export async function codingSdkRuntime(t: TestContext, options: { modelEndpoint?
       return { subject: asked.subject, ref: null, revision: String(record.version), title: record.artifact_id, layer: "original", text, start: 0, end: text.length, start_line: 1, end_line: 1, total_lines: 1,
         remaining: 0, owner_truncated: false, round_chars_left: null } satisfies KnowledgeReadResponse;
     } }] });
+  withoutRoles({ registry: service });
   const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", db: store.db, artifacts, processItems, ui: new UiHost(), home: { directory: home, completeText: () => undefined, stores: homeStores() },
     actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID }, capabilities: (options.wrapCapabilities ?? (client => client))(local.client(reference)),
     localePacks: definition => registeredBuiltinText(definition.manifest), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });

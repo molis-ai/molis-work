@@ -4,12 +4,14 @@ import { inputSchemaFor, type InferActionInput } from "../platform/action-input.
 import { BLUEPRINT_PART_ORIGIN_SCHEMA, type BlueprintPartOrigin } from "../platform/blueprint-source.js";
 import { closedObjectSchema } from "../platform/closed-object-schema.js";
 import { TEXT_REF_LIMITS, TEXT_REF_SCHEMA, type TextRef } from "../platform/ui-text.js";
-import type { ArtifactReference } from "./artifacts.js";
 import { parseCharacterImportSnapshot, type CharacterImportSnapshot } from "./character-import.js";
 import {
-  CHARACTER_ROLE_READ_INPUT_SCHEMA, CHARACTER_ROLE_READ_OUTPUT_SCHEMA, CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA,
-  personalVersion, projectRef, type CharacterRoleReadInput, type CharacterRoleReadOutput, type CharacterTemplateAdoptionResult,
-  type PersonalCharacterVersionRef, type ProjectCharacterMemberRef,
+  CHARACTER_ROLE_READ_INPUT_SCHEMA, CHARACTER_ROLE_READ_OUTPUT_SCHEMA, CHARACTER_ROLE_SCHEMAS, CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA,
+  personalVersion, projectRef, type CharacterDefaultSelection, type CharacterDefaults, type CharacterMemberAddInput, type CharacterMemberResult,
+  type CharacterMemberSaveInput, type CharacterMemberSectionInput, type CharacterMemberStateInput, type CharacterRestoreInput, type CharacterRole,
+  type CharacterRoleCatalog, type CharacterRoleListInput, type CharacterRoleReadInput, type CharacterRoleReadOutput, type CharacterRoleResolution,
+  type CharacterRoleResolveInput, type CharacterRoleVersionEntry, type CharacterTemplateAdoptionResult, type CharacterVersionsReadInput,
+  type EffectiveCharacterSelection, type PersonalCharacterVersionRef, type ProjectCharacterMemberRef,
 } from "./character-role-scope.js";
 export * from "./character-import.js";
 export {
@@ -19,12 +21,37 @@ export {
   type BlueprintSource,
 } from "../platform/blueprint-source.js";
 export {
+  CHARACTER_ROLE_CATALOG_SCHEMA,
+  CHARACTER_ROLE_CONTENT_SCHEMA,
+  CHARACTER_ROLE_SCHEMAS,
+  CHARACTER_ROLE_SNAPSHOT_SCHEMA,
+  type CharacterDefaults,
+  type CharacterImportedSkillEntry,
+  type CharacterMemberAddInput,
+  type CharacterMemberEntry,
+  type CharacterMemberResult,
+  type CharacterMemberSaveInput,
+  type CharacterMemberSectionInput,
+  type CharacterMemberStateInput,
+  type CharacterOriginalEntry,
+  type CharacterRestoreInput,
+  type CharacterRoleAvailability,
+  type CharacterRoleCatalog,
+  type CharacterRoleContent,
+  type CharacterRoleListInput,
+  type CharacterRoleResolution,
+  type CharacterRoleResolveInput,
+  type CharacterRoleSnapshot,
+  type CharacterRoleUnavailable,
+  type CharacterRoleVersionEntry,
+  type CharacterVersionsReadInput,
   CHARACTER_DEFAULT_SELECTION_SCHEMA,
   CHARACTER_EFFECTIVE_SELECTION_SCHEMA,
   CHARACTER_ROLE_READ_INPUT_SCHEMA,
   CHARACTER_ROLE_READ_OUTPUT_SCHEMA,
   CHARACTER_ROLE_READ_RESULT_SCHEMA,
   CHARACTER_ROLE_VERSION_REF_SCHEMA,
+  CHARACTER_TASK_SELECTION_SCHEMA,
   CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA,
   type CharacterDefaultSelection,
   type CharacterRole,
@@ -145,23 +172,53 @@ export const CHARACTER_TEMPLATE_ADOPTION_INPUT_SCHEMA = inputSchemaFor<Character
   }),
 ] });
 
-/** Declaration only. Characters binds both actions when the role hierarchy has a real owner. */
+const READERS = ["user", "agent", "workflow", "mcp", "plugin"] as const;
+const WRITERS = ["user", "agent", "mcp"] as const;
+function roleAction<I, O>(capabilityId: string, version: number, operation: "query" | "command", title: string, description: string,
+  audiences: readonly ("user" | "agent" | "workflow" | "mcp" | "plugin")[], schemas: { input: ActionSchema; output: ActionSchema }): ActionDefinition<I, O> {
+  return { capability_id: capabilityId, version, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
+    effect: operation === "query" ? "read" : "write", scope: "project", audiences: [...audiences], permissions: [], subject_kinds: ["character"],
+    input_schema: schemas.input, output_schema: schemas.output } };
+}
+
+/**
+ * The person's roles (specs/onboarding-coverage/role-service-design.md §3), defined once here, where the Assistant, Coding and any
+ * plugin that runs a person's role find them; Characters answers them. The person and the project come from the call: in personal
+ * work there is no project layer. Choosing a role grants nothing: a role only narrows what a task already opens.
+ */
 export const characterRoleActions: {
   fromTemplate: ActionDefinition<CharacterTemplateAdoptionInput, CharacterTemplateAdoptionResult>;
   read: ActionDefinition<CharacterRoleReadInput, CharacterRoleReadOutput>;
+  list: ActionDefinition<CharacterRoleListInput, CharacterRoleCatalog>;
+  resolve: ActionDefinition<CharacterRoleResolveInput, CharacterRoleResolution>;
+  versions: ActionDefinition<CharacterVersionsReadInput, { versions: CharacterRoleVersionEntry[] }>;
+  memberAdd: ActionDefinition<CharacterMemberAddInput, CharacterMemberResult>;
+  memberSave: ActionDefinition<CharacterMemberSaveInput, CharacterMemberResult>;
+  memberSection: ActionDefinition<CharacterMemberSectionInput, CharacterMemberResult>;
+  memberState: ActionDefinition<CharacterMemberStateInput, { role: CharacterMemberResult["role"] | null }>;
+  restore: ActionDefinition<CharacterRestoreInput, { role: CharacterRole }>;
+  defaults: ActionDefinition<CharacterDefaultSelection, { defaults: CharacterDefaults; effective: EffectiveCharacterSelection }>;
 } = {
-  fromTemplate: {
-    capability_id: "characters.from_template", version: /* @version action.characters.from_template */ 1, operation: "command",
-    action: { title: "采用角色模板", description: "按已确认的选择创建或复用角色", kind: "operation", effect: "write",
-      scope: "home", audiences: ["user"], permissions: [], subject_kinds: ["character"],
-      input_schema: CHARACTER_TEMPLATE_ADOPTION_INPUT_SCHEMA, output_schema: CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA },
-  },
-  read: {
-    capability_id: "characters.roles.read", version: /* @version action.characters.roles.read */ 1, operation: "query",
-    action: { title: "批读角色与采用回执", description: "按角色引用或采用请求读取角色及回执", kind: "query", effect: "read",
-      scope: "home", audiences: ["user"], permissions: [], subject_kinds: ["character"],
-      input_schema: CHARACTER_ROLE_READ_INPUT_SCHEMA, output_schema: CHARACTER_ROLE_READ_OUTPUT_SCHEMA },
-  },
+  fromTemplate: roleAction("characters.from_template", /* @version action.characters.from_template */ 1, "command", "采用角色模板", "按已确认的选择创建或复用角色；同一请求重放原回执",
+    ["user"], { input: CHARACTER_TEMPLATE_ADOPTION_INPUT_SCHEMA, output: CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA }),
+  read: roleAction("characters.roles.read", /* @version action.characters.roles.read */ 1, "query", "批读角色与采用回执", "按角色引用或采用请求读取角色及回执",
+    ["user"], { input: CHARACTER_ROLE_READ_INPUT_SCHEMA, output: CHARACTER_ROLE_READ_OUTPUT_SCHEMA }),
+  list: roleAction("characters.roles.list", /* @version action.characters.roles.list */ 1, "query", "角色列表",
+    "一次读出我的角色（当前版本、几个项目在用）、本项目的角色（跟随或改过哪一节）、两层默认、新任务由谁来做，以及每个角色现在能不能选", READERS, CHARACTER_ROLE_SCHEMAS.list),
+  resolve: roleAction("characters.roles.resolve", /* @version action.characters.roles.resolve */ 1, "query", "新任务由哪个角色来做",
+    "按「这一次 → 项目默认 → 我的默认 → 助理自己」得出新任务的角色和要存在任务上的稳定选择；这一次另选的角色不能用时拒绝并说原因，不换成别的", READERS, CHARACTER_ROLE_SCHEMAS.resolve),
+  versions: roleAction("characters.versions.read", /* @version action.characters.versions.read */ 1, "query", "角色的版本", "读一个角色保存过的固定版本与各版内容，最新的在前", READERS, CHARACTER_ROLE_SCHEMAS.versions),
+  memberAdd: roleAction("characters.members.add", /* @version action.characters.members.add */ 1, "command", "把角色加进本项目", "把我的一个角色加进当前项目，两节都跟随原件", WRITERS, CHARACTER_ROLE_SCHEMAS.memberAdd),
+  memberSave: roleAction("characters.members.save", /* @version action.characters.members.save */ 1, "command", "只改本项目的角色",
+    "在本项目里改做事方式或能用什么：只改给出的那一节，另一节保持原样；存成新的一版，不改原件与别的项目", WRITERS, CHARACTER_ROLE_SCHEMAS.memberSave),
+  memberSection: roleAction("characters.members.section", /* @version action.characters.members.section */ 1, "command", "恢复跟随或保持本项目的",
+    "本项目改过的一节：恢复跟随原件（存成新的一版），或确认保持本项目的写法（不再提示原件的这次改动）", WRITERS, CHARACTER_ROLE_SCHEMAS.memberSection),
+  memberState: roleAction("characters.members.state", /* @version action.characters.members.state */ 1, "command", "启用、停用或移出本项目的角色",
+    "只改本项目里的这个角色；移出不删原件；已开始的任务照旧用原来的版本", WRITERS, CHARACTER_ROLE_SCHEMAS.memberState),
+  restore: roleAction("characters.versions.restore", /* @version action.characters.versions.restore */ 1, "command", "恢复角色的某一版",
+    "把某一版存成新的一版，不盖掉之后的修改", WRITERS, CHARACTER_ROLE_SCHEMAS.restore),
+  defaults: roleAction("characters.defaults.set", /* @version action.characters.defaults.set */ 1, "command", "设默认角色",
+    "设我的默认或本项目的默认；本项目可选「助理自己」，不选就沿用我的默认", WRITERS, CHARACTER_ROLE_SCHEMAS.defaults),
 };
 
 /** A personal draft. Its revision is NOT an Artifact publication version. */
@@ -207,7 +264,7 @@ export interface CharactersQuery {
 }
 
 export interface CharactersCommand {
-  create(): CharacterDraft;
+  create(patch: CharacterDraftPatch): CharacterDraft;
   update(characterId: string, expectedRevision: number, patch: CharacterDraftPatch): CharacterDraft;
   setState(characterId: string, expectedRevision: number, state: CharacterState): CharacterDraft;
 }
@@ -234,39 +291,3 @@ export function parseCharacterTools(value: unknown): string[] | null {
     || !/^[a-z][a-z0-9-]{0,79}$/.test(tool)) || new Set(value).size !== value.length) throw new Error("Character 工具范围无效或重复");
   return [...value] as string[];
 }
-
-const versionReference: ActionSchema = { type: "object",
-  properties: { artifact_id: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "integer", minimum: 1 } }, required: ["artifact_id", "version"], additionalProperties: false };
-const closedObject = (properties: Record<string, unknown>): ActionSchema => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
-
-/**
- * The two Characters reads that whoever runs a person's Character consumes (PG-086), defined once: Characters answers them. Coding
- * names their `capability_id` in its Manifest `capabilities.consumes` and invokes them through `services.actions`; the Assistant, which
- * acts as the person, reads the same two (C2b). Neither reaches Characters' implementation or the Host's frozen-Character helper.
- * `list` keeps its version and shape and adds the plugin audience; `runnable` answers the person and plugins, and only whether a version
- * can run: the launch details the person's `characters.execution` gives (the local program and folders) stay the person's, with no
- * plugin audience. A caller needs `artifact:read`.
- */
-export const characterPluginActions: {
-  /** The person's drafts and this project's published Character versions, as the 成果库 and the picker show them. */
-  readonly list: ActionDefinition<Record<string, never>, { drafts: unknown[]; publications: unknown[] }>;
-  /**
-   * Whether this published version can run now. Characters answers `available: false` with its own reason for a version that is not
-   * a current publication of this project, or whose Character is disabled or deleted; nothing about how it would be launched.
-   */
-  readonly runnable: ActionDefinition<{ reference: ArtifactReference }, { available: true } | { available: false; reason: string }>;
-} = {
-  list: {
-    capability_id: "characters.list", version: /* @version action.characters.list */ 1, operation: "query",
-    action: { title: "角色列表", description: "读取本人的角色草稿和本项目已发布的固定版本", kind: "query", scope: "project",
-      audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions: ["artifact:read"], subject_kinds: ["character"],
-      input_schema: closedObject({}), output_schema: closedObject({ drafts: { type: "array" }, publications: { type: "array" } }) },
-  },
-  runnable: {
-    capability_id: "characters.runnable", version: /* @version action.characters.runnable */ 1, operation: "query",
-    action: { title: "角色能否运行", description: "核对这个发布版本现在能否运行：是本项目当前的发布版本，角色也没有停用或删除；不能运行时给出原因", kind: "query", scope: "project",
-      audiences: ["user", "plugin"], permissions: ["artifact:read"], subject_kinds: ["character"],
-      input_schema: closedObject({ reference: versionReference }),
-      output_schema: { type: "object", properties: { available: { type: "boolean" }, reason: { type: "string", minLength: 1, maxLength: 500 } }, required: ["available"], additionalProperties: false } },
-  },
-};

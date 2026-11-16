@@ -7,7 +7,7 @@ import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-def
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { projectFolders } from "./project-folders.js";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentSubagentWorkspace } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { characterSelection, characterSkillSelection, savedCharacter, savedCharacterSkills } from "./characters.js";
+import { characterSelection, characterSkillSelection, saveCharacter, savedCharacter, savedCharacterSkills } from "./characters.js";
 import { CONTINUATION_MARKER } from "./continuation.js";
 import { codingDraft } from "./drafts.js";
 import { CODING_RUN_UPDATED_EVENT } from "./events.js";
@@ -137,14 +137,26 @@ async function chosenWorktree(a: CodingActivation, body: Record<string, unknown>
  * both again at start). Read here so a round's own steps stay apart from this resolution.
  */
 async function roundCharacter(context: PluginStartContext, record: CodingSessionRecord, body: Record<string, unknown>, execution: CodingExecution, beforeWrite: CodingBeforeWrite) {
-  const character = body.character === undefined ? savedCharacter(context, record.session_id) : characterSelection(body.character);
+  const saved = savedCharacter(context, record.session_id), control = codingActionControl(beforeWrite);
+  if (body.character === undefined && saved === "unreadable") throw codingFailure("coding.server.character-reference");
+  let character = body.character === undefined ? (saved && saved !== "unreadable" ? saved.ref : null) : characterSelection(body.character);
   const character_skill_ids = body.character_skill_ids === undefined ? savedCharacterSkills(context, record.session_id) : characterSkillSelection(body.character_skill_ids);
   let characterTools: readonly ExactActionReference[] | null | undefined;
-  if (character) {
-    if (!limitsCharacters(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), record.runtime_id)) throw codingFailure("coding.server.character-unverified");
-    characterTools = await execution.characters.actionTools(character, codingActionControl(beforeWrite));
+  const limited = async () => limitsCharacters(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), record.runtime_id);
+  // A session never chosen for takes the role a new task gets (project default, else the person's) at its first round, once; where the
+  // Runtime has not verified a role's tool limits it takes none. Either way the session keeps what it got.
+  // Kept only once the round has started, beside its other records (`pinCharacter`): a caller refused before that leaves nothing.
+  let pinCharacter: (() => void) | undefined;
+  if (body.character === undefined && saved === undefined) {
+    const effective = await execution.characters.effective(control), taken = effective && await limited() ? effective : null;
+    pinCharacter = () => saveCharacter(context, record.session_id, taken);
+    character = taken?.ref ?? null;
   }
-  return { character, character_skill_ids, characterTools };
+  if (character) {
+    if (!await limited()) throw codingFailure("coding.server.character-unverified");
+    characterTools = await execution.characters.actionTools(character, control);
+  }
+  return { character, character_skill_ids, characterTools, pinCharacter };
 }
 
 /**
@@ -228,7 +240,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const roles = await codingActions(context, beforeWrite).invoke(agent.availableRoles, [record.runtime_id]);
   const availability = roles.find((entry) => entry.role_id === role);
   if (!availability?.available) throw availability?.reason ? new Error(availability.reason) : codingFailure("coding.server.role-unavailable");
-  const { character, character_skill_ids, characterTools } = await roundCharacter(context, record, body, execution, beforeWrite);
+  const { character, character_skill_ids, characterTools, pinCharacter } = await roundCharacter(context, record, body, execution, beforeWrite);
   const chosenActions = body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools);
   const chosenSkills = skillSelection(body.skills ?? []);
   const { action_tools, materials: roundMaterials } = await roundActions(context,
@@ -290,6 +302,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     // A Runtime without letters between sessions has none to accept: the read comes back empty.
     await startDelegation(record, codingActions(context, beforeWrite), session.session_id).catch(() => undefined);
     await beforeWrite(); beforeWrite.assert_current();
+    pinCharacter?.();
     const cleared_input_revision=!plan&&savedInput.draft===body.task&&await execution.sessions.inputs.clearIfUnchanged(beforeWrite,projectId,record.session_id,savedInput.revision)?savedInput.revision+1:undefined;
     // A session named by default takes its name from the first task, the way a person would label it.
     // The name and the running state are one write: the directory never shows the new name beside the old state.

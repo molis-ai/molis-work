@@ -5,7 +5,7 @@ import { isAgentTool } from "./tool-catalog.js";
 import type { UiLanguageTag } from "@molis-ai/molis-work-contracts/platform/ui";
 import { requireSynchronous, type ActionSkillRound, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
-import { currentCharacterMatches } from "./character-import.js";
+import { currentCharacterMatches, versionOfChoice } from "./character-import.js";
 import type {
   AgentManifest,
   AgentPromptText,
@@ -101,8 +101,10 @@ export function composeRolePrompts(
     // arrives on the project channel is the project layer.
     layer: "project" as const,
   }));
-  const characterPrompt: AgentPromptText[] = character ? [{ prompt_id: `character-${character.character_id}`, version: character.reference.version,
-    layer: "role", body: characterInstructions ?? character.instructions }] : [];
+  // A member's text is its own version (its sections over the original's), so it is its own prompt line.
+  const characterPrompt: AgentPromptText[] = character ? [character.version.kind === "personal"
+    ? { prompt_id: `character-${character.character_id}`, version: character.version.version, layer: "role", body: characterInstructions ?? character.instructions }
+    : { prompt_id: `character-member-${character.version.member_id}`, version: character.version.member_version, layer: "role", body: characterInstructions ?? character.instructions }] : [];
   // Last, after the layers: whatever language the texts before it are written in, this is what the reply follows.
   return [...orderPromptsByLayer([...own, ...characterPrompt, ...project]), ...(authority.reply_language ? [{ ...authority.reply_language.prompt }] : [])];
 }
@@ -235,43 +237,51 @@ export function checkStartSession(session: AgentSessionView, request: AgentStart
  * The Character the round runs as, at the exact version the person picked and resolved by the Host, and the built-in tools
  * it leaves the round (never more than the role's). Only the Run's selected imported Skills travel with it.
  */
-export function selectStartCharacter(role: AgentRoleDeclaration, request: AgentStartRequest, authority: AgentStartAuthority) {
+export function selectStartCharacter(role: AgentRoleDeclaration, request: AgentStartRequest, authority: AgentStartAuthority, previous?: AgentFrozenCharacter) {
   let character: AgentFrozenCharacter | undefined;
   let hostTools = [...(role.host_tools ?? [])];
-  if (request.character !== undefined && request.character !== null) {
+  const choice = request.character;
+  if (choice !== undefined && choice !== null && choice.kind !== "assistant") {
     const declared = authority.manifest.characters;
-    if (!declared || declared.selection !== "optional-exact-artifact" || declared.scope !== "project-owner"
-      || !declared.role_ids.includes(role.role_id) || !authority.resolveCharacter) {
-      throw agentErrors.capability_unavailable("当前调用方或执行方式未开放 Character 选择");
+    if (!declared || declared.selection !== "optional-role" || declared.scope !== "owner"
+      || !declared.role_ids.includes(role.role_id) || !authority.resolveCharacter || !authority.characterVersion) {
+      throw agentErrors.capability_unavailable("当前调用方或执行方式未开放角色选择");
     }
-    const ref = request.character;
-    if (typeof ref.artifact_id !== "string" || !ref.artifact_id.trim() || ref.artifact_id.length > 200
-      || !Number.isSafeInteger(ref.version) || ref.version < 1) throw agentErrors.capability_unavailable("Character 精确版本引用无效");
-    character = structuredClone(authority.resolveCharacter({ artifact_id: ref.artifact_id, version: ref.version }, request.actor_id));
-    if (character.reference.artifact_id !== ref.artifact_id || character.reference.version !== ref.version
-      || character.project_id !== request.project_id || character.source.owner_actor_id !== request.actor_id) {
-      throw agentErrors.capability_unavailable("Character 来源与本轮项目、所有者或版本不一致");
+    const id = choice.kind === "personal" ? (choice as { character_id?: unknown }).character_id : choice.kind === "project" ? (choice as { member_id?: unknown }).member_id : undefined;
+    if (typeof id !== "string" || !id.trim() || id.length > 200 || Object.keys(choice).length !== 2) throw agentErrors.capability_unavailable("角色选择无效");
+    // The same choice as the session's last round keeps that round's version (the task stays as it started); a new choice is
+    // resolved by Characters now, which refuses one turned off. The caller never names a version.
+    const same = previous && versionOfChoice(previous.version, choice);
+    character = structuredClone(same ? authority.characterVersion(previous.version, request.actor_id) : authority.resolveCharacter(choice, request.actor_id));
+    if (!versionOfChoice(character.version, choice) || (same && !currentCharacterMatches(previous, character, request.project_id, request.actor_id))
+      || character.owner_actor_id !== request.actor_id || (character.version.kind === "project" ? character.project_id !== request.project_id : character.project_id !== null)) {
+      throw agentErrors.capability_unavailable("角色来源与本轮项目、所有者或选择不一致");
     }
     if (character.host_tools !== null) {
-      if (character.host_tools.some(tool => !hostTools.includes(tool))) throw agentErrors.role_execution_exceeded("所选 Character 包含当前执行方式未开放的内置工具，请更换角色或执行方式");
+      if (character.host_tools.some(tool => !hostTools.includes(tool))) throw agentErrors.role_execution_exceeded("所选角色包含当前执行方式未开放的内置工具，请更换角色或执行方式");
       hostTools = [...character.host_tools];
     }
   }
   if (character && request.character_skill_ids !== undefined) {
     const ids = request.character_skill_ids;
-    if (!Array.isArray(ids) || ids.length > 200 || new Set(ids).size !== ids.length || ids.some(id => typeof id !== "string" || !character!.import_snapshot?.skills.some(skill => skill.id === id))) throw new Error("本轮选择的 Skill 不在 Character 固定版本中");
-    // Preserve the exact source reference; carry only this Run's selected resources into runtime history.
+    if (!Array.isArray(ids) || ids.length > 200 || new Set(ids).size !== ids.length || ids.some(id => typeof id !== "string" || !character!.import_snapshot?.skills.some(skill => skill.id === id))) throw new Error("本轮选择的 Skill 不在角色固定版本中");
+    // Keep only selected skill bodies in this Run's immutable record.
     if (character.import_snapshot) character.import_snapshot.skills = character.import_snapshot.skills.filter(skill => ids.includes(skill.id));
   }
   return { character, hostTools };
 }
 
-/** The authority checks the round runs under, each also checking the Character is still the version it froze. */
+/**
+ * The authority checks the round runs under, each also checking the role's frozen version can still be read: a member removed or an
+ * original deleted stops the round where it is; a role turned off does not (it only stops new choices).
+ */
 export function startGuards(authority: AgentStartAuthority, character: AgentFrozenCharacter | undefined, request: AgentStartRequest) {
   const validateCharacter = character ? () => {
-    const current = authority.resolveCharacter!(character.reference, request.actor_id);
+    let current: AgentFrozenCharacter;
+    try { current = authority.characterVersion!(character.version, request.actor_id); }
+    catch { throw agentErrors.capability_unavailable("这一轮所用的角色版本已移出或删除，请另选角色后继续"); }
     if (!currentCharacterMatches(character, current, request.project_id, request.actor_id)) {
-      throw agentErrors.capability_unavailable("原 Character 版本已变化，请重新选择后执行");
+      throw agentErrors.capability_unavailable("角色版本与本轮固定的不一致，请另选角色后继续");
     }
   } : undefined;
   const assertBeforeStart = () => { requireSynchronous(authority.assertBeforeStart?.(), "最终授权检查必须同步完成"); validateCharacter?.(); };

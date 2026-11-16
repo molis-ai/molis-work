@@ -313,13 +313,7 @@ export interface AgentExecutionPlan {
     }>;
 }
 
-export interface AgentFrozenCharacter extends CharacterContent {
-    reference: ArtifactReference;
-    project_id: string;
-    content_digest: string;
-    producer: ArtifactProducerIdentity;
-    published_at: string;
-}
+export type AgentFrozenCharacter = CharacterRoleSnapshot;
 
 export interface AgentFrozenRole {
     memory?: AgentRecalledMemory;
@@ -2561,7 +2555,7 @@ interface AgentStartInputFields {
     browser?: false;
     history?: "session" | "digest";
     subagent_workspaces?: AgentSubagentWorkspace[];
-    character?: ArtifactReference | null;
+    character?: CharacterTaskSelection | null;
     session: AgentSessionRef;
     task: string;
     role_id: string;

@@ -10,7 +10,7 @@ import { PluginRuntime, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { CODING_PLUGIN_ID, CODING_UI_CONTRIBUTION_ID, codingManifest, type CodingUiHostModel } from "@molis-ai/molis-work-plugin-coding";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, PluginHostExecutor, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
+import { characterRoleActions, type CharacterRoleCatalog } from "@molis-ai/molis-work-contracts/modules/characters";
 import { charactersActions } from "@molis-ai/molis-work-module-characters";
 import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -25,7 +25,7 @@ import { deferred } from "./fixtures/home-runtime.js";
 
 // Coding reads what it used to be handed by the Host through the platform instead (W5-01 C2; specs/coding-plugin §4 H): the models
 // from `services.model` (PG-047, V-13), the Goal titles from Goals' public read action (PG-091), the Characters from Characters' two
-// public actions `characters.list` and the `characters.runnable` (PG-086), each declared in its Manifest and checked by the
+// public actions `characters.roles.list` and `characters.roles.resolve` (PG-086, role-service-design §5), each declared in its Manifest and checked by the
 // platform's grant. The person's `characters.execution` (the local program and folders) stays out of a plugin's reach. There is no
 // `ready` port to wait for.
 
@@ -66,11 +66,11 @@ test("W5-01-CODING-23 PG035-07 Coding declares model:read, model:invoke only as 
   for (const action of codingManifest.actions) assert.equal(action.action.permissions.includes("model:invoke"), false, `${action.capability_id} does not declare model:invoke`);
   const consumed = codingManifest.capabilities.consumes;
   assert.ok(consumed.includes(agent.draftText.capability_id), "Coding lists the draft action under consumes");
-  for (const definition of [goalPluginActions.list, goalPluginActions.contract, characterPluginActions.list, characterPluginActions.runnable]) {
+  for (const definition of [goalPluginActions.list, goalPluginActions.contract, characterRoleActions.list, characterRoleActions.resolve]) {
     assert.ok(consumed.includes(definition.capability_id), `Coding lists ${definition.capability_id} under consumes`);
   }
   assert.equal(consumed.includes(charactersActions.execution.capability_id), false, "Coding does not ask for how a Character is launched");
-  assert.deepEqual(charactersActions.runnable.action.audiences, ["user", "plugin"], "the runnable answer is for the person (the Assistant's picker, RAC-458) and plugins, nobody else");
+  assert.ok(characterRoleActions.list.action.audiences.includes("plugin") && characterRoleActions.resolve.action.audiences.includes("plugin"), "a plugin reads the roles and the role a new task gets");
   assert.deepEqual(charactersActions.execution.action.audiences, ["user"], "the local program and folders stay the person's");
 });
 
@@ -158,29 +158,28 @@ test("W5-01-CODING-27 a Goal the directory does not list (archived or discarded)
   assert.deepEqual(reads.filter(id => id === "archived"), ["archived"], "a title already known is not read again");
 });
 
-test("W5-01-CODING-28 Characters are read through characters.list and characters.runnable as a plugin caller; the reason a version cannot run is Characters' own", { timeout: 60_000 }, async t => {
+test("W5-01-CODING-28 Characters are read through characters.roles.list as a plugin caller; why a role cannot be chosen is Characters' own", { timeout: 60_000 }, async t => {
   const s = await codingSdkRuntime(t), seen: Array<{ capability_id: string; caller: ActionCallContext }> = [];
-  const publication = (artifact_id: string, title: string) => ({ artifact_id, version: 1, lifecycle_state: "active", availability: "available", payload: { title, instructions: "固定要求", host_tools: null } });
-  s.service.registerProvider({ provider: { provider_id: "characters-fixture", title: "角色", kind: "system" }, definitions: [characterPluginActions.list, characterPluginActions.runnable],
+  const original = (character_id: string, title: string, state: "active" | "disabled") => ({ ref: { kind: "personal" as const, character_id }, title, state, draft_revision: 1, version: 1,
+    origin: null, use: { projects: 0, changed: 0 }, host_tools: null, availability: state === "active" ? { available: true as const } : { available: false as const, reason: "disabled" as const } });
+  const catalog: CharacterRoleCatalog = { in_project: false, originals: [original("c-ok", "可用角色", "active"), original("c-off", "已停用角色", "disabled")], members: [],
+    defaults: { personal: null, project: null }, effective: { kind: "assistant", source: "assistant" } };
+  s.service.registerProvider({ provider: { provider_id: "characters-fixture", title: "角色", kind: "system" }, definitions: [characterRoleActions.list, characterRoleActions.resolve],
     handlers: [
-      { ...characterPluginActions.list, handle: caller => { seen.push({ capability_id: characterPluginActions.list.capability_id, caller }); return { drafts: [], publications: [publication("c-ok", "可用角色"), publication("c-off", "已停用角色")] }; } },
-      { ...characterPluginActions.runnable, handle: (caller, input) => {
-        seen.push({ capability_id: characterPluginActions.runnable.capability_id, caller });
-        // A version that cannot run is an answer with Characters' reason, not a failed call.
-        if ((input as { reference: { artifact_id: string } }).reference.artifact_id === "c-off") return { available: false, reason: "该角色已停用或删除" };
-        return { available: true };
-      } },
+      { ...characterRoleActions.list, handle: caller => { seen.push({ capability_id: characterRoleActions.list.capability_id, caller }); return catalog; } },
+      { ...characterRoleActions.resolve, handle: caller => { seen.push({ capability_id: characterRoleActions.resolve.capability_id, caller }); return { effective: catalog.effective, selection: { kind: "assistant" } }; } },
     ] });
   await s.create("s1");
   const reply = await callOf(s.call)("/sessions/s1/characters");
   assert.equal(reply.status, 200, JSON.stringify(reply.body));
-  const byId = new Map((reply.body.characters as Array<{ reference: { artifact_id: string }; available: boolean; reason?: string }>).map(entry => [entry.reference.artifact_id, entry]));
+  const byId = new Map((reply.body.characters as Array<{ ref: { character_id: string }; available: boolean; reason?: string }>).map(entry => [entry.ref.character_id, entry]));
   assert.equal(byId.get("c-ok")?.available, true);
   assert.equal(byId.get("c-off")?.available, false);
-  assert.equal(byId.get("c-off")?.reason, "该角色已停用或删除", "the reason is the one Characters gave");
-  assert.deepEqual([...new Set(seen.map(entry => entry.capability_id))].sort(), ["characters.list", "characters.runnable"]);
-  assert.ok(seen.every(({ caller }) => caller.audience === "plugin" && caller.host_plugin?.plugin_id === CODING_PLUGIN_ID), "both reads reached Characters as Coding, the plugin audience");
+  assert.equal(byId.get("c-off")?.reason, "disabled", "the reason is the one Characters gave");
+  assert.ok(seen.some(entry => entry.capability_id === "characters.roles.list"));
+  assert.ok(seen.every(({ caller }) => caller.audience === "plugin" && caller.host_plugin?.plugin_id === CODING_PLUGIN_ID), "the reads reached Characters as Coding, the plugin audience");
 });
+
 
 /**
  * A consumer plugin and the stand-in Characters it calls: the platform's checks of a plugin's consumption, with Coding's own declarations
@@ -191,10 +190,10 @@ async function consumers() {
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), service = new ActionService(), reached: string[] = [];
   service.registerProvider({ provider: { provider_id: "characters-fixture", title: "角色", kind: "system" },
-    definitions: [characterPluginActions.list, characterPluginActions.runnable, charactersActions.execution],
+    definitions: [characterRoleActions.list, characterRoleActions.resolve, charactersActions.execution],
     handlers: [
-      { ...characterPluginActions.list, handle: () => { reached.push("list"); return { drafts: [], publications: [] }; } },
-      { ...characterPluginActions.runnable, handle: () => { reached.push("runnable"); return { available: true }; } },
+      { ...characterRoleActions.list, handle: () => { reached.push("list"); return EMPTY_CATALOG; } },
+      { ...characterRoleActions.resolve, handle: () => { reached.push("resolve"); return RESOLVED; } },
       { ...charactersActions.execution, handle: () => { reached.push("execution"); return { executable: "/usr/local/bin/agent", workspaces: [] }; } },
     ] });
   const actions = registration(service);
@@ -218,48 +217,50 @@ async function consumers() {
   return { runtime, reached, start, client, close: () => { store.close(); rmSync(home, { recursive: true, force: true }); } };
 }
 const reference = { artifact_id: "c-ok", version: 1 };
+const EMPTY_CATALOG: CharacterRoleCatalog = { in_project: false, originals: [], members: [], defaults: { personal: null, project: null }, effective: { kind: "assistant", source: "assistant" } };
+const RESOLVED = { effective: EMPTY_CATALOG.effective, selection: { kind: "assistant" as const } };
 
-test("W5-01-CODING-29 S-15 a plugin that does not list characters.runnable under consumes is refused it (actions.forbidden), whatever it holds, while the action it lists is reachable; the person's characters.execution is out of reach even when listed", { timeout: 60_000 }, async () => {
+test("W5-01-CODING-29 S-15 a plugin that does not list characters.roles.resolve under consumes is refused it (actions.forbidden), whatever it holds, while the action it lists is reachable; the person's characters.execution is out of reach even when listed", { timeout: 60_000 }, async () => {
   const item = await consumers();
   try {
-    await item.start("lists-both", [characterPluginActions.list.capability_id, characterPluginActions.runnable.capability_id], ["artifact:read"]);
-    await item.start("lists-one", [characterPluginActions.list.capability_id], ["artifact:read"]);
+    await item.start("lists-both", [characterRoleActions.list.capability_id, characterRoleActions.resolve.capability_id], ["artifact:read"]);
+    await item.start("lists-one", [characterRoleActions.list.capability_id], ["artifact:read"]);
     await item.start("lists-none", [goalPluginActions.list.capability_id], ["artifact:read"]);
     await item.start("lists-execution", [charactersActions.execution.capability_id], ["artifact:read"]);
     // Coding's own Manifest asks for both, so it gets both.
-    assert.deepEqual(await item.client("lists-both").invoke(characterPluginActions.runnable, { reference }), { available: true });
-    assert.deepEqual(await item.client("lists-both").invoke(characterPluginActions.list, {}), { drafts: [], publications: [] });
-    assert.deepEqual(item.reached, ["runnable", "list"]);
+    assert.deepEqual(await item.client("lists-both").invoke(characterRoleActions.resolve, {}), RESOLVED);
+    assert.deepEqual(await item.client("lists-both").invoke(characterRoleActions.list, {}), EMPTY_CATALOG);
+    assert.deepEqual(item.reached, ["resolve", "list"]);
     // Not listed: refused before Characters is asked.
-    assert.deepEqual(await item.client("lists-one").invoke(characterPluginActions.list, {}), { drafts: [], publications: [] });
-    await assert.rejects(item.client("lists-one").invoke(characterPluginActions.runnable, { reference }), { code: "actions.forbidden" });
-    await assert.rejects(item.client("lists-none").invoke(characterPluginActions.runnable, { reference }), { code: "actions.forbidden" });
-    await assert.rejects(item.client("lists-none").invoke(characterPluginActions.list, {}), { code: "actions.forbidden" });
+    assert.deepEqual(await item.client("lists-one").invoke(characterRoleActions.list, {}), EMPTY_CATALOG);
+    await assert.rejects(item.client("lists-one").invoke(characterRoleActions.resolve, {}), { code: "actions.forbidden" });
+    await assert.rejects(item.client("lists-none").invoke(characterRoleActions.resolve, {}), { code: "actions.forbidden" });
+    await assert.rejects(item.client("lists-none").invoke(characterRoleActions.list, {}), { code: "actions.forbidden" });
     // Listed and granted, but the launch details are the person's: the action is not offered to plugins, so for this plugin what it
     // lists does not exist in the project (it is not told the action is there and refused).
     await assert.rejects(item.client("lists-execution").invoke(charactersActions.execution, { reference }), { code: "actions.dependency_missing" });
-    assert.deepEqual(item.reached, ["runnable", "list", "list"], "the refused calls never reached Characters");
+    assert.deepEqual(item.reached, ["resolve", "list", "list"], "the refused calls never reached Characters");
   } finally { item.close(); }
 });
 
-test("W5-01-CODING-30 S-15 once the person has withdrawn the grant, the listed action is refused (plugin.grant_denied) and Characters is not asked", { timeout: 60_000 }, async () => {
+test("W5-01-CODING-30 S-15 role reads take no grant (role-service-design §5: the roles are the person's own, kept by Characters' owner check): withdrawing a plugin's grants does not open or close them; only consumes does", { timeout: 60_000 }, async () => {
   const item = await consumers();
   try {
-    const consumes = [characterPluginActions.list.capability_id, characterPluginActions.runnable.capability_id];
+    const consumes = [characterRoleActions.list.capability_id, characterRoleActions.resolve.capability_id];
     const installed = await item.start("revoked", consumes, ["artifact:read"]);
-    assert.deepEqual(await item.client("revoked").invoke(characterPluginActions.runnable, { reference }), { available: true });
-    assert.deepEqual(item.reached, ["runnable"]);
+    assert.deepEqual(await item.client("revoked").invoke(characterRoleActions.resolve, {}), RESOLVED);
     // The running plugin's grants do not change under it: the person stops it, withdraws the grant, and it starts again without it.
     await item.runtime.stop(installed.install_id);
     item.runtime.grant(installed.install_id, []);
     await item.runtime.start(installed.install_id);
-    await assert.rejects(item.client("revoked").invoke(characterPluginActions.runnable, { reference }), { code: "plugin.grant_denied" });
-    await assert.rejects(item.client("revoked").invoke(characterPluginActions.list, {}), { code: "plugin.grant_denied" });
-    assert.deepEqual(item.reached, ["runnable"], "the withdrawn grant refused both before Characters was asked");
-    // A plugin that was never given it is refused the same way.
+    assert.deepEqual(await item.client("revoked").invoke(characterRoleActions.resolve, {}), RESOLVED);
+    assert.deepEqual(await item.client("revoked").invoke(characterRoleActions.list, {}), EMPTY_CATALOG);
+    // A plugin never given a grant reads what it consumes; one that does not consume them is refused before Characters is asked.
     await item.start("never", consumes, []);
-    await assert.rejects(item.client("never").invoke(characterPluginActions.runnable, { reference }), { code: "plugin.grant_denied" });
-    assert.deepEqual(item.reached, ["runnable"]);
+    assert.deepEqual(await item.client("never").invoke(characterRoleActions.resolve, {}), RESOLVED);
+    await item.start("other", [goalPluginActions.list.capability_id], []);
+    await assert.rejects(item.client("other").invoke(characterRoleActions.resolve, {}), { code: "actions.forbidden" });
+    assert.deepEqual(item.reached, ["resolve", "resolve", "list", "resolve"], "the refused call never reached Characters");
   } finally { item.close(); }
 });
 

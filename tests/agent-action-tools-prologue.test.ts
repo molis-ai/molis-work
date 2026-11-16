@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
+import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
 import { createMcpActionGrant } from "../apps/local-host/dist/mcp-action-grants.js";
@@ -70,41 +71,44 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
   try {
     const owner = { project_id: "project", plugin_id: "caller", install_id: "i", actor_id: "user" }, directory = { canonical_path: home, realpath_verified: true };
     const session = await adapter.createSession({ ...owner, directory, title: "Action tools" });
-    const character = { character_id: "c", reference: { artifact_id: "character:project:c", version: 1 }, title: "Scoped writer", instructions: "Use the chosen tools.",
-      host_tools: null, action_tools: [...selected, queryRef], source: { owner_actor_id: "user", draft_revision: 1 }, project_id: "project", content_digest: "original",
-      producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "official-characters-binding" }, published_at: "2026-09-26T00:00:00Z" };
+    // A member of this project as the Host pins it (role-service-design §5); the round names the member, never a version.
+    const character: AgentFrozenCharacter = { version: { kind: "project", member_id: "c", member_version: 1, original: { kind: "personal", character_id: "c", version: 1 } },
+      character_id: "c", title: "Scoped writer", instructions: "Use the chosen tools.", host_tools: null, action_tools: [...selected, queryRef],
+      project_id: "project", owner_actor_id: "user", saved_at: "2026-09-26T00:00:00Z" };
     const authority: AgentStartAuthority = { authorizedDirectories: [home], manifest: { roles: [{ role_id: "writer", version: 1, name: "Writer", execution: "workspace-write", prompts: ["base", "writer"], host_tools: [] }],
-      characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["writer"] },
+      characters: { selection: "optional-role", scope: "owner", role_ids: ["writer"] },
       prompts: [{ prompt_id: "base", version: 1 }, { prompt_id: "writer", version: 1 }] },
       prompts: [{ prompt_id: "base", version: 1, layer: "base", body: "Use the selected action." }, { prompt_id: "writer", version: 1, layer: "role", body: "Write a note." }],
-      resolveCharacter: () => { if (!characterActive) throw new Error("Character disabled"); return character; },
+      resolveCharacter: () => { if (!characterActive) throw new Error("Character disabled"); return structuredClone(character); },
+      // Removing the member takes its fixed versions away: a round that runs with one stops at its next dispatch.
+      characterVersion: () => { if (!characterActive) throw new Error("Character version removed"); return structuredClone(character); },
       actions: async (_runtime, validate) => {
         const current = (signal?: AbortSignal) => authorizeMcpActions(local, { ...caller, signal }, home, project, validate);
         return { discover: async () => { const auth = await current(); return auth.service.discover(auth.context); },
           invoke: async (ref, input, signal) => { const auth = await current(signal); return auth.service.invoke(auth.context, ref, input); } };
       } };
-    for (const outcome of ["allowed", "revoked", "disabled"]) {
+    for (const outcome of ["allowed", "revoked", "removed"]) {
       await writeMcpActionGrant(home, grant, { host_reason: "fixture" }); characterActive = true;
       callNext = true;
-      const handle = await host.start("prologue", { ...owner, session, directory, task: "Save a note", role_id: "writer", action_tools: selected, character: character.reference }, authority);
+      const handle = await host.start("prologue", { ...owner, session, directory, task: "Save a note", role_id: "writer", action_tools: selected, character: { kind: "project", member_id: "c" } }, authority);
       const review = await until(async () => { const pending = queue.list("project", "pending")[0]; const run = await adapter.read(handle.ref);
         if (!pending && ["failed", "completed"].includes(run.phase)) throw new Error(JSON.stringify(run)); return pending; });
       assert.equal(review.document.kind, "tool-operation");
       assert.ok(JSON.stringify(review.document).includes("unknown.notes.write"));
       assert.equal(db.prepare("SELECT COUNT(*) n FROM notes").get()!.n, outcome === "allowed" ? 0 : 1);
       if (outcome === "revoked") await writeMcpActionGrant(home, { ...grant, enabled: false }, { host_reason: "fixture" });
-      if (outcome === "disabled") characterActive = false;
+      if (outcome === "removed") characterActive = false;
       const requestsBeforeApproval = requests.length;
       await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" });
       const run = await until(async () => { const value = await adapter.read(handle.ref); return ["completed", "failed", "cancelled"].includes(value.phase) ? value : undefined; });
       assert.deepEqual(run.frozen.action_tools, selected);
-      if (outcome === "disabled") {
-        // The Character is rechecked before every model dispatch: once disabled, the round stops instead of sending again,
-        // and says it was refused rather than blaming the network.
+      if (outcome === "removed") {
+        // ROLE-08: the role's fixed version is rechecked before every model dispatch: once it is removed, the round stops instead of
+        // sending again, and says it was refused rather than blaming the network.
         assert.equal(run.phase, "failed");
-        assert.match(run.stop_reason ?? "", /EFFECT_NOT_AUTHORIZED[\s\S]*Character disabled/);
+        assert.match(run.stop_reason ?? "", /EFFECT_NOT_AUTHORIZED[\s\S]*已移出或删除/);
         assert.doesNotMatch(run.stop_reason ?? "", /MODEL_NETWORK_FAILED/);
-        assert.equal(requests.length, requestsBeforeApproval, "a disabled Character must not send a subsequent model request");
+        assert.equal(requests.length, requestsBeforeApproval, "a removed role must not send a subsequent model request");
       } else {
         assert.equal(run.phase, "completed", run.stop_reason);
         const wire = JSON.stringify(requests.at(-1).messages);

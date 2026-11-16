@@ -19,8 +19,8 @@ import {
   type AgentPromptResolver,
 } from "@molis-ai/molis-work-service-agent-host";
 import { builtinPluginByManifestId } from "./plugin-registry.js";
-import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
-import { freezeProjectCharacter } from "./characters-host.js";
+import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
+import { readRoleVersion, resolveRoleCharacter } from "./characters-host.js";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PrepareProjectDirectory } from "./project-capabilities.js";
 import { readProjectGuidance, type ProjectGuidanceFacts } from "./goal-callers.js";
@@ -297,7 +297,8 @@ async function startAuthority(
   // listing actions) gets none: it lists what it may call, and a run of a plugin role finds no role and is refused.
   const declared = caller ? { manifest: caller.declaration.manifest.agent, prompts: caller.declaration.agent_prompts, skills: caller.declaration.agent_skills } : undefined;
   const manifest = caller?.declaration.manifest ?? builtinPluginByManifestId(pluginId)?.manifest;
-  const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === /* @version type.character.definition */ 1);
+  // A plugin whose Agent block takes a role (Manifest `agent.characters`) gets the Host's role resolver; the role is the person's own.
+  const takesRoles = !!manifest?.agent?.characters;
   const original = currentOriginalInput(caller);
   const places = await runPlaces(options, runtime.project_id);
   const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
@@ -355,7 +356,8 @@ async function startAuthority(
         check: async (action, input) => checkActionInput(await current(), action, input),
       };
     },
-    ...(consumesCharacters ? { resolveCharacter: (reference, actorId) => freezeProjectCharacter(homeDirectory, actorId, runtime.project_id, runtime.artifacts.query, reference) } : {}),
+    ...(takesRoles ? { resolveCharacter: (choice, actorId) => resolveRoleCharacter(homeDirectory, actorId, runtime.project_id, choice),
+      characterVersion: (version, actorId) => readRoleVersion(homeDirectory, actorId, runtime.project_id, version) } : {}),
     project_prompts: await projectPrompts(runtime, localHost),
     // The platform memory under the Agent work switch: the person's and this project's, where they apply.
     memory: (task, context) => memoryForAgentRun(localHost, { project_id: runtime.project_id, task, plugin_id: pluginId, ...(context?.character ? { character: context.character } : {}),

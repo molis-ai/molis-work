@@ -10,3 +10,6 @@ let client: string | null = null;
 export function renderMolisWorkCharactersClientScript(): string {
   return client ??= readFileSync(new URL("../characters-client.js", import.meta.url), "utf8").trim();
 }
+
+/** What every settings page carries for Settings › 角色 (`src/browser/characters/loader.ts`): it adds the program when a page shows it. */
+export const CHARACTERS_SETTINGS_LOADER_SCRIPT = readFileSync(new URL("../../dist/characters-loader.js", import.meta.url), "utf8").trim();

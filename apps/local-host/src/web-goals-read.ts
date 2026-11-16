@@ -1,14 +1,11 @@
 import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
-import { agentDisplayModel } from "./agent-definitions/display-words.js";
-import { openedAgentDefinitions } from "./agent-definitions/agent-definitions.js";
-import { currentLocale, inLanguagePreview } from "./web-locale.js";
 import { readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./plugin-builder/agent-surface.js";
 import { configuredModelChoices } from "./configured-models.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { declaredArtifactTypes } from "./artifact-type-registry.js";
-import { renderCharacters, renderWorkbenchRefreshDocument, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { renderWorkbenchRefreshDocument, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { renderGoalsReadRequest, renderGoalsPageRequest, type GoalsStageData } from "@molis-ai/molis-work-plugin-goals/page";
 import { matchPageRoute } from "./page-routes.js";
 import { shownProjectPlugins } from "./plugin-registry.js";
@@ -32,7 +29,7 @@ import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory 
 
 /** The page still opens without the installed plugins' entries; why they are missing is written. */
 /** The project settings page each path opens; `/settings` alone opens 常规. */
-const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "kit", "grants", "rules", "general"] as const)
+const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "kit", "characters", "grants", "rules", "general"] as const)
   .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
 async function projectSettingsRequirements(homeDirectory: string | undefined, store: LocalProjectDatabase, projectId: string, withCatalog: LocalWebCatalogRunner) {
@@ -43,8 +40,7 @@ async function projectSettingsRequirements(homeDirectory: string | undefined, st
 /**
  * Opening the project page starts the project's plugin platform; the stages read what it runs: every declared stage of a plugin
  * the Runtime runs, drawn by its running instance (W5-06), the Coding page's companions included (they fill the slots its view
- * opens). The 角色 page is the Host's own (CHR-1): the settings cover shows it inside the project, and its client mounts when it
- * is first shown.
+ * opens). (A project's 角色 are in 项目设置 › 角色, drawn with the other project settings pages.)
  */
 async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: MolisWorkWebView,
   configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[] },
@@ -55,9 +51,7 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
   const runtime = renderProjectRuntimeStages(record, ports.store, { shown: view.shown_plugins ?? shownProjectPlugins(configuration.plugins, configuration.hidden),
     drawn: view.plugin_stage_surfaces ?? [], views: view.plugin_stage_views, page_owner: view.page_owner, model: projectPluginId => model(projectPluginId, stageView), home: await homeStageHalves(ports.homePlugins),
     ...(ports.homeDirectory ? { homeDirectory: ports.homeDirectory } : {}) });
-  const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) },
-    ...(ports.homeDirectory && inLanguagePreview() ? { agent_display_model: agentDisplayModel(openedAgentDefinitions(ports.homeDirectory)?.registrations() ?? [], currentLocale() ?? undefined, "role") } : {}) });
-  return { html: [characters, ...runtime.html], panels: runtime.panels, overlays: runtime.overlays, surfaces: runtime.surfaces, unavailable: runtime.unavailable, page: runtime.page,
+  return { html: runtime.html, panels: runtime.panels, overlays: runtime.overlays, surfaces: runtime.surfaces, unavailable: runtime.unavailable, page: runtime.page,
     directory };
 }
 /**

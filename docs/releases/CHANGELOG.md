@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 角色设置、生效与恢复（第 36 批第 1 项）
+
+- **方案 C**：设置 › 角色管本人的原件与个人默认；项目设置 › 角色管这个项目的角色与项目默认。新建即保存第 1 版，之后每次保存一版；版本可查看、恢复。项目里的角色两节各自「跟随原件／只改本项目」，原件更新时项目里能看到差别再决定。
+- **生效顺序**：任务自己选的 → 项目默认 → 个人默认 → 助理。Coding、助理只交稳定引用，Host 起跑时钉住版本；同一会话沿用上一轮的版本；停用不打断进行中的一轮，版本被移出或删除才在下一步前停下（S-character-role-scope）。
+- **合同与库**：`agent.run.start@1` 的 `character` 改为任务选择；`characters.create@1` 必填正文并返回版本；新增 11 个角色动作，删除 `characters.list@1`、`characters.runnable@1`；`characters/characters.sqlite` 升到第 2 版（只建表）。详见 `docs/system/CONTRACT-CHANGES.md` 第 8 节。
+
 ### 工作记录：历史查询与记录管理（2026-11-15，#2084、#2088）
 
 - **公共动作**：`system.observation` 新增 8 个 `@1` 动作：只读 `records.query`／`evidence.get`／`coverage.get`，本人管理 `settings.get/set`／`space.get`／`cleanup.preview/apply`；按受众、用途开关、S-74 与模拟来源隔离裁决；支持当时证据快照解封、主人版本引用核对、`after_seq` 增量与迟到标记。既有 `observation.report@1` 形状不变，合同成熟度升为 `implemented`。
@@ -83,6 +89,8 @@
 - 平台内部createUiRequest工厂显式接收共享UI_HOST_CLIENT_CODES；序列化脚本与所有平台调用方已更新。外部插件仍使用现有SDK页面端口。
 
 ### 升级须知（需要动手）
+
+- **第 36 批：角色的版本、项目成员与默认（阶段一不留兼容）**：固定引用 `characters.list@1`、`characters.runnable@1` 的工作流或插件改用 `characters.roles.list@1`／`characters.roles.resolve@1`；向 `agent.run.start@1` 传成果引用作 `character` 的调用改传 `{kind:"personal",character_id}` 或 `{kind:"project",member_id}`。升级后已有的角色草稿在设置 › 角色里显示「还没保存过」，打开保存一次即成第 1 版，才能被选。
 
 - **第 31 批：记忆适用情境 `applies.goal_ids` 改为 `applies.objects`，导出包拒绝旧 `goal_ids`（阶段一不留兼容）**（#2081 及复查修复，2026-11-15）：`memory.write@1`、`memory.change@1`、`memory.recall@1`、`memory.list@1`、`memory.page@1`、`memory.candidates.list@1`、`memory.candidates.accept@1`、`memory.candidates.discard@1`、`memory.history@1` 的适用条件删掉 `goal_ids`，改为通用关联对象 `objects: [{ plugin_id, kind, id }]`；固定构造旧字段的调用方与工作流绑定要改用 `objects`，带 `applies.goal_ids` 的旧导出包在导入预检即整包拒绝。`memory/memory.db` 由升级链自动走 `2 → 3` 清洗重复历史正文，无需手工操作。
 

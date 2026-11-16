@@ -1,7 +1,7 @@
 import { changeCodingSessionLifecycle } from "./session-lifecycle.js";
 import { codingSessionEntry, codingSessionSubject } from "./session-source.js";
 import { readCodingSessions } from "./session-observation.js";
-import { characterSelection, characterSkillSelection } from "./characters.js";
+import { characterSelection, characterSkillSelection, saveCharacter } from "./characters.js";
 import { materialSelection, savedMaterials } from "./materials.js";
 import { confirmedPlan } from "./plans.js";
 import { type Capabilities, type CodingActivation, selected } from "./route-activation.js";
@@ -219,7 +219,9 @@ const ROUTES: RouteMaker[] = [
       const materials = body.materials === undefined ? undefined : materialSelection(body.materials);
       if (materials && busy.has(record.session_id)) throw codingError(codingSessionErrors.materials_busy, "coding.server.materials-busy");
       const configuration = body.configuration === undefined ? undefined : nextConfiguration(body.configuration);
-      const character = body.character === undefined ? undefined : characterSelection(body.character);
+      const picked = body.character === undefined ? undefined : characterSelection(body.character);
+      // A chosen role is checked now and kept with its title; the Host pins its version at the session's next round.
+      const character = picked ? await execution.characters.chosen(picked, codingActionControl(beforeWrite)) : picked;
       const characterSkills = body.character_skill_ids === undefined ? undefined : characterSkillSelection(body.character_skill_ids);
       const actionTools = body.action_tools === undefined ? undefined : parseExactActionReferences(body.action_tools);
       const sources = body.mcp_sources === undefined ? undefined : mcpSources(body.mcp_sources);
@@ -232,7 +234,7 @@ const ROUTES: RouteMaker[] = [
       if (sources !== undefined) context.services!.storage!.set(`mcp-sources:${record.session_id}`,JSON.stringify(sources));
       if (tools !== undefined) context.services!.storage!.set(`mcp:${record.session_id}`, JSON.stringify(tools));
       if (skills !== undefined) context.services!.storage!.set(`skills:${record.session_id}`, JSON.stringify(skills));
-      if (character !== undefined) context.services!.storage!.set(`character:${record.session_id}`, JSON.stringify(character));
+      if (character !== undefined) saveCharacter(context, record.session_id, character);
       if (characterSkills !== undefined) context.services!.storage!.set(`character-skills:${record.session_id}`, JSON.stringify(characterSkills));
       // The person's budget for this session: reaching it is reported, never enforced (the person's choice).
       if (budget === null) context.services!.storage!.delete(`budget:${record.session_id}`);

@@ -98,5 +98,5 @@ export const ASSISTANT_AGENT: AgentManifest = {
     prompts: ["assistant-base", "assistant-delegated"], host_tools: [...BUSINESS_HOST_TOOLS],
   }],
   // A Character the person published in the work's project may carry a round: exact version, their own, this project only.
-  characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: [ASSISTANT_ROLE_ID, ASSISTANT_MAIN_ROLE_ID, ASSISTANT_DELEGATED_ROLE_ID] },
+  characters: { selection: "optional-role", scope: "owner", role_ids: [ASSISTANT_ROLE_ID, ASSISTANT_MAIN_ROLE_ID, ASSISTANT_DELEGATED_ROLE_ID] },
 };

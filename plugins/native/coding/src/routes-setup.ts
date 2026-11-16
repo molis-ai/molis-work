@@ -25,12 +25,15 @@ const ROUTES: RouteMaker[] = [
       const record = selected(a, request, execution), runtimes = await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []);
       const tools = runtimes.some(runtime => runtime.runtime_id === record.runtime_id && runtime.supports_action_tools)
         ? await codingActions(context, beforeWrite).invoke(agent.listActions, [record.runtime_id]) : [];
-      const characterRef = savedCharacter(context, record.session_id);
+      const saved = savedCharacter(context, record.session_id), characterRef = saved && saved !== "unreadable" ? saved.ref : null;
       // The tools the session's Character allows: none when it sets no limit; Characters' own refusal (the version is off, gone) is shown beside each action.
       let characterTools: Awaited<ReturnType<typeof execution.characters.actionTools>>;
       let character_error: string | undefined;
       const say = codingText;
-      try { if (characterRef) characterTools = await execution.characters.actionTools(characterRef, codingActionControl(beforeWrite)); }
+      try {
+        if (saved === "unreadable") throw new Error(say("coding.server.character-gone"));
+        if (characterRef) characterTools = await execution.characters.actionTools(characterRef, codingActionControl(beforeWrite));
+      }
       catch (error) { beforeWrite.assert_current(); character_error = error instanceof Error ? error.message : say("coding.server.character-gone"); }
       return { actions: tools.map(view => ({ ...view, availability: character_error
         ? { available: false, code: "agent.character_unavailable", reason: character_error }
@@ -143,7 +146,10 @@ const ROUTES: RouteMaker[] = [
       const record = selected(a, request, execution);
       // Whether the session's Runtime has verified a Character's tool limits is the Runtime's own declaration; the page offers Characters only then.
       const limited = limitsCharacters(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), record.runtime_id);
-      return { characters: await execution.characters.list(codingActionControl(beforeWrite)), selected: savedCharacter(context, record.session_id), character_skill_ids: savedCharacterSkills(context, record.session_id), limits_verified: limited };
+      const { choices, catalog } = await execution.characters.catalog(codingActionControl(beforeWrite)), saved = savedCharacter(context, record.session_id);
+      // The same choices and words for where a role comes from as the Assistant's picker: the defaults and the role a new session gets.
+      return { characters: choices, selected: saved && saved !== "unreadable" ? saved.ref : null, selected_unreadable: saved === "unreadable",
+        defaults: catalog.defaults, effective: catalog.effective, character_skill_ids: savedCharacterSkills(context, record.session_id), limits_verified: limited };
     });
   },
   // The files a person can name with @: read through the Host's read-only workspace file action, briefly remembered.

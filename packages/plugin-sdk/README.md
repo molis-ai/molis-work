@@ -382,3 +382,5 @@ FI-C-02：轮询集成的 `health(control)` 与 `sync(input, control)` 必须透
 输入和控制的未确认结果必须沿原请求查询，不能因取消等待而认定未受理。必需的 `source.check(target, requestId, signal)` 按当前读取权限查询原持久回执，即使 pending 已移除或执行已换代；它不重试业务效果。页面恢复时 owner 返回 `pending`，查询已受理或确认未受理后移除此笔 pending，前者只结算原草稿版本；新草稿保留。恢复的输入查到终态后仍保持锁定，等已结算草稿读回再同步显示并解锁，不重挂输入。视图省略或替换 pending 不代表终态，原请求仍可继续查询；unknown.check 的后续查询闭包也会保留。同页输入仍走统一输入框保留的原 check，组件不再加第二个查询入口。没有历史或原回执能力时应给出不可用原因，不以当前运行状态推断发送成功。默认消息正文用 `{ text }`；`{ html }` 只接可信 owner 已清洗的富文本，浏览器还会过滤正文动作钩子。
 
 公共回归：`tests/subtask-conversation.e2e.test.ts` 使用 Work 记录和 SDK 事件两种独立 owner；`tests/composer-local-placement.e2e.test.ts` 核对真实插件框架内主子输入隔离；`tests/subtask-conversation-board.e2e.test.ts` 核对组件板外观、IME、语言和阅读恢复。这里交付公共端口；助理与 Coding 真实子任务历史、输入准入与宿主重启验收见 `specs/subagent-interaction/spec.md` §11 的第 59 批接入边界。
+
+`ComposerHandle.ready()` 等待本次输入程序实际挂载，加载失败拒绝，后续显式调用可重试；销毁或宿主栏切换接收者拒绝挂起查询。`hold()` 在冷加载首屏也立即锁住输入，重试不会解锁；ready 不表示草稿已读完。恢复子任务先等 ready，再等首次草稿读取及权威草稿回填完成。

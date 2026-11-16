@@ -103,6 +103,8 @@ export function subtaskComposer(root: HTMLElement, source: SubtaskConversationSo
     const assertMounted = () => { if (!mounted || mounted.view.target !== target || current !== mounted) throw new DOMException("Input mount changed", "AbortError"); };
     assertMounted();
     // Let the initial Composer restore finish first, so it cannot refill an old draft after the receipt has cleared it.
+    await mounted!.handle!.ready();
+    assertMounted();
     await mounted!.loaded;
     assertMounted();
     const text = await mounted!.options.draft.adapter.read(new AbortController().signal);

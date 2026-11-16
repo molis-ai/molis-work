@@ -26,6 +26,9 @@ test("B58-03: local framed AI input keeps the main bar's node, receiver, draft a
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/` }, b.sessionId));
   await b.click('[data-plugin-picker-popover] [data-plugin-id="lingguang"]');
   await child.waitFor("window.molisComposer && !document.querySelector('[data-work-surface=lingguang]').hidden");
+  await b.evaluate(`globalThis.originalFactory=window.molisComposer; window.molisComposer=(root,options)=>{
+    const handle=originalFactory(root,options); if(options.entry==='main')globalThis.mainReadyHandle=handle; return handle;
+  }`);
   await child.evaluate(`(() => {
     const labels = ${JSON.stringify(COMPOSER_AI_LABELS)};
     globalThis.placementSeen = { main: [], child: [], drafts: {main:'', child:''} };
@@ -36,10 +39,22 @@ test("B58-03: local framed AI input keeps the main bar's node, receiver, draft a
       submit: async input => { placementSeen[key].push(input.text); return {state:'sent'}; }
     });
     const main = document.createElement('div'); main.id = 'placement-main'; document.body.prepend(main);
-    placementMount('main', undefined, main);
+    globalThis.mainPlacement = placementMount('main', undefined, main);
   })()`);
   const bar = "document.querySelector('[data-assistant-island]')";
   await b.waitFor(`${bar}.dataset.receiver === 'page' && ${bar}.querySelector('.mw-composer__to').textContent.includes('main')`);
+  assert.equal(await child.evaluate("mainPlacement.ready().then(()=>true,()=>false)"), true);
+  await b.evaluate("mainReadyHandle.ready=()=>new Promise(resolve=>{globalThis.releaseMainReady=resolve})");
+  await child.evaluate("globalThis.remoteReady='waiting'; void mainPlacement.ready().then(()=>remoteReady='ready',()=>remoteReady='inactive')");
+  await b.waitFor("globalThis.releaseMainReady");
+  await child.evaluate(`(() => { const root=document.createElement('div'); document.body.prepend(root); globalThis.otherPlacement=placementMount('child',undefined,root); })()`);
+  await child.waitFor("remoteReady === 'inactive'");
+  await b.evaluate("releaseMainReady()");
+  assert.equal(await child.evaluate("remoteReady"), "inactive", "late old binding cannot resolve a switched receiver");
+  await b.evaluate("globalThis.previousMainReady=mainReadyHandle");
+  await child.evaluate("otherPlacement.destroy(); mainPlacement=placementMount('main',undefined,document.getElementById('placement-main'))");
+  await b.waitFor(`mainReadyHandle !== previousMainReady && ${bar}.querySelector('.mw-composer__to').textContent.includes('main')`);
+  assert.equal(await child.evaluate("mainPlacement.ready().then(()=>true,()=>false)"), true);
   await b.evaluate(`globalThis.keptBarField = ${bar}.querySelector('textarea'); keptBarField.value = 'main draft'; keptBarField.dispatchEvent(new Event('input', {bubbles:true}))`);
   await child.evaluate(`(() => { const root = document.createElement('div'); root.id = 'placement-child'; root.style.cssText='width:330px;min-height:180px'; document.body.prepend(root); globalThis.localPlacement = placementMount('child','local',root); })()`);
   await child.waitFor("globalThis.molisComposerProgram && document.querySelector('#placement-child textarea')");
@@ -71,6 +86,7 @@ test("B58-03: local framed AI input keeps the main bar's node, receiver, draft a
   await child.evaluate("globalThis.localPlacement = placementMount('child', 'local', document.getElementById('placement-child'))");
   await child.waitFor("!document.getElementById('placement-child').hasAttribute('data-composer-remote')");
   await child.evaluate("localPlacement.destroy()");
+  assert.equal(await child.evaluate("localPlacement.ready().then(()=>false,()=>true)"), true);
   // B58-03: closing a local input releases its frame-owned cleanup immediately, including repeated root reuse.
   assert.deepEqual(await child.evaluate(`(() => {
     const before = localCleanupCount, root = document.createElement('div'), counts = [];

@@ -1,6 +1,7 @@
 import type { ComposerMaterial } from "@molis-ai/molis-work-contracts/platform/composer";
 import type { ComposerCommand, ComposerControl, ComposerHandle, ComposerNotice, ComposerOptions, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type { BridgedCommand, BridgedControl, ComposerCalls, ComposerDown, ComposerSnapshot, ComposerUp } from "./composer-bridge.js";
+import { childComposerReadiness } from "./composer-readiness.js";
 import type { FrameScope } from "./types.js";
 
 const STYLE = "[data-composer-remote]{display:none!important}";
@@ -80,6 +81,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
   const local = window.molisComposer;
   if (!bar || !local) return;
   let sequence = 0, live = 0;
+  let refuseReady: (() => void) | undefined;
   const send = (message: ComposerUp) => { if (scope.alive) port.postMessage(message); };
   const style = document.createElement("style"); style.textContent = STYLE; document.head.append(style);
   // Mounting the same root again lets the last one go first, as the composer itself does.
@@ -99,10 +101,13 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
     // One AI receiver per frame: the bar follows the latest mount (`live`); an earlier one on another root stays mounted but no longer
     // takes the bar.
     mounted.get(root)?.();
+    refuseReady?.();
     const id = live = ++sequence, field = root.querySelector<HTMLTextAreaElement>(".mw-composer__input");
     const ai = options;
     const calls = new Map<number, AbortController>(), checks = new Map<number, () => Promise<"sent" | "not-sent" | "unknown">>();
     let running = false, hold: string | null = null, materials: readonly ComposerMaterial[] = [], gone = false, last = "", queued = false;
+    const readiness = childComposerReadiness(send, id, () => !gone && live === id);
+    refuseReady = readiness.discard;
     root.dataset.composerRemote = "";
     const sizes = new ResizeObserver(() => changed());
     if (root.parentElement) sizes.observe(root.parentElement);
@@ -168,6 +173,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
     const listen = (event: MessageEvent<ComposerDown>) => {
       const message = event.data;
       if (!message || message.id !== id || gone) return;
+      if (message.type === "composer-ready") { readiness.answer(message); return; }
       if (message.type === "composer-text") { mirror(message.text); return; }
       if (message.type === "composer-materials") { materials = message.materials; ai.onMaterials?.(); return; }
       // The bar's input width: a page lines its conversation up with it through this one variable (§10.4).
@@ -198,7 +204,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
     port.addEventListener("message", listen);
     function destroy() {
       if (gone) return;
-      gone = true; sizes.disconnect(); port.removeEventListener("message", listen); stand.release();
+      gone = true; readiness.discard(); sizes.disconnect(); port.removeEventListener("message", listen); stand.release();
       for (const controller of calls.values()) controller.abort();
       calls.clear(); checks.clear();
       delete root.dataset.composerRemote;
@@ -207,6 +213,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
     scope.own(destroy); mounted.set(root, destroy);
     changed();
     const handle: ComposerHandle = {
+      ready: readiness.request,
       setRunning: (value) => { running = value; changed(); },
       hold: (reason) => { hold = reason; changed(); },
       refresh: changed,

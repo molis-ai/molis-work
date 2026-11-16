@@ -284,6 +284,8 @@ export type ComposerOutcome =
   | { state: "unknown"; check(): Promise<"sent" | "not-sent" | "unknown"> };
 
 export interface ComposerHandle {
+  /** Wait for this input program to mount. A load failure rejects; another call retries. Closed or inactive mounts reject. Draft reads settle separately. */
+  ready(): Promise<void>;
   setRunning(running: boolean): void; refresh(): void; focus(): void; insert(text: string): void;
   /**
    * The page cannot take words now (Coding until a session's first read is in, or while it starts a round by another button): the

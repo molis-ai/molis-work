@@ -70,6 +70,7 @@ export type ComposerCalls = {
 export type ComposerOp = keyof ComposerCalls;
 
 export type ComposerUp =
+  | { type: "composer-ready"; id: number; call: number }
   | { type: "composer-state"; id: number; snapshot: ComposerSnapshot }
   | { type: "composer-text"; id: number; text: string }
   | { type: "composer-focus"; id: number }
@@ -80,6 +81,7 @@ export type ComposerUp =
   | { type: "composer-destroy"; id: number }
   | { type: "composer-answer"; id: number; call: number; value?: unknown; error?: string };
 export type ComposerDown =
+  | { type: "composer-ready"; id: number; call: number; ready: boolean }
   | { type: "composer-call"; id: number; call: number; op: ComposerOp; arg?: unknown }
   | { type: "composer-abort"; id: number; call: number }
   /** A control changed, a command chosen, (`receiver`) another of the page's receivers picked in 「发给」 by the id the page gave, or (`notice`) the button of the line above the box. */

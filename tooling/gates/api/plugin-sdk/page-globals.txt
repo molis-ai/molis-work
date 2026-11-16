@@ -92,6 +92,7 @@ export interface ComposerDraftAdapter {
 }
 
 export interface ComposerHandle {
+    ready(): Promise<void>;
     setRunning(running: boolean): void;
     refresh(): void;
     focus(): void;

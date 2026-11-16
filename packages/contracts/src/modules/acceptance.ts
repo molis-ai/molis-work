@@ -228,7 +228,7 @@ export const acceptanceActions = {
     kind: "query", effect: "read", audiences: ["user"], permissions: [ACCEPTANCE_READ_PERMISSION],
     input_schema: inputSchemaFor<AcceptanceReviewRequest>()(REVIEW_INPUT), output_schema: { type: "object" } } } as ActionDefinition<AcceptanceReviewRequest, object>,
   decide: { capability_id: "acceptance.decide", version: /* @version action.acceptance.decide */ 1, operation: "command", action: { ...metadata, subject_kinds: [...ACCEPTANCE_REVIEW_SUBJECT_KINDS],
-    requires_trusted_decision: true, trusted_decision_request: { capability_id: "acceptance.review", version: 1 },
+    requires_trusted_decision: true, trusted_decision_request: { capability_id: "acceptance.review", version: /* @version action.acceptance.review */ 1 },
     title: "认可或退回各项要求", description: "用户本人经受保护可信决定入口对列出的要求逐项认可或退回（退回要写原因），一次可以定多项。每项写明所针对的要求版本和正在看的交付版本；其中任何一项在显示之后变过，整次决定不生效。没列出的要求不受影响。",
     kind: "operation", effect: "write", audiences: ["user"], permissions: [ACCEPTANCE_DECIDE_PERMISSION],
     input_schema: inputSchemaFor<AcceptanceDecideRequest>()({ type: "object", properties: { subject: SUBJECT, version: id, accepts: { type: "array", maxItems: ACCEPTANCE_REQUIREMENT_MAX, items: ITEM },

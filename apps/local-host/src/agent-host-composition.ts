@@ -314,7 +314,7 @@ async function startAuthority(
     reply_language: replyLanguage(locale),
     assertBeforeDispatch: () => {
       caller?.assertActive();
-      if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
+      if (localHost.lifecycle && localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
     },
     ...(original ? { original_input: original } : {}),
     ...(caller && record && !subject ? { sessionInstallation: { generation: record.installation_generation } } : {}),

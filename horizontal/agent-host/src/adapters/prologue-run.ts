@@ -774,8 +774,11 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
     const instructions = packed && await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.frozen.instructions = structuredClone(packed); })
       .then(() => packed, () => undefined);
     work?.assertCurrent();
+    const desktopTargets = [...new Set([...index.attempts.flatMap(item => item.desktop_target ? [item.desktop_target] : []),
+      ...(surface.desktop_target ? [surface.desktop_target] : [])])];
     return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, surface, stepBoard: materials.stepBoard, stopping, actionReviews, work }),
-      ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}), ...(instructions ? { instructions } : {}) };
+      ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}),
+      ...(desktopTargets.length ? { desktop_targets: desktopTargets } : {}), ...(instructions ? { instructions } : {}) };
   } catch (error) {
     actionController.abort();
     const failures: unknown[] = [error];

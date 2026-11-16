@@ -2490,11 +2490,6 @@ export declare const goalEventDecisionEffectKinds: readonly ["accept_requirement
 
 export declare const goalEventDecisionPurposes: readonly ["suggestion", "requirement_acceptance", "action", "agreement_change"];
 
-export declare const goalEventDecisionRef: {
-    readonly capability_id: "goals.decisions.record";
-    readonly version: 1;
-};
-
 export declare const goalEventEvidenceKinds: readonly ["artifact_version", "command_receipt"];
 
 export declare const goalEventFieldFormats: readonly ["text", "longtext"];
@@ -2580,11 +2575,6 @@ export declare const goalStateSchema: Readonly<Record<string, unknown>>;
 export declare const goalTimelineSchema: Readonly<Record<string, unknown>>;
 
 export declare const goalTrashResultSchema: Readonly<Record<string, unknown>>;
-
-export declare const goalTreeDecisionRef: {
-    readonly capability_id: "goals.tree.decide";
-    readonly version: 1;
-};
 
 export declare const guidanceCommonSchema: {
     guidance_id: {

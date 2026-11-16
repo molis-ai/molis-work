@@ -38,8 +38,9 @@ export async function withSurfaceField<T>(session: BrowserSurfaceSession, use: (
   const objectId = focus.result?.objectId;
   try {
     session.assertCurrent();
+    if (focus.exceptionDetails) throw browserErrors.load_failed("无法读取原输入框");
     const result = focus.result?.deepSerializedValue;
-    if (focus.exceptionDetails || result?.type !== "array" || !Array.isArray(result.value) || result.value.length !== 3) {
+    if (result?.type !== "array" || !Array.isArray(result.value) || result.value.length !== 3) {
       throw browserErrors.load_failed("无法核对原输入框");
     }
     const [element, label, sensitive] = result.value;
@@ -48,9 +49,9 @@ export async function withSurfaceField<T>(session: BrowserSurfaceSession, use: (
       || node.shadowRoot !== null && (!("localName" in node) || node.localName !== "input" && node.localName !== "textarea")
       || !("backendNodeId" in node) || typeof node.backendNodeId !== "number" || !Number.isSafeInteger(node.backendNodeId) || node.backendNodeId <= 0
       || typeof label?.value !== "string" || typeof sensitive?.value !== "boolean") throw browserErrors.load_failed("无法核对原输入框");
-    return use({ label: label.value, sensitive: sensitive.value, focus: String(node.backendNodeId) });
+    return await use({ label: label.value, sensitive: sensitive.value, focus: String(node.backendNodeId) });
   } finally {
-    // Queue cleanup after synchronous use, which may already have sent input. The original session owns the object.
+    // Queue cleanup after use, which may already have sent input. The original session owns the object.
     if (objectId) void session.cleanup("Runtime.releaseObject", { objectId }).catch(() => undefined);
   }
 }

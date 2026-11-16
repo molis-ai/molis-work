@@ -104,7 +104,7 @@ export function prologueActionTools(
         const held = reviews && !actionReads(view)
           ? reviews.forCall(call.callId, name, call.args) : undefined;
         if (held) { await held.control.beforeEffect(); held.control.assertCurrent(); }
-        else await currentAction(actions!, view);
+        await currentAction(actions!, view);
         abort.signal.throwIfAborted();
         const rawInput = wrapped ? call.args.input : call.args;
         const preparedInput = withPinnedKnowledgeRevision(reference, rawInput, pinnedRevisions);

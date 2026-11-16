@@ -113,6 +113,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
     const last = reverse.find(attempt => attempt.run_id);
     const planned = reverse.find(attempt => attempt.run_id && attempt.frozen.execution_plan);
     const unclaimed = open.unavailable.length > 0 || unclaimedWork(index, terminal, open);
+    const desktopTargets = [...new Set(index.attempts.flatMap(item => item.desktop_target ? [item.desktop_target] : []))];
     for (const attempt of index.attempts) {
       // A start the runtime refused never created a run; one with no reference is only unknown while some run or
       // open item of this session is claimed by no start, because that is the only run it could have made.
@@ -129,6 +130,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
         ...(attempt.stop_reason ? { stop_reason: attempt.stop_reason } : {}),
         ...(attempt.timing ? { timing: attempt.timing } : {}),
         ...(attempt.desktop_target ? { desktop_target: attempt.desktop_target } : {}),
+        ...(desktopTargets.length ? { desktop_targets: desktopTargets } : {}),
         ...(ref ? { terminal: true } : {}),
         ...(uncertainRuns.has(attempt.run_id) ? { uncertain_effect: true as const } : {}),
         ...(!ref ? { original_questions: pendingQuestions.filter(pending => pending.origin?.run === attempt.run_id).map(pending => ({ pending_id: pending.ref.id, pending_revision: pending.ref.revision, kind: pending.kind, why: pending.why })) } : {}),

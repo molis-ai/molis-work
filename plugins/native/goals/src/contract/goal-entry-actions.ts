@@ -66,8 +66,8 @@ const submit = goalAction<Business<GoalTreeProposalSubmitInput>, { proposal: Goa
   "提交新目标及父子或依赖关系的待确认提案；提交不会创建正式目标。五项及以上变化须提供整份 narrative 和逐项 explanation。用户通过 Web 或管理入口审批后落地", "command", tree.treeSubmitInputSchema, tree.treeSubmitResultSchema);
 const treeSubmit: ActionDefinition<Business<GoalTreeProposalSubmitInput>, { proposal: GoalTreeProposalRecord; replayed: boolean; observed_event_cursor: number }> = {
   ...submit, action: { ...submit.action, intake: GOALS_TREE_INTAKE, result_view: GOALS_TREE_SUBMIT_RESULT } };
-export const goalTreeDecisionRef = { capability_id: "goals.tree.decide", version: /* @version action.goals.tree.decide */ 1 } as const;
-export const goalEventDecisionRef = { capability_id: "goals.decisions.record", version: /* @version action.goals.decisions.record */ 1 } as const;
+const goalTreeDecisionRef = { capability_id: "goals.tree.decide", version: /* @version action.goals.tree.decide */ 1 } as const;
+const goalEventDecisionRef = { capability_id: "goals.decisions.record", version: /* @version action.goals.decisions.record */ 1 } as const;
 
 const treeDecide = goalAction<Business<GoalTreeProposalDecideInput>, GoalTreeProposalDecisionResult<never>>(goalTreeDecisionRef.capability_id, goalTreeDecisionRef.version, "审批结构提案",
   "保存用户通过受保护入口作出的逐项或整组决定；整组确认全有或全无。实际用户和操作出处由 Host 提供", "command", tree.treeDecideInputSchema, tree.treeDecisionResultSchema);

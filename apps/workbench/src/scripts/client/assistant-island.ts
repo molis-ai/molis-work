@@ -112,16 +112,12 @@ ${ASSISTANT_PERMISSIONS_PART}
   const isLive = (state) => state === "running" || state === "waiting-input" || state === "waiting-review" || state === "paused";
   let presentation, stepRow;
   const setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
-
   /* ─── Where the next Send goes: the composer's receiver tag, its controls and the placeholder ─── */
-  // \`sync\` false: only the words, for the composer about to be mounted on the Assistant again.
   const paintAim = (sync = true) => {
     const work = getWork(); presentation?.syncWork(work);
-    // A page in front takes the bar's input (O2): its words and placeholder are its own until the Assistant has the bar again.
     if (island.dataset.receiver === "page") { if (sync) syncComposer(); return; }
     input.readOnly = !!work?.reply_target;
     if (!executorsHere() && nextExec !== "assistant") nextExec = "assistant";
-    // A page that knows what the person is looking at (the project list) may say so in the placeholder of a new work.
     const hint = !work && nextExec === "assistant" && host.placeholder ? host.placeholder(project) : "";
     input.placeholder = work?.reply_target ? readText("workbench.assistant-island.return-original-comment-continue") : curEvent ? readText("workbench.assistant-island.about-this-event") : work ? readText("workbench.assistant-island.add-answer-correct") : nextExec !== "assistant" && executorOffer(nextExec) ? readText("workbench.assistant-island.ask-name-do-something", { name: executorOffer(nextExec).title })
       : hint ? hint : searchKey() ? readText("workbench.assistant-island.ask-assistant-press-key-search", { key: searchKey() }) : readText("workbench.assistant-island.ask-assistant-do-something");
@@ -326,14 +322,7 @@ ${ASSISTANT_STRIP_PART}
   function paintSum() {
     const work = view && view.work.work_id === curId ? view.work : getWork();
     titleEl.textContent = work ? work.title : readText("workbench.assistant-island.new-work");
-    const suggestion = island.querySelector("[data-assistant-automation]");
-    if (suggestion) {
-      const projectId = work ? (work.scope.kind === "project" ? work.scope.project_id : "") : project?.id ?? "";
-      suggestion.dataset.automationOpen = projectId;
-      suggestion.hidden = !projectId;
-    }
-    const permission = island.querySelector("[data-assistant-permission-summary]");
-    if (permission) permission.hidden = !work || work.executor.kind !== "assistant" || work.archived || Boolean(work.reply_target);
+    paintPermissionSummary(work);
     stateEl.textContent = work ? stateLabel(work.state) : "";
     stateEl.dataset.state = work ? work.state : ""; if (work) stateEl.dataset.mwState = ringState(work.state); else stateEl.removeAttribute("data-mw-state");
     const summary = island.querySelector(".assistant-summary");

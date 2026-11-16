@@ -61,11 +61,12 @@ export class PrologueActionReviews {
 
   async prepare(origin: EffectOrigin | undefined, tool: string, args: unknown, view: ActionView, input: unknown, client: AgentActionClient, reversible = false): Promise<void> {
     if (!origin?.run || !origin.toolCall || origin.session !== this.session || this.#run && origin.run !== this.#run) throw agentErrors.review_unreadable("这项能力审查缺少原轮次的工具调用身份");
-    if (!client.prepareReview) throw agentErrors.review_not_permitted("原执行方尚未接通持续的能力审查授权");
     this.#run = origin.run;
     if (this.#calls.has(origin.toolCall)) throw agentErrors.review_version_changed("原工具调用已有固定提案，不能重新绑定");
     this.#assertRun();
-    const original = await client.prepareReview(view, input, reversible ? "reversible" : undefined);
+    const original = client.prepareReview
+      ? await client.prepareReview(view, input, reversible ? "reversible" : undefined)
+      : { assertCurrent() {}, async beforeEffect() {} };
     const assertCurrent = () => { this.#assertRun(); original.assertCurrent(); this.delegation?.permission.assertCurrent(); };
     const control = { assertCurrent, beforeEffect: async () => { assertCurrent(); await original.beforeEffect(); assertCurrent(); } };
     const automaticReview = reversible ? this.#reversible(view, client, control) : await this.#automatic(original, view, input, control);

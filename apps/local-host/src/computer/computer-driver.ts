@@ -447,13 +447,13 @@ export class ComputerDriver {
       return noViewReceipt();
     };
     if (!target || !state?.window || !state.target) return noView();
-    try { this.forbidCheck(state); } catch { return noView(); }
+    try { this.forbidCheck(state); } catch (error) { if (step) return noView(); rememberRefusal(this.ctx, this.appRef(), this.translate(error)); }
     this.useWindow?.(computerWindowTarget(state.target));
     const tree = await this.ctx.helper.call<Tree>("observe.tree", { pid: target.pid, max_nodes: 600 }).catch(() => null);
     if (!tree) return noView();
     let png: Uint8Array | undefined;
     try { png = await this.screenshot(state); } catch (error) {
-      if (windowChanged(error) || isRefused(error) && error.refusal === "outside-target") return noView();
+      if (step && (windowChanged(error) || isRefused(error) && error.refusal === "outside-target")) return noView(); rememberRefusal(this.ctx, this.appRef(), this.translate(error));
     }
     rememberSeen(this.ctx, state);
     record(png);

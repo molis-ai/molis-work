@@ -111,7 +111,7 @@ export class AssistantDispatch {
       const host = await this.ports.host();
       assertAssistantSessionSettled(host, work);
       const state = await this.link.stateSafely(work, true);
-      if (["running", "waiting-input", "waiting-review", "paused", "needs-check"].includes(state)) throw assistantErrors.state("请先结束这一轮或核对中断结果");
+      if (["running", "waiting-input", "waiting-review", "paused"].includes(state) || (work.executor.kind === "assistant" && state === "needs-check")) throw assistantErrors.state("请先结束这一轮或核对中断结果");
       const control = assistantEndControl(this.store, work, caller);
       if (to.kind === "plugin") await this.handoverToPlugin(work, to.plugin_id, input.mode, control);
       else {
@@ -336,7 +336,7 @@ export class AssistantDispatch {
       handle = await this.link.delegations.startPlaced(work, adapter, inputEffect, async placed => {
         work = placed; assertSendCurrent(stillCurrent);
         dispatchHanded = true;
-        const delegation = !intent?.report_only && host.workDelegations(RUNTIME) ? assistantWorkPermission(work) : undefined;
+        const delegation = !intent?.report_only && host.workDelegations?.(RUNTIME) ? assistantWorkPermission(work) : undefined;
         const started = await host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: ready.materials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from, ...(intent?.report_only ? { report_only: true as const } : {}) }), delegation ? { ...authority, delegation } : authority);
         if (intent?.report_only) this.reportRuns.add(started.ref.run_id);
         handoff.accepted(); return started;

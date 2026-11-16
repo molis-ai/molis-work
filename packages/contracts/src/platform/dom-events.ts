@@ -88,7 +88,7 @@ export const PAGE_STATE_OWNERS = {
     state: "The open tabs and panes of the work area and of the right side (whether it is open, its tabs, the current one and its width: `side`, per project), the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).",
   },
   "settings-directory": {
-    files: ["apps/workbench/src/scripts/client/settings-directory.ts", "apps/workbench/src/scripts/home-model-settings.ts", "apps/workbench/src/browser/plugin-frame/child.ts", "apps/workbench/src/browser/plugin-frame/review-permission.ts"],
+    files: ["apps/workbench/src/scripts/client/settings-directory.ts", "apps/workbench/src/scripts/home-model-settings.ts", "apps/workbench/src/settings-authorizations.ts", "apps/workbench/src/browser/plugin-frame/child.ts", "apps/workbench/src/browser/plugin-frame/review-permission.ts"],
     state: "The settings area: which global or project settings page is open, and the embedded settings pages inside it, including the standalone Home settings host.",
   },
   "automation-recommendations": {
@@ -435,7 +435,7 @@ export const DOM_EVENTS = [
     summary: "A surface changed an object the Assistant may be showing (Coding's session settings); the Assistant reads its Work again.",
   },
   {
-    name: "molis:authorization-changed", kind: "announcement", owner: "settings-directory", on: "window",
+    name: "molis:authorization-changed", kind: "request", owner: "settings-directory", on: "window",
     detail: "none",
     summary: "A local authorization setting changed. Settings in this document re-read their owners; the event carries no authorization or result.",
   },

@@ -135,6 +135,7 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
     const character = { character_id: "c", reference: { artifact_id: "character:project:c", version: 1 }, title: "Scoped writer", instructions: "Use the chosen tools.",
       host_tools: null, action_tools: [...selected, queryRef], source: { owner_actor_id: "user", draft_revision: 1 }, project_id: "project", content_digest: "original",
       producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "official-characters-binding" }, published_at: "2026-09-26T00:00:00Z" };
+    let disableOnInvoke = false;
     const authority: AgentStartAuthority = { authorizedDirectories: [home], manifest: { roles: [{ role_id: "writer", version: 1, name: "Writer", execution: "workspace-write", prompts: ["base", "writer"], host_tools: [] }],
       characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["writer"] },
       prompts: [{ prompt_id: "base", version: 1 }, { prompt_id: "writer", version: 1 }] },
@@ -143,10 +144,10 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
       actions: async (_runtime, validate) => {
         const current = (signal?: AbortSignal) => authorizeMcpActions(local, { ...caller, signal }, home, project, validate);
         return { discover: async () => { const auth = await current(); return auth.service.discover(auth.context); },
-          invoke: async (ref, input, signal) => { const auth = await current(signal); return auth.service.invoke(auth.context, ref, input); } };
+          invoke: async (ref, input, signal) => { if (disableOnInvoke) { disableOnInvoke = false; characterActive = false; } const auth = await current(signal); return auth.service.invoke(auth.context, ref, input); } };
       } };
     for (const outcome of ["allowed", "revoked", "disabled"]) {
-      await writeMcpActionGrant(home, grant, { host_reason: "fixture" }); characterActive = true;
+      await writeMcpActionGrant(home, grant, { host_reason: "fixture" }); characterActive = true; disableOnInvoke = false;
       callNext = true;
       const handle = await host.start("prologue", { ...owner, session, directory, task: "Save a note", role_id: "writer", action_tools: selected, character: character.reference }, authority);
       const review = await until(async () => { const pending = queue.list("project", "pending")[0]; const run = await adapter.read(handle.ref);
@@ -155,8 +156,14 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
       assert.ok(JSON.stringify(review.document).includes("unknown.notes.write"));
       assert.equal(db.prepare("SELECT COUNT(*) n FROM notes").get()!.n, outcome === "allowed" ? 0 : 1);
       if (outcome === "revoked") await writeMcpActionGrant(home, { ...grant, enabled: false }, { host_reason: "fixture" });
-      if (outcome === "disabled") characterActive = false;
       const requestsBeforeApproval = requests.length;
+      if (outcome === "disabled") {
+        characterActive = false;
+        assert.equal((await queue.decisions(review.review_id)).approve.available, false);
+        await assert.rejects(queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "user" }), { code: "agent.review_not_permitted" });
+        assert.equal(db.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1);
+        characterActive = true; disableOnInvoke = true;
+      }
       await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "user" });
       const run = await until(async () => { const value = await adapter.read(handle.ref); return ["completed", "failed", "cancelled"].includes(value.phase) ? value : undefined; });
       assert.deepEqual(run.frozen.action_tools, selected);

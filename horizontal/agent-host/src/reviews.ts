@@ -101,6 +101,13 @@ interface RecoveryHandler {
   resolve(input: AgentReviewRecoveryInput, observe: () => Promise<AgentGitIndexObservation>, control: ReviewDecisionControl): Promise<AgentReviewRecoveryView>;
 }
 
+function deciderRow(row: ReviewRow | undefined, hasDecider: boolean): ReviewRow {
+  if (!row) throw agentErrors.review_unknown("找不到这条待审操作");
+  if (hasDecider) throw agentErrors.review_already_decided("审查已有执行所有者，不能替换");
+  if (row.receipt.status !== "pending" && row.receipt.status !== "expired") throw agentErrors.review_already_decided("这条待审操作已经有结论了");
+  return row;
+}
+
 /**
  * Host-owned approval queue.
  *
@@ -308,8 +315,8 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
 
   /** Host-only dispatch to the execution owner; never exposed as a Plugin capability. */
   registerDecisionHandler(reviewId: string, handler: (input: AgentReviewDecisionInput, commit: ReviewDecisionCommit) => Promise<AgentReviewReceipt>, available?: () => Promise<() => boolean>, assertApprovalCurrent?: () => void, beforeApprovalEffect?: () => void | Promise<void>, useStanding = true, delegationChoice?: () => AgentDelegationActionChoice | undefined, exactPermission?: () => ExactPermission | undefined): void {
-    const row = this.#pending(reviewId);
-    if (this.#deciders.has(reviewId)) throw agentErrors.review_already_decided("审查已有执行所有者，不能替换");
+    const row = deciderRow(this.#rows.get(reviewId), this.#deciders.has(reviewId));
+    if (this.#status(row) !== "pending") return;
     this.#deciders.set(reviewId, { respond: handler, available, assertApprovalCurrent, beforeApprovalEffect, delegationChoice, exactPermission });
     // An exact repeat of a command a person allowed for this session goes through the same decision path,
     // attributed to that person and marked as coming from their rule. If it cannot, it simply stays pending.

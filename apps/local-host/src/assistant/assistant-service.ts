@@ -64,6 +64,11 @@ function checkContext(value: unknown): AssistantContextSnapshot | null {
     ...(selection ? { selection } : {}), ...(context.unsaved ? { unsaved: true } : {}), ...checkLanding(context), captured_at: typeof context.captured_at === "string" ? context.captured_at : new Date().toISOString() };
 }
 
+async function holdExistingWorkLifetime(ports: Pick<AssistantServicePorts, "host">, existing: StoredWork) {
+  const host = await ports.host().catch(() => null);
+  return host ? holdAssistantWorkLifetime(host, existing) : undefined;
+}
+
 export class AssistantService {
   /** The maps a round being started keeps until it is recorded, shared by the collaborators that prepare it. */
   private readonly starting = new Map<string, string>();
@@ -245,7 +250,7 @@ export class AssistantService {
       const existing = input.work_id ? this.store.get(this.actorId, input.work_id) : undefined;
       if (existing) originalInput = this.store.permissionTransitions.holdWorkInput(existing.work_id);
       const assertLifetime = existing && existing.executor.kind === "assistant" && !existing.reply_target
-        ? await holdAssistantWorkLifetime(await this.ports.host(), existing) : undefined;
+        ? await holdExistingWorkLifetime(this.ports, existing) : undefined;
       const scope = existing ?? { project_ref: sendScope(input.scope, caller, choice).kind === "project" ? caller.project_ref : undefined };
       materials = await readComposerMaterials(materials, scope, this.ports);
       await caller.beforeStart?.();

@@ -17,6 +17,7 @@ import { DEFAULT_GOAL_POLICY } from "./fixtures/goals-modules.js";
 import { managementCaller, managementGoals } from "./goal-management-caller.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { projectRulesPage } from "./fixtures/project-review-entry.js";
 import { goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
 
 // The launcher compiles the TS entry through tsx on every spawn: about 5 s cold, and each MCP test here takes
@@ -291,10 +292,9 @@ test("official MCP launcher: guidance, live planning and user-owned configuratio
     await local.invoke(goalsActions.create, { title: "Relation target", goal_id: "RELATION-TARGET", idempotency_key: "relation-target" });
     const relationInput = { from_goal_id: input.goal_id, to_goal_id: "RELATION-TARGET", type: "extends" as const, reason: "Public read of user-owned structure", idempotency_key: "configuration-relation" };
     const relation = await local.invoke(goalsActions.relationAdd, relationInput);
-    const rulePage = "/api/settings/authorizations/project-rules?project=" + encodeURIComponent(project.project_id);
-    const revision = (await served.web.get<{ revision: string }>(rulePage)).revision;
-    await served.web.post(rulePage, { kind: "set", scope: { kind: "project_default" }, requires_person: true,
-      expected_revision: revision, reason: "Confirm project results" });
+    const rules = projectRulesPage(served, project.project_id);
+    const revision = (await rules.read()).revision;
+    await rules.setDefault(true, "Confirm project results");
     assert.equal((await invokePlanning(goalsActions.relations, { goal_id: input.goal_id })).relations.find(r => r.relation_id === relation.relation_id)?.to_goal_id, "RELATION-TARGET");
     assert.equal((await invokePlanning(goalsActions.policyResolve, { goal_id: input.goal_id })).policy.human_approval, true);
     const beforeForged = await host.withProject(ref, r => boardSnapshot(r.store, project.project_id));

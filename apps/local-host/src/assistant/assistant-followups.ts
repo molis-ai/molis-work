@@ -12,7 +12,11 @@ import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { assistantWords } from "./assistant-saved-text.js";
 import { repeatingFailure } from "../host-log.js";
-import { inAssistantWorkEffect } from "./assistant-work-permissions.js";
+
+async function inFollowUpWorkEffect<T>(adapter: AgentRuntimeAdapter, control: AgentActionReviewControl, operation: () => Promise<T>): Promise<T> {
+  await control.beforeEffect(); control.assertCurrent();
+  return adapter.withEffect ? adapter.withEffect({ beforeEffect: async () => { await control.beforeEffect(); }, assert_current: control.assertCurrent }, operation) : operation();
+}
 
 /**
  * The Assistant's reminders and follow-ups (W4-05, the first collaborator split out of `AssistantService` along a
@@ -175,7 +179,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
       const { next_at, missed: _missed, ...rest } = followUp;
       if (next_at && schedule) {
         const cancel = () => schedule.cancel(followUpTask(followUp, "").key);
-        if (original) await inAssistantWorkEffect(original.adapter, original.control, cancel);
+        if (original) await inFollowUpWorkEffect(original.adapter, original.control, cancel);
         else await cancel().catch(() => null);
       }
       await original?.control.beforeEffect(); original?.control.assertCurrent();

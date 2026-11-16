@@ -617,7 +617,7 @@ function registerHostPlatformProviders(host: LocalHost<MolisWorkProjectRuntime>,
     const reference = host.projects().find(project => project.project_id === projectId);
     return reference ? host.withExistingRuntime(reference, current => refreshRunningProjectPlugins(current.store, projectId)) : null;
   });
-  for (const [registry, registrations] of [[systemRegistry, providers], [catalogRegistry, [membership, ...catalogProviders]]] as const) {
+  for (const [registry, registrations] of [[systemRegistry, providers], [catalogRegistry, [...catalogProviders, membership]]] as const) {
     for (const registration of registrations) {
     if (registration.provider.kind !== "system" || registration.provider.plugin_id) throw new Error("Host 平台动作只登记 system 提供方：" + registration.provider.provider_id);
       registry.registerProvider(registration);

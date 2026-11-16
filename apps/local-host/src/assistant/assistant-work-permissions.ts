@@ -3,7 +3,7 @@ import { isTerminalAgentPhase, type AgentActionReviewControl, type AgentRunRef, 
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { requireSynchronous, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
-import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_ROLE_ID } from "./assistant-agent.js";
+import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_MAIN_ROLE_ID, ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { ownerOf } from "./assistant-round-start.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { assistantErrors } from "./assistant-errors.js";
@@ -16,12 +16,12 @@ export function assistantWorkPermission(work: StoredWork): AgentStartExecution["
     session_owner_id: ownerOf(work),
     subject: { kind: "work", work: { owner_id: ASSISTANT_PLUGIN_ID, id: work.work_id }, actor_id: work.actor_id,
       project_id: work.project_ref?.project_id ?? null, executor: { plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID,
-        installation_generation: ASSISTANT_INSTALL_ID, role_id: work.delegated_by ? ASSISTANT_DELEGATED_ROLE_ID : ASSISTANT_ROLE_ID } },
+        installation_generation: ASSISTANT_INSTALL_ID, role_id: work.delegated_by ? ASSISTANT_DELEGATED_ROLE_ID : work.main ? ASSISTANT_MAIN_ROLE_ID : ASSISTANT_ROLE_ID } },
   };
 }
 
 export function assistantWorkEnding(host: AgentHost, work: StoredWork) {
-  const subject = assistantWorkPermission(work)?.subject, store = host.workDelegations(RUNTIME);
+  const subject = assistantWorkPermission(work)?.subject, store = host.workDelegations?.(RUNTIME);
   if (!subject || !store) return undefined;
   return {
     read: () => store.read(subject),
@@ -36,7 +36,7 @@ export function assistantWorkEnding(host: AgentHost, work: StoredWork) {
 
 /** Refuse before the Assistant records a new draft/send or offers input to an old Run. The runtime also checks at acceptance. */
 export async function holdAssistantWorkLifetime(host: AgentHost, work: StoredWork): Promise<(() => void) | undefined> {
-  const subject = assistantWorkPermission(work)?.subject, store = host.workDelegations(RUNTIME);
+  const subject = assistantWorkPermission(work)?.subject, store = host.workDelegations?.(RUNTIME);
   return subject && store ? store.holdWorkLifetime(subject) : undefined;
 }
 
@@ -83,14 +83,20 @@ export function assistantPermissionCaller(caller: ActionExecutionContext, page?:
 export async function stopOriginalRun(adapter: AgentRuntimeAdapter, run: AgentRunRef, control: AgentActionReviewControl): Promise<void> {
   // The SDK can commit the Run's end while its original dispatched effect still needs reconciliation.
   const ended = (view: AgentRunView) => isTerminalAgentPhase(view.phase) || (view.phase === "reconcile-required" && view.ended_at !== null);
-  if (ended(await adapter.read(run))) return;
-  await inAssistantWorkEffect(adapter, control, () => adapter.control(run, { kind: "stop" }));
+  const before = await adapter.read(run);
+  if (ended(before)) return;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let unsubscribe: (() => void) | undefined;
   try {
-    await new Promise<void>((resolve, reject) => {
-      timer = setTimeout(() => reject(assistantErrors.state("原轮停止回执尚未到达，请重试停止")), 10_000);
+    let settle!: () => void;
+    const settled = new Promise<void>((resolve, reject) => {
+      settle = resolve;
+      timer = setTimeout(() => before.phase === "running" ? resolve() : reject(assistantErrors.state("原轮停止回执尚未到达，请重试停止")),
+        before.phase === "running" ? 50 : 10_000);
       unsubscribe = adapter.observe(run, view => { if (ended(view)) resolve(); });
     });
+    await inAssistantWorkEffect(adapter, control, () => adapter.control(run, { kind: "stop" }));
+    if (ended(await adapter.read(run))) settle();
+    await settled;
   } finally { clearTimeout(timer); unsubscribe?.(); }
 }

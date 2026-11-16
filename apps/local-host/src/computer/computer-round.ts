@@ -14,10 +14,10 @@ export function scopedDeskContext(desk: DeskContext, context: HostSurfaceContext
   const assertCurrent = () => {
     alive(); requireSynchronous(context.assertCurrent()); desk.assertCurrent(context);
     if (desk.target() !== target || desk.takeovers() !== takeover) throw refused("outside-target", "原桌面目标或交还状态已变化，请重新观察。");
-    if (target && tierOf(target, desk.settings.forbiddenIds()).tier === "forbidden") throw refused("outside-target", "用户已禁止操作原应用。");
+    if (target && desk.settings.forbiddenIds().includes(target.bundle_id)) throw refused("outside-target", "用户已禁止操作原应用。");
   };
   const use = <T>(read: () => T): T => { assertCurrent(); return read(); };
-  const noteInjected = () => { assertCurrent(); desk.noteInjected(); dispatches++; };
+  const noteInjected = () => { assertCurrent(); desk.noteInjected(); };
   const noteCompleted = () => { acknowledged = true; };
   const ctx: DeskContext = {
     assertCurrent, assertReady: () => { assertCurrent(); desk.assertReady(context); },
@@ -29,25 +29,33 @@ export function scopedDeskContext(desk: DeskContext, context: HostSurfaceContext
         requireSynchronous(beforeSend?.()); assertCurrent();
       };
       let sent = false;
-      const input = op.startsWith("input.") || op === "file.give" || op === "app.open";
+      const syntheticInput = op.startsWith("input.") || op === "file.give";
+      const input = syntheticInput || op === "app.open";
       const usesWindow = input || op.startsWith("observe.") || op === "focused.field" || op === "probe.point" || op === "document";
       const wire = usesWindow ? { ...params, expected_window: window } : params;
       const result = await desk.helper.call<T>(op, wire, timeout, guard, () => {
-        if (input) { noteInjected(); sent = true; }
+        if (syntheticInput) noteInjected();
+        if (input) { assertCurrent(); dispatches++; sent = true; }
         requireSynchronous(onDispatch?.());
-      }).catch(error => { if (sent && isHelperFailure(error) && error.partial === false) dispatches--; throw error; });
+      }).catch(error => {
+        if (sent && isHelperFailure(error) && (error.partial === false
+          || ["landing.covered", "capture.password", "field.password", "field.none", "input.look_only", "presence.unavailable"].includes(error.code)
+          || error.code.startsWith("permission."))) dispatches--;
+        throw error;
+      });
       if (sent) {
         if (typeof result !== "object" || result === null || !(op === "app.open" ? "bundle_id" in result && result.bundle_id === params.bundle_id
           : op === "file.give" ? "accepted" in result && result.accepted === true : "done" in result && result.done === true)) {
           throw refused("driver-unavailable", "原电脑助手没有确认这次输入的结果", true);
         }
         // The exact request already finished. Its acknowledgment is a receipt, not authority to read or write again.
-        noteCompleted();
+        if (op === "app.open") dispatches--;
+        else noteCompleted();
       }
       guard(); return result;
     } },
     settings: { forbiddenIds: () => use(() => desk.settings.forbiddenIds()) },
-    target: () => use(() => desk.target()), setTarget: next => { assertCurrent(); desk.setTarget(next); target = next; },
+    target: () => use(() => desk.target()), setTarget: next => { assertCurrent(); desk.setTarget(next); target = desk.target(); },
     takeovers: () => use(() => desk.takeovers()),
     ready: async () => { assertCurrent(); await context.beforeEffect(); assertCurrent(); await desk.ready(context); assertCurrent(); },
     readiness: async () => { assertCurrent(); const result = await desk.readiness(context); assertCurrent(); return result; },

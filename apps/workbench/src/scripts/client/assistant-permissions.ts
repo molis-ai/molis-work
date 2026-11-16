@@ -114,4 +114,14 @@ export const ASSISTANT_PERMISSIONS_PART = String.raw`
       renderScope(); permissionDialog.showModal(); void load();
     });
   }
+  const paintPermissionSummary = work => {
+    const suggestion = island.querySelector("[data-assistant-automation]");
+    if (suggestion) {
+      const projectId = work ? (work.scope.kind === "project" ? work.scope.project_id : "") : project?.id ?? "";
+      suggestion.dataset.automationOpen = projectId;
+      suggestion.hidden = !projectId;
+    }
+    const permission = island.querySelector("[data-assistant-permission-summary]");
+    if (permission) permission.hidden = !work || work.executor.kind !== "assistant" || work.archived || Boolean(work.reply_target);
+  };
 `;

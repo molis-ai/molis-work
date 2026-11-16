@@ -98,9 +98,12 @@ test("APR-13: unreadable or sensitive browser focus never silently becomes a saf
   const barrier = f.holdNext("Runtime.evaluate");
   const read = assert.rejects(surfaceTarget(f.surface, original.control).then(expected => f.surface.focusedField!(original.control, expected)), /无法读取/u);
   await barrier.reached; barrier.release({ exceptionDetails: { text: "denied" } }); await read;
-  const sensitive = f.holdNext("DOM.describeNode"), focused = surfaceTarget(f.surface, original.control).then(expected => f.surface.focusedField!(original.control, expected));
-  await sensitive.reached; sensitive.release({ node: { attributes: ["type", "password"] } });
-  assert.deepEqual(await focused, { label: "Original field", sensitive: true }); assert.deepEqual(f.inputs(), []);
+  const sensitive = f.holdNext("Runtime.evaluate", frame => Boolean(frame.params.serializationOptions)), focused = surfaceTarget(f.surface, original.control).then(expected => f.surface.focusedField!(original.control, expected));
+  await sensitive.reached; sensitive.release(focusResponse({ sensitive: true }));
+  assert.deepEqual(await focused, { label: "Original field", sensitive: true, focus: "7" }); assert.deepEqual(f.inputs(), []);
+  const closedShadow = f.holdNext("Runtime.evaluate", frame => Boolean(frame.params.serializationOptions));
+  const hidden = assert.rejects(surfaceTarget(f.surface, original.control).then(expected => f.surface.focusedField!(original.control, expected)), /无法核对/u);
+  await closedShadow.reached; closedShadow.release(focusResponse({ hidden: true })); await hidden;
 });
 
 test("APR-11: authority lost during original node resolution sends no point or fallback input", { timeout: 15_000 }, async t => {
@@ -161,8 +164,8 @@ test("APR-11: a successful original browser round observes, types, selects files
 test("APR-13: browser text, printable keys and paste refuse a sensitive focus at actual dispatch", { timeout: 15_000 }, async t => {
   const f = await fixture(t), original = context();
   for (const action of [{ what: "text", text: "secret" }, { what: "key", keys: ["a"] }, { what: "key", keys: ["Control", "v"] }] as const) {
-    const barrier = f.holdNext("DOM.describeNode"), rejected = assert.rejects(performSurface(f.surface, action, original.control), /密码类/u);
-    await barrier.reached; barrier.release({ node: { attributes: ["type", "password"] } }); await rejected;
+    const barrier = f.holdNext("Runtime.evaluate", frame => Boolean(frame.params.serializationOptions)), rejected = assert.rejects(performSurface(f.surface, action, original.control), /密码类/u);
+    await barrier.reached; barrier.release(focusResponse({ sensitive: true })); await rejected;
   }
   assert.deepEqual(f.inputs(), []);
   const absent = f.holdNext("Runtime.evaluate"), rejected = assert.rejects(performSurface(f.surface, { what: "text", text: "secret" }, original.control), /无法核对/u);
@@ -267,6 +270,7 @@ test("APR-11: an isolated focus object received after revocation is released onl
   const f = await fixture(t), original = context(), barrier = f.holdNext("Runtime.evaluate");
   const rejected = assert.rejects(surfaceTarget(f.surface, original.control).then(expected => f.surface.focusedField!(original.control, expected)), error => error === original.denial);
   await barrier.reached; original.revoke(); barrier.release({ result: { objectId: "late-isolated-focus" } }); await rejected;
+  for (let n = 0; !f.frames.some(frame => frame.method === "Runtime.releaseObject") && n < 200; n++) await setImmediate();
   assert.equal(f.frames.filter(frame => frame.method === "Runtime.releaseObject" && frame.params.objectId === "late-isolated-focus").length, 1);
   assert.equal(f.frames.some(frame => frame.method === "DOM.describeNode"), false); assert.deepEqual(f.inputs(), []);
 });

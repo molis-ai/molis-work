@@ -144,7 +144,7 @@
 | SRB-17 | 原会话运行时，用户可选“停止后接手”或“保留并行”；未选／取消不改变原任务也不启动目标，已在请求中明确选择的不重复询问，其他无关任务不受影响 | 用真实运行会话分别走界面选择和明确对话请求，核对两边任务的状态、执行位置、接收消息及无关任务 |
 | SRB-18 | 停止后接手确实先确认原任务停止；失败／未知不伪造成功，接手失败保留原任务已停止的状态；并行模式确实保持原任务运行；重启不重复交接效果 | 制造停止失败、回执丢失、接手启动失败和重启，核对原生工具状态、会话数量、输入与实际副作用 |
 
-本轮文档检查：`git diff --check`、仓库 `docGateProblems` 文档与仓库形状检查；提交推送前运行 `pnpm secrets:check`。实现期测试须调用实际生产适配与公共路径，测试名或注释标明 SRB 编号；具体命令随实现文件确定。当前未运行任何厂商的实际会话适配、产品功能测试或本人验收。
+第 34 批已交付历史发现、按页读取、搜索、确定性目录／worktree 自动归属、AI 归属建议、工作台「外部会话」表面及安全不变量（`tests/sessions-service.test.ts`、`tests/sessions-adapters.test.ts`、`tests/sessions-search-assistant.test.ts`、`tests/sessions-workbench.test.ts`、`tests/sessions-workbench.e2e.test.ts`、`tests/security-invariants-external-sessions.test.ts`）；界面实物与本机已装外部工具实操待用户本人验收（[`BL-b34-sessions-acceptance`](../backlog/BL-b34-sessions-acceptance.md)）。冷启动引导导入（`SRB-09`）与持续跟进、直接控制发送、运行中交接（`SRB-04`、`SRB-05`、`SRB-17`、`SRB-18` 及 `SRB-03/06/08/10/11` 控制侧）按路线书第 45、60 批推进。
 
 ## 6. 接续事项
 

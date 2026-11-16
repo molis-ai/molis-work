@@ -135,7 +135,7 @@
 
 | 原需求／来源 | 类型 | 对应批次 | 决策 |
 | --- | --- | --- | --- |
-| [Sessions 重做](../../sessions-rebuild/spec.md)（BL-177） | 产品线（Sessions）、横向能力（会话历史与控制） | [22](batches/22.md)、[34](batches/34.md)、[35](batches/35.md)、[60](batches/60.md) | 要决策：会话交互与技术方案（[决定 11](decisions.md#decision-11)） |
+| [Sessions 重做](../../sessions-rebuild/spec.md)（BL-177） | 产品线（Sessions）、横向能力（会话历史与控制） | [22](batches/22.md)、[34](batches/34.md)、[35](batches/35.md)、[60](batches/60.md) | 22（合同与标本）与 34（历史发现、读取、搜索、自动归属与建议及工作台界面；本人验收见 [BL-b34-sessions-acceptance](../../backlog/BL-b34-sessions-acceptance.md)）已交付；35、60 待推进（控制与交接交互仍按[决定 11](decisions.md#decision-11)） |
 | 首日旅程（产品建议 A6、I1、I10） | 产品线（引导） | [04](batches/04.md)、[45](batches/45.md) | 要决策：界面定样（并入 Onboarding，不另建需求） |
 | [插件创作工作台升级](../../plugin-builder-upgrade/spec.md)（BL-377）；BL-010、035、306；BL-040、055、113、114、125、132、245、373、551、712 与 BL-341 的创作台部分 | 产品线（创作台）、横向能力（场景组装） | [03](batches/03.md)、[47](batches/47.md)、[48](batches/48.md)、[68](batches/68.md)、[72](batches/72.md)、[73](batches/73.md)、[77](batches/77.md)、[78](batches/78.md)、[82](batches/82.md)、[83](batches/83.md) | 要决策：合同与交互（该 spec 第 7 节）；原负责人保留 |
 | [团队协作首版](../../team-collaboration/spec.md)（产品建议 I8；BL-071、BL-013） | 产品线（团队）、横向能力（同步与实时编辑）、底层与架构 | [SRV-1](batches/srv-1.md)、[SRV-3](batches/srv-3.md)、[SRV-4](batches/srv-4.md)、[SRV-6](batches/srv-6.md) | 要决策：服务端批何时开工（[决定 24](decisions.md#decision-24)）；协作协议与细粒度规则（[决定 11](decisions.md#decision-11)） |

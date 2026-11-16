@@ -290,19 +290,24 @@ ${TAB_WORKSPACE_DRAG_PART}
     "project-settings": '[data-directory-open="project-settings"]',
     market: ':is([data-dock], [data-global-menu]) [data-plugin-id="market"]',
   };
-  /* Shared on the next frame: sharing writes the titlebar strip's own width (--tabs-hug), and a change made to a box while its
-     size is being delivered is a ResizeObserver loop. */
-  const sharing = new Set();
-  let sharingFrame = 0;
   const tabShareObserver = new ResizeObserver((entries) => {
-    for (const entry of entries) sharing.add(entry.target);
-    if (sharingFrame) return;
-    sharingFrame = requestAnimationFrame(() => {
-      sharingFrame = 0;
-      const nodes = [...sharing]; sharing.clear();
-      for (const node of nodes) if (node.isConnected) shareTabStrip(node.matches("[data-tab-scroll]") ? node : node.querySelector("[data-tab-scroll]"));
-    });
+    for (const entry of entries) {
+      const node = entry.target;
+      shareTabStrip(node.matches("[data-tab-scroll]") ? node : node.querySelector("[data-tab-scroll]"));
+    }
   });
+  // The titlebar strip's own width is what sharing writes (--tabs-hug), so it is not the box watched, which would loop its
+  // observer: the titlebar is (sharing cannot change its width), and so is what arrives in it (kept plugins, the side's glyphs).
+  // Either way sharing runs before the frame paints, so a page that loads does not first lay the bar out another way (VUX-31).
+  const titlebarWatched = new WeakSet();
+  const shareTitlebar = (bar) => { const scroll = bar.querySelector(":scope > [data-titlebar-tabs] [data-tab-scroll]"); if (scroll) shareTabStrip(scroll); };
+  const titlebarShare = new ResizeObserver((entries) => { for (const entry of entries) shareTitlebar(entry.target); });
+  const watchTitlebar = (strip) => {
+    const bar = strip.parentElement;
+    if (!bar || titlebarWatched.has(bar)) return;
+    titlebarWatched.add(bar); titlebarShare.observe(bar);
+    new MutationObserver(() => shareTitlebar(bar)).observe(bar, { childList: true, subtree: true });
+  };
   const titlebarStrip = document.querySelector("[data-titlebar-tabs]");
   if (titlebarStrip) new ResizeObserver(() => {
     requestAnimationFrame(() => {

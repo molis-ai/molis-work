@@ -1,0 +1,8 @@
+{
+  "reason": "第 32 批跟进（#2098）：顶条首帧即终版式（VUX-31）——置顶钉画好前顶条随它移动的部分先不显示、手机标签行首帧即 52px、标签条分宽与输入框安放当场处理；2 倍屏图标聚焦不挪（VUX-07）——滚动够不到的不足 1px 由图标自身补回。都不到 10 KB，没有新增资源。",
+  "review": "分支 fix/32-load-shift 对 merge-base efdaa33765 本机 `pnpm page-assets:check` 实测：/assets/molis-work-workbench.css 1150306 → 1150592（+286），/assets/molis-work-workbench.js 1331631 → 1332192（+561）。许可照实测取整。",
+  "assets": {
+    "/assets/molis-work-workbench.css": 300,
+    "/assets/molis-work-workbench.js": 570
+  }
+}

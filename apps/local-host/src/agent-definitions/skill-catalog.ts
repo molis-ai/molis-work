@@ -129,9 +129,12 @@ export class SkillCatalog {
 
   list(caller: ActionCallContext, input: SkillCatalogListRequest): Promise<{ skills: SkillCatalogEntry[] }> {
     return this.withSnapshot(caller, (skills, settings) => {
-      const latest = this.ports.definitions.skills.latestUses(scopeOf(caller));
+      const latest = this.ports.definitions.skills.latestUses(scopeOf(caller)), counted = this.ports.definitions.skills.usesByCaller(scopeOf(caller));
       const rows = skills.filter(skill => listable(skill, caller, input.applies_to)).map(skill => entry(skill, settings.get(settingKey(skill.ref.install_id, skill.ref.skill_id))))
-        .map(row => { const used = latest.get(settingKey(row.ref.install_id, row.ref.skill_id)); return used ? { ...row, last_used: { at: used.at, caller: used.caller, ...(used.run_ref ? { run_ref: used.run_ref } : {}) } } : row; })
+        .map(row => {
+          const key = settingKey(row.ref.install_id, row.ref.skill_id), used = latest.get(key), uses = counted.get(key);
+          return { ...row, ...used ? { last_used: { at: used.at, caller: used.caller, ...(used.run_ref ? { run_ref: used.run_ref } : {}) } } : {}, ...uses ? { recent_uses: uses } : {} };
+        })
         .filter(row => (caller.audience === "user" || row.state !== "off") && (!input.states || input.states.includes(row.state)));
       return { skills: this.ports.decorate ? this.ports.decorate(caller, skills, rows) : rows };
     });
@@ -209,7 +212,9 @@ export class SkillCatalog {
     return { entries: skills.map(skill => {
       const used = counts.get(settingKey(skill.ref.install_id, skill.ref.skill_id));
       return { kind: "skill" as const, entry_id: settingKey(skill.ref.install_id, skill.ref.skill_id).replace("\0", "/"), name: skill.name, description: skill.description,
-        version: { label: english ? `v${skill.ref.version}` : `第 ${skill.ref.version} 版` },
+        // A copy whose source has a newer version the person has not left says so as a prompt does (design §2.5): the copy stays in use.
+        version: { label: english ? `v${skill.ref.version}` : `第 ${skill.ref.version} 版`, ...skill.based_on?.newer_version
+          ? { change: { kind: "default_updated" as const, base_version: skill.based_on.source.version, default_version: skill.based_on.newer_version } } : {} },
         declares: { tools: skill.tools.slice(0, 64), permissions: [], connector_categories: skill.connector_categories.slice(0, 64) }, scope: skill.pack.scope,
         where: skill.applies_to === "both" ? [forWhom.assistant, forWhom.coding] : [forWhom[skill.applies_to]], availability: skill.availability.available
           ? { available: true as const } : { available: false as const, reason: skill.availability.reason, ...(skill.availability.detail ? { detail: skill.availability.detail } : {}) },

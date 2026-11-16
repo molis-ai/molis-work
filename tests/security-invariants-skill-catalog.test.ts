@@ -100,14 +100,17 @@ test("SKC-12: rejected, cancelled and stale acceptance receipts record no uses; 
     current = false; await accept(); assert.deepEqual(definitions.skills.uses("install", "review"), []);
     current = true; await accept(); assert.equal(definitions.skills.uses("install", "review").length, 1, "one receipt does not duplicate a repeated reference");
     assert.equal((await catalog.list(caller, {})).skills[0]?.last_used?.run_ref, "run-1");
+    // SKP-11 (batch 42): the person sees how often each entry really used it, from the uses the rounds recorded.
+    await catalog.recordAcceptedUses({ ...caller, skill_round: { consumer: "coding", named: [skill.ref] } }, { accepted: true, refs: [skill.ref], run_ref: "run-2" });
+    assert.deepEqual((await catalog.list(caller, {})).skills[0]?.recent_uses, { assistant: 1, coding: 1 });
     // The person's protected preview names one Skill to read, frozen by the Host as that read's named list: a manual Skill opens. The view
     // itself records no use: a record without the Host's round is refused like any other.
     const pageRead = await catalog.readBodies({ ...caller, skill_round: { consumer: "assistant", named: [skill.ref] } }, [skill.ref]);
     assert.equal(pageRead.results[0]!.ok, true, "the page view may show a manual Skill it named");
     assert.equal((await catalog.readBodies(caller, [skill.ref])).results[0]!.ok, false, "without the Host's named list a manual Skill stays closed");
     await catalog.recordAcceptedUses(caller, { accepted: true, refs: [skill.ref], run_ref: "page" });
-    assert.equal(definitions.skills.uses("install", "review").length, 1, "a page view is not a round and records no use");
-    controller.abort(); await assert.rejects(accept()); assert.equal(definitions.skills.uses("install", "review").length, 1);
+    assert.equal(definitions.skills.uses("install", "review").length, 2, "a page view is not a round and records no use");
+    controller.abort(); await assert.rejects(accept()); assert.equal(definitions.skills.uses("install", "review").length, 2);
     definitions.skills.forget("project-a", "install");
     assert.equal(definitions.skills.uses("install", "review")[0]?.name, "Review v1");
     assert.equal(definitions.skills.uses("install", "review")[0]?.ref.version, 1);

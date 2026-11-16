@@ -12,7 +12,7 @@ import { CONTENT_PACKAGE_FILES, type SandboxAgentBody } from '@molis-ai/molis-wo
 import { SKILL_APPLIES_TO, SKILL_LIMITS, type PluginMethodDeclaration, type SkillAppliesTo } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
 import { SKILL_AUTHORED_PLUGIN_IDS, SKILL_DRAFT_INTENT_CHARS, skillErrors, type SkillAuthoredFields, type SkillAuthoredRemoveRequest, type SkillAuthoredRemoveResult,
   type SkillAuthoredSaveResult, type SkillDraftAdoptRequest, type SkillDraftAdoptResult, type SkillScope } from '@molis-ai/molis-work-contracts/services/skills';
-import { draftCases, type SkillDraftStore } from './agent-definitions/skill-drafts.js';
+import { draftCases, untriedCases, type SkillDraftStore } from './agent-definitions/skill-drafts.js';
 import { contentPackageDraft, type FolderSkill } from '@molis-ai/molis-work-plugin-sdk';
 import { cutHead } from '@molis-ai/molis-work-plugin-sdk/whole-units';
 import { SKILL_DRAFT } from './agent-definitions/system-prompts.js';
@@ -165,9 +165,10 @@ export async function adoptDraft(service: SkillAuthoringService, drafts: SkillDr
   const draft = drafts.draft(input.draft_id);
   if (!draft || draft.discarded_at || (draft.scope_ref !== 'home' && draft.scope_ref !== who.project_id)) throw skillErrors.draft_unknown('这份草稿已经不在了，可能已被采用或放弃');
   if (draft.revision !== input.expected_revision) throw skillErrors.draft_conflict('草稿在别处改过了，请重新打开再采用', { revision: draft.revision });
-  if (drafts.cases(draftCases(draft.draft_id)).length) {
+  const cases = drafts.cases(draftCases(draft.draft_id));
+  if (cases.length) {
     const trials = drafts.trialsOf(draft.draft_id, draft.revision);
-    if (!trials.length) throw skillErrors.trial_required('这份草稿有已知答案，先回放一次再采用');
+    if (untriedCases(cases, trials).length) throw skillErrors.trial_required('这份草稿有已知答案还没在这一版上回放，先回放再采用');
     if (trials.some(trial => trial.verdict === 'differs') && !input.accept_differences) throw skillErrors.trial_differs('回放的结果和你认可的结果还有出入：仍然采用，还是回去改');
   }
   const scope: SkillScope = draft.scope_ref === 'home' ? 'home' : 'project', target = draft.target;

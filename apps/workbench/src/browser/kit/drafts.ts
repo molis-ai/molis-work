@@ -75,16 +75,21 @@ export interface Workshop {
   adopting?: boolean;
   adoptFailure?: string;
   errors: Partial<Record<keyof SkillAuthoredFields, string>>;
-  /** A copy's choice to turn the original off once it is adopted. */
-  turnOffSource: boolean;
+  /**
+   * A copy's choice to turn the original off once it is adopted; offered only when the copy goes where this page sets Skills (a Skill
+   * is switched per place it is used, so a copy to another place leaves the original here as it is).
+   */
+  turnOffSource?: boolean;
 }
 
-export function workshopOf(draft: SkillDraft, name: string, next?: number): Workshop {
+export function workshopOf(draft: SkillDraft, name: string, next: number | undefined, here: boolean): Workshop {
   return { draft, fields: fieldsOf(draft.fields), replacements: { ...draft.replacements }, name, ...(next ? { next } : {}), save: "saved", savedAt: draft.updated_at,
-    tab: "edit", side: "try", compare: "how", ask: "", caseErrors: {}, errors: {}, turnOffSource: draft.target.kind === "custom" };
+    tab: "edit", side: "try", compare: "how", ask: "", caseErrors: {}, errors: {}, ...draft.target.kind === "custom" && here ? { turnOffSource: true } : {} };
 }
 
 /** The draft's known answers replayed at this revision: the latest replay is of the revision on screen. */
+/** Adopting waits for a replay of each known answer on this revision; the next one to replay. */
+export const nextUntried = (w: Workshop) => w.draft.untried[0];
 export const replayedNow = (w: Workshop) => Boolean(w.draft.trial && w.draft.trial.draft_revision === w.draft.revision);
 /** The entries the Skill is replayed in, as it applies now. */
 export const consumersOf = (fields: Fields): SkillTrialConsumer[] => fields.applies_to === "both" ? ["assistant", "coding"] : [fields.applies_to];

@@ -36,7 +36,8 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
     draw();
     try {
       const trial = await runTrial(project, w.draft, caseId);
-      w.draft = { ...w.draft, trial, trial_needed: false };
+      const untried = w.draft.untried.filter(id => id !== caseId);
+      w.draft = { ...w.draft, trial, untried, trial_needed: untried.length > 0 };
     } catch (cause) {
       if (failureOf(cause).code === "skills.draft_conflict") w.draft = await readDraft(project, w.draft.draft_id);
       w.runFailure = messageOf(cause);
@@ -57,8 +58,8 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
     } catch (cause) { w.caseErrors = { title: messageOf(cause) }; draw("sk-case"); }
   }
 
-  /** After adopting a copy, the original is turned off where the copy now applies (a general Skill installed at Home is set per
-   *  project); the notice says so only when it was. */
+  /** After adopting a copy, the original is turned off on this page's place, where the copy now applies (a general Skill installed at
+   *  Home is set per project); offered only when the copy goes here. The notice says so only when it was. */
   async function turnOffSource(w: Workshop, source: { install_id: string; skill_id: string } | undefined): Promise<{ off: boolean; failure?: string }> {
     if (!source || w.draft.target.kind !== "custom" || !w.turnOffSource) return { off: false };
     const entry = c.skills().find(item => item.skill.ref.install_id === source.install_id && item.skill.ref.skill_id === source.skill_id);

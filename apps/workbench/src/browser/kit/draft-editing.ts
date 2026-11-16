@@ -1,4 +1,5 @@
 import type { SkillAuthoredFields, SkillDraft, SkillDraftCreateTarget, SkillScope } from "@molis-ai/molis-work-contracts/services/skills";
+import { renderBadge } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { countOf } from "./authoring.js";
 import { applyReplacements, createDraft, failureOf, fieldsOf, messageOf, placeholdersOf, readDraft, sentFields, updateDraft, workshopOf, type Workshop } from "./drafts.js";
 import type { FieldName, WritingContext } from "./writing-context.js";
@@ -19,7 +20,7 @@ export function draftEditing(c: WritingContext) {
   function opened(draft: SkillDraft, side?: "compare"): void {
     const own = draft.target.kind === "own" ? draft.target : undefined, entry = own && c.ownSkills(draft.scope).find(item => item.skill.ref.skill_id === own.skill_id);
     const name = draft.target.kind === "custom" ? draft.target.source.name : entry?.name ?? draft.fields.name;
-    const workshop = workshopOf(draft, name, own ? (draft.base?.version ?? own.base_version) + 1 : undefined);
+    const workshop = workshopOf(draft, name, own ? (draft.base?.version ?? own.base_version) + 1 : undefined, draft.scope === c.pageScope);
     if (side) { workshop.side = side; workshop.tab = side; }
     // Opened from a link or the list: closing or discarding it comes back to the Skill it changes.
     if (entry && view.item !== entry.key) c.show(entry);
@@ -55,7 +56,8 @@ export function draftEditing(c: WritingContext) {
     saving = (async () => {
       try {
         const result = await updateDraft(project, w.draft, fields, replacements);
-        w.draft = { ...w.draft, fields, replacements, revision: result.revision, updated_at: result.updated_at, trial_needed: w.draft.cases.length > 0 };
+        w.draft = { ...w.draft, fields, replacements, revision: result.revision, updated_at: result.updated_at,
+          untried: w.draft.cases.map(item => item.case_id), trial_needed: w.draft.cases.length > 0 };
         w.savedAt = result.updated_at; w.save = dirty(w) ? "saving" : "saved"; w.saveFailure = undefined;
       } catch (cause) {
         w.save = "failed"; w.saveFailure = messageOf(cause);
@@ -89,7 +91,7 @@ export function draftEditing(c: WritingContext) {
     const left = placeholdersOf(w).filter(placeholder => !w.replacements[placeholder]).length, title = root.querySelector<HTMLElement>(".mw-placeholders__title");
     const badge = title?.querySelector(".mw-badge");
     if (left && badge) badge.textContent = improve("placeholders-left", { n: left });
-    else if (left && title) title.insertAdjacentHTML("beforeend", `<span class="mw-badge mw-badge--neutral" data-slot="badge">${improve("placeholders-left", { n: left })}</span>`);
+    else if (left && title) title.insertAdjacentHTML("beforeend", renderBadge({ label: improve("placeholders-left", { n: left }), tone: "neutral" }));
     else badge?.remove();
     schedule(w);
   }

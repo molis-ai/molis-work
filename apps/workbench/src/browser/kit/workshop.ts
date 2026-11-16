@@ -4,7 +4,7 @@ import { compareChange, renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-
 import { dateArg, icon, renderAlert, renderAttrs, renderBadge, renderCheckbox, renderStatusMark, type AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { fieldsMarkup, type SkillWritingLimits } from "./authoring.js";
 import { act, button, esc, readText } from "./common.js";
-import { consumersOf, placeholdersOf, replayCalls, replayedNow, type Fields, type Workshop } from "./drafts.js";
+import { consumersOf, nextUntried, placeholdersOf, replayCalls, replayedNow, type Fields, type Workshop } from "./drafts.js";
 
 // One open draft on the 「能力包」 page, scheme B (docs/design/skill-improvement): the form on the left, trying and comparing on the
 // right, the adopt bar under both. Below the workspace's own 860px the two columns become three tabs. The page (writing.ts) holds
@@ -50,7 +50,7 @@ function askRow(w: Workshop): string {
 }
 
 function placeholders(w: Workshop): string {
-  const found = placeholdersOf(w), source = w.draft.target.kind === "custom" ? w.draft.target.source : undefined;
+  const found = placeholdersOf(w), source = w.draft.target.kind === "custom" && w.turnOffSource !== undefined ? w.draft.target.source : undefined;
   // A copy with nothing to replace still offers to turn the original off when it is adopted.
   if (!found.length) return source ? `<div class="sk-turn-off">${renderCheckbox({ label: improve("turn-off-source-named", { n: source.name }), checked: w.turnOffSource, attrs: { "data-sk-turn-off": true } })}</div>` : "";
   const left = found.filter(placeholder => !w.replacements[placeholder]).length;
@@ -138,11 +138,11 @@ export function statusOf(w: Workshop): { text: string; state?: "owed" | "saving"
   return { text: improve("saved-at", { at: w.savedAt ? dateArg(w.savedAt, "time") : "" }) };
 }
 /** Adopting needs a replay of this revision first: the draft has known answers and none was replayed since the last change. */
-export const owed = (w: Workshop) => w.draft.cases.length > 0 && !replayedNow(w);
+export const owed = (w: Workshop) => nextUntried(w) !== undefined;
 
 export function adoptBar(w: Workshop): string {
   const status = statusOf(w), busy = Boolean(w.adopting || w.asking || w.running), label = w.next ? improve("adopt-version", { v: w.next }) : improve("adopt-new");
-  const primary = owed(w) ? button(improve("replay-first"), { variant: "primary", icon: "play", attrs: act("sk-run", w.draft.cases[0]!.case_id), disabled: busy || w.save !== "saved" })
+  const primary = owed(w) ? button(improve("replay-first"), { variant: "primary", icon: "play", attrs: act("sk-run", nextUntried(w)!), disabled: busy || w.save !== "saved" })
     : button(label, { variant: w.confirm ? "secondary" : "primary", icon: "check", attrs: act("sk-adopt"), disabled: busy || w.save !== "saved" });
   const failed = w.adoptFailure ? renderAlert({ title: improve("adopt-failed"), body: `${w.adoptFailure} ${improve("keep-draft")}`, tone: "danger", role: "alert", className: "au-failure", attrs: { tabindex: -1 },
     actions: [{ label: readText("common.control.retry"), variant: "secondary", size: "sm", attrs: act("sk-adopt") }] }) : "";

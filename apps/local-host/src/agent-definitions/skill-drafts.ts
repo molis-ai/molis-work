@@ -56,6 +56,10 @@ export interface SkillLineage {
 /** Replays kept per draft: the latest is what adopting checks; a few before it are kept for nothing else, so they go. */
 const TRIALS_KEPT = 5;
 /** Whose known answers these are: a draft's, or an adopted Skill's (kept with it for the next draft of it). */
+/** The known answers with no replay on this revision: adopting waits for each (S-skill-authoring). */
+export const untriedCases = (cases: readonly { case_id: string }[], trials: readonly { case_id: string }[]) =>
+  cases.filter(item => !trials.some(trial => trial.case_id === item.case_id)).map(item => item.case_id);
+
 export const draftCases = (draftId: string) => `draft:${draftId}`;
 export const skillCases = (scopeRef: string, skillId: string) => `skill:${scopeRef}/${skillId}`;
 
@@ -74,16 +78,14 @@ export class SkillDraftStore {
     try { const result = work(); this.db.exec("COMMIT"); return result; } catch (error) { rollbackPreservingError(error, () => this.db.exec("ROLLBACK")); throw error; }
   }
 
-  /** One draft, discarded or not; a discarded one past its keeping is gone. */
+  /** One draft, discarded or not; a discarded one past its keeping is gone (removed by the next write, read as gone now). */
   draft(draftId: string): StoredSkillDraft | undefined {
-    this.purge();
-    const row = this.db.prepare("SELECT * FROM skill_drafts WHERE draft_id = ?").get(draftId) as Row | undefined;
+    const row = this.db.prepare("SELECT * FROM skill_drafts WHERE draft_id = ? AND (discarded_at IS NULL OR discarded_at >= ?)").get(draftId, this.keptSince()) as Row | undefined;
     return row && draftOf(row);
   }
 
   /** The open drafts of these scopes, newest change first. */
   drafts(scopeRefs: readonly string[]): StoredSkillDraft[] {
-    this.purge();
     if (!scopeRefs.length) return [];
     return (this.db.prepare(`SELECT * FROM skill_drafts WHERE discarded_at IS NULL AND scope_ref IN (${scopeRefs.map(() => "?").join(",")}) ORDER BY updated_at DESC`)
       .all(...scopeRefs) as Row[]).map(draftOf);
@@ -93,6 +95,7 @@ export class SkillDraftStore {
   create(input: { scope_ref: string; target: SkillDraftTarget; fields: SkillAuthoredFields; replacements: Record<string, string>; origin: SkillDraftOrigin; actor_id: string;
     cases: ReadonlyArray<SkillCaseFields & { origin: SkillCase["origin"] }> }): StoredSkillDraft {
     const at = this.now().toISOString(), draftId = `draft-${randomUUID()}`;
+    this.purge();
     return this.transaction(() => {
       this.db.prepare("INSERT INTO skill_drafts(draft_id,scope_ref,target,fields,replacements,revision,origin,created_at,updated_at,actor_id) VALUES (?,?,?,?,?,1,?,?,?,?)")
         .run(draftId, input.scope_ref, JSON.stringify(input.target), JSON.stringify(input.fields), JSON.stringify(input.replacements), JSON.stringify(input.origin), at, at, input.actor_id);
@@ -118,6 +121,7 @@ export class SkillDraftStore {
 
   /** Discards a draft, or takes a discarded one back while it is kept. Answers whether it is discarded now; `missing` when there is none. */
   discard(draftId: string, restore: boolean): boolean | "missing" {
+    this.purge();
     const current = this.draft(draftId);
     if (!current) return "missing";
     this.db.prepare("UPDATE skill_drafts SET discarded_at = ? WHERE draft_id = ?").run(restore ? null : current.discarded_at ?? this.now().toISOString(), draftId);
@@ -140,7 +144,10 @@ export class SkillDraftStore {
     });
   }
 
-  /** A Skill of one's own that is taken away leaves no known answers and no source behind. Its open drafts stay: one can still be adopted as a new Skill. */
+  /**
+   * A Skill of one's own that is taken away leaves no known answers and no source behind. Its open drafts stay in the drafts list for
+   * the person to read and discard; adopting one is refused (`skills.authored_unknown`), since the Skill it changes is gone.
+   */
   forgetSkill(scopeRef: string, skillId: string): void {
     this.db.prepare("DELETE FROM skill_cases WHERE owner_ref = ?").run(skillCases(scopeRef, skillId));
     this.db.prepare("DELETE FROM skill_lineage WHERE scope_ref = ? AND skill_id = ?").run(scopeRef, skillId);
@@ -224,9 +231,12 @@ export class SkillDraftStore {
     return seen;
   }
 
-  /** Discarded drafts past their keeping leave with their known answers and replays. */
+  /** When a discarded draft kept since then is still kept. */
+  private keptSince(): string { return new Date(this.now().getTime() - SKILL_DISCARDED_KEPT_DAYS * 86_400_000).toISOString(); }
+
+  /** Discarded drafts past their keeping leave with their known answers and replays; run by the writes, reads only leave them out. */
   private purge(): void {
-    const before = new Date(this.now().getTime() - SKILL_DISCARDED_KEPT_DAYS * 86_400_000).toISOString();
+    const before = this.keptSince();
     const gone = (this.db.prepare("SELECT draft_id FROM skill_drafts WHERE discarded_at IS NOT NULL AND discarded_at < ?").all(before) as Array<{ draft_id: string }>).map(row => row.draft_id);
     for (const id of gone) {
       this.db.prepare("DELETE FROM skill_cases WHERE owner_ref = ?").run(draftCases(id));

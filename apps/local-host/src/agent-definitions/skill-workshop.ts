@@ -1,7 +1,7 @@
 /**
  * Making a Skill better (batch 42, specs/skill-packs/authoring-path-design.md; 定样 docs/design/skill-improvement, scheme B): drafts,
  * their known answers, replays, the versions of one's own Skills and the sources of copies, over the catalog's own snapshot. Nothing
- * here is used by a round: a draft becomes a Skill only when the person adopts it (`skill-draft-adopt.ts`, the install provider's).
+ * here is used by a round: a draft becomes a Skill only when the person adopts it (`adoptDraft` in `skill-authoring.ts`, the install provider's).
  *
  * A replay calls only the Host's text model (`HostCompleteText`): no tools, no workspace, no actions, so by construction it changes
  * nothing in a project and sends nothing out (PWA-16). It runs as a `trial` observation source, which reports and effect figures
@@ -24,7 +24,7 @@ import { textModelAvailability, textModelRequired, type HostCompleteText } from 
 import type { InstalledRelease } from "../installed-release.js";
 import { SKILL_REVISE, SKILL_TRIAL, SKILL_TRIAL_JUDGE } from "./system-prompts.js";
 import { isOwnSkill, skillFields, type CatalogSkill, type SkillCatalogPorts } from "./skill-catalog.js";
-import { draftCases, skillCases, type SkillDraftStore, type StoredSkillDraft } from "./skill-drafts.js";
+import { draftCases, skillCases, untriedCases, type SkillDraftStore, type StoredSkillDraft } from "./skill-drafts.js";
 
 type Packaged = NonNullable<InstalledRelease["packaged"]>;
 
@@ -108,6 +108,16 @@ export class SkillWorkshop {
     return draft;
   }
 
+  /**
+   * The Assistant may replay or take back only a draft it opened in this same piece of work (S-skill-authoring): a draft the person
+   * opened, or one from another work, is refused and left as it is.
+   */
+  private acting(caller: ActionCallContext, draft: StoredSkillDraft): StoredSkillDraft {
+    if (caller.audience !== "agent") return draft;
+    if (draft.origin.by !== "assistant" || !caller.audit_actor_id || draft.origin.work_ref !== caller.audit_actor_id) throw skillErrors.draft_refused("助理只能回放或撤回这次工作里自己起的草稿");
+    return draft;
+  }
+
   /** The person's own Skill of this id in the draft's scope, in this snapshot. */
   private own(skills: readonly CatalogSkill[], scope: SkillScope, skillId: string): CatalogSkill | undefined {
     return skills.find(skill => isOwnSkill(skill) && skill.pack.scope === scope && skill.ref.skill_id === skillId);
@@ -123,10 +133,11 @@ export class SkillWorkshop {
 
   private view(draft: StoredSkillDraft, skills: readonly CatalogSkill[]): SkillDraft {
     const cases = this.store.cases(draftCases(draft.draft_id)), trial = this.store.latestTrial(draft.draft_id), base = this.base(skills, draft);
+    const untried = untriedCases(cases, this.store.trialsOf(draft.draft_id, draft.revision));
     return { draft_id: draft.draft_id, scope: scopeOfRef(draft.scope_ref), target: draft.target, fields: draft.fields, revision: draft.revision, origin: draft.origin,
       created_at: draft.created_at, updated_at: draft.updated_at, cases, ...(trial ? { trial } : {}),
       ...(base ? { base: { version: base.ref.version, fields: skillFields(base) } } : {}), replacements: draft.replacements,
-      trial_needed: cases.length > 0 && this.store.trialsOf(draft.draft_id, draft.revision).length === 0 };
+      untried, trial_needed: untried.length > 0 };
   }
 
   list(caller: ActionCallContext): { drafts: SkillDraftSummary[] } {
@@ -228,7 +239,7 @@ export class SkillWorkshop {
   }
 
   async discard(caller: ActionExecutionContext, draftId: string, restore: boolean): Promise<SkillDraftDiscardResult> {
-    this.open(caller, draftId, true);
+    this.acting(caller, this.open(caller, draftId, true));
     await caller.beforeEffect();
     const result = this.store.discard(draftId, restore);
     if (result === "missing") throw skillErrors.draft_unknown("这份草稿已经不在了");
@@ -283,7 +294,7 @@ export class SkillWorkshop {
    * copy's source) beside the draft, then one judge call over all results. Kept only if the draft is still at that revision.
    */
   async runTrial(caller: ActionExecutionContext, input: SkillTrialRunRequest): Promise<SkillTrial> {
-    const draft = this.open(caller, input.draft_id);
+    const draft = this.acting(caller, this.open(caller, input.draft_id));
     if (draft.revision !== input.expected_revision) throw skillErrors.draft_conflict("草稿在别处改过了，请重新打开再回放", { revision: draft.revision });
     const known = this.store.cases(draftCases(draft.draft_id)).find(item => item.case_id === input.case_id);
     if (!known) throw skillErrors.case_invalid("这份草稿没有这个已知答案", { field: "case_id" });
@@ -347,7 +358,7 @@ const ROLES: Record<SkillTrialConsumer, string> = {
 
 /** A kept version's fields, from its declaration and body. */
 function fieldsOf(declaration: PluginMethodDeclaration, body: string): SkillAuthoredFields {
-  return { name: declaration.name, description: declaration.description ?? declaration.summary ?? "", applies_to: declaration.applies_to, body: body.replace(/\r\n?/gu, "\n").trim(),
+  return { name: declaration.name, description: declaration.description, applies_to: declaration.applies_to, body: body.replace(/\r\n?/gu, "\n").trim(),
     ...(declaration.when_not_to_use ? { when_not_to_use: declaration.when_not_to_use } : {}), ...(declaration.argument_hint ? { argument_hint: declaration.argument_hint } : {}) };
 }
 

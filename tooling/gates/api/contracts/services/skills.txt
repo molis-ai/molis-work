@@ -40,8 +40,6 @@ export declare const SKILL_INSTALL_PREVIEW_SCHEMA: ActionSchema;
 
 export declare const SKILL_PICK_CONSUMERS: readonly ["assistant", "coding", "agent"];
 
-export declare const SKILL_PLACEHOLDER_PATTERN: RegExp;
-
 export declare const SKILL_READ_REFUSALS: readonly ["plugin_disabled", "publisher_revoked", "resource_invalid", "requires_unmet", "connection_missing", "native_only", "not_applicable", "not_current", "off", "not_named", "over_limit"];
 
 export declare const SKILL_REF_SCHEMA: ActionSchema;
@@ -181,6 +179,11 @@ export interface SkillCatalogEntry {
         caller: "assistant" | "coding" | "agent";
         run_ref?: string;
     };
+    recent_uses?: {
+        assistant?: number;
+        coding?: number;
+        agent?: number;
+    };
     based_on?: {
         source: SkillSourceRef;
         newer_version?: number;
@@ -211,6 +214,7 @@ export interface SkillDraft {
         fields: SkillAuthoredFields;
     };
     replacements: Record<string, string>;
+    untried: string[];
     trial_needed: boolean;
 }
 
@@ -553,6 +557,7 @@ export declare const skillErrors: import("platform/action-errors").ErrorCodeRais
     readonly draft_unreadable: "upstream";
     readonly draft_unknown: "not_found";
     readonly draft_conflict: "conflict";
+    readonly draft_refused: "forbidden";
     readonly trial_required: "conflict";
     readonly trial_differs: "conflict";
     readonly case_invalid: "invalid";

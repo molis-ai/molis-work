@@ -143,6 +143,11 @@ export interface SkillCatalogEntry {
   availability: SkillAvailability;
   last_used?: { at: string; caller: "assistant" | "coding" | "agent"; run_ref?: string };
   /**
+   * How many of the uses kept for this Skill in this scope each entry made (the latest `USES_KEPT` per Skill, not a total): after
+   * adopting a version, the person sees it used from the Assistant and from Coding (batch 42, across-entry check). Entries with none are left out.
+   */
+  recent_uses?: { assistant?: number; coding?: number; agent?: number };
+  /**
    * Only on the person's view of one of their own Skills that is a copy (batch 42): where it came from, and the source's newer version
    * when one is installed that the person has not looked at and left. The copy stays in use as it is either way.
    */
@@ -333,7 +338,7 @@ export interface SkillDraftRequest {
  * package of own Skills' next version, exactly as batch 41's saving did.
  */
 
-export { SKILL_PLACEHOLDER_PATTERN, skillPlaceholders } from "./skill-placeholders.js";
+export { skillPlaceholders } from "./skill-placeholders.js";
 
 /** One installed Skill a draft or a copy comes from, as it was when read: enough to find it again and say which version it was. */
 export interface SkillSourceRef {
@@ -427,7 +432,9 @@ export interface SkillDraft {
   base?: { version: number; fields: SkillAuthoredFields };
   /** The placeholders a copy replaced, kept so bringing in the source's next version replaces them again. */
   replacements: Record<string, string>;
-  /** Adopting needs a replay of this revision first: the draft has known answers and none was replayed since the last change. */
+  /** The known answers not replayed on this revision yet, in their order: adopting needs every one replayed since the last change. */
+  untried: string[];
+  /** Adopting needs a replay first: `untried` is not empty. */
   trial_needed: boolean;
 }
 export interface SkillDraftSummary {
@@ -573,6 +580,8 @@ export const skillErrors = defineErrorCodes("skills", {
   draft_unknown: "not_found",
   /** `expected_revision` is not the draft's current revision (`details.revision`). */
   draft_conflict: "conflict",
+  /** The Assistant replays or takes back only a draft it opened in the same piece of work; the person's own drafts are theirs. */
+  draft_refused: "forbidden",
   /** The draft has known answers and this revision was not replayed: replay before adopting. */
   trial_required: "conflict",
   /** The latest replay differs from the known answer and `accept_differences` was not given. */
@@ -609,6 +618,7 @@ export const SKILL_CATALOG_ENTRY_SCHEMA: ActionSchema = object({
   pack: object({ plugin_id: text, title: text, version: text, publisher_label: text, trust: { enum: ["host", "pinned", "home_local"] }, scope }),
   state, settings_revision: count, enabled: object({ at: text, by: text, scope }), availability,
   last_used: object({ at: text, caller: { enum: ["assistant", "coding", "agent"] }, run_ref: text }, ["at", "caller"]),
+  recent_uses: object({ assistant: count, coding: count, agent: count }),
   based_on: object({ source: sourceRef, newer_version: skillVersion }, ["source"]), draft: object({ draft_id: text }),
 }, ["ref", "name", "description", "applies_to", "user_invocable", "tools", "resources", "connector_categories", "runs_scripts", "excerpt", "pack", "state",
   "settings_revision", "availability"]);
@@ -726,7 +736,7 @@ const trialSchema = object({ trial_id: draftId, draft_revision: revision, case_i
 const replacements = { type: "object", maxProperties: 50, propertyNames: { type: "string", maxLength: 80 }, additionalProperties: { type: "string", maxLength: 200 } } as const;
 const draftSchema = object({ draft_id: draftId, scope, target, fields: draftFieldsSchema, revision, origin, created_at: text, updated_at: text,
   cases: { type: "array", maxItems: SKILL_CASES_MAX, items: caseSchema }, trial: trialSchema, base: object({ version: skillVersion, fields: draftFieldsSchema }),
-  replacements, trial_needed: { type: "boolean" } }, ["draft_id", "scope", "target", "fields", "revision", "origin", "created_at", "updated_at", "cases", "replacements", "trial_needed"]);
+  replacements, untried: { type: "array", items: draftId }, trial_needed: { type: "boolean" } }, ["draft_id", "scope", "target", "fields", "revision", "origin", "created_at", "updated_at", "cases", "replacements", "untried", "trial_needed"]);
 const summarySchema = object({ draft_id: draftId, scope, target, name: text, revision, origin, updated_at: text, verdict }, ["draft_id", "scope", "target", "name", "revision", "origin", "updated_at"]);
 /** Drafting and replaying: the person's, and the Assistant's from a piece of work; never a plugin's, a workflow's or an MCP tool's. */
 const drafter = { kind: "operation" as const, scope: "home" as const, effect: "write" as const, subject_kinds: [] as string[],

@@ -156,7 +156,13 @@ test("PWA-16 PWA-83 a replay calls only the text model, in the trial observation
     assert.ok(model.calls.filter(item => !isJudge(item.prompt)).every(item => item.prompt.includes(KNOWN.material)), "the known answer's material is the replay's input");
 
     const reopened = await h.call<SkillDraft>(h.person, skillDraftActions.read, { draft_id: opened.draft_id });
-    assert.deepEqual([reopened.trial?.trial_id, reopened.trial_needed], [trial.trial_id, false]);
+    assert.deepEqual([reopened.trial?.trial_id, reopened.trial_needed, reopened.untried], [trial.trial_id, false, []]);
+    // A known answer added after the replay is not vouched for by it: adopting waits until that one is replayed too.
+    const added = await h.call<{ case_id: string }>(h.person, skillDraftActions.putCase, { draft_id: opened.draft_id, ...KNOWN, title: "另一周" });
+    const owed = await h.call<SkillDraft>(h.person, skillDraftActions.read, { draft_id: opened.draft_id });
+    assert.deepEqual([owed.untried, owed.trial_needed], [[added.case_id], true]);
+    await assert.rejects(h.adopt({ draft_id: opened.draft_id, expected_revision: changed.revision }), refused("skills.trial_required"));
+    await h.call<SkillTrial>(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: changed.revision, case_id: added.case_id });
     const adopted = await h.adopt({ draft_id: opened.draft_id, expected_revision: changed.revision });
     assert.equal(adopted.skill_version, 2, "adopting a change is the Skill's next version");
   } finally { await h.close(); }
@@ -192,7 +198,7 @@ test("PWA-14 PWA-105 every version of one's own Skill is listed from the signed 
   } finally { await h.close(); }
 });
 
-test("BL-166 a copy of a general Skill remembers its source and the placeholders it replaced; the source's newer version is told, brought into a draft with the replacements, or left", mac, async () => {
+test("BL-166 SKP-11 a copy of a general Skill remembers its source and the placeholders it replaced; the source's newer version is told, brought into a draft with the replacements, or left", mac, async () => {
   const h = await harness(null);
   try {
     const publisher = newPublisher(), pluginId = "io.molis.work.example.weekly";
@@ -214,6 +220,9 @@ test("BL-166 a copy of a general Skill remembers its source and the placeholders
       skills: [{ id: "weekly", version: 2, name: "周报", applies_to: "assistant", body: "# 周报\n\n把进展记进 ~~project tracker，再按负责人分组。\n" }] }));
     assert.equal((await own()).based_on?.newer_version, 2);
     assert.equal((await own()).ref.version, 1, "the copy in use is not changed");
+    // The capability pack's version line says it as it does of an edited prompt whose default moved on (design §2.5).
+    const kit = await h.call<{ entries: Array<{ entry_id: string; version: { change?: unknown } }> }>(h.person, { capability_id: "skills.kit.report", version: 1 }, {});
+    assert.deepEqual(kit.entries.find(item => item.entry_id.endsWith(`/${adopted.skill_id}`))?.version.change, { kind: "default_updated", base_version: 1, default_version: 2 });
     const rebased = await h.draft({ scope: "project", target: { kind: "own", skill_id: adopted.skill_id, from_source: true } });
     assert.match(rebased.fields.body, /记进 Linear，再按负责人分组/u);
     assert.equal(rebased.target.kind === "own" && rebased.target.rebase?.version, 2);
@@ -244,6 +253,28 @@ test("PWA-14 「告诉助理怎么改」 rewrites the draft's fields as its next
   try {
     const opened = await none.draft({ scope: "project", target: { kind: "new" }, fields: fields("周报整理"), case: KNOWN });
     await assert.rejects(none.call(none.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: 1, case_id: opened.cases[0]!.case_id }),
-      (error: unknown) => error instanceof ActionError && error.code !== "skills.trial_required", "no text model says where to set one up");
+      refused("actions.connection_required"), "no text model says where to set one up");
   } finally { await none.close(); }
+});
+
+test("S-skill-authoring the Assistant replays and takes back only a draft it opened in the same piece of work; the person's drafts and another work's are refused and left as they are", mac, async () => {
+  const model = modelDouble(prompt => isJudge(prompt) ? judge(prompt) : "周报：A 完成；B 延期到周五；C 新开。");
+  const h = await harness(model);
+  try {
+    const persons = await h.draft({ scope: "project", target: { kind: "new" }, fields: fields("周报整理"), case: KNOWN });
+    const own = await h.draft({ scope: "project", target: { kind: "new" }, fields: fields("会议纪要"), case: KNOWN }, h.assistant);
+    const elsewhere: ActionCallContext = { ...h.assistant, audit_actor_id: "assistant:work-other" };
+    for (const [context, opened] of [[h.assistant, persons], [elsewhere, own]] as const) {
+      await assert.rejects(h.call(context, skillDraftActions.discard, { draft_id: opened.draft_id }), refused("skills.draft_refused"));
+      await assert.rejects(h.call(context, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: opened.revision, case_id: opened.cases[0]!.case_id }), refused("skills.draft_refused"));
+    }
+    assert.equal(model.calls.length, 0, "a refused replay calls no model");
+    const kept = await h.call<SkillDraft>(h.person, skillDraftActions.read, { draft_id: persons.draft_id });
+    assert.deepEqual([kept.revision, kept.trial], [persons.revision, undefined], "the person's draft is as it was: not discarded, not replayed");
+    assert.deepEqual((await h.drafts()).map(item => item.draft_id).sort(), [persons.draft_id, own.draft_id].sort());
+    // Its own draft, in its own work: replayed and taken back.
+    await h.call<SkillTrial>(h.assistant, skillDraftActions.runTrial, { draft_id: own.draft_id, expected_revision: own.revision, case_id: own.cases[0]!.case_id });
+    await h.call(h.assistant, skillDraftActions.discard, { draft_id: own.draft_id });
+    assert.deepEqual((await h.drafts()).map(item => item.draft_id), [persons.draft_id]);
+  } finally { await h.close(); }
 });

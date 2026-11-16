@@ -1,6 +1,6 @@
 # Molis Work 审查报告与优化策略
 
-状态：进行中。已有六方向代表入口检查和前四批成果保留；搜索取消、Home 完整性、任务操作与切换上下文、Run 时间四条链已补深查及定向验收，审查选项与导入停止继续实施/验收；2026-11-16 按用户原始范围继续深入检查与分批改造，不将原“留后续”当作已获批准的排除。当前同步 main `4a08c41ca`；旧头 `77e2cc0d5` 的 CI 仅覆盖旧批次。负责人 Codex，草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101)。[需求与验收](spec.md) · [逐包覆盖](coverage.md)。
+状态：进行中。已有六方向代表入口检查和前四批成果保留；搜索取消、Home 完整性、任务操作与切换上下文、Run 时间四条链已补深查及定向验收，审查选项、导入停止与正文可用性已定向验收，Git 编辑恢复继续完成最后交错验收；2026-11-16 按用户原始范围继续深入检查与分批改造，不将原“留后续”当作已获批准的排除。当前同步 main `4a08c41ca`；旧头 `77e2cc0d5` 的 CI 仅覆盖旧批次。负责人 Codex，草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101)。[需求与验收](spec.md) · [逐包覆盖](coverage.md)。
 
 ## 当前判断
 
@@ -12,7 +12,7 @@
 
 构建通过只支持工程判断，尚不能宣称整个平台内部完整。当前登记表有74个包；初始审查基线的统一 BL 有 527 条，其中 64 条为待本人验收、202 条明确后续做，不能直接当作死账删除。需求族判断与逐项清理决定见下文；不按条数计算完成率。
 
-前四批成果保留；第五至十二批已落实搜索取消、Home 列表完整性、停止/切项目交错、Run 终态、三个审查 UI、导入停止/断连、五插件纯绑定迁移和正文可用性反馈，相关定向验证通过。尚未取得本次最终提交的 CI 证据，不能与旧头 CI 混算；原代表检查也不能冒称全部真实入口均已查深。最新 Sessions 增量、Git 草稿、框架材料来源等仍在原任务内按优先级推进，不以改动文件数或局部通过结项。
+前四批成果保留；第五至十二批已落实搜索取消、Home 列表完整性、停止/切项目交错、Run 终态、三个审查 UI、导入停止/断连、五插件纯绑定迁移和正文可用性反馈，相关定向验证通过。尚未取得本次最终提交的 CI 证据，不能与旧头 CI 混算；原代表检查也不能冒称全部真实入口均已查深。Sessions 增量已补定向验收，Git 草稿、框架材料来源及其余未查深入口仍在原任务内按优先级推进，不以改动文件数或局部通过结项。
 
 ## 发现与处置（是否实施逐项注明）
 
@@ -41,7 +41,7 @@
 
 - 位置：`plugins/native/git/src/drafts.ts:52-108` 仅由本包导出与 `tests/git-plugin.test.ts:70-79` 使用；实际页面 `plugins/native/git/src/browser/source.ts:28-38,100-101` 只读取 Coding 交来的提交说明，`plugins/native/git/src/browser/conflicts.ts:70-86` 每次打开冲突直接用文件正文替换编辑区。
 - 影响：用户自己输入的提交说明、分支/PR 表单与冲突解决文本没有共同的恢复路径；尤其再打开同一冲突文件会覆盖尚未提交的编辑。现有草稿 round-trip 单测不证明页面保留输入。这里指整页重载/重新挂载及重新打开冲突文件；同一页面内刷新 summary、隐藏再恢复 PR 表单已由 `tests/git-source-controls.e2e.test.ts:152-249` 覆盖保留，不能一概说“刷新就丢稿”。本轮已补真实 Git 与 Coding 内嵌浏览器复现：四项均有效失败，说明重载后为空、长冲突文本切文件后被原文覆盖；日志 `/tmp/quality-audit-sessions-recheck-git-baseline.log`。`parseStoredDrafts` 还截短字段为 4096，但没有实际页面调用，不能把它冒称为当前入口的数据截断事故。
-- 决定：接续任务内分批完成 Git 草稿恢复。状态归 Git 编辑器，以项目/工作目录/文件与读取修订定位；复用现有页面草稿机制前确认冲突正文大小与隐私边界。先接正常页面、切换/刷新/冲突改版实操，再删被替代的工具和镜像单测。公开导出先走合同废弃核对，不直接删除。成本中。
+- 决定：第十四批已接入 `browser/editing.ts` / `form-drafts.ts` / `draft-operations.ts` 的真实编辑路径，使用 `host.drafts`；Coding 经 `offerCommitDraft` 明确交接且不回退错误目录。正常编辑及恢复12项、原客户端生命周期14项、源码控制1项、Host操作19项、打包2项以及真实 Coding SDK/人审/模型交接1项已通过；最终头CI与资源许可仍待完成。状态归 Git 编辑器，以项目/工作目录/文件与读取修订定位；复用现有页面草稿机制前确认冲突正文大小与隐私边界。先接正常页面、切换/刷新/冲突改版实操，再删被替代的工具和镜像单测。核对 Git private 包、contracts/SDK 外部边界、全仓引用与 Home 清单后，已删除只被镜像单测调用的旧 drafts.ts/出口/format 标记，不留截短或坏值转空的替代分支。成本中。
 
 ### QF-04 / P2：Home 后台汇总把读取失败显示为空任务
 
@@ -89,6 +89,24 @@ QEA-29～32 的最新界面验收 `/tmp/quality-audit-sessions-browser-final.log
 ### QF-20 / P2：Goals 无选中项时反复发出不合法的画布请求
 
 位置：`plugins/native/goals/src/momentum-client.ts:124` 总拼接 `goal_id=`，经 `apps/local-host/src/project-stage-data.ts:39` 进入 `goals.stage.read`；`plugins/native/goals/src/stage-action.ts:20` 正确要求提供的 id 非空。真实 Sessions 搜索用例打开空项目 Goals 页面时诊断到同一 call_id 的400，随后独立正常空画布复现连续两次400；页面停在失败/重试，重试仍发空参数。修复由 Goals 客户端省略缺席的可选选择，不放宽动作约束或给平台解析加空值兜底。QEA-38正常200及已有布局/失败重试两项通过，原选中项和普通错误重试回归保留。成本低，减少用户无效重试。
+
+### QF-21 / P1：平台草稿较早写入覆盖新编辑或复活已删除内容
+
+位置：`apps/workbench/src/browser/plugin-frame/drafts.ts:38` 的 parent handler 对每条消息并发打开 Cache、put/delete/match；child 同文件 `:6-30` 已登记 pending 并为账号准备等待。真实 Cognia/Todo 的公开 `host.drafts` 调用，暂停最早实际 Cache.put 后，最新正文和删除结果均被旧文本覆盖（QEA-39两项旧构建有效失败，`/tmp/quality-audit-draft-order-baseline.log`）；此前夹具未截获实际 Cache wrapper 的两次失败不作为产品证据。影响所有使用该平台入口的草稿消费者，Git 接入前必须解决。
+
+决定：现有 parent broker 只按同键串行读、写、删，完成释放队列项；保留安装/项目命名空间、写入限额、scope复核和失败回执。一次保存失败不阻止后续调用，不自动重试。合同明确调用顺序及输入时立即交给平台，避免插件私队列让账号准备漏等。成本低；完整构建通过，QEA-39新排序3项及现有插件隔离/账号准备2项、Coding草稿1项、Todo草稿15项全部通过（`/tmp/quality-audit-draft-order-acceptance.log`，4文件21项，7.1分钟），API生成0差异。单个页面的顺序保证不宣称跨页面编辑合并。
+
+### QF-22 / P1：冲突解决后立即中止合并失败
+
+位置：`apps/local-host/src/workspace-git-operations.ts:375-408` 的 `resolveConflict` 先将固定正文写入 blob/临时索引，再写实际文件，但原实现未补索引 stat；Host 报告成功，下一次 `merge-abort` 拒绝 Entry not uptodate。QEA-34 实操发现后，独立 QEA-40 从 owner 的 resolve/abort 入口有效复现，磁盘与暂存 blob 均为已审正文，排除正文不一致（红日志 `/tmp/quality-audit-git-abort-baseline.log`）。用户无法从正常放弃合并入口继续，系统却已报告上一操作成功。
+
+决定：原 Host owner 发布私有索引前调用 `workspace-git.ts:70` 的无路径 `update-index --refresh`，仅匹配 stat，不更改 blob；[Git 官方语义](https://git-scm.com/docs/git-update-index#_using_refresh)。复用原过滤器禁用规则，禁止子模块检查和额外 hook。原锁、HEAD/index/文件身份复核及部分写入未知回执保留。成本低；定向2项通过，包括其他暂存文件/后续修改/缺失文件不变、无无关过滤器执行、原 hook 只执行一次。完整 Git owner 回归19项、真实编辑10项及客户端包2项通过（`/tmp/quality-audit-git-editing-acceptance2.log`）；只读复核无 Blocker/P1。这些是定向工程与隔离 Home 证据，尚非最终头 CI。
+
+### QF-23 / P2：长冲突正文仍被挤在目录栏
+
+位置：`plugins/native/git/src/ui.ts:49-59` 把完整冲突编辑器放在 directory；同文件 `:72-85` 的主结果区域可以承载正文却在编辑冲突时闲置。隔离 Home 的实际桌面截图 `.impeccable/qa/review/quality-audit-git/current-conflict-light-1440.png` 显示手写正文和只读当前文件均挤在窄目录栏，移动截图没有横向越界，但这不能证明长正文核对顺畅。此次草稿恢复已防止丢失，尚未改善这一版式责任。
+
+处置：保留本轮待实施项，优先完成 P1 的 PF-02 材料交付边界后，将冲突内容放回现有 Git result 主区域；复用 `mount.ts` 的 openResult/closeResult，让独立 Git 与 Coding 内嵌使用同一内容，不做第二页面或宿主 Git 特判。需先在真实内容上提供可操作切片，核对列表返回、切文件、diff/历史切换、读取失败、审查后继续编辑和两入口桌面/移动，再判完成。成本中，不能以现有两张无越界截图关闭。
 
 ## 旧报告复核：不能直接执行的建议
 
@@ -380,3 +398,17 @@ b5e52d390 的 [Verify #8037](https://github.com/molis-ai/molis-work/actions/runs
 `tests/goal-form-viewport.e2e.test.ts:87-95` 用800ms网络延迟假设检查时仍在保存。生产 `plugins/native/goals/src/event-document-client.ts:338-350,442-445` 在实际响应完成后恢复控件。本地只延后1秒观察，实际已持久化1条、表单hidden=true、busy=null、文案恢复、请求次数2（一次拒绝加一次重试），原inert断言失败，证明旧测试依赖短暂时间窗口；不将该受控复现冒称首次CI全部时序。
 
 测试改为一次性挂起本次重试的真实fetch响应，确认服务端已写入后观察进行中状态、触发重复submit，在finally释放原Response；继续检查原请求次数、内容和事件流水、重载后的唯一记录。所有原断言、60秒超时及生产行为保留，无假响应或额外重试。补正后完整两宽度2/2通过（1024×400为40.6秒、390×500为32.0秒），含真实保存/刷新与无重复写入。为一次列齐剩余失败，后续Full用现有integration入口指向PR同一SHA，不改workflow或验收标准、不合并集成分支；最终CI结果以PR为准。
+
+### 本次检查点的未完成门禁
+
+合入 Sessions 主干后的 `pnpm typecheck:tests` 输出4,108条诊断；按实际变更行定位的两处新诊断（ArtifactImportResult断言和ArtifactVersionRecord类型）已修正，尚未重跑。没有完成所有诊断的干净主干归因，不将其算通过，也不宣称其余全部是基线。`health:check` 对4a08c41c失败于两个本轮新增 giant：bindKnowledgeImport152行、AgentReviewQueue309行26方法。已分别提取文件选择/拖放输入适配与审查状态/选项投影，所有队列/决定/权限事实仍留原owner；不改阈值或新增例外。后续 `/tmp/quality-audit-git-editing-health.log` 已通过，giant总数50无新增，handler input casts248→240；导入队列8、审查侧栏2、companion生命周期14及原Git控件1项均已通过，其他本批用例仍在运行。日志 `/tmp/quality-audit-sessions-tests-typecheck.log`、`/tmp/quality-audit-sessions-health.log`。
+
+
+第十四批最新定向结果（2026-11-16）：
+
+- 平台 QEA-39 的4文件21项、Git Host QEA-40及原操作19项、客户端包2项保留有效结果。`git-final-paths.log` 的7个通过文件另包括真实 Coding交接1项、产品HTTP1项、writer整合7项、worktrees12项、英文回执4项、Git插件9项、porcelain8项。该轮编辑文件10/11失败不隐藏：新增输入目录恢复在“设为输出”后卡在空白禁用的读取状态，独立诊断重复确认，日志 `git-input-refusal-diagnose.log`。
+- 根因是冲突读取错误地依赖摘要 generation。现改为原目录/文件/ticket/可见信号；解除冲突清引用并禁用编辑器，旧文件回答不能回填。最终 `/tmp/quality-audit-git-lifecycle-acceptance.log` 3文件27项全部通过：编辑恢复12项、独立/嵌入生命周期14项、原源码控制1项。新增受控实际 owner 回答验证同目录刷新保留、切文件不覆盖和合并解除不回填；真实输入目录拒绝不写磁盘，转输出后读取新版，用户再次核对并批准才实际写入。
+- 同路径还修复本批引入的未完成操作关联：尚未派出或 owner 明确因输入目录拒绝时，不等待不存在的审查；实际缓存从1条残留复现到0条，编辑正文保留，其他未知结果继续等待原 owner。重载、审查拒绝/成功、保存/删除交错、读取失败重试和目录切换由上述真实路径覆盖，不新增后台重试。
+- 完整构建通过；`/tmp/quality-audit-git-final-health2.log` 对 `4a08c41ca` 健康门禁通过，50个巨大单元仍为既有登记、翻译/语法/混用构建进程均0问题，未改阈值。版本生成检查通过，删除旧无调用格式的唯一版本项；先前未删源表项造成的生成/构建失败已按原版本流程纠正，没有修改生成脚本。
+- 界面生成1440/1024/390与浅深色6张真实图，已查看1440浅色、1024深色和390深色：当前文件可读、按钮可用、无横向越界。但长正文位于窄目录栏的体验问题另列 QF-23，保留本轮实施，不以截图生成宣布该问题完成。截图目录 `.impeccable/qa/review/quality-audit-git/`。
+- 用户少重写提交/冲突正文，交接失败不必重新生成；开发者从提交快照可追到原 operation_id、owner 实际结果和精确草稿清理。平台统一承担草稿顺序，Git不再维护旧serializer/截短兜底，Coding不再约定Git私有storage键。范围仍为原六方向全仓审查；PF-02 已写第十六批需求，未以本批工程通过结束任务。

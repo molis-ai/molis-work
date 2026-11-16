@@ -1,3 +1,4 @@
+import type { EditorDrafts, DraftEntry, FormDraft, ConflictDraft } from "./editing.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { sayUpstream } from "../say.js";
 import { required } from "./dom.js";
@@ -39,6 +40,9 @@ export interface GitPage {
   q<E extends HTMLElement = HTMLElement>(selector: string): E;
   /** An element of the source-control block. */
   s<E extends HTMLElement = HTMLElement>(selector: string): E;
+  drafts: EditorDrafts | null;
+  formDraft: { workspace: string; entry: DraftEntry<FormDraft> } | null;
+  conflictDraft: { path: string; entry: DraftEntry<ConflictDraft>; disk: string; revision: string } | null;
   viewSignal: AbortSignal | undefined;
   initialRead: boolean;
   opener: HTMLElement | null;
@@ -86,7 +90,7 @@ export function createPage(host: GitHost): GitPage | null {
     resultPanel: q("[data-git-saved-results]"), resultChoice: q("[data-git-result-choice]"), resultSave: q("[data-git-result-save]"), resultStatus: q("[data-git-result-status]"),
     message: s("[data-git-commit-message]"), scStatus: s("[data-git-sc-status]"), operations: s("[data-git-operations]"),
     conflicts: s("[data-git-conflicts]"), conflictEditor: s("[data-git-conflict-editor]"), conflictText: s("[data-git-conflict-text]"),
-    viewSignal: undefined, initialRead: true, opener: null, workspace: "", folder: "", generation: 0, ticket: 0, selected: null, displayed: null, preparing: false,
+    drafts: null, formDraft: null, conflictDraft: null, viewSignal: undefined, initialRead: true, opener: null, workspace: "", folder: "", generation: 0, ticket: 0, selected: null, displayed: null, preparing: false,
     resultRows: [], resultsTicket: 0, resultSaving: false,
     summary: null, draft: "", scWorkspace: "", busy: false, lastPrepared: null,
     conflictTicket: 0, conflictPath: "", conflictSides: { ours: uiText.text("git.conflict.ours"), theirs: uiText.text("git.conflict.theirs") },
@@ -103,7 +107,7 @@ async function whileShown<T>(page: GitPage, send: (signal: AbortSignal) => Promi
   page.lifetime.assertCurrent(signal);
   if (!signal || !page.lifetime.visible) throw new DOMException("View hidden", "AbortError");
   const value = await send(write ? page.lifetime.signal : signal);
-  page.lifetime.assertCurrent(signal);
+  page.lifetime.assertCurrent(write ? page.lifetime.signal : signal);
   return value as T;
 }
 

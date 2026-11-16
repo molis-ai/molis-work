@@ -1,3 +1,4 @@
+import { installFormDrafts, offerCommitDraft, resetEditors } from "./form-drafts.js";
 import { installDiff } from "./diff.js";
 import { refresh } from "./list.js";
 import { createPage, reading } from "./page.js";
@@ -14,6 +15,7 @@ export function gitClient(host: GitHost): GitBrowser | null {
   const { lifetime, refreshButton, notice, result, list } = page;
   installResults(page);
   installDiff(page);
+  installFormDrafts(page);
   installSource(page);
   lifetime.listen(refreshButton, "click", () => void (host.refreshWorkspace ? host.refreshWorkspace() : refresh(page)));
   lifetime.whenVisible((signal) => {
@@ -35,7 +37,8 @@ export function gitClient(host: GitHost): GitBrowser | null {
   });
   return {
     refresh: () => refresh(page),
-    browse(id) { if (id === page.folder && id === page.workspace) return; page.folder = id; void refresh(page); },
+    browse(id) { if (id === page.folder && id === page.workspace) return; resetEditors(page); page.folder = id; void refresh(page); },
+    offerCommitDraft: (workspace, message) => offerCommitDraft(page, workspace, message),
     afterDecision: (outcome) => afterDecision(page, outcome),
     show(face) {
       page.directory.hidden = face !== "files";

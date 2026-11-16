@@ -68,6 +68,21 @@ interface ReviewRow {
   receipt: AgentReviewReceipt;
 }
 
+/** Public status is derived from the receipt and the queue's clock; expiration is not another stored state. */
+function reviewStatus(row: ReviewRow, now: () => Date): AgentReviewStatus {
+  if (row.receipt.status !== "pending") return row.receipt.status;
+  const expires = row.request.expires_at;
+  return expires !== null && Date.parse(expires) <= now().getTime() ? "expired" : "pending";
+}
+
+/** Availability is a projection, never permission: inspect authority only for a pending operation with an execution owner. */
+function reviewDecisionOptions(row: ReviewRow, hasDecider: boolean, authority: ReviewAuthority | undefined, now: () => Date): AgentReviewDecisionOptions {
+  if (reviewStatus(row, now) !== "pending") return { decisions: [], blocked_reason: null };
+  if (!hasDecider) return { decisions: [], blocked_reason: "execution-unavailable" };
+  if (pluginOperation(row.request) && !authority?.holds()) return { decisions: ["reject"], blocked_reason: "authority-unavailable" };
+  return { decisions: ["approve", "reject"], blocked_reason: null };
+}
+
 type RecoveryObserver = (request: AgentReviewRequest) => Promise<AgentGitIndexObservation>;
 interface RecoveryHandler {
   inspect(observe: () => Promise<AgentGitIndexObservation>): Promise<AgentReviewRecoveryView>;
@@ -199,9 +214,9 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     // An exact repeat of a command a person allowed for this session goes through the same decision path,
     // attributed to that person and marked as coming from their rule. If it cannot, it simply stays pending.
     const key = standingKey(row.request), rule = key ? this.#standing.get(key) : undefined;
-    if (!rule || this.#status(row) !== "pending") return;
+    if (!rule || reviewStatus(row, this.#now) !== "pending") return;
     queueMicrotask(() => {
-      if (this.#status(row) !== "pending") return;
+      if (reviewStatus(row, this.#now) !== "pending") return;
       this.#automatic.set(reviewId, rule);
       void this.respond({ review_id: reviewId, decision: "approve", actor_id: rule.set_by,
         note: `按本会话规则批准：同一命令已由 ${rule.set_by} 于 ${rule.set_at} 允许本会话内不再询问` })
@@ -219,7 +234,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
       throw agentErrors.capability_unavailable("只有在宿主执行边界内的命令可以设为本会话内不再询问");
     }
     const receipt = await handler(input);
-    if (key && row && this.#status(row) === "approved") this.#standing.set(key, { set_by: input.actor_id, set_at: row.receipt.decided_at ?? this.#now().toISOString() });
+    if (key && row && reviewStatus(row, this.#now) === "approved") this.#standing.set(key, { set_by: input.actor_id, set_at: row.receipt.decided_at ?? this.#now().toISOString() });
     return key && row ? structuredClone({ ...receipt, ...this.receipt(input.review_id) }) : receipt;
   }
 
@@ -233,14 +248,14 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   /** One stale pending must not withdraw unrelated operations in the same run. */
   cancel(reviewId: string, reason: string): void {
     const row = this.#rows.get(reviewId);
-    if (!row || this.#status(row) !== "pending") return;
+    if (!row || reviewStatus(row, this.#now) !== "pending") return;
     row.receipt = { ...row.receipt, status: "cancelled", decided_at: this.#now().toISOString(), note: reason };
   }
 
   list(projectId: string, status?: AgentReviewStatus): AgentReviewRequest[] {
     return [...this.#rows.values()]
       .filter((row) => row.request.project_id === projectId
-        && (status === undefined || this.#status(row) === status))
+        && (status === undefined || reviewStatus(row, this.#now) === status))
       .map((row) => clonePresentedReview(row.request))
       .sort((left, right) => left.requested_at.localeCompare(right.requested_at));
   }
@@ -255,7 +270,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     if (!row) {
       throw agentErrors.review_unknown("找不到这条待审操作");
     }
-    const current = this.#status(row);
+    const current = reviewStatus(row, this.#now);
     if (current === "expired") {
       throw agentErrors.review_expired("这条待审操作已过期，请重新发起");
     }
@@ -282,19 +297,13 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   /** A view of existing owner facts, not authority to decide: respond/decide and the effect still recheck. */
   decisionOptions(reviewId: string): AgentReviewDecisionOptions | null {
     const row = this.#rows.get(reviewId);
-    if (!row) return null;
-    if (this.#status(row) !== "pending") return { decisions: [], blocked_reason: null };
-    if (!this.#deciders.has(reviewId)) return { decisions: [], blocked_reason: "execution-unavailable" };
-    if (pluginOperation(row.request) && !this.#authorities.get(reviewId)?.holds()) {
-      return { decisions: ["reject"], blocked_reason: "authority-unavailable" };
-    }
-    return { decisions: ["approve", "reject"], blocked_reason: null };
+    return row ? reviewDecisionOptions(row, this.#deciders.has(reviewId), this.#authorities.get(reviewId), this.#now) : null;
   }
 
   receipt(reviewId: string): AgentReviewReceipt | null {
     const row = this.#rows.get(reviewId);
     if (!row) return null;
-    return structuredClone({ ...row.receipt, status: this.#status(row) });
+    return structuredClone({ ...row.receipt, status: reviewStatus(row, this.#now) });
   }
 
   observe(listener: (request: AgentReviewRequest) => void): () => void {
@@ -326,7 +335,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     if (!row) {
       throw agentErrors.review_unknown("找不到这条待审操作");
     }
-    if (this.#status(row) !== "approved" || this.#consumed.has(reviewId)) {
+    if (reviewStatus(row, this.#now) !== "approved" || this.#consumed.has(reviewId)) {
       throw agentErrors.review_not_approved("这条操作没有可用的批准；未经批准不得执行");
     }
     this.#consumed.add(reviewId);
@@ -372,7 +381,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   cancelPending(runId: string, reason = "已取消"): number {
     let cancelled = 0;
     for (const row of this.#rows.values()) {
-      if (row.request.run?.run_id !== runId || this.#status(row) !== "pending") continue;
+      if (row.request.run?.run_id !== runId || reviewStatus(row, this.#now) !== "pending") continue;
       row.receipt = {
         ...row.receipt,
         status: "cancelled",
@@ -384,10 +393,5 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     return cancelled;
   }
 
-  #status(row: ReviewRow): AgentReviewStatus {
-    if (row.receipt.status !== "pending") return row.receipt.status;
-    const expires = row.request.expires_at;
-    if (expires !== null && Date.parse(expires) <= this.#now().getTime()) return "expired";
-    return "pending";
-  }
+
 }

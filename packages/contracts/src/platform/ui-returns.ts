@@ -2,7 +2,11 @@
 // the `platform/ui` subpath. Where the person came from, where they go back to and what the settings had to make true are written
 // and read by the trusted shell alone; the page gives only the need and names of its own.
 
-/** Browser-local unsent drafts, namespaced by the Host to this installation. Keys are at most 256 characters; values at most 16 MiB of UTF-8. */
+/**
+ * Browser-local unsent drafts, namespaced by the Host to this installation. Keys are at most 256 characters; values at most 16 MiB of UTF-8.
+ * Calls from one mounted page for the same key finish in call order, including reads and deletions; a failed call does not block later calls.
+ * Submit writes when editing, without a private debounce/queue: account preparation waits for calls already handed to this service.
+ */
 export interface UiPageDrafts {
   read(key: string): Promise<string | null>;
   write(key: string, value: string | null): Promise<void>;

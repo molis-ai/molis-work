@@ -1,5 +1,9 @@
 # 合同变更流程
 
+2026-11-16 质量与体验审查 QEA-33～35：Git 私有包删除无生产调用的 `GitDraft`/`StoredDrafts` 与 parse/serialize/empty/conflictKey 旧出口；外部插件合同 contracts/SDK 不受影响。旧 helper 当前无生产入口读写，初次引入提交也只有定义和出口，`format.git.drafts` 只有源标记和唯一版本表，无 Home 文件或库，无需迁移。真实编辑统一采用现有 UiPageDrafts；Coding 经已登记 clientUses 的 `offerCommitDraft(workspaceId, message)` 等实际保存回执，双方同批采用，未保留原 storage 键交接。
+
+2026-11-16 质量与体验审查 QEA-39：`UiPageDrafts` 明确同一挂载页面、同键的读取/保存/删除按调用顺序完成，失败不阻塞后续操作；平台 broker 统一兑现，调用方在编辑时直接提交，账号准备等待所有已提交调用。方法形状、缓存命名空间、限额及持久格式不变，无新兼容路径；不承诺不同页面之间编辑合并。
+
 2026-11-16 质量与体验审查第十三批：`sessions.list@1` 增加可选 `query`，复用现行200字符上限，字面匹配标题/目录/工具名后再按原 keyset 分页；`sessions.history.read@1` 增加必填 `session` 元数据，同次末尾授权下本人得到完整行、非本人得到既有摘要。工作台直达、分页、范围变化后的重读及 Host 消费者同批迁移，不枚举列表找 key、不保留旧输出兜底。阶段一原位更新 API/动作快照；未改许可、库结构或自有版本。
 
 2026-11-16 质量与体验审查第十二批：成果 `ArtifactImportResult` 和 `artifacts.import.file/external@1` 输出增加必填 `text_available`，从该次保存/复用的 document.content 推导，不入库、不新增提取状态。工作台转写按此字段计完成、保留无正文项供重试；原件保存、模型下载授权和取消检查保持。阶段一原位扩充，所有调用方同批采用当前合同，无旧形状兜底；API/动作快照同步。可控 native helper 只证明失败/空正文/超时回复与恢复语义，不作为模型效果验证。

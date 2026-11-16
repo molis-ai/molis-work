@@ -33,7 +33,8 @@ export function childDrafts(port: MessagePort, scope: FrameScope): UiPageDrafts 
 
 /** Cache identity comes from the server's page authorization, never from a child-supplied name or URL. */
 export function pageDrafts(port: MessagePort, scope: FrameScope, storagePrefix: string) {
-  return async (message: Extract<FrameUp, { type: "draft" }>): Promise<void> => {
+  const pending = new Map<string, Promise<void>>();
+  const execute = async (message: Extract<FrameUp, { type: "draft" }>): Promise<void> => {
     try {
       scope.assertCurrent();
       if (typeof message.key !== "string" || !message.key || message.key.length > 256
@@ -47,5 +48,14 @@ export function pageDrafts(port: MessagePort, scope: FrameScope, storagePrefix: 
     } catch (error) {
       if (scope.alive) port.postMessage({ type: "draft-result", id: message.id, error: error instanceof Error ? error.message : "Draft unavailable" } satisfies FrameDown);
     }
+  };
+  return (message: Extract<FrameUp, { type: "draft" }>): Promise<void> => {
+    // All child calls are already registered for account preparation. Keep the ordering here, at the storage owner:
+    // a late write must not replace a later edit/deletion, and a read must see the writes issued before it.
+    const work = (pending.get(message.key) ?? Promise.resolve()).then(() => execute(message));
+    pending.set(message.key, work);
+    const release = () => { if (pending.get(message.key) === work) pending.delete(message.key); };
+    void work.then(release, release);
+    return work;
   };
 }

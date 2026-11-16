@@ -63,7 +63,7 @@ process.stdout.write(JSON.stringify({ text: '周会纪要：下周三上线。',
   const client = host.actionClient(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }));
   for (const audience of ["agent", "mcp", "workflow"] as ActionAudience[]) {
     const result = await client.invoke({ actor_id: "owner", project_id: project.project_id, audience, permissions: ARTIFACT_ACTION_PERMISSIONS },
-      artifactsActions.importFile, { ...file, allow_model_download: true });
+      artifactsActions.importFile, { ...file, allow_model_download: true }) as ArtifactImportResult;
     assert.deepEqual(result.model_required, { approximate_bytes: 626 * 1024 * 1024 }, audience);
     assert.equal(result.text_available, false);
     assert.equal(existsSync(downloaded), false, audience);

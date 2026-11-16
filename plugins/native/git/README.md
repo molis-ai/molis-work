@@ -31,3 +31,5 @@ The folders come from the [current-project settings protocol](../../../docs/plat
 - 相关手册：[skills/molis-plugin-dev/elements.md](../../../skills/molis-plugin-dev/elements.md)、[docs/horizontal/agent-host.md](../../../docs/horizontal/agent-host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 Git 在 Manifest 订阅宿主事件 `host.review.settled@1`：Git 发起、人批准的操作（`review:git-index`、`review:git-operation`）执行完、结果定下后，宿主只发给 Git 这个安装（S-54）；Git 在 `onEvent` 里发布 v1 `operation-updated` 并刷新自身视图，Files 消费同一通知。Coding 发起的工作树与整合审查只发给 Coding，不经 Git；Git 另外订阅广播的 `host.workspace.changed@1`，本项目里任何插件发起、人批准的工作区操作执行完（不论结果）都重读页面，但不为它发 `operation-updated`（BL-379）。失败/未知不冒充成功，读取历史和恢复出来的审查不产生事件；宿主事件不落库、不重投，停着的安装就收不到。客户端可见时跟随 Host revision 重新读取状态，固定差异保持原版本。
+
+Git 的借用客户端 `clientUses` 返回 `offerCommitDraft(workspaceId, message): Promise<"applied" | "suggested">`。它核对原目录仍存在并等待实际草稿保存；有手写说明时保留原文，把建议留给显式采用。Coding 不再约定 storage 键。编辑内容通过当前安装/项目的 `host.drafts` 保存，按目录及冲突完整相对路径区分，独立 Git 与 Coding 内嵌各使用自己的宿主命名空间。审查的 operation_id 与提交快照随草稿保存，成功清理只认 Host operation 的实际成功和同一内容，未知/拒绝/失败不丢编辑。输入直接交平台排序；不另设 debounce 或私写队列。

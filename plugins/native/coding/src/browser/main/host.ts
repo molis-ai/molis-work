@@ -31,6 +31,7 @@ export interface CodingHost {
   receipts: HostReceipts;
   interaction(card: HTMLElement, options: InteractionClientHost): HostInteraction;
   selectWorkspace(id: string): Promise<void>;
+  offerCommitDraft(workspaceId: string, message: string): Promise<"applied" | "suggested">;
   /** An action this page declared, as the person (the files face reads folders and opens files through the platform). */
   invokeAction<Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: unknown): Promise<Output>;
   addWorkspace(path: string): Promise<{ readonly workspace_id: string }>;

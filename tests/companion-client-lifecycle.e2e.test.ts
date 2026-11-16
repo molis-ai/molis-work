@@ -38,8 +38,9 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
   });
   browser = await openStudioChrome(directory);
   if (!browser) { t.skip("Chrome is unavailable"); return null; }
+  const bodies = new Map<string, Record<string, unknown>[]>();
   const requests: string[] = [], aborted: string[] = [], blocked = new Set<string>(), pending = new Map<string, ServerResponse[]>();
-  server = createServer((request, response) => {
+  server = createServer(async (request, response) => {
     const url = new URL(request.url!, "http://fixture"), path = url.pathname, key = request.method + " " + path;
     if (path === "/") {
       response.setHeader("content-type", "text/html; charset=utf-8");
@@ -53,6 +54,10 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
       </script>`);return;
     }
     if(path === "/favicon.ico"){response.writeHead(204);response.end();return;}
+    if (request.method === "POST") {
+      let raw = ""; for await (const chunk of request) raw += chunk;
+      if (raw) bodies.set(key, [...bodies.get(key) ?? [], JSON.parse(raw)]);
+    }
     requests.push(key);response.setHeader("content-type", "application/json");
     if (blocked.has(key)) {
       pending.set(key, [...pending.get(key) ?? [], response]);
@@ -69,12 +74,12 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
   await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}/` });
   await page.wait("window.parentView && window.boot");
   const count = (key: string) => requests.filter(request => request === key).length;
-  return { page, requests, aborted, blocked, pending, count };
+  return { page, requests, bodies, aborted, blocked, pending, count };
 }
 /** A plugin's client as the page mounts it on its own surface: each companion is a bundle of its own. */
 const pageFactory = (id: string) => pluginSurfaceClients().find(client => client.id === id)!.factory;
 // A companion's reads go to its own plugin's routes (`host.pluginRoute`); the fixture serves them at `/<plugin>/…`.
-const companionHost = (name: string) => `root:document.querySelector('[data-companion]'),mountPluginClient:mount,translate:globalThis.t.text,route:path=>path,pluginId:'io.molis.work.${name}',pluginRoute:path=>'/${name}'+path,headers:()=>({}),openPlugin:()=>{} ,reviews:{show:(element,query,options)=>{
+const companionHost = (name: string) => `root:document.querySelector('[data-companion]'),drafts:{read:async key=>(window.fixtureDrafts??=new Map()).get(key)??null,write:async(key,value)=>{const drafts=window.fixtureDrafts??=new Map();if(value===null)drafts.delete(key);else drafts.set(key,value);}},mountPluginClient:mount,translate:globalThis.t.text,route:path=>path,pluginId:'io.molis.work.${name}',pluginRoute:path=>'/${name}'+path,headers:()=>({}),openPlugin:()=>{} ,reviews:{show:(element,query,options)=>{
   window.fixtureReviewShow ??= (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mount,route:path=>path,headers:()=>({})});
   return fixtureReviewShow(element,query.runIds.map(run_id=>({run_id})),query.sessionId,query.workspaceId,query,
     {lifetime:mountedScopes.get(element.closest('[data-companion]')),signal:options?.signal});
@@ -403,7 +408,7 @@ test("SSC-15 Git offers 「设为输出」 beside a refusal that the folder is o
 });
 
 test("T405-GIT-01 a late index decision cannot consume a preparing or pending commit review", { timeout: 30_000 }, async t => {
-  let revision = 1, outcome = "pending";
+  let revision = 1, outcome = "pending", operationId = "";
   const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${gitMarkup()}</section>`, `
     window.shows=0;
     const host={${companionHost("git")},reviews:{show:async(element,query,options)=>{window.decide=options.onDecision;window.shows++;}}};
@@ -413,15 +418,16 @@ test("T405-GIT-01 a late index decision cannot consume a preparing or pending co
     if (path.endsWith("/summary")) return { workspace: { workspace_id: "ws" }, summary: {
       branch: "main", head_commit: "head", remotes: [], branches: ["main"], staged: ["note.md"], conflicted: [], merging: false, revision: "one",
     } };
-    if (path.endsWith("/operations")) return { workspace: { workspace_id: "ws" }, operations: [{ review_id: "commit-current", tool: "git-commit", outcome }] };
+    if (path.endsWith("/operations")) return { workspace: { workspace_id: "ws" }, operations: [{ operation_id: operationId, review_id: "commit-current", tool: "git-commit", outcome }] };
     return state("git");
   }); if (!f) return;
   const { page, count, blocked, pending } = f, post = "POST /git/operations";
   await page.evaluate("parentView.hidden=false");
   await page.wait("document.querySelector('[data-git-branch]').textContent==='main' && !document.querySelector('[data-git-refresh]').disabled && !document.querySelector('[data-git-commit]').disabled");
   blocked.add(post);
-  await page.evaluate("document.querySelector('[data-git-commit-message]').value='current draft'");
+  await page.evaluate("{ const editor=document.querySelector('[data-git-commit-message]');editor.value='current draft';editor.dispatchEvent(new Event('input')); }");
   await page.click("[data-git-commit]"); await until(() => pending.has(post));
+  operationId = String(f.bodies.get(post)![0]!.operation_id);
   const reads = count("GET /git/state"), polls = count("GET /git/view-revision"), shows = await page.evaluate<number>("shows");
   revision++;
   await page.evaluate("decide('rejected')");
@@ -446,7 +452,7 @@ test("T405-GIT-01 a late index decision cannot consume a preparing or pending co
 });
 
 test("T405-GIT-02 a failed or hidden commit-result read preserves its identity and draft until its own success", { timeout: 30_000 }, async t => {
-  let outcome = "pending", fail = false;
+  let outcome = "pending", fail = false, operationId = "";
   const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${gitMarkup()}</section>`, `
     const host={${companionHost("git")},reviews:{show:async(element,query,options)=>{window.decide=options.onDecision;}}};
     window.boot=()=>(${pageFactory("git")})(host);boot();
@@ -457,23 +463,24 @@ test("T405-GIT-02 a failed or hidden commit-result read preserves its identity a
     } };
     if (path.endsWith("/operations")) {
       if (fail) return Promise.reject(new Error("controlled result read failure"));
-      return { review_id: "commit-current", workspace: { workspace_id: "ws" }, operations: [{ review_id: "commit-current", tool: "git-commit", outcome }] };
+      return { review_id: "commit-current", workspace: { workspace_id: "ws" }, operations: [{ operation_id: operationId, review_id: "commit-current", tool: "git-commit", outcome }] };
     }
     return state("git");
   }); if (!f) return;
   const { page, count, blocked, pending, aborted } = f, read = "GET /git/operations";
   await page.evaluate("parentView.hidden=false");
   await page.wait("document.querySelector('[data-git-branch]').textContent==='main' && !document.querySelector('[data-git-refresh]').disabled && !document.querySelector('[data-git-commit]').disabled");
-  await page.evaluate("document.querySelector('[data-git-commit-message]').value='retained draft'");
+  await page.evaluate("{ const editor=document.querySelector('[data-git-commit-message]');editor.value='retained draft';editor.dispatchEvent(new Event('input')); }");
   await page.click("[data-git-commit]");
   await page.wait("document.querySelector('[data-git-sc-status]').textContent.includes('宿主审查')");
   await until(() => count(read) >= 2);
+  operationId = String(f.bodies.get("POST /git/operations")![0]!.operation_id);
   fail = true; await page.evaluate("decide('settled')"); fail = false;
   assert.equal(await page.evaluate("document.querySelector('[data-git-commit-message]').value"), "retained draft");
   blocked.add(read); await page.evaluate("void decide('settled');true");
   await until(() => pending.has(read));
   await page.evaluate("parentView.hidden=true"); await until(() => aborted.includes(read));
-  pending.get(read)![0]!.end(JSON.stringify({ workspace: { workspace_id: "ws" }, operations: [{ review_id: "commit-current", tool: "git-commit", outcome: "succeeded" }] }));
+  pending.get(read)![0]!.end(JSON.stringify({ workspace: { workspace_id: "ws" }, operations: [{ operation_id: operationId, review_id: "commit-current", tool: "git-commit", outcome: "succeeded" }] }));
   assert.equal(await page.evaluate("document.querySelector('[data-git-commit-message]').value"), "retained draft", "a hidden late read cannot clear a draft");
   blocked.delete(read); await page.evaluate("parentView.hidden=false");
   await page.wait("!document.querySelector('[data-git-refresh]').disabled");
@@ -484,7 +491,7 @@ test("T405-GIT-02 a failed or hidden commit-result read preserves its identity a
 });
 
 test("T405-GIT-03 a commit settled before its prepare response arrives is reconciled from its own record", { timeout: 30_000 }, async t => {
-  let outcome = "pending", revision = 1;
+  let outcome = "pending", revision = 1, operationId = "";
   const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${gitMarkup()}</section>`, `
     const host={${companionHost("git")},reviews:{show:async(element,query,options)=>{
       window.decide=options.onDecision;
@@ -496,15 +503,16 @@ test("T405-GIT-03 a commit settled before its prepare response arrives is reconc
     if (path.endsWith("/summary")) return { workspace: { workspace_id: "ws" }, summary: {
       branch: "main", head_commit: "head", remotes: [], branches: ["main"], staged: ["note.md"], conflicted: [], merging: false, revision: "one",
     } };
-    if (path.endsWith("/operations")) return { workspace: { workspace_id: "ws" }, operations: [{ review_id: "commit-current", tool: "git-commit", outcome }] };
+    if (path.endsWith("/operations")) return { workspace: { workspace_id: "ws" }, operations: [{ operation_id: operationId, review_id: "commit-current", tool: "git-commit", outcome }] };
     return state("git");
   }); if (!f) return;
   const { page, count, blocked, pending } = f, post = "POST /git/operations";
   await page.evaluate("parentView.hidden=false");
   await page.wait("document.querySelector('[data-git-branch]').textContent==='main' && !document.querySelector('[data-git-refresh]').disabled");
   blocked.add(post);
-  await page.evaluate("document.querySelector('[data-git-commit-message]').value='already settled draft'");
+  await page.evaluate("{ const editor=document.querySelector('[data-git-commit-message]');editor.value='already settled draft';editor.dispatchEvent(new Event('input')); }");
   await page.click("[data-git-commit]"); await until(() => pending.has(post));
+  operationId = String(f.bodies.get(post)![0]!.operation_id);
   outcome = "succeeded";
   await page.evaluate("decide('settled')");
   assert.equal(await page.evaluate("document.querySelector('[data-git-commit-message]').value"), "already settled draft", "no response identity has arrived yet");

@@ -3,6 +3,7 @@ import test from "node:test";
 import { mkdir, truncate, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openProjectVersionStores, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { seedBoard } from "./fixtures/goal-application.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
@@ -270,7 +271,7 @@ process.stdout.write(JSON.stringify({text:fs.readFileSync(process.argv[3],'utf8'
   assert.deepEqual(await b.rows(), [{ name: "third.m4a", failed: false, done: true }, { name: "first.m4a", failed: false, done: true }]);
   assert.equal(await b.evaluate("document.querySelector('[data-knowledge-import-model]').hidden"), true);
   for (const row of originals) {
-    const latest = openProjectVersionStores(b.store).artifacts.query.latestArtifactVersion(b.projectId!, row.artifact_id)!;
+    const latest: ArtifactVersionRecord = openProjectVersionStores(b.store).artifacts.query.latestArtifactVersion(b.projectId!, row.artifact_id)!;
     assert.equal(latest.version, 2, "each original gets one transcribed version, including the already-completed second clip");
     assert.equal((latest.payload as Record<string, unknown>).content, `Clip ${["first", "second", "third"].indexOf(row.title)}.`);
   }

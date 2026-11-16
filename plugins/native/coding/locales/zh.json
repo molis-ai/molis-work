@@ -1949,6 +1949,10 @@
     "coding.round.card.code-version-title": "验证所针对的代码版本",
     "coding.round.card.rerun-check": "重跑检查",
     "coding.round.card.result-stale": "结果已过期",
-    "coding.round.rerun-prompt": "代码在检查后又有改动，请重新运行验证命令（{command}）并核对当前代码版本的结果。"
+    "coding.round.rerun-prompt": "代码在检查后又有改动，请重新运行验证命令（{command}）并核对当前代码版本的结果。",
+    "coding.commit.git-unavailable": "Git 面板暂不可用。",
+    "coding.commit.original-directory-gone": "本轮的原工作目录已不在项目中，请重新添加该目录后再交接提交说明。",
+    "coding.commit.suggestion-saved": "建议已保存到 Git，手写说明已保留；需要替换时选择“采用建议说明”。",
+    "coding.commit.handoff-failed": "提交说明未能交给 Git，可直接重试交接这份草稿：{reason}"
   }
 }

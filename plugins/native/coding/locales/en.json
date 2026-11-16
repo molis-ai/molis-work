@@ -2153,6 +2153,10 @@
     "coding.round.card.code-version-title": "Code revision verified by this check",
     "coding.round.card.rerun-check": "Re-run checks",
     "coding.round.card.result-stale": "Result outdated",
-    "coding.round.rerun-prompt": "Code changed after the last check; please re-run the verification command ({command}) against the current code."
+    "coding.round.rerun-prompt": "Code changed after the last check; please re-run the verification command ({command}) against the current code.",
+    "coding.commit.git-unavailable": "The Git panel is unavailable.",
+    "coding.commit.original-directory-gone": "This turn’s original working directory is no longer in the project. Add that directory back before handing over the message.",
+    "coding.commit.suggestion-saved": "The suggestion is saved in Git. Your edited message is kept; choose “Use suggested message” to replace it.",
+    "coding.commit.handoff-failed": "The message could not be handed to Git. Retry with this same draft: {reason}"
   }
 }

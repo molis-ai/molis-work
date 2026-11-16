@@ -1,3 +1,4 @@
+import { resetEditors } from "./form-drafts.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { open } from "./diff.js";
 import { active, inFolder, reading, request, rowOf, showReviews } from "./page.js";
@@ -80,6 +81,7 @@ export async function refresh(page: GitPage): Promise<void> {
     // The folder the page asked for left the project: it shows the output and follows it from now on.
     if (page.folder && value.workspace.workspace_id !== page.folder) page.folder = "";
     if (page.workspace !== value.workspace.workspace_id) {
+      resetEditors(page);
       list.replaceChildren();
       clearResults(page);
       if (page.workspace && !result.hidden) { result.hidden = true; page.host.closeResult(); }

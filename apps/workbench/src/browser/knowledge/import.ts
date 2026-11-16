@@ -131,6 +131,31 @@ function bindModelConsent(dialog: HTMLDialogElement, base: string, exclusive: (r
   };
 }
 
+/** Browser file/folder inputs and both drop surfaces feed the import owner's current selection. */
+function bindFileSelection(root: HTMLElement, dialog: HTMLDialogElement, take: (items: Picked[]) => void, open: () => void): void {
+  const $ = <T extends Element = HTMLElement>(selector: string) => dialog.querySelector<T>(selector)!;
+  for (const selector of ["[data-knowledge-import-pick]", "[data-knowledge-import-folder]"]) {
+    const input = $<HTMLInputElement>(selector);
+    input.addEventListener("change", () => { take([...input.files ?? []].map(file => ({ file, path: file.webkitRelativePath || file.name }))); input.value = ""; });
+  }
+  // Files dropped on the dialog's area, or on the side panel's list (which opens the dialog with them).
+  const drop = $("[data-knowledge-import-drop]");
+  const accept = (target: HTMLElement, opens: boolean) => {
+    target.addEventListener("dragover", event => { if (event.dataTransfer?.types.includes("Files")) event.preventDefault(); });
+    const mark: DropMark = on => drop.classList.toggle("is-over", on);
+    window.molisDropZone?.(target, mark, undefined, uiText.text("workbench.import.kind-content-can-t-be-dropped-here"));
+    target.addEventListener("drop", event => {
+      if (!event.dataTransfer?.items.length || !event.dataTransfer.types.includes("Files")) return;
+      event.preventDefault();
+      if (opens && !dialog.open) open();
+      void dropped(event.dataTransfer.items).then(take);
+    });
+  };
+  accept(drop, false);
+  const browse = root.querySelector<HTMLElement>("[data-side-files-browse]");
+  if (browse) accept(browse, true);
+}
+
 /**
  * The side panel's import (specs/project-knowledge PMAT-14): several files, a folder or files dropped on the list, and online
  * documents through a connected account. Each is saved by the 成果库's import, one at a time, and organized after.
@@ -263,27 +288,8 @@ export function bindKnowledgeImport(root: HTMLElement): void {
   });
   dialog.querySelectorAll<HTMLInputElement>("input[name=kind]").forEach(input => input.addEventListener("change", () => void switchKind()));
   $("[data-knowledge-import-source]").addEventListener("change", () => void connections());
-  for (const selector of ["[data-knowledge-import-pick]", "[data-knowledge-import-folder]"]) {
-    const input = $<HTMLInputElement>(selector);
-    input.addEventListener("change", () => { take([...input.files ?? []].map(file => ({ file, path: file.webkitRelativePath || file.name }))); input.value = ""; });
-  }
   dialog.querySelectorAll("header [data-knowledge-import-close]").forEach(control => control.addEventListener("click", () => dialog.close()));
-  // Files dropped on the dialog's area, or on the side panel's list (which opens the dialog with them).
-  const drop = $("[data-knowledge-import-drop]");
-  const accept = (target: HTMLElement, opens: boolean) => {
-    target.addEventListener("dragover", event => { if (event.dataTransfer?.types.includes("Files")) event.preventDefault(); });
-    const mark: DropMark = on => drop.classList.toggle("is-over", on);
-    window.molisDropZone?.(target, mark, undefined, uiText.text("workbench.import.kind-content-can-t-be-dropped-here"));
-    target.addEventListener("drop", event => {
-      if (!event.dataTransfer?.items.length || !event.dataTransfer.types.includes("Files")) return;
-      event.preventDefault();
-      if (opens && !dialog.open) open();
-      void dropped(event.dataTransfer.items).then(take);
-    });
-  };
-  accept(drop, false);
-  const browse = root.querySelector<HTMLElement>("[data-side-files-browse]");
-  if (browse) accept(browse, true);
   const open = () => { if (!active) status.textContent = ""; dialog.showModal(); void switchKind(); };
+  bindFileSelection(root, dialog, take, open);
   root.querySelector("[data-knowledge-import-open]")?.addEventListener("click", open);
 }

@@ -6,7 +6,7 @@ import path from "node:path";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { parseFilePath, type GitOperation, type WorkspaceGitResult, type WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { parsePorcelainStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { runWorkspaceGit, statusWithoutHelpers } from "./workspace-git.js";
+import { runWorkspaceGit, statusWithoutHelpers, refreshIndexStatsWithoutHelpers } from "./workspace-git.js";
 
 /**
  * Committing, branching, pushing and opening a pull request, each as one Host-reviewed operation.
@@ -397,6 +397,7 @@ async function resolveConflict(root: string, reviewed: ConflictSnapshot, content
       await writeHeld(file, Buffer.from(content));
       const after = await readHeld(root, reviewed.name, file);
       if (after.text !== content) throw new Error("写入后的冲突正文已变化，请核对");
+      await refreshIndexStatsWithoutHelpers(root, temporaryIndex);
       await lock.writeFile(await fs.readFile(temporaryIndex)); await lock.sync();
       if (await lineage(root) !== originalLineage) throw new Error("分支或提交在写入期间变化了，请核对");
       if (!(await indexBytes(indexPath)).equals(original)) throw new Error("暂存区在写入期间变化了，请核对");

@@ -9,6 +9,7 @@ interface CompanionBrowser {
   refresh?(): Promise<void> | void;
   /** Shows another of the project's folders: which one Coding's panel shows is the page's own state. */
   browse?(workspaceId: string): void;
+  offerCommitDraft(workspaceId: string, message: string): Promise<"applied" | "suggested">;
   show?(face: string): boolean | void;
 }
 
@@ -79,6 +80,10 @@ export function codingWorkbench(host: CodingWorkbenchHost): void {
     showReviews,
     addWorkspace: (workspacePath: string) => host.workspaces.add(workspacePath),
     readInstructions: () => host.workspaces.readInstructions(),
+    offerCommitDraft: (id, message) => {
+      if (!gitBrowser) return Promise.reject(new Error(globalThis.t.text("coding.commit.git-unavailable")));
+      return gitBrowser.offerCommitDraft(id, message);
+    },
     selectWorkspace: async (id: string) => { gitBrowser?.browse?.(id); }, invokeAction: host.invokeAction,
     openItem: (plugin: string, id: string, title?: string) => host.openItem?.(plugin, id, title),
     openBeside: (plugin: string, id: string, title?: string) => host.openBeside?.(plugin, id, title),

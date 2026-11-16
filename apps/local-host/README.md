@@ -404,3 +404,5 @@ WORK-05 的资料更新与登录方式读取映射到 `system.account` 动作提
 WORK-06 的个人/租户选择、定向邀请、角色管理、交接与平台租户操作经现有账号入口和同一动作目录接入，中央负责权限与版本；不切换本地 Home。专项验证：`MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-tenants.test.mjs`（临时 Home/D1、Chrome，外部服务 mock）。
 
 WORK-07 的订阅、席位与平台变更专项联调：构建后以 `MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-billing.test.mjs` 运行（按机器 browser 时段包裹）。使用真实 Auth/Host、临时 Home/D1 和 Chrome，外部服务 mock。平台库存只读合同为 Auth 1.1.0，席位写操作仍由租户管理角色授权。
+
+冲突解决由原 workspace Git owner 固定已审正文后写文件/暂存索引；发布私有索引前仅刷新 stat，避免解决后立即放弃合并被误判文件未更新。刷新禁用无关内容过滤器、子模块检查与额外 hook，不重新暂存路径内容；原 HEAD/index/文件身份与锁校验、部分写入未知回执保持。`tests/git-operations.test.ts` 的 QEA-40 覆盖 resolve→merge-abort、其他暂存项/工作区修改/缺失项、过滤器与 hook 次数。

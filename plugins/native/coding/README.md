@@ -141,3 +141,5 @@ subject-state 可向 Kernel 提供当前 owner 的同步 getter：每次读真�
 `coding.sessions.binding.read@1` 为 user-only、artifact:read 的 `GET /sessions/:sessionId/binding`，严格输出业务 session_id/project_id、原 runtime 引用或 null、archived；只读原业务记录，零执行创建。runtime_session_id 在同一原事务中只能 null→实际 ID；同 ID 幂等且不改时间，改绑/清空返回 `coding.session_binding_conflict`。Memory 的受保护入口经此主人、当前唯一安装和 SDK 持久 owner 求交；业务 id 不是 SDK 身份或写许可。
 
 保存的跨设备会话历史以 SDK 官方导出包的完整事件记录为派生快照；源端在选中上传后通过同一 Prologue Runtime 读取，真实运行未结算时保留队列。目标端只读，不导入批准、执行身份或检查点。`coding.runs.list@1` 的 `history_before` 对保存历史单独分页，`before` 对本机执行分页；两者不能混用，页面仍使用原 GET 路径，旧动作版本明确拒绝。
+
+提交说明交给内嵌 Git 使用已登记 clientUses 的 `offerCommitDraft(workspaceId, message)`，不读写另一插件约定的 storage 键。必须定位本轮原目录，不回退当前目录；等待 Git 实际保存后才报告成功，有手写文本时说明建议已保存供显式采用。交接失败在原处重试同一份生成结果，不重调模型。

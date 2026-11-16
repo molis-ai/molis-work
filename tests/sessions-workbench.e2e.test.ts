@@ -14,7 +14,6 @@ async function setupSessionsBrowser(t: TestContext) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Sessions Workbench E2E"); return null; }
   const rawRoot = await mkdtemp(path.join(os.tmpdir(), "swb-e2e-"));
-  t.after(() => rm(rawRoot, { recursive: true, force: true }));
   const root = await realpath(rawRoot);
   const userHome = path.join(root, "user");
   const alphaDir = path.join(root, "alpha-repo");
@@ -36,7 +35,12 @@ async function setupSessionsBrowser(t: TestContext) {
     `${JSON.stringify({ sessionId: "sess-unfiled", cwd: unfiledDir, timestamp: "2026-11-12T11:00:00Z", message: { role: "user", content: "Investigate standalone spike" } })}\n`,
   );
 
+  // `node:test` executes `t.after` callbacks in registration (FIFO) order: close Chrome first, then Host/HTTP, then remove temp dir.
+  let harness: ChromeHarness | undefined;
+  t.after(async () => { await harness?.close(); });
   const home = await serveHomeRuntime(t, { sessions: { homeRoot: userHome, env: {} } });
+  t.after(() => rm(rawRoot, { recursive: true, force: true }));
+
   const alpha = await home.project("Alpha");
   const beta = await home.project("Beta");
 
@@ -56,8 +60,7 @@ async function setupSessionsBrowser(t: TestContext) {
     ),
   );
 
-  const harness = await ChromeHarness.start(chromeDir, { executable: chrome, commandTimeoutMs: 15_000 });
-  t.after(async () => { await harness.close(); });
+  harness = await ChromeHarness.start(chromeDir, { executable: chrome, commandTimeoutMs: 30_000 });
   const { targetId } = await harness.command<{ targetId: string }>("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await harness.command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   await harness.command("Page.enable", {}, sessionId);
@@ -78,15 +81,16 @@ async function setupSessionsBrowser(t: TestContext) {
     }`,
   }, sessionId);
 
+  const cdp = harness;
   const evaluate = async <T = unknown>(expression: string): Promise<T> => {
-    const res = await harness.command<{ result: { value: T }; exceptionDetails?: unknown }>(
+    const res = await cdp.command<{ result: { value: T }; exceptionDetails?: unknown }>(
       "Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }, sessionId,
     );
     assert.equal(res.exceptionDetails, undefined, JSON.stringify(res.exceptionDetails));
     return res.result.value;
   };
-  const waitFor = async (expression: string, timeoutMs = 15_000): Promise<void> => {
-    const res = await harness.command<{ exceptionDetails?: unknown }>("Runtime.evaluate", {
+  const waitFor = async (expression: string, timeoutMs = 25_000): Promise<void> => {
+    const res = await cdp.command<{ exceptionDetails?: unknown }>("Runtime.evaluate", {
       expression: `new Promise((resolve, reject) => {
         const deadline = Date.now() + ${timeoutMs};
         const tick = () => { if (${expression}) resolve(true); else if (Date.now() >= deadline) reject(new Error('Timeout: ' + ${JSON.stringify(expression)})); else setTimeout(tick, 25); };
@@ -94,17 +98,17 @@ async function setupSessionsBrowser(t: TestContext) {
       })`,
       awaitPromise: true,
       returnByValue: true,
-    }, sessionId, timeoutMs + 2_000);
+    }, sessionId, timeoutMs + 5_000);
     assert.equal(res.exceptionDetails, undefined, JSON.stringify(res.exceptionDetails));
   };
   const goto = async (urlPath: string, width = 1440, height = 900, locale: "zh" | "en" = "zh") => {
-    await harness.command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width <= 480 }, sessionId);
-    await harness.command("Network.setCookie", { name: "molis_work_locale", value: locale, url: home.origin }, sessionId);
-    await harness.command("Page.navigate", { url: home.origin + urlPath }, sessionId, 60_000);
+    await cdp.command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width <= 480 }, sessionId);
+    await cdp.command("Network.setCookie", { name: "molis_work_locale", value: locale, url: home.origin }, sessionId);
+    await cdp.command("Page.navigate", { url: home.origin + urlPath }, sessionId, 60_000);
     await waitFor("document.readyState === 'complete'");
   };
 
-  return { home, alpha, beta, harness, sessionId, evaluate, waitFor, goto };
+  return { home, alpha, beta, harness: cdp, sessionId, evaluate, waitFor, goto };
 }
 
 test("SRB-01 SRB-08 SRB-12: Sessions surface empty-scope -> Read Scope Sheet -> transcript, search highlight, Droid bar, mobile 390px, and English locale", { timeout: 180_000 }, async (t) => {

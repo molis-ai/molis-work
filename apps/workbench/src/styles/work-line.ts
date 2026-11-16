@@ -46,9 +46,9 @@ ${TOP} .dock-pin.is-fixed{flex:none;margin-right:0}
 ${TOP} .dock-pin.is-fixed::before{content:none}
 /* The kept plugins are this browser's choice, so the page's script draws them, and names the current one, after the first paint:
    until it has, what they would push along is held unseen, so the strip is not laid out a second way while it loads (VUX-31).
-   Should the script never get there, the strip shows anyway: the delay is a startup deadline, with zero motion duration. */
-${TOP}:not([data-dock-drawn])>:not(.workspace-history){visibility:hidden;animation:work-show forwards;animation-delay:3s}
-@keyframes work-show{to{visibility:visible}}
+   Should the script never get there, the strip shows anyway. */
+${TOP}:not([data-dock-drawn])>:not(.workspace-history){visibility:hidden;animation:work-strip-shown 0s forwards;animation-delay:3s}
+@keyframes work-strip-shown{to{visibility:visible}}
 /* The tabs take what they need and ＋ follows them; the strip's own ＋ (a list of plugins to open) is the start page now.
    What they need is written by the script that shares their widths (--tabs-hug: every tab at its own width; --tabs-floor:
    every tab at its narrowest), so the strip's box never hangs on the widths that script then gives the tabs. Where the strip

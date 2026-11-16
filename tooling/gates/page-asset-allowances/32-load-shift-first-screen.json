@@ -1,37 +1,37 @@
 {
-  "reason": "第 32 批跟进（#2098，VUX-31、VUX-07）：顶条在置顶钉画好前先不显示随它移动的部分、手机标签行首帧即 52px、右侧图标标签补足滚动够不到的不足 1px，以及标签条分宽与输入框安放当场处理；工作台样式表（+286）与脚本（+561）随之小幅增长，资源许可在 32-load-shift.json。四张页面的冷加载随样式表长，到达页与选择项目页的热加载也拉同一份样式表；都不到 1 KB，没有新入口。",
-  "review": "分支 fix/32-load-shift 对 merge-base efdaa33765 本机 `node scripts/gates/first-screen.mjs --base origin/main` 实测：到达页、选择项目页冷 +551、热 +265；工作台默认与全部插件冷 +847、热 0。许可照实测数写。",
+  "reason": "第 32 批跟进（#2098，VUX-31、VUX-07）：顶条在置顶钉画好前先不显示随它移动的部分、手机标签行首帧即 52px、右侧图标标签补足滚动够不到的不足 1px，以及标签条分宽与输入框安放当场处理；工作台样式表（+302）与脚本（+561）随之小幅增长，资源许可在 32-load-shift.json。四张页面的冷加载随样式表长，到达页与选择项目页的热加载也拉同一份样式表；都不到 1 KB，没有新入口。",
+  "review": "分支 fix/32-load-shift 对 merge-base efdaa33765 本机 `node scripts/gates/first-screen.mjs --base origin/main` 实测：到达页、选择项目页冷 +567、热 +265；工作台默认与全部插件冷 +863、热 0。许可照实测数写。 CSS 的兜底等待独立写为 animation-delay 后，冷加载各增加 16 字节，热加载不变。",
   "pages": {
     "arrival-empty/zh": {
-      "cold": 551,
+      "cold": 567,
       "warm": 265
     },
     "arrival-empty/en": {
-      "cold": 551,
+      "cold": 567,
       "warm": 265
     },
     "chooser/zh": {
-      "cold": 551,
+      "cold": 567,
       "warm": 265
     },
     "chooser/en": {
-      "cold": 551,
+      "cold": 567,
       "warm": 265
     },
     "workbench-default/zh": {
-      "cold": 847,
+      "cold": 863,
       "warm": 0
     },
     "workbench-default/en": {
-      "cold": 847,
+      "cold": 863,
       "warm": 0
     },
     "workbench-all-plugins/zh": {
-      "cold": 847,
+      "cold": 863,
       "warm": 0
     },
     "workbench-all-plugins/en": {
-      "cold": 847,
+      "cold": 863,
       "warm": 0
     }
   }

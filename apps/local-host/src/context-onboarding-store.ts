@@ -95,7 +95,6 @@ export interface ContextScopeDelta {
   removed: string[];
   removed_count: number;
   reused: number;
-  previous_model: string | null;
 }
 export interface ContextJourney {
   id: string; phase: "selecting" | "reading" | "review" | "failed" | "adopting" | "complete";

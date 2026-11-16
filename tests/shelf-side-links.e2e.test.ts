@@ -85,11 +85,13 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   assert.deepEqual(stored.open, { surface: "shelf", id: item.item_id, title: item.name, project_id: projectId }, "with the `open` it was stored with");
   const bell = "[data-assistant-attention]";
   await waitFor(`!document.querySelector(${JSON.stringify(bell)}).hidden && document.querySelector(${JSON.stringify(bell)}).checkVisibility()`, 30_000);
-  // WLN-39: the bell reads the line head's count; a notice remains reachable without adding a second count.
-  const waiting = "Number(document.querySelector('[data-work-line-head]').dataset.waiting) || 0";
+  assert.match(String(await evaluate(`document.querySelector(${JSON.stringify(bell)}).getAttribute('aria-label')`)), /^\d+ 件事等你处理$/u, "the bell shows the line's waiting count");
+  // WLN-39 (user decision 2026-11-15): the project bell counts only the line's waiting events. The stored Shelf notice
+  // remains reachable from its list, but settling it must not subtract from that independent count.
+  assert.ok(await evaluate("Boolean(document.querySelector('[data-work-line-head]'))"), "this project page has a line head");
+  const waiting = `(() => { const node = document.querySelector(${JSON.stringify(bell)}); return node.hidden ? 0 : Number(/^(\\d+) 件事等你处理$/u.exec(node.getAttribute('aria-label') ?? '')?.[1] ?? 0); })()`;
   const waitingBefore = await evaluate<number>(waiting);
-  const count = "document.querySelector('[data-assistant-attention-count]').textContent";
-  assert.equal(await evaluate(count), waitingBefore ? `等你 ${waitingBefore}` : "");
+  assert.ok(waitingBefore >= 1, "the seeded line has waiting events");
   // The main area as it is before the notice is opened.
   const mainArea = `({ surface: document.body.dataset.desktopSurface ?? null, tabs: [...document.querySelectorAll('[data-titlebar-tabs] [data-tab-id]')].map((tab) => tab.textContent.trim() + ':' + String(tab.hasAttribute('aria-current'))),
     shelf: Boolean(document.querySelector('[data-work-surface=shelf], [data-titlebar-tabs] [data-plugin=shelf]')) })`;
@@ -102,10 +104,12 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   await click(open);
   await landed("the Assistant notice");
   assert.deepEqual(await evaluate(mainArea), before, "the main area is as it was: same surface, same tabs, nothing of Shelf in it");
-  // Opened, the notice leaves the API; the line-owned count is unaffected.
+  // Opened, the notice is settled by the product itself: it leaves the API and, when reopened, the list. Hidden lists do
+  // not repaint; reopen as a person would, then check that the line's count stays independent of this notice.
   await waitFor(`fetch(document.body.dataset.routePrefix + '/api/assistant/notices', { headers: molisWorkControlHeaders(), cache: 'no-store' }).then((r) => r.json()).then((body) => !body.notices.some((one) => one.notice_id === ${JSON.stringify(seeded.notice_id)}))`, 10_000);
-  assert.equal(await evaluate(waiting), waitingBefore);
-  assert.equal(await evaluate(count), waitingBefore ? `等你 ${waitingBefore}` : "");
+  await click(bell);
+  await waitFor(`!document.querySelector('[data-assistant-notices] [data-notice-id=${JSON.stringify(seeded.notice_id)}]')`, 10_000);
+  assert.equal(await evaluate(waiting), waitingBefore, "settling a notice outside the line leaves its waiting count unchanged");
 });
 
 test("SIDE-FWD-01 a side view's placement events reach the page; an unlisted event stays in the view", { timeout: 60_000 }, async (t) => {

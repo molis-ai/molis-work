@@ -15,6 +15,7 @@ import {
   type ObservationEvidenceGetOutput,
   type ObservationEvidenceItemView,
   type ObservationHoldPutResult,
+  type ObservationHoldListOutput,
   type ObservationHoldReleaseResult,
   type ObservationQueriedRecord,
   type ObservationQueryInput,
@@ -46,11 +47,14 @@ export async function queryAllObservationRecords(
   nestedCaller: ActionCallContext,
   query: ObservationQueryInput,
 ): Promise<readonly ObservationQueriedRecord[]> {
-  const maxTotal = query.limit ?? 500;
+  // `limit` is the caller's explicit ceiling. Without one, read the whole sample instead of silently stopping at the
+  // observation action's page size: a large work is still one work, and a truncated prefix must not pass (PWA-51, OCL-14).
+  const maxTotal = query.limit ?? Number.POSITIVE_INFINITY;
   const collected: ObservationQueriedRecord[] = [];
   let afterSeq = query.after_seq;
   while (collected.length < maxTotal) {
-    const pageLimit = Math.min(500, maxTotal - collected.length);
+    const remaining = maxTotal - collected.length;
+    const pageLimit = Number.isFinite(remaining) ? Math.min(500, remaining) : 500;
     const page = await client.invoke(nestedCaller, obsRef(observationActions.recordsQuery), {
       ...query,
       ...(afterSeq !== undefined ? { after_seq: afterSeq } : {}),
@@ -136,6 +140,18 @@ export async function commitEvaluationSampleHold(
     record_ids: recordIds,
   }) as ObservationHoldPutResult;
   return { holdId: result.hold.hold_id, heldCount: result.hold.active_record_count };
+}
+
+/** Whether the sample's hold is still active, so a project-wide expired/purged gap may belong to other work. */
+export async function sampleHasActiveHold(
+  client: ActionClient,
+  nestedCaller: ActionCallContext,
+  sample: Pick<EvaluationSampleView, "sample_id" | "version">,
+): Promise<boolean> {
+  const result = await client.invoke(nestedCaller, obsRef(observationActions.holdsList), {
+    sample_id: `${sample.sample_id}@${sample.version}`,
+  }) as ObservationHoldListOutput;
+  return result.holds.length > 0;
 }
 
 export async function releaseEvaluationSampleHolds(

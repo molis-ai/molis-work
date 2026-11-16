@@ -65,6 +65,19 @@ test("BL-328 S-evaluation-isolation: evaluation CLI refuses real ~/.molis-work a
   assert.match(envLiveNoKey.stderr, /REFUSED:/u);
 });
 
+test("BL-328: the CLI refuses a --json report inside the real product Home before touching disk", async (t) => {
+  const fakeHome = mkdtempSync(join(tmpdir(), "eval-fake-home-"));
+  const scratch = join(tmpdir(), `eval-json-scratch-${randomUUID()}`);
+  t.after(() => rmSync(fakeHome, { recursive: true, force: true }));
+  const result = await runEvalCli(
+    ["--home", scratch, "--json", join(fakeHome, ".molis-work", "report.json")],
+    { HOME: fakeHome, MOLIS_WORK_HOME: undefined },
+  );
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /REFUSED:/u);
+  assert.equal(existsSync(join(fakeHome, ".molis-work")), false);
+});
+
 test(
   "BL-328 PWA-51 PWA-52 PWA-53 PWA-54 PWA-55 PWA-56 OCL-12 OCL-13 OCL-14 OCL-17: stand-in mode verifies reproducibility across isolated Homes and deletes scratch Home",
   { timeout: 120_000 },

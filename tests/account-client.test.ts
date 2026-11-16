@@ -37,7 +37,7 @@ test("WORK-01/UAS-01/26: pinned Auth snapshot hashes and all shared fixtures rem
   assert.equal(centralAccountOperationForProduct("product_checkEntitlements"), "checkEntitlements");
   assert.equal(centralAccountOperationForProduct("productUpdateProfile"), "updateProfile");
   assert.throws(() => centralAccountOperationForProduct("productCreateTransaction"), { code: "account.invalid_request" });
-  assert.throws(() => centralAccountOperationForProduct("product_getMe"), { code: "account.invalid_request" });
+  assert.equal(centralAccountOperationForProduct("product_getMe"), "getMe");
 });
 
 test("WORK-01/UAS-11/28: trusted config rejects mismatched origins, unsafe redirects and production mock", () => {
@@ -180,4 +180,16 @@ test("WUA-01 WUA-04: logout receipt is distinct from SessionView and still binds
   }
   const wrong = client(async () => json({ revokedScope: "CURRENT_LOGIN", status: "REVOKED", loginSessionId: "login-another" }));
   await assert.rejects(wrong.invoke("logoutCurrent", { body: {}, idempotencyKey: randomBytes(16).toString("hex") }, control()), { code: "account.forbidden" });
+});
+
+// Personal data and its display labels must have exactly one upstream owner.
+test("WORK-01: login methods project the Auth me snapshot without local masking", async () => {
+  const methods = [{ bindingId: "binding-aaaaaaaa", type: "PHONE", maskedLabel: "Auth-owned display label", verified: true, usableForLogin: true }];
+  const service = client(async (url) => {
+    assert.equal(new URL(String(url)).pathname, "/api/v2/users/me");
+    return json({ ...me(), user: { ...user(), version: 7 }, loginMethods: methods });
+  });
+  assert.deepEqual((await service.invoke("listLoginMethods", {}, control())).data, { loginMethods: methods, version: 7 });
+  await assert.rejects(service.invoke("listLoginMethods", { body: {} }, control()), { code: "account.invalid_request" });
+  await assert.rejects(client(async () => json({ ...me(), user: { ...user(), userId: "user-different" } })).invoke("listLoginMethods", {}, control()), { code: "account.forbidden" });
 });

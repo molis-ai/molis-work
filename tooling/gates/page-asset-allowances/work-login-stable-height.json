@@ -1,0 +1,9 @@
+{
+  "reason": "三种登录方式共用表单最小高度，主按钮对齐底部；两个 CSS 在此前许可之外各净增 115 字节。",
+  "review": "2026-11-15 用户要求登录方式切换时登录框高度不变。",
+  "userApproval": "2026-11-15 用户明确回复：批准额外 230 字节。",
+  "assets": {
+    "/assets/molis-work-arrival.css": 115,
+    "/assets/molis-work-workbench.css": 115
+  }
+}

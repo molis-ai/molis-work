@@ -19,6 +19,7 @@ import {
   EvaluationCliUsageError,
   assertEnvEvaluationHomeSafe,
   assertIsolatedScratchHome,
+  assertOutputPathOutsideRealHome,
   redactEvaluationValue,
   withIsolatedEvaluationHome,
 } from "./evaluation/home-guard.mjs";
@@ -150,6 +151,7 @@ async function executeCli(argv: readonly string[]): Promise<number> {
   if (options.requestedHome) {
     assertIsolatedScratchHome(options.requestedHome);
   }
+  if (options.jsonFile) assertOutputPathOutsideRealHome(options.jsonFile);
 
   const inlineApiKey = process.env.GEMINI_API_KEY?.trim() || process.env.MOLIS_EVAL_API_KEY?.trim() || "";
   if (options.mode === "live" && !inlineApiKey) {

@@ -38,12 +38,12 @@ const sdk = (p) => JSON.stringify(join(root, "packages/plugin-sdk/dist", p));
 const dsp = (p) => JSON.stringify(join(root, "packages/design-system/dist", p));
 const entry = `
 import { renderButton, renderStatusMark, renderBadge, renderAlert, renderStateRing, icon, escapeHtml, renderEmpty, renderInput, renderSkeleton, renderToast, renderRadioGroup } from ${sdk("ui.js")};
-import { renderDiff, compareChange, diffViewText } from ${sdk("diff-view.js")};
+import { renderDiff, compareChange } from ${sdk("diff-view.js")};
 import { renderMenu, renderMenuItem, renderMenuGroup, renderPopover, renderTooltip } from ${dsp("primitives/overlay.js")};
 import { renderToggleGroup, renderTabs, renderCollapsible } from ${dsp("primitives/navigation.js")};
 import { renderNowBlock, renderPickRow, renderItemGroup, renderCells, renderDetailTrail, renderIconCounts, renderStateRows, renderUsage } from ${dsp("primitives/capability-pack.js")};
 import { renderFileKind, renderFileRow, renderFileGroup, renderBarStatus, renderSteps } from ${dsp("primitives/arrival.js")};
-window.mwKit = { renderButton, renderStatusMark, renderBadge, renderAlert, renderStateRing, icon, escapeHtml, renderDiff, compareChange, diffViewText,
+window.mwKit = { renderButton, renderStatusMark, renderBadge, renderAlert, renderStateRing, icon, escapeHtml, renderDiff, compareChange,
   renderMenu, renderMenuItem, renderMenuGroup, renderPopover, renderTooltip, renderToggleGroup, renderTabs, renderSteps,
   renderFileKind, renderFileRow, renderFileGroup, renderBarStatus, renderEmpty, renderInput, renderSkeleton, renderToast, renderRadioGroup, renderCollapsible,
   renderNowBlock, renderPickRow, renderItemGroup, renderCells, renderDetailTrail, renderIconCounts, renderStateRows, renderUsage };

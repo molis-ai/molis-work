@@ -5,7 +5,7 @@ import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-
 import type { PluginMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { SKILL_AUTHORED_PLUGIN_IDS, SKILL_EXCERPT_CHARS, SKILL_ROUND_AUTO_LIMIT, SKILL_SETTINGS_LOCKED_REASONS, skillErrors, type SkillAuthoredSource, type SkillAvailability, type SkillBodyReadResult,
+import { SKILL_AUTHORED_PLUGIN_IDS, SKILL_EXCERPT_CHARS, SKILL_ROUND_AUTO_LIMIT, SKILL_SETTINGS_LOCKED_REASONS, skillErrors, type SkillAuthoredFields, type SkillAuthoredSource, type SkillAvailability, type SkillBodyReadResult,
   type SkillCatalogEntry, type SkillCatalogListRequest, type SkillReadRefusal, type SkillResourceContent, type SkillSettingsSetRequest } from "@molis-ai/molis-work-contracts/services/skills";
 import type { AgentDefinitions } from "./agent-definitions.js";
 import { USES_KEPT, type SkillSetting } from "./skill-settings.js";
@@ -33,6 +33,8 @@ export interface SkillCatalogPorts {
   resource(skill: CatalogSkill, path: string): Uint8Array;
   /** Read after an await, once per action: the ledger's current pins, for `assertPublisher`. */
   publishers(): ReadonlyMap<string, PluginPublisherPin>;
+  /** The person's view adds each own Skill's source and each Skill's open draft (batch 42, `SkillWorkshop.decorate`). */
+  decorate?(caller: ActionCallContext, skills: readonly CatalogSkill[], entries: SkillCatalogEntry[]): SkillCatalogEntry[];
 }
 
 const settingKey = (install: string, skill: string) => `${install}\0${skill}`;
@@ -68,6 +70,22 @@ function entry(skill: CatalogSkill, setting: SkillSetting | undefined): SkillCat
     runs_scripts: resources.some(resource => resource.role === "script"), excerpt: Array.from(skill.body).slice(0, SKILL_EXCERPT_CHARS).join(""),
     pack: skill.pack, state: setting?.state ?? skill.default_state ?? "off", settings_revision: setting?.revision ?? 0, availability: skill.availability,
     ...(setting && setting.state !== "off" ? { enabled: { at: setting.enabled_at, by: setting.enabled_by, scope: setting.scope_ref === "home" ? "home" as const : "project" as const } } : {}) };
+}
+
+/** One of the person's own: in the scope's package of Skills written in settings, signed by this Home. */
+export const isOwnSkill = (skill: CatalogSkill): boolean => skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_IDS[skill.pack.scope] && skill.pack.trust === "home_local";
+
+/**
+ * A catalog Skill as the form's fields, in the caller's language. An imported package keeps a frontmatter block before the body; a
+ * Skill written in settings is stored as the body itself, so a leading horizontal rule is content and is not stripped
+ * (BL-skill-authoring-b41-followups ②).
+ */
+export function skillFields(skill: CatalogSkill): SkillAuthoredFields {
+  const d = skill.declaration, words = skill.display ?? d;
+  const installed = skill.pack.trust !== "host" && !isOwnSkill(skill);
+  const body = (installed ? skill.body.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u, "") : skill.body).replace(/\r\n?/gu, "\n").trim();
+  return { name: words.name, description: words.description ?? "", applies_to: d.applies_to, body,
+    ...(words.when_not_to_use ? { when_not_to_use: words.when_not_to_use } : {}), ...(d.argument_hint ? { argument_hint: d.argument_hint } : {}) };
 }
 
 /** Rounds whose own picks the catalog still counts: more than any Home runs at once; the oldest leaves first. */
@@ -112,9 +130,10 @@ export class SkillCatalog {
   list(caller: ActionCallContext, input: SkillCatalogListRequest): Promise<{ skills: SkillCatalogEntry[] }> {
     return this.withSnapshot(caller, (skills, settings) => {
       const latest = this.ports.definitions.skills.latestUses(scopeOf(caller));
-      return { skills: skills.filter(skill => listable(skill, caller, input.applies_to)).map(skill => entry(skill, settings.get(settingKey(skill.ref.install_id, skill.ref.skill_id))))
+      const rows = skills.filter(skill => listable(skill, caller, input.applies_to)).map(skill => entry(skill, settings.get(settingKey(skill.ref.install_id, skill.ref.skill_id))))
         .map(row => { const used = latest.get(settingKey(row.ref.install_id, row.ref.skill_id)); return used ? { ...row, last_used: { at: used.at, caller: used.caller, ...(used.run_ref ? { run_ref: used.run_ref } : {}) } } : row; })
-        .filter(row => (caller.audience === "user" || row.state !== "off") && (!input.states || input.states.includes(row.state))) };
+        .filter(row => (caller.audience === "user" || row.state !== "off") && (!input.states || input.states.includes(row.state)));
+      return { skills: this.ports.decorate ? this.ports.decorate(caller, skills, rows) : rows };
     });
   }
 
@@ -153,16 +172,7 @@ export class SkillCatalog {
       const skill = skills.find(item => isDeepStrictEqual(item.ref, ref));
       if (!skill) throw skillErrors.authored_unknown("这个技能已经不是目录里的当前版本，请刷新后再试");
       try { skill.assertCurrent(); } catch { throw skillErrors.authored_unknown("这个技能已经不是目录里的当前版本，请刷新后再试"); }
-      const d = skill.declaration, words = skill.display ?? d;
-      // An imported package keeps a frontmatter block before the body; a Skill written in settings is stored as the body itself,
-      // so a leading horizontal rule is content and is not stripped (BL-skill-authoring-b41-followups ②).
-      const mine = skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_IDS[skill.pack.scope] && skill.pack.trust === "home_local";
-      const installed = skill.pack.trust !== "host" && !mine;
-      const body = (installed ? skill.body.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u, "") : skill.body)
-        .replace(/\r\n?/gu, "\n").trim();
-      return { skill_id: ref.skill_id, version: ref.version, scope: skill.pack.scope, mine,
-        name: words.name, description: words.description ?? "", applies_to: d.applies_to, body,
-        ...(words.when_not_to_use ? { when_not_to_use: words.when_not_to_use } : {}), ...(d.argument_hint ? { argument_hint: d.argument_hint } : {}) };
+      return { skill_id: ref.skill_id, version: ref.version, scope: skill.pack.scope, mine: isOwnSkill(skill), ...skillFields(skill) };
     });
   }
 

@@ -18,7 +18,7 @@
 
 刚合入、等真实 Home 采用或本人验收的项也留在这里，状态写在条目上。
 
-- [quality-experience-audit](quality-experience-audit/spec.md)：六方向代码质量与实际体验审查、逻辑缺陷、需求实现度和 BL 清理；2026-11-15 执行中，负责人 Codex，基线 `efdaa3376`，代表入口检查与前三批本地定向验收完成，首屏路径已批准；2026-11-16补入侧栏一像素溢出修复，QEA-10先失败后通过，消费者复核及最终CI Full进行中，阶段未结项。
+- [quality-experience-audit](quality-experience-audit/spec.md)：六方向代码质量与体验审查、逻辑缺陷、需求实现度和 BL 清理；负责人 Codex。2026-11-16四批代码实现及评审补正完成，已同步main `f45994e97`；本地实操与已知基线失败见报告，资源路径已批准。最终视觉、CI及合并状态见 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101)，未合入前不按main归档。
 
 - [batch-06-shared-tools](batch-06-shared-tools/spec.md)：第 06 批成果固定、平台资料产生者与 SDK 公用工具；已随 #2009 合入 `a720834a09`（2026-11-13），剩余真实 Home 采用与本人验收。
 - [batch-06-call-cost](batch-06-call-cost/spec.md)：第 06 批调用成本整治；已随 #2009 合入 `a720834a09`，剩余 N42 首片范围与 BL-943 后续；BCC-09 直测已补。

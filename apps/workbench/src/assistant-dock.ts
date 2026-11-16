@@ -1,5 +1,6 @@
 import { escapeHtml, renderButton, renderComposer, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantComposerLabels } from "./assistant-composer-labels.js";
+import { renderTaskMark } from "./work-line-parts.js";
 
 /** The glyphs the side pane draws for kinds of things and states, rendered once from the shared icon set. */
 const ASSISTANT_GLYPHS: readonly PluginIconName[] = ["file", "note", "image", "zap", "check", "circle", "clock", "flag", "undo", "edit", "alert", "circle-alert", "sparkles", "package",
@@ -15,12 +16,13 @@ export function renderAssistantDock(primitives: { readText(value: string): strin
   const { icon } = primitives;
   const add = uiText.text("workbench.composer.next-boundary");
   return `<div class="bar-center" data-assistant-island data-system-view-owner="assistant">
-      <section class="assistant-panel" data-assistant-panel aria-label="${uiText("workbench.assistant-dock.assistant")}" hidden>
+      <section class="assistant-panel" id="assistant-panel" data-assistant-panel aria-label="${uiText("workbench.assistant-dock.assistant")}" hidden>
         <template data-assistant-glyphs>${ASSISTANT_GLYPHS.map((name) => `<span data-glyph="${name}">${icon(name)}</span>`).join("")}</template>
         <header class="assistant-tabbar">
-          <div class="assistant-tabs" data-assistant-tabs data-overflow-fade role="tablist" aria-label="${uiText("workbench.assistant-dock.open-work")}"></div>
+          <div class="assistant-tabs" data-assistant-tabs data-work-tabs data-overflow-fade role="tablist" aria-label="${uiText("workbench.assistant-dock.open-work")}"></div>
           <button class="assistant-tab-new" type="button" data-assistant-new aria-label="${uiText("workbench.assistant-dock.start-new-piece-work")}" title="${uiText("workbench.assistant-dock.start-new-piece-work")}">${icon("plus")}</button>
           <span class="assistant-tabbar-actions">
+            ${renderTaskMark({ count: 0, panel: "work-task-panel" })}
             <button class="dock-window-action" type="button" data-assistant-expand aria-label="${uiText("workbench.assistant-dock.expand-workspace")}" title="${uiText("workbench.assistant-dock.expand-workspace")}" disabled>${icon("external")}</button>
             ${renderButton({ variant: "ghost", size: "sm", icon: "chevron-down", label: uiText.text("workbench.assistant-dock.return-bottom-bar"), attrs: { "data-assistant-retract": true, hidden: true } })}
             <button class="dock-window-action" type="button" data-assistant-works-toggle aria-expanded="false" aria-controls="assistant-works" aria-label="${uiText("workbench.assistant-dock.all-work")}" title="${uiText("workbench.assistant-dock.all-work")}">${icon("list")}</button>

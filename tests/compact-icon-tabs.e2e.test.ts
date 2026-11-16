@@ -15,8 +15,7 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   await navigate(() => command('Page.navigate',{url:`${origin}/projects/${projectId}/`},sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
   // 07-S2 (口径 3): the project home is the Dock's, not a tab, so the first tab pinned here is Goals' own page, opened from ＋.
-  await click('[data-titlebar-tabs] [data-tab-add]');
-  await click('[data-tab-menu-action=open-goals]');
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface==='goals' && document.querySelector('.tab-item[data-tab-kind=plugin][data-plugin=goals]')");
   const homeId = await evaluate<string>("document.querySelector('.tab-item').dataset.tabId");
   await click('.tab-item-trigger');
@@ -30,8 +29,7 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   const coreId=await evaluate<string>("document.querySelector('.tab-item[aria-current]').dataset.tabId");
   const coreSelector=`[data-tab-id="${coreId}"]`;
   const before=await evaluate<number>(`document.querySelector('${coreSelector}').getBoundingClientRect().width`);
-  await click('[data-titlebar-tabs] [data-tab-add]');
-  await click('[data-tab-menu-action=open-feed]');
+  await click('[data-plugin-strip] [data-plugin-id="feed"]');
   assert.equal(await evaluate(`document.querySelector('${coreSelector}').getBoundingClientRect().width`),before);
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "feed");
   // PTG-01 Feed's own page is its plugin tab.
@@ -48,7 +46,7 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   await command('Input.dispatchKeyEvent', {type:'keyDown',key:'F10',code:'F10',windowsVirtualKeyCode:121,modifiers:8},sessionId);
   await waitFor("document.querySelector('[data-workspace-tab-menu]').matches(':popover-open')");
   await click('[data-tab-menu-action=pin]');
-  await click('[data-titlebar-tabs] [data-tab-add]'); await click('[data-tab-menu-action=open-artifacts]');
+  await click('[data-plugin-strip] [data-plugin-id="artifacts"]');
   await click(coreSelector+' .tab-item-trigger');
   assert.equal(await evaluate("document.querySelectorAll('.tab-item[data-pinned]').length"),2);
   await navigate(()=>command('Page.reload',{},sessionId));
@@ -68,7 +66,7 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   await waitFor("document.querySelector('[data-workspace-tab-menu]').matches(':popover-open')");
   await click('[data-tab-menu-action=pin]');
   assert.equal(await evaluate(`document.querySelector('[data-tab-id="${homeId}"]').hasAttribute('data-pinned')`),false);
-  await click('[data-titlebar-tabs] [data-tab-add]'); await shot('mobile-menu-dark');
+  await click('.immersive-titlebar [data-plugin-picker-toggle]'); await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden"); await shot('mobile-menu-dark');
   assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth && document.documentElement.scrollHeight<=innerHeight"),true);
   await command('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',windowsVirtualKeyCode:27},sessionId);
   await evaluate(`document.querySelector(${JSON.stringify(coreSelector + " .tab-item-trigger")})?.click()`);

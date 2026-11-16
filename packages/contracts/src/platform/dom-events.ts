@@ -219,13 +219,18 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis-work:attention", kind: "announcement", owner: "attention", on: "document",
-    detail: "the /api/attention answer ({ background_tasks, notices, plugin_events_pending, board_cursor }) and started; a part that could not be read is null, started is the read's performance.now()",
-    summary: "The page read what waits on the person; the Assistant's bell (with the plugin notification count) paints from it, and the board refreshes when its cursor moved.",
+    detail: "the /api/attention answer ({ background_tasks, notices, plugin_events_pending, board_cursor, line, tasks }) and started; a part that could not be read or that this page does not have is null, started is the read's performance.now()",
+    summary: "The page read what waits on the person; the Assistant's bell (with the plugin notification count) paints from it, the board refreshes when its cursor moved, and on a project page the work line and the task panel paint from its line and tasks.",
   },
   {
     name: "molis-work:attention-refresh", kind: "request", owner: "attention", on: "document",
     detail: "none",
-    summary: "Read what waits on the person again now: the person acted on a notice.",
+    summary: "Read what waits on the person again now: the person acted on a notice or on the work line, or a work of the Assistant's changed state.",
+  },
+  {
+    name: "molis-work:attention-unreachable", kind: "announcement", owner: "attention", on: "document",
+    detail: "{ since }: when this page last read it, an ISO time, or null when it never has",
+    summary: "The page's read of what waits on the person did not get through (not a gone project): the work line and the task panel keep what they showed and say it is being checked (WLN-05, WLN-29).",
   },
   {
     name: "molis-work:character-coding", kind: "request", owner: "coding", on: "window",

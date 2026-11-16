@@ -12,6 +12,7 @@ import { projectDirectoryActions, projectSettingsCapabilities } from "@molis-ai/
 // The surface and its release from the same module: a second copy would not know the plugin this one started.
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
+import { continuationEvents } from "./fixtures/continuation-ready.js";
 
 // specs/prologue-adoption §4.6.10: the wait hangs on the session's step; once it is over the plugin starts the next round, which takes the continuation up.
 test("a round that ends waiting on an answer or a background command waits as the task graph keeps it, goes on with its task, keeps waiting across a restart, and can be given up", { timeout: 60_000 }, async () => {
@@ -38,8 +39,10 @@ test("a round that ends waiting on an answer or a background command waits as th
     const goes = status === "satisfied" || one.wait.until === "settled" || one.wait.on_failure === "continue";
     one.wait.state = state ?? (status === "satisfied" || one.wait.until === "settled" ? "satisfied" : "failed");
     one.continuation.state = goes ? "eligible" : "blocked";
+    // The runtime asks the Home's starter for a continuation that may go on by itself; the Host tells Coding.
+    if (goes) void events.tell(one);
   };
-  const actions = pluginActions(store, DEMO_PROJECT_ID);
+  const actions = pluginActions(store, DEMO_PROJECT_ID), events = continuationEvents(store, DEMO_PROJECT_ID);
   actions.registry.registerProvider({ provider: { provider_id: "fixture.agent-host", title: "fixture", kind: "system" }, definitions: [collaboration.read, collaboration.control], handlers: [
     { ...collaboration.read, handle: async (_caller, input) => { const session = (input as { session_id?: string }).session_id;
       // As the Host serves it: one view a session, its latest wait that still matters (open, or not taken up or given up).
@@ -50,7 +53,7 @@ test("a round that ends waiting on an answer or a background command waits as th
       // Given up while it waits: cancelled. Over already, its step held for the person: the step is given back, and the
       // Host no longer shows it (here, as a cancelled continuation).
       if (kind === "cancel-wait") { if (one.wait.state === "waiting") one.wait.state = "cancelled"; one.continuation.state = "cancelled"; cancelledWaits.push(wait_id); }
-      else { one.wait.state = "cancelled"; one.wait.continued = true; one.continuation.state = "eligible"; continued.push(wait_id); }
+      else { one.wait.state = "cancelled"; one.wait.continued = true; one.continuation.state = "eligible"; continued.push(wait_id); void events.tell(one); }
       return { session: structuredClone(one) }; } },
   ] });
   const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
@@ -60,14 +63,6 @@ test("a round that ends waiting on an answer or a background command waits as th
     if (id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
     if (id === agent.listActions.capability_id) return [] as Output;
     if (id === agent.readSession.capability_id) return { runs: [] } as Output;
-    if (id === agent.awaitContinuations.capability_id) {
-      for (const deadline = Date.now() + Math.min(input[1], 300); Date.now() < deadline;) {
-        const ready = waits.filter(one => ["eligible", "blocked"].includes(one.continuation.state) && !(input[2] ?? []).includes(one.continuation.request_key));
-        if (ready.length) return ready.map(one => structuredClone(one)) as Output;
-        await new Promise(resolve => setTimeout(resolve, 20));
-      }
-      return [] as Output;
-    }
     if (id === agent.cancelMessage.capability_id) { cancels.push(input[1]); return undefined as Output; }
     if (id === agent.readBackground.capability_id) return [] as Output;
     if (id === agent.prioritizeSession.capability_id) return { notified: ["sdk-a"], paths: ["src/x.ts"] } as Output;
@@ -86,7 +81,7 @@ test("a round that ends waiting on an answer or a background command waits as th
     throw new Error(`Unexpected capability ${id}`);
   } };
   const host = () => withFakeAgentHost({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
-    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
+    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value, observeContinuations: events.observeContinuations,
     agentHost,
   }, [], PROJECT_SETTINGS_READS);
   const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });

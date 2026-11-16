@@ -1,6 +1,6 @@
 # 33-2 · 材料核对、改范围与 Coding 一轮里的材料（定样）
 
-**状态**：用户 2026-11-04 全部选定：材料核对 **B**、改范围与换模型 **A**、Coding 一轮里的材料 **A**（看过「走一遍」切片后定）；决定记在 [onboarding-coverage §10](../../../specs/onboarding-coverage/spec.md#10-决策记录) 与 [CHO §11](../../../specs/coding-harness-optimization/spec.md#11-决策记录)。产品代码已随第 33 批（[#2082](https://github.com/molis-ai/molis-work/pull/2082)）合入，本人实物验收待做。里面全是示例数据。
+**状态**：用户 2026-11-04 全部选定：材料核对 **B**、改范围与换模型 **A**、Coding 一轮里的材料 **A**（看过「走一遍」切片后定）；决定记在 [onboarding-coverage §10](../../../specs/onboarding-coverage/spec.md#10-决策记录) 与 [CHO §11](../../../specs/coding-harness-optimization/spec.md#11-决策记录)。产品代码已随第 33 批（[#2082](https://github.com/molis-ai/molis-work/pull/2082)）合入。里面全是示例数据。
 
 这是路线书[第 33 批](../../../specs/post-anticorruption-roadmap/reference/batches/33.md)第 2 项「材料、大清单与重启接续」的样张。只读核查（同批文件「本批核账 · 第 2 项」）发现，[04 的 Onboarding 全程](../onboarding-full-journey/README.md)和 [#1783 的 33 定样](../coding-env-recovery/README.md)已经画了大文件夹清点、三种整理失败、缩小范围、采用部分失败、关掉后重开和从 Coding 缺项补齐工作目录，这里不重画；只补它们没覆盖、界面上有差别的三处：
 

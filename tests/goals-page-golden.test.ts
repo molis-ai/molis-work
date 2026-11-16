@@ -211,6 +211,12 @@ const pages: Record<string, Draw> = {
 // `data-settings-section="work-records"` after `memory` (+367 zh / +383 en characters); candidate normalized draws matched
 // every derived page byte for byte, removing only that row reproduced all 16 prior hashes, and the other 36 records stayed exact.
 // Candidate RECORD mode was not used; no Goals markup or JSON changed.
+// Batch 32 (work line, WLN-16), on the merge of main 605696e3cf (re-recorded again on the merges of main a20d260dfe, with batch 19's tile and row, and fbc95f41ce, with batch 29's settings row: each page is this branch's change plus main's, +367 zh / +383 en on that merge): the 16 whole pages moved by +1346 zh / +1434 en and the 50
+// fragment records did not change. It is the shell alone: the Dock, the start page behind ＋, the person's tray and the project
+// button went from the foot to the top strip, the foot is the work line with the Assistant in its slot, and the side's
+// background-tasks tab and page are gone from a project page (the task panel beside the dialog replaces them). Every page state
+// grew by the same amount in each language and no document or settings record moved, so no Goals markup changed here. The 16
+// were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

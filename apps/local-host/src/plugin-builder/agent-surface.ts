@@ -34,7 +34,7 @@ import { captureWebSessionAuthority } from '../web-sessions.js';
 import { readLocalWebBody, refuseLocalWebRequest, requestHost, sendLocalWebJson } from '../web-http.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
 import { capabilityCatalog, type CatalogCapability, type ProjectActions } from './catalog.js';
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, objectLinkAt } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { loopbackHost } from '@molis-ai/molis-work-contracts/platform/loopback';
 import { hostLog } from "../host-log.js";
@@ -253,8 +253,8 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
   const framed = url.searchParams.get('frame') === 'workbench';
   const projection = installedPage && framed && request.headers.accept === 'application/json';
   if (projection && (method !== 'GET' || !shellPageRead(request, 'http://' + requestHost(request)))) { refuseLocalWebRequest(response); return true; }
-  const openWorkbench = (query: string) => { response.writeHead(302, { location: prefix + '/?' + query, 'cache-control': 'no-store' }); response.end(); return true; };
-  if (preview && method === 'GET' && !framed) return openWorkbench('openPlugin=plugin-builder');
+  const openWorkbench = (location: string) => { response.writeHead(302, { location, 'cache-control': 'no-store' }); response.end(); return true; };
+  if (preview && method === 'GET' && !framed) return openWorkbench(objectLinkAt(prefix, { surface: 'plugin-builder' }));
   const pageAuthority = pluginPageRequest(request), disconnected = new AbortController();
   const disconnect = () => { if (!response.writableEnded) disconnected.abort(new Error('调用连接已关闭')); };
   request.once('aborted', disconnect); response.once('close', disconnect);
@@ -289,7 +289,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
           if (expected) throw new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开");
           sendStudioProblem(response, 404, studioProblem("plugin-builder.request.installation-not-found", '找不到这个插件的已安装版本')); return true;
         }
-        if (!framed) return openWorkbench('openSurface=' + encodeURIComponent(installedStageSurface(release)));
+        if (!framed) return openWorkbench(prefix + '/?openSurface=' + encodeURIComponent(installedStageSurface(release)));
         const recoveryError = installed.recoveryErrors.get(pluginId);
         if (recoveryError) {
           html(response, installedRecoveryHtml(recoveryError)); return true;

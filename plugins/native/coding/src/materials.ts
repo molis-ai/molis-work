@@ -262,6 +262,7 @@ function fromMaterials(material: CodingPickedMaterial, read: MaterialsReadResult
     overflow: {
       material_id: inline.material_id,
       title,
+      ...(inline.subject ? { subject: inline.subject } : {}),
       material_ref: pinnedRef,
       ...(inline.source_artifact_id !== undefined ? { source_artifact_id: inline.source_artifact_id, source_version: inline.source_version } : {}),
       read_revision: read.read_revision,
@@ -289,6 +290,7 @@ function fromKnowledge(material: CodingMaterial, read: KnowledgeReadResponse): {
     overflow: {
       material_id: inline.material_id,
       title,
+      ...(inline.subject ? { subject: inline.subject } : {}),
       ...("ref" in material ? { material_ref: readRef(material.ref, read.revision) } : {}),
       ...(inline.source_artifact_id !== undefined ? { source_artifact_id: inline.source_artifact_id, source_version: inline.source_version } : {}),
       read_revision: read.revision,
@@ -310,6 +312,7 @@ function envelope(
   // A fixed version keeps its own identity; anything else is named by its subject, and its version is the revision read.
   const plain = {
     material_id: `${key.length > 160 ? createHash("sha256").update(key).digest("hex").slice(0, 32) : key}@${revision.slice(0, 64)}`,
+    subject: { kind: subject.kind, id: subject.id },
     title, text, read_revision: revision,
     delivery: meta.delivery,
     total_chars: meta.total_chars,

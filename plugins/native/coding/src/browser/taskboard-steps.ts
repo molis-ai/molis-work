@@ -1,6 +1,7 @@
 export {
   activeLeafSteps,
   formatBoardProgressSummary,
+  parseStepProgressPercent,
   planStepOf as stepOf,
   scopeRemovedStep as scopeRemoved,
   settledStep as settled,

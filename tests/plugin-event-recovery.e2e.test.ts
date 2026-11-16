@@ -44,10 +44,13 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
     body:JSON.stringify({display_name:'另一个项目',user_confirmed:true})}).then(async response=>({status:response.status,id:(await response.json()).project?.project_id}))`);
   assert.equal(other.status, 201);
 
-  // The page reads the notifications again when it becomes visible; the dock bell then counts the waiting one.
+  // The page reads the notifications again when it becomes visible, and the bell comes into reach for the waiting one. On a
+  // project page its number is the line head's alone (WLN-39, user decision 2026-11-15 in specs/work-line): nothing waits on
+  // the line here, so the bell shows without a number, and the plugin's item is in the list behind it.
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await waitFor("document.querySelector('[data-assistant-attention]').hidden === false");
-  assert.equal(await evaluate("document.querySelector('[data-assistant-attention-count]').textContent"), "等你 1");
+  assert.ok(await evaluate("Boolean(document.querySelector('[data-work-line-head]'))"), "a project page draws the line's head");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-attention-count]').textContent"), "");
   const openFromBell = async () => {
     if (await evaluate("document.querySelector('[data-assistant-notices]').hidden")) await click('[data-assistant-attention]');
     await waitFor("document.querySelector('[data-assistant-notices] [data-notice-id=\"plugin-events\"]')?.getClientRects().length > 0");

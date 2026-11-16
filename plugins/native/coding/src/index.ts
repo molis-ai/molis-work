@@ -174,6 +174,7 @@ export {
   buildEnvironmentChecklistHtml,
   buildRoundMaterialsHtml,
   formatBoardProgressSummary,
+  parseStepProgressPercent,
   stepPointsBadge,
 } from "./recovery-parts.js";
 

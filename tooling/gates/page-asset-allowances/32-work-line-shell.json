@@ -1,0 +1,8 @@
+{
+  "reason": "第 32 批把插件图标、起始页入口和项目圆钮从底栏移到顶条（WLN-16）：设计系统里这些部件的选择器从 `.workbench-bar …` 改成 `.workbench-header …`，每条多几个字符；到达页与设置页的样式表带着同一份设计系统规则，所以各多 98 字节。没有新增规则，也没有新增资源路径。后续（外壳定样落地与起始页补三样）：手机上起始页改从顶条两行下方落下、止于线的上方（多一条定位与最大高度规则），磁贴右侧让位从两个按钮改成三个；这些仍是设计系统里外壳自己的规则，到达页与设置页带着同一份，所以各再多约 140 字节。起始页新增的「在哪一栏」「刚关掉的」规则放在工作台自己的样式表里，不进这两张表。 e2e 复查（2026-11-15）：线叠在输入框上方的窄屏下，下一步那排与情境条改贴整条的顶边（多一个量出的偏移变量），整条上的输入框空着且窄于 600px 时设置收进「更多」（同一份收起规则从窄框那条抽成函数，整条上再用一次）；仍是设计系统里外壳与输入框自己的规则，两张表各再多约 1025 字节。",
+  "review": "分支 batch/32 的 PR 评审。本机对照 merge-base 392f3bdd7 的隔离构建实测（pnpm page-assets:check）：/assets/molis-work-arrival.css 617768 → 617866（+98），/assets/molis-work-settings.css 769139 → 769237（+98）。许可各取 120。 2026-11-15 再测（merge-base 605696e3c）：/assets/molis-work-arrival.css 619824 → 620066（+242），/assets/molis-work-settings.css 770414 → 770656（+242）。许可各取 260。 2026-11-15 合入 main 88eead61b 后再测：/assets/molis-work-arrival.css 620833 → 622118（+1285），/assets/molis-work-settings.css 743449 → 744734（+1285）。许可各取 1300。",
+  "assets": {
+    "/assets/molis-work-arrival.css": 1300,
+    "/assets/molis-work-settings.css": 1300
+  }
+}

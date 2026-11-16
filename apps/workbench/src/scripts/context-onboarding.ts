@@ -1,4 +1,4 @@
-import { codeRootFile, contextFileSkip, contextSkipRuleName } from "@molis-ai/molis-work-contracts/services/materials";
+import { codeRootFile, contextFileSkip, contextSkipRuleName } from "@molis-ai/molis-work-contracts/services/materials"; import { objectLinkAt } from "@molis-ai/molis-work-contracts/platform/object-link";
 import { CONTEXT_ONBOARDING_BLANK_NAME_PART } from "./context-onboarding-blank-name.js"; import { CONTEXT_ONBOARDING_RECOVERY_PART } from "./context-onboarding-recovery.js"; import { CONTEXT_ONBOARDING_TAKE_PART } from "./context-onboarding-take.js";
 // The arrival frame draws the existing Home journey: sources, scope, reading and naming.
 // Providers own authorization; the Host owns the ids and phases under /api/onboarding/context.
@@ -13,7 +13,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const native = Boolean(globalThis.__TAURI__?.core?.invoke);
   const firstRun = document.body.dataset.onboardingMode === 'first_run';
   const directories = ['downloads','documents','desktop','custom'];
-  const contextFileSkip = ${contextFileSkip.toString()}, contextSkipRuleName = ${contextSkipRuleName.toString()}, codeRootFile = ${codeRootFile.toString()};
+  const contextFileSkip = ${contextFileSkip.toString()}, contextSkipRuleName = ${contextSkipRuleName.toString()}, codeRootFile = ${codeRootFile.toString()}, objectLinkAt = ${objectLinkAt.toString()};
   const kinds = [...(native?directories:['directory']),'files','browser','gmail','chat'];
   const names = {downloads:"workbench.context-onboarding.downloads",documents:"workbench.context-onboarding.documents",desktop:"workbench.context-onboarding.desktop",custom:"workbench.context-onboarding.another-folder",files:"workbench.context-onboarding.pick-files",directory:"workbench.context-onboarding.folder-materials",browser:"workbench.context-onboarding.browser-content",gmail:"workbench.context-onboarding.gmail",chat:"workbench.context-onboarding.chat-history"};
   const sourceIcons = {downloads:'folder',documents:'folder',desktop:'folder',custom:'folder',files:'file',directory:'folder',browser:'globe',gmail:'mail',chat:'message'};
@@ -518,10 +518,10 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if(name)journey.summary.title=name.value;if(body)journey.summary.body=body.value;
   }
   function projectLocation() {
-    const take = journey.adoption && journey.adoption.take, opened = journey.take_result && journey.take_result.open; // a folder handed to a plugin: go on there, in what it opened. With todos added, start from one; otherwise from the overview.
-    if (take) return route('/projects/'+encodeURIComponent(journey.project_id)+'/?openPlugin='+encodeURIComponent(take.project_plugin_id)+(opened ? '&openItem='+encodeURIComponent(opened.item_id)+'&openTitle='+encodeURIComponent(opened.title) : ''));
-    if (journey.todo && journey.todo.added && journey.todo.added.length) return route('/projects/'+encodeURIComponent(journey.project_id)+'/?openPlugin=todo');
-    return route('/projects/'+encodeURIComponent(journey.project_id)+'/?openPlugin=pages&openItem='+encodeURIComponent(journey.document_id || '')+'&openTitle='+encodeURIComponent((journey.adoption?.title || journey.summary?.title || globalThis.t.text("workbench.context-onboarding.project"))+' · '+globalThis.t.text("workbench.context-onboarding.work-summary")));
+    const take = journey.adoption && journey.adoption.take, opened = journey.take_result && journey.take_result.open, home = '/projects/'+encodeURIComponent(journey.project_id); // a folder handed to a plugin: go on there, in what it opened. With todos added, start from one; otherwise from the overview.
+    if (take) return route(objectLinkAt(home, opened ? { surface: take.project_plugin_id, id: opened.item_id, title: opened.title } : { surface: take.project_plugin_id }));
+    if (journey.todo && journey.todo.added && journey.todo.added.length) return route(objectLinkAt(home, { surface: 'todo' }));
+    return route(objectLinkAt(home, { surface: 'pages', id: journey.document_id || '', title: (journey.adoption?.title || journey.summary?.title || globalThis.t.text("workbench.context-onboarding.project"))+' · '+globalThis.t.text("workbench.context-onboarding.work-summary") }));
   }
   async function poll() {
     clearTimeout(timer);

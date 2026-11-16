@@ -76,6 +76,7 @@ export { observeRun, type RoundObserver, type RunObservationStart } from "./adap
 export { verifyPrologueNodeStorageContents, type PrologueNodeStorageVerificationOptions } from "./adapters/prologue-storage-verification.js";
 export { openPrologueMemoryRestore } from "./adapters/prologue-memory-restore.js";
 export { surfaceRules } from "./adapters/prologue-surfaces.js";
+export { createCollaborationHost, createContinuationStarts } from "./adapters/prologue-collaboration.js";
 export { deliverDesktopAct } from "./adapters/desktop-act-delivery.js";
 export { screenModelMaterial } from "./adapters/prologue-screening.js";
 export { projectQuestion, answerProblems } from "./adapters/prologue-questions.js";

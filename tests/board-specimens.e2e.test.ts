@@ -166,7 +166,8 @@ test("VUX-39 the board's Assistant shows its usage detail running, reported and 
   const left = await inFrame<string>(`const panel = d.querySelector('[data-assistant-panel]');
     return [...panel.querySelectorAll('*')].filter((n) => n.getClientRects().length).map((n) => [...n.childNodes].filter((c) => c.nodeType === 3).map((c) => c.data).join('')).join(' ').match(/[㐀-鿿]+/g)?.join(' ') ?? '';`);
   assert.equal(left, "", "no Chinese left in the panel in English words and English interface");
-  assert.deepEqual(await inFrame<string[]>("return [...d.querySelectorAll('.assistant-tab-title')].slice(0, 3).map((n) => n.textContent);"), ["Sign-in keeps the old session cookie", "Plan the trial review", "Reply to Yijun Wang's email"]);
+  // The main conversation leads the works, named as it is read (batch 32: it stores no title).
+  assert.deepEqual(await inFrame<string[]>("return [...d.querySelectorAll('.assistant-tab-title')].slice(0, 4).map((n) => n.textContent);"), ["Main", "Sign-in keeps the old session cookie", "Plan the trial review", "Reply to Yijun Wang's email"]);
   assert.match((await usage()).summary, /^Usage · 18,200 tokens$/);
   // Mixed words: one thread holds both languages.
   await evaluate(`document.querySelector('[data-asst-params] [data-cond-param="text"][data-cond-value="mixed"]').click()`);

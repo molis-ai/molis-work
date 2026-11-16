@@ -76,7 +76,7 @@ test("07-2a N54: after a 404 (the project is gone) the page stops reading what w
   assert.equal(await evaluate<number>("window.__attention"), after, "no read after the 404");
 });
 
-test("07-2a N54: on the chooser a project that answered 404 is not asked again, and the next project chosen is read on the next beat", { timeout: 150_000 }, async t => {
+test("07-2a N54: on the chooser a project that answered 404 is not asked again, and the next project chosen is read at once (WLN-27)", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { command, sessionId, navigate, waitFor, evaluate, click, origin, projectId } = browser;
   const other = (await createProject(browser.web, "第二个项目")).project_id;
@@ -101,17 +101,17 @@ test("07-2a N54: on the chooser a project that answered 404 is not asked again, 
   await waitFor(`(window.__reads[${JSON.stringify(projectId)}] || 0) > ${was}`, 5_000);
   await new Promise(resolve => setTimeout(resolve, 500));
   const goneReads = await reads(projectId), before = await reads(other);
-  // Another project is chosen: the beat that kept going past the gone address reads it, within one beat.
+  // Another project is chosen: the page listens to that project's stream at once, and its first word reads it.
   await click(`.chooser .mw-dir-row[data-id="${other}"]`);
   await waitFor(`document.querySelector('.chooser').dataset.selected === ${JSON.stringify(other)}`, 5_000);
   await waitFor(`(window.__reads[${JSON.stringify(other)}] || 0) > ${before}`, 16_000);
-  // Back on the gone one for a beat and more: it is never asked again.
+  // Back on the gone one for longer than the old 15-second beat: it is never asked again.
   await click(`.chooser .mw-dir-row[data-id="${projectId}"]`);
   await new Promise(resolve => setTimeout(resolve, 17_000));
   assert.equal(await reads(projectId), goneReads, "the project that answered 404 is not asked again");
 });
 
-test("07-2a N54: a read of what waits on the person that fails waits longer before the next, instead of every 15 seconds", { timeout: 120_000 }, async t => {
+test("07-2a N54 WLN-27: a stream of what waits on the person that never answers waits longer before the next try", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { command, sessionId, navigate, waitFor, evaluate, origin, projectId } = browser;
   // The page's own fetch answers /api/attention with a 503, as a host that is not answering would.
@@ -128,7 +128,7 @@ test("07-2a N54: a read of what waits on the person that fails waits longer befo
   await waitFor("window.__attention >= 1", 20_000);
   await new Promise(resolve => setTimeout(resolve, 3_000));
   const settled = await evaluate<number>("window.__attention");
-  // At a beat of 15 s, 50 s would ask three more times; after a failure the next waits at least 30 s, then 60, up to 2 minutes.
+  // A stream the Host never answered tries again after 30 s, then 60, up to 2 minutes: 50 s holds one more try at most.
   await new Promise(resolve => setTimeout(resolve, 50_000));
   const more = await evaluate<number>("window.__attention") - settled;
   assert.ok(more <= 1, `a failing read backs off: ${more} more reads in 50 s`);

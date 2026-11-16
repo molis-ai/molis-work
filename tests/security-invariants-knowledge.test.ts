@@ -210,3 +210,47 @@ test("S-41 C13 materials.read refuses a drifted revision or mismatched pin on a 
     refused("agent.pinned_revision_mismatch"),
   );
 });
+
+test("S-41 C13 long-key recorded materials (>160 chars, hashed material_id without colon) retain subject revision pinning for inline and overflow items", () => {
+  const knowledgeRef = { provider_id: "system.knowledge", capability_id: "knowledge.read", version: 1 };
+  const inlineSubject = { kind: "goal", id: `goal-${"a".repeat(210)}` };
+  const overflowSubject = { kind: "page", id: `page-${"b".repeat(220)}` };
+  const pinned = pinnedMaterialRevisions([
+    {
+      material_id: `${"1".repeat(32)}@rev-inline-1`,
+      subject: inlineSubject,
+      title: "Long Inline Goal",
+      text: "body",
+      read_revision: "rev-inline-1",
+    },
+    {
+      material_id: "coding-materials-overflow@1",
+      title: "Overflow Directory",
+      text: "directory",
+      delivery: "on-demand",
+      overflow_materials: [
+        {
+          material_id: `${"2".repeat(32)}@rev-overflow-1`,
+          subject: overflowSubject,
+          title: "Long Overflow Page",
+          read_revision: "rev-overflow-1",
+          delivery: "on-demand",
+        },
+      ],
+    },
+  ]);
+
+  const injectedInline = withPinnedKnowledgeRevision(knowledgeRef, { subject: inlineSubject }, pinned) as { expected_revision?: string };
+  assert.equal(injectedInline.expected_revision, "rev-inline-1", "long-key inline material without material_ref injects pinned expected_revision");
+  assert.throws(
+    () => withPinnedKnowledgeRevision(knowledgeRef, { subject: inlineSubject, expected_revision: "rev-stale" }, pinned),
+    refused("agent.pinned_revision_mismatch"),
+  );
+
+  const injectedOverflow = withPinnedKnowledgeRevision(knowledgeRef, { subject: overflowSubject }, pinned) as { expected_revision?: string };
+  assert.equal(injectedOverflow.expected_revision, "rev-overflow-1", "long-key overflow material without material_ref injects pinned expected_revision");
+  assert.throws(
+    () => withPinnedKnowledgeRevision(knowledgeRef, { subject: overflowSubject, expected_revision: "rev-drifted" }, pinned),
+    refused("agent.pinned_revision_mismatch"),
+  );
+});

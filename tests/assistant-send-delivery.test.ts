@@ -38,6 +38,7 @@ const until = async <T>(read: () => T | Promise<T>, what: string): Promise<NonNu
 const id = (name: string) => `${name}-${randomUUID()}`;
 const code = (expected: string) => (error: unknown) => (error as { code?: string }).code === expected;
 
+// PWA-130: supplement, queue and interrupt reach the round as chosen; a queued line never starts a round.
 test("UIC-03 UIC-12 UIV-17: delivery reaches the round as chosen, is refused where it means nothing, and never starts a round", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-delivery-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });

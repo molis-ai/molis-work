@@ -22,6 +22,7 @@ import {
   mergeSourceIncrementally,
   prepareHeldSecretDecision,
   readScopePathTags,
+  stageHeldSecretDecision,
 } from "./context-onboarding-delta.js";
 import { importAdoptedMaterialsAndSummary } from "./context-onboarding-adopt.js";
 import {
@@ -163,6 +164,7 @@ export async function decideContextSecret(
   const { prepared } = await prepareHeldSecretDecision(home, snapshot, sKey, decision, guard?.signal);
   guard?.signal?.throwIfAborted();
   await guard?.beforeEffect?.();
+  const staged = prepared ? await stageHeldSecretDecision(home, id, prepared) : undefined;
   const k = key(home, id);
   const wasRunning = running.has(k);
   if (wasRunning) {
@@ -170,17 +172,21 @@ export async function decideContextSecret(
     controllers.delete(k);
     running.delete(k);
   }
-  const journey = readContextJourney(home, id);
+  const journey = wasRunning ? withContextJourneys(home, store => store.get(id)) : readContextJourney(home, id);
+  if (journey.staging_removed && journey.phase !== "complete") {
+    journey.requires_reselection = true;
+    journey.error = "这轮整理超过 30 天没有继续，暂存的文件已清理以腾出空间。原记录已保留，请重新选择资料开始一轮整理。";
+  }
   if (journey.requires_reselection) throw new Error(journey.error!);
   if (journey.adoption || journey.phase === "complete") throw new Error("当前正在保存或已经采用，不能更改来源");
   journey.epoch = (journey.epoch ?? 0) + 1;
-  commitHeldSecretDecision(journey, sKey, decision, prepared);
+  commitHeldSecretDecision(journey, sKey, decision, staged);
   const selected = journey.sources.filter(s => s.selected);
   const remainingHeld = selected.some(s => (s.held_secrets?.length ?? 0) > 0 || (s.reading?.held_secrets?.length ?? 0) > 0);
   const hasReadable = selected.some(s => (s.references?.length ?? 0) > 0 || !s.references);
-  const reorganize = input.reorganize !== false && journey.phase !== "selecting" && (
-    decision === "strip" || decision === "raw" || wasRunning || (decision === "exclude" && journey.phase === "failed" && !remainingHeld && hasReadable)
-  );
+  const reorganize = wasRunning || (input.reorganize !== false && journey.phase !== "selecting" && (
+    decision === "strip" || decision === "raw" || (decision === "exclude" && journey.phase === "failed" && !remainingHeld && hasReadable)
+  ));
   if (reorganize && journey.summary) {
     journey.stale_summary = { title: journey.summary.title, body: journey.summary.body, at: journey.updated_at, model: journey.model };
     journey.summary = null;

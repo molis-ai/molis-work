@@ -206,7 +206,10 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   await titleAt(960, 800, "05-inbox-title-960x800.png");
   await titleAt(640, 800, "05-inbox-title-640x800.png");
 
-  await click('[data-plugin-strip] [data-plugin-id="pages"]');
+  // At 640 the plugins open from ＋, the start page that lists every one of them (WLN-16); the old rail is not shown.
+  await click("[data-plugin-picker-toggle]");
+  await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden");
+  await click('[data-plugin-picker-popover] .plugin-rail-items [data-plugin-id="pages"]');
   await pages.waitFor("document.querySelectorAll('button.feed-stage-entry[data-page-id]').length >= 2");
   await click("[data-global-search-open]");
   await waitFor("document.querySelector('[data-global-search-dialog]')?.open");

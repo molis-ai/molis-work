@@ -1,6 +1,6 @@
 import type { ActionHandlerBinding, ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus, isCodedFailure } from "@molis-ai/molis-work-plugin-sdk";
-import type { PluginRouteBinding, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HostAgentContinuationReadyPayload, PluginRouteBinding, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingMemoryLearning } from "./memory-learning.js";
 import { codingCharacters, type CodingCharacters } from "./character-source.js";
 import { codingGoalTitles, type CodingGoalTitles } from "./goal-titles.js";
@@ -62,7 +62,11 @@ const failure = (error: unknown) => {
  * are in their own file (routes-*.ts) and share one activation (route-activation.ts). `goalTitles` is the one cache the page's
  * synchronous directory and the routes share (plugin.ts); a caller with none gets its own.
  */
-export function codingSurface(context: PluginStartContext, sessions: CodingSessionStore, goalTitles: CodingGoalTitles = codingGoalTitles(context)): { routes: PluginRouteBinding[]; actions: ActionHandlerBinding[] } {
+export function codingSurface(context: PluginStartContext, sessions: CodingSessionStore, goalTitles: CodingGoalTitles = codingGoalTitles(context)): {
+  routes: PluginRouteBinding[]; actions: ActionHandlerBinding[];
+  /** `host.agent.continuation.ready@1`: one of this installation's sessions may go on; the runtime's wake loop reads again. */
+  continuationReady(payload: HostAgentContinuationReadyPayload): void;
+} {
   const actions: ActionHandlerBinding[] = [];
   const execution: CodingExecution = { sessions, models: codingModels(context), goalTitles, characters: codingCharacters(context), savedHistoryView: context.services?.savedHistory?.view };
   const activation = startCodingActivation(context, execution, actions, failure);
@@ -72,5 +76,5 @@ export function codingSurface(context: PluginStartContext, sessions: CodingSessi
   codingOnboarding(activation);
   codingMemoryLearning(activation);
   startCodingObservation(activation);
-  return { routes, actions };
+  return { routes, actions, continuationReady: payload => activation.waits.continuationReady(execution, payload.runtime_id, payload.request_key) };
 }

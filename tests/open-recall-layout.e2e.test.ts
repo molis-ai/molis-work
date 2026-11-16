@@ -7,11 +7,15 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 // 07-S2 (specs/product-flow-governance §4.6.2 S2; PFG-22, PFG-23, PFG-24, PFG-25): the project home is the Dock's, not a tab;
 // ＋ only opens, beside its button, from the Host's directory, and says where an open plugin already is; opening it again
-// goes there (recall) instead of a second copy; the title bar's one layout button acts on the focused column, with 独看 its
+// goes there (recall) instead of a second copy. Since the work line took the foot (specs/work-line §6.5) the top strip has one
+// ＋, the start page, and it carries what the strip's own ＋ list said: where a plugin is, "beside" by ⌥↵ or the tile's button,
+// and what was just closed; a split column's own strip keeps its ＋ list; the title bar's one layout button acts on the focused column, with 独看 its
 // own state; a tab moves to the right side and back, and the side remembers its history and the tabs closed there.
 
 const TABS = "[data-titlebar-tabs]";
-const PLUS = `${TABS} .tab-add-button`;
+const PLUS = ".immersive-titlebar [data-plugin-picker-toggle]";
+const START = "[data-plugin-picker-popover]";
+const TILE = (plugin: string) => `${START} .plugin-rail-tile [data-plugin-id=${plugin}]`;
 const OPEN_MENU = "[data-workspace-open-menu]";
 const LAYOUT_MENU = "[data-workspace-layout]";
 const GOALS_TAB = `${TABS} .tab-item[data-tab-kind=plugin][data-plugin=goals]`;
@@ -42,51 +46,54 @@ test("PFG-22 PFG-23 PFG-24 ＋ opens from the directory, recalls what is open, a
   // 口径 3: the home is no tab; the strip starts empty.
   assert.equal(await evaluate(`document.querySelectorAll('${TABS} .tab-item').length`), 0, "the project home is the Dock's, not a tab");
 
-  // PFG-23: ＋ opens a list beside itself: search, the project's plugins, then the person's, then what was just closed.
+  // PFG-23: ＋ opens the start page beside itself: every plugin of the project as a tile; each opens beside by ⌥↵ or its own
+  // button; nothing was closed yet, so there is no such group.
   await click(PLUS);
-  await waitFor(`document.querySelector('${OPEN_MENU}')?.matches(':popover-open') && document.activeElement?.matches('${OPEN_MENU} input')`);
-  const menu = await evaluate<{ groups: string[]; ids: string[]; beside: boolean; expanded: string | null; near: boolean }>(`(() => {
-    const menu = document.querySelector('${OPEN_MENU}'), plus = document.querySelector('${PLUS}').getBoundingClientRect(), box = menu.getBoundingClientRect();
-    return { groups: [...menu.querySelectorAll('.mw-menu__group')].map(group => group.getAttribute('aria-label')),
-      ids: [...menu.querySelectorAll('[data-plus-open]')].map(row => row.dataset.plusOpen),
-      beside: [...menu.querySelectorAll('[data-plus-open]')].every(row => row.getAttribute('aria-keyshortcuts') === 'Alt+Enter' && row.nextElementSibling?.matches('.tab-menu-beside[aria-hidden=true][tabindex="-1"]')),
+  await waitFor(`!document.querySelector('${START}').hidden && document.activeElement?.closest('${START}')`);
+  const page = await evaluate<{ ids: string[]; beside: boolean; expanded: string | null; near: boolean; recent: boolean }>(`(() => {
+    const page = document.querySelector('${START}'), plus = document.querySelector('${PLUS}').getBoundingClientRect(), box = page.getBoundingClientRect();
+    const tiles = [...page.querySelectorAll('.plugin-rail-tile')].filter(tile => tile.querySelector('[data-plugin-id]'));
+    return { ids: tiles.map(tile => tile.querySelector('[data-plugin-id]').dataset.pluginId),
+      beside: tiles.every(tile => tile.querySelector('[data-plugin-id]').getAttribute('aria-keyshortcuts') === 'Alt+Enter' && Boolean(tile.querySelector('button[data-rail-beside]')?.getAttribute('aria-label'))),
       expanded: document.querySelector('${PLUS}').getAttribute('aria-expanded'),
-      near: Math.abs(box.top - plus.bottom) < 16 && box.left < plus.right + 8 };
+      near: Math.abs(box.top - plus.bottom) < 24, recent: Boolean(page.querySelector('[data-rail-recent]')) };
   })()`);
-  assert.deepEqual(menu.groups, ["这个项目的插件", "个人 · 所有项目共用", "刚关掉的"]);
-  assert.ok(menu.ids.includes("goals"), JSON.stringify(menu.ids));
-  assert.equal(menu.beside, true, "every row opens beside by ⌥↵; its pointer button stays out of the tab order and the menu items");
-  assert.equal(menu.expanded, "true");
-  assert.equal(menu.near, true, "the list opens at ＋, not as a centred dialog");
-  // Typing narrows it; Esc closes it and puts focus back on ＋.
-  await evaluate(`(() => { const input = document.querySelector('${OPEN_MENU} input'); input.value = 'zz-no-such-plugin'; input.dispatchEvent(new Event('input')); })()`);
-  assert.equal(await evaluate(`[...document.querySelectorAll('${OPEN_MENU} [data-plus-open]')].filter(row => row.checkVisibility()).length`), 0);
+  assert.ok(page.ids.includes("goals") && page.ids.includes("feed"), JSON.stringify(page.ids));
+  assert.equal(page.beside, true, "every tile of the project's plugins opens beside by ⌥↵ and by its own named button");
+  assert.equal(page.expanded, "true");
+  assert.equal(page.near, true, "the start page opens at the strip, not as a centred dialog");
+  assert.equal(page.recent, false);
+  // Esc closes it and puts focus back on ＋.
   await key("Escape", "Escape");
-  await waitFor(`!document.querySelector('${OPEN_MENU}').matches(':popover-open') && document.activeElement?.matches('${PLUS}')`);
+  await waitFor(`document.querySelector('${START}').hidden && document.activeElement?.matches('${PLUS}')`);
   assert.equal(await evaluate(`document.querySelector('${PLUS}').getAttribute('aria-expanded')`), "false");
 
-  // ↵ on a row opens it in this pane.
+  // ↵ on a tile opens it in this pane.
   await click(PLUS);
-  await waitFor(`document.querySelector('${OPEN_MENU}')?.matches(':popover-open')`);
-  await evaluate(`document.querySelector('${OPEN_MENU} [data-plus-open=goals]').focus()`);
+  await waitFor(`!document.querySelector('${START}').hidden`);
+  await evaluate(`document.querySelector('${TILE("goals")}').focus()`);
   await key("Enter", "Enter");
   await waitFor(`document.body.dataset.desktopSurface === 'goals' && document.querySelector('${GOALS_TAB}[aria-current]')`, 15_000);
 
   // PFG-24 recall: the open plugin says where it is, and choosing it again (here, or from the Dock) goes there: no second tab.
   await click(PLUS);
-  await waitFor(`document.querySelector('${OPEN_MENU}')?.matches(':popover-open')`);
-  assert.equal(await evaluate(`document.querySelector('${OPEN_MENU} [data-plus-open=goals] .tab-menu-where')?.textContent`), "在这一栏");
-  await click(`${OPEN_MENU} [data-plus-open=goals]`);
-  await waitFor(`!document.querySelector('${OPEN_MENU}').matches(':popover-open')`);
+  await waitFor(`!document.querySelector('${START}').hidden`);
+  assert.equal(await evaluate(`document.querySelector('${TILE("goals")} .plugin-rail-where')?.textContent`), "在这一栏");
+  assert.equal(await evaluate(`document.querySelector('${TILE("feed")} .plugin-rail-where')`), null, "a plugin that is not open says nothing");
+  await click(TILE("goals"));
+  await waitFor(`document.querySelector('${START}').hidden`);
   await click("[data-dock-pin=home]");
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   assert.equal(await evaluate(`document.querySelectorAll('${GOALS_TAB}').length`), 1, "recall does not open a second Goals tab");
 
-  // 口径 6: one layout button at the title bar's end, no split button on the strip.
+  // 口径 6: one layout button, no split button on the strip. Since the work line took the foot (specs/work-line §6.5) the
+  // project stands at the strip's very end, so the layout button is the last control before it.
   assert.equal(await evaluate(`document.querySelector('${TABS} [data-tab-split], .tab-split-button')`), null);
   const ends = await evaluate<boolean>(`(() => { const layout = document.querySelector('[data-layout-open]').getBoundingClientRect();
-    return [...document.querySelector('.immersive-titlebar').querySelectorAll('button')].filter(button => button.checkVisibility() && !button.matches('[data-layout-open]')).every(button => button.getBoundingClientRect().right <= layout.left + 1) && innerWidth - layout.right < 24; })()`);
-  assert.equal(ends, true, "the layout button is the title bar's last control, at its right end");
+    const end = document.querySelector('.immersive-titlebar > .titlebar-end').getBoundingClientRect();
+    return [...document.querySelector('.immersive-titlebar').querySelectorAll('button')].filter(button => button.checkVisibility() && !button.matches('[data-layout-open]') && !button.closest('.titlebar-end')).every(button => button.getBoundingClientRect().right <= layout.left + 1)
+      && layout.right <= end.left + 1 && end.left - layout.right < 24 && innerWidth - end.right < 24; })()`);
+  assert.equal(ends, true, "the layout button is the strip's last control before the project, which ends the strip");
   await click("[data-layout-open]");
   await waitFor(`document.querySelector('${LAYOUT_MENU}')?.matches(':popover-open') && document.activeElement?.closest('${LAYOUT_MENU}')`);
   const items = await evaluate<{ title: string | null; actions: string[]; splits: string[]; panes: string[] }>(`(() => {
@@ -132,6 +139,38 @@ test("PFG-22 PFG-23 PFG-24 ＋ opens from the directory, recalls what is open, a
   await click(`${LAYOUT_MENU} [data-layout-action=merge]`);
   await waitFor(`${stored}?.panes.length === 1`);
   assert.equal(await evaluate(`document.querySelectorAll('${GOALS_TAB}').length`), 1);
+
+  // PFG-23: ⌥↵ on a tile opens its plugin beside what is showing; seen from that new column, Goals is in the first.
+  await click(PLUS);
+  await waitFor(`!document.querySelector('${START}').hidden`);
+  await evaluate(`document.querySelector('${TILE("feed")}').focus()`);
+  await key("Enter", "Enter", 1);
+  await waitFor(`document.querySelector('${START}').hidden && ${stored}?.panes.length === 2 && ${stored}.panes.some(pane => pane.tabs.some(tab => tab.plugin === 'feed'))`, 15_000);
+  await click(PLUS);
+  await waitFor(`!document.querySelector('${START}').hidden`);
+  assert.deepEqual(await evaluate(`['goals', 'feed'].map(plugin => document.querySelector('${START} .plugin-rail-tile [data-plugin-id=' + plugin + '] .plugin-rail-where')?.textContent)`), ["在第 1 栏", "在这一栏"]);
+  await key("Escape", "Escape");
+  const FEED_CLOSE = "[data-tab-workspace] .tab-item[data-tab-kind=plugin][data-plugin=feed] [data-tab-close], [data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=feed] [data-tab-close]";
+  const feedOpen = `${stored}.panes.some(pane => pane.tabs.some(tab => tab.plugin === 'feed'))`; // (a column whose last tab closed stays, empty, until the layout is merged)
+  await click(FEED_CLOSE);
+  await waitFor(`!${feedOpen}`, 15_000);
+  // What was just closed is the start page's last group; the first row says the key that reopens it.
+  await click(PLUS);
+  await waitFor(`document.querySelector('${START} [data-rail-recent] [data-rail-reopen]')`);
+  const closed = await evaluate<{ title: string | null; rows: string[]; keys: string | null; last: boolean }>(`(() => { const box = document.querySelector('${START} [data-rail-recent]');
+    return { title: box.querySelector('.plugin-rail-subgroup').textContent, rows: [...box.querySelectorAll('[data-rail-reopen] > span')].map(row => row.textContent), keys: box.querySelector('[data-rail-reopen] kbd')?.textContent ?? null, last: box === document.querySelector('${START}').lastElementChild }; })()`);
+  assert.equal(closed.title, "刚关掉的");
+  assert.equal(closed.rows.length >= 1 && closed.last, true, JSON.stringify(closed));
+  assert.match(String(closed.keys), /⇧T|Shift\+T/u);
+  // The tile's own button is the pointer's way beside.
+  await click(`${START} .plugin-rail-tile:has([data-plugin-id=feed]) [data-rail-beside]`);
+  await waitFor(`document.querySelector('${START}').hidden && ${feedOpen} && !${stored}.panes.some(pane => ['feed', 'goals'].every(plugin => pane.tabs.some(tab => tab.plugin === plugin)))`, 15_000);
+  await click(FEED_CLOSE);
+  await waitFor(`!${feedOpen}`, 15_000);
+  // A press on the row reopens what was closed.
+  await click(PLUS);
+  await click(`${START} [data-rail-reopen="0"]`);
+  await waitFor(`document.querySelector('${START}').hidden && ${feedOpen}`, 15_000);
 });
 
 test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests; the side keeps its history and closed tabs", { timeout: 150_000 }, async t => {
@@ -200,9 +239,9 @@ test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests;
     if (route === "the Dock") await click(GOALS_ENTRY);
     else {
       await click(PLUS);
-      await waitFor(`document.querySelector('${OPEN_MENU}')?.matches(':popover-open')`);
-      assert.equal(await evaluate(`document.querySelector('${OPEN_MENU} [data-plus-open=goals] .tab-menu-where')?.textContent`), "在右侧");
-      await click(`${OPEN_MENU} [data-plus-open=goals]`);
+      await waitFor(`!document.querySelector('${START}').hidden`);
+      assert.equal(await evaluate(`document.querySelector('${TILE("goals")} .plugin-rail-where')?.textContent`), "在右侧");
+      await click(TILE("goals"));
     }
     await waitFor(`document.querySelector('[data-side-tabs] [data-side-tab="${MOVED}"][aria-selected=true]') && ${toasted("已在右侧打开，切过去了")}`, 10_000);
     assert.equal(await evaluate(`document.querySelectorAll('${GOALS_TAB}').length + ${stored}.panes.flatMap(pane => pane.tabs).filter(tab => tab.plugin === 'goals').length`), 0, `${route}: no Goals tab opens in the main area`);
@@ -242,13 +281,13 @@ test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests;
   await click(`${LAYOUT_MENU} [data-layout-action=solo]`);
   await waitFor(sideAlone);
   assert.equal(await evaluate(covers), true);
-  // 601–760: the side's strip is the title bar's second row, so the side alone starts below that row, as its sheet does.
+  // 601–760: the title bar is two rows (the tabs are its second), so the side alone starts below both, as its sheet does.
   await command("Emulation.setDeviceMetricsOverride", { width: 700, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor("innerWidth === 700");
   const below = await evaluate<{ panel: number; strip: number; bottom: number; covered: boolean }>(`(() => {
-    const panel = document.querySelector('.side-panel').getBoundingClientRect(), strip = document.querySelector('.immersive-titlebar > [data-side-tabs]').getBoundingClientRect();
+    const panel = document.querySelector('.side-panel').getBoundingClientRect(), strip = document.querySelector('.immersive-titlebar').getBoundingClientRect();
     return { panel: panel.top, strip: strip.bottom, bottom: panel.bottom, covered: ${covers} }; })()`);
-  assert.ok(below.covered && below.panel >= below.strip && below.panel - below.strip <= 24 && below.bottom <= 900, `700 wide, 独看 on the right starts below the strip row and stays on screen: ${JSON.stringify(below)}`);
+  assert.ok(below.covered && below.panel >= below.strip && below.panel - below.strip <= 24 && below.bottom <= 900, `700 wide, 独看 on the right starts below the strip's two rows and stays on screen: ${JSON.stringify(below)}`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor(`innerWidth === 1440 && ${sideAlone}`);
   await click("[data-layout-open]");
@@ -415,11 +454,11 @@ test("PFG-23 review shots of ＋ and the layout menu at 1440, 1024 and 390, Chin
     }
     const name = `${lang}-${theme}-${width}`;
     await evaluate(`document.querySelector('${PLUS}').click()`);
-    await waitFor(`document.querySelector('${OPEN_MENU}')?.matches(':popover-open')`);
+    await waitFor(`!document.querySelector('${START}').hidden`);
     await new Promise(resolve => setTimeout(resolve, 300));
     await shot(name + "-plus");
-    await evaluate(`document.querySelector('${OPEN_MENU} input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
-    await waitFor(`!document.querySelector('${OPEN_MENU}').matches(':popover-open')`);
+    await evaluate(`document.querySelector('${PLUS}').click()`);
+    await waitFor(`document.querySelector('${START}').hidden`);
     await evaluate("document.querySelector('[data-layout-open]').click()");
     await waitFor(`document.querySelector('${LAYOUT_MENU}')?.matches(':popover-open')`);
     await new Promise(resolve => setTimeout(resolve, 300));

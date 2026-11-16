@@ -2,11 +2,13 @@ import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { artifactsProjectData } from "@molis-ai/molis-work-module-artifacts";
 import { charactersProjectData } from "@molis-ai/molis-work-module-characters";
+import { acceptanceProjectData } from "@molis-ai/molis-work-module-acceptance";
 import { functionsProjectData } from "@molis-ai/molis-work-module-judgment-rules";
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { memoryErrors, purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
 import { clearObservationProjectFile } from "@molis-ai/molis-work-service-observation";
+import { clearEvaluationProjectFile } from "@molis-ai/molis-work-service-evaluation";
 import { randomUUID } from "node:crypto";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, hasStorageBusinessFiles, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
@@ -30,6 +32,7 @@ export const MEMORY_OWNER = { id: "memory", label: { key: "workbench.project-del
 export const SEARCH_OWNER = { id: "search", label: null } as const;
 /** The work records of the project (observation-collection §6): a running Host's layer takes this id over, to drop its queue too. */
 export const OBSERVATION_OWNER = { id: "observation", label: { key: "workbench.project-deletion.observation" } } as const;
+export const EVALUATION_OWNER = { id: "evaluation", label: null } as const;
 
 /**
  * Memory is kept in the Agent runtime, which one process of the Home owns: the executor, the resident Web Host. A
@@ -99,6 +102,8 @@ function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
     // The 成果库's originals, kept by the module that writes them (the receipt's id is the one the plugin's entry gave it).
     ownerOf(home, "artifacts", artifactsProjectData),
     ownerOf(home, "functions", functionsProjectData),
+    // The requirements, deliveries, checks and decisions attached to the project's objects (modules/acceptance).
+    ownerOf(home, "acceptance", acceptanceProjectData),
   ];
   return declared.map((item, position) => ({ ...item, position }))
     .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) || a.position - b.position)
@@ -135,6 +140,7 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     // What the person let the project's background tasks read (task grant subjects of this project, in the Home's action grants).
     { id: "task-grants", label: null, clear: async projectId => { await forgetTaskGrantSubjects(home, subject => subject.project_id === projectId, "project_deleted"); } },
     { ...OBSERVATION_OWNER, clear: projectId => { clearObservationProjectFile(home, projectId); } },
+    { ...EVALUATION_OWNER, clear: projectId => { clearEvaluationProjectFile(home, projectId); } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).
     memoryOwnerWithoutService(home),
     searchOwnerWithoutService(home),

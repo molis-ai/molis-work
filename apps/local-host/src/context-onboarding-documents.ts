@@ -25,7 +25,7 @@ function secretMaterialKey(kind: ContextSourceKind, filePath: string, sha256: st
   return createHash("sha256").update(JSON.stringify(["secret-hold", kind, filePath, sha256])).digest("hex");
 }
 
-const SECRET_FILENAME_RE = /^(?:\.env(?:\.(?!(?:example|sample|template)$).+)?|.*\.(?:pem|key|p12|pfx|keystore|jks)|id_(?:rsa|ed25519|ecdsa|dsa)|credentials(?:[._-].*)?\.json|service[-_]account(?:[._-].*)?\.json|client_secret(?:[._-].*)?\.json|(?:.*\b)?(?:secrets?|tokens?|apikeys?|credentials)\.(?:json|ya?ml|toml|ini|conf|cfg|properties|txt|env)|.*\.tfstate(?:\.backup)?|.*\.tfvars|\.(?:npmrc|netrc|pypirc|pgpass)|auth\.json)$/iu;
+const SECRET_FILENAME_RE = /^(?:\.env(?:\.(?!(?:example|sample|template)$).+)?|.*\.(?:pem|key|p12|pfx|keystore|jks)|id_(?:rsa|ed25519|ecdsa|dsa)(?:\.pub)?|credentials.*\.json|service[-_]account.*\.json|client_secret.*\.json|secrets?\..+|(?:.*\b)?(?:tokens?|apikeys?|credentials)(?:[._-][a-z0-9_-]+)*\.(?:json|ya?ml|toml|ini|conf|cfg|properties|txt|env)|.*\.tfstate(?:\..+)?|.*\.tfvars|\.(?:npmrc|netrc|pypirc|pgpass)|auth\.json)$/iu;
 const PEM_KEY_RE = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|$)/gu;
 const KNOWN_TOKEN_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
   { label: "API_TOKEN", pattern: /\bsk-(?:proj-|ant-|live-|test-)?[A-Za-z0-9_-]{20,}\b/gu },
@@ -112,7 +112,22 @@ export function stripMaterialSecrets(text: string): string {
 type PreparedContextDocumentResult =
   | { reference: ContextReference }
   | { issue: { path: string; reason: string } }
-  | { secret_hold: HeldSecretMaterial };
+  | { secret_hold: HeldSecretMaterial }
+  | { excluded_secret: { key: string; path: string } };
+
+function extractMaterialBody(
+  filename: string,
+  extension: string,
+  result: Awaited<ReturnType<typeof readWholeMaterial>>,
+): { body: string; title: string } {
+  if (extension === "pdf" && result.coverage.status !== "sufficient") {
+    throw new Error(result.coverage.issues.join("；") || "PDF 没有可读取的文本层");
+  }
+  const body = result.text.trim();
+  if (!body) throw new Error("文件没有可读取的正文");
+  const title = [...(result.title || filename.replace(/\.[^.]+$/u, ""))].slice(0, 500).join("");
+  return { body, title };
+}
 
 /**
  * One file read in full after the explicit start (no limits, user 2026-10-22): its bytes come from the journey's staging (or are staged
@@ -136,16 +151,14 @@ export async function prepareContextDocument(
     const extension = filename.toLowerCase().match(/\.([a-z0-9]+)$/u)?.[1] ?? "";
     const result = await readWholeMaterial({ file_name: filename, bytes }, signal);
     signal?.throwIfAborted();
-    if (extension === "pdf" && result.coverage.status !== "sufficient") throw new Error(result.coverage.issues.join("；") || "PDF 没有可读取的文本层");
-    const body = result.text.trim();
-    if (!body) throw new Error("文件没有可读取的正文");
+    const { body, title } = extractMaterialBody(filename, extension, result);
     const detected = detectMaterialSecret(file.path, body);
     let finalBody = body;
     let secretMode: "strip" | "raw" | undefined;
     if (detected) {
       const sKey = secretMaterialKey(kind, file.path, sha256);
       const decision = secretDecisions?.[sKey];
-      if (decision === "exclude") return { issue: { path: file.path, reason: "按你的选择没有发送" } };
+      if (decision === "exclude") return { excluded_secret: { key: sKey, path: file.path } };
       if (decision !== "strip" && decision !== "raw") {
         return {
           secret_hold: {
@@ -163,27 +176,114 @@ export async function prepareContextDocument(
       secretMode = decision;
       finalBody = decision === "strip" ? stripMaterialSecrets(body) : body;
     }
-    const title = [...(result.title || filename.replace(/\.[^.]+$/u, ""))].slice(0, 500).join("");
-    const recognizedByContent = isRecognizedByContent(filename);
+    return await stageContextReference(home, journeyId, {
+      kind,
+      path: file.path,
+      filename,
+      extension,
+      sha256,
+      size_bytes: bytes.length,
+      title,
+      finalBody,
+      recognizedByContent: isRecognizedByContent(filename),
+      ...(secretMode ? { secretMode } : {}),
+    });
+  } catch (error) {
+    signal?.throwIfAborted();
+    return formatDocumentReadIssue(file.path, error);
+  }
+}
+
+interface ContextReferenceDraft {
+  kind: ContextSourceKind;
+  path: string;
+  filename: string;
+  extension: string;
+  sha256: string;
+  size_bytes: number;
+  title: string;
+  finalBody: string;
+  recognizedByContent: boolean;
+  secretMode?: "strip" | "raw";
+}
+
+async function stageContextReference(
+  home: string,
+  journeyId: string,
+  draft: ContextReferenceDraft,
+): Promise<{ reference: ContextReference }> {
+  return {
+    reference: {
+      source_id: createHash("sha256").update(JSON.stringify(draft.secretMode ? [draft.kind, draft.path, draft.sha256, draft.secretMode] : [draft.kind, draft.path, draft.sha256])).digest("hex"),
+      version: 1,
+      label: "",
+      title: draft.title,
+      path: draft.path,
+      text: await stageContextText(home, journeyId, draft.finalBody),
+      original: { filename: draft.filename, mime: MIME[draft.extension] ?? "text/plain", sha256: draft.sha256, size_bytes: draft.size_bytes },
+      ...(draft.recognizedByContent ? { recognized_by_content: true } : {}),
+      ...(draft.secretMode ? { secret_mode: draft.secretMode } : {}),
+    },
+  };
+}
+
+function formatDocumentReadIssue(path: string, error: unknown): { issue: { path: string; reason: string } } {
+  // A full disk is not this file's fault: the round stops and goes on at this file once there is room.
+  if (diskFull(error)) throw error;
+  const message = error instanceof Error ? error.message : "无法读取文件";
+  // Whole characters, not UTF-16 units: unit 600 can fall inside a two-unit character. The first slice bounds what is spread.
+  return { issue: { path, reason: unreadableReason(error) ?? (/password/iu.test(message) ? "PDF 已加密，请解密后导入" : [...message.slice(0, 1_200)].slice(0, 600).join("")) } };
+}
+
+export type PreparedHeldSecretInMemory =
+  | { draft: ContextReferenceDraft & { secretMode: "strip" | "raw" } }
+  | { issue: { path: string; reason: string } };
+
+/**
+ * Reads and redacts/validates a held secret material in memory without writing to `texts/` on disk,
+ * so `beforeEffect()` runs before any disk mutation (`AGENTS.md`, `S-onboarding-secret-hold`).
+ */
+export async function readHeldSecretMaterialInMemory(
+  home: string,
+  journeyId: string,
+  held: HeldSecretMaterial,
+  decision: "strip" | "raw",
+  signal?: AbortSignal,
+): Promise<PreparedHeldSecretInMemory> {
+  signal?.throwIfAborted();
+  try {
+    const bytes = await readStagedFile(home, journeyId, held.sha256);
+    const filename = held.path.split("/").at(-1)!;
+    const extension = filename.toLowerCase().match(/\.([a-z0-9]+)$/u)?.[1] ?? "";
+    const result = await readWholeMaterial({ file_name: filename, bytes }, signal);
+    signal?.throwIfAborted();
+    const { body, title } = extractMaterialBody(filename, extension, result);
+    const finalBody = decision === "strip" ? stripMaterialSecrets(body) : body;
     return {
-      reference: {
-        source_id: createHash("sha256").update(JSON.stringify(secretMode ? [kind, file.path, sha256, secretMode] : [kind, file.path, sha256])).digest("hex"),
-        version: 1,
-        label: "",
+      draft: {
+        kind: held.kind,
+        path: held.path,
+        filename,
+        extension,
+        sha256: held.sha256,
+        size_bytes: bytes.length,
         title,
-        path: file.path,
-        text: await stageContextText(home, journeyId, finalBody),
-        original: { filename, mime: MIME[extension] ?? "text/plain", sha256, size_bytes: bytes.length },
-        ...(recognizedByContent ? { recognized_by_content: true } : {}),
-        ...(secretMode ? { secret_mode: secretMode } : {}),
+        finalBody,
+        recognizedByContent: isRecognizedByContent(filename),
+        secretMode: decision,
       },
     };
   } catch (error) {
     signal?.throwIfAborted();
-    // A full disk is not this file's fault: the round stops and goes on at this file once there is room.
-    if (diskFull(error)) throw error;
-    const message = error instanceof Error ? error.message : "无法读取文件";
-    // Whole characters, not UTF-16 units: unit 600 can fall inside a two-unit character. The first slice bounds what is spread.
-    return { issue: { path: file.path, reason: unreadableReason(error) ?? (/password/iu.test(message) ? "PDF 已加密，请解密后导入" : [...message.slice(0, 1_200)].slice(0, 600).join("")) } };
+    return formatDocumentReadIssue(held.path, error);
   }
+}
+
+export async function stagePreparedHeldSecretReference(
+  home: string,
+  journeyId: string,
+  prepared: PreparedHeldSecretInMemory,
+): Promise<{ reference: ContextReference } | { issue: { path: string; reason: string } }> {
+  if ("issue" in prepared) return prepared;
+  return await stageContextReference(home, journeyId, prepared.draft);
 }

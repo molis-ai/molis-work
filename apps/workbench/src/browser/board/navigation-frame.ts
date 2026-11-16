@@ -5,6 +5,8 @@
  * button; a menu's search field narrows its rows; the pane switch and the undo chip answer. The product's own behaviour
  * arrives with the slices that adopt the parts.
  */
+import { installWorkLineLayout } from "../work-line-layout.js";
+
 const board = document.querySelector<HTMLElement>("[data-nav-board]");
 const REST_MS = 140;
 const GLYPH = ".tab-item[data-glyph-only]";
@@ -133,4 +135,6 @@ if (board) {
     const measure = () => button.toggleAttribute("data-nav-fits", scroll.scrollWidth <= scroll.clientWidth);
     new ResizeObserver(measure).observe(scroll);
   }
+  // The 事项线 sheet (sheet=work-line): the line and the task panel sit as they do in the product.
+  installWorkLineLayout(board);
 }

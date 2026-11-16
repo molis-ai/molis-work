@@ -250,6 +250,23 @@
       ],
       "reason": "The AI kit (specs/capability-pack/contract-design.md §4, D-4): the report protocol, the kit.catalog.list contract, the gatherer (horizontal/kit/) and its Host wiring and reporters; its codes are kit.* like its action ids."
     },
+    "acceptance": {
+      "paths": [
+        "apps/local-host/src/acceptance-actions.ts",
+        "modules/acceptance/",
+        "packages/contracts/src/modules/acceptance.ts"
+      ],
+      "reason": "Requirements, evidence and acceptance (specs/proactive-assistant §7.3.1, modules/acceptance): the contract of its system actions, the module and its Host wiring; its codes are acceptance.*."
+    },
+    "mainline": {
+      "paths": [
+        "apps/local-host/src/mainline-actions.ts",
+        "apps/local-host/src/mainline-http.ts",
+        "horizontal/mainline/",
+        "packages/contracts/src/services/mainline.ts"
+      ],
+      "reason": "The mainline service (specs/work-line §5–§6): the contract of its system actions, the reader and command runner (horizontal/mainline/) and their Host wiring; its codes are mainline.*."
+    },
     "knowledge": {
       "paths": [
         "horizontal/knowledge/",
@@ -436,6 +453,14 @@
         "modules/sync-replication/"
       ],
       "reason": "Personal synchronization policy and transport errors; business validation remains with each owner."
+    },
+    "evaluation": {
+      "paths": [
+        "horizontal/evaluation/",
+        "apps/local-host/src/evaluation-host.ts",
+        "packages/contracts/src/services/evaluation.ts"
+      ],
+      "reason": "The end-to-end work evaluation service (batch 30, specs/observation-collection/evaluation-path-design.md): frozen sample immutability, isolated replay side-effect blocking, human review recording, and metrics summarization."
     }
   }
 }

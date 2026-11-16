@@ -5,6 +5,7 @@ import { IMAGES_PLUGIN_ID, type ImageConnection, ImageConnectionInput, ImageGene
 import type { ImagesService } from "./service.js";
 import { createImagesSearchHandlers, imagesSearchActions } from "./search.js";
 import { IMAGES_FILES_WRITE } from "./owner-files.js";
+import { imagesBackgroundTasks, imagesBackgroundTasksOf } from "./background.js";
 const text = {type:"string"}, id = {...text,minLength:1,pattern:"\\S"};
 const format={enum:["openai-images","gemini"]},mime={enum:["image/png","image/jpeg","image/webp"]};
 const connectionFields={id,name:text,api_format:format,base_url:text,model:text,has_key:{type:"boolean"},created_at:text,updated_at:text};
@@ -31,6 +32,7 @@ export const imagesActions={
   cancel:define<{id:string},{job:ImageJob}>("jobs.cancel", /* @version action.images.jobs.cancel */ 1,"停止本机等待","停止当前项目任务等待；厂商可能仍在生成或计费，不会自动重新生成","command","project",object({id}),changed,["images:generate"]),
   delete:define<{id:string},{deleted:true}>("jobs.delete", /* @version action.images.jobs.delete */ 1,"删除生成记录","删除终态任务及本机图片文件；运行中需先取消","command","project",object({id}),object({deleted:{const:true}}),["images:delete","images:read",IMAGES_FILES_WRITE]),
   image:define<{id:string;image_id:string},{base64:string;mime_type:string;filename:string}>("images.read", /* @version action.images.images.read */ 1,"读取生成图片","返回任务中实际图片字节的 Base64、MIME 和文件名；不是厂商 URL","query","project",object({id,image_id:id}),object({base64:text,mime_type:mime,filename:text}),["images:read"]),
+  backgroundTasks:imagesBackgroundTasks,
   searchEntries:imagesSearchActions.entries,
   subject:imagesSearchActions.subject,
   files:imagesSearchActions.files,
@@ -50,6 +52,7 @@ export function createImagesActionHandlers(ports:ImagesActionPorts):ActionHandle
     bind(imagesActions.saveConnection,async (input,caller)=>({connection:await ports.service().saveConnection(input,caller)})),
     bind(imagesActions.deleteConnection,async (input,caller)=>{await ports.service().deleteConnection(input.id,caller);return {deleted:true as const};}),
     bind(imagesActions.list,(_,caller)=>({jobs:ports.service().listJobs(project(caller))})),
+    bind(imagesActions.backgroundTasks,(_,caller)=>imagesBackgroundTasksOf(ports.service().listJobs(project(caller)))),
     bind(imagesActions.get,(input,caller)=>({job:ports.service().getJob(project(caller),input.id)})),
     {...bind(imagesActions.start,async (input,caller)=>({job:await ports.service().start(project(caller),input,caller)})), availability:(caller:ActionCallContext):ActionAvailability=> {
       if(caller.audience === "user")return {available:true};

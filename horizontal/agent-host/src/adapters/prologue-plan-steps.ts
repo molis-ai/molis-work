@@ -256,6 +256,21 @@ interface ParsedNodeMetrics {
   unknown_outcome?: true;
 }
 
+function isUnreplacedPreRerunSuccess(chain: readonly TaskNode[], saved: ReconciledStepEntry | undefined): boolean {
+  if (saved?.action !== "rerun" || chain.length !== 1) return false;
+  const activeNode = chain[0]!;
+  if (activeNode.state !== "succeeded") return false;
+  let lastRerunIdx = -1;
+  for (let i = activeNode.reports.length - 1; i >= 0; i--) {
+    if (activeNode.reports[i]!.note.trim().startsWith("用户决定重新执行：")) {
+      lastRerunIdx = i;
+      break;
+    }
+  }
+  if (lastRerunIdx >= 0) return lastRerunIdx >= activeNode.reports.length - 1;
+  return !activeNode.reports.some(r => r.atMs > saved.at_ms);
+}
+
 function parseNodeMetrics(
   chain: readonly TaskNode[],
   place: PlanPlace,
@@ -334,7 +349,7 @@ function parseNodeMetrics(
 
   const saved = local ? reconciledSteps?.[local] : undefined;
   if (saved?.action === "confirm-done") unknownOutcome = false;
-  else if (saved?.action === "rerun" && chain.length === 1 && activeNode.state === "succeeded") unknownOutcome = true;
+  else if (isUnreplacedPreRerunSuccess(chain, saved)) unknownOutcome = true;
   if (local && unknownStepIds?.has(local)) unknownOutcome = true;
   if (activeNode.state === "needs-reconciliation") unknownOutcome = true;
   const effectiveProgress = activeNode.state === "succeeded" && !unknownOutcome ? 1 : reportedProgress;
@@ -379,7 +394,7 @@ export function shape(
       };
     });
     const savedRec = reconciledSteps?.[id];
-    const unreplacedSucceededRerun = savedRec?.action === "rerun" && chain.length === 1 && activeNode.state === "succeeded";
+    const unreplacedSucceededRerun = isUnreplacedPreRerunSuccess(chain, savedRec);
     const hasRecReport = baseReports.some(r =>
       (r.note.trim().startsWith("用户核对完成：") || r.note.trim().startsWith("用户决定重新执行："))
       && (!savedRec || r.at_ms >= savedRec.at_ms - 1000));
@@ -525,18 +540,6 @@ async function removeStepFromScope(options: {
  * (what changed in other sessions' blocks does not stop them); each write gives the board's version as it is then, and
  * the SDK compares only the steps it touches (P2k).
  */
-/** A failed step is terminal on the SDK board; bring it back before recording the person's own decision as a skip. */
-async function reviveFailedStep(runtime: Runtime, ref: ExactRef<"task-board">, target: TaskNode, place: PlanPlace, reason: string, person: { kind: "human"; id: string }): Promise<SdkBoard> {
-  return runtime.boards.retry({
-    ref,
-    expectedVersion: runtime.boards.get(ref).version,
-    nodeId: target.id,
-    note: `用户决定越过失败的「${title(target, place)}」：${reason}`,
-    atMs: Date.now(),
-    human: person,
-  });
-}
-
 export async function amendPlan(
   runtime: Runtime,
   place: PlanPlace,
@@ -586,10 +589,9 @@ export async function amendPlan(
       const reason = text(amendment.reason, "跳过原因", 300);
       if (["running", "succeeded", "cancelled"].includes(target!.state)) throw new Error(target!.state === "running" ? "这一步正在执行，先暂停或等它回报后再跳过" : "这一步已经结束，不需要跳过");
       const after = dependents(target!.id);
-      // A failed step is terminal on the SDK board: bring it back, then record the person's own decision as a skip.
-      // Leaving it failed would keep `finished()` false forever, including for a failed last step.
-      if (target!.state === "failed") board = await reviveFailedStep(runtime, ref, target!, place, reason, person);
-      await report(target!.id, `用户跳过：${reason}`, "cancelled");
+      // A failed step is terminal and takes no further report; the decision is recorded on the step that now follows.
+      if (target!.state === "failed") { if (after[0]) await report(after[0], `用户决定越过失败的「${title(target!, place)}」：${reason}`); else throw new Error("后面没有步骤，不需要越过"); }
+      else await report(target!.id, `用户跳过：${reason}`, "cancelled");
       for (const id of after) await rewire(id, replaced(node(id).dependsOn, target!.id, target!.dependsOn));
       break;
     }

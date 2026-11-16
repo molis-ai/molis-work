@@ -91,7 +91,7 @@ test("RAC-2779 keeps both code-only issues in phase order while another project 
   assert.equal(aInvoked, false);
   assert.deepEqual(result.answers, [{ project_id: "project-b", source: {
     capability_id: "homeagg.running.read", version: 1, provider_id: "example.plugin",
-  }, plugin_id: PLUGIN, output: { project: "project-b" } }]);
+  }, plugin_id: PLUGIN, subject_kinds: [], output: { project: "project-b" } }]);
   assert.ok(!JSON.stringify(result).includes(privateCatalog));
   assert.ok(!JSON.stringify(result).includes(privateDiscovery));
 });
@@ -119,7 +119,7 @@ test("RAC-2780 a closing project stays silent after its catalog fails, while ano
   assert.deepEqual(result.issues, []);
   assert.deepEqual(result.answers, [{ project_id: "project-b", source: {
     capability_id: "homeagg.running.read", version: 1, provider_id: "example.plugin",
-  }, plugin_id: PLUGIN, output: { project: "project-b" } }]);
+  }, plugin_id: PLUGIN, subject_kinds: [], output: { project: "project-b" } }]);
 });
 
 test("RAC-2781 deferred discovery obeys the real parent's exact cancellation reason", async () => {

@@ -54,8 +54,7 @@ test("dragging a tab on the strip shows a live landing slot", { timeout: 90_000 
 
   // PTG-03 a plugin's tab carries its whole group: the slot is the group's width, starts where the group was, and lands
   // between groups, never inside one; the drop moves the plugin tab and its Goal together.
-  await click("[data-titlebar-tabs] [data-tab-add]");
-  await click("[data-tab-menu-action=open-feed]");
+  await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.querySelector('[data-titlebar-tabs] [data-plugin-group=feed] .tab-item[aria-current]')");
   const group = await evaluate<{ start: { group: boolean; width: number; next: string }; over: { parent: boolean; previous: string }; groupWidth: number; order: string }>(`(async () => {
     const q = (selector) => document.querySelector('[data-titlebar-tabs] ' + selector);
@@ -112,8 +111,7 @@ test("VUX-23 a tab dragged off the strips previews its own place, and a tab redr
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await waitFor("document.querySelector('.tab-item[aria-current][data-plugin=goals][data-tab-kind=item][data-item-id=CORE]')");
-  await click("[data-titlebar-tabs] [data-tab-add]");
-  await click("[data-tab-menu-action=open-feed]");
+  await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.querySelector('[data-titlebar-tabs] [data-plugin-group=feed] .tab-item[aria-current]')");
   // The Goals group dragged past Feed shows its slot after Feed; taken off the strips, the slot goes back to where Goals is.
   const left = await evaluate<{ over: string; off: { next: string; previews: number; overlay: boolean } }>(`(() => {

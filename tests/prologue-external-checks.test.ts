@@ -3,6 +3,7 @@ import test, { type TestContext } from "node:test";
 import { mkdir, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { boardWait, externalChecks, toolTitled, until, type OfferedTool } from "./fixtures/external-checks.js";
+import { readyWithin } from "./fixtures/continuation-ready.js";
 
 /**
  * A step's wait on something outside (specs/prologue-adoption §4.6.8, P3c): the round registers it with `board-wait` and
@@ -37,7 +38,7 @@ const goesOnOnce = async (t: TestContext, f: Checks, before: Awaited<ReturnType<
   assert.equal((await f.wake("继续", extra, 1_000)).length, 0, "asked again: nothing is ready");
   await f.adapter.close();
   const again = await f.reopen(); t.after(() => again.close());
-  assert.deepEqual(await again.collaboration!.awaitReady("p", 1_000), [], "the Host comes back: nothing is ready");
+  assert.deepEqual(await readyWithin(again.collaboration!, "p", 1_000), [], "the Host comes back: nothing is ready");
   assert.deepEqual(await f.spent(again), after, "no Run and no tokens after either");
   assert.equal(f.requests.length, sent + 2);
 };

@@ -157,8 +157,48 @@ test("W2-18-HANDBACK-ARM-FAILED-01: a hand-out whose wait cannot be armed takes 
   assert.equal(after.find(node => node.node_id === "work")?.continuation?.state, "armed", "the work waits again for the eight");
   go.resolve();
   assert.equal((await w.ended(round.ref)).phase, "completed");
-  for (const part of parts.slice(0, -1)) await w.works.end({ graph_id: w.graph_id, node_id: part, note: "做完了" });
-  assert.equal((await w.rootStep()).continuation?.state, "armed", "one still running: the work still waits");
-  await w.works.end({ graph_id: w.graph_id, node_id: parts.at(-1)!, note: "做完了" });
+  // The first of them to end lets the work go on (work-line §9); the others are still under way.
+  await w.works.end({ graph_id: w.graph_id, node_id: parts[0]!, note: "做完了" });
   await until("the work may go on", async () => (await w.rootStep()).continuation?.state === "eligible");
+  assert.deepEqual((await w.read()).filter(node => node.node_id !== "work" && node.state === "ready").map(node => node.node_id), parts.slice(1));
+});
+
+// specs/work-line/contract-design.md §9: a work goes on each time one of its parts ends, not only when all have.
+test("WLN-RETURN-01: the work may go on as soon as one part ends while another is still under way, and its next round waits again for the rest", { timeout: 60_000 }, async t => {
+  let first!: PromiseWithResolvers<void>, firstHolding!: PromiseWithResolvers<void>, second!: PromiseWithResolvers<void>, secondHolding!: PromiseWithResolvers<void>;
+  const w = await world(t, hold => {
+    first = hold(); firstHolding = hold(); second = hold(); secondHolding = hold();
+    // A round may ask the model more than once (a wait changed under it); each call answers by the round it belongs to.
+    const answer = async (body: string) => {
+      if (body.includes("（子任务交回）")) { secondHolding.resolve(); await second.promise; return reply(undefined, "看过第一个的结果了。"); }
+      firstHolding.resolve(); await first.promise; return reply(undefined, "交出去了。");
+    };
+    return Array.from({ length: 8 }, () => answer);
+  });
+  const ready: string[] = [];
+  t.after(w.works.onReady(one => { if (!ready.includes(one.request_key)) ready.push(one.request_key); }));
+  const round = await w.start("交出两个子任务。");
+  await firstHolding.promise;
+  await w.handOut("p-1");
+  await w.handOut("p-2");
+  first.resolve();
+  assert.equal((await w.ended(round.ref)).phase, "completed");
+  assert.equal((await w.rootStep()).continuation?.state, "armed");
+  assert.deepEqual(ready, []);
+  // One part ends, the other is still under way: the work may go on now.
+  await w.works.end({ graph_id: w.graph_id, node_id: "p-1", note: "做完了" });
+  await until("the work may go on after one part", async () => (await w.rootStep()).continuation?.state === "eligible");
+  assert.equal(ready.length, 1, "the Host's hand-back listener hears it once");
+  assert.equal((await w.read()).find(node => node.node_id === "p-2")?.state, "ready", "the other part is untouched");
+  // The next round takes that continuation up; while it runs, the root waits again, for the part still under way only.
+  const next = await w.start("（子任务交回）接着做。");
+  await secondHolding.promise;
+  await until("the root waits for the rest", async () => (await w.rootStep()).continuation?.state === "armed");
+  assert.notEqual((await w.rootStep()).continuation?.request_key, ready[0], "a new wait, not the one already taken up");
+  second.resolve();
+  assert.equal((await w.ended(next.ref)).phase, "completed");
+  // The last part ends: the wait is over by itself, and the work may go on once more.
+  await w.works.end({ graph_id: w.graph_id, node_id: "p-2", note: "做完了" });
+  await until("the work may go on after the last part", async () => (await w.rootStep()).continuation?.state === "eligible");
+  await until("the listener hears the second", () => ready.length === 2);
 });

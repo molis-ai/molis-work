@@ -138,7 +138,8 @@ export function drawEnvironmentReadiness(page: Page, readiness: StateRead["envir
 async function readState(page: Page) {
   const { composerModels } = page.refs, { s } = page;
   const before = s.current && s.state.sessions.find(item => item.session_id === s.current)?.title;
-  const path = s.workspaceId ? "/state?workspace_id=" + encodeURIComponent(s.workspaceId) : "/state";
+  const defaultOutput = s.state.workspaces?.find(item => Array.isArray(item.roles) && item.roles.includes("output"))?.workspace_id;
+  const path = s.workspaceId && s.workspaceId !== defaultOutput ? "/state?workspace_id=" + encodeURIComponent(s.workspaceId) : "/state";
   const result = await api<StateRead>(page, path);
   s.state = result;
   s.stateLoaded = true;

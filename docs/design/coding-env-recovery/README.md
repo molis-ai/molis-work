@@ -1,6 +1,6 @@
 # 33 · Coding 任务与环境恢复定样（环境、预算与重试、重启后接着做、本轮结果）
 
-**状态**：用户已选定（2026-11-04：四块都是 A），记在 [Coding 与 Agent 工作流优化需求书 §11](../../../specs/coding-harness-optimization/spec.md#11-决策记录)。原型里选定的方案标 ✓、打开时默认就是它。产品代码已随第 33 批（[#2082](https://github.com/molis-ai/molis-work/pull/2082)）合入，本人实物验收待做。里面全是示例数据。
+**状态**：用户已选定（2026-11-04：四块都是 A），记在 [Coding 与 Agent 工作流优化需求书 §11](../../../specs/coding-harness-optimization/spec.md#11-决策记录)。原型里选定的方案标 ✓、打开时默认就是它。产品代码已随第 33 批（[#2082](https://github.com/molis-ai/molis-work/pull/2082)）合入。里面全是示例数据。
 
 这是路线书[第 33 批](../../../specs/post-anticorruption-roadmap/reference/batches/33.md)第 1 项「先定样：环境、失败、未知结果与恢复」的样张。对应需求：R6 环境准备与临时副本（CHO-13）、R14 子任务预算与重试、CHO-12 重启后接续、R5 本轮结果的五件事。
 

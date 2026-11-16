@@ -257,7 +257,7 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
 ## 8. 流式、结构化输出、错误、取消、超时、恢复
 
 - **流式**：Agent 轮次用 `agent.run.wait`（最长 25 秒的长轮询，按版本返回变化）；有界推理可用 `onProgress` 观察原 Run 的文本、模型和用量事件，最终结果仍需等待终态与领域校验。
-- **等待与接续**（Coding 的协作轮次）：模型等答复、等后台命令、等另一个会话的那一步，人排队等另一轮，都挂在 Prologue 任务图的步骤上；等待与接续的事实只在任务图里，插件不另存一份。读与控制走 `@molis-ai/molis-work-contracts/services/agent-collaboration` 的两个动作：`agent.collaboration.read`（每个会话一条视图）、`agent.collaboration.control`（`cancel-wait`、`continue-now`）。等到有接续可以走，用 typed 等待 `agentHostCapabilities.awaitContinuations`（最长 25 秒；动作不能是等待）。接续由插件用它的请求键起下一轮，照常经过宿主开跑前的全部复核；被重启截断、结果未知的等待留给人核对，不自动起跑（`specs/prologue-adoption/spec.md` §4.6.4、§4.6.10）。
+- **等待与接续**（Coding 的协作轮次）：模型等答复、等后台命令、等另一个会话的那一步，人排队等另一轮，都挂在 Prologue 任务图的步骤上；等待与接续的事实只在任务图里，插件不另存一份。读与控制走 `@molis-ai/molis-work-contracts/services/agent-collaboration` 的两个动作：`agent.collaboration.read`（每个会话一条视图）、`agent.collaboration.control`（`cancel-wait`、`continue-now`）。等待结束、可以自己接着做的时候，运行时只在那个会话没有一轮在跑或正在开时问宿主一次：插件的会话由宿主发宿主事件 `host.agent.continuation.ready@1`，只发给拥有这个会话的安装（插件在 Manifest 订阅它），插件用接续的请求键自己起下一轮；助理的会话由助理自己起（`specs/work-line/spec.md`「结果回流」）。没有轮询，也没有 25 秒的等待动作。接续照常经过宿主开跑前的全部复核；被重启截断、结果未知的等待留给人核对，不自动起跑（`specs/prologue-adoption/spec.md` §4.6.4、§4.6.10）。
 - **等外面的结果**（Coding 的执行角色，P3c）：一步要等的东西在宿主之外（一个作业跑完、一个结果文件写好），模型用 `board-wait` 登记 `{ kind: "external", checker, params }` 后这一轮结束；之后由宿主的检查器按 SDK 的节奏去看（第一次约 1 秒后，间隔逐次加倍，至多 1 小时），不经模型、不花 token。现有两个通用检查器，都在 `horizontal/agent-host/src/adapters/prologue-checkers.ts`：`molis.action-query@1` 调一个只读查询动作（`params.tool` 写这一轮的动作工具名，宿主按这一轮冻结的动作换回精确引用），把回答里 `status.path` 那一项按给定的 `satisfied`、`failed`、`pending` 对上，对不上、查询出错都算 unknown，不算结果；`molis.file-present@1` 看授权目录里的一个相对路径，比登记那一轮旧的、空的（`non_empty`）、缺完成标记（`marker`）的都还在等，有失败标记（`failed_marker`）就是失败，「在」只说明文件在，不证明内容对。要判断好坏的条件（「测试都过了」「结果合理」）不能这样等：判断要问模型，是命令；声明了 `model:invoke` 的查询也拒，因为每看一次就调一次模型。能等什么、每次看都怎样复核、什么一律拒绝，见 `docs/system/SECURITY-INVARIANTS.md` 的 S-27；等完之后照常是一条接续，由插件起下一轮。
 
 接入本人操作的等待使用 `molis.connector-setup@1`，参数仅 `{ authorization_id }`，来自本会话的 `connectors.setup.prepare`。Host 在登记与每次读取前后检查请求的原会话、用户、项目及当前助理查询权限；重启后只恢复这项窄读取，不恢复通用动作或文件授权。检查只证明请求和连接状态，等待满足后还须按最新任务调用真实业务能力。已有连接的跨入口修复使用 `molis.connection-ready@1`：稳定连接、真实账号要求与精确能力引用由原任务提供，检查当前工作和授权后只读连接事实；不会在检查器里联网、启用连接或执行业务动作。设置页检查、其他会话修复、Host 重启沿用同一 owner 事实；换账号或缺权限仍等待。App-tools 业务角色使用同一个 SDK 持久等待，只允许其 App 登记的只读外部检查器；命令、信封、节点及待答问题条件不向此模式开放。无绑定、其他会话与已撤权检查均拒绝。真实 SDK 与本机协议替身已验证等待、最新请求、单次接续及重启，真实模型和服务账号的验收仍见 `specs/assistant-service-connections/spec.md` §11。
@@ -483,7 +483,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | 编造能力或参数 | 能力目录与按需查询，而不是一句「不要编造」 | 「可用能力目录」与 `find-capabilities` |
 | 日期、星期算错 | 当前时间与时区 | 「本轮情况」 |
 | 答不出「你记住了什么」 | 带上和没带上的记忆，以及原因 | 记忆召回与「没有带上的记忆」 |
-| 子任务做偏 | 任务说明、验收标准、需要的材料 | `delegate-work` 的 `brief`、`acceptance`、`materials` |
+| 子任务做偏 | 任务说明、验收标准、逐条要求、需要的材料 | `delegate-work` 的 `brief`、`acceptance`、`requirements`、`materials` |
 
 ### 13.4 工具和运行时：让 AI 能理解并可靠行动
 
@@ -540,7 +540,7 @@ Molis 没有「录下过程生成 Skill」的功能（2026-10-19 核对），下
 | 助理的能力网关 | 一组工具覆盖全部业务动作 | `prologue-action-gateway.ts` 的 `GATEWAY_TOOLS`；目录文字在 `assistant-directory.ts` 的 `capabilityDirectory` | 参数格式按需取；回执说下一步；写入进审查 | 现在用不了的动作也在目录里，按提供方和原因列出（`agentActions`，最多 12 项，其余只计数），不作为工具交给这一轮，动作服务照样拒绝（13.4） | 确定性：`tests/assistant-business-gateway.test.ts`；真实模型：`specs/ai-development-handbook/spec.md` §9.5 的 A2（暂不可用的能力） |
 | 工具说明延后加载 | 工具很多时先给名册，需要时用 `find-tools` 取说明 | Prologue SDK 的 `deferToolSchemasBeyond: 32`；Coding 角色开放 `find-tools`（`specs/coding-plugin/spec.md`「工具面」） | 可以照着用 | 只列名字的照样调得动，`find-tools` 取过的之后照常声明（Prologue #28，2026-10-16 换包；13.4）；没点 `find-tools` 的角色延后时也有名册（Prologue #30）。之前是 SDK 设计缺陷，调不到 | 替身模型：`tests/prologue-tool-declaration.test.ts`（PA-12）；真实模型：`specs/prologue-adoption/spec.md` §6.0e 的评测记录，换包后的重跑见那里；描述被延后以后用法是否还对，见 `specs/ai-development-handbook/spec.md` §9.5 的 BL-145 |
 | 助理的技能 | 技能按需读取 | 「可用角色资料与方法」→ `skills.body.read@1`（技能）、`assistant.methods.read`（签名角色资料，`apps/local-host/src/assistant/assistant-rule-actions.ts`） | 名字和说明常驻、正文按需 | 一轮最多列 20 个 | 确定性：`tests/assistant-methods.test.ts`；真实模型：需求书 §9.6 的 ADH-23 |
-| 委派 | 把独立的部分交给子任务 | `assistant-delegation.ts`；工具 `delegate-work`、`check-delegated-work`、`follow-up-delegated-work` | 任务说明、验收标准、只给需要的材料；一层深，数量与追加有上限；回执可核对 | 子任务看不到父会话 | 确定性：`tests/assistant-delegation.test.ts` |
+| 委派 | 把独立的部分交给子任务 | `assistant-delegation.ts`；工具 `delegate-work`、`check-delegated-work`、`follow-up-delegated-work`，子任务一侧 `report-delivery`（只在交办带了逐条要求时提供） | 任务说明、验收标准、逐条要求（挂在子任务自己的对象上，交回时平台逐条现算状态）、只给需要的材料；一层深，数量与追加有上限；回执可核对 | 子任务看不到父会话 | 确定性：`tests/assistant-delegation.test.ts`、`tests/assistant-delegation-acceptance.test.ts` |
 | 记忆 | 模型提议，写入门决定 | `assistant-memory-tools.ts`；指令 `MEMORY_EXTRACT` | 「他说的」由门对照保存的原话判断 | — | 确定性：`tests/assistant-memory.test.ts` |
 | 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附；格式纠正只带回事实（检查结果与上一次的输出，围栏里、固定声明之后），怎样改正写在登记的提示词里 | — | 真实 SDK：`tests/prologue-compaction.test.ts`、`tests/prologue-compaction-continue.test.ts` |
 | 续聊开场与派发 | 旧未知开场不随下一 Run 再发送，旧账仍可查看 | `prologue-session-opening.ts` 读取准确 SessionIndex caller task；`prologue-run.ts` 将 Reader 交 SDK493，history-projected 进现 notice；子任务 `continuation_task` 从原父 attempt 新建事实与 SDK caller-only 账投影；原 beforeDispatch 返回同步闭包，经 Node 紧邻 transport 复核 | 不从 raw 历史、origin 或本人原话猜 caller，不丢同次 fence | 不清洗普通用户/assistant 复述；无同步闭包的独立有界推理通道没有新增保证 | 本地在途：`tests/prologue-session-opening.test.ts`、`tests/prologue-dispatch-fence.test.ts`、`tests/prologue-subagents.test.ts` |
@@ -602,7 +602,7 @@ Molis 没有「录下过程生成 Skill」的功能（2026-10-19 核对），下
 | 用固定轮数或格式判定「完成」 | 「第 N 轮结束」「出现某个标题就算完成」 | 验收标准，对照真实产物核对 |
 | 每次失败都追加一条系统禁令 | 一段指令里的「不要」越来越多，都没有来由 | 先按第 16.4 节找原因：缺资料补资料，工具难用改工具，真约束交给代码 |
 | 为了演示变绿缩小工具能力 | 为某个样例去掉一个工具或参数 | 改工具描述或回执；缩小能力要有产品理由 |
-| 把模型说的「完成了」当成产物 | 用回复文字判断成功 | 读回对象、看回执（`check-delegated-work` 的描述写明子任务的自述不是证据） |
+| 把模型说的「完成了」当成产物 | 用回复文字判断成功 | 读回对象、看回执（`check-delegated-work` 的描述写明子任务的自述不是证据；带了逐条要求时它给的是平台对每条现算的状态） |
 
 这不否定已有的预算和业务约束，区别在它们有依据、由代码执行。
 

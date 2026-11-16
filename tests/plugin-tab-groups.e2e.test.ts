@@ -264,8 +264,7 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
 
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor(`document.querySelector('${plugin("goals")}[aria-current]')`);
-  await click("[data-titlebar-tabs] [data-tab-add]");
-  await click("[data-tab-menu-action=open-feed]");
+  await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor(`document.querySelector('${plugin("feed")}[aria-current]') && document.querySelector('${plugin("goals")}:not([aria-current])')`);
   // PTG-07 the plugin tab is the place; no location chip ahead of the tabs.
   assert.equal(await evaluate("document.querySelector('.tab-view-chip:not(.is-exclusive)')"), null);

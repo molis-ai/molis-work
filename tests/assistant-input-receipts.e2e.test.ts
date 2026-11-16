@@ -45,6 +45,7 @@ async function shot(browser: SendBrowser, name: string) {
 const chip = (browser: SendBrowser) => browser.evaluate<string | null>("(() => { const chip = document.querySelector('[data-assistant-answer]'); return chip.hidden ? null : chip.textContent; })()");
 const receipts = (browser: SendBrowser) => browser.evaluate<string[]>("[...document.querySelectorAll('[data-assistant-thread] .mw-receipt__fact')].map(node => node.textContent)");
 
+// PWA-130: the receipt says what the main conversation took, not that the background read it.
 test("RC-14/RC-15/RCPT-312: while a question waits the chip says what Send does, a supplement's receipt says the question still waits, and a changed receipt is said once on the status region", { timeout: 120_000 }, async t => {
   const browser = await assistantPage(t, { question: "free-text" }); if (!browser) return;
   await send(browser, "帮我记一个问题");

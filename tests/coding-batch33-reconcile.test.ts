@@ -282,3 +282,138 @@ test("BL-182 (R2-M1): subagent retry preserves parent's frozen resolved model ev
   const retryModels = providerRequests.slice(reqBefore).map(raw => (JSON.parse(raw) as { model?: string }).model);
   assert.ok(retryModels.length >= 1 && retryModels.every(m => m === "fixture-model"), `expected frozen_model fixture-model when model_selection omitted, got ${JSON.stringify(retryModels)}`);
 });
+
+test("BL-222, CHO-35: in-place rerun on non-succeeded step (chain.length === 1) settles to 100% and terminal after clean re-execution", { timeout: 60_000 }, async t => {
+  let phase: "plan" | "exec1" | "exec2" = "plan";
+  let turn = 0;
+  let boardId = "";
+  let planPrefix = "";
+  const planJson = JSON.stringify({
+    title: "原节点就地重跑结项计划",
+    steps: [
+      { title: "执行回归脚本", acceptance: "拿到退出码 0", story_points: 5, estimate_reason: "单步验证" },
+    ],
+    blockers: "",
+    change_reason: "",
+  });
+
+  const { host, home, project, workspaceId, call } = await codingProductHost(t, (req) => {
+    if (phase === "plan") return cogniaModelResponse(planJson, 12);
+    const sys = JSON.stringify((req as { system?: unknown }).system ?? "");
+    const msgs = JSON.stringify(req.messages);
+    const full = `${sys}\n${msgs}`;
+    if (!full.includes("本轮确认计划在项目任务图")) return cogniaModelResponse("[]", 5);
+    turn += 1;
+    if (phase === "exec1") {
+      if (turn === 1) {
+        ({ board: boardId, prefix: planPrefix } = placeIn(full));
+        return cogniaScriptedResponse({ name: "board-read", input: { board: boardId } });
+      }
+      if (turn === 2) {
+        return cogniaScriptedResponse({
+          name: "board-report",
+          input: { board: boardId, node: `${planPrefix}.step-1`, state: "running", note: "开始执行回归", version: versionIn(msgs) },
+        });
+      }
+      if (turn === 3) {
+        return cogniaScriptedResponse({
+          name: "start-command",
+          input: { executable: "sh", argv: ["-c", "sleep 15"] },
+        });
+      }
+      return cogniaModelResponse("后台脚本未结束，本轮先停下等待核对。", 8);
+    }
+    if (turn === 1) {
+      ({ board: boardId, prefix: planPrefix } = placeIn(full));
+      return cogniaScriptedResponse({ name: "board-read", input: { board: boardId } });
+    }
+    if (turn === 2) {
+      return cogniaScriptedResponse({
+        name: "board-report",
+        input: { board: boardId, node: `${planPrefix}.step-1`, state: "running", note: "重新执行回归脚本", version: versionIn(msgs) },
+      });
+    }
+    if (turn === 3) {
+      return cogniaScriptedResponse({ name: "board-read", input: { board: boardId } });
+    }
+    if (turn === 4) {
+      return cogniaScriptedResponse({
+        name: "board-report",
+        input: { board: boardId, node: `${planPrefix}.step-1`, state: "succeeded", note: "重跑已拿到退出码 0", version: versionIn(msgs) },
+      });
+    }
+    return cogniaModelResponse("重跑完成。", 8);
+  });
+
+  const service = ensureSystemAgentService(host, home);
+  const getAdapter = () => service.agentHost.adapter("prologue");
+  const decided = new Set<string>();
+  const settle = async (ref: AgentRunRef) => {
+    for (const deadline = Date.now() + 25_000; ;) {
+      for (const rev of service.agentHost.reviews.list(project.project_id, "pending")) {
+        if (!decided.has(rev.review_id)) {
+          decided.add(rev.review_id);
+          await service.agentHost.reviews.respond({ review_id: rev.review_id, decision: "approve", actor_id: "web-user" });
+        }
+      }
+      const view = await getAdapter().read(ref);
+      if (["completed", "failed", "cancelled", "stopped"].includes(view.phase)) return view;
+      if (Date.now() > deadline) throw new Error(`run did not settle: ${view.phase}`);
+      await new Promise(resolve => setTimeout(resolve, 15));
+    }
+  };
+
+  const sid = (await call<{ session: { session_id: string } }>(project.project_id, `${CODING_PREFIX}/sessions`, {})).body.session.session_id;
+  const planRun = await call<{ run: { ref: AgentRunRef } }>(project.project_id, `${CODING_PREFIX}/sessions/${sid}/runs`, {
+    task: "制定单步重跑结项计划", intent: "plan", workspace_id: workspaceId, provider_id: "fixture", model_id: "fixture-model",
+  });
+  assert.equal((await settle(planRun.body.run.ref)).phase, "completed");
+  const saved = await call<{ plan: { revision: number } }>(project.project_id, `${CODING_PREFIX}/sessions/${sid}/plan`, {
+    expected_revision: 0, run_id: planRun.body.run.ref.run_id,
+  });
+  const confirmed = await call<{ plan: { revision: number } }>(project.project_id, `${CODING_PREFIX}/sessions/${sid}/plan/confirm`, {
+    expected_revision: saved.body.plan.revision,
+  });
+
+  phase = "exec1";
+  turn = 0;
+  const exec1 = await call<{ run: { ref: AgentRunRef } }>(project.project_id, `${CODING_PREFIX}/sessions/${sid}/runs`, {
+    task: "第一轮执行", intent: "execute", plan_revision: confirmed.body.plan.revision,
+    workspace_id: workspaceId, provider_id: "fixture", model_id: "fixture-model",
+  });
+  const ended1 = await settle(exec1.body.run.ref);
+  const runId1 = ended1.ref.run_id;
+  const step1AfterExec1 = ended1.step_board!.nodes.find(n => n.id === "step-1")!;
+  assert.equal(step1AfterExec1.state, "running");
+  assert.equal(step1AfterExec1.unknown_outcome, true, "running step with unawaited command carries unknown_outcome");
+
+  // Reconcile via `rerun` on a non-succeeded (`running`) step resets `step-1` in place (`chain.length === 1`).
+  const reconciled = await call<{ board: AgentStepBoard }>(project.project_id, `${CODING_PREFIX}/sessions/${sid}/runs/${runId1}/plan-amendments`, {
+    expected_version: ended1.step_board!.version,
+    amendment: { kind: "reconcile", node: "step-1", action: "rerun", note: "后台命令未结束，重新跑一遍" },
+  });
+  assert.equal(reconciled.status, 200, JSON.stringify(reconciled.body));
+  assert.equal(reconciled.body.board.nodes.find(n => n.id === "step-1")?.state, "ready");
+  assert.equal(reconciled.body.board.nodes.find(n => n.id === "step-1")?.unknown_outcome, undefined);
+
+  // Clean re-execution on the same node (`chain.length === 1`) must settle to `succeeded`, 100%, `terminal: true`, and allow step acceptance!
+  phase = "exec2";
+  turn = 0;
+  const exec2 = await call<{ run: { ref: AgentRunRef } }>(project.project_id, `${CODING_PREFIX}/sessions/${sid}/runs`, {
+    task: "继续重跑", intent: "execute", continue_step_board_of: runId1, plan_revision: confirmed.body.plan.revision,
+    workspace_id: workspaceId, provider_id: "fixture", model_id: "fixture-model",
+  });
+  const ended2 = await settle(exec2.body.run.ref);
+  const board2 = ended2.step_board!;
+  const step1AfterExec2 = board2.nodes.find(n => n.id === "step-1")!;
+  assert.equal(step1AfterExec2.state, "succeeded");
+  assert.equal(step1AfterExec2.unknown_outcome, undefined, "post-rerun succeeded step must NOT revert to unknown_outcome");
+  assert.equal(board2.progress_summary?.completed_points, 5);
+  assert.equal(board2.progress_summary?.weighted_percent, 100);
+  assert.equal(board2.terminal, true, "plan reaches terminal once in-place rerun succeeds cleanly");
+
+  const accepted = await call(project.project_id, `${CODING_PREFIX}/sessions/${sid}/runs/${ended2.ref.run_id}/steps/step-1`, {
+    action: "accepted", project_id: board2.project_id, board_version: board2.version, expected_revision: 0,
+  });
+  assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+});

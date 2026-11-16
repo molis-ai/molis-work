@@ -33,8 +33,10 @@ export async function controlAssistantWork(work: StoredWork, control: Exclude<As
       .map(async child => ({ child, run: await ports.latest(host, child).catch(() => null), wait: await ports.continuations.view(child) }))) : [];
     const running = latest && !isTerminalAgentPhase(latest.phase);
     const activeChildren = children.filter(item => item.wait?.wait || item.run && !isTerminalAgentPhase(item.run.phase));
-    if (!running && !wait?.wait && !activeChildren.length && !(control.kind === "stop" && ports.delegations.isHandingBack(work.work_id))) throw assistantErrors.state("这项工作当前没有在执行或等待的工作");
+    if (!running && !wait?.wait && !activeChildren.length && !(control.kind === "stop" && (ports.delegations.isHandingBack(work.work_id) || work.step_gate))) throw assistantErrors.state("这项工作当前没有在执行或等待的工作");
     ports.continuations.invalidateInput(work.work_id);
+    // A stop also takes back the step held for the person's yes (PWA-156): nothing asks any more.
+    if (control.kind === "stop" && work.step_gate) ports.store.update(ports.actorId, work.work_id, null, { step_gate: undefined }, false);
     if (running || wait?.wait) ports.store.update(ports.actorId, work.work_id, null, { continuation_hold: control.kind === "resume" ? undefined : control.kind === "pause" ? "paused" : "stopped" }, false);
     if (control.kind === "stop") {
       await ports.delegations.hold(work);

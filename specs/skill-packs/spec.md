@@ -256,7 +256,7 @@ argument_hint: "<周期，可选>"
 
 - **消费方，在第 09 批**：助理的 `methods()` 改读目录，`SignedAgentReference` 的方法引用改用 `SkillRef`（9-2）；助理交活时带 `SkillRef`（9-3）；Coding 读目录并删旧路（9-4，SKC-11）；agent-host 按 `SkillRef` 冻结、`tools` 的两道检查（9-5，SKC-13）；真实验证（9-6，SKP-12 与 ADH-23）。SKP-02～07、SKP-10 的消费方一侧（`/` 点名、AI 自动选用，9-2／9-4）、SKC-07 的消费方部分，以及 SKC-06 委派之后仍成立的部分，都随 09 验。**2026-11-11 补记：** 第 09 批已合入（#2015 + 收尾 #2019），上述消费方接入完成；SKP-10 的 Coding「自动」档在 2026-11-11 审计整改补做（记 BL-coding-skill-auto），SKP-09 的脚本执行仍记 BL-skill-scripts-sandbox；SKP-12 的真实项目/卸载/业务事实按用户 2026-11-10「视作我通过了」（**未实际走查**）、2026-11-11 追认视作通过。
 - **SKP-09（`scripts/` 只在权限岛和沙箱里跑）**：本批只管声明一侧：`role: "script"`、`runs_scripts` 标注、只能按声明路径读，宿主不执行脚本。执行发生在会跑脚本的 Agent 里（Coding），随 09 的 9-4、9-5 验；09 第七节已加一行。第 09 批把执行一侧（9-5b）移出，记 [BL-skill-scripts-sandbox](../backlog/BL-skill-scripts-sandbox.md)。
-- **SKP-11（从对话生成技能包）**：在[第 42 批](../post-anticorruption-roadmap/reference/batches/42.md)。
+- **SKP-11（从对话生成技能包）**：[第 42 批](../post-anticorruption-roadmap/reference/batches/42.md)做完（待合入）：助理从一次对话起草（`skills.drafts.create@1`，带已知答案），本人在「能力包」里改、回放、比较，采用了才签名装上成「我的技能」的新版本（新的关着）；版本可对照、恢复，通用技能可改一份。草稿与回放不装任何东西、不给新权限，采用只有本人（[S-skill-authoring](../../docs/system/security-invariants/S-skill-authoring.md)）。设计见 [authoring-path-design.md](authoring-path-design.md)，证据 `tests/skill-drafts.test.ts`、`tests/skill-authoring.e2e.test.ts`。
 
 **C-3 与第 20 批的先后**：两者没有语义依赖：P-3b 只要 08 C-1，P-3c 只要 08 C-2；C-3 动 `plugin-package`，它们动 `plugin-manifest`／`blueprints`，只共用 `platform/plugin.txt` 这一份快照。用户 2026-11-07 定 C-3 先落（§9），[场景合同](../scene-and-page-contract/spec.md)第 10 节先后表、第 20 批文件和依赖表已照改。原定随 C-3 的 PR 一起改，按[第 8.4 节](../post-anticorruption-roadmap/reference/development-workflow.md#batch-grouping)第 7 步「影响别的批的决定要立刻入库」提前单开文档 PR。
 

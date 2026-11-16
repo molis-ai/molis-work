@@ -2,7 +2,7 @@
 
 状态：用户已定（2026-11-16）：**B 左边改、右边试**；同时确认「改动先是草稿、采用才生效」与存储的建表。决定写进[技能包 spec §9](../../../specs/skill-packs/spec.md)；A、C 留着对照，不实现。这是参考原型，不是产品界面。产品实现在「能力包」设置页（`apps/workbench/src/browser/kit/`）和助理对话里。
 
-- 需求：[技能包 SKP-11](../../../specs/skill-packs/spec.md)、[主动助理 §5.9 / §6](../../../specs/proactive-assistant/spec.md)（PWA-14、16、83、103～106）、[BL-166](../../../specs/backlog/BL-166.md)（通用技能包定制）。
+- 需求：[技能包 SKP-11](../../../specs/skill-packs/spec.md)、[主动助理 §5.9 / §6](../../../specs/proactive-assistant/spec.md)（PWA-14、16、83、103～106）、BL-166（通用技能包定制，随第 42 批关闭）。
 - 排期：[第 42 批](../../../specs/post-anticorruption-roadmap/reference/batches/42.md)；设计稿：[skill-packs/authoring-path-design.md](../../../specs/skill-packs/authoring-path-design.md)。
 - 目录（左边列表、右边详情、每个技能三档）沿用[第 08 批](../skill-packs/README.md)，写自己的技能的表单与「先说一句、助理起草」沿用[第 41 批](../skill-authoring/README.md)。
 

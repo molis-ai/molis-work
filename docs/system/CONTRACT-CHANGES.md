@@ -302,6 +302,12 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 
 - **按类型交出「接下来」与「错过」：`platform/actions` 新增 `scheduled-runs` 一组**（第 25 批第 1 项，`specs/proactive-assistant/resident-runtime-design.md` §2，2026-11-12）：四个类型 `molis.runs.window.v1`／`molis.runs.overview.v1`／`molis.runs.decision.v1`／`molis.runs.decided.v1`，声明助手 `defineRunsOverviewAction`、`defineRunDecisionAction`（作用域 `project` 或 `home`），宽限 `RUN_MISSED_GRACE_MS`（10 分钟）与上限 `RUNS_UPCOMING_LIMIT`、`RUNS_MISSED_LIMIT`。都是新增，已有的插件不用改；自己定时跑东西的插件同时声明这一对就会出现在菜单栏面板与首页的错过提示里，宿主按类型找到它、只调这两个动作，不读它的库。Schedule、Feed、助理定时三位主人同批接上（`schedule.runs.*`、`feed.runs.*`、`assistant.runs.*`，各 @1）。
 - **`materials.read` 的固定版本权限**（2026-11-14）：固定成果库版本除了 action 声明的 `workspace:read`，还要求调用者持有 `artifact:read`（插件持有 `artifacts:read` 也可以），与成果库其他读者一致；快照版本仍只要 `workspace:read`。页面/助理/已声明 `artifacts:read` 的插件不受影响；只有 `workspace:read` 的插件读固定版本会被 `actions.forbidden` 拒绝。
+- **第 42 批：Skill 草稿、已知答案回放、版本恢复与通用技能定制**（2026-11-16，[设计稿](../../specs/skill-packs/authoring-path-design.md)；阶段一在原版本改，没有读取兼容）：
+  - **新增动作**（`system.skills`）：`skills.drafts.{list,read,create,update,revise,discard}@1`、`skills.cases.{put,remove}@1`、`skills.trials.run@1`、`skills.versions.list@1`、`skills.lineage.dismiss@1`；采用 `skills.drafts.adopt@1` 登记在 `plugin-install`。受众：`drafts.create`、`drafts.discard`、`trials.run` 给本人与助理（权限 `skills:draft`、`model:invoke`），其余只给本人；都不成为 MCP 工具。
+  - **删除动作**：`skills.authored.save@1`，由采用草稿取代（技能内容只经采用改变）；`skills.authored.read/remove/draft@1` 保留。调用 `skills.authored.save@1` 的调用方改为起草再采用。
+  - **目录形状**：`SkillCatalogEntry` 加 `draft`（开着的草稿）与 `based_on`（改的那份通用技能及其新版本），只给本人受众；`contracts/services/skill-placeholders` 新子路径导出 `SKILL_PLACEHOLDER_PATTERN`、`skillPlaceholders`（页面不必加载整份 `services/skills`）。
+  - **库**：`agent-definitions` 2→3（见上文建表一步）。动作与 API 快照随本批刷新。
+
 - **第 32 批结果回流：接续由运行时来问、插件会话由宿主通知、无对话来源的任务可报给助理**（2026-11-15，[事项线需求书](../../specs/work-line/spec.md) §12 当日三项用户决定，[合同设计](../../specs/work-line/contract-design.md) §9）：
   - **删掉**：`agent.collaboration.await@1`（只为 Coding 的唤醒长请求存在）；固定它的引用不再解析。助理与 Coding 的 25 秒长请求一并删去，Prologue 换到 main `02a11ac5`（`collaborationHost.startContinuation`）。
   - **新增**：定向宿主事件 `host.agent.continuation.ready@1`（载荷 `runtime_id`、`session_id`、`request_key`、`wait_id`，只发给拥有会话的那个安装；Manifest 订阅后插件用自己这次激活的权限开轮，S-continuation-start）；合同 `AgentContinuationStartRequest`／`AgentContinuationStartAnswer`／`AgentContinuationStarter`。

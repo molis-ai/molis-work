@@ -11,6 +11,7 @@
 | BL-041、BL-102、BL-112、BL-138、BL-910、BL-958 | 第 27 批验收集中跟踪 | 第 27 批 #2010 收成 [BL-batch27-acceptance](../specs/backlog/BL-batch27-acceptance.md)；原条目删除 |
 | BL-091、BL-096、BL-103、BL-131、BL-367、BL-569、BL-701、BL-803、BL-819、BL-821、BL-901、BL-911、BL-913、BL-914、BL-915、BL-918、BL-919、BL-920 | 已完成并删除 | 第 27 批 #2010（`539d2d7d46`，2026-11-12）；验收余项见 BL-batch27-acceptance |
 | BL-plugin-dev-state-dir-before-locale-check、BL-catalog-specimen-default-margin | 已完成并删除 | 第 14 批登记的两条小缺口，2026-11-13 14／27 收口 PR 修掉；见 [14.md 合入记录](../specs/post-anticorruption-roadmap/reference/batches/14.md#实现进度与合入记录) |
+| BL-166 | 已完成并删除 | 第 42 批（2026-11-16）：通用技能「改一份我的」记住来源，`~~` 占位符换成自己用的，采用时可关掉原来的，原来的出新版时可看差别、带进草稿或先不管；见 [42.md](../specs/post-anticorruption-roadmap/reference/batches/42.md)。连接 MCP 仍在连接设置里做，技能只声明工具 |
 | BL-goals-methods-as-skills | 已完成并删除 | 第 41 批第 2 项：规划与拆解方法是随系统自带的技能包，Goals 不再有方法库；见 [41.md](../specs/post-anticorruption-roadmap/reference/batches/41.md) |
 | BL-376 | 已并入 BL-377 | [BACKLOG.md](../specs/BACKLOG.md) 顶部说明；Alchemist 由 [BL-377](../specs/backlog/BL-377.md) 整体重做，编号不复用 |
 | BL-928 | 已完成并删除 | 真实 Home 干净重建，2026-11-07 #1914（`d125b36f5c`） |

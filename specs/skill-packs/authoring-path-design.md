@@ -1,8 +1,8 @@
 # Skill 创作与改进完整路径：设计稿（第 42 批）
 
-状态：设计稿（2026-11-16，第 42 批主会话）。界面先定样（[原型](../../docs/design/skill-improvement/README.md)），用户选定前不写产品代码；本稿的合同部分随定样结果定稿，再提交合同代码。
+状态：已按本稿实现（2026-11-16，第 42 批主会话），待合入。界面定样用户选方案 B（左边改、右边试，[原型](../../docs/design/skill-improvement/README.md)）；实现时定下的取舍写在 §4，与原型不同的地方见[第 42 批](../post-anticorruption-roadmap/reference/batches/42.md)「与设计不同的地方」。
 
-[第 42 批](../post-anticorruption-roadmap/reference/batches/42.md) · [技能包 spec](spec.md) · [主动助理 §5.9／§6](../proactive-assistant/spec.md) · [BL-166](../backlog/BL-166.md)
+[第 42 批](../post-anticorruption-roadmap/reference/batches/42.md) · [技能包 spec](spec.md) · [主动助理 §5.9／§6](../proactive-assistant/spec.md) · BL-166（随本批关闭）
 
 ## 1. 要做到什么
 

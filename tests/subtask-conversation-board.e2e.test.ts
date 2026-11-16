@@ -11,6 +11,9 @@ const first = `document.querySelector(${JSON.stringify(ROOT)})`;
 // B58-06: the actual component-board route, not the standalone export. The demo does not start an agent.
 test("B58-06: subtask board states, local input, recovery, IME and touch targets", { timeout: 240_000 }, async t => {
   const b = await openBoardBrowser(t, "empty"); if (!b) return;
+  const exceptions: unknown[] = [];
+  const releaseErrors = b.on("Runtime.exceptionThrown", event => exceptions.push(event));
+  t.after(() => { releaseErrors(); if (exceptions.length) t.diagnostic(JSON.stringify(exceptions)); });
   const { evaluate, waitFor, command, sessionId } = b;
   const shots = process.env.MOLIS_WORK_BOARD_SHOTS === "1" ? join(REVIEW_EVIDENCE, "batch-58") : "";
   if (shots) await mkdir(shots, { recursive: true });
@@ -65,4 +68,21 @@ test("B58-06: subtask board states, local input, recovery, IME and touch targets
   await waitFor(`!${first}.querySelector('[data-subtask-feedback]').textContent`);
   assert.equal(await evaluate(`${first}.querySelector('[data-subtask-messages]').children.length`), 83, "rereading retains already read history");
   assert.equal(await evaluate(`${first}.querySelector('[data-subtask-thread]').scrollTop`), 200);
+  // The page's language switch keeps the document. Later actions must read its new language, not startup templates.
+  await b.click('[data-board-lang="zh"]');
+  await waitFor("document.documentElement.dataset.uiLanguageTag === 'zh'");
+  await b.click('[data-board-lang="en"]');
+  await waitFor("document.documentElement.dataset.uiLanguageTag === 'en'");
+  await b.click(`${ROOT} [data-subtask-action="stop"]`);
+  await waitFor(`${first}.querySelector('[data-subtask-action="continue"]')`);
+  assert.doesNotMatch(await evaluate<string>(`[...${first}.querySelectorAll("[data-subtask-head], [data-subtask-context], [data-subtask-intro], [data-subtask-composer]")].map(el => el.textContent).join(" ")`), /[㐀-鿿]/u, "actions after a live language switch stay in that language");
+  await b.click('[data-subtask-demo="read-error"]');
+  assert.doesNotMatch(await evaluate<string>(`${first}.querySelector('[data-subtask-feedback]').textContent`), /[㐀-鿿]/u);
+  const approval = '#subtask-conversation [data-subtask-demo-state="approval"]';
+  await b.click(`${approval} [data-subtask-action="deny"]`);
+  await waitFor(`document.querySelector('${approval} [data-subtask-action="continue"]')`);
+  assert.equal(await evaluate(`document.querySelector('${approval} textarea').disabled`), true, "denial stops the specimen; it never resumes work");
+  const unavailable = '#subtask-conversation [data-subtask-demo-state="unavailable"]';
+  assert.equal(await evaluate(`document.querySelector('${unavailable} textarea').disabled`), true);
+  assert.doesNotMatch(await evaluate<string>(`document.querySelector('${unavailable} [data-subtask-composer]').textContent`), /new attempt/i, "withdrawal retains its own reason rather than a continue hint");
 });

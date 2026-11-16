@@ -38,21 +38,17 @@ export function renderSubtaskSpecimen(state: SubtaskSpecimenState): string {
   const input = renderComposer({ kind: "ai", labels: { ...assistantComposerLabels(t.text, true), input: say("input") }, add: false,
     receiver: { label: say("writer"), icon: "user" }, ...(view.running ? { state: "running" as const } : {}),
     ...(view.inputUnavailable ? { disabled: { caption: view.status.label, reason: view.inputUnavailable } } : {}) });
-  return renderSubtaskConversation({ view, labels: subtaskConversationLabels(), composerHtml: input });
+  return renderSubtaskConversation({ view, labels: subtaskConversationLabels(), composerHtml: input }).replace('<section class=', `<section data-subtask-demo-state="${state}" class=`);
 }
 export function renderSubtaskConversationSection(): string {
   const states: readonly SubtaskSpecimenState[] = ["running", "round-ended", "answer", "approval", "stopped", "failed", "interrupted", "unavailable"];
-  const frames = Object.fromEntries(states.map(state => [state, renderSubtaskSpecimen(state)]));
-  const config = JSON.stringify({ frames, labels: assistantComposerLabels(t.text, true),
-    words: Object.fromEntries(["writer", "sample-reply", "read-failed", "retry", "loading", "working", "input", "continue-note"].map(key => [key, say(key)])),
-  }).replace(/</g, "\\u003c");
   const tools = `<div class="mw-subtask-demo-tools">${["history", "read-error", "reset"].map(key => renderButton({ label: say(`demo-${key}`), variant: "secondary", size: "sm", attrs: { "data-subtask-demo": key } })).join("")}</div>`;
   const figures = states.map(state => `<figure class="mw-catalog__specimen"><figcaption>${escapeHtml(say(state))}</figcaption><div class="mw-subtask-specimen">${renderSubtaskSpecimen(state)}</div></figure>`).join("");
   const unreadable = renderSubtaskSpecimen("running").replace('<div class="mw-subtask__feedback" data-subtask-feedback role="status"></div>',
     `<div class="mw-subtask__feedback" data-subtask-feedback role="status">${escapeHtml(say("read-failed"))} ${renderButton({ label: say("retry"), variant: "link", attrs: { "data-subtask-retry": true } })}</div>`);
   return `<section class="mw-catalog__section" id="subtask-conversation" data-primitive="subtask-conversation"><h2>${escapeHtml(say("title"))}</h2>`
     + `<p class="mw-catalog__hint">${escapeHtml(say("specimen-note"))}</p><div class="mw-catalog__specimens mw-subtask-specimens">${figures}`
-    + `<figure class="mw-catalog__specimen"><figcaption>${escapeHtml(say("read-failed"))}</figcaption><div class="mw-subtask-specimen">${unreadable}</div></figure></div>${tools}<script type="application/json" data-subtask-demo-config>${config}</script></section>`;
+    + `<figure class="mw-catalog__specimen"><figcaption>${escapeHtml(say("read-failed"))}</figcaption><div class="mw-subtask-specimen">${unreadable}</div></figure></div>${tools}</section>`;
 }
 export const SUBTASK_SPECIMEN_STYLES = `
   .mw-subtask-specimens { grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); }

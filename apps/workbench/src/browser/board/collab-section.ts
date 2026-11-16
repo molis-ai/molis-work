@@ -1,3 +1,5 @@
+import { mountSubtaskSpecimenDemo } from "./subtask-conversation.js";
+mountSubtaskSpecimenDemo();
 /**
  * The program of the board's 协作零件 section (apps/workbench/src/collab-specimens.ts), a proposal for review. The specimens
  * answer: a check counts when it has evidence, a topic switches, the Assistant's line changes, an answer folds the card to one

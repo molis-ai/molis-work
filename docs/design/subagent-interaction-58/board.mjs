@@ -3,7 +3,9 @@ import { readFile, writeFile } from "node:fs/promises";
 import { installTextForTest } from "../../../packages/plugin-sdk/dist/ui/text.js";
 import { renderSubtaskConversationSection, SUBTASK_SPECIMEN_STYLES } from "../../../apps/workbench/dist/subtask-conversation-specimen.js";
 import { SUBTASK_CONVERSATION_STYLES } from "../../../apps/workbench/dist/subtask-conversation-styles.js";
-import { SUBTASK_SPECIMEN_SCRIPT } from "../../../apps/workbench/dist/subtask-conversation-demo.js";
+import { build } from "esbuild";
+import { fileURLToPath } from "node:url";
+const demo = await build({ stdin: { contents: 'import {mountSubtaskSpecimenDemo} from "./apps/workbench/src/browser/board/subtask-conversation.ts"; mountSubtaskSpecimenDemo();', resolveDir: fileURLToPath(new URL("../../../", import.meta.url)) }, bundle: true, write: false, format: "iife", platform: "browser", minify: true });
 import { COMPOSER_STYLES, COMPOSER_CLIENT_SCRIPT } from "../../../packages/design-system/dist/index.js";
 
 const packs = await Promise.all(["zh", "en"].map(async lang => JSON.parse(await readFile(new URL(`../../../apps/workbench/resources/locales/${lang}.json`, import.meta.url), "utf8"))));
@@ -19,7 +21,7 @@ for (const lang of ["zh", "en"]) {
 *{box-sizing:border-box}body{margin:0;padding:24px;color:var(--ink);background:var(--desk)}
 .mw-catalog__specimens{display:grid;gap:24px}.mw-catalog__specimen{margin:0;min-width:0}
 .mw-catalog__specimen>figcaption{margin:12px 0;color:var(--muted)}h2{font-size:24px}
-</style><script src="../../kit/kit.js"></script></head><body><div id="icons" hidden></div>${section}
+</style><script src="../../kit/kit.js"></script><script src="./parts.js"></script></head><body><div id="icons" hidden></div>${section}
 <script>
 document.getElementById('icons').innerHTML=window.mwKitSprite;
 const s=document.createElement('script');s.textContent=window.mwKitClient;document.body.append(s);
@@ -27,5 +29,6 @@ const theme=new URLSearchParams(location.search).get('theme')||'light';
 document.documentElement.dataset.theme=theme;document.documentElement.dataset.resolvedTheme=theme;
 </script><script>${COMPOSER_CLIENT_SCRIPT}
 window.molisComposer = window.molisComposerProgram;
-${SUBTASK_SPECIMEN_SCRIPT}</script></body></html>`);
+window.prototypeLocale("${lang}");
+${demo.outputFiles[0].text}</script></body></html>`);
 }

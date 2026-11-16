@@ -140,3 +140,25 @@ test("QEA-07 dropping a folder keeps every eligible selection beyond 400 and ski
   assert.equal((await b.rows()).length, 200, "only the next batch is rendered");
   assert.equal((await b.rows()).some(row => row.name.includes("node_modules")), false);
 });
+
+// QEA-06: a display path is not a file identity; the artifact service owns content deduplication.
+test("QEA-06 same-named selections keep distinct contents and repeated content reuses its artifact", { timeout: 90_000 }, async t => {
+  const b = await openImport(t); if (!b) return;
+  const files: string[] = [];
+  for (const folder of ["alpha", "bravo", "charlie"]) {
+    const directory = join(b.homeDirectory, folder); await mkdir(directory);
+    const file = join(directory, "report.txt"); await writeFile(file, `Report from ${folder}.`); files.push(file);
+  }
+  await b.pick(files.slice(0, 2));
+  assert.equal((await b.rows()).length, 2, "same-batch names do not discard distinct files");
+  await b.pick([files[2]]);
+  assert.equal((await b.rows()).length, 3, "later selections do not collide with a display name");
+  await b.click("[data-knowledge-import-submit]"); await b.idle();
+  assert.equal((await b.rows()).filter(row => row.done).length, 3);
+  assert.deepEqual(b.records().map(row => (row.payload as Record<string, unknown>).content).sort(), ["Report from alpha.", "Report from bravo.", "Report from charlie."]);
+  const ids = b.records().map(row => row.artifact_id).sort();
+  await b.pick([files[0]]);
+  await b.click("[data-knowledge-import-submit]"); await b.idle();
+  assert.deepEqual(b.records().map(row => row.artifact_id).sort(), ids, "reselecting the same content reuses the stored artifact");
+  assert.deepEqual(await b.rows(), [{ name: "report.txt", failed: false, done: true }]);
+});

@@ -149,11 +149,8 @@ export function bindKnowledgeImport(root: HTMLElement): void {
       : picked.length ? uiText.text("workbench.import.count-count-chosen", { count: picked.length }) : "";
   };
   const take = (items: Picked[]) => {
-    const seen = new Set(picked.map(item => item.path));
-    picked = [...picked, ...items.filter(item => {
-      if (!wanted(item.path) || seen.has(item.path)) return false;
-      seen.add(item.path); return true;
-    })];
+    // A display path can name different files; content reuse belongs to the import service.
+    picked = [...picked, ...items.filter(item => wanted(item.path))];
     // The running batch owns its result rows; new selections wait for the next batch.
     if (!busy) drawPicked();
   };

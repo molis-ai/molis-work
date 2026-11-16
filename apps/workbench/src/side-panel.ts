@@ -407,7 +407,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const grown=button=>button.parentElement.classList.contains('is-grown');
   let anchor=null;
   const iconLeft=button=>(button.querySelector('.tab-item-icon')??button).getBoundingClientRect().left;
-  const keep=()=>{if(!anchor||!anchor.button.isConnected||!grown(anchor.button))return;const moved=iconLeft(anchor.button)-anchor.at;if(Math.abs(moved)>0.5&&strip.scrollWidth>strip.clientWidth+1)strip.scrollLeft+=moved;};
+  const keep=()=>{if(!anchor||!anchor.button.isConnected||!grown(anchor.button))return;const moved=iconLeft(anchor.button)-anchor.at;if(Math.abs(moved)>0.5)strip.scrollLeft+=moved;};
   const grow=button=>{
     anchor=button&&!grown(button)?{button,at:iconLeft(button)}:button?anchor:null;
     strip.querySelectorAll('[data-side-tab]').forEach(node=>node.parentElement.classList.toggle('is-grown',node===button));

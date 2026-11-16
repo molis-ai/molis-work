@@ -1,7 +1,7 @@
 {
-  "reason": "统一授权、审批来源和项目规则共用按需脚本。列表详情、连接能力设置与签名 Skill 建议沿实际工作台和独立设置页面加载。",
-  "review": "第 39 批授权需求 §7.4。使用主线 4c5ec3589d 和本批隔离构建，按相同语言、缓存状态、固定项目与合成 Home 直接测量真实 HTTP 响应。",
-  "userApproval": "用户 2026-11-15 批准能力脚本 +13,074 B、项目选择页冷载最多 +27,226 B／热载最多 +18,285 B、工作台冷载最多 +19,134 B／热载最多 +7,408 B、到达页冷载最多 +8,972 B 及中英文工作台词包内容路径。本表使用合并第 41 批后的实测值。",
+  "reason": "统一授权、审批来源、项目规则与逐项认可共用审查引用（APR-15／16）按需加载脚本与工作台属性标记。列表详情、连接能力设置与签名 Skill 建议沿实际工作台和独立设置页面加载。",
+  "review": "第 39 批授权需求 §7.4。对照合并第 32 批后的最新主线 0dceaca097 实测：/assets/molis-work-workbench.js +4,825 B（< 10 KB）、/assets/molis-work-capabilities.js +13,052 B、工作台冷载 +18,817／+18,818 B、热载 +7,362／+7,408 B、到达页冷载 +8,209／+8,164 B，项目选择页冷载缩小 30.8 KB／热载缩小 39.0 KB，全部在用户已批准上限之内。",
+  "userApproval": "用户 2026-11-15 批准能力脚本 +13,074 B、项目选择页冷载最多 +27,226 B／热载最多 +18,285 B、工作台冷载最多 +19,134 B／热载最多 +7,408 B、到达页冷载最多 +8,972 B 及中英文工作台词包内容路径。本表使用合并第 32 批与主线 0dceaca097 后的实测值。",
   "entryApprovals": [
     {
       "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"],
@@ -23,14 +23,14 @@
     "/assets/molis-work-plugin-frame.js": 4704,
     "/assets/molis-work-plugins/coding.js": 714,
     "/assets/molis-work-settings.css": 1695,
-    "/assets/molis-work-workbench.js": 2932
+    "/assets/molis-work-workbench.js": 4850
   },
   "pages": {
     "arrival-empty/zh": { "cold": 8328, "warm": 0 },
     "arrival-empty/en": { "cold": 8384, "warm": 0 },
-    "workbench-default/zh": { "cold": 17010, "warm": 7362 },
-    "workbench-default/en": { "cold": 17112, "warm": 7408 },
-    "workbench-all-plugins/zh": { "cold": 17010, "warm": 7362 },
-    "workbench-all-plugins/en": { "cold": 17112, "warm": 7408 }
+    "workbench-default/zh": { "cold": 18900, "warm": 7362 },
+    "workbench-default/en": { "cold": 18900, "warm": 7408 },
+    "workbench-all-plugins/zh": { "cold": 18900, "warm": 7362 },
+    "workbench-all-plugins/en": { "cold": 18900, "warm": 7408 }
   }
 }

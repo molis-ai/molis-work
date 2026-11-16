@@ -1,14 +1,14 @@
 {
-  "reason": "第 33 批合后独立审计与五维收口的首屏变化：C3 第五格、C6 续扫、C12 真实工具名识别、C14 head 核对，以及 PR #2095 的增量上传/范围卡等，使 `/onboarding` 首屏 cold/warm +2,809 B；不新增资源。coding.js 的增长由同批 `batch-33-audit-closure.json` 覆盖。",
-  "review": "第 33 批合后独立只读审计（2026-11-15）与 PR #2095 五维收口后的隔离工作树实测；首屏对照 c067437460 的 arrival-empty/zh 与 /en cold/warm 均 +2,809 B。",
+  "reason": "第 33 批合后独立审计与五维收口的首屏变化：C3 第五格、C6 续扫、C12 真实工具名识别、C14 head 核对，以及 PR #2095 的增量上传/范围卡等，使 `/onboarding` 首屏 cold/warm +7,571 B；不新增资源。coding.js 的增长由同批 `batch-33-audit-closure.json` 覆盖。",
+  "review": "第 33 批合后独立只读审计（2026-11-15）与 PR #2095 五维收口后的隔离工作树实测；首屏对照 c067437460 的 arrival-empty/zh 与 /en cold/warm 均 +7,571 B。",
   "pages": {
     "arrival-empty/zh": {
-      "cold": 2809,
-      "warm": 2809
+      "cold": 7571,
+      "warm": 7571
     },
     "arrival-empty/en": {
-      "cold": 2809,
-      "warm": 2809
+      "cold": 7571,
+      "warm": 7571
     }
   }
 }

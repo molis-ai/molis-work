@@ -8,7 +8,7 @@
 import { BACKGROUND_TASK_DONE_STATES, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { StateRingState, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTaskRow, BackgroundTasksReadResult, WorkLineEvent } from "@molis-ai/molis-work-contracts/services/mainline";
-import { escapeHtml, renderButton, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderButton, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPlaceMenu, renderTaskCard, renderReplyMini, renderReplyPeek, renderTaskDecision, renderTaskFloat, renderTaskMark, renderTaskPanel, renderTaskRow, type TaskRowView } from "../work-line-parts.js";
 import type { LineEventPress, WorkBarHost } from "./work-bar.js";
 import { installWorkLineLayout } from "./work-line-layout.js";
@@ -82,8 +82,24 @@ function installDialogRow(panel: string, paint: () => void): void {
   const island = document.querySelector<HTMLElement>("[data-assistant-island]"), dialog = island?.querySelector<HTMLElement>("[data-assistant-panel]");
   const thread = island?.querySelector<HTMLElement>("[data-assistant-thread]"), narrow = matchMedia("(max-width:760px)");
   if (!island || !dialog) return;
-  let folded = "", shown = "";
-  const latest = () => { const said = thread?.querySelectorAll<HTMLElement>(".assistant-msg--assistant"); return said?.length ? said[said.length - 1]!.dataset.text?.trim() ?? "" : ""; };
+  // What the person put away stays away when the page loads again (a reload, another address of the workbench): the mark of
+  // that reply, never its words, kept with the account's own browser copies for this window.
+  const KEPT = "molis.assistant.reply-folded", markOf = (text: string) => { let hash = 2166136261; for (let at = 0; at < text.length; at += 1) hash = Math.imul(hash ^ text.charCodeAt(at), 16777619); return text.length + ":" + (hash >>> 0).toString(36); };
+  const kept = (() => { try { return sessionStorage.getItem(KEPT) ?? ""; } catch { return ""; } })();
+  let folded = "", shown = "", drawn = "", first = true;
+  const workspace = document.querySelector<HTMLElement>(".tab-workspace");
+  const last = () => { const said = thread?.querySelectorAll<HTMLElement>(".assistant-msg--assistant"); return said?.length ? said[said.length - 1]! : null; };
+  const latest = () => last()?.dataset.text?.trim() ?? "";
+  // The reply reads as the dialog draws it: the bubble's own blocks (the Host's rendered reply), not its Markdown source. Its
+  // buttons stay in the dialog; the row has one way in. A reply with nothing drawn yet shows its words as they are.
+  const draw = (body: HTMLElement) => {
+    const from = last(), words = latest(), now = words + "\u0000" + (from?.innerHTML ?? "");
+    if (now === drawn && body.hasChildNodes()) return;
+    const copy = from?.cloneNode(true) as HTMLElement | undefined; copy?.querySelectorAll("button").forEach(node => node.remove());
+    drawn = now;
+    if (copy?.hasChildNodes()) body.replaceChildren(...copy.childNodes); else body.textContent = words;
+  };
+  const fold = () => { if (!shown) return; folded = shown; try { sessionStorage.setItem(KEPT, markOf(shown)); } catch { /* The fold then lasts this page. */ } row(); };
   // Whose words they are: the Character whose conversation is in front, else the Assistant.
   const who = () => { const tab = island.querySelector<HTMLElement>(".assistant-tab[data-current][data-character]"), name = tab?.querySelector(".assistant-tab-title")?.textContent?.trim();
     return name ? { name, character: true } : { name: uiText.text("workbench.common.assistant") }; };
@@ -92,19 +108,26 @@ function installDialogRow(panel: string, paint: () => void): void {
     // line's mark leaves its wing room for it.
     const line = island.closest("[data-work-line]"), lineRow = line?.querySelector<HTMLElement>(".work-line-row") ?? island;
     const peek = island.querySelector<HTMLElement>("[data-reply-peek]"), mini = lineRow.querySelector("[data-reply-mini]"), said = dialog.hidden && !narrow.matches ? latest() : "";
-    line?.toggleAttribute("data-mini", dialog.hidden && !(said && said !== folded));
-    if (!dialog.hidden && (peek || mini)) { peek?.remove(); mini?.remove(); shown = ""; return; }
+    // The reply a page finds when it opens under a cover (settings by its address) is the one before the cover: put away.
+    if (first && said) { first = false; if (workspace?.hasAttribute("data-exclusive")) folded = said; }
+    const away = !said || said === folded || markOf(said) === kept;
+    line?.toggleAttribute("data-mini", dialog.hidden && away);
+    if (!dialog.hidden && (peek || mini)) { peek?.remove(); mini?.remove(); shown = drawn = ""; return; }
     if (!dialog.hidden) return;
-    if (said && said !== folded) {
-      if (peek && shown !== said) peek.querySelector<HTMLElement>(".work-reply-peek-body")!.textContent = said;
-      else if (!peek) { mini?.remove(); island.insertAdjacentHTML("beforeend", renderReplyPeek({ who: who(), body: escapeHtml(said), mark: renderTaskMark({ count: 0, panel }) })); paint(); }
+    if (!away) {
+      if (!peek) { mini?.remove(); island.insertAdjacentHTML("beforeend", renderReplyPeek({ who: who(), mark: renderTaskMark({ count: 0, panel }) })); paint(); }
+      draw(island.querySelector<HTMLElement>("[data-reply-peek] .work-reply-peek-body")!);
       shown = said;
-    } else if (!mini) { peek?.remove(); shown = ""; lineRow.insertAdjacentHTML("beforeend", renderReplyMini(renderTaskMark({ count: 0, panel }))); paint(); }
+    } else if (!mini) { peek?.remove(); shown = drawn = ""; lineRow.insertAdjacentHTML("beforeend", renderReplyMini(renderTaskMark({ count: 0, panel }))); paint(); }
   };
   new MutationObserver(row).observe(dialog, { attributes: true, attributeFilter: ["hidden"] });
   if (thread) new MutationObserver(() => { if (dialog.hidden) row(); }).observe(thread, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-text"] });
-  // The person went back to the work: the reply folds away, and stays away until another comes.
-  document.addEventListener("pointerdown", event => { if (shown && event.target instanceof Element && !event.target.closest("[data-work-bar],[data-work-task-float]")) { folded = shown; row(); } }, true);
+  // The person went back to the work: the reply folds away, and stays away until another comes. A plugin's page is its own
+  // document, so a press in it comes as the frame's `molis:surface-interaction`.
+  document.addEventListener("pointerdown", event => { if (event.target instanceof Element && !event.target.closest("[data-work-bar],[data-work-task-float]")) fold(); }, true);
+  window.addEventListener("molis:surface-interaction", fold);
+  // So is a cover that comes over the work (settings, opened by a key as well): the person is reading that now.
+  if (workspace) new MutationObserver(() => { if (workspace.hasAttribute("data-exclusive")) fold(); }).observe(workspace, { attributes: true, attributeFilter: ["data-exclusive"] });
   narrow.addEventListener("change", row); row();
 }
 

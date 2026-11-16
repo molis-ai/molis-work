@@ -119,7 +119,7 @@ function drawBoard(state: State) {
   if (board.hidden) return;
   if (!data) {
     state.list.replaceChildren();
-    state.title.textContent = "TaskBoard";
+    state.title.textContent = uiText.text("coding.face.taskboard");
     state.meta.textContent = "";
     state.notice.textContent = state.loadError || (state.owner ? uiText.text("coding.board.reading") : uiText.text("coding.board.pick-session"));
     return;
@@ -129,7 +129,7 @@ function drawBoard(state: State) {
   if (next === state.key) return;
   state.key = next;
   const scroll = board.scrollTop, groups = buildTree(state.input(data));
-  state.title.textContent = "TaskBoard";
+  state.title.textContent = uiText.text("coding.face.taskboard");
   state.meta.textContent = summary(state, data).text;
   state.notice.textContent = state.loadError || data.error || (groups.length ? uiText.text("coding.board.notice") : state.empty);
   state.list.replaceChildren(...groups.map(group => drawGroup(state, group)));

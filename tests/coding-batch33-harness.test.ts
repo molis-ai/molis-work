@@ -297,6 +297,8 @@ test("B1, B5 & B7: withPinnedKnowledgeRevision gateway pinning, client progress 
     assert.ok(envHtml.includes("data-slot=\"env-checklist\""), "renders open env-checklist primitive");
     assert.ok(!envHtml.startsWith("<details"), "env checklist is never a collapsed details bar");
     assert.match(envHtml, /开始前已有/);
+    // What was there before the round began is a fact, not something that asks for the person: no amber (screen-polish P0).
+    assert.match(envHtml, /class="mw-badge mw-badge--neutral"[^>]*>开始前已有</, "the pre-existing badge is neutral");
     assert.match(envHtml, /基线测试/);
     assert.match(envHtml, /pnpm test/);
     assert.ok(envHtml.includes("data-slot=\"env-recovery\""), "attaches inline recovery alert for missing deps/env");

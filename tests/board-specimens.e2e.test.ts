@@ -91,6 +91,16 @@ test("VUX-39 the board switches its own language, and its plugin rows are Shelf'
     await choose("width", width);
     await waitFor(`${frame}.contentWindow.innerWidth === ${width}`);
     assert.equal(await inFrame<boolean>("return d.scrollingElement.scrollWidth <= d.scrollingElement.clientWidth;"), true, `nothing runs out sideways at ${width}px`);
+    if (width !== "360") continue;
+    // screen-polish P0: in a narrow column the session's name was cut to nothing before its state was (the name could shrink to
+    // zero, the state could not). The name comes first: a state that asks nothing keeps only its ring, with the word as its title;
+    // one that needs the person keeps its word, and gives way before the name's last four letters do.
+    const narrow = await inFrame<Array<[string, number, string, string, boolean]>>(`return [...d.querySelectorAll('[data-board-specimen=coding-sessions] .coding-session-row')].map((row) => {
+      const name = row.querySelector('.coding-session-title'), mark = row.querySelector('.coding-session-state');
+      return [mark.dataset.state, name.getBoundingClientRect().width, getComputedStyle(mark).fontSize, mark.title, !!mark.querySelector(':scope > svg.mw-state-ring') && mark.getBoundingClientRect().width > 0]; });`);
+    assert.ok(narrow.every(([, name]) => name >= 48), `every session keeps room for its name: ${narrow.map(([state, name]) => `${state} ${Math.round(name)}`).join(", ")}`);
+    assert.deepEqual(narrow.filter(([, , size]) => size === "0px").map(([state]) => state), ["running", "done"], "only the states that ask nothing drop their word");
+    assert.ok(narrow.every(([, , , title, ring]) => title && ring), "every state still shows its ring and says its word as a title");
   }
   await evaluate("document.querySelector('[data-cond-params] [data-theme-option=dark]').click(); document.querySelector('[data-cond-params] [data-density-option=compact]').click()");
   await waitFor(`(() => { const e = ${frame}.contentDocument.documentElement; return e.dataset.resolvedTheme === 'dark' && e.dataset.density === 'compact'; })()`);

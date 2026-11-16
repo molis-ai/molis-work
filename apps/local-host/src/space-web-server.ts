@@ -94,7 +94,6 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
   let activeSpaceId:string|undefined;
   const credentials=new Map<string,{signal:AbortSignal;token:string}>();
   let initializationFailure:import('./home-storage-lifetime.js').HomeInitializationFailure|undefined;
-  // Retire anonymous entry proofs at delivery; the separate installation login transport survives.
   const account=runWithMolisWorkHome(home,()=>createPersonalAccountHttp(native,{ready:retry=>settleAccount(retry),loginDelivered:()=>options.webSessions?.revokeScope(rootToken),status:()=>{
     let ready=false;try{activeLease?.assertCurrent();ready=!!activeLease&&!transition&&!transitionError;}catch{ /* Revocation is immediate, before asynchronous cleanup. */ }
     return {ready,switching:!!transition,...(activeSpaceId&&surfaces.get(activeSpaceId)?{viewScope:webPageScope(surfaces.get(activeSpaceId)!.token)}:{}),...(transitionError?{error:transitionError}:{})};

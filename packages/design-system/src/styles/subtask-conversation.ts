@@ -8,7 +8,7 @@ export const SUBTASK_CONVERSATION_STYLES = `
   .mw-subtask__context { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px; border-bottom: 1px solid var(--line); background: var(--surface-soft); flex: none; }
   .mw-subtask__context:empty { display: none; }
   .mw-subtask__parent { flex: 1; min-width: 0; overflow: hidden; }
-  .mw-subtask__parent > .mw-btn { max-width: 100%; color: var(--muted); font-size: 11px; }
+  .mw-subtask__parent > .mw-btn { max-width: 100%; color: var(--muted); }
   .mw-subtask__parent [data-slot="button-label"] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mw-subtask__controls { display: flex; gap: 6px; flex: none; }
   .mw-subtask__thread { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 16px; display: flex; flex-direction: column; gap: 14px; }

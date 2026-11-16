@@ -2,10 +2,10 @@
   "reason": "第 58 批公共子任务对话使用现有 arrival/workbench 样式，统一输入增加冷加载锁定与显式就绪重试，插件框架保留本地子输入并转交宿主栏就绪查询。相对 4a08c41ca7 独立构建实测，没有新增资源，各单项增量均小于 10 KB。",
   "review": "specs/subagent-interaction/spec.md §11.7 页面资源实测；随第 58 批实际代码提交公共合同台及 D 轨最终合审",
   "assets": {
-    "/assets/molis-work-arrival.css": 3878,
+    "/assets/molis-work-arrival.css": 3863,
     "/assets/molis-work-composer.js": 77,
     "/assets/molis-work-plugin-frame.js": 1688,
-    "/assets/molis-work-workbench.css": 3878,
+    "/assets/molis-work-workbench.css": 3863,
     "/assets/molis-work-workbench.js": 420
   }
 }

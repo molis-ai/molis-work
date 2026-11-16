@@ -176,7 +176,8 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
   // gap can belong to another work in the same project (EC-16 held vs unheld); do not turn the held run unknown for it.
   // Lost/paused gaps are not protected by a hold and still propagate, as does every gap for an unheld sample. Ask the
   // observation layer whether the hold is still active instead of trusting the sample row's cached hold count.
-  const holdProtectsRetention = sample.hold_id !== null && sample.held_record_count > 0
+  const hasRetentionGap = runCoverageUnknowns.some((reason) => reason === "coverage_gap_expired" || reason === "coverage_gap_purged");
+  const holdProtectsRetention = hasRetentionGap && sample.hold_id !== null && sample.held_record_count > 0
     && await sampleHasActiveHold(client, readNested, sample);
   const propagatedCoverageUnknowns = holdProtectsRetention
     ? runCoverageUnknowns.filter((reason) => reason !== "coverage_gap_expired" && reason !== "coverage_gap_purged")

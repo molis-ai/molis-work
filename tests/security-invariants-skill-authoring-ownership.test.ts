@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { actionReachesAudience } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SKILL_AUTHORED_PLUGIN_IDS, skillAuthoringActions, type SkillAuthoredSaveRequest } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_AUTHORED_PLUGIN_IDS, skillAuthoringActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { SkillAuthoringService, type SkillAuthoringPorts } from "@molis-ai/molis-work-app-local-host";
 
 // S-skill-authoring: the four authored actions are the person's alone and are not MCP/Agent/plugin/workflow tools; a package of the
@@ -35,7 +35,7 @@ test("S-skill-authoring a foreign package of the same id and version is not the 
     install: { readPreview: () => { throw new Error("must not preview"); }, confirm: async () => { throw new Error("must not confirm"); } },
   } as SkillAuthoringPorts;
   const service = new SkillAuthoringService(ports);
-  await assert.rejects(service.save({ name: "mine", description: "用户要mine时使用。", applies_to: "assistant", body: "# mine", scope: "project" } satisfies SkillAuthoredSaveRequest,
+  await assert.rejects(service.save({ name: "mine", description: "用户要mine时使用。", applies_to: "assistant", body: "# mine", scope: "project" },
     { project_id: "project-a", actor_id: "person" }, {} as never),
   (error: { code?: string }) => error.code === "skills.authored_unknown");
   assert.deepEqual([signed, removed], [0, 0], "nothing was signed or taken off");

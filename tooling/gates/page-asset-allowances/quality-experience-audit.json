@@ -37,5 +37,30 @@
       "cold": 261,
       "warm": 38
     }
-  }
+  },
+  "userApproval": "用户于2026-11-15在本审查会话（01a1e2b8-9471-7ac1-8614-76155dd934fd）弹窗选择「批准资源并推送验证（推荐）」：批准中英文词包的新内容地址及已列首屏增量（冷加载最多261 B、热加载最多38 B），并授权推送、草稿PR和CI Full。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ]
 }

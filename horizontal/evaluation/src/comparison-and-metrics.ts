@@ -15,7 +15,9 @@ import type { StoredRunWithOutcomes } from "./store.js";
 
 function stageVerdictOf(run: EvaluationRunView, stage: EvaluationStage): EvaluationVerdict {
   const items = run.expectation_results.filter((item) => item.stage === stage);
-  if (items.length === 0) return "passed";
+  // A stage with no expectation was not evaluated. Reporting it as `passed` would let a two-stage sample claim all six
+  // stages were covered; the closed verdict set has `unknown` for exactly this (PWA-51, PWA-54).
+  if (items.length === 0) return "unknown";
   if (items.some((item) => item.effective_verdict === "failed")) return "failed";
   if (items.some((item) => item.effective_verdict === "unknown")) return "unknown";
   return "passed";

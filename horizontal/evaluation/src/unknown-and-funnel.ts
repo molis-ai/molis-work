@@ -223,8 +223,8 @@ export function buildEvidencePointers(
   });
 }
 
-export function unknownReasonForMissingEvidence(reason: string): EvaluationUnknownReason {
-  if (reason === "expired") return "coverage_gap_expired";
-  if (reason === "purged") return "coverage_gap_purged";
+export function unknownReasonForMissingEvidence(_reason: string): EvaluationUnknownReason {
+  // A missing evidence snapshot is `evidence_missing`, even when the snapshot's own reason is expired or purged:
+  // `coverage_gap_*` is for missing records, not for an existing record whose snapshot cannot be unsealed (design §4.2).
   return "evidence_missing";
 }

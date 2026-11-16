@@ -13,6 +13,12 @@
 - **合同与外观**：`platform/background-tasks`、`platform/work-events`、`platform/object-link` 等新形状；页面资源 `workbench.js`/`workbench.css` 按用户 2026-11-15 弹窗上调；首屏 `32-first-screen.json` 按实测放行；`DESIGN.md` 的顶部一条与事项线一节按用户认可改写。
 - **Prologue**：换到上游 main `02a11ac5`（#124 结果回流、#125 评审跟进、#126 授权变化时放回占用），旧包记入 `patch-history.json`。
 - **未完成/待验收**：本人验收（`BL-b32-acceptance`）与部分用例缺口（`BL-b32-acceptance-test-gaps`）；合入头 full-suite 的 5 个文件红由合后 #2098 收口（最终头 Full 48/48、CI 全绿，已合入 main `0d45ba58`）；32-2 认可入口、无来源同时汇报与后台 provider 覆盖的余项见对应 BL。
+### 最小真实评测路径（2026-11-15，#2096，`ddda618006`）
+
+- **观测样本留存**：`observation/observation.db` 由 1 升到 2，新增 `evaluation_holds` 与 `evaluation_hold_records`；`system.observation` 新增 `observation.holds.{put,release,list}@1`。有效留存豁免手动/自动到期清理及其加密快照，过期后失去豁免，删项目/清插件数据仍优先彻底删除；手动与自动清理在缺口里如实记 `expired`。
+- **独立横向评测服务**：新包 `horizontal/evaluation`（`@molis-ai/molis-work-service-evaluation`，`<Home>/evaluation/evaluation.db` v1），`system.evaluation` 九个 `@1` 动作；样本按 `(sample_id, version)` 冻结预期，`tuning`/`validation` 分离，三种判定来源（确定性、带版本评测器、人工参考准则），人工复查只追加不改写 `run_json`，`unknown`/`failed` 分离，六阶段跨版本对比、队列与漏斗指标、`withObservationSource("replay")` 下阻断外部副作用的隔离回放。
+- **隔离 Home 可复现 CLI**：`pnpm eval:run`（`scripts/run-evaluation.mts`）严拒真实 `~/.molis-work` 及父子目录和真实 Home 内的 `--json`，默认一次性临时 Home，跑完自动删除；9 个内置样本（EC-01/02/06/08/09/16/18）、双独立 Home `--verify-reproducible` 摘要 `IDENTICAL`，`--mode live` 默认 Gemini 系列（`gemini-2.5-flash`、`openai-chat-completions`），密钥只进临时 Home 文件凭据库并脱敏。真实 Gemini 凭据运行未验证。
+- **未完成/待验收**：真实 Gemini 现场结果（需用户授权/凭据）；N+1 证据读取等后续限制见评测服务 README 与 [BL-evaluation-read-cost](../../specs/backlog/BL-evaluation-read-cost.md)；本批无产品 UI，本人验收不适用。
 
 ### Coding 与材料恢复闭环（2026-11-15，#2082）
 
@@ -30,7 +36,7 @@
 - **组件板**：`#kind-mark`（五种 `--mark-*` 色相与独立字形）与 `#category-bar`（比例轨道与零值图例），组件板与产品页共用 `@molis-ai/molis-work-design-system/work-records`。
 - **合后小修 #2088**：`purged`/全部写入缺口原因的徽章、影响说明与横幅判定；收敛 5 个包内未跨文件 `export` 与 6 个不可达短名分支；同步 `CALL-CHAINS.md`、observation spec §10、design README 与 29.md 的旧字面量/合入号。
 - **合后审计收口**：OCL-05 的主人对版本引用比较当前 revision，改写后标 `unverified`；OCL-13 的默认模拟隔离扩到 `assistant`／`evaluation`／`export`（本机回看保留并标注来源）；覆盖横幅考虑 unavailable/redacted entry；保留需求改从服务端 `requirements` 取。
-- **未完成/待验收**：本人实物与连续工作走查（`BL-work-records-acceptance`）；评测样本留存与回放归第 30 批。
+- **未完成/待验收**：本人实物与连续工作走查（`BL-work-records-acceptance`）；评测样本留存与回放已由第 30 批接入（见上一条）。
 
 ### Work Brief 首页与简报核心（2026-11-14，#2077）
 

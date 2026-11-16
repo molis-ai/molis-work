@@ -1,6 +1,6 @@
 # Horizontal Services
 
-`horizontal/` 目录下有 **14 个包**，分两类（定义见[系统架构 §3](../system/ARCHITECTURE.md)，逐包清单见 [SSOT-MATRIX §6](../SSOT-MATRIX.md)）：5 个横向运行服务和 9 个平台产品服务。
+`horizontal/` 目录下有 **15 个包**，分两类（定义见[系统架构 §3](../system/ARCHITECTURE.md)，逐包清单见 [SSOT-MATRIX §6](../SSOT-MATRIX.md)）：5 个横向运行服务和 10 个平台产品服务。
 
 **横向运行服务**是多种业务都会复用的可靠运行能力。它保存 cursor、lease、retry、process handle 等可恢复技术状态，但不拥有正式业务事实，也不替 Module 做业务决定。
 
@@ -20,6 +20,7 @@
 - [Placement](placement.md)：对象放在哪里、谁能看到、和哪些工作有关，以及移动、复制、转成。
 - [Observation](observation.md)：把工作过程逐条记成工作记录，带证据快照、覆盖登记与样本留存；分清真实、模拟、导入与新变化。
 - [Evaluation](evaluation.md)：经公开动作消费采集层工作记录与证据快照，运行冻结样本判定、六阶段对比、隔离回放与人工复查。
+- [Mainline](../../horizontal/mainline/README.md)：现读项目事项线与后台任务总表，核对每一行后执行任务自己给出的命令；不存任何东西。
 - [Appearance](../../horizontal/appearance/README.md)：Home 的外观选择、应用与撤销，以及没有页面的工作所用的最近语言。
 - [Surfaces](../../horizontal/surfaces/README.md)：按调用方、位置和对象排出确定呈现组合，并保存本人的位置纠正；合同见 [surface-composition](../../specs/surface-composition/spec.md) §2、§3、§14。
 - [Kit](../../horizontal/kit/README.md)：现算某个范围里的能力包，给条目盖来源与所属的包、读出包状态；不存注册表。

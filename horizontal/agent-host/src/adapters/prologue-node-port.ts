@@ -450,6 +450,17 @@ async function prepareContinuationWorkspace(deps: PortDeps, { child, parentRun, 
   return { childIndex, baseFrozen, directory, directoryProof, rootRef: renewed?.ref ?? currentRoot?.ref, renewedRoot: renewed ? { previous: child.root!, current: renewed.ref } : undefined };
 }
 
+function continuationOpening(child: SubagentHandle, baseTask: string, retryTasks: Readonly<Record<string, string>> | undefined): SessionOpeningReader {
+  const firstRunId = (child.attempts?.[0] ?? child.run).id;
+  const original = { ...retryTasks };
+  return async ({ sessionRef, runRef }) => {
+    if (!sameRef(sessionRef, child.session) || runRef.kind !== "run" || runRef.revision !== 1) return { status: "unavailable" };
+    if (runRef.id === firstRunId) return { status: "original", user: [baseTask] };
+    const priorTask = original[runRef.id];
+    return typeof priorTask === "string" ? { status: "original", user: priorTask ? [priorTask] : [] } : { status: "unavailable" };
+  };
+}
+
 async function continueSubagentAttempt(
   deps: PortDeps,
   input: ChildContinuation,
@@ -472,14 +483,7 @@ async function continueSubagentAttempt(
   const retryText = queued ? "" : text ?? (reason?.trim()
     ? `${baseTask}\n\n[第 ${attemptNumber} 次尝试（来源：${source}）补充说明：${reason.trim()}]`
     : `${baseTask}\n\n[第 ${attemptNumber} 次尝试（来源：${source}）：请先核对前次尝试的结果与失败点，再继续完成任务。]`);
-  const firstRunId = (child.attempts?.[0] ?? child.run).id;
-  const retryTasksSnapshot = { ...parentAttempt.subagent_retry_tasks };
-  const readOpening: SessionOpeningReader = async ({ sessionRef, runRef }) => {
-    if (!sameRef(sessionRef, child.session) || runRef.kind !== "run" || runRef.revision !== 1) return { status: "unavailable" };
-    if (runRef.id === firstRunId) return { status: "original", user: [baseTask] };
-    const priorTask = retryTasksSnapshot[runRef.id];
-    return typeof priorTask === "string" ? { status: "original", user: priorTask ? [priorTask] : [] } : { status: "unavailable" };
-  };
+  const readOpening = continuationOpening(child, baseTask, parentAttempt.subagent_retry_tasks);
   await deps.effects.beforeEffect();
   deps.effects.assertCurrent();
   execution?.assertSubagent?.(role);

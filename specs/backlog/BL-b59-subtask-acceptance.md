@@ -2,9 +2,9 @@
 
 分组：1. 待你验收
 
-| 编号 | 事项 | 来源 | 类型 | 依赖 | 负责人 |
-| --- | --- | --- | --- | --- | --- |
-| BL-b59-subtask-acceptance | 在 Molis Work 试用助理与 Coding 的子任务对话（SAI-12、SAI-13） | [第 59 批](../post-anticorruption-roadmap/reference/batches/59.md)、[验收标准](../subagent-interaction/spec.md#9-验收标准) | 待你验收 | 第 59 批构建，已配置模型的隔离测试 Home | 一骏验收，Codex 提供测试构建和动线 |
+| 编号 | 事项 | 来源 | 类型 | 为什么还没做 | 依赖 | 优先级 | 负责人 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| BL-b59-subtask-acceptance | 在 Molis Work 试用助理与 Coding 的子任务对话（SAI-12、SAI-13） | [第 59 批](../post-anticorruption-roadmap/reference/batches/59.md)、[验收标准](../subagent-interaction/spec.md#9-验收标准) | 待你验收 | 需本人试用最终双入口 | 第 59 批构建，已配置模型的隔离测试 Home | P2 | 一骏验收，Codex 提供测试构建和动线 |
 
 1. 在 Home 或项目助理里派出 Work 子任务和 SDK 子任务，分别打开对话。补充一句话、切到另一个子任务再返回，检查顶部接收者、两份草稿和父任务的结果提示。
 2. 在 Coding 打开一次真实子任务。分别从后台任务、消息卡片和原成果面板进入对话，跟进一轮再返回。检查原评价、比较和整合入口各自在原位。

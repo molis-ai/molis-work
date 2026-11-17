@@ -52,7 +52,7 @@ export class AssistantSdkSubtasks {
     const { subagents } = (await this.ports.host()).adapter("prologue");
     const candidates = subagents?.resultCandidates?.(new Set(bySession.keys()));
     if (!candidates?.length) return;
-    const raised = this.store.noticeDedupeKeys(this.actorId, "result");
+    const raised = this.store.noticeReceipts.keysOfKind(this.actorId, "result");
     const pending = new Map<string, { work: StoredWork; run: AgentRunRef; keys: Set<string> }>();
     for (const candidate of candidates) {
       const run = candidate.parent_run, work = bySession.get(run.session_id);

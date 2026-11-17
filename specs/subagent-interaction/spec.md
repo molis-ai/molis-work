@@ -666,4 +666,4 @@ C 轨代码前合审补充两条实施边界：Host 重试必须同时有已核�
 
 `subtask-conversation.e2e.test.ts` 首次在关闭按钮聚焦后，PageDown 的稳定位置断言得到 11 与 27。用例在复位滚动的同一轮订阅 `scrollend`，可能先接到复位事件。复测将准备动作与 PageDown 分开，待键盘实际滚动结束后再兑现延迟草稿，保留关闭和返回两个入口的同一位置断言。
 
-本机另有两处旧安装插件回归待核。[BL-installed-plugin-mac-fixtures](../backlog/BL-installed-plugin-mac-fixtures.md) 记录 `installed-plugin-policy` 的主线同样 403 及超时，以及 `installed-plugin-host` 的首次 Feed 回报缺席和两棵树都无法单独进入原调度断言。保留首败，沿正当的原动作权限路径处理测试夹具。
+本机另有两处既有安装插件回归。[BL-installed-plugin-mac-fixtures](../backlog/BL-installed-plugin-mac-fixtures.md) 记录用 Node 24.15 在干净 `dbcf562a67` 原样复现的 `installed-plugin-policy` 403 与超时（0/11），及 `installed-plugin-host` 同一个 Feed 重启断言（39/40）。两处沿原权限断言和夹具保留首败。

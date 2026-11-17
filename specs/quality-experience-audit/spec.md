@@ -517,7 +517,7 @@ SDK继续拥有唯一候选、实际期限、版本和决定；Memory拥有最�
 
 ## 第二十八批：退役未接入的集成工厂（PF-07）
 
-状态：实际注册/引用/产物链及独立只读复核完成，无阻塞退役的运行时P1；用户2026-11-17已批准下述两处门禁调整，等待当前包回归结束后实施。WebQuery整包没有生产依赖入边，YouTube工厂没有生产调用，但channel工具通过Host source vocabulary/intent/runtime使用并进入npm产物。两工厂是private包的根出口而非文件私有函数；明确移除旧出口，不提供兼容空壳。保留现有web_query/youtube_channel来源数据、SourcePull合同及YouTube原包名/channel出口/Host和产品依赖。
+状态：用户2026-11-17批准两处门禁调整后已实施；构建、活跃安装拒绝129项、真实来源/产物12文件及最终健康门禁通过，最终头CI待完成。WebQuery整包没有生产依赖入边，YouTube工厂没有生产调用，但channel工具通过Host source vocabulary/intent/runtime使用并进入npm产物。两工厂是private包的根出口而非文件私有函数；明确移除旧出口，不提供兼容空壳。保留现有web_query/youtube_channel来源数据、SourcePull合同及YouTube原包名/channel出口/Host和产品依赖。
 
 清理范围：WebQuery六个受控文件；YouTube工厂/Manifest、package.files的Manifest项及SDK依赖；workspace-packages唯一登记及pnpm锁、SSOT/包清单；六个专用版本键与两个Manifest的16个carrier；两个旧签名例外。YouTube错误owner与共享版本键保留。当前公开API快照没有这两个根出口，不造无用快照。
 
@@ -528,7 +528,7 @@ SDK继续拥有唯一候选、实际期限、版本和决定；Memory拥有最�
 
 ## 第二十九批：Pages 的编辑基线、切换保存与翻译另存（QF-39～41）
 
-状态：真实入口与六方向只读审查已得三条静态P1候选，尚待动态复现；优先于后续体验调整核实。发布catch把任意GET结果当作本次保存回执，可能让旧正文获得新版本；对象选择在GET前保存，却在GET后切换并异步补存后来输入，保存失败时原草稿可能已无入口；翻译另存未等待onCreateFromAi便清空候选。现有后端CAS、模型前后授权、发布联合事务、永久删除/revert/discard合同保留。
+状态：QF-39/40已由正常浏览器/真实HTTP与数据库确认，`pages-ownership-baseline2.log`三项有效失败：发布冲突后的再次编辑覆盖另一写入者正文（有/无后来输入），搜索切换期间输入在保存被拒后离开当前页。QF-41仍待动态复现。发布catch把任意GET结果当作本次保存回执，让旧正文获得新版本；对象选择在GET前保存，却在GET后切换并异步补存后来输入，保存失败时原草稿已无入口；翻译另存未等待onCreateFromAi便清空候选。现有后端CAS、模型前后授权、发布联合事务、永久删除/revert/discard合同保留。
 
 恢复读取与保存回执分开：没有本地编辑时可完整展示owner当前文稿，有本地编辑则保留原正文和版本前提，不能仅借新版本解开冲突。切换真正发生前保存等待期间的新输入，并在每次等待后核对原选择；失败留在原草稿，不以后台补存冒充完成。翻译另存等待确认，失败保留本次候选，明确重试使用既有pages.create.request_id及原冻结内容；成功但回执丢失不重复创建，迟到结果不关闭后来候选。不新增平台草稿库、请求账或自动重试。
 

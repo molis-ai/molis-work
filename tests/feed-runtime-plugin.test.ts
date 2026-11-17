@@ -330,6 +330,35 @@ async function syncing(t: TestContext, options: { ledger?: boolean; clock?: bool
   return { ...f, fetched, feeds, entry, sourceId, sourceEvents, named };
 }
 
+test("QEA-68 a Runtime Feed registers and pulls a YouTube channel through SourcePull and replays the original key without another fetch or write", async t => {
+  const fetched: string[] = [];
+  const url = "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv";
+  const f = await platform(t, { ledger: true, fetch: async input => {
+    fetched.push(String(input));
+    assert.equal(String(input), url);
+    return new Response(`<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom" xmlns:yt="http://www.youtube.com/xml/schemas/2015">
+      <id>yt:channel:UCabcdefghijklmnopqrstuv</id><title>Channel</title><updated>2026-08-30T08:00:00Z</updated>
+      <entry><id>yt:video:video-one</id><yt:videoId>video-one</yt:videoId><title>Channel update</title>
+      <link rel="alternate" href="https://www.youtube.com/watch?v=video-one"/><published>2026-08-30T08:00:00Z</published>
+      <updated>2026-08-30T08:00:00Z</updated><summary>Retained channel update body.</summary></entry></feed>`,
+    { headers: { "content-type": "application/atom+xml" } });
+  } });
+  const registered = await f.client.invoke(caller(DESCRIBE).context, feedSourceActions.register, {
+    kind: "youtube_channel", channel_id: "https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv",
+  }) as { source: { source_id: string; config: { channel_id: string } } };
+  assert.equal(registered.source.config.channel_id, "UCabcdefghijklmnopqrstuv");
+  const input = { source_id: registered.source.source_id, idempotency_key: "youtube-original-pull" };
+  const result = await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, input) as { created: number; replayed: boolean; run: { phase: string; outcome: string } };
+  assert.deepEqual([result.created, result.replayed, result.run.phase, result.run.outcome], [1, false, "terminal", "completed"]);
+  const counts = () => [f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", input.source_id),
+    f.count("SELECT count(*) AS n FROM feed_source_runs WHERE source_id = ?", input.source_id), f.holds().length, fetched.length];
+  assert.deepEqual(counts(), [1, 1, 1, 1]);
+  assert.ok(f.bodies().has(f.holds()[0]!.content_ref), "the actual retained body exists");
+  const replay = await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, input) as { replayed: boolean; created: number };
+  assert.deepEqual([replay.replayed, replay.created], [true, 0]);
+  assert.deepEqual(counts(), [1, 1, 1, 1]);
+});
+
 test("RAC-518 a Runtime Feed pulls a public source through the platform: one write for the items, the run and the event, and every body held before it was written", async t => {
   const f = await syncing(t);
   const items = () => f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId);

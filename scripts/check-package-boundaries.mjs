@@ -244,7 +244,7 @@ export function checkMigratedIntegrationOwnership(repositoryRoot) {
   }
 
   const centralVersions = versionSource(repositoryRoot).versions;
-  for (const name of ["github", "gmail", "rss", "web-query", "youtube"]) {
+  for (const name of ["github", "gmail", "rss"]) {
     const pluginRoot = path.join(repositoryRoot, "plugins/official-integrations", name);
     const manifestPath = path.join(pluginRoot, "manifest.json");
     if (!fs.existsSync(manifestPath)) {

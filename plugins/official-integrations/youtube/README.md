@@ -1,12 +1,12 @@
 # YouTube 频道来源接入
 
-为 YouTube Channel 来源提供地址/频道处理与轮询 Integration 接线，把频道更新交给统一信息流。
+为 YouTube Channel 来源提供频道标识、公开 Feed 地址与地址校验。
 
 包名：`@molis-ai/molis-work-integration-youtube`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
-createYoutubeIntegrationPlugin 注册注入的 Provider；channel 中的辅助函数处理频道来源，返回内容由 SDK Adapter 转成 SignalDraft，经 Listener/Signals 接收。
+Feed 经平台 sourcePull 的 vocabulary 规范化频道并登记来源；同步时 Host 调用本包生成 Feed 地址，再由受控来源拉取服务读取。Feed 拥有来源配置、游标、同步记录与接收结果。
 
 ## 从哪里读代码
 
@@ -14,18 +14,18 @@ createYoutubeIntegrationPlugin 注册注入的 Provider；channel 中的辅助�
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/index.ts](src/index.ts) | Manifest 与 Integration 工厂 |
+| [src/index.ts](src/index.ts) | 频道工具的包根出口 |
 | [src/channel.ts](src/channel.ts) | 频道来源处理 |
 
 可对照现有调用方 [apps/local-host/src/source-pull-runtime.ts](../../../apps/local-host/src/source-pull-runtime.ts) 阅读装配方式。
 
 ## 接入与边界
 
-当前 Host 实际使用本包的来源/传输辅助函数；上文 Integration 工厂已导出，但尚无生产调用方。不能把工厂存在视为已通过 Plugin Runtime 接入。
+Host 的 source-vocabulary、source-pull-intent 与 source-pull-runtime 使用本包。未接入的 Integration 工厂及其安装 Manifest 已移除；频道来源沿现有 SourcePull 合同工作，不安装第二套 Provider。
 
 这是频道信息接入，不是视频下载、播放或媒体处理服务。网络授权和实际 Provider 生命周期由 Host 管理。
 
-工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
@@ -36,24 +36,24 @@ pnpm --filter @molis-ai/molis-work-integration-youtube typecheck
 pnpm --filter @molis-ai/molis-work-integration-youtube build
 ```
 
-来源同步公共链路回归（不覆盖本包工厂或真实频道端到端接入）：[feed-sources.test.ts](../../../tests/feed-sources.test.ts)。完成上述构建后运行：
+来源同步公共链路与实际频道注册/拉取回归（网络使用注入响应，不证明公网可达）：[feed-runtime-plugin.test.ts](../../../tests/feed-runtime-plugin.test.ts)。完成上述构建后运行：
 
 ```bash
-node scripts/run-tests.mjs tests/feed-sources.test.ts
+node scripts/run-tests.mjs tests/feed-sources.test.ts tests/feed-runtime-plugin.test.ts tests/security-invariants-plugin-source-pull.test.ts tests/npm-package.test.ts
 ```
 
 这些测试使用隔离数据或注入端口；Provider/桌面相关测试的通过不等于真实账户连接、安装或发布验收。
 
 ## 开发要求
 
-- 负责：YouTube 频道来源的地址与频道解析、轮询 Integration 接线。
+- 负责：YouTube 频道来源的地址与频道解析。
 - 不负责：Source/Signal/Feed 事实、通用媒体客户端。
 - 公开入口：`@molis-ai/molis-work-integration-youtube`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同与 plugin SDK；Provider 协议留在本包（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同；频道标识规则留在本包（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 频道更新交给统一信息流，本包不拥有其状态。
-  - 工厂存在不等于已经通过 Plugin Runtime 接入。
-- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts`（暂无专门测试；上面是 SDK 轮询链路的公共回归。）
+  - 网络读取与权限由平台 SourcePull 执行，本包不拥有同步状态或安装生命周期。
+- 改动后必跑：上方来源、Runtime、权限与实际 npm 产物回归。
 - 相关手册：[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

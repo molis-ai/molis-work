@@ -1474,23 +1474,11 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
 
-  plugins/official-integrations/web-query:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      '@molis-ai/molis-work-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sdk
-
   plugins/official-integrations/youtube:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sdk
 
   server:
     dependencies:

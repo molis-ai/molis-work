@@ -372,3 +372,24 @@ Prologue 提供无 UI 的公共合同，不包含 Molis Work 文案、组件、W
 | SAI-11/12/13 | 两入口实际浮窗主路径，主子输入及阅读互不干扰；键盘、IME、中英/深浅/三宽度、减少动态效果及长历史并发流式；工程实操与本人验收分记。 |
 
 验证按最终 diff 运行：整体 pnpm build；affected-tests 全量选择与包 README 必跑；所有本机用例通过机器槽、--jobs 1；SDK/Host 用本机协议服务驱动真实 SDK，不 mock 整个子任务 owner。API/Action 快照、健康/边界、资源预算、隔离 Home 实操、最终头独立评审与 CI Full 分别结算。当前只有源码与包声明核查、工作树创建及离线安装成功，未运行产品回归、模型或用户 Home，以上 SAI 均未因此关闭。
+
+### 12.5 Molis Host 接线合同（2026-11-16）
+
+上游 #128 已合入 `f279024aba6faffb76ce79f2ffa3e808aa6c8db0`，正式包由两份独立干净源码重建且逐字节相同。以下按现行版本一次改完消费者，不设兼容层：
+
+- 在既有 `AgentSubagentsCapability` 增加对话读取、按原请求查询及指定执行操作。查询由已授权的父 `AgentSessionRef` / `AgentRunRef` 和 `subagent_id` 定位；写入另带看到的 `child_run` 与 `request_id`。读回原各次 Run 的稳定消息、输入回执、活动、问题和审批引用，以及当前可写性；消息身份由 Run id 与原 turn id 组成。没有独立 Host 子索引时直接读 SDK 公开 Session/Run，不造 Host 会话。临时失败抛原错误，不显示空历史；失权明确拒绝。
+- 写命令区分 `send`、显式 `continue`、`stop` 和尝试预算扩展。运行中 send 只交可信 SDK 子输入；正常终态的对话提交与失败/停止后的显式 continue 均创建同 child Session 新尝试。沿原 retry/budget 实现复核角色、模型、目录/业务范围、预算和 Host 最终派出授权，去掉随机重试身份；原请求在 SDK `idempotent` 中只执行一次，回执保存稳定引用。原命令查询不调用回调，pending 或不能证明未执行时返回 unknown；不按当前状态推断原请求成功。
+- 公共动作放在原 `agent.subagents.*` 目录，一处注册；可信用户、项目、插件安装来自调用上下文，写前 `beforeEffect` 与现有执行 guard 复核。原问题回答、审批、成果评价/对比/整合继续走各自 owner，普通聊天不代理这些操作。子停止冻结预期 Run，不能因旧页停掉新的尝试。查看、刷新、订阅重连均零启动。
+- 助理 Work 来源仍由原 Work/AssistantRequests/派发服务处理，页面适配器冻结 work、原 session/run 与委派关系，旧关系/收回拒绝。修复请求已进入原执行主人后仍删除 pending claim 的恢复缺口，未知结果保留原 claim 并只查原请求。SDK 来源使用同一公共子任务端口，助理只负责自身 Work 到父 Run 的授权映射；Coding 继续用原插件动作授权。草稿与未决操作沿既有统一输入存储，组件只持阅读状态，不存任务或消息账。
+- 最小业务派发只开放显式声明子角色的 business 父角色；继续禁止目录、文件/命令、MCP 及独立子工作区。沿既有助理角色/提示词与冻结权限装配，子角色工具不得超出父角色，业务动作仍经原授权/确认入口。不给所有 business 角色自动增加派发工具，不实现完整助理团设置或管理页。
+- 两个产品均挂载 58 的 `createSubtaskConversation`；助理 Work 与 SDK 子任务各适配原事实。沿右侧现有任务浮窗打开、返回和兄弟切换，主聊天和主输入不重绑。更新监听先就绪再读，事件只触发局部读取，重连重读；操作冻结原 view，回执到达不切换当前对象。原问题/审批及 Coding 成果操作作为原入口保持可达，不新增页面或控件样式。
+
+独立评审后的具体接缝约定：
+
+- Work 的冻结 Session/Run、执行者和委派关系进入原 owner 准入，在输入 hold、linkSent 或启动前核验；普通发送不自动复活失败、停止或中断的任务。是否保留用户原件按可信输入来源判断，不再因 Work 带 delegated_by/reply_target 就丢弃。未知接收结果保留原请求 claim。
+- 业务子角色在 SDK `admitDispatch` 的 `onAdmitted` 中按冻结角色及真实 child Session 装配 gateway，早于首跑冻结；`onStarted` 仅观察，不能在那里补首跑工具。父权限与子 execution 求交，不继承父 Work 的委派/记忆/交付闭包。业务操作子任务复用原 SessionIndex 和审批桥；重启继续由当前 `AgentStartAuthority` 重建工具及派出 guard，绑定原 child Session，目录/MCP fallback 不代替业务授权。
+- Work 用户补充的父通知沿原父 `AgentInputsPort.send(source: host)`，稳定键关联 child Work 与原 InputRef/请求。当前父 Run 在原边界消费，终态只留原输入队列、不调用 dispatcher；恢复从原输入和请求重建，不添通知账。SDK 通知证据不代替 Work 来源的验证。
+
+验证补充：公共动作越项目/安装/人、旧 child Run 与收回零效果；无 Host 子索引的只读子任务、有索引的写入子任务及无目录业务子任务分别实测；输入与终态、取消、撤权、响应丢失及宿主重启制造真实交错；Work 与 SDK 两类来源都走产品入口。最终合同快照随本批 PR，请 C 轨在最终头合审。
+
+当前证据更新：上文 §12.1 的安装包与 §12.4 的待合入描述是开工时的核查。上游 #128 已经评审合入，正式包采用已完成，Molis 整仓构建通过。上游 CI 因账户额度未启动，基线也同样未启动；不记作 CI 通过。Molis 产品接线、SAI 验证、最终评审及合入仍待完成。

@@ -1,8 +1,18 @@
 # Prologue SDK 构建来源
 
-本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一运行依赖为 `prologue-sdk-0.0.0-rc.1.tgz`（第 32 批于 2026-11-15 换到上游 main 的官方构建 `02a11ac5a566eab4afe15e5562240fdd11f5c9a4`，PR #124 结果回流、#125 评审跟进与 #126 占用放回）；第 31 批收口时换上的官方构建（`3825662d`，main #2087）、#2081 短暂采用的 Memory P1 分支构建（`4a4d1d3c`）、第 28 批换上的官方构建（`c764d970`）、更早的官方构建（`5cbf2601`）与被它换下的 `window31` 自定义包、main 在 #2020 采用的 `memory-p0` 第二版（1,428,464 字节，上游 #113）与更早的 `memory-p0` 第一版、`final103-bridge` 已从本目录删除，记录与重建来源见 `patch-history.json` 与 Git 历史。
+## 当前包：official main f279024a（2026-11-16，第 59 批）
 
-## 当前包：official main 02a11ac5（2026-11-15，第 32 批换）
+当前唯一运行包是 `prologue-sdk-0.0.0-rc.1.tgz`，**1,484,512 字节**，SHA-256 `c7a33b56f36b114a70d2c84ced3fd2d8dbc83ee794041a7de03040f2812279f3`。来自上游 [PR #128](https://github.com/molis-ai/molis-prologue/pull/128) 的 main 合并提交 `f279024aba6faffb76ce79f2ffa3e808aa6c8db0`，与独立评审通过的 `b6f46901` 整棵树相同，没有 vendor 补丁。用户授权窗口及 Molis 的交付边界见[子代理交互 §12](../../specs/subagent-interaction/spec.md#12-第-59-批真实接线开工2026-11-16)。
+
+新增可信子输入、原请求只读查询和精确父子/Run/任务图授权；接续仍由消费方用原幂等账包住，pending 不重做。每次子 Run 结果及用户干预分别回到原父 Session，模型边界消费和 Run 进度同批落盘，父终态不因聊天开跑。此前 main 的 #127 同时包含 surface detach/target cancellation、stdio 逐请求校验和效果对账持久化；这是采用官方 main 带入的现行能力，不另打消费方补丁。
+
+重建：从该提交两次 `git archive` 得到独立干净目录，各自 `pnpm install --frozen-lockfile --offline --ignore-scripts`、`pnpm build`、`pnpm -C packages/sdk pack --pack-destination <外部目录>`；两份包逐字节相同。工具链 Node 24.14.0、pnpm 11.9.0。上游 build/typecheck/API/ratchet/docs/clean-consumer、相关回归及最终 24 项输入/真实 Node HTTP 跨进程/干净包验证通过，具体范围见 PR。上游 CI 因账户付款/额度未启动步骤，main 同样失败，不称 CI 通过。Molis 产品验证由第 59 批另记。
+
+被替换的官方 `02a11ac5` 包通过 `patch-history.json` 的 Git blob 可取回。以下保留当时采用记录，不代表当前包。
+
+本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当时唯一运行依赖为 `prologue-sdk-0.0.0-rc.1.tgz`（第 32 批于 2026-11-15 换到上游 main 的官方构建 `02a11ac5a566eab4afe15e5562240fdd11f5c9a4`，PR #124 结果回流、#125 评审跟进与 #126 占用放回）；第 31 批收口时换上的官方构建（`3825662d`，main #2087）、#2081 短暂采用的 Memory P1 分支构建（`4a4d1d3c`）、第 28 批换上的官方构建（`c764d970`）、更早的官方构建（`5cbf2601`）与被它换下的 `window31` 自定义包、main 在 #2020 采用的 `memory-p0` 第二版（1,428,464 字节，上游 #113）与更早的 `memory-p0` 第一版、`final103-bridge` 已从本目录删除，记录与重建来源见 `patch-history.json` 与 Git 历史。
+
+## 上一份：official main 02a11ac5（2026-11-15，第 32 批换）
 
 当前包为 **1,469,956 字节**，SHA-256 `7f2ba8e9495bfca7412827c330197efc3cf53604232401a04099a67463d33bcb`。来源为上游 `molis-ai/molis-prologue` 的 **main 合并提交 `02a11ac5a566eab4afe15e5562240fdd11f5c9a4`**（PR [#126](https://github.com/molis-ai/molis-prologue/pull/126)，在 `0a0dfdfa507f463efdce14611dcbfbf1506ac5d2`、PR [#125](https://github.com/molis-ai/molis-prologue/pull/125) 与 `e0625b62e349f49b31d70adcd631e885683c9724`、PR [#124](https://github.com/molis-ai/molis-prologue/pull/124) 之上），没有 vendor 补丁、没有脏文件。上一份是第 31 批收口时换上的官方构建 `3825662d`（PR #122 与 #123，main #2087）；这一份比它多三项，都在 main 上：
 

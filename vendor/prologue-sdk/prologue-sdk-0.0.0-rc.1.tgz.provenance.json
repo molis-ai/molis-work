@@ -9,31 +9,32 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "02a11ac5a566eab4afe15e5562240fdd11f5c9a4",
+    "commit": "f279024aba6faffb76ce79f2ffa3e808aa6c8db0",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
-    "note": "Official main merge commit 02a11ac5a566eab4afe15e5562240fdd11f5c9a4 (PR #126: a continuation claim is given back when the session changes while the App is asked), on top of 0a0dfdfa507f463efdce14611dcbfbf1506ac5d2 (PR #125, review follow-ups to result return), e0625b62e349f49b31d70adcd631e885683c9724 (PR #124, result return), 3825662d16e04f8f1163bb840f2ce1eefc3d6d43 (PR #123 memory import retry and per-scope list cache) and 188d9f6ce33b26905494fc57508d10b8015af857 (PR #122, whose packages/sdk tree equals the previous source 4a4d1d3c); adds one round per session (SESSION_RUN_ACTIVE), the continuation start answer later (and busy start failures read as later), node wait conditions that hear the step's questions (asks), any+settled first-settled judging, background subagents waking the step that dispatched them (the first to end or ask, including one that ended untold during the last turn), early needs-reconciliation, and a start claim that is never left held when the session's authority changes while the App is asked; no vendor patch and no dirty files."
+    "note": "Official main PR #128, tree identical to reviewed b6f46901: trusted child input; original idempotent command inspection; exact parent/run/graph authority; per-attempt reports and original Session atomic injection consumption. Includes main PR #127 above the previous vendor source. No vendor patches."
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1.tgz",
-    "bytes": 1469956,
-    "sha256": "7f2ba8e9495bfca7412827c330197efc3cf53604232401a04099a67463d33bcb",
-    "integrity": "sha512-zXzR5MglS0vXl6GMMTs5XE1S3nMmGZh2TqTLLiqqd/F5NB/OR52cCeFYDQnjUbVxFC3cgPPFr5YTzanc6SGKCw=="
+    "bytes": 1484512,
+    "sha256": "c7a33b56f36b114a70d2c84ced3fd2d8dbc83ee794041a7de03040f2812279f3",
+    "integrity": "sha512-gxBZWUkrs9nk8TA4B84nd7EEJHZ6evZGafEm4s1cLDfBus8A0nI5Xl/md91xk2NoBd1N+3qHgM8lNHeiGSwdyQ=="
   },
   "build": {
-    "node": "24.15.0",
+    "node": "24.14.0",
     "pnpm": "11.9.0",
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Check out main merge commit 02a11ac5a566eab4afe15e5562240fdd11f5c9a4 in two independent directories.",
-      "In each: pnpm install --frozen-lockfile --offline --ignore-scripts (existing store); pnpm build; pnpm -C packages/sdk pack --pack-destination <isolated-directory>.",
-      "The two archives are byte-identical; this file is one of them.",
-      "On the PR head 7da8c7dd (same tree as the merge): tsc -p tsconfig.typecheck.json, node scripts/public-api.mjs, node scripts/quality-ratchet.mjs, node scripts/check-doc-links.mjs and node scripts/clean-consumer.mjs pass; every non-live SDK test plus the stable live selection (262 files, 3408 tests) passes. Upstream CI did not run its steps (main fails the same way), so it is not claimed green.",
-      "Molis Work installs this archive through horizontal/agent-host's file: dependency; the lockfile records the same integrity."
+      "Extract git archive f279024aba6faffb76ce79f2ffa3e808aa6c8db0 into two independent clean directories.",
+      "In each: pnpm install --frozen-lockfile --offline --ignore-scripts; pnpm build; pnpm -C packages/sdk pack --pack-destination <external-directory>.",
+      "Both archives are byte-identical.",
+      "Reviewed source: build, full typecheck, public-api, quality-ratchet, check-doc-links, clean-consumer and scoped regression pass; final input/live/installed consumer group 24/24. See upstream PR #128 for exact run scopes.",
+      "Upstream CI did not start any steps due to account payment/spending limit; main has the same infrastructure failure. CI is not claimed green.",
+      "Molis Work installs this official archive through the sole horizontal/agent-host dependency; product adoption validation belongs to Batch 59."
     ],
-    "packedOn": "2026-11-15",
-    "note": "Built for Batch 32 (result return: the user approved the upstream change and said to use main). It replaces the Batch 31 Memory P1 build 4a4d1d3c, recorded in patch-history.json. A build of 0a0dfdfa (1,469,632 bytes, SHA-256 625bcf74…) was used on the batch branch and replaced before the batch landed, after the batch's tests showed a start claim left held when a work was archived while its hand-back started (fixed upstream in #126); it never reached Molis main and is rebuilt from 0a0dfdfa by the same steps. A build of e0625b62 was tried earlier and never committed."
+    "packedOn": "2026-11-16",
+    "note": "User-authorized minimal upstream window for Batch 59. Replaced official 02a11ac5 archive is recorded in patch-history.json."
   }
 }

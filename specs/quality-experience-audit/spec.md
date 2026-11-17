@@ -475,7 +475,7 @@ SDK继续拥有唯一候选、实际期限、版本和决定；Memory拥有最�
 
 ## 第二十五批：工作流交接的页面归属、冻结输入与真实结果（QF-35～38）
 
-状态：正常隔离Home已复现QF-35的B实际写入A正文、迟到成功/409重新打开A，QF-36的原改写被源正文替换，QF-38的拦下后误选下一步；QF-37真实Shelf先写后丢回执，明确重试只完成preview而不再调用目标，确定性请求断言已确认（`/tmp/quality-audit-workflows-retry-baseline.log`）。反例日志`/tmp/quality-audit-workflows-handoff-baseline2.log`；首轮夹具对隐藏目录点击、重载自动恢复假设和动作站plugin字段错误不计产品缺陷。Workflows生产代码尚未修改。范围包含人工预览、普通继续、结果未知后的明确重试、失败重载及判断拦下。业务owner现有pending/attempted/handoff、updated_at条件写入、目录授权、原交接键及取消围栏全部保留；问题集中在页面等待与当前实例、原已提交内容和返回结果脱节。
+状态：正常隔离Home已复现QF-35的B实际写入A正文、迟到成功/409重新打开A，QF-36的原改写被源正文替换，QF-38的拦下后误选下一步；QF-37真实Shelf先写后丢回执，明确重试只完成preview而不再调用目标，确定性请求断言已确认（`/tmp/quality-audit-workflows-retry-baseline.log`）。反例日志`/tmp/quality-audit-workflows-handoff-baseline2.log`；首轮夹具对隐藏目录点击、重载自动恢复假设和动作站plugin字段错误不计产品缺陷。Workflows首轮实现及构建通过；9项定向中8项通过，余1项在原正文正确后暴露测试空值假设（handoff实际null），修正断言单独复验通过。18张三宽两主题图已生成，root实看390深色待交接/未知和1440浅色拦下。现补B仍等待时A收尾的交错并去掉新内容展示的双层边框，最终构建、整组及包回归继续。范围包含人工预览、普通继续、结果未知后的明确重试、失败重载及判断拦下。业务owner现有pending/attempted/handoff、updated_at条件写入、目录授权、原交接键及取消围栏全部保留；问题集中在页面等待与当前实例、原已提交内容和返回结果脱节。
 
 预览、继续、错误恢复、焦点和busy清理均绑定发起时的导航/实例/步骤，迟到结果不能改变后来页面，不能把A正文提交给B。离开页面不宣称已经取消owner写入。已有pending时复用owner保存的原提交与原身份，不能重读源正文替换、清pending解锁或悄悄重新执行；本人明确的动作重试意图完整传到现行retry_action。判断拦下按返回实例的实际当前步骤和停止原因反馈，不提示已执行目标。优先复用现有navId、公共请求与结果部件，无新平台状态机或执行账。
 
@@ -487,3 +487,15 @@ SDK继续拥有唯一候选、实际期限、版本和决定；Memory拥有最�
 受影响文件预计为Workflows浏览器交接/导航/事件及真实验收，必要的公开preview语义须先沿实际调用方核定。插件本地bind承担运行停止控制、持续授权和目录上下文，属于业务协调，不能当作纯转发删除。后台只恢复持久pending并由本人继续，不引入自动重派。原BL-b16-server-text-residue仍归原事项，不重复立项。
 
 第二十五批方案核定：恢复时直接使用instances.get已有pending.output；已经提交的内容只读展示，继续请求不再带可编辑正文，也不重做preview。任意动作的明确retry_action沿同一次点击保留。preview原合同仍是读取当前源输入，无需改公开动作或再添恢复查询。导航沿现有navId，切步骤也形成新导航；忙碌与草稿只属于当前页面，离开后的迟到请求不清除后来请求的busy。继续失败后正常读回原实例以展示真实pending；没有pending时保留未被接受的人工草稿，不自动重发。
+
+第二十五批证据边界：首轮验收`/tmp/quality-audit-workflows-handoff-acceptance.log`8/9，修正null期望的单项`workflows-handoff-ownership-final.log`通过；不是改生产空值语义。只读复核未发现本片新Blocker/P1，提出B在途时A收尾的验证缺口，已补对应交错。相邻AI型pending恢复仍被readyState要求模型当前可用，需要正常配置/撤回后动态核实；不以人工路径通过关闭此变体。
+
+## 第二十六批：已生成交接不重复要求生成条件（QF-36 扩展恢复）
+
+状态：真实SDK→Pages写入→停用模型→重开页面已复现无继续按钮（`/tmp/quality-audit-workflows-pending-model-baseline2.log`）；首轮仅因测试漏填设置合同prompt_cache被拒，不计产品缺陷。最小修复、构建、QEA-64正常恢复和最终24文件本地验收通过；当前头Full CI待完成。`browser/state.ts:readyState`对已有pending仍检查当前AI模型，后台continuation已直接复用原pending.output，不需要再次生成。以真实配置的loopback模型生成、实际Pages接收后丢回执、正常设置停用模型，再打开运行验证；不以手造pending或注入ai_available代替这条链。若复现，页面在现站点可用性核对后按pending跳过已经完成的准备条件，不扩大目标动作权限，不改source/target合同、授权或持久结构。
+
+- **QEA-64** 正常SDK生成并保存pending，目标已实际接收但回执丢失；停用原模型后，原位恢复仍可明确交给同一目标，原正文/交接键保留，目标只一份，模型请求不增加。尚未生成的新实例仍提示需要模型、无目标写入；不改变停用/撤权对真实新调用的拒绝。
+
+本变体归Workflows恢复业务，复用已有owner事实，不建立平台重试器。验证通过前只记候选；第二十五批23文件回归已全部通过（6.2分钟，`/tmp/quality-audit-workflows-handoff-required.log`）且健康门禁通过，之后才实施本变体。交接按钮与步骤线的等待文案按真实交付阶段展示，不再提示重复整理。
+
+第二十五/二十六批最终证据（2026-11-17）：`workflows-final-required.log`23/23文件通过，另`workflows-pending-model-acceptance.log`1文件同构建通过；最终健康门禁通过。B仍在途时A收尾、实际Pages/Shelf写入与明确重试、CAS失败保留未受理草稿、判断拦下以及停用模型恢复均已覆盖。18张三宽两主题截图更新，root实看最新390深色固定提交。此处关闭本批本地验收，不关闭原任务或替代最终CI。

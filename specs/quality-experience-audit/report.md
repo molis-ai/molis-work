@@ -1,6 +1,6 @@
 # Molis Work 审查报告与优化策略
 
-状态：进行中，负责人 Codex。按原始范围继续逐包、逐入口深入六方向检查及分批改造；74包清单与首轮代表路径核对不等于全仓深查完成，局部验收不用于整项结项。现已保留搜索、后台操作、Sessions、Git、共享输入材料、Coding恢复及Memory候选等批次；Memory正式管理/配对查询已完成本地包回归，Workflows进入真实界面反例验证。当前已整合main `4aa5496e3f`，工作树头`b45f75bba1`；本批尚未提交。旧头`77e2cc0d5`的CI只覆盖旧批次。草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) · [需求与验收](spec.md) · [逐包覆盖](coverage.md)。
+状态：进行中，负责人 Codex。按原始范围继续逐包、逐入口深入六方向检查及分批改造；74包清单与首轮代表路径核对不等于全仓深查完成，局部验收不用于整项结项。现已保留搜索、后台操作、Sessions、Git、共享输入材料、Coding恢复及Memory候选等批次；Memory正式管理/配对查询已完成本地包回归，Workflows四项改造及AI交接恢复变体已完成本地验收。当前已整合main `4aa5496e3f`，Memory批已保存于`67b8ed3193`；Workflows批尚未提交。旧头`77e2cc0d5`的CI只覆盖旧批次。草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) · [需求与验收](spec.md) · [逐包覆盖](coverage.md)。
 
 ## 当前判断
 
@@ -524,20 +524,28 @@ QF-34真实反例：`/tmp/quality-audit-memory-management-baseline.log`七项均
 
 QF-34实现与证据：旧POST已迁memory.change并传原项目/版本/取消，GET投影正式version；删除Bridge.changeMemory及重复校验，原启停和失败后开轮用例迁真实注册动作。构建通过，API仅AssistantMemory增加version一项。最终定向9/9通过（`/tmp/quality-audit-memory-management-acceptance2.log`），项目隔离和偏好覆写保留；首次8/9中enable对已启用条目不会增加SDK版本，改用真实已停用v2验证重新启用，未改生产幂等语义。健康门禁通过（`/tmp/quality-audit-memory-management-health2.log`）；Host/Memory/合同必跑与相关消费者103文件全部通过：6文件定向证据加其余97文件（17.1分钟，`/tmp/quality-audit-memory-required.log`），未重复已有效通过的6文件；最终Full CI待完成。
 
-### QF-35 / P1 已复现，待改造：工作流迟到预览可能把A的内容交给B
+### QF-35 / P1 已修复、本地验收通过：工作流迟到预览可能把A的内容交给B
 
 `plugins/native/workflows/src/browser/handoff.ts:99–124`在等待preview/continue后不核导航身份；`click.ts:28–44`可打开另一实例，`nav.ts:88`只在打开成功时清handoff、不清旧busy。A回执把A正文放到共享handoff，后续表单经`root-events.ts:103`使用当前B实例；错误分支还重新打开旧实例。影响可能是目标内容错配，必须验证真实目标与handoff，不只断言标题。最小方向是原导航/实例/步骤约束所有迟到效果，沿已有navId实现，不改变owner写入合同。
 
-### QF-36 / P1 已复现，待改造：人工交接失败重载没有恢复冻结提交
+### QF-36 / P1 已修复、本地验收通过：人工交接失败重载没有恢复冻结提交
 
-`actions.ts:211–217`的preview重新读取源正文，`browser/handoff.ts:107`用input初始化；owner已有pending.output时`continuation.ts:40–42`正确拒绝不同正文。原人工改写后接收失败，重载再预览可能进入内容冲突循环。恢复应来自当前owner的pending原提交，保留固定交接身份和幂等接收，不能删除pending或替换已发内容解锁。
+`actions.ts:211–217`的preview重新读取源正文，`browser/handoff.ts:107`用input初始化；owner已有pending.output时`continuation.ts:40–42`正确拒绝不同正文。原人工改写后接收失败，重载再预览会进入内容冲突循环。preview本身读取当前源的合同正确，错误在于页面把它用于恢复已经接受的固定提交。恢复应来自当前owner的pending原提交，保留固定交接身份和幂等接收，不能删除pending或替换已发内容解锁。
 
-### QF-37 / P1 已复现，待改造：人工确认过程丢掉明确重试意图
+### QF-37 / P1 已修复，定向通过：人工确认过程丢掉明确重试意图
 
 `browser/click.ts:87`传retry:true，`handoff.ts:103–111`却只打开人工预览后返回；`root-events.ts:103`再提交未带该意图，最终`step-runner.ts:134–135`按结果未知拒绝。后端拒绝与显式重试合同应保留，修复页面意图随原实例、步骤、固定提交到达retry_action。验证真实首次已执行后报错及本人再次执行的目标次数。
 
-### QF-38 / P2 已复现，待改造：判断拦下仍提示交接成功
+### QF-38 / P2 已修复，定向通过：判断拦下仍提示交接成功
 
-`browser/handoff.ts:115–119`无条件选下一站并提示交接/动作完成，实际continuation可以返回stopped且目标未执行。现有判断浏览器测试先从后台生成终态再打开，未覆盖这次点击的反馈。按返回实例当前步骤、handoff和停止事实反馈，验证零目标调用和无成功提示。上述四项现已有下段正常入口反例，尚未修复或验收通过。
+`browser/handoff.ts:115–119`无条件选下一站并提示交接/动作完成，实际continuation可以返回stopped且目标未执行。现有判断浏览器测试先从后台生成终态再打开，未覆盖这次点击的反馈。按返回实例当前步骤、handoff和停止事实反馈，验证零目标调用和无成功提示。上述四项已由下段正常入口反例确认，最终处置及验收见本节末。
 
 Workflows动态证据：`/tmp/quality-audit-workflows-handoff-baseline2.log`中，B的实际handoff正文为A正文；迟到成功与真实CAS拒绝均把页面恢复为A；Pages真实接收已落一份文档、回答失败后重载，人工表单重新变为旧源正文；判断真实stopped且Pages零写，页面选中下一站。目录离开控制项通过。明确动作重试首次真实Shelf写入后丢回执，点击重试只完成preview却不出现表单/继续，实际请求完成断言进一步确认：仅preview已返回，目标次数仍为1，未派出带retry_action的continue（`/tmp/quality-audit-workflows-retry-baseline.log`）。第一轮6项夹具失败不作为产品证据。
+
+Workflows首轮处置：`browser/nav.ts:setMode`清理离开页的临时等待/草稿；`handoff.ts:resumeRun`用原navId/实例约束预览、继续、重读、焦点和反馈，busy按原对象身份清理，切步骤使旧请求失效；继续失败读回真实owner，无pending才保留未受理草稿。pending直接展示原output并继续，无需重新改写/确认，明确retry_action到达原动作；成功提示以真实handoff、选中步骤以current为准。首轮8/9与null断言修正单项合计9项通过，18图已收集并实看代表状态；最终B在途交错、包回归、健康/资源及Full CI继续。AI型pending的模型可用性前置是相邻未验证变体，仍在本轮检查范围。
+
+Workflows第二十五批本地验收：最终构建和健康门禁通过，README要求的23文件（含6个浏览器文件）全部通过，6.2分钟（`/tmp/quality-audit-workflows-handoff-required.log`）。补强的B仍等待时A的finally到达不解除B等待；18图已更新，去掉重复外框后的390深色待交接已复看。
+
+QF-36扩展：`browser/state.ts:readyState`仍把原模型可用性当作已有pending的恢复条件。真实SDK已生成、Pages已写、原模型经设置HTTP停用后，继续按钮消失，反例有效失败（`workflows-pending-model-baseline2.log`）。当前站点检查保留，只有已经完成的准备条件按owner.pending跳过；真实交付进度不冒充重新生成。修复已构建，目标去重/原交接键/无新增模型请求及新实例仍需模型的验收在进行。
+
+Workflows最终本地验收（2026-11-17）：最终构建通过；QEA-64真实SDK/配置/Pages恢复1文件通过（`/tmp/quality-audit-workflows-pending-model-acceptance.log`），随后同构建README必跑及交错23文件全部通过（6.2分钟，`/tmp/quality-audit-workflows-final-required.log`），共24文件。最终健康门禁通过（`/tmp/quality-audit-workflows-pending-model-health.log`）。18张三宽两主题图已刷新，root复看最新390深色pending：固定正文及继续按钮完整可见，没有重复准备说明。原目标仅一份、原交接键不变、模型请求不增加，新实例仍需模型。用户少重做一次人工预览/改写，后台继续由原owner决定幂等与未知结果；页面不再跨实例拥有迟到结果。当前头Full CI和整项逐包深查仍未完成。

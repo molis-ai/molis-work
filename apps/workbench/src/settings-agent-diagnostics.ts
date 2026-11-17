@@ -1,13 +1,14 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderObjectRow, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * Settings › 诊断 › “助理与执行服务”: the execution runtime's own account of its assembly, and the Assistant's latest
  * rounds with the exact identities and versions they ran with. For developers; the conversation never shows these.
  */
 export function renderAgentDiagnostics({ }: { readText(text: string): string }): string {
-  return `<details class="settings-section prompt-diagnostics" id="agent-diagnostics" data-agent-diagnostics>
-      <summary><strong>${uiText("workbench.settings-agent-diagnostics.assistant-execution-service")}</strong><span class="settings-muted">${uiText("workbench.settings-agent-diagnostics.what-execution-service-actually-assembled-which-local-capabiliti")}</span></summary>
-      <div data-agent-diagnostics-body><p class="settings-muted mw-loading">${uiText("workbench.settings-agent-diagnostics.loading")}</p></div>
-    </details>`;
+  // One row of the installation card; it opens in place like every other object row.
+  return renderObjectRow({ name: uiText.text("workbench.settings-agent-diagnostics.assistant-execution-service"),
+    hint: uiText.text("workbench.settings-agent-diagnostics.what-execution-service-actually-assembled-which-local-capabiliti"),
+    attrs: { id: "agent-diagnostics", "data-agent-diagnostics": true },
+    body: `<div data-agent-diagnostics-body><p class="settings-muted mw-loading">${uiText("workbench.settings-agent-diagnostics.loading")}</p></div>` });
 }
 
 /** Reads only when opened. No template interpolation inside. */

@@ -18,6 +18,7 @@ export * from "./ui/return-trip.js";
 export * from "./ui/resume-prompt.js";
 export * from "./ui/skill-line.js";
 export * from "./ui/field.js";
+export * from "./ui/settings-rows.js";
 export * from "./ui/calendar.js";
 export * from "./ui/directory.js";
 export * from "./ui/layout.js";

@@ -116,16 +116,9 @@ export const SETTINGS_STYLES = `
   .density-preview--compact > span { gap: 4px; }
   .density-preview--compact > span > i { height: 1px; }
   .preference-note { max-width: 72ch; margin: 16px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
-  .settings-record-list { border-bottom: 1px solid var(--line-strong); }
-  .settings-record { border-bottom: 1px solid var(--line); }
-  .settings-record:last-child { border-bottom: 0; }
-  .settings-record > header { min-height: 92px; padding: 16px 0; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
   .settings-record-title { min-width: 0; display: flex; align-items: flex-start; gap: 12px; }
-  .settings-record-title .record-icon { width: 34px; height: 34px; flex: 0 0 34px; border: 1px solid var(--line); border-radius: 6px; display: grid; place-items: center; color: var(--ink); background: var(--rail); }
-  .settings-record-title h2, .settings-record-title h3 { margin: 0; font-size: 15px; letter-spacing: -.015em; }
+  .settings-record-title h3 { margin: 0; font-size: 13px; font-weight: var(--weight-control, 500); }
   .settings-record-title p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
-  .settings-record-action { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; }
-  .settings-record-action .mw-btn:disabled { cursor: not-allowed; }
   .settings-state { display: inline-flex; align-items: center; white-space: nowrap; font-size: 12px; font-weight: 400; }
   .settings-state--success { color: var(--green); }
   .settings-state--warning { color: var(--amber); }
@@ -194,10 +187,8 @@ export const SETTINGS_STYLES = `
   .settings-connector-extra { display: grid; gap: 12px; padding-top: 8px; border-top: 1px solid var(--line); }
   .settings-connector-extra summary { color: var(--muted); font-size: 12px; cursor: pointer; }
   .settings-connector-whoami { margin: 0; font-size: 13px; }
-  .settings-paths { margin: 0; padding: 0 0 16px 48px; display: grid; gap: 4px; }
-  .settings-paths > div { min-width: 0; display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; }
-  .settings-paths dt, .diagnostics-summary dt, .runtime-plan-meta dt { color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); }
-  .settings-paths dd, .diagnostics-summary dd, .runtime-plan-meta dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--ink-soft); font-size: 12px; }
+  .diagnostics-summary dt, .runtime-plan-meta dt { color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); }
+  .diagnostics-summary dd, .runtime-plan-meta dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--ink-soft); font-size: 12px; }
   .settings-footnote { max-width: 72ch; margin: 24px 0 0; color: var(--muted); font-size: 12px; }
   .settings-footnote code { padding: 1px 4px; border: 1px solid var(--line); border-radius: 3px; color: var(--ink-soft); background: var(--rail); font-family: var(--font-mono); }
   .settings-empty { padding: 32px 0 32px; color: var(--muted); }
@@ -243,7 +234,6 @@ export const SETTINGS_STYLES = `
   .connection-settings-heading h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
   .connection-settings-heading p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
   .connection-record-list { border-bottom: 1px solid var(--line-strong); }
-  .connection-record .settings-record-title p strong { color: var(--ink-soft); }
   .connection-record-tools { margin: -8px 0 16px 48px; display: flex; align-items: flex-start; gap: 12px; }
   .connection-record-tools details { min-width: min(100%, 300px); }
   .connection-record-tools summary { min-height: 32px; padding: 0 8px; display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 400; cursor: pointer; list-style: none; }
@@ -321,9 +311,6 @@ export const SETTINGS_STYLES = `
     .preference-options--theme { grid-template-columns: 1fr; }
     .preference-options--language { grid-template-columns: 1fr; }
     .preference-option { min-height: 72px; }
-    .settings-record > header { align-items: flex-start; }
-    .settings-record-action { align-items: flex-end; flex-direction: column; }
-    .settings-paths { padding-left: 0; }
     .settings-action-section, .settings-import-row { grid-template-columns: 1fr; gap: 16px; }
     .inline-settings-form { grid-template-columns: 1fr; }
     .inline-settings-form .inline-confirm, .inline-settings-form .settings-form-error { grid-column: 1; }
@@ -626,23 +613,23 @@ export const SETTINGS_IA_NAV_STYLES = `
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 0;
     overflow: auto;
     overscroll-behavior: contain;
     grid-row: auto;
   }
   body.settings-page .settings-navigation--codex .settings-nav-group-label {
-    padding: 16px 8px 8px;
-    color: var(--faint);
-    font-size: 12px;
+    padding: 16px 8px 4px;
+    color: var(--muted);
+    font-size: 11px;
     font-weight: var(--weight-control, 500);
     letter-spacing: 0;
   }
   body.settings-page .settings-navigation--codex .settings-nav-body > a {
-    min-height: 36px;
-    padding: 0 12px;
-    border-radius: 8px;
-    color: var(--ink);
+    min-height: 32px;
+    padding: 0 8px;
+    border-radius: 10px;
+    color: var(--ink-soft);
     display: flex;
     align-items: center;
     grid-template-columns: none;
@@ -652,15 +639,12 @@ export const SETTINGS_IA_NAV_STYLES = `
   body.settings-page .settings-navigation--codex .settings-nav-body > a:hover { background: var(--nav-hover, color-mix(in srgb, var(--ink) 6%, transparent)); box-shadow: none; }
   body.settings-page .settings-navigation--codex .settings-nav-body > a[aria-current="page"] {
     color: var(--ink);
-    background: var(--nav-active);
+    background: var(--accent-soft);
     box-shadow: none;
-    font-weight: 400;
+    font-weight: var(--weight-control, 500);
   }
-  html[data-resolved-theme="dark"] body.settings-page .settings-navigation--codex .settings-nav-body > a[aria-current="page"] { background: var(--nav-active); }
   @container settings-content (max-width: 620px) {
     .preference-section, .settings-action-section, .settings-import-row { grid-template-columns: minmax(0, 1fr); gap: 16px; padding-block: 24px; }
-    .settings-record > header { align-items: flex-start; flex-wrap: wrap; gap: 16px; }
-    .settings-record-action { flex-wrap: wrap; }
     .settings-document { padding-top: 24px; }
     .inline-settings-form { grid-template-columns: minmax(0, 1fr); }
     .inline-settings-form > button { justify-self: start; }

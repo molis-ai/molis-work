@@ -92,9 +92,9 @@ function renderPolicyEditor(
         <aside class="project-rules-receipt" data-project-rules-receipt role="status" tabindex="-1" hidden><strong data-project-rules-receipt-title></strong><span data-project-rules-receipt-detail></span></aside>
         <p class="settings-state-note">${projectBinding ? uiText("goals.policy-ui.saved") + escapeHtml(formatDate(projectBinding.created_at)) : uiText("goals.policy-ui.using-system-defaults")}</p>
         <input type="hidden" name="scope" value="project_default">
-        <section class="settings-section"><h2>${uiText("goals.policy-ui.completion-requirement")}</h2>
+        <section class="settings-section mw-settings-section"><header class="mw-settings-section__head"><h2>${uiText("goals.policy-ui.completion-requirement")}</h2></header><div class="mw-settings-section__rows">
           ${toggle("human_approval", projectPolicy.human_approval, "goals.policy-ui.final-confirmation", "goals.policy-ui.must-confirm-work-result-before-goal-can-be")}
-        </section>
+        </div></section>
         <p class="form-error" data-policy-error role="alert" hidden></p><footer class="settings-save-footer form-actions mw-form__footer"><button class="mw-btn mw-btn--secondary" type="reset" data-policy-cancel>${uiText("goals.policy-ui.cancel")}</button><button class="mw-btn mw-btn--primary" type="submit">${uiText("goals.policy-ui.save-project-rules")}</button></footer>
       </form></div>
     </section>`;

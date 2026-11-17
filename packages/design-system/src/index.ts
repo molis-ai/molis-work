@@ -39,6 +39,7 @@ export { MEDIA_ZOOM_STYLES, mediaAxis } from "./media-zoom.js";
 export { FOLLOW_COOLDOWN_MS, FOLLOW_INPUT_WINDOW_MS, FOLLOW_NEAR_PX, FOLLOW_STYLES, followDistance } from "./scroll-follow.js";
 export { COPY_DONE_HOLD_MS, COPY_FAILED_HOLD_MS } from "./copy-decay.js";
 export { DISCLOSURE_STYLES } from "./styles/disclosure.js";
+export { SETTINGS_ROW_STYLES } from "./styles/settings-rows.js";
 export { NUMBER_STYLES } from "./styles/numbers.js";
 export { COPY_FEEDBACK_STYLES } from "./styles/copy-feedback.js";
 export { SR_ONLY_STYLES } from "./styles/sr-only.js";

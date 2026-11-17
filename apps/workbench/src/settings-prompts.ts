@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderObjectRow, renderSettingsSection, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AgentDisplayModel } from "./settings-view.js";
 import { scriptJson } from "./plugin-directory.js";
 /**
@@ -20,10 +20,9 @@ export function renderPromptSettings({ displayModel }: { readText(text: string):
       <input class="mw-input prompt-settings-search" type="search" data-prompt-search placeholder="${uiText("workbench.settings-prompts.search-name-purpose-text")}" aria-label="${uiText("workbench.settings-prompts.search-prompts")}">
     </div>
     <div class="prompt-settings-body" data-prompt-body aria-live="polite"><p class="settings-muted mw-loading">${uiText("workbench.settings-prompts.loading")}</p></div>
-    <details class="settings-section prompt-diagnostics" id="diagnostics" data-prompt-diagnostics>
-      <summary><strong>${uiText("workbench.settings-prompts.developer-diagnostics")}</strong><span class="settings-muted">${uiText("workbench.settings-prompts.what-each-source-registered-what-not-effect-why")}</span></summary>
-      <div data-prompt-diagnostics-body><p class="settings-muted mw-loading">${uiText("workbench.settings-prompts.loading")}</p></div>
-    </details>
+    ${renderSettingsSection({ body: renderObjectRow({ name: uiText.text("workbench.settings-prompts.developer-diagnostics"), hint: uiText.text("workbench.settings-prompts.what-each-source-registered-what-not-effect-why"),
+      attrs: { id: "diagnostics", "data-prompt-diagnostics": true },
+      body: `<div data-prompt-diagnostics-body><p class="settings-muted mw-loading">${uiText("workbench.settings-prompts.loading")}</p></div>` }) })}
   </section>`;
 }
 

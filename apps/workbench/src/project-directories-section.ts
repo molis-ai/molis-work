@@ -66,19 +66,19 @@ export function renderProjectDirectoriesSection(readText: Say, prefix: string): 
   }));
   return `<section class="project-settings-page project-directories" data-project-directories data-directories-prefix="${escapeHtml(prefix)}" data-say="${say}" data-consequence="${consequence}">
       <header class="settings-page-heading"><h1>${uiText("workbench.project-directories-section.inputs-output")}</h1><p>${uiText("workbench.project-directories-section.tasks-plugins-read-inputs-write-only-output-changes")}</p></header>
-      <section class="settings-section" aria-labelledby="project-directories-inputs">
-        <div class="settings-setting-row"><span class="setting-copy"><strong id="project-directories-inputs">${uiText("workbench.project-directories-section.folders-read")}</strong><span>${uiText("workbench.project-directories-section.read-only-add-many-like-removing-one-deletes")}</span></span></div>
+      <section class="settings-section mw-settings-section" aria-labelledby="project-directories-inputs">
+        <header class="mw-settings-section__head"><h2 id="project-directories-inputs">${uiText("workbench.project-directories-section.folders-read")}</h2></header><div class="mw-settings-section__rows">
         <div data-directories-inputs></div>
         <form class="settings-setting-row project-directories-add" data-directories-add><label class="setting-copy" for="project-directories-path"><strong>${uiText("workbench.project-directories-section.add-folder")}</strong><span>${uiText("workbench.project-directories-section.pick-folder-computer-enter-its-full-path")}</span></label>
           <div class="setting-value"><input id="project-directories-path" name="path" required autocomplete="off" spellcheck="false" placeholder="/path/to/folder">${button(uiText.text("workbench.project-directories-section.choose"), "pick")}${renderButton({ label: uiText.text("workbench.project-directories-section.add"), variant: "primary", size: "sm", type: "submit" })}</div></form>
-      </section>
-      <section class="settings-section" aria-labelledby="project-directories-output">
-        <div class="settings-setting-row"><span class="setting-copy"><strong id="project-directories-output">${uiText("workbench.project-directories-section.where-output-goes")}</strong><span>${uiText("workbench.project-directories-section.just-one-shared-every-task-plugin")}</span></span></div>
+      </div></section>
+      <section class="settings-section mw-settings-section" aria-labelledby="project-directories-output">
+        <header class="mw-settings-section__head"><h2 id="project-directories-output">${uiText("workbench.project-directories-section.where-output-goes")}</h2></header><div class="mw-settings-section__rows">
         <div data-directories-output></div>
         <div class="settings-setting-row" data-directories-instructions><label class="setting-copy" for="project-directories-instructions"><strong>${uiText("workbench.project-directories-section.instructions")}</strong><span>${uiText("workbench.project-directories-section.instructions-help")}</span>
           <span class="project-directory__note" data-instructions-note hidden>${icon("circle-alert")}<span data-text="note"></span></span></label>
           <div class="setting-value">${renderSwitch({ attrs: { id: "project-directories-instructions", "data-directories-read-instructions": "" } })}</div></div>
-      </section>
+      </div></section>
       <p class="project-directories__status" data-directories-status role="status" aria-live="polite"></p>
       ${row}${link}${chooser}${folderItem}
       ${renderWriteCheckersSection(readText)}

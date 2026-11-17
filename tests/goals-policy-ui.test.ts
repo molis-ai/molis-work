@@ -68,7 +68,7 @@ test("project policy document selects the last active project binding and uses d
   assert.match(html, /id="project-rules-title">项目工作规则/);
   assert.match(html, /data-project-rules-receipt role="status" tabindex="-1" hidden/);
   assert.match(html, /class="mw-hint"/);
-  assert.match(html, /<section class="settings-section"><h2>完成要求<\/h2>/);
+  assert.match(html, /<section class="settings-section mw-settings-section"><header class="mw-settings-section__head"><h2>完成要求<\/h2><\/header><div class="mw-settings-section__rows">/);
   assert.doesNotMatch(html, /data-rules-advanced|<details/);
   assert.match(html, /settings-save-footer/);
   assert.doesNotMatch(html, /name="reason"|修改原因/);

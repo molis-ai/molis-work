@@ -14,7 +14,7 @@ export const MCP_ACCESS_CLIENT_SCRIPT = `
   const syncScope = () => {
     const selectedClient = client.value === 'custom' ? custom.querySelector('input').value.trim() : client.value;
     scopeDirty = selectedClient !== root.dataset.clientId || project.value !== root.dataset.projectId;
-    pendingScope.hidden = !scopeDirty;
+    if (pendingScope) pendingScope.hidden = !scopeDirty;
     if (result) result.hidden = scopeDirty;
   };
   const syncCustom = () => { custom.hidden = client.value !== 'custom'; custom.querySelector('input').required = !custom.hidden; };

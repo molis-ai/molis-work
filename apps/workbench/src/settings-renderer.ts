@@ -112,7 +112,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
       ? renderAppearanceSettingsDocument({ readText, currentLocale, localeSwitchHref }, settingsPath,
         appearance && primitives.appearance ? { current: appearance, choices: primitives.appearance.choices() } : undefined)
       : view.section === "runtimes"
-        ? renderRuntimeSettings(view, primitives)
+        ? renderRuntimeSettings(view, primitives, desktopShell)
         : view.section === "assistant"
           ? renderAssistantSettings({ readText, projectId: contextProject?.project_id ?? null })
         : view.section === "kit" ? renderKitSettings({ projectId: null })

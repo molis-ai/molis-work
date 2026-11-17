@@ -109,7 +109,7 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
     handlers: [{ capability_id: id, version: 1, handle: () => 1, availability: () => online ? { available: true } : { available: false, code: "fixture.offline", reason: "服务未连接" } }] });
   let stop = install(["fixture:write"]); t.after(() => stop());
   await search(id); assert.equal(await status(id), "ungranted");
-  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(row(id))}).querySelector('h3 script')`), null);
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(row(id))}).querySelector('script')`), null);
   online = false; await grant(id, true);
   assert.match(await evaluate<string>("document.querySelector('[data-mcp-access-feedback]').textContent"), /服务未连接/);
   assert.equal(await status(id), "ungranted");

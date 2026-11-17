@@ -1,5 +1,4 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderHint } from "@molis-ai/molis-work-design-system";
 import { renderAgentDiagnostics } from "./settings-agent-diagnostics.js";
 import { renderCallRow, type CallRowView } from "./call-row.js";
 import { settingRow } from "./settings-row.js";
@@ -27,7 +26,7 @@ function renderCallLookup(view: MolisWorkSettingsView, p: DiagnosticsPrimitives,
   let result: string;
   if (query.text === "") {
     const recent = view.recent_calls ?? [];
-    result = `<h3>${uiText("workbench.settings-call-diagnostics.recent-calls-that-failed-did-not-run")}</h3>${recent.length ? rows(recent)
+    result = `<h3 class="mw-settings-subhead">${uiText("workbench.settings-call-diagnostics.recent-calls-that-failed-did-not-run")}</h3>${recent.length ? rows(recent)
       : note(uiText.text("workbench.settings-call-diagnostics.no-recent-calls-failed-did-not-run"), uiText.text("workbench.settings-call-diagnostics.calls-that-failed-calls-that-were-turned-away"))}`;
   } else if (query.matches === undefined) {
     result = note(uiText.text("workbench.settings-call-diagnostics.diagnostic-id-needs-least-count-count", { count: query.min_length }), uiText.text("workbench.settings-call-diagnostics.enter-few-more-so-operation-can-be-found"));
@@ -36,14 +35,13 @@ function renderCallLookup(view: MolisWorkSettingsView, p: DiagnosticsPrimitives,
   } else {
     result = rows(query.matches, `<p role="status">${uiText("workbench.settings-call-diagnostics.count-count-found", { count: query.matches.length })}</p>`);
   }
-  return `<section class="settings-section" aria-labelledby="call-lookup-title" data-call-lookup-section>
-      <h2 id="call-lookup-title">${uiText("workbench.settings-call-diagnostics.find-diagnostic-id")}</h2>
-      <p>${uiText("workbench.settings-call-diagnostics.copy-diagnostic-id-error-s-details-paste-here", { count: query.min_length })}</p>
-      <form class="capability-filters" data-call-lookup action="/settings/diagnostics" method="get">${context ? `<input type="hidden" name="project" value="${e(context.project_id)}">` : ""}${desktopShell ? '<input type="hidden" name="desktop" value="1">' : ""}
-        <label class="capability-search">${uiText("workbench.settings-call-diagnostics.diagnostic-id")}<input type="search" name="call" value="${e(query.text)}" maxlength="64" autocomplete="off" spellcheck="false" placeholder="${uiText("workbench.settings-call-diagnostics.e-g-a1b2c3d4")}"></label>
-        <button class="mw-btn mw-btn--secondary" type="submit">${uiText("workbench.settings-call-diagnostics.find")}</button>
-      </form>
-      ${result}
+  return `<section class="settings-section mw-settings-section" aria-labelledby="call-lookup-title" data-call-lookup-section>
+      <header class="mw-settings-section__head"><h2 id="call-lookup-title">${uiText("workbench.settings-call-diagnostics.find-diagnostic-id")}</h2></header>
+      <form class="mw-list-toolbar" data-call-lookup action="/settings/diagnostics" method="get"><div class="mw-list-toolbar__main">${context ? `<input type="hidden" name="project" value="${e(context.project_id)}">` : ""}${desktopShell ? '<input type="hidden" name="desktop" value="1">' : ""}
+        <span class="mw-list-toolbar__search"><input class="mw-input" type="search" name="call" value="${e(query.text)}" maxlength="64" autocomplete="off" spellcheck="false" aria-label="${uiText("workbench.settings-call-diagnostics.diagnostic-id")}" placeholder="${uiText("workbench.settings-call-diagnostics.e-g-a1b2c3d4")}"></span>
+        <span class="mw-list-toolbar__end"><button class="mw-btn mw-btn--secondary" type="submit">${uiText("workbench.settings-call-diagnostics.find")}</button></span>
+      </div></form>
+      <div class="mw-settings-section__rows">${result}</div>
     </section>`;
 }
 
@@ -59,7 +57,7 @@ function renderPeriodicTasks(tasks: readonly WebPeriodicTask[] | undefined, p: D
     const description = [every(task.interval_ms), last].join(" · ") + (task.last_error ? `<br>${escapeHtml(task.last_error)}` : "");
     return settingRow(escapeHtml(task.title), description, `<span class="settings-state settings-state--${state.tone}">${state.label}</span>`);
   }).join("");
-  return `<section class="settings-section" aria-labelledby="periodic-tasks-title" data-periodic-tasks><h2 id="periodic-tasks-title">${uiText("workbench.settings-call-diagnostics.background-job")}</h2><p>${uiText("workbench.settings-call-diagnostics.what-service-does-timer-when-last-run-still")}</p>${rows}</section>`;
+  return `<section class="settings-section mw-settings-section" aria-labelledby="periodic-tasks-title" data-periodic-tasks><header class="mw-settings-section__head"><h2 id="periodic-tasks-title">${uiText("workbench.settings-call-diagnostics.background-job")}</h2></header><div class="mw-settings-section__rows">${rows}</div></section>`;
 }
 
 /** The diagnostics page: how to find a call by its 诊断编号, then the installation, the registries, the launchers and the resident service. */
@@ -89,22 +87,20 @@ export function renderDiagnosticsSettings(view: MolisWorkSettingsView, p: Diagno
   const serviceButtons = serviceActions.map(([action, label]) => `<button class="mw-btn mw-btn--secondary" type="button" data-web-service-action="${action}">${label}</button>`).join("");
   const serviceMessage = service.message ? escapeHtml(service.message) : "";
   return `<section class="settings-document" aria-labelledby="settings-title">
-    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.settings-call-diagnostics.diagnostics")}</h1>${renderHint({ id: "settings-hint-diagnostics", label: uiText.text("workbench.settings-call-diagnostics.how-applies"), html: `${escapeHtml(uiText.text("workbench.settings-call-diagnostics.if-install-incomplete-run-again-terminal"))}<code>molis-work install</code>${escapeHtml(uiText.text("workbench.settings-call-diagnostics.persistent-service-actions-show-preview-ask-confirmation-they"))}` })}</div><p>${uiText("workbench.settings-call-diagnostics.only-reads-molis-work-s-own-installation-state")}</p></header>
+    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.settings-call-diagnostics.diagnostics")}</h1></div><p>${uiText("workbench.settings-call-diagnostics.only-reads-molis-work-s-own-installation-state")}</p></header>
     ${renderCallLookup(view, p, desktopShell)}
-    <section class="settings-section" aria-label="${uiText("workbench.settings-call-diagnostics.molis-work-install")}">
+    <section class="settings-section mw-settings-section" aria-labelledby="install-title"><header class="mw-settings-section__head"><h2 id="install-title">${uiText("workbench.settings-call-diagnostics.molis-work-install")}</h2></header><div class="mw-settings-section__rows">
       ${settingRow(uiText.text("workbench.settings-call-diagnostics.install-state"), uiText.text("workbench.settings-call-diagnostics.only-checks-local-install-manifest-does-not-scan"), `<span class="settings-state settings-state--${installation.tone}">${installation.label}</span>`)}
       ${settingRow(uiText.text("workbench.settings-call-diagnostics.version"), uiText.text("workbench.settings-call-diagnostics.installed-product-version"), `<span class="setting-number">${escapeHtml(diagnostics.version ?? uiText.text("workbench.settings-call-diagnostics.unrecognized"))}</span>`)}
       ${settingRow(uiText.text("workbench.settings-call-diagnostics.projects"), uiText.text("workbench.settings-call-diagnostics.how-many-projects-exist-device"), `<span class="setting-number">${diagnostics.project_count}</span>`)}
       <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${uiText("workbench.settings-call-diagnostics.local-paths")}</strong><span>${uiText("workbench.settings-call-diagnostics.view-install-release-directories")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>Home</dt><dd>${escapeHtml(diagnostics.home_directory)}</dd></div><div><dt>Release</dt><dd>${escapeHtml(diagnostics.release_directory ?? uiText.text("workbench.settings-call-diagnostics.not-found"))}</dd></div></dl></details>
-    </section>
-    <section class="settings-section" aria-label="${uiText("workbench.settings-call-diagnostics.prompt-character-registry")}">
       ${settingRow(uiText.text("workbench.settings-call-diagnostics.prompt-character-registry"), uiText.text("workbench.settings-call-diagnostics.see-what-each-source-registered-what-not-effect"), `<a class="mw-btn mw-btn--secondary mw-btn--sm" href="/settings/prompts#diagnostics">${uiText("workbench.settings-call-diagnostics.developer-diagnostics")}</a>`)}
-    </section>
-    ${renderAgentDiagnostics({ readText })}
+      ${renderAgentDiagnostics({ readText })}
+    </div></section>
     ${renderPeriodicTasks(view.periodic_tasks, p)}
-    <section class="settings-section" aria-labelledby="launcher-title"><h2 id="launcher-title">${uiText("workbench.settings-call-diagnostics.launchers")}</h2>${launchers}</section>
-    <section class="settings-section settings-project-maintenance" aria-labelledby="web-service-title">
-      <h2 id="web-service-title">${uiText("workbench.settings-call-diagnostics.persistent-web-service")}</h2>
+    <section class="settings-section mw-settings-section" aria-labelledby="launcher-title"><header class="mw-settings-section__head"><h2 id="launcher-title">${uiText("workbench.settings-call-diagnostics.launchers")}</h2></header><div class="mw-settings-section__rows">${launchers}</div></section>
+    <section class="settings-section mw-settings-section settings-project-maintenance" aria-labelledby="web-service-title">
+      <header class="mw-settings-section__head"><h2 id="web-service-title">${uiText("workbench.settings-call-diagnostics.persistent-web-service")}</h2></header><div class="mw-settings-section__rows">
       <section class="project-manager-danger" aria-labelledby="web-service-state">
         <h3 id="web-service-state"><span class="settings-state settings-state--${serviceTone}">${serviceLabel}</span></h3>
         ${serviceMessage ? `<p>${serviceMessage}</p>` : ""}
@@ -112,6 +108,6 @@ export function renderDiagnosticsSettings(view: MolisWorkSettingsView, p: Diagno
         <p class="settings-form-error" data-web-service-error role="alert" hidden></p>
       </section>
       <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${uiText("workbench.settings-call-diagnostics.service-configuration-logs")}</strong><span>${uiText("workbench.settings-call-diagnostics.view-provider-command-config-log-paths")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>${uiText("workbench.settings-call-diagnostics.mode")}</dt><dd>${service.provider === "macos-launchagent" ? uiText("workbench.settings-call-diagnostics.mac-os-user-launch-agent") : uiText("workbench.settings-call-diagnostics.not-provided-yet")}</dd></div><div><dt>${uiText("workbench.settings-call-diagnostics.command")}</dt><dd>${escapeHtml(service.command.join(" "))}</dd></div><div><dt>${uiText("workbench.settings-call-diagnostics.config")}</dt><dd>${escapeHtml(service.plist_path)}</dd></div><div><dt>${uiText("workbench.settings-call-diagnostics.logs")}</dt><dd>${escapeHtml(service.stdout_log)}<br>${escapeHtml(service.stderr_log)}</dd></div></dl></details>
-    </section>
+    </div></section>
   </section>`;
 }

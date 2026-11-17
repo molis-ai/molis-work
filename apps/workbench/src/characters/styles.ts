@@ -23,8 +23,8 @@ export const CHARACTERS_STYLES = `
   .characters-terminal-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12px; }
   [data-character-native-runs] { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
   @media(max-width: 640px) { .characters-run-modes { grid-template-columns: 1fr; } .characters-terminal { height: 350px; } }
-  /* Settings › 角色: one centred settings column; the list and a Character's editor take turns in it. */
-  .settings-content > .characters-page { display: block; width: 100%; max-width: 760px; margin-inline: auto; }
+  /* Settings › 角色: one settings column on the shared left edge (POLISH-29); the list and a Character's editor take turns in it. */
+  .settings-content > .characters-page { display: block; width: 100%; max-width: 760px; margin-inline: 0; }
   .characters-page[data-expanded="true"] > [data-character-list-view] { display: none; }
   .characters-page .characters-heading p { max-width: 58ch; }
   .characters-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; list-style: none; margin: 0 0 20px; padding: 0; }
@@ -40,6 +40,9 @@ export const CHARACTERS_STYLES = `
   .characters-block-head .characters-hint { margin: 0; max-width: 56ch; }
   .characters-block-actions { flex: none; display: flex; flex-wrap: wrap; gap: 8px; }
   .characters-rows { display: flex; flex-direction: column; gap: 2px; }
+  .characters-card { padding: 6px; }
+  .characters-card > :last-child { margin-bottom: 0; }
+  .characters-card > .characters-hint { margin: 0; padding: 10px; }
   .characters-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 14px; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 8px 10px; margin: 0; border: 0; border-radius: 10px; background: transparent; color: var(--ink); font: inherit; text-align: left; text-decoration: none; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
   .characters-row:hover, .characters-row:focus-visible { background: var(--nav-hover); }
   .characters-row:focus-visible { outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: -2px; }

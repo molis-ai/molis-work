@@ -30,7 +30,7 @@ interface ProjectSettingsFoldsPrimitives {
 function renderMissingPlugins(project: ProjectSettingsFoldProject, { escapeHtml }: Pick<ProjectSettingsFoldsPrimitives, "readText" | "escapeHtml">): string {
   const missing = (project.plugin_requirements ?? []).filter(plugin => !plugin.installed);
   if (!missing.length) return "";
-  return `<section class="settings-section" data-project-missing-plugins><h2>${uiText("workbench.project-settings-folds.missing-plugins")}</h2>${missing.map(plugin => `<div class="settings-setting-row"><span class="setting-copy"><strong>${(plugin.plugin_id.match(/.{1,24}/gu) ?? []).map(escapeHtml).join("<wbr>")}</strong><span>${uiText("workbench.project-settings-folds.install-plugin-device-synced-content-kept")}</span></span><div class="setting-value">${renderStatusMark({ label: uiText.text("workbench.project-settings-folds.not-installed"), plain: true })}</div></div>`).join("")}</section>`;
+  return `<section class="settings-section mw-settings-section" data-project-missing-plugins><header class="mw-settings-section__head"><h2>${uiText("workbench.project-settings-folds.missing-plugins")}</h2></header><div class="mw-settings-section__rows">${missing.map(plugin => `<div class="settings-setting-row"><span class="setting-copy"><strong>${(plugin.plugin_id.match(/.{1,24}/gu) ?? []).map(escapeHtml).join("<wbr>")}</strong><span>${uiText("workbench.project-settings-folds.install-plugin-device-synced-content-kept")}</span></span><div class="setting-value">${renderStatusMark({ label: uiText.text("workbench.project-settings-folds.not-installed"), plain: true })}</div></div>`).join("")}</div></section>`;
 }
 
 /**
@@ -124,7 +124,7 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
         <div class="settings-setting-row"><label class="setting-copy" for="project-runtime"><strong>${uiText("workbench.project-settings-folds.agent-runtime")}</strong><span>${uiText("workbench.project-settings-folds.which-runtime-project-s-new-sessions-run-default")}</span></label>
           <div class="setting-value"><select id="project-runtime"></select></div><p class="settings-form-error" role="alert" hidden></p></div>
       </section>
-      <section class="settings-section settings-project-maintenance"><h2>${uiText("workbench.project-settings-folds.project-management")}</h2>${renderDanger(project)}</section>
+      <section class="settings-section mw-settings-section settings-project-maintenance"><header class="mw-settings-section__head"><h2>${uiText("workbench.project-settings-folds.project-management")}</h2></header><div class="mw-settings-section__rows">${renderDanger(project)}</div></section>
       ${renderProjectDeleteDialog(project, desktopShell, primitives)}
     </section>`;
   }

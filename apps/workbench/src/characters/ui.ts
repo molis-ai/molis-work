@@ -26,7 +26,7 @@ export function renderCharactersSettingsEntry(model: CharactersSettingsUiModel):
       <style>${CHARACTERS_SETTINGS_ENTRY_STYLES}</style>
       <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.characters.title")}</h1></div>
         <p>${uiText("workbench.characters.entry-about")}</p></header>
-      <section class="settings-section"><h2>${uiText("workbench.characters.open-project")}</h2>${rows || `<p class="characters-hint">${uiText("workbench.characters.need-project")}</p>`}</section>
+      <section class="settings-section mw-settings-section"><header class="mw-settings-section__head"><h2>${uiText("workbench.characters.open-project")}</h2></header><div class="mw-settings-section__rows characters-card">${rows || `<p class="characters-hint">${uiText("workbench.characters.need-project")}</p>`}</div></section>
     </section>`;
 }
 
@@ -47,17 +47,16 @@ export function renderCharacters(model: CharactersUiModel): string {
       <header class="settings-heading characters-heading"><div class="settings-heading-title"><h1>${uiText("workbench.characters.title")}</h1></div>
         <p>${uiText("workbench.characters.about")}</p></header>
       <ol class="characters-steps" aria-label="${uiText("workbench.characters.how")}">${steps}</ol>
-      <section class="settings-section characters-block" aria-labelledby="characters-mine-title">
-        <header class="characters-block-head"><div><h2 id="characters-mine-title">${uiText("workbench.characters.my")}</h2><p class="characters-hint">${uiText("workbench.characters.mine-hint")}</p></div>
+      <section class="settings-section mw-settings-section" aria-labelledby="characters-mine-title">
+        <header class="mw-settings-section__head"><h2 id="characters-mine-title">${uiText("workbench.characters.my")}</h2>
           <div class="characters-block-actions"><button class="mw-btn mw-btn--secondary" type="button" data-character-import-open disabled>${icon("upload")}<span>${uiText("workbench.characters.import-local")}</span></button><button class="mw-btn mw-btn--primary" type="button" data-character-new disabled>${icon("plus")}<span>${uiText("workbench.characters.new")}</span></button></div></header>
-        <div class="characters-rows" data-character-list role="list"></div>
-        <div class="characters-empty" data-character-empty hidden><strong>${uiText("workbench.characters.empty")}</strong><p>${uiText("workbench.characters.empty-hint")}</p></div>
+        <div class="mw-settings-section__rows characters-card"><div class="characters-rows" data-character-list role="list"></div>
+        <div class="characters-empty" data-character-empty hidden><strong>${uiText("workbench.characters.empty")}</strong><p>${uiText("workbench.characters.empty-hint")}</p></div></div>
       </section>
-      <section class="settings-section characters-block characters-builtin" aria-labelledby="characters-builtin-title" data-character-builtin data-character-builtin-api="/api/agent-definitions/roles" data-character-builtin-settings="/settings/prompts">
+      <section class="settings-section mw-settings-section characters-builtin" aria-labelledby="characters-builtin-title" data-character-builtin data-character-builtin-api="/api/agent-definitions/roles" data-character-builtin-settings="/settings/prompts">
         <script type="application/json" data-agent-display-model="roles">${scriptJson(model.agent_display_model ?? {})}</script>
-        <header class="characters-block-head"><div><h2 id="characters-builtin-title">${uiText("workbench.characters.builtin")}</h2>
-          <p class="characters-hint">${uiText("workbench.characters.builtin-hint")}</p></div></header>
-        <div class="characters-rows" data-character-builtin-list role="list"><p class="characters-hint mw-loading">${uiText("workbench.characters.loading")}</p></div>
+        <header class="mw-settings-section__head"><h2 id="characters-builtin-title">${uiText("workbench.characters.builtin")}</h2></header>
+        <div class="mw-settings-section__rows characters-card"><div class="characters-rows" data-character-builtin-list role="list"><p class="characters-hint mw-loading">${uiText("workbench.characters.loading")}</p></div></div>
       </section>
     </div>
     <div class="characters-editor-view" data-character-workspace hidden>

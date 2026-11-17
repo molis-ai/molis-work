@@ -30,7 +30,8 @@ export const PROJECT_DIRECTORIES_STYLES = `
   .project-directory-link__acts { display: inline-flex; gap: 4px; }
   .project-directories-add input { width: 240px; min-width: 0; }
   .project-directories .setting-value .mw-btn { white-space: nowrap; }
-  .project-directories__status { min-height: 20px; margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+  /* POLISH-29: the status line sits inside the 32px gap between two sections, so an empty one adds no height. */
+  .project-directories__status { min-height: 20px; margin: -26px 0 6px; color: var(--muted); font-size: 13px; }
   .project-directories__status[data-tone=error] { color: var(--red); }
   .project-directory-chooser { position: fixed; inset: auto; margin: 0; width: min(340px, calc(100vw - 16px)); padding: 0; overflow: auto; overscroll-behavior: contain; }
   .project-directory-chooser:popover-open { display: grid; animation: craft-drop var(--dur-move) var(--ease-quint); }

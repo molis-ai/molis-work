@@ -1,16 +1,14 @@
 /** The memory settings page (settings-memory.ts): flat rows on 1px rings, state only in colour, dense meta line. */
 export const MEMORY_SETTINGS_STYLES = `
   .memory-settings .memory-summary { margin: 8px 0 0; font-size: 13px; color: var(--ink-soft); }
-  .memory-settings .memory-items-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .memory-settings .memory-items-head h2 { margin: 12px 0 4px; font-size: 13px; }
-  .memory-settings .memory-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
+  .memory-settings :is(nav, div).memory-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
   .memory-settings :is(.memory-toolbar, .memory-editor-fields) > .mw-select-picker { width: auto; flex: 0 0 auto; }
   .memory-settings :is(.memory-toolbar, .memory-editor-fields) > .mw-select-picker > .mw-select-picker__trigger { width: auto; min-width: 112px; }
-  .memory-settings .memory-search { flex: 1 1 160px; min-width: 0; }
-  .memory-settings .memory-list, .memory-settings .memory-change-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-  .memory-settings .memory-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 10px 12px; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); }
+  .memory-settings [data-memory-batch][hidden] { display: none; }
+  .memory-settings :is([data-memory-previous], [data-memory-next])[hidden] { display: none; }
+  .memory-settings .memory-list, .memory-settings .memory-change-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .memory-settings .memory-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
   .memory-settings .memory-row.is-off .memory-text { color: var(--muted); }
-  .memory-settings .memory-row--candidate { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 38%, var(--line)); }
   .memory-settings .memory-row-copy { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   .memory-settings .memory-text { font-size: 13px; font-weight: 500; line-height: 1.5; overflow-wrap: anywhere; }
   .memory-settings .memory-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12px; color: var(--muted); }
@@ -30,7 +28,7 @@ export const MEMORY_SETTINGS_STYLES = `
   .memory-settings .memory-more > summary { list-style: none; }
   .memory-settings .memory-more > summary::-webkit-details-marker { display: none; }
   .memory-settings .memory-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; }
-  .memory-settings .memory-change { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); }
+  .memory-settings .memory-change { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
   .memory-settings .memory-change-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 13px; }
   .memory-settings .memory-change-copy > strong { font-weight: 500; overflow-wrap: anywhere; }
   .memory-settings .memory-change-copy > span { font-size: 12px; overflow-wrap: anywhere; }
@@ -45,7 +43,7 @@ export const MEMORY_SETTINGS_STYLES = `
   .memory-settings .memory-history-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
   .memory-settings .memory-history-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
   .memory-settings .memory-history-version { color: var(--muted); white-space: nowrap; }
-  .memory-settings .memory-pref-static .setting-value { font-size: 13px; }
+  .memory-settings .memory-pref-static .mw-setting-row__control { color: var(--muted); }
   .memory-settings .memory-pref-static.is-off strong { color: var(--muted); }
   .memory-settings .memory-project-choices { display: grid; gap: 8px; max-height: min(50vh, 360px); overflow: auto; }
   .memory-settings .memory-project-choices .mw-btn { justify-content: flex-start; overflow-wrap: anywhere; }

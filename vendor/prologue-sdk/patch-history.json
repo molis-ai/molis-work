@@ -10,8 +10,8 @@
   "upstream": {
     "repository": "https://github.com/molis-ai/molis-prologue",
     "checkedOn": "2026-11-17",
-    "mainHead": "97ee66172c356366e6032c69264c1b393b1dc74d",
-    "statement": "2026-10-25 在当时的准确上游 main f1753ec8fa2cbca45667e60e101b93702acc6640 上对 42 个 commitsChecked 逐个执行 git merge-base --is-ancestor：除已换掉的 08b84296、923e5a40、4007a93c 三个历史过渡源及当时的 ba75c9f8 之外，其余均为 main 祖先。2026-11-12/13 又补入 1cc80b05（上一份正式源码）、4537a570（Slice-31 窗口的自建分支包来源）、1c0654b7（PR #114 的主线合并）、5cbf2601（PR #115：写后检查带 Session/Run）、bdf80c6f（测试补充）与 770a2e27（PR #113：Memory V0 的 pause/disable 同问题重放；main #2020 采用的 memory-p0 第二版来源），2026-11-13 第 28 批又补入 14e13911（PR #117 合并，PR #116 之后）与 c764d970（PR #119：onModelRequest），2026-11-14/15 第 31 批补入 7e2de40b（PR #120 合并）、018947ae 与 4493a5eb（PR #121 合并：空常驻零读取零授权、开场召回收任务语境、会话检索覆盖）、4a4d1d3c（#2081 曾采用的 Memory P1 分支构建）、188d9f6c（PR #122 主线合并：有界版本历史与恢复、导出包 v2 与通用对象适用条件）及 3825662d（PR #123 主线合并：导入幂等状态对账、按作用域缓存与公开面快照同步，当前官方包来源）；commitsChecked 共 56 条，mainHead 为 3825662d。第 31 批收口时的包直接来自公开 main 3825662d；39 个没有补丁的历史包记录与 26 份补丁保持，后续可按 Git blob 取回。历史 final103-bridge 依赖来自公开固定分支 feature/node-storage-final103-bridge 的 ba75c9f8437018904b24dabeaaef6ded8054add5，不是 main 祖先：基点 2c7feba5（PR60），只移植 PR103 定稿 6523abb47..513237d2 的功能；4e018e1a 保旧普通分页/读取及旧合同，ba75 只修导航。按 accepted WO #1267/6395049480 作为过渡包采用，不带 PR61–101、PR104 或旧 42。旧 42 只曾作为本 PR 候选验证、未正式合入，不将其伪记为已采用的历史包。2026-11-15 第 32 批补入 e0625b62（PR #124 合并：结果回流）、0a0dfdfa（PR #125 合并：结果回流的评审跟进）与 02a11ac5（PR #126 合并：会话在请 App 起跑时变了，占用不再卡住；当前包来源）；commitsChecked 共 59 条，mainHead 为 02a11ac5；换下的 3825662d 官方包记入没有补丁的历史包，共 40 个。 2026-11-17 第 59 批补入官方 #128 f279024a、#129 ce40e40a 与 #130 71662135；f279024a 已核为当前官方来源 71662135 的祖先，commitsChecked 共 62 条。当前 mainHead 为 71662135。 2026-11-17 同步第 39 批主线采用记录，补入 e7582079（PR #127），已再次核为 71662135 的祖先；commitsChecked 共 63 条。 2026-11-17 第 59 批续核 #131 0afbe2c3、#132 46d8920b 与 #133 97ee6617：当前 mainHead 为官方 #133 的 97ee6617，66 条 commitsChecked；本批换下的六份包均按 Git blob 复核大小与 SHA-256，其源码均为 97ee6617 祖先；当前包与独立审过的 98429521 同树。",
+    "mainHead": "e4f1c01e1e77e376db207b56942da580385fe3ad",
+    "statement": "2026-10-25 在当时的准确上游 main f1753ec8fa2cbca45667e60e101b93702acc6640 上对 42 个 commitsChecked 逐个执行 git merge-base --is-ancestor：除已换掉的 08b84296、923e5a40、4007a93c 三个历史过渡源及当时的 ba75c9f8 之外，其余均为 main 祖先。2026-11-12/13 又补入 1cc80b05（上一份正式源码）、4537a570（Slice-31 窗口的自建分支包来源）、1c0654b7（PR #114 的主线合并）、5cbf2601（PR #115：写后检查带 Session/Run）、bdf80c6f（测试补充）与 770a2e27（PR #113：Memory V0 的 pause/disable 同问题重放；main #2020 采用的 memory-p0 第二版来源），2026-11-13 第 28 批又补入 14e13911（PR #117 合并，PR #116 之后）与 c764d970（PR #119：onModelRequest），2026-11-14/15 第 31 批补入 7e2de40b（PR #120 合并）、018947ae 与 4493a5eb（PR #121 合并：空常驻零读取零授权、开场召回收任务语境、会话检索覆盖）、4a4d1d3c（#2081 曾采用的 Memory P1 分支构建）、188d9f6c（PR #122 主线合并：有界版本历史与恢复、导出包 v2 与通用对象适用条件）及 3825662d（PR #123 主线合并：导入幂等状态对账、按作用域缓存与公开面快照同步，当前官方包来源）；commitsChecked 共 56 条，mainHead 为 3825662d。第 31 批收口时的包直接来自公开 main 3825662d；39 个没有补丁的历史包记录与 26 份补丁保持，后续可按 Git blob 取回。历史 final103-bridge 依赖来自公开固定分支 feature/node-storage-final103-bridge 的 ba75c9f8437018904b24dabeaaef6ded8054add5，不是 main 祖先：基点 2c7feba5（PR60），只移植 PR103 定稿 6523abb47..513237d2 的功能；4e018e1a 保旧普通分页/读取及旧合同，ba75 只修导航。按 accepted WO #1267/6395049480 作为过渡包采用，不带 PR61–101、PR104 或旧 42。旧 42 只曾作为本 PR 候选验证、未正式合入，不将其伪记为已采用的历史包。2026-11-15 第 32 批补入 e0625b62（PR #124 合并：结果回流）、0a0dfdfa（PR #125 合并：结果回流的评审跟进）与 02a11ac5（PR #126 合并：会话在请 App 起跑时变了，占用不再卡住；当前包来源）；commitsChecked 共 59 条，mainHead 为 02a11ac5；换下的 3825662d 官方包记入没有补丁的历史包，共 40 个。 2026-11-17 第 59 批补入官方 #128 f279024a、#129 ce40e40a 与 #130 71662135；f279024a 已核为当前官方来源 71662135 的祖先，commitsChecked 共 62 条。当前 mainHead 为 71662135。 2026-11-17 同步第 39 批主线采用记录，补入 e7582079（PR #127），已再次核为 71662135 的祖先；commitsChecked 共 63 条。 2026-11-17 第 59 批续核 #131 0afbe2c3、#132 46d8920b 与 #133 97ee6617：当前 mainHead 为官方 #133 的 97ee6617，66 条 commitsChecked；本批换下的六份包均按 Git blob 复核大小与 SHA-256，其源码均为 97ee6617 祖先；当前包与独立审过的 98429521 同树。 第 59 批目录接续采用经独立评审合入的 #134 e4f1c01e，现共核查 67 个 Prologue 提交，上一份 97ee6617 包按 Git blob 保留。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -78,7 +78,8 @@
       "f279024aba6faffb76ce79f2ffa3e808aa6c8db0",
       "0afbe2c3f868565e6af85965a585ad889c044c43",
       "46d8920badfcc18ce24482639251b6f63ff5ff65",
-      "97ee66172c356366e6032c69264c1b393b1dc74d"
+      "97ee66172c356366e6032c69264c1b393b1dc74d",
+      "e4f1c01e1e77e376db207b56942da580385fe3ad"
     ]
   },
   "patches": [
@@ -927,6 +928,14 @@
       "gitBlob": "48864d26111c8062f83f5e57bdc01e70ff9250e0",
       "commit": "46d8920badfcc18ce24482639251b6f63ff5ff65",
       "description": "Official PR #132 replaced by #133: exact child/attempt display summaries on original envelopes and original next-run injection references; no permission/root grant change."
+    },
+    {
+      "bytes": 1486978,
+      "sha256": "df27da3fd1f7a8a1f358991730f5d0f83f1324f9ba962b53607b0ce8d50a0a6a",
+      "file": "prologue-sdk-0.0.0-rc.1-main-97ee6617.tgz",
+      "gitBlob": "5746941ab8f8fbcd7b2fcc82fe80ec7960e1ccad",
+      "commit": "97ee66172c356366e6032c69264c1b393b1dc74d",
+      "description": "Official PR #133 package replaced by #134 for a new same-directory grant after a Host restart."
     }
   ],
   "notes": [

@@ -9,17 +9,17 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "97ee66172c356366e6032c69264c1b393b1dc74d",
+    "commit": "e4f1c01e1e77e376db207b56942da580385fe3ad",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
-    "note": "Official main PR #133, same tree as independently reviewed 98429521. Original envelopes retain exact child/attempt summaries; original Session consumption and model protocol stay unchanged. No vendor patch or root grant change."
+    "note": "Official main PR #134, same tree as independently reviewed 4eb279b4. Accept a dedicated grant for an ended child in its original directory. No vendor patch."
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1.tgz",
-    "bytes": 1486978,
-    "sha256": "df27da3fd1f7a8a1f358991730f5d0f83f1324f9ba962b53607b0ce8d50a0a6a",
-    "integrity": "sha512-zHJrzeLgYwtBEZbNC+su9Jy/w9l1qvydJrMBSCa2ExI2W7ejLFcwURqPyaDrUA9V3CrP2QV5LWF4hNIB9IYHsw=="
+    "bytes": 1488556,
+    "sha256": "f58a9148bad0b7d1dc7f5704828e19a06c2d1b5c142374d3964db3efcb242838",
+    "integrity": "sha512-RHKb/CxiGisuhtqmDriOvK+u+q3j5etKcdjHZURn4RvVqo8zyY2/UfU6LHs+d4mhBauhqjmAD5Tx52yFsPS9TQ=="
   },
   "build": {
     "node": "24.14.0",
@@ -27,14 +27,13 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Extract git archive 97ee66172c356366e6032c69264c1b393b1dc74d into two independent clean directories.",
+      "Extract git archive e4f1c01e1e77e376db207b56942da580385fe3ad into two independent clean directories.",
       "In each: pnpm install --frozen-lockfile --offline --ignore-scripts; pnpm build; pnpm -C packages/sdk pack --pack-destination <external-directory>.",
       "Both archives are byte-identical.",
-      "Reviewed source build/types/API/ratchet/docs/clean-consumer pass; 3 focused files 34 tests and 4 injection/queue boundary files 14 tests pass; final ordering regression 5/5. Real Node HTTP and process reopen, not external Provider acceptance.",
-      "Upstream CI run 44133072297 / check 134215125224 was queued at merge, then failed without starting any steps. Official annotation confirms account payment/spending limit; CI is not claimed green.",
-      "Molis Work installs this official archive through the sole horizontal/agent-host dependency; product adoption validation belongs to Batch 59."
+      "Exact reviewed tree passed local pnpm quality: 268 files, 3453 tests, types/build/API/source ratchet, docs, clean consumer and Rust fmt/clippy. A real Node canonical grant test also passed.",
+      "Upstream CI run 44148796855 / job 134271084797 did not start steps because of account payment or spending limit. CI is not claimed green."
     ],
     "packedOn": "2026-11-17",
-    "note": "User-authorized original trusted input and parent/child report window. Replaced official 46d8920b archive is recorded in patch-history.json. Root reauthorization remains outside this change."
+    "note": "Batch 59 authorized same-directory renewal of an expired Node Host grant. Original workspace and history are retained."
   }
 }

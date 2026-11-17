@@ -1,6 +1,14 @@
 # Prologue SDK 构建来源
 
-## 当前包：official main 97ee6617（2026-11-17，第 59 批）
+## 当前包：official main e4f1c01e（2026-11-17，第 59 批）
+
+唯一运行包为 `prologue-sdk-0.0.0-rc.1.tgz`，**1,488,556 字节**，SHA-256 `f58a9148bad0b7d1dc7f5704828e19a06c2d1b5c142374d3964db3efcb242838`。[Prologue #134](https://github.com/molis-ai/molis-prologue/pull/134) 的官方 main `e4f1c01e1e77e376db207b56942da580385fe3ad` 与独立评审头 `4eb279b4193fd8d46ac735f4d793565dc87411c3` 同树。
+
+这份包为已终止的子任务提供可信 App 的同目录新授予根接续。Node Host 在授予时核 canonical path，SDK 以原父子关系、执行引用及权限上限核对新根。原审批、文件观察与原始历史保留在各自来源。无 vendor 补丁。
+
+两份独立官方 archive 使用 Node 24.14.0 / pnpm 11.9.0 离线安装、构建和打包，产物逐字节相同。本地完整 `pnpm quality` 的 268 个文件和 3,453 项测试通过，含干净包消费者和 Rust fmt/clippy，另有 Node 精确目录签发实测。GitHub 作业 134271084797 因账户付款或额度未启动步骤。上一份官方 97ee6617 包可按 `patch-history.json` 的 Git blob 找回。
+
+## 上一份：official main 97ee6617（2026-11-17，第 59 批）
 
 唯一运行包 `prologue-sdk-0.0.0-rc.1.tgz` 为 **1,486,978 字节**，SHA-256 `df27da3fd1f7a8a1f358991730f5d0f83f1324f9ba962b53607b0ce8d50a0a6a`。来自 [PR #133](https://github.com/molis-ai/molis-prologue/pull/133) 的官方 main `97ee66172c356366e6032c69264c1b393b1dc74d`，树与独立评审提交 `98429521b8123cd1749fdd67028e784d3fc1bbfe` 相同。
 
@@ -531,7 +539,7 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
 - `packagesWithoutPatch`：41 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption、2026-11-12 换下的 memory-p0 第一版（记录名 `prologue-sdk-0.0.0-rc.1-memory-p0-107.tgz`）与第二版（main #2020 采用的同名包，1,428,464 字节，上游 #113 `770a2e27`）、final103-bridge，以及 2026-11-13 由官方 main 包换下的 window31、同日第 28 批由 `c764d970` 官方包换下的 `5cbf2601` 官方包（记录名 `prologue-sdk-0.0.0-rc.1-main-5cbf2601.tgz`）、2026-11-14 第 31 批换下的 `c764d970` 官方包（记录名 `prologue-sdk-0.0.0-rc.1-main-c764d970.tgz`），2026-11-15 由 `3825662d` 官方包换下的 `4a4d1d3c` 分支包（记录名 `prologue-sdk-0.0.0-rc.1-b31-4a4d1d3c.tgz`），同日第 32 批换下的 `3825662d` 官方包（记录名 `prologue-sdk-0.0.0-rc.1-main-3825662d.tgz`），与 2026-11-16 第 39 批换下的 `02a11ac5` 官方包（记录名 `prologue-sdk-0.0.0-rc.1-main-02a11ac5.tgz`）；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
-- `upstream`：66 个 Prologue 提交的审计（2026-10-25 对当时的 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 复核 42 个；2026-11-12/13 补入 `1cc80b05`、`4537a570`、主线合并提交 `1c0654b7`、写后检查身份修复 `5cbf2601`、测试补充 `bdf80c6f` 与第二版 memory-p0 的来源 `770a2e27`；第 28 批补入 `14e13911`（#117）与 `c764d970`（#119）；第 31 批补入 `7e2de40b`（#120）、`018947ae`、`4493a5eb`（#121）、`4a4d1d3c`、`188d9f6c`（#122）与第 31 批收口时的包来源 `3825662d16e04f8f1163bb840f2ce1eefc3d6d43`（#123）；第 32 批补入 `e0625b62`（#124）、`0a0dfdfa`（#125）与 `02a11ac5a566eab4afe15e5562240fdd11f5c9a4`（#126）；第 39 批再补入当时包来源 `e75820791e862c2605c2ff169720b6189ed9a109`（#127）；第 59 批补入 #128～#133 的六个官方合入来源；`checkedOn` 为 2026-11-17，`mainHead` 为 `97ee66172c356366e6032c69264c1b393b1dc74d`）：历史 `08b84296`、`923e5a40`、`4007a93c`、`ba75c9f8` 与分支构建 `4a4d1d3c` 五个过渡源不是 main 祖先，其余主线提交均为祖先；ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
+- `upstream`：67 个 Prologue 提交的审计（2026-10-25 对当时的 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 复核 42 个；2026-11-12/13 补入 `1cc80b05`、`4537a570`、主线合并提交 `1c0654b7`、写后检查身份修复 `5cbf2601`、测试补充 `bdf80c6f` 与第二版 memory-p0 的来源 `770a2e27`；第 28 批补入 `14e13911`（#117）与 `c764d970`（#119）；第 31 批补入 `7e2de40b`（#120）、`018947ae`、`4493a5eb`（#121）、`4a4d1d3c`、`188d9f6c`（#122）与第 31 批收口时的包来源 `3825662d16e04f8f1163bb840f2ce1eefc3d6d43`（#123）；第 32 批补入 `e0625b62`（#124）、`0a0dfdfa`（#125）与 `02a11ac5a566eab4afe15e5562240fdd11f5c9a4`（#126）；第 39 批再补入当时包来源 `e75820791e862c2605c2ff169720b6189ed9a109`（#127）；第 59 批补入 #128～#134 的七个官方合入来源；`checkedOn` 为 2026-11-17，`mainHead` 为 `e4f1c01e1e77e376db207b56942da580385fe3ad`）：历史 `08b84296`、`923e5a40`、`4007a93c`、`ba75c9f8` 与分支构建 `4a4d1d3c` 五个过渡源不是 main 祖先，其余主线提交均为祖先；ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
 
 怎么取回并核对：
 

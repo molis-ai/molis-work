@@ -1,6 +1,7 @@
 import { format } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { signedRoleData, SIGNED_MATERIAL_NOTICE, type MethodHandoff } from "./assistant-signed-materials.js";
-import type { AgentDocumentCapability, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { ConversationAttachment } from "@molis-ai/molis-work-contracts/services/materials";
 import { isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import type { AssistantMethod, AssistantMethodSelection, AssistantContextSnapshot, AssistantMaterial, AssistantMaterialText } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -18,7 +19,7 @@ import { landingMaterials } from "./assistant-landing.js";
 import { formatExternalSessionObjectBackground, formatExternalSessionReferenceText, formatPageContextLines, formatSentMaterialBlock, isExternalSessionMaterial, isExternalSessionObject } from "./assistant-external-sessions.js";
 import { readPickedPiece } from "./assistant-send-materials.js";
 import { skillChoiceRow, skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
-import { RUNTIME, belongsElsewhere, whereNow, type AssistantServicePorts, type RoundMaterials } from "./assistant-service-shared.js";
+import { belongsElsewhere, whereNow, type AssistantServicePorts, type RoundMaterials } from "./assistant-service-shared.js";
 import { RELATION_WORDS, describeObjects } from "./assistant-present.js";
 import type { AssistantWorkReads } from "./assistant-work-reads.js";
 import type { AssistantMemoryBridge } from "./assistant-memory-bridge.js";
@@ -31,17 +32,11 @@ function methodKey(method: AssistantMethodSelection | AssistantMethod): string {
   return `skill\0${skillRefKey("skill" in method ? method.skill.ref : method.ref)}`;
 }
 
-/** Bytes per image, within what the model providers take; how many per Send is in assistant-send-materials.ts. */
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+/** The most of one attached document's text a Send carries (all of a Send's materials together are bounded in assistant-send-materials.ts). */
+const MAX_ATTACHMENT_TEXT = 60_000;
 
 /** How much of a material text the person gets back to look at (what a round may give the model). */
 const MATERIAL_PREVIEW_CHARS = 20_000;
-
-/** PNG, JPEG, GIF or WebP, by the bytes themselves. */
-function looksLikeImage(bytes: Buffer): boolean {
-  const head = bytes.subarray(0, 12).toString("latin1");
-  return head.startsWith("\x89PNG\r\n\x1a\n") || bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff || head.startsWith("GIF8") || head.startsWith("RIFF") && head.slice(8, 12) === "WEBP";
-}
 
 /** Split a long text into materials the runtime accepts (each at most 20,000 characters with its header). */
 function chunked(base: Pick<AgentTextMaterial, "title">, id: string, text: string): AgentTextMaterial[] {
@@ -60,9 +55,6 @@ type AssistantRoundMaterialsLinks = Pick<AssistantWorkReads, "workObjects" | "re
  */
 export class AssistantRoundMaterials {
   constructor(private readonly store: Pick<AssistantStore, "cards" | "confirmAlways" | "delegatedBy" | "get" | "relations" | "rounds" | "undos" | "unsettled">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly starting: Map<string, string>, private readonly chosenMemory: Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>, private readonly link: AssistantRoundMaterialsLinks) {}
-
-  /** Images this person brought while this runtime lives: a Send may only name one of these. */
-  readonly images = new Map<string, { revision: number; media_type: string }>();
 
   /** The round's situation and the person's materials, as marked data. Changing facts travel here, not in the role. */
   async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[], unavailable: readonly ActionView[], previousWaitWithdrawn: boolean,
@@ -299,39 +291,32 @@ export class AssistantRoundMaterials {
   }
 
   /**
-   * A document the person brings (PDF), read by the runtime's own parser into bounded text for this Send's materials;
-   * a picture (PNG, JPEG, GIF, WebP) is taken in by the runtime instead, for the model to see in the round it goes with.
-   * What cannot be read says why (scanned, encrypted, damaged); nothing is guessed.
+   * A file the person brings, kept by the platform's material service as a conversation attachment (platform capability audit §6):
+   * a picture (PNG, JPEG, GIF, WebP, by its bytes) is kept as it is, for the model to see in the round it goes with; any other file
+   * is read once by the platform's readers (PDF, Word, text, a picture's words, a recording's transcript) into bounded text for this
+   * Send's materials. What cannot be read says why (scanned, encrypted, damaged, a kind no reader takes); nothing is guessed.
    */
-  async readAttachment(input: { name: string; data: string }): Promise<AssistantMaterial & { pages?: number; truncated?: boolean }> {
+  async readAttachment(input: { name: string; data: string }, control: { signal?: AbortSignal; beforeEffect?: () => void | Promise<void> } = {}): Promise<AssistantMaterial & { pages?: number; truncated?: boolean }> {
     const name = typeof input?.name === "string" ? input.name.trim().slice(0, 200) : "";
     if (!name || typeof input.data !== "string" || !input.data) throw assistantErrors.invalid("没有收到文件");
-    const bytes = Buffer.from(input.data, "base64");
-    if (bytes.byteLength > 8 * 1024 * 1024) throw assistantErrors.invalid("文件超过 8 MB，请只带需要的部分");
-    const documents = (await this.ports.host()).adapter(RUNTIME).documents;
-    if (!documents) throw assistantErrors.unsupported("当前运行时不能读取这类文件");
-    if (looksLikeImage(bytes) || /\.(png|jpe?g|gif|webp|heic|heif|bmp|tiff?|svg)$/i.test(name)) return this.takeImage(name, bytes, documents);
-    let parsed: { text: string; truncated: boolean; pages?: number };
-    try { parsed = await documents.parse({ bytes: new Uint8Array(bytes), name }); }
-    catch (error) {
-      const code = (error as { code?: string }).code ?? "";
-      throw assistantErrors.invalid(code === "RESOURCE_PARSER_UNAVAILABLE" ? "暂时只能读取文本文件、PDF 和图片" : (error instanceof Error ? error.message : String(error)).replace(/^[A-Z_]+:\s*/, ""));
+    const attachments = this.ports.attachments;
+    if (!attachments) throw assistantErrors.unsupported("当前环境不能保存附件");
+    const said = (error: unknown) => (error instanceof Error ? error.message : String(error)).replace(/^[A-Z_]+:\s*/, "");
+    let attached: ConversationAttachment;
+    try { attached = await attachments.attach({ file_name: name, data_base64: input.data }, control); }
+    catch (error) { throw (error as { code?: string }).code === "material.attachment.unsupported" ? assistantErrors.unsupported(said(error)) : assistantErrors.invalid(said(error)); }
+    if (attached.kind === "image") {
+      return { material_id: `image-${randomUUID()}`, kind: "image", title: name, explicit: true,
+        image: { attachment: attached.ref, media_type: attached.media_type, byte_length: attached.byte_length } };
     }
-    return { material_id: `file-${randomUUID()}`, kind: "file", title: name + (parsed.pages ? `（${parsed.pages} 页${parsed.truncated ? "，只取了前面一部分" : ""}）` : ""),
-      text: parsed.text, explicit: true, ...(parsed.pages ? { pages: parsed.pages } : {}), ...(parsed.truncated ? { truncated: true } : {}) };
-  }
-
-  /** A picture the person brings: taken in by the runtime (its bytes stay there) and named by reference in the Send. */
-  private async takeImage(name: string, bytes: Buffer, documents: AgentDocumentCapability): Promise<AssistantMaterial> {
-    if (!looksLikeImage(bytes)) throw assistantErrors.invalid("只能带 PNG、JPEG、GIF 或 WebP 图片");
-    if (bytes.byteLength > MAX_IMAGE_BYTES) throw assistantErrors.invalid("图片超过 5 MB，请压缩或截取需要的部分");
-    if (!documents.intakeImage) throw assistantErrors.unsupported("当前运行时还不能接收图片");
-    let taken: Awaited<ReturnType<NonNullable<AgentDocumentCapability["intakeImage"]>>>;
-    try { taken = await documents.intakeImage({ bytes: new Uint8Array(bytes), name }); }
-    catch (error) { throw assistantErrors.invalid((error instanceof Error ? error.message : String(error)).replace(/^[A-Z_]+:\s*/, "")); }
-    this.images.set(taken.resource.id, { revision: taken.resource.revision, media_type: taken.media_type });
-    return { material_id: `image-${randomUUID()}`, kind: "image", title: name, explicit: true,
-      image: { resource_id: taken.resource.id, revision: taken.resource.revision, media_type: taken.media_type, byte_length: taken.byte_length } };
+    const read = await attachments.read(attached.ref, { as: "text", ...(control.signal ? { signal: control.signal } : {}) }).catch(error => { throw assistantErrors.invalid(said(error)); });
+    const whole = read.text ?? "";
+    if (!whole.trim()) throw assistantErrors.invalid(`「${name}」里没有读到文字${attached.text?.issues.length ? `（${attached.text.issues.slice(0, 2).join("；")}）` : ""}`);
+    const text = whole.slice(0, MAX_ATTACHMENT_TEXT), truncated = whole.length > MAX_ATTACHMENT_TEXT || attached.text?.truncated === true;
+    const pages = attached.text?.pages ?? undefined;
+    const note = pages ? `${pages} 页${truncated ? "，只取了前面一部分" : ""}` : truncated ? "只取了前面一部分" : "";
+    return { material_id: `file-${randomUUID()}`, kind: "file", title: name + (note ? `（${note}）` : ""),
+      text, explicit: true, ...(pages ? { pages } : {}), ...(truncated ? { truncated: true } : {}) };
   }
 
   /** One material a round of this work brought, with its text (bounded), for the person to look at again. */
@@ -348,19 +333,20 @@ export class AssistantRoundMaterials {
       ...(url ? { url } : {}), ...(found.source ? { source: { ...found.source } } : {}), ...(found.object ? { object: { ...found.object } } : {}), ...(found.draft ? { draft: true } : {}) };
   }
 
-  /** A picture a work carried, read back for the side panel; gone once the app restarted (the runtime keeps no copy). */
+  /** A picture a work carried, read back for the side panel from the platform's attachments. */
   async materialImage(workId: string, materialId: string): Promise<{ media_type: string; data: string }> {
     const work = this.store.get(this.actorId, workId);
     const found = this.store.rounds(work.work_id).flatMap(round => round.materials).find(item => item.material_id === materialId && item.kind === "image" && item.image);
     if (!found?.image) throw assistantErrors.not_found("这项工作里没有这张图片");
-    const gone = assistantErrors.expired("这张图片已失效：应用重启后不再保留。需要时请重新添加这张图片。");
-    if (!this.holdsImage(found.image)) throw gone;
-    const bytes = await (await this.ports.host()).adapter(RUNTIME).documents?.readImage?.({ id: found.image.resource_id, revision: found.image.revision });
-    if (!bytes) throw gone;
-    return { media_type: found.image.media_type, data: Buffer.from(bytes).toString("base64") };
+    const gone = assistantErrors.expired("这张图片已不在了，需要时请重新添加这张图片。");
+    if (!this.holdsImage(found.image) || !this.ports.attachments) throw gone;
+    const read = await this.ports.attachments.read(found.image.attachment, { as: "image" }).catch(() => { throw gone; });
+    if (!read.image) throw gone;
+    return { media_type: read.image.media_type, data: Buffer.from(read.image.bytes).toString("base64") };
   }
 
+  /** Whether a picture's bytes are still kept; a record from before attachments were kept names none. */
   holdsImage(image: NonNullable<AssistantMaterial["image"]>): boolean {
-    return this.images.get(image.resource_id)?.revision === image.revision;
+    return !!this.ports.attachments?.holds(image.attachment);
   }
 }

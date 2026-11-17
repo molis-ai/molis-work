@@ -26,8 +26,6 @@ import type { PrologueWorkDelegation } from "./prologue-work-delegation.js";
 export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
   /** App taxonomy and live memory authority; absent means memory is unavailable. */
   memory?: import("./prologue-memory-authority.js").PrologueMemoryOptions;
-  /** Parsers the App supplies for documents people bring (PDF…); the runtime ships none. */
-  documentParsers?: readonly import("@molis-ai/molis-work-contracts/services/agent-host").AgentDocumentParser[];
   /** Host-owned surface; absence keeps all writes unavailable. */
   reviewQueue?: AgentReviewQueue;
   questionTypes?: readonly import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionType[]; // typed types every interface showing questions renders; absent or empty: the plain question

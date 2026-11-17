@@ -23,6 +23,11 @@ export interface AgentStartExecution extends ActionCallOrigin {
   disposeDispatch?(): void;
   /** Same owner check at the final write/answer boundary; must outlive the start invocation. */
   assertBeforeDispatch?(): void;
+  /**
+   * The pictures of `image_materials`, read by the Host for the caller from its attachments (by `material_id`), never from a payload.
+   * The runtime takes them in for this Run.
+   */
+  images?: ReadonlyArray<{ material_id: string; bytes: Uint8Array }>;
   /** The work owner's exact subject for this Run, supplied only by the trusted Host. */
   delegation?: {
     readonly subject: Extract<AgentDelegationSubject, { kind: "work" }>;
@@ -86,13 +91,14 @@ export type AgentTextMaterial = {
 } & AgentMaterialSource & AgentMaterialOrigin;
 
 /**
- * An image the person brought, already taken in by the runtime (its bytes stay with the runtime; this is only the
- * reference). The model sees it in the Run it is attached to, and only there.
+ * A picture the person brought, as a conversation attachment of the caller (`services/materials` `ConversationAttachment`): only
+ * its reference. The Host reads the bytes for the caller from the platform's material service when the Run starts, so the picture
+ * is still there after a restart; the model sees it in the Run it is attached to, and only there.
  */
 export interface AgentImageMaterial {
   material_id: string;
   title: string;
-  resource: { id: string; revision: number };
+  attachment: MaterialRef;
   media_type: string;
 }
 
@@ -294,8 +300,8 @@ interface AgentFrozenStartFields {
   mcp_sources?: AgentMcpSourceRef[];
   host_tools: string[];
   text_materials: Array<{ material_id: string; title?: string } & AgentMaterialSource & AgentMaterialOrigin>;
-  /** Images the model was shown in this Run (references only). */
-  image_materials?: Array<{ material_id: string; title: string; media_type: string }>;
+  /** Images the model was shown in this Run (references only: the caller's attachments, read again to show them). */
+  image_materials?: Array<{ material_id: string; title: string; media_type: string; attachment: MaterialRef }>;
   budget: AgentRunBudget | null;
 }
 

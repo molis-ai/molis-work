@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { agentBodyIn } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export {readSavedAgentHistory,savedAgentHistoryView,type PrologueSavedHistoryPort,type SavedHistoryOwner} from './adapters/prologue-saved-history.js';
 import { trustedOriginalInput } from "./original-inputs.js";
+import { attachedImages } from "./run-images.js";
 import { agentErrors } from "./errors.js";
 import { parseAgentRunBudget } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { parseExactActionReferences, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -44,6 +45,9 @@ export { pinnedMaterialRevisions } from "./adapters/prologue-action-tools.js";
 export { assertPinnedMaterialResult, prologueActionGateway, withPinnedKnowledgeRevision } from "./adapters/prologue-action-gateway.js";
 export { effectiveContextWindow, effectiveCompactionAboveTokens } from "./adapters/prologue-frozen.js";
 export { SUBAGENT_DEFAULT_MAX_ATTEMPTS } from "./adapters/prologue-subagents.js";
+export { createPrologueImageIntake } from "./adapters/prologue-images.js";
+export { takeImagesIn } from "./adapters/prologue-run-start.js";
+export { attachedImages, RUN_IMAGES_MAX } from "./run-images.js";
 export { SUBAGENT_KEY_PATTERN } from "./adapters/prologue-collaboration.js";
 export { reviewPresentation, reviewText, type ReviewWord, type ReviewWords } from "./review-presentation.js";
 export type { AgentRoundSkillCatalog, AgentSkillSource } from "./round-skills.js";
@@ -172,6 +176,11 @@ export interface AgentStartAuthority {
   delegation?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStartExecution["delegation"];
   /** The original activation, used only after the runtime verified the session and selected role. */
   sessionInstallation?: { readonly generation: string };
+  /**
+   * Reads one of the caller's own conversation attachments as a picture (its installation, its project or the Home), from the
+   * platform's material service. Absent: the caller cannot bring pictures.
+   */
+  attachmentImage?(ref: import("@molis-ai/molis-work-contracts/platform/project-materials").MaterialRef): Promise<{ media_type: string; bytes: Uint8Array }>;
   /** Current runtime grants, resolved by Host; selecting a tool grants nothing. */
   /** The trusted guard must run again at dispatch, including after the Host queue. */
   /**
@@ -417,6 +426,7 @@ export class AgentHost implements AgentHostApi {
     const characterSkillIds = request.character_skill_ids === undefined ? undefined : [...request.character_skill_ids];
     if (characterSkillIds && !character?.import_snapshot && characterSkillIds.length) throw new Error("请先选择包含导入 Skills 的 Character");
     const prompts = composeRolePrompts(role, promptAuthority, character, character ? importedCharacterInstructions(character, request.directory?.canonical_path, characterSkillIds) : undefined);
+    const images = await attachedImages(request, authority);
     // The memories this run is given: the Host's recall for this consumer. A failed recall runs without memory, never stops the run.
     await beforeStart();
     // Everything was checked: a default output directory not made yet is made now, before the Runtime is asked to run in it.
@@ -447,7 +457,7 @@ export class AgentHost implements AgentHostApi {
         ...(compaction ? { compaction } : {}), ...(endingReview ? { ending_review: { prompt: endingReview } } : {}),
         host_tools: hostTools,
       },
-    }, { beforeStart, assertBeforeStart, beforeDispatch, assertBeforeDispatch, disposeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}),
+    }, { beforeStart, assertBeforeStart, beforeDispatch, assertBeforeDispatch, disposeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}), ...(images.length ? { images } : {}),
       ...(delegation ? { delegation: structuredClone(delegation) } : {}) });
     if (widensFrozen(handle, { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills, replyLocale: authority.reply_language?.locale })) {
       await adapter.control(handle.ref, { kind: "cancel" });

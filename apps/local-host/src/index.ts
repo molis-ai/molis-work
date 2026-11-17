@@ -332,6 +332,8 @@ export { assistantStepRow, drawAssistantReply } from "./assistant/assistant-view
 export { assistantOutcomeSteps } from "./assistant/assistant-outcome.js";
 export { deliveryNote, deliveryNoteHtml, deliverySteps, isOpenable, type DeliveryNote } from "./assistant/assistant-delivery.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";
+export { assistantAttachments, assistantAttachmentImage, ASSISTANT_ATTACHMENT_OWNER, type AssistantAttachmentPort } from "./assistant/assistant-attachments.js";
+export { attachConversationFile, readConversationAttachment, holdsConversationAttachment, forgetProjectAttachments, forgetInstallationAttachments, CONVERSATION_ATTACHMENTS_HOME_STORE, type AttachmentOwner } from "./material-attachments.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.js";
 export { memoryRuntimePolicy, type MemoryForgettingPhase, type MemoryRuntimePolicyOwner } from "./memory/memory-runtime-policy.js";

@@ -192,7 +192,7 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
       } catch (error) { host.showToast?.(error, true); }
     };
   };
-  const EXPIRED_IMAGE = "workbench.assistant-conversation.images-not-kept-after-app-restarts-add-image";
+  const EXPIRED_IMAGE = "workbench.assistant-conversation.image-no-longer-kept-add-again";
   /** One thing a message carried: its kind at a glance, its name; an object opens where it lives. */
   const attachmentChip = (material) => {
     const title = String(material.title || "").replace(/^(图片|方法|用|引用)：/, "");

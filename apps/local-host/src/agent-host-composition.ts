@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { realpathSync, statSync } from "node:fs";
 import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
 import { languageServerSettings, type PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
-import { pdfDocumentParser } from "./pdf-document-parser.js";
+import { readConversationAttachment } from "./material-attachments.js";
 import { hostErrors } from "./host-errors.js";
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { createExternalMcpDirectory } from "./external-mcp-actions.js";
@@ -133,8 +133,6 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       if (disposed) return;
       initialization = createPrologueNodeAdapter({
         ...options.prologue,
-        // Documents people bring (PDF) are read by the runtime's own parser slot, with this parser plugged in.
-        documentParsers: [pdfDocumentParser],
         // File, owner and background-job waits each recheck the authority of their own source.
         checks: hostConditionChecks(options),
         // The person's language servers for the coding pack's `coding.find-symbol` (see the Home's language-servers.json).
@@ -304,7 +302,10 @@ async function startAuthority(
   const original = currentOriginalInput(caller);
   const places = await runPlaces(options, runtime.project_id);
   const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
-  const record = caller ? pluginInstallRecords(runtime.store.db).get(caller.install_id) ?? localHost.homePlugins?.installation(caller.install_id) ?? null : null;
+  const projectRecord = caller ? pluginInstallRecords(runtime.store.db).get(caller.install_id) : undefined;
+  const record = caller ? projectRecord ?? localHost.homePlugins?.installation(caller.install_id) ?? null : null;
+  // Whose attachments a round's pictures are: this installation's, in this project, or in the Home for a Home-level one (as its materials client keeps them).
+  const attachmentOwner = caller ? { plugin_id: pluginId, install_id: caller.install_id, project_id: projectRecord ? runtime.project_id : null } : null;
   const named = currentNamedSkills(caller);
   // The round's number: the call that starts it (agent.run.start), else a new one. The Runtime calls its tools later, in its own loop,
   // outside that call, so the number goes into every tool call's context instead of being read from the scope.
@@ -318,6 +319,8 @@ async function startAuthority(
     },
     ...(original ? { original_input: original } : {}),
     ...(caller && record && !subject ? { sessionInstallation: { generation: record.installation_generation } } : {}),
+    // The pictures a round of this installation brings are its own attachments, read by the platform (audit §6).
+    ...(attachmentOwner ? { attachmentImage: async ref => (await readConversationAttachment(homeDirectory ?? resolveConfiguredHome(), attachmentOwner, ref, { as: "image" })).image! } : {}),
     manifest: declared?.manifest ?? { roles: [], prompts: [] },
     // A round works in the output or one of the Host's worktrees of it, never in an input folder (SSC-15).
     authorizedDirectories: places.output ? [places.output.canonical_path] : [],

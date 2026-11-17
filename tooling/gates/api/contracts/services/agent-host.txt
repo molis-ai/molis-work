@@ -421,44 +421,6 @@ export interface AgentDeliveryReport {
     }>;
 }
 
-export interface AgentDocumentCapability {
-    parse(input: {
-        bytes: Uint8Array;
-        name: string;
-    }): Promise<{
-        text: string;
-        truncated: boolean;
-        pages?: number;
-    }>;
-    intakeImage?(input: {
-        bytes: Uint8Array;
-        name: string;
-    }): Promise<{
-        resource: {
-            id: string;
-            revision: number;
-        };
-        media_type: string;
-        byte_length: number;
-    }>;
-    readImage?(resource: {
-        id: string;
-        revision: number;
-    }): Promise<Uint8Array | null>;
-}
-
-export interface AgentDocumentParser {
-    mediaTypes: readonly string[];
-    parse(input: {
-        bytes: Uint8Array;
-        mediaType: string;
-        maxChars: number;
-    }): Promise<{
-        text: string;
-        pages?: number;
-    }>;
-}
-
 export interface AgentDraftTextRequest {
     purpose: string;
     prompt: string;
@@ -649,10 +611,7 @@ export type AgentHostErrorCode = "agent.runtime_unknown" | "agent.runtime_duplic
 export interface AgentImageMaterial {
     material_id: string;
     title: string;
-    resource: {
-        id: string;
-        revision: number;
-    };
+    attachment: MaterialRef;
     media_type: string;
 }
 
@@ -1925,7 +1884,6 @@ export interface AgentRuntimeAdapter {
     readonly recovery?: AgentRecoveryCapability;
     readonly schedule?: AgentScheduleCapability;
     readonly memory?: AgentMemoryCapability;
-    readonly documents?: AgentDocumentCapability;
     readonly descriptor: AgentRuntimeDescriptor;
     health(): Promise<AgentRuntimeHealth>;
     createSession(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<AgentSessionRef>;
@@ -2171,6 +2129,10 @@ export interface AgentStartExecution extends ActionCallOrigin {
     beforeDispatch?(): void | (() => void) | Promise<void | (() => void)>;
     disposeDispatch?(): void;
     assertBeforeDispatch?(): void;
+    images?: ReadonlyArray<{
+        material_id: string;
+        bytes: Uint8Array;
+    }>;
     delegation?: {
         readonly subject: Extract<AgentDelegationSubject, {
             kind: "work";
@@ -2914,6 +2876,7 @@ interface AgentFrozenStartFields {
         material_id: string;
         title: string;
         media_type: string;
+        attachment: MaterialRef;
     }>;
     budget: AgentRunBudget | null;
 }

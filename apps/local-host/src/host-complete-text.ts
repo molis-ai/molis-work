@@ -89,7 +89,7 @@ function readHostTextGeneration(options: HostTextOptions): HostTextGeneration | 
           validatePrompt(prompt); request?.signal?.throwIfAborted();
           const before = current();
           if (!before) throw unavailable();
-          assertVisionInput(request, before.model.vision === true);
+          assertVisionInput(request, before.model.vision);
           const config = { ...before.provider, model_id: before.model.model_id };
           const apiKey = runWithMolisWorkHome(home, () => createFileSecretStore().get(before.provider.credential_ref))?.trim();
           if (!apiKey) throw unavailable();
@@ -120,6 +120,7 @@ function readHostTextGeneration(options: HostTextOptions): HostTextGeneration | 
   const { config } = initial;
   return async (prompt, request) => {
     validatePrompt(prompt); request?.signal?.throwIfAborted();
+    // A key from the environment has no model settings to mark: it stays a text-only model.
     assertVisionInput(request, false);
     const before = environmentState();
     if (!before || JSON.stringify(before.config) !== JSON.stringify(config)) throw unavailable();
@@ -167,8 +168,9 @@ function environmentModel(env: NodeJS.ProcessEnv): { config: TextConfiguration; 
   return { config: { base_url: validateTextModelUrl(base_url), api_format, model_id }, key };
 }
 
-function assertVisionInput(request: HostTextRequestOptions | undefined, vision: boolean): void {
-  if (request?.images?.length && !vision) throw new ActionError("actions.connection_required", "请在模型设置中选择已声明支持图片的模型，原图未发送");
+/** One rule with an Agent round's (decision 50): only a model marked as not seeing images is refused; an unmarked one is sent the pictures. */
+function assertVisionInput(request: HostTextRequestOptions | undefined, vision: boolean | undefined): void {
+  if (request?.images?.length && vision === false) throw new ActionError("actions.connection_required", "当前模型在模型设置里标为不能看图，原图未发送；请换一个能看图的模型");
 }
 
 // A prompt is counted in characters, like a schema's maxLength (Ajv counts code points), so text a schema accepts is not refused here for having two UTF-16 units a character.

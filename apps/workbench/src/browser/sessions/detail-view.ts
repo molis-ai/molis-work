@@ -65,6 +65,9 @@ function renderAttributionBanner(row: ExternalSessionRow): string {
   if (attr.state === "automatic" && attr.tool_reported_other) {
     return `<div class="sessions-attr-banner"><span>${uiText("workbench.sessions.tool-reported-other", { current: attr.project.display_name, other: attr.tool_reported_other.project.display_name })}</span><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-detail-change-attr>${uiText("workbench.sessions.change-attribution")}</button></div>`;
   }
+  if (attr.state === "confirmed" && attr.later_suggestion?.project) {
+    return `<div class="sessions-attr-banner is-later"><span>${uiText("workbench.sessions.later-suggestion", { project: attr.later_suggestion.project.display_name })}</span><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-detail-change-attr>${uiText("workbench.sessions.change-attribution")}</button></div>`;
+  }
   return "";
 }
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { appendFile, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, realpath, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -34,7 +34,7 @@ async function withRoot<T>(run: (root: string) => Promise<T>): Promise<T> {
   }
 }
 
-test("SRB-01 SRB-02 SRB-10 local file adapters (Claude, Gemini, Pi, Qoder, Kimi, MiniMax) parse transcripts, skip subagents/thoughts, mark attachments and keep append-stable positions", async () => {
+test("SRB-01 SRB-02 SRB-10 SRB-13 local file adapters (Claude, Gemini, Pi, Qoder, Kimi, MiniMax) parse transcripts, skip subagents/thoughts, mark attachments and keep append-stable positions", async () => {
   await withRoot(async root => {
     const homeDir = path.join(root, "home");
     const userHome = path.join(root, "user");
@@ -409,6 +409,166 @@ test("SRB-13 Claude Code reports unreadable_version source state instead of sile
       assert.equal(listed.sessions.length, 0);
       const claudeSource = listed.sources.find(s => s.entry_id === "claude-code");
       assert.equal(claudeSource?.state, "version_unreadable");
+    } finally {
+      svc.close();
+    }
+  });
+});
+
+test("SRB-13 every file adapter reports unreadable_version instead of a silent empty history", async () => {
+  await withRoot(async root => {
+    const homeDir = path.join(root, "home");
+    const userHome = path.join(root, "user");
+    await mkdir(homeDir, { recursive: true });
+    await mkdir(path.join(userHome, ".gemini", "tmp", "p"), { recursive: true });
+    await mkdir(path.join(userHome, ".qoder-cn", "projects", "p"), { recursive: true });
+    await mkdir(path.join(userHome, ".kimi-code", "sessions", "hash", "kimi-future"), { recursive: true });
+    await mkdir(path.join(userHome, ".minimax", "projects", "p"), { recursive: true });
+    await mkdir(path.join(userHome, ".pi", "agent", "sessions", "p"), { recursive: true });
+
+    const future = `${JSON.stringify({ schemaVersion: 99, type: "future_envelope" })}\n`;
+    await writeFile(path.join(userHome, ".gemini", "tmp", "p", "session-future.json"), JSON.stringify({ schemaVersion: 99, type: "future_envelope" }));
+    await writeFile(path.join(userHome, ".qoder-cn", "projects", "p", "qoder-future.jsonl"), future);
+    await writeFile(path.join(userHome, ".kimi-code", "sessions", "hash", "kimi-future", "context.jsonl"), future);
+    await writeFile(path.join(userHome, ".kimi-code", "sessions", "hash", "kimi-future", "metadata.json"), JSON.stringify({ title: "Future Kimi" }));
+    await writeFile(path.join(userHome, ".minimax", "projects", "p", "minimax-future.jsonl"), future);
+    await writeFile(path.join(userHome, ".pi", "agent", "sessions", "p", "pi-future.jsonl"), future);
+
+    const base = createHostSessionsPorts(homeDir, () => undefined, () => {}, { homeRoot: userHome, env: {} });
+    const svc = new SessionsService(homeDir, {
+      ...base,
+      projects: { read: async operation => operation(EMPTY_SNAPSHOT) },
+      directories: { identify: () => null },
+    });
+    try {
+      const s0 = await svc.scopeRead({}, PERSON);
+      await svc.scopeSet({
+        expected_revision: s0.scope_revision,
+        sources: ["gemini-cli", "qoder-cn", "kimi-code", "minimax-code", "pi-agent"].map(entry_id => ({
+          entry_id: entry_id as ExternalToolId,
+          allowed: true,
+          directories: { mode: "all" as const },
+        })),
+      }, PERSON);
+      await svc.waitForDiscoveryIdle();
+      const listed = await svc.list({ view: "all", limit: 20 }, PERSON);
+      for (const entryId of ["gemini-cli", "qoder-cn", "kimi-code", "minimax-code", "pi-agent"] as const) {
+        const source = listed.sources.find(item => item.entry_id === entryId);
+        assert.equal(source?.state, "version_unreadable", `${entryId}: silent empty history`);
+        assert.equal(source?.reason, "version_mismatch", `${entryId}: reason`);
+        assert.equal(listed.sessions.filter(row => row.tool.entry_id === entryId).length, 0, `${entryId}: no shell row`);
+      }
+    } finally {
+      svc.close();
+    }
+  });
+});
+
+test("SRB-01 SRB-02 Kimi Code reads state.json + wire.jsonl as well as context.jsonl + metadata.json", async () => {
+  await withRoot(async root => {
+    const homeDir = path.join(root, "home");
+    const userHome = path.join(root, "user");
+    const repoDir = path.join(root, "repo");
+    const sessionDir = path.join(userHome, ".kimi-code", "sessions", "hash", "kimi-wire-1");
+    await mkdir(homeDir, { recursive: true });
+    await mkdir(repoDir, { recursive: true });
+    await mkdir(sessionDir, { recursive: true });
+    await writeFile(path.join(sessionDir, "state.json"), JSON.stringify({ session_id: "kimi-wire-1", cwd: repoDir, title: "Kimi wire session", updated_at: "2026-11-10T05:05:00Z" }));
+    await writeFile(
+      path.join(sessionDir, "wire.jsonl"),
+      [
+        JSON.stringify({ role: "user", content: "Wire question", timestamp: "2026-11-10T05:00:00Z" }),
+        JSON.stringify({ role: "assistant", content: "Wire answer", timestamp: "2026-11-10T05:01:00Z" }),
+      ].join("\n") + "\n",
+    );
+
+    const base = createHostSessionsPorts(homeDir, () => undefined, () => {}, { homeRoot: userHome, env: {} });
+    const svc = new SessionsService(homeDir, {
+      ...base,
+      projects: { read: async operation => operation(EMPTY_SNAPSHOT) },
+      directories: { identify: () => null },
+    });
+    try {
+      const s0 = await svc.scopeRead({}, PERSON);
+      await svc.scopeSet({ expected_revision: s0.scope_revision, sources: [{ entry_id: "kimi-code", allowed: true, directories: { mode: "all" } }] }, PERSON);
+      await svc.waitForDiscoveryIdle();
+      const listed = await svc.list({ view: "all" }, PERSON);
+      const row = listed.sessions.find(item => item.tool.entry_id === "kimi-code");
+      assert.ok(row, "state.json + wire.jsonl discovers a session");
+      assert.equal(row.title, "Kimi wire session");
+      assert.equal(row.directory, repoDir);
+      const history = await svc.historyRead({ session_key: row.session_key }, PERSON);
+      assert.deepEqual(history.entries.map(entry => entry.text), ["Wire question", "Wire answer"]);
+    } finally {
+      svc.close();
+    }
+  });
+});
+
+test("S-sessions-read-only-commands 3: an authenticated gh 403 is reported as a permission/login recovery, not a generic retry", async () => {
+  await withRoot(async root => {
+    const homeDir = path.join(root, "home");
+    await mkdir(homeDir, { recursive: true });
+    const base = createHostSessionsPorts(homeDir, () => undefined, () => {}, { homeRoot: path.join(root, "user"), env: {} });
+    const svc = new SessionsService(homeDir, {
+      ...base,
+      projects: { read: async operation => operation(EMPTY_SNAPSHOT) },
+      directories: { identify: () => null },
+      connections: {
+        current: id => (id === "conn-gh" ? { enabled: true, account_label: "octocat" } : null),
+        choices: () => ({ choices: [{ connection_id: "conn-gh", display_name: "GitHub CLI", account_label: "octocat" }], connect_service_id: "github" }),
+        request: async () => ({ status: 404, headers: {}, body: "" }),
+        command: async () => ({ exit_code: 1, stderr: "HTTP 403: Resource not accessible by personal access token", stdout: "" }),
+      },
+    });
+    try {
+      const s0 = await svc.scopeRead({}, PERSON);
+      await svc.scopeSet({
+        expected_revision: s0.scope_revision,
+        sources: [{ entry_id: "copilot-coding-agent", connection_id: "conn-gh", allowed: true, directories: { mode: "all" } }],
+      }, PERSON);
+      await svc.waitForDiscoveryIdle();
+      const listed = await svc.list({ view: "all" }, PERSON);
+      const source = listed.sources.find(item => item.entry_id === "copilot-coding-agent");
+      assert.equal(source?.state, "needs_login");
+      assert.equal(source?.reason, "login_expired");
+      assert.equal(source?.next_step, "sign_in");
+    } finally {
+      svc.close();
+    }
+  });
+});
+
+test("SRB-13 a later discovery page with an unknown file does not discard valid sessions from an earlier page", async () => {
+  await withRoot(async root => {
+    const homeDir = path.join(root, "home");
+    const userHome = path.join(root, "user");
+    const dir = path.join(userHome, ".qoder-cn", "projects", "p");
+    await mkdir(homeDir, { recursive: true });
+    await mkdir(dir, { recursive: true });
+    const futurePath = path.join(dir, "qoder-future.jsonl");
+    await writeFile(futurePath, `${JSON.stringify({ schemaVersion: 99, type: "future" })}\n`);
+    await utimes(futurePath, new Date(0), new Date(0));
+    for (let index = 0; index < 50; index++) {
+      await writeFile(
+        path.join(dir, `qoder-${String(index).padStart(2, "0")}.jsonl`),
+        `${JSON.stringify({ sessionId: `qoder-${index}`, cwd: root, timestamp: "2026-11-10T04:00:00Z", message: { role: "user", content: "hello" } })}\n`,
+      );
+    }
+    const base = createHostSessionsPorts(homeDir, () => undefined, () => {}, { homeRoot: userHome, env: {} });
+    const svc = new SessionsService(homeDir, {
+      ...base,
+      projects: { read: async operation => operation(EMPTY_SNAPSHOT) },
+      directories: { identify: () => null },
+    });
+    try {
+      const s0 = await svc.scopeRead({}, PERSON);
+      await svc.scopeSet({ expected_revision: s0.scope_revision, sources: [{ entry_id: "qoder-cn", allowed: true, directories: { mode: "all" } }] }, PERSON);
+      await svc.waitForDiscoveryIdle();
+      const listed = await svc.list({ view: "all", limit: 100 }, PERSON);
+      const source = listed.sources.find(item => item.entry_id === "qoder-cn");
+      assert.equal(source?.state, "complete");
+      assert.equal(listed.sessions.filter(row => row.tool.entry_id === "qoder-cn").length, 50);
     } finally {
       svc.close();
     }

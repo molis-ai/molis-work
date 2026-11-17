@@ -49,7 +49,7 @@ async function withSandbox<T>(run: (root: string) => Promise<T>): Promise<T> {
   }
 }
 
-test("S-sessions-read-roots 1: symlinked root, ancestor, subdirectory or file under a tool session root is refused before open", async () => {
+test("S-sessions-read-roots 1: symlinked root or a link escaping a tool session root is refused before open", async () => {
   await withSandbox(async root => {
     const homeDir = path.join(root, "home");
     const userHome = path.join(root, "user");
@@ -195,7 +195,7 @@ test("S-sessions-read-only-commands 1: unknown executable, disallowed subcommand
   });
 });
 
-test("S-sessions-read-only-commands 2: subprocess environment strips injection variables and enforces output byte and timeout bounds", async () => {
+test("S-sessions-read-only-commands 2: subprocess environment strips injection variables, closes stdin, and enforces output byte and timeout bounds", async () => {
   await withSandbox(async root => {
     const homeDir = path.join(root, "home");
     const userHome = path.join(root, "user");
@@ -237,6 +237,19 @@ test("S-sessions-read-only-commands 2: subprocess environment strips injection v
       assert.equal(seenEnv[stripped], undefined, `${stripped} must be stripped from child environment`);
     }
     assert.equal(seenEnv.HOME, userHome);
+
+    // A command that waits for stdin must see EOF immediately instead of holding the 15-second timeout.
+    const stdinQwen = [
+      `#!${process.execPath}`,
+      `if (process.argv.includes("--version")) { console.log("qwen-code 0.14.0"); process.exit(0); }`,
+      `process.stdin.resume();`,
+      `process.stdin.on("end", () => { console.log(JSON.stringify([{ id: "stdin-closed", title: "stdin", updated_at: "2026-11-10T01:00:00Z" }])); });`,
+    ].join("\n");
+    await writeFile(fakeQwen, stdinQwen, "utf8");
+    await chmod(fakeQwen, 0o755);
+    const stdinRes = await ports.commands.run("qwen-code", ["sessions", "list", "--json"], AbortSignal.any([]));
+    assert.equal(stdinRes.exit_code, 0);
+    assert.match(stdinRes.stdout, /stdin-closed/);
 
     // Oversized stdout (> 8 MiB) is killed and converted to sessionSourceFailure("read_error").
     const floodQwen = [
@@ -373,7 +386,7 @@ test("S-sessions-recheck-before-return 1: disabling a source or narrowing its di
   });
 });
 
-test("S-sessions-recheck-before-return 2: disabling or switching a connector account immediately blocks cached remote sessions", async () => {
+test("S-sessions-recheck-before-return 2: disabling a connector or switching its account blocks cached remote reads", async () => {
   await withSandbox(async root => {
     const homeDir = path.join(root, "home");
     const userHome = path.join(root, "user");
@@ -909,7 +922,7 @@ test("S-sessions-recheck-before-return 3: unlinking a root-exact workspace direc
       await svc.waitForDiscoveryIdle();
       await svc.projectAiReadSet({ allowed: true, expected_revision: 0 }, { ...PERSON, project_id: "proj-exact" });
 
-      // Steady-state calls after discovery hit cached `wsdir_*` + `dir_*` rows with zero disk `identify()` calls.
+      // Steady-state calls after discovery hit the in-memory workspace cache + `dir_*` rows with zero disk `identify()` calls.
       identifyCalls = 0;
       const beforeList = await svc.list({ view: "all" }, PERSON);
       assert.equal(beforeList.sessions[0]?.attribution.state, "automatic");

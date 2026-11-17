@@ -65,7 +65,7 @@ function buildTestPorts(
   };
 }
 
-test("SRB-03 SRB-04 nine attribution levels, later_suggestion, tool_reported_other and monotonic clear revision", async () => {
+test("SRB-14 SRB-15 nine attribution levels, later_suggestion, tool_reported_other and monotonic clear revision", async () => {
   await withTempDir("molis-sessions-svc-", async root => {
     const homeDir = path.join(root, "home");
     const userHome = path.join(root, "user");
@@ -212,7 +212,7 @@ test("SRB-03 SRB-04 nine attribution levels, later_suggestion, tool_reported_oth
   });
 });
 
-test("SRB-05 SRB-08 scope counts, project AI read CAS, suggestion caching/groups cap, connector usages and Host wiring", async () => {
+test("SRB-12 SRB-15 SRB-16 scope counts, project AI read CAS, suggestion caching/groups cap, connector usages and Host wiring", async () => {
   await withTempDir("molis-sessions-counts-", async root => {
     const homeDir = path.join(root, "home");
     const userHome = path.join(root, "user");

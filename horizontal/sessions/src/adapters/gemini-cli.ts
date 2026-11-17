@@ -1,6 +1,6 @@
 import { sessionsErrors, type ExternalSessionEntry } from "@molis-ai/molis-work-contracts/services/sessions";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
-import type { AdapterDiscoveryBatch, AdapterReadOutput, AdapterSourceContext, ExternalSessionSourceAdapter } from "../ports.js";
+import { sessionSourceFailure, type AdapterDiscoveryBatch, type AdapterReadOutput, type AdapterSourceContext, type ExternalSessionSourceAdapter } from "../ports.js";
 import {
   buildCliResumeTarget,
   isValidNativeId,
@@ -115,6 +115,7 @@ export const geminiCliAdapter: ExternalSessionSourceAdapter = {
     const batch = candidates.slice(startOffset, startOffset + DISCOVERY_BATCH_SIZE);
 
     let skippedCount = startOffset === 0 ? walked.skipped : 0;
+    let unsupportedVersionFiles = 0;
     const sessions = [];
 
     for (const item of batch) {
@@ -123,8 +124,16 @@ export const geminiCliAdapter: ExternalSessionSourceAdapter = {
       try {
         const stream = await context.ports.files.open(context.root, item.relative, signal);
         const { text } = await readWholeTextBounded(stream, signal, 4 * 1024 * 1024);
-        const parsed = JSON.parse(text) as unknown;
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(text) as unknown;
+        } catch {
+          unsupportedVersionFiles++;
+          skippedCount++;
+          continue;
+        }
         if (!isRecord(parsed) || !Array.isArray(parsed.messages)) {
+          unsupportedVersionFiles++;
           skippedCount++;
           continue;
         }
@@ -173,6 +182,10 @@ export const geminiCliAdapter: ExternalSessionSourceAdapter = {
         if (signal.aborted) throw error;
         skippedCount++;
       }
+    }
+
+    if (startOffset === 0 && sessions.length === 0 && unsupportedVersionFiles > 0) {
+      throw sessionSourceFailure("version_mismatch", "Gemini CLI 会话记录版本暂不支持解析", false);
     }
 
     const nextOffset = startOffset + batch.length;

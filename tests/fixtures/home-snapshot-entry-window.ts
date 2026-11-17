@@ -1,3 +1,4 @@
+import { cliEntryProbe, REACHED_THE_PLATFORM } from "./cli-entry-probe.js";
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -31,8 +32,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   } else if (mode === "cli") {
     const host = createMolisWorkLocalHost({ homeDirectory: home, onRuntimeOpen: () => barrier("cli-runtime", gate) });
     try {
-      await runV1Cli(["init", "--db", target, "--json", JSON.stringify({ project_id: "entry-window", idempotency_key: "entry-window" })],
-        { homeDirectory: home, localHost: host });
+      // The library at `target` exists (the test made it); the command opens it and reaches the platform, which finds nothing to review.
+      await runV1Cli(cliEntryProbe(target, "entry-window"), { homeDirectory: home, localHost: host })
+        .catch((error: { code?: string }) => { if (error.code !== REACHED_THE_PLATFORM.code) throw error; });
     } finally { await host.close(); process.disconnect(); }
   } else if (mode === "ledger") {
     const owner = acquireStorageOwner(join(home, "agent-runtime")), ledger = openMemoryLedger({ homeDirectory: home });

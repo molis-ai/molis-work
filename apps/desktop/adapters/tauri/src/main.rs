@@ -1,4 +1,3 @@
-mod capsule_window;
 #[cfg(target_os = "macos")]
 mod clipboard_watch_macos;
 mod context_directories;
@@ -34,51 +33,37 @@ use native_language::{NativeLanguage, NativeLanguageState};
 use std::path::PathBuf;
 use std::sync::{atomic::Ordering, Mutex};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    tray::TrayIconBuilder,
     webview::PageLoadEvent,
-    LogicalSize, Manager, PhysicalPosition, PhysicalRect, PhysicalSize, State, Url, WindowEvent,
+    Manager, State, Url, WindowEvent,
 };
 use web_service::{
     desktop_owns_web_service, ensure_molis_work_web, start_molis_work_web, stop_owned_web_service,
     wait_for_upgrading_web, web_healthy, Started, WebServiceState,
 };
 
-struct CapsuleTrayMenuItems {
+struct TrayMenuItems {
     open_molis_work: MenuItem<tauri::Wry>,
     restore_appearance: MenuItem<tauri::Wry>,
     quit_molis_work: MenuItem<tauri::Wry>,
 }
 
+/// The menu-bar item: its menu's words follow the interface language the main window publishes.
 #[derive(Default)]
-struct CapsuleStatusState {
-    latest_path: Mutex<String>,
-    visible: Mutex<bool>,
-    last_tray_rect: Mutex<Option<tauri::Rect>>,
-    last_appkit_anchor: Mutex<Option<(f64, capsule_window::AppKitRect)>>,
-    ignore_focus_loss_until: Mutex<Option<Instant>>,
+struct TrayState {
     locale: Mutex<NativeLanguageState>,
-    menu_items: Mutex<Option<CapsuleTrayMenuItems>>,
+    menu_items: Mutex<Option<TrayMenuItems>>,
 }
 
-const CAPSULE_WIDTH: f64 = 420.0;
-const CAPSULE_MIN_HEIGHT: f64 = 252.0;
-const CAPSULE_MAX_HEIGHT: f64 = 476.0;
-const CAPSULE_EDGE_MARGIN: i32 = 8;
-const CAPSULE_TRAY_GAP: i32 = 5;
 const APP_OWNED_WEB_FAILURES_BEFORE_RECOVERY: u8 = 2;
 const MANAGED_WEB_FAILURES_BEFORE_FALLBACK: u8 = 10;
 
-fn capsule_menu_bar_icon() -> Image<'static> {
-    capsule_menu_bar_icon_marked(false)
-}
-
-/// The menu-bar icon, with a dot at its top right while missed runs wait for a decision
-/// (resident-runtime-design §4). It stays a template image, so the dot follows the menu bar's light or dark.
-fn capsule_menu_bar_icon_marked(missed: bool) -> Image<'static> {
+/// The menu-bar icon, a template image so it follows the menu bar's light or dark.
+fn menu_bar_icon() -> Image<'static> {
     const SIZE: u32 = 36;
     let center = (SIZE as f32 - 1.0) / 2.0;
     let mut rgba = Vec::with_capacity((SIZE * SIZE * 4) as usize);
@@ -90,84 +75,14 @@ fn capsule_menu_bar_icon_marked(missed: bool) -> Image<'static> {
             let ring_distance = (distance - 10.5).abs();
             let ring_alpha = ((1.75 - ring_distance) / 0.85).clamp(0.0, 1.0);
             let dot_alpha = ((3.1 - distance) / 0.85).clamp(0.0, 1.0);
-            let mark = if missed {
-                let (mx, my) = (x as f32 - 30.0, y as f32 - 6.0);
-                ((5.2 - (mx * mx + my * my).sqrt()) / 0.85).clamp(0.0, 1.0)
-            } else {
-                0.0
-            };
-            let alpha = (ring_alpha.max(dot_alpha).max(mark) * 255.0).round() as u8;
+            let alpha = (ring_alpha.max(dot_alpha) * 255.0).round() as u8;
             rgba.extend_from_slice(&[0, 0, 0, alpha]);
         }
     }
     Image::new_owned(rgba, SIZE, SIZE)
 }
 
-fn anchored_capsule_position(
-    tray_position: PhysicalPosition<i32>,
-    tray_size: PhysicalSize<u32>,
-    window_size: PhysicalSize<u32>,
-    work_area: PhysicalRect<i32, u32>,
-) -> PhysicalPosition<i32> {
-    let tray_center_x = tray_position.x + tray_size.width as i32 / 2;
-    let work_right = work_area.position.x + work_area.size.width as i32;
-    let work_bottom = work_area.position.y + work_area.size.height as i32;
-    let min_x = work_area.position.x + CAPSULE_EDGE_MARGIN;
-    let max_x = (work_right - window_size.width as i32 - CAPSULE_EDGE_MARGIN).max(min_x);
-    let x = (tray_center_x - window_size.width as i32 / 2).clamp(min_x, max_x);
-
-    let below = tray_position.y + tray_size.height as i32 + CAPSULE_TRAY_GAP;
-    let above = tray_position.y - window_size.height as i32 - CAPSULE_TRAY_GAP;
-    let min_y = work_area.position.y + CAPSULE_EDGE_MARGIN;
-    let max_y = (work_bottom - window_size.height as i32 - CAPSULE_EDGE_MARGIN).max(min_y);
-    let preferred_y = if below + window_size.height as i32 <= work_bottom - CAPSULE_EDGE_MARGIN {
-        below
-    } else {
-        above
-    };
-    PhysicalPosition::new(x, preferred_y.clamp(min_y, max_y))
-}
-
-fn validated_molis_work_path(path: &str) -> Result<&str, String> {
-    // The one settings page the popover points to: 设置 › 模型, from 「模型连不上」 (resident-runtime-design §4).
-    if path == "/settings/models" {
-        return Ok(path);
-    }
-    if !path.starts_with("/projects/")
-        || path.starts_with("//")
-        || path.contains("://")
-        || path.contains('\\')
-        || path.contains(['\r', '\n'])
-    {
-        return Err("Molis Work 页面地址无效".into());
-    }
-    Ok(path)
-}
-
-fn desktop_molis_work_url(path: &str) -> Result<Url, String> {
-    let path = validated_molis_work_path(path)?;
-    let (base, fragment) = path
-        .split_once('#')
-        .map_or((path, None), |(base, fragment)| (base, Some(fragment)));
-    let separator = if base.contains('?') { '&' } else { '?' };
-    let origin = host_port::origin();
-    let target = match fragment {
-        Some(fragment) => format!("{origin}{base}{separator}desktop=1#{fragment}"),
-        None => format!("{origin}{base}{separator}desktop=1"),
-    };
-    Url::parse(&target).map_err(|error| format!("Molis Work 页面地址无效：{error}"))
-}
-
-fn capsule_web_url(locale: &NativeLanguage) -> Result<Url, String> {
-    let mut url = Url::parse(&format!("{}/desktop/capsule", host_port::origin()))
-        .map_err(|error| format!("工作胶囊页面地址无效：{error}"))?;
-    url.query_pairs_mut()
-        .append_pair("desktop", "1")
-        .append_pair("locale", &locale.language.tag);
-    Ok(url)
-}
-
-fn current_capsule_locale(state: &CapsuleStatusState) -> Result<NativeLanguage, String> {
+fn current_tray_locale(state: &TrayState) -> Result<NativeLanguage, String> {
     state
         .locale
         .lock()
@@ -175,9 +90,9 @@ fn current_capsule_locale(state: &CapsuleStatusState) -> Result<NativeLanguage, 
         .map_err(|error| error.to_string())
 }
 
-fn update_capsule_tray_menu(
+fn update_tray_menu(
     app: &tauri::AppHandle,
-    state: &CapsuleStatusState,
+    state: &TrayState,
     locale: &NativeLanguage,
 ) -> Result<(), String> {
     let items = state.menu_items.lock().map_err(|error| error.to_string())?;
@@ -200,60 +115,13 @@ fn update_capsule_tray_menu(
         .map_err(|error| error.to_string())
 }
 
-fn apply_capsule_language(
-    window: &tauri::WebviewWindow,
-    locale: &NativeLanguage,
-    revision: u64,
-) -> Result<(), String> {
-    if !window
-        .url()
-        .is_ok_and(|url| is_molis_work_web_url(&url) && url.path() == "/desktop/capsule")
-    {
-        return Ok(());
-    }
-    let language = serde_json::to_string(&locale.language).map_err(|error| error.to_string())?;
-    let origin = host_port::origin();
-    window.eval(format!(
-        "if(location.origin==='{origin}'&&location.pathname==='/desktop/capsule') globalThis.molisWorkSelectCapsuleLanguage?.({language}, {revision})"
-    )).map_err(|error| error.to_string())
-}
-
-fn hide_capsule_window(app: &tauri::AppHandle, state: &CapsuleStatusState) -> Result<(), String> {
-    let window = app
-        .get_webview_window("capsule")
-        .ok_or_else(|| "工作胶囊窗口不存在".to_string())?;
-    let _ = window.set_ignore_cursor_events(true);
-    window.hide().map_err(|error| error.to_string())?;
-    *state.visible.lock().map_err(|error| error.to_string())? = false;
-    *state
-        .ignore_focus_loss_until
-        .lock()
-        .map_err(|error| error.to_string())? = None;
-    Ok(())
-}
-
-fn set_capsule_connection_status(
-    app: &tauri::AppHandle,
-    title: &str,
-    tooltip: &str,
-) -> Result<(), String> {
+fn set_tray_status(app: &tauri::AppHandle, title: &str, tooltip: &str) -> Result<(), String> {
     let tray = app
         .tray_by_id("molis-work-status")
         .ok_or_else(|| "Molis Work 菜单栏状态不存在".to_string())?;
     tray.set_title(Some(title))
         .map_err(|error| error.to_string())?;
     tray.set_tooltip(Some(tooltip))
-        .map_err(|error| error.to_string())
-}
-
-/// The tray's dot for missed runs (`runtime_missed_dot`).
-pub(crate) fn set_tray_missed_dot(app: &tauri::AppHandle, missed: bool) -> Result<(), String> {
-    let tray = app
-        .tray_by_id("molis-work-status")
-        .ok_or_else(|| "Molis Work 菜单栏状态不存在".to_string())?;
-    tray.set_icon(Some(capsule_menu_bar_icon_marked(missed)))
-        .map_err(|error| error.to_string())?;
-    tray.set_icon_as_template(true)
         .map_err(|error| error.to_string())
 }
 
@@ -277,25 +145,18 @@ fn grant_host_capabilities(app: &tauri::AppHandle) {
     granted.push(port);
 }
 
-/// The Host is not running and the desktop could not bring it back: the tray says 「已停止」 and the
-/// popover shows its local 「没在运行」 page, never what was running before (PWA-137).
+/// The Host is not running and the desktop could not bring it back: the tray says 「已停止」 and its
+/// 「打开」 starts the Host again (PWA-137).
 fn show_host_stopped(app: &tauri::AppHandle) {
     let runtime = app.state::<runtime::RuntimeState>();
     runtime.host_stopped.store(true, Ordering::Release);
-    let state = app.state::<CapsuleStatusState>();
-    let locale = current_capsule_locale(state.inner()).unwrap_or_default();
+    let state = app.state::<TrayState>();
+    let locale = current_tray_locale(state.inner()).unwrap_or_default();
     let (title, tooltip) = locale.stopped_status();
-    let _ = set_capsule_connection_status(app, title, tooltip);
-    if let Some(capsule) = app.get_webview_window("capsule") {
-        if capsule.url().is_ok_and(|url| is_molis_work_web_url(&url)) {
-            if let Ok(local) = Url::parse("tauri://localhost/index.html") {
-                let _ = capsule.navigate(local);
-            }
-        }
-    }
+    let _ = set_tray_status(app, title, tooltip);
 }
 
-/// 「打开」 on the 「没在运行」 page: the Host is started again on a thread of its own, then the windows load it.
+/// The tray's 「打开」 while the Host is stopped: the Host is started again on a thread of its own, then the windows load it.
 pub(crate) fn reopen_host(app: tauri::AppHandle) {
     let _ = thread::Builder::new()
         .name("molis-work-web-reopen".into())
@@ -320,88 +181,17 @@ fn host_running_again(app: &tauri::AppHandle) {
     app.state::<runtime::RuntimeState>()
         .host_stopped
         .store(false, Ordering::Release);
-    let state = app.state::<CapsuleStatusState>();
-    let locale = current_capsule_locale(state.inner()).unwrap_or_default();
+    let state = app.state::<TrayState>();
+    let locale = current_tray_locale(state.inner()).unwrap_or_default();
     let (title, tooltip) = locale.synced_status();
-    let _ = set_capsule_connection_status(app, title, tooltip);
+    let _ = set_tray_status(app, title, tooltip);
     reload_molis_work_webviews(app);
 }
 
-/// The popover's 「没在运行」 page, in the menu bar's language. Only the local placeholder takes it.
-fn stopped_view(locale: &NativeLanguage) -> String {
-    let values = native_language::stopped_view_values(&locale.language.tag);
-    format!(
-        r#"((data) => {{
-        if (!(location.protocol === 'tauri:' && location.hostname === 'localhost') && location.origin !== 'http://tauri.localhost') return;
-        const host = document.getElementById('molis-native-bootstrap');
-        if (!host) return;
-        document.documentElement.lang = data.html_lang;
-        document.getElementById('molis-native-tokens').textContent = data.tokens;
-        host.querySelector('h1').textContent = data.stopped;
-        host.querySelector('p').hidden = true;
-        let open = host.querySelector('button');
-        if (!open) {{
-            open = document.createElement('button');
-            open.type = 'button';
-            open.addEventListener('click', () => {{
-                open.disabled = true;
-                globalThis.__TAURI__?.core.invoke('runtime_open').catch(() => {{ open.disabled = false; }});
-            }});
-            host.append(open);
-        }}
-        open.textContent = data.open;
-        host.dataset.stopped = '1';
-        host.hidden = false;
-    }})({values});"#
-    )
-}
-
-/// Quitting asks first when the desktop's own Host would stop with it (resident-runtime-design §4): the
-/// popover lists what will not run in the next day, and quits only on 「退出」. A Host the desktop did not
-/// start keeps running (#1815: the menu item says so), a Host that is not answering has nothing to list,
-/// and a popover that cannot show the list does not hold the quit up.
+/// Quitting quits: the confirmation that listed what would stop running lived in the menu-bar popover,
+/// removed with the capsule (batch 44; it comes back with the capsule's redo, BL-capsule-redo).
 pub(crate) fn request_quit(app: &tauri::AppHandle) {
-    let runtime = app.state::<runtime::RuntimeState>();
-    let owns_host = desktop_owns_web_service(app.state::<WebServiceState>().inner());
-    if runtime.quit_confirmed.load(Ordering::Acquire)
-        || !quit_needs_confirmation(owns_host, web_healthy())
-        || show_quit_confirmation(app).is_err()
-    {
-        runtime.quit_confirmed.store(true, Ordering::Release);
-        app.exit(0);
-    }
-}
-
-fn quit_needs_confirmation(owns_host: bool, host_answers: bool) -> bool {
-    owns_host && host_answers
-}
-
-fn show_quit_confirmation(app: &tauri::AppHandle) -> Result<(), String> {
-    let window = app
-        .get_webview_window("capsule")
-        .ok_or_else(|| "工作胶囊窗口不存在".to_string())?;
-    if !window
-        .url()
-        .is_ok_and(|url| runtime::capsule_source("capsule", Some(&url)))
-    {
-        return Err("工作胶囊没有载入".into());
-    }
-    let state = app.state::<CapsuleStatusState>();
-    if !*state.visible.lock().map_err(|error| error.to_string())? {
-        let rect = state
-            .last_tray_rect
-            .lock()
-            .map_err(|error| error.to_string())?
-            .or_else(|| {
-                app.tray_by_id("molis-work-status")
-                    .and_then(|tray| tray.rect().ok().flatten())
-            })
-            .ok_or_else(|| "找不到菜单栏图标".to_string())?;
-        toggle_capsule(app, state.inner(), rect)?;
-    }
-    window
-        .eval("if(globalThis.molisWorkRuntimeQuit) globalThis.molisWorkRuntimeQuit(); else globalThis.__TAURI__?.core.invoke('runtime_quit_confirmed')")
-        .map_err(|error| error.to_string())
+    app.exit(0);
 }
 
 fn should_keep_window_on_close(label: &str) -> bool {
@@ -409,9 +199,9 @@ fn should_keep_window_on_close(label: &str) -> bool {
 }
 
 fn refresh_tray_quit_item(app: &tauri::AppHandle) {
-    let state = app.state::<CapsuleStatusState>();
-    let locale = current_capsule_locale(state.inner()).unwrap_or_default();
-    let _ = update_capsule_tray_menu(app, state.inner(), &locale);
+    let state = app.state::<TrayState>();
+    let locale = current_tray_locale(state.inner()).unwrap_or_default();
+    let _ = update_tray_menu(app, state.inner(), &locale);
 }
 
 fn show_main_window(app: &tauri::AppHandle) {
@@ -490,13 +280,6 @@ fn molis_work_reload_url(current: Option<Url>, fallback: &str) -> Option<Url> {
 
 fn reload_molis_work_webviews(app: &tauri::AppHandle) {
     grant_host_capabilities(app);
-    if let Some(capsule) = app.get_webview_window("capsule") {
-        let state = app.state::<CapsuleStatusState>();
-        let locale = current_capsule_locale(state.inner()).unwrap_or_default();
-        if let Ok(url) = capsule_web_url(&locale) {
-            let _ = capsule.navigate(url);
-        }
-    }
     if let Some(main) = app.get_webview_window("main") {
         let target = molis_work_reload_url(
             main.url().ok(),
@@ -534,10 +317,10 @@ fn start_web_health_monitor(app: tauri::AppHandle, resource_dir: Option<PathBuf>
                 if !should_attempt_web_recovery(consecutive_failures, owns_web_child) {
                     continue;
                 }
-                let capsule_state = app.state::<CapsuleStatusState>();
-                let locale = current_capsule_locale(capsule_state.inner()).unwrap_or_default();
+                let tray_state = app.state::<TrayState>();
+                let locale = current_tray_locale(tray_state.inner()).unwrap_or_default();
                 let (title, tooltip) = locale.recovering_status();
-                let _ = set_capsule_connection_status(&app, title, tooltip);
+                let _ = set_tray_status(&app, title, tooltip);
                 let recovered =
                     ensure_molis_work_web(resource_dir.as_deref(), service_state.inner()).is_ok();
                 refresh_tray_quit_item(&app);
@@ -556,198 +339,6 @@ fn start_web_health_monitor(app: tauri::AppHandle, resource_dir: Option<PathBuf>
         });
 }
 
-fn normalized_capsule_height(height: f64) -> f64 {
-    if !height.is_finite() {
-        return CAPSULE_MAX_HEIGHT;
-    }
-    height.clamp(CAPSULE_MIN_HEIGHT, CAPSULE_MAX_HEIGHT)
-}
-
-fn position_capsule_below_tray(
-    app: &tauri::AppHandle,
-    rect: tauri::Rect,
-    height: f64,
-) -> Result<(), String> {
-    let window = app
-        .get_webview_window("capsule")
-        .ok_or_else(|| "工作胶囊窗口不存在".to_string())?;
-    let height = normalized_capsule_height(height);
-    #[cfg(target_os = "macos")]
-    {
-        let state = app.state::<CapsuleStatusState>();
-        let anchor = *state
-            .last_appkit_anchor
-            .lock()
-            .map_err(|error| error.to_string())?;
-        if let Some((anchor_x, visible)) = anchor {
-            let css_anchor = capsule_window::macos::position_capsule_on_screen(
-                &window,
-                anchor_x,
-                visible,
-                CAPSULE_WIDTH,
-                height,
-                CAPSULE_TRAY_GAP as f64,
-                CAPSULE_EDGE_MARGIN as f64,
-            )?;
-            let _ = window.eval(format!(
-                "document.documentElement.style.setProperty('--capsule-anchor-x', '{css_anchor:.1}px')"
-            ));
-            return Ok(());
-        }
-    }
-    window
-        .set_size(LogicalSize::new(CAPSULE_WIDTH, height))
-        .map_err(|error| error.to_string())?;
-    let scale_factor = window.scale_factor().map_err(|error| error.to_string())?;
-    let tray_position = rect.position.to_physical::<i32>(scale_factor);
-    let tray_size = rect.size.to_physical::<u32>(scale_factor);
-    let window_size = window.outer_size().map_err(|error| error.to_string())?;
-    let tray_center = PhysicalPosition::new(
-        tray_position.x + tray_size.width as i32 / 2,
-        tray_position.y + tray_size.height as i32 / 2,
-    );
-    let monitors = window
-        .available_monitors()
-        .map_err(|error| error.to_string())?;
-    let monitor = monitors
-        .iter()
-        .find(|monitor| {
-            let position = monitor.position();
-            let size = monitor.size();
-            let right = position.x + size.width as i32;
-            let bottom = position.y + size.height as i32;
-            tray_center.x >= position.x
-                && tray_center.x < right
-                && tray_center.y >= position.y
-                && tray_center.y < bottom
-        })
-        .or_else(|| monitors.first())
-        .ok_or_else(|| "没有可用显示器，无法定位工作胶囊".to_string())?;
-    let position =
-        anchored_capsule_position(tray_position, tray_size, window_size, *monitor.work_area());
-    window
-        .set_position(position)
-        .map_err(|error| error.to_string())?;
-    let anchor_x =
-        ((tray_center.x - position.x) as f64 / scale_factor).clamp(24.0, CAPSULE_WIDTH - 24.0);
-    let _ = window.eval(format!(
-        "document.documentElement.style.setProperty('--capsule-anchor-x', '{anchor_x:.1}px')"
-    ));
-    Ok(())
-}
-
-fn toggle_capsule(
-    app: &tauri::AppHandle,
-    state: &CapsuleStatusState,
-    rect: tauri::Rect,
-) -> Result<(), String> {
-    let window = app
-        .get_webview_window("capsule")
-        .ok_or_else(|| "工作胶囊窗口不存在".to_string())?;
-    let visible = *state.visible.lock().map_err(|error| error.to_string())?;
-    if visible {
-        return hide_capsule_window(app, state);
-    }
-    *state
-        .last_tray_rect
-        .lock()
-        .map_err(|error| error.to_string())? = Some(rect);
-    #[cfg(target_os = "macos")]
-    {
-        *state
-            .last_appkit_anchor
-            .lock()
-            .map_err(|error| error.to_string())? =
-            capsule_window::macos::clicked_screen_anchor().ok();
-    }
-    *state
-        .ignore_focus_loss_until
-        .lock()
-        .map_err(|error| error.to_string())? =
-        Some(Instant::now() + capsule_window::CAPSULE_FOCUS_LOSS_GRACE);
-    position_capsule_below_tray(app, rect, CAPSULE_MAX_HEIGHT)?;
-    let _ = window.set_ignore_cursor_events(false);
-    window.show().map_err(|error| error.to_string())?;
-    window.unminimize().map_err(|error| error.to_string())?;
-    window.set_focus().map_err(|error| error.to_string())?;
-    #[cfg(target_os = "macos")]
-    {
-        let _ = capsule_window::macos::reveal_capsule_native_window(&window);
-    }
-    *state.visible.lock().map_err(|error| error.to_string())? = true;
-    Ok(())
-}
-
-fn open_main_window(app: &tauri::AppHandle, path: &str) -> Result<(), String> {
-    let url = desktop_molis_work_url(path)?;
-    let window = app
-        .get_webview_window("main")
-        .ok_or_else(|| "Molis Work 主窗口不存在".to_string())?;
-    window.navigate(url).map_err(|error| error.to_string())?;
-    window.show().map_err(|error| error.to_string())?;
-    window.unminimize().map_err(|error| error.to_string())?;
-    window.set_focus().map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn capsule_hide(app: tauri::AppHandle, state: State<CapsuleStatusState>) -> Result<(), String> {
-    hide_capsule_window(&app, state.inner())
-}
-
-#[tauri::command]
-fn capsule_resize(
-    app: tauri::AppHandle,
-    state: State<CapsuleStatusState>,
-    height: f64,
-) -> Result<(), String> {
-    let rect = *state
-        .last_tray_rect
-        .lock()
-        .map_err(|error| error.to_string())?;
-    let Some(rect) = rect else {
-        return Ok(());
-    };
-    position_capsule_below_tray(&app, rect, height)
-}
-
-#[tauri::command]
-fn capsule_update_menu_bar(
-    app: tauri::AppHandle,
-    window: tauri::WebviewWindow,
-    state: State<CapsuleStatusState>,
-    language_revision: u64,
-    title: String,
-    tooltip: String,
-    path: String,
-) -> Result<(), String> {
-    if window.label() != "capsule"
-        || !window
-            .url()
-            .is_ok_and(|url| is_molis_work_web_url(&url) && url.path() == "/desktop/capsule")
-    {
-        return Err("菜单栏状态来源无效".into());
-    }
-    let shown = state.locale.lock().map_err(|error| error.to_string())?;
-    if shown.revision != language_revision {
-        return Err("菜单栏状态语言已经变化".into());
-    }
-    let title = title.trim();
-    let tooltip = tooltip.trim();
-    if title.is_empty() || title.chars().count() > 24 {
-        return Err("菜单栏状态文字无效".into());
-    }
-    if tooltip.is_empty() || tooltip.chars().count() > 320 {
-        return Err("菜单栏说明文字无效".into());
-    }
-    validated_molis_work_path(&path)?;
-    set_capsule_connection_status(&app, title, tooltip)?;
-    *state
-        .latest_path
-        .lock()
-        .map_err(|error| error.to_string())? = path;
-    Ok(())
-}
-
 fn native_language_source(label: &str, url: Option<&Url>) -> bool {
     label == "main"
         && url.is_some_and(|url| {
@@ -755,11 +346,12 @@ fn native_language_source(label: &str, url: Option<&Url>) -> bool {
         })
 }
 
+/// The main window publishes the interface language; the tray's menu follows it.
 #[tauri::command]
-fn capsule_set_locale(
+fn native_set_locale(
     app: tauri::AppHandle,
     window: tauri::WebviewWindow,
-    state: State<CapsuleStatusState>,
+    state: State<TrayState>,
     document: u64,
     sequence: u64,
     projection: NativeLanguage,
@@ -769,27 +361,8 @@ fn capsule_set_locale(
     }
     let mut language = state.locale.lock().map_err(|error| error.to_string())?;
     language.accept(document, sequence, projection, |locale| {
-        update_capsule_tray_menu(&app, state.inner(), locale)
-    })?;
-    if let Some(capsule) = app.get_webview_window("capsule") {
-        apply_capsule_language(&capsule, &language.displayed, language.revision)?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
-fn capsule_open_main(
-    app: tauri::AppHandle,
-    state: State<CapsuleStatusState>,
-    path: String,
-) -> Result<(), String> {
-    validated_molis_work_path(&path)?;
-    *state
-        .latest_path
-        .lock()
-        .map_err(|error| error.to_string())? = path.clone();
-    hide_capsule_window(&app, state.inner())?;
-    open_main_window(&app, &path)
+        update_tray_menu(&app, state.inner(), locale)
+    })
 }
 
 #[tauri::command]
@@ -1049,8 +622,8 @@ fn shelf_apply_hotkeys(
 }
 
 fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
-    let state = app.state::<CapsuleStatusState>();
-    let locale = current_capsule_locale(state.inner()).unwrap_or_default();
+    let state = app.state::<TrayState>();
+    let locale = current_tray_locale(state.inner()).unwrap_or_default();
     let owns_host = desktop_owns_web_service(app.state::<WebServiceState>().inner());
     let (open_current, quit) = locale.tray_actions(owns_host);
     let open_molis_work_item =
@@ -1075,39 +648,22 @@ fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
     )?;
     let (title, tooltip) = locale.default_status();
     TrayIconBuilder::with_id("molis-work-status")
-        .icon(capsule_menu_bar_icon())
+        .icon(menu_bar_icon())
         .icon_as_template(true)
         .title(title)
         .tooltip(tooltip)
         .menu(&menu)
-        .show_menu_on_left_click(false)
-        .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click {
-                rect,
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Down,
-                ..
-            } = event
-            {
-                let app = tray.app_handle();
-                let state = app.state::<CapsuleStatusState>();
-                let _ = toggle_capsule(app, state.inner(), rect);
-            }
-        })
+        .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "open_molis_work" => {
-                let path = app
-                    .state::<CapsuleStatusState>()
-                    .latest_path
-                    .lock()
-                    .ok()
-                    .map(|value| value.clone())
-                    .filter(|value| !value.is_empty())
-                    .unwrap_or_else(|| "/projects/".into());
-                if path == "/projects/" {
-                    show_main_window(app);
+                if app
+                    .state::<runtime::RuntimeState>()
+                    .host_stopped
+                    .load(Ordering::Acquire)
+                {
+                    reopen_host(app.clone());
                 } else {
-                    let _ = open_main_window(app, &path);
+                    show_main_window(app);
                 }
             }
             "restore_builtin_appearance" => show_appearance_recovery(app),
@@ -1116,7 +672,7 @@ fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
         })
         .build(app)?;
     if let Ok(mut menu_items) = state.menu_items.lock() {
-        *menu_items = Some(CapsuleTrayMenuItems {
+        *menu_items = Some(TrayMenuItems {
             open_molis_work: open_molis_work_item,
             restore_appearance: restore_appearance_item,
             quit_molis_work: quit_item,
@@ -1159,17 +715,10 @@ fn bootstrap_view(failure: Option<&str>) -> String {
     )
 }
 
-/// The commands that are for a Host that is not answering (PWA-137): 「打开」 on the 「没在运行」 page, and
-/// quitting when the panel found nothing to list. Every other command needs this Home's proved Host first;
-/// these two still check who calls them (`runtime.rs`).
-fn answers_without_host(command: &str) -> bool {
-    matches!(command, "runtime_open" | "runtime_quit_confirmed")
-}
-
 fn main() {
     let app = tauri::Builder::default()
     .manage(WebServiceState::default())
-    .manage(CapsuleStatusState::default())
+    .manage(TrayState::default())
     .manage(context_directories::ContextDirectoryState::default())
     .manage(runtime::RuntimeState::default())
     .manage(UpgradeOpeningFailure::default())
@@ -1177,18 +726,9 @@ fn main() {
     // 设置 › 运行 through `runtime_settings_*`. No page is granted the plugin's own commands (S-14).
     .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
     .invoke_handler(|invoke| {
-      if !web_healthy() && !answers_without_host(invoke.message.command()) { invoke.resolver.reject("本地服务身份验证失败"); return true; }
+      if !web_healthy() { invoke.resolver.reject("本地服务身份验证失败"); return true; }
       let handle: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
-      capsule_hide,
-      capsule_resize,
-      capsule_update_menu_bar,
-      capsule_set_locale,
-      capsule_open_main,
-      runtime::runtime_overview,
-      runtime::runtime_decide,
-      runtime::runtime_missed_dot,
-      runtime::runtime_quit_confirmed,
-      runtime::runtime_open,
+      native_set_locale,
       runtime::runtime_settings_get,
       runtime::runtime_settings_set,
       external_links::open_external_url,
@@ -1224,10 +764,6 @@ fn main() {
       if let Err(error) = shelf_hotkeys_macos::install(app.handle()) {
         eprintln!("Molis Work 热键未装上：{error}");
       }
-      #[cfg(target_os = "macos")]
-      if let Some(capsule) = app.get_webview_window("capsule") {
-        let _ = capsule_window::macos::prepare_capsule_native_window(&capsule);
-      }
       let resource_dir = app.path().resource_dir().ok();
       let service_state = app.state::<WebServiceState>();
       let started = start_molis_work_web(resource_dir.as_deref(), service_state.inner());
@@ -1243,13 +779,6 @@ fn main() {
                 let _ = window.navigate(url);
               }
               traffic_lights::pin_main_traffic_lights(&window);
-              if let Some(capsule) = app.get_webview_window("capsule") {
-                let capsule_state = app.state::<CapsuleStatusState>();
-                let locale = current_capsule_locale(capsule_state.inner()).unwrap_or_default();
-                if let Ok(url) = capsule_web_url(&locale) {
-                  let _ = capsule.navigate(url);
-                }
-              }
             }
             Err(error) => {
               eprintln!("{error}");
@@ -1299,7 +828,7 @@ fn main() {
     })
     .on_page_load(|window, payload| {
       let app = window.app_handle();
-      let state = app.state::<CapsuleStatusState>();
+      let state = app.state::<TrayState>();
       if window.label() == "main" {
         match payload.event() {
           PageLoadEvent::Started => {
@@ -1325,13 +854,6 @@ fn main() {
             }
           }
         }
-      } else if payload.event() == PageLoadEvent::Finished && window.label() == "capsule" {
-        if let (Some(capsule), Ok(language)) = (app.get_webview_window("capsule"), state.locale.lock()) {
-          let _ = apply_capsule_language(&capsule, &language.displayed, language.revision);
-          if app.state::<runtime::RuntimeState>().host_stopped.load(Ordering::Acquire) && !is_molis_work_web_url(payload.url()) {
-            let _ = capsule.eval(stopped_view(&language.displayed));
-          }
-        };
       }
     })
     .on_window_event(|window, event| {
@@ -1343,25 +865,11 @@ fn main() {
       {
         traffic_lights::pin_from_handle(window.app_handle());
       }
-      if window.label() == "capsule" && matches!(event, WindowEvent::Focused(false)) {
-        let app = window.app_handle();
-        let state = app.state::<CapsuleStatusState>();
-        let ignore = state
-            .ignore_focus_loss_until
-            .lock()
-            .ok()
-            .is_some_and(|until| {
-                capsule_window::should_ignore_capsule_focus_loss(*until, Instant::now())
-            });
-        if !ignore {
-            let _ = hide_capsule_window(app, state.inner());
-        }
-      }
       if should_keep_window_on_close(window.label()) {
         if let WindowEvent::CloseRequested { api, .. } = event {
           api.prevent_close();
           let _ = window.hide();
-          // 「关掉窗口后继续运行」 is off: closing the window quits, asking first (resident-runtime-design §5).
+          // 「关掉窗口后继续运行」 is off: closing the window quits (resident-runtime-design §5).
           if !runtime::keep_running(&web_service::molis_work_home()) {
             request_quit(window.app_handle());
           }
@@ -1381,17 +889,6 @@ fn main() {
                 show_main_window(app);
             }
         }
-        // ⌘Q and every other way out ask first, like the menu item (resident-runtime-design §4).
-        if let tauri::RunEvent::ExitRequested { api, .. } = &event {
-            if !app
-                .state::<runtime::RuntimeState>()
-                .quit_confirmed
-                .load(Ordering::Acquire)
-            {
-                api.prevent_exit();
-                request_quit(app);
-            }
-        }
         if matches!(event, tauri::RunEvent::Exit) {
             let web_service = app.state::<WebServiceState>();
             web_service.shutting_down.store(true, Ordering::Release);
@@ -1403,69 +900,18 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        anchored_capsule_position, answers_without_host, capsule_menu_bar_icon, capsule_web_url,
-        desktop_molis_work_url, is_molis_work_web_url, molis_work_reload_url,
-        normalized_capsule_height, should_attempt_web_recovery, should_keep_window_on_close,
-        should_show_main_on_reopen, stop_owned_web_service, upgrade_opening_url,
-        validated_molis_work_path, waits_off_main_thread, WebServiceState,
+        is_molis_work_web_url, menu_bar_icon, molis_work_reload_url, should_attempt_web_recovery,
+        should_keep_window_on_close, should_show_main_on_reopen, stop_owned_web_service,
+        upgrade_opening_url, waits_off_main_thread, WebServiceState,
     };
     use crate::native_language::builtin_language;
     use crate::web_service::{desktop_owns_web_service, Started};
     use std::process::Command;
-    use tauri::{PhysicalPosition, PhysicalRect, PhysicalSize, Url};
-
-    #[test]
-    fn capsule_position_is_centered_below_the_menu_bar_item() {
-        let position = anchored_capsule_position(
-            PhysicalPosition::new(740, 0),
-            PhysicalSize::new(42, 48),
-            PhysicalSize::new(784, 808),
-            PhysicalRect {
-                position: PhysicalPosition::new(0, 48),
-                size: PhysicalSize::new(1728, 1069),
-            },
-        );
-        assert_eq!(position, PhysicalPosition::new(369, 56));
-    }
-
-    #[test]
-    fn capsule_height_fits_content_within_a_safe_range() {
-        assert_eq!(normalized_capsule_height(120.0), 252.0);
-        assert_eq!(normalized_capsule_height(338.0), 338.0);
-        assert_eq!(normalized_capsule_height(900.0), 476.0);
-        assert_eq!(normalized_capsule_height(f64::NAN), 476.0);
-    }
-
-    #[test]
-    fn capsule_position_stays_inside_the_active_work_area() {
-        let work_area = PhysicalRect {
-            position: PhysicalPosition::new(0, 48),
-            size: PhysicalSize::new(1728, 1069),
-        };
-        let right_edge = anchored_capsule_position(
-            PhysicalPosition::new(1700, 0),
-            PhysicalSize::new(28, 48),
-            PhysicalSize::new(784, 808),
-            work_area,
-        );
-        assert_eq!(right_edge.x, 936);
-        assert!(right_edge.y >= 48);
-
-        let short_screen = anchored_capsule_position(
-            PhysicalPosition::new(740, 880),
-            PhysicalSize::new(42, 32),
-            PhysicalSize::new(784, 808),
-            PhysicalRect {
-                position: PhysicalPosition::new(0, 0),
-                size: PhysicalSize::new(1728, 940),
-            },
-        );
-        assert_eq!(short_screen.y, 67);
-    }
+    use tauri::Url;
 
     #[test]
     fn menu_bar_icon_is_a_transparent_retina_template() {
-        let icon = capsule_menu_bar_icon();
+        let icon = menu_bar_icon();
         assert_eq!((icon.width(), icon.height()), (36, 36));
         let alpha = |x: usize, y: usize| icon.rgba()[(y * 36 + x) * 4 + 3];
         assert_eq!(alpha(0, 0), 0);
@@ -1480,43 +926,14 @@ mod tests {
     }
 
     #[test]
-    fn capsule_only_opens_local_project_paths() {
-        assert!(validated_molis_work_path("/projects/project-a/goals/goal-a").is_ok());
-        assert!(validated_molis_work_path("https://example.com/projects/project-a").is_err());
-        assert!(validated_molis_work_path("//example.com/projects/project-a").is_err());
-        // The popover's one settings page: 设置 › 模型, from 「模型连不上」. No other settings page, nothing longer.
-        assert!(validated_molis_work_path("/settings/models").is_ok());
-        for refused in [
-            "/settings/update",
-            "/settings/models/../update",
-            "/settings/models?x=1",
-            "/settings/",
-        ] {
-            assert!(validated_molis_work_path(refused).is_err(), "{refused}");
-        }
-        let url =
-            desktop_molis_work_url("/projects/project-a/goals/goal-a#goal-document-pane").unwrap();
-        assert_eq!(
-            url.as_str(),
-            "http://127.0.0.1:4173/projects/project-a/goals/goal-a?desktop=1#goal-document-pane"
-        );
-    }
-
-    #[test]
-    fn capsule_locale_controls_its_url_and_native_menu_copy() {
-        assert_eq!(
-            capsule_web_url(&builtin_language("en").unwrap())
-                .unwrap()
-                .as_str(),
-            "http://127.0.0.1:4173/desktop/capsule?desktop=1&locale=en"
-        );
+    fn tray_menu_copy_follows_the_interface_language() {
         assert_eq!(
             builtin_language("en").unwrap().tray_actions(true),
-            ("Open current Goal", "Quit Molis Work")
+            ("Open Molis Work", "Quit Molis Work")
         );
         assert_eq!(
             builtin_language("zh").unwrap().tray_actions(true),
-            ("打开当前目标", "退出 Molis Work")
+            ("打开 Molis Work", "退出 Molis Work")
         );
     }
 
@@ -1616,57 +1033,6 @@ mod tests {
         );
         assert!(stop_owned_web_service(&state));
         assert!(!desktop_owns_web_service(&state));
-    }
-
-    // RES-09: quitting asks first only when the desktop's own Host would stop and it can still say what
-    // will not run; a Host the desktop did not start keeps running (#1815), one not answering lists nothing.
-    // PWA-137: with the Host not answering, the stopped page's 「打开」 and a quit with nothing to list
-    // still reach their commands (which check their caller); nothing else does.
-    #[test]
-    fn res10_only_open_and_quit_are_answered_without_a_host() {
-        assert!(answers_without_host("runtime_open"));
-        assert!(answers_without_host("runtime_quit_confirmed"));
-        for command in [
-            "runtime_overview",
-            "runtime_decide",
-            "runtime_missed_dot",
-            "runtime_settings_set",
-            "rollback_to_previous",
-            "capsule_open_main",
-            "files_open",
-        ] {
-            assert!(!answers_without_host(command), "{command}");
-        }
-    }
-
-    #[test]
-    fn res09_quit_asks_first_only_when_its_own_host_would_stop() {
-        assert!(super::quit_needs_confirmation(true, true));
-        assert!(!super::quit_needs_confirmation(false, true));
-        assert!(!super::quit_needs_confirmation(true, false));
-        assert!(!super::quit_needs_confirmation(false, false));
-    }
-
-    #[test]
-    fn res10_the_tray_dot_marks_missed_runs_and_stays_a_template() {
-        let plain = super::capsule_menu_bar_icon_marked(false);
-        let marked = super::capsule_menu_bar_icon_marked(true);
-        let alpha =
-            |icon: &tauri::image::Image<'_>, x: usize, y: usize| icon.rgba()[(y * 36 + x) * 4 + 3];
-        assert_eq!(alpha(&plain, 30, 6), 0, "no dot without missed runs");
-        assert!(alpha(&marked, 30, 6) > 220, "the dot at the top right");
-        assert!(
-            marked
-                .rgba()
-                .chunks_exact(4)
-                .all(|pixel| pixel[..3] == [0, 0, 0]),
-            "a template: alpha only"
-        );
-        assert_eq!(
-            alpha(&plain, 18, 18),
-            alpha(&marked, 18, 18),
-            "the icon itself is unchanged"
-        );
     }
 
     #[test]

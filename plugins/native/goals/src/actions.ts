@@ -1,5 +1,4 @@
 import { goalsStatesAction, createGoalsStatesHandler } from "./state-batch-action.js";
-import { goalCapsuleMenuAction, type GoalCapsuleMenu } from "./capsule-menu.js";
 import { goalEntryActions, goalPluginActions, type GoalCreateActionInput, type GoalReadActionInput } from "./contract/goal-actions.js";
 export type { GoalCreateActionInput } from "./contract/goal-actions.js";
 export type { GoalReadActionInput } from "./contract/goal-actions.js";
@@ -42,7 +41,6 @@ export type GoalNoteActionInput = Omit<RecordGoalNoteInput, "project_id" | "acto
 const limit = { type: "integer", minimum: 1, maximum: 100 };
 
 export const goalsActions = {
-  capsuleMenu: goalCapsuleMenuAction,
   subject: defineSubjectContextAction("goals.subject.read", /* @version action.goals.subject.read */ 1, "goal", "目标上下文", ["goals:read"]),
   /** System search: every current Goal with the same revision its context reader reports. */
   searchEntries: defineSearchEntriesAction("goals.search.entries", /* @version action.goals.search.entries */ 1, [{ kind: "goal", title: "目标", surface: "goals" }], "目标", ["goals:read"]),
@@ -108,8 +106,7 @@ export const GOALS_ACTIONS: readonly ActionDefinition[] = Object.values(goalsAct
 export const GOALS_ACTION_PERMISSIONS = ["goals:read", "goals:write", "goals:decide", "attention:write", "context-ledger:write", "artifacts:read"] as const;
 
 /** The plugin keeps its original transaction, event history and idempotency owner. */
-export function createGoalsActionHandlers({ events, acknowledgements, projectId, history, planning, guidance, lifecycle, tree, configuration, readGoal, readContract, collection, board, deliverables, materials, capsuleMenu }: {
-  capsuleMenu?(): GoalCapsuleMenu;
+export function createGoalsActionHandlers({ events, acknowledgements, projectId, history, planning, guidance, lifecycle, tree, configuration, readGoal, readContract, collection, board, deliverables, materials }: {
   events: GoalEventApplication; acknowledgements: GoalEventAcknowledgementsApi; projectId: string; history: GoalHistoryQueryPorts; planning: GoalsPlanningActionPorts;
   guidance: GoalsGuidanceActionPorts; lifecycle: GoalsLifecycleActionPorts; tree: GoalTreeApplicationApi; configuration: GoalsConfigurationActionPorts;
   readGoal: Parameters<typeof createGoalDocumentActionHandler>[1]["goal"];
@@ -129,7 +126,6 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
     }
   };
   return [
-    { ...goalsActions.capsuleMenu, handle: () => { if (!capsuleMenu) throw new ActionError("actions.unavailable", "工作摘要暂不可用"); return capsuleMenu(); } },
     ...createGoalsDeliverableActionHandlers({ ...deliverables, projectId, goalExists, boundObjects: goalId => boundGoalObjects(collection.inputs.list(projectId), goalId) }),
     ...createGoalsInputActionHandlers(projectId, collection.inputs, goalId => Boolean(readGoal(goalId) && events.readDirectoryItem(projectId, goalId)),
       { read: deliverables.read, write: deliverables.write, ...materials }),

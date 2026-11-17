@@ -162,7 +162,6 @@ const PROJECT_PROBES: Probe[] = [
   // Feed's positive paths are its Runtime route and the shell's stage (FI-7); the short route above is only the removed edge.
   { method: "GET", path: "/api/plugins/io.molis.work.feed/snapshot" },
   { method: "GET", path: "/api/stage/feed" },
-  { method: "GET", path: "/api/capsule" },
   { method: "GET", path: "/api/panels" },
   { method: "GET", path: "/api/panels/no-such-panel" },
   // RAC-2561: a Goal's terminals are Goals' route; the Host's own panel routes are gone (T-148).

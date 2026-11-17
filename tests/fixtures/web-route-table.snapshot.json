@@ -865,18 +865,6 @@
     "code": "actions.plugin_disabled",
     "error": "此项目未启用该插件"
   },
-  "GET <project>/api/capsule": {
-    "status": 200,
-    "type": "application/json",
-    "keys": [
-      "default_goal_id",
-      "default_tab",
-      "observed_event_cursor",
-      "project",
-      "state",
-      "tabs"
-    ]
-  },
   "GET <project>/api/panels": {
     "status": 404,
     "type": "application/json",

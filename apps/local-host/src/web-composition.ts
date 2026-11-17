@@ -6,7 +6,6 @@ import { isTerminalRuntime } from "./plugin-terminal-runtimes.js";
 import { createLocalProjectSettingsHttp, type LocalWebCatalogRunner } from "./web-project-settings.js";
 import { createLocalWebAssets } from "./web-assets.js";
 import { createLocalArtifactHttp } from "./artifact-library-http.js";
-import { createLocalHostCapsule } from "./capsule.js";
 import { createLocalOnboardingHttp } from "./web-onboarding.js";
 import { createLocalGoalsReadHttp } from "./web-goals-read.js";
 import { registerConnectorDevicePolling } from "./connector-device-oauth.js";
@@ -23,7 +22,6 @@ export interface LocalWebPlatform {
   cliAvailability(): Record<string, boolean>;
   isDesktopShellRequest(request: IncomingMessage, url: URL): boolean;
   nativeDesktopBootstrapScript: string;
-  renderDesktopCapsuleShell: Parameters<typeof createLocalHostCapsule>[0];
   ptyClientFilePath(): string;
 }
 
@@ -42,7 +40,6 @@ export function createLocalWebComposition(platform: LocalWebPlatform, home: stri
   const projectSettings = createLocalProjectSettingsHttp(withCatalog,diagnostics);
   const { servePtyClient, serveWorkbenchAsset } = createLocalWebAssets({ ptyClientFilePath: platform.ptyClientFilePath, renderer: workbenchRenderer });
   const handleArtifactNativePluginHttp = createLocalArtifactHttp();
-  const { buildCapsuleSnapshot, buildCapsuleMenu, renderCapsuleShell } = createLocalHostCapsule(platform.renderDesktopCapsuleShell, appearance);
   const goalsReadHttp = createLocalGoalsReadHttp({ withCatalog, renderer: workbenchRenderer, isDesktopShellRequest, pageCsp: PAGE_CSP });
   const handleOnboarding = createLocalOnboardingHttp({
     withCatalog, renderOnboarding: workbenchRenderer.renderMolisWorkOnboarding,
@@ -57,7 +54,7 @@ export function createLocalWebComposition(platform: LocalWebPlatform, home: stri
     desktopRuntimeAvailability: platform.cliAvailability,
     projectSettings,
     servePtyClient, serveWorkbenchAsset, handleArtifactNativePluginHttp,
-    buildCapsuleSnapshot, buildCapsuleMenu, renderCapsuleShell, goalsReadHttp, handleOnboarding,
+    goalsReadHttp, handleOnboarding,
     /** This server's periodic tasks (W4-09): registered by their owners, listed in Settings › 诊断, stopped when the server closes. */
     periodicTasks,
   };

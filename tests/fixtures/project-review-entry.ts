@@ -54,3 +54,17 @@ export function projectRulesPage(server: Pick<TestHostServer, "origin" | "contro
     return await change({ kind: "set", scope: { kind: "project_default" }, expected_revision: (await read()).revision, requires_person, reason });
   } };
 }
+
+/**
+ * A root Goal and a proposal for one child under it, submitted by `person`, and the review draft that confirms the child: what a CLI
+ * `review-request` reads (through Goals' `goals.tree.review`) and a `review-decide` then applies (through `goals.tree.decide`).
+ */
+export async function proposeChildGoal(person: { invoke(definition: ActionDefinition<never, unknown>, input: never): Promise<unknown> }, key: string) {
+  const { goalsActions } = await import("@molis-ai/molis-work-plugin-goals");
+  await person.invoke(goalsActions.create as never, { goal_id: `${key}-root`, title: "根目标", outcome: "结果", idempotency_key: `${key}-root` } as never);
+  const { proposal } = await person.invoke(goalsActions.treeSubmit as never, { root_goal_id: `${key}-root`, summary: "新增一个子目标", idempotency_key: `${key}-propose`,
+    items: [{ item_id: "child", kind: "goal", operation: "create", payload: { goal_id: `${key}-child`, title: "子目标", outcome: "结果" }, source_refs: ["conversation://cli"],
+      reason: "需要", confidence: 1, affected_objects: [{ object_type: "goal", object_id: `${key}-child` }] }] } as never) as { proposal: { proposal_id: string } };
+  return prepareGoalReview(goalsActions.treeDecide, { proposal_id: proposal.proposal_id, decisions: [{ item_id: "child", decision: "confirm" }], reason: "确认",
+    idempotency_key: `${key}-decide` });
+}

@@ -1137,7 +1137,6 @@ export const ENTRY_SOURCE_FILE = /\.(?:tsx?|jsx?|[cm][tj]s)$/u;
  * How the platform's entries call a Goals action (PG-031, tightened by PG-111): by the id and version Goals registers it under,
  * out of a table the dispatcher declares itself, never by a descriptor taken from a Goals contract. The table's name in each dispatcher.
  */
-const CLI_GOALS_TABLE = "GOALS";
 const MCP_GOALS_TABLE = "MANAGEMENT_GOAL_ACTIONS";
 /** The modules the CLI dispatcher may reach: the action contract and its own protocol file. */
 const PROJECT_REVIEW_CONTRACT = "@molis-ai/molis-work-contracts/services/project-approvals";
@@ -1246,9 +1245,9 @@ function blockHasManagementBinding(node) {
 /**
  * The transport entries reach Goals through the platform, not through a Host client of their own, and name no Goals contract. `entries`: no
  * file of the CLI or MCP package references a Goals contract or the Goals package under any syntax. `cli`: the dispatcher is handed the
- * management port the Host builds (`CliManagementActions`), reaches only the action contract and its protocol file, calls each Goals action
- * by a `GOALS.<name>` entry of the id-and-version table it declares, holds no Host client under any spelling and reads the snapshot through
- * Goals' own action; `cli-project.ts` builds that port with
+ * management port the Host builds (`CliManagementActions`), reaches only the action contract and its protocol file, invokes only the
+ * platform's protected review actions (it names no plugin action: PEQ-15, batch 44) and holds no Host client under any spelling;
+ * `cli-project.ts` builds that port with
  * `bindStandaloneManagementActions(host, reference, signal)`, over the bound project and original signal, and hands the dispatcher what it returned.
  * `mcp`: the dispatcher takes only
  * the Host's management port or null; mcp-v1-tool builds it only for management over the same client/reference. Each part is the source text of the file it names; a comment or a
@@ -1274,8 +1273,7 @@ export function checkGoalTransportCallers({ cli, mcp, entries }) {
       errors.push(`${dispatcherPath}: imports ${specifier} (${kind}); the CLI dispatcher reaches only the action contract and its protocol file, and takes no Goals descriptor from any Goals contract`);
     }
   }
-  const names = new Set(), held = new Set(), called = new Set();
-  let snapshot = false;
+  const names = new Set(), held = new Set();
   const visit = node => {
     if (ts.isIdentifier(node)) {
       names.add(node.text);
@@ -1284,21 +1282,16 @@ export function checkGoalTransportCallers({ cli, mcp, entries }) {
     if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && HOST_CLIENT_NAMES.has(node.argumentExpression.text)) held.add(node.argumentExpression.text);
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "invoke") {
       const action = node.arguments[0];
-      if (action && ts.isPropertyAccessExpression(action) && ts.isIdentifier(action.expression) && action.expression.text === CLI_GOALS_TABLE) {
-        called.add(action.name.text);
-        if (action.name.text === "snapshot") snapshot = true;
-      } else if (action?.getText(dispatcher) !== "trustedReviewActions.read" && action?.getText(dispatcher) !== "trustedReviewActions.decide")
-        errors.push(`${dispatcherPath}: invoke must name a Goals action of the ${CLI_GOALS_TABLE} table or a platform review action`);
+      if (action?.getText(dispatcher) !== "trustedReviewActions.read" && action?.getText(dispatcher) !== "trustedReviewActions.decide")
+        errors.push(`${dispatcherPath}: invoke must name a platform review action; the CLI names no plugin's action (PEQ-15)`);
     }
     ts.forEachChild(node, visit);
   };
   visit(dispatcher);
-  if (!tableDeclared(dispatcher, CLI_GOALS_TABLE)) errors.push(`${dispatcherPath}: declare the ${CLI_GOALS_TABLE} table of Goals action ids and versions the commands call`);
   if (!names.has("CliManagementActions")) errors.push(`${dispatcherPath}: the CLI dispatcher must take the management port the Host builds (CliManagementActions)`);
   for (const name of held) {
     errors.push(`${dispatcherPath}: ${name} is how the Host opens a project or reaches Goals; the CLI calls Goals' actions through the management port and holds no Host client (LocalHostProjectClient, client, withProject, withScope, actionClient, coordinator.goals)`);
   }
-  if (!snapshot) errors.push(`${dispatcherPath}: the CLI snapshot must be read through ${CLI_GOALS_TABLE}.snapshot`);
 
   errors.push(...checkTrustedReviewRoutes(dispatcher, "cli"));
   errors.push(...checkGoalsManagementWiring(cli.project, "cli"));

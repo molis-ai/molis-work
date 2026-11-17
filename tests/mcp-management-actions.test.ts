@@ -1,14 +1,15 @@
+import { managementGoals } from "./goal-management-caller.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test, { mock, type TestContext } from "node:test";
+import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference, runV1Cli } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalEventDecisionResult } from "@molis-ai/molis-work-plugin-goals/contract";
 import { GOALS_PLUGIN_ID, goalsActions, type GoalTreeProposalDecisionResult, type GoalTreeApplicationApi } from "@molis-ai/molis-work-plugin-goals";
-import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
+import { trustedReviewActions, type ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { dispatchMcpProjectTool, mcpWebUrl, type McpToolResult } from "@molis-ai/molis-work-app-mcp";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
@@ -57,17 +58,21 @@ async function message(server: LocalMcpServer, name: string, input: Record<strin
 
 const recordCount = (host: MolisWorkLocalHost) => host.callLog!.list(PROJECT).reduce((count, row) => count + (row.count ?? 1), 0);
 
-function oneAction(host: MolisWorkLocalHost, id: unknown, capability: string, ok: boolean, before: number) {
+/**
+ * The rows one tool message leaves under its own operation number: the original Goals command, and for a review tool the platform's
+ * review action that carried it (it is settled like the page's: the person's decision, then the owner's command under it).
+ */
+function oneAction(host: MolisWorkLocalHost, id: unknown, capability: string | readonly string[], ok: boolean, before: number) {
   assert.equal(typeof id, "string"); assert.match(String(id), UUID); assert.notEqual(id, FORGED);
-  const rows = host.callLog!.find(String(id));
-  assert.equal(rows.length, 1, "a tool message identifies one original Goals command and no typed settlement");
-  assert.deepEqual(rows.map(row => [row.path ?? "action", row.capability_id, row.actor_id, row.audience, row.ok]),
-    [["action", capability, LOCAL_PERSON_ACTOR_ID, "user", ok]]);
-  assert.equal(recordCount(host) - before, 1, "one command settlement, including when the log folds a repeated outcome");
+  const rows = host.callLog!.find(String(id)), capabilities = [capability].flat();
+  assert.equal(rows.length, capabilities.length, "a tool message identifies its actual settlements and no typed one");
+  assert.deepEqual(rows.map(row => [row.path ?? "action", row.capability_id, row.actor_id, row.audience, row.ok]).sort(),
+    capabilities.map(name => ["action", name, LOCAL_PERSON_ACTOR_ID, "user", ok]).sort());
+  assert.equal(recordCount(host) - before, capabilities.length, "one settlement each, including when the log folds a repeated outcome");
   assert.deepEqual(host.callLog!.find(FORGED), [], "the client cannot choose a recorded operation number");
 }
 
-async function success<Output>(host: MolisWorkLocalHost, server: LocalMcpServer, name: string, input: Record<string, unknown>, capability: string): Promise<Output> {
+async function success<Output>(host: MolisWorkLocalHost, server: LocalMcpServer, name: string, input: Record<string, unknown>, capability: string | readonly string[]): Promise<Output> {
   const before = recordCount(host);
   const result = await message(server, name, input);
   assert.equal(result.isError, false, JSON.stringify(result));
@@ -75,15 +80,14 @@ async function success<Output>(host: MolisWorkLocalHost, server: LocalMcpServer,
   return JSON.parse(result.content[0]!.text) as Output;
 }
 
-async function propose(host: MolisWorkLocalHost, databasePath: string, input: object) {
-  const lines: string[] = [], printing = mock.method(console, "log", (...values: unknown[]) => { lines.push(values.map(String).join(" ")); });
-  try {
-    assert.equal(await runV1Cli(["goal-tree-propose", "--db", databasePath, "--json", JSON.stringify(input)], { localHost: host }), 0);
-    return JSON.parse(lines.at(-1)!) as ReturnType<GoalTreeApplicationApi["submitGoalTreeProposal"]>;
-  } finally { printing.mock.restore(); }
+/** A proposal the person submits as the management caller (the CLI's `goal-tree-propose` was removed, PEQ-15). */
+async function propose(host: MolisWorkLocalHost, databasePath: string, input: { project_id: string } & Record<string, unknown>) {
+  const { project_id, ...proposal } = input;
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: project_id });
+  return await managementGoals(host.actionClient(reference), project_id).invoke(goalsActions.treeSubmit, proposal as never) as ReturnType<GoalTreeApplicationApi["submitGoalTreeProposal"]>;
 }
 
-test("W3-07-4-01 / W3-07-4-02: management MCP shares Goals actions and CLI proposals across a real Host close/restart", async t => {
+test("W3-07-4-01 / W3-07-4-02: management MCP shares Goals actions and the person's proposals across a real Host close/restart", async t => {
   const fixture = await setup(t), host = fixture.host(), management = fixture.server(host);
   const initialize = fixture.args({ idempotency_key: 42, actor_id: "forged-runtime", actor_kind: "runtime" });
   const initialized = await success<{ project_id: string; replayed: boolean; observed_event_cursor: number }>(host, management,
@@ -107,7 +111,7 @@ test("W3-07-4-01 / W3-07-4-02: management MCP shares Goals actions and CLI propo
   const decision = await reviews.prepare(goalsActions.treeDecide, { proposal_id: proposed.proposal.proposal_id, reason: "确认首个目标",
     confirm_all_pending: true, idempotency_key: "decide" });
   const decided = await success<{ record: ProjectTrustedDecision; result: GoalTreeProposalDecisionResult }>(restarted, afterRestart,
-    "molis_work_v1_review_decide", fixture.args(decision), "goals.tree.decide");
+    "molis_work_v1_review_decide", fixture.args(decision), [trustedReviewActions.decide.capability_id, "goals.tree.decide"]);
   assert.deepEqual(decided.result.applied_item_ids, ["first"]);
   const act = decided.record.source.entry;
   assert.equal(act.conversation_ref, `management:${PROJECT}`);
@@ -139,7 +143,7 @@ test("W3-07-4-01 / W3-07-4-02: management MCP shares Goals actions and CLI propo
   assert.deepEqual(await fixture.facts(restarted), afterEvent, "event replay saves no second owner fact");
 });
 
-test("W3-07-4-01 / W3-07-4-02: pre-action refusals have no number or row; each action-layer refusal has one real Goals row and changes no facts", async t => {
+test("W3-07-4-01 / W3-07-4-02: pre-action refusals have no number or row; each action-layer refusal has one real row and changes no facts", async t => {
   const fixture = await setup(t), host = fixture.host(), management = fixture.server(host), runtime = fixture.server(host, "runtime");
   await success(host, management, "molis_work_v1_initialize", fixture.args({ idempotency_key: "initialize" }), "goals.board.initialize");
   const before = await fixture.facts(host);
@@ -159,14 +163,17 @@ test("W3-07-4-01 / W3-07-4-02: pre-action refusals have no number or row; each a
   }
   for (const name of ["molis_work_v1_event_decide", "molis_work_v1_goal_tree_decide"]) await refusal(management, name, {}, "mcp.tool_unknown");
   const event = prepareGoalReview(goalsActions.decide, { goal_id: "absent", conclusion: "确认", idempotency_key: "event" });
+  // A review tool's input is the platform's review action's: the kernel refuses it against that contract, inside the settled call, so the
+  // refusal has the operation number and one refused row of that action, as `initialize`'s has of its own (AGENTS: one diagnostic row).
+  const [read, decide] = [trustedReviewActions.read.capability_id, trustedReviewActions.decide.capability_id];
   for (const extra of [{ actor_id: "forged" }, { authority: { conversation_ref: "conversation://forged" } }]) {
-    await refusal(management, "molis_work_v1_review_request", { ...event, ...extra }, "actions.input_invalid");
+    await refusal(management, "molis_work_v1_review_request", { ...event, ...extra }, "actions.input_invalid", read);
   }
-  await refusal(management, "molis_work_v1_review_decide", { proposal_id: "absent", request_key: "tree", runtime_actor_id: "forged" }, "actions.input_invalid");
-  await refusal(management, "molis_work_v1_review_decide", { proposal_id: "absent", request_key: "tree", authority: { actor_id: "forged" } }, "actions.input_invalid");
+  await refusal(management, "molis_work_v1_review_decide", { proposal_id: "absent", request_key: "tree", runtime_actor_id: "forged" }, "actions.input_invalid", decide);
+  await refusal(management, "molis_work_v1_review_decide", { proposal_id: "absent", request_key: "tree", authority: { actor_id: "forged" } }, "actions.input_invalid", decide);
   await refusal(management, "molis_work_v1_initialize", { idempotency_key: "" }, "actions.input_invalid", "goals.board.initialize");
-  await refusal(management, "molis_work_v1_review_request", { ...event, request_id: "" }, "actions.input_invalid");
-  await refusal(management, "molis_work_v1_review_decide", { reference: null, request_key: "tree", choice_id: "apply" }, "actions.input_invalid");
+  await refusal(management, "molis_work_v1_review_request", { ...event, request_id: "" }, "actions.input_invalid", read);
+  await refusal(management, "molis_work_v1_review_decide", { reference: null, request_key: "tree", choice_id: "apply" }, "actions.input_invalid", decide);
 });
 
 

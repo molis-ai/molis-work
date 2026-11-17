@@ -3,15 +3,13 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { withMolisWorkProjectCatalog as withCatalog, renderDesktopCapsuleShell } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, buildMolisWorkWebView, createLocalHostCapsule } from "@molis-ai/molis-work-app-local-host";
+import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, buildGoalMomentumView, goalMomentumInput, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { goalApplicationOf } from "./fixtures/goal-application.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 
-const { buildCapsuleSnapshot } = createLocalHostCapsule(renderDesktopCapsuleShell);
-
-test("reported work and an applied closure reach momentum activity, completion cadence and the capsule", { timeout: 60_000 }, async () => {
+test("reported work and an applied closure reach momentum activity and completion cadence", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "goal-work-event-momentum-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Momentum", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
@@ -61,11 +59,5 @@ test("reported work and an applied closure reach momentum activity, completion c
       { started: 2, completed: 1, incomplete: 0 });
     assert.equal(week.buckets.find(bucket => bucket.date === closedAt.slice(0, 10))?.completed, 1);
 
-    const view = await host.withProject(ref, runtime => buildMolisWorkWebView(runtime.store, collection, { databasePath: project.database_path,
-      projectId: project.project_id, project: { project_id: project.project_id, display_name: "Momentum" }, routePrefix: `/projects/${project.project_id}` }));
-    const directory = (await actions.invoke(goalsActions.list, { limit: 100 })).goals;
-    const completedTab = (at: Date) => buildCapsuleSnapshot(view, directory, at).tabs.find(tab => tab.kind === "completed")?.items ?? [];
-    assert.deepEqual(completedTab(now).map(entry => [entry.goal_id, entry.status_since]), [["DONE-GOAL", closedAt]]);
-    assert.deepEqual(completedTab(new Date(Date.parse(closedAt) + 60_000)), [], "the completion shows only briefly");
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

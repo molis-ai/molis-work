@@ -13,18 +13,16 @@ import type {} from "./plugin-frame/types.js";
 
 type Preference = UiLanguageTag | "system";
 interface EntryLanguage { preference: Preference; tag: UiLanguageTag; source: string }
-interface Request { preference: Preference; tag: UiLanguageTag; save: boolean; native?: { readonly revision: number; readonly language: NativeDocumentLanguage } }
+interface Request { preference: Preference; tag: UiLanguageTag; save: boolean }
 
 declare global {
   var molisWorkRequest: UiRequest;
   var molisWorkSettingsLanguageRoots: (() => readonly HTMLElement[]) | undefined;
   var molisWorkInstallSettingsText: ((root: HTMLElement, page: Document) => void) | undefined;
   var molisWorkSelectLocalLanguage: ((tag: UiLanguageTag) => void) | undefined;
-  var molisWorkSelectCapsuleLanguage: ((language: NativeDocumentLanguage, revision: number) => void) | undefined;
 }
 
-const localLanguageQuery = () => location.pathname === "/desktop/capsule" ? "locale"
-  : /^\/__ui\/catalog(?:\/(?:conditions|assistant|navigation|bar))?$/u.test(location.pathname) ? "lang" : null;
+const localLanguageQuery = () => /^\/__ui\/catalog(?:\/(?:conditions|assistant|navigation|bar))?$/u.test(location.pathname) ? "lang" : null;
 const languagePath = (locale?: string): string => {
   const address = new URL(location.href), query = localLanguageQuery();
   if (query && locale) address.searchParams.set(query, locale);
@@ -241,9 +239,6 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
       const asset = next ? await load(locale, assetOf(next), signal) : displayed;
       const language = asset.catalog.languages.find(row => row.tag === locale);
       if (!language || asset.pack.locale !== locale) throw new Error(t.text("workbench.language.load-failed"));
-      if (choice.native && (choice.native.language.html_lang !== language.html_lang || choice.native.language.direction !== language.direction)) {
-        throw new Error(t.text("workbench.language.load-failed"));
-      }
       const [frames, settings, im, artifacts, words] = previous && next ? await Promise.all([
         globalThis.molisPluginFrames?.prepareLanguage(frameUiLanguage(language), signal, previous, next),
         prepareSettings(render, displayed.pack.locale, locale, signal),
@@ -312,9 +307,7 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
       if (changed && !result) { retry(choice, anchor); return; }
       failure?.remove();
       paintLanguageControls(choice.preference);
-      const revisionChanged = choice.native !== undefined && String(choice.native.revision) !== document.documentElement.dataset.uiNativeLanguageRevision;
-      if (revisionChanged) document.documentElement.dataset.uiNativeLanguageRevision = String(choice.native?.revision);
-      if (changed || revisionChanged) {
+      if (changed) {
         if (local) history.replaceState(history.state, "", languagePath(choice.tag) + location.hash);
         document.dispatchEvent(new CustomEvent("molis-work:language-changed", { detail: { tag: choice.tag } }));
       }
@@ -328,15 +321,6 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
     void readPreference().then(value => {
       if (before === intent && matches(value.tag)) return choose({ preference: value.preference, tag: value.tag, save: false });
     }).catch(() => undefined);
-  };
-  let nativeWanted = -1;
-  if (local === "locale") globalThis.molisWorkSelectCapsuleLanguage = (language, revision) => {
-    if (!language || typeof language !== "object" || Object.keys(language).length !== 3
-      || !matches(language.tag) || !Number.isSafeInteger(revision) || revision < 0 || revision <= nativeWanted) return;
-    const known = displayed.catalog.languages.find(row => row.tag === language.tag);
-    if (!known || known.html_lang !== language.html_lang || known.direction !== language.direction) return;
-    nativeWanted = revision;
-    void choose({ preference: language.tag, tag: language.tag, save: false, native: { language, revision } });
   };
   if (local === "lang") globalThis.molisWorkSelectLocalLanguage = tag => {
     if (matches(tag)) void choose({ preference: tag, tag, save: false });

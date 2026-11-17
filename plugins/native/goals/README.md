@@ -137,4 +137,3 @@ Goals 的原动作处理目标树的提交、查询、检查和决定，保留�
 
 规划检查/影响与树检查/决定的输出携带现行 goals.planning.* issue，四个动作版本为1；其他动作版本保持。review_action指向goals.planning.impact@1，固定旧版本的调用方需重新发现/授予当前动作。当前错误码按goals.<原前缀>.<原因>，缺Goal为goals.not_found；业务事件goal.trashed/goal.archived等保持。
 
-菜单栏只读摘要：`goals.capsule.menu.read@1` 由 Goals 查询本包事实表，只返回当前一条摘要及同组数量，不展开事件正文。隐藏胶囊经此动作读取；显示胶囊仍读取原完整视图。

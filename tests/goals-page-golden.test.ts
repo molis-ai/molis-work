@@ -285,7 +285,7 @@ test("RAC-2680: recording writes the hashes", { skip: !record }, () => {
 
 // Root's 2026-11-01 RAC-2680/2686 ruling: fixed words/consumption come from independent B, never a candidate RECORD.
 const moved = JSON.parse(readFileSync(new URL("moved-words.json", GOLDEN), "utf8")) as {
-  owner: string; words: Record<string, string>; capsule_words: Record<string, string>;
+  owner: string; words: Record<string, string>;
   interpolation: Array<{ key: string; vars: Record<string, string | number>; en: string; zh: string }>;
 };
 
@@ -329,13 +329,11 @@ test("RAC-2680 exact dictionary comparison checks assignment boundaries and reta
   assert.throws(() => assertGoalsDictionaryMove(fragment, fragment.replace('"x":1', '"x":2'), moved.words, "en"));
 });
 
-// Pair the independently recorded B expectations with the exact new owners. Only typographic apostrophes and the two
-// Capsule labels in their present context change; the Chinese copy, argument values and complete sentences still come from B.
-const keys = JSON.parse(readFileSync(new URL("stable-keys.json", GOLDEN), "utf8")) as Record<"words" | "capsule_words" | "interpolation", string[]>;
+// Pair the independently recorded B expectations with the exact new owners. Only typographic apostrophes change; the Chinese
+// copy, argument values and complete sentences still come from B. (The capsule's words went with the capsule, batch 44.)
+const keys = JSON.parse(readFileSync(new URL("stable-keys.json", GOLDEN), "utf8")) as Record<"words" | "interpolation", string[]>;
 
 const reviewedEnglish: Readonly<Record<string, string>> = {
-  "goals.capsule-items.current-project": "current project",
-  "goals.capsule-items.running": "Running",
   "goals.guidance-document.project-s-stable-way-working": "The project’s stable way of working",
   "goals.guidance-document.only-active-revisions-sent-placed-before-round-s": "Only active revisions are sent, placed before this round’s task and external content. Edits and deactivations take effect in the next prompt.",
   "goals.inputs.couldn-t-remove": "Couldn’t remove it",
@@ -349,7 +347,7 @@ function examples(locale: "zh" | "en") {
     const expected = reviewedEnglish[key] ?? en;
     return { key, expected: locale === "zh" ? zh : expected, args: undefined };
   };
-  const result = (["words", "capsule_words"] as const).flatMap(section => {
+  const result = (["words"] as const).flatMap(section => {
     assert.equal(keys[section].length, Object.keys(moved[section]).length);
     return Object.entries(moved[section]).flatMap(([zh, en], index) =>
       zh.includes("{") ? [] : [text(keys[section][index]!, zh, en)]);
@@ -361,7 +359,7 @@ function examples(locale: "zh" | "en") {
     { key: "goals.inputs.fixed-version-version", expected: locale === "en" ? "Fixed version North's 原文" : "固定的第 North's 原文 版", args: { version: "North's 原文" } }];
 }
 
-test("FSS-36 RAC-2686 moved words retain the actual Goals reader on the Host and in Chrome, including Capsule and complete plurals", { timeout: 60_000 }, async t => {
+test("FSS-36 RAC-2686 moved words retain the actual Goals reader on the Host and in Chrome, including complete plurals", { timeout: 60_000 }, async t => {
   const executable = process.env.MOLIS_WORK_TEST_CHROME;
   assert.ok(executable, "an explicit dedicated test browser executable is required; no default browser fallback");
   const directory = await mkdtemp(join(tmpdir(), "goals-word-browser-"));

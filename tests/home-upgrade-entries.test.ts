@@ -1,3 +1,5 @@
+import { cliEntryProbe, REACHED_THE_PLATFORM } from "./fixtures/cli-entry-probe.js";
+import { createStandaloneProject } from "./fixtures/standalone-project.js";
 import {v2AccountPeer} from './fixtures/v2-account-peer.js';
 import {completeInstallationLogin} from './fixtures/installation-login.js';
 // UPG1-13, UPG1-15 (the `bootstrapSpace` half): every entry that takes the Home's lock, and what each does with an older store
@@ -32,7 +34,6 @@ function captureStderr(t: TestContext) {
   return lines;
 }
 
-const snapshotArgs = (database: string, project_id: string) => ["snapshot", "--db", database, "--json", JSON.stringify({ project_id })];
 
 async function withPeer<T>(t: TestContext, lock: string, use: () => Promise<T> | T): Promise<T> {
   const peer = await storageOwnerProcesses(t).start(lock);
@@ -50,9 +51,8 @@ const uninstaller = (home: string, area: string) => createDesktopUninstallServic
 test("UPG1-13: the CLI upgrades an older catalog in place, says so on one line of stderr, and finishes the command", async t => {
   const f = await catalogHome(t);
   raiseCatalogBaseline(t);
-  const output = captureLog(t), stderr = captureStderr(t);
-  assert.equal(await runV1Cli(snapshotArgs(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), 0);
-  assert.equal(JSON.parse(output.at(-1)!).board.project_id, f.project.project_id);
+  const stderr = captureStderr(t);
+  await assert.rejects(runV1Cli(cliEntryProbe(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), REACHED_THE_PLATFORM);
   assert.equal(catalogVersionOf(f.catalog), REAL_CATALOG_VERSION + 1);
   assert.equal(present(stampFile(f.home)), true);
   assert.equal(stderr.filter(line => line.includes("升级")).length, 1);
@@ -62,7 +62,7 @@ test("UPG1-13: the CLI upgrades an older catalog in place, says so on one line o
 test("UPG1-13: the CLI on a Home someone else holds says it is upgrading, and changes nothing", async t => {
   const f = await catalogHome(t), before = sha256(f.catalog);
   raiseCatalogBaseline(t);
-  await withPeer(t, f.lock, () => assert.rejects(runV1Cli(snapshotArgs(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.upgrade_in_progress" }));
+  await withPeer(t, f.lock, () => assert.rejects(runV1Cli(cliEntryProbe(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.upgrade_in_progress" }));
   assert.equal(sha256(f.catalog), before);
   assert.equal(present(ledgerFile(f.home)), false);
 });
@@ -72,14 +72,14 @@ test("UPG1-13: a catalog newer than the program goes straight back through the C
     const f = await catalogHome(t);
     onStore(f.catalog, db => db.prepare("UPDATE catalog_meta SET value = '99' WHERE key = 'schema_version'").run());
     const before = sha256(f.catalog);
-    await withPeer(t, f.lock, () => assert.rejects(runV1Cli(snapshotArgs(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.store_too_new" }));
+    await withPeer(t, f.lock, () => assert.rejects(runV1Cli(cliEntryProbe(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.store_too_new" }));
     assert.equal(sha256(f.catalog), before);
     assert.equal(present(ledgerFile(f.home)), false);
   });
   await t.test("the baseline's number", async t => {
     const f = await catalogHome(t, REAL_CATALOG_VERSION + 2), before = sha256(f.catalog);
     raiseCatalogBaseline(t);
-    await withPeer(t, f.lock, () => assert.rejects(runV1Cli(snapshotArgs(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.store_too_new" }));
+    await withPeer(t, f.lock, () => assert.rejects(runV1Cli(cliEntryProbe(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.store_too_new" }));
     assert.equal(sha256(f.catalog), before);
     assert.equal(present(ledgerFile(f.home)), false);
   });
@@ -89,7 +89,7 @@ test("UPG1-13: when the catalog's upgrade fails the CLI says this store failed, 
   const f = await catalogHome(t), before = sha256(f.catalog);
   raiseCatalogBaseline(t, failingBaseline().upgrades);
   captureLog(t);
-  await assert.rejects(runV1Cli(snapshotArgs(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), (error: Error & { code?: string; details?: { reason?: string } }) => {
+  await assert.rejects(runV1Cli(cliEntryProbe(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), (error: Error & { code?: string; details?: { reason?: string } }) => {
     assert.equal(error.code, "storage.upgrade_failed");
     assert.equal(error.details?.reason, "step_failed", "what the record says went wrong, now that the catalog has one");
     return true;
@@ -102,30 +102,25 @@ test("UPG1-13: when the catalog's upgrade fails the CLI says this store failed, 
 test("UPG1-13: a current catalog and another older store: the CLI's ordinary lock upgrades it", async t => {
   const f = await catalogHome(t), notes = seedStore(f.home, "notes");
   useDescriptors(t, notesDescriptor("notes"));
-  const output = captureLog(t);
-  assert.equal(await runV1Cli(snapshotArgs(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), 0);
-  assert.equal(JSON.parse(output.at(-1)!).board.project_id, f.project.project_id);
+  await assert.rejects(runV1Cli(cliEntryProbe(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), REACHED_THE_PLATFORM);
   assert.equal(versionOf(notes), 2);
 });
 
 test("UPG1-13: a project outside the Home with an older catalog still upgrades: `fallback` alone would not take the lock", async t => {
   const f = await catalogHome(t), external = join(f.outside, "project.db");
-  const output = captureLog(t);
-  assert.equal(await runV1Cli(["init", "--db", external, "--json", JSON.stringify({ project_id: "external", idempotency_key: "initialize" })], { homeDirectory: f.home }), 0);
+  await createStandaloneProject(external, "external");
   raiseCatalogBaseline(t);
-  assert.equal(await runV1Cli(snapshotArgs(external, "external"), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), 0);
-  assert.equal(JSON.parse(output.at(-1)!).board.project_id, "external");
+  await assert.rejects(runV1Cli(cliEntryProbe(external, "external"), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), REACHED_THE_PLATFORM);
   assert.equal(catalogVersionOf(f.catalog), REAL_CATALOG_VERSION + 1);
   assertLockFree(f.lock);
 });
 
 test("UPG1-13: a project store outside this Home is not this Home's to upgrade: it is refused and left alone", async t => {
   const f = await catalogHome(t), external = join(f.outside, "project.db");
-  captureLog(t);
-  assert.equal(await runV1Cli(["init", "--db", external, "--json", JSON.stringify({ project_id: "external", idempotency_key: "initialize" })], { homeDirectory: f.home }), 0);
+  await createStandaloneProject(external, "external");
   raiseProjectBaseline(t);
   const before = sha256(external);
-  await assert.rejects(runV1Cli(snapshotArgs(external, "external"), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.upgrade_pending" });
+  await assert.rejects(runV1Cli(cliEntryProbe(external, "external"), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.upgrade_pending" });
   assert.equal(sha256(external), before);
   assert.equal(versionOf(external), REAL_PROJECT_VERSION);
   assert.equal(versionOf(f.project.database_path), REAL_PROJECT_VERSION, "this command took no lock on the Home, so its own store waits for the next start");
@@ -147,7 +142,7 @@ test("UPG1-16: a project in the recycle bin is upgraded with the rest, and opens
   assert.deepEqual(report.units.map(unit => [unit.relative_path, unit.state]), [[relative(f.home, f.project.database_path), "committed"]]);
   assert.equal(versionOf(f.project.database_path), REAL_PROJECT_VERSION + 1);
   await change("back-again", false);
-  assert.equal(await runV1Cli(snapshotArgs(f.project.database_path, id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), 0);
+  await assert.rejects(runV1Cli(cliEntryProbe(f.project.database_path, id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), REACHED_THE_PLATFORM);
 });
 
 test("UPG1-13: `demo` from cli-project-maintenance upgrades and finishes", async t => {

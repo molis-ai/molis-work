@@ -230,7 +230,7 @@ test("Web relations and rules use live action policy for writes and selected pag
       denied.clear();
     }
     for (const [definition, path] of [[goalsActions.document, "/api/goals/parent/document"],
-      ...["/goals/parent", "/api/board", "/api/board/refresh", "/api/goals/parent/document", "/api/capsule"].map(path => [goalsActions.collection, path] as const)] as const) {
+      ...["/goals/parent", "/api/board", "/api/board/refresh", "/api/goals/parent/document"].map(path => [goalsActions.collection, path] as const)] as const) {
       denied.add(definition.capability_id);
       const response = await fetch(prefix + path);
       assert.ok(response.status >= 400, `${definition.capability_id} ${path}: expected rejection, received ${response.status}`); assert.match(await response.text(), /Configuration disabled/);

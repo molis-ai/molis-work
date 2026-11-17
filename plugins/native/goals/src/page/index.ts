@@ -27,5 +27,3 @@ export function createGoalsPage<TView extends GoalsPageView>(ports: GoalsPagePor
   return { goals, documents };
 }
 
-export { createGoalsCapsuleProjection } from "./capsule.js";
-export type { CapsuleGoalItem, CapsuleSnapshot, CapsuleState, CapsuleStateKind, CapsuleTab, CapsuleTabKind } from "./capsule-view.js";

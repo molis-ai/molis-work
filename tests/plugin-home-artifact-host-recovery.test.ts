@@ -1,3 +1,4 @@
+import { cliEntryProbe, REACHED_THE_PLATFORM } from "./fixtures/cli-entry-probe.js";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -178,10 +179,8 @@ test("BSH-03 · a Goals CLI snapshot cannot switch a project belonging to anothe
   const sourceOwner = acquireUpgradedHomeOwner(source.home);
   const targetOwner = acquireUpgradedHomeOwner(target.home);
   try {
-    const output = t.mock.method(console, "log", () => {});
-    assert.equal(await runV1Cli(["snapshot", "--db", file, "--json", JSON.stringify({ project_id: projectId })],
-      { homeDirectory: source.home, actionServiceUrl: process.env.MOLIS_WORK_WEB_URL }), 0);
-    assert.match(String(output.mock.calls[0]?.arguments[0]), new RegExp(projectId, "u"));
+    await assert.rejects(runV1Cli(cliEntryProbe(file, projectId),
+      { homeDirectory: source.home, actionServiceUrl: process.env.MOLIS_WORK_WEB_URL }), REACHED_THE_PLATFORM, "the command opened the project and reached the platform");
     assert.deepEqual(modes(), [2, 2], "the independent CLI kept the other Home's WAL mode");
   } finally { targetOwner.release(); sourceOwner.release(); }
   const host = new MolisWorkLocalHost({ homeDirectory: target.home, completeText: null });

@@ -18,7 +18,7 @@ import type { ProjectTrustedDecision, TrustedReviewCommand } from "@molis-ai/mol
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { mcpGoalReviews, prepareGoalReview } from "./fixtures/project-review-entry.js";
 
-test("CLI and MCP share current Goal/Relation proposal decisions across Host restart", async () => {
+test("management, CLI review and MCP share current Goal/Relation proposal decisions across Host restart", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-proposal-chain-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
@@ -60,11 +60,11 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     }));
     assert.equal(replayNote.replayed, true);
     const proposeInput = {
-      project_id: projectId, root_goal_id: "draft",
+      root_goal_id: "draft",
       summary: "新增一个仍需补全要求的子目标", idempotency_key: "propose",
       items: [{
         item_id: "child", kind: "goal", operation: "create",
-        payload: { goal_id: "child", title: "整理 CLI 入口", outcome: "入口可核对" },
+        payload: { goal_id: "child", title: "整理管理入口", outcome: "入口可核对" },
         source_refs: ["conversation://proposal-chain"], reason: "记录用户希望整理的入口", confidence: 1,
         affected_objects: [{ object_type: "goal", object_id: "child" }],
       }, {
@@ -74,14 +74,15 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
         affected_objects: [{ object_type: "goal", object_id: "child" }, { object_type: "goal", object_id: "draft" }],
       }],
     };
-    // The CLI submits as the person on this machine; an identity or Runtime Session named in the arguments is refused, not recorded.
+    // The management caller submits as the person on this machine; an identity or Runtime Session named in the arguments is refused, not
+    // recorded. (The CLI's `goal-tree-*` commands were removed, PEQ-15; the person reaches the same actions as the management caller.)
     for (const identity of [{ actor_id: "runtime:chain:session" }, { submitted_session_id: "forged-session" }]) {
       await assert.rejects(
-        () => runV1Cli(["goal-tree-propose", "--db", databasePath, "--json", JSON.stringify({ ...proposeInput, ...identity })], { localHost: host }),
+        () => client.invoke(goalsActions.treeSubmit, { ...proposeInput, ...identity } as never),
         (error: unknown) => (error as { code?: string }).code === "actions.input_invalid",
       );
     }
-    const proposed = await cli<ReturnType<GoalTreeApplicationApi["submitGoalTreeProposal"]>>("goal-tree-propose", proposeInput);
+    const proposed = await client.invoke(goalsActions.treeSubmit, proposeInput as never) as ReturnType<GoalTreeApplicationApi["submitGoalTreeProposal"]>;
     assert.equal(proposed.proposal.submitted_by, LOCAL_PERSON_ACTOR_ID);
     assert.equal(proposed.proposal.submitted_session_id, null);
     assert.equal((await snapshot()).goals.some((goal) => goal.goal_id === "child"), false);
@@ -89,15 +90,16 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
       proposal_id: proposed.proposal.proposal_id,
     }))) as GoalTreeProposalListResult;
     assert.equal(listed.proposals[0]!.proposal_id, proposed.proposal.proposal_id);
-    const checkInput = { project_id: projectId, proposal_id: proposed.proposal.proposal_id, idempotency_key: "check-proposal" };
+    const checkInput = { proposal_id: proposed.proposal.proposal_id, idempotency_key: "check-proposal" };
     await assert.rejects(
-      () => runV1Cli(["goal-tree-check", "--db", databasePath, "--json", JSON.stringify({ ...checkInput, actor_id: "runtime:chain:session" })], { localHost: host }),
+      () => client.invoke(goalsActions.treeCheck, { ...checkInput, actor_id: "runtime:chain:session" } as never),
       (error: unknown) => (error as { code?: string }).code === "actions.input_invalid",
     );
-    const checked = await cli<ReturnType<GoalTreeApplicationApi["checkGoalTreeProposal"]>>("goal-tree-check", checkInput);
+    const check = async () => await client.invoke(goalsActions.treeCheck, checkInput as never) as ReturnType<GoalTreeApplicationApi["checkGoalTreeProposal"]>;
+    const checked = await check();
     assert.deepEqual(checked.conflict_item_ids, []);
     const checkedSnapshot = await snapshot();
-    assert.deepEqual(await cli("goal-tree-check", checkInput), checked);
+    assert.deepEqual(await check(), checked);
     assert.deepEqual(await snapshot(), checkedSnapshot, "a repeated management check preserves the stored item checks and history");
     // R2-02: the real Runtime discovers and calls the current planning-output contract.
     const runtimeChecked = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.tree.check__v1", {

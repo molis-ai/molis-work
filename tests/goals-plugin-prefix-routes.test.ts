@@ -17,7 +17,6 @@ interface DecisionReply {
   proposal: { decisions: { actor_id: string; authority_source: string; runtime_actor_id: string | null; message_ref: string }[] };
   replayed: boolean;
 }
-interface CapsuleReply { tabs: { items: { goal_id: string }[] }[] }
 
 /** The page's headers: writes carry the Host gate's origin, JSON and control token; a per-request key is the caller's. */
 async function request<T = unknown>(served: TestHome, method: string, path: string, options: {
@@ -162,7 +161,7 @@ test("RAC-1513 a Goal written at the plugin prefix is visible to the project pag
   const base = page(served, project.project_id);
   // Warm the project page's cached view first (the project page is what the old rewrite invalidated through `changed()`): the Goal's
   // title is not on it yet. The Host keeps that view per project (`cachedMolisWorkWebView`) until the journal cursor or a fingerprint
-  // changes, so a stale invalidation would hide the write from the page even though the capsule can see it.
+  // changes, so a stale invalidation would hide the write from the page.
   const pageRead = async () => await (await fetch(served.origin + base, { headers: { accept: "text/html" } })).text();
   const before = await pageRead();
   assert.doesNotMatch(before, /Seen on the page's next read/u, "the page was read before the write and does not carry it");
@@ -171,9 +170,6 @@ test("RAC-1513 a Goal written at the plugin prefix is visible to the project pag
   const goalId = created.body!.goal.goal_id;
   const after = await pageRead();
   assert.match(after, new RegExp(goalId), "the project page's next read carries the Goal written at the plugin prefix");
-  const capsule = await served.web.get<CapsuleReply>(`${base}/api/capsule`);
-  assert.ok(capsule.tabs.some(tab => tab.items.some(item => item.goal_id === goalId)),
-    "the capsule the page reads lists the Goal written at the plugin prefix");
 });
 
 async function sourceFiles(directory: string): Promise<{ path: string; source: string }[]> {

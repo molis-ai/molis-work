@@ -1142,7 +1142,7 @@ test("FSS-20 FSS-37 the Workbench and its inline Goals share a language change w
   assert.deepEqual([...new Set(hostTextProblems().filter(problem => !problemsBefore.has(problem)).map(problem => problem.key ?? problem.code))], [], "the real Host rendered every visible owner without missing text");
 });
 
-test("FSS-20 FSS-34 FSS-37 the catalog and capsule switch their existing documents without saving a Home preference", { timeout: 120_000 }, async t => {
+test("FSS-20 FSS-34 FSS-37 the catalog switches its existing document without saving a Home preference", { timeout: 120_000 }, async t => {
   const problemsBefore = new Set(hostTextProblems());
   const b = await openBoardBrowser(t, "seeded", undefined, null); if (!b) return;
   const { command, sessionId, origin, waitFor, evaluate } = b;
@@ -1164,20 +1164,7 @@ test("FSS-20 FSS-34 FSS-37 the catalog and capsule switch their existing documen
   await waitFor("document.querySelector('[data-look-fade-now]').textContent === 'Using Soft Workbench' && document.querySelector('[data-catalog-media-zoom]').textContent === 'Actual size'");
   assert.match(await evaluate<string>("document.cookie"), /molis_work_locale=zh/u);
 
-  await b.navigate(() => command("Page.navigate", { url: origin + "/desktop/capsule?locale=zh" }, sessionId));
-  await waitFor("typeof molisWorkSelectCapsuleLanguage === 'function' && document.querySelector('[data-capsule-open-board]')");
-  await evaluate(`(() => {
-    window.capsuleButton = document.querySelector('[data-capsule-open-board]');
-    window.capsuleProject = document.querySelector('[data-capsule-project]').value;
-    molisWorkSelectCapsuleLanguage({ tag: 'en', html_lang: 'zh-CN', direction: 'ltr' }, 99);
-    molisWorkSelectCapsuleLanguage({ tag: 'en', html_lang: 'en', direction: 'ltr' }, 2);
-    molisWorkSelectCapsuleLanguage({ tag: 'zh', html_lang: 'zh-CN', direction: 'ltr' }, 1);
-  })()`);
-  await waitFor("document.documentElement.lang === 'en' && document.documentElement.dataset.uiNativeLanguageRevision === '2'");
-  assert.deepEqual(await evaluate("[capsuleButton === document.querySelector('[data-capsule-open-board]'), capsuleButton.textContent.trim(), capsuleProject === document.querySelector('[data-capsule-project]').value]"),
-    [true, "Open Molis Work", true]);
-  assert.match(await evaluate<string>("document.cookie"), /molis_work_locale=zh/u);
-  assert.deepEqual([...new Set(hostTextProblems().filter(problem => !problemsBefore.has(problem)).map(problem => problem.key ?? problem.code))], [], "the real catalog and capsule rendered their words from the exact packs");
+  assert.deepEqual([...new Set(hostTextProblems().filter(problem => !problemsBefore.has(problem)).map(problem => problem.key ?? problem.code))], [], "the real catalog rendered its words from the exact packs");
 });
 
 test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in the same frame and keeps draft and record data", { timeout: 120_000, skip: process.platform !== "darwin" }, async t => {

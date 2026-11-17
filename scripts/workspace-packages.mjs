@@ -137,8 +137,7 @@ export const WORKSPACE_PACKAGES = [
   entry("apps/desktop", "@molis-ai/molis-work-contracts/platform/app-host", {
     maturity: "production",
     capabilities: [
-      "desktop.shell.v1",
-      "desktop.capsule-shell.v1"
+      "desktop.shell.v1"
     ],
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-service-runtime-host",

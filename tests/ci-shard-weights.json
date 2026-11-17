@@ -226,8 +226,6 @@
  "tests/canonical-json-value.test.ts": 1,
  "tests/capabilities-in-settings.e2e.test.ts": 13,
  "tests/capabilities-page.test.ts": 14,
- "tests/capsule-polling.test.ts": 8,
- "tests/capsule.test.ts": 5,
  "tests/catalog-connectors.test.ts": 1,
  "tests/catalog-path-derivation.test.ts": 6,
  "tests/catalog-read-contention.test.ts": 9,

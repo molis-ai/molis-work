@@ -114,12 +114,6 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
     actions: bindLocalWebActions(localHost, undefined, ["functions:invoke", "functions:manage"]),
   })) },
   { id: "onboarding", handle: ({ request, response, url, serverOptions, projects, localHost, controlToken, composition }) => composition.handleOnboarding(request, response, url, serverOptions.homeDirectory, projects.length, localHost, controlToken) },
-  { id: "desktop-capsule", handle: ({ request, response, url, projects, composition }) => {
-    if (!(request.method === "GET" && url.pathname === "/desktop/capsule")) return false;
-    response.writeHead(200, { "content-type": "text/html; charset=utf-8", ...noStore, "content-security-policy": composition.PAGE_CSP });
-    response.end(composition.renderCapsuleShell(projects));
-    return true;
-  } },
   { id: "component-board", handle: ({ request, response, url, composition }) => handleComponentBoardHttp(request, response, url, composition.PAGE_CSP, composition.appearance) },
   { id: "settings-home", handle: ({ request, response, url, composition }) => {
     if (!(request.method === "GET" && url.pathname === "/settings")) return false;

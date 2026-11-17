@@ -36,7 +36,7 @@ async function withoutGoals(t: Parameters<typeof test>[1] extends (t: infer T, .
 
 test("RAC-400 a project without Goals draws its page, its settings and its board, and does not offer Goals", { timeout: 240_000 }, async t => {
   const env = await withoutGoals(t);
-  for (const path of ["", "/settings", "/settings/plugins", "/settings/guidance", "/api/board", "/api/capsule"]) {
+  for (const path of ["", "/settings", "/settings/plugins", "/settings/guidance", "/api/board"]) {
     const response = await fetch(env.prefix + path);
     const text = await response.text();
     assert.equal(response.status, 200, `${path || "/"}: ${text.slice(0, 300)}`);

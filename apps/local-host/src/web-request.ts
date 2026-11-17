@@ -26,7 +26,6 @@ import type { LocalWebComposition } from "./web-composition.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { t as uiText, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import fs from "node:fs";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import { cachedMolisWorkWebView, type MolisWorkWebViewCache, type GoalsWebView } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
@@ -258,24 +257,6 @@ const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 
 ];
 
-/** The capsule's snapshot of this project: the board and the Goals directory. */
-const capsuleRoute: WebRoute<ProjectRuntimeContext> = { id: "capsule", handle: async ({ request, response, url, options, goalActions, composition, readWebView, goalsHere }) => {
-  if (request.method !== "GET" || url.pathname !== "/api/capsule") return false;
-  if (!options.project) {
-    sendJson(response, 400, { error: uiText.text("workbench.request.choose-molis-work-project-first") });
-    return true;
-  }
-  // A project without Goals has none to list (RAC-400); in one with Goals, a refused list is that refusal.
-  if (url.searchParams.get("view") === "menu") {
-    const summary = await goalsHere() ? await goalActions.invoke(goalsActions.capsuleMenu, {}) : { focus: null };
-    sendJson(response, 200, composition.buildCapsuleMenu(options.project, summary));
-    return true;
-  }
-  const directory = await goalsHere() ? await goalActions.invoke(goalsActions.list, { limit: 100 }) : undefined;
-  sendJson(response, 200, composition.buildCapsuleSnapshot(await readWebView(), directory?.goals ?? []));
-  return true;
-} };
-
 /** Goals' and 成果's own HTTP and pages; the Goal page is tried last, before the 404. */
 const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "project-reference", handle: context => handleLocalProjectReferenceHttp(context.request, context.response, context.url, asPerson(context, ARTIFACT_ACTION_PERMISSIONS)) },
@@ -331,7 +312,6 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
       } } }) },
   ...projectAssistantRoutes,
   ...pageOwnerRoutes,
-  capsuleRoute,
   ...goalsAndArtifactRoutes,
   projectNotFoundRoute,
 ];

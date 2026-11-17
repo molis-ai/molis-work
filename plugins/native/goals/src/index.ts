@@ -85,4 +85,3 @@ export { assertGoalApprovalHistory, goalApprovalOutcomes, readGoalApprovalOutcom
 export { GOALS_SETTINGS_UI_CONTRIBUTION_ID, goalsSettingsUiContribution, goalsSettingsUiDescriptor } from "./settings-ui.js";
 export { PluginSqlite, type PluginSqliteDatabase } from "./plugin-sqlite.js";
 
-export { readGoalCapsuleMenu, type GoalCapsuleMenu } from "./capsule-menu.js";

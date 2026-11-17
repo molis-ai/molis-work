@@ -148,11 +148,9 @@ interface RegisteredAction { capability_id: string; version: number; operation: 
   action: { kind: string; scope: string; permissions: readonly string[]; description: string; input_schema: { properties: Record<string, unknown>; required?: string[] } } }
 const registered = (table: "goalEntryActions" | "goalPluginActions", key: string): RegisteredAction => (contract[table] as Record<string, RegisteredAction>)[key]!;
 
-test("RAC-1773: the CLI, MCP, Feed and Coding tables hold the ids, versions and kinds of the actions Goals registers, and the management tools carry the directory's words", () => {
-  // CLI: the Goals-owned entry actions, each equal to the registered one.
-  const cli = referencesIn("apps/cli/src/command-dispatch.ts", "GOALS");
-  assert.deepEqual(Object.keys(cli).sort(), ["active", "initialize", "snapshot", "treeCheck", "treeRead", "treeSubmit"]);
-  for (const [name, [id, version]] of Object.entries(cli)) assert.deepEqual([id, version], [registered("goalEntryActions", name).capability_id, registered("goalEntryActions", name).version], `CLI ${name}`);
+test("RAC-1773 PEQ-15: the MCP, Feed and Coding tables hold the ids, versions and kinds of the actions Goals registers, the CLI names none, and the management tools carry the directory's words", () => {
+  // CLI (PEQ-15): its Goals commands and their table were removed; it names no Goals action.
+  assert.doesNotMatch(readFileSync(new URL("../apps/cli/src/command-dispatch.ts", import.meta.url), "utf8"), /\bGOALS\b|"goals\./u);
   // Feed: the three entry actions a promotion calls.
   const feed = referencesIn("plugins/native/feed/src/goal-promotion.ts", "GOALS");
   assert.deepEqual(Object.keys(feed).sort(), ["create", "directoryItem", "inputsConfirm"]);

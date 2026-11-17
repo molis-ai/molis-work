@@ -1,5 +1,4 @@
 /** Molis Work Desktop product shell and native bridge public entrypoint. */
-export * from "./capsule-shell.js";
 export * from "./shell.js";
 
 export { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog, inspectMolisWorkProjectCatalogSnapshot } from "./project-catalog.js";

@@ -1,21 +1,21 @@
 /** The work in a sentence: its state and what it is doing now, the jump to what waits on the person, and the line over the conversation when the side pane is out of sight. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place. */
 export const ASSISTANT_STRIP_PART = String.raw`  /* 概况: the work's state and what it is doing now, where it belongs, who carries it, and what can be done to it now. */
   const nowLine = (work) => {
-    if (!work) return globalThis.t.text("workbench.assistant-strip.starts-first-message-choose-who-does-where-lives");
-    if (browserHeld.has(work.work_id)) return globalThis.t.text("workbench.assistant-strip.have-browser-hand-back-side-panel-assistant-will");
+    if (!work) return readText("workbench.assistant-strip.starts-first-message-choose-who-does-where-lives");
+    if (browserHeld.has(work.work_id)) return readText("workbench.assistant-strip.have-browser-hand-back-side-panel-assistant-will");
     const rounds = view && view.work.work_id === work.work_id ? view.rounds : [];
     const last = rounds[rounds.length - 1];
     const reviews = view && view.work.work_id === work.work_id ? view.reviews : [];
     // The state above already says it waits on the person; this line says on what.
     if (reviews.length) return reviews[0].summary + (reviews.length > 1 ? " · +" + (reviews.length - 1) : "");
     if (last && last.awaiting_input && last.awaiting_input.length) return clip(String(last.awaiting_input[0].prompt || ""), 80);
-    if (work.state === "running") { const live = last && [...last.activity].reverse().find((item) => item.state === "started"); return live ? activityLine(live) : globalThis.t.text("workbench.assistant-strip.working"); }
+    if (work.state === "running") { const live = last && [...last.activity].reverse().find((item) => item.state === "started"); return live ? activityLine(live) : readText("workbench.assistant-strip.working"); }
     const ready = (view && view.cards ? view.cards : []).filter((card) => card.status === "ready" || card.status === "needs-input").length;
-    if (ready) return ready + " " + globalThis.t.text("workbench.assistant-strip.actions-waiting");
-    if (work.state === "paused") return globalThis.t.text("workbench.assistant-strip.paused-click-continue-go");
-    if (work.state === "needs-check") return globalThis.t.text("workbench.assistant-strip.operation-s-outcome-unconfirmed-check-first");
+    if (ready) return ready + " " + readText("workbench.assistant-strip.actions-waiting");
+    if (work.state === "paused") return readText("workbench.assistant-strip.paused-click-continue-go");
+    if (work.state === "needs-check") return readText("workbench.assistant-strip.operation-s-outcome-unconfirmed-check-first");
     if ((work.state === "failed" || work.state === "stopped") && last && last.stop_reason && last.stop_reason_code !== "person") return last.stop_reason;
-    if (work.state === "completed" && last && last.ended_at) return globalThis.t.text("workbench.assistant-strip.finished") + " " + when(last.ended_at);
+    if (work.state === "completed" && last && last.ended_at) return readText("workbench.assistant-strip.finished") + " " + when(last.ended_at);
     return "";
   };
   /** Scrolls the conversation to what waits on the person and marks it for a moment; a drawer steps aside first. */

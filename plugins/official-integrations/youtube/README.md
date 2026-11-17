@@ -53,7 +53,7 @@ node scripts/run-tests.mjs tests/feed-sources.test.ts tests/feed-runtime-plugin.
 - 不变量：
   - 频道更新交给统一信息流，本包不拥有其状态。
   - 网络读取与权限由平台 SourcePull 执行，本包不拥有同步状态或安装生命周期。
-- 改动后必跑：上方来源、Runtime、权限与实际 npm 产物回归。
+- 改动后必跑：`tests/feed-sources.test.ts`、`tests/feed-runtime-plugin.test.ts`、`tests/security-invariants-plugin-source-pull.test.ts`、`tests/npm-package.test.ts`（上方命令）。
 - 相关手册：[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

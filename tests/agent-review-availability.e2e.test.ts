@@ -3,7 +3,7 @@ import test from "node:test";
 import { execFileSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { AgentReviewDecisionOptions } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentReviewDecisions } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { setProjectOutputFolder } from "./fixtures/project-directories-http.js";
@@ -28,9 +28,9 @@ test("QEA-22 an earlier plugin activation cannot be approved after restart; the 
   await child.click("[data-git-path]"); await child.click("[data-git-index-action]");
   await b.waitFor("document.querySelector('[data-host-review-slot] [data-agent-review-approve]')?.getClientRects().length");
   const reviewId = await b.evaluate<string>("document.querySelector('[data-host-review-slot] [data-agent-review-approve]').dataset.agentReviewApprove");
-  type Row = { request: { review_id: string }; receipt: { status: string }; decisionOptions: AgentReviewDecisionOptions };
+  type Row = { request: { review_id: string }; receipt: { status: string }; decisions: AgentReviewDecisions };
   const review = async () => (await b.web.get<{ reviews: Row[] }>(prefix + "/api/agent/reviews")).reviews.find(row => row.request.review_id === reviewId)!;
-  assert.deepEqual((await review()).decisionOptions, { decisions: ["approve", "reject"], blocked_reason: null });
+  assert.deepEqual((await review()).decisions, { approve: { available: true }, reject: { available: true } });
   const switchPlugin = async (method: "POST" | "DELETE", plugin_id = "git") => {
     const index = await b.web.get<{ projects: Array<{ project_id: string; revision: string }> }>("/api/settings/project-plugins");
     const revision = index.projects.find(row => row.project_id === b.projectId)?.revision;
@@ -39,15 +39,15 @@ test("QEA-22 an earlier plugin activation cannot be approved after restart; the 
     if (method === "DELETE") await b.web.delete(path, input); else await b.web.post(path, input);
   };
   await switchPlugin("DELETE");
-  assert.deepEqual((await review()).decisionOptions, { decisions: ["approve", "reject"], blocked_reason: null },
+  assert.deepEqual((await review()).decisions, { approve: { available: true }, reject: { available: true } },
     "hiding the standalone Git page does not stop Git while Coding still embeds it");
   await switchPlugin("DELETE", "coding");
-  assert.deepEqual((await review()).decisionOptions, { decisions: ["reject"], blocked_reason: "authority-unavailable" });
+  assert.deepEqual((await review()).decisions, { approve: { available: false, code: "agent.review_not_permitted", reason: { owner: "workbench", key: "workbench.agent-review.authority-ended" } }, reject: { available: true } });
   await switchPlugin("POST");
-  assert.deepEqual((await review()).decisionOptions, { decisions: ["reject"], blocked_reason: "authority-unavailable" }, "a new activation cannot inherit the original approval authority");
+  assert.deepEqual((await review()).decisions, { approve: { available: false, code: "agent.review_not_permitted", reason: { owner: "workbench", key: "workbench.agent-review.authority-ended" } }, reject: { available: true } }, "a new activation cannot inherit the original approval authority");
   assert.equal(git("diff", "--cached", "--name-only"), "");
   const output = reviewEvidenceUrl("quality-experience-audit/"); await mkdir(output, { recursive: true });
-  for (const [locale, hint] of [["zh", "只能拒绝"], ["en", "permissions or activation changed"]] as const) {
+  for (const [locale, hint] of [["zh", "原授权已经失效"], ["en", "The original authority has ended"]] as const) {
     await go(`/locale?lang=${locale}&next=${encodeURIComponent(prefix + "/?openPlugin=git")}`); await b.surfaceReady("git");
     await child.click("[data-git-path]");
     await child.waitFor("document.querySelector('[data-git-results]')?.getAttribute('aria-busy') === 'false'");
@@ -69,7 +69,8 @@ test("QEA-22 an earlier plugin activation cannot be approved after restart; the 
   await b.click("[data-page-dialog=confirm] [type=submit]");
   await b.waitFor("!document.querySelector('[data-host-review-slot] [data-agent-review-reject]')");
   assert.equal((await review()).receipt.status, "rejected");
-  assert.deepEqual((await review()).decisionOptions, { decisions: [], blocked_reason: null });
+  assert.equal((await review()).decisions.approve.available, false);
+  assert.equal((await review()).decisions.reject.available, false);
   assert.equal(git("diff", "--cached", "--name-only"), "", "rejection never stages the file");
   assert.equal(git("show", "HEAD:note.md"), "original\n");
 });

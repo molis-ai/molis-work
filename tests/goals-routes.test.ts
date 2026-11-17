@@ -51,7 +51,6 @@ test("PG094-09: each plugin-prefix path reaches the route the Manifest declares 
   const cases: Array<[string, string, string, Record<string, string>]> = [
     ["POST", "/goals", "goals.create", {}],
     ["GET", "/goals/directory", "goals.directory", {}],
-    ["POST", "/policy-bindings", "goals.policy-save", {}],
     ["GET", "/project-guidance", "goals.guidance-read", {}],
     ["POST", "/project-guidance", "goals.guidance-add", {}],
     ["PATCH", "/project-guidance/g-1", "goals.guidance-update", { guidanceId: "g-1" }],
@@ -60,14 +59,12 @@ test("PG094-09: each plugin-prefix path reaches the route the Manifest declares 
     ["POST", "/goals/goal%201/active", "goals.active", goal],
     ["POST", "/goals/goal%201/archive", "goals.archive", goal],
     ["POST", "/goals/goal%201/trash", "goals.trash", goal],
-    ["POST", "/goal-tree-proposals/p-1/decision", "goals.tree-decide", { proposalId: "p-1" }],
     ["GET", "/goals/goal%201/history/h-1", "goals.history-read", { ...goal, itemId: "h-1" }],
     ["GET", "/goals/goal%201/events/e-1", "goals.event-read", { ...goal, eventId: "e-1" }],
     ["GET", "/goals/goal%201/event-state", "goals.event-state", goal],
     ["GET", "/goals/goal%201/event-timeline", "goals.event-timeline", goal],
     ...["event-configure", "event-report", "event-progress", "event-concern", "event-decision-request", "event-agree", "event-close", "event-resume", "event-note"]
       .map((write): [string, string, string, Record<string, string>] => ["POST", `/goals/goal%201/${write}`, `goals.${write}`, goal]),
-    ["POST", "/goals/goal%201/event-decision", "goals.event-decision", goal],
     ["GET", "/goals/goal%201/deliverables", "goals.deliverables-read", goal],
     ["POST", "/goals/goal%201/deliverables", "goals.deliverables-write", goal],
     ["GET", "/goals/goal%201/artifact-inputs", "goals.artifact-inputs-read", goal],
@@ -87,6 +84,9 @@ test("PG094-09: each plugin-prefix path reaches the route the Manifest declares 
   // Expected change: a read is only a GET now, so a POST to it is no route at all (it used to be refused with 400).
   assert.equal(at("POST", "/goals/goal-1/event-state"), null);
   assert.equal(at("POST", "/goals/goal-1/event-timeline"), null);
+  for (const path of ["/policy-bindings", "/goal-tree-proposals/p-1/decision", "/goals/goal%201/event-decision"]) {
+    assert.equal(at("POST", path), null, `${path} was retired in APR-17/19`);
+  }
   assert.equal(at("GET", "/goals"), null);
   assert.equal(at("DELETE", "/goals/goal-1/trash"), null);
   assert.throws(() => at("GET", "/goals/%E0%A4%A/event-state"), URIError);

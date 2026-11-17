@@ -56,7 +56,8 @@ export const MCP_ACCESS_CLIENT_SCRIPT = `
     const rowKey = button.dataset.mcpGrant;
     setBusy(true); message(globalThis.t.text("workbench.mcp-access.saving"));
     try {
-      await molisWorkRequest('/api/settings/mcp/actions', {body:{client_id:root.dataset.clientId,project_id:root.dataset.projectId || null,capability_id,version,provider_id,enabled},fallback:globalThis.t.text("workbench.mcp-access.could-not-save-access")});
+      await molisWorkRequest('/api/settings/mcp/actions', {body:{client_id:root.dataset.clientId,project_id:root.dataset.projectId || null,capability_id,version,provider_id,enabled,expected:JSON.parse(button.dataset.grantExpected)},fallback:globalThis.t.text("workbench.mcp-access.could-not-save-access")});
+      window.dispatchEvent(new CustomEvent("molis:authorization-changed"));
       if (!root.isConnected) return;
       await update(); message(globalThis.t.text(enabled ? "workbench.mcp-access.access-saved" : "workbench.mcp-access.access-revoked"));
       const row = Array.from(rows.querySelectorAll('[data-grant-row]')).find(node => node.dataset.grantRow === rowKey);

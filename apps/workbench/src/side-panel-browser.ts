@@ -270,43 +270,42 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     const focused=approval.contains(document.activeElement)?document.activeElement:null;
     if(!row){if(focused)focusBrowserTab();approval.hidden=true;approval.innerHTML='';reviewing=null;reviewMode=null;return;}
     const held=state?.control?.mode==='taken-over';
+    const mode=JSON.stringify([held,row.decisions,row.request.reference.version]);
     const same=reviewing===row.request.review_id;
-    const options=row.decisionOptions,mode=JSON.stringify([held,options]);
     if(same&&reviewMode===mode)return;
     if(!same&&focused)focusBrowserTab();
     const scroll=same&&(!held||focused)?approval.querySelector('.side-browser-approval-copy').scrollTop:0;
-    reviewing=row.request.review_id;reviewMode=mode;
+    reviewing=row.request.review_id;reviewMode=mode;approval.dataset.reviewVersion=row.request.reference.version;
     const doc=row.request.document||{},fields=doc.fields||[],site=(fields.find(field=>field.label==='网站')||{}).value||state?.origin||'';
     // Uploads always ask; a blank page is no site to remember.
     const upload=/上传/.test(doc.summary||''),remember=!upload&&/^https?:\/\//.test(site);
     // While the person holds the page the step cannot run; after the handback the Assistant looks again first.
-    const unavailable=options.blocked_reason?'<p class="side-browser-approval-note">'+esc(options.blocked_reason==='authority-unavailable'
-      ?globalThis.t.text("workbench.agent-review.authority-unavailable"):globalThis.t.text("workbench.agent-review.execution-unavailable"))+'</p>':'';
-    const note=held?'<p class="side-browser-approval-note">'+esc(globalThis.t.text("workbench.side-panel-browser.while-hold-page-step-wont-run-after-hand"))+'</p>':'';
+    const note=held?'<p class="side-browser-approval-note">'+esc(globalThis.t.text("workbench.side-panel-browser.while-hold-page-step-wont-run-after-hand"))+'</p>':!row.decisions.approve.available?'<p class="side-browser-approval-note">'+esc(globalThis.say.text(row.decisions.approve.reason))+'</p>':'';
     const details=fields.filter(field=>field.label!=='网站').map(field=>'<dt>'+esc(field.label)+'</dt><dd>'+esc(field.value)+'</dd>').join('');
-    const choices=held||!options.decisions.includes('approve')?'':browserButton('approve-once',globalThis.t.text("workbench.side-panel-browser.allow-once"),'primary')+(remember?browserButton('approve-site',globalThis.t.text("workbench.side-panel-browser.dont-ask-again-site"),'secondary'):'');
-    approval.innerHTML='<h2 id="side-browser-approval-title">'+esc(globalThis.t.text("workbench.side-panel-browser.assistant-asks-confirm"))+'</h2>'
+    const choices=held||!row.decisions.approve.available?'':browserButton('approve-once',globalThis.t.text("workbench.side-panel-browser.allow-once"),'primary')+(remember?browserButton('approve-site',globalThis.t.text("workbench.side-panel-browser.dont-ask-again-site"),'secondary'):'');
+    approval.innerHTML='<h2 id="side-browser-approval-title" tabindex="-1">'+esc(globalThis.t.text("workbench.side-panel-browser.assistant-asks-confirm"))+'</h2>'
       +'<div class="side-browser-approval-copy" role="group" aria-labelledby="side-browser-approval-title" tabindex="0">'
-      +unavailable+note+'<p>'+esc(doc.summary||globalThis.t.text("workbench.side-panel-browser.assistant-wants-act-page"))+'</p><dl>'+details+'</dl></div>'
-      +'<div class="side-browser-actions-row">'+choices+(options.decisions.includes('reject')?browserButton('reject',globalThis.t.text("workbench.side-panel-browser.dont-allow"),'ghost'):'')+'</div>';
+      +note+'<p>'+esc(doc.summary||globalThis.t.text("workbench.side-panel-browser.assistant-wants-act-page"))+'</p><dl>'+details+'</dl></div>'
+      +'<div class="side-browser-actions-row">'+choices+(row.decisions.reject.available?browserButton('reject',globalThis.t.text("workbench.side-panel-browser.dont-allow"),'ghost'):'')+'</div>';
     approval.dataset.site=site;approval.hidden=false;
     paintApprovalBusy();
     const copy=approval.querySelector('.side-browser-approval-copy');
     copy.scrollTop=scroll;
     if(same&&focused){
       const next=focused.dataset.browserAction?tool(focused.dataset.browserAction):copy;
-      const target=next?.getClientRects().length?next:tool('reject');
-      if(target?.getClientRects().length)target.focus({preventScroll:true});else focusBrowserTab();
+      const fallback=copy.getClientRects().length?copy:approval.querySelector('h2');
+      (next?.getClientRects().length?next:fallback).focus({preventScroll:true});
     }
     if(!visible())document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser'}}));
     say(globalThis.t.text("workbench.side-panel-browser.assistant-asks-confirm-what",{what:doc.summary||''}),true);
   };
   const decide=async(decision,id,site)=>{
     if(!id||deciding.has(id))return;
+    const version=approval.dataset.reviewVersion;
     deciding.add(id);paintApprovalBusy();
     try{
       if(site)await setSite(site,'allow');
-      await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body:{review_id:id,decision},fallback:globalThis.t.text("workbench.side-panel-browser.answer-was-not-sent")});
+      await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body:{review_id:id,version,decision},fallback:globalThis.t.text("workbench.side-panel-browser.answer-was-not-sent")});
       if(reviewing===id)renderApproval(null);
       void pollReviews();
     }catch(error){fail(error);}

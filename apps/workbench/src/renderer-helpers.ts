@@ -46,7 +46,7 @@ export function createRendererHelpers(ports: {
       .replaceAll('href="__SYSTEM_CAPABILITIES__"', `href="/capabilities/library${routePrefix ? `?project=${encodeURIComponent(routePrefix.split("/")[2]!)}` : ""}"`)
       .replaceAll('href="__WORKBENCH_CSS__"', 'href="/assets/molis-work-workbench.css"')
       .replaceAll('href="__PROJECT_SETTINGS__"', `href="${routePrefix ? `${routePrefix}/settings` : "/settings/projects"}"`)
-      .replaceAll('href="__PROJECT_RULES_SETTINGS__"', `href="${routePrefix ? `${routePrefix}/settings/rules` : "/settings/projects"}"`)
+      .replaceAll('href="__PROJECT_RULES_SETTINGS__"', `href="/settings/authorizations?view=project-rules${routePrefix ? `&amp;project=${encodeURIComponent(decodeURIComponent(routePrefix.split("/")[2]!))}` : ""}"`)
       .replaceAll('href="__SYSTEM_SETTINGS__"', `href="/settings/appearance${routePrefix ? `?project=${encodeURIComponent(routePrefix.split("/")[2]!)}` : ""}"`);
     return desktopShell ? appendDesktopQueryToLocalHrefs(resolved) : resolved;
   }

@@ -1,4 +1,4 @@
-import type { AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentActionReviewControl, AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
 import type { memorySources } from "../memory/memory-sources.js";
@@ -35,11 +35,13 @@ export const MAX_TEXT = 20_000;
 export interface AssistantServicePorts extends AssistantLandingPorts, AssistantRoundFactPorts, Pick<AssistantFollowUpPorts<StoredWork>, "pages"> {
   /** Withdraw only unfinished setup requests owned by this work's session. */
   cancelSetups?(sessionId: string): void;
-  retainSetups?(sessionId: string): Promise<void>;
+  retainSetups?(sessionId: string, control: AgentActionReviewControl): Promise<void>;
   holdSetups?(sessionId: string, revision: string): void;
   setupMaterial?(work: StoredWork, offered: readonly ActionView[], previousWaitWithdrawn: boolean): AgentTextMaterial | undefined;
   /** The Home's Agent Host, ready to run. */
   host(): Promise<AgentHost>;
+  /** A draft in a Home whose runtime has been used can have a grant before its first round. */
+  hostForDraftPermissions?(): Promise<AgentHost | undefined>;
   /** The language the person last used, read when a round no page started begins. Absent: such a round is told no language. */
   lastLocale?(): WebLocale;
   /** `namedSkills` and `autoSkills` are the round's own (`skill_round`): the Skills the person named, and false for 「这次不用技能」. */

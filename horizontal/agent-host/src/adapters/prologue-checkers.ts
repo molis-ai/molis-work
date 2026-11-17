@@ -41,6 +41,9 @@ export interface PrologueCheckPorts {
   directoryAuthorized?(projectId: string, path: string): Promise<boolean>;
   /** The project's workspace at this directory, authorized with its real path verified now, for its after-write checks; none when it is not. */
   workspaceAt?(projectId: string, path: string): Promise<string | undefined>;
+  /** Hold the original writable directory by owner, canonical path and filesystem identity through the actual command. */
+  holdCommandWorkspace?(projectId: string, workspaceId: string, directory: string, worktreeId?: string): Promise<(import("../review-decisions.js").ReviewDecisionControl & { identity?: string }) | undefined>;
+  holdMcpDirectory?(projectId: string, directory: string): Promise<(import("../review-decisions.js").ReviewDecisionControl & { identity: string }) | undefined>;
   /** Narrow, read-only owner checks whose current grants can be proven from durable domain facts. */
   owned?: readonly OwnedConditionChecker[];
   /**

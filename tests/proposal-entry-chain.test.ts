@@ -14,6 +14,9 @@ import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import type { GoalTreeProposalDecisionResult, GoalTreeProposalListResult, GoalTreeApplicationApi } from "@molis-ai/molis-work-plugin-goals";
+import type { ProjectTrustedDecision, TrustedReviewCommand } from "@molis-ai/molis-work-contracts/services/project-approvals";
+import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import { mcpGoalReviews, prepareGoalReview } from "./fixtures/project-review-entry.js";
 
 test("CLI and MCP share current Goal/Relation proposal decisions across Host restart", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-proposal-chain-"));
@@ -104,7 +107,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     assert.equal((await snapshot()).goals.some((goal) => goal.goal_id === "child"), false);
     const beforeDenied = await snapshot();
     await assert.rejects(
-      () => runtime.callTool("molis_work_v1_goal_tree_decide", {
+      () => runtime.callTool("molis_work_v1_review_decide", {
         proposal_id: proposed.proposal.proposal_id,
         user_confirmed: true,
         confirmation_summary: "模型声称用户批准",
@@ -115,32 +118,26 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
       (error: unknown) => error instanceof ActionError || /确认|user_impersonation|Web|权限|拒绝|unsupported/i.test(String(error)),
     );
     assert.deepEqual(await snapshot(), beforeDenied);
-    const decided = await cli<GoalTreeProposalDecisionResult>("goal-tree-decide", {
-      project_id: projectId, proposal_id: proposed.proposal.proposal_id,
-      authority: { conversation_ref: "conversation://proposal-chain", message_ref: "message://confirm-child" },
+    const draft = prepareGoalReview(goalsActions.treeDecide, { proposal_id: proposed.proposal.proposal_id,
       decisions: [{ item_id: "child", decision: "confirm" }, { item_id: "child-parent", decision: "confirm" }],
       reason: "确认创建这个子目标及父子关系", idempotency_key: "decide",
     });
-    assert.deepEqual(decided.applied_item_ids, ["child", "child-parent"]);
-    assert.ok(decided.proposal.decisions.every(decision => decision.actor_id === LOCAL_PERSON_ACTOR_ID && decision.authority_source === "management"));
+    const original = await cli<ReviewRequest>("review-request", { project_id: projectId, ...draft });
+    const command = { reference: original.reference, choice_id: "apply", request_key: "decide" } as TrustedReviewCommand;
+    const decided = await cli<{ record: ProjectTrustedDecision; result: GoalTreeProposalDecisionResult }>("review-decide", { project_id: projectId, ...command });
+    assert.deepEqual(decided.result.applied_item_ids, ["child", "child-parent"]);
+    assert.ok(decided.result.proposal.decisions.every(decision => decision.actor_id === LOCAL_PERSON_ACTOR_ID && decision.authority_source === "management"));
     const afterDecision = await snapshot();
     assert.ok(afterDecision.goals.find((goal) => goal.goal_id === "child"));
     assert.ok(afterDecision.relations.some((relation) => relation.from_goal_id === "child" && relation.to_goal_id === "draft" && relation.type === "part_of"));
     const management = new MolisWorkServer("management", null, null, host);
     try {
-      // An identity or provenance named in the arguments is refused, not swapped for the local person (§9.5 #6).
-      await assert.rejects(() => management.callTool("molis_work_v1_goal_tree_decide", {
-        database_path: databasePath, project_id: projectId, proposal_id: proposed.proposal.proposal_id,
+      await assert.rejects(() => management.callTool("molis_work_v1_review_decide", {
+        database_path: databasePath, project_id: projectId, ...command,
         authority: { actor_id: "someone-else", conversation_ref: "conversation://proposal-chain", message_ref: "message://confirm-child" },
-        decisions: [{ item_id: "child", decision: "confirm" }], reason: "冒名", idempotency_key: "forged",
-      }), /authority_source_invalid|不能带身份/);
-      const replay = JSON.parse(await management.callTool("molis_work_v1_goal_tree_decide", {
-        database_path: databasePath, project_id: projectId, proposal_id: proposed.proposal.proposal_id,
-        authority: { conversation_ref: "conversation://proposal-chain", message_ref: "message://confirm-child" },
-        decisions: [{ item_id: "child", decision: "confirm" }, { item_id: "child-parent", decision: "confirm" }],
-        reason: "确认创建这个子目标及父子关系", idempotency_key: "decide",
-      }));
-      assert.deepEqual(replay, { ...decided, replayed: true });
+      }), { code: "actions.input_invalid" });
+      const replay = await mcpGoalReviews(management, projectId, databasePath).submit(command);
+      assert.deepEqual(replay, { record: decided.record, replayed: true });
       assert.deepEqual(await snapshot(), afterDecision);
     } finally { await management.close(); }
     const beforeReplay = await snapshot();

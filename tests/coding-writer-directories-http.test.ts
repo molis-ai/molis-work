@@ -37,7 +37,11 @@ test("Coding formal worktree preparation requires the original review, grants on
     const endpoint=(project=projects[0])=>`/projects/${project}/api/plugins/io.molis.work.coding/workspaces/${workspace.workspace_id}/writers`;
     const reviews=(suffix="",project=projects[0])=>`/projects/${project}/api/agent/reviews${suffix}`;
     const prepare=(operation_id=randomUUID())=>request(endpoint(),"POST",{operation_id});
-    const decide=(review_id:string,decision="approve",project=projects[0])=>request(reviews("/decide",project),"POST",{review_id,decision});
+    const decide=async(review_id:string,decision="approve",project=projects[0])=>{
+      const list=(await request(reviews("?workspace_id="+workspace.workspace_id))).body.reviews as Array<{request:{review_id:string;reference:{version:string}}}>;
+      const version=list.find(row=>row.request.review_id===review_id)?.request.reference.version??"missing";
+      return request(reviews("/decide",project),"POST",{review_id,version,decision});
+    };
     assert.equal((await request(endpoint(projects[1]))).status,400);
     assert.equal((await request(endpoint(),"POST",{operation_id:randomUUID()},false)).status,403);
     const operation_id=randomUUID(), first=await prepare(operation_id);assert.equal(first.status,200,JSON.stringify(first));

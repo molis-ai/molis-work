@@ -1,13 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
+import { DEFAULT_TOOL_LIMITS, type EffectOrigin, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, actionEffect, type ActionSubject, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { knowledgeRefFromDigestHex, knowledgeSubjectHashInput } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { AgentFrozenRole, AgentRunOffer, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { assertPinnedMaterialResult, capabilityInput, GATEWAY_TOOLS, offerWords, withPinnedKnowledgeRevision } from "./prologue-action-gateway.js";
+import { actionReads } from "./prologue-gateway-declared.js";
 import { actionDigest } from "../action-digest.js";
 import { afterWriteTool } from "./prologue-after-write.js";
+import type { PrologueActionReviews } from "./prologue-action-reviews.js";
 
 /** Every action tool's name starts with this: what tells an action call (recorded at the action exit) from the runtime's own tools. */
 export const MOLIS_ACTION_TOOL_PREFIX = "molis-action-";
@@ -70,6 +72,7 @@ export function prologueActionTools(
   runSignal?: AbortSignal,
   suggest = false,
   symbols = false,
+  reviews?: PrologueActionReviews,
   pinnedRevisions?: ReadonlyMap<string, string>,
 ) {
   const tools = [...(actions?.tools ?? [])].sort((a, b) => compareCodeUnits(JSON.stringify([a.capability_id, a.version, a.provider.provider_id]),
@@ -98,15 +101,18 @@ export function prologueActionTools(
       if (runSignal?.aborted || call.signal?.aborted || call.abort?.requested()) stop();
       try {
         abort.signal.throwIfAborted();
+        const held = reviews && !actionReads(view)
+          ? reviews.forCall(call.callId, name, call.args) : undefined;
+        if (held) { await held.control.beforeEffect(); held.control.assertCurrent(); }
         await currentAction(actions!, view);
         abort.signal.throwIfAborted();
         const rawInput = wrapped ? call.args.input : call.args;
         const preparedInput = withPinnedKnowledgeRevision(reference, rawInput, pinnedRevisions);
-        const result = await actions!.client.invoke(reference, preparedInput, abort.signal);
+        const result = await actions!.client.invoke(reference, preparedInput, abort.signal, undefined, held?.control);
         abort.signal.throwIfAborted();
         assertPinnedMaterialResult(reference, preparedInput, result, pinnedRevisions);
         return JSON.stringify(result) ?? "null";
-      } finally { unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); }
+      } finally { reviews?.release(call.callId); unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); }
     };
     // Provider and effect lead the description: the name is a hash, and deferred tools are found by searching this text.
     const effect = actionEffect(view.action, view.capability_id);
@@ -115,11 +121,12 @@ export function prologueActionTools(
       // A copy: the directory's declarations are frozen, and the runtime owns what it is handed.
       parameters: wrapped ? { type: "object", properties: { input: structuredClone(view.action.input_schema) }, required: ["input"], additionalProperties: false } : structuredClone(view.action.input_schema),
       // A read only when both say so: the runtime may start a read before the model has finished speaking.
-      effectKind: view.operation === "query" && effect === "read" ? "safe-read" as const : "mutate-external" as const,
+      effectKind: actionReads(view) ? "safe-read" as const : "mutate-external" as const,
       gate: "broker" as const, timeoutMs: Math.min(timeoutMs, view.action.execution?.timeout_ms ?? timeoutMs), idempotency: "none" as const } };
   });
   if (suggests) contributions.push(suggestTool(actions!, new Map(contributions.map((row, index) => [row.registration.name, tools[index]!])), scope, executors, runSignal));
   const names = contributions.map(item => item.registration.name);
+  const writes = new Set(contributions.filter(item => item.registration.effectKind === "mutate-external" && item.registration.name.startsWith("molis-action-")).map(item => item.registration.name));
   // Every round's pack also carries its after-write check, answered only where the round provides the executor; never offered to the model.
   const check = afterWriteTool(scope);
   const pack: ScenarioPack = { id: "molis-actions-" + scope,
@@ -127,7 +134,13 @@ export function prologueActionTools(
     permissions: { tools: [...names, check.registration.name], network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "action-user", skills: [], writes: contributions.some(row => row.registration.effectKind !== "safe-read") }],
     planning: { plannedBy: "action-user", planFirst: false }, config: {}, tools: [...contributions, check] };
-  return { pack, executors, names, scope };
+  const prepareReview = async (origin: EffectOrigin | undefined, name: string, args: unknown) => {
+    const view = tools.find(view => agentActionToolName({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, scope) === name);
+    if (!view || !reviews || actionReads(view)) return;
+    const input = view.action.input_schema.type === "object" ? args : (args as Record<string, unknown>).input;
+    await reviews.prepare(origin, name, args, view, input, actions!.client);
+  };
+  return { pack, executors, names, scope, prepareReview, writes };
 }
 
 /** The current view of a frozen action, or why it may not be used now: gone, not for agents, switched off, or changed since the round froze it. */

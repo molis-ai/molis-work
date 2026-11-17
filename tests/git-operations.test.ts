@@ -10,6 +10,23 @@ import { readGitSummary, prepareGitOperation, readPullRequestSupport, readConfli
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 const exec = promisify(execFile);
 
+test("APR-08: a Git branch checks the original approval after asynchronous repository preflight", async t => {
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), "review-git-tail-")));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const git = (...args: string[]) => exec("git", args, { cwd: root });
+  await git("init", "-q", "-b", "main"); await git("config", "user.name", "Fixture"); await git("config", "user.email", "fixture@example.invalid");
+  await writeFile(path.join(root, "note"), "original\n"); await git("add", "note"); await git("commit", "-qm", "base");
+  const workspace = { workspace_id: "w", canonical_path: root, realpath_verified: true } as ProjectWorkspaceRef;
+  const summary = await readGitSummary(workspace);
+  const prepared = await prepareGitOperation(workspace, summary.revision, { action: "branch-create", name: "reviewed", checkout: true });
+  let current = true;
+  const executing = prepared.execute(() => assert.ok(current, "original approval revoked"));
+  current = false;
+  await assert.rejects(executing, /original approval revoked/);
+  assert.equal((await git("branch", "--list", "reviewed")).stdout, ""); assert.equal((await git("branch", "--show-current")).stdout.trim(), "main");
+  assert.equal(await readFile(path.join(root, "note"), "utf8"), "original\n");
+});
+
 test("commit, branch, push and PR run only as reviewed, against the repository as it was when prepared", { timeout: 60_000 }, async () => {
   const home = await realpath(await mkdtemp(path.join(tmpdir(), "git-operations-"))), root = path.join(home, "repo"), bare = path.join(home, "remote.git"), bin = path.join(home, "bin");
   await mkdir(root); await mkdir(bin);

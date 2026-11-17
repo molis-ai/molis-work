@@ -4,11 +4,12 @@
 # Manifest. provider is the id the Host registers them under. Same columns and reading as actions.tsv. When a plugin declares one of them in
 # its Manifest, the row moves to actions.tsv; a row with no Manifest is a contract nothing in the plugin's package carries.
 capability_id	version	provider	operation	kind	scope	effect	scheduling	audiences	permissions	subjects	input_type	output_type	input	output	traits
-acceptance.decide	1	system.acceptance	command	operation	project	write	concurrent	user	acceptance:decide	-	-	-	06fef9219267	a332b782d399	-
-acceptance.deliveries.record	1	system.acceptance	command	operation	project	write	concurrent	agent,user,workflow	acceptance:report	-	-	-	9e0a5488b919	a332b782d399	-
-acceptance.read	1	system.acceptance	query	query	project	read	concurrent	agent,user,workflow	acceptance:read	-	-	-	52fee4b74cc1	f35415e13e09	-
-acceptance.reports.submit	1	system.acceptance	command	operation	project	write	concurrent	agent,workflow	acceptance:report	-	-	-	7fefdb6244a1	a332b782d399	-
-acceptance.requirements.set	1	system.acceptance	command	operation	project	write	concurrent	agent,user,workflow	acceptance:report	-	-	-	4c232c4c5c32	a332b782d399	-
+acceptance.decide	1	system.acceptance	command	operation	project	write	concurrent	user	acceptance:decide	acceptance_check,acceptance_requirement,acceptance_subject	-	-	06fef9219267	09c0bb81fb00	976055ad574b
+acceptance.deliveries.record	1	system.acceptance	command	operation	project	write	concurrent	agent,user,workflow	acceptance:report	-	-	-	9e0a5488b919	09c0bb81fb00	-
+acceptance.read	1	system.acceptance	query	query	project	read	concurrent	agent,user,workflow	acceptance:read	-	-	-	52fee4b74cc1	4f631085c601	-
+acceptance.reports.submit	1	system.acceptance	command	operation	project	write	concurrent	agent,workflow	acceptance:report	-	-	-	7fefdb6244a1	09c0bb81fb00	-
+acceptance.requirements.set	1	system.acceptance	command	operation	project	write	concurrent	agent,user,workflow	acceptance:report	-	-	-	4c232c4c5c32	09c0bb81fb00	-
+acceptance.review	1	system.acceptance	query	query	project	read	concurrent	user	acceptance:read	acceptance_check,acceptance_requirement,acceptance_subject	-	-	72f0db8bc372	a2c799262a3c	-
 account.entitlements.check	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	4f580efa7d71	fed40eaf2d30	-
 account.features.list	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	a5a61327c9d4	6204f82b0cd6	-
 account.invitation.accept	1	system.account	command	operation	home	write	concurrent	user	account:write	-	-	-	aa729be536c6	a7ec58073835	-
@@ -58,6 +59,9 @@ agent-definitions.prompt-overrides.export	1	system.agent-definitions	query	query
 agent-definitions.prompt-overrides.import.confirm	1	system.agent-definitions	command	operation	project	write	-	user	-	-	-	-	d2f46dbcaa0b	f2a80de274ba	-
 agent-definitions.prompt-overrides.import.preview	1	system.agent-definitions	command	operation	project	read	-	user	-	-	-	-	598a87009b75	a13c89ac6535	-
 agent.actions.list	1	platform	query	query	project	read	-	plugin	-	-	-	-	d840c5a0a551	c10e53292545	-
+agent.authorizations.change	1	system.agent-authorizations	command	operation	home	write	concurrent	user	-	-	-	-	0627847024fe	a2c799262a3c	-
+agent.authorizations.list	1	system.agent-authorizations	query	query	home	read	concurrent	user	-	-	-	-	ccd58a36415c	a2c799262a3c	-
+agent.authorizations.read	1	system.agent-authorizations	query	query	home	read	concurrent	user	-	-	-	-	eb5814951720	a2c799262a3c	-
 agent.background.read	1	platform	query	query	project	read	-	plugin	-	-	-	-	2510ec27afeb	365c34b555c3	-
 agent.background.stop	1	platform	command	operation	project	write	-	plugin	-	-	-	-	bf58ebfac373	7cb541e84f22	-
 agent.checkpoints.list	1	platform	query	query	project	read	-	plugin	-	-	-	-	39ce5b1e5db9	19a16bfbd1e4	-
@@ -66,6 +70,12 @@ agent.collaboration.control	1	platform	command	operation	project	write	concurren
 agent.collaboration.read	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	d0bfd70f551b	7cfc6db4ee5d	-
 agent.collaboration.revise	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	5c48c63bcdd3	516b9424763a	-
 agent.command-output	1	platform	query	query	project	read	-	plugin	-	-	-	-	cfefa0b15b83	7f480fe2c755	-
+agent.delegations.grant	1	system.agent-delegations	command	operation	home	write	concurrent	user	-	-	-	-	e812b23c5397	69435af35886	-
+agent.delegations.mode	1	system.agent-delegations	command	operation	home	write	concurrent	user	-	-	-	-	111f5d442ee2	69435af35886	-
+agent.delegations.narrow	1	system.agent-delegations	command	operation	home	write	concurrent	user	-	-	-	-	bb716ccf74c8	69435af35886	-
+agent.delegations.prepare	1	system.agent-delegations	query	query	home	read	concurrent	agent,user	-	-	-	-	142ff3ae1b08	1079ab327f04	-
+agent.delegations.revoke	1	system.agent-delegations	command	operation	home	write	concurrent	user	-	-	-	-	79652db35e33	69435af35886	-
+agent.delegations.settle	1	system.agent-delegations	command	operation	home	write	concurrent	user	-	-	-	-	79652db35e33	69435af35886	-
 agent.draft-text	1	platform	command	operation	project	write	concurrent	plugin	model:invoke	-	-	-	7cf8de6a3f00	139a601cb87e	613063238287
 agent.evidence.check	1	platform	query	query	project	read	concurrent	agent,workflow	-	-	-	-	d3a20a5da19e	00a24a761748	5e0374458cf9
 agent.inputs.send	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	b6b41fbf8db7	fcdd65c576a7	-
@@ -83,7 +93,8 @@ agent.offers.run	1	platform	command	operation	project	write	concurrent	plugin	-	
 agent.project-work.queue	1	platform	command	operation	project	write	-	plugin	-	-	-	-	b6d6dc6b9669	7ff3d00aaec2	-
 agent.project-work.read	1	platform	query	query	project	read	-	plugin	-	-	-	-	721b7d646a52	70b692bc5ff1	-
 agent.project-work.release	1	platform	command	operation	project	write	-	plugin	-	-	-	-	21673f095f49	-	-
-agent.reviews.decide	1	system.agent-reviews	command	operation	home	write	concurrent	user	-	-	-	-	78092b62a5e7	a2c799262a3c	3cfff55e5308
+agent.reviews.decide	1	system.agent-reviews	command	operation	home	write	concurrent	user	-	-	-	-	3622152c68fa	a2c799262a3c	3cfff55e5308
+agent.reviews.permission.set	1	system.agent-reviews	command	operation	home	write	concurrent	user	-	-	-	-	70936219d38a	a2c799262a3c	3cfff55e5308
 agent.reviews.recover	1	system.agent-reviews	command	operation	home	write	concurrent	user	-	-	-	-	35bca135e6fa	a2c799262a3c	3cfff55e5308
 agent.roles	1	platform	query	query	project	read	-	plugin	-	-	-	-	d840c5a0a551	cb50ef7c59b1	-
 agent.run.control	1	platform	command	operation	project	write	-	plugin	-	-	-	-	632a0ef3732c	-	-
@@ -94,6 +105,7 @@ agent.run.wait	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	3ae
 agent.runtimes	1	platform	query	query	project	read	-	plugin	-	-	-	-	9cecb8ebe607	49f5b25c9d4a	-
 agent.session.archive	1	platform	command	operation	project	write	-	plugin	-	-	-	-	39ce5b1e5db9	4e73391f1121	-
 agent.session.create	1	platform	command	operation	project	write	-	plugin	-	-	-	-	36c1b12fe97d	8237effa9721	-
+agent.session.end-work	1	platform	command	operation	project	write	-	plugin	-	-	-	-	39ce5b1e5db9	-	-
 agent.session.lifecycle.read	1	platform	query	query	project	read	-	plugin	-	-	-	-	39ce5b1e5db9	4e73391f1121	-
 agent.session.read	1	platform	query	query	project	read	-	plugin	-	-	-	-	39ce5b1e5db9	9dec7bedbcce	-
 agent.session.recover	1	platform	command	operation	project	write	-	plugin	-	-	-	-	d6b6b8bc631d	6f8c8fdfd5a3	-
@@ -149,13 +161,16 @@ assistant.panel.works.question_draft	1	system.assistant-panel	command	operation	
 assistant.panel.works.recovery	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.rename	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.results	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
-assistant.panel.works.review	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	77f500e02234	a2c799262a3c	3cfff55e5308
+assistant.panel.works.review	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	d9542cfb87d1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.take_back	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.undo	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	77f500e02234	a2c799262a3c	3cfff55e5308
 attention.waiting.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	88db02166b7c	6c35b8e1ec1c	-
+automation.recommendations.preferences.set	1	system.automation-recommendations	command	operation	project	write	concurrent	user	-	-	-	-	44ea8f07f7ad	a2c799262a3c	-
+automation.recommendations.report.save	1	system.automation-recommendations	command	operation	project	write	concurrent	user	-	-	-	-	88ee376de193	a2c799262a3c	-
+automation.recommendations.scan	1	system.automation-recommendations	query	query	project	read	concurrent	user	-	-	-	-	d746974fa9af	a2c799262a3c	-
 background.tasks.command	1	system.mainline	command	operation	project	write	concurrent	user	mainline:control	-	-	-	b72eab443ba0	5eeca3761a19	-
 background.tasks.decide	1	system.mainline	command	operation	project	write	concurrent	user	mainline:control	-	-	-	8d4343f573d8	92203e6141bb	-
-background.tasks.read	1	system.mainline	query	query	project	read	concurrent	user	mainline:read	-	-	-	99334726611c	d072140c46ab	-
+background.tasks.read	1	system.mainline	query	query	project	read	concurrent	user	mainline:read	-	-	-	99334726611c	23055dde9058	-
 characters.actions.catalog	1	io.molis.work.characters	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	character	-	-	d746974fa9af	42fe29f1a110	-
 characters.artifacts.preview	1	io.molis.work.characters	query	query	project	read	concurrent	user,workflow	artifact:read	artifact	molis.artifacts.preview.request.v1	molis.artifacts.preview.v1	b5dd5a809ad7	3197f1792222	5e0374458cf9
 characters.create	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user,workflow	-	character	-	-	d746974fa9af	478e0598d946	-
@@ -259,7 +274,7 @@ knowledge.outline	1	system.knowledge	query	query	project	read	concurrent	agent,m
 knowledge.read	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	188fd41918ae	5b425e35cc2d	-
 knowledge.receipts	1	system.knowledge	query	query	project	read	-	user	knowledge:manage	-	-	-	1ce2334483fc	c544c5812a1c	-
 knowledge.search	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	c67c4936298d	c4956f416fa3	-
-mainline.line.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	88db02166b7c	43d88ba78025	-
+mainline.line.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	88db02166b7c	4948143b87ef	-
 mainline.place	1	system.mainline	command	operation	project	write	concurrent	agent,mcp,user	mainline:place	-	-	-	5d38628005b4	008ffe7a39be	-
 materials.capture	1	system.materials	command	operation	project	write	concurrent	plugin,user	artifact:read,artifact:write,storage:private,workspace:read	file,workspace	-	-	b382d3d61ebf	d010bc81b325	1cc35ff17bf8
 materials.files.content	1	system.materials	query	query	project	read	concurrent	user	workspace:read	workspace_file	molis.files.content.request.v1	molis.files.content.v1	99b557e4a48f	3197f1792222	73673a9f1d0d
@@ -363,6 +378,10 @@ plugins.project_reach.list	1	plugin-consents	query	query	project	read	-	user	plu
 plugins.project_reach.revoke	1	plugin-consents	command	operation	project	write	-	user	plugin-consents:write	-	-	-	5fcc8f8605f2	91acffc20284	-
 plugins.publishers.list	1	plugin-install	query	query	home	read	-	user	plugin-install:read	-	-	-	99334726611c	a19dca1e2764	-
 plugins.publishers.revoke	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	d1f041aa7b79	ef12c05bf93d	-
+project.approvals.request.decide	1	system.project-approvals	command	operation	project	write	concurrent	user	-	-	-	-	70413635576d	a2c799262a3c	3cfff55e5308
+project.approvals.request.read	1	system.project-approvals	command	operation	project	read	concurrent	user	-	-	-	-	0d2e019b0628	a2c799262a3c	3cfff55e5308
+project.approvals.rules.change	1	system.project-approvals	command	operation	project	write	concurrent	user	-	-	-	-	42391b110afe	a2c799262a3c	3cfff55e5308
+project.approvals.rules.read	1	system.project-approvals	command	operation	project	read	concurrent	user	-	-	-	-	15205d927c25	a2c799262a3c	3cfff55e5308
 projects.directories.add_input	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	project.directories	7a34d38fd49f	94a80960770d	-
 projects.directories.get	1	system.project-workspaces	query	query	project	read	-	agent,mcp,plugin,user,workflow	-	project	-	project.directories	99334726611c	94a80960770d	-
 projects.directories.map_source	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	project.directories	efe4916a526d	94a80960770d	-

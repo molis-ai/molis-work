@@ -1,5 +1,5 @@
 import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentReviewRequest, AgentReviewDecisions } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantPendingReview } from "@molis-ai/molis-work-contracts/services/assistant";
 import { reviewPresentation, reviewText, type ReviewWords } from "@molis-ai/molis-work-service-agent-host";
 import type { AssistantReviewDisplay, AssistantReviewField } from "@molis-ai/molis-work-ui-host";
@@ -80,10 +80,10 @@ const displays = new WeakMap<AssistantPendingReview, AssistantReviewDisplay>();
 export const assistantReviewDisplay = (review: AssistantPendingReview) => displays.get(review);
 
 /** Language changes use this view's trusted copy. The review record, its fields and the decision keep their established shapes. */
-export function projectAssistantReview(request: AgentReviewRequest, titleOf: (value: string) => string | null): AssistantPendingReview {
+export function projectAssistantReview(request: AgentReviewRequest, titleOf: (value: string) => string | null, decisions: AgentReviewDecisions): AssistantPendingReview {
   const { document } = request, change = document.kind === "text-edit" ? changedMiddle(document.before_text, document.after_text) : undefined;
   const raw = describeReview(document, change), display = displayReview(document, raw, change, titleOf);
-  const pending = { review_id: request.review_id, kind: document.kind, run_id: request.run?.run_id ?? null, ...raw,
+  const pending: AssistantPendingReview = { review_id: request.review_id, version: request.reference.version, reference: request.reference, decisions, kind: document.kind, run_id: request.run?.run_id ?? null, ...raw,
     requested_at: request.requested_at, expires_at: request.expires_at };
   displays.set(pending, display);
   return pending;

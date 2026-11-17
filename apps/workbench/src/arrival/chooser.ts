@@ -9,6 +9,7 @@ import {
   renderProjectMonogram,
 } from "@molis-ai/molis-work-design-system";
 import { renderAssistantDock } from "../assistant-dock.js";
+import { AUTOMATION_RECOMMENDATIONS_LOADER, CAPABILITY_ASSET_LOADER } from "../scripts/client/automation-recommendations.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../scripts/client/assistant-island.js";
 import { ATTENTION_FACTORY_SCRIPT } from "../scripts/client/attention.js";
 import { CHOOSER_SEARCH_LOADER_SCRIPT } from "./chooser-search.js";
@@ -38,6 +39,9 @@ export interface ChooserArrival {
 }
 
 const PERSONAL = "personal";
+const arrivalAssistantFactory = ASSISTANT_ISLAND_FACTORY_SCRIPT
+  .replace(/^[ \t]*(?:\/\/[^\n]*|\/\*(?:(?!\*\/)[\s\S])*\*\/[ \t]*)\n/gm, "")
+  .replace(/\n[ \t]+/g, "\n");
 
 export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
   const { readText, escapeHtml, icon } = p;
@@ -136,12 +140,12 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
 // The Assistant and what waits on the person speak for the project chosen here, or for the person outside any project.
 const chosenRoute = path => { const id = document.querySelector('.chooser')?.dataset.selected; return id && id !== 'personal' ? '/projects/' + encodeURIComponent(id) + path : path; };
 (${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: chosenRoute, projectId: null, home: true, openItem: () => {} });
-globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: chosenRoute, headers: () => molisWorkControlHeaders(), project: null, interaction: (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(chosenRoute("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: globalThis.t.text("workbench.chooser.search-not-available-right-now-try-again-later") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.t.text),
+globalThis.__ARRIVAL_ASSISTANT__ = (${arrivalAssistantFactory})({ translate: globalThis.t.text, route: chosenRoute, headers: () => molisWorkControlHeaders(), project: null, interaction: (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(chosenRoute("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: globalThis.t.text("workbench.chooser.search-not-available-right-now-try-again-later") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.t.text),
   placeholder: project => project && project.title ? globalThis.t.text("workbench.chooser.ask-about-name-give-assistant-task", { name: project.title }) : globalThis.t.text("workbench.chooser.ask-assistant-do-something-personal-space") });
 // The person's own content, searched from here with the workbench's dialog (BL-041): the Host fixes the scope to the Home, and a hit opens in its own space.
 // Its program comes on the first press of its button (chooser-search.ts).
 ${CHOOSER_SEARCH_LOADER_SCRIPT}
-${CHOOSER_CLIENT_SCRIPT}${RUNTIME_PANEL_CLIENT_SCRIPT}`;
+${CHOOSER_CLIENT_SCRIPT}${RUNTIME_PANEL_CLIENT_SCRIPT}${CAPABILITY_ASSET_LOADER}${AUTOMATION_RECOMMENDATIONS_LOADER}`;
     return shell.document({
       title: uiText.text("workbench.chooser.choose-project-molis-work"), screen: "chooser", desktopShell, controlToken,
       titlebar: shell.titlebar(desktopShell, { caption: true, tasks: true, account: true }), stage, bar,

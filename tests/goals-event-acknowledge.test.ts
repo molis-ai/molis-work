@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MolisWorkServer, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, MolisWorkLocalHost, createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { GOALS_PLUGIN_ID, goalsActions, renderWorkEventBody } from "@molis-ai/molis-work-plugin-goals";
 import { withGoalLocale } from "./goals-page-mount.js";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -15,6 +15,7 @@ import type { GoalWorkEventRecord } from "@molis-ai/molis-work-plugin-goals/cont
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { managementCaller, managementGoals, mcpRuntimeCaller } from "./goal-management-caller.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
+import { mcpGoalReviews } from "./fixtures/project-review-entry.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 /**
@@ -85,7 +86,7 @@ async function hostRig(label: string, plugin?: ReturnType<typeof goalsPlugin>) {
     return { actor_id: issued.actor_id, actor_kind: "user", project_id, audience: "plugin", permissions, plugin_install_id: issued.install_id, host_plugin: issued };
   };
   const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
-  return { home, project_id, ref, host, actions, person, gate, events, acknowledged, cursor, newGoal, input, pluginCaller, withCatalog: withHostCatalog,
+  return { home, project_id, database_path: project.database_path, ref, host, actions, person, gate, events, acknowledged, cursor, newGoal, input, pluginCaller, withCatalog: withHostCatalog,
     close: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
@@ -172,8 +173,10 @@ test("RCPT-377/378: only a note, a requirement or the person's decision is answe
   try {
     const goal_id = "ACK-KINDS", other = "ACK-OTHER";
     const note = await r.newGoal(goal_id), foreign = await r.newGoal(other);
-    const asPerson = { ...managementCaller(r.project_id, "decide-1"), permissions: ["goals:read", "goals:write", "goals:decide"] };
-    await r.actions.invoke(asPerson, goalsActions.decide, { goal_id, idempotency_key: "decide-1", conclusion: "接口可以先上线", effects: [{ kind: "authorize_action" as const, action: "publish" }], scope: { action: "publish" } });
+    const management = new LocalMcpServer(withCatalog, "management", null, { homeDirectory: r.home,
+      runtimeContext: { runtime_id: "ack-kinds", stable_work_context_id: "ack-kinds", host_declares_stable: true } }, r.host);
+    const reviews = mcpGoalReviews(management, r.project_id, r.database_path);
+    await reviews.submit(await reviews.prepare(goalsActions.decide, { goal_id, idempotency_key: "decide-1", conclusion: "接口可以先上线", effects: [{ kind: "authorize_action" as const, action: "publish" }], scope: { action: "publish" } }));
     await r.person.invoke(goalsActions.progress, { goal_id, based_on_cursor: await r.cursor(goal_id), summary: "接口做了一半", idempotency_key: "progress" });
     await r.person.invoke(goalsActions.requestDecision, { goal_id, question: "是否先上线接口？", purpose: "action", scope: { action: "publish" }, idempotency_key: "ask",
       options: [{ option_id: "yes", label: "先上线", impact: "用户先用上" }, { option_id: "no", label: "等登录页", impact: "晚一点上线" }] });

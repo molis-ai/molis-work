@@ -682,7 +682,7 @@ for (const operation of ["recovery", "checkpoint"] as const) {
       prepareRewind(session, checkpointId) {
         assert.equal(this, checkpoints); assert.equal(checkpointId, "checkpoint");
         if (operation !== "checkpoint") { otherEffects++; throw new Error("held recovery must exclude rewind"); }
-        return perform(session.session_id).then(() => ({ review_id: `review-${session.session_id}`, run: null,
+        return perform(session.session_id).then(() => ({ reference: { owner: { kind: "agent-review" as const, project_id: owner.project_id, plugin_id: owner.plugin_id, install_id: "install" }, id: `review-${session.session_id}`, version: "proposal-1" }, review_id: `review-${session.session_id}`, run: null,
           operation: { operation_id: `rewind-${session.session_id}`, session_id: session.session_id, kind: "checkpoint-rewind" as const },
           project_id: owner.project_id, plugin_id: owner.plugin_id, kind: "rewind" as const,
           document: { kind: "rewind" as const, checkpoint_id: checkpointId, files: [] }, requested_at: "2026-10-25T00:00:00Z", expires_at: null }));

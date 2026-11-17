@@ -76,6 +76,9 @@ tests/agent-prompt-layers.test.ts
 tests/agent-question-types.test.ts
 tests/agent-reference-questions.test.ts
 tests/agent-review-http.test.ts
+tests/agent-review-authority.test.ts
+tests/agent-review-provenance.test.ts
+tests/agent-review-provenance-node.test.ts
 tests/agent-review-surface.test.ts
 tests/agent-run-wait.test.ts
 tests/agent-workspace-none.test.ts

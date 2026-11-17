@@ -10,7 +10,7 @@ for (const surface of ["browser", "computer"] as const) test(`QEA-21 ${surface} 
   await b.navigate(() => b.command("Page.navigate", { url }, b.sessionId));
   const queue = b.localHost!.ensureAgentService(b.homeDirectory, () => { throw new Error("The web composition owns the Agent service"); }).agentHost.reviews;
   const id = `availability-${surface}`;
-  queue.request({ review_id: id, run: { run_id: "review-run", session_id: "review-session" }, project_id: b.projectId!,
+  queue.request({ reference: { owner: { kind: "agent-review", project_id: b.projectId!, plugin_id: "io.molis.work.coding", install_id: "review-install" }, id, version: "proposal-1" }, review_id: id, run: { run_id: "review-run", session_id: "review-session" }, project_id: b.projectId!,
     plugin_id: "io.molis.work.coding", kind: "tool-operation", requested_at: new Date().toISOString(), expires_at: null,
     document: { kind: "tool-operation", tool: "surface-act", summary: "Review availability",
       fields: [{ label: surface === "browser" ? "网站" : "应用", value: surface === "browser" ? "https://fixture.invalid" : "Fixture App" }] } });
@@ -30,16 +30,16 @@ for (const surface of ["browser", "computer"] as const) test(`QEA-21 ${surface} 
   })()` }, b.sessionId);
   await b.navigate(() => b.command("Page.navigate", { url }, b.sessionId));
   const panel = `[data-${surface}-approval]`;
-  await b.waitFor(`document.querySelector('${panel}')?.textContent.includes('执行方尚未接通')`, 15_000);
+  await b.waitFor(`document.querySelector('${panel}')?.textContent.includes('原执行方已不在')`, 15_000);
   const approve = surface === "browser" ? "[data-browser-action=approve-once]" : "[data-computer-review=approve]";
   const reject = surface === "browser" ? "[data-browser-action=reject]" : "[data-computer-review=reject]";
   assert.equal(await b.evaluate(`Boolean(document.querySelector('${panel} ${approve}'))`), false);
   assert.equal(await b.evaluate(`Boolean(document.querySelector('${panel} ${reject}'))`), false);
   assert.equal(queue.receipt(id)?.status, "pending");
   let decisions = 0;
-  queue.registerDecisionHandler(id, async input => { decisions++; return queue.decide(input); });
+  queue.registerDecisionHandler(id, async (_input, commit) => { decisions++; return commit(); });
   await b.waitFor(`document.querySelector('${panel} ${approve}')?.getClientRects().length`, 15_000);
-  assert.equal(await b.evaluate(`document.querySelector('${panel}').textContent.includes('执行方尚未接通')`), false);
+  assert.equal(await b.evaluate(`document.querySelector('${panel}').textContent.includes('原执行方已不在')`), false);
   await b.click(`${panel} ${reject}`);
   await b.waitFor(`document.querySelector('${panel}').hidden`, 15_000);
   assert.equal(queue.receipt(id)?.status, "rejected");

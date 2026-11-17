@@ -6,7 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { renderGitBrowserDirectory, renderGitBrowserResult } from "@molis-ai/molis-work-plugin-git";
-import { pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
+import { pluginSurfaceClients, renderAgentReviewSurface } from "@molis-ai/molis-work-app-workbench";
+import type { AgentReviewRow } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/agent-review.js";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
@@ -143,7 +144,7 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
   await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "coding-one", ref.session_id, at);
   let readable = true, reads = 0;
   const rows = [["empty.txt", "", ""], ["cart.mjs", "old\n", "new\n"], ["cart.mjs", "new\n", "latest <script>\n"]].map(([target, before, after], index) => ({
-    request: { review_id: "review-" + index, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", run: ref, kind: "text-edit",
+    request: { reference: { owner: { kind: "agent-review" as const, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", install_id: "install" }, id: "review-" + index, version: "proposal-1" }, review_id: "review-" + index, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", run: ref, kind: "text-edit",
       document: { kind: "text-edit", target_path: target, exists: true, before_text: before, after_text: after } },
     receipt: { review_id: "review-" + index, status: "approved", effect_settled: true, effect_error: null },
   }));
@@ -268,6 +269,32 @@ for (const name of ["git", "diff", "text-stats"]) {
     assert.deepEqual(await page.evaluate("errors"), []);
   });
 }
+
+test("BL-360: the Host review surface keeps drafts, details and focus when current choices disappear", { timeout: 30_000 }, async t => {
+  let available = true;
+  const row: AgentReviewRow = { request: { reference: { owner: { kind: "agent-review" as const, project_id: "p", plugin_id: "plugin", install_id: "install" }, id: "current", version: "proposal-1" }, review_id: "current", project_id: "p", plugin_id: "plugin", run: { session_id: "s", run_id: "r" }, kind: "text-edit",
+    document: { kind: "text-edit", target_path: "note.md", exists: true, before_text: "before", after_text: "after" }, requested_at: new Date().toISOString(), expires_at: null },
+    decisions: { approve: { available: true }, reject: { available: true } } };
+  const f = await fixture(t, '<section id="owner"><section id="reviews"></section></section>', `
+    window.owner=document.querySelector('#owner');window.container=document.querySelector('#reviews');
+    const show=(${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mount,route:path=>path,headers:()=>({})});
+    window.boot=()=>{const lifetime=mount(owner);lifetime.whenVisible(signal=>{window.readReviews=()=>show(container,[],null,'ws',undefined,{lifetime,signal});void readReviews();});};boot();
+  `, () => {
+    const decision = available ? { available: true as const } : { available: false as const, code: "agent.pending_not_open", reason: { owner: "workbench", key: "workbench.agent-review.no-waiter" } };
+    row.decisions = { approve: decision, reject: decision };
+    return { reviews: [row], html: withPageText("zh", [], () => renderAgentReviewSurface({ rows: [row], primitives: { escape: value => value, icon, formatDate: value => value } })), omitted: 0 };
+  });
+  if (!f) return;
+  await f.page.evaluate("parentView.hidden=false");
+  await f.page.wait("container.querySelector('[data-agent-review-approve]')");
+  await f.page.evaluate("const draft=container.querySelector('[data-agent-review-feedback]');draft.value='保留这条修改意见';draft.dispatchEvent(new Event('input',{bubbles:true}));container.querySelector('details[data-review-detail]').open=true;container.querySelector('[data-agent-review-reject]').focus()");
+  assert.equal(await f.page.evaluate("document.activeElement.hasAttribute('data-agent-review-reject')"), true);
+  available = false; await f.page.evaluate("readReviews()");
+  assert.deepEqual(await f.page.evaluate("[!container.querySelector('[data-agent-review-approve]'),!container.querySelector('[data-agent-review-reject]'),document.activeElement.dataset.agentReviewItem,container.querySelector('[data-agent-review-feedback]')===null,container.querySelector('details[data-review-detail]').open]"), [true, true, "current", true, true]);
+  available = true; await f.page.evaluate("readReviews()");
+  assert.equal(await f.page.evaluate("container.querySelector('[data-agent-review-feedback]').value"), "保留这条修改意见");
+  assert.deepEqual(await f.page.evaluate("errors"), []);
+});
 
 test("Host reviews retain decisions across hiding without rendering stale results or accumulating listeners", { timeout: 30_000 }, async t => {
   let empty = true;

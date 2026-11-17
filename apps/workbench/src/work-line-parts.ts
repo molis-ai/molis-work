@@ -157,6 +157,7 @@ export function renderTaskRow(row: TaskRowView): string {
 export interface TaskDecisionView {
   /** The task that asks, and the owner's id of what it asks. */
   readonly task: string; readonly id: string;
+  readonly reference?: { readonly id: string; readonly version: string };
   readonly ask: string; readonly why?: string;
   /** The asking task's name, where the card is not that task's own. */
   readonly from?: string;
@@ -185,7 +186,7 @@ export function renderTaskDecision(view: TaskDecisionView): string {
     : `<div class="work-card-actions">${view.answers.length
       ? view.answers.map(role => button(role, role === "approve" && view.lead ? "primary" : "secondary", { "data-decision-answer": role })).join("")
       : renderButton({ variant: view.lead ? "primary" : "secondary", size: "sm", label: say("go-handle"), attrs: { "data-decision-go": "" } })}</div>`;
-  return `<section class="work-decision" data-task-decision="${escapeHtml(view.id)}" data-task="${escapeHtml(view.task)}" aria-label="${escapeHtml(view.ask)}"${view.busy ? ' aria-busy="true"' : ""}>`
+  return `<section class="work-decision" data-task-decision="${escapeHtml(view.id)}" data-task="${escapeHtml(view.task)}"${view.reference ? ` data-review-reference="${escapeHtml(view.reference.id)}" data-review-version="${escapeHtml(view.reference.version)}"` : ""} aria-label="${escapeHtml(view.ask)}"${view.busy ? ' aria-busy="true"' : ""}>`
     + `<div class="work-decision-ask">${ring("approval")}<strong title="${escapeHtml(view.ask)}">${escapeHtml(view.ask)}</strong></div>`
     + (why ? `<p class="work-decision-why" title="${escapeHtml(why)}">${escapeHtml(why)}</p>` : "")
     + (changes ? `<dl class="work-decision-changes" aria-label="${escapeHtml(say("decision-changes"))}">${changes}</dl>` : "") + answers + `</section>`;

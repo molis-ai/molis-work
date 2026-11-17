@@ -4,6 +4,10 @@ import type { AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/ag
 
 type Gateway = NonNullable<AgentFrozenRole["action_gateway"]>;
 
+export function actionReads(view: ActionView): boolean {
+  return view.operation === "query" && actionEffect(view.action, view.capability_id) === "read";
+}
+
 /** What read-capability, change-capability and change-reversible take: the exact identity find-capabilities returned, and the input. */
 export const CAPABILITY_PARAMETERS = { type: "object", properties: {
   capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" },
@@ -45,7 +49,7 @@ export function declaredCapabilities(gateway: Gateway) {
   const found = new Map<string, { view: ActionView; direct: boolean }>();
   let answer: ReadonlyMap<Tool, readonly Record<string, unknown>[]> | undefined;
   const fits = (tool: Tool, row: { view: ActionView; direct: boolean }) => {
-    const reads = actionEffect(row.view.action, row.view.capability_id) === "read";
+    const reads = actionReads(row.view);
     if (tool === "read-capability") return reads;
     if (tool === "suggest-action") return !!gateway.client.offer;
     return gateway.operate && !reads && (tool === "change-capability" || row.direct);

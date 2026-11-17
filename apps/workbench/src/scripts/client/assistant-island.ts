@@ -24,6 +24,7 @@ import { ASSISTANT_NOTICES_PART } from "./assistant-notices.js";
 import { ASSISTANT_MATERIALS_PART } from "./assistant-materials.js";
 import { ASSISTANT_COMPOSER_PART } from "./assistant-composer.js";
 import { ASSISTANT_PAGE_MESSAGES_PART } from "./assistant-page-messages.js";
+import { ASSISTANT_PERMISSIONS_PART } from "./assistant-permissions.js";
 // The SDK's tokenizer is consumed here on the Host, never serialized into the Assistant's browser script.
 const assistantGrownTokens = assistantCodeColours(growCodeTokens, codeTokens);
 export const assistantTextHtml = (text: string, objects: AssistantWorkView["objects"], say: AssistantTextPorts["say"]): string =>
@@ -107,20 +108,16 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? readText("workbench.assistant-island.personal")
     : title || (project && scope.project_id === project.id ? (project.title || readText("workbench.assistant-island.project")) : readText("workbench.assistant-island.another-project"));
   const getWork = () => works.find((work) => work.work_id === curId) || (view && view.work.work_id === curId ? view.work : null);
-
+${ASSISTANT_PERMISSIONS_PART}
   const isLive = (state) => state === "running" || state === "waiting-input" || state === "waiting-review" || state === "paused";
   let presentation, stepRow;
   const setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
-
   /* ─── Where the next Send goes: the composer's receiver tag, its controls and the placeholder ─── */
-  // \`sync\` false: only the words, for the composer about to be mounted on the Assistant again.
   const paintAim = (sync = true) => {
     const work = getWork(); presentation?.syncWork(work);
-    // A page in front takes the bar's input (O2): its words and placeholder are its own until the Assistant has the bar again.
     if (island.dataset.receiver === "page") { if (sync) syncComposer(); return; }
     input.readOnly = !!work?.reply_target;
     if (!executorsHere() && nextExec !== "assistant") nextExec = "assistant";
-    // A page that knows what the person is looking at (the project list) may say so in the placeholder of a new work.
     const hint = !work && nextExec === "assistant" && host.placeholder ? host.placeholder(project) : "";
     input.placeholder = work?.reply_target ? readText("workbench.assistant-island.return-original-comment-continue") : curEvent ? readText("workbench.assistant-island.about-this-event") : work ? readText("workbench.assistant-island.add-answer-correct") : nextExec !== "assistant" && executorOffer(nextExec) ? readText("workbench.assistant-island.ask-name-do-something", { name: executorOffer(nextExec).title })
       : hint ? hint : searchKey() ? readText("workbench.assistant-island.ask-assistant-press-key-search", { key: searchKey() }) : readText("workbench.assistant-island.ask-assistant-do-something");
@@ -295,6 +292,7 @@ ${ASSISTANT_STRIP_PART}
   function paintSum() {
     const work = view && view.work.work_id === curId ? view.work : getWork();
     titleEl.textContent = work ? work.title : readText("workbench.assistant-island.new-work");
+    paintPermissionSummary(work);
     stateEl.textContent = work ? stateLabel(work.state) : "";
     stateEl.dataset.state = work ? work.state : ""; if (work) stateEl.dataset.mwState = ringState(work.state); else stateEl.removeAttribute("data-mw-state");
     const summary = island.querySelector(".assistant-summary");
@@ -447,7 +445,7 @@ ${ASSISTANT_TABS_PART}
     [...thread.children].forEach((card) => { if (card.dataset.review && !reviews.some((r) => r.review_id === card.dataset.review)) removeReview(card); });
     reviews.forEach((review) => {
       const card = keyed(thread, "data-review", review.review_id, () => el("div", "assistant-card assistant-card--review"));
-      if (!card.dataset.painted) { card.dataset.painted = "1"; renderReview(card, work, review); }
+      renderReview(card, work, review);
       put(card);
     });
     thread.querySelector(":scope > .assistant-problem")?.remove();

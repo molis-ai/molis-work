@@ -395,6 +395,10 @@ export interface AssistantPageCardInput {
 
 export interface AssistantPendingReview {
     review_id: string;
+    version: string;
+    reference?: ReviewReference;
+    decisions: AgentReviewDecisions;
+    permission_available?: true;
     kind: string;
     run_id: string | null;
     summary: string;

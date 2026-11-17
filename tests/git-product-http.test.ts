@@ -65,13 +65,18 @@ test("Git formal routes select the current grant, publish exact staged/worktree 
     assert.deepEqual((await request(api("git", "/state"))).body.selected, working.body.selected);
     assert.deepEqual((await request(api("diff", fixedPath(fixed)))).body, stagedView.body);
     const reviews = (suffix: string, project = projects[0]) => `/projects/${project}/api/agent/reviews${suffix}`;
+    const versions = new Map<string, string>();
     const prepare = async (action: "stage" | "unstage") => {
       const selected = await request(api("git", "/diff"), "POST", { ...input, side: action === "stage" ? "worktree" : "index" });
       assert.equal(selected.body.result.outcome, "diff", JSON.stringify(selected));
       const prepared = await request(api("git", "/prepare-index"), "POST", { workspace_id: input.workspace_id, path: input.path, action, revision: selected.body.result.revision, operation_id: randomUUID() });
-      assert.equal(prepared.status, 200, JSON.stringify(prepared)); return prepared.body.review_id;
+      assert.equal(prepared.status, 200, JSON.stringify(prepared));
+      const listed = await request(reviews("?status=pending"));
+      const presented = (listed.body.reviews as { request: import("@molis-ai/molis-work-contracts/services/agent-host").AgentReviewRequest }[]).find(row => row.request.review_id === prepared.body.review_id)!.request;
+      versions.set(presented.review_id, presented.reference.version);
+      return presented.review_id;
     };
-    const decide = (review_id: string, decision = "approve") => request(reviews("/decide"), "POST", { review_id, decision });
+    const decide = (review_id: string, decision = "approve") => request(reviews("/decide"), "POST", { review_id, version: versions.get(review_id)!, decision });
     const staleReview = await prepare("stage");
     assert.equal((await git("show", ":note")).stdout, "staged\n", "preparation must not stage anything");
     assert.equal((await request(reviews("/recovery"), "POST", { review_id: staleReview, action: "refresh" }, false)).status, 403);
@@ -85,7 +90,7 @@ test("Git formal routes select the current grant, publish exact staged/worktree 
     assert.equal((await request(api("git", "/results"))).body.results.length, 0);
     const pendingRows = await request(reviews("?workspace_id=" + ws));
     assert.equal(pendingRows.body.reviews.length, 1); assert.equal(pendingRows.body.reviews[0].request.run, null); assert.match(pendingRows.body.html, /操作后的暂存内容/);
-    assert.equal((await request(reviews("/decide", projects[1]), "POST", { review_id: staleReview, decision: "approve" })).status, 404);
+    assert.equal((await request(reviews("/decide", projects[1]), "POST", { review_id: staleReview, version: versions.get(staleReview)!, decision: "approve" })).status, 404);
     assert.equal((await request(reviews("?session_id=unrelated"))).body.reviews.length, 0);
     await writeFile(path.join(directory, "note"), "changed after review\n");
     const staleResult = await decide(staleReview); assert.equal(staleResult.status, 200); assert.equal(staleResult.body.receipt.effect_settled, false); assert.match(staleResult.body.receipt.effect_error, /改变/);

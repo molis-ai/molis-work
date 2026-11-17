@@ -85,6 +85,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 - 不负责：业务 Store、Node 专用实现、Tauri 命令。
 - 公共工作台脚本由 `tooling/build-client.mjs` 在构建时生成：请求助手 bootstrap 保持原样在最前，其余程序由仓库构建工具 `scripts/client-literals.mjs` 在已有函数作用域内复用重复的表达式字符串，再经 esbuild 压缩空白、局部绑定名及等价语法。字面量值、指令序言、属性名、事件名和公开全局不变。字符串池的语义测试为 `node --test tests/client-literals.test.mjs`。运行时只读取生成的 dist 资源。修改后先构建再跑浏览器回归，页面资源预算只能下调。
 - 插件框架的 TypeScript 桥由 `tooling/build-client.mjs` 打包并复用同一字面量压缩，写入 `dist/plugin-frame-client.js`。`src/plugin-frame.ts` 将它和共用控件合成框架脚本。
+- 项目选择页在嵌入助理脚本前去掉注释和行首缩进。源码仍按浏览器脚本门禁检查，打开助理、切换项目和接续工作共用工作台的助理工厂。
 - 账号与空间菜单的浏览器入口在 `src/browser/personal-account.ts`，由 `tsconfig.browser.json` 独立做 DOM 类型检查；包的构建命令用 esbuild 先打包，再参与公共工作台脚本组合。服务器端 `src/scripts/personal-account.ts` 只读取构建资源，不再保存程序字符串。
 - 账号入口可用 Tab 到达、Enter/空格打开，未登录时焦点进入登录按钮；Esc 关闭后返回可见入口，若账号行所在的项目菜单已收起则返回其 summary。浏览器测试先等菜单真正可见，不把尚在 `content-visibility` 过渡中的节点当作能接收焦点；账号菜单改动后必跑：`node scripts/run-tests.mjs tests/personal-menu.e2e.test.ts`（PCSYNC-KBD-01）。
 - 公开入口：`@molis-ai/molis-work-app-workbench`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
@@ -182,4 +183,4 @@ WORK-07 的订阅、席位与平台变更专项联调：构建后以 `MOLIS_AUTH
 
 冷启动内容选择器仍只投影 owner 的惰性 HTML 元数据。需要跨页完整枚举的 owner，在已授权页面上声明 `data-frame-assets-input`（字符串输入对象的 JSON）；每页在 `data-frame-assets-next-input` 声明下一页输入，末页省略。输入只经既有 Manifest 舞台参数合同，平台不识别具体插件或过滤值。每页读取前后校验同一个 producer/page 授权，重复输入拒绝；一位 owner 的任一页失败就不交付该 owner 的部分候选。对象解析可在找到精确引用后停止；拖拽仍必须先通过原句柄的投影范围检查，不以新页面放大旧句柄权限。FBR-05 的跨200条/归档候选、伪造与撤回拒绝由 `tests/workbench-frame-container.e2e.test.ts` 覆盖。
 
-审查按钮取自 AgentReviewQueue 的 `decisionOptions`，pending 本身不表示仍可批准或拒绝。原安装授权失效仅给拒绝，无执行处理器则说明暂不能提交；已批准但结果未知保持原核对路径。必跑：`tests/agent-review-surface.test.ts`、`tests/agent-review-http.test.ts`、`tests/agent-review-availability.e2e.test.ts`、`tests/plugin-page-reviews.e2e.test.ts`。
+审查按钮取自 AgentReviewQueue 的 `decisions/readMany`，pending 本身不表示仍可批准或拒绝。原安装授权失效仅给拒绝，无执行处理器则说明暂不能提交；已批准但结果未知保持原核对路径。必跑：`tests/agent-review-surface.test.ts`、`tests/agent-review-http.test.ts`、`tests/agent-review-availability.e2e.test.ts`、`tests/plugin-page-reviews.e2e.test.ts`。

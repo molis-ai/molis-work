@@ -83,7 +83,7 @@ test("native final dispatch rechecks source after an awaited credential check", 
     const snapshot = await input.resolveCredential(input.credential_ref);
     const ref = await bridge.prologueRefFor(input.credential_ref, input.resolveCredential, signal);
     return { ref, assertCurrent: async () => { assert.equal(await input.resolveCredential(input.credential_ref), snapshot); } };
-  }, (guard, operation) => scope.run(guard, operation));
+  }, (guard, operation) => scope.run(async () => { await guard.beforeEffect(); guard.assertCurrent(); }, operation));
   try {
     const pending = inference.completeText({ protocol: "openai-compatible", endpoint: "https://1.1.1.1/v1/chat/completions",
       model: "fixture", prompt: "public fixture", credential_ref: "fixture", resolveCredential,

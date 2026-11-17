@@ -74,7 +74,46 @@ for (const holdLayout of [false, true]) test(`SYS-15-U10 S-47 Git reviews remain
   }
   await child.waitFor("!document.querySelector('[data-git-refresh]').disabled && !document.querySelector('[data-git-commit]').disabled");
   await child.evaluate("const field=document.querySelector('[data-git-commit-message]');field.value='reviewed commit';field.dispatchEvent(new Event('input',{bubbles:true}))");
-  await child.click("[data-git-commit]");
+  const visibleApprove = "[...document.querySelectorAll('[data-host-review-slot]')].some(s => !s.hidden && getComputedStyle(s).visibility !== 'hidden' && s.getBoundingClientRect().height > 0 && s.querySelector('[data-agent-review-approve]'))";
+  if (!holdLayout) {
+    // Requesting a review while covered by settings waits until the frame returns to view, and hiding/showing again restores an active slot.
+    await child.evaluate(`(() => {
+      const post=MessagePort.prototype.postMessage, held=[];
+      window.releaseReviewShow=()=>{
+        MessagePort.prototype.postMessage=post;
+        const shown=held.find(([,v])=>v?.type==='review-show');
+        for(const [port,value] of held)post.call(port,value);
+        if(shown){
+          const [port,msg]=shown;
+          window.closePersistentSlot=()=>post.call(port,{type:'review-close',id:7});
+          post.call(port,{type:'review-show',id:7,query:msg.query});
+          post.call(port,{type:'review-layout',id:7,box:{x:8,y:8,width:280,height:120}});
+        }
+      };
+      window.reviewShownHeld=0;
+      MessagePort.prototype.postMessage=function(value,...rest){
+        if(value?.type?.startsWith('review-')){if(value.type==='review-show')window.reviewShownHeld++;held.push([this,value]);return;}
+        return post.call(this,value,...rest);
+      };
+    })()`);
+    await child.click("[data-git-commit]");
+    await child.waitFor("window.reviewShownHeld > 0");
+    await browser.click(".navigator-project-settings");
+    await browser.waitFor("document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings'");
+    await child.evaluate("releaseReviewShow()");
+    assert.equal(await browser.evaluate("Boolean(document.querySelector('[data-host-review-slot=\"7\"]'))"), false, "covered review-show waits before mounting");
+    assert.equal(await browser.evaluate("[...document.querySelectorAll('[data-host-review-slot]')].every(node => node.hidden || getComputedStyle(node).visibility === 'hidden')"), true);
+    await browser.click("[data-cover-close]");
+    await browser.waitFor("(() => { const s = document.querySelector('[data-host-review-slot=\"7\"]'); return Boolean(s && getComputedStyle(s).visibility !== 'hidden' && s.querySelector('[data-agent-review-approve]')); })()");
+    await browser.click(".navigator-project-settings");
+    await browser.waitFor("[...document.querySelectorAll('[data-host-review-slot]')].every(node => node.hidden || getComputedStyle(node).visibility === 'hidden')");
+    await browser.click("[data-cover-close]");
+    await browser.waitFor("(() => { const s = document.querySelector('[data-host-review-slot=\"7\"]'); return Boolean(s && getComputedStyle(s).visibility !== 'hidden' && s.querySelector('[data-agent-review-approve]')); })()");
+    await child.evaluate("closePersistentSlot()");
+    await browser.waitFor("!document.querySelector('[data-host-review-slot=\"7\"]')");
+  } else {
+    await child.click("[data-git-commit]");
+  }
   if (holdLayout) {
     await browser.waitFor("Boolean(document.querySelector('[data-host-review-slot] [data-agent-review-approve]'))");
     assert.ok(reviewReads > 0, "show reads the current review before geometry makes its slot visible");
@@ -82,7 +121,7 @@ for (const holdLayout of [false, true]) test(`SYS-15-U10 S-47 Git reviews remain
     assert.equal(await browser.evaluate("[...document.querySelectorAll('[data-host-review-slot]')].every(node => node.hidden || getComputedStyle(node).visibility === 'hidden')"), true);
     await child.evaluate("releaseReviewLayout()");
   }
-  await browser.waitFor("document.querySelector('[data-host-review-slot] [data-agent-review-approve]')?.getClientRects().length");
+  await browser.waitFor(visibleApprove);
   await browser.click("[data-host-review-slot] [data-agent-review-approve]");
   await browser.click("[data-page-dialog=confirm] [type=submit]");
   await child.waitFor("document.querySelector('[data-git-commit-message]').value===''");

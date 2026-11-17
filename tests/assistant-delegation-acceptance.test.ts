@@ -4,11 +4,15 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { AssistantService, AssistantStore, LocalHost, assistantAuthority, installHostUiText } from "@molis-ai/molis-work-app-local-host";
-import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ACCEPTANCE_DECIDE_PERMISSION, ACCEPTANCE_PROVIDER_ID, ACCEPTANCE_READ_PERMISSION, acceptanceActions, type AcceptanceReadResult, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
+import { AssistantService, AssistantStore, LocalHost, LocalMcpServer, assistantAuthority, installHostUiText } from "@molis-ai/molis-work-app-local-host";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
+import { ACCEPTANCE_DECIDE_PERMISSION, ACCEPTANCE_PROVIDER_ID, ACCEPTANCE_READ_PERMISSION, acceptanceActions, acceptanceRequestId, type AcceptanceReadResult, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { backgroundPlugin, backgroundRig } from "./fixtures/home-background-plugin.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 import { reply } from "./fixtures/fixture-replies.js";
 import { roundParts } from "./fixtures/round-parts.js";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
@@ -29,6 +33,7 @@ test("PWA-144 PWA-145 PWA-146 S-assistant-delivery-own-object: a sub-task handed
   const home = await mkdtemp(join(tmpdir(), "molis-delegation-acceptance-"));
   const built = await backgroundRig(t, backgroundPlugin(() => ({ source: { surface: "example", title: "示例", icon: "list" }, tasks: [] })), ["A"]);
   const local = built.host, project = built.project("A");
+  const served = await serveTestHost(t, { home: built.home, host: local });
   const requests: Array<{ child: boolean; tools: string[]; raw: string }> = [];
   const parentScript = [
     () => reply({ name: "delegate-work", input: { title: "定价页", brief: "起草「定价页」。", acceptance: "三档都在", requirements: [
@@ -53,7 +58,8 @@ test("PWA-144 PWA-145 PWA-146 S-assistant-delivery-own-object: a sub-task handed
   let parentStep = 0, pricingStep = 0;
   // The sub-tasks are held until the delegating round has ended, so each result comes back as the material of a round of its own.
   const released = Promise.withResolvers<void>();
-  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async (_url: unknown, init: RequestInit) => {
+  const realFetch = globalThis.fetch;
+  const modelFetch = answeringEndingReviews(text => reply(undefined, text), async (_url: unknown, init: RequestInit) => {
     const raw = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
     const body = JSON.parse(raw) as { messages: unknown; tools?: Array<{ name: string }> }, said = JSON.stringify(body.messages);
     const child = said.includes("委托的子任务");
@@ -62,7 +68,9 @@ test("PWA-144 PWA-145 PWA-146 S-assistant-delivery-own-object: a sub-task handed
     if (child && said.includes("起草「页脚」")) return reply(undefined, "页脚：一行字。");
     if (child) return pricingStep < pricingScript.length ? pricingScript[pricingStep++]!() : reply(undefined, "没有别的了。");
     return parentStep < parentScript.length ? parentScript[parentStep++]!() : reply(undefined, "已核对子任务的结果。");
-  }));
+  });
+  t.mock.method(globalThis, "fetch", (url: unknown, init?: RequestInit) =>
+    String(url).startsWith("http://127.0.0.1:") ? realFetch(url as RequestInfo, init) : modelFetch(url, init ?? {}));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.delegation-acceptance", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
@@ -125,9 +133,20 @@ test("PWA-144 PWA-145 PWA-146 S-assistant-delivery-own-object: a sub-task handed
   assert.deepEqual(checked.requirements?.items.map(item => [item.id, item.reported, item.verified, item.gap]), [["r1", true, false, "self_only"], ["r2", true, false, "contradicted"], ["r3", false, false, "evidence_missing"]]);
   assert.equal((await delegation.status({ work_ids: [footer.work_id] }))[0]!.requirements, undefined);
 
-  // The person accepts r1 as it stands. Rework then touches r2 only: r1 keeps its record and the person's word; a second delivery
-  // that does not say what it touched writes nothing.
-  await asPerson(acceptanceActions.decide, { subject, version: "v1", accepts: [{ id: "r1", version: 1 }], returns: [] });
+  // The person accepts r1 as it stands through the platform's protected trusted-decision entry (direct action invocation is refused).
+  // Rework then touches r2 only: r1 keeps its record and the person's word (`person_accepted` pointing to v1's ReviewReference); a
+  // second delivery that does not say what it touched writes nothing.
+  await assert.rejects(asPerson(acceptanceActions.decide, { subject, version: "v1", accepts: [{ id: "r1", version: 1 }], returns: [] }),
+    (error: unknown) => error instanceof ActionError && error.code === "actions.forbidden");
+  const management = new LocalMcpServer(withCatalog, "management", null,
+    { homeDirectory: built.home, runtimeContext: { runtime_id: "delegation-acceptance-mgmt", stable_work_context_id: "delegation-acceptance", host_declares_stable: true } },
+    local, served.origin, async () => undefined);
+  t.after(() => management.close());
+  const dbPath = built.catalog[0]!.database_path;
+  const mcp = async <T>(name: string, input: object) => JSON.parse(await management.callTool(name, { database_path: dbPath, project_id: project.project_id, ...input })) as T;
+  const lookup = { action: { capability_id: acceptanceActions.decide.capability_id, version: 1, provider_id: ACCEPTANCE_PROVIDER_ID }, request_id: acceptanceRequestId(subject) };
+  const v1Review = await mcp<ReviewRequest>("molis_work_v1_review_request", lookup);
+  const v1Decided = await mcp<{ record: ProjectTrustedDecision }>("molis_work_v1_review_decide", { reference: v1Review.reference, choice_id: "accept:r1", request_key: "accept-r1-v1" });
   await delegation.follow_up(pricing.work_id, "补上年付折扣");
   await until(async () => (await read()).version === "v2", "the second delivered version");
   await until(async () => (await service.read(pricing.work_id)).work.state === "completed", "the follow-up round ended");
@@ -135,9 +154,13 @@ test("PWA-144 PWA-145 PWA-146 S-assistant-delivery-own-object: a sub-task handed
   assert.equal(afterSecond.round, 2, "the refused report left no delivery behind");
   assert.deepEqual(afterSecond.changes, { summary: "补上了年付折扣", touched: ["r2"] });
   const [r1, r2] = afterSecond.requirements;
-  assert.deepEqual([r1!.stands_on, r1!.carried, r1!.person, r1!.check?.checked_version], ["v1", true, "accepted", "v1"], "what was not touched keeps its version, its check and the person's acceptance");
+  assert.deepEqual([r1!.stands_on, r1!.carried, r1!.person, r1!.check?.checked_version, r1!.decision?.decision_id], ["v1", true, "accepted", "v1", v1Decided.record.decision_id], "what was not touched keeps its version, its check and the person's acceptance");
   assert.deepEqual([r2!.stands_on, r2!.carried, r2!.check?.verdict, r2!.check?.checked_version, r2!.gap], ["v2", false, "supports", "v2", "self_only"]);
   assert.equal(r2!.history.filter(entry => entry.type === "check").length, 2, "the earlier finding stays in the record");
+  const v2Review = await mcp<ReviewRequest>("molis_work_v1_review_request", lookup);
+  assert.deepEqual(v2Review.requirements.find(req => req.id === "r1")?.evidence.find(ev => ev.tier === "person_accepted")?.decision,
+    { reference: v1Review.reference, decision_id: v1Decided.record.decision_id });
+  assert.equal(v2Review.requirements.find(req => req.id === "r2")?.evidence.some(ev => ev.tier === "person_accepted"), false);
   const refused = requests.filter(request => request.child).map(request => request.raw).find(raw => raw.includes("这不是第一次交付"));
   assert.ok(refused, "the sub-task was told why its first report of the round wrote nothing");
 });

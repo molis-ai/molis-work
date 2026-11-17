@@ -81,4 +81,3 @@ export async function childSetup(deps: RunDeps, input: PrologueStartInput, actio
   const childInstructions = childRoles.size ? childScope + "可分派的固定子角色（character 用这里的引用，别的会被拒绝）：\n" + [...childRoles].map(([ref, role]) => `${ref}: ${role.name}; tools=${JSON.stringify(role.host_tools.map(prologueToolName))}`).join("\n") + "\nidempotencyKey 必须以字母或数字开头，只含字母、数字、点、下划线、冒号或连字符（最长 128 字符）。给子任务写清任务、必要上下文、依据路径与完成条件；不继承父聊天或材料。子任务不能再次分派。需要用户信息且子角色获准 ask-user 时使用原问卷；没有该能力时将缺少的信息作为阻塞回报父任务。普通消息不代替问题答案或审批。" : "";
   return { childRoots, childRoles, childInstructions };
 }
-

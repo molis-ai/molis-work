@@ -113,7 +113,7 @@ export const CAPABILITY_PACK_STYLES = `
   /* 11 · An adopt bar (batch 42, docs/design/skill-improvement): at the foot of a draft, the main act first, then the others, then one
      sentence of where it stands; while a step is owed, a save is under way or failed, the sentence carries a mark. Asking once more
      (the replay differs) is a leave bar in the attention tone above it, in place, never a dialog. */
-  .mw-adopt-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--line); }
+  .mw-adopt-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--line); }
   .mw-adopt-bar__status { display: inline-flex; align-items: flex-start; gap: 6px; flex: 1 1 160px; min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
   .mw-adopt-bar__status[data-state="owed"] { color: var(--ink-soft); }
   .mw-adopt-bar__status[data-state="failed"] { color: var(--tone-blocked); }

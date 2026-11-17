@@ -29,4 +29,3 @@ export async function bindBusinessSubagent(deps: Pick<RunDeps, "runtime" | "stat
   deps.state.stopGuards.set(ref.id, { writing: role.execution === "operate", business: true, reader: "work", task: "", materials: [],
     signal: parts.actionController.signal, runs: new Map() });
 }
-

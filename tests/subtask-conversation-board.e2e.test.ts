@@ -35,6 +35,16 @@ test("B58-06: subtask board states, local input, recovery, IME and touch targets
         assert.ok(item.composer <= item.bottom + 1 && item.input <= item.bottom + 1, JSON.stringify(item));
         if (width === 390) assert.ok(item.touch.every(([w, h]) => w >= 44 && h >= 44), JSON.stringify(item.touch));
       }
+      if (width === 390) {
+        const small = await evaluate<Array<[string, number, number]>>(`
+          [...document.querySelectorAll('${ROOT} .mw-btn')].flatMap(button => {
+            const box = button.getBoundingClientRect();
+            return box.width > 0 && box.height > 0 && box.height < 44
+              ? [[button.textContent.trim(), Math.round(box.width), Math.round(box.height)]]
+              : [];
+          })`);
+        assert.deepEqual(small, [], "every visible subtask control keeps the 44px touch height");
+      }
       assert.equal(await evaluate("document.documentElement.scrollWidth > innerWidth"), false);
       assert.equal(await evaluate(`document.querySelectorAll('${ROOT} [data-subtask-action="stop"]').length`), 4, "running, waiting for answer, approval, and read-failed keep Stop");
       if (shots) {
@@ -44,6 +54,7 @@ test("B58-06: subtask board states, local input, recovery, IME and touch targets
     }
   }
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  assert.equal(await evaluate("matchMedia('(prefers-reduced-motion: reduce)').matches"), true, "the reduced-motion preference is the one being exercised");
   await evaluate(`${first}.scrollIntoView({block:'center'}); ${first}.querySelector('textarea').focus()`);
   await command("Input.imeSetComposition", { text: "输入法候选", selectionStart: 5, selectionEnd: 5 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);

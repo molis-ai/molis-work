@@ -23,16 +23,23 @@ let SYNTHETIC_MARKER: Int64 = 0x4D4F_4C49_5357 // "MOLISW"
 struct HelperError: Error {
     let code: String
     let message: String
-    init(_ code: String, _ message: String) { self.code = code; self.message = message }
+    let partial: Bool?
+    init(_ code: String, _ message: String, partial: Bool? = nil) { self.code = code; self.message = message; self.partial = partial }
 }
 
 final class Channel {
     private let fd: Int32
+    private let input: Input
     private let writeLock = NSLock()
+    private var closed = false
+    var isClosed: Bool { writeLock.lock(); defer { writeLock.unlock() }; return closed }
 
-    init(path: String) throws {
+    init(path: String, input: Input = .shared) throws {
+        self.input = input
         fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw HelperError("helper.socket", "socket() failed") }
+        var noPipe: Int32 = 1
+        guard setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noPipe, socklen_t(MemoryLayout<Int32>.size)) == 0 else { throw HelperError("helper.socket", "cannot disable SIGPIPE") }
         var address = sockaddr_un()
         address.sun_family = sa_family_t(AF_UNIX)
         let bytes = Array(path.utf8)
@@ -52,6 +59,7 @@ final class Channel {
         guard let data = try? JSONSerialization.data(withJSONObject: message, options: []) else { return }
         writeLock.lock()
         defer { writeLock.unlock() }
+        if closed { return }
         var line = data
         line.append(0x0A)
         line.withUnsafeBytes { raw in
@@ -78,7 +86,10 @@ final class Channel {
                 if let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] { handle(object) }
             }
         }
-        exit(0)
+        input.disconnect()
+        writeLock.lock(); closed = true; writeLock.unlock()
+        // The current serial request releases its own held gesture before orderly EOF exits the helper.
+        work.async { exit(0) }
     }
 }
 
@@ -90,7 +101,9 @@ func respond(_ id: Any, _ body: () throws -> Any) {
     do {
         channel?.send(["id": id, "ok": true, "result": try body()])
     } catch let error as HelperError {
-        channel?.send(["id": id, "ok": false, "error": ["code": error.code, "message": error.message]])
+        var failure: [String: Any] = ["code": error.code, "message": error.message]
+        if let partial = error.partial { failure["partial"] = partial }
+        channel?.send(["id": id, "ok": false, "error": failure])
     } catch {
         channel?.send(["id": id, "ok": false, "error": ["code": "helper.failed", "message": String(describing: error)]])
     }
@@ -100,21 +113,24 @@ func handle(_ request: [String: Any]) {
     guard let id = request["id"], let op = request["op"] as? String else { return }
     let params = request["params"] as? [String: Any] ?? [:]
     work.async {
+        if channel?.isClosed != false { return }
         respond(id) {
             switch op {
             case "status": return Presence.shared.status()
             case "permissions.request": return try Presence.shared.request(params.string("kind"))
             case "apps.running": return Observe.runningApps()
             case "apps.installed": return Observe.installedApps()
-            case "app.open": return try Observe.openApp(params.string("bundle_id"))
+            case "app.open": return try Input.shared.openApp(params)
             case "app.state": return try Observe.appState(params.int32("pid"))
-            case "observe.tree": return try Observe.tree(pid: params.int32("pid"), maxNodes: params.optionalInt("max_nodes") ?? 600)
-            case "observe.screenshot": return try Observe.screenshot(pid: params.int32("pid"), rect: params.rect("rect"), scale: params.optionalDouble("scale") ?? 1)
-            case "observe.ocr": return try Observe.ocr(pid: params.int32("pid"), rect: params.rect("rect"), scale: params.optionalDouble("scale") ?? 2)
-            case "observe.menus": return try Observe.menus(pid: params.int32("pid"), path: params.optionalStrings("path") ?? [])
-            case "probe.point": return try Observe.probe(params.point("point"))
-            case "focused.field": return try Observe.focusedField(pid: params.int32("pid"))
-            case "document": return try Observe.document(pid: params.int32("pid"))
+            case "observe.tree": return try Observe.tree(params.originalWindow(), maxNodes: params.optionalInt("max_nodes") ?? 600)
+            case "observe.screenshot":
+                return try params.capture { try Observe.screenshot(pid: $0.pid, rect: params.rect("rect"), scale: params.optionalDouble("scale") ?? 1, expected: $0) }
+            case "observe.ocr":
+                return try params.capture { try Observe.ocr(pid: $0.pid, rect: params.rect("rect"), scale: params.optionalDouble("scale") ?? 2, expected: $0) }
+            case "observe.menus": return try params.capture { try Observe.menus(pid: $0.pid, path: params.optionalStrings("path") ?? []) }
+            case "probe.point": return try params.capture { _ in try Observe.probe(params.point("point")) }
+            case "focused.field": return try Observe.focusedField(params.originalWindow())
+            case "document": return try Observe.document(params.originalWindow())
             case "input.pointer": return try Input.shared.pointer(params)
             case "input.scroll": return try Input.shared.scroll(params)
             case "input.drag": return try Input.shared.drag(params)
@@ -122,7 +138,7 @@ func handle(_ request: [String: Any]) {
             case "input.key": return try Input.shared.key(params)
             case "input.text": return try Input.shared.text(params)
             case "input.menu": return try Input.shared.menu(params)
-            case "file.give": return try Observe.giveFile(pid: params.int32("pid"), path: params.string("path"))
+            case "file.give": return try Input.shared.giveFile(params)
             case "monitor": Presence.shared.watchInput(params.optionalBool("on") ?? true); return ["watching": Presence.shared.watching]
             default: throw HelperError("helper.unknown_op", "unknown op \(op)")
             }
@@ -131,6 +147,20 @@ func handle(_ request: [String: Any]) {
 }
 
 extension Dictionary where Key == String, Value == Any {
+    func originalWindow() throws -> WindowTarget {
+        guard let facts = self["expected_window"] as? [String: Any] else {
+            throw HelperError("window.changed", "缺少原应用窗口")
+        }
+        return try WindowTarget(facts)
+    }
+    func originalWindowOrNone() throws -> WindowTarget? {
+        if self["expected_window"] is NSNull { return nil }
+        return try originalWindow()
+    }
+    func capture<T>(_ read: (WindowTarget) throws -> T) throws -> T {
+        let target = try originalWindow()
+        return try target.capture { try read(target) }
+    }
     func string(_ name: String) throws -> String {
         guard let value = self[name] as? String, !value.isEmpty else { throw HelperError("helper.bad_params", "\(name) is required") }
         return value

@@ -130,7 +130,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
   const answers = installDecisionAnswers(host, request, { task: id => tasks.find(one => one.id === id), repaint: () => repaint(), again, failed: error => failed(error), go: task => go(task) });
   /** The decisions of these tasks in order, the first carrying the primary button; `named`: say which task asks, where the card is not its own. */
   const decisionsOf = (list: readonly BackgroundTaskRow[], named: (task: BackgroundTaskRow) => boolean) => list.flatMap(task => task.decisions.map(decision => ({ task, decision })))
-    .map(({ task, decision }, at) => renderTaskDecision({ task: task.id, id: decision.id, ask: decision.ask, ...(decision.why ? { why: decision.why } : {}), ...(named(task) ? { from: task.title } : {}),
+    .map(({ task, decision }, at) => renderTaskDecision({ task: task.id, id: decision.id, ...(decision.reference ? { reference: { id: decision.reference.id, version: decision.reference.version } } : {}), ask: decision.ask, ...(decision.why ? { why: decision.why } : {}), ...(named(task) ? { from: task.title } : {}),
       changes: decision.changes, answers: decision.answers.map(answer => answer.role), lead: at === 0, revising: answers.revising(task, decision.id), busy: answers.busy(task, decision.id) })).join("");
   const asks = (task: BackgroundTaskRow) => task.waiting || ASKS.has(task.state);
   const weight = (task: BackgroundTaskRow) => asks(task) ? 0 : FAILED.has(task.state) ? 1 : 2;

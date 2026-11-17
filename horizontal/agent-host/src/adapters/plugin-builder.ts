@@ -5,6 +5,7 @@ import { DEFAULT_CONTEXT_WINDOW_TOKENS, collectRun, fillSkillBody, prepareSkillI
 import { MAX_COMPOSED_INSTRUCTION_CHARS, stageInstructions } from './prologue-node-kit.js';
 import { runModelParams } from './prologue-run-params.js';
 import type { PrologueModelConfiguration } from './prologue.js';
+import type { ReviewDecisionControl } from '../review-decisions.js';
 
 import type { BuilderAgentActivity, BuilderAgentRequest, BuilderAgentRecord } from '@molis-ai/molis-work-contracts/services/agent-host';
 import { PLUGIN_CHECKS_TOOL } from '../tool-catalog.js';
@@ -40,7 +41,7 @@ interface PluginBuilderRuntimeBindings {
   /** Whether the Runtime posture lets build mode change files. A read-only Runtime denies every write. */
   writable: boolean;
   credentialRefFor(reference: string): Promise<ExactRef<'credential'>>;
-  withDispatchGuard<T>(guard: () => void | Promise<void>, work: () => Promise<T>): Promise<T>;
+  withDispatchGuard<T>(guard: ReviewDecisionControl, work: () => Promise<T>): Promise<T>;
 }
 /**
  * Saves of one run record can overlap (a progress update while a step settles). Each save goes through the same temporary
@@ -222,7 +223,10 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
         if (closing || JSON.stringify(await options.modelConfiguration()) !== configuration || await options.resolveCredential(model.credential_ref) !== credential) throw new Error('构建期间模型配置或凭据已改变，请重试');
         abort.signal.throwIfAborted();
       };
-      const execution = bindings.withDispatchGuard(guard, async () => {
+      const execution = bindings.withDispatchGuard({ beforeEffect: guard, assertCurrent() {
+        abort.signal.throwIfAborted(); request.signal?.throwIfAborted();
+        if (closing || current?.abort !== abort) throw new Error('原构建已结束');
+      } }, async () => {
         const checkLifetime = new AbortController();
         const activeChecks = new Set<Promise<unknown>>();
         let sealed = false;

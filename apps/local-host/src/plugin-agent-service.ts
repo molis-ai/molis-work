@@ -68,7 +68,7 @@ export function pluginAgentsFor(home: PluginPlatformHome | null | undefined, man
           if (!chosen?.realpath_verified) throw new ActionError("actions.forbidden", "这个项目没有授权的工作区");
           workspace = { directory: { canonical_path: chosen.canonical_path, realpath_verified: true } };
         }
-        return await runPreparedAgent(runtime, caller, input, workspace, { ...prepared.authority, beforeStart: beforeEffect, assertBeforeStart: assertCurrent, beforeDispatch: beforeEffect }, lifetime.signal, assertCurrent, subject !== undefined);
+        return await runPreparedAgent(runtime, caller, input, workspace, { ...prepared.authority, beforeStart: beforeEffect, assertBeforeStart: assertCurrent, beforeDispatch: beforeEffect, assertBeforeDispatch: assertCurrent }, lifetime.signal, assertCurrent, subject !== undefined);
       } finally { controllers.delete(controller); lifetime.dispose(); }
     },
   });

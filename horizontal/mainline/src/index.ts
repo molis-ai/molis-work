@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, TASK_SERVES_RELATION, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, assertWorkEventWindow, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionReference,
   type ActionSubject, type ActionView, type BackgroundTask, type BackgroundTaskAnswer, type BackgroundTaskCollection, type BackgroundTaskCommand, type BackgroundTaskDecision, type BackgroundTaskPhrase, type OpenTarget, type TaskServesRole, type WorkEvent,
   type WorkEventCollection, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
-import { STATE_RING_FAMILIES, type StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
+import { STATE_RING_FAMILIES, type ReviewOwner, type ReviewReference, type StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
 import { mainlineErrors, type BackgroundTaskCommandRequest, type BackgroundTaskCommandResult, type BackgroundTaskDecideRequest, type BackgroundTaskDecideResult, type BackgroundTaskRow, type BackgroundTasksReadResult, type MainlineIssue, type ObjectOpenRequest, type ObjectOpenResult, type TaskPlaceRequest, type TaskPlaceResult,
   type WaitingItem, type WaitingReadResult, type WorkLineEvent, type WorkLineReadRequest, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { PRESENTATION_VALUES_INPUT_TYPE, PRESENTATION_VALUES_OUTPUT_TYPE, type OwnedPresentationObject, type PresentationValues } from "@molis-ai/molis-work-contracts/platform/presentation";
@@ -46,6 +46,23 @@ function commandOf<Role extends string = BackgroundTaskCommand["role"]>(value: u
   if (!text(capability_id, 200) || !Number.isSafeInteger(version) || (version as number) < 1 || (provider_id !== undefined && provider_id !== source.provider_id)) return null;
   return { role: value.role as Role, action: { capability_id, version: version as number, provider_id: source.provider_id }, input: value.input, summary: value.summary };
 }
+function reviewRefOf(value: unknown): ReviewReference<ReviewOwner> | null {
+  if (!record(value)) return null;
+  const { id, version, owner } = value;
+  if (!text(id, 2800) || !text(version, 240) || !record(owner) || !text(owner.project_id, 240)) return null;
+  const projectId = owner.project_id;
+  if ((owner.kind === "agent-review" || owner.kind === "goal-acceptance") && text(owner.plugin_id, 240) && text(owner.install_id, 240)) {
+    return { owner: { kind: owner.kind, project_id: projectId, plugin_id: owner.plugin_id, install_id: owner.install_id }, id, version };
+  }
+  if (owner.kind === "trusted-decision" && (owner.scope === "home" || owner.scope === "project") && text(owner.plugin_id, 240) && text(owner.install_id, 240) && text(owner.installation_generation, 240)) {
+    return { owner: { kind: "trusted-decision", project_id: projectId, scope: owner.scope, plugin_id: owner.plugin_id, install_id: owner.install_id, installation_generation: owner.installation_generation }, id, version };
+  }
+  if (owner.kind === "trusted-decision" && owner.scope === "project" && !("plugin_id" in owner) && text(owner.provider_id, 240)) {
+    return { owner: { kind: "trusted-decision", project_id: projectId, scope: "project", provider_id: owner.provider_id }, id, version };
+  }
+  return null;
+}
+
 /**
  * What a task asks, or null when it cannot be drawn. Its answers are held to the same rule as a command: the provider's own actions,
  * one of a role at most. A line of what would change that is not a label and a value is a row the provider got wrong.
@@ -53,10 +70,12 @@ function commandOf<Role extends string = BackgroundTaskCommand["role"]>(value: u
 function decisionOf(value: unknown, source: Required<ActionReference>): BackgroundTaskDecision | null {
   if (!record(value) || !text(value.id, 200) || !text(value.ask, 1000) || (value.why !== undefined && !text(value.why, 1000)) || !Array.isArray(value.changes) || value.changes.length > 20
     || !Array.isArray(value.answers) || value.answers.length > 3) return null;
+  const reference = value.reference === undefined ? undefined : reviewRefOf(value.reference);
+  if (value.reference !== undefined && !reference) return null;
   const changes = value.changes.map(line => record(line) && text(line.label, 200) && typeof line.value === "string" && line.value.length <= 2000 ? { label: line.label, value: line.value } : null);
   const answers = value.answers.map(answer => commandOf<BackgroundTaskAnswer["role"]>(answer, source, ["approve", "revise", "reject"]));
   if (changes.includes(null) || answers.includes(null) || new Set(answers.map(answer => answer!.role)).size !== answers.length) return null;
-  return { id: value.id, ask: value.ask, ...(value.why === undefined ? {} : { why: value.why as string }), changes: changes as BackgroundTaskDecision["changes"], answers: answers as BackgroundTaskAnswer[] };
+  return { id: value.id, ...(reference ? { reference } : {}), ask: value.ask, ...(value.why === undefined ? {} : { why: value.why as string }), changes: changes as BackgroundTaskDecision["changes"], answers: answers as BackgroundTaskAnswer[] };
 }
 
 /** Who answered, as the answer names itself, or null when it is not a plain surface, name and glyph. */

@@ -64,7 +64,7 @@ async function chooser(browser: AuditBrowser) {
 }
 
 function review(browser: AuditBrowser, id: string, scope: string): AgentReviewRequest {
-  return { review_id: id, run: { run_id: "audit-browser-run", session_id: "audit-browser-session" }, project_id: browser.projectId!,
+  return { reference: { owner: { kind: "agent-review" as const, project_id: browser.projectId!, plugin_id: "io.molis.work.coding", install_id: "install" }, id: id, version: "proposal-1" }, review_id: id, run: { run_id: "audit-browser-run", session_id: "audit-browser-session" }, project_id: browser.projectId!,
     plugin_id: "io.molis.work.coding", kind: "tool-operation", requested_at: new Date().toISOString(), expires_at: null,
     document: { kind: "tool-operation", tool: "surface-act", summary: id, fields: [{ label: "网站", value: scope }] } };
 }
@@ -114,7 +114,7 @@ test("W2-18-BROWSER-GRANT-01 / W2-18-BROWSER-GRANT-02: A's delayed site grant de
   const browser = await openAuditBrowser(t); if (!browser) return;
   const a = await site(t, "Review A"), b = await site(t, "Review B"), queue = queueOf(browser);
   queue.request(review(browser, "review-A", a.origin));
-  queue.registerDecisionHandler("review-A", async input => queue.decide(input));
+  queue.registerDecisionHandler("review-A", async (input, commit) => await commit());
   await browser.reloadPage();
   await observedSideBrowser(t, browser, a.origin + "/");
   await browser.waitFor("document.querySelector('[data-browser-approval]').textContent.includes('review-A')", 15_000);
@@ -126,10 +126,10 @@ test("W2-18-BROWSER-GRANT-01 / W2-18-BROWSER-GRANT-02: A's delayed site grant de
   assert.deepEqual(await browser.evaluate("window.__auditRequests.filter(row=>row.method==='POST'&&(row.path.endsWith('/api/browser/sites')||row.path.endsWith('/api/agent/reviews/decide'))).map(row=>row.path)"), ["/api/browser/sites"]);
   assert.equal(queue.receipt("review-A")?.status, "pending");
   // The original operation settles through another legitimate Host entry while its site's response is delayed.
-  await queue.respond({ review_id: "review-A", decision: "reject", actor_id: "web-user" });
+  await queue.respond({ review_id: "review-A", version: "proposal-1", decision: "reject", actor_id: "web-user" });
   queue.request(review(browser, "review-B", b.origin));
-  queue.registerDecisionHandler("review-B", async input => {
-    const receipt = queue.decide(input);
+  queue.registerDecisionHandler("review-B", async (input, commit) => {
+    const receipt = await commit();
     if (input.decision !== "approve") return receipt;
     queue.consumeApproval("review-B");
     await clickBrowserPoint(browser, 100, 160);
@@ -148,7 +148,7 @@ test("W2-18-BROWSER-GRANT-01 / W2-18-BROWSER-GRANT-02: A's delayed site grant de
   assert.equal(await browser.evaluate("document.querySelector('[data-browser-approval]').hidden"), false);
   const decisions = await (await fetch(browser.origin + "/api/browser/sites")).json() as { sites: Array<{ scope: string; decision: string }> };
   assert.deepEqual(decisions.sites.map(row => [row.scope, row.decision]), [[a.origin, "allow"]]);
-  await queue.respond({ review_id: "review-B", decision: "reject", actor_id: "web-user" });
+  await queue.respond({ review_id: "review-B", version: "proposal-1", decision: "reject", actor_id: "web-user" });
   await browser.click("[data-browser-action=sites]");
   await browser.waitFor(`document.querySelector('[data-browser-action=site-block]')?.dataset.scope === ${JSON.stringify(b.origin)}`);
   await observedSideBrowser(t, browser, a.origin + "/");
@@ -163,7 +163,7 @@ test("W2-18-BROWSER-GRANT-01: a real Host rejection of the site save does not ap
   const browser = await openAuditBrowser(t); if (!browser) return;
   const a = await site(t, "Denied grant"), queue = queueOf(browser);
   queue.request(review(browser, "save-rejected", a.origin));
-  queue.registerDecisionHandler("save-rejected", async input => queue.decide(input));
+  queue.registerDecisionHandler("save-rejected", async (input, commit) => await commit());
   await browser.reloadPage();
   await observedSideBrowser(t, browser, a.origin + "/");
   await browser.waitFor("!!document.querySelector('[data-browser-action=approve-site]')", 15_000);
@@ -181,12 +181,33 @@ test("W2-18-BROWSER-GRANT-01: a real Host rejection of the site save does not ap
   assert.deepEqual((await (await fetch(browser.origin + "/api/browser/sites")).json()).sites, []);
 });
 
+test("BL-360: the same browser review drops decisions when its original waiter becomes unavailable", { timeout: 90_000 }, async t => {
+  const browser = await openAuditBrowser(t); if (!browser) return;
+  const a = await site(t, "Original wait"), queue = queueOf(browser);
+  let live = true, effects = 0;
+  const id = "owner-became-unavailable";
+  queue.request(review(browser, id, a.origin));
+  queue.registerDecisionHandler(id, async (_input, commit) => { const receipt = commit(); effects++; return receipt; }, async () => () => live);
+  await browser.reloadPage();
+  await observedSideBrowser(t, browser, a.origin + "/");
+  await browser.waitFor("!!document.querySelector('[data-browser-action=approve-site]')", 15_000);
+  await browser.evaluate("document.querySelector('[data-browser-action=reject]').focus()");
+  assert.equal(await browser.evaluate("document.activeElement.matches('[data-browser-action=reject]')"), true, "the review's original choice has focus before its owner changes");
+  live = false;
+  await browser.waitFor("!document.querySelector('[data-browser-action=approve-once]') && !document.querySelector('[data-browser-action=approve-site]') && !document.querySelector('[data-browser-action=reject]')", 10_000);
+  assert.equal(await browser.evaluate("document.querySelector('[data-browser-approval]').hidden"), false);
+  assert.equal(await browser.evaluate("document.activeElement.id"), "side-browser-approval-title", "desktop copy uses display:contents, so focus moves to the visible review heading");
+  await assert.rejects(queue.respond({ review_id: id, version: "proposal-1", decision: "reject", actor_id: "web-user" }), { code: "agent.pending_not_open" });
+  assert.equal(effects, 0); assert.equal(queue.receipt(id)?.status, "pending");
+  assert.deepEqual((await (await fetch(browser.origin + "/api/browser/sites")).json()).sites, []);
+});
+
 test("BBA-01 / BBA-02: a narrow Assistant leaves the browser's review choices reachable and a rejection returns focus", { timeout: 90_000 }, async t => {
   const browser = await openAuditBrowser(t); if (!browser) return;
   const a = await site(t, "Narrow review"), queue = queueOf(browser);
   const id = "narrow-review";
   queue.request(review(browser, id, a.origin));
-  queue.registerDecisionHandler(id, async input => queue.decide(input));
+  queue.registerDecisionHandler(id, async (input, commit) => await commit());
   await browser.setViewport(740, 900);
   await browser.reloadPage();
   await observedSideBrowser(t, browser, a.origin + "/");
@@ -210,7 +231,7 @@ test("BBA-01 / BBA-02: a narrow Assistant leaves the browser's review choices re
   await browser.waitFor("document.querySelector('[data-browser-approval]').hidden");
   assert.equal(await browser.evaluate("document.activeElement.dataset.sideTab"), "browser");
   const bodies = await browser.evaluate<string[]>("window.__auditRequests.filter(row=>row.path.endsWith('/api/agent/reviews/decide')).map(row=>row.body)");
-  assert.deepEqual(bodies.map(body => JSON.parse(body)), [{ review_id: id, decision: "reject" }]);
+  assert.deepEqual(bodies.map(body => JSON.parse(body)), [{ review_id: id, version: "proposal-1", decision: "reject" }]);
   assert.equal(queue.receipt(id)?.status, "rejected");
   assert.equal(a.effects(), 0);
   // VUX-36: minimising the Assistant no longer shares the width, and the mark goes with it.

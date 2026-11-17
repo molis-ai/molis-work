@@ -196,7 +196,7 @@ test("A4-1 Coding index → 审查卡：真实 writer 轮次调用 coding.find-s
     assert.match(html, /href="\/reviews"/);
     assert.deepEqual(html.match(/<(button|input)\b[^>]*>/g) ?? [], []);
     for (const review of pendingReviews) {
-      await queue.respond({ review_id: review.review_id, decision: "reject", actor_id: "user" });
+      await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "reject", actor_id: "user" });
     }
     for (const deadline = Date.now() + 20_000;;) {
       const view = await adapter.read(handle.ref);
@@ -343,10 +343,11 @@ test("K-1 BL-302 PA-27 PA-29 子任务写后检查 → 子 SessionIndex → 审�
       }
     };
 
-    await queue.respond({ review_id: (await waitPending("tool-operation")).review_id, decision: "approve", actor_id: "user" });
+    const toolReview = await waitPending("tool-operation");
+    await queue.respond({ review_id: toolReview.review_id, version: toolReview.reference.version, decision: "approve", actor_id: "user" });
     const childEdit = await waitPending("text-edit");
     assert.equal(childEdit.document.kind === "text-edit" && childEdit.document.workspace_path, childWorktree);
-    await queue.respond({ review_id: childEdit.review_id, decision: "approve", actor_id: "user" });
+    await queue.respond({ review_id: childEdit.review_id, version: childEdit.reference.version, decision: "approve", actor_id: "user" });
 
     const checkReview = await waitPending("command");
     assert.equal(checkReview.document.kind, "command");
@@ -371,7 +372,7 @@ test("K-1 BL-302 PA-27 PA-29 子任务写后检查 → 子 SessionIndex → 审�
     assert.match(cardHtml, /href="\/reviews"/);
     assert.deepEqual(cardHtml.match(/<(button|input)\b[^>]*>/g) ?? [], []);
 
-    await queue.respond({ review_id: checkReview.review_id, decision: "approve", actor_id: "user" });
+    await queue.respond({ review_id: checkReview.review_id, version: checkReview.reference.version, decision: "approve", actor_id: "user" });
     for (const deadline = Date.now() + 20_000;;) {
       const view = await adapter.read(handle.ref);
       if (["completed", "failed", "cancelled", "stopped"].includes(view.phase)) {

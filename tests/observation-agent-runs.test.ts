@@ -169,7 +169,7 @@ test("OCL-01 OCL-05 OCL-09: a subagent's start, end and every request it sent ar
     const view = await adapter.read(handle.ref);
     if (["completed", "failed", "cancelled", "stopped"].includes(view.phase)) { assert.equal(view.phase, "completed", view.stop_reason); break; }
     if (Date.now() > deadline) assert.fail(`Run did not finish: ${view.phase}`);
-    for (const review of queue.list(project, "pending")) if (!decided.has(review.review_id)) { decided.add(review.review_id); await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: LOCAL_PERSON_ACTOR_ID }); }
+    for (const review of queue.list(project, "pending")) if (!decided.has(review.review_id)) { decided.add(review.review_id); await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: LOCAL_PERSON_ACTOR_ID }); }
     await new Promise(resolve => setTimeout(resolve, 10));
   }
   const [child] = await adapter.subagents!.list(handle.ref); assert.ok(child);

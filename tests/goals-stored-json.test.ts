@@ -2,12 +2,14 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GOALS_PLUGIN_ID, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { GoalsModule } from "./fixtures/goals-modules.js";
-import { GoalProjectApplication } from "./fixtures/goal-application.js";
+import { fixtureProjectRule, GoalProjectApplication } from "./fixtures/goal-application.js";
+import { projectApprovalRules } from "@molis-ai/molis-work-service-project-approvals";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 
 const BOARD = "board-stored-json";
 const UNREADABLE = "goals.storage.record_unreadable";
@@ -16,7 +18,8 @@ function fixture() {
   const store = new LocalProjectDatabase(":memory:");
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init" });
-  return { store, app, goals: new GoalsModule(pluginLegalSql(store).db, store, {}), close: () => store.close() };
+  return { store, app, goals: new GoalsModule(pluginLegalSql(store).db, store, {},
+    { approvalRules: (project, history) => projectApprovalRules(store.db, project).read(history).rules }), close: () => store.close() };
 }
 
 /** BGE-05: the error names the broken cell by table, column and the row's own rowid (a decimal string), and nothing else. */
@@ -33,11 +36,11 @@ function createGoal(app: GoalProjectApplication): string {
 }
 
 /** The one thing every case asserts: a stored-value read that cannot parse raises the owner's "record unreadable" code. */
-function captured(action: () => unknown): ActionError {
+function captured(action: () => unknown, code = UNREADABLE): ActionError {
   let thrown: unknown = null;
   try { action(); } catch (error) { thrown = error; }
   if (!(thrown instanceof ActionError)) assert.fail("读不出来的 JSON 应当抛 ActionError，而不是当成备用值");
-  assert.equal(thrown.code, UNREADABLE);
+  assert.equal(thrown.code, code);
   assert.equal(thrown.kind, "internal");
   return thrown;
 }
@@ -46,16 +49,12 @@ test("RAC-1260: an unreadable project rule stops policy resolution and the snaps
   const data = fixture();
   try {
     const goalId = createGoal(data.app);
-    data.app.goals.commands.saveProjectPolicy({
-      project_id: BOARD, actor_id: "user-1", user_confirmed: true,
-      policy: { human_approval: true }, idempotency_key: "policy-unreadable",
-    });
-    data.store.db.prepare("UPDATE policy_bindings SET policy_json = ? WHERE project_id = ? AND goal_id IS NULL AND scope = 'project_default' AND state = 'active'")
-      .run('{"human_approval": true,', BOARD);
-    const at = "project_id = ? AND goal_id IS NULL AND scope = 'project_default' AND state = 'active'";
+    fixtureProjectRule(data.store, BOARD, "user-1", true, "Require approval");
+    const at = "project_id = ? AND state = 'active'";
+    data.store.db.prepare(`UPDATE project_approval_rules SET scope_json = ? WHERE ${at}`).run('{"kind":"invalid-scope"}', BOARD);
     // BGE-05：同一表列经两条读取路径（规则解析与快照），两条都指到同一行。
-    locatedAt(captured(() => data.goals.query.resolvePolicy(BOARD, goalId)), data.store, "policy_bindings", "policy_json", at, BOARD);
-    locatedAt(captured(() => data.goals.query.snapshot(BOARD)), data.store, "policy_bindings", "policy_json", at, BOARD);
+    locatedAt(captured(() => data.goals.query.resolvePolicy(BOARD, goalId), "actions.execution_failed"), data.store, "project_approval_rules", "scope_json", at, BOARD);
+    locatedAt(captured(() => data.goals.query.snapshot(BOARD), "actions.execution_failed"), data.store, "project_approval_rules", "scope_json", at, BOARD);
   } finally { data.close(); }
 });
 
@@ -113,19 +112,20 @@ test("RAC-1268: readable rows read the same values again, and null columns read 
 
     data.app.governance.records.insertGoalTreeProposal({
       proposal_id: "proposal-null-narrative", project_id: BOARD, root_goal_id: "goal-null-columns",
-      submitted_by: "user-1", discovered_in_run_id: null, state: "pending", version: 1,
+      submitted_by: "user-1", submitted_session_id: null, state: "pending", version: 1,
       supersedes_proposal_id: null, base_event_cursor: data.store.eventCursor(BOARD),
       summary: "空叙述提案", narrative: null, created_at: "2026-09-04T00:00:00.000Z", updated_at: "2026-09-04T00:00:00.000Z",
     });
     const proposal = data.app.governance.query.getGoalTreeProposal(BOARD, "proposal-null-narrative");
     assert.equal(proposal?.narrative, null);
 
-    data.store.db.prepare(`INSERT INTO goal_event_trusted_decisions (
-      decision_id, project_id, goal_id, actor_id, actor_kind, authority_source,
-      conversation_ref, message_ref, request_id, selected_option_id, conclusion, accepts_requirements, scope_json, change_json, recorded_at
-    ) VALUES (?, ?, ?, ?, 'user', 'web', ?, ?, NULL, NULL, ?, 1, ?, NULL, ?)`)
-      .run("decision-readable", BOARD, "goal-null-columns", "user-1", "conversation://thread/message", "message-1",
-        "用户确认", '{"requirement_ids":["r-1"],"event_ids":[],"concern_ids":[],"action":null}', "2026-09-04T00:00:00.000Z");
+    const at = "2026-09-04T00:00:00.000Z", id = "decision-readable";
+    const original = { decision_id: id, project_id: BOARD, goal_id: "goal-null-columns", actor_id: "user-1", actor_kind: "user", authority_source: "web",
+      conversation_ref: "conversation://thread/message", message_ref: "message-1", request_id: null, selected_option_id: null, conclusion: "用户确认",
+      accepts_requirements: 1, scope_json: '{"requirement_ids":["r-1"],"event_ids":[],"concern_ids":[],"action":null}', change_json: null, recorded_at: at };
+    data.store.db.prepare(`INSERT INTO project_review_decisions(decision_id, project_id, record_json, recorded_at) VALUES (?, ?, ?, ?)`)
+      .run(id, BOARD, JSON.stringify({ kind: "history", subject: "event", decision_id: id, project_id: BOARD, recorded_at: at,
+        owner: { kind: "plugin", plugin_id: GOALS_PLUGIN_ID, publisher_signature: goalsManifest.publisher.signature }, original }), at);
     const decision = data.app.governance.eventDecisions.read(BOARD, "decision-readable");
     assert.deepEqual(decision?.scope, { requirement_ids: ["r-1"], event_ids: [], concern_ids: [], action: null });
     assert.equal(decision?.authorized_change, null);
@@ -140,13 +140,10 @@ test("RAC-1269: the unreadable-record error never repeats the stored text", () =
   try {
     const marker = "RAC-1269-goals-module-marker";
     const goalId = createGoal(data.app);
-    data.app.goals.commands.saveProjectPolicy({
-      project_id: BOARD, actor_id: "user-1", user_confirmed: true,
-      policy: { human_approval: true }, idempotency_key: "policy-marker",
-    });
-    data.store.db.prepare("UPDATE policy_bindings SET policy_json = ? WHERE project_id = ? AND scope = 'project_default' AND state = 'active'")
-      .run(`{"${marker}":`, BOARD);
-    const error = captured(() => data.goals.query.resolvePolicy(BOARD, goalId));
+    fixtureProjectRule(data.store, BOARD, "user-1", true, "Require approval");
+    data.store.db.prepare("UPDATE project_approval_rules SET scope_json = ? WHERE project_id = ? AND state = 'active'")
+      .run(JSON.stringify({ kind: marker }), BOARD);
+    const error = captured(() => data.goals.query.resolvePolicy(BOARD, goalId), "actions.execution_failed");
     assert.doesNotMatch(error.message, new RegExp(marker));
     // BGE-05：详情只有表、列和行号，不带业务键（项目、Goal、规则的 id）。
     for (const leaked of [marker, BOARD, goalId, "human_approval"]) assert.doesNotMatch(JSON.stringify(error.details ?? null), new RegExp(leaked));
@@ -165,10 +162,11 @@ test("BGE-05: every stored-JSON read in Goals names a real table and column of t
   // maintenance at nothing. A read that forgot `rowid AS stored_row` fails on its first read, so every Goals test reading that path catches it.
   const reads = sourceFiles(GOALS_SRC).flatMap(file => [...readFileSync(file, "utf8").matchAll(/storedJson(?:<[^(]*>)?\(row, "(\w+)", "(\w+)"/g)]
     .map(match => ({ file, table: match[1]!, column: match[2]! })));
-  assert.ok(reads.length >= 39, `读到 ${reads.length} 处，现在应有 39 处（含两条路径都读的规则表；方法包的两处随第 41 批删除）`);
+  assert.equal(reads.length, 36, "剩余读取均属于 Goals，项目审批规则和旧方法包已从此处撤下");
   const project = new LocalProjectDatabase(":memory:");
   try {
-    const columns = (db: DatabaseSync, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map(row => row.name);
+    const columns = (db: SqliteDatabase, table: string) =>
+      (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map(row => row.name);
     for (const read of reads) {
       assert.ok(columns(project.db, read.table).includes(read.column), `${read.file} 读的 ${read.table}.${read.column} 不在库结构里`);
     }

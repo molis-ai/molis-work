@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { LocalMcpServer } from "@molis-ai/molis-work-app-local-host";
 import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { goalsActions, goalsArtifactInputActions, goalsDeliverableActions, GOALS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-goals";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { mcpGoalReviews } from "./fixtures/project-review-entry.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
 for (const role of [goalsDeliverableActions, goalsArtifactInputActions]) for (const phase of ["before_dispatch", "after_pin"] as const)
@@ -31,8 +34,11 @@ for (const role of [goalsDeliverableActions, goalsArtifactInputActions]) for (co
           await actions.invoke(goalsActions.report, { goal_id: "G1", idempotency_key: "delivery-report", events: [{ type_id: "delivery", type_version: 1,
             title: "Ready", fields: { body: "Pinned result" }, judgments: [{ requirement_id: "delivered", verdict: "supports" }] }] });
           // A report alone is the reporter's own word (PWA-144): the person accepts the requirement through the protected entry before completing.
-          await client.invoke({ ...user, user_action: { source: "web", conversation_ref: "goal-pin", message_ref: "accept-delivered" } }, goalsActions.decide,
-            { goal_id: "G1", idempotency_key: "accept-delivered", conclusion: "Delivered result accepted", accepts_requirements: true, scope: { requirement_ids: ["delivered"] } });
+          const management = new LocalMcpServer(withCatalog, "management", null, { homeDirectory: home,
+            runtimeContext: { runtime_id: "goal-pin", stable_work_context_id: "goal-pin", host_declares_stable: true } }, host);
+          const reviews = mcpGoalReviews(management, projectId, project.database_path);
+          await reviews.submit(await reviews.prepare(goalsActions.decide,
+            { goal_id: "G1", idempotency_key: "accept-delivered", conclusion: "Delivered result accepted", accepts_requirements: true, scope: { requirement_ids: ["delivered"] } }));
           const state = await actions.invoke(goalsActions.state, { goal_id: "G1" });
           const closed = await actions.invoke(goalsActions.close, { goal_id: "G1", kind: "complete", result: "Ready", reason: "Done",
             expected_config_version: state.config.version, expected_agreement_version: state.agreement.version, idempotency_key: "complete" });

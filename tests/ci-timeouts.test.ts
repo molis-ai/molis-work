@@ -12,6 +12,8 @@ const BLOCKING_FLOOR = 30;
 const CEILING = 60;
 /** Job -> its limit in minutes, the longest successful run of the sample in seconds, and whether it blocks the merge. */
 const JOBS: Record<string, { limit: number; longest: number; blocking: boolean }> = {
+  // New combined Auth WASM + Work browser fixture; bounded conservatively pending CI measurement.
+  "account-login": { limit: 60, longest: 0, blocking: true },
   gates: { limit: 30, longest: 409, blocking: true },
   "health-gate-rules": { limit: 30, longest: 312, blocking: true },
   "architecture-boundaries": { limit: 30, longest: 350, blocking: true },
@@ -97,7 +99,7 @@ test("RAC-1906 ci.yml: every Install pnpm step has a limit of a few minutes, exc
       assert.ok(INSTALL_PNPM.limit * 60 >= 1.8 * INSTALL_PNPM.longest, "above 1.8 times the longest it took");
     }
   }
-  assert.equal(seen, 8, "the eight jobs that install pnpm besides the Linux probe: the eight blocking ones that build or test");
+  assert.equal(seen, 9, "the nine blocking jobs that install pnpm besides the Linux probe");
   for (const name of Object.keys(JOBS)) assert.equal(installPnpmSteps(jobBlock(name)).length, 1, `${name} installs pnpm once`);
 });
 

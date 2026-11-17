@@ -66,6 +66,8 @@ export function builtinIntegrationDeclarations(): IntegrationDeclarationsView {
 
 const registries = new Map<string, Promise<IntegrationRegistry>>();
 
+export const existingIntegrationRegistry = (home: string): Promise<IntegrationRegistry> | undefined => registries.get(home);
+
 /**
  * The Home's registry, with the built-in integration plugins enabled: one per Home. A caller that brings its own provider factory
  * (a test) gets a registry of its own and shares nothing.

@@ -6,6 +6,8 @@ import { withPluginSyncAuthority } from './plugin-sync-authority.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
 import { projectSyncCatalog } from './project-sync-catalog.js';
 import { projectPluginJudge } from './project-action-availability.js';
+import { isGoalsApprovalCollection } from './project-approval-sync-links.js';
+import { projectApprovalSyncSelection } from './platform-sync-catalog.js';
 export type SyncCatalogReader = ReturnType<typeof import('./web-catalog-access.js').createWebCatalogAccess>['read'];
 
 /** Supplies operation-scoped account, policy and project facts to Runtime contributions. */
@@ -50,7 +52,11 @@ export function personalRuntimeSyncAuthority(options: {
         hasReference(projectId, reference) { authorize();project(projectId);touched.add(projectId); const value = options.hasReference?.(projectId, reference) ?? false; authorize(); return value; },
       };
       return withPluginSyncAuthority({home: options.home, context, assertCollection(identity) {
-        authorize(); if (syncNamespace(identity) !== namespace) throw new ActionError('actions.forbidden', '同步操作不能访问其他集合');
+        authorize();
+        const target = syncNamespace(identity);
+        if (target === namespace || isGoalsApprovalCollection(registration.selection) && target === syncNamespace(projectApprovalSyncSelection)
+          && options.policy().selections.some(selection => syncNamespace(selection) === target)) return;
+        throw new ActionError('actions.forbidden', '同步操作不能访问其他集合');
       }}, () => {
         const result = operation();
         if (result instanceof Promise) return result.then(value => { authorize(); return value; }) as T;

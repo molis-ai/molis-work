@@ -37,25 +37,25 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
       // An event's tab leads with its owner's mark, as on the line.
       if (owner) { const shell = document.createElement("template"); shell.innerHTML = owner; if (shell.content.firstElementChild) main.append(shell.content.firstElementChild); }
       main.append(tabMark(mark, work), el("span", "assistant-tab-title", title));
-      main.title = title + (mark ? " · " + globalThis.t.text(MARK_LABEL[mark]) : "");
+      main.title = title + (mark ? " · " + readText(MARK_LABEL[mark]) : "");
       main.addEventListener("click", () => { if (id === "main") void talkTo(null); else if (id.startsWith("event:")) void showEvent(id.slice(6)); else if (id !== "new" && id !== "talk") void switchTo(id); });
       wrap.append(main);
       if (id !== "new") wrap.addEventListener("auxclick", (event) => { if (event.button !== 1) return; event.preventDefault(); closeTab(id); });
       if (closable) {
         const close = el("button", "assistant-tab-close", "×"); close.type = "button"; close.tabIndex = -1;
-        close.setAttribute("aria-label", globalThis.t.text("workbench.assistant-tabs.close-tab-named", { title }));
-        close.title = globalThis.t.text("workbench.assistant-tabs.close-tab-work-stays-all-work");
+        close.setAttribute("aria-label", readText("workbench.assistant-tabs.close-tab-named", { title }));
+        close.title = readText("workbench.assistant-tabs.close-tab-work-stays-all-work");
         close.addEventListener("click", (event) => { event.stopPropagation(); if (id === "new") { fresh = false; void switchTo(tabs[tabs.length - 1] || null); } else if (id === "talk") void talkTo(null); else closeTab(id); });
         wrap.append(close);
       }
       tabsEl.append(wrap);
     };
-    tab(own ? own.work_id : "main", globalThis.t.text("workbench.assistant-tabs.main-conversation"), markOf(own), false);
+    tab(own ? own.work_id : "main", readText("workbench.assistant-tabs.main-conversation"), markOf(own), false);
     lead.filter((work) => work.character).forEach((work) => tab(work.work_id, work.character.title, markOf(work), false));
     if (talk) tab("talk", talk.title, "", true);
-    ids.forEach((id) => { const work = workById(id); tab(id, work ? work.title : globalThis.t.text("workbench.assistant-tabs.loading"), markOf(work), true); });
+    ids.forEach((id) => { const work = workById(id); tab(id, work ? work.title : readText("workbench.assistant-tabs.loading"), markOf(work), true); });
     eventTabs.forEach((one, at) => tab("event:" + one.key, one.title, markOf(said[at]), true, one.mark, said[at]));
-    if (!curId && !curEvent && fresh) tab("new", globalThis.t.text("workbench.assistant-tabs.new-work"), "", true);
+    if (!curId && !curEvent && fresh) tab("new", readText("workbench.assistant-tabs.new-work"), "", true);
     // The line marks the event whose tab is in front; the main conversation is "now", which marks none.
     host.lineFocus?.(curEvent ? eventOf()?.subject || null : curId ? { kind: WORK_KIND, id: curId } : null);
     const cur = tabsEl.querySelector("[data-current]");
@@ -80,7 +80,7 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
   const paintJump = () => {
     if (!jump) return;
     if (unseen && !nearBottom()) {
-      jump.textContent = "↓ " + globalThis.t.text("workbench.assistant-tabs.new-messages");
+      jump.textContent = "↓ " + readText("workbench.assistant-tabs.new-messages");
       jump.onclick = () => { unseen = false; scrollOwner()?.toLatest(); paintJump(); }; jump.hidden = false; return;
     }
     unseen = false; jump.hidden = true;
@@ -92,12 +92,12 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
     if (!emptyList || curId || curEvent) return;
     const starters = startersFor();
     const recent = works.filter((work) => !work.archived && !work.delegated_by).slice().sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || ""))).slice(0, 3);
-    const signature = JSON.stringify([starters.map((one) => [one.label, one.key || "", one.kind || ""]), recent.map((work) => [work.work_id, work.title, work.state, markOf(work)])]);
+    const signature = JSON.stringify([project?.id || "", starters.map((one) => [one.label, one.key || "", one.kind || ""]), recent.map((work) => [work.work_id, work.title, work.state, markOf(work)])]);
     if (emptyList.dataset.signature === signature) return;
     emptyList.dataset.signature = signature;
     const parts = [];
     if (starters.length) {
-      parts.push(el("p", "assistant-empty-title", globalThis.t.text("workbench.assistant-tabs.start-page")));
+      parts.push(el("p", "assistant-empty-title", readText("workbench.assistant-tabs.start-page")));
       starters.forEach((starter) => {
         const btnEl = el("button", "assistant-start"); btnEl.type = "button";
         btnEl.append(el("span", "assistant-start-title", starter.label));
@@ -107,8 +107,13 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
         parts.push(btnEl);
       });
     }
+    if (project?.id) {
+      const auto = el("button", "assistant-start"); auto.type = "button"; auto.dataset.automationOpen = project.id;
+      auto.append(el("span", "assistant-start-title", readText("workbench.automation.title")));
+      parts.push(auto);
+    }
     if (recent.length) {
-      parts.push(el("p", "assistant-empty-title", globalThis.t.text("workbench.assistant-tabs.continue-recent-work")));
+      parts.push(el("p", "assistant-empty-title", readText("workbench.assistant-tabs.continue-recent-work")));
       recent.forEach((work) => {
         const btnEl = el("button", "assistant-start assistant-start--work"); btnEl.type = "button";
         const mark = markOf(work); if (mark) btnEl.dataset.mark = mark;
@@ -117,7 +122,7 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
         parts.push(btnEl);
       });
     }
-    parts.push(el("p", "assistant-empty-hint", globalThis.t.text("workbench.assistant-tabs.type-bring-project-content-use-capability-method-drop")));
+    parts.push(el("p", "assistant-empty-hint", readText("workbench.assistant-tabs.type-bring-project-content-use-capability-method-drop")));
     emptyList.replaceChildren(...parts);
   }
 

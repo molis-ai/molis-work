@@ -1,3 +1,4 @@
+import { forgetAutomationPreferences } from "@molis-ai/molis-work-service-automation-recommender";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { artifactsProjectData } from "@molis-ai/molis-work-module-artifacts";
@@ -140,7 +141,7 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     // Without a running Host there is no studio to close, only its directory to remove; the Host's own owner replaces this one.
     { id: "alchemist", label: { key: "workbench.project-deletion.alchemist" }, clear: projectId => rm(alchemistProjectDirectory(home, projectId), { recursive: true, force: true }) },
     pluginBuilderProjectOwner(home),
-    // Without a running Assistant nothing is queued or running for these works, so their rows are all there is to clear.
+    // The running Assistant closes original work permissions; another process leaves that step pending.
     { id: "assistant", label: { key: "workbench.project-deletion.assistant" }, clear: async projectId => { await purgeAssistantProject(home, projectId); } },
     // The work items of the project's mainline (specs/work-mainline §6): containers and references only; what they held stays with its owners.
     { id: "mainline", label: { key: "workbench.project-deletion.mainline" }, clear: projectId => { purgeMainline(home, projectId); } },
@@ -153,6 +154,7 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     { id: "plugin-project-reach", label: null, clear: projectId => { new HomeConsentLedger(home).revokeProjectReach({ project_id: projectId }, new Date().toISOString()); } },
     // What the person let the project's background tasks read (task grant subjects of this project, in the Home's action grants).
     { id: "task-grants", label: null, clear: async projectId => { await forgetTaskGrantSubjects(home, subject => subject.project_id === projectId, "project_deleted"); } },
+    { id: "automation-recommendations", label: null, clear: projectId => forgetAutomationPreferences(home, projectId) },
     { ...OBSERVATION_OWNER, clear: projectId => { clearObservationProjectFile(home, projectId); } },
     { ...EVALUATION_OWNER, clear: projectId => { clearEvaluationProjectFile(home, projectId); } },
     { ...EXTERNAL_SESSIONS_OWNER, clear: projectId => { clearExternalSessionsProjectFile(home, projectId); } },

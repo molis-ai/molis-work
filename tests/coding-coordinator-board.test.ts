@@ -90,7 +90,7 @@ test("PA-11 (slice): a coordinator's yielded child reports the step it was hande
       const view = await adapter.read(ref);
       if (["completed", "failed", "cancelled", "stopped"].includes(view.phase)) return view;
       if (Date.now() > deadline) throw new Error("timed out " + view.phase);
-      for (const review of [...queue.list("b", "pending"), ...queue.list("other", "pending")]) await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" });
+      for (const review of [...queue.list("b", "pending"), ...queue.list("other", "pending")]) await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "user" });
       await new Promise(resolve => setTimeout(resolve, 20));
     }
   };

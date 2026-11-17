@@ -1,9 +1,10 @@
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import { isTerminalAgentPhase, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { isTerminalAgentPhase, type AgentActionReviewControl, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentCollaborationSessionView, AgentContinuationStartAnswer, AgentContinuationStartRequest } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { ASSISTANT_PERSONAL_OWNER, type AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { whenThere } from "./assistant-errors.js";
+import { inAssistantWorkEffect } from "./assistant-work-permissions.js";
 import { agentContinuationStarts } from "../agent-continuation-starts.js";
 import { DELEGATION_LIMITS } from "./assistant-delegation.js";
 import { assistantWords } from "./assistant-saved-text.js";
@@ -68,12 +69,12 @@ export class AssistantContinuations {
     const view = (await adapter.collaboration?.read(owner(work), work.session_id))?.[0];
     return view?.wait?.by === "app" ? undefined : view;
   }
-  async state(work: StoredWork, fallback: AssistantWorkState): Promise<AssistantWorkState> {
+  async state(work: StoredWork, fallback: AssistantWorkState, inspectActual = false): Promise<AssistantWorkState> {
     if (work.continuation_hold && work.executor.kind === "assistant") return work.continuation_hold === "input" ? "paused" : work.continuation_hold;
     // A step held for the person's yes waits on them, whatever the session last said (PWA-156).
     if (work.step_gate && work.executor.kind === "assistant") return "waiting-review";
     if (!["completed", "idle"].includes(fallback)) return fallback;
-    const view = await this.view(work).catch(() => undefined);
+    const view = await this.view(work).catch(error => { if (inspectActual) throw error; return undefined; });
     return view?.wait?.state === "waiting" || view?.continuation?.state === "eligible" ? "waiting-input"
       : view?.continuation && ["blocked", "needs-reconciliation"].includes(view.continuation.state) ? "needs-check" : fallback;
   }
@@ -101,10 +102,13 @@ export class AssistantContinuations {
   blockStart(id: string): () => void { this.enter(id); return () => this.end(id); }
   private enter(id: string): void { this.busy.set(id, (this.busy.get(id) ?? 0) + 1); }
   end(id: string): void { const count = this.busy.get(id) ?? 0; if (count > 1) this.busy.set(id, count - 1); else this.busy.delete(id); }
-  async withdraw(work: StoredWork, note: string): Promise<boolean> {
+  async withdraw(work: StoredWork, note: string, authority?: AgentActionReviewControl): Promise<boolean> {
     const view = await this.view(work);
     if (!view?.wait || view.continuation?.state === "started" || view.continuation?.state === "cancelled") return false;
-    await (await this.ports.host()).adapter(RUNTIME).collaboration!.control(owner(work), { kind: "cancel-wait", wait_id: view.wait.wait_id, note }, this.ports.actorId);
+    const adapter = (await this.ports.host()).adapter(RUNTIME);
+    const cancel = () => adapter.collaboration!.control(owner(work), { kind: "cancel-wait", wait_id: view.wait!.wait_id, note }, this.ports.actorId);
+    if (authority) await inAssistantWorkEffect(adapter, authority, cancel);
+    else await cancel();
     return true;
   }
   watch(work: StoredWork, run: AgentRunRef): void {

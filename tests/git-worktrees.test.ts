@@ -10,6 +10,16 @@ import { createGitWorktreePort } from "@molis-ai/molis-work-app-local-host";
 
 const run = promisify(execFile);
 
+test("APR-08: worktree creation rechecks the original review after its own asynchronous preview", async t => {
+  const repo = await repository(); t.after(() => rm(repo.home, { recursive: true, force: true }));
+  const port = createGitWorktreePort(repo.directory), proposed = await port.preview("reviewed");
+  let current = true;
+  const creating = port.create("reviewed", proposed.base_commit, () => assert.ok(current, "original approval revoked")); current = false;
+  await assert.rejects(creating, /original approval revoked/);
+  assert.deepEqual(await port.list(), []); assert.equal((await repo.git(["branch", "--list", proposed.branch])).stdout, "");
+  assert.equal(await readFile(join(repo.directory, "connect.ts"), "utf8"), "const retries = 0;\n");
+});
+
 // GITERR-01 / GITERR-02: real writer worktrees preserve ownership, starting commits and rejected dirty state.
 test("准备独立工作树不执行 hooks、fsmonitor 或内容过滤器，批准的提交起点不能改变", async () => {
   const repo = await repository();

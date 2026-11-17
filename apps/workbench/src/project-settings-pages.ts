@@ -45,7 +45,7 @@ export interface ProjectSettingsPagePorts {
 }
 
 /** The settings pages whose content Goals owns: a project without Goals (`guidance` null in the hub) has none of them (RAC-400). */
-const GOALS_SETTINGS_SECTIONS: ReadonlySet<ProjectSettingsFoldId> = new Set(["guidance", "rules"]);
+const GOALS_SETTINGS_SECTIONS: ReadonlySet<ProjectSettingsFoldId> = new Set(["guidance"]);
 
 /** Settings page composition consumes canonical Goals facts and platform presentation ports. */
 export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePorts) {
@@ -79,7 +79,8 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     if (section === "characters") return renderCharacters({ route_prefix: view.route_prefix || `/projects/${encodeURIComponent(view.project!.project_id)}`, scope: "project", primitives: { escape: escapeHtml } });
     if (section === "plugins") return renderPluginTrustSettings({ readText, projectId: escapeHtml(view.project!.project_id), chevron: icon("chevron-down"), kinds: Object.fromEntries(Object.entries(PLUGIN_RETAINED_ICONS).map(([kind, name]) => [kind, icon(name)])) });
     if (section === "grants") return renderTaskGrantsSettings({ readText, projectId: escapeHtml(view.project!.project_id) });
-    return content("rules", { policy_bindings: view.policy_bindings }, {}, view);
+    const href = `/settings/authorizations?view=project-rules&project=${encodeURIComponent(view.project!.project_id)}`;
+    return `<a class="mw-btn mw-btn--secondary" href="${escapeHtml(desktopShell ? withDesktopQuery(href) : href)}">${uiText("workbench.settings-navigation.access-approvals")}</a>`;
   }
 
   function renderMolisWorkProjectSettingsHub(

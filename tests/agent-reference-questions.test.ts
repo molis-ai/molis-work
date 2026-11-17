@@ -170,7 +170,7 @@ test("BL-152: the round's kinds are the only ones a question in it may name; a s
   const decided = new Set<string>();
   for (const deadline = Date.now() + 40_000; !bodies.length && !["completed", "failed", "cancelled"].includes((await adapter.read(handle.ref)).phase);) {
     assert.ok(Date.now() < deadline, "the child was not called");
-    for (const review of queue.list("b", "pending")) if (!decided.has(review.review_id)) { decided.add(review.review_id); await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" }); }
+    for (const review of queue.list("b", "pending")) if (!decided.has(review.review_id)) { decided.add(review.review_id); await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "user" }); }
     await new Promise(resolve => setTimeout(resolve, 10));
   }
   assert.ok(bodies.length, "the child reached the model");

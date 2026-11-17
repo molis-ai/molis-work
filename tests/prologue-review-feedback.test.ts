@@ -39,15 +39,15 @@ test('AC-11: packed SDK: rejected review feedback reaches the next model request
     const handle=await adapter.start({...owner,directory,session,task:'Change a.ts after host review.',role_id:'writer',role:{role_id:'writer',version:1,execution:'text-edit',prompts:[],host_tools:['read-file','write']}});
     const first=await until(async()=>{const review=queue.list('board','pending')[0];const view=await adapter.read(handle.ref);if(!review && ['failed','completed'].includes(view.phase))throw new Error(JSON.stringify({view,requests}));return review;});assert.equal(await readFile(join(project,'a.ts'),'utf8'),'original\n');
     const note='第 1 行不要写 wrong，改为 revised。保留新提案供我批准。反馈标记 REVIEW-FEEDBACK-1。';
-    const rejected=await queue.respond({review_id:first.review_id,decision:'reject',actor_id:'user',note});assert.equal(rejected.delivery_error,undefined);assert.equal(rejected.note,note);assert.equal(rejected.status,'rejected');
+    const rejected=await queue.respond({review_id:first.review_id, version: first.reference.version,decision:'reject',actor_id:'user',note});assert.equal(rejected.delivery_error,undefined);assert.equal(rejected.note,note);assert.equal(rejected.status,'rejected');
     const second=await until(()=>queue.list('board','pending').find(row=>row.review_id!==first.review_id));
     assert.equal(await readFile(join(project,'a.ts'),'utf8'),'original\n');assert.equal(second.run?.run_id,first.run?.run_id);
     assert.ok(JSON.stringify(requests[2].messages).includes(note),'real next provider request must contain the complete rejection feedback');
     assert.ok(JSON.stringify(requests[2].messages).includes(first.review_id),'feedback remains tied to its exact original review');
     assert.ok(JSON.stringify(requests[2].messages).includes('新的操作仍须经过原宿主审查'));
     assert.equal(second.document.kind,'text-edit');assert.equal((second.document as any).after_text,'revised\n');
-    await assert.rejects(queue.respond({review_id:first.review_id,decision:'approve',actor_id:'user'}));
-    await queue.respond({review_id:second.review_id,decision:'approve',actor_id:'user'});
+    await assert.rejects(queue.respond({review_id:first.review_id, version: first.reference.version,decision:'approve',actor_id:'user'}));
+    await queue.respond({review_id:second.review_id, version: second.reference.version,decision:'approve',actor_id:'user'});
     const completed=await until(async()=>{const view=await adapter.read(handle.ref);return view.phase==='completed'?view:null;});
     assert.equal(await readFile(join(project,'a.ts'),'utf8'),'revised\n');assert.equal(requests.length,4);
     // The Host's forwarding is a notice, not the person's words (ai-input-receipts D18); its receipt reached the model (applied, then read: D17).
@@ -89,7 +89,7 @@ test('AC-11: packed SDK: a refused command carries its reason, naming the comman
     const asked=await until(async()=>{const review=queue.list('board','pending')[0];const view=await adapter.read(handle.ref);if(!review && ['failed','completed'].includes(view.phase))throw new Error(JSON.stringify({view,requests}));return review;});
     assert.equal(asked.document.kind,'command');
     const note='先别跑这个命令：计划的下一步是向我确认测试范围。反馈标记 COMMAND-FEEDBACK-1。';
-    const rejected=await queue.respond({review_id:asked.review_id,decision:'reject',actor_id:'user',note});
+    const rejected=await queue.respond({review_id:asked.review_id, version: asked.reference.version,decision:'reject',actor_id:'user',note});
     assert.equal(rejected.delivery_error,undefined);assert.equal(rejected.note,note);
     const completed=await until(async()=>{const view=await adapter.read(handle.ref);return view.phase==='completed'?view:null;});
     const next=JSON.stringify(requests.at(-1).messages);

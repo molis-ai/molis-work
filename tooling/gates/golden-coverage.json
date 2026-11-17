@@ -86,10 +86,6 @@
       "reason": "登录后才写，金样不登录（UPG2-06）"
     },
     {
-      "path": "work-brief/work-brief.db",
-      "reason": "第 19 批新增的 Home 库；现有金样没有安装或启用 Work Brief，也没有种子简报。首个真实简报保存后再纳入金样；加入前由 tests/work-brief-plugin.test.ts 与库结构快照覆盖创建、读写和删项目。"
-    },
-    {
       "path": "evaluation/evaluation.db",
       "reason": "第 30 批新增的端到端评测 Home 库（按需懒打开，普通使用不产生空文件）；现有历史金样生成时未跑评测样本，由 tests/evaluation-service.test.ts、tests/home-store-baselines.test.ts 与库结构快照覆盖建库、读写、离线快照和删项目。"
     }

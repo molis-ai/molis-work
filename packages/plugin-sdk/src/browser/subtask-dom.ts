@@ -107,7 +107,7 @@ export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversatio
   };
   details.addEventListener("toggle", toggled, true);
   return {
-    find, draw, show, clear, thread, composer: find("composer"),
+    find, draw, show, composer: find("composer"),
     forget() { if (target) places.delete(target); expanded.clear(); first = true; follower?.resume(); clear(); },
     idle() { patch(find("head"), subtaskHeader(undefined, labels())); },
     latest() { latest.hidden = true; follower?.toLatest(); },

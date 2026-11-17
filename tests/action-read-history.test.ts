@@ -15,7 +15,11 @@ async function probe(t: test.TestContext, databasePath: string, projectId: strin
   const web = await serveHomeRuntime(t, { workspacesFor: undefined });
   const projectName = `Read historical project ${projectId}`;
   const copy = await registerProjectCopy(web.host, web.home, withMolisWorkProjectCatalog, databasePath, projectId, projectName);
-  const { broken, read } = await readEveryParameterlessAction(web.host, copy, projectId, { projectReachThroughSettings: async () => {
+  const { broken, read } = await readEveryParameterlessAction(web.host, copy, projectId, { readProtectedPage: async (path, method) => {
+    const response = await web.request(path, { method });
+    assert.equal(response.status, 200, await response.clone().text());
+    assert.ok(await response.json());
+  }, projectReachThroughSettings: async () => {
     const response = await web.request(`/projects/${encodeURIComponent(projectId)}/api/settings/plugin-project-reach/list`, { method: "POST", body: {} });
     assert.equal(response.status, 200, await response.clone().text());
     assert.deepEqual(await response.json(), { plugins: [], project_name: projectName, capabilities: [] });
@@ -23,6 +27,8 @@ async function probe(t: test.TestContext, databasePath: string, projectId: strin
   assert.deepEqual(broken.map(item => `${item.action}: ${item.code}: ${item.message}`), []);
   assert.ok(read.has("goals.snapshot.read"), "the historical project snapshot must actually succeed");
   assert.ok(read.has("plugins.project_reach.list"), "the real project settings read must actually succeed");
+  assert.ok(read.has("agent.authorizations.list"), "the authenticated authorization read must actually succeed");
+  assert.ok(read.has("automation.recommendations.scan"), "the authenticated recommendation read must actually succeed");
   assert.ok(read.size > 10, "the directory must actually be read");
 }
 

@@ -1,13 +1,14 @@
 import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { randomUUID } from "node:crypto";
-import { createPrologueError, DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
+import { createPrologueError, DEFAULT_TOOL_LIMITS, type EffectOrigin, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, actionFieldLabelSource, actionFieldValue, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { agentErrors } from "../errors.js";
 import { presentToolReview, reviewField, reviewText, type ToolReviewField } from "../review-presentation.js";
 import type { AgentActionClient, AgentActionOffer, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { CAPABILITY_PARAMETERS, declaredCapabilities, SUGGEST_PARAMETERS } from "./prologue-gateway-declared.js";
+import type { PrologueActionReviews } from "./prologue-action-reviews.js";
+import { actionReads, CAPABILITY_PARAMETERS, declaredCapabilities, SUGGEST_PARAMETERS } from "./prologue-gateway-declared.js";
 
 export const GATEWAY_TOOLS = { find: "find-capabilities", read: "read-capability", change: "change-capability", suggest: "suggest-action", direct: "change-reversible" } as const;
 /** Tools for handing sub-tasks to separate works, present only where the caller offers delegation. */
@@ -42,6 +43,8 @@ function listed<T extends { text: string }>(memories: readonly T[]) {
   return { memories: shown, ...(more ? { more, note: `还有 ${more} 条没有列出：在设置的记忆页里看全部` } : {}) };
 }
 
+export const isGatewayChange = (name: string) => name === GATEWAY_TOOLS.change || name === GATEWAY_TOOLS.direct;
+
 type Gateway = NonNullable<AgentFrozenRole["action_gateway"]> & { declare?(view: ActionView): void };
 /** `beside`: any other fields written next to the identity, which are not the capability's input. */
 interface CapabilityArgs { capability_id: string; version: number; provider_id: string; input?: unknown; beside: string[] }
@@ -52,8 +55,8 @@ const describe = (view: ActionView, direct = false) => {
     title: view.action.title, available: false, reason: view.availability.reason };
   const effect = actionEffect(view.action, view.capability_id);
   return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, provider: view.provider.title,
-    title: view.action.title, effect: effect === "read" ? "read" : effect === "irreversible" ? "irreversible-change" : direct ? "reversible-change" : "change",
-    use: effect === "read" ? GATEWAY_TOOLS.read : direct ? GATEWAY_TOOLS.direct : GATEWAY_TOOLS.change, description: view.action.description.slice(0, 600), input_schema: view.action.input_schema };
+    title: view.action.title, effect: actionReads(view) ? "read" : effect === "irreversible" ? "irreversible-change" : direct ? "reversible-change" : "change",
+    use: actionReads(view) ? GATEWAY_TOOLS.read : direct ? GATEWAY_TOOLS.direct : GATEWAY_TOOLS.change, description: view.action.description.slice(0, 600), input_schema: view.action.input_schema };
 };
 
 /** A memory tool is offered where the round was given memory, and remember, forget and suggest-memory only where it was given that one. */
@@ -64,7 +67,7 @@ const toolOffered = (name: string, gateway: Gateway): boolean => Boolean((name !
   && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate) && (name !== DELIVERY_TOOLS.report || gateway.client.deliver) && memoryToolOffered(name, gateway.client.memory));
 
 /** The person's memory tools; each refuses when the round was not given memory, or not that tool. */
-type GatewayToolRun = (args: Record<string, unknown>, signal: AbortSignal, operationId: string) => Promise<string>;
+type GatewayToolRun = (args: Record<string, unknown>, signal: AbortSignal, operationId: string, callId?: string) => Promise<string>;
 function memoryExecutors(given: AgentActionClient["memory"], guarded: (run: GatewayToolRun) => ToolRunner): Record<string, ToolRunner> {
   const available = () => { if (!given) throw new ActionError("actions.forbidden", "Forming memories is switched off here; tell the person you did not keep it."); return given; };
   const without = (tool: string): never => { throw new ActionError("actions.forbidden", `This work has no ${tool} tool (a work handed to you by another work cannot keep or forget memories); tell the person or the work that handed it to you that nothing was kept or forgotten.`); };
@@ -176,8 +179,11 @@ function guardGatewayTool(run: GatewayToolRun, runSignal?: AbortSignal): ToolRun
     call.signal?.addEventListener("abort", stop, { once: true });
     runSignal?.addEventListener("abort", stop, { once: true });
     if (runSignal?.aborted || call.signal?.aborted || call.abort?.requested()) stop();
-    try { abort.signal.throwIfAborted(); return await run(call.args as Record<string, unknown>, abort.signal, randomUUID()); }
+    try { abort.signal.throwIfAborted(); return await run(call.args as Record<string, unknown>, abort.signal, randomUUID(), call.callId); }
     catch (error) {
+      if (error instanceof ActionError && error.code === "actions.outcome_unknown") {
+        throw createPrologueError("EFFECT_RECONCILE_REQUIRED", `${error.code}: ${error.message}`);
+      }
       if (error instanceof ActionError && !abort.signal.aborted) {
         throw createPrologueError("HOST_RESPONSE_INVALID", `${error.code}: ${error.message}`);
       }
@@ -185,6 +191,35 @@ function guardGatewayTool(run: GatewayToolRun, runSignal?: AbortSignal): ToolRun
     }
     finally { unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); }
   };
+}
+
+/** Wait for the original action owner, keeping an interrupted write eligible for receipt reconciliation. */
+async function invokeGatewayAction(client: AgentActionClient, args: CapabilityArgs, view: ActionView, signal: AbortSignal, timeoutMs: number, write = false,
+  review?: ReturnType<PrologueActionReviews["forCall"]>, pinnedRevisions?: ReadonlyMap<string, string>): Promise<string> {
+  // A change stops being waited on before the SDK deadline, so the original uncertainty reaches the ledger.
+  const local = new AbortController();
+  const follow = () => local.abort(signal.reason);
+  if (signal.aborted) follow(); else signal.addEventListener("abort", follow, { once: true });
+  const deadline = write && timeoutMs > 10_000 ? setTimeout(() => local.abort(new ActionError("actions.timeout", "ran out of time")), timeoutMs - 5_000) : undefined;
+  let call: Promise<unknown> | undefined;
+  try {
+    const reference = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+    const rawInput = gatewayInput(view, args);
+    const preparedInput = write ? rawInput : withPinnedKnowledgeRevision(reference, rawInput, pinnedRevisions);
+    call = client.invoke(reference, preparedInput, local.signal, undefined, review?.control);
+    call.catch(() => undefined);
+    const result = write ? await Promise.race([call, abortedBy(local.signal)]) : await call;
+    local.signal.throwIfAborted();
+    if (!write) assertPinnedMaterialResult(reference, preparedInput, result, pinnedRevisions);
+    return JSON.stringify(result) ?? "null";
+  } catch (error) {
+    const code = (error as { code?: unknown })?.code;
+    if (write && (local.signal.aborted || code === "actions.output_invalid_after_effect")) {
+      if (call && local.signal.aborted) review?.keepLateResult?.(call);
+      throw new ActionError("actions.outcome_unknown", `"${view.provider.title} · ${view.action.title}" was sent but did not finish (${local.signal.aborted ? "it ran out of time or was stopped" : "its result was invalid"}); it may or may not have taken effect. Do not submit it again: first read the object back with ${GATEWAY_TOOLS.read} and tell the person what actually happened.`);
+    }
+    throw await inputRefusal(error, view.action.input_schema, fitsContract(client, view, args));
+  } finally { clearTimeout(deadline); signal.removeEventListener("abort", follow); }
 }
 
 /**
@@ -304,10 +339,12 @@ function gatewayToolDefinitions(timeoutMs: number) {
   ];
 }
 
+/** One pack for the Host capability directory, re-read for each operation. Every change keeps its exact review. */
 export function prologueActionGateway(
   gateway: Gateway,
   timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs,
   runSignal?: AbortSignal,
+  reviews?: PrologueActionReviews,
   pinnedRevisions?: ReadonlyMap<string, string>,
 ) {
   // Capability ids this round has seen offered (found or used), which the round's replies do not show the person.
@@ -322,42 +359,10 @@ export function prologueActionGateway(
     if (!view || !view.action.audiences.includes("agent")) throw new ActionError("actions.missing", notOffered(views, args, offered));
     known.add(view.capability_id); offered.add(offeredKey(view)); declared.note(view);
     if (!view.availability.available) throw new ActionError(view.availability.code, view.availability.reason);
-    const reads = actionEffect(view.action, view.capability_id) === "read";
+    const reads = actionReads(view);
     if (write && reads) throw new ActionError("actions.gateway_mismatch", `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`);
     if (!write && !reads) throw new ActionError("actions.gateway_mismatch", `This capability changes data; call it with ${GATEWAY_TOOLS.change}, which asks the person first.`);
     return view;
-  };
-  const invoke = async (args: CapabilityArgs, view: ActionView, signal: AbortSignal, write = false) => {
-    const schema = view.action.input_schema;
-    // A change stops being waited on a little before the runtime's own deadline, so the round hears why in words.
-    const local = new AbortController();
-    const follow = () => local.abort(signal.reason);
-    if (signal.aborted) follow(); else signal.addEventListener("abort", follow, { once: true });
-    const deadline = write && timeoutMs > 10_000 ? setTimeout(() => local.abort(new ActionError("actions.timeout", "ran out of time")), timeoutMs - 5_000) : undefined;
-    try {
-      const reference = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
-      const rawInput = gatewayInput(view, args);
-      const preparedInput = write ? rawInput : withPinnedKnowledgeRevision(reference, rawInput, pinnedRevisions);
-      const call = gateway.client.invoke(
-        reference,
-        preparedInput,
-        local.signal,
-      );
-      call.catch(() => undefined);
-      // A change is not waited on past a stop or deadline: its owner may still finish it, so it ends as "not known".
-      const result = write ? await Promise.race([call, abortedBy(local.signal)]) : await call;
-      local.signal.throwIfAborted();
-      if (!write) assertPinnedMaterialResult(reference, preparedInput, result, pinnedRevisions);
-      return JSON.stringify(result) ?? "null";
-    } catch (error) {
-      const code = (error as { code?: unknown })?.code;
-      // Sent to its owner and not finished (stopped or out of time), or finished with an unusable result: it may have
-      // happened. Said as such, so neither the person nor the model takes it for "nothing happened" and repeats it.
-      if (write && (local.signal.aborted || code === "actions.output_invalid_after_effect")) {
-        throw new ActionError("actions.outcome_unknown", `"${view.provider.title} · ${view.action.title}" was sent but did not finish (${local.signal.aborted ? "it ran out of time or was stopped" : "its result was invalid"}); it may or may not have taken effect. Do not submit it again: first read the object back with ${GATEWAY_TOOLS.read} and tell the person what actually happened.`);
-      }
-      throw await inputRefusal(error, schema, fitsContract(gateway.client, view, args));
-    } finally { clearTimeout(deadline); signal.removeEventListener("abort", follow); }
   };
   const executors: Record<string, ToolRunner> = {
     [GATEWAY_TOOLS.find]: guarded(async args => {
@@ -374,7 +379,10 @@ export function prologueActionGateway(
       for (const row of scored.slice(0, FIND_LIMIT)) { known.add(row.view.capability_id); offered.add(offeredKey(row.view)); declared.note(row.view); }
       return JSON.stringify({ found: scored.length, shown: Math.min(scored.length, FIND_LIMIT), capabilities: scored.slice(0, FIND_LIMIT).map(row => describe(row.view, Boolean(gateway.client.direct?.(row.view)))) });
     }),
-    [GATEWAY_TOOLS.read]: guarded(async (args, signal) => { const parsed = parseCapability(args); return invoke(parsed, await current(parsed, false), signal); }),
+    [GATEWAY_TOOLS.read]: guarded(async (args, signal) => {
+      const parsed = parseCapability(args);
+      return invokeGatewayAction(gateway.client, parsed, await current(parsed, false), signal, timeoutMs, false, undefined, pinnedRevisions);
+    }),
     // A proposal for the person: recorded by the caller, checked against the capability as it is now; runs nothing.
     [GATEWAY_TOOLS.suggest]: guarded(async args => {
       if (!gateway.client.offer) throw new ActionError("actions.forbidden", "This round cannot offer actions.");
@@ -392,20 +400,28 @@ export function prologueActionGateway(
     ...delegationExecutors(gateway.client.delegate, guarded),
     ...deliveryExecutors(gateway.client.deliver, guarded),
     ...memoryExecutors(gateway.client.memory, guarded),
-    [GATEWAY_TOOLS.change]: guarded(async (args, signal) => {
+    [GATEWAY_TOOLS.change]: guarded(async (args, signal, _operation, callId) => {
       if (!gateway.operate) throw new ActionError("actions.forbidden", "This role may only read.");
       const parsed = parseCapability(args);
-      const view = await current(parsed, true);
-      return invoke(parsed, view, signal, true);
+      const held = reviews?.forCall(callId, GATEWAY_TOOLS.change, args);
+      try {
+        await held?.control.beforeEffect(); held?.control.assertCurrent();
+        return await invokeGatewayAction(gateway.client, parsed, held?.view ?? await current(parsed, true), signal, timeoutMs, true, held);
+      } finally { reviews?.release(callId); }
     }),
     // A change that says how it is undone, which the person lets run without asking: it runs now and can be taken back.
-    [GATEWAY_TOOLS.direct]: guarded(async (args, signal) => {
+    [GATEWAY_TOOLS.direct]: guarded(async (args, signal, _operation, callId) => {
       if (!gateway.operate) throw new ActionError("actions.forbidden", "This role may only read.");
       const parsed = parseCapability(args);
-      const view = await current(parsed, true);
-      if (!gateway.client.direct?.(view)) throw new ActionError("actions.gateway_mismatch", `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`);
-      const output = await invoke(parsed, view, signal, true);
-      return JSON.stringify({ result: JSON.parse(output), note: "It ran without a confirmation because it can be undone. Tell the person what changed and that they can undo it from this work's panel." });
+      const held = reviews?.forCall(callId, GATEWAY_TOOLS.direct, args);
+      try {
+        const view = held?.view ?? await current(parsed, true);
+        if (!gateway.client.direct?.(view)) throw new ActionError("actions.gateway_mismatch", `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`);
+        await held?.control.beforeEffect();
+        held?.control.assertCurrent();
+        const output = await invokeGatewayAction(gateway.client, parsed, view, signal, timeoutMs, true, held);
+        return JSON.stringify({ result: JSON.parse(output), note: "It can be undone. Tell the person what changed and that they can undo it from this work's panel." });
+      } finally { reviews?.release(callId); }
     }),
   };
   const tools = gatewayToolDefinitions(timeoutMs);
@@ -543,9 +559,9 @@ const INVALID_INPUT = "Invalid input, not a permission problem; nothing ran. ";
  * Why a gateway call cannot go ahead, checked before any review: the capability is gone, switched off, unavailable,
  * or asked for through the wrong tool. Null when it may proceed (a change then still waits for the person).
  */
-export async function gatewayProblem(gateway: Gateway, toolName: string, input: unknown, known?: Set<string>, offered?: Set<string>): Promise<string | null> {
-  if (toolName !== GATEWAY_TOOLS.read && toolName !== GATEWAY_TOOLS.change && toolName !== GATEWAY_TOOLS.direct) return null;
-  if ((toolName === GATEWAY_TOOLS.change || toolName === GATEWAY_TOOLS.direct) && !gateway.operate) return "This role may only read.";
+export async function gatewayProblem(gateway: Gateway, toolName: string, input: unknown, known?: Set<string>, offered?: Set<string>, review?: { calls: PrologueActionReviews; origin?: EffectOrigin }): Promise<string | null> {
+  if (toolName !== GATEWAY_TOOLS.read && !isGatewayChange(toolName)) return null;
+  if (isGatewayChange(toolName) && !gateway.operate) return "This role may only read.";
   let parsed: CapabilityArgs;
   try { parsed = parseCapability((input ?? {}) as Record<string, unknown>); } catch (error) { return INVALID_INPUT + (error as Error).message; }
   const views = await gateway.client.discover();
@@ -554,13 +570,16 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
   known?.add(view.capability_id); offered?.add(offeredKey(view));
   if (!view.availability.available) return `${view.availability.code}: ${view.availability.reason}; nothing was done.`;
   gateway.declare?.(view);
-  const reads = actionEffect(view.action, view.capability_id) === "read";
-  if ((toolName === GATEWAY_TOOLS.change || toolName === GATEWAY_TOOLS.direct) && reads) return `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`;
+  const reads = actionReads(view);
+  if (isGatewayChange(toolName) && reads) return `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`;
   if (toolName === GATEWAY_TOOLS.direct && !gateway.client.direct?.(view)) return `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`;
   if (toolName === GATEWAY_TOOLS.read && !reads) return `This capability changes data; call it with ${GATEWAY_TOOLS.change}, which asks the person first.`;
   // The same validation dispatch will do, before anyone is asked to approve an input that cannot run.
   const sent = capabilityInput(view, parsed.input);
-  try { await gateway.client.check?.({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, gatewayInput(view, parsed)); }
+  try {
+    if (isGatewayChange(toolName) && review) await review.calls.prepare(review.origin, toolName, input, view, gatewayInput(view, parsed), gateway.client, toolName === GATEWAY_TOOLS.direct);
+    else await gateway.client.check?.({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, gatewayInput(view, parsed));
+  }
   catch (error) {
     const kind = sent === null ? "null" : Array.isArray(sent) ? "array" : typeof sent;
     // What arrived, briefly, so the next attempt corrects the shape instead of repeating it.
@@ -617,14 +636,12 @@ function inputFields(schema: Record<string, unknown>, input: unknown): ToolRevie
 }
 
 /** The readable review for a requested change: which capability, from whom, what it does, with the exact input. */
-export async function gatewayReview(gateway: Gateway, input: string) {
+export function gatewayReview(input: string, view: ActionView, tool: string = GATEWAY_TOOLS.change) {
   const args = JSON.parse(input) as Record<string, unknown>;
   const parsed = parseCapability(args);
-  const view = (await gateway.client.discover()).find(row => row.capability_id === parsed.capability_id && row.version === parsed.version && row.provider.provider_id === parsed.provider_id);
-  if (!view) throw new Error("所请求的能力已不可用，不能批准");
   const effect = actionEffect(view.action, view.capability_id);
   const sent = gatewayInput(view, parsed);
-  return presentToolReview({ kind: "tool-operation", tool: GATEWAY_TOOLS.change, summary: `${view.provider.title} · ${view.action.title}` }, [
+  return presentToolReview({ kind: "tool-operation", tool, summary: `${view.provider.title} · ${view.action.title}` }, [
     reviewField("效果", effect === "irreversible" ? "修改数据，不可撤回" : "修改数据，可在原处修改或撤回", "effect",
       { value: [reviewText(effect === "irreversible" ? "value.irreversible" : "value.reversible")] }),
     ...inputFields(view.action.input_schema, sent),

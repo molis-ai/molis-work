@@ -45,6 +45,7 @@ import { declaredStageRequests } from "./project-stage-data.js";
 import { matchPageRoute } from "./page-routes.js";
 import { handleAlchemistNativePluginHttp } from "./alchemist-native-plugin-http.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
+import { handleAutomationRecommendationsHttp } from "./automation-recommendations-http.js";
 import { isCatalogIndexPath, redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
 import { pagePluginDirectory } from "./plugin-directory.js";
@@ -55,6 +56,7 @@ import type { MolisWorkProjectRuntime } from "./project-host.js";
 import type { ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindGoalsWebActions } from "./goal-callers.js";
+import { handleProjectReviewHttp } from "./project-review-entry.js";
 import {
   agentReviewsRoute, boardRoute, directoryGrantRoute, pluginPageRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
   projectProbeRoutes, projectRuntimeRoute, projectWriteCheckersRoute, runtimePluginsRoute, sideFilesRoute, sideViewRoute,
@@ -147,6 +149,7 @@ const homePluginsRoute: WebRoute<WebRequestContext> = { id: "home-plugins", hand
 
 /** A project request before its runtime opens; the last entry opens it and runs PROJECT_RUNTIME_ROUTES there. */
 const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
+  { id: "automation-recommendations", handle: handleAutomationRecommendationsHttp },
   { id: "settings-arrival", handle: ({ request, response, url, options, serverOptions, composition }) => arriveAtProjectPage(request, response, url,
     options.project ? { project_id: options.project.project_id, routePrefix: options.routePrefix ?? "" } : null,
     serverOptions.homeDirectory, composition.isDesktopShellRequest(request, url)) },
@@ -308,6 +311,8 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "goal-fragments", handle: context => context.composition.goalsReadHttp.fragments(context.request, context.response, context.url, context.readWebView, context.goalActions,
     asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.readArtifactDisplay) },
   agentReviewsRoute,
+  { id: "project-approvals", handle: ({ request, response, url, localHost, hostReference, serverOptions }) =>
+    handleProjectReviewHttp(request, response, url, localHost, hostReference, serverOptions.assertAccountCurrent) },
   boardRoute,
   ...directoryRoutes,
   // Alchemist's Studio and its own HTTP under `/api/alchemist`, under the plugin's permissions. The old `personal`

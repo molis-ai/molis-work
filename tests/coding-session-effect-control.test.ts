@@ -270,13 +270,24 @@ test("RAC-189 Coding message reads also carry their request control into the act
 test("Coding archive through the person's entry refuses a repeat; only a change left half done is let through to finish", async () => {
   // The execution session's archive state, as the Agent Host keeps it; archiving it again is harmless there, so Coding must refuse the repeat itself.
   let executionArchived = false;
+  const lifecycleCalls: string[] = [];
+  const { endSessionWork, archiveSession, unarchiveSession } = agent;
+  const originalSession = { runtime_id: "prologue", session_id: "sdk-bound" };
   const runtimes = directory();
   const h = routesOver({ agent: { async invoke<Input, Output>(definition: { capability_id: string }, input: Input): Promise<Output> {
     const [session] = input as unknown[];
     if (definition.capability_id === agent.readSession.capability_id) return { session, latest_run: null, checkpoint_busy: false, recovery: null } as Output;
     if (definition.capability_id === agent.readSessionLifecycle.capability_id) return { session, state: executionArchived ? "archived" : "active" } as Output;
-    if (definition.capability_id === agent.archiveSession.capability_id) { executionArchived = true; return { session, state: "archived" } as Output; }
-    if (definition.capability_id === agent.unarchiveSession.capability_id) { executionArchived = false; return { session, state: "active" } as Output; }
+    if (definition.capability_id === endSessionWork.capability_id) {
+      assert.deepEqual(session, originalSession);
+      lifecycleCalls.push(definition.capability_id);
+      return undefined as Output;
+    }
+    if (definition.capability_id === archiveSession.capability_id || definition.capability_id === unarchiveSession.capability_id) {
+      lifecycleCalls.push(definition.capability_id);
+      executionArchived = definition.capability_id === archiveSession.capability_id;
+      return { session, state: executionArchived ? "archived" : "active" } as Output;
+    }
     return runtimes.invoke(definition as never, input as never);
   } } });
   const update = (sessionId: string, archive: boolean) => h.call("coding.update-session", { method: "PATCH", params: { sessionId }, body: { archive }, execution: callControl().execution });
@@ -295,12 +306,18 @@ test("Coding archive through the person's entry refuses a repeat; only a change 
 
     // A change left half done: the execution session is archived, the business record is not. The same request finishes it.
     await h.sessions.create(noEffect, { project_id: "board", session_id: "bound", title: "有执行会话", runtime_id: "prologue", at: AT });
-    await h.sessions.setRuntimeSession(noEffect, "board", "bound", "sdk-bound", AT);
+    await h.sessions.setRuntimeSession(noEffect, "board", "bound", originalSession.session_id, AT);
     executionArchived = true;
     assert.equal((await update("bound", true)).status, 200);
     assert.equal(h.sessions.get("board", "bound").archived, true);
     // Both halves are there now: a repeat is refused and changes nothing.
     refusedWith(await update("bound", true), "会话已归档");
+    assert.deepEqual([h.sessions.get("board", "bound").archived, executionArchived], [true, true]);
+    assert.deepEqual(lifecycleCalls, [endSessionWork.capability_id], "a retry finishes work authorization without archiving the runtime again");
+
+    assert.equal((await update("bound", false)).status, 200);
+    assert.equal((await update("bound", true)).status, 200);
+    assert.deepEqual(lifecycleCalls, [endSessionWork.capability_id, unarchiveSession.capability_id, endSessionWork.capability_id, archiveSession.capability_id]);
     assert.deepEqual([h.sessions.get("board", "bound").archived, executionArchived], [true, true]);
   } finally { h.database.close(); }
 });

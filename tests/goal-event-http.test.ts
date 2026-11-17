@@ -11,8 +11,12 @@ import { MolisWorkLocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-a
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
-import { hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { GoalProjectApplication, goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
+import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
+import { prepareWebReview, webGoalReviews } from "./fixtures/project-review-entry.js";
 
 const TOKEN = "molis-work-event-http-token-0123456789abcdef";
 
@@ -327,17 +331,15 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
     });
     assert.equal(concern.status, 200, await concern.clone().text());
     const concernBody = await concern.json() as { concern: { concern_id: string } };
-    const decision = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-decision`, {
-      method: "POST",
-      headers: { ...headers, "x-molis-work-idempotency-key": "http-dec" },
-      body: JSON.stringify({
+    const reviews = webGoalReviews(served.web, BOARD);
+    const command = await reviews.prepare(goalsActions.decide, { goal_id: goalId, idempotency_key: "http-dec",
         conclusion: "接受当前范围",
         effects: [{ kind: "accept_requirements" }, { kind: "accept_concerns" }],
         scope: { requirement_ids: ["need"], concern_ids: [concernBody.concern.concern_id] },
-      }),
     });
-    assert.equal(decision.status, 200, await decision.clone().text());
-    const decided = await decision.json() as { decision: { decision_id: string } };
+    const decided = (await reviews.submit<{ decision: { decision_id: string; authority_source: string; actor_id: string } }>(command)).result!;
+    assert.equal(decided.decision.authority_source, "web");
+    assert.equal(decided.decision.actor_id, LOCAL_PERSON_ACTOR_ID);
     const accept = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-concern`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "http-accept" },
@@ -824,6 +826,10 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
     assert.doesNotMatch(freshPage, /name="selected_option_id"/);
     assert.match(freshPage, /退休要求/);
     assert.match(freshPage, /真实完成购买/);
+    const reviews = webGoalReviews(served.web, BOARD);
+    const staleCommand = await reviews.prepare(goalsActions.decide, { goal_id: goalId, idempotency_key: "http-stale-approve",
+      request_id: staleRequest.decision_request.request_id, selected_option_id: "yes", conclusion: "批准之前展示的取消要求",
+      effects: [{ kind: "authorize_agreement_change" }] });
     app.goalEvents.setAgreement({
       project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
       idempotency_key: "http-revise-before-approve", ...versions(),
@@ -833,22 +839,14 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
     assert.match(stalePage, /已经变化/);
     assert.match(stalePage, /刷新或重新请求/);
     const beforeStale = app.goalEvents.readState(BOARD, goalId);
-    const staleApproval = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-decision`, {
+    const staleApproval = await fetchProject(`${origin}/api/project-approvals/decide`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "http-stale-approve" },
-      body: JSON.stringify({
-        request_id: staleRequest.decision_request.request_id,
-        selected_option_id: "yes",
-        conclusion: "批准之前展示的取消要求",
-        effects: [{ kind: "authorize_agreement_change" }],
-        idempotency_key: "http-stale-approve",
-      }),
+      body: JSON.stringify(staleCommand),
     });
-    // D26: an approval of a decision the Goal has moved past is "the data moved on" — goals.event_decision.stale_commitment
-    // is declared conflict, so it answers 409 (it was 400 while the code was declared invalid).
     assert.equal(staleApproval.status, 409, await staleApproval.clone().text());
     const staleBody = await staleApproval.json() as { error?: string; code?: string };
-    assert.equal(staleBody.code, "goals.event_decision.stale_commitment");
+    assert.equal(staleBody.code, "actions.conflict");
     assert.match(String(staleBody.error), /变化|变更|匹配|过期|基线|版本/);
     const afterStale = app.goalEvents.readState(BOARD, goalId);
     assert.equal(afterStale.goal_event_cursor, beforeStale.goal_event_cursor);
@@ -1072,15 +1070,21 @@ test("HTTP goal-tree decisions replay the original result with a stable business
   const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
-    const decide = (proposalId: string, body: Record<string, unknown>, key: string) => fetchProject(
-      `${origin}/api/plugins/io.molis.work.goals/goal-tree-proposals/${encodeURIComponent(proposalId)}/decision`,
-      {
-        method: "POST",
-        // The page's "confirm the whole proposal" control alone sends the header; the Host reads it from there, never from the body.
-        headers: { ...headers, "x-molis-work-idempotency-key": randomUUID(), ...(body.confirm_all_pending === true ? { "x-molis-work-whole-confirmation": "1" } : {}) },
-        body: JSON.stringify(body),
-      },
-    );
+    const post = (path: string, body: object) => fetchProject(`${origin}${path}`, { method: "POST",
+      headers: { ...headers, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify(body) });
+    const reviewed = new Map<string, ReviewRequest>();
+    const decide = async (proposalId: string, body: { idempotency_key: string }, _key: string) => {
+      const draft = { ...body, proposal_id: proposalId };
+      const identity = JSON.stringify(draft);
+      let review = reviewed.get(identity);
+      if (!review) {
+        const read = await prepareWebReview(goalsActions.treeDecide, draft, post);
+        if (!read.ok) return read;
+        review = await read.json() as ReviewRequest;
+        reviewed.set(identity, review);
+      }
+      return await post("/api/project-approvals/decide", { reference: review.reference, choice_id: "apply", request_key: body.idempotency_key });
+    };
     const wholeBody = {
       confirm_all_pending: true,
       reason: "用户确认本次展示的整组目标",
@@ -1088,14 +1092,12 @@ test("HTTP goal-tree decisions replay the original result with a stable business
     };
     const approved = await decide(whole.proposal.proposal_id, wholeBody, "http-tree-whole-decide");
     assert.equal(approved.status, 200, await approved.clone().text());
-    const approvedBody = await approved.json() as { replayed: boolean; applied_item_ids: string[] };
+    const approvedBody = await approved.json() as { replayed: boolean; record: ProjectTrustedDecision; result: { applied_item_ids: string[] } };
     assert.equal(approvedBody.replayed, false);
-    assert.equal(approvedBody.applied_item_ids.length, 2);
+    assert.equal(approvedBody.result.applied_item_ids.length, 2);
     const wholeReplay = await decide(whole.proposal.proposal_id, wholeBody, "http-tree-whole-decide");
     assert.equal(wholeReplay.status, 200, await wholeReplay.clone().text());
-    const wholeReplayBody = await wholeReplay.json() as { replayed: boolean; applied_item_ids: string[] };
-    assert.equal(wholeReplayBody.replayed, true);
-    assert.deepEqual(wholeReplayBody.applied_item_ids, approvedBody.applied_item_ids);
+    assert.deepEqual(await wholeReplay.json(), { replayed: true, record: approvedBody.record });
     const wholeNewHttp = await decide(whole.proposal.proposal_id, wholeBody, "http-tree-whole-new-http");
     assert.equal(wholeNewHttp.status, 200, await wholeNewHttp.clone().text());
     assert.equal((await wholeNewHttp.json() as { replayed: boolean }).replayed, true);
@@ -1104,16 +1106,16 @@ test("HTTP goal-tree decisions replay the original result with a stable business
       { ...wholeBody, reason: "同键不同决定内容" },
       "http-tree-whole-different",
     );
-    assert.equal(differentWhole.status, 400, await differentWhole.clone().text());
-    assert.match((await differentWhole.json() as { error: string }).error, /不同|conflict|different|idempot/i);
+    assert.equal(differentWhole.status, 409, await differentWhole.clone().text());
+    assert.equal((await differentWhole.json() as { code: string }).code, "actions.conflict");
     const partBody = {
       decisions: [{ item_id: "item-HTTP-TREE-PART-A", decision: "confirm", reason: "先做这一项" }],
       idempotency_key: "http-tree-part-decide",
     };
     const selected = await decide(partial.proposal.proposal_id, partBody, "http-tree-part-decide");
     assert.equal(selected.status, 200, await selected.clone().text());
-    const selectedBody = await selected.json() as { replayed: boolean; applied_item_ids: string[] };
-    assert.equal(selectedBody.applied_item_ids.length, 1);
+    const selectedBody = await selected.json() as { replayed: boolean; result: { applied_item_ids: string[] } };
+    assert.equal(selectedBody.result.applied_item_ids.length, 1);
     const rejectBody = {
       decisions: [{ item_id: "item-HTTP-TREE-PART-B", decision: "reject", reason: "暂不做另一项" }],
       idempotency_key: "http-tree-part-reject",
@@ -1224,16 +1226,18 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
     assert.doesNotMatch(decisionForm, /补充说明[\s\S]*可选/);
     const prefilled = decisionForm.match(/<textarea name="reason"[^>]*>([\s\S]*?)<\/textarea>/)?.[1] ?? "";
     assert.match(prefilled, /不能安全写入|不一致/);
-    const path = `/api/plugins/io.molis.work.goals/goal-tree-proposals/${encodeURIComponent(submitted.proposal.proposal_id)}/decision`;
-    const emptyReject = await fetchProject(`${origin}${path}`, {
-      method: "POST",
-      headers: { ...headers, "x-molis-work-idempotency-key": "rel-conflict-empty" },
-      body: JSON.stringify({
+    const path = "/api/project-approvals/decide";
+    const post = (route: string, body: object) => fetchProject(`${origin}${route}`, { method: "POST",
+      headers: { ...headers, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify(body) });
+    const emptyDraft = {
         decisions: [{ item_id: "item-rel-deactivate", decision: "reject", reason: "" }],
         reason: "",
         idempotency_key: "rel-conflict-empty",
-      }),
-    });
+        proposal_id: submitted.proposal.proposal_id,
+    };
+    const emptyRead = await prepareWebReview(goalsActions.treeDecide, emptyDraft, post);
+    const emptyReject = emptyRead.ok ? await post(path, { reference: (await emptyRead.json() as ReviewRequest).reference,
+      choice_id: "apply", request_key: emptyDraft.idempotency_key }) : emptyRead;
     assert.equal(emptyReject.status, 400, await emptyReject.clone().text());
     assert.match((await emptyReject.json() as { error: string }).error, /理由|修改意见/);
     const afterEmpty = app.goalTree.listGoalTreeProposals({
@@ -1245,29 +1249,23 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
       decisions: [{ item_id: "item-rel-deactivate", decision: "reject", reason: rewritten }],
       reason: rewritten,
       idempotency_key: "rel-conflict-rewrite",
+      proposal_id: submitted.proposal.proposal_id,
     };
-    const rejected = await fetchProject(`${origin}${path}`, {
-      method: "POST",
-      headers: { ...headers, "x-molis-work-idempotency-key": "rel-conflict-rewrite" },
-      body: JSON.stringify(rejectBody),
-    });
+    const read = await prepareWebReview(goalsActions.treeDecide, rejectBody, post);
+    assert.equal(read.status, 200, await read.clone().text());
+    const command = { reference: (await read.json() as ReviewRequest).reference, choice_id: "apply", request_key: rejectBody.idempotency_key };
+    const rejected = await post(path, command);
     assert.equal(rejected.status, 200, await rejected.clone().text());
-    const rejectedBody = await rejected.json() as { replayed: boolean; rejected_item_ids: string[] };
+    const rejectedBody = await rejected.json() as { replayed: boolean; record: ProjectTrustedDecision; result: { rejected_item_ids: string[] } };
     assert.equal(rejectedBody.replayed, false);
-    assert.deepEqual(rejectedBody.rejected_item_ids, ["item-rel-deactivate"]);
+    assert.deepEqual(rejectedBody.result.rejected_item_ids, ["item-rel-deactivate"]);
     const stored = app.goalTree.listGoalTreeProposals({
       project_id: BOARD, proposal_id: submitted.proposal.proposal_id, include_legacy: false,
     }).proposals[0];
     assert.equal(stored?.items[0]?.decision?.reason, rewritten);
-    const replay = await fetchProject(`${origin}${path}`, {
-      method: "POST",
-      headers: { ...headers, "x-molis-work-idempotency-key": "rel-conflict-rewrite-new-http" },
-      body: JSON.stringify(rejectBody),
-    });
+    const replay = await post(path, command);
     assert.equal(replay.status, 200, await replay.clone().text());
-    const replayBody = await replay.json() as { replayed: boolean; rejected_item_ids: string[] };
-    assert.equal(replayBody.replayed, true);
-    assert.deepEqual(replayBody.rejected_item_ids, ["item-rel-deactivate"]);
+    assert.deepEqual(await replay.json(), { replayed: true, record: rejectedBody.record });
     const replayedStored = app.goalTree.listGoalTreeProposals({
       project_id: BOARD, proposal_id: submitted.proposal.proposal_id, include_legacy: false,
     }).proposals[0];

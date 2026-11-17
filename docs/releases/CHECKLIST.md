@@ -36,15 +36,16 @@
 
 `scripts/verify-release-versions.mjs` 对照代码核对这张表，下面几种情况 CI 会失败：某行的版本和定义处的代码不一致；定义处不存在；包的 `src/` 里有一个 `SqliteBaseline` 常量（`const X: SqliteBaseline = {…}`、`const X = {…} satisfies SqliteBaseline`、`… as SqliteBaseline` 三种写法都算）没有列进表，或者它的版本不是对象里写成数字的 `version: N`（引用别的常量，脚本读不出来）；`applySqliteBaseline`、`openBaselineHomeSqlite`、`openOwnerCopyStore`、`openAggregateCopyOwner` 收到的不是一个已声明的常量（内联对象不行）；`runSqliteUpgrade` 收到的既不是已声明的常量，也不是属性（它转交描述符带的基线，`store.baseline` 这样的属性可以）；「版本」不是整数（写「无」也不行）或定义处不是 `路径#名字`。JSON 文件没有常量可指时，定义处写字段名（`路径#schema_version`、`路径#version`）。脚本按语法读这个文件里叫这个名字的属性，键带不带引号都算：对象里写的数字、类型里写的单个数字，以及字符串和模板里写的 `名字: 数字`，都要是同一个数，并和表相同；有一处的值不是数字（常量名、表达式、`{ version }` 这种简写），就以「定义处写字面量」失败。注释不读；类型写成 `number` 的不算；在别处拼出来的版本（展开另一个对象、算出来的键）读不到。它找不到的是完全不经 `applySqliteBaseline` 的新库（比如又一个只靠 `CREATE TABLE IF NOT EXISTS` 的库）和表以外的 JSON 文件，这类只能靠 HOME-DATA.md 的清单和评审发现。
 
-插件自有库的 `PluginDatabaseDeclaration` 也按同一规则检查：必须具名、写出数字版本并列入下表。可信 Host 的连接服务仅转发这份声明；这一个类型化转发调用被单独识别，其余内联或未声明基线仍拒绝。
+插件自有库的 `PluginDatabaseDeclaration` 也按同一规则检查，必须具名、写出数字版本并列入下表。可信 Host 的连接服务转发插件的现行声明，版本检查识别这一个类型化转发调用。Goals 的 `#goals@4` 行记录同一个库的历史维护声明，只在项目库升级事务中使用。
 
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |
 | --- | --- | --- | --- | --- | --- |
 | 安装与发行清单 | `config/installation.json、releases/molis-work-<version>/release.json` | 1 | `schema_version` | `apps/local-host/src/installer/home-contract.ts#SCHEMA_VERSION` | 低版本由安装器升级；高版本在修改前拒绝，保留文件 |
-| 项目库 | `projects/<project_id>/molis-work.db` | 3 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 低版本升级，高版本拒绝；2→3 只新建空的呈现纠正表 |
+| 项目库 | `projects/<project_id>/molis-work.db` | 4 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 3→4 在项目库同一事务中接收可信决定、规则和原审批记录；低版本升级，高版本拒绝 |
 | 项目库里 Coding 的表 | `projects/<project_id>/molis-work.db#coding` | 1 | `plugin_project_databases.version` | `plugins/native/coding/src/database.ts#CODING_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Coding） |
 | 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 2 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Feed） |
-| 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 4 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Goals） |
+| 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 5 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 随项目库 3→4 交接旧决定和规则并更换同步集合，保留原业务事实 |
+| Goals 审批移交的历史源 | `projects/<project_id>/molis-work.db#goals@4` | 4 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE_V4` | v1～v3 先执行原升级段，v4 校验后交接，正常启动只读 v5 |
 | 项目库里 Inbox 的表 | `projects/<project_id>/molis-work.db#inbox` | 1 | `plugin_project_databases.version` | `plugins/native/inbox/src/database.ts#INBOX_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Inbox） |
 | 项目库里风险的表 | `projects/<project_id>/molis-work.db#risk` | 1 | `plugin_project_databases.version` | `plugins/native/risk/src/database.ts#RISK_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停风险） |
 | 项目库里 Schedule 的表 | `projects/<project_id>/molis-work.db#schedule` | 3 | `plugin_project_databases.version` | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Schedule） |

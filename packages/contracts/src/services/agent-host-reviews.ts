@@ -1,5 +1,6 @@
 /** The agent-host contract (`services/agent-host`): what a run asks a person to review, and the review queue. */
 import type { OwnedTextRef } from "../platform/ui-text.js";
+import type { ReviewReference, ReviewDecisionAvailability, ReviewDecisionReference, ReviewDecisionSource } from "../platform/reviews.js";
 import type { AgentRunRef } from "./agent-host-runtime.js";
 import type { AgentWriteCheckNote } from "./agent-host-write-checkers.js";
 
@@ -48,6 +49,8 @@ export interface AgentCommandReviewDocument {
   background?: boolean;
   /** A background command that keeps running after the round ends, until it ends or is stopped. */
   outlives_run?: boolean;
+  /** Explicit work permissions disable creating a session rule from this command. */
+  session_rule_blocked?: true;
   /** The person's after-write check this command is: which checker, from which version of its workspace's list. */
   after_write_check?: Pick<AgentWriteCheckNote, "checker_id" | "display_name" | "version">;
 }
@@ -105,8 +108,17 @@ export type AgentReviewDocument =
 
 export type AgentReviewStatus = "pending" | "approved" | "rejected" | "cancelled" | "expired";
 
+/** A current owner projection, never permission to execute or a replacement for checking at decision time. */
+export type AgentReviewDecisionAvailability = ReviewDecisionAvailability;
+
+export interface AgentReviewDecisions {
+  readonly approve: AgentReviewDecisionAvailability;
+  readonly reject: AgentReviewDecisionAvailability;
+}
+
 export interface AgentReviewRequest {
   review_id: string;
+  reference: ReviewReference;
   /** Null for a manual operation; never fabricate an Agent Run. */
   run: AgentRunRef | null;
   operation?: { operation_id: string; session_id: string; kind: "checkpoint-rewind"; workspace_id?: never }
@@ -121,6 +133,8 @@ export interface AgentReviewRequest {
 
 export interface AgentReviewDecisionInput {
   review_id: string;
+  /** Version of the card the person actually saw, not a version fetched just before submission. */
+  version: string;
   decision: "approve" | "reject";
   actor_id: string;
   note?: string;
@@ -141,10 +155,27 @@ export interface AgentReviewReceipt {
   effect_uncertain?: string;
   /** Host recorded a decision, but the execution owner did not confirm receiving it. */
   delivery_error?: string;
+  /** Saving the decision may have succeeded. No new decision or delivery until the same key is reconciled. */
+  decision_save_error?: string;
+  /** The original decision was delivered, but the extra remember choice was not installed. */
+  remember_error?: string;
+  /** Present only when decision and source were saved together; absent historical provenance stays unrecorded. */
+  source?: ReviewDecisionSource;
   /** Human evidence, projected only after the execution owner has settled the original effect. */
   reconciliation?: { actor_id: string; at: string; reason: string };
   /** Approved by a person's earlier "allow this command for this session", not by a new click. */
   standing_rule?: { set_by: string; set_at: string };
+}
+
+/** The same review and current decisions for the Host surface and other read-only presenters. */
+export interface AgentReviewRow {
+  request: AgentReviewRequest;
+  receipt?: AgentReviewReceipt;
+  /** Present when the queue read or committed the original immutable decision. */
+  decision?: ReviewDecisionReference;
+  decisions: AgentReviewDecisions;
+  /** The Host can offer a choice for later rounds from this exact live proposal. This does not approve it. */
+  work_permission_available?: true;
 }
 
 export interface AgentGitIndexObservation {
@@ -179,7 +210,9 @@ export interface AgentReviewRecoveryInput {
 export interface AgentReviewQueueApi {
   list(projectId: string, status?: AgentReviewStatus): AgentReviewRequest[];
   get(reviewId: string): AgentReviewRequest | null;
-  decide(input: AgentReviewDecisionInput): AgentReviewReceipt;
   receipt(reviewId: string): AgentReviewReceipt | null;
+  decisions(reviewId: string): Promise<AgentReviewDecisions>;
+  /** Owner reads are awaited once, then queue status and current authority are checked together for the returned rows. */
+  readMany(reviewIds: readonly string[]): Promise<AgentReviewRow[]>;
   observe(listener: (request: AgentReviewRequest) => void): () => void;
 }

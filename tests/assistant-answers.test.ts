@@ -66,14 +66,14 @@ test("an answer continues its own question; a rejection stays a rejection; a lat
     await service.outcomes.answer(sent.work.work_id, { run_id: round.run_id, pending_id: question.pending_id, ...(question.pending_revision !== undefined ? { pending_revision: question.pending_revision } : {}), text: "两段" });
     const reviewing = await until(async () => { const view = await service.read(sent.work.work_id); return view.reviews.length ? view : undefined; }, "review");
     const review = reviewing.reviews[0]!;
-    await service.outcomes.decide(sent.work.work_id, { review_id: review.review_id, decision: "reject" });
+    await service.outcomes.decide(sent.work.work_id, { review_id: review.review_id, version: review.version, decision: "reject" });
     await until(async () => (await service.read(sent.work.work_id)).work.state === "completed", "completion");
     assert.deepEqual(written, [], "a rejection is not an approval: nothing was written");
 
     const before = requests.length;
     await assert.rejects(service.outcomes.answer(sent.work.work_id, { run_id: round.run_id, pending_id: question.pending_id, text: "三段" }),
       (error: unknown) => error instanceof ActionError && error.code === "assistant.stale" && error.kind === "conflict");
-    await assert.rejects(service.outcomes.decide(sent.work.work_id, { review_id: review.review_id, decision: "approve" }));
+    await assert.rejects(service.outcomes.decide(sent.work.work_id, { review_id: review.review_id, version: review.version, decision: "approve" }));
     assert.equal(requests.length, before, "a late answer or approval starts no model call");
     assert.deepEqual(written, [], "and revives no old action");
 

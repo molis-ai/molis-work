@@ -1,0 +1,12 @@
+{
+  "exceptions": {
+    "class apps/local-host/src/assistant/assistant-followups.ts#AssistantFollowUps": {
+      "kind": "cohesive-unit",
+      "reason": "助理接续的同一调度状态机持有原工作、排队和接续触发；拆开这些方法会把持久状态、预留位置和同一恢复边界分散给多个主人。",
+      "size": {
+        "lines": 319,
+        "methods": 20
+      }
+    }
+  }
+}

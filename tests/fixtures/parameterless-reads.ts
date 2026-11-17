@@ -49,6 +49,12 @@ const accountReadsRequiringConfiguration = new Set([
   "account.platform-audit.list@1",
 ]);
 
+/** These reads are advertised to the person, but execute only inside their authenticated page. */
+const protectedReads: Readonly<Record<string, (projectId: string) => { path: string; method: "GET" }>> = {
+  "agent.authorizations.list@1": projectId => ({ path: `/api/settings/authorizations?project=${encodeURIComponent(projectId)}`, method: "GET" }),
+  "automation.recommendations.scan@1": projectId => ({ path: `/projects/${encodeURIComponent(projectId)}/api/automation/recommendations`, method: "GET" }),
+};
+
 type CatalogRunner = <T>(options: { homeDirectory: string }, body: (catalog: { databasePath: string; projectsDirectory: string; getProject(id: string): { database_path: string } }) => T | Promise<T>) => Promise<T>;
 
 /** Put a project dump into a Home under its own id, through the catalog table's owner; neither data nor identity is rewritten. */
@@ -72,6 +78,8 @@ export function registerProjectCopy(host: MolisWorkLocalHost, home: string, with
 export interface ParameterlessReadOptions {
   /** T145: even a read of project reach needs the project's actual settings door, not an invented user_action or a forbidden allowlist. */
   readonly projectReachThroughSettings: () => Promise<void>;
+  /** Account golden Homes do not sign in. Their reads still assert the direct refusal. */
+  readonly readProtectedPage?: (path: string, method: "GET") => Promise<void>;
   /** The capability/version → code table of what this data deliberately has no dependency for. */
   readonly unavailable?: Record<string, string>;
   /** Home-scoped reads answer the same in every project, so a caller going over several projects asks for them once. */
@@ -90,16 +98,22 @@ export async function readEveryParameterlessAction(host: MolisWorkLocalHost, dat
     const action = `${view.capability_id}@${view.version}`;
     const caller = { ...base, permissions: view.action.permissions };
     const client = view.action.scope === "home" ? host.homeActionClient() : host.actionClient(ref);
+    const scope = view.action.scope === "home" ? { ...caller, project_id: null } : caller;
     try {
       if (accountReadsRequiringConfiguration.has(action)) {
         await assert.rejects(client.invoke({ ...caller, project_id: null }, view, {}), { code: "account.invalid_configuration" });
         continue;
       }
-      if (view.capability_id === "plugins.project_reach.list" && view.version === 1) {
+      if (Object.hasOwn(protectedReads, action)) {
+        const page = protectedReads[action]!(projectId);
+        await assert.rejects(client.invoke(scope, view, {}), { code: "actions.forbidden" });
+        if (!options.readProtectedPage) continue;
+        await options.readProtectedPage(page.path, page.method);
+      } else if (view.capability_id === "plugins.project_reach.list" && view.version === 1) {
         await assert.rejects(client.invoke(caller, view, {}), { code: "actions.forbidden", message: "项目同意只接受本人在对应项目设置里的操作" });
         await options.projectReachThroughSettings();
       } else {
-        await client.invoke(view.action.scope === "home" ? { ...caller, project_id: null } : caller, view, {});
+        await client.invoke(scope, view, {});
       }
       read.add(view.capability_id);
     } catch (error) {

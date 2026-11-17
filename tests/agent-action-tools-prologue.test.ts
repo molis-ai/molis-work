@@ -7,10 +7,11 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
-import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
+import { authorizeMcpActions, prepareMcpActionReview } from "../apps/local-host/dist/mcp-action-client.js";
 import { createMcpActionGrant } from "../apps/local-host/dist/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/dist/mcp-settings-store.js";
 import type { ActionDefinition, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AgentActionReviewControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 const actionToolsModule = () => import('../horizontal/agent-host/dist/adapters/prologue-action-tools.js');
 
@@ -30,6 +31,67 @@ function response(name?: string, input: unknown = {}): Response {
   emit("message_stop", {});
   return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
 }
+
+test("APR-08: fixed SDK action reviews keep the original MCP grant generation and ignore unrelated grants", { timeout: 30_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "review-action-generation-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project", storage_key: "memory:project" }, owner = { project_id: "project", plugin_id: "caller", install_id: "original", actor_id: "person" };
+  const db = new DatabaseSync(join(home, "notes.sqlite")); db.exec("CREATE TABLE notes (body TEXT NOT NULL)");
+  const definition: ActionDefinition = { capability_id: "fixture.notes.write", version: 1, operation: "command", action: {
+    title: "Save note", description: "Write a reviewed note", kind: "operation", scope: "project", audiences: ["agent"], permissions: ["notes:write"], subject_kinds: [],
+    input_schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false } } };
+  local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, definitions: [definition],
+    handlers: [{ ...definition, handle: (_context, input) => { db.prepare("INSERT INTO notes VALUES (?)").run((input as { text: string }).text); return { saved: true }; } }] });
+  const caller = { actor_id: "agent:prologue", actor_kind: "runtime" as const, audience: "agent" as const, project_id: project.project_id, permissions: [] };
+  const view = (await local.inspectActions(caller, project))[0]!, grant = createMcpActionGrant(caller.actor_id, project.project_id, view, true);
+  const selected = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+  let callNext = false;
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array)) as { tools: Array<{ name: string; description: string }> };
+    if (!callNext) return response(); callNext = false;
+    const tool = body.tools.find(tool => tool.description.includes("Write a reviewed note")); assert.ok(tool);
+    return response(tool.name, { text: "fixed proposal" });
+  });
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "molis.review.action-generation", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  t.after(async () => { await adapter.close(); queue.close(); await local.close(); db.close(); await rm(home, { recursive: true, force: true }); });
+  const directory = { canonical_path: home, realpath_verified: true }, session = await adapter.createSession({ ...owner, directory, title: "Reviewed actions" });
+  const authority: AgentStartAuthority = { authorizedDirectories: [home],
+    manifest: { roles: [{ role_id: "writer", version: 1, name: "Writer", execution: "workspace-write", prompts: ["base"], host_tools: [] }], prompts: [{ prompt_id: "base", version: 1 }] },
+    prompts: [{ prompt_id: "base", version: 1, layer: "base", body: "Use the selected action." }],
+    actions: async () => ({ discover: async () => { const auth = await authorizeMcpActions(local, caller, home, project); return auth.service.discover(auth.context); },
+      prepareReview: (view, input) => prepareMcpActionReview(local, caller, home, view, input, project, () => {}, () => {}),
+      invoke: async (ref: ExactActionReference, input: unknown, signal?: AbortSignal, review?: AgentActionReviewControl) => {
+        const auth = await authorizeMcpActions(local, { ...caller, signal }, home, project);
+        return auth.service.invoke({ ...auth.context, assert_authority_current: (...args) => {
+          auth.context.assert_authority_current?.(...args); review?.assertCurrent();
+        } }, ref, input);
+      } }),
+  };
+  let writes = 0;
+  for (const change of ["unchanged", "renewed", "unrelated"] as const) {
+    await writeMcpActionGrant(home, grant, { host_reason: "fixture" }); callNext = true;
+    const run = await host.start("prologue", { ...owner, session, directory, task: "Save a note", role_id: "writer", action_tools: [selected] }, authority);
+    const request = await until(async () => {
+      const pending = queue.list("project", "pending").find(item => item.run?.run_id === run.ref.run_id);
+      const current = await adapter.read(run.ref);
+      if (!pending && ["completed", "failed", "cancelled"].includes(current.phase)) throw new Error(JSON.stringify(current));
+      return pending;
+    });
+    if (change === "renewed") { await writeMcpActionGrant(home, { ...grant, enabled: false }, { host_reason: "fixture" }); await writeMcpActionGrant(home, grant, { host_reason: "fixture" }); }
+    if (change === "unrelated") await writeMcpActionGrant(home, { ...grant, capability_id: "fixture.other.write", enabled: false }, { host_reason: "fixture" });
+    const decision = { review_id: request.review_id, version: request.reference.version, actor_id: "person", decision: "approve" as const };
+    if (change === "renewed") {
+      assert.equal((await queue.decisions(request.review_id)).approve.available, false);
+      await assert.rejects(queue.respond(decision), { code: "agent.review_not_permitted" });
+      await queue.respond({ ...decision, decision: "reject" });
+    } else { await queue.respond(decision); writes++; }
+    await until(async () => { const current = await adapter.read(run.ref); return ["completed", "failed", "cancelled"].includes(current.phase) ? current : undefined; });
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM notes").get()!.n, writes);
+  }
+});
 
 test("real SDK actions use original Host grants, write original SQLite, reject revocation after review and withdraw next run", { timeout: 40_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-agent-actions-"));
@@ -75,6 +137,7 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
     const character: AgentFrozenCharacter = { version: { kind: "project", member_id: "c", member_version: 1, original: { kind: "personal", character_id: "c", version: 1 } },
       character_id: "c", title: "Scoped writer", instructions: "Use the chosen tools.", host_tools: null, action_tools: [...selected, queryRef],
       project_id: "project", owner_actor_id: "user", saved_at: "2026-09-26T00:00:00Z" };
+    let removeOnInvoke = false;
     const authority: AgentStartAuthority = { authorizedDirectories: [home], manifest: { roles: [{ role_id: "writer", version: 1, name: "Writer", execution: "workspace-write", prompts: ["base", "writer"], host_tools: [] }],
       characters: { selection: "optional-role", scope: "owner", role_ids: ["writer"] },
       prompts: [{ prompt_id: "base", version: 1 }, { prompt_id: "writer", version: 1 }] },
@@ -85,10 +148,10 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
       actions: async (_runtime, validate) => {
         const current = (signal?: AbortSignal) => authorizeMcpActions(local, { ...caller, signal }, home, project, validate);
         return { discover: async () => { const auth = await current(); return auth.service.discover(auth.context); },
-          invoke: async (ref, input, signal) => { const auth = await current(signal); return auth.service.invoke(auth.context, ref, input); } };
+          invoke: async (ref, input, signal) => { if (removeOnInvoke) { removeOnInvoke = false; characterActive = false; } const auth = await current(signal); return auth.service.invoke(auth.context, ref, input); } };
       } };
     for (const outcome of ["allowed", "revoked", "removed"]) {
-      await writeMcpActionGrant(home, grant, { host_reason: "fixture" }); characterActive = true;
+      await writeMcpActionGrant(home, grant, { host_reason: "fixture" }); characterActive = true; removeOnInvoke = false;
       callNext = true;
       const handle = await host.start("prologue", { ...owner, session, directory, task: "Save a note", role_id: "writer", action_tools: selected, character: { kind: "project", member_id: "c" } }, authority);
       const review = await until(async () => { const pending = queue.list("project", "pending")[0]; const run = await adapter.read(handle.ref);
@@ -97,9 +160,17 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
       assert.ok(JSON.stringify(review.document).includes("unknown.notes.write"));
       assert.equal(db.prepare("SELECT COUNT(*) n FROM notes").get()!.n, outcome === "allowed" ? 0 : 1);
       if (outcome === "revoked") await writeMcpActionGrant(home, { ...grant, enabled: false }, { host_reason: "fixture" });
-      if (outcome === "removed") characterActive = false;
       const requestsBeforeApproval = requests.length;
-      await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" });
+      if (outcome === "removed") {
+        // While the role's version is gone, its pending review cannot be approved; put back, it can, and it is removed again
+        // as the approved action runs.
+        characterActive = false;
+        assert.equal((await queue.decisions(review.review_id)).approve.available, false);
+        await assert.rejects(queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "user" }), { code: "agent.review_not_permitted" });
+        assert.equal(db.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1);
+        characterActive = true; removeOnInvoke = true;
+      }
+      await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "user" });
       const run = await until(async () => { const value = await adapter.read(handle.ref); return ["completed", "failed", "cancelled"].includes(value.phase) ? value : undefined; });
       assert.deepEqual(run.frozen.action_tools, selected);
       if (outcome === "removed") {

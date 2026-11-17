@@ -49,13 +49,16 @@ const landing = (answer: Answer) => {
 test("a project's settings page opened directly opens its workbench on that page; fetches still get the page", async t => {
   const { projects: [project], open } = await server(t, 1);
   const prefix = `/projects/${project!.project_id}`;
-  assert.deepEqual(landing(await open(`${prefix}/settings/rules`)), { pathname: `${prefix}/`, settingsPath: `${prefix}/settings/rules`, desktop: null });
+  assert.deepEqual(landing(await open(`${prefix}/settings/guidance`)), { pathname: `${prefix}/`, settingsPath: `${prefix}/settings/guidance`, desktop: null });
   assert.deepEqual(landing(await open(`${prefix}/settings/planning/new?desktop=1`)), { pathname: `${prefix}/`, settingsPath: `${prefix}/settings/planning/new`, desktop: "1" });
-  const fetched = await open(`${prefix}/settings/rules`, {});
+  const fetched = await open(`${prefix}/settings/guidance`, {});
   assert.equal(fetched.status, 200);
-  assert.match(fetched.text, /data-project-rules-form/);
-  const embedded = await open(`${prefix}/settings/rules?embed=1`);
+  assert.match(fetched.text, /data-guidance-form/);
+  const embedded = await open(`${prefix}/settings/guidance?embed=1`);
   assert.equal(embedded.status, 200, "the workbench's own fragment request is never sent away");
+  const retiredRules = await open(`${prefix}/settings/rules`, {});
+  assert.equal(retiredRules.status, 302);
+  assert.equal(retiredRules.location, `/settings/authorizations?view=project-rules&project=${encodeURIComponent(project!.project_id)}`);
 });
 
 test("a global settings page opened directly opens the named project's workbench, or else one there is", async t => {

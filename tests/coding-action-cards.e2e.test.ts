@@ -69,7 +69,7 @@ test("AC-25: a Coding round's suggestion is a card the person runs once, with th
 
   // The person's protected settings entry owns the current grant format, permissions and generation.
   await b.web.post("/api/settings/mcp/actions", { client_id: "agent:prologue", project_id: projectId,
-    capability_id: "goals.create", version: 1, provider_id: "io.molis.work.goals", enabled: true });
+    capability_id: "goals.create", version: 1, provider_id: "io.molis.work.goals", enabled: true, expected: { expected_absent: true } });
   const workspace = join(homeDirectory, "coding-card-fixture");
   await mkdir(workspace, { recursive: true });
   const fill = (selector: string, value: string, page: Pick<typeof child, "evaluate"> = child) => page.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);

@@ -15,6 +15,7 @@ import {
   placementRelationProblems, searchSourceDeclarationProblems,
 } from "./source-declarations.js";
 import { workExecutorDeclarationProblems } from "./work-executor-declarations.js";
+import { actionDelegationDeclarationProblems } from "./action-delegation-declarations.js";
 
 // The shape checks for a Manifest's `actions` and `action_scenes`, made when a Manifest is parsed, when a plugin registers its
 // actions with the Kernel, and when an author calls `defineAction`. Moved here from the contracts package (W3-03): they run code,
@@ -50,6 +51,7 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
     ...homeAggregateProblems(key, raw.operation, action),
     ...projectReachProblems(key, action),
     ...backgroundJobProblems(key, raw.operation, action),
+    ...trustedDecisionProblems(key, raw.operation, action),
     ...undoProblems(key, raw.operation, action),
     ...searchSourceDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...composerSourceDeclarationProblems(key, action, raw.operation, canonicalSchema),
@@ -61,7 +63,31 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
     ...workflowContentProblems(key, raw.version, raw.operation, action),
     ...operationKindProblems(key, raw.operation, action),
     ...contextDeclarationProblems(key, raw.operation, action),
+    ...actionDelegationDeclarationProblems(key, action),
   ];
+}
+
+function trustedDecisionProblems(key: string, operation: unknown, action: ActionBody): string[] {
+  const reader = action.trusted_decision_request, row = action.trusted_decision_row;
+  if (row !== undefined && (action.requires_trusted_decision !== true || !validTrustedReviewRow(row))) {
+    return [`能力 ${key} 的隔离审批必须声明原对象的表、身份列和版本列`];
+  }
+  if (reader !== undefined && (action.requires_trusted_decision !== true || !isRecord(reader)
+    || !isId(reader.capability_id) || !isVersion(reader.version) || Object.keys(reader).length !== 2)) {
+    return [`能力 ${key} 的可信决定查询需引用同一提供方的具体能力与版本`];
+  }
+  if (action.requires_trusted_decision !== true) return [];
+  if (reader === undefined) return [`能力 ${key} 需要声明待审请求的原提供方查询`];
+  if (operation === "command" && action.scope === "project" && action.effect !== "read"
+    && action.kind === "operation" && action.audiences.includes("user")
+    && (action.delegation === undefined || action.delegation === "confirmation-only")) return [];
+  return [`能力 ${key} 只可为本人能使用的项目写入命令要求可信决定，不能同时声明自动委托`];
+}
+
+export function validTrustedReviewRow(value: unknown): boolean {
+  const name = (candidate: unknown) => typeof candidate === "string" && /^[a-zA-Z_][a-zA-Z_0-9]{0,127}$/.test(candidate);
+  return isRecord(value) && Object.keys(value).length === 3 && name(value.table)
+    && name(value.id_column) && name(value.version_column) && value.id_column !== value.version_column;
 }
 
 function threadProtocolProblems(key: string, operation: unknown, action: ActionBody): string[] {
@@ -93,6 +119,7 @@ function isCompleteBody(a: unknown): a is ActionBody {
   if (a.effect !== undefined && !ACTION_EFFECTS.includes(String(a.effect))) return false;
   if (a.external !== undefined && a.external !== true) return false;
   if (a.draft !== undefined && a.draft !== true) return false;
+  if (a.requires_trusted_decision !== undefined && a.requires_trusted_decision !== true) return false;
   if (a.plugin !== undefined && a.plugin !== false) return false;
   return isRecord(a.input_schema) && (a.output_schema === undefined || isRecord(a.output_schema));
 }

@@ -88,7 +88,7 @@ test("the Host's own MCP server: a Todo failure carries its code line", async t 
   const grant = await fetch(`${origin}/api/settings/mcp/actions`, { method: "POST", headers: { origin, "content-type": "application/json",
     "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() },
   body: JSON.stringify({ client_id: "runtime:external", project_id: null, capability_id: todoActions.get.capability_id, version: 1,
-    provider_id: todoManifest.plugin_id, enabled: true }) });
+    provider_id: todoManifest.plugin_id, enabled: true, expected: { expected_absent: true } }) });
   assert.equal(grant.status, 200, await grant.clone().text());
   changeMcpClientCredential(home, "runtime:external", "connect");
   external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id, databasePath: project.database_path, webBaseUrl: origin },

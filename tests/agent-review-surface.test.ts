@@ -345,3 +345,27 @@ test("BL-360: current decisions hide approval after revocation and both choices 
   assert.equal(isDecidable(neither), false);
   assert.doesNotMatch(renderAgentReviewSurface({ rows: [neither], primitives: p }), /data-agent-review-approve|data-agent-review-reject/);
 });
+
+// A4-2 (docs/design/coding-daily-basics scheme A): the file card shows the check before review under its title; new errors make
+// handing them back the first choice, with the errors as the reason; formatting can be compared with the text as written; a check
+// that did not run says so with its cause, never as no errors.
+test("A4-2: the file card's check line, the fix-first refusal and the text as written", () => {
+  const withChecks = (checks: object) => row({ request: { ...row().request, document: { ...row().request.document, after_text: "new\n", checks } as never } });
+  const errors = renderAgentReviewSurface({ rows: [withChecks({
+    diagnostics: { state: "errors", source: "tsc", errors: [{ code: "TS2322", line: 18, text: "string 不能赋给 number" }], more: 1 },
+    formatting: { state: "formatted", source: "tsc", lines: 2, as_written: "new  \n" },
+  })], primitives: p });
+  assert.match(errors, /data-agent-review-checks/);
+  assert.match(errors, /2 个新错误/, "the count includes the ones not listed");
+  assert.match(errors, /TS2322<\/b><span>第 18 行 · string 不能赋给 number/);
+  assert.match(errors, /已格式化 · 2 处/);
+  assert.match(errors, /class="mw-btn mw-btn--primary" type="button" data-agent-review-reject="r1" data-agent-review-note="写入前的检查发现 2 个新错误，先修好再写这个文件：\napps\/local-host\/src\/connect.ts:18 TS2322 string 不能赋给 number" data-agent-review-fix>先让它修好/);
+  assert.match(errors, /class="mw-btn" type="button" data-agent-review-approve="r1"/, "writing as it is stays possible, no longer primary");
+  assert.match(errors, /data-review-detail="as-written"><summary>看格式化前/);
+  const unchecked = renderAgentReviewSurface({ rows: [withChecks({ diagnostics: { state: "unchecked", cause: "missing", reason: "gopls is not on this machine" }, formatting: { state: "unavailable", cause: "missing", reason: "x" } })], primitives: p });
+  assert.match(unchecked, /这次没查错误：检查工具不在这台电脑上/);
+  assert.doesNotMatch(unchecked, /没有新错误|data-agent-review-fix|as-written/);
+  assert.match(unchecked, /mw-btn mw-btn--primary" type="button" data-agent-review-approve/, "nothing to fix: approving stays first");
+  const none = renderAgentReviewSurface({ rows: [row()], primitives: p });
+  assert.doesNotMatch(none, /data-agent-review-checks/, "a card the check did not see has no line");
+});

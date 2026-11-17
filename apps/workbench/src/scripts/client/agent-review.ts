@@ -23,7 +23,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
   const syncActions=row=>{
     const id=row.dataset.agentReviewItem,hasFeedback=Boolean(row.querySelector('[data-agent-review-feedback]')?.value.trim());
     row.querySelectorAll('[data-agent-review-approve],[data-agent-review-reject],[data-agent-review-inspect]').forEach(button=>{button.disabled=busy.has(id) || hasFeedback && button.hasAttribute('data-agent-review-approve');});
-    const reject=row.querySelector('[data-agent-review-reject]');if(reject)reject.textContent=hasFeedback?globalThis.t.text("workbench.agent-review.reject-feedback"):globalThis.t.text("workbench.agent-review.reject");
+    const reject=row.querySelector('[data-agent-review-reject]');if(reject)reject.textContent=hasFeedback?globalThis.t.text("workbench.agent-review.reject-feedback"):globalThis.t.text(reject.hasAttribute('data-agent-review-fix')?"workbench.agent-review.checks-fix-first":"workbench.agent-review.reject");
     const input=row.querySelector('[data-agent-review-feedback]');if(input)input.disabled=busy.has(id);
   };
   const current=(state,control)=>state.lifetime.alive && control.lifetime.alive && control.lifetime.visible && !control.signal?.aborted && state.control.lifetime===control.lifetime && state.control.signal===control.signal;
@@ -110,7 +110,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
         if(!button || !container.contains(button)) return;
         const review_id=button.dataset.agentReviewApprove || button.dataset.agentReviewReject;
         if(busy.has(review_id)) return;
-        const row=button.closest('[data-agent-review-item]'),version=row.dataset.agentReviewVersion,note=row.querySelector('[data-agent-review-feedback]')?.value.trim() || '';
+        const row=button.closest('[data-agent-review-item]'),version=row.dataset.agentReviewVersion,note=row.querySelector('[data-agent-review-feedback]')?.value.trim() || (button.dataset.agentReviewReject ? button.dataset.agentReviewNote : '') || '';
         if(button.dataset.agentReviewApprove && note)return;
         busy.add(review_id); syncActions(row);
         const control=state.control,scopeKey=state.key,scope={workspaceId:state.workspaceId,sessionId:state.sessionId};let receipt=null,decisionError=null,attempted=false;

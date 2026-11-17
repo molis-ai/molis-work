@@ -9,7 +9,7 @@
  */
 
 import path from "node:path";
-import type { AgentWriteChecks, AgentWriteCheckError } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentWriteCheckCause, AgentWriteChecks, AgentWriteCheckError } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { fileUri, type LspClient } from "./lsp-client.js";
 
 /** What the round's code intelligence lends the check. */
@@ -41,8 +41,8 @@ export async function checkProposedWrite(deps: WriteCheckDeps, input: { readonly
   const extension = path.extname(input.absolute) || path.basename(input.absolute);
   let server: Awaited<ReturnType<WriteCheckDeps["clientFor"]>>;
   try { server = await deps.clientFor(input.absolute); } catch (error) {
-    const reason = reasonOf(error, `no language server answers for ${extension}`);
-    return { text: input.after, checks: { diagnostics: { state: "unchecked", reason }, formatting: { state: "unavailable", reason } } };
+    const reason = reasonOf(error, `no language server answers for ${extension}`), cause = causeOf(reason);
+    return { text: input.after, checks: { diagnostics: { state: "unchecked", cause, reason }, formatting: { state: "unavailable", cause, reason } } };
   }
   const { client, languageId, name, capabilities } = server;
   const uri = fileUri(input.absolute);
@@ -61,7 +61,7 @@ export async function checkProposedWrite(deps: WriteCheckDeps, input: { readonly
     // A server silent about the file as it is cannot say what the change brings: no second wait for an answer that cannot count.
     const after = baseline === undefined ? "the language server gave no diagnostics for the file as it is"
       : await errorsFor(client, uri, capabilities).catch((error: unknown) => reasonOf(error, "the language server gave no diagnostics in time"));
-    const diagnostics: AgentWriteChecks["diagnostics"] = typeof after === "string" ? { state: "unchecked", reason: after } : newErrors(baseline!, after, name);
+    const diagnostics: AgentWriteChecks["diagnostics"] = typeof after === "string" ? { state: "unchecked", cause: causeOf(after), reason: after } : newErrors(baseline!, after, name);
     return { text: formatted.text, checks: { diagnostics, formatting: formatted.fact } };
   } finally {
     try { client.closeDocument({ path: input.absolute }); } catch { /* the server is gone */ }
@@ -75,7 +75,7 @@ async function format(client: LspClient, uri: string, languageId: string, input:
   const range = whole ? undefined : changedLines(input.before!, input.after);
   if (range === null) return { text: input.after, fact: { state: "unchanged", source: name } };
   const can = whole ? capabilities.documentFormattingProvider : capabilities.documentRangeFormattingProvider;
-  if (!can) return { text: input.after, fact: { state: "unavailable", reason: `${name} does not format ${languageId}` } };
+  if (!can) return { text: input.after, fact: { state: "unavailable", cause: "unsupported", reason: `${name} does not format ${languageId}` } };
   try {
     const edits = whole
       ? await client.request<readonly TextEditLike[] | null>("textDocument/formatting", { textDocument: { uri }, options }, 8_000)
@@ -157,4 +157,7 @@ export function applyEdits(text: string, edits: readonly TextEditLike[]): string
   return result;
 }
 
+/** The cause a reason names, by the words this module and the code intelligence it uses write. */
+const causeOf = (reason: string): AgentWriteCheckCause => /no language server is configured|no language server answers/u.test(reason) ? "no-server"
+  : /not on this machine|could not start|ENOENT|Unknown binary/u.test(reason) ? "missing" : /no diagnostics/u.test(reason) ? "silent" : "failed";
 const reasonOf = (error: unknown, fallback: string) => error instanceof Error && error.message ? error.message.slice(0, 300) : fallback;

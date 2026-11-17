@@ -131,6 +131,7 @@ export type {
   AgentReviewRecoveryView,
   AgentReviewRecoveryInput,
   AgentReviewQueueApi,
+  AgentWriteCheckCause,
   AgentWriteCheckError,
   AgentWriteChecks,
 } from "./agent-host-reviews.js";

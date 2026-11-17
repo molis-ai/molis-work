@@ -8704,6 +8704,37 @@
     "workbench.native-tray.boot-open": "Open",
     "workbench.runtime-panel.stopped": "Not running",
     "workbench.agent-review.entry-refused": "Reviews accept only your own actions at the review entry",
+    "workbench.agent-review.checks-label": "Checks before writing",
+    "workbench.agent-review.checks-clean": "No new errors",
+    "workbench.agent-review.checks-errors": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{n} new error",
+        "other": "{n} new errors"
+      }
+    },
+    "workbench.agent-review.checks-formatted": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "Formatted · {n} spot",
+        "other": "Formatted · {n} spots"
+      }
+    },
+    "workbench.agent-review.checks-format-failed": "Formatting failed; shown as written",
+    "workbench.agent-review.checks-line": "Line {line}",
+    "workbench.agent-review.checks-unchecked-no-server": "Errors not checked this time: no checker for this file type",
+    "workbench.agent-review.checks-unchecked-missing": "Errors not checked this time: the checker is not on this computer",
+    "workbench.agent-review.checks-unchecked-failed": "Errors not checked this time: the checker failed",
+    "workbench.agent-review.checks-unchecked-silent": "Errors not checked this time: the checker did not answer in time",
+    "workbench.agent-review.checks-as-written": "Show as written",
+    "workbench.agent-review.checks-fix-first": "Let it fix first",
+    "workbench.agent-review.checks-fix-note": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "The check before writing found {n} new error. Fix it before writing this file:\n{errors}",
+        "other": "The check before writing found {n} new errors. Fix them before writing this file:\n{errors}"
+      }
+    },
     "workbench.context-onboarding.entry-refused": "The setup journey accepts only your own actions on the first-run page",
     "workbench.observation.entry-refused": "UI stages are recorded only from reports by the workbench itself",
     "workbench.assistant-http.entry-refused": "The assistant panel accepts only your own actions in the panel",

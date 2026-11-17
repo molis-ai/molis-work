@@ -37,17 +37,23 @@ export interface AgentTextReviewDocument {
 /** One error the proposed text brings: the server's code, the 1-based line in the proposed text, the first line of its message. */
 export interface AgentWriteCheckError { readonly code: string; readonly line: number; readonly text: string }
 
+/**
+ * Why a check did not run: no server for this file type, its program is not on this machine, it failed or stopped, or it said
+ * nothing in time. `reason` is the tool's own words, for the curious; the card words the cause in the reader's language.
+ */
+export type AgentWriteCheckCause = "no-server" | "missing" | "failed" | "silent";
+
 /** The facts of a check before review. `unchecked` and `unavailable` carry why; neither is ever read as "no errors". */
 export interface AgentWriteChecks {
   readonly diagnostics:
     | { readonly state: "clean"; readonly source: string }
     | { readonly state: "errors"; readonly source: string; readonly errors: readonly AgentWriteCheckError[]; readonly more: number }
-    | { readonly state: "unchecked"; readonly reason: string };
+    | { readonly state: "unchecked"; readonly cause: AgentWriteCheckCause; readonly reason: string };
   readonly formatting:
     | { readonly state: "formatted"; readonly source: string; readonly lines: number; readonly as_written: string }
     | { readonly state: "unchanged"; readonly source: string }
     | { readonly state: "failed"; readonly source: string; readonly reason: string }
-    | { readonly state: "unavailable"; readonly reason: string };
+    | { readonly state: "unavailable"; readonly cause: AgentWriteCheckCause | "unsupported"; readonly reason: string };
 }
 
 export interface AgentCommandReviewDocument {

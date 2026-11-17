@@ -2423,6 +2423,8 @@ export type AgentWorkspace = {
     directory?: never;
 };
 
+export type AgentWriteCheckCause = "no-server" | "missing" | "failed" | "silent";
+
 export interface AgentWriteCheckError {
     readonly code: string;
     readonly line: number;
@@ -2474,6 +2476,7 @@ export interface AgentWriteChecks {
         readonly more: number;
     } | {
         readonly state: "unchecked";
+        readonly cause: AgentWriteCheckCause;
         readonly reason: string;
     };
     readonly formatting: {
@@ -2490,6 +2493,7 @@ export interface AgentWriteChecks {
         readonly reason: string;
     } | {
         readonly state: "unavailable";
+        readonly cause: AgentWriteCheckCause | "unsupported";
         readonly reason: string;
     };
 }

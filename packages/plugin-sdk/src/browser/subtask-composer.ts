@@ -12,9 +12,11 @@ interface Mounted {
   readonly ready: () => void;
 }
 
+interface PendingInput { requestId: string; settled: boolean }
+
 /** Same root + same owner adapter keeps the unified composer's pending request and selections across navigation. */
 export function subtaskComposer(root: HTMLElement, source: SubtaskConversationSource, changed: (target: string) => void) {
-  const pending = new Map<string, { requestId: string; settled: boolean }>();
+  const pending = new Map<string, PendingInput>();
   const drafts = new WeakMap<ComposerDraftAdapter, ComposerDraftAdapter>();
   let current: Mounted | undefined;
   function draft(original: ComposerDraftAdapter) {
@@ -30,9 +32,9 @@ export function subtaskComposer(root: HTMLElement, source: SubtaskConversationSo
     return adapter;
   }
   const local = (view: MwSubtaskConversationView) => view.pending?.kind === "input" && pending.get(view.target)?.requestId === view.pending.requestId;
-  function settled(target: string, requestId: string) {
-    const request = pending.get(target);
-    if (request?.requestId === requestId) request.settled = true;
+  function settled(target: string, request: PendingInput) {
+    if (pending.get(target) !== request || request.settled) return;
+    request.settled = true;
     changed(target);
   }
   // An unexpected adapter rejection is not evidence of rejection by its owner. Reconcile its original persisted request.
@@ -45,17 +47,23 @@ export function subtaskComposer(root: HTMLElement, source: SubtaskConversationSo
       return outcome.state === "applied" ? "sent" : "not-sent";
     };
   }
-  async function submit(mounted: Mounted, input: ComposerSubmission, signal: AbortSignal): Promise<ComposerOutcome> {
+  async function submit(mounted: Mounted, input: ComposerSubmission, signal: AbortSignal, acknowledge: () => void): Promise<ComposerOutcome> {
     const { view, options } = mounted; // Never consult the later selected task or execution after this point.
-    pending.set(view.target, { requestId: input.request_id, settled: false });
+    const request = { requestId: input.request_id, settled: false };
+    pending.set(view.target, request);
+    let acknowledged = false;
     let outcome: ComposerOutcome;
-    try { outcome = await options.submit(input, signal); }
+    try { outcome = await options.submit(input, signal, () => {
+      if (acknowledged) return;
+      acknowledged = true; settled(view.target, request); acknowledge();
+    }); }
     catch { outcome = { state: "unknown", check: restoreCheck(view.target, input.request_id) }; }
-    if (outcome.state !== "unknown") { settled(view.target, input.request_id); return outcome; }
+    if (acknowledged) return { state: "sent" };
+    if (outcome.state !== "unknown") { settled(view.target, request); return outcome; }
     const check = outcome.check;
     return { state: "unknown", check: async () => {
       const result = await check();
-      if (result !== "unknown") settled(view.target, input.request_id);
+      if (result !== "unknown") settled(view.target, request);
       return result;
     } };
   }
@@ -79,7 +87,7 @@ export function subtaskComposer(root: HTMLElement, source: SubtaskConversationSo
         if (key === "stop" || key === "pause") return undefined;
         if (key === "labels") return labels;
         if (key === "draft") return { adapter: draft(mounted.options.draft.adapter) };
-        if (key === "submit") return (input: ComposerSubmission, signal: AbortSignal) => submit(mounted, input, signal);
+        if (key === "submit") return (input: ComposerSubmission, signal: AbortSignal, acknowledge: () => void) => submit(mounted, input, signal, acknowledge);
         if (key === "receiver") return () => {
           const receiver = mounted.options.receiver?.();
           return { label: receiver?.label ?? mounted.view.title, ...(receiver?.icon ? { icon: receiver.icon } : {}) };

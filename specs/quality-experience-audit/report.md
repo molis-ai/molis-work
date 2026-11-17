@@ -1,10 +1,10 @@
 # Molis Work 审查报告与优化策略
 
-状态：进行中。已有六方向代表入口检查和前四批成果保留；搜索取消、Home 完整性、任务操作与切换上下文、Run 时间四条链已补深查及定向验收，审查选项、导入停止与正文可用性已定向验收，Git 编辑恢复与交接已完成本地定向验收；共享输入材料正在实施与验收；2026-11-16 按用户原始范围继续深入检查与分批改造，不将原“留后续”当作已获批准的排除。当前同步 main `4a08c41ca`；旧头 `77e2cc0d5` 的 CI 仅覆盖旧批次。负责人 Codex，草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101)。[需求与验收](spec.md) · [逐包覆盖](coverage.md)。
+状态：进行中。已有六方向代表入口检查和前四批成果保留；搜索取消、Home 完整性、任务操作与切换上下文、Run 时间四条链已补深查及定向验收，审查选项、导入停止与正文可用性已定向验收，Git 编辑恢复与交接已完成本地定向验收；共享输入材料正在实施与验收；2026-11-16 按用户原始范围继续深入检查与分批改造，不将原“留后续”当作已获批准的排除。当前同步 main `6359987103`；旧头 `77e2cc0d5` 的 CI 仅覆盖旧批次。负责人 Codex，草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101)。[需求与验收](spec.md) · [逐包覆盖](coverage.md)。
 
 ## 当前判断
 
-2026-11-16 已整合基线：`4a08c41ca`（Sessions #2097）已整合到工作树，74包构建通过，合并提交 fc4e39e38 已保留，后续 Git 批保存于 84987a6c3 与 8ac8b806e。新增 `horizontal/sessions` 及其 UI/搜索/助理链纳入接续范围，不能继续沿用 73 包作为最新主干总数。BL-177 在该主干已改“部分实现”，保留 35/45/60 批和本人验收，不按新实现标题关闭整项。前批改造保存于 `a31a745e6`。最新 fetch 已到 `9ff073d13c`（Sessions 合后复查 #2106）；尚待当前 PF-02 保存后整合，不能把旧构建验收当新增适配器证据。
+2026-11-16 已整合基线：`4a08c41ca`（Sessions #2097）已整合到工作树，74包构建通过，合并提交 fc4e39e38 已保留，后续 Git 批保存于 84987a6c3 与 8ac8b806e。新增 `horizontal/sessions` 及其 UI/搜索/助理链纳入接续范围，不能继续沿用 73 包作为最新主干总数。BL-177 在该主干已改“部分实现”，保留 35/45/60 批和本人验收，不按新实现标题关闭整项。前批改造保存于 `a31a745e6`。现已保存共享输入材料检查点 `ba93f5c0b5`，并合入 `6359987103`（Sessions 合后复查 #2106 与公共子任务部件 #2108），合并提交 `31b0cba134`。两边新增的权限/会话回归均保留，公共 composer 的 ready/local placement 与本批来源/ack合同同时保留；API快照已重新生成，完整构建通过，组合验收19文件183项全部通过（13.9分钟，`/tmp/quality-audit-main-635-acceptance.log`）。新增重试用例第一次排队被主动撤下，未运行；后续已在这次组合验收实际执行通过。随后健康门禁发现 pageComposer 153行，已把独立的提交结果转换移到同文件函数，不改阈值；正在复验。QF-30 真实断连基线复现接受/拒绝晚写，最小信号修复已构建，等待独立验收；仍不能据此将本轮全部六方向结项。
 
 第九批视觉补验已通过，12 张中英文/三宽/两主题截图生成，人工复核英文390深色与中文1440浅色，Git 固定差异已加载。第十/十一批14文件126项通过，第十二批11文件65项通过，具体边界见下文。英文导入中的旧中文警告另列 QF-15，未宣称语言全通过。
 
@@ -261,6 +261,8 @@ PF-03/05/07/13 是采用或职责收口候选，即使目前只有一个实际�
 
 BL-1039/1040 可在保留第27批本人验收和墓碑映射后清理工程待办。其余条目没有足够证据整条删除；可立即做的是删除失效子描述、把已完成子项移回证据、合并同一实施路径的剩余工作。接续任务已实施 QF-04 和 QF-08，定向证据见后；QF-03/06/10 仍在本任务待实施范围。现有 BL 仍是跨任务归属，不能把这份报告当成第二套持续更新的任务台账。
 
+PF-03 当前复核补正（6359987103）：Coding业务映射已通过 `coding.sessions.binding.read` 读取，Host没有直接读Coding表。剩余第三插件采用缺口在 `memory-sources.ts:57`、`memory-runtime.ts:17`、`memory-learning-owner.ts:93`、`memory-learning.ts:107` 与公开 `services/memory-session.ts:6` 的封闭绑定类型；不可只删白名单，把安装身份和业务授权交给输入。平台负责真实安装/generation、canonical Session、原件作者/版本、权限与SDK生命周期；Coding的归档/映射、Assistant的work/delegation/hold仍归各自业务owner。正常召回的common场景已经可用，与自动形成/Session管理的采用缺口分开。来源形成前后复核、SDK提交观察和原队列补账有实际边界依据，保留；第三插件采用需要补公开owner声明并迁移真实调用方，仍在原任务范围内。
+
 ## 分批优化策略
 
 1. **本轮前三批**：导入队列与准确反馈 → Feed 取消监听释放 → Feed 三组动作绑定迁移。范围小、真实路径明确，不涉及库/公开 API 版本、权限或新依赖。验收以 QEA-05～09 和现有业务回归为准。CI发现的QF-11另纳入第四批，以QEA-10补齐真实一像素滚动边界。
@@ -449,10 +451,22 @@ PF-02 新增正常入口证据：`/tmp/quality-audit-composer-required.log` 15�
 
 位置：`plugins/native/coding/src/browser/input-receipts.ts:109–133,149–151`；真实下游 `routes-sessions.ts:355` 先读取当前材料再交 `agent.inputs.send`，后者明确同 key 异文拒绝。当前材料变化可能使派生文本变化，撤回会在读取处拒绝；原客户端将这些明确拒绝直接清空 lost item，第三次点击便换新 key，已受理的原输入可能再排一条。读取失败只证明本次尝试未完成，不能推翻前次未知结果。
 
-旧构建调用真实客户端工厂的 QEA-45 新用例有效失败：重试拒绝后 lost bubble 消失（期望1、实际undefined），原8项仍通过，日志 `/tmp/quality-audit-lost-retry-baseline.log`。最小修复保留相同意图原 key 与先前未知事实；首次拒绝照常恢复，成功或原 owner 可见后才结算，另给准确的重试提示。实际 current 修改/排除→连续重试→原轮结束→一条队列及固定原件正文正在验收。不新增材料正文缓存或键账；SDK虽有 knownInputKeys 查询，但它不能独自证明材料不同仍是同一请求，本项不为立即回执扩平台。
+旧构建调用真实客户端工厂的 QEA-45 新用例有效失败：重试拒绝后 lost bubble 消失（期望1、实际undefined），原8项仍通过，日志 `/tmp/quality-audit-lost-retry-baseline.log`。最小修复保留相同意图原 key 与先前未知事实；首次拒绝照常恢复，成功或原 owner 可见后才结算，另给准确的重试提示。合入6359987103并构建后，实际 current 修改/排除→连续重试→原轮结束→一条队列及固定原件正文通过；同一文件5项237秒全部通过，见 `/tmp/quality-audit-main-635-acceptance.log`，其余组合验收继续进行。不新增材料正文缓存或键账；SDK虽有 knownInputKeys 查询，但它不能独自证明材料不同仍是同一请求，本项不为立即回执扩平台。
 
 ### QF-29 / P2 候选：环境检查把读取失败投影成不存在或已就绪
 
 代码证据：`plugins/native/coding/src/environment-prep.ts:71–93,118–154,171–197` 的三段宽 catch 分别回退到非Git、无目录内容、无工作树；最终由这些缺省值计算 ready。`routes-sessions.ts:93–98` 又缓存15秒的检查 Promise并把外层异常转null。消费方 `recovery-parts.ts:210–215,247–250` 把缺省解释为“不是仓库”“无依赖”，用户无法区分真实空目录和暂时读不到。边界尾检仍应保留，这里不能据故障推导业务事实。
 
 本项目前为静态确认的失败语义候选，尚未经正常入口注入读取失败，不宣称已复现用户事故。下一步对真实存在依赖/冲突的隔离目录制造公开读取故障，核对整体state可用性、缓存恢复及准确提示；预计让检查负责读取完整性、UI只投影未知/部分可读，避免阻断正常会话列表，不新增检查状态表。补充验收后决定最小改动；不得以本地控件修复关闭本项。
+
+### QF-30 / P1：助理候选卡的决定未接 HTTP 断连控制
+
+正常入口 `apps/workbench/src/scripts/client/assistant-island.ts:228` → `apps/local-host/src/assistant/assistant-http.ts:503` → `settleMemoryCandidate:599` → Memory公开动作。该分支提前返回，未走原有panelWrite取消控制；bindLocalWebActions没有signal，通用JSON body读取结束后的断连不传到写入。权限撤销检查仍在，但不能替代传输取消。旧构建 QEA-49 接受/拒绝两项均有效失败：实际服务端断连后接受仍产生正式记忆、accepted 变动与候选版本2；拒绝仍写 discarded 与版本2。日志 `/tmp/quality-audit-memory-candidate-baseline.log`（测试初名 assistant-memory-candidate-cancellation，现按同一安全测试入口命名 security-invariants-assistant-memory-candidates）。
+
+最小修复已验收：在这一入口复用现有 responseAbortSignal，把同一signal交公共绑定与原Memory提交检查；不另建取消状态或写后回滚。接受/拒绝在提交前断连时candidate与正式版本/ledger均不新增，随后新请求正常恢复，并等待正常响应 close 后确认不会误取消。QEA-49 两项通过，连同原助理输入/记忆、Memory动作、local-web-actions与框架回归8文件96项全部通过（6.5分钟，`/tmp/quality-audit-memory-candidate-acceptance.log`）。完整构建 `/tmp/quality-audit-memory-candidate-build.log` 与健康门禁 `/tmp/quality-audit-health-boundary-split.log` 均退出0；门禁未改阈值或新增例外。当前头Full CI与页面资源验收仍待执行；本片通过不关闭QF-31或整体审查。
+
+### QF-31 / P2：助理把候选读取故障显示成没有待处理事项
+
+`apps/local-host/src/assistant/assistant-memory-bridge.ts:65` 将异常转成[]，`assistant-service.ts:181` 据此省略候选分区，页面无从区分空集合与暂时读不到。应补该分区读取完整性与原位重试，正常空结果继续为空，不将整个work伪造成失败，不再给每个入口复制候选状态。动态故障/恢复与正式用户入口尚待验证。
+
+同链清理核对：`apps/local-host/src/memory/memory-host.ts:419,421` 两条相同GET pairs分支，后一条不可达；`assistant-memory-bridge.ts:73,79` 的旧accept/discard方法只有 `tests/assistant-memory.test.ts:328,332,339` 调用，正常卡片已迁Memory公开动作。后续迁移这些测试到真实公开入口后删旧转发，保留业务断言，不为减少测试数量删除保障。

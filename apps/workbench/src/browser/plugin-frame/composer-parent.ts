@@ -169,6 +169,17 @@ function words(labels: unknown): ComposerSnapshot["labels"] {
 /** The parts that decide what the composer is mounted with; a change mounts it anew rather than refreshing. */
 const shape = (snapshot: ComposerSnapshot) => JSON.stringify([snapshot.entry, snapshot.stop, snapshot.mentions, snapshot.attachments, snapshot.sources, snapshot.voice, snapshot.submitKeys, snapshot.draft]);
 
+/** Rebuild the child's submission result at the frame boundary; checking still belongs to the original mount's call. */
+function outcomeOf(value: BridgedOutcome, check: (key: number) => Promise<ComposerCalls["check"][1]>): ComposerOutcome {
+  return !value || typeof value !== "object" ? { state: "failed", message: "" }
+    : value.state === "unknown"
+    ? { state: "unknown", check: () => check(value.check).then(answer => answer === "sent" || answer === "not-sent" ? answer : "unknown") }
+    : value.state === "failed" ? { state: "failed", message: short(value.message, 4000), ...(Array.isArray(value.unreadable) ? { unreadable: value.unreadable.slice(0, 50)
+      .filter(one => one && Number.isInteger(one.index) && typeof one.reason === "string").map(one => ({ index: one.index, reason: short(one.reason, 400) })) } : {}) }
+    : value.state === "sent" ? { state: "sent", ...(value.receipt && typeof value.receipt === "object" ? { receipt: value.receipt as never } : {}) }
+    : { state: "failed", message: "" };
+}
+
 /**
  * The parent's side of the one input (composer-bridge.ts): the page's state becomes a receiver whose options the bar's composer
  * reads as any page's, each function a call to the page answered through the port. Only the receiver in front is bound to the bar.
@@ -197,13 +208,6 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     signal?.addEventListener("abort", () => { if (answers.delete(number)) { post({ type: "composer-abort", id: mine, call: number }); reject(signal.reason); } }, { once: true });
     post({ type: "composer-call", id: mine, call: number, op, ...(arg === undefined ? {} : { arg }) });
   }).finally(() => setTimeout(down, 0));
-  const outcome = (mine: number, value: BridgedOutcome): ComposerOutcome => !value || typeof value !== "object" ? { state: "failed", message: "" }
-    : value.state === "unknown"
-    ? { state: "unknown", check: () => call(mine, "check", value.check).then(answer => answer === "sent" || answer === "not-sent" ? answer : "unknown") }
-    : value.state === "failed" ? { state: "failed", message: short(value.message, 4000), ...(Array.isArray(value.unreadable) ? { unreadable: value.unreadable.slice(0, 50)
-      .filter(one => one && Number.isInteger(one.index) && typeof one.reason === "string").map(one => ({ index: one.index, reason: short(one.reason, 400) })) } : {}) }
-    : value.state === "sent" ? { state: "sent", ...(value.receipt && typeof value.receipt === "object" ? { receipt: value.receipt as never } : {}) }
-    : { state: "failed", message: "" };
   const act = (mine: number, kind: "control" | "command" | "receiver" | "notice", key: string, value?: string) => { if (mine === id) post({ type: "composer-act", id, act: kind, key, ...(value === undefined ? {} : { value }) }); };
   const options = (): ComposerOptions => {
     // A mount let go keeps drawing what it last showed (the bar may read it once more while it unmounts); its calls are refused.
@@ -230,7 +234,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       near: () => { const near = now().near; return near ? { ...near, plugin_id: pack.plugin_id } : null; },
       required: () => now().required,
       notice: () => { const line = now().notice; return line ? { text: line.text, tone: line.tone, ...(line.icon ? { icon: line.icon as PluginIconName } : {}), ...(line.action ? { action: { label: line.action.label, run: () => act(mine, "notice", "") } } : {}) } : null; },
-      submit: (input, signal, acknowledge) => call(mine, "submit", input, signal, acknowledge).then(value => outcome(mine, value)),
+      submit: (input, signal, acknowledge) => call(mine, "submit", input, signal, acknowledge).then(value => outcomeOf(value, key => call(mine, "check", key))),
     };
   };
   let named = false, placed = "", width = 0;

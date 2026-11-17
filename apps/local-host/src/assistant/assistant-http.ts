@@ -26,7 +26,7 @@ import { materialsActions } from "@molis-ai/molis-work-contracts/platform/projec
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { ActionError, actionEffect, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema, type ActionView, type BoundActionClient, type InferActionInput, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_WRITE_PERMISSION, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
-import { webEntryDoor, webEntryProvider, type WebEntryCall } from "../web-entry-actions.js";
+import { responseAbortSignal, webEntryDoor, webEntryProvider, type WebEntryCall } from "../web-entry-actions.js";
 import { assistantCandidate } from "./assistant-memory-tools.js";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { registerWorkAuthority } from "../agent-work-authority.js";
@@ -501,7 +501,7 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
       if (method === "GET" && parts.length === 1 && parts[0] === "memory-candidates") return { status: 200, body: { candidates: await service.memory.memoryCandidates() } };
       // Keeping or declining a suggestion is Memory's own action, with the version the panel saw (B9).
       if (method === "POST" && parts.length === 3 && parts[0] === "memory-candidates" && (parts[2] === "accept" || parts[2] === "discard")) {
-        return { status: 200, body: await settleMemoryCandidate(ports, parts[1]!, parts[2], body) };
+        return { status: 200, body: await settleMemoryCandidate(ports, parts[1]!, parts[2], body, responseAbortSignal(response)) };
       }
       if (method === "GET" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.followUps.rules(), pages: pageChoices(await ports.pages()) } };
       if (method === "POST" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: await service.followUps.addRule(body.rule as never, typeof body.rule_id === "string" ? body.rule_id : undefined) } };
@@ -596,8 +596,8 @@ async function answerQuestion(entry: AssistantPageEntry, workId: string, body: R
 }
 
 /** A suggestion kept (as it was, or reworded) or declined: Memory's `memory.candidates.*`, as the person, with the version the panel saw. */
-async function settleMemoryCandidate(ports: AssistantHttpPorts, candidate_id: string, decision: "accept" | "discard", body: Record<string, unknown>) {
-  const person = bindLocalWebActions(ports.localHost, undefined, [MEMORY_WRITE_PERMISSION]);
+async function settleMemoryCandidate(ports: AssistantHttpPorts, candidate_id: string, decision: "accept" | "discard", body: Record<string, unknown>, signal: AbortSignal) {
+  const person = bindLocalWebActions(ports.localHost, undefined, [MEMORY_WRITE_PERMISSION], { signal });
   const expected_version = Number(body.expected_version);
   const settled = decision === "accept"
     ? await person.invoke(memoryActions.accept, { candidate_id, expected_version, ...(typeof body.text === "string" && body.text.trim() ? { text: body.text } : {}) })

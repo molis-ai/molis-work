@@ -45,7 +45,7 @@ export interface ComposerCommonOptions {
     voice?: string;
     required?: () => string | null;
     notice?: () => ComposerNotice | null;
-    submit(input: ComposerSubmission, signal: AbortSignal): Promise<ComposerOutcome>;
+    submit(input: ComposerSubmission, signal: AbortSignal, acknowledge: () => void): Promise<ComposerOutcome>;
 }
 
 export type ComposerControl = {

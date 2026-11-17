@@ -302,6 +302,32 @@ test("B58-01..05: public child conversation, two owners, original receipts and r
     await wait(`!${root}.querySelector('[data-composer-status-action="check"]') && ${field}.value === ''`);
     assert.deepEqual(await evaluate("[probe.bootstrapChecks,probe.owner.queries.length,probe.owner.sends.length]"), [1,2,1]);
   });
+  await t.test("QEA-45 B58-03: the public subtask composer forwards a late owner acknowledgement without clearing later input", async () => {
+    await evaluate(`probe.handle.destroy(); probe.root.remove(); probe=SubtaskProbe.mountProbe(); probe.acks=[];
+      const composer=probe.owner.source.composer;
+      probe.owner.source.composer=view=>{const options=composer(view);return {...options,submit:(input,signal,acknowledge)=>{
+        probe.acks.push(acknowledge);return options.submit(input,signal,acknowledge);
+      }};};
+      probe.owner.unknownInput(true); probe.handle.open('a')`);
+    await wait(`${field}.value === 'a draft'`);
+    await evaluate("probe.fill('accepted original'); probe.send()");
+    await wait(`${root}.querySelector('[data-composer-status-action="check"]')`);
+    await evaluate("probe.fill('later edit'); probe.owner.receipts.set(probe.owner.sends[0].input.request_id,'sent'); probe.owner.source.check('a',probe.owner.sends[0].input.request_id,new AbortController().signal)");
+    await evaluate("probe.acks[0](); probe.acks[0]()");
+    await wait(`!${root}.querySelector('[data-composer-status-action="check"]') && !${field}.disabled`);
+    assert.equal(await evaluate(`${field}.value`), "later edit");
+    assert.equal(await evaluate("probe.owner.sends.length"), 1);
+    await evaluate("probe.send()");
+    await wait("probe.acks.length === 2");
+    await wait(`${root}.querySelector('[data-composer-status-action="check"]')`);
+    await evaluate("probe.acks[0]()");
+    assert.equal(await evaluate(`${field}.value`), "later edit");
+    assert.equal(await evaluate(`Boolean(${root}.querySelector('[data-composer-status-action="check"]'))`), true);
+    await evaluate("probe.owner.receipts.set(probe.owner.sends[1].input.request_id,'sent'); probe.owner.source.check('a',probe.owner.sends[1].input.request_id,new AbortController().signal)");
+    await evaluate("probe.acks[1]()");
+    await wait(`${field}.value === '' && !${root}.querySelector('[data-composer-status-action="check"]')`);
+    assert.equal(await evaluate("probe.owner.sends.length"), 2);
+  });
   await evaluate("probe.handle.destroy()");
   assert.equal(await evaluate("probe.owner.listeners.filter(x=>!x.closed).length"), 0);
 });

@@ -102,10 +102,10 @@ F2 创建目标地图里的全部 package。每个 package 必须有：
 
 ### 不另建包的横向能力：技能目录
 
-技能目录（`system.skills`：`skills.catalog.list`、`skills.body.read`、`skills.resource.read`、`skills.settings.set`、`skills.import.preview`、`skills.import.confirm`、`skills.kit.report`）没有自己的 `horizontal/` 包，是宿主 Agent 定义登记的扩展。这是有意的，不是漏建：
+技能目录（`system.skills`：`skills.catalog.list`、`skills.body.read`、`skills.resource.read`、`skills.settings.set`、`skills.import.preview`、`skills.import.confirm`、`skills.kit.report`，以及第 42 批的 `skills.drafts.*`、`skills.cases.*`、`skills.trials.run`、`skills.versions.list`、`skills.lineage.dismiss`；采用在 `plugin-install`）没有自己的 `horizontal/` 包，是宿主 Agent 定义登记的扩展。这是有意的，不是漏建：
 
 - 技能和提示词、角色一样是插件声明给 Agent 的东西。Agent 定义登记已经按安装、发布者签名和范围算出谁在用、谁停用；另起一个服务包，就要再读一遍安装与签名、再存一份状态，成了第二份事实（[SSOT](../SSOT-MATRIX.md)「Skill 包、目录和范围设置」）。
-- 归属：技能的声明和正文归提供它的插件（Manifest 的 `methods`，内容包里验签的正文与资源，SDK 的 `skill-declarations.ts`、`skill-files.ts` 读写）；目录、开关与用量归 `apps/local-host/src/agent-definitions/`（`skill-catalog*.ts`、`skill-settings*.ts`，Agent 定义库里的 `skill_settings`、`skill_uses` 两张表）；合同在 `packages/contracts/src/services/skills.ts` 与 `services/agent-definitions.ts`（`SkillRef`）；一轮冻结与读正文在 `horizontal/agent-host`。
+- 归属：技能的声明和正文归提供它的插件（Manifest 的 `methods`，内容包里验签的正文与资源，SDK 的 `skill-declarations.ts`、`skill-files.ts` 读写）；目录、开关、用量与草稿归 `apps/local-host/src/agent-definitions/`（`skill-catalog*.ts`、`skill-settings*.ts`、`skill-drafts.ts`，Agent 定义库里的 `skill_settings`、`skill_uses`、`skill_drafts`、`skill_cases`、`skill_trials`、`skill_lineage` 六张表）；合同在 `packages/contracts/src/services/skills.ts` 与 `services/agent-definitions.ts`（`SkillRef`）；一轮冻结与读正文在 `horizontal/agent-host`。
 - 消费者：助理、Coding、委派（都只认目录给的 `SkillRef`，在一轮开始时由宿主核对）和能力包（`horizontal/kit` 读 `skills.kit.report`）。
 - 能力包（`horizontal/kit`）是包，因为它汇总好几个主人的上报（八个 `*.kit.report` 动作）、自己不存东西，只做汇总；技能目录只有一个主人，所以不是包。
 - 随系统自带的技能包（`plugins/content/<包>` 写 `system`）是构建产物，不是 workspace 包，也不进安装记录：`pnpm build` 打到 `apps/local-host/dist/system-skills/`，技能目录直接读，和安装包共用同一目录；自己写的技能是每范围一个签名内容包（`io.molis.work.my-skills.*`），走同一条安装路径，同样不新增包。

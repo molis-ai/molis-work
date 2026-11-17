@@ -63,8 +63,8 @@ function listen(c: WritingContext, edit: DraftEditing, turns: DraftTurns): void 
     event.preventDefault(); event.stopPropagation();
     void turns.run(view.workshop, "sk-confirm-back", undefined);
   });
-  // Typed words are saved within a moment; only a save still waiting holds the window.
-  addEventListener("beforeunload", event => { if (root.isConnected && view.workshop && edit.pending()) event.preventDefault(); });
+  // Typed words are saved within a moment; a save still waiting, or one that failed, holds the window until it is dealt with.
+  addEventListener("beforeunload", event => { if (root.isConnected && view.workshop && (edit.pending() || view.workshop.save === "failed")) event.preventDefault(); });
 }
 
 export function skillWriting(page: WritingPage) {
@@ -99,13 +99,13 @@ export function skillWriting(page: WritingPage) {
     if (name.startsWith("au-") || name.startsWith("sk-") || name.startsWith("skill-")) return false;
     if (view.asking && !view.asking.busy) view.asking = undefined;
     if (!view.workshop) return false;
-    void edit.flush().then(() => { view.workshop = undefined; go(); });
+    void edit.flush().then(ok => { if (!ok) return; view.workshop = undefined; go(); });
     return true;
   }
 
   /** A draft named in the address (a receipt's 「打开草稿」 link) opens once the page has read the kit. */
   async function fromAddress(): Promise<void> {
-    c.drafts = await listDrafts(project).catch(() => []);
+    c.drafts = await listDrafts(project, true).catch(() => []);
     // Inside the workbench's settings the page's own address is kept on the panel it was loaded into, not in the location.
     const holder = root.closest<HTMLElement>("[data-settings-search]"), asked = new URLSearchParams(holder ? holder.dataset.settingsSearch : location.search);
     const named = asked.get("draft");
@@ -117,7 +117,7 @@ export function skillWriting(page: WritingPage) {
   }
 
   return {
-    isMine: c.isMine, run, holds, focus: focusIn, decorate: skill.decorate, fromAddress,
+    run, holds, focus: focusIn, decorate: skill.decorate, fromAddress,
     strip: () => draftsStrip(c.drafts),
     asking: () => view.asking && askingMarkup(view.asking, c.limits, Boolean(project)),
     workshop: () => view.workshop && workshopMarkup(view.workshop, c.limits),

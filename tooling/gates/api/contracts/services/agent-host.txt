@@ -2498,6 +2498,7 @@ export interface AgentTurnView {
     turn_id: string;
     kind: AgentTurnKind;
     text: string;
+    notice?: "peer-update" | "subagent-input";
     at: string | null;
     sequence?: number;
     steer?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentTurnSteer;

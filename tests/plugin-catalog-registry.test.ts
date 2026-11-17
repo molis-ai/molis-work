@@ -57,6 +57,7 @@ test("BRC-03 · navigation keeps shell owners, titles and enabled views", () => 
     ["selected", "项目入口", "advance", "core", true, true],
     ["stalled-package", "旧安装入口", "personal", null, false, false],
     ["artifacts", "成果", "make", null, false, false],
+    ["sessions", "外部会话", "make", null, false, false],
     ["stage-only", "原包名称", null, null, false, false],
   ]);
   assert.equal(rail.at(-1)!.glyph, "file");
@@ -86,5 +87,6 @@ test("BRC-03 · chooser glyphs use one registry across navigation and islands", 
   assert.equal(glyphs.home, "home");
   assert.equal(glyphs.goals, "target");
   assert.equal(glyphs.artifacts, "package");
+  assert.equal(glyphs.sessions, "history");
   assert.equal(registryInstances.size, 1);
 });

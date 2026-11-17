@@ -41,6 +41,9 @@ import { agentReviewProvider } from "./agent-review-http.js";
 import { assistantPanelProvider } from "./assistant/assistant-http.js";
 import { ActionCallLog } from "./action-call-log.js";
 import { createHostObservation, hostObservationPorts, type HostObservation } from "./observation-host.js";
+import { createHostSessions, type HostSessions } from "./sessions-actions.js";
+import type { HostSessionsOptions } from "./sessions-ports.js";
+import { SESSIONS_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/sessions";
 import { connectorAccountActionProvider } from "./connector-account-actions.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
 import { pluginConsentProvider } from "./installed-plugin-consent-actions.js";
@@ -101,6 +104,7 @@ export interface MolisWorkLocalHostOptions {
   homeDirectory?: string;
   functions?: FunctionsHostOptions;
   alchemist?: AlchemistHostOptions;
+  sessions?: HostSessionsOptions;
   /** Shared text provider injection; null explicitly disables model completion. */
   completeText?: HostCompleteText | null;
   /**
@@ -181,7 +185,7 @@ export class MolisWorkLocalHost {
   private readonly closing: { started?: boolean; completed: Set<string>; attempt?: Promise<void>; work?: Promise<void> } = { completed: new Set() };
   /** Commands that ran in this Home, for the 调用记录 page; absent without a Home directory. */
   readonly callLog?: ActionCallLog;
-  readonly observation?: HostObservation; // The work records of this Home (observation-collection); absent without a Home directory.
+  readonly observation?: HostObservation; readonly sessions?: HostSessions; // Home work records & external AI sessions; absent without a Home directory.
   private readonly plugins: ProjectPluginHost; // What the plugin-reading services share: the Host, its options, the Agent Host and the Home plugins.
   /** System search over this Home's plugins; absent without a Home directory. */
   readonly search?: SearchHost;
@@ -257,7 +261,7 @@ export class MolisWorkLocalHost {
         close: (runtime, reference) => closeProjectRuntime(runtime, () => options.onRuntimeClose?.(reference), () => closeProjectSchedulers(this, runtime, reference), () => this.homePlugins?.stopProjectJobs(runtime.project_id)),
       },
     });
-    if (options.homeDirectory) this.observation = createHostObservation(options.homeDirectory, hostObservationPorts(options.homeDirectory, this, this.host, () => this.catalogRunner));
+    if (options.homeDirectory) { this.observation = createHostObservation(options.homeDirectory, hostObservationPorts(options.homeDirectory, this, this.host, () => this.catalogRunner)); this.sessions = createHostSessions(options.homeDirectory, () => this.catalogRunner, () => this.search?.clearProvider(SESSIONS_PROVIDER_ID, null), { clock: options.clock, ...options.sessions }); }
     this.synchronization = projectSyncAccess(this.host);
     this.surfaceHome = projectSurfaceHome(this.host, this, options.homeDirectory, readCatalog);
     const position = projectSurfaceContext(this.host, this, options.homeDirectory, readCatalog);
@@ -282,7 +286,7 @@ export class MolisWorkLocalHost {
     this.plugins = { host: this.host, options: this.options, ownerClosing: () => !!this.closing.started, agents: () => this.agents?.service, homePlugins: () => this.homePlugins };
     const callerClient = (caller: ActionCallContext) => callerOwnClient(this, caller);
     const platform: ActionProviderRegistration[] = [
-      accountActionProvider(() => accountSessionForHost(this)), ...(this.observation ? [this.observation.provider] : []),
+      accountActionProvider(() => accountSessionForHost(this)), ...(this.observation ? [this.observation.provider] : []), ...(this.sessions ? [this.sessions.provider] : []),
       actionUsagesProvider(callerClient, options.homeDirectory), contextOnboardingProvider(), agentReviewProvider(), assistantPanelProvider(), // the pages' writes, behind their doors (B9)
       mainlineProvider(callerClient), ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
       ...(options.homeDirectory ? [acceptanceProvider(options.homeDirectory, callerClient), appearanceForHome(options.homeDirectory).provider(), evaluationForHome(options.homeDirectory, callerClient).provider(), skillCatalogProviderFor(options.homeDirectory, this.plugins, options.systemSkillsDirectory), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
@@ -474,7 +478,7 @@ export class MolisWorkLocalHost {
     return closeHomeStorageLifetime(this, this.closing, [
         ["page-drafts", () => this.draftReferences.close()], ["search", () => this.search?.close()], ["placement", () => this.placement?.close()],
         ["projects", () => this.host?.close()], ["functions", () => this.systemFunctions?.dispose()],
-        ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()], ["observation", () => this.observation?.close()], ["appearance", () => closeHomeAppearance(this.personalPlanningHome)], ["evaluation", () => closeHomeEvaluation(this.personalPlanningHome)],
+        ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()], ["observation", () => this.observation?.close()], ["sessions", () => this.sessions?.close()], ["appearance", () => closeHomeAppearance(this.personalPlanningHome)], ["evaluation", () => closeHomeEvaluation(this.personalPlanningHome)],
     ], () => this.webCatalog?.access.close(), [["connectors", () => closeConnectorResources(this.options.homeDirectory, this.connectorMcp)],
       ["home-side", () => releaseHomeSide(this)], ["alchemist", () => this.alchemist?.close()]]);
   }

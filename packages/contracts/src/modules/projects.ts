@@ -122,7 +122,11 @@ export interface ProjectWorkspaceMembership {
   project_id: string;
   /** What the folder is to this project; one membership carries `output` per project (specs/shared-sources-and-surfaces §3). */
   roles: DirectoryRole[];
-  /** Who made the relation: the person's id, or `binding:<actor>` when a tool binding brought it in. Ask `person_project_ids`, not this. */
+  /**
+   * Who made the relation: the person's id (`LOCAL_PERSON_ACTOR_ID`), `binding:<actor>` when a tool binding brought it in,
+   * `molis-work-upgrade` for catalog-upgraded default outputs with no person-linked sibling, or plain actor ids written before P-1.
+   * Ask `person_project_ids`, not this.
+   */
   bound_by: string;
   created_at: string;
   updated_at: string;

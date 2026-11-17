@@ -206,16 +206,18 @@ test("moving quickly down the directory asks the Host for the project it stops o
     const real = window.fetch.bind(window);
     window.fetch = (input, init) => { const url = String(input?.url ?? input); if (/\\/api\\/projects\\/[^/]+\\/brief/.test(url)) window.__briefCalls.push(decodeURIComponent(url)); return real(input, init); };
   })()`);
-  await evaluate("document.querySelector('.chooser-dir [aria-selected=true]').focus()");
-  // Keep the burst inside one browser task: CDP round trips on a busy runner can exceed the debounce interval.
-  await evaluate(`(() => {
-    for (let step = 0; step < 3; step++) {
-      document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', bubbles: true }));
-      document.activeElement.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', code: 'ArrowDown', bubbles: true }));
-    }
+  // Keep the rapid burst and its immediate feedback in one browser task: CDP round trips can outlast the 160 ms settle window.
+  // These synthetic keys exercise the production handler; the adjacent navigation test keeps native CDP keyboard coverage.
+  const burst = await evaluate<{ selected: string; loading: boolean }>(`(() => {
+    document.querySelector('.chooser-dir [aria-selected=true]').focus();
+    for (let step = 0; step < 3; step++) document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'ArrowDown', code: 'ArrowDown', bubbles: true, cancelable: true,
+    }));
+    return { selected: document.querySelector('.chooser').dataset.selected, loading: !!document.querySelector('#chooser-detail .mw-brief--loading') };
   })()`);
-  assert.equal(await evaluate("document.querySelector('.chooser').dataset.selected"), others[2], "three rows down");
-  assert.ok(await evaluate("!!document.querySelector('#chooser-detail .mw-brief--loading')"), "the sheet answers at once with what is known");
+  assert.equal(burst.selected, others[2], "three rows down");
+  assert.ok(burst.loading, "the sheet answers at once with what is known");
+
   await waitFor("document.querySelector('#chooser-detail .mw-brief__title')?.textContent === 'Footballnia'");
   await settled();
   const calls = await evaluate<string[]>("window.__briefCalls");

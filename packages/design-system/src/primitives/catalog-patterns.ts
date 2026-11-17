@@ -27,6 +27,18 @@ export const ITEM_ROW_STYLES = `
   .mw-item small { flex: 1 1 0; min-width: 0; margin: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
   .mw-item__end { display: flex; align-items: center; gap: 8px; flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }`;
 
+/** Setting rows (`mw-settings`, `mw-setting`): a surface of toggles and choices, promoted into the workbench sheet with Sessions. */
+export const SETTING_ROW_STYLES = `
+  .mw-setting > div:first-child { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; }
+  .mw-setting strong { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
+  .mw-setting p { margin: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; }
+  .mw-settings { display: grid; width: min(560px, 100%); ${SURFACE}; }
+  .mw-setting { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; min-height: 60px; padding: 12px 16px; }
+  .mw-setting + .mw-setting { box-shadow: inset 0 1px 0 var(--line); }
+  .mw-setting > div:first-child { flex-basis: 220px; }
+  .mw-setting > div:last-child { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .mw-setting .mw-select { width: auto; min-width: 140px; }`;
+
 /** The glyph square at an item row's start (`mw-mark`): in the composer's patterns and, alone, in the design kit. */
 export const MARK_STYLES = `
   .mw-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--sk-r-slot, var(--r-control)); background: var(--sk-raised, var(--paper)); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); }
@@ -101,15 +113,7 @@ export const CATALOG_PATTERN_STYLES = `
   .mw-stat .mw-progress { margin-top: 16px; }
 
 ${ITEM_ROW_STYLES}
-  .mw-setting > div:first-child { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; }
-  .mw-setting strong { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
-  .mw-setting p { margin: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; }
-  .mw-settings { display: grid; width: min(560px, 100%); ${SURFACE}; }
-  .mw-setting { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; min-height: 60px; padding: 12px 16px; }
-  .mw-setting + .mw-setting { box-shadow: inset 0 1px 0 var(--line); }
-  .mw-setting > div:first-child { flex-basis: 220px; }
-  .mw-setting > div:last-child { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-  .mw-setting .mw-select { width: auto; min-width: 140px; }
+${SETTING_ROW_STYLES}
 
   .mw-dt { display: grid; width: min(880px, 100%); overflow: hidden; ${SURFACE}; }
   .mw-dt--small { width: min(420px, 100%); }

@@ -24,7 +24,11 @@ export const CODING_BASICS_STYLES = `
   .mw-checks.is-quiet { background: transparent; }
   .mw-checks__line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 8px 16px; min-width: 0; font-size: 12px; }
   .mw-checks__fact { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+  .mw-checks__fact { flex-wrap: wrap; }
   .mw-checks__fact > small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--faint); }
+  .mw-checks__fact:not(.is-done) > small { white-space: normal; overflow-wrap: anywhere; }
+  .mw-checks .mw-status { white-space: normal; line-height: 1.35; padding-block: 2px; }
+  .mw-checks .mw-status > span { overflow: visible; text-overflow: clip; }
   .mw-checks__errors { display: grid; gap: 4px; margin: 0; padding: 0 16px 8px; list-style: none; font-size: 12px; }
   .mw-checks__errors > li { display: flex; align-items: baseline; gap: 6px; min-width: 0; color: var(--red); }
   .mw-checks__errors > li > svg { width: 12px; height: 12px; flex: none; align-self: center; }
@@ -54,7 +58,7 @@ export function codingBasicsSection(say: Say = t): string {
   const picture = (key: string, extra: Pick<ComposerStripItem, "state"> & Partial<ComposerStripItem>): ComposerStripItem => ({ key, title: c(`${key}-name`), thumb: SAMPLE_PICTURE, open: c("thumb-open", { name: c(`${key}-name`) }), ...extra });
   const pictures = renderComposerStrip(labels, [
     picture("thumb-1", { state: "attached", meta: c("thumb-1-meta") }),
-    picture("thumb-2", { state: "failed", reason: c("thumb-2-reason"), retry: true }),
+    picture("thumb-2", { state: "failed", reason: c("thumb-2-reason") }),
     picture("thumb-3", { state: "reading" }),
   ], fill, { pictures: true, label: c("thumbs-label") });
   const clean = renderCheckLine({ label: c("checks-label"), facts: [

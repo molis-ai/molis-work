@@ -44,6 +44,8 @@ const SEEN = `(() => {
     rings: [...root.querySelectorAll('.mw-checks .mw-status')].map((el) => el.querySelector('.mw-state-ring').dataset.mwState + ':' + [...el.classList].find((c) => c.startsWith('mw-status--')).slice(11)),
     // On a narrow card a done fact's source gives way; the file that explains a failure stays.
     sources: [...root.querySelectorAll('.mw-checks__fact > small')].filter(visible).map((el) => el.textContent),
+    // What a fact says is never cut: not checked, and which file is wrong, wrap instead.
+    factCut: [...root.querySelectorAll('.mw-checks .mw-status > span, .mw-checks__fact > small')].filter((el) => visible(el) && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1) && !el.closest('.is-done')).map((el) => el.textContent),
   };
 })()`;
 
@@ -61,7 +63,7 @@ test("B35 board: command chip, composer pictures and check line are named, in bo
 
   for (const lang of ["zh", "en"] as const) for (const width of WIDTHS) for (const theme of ["light", "dark"] as const) {
     await open(lang, width, theme);
-    type Seen = { parts: string[]; words: string; unnamed: number; pageScroll: number; spills: string[]; trayInside: boolean; trayScrolls: string; trayOneLine: number; chips: string[]; failedRing: string; keyed: string[][]; removes: string[]; errorRows: string[]; quiet: boolean[]; quietFill: string; loudFill: string; busy: number; reasonCut: string[]; rings: string[]; sources: string[] };
+    type Seen = { parts: string[]; words: string; unnamed: number; pageScroll: number; spills: string[]; trayInside: boolean; trayScrolls: string; trayOneLine: number; chips: string[]; failedRing: string; keyed: string[][]; removes: string[]; errorRows: string[]; quiet: boolean[]; quietFill: string; loudFill: string; busy: number; reasonCut: string[]; rings: string[]; sources: string[]; factCut: string[] };
     const seen = await evaluate<Seen>(SEEN);
     const at = `${lang} ${width}px ${theme}`;
     assert.deepEqual(seen.parts, ["command-chip", "composer-pictures", "check-line"], "the section holds its three parts in order");
@@ -74,7 +76,7 @@ test("B35 board: command chip, composer pictures and check line are named, in bo
     assert.equal(seen.trayOneLine, 1, `${at}: the pictures stay on one line rather than growing the composer taller`);
     assert.deepEqual(seen.chips, ["/review-pr", "/init"], "the chip shows the command with its slash");
     assert.match(seen.failedRing, /rgb/, `${at}: the picture that cannot go carries a ring`);
-    assert.deepEqual(seen.keyed.map(([key]) => key), ["thumb-1", "thumb-1", "thumb-2", "thumb-2", "thumb-2", "thumb-3", "thumb-3"], "open, retry and remove carry the row key, like every attachment row");
+    assert.deepEqual(seen.keyed.map(([key]) => key), ["thumb-1", "thumb-1", "thumb-2", "thumb-2", "thumb-3", "thumb-3"], "open, retry and remove carry the row key, like every attachment row");
     assert.ok(seen.keyed.every(([, label]) => /png|jpg/.test(label)), `${at}: each picture button names its picture`);
     assert.deepEqual(seen.removes, lang === "zh" ? ["移除 /review-pr", "移除 /init"] : ["Remove /review-pr", "Remove /init"], "a chip's remove names its command");
     assert.deepEqual(seen.errorRows, ["TS2322", "TS2304"], "each new error has its own row, with its code");
@@ -84,6 +86,7 @@ test("B35 board: command chip, composer pictures and check line are named, in bo
     assert.deepEqual(seen.reasonCut, [], `${at}: why a picture cannot go is never cut`);
     assert.deepEqual(seen.rings, ["done:done", "done:done", "failed:blocked", "done:done", "idle:quiet", "failed:blocked"], "status marks: errors and formatting that did not run are blocked, not checked is quiet");
     assert.deepEqual(seen.sources, width <= 760 ? ["tsc", "rustfmt.toml"] : ["tsc", "gopls", "tsc", "gopls", "rustfmt.toml"], `${at}: only a done fact's source gives way`);
+    assert.deepEqual(seen.factCut, [], `${at}: what a check says is never cut`);
     if (shots) {
       await evaluate(`(() => { const s = document.createElement('style'); s.textContent = '.mw-catalog > .mw-catalog__section:not(#coding-basics) { display: none !important; }'; document.head.append(s);
         document.querySelector('.mw-catalog').scrollTop = 0; })()`);

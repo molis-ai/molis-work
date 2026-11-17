@@ -19,10 +19,10 @@ export interface ComposerStripItem {
 /**
  * The attachment strip (the board's upload rows): being read (`aria-busy`), read (with where a pick came from, or a picture's
  * preview) or refused with its reason, 重试 when trying again may help, and a remove (VUX-18). `pictures` lays it out as one row
- * of previews that scrolls sideways (Coding A3, docs/design/coding-daily-basics scheme A): each preview opens the picture
+ * of previews that scrolls sideways (Coding A3, docs/design/coding-daily-basics scheme A) and then needs its own `label`: each preview opens the picture
  * (`data-composer-open="<key>"`), and a refusal wraps to a second line rather than being cut.
  */
-export function renderComposerStrip(labels: MwComposerLabels, items: readonly ComposerStripItem[], fill: ComposerFill, options: { readonly pictures?: boolean; readonly label?: string } = {}): string {
+export function renderComposerStrip(labels: MwComposerLabels, items: readonly ComposerStripItem[], fill: ComposerFill, options: { readonly pictures?: false; readonly label?: string } | { readonly pictures: true; readonly label: string } = {}): string {
   if (!items.length) return "";
   return `<ul class="${cx("mw-uploads mw-composer__files", options.pictures && "is-pictures")}"${options.label ? ` aria-label="${escapeHtml(options.label)}"` : ""}>${items.map((item) => {
     const note = item.state === "reading" ? `<small>${escapeHtml(fill(labels.reading, { name: item.title }))}</small>`

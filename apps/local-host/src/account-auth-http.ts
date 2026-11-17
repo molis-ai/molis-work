@@ -7,14 +7,15 @@ import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
 /** Narrow credential routes; the outer local-entry guard supplies control Token, Origin and one-time key. */
 export async function handleAccountAuthenticationHttp(request: IncomingMessage, response: ServerResponse, url: URL, account: AccountHostBinding,
   isNativeAccountRequest?: (request: IncomingMessage) => boolean): Promise<boolean> {
+  const login = ({ "/api/account/auth/login/password": "loginPassword", "/api/account/auth/verification-codes": "sendVerification", "/api/account/auth/login/code": "loginCode" } as Record<string, "loginPassword" | "sendVerification" | "loginCode" | undefined>)[url.pathname];
   const create = url.pathname === "/api/account/auth/transactions" && request.method === "POST";
   const reset = url.pathname === "/api/account/password/reset" && request.method === "POST";
   const reauth = url.pathname === "/api/account/reauthentications";
   const sensitive = /^\/api\/account\/(password\/change|login-methods\/(bind|([a-zA-Z0-9_-]+)\/(replace|unlink)))$/u.exec(url.pathname);
   const match = /^\/api\/account\/auth\/transactions\/([a-zA-Z0-9_-]+)(?:\/(submit|resend|cancel))?$/u.exec(url.pathname);
-  if (!create && !reset && !reauth && !sensitive && !match) return false;
+  if (!login && !create && !reset && !reauth && !sensitive && !match) return false;
   if (["cross-site", "same-site"].includes(String(request.headers["sec-fetch-site"] ?? ""))) throw accountErrors.forbidden("Authentication requires a same-origin request");
-  const operation = create ? "create" : reset ? "reset" : reauth ? "reauthenticate" : sensitive ? "mutate" : match![2] ?? "get", handle = match?.[1] ?? "";
+  const operation = login ?? (create ? "create" : reset ? "reset" : reauth ? "reauthenticate" : sensitive ? "mutate" : match![2] ?? "get"), handle = match?.[1] ?? "";
   if (request.method !== (operation === "get" ? "GET" : "POST")) throw accountErrors.invalid_request("Invalid authentication method");
   const stop = new AbortController();
   const disconnected = () => { if (!response.writableEnded) stop.abort(); };
@@ -31,6 +32,7 @@ export async function handleAccountAuthenticationHttp(request: IncomingMessage, 
         const action = sensitive![1] === "password/change" ? "password" : sensitive![2] === "bind" ? "bind" : sensitive![4] as "replace" | "unlink";
         return auth.mutate(action, body, key, control, sensitive![3]);
       }
+      if (login) return auth[login](body, control);
       if (operation === "create") return auth.create(body, control);
       if (operation === "reset") return auth.reset(body, control);
       if (operation === "submit") return auth.submit(handle, body, control, body?.step === "START_PROVIDER" && isNativeAccountRequest?.(request) === true);

@@ -15,18 +15,27 @@ export interface ProjectWorkspaceHttpContext {
   /** Opens the system folder window on the computer running this host. */
   pickDirectory(): ReturnType<typeof pickLocalDirectory>;
   /** What the page draws besides the directories: the project's default output directory and whether it is made yet (`directoryPage`), from the directories already read for this request. */
-  defaultOutput(read: ProjectDirectories): Promise<{ workspace_id: string; made: boolean }>;
+  defaultOutput(read: ProjectDirectories): Promise<{ workspace_id: string; made: boolean; tool_brought_ids?: readonly string[] }>;
 }
 
 /**
  * What the settings page draws besides `projects.directories.get@1`: which folder is the default output directory (shown by that name,
- * and offered to set back), whether it is made yet (it is made the first time it is used, SSC-24), and what each source link's folder was.
+ * and offered to set back), whether it is made yet (it is made the first time it is used, SSC-24), what each source link's folder was,
+ * and which folders were brought into the project by an external tool (`context_bind`) rather than linked by the person.
  * Read for the page only; nothing here is a fact the page could change.
  */
-export function directoryPage(directories: ProjectDirectories, defaultOutput: { workspace_id: string; made: boolean }): ProjectDirectoryPage {
+export function directoryPage(
+  directories: ProjectDirectories,
+  defaultOutput: { workspace_id: string; made: boolean; tool_brought_ids?: readonly string[] },
+): ProjectDirectoryPage & { tool_brought_ids?: string[] } {
   const kind = (source: string): SourceKind => source === defaultOutput.workspace_id ? "former_default_output" : isProjectOutputWorkspaceId(source) ? "other_default_output" : "folder";
-  return { default_output_id: defaultOutput.workspace_id, default_output_made: defaultOutput.made,
-    source_kinds: Object.fromEntries(directories.source_links.map(link => [link.source_workspace_id, kind(link.source_workspace_id)])) };
+  const toolBrought = defaultOutput.tool_brought_ids ? [...defaultOutput.tool_brought_ids] : undefined;
+  return {
+    default_output_id: defaultOutput.workspace_id,
+    default_output_made: defaultOutput.made,
+    source_kinds: Object.fromEntries(directories.source_links.map(link => [link.source_workspace_id, kind(link.source_workspace_id)])),
+    ...(toolBrought && toolBrought.length > 0 ? { tool_brought_ids: toolBrought } : {}),
+  };
 }
 
 /** The settings page's changes, each one of `projects.directories.*`, by the name the page posts. */

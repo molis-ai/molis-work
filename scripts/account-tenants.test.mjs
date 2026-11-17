@@ -56,7 +56,7 @@ try {
   async function login(phone){
     await db.prepare('UPDATE auth_rate_bucket SET expires_at=0 WHERE bucket_hash=?').bind(createHash('sha256').update('v2-delivery-resend:SMS:'+phone).digest('hex')).run();
     const tx=await create('PHONE_OTP'), sent=await step(tx,{step:'REQUEST_CHALLENGE',address:phone});
-    await step(tx,{step:'VERIFY_CHALLENGE',challengeHandle:sent.challengeHandle,credential:await code(phone)});await step(tx,{step:'PHONE_LOGIN'});return (await step(tx,{step:'COMPLETE'})).account;
+    await step(tx,{step:'VERIFY_CHALLENGE',challengeHandle:sent.challengeHandle,credential:await code(phone)});await step(tx,{step:'CODE_LOGIN'});return (await step(tx,{step:'COMPLETE'})).account;
   }
   let owner=await login(ownerPhone);
   for(const permission of ['TENANT_CREATE','TENANT_READ','TENANT_STATUS','CATALOG_WRITE','SUBSCRIPTION_READ','SUBSCRIPTION_WRITE'])
@@ -69,7 +69,7 @@ try {
   const st=await otherAuth.create({purpose:'LOGIN',method:'PHONE_OTP'},current);
   const sent=await otherAuth.submit(st.handle,{step:'REQUEST_CHALLENGE',address:ownerPhone},current);
   await otherAuth.submit(st.handle,{step:'VERIFY_CHALLENGE',challengeHandle:sent.challengeHandle,credential:await code(ownerPhone)},current);
-  await otherAuth.submit(st.handle,{step:'PHONE_LOGIN'},current);await otherAuth.submit(st.handle,{step:'COMPLETE'},current);
+  await otherAuth.submit(st.handle,{step:'CODE_LOGIN'},current);await otherAuth.submit(st.handle,{step:'COMPLETE'},current);
   const central=async(id,body,params)=>(await otherSession.invoke(id,{...(body?{body,idempotencyKey:crypto.randomUUID()}:{}),params},current)).data;
   const beta=await api('/platform/tenants',{name:'Work Beta',ownerUserId:owner.user.userId,reason:'WUA-19 fixture'});
   await api('/tenants?unknown=1',undefined,400);await api('/tenants?limit=1&limit=2',undefined,400);

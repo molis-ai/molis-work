@@ -44,4 +44,18 @@ WORK-08：`account.features.list@1` 与 `account.entitlements.check@1` 是中央
 
 2026-11-08 改：安装登录与 Home 共用 V2，不再各有一套当前账号。V1 配置/存储不读取；已有原生证明和短时 Cookie 只负责本机附着，不能安装中央 Token。拒绝场景在上述 Host 安全测试。安装联合验收运行 `MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-installation.test.mjs`，须先构建 Auth WASM 与 Work，并按机器 browser 时段执行；使用真实 Host/Auth、临时 Home/D1 与外部 mock，覆盖 A/B/A、原生附着、旧 Cookie 拒绝、同一会话及重启后的本地事实归属。不运行旧双栈回退；Club 本轮未核对。
 
-短信认证接入：Work 的 `REQUEST_CHALLENGE`、`VERIFY_CHALLENGE`、`PHONE_LOGIN`、`COMPLETE` 始终调用中央 Auth 的现有 V2 合同。阿里云发送、核验、签名、模板及密钥归 Auth，Work 不生成或比较短信验证码，不配置云厂商密钥。Auth 的登录网页也使用同一套中央挑战接口。真实短信由 Auth 的 LIVE 模式启用；本机模拟测试继续明确使用 MOCK。短信接入不改变公开 DTO 或 operationId。
+短信认证接入：Work 的登录使用中央 Auth `sendLoginVerification` 与 `loginCode`。阿里云发送、核验、签名、模板及密钥归 Auth，Work 不生成或比较短信验证码，不配置云厂商密钥。Auth 的登录网页也使用同一套登录接口。真实短信由 Auth 的 LIVE 模式启用；本机模拟测试继续明确使用 MOCK。发送、验证结果都以 Auth 合同为准。
+
+个人资料与登录方式的唯一上游读取入口是 Auth `GET /api/v2/users/me`。`account.login-methods.read` 仅投影该快照的 `loginMethods` 与 `user.version`，不另查登录方式接口、不计算脱敏标签。显示名、头像、邮箱和 `maskedLabel` 均由 Auth 决定；Work 的离线展示缓存不成为账号事实或授权依据。
+
+登录收口：密码入口调用 `loginPassword`；邮箱/手机验证码调用 `sendLoginVerification` 和 `loginCode`。浏览器只接收 `verificationId`（Host 内存句柄），中央验证编号及发起证明由 Host 持有；新验证码账号不强制设置密码。第三方授权与敏感操作仍使用独立用途事务。
+
+2026-11-15 三端登录对齐：上游 OpenAPI 已登记三个现行产品登录入口。
+第三方登录沿用独立授权窗口（桌面端系统浏览器），原页面轮询 ProductTransactionView；
+只有 CONSUMED 后读取到 AUTHENTICATED 才展示成功。Auth 与 Club 采用相同状态与交互约定。
+合同原始字节与当前 Auth 工作树一致，来源摘要见 provenance.json。
+
+合同更新统一从 Auth 的 `contracts/unified-account/sync-products.mjs` 执行，
+传入 `--work` 与 `--club` 两个项目路径。`--write` 同步原始合同并生成类型；
+省略时直接对照 Auth 检查三端一致性。消费端本地摘要检查仍保留，
+跨项目验收须同时运行 Auth 的源头对照检查。不得在产品端独立修改 Auth 合同。

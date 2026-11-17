@@ -220,6 +220,9 @@ importers:
       '@molis-ai/molis-work-service-search':
         specifier: workspace:*
         version: link:horizontal/search
+      '@molis-ai/molis-work-service-sessions':
+        specifier: workspace:*
+        version: link:horizontal/sessions
       '@molis-ai/molis-work-service-surfaces':
         specifier: workspace:*
         version: link:horizontal/surfaces
@@ -512,6 +515,9 @@ importers:
       '@molis-ai/molis-work-service-search':
         specifier: workspace:*
         version: link:../../horizontal/search
+      '@molis-ai/molis-work-service-sessions':
+        specifier: workspace:*
+        version: link:../../horizontal/sessions
       '@molis-ai/molis-work-service-surfaces':
         specifier: workspace:*
         version: link:../../horizontal/surfaces
@@ -810,6 +816,18 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+
+  horizontal/sessions:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
 
   horizontal/surfaces:
     dependencies:

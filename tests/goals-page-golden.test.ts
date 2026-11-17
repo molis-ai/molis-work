@@ -217,9 +217,15 @@ const pages: Record<string, Draw> = {
 // background-tasks tab and page are gone from a project page (the task panel beside the dialog replaces them). Every page state
 // grew by the same amount in each language and no document or settings record moved, so no Goals markup changed here. The 16
 // were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// Batch 34 (external sessions, SRB-08), on the merge of main 0d45ba58b: the 16 whole pages moved by +5805 zh / +6358 en and all 36
+// fragment, document and settings records stayed byte-identical. Only the shell changed: the `sessions` picker/rail tile, the deferred
+// `<section data-work-surface="sessions">` stage, the Read Scope `<dialog data-sessions-scope-sheet>` overlay, and the `"sessions"` entry
+// in the shell's plugin title map. Every whole-page state grew by the exact same constant in each language; no Goals markup or JSON
+// changed, and the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
 // Screen polish P0 (the next wing shows whole events only): the shell's work line no longer marks its next run ` data-overflow-fade`
 // (−19 characters, once, in each of the 16 page-* records). Each of the 16 drawn pages, with only that attribute put back, has its old
-// hash and length exactly; the 16 were then written from those draws with RECORD unset. The other 36 records did not change.
+// hash and length exactly; the other 36 records did not change. Checked again on the merge of main 6359987103 (batch 34's records) and
+// the 16 recorded there with MOLIS_WORK_GOLDEN_RECORD=1.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

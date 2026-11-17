@@ -46,6 +46,10 @@
 | Runtime（AI Runtime） | 能运行 Agent 或与用户对话的 AI 环境，含外部 AI 工具这个产品（Claude Code、Codex 等） | Runtime、执行工具（另有处写「本地 Agent」「Agent」指它，见 U6） | 把外部产品叫 Agent；与 Plugin Runtime、项目运行对象混写（见 2.3） |
 | 外部工具 | 登记表（`platform/external-tools`）里的一个外部 AI 开发工具；范围比外部 Runtime 大，Molis 只读其会话、不运行的也算（见 2.3） | 无 | 把它和 Runtime 当同义词；厂商、插件 |
 | 产品入口 | 外部工具的一个可用形态，登记表一行一个：CLI、IDE、桌面、云端分开，国内、国际分开 | 无 | 把同品牌的几个入口当成一个 |
+| 外部会话 | 外部工具自己保有的对话会话；Molis 在本人打开的读取范围内只建索引、按来源实时只读正文，不存对话全文（标题与建议短引文除外）、不发消息、不托管运行（见 2.3） | 外部会话、历史会话 | 把它和 Coding 会话、个人助理的「工作」或已退役的旧 Sessions 库混写 |
+| 会话来源 | 一个产品入口在某个位置（本机目录或已连接账号）可被读取的一组会话（`entry_id` + `location_key`） | 来源、读取来源 | 把同品牌的本机与云端混成一个来源 |
+| 读取范围 | 本人对每个会话来源设的开关、目录白名单与账号连接选择，以及每个项目的「允许个人助理读取本项目外部会话」开关 | 读取范围 | 默认全开扫描；把项目文件夹授权当成外部会话读取授权 |
+| 待归类 | 还没唯一对应到某个现存项目的外部会话（含无项目线索、多项目歧义、工具上报未确认、本人留作待归类、原项目已删除） | 待归类 | 未分配、孤儿会话 |
 | Agent role | 插件或系统声明的 Agent 工作方式，起跑时被冻结 | 角色（「系统与插件带来的角色」） | 角色、role、Character（指它时） |
 | 写后检查器 | 人在平台的项目设置里、和项目的目录一起，给一个已授权文件夹存的检查命令：Agent 写完一个它适用的文件后，经命令审查跑一次 | 无（设置页未做） | 检查器（裸写）、checker、诊断器 |
 | 等待检查器 | Agent 的一步在等一个条件时，由宿主按 SDK 的节奏去看那个条件的代码，只看不改 | 无 | 检查器（裸写）、condition checker |
@@ -206,6 +210,13 @@
 - 和 Runtime 的关系：外部 Runtime 都是外部工具，反过来不成立。登记表里带 `mcp_integration` 或 `terminal` 的入口才是 Molis 接入或运行的 Runtime，`SUPPORTED_RUNTIME_IDS`、`TERMINAL_RUNTIMES` 由这两个字段派生；其余入口只登记它给了什么、缺什么。说「扫描、连接、启动」时对象仍写 Runtime，说「读它的会话、它有没有这项能力」时写外部工具或产品入口。
 - 登记不等于接通：登记表写这个工具给了什么，Molis 有没有接上由服务在运行时报告。
 
+**外部会话、会话来源、读取范围、待归类**
+
+- 定义：**外部会话**是外部工具自己保有的对话会话，身份是 `(entry_id, location_key, native_id)` 派生的 `session_key`（前缀 `xs_`，`packages/contracts/src/services/sessions.ts`）。`horizontal/sessions` 只在 `<Home>/external-sessions/external-sessions.db` 里存索引、目录关系缓存、来源进度、读取范围、本人归属决定与模型归属建议；对话全文每次向原来源实时只读，不落盘（标题与 AI 建议短引文是短摘要，不是转录副本），也不向外部工具发消息或恢复进程。
+- **会话来源**是一个产品入口在某个位置的一份可读来源，由 `(entry_id, location_key)` 唯一标识（如本机默认目录 `local:default` 或已绑定连接 `connection:<id>`）。没有适配器的入口如实报 `unsupported`（区分 `tool_gap` 与 `adapter_pending`），不伪装成空列表。
+- **读取范围**是本人对每个会话来源显式设置的允许开关、可选的目录范围与连接选择（`session_read_scopes`），外加每个项目独立的「允许个人助理读取归入本项目的外部会话」开关（`session_project_ai_reads`，默认关闭）。默认不扫任何外部工具目录；每次列会话、读正文、工具内搜索、系统搜索与个人助理单轮引用都在返回前重新核对读取范围（`S-sessions-recheck-before-return`）。
+- **待归类**指尚未由本人归入现存项目、也未能通过唯一项目文件夹或经双向核对的 Git worktree 自动归入单个项目的外部会话（覆盖 `left_unfiled`、`project_gone`、`ambiguous`、`tool_linked`、`relation_gone`、`no_relation` 六档；`reported` 是工具上报绑定下的独立归属状态，不属于待归类）。模型归属建议（`sessions.attribution.suggest@1`）只给出候选、理由与依据，最终归属只由本人决定（`S-sessions-person-decides`）。
+
 **Agent role（角色声明）**
 
 - 定义：插件或系统声明的一种 Agent 工作方式：`role_id`、版本、名称、执行档位（`read-only`、`text-edit`、`workspace-write`、`operate`）、工作区方式、由哪几段提示词按层（`base`、`role`、`project`、`task`）组成。起跑前 Host 从声明里冻结它，运行中不能变宽（`AgentRoleDeclaration`，`packages/contracts/src/platform/plugin-agent.ts`；`docs/horizontal/agent-host.md`）。
@@ -277,8 +288,13 @@
 
 ### 2.5 其他易混的词
 
-- **观测和采集层**：平台共用的产品能力（包 `horizontal/observation`，用户看到的名字是「工作记录」），记录获准的用户行为、过程、结果与当时条件，提供工作记录、证据快照、覆盖登记与缺口；读取动作、用途与跨项目权限、保留与清理、界面归第 29 批，评测留存与回放归第 30 批。评测负责判断效果，主动助理负责理解与建议，二者共用记录。第 28 批已接入写入面（#2059，2026-11-14 合入 `4417d2bcd3`）；见[独立需求](../../specs/observation-collection/spec.md)与[合同稿](../../specs/observation-collection/contract-design.md)。
+- **观测和采集层**：平台共用的产品能力（包 `horizontal/observation`，用户看到的名字是「工作记录」），记录获准的用户行为、过程、结果与当时条件，提供工作记录、证据快照、覆盖登记与缺口、样本留存；读取动作、用途与跨项目权限、保留与清理、界面归第 29 批，样本留存由第 30 批接入（`observation.db` v2、`observation.holds.*@1`）。评测负责判断效果，主动助理负责理解与建议，二者共用记录。第 28 批已接入写入面（#2059，2026-11-14 合入 `4417d2bcd3`）；见[独立需求](../../specs/observation-collection/spec.md)、[合同稿](../../specs/observation-collection/contract-design.md)与[评测设计](../../specs/observation-collection/evaluation-path-design.md)。
 - **工作记录**：采集层写成的一条条记录（谁、在哪、什么时候、哪个阶段、结果、当时条件、证据引用和覆盖状态）。它不是业务事实，业务状态仍向主人读；写入面见 `horizontal/observation`。
+- **端到端评测**：包 `horizontal/evaluation`、系统动作 `system.evaluation`；从初始意图与条件到真实交付，按冻结样本的独立预期判定、比较和复查。它只持有评测样本、冻结预期、运行结论与人工复查（`<Home>/evaluation/evaluation.db` v1），原始记录、证据与样本留存仍归观测采集层。
+- **评测样本留存**：`observation.holds.{put,release,list}@1` 在采集层为评测样本关联的记录与加密快照挂的豁免；有效期默认 120 天，过期失去豁免，删项目或清插件数据优先。
+- **隔离回放**：在 `withObservationSource("replay", ...)` 中重跑样本，目标动作的记录标 `source_class: "replay"`；外部发送/连接器写动作被受控 client 阻断并记回执，真实工作查询默认排除回放。它不重写历史事实，内部本地写仍须由场景使用隔离临时项目。
+- **未知与失败**：评测结论的闭集是 `passed`/`failed`/`unknown`；覆盖缺口、证据缺失、窗口未完、未曝光、待人工复查归 `unknown`，只有观察到硬违例才判 `failed`。
+- **六阶段**：`understanding`、`materials`、`skill`、`interaction`、`execution`、`delivery`，用于定位失败和跨版本差异；没有预期的阶段是未评测，不是通过。
 - **证据快照**：主人不保留历史的内容（页面正文、提示词与 Skill 正文、模型实际收到的请求、当时呈现的候选），由采集层按内容摘要加密存一份只读副本，随记录的保留期和清除一起删；主人已有固定版本的只放引用（[D1](../../specs/observation-collection/spec.md#9-决策记录)）。
 - **覆盖登记与缺口**：`coverage` 与 `coverage_gaps` 两张登记，按主人、事实、入口、项目记完整／未接入／暂不可用／丢失／截断／已脱敏／到期清除／已清除（`purged`）／不适用／按规则不记；缺记录不能当成没有行为。
 - **来源类别**：`real`、`first_read`、`catch_up`、`imported`、`trial`、`replay`、`demo`、`system_check` 八类；前四类区分真实发生、首次读取已有、断线补读与用户导入，后四类是模拟，主动助理、评测与导出默认不进真实成果与效果口径；本人回看保留并标注来源。
@@ -334,6 +350,10 @@
 | 项目 | `project` |
 | 插件 | `plugin` |
 | 讨论 | `discussion` |
+| 外部会话 | `external_session` |
+| 会话来源 | `session_source` |
+| 读取范围 | `read_scope` |
+| 待归类 | `unfiled` |
 
 ### 2.8 状态
 

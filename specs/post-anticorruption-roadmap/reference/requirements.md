@@ -74,7 +74,7 @@
 | [proactive-assistant](../../proactive-assistant/spec.md)及 [#1730 增量][PAEXT]（合入状态开工时核回） | 产品线（助理）、横向能力（后台任务） | [03](batches/03.md)、[21](batches/21.md)、[24](batches/24.md)、[32](batches/32.md)、[52](batches/52.md)、[57](batches/57.md)、[64](batches/64.md)、[76](batches/76.md) | 32 已交明确交办、后台任务与结果回流（PWA-127～140、144～147、155～159，[#2093](https://github.com/molis-ai/molis-work/pull/2093)），结果回流余项见 BL-work-line-result-return-followups；其余批次的交互切片仍要决策界面定样；Memory 暂停只挡相关能力 |
 | [coding-harness-optimization](../../coding-harness-optimization/spec.md) | 体验与效果（性能、可靠性）、产品线（Coding） | [12](batches/12.md)、[33](batches/33.md)、[43](batches/43.md)、[48](batches/48.md)、[66](batches/66.md)、[67](batches/67.md)、[83](batches/83.md)、[86](batches/86.md) | 直接做；12 已合入（#2061），33 已做完（[#2082](https://github.com/molis-ai/molis-work/pull/2082)：R4 上下文窗口与历史保留、R5 四节收尾报告与未知命令对账、R6 环境准备与工作树、R14 估点与进度、子任务预算与重试来源、轮次材料清单，见[第 33 批收尾检查](batches/33.md#收尾检查)；本人验收记 [BL-batch33-acceptance](../../backlog/BL-batch33-acceptance.md)），后续各批照旧 |
 | [agent-approval](../../agent-approval/spec.md) | 横向能力（授权与人审）、底层与架构 | [02](batches/02.md)、[24](batches/24.md)、[32](batches/32.md)、[39](batches/39.md)、[65](batches/65.md)、[66](batches/66.md) | 直接做：10-28 已对齐 |
-| [subagent-interaction](../../subagent-interaction/spec.md) | 产品线（助理、Coding）、横向能力（Prologue 子代理） | [31](batches/31.md)、[58](batches/58.md)、[59](batches/59.md) | 要决策：入口与动线（父子导航、直接对话）的界面定样 |
+| [subagent-interaction](../../subagent-interaction/spec.md) | 产品线（助理、Coding）、横向能力（Prologue 子代理） | [31](batches/31.md)、[58](batches/58.md)、[59](batches/59.md) | 58 已实现公共组件及交互端口（[#2108](https://github.com/molis-ai/molis-work/pull/2108)；最终合入门禁见 PR）（[证据与边界](../../subagent-interaction/spec.md#117-公共实现与分层证据2026-11-16)）；59 接入真实双入口并收口 SAI-01～15，助理业务派发先核 43-1；本人完整产品验收保留 |
 | [coding-quality-assurance](../../coding-quality-assurance/spec.md) | 产品线（Coding） | [66](batches/66.md) | 直接做 |
 | [automation-recommender](../../automation-recommender/spec.md) | 产品线（Coding） | [39](batches/39.md)、[61](batches/61.md) | 直接做 |
 | [code-modernization](../../code-modernization/spec.md) | 产品线（Coding） | [85](batches/85.md) | 直接做 |
@@ -135,7 +135,7 @@
 
 | 原需求／来源 | 类型 | 对应批次 | 决策 |
 | --- | --- | --- | --- |
-| [Sessions 重做](../../sessions-rebuild/spec.md)（BL-177） | 产品线（Sessions）、横向能力（会话历史与控制） | [22](batches/22.md)、[34](batches/34.md)、[35](batches/35.md)、[60](batches/60.md) | 要决策：会话交互与技术方案（[决定 11](decisions.md#decision-11)） |
+| [Sessions 重做](../../sessions-rebuild/spec.md)（BL-177） | 产品线（Sessions）、横向能力（会话历史与控制） | [22](batches/22.md)、[34](batches/34.md)、[35](batches/35.md)、[60](batches/60.md) | 22（合同与标本）与 34（历史发现、读取、搜索、自动归属与建议及工作台界面；本人验收见 [BL-b34-sessions-acceptance](../../backlog/BL-b34-sessions-acceptance.md)）已交付；35、60 待推进（控制与交接交互仍按[决定 11](decisions.md#decision-11)） |
 | 首日旅程（产品建议 A6、I1、I10） | 产品线（引导） | [04](batches/04.md)、[45](batches/45.md) | 要决策：界面定样（并入 Onboarding，不另建需求） |
 | [插件创作工作台升级](../../plugin-builder-upgrade/spec.md)（BL-377）；BL-010、035、306；BL-040、055、113、114、125、132、245、373、551、712 与 BL-341 的创作台部分 | 产品线（创作台）、横向能力（场景组装） | [03](batches/03.md)、[47](batches/47.md)、[48](batches/48.md)、[68](batches/68.md)、[72](batches/72.md)、[73](batches/73.md)、[77](batches/77.md)、[78](batches/78.md)、[82](batches/82.md)、[83](batches/83.md) | 要决策：合同与交互（该 spec 第 7 节）；原负责人保留 |
 | [团队协作首版](../../team-collaboration/spec.md)（产品建议 I8；BL-071、BL-013） | 产品线（团队）、横向能力（同步与实时编辑）、底层与架构 | [SRV-1](batches/srv-1.md)、[SRV-3](batches/srv-3.md)、[SRV-4](batches/srv-4.md)、[SRV-6](batches/srv-6.md) | 要决策：服务端批何时开工（[决定 24](decisions.md#decision-24)）；协作协议与细粒度规则（[决定 11](decisions.md#decision-11)） |

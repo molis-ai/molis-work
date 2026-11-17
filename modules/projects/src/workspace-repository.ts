@@ -17,6 +17,8 @@ import { booleanInt, text, type ProjectsSqliteDatabase, type Row } from "./sqlit
 /** One row of `workspace_project_memberships` with the folder it names, as this project sees it. */
 export interface ProjectDirectoryRow extends ProjectWorkspaceRef {
   roles: DirectoryRole[];
+  /** Whether the person made this directory relation, by the single `isPersonBoundBy` allow-list. */
+  is_person: boolean;
   /** The stored `canonical_path`: an absolute path, or `project-output:<project_id>` for a default output directory. */
   stored_path: string;
   updated_at: string;
@@ -46,16 +48,18 @@ function resolveThroughExistingParent(absolute: string): string {
 }
 
 /**
- * `bound_by` of a relation a tool binding brought in. Which relations are the person's is an allow-list, `bound_by` equal to the person's id:
- * this mark tells a terminal the person opened from a relation the person made, and a value nobody marked still counts as not theirs.
- * Other values that are not the person's: the catalog upgrade's `molis-work-upgrade` (`catalog-upgrade.ts`), and the plain actor ids
- * relations written before this mark carry (a terminal's `cwd` among them, kept as they are by the user's 2026-11-09 decision).
+ * The single allow-list for whether the person made a directory relation: `bound_by` equal to `PERSON_BOUND_BY`.
+ * `toolBoundBy` marks relations a tool binding brought in (`binding:<actor>`), and other values (`molis-work-upgrade`, pre-P-1 actor ids)
+ * are judged by this one rule as well (terminal `cwd` rows before P-1 stay as-is per the user's 2026-11-09 decision).
  */
+const PERSON_BOUND_BY = LOCAL_PERSON_ACTOR_ID;
+const isPersonBoundBy = (boundBy: string): boolean => boundBy === PERSON_BOUND_BY;
 export const toolBoundBy = (actorId: string): string => `binding:${actorId}`;
 
 /** Whether the person made any of the project's links, by the same allow-list; for the catalog upgrade, which has its own connection. */
-export function projectHasPersonMembership(db: { prepare(sql: string): { get(...params: unknown[]): unknown } }, projectId: string): boolean {
-  return db.prepare("SELECT 1 FROM workspace_project_memberships WHERE project_id = ? AND bound_by = ? LIMIT 1").get(projectId, LOCAL_PERSON_ACTOR_ID) !== undefined;
+export function projectHasPersonMembership(db: { prepare(sql: string): { all(...params: unknown[]): unknown[] } }, projectId: string): boolean {
+  return (db.prepare("SELECT bound_by FROM workspace_project_memberships WHERE project_id = ?").all(projectId) as Row[])
+    .some((row) => isPersonBoundBy(text(row.bound_by)));
 }
 
 const role = (row: Row): DirectoryRole[] => [...(booleanInt(row.role_input) ? ["input" as const] : []), ...(booleanInt(row.role_output) ? ["output" as const] : [])];
@@ -131,7 +135,7 @@ export class WorkspaceRepository {
       return {
         ...this.ref(row),
         project_ids: own.map((membership) => membership.project_id),
-        person_project_ids: own.filter((membership) => membership.bound_by === LOCAL_PERSON_ACTOR_ID).map((membership) => membership.project_id),
+        person_project_ids: own.filter((membership) => isPersonBoundBy(membership.bound_by)).map((membership) => membership.project_id),
         created_at: text(row.created_at),
         updated_at: text(row.updated_at),
       };
@@ -142,14 +146,14 @@ export class WorkspaceRepository {
   projectDirectoryRows(projectId: string): ProjectDirectoryRow[] {
     return (this.db.prepare(`
       SELECT workspace.workspace_id, workspace.canonical_path, workspace.realpath_verified, workspace.display_name,
-        membership.project_id, membership.role_input, membership.role_output, membership.updated_at
+        membership.project_id, membership.role_input, membership.role_output, membership.bound_by, membership.updated_at
       FROM workspace_project_memberships AS membership
       INNER JOIN workspaces AS workspace ON workspace.workspace_id = membership.workspace_id
       WHERE membership.project_id = ? AND membership.project_id NOT IN (SELECT project_id FROM project_recycle WHERE recycled=1)
       ORDER BY membership.role_output DESC, workspace.display_name COLLATE NOCASE, workspace.workspace_id
     `).all(projectId) as Row[]).map((row) => {
       this.assertOutputMember(row);
-      return { ...this.ref(row), roles: role(row), stored_path: text(row.canonical_path), updated_at: text(row.updated_at) };
+      return { ...this.ref(row), roles: role(row), is_person: isPersonBoundBy(text(row.bound_by)), stored_path: text(row.canonical_path), updated_at: text(row.updated_at) };
     });
   }
 
@@ -263,17 +267,8 @@ export class WorkspaceRepository {
       input.bound_by,
       input.now,
       input.now,
-      LOCAL_PERSON_ACTOR_ID,
+      PERSON_BOUND_BY,
     );
-  }
-
-  /**
-   * Whether the person made this relation. `bound_by` is read as a decision only in this file, always by the same allow-list (this method,
-   * `person_project_ids`, `projectHasPersonMembership` and the write rule of `upsertWorkspaceMembership`).
-   */
-  isPersonMembership(workspaceId: string, projectId: string): boolean {
-    return this.db.prepare("SELECT 1 FROM workspace_project_memberships WHERE workspace_id = ? AND project_id = ? AND bound_by = ?")
-      .get(workspaceId, projectId, LOCAL_PERSON_ACTOR_ID) !== undefined;
   }
 
   setMembershipRoles(workspaceId: string, projectId: string, roles: readonly DirectoryRole[], now: string): void {

@@ -98,6 +98,7 @@ export { renderMolisWorkWorkRecordsClientScript } from "./settings-work-records.
 export { renderMolisWorkChooserSearchClientScript } from "./arrival/chooser-search.js";
 export { renderCharacters, renderCharactersSettingsEntry } from "./characters/ui.js";
 export { renderMolisWorkCharactersClientScript } from "./characters/client-asset.js";
+export { renderMolisWorkSessionsClientScript } from "./sessions/client-asset.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";
 export { connectionNeedHtml, isConnectionLoginUrl, type ConnectionNeedView } from "./connection-need-card.js";

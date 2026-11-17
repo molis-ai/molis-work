@@ -4,6 +4,22 @@
 
 ## [Unreleased]
 
+### 事项线第一片、明确交办与逐项认可（2026-11-16，#2093）
+
+- **事项线第一片**：工作台顶部一条放标签与插件图标，底部整条成线（线头、已办、输入、接下来）；事件由插件在 Manifest 声明的事件读取动作登记（助理、Coding、待办、Feed、Inbox 与沙箱插件同一路），事件卡、事件标签、停到侧边、390 宽与键盘路径；原右侧「后台任务」页删除，后台任务改从助理对话框右上角的图标打开的面板看。
+- **主线服务**：新横向包 `horizontal/mainline`（不存存储），系统动作 `mainline.line.read`、`attention.waiting.read`、`mainline.place`、`background.tasks.read`、`background.tasks.command`、`background.tasks.decide`、`objects.open`；线读取随返回带上同一次读到的任务总表。
+- **明确交办与结果回流**：主对话持续接单；任务办完、失败、缺信息、要决定、等待满足回到派出对话；`reports_to: "assistant"` 的无对话来源任务只汇报；新增宿主事件 `host.agent.continuation.ready@1`（载荷只有 `runtime_id`/`session_id`/`request_key`/`wait_id`），插件会话自己起轮；删 `agent.collaboration.await@1` 与助理、Coding 两处 25 秒长请求。
+- **逐项认可**：新模块 `modules/acceptance` 与 Home 库 `acceptance/acceptance.db` 第 1 版；`acceptance.requirements.set`、`deliveries.record`、`reports.submit`、`read`（一次至多 32 个对象）、`decide` 由 Host 装配为 `system.acceptance`；不经 Goals；要求版本、证据层级、返工复核与历史保留。
+- **合同与外观**：`platform/background-tasks`、`platform/work-events`、`platform/object-link` 等新形状；页面资源 `workbench.js`/`workbench.css` 按用户 2026-11-15 弹窗上调；首屏 `32-first-screen.json` 按实测放行；`DESIGN.md` 的顶部一条与事项线一节按用户认可改写。
+- **Prologue**：换到上游 main `02a11ac5`（#124 结果回流、#125 评审跟进、#126 授权变化时放回占用），旧包记入 `patch-history.json`。
+- **未完成/待验收**：本人验收（`BL-b32-acceptance`）与部分用例缺口（`BL-b32-acceptance-test-gaps`）；合入头 full-suite 的 5 个文件红由合后 #2098 收口（最终头 Full 48/48、CI 全绿，已合入 main `0d45ba58`）；32-2 认可入口、无来源同时汇报与后台 provider 覆盖的余项见对应 BL。
+### 最小真实评测路径（2026-11-15，#2096，`ddda618006`）
+
+- **观测样本留存**：`observation/observation.db` 由 1 升到 2，新增 `evaluation_holds` 与 `evaluation_hold_records`；`system.observation` 新增 `observation.holds.{put,release,list}@1`。有效留存豁免手动/自动到期清理及其加密快照，过期后失去豁免，删项目/清插件数据仍优先彻底删除；手动与自动清理在缺口里如实记 `expired`。
+- **独立横向评测服务**：新包 `horizontal/evaluation`（`@molis-ai/molis-work-service-evaluation`，`<Home>/evaluation/evaluation.db` v1），`system.evaluation` 九个 `@1` 动作；样本按 `(sample_id, version)` 冻结预期，`tuning`/`validation` 分离，三种判定来源（确定性、带版本评测器、人工参考准则），人工复查只追加不改写 `run_json`，`unknown`/`failed` 分离，六阶段跨版本对比、队列与漏斗指标、`withObservationSource("replay")` 下阻断外部副作用的隔离回放。
+- **隔离 Home 可复现 CLI**：`pnpm eval:run`（`scripts/run-evaluation.mts`）严拒真实 `~/.molis-work` 及父子目录和真实 Home 内的 `--json`，默认一次性临时 Home，跑完自动删除；9 个内置样本（EC-01/02/06/08/09/16/18）、双独立 Home `--verify-reproducible` 摘要 `IDENTICAL`，`--mode live` 默认 Gemini 系列（`gemini-2.5-flash`、`openai-chat-completions`），密钥只进临时 Home 文件凭据库并脱敏。真实 Gemini 凭据运行未验证。
+- **未完成/待验收**：真实 Gemini 现场结果（需用户授权/凭据）；N+1 证据读取等后续限制见评测服务 README 与 [BL-evaluation-read-cost](../../specs/backlog/BL-evaluation-read-cost.md)；本批无产品 UI，本人验收不适用。
+
 ### Coding 与材料恢复闭环（2026-11-15，#2082）
 
 - **Coding 上下文与完成闭环**：按模型有效窗口动态缩放预算与压缩阈值（Coding 声明 `window_ratio: 0.4`，窗口未知回退固定阈值）；跨轮摘要保留失败/未知命令与未完步骤；环境准备清单含依赖、脚本端口、`.env` 样例变量名核对、独立工作树与基线测试行；四节收尾报告卡带验证 commit 与重跑入口；无上界正整数斐波那契估点、叶子加权进度、`skipped` 与 `scope_removed` 分开；未知命令的步骤标「结果未知，待核对」并从完成数/加权进度扣除。
@@ -20,7 +36,7 @@
 - **组件板**：`#kind-mark`（五种 `--mark-*` 色相与独立字形）与 `#category-bar`（比例轨道与零值图例），组件板与产品页共用 `@molis-ai/molis-work-design-system/work-records`。
 - **合后小修 #2088**：`purged`/全部写入缺口原因的徽章、影响说明与横幅判定；收敛 5 个包内未跨文件 `export` 与 6 个不可达短名分支；同步 `CALL-CHAINS.md`、observation spec §10、design README 与 29.md 的旧字面量/合入号。
 - **合后审计收口**：OCL-05 的主人对版本引用比较当前 revision，改写后标 `unverified`；OCL-13 的默认模拟隔离扩到 `assistant`／`evaluation`／`export`（本机回看保留并标注来源）；覆盖横幅考虑 unavailable/redacted entry；保留需求改从服务端 `requirements` 取。
-- **未完成/待验收**：本人实物与连续工作走查（`BL-work-records-acceptance`）；评测样本留存与回放归第 30 批。
+- **未完成/待验收**：本人实物与连续工作走查（`BL-work-records-acceptance`）；评测样本留存与回放已由第 30 批接入（见上一条）。
 
 ### Work Brief 首页与简报核心（2026-11-14，#2077）
 

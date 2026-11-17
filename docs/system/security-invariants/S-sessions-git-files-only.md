@@ -1,0 +1,5 @@
+# S-sessions-git-files-only
+
+| ID | 不变量（拒绝什么） | 代码位置 | 测试（CI 里跑） | 测试（只在本机跑） |
+| --- | --- | --- | --- | --- |
+| S-sessions-git-files-only | 会话工作目录与 Git worktree 主仓库关系的识别只读取 `.git`、`commondir`、`gitdir` 三个纯文本文件并做双向指针核对，绝不执行 `git` 子进程（第 34 批，设计 `specs/sessions-rebuild/contract-design.md` §6.2、§9.4）：① 识别目录归属全过程零子进程调用，不会触发恶意工作树里的 `.git/config` `core.fsmonitor`、`core.sshCommand` 或 Git 钩子；② `.git`、`commondir` 或 `gitdir` 任一文件是符号链接、非常规文件或超过 4096 字节时立即拒绝按 worktree 归属；③ 只有 `worktree/.git` 指向 `<common>/worktrees/<name>`、`commondir` 指回 `<common>`、且 `<common>/worktrees/<name>/gitdir` 经 `realpath` 精确指回该 `worktree/.git` 时才认主仓库关系，单向伪造指针（如恶意仓库把 `commondir` 指到别人的主仓库 `.git`）一律不产生自动归属。 | `horizontal/sessions/src/git-files.ts`、`apps/local-host/src/sessions-ports.ts` | `tests/security-invariants-external-sessions.test.ts`「S-sessions-git-files-only 1: worktree resolution reads only .git, commondir and gitdir text files and never executes git」「S-sessions-git-files-only 2: one-way, mismatched, symlinked or oversized git pointers are refused without attributing」 | — |

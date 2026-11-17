@@ -1,5 +1,6 @@
 import { personalContinuationOpenings } from "./prologue-session-opening.js";
 import { bindBusinessSubagent } from "./prologue-business-child.js";
+import { childRoleRestorer } from "./prologue-child-setup.js";
 import { stopSdkRun } from "./prologue-stop-run.js";
 import type { ReviewDecisionControl } from "../review-decisions.js";
 import { bindExistingWorkDelegation } from "./prologue-work-delegation.js";
@@ -8,7 +9,7 @@ import { answerPending, readPendingQuestion, childQuestionScope } from "./prolog
 import { readOriginalInput, resolveOriginalInput, originalInputIdByKey, sessionNotifier } from "./prologue-original-inputs.js";
 import { createHash } from "node:crypto";
 import { realpath } from "node:fs/promises";
-import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type QueuedTask, type Runtime, type SessionOpeningReader } from "@prologue/sdk";
+import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type QueuedTask, type Runtime, type SessionOpeningReader, type SubagentHandle } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef, AgentWriteCheckNote } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
@@ -319,22 +320,53 @@ async function openSessionOf(deps: PortDeps, sessionId: string, unreadable: stri
   return session;
 }
 
+function sameOwner(a: SessionIndex["owner"], b: SessionIndex["owner"]): boolean {
+  return a.project_id === b.project_id && a.plugin_id === b.plugin_id && a.install_id === b.install_id && a.actor_id === b.actor_id;
+}
+
+/** The SDK's retained worktree binding selects one frozen Host grant. Shared children inherit their original parent's directory. */
+function continuationDirectory(child: SubagentHandle, parent: SessionIndex["attempts"][number]): string | undefined {
+  if (!child.root) return undefined;
+  const atDispatch = sameRef(child.attempts?.[0] ?? child.run, child.run);
+  if (child.workspace) {
+    const binding = child.workspace;
+    const matches = parent.subagent_roots?.filter(root => root.id === binding.id && sameRef(root.rootRef, binding.rootRef));
+    if (matches?.length === 1 && (!atDispatch || sameRef(child.root, binding.rootRef))) return matches[0]!.path;
+  } else if (parent.root_ref && parent.frozen.directory?.realpath_verified && (!atDispatch || sameRef(child.root, parent.root_ref))) {
+    return parent.frozen.directory.canonical_path;
+  }
+  throw agentErrors.directory_unauthorized("原子任务的目录授权不可核验");
+}
+
+async function assertContinuationDirectory(deps: PortDeps, owner: SessionIndex["owner"], directory: string): Promise<void> {
+  const authorized = deps.options.checks?.directoryAuthorized;
+  if (await realpath(directory).catch(() => undefined) !== directory || (authorized && !await authorized(owner.project_id, directory))) {
+    throw agentErrors.directory_unauthorized("子任务的原目录已变更或不再授权");
+  }
+}
+
+async function renewContinuationDirectory(deps: PortDeps, directory: string, posture: "workspace-write" | "read-only") {
+  try {
+    const grant = await deps.host.authorizeRoot({ path: directory, requireCanonical: true });
+    return await deps.runtime.workspace.adopt(grant, { posture });
+  } catch (error) {
+    if (error instanceof Error && "code" in error && (error.code === "ROOT_PATH_DENIED" || error.code === "ROOT_NOT_FOUND")) {
+      throw agentErrors.directory_unauthorized("子任务的原目录已变更或不再授权");
+    }
+    throw error;
+  }
+}
+
 /** Rechecks the original child directory and MCP grants for every new dispatch. */
-function continuationGrantGuard(deps: PortDeps, parentRun: AgentRunRef, parentAttempt: SessionIndex["attempts"][number], baseFrozen: SessionIndex["attempts"][number]["frozen"] | undefined): DispatchGuard {
+function continuationGrantGuard(deps: PortDeps, parentRun: AgentRunRef, owner: SessionIndex["owner"], parentAttempt: SessionIndex["attempts"][number], directory: string | undefined, directoryProof?: ReviewDecisionControl): DispatchGuard {
   return async () => {
     const latestParent = await deps.index.read(parentRun.session_id);
-    if (!latestParent) throw agentErrors.session_unknown("父会话已不存在，不能继续子任务");
-    const childDir = baseFrozen?.directory?.canonical_path ?? parentAttempt.frozen.directory?.canonical_path;
-    if (childDir) {
-      const resolved = await realpath(childDir).catch(() => undefined);
-      if (resolved !== childDir) throw agentErrors.directory_unauthorized("子任务工作区路径不可读或已变更");
-      if (deps.options.checks?.directoryAuthorized && !(await deps.options.checks.directoryAuthorized(latestParent.owner.project_id, childDir))) {
-        throw agentErrors.directory_unauthorized("子任务工作区已不再授权");
-      }
-    }
-    await deps.mcpLibrary.validate(latestParent.owner, parentAttempt.frozen.mcp_tools ?? []);
-    await deps.mcpLibrary.validateSources(latestParent.owner, parentAttempt.frozen.mcp_sources ?? []);
-    return () => {};
+    if (!latestParent || !sameOwner(latestParent.owner, owner)) throw agentErrors.session_unknown("原父会话已不可用，不能继续子任务");
+    if (directoryProof) await directoryProof.beforeEffect();
+    else if (directory) await assertContinuationDirectory(deps, owner, directory);
+    await deps.mcpLibrary.validate(owner, parentAttempt.frozen.mcp_tools ?? []);
+    await deps.mcpLibrary.validateSources(owner, parentAttempt.frozen.mcp_sources ?? []);
+    return directoryProof?.assertCurrent;
   };
 }
 
@@ -362,12 +394,12 @@ function continuationAuthority(deps: PortDeps, input: Pick<Parameters<NonNullabl
   const guard: DispatchGuard = async () => {
     await bound.promise;
     assertCurrent();
-    await fallbackGuard();
+    const assertGrant = await fallbackGuard();
     for (const held of activeExact()) await held.control.beforeEffect();
     const original = await state.dispatchChecks.get(parentRun.run_id)?.();
     const current = await execution?.beforeDispatch?.();
     execution?.assertSubagent?.(role);
-    return () => { original?.(); current?.(); assertCurrent(); };
+    return () => { original?.(); current?.(); assertGrant?.(); assertCurrent(); };
   };
   const control: DispatchControl = {
     assertCurrent,
@@ -385,18 +417,51 @@ function continuationAuthority(deps: PortDeps, input: Pick<Parameters<NonNullabl
   };
 }
 
+type ChildContinuation = Parameters<NonNullable<PrologueSubagentHooks["continueChild"]>>[0];
+
+async function holdRenewalDirectory(deps: PortDeps, projectId: string, directory: string, worktreeId?: string): Promise<ReviewDecisionControl> {
+  const refuse = () => agentErrors.directory_unauthorized("子任务的原目录已变更或不再授权");
+  const proof = await deps.options.checks?.holdWorkspaceDirectory?.(projectId, directory, worktreeId).catch(() => undefined);
+  if (!proof) throw refuse();
+  return {
+    beforeEffect: async () => { try { await proof.beforeEffect(); } catch { throw refuse(); } },
+    assertCurrent: () => { try { requireSynchronous(proof.assertCurrent()); } catch { throw refuse(); } },
+  };
+}
+
+async function prepareContinuationWorkspace(deps: PortDeps, { child, parentRun, actorId }: ChildContinuation,
+  parent: SessionIndex, attempt: SessionIndex["attempts"][number], role: NonNullable<SessionIndex["attempts"][number]["subagent_roles"]>[number][1]) {
+  const childIndex = await deps.index.read(child.session.id);
+  const baseFrozen = childIndex?.attempts[0]?.frozen;
+  const directory = continuationDirectory(child, attempt);
+  if (childIndex && (!sameRef(childIndex.ref, child.session) || !sameOwner(childIndex.owner, parent.owner)
+      || childIndex.parent_run?.session_id !== parentRun.session_id || childIndex.parent_run.run_id !== parentRun.run_id
+      || directory !== baseFrozen?.directory?.canonical_path)) {
+    throw agentErrors.directory_unauthorized("原子任务归属或工作区不可核验");
+  }
+  const currentRoot = child.root && deps.runtime.workspace.get(child.root);
+  const renew = child.root !== undefined && !sameRef(currentRoot?.ref, child.root);
+  if (renew && (!directory || actorId !== parent.owner.actor_id)) throw agentErrors.directory_unauthorized("当前用户不能更新原子任务的目录授权");
+  const directoryProof = renew ? await holdRenewalDirectory(deps, parent.owner.project_id, directory!, child.workspace?.id) : undefined;
+  if (directory && !directoryProof) await assertContinuationDirectory(deps, parent.owner, directory);
+  const writes = role.execution === "workspace-write" || role.execution === "text-edit";
+  const canWrite = child.envelope?.sandbox === "workspace-write" || child.envelope?.sandbox === "danger-full-access";
+  const renewed = renew ? await renewContinuationDirectory(deps, directory!, writes && canWrite ? "workspace-write" : "read-only") : undefined;
+  return { childIndex, baseFrozen, directory, directoryProof, rootRef: renewed?.ref ?? currentRoot?.ref, renewedRoot: renewed ? { previous: child.root!, current: renewed.ref } : undefined };
+}
+
 async function continueSubagentAttempt(
   deps: PortDeps,
-  { parentRun, child, baseTask, reason, source, attemptNumber, requestKey, text, queued, execution }: Parameters<NonNullable<PrologueSubagentHooks["continueChild"]>>[0],
+  input: ChildContinuation,
+  restoreRole: ReturnType<typeof childRoleRestorer>,
 ): Promise<AgentRunRef> {
+  const { parentRun, child, baseTask, reason, source, attemptNumber, requestKey, text, queued, execution } = input;
   const { runtime, state } = deps;
   const parentIndex = await deps.index.read(parentRun.session_id);
   const parentAttempt = parentIndex?.attempts.find(item => item.run_id === parentRun.run_id);
   if (!parentIndex || !parentAttempt) throw agentErrors.run_unknown("父任务执行记录不可用，不能重试子任务");
-  const childIndex = await deps.index.read(child.session.id).catch(() => undefined);
   const role = child.character ? new Map(parentAttempt.subagent_roles ?? []).get(exactCharacterKey(child.character)) : undefined;
-  const rootRef = childIndex?.attempts[0]?.root_ref;
-  const baseFrozen = childIndex?.attempts[0]?.frozen;
+  if (!role || !child.character) throw agentErrors.role_not_declared("原子角色不可核验");
   const model = parentAttempt.model_selection
     ? await deps.options.modelConfiguration(parentAttempt.model_selection)
     : parentAttempt.frozen_model ?? await deps.options.modelConfiguration();
@@ -417,14 +482,16 @@ async function continueSubagentAttempt(
   };
   await deps.effects.beforeEffect();
   deps.effects.assertCurrent();
-  if (!role) throw agentErrors.role_not_declared("原子角色不可核验");
   execution?.assertSubagent?.(role);
+  const { childIndex, baseFrozen, directory, directoryProof, rootRef, renewedRoot } = await prepareContinuationWorkspace(deps, input, parentIndex, parentAttempt, role);
+  const business = parentAttempt.frozen.workspace === "business";
+  await restoreRole(child.character, role, child, business);
   const work = await bindExistingWorkDelegation(deps.delegations, execution?.delegation, parentAttempt.frozen.role_id, parentIndex.owner);
   const authority = continuationAuthority(deps, { parentRun, execution }, role, work,
-    continuationGrantGuard(deps, parentRun, parentAttempt, baseFrozen));
+    continuationGrantGuard(deps, parentRun, parentIndex.owner, parentAttempt, directory, directoryProof));
   const { assertCurrent, control, bound } = authority;
-  if (parentAttempt.frozen.workspace === "business") {
-    if (!role || !execution?.subagentGateway || !execution.beforeDispatch) throw agentErrors.capability_unavailable("业务子任务接续需要当前宿主动作授权");
+  if (business) {
+    if (!execution?.subagentGateway || !execution.beforeDispatch) throw agentErrors.capability_unavailable("业务子任务接续需要当前宿主动作授权");
     const gateway = await execution.subagentGateway(role, { runtime_id: PROLOGUE_RUNTIME_ID, session_id: child.session.id }).catch(error => { work?.release(); throw error; });
     await bindBusinessSubagent(deps, child.session, role, gateway, child.tools ?? [], { assertCurrent, stopping: authority.stopping, work }).catch(error => { work?.release(); throw error; });
     const stopGuard = state.stopGuards.get(child.session.id);
@@ -434,6 +501,8 @@ async function continueSubagentAttempt(
   const continued = await deps.dispatchGuards.run(control, () => runtime.subagents.continue({
     child: child.ref,
     expected: { parent: { session: child.parentSession, run: child.parentRun }, expectedRun: child.run },
+    assertBeforeAccept: () => { requireSynchronous(execution?.assertBeforeStart?.()); execution?.assertSubagent?.(role); directoryProof?.assertCurrent(); },
+    ...(renewedRoot ? { renewedRoot } : {}),
     history: "session",
     ...(queued ? { queued } : {}),
     readOpening,
@@ -498,7 +567,6 @@ async function continueSubagentAttempt(
       state.runRoots.delete(newRunId);
       childController?.abort(); state.actionControllers.delete(newRunId);
     }
-    if (!rootRef && !role) return;
     if (event.type === "command-receipt") {
       const events = state.commandEvents.get(newRunId) ?? [];
       if (!events.some(saved => sameRef(saved.receiptRef, event.receiptRef))) events.push(event);
@@ -535,6 +603,7 @@ async function continueSubagentAttempt(
 }
 
 function nodeSubagentsPort(deps: PortDeps): NonNullable<PrologueRuntimePort["subagents"]> {
+  const restoreRole = childRoleRestorer(deps.runtime);
   const port = createPrologueSubagents(deps.runtime, async run => {
       const index = await deps.index.read(run.session_id), attempts = index?.attempts.filter(attempt => attempt.run_id === run.run_id) ?? [], attempt = attempts[0];
       if (!attempt || !attempt.frozen.directory && attempt.frozen.workspace !== "business") throw agentErrors.directory_unauthorized("原父任务没有工作区或业务归属");
@@ -565,7 +634,7 @@ function nodeSubagentsPort(deps: PortDeps): NonNullable<PrologueRuntimePort["sub
           budgets[subagentId] = { max_attempts: current + addAttempts };
         });
       },
-      continueChild: input => continueSubagentAttempt(deps, input),
+      continueChild: input => continueSubagentAttempt(deps, input, restoreRole),
     });
   return {
     workspaces: true as const,

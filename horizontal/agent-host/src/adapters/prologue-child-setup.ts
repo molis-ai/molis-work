@@ -1,12 +1,13 @@
 import type { PrologueWorkDelegation } from "./prologue-work-delegation.js";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import type { ExactRef, Runtime, SubagentHandle } from "@prologue/sdk";
 import { AGENT_TOOLS } from "../tool-catalog.js";
 import { agentErrors } from "../errors.js";
 import { assertChildRoleTools } from "../child-role-tools.js";
 import { businessChildTools } from "./prologue-action-gateway.js";
 import { exactCharacterKey, type PrologueSubagentRoot } from "./prologue-subagents.js";
-import { prologueToolName, stageInstructions } from "./prologue-node-kit.js";
+import { prologueToolName, sameRef, stageInstructions } from "./prologue-node-kit.js";
 import type { RunDeps } from "./prologue-run.js";
 import type { PrologueStartInput } from "./prologue.js";
 type ChildRole = NonNullable<PrologueStartInput["subagents"]>[number];
@@ -20,6 +21,37 @@ const WORKSPACE_PARENT_TOOLS: readonly string[] = WORKSPACE_PARENT_TOOL_NAMES.ma
   if (!entry) throw new Error(`workspace parent tool ${name} is not in AGENT_TOOLS`);
   return entry.name;
 });
+
+async function publishChildRole(runtime: Runtime, id: string, role: ChildRole, tools: readonly string[]) {
+  const instructionsRef = await stageInstructions(runtime, role.prompts.map(prompt => prompt.body).join("\n\n"));
+  const draft = runtime.characters.create({ id, version: role.version, name: role.name, role: role.role_id,
+    ...(instructionsRef ? { instructionsRef } : {}), tools });
+  return runtime.characters.publish(draft.ref);
+}
+
+/** The Host can re-register only the frozen role it originally published for this exact child. */
+export function childRoleRestorer(runtime: Runtime) {
+  const preparing = new Map<string, Promise<void>>();
+  return async (ref: ExactRef<"character">, role: ChildRole, child: SubagentHandle, business: boolean): Promise<void> => {
+    const suffix = `@${role.version}`;
+    if (ref.revision !== 1 || !ref.id.startsWith("molis-child-") || !ref.id.endsWith(suffix)) throw agentErrors.role_not_declared("原子角色版本不可核验");
+    try {
+      const one = runtime.characters.resolve(ref);
+      if (!sameRef(one.ref, ref) || one.state !== "published" || one.input.role !== role.role_id) throw agentErrors.role_not_declared("原子角色登记不可用");
+      return;
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "CHARACTER_NOT_FOUND")) throw error;
+    }
+    const existing = preparing.get(ref.id);
+    if (existing) return existing;
+    const tools = [...role.host_tools.map(prologueToolName), ...(business ? businessChildTools(child.tools ?? [], role.execution) : [])];
+    const publication = publishChildRole(runtime, ref.id.slice(0, -suffix.length), role, tools).then(one => {
+      if (!sameRef(one.ref, ref)) throw agentErrors.role_not_declared("原子角色引用不一致");
+    });
+    preparing.set(ref.id, publication);
+    try { await publication; } finally { preparing.delete(ref.id); }
+  };
+}
 
 /** The round's child directories and fixed child roles, each a published Character, and what the round is told of them. */
 export async function childSetup(deps: RunDeps, input: PrologueStartInput, actionNames: readonly string[], work?: PrologueWorkDelegation) {
@@ -37,10 +69,7 @@ export async function childSetup(deps: RunDeps, input: PrologueStartInput, actio
     if (work && work.permission.mode !== "original" && (role.execution !== "read-only" || role.host_tools.some(tool => AGENT_TOOLS.some(entry => entry.name === tool && entry.writes)))) continue;
     assertChildRoleTools(role.execution, role.host_tools, childRoots.length > 0, input.character.tools, input.workspace === "business");
     const tools = [...role.host_tools.map(prologueToolName), ...(input.workspace === "business" ? businessChildTools(actionNames, role.execution) : [])];
-    const ref = await stageInstructions(runtime, role.prompts.map(prompt => prompt.body).join("\n\n"));
-    const draft = runtime.characters.create({ id: `molis-child-${randomUUID()}`, version: role.version, name: role.name, role: role.role_id,
-      ...(ref ? { instructionsRef: ref } : {}), tools });
-    const published = runtime.characters.publish(draft.ref);
+    const published = await publishChildRole(runtime, `molis-child-${randomUUID()}`, role, tools);
     childRoles.set(exactCharacterKey(published.ref), role);
   }
   const childScope = input.workspace === "business" ? "子任务没有目录，只能使用自己获准的业务能力。不能读取文件、运行命令、调用 MCP 或再次派发。业务改动仍经原确认入口。"

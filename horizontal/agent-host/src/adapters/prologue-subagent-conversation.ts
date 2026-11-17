@@ -2,7 +2,7 @@ import { originalRunEvents } from "./prologue-original-inputs.js";
 import { canonicalCallerOpening } from "./prologue-session-opening.js";
 import { projectPeerNotice } from "./prologue-peer-notices.js";
 import { createHash } from "node:crypto";
-import { projectInputReceipts, type Runtime, type SubagentHandle } from "@prologue/sdk";
+import { projectInputReceipts, type ExactRef, type ModelEvent, type Runtime, type Session, type SubagentHandle } from "@prologue/sdk";
 import type { AgentRunRef, AgentSubagentConversation, AgentSubagentRequestResult, AgentSubagentsCapability } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
 import { applyRunEvent, emptyPrologueStreamState } from "./prologue-stream.js";
@@ -33,11 +33,52 @@ async function queuedAnswer(runtime: Runtime, child: SubagentHandle) {
   const session = await runtime.sessions.open(child.session);
   const queued = (await session?.inputQueue())?.queued ?? [];
   for (const pending of await runtime.effects.pendings.readByOrigin({ session: child.session.id, run: child.run.id })) {
-    if (pending.state !== "settled" || !["text", "questionnaire"].includes(pending.kind)) continue;
-    const input = queued.find(input => input.key === `answer.${pending.ref.id}` && input.from?.run === child.run.id && !input.from.applied);
+    const key = settledQuestionKey(pending);
+    if (!key) continue;
+    const input = queued.find(input => input.key === key && input.from?.run === child.run.id && !input.from.applied);
     if (input) return { pending_id: pending.ref.id, pending_revision: pending.ref.revision, input_id: input.inputId };
   }
   return undefined;
+}
+
+function settledQuestionKey(pending: { state: string; kind: string; ref: { id: string } }): string | undefined {
+  return pending.state === "settled" && ["text", "questionnaire"].includes(pending.kind) ? `answer.${pending.ref.id}` : undefined;
+}
+
+function recoveredAnswerOrigin(event: ModelEvent) {
+  if (event.type === "prompt" && event.role === "user" && event.key?.startsWith("answer.") && event.key === event.steerId && event.carried?.from) {
+    return { key: event.key, run: event.carried.from };
+  }
+}
+
+async function readConversationAttempt(runtime: Runtime, session: Session, attempt: ExactRef<"run">, person: string | undefined, task: string | undefined) {
+  const latest = emptyPrologueStreamState(), events = await originalRunEvents(session, attempt);
+  const messages: AgentSubagentConversation["messages"] = [];
+  const canonical = canonicalCallerOpening(events);
+  const personal = person !== undefined && canonical === person;
+  const opening = personal || task !== undefined && canonical === task
+    ? events.find(event => event.type === "prompt" && event.role === "user" && event.source === undefined && event.steerId === undefined && event.carried === undefined) : undefined;
+  let openingTurn: string | undefined;
+  for (const event of events) {
+    // A recovered answer's model handoff is question data. The original Pending retains the answer.
+    const answer = recoveredAnswerOrigin(event);
+    if (answer && (await runtime.effects.pendings.readByOrigin({ session: session.ref.id, run: answer.run })).some(pending => settledQuestionKey(pending) === answer.key)) continue;
+    applyRunEvent(latest, projectPeerNotice(runtime, session.ref, event), null);
+    if (event === opening) openingTurn = latest.turns.at(-1)?.turn_id;
+  }
+  const ref = { session_id: session.ref.id, run_id: attempt.id };
+  for (const turn of latest.turns) {
+    if (turn.kind === "system") continue;
+    // A caller role does not attest authorship: only the protected continue or an original input receipt does.
+    const isOpening = turn.kind === "user" && !turn.steer;
+    const original = turn.steer?.original;
+    const shown = original ? { kind: "user" as const, text: original.text }
+      : !isOpening ? {} : turn.turn_id !== openingTurn ? { kind: "notice" as const, text: "", notice: "task-unavailable" as const }
+      : { kind: personal ? "user" as const : "notice" as const };
+    messages.push({ ...turn, ...shown, turn_id: `${attempt.id}:${turn.turn_id}`, run: ref });
+  }
+  if (latest.streaming) messages.push({ turn_id: `${attempt.id}:assistant-${latest.turns.length + 1}`, kind: "assistant", text: latest.streaming, at: latest.streaming_at, run: ref });
+  return { latest, messages };
 }
 
 const commandName = "molis.subagent.command";
@@ -63,31 +104,11 @@ export function subagentConversation(
     let latest = emptyPrologueStreamState();
     const attempts = child.attempts ?? [child.run];
     for (const attempt of attempts) {
-      latest = emptyPrologueStreamState();
-      const events = await originalRunEvents(session, attempt);
-      const person = personOpenings?.[attempt.id];
+      const person = attempt === attempts[0] ? undefined : personOpenings?.[attempt.id];
       const task = view.continuation_task?.status === "available" ? (attempt === attempts[0] ? view.continuation_task.text : retryOpenings?.[attempt.id]) : undefined;
-      const canonical = canonicalCallerOpening(events);
-      const personal = attempt !== attempts[0] && person !== undefined && canonical === person;
-      const opening = personal || task !== undefined && canonical === task
-        ? events.find(event => event.type === "prompt" && event.role === "user" && event.source === undefined && event.steerId === undefined && event.carried === undefined) : undefined;
-      let openingTurn: string | undefined;
-      for (const event of events) {
-        applyRunEvent(latest, projectPeerNotice(runtime, session.ref, event), null);
-        if (event === opening) openingTurn = latest.turns.at(-1)?.turn_id;
-      }
-      const ref = { session_id: child.session.id, run_id: attempt.id };
-      for (const turn of latest.turns) {
-        if (turn.kind === "system") continue;
-        // A caller role does not attest authorship: only the protected continue or an original input receipt does.
-        const isOpening = turn.kind === "user" && !turn.steer;
-        const original = turn.steer?.original;
-        const shown = original ? { kind: "user" as const, text: original.text }
-          : !isOpening ? {} : turn.turn_id !== openingTurn ? { kind: "notice" as const, text: "", notice: "task-unavailable" as const }
-          : { kind: personal ? "user" as const : "notice" as const };
-        messages.push({ ...turn, ...shown, turn_id: `${attempt.id}:${turn.turn_id}`, run: ref });
-      }
-      if (latest.streaming) messages.push({ turn_id: `${attempt.id}:assistant-${latest.turns.length + 1}`, kind: "assistant", text: latest.streaming, at: latest.streaming_at, run: ref });
+      const projected = await readConversationAttempt(runtime, session, attempt, person, task);
+      latest = projected.latest;
+      for (const turn of projected.messages) messages.push(turn);
     }
     const reason = subagentAuthorityProblem(runtime, child)
       ?? (view.state === "reconcile-required" ? "这次执行有未核对的结果，请先在原恢复入口核对" : undefined)
@@ -176,10 +197,17 @@ export function subagentConversation(
         if (!view || current.state === "running" || current.state === "reconcile-required") return { state: "not-applied", reason: "当前子任务不能开始新尝试" };
         if (!hooks.continueChild || view.continuation_task?.status !== "available") return { state: "not-applied", reason: "原子任务开场不可核验" };
         if (view.budget && view.budget.attempt >= view.budget.max_attempts) return { state: "not-applied", reason: "尝试额度已用完" };
-        const next = await hooks.continueChild({ parentRun: run, child: current, baseTask: view.continuation_task.text,
-          source: input.kind === "retry" ? input.source ?? "user-requested" : "user-requested", actorId: control.actor_id,
-          ...(input.kind === "retry" ? { reason: input.reason } : input.kind === "resume-answer" ? { queued: [queued!.input_id] } : { text: input.text }),
-          attemptNumber: (view.budget?.attempt ?? 1) + 1, requestKey: key, execution: control.execution });
+        let next: AgentRunRef;
+        try {
+          next = await hooks.continueChild({ parentRun: run, child: current, baseTask: view.continuation_task.text,
+            source: input.kind === "retry" ? input.source ?? "user-requested" : "user-requested", actorId: control.actor_id,
+            ...(input.kind === "retry" ? { reason: input.reason } : input.kind === "resume-answer" ? { queued: [queued!.input_id] } : { text: input.text }),
+            attemptNumber: (view.budget?.attempt ?? 1) + 1, requestKey: key, execution: control.execution });
+        } catch (error) {
+          // This Host refusal is raised before continuing; the original queued answer has not been consumed.
+          if (error instanceof Error && "code" in error && error.code === "agent.directory_unauthorized") return { state: "not-applied", reason: error.message };
+          throw error;
+        }
         if (!next) throw agentErrors.control_failed("接续执行缺少原始回执");
         return { state: "applied", run: next };
       });

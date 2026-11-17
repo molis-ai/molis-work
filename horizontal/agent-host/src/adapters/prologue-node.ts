@@ -222,7 +222,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const mcpLibrary = createPrologueMcpLibrary(runtime, {
     withDispatchGuard: (guard, operation) => withDispatchControl(dispatchGuards, guard, operation),
     directoryAuthorized: options.checks?.directoryAuthorized,
-    holdDirectory: options.checks?.holdMcpDirectory,
+    holdDirectory: options.checks?.holdWorkspaceDirectory,
     resolveConnection: options.resolveMcpConnection, saveConnection: options.saveMcpConnection,
     subscribeConnections: options.subscribeMcpConnections,
     credentialRefFor: (ref) => credentials.prologueRefFor(ref),

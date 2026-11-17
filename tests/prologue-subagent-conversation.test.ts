@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rename, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -20,7 +20,7 @@ const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json"
 const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
 const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
 
-async function fixture(script: (body: Wire) => Response | Promise<Response>) {
+async function fixture(script: (body: Wire) => Response | Promise<Response>, checks?: Parameters<typeof createPrologueNodeAdapter>[0]["checks"]) {
   const root = await mkdtemp(join(tmpdir(), "molis-sai-"));
   const requests: Wire[] = [], errors: unknown[] = [];
   const server = createServer(async (request, response) => {
@@ -38,6 +38,7 @@ async function fixture(script: (body: Wire) => Response | Promise<Response>) {
   const address = server.address(); assert.ok(address && typeof address !== "string");
   let queue = new AgentReviewQueue();
   const make = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.sai", appVersion: "1.0.0" }, storageRoot: join(root, "sdk"), reviewQueue: queue, questionTypes: ["choice", "number", "reference"],
+    ...(checks === undefined ? {} : { checks }),
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: `http://127.0.0.1:${address.port}/v1/messages`, model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "test-only" });
   let adapter = await make(), host = new AgentHost({ reviews: queue }); host.register(adapter);
   const until = async (done: () => boolean | Promise<boolean>) => {
@@ -284,6 +285,7 @@ test("business subagent's first run binds its own action session and keeps write
     assert.equal(writes, 1); assert.deepEqual(actionSessions, [child.child_run.session_id]); assert.notEqual(actionSessions[0], session.session_id);
     const conversation = await f.adapter.subagents!.conversation!(parent.ref, child.subagent_id);
     assert.equal(conversation.child.workspace_path, null); assert.equal(conversation.approvals.length, 0);
+    await f.reopen();
     const admitted = Promise.withResolvers<void>(), releaseGateway = Promise.withResolvers<void>();
     let bindings = 0;
     const nextText = "Continue the same business child once.";
@@ -305,34 +307,69 @@ test("business subagent's first run binds its own action session and keeps write
   } finally { await f.close(); }
 });
 
-// SAI-06/08/09: original pending owner, real child without a SessionIndex, live and normal-shutdown recovery.
-for (const parked of [false, true]) test(`child original question answers once${parked ? " after normal shutdown and resumes only its queued answer" : " while live"}`, { timeout: 60_000 }, async () => {
+// SAI-06/08/09/10: original pending owner, normal-shutdown recovery with inherited and explicitly assigned workspaces.
+for (const scenario of ["live", "shared", "worktree"] as const) test(`child original question answers once${scenario === "live" ? " while live" : ` after normal shutdown and resumes only its queued answer (${scenario})`}`, { timeout: 60_000 }, async () => {
+  const parked = scenario !== "live", separate = scenario === "worktree";
   let childCalls = 0, parentCalls = 0;
+  let allowed = new Set<string>();
+  let withdrawAtAcceptance = false, acceptanceChecks = 0;
+  const awaitingStorageCheck = Promise.withResolvers<void>(), releaseStorageCheck = Promise.withResolvers<void>();
   const f = await fixture(body => {
     if (userTexts(body).includes("Dispatch the question child.")) {
       if (++parentCalls > 1) return reply(undefined, "Parent finished.");
       const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@\d+/u)?.[0]; assert.ok(character);
-      return reply({ name: "dispatch-subagent", input: { instruction: "SAI_QUESTION_CHILD: ask the original duration question.", tools: [], character, idempotencyKey: "question-child", background: true } });
+      return reply({ name: "dispatch-subagent", input: { instruction: "SAI_QUESTION_CHILD: ask the original duration question.", tools: [], character, idempotencyKey: "question-child", background: true, ...(separate ? { workspace: "original-tree" } : {}) } });
     }
     if (++childCalls === 1) return reply({ name: "ask-user", input: { why: "约复盘会", questions: [{ id: "minutes", type: "number", prompt: "时长", min: 15, max: 120, integer: true }] } });
     assert.match(JSON.stringify(body.messages), /45/u, "the actual child model consumes the original answer");
+    if (parked && childCalls === 2) return reply({ name: "read", input: { path: "placement.txt" } });
+    if (parked) assert.match(JSON.stringify(body.messages), separate ? /MOLIS_ORIGINAL_CHILD_TREE/ : /MOLIS_ORIGINAL_OUTPUT/);
     return reply(undefined, "The child recorded 45 minutes.");
+  }, {
+    directoryAuthorized: async (project, path) => project === owner.project_id && allowed.has(path),
+    async holdWorkspaceDirectory(project, path, worktreeId) {
+      if (project !== owner.project_id || !allowed.has(path) || worktreeId !== (separate ? "original-tree" : undefined)) return undefined;
+      const assertCurrent = () => {
+        if (withdrawAtAcceptance) acceptanceChecks++;
+        if (!allowed.has(path)) throw new Error("fixture original directory revoked");
+      };
+      return { identity: "test-original-directory", beforeEffect: async () => { assertCurrent(); }, assertCurrent };
+    },
   });
   try {
+    const paths = ["output", "original-tree", "other"].map(name => join(f.root, name));
+    await Promise.all(paths.map(path => mkdir(path)));
+    const [output, worktree, other] = await Promise.all(paths.map(path => realpath(path))) as [string, string, string];
+    const childPath = separate ? worktree : output;
+    allowed = new Set([output, childPath]);
+    await Promise.all([writeFile(join(output, "placement.txt"), "MOLIS_ORIGINAL_OUTPUT"), writeFile(join(worktree, "placement.txt"), "MOLIS_ORIGINAL_CHILD_TREE")]);
     const manifest = structuredClone(codingAgentManifest); manifest.subagents!.roles = manifest.subagents!.roles.filter(one => one.role_id === "coding-reader");
-    const directory = { canonical_path: f.root, realpath_verified: true };
+    if (separate) {
+      const coordinator = manifest.roles.find(role => role.role_id === "coordinator")!;
+      coordinator.subagent_workspaces = "required";
+      coordinator.execution = "read-only";
+      coordinator.host_tools = ["read-file", "dispatch-subagent", "await-subagents", "ask-user"];
+    }
+    const directory = { canonical_path: output, realpath_verified: true };
+    const tree = { worktree_id: "original-tree", directory: { canonical_path: worktree, realpath_verified: true } };
     const session = await f.adapter.createSession({ ...owner, title: "Original question parent", directory });
-    const parent = await f.host.start("prologue", { ...owner, session, directory, role_id: "coordinator", task: "Dispatch the question child." }, { manifest, prompts: codingPrompts, authorizedDirectories: [f.root] });
+    const parent = await f.host.start("prologue", { ...owner, session, directory, role_id: "coordinator", task: "Dispatch the question child.", ...(separate ? { subagent_workspaces: [tree] } : {}) },
+      { manifest, prompts: codingPrompts, authorizedDirectories: [output], ...(separate ? { worktrees: async () => [{ worktree_id: tree.worktree_id, canonical_path: worktree }] } : {}) });
     const port = () => f.adapter.subagents!;
     await f.until(async () => { const [one] = await port().list(parent.ref); return !!one && (await port().conversation!(parent.ref, one.subagent_id)).questions.length === 1; });
-    const [child] = await port().list(parent.ref); assert.ok(child?.child_run);
+    const [child] = await port().list(parent.ref); assert.ok(child?.child_run); assert.equal(child.workspace_path, childPath);
     await f.until(async () => (await f.adapter.read(parent.ref)).phase === "completed");
     const beforeParent = parentCalls;
     if (parked) await f.reopen();
     const view = await port().conversation!(parent.ref, child.subagent_id), question = view.questions[0]!;
     assert.equal(question.questions?.[0]?.prompt, "时长"); assert.equal(question.questions?.[0]?.type, "number");
     assert.equal(question.answerable, true); assert.equal(question.parked, parked ? true : undefined);
-    const control: AgentSubagentControl = { actor_id: owner.actor_id, execution: {} };
+    const control: AgentSubagentControl = { actor_id: owner.actor_id, execution: { async beforeStart() {
+      if (withdrawAtAcceptance && acceptanceChecks === 1) {
+        awaitingStorageCheck.resolve();
+        await releaseStorageCheck.promise;
+      }
+    } } };
     const answer: AgentSubagentCommand = { kind: "answer", request_id: "duration-answer", child_run: child.child_run, pending_id: question.pending_id, pending_revision: question.pending_revision!, answers: [{ question: 0, value: 45 }] };
     const invalid = await port().command!(parent.ref, child.subagent_id, { ...answer, request_id: "invalid-duration", answers: [{ question: 0, value: 1 }] }, control);
     assert.equal(invalid.state, "not-applied"); assert.equal((await port().conversation!(parent.ref, child.subagent_id)).questions.length, 1);
@@ -342,20 +379,64 @@ for (const parked of [false, true]) test(`child original question answers once${
     assert.equal(accepted.state, "applied"); assert.ok(accepted.state === "applied"); assert.equal(accepted.answer_delivery, parked ? "queued" : "delivered");
     assert.deepEqual(await port().command!(parent.ref, child.subagent_id, answer, control), accepted);
     await assert.rejects(port().command!(parent.ref, child.subagent_id, { ...answer, answers: [{ question: 0, value: 60 }] }, control));
+    let resumed: Awaited<ReturnType<NonNullable<ReturnType<typeof port>["command"]>>> | undefined;
     if (parked) {
       assert.equal(childCalls, 1, "answer acceptance does not implicitly start a child or parent");
       const waiting = await port().conversation!(parent.ref, child.subagent_id);
       assert.deepEqual(waiting.queued_answer, { pending_id: question.pending_id, pending_revision: question.pending_revision });
       const resume: AgentSubagentCommand = { kind: "resume-answer", request_id: "resume-duration", child_run: child.child_run, pending_id: question.pending_id, pending_revision: question.pending_revision! };
-      const resumed = await port().command!(parent.ref, child.subagent_id, resume, control);
-      assert.equal(resumed.state, "applied"); assert.deepEqual(await port().command!(parent.ref, child.subagent_id, resume, control), resumed);
+      const refuse = async (request_id: string, caller = control) => {
+        const result = await port().command!(parent.ref, child.subagent_id, { ...resume, request_id }, caller);
+        assert.equal(result.state, "not-applied");
+        assert.match(result.reason, /目录|用户/u);
+        assert.deepEqual(await port().checkRequest!(parent.ref, child.subagent_id, request_id, caller.actor_id), result);
+        const original = await port().conversation!(parent.ref, child.subagent_id);
+        assert.deepEqual(original.child.child_run, child.child_run);
+        assert.deepEqual(original.queued_answer, waiting.queued_answer, "refusing a new directory preserves the accepted answer");
+        assert.equal(childCalls, 1);
+      };
+      await refuse("resume-other-actor", { ...control, actor_id: "someone-else" });
+      allowed.delete(childPath); allowed.add(other);
+      await refuse("resume-only-other-directory-authorized");
+      allowed.add(childPath);
+      withdrawAtAcceptance = true;
+      const refusing = refuse("resume-directory-revoked-at-acceptance");
+      try {
+        await Promise.race([awaitingStorageCheck.promise, refusing.then(() => { throw new Error("resume settled before storage authorization was checked"); })]);
+        allowed.delete(childPath);
+      } finally { releaseStorageCheck.resolve(); }
+      try { await refusing; } finally { withdrawAtAcceptance = false; }
+      assert.equal(acceptanceChecks, 2, "revocation happened after preparing the new Run and before consuming its queued answer");
+      allowed.add(childPath);
+      const held = childPath + "-held";
+      await rename(childPath, held);
+      try {
+        await symlink(other, childPath);
+        try { await refuse("resume-directory-replaced-by-link"); } finally { await unlink(childPath); }
+      } finally { await rename(held, childPath); }
+      resumed = await port().command!(parent.ref, child.subagent_id, resume, control);
+      assert.equal(resumed.state, "applied");
+      assert.equal(resumed.run.session_id, child.child_run.session_id);
+      assert.notEqual(resumed.run.run_id, child.child_run.run_id);
+      assert.deepEqual(await port().command!(parent.ref, child.subagent_id, resume, control), resumed);
+      assert.equal((await port().command!(parent.ref, child.subagent_id, { ...resume, request_id: "stale-resume" }, control)).state, "not-applied");
     }
     await f.until(async () => (await port().list(parent.ref))[0]?.state === "completed");
-    assert.equal(childCalls, 2); assert.equal(parentCalls, beforeParent);
-    assert.equal((await port().conversation!(parent.ref, child.subagent_id)).questions.length, 0);
+    const expectedChildCalls = parked ? 3 : 2;
+    assert.equal(childCalls, expectedChildCalls); assert.equal(parentCalls, beforeParent);
+    const finished = await port().conversation!(parent.ref, child.subagent_id);
+    assert.equal(finished.questions.length, 0);
+    assert.ok(finished.messages.some(turn => turn.kind === "assistant" && turn.text === "The child recorded 45 minutes."));
+    assert.ok(!finished.messages.some(turn => turn.text.includes("This answers the question you asked")), "recovery protocol text is not a person's chat turn");
     await f.reopen();
     assert.deepEqual(await port().checkRequest!(parent.ref, child.subagent_id, answer.request_id, owner.actor_id), accepted);
-    assert.equal(childCalls, 2); assert.equal(parentCalls, beforeParent);
+    if (resumed?.state === "applied") {
+      assert.deepEqual(await port().checkRequest!(parent.ref, child.subagent_id, "resume-duration", owner.actor_id), resumed);
+      assert.deepEqual((await port().list(parent.ref))[0]?.child_run, resumed.run);
+      assert.equal((await port().list(parent.ref))[0]?.workspace_path, childPath);
+      assert.deepEqual((await port().conversation!(parent.ref, child.subagent_id)).messages, finished.messages);
+    }
+    assert.equal(childCalls, expectedChildCalls); assert.equal(parentCalls, beforeParent);
   } finally { await f.close(); }
 });
 

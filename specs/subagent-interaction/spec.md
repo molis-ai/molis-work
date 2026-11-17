@@ -440,15 +440,21 @@ SAI-06 的子问题使用原 `AgentPendingQuestion`、冻结表单和 `answerPen
 
 主页接线复核（2026-11-17）：项目与主页共用同一壳浮窗生命周期和原定位规则；项目 TaskPanel 提供卡片返回，主页顶层返回关闭浮窗并回到父对话。原浮窗 CSS 小段供 arrival 与工作台共用，窄屏避让主页原主输入。native consumer 从 WorkBar 移到助理首开懒加载，点击时同步冻结原 API base、目标、opener 与父对话；加载后切项目、切父对话、关闭或账号准备切换均不得迟到打开。每个 document 明确装配一个 host，不通过试开广播补装。账号切换复用 accountTransition.page：先关闭组件输入使延迟草稿写入排队，再等原草稿写入完成，随后销毁缓存/订阅/布局观察器；恢复只恢复读。无新增外观、控件或用户动线。
 
-### 12.10 重启后 Coding 原目录接续：合同待决（2026-11-17）
+### 12.10 重启后 Coding 原目录接续（2026-11-17）
 
 真实 Node Host 回归已经区分两个阶段：无独立 child SessionIndex 的 live 问卷回答通过；正常停机后原问题仍可答，答案也已准确进入原 child Session 队列，但 `resume-answer` 在新的 Node Host 上被 SDK `ROOT_NOT_FOUND` 拒绝。当前 `NodeWorkspace.authorize()` 每次签发新的随机 RootRef，旧根只存在旧进程内；`Runtime.subagents.continue` 固定使用原 `handle.root`。公开 `workspace.adopt` 要求同一 Host 仍能用该 grant 执行 `listDir`，不能恢复已失效的旧根。证据为 `tests/prologue-subagent-conversation.test.ts` 的正常停机用例及本机日志 `/tmp/molis-b59-original-questions-tests.log`。这是当前安全合同边界，不能假造 RootRef、给旧根做别名或私改 vendor 包绕过。
 
-待用户裁定的最小上游方向：只对已经终止、原效果无未核对结果的子任务，增加可信 App 明确指定“本次接续采用当前重新授权的新根”的公开入口；保持旧 RootRef 失效及旧历史不变。请求须固定原父子关系、原 child Run、原根及新 grant，沿原 continuation claim、启动去重和 envelope 上限校验；新根在当前 Runtime 可用，权限不能高于原包络，模型派发工具不能调用该重绑入口。SDK 应在新尝试接受时记录其新根，不改写旧尝试的根。
+最小上游合同：App 可在 `Runtime.subagents.continue` 的精确父子与原 Run 条件下提供 `renewedRoot: { previous, current }`。SDK 检查原根已不可用、新根在当前 Runtime 登记且有当前 Host 授权、工作目录和信任仍为新授权默认值，并按原包络和新根中较窄者执行。原同根派发须记录其沙箱上限；旧记录无该上限时，新根最多只读。沿原继续占用与原 Run 检查拒绝并发、陈旧与未核对尝试，接受时成对更新最新 Run 和根，显式分配的工作区来源与历史尝试保持原样。路径仍由 Host 管理，App 负责证明是同一原目录。
 
-Molis 只允许原冻结 owner 的同一 canonical directory：从原父/子执行记录读取路径，重新 `realpath`、核对当前项目目录授权、角色权限与 actor/install，申请当前 Host 的新 grant；页面不能传新目录或根。接续仍使用原 child Session 和原已接受答案，不转为新的逻辑任务，不扩大到完整目录迁移或持久化旧授权。须验证同目录重启接续一次、换目录/越权/失效 grant/旧 Run/并发请求拒绝、旧审批及旧文件观察不被重用、结果仍回原父任务。上游独立评审合入并重新生成可复现官方包后才采用。
+Molis 只允许原冻结 owner 的同一 canonical directory：从原父/子执行记录读取路径，核对当前项目目录授权、角色权限与 actor/install。在 Node Host 解析并签发新根时核实际 canonical path 等于冻结路径，避免前后两次路径解析间发生替换。页面不能传新目录或根。接续仍使用原 child Session 和原已接受答案，不转为新的逻辑任务，不扩大到完整目录迁移或持久化旧授权。须验证同目录重启接续一次、换目录/越权/失效 grant/旧 Run/并发请求拒绝、旧审批及旧文件观察不被重用、结果仍回原父任务。上游独立评审合入并重新生成可复现官方包后才采用。
 
-此方向改变 SDK 当前“续跑不重新选根”的合同和目录授权边界，超出 §12 最初列举的上游窗口；目前只有方案和失败证据，尚未授权实施。第 59 批内部完整目标与该失败用例保留，不降级为仅业务子代理或仅同进程可用。其他接线继续推进。
+在已经明确列出本节的最小窗口和阻塞后，用户回复“继续”。本批据此推进本节限定的目录重授权契约，经独立评审合入上游后再采用官方包。先在原失败回归中证明撤销授权时不消费答案、恢复同一路径权限后接续一次，再完成 SAI-01～15 的整批验证。
+
+Molis 采用 #134 后的原问卷回归进一步发现，SDK 准入还要求额外 caller 文本。精确选择原已接受答案就是本次接续的新输入，由原 Session 消费。重授权复用原项目输出或工作树的授权证明。存储完成原有异步授权准备后，Node Host 在写 Run 准备记录与消费答案前同步检查；拒绝保留原答案，原清理路径移除未接受的准备记录。派发时继续复核同一证明。会话保留旧 Run、原问题与答案，子聊天过滤有原 Pending 和精确队列引用证明的模型恢复指令。验收覆盖存储准备期间撤权及授权恢复后同目录接续一次。
+
+原角色登记也随旧进程退出。Molis 以原父 Run 冻结的角色和 SDK 留存的精确 Character 引用恢复同一版本，沿首次派发的角色发布路径组装。共享目录、指定工作树与业务子任务均覆盖真实 Node 重启。接续仍核对现行 Manifest、父子关系、工具上限及工作树归属；不用页面输入寻找替代角色。
+
+Prologue [#134](https://github.com/molis-ai/molis-prologue/pull/134) 已合入 `e4f1c01e`，[#135](https://github.com/molis-ai/molis-prologue/pull/135) 已合入 `64e5aaf4`。最终采用的官方包在两份独立干净 archive 中构建一致，1,488,998 B；上游本地 quality 为 268 文件、3,453 项通过。GitHub Quality 作业因账户付款或额度未启动，由作业注解确认。Molis 采用后的完整构建、原 MCP 撤权 3/3、vendor 来源 79/79，以及补原角色恢复后的重启与来源回归 6/6 通过。共享目录和独立工作树均实际读取各自的标记文件，异步存储准备中撤权保留原答案，重新放行后只开一次新 Run，父 Run 保持原终态。
 
 ### 12.11 回答后接续的未确认引用与原部件挂载
 

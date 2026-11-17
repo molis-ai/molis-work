@@ -78,6 +78,9 @@ export function prologueEffects(host: NodeHost, appId: string): PrologueEffects 
     get: input => host.storage.get(input), list: input => host.storage.list(input), readSecure: input => host.storage.readSecure(input),
     commit: input => sessionWrite([input], () => memoryCommit(memoryKind(input.kind), () => host.storage.commit(input))),
     commitBatch: inputs => sessionWrite(inputs, () => commit(inputs.some(input => memoryKind(input.kind)), () => host.storage.commitBatch(inputs))),
+    ...(host.storage.commitGuarded === undefined ? {} : {
+      commitGuarded: (inputs, check) => sessionWrite(inputs, () => commit(inputs.some(input => memoryKind(input.kind)), () => host.storage.commitGuarded!(inputs, check))),
+    }),
     remove: input => sessionWrite([input], () => memoryCommit(memoryKind(input.kind), () => host.storage.remove(input))),
     purge: input => sessionWrite([input], () => commit(memoryKind(input.kind), () => host.storage.purge(input))),
     discard: input => sessionWrite([input], () => commit(memoryKind(input.kind), () => host.storage.discard(input))),

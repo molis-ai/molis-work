@@ -9,17 +9,17 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "e4f1c01e1e77e376db207b56942da580385fe3ad",
+    "commit": "64e5aaf444629aa597f028e63cf4090456830637",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
-    "note": "Official main PR #134, same tree as independently reviewed 4eb279b4. Accept a dedicated grant for an ended child in its original directory. No vendor patch."
+    "note": "Official main PR #135, same tree as independently reviewed 88926b6c. Exact queued child answer and guarded local acceptance. No vendor patch."
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1.tgz",
-    "bytes": 1488556,
-    "sha256": "f58a9148bad0b7d1dc7f5704828e19a06c2d1b5c142374d3964db3efcb242838",
-    "integrity": "sha512-RHKb/CxiGisuhtqmDriOvK+u+q3j5etKcdjHZURn4RvVqo8zyY2/UfU6LHs+d4mhBauhqjmAD5Tx52yFsPS9TQ=="
+    "bytes": 1488998,
+    "sha256": "4628595426c2a33a285640b245485634ed8f34224320838d8927b5736b741c85",
+    "integrity": "sha512-tAJX2+3+JE/CPSXWVeYCHrV5CbN+uIYv4wqHpeX53LBAKiaKPPkn6xTBYE7QlRGXtut8nsOFCMrtThx8vlteuA=="
   },
   "build": {
     "node": "24.14.0",
@@ -27,13 +27,13 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Extract git archive e4f1c01e1e77e376db207b56942da580385fe3ad into two independent clean directories.",
+      "Extract git archive 64e5aaf444629aa597f028e63cf4090456830637 into two independent clean directories.",
       "In each: pnpm install --frozen-lockfile --offline --ignore-scripts; pnpm build; pnpm -C packages/sdk pack --pack-destination <external-directory>.",
       "Both archives are byte-identical.",
-      "Exact reviewed tree passed local pnpm quality: 268 files, 3453 tests, types/build/API/source ratchet, docs, clean consumer and Rust fmt/clippy. A real Node canonical grant test also passed.",
-      "Upstream CI run 44148796855 / job 134271084797 did not start steps because of account payment or spending limit. CI is not claimed green."
+      "Exact reviewed tree passed local pnpm quality: 268 files, 3453 tests, types/build/API/source ratchet, docs, clean consumer and Rust fmt/clippy.",
+      "Upstream CI run 44153463667 / job 134287749075 did not start steps because of account payment or spending limit."
     ],
     "packedOn": "2026-11-17",
-    "note": "Batch 59 authorized same-directory renewal of an expired Node Host grant. Original workspace and history are retained."
+    "note": "Batch 59 continues a child with its exact original queued answer and rechecks the directory at actual guarded Node acceptance."
   }
 }

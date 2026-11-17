@@ -1,8 +1,9 @@
+import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { randomUUID } from "node:crypto";
 import { acceptanceErrors, type AcceptanceDecideRequest, type AcceptanceDeliverRequest, type AcceptanceEvidenceRef, type AcceptanceGap, type AcceptanceReadRequest, type AcceptanceReadResult, type AcceptanceReportInput,
   type AcceptanceReportRequest, type AcceptanceSetRequest, type AcceptanceSubject, type AcceptanceTier, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { acceptanceView, currentRequirements, standsOn, type DeliveryRow } from "./state.js";
-import { openStore, type AcceptanceStore } from "./store.js";
+import { openStore, AcceptanceStore } from "./store.js";
 
 /** Who is calling, as the Host established it: never read from an action's input. `session` is a session the Host itself bound. */
 export interface AcceptanceCaller { project_id: string; actor_id: string; person: boolean; session: string | null }
@@ -199,4 +200,11 @@ export class AcceptanceService {
 export function openAcceptance(homeDirectory: string, now?: () => string): { service: AcceptanceService; close(): void } {
   const store = openStore(homeDirectory);
   return { service: new AcceptanceService(store, now), close: () => store.close() };
+}
+
+/** Host composition only: the owner applies its rules on the same native transaction as the trusted decision. */
+export function decideAcceptanceInTransaction(db: SqliteDatabase, schema: string, caller: AcceptanceCaller, request: AcceptanceDecideRequest,
+  decisionId: string, beforeCommit: (view: AcceptanceView) => void): AcceptanceView {
+  if (!db.inTransaction || schema === "main") throw new Error("Acceptance requires an attached owner transaction");
+  return new AcceptanceService(new AcceptanceStore(db, schema)).decide(caller, request, decisionId, beforeCommit);
 }

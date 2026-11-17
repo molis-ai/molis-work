@@ -2,20 +2,24 @@
 
 最新交集记录（2026-11-17）：第39批两个新服务已沿真实生产路径核对。建议由项目到达、Assistant、创作台读取目录和 Workspace，偏好归 recommender，文稿由 Pages 按固定 request_id 保存；临时报告绑定 actor/project/incarnation 并有期限。审批经 Web/CLI/管理 MCP 和 Kernel 单次可信凭据进入原业务 owner，平台规则与决定归 project-approvals。等待后的权限与安装复核有真实边界依据；新包不是无职责转发层。静态结论不替代视觉和运行验收。
 
-**QF-48/P1 已复现、待修：认可与平台审批跨库部分提交。** `apps/local-host/src/acceptance-actions.ts:100–118` 在项目库事务里调用 `modules/acceptance/src/store.ts:17–19` 的独立 Acceptance 提交，后者先 COMMIT。QEA-84 从正常 HTTP 决定入口，仅用延迟外键让项目最终 COMMIT 拒绝；返回失败后实际读取 r2.person 仍为 accepted，预期 pending。日志 `/tmp/quality-audit-acceptance-commit-baseline.log`。这违反 Acceptance README 和授权 spec 的同事务承诺，可能使用户看到失败却留下认可，且缺少可信来源账。原 INSERT 阶段的撤权反证没有覆盖此窗口。
+**QF-48/P1 已复现并修复，定向通过、最终验收继续：认可与平台审批跨库部分提交。** 基线 `040f161a40` 的 `apps/local-host/src/acceptance-actions.ts:100–118` 在项目库事务里调用 `modules/acceptance/src/store.ts:17–19` 的独立 Acceptance 提交，后者先 COMMIT。QEA-84 从正常 HTTP 决定入口，仅用延迟外键让项目最终 COMMIT 拒绝；返回失败后实际读取 r2.person 仍为 accepted，预期 pending。日志 `/tmp/quality-audit-acceptance-commit-baseline.log`。这违反 Acceptance README 和授权 spec 的同事务承诺，可能使用户看到失败却留下认可，且缺少可信来源账。原 INSERT 阶段的撤权反证没有覆盖此窗口。
 
-QF-48 优先修复方案在收口：保留 Acceptance 原库、表、ID 和动作，用同一 attached 连接单次提交；复用现有成果固定的文件/空间校验、DELETE/EXTRA 和恢复协议，不冒充成果声明。规则和逐项状态仍归 Acceptance，平台决定仍归 project-approvals。必须同时验最终拒绝零写、同键恢复、COMMIT 后回包/清理失败与启动/U1/快照恢复，不能交换两个 COMMIT 顺序或事后删除补偿。
+QF-48 已实施：保留 Acceptance 原库、表、ID 和动作，用同一 attached 连接单次提交；复用现有成果固定的文件/空间校验、DELETE/EXTRA 和恢复协议，不冒充成果声明。规则和逐项状态仍归 Acceptance，平台决定仍归 project-approvals。必须同时验最终拒绝零写、同键恢复、COMMIT 后回包/清理失败与启动/U1/快照恢复，不能交换两个 COMMIT 顺序或事后删除补偿。
 
-主干交集首轮23文件20过/3失败：Run 时间与待核交集10项、真实恢复22项、流33项、业务 gateway80项、安装恢复41项、安装拒绝11项及三个真实审查界面已过。HTTP 旧断言409按主干现行权限拒绝保留403，修正后20项过。Goals 的16份快照反向还原已实施导入批次说明与按钮文案后均与 main 原 hash 相同；保留业务 view，合并重绘后56项过（2个生成模式默认跳过）。Feed AX读取两次出现 notRendered；后续远程对象身份核对捕获真实刷新替换。夹具现仅在原对象已脱离/被替换时重取，当前对象缺名或不可访问仍按原断言失败；全部23项通过，日志 `/tmp/quality-audit-feed-control-lifetime.log`，未改生产或放宽名称断言。合并未提交时 health 以旧 merge-base 计入主干新增例外；提交合并后重算，未改阈值。
+本批结果：完整构建通过，8个定向文件41项全部通过（`/tmp/quality-audit-acceptance-atomic-recovery.log`）。最终 COMMIT 拒绝、提交后清理故障、两个真实 SIGKILL 恢复场景、原 Dataset/Form 消费者及安全反证均已验；认可栏1440/390正常操作与回读通过。只读复核要求补强的重复记录计数和恢复后原 key 重试已通过（两文件5项，`/tmp/quality-audit-acceptance-atomic-retry.log`），未发现新增Blocker/P1。健康门禁退出0，公共API/动作/库快照无变化。用户不再需要猜测失败后的认可是否保存；开发者沿同一事务和原回执追踪结果，少维护一份独立事务提交顺序。共享核心必跑和最终头 CI 尚未完成。
 
-状态：进行中，负责人 Codex。原六方向审查、逻辑 Bug、需求实现度、BL 清理和本轮改造验收均保留；不以包清单或局部测试宣称整项完成。2026-11-17 已拉取并整合 main `a717e44284`（#2105），当前登记 **75 包、83 个 contracts 子路径**。完整构建通过，公开 API、动作、存储及版本快照已重算；合并交集的23文件验证进行中，合并尚未提交。
+**QF-49/P2 已确认、待实施：认可栏文本被省略。** `apps/workbench/src/styles/work-line.ts:291,302` 把要求、理由和历史单行截断，`work-acceptance-parts.ts:52,55` 仅用 title 提供完整文案。390触屏无法悬停，用户可能须进入编辑才能读完认可依据；1440侧栏也复现。决定：本轮让要求及决定理由完整换行，沿原栏位与审批流程验证，不新增确认步骤。
+
+主干交集首轮23文件20过/3失败：Run 时间与待核交集10项、真实恢复22项、流33项、业务 gateway80项、安装恢复41项、安装拒绝11项及三个真实审查界面已过。HTTP 旧断言409按主干现行权限拒绝保留403，修正后20项过。Goals 的16份快照反向还原已实施导入批次说明与按钮文案后均与 main 原 hash 相同；保留业务 view，合并重绘后56项过（2个生成模式默认跳过）。Feed AX读取两次出现 notRendered；后续远程对象身份核对捕获真实刷新替换。夹具现仅在原对象已脱离/被替换时重取，当前对象缺名或不可访问仍按原断言失败；全部23项通过，日志 `/tmp/quality-audit-feed-control-lifetime.log`，未改生产或放宽名称断言。提交合并后 health 已按 a717e442 重算，仅发现报告仍链接已归档 BL-360；链接已转现行授权验收，最终健康复验退出0（`/tmp/quality-audit-main-merged-health-final.log`），未改阈值。
+
+状态：进行中，负责人 Codex。原六方向审查、逻辑 Bug、需求实现度、BL 清理和本轮改造验收均保留；不以包清单或局部测试宣称整项完成。2026-11-17 已拉取并整合 main `a717e44284`（#2105），当前登记 **75 包、83 个 contracts 子路径**。完整构建通过，公开 API、动作、存储及版本快照已重算；合并交集23文件均有通过证据（首次失败与修正详见上文），合并检查点为 `040f161a40`。
 
 已有成果保存在原分支：Pages/共享选择 `67288d2e47`、Feed 公开 SourcePull/首次引导恢复 `29f6d1383e`、无关安装声明隔离 `03b3a58f76`，以及此前搜索、后台操作、Sessions、Git 草稿、共享材料、Coding、Memory、Workflows 批次。QF-47 本地定向已过，当前头复验中。固定 `29f6d1383e` 的205文件包回归另在隔离树继续；已出现版本例外遗留与 Feed 控件命名读取失败，不能记全绿，也不能挪作新头证据。
 
 仍在本轮：Git 冲突主区与迟到审查反馈 QF-23/46、平台候选/后台入口的余下深查及处置、资源和最终准确提交的 Full CI。QF-15 固定版本警告迁移及 Feed 废弃版本例外删除有具体方案待既有批准请求回复；不阻断其他工作。用户已明确延后的 PF-03 第三个会话记忆消费者条件保留，不报告为已平台化。旧头 `77e2cc0d5` 的 CI 只覆盖旧批次。草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) · [需求与验收](spec.md) · [逐包覆盖](coverage.md)。
 
 以下按发现保留代码依据与逐批证据；带旧基线的历史记录不表示当前状态。
-## 当前判断
+## 早期批次判断与依据（历史基线）
 
 2026-11-16 已整合基线：`4a08c41ca`（Sessions #2097）已整合到工作树，74包构建通过，合并提交 fc4e39e38 已保留，后续 Git 批保存于 84987a6c3 与 8ac8b806e。新增 `horizontal/sessions` 及其 UI/搜索/助理链纳入接续范围，不能继续沿用 73 包作为最新主干总数。BL-177 在该主干已改“部分实现”，保留 35/45/60 批和本人验收，不按新实现标题关闭整项。前批改造保存于 `a31a745e6`。现已保存共享输入材料检查点 `ba93f5c0b5`，并合入 `6359987103`（Sessions 合后复查 #2106 与公共子任务部件 #2108），合并提交 `31b0cba134`。两边新增的权限/会话回归均保留，公共 composer 的 ready/local placement 与本批来源/ack合同同时保留；API快照已重新生成，完整构建通过，组合验收19文件183项全部通过（13.9分钟，`/tmp/quality-audit-main-635-acceptance.log`）。新增重试用例第一次排队被主动撤下，未运行；后续已在这次组合验收实际执行通过。随后健康门禁发现 pageComposer 153行，已把独立的提交结果转换移到同文件函数，不改阈值，复验通过。QF-30 真实断连基线复现接受/拒绝晚写，最小信号修复与相关8文件96项验收通过，保存于56afa9c44e；仍不能据此将本轮全部六方向结项。QF-31读取故障、分区失败与原位重试已通过真实界面及写入读回；QF-32候选读写分离和QF-31旧入口清理也已完成本地验收，细节见各项记录。
 
@@ -157,7 +161,7 @@ QEA-29～32 的最新界面验收 `/tmp/quality-audit-sessions-browser-final.log
 
 `horizontal/agent-host/src/reviews.ts:193-215,252-278`：当前插件操作的批准仍要求原安装持有授权；`apps/workbench/src/agent-review-surface.ts:136,240` 原来只按 pending 与文档可读提供批准/拒绝。第九批 HTTP 旧构建已复现：原 authority 失效后批准按钮仍在，服务端拒绝。
 
-[BL-360](../backlog/BL-360.md) 的重启前提已过时：`prologue-git.ts:98-104`、`prologue-checkpoints.ts:181-189` 和 `prologue-review-documents.ts:297-304` 会撤回失去执行方的原等待。没有当前决定处理器的 raw pending 也不能称“能拒绝”。处置：队列按状态、处理器、原安装授权实时投影 `decisionOptions`，页面只画可执行按钮；保留决定与派发复核，不恢复旧授权。正常 Git 关闭最后依赖入口、重新激活后旧操作只能拒绝的实操已通过（47.5 秒），暂存区与 HEAD 不变；服务/侧栏与真实 SDK 恢复回归通过。原 BL 保留到最终资源、门禁与 CI 验收完成。
+[BL-360 的现行授权验收](../agent-approval/spec.md) 的重启前提已过时：`prologue-git.ts:98-104`、`prologue-checkpoints.ts:181-189` 和 `prologue-review-documents.ts:297-304` 会撤回失去执行方的原等待。没有当前决定处理器的 raw pending 也不能称“能拒绝”。处置：队列按状态、处理器、原安装授权实时投影 `decisionOptions`，页面只画可执行按钮；保留决定与派发复核，不恢复旧授权。正常 Git 关闭最后依赖入口、重新激活后旧操作只能拒绝的实操已通过（47.5 秒），暂存区与 HEAD 不变；服务/侧栏与真实 SDK 恢复回归通过。原 BL 保留到最终资源、门禁与 CI 验收完成。
 
 ### QF-08 / P2：搜索请求取消没有穿过 HTTP 入口
 

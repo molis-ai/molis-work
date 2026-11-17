@@ -646,6 +646,22 @@ QF-47最终健康门禁退出0（`/tmp/quality-audit-surface-health-final.log`�
 
 ## 第三十七批：认可决定的跨库提交失败
 
-状态：QF-48/P1 静态已确认两个独立事务，正常入口复现中。`acceptance-actions.ts` 外层项目库事务调用 AcceptanceService.decide，后者在自己的 Home 库先 COMMIT；外层最终提交失败时可能只留下业务认可，缺少原本人决定。不能交换两次提交顺序冒充原子性，也不能在错误分支再写补偿认可记录。先核现有存储事务能力与合同，再确定最小完整方案；涉及持久结构按升级流程办理。
+状态：QF-48/P1 已从正常入口复现，原子修复已实施，定向验收通过；共享核心必跑与最终准确头 CI 继续。基线：`acceptance-actions.ts` 外层项目库事务调用 AcceptanceService.decide，后者在自己的 Home 库先 COMMIT；外层最终提交失败时可能只留下业务认可，缺少原本人决定。不能交换两次提交顺序冒充原子性，也不能在错误分支再写补偿认可记录。先核现有存储事务能力与合同，再确定最小完整方案；涉及持久结构按升级流程办理。
 
 - **QEA-84** 正常项目审批 HTTP 入口提交原已阅版本，在项目库的最终 COMMIT 才拒绝（延迟外键反例，非 INSERT 或权限预检），两份实际业务/可信决定记录均不得部分提交；原同 key 恢复后只有一次决定、原引用可重开，原期限/撤权拒绝保留。复现之后补具体实施方案再改行为。
+
+QEA-84 已在正常 HTTP 入口有效失败：只有项目 COMMIT 拒绝，Acceptance 实际仍 accepted（`/tmp/quality-audit-acceptance-commit-baseline.log`）。最小完整方案：保留两库现行结构、版本、决定 ID 与动作，抽取现有成果固定所用的同连接 ATTACH/DELETE/EXTRA/文件空间及版本校验事务接缝；原成果调用方迁入并保留全部拒绝。Acceptance owner 新增仅供可信 Host 组合的事务服务入口，在已附加的自己的表上执行原规则，禁止内部再 BEGIN/COMMIT。项目可信决定与逐项认可同一次提交。真实 COMMIT 返回后立即标记 bound.submit，早于 DETACH/close/返回投影，避免清理故障再次冒充未提交。
+
+恢复范围必须同片：以现有 HomeStore 登记和项目目录为唯一库身份，增加系统 Acceptance 库作为这份既有原子事务协议的真实消费者，不伪造插件/成果声明。Home 启动、U1 与离线快照/恢复仍共用当前 native rollback recovery；普通打开不能先于受控恢复自动解释待恢复的跨库日志。若抽出的文件/日志预检需要跨包共用，放 Storage，Acceptance 和 Host 共用；不增加兼容格式或第二份恢复账。
+
+- **QEA-85** 执行中的原决定在权限/期限/规则变化时仍零写；成功 COMMIT 后回执丢失或清理故障按原决定读回，不重新应用；同 key 恢复只保留一份平台决定与所选要求的逐项记录。
+- **QEA-86** 隔离 Home 真正中止写进程后，启动与 U1 在开业务库前恢复同一次跨库事务；未恢复时备份/覆盖恢复拒绝且不改原数据。共享事务迁移覆盖原 Dataset/Form 等成果固定真实消费与原外库/目录/空间/日志模式拒绝。
+
+验收：完整构建，Acceptance 包必跑、project review HTTP/可信凭据、Home artifact join/Host recovery/rollback recovery/快照与升级相关测试，公开 API/动作/库结构快照与健康门禁，最终准确 head Full CI。实现已完成并通过第一次8文件定向验收（41项）；只读复核后补强真实重复行数与崩溃恢复后的原 key 重试，继续复验。
+
+
+QEA-84/85：完整构建通过，旧最终 COMMIT 反例转为两库零写；成功提交后的 busy_timeout 清理故障从原操作回执恢复。QEA-86：真实 HTTP 提交过程中捕获两份日志共同指向有效 super-journal 后 SIGKILL；两种场景分别验证有效 stamp 和未完成 U1，恢复前普通 open/purge/备份/覆盖恢复均拒且原字节不变，恢复后逐项/平台决定均为零。原 Dataset/Form join、文件/空间/版本/安装拒绝、原 Home/U1 恢复与项目审批 HTTP 全通过。`work-line-acceptance.e2e` 在隔离 Home 通过认可、退回、要求变更与实际回读，1440中文/390英文两图已实看。日志 `/tmp/quality-audit-acceptance-atomic-recovery.log`，8/8文件、41项通过；没有把注入的核验证据当成真实外部工程验收。
+
+新增体验发现 QF-49/P2：认可栏要求正文、退回/缺口理由和历史均被单行省略，手机无法悬停 title 阅读完整内容；当前截图和 `apps/workbench/src/styles/work-line.ts:291,302` 证实。后续本轮 UI 批让决定所依据的文本直接完整换行，不要求进入编辑模式才能读；保持既有栏位、状态与审批合同。须在隔离 Home 用长要求/退回理由/历史核完整可见、触达和原认可操作，不能仅以无横向溢出证明可读。
+
+第三十七批补强复验：`acceptance-atomic-retry.log` 两文件5项通过，同 key 实际行数均为1，SIGKILL恢复后使用原 reference/key 提交并重放只保留一份两库决定。只读复核未发现新增 Blocker/P1；公共 API/动作/库结构快照无变化，`acceptance-atomic-health.log` 健康退出0。共享核心/Host必跑与最终CI继续，未标整项完成。

@@ -27,6 +27,8 @@
 
 合同在 `@molis-ai/molis-work-contracts/modules/acceptance`；Host 装配在 `apps/local-host/src/acceptance-actions.ts`。
 
+认可提交由 Host 的 `withAcceptanceTransaction` 组合项目库与本库，复用 Storage 的同连接 ATTACH 事务。`decideAcceptanceInTransaction` 只供可信 Host 在已开始的附加库事务中调用；原要求版本、交付与本人规则仍由本模块执行，不另开连接、不自行提交或关闭借用连接。平台决定与逐项认可由一次 native COMMIT 保存，提交后的清理失败经原操作编号读取回执。普通打开与项目清除先拒绝待恢复日志，由正常 Home owner 恢复后再继续；库路径、结构和版本不变。QEA-84–86 回归见 `tests/security-invariants-acceptance.test.ts`、`tests/acceptance-atomic-recovery.test.ts`。
+
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。

@@ -41,6 +41,8 @@ export {
   type UpgradeSqliteConnection,
 } from "./upgrade-snapshot.js";
 export { recoverSqliteRollbackJournals, type RollbackLibrary } from "./rollback-journal.js";
+export { assertSqliteDatabaseFiles, assertSqliteLibraryReady, sqliteLibraryDirectoryExists, sqliteRollbackSidecars, pendingSqliteRecovery } from "./sqlite-rollback-policy.js";
+export { withSqliteLibraryTransaction } from "./sqlite-library-transaction.js";
 export { homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type HomeStoreRegistry } from "./home-stores.js";
 export {
   isSqliteSchemaStructureMismatch,

@@ -10,6 +10,8 @@ A4-M 本地初始合同：同一 format_version:1 的每项独立遗忘决定必
 
 为各 owner 提供 SQLite 连接、共享日志、幂等记录、原子文件写入和本地安全存储适配，避免每个模块各建一套底层机制。
 
+`withSqliteLibraryTransaction` 把现有 Home 库附加到项目 owner 的连接，一次 SQLite 提交覆盖两份文件；调用方核对登记、版本、空间与业务归属，Storage 核对原文件身份、同卷、DELETE/EXTRA 模式并管理 ATTACH/事务/DETACH。提交回调先于清理运行，供可信决定记录“已经提交”。成果固定和 Acceptance 共用此入口；两者的业务 SQL 仍归各自 owner。`assertSqliteLibraryReady` 是打开前的文件及日志预检，不解释或自动恢复日志；恢复仍由持有 Home authority 的现有回滚恢复入口负责。
+
 包名：`@molis-ai/molis-work-storage`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 

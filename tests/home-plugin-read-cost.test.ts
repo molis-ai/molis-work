@@ -84,6 +84,12 @@ test("ASR-11 QEA-96 unchanged Home plugin structures are compared once while eac
       writer.exec("DROP TABLE unexpected_home_rows");
       assert.ok(remaining.catalog.projectPluginMembership(remaining.project.project_id).plugins.includes("goals"), "a repaired structure is rechecked and becomes readable");
     } finally { writer.close(); }
+    const unbound = new DatabaseSync(remaining.file);
+    try { unbound.exec("DELETE FROM molis_storage_space"); } finally { unbound.close(); }
+    const beforeMissingBinding = readFileSync(remaining.file);
+    assert.throws(() => remaining.catalog.projectPluginMembership(remaining.project.project_id), { code: "actions.execution_failed" },
+      "QEA-108 a missing binding row cannot reuse the warm bound success, even though the schema is unchanged");
+    assert.deepEqual(readFileSync(remaining.file), beforeMissingBinding, "the missing binding is not repaired or relabelled");
     assert.deepEqual(scratch, { plain: 1, scoped: 1 });
   } finally { ddl.mock.restore(); checks.mock.restore(); }
 });

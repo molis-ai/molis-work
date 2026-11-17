@@ -109,7 +109,7 @@ Git QF-03 的独立与 Coding 内嵌入口已补真实仓库复现：提交说�
 | `packages/kernel` | production | `.`、`./contextual` | action-schema、action-settlement 与执行控制：输入校验、call/invocation 关联、嵌套调用、beforeEffect；保留异步后授权复核。 |
 | `packages/plugin-runtime` | production | `.` | activation-jobs、notification-queue 与调用身份：激活代次/迟到提交、停止与 drain、事务内通知及稳定幂等键。 |
 | `packages/plugin-sdk` | production | `.`、`./highlight`、`./rich-text` 等 13 个子路径 | state-machine、execution-lifetime、browser、sandbox-read-protocol：CAS 状态迁移、取消资源、请求方法差异和生成插件读协议。 |
-| `packages/storage` | production | `.` | `src/sqlite-owner-boundary.ts:19,59`：SQLite 实际 prepare/step 授权、finally 清理；升级/快照公开入口核对。未执行存量迁移。 |
+| `packages/storage` | production | `.` | `src/sqlite-owner-boundary.ts:19,59`：SQLite 实际 prepare/step 授权、finally 清理；升级/快照公开入口核对。第43/47批沿Home成员读取与升级入口复用结构比较，版本/归属逐次检查；QEA-108覆盖空间形式交错和绑定行消失，10文件154项通过，版本文件仍有旧Feed例外待批准。未执行用户存量迁移。 |
 | `packages/ui-host` | slice | `.` | `src/index.ts:76,107`、declared-mount-host：登记 surface、owner 与位置兑现；另追 Host surface-slot-http 与 surfaces/position 的受控 plugin-slot，以及 Inbox/Risk/Work Brief 的 UI contribution 声明和 surfaceSlot 消费者，不重建槽能力。 |
 | `packages/design-system` | production | `.`、`./produced-text`、`./capability-pack` 等 4 个子路径 | composer-rules 的草稿身份、输入法/发送规则、迟到代次；公开组件/语义样式入口。导入沿用现有组件。 |
 | `packages/test-kit` | slice | `.`、`./browser`、`./local-host-http` 等 4 个子路径 | browser launch/close、隔离目录与 CDP；本轮实际使用独立浏览器、临时 Home、真实成果库。 |

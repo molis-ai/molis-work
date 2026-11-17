@@ -137,10 +137,13 @@ export function checkSqliteBaselineVersion(db: SqliteBaselineDatabase, path: str
 }
 
 /** A baseline's expected shape, described once from its creation statements (the memory reference is not rebuilt per open). */
-const expectedShapes = new WeakMap<SqliteBaseline, SqliteSchemaShape>();
-function expectedShape(baseline: SqliteBaseline): SqliteSchemaShape {
-  let shape = expectedShapes.get(baseline);
-  if (!shape) { shape = describeSqliteBaseline(baseline); expectedShapes.set(baseline, shape); }
+const expectedShapes = new WeakMap<SqliteBaseline, { plain?: SqliteSchemaShape; withSpace?: SqliteSchemaShape }>();
+function expectedShape(baseline: SqliteBaseline, includeSpace = false): SqliteSchemaShape {
+  let forms = expectedShapes.get(baseline);
+  if (!forms) expectedShapes.set(baseline, forms = {});
+  const form = includeSpace ? "withSpace" : "plain";
+  let shape = forms[form];
+  if (!shape) forms[form] = shape = describeSqliteBaseline(includeSpace ? { ...baseline, schema: STORAGE_SPACE_SCHEMA_SQL + baseline.schema } : baseline);
   return shape;
 }
 
@@ -158,8 +161,8 @@ function baselineTriggers(baseline: SqliteBaseline): ReadonlyMap<string,string> 
 function sqliteTriggers(db: SqliteBaselineDatabase): ReadonlyMap<string,string> {
   return new Map((db.prepare("SELECT name, sql FROM sqlite_master WHERE type='trigger' ORDER BY name").all() as {name:string;sql:string}[]).map(row=>[row.name,row.sql.trim()]));
 }
-function baselineShapePresent(db: SqliteBaselineDatabase, baseline: SqliteBaseline): boolean {
-  const found = describeSqliteSchema(db), expected = expectedShape(baseline);
+function baselineShapePresent(db: SqliteBaselineDatabase, baseline: SqliteBaseline, includeSpace = false): boolean {
+  const found = describeSqliteSchema(db), expected = expectedShape(baseline, includeSpace);
   const triggers=sqliteTriggers(db);
   if([...baselineTriggers(baseline)].some(([name,sql])=>triggers.get(name)!==sql))return false;
   return Object.entries(expected.tables).every(([name, table]) => found.tables[name] !== undefined
@@ -169,7 +172,7 @@ function baselineShapePresent(db: SqliteBaselineDatabase, baseline: SqliteBaseli
 /** The baseline comparison an upgrade ends with. A Home store also carries its binding table, whose shape has to survive the steps too. */
 export function upgradedShapeMatches(db: SqliteBaselineDatabase, baseline: SqliteBaseline): boolean {
   const bound = db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='molis_storage_space'").get() !== undefined;
-  return baselineShapePresent(db, bound ? { ...baseline, schema: STORAGE_SPACE_SCHEMA_SQL + baseline.schema } : baseline);
+  return baselineShapePresent(db, baseline, bound);
 }
 
 /** A same-version store whose structure is not the baseline's: refused, never repaired in place (repository-anti-corruption §4.1). */
@@ -209,14 +212,15 @@ function shapeIdentity(path: string, db: SqliteBaselineDatabase, version: number
 /**
  * Compare the current file structure once per unchanged identity and comparison mode. Callers still check version and ownership
  * and read current business rows on every open. Exact mode compares the whole table/index/foreign-key shape; baseline mode also
- * checks declared triggers and permits the extra tables that project plugins own. A failed comparison is never remembered.
+ * checks declared triggers and permits the extra tables that project plugins own. includeSpace adds Storage's binding structure
+ * to either comparison without declaring a second database baseline. A failed comparison is never remembered.
  */
 export function assertSqliteBaselineShape(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline,
-  { home, mode = "baseline" }: { home?: string; mode?: "baseline" | "exact" } = {}): void {
-  const identity = `${shapeIdentity(path, db, baseline.version)}:${mode}`;
+  { home, mode = "baseline", includeSpace = false }: { home?: string; mode?: "baseline" | "exact"; includeSpace?: boolean } = {}): void {
+  const identity = `${shapeIdentity(path, db, baseline.version)}:${mode}:${includeSpace}`;
   let compared = comparedShapes.get(baseline);
   if (compared?.get(path) === identity) return;
-  const matches = mode === "exact" ? JSON.stringify(describeSqliteSchema(db)) === JSON.stringify(expectedShape(baseline)) : baselineShapePresent(db, baseline);
+  const matches = mode === "exact" ? JSON.stringify(describeSqliteSchema(db)) === JSON.stringify(expectedShape(baseline, includeSpace)) : baselineShapePresent(db, baseline, includeSpace);
   if (!matches) throw structureMismatch(path, home);
   if (!compared) comparedShapes.set(baseline, compared = new Map());
   compared.set(path, identity);

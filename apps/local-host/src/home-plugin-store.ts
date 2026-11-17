@@ -2,7 +2,7 @@ import { lstatSync } from "node:fs";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, PLUGIN_TRUST_SCHEMA_SQL,
   SqlitePluginConsentLedger, SqlitePluginPrivateStorage, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { checkSqliteBaselineVersion, assertSqliteBaselineShape, readDatabaseSpace, readStorageSpace, STORAGE_SPACE_SCHEMA_SQL, homeSqlitePath, isSqliteSchemaStructureMismatch, isSqliteVersionRefusal, openBaselineHomeSqlite, openReadOnlyHomeSqlite, sqliteVersionRefusal,
+import { checkSqliteBaselineVersion, assertSqliteBaselineShape, readDatabaseSpace, readStorageSpace, homeSqlitePath, isSqliteSchemaStructureMismatch, isSqliteVersionRefusal, openBaselineHomeSqlite, openReadOnlyHomeSqlite, sqliteVersionRefusal,
   type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
 const HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = {
@@ -16,12 +16,9 @@ const refusedHomeStore = <T extends Error>(error: T): T => Object.assign(error, 
 export const isHomePluginStoreRefusal = (error: unknown): error is ActionError =>
   error instanceof Error && Reflect.get(error, homeStoreRefusal) === true;
 const invalidHomeStoreShape = () => refusedHomeStore(new ActionError("actions.execution_failed", "Home 插件运行库结构与当前基线不一致，请保留故障库并检查其来源"));
-const BOUND_HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = { ...HOME_PLUGIN_RUNTIME_BASELINE,
-  schema: STORAGE_SPACE_SCHEMA_SQL + HOME_PLUGIN_RUNTIME_BASELINE.schema };
-
 function assertHomeStoreShape(db: Parameters<typeof assertSqliteBaselineShape>[0], home: string, withSpace = readDatabaseSpace(db) !== null): void {
   try { assertSqliteBaselineShape(db, homeSqlitePath(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path),
-    withSpace ? BOUND_HOME_PLUGIN_RUNTIME_BASELINE : HOME_PLUGIN_RUNTIME_BASELINE, { home, mode: "exact" }); }
+    HOME_PLUGIN_RUNTIME_BASELINE, { home, mode: "exact", includeSpace: withSpace }); }
   catch (error) { if (isSqliteSchemaStructureMismatch(error)) throw invalidHomeStoreShape(); throw error; }
 }
 

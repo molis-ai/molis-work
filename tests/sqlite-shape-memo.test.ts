@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
-import { assertSqliteBaselineShape, homeSqlitePath, openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { assertSqliteBaselineShape, bindDatabaseSpace, ensureStorageSpace, homeSqlitePath, openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
 const STRUCTURE_QUERY = /pragma_table_|table_info|table_xinfo|index_list|foreign_key_list/i;
 
@@ -57,6 +57,32 @@ test("QEA-96 exact Home comparison cannot reuse a broader baseline pass and neve
   assert.throws(() => assertSqliteBaselineShape(db, file, withTrigger), { code: "storage.schema_structure_mismatch" }, "an exact table comparison cannot replace the baseline's declared-trigger check");
   db.exec(trigger);
   assertSqliteBaselineShape(db, file, withTrigger);
+});
+
+test("QEA-108 one baseline keeps plain and space-bound comparisons separate on the same file", t => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "molis-bound-shape-"))), file = join(home, "store.db"), db = new DatabaseSync(file);
+  t.after(() => { db.close(); rmSync(home, { recursive: true, force: true }); });
+  const baseline: SqliteBaseline = { version: 1, schema: "CREATE TABLE notes(id TEXT PRIMARY KEY, body TEXT NOT NULL);" };
+  db.exec(baseline.schema + "PRAGMA user_version=1");
+  const exact = (includeSpace: boolean) => assertSqliteBaselineShape(db, file, baseline, { mode: "exact", includeSpace });
+  const required = () => assertSqliteBaselineShape(db, file, baseline, { includeSpace: true });
+  const mismatch = { code: "storage.schema_structure_mismatch" };
+  exact(false);
+  assert.throws(() => exact(true), mismatch, "a successful plain comparison cannot satisfy a missing binding table");
+  assert.throws(required, mismatch, "baseline mode must also require the requested space structure");
+  bindDatabaseSpace(db, ensureStorageSpace(home));
+  exact(true); required();
+  assert.throws(() => exact(false), mismatch, "a successful bound comparison cannot omit the extra space table");
+  exact(true);
+  assert.equal(structureReads(t, () => { for (let index = 0; index < 100; index++) exact(true); }), 0);
+  db.exec("ALTER TABLE molis_storage_space RENAME COLUMN descriptor TO broken_descriptor");
+  assert.throws(() => exact(true), mismatch);
+  assert.throws(required, mismatch);
+  db.exec("ALTER TABLE molis_storage_space RENAME COLUMN broken_descriptor TO descriptor");
+  exact(true); required();
+  db.exec("DROP TABLE molis_storage_space");
+  exact(false);
+  assert.throws(() => exact(true), mismatch, "returning to the plain structure does not reuse an earlier bound success");
 });
 
 test("U1-j refusal: the structure changes under a WAL store, the main file's identity staying the same: the next open compares again and refuses", t => {

@@ -89,5 +89,5 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   scope.observe(new MutationObserver(visible), document.body, { subtree: true, attributes: true, attributeFilter: ['hidden'], childList: true });
   visible();
-  return { prepare, frameAssets: async () => { await load('/assets/molis-work-plugin-frame.js'); globalThis.molisPluginFrames.assets.configure(host.paneMessages); return globalThis.molisPluginFrames.assets; }, ready: id => prepare(document.querySelector('[data-work-surface="' + CSS.escape(id) + '"]')) };
+  return { prepare, loadBundle: id => load('/assets/molis-work-plugins/' + encodeURIComponent(id) + '.js'), frameAssets: async () => { await load('/assets/molis-work-plugin-frame.js'); globalThis.molisPluginFrames.assets.configure(host.paneMessages); return globalThis.molisPluginFrames.assets; }, ready: id => prepare(document.querySelector('[data-work-surface="' + CSS.escape(id) + '"]')) };
 }`;

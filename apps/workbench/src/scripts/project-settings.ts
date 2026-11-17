@@ -329,7 +329,6 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
     const bindEmbedded = (root) => {
       globalThis.molisWorkBindProjectIdentity?.(root);
       globalThis.molisWorkBindProjectGuidance?.(root);
-      globalThis.molisWorkBindProjectRules?.(root);
     };
     const resetEmbed = (details) => {
       const target = details.querySelector("[data-settings-embed-target]");

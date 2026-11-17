@@ -1,5 +1,17 @@
 [
   {
+    "file": "plugins/native/goals/src/approval-transfer-sync.ts",
+    "name": "schema_version",
+    "values": { "1": 1 },
+    "reason": "APR-19 显式项目库移交识别旧 Goals 的 project_goals@1，用原集合键验证触发器与同步账本；现行集合仍由 Manifest 标记管理。"
+  },
+  {
+    "file": "plugins/native/goals/src/project-database.ts",
+    "name": "version",
+    "values": { "1": 1, "2": 1, "3": 1 },
+    "reason": "APR-19 已批准的一次性移交要逐个核对 Goals v1／v2／v3 源结构；这些仅供维护读取，现行项目库仍由 GOALS_PROJECT_DATABASE 声明。"
+  },
+  {
     "file": "apps/local-host/src/project-layout.ts",
     "name": "version",
     "values": { "2": 1 },
@@ -1078,53 +1090,9 @@
   {
     "file": "packages/contracts/src/platform/external-tools.ts",
     "name": "version",
-    "values": { "0.166.0": 3, "1.0.70": 1, "1.5.0": 1 },
+    "values": { "0.166.0": 3, "1.0.62": 1, "1.5.0": 1, "2.96.0": 1 },
     "reason": "外部工具登记表每行 `checked.version` 记的是核对那一行时外部工具的上游版本（如 Codex 0.166.0），说明这行依据哪一版写成，不是产品版本，也不是合同或库的版本，不进 tooling/versions.json。"
   },
-  {
-    "entry": "action.sessions.list",
-    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
-  },
-  {
-    "entry": "action.sessions.history.read",
-    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
-  },
-  {
-    "entry": "action.sessions.scope.read",
-    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
-  },
-  {
-    "entry": "action.sessions.scope.set",
-    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
-  },
-  {
-    "entry": "action.sessions.project_ai_read.set",
-    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
-  },
-  {
-    "entry": "action.sessions.discovery.run",
-    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
-  },
-  {
-    "entry": "action.sessions.attribution.set",
-    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
-  },
-  {
-    "entry": "action.sessions.attribution.suggest",
-    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
-  },
-  {
-    "entry": "action.sessions.search.entries",
-    "reason": "由服务片 S-4 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，S-1 按设计稿第 10.2 节除开它，所以动作快照里还没有行。"
-  },
-  {
-    "entry": "action.sessions.subject.read",
-    "reason": "由服务片 S-4 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，S-1 按设计稿第 10.2 节除开它，所以动作快照里还没有行。"
-  },
-  {
-    "entry": "action.sessions.tool.search",
-    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
-    },
     {
     "file": "horizontal/memory/src/batch.ts",
     "name": "version",

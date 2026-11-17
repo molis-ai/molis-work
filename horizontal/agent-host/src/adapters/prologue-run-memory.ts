@@ -57,10 +57,10 @@ export class RunMemoryBinding {
   }
   client(client: AgentActionClient, frozen?: readonly ActionView[]): AgentActionClient {
     return { ...client,
-      invoke: async (reference, input, signal) => {
+      invoke: async (reference, input, signal, memorySelection, review) => {
         const definition = reference.provider_id === MEMORY_PROVIDER_ID
           ? [memoryActions.list, memoryActions.recall].find(one => one.capability_id === reference.capability_id && one.version === reference.version) : undefined;
-        if (!definition) return client.invoke(reference, input, signal);
+        if (!definition) return client.invoke(reference, input, signal, memorySelection, review);
         await this.#current(signal);
         const current = (await client.discover()).find(view => sameIdentity(view, reference));
         const original = frozen?.find(view => sameIdentity(view, reference)) ?? current;

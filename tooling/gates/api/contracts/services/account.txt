@@ -148,6 +148,10 @@ export type Invitation = {
     readonly version: Version;
 };
 
+export type LoginCapabilities = {
+    readonly methods: ReadonlyArray<"ACCOUNT_PASSWORD" | "EMAIL_CODE" | "PHONE_OTP" | "GOOGLE" | "GITHUB">;
+};
+
 export type LoginMethodsView = {
     readonly loginMethods: ReadonlyArray<LoginMethod>;
     readonly version: Version;

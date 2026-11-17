@@ -76,7 +76,7 @@ async function approvedFakecheck(t: TestContext, path: (dirs: { project: string;
     assert.match(JSON.stringify(asked.document), /fakecheck/, "the person approves the bare name fakecheck");
     // The Host reads its PATH when it starts the command.
     process.env.PATH = path({ project, outside });
-    await queue.respond({ review_id: asked.review_id, decision: "approve", actor_id: "web-user" });
+    await queue.respond({ review_id: asked.review_id, version: asked.reference.version, decision: "approve", actor_id: "web-user" });
     await until(async () => (await adapter.read(handle.ref)).phase === "completed");
     assert.equal(requests.length, 2, "the command's result went back to the model once");
     return requests[1]!;

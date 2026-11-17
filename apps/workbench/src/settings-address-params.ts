@@ -31,6 +31,7 @@ export const GLOBAL_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
   // access (MCP access, the page mcp-action-access.ts:49-51,63 renders): it reads client/client_custom (the client selector), project and
   // q/filter. It does not read format; that is web-mcp-action-settings.ts turning a request into an HTML fragment for its caller.
   access: "client client_custom q filter",
+  authorizations: "view",
   // history: web-capabilities.ts:27 reads q/kind for it.
   history: "q kind",
   // diagnostics: web-call-diagnostics.ts:20 reads call.
@@ -38,7 +39,12 @@ export const GLOBAL_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
 };
 
 /** Project settings pages that read more than the defaults, by the section the workbench opens. */
-export const PROJECT_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = { guidance: "draft_ref", memory: "memory_session_kind memory_session_id" };
+export const PROJECT_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
+  guidance: "draft_ref", memory: "memory_session_kind memory_session_id",
+  // kit: install skill generation version owner role name a linked catalog item; browser/kit/writing.ts reads draft (a Skill draft to open,
+  // the link on the assistant's receipt).
+  kit: "install skill generation version owner role draft",
+};
 
 /**
  * The fragments settings pages read today, by section; any other fragment is dropped. `prompts` also reads `#diagnostics`

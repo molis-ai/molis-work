@@ -11,6 +11,7 @@ import {
   leakedMarkup,
   renderAgentReviewSurface,
   reviewPhase,
+  reviewSourceSummary,
   type AgentReviewPrimitives,
   type AgentReviewRow,
 } from "@molis-ai/molis-work-app-workbench";
@@ -26,8 +27,10 @@ const p: AgentReviewPrimitives = {
 
 function row(overrides: Partial<AgentReviewRow> = {}): AgentReviewRow {
   return {
+    decisions: { approve: { available: true }, reject: { available: true } },
     request: {
       review_id: "r1",
+      reference: { owner: { kind: "agent-review", project_id: "board-a", plugin_id: "io.molis.work.coding", install_id: "fixture" }, id: "r1", version: "shown-version" },
       run: { run_id: "run-1", session_id: "s-1" },
       project_id: "board-a",
       plugin_id: "io.molis.work.coding",
@@ -58,6 +61,40 @@ function receipt(overrides: Partial<AgentReviewRow["receipt"] & object> = {}) {
     ...overrides,
   };
 }
+
+test("APR-12: persisted person and policy sources are distinct; historical actor text cannot invent a person source", () => {
+  const personRow = row({ receipt: receipt({ source: { kind: "person", actor_id: "user" } }) });
+  const person = renderAgentReviewSurface({ rows: [personRow], primitives: p });
+  assert.match(person, /data-review-source="person"/); assert.match(person, /本人决定/);
+  assert.equal(reviewSourceSummary(personRow).person, "user");
+  assert.equal(reviewSourceSummary(row({ receipt: receipt() })).person, null);
+  const policy = renderAgentReviewSurface({ rows: [row({ receipt: receipt({ source: { kind: "policy", owner: "agent.session-rule", id: "rule", revision: 1, set_by: "user", set_at: "2026-09-19T14:00:00Z" } }) })], primitives: p });
+  assert.match(policy, /data-review-source="policy"/); assert.match(policy, /自动策略/); assert.doesNotMatch(policy, /本人决定/);
+  const history = renderAgentReviewSurface({ rows: [row({ receipt: receipt({ note: "approved by a human" }) })], primitives: p });
+  assert.match(history, /data-review-source="unrecorded"/); assert.match(history, /来源未记录/);
+  assert.match(person, /data-agent-review-version="shown-version"/);
+});
+
+test("APR-12: approval history shows the recorded automatic source in both languages", () => {
+  const delegation = { id: "grant", revision: 2, work_epoch: "work-epoch", grantor_id: "original-grantor" };
+  const sources = [
+    [{ kind: "delegation", delegation }, "沿用授权", "Delegated authority"],
+    [{ kind: "policy", owner: "agent.session-rule", id: "rule", revision: 1, set_by: "original-grantor", set_at: "2026-09-19T14:00:00Z" },
+      "自动策略", "Automatic policy"],
+    [{ kind: "ai", delegation, assessment: { id: "assessment", version: "assessment-version", provider_id: "fixture.evaluator", model_id: "fixture-model" },
+      reason: "Recorded low-risk assessment" }, "AI 代批", "AI approval"],
+  ] as const;
+  for (const [source, zh, en] of sources) {
+    const recorded = row({ receipt: receipt({ source, decided_by: "original-grantor" }) });
+    for (const [locale, label] of [["zh", zh], ["en", en]] as const) runWithLocale(locale, () => {
+      const summary = reviewSourceSummary(recorded);
+      assert.equal(summary.person, null, source.kind);
+      assert.equal(summary.source, label);
+      const html = renderAgentReviewSurface({ rows: [recorded], primitives: p });
+      assert.ok(html.includes(`data-review-source="${source.kind}">${label}</span>`));
+    });
+  }
+});
 
 test("批准之后、真实回执之前，是「已批准，执行结果待确认」，不是「已完成」", () => {
   const approved = row({ receipt: receipt() });
@@ -296,4 +333,15 @@ test("RING-07 review rings distinguish approval, pending effect, success, failur
     assert.match(html, /data-ring-segments/);
     assert.doesNotMatch(html, /data-icon="(?:clock|circle-alert|check|x|alert)"/);
   }
+});
+
+test("BL-360: current decisions hide approval after revocation and both choices without an owner", () => {
+  const denied = { available: false as const, code: "agent.review_not_permitted", reason: { owner: "workbench", key: "workbench.agent-review.authority-ended" } };
+  const onlyReject = row({ decisions: { approve: denied, reject: { available: true } } });
+  const html = renderAgentReviewSurface({ rows: [onlyReject], primitives: p });
+  assert.doesNotMatch(html, /data-agent-review-approve|data-agent-review-remember/);
+  assert.match(html, /data-agent-review-reject="r1"/); assert.match(html, /原授权已经失效/);
+  const neither = row({ decisions: { approve: denied, reject: denied } });
+  assert.equal(isDecidable(neither), false);
+  assert.doesNotMatch(renderAgentReviewSurface({ rows: [neither], primitives: p }), /data-agent-review-approve|data-agent-review-reject/);
 });

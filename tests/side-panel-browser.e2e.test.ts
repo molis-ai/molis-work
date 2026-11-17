@@ -1,3 +1,4 @@
+import { observeSurface, performSurface, surfaceContext, surfaceTarget } from "./fixtures/surface-target.js";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -70,15 +71,15 @@ test("RAC-115: a real input protocol refusal reaches the existing socket, stays 
     let pageSession: string | undefined, refuse = true, inputAttempts = 0;
     const protocolRefusals: unknown[] = [];
     const privateMethod = "Input.RAC115_PRIVATE_PROTOCOL", privateText = "RAC115 PRIVATE INPUT";
-    t.mock.method(running.cdp, "send", (method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs?: number) => {
+    t.mock.method(running.cdp, "send", (method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs?: number, beforeSend?: () => void) => {
       if (method === "Page.navigate" && params.url === `${site.origin}/`) pageSession = sessionId;
       if (method === "Input.insertText") {
         inputAttempts++;
-        if (refuse) return sendCdp(privateMethod, params, sessionId, timeoutMs).catch((error: unknown) => {
+        if (refuse) return sendCdp(privateMethod, params, sessionId, timeoutMs, beforeSend).catch((error: unknown) => {
           protocolRefusals.push(error); throw error;
         });
       }
-      return sendCdp(method, params, sessionId, timeoutMs);
+      return sendCdp(method, params, sessionId, timeoutMs, beforeSend);
     });
     const messages: BrowserServerMessage[] = [];
     socket = new WebSocket(ui.origin.replace(/^http/u, "ws") + BROWSER_SOCKET_PATH, { headers: { Origin: ui.origin } });
@@ -240,35 +241,51 @@ test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through mov
     <script>window.nodeClicks=[];document.addEventListener('click',event=>{const el=event.target.closest('button');if(el)window.nodeClicks.push({id:el.id,target:el.dataset.target||'',trusted:event.isTrusted})});</script>`);
   const browsers = new BrowserHost({ homeDirectory: home, locate: () => ({ path: chrome, name: basename(chrome) }) });
   const page = browsers.page("node-project"), driver = createBrowserSurfaceDriver(page);
-  const detach = page.attach({ state: () => {} }, { width: 800, height: 600, dpr: 1 });
+  const detach = page.attach({ state: () => {}, frame: () => {} }, { width: 800, height: 600, dpr: 1 });
   let mouseInputs = 0, mousePresses = 0;
   const mouseEvents: Array<{ sessionId: string | undefined; params: Record<string, unknown> }> = [];
   let afterPress: (() => Promise<void>) | null = null;
   let gate: { waiting: boolean; entered(method: string): void; hold: Promise<void> } | null = null;
   const groups = new Set<string>();
   const clicks = () => page.evaluate("JSON.stringify(window.nodeClicks)");
+  let context = surfaceContext("node-session");
+  const targets = new Map<string, { expected: Awaited<ReturnType<typeof surfaceTarget>>; control: typeof context }>();
   const observeNode = async () => {
-    const outline = new TextDecoder().decode(await driver.observe("accessibility-tree", { session_id: "node-session" }));
+    const expected = await surfaceTarget(driver, context);
+    const outline = new TextDecoder().decode(await driver.observe("accessibility-tree", context, expected));
     const node = /^node=(\S+) button「移动目标」/mu.exec(outline)?.[1];
     assert.ok(node, outline);
     assert.match(node, /^node_[a-f0-9]{32}$/u, "the token is opaque, not the current element's index");
+    targets.set(node, { expected, control: context });
     return node;
   };
-  const pointer = (node: string) => driver.perform({ what: "pointer", node, x: 0, y: 0, button: "left", clicks: 1 }, { session_id: "node-session" });
+  const pointer = (node: string) => {
+    const original = targets.get(node);
+    return performSurface(driver, { what: "pointer", node, x: 0, y: 0, button: "left", clicks: 1 }, original?.control ?? context, original?.expected);
+  };
+  const describeNode = async (node: string) => {
+    const original = targets.get(node);
+    return driver.describeNode!(node, original?.control ?? context, original?.expected ?? await surfaceTarget(driver, context));
+  };
+  const release = () => {
+    const original = context;
+    context = surfaceContext("node-session");
+    return driver.release!(original);
+  };
   const refused = async (node: string, reason: string) => {
     const beforeInputs = mouseInputs, beforeClicks = await clicks();
-    await assert.rejects(driver.describeNode!(node), /目标已不可用/u, `${reason}: approval cannot name a replacement`);
-    await assert.rejects(pointer(node), /目标已不可用/u, `${reason}: injection itself refuses`);
+    await assert.rejects(describeNode(node), /目标已不可用|原观察的页面或来源已变化|已释放/u, `${reason}: approval cannot name a replacement`);
+    await assert.rejects(pointer(node), /目标已不可用|原观察的页面或来源已变化|已释放/u, `${reason}: injection itself refuses`);
     assert.equal(mouseInputs, beforeInputs, `${reason}: no mouse input was dispatched`);
     assert.equal(await clicks(), beforeClicks, `${reason}: no target or fallback-point effect`);
   };
   try {
     const running = await browsers.browser(), send = running.cdp.send.bind(running.cdp);
-    t.mock.method(running.cdp, "send", (method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs?: number) => {
+    t.mock.method(running.cdp, "send", (method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs?: number, beforeSend?: () => void) => {
       if (method === "Input.dispatchMouseEvent") mouseInputs += 1;
       if (method === "Input.dispatchMouseEvent" && params.type === "mousePressed") mousePresses += 1;
       if (method === "Runtime.evaluate" && typeof params.objectGroup === "string") groups.add(params.objectGroup);
-      return send(method, params, sessionId, timeoutMs).then(async result => {
+      return send(method, params, sessionId, timeoutMs, beforeSend).then(async result => {
         if (method === "Input.dispatchMouseEvent") mouseEvents.push({ sessionId, params: { ...params } });
         if (method === "Runtime.releaseObjectGroup") groups.delete(String(params.objectGroup));
         const active = gate;
@@ -286,10 +303,10 @@ test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through mov
     await page.navigate(`${site.origin}/`);
     await until(() => page.snapshot(), state => state.title === "Node target" && !state.loading, "the node page");
     const node = await observeNode();
-    assert.equal(await driver.describeNode!(node), "移动目标");
+    assert.equal(await describeNode(node), "移动目标");
     await refused("1", "an index is not a browser node token");
     await page.evaluate("document.getElementById('target').style.left='420px';document.getElementById('target').style.top='240px';const first=document.createElement('button');first.textContent='更早的元素';first.style.cssText='position:absolute;left:100px;top:100px';document.body.prepend(first)");
-    assert.equal(await driver.describeNode!(node), "移动目标", "moving the original object does not change what was approved");
+    assert.equal(await describeNode(node), "移动目标", "moving the original object does not change what was approved");
     await pointer(node);
     assert.equal(await clicks(), JSON.stringify([{ id: "target", target: "original", trusted: true }]), "the real CDP click reaches the moved original with isTrusted, never (0,0) or the new earlier element");
     assert.equal(await page.evaluate("document.activeElement.id"), "target");
@@ -307,9 +324,9 @@ test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through mov
       try {
         const heldMethod = await Promise.race([reached, acting.then(() => { throw new Error("the action passed its CDP barrier"); })]);
         if (interrupt === "replace") await page.evaluate("const original=document.getElementById('target'),replacement=original.cloneNode(true);replacement.dataset.target='raced replacement';original.replaceWith(replacement)");
-        else await driver.release!();
+        else { void release().catch(() => undefined); }
         resume();
-        await assert.rejects(acting, /目标已不可用/u, `${interrupt} during the real CDP wait refuses the remaining action`);
+        await assert.rejects(acting, interrupt === "replace" ? /目标已不可用/u : /目标已不可用|已释放/u, `${interrupt} during the real CDP wait refuses the remaining action`);
         assert.equal(mousePresses, beforePresses, `${interrupt}: no press follows the invalidated object or observation`);
         assert.equal(mouseInputs, beforeInputs + (heldMethod === "Input.dispatchMouseEvent" ? 1 : 0), `${interrupt}: count an already-dispatched move, with no later input`);
         assert.equal(await clicks(), beforeClicks, `${interrupt}: the replacement and fallback point have no click effect`);
@@ -320,10 +337,14 @@ test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through mov
     // The action must preserve that refusal, pair its started gesture outside the viewport, and leave no click behind.
     const downNode = await observeNode(), downStart = mouseEvents.length, beforeDownClicks = await clicks();
     await page.evaluate("(() => {window.nodeDowns=[];const target=document.getElementById('target');target.addEventListener('mousedown',event=>{window.nodeDowns.push({trusted:event.isTrusted,button:event.button,buttons:event.buttons});const replacement=target.cloneNode(true);replacement.dataset.target='mousedown replacement';target.replaceWith(replacement)},{once:true})})()");
-    afterPress = () => driver.release!();
+    afterPress = async () => { void release().catch(() => undefined); };
     try {
       await assert.rejects(pointer(downNode), error => {
-        assert.ok(error instanceof Error); assert.match(error.message, /目标已不可用/u); assert.doesNotMatch(error.message, /未能释放/u); return true;
+        assert.ok(error instanceof Error);
+        const detail = `${error.message} ${error.cause instanceof Error ? error.cause.message : ""}`;
+        assert.match(detail, /目标已不可用|已释放/u);
+        assert.doesNotMatch(detail, /未能释放|无法确认原鼠标手势已释放/u);
+        return true;
       });
     } finally { afterPress = null; }
     const cancelled = mouseEvents.slice(downStart);
@@ -353,7 +374,7 @@ test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through mov
     await page.evaluate("document.getElementById('target').disabled=false");
 
     const invalidated = await observeNode();
-    await driver.observe("window-metadata");
+    await observeSurface(driver, "window-metadata", context);
     await refused(invalidated, "a later non-tree observation");
     const previous = await observeNode(), current = await observeNode();
     assert.notEqual(previous, current, "a new observation never reuses an earlier token");
@@ -366,7 +387,7 @@ test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through mov
     await until(() => page.snapshot(), state => state.title === "Node target" && !state.loading, "the new document ready");
     await refused(current, "a changed document at the same URL");
     const released = await observeNode();
-    await driver.release!();
+    await release();
     assert.equal(groups.size, 0, "round release releases the retained CDP object group");
     await refused(released, "round release");
     const closed = await observeNode();
@@ -396,8 +417,9 @@ test("the side panel browser shows and drives a real page, and the Assistant's d
 
     // Before any site: Prologue's blank browser page, which the Assistant can look at and open a site from.
     const blank = createBrowserSurfaceDriver(page, () => false);
-    assert.equal(await blank.scope(), "about:blank");
-    assert.match(new TextDecoder().decode(await blank.observe("accessibility-tree")), /空白页[\s\S]*navigate/u);
+    const context = surfaceContext("s1");
+    assert.equal(await blank.scope(context), "about:blank");
+    assert.match(new TextDecoder().decode(await observeSurface(blank, "accessibility-tree", context)), /空白页[\s\S]*navigate/u);
     await blank.close();
 
     await page.navigate(`${site.origin}/`);
@@ -429,17 +451,18 @@ test("the side panel browser shows and drives a real page, and the Assistant's d
 
     // The Assistant's view: actionable elements with the centres it clicks.
     const driver = createBrowserSurfaceDriver(page, origin => origin === "https://blocked.example");
-    assert.equal(await driver.scope(), site.origin);
-    const outline = new TextDecoder().decode(await driver.observe("accessibility-tree"));
+    assert.equal(await driver.scope(context), site.origin);
+    const expected = await surfaceTarget(driver, context);
+    const outline = new TextDecoder().decode(await driver.observe("accessibility-tree", context, expected));
     assert.match(outline, /button「提交」 @\(100,220\)/u, outline);
     assert.doesNotMatch(outline, /secret-value/u, "a password's value never enters the outline");
     assert.equal(state!.control.mode, "assistant", "looking shows in the panel");
-    await driver.perform({ what: "pointer", x: 100, y: 220, button: "left", clicks: 1 }, { session_id: "s1" });
+    await driver.perform({ what: "pointer", x: 100, y: 220, button: "left", clicks: 1 }, context, expected);
     assert.equal(await page.evaluate("document.getElementById('state').textContent"), "已提交：me@example.com");
     assert.match(state!.control.activity?.summary ?? "", /点击「提交」/u);
 
     // Screenshots leave only as the driver's own covered ones.
-    const shot = await driver.observe("screenshot");
+    const shot = await observeSurface(driver, "screenshot", context);
     assert.deepEqual([...shot.subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47]);
     const pngSize = (bytes: Uint8Array) => { const view = new DataView(bytes.buffer, bytes.byteOffset); return [view.getUint32(16), view.getUint32(20)]; };
     assert.deepEqual(pngSize(shot), [800, 600], "the Assistant's screenshot is in the CSS pixels it clicks with");
@@ -447,28 +470,30 @@ test("the side panel browser shows and drives a real page, and the Assistant's d
     assert.equal(driver.masked(new Uint8Array([1, 2, 3])), false);
     assert.equal(await page.evaluate("!!document.getElementById('__molis_side_mask')"), false, "the cover is removed after the capture");
 
-    // The approval card names a field by its label, and a password field's value never stands in for its name.
-    assert.equal(await driver.describePoint!(email.x, email.y), "邮箱");
-    const pw = await centre(page, "#pw");
-    assert.equal(await driver.describePoint!(pw.x, pw.y), "密码");
+    // The input activity names the actual field, and a password value never stands in for its name.
+    await page.evaluate("document.getElementById('email').focus()");
+    assert.equal((await driver.focusedField!(context, expected)).label, "邮箱");
+    await page.evaluate("document.getElementById('pw').focus()");
+    const password = await driver.focusedField!(context, expected);
+    assert.equal(password.label, "密码"); assert.equal(password.sensitive, true);
 
     // Looking shows which work is using the page, so a takeover and its handback reach that work.
-    await driver.observe("dom", { session_id: "s1" });
+    await observeSurface(driver, "dom", context);
     assert.equal(state!.control.work_id, "s1");
 
     // The person takes over: from then on the driver refuses; handing back lets it act again — on a fresh look only,
     // since what it saw before may have changed under the person's hands.
-    const seenBefore = await driver.identity();
+    const seenBefore = await driver.identity(context);
     page.setControl({ mode: "taken-over", work_id: "s1", activity: null });
-    await assert.rejects(driver.perform({ what: "wait", ms: 10 }, { session_id: "s1" }), /用户已接手/u);
+    await assert.rejects(driver.perform({ what: "wait", ms: 10 }, context, expected), /用户已接手/u);
     page.setControl({ mode: "person", work_id: null, activity: null });
-    assert.notEqual(await driver.identity(), seenBefore, "an observation from before the takeover is stale afterwards");
-    await driver.perform({ what: "key", keys: ["Tab"] }, { session_id: "s1" });
+    assert.notEqual(await driver.identity(context), seenBefore, "an observation from before the takeover is stale afterwards");
+    await performSurface(driver, { what: "key", keys: ["Tab"] }, context);
 
     // A shortcut written the Windows way still edits on macOS: select the field's text and replace it.
     await page.evaluate("document.getElementById('email').focus()");
-    await driver.perform({ what: "key", keys: ["Control", "a"] }, { session_id: "s1" });
-    await driver.perform({ what: "text", text: "you@example.com" }, { session_id: "s1" });
+    await performSurface(driver, { what: "key", keys: ["Control", "a"] }, context);
+    await performSurface(driver, { what: "text", text: "you@example.com" }, context);
     assert.equal(await page.evaluate("document.getElementById('email').value"), "you@example.com");
 
     // A window the page opens stacks over it; closing it returns to the page below.
@@ -505,7 +530,8 @@ test("the side panel browser shows and drives a real page, and the Assistant's d
     const blocking = createBrowserSurfaceDriver(page, () => true);
     await page.navigate(`${site.origin}/`);
     await until(() => state, value => !!value && value.title === "侧栏测试页" && !value.loading, "the test page again");
-    await assert.rejects(blocking.observe("dom"), /禁止/u);
+    await driver.release?.(context);
+    await assert.rejects(observeSurface(blocking, "dom", context), /禁止/u);
   } finally {
     await browsers.close();
     site.server.close(); forbidden.server.close();

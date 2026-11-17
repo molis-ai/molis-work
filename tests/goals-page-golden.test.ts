@@ -16,8 +16,10 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 
 // RAC-2680: the project page, its three fragments and the settings and planning pages of Goals, as the Host draws them, are recorded once
 // (MOLIS_WORK_GOLDEN_RECORD=1) and every later change to who draws them (T-116 moves the drawing from the workbench and the Host into the
-// Goals package) has to give the same bytes, in both interface languages. The view is the demo project read once by the real owners
-// (times and ids fixed), so the pages have a Goal tree with children, a decision waiting, an archived and a trashed Goal and a proposal.
+// Goals package) has to give the same bytes, in both interface languages. Batch 39 (#2105) re-recorded golden.json for the intentional
+// trusted-decision `data-review-version` attributes, unified authorization settings navigation, and retired `policy_bindings` removal.
+// The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
+// waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);
 const record = process.env.MOLIS_WORK_GOLDEN_RECORD === "1";
 const TOKEN = "golden-control-token";
@@ -217,6 +219,11 @@ const pages: Record<string, Draw> = {
 // background-tasks tab and page are gone from a project page (the task panel beside the dialog replaces them). Every page state
 // grew by the same amount in each language and no document or settings record moved, so no Goals markup changed here. The 16
 // were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// Batch 34 (external sessions, SRB-08), on the merge of main 0d45ba58b: the 16 whole pages moved by +5805 zh / +6358 en and all 36
+// fragment, document and settings records stayed byte-identical. Only the shell changed: the `sessions` picker/rail tile, the deferred
+// `<section data-work-surface="sessions">` stage, the Read Scope `<dialog data-sessions-scope-sheet>` overlay, and the `"sessions"` entry
+// in the shell's plugin title map. Every whole-page state grew by the exact same constant in each language; no Goals markup or JSON
+// changed, and the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

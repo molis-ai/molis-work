@@ -26,26 +26,27 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     { label: readText("workbench.assistant-composer.list-page-s-key-points"), prompt: readText("workbench.assistant-composer.list-key-points-page-one-one") },
     { label: readText("workbench.assistant-composer.what-could-come-next"), prompt: readText("workbench.assistant-composer.based-page-what-could-i-do-next") },
   ];
+  const json = JSON.stringify, uuid = () => crypto.randomUUID(), emit = (ev) => document.dispatchEvent(ev), attr = (node, k, v) => node?.setAttribute(k, v);
   const offered = {
     signature: "", request: "", answer: null, timer: 0,
     // Nothing (undefined) while the answer is on its way (briefly: rules only), then the items, possibly none.
     read(ctx) {
       const inHand = Boolean(sel && !removed.has("selection"));
-      const signature = JSON.stringify([ctx.plugin_id, ctx.object || null, inHand]);
+      const signature = json([ctx.plugin_id, ctx.object || null, inHand]);
       // What is in hand changes with every selection: ask each time (the row answers from the plan it shows).
       // Kept while the same thing stays open, but asked again after a while: a plugin switched off drops out.
       const fresh = this.answer && Date.now() - this.answer.at < 15000;
       if (signature === this.signature && !inHand && (fresh || !this.answer)) return this.answer ? this.answer.items : undefined;
       if (signature !== this.signature) { this.signature = signature; this.answer = null; }
-      const req = this.request = crypto.randomUUID();
+      const req = this.request = uuid();
       clearTimeout(this.timer);
       this.timer = setTimeout(() => { if (this.request === req && !this.answer) this.settle(req, "", []); }, 2000);
-      document.dispatchEvent(new CustomEvent("molis:assistant-starters-request", { detail: { context:ctx, request_id: req } }));
+      emit(new CustomEvent("molis:assistant-starters-request", { detail: { context: ctx, request_id: req } }));
       return this.answer ? this.answer.items : undefined;
     },
     settle(req, objectKey, items) {
       if (req !== this.request) return;
-      const changed = !this.answer || JSON.stringify([this.answer.object_key, this.answer.items]) !== JSON.stringify([objectKey, items]);
+      const changed = !this.answer || json([this.answer.object_key, this.answer.items]) !== json([objectKey, items]);
       this.answer = { object_key: objectKey, items, at: Date.now() };
       if (!changed) return;
       // Answered while being read (the row's plan is at hand): the reader shows it; otherwise repaint the empty work.
@@ -71,7 +72,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   // A plain question fills the input; an offered action runs through the row, and nothing is typed for it.
   const useStarter = (starter) => {
     if (starter.key) {
-      document.dispatchEvent(new CustomEvent("molis:assistant-starter-choose", { detail: { object_key: starter.object_key, key: starter.key } }));
+      emit(new CustomEvent("molis:assistant-starter-choose", { detail: { object_key: starter.object_key, key: starter.key } }));
       return false;
     }
     setWords(starter.prompt);
@@ -86,22 +87,20 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
      turned off or a method taken away meanwhile is gone from it); the last list stays until the new one is in, so the menu does not
      flicker. A method (how to do it) or a capability (what to use) chosen there goes with the next Send only, on the strip above the input. */
   let catalog = null, rows = { capabilities: [], methods: [] }, rowsIn = false;
+  const isInput = (event) => event.target.matches?.(".mw-composer__input");
   const readCatalog = () => catalog ||= Promise.all([api("/capabilities").then((res) => (res.capabilities || []).filter((row) => row.enabled), () => []),
-    api("/methods").then((res) => res.methods || [], () => [])]).then(([capabilities, methods]) => { rows = { capabilities, methods }; rowsIn = true; })
-    .finally(() => { catalog = null; });
-  compose.addEventListener("focusin", (event) => { if (event.target.matches?.(".mw-composer__input") || !rowsIn) void readCatalog(); });
+    api("/methods").then((res) => res.methods || [], () => [])]).then(([capabilities, methods]) => {
+      const next = { capabilities, methods }, changed = json(next) !== json(rows);
+      rows = next; rowsIn = true;
+      const before = input.value.slice(0, input.selectionStart ?? input.value.length);
+      if (changed && document.activeElement === input && /^[/、][^\n]{0,80}$/u.test(before))
+        input.dispatchEvent(new InputEvent("input", { bubbles: true, data: before.length === 1 ? before : null, inputType: "insertText" }));
+    }).finally(() => { catalog = null; });
+  compose.addEventListener("focusin", (event) => { if (isInput(event) || !rowsIn) void readCatalog(); });
   compose.addEventListener("pointerenter", () => { if (!rowsIn) void readCatalog(); });
-  // A "/" typed before the list has arrived opens the menu once it has: the composer opens it only when there is something to list.
-  compose.addEventListener("input", (event) => {
-    if (rowsIn || event.data !== "/" || !event.target.matches?.(".mw-composer__input")) return;
-    void readCatalog().then(() => {
-      const caret = input.selectionStart ?? input.value.length;
-      if (document.activeElement === input && input.value.slice(0, caret).endsWith("/") && !compose.querySelector("[data-compose-menu]:not([hidden])"))
-        input.dispatchEvent(new InputEvent("input", { bubbles: true, data: "/", inputType: "insertText" }));
-    });
-  });
+  compose.addEventListener("input", (event) => { if (!rowsIn && (event.data === "/" || event.data === "、") && isInput(event)) void readCatalog(); });
   const choose = (material, same) => () => {
-    if (!files.some((file) => file.kind === material.kind && same(file))) files.push({ material_id: material.kind + "-" + crypto.randomUUID(), explicit: true, ...material });
+    if (!files.some((file) => file.kind === material.kind && same(file))) files.push({ material_id: material.kind + "-" + uuid(), explicit: true, ...material });
     paintMats(); input.focus();
   };
   // Every method and capability is listed (the menu scrolls); the composer's "/" narrows them by the words typed after it.
@@ -129,7 +128,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
         capability: { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, title } }, (file) => file.capability.capability_id === row.capability_id) };
     }),
     ...(project && document.documentElement.dataset.knowledgePicker === "1" ? [{ slash: readText("workbench.settings-agent-diagnostics.materials"), icon: "paperclip", label: readText("workbench.assistant-composer.choose-project-knowledge"), hint: readText("workbench.assistant-composer.several-once-their-text-goes-assistant"),
-      run: () => document.dispatchEvent(new CustomEvent("molis-work:knowledge-pick", { detail: { request_id: "assistant:" + crypto.randomUUID(), max: 10 } })) }] : []),
+      run: () => emit(new CustomEvent("molis-work:knowledge-pick", { detail: { request_id: "assistant:" + uuid(), max: 10 } })) }] : []),
   ];
   /** Who the next Send goes to: the work in front, named by its place first when that is not this page (#1919); else a new work. */
   const receiverNow = () => {
@@ -265,8 +264,8 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       setTimeout(syncComposer, 0);
     }
   };
-  const shown = () => JSON.stringify([receiverNow().label, Boolean(getWork()), deliveryNow(), controlsNow().map((one) => [one.id, one.value, one.options])]);
-  const assistantInputName = () => input.setAttribute("aria-label", words.input);
+  const shown = () => json([receiverNow().label, Boolean(getWork()), deliveryNow(), controlsNow().map((one) => [one.id, one.value, one.options])]);
+  const assistantInputName = () => attr(input, "aria-label", words.input);
   let refreshComposerWords = assistantInputName;
   const mountPage = (target) => {
     mountedFor = target.key; boundPage = target; draftHere = null; painted = "";
@@ -277,13 +276,13 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     refreshComposerWords = () => {
       const own = target.options.labels;
       Object.assign(labels, words, own, { adding: own.adding ?? words.adding, modes: { ...words.modes, ...own.modes } });
-      input.setAttribute("aria-label", labels.input);
+      attr(input, "aria-label", labels.input);
     };
     refreshComposerWords();
     // Its tag opens 「发给」; the page's own name and glyph, nothing else of what it said.
     options.receiver = () => { const named = target.options.receiver?.(); return named ? { label: named.label, ...(named.icon ? { icon: named.icon } : {}), open: openSendTo } : null; };
     composer = window.molisComposer(compose, options);
-    target.bind(composer, input, refreshComposerWords);
+    target.bind(composer, input, refreshComposerWords, () => pageInFront() === target);
   };
   const mountComposer = () => {
     island.removeAttribute("data-receiver"); paintAim(false);
@@ -341,6 +340,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   }
   globalThis.molisBarReceiverChanged = () => syncComposer();
   stripPending = () => (composer && !boundPage ? composer.materials() : []).map((one) => ({ kind: one.kind === "attachment" ? (upload.material(one.ref) || {}).kind || "file" : "object", title: one.title }));
+  externalMentions = () => (composer && !boundPage ? composer.materials() : []).filter((one) => one.kind === "material" && one.ref?.subject?.kind === "external_session").map((one) => ({ id: one.ref.subject.id, title: one.title }));
   function pickFile() { compose.querySelector("[data-composer-add]")?.click(); }
   /* 「发给」 (one input, unified-input-voice §10.4, O4): with a page in front that takes words, the tag beside ＋ lists who the next
      Send can go to — this page's receiver, the Assistant (a new work or a recent one) and the page's other receivers — in the
@@ -354,11 +354,11 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   const pageGlyph = (name) => {
     if (typeof name !== "string" || !/^[a-z0-9-]+$/.test(name) || !glyphSprite || !glyphSprite.content) return null;
     const found = glyphSprite.content.querySelector('[data-glyph="' + name + '"]'), holder = el("span", "assistant-glyph-icon");
-    holder.setAttribute("aria-hidden", "true");
+    attr(holder, "aria-hidden", "true");
     if (found && found.firstElementChild) holder.append(found.firstElementChild.cloneNode(true));
     return holder.childElementCount ? holder : null;
   };
-  const sendTo = el("div", "mw-menu assistant-send-to"); sendTo.dataset.assistantSendTo = ""; sendTo.setAttribute("role", "menu"); sendTo.setAttribute("aria-label", readText("workbench.assistant-composer.send-to"));
+  const sendTo = el("div", "mw-menu assistant-send-to"); sendTo.dataset.assistantSendTo = ""; attr(sendTo, "role", "menu"); attr(sendTo, "aria-label", readText("workbench.assistant-composer.send-to"));
   if (typeof sendTo.showPopover === "function") sendTo.popover = "manual";
   island.append(sendTo);
   const sendToOpen = () => sendTo.matches(":popover-open");
@@ -371,16 +371,16 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   };
   const sendToItem = (mark, label, detail, on, pick) => {
     const item = el("button", "mw-menu__item mw-menu__item--described"); item.type = "button";
-    item.setAttribute("role", "menuitemradio"); item.setAttribute("aria-checked", String(on));
+    attr(item, "role", "menuitemradio"); attr(item, "aria-checked", String(on));
     const named = el("span"); named.dataset.slot = "menu-item-label"; named.append(el("span", "", label), ...(detail ? [el("small", "mw-menu__desc", detail)] : []));
     item.append(...(mark ? [mark.cloneNode(true)] : []), named);
-    if (on) { const tick = el("span", "mw-menu__shortcut"); tick.setAttribute("aria-hidden", "true"); tick.append(glyphOf(sendToGlyphs.check)); item.append(tick); }
+    if (on) { const tick = el("span", "mw-menu__shortcut"); attr(tick, "aria-hidden", "true"); tick.append(glyphOf(sendToGlyphs.check)); item.append(tick); }
     item.addEventListener("click", () => { closeSendTo(false); pick(); setTimeout(() => input.focus(), 0); });
     return item;
   };
   const sendToGroup = (label, items) => {
     const group = el("div", "mw-menu__group"), head = el("div", "mw-menu__label", label);
-    group.setAttribute("role", "group"); group.setAttribute("aria-label", label); head.setAttribute("aria-hidden", "true");
+    attr(group, "role", "group"); attr(group, "aria-label", label); attr(head, "aria-hidden", "true");
     group.append(head, ...items);
     return group;
   };
@@ -417,7 +417,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   };
   function closeSendTo(back) {
     if (!sendToOpen()) return;
-    sendTo.hidePopover(); sendToTag()?.setAttribute("aria-expanded", "false");
+    sendTo.hidePopover(); attr(sendToTag(), "aria-expanded", "false");
     if (back) (visible(sendToTag()) ? sendToTag() : input)?.focus();
   }
   function openSendTo() {
@@ -430,7 +430,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     sendTo.style.width = width + "px";
     sendTo.style.left = Math.round(Math.max(16, Math.min(box.left - 6, window.innerWidth - 16 - width))) + "px";
     sendTo.style.bottom = Math.round(window.innerHeight - box.top + 8) + "px";
-    sendTo.showPopover(); tag.setAttribute("aria-expanded", "true");
+    sendTo.showPopover(); attr(tag, "aria-expanded", "true");
     (sendTo.querySelector("[aria-checked=true]") || sendTo.querySelector("button"))?.focus();
   }
   sendTo.addEventListener("keydown", (event) => {

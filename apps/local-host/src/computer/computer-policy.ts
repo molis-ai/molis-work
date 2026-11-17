@@ -1,3 +1,5 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { computerErrors } from "./computer-errors.js";
 /**
  * The decisions the desktop driver applies before a look or a click (specs/computer-use).
  * Window text is data from the screen. It never changes one of these answers.
@@ -27,6 +29,13 @@ export function reviewProjectFor(openProjectId: string, runSessionId: string | n
   return openProjectId;
 }
 
+/** The same original computer activity protects a single decision and a reusable authorization. */
+export function assertHumanReview(holder: ComputerRoundHolder | null | undefined, sessionId: string | undefined, now = Date.now()): void {
+  if (holder?.lastInjectAt != null && sessionId === holder.sessionId && confirmArrivedTooSoon(holder.lastInjectAt, now)) {
+    throw computerErrors.self_approval(uiText.text("workbench.agent-review.self-approval"));
+  }
+}
+
 /** Forbidden apps, and any window that shows Molis Work: the Assistant cannot approve itself. */
 export function refuseSelfApproval(app: AppIdentity, windowTitle: string, userForbidden: readonly string[] = []): string | null {
   const verdict = tierOf(app, userForbidden);
@@ -36,7 +45,7 @@ export function refuseSelfApproval(app: AppIdentity, windowTitle: string, userFo
 }
 
 export interface LandingProbe {
-  readonly window?: { readonly pid?: number; readonly title?: string };
+  readonly window?: { readonly id?: number; readonly pid?: number; readonly title?: string };
   readonly element?: { readonly pid?: number; readonly window_title?: string };
 }
 

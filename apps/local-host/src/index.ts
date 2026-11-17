@@ -25,7 +25,7 @@ export { HomePluginHost, type HomePluginEntry, type HomePluginPlatform } from ".
 export { handleCharactersHttp, type CharactersInvoke } from "./characters-http.js";
 export { charactersProvider, type CharactersProject } from "./characters-host.js";
 export { collectHomeAggregate, homeAggregatePorts, type HomeAggregateAnswer, type HomeAggregateIssue, type HomeAggregatePorts, type HomeAggregateResult } from "./home-aggregate.js";
-export { openPluginDatabase } from "./plugin-database.js";
+export { openPluginDatabase } from "./plugin-home-database-client.js";
 export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
 export { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
 export { installedLibrarySnapshots } from "./installed-plugin-libraries.js";
@@ -85,8 +85,11 @@ export { createPersonalSync } from './personal-sync.js';
 export {createPersonalPluginRegistrations} from './personal-plugin-sync.js';
 export {createPersonalCatalogRegistration} from './personal-catalog-sync.js';
 export { discoverRuntimeSyncCollections } from './runtime-sync-discovery.js';
+export { createProjectApprovalSyncRegistration } from './personal-project-approval-sync.js';
+export { projectApprovalSyncSelection } from './platform-sync-catalog.js';
 export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
-export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
+export { PROJECT_DATABASE_BASELINE, PROJECT_DATABASE_VERSION_3_SCHEMA } from "./project-database-schema.js";
+export { projectApprovalUpgrade } from "./project-database-schema.js";
 
 export { openProjectVersionStores, restoreArtifactVersions, assertRestorableArtifactVersions, WORK_ASSET_RESTORE_ACTOR_ID, type RestoredArtifactVersion, type ProjectVersionStores } from "./project-version-stores.js";
 
@@ -333,6 +336,7 @@ export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.js";
 export { memoryRuntimePolicy, type MemoryForgettingPhase, type MemoryRuntimePolicyOwner } from "./memory/memory-runtime-policy.js";
 export { memorySources, type MemorySourceOwner } from "./memory/memory-sources.js";
+export { memoryInputSnapshots } from "./memory/memory-source-identity.js";
 export { memoryExtractor } from "./memory/memory-extractor.js";
 export { registerMemoryProjectDeletion } from "./memory/memory-project-deletion.js";
 export { COMPUTER_RECORD_FILE, ComputerRecords } from "./computer/computer-records.js";
@@ -343,6 +347,9 @@ export { assistantThreadActions } from "./assistant/assistant-thread-actions.js"
 export { ComputerDesk } from "./computer/computer-desk.js";
 export { ComputerSettings } from "./computer/computer-settings.js";
 export { ComputerDriver, type DeskContext } from "./computer/computer-driver.js";
+export { HelperConnection } from "./computer/helper-connection.js";
+export { BrowserHost } from "./browser/browser-host.js";
+export { createBrowserSurfaceDriver } from "./browser/surface-driver.js";
 export { desktopTaskComplete, type DesktopTaskFacts, type DesktopTaskWanted } from "./computer/task-outcome.js";
 export { helperFailure, isRefused } from "./computer/computer-errors.js";
 export {
@@ -446,3 +453,4 @@ export { registerEvaluationReplayScenario, type HostEvaluationOwner } from "./ev
 export type { GrantChangedBy } from "./observation-grants.js";
 export { observationShellDoor } from "./observation-shell-entry.js";
 export { contextOnboardingActions, contextOnboardingProvider } from "./context-onboarding-actions.js";
+export { assertReadOnlyToolArgv, createHostSessionsPorts, type HostSessionsOptions } from "./sessions-ports.js";

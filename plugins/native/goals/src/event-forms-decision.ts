@@ -1,6 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalEventStateView } from "./contract/goals.js";
 import type { GoalsDocumentUiPrimitives } from "./document-ui-model.js";
+import { eventDecisionVersion } from "./decision-offers.js";
 
 /** The user decision and its exact agreement-change comparison; the agreement form factory keeps the same public return. */
 export function createDecisionForm(primitives: GoalsDocumentUiPrimitives) {
@@ -36,7 +37,7 @@ export function createDecisionForm(primitives: GoalsDocumentUiPrimitives) {
       ${pendingAction
         ? `<input type="hidden" name="action" value="${escapeHtml(pendingAction)}"><p class="form-note">${uiText("goals.event-forms-decision.pending-action")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(pendingAction)}</p>`
         : `<label><span>${uiText("goals.event-forms-decision.related-action-fill-when-authorizing-rejecting-not-inferred")}</span><input name="action" placeholder="complete"></label>`}`;
-    return `<form class="event-form mw-form" data-event-form="decision" data-pending-action="${escapeHtml(pendingAction)}" hidden>
+    return `<form class="event-form mw-form" data-event-form="decision" data-review-version="${eventDecisionVersion(state)}" data-pending-action="${escapeHtml(pendingAction)}" hidden>
       <header class="event-form-heading"><h2>${uiText("goals.event-forms-decision.user-decision")}</h2></header>
       <div class="event-form-body">${pending ? `<p class="reader-lead">${escapeHtml(pending.question)}</p><input type="hidden" name="request_id" value="${escapeHtml(pending.request_id)}">` : `<label><span>${uiText("goals.event-forms-decision.conclusion")}</span><textarea name="conclusion" rows="3" required></textarea></label>`}
       ${options}

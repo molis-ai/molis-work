@@ -55,7 +55,7 @@ export class AssistantThreads {
       scope: { kind: "project", project_id: project.project_id }, project_ref: project, origin: { surface: "discussion", plugin_id: input.target.provider_id, title: context.title } });
     if (work.archived || work.session_id) {
       await this.service.archive(work.work_id, false, { beforeEffect: () => caller.beforeEffect(),
-        assert_current: () => { caller.signal?.throwIfAborted(); requireSynchronous(caller.assert_authority_current?.(), "最终授权检查必须同步完成"); } });
+        assertCurrent: () => { caller.signal?.throwIfAborted(); requireSynchronous(caller.assert_authority_current?.(), "最终授权检查必须同步完成"); } });
       work = this.store.get(this.ports.actorId, work.work_id);
     }
     work = this.store.update(this.ports.actorId, work.work_id, work.revision, {
@@ -131,6 +131,14 @@ export class AssistantThreads {
       guard?.assertCurrent();
     };
     fence(); return fence;
+  }
+
+  /** The retained comment owner, without the invocation that originally requested a reply. */
+  assertAuthority(work: StoredWork): void {
+    this.assertRoundCurrent(work);
+    const guard = this.guards.get(work.work_id);
+    if (!guard) throw assistantErrors.authority("原评论回复的持续授权不可读取");
+    guard.assertCurrent();
   }
 
   private async dispatch(work: StoredWork, caller: ActionExecutionContext): Promise<ThreadReplyStatus> {

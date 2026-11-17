@@ -105,12 +105,15 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
     if (index.workspace !== "none" && index.workspace !== "business") await deps.checkpoints?.restore(id);
     const terminal = await session.terminalRuns();
     const open = await runtime.listOpenWork();
+    const uncertainRuns = new Set(runtime.effects.openEffects().filter(effect => effect.proposal.origin?.session === id)
+      .map(effect => effect.proposal.origin?.run));
     const reasons = await restoreReasons(id, index, terminal, open);
     const runs: PrologueRestoredSession["runs"] = [];
     const reverse = [...index.attempts].reverse();
     const last = reverse.find(attempt => attempt.run_id);
     const planned = reverse.find(attempt => attempt.run_id && attempt.frozen.execution_plan);
     const unclaimed = open.unavailable.length > 0 || unclaimedWork(index, terminal, open);
+    const desktopTargets = [...new Set(index.attempts.flatMap(item => item.desktop_target ? [item.desktop_target] : []))];
     for (const attempt of index.attempts) {
       // A start the runtime refused never created a run; one with no reference is only unknown while some run or
       // open item of this session is claimed by no start, because that is the only run it could have made.
@@ -127,7 +130,9 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
         ...(attempt.stop_reason ? { stop_reason: attempt.stop_reason } : {}),
         ...(attempt.timing ? { timing: attempt.timing } : {}),
         ...(attempt.desktop_target ? { desktop_target: attempt.desktop_target } : {}),
+        ...(desktopTargets.length ? { desktop_targets: desktopTargets } : {}),
         ...(ref ? { terminal: true } : {}),
+        ...(uncertainRuns.has(attempt.run_id) ? { uncertain_effect: true as const } : {}),
         ...(!ref ? { original_questions: pendingQuestions.filter(pending => pending.origin?.run === attempt.run_id).map(pending => ({ pending_id: pending.ref.id, pending_revision: pending.ref.revision, kind: pending.kind, why: pending.why })) } : {}),
         events: ref ? await session.replay(ref) : await session.readRunProgress({ kind: "run", id: attempt.run_id, revision: 1 }) });
     }

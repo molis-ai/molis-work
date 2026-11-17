@@ -1,6 +1,5 @@
 import type { GoalInputBindingRecord, GoalRecord, GoalRelationRecord, GoalPolicy } from "./contract/goals.js";
 import type { GoalDisplayStatus, GoalPresentationState } from "./tree-order.js";
-import type { GoalsPolicyBinding } from "./policy-ui-model.js";
 import type { GoalsDecisionEvent } from "./decision-view.js";
 
 /** Read-only Goal presentation; facts and work states remain defined by their owners. */
@@ -26,7 +25,6 @@ export interface GoalsDocumentView {
   action_summary: string;
   relations: GoalRelationRecord[];
   input_bindings: GoalsInputBinding[];
-  policy_bindings: GoalsPolicyBinding[];
   events: GoalsDecisionEvent[];
   resolved_policy: GoalPolicy;
   event_work: boolean;

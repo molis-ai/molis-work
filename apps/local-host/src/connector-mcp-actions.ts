@@ -1,6 +1,6 @@
 import path from "node:path";
 import { hostLog } from "./host-log.js";
-import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { callMcpConnectionTool, readMcpConnectionResource } from "./connector-mcp.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { CONNECTOR_MCP_CAPABILITY_PREFIX, createMcpVersionBook, createRegistrationSet, EXTERNAL_MCP_PERMISSION, mcpIdPart, mcpInputContract, mcpInputFingerprint, mcpToolDescription, readJsonFile, writeJsonFile } from "./mcp-tool-actions.js";
@@ -8,7 +8,7 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 import { observeConnectorCall } from "./connector-call-observation.js";
 import { rememberConnectorCheck } from "./connector-observations.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
-import type { StoredMcpConfiguration } from "./connector-mcp-configuration.js";
+import { captureMcpOperationSource, type StoredMcpConfiguration } from "./connector-mcp-configuration.js";
 
 /** A tool as the server listed it the last time the person looked; no credentials. */
 export interface ConnectorMcpTool { name: string; description?: string; inputSchema?: Record<string, unknown> }
@@ -54,7 +54,8 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
   const seenFile = path.join(options.homeDirectory, CONNECTOR_MCP_SEEN_PATH);
   const versions = createMcpVersionBook(path.join(options.homeDirectory, VERSIONS_PATH));
   /** Per connection: its registrations (one per tool, so an unchanged tool is never re-registered), and the exact reference of each, for callers that know the tool by name. */
-  const registered = new Map<string, { set: ReturnType<typeof createRegistrationSet>; references: Map<string, ActionReference> }>();
+  const registered = new Map<string, { set: ReturnType<typeof createRegistrationSet>; references: Map<string, ActionReference>;
+    tools: Map<string, { name: string; digest: string }> }>();
   const connection = (id: string) => withConnectorConnections(options.homeDirectory, store => store.get(id), true);
   const withdraw = (connectionId: string) => { registered.get(connectionId)?.set.clear(); registered.delete(connectionId); };
 
@@ -65,6 +66,7 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
     if (!row || row.auth_method !== "mcp" || (!tools.length && !resources)) { withdraw(connectionId); return; }
     const label = row.display_name;
     const providerId = connectorMcpProviderId(connectionId);
+    const toolIdentity = new Map<string, { name: string; digest: string }>();
     const entries = tools.map((tool): { definition: ActionDefinition; handler: ActionHandlerBinding } => {
       const shape = mcpInputFingerprint(tool.input_schema);
       const contract = mcpInputContract(tool.input_schema);
@@ -73,12 +75,13 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
           kind: "operation", scope: "home", audiences: ["user", "workflow", "agent", "mcp", "plugin"], permissions: [EXTERNAL_MCP_PERMISSION],
           scheduling: "concurrent", execution: { cost: "unknown" },
           subject_kinds: [], input_schema: contract.schema, output_schema: { type: "object" } } };
+      toolIdentity.set(definition.capability_id, { name: tool.name, digest: shape });
       return { definition, handler: { capability_id: definition.capability_id, version: definition.version,
         availability: () => contract.availability,
         handle: async (caller, input) => {
           await caller.beforeEffect();
           try { return await observeConnectorCall(options.homeDirectory, connectionId, { capability_id: definition.capability_id, version: definition.version, provider_id: providerId }, caller, dispatched => call(options.homeDirectory, connectionId, tool.name, input as Record<string, unknown>, {
-            signal: caller.signal, beforeDispatch: caller.beforeEffect, expectedInputFingerprint: shape,
+            signal: caller.signal, beforeDispatch: caller.beforeEffect, assertCurrent: caller.assert_authority_current, expectedInputFingerprint: shape,
             onBusinessDispatch: dispatched,
             onInspection: inspection => remember(connectionId, inspection.tools, inspection.resources),
           })); }
@@ -93,11 +96,13 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
         output_schema: { type: "object" } } };
       entries.push({ definition, handler: { capability_id: definition.capability_id, version: definition.version, handle: async (caller, input) => {
         try { return await observeConnectorCall(options.homeDirectory, connectionId, { capability_id: definition.capability_id, version: definition.version, provider_id: providerId }, caller,
-          dispatched => read(options.homeDirectory, connectionId, (input as { uri: string }).uri, { signal: caller.signal, beforeDispatch: caller.beforeEffect, onBusinessDispatch: dispatched })); }
+          dispatched => read(options.homeDirectory, connectionId, (input as { uri: string }).uri, { signal: caller.signal, beforeDispatch: caller.beforeEffect,
+            assertCurrent: caller.assert_authority_current, onBusinessDispatch: dispatched })); }
         catch (error) { throw failure(error); }
       } } });
     }
-    const current = registered.get(connectionId) ?? { set: createRegistrationSet(), references: new Map<string, ActionReference>() };
+    const current = registered.get(connectionId) ?? { set: createRegistrationSet(), references: new Map<string, ActionReference>(),
+      tools: new Map<string, { name: string; digest: string }>() };
     registered.set(connectionId, current);
     current.set.retain(new Set(entries.map(entry => entry.definition.capability_id)));
     // MCP does not promise list ordering, and a refresh that finds the same tool says the same thing: only a tool whose
@@ -113,6 +118,7 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
       definitions: [definition], handlers: [handler] }));
     current.references = new Map(entries.map(({ definition }) =>
       [definition.capability_id, { capability_id: definition.capability_id, version: definition.version, provider_id: providerId }]));
+    current.tools = toolIdentity;
   }
 
   function remember(connectionId: string, tools: readonly ConnectorMcpTool[], resources?: readonly unknown[]) {
@@ -148,6 +154,26 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
     /** The registered entry for a tool (or the resource reader) of a connection, if the server listed it. */
     reference(connectionId: string, capabilityId: string): ActionReference | undefined {
       return registered.get(connectionId)?.references.get(capabilityId);
+    },
+    /** Use the connection owner and original tool, with no authentication or network read during approval. */
+    async holdTool(view: ActionView) {
+      const provider = view.provider.provider_id;
+      if (view.provider.kind !== "system" || view.operation !== "command" || !provider.startsWith(PROVIDER)) return undefined;
+      const id = provider.slice(PROVIDER.length);
+      const currentTool = () => {
+        const row = registered.get(id);
+        return row?.references.get(view.capability_id)?.version === view.version ? row.tools.get(view.capability_id) : undefined;
+      };
+      const original = currentTool();
+      if (!original) return undefined;
+      const { identity, check } = await captureMcpOperationSource(options.homeDirectory, id);
+      const assertCurrent = () => {
+        check();
+        const tool = currentTool();
+        if (tool?.name !== original.name || tool.digest !== original.digest) throw new ActionError("actions.provider_changed", "原连接的工具已变化");
+      };
+      assertCurrent();
+      return { scope: { kind: "mcp-exact" as const, source_id: id, connection_identity: identity, tool: original.name, tool_digest: original.digest }, assertCurrent };
     },
     close() { for (const id of [...registered.keys()]) withdraw(id); },
   };

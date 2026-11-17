@@ -41,7 +41,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
   const { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, composition } = ctx;
   const { PAGE_CSP, isDesktopShellRequest, projectSettings } = composition;
   const { renderMolisWorkSettings } = composition.workbenchRenderer;
-  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|directories|models|runtimes|assistant|characters|prompts|kit|memory|work-records|mcp|connectors|projects|diagnostics|update|running|sync)$/);
+  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|directories|models|runtimes|assistant|authorizations|characters|prompts|kit|memory|work-records|mcp|connectors|projects|diagnostics|update|running|sync)$/);
   const capabilityPageMatch = url.pathname.match(/^\/capabilities\/(library|connections|access|history|rules)$/);
   if (!(request.method === "GET" && (settingsPageMatch || capabilityPageMatch))) return false;
   const rules = capabilityPageMatch?.[1] === "rules";
@@ -109,6 +109,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     } } : {}),
     ...(model_settings === undefined ? {} : { model_settings }),
     context_project: contextProject,
+    ...(section === "authorizations" && url.searchParams.get("view") === "project-rules" ? { show_project_approval_rules: true } : {}),
     enabled_plugins: membership.plugins,
     hidden_plugins: membership.hidden,
     shown_plugins: membership.shown,

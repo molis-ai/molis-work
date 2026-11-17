@@ -79,15 +79,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       if (kind && root.dataset.settingsPanel) host.noteCover?.(kind, root.dataset.settingsPanel + " " + path);
     },
   });
-  let capabilityScripts = null;
-  const ensureCapabilityScripts = (html) => !/data-functions=|data-mcp-access|data-functions-settings/.test(html) ? Promise.resolve()
-    : capabilityScripts ||= new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = "/assets/molis-work-capabilities.js";
-      script.onload = () => resolve();
-      script.onerror = () => { capabilityScripts = null; script.remove(); reject(new Error(globalThis.t.text("workbench.settings-directory.try-again-moment"))); };
-      document.head.append(script);
-    });
+  const ensureCapabilityScripts = (html) => !/data-functions=|data-mcp-access|data-functions-settings|data-authorization-settings/.test(html) ? Promise.resolve()
+    : globalThis.molisWorkLoadCapabilities();
   const stylesheets = new Set();
   const ensureStyleSheets = (html) => {
     const sources = [...new Set([...html.matchAll(/<link\\b[^>]*>/g)].map((tag) => /href="([^"]*\\.css)"/.exec(tag[0])?.[1]).filter((href) => href?.includes("/assets/molis-work-plugins/")))];
@@ -121,6 +114,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     };
     globalThis.molisWorkBindPromptSettings?.(root, { search: root.dataset.settingsSearch || "", hash: root.dataset.settingsHash || "" });
     globalThis.molisWorkBindAssistantSettings?.(root);
+    globalThis.molisWorkBindAuthorizationSettings?.(root);
     globalThis.molisWorkBindLocalDirectorySettings?.(root, { search: root.dataset.settingsSearch || "" });
     globalThis.molisWorkBindMemorySettings?.(root, { search: root.dataset.settingsSearch || "" });
     globalThis.molisWorkBindAgentDiagnostics?.(root);
@@ -128,7 +122,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindProjectIdentity?.(root);
     globalThis.molisWorkBindProjectManager?.(root, { hash: root.dataset.settingsHash || "" });
     globalThis.molisWorkBindProjectGuidance?.(root);
-    globalThis.molisWorkBindProjectRules?.(root);
     globalThis.molisWorkBindShelfSettings?.(root);
     globalThis.molisWorkBindModelSettings?.(root, { saved: modelSaved });
     globalThis.molisWorkBindConnectorsSettings?.(root, page);
@@ -363,9 +356,13 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     if (url.origin !== location.origin) return false;
     const projectSection = projectSectionFromPath(url.pathname);
     if (!projectSection) return false;
+    const extra = keptAddress(url, PROJECT_DEFAULTS, PROJECT_QUERY_EXTRAS, projectSection);
     projectSettings ||= bindProject();
+    // A memory session, a linked catalog item or a Skill draft the address names is opened with the address; other pages open as they are.
+    const linkedItem = projectSection === "kit" && new URLSearchParams(extra).has("install");
     const memoryTarget = projectSection === "memory" && (url.searchParams.has("memory_session_kind") || url.searchParams.has("memory_session_id"));
-    openProjectSettings(projectSection, memoryTarget ? url.pathname + (fromPage === true ? keptAddress(url, PROJECT_DEFAULTS, PROJECT_QUERY_EXTRAS, projectSection) : url.search) : undefined);
+    const draftTarget = projectSection === "kit" && url.searchParams.has("draft");
+    openProjectSettings(projectSection, linkedItem || memoryTarget || draftTarget ? url.pathname + (linkedItem || fromPage === true ? extra : url.search) : undefined);
     return true;
   };
   const openGlobalSettingsFromUrl = (href, fromPage) => {

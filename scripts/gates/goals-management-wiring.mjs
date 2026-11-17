@@ -26,7 +26,7 @@ export function checkGoalsManagementWiring(source, mode) {
   const errors = [], reject = message => errors.push(`${path}: ${message}`);
   if (production?.error) reject(production.error);
   const namedCalls = name => calls.filter(node => ts.isIdentifier(node.expression) && node.expression.text === name);
-  const factory = namedCalls("bindGoalsManagementActions"), call = factory.length === 1 ? factory[0] : undefined;
+  const factory = namedCalls("bindStandaloneManagementActions"), call = factory.length === 1 ? factory[0] : undefined;
   const opened = call?.arguments[0], fallback = declarations.get("fallback");
   const body = fallback?.initializer && ts.isArrowFunction(fallback.initializer) ? fallback.initializer.body : undefined;
   const creates = namedCalls("prepareLocalProjectStorage").filter(node => text(node.arguments[1]) === '"create"');
@@ -41,13 +41,12 @@ export function checkGoalsManagementWiring(source, mode) {
     && text(body.statements[1]) === 'if(homeProject||homeDatabase)ensureHomeStorageOwner(localHost??=createMolisWorkLocalHost({homeDirectory:home}),home,preflightMemoryHome);'
     && text(body.statements[2]) === 'if(operation==="init"&&homeDatabase)prepareLocalProjectStorage(databasePath,"create");'
     && ts.isReturnStatement(body.statements[3]) && body.statements[3].expression === call;
-  const expectedClient = mcp ? "caller.localHost.actionClient" : "(localHost??=createMolisWorkLocalHost()).actionClient";
-  if (!imports.has("./goal-callers.js:bindGoalsManagementActions") || !call || call.arguments.length !== 3
-    || !opened || !ts.isCallExpression(opened) || text(opened.expression) !== expectedClient || opened.arguments.length !== 1
-    || text(opened.arguments[0]) !== "reference"
-    || text(call.arguments[1]) !== "reference" || text(call.arguments[2]) !== (mcp ? "{signal:caller.resident?.signal}" : "{signal:options.signal}")
+  const expectedHost = mcp ? "caller.localHost" : "localHost??=createMolisWorkLocalHost()";
+  if (!imports.has("./management-action-client.js:bindStandaloneManagementActions") || !call || call.arguments.length !== 3
+    || text(opened) !== expectedHost || text(call.arguments[1]) !== "reference"
+    || text(call.arguments[2]) !== (mcp ? "caller.resident?.signal" : "options.signal")
     || !fallback?.initializer || !ts.isArrowFunction(fallback.initializer) || fallback.initializer.parameters.length !== 0 || (mcp ? body !== call : !guarded)) {
-    reject("bindGoalsManagementActions must build the single lazy fallback with the project's actionClient(reference), retaining Home ownership before creation, bound reference and original signal");
+    reject("bindStandaloneManagementActions must build the single lazy fallback with the original Host, retaining Home ownership before creation, bound reference and original signal");
   }
   const resident = namedCalls("residentManagementActions"), residentCall = resident.length === 1 ? resident[0] : undefined;
   const residentInput = residentCall?.arguments[0];
@@ -110,9 +109,9 @@ export function checkGoalsManagementWiring(source, mode) {
       reject("preserve the awaited empty withScope for !owned only, before dispatch, with no typed business IO or plugin preparation");
     }
   } else if (opens.length) reject("the CLI has no separate typed withScope business route");
-  const permitted = [opened?.expression, ...(mcp ? [preopen?.expression, scoped?.expression] : [])];
+  const permitted = mcp ? [preopen?.expression, scoped?.expression] : [];
   for (const access of accesses) if (!permitted.includes(access)) reject(`no second route through a Host client (${text(access)})`);
-  for (const name of names) if (!permitted.some(access => access?.name === name)) reject(`${name.text} is not the single empty scope or factory client`);
+  for (const name of names) if (!permitted.some(access => access?.name === name)) reject(`${name.text} is not the single empty scope`);
   return errors;
 }
 

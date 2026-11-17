@@ -30,9 +30,30 @@ export const INFORMATION_PLANNER = defineInstructionPrompt({
 
 /** Settings › 能力包 › 新建技能: one sentence becomes the form's fields for the person to change (batch 41, 定样 B). It only proposes. */
 export const SKILL_DRAFT = defineInstructionPrompt({
-  owner_id: "system:skills", prompt_id: "skills.draft", version: /* @version prompt.skills.draft */ 1, title: "起草技能",
+  owner_id: "system:skills", prompt_id: "skills.draft", version: /* @version prompt.skills.draft */ 2, title: "起草技能",
   purpose: "把用户一句话写成一个技能的初稿：名称、什么时候用、什么时候不用、给谁用和正文；只起草，由用户改完再保存", used_by: ["设置里的新建技能"],
   ...promptBody("skills.draft"),
+});
+
+/** Settings › 能力包 › 技能草稿 › 试用 (batch 42): one entry's replay of a draft or a version against a known answer. Model only, no tools. */
+export const SKILL_TRIAL = defineInstructionPrompt({
+  owner_id: "system:skills", prompt_id: "skills.trial", version: /* @version prompt.skills.trial */ 1, title: "回放技能",
+  purpose: "照技能正文、以助理或 Coding 的身份做一遍已知答案里的任务，只写出结果；没有工具，要用工具的步骤写成「会做」", used_by: ["技能草稿的试用与回放"],
+  ...promptBody("skills.trial"),
+});
+
+/** The same replay's judge: each result against the result the person accepted, as match, differs (with where) or unknown. */
+export const SKILL_TRIAL_JUDGE = defineInstructionPrompt({
+  owner_id: "system:skills", prompt_id: "skills.trial-judge", version: /* @version prompt.skills.trial-judge */ 1, title: "对照回放结果",
+  purpose: "把每次回放的结果和用户认可的结果对照，说一致、哪几处不同或判断不了", used_by: ["技能草稿的试用与回放"],
+  ...promptBody("skills.trial-judge"),
+});
+
+/** 「告诉助理怎么改」 on a draft (batch 42): one sentence changes the draft's fields. It only proposes the next revision of the draft. */
+export const SKILL_REVISE = defineInstructionPrompt({
+  owner_id: "system:skills", prompt_id: "skills.revise", version: /* @version prompt.skills.revise */ 1, title: "改技能草稿",
+  purpose: "按用户一句话改技能草稿的字段与正文，没让改的地方原样保留；只改草稿，采用由用户来", used_by: ["技能草稿的「告诉助理怎么改」"],
+  ...promptBody("skills.revise"),
 });
 
 /** The platform memory draws out, when a work ends, what may be worth keeping (specs/archive/memory-system §6.1). It only proposes. */
@@ -95,4 +116,11 @@ export const KNOWLEDGE_LOCATE = defineInstructionPrompt({
   owner_id: KNOWLEDGE_OWNER, prompt_id: "knowledge.locate", version: /* @version prompt.knowledge.locate */ 2, title: "按问题选资料分节",
   purpose: "Agent 带着一个问题和几份资料来问先读哪几节时，看这几份资料的分节树（标题、层级、整理时写的每节一句摘要），挑出最可能写着答案的几节", used_by: ["项目资料"],
   ...promptBody("knowledge.locate"),
+});
+
+/** External sessions asks the model for non-binding project filing suggestions over directory groups (`sessions.attribution.suggest@1`). */
+export const SESSIONS_SUGGEST = defineInstructionPrompt({
+  owner_id: "system:sessions", prompt_id: "sessions.attribution.suggest", version: /* @version prompt.sessions.attribution.suggest */ 1, title: "外部会话归属建议",
+  purpose: "用户在外部会话页点“让 AI 建议归属”时，根据未归档目录组的目录尾名与会话标题，在当前项目里推荐可能对应的项目；只出建议，由用户确认归档", used_by: ["外部会话"],
+  ...promptBody("sessions.attribution.suggest"),
 });

@@ -173,6 +173,8 @@ export interface AgentRuntimeAdapter {
   readOriginalInput?(ref: AgentOriginalInputRef): Promise<{ original: AgentOriginalInput; accepted_run: AgentRunRef } | undefined>;
   /** The session's standing without copying its rounds; a Runtime without it is read through readSession. */
   readSessionStatus?(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }>;
+  /** True while the original start, recovery or publication still owns this session's transition. */
+  sessionTransitionPending?(session: AgentSessionRef): boolean;
   /** The project's work under way, when this Runtime keeps it. */
   readonly projectWork?: AgentProjectWorkCapability;
   /** Messages between the project's sessions, when this Runtime carries them. */

@@ -21,7 +21,7 @@ import { PRESENTATION_FORM_STYLES } from "../styles/presentation.js";
 import { componentText, PLUGIN_COMPONENTS } from "../plugin-components.js";
 import { SKILL_SELECTION_BOARD_STYLES, skillLineSection, skillWhySection } from "./catalog-skill-selection.js";
 import { itemChoiceSection, itemDetailsSection, listDetailSection, SKILL_PACK_BOARD_STYLES, statusLinkSection } from "./catalog-skill-packs.js";
-import { CAPABILITY_PACK_BOARD_STYLES, cellGridSection, detailTrailSection, iconCountsSection, itemGroupSection, leaveBarSection, nowBlockSection, stateRowsSection, stickyDetailSection, textCountSection, usageSection } from "./catalog-capability-packs.js";
+import { CAPABILITY_PACK_BOARD_STYLES, adoptBarSection, askRowSection, cellGridSection, detailTrailSection, iconCountsSection, itemGroupSection, leaveBarSection, nowBlockSection, placeholderListSection, replayGridSection, stateRowsSection, stickyDetailSection, textCountSection, usageSection } from "./catalog-capability-packs.js";
 import { WORK_RECORDS_BOARD_STYLES, categoryBarSection, kindMarkSection } from "./catalog-work-records.js";
 import { LANGUAGE_BOARD_STYLES, languageSection, motionGrammarSpecimens, pairingSection, zonesSection } from "./catalog-language.js";
 import { RECOVERY_BOARD_STYLES, recoverySections } from "./recovery-parts.js";
@@ -300,6 +300,10 @@ export function renderPrimitiveCatalog(options: {
     ${stickyDetailSection(say)}
     ${textCountSection(say)}
     ${leaveBarSection(say)}
+    ${adoptBarSection(say)}
+    ${replayGridSection(say)}
+    ${askRowSection(say)}
+    ${placeholderListSection(say)}
     ${kindMarkSection(say)}
     ${categoryBarSection(say)}
     ${dataTableSection()}

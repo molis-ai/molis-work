@@ -23,7 +23,7 @@ import {
   type GoalRelationGraphIssue,
 } from "./goal-commands.js";
 import { GuidanceCommands } from "./guidance-commands.js";
-import { ProjectPolicyCommands } from "./policy-commands.js";
+import type { GoalApprovalRules } from "./policy-projection.js";
 import { ConfirmedRelationCommands } from "./confirmed-relations.js";
 import { GoalLifecycleCommands } from "./lifecycle-commands.js";
 import { GoalsPlanningEngine } from "./planning/engine.js";
@@ -38,7 +38,9 @@ export interface GoalsModuleHooks {
   validateRelationGraph?(projectId: string, input: AddGoalRelationInput): GoalRelationGraphIssue | null;
 }
 
-export type GoalsModuleOptions = GoalsCommandContextOptions;
+export interface GoalsModuleOptions extends GoalsCommandContextOptions {
+  approvalRules?: GoalApprovalRules;
+}
 
 export class GoalsModule {
   readonly commands: GoalsCommandApi;
@@ -54,7 +56,7 @@ export class GoalsModule {
     hooks: GoalsModuleHooks,
     options: GoalsModuleOptions = {},
   ) {
-    const repository = new GoalsRepository(db, journal);
+    const repository = new GoalsRepository(db, journal, options.approvalRules ?? noApprovalRules);
     const context = new GoalsCommandContext(repository, options);
     const query = new GoalsQueryService(repository, options);
     this.planning = new GoalsPlanningEngine(context);
@@ -65,11 +67,9 @@ export class GoalsModule {
       validateRelationGraph: hooks.validateRelationGraph,
     });
     const guidance = new GuidanceCommands(context);
-    const projectPolicy = new ProjectPolicyCommands(context);
     const confirmedRelations = new ConfirmedRelationCommands(context);
     const boards = new MolisWorkCommands(context);
     this.commands = {
-      saveProjectPolicy: input => projectPolicy.save(input),
       initializeBoard: input => boards.initializeBoard(input),
       setActiveGoal: (...args) => boards.setActiveGoal(...args),
       applyConfirmedRelations: input => confirmedRelations.applyConfirmedRelations(input),
@@ -95,7 +95,6 @@ export class GoalsModule {
       listDependencies: (projectId, goalId) => query.listDependencies(projectId, goalId),
       activeReplacement: (projectId, goalId) => query.activeReplacement(projectId, goalId),
       getRelation: (projectId, relationId) => query.getRelation(projectId, relationId),
-      policyBindingState: (projectId, bindingId) => query.policyBindingState(projectId, bindingId),
       criterionGoalId: criterionId => query.criterionGoalId(criterionId),
       getBoard: (projectId: string) => query.getBoard(projectId),
       getGoal: (projectId: string, goalId: string) => query.getGoal(projectId, goalId),
@@ -149,17 +148,19 @@ export type { GoalsJournal, GoalsSqliteDatabase } from "./repository.js";
 export { GoalInputBindings } from "./input-bindings.js";
 
 /** Read-only Module assembly; callers do not construct Goals repositories. */
-export function createGoalReadServices(db: GoalsSqliteDatabase, journal: GoalsJournal): {
+export function createGoalReadServices(db: GoalsSqliteDatabase, journal: GoalsJournal, approvalRules: GoalApprovalRules = noApprovalRules): {
   query: GoalsQueryApi;
   events: Pick<GoalEventFactsApi, "readConfig" | "listEvents" | "listLatestEvents" | "listLatestTimeline" | "listLatestReports" | "readEvent" | "readCurrentRequirements" | "isEventStateOwner"> & { readonly state: Pick<GoalEventStateApi, "readWorkState"> };
 } {
-  const repository = new GoalsRepository(db, journal);
+  const repository = new GoalsRepository(db, journal, approvalRules);
   const context = new GoalsCommandContext(repository);
   return {
     query: new GoalsQueryService(repository),
     events: new GoalEventFacts(context),
   };
 }
+
+const noApprovalRules: GoalApprovalRules = () => [];
 
 export { DEFAULT_GOAL_POLICY } from "./default-policy.js";
 export { goalReplicationDefinition } from './replication.js';

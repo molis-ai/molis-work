@@ -22,6 +22,7 @@ export interface ComposerCommand {
 }
 
 export interface ComposerCommonOptions {
+    placement?: "local";
     entry: string;
     draft?: {
         conversation: string;
@@ -91,6 +92,7 @@ export interface ComposerDraftAdapter {
 }
 
 export interface ComposerHandle {
+    ready(): Promise<void>;
     setRunning(running: boolean): void;
     refresh(): void;
     focus(): void;

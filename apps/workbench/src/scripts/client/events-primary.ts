@@ -94,73 +94,6 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
     }
 
     bindTreeFilterTrigger();
-    const closeGoalOverlay = () => {
-      const shell = document.querySelector("[data-goal-canvas-shell]");
-      if (!shell) return;
-      shell.removeAttribute("data-goal-rules");
-      shell.querySelectorAll("[data-open-work-rules]").forEach((row) => {
-        row.classList.remove("is-selected");
-        row.setAttribute("aria-pressed", "false");
-        row.removeAttribute("aria-current");
-      });
-    };
-    // Loading and failure read like every other list: the shared loading line, then the reason and Retry in place.
-    const settingsLoadingLine = () => {
-      const line = document.createElement("p");
-      line.className = "mw-loading";
-      line.setAttribute("role", "status");
-      line.textContent = globalThis.t.text("workbench.events-primary.loading-settings");
-      return line;
-    };
-    const settingsLoadFailed = (message, retry) => {
-      const box = document.createElement("div");
-      box.className = "mw-empty mw-empty--error";
-      box.setAttribute("role", "alert");
-      box.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
-      box.querySelector("strong").textContent = globalThis.t.text("workbench.events-primary.couldn-t-load-settings");
-      if(typeof message==="string")box.querySelector("p").textContent=message||globalThis.t.text("workbench.events-primary.try-again-moment");else molisWorkRequest.show(box.querySelector("p"),message,globalThis.t.text("workbench.events-primary.try-again-moment"));
-      const button = box.querySelector(":scope > button");
-      button.textContent = globalThis.t.text("common.control.retry");
-      button.addEventListener("click", () => { button.disabled = true; void retry(); });
-      return box;
-    };
-    const fillGoalOverlay = async (pane, path, bind) => {
-      pane.replaceChildren(settingsLoadingLine());
-      const html = await molisWorkRequest(path,{as:"text",headers:{Accept:"text/html"},fallback:globalThis.t.text("workbench.events-primary.couldn-t-load-settings")});
-      if(!pane.isConnected)return;
-      const parsed = new DOMParser().parseFromString(html, "text/html");
-      const content = parsed.querySelector(".project-rules-document, .settings-document") || parsed.querySelector(".settings-content") || parsed.body;
-      const node = content.classList?.contains("settings-content") ? (content.firstElementChild || content) : content;
-      pane.replaceChildren(document.importNode(node, true));
-      bind?.(pane);
-    };
-    const openGoalWorkRules = async () => {
-      const shell = document.querySelector("[data-goal-canvas-shell]");
-      const pane = shell?.querySelector("[data-goal-work-rules]");
-      if (!shell || !pane) return;
-      if (shell.dataset.goalRules === "open") {
-        closeGoalOverlay();
-        return;
-      }
-      closeGoalOverlay();
-      shell.dataset.boardView = "list";
-      shell.dataset.goalRules = "open";
-      shell.querySelector("[data-open-work-rules]")?.setAttribute("aria-pressed", "true");
-      const prefix = document.body.dataset.routePrefix || "";
-      const run = async () => {
-        try {
-          await fillGoalOverlay(pane, prefix + "/settings/rules?embed=1", (root) => {
-            globalThis.molisWorkBindProjectRules?.(root);
-          });
-        } catch (error) {
-          pane.replaceChildren(settingsLoadFailed(error,run));
-        }
-      };
-      await run();
-    };
-    globalThis.molisWorkOpenGoalWorkRules = () => openGoalWorkRules();
-    document.addEventListener("molis-work:goal-changed", closeGoalOverlay);
-
     document.addEventListener("click", async (event) => {
       const target = event.target?.nodeType === 1 ? event.target : null;
       if (!target) return;
@@ -168,12 +101,4 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       projectMenus.forEach((menu) => {
         if (menu.open && menu !== activeProjectMenu) menu.open = false;
       });
-      const policyCancel = target.closest("[data-policy-cancel]");
-      if (policyCancel) {
-        const form = policyCancel.closest("form");
-        form?.querySelectorAll("[aria-invalid]").forEach(field => field.removeAttribute("aria-invalid"));
-        const error = form?.querySelector("[data-policy-error]");
-        if (error) error.hidden = true;
-        return;
-      }
 `;

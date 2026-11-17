@@ -71,7 +71,7 @@ test("S-task-grants-page TGA-28 the settings route is the person's own page's: a
   assert.equal(opened.status, 200, await opened.clone().text());
   const { page_id } = await opened.json() as { page_id: string };
   for (const headers of [{ "x-molis-plugin-page": page_id }, { "x-molis-context-page": page_id }, { "x-molis-plugin-page": page_id, "x-molis-context-page": page_id }, { "x-molis-plugin-page": "made-up" }]) {
-    for (const body of [{ mode: "list" }, { ...set, key: "weekly" }, { mode: "clear", plugin_install_id: a.install, key: "daily" }, { mode: "titles", plugin_install_id: a.install, cursor: null }]) {
+    for (const body of [{ mode: "list" }, { ...set, key: "weekly" }, { ...set, categories: [] }, { mode: "titles", plugin_install_id: a.install, cursor: null }]) {
       const refused = await a.post(body, headers);
       assert.equal(refused.status, 403, JSON.stringify({ headers, mode: body.mode }));
     }
@@ -83,14 +83,14 @@ test("S-task-grants-page TGA-28 the settings route is the person's own page's: a
   assert.equal(await records(), written, "no plugin page wrote");
 
   // Each mode takes its own keys only: an actor, a project, another installation's name under another key, anything else is refused.
-  const bodies = [{ mode: "list" }, set, { mode: "clear", plugin_install_id: a.install, key: "daily" }, { mode: "titles", plugin_install_id: a.install, cursor: null }];
+  const bodies = [{ mode: "list" }, set, { ...set, categories: [] }, { mode: "titles", plugin_install_id: a.install, cursor: null }];
   for (const body of bodies) for (const extra of [{ project_id: b.project.project_id }, { actor_id: "agent:prologue" }, { install_id: a.other }, { audience: "agent" }, { note: "x" }]) {
     const refused = await a.post({ ...body, ...extra });
     assert.equal(refused.status, 400, JSON.stringify({ mode: body.mode, extra }));
     assert.equal(((await refused.json()) as { code: string }).code, "actions.input_invalid");
   }
   for (const wrong of [{ mode: "read" }, { mode: "set", plugin_install_id: a.install, key: "daily" }, { ...set, plugin_install_id: "" }, { ...set, categories: "all" },
-    { ...set, expected_revision: 1 }, { mode: "titles", plugin_install_id: a.install, cursor: 3 }, { mode: "clear", key: "daily" }]) {
+    { ...set, expected_revision: 1 }, { mode: "titles", plugin_install_id: a.install, cursor: 3 }, { mode: "clear", plugin_install_id: a.install, key: "daily" }]) {
     assert.equal((await a.post(wrong)).status, 400, JSON.stringify(wrong));
   }
   assert.equal((await f.request(a.endpoint)).status, 405, "only POST");
@@ -147,8 +147,11 @@ test("S-task-grants-page TGA-24 TGA-26 the route lists every task once and names
   assert.deepEqual(await a.call({ mode: "titles", plugin_install_id: a.other, cursor: null }), { entries: [], next_cursor: null });
   assert.equal(titled.listed.length, 2);
 
-  // All of a task's grants go in one clear, naming its installation; the other installation's task of the same key keeps its own.
-  assert.deepEqual(await a.call({ mode: "clear", plugin_install_id: a.install, key: "daily" }), { cleared: true });
+  // All of a task's grants go in one revision-checked write; the other installation's task of the same key keeps its own.
+  const daily = (await a.call<Listed>({ mode: "list" })).subjects.find(row => row.plugin_install_id === a.install && row.key === "daily")!;
+  const clear = { mode: "set", plugin_install_id: a.install, key: "daily", categories: [] };
+  assert.equal((await a.post({ ...clear, expected_revision: "" })).status, 409);
+  assert.deepEqual((await a.call<{ subject: { categories: unknown[] } }>({ ...clear, expected_revision: daily.revision })).subject.categories, []);
   const after = await a.call<Listed>({ mode: "list" });
   assert.deepEqual(after.subjects.map(subject => [subject.plugin_install_id, subject.key]).sort(), [[a.install, "zlate"], [a.other, "daily"]].sort());
 });

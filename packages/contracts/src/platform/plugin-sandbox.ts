@@ -107,6 +107,9 @@ export interface SandboxDataOperation extends SandboxOperationFields {
   input: SandboxSchema;
   output: SandboxSchema;
   read_protocol?: never;
+  /** The package's own read-only review query and the kinds of objects it can review. */
+  trusted_review?: { readonly reader: string; readonly subject_kinds: readonly string[];
+    readonly row: import("../services/project-approvals.js").TrustedReviewRow };
   /** A launcher's persistent business job, read by a query of this same package. Broker execution ids are separate, ephemeral handles. */
   background_job?: {
     status: string;
@@ -129,6 +132,7 @@ export interface SandboxReadOperation extends SandboxOperationFields {
   input: ActionSchema;
   output: ActionSchema;
   background_job?: never;
+  trusted_review?: never;
 }
 
 export type SandboxOperationContract = SandboxDataOperation | SandboxReadOperation;
@@ -323,6 +327,10 @@ export interface SandboxModelResult { text: string; value?: SandboxJson; usage?:
 export type SandboxSqlValue = null | number | string;
 export type SandboxSqlRow = { [column: string]: SandboxSqlValue };
 export interface SandboxSqlStatement { sql: string; parameters?: SandboxSqlValue[] }
+export interface SandboxSqlWrite extends SandboxSqlStatement {
+  /** Abort the transaction unless this statement updates exactly this many rows. */
+  expected_changes?: number;
+}
 
 export interface SandboxSdk {
   /** The same text tools as the public SDK, supplied by the sandbox's trusted bootstrap. */
@@ -351,7 +359,7 @@ export interface SandboxSdk {
   projectDatabase: {
     get(sql: string, parameters?: SandboxSqlValue[]): Promise<SandboxSqlRow | null>;
     all(sql: string, parameters?: SandboxSqlValue[]): Promise<SandboxSqlRow[]>;
-    transaction(statements: SandboxSqlStatement[]): Promise<Array<{ changes: number }>>;
+    transaction(statements: SandboxSqlWrite[]): Promise<Array<{ changes: number }>>;
   };
   /**
    * The plugin's own library in the Home (`databases.home`), for a package the Home Runtime runs: the same statements, limits and process as

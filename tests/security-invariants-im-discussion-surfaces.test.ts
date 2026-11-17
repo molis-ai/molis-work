@@ -96,13 +96,15 @@ test("IUI-02 IUI-03 IUI-10 IUI-21 ordered discussion objects belong to the origi
   assert.equal(opened.item_id, subjects[0]!.id);
   await json(await post(surfaces, { ...click, views: [{ message_id: duplicate.message.id, part: "quote" }] }), 409);
 
-  // IUI-02: Pages owns the title and navigation even without a presentation declaration.
-  const pagesTitle = "Live Pages title for this discussion", privateBody = "Pages body never sent to the discussion surface";
-  const { document } = await json<{ document: { id: string; version: number } }>(await post(
-    prefix + "/api/plugins/io.molis.work.pages/pages", { title: pagesTitle, markdown: privateBody }));
-  const pageSubject = { kind: "pages_document", id: document.id };
+  // IUI-02: PPT owns the title and navigation even without a presentation declaration (Pages added presentation in Batch 39).
+  const deckTitle = "Live PPT title for this discussion", privateBody = "PPT notes never sent to the discussion surface";
+  const createdDeck = await json<{ presentation: { id: string; version: number } }>(await post(
+    prefix + "/api/plugins/io.molis.work.ppt/ppt", { title: deckTitle }));
+  const { presentation: deck } = await json<{ presentation: { id: string; version: number } }>(await post(
+    prefix + "/api/plugins/io.molis.work.ppt/ppt/" + encodeURIComponent(createdDeck.presentation.id), { description: privateBody }));
+  const deckSubject = { kind: "presentation", id: deck.id };
   const callLog = f.host.callLog!, recordCall = callLog.record;
-  let pageReads = 0, withdraw = false;
+  let deckReads = 0, withdraw = false;
   // Where each counted read came from, so a failed count names the caller instead of only the number. The default ten frames end
   // inside the dispatcher, before the reader that made the call, so the stack is taken deeper.
   const readSources: string[] = [];
@@ -113,42 +115,42 @@ test("IUI-02 IUI-03 IUI-10 IUI-21 ordered discussion objects belong to the origi
     finally { Error.stackTraceLimit = limit; }
   };
   callLog.record = function (caller, action, outcome) {
-    // Discussion's owner proof is read-only. Background work reads the same Pages object at any moment of this window with the
-    // owner context, which is not read-only: the search index refresh after the Pages command, and project knowledge's catch-up
+    // Discussion's owner proof is read-only. Background work reads the same PPT object at any moment of this window with the
+    // owner context, which is not read-only: the search index refresh after the PPT command, and project knowledge's catch-up
     // (a search) two seconds after a change. On a slow runner either lands between these requests, so they are not counted.
-    if (caller.project_id === project.project_id && caller.query_only && caller.read_only_effects && action.capability_id === "pages.subject.read" && outcome.ok) {
-      pageReads++;
+    if (caller.project_id === project.project_id && caller.query_only && caller.read_only_effects && action.capability_id === "ppt.subject.read" && outcome.ok) {
+      deckReads++;
       readSources.push(readSource());
       if (withdraw) db.db.prepare("DELETE FROM mw_access WHERE project_id=? AND member_id=?").run(project.project_id, owner.id);
     }
     return recordCall.call(this, caller, action, outcome);
   };
   try {
-    const posted = await send({ client_id: randomUUID(), body: "", subjects: [pageSubject] });
-    assert.equal(pageReads, 1, "the send transaction proved the original object once: " + readSources.join(" || "));
-    const quoted = await send({ client_id: randomUUID(), body: "Pages quote", quote_id: posted.message.id });
+    const posted = await send({ client_id: randomUUID(), body: "", subjects: [deckSubject] });
+    assert.equal(deckReads, 1, "the send transaction proved the original object once: " + readSources.join(" || "));
+    const quoted = await send({ client_id: randomUUID(), body: "PPT quote", quote_id: posted.message.id });
     const views = [{ message_id: posted.message.id, part: "message" }, { message_id: quoted.message.id, part: "quote" }];
     const read = await json<SurfaceHomeDisplay>(await post(surfaces, { views }));
-    assert.equal(pageReads, 2, "original and quote share one owner read: " + readSources.join(" || "));
+    assert.equal(deckReads, 2, "original and quote share one owner read: " + readSources.join(" || "));
     assert.deepEqual(read.groups.map(group => group.items.map(item => [item.subject, item.owner_plugin_id, item.fields, item.actions])),
-      views.map(() => [[pageSubject, "io.molis.work.pages", [], [{ ref: "open", primary: false }]]]));
+      views.map(() => [[deckSubject, "io.molis.work.ppt", [], [{ ref: "open", primary: false }]]]));
     assert.equal(read.display.rows.length, 1);
     const row = read.display.rows[0]!;
     assert.equal(row.fallback, true);
-    assert.deepEqual(row.read, { state: "ok", revision: String(document.version), values: { title: pagesTitle } });
-    assert.match(read.display.owners[row.owner]!.name, /Pages|文档/u);
+    assert.deepEqual(row.read, { state: "ok", revision: String(deck.version), values: { title: deckTitle } });
+    assert.match(read.display.owners[row.owner]!.name, /PPT|演示稿/u);
     assert.doesNotMatch(JSON.stringify(read), new RegExp(privateBody, "u"));
     const open = { views: [views[0]], click: { owner_plugin_id: row.owner,
       target: { kind: "object", subject: row.subject, installation: row.installation } } };
     const opened = await json<{ owner_plugin_id: string; shell_key: string; item_id: string; installation: unknown }>(await post(surfaces, open));
-    assert.deepEqual([opened.owner_plugin_id, opened.shell_key, opened.item_id, opened.installation], [row.owner, "pages", document.id, row.installation]);
-    assert.equal(pageReads, 3, "the click reuses the current request's fresh proof: " + readSources.join(" || "));
+    assert.deepEqual([opened.owner_plugin_id, opened.shell_key, opened.item_id, opened.installation], [row.owner, "ppt", deck.id, row.installation]);
+    assert.equal(deckReads, 3, "the click reuses the current request's fresh proof: " + readSources.join(" || "));
     const count = db.db.prepare("SELECT count(*) AS n FROM im_messages").get()?.n;
     withdraw = true;
-    const denied = await post(messages, { client_id: randomUUID(), body: "", subjects: [pageSubject] });
-    assert.equal(pageReads, 4, "the refused send proved the object once more: " + readSources.join(" || "));
+    const denied = await post(messages, { client_id: randomUUID(), body: "", subjects: [deckSubject] });
+    assert.equal(deckReads, 4, "the refused send proved the object once more: " + readSources.join(" || "));
     assert.ok(!denied.ok);
-    assert.doesNotMatch(await denied.text(), new RegExp(pagesTitle + "|" + privateBody + "|" + document.id, "u"));
+    assert.doesNotMatch(await denied.text(), new RegExp(deckTitle + "|" + privateBody + "|" + deck.id, "u"));
     assert.equal(db.db.prepare("SELECT count(*) AS n FROM im_messages").get()?.n, count);
   } finally {
     callLog.record = recordCall;

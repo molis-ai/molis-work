@@ -74,7 +74,7 @@ export const judgment = object({ requirement_id: text, verdict, basis, tier, gap
 const requirementReport = object({ event_id: text, actor_id: text, actor_kind: actorKind, verdict, received_at: text, journal_seq: count,
   basis, tier, gap, substitutes_human_decision: { const: false } });
 const conclusion = object({ decision_id: text, actor_id: text, verdict: enumeration(goalEventUserConclusionVerdicts), received_at: text, journal_seq: count, checked: nullable(checked) });
-const requirement = object({ requirement_id: text, goal_id: text, statement: text,
+const requirement = object({ requirement_id: text, revision: count, goal_id: text, statement: text,
   origin: object({ kind: enumeration(["goal_event_requirement", "imported_acceptance_criterion", "imported_human_approval", "create_input"]),
     decision_method: recordedDecisionMethod, pass_condition: text, config_version: count,
     policy_binding_ids: strings }, ["kind"]), bound_type_ids: strings, human_decision_required: boolean,

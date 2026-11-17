@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderButton, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-design-system";
 /** A CSS string literal for a custom property: whatever could end the string or the attribute is written as a hex escape. */
 const cssString = (value: string) => "'" + value.replace(/[\\'"<>&\n]/g, character => '\\' + character.codePointAt(0)!.toString(16) + ' ') + "'";
@@ -17,6 +17,8 @@ export function renderAgentStudio(text: (key: string, values?: Record<string, st
     + '<header class="as-top"><div class="as-top-actions"><label class="as-select"><span class="as-sr">' + mine + '</span><select data-as-builds aria-label="' + mine + '"></select></label>'
     + '<button class="as-icon" type="button" data-as-new aria-label="' + newPlugin + '" title="' + newPlugin + '"><svg aria-hidden="true"><use href="#icon-plus"/></svg></button>'
     + '<label class="as-select as-model"><span>' + text("plugin-builder.agent-studio.model") + '</span><select data-as-model aria-label="' + text("plugin-builder.agent-studio.model-used-building") + '"></select></label>'
+    + renderButton({ variant: "ghost", className: "as-icon", icon: "sparkles", iconOnly: true,
+      label: text("plugin-builder.agent-studio.automation-suggestions"), attrs: { "data-automation-open": true } })
     + '<a class="as-model-setup" data-as-model-setup href="/settings/models" hidden>' + text("plugin-builder.agent-studio.open-model-settings") + '</a></div></header>'
     + '<aside class="as-left" aria-label="' + text("plugin-builder.agent-studio.collaboration") + '"><div class="as-feed" data-as-feed aria-live="polite"></div>'
     + '<label class="as-select" data-as-edit-label hidden><span>' + edit + '</span><select data-as-edit-mode aria-label="' + edit + '"><option value="message">' + text("plugin-builder.agent-studio.features-interface") + '</option><option value="visual">' + text("plugin-builder.agent-studio.interface-only") + '</option></select></label>'
@@ -44,15 +46,15 @@ export const AGENT_STUDIO_STYLES = String.raw`
 .as-shell svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle}.as-shell :focus-visible{outline:2px solid var(--as-blue);outline-offset:2px}
 :where(.as-shell) :is(h1,h2,h3,p){margin:0}.as-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 .as-top{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 24px;border-bottom:1px solid var(--as-line);background:var(--as-panel)}
-.as-top-actions{display:flex;align-items:center;gap:12px}.as-select{display:flex;align-items:center;gap:8px;color:var(--as-muted);font-size:12px}.as-select>span{white-space:nowrap;flex:none}.as-select select{max-width:220px;font:inherit;color:var(--as-ink);border:1px solid var(--as-line);border-radius:8px;background:var(--as-paper);padding:8px 8px}
-.as-icon{color:inherit;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid var(--as-line);border-radius:8px;background:var(--as-paper)}.as-icon:hover{background:var(--as-fill)}
+.as-top-actions{display:flex;align-items:center;gap:12px}.as-select{display:flex;align-items:center;gap:8px;color:var(--as-muted);font-size:12px}.as-select>span{white-space:nowrap;flex:none}.as-select select{max-width:220px;font:inherit;color:var(--as-ink);border:1px solid var(--as-line);border-radius:8px;background:var(--as-paper);padding:8px}
+.as-icon{color:inherit;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;min-height:32px;border:1px solid var(--as-line);border-radius:8px;background:var(--as-paper)}.as-icon:hover{background:var(--as-fill)}
 .as-left{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--as-line);background:var(--as-panel)}
 .as-feed{flex:1;min-height:0;overflow-y:auto;padding:24px 24px 12px;display:flex;flex-direction:column;gap:16px}
 .as-feed h2{font-size:17px;font-weight:600}.as-muted{color:var(--as-muted)}.as-small{font-size:12px}
-.as-card{border:1px solid var(--as-line);border-radius:10px;background:var(--as-paper);padding:16px 16px}.as-card h3{font-size:13px;font-weight:600;margin-bottom:8px}
+.as-card{border:1px solid var(--as-line);border-radius:10px;background:var(--as-paper);padding:16px}.as-card h3{font-size:13px;font-weight:600;margin-bottom:8px}
 .as-brief{border-left:3px solid var(--line-strong);padding:4px 0 4px 12px}.as-brief span{display:block;color:var(--as-muted);font-size:12px}.as-brief p{white-space:pre-wrap;overflow-wrap:anywhere}
-.as-examples{display:grid;gap:8px}.as-example{text-align:left;border:1px solid var(--as-line);border-radius:10px;background:var(--as-paper);padding:12px 12px}.as-example:hover{border-color:var(--as-line)}.as-example b{display:block;font-weight:600}
-.as-candidates{display:grid;gap:12px}.as-candidate{border:1px solid var(--as-line);border-radius:10px;background:var(--as-paper);padding:12px 12px;text-align:left;width:100%}.as-candidate[aria-pressed="true"]{border-color:var(--as-blue);box-shadow:0 0 0 2px var(--accent-soft)}
+.as-examples{display:grid;gap:8px}.as-example{text-align:left;border:1px solid var(--as-line);border-radius:10px;background:var(--as-paper);padding:12px}.as-example:hover{border-color:var(--as-line)}.as-example b{display:block;font-weight:600}
+.as-candidates{display:grid;gap:12px}.as-candidate{border:1px solid var(--as-line);border-radius:10px;background:var(--as-paper);padding:12px;text-align:left;width:100%}.as-candidate[aria-pressed="true"]{border-color:var(--as-blue);box-shadow:0 0 0 2px var(--accent-soft)}
 .as-candidate b{display:block;font-size:13px}.as-candidate p{color:var(--as-muted);margin-top:4px}.as-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .as-chip{display:inline-flex;align-items:center;gap:4px;border-radius:999px;background:var(--as-fill);padding:1px 8px;font-size:12px;color:var(--as-muted);white-space:nowrap}.as-chip.jev{background:var(--blue-soft,var(--accent-soft));color:var(--accent)}.as-chip.rule{background:var(--as-fill)}.as-chip.user{background:var(--amber-soft,var(--amber-soft));color:var(--amber)}
 .as-secret{display:grid;grid-template-columns:auto 1fr 1.4fr;gap:8px;align-items:center;margin:8px 0}.as-secret input{min-width:0;border:1px solid var(--as-line);border-radius:6px;padding:4px 8px;font:inherit;background:var(--as-paper);color:var(--as-ink)}

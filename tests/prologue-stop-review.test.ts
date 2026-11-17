@@ -46,7 +46,7 @@ test('AC-11: packed SDK: stop withdraws waiting reviews and never surfaces one a
     assert.equal(stopped.awaiting_review?.length ?? 0,0);
     await queue.refresh('board');
     assert.equal(queue.receipt(waiting.review_id)?.status,'cancelled','the review is withdrawn, not left for a decision');
-    await assert.rejects(queue.respond({review_id:waiting.review_id,decision:'approve',actor_id:'user'}));
+    await assert.rejects(queue.respond({review_id:waiting.review_id, version: waiting.reference.version,decision:'approve',actor_id:'user'}));
     assert.equal(await readFile(join(project,'a.ts'),'utf8'),'original\n');
     assert.equal(requests,2,'no further model request after the stop');
 

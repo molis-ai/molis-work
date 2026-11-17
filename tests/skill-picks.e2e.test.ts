@@ -125,7 +125,7 @@ test("SKL-11: an Assistant round that used no Skill says so above its reply, and
     prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, { replyText: "好的，已经整理。" }); },
   });
   if (!browser) return;
-  const { projectId, origin, command, sessionId, navigate, evaluate, waitFor, click } = browser;
+  const { projectId, origin, command, sessionId, navigate, evaluate, waitFor, click, web } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(projectId)}`);
@@ -138,10 +138,25 @@ test("SKL-11: an Assistant round that used no Skill says so above its reply, and
     return { text: line.innerText.replace(/\\s+/g, ' ').trim(), beforeReply: !!reply && !!(line.compareDocumentPosition(reply) & Node.DOCUMENT_POSITION_FOLLOWING) }; })()`);
   assert.deepEqual(line, { text: "这一轮没用技能 选一个", beforeReply: true });
   await click("[data-assistant-thread] .mw-skill-line [data-skill-pick]");
-  // The Skills that come with the system (规划与拆解, batch 41-2) are in every Home, so the panel offers them; the empty state is the board's specimen.
-  await waitFor("document.querySelectorAll('[data-skill-why] [data-skill-why-action]').length > 0", 10_000);
-  assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-skill-why]').innerText"), /这里没有别的可用技能。/);
+  await waitFor("document.querySelector('[data-skill-why] [role=menuitem][data-skill-why-action]')", 10_000);
+  const choicesText = await evaluate<string>("document.querySelector('[data-skill-why]').innerText");
+  assert.match(choicesText, /AI 与数据产品/u);
+  assert.doesNotMatch(choicesText, /这里没有别的可用技能。/u);
   const near = await evaluate<boolean>(`(() => { const button = document.querySelector('[data-assistant-thread] .mw-skill-line [data-skill-pick]').getBoundingClientRect(), panel = document.querySelector('[data-skill-why]').getBoundingClientRect();
     return Math.abs(panel.left - button.left) <= 16 || panel.right <= innerWidth; })()`);
   assert.equal(near, true, "the panel opens by the button");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor("!document.querySelector('[data-skill-why]')");
+
+  const path = `/projects/${projectId}/api/skills`;
+  const { skills } = await web.post<{ skills: SkillCatalogEntry[] }>(path + "/list", {});
+  const choices = skills.filter(skill => skill.state !== "off" && skill.availability.available && skill.applies_to !== "coding");
+  assert.ok(choices.length > 0);
+  for (const skill of choices) {
+    await web.post(path + "/set", { scope: "project", install_id: skill.ref.install_id, skill_id: skill.ref.skill_id,
+      state: "off", expected_revision: skill.settings_revision });
+  }
+  await click("[data-assistant-thread] .mw-skill-line [data-skill-pick]");
+  await waitFor("document.querySelector('[data-skill-why]')?.innerText.includes('这里没有别的可用技能。')", 10_000);
 });

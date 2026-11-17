@@ -9,6 +9,7 @@ import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { datasetManifest } from "@molis-ai/molis-work-plugin-dataset";
 import { pptManifest } from "@molis-ai/molis-work-plugin-ppt";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { TRUSTED_REVIEW_COMMAND_SCHEMA, TRUSTED_REVIEW_READ_SCHEMA } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -52,13 +53,15 @@ async function listToolNames(server: MolisWorkServer): Promise<string[]> {
 test("apps/mcp ships only platform tools; a Runtime gets the connection tools", () => {
   const platform = MCP_TOOLS.map(tool => tool.name);
   assert.ok(platform.includes("molis_work_v1_context_resolve"));
-  assert.ok(platform.includes("molis_work_v1_event_decide"));
+  assert.ok(platform.includes("molis_work_v1_review_request"));
+  assert.ok(platform.includes("molis_work_v1_review_decide"));
+  assert.equal(platform.some(name => name === "molis_work_v1_event_decide" || name === "molis_work_v1_goal_tree_decide"), false);
   assert.equal(platform.some(name => name.startsWith("molis_work_v1_action_") || name.startsWith("molis_work_v1_functions_")), false);
   assert.deepEqual(RUNTIME_MCP_TOOLS.map(tool => tool.name).filter(name => !name.startsWith("molis_work_v1_context_")), ["molis_work_v1_project_delete"]);
 });
 
 test("the management decision tool names no actor: the host decides as the person on this machine", () => {
-  const decide = MCP_TOOLS.find(tool => tool.name === "molis_work_v1_event_decide")!;
+  const decide = MCP_TOOLS.find(tool => tool.name === "molis_work_v1_review_decide")!;
   const schema = decide.inputSchema as { properties: Record<string, unknown>; required: string[] };
   // The handler refuses an actor_id, so a schema that lists or requires one can never be satisfied.
   assert.equal(Object.hasOwn(schema.properties, "actor_id"), false);
@@ -67,15 +70,16 @@ test("the management decision tool names no actor: the host decides as the perso
 });
 
 // RAC-345: the management Goals tools describe the very actions Goals registers: the same words and every business input field.
-test("RAC-345 management Goals tools carry the description and input fields of the action Goals registers", () => {
-  const pairs = [["molis_work_v1_initialize", goalsActions.initialize], ["molis_work_v1_goal_tree_decide", goalsActions.treeDecide],
-    ["molis_work_v1_event_decide", goalsActions.decide]] as const;
-  for (const [name, definition] of pairs) {
-    const tool = MCP_TOOLS.find(item => item.name === name);
-    assert.ok(tool, name);
-    assert.equal(tool.description, definition.action.description, name);
-    const fields = Object.keys((tool.inputSchema as { properties: Record<string, unknown> }).properties);
-    for (const field of Object.keys(definition.action.input_schema.properties as Record<string, unknown>)) assert.ok(fields.includes(field), `${name} lists ${field}`);
+test("RAC-345 management initialization uses the Goals contract and review uses the common platform contract", () => {
+  const initialize = MCP_TOOLS.find(item => item.name === "molis_work_v1_initialize")!;
+  assert.equal(initialize.description, goalsActions.initialize.action.description);
+  assert.deepEqual((initialize.inputSchema.properties as Record<string, unknown>).idempotency_key, goalsActions.initialize.action.input_schema.properties?.idempotency_key);
+  for (const [name, schema] of [["molis_work_v1_review_request", TRUSTED_REVIEW_READ_SCHEMA],
+    ["molis_work_v1_review_decide", TRUSTED_REVIEW_COMMAND_SCHEMA]] as const) {
+    const wire = MCP_TOOLS.find(item => item.name === name)!.inputSchema;
+    const { database_path: _path, project_id: _project, ...business } = wire.properties as Record<string, unknown>;
+    assert.deepEqual(business, schema.properties);
+    assert.equal(wire.additionalProperties, false);
   }
 });
 
@@ -91,8 +95,8 @@ test("assembleMcpCatalog lists exactly the granted actions that are available no
     [molisWorkActionToolName(invoke), molisWorkActionToolName(formList)].sort());
   assert.equal(granted.entries.find(entry => entry.definition.name === molisWorkActionToolName(formList))?.action?.provider.plugin_id, formManifest.plugin_id);
   for (const view of actions) assert.ok(granted.known_names.has(molisWorkActionToolName(view)), "every discovered action is a known name");
-  assert.equal(names(granted).includes("molis_work_v1_event_decide"), false, "a Runtime never lists a management tool");
-  assert.ok(granted.known_names.has("molis_work_v1_event_decide"));
+  assert.equal(names(granted).includes("molis_work_v1_review_decide"), false, "a Runtime never lists a management tool");
+  assert.ok(granted.known_names.has("molis_work_v1_review_decide"));
 
   const offline = assembleMcpCatalog({ audience: "runtime", actionToolName: molisWorkActionToolName, authorized_actions: [reference(invoke)],
     actions: [{ ...invoke, availability: { available: false, code: "offline", reason: "offline" } }] });
@@ -118,7 +122,7 @@ test("runtime named call of a management platform tool is authority_denied, not 
   const server = new MolisWorkServer("runtime");
   try {
     await assert.rejects(
-      () => server.callTool("molis_work_v1_event_decide", { goal_id: "g", idempotency_key: "k", conclusion: "伪造批准" }),
+      () => server.callTool("molis_work_v1_review_decide", { choice_id: "approve", request_key: "unauthorized" }),
       (error: unknown) => error instanceof Error && "code" in error && (error as { code: string }).code === "mcp.authority_denied",
     );
   } finally {

@@ -8,6 +8,8 @@ import { pagesErrors } from "./error.js";
 import { PagesGenerationStore } from "./store-generations.js";
 import { pagesTemplateById } from "./templates.js";
 import { PAGES_DATABASE } from "./database.js";
+import { readPagesPresentation } from "./presentation.js";
+import type { PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 export { PAGES_DATABASE };
 
 /** The SQL the store runs: its own connection, or the library the Runtime gives the plugin, read or inside one write transaction. */
@@ -74,6 +76,10 @@ export class PagesStore extends PagesGenerationStore {
 
   listFolders(projectId: string): PagesFolder[] {
     return this.db.all("SELECT * FROM folders WHERE project_id = ? ORDER BY title COLLATE NOCASE", [projectId]).map(fromFolderRow);
+  }
+
+  presentationValues(projectId: string, input: PresentationValuesInput) {
+    return readPagesPresentation(this.db, projectId, input);
   }
 
   get(id: string, projectId?: string): PagesRecord {

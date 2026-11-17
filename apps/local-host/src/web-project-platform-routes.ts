@@ -34,6 +34,8 @@ import { onAttentionChange } from "./attention-changes.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
+import { handleSessionsHttp } from "./sessions-http.js";
+import { isProjectOutputWorkspaceId } from "@molis-ai/molis-work-module-projects";
 import { handleComposerSourcesHttp } from "./composer-sources-http.js";
 import { runningPluginTextIn } from "./running-plugin-text.js";
 import { handleDirectoryGrantHttp } from "./plugin-directory-http.js";
@@ -122,11 +124,18 @@ export const workspaceMembershipRoute: WebRoute<ProjectRuntimeContext> = { id: "
  * The project's default output directory and whether it is made: only looked at when it is one of the project's folders (read, never made).
  * `read` is the `projects.directories.get@1` answer the same request already drew, so this adds no second read of the project's directories.
  */
-function defaultOutputOf(catalog: Pick<MolisWorkProjectCatalog, "defaultOutputDirectoryId" | "prepareWorkspaceDirectory">, projectId: string, read: ProjectDirectories) {
+function defaultOutputOf(
+  catalog: Pick<MolisWorkProjectCatalog, "defaultOutputDirectoryId" | "prepareWorkspaceDirectory" | "listWorkspaceDirectory">,
+  projectId: string,
+  read: ProjectDirectories,
+) {
   const workspaceId = catalog.defaultOutputDirectoryId(projectId);
-  if (!read.directories.some(item => item.workspace_id === workspaceId)) return { workspace_id: workspaceId, made: true };
+  const toolBroughtIds = catalog.listWorkspaceDirectory(projectId)
+    .filter(item => !isProjectOutputWorkspaceId(item.workspace_id) && !item.person_project_ids.includes(projectId))
+    .map(item => item.workspace_id);
+  if (!read.directories.some(item => item.workspace_id === workspaceId)) return { workspace_id: workspaceId, made: true, tool_brought_ids: toolBroughtIds };
   // A folder that cannot be looked at (a symbolic link, say) is not called unmade: its own refusal comes when it is used.
-  try { return { workspace_id: workspaceId, made: catalog.prepareWorkspaceDirectory(projectId, workspaceId, "read").exists }; } catch { return { workspace_id: workspaceId, made: true }; }
+  try { return { workspace_id: workspaceId, made: catalog.prepareWorkspaceDirectory(projectId, workspaceId, "read").exists, tool_brought_ids: toolBroughtIds }; } catch { return { workspace_id: workspaceId, made: true, tool_brought_ids: toolBroughtIds }; }
 }
 
 /**
@@ -222,6 +231,7 @@ export const agentReviewsRoute: WebRoute<ProjectRuntimeContext> = { id: "agent-r
     projectId,
     agentHost,
     actorId: LOCAL_PERSON_ACTOR_ID,
+    assertAccountCurrent: serverOptions.assertAccountCurrent,
     computerHolder: () => computerHolderFor(localHost)?.() ?? null,
     observeGitIndex: review => {
       if (review.project_id !== projectId || review.operation?.kind !== "git-index" || review.document.kind !== "git-index" || !options.project) throw new Error("原操作没有可核对的项目工作区");
@@ -242,6 +252,8 @@ export const boardRoute: WebRoute<ProjectRuntimeContext> = { id: "board", handle
 export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "search", handle: ({ request, response, url, localHost, hostReference }) =>
     handleSearchHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS)) },
+  { id: "sessions", handle: ({ request, response, url, localHost, hostReference }) =>
+    handleSessionsHttp(request, response, url, (signal) => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS, { signal }), true) },
   // The unified input's `+` sources (S-composer-source-call): every plugin's `composer_source`, as the person, in this project.
   { id: "composer-sources", handle: ({ request, response, url, store, localHost, hostReference }) =>
     handleComposerSourcesHttp(request, response, url, (signal) => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS, { signal }),
@@ -285,7 +297,7 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
   } },
   { id: "assistant", handle: async context => {
     const assistant = projectAssistant(context);
-    return Boolean(assistant) && context.url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(context.request, context.response, context.url, assistant!);
+    return Boolean(assistant) && context.url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(context.request, context.response, context.url, assistant!, context.serverOptions.assertAccountCurrent);
   } },
   { id: "attention", handle: async context => {
     const assistant = projectAssistant(context);

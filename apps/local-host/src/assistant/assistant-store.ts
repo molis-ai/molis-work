@@ -1,10 +1,12 @@
+import { AssistantActionPolicies } from "./assistant-action-policies.js";
+import { AssistantPermissionTransitions } from "./assistant-permission-transitions.js";
 import { AssistantRequests } from "./assistant-requests.js";
 import type { ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantThreadRound } from "./assistant-thread-types.js";
 import { randomUUID } from "node:crypto";
 import { assistantErrors } from "./assistant-errors.js";
 import { AssistantFollowUpRecords } from "./assistant-followups.js";
-import { applySqliteBaseline, type openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, openBaselineHomeSqlite, type openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
@@ -181,6 +183,8 @@ export class AssistantStore {
 
   /** Who hears that a work's stored facts changed (record, rounds, cards, follow-ups, jobs, undos, usage): the page's wait. */
   readonly #changes = new Set<(workId: string) => void>();
+  readonly policies: AssistantActionPolicies;
+  readonly permissionTransitions = new AssistantPermissionTransitions();
 
   constructor(private readonly db: DatabaseSync, private readonly now = () => new Date()) {
     applySqliteBaseline(db, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE);
@@ -189,6 +193,7 @@ export class AssistantStore {
     this.usage = new AssistantUsageLedger(db);
     this.followUps = new AssistantFollowUpRecords(db, workId => this.#changed(workId));
     this.observed = new AssistantObservedStates(db);
+    this.policies = new AssistantActionPolicies(db, (actorId, key, value) => this.setSetting(actorId, key, value));
   }
 
   onChange(listener: (workId: string) => void): () => void {
@@ -292,8 +297,10 @@ export class AssistantStore {
 
   setActionEnabled(actorId: string, key: string, enabled: boolean): Set<string> {
     const current = this.disabledActions(actorId);
+    if (enabled === !current.has(key)) return current;
     if (enabled) current.delete(key); else current.add(key);
     this.setSetting(actorId, "disabled_actions", JSON.stringify([...current].sort()));
+    this.policies.recordChange(actorId, key, "access");
     return current;
   }
 
@@ -395,8 +402,10 @@ export class AssistantStore {
 
   setConfirmAlways(actorId: string, key: string, on: boolean): void {
     const keys = this.confirmAlways(actorId);
+    if (on === keys.has(key)) return;
     if (on) keys.add(key); else keys.delete(key);
     this.setSetting(actorId, "confirm_always", JSON.stringify([...keys]));
+    this.policies.recordChange(actorId, key, "confirmation");
   }
 
   /** What a round that has started was told: those undone changes and settled changes are not told again. */
@@ -435,6 +444,12 @@ export class AssistantStore {
 
 /** This store in the Home's store registry (W4-11). */
 export const ASSISTANT_HOME_STORE: HomeStoreDeclaration = { path: ASSISTANT_STORE_NAME, library: { baseline: ASSISTANT_STORE_BASELINE } };
+
+/** The serving Host and its entry points share one Assistant store and its change notifications. */
+export function assistantStoreFor(home: string): () => AssistantStore {
+  let store: AssistantStore | undefined;
+  return () => store ??= new AssistantStore(openBaselineHomeSqlite(home, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE));
+}
 
 /** Resolve the existing work owner for a Session without a recent-work limit or a second source index. */
 export function assistantWorkForSession(db: DatabaseSync, actorId: string, sessionId: string): StoredWork | undefined {

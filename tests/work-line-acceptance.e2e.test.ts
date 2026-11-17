@@ -85,9 +85,13 @@ test("PWA-144 PWA-145 PWA-146: the event's card sums up its requirements in thre
   const stands = await door<AcceptanceReadResult>("read", { subjects: [target] });
   assert.deepEqual(stands.body.views[0]!.counts, { total: 4, verified: 2, needs_person: 3, accepted: 0, satisfied: 1 });
 
-  // PWA-144: the card's summary keeps the three readings apart — delivered is not verified, verified is not accepted.
+  // PWA-144 & APR-15/16: the card's summary keeps the three readings apart — delivered is not verified, verified is not accepted —
+  // and both the overview card and the requirement column expose the shared platform ReviewReference.
   await open("zh", 1440, 900);
   await waitFor("document.querySelector('[data-acceptance-overview]')", 15_000);
+  assert.ok(stands.body.views[0]!.review_reference?.id && stands.body.views[0]!.review_reference?.version, "read attaches the platform ReviewReference");
+  assert.equal(await evaluate("document.querySelector('[data-acceptance-overview]').dataset.reviewReference"), stands.body.views[0]!.review_reference!.id);
+  assert.equal(await evaluate("document.querySelector('[data-acceptance-overview]').dataset.reviewVersion"), stands.body.views[0]!.review_reference!.version);
   const summary = String(await evaluate("document.querySelector('[data-acceptance-overview] .work-reqs-sum').textContent"));
   assert.match(summary, /执行 完成/u); assert.match(summary, /核验通过 2\/4/u); assert.match(summary, /你的认可 0\/3/u);
   assert.equal(await evaluate(`${COLUMN}.hidden`), true, "the column stays shut until asked for");
@@ -95,6 +99,8 @@ test("PWA-144 PWA-145 PWA-146: the event's card sums up its requirements in thre
   // The column opens beside the work, which gives way to it; one card per requirement, and exactly one primary button.
   await click("[data-acceptance-overview] [data-acceptance-open]");
   await waitFor(`!${COLUMN}.hidden && ${COLUMN}.querySelectorAll('[data-requirement]').length === 4`);
+  assert.equal(await evaluate(`${COLUMN}.dataset.reviewReference`), stands.body.views[0]!.review_reference!.id);
+  assert.equal(await evaluate(`${COLUMN}.dataset.reviewVersion`), stands.body.views[0]!.review_reference!.version);
   assert.equal(await evaluate("document.body.dataset.acceptanceOpen"), "true");
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), true, "the dialog is put away while the column is open");
   const layout = await evaluate<{ column: { left: number; right: number; width: number }; stage: { left: number } | null; primary: number; lead: string | null; wrapped: string[]; unnamed: string[] }>(`(() => {
@@ -136,6 +142,15 @@ test("PWA-144 PWA-145 PWA-146: the event's card sums up its requirements in thre
   await waitFor(`${card("r4")}.textContent.includes('已退回 · 在返工')`);
   assert.match(String(await evaluate(`${card("r4")}.textContent`)), /隐私政策的链接是 404/u);
   assert.equal(await evaluate(`${card("r4")}.querySelector('[data-acceptance-accept]') === null`), true, "what was returned waits for the rework, not for another answer");
+  const reopened = await evaluate<{ status: number; body: { decision?: { decision_id: string }; choices: Array<{ availability: { available: boolean } }> } }>(`fetch(${JSON.stringify(`/projects/${projectId}/api/project-approvals/request`)}, { method: 'POST',
+    headers: { 'content-type': 'application/json', ...(globalThis.molisWorkControlHeaders?.() || {}) }, body: ${JSON.stringify(JSON.stringify({ reference: stands.body.views[0]!.review_reference }))} }).then(async response => ({ status: response.status, body: await response.json() }))`);
+  assert.equal(reopened.status, 200);
+  assert.ok(reopened.body.decision?.decision_id, "the settled ReviewReference reopens with its committed platform decision");
+  assert.equal(reopened.body.choices.every(choice => !choice.availability.available), true);
+  const reviewHistory = await evaluate<{ status: number; rows: Array<{ id: string }> }>(`fetch(${JSON.stringify(`/api/settings/authorizations/reviews?project=${encodeURIComponent(projectId ?? "")}`)},
+    { headers: globalThis.molisWorkControlHeaders?.() || {} }).then(async response => ({ status: response.status, rows: ((await response.json()).rows || []) }))`);
+  assert.equal(reviewHistory.status, 200);
+  assert.ok(reviewHistory.rows.some(row => row.id === reopened.body.decision!.decision_id), "authorization provenance lists the committed acceptance decision");
 
   // PWA-146: the person changes what is asked; what was checked for the old words stops counting.
   await click(`[data-acceptance-column] [data-requirement=r3] [data-acceptance-edit]`);

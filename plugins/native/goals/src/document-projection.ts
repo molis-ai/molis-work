@@ -43,8 +43,7 @@ export function projectGoalDocument(goal: GoalRecord, input: {
 }): GoalsDocumentView {
   const { projectId, ports } = input;
   const {
-    inputBindingsByGoal, policyBindingsByGoal,
-    projectPolicyBindings, eventsByObject, workEventsByGoal, relationsByGoal,
+    inputBindingsByGoal, eventsByObject, workEventsByGoal, relationsByGoal,
     goalTreeProposalsByGoal,
   } = input.index;
   const event = ports.eventWork.readState(projectId, goal.goal_id);
@@ -64,23 +63,14 @@ export function projectGoalDocument(goal: GoalRecord, input: {
     goal_id: goal.goal_id,
   });
   const relations = relationsByGoal.get(goal.goal_id) ?? [];
-  const visiblePolicyBindings = [
-    ...projectPolicyBindings,
-    ...(policyBindingsByGoal.get(goal.goal_id) ?? []),
-  ].sort((left, right) =>
-    left.created_at.localeCompare(right.created_at) ||
-    left.policy_binding_id.localeCompare(right.policy_binding_id)
-  );
   const goalTreeProposals = goalTreeProposalsByGoal.get(goal.goal_id) ?? [];
   const goalTreeProposalIds = goalTreeProposals.map((item) => item.proposal_id);
   const goalTreeProposalItemIds = goalTreeProposals.flatMap((item) => item.items.map((child) => child.item_id));
-  const visiblePolicyBindingIds = visiblePolicyBindings.map((item) => item.policy_binding_id);
   const relatedObjectIds = new Set<string>([
     goal.goal_id,
     ...relations.map((item) => item.relation_id),
     ...goalTreeProposalIds,
     ...goalTreeProposalItemIds,
-    ...visiblePolicyBindingIds,
   ]);
   const goalEvents = [
     ...[...relatedObjectIds].flatMap((objectId) => eventsByObject.get(objectId) ?? []),
@@ -96,7 +86,6 @@ export function projectGoalDocument(goal: GoalRecord, input: {
     event_work: eventOwned,
     relations,
     input_bindings: inputBindingsByGoal.get(goal.goal_id) ?? [],
-    policy_bindings: visiblePolicyBindings,
     events: goalEvents,
     resolved_policy: resolvedPolicy,
     created_by: event.owner?.adopted_by ?? goal.accepted_by,

@@ -1,4 +1,4 @@
-import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { goalsRoute } from "./failure.js";
 import { goalsActions } from "../actions.js";
@@ -6,19 +6,9 @@ import { randomUUID } from "node:crypto";
 import type { GoalsRoutePorts } from "./types.js";
 import type { GoalsCommandApi } from "../contract/goals.js";
 
-/** The project's default rules (`goals.policy-save`) and its guidance: read, add, and edit, stop or restore one. */
+/** Read, add, edit, stop or restore the project's guidance. */
 export function goalPolicyGuidanceRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
   return [
-    goalsRoute("goals.policy-save", ports, async (context) => {
-      const body = context.body;
-      if (body.scope !== "project_default" || body.goal_id != null) throw new ActionError("actions.input_invalid", "此入口只保存项目默认规则。");
-      const result = await context.actions.invoke(goalsActions.policySave, {
-        user_confirmed: body.user_confirmed === true,
-        policy: body.policy as Parameters<GoalsCommandApi["saveProjectPolicy"]>[0]["policy"],
-        idempotency_key: String(body.idempotency_key ?? ""),
-      });
-      return { status: 200, body: result };
-    }),
     goalsRoute("goals.guidance-read", ports, async (context) => ({ status: 200, body: await context.actions.invoke(goalsActions.guidanceRead, {}) })),
     goalsRoute("goals.guidance-add", ports, async (context) => {
       const body = context.body;

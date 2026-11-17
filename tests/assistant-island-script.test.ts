@@ -97,6 +97,7 @@ test("RAC-2571: the bottom-bar script is twelve String.raw parts joined in place
     "assistant-materials.ts": "ASSISTANT_MATERIALS_PART",
     "assistant-composer.ts": "ASSISTANT_COMPOSER_PART",
     "assistant-page-messages.ts": "ASSISTANT_PAGE_MESSAGES_PART",
+    "assistant-permissions.ts": "ASSISTANT_PERMISSIONS_PART",
   };
   for (const [file, name] of Object.entries(parts)) {
     const source = readFileSync(new URL(file, dir), "utf8");

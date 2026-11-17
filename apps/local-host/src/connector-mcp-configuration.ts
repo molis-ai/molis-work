@@ -1,14 +1,13 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { withConnectorConnections } from "./connector-connection-store.js";
-import { withConnectorProtocols } from "./connector-protocol-store.js";
 import type { McpConfiguration, McpServerConfiguration } from "./connector-mcp.js";
 import type { LocalMcpConfiguration } from "./connector-local-mcp.js";
 import type { PluginMcpMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import type { IntegrationRegistry, McpServiceOwner } from "./integration-registry.js";
 import { builtinIntegrationDefinitions, homeIntegrationRegistry } from "./builtin-integrations.js";
 import { declaredMcpMethod, requiresMcpDeclaration, mcpServerFor, mcpEndpointFor } from "./connector-mcp-endpoint.js";
-import { oauthRefreshGuard } from "./connector-oauth-targets.js";
 import { createHash } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 
 export type StoredMcpConfiguration = McpConfiguration | LocalMcpConfiguration;
 
@@ -51,22 +50,25 @@ export function mcpOperationAuthority(config: McpConfiguration, resolved: Awaite
 
 /** Capture one source generation for the whole operation; address validation belongs to its protocol Host. */
 export async function captureMcpOperationSource(home: string, id: string) {
-  const config = activeMcpConfiguration(home, id), revision = oauthRefreshGuard(home, id);
+  const { config, revision } = activeMcpConfiguration(home, id);
   const registry = await homeIntegrationRegistry(home);
   const source = config.transport === "stdio" ? undefined : captureMcpSource(registry, config);
+  const target = mcpOperationTarget(config);
+  const identity = createHash("sha256").update(JSON.stringify([id, revision, target, source ?? null])).digest("hex");
   const check = () => {
-    revision();
     const latest = activeMcpConfiguration(home, id);
-    if (latest.transport !== config.transport || latest.serviceId !== config.serviceId || latest.mode !== config.mode) {
+    if (latest.revision !== revision || !isDeepStrictEqual(mcpOperationTarget(latest.config), target)) {
       throw connectorErrors["connector.mcp.configuration"]("MCP 连接已改变，请重新读取");
     }
-    if (latest.transport !== "stdio" && config.transport !== "stdio") {
-      if (latest.endpoint !== config.endpoint || latest.tokenScheme !== config.tokenScheme) throw connectorErrors["connector.mcp.configuration"]("MCP 连接已改变，请重新读取");
-      assertMcpSource(registry, latest, source);
-    }
+    if (latest.config.transport !== "stdio") assertMcpSource(registry, latest.config, source);
   };
   check();
-  return { config, registry, source, check };
+  return { config, registry, source, identity, check };
+}
+
+function mcpOperationTarget(config: StoredMcpConfiguration) {
+  return [config.serviceId, config.transport, config.mode, config.transport === "stdio"
+    ? [config.launch, config.installation_id ?? null] : [config.endpoint, config.tokenScheme ?? null]];
 }
 
 /** Persistent stable pins are checked once before this operation captures its current generation. */
@@ -142,10 +144,12 @@ export function productMcpClientEligible(serviceId: string, owner: McpServiceOwn
 }
 
 /** Protocol owner validates remote addresses and local launch configurations on their separate paths. */
-export function activeMcpConfiguration(home: string, id: string): StoredMcpConfiguration {
-  const connection = withConnectorConnections(home, store => store.require(id), "required");
-  if (connection.auth_method !== "mcp" || !connection.enabled || connection.disconnected_at) throw connectorErrors["connector.mcp.disconnected"]("MCP 连接已断开，请重新连接");
-  const config = withConnectorProtocols(home, store => store.get<StoredMcpConfiguration>(id), true);
-  if (!config || config.protocol !== "mcp" || config.serviceId !== connection.service_id) throw connectorErrors["connector.mcp.configuration"]("MCP 连接配置缺失，请重新连接");
-  return config;
+function activeMcpConfiguration(home: string, id: string) {
+  return withConnectorConnections(home, (store, readProtocol) => {
+    const connection = store.require(id);
+    if (connection.auth_method !== "mcp" || !connection.enabled || connection.disconnected_at) throw connectorErrors["connector.mcp.disconnected"]("MCP 连接已断开，请重新连接");
+    const config = readProtocol<StoredMcpConfiguration>(id);
+    if (!config || config.protocol !== "mcp" || config.serviceId !== connection.service_id) throw connectorErrors["connector.mcp.configuration"]("MCP 连接配置缺失，请重新连接");
+    return { config, revision: connection.updated_at };
+  }, "required");
 }

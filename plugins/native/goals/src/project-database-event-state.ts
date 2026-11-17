@@ -2,7 +2,7 @@
 // from modules/goals (S8, PG-020); the text of each statement is as it was.
 
 /** Who owns a Goal's event state, its agreements, summaries, concerns, decisions, conclusions, closures and status. */
-export const GOALS_EVENT_STATE_SQL = `
+const EVENT_STATE_SCHEMA = (concernSubjects: string) => `
   CREATE TABLE IF NOT EXISTS goal_event_state_owners (
     project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
@@ -56,8 +56,7 @@ export const GOALS_EVENT_STATE_SQL = `
     cited_decision_id TEXT,
     previous_status TEXT,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    cited_subjects_json TEXT NOT NULL DEFAULT '[]'
+    updated_at TEXT NOT NULL${concernSubjects}
   );
   CREATE INDEX IF NOT EXISTS goal_event_concerns_goal_idx
     ON goal_event_concerns(project_id, goal_id, status);
@@ -147,3 +146,6 @@ export const GOALS_EVENT_STATE_SQL = `
     PRIMARY KEY (goal_id)
   );
 `;
+
+export const GOALS_EVENT_STATE_SQL = EVENT_STATE_SCHEMA(",\n    cited_subjects_json TEXT NOT NULL DEFAULT '[]'");
+export const GOALS_V2_EVENT_STATE_SQL = EVENT_STATE_SCHEMA("");

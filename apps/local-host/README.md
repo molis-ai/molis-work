@@ -132,6 +132,10 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 侧栏浏览器的 node 点击由浏览器 owner 保存观察到的 DOM 对象，给模型的 token 只在当前观察内有效。审批通过 `HostSurfaceDriver.describeNode` 读同一对象的名字；注入前重新检查对象、文档、可见性和命中位置，失效时拒绝，不使用备用坐标。已经派出的按压只在原会话视口外解除，保留原拒绝，不点击替代对象。新观察、轮次释放和关闭清理 CDP 对象；桌面 selector 与现有坐标点击不变。回归见 `tests/side-panel-browser.e2e.test.ts` 的 T405-S4-02/03 和 `tests/side-panel-assistant-surface.test.ts` 的 T405-S4-01。
 
+底层派发支持原调用的同步检查：`HelperConnection.call` 在连接建立后、登记等待及发送前检查；`BrowserHost.page()` 的 ensure/navigate 将检查传到冷启动恢复地址和最终导航，chooseFiles 在清选择器与交付文件前检查。异步函数被拒绝；没有检查的直接用户操作仍走原入口。根入口显式导出这两项已有 Host 传输实现，未转入插件 SDK。改这里跑 `tests/security-invariants-surface-transport.test.ts`，其协议夹具不操作真实电脑；完整 Agent 与 Driver 绑定仍须独立验证。
+
+Surface 的浏览器和电脑驱动按原 `HostSurfaceContext` 保留观察与输入，await 后及实际发送前复核原轮、目标和接管状态。浏览器按文档代次拒绝同网址刷新后的旧输入；旧轮释放只清自己的节点和遮罩，新轮输入等原按压释放。桌面只在第一次实际使用时取租约，输入监视确认成功才运行，helper 重连后重新确认；旧事件、预览和 monitor-off 不影响下一轮。原生正常断连先释放原进程上自己的按压再退出，硬崩溃或缺失回执保留未知结果。改这里跑 `tests/security-invariants-browser-round.test.ts`、`tests/security-invariants-computer-round.test.ts`、`tests/security-invariants-computer-gesture.test.ts`；后者只在 macOS 上编译执行生产 Swift，捕获事件，不输入真实电脑。协议夹具和捕获事件只证明对应工程边界。
+
 ## 开发要求
 
 Knowledge 状态薄桥在本次目录中固定同 provider/plugin/project/当前 install 的 source、reader 和 state Action，沿原调用生命周期控制执行；不能按 kind 换主人。缺口只会收紧为 unknown，不凭卡或 token 给权限。Assistant 的开场目录沿现 personContext 与项目 ActionClient 异步核本次有界资料，旧 offered views 只用于筛目录，不替代当前授权。当前卡/索引没有历史安装代字段，因此不宣称跨重启重装身份隔离已完成。

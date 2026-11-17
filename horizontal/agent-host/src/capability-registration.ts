@@ -10,7 +10,7 @@ import { registerRunActions } from "./run-actions.js";
 import { registerSessionActions } from "./session-actions.js";
 import { registerWriteCheckerActions } from "./write-checker-actions.js";
 import type { HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { agentHostCapabilities, type AgentMcpLibrary, type AgentSessionRef, type AgentSessionView, type AgentRunRef, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, isTerminalAgentPhase, type AgentMcpLibrary, type AgentSessionRef, type AgentSessionView, type AgentRunRef, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import { type AgentHost, type AgentStartAuthority } from "./index.js";
@@ -159,6 +159,22 @@ export function registerAgentHostCapabilities<Context>(
     register(agentHostCapabilities.readSession, async (context, [session]) =>
       await readScopedSession(context, session)),
 
+    register(agentHostCapabilities.endSessionWork, async (context, [session]) => {
+      const { owner } = ownerOf(context), host = ports.agentHost(context);
+      const assertIdle = async () => {
+        const view = await readScopedSession(context, session);
+        if (view.checkpoint_busy || view.recovery || view.latest_run && !isTerminalAgentPhase(view.latest_run.phase)) {
+          throw agentErrors.delegation_changed("请等原会话停止并核清结果后再归档");
+        }
+      };
+      await assertIdle();
+      const store = host.workDelegations(session.runtime_id);
+      if (!store) return;
+      const control = { beforeEffect: assertIdle, assertCurrent: () => context.invocation.assertAuthorityCurrent() };
+      await store.endSessionWork(owner, session.session_id, control);
+      host.reviews.permissions.releaseSession(session.session_id, owner.project_id, owner.plugin_id);
+    }),
+
     register(agentHostCapabilities.readSessionStatuses, async (context, [runtimeId, sessionIds]) => {
       if (!Array.isArray(sessionIds) || sessionIds.length > 1000 || sessionIds.some(id => typeof id !== "string" || !id)) throw agentErrors.session_unknown("会话列表无效");
       const adapter = ports.agentHost(context).adapter(runtimeId), board = ports.projectId(context), caller = pluginFor(context);
@@ -233,6 +249,7 @@ function invocationAuthority(authority: AgentStartAuthority, invocation: HostCap
   return { ...authority,
     beforeStart: async () => { await authority.beforeStart?.(); await invocation.beforeEffect(); },
     assertBeforeStart: () => { requireSynchronous(authority.assertBeforeStart?.(), "最终授权检查必须同步完成"); invocation.assertAuthorityCurrent(); },
+    assertBeforeDispatch: () => { caller?.assertActive(); requireSynchronous(authority.assertBeforeDispatch?.(), "最终授权检查必须同步完成"); },
     beforeDispatch: async () => {
       caller?.assertActive();
       const fence = await authority.beforeDispatch?.();

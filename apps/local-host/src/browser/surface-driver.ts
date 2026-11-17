@@ -1,258 +1,62 @@
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostSurfaceContext, HostSurfaceDriver, HostSurfaceExpectedTarget } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import type { BrowserPage } from "./browser-host.js";
 import { browserErrors } from "./errors.js";
-import { createHash } from "node:crypto";
-import path from "node:path";
-import type { HostSurfaceAction, HostSurfaceDriver, HostSurfaceObservationKind } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
-import { browserAddress, shortcutCommands, type BrowserPage } from "./browser-host.js";
-import { BrowserSurfaceNodes, ELEMENT_LIMIT } from "./surface-nodes.js";
+import { BrowserSurfaceRound } from "./surface-round.js";
+import { observeBrowserSurface, withSurfaceField } from "./surface-observation.js";
+import { performBrowserSurface } from "./surface-input.js";
 
-/**
- * The side panel page as the Assistant sees and drives it (specs/archive/side-panel D05–D10). Prologue decides whether each
- * look and each action may happen; this driver only does it, on the same page the person watches, and marks what it
- * does so the panel can show it. While the person has taken the page over, every action is refused.
- */
-/** The scope a page that has not opened a site reports (Prologue's blank browser page). */
-const BLANK_SCOPE = "about:blank";
-const IDLE_RELEASE_MS = 60_000;
-
-const MASK_ID = "__molis_side_mask";
-const MASK_ON = `(() => { if (document.getElementById('${MASK_ID}')) return; const s = document.createElement('style'); s.id = '${MASK_ID}';
-  s.textContent = 'input[type=password],input[autocomplete*="cc-"],input[autocomplete="one-time-code"]{color:transparent!important;text-shadow:none!important;background:#1d1d1f!important;caret-color:transparent!important}';
-  (document.head || document.documentElement).append(s); })()`;
-const MASK_OFF = `document.getElementById('${MASK_ID}')?.remove()`;
-
-const KEYS: Record<string, { key: string; code: string; keyCode: number; text?: string }> = {
-  enter: { key: "Enter", code: "Enter", keyCode: 13, text: "\r" }, tab: { key: "Tab", code: "Tab", keyCode: 9 }, escape: { key: "Escape", code: "Escape", keyCode: 27 },
-  esc: { key: "Escape", code: "Escape", keyCode: 27 }, backspace: { key: "Backspace", code: "Backspace", keyCode: 8 }, delete: { key: "Delete", code: "Delete", keyCode: 46 },
-  arrowup: { key: "ArrowUp", code: "ArrowUp", keyCode: 38 }, arrowdown: { key: "ArrowDown", code: "ArrowDown", keyCode: 40 },
-  arrowleft: { key: "ArrowLeft", code: "ArrowLeft", keyCode: 37 }, arrowright: { key: "ArrowRight", code: "ArrowRight", keyCode: 39 },
-  home: { key: "Home", code: "Home", keyCode: 36 }, end: { key: "End", code: "End", keyCode: 35 }, pageup: { key: "PageUp", code: "PageUp", keyCode: 33 },
-  pagedown: { key: "PageDown", code: "PageDown", keyCode: 34 }, space: { key: " ", code: "Space", keyCode: 32, text: " " },
-};
-const MODIFIERS: Record<string, number> = { alt: 1, option: 1, control: 2, ctrl: 2, meta: 4, cmd: 4, command: 4, shift: 8 };
-
-const MODIFIER_KEYS: Record<string, { key: string; code: string; keyCode: number }> = {
-  alt: { key: "Alt", code: "AltLeft", keyCode: 18 }, option: { key: "Alt", code: "AltLeft", keyCode: 18 }, control: { key: "Control", code: "ControlLeft", keyCode: 17 },
-  ctrl: { key: "Control", code: "ControlLeft", keyCode: 17 }, meta: { key: "Meta", code: "MetaLeft", keyCode: 91 }, cmd: { key: "Meta", code: "MetaLeft", keyCode: 91 },
-  command: { key: "Meta", code: "MetaLeft", keyCode: 91 }, shift: { key: "Shift", code: "ShiftLeft", keyCode: 16 },
-};
-
-function keyOf(name: string): { key: string; code: string; keyCode: number; text?: string } {
-  const known = KEYS[name.toLowerCase()] ?? MODIFIER_KEYS[name.toLowerCase()];
-  if (known) return known;
-  if (/^[a-z]$/iu.test(name)) return { key: name, code: `Key${name.toUpperCase()}`, keyCode: name.toUpperCase().charCodeAt(0), text: name };
-  if (/^\d$/u.test(name)) return { key: name, code: `Digit${name}`, keyCode: name.charCodeAt(0), text: name };
-  if (/^F([1-9]|1[0-2])$/u.test(name)) return { key: name, code: name, keyCode: 111 + Number(name.slice(1)) };
-  throw browserErrors.load_failed(`认不出按键「${name}」`);
-}
-
-/** Uploads come from a path Prologue has already checked against its floor table (never `.ssh` and the like). */
+/** The shared side-panel page admits one exact round. An old cleanup never looks up a replacement by session id. */
 export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: string) => boolean = () => false, enabled: () => boolean = () => true): HostSurfaceDriver {
-  const producedScreens: string[] = [];
-  const nodes = new BrowserSurfaceNodes(page);
-  let idle: ReturnType<typeof setTimeout> | undefined;
-  const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
-  const releaseControl = () => { if (page.controlMode === "assistant") page.setControl({ mode: "person", work_id: null, activity: null }); };
-  // The person turned the Assistant's use of the browser off: a round that already has the page stops looking and acting too.
-  const assertEnabled = () => { if (!enabled()) throw browserErrors.load_failed("用户关掉了「允许助理使用侧栏浏览器」：不能再查看或操作这个页面。"); };
-  const mark = (sessionId: string | null, summary: string, point: { x: number; y: number } | null) => {
-    if (page.controlMode === "taken-over") throw browserErrors.load_failed("用户已接手这个页面，助理暂停操作。等用户交还后，先重新观察页面。");
-    page.setControl({ mode: "assistant", work_id: sessionId, activity: { summary, point, at: new Date().toISOString() } });
-    clearTimeout(idle);
-    idle = setTimeout(releaseControl, IDLE_RELEASE_MS);
-    idle.unref?.();
+  let active: BrowserSurfaceRound | undefined, closed = false;
+  const released = new WeakSet<HostSurfaceContext>();
+  const releasing = new Set<Promise<void>>();
+  const retiring = new Set<BrowserSurfaceRound>();
+  const forExpected = (context: HostSurfaceContext, expected: HostSurfaceExpectedTarget) => {
+    requireSynchronous(expected.assertCurrent());
+    return roundFor(context, expected);
   };
-  const settle = async () => {
-    // Give a click or a key the moment a page needs to react, and a started navigation the time to arrive.
-    await new Promise(resolve => setTimeout(resolve, 250));
-    for (let waited = 0; page.snapshot().loading && waited < 10_000; waited += 200) await new Promise(resolve => setTimeout(resolve, 200));
+  const roundFor = async (context: HostSurfaceContext, expected?: HostSurfaceExpectedTarget) => {
+    requireSynchronous(expected?.assertCurrent()); requireSynchronous(context.assertCurrent());
+    await Promise.all([...retiring].map(round => round.drainInputs()));
+    requireSynchronous(expected?.assertCurrent()); requireSynchronous(context.assertCurrent());
+    if (closed || released.has(context)) throw browserErrors.load_failed("原轮次的浏览器已释放");
+    if (active && active.context !== context) throw browserErrors.load_failed("另一个轮次正在使用这个浏览器");
+    const round = active ??= new BrowserSurfaceRound(page, context, enabled, blocked);
+    await round.ready(); requireSynchronous(expected?.assertCurrent()); round.assertCurrent(); return round;
   };
-  const labelAt = async (x: number, y: number): Promise<string> => {
-    const value = await page.evaluate(`(() => { const el = document.elementFromPoint(${Math.round(x)}, ${Math.round(y)}); if (!el) return ''; const t = el.closest('a,button,input,select,textarea,label,[role]') || el; return String(t.getAttribute('aria-label') || (t.labels && t.labels[0] && t.labels[0].innerText) || t.innerText || t.getAttribute('placeholder') || t.getAttribute('title') || (t.type === 'password' ? '' : t.value) || t.getAttribute('name') || t.id || '').replace(/\\s+/g, ' ').trim().slice(0, 40); })()`).catch(() => "");
-    return typeof value === "string" ? value : "";
+  const release = (context: HostSurfaceContext): Promise<void> => {
+    released.add(context);
+    const round = active;
+    if (!round || round.context !== context) return Promise.resolve();
+    active = undefined;
+    retiring.add(round);
+    // release invalidates its state synchronously before the first cleanup wait.
+    const cleanup = round.release(); releasing.add(cleanup);
+    return cleanup.finally(() => { releasing.delete(cleanup); retiring.delete(round); });
   };
-  const origin = () => page.snapshot().origin || "空白页";
   return {
-    kind: "browser",
-    project_id: page.projectId,
-    async identity() {
-      const session = await page.session();
-      return `${session.targetId}\u0000${page.snapshot().url}\u0000${page.takeoverCount}`;
+    kind: "browser", project_id: page.projectId,
+    async identity(context) {
+      const round = await roundFor(context), session = await round.session(); session.assertCurrent();
+      return round.identity(session.targetId);
     },
-    async scope() {
-      // A page that has not opened a site yet is Prologue's blank browser page: it can be looked at, and every step
-      // from it asks, since no site rule matches it.
-      return page.snapshot().origin || BLANK_SCOPE;
+    async scope(context) { const round = await roundFor(context); round.assertCurrent(); if (!page.sourceKnown) throw browserErrors.load_failed("原页面来源尚未确认"); return page.snapshot().origin || "about:blank"; },
+    async observe(kind, context, expected) {
+      const round = await forExpected(context, expected), bytes = await observeBrowserSurface(round, kind, expected); requireSynchronous(expected.assertCurrent()); round.assertCurrent(); return bytes;
     },
-    async observe(kind: HostSurfaceObservationKind, context?: { readonly session_id: string | null }) {
-      const observation = await nodes.clear();
-      assertEnabled();
-      await page.ensure();
-      // A site the person blocked is not even looked at, from the moment they said so (Prologue's own deny rule joins
-      // when the runtime next starts).
-      if (blocked(page.snapshot().origin)) throw browserErrors.load_failed("用户禁止助理查看或操作这个网站。");
-      // Looking is the Assistant using the page too: the panel shows it (and opens itself) before any action.
-      if (page.controlMode !== "taken-over") mark(context?.session_id ?? null, `正在查看 ${origin()}`, null);
-      if (!page.snapshot().origin && kind !== "screenshot") {
-        return new TextEncoder().encode("侧栏浏览器现在是空白页，还没有打开任何网站。\n要打开网站：用 surface-act 的 navigate，带上这次观察，填完整网址（https://…）；用户确认后才会打开。");
-      }
-      if (kind === "screenshot") {
-        const session = await page.session();
-        await session.send("Runtime.evaluate", { expression: MASK_ON });
-        try {
-          // In CSS pixels, like every coordinate the Assistant reads and clicks with: a 2x image would double them.
-          const { width, height } = page.snapshot().viewport;
-          const shot = await session.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false,
-            clip: { x: 0, y: 0, width, height, scale: 1 / page.pixelRatio } }) as { data: string };
-          const bytes = new Uint8Array(Buffer.from(shot.data, "base64"));
-          producedScreens.push(digest(bytes));
-          if (producedScreens.length > 32) producedScreens.shift();
-          return bytes;
-        } finally { await session.send("Runtime.evaluate", { expression: MASK_OFF }).catch(() => undefined); }
-      }
-      if (kind === "window-metadata") {
-        const state = page.snapshot();
-        return new TextEncoder().encode(JSON.stringify({ site: state.origin, title: state.title, viewport: state.viewport, loading: state.loading, popup: state.popup_depth > 0 }));
-      }
-      if (kind === "dom") {
-        const capture = await page.capture();
-        return new TextEncoder().encode(`页面：${capture.title}\n网站：${capture.origin}\n\n${capture.text}${capture.truncated ? "\n[页面正文较长，只取了开头]" : ""}`);
-      }
-      const outline = await nodes.observe(observation);
-      const lines = [
-        `页面：${outline.title || "（无标题）"}`,
-        `地址：${outline.path}`,
-        `视口：${outline.vw}×${outline.vh}，已向下滚动 ${outline.sy}/${outline.max}`,
-        "",
-        "可操作的元素（点击元素时把完整标识填入 node；@ 后是当前中心坐标）：",
-        ...outline.elements.map(element => `node=${element.node} ${element.role}「${element.name || "无名称"}」${element.value ? ` 值=${element.value}` : ""}${element.href ? ` → ${element.href}` : ""}${element.states.length ? ` （${element.states.join("、")}）` : ""} @(${element.x},${element.y})`),
-        ...(outline.elements.length >= ELEMENT_LIMIT ? ["（元素较多，只列出前 300 个）"] : []),
-        "",
-        "视口里的文字：",
-        ...outline.text,
-      ];
-      return new TextEncoder().encode(lines.join("\n"));
+    async perform(action, context, expected) { const round = await forExpected(context, expected); await round.input(() => performBrowserSurface(round, action, expected)); },
+    async describeNode(node, context, expected) {
+      const round = await forExpected(context, expected), session = await round.session(expected), target = await round.nodes.resolve(node, session.assertCurrent);
+      try { target.assertCurrent(); return target.label; }
+      finally { await target.release(); session.assertCurrent(); }
     },
-    async perform(action: HostSurfaceAction, context) {
-      const sessionId = context.session_id;
-      assertEnabled();
-      if (blocked(page.snapshot().origin)) throw browserErrors.load_failed("用户禁止助理查看或操作这个网站。");
-      const session = await page.session();
-      const send = (method: string, params: Record<string, unknown>) => session.send(method, params);
-      switch (action.what) {
-        case "pointer": {
-          const coordinate = action.node === undefined ? { x: action.x, y: action.y, label: await labelAt(action.x, action.y) } : null;
-          const gesture: { pressed: { session: typeof session; button: typeof action.button } | null } = { pressed: null };
-          let failure: unknown;
-          const pointerSend = async (params: Record<string, unknown>) => {
-            // Each actual node input rereads the original object. In particular, a move that already happened grants
-            // no permission to press after a replacement, later observation, round release or browser takeover.
-            const target = action.node !== undefined ? await nodes.resolve(action.node) : null;
-            try {
-              const { x, y, label } = target ?? coordinate!;
-              assertEnabled();
-              if (blocked(page.snapshot().origin)) throw browserErrors.load_failed("用户禁止助理查看或操作这个网站。");
-              mark(sessionId, `在 ${origin()} ${action.button === "right" ? "右键点击" : action.clicks > 1 ? "双击" : "点击"}${label ? `「${label}」` : `（${x}, ${y}）`}`, { x, y });
-              target?.assertCurrent();
-              const inputSession = target?.session ?? session;
-              await inputSession.send("Input.dispatchMouseEvent", { ...params, x, y });
-              if (params.type === "mousePressed") gesture.pressed = { session: inputSession, button: action.button };
-              else if (params.type === "mouseReleased") gesture.pressed = null;
-            } finally { await target?.release(); }
-          };
-          try {
-            await pointerSend({ type: "mouseMoved", button: "none", buttons: 0 });
-            for (let click = 1; click <= Math.max(1, Math.min(3, action.clicks)); click += 1) {
-              await pointerSend({ type: "mousePressed", button: action.button, buttons: 1, clickCount: click });
-              await pointerSend({ type: "mouseReleased", button: action.button, buttons: 0, clickCount: click });
-            }
-            await settle();
-            return;
-          } catch (error) { failure = error; throw error; }
-          finally {
-            // This only pairs a press this action actually dispatched. A refused target must not leave the button held,
-            // and releasing outside the viewport with no click count must not click a replacement or the old point.
-            const held = gesture.pressed;
-            if (held && page.owns(held.session.targetId)) {
-              try { await held.session.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: -1, y: -1, button: held.button, buttons: 0, clickCount: 0 }); }
-              catch (cleanupError) {
-                if (!(failure instanceof Error)) throw cleanupError;
-                failure.cause = new AggregateError([failure.cause, cleanupError], "鼠标手势清理失败");
-                failure.message += "（已按下的鼠标未能释放。）";
-              }
-            }
-          }
-        }
-        case "key": {
-          // The keys are pressed together (["Control", "a"]); "Control+a" in one entry means the same.
-          const parts = action.keys.flatMap(entry => entry.split("+")).map(part => part.trim()).filter(Boolean);
-          const modifiers = parts.reduce((mask, part) => mask | (MODIFIERS[part.toLowerCase()] ?? 0), 0);
-          const main = parts.filter(part => MODIFIERS[part.toLowerCase()] === undefined);
-          if (main.length > 1) throw browserErrors.load_failed("一次只能按一个键（可以加 Ctrl、Shift 等修饰键）；按顺序按几个键请分几次做。");
-          mark(sessionId, `在 ${origin()} 按下 ${parts.join(" + ")}`, null);
-          const key = main.length ? keyOf(main[0]!) : keyOf(parts.at(-1) ?? "");
-          const text = modifiers & (2 | 4) ? undefined : key.text;
-          // The Assistant writes shortcuts the Windows way (Control+a); on macOS neither chord edits by itself.
-          const commands = process.platform === "darwin" ? shortcutCommands(key.code, modifiers, 2 | 4) : [];
-          await send("Input.dispatchKeyEvent", { type: text ? "keyDown" : "rawKeyDown", key: key.key, code: key.code, windowsVirtualKeyCode: key.keyCode, modifiers, ...(text ? { text } : {}), ...(commands.length ? { commands } : {}) });
-          await send("Input.dispatchKeyEvent", { type: "keyUp", key: key.key, code: key.code, windowsVirtualKeyCode: key.keyCode, modifiers });
-          await settle();
-          return;
-        }
-        case "text": {
-          const field = await page.evaluate(`(() => { const el = document.activeElement; if (!el || el === document.body) return ''; return String(el.getAttribute('aria-label') || (el.labels && el.labels[0] && el.labels[0].innerText) || el.getAttribute('placeholder') || el.getAttribute('name') || '').replace(/\\s+/g, ' ').trim().slice(0, 40); })()`).catch(() => "");
-          mark(sessionId, `在 ${origin()} ${field ? `的「${String(field)}」里` : ""}输入 ${[...action.text].length} 个字`, null);
-          await send("Input.insertText", { text: action.text });
-          return;
-        }
-        case "navigate": {
-          const address = browserAddress(action.url);
-          if ("blocked" in address) throw browserErrors.blocked_scheme(`只能打开网页地址，不能打开「${address.blocked}:」`);
-          mark(sessionId, `打开 ${new URL(address.url).origin}`, null);
-          await page.navigate(address.url);
-          await settle();
-          return;
-        }
-        case "wait": {
-          mark(sessionId, `等待页面（${Math.round(Math.min(action.ms, 10_000) / 100) / 10} 秒）`, null);
-          await new Promise(resolve => setTimeout(resolve, Math.max(0, Math.min(action.ms, 10_000))));
-          return;
-        }
-        case "upload": {
-          const file = path.resolve(path.sep, ...action.from);
-          const chooser = page.snapshot().file_chooser;
-          if (!chooser) throw browserErrors.load_failed("网页现在没有在等待选择文件：先点击网页上的上传按钮。");
-          mark(sessionId, `向 ${origin()} 上传 ${path.basename(file)}`, null);
-          await page.chooseFiles(chooser.id, [file]);
-          await settle();
-          return;
-        }
-        case "download": {
-          throw browserErrors.load_failed("侧栏浏览器里的下载由用户在下载提示里保存；助理不能把文件存到本机指定位置。");
-        }
-      }
+    async focusedField(context, expected) {
+      const round = await forExpected(context, expected), session = await round.session(expected);
+      const field = await withSurfaceField(session, field => field); session.assertCurrent(); return field;
     },
-    async describeNode(node: string) {
-      assertEnabled();
-      if (blocked(page.snapshot().origin)) throw browserErrors.load_failed("用户禁止助理查看或操作这个网站。");
-      const target = await nodes.resolve(node);
-      try {
-        target.assertCurrent();
-        assertEnabled();
-        if (blocked(page.snapshot().origin)) throw browserErrors.load_failed("用户禁止助理查看或操作这个网站。");
-        return target.label;
-      } finally { await target.release(); }
-    },
-    describePoint: (x: number, y: number) => labelAt(x, y),
-    async focusedField() {
-      const raw = await page.evaluate(`JSON.stringify((() => { const el = document.activeElement; if (!el || el === document.body) return { label: '', sensitive: false };
-        const label = String(el.getAttribute('aria-label') || (el.labels && el.labels[0] && el.labels[0].innerText) || el.getAttribute('placeholder') || el.getAttribute('name') || '').replace(/\\s+/g, ' ').trim().slice(0, 40);
-        return { label, sensitive: el.type === 'password' || /cc-|one-time-code/.test(el.getAttribute('autocomplete') || '') }; })())`).catch(() => "{}");
-      const parsed = JSON.parse(typeof raw === "string" ? raw : "{}") as { label?: string; sensitive?: boolean };
-      return { label: parsed.label ?? "", sensitive: parsed.sensitive === true };
-    },
-    async release() { clearTimeout(idle); releaseControl(); await nodes.clear(); },
-    async close() { clearTimeout(idle); releaseControl(); await nodes.clear(); },
-    masked(bytes: Uint8Array) { return producedScreens.includes(digest(bytes)); },
+    release,
+    async close() { closed = true; if (active) await release(active.context); await Promise.all(releasing); },
+    masked: bytes => active?.masked(bytes) ?? false,
   };
 }
-

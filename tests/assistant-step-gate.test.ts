@@ -73,7 +73,7 @@ test("PWA-156 每步先问我: a continuation waits for the person's yes, asks o
   assert.deepEqual((await service.read(work.work_id)).reviews.filter(held).map(review => review.review_id), [asked[0]!.review_id], "one ask for one step");
 
   // Yes: the step starts the way it would have, once.
-  await service.outcomes.decide(work.work_id, { review_id: asked[0]!.review_id, decision: "approve" });
+  await service.outcomes.decide(work.work_id, { review_id: asked[0]!.review_id, version: asked[0]!.version, decision: "approve" });
   assert.equal(starts(), 2, "the yes started that step");
   assert.equal(store.get("user", work.work_id).step_gate, undefined, "nothing is held any more");
   assert.equal((await service.read(work.work_id)).reviews.filter(held).length, 0);
@@ -84,7 +84,7 @@ test("PWA-156 每步先问我: a no starts nothing and that step does not ask ag
   await service.continuations.stepGate.set(work.work_id, true);
   await ask();
   const first = (await service.read(work.work_id)).reviews.find(held)!;
-  await service.outcomes.decide(work.work_id, { review_id: first.review_id, decision: "reject" });
+  await service.outcomes.decide(work.work_id, { review_id: first.review_id, version: first.version, decision: "reject" });
   assert.equal(starts(), 0, "a no starts nothing");
   assert.deepEqual(await ask(), { later: { code: "assistant.step_asked" } }, "the step the person said no to stays held");
   assert.equal(starts(), 0);
@@ -126,6 +126,6 @@ test("PWA-156 每步先问我 is refused where the Assistant does not carry the 
   await service.continuations.stepGate.set(work.work_id, true);
   await ask();
   const gate = store.get("user", work.work_id).step_gate!;
-  assert.equal(await service.continuations.stepGate.answer(work.work_id, "next-step-someone-else", "approve"), false, "another id is not this ask's answer");
+  assert.equal(await service.continuations.stepGate.answer(work.work_id, "next-step-someone-else", gate.request_key, "approve"), false, "another id is not this ask's answer");
   assert.deepEqual(store.get("user", work.work_id).step_gate, gate, "the ask stays as it was");
 });

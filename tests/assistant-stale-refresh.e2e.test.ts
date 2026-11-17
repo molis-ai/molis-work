@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { purgeAssistantProject } from "@molis-ai/molis-work-app-local-host";
+import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { openWork, putInput, readWork, seedWork, sendBarrier, sendBrowser, waitWork } from "./fixtures/assistant-send-journey.js";
 import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 
@@ -10,7 +10,7 @@ test("W2-18-ASSISTANT-404-01: A's late 404 preserves B while deleting the work s
   const a = await seedWork(browser, "即将删除的 A"), b = await seedWork(browser, "有效 B", "personal");
   await openWork(browser, a);
   await browser.waitFor("document.querySelector('[data-assistant-thread]').textContent.includes('即将删除的 A')");
-  assert.equal(await purgeAssistantProject(browser.homeDirectory, browser.projectId!), 1);
+  assert.equal(await projectDeletedHooksFor(browser.homeDirectory).clear("assistant", browser.projectId!), true);
   const missing = await fetch(`${browser.origin}/api/assistant/works/${a}`);
   assert.equal(missing.status, 404);
   assert.equal((await missing.json() as { code: string }).code, "assistant.not_found");
@@ -46,7 +46,7 @@ test("W2-18-ASSISTANT-404-01: A's late 404 preserves B while deleting the work s
   const c = await seedWork(browser, "当前页被删除的工作");
   await openWork(browser, c);
   await browser.waitFor("document.querySelector('[data-assistant-thread]').textContent.includes('当前页被删除的工作')");
-  assert.equal(await purgeAssistantProject(browser.homeDirectory, browser.projectId!), 1);
+  assert.equal(await projectDeletedHooksFor(browser.homeDirectory).clear("assistant", browser.projectId!), true);
   await browser.evaluate("window.dispatchEvent(new Event('focus'))");
   await browser.waitFor(`${CURRENT_WORK} === null && !document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]')`);
   assert.equal(await browser.evaluate("document.querySelectorAll('[data-assistant-thread] > [data-round]').length"), 0);

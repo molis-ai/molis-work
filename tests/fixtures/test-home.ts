@@ -57,9 +57,9 @@ async function within(name: string, action: Promise<unknown>, ms = 5_000): Promi
  * Serving configures the host (web catalog, personal planning, system agent service), so serve at setup, not in the middle of a test.
  * `t` runs `close` when the test ends; `null` leaves it to the caller, for a server that lives only part of a test.
  */
-export async function serveTestHost(t: TestContext | null, options: { home: string; host?: TestHostLike }) {
-  const { home, host } = options;
-  const server = createMolisWorkWebServer({ homeDirectory: home, ...(host ? { localHost: host as ServedHost } : {}) });
+export async function serveTestHost(t: TestContext | null, options: { home: string; host?: TestHostLike; assertAccountCurrent?: () => void }) {
+  const { home, host, assertAccountCurrent } = options;
+  const server = createMolisWorkWebServer({ homeDirectory: home, assertAccountCurrent, ...(host ? { localHost: host as ServedHost } : {}) });
   const connections = new Set<Socket>();
   server.on("connection", connection => {
     connections.add(connection);
@@ -149,7 +149,7 @@ export type TestHostServer = Awaited<ReturnType<typeof serveTestHost>>;
  * host's options and may replace the policy or directory ports; `catalogPolicy: false` leaves every action available.
  * The test context closes the server, the host and the Home, in that order.
  */
-export async function openTestHome(t: TestContext, options: { host?: Partial<HostOptions>; catalogPolicy?: boolean } = {}) {
+export async function openTestHome(t: TestContext, options: { host?: Partial<HostOptions>; catalogPolicy?: boolean; assertAccountCurrent?: () => void } = {}) {
   const home = await mkdtemp(join(tmpdir(), "molis-test-home-"));
   const workspaceFor = options.host?.workspaceFor;
   const host = new MolisWorkLocalHost({
@@ -172,7 +172,7 @@ export async function openTestHome(t: TestContext, options: { host?: Partial<Hos
     }
     if (failures.length) throw new AggregateError(failures, "Test Home cleanup failed");
   });
-  served = await serveTestHost(null, { home, host });
+  served = await serveTestHost(null, { home, host, assertAccountCurrent: options.assertAccountCurrent });
   return { ...served, host };
 }
 

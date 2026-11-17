@@ -149,7 +149,7 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
     if (document.kind !== "text-edit" && document.kind !== "command" && document.kind !== "tool-operation") return;
     const approved = document.kind === "text-edit" || document.kind === "tool-operation" && document.tool.startsWith("molis-action-");
     reviewed.push({ kind: document.kind, approved, what: document.kind === "text-edit" ? document.target_path : document.kind === "command" ? [document.command, ...document.args].join(" ") : document.tool });
-    queueMicrotask(() => void queue.respond({ review_id: request.review_id, decision: approved ? "approve" : "reject", actor_id: "user" }).catch(() => undefined));
+    queueMicrotask(() => void queue.respond({ review_id: request.review_id, version: request.reference.version, decision: approved ? "approve" : "reject", actor_id: "user" }).catch(() => undefined));
   });
   const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.external-checks-test", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), reviewQueue: queue,
     modelConfiguration: async () => live ? { protocol: "anthropic-compatible", endpoint: live.endpoint, model: live.model, credential_ref: "live:minimax" }

@@ -8,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { AssistantService, AssistantStore, composeAgentHost, LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { agentHostCapabilities as agent, type AgentSessionRef, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentDelegationActions, agentHostCapabilities as agent, type AgentSessionRef, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -237,13 +237,25 @@ test("MEM-V0-A4-L real opposite Assistant requests do not let the earlier archiv
   const id = sent.body.work.work_id;
   await untilSetup(async () => { const read = await f.call<AssistantWorkView>(f.project.project_id, `/api/assistant/works/${id}`); return read.body.work.state === "completed" ? read : undefined; }, "opposite-request work completed");
   const adapter = ensureSystemAgentService(f.host, f.home).agentHost.adapter("prologue"), lifecycle = adapter.sessionLifecycle!;
+  const project = f.project.project_id;
+  const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" as const, project_id: project, audience: "user" as const, permissions: [] };
+  const reference = molisWorkHostProjectReference({ projectId: project, databasePath: f.project.database_path });
+  const personActions = bindActionClient(f.host.actionClient(reference), () => caller);
+  const scope = { work_id: id, lifetime: "work" as const, choices: [] };
+  const prepared = await personActions.invoke(agentDelegationActions.prepare, scope);
+  await personActions.invoke(agentDelegationActions.grant, { ...scope, mode: "confirm", expected_version: prepared.storage_version, candidate_digest: prepared.candidate_digest, expires_at: null });
   const original = lifecycle.archive.bind(lifecycle), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); t.after(() => release.resolve());
   t.mock.method(lifecycle, "archive", async ref => { const result = await original(ref); entered.resolve(); await release.promise; return result; });
   const first = f.call(f.project.project_id, `/api/assistant/works/${id}/archive`, { archived: true });
   await entered.promise;
-  const second = await f.call(f.project.project_id, `/api/assistant/works/${id}/archive`, { archived: false });
-  assert.equal(second.status, 200, JSON.stringify(second.body));
-  release.resolve(); const earlier = await first;
+  try {
+    const second = await f.call(f.project.project_id, `/api/assistant/works/${id}/archive`, { archived: false });
+    assert.equal(second.status, 200, JSON.stringify(second.body));
+    const restored = await personActions.invoke(agentDelegationActions.prepare, scope);
+    assert.equal(restored.lifecycle, "ended", "restore cannot resurrect the original authorization");
+    assert.ok(restored.selection?.revoked_at);
+  } finally { release.resolve(); }
+  const earlier = await first;
   assert.equal(earlier.status, 409, JSON.stringify(earlier.body));
   assert.equal((await f.call<AssistantWorkView>(f.project.project_id, `/api/assistant/works/${id}`)).body.work.archived, false);
   assert.equal((await lifecycle.read({ runtime_id: "prologue", session_id: sent.body.work.session_id! })).view.state, "active");

@@ -5,6 +5,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
+import { withProtectedHostAction } from "./plugin-consent-settings-entry.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
@@ -27,9 +28,10 @@ export async function handlePersonActionRoutes(request: IncomingMessage, respons
       if (!definition || method !== "POST") return null;
       if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", doors.refusal);
       const message = `web:${randomUUID()}`;
+      const action = Object.freeze({ source: "web" as const, conversation_ref: `web:${project.project_id}`, message_ref: message });
       const client = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS, { signal: controller.signal,
-        user_action: () => ({ source: "web", conversation_ref: `web:${project.project_id}`, message_ref: message }) });
-      return { status: 200, body: await client.invoke(definition, body) as object };
+        user_action: () => action });
+      return { status: 200, body: await withProtectedHostAction(action, () => client.invoke(definition, body)) as object };
     } });
   } finally { request.off("aborted", cancel); response.off("close", disconnected); }
 }

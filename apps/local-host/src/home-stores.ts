@@ -17,6 +17,7 @@ import { ALCHEMIST_HOME_STORE } from "./alchemist-paths.js";
 import { RUN_HOME_STORE } from "./host-presence.js";
 import { UPGRADE_DIRECTORY } from "./home-upgrade-ledger.js";
 import { ASSISTANT_HOME_STORE } from "./assistant/assistant-store.js";
+import { AUTOMATION_PREFERENCES_PATH } from "@molis-ai/molis-work-service-automation-recommender";
 import { CONNECTOR_TOOLS_HOME_STORE } from "./connector-tool-download.js";
 import { CONNECTORS_HOME_STORE } from "./connectors-store.js";
 import { OBSERVATION_HOME_STORE } from "@molis-ai/molis-work-service-observation";
@@ -99,6 +100,7 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     }),
     ...owned("horizontal/appearance", ...at(dirname(APPEARANCE_STATE_PATH), UI_LOCALE_RELATIVE_PATH)),
     ...owned("horizontal/agent-host", { path: "agent-runtime", snapshot: agentSnapshot }),
+    ...owned("horizontal/automation-recommender", ...at(AUTOMATION_PREFERENCES_PATH)),
     ...owned("horizontal/observation", OBSERVATION_HOME_STORE),
     ...owned("modules/acceptance", ACCEPTANCE_HOME_STORE),
     ...owned("horizontal/evaluation", EVALUATION_HOME_STORE),
@@ -112,6 +114,7 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...owned("apps/desktop", { path: "directory-access", snapshot: directoryAccessSnapshot }, ...at("config/desktop.json")),
   ]), { snapshotExclusions: [
     { path: "bin", reason: "Reinstallable launchers" }, { path: "releases", reason: "Reinstallable application releases" },
+    { path: AUTOMATION_PREFERENCES_PATH + ".lock.sqlite", reason: "Automation preference write lock" },
     { path: "config/installation.json", reason: "Installation receipt belongs to this running installation" },
     { path: "config/web-control-token", reason: "Host control token is regenerated; never exported" },
     { path: "config/web-service.json", reason: "Machine service receipt" }, { path: "config/uninstall.json", reason: "Uninstall progress receipt" },

@@ -2,6 +2,7 @@ import { inputSchemaFor } from "./action-input.js";
 import { ACTION_REFERENCE_SCHEMA } from "./action-offers.js";
 import { ACTION_SUBJECT_SCHEMA } from "./action-subjects.js";
 import type { ActionDefinition, ActionReference, ActionSubject } from "./actions.js";
+import { REVIEW_REFERENCE_SCHEMA, type ReviewOwner, type ReviewReference } from "./reviews.js";
 import { STATE_RING_FAMILIES, type StateRingState } from "./ui-state-rings.js";
 import { OPEN_TARGET_SCHEMA, WORK_EVENT_SOURCE_SCHEMA, type OpenTarget } from "./work-events.js";
 
@@ -34,6 +35,8 @@ export interface BackgroundTaskAnswer { role: "approve" | "revise" | "reject"; a
  */
 export interface BackgroundTaskDecision {
   id: string;
+  /** The canonical review reference when this decision opens or shares an authoritative review request (APR-16). */
+  reference?: ReviewReference<ReviewOwner>;
   /** What is to be decided, in the owner's words. */
   ask: string;
   /** Why it is asked. */
@@ -96,7 +99,7 @@ const instant = { ...id, format: "date-time" };
 const phrase = { type: "object", properties: { text: { ...id, maxLength: 200 } }, required: ["text"], additionalProperties: false };
 const command = (roles: readonly string[]) => ({ type: "object", properties: { role: { enum: roles }, action: ACTION_REFERENCE_SCHEMA, input: { type: "object" }, summary: { ...text, maxLength: 1000 } },
   required: ["role", "action", "input", "summary"], additionalProperties: false });
-export const BACKGROUND_TASK_DECISION_SCHEMA = { type: "object", properties: { id, ask: { ...id, maxLength: 1000 }, why: { ...id, maxLength: 1000 },
+export const BACKGROUND_TASK_DECISION_SCHEMA = { type: "object", properties: { id, reference: REVIEW_REFERENCE_SCHEMA, ask: { ...id, maxLength: 1000 }, why: { ...id, maxLength: 1000 },
   changes: { type: "array", maxItems: 20, items: { type: "object", properties: { label: { ...id, maxLength: 200 }, value: { ...text, maxLength: 2000 } }, required: ["label", "value"], additionalProperties: false } },
   answers: { type: "array", maxItems: 3, items: command(["approve", "revise", "reject"]) } }, required: ["id", "ask", "changes", "answers"], additionalProperties: false };
 const BACKGROUND_TASK_STATES: readonly StateRingState[] = STATE_RING_FAMILIES.flatMap(family => [...family.states]);

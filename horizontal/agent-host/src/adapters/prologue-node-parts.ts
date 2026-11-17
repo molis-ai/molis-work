@@ -4,6 +4,7 @@ import { sessionBlock } from "./prologue-collaboration.js";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { prepareInferenceCredential, type PrologueCredentialBridge } from "./prologue-credentials.js";
 import { createPrologueInference } from "./prologue-inference.js";
+import { withDispatchControl } from "./prologue-dispatch.js";
 import { createSessionMessages } from "./prologue-messages.js";
 import { createProjectWork } from "./prologue-project-work.js";
 import { createPrologueTaskBoards } from "./prologue-taskboard.js";
@@ -185,14 +186,14 @@ async function readPlanUnknownStepIds(
 
 /** The inference client, and the plugin builder agents it hands out (closed with the runtime). */
 export function createNodeInference(runtime: Runtime, options: PrologueNodeAdapterOptions, credentials: PrologueCredentialBridge, dispatchGuards: DispatchGuards) {
-  const inference = createPrologueInference(runtime, prepareInferenceCredential(credentials), (guard, operation) => dispatchGuards.run(guard, operation));
+  const inference = createPrologueInference(runtime, prepareInferenceCredential(credentials), (guard, operation) => withDispatchControl(dispatchGuards, guard, operation));
   const builders = new Set<Awaited<ReturnType<typeof createPluginBuilderAgent>>>();
   let closingBuilders = false;
   const createBuilderAgent = async (input: PluginBuilderAgentOptions) => {
     if (closingBuilders) throw new Error("Agent 服务已关闭");
     const builder = await createPluginBuilderAgent(input, { runtime, writable: Boolean(options.reviewQueue),
       credentialRefFor: ref => credentials.prologueRefFor(ref, input.resolveCredential),
-      withDispatchGuard: (guard, operation) => dispatchGuards.run(guard, operation) });
+      withDispatchGuard: (guard, operation) => withDispatchControl(dispatchGuards, guard, operation) });
     if (closingBuilders) { await builder.close(); throw new Error("Agent 服务已关闭"); }
     builders.add(builder);
     const close = builder.close.bind(builder);

@@ -1,6 +1,7 @@
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { reviewProposalVersion } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { directoryInputOnly, type ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, type GitOperationRecord, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -52,9 +53,9 @@ export function registerWorkspaceGitActions(ports: WorkspaceGitActionPorts): () 
     // A default output directory not made yet holds no repository: answered before git runs, and nothing makes it (§3 「碰磁盘的调用方」).
     if (ports.made && !await ports.made(projectId, workspaceId)) throw workspaceGitErrors.not_a_repository("这个文件夹还没有建立，不是 Git 仓库");
   };
-  const writing = (projectId: string, workspaceId: string, prepared: { check(): Promise<void>; execute(): Promise<unknown> }) => ({
+  const writing = (projectId: string, workspaceId: string, prepared: { check(): Promise<void>; execute(assertCurrent: () => void): Promise<unknown> }) => ({
     async check() { await writable(projectId, workspaceId); await prepared.check(); },
-    async execute() { await writable(projectId, workspaceId); await prepared.execute(); },
+    async execute(assertCurrent: () => void) { await writable(projectId, workspaceId); assertCurrent(); await prepared.execute(assertCurrent); },
   });
 
   const unregisterIndex = ports.localHost.registerAction(prepareGitIndexCapability, async (project, input, invocation) => {
@@ -65,6 +66,7 @@ export function registerWorkspaceGitActions(ports: WorkspaceGitActionPorts): () 
     const prepared = await prepareGitIndex(input, () => ports.workspaces(project.project_id));
     await invocation.beforeEffect();
     const request = await reviews.prepare({ project_id: project.project_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
+      proposal_fingerprint: reviewProposalVersion({ input, root: workspace.canonical_path, files: prepared.files }),
       document: { kind: "git-index", action: input.action, workspace_name: workspace.display_name ?? "当前仓库", files: prepared.files } },
       { ...writing(project.project_id, input.workspace_id, prepared), authority: reviewAuthority(invocation.plugin, "git-index") });
     return { review_id: request.review_id };
@@ -77,10 +79,11 @@ export function registerWorkspaceGitActions(ports: WorkspaceGitActionPorts): () 
   // Operations approved together finish together: saves run one after another, so each reads what the one before it wrote and
   // none renames the temporary file from under another.
   let saving: Promise<void> = Promise.resolve();
-  const saveDetail = (key: string, detail: string) => {
+  const saveDetail = (key: string, detail: string, assertCurrent: () => void) => {
     const save = saving.then(async () => {
       const next = { ...await readDetails(), [key]: detail }, temporary = detailsFile + "." + process.pid + ".tmp";
-      await writeFile(temporary, JSON.stringify(next)); await rename(temporary, detailsFile);
+      try { assertCurrent(); await writeFile(temporary, JSON.stringify(next)); assertCurrent(); await rename(temporary, detailsFile); }
+      finally { await rm(temporary, { force: true }); }
     });
     saving = save.catch(() => undefined);
     return save;
@@ -96,10 +99,11 @@ export function registerWorkspaceGitActions(ports: WorkspaceGitActionPorts): () 
     // The caller's authority is checked again right before the review is created, as for staging.
     await invocation.beforeEffect();
     const request = await reviews.prepare({ project_id: project.project_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
+      proposal_fingerprint: reviewProposalVersion({ input, root: workspace.canonical_path }),
       operation_kind: "git-operation", document: { kind: "tool-operation", tool: prepared.tool, summary: prepared.summary, fields: prepared.fields } },
-      { authority: reviewAuthority(invocation.plugin, "git-operation"), ...writing(project.project_id, input.workspace_id, { check: prepared.check, async execute() {
-        const detail = await prepared.execute();
-        try { await saveDetail(`${project.project_id}:${input.operation_id}`, detail); } catch { /* the operation happened; only its description is missing */ }
+      { authority: reviewAuthority(invocation.plugin, "git-operation"), ...writing(project.project_id, input.workspace_id, { check: prepared.check, async execute(assertCurrent) {
+        const detail = await prepared.execute(assertCurrent);
+        try { await saveDetail(`${project.project_id}:${input.operation_id}`, detail, assertCurrent); } catch { /* the operation happened; only its description is missing */ }
       } }) });
     return { review_id: request.review_id };
   });

@@ -55,7 +55,7 @@ test("packed SDK: the collaborate reviewer runs a reviewed command and cannot wr
       if (Date.now() > deadline) throw new Error("timed out: " + JSON.stringify({ view, childCalls, kinds }));
       for (const review of queue.list("b", "pending")) if (!decided.has(review.review_id)) {
         decided.add(review.review_id); kinds.push(review.kind);
-        await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" });
+        await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "user" });
       }
       await new Promise(resolve => setTimeout(resolve, 10));
     }

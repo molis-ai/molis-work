@@ -176,7 +176,7 @@ test("C1 nonempty readable parent does not grant its undeclared child canonical 
   const view = (await service.discover(caller)).find(row => row.capability_id === memoryActions.list.capability_id)!; assert.ok(view);
   const system = ensureSystemAgentService(f.host, f.home); await system.ready; const adapter = system.agentHost.adapter("prologue");
   const approvals: Promise<unknown>[] = [], off = system.agentHost.reviews.observe(request => {
-    const approval = Promise.resolve().then(() => system.agentHost.reviews.respond({ review_id: request.review_id, decision: "approve", actor_id: LOCAL_PERSON_ACTOR_ID }));
+    const approval = Promise.resolve().then(() => system.agentHost.reviews.respond({ review_id: request.review_id, version: request.reference.version, decision: "approve", actor_id: LOCAL_PERSON_ACTOR_ID }));
     void approval.catch(() => undefined); approvals.push(approval);
   }); t.after(off);
   // Obtain the current owner from a real Coding business start; do not fabricate an install to grant Memory.

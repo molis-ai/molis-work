@@ -1,3 +1,5 @@
+import { reviewDecisionStorage } from "./fixtures/review-decision-storage.js";
+import { AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -33,7 +35,7 @@ const ownerInvocation = () => ({ consumer: "plugin", plugin: { project_id: "proj
   beforeEffect: async () => {}, assertAuthorityCurrent() {} });
 
 test("Run review reads refresh original receipts and isolate project, session, run and producer without granting approval", async () => {
-  const host = new AgentHost(), adapter = readOnlyAdapter("reviews"), session = { runtime_id: "reviews", session_id: "session-1" }, run = { session_id: "session-1", run_id: "r" };
+  const host = new AgentHost({ reviews: new AgentReviewQueue({ decisions: reviewDecisionStorage().store }) }), adapter = readOnlyAdapter("reviews"), session = { runtime_id: "reviews", session_id: "session-1" }, run = { session_id: "session-1", run_id: "r" };
   const original = adapter.readSession.bind(adapter);
   adapter.readSession = async () => ({ ...await original(session), runs: [run] }); host.register(adapter);
   const handlers = new Map<string, Function>(); let refreshes = 0, unavailable = false;
@@ -42,16 +44,17 @@ test("Run review reads refresh original receipts and isolate project, session, r
     { agentHost: () => host, projectId: (context: { project_id: string }) => context.project_id, authority: () => ({ manifest: AGENT, authorizedDirectories: [] }) });
   const handler = handlers.get(agentHostCapabilities.readRunReviews.capability_id)!, invocation = ownerInvocation();
   const read = (source: object, input: unknown[]) => handler(source, input, invocation), context = { project_id: "project-a" };
-  const base = { review_id: "owned", project_id: "project-a", plugin_id: "io.molis.work.coding", run,
+  const base = { reference: { owner: { kind: "agent-review" as const, project_id: "project-a", plugin_id: "io.molis.work.coding", install_id: "install" }, id: "owned", version: "proposal-1" }, review_id: "owned", project_id: "project-a", plugin_id: "io.molis.work.coding", run,
     kind: "text-edit" as const, document: { kind: "text-edit" as const, target_path: "a.txt", exists: true, before_text: "before", after_text: "after" }, requested_at: "2026-09-22T00:00:00Z", expires_at: null };
   for (const request of [base, { ...base, review_id: "other-session", run: { ...run, session_id: "elsewhere" } },
-    { ...base, review_id: "other-run", run: { ...run, run_id: "elsewhere" } }, { ...base, review_id: "other-plugin", plugin_id: "foreign" }, { ...base, review_id: "other-board", project_id: "foreign" }]) host.reviews.request(request);
+    { ...base, review_id: "other-run", run: { ...run, run_id: "elsewhere" } }, { ...base, review_id: "other-plugin", plugin_id: "foreign" }, { ...base, review_id: "other-board", project_id: "foreign" }]) host.reviews.request({ ...request, reference: { ...base.reference, id: request.review_id, owner: { ...base.reference.owner, project_id: request.project_id, plugin_id: request.plugin_id } } });
   await assert.rejects(read({ project_id: "foreign" }, [session, run]));
   await assert.rejects(read(context, [session, { ...run, session_id: "foreign" }]));
   assert.equal(refreshes, 0);
   let rows = await read(context, [session, run]); assert.equal(rows.length, 1); assert.equal(rows[0].receipt.status, "pending");
   rows[0].request.document.after_text = "forged";
-  host.reviews.decide({ review_id: "owned", actor_id: "user", decision: "approve" });
+  host.reviews.registerDecisionHandler("owned", async (_input, commit) => commit());
+  await host.reviews.respond({ review_id: "owned", version: "proposal-1", actor_id: "user", decision: "approve" });
   rows = await read(context, [session, run]); assert.equal(rows[0].request.document.after_text, "after"); assert.equal(rows[0].receipt.effect_settled, false);
   host.reviews.consumeApproval("owned"); host.reviews.settle("owned", { ok: true });
   assert.equal((await read(context, [session, run]))[0].receipt.effect_settled, true);

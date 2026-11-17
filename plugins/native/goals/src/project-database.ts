@@ -1,24 +1,53 @@
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { GOALS_BOARDS_SQL, GOALS_INPUT_BINDINGS_SQL, GOALS_TABLES_SQL } from "./project-database-goals.js";
+import { GOALS_BOARDS_SQL, GOALS_INPUT_BINDINGS_SQL, GOALS_TABLES_SQL, GOALS_V2_POLICY_SQL } from "./project-database-goals.js";
 import { GOALS_EVENT_FACTS_SQL } from "./project-database-event-facts.js";
-import { GOALS_EVENT_STATE_SQL } from "./project-database-event-state.js";
-import { GOALS_GOVERNANCE_SQL } from "./project-database-governance.js";
+import { GOALS_EVENT_STATE_SQL, GOALS_V2_EVENT_STATE_SQL } from "./project-database-event-state.js";
+import { GOALS_GOVERNANCE_SQL, GOALS_TREE_EFFECTS_SQL, GOALS_V2_DECISIONS_SQL } from "./project-database-governance.js";
 
-/**
- * Goals' own tables in a project's library, declared in the Manifest (`databases.project`, PG-020) like any plugin's: the Goal tree,
- * the board that names its current Goal, input receipts, event work's facts and state, and the proposals and decisions Governance
- * keeps beside them. The project library's baseline no longer carries them: the platform makes them the first time a library opens with
- * Goals and records them in `plugin_project_databases`; a changed shape stops Goals alone. The board points at the library's
- * `project_root` row and keeps no project name; every other table here points at the board.
- * `modules/goals` and `modules/governance-collaboration` still read and write these tables with their own SQL until Goals' storage
- * moves into the plugin (S9); `tooling/gates/table-owners.json` lists them as users.
- */
+const businessSchema = (eventState: string) =>
+  [GOALS_BOARDS_SQL, GOALS_TABLES_SQL, GOALS_INPUT_BINDINGS_SQL, GOALS_EVENT_FACTS_SQL, eventState, GOALS_GOVERNANCE_SQL].join("\n");
+const approvalSchema = (eventState: string) => [businessSchema(eventState), GOALS_V2_POLICY_SQL, GOALS_V2_DECISIONS_SQL].join("\n");
+
+/** Only v1–v3 contained Goals' own planning methods. These objects are used to inspect, then upgrade, those sources. */
+function preV4Schema(eventState: string): string {
+  const configVersion = "    actor_id TEXT NOT NULL,\n    created_at TEXT NOT NULL,\n    config_event_id TEXT NOT NULL,";
+  return approvalSchema(eventState).replace(configVersion,
+    configVersion.replace("    created_at", "    adopted_planning_json TEXT NOT NULL DEFAULT '[]',\n    created_at")) + `
+  CREATE TABLE planning_method_packs (
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+    method_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+    pack_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, method_id)
+  );
+`;
+}
+
+const goalsV1 = (schema: string) => schema
+  .replace("    basis_json TEXT,\n    tier TEXT NOT NULL DEFAULT 'self_reported',\n    gap TEXT,\n    reporter_session TEXT,\n", "")
+  .replace("    checked_artifact_id TEXT,\n    checked_version INTEGER,\n", "");
+
+const GOALS_PROJECT_DATABASE_V1 = {
+  store_name: "goals", version: 1, schema: goalsV1(preV4Schema(GOALS_V2_EVENT_STATE_SQL)),
+  read_permission: "storage:private", write_permission: "storage:private",
+};
+
+/** Private library after the project baseline has moved approvals to the platform. */
 export const GOALS_PROJECT_DATABASE: PluginDatabaseDeclaration = {
-  store_name: "goals",
-  version: /* @version database.goals_project_database */ 4,
+  store_name: "goals", version: /* @version database.goals_project_database */ 5,
+  schema: businessSchema(GOALS_EVENT_STATE_SQL) + GOALS_TREE_EFFECTS_SQL,
+  read_permission: "storage:private", write_permission: "storage:private",
+};
+
+/** Batch 41's v4, with the original approvals and without the former planning tables or config adoption. */
+const GOALS_PROJECT_DATABASE_V4 = {
+  store_name: "goals", version: /* @version database.goals_project_database_v4 */ 4 as const,
+  schema: approvalSchema(GOALS_EVENT_STATE_SQL),
+  read_permission: "storage:private", write_permission: "storage:private",
   // 1 → 2 (2026-11-11, evidence contract): what a judgment checked and how far Goals found it backed, and the version a conclusion was about.
-  // The new columns carry no CHECK: a step may not add a column with one (SQLite checks the whole library for it, which the platform's
-  // authorizer over a plugin's step refuses), and the tables after the step must be exactly what `schema` makes. Goals alone writes them.
   upgrades: [{
     from: 1,
     sql: `
@@ -45,8 +74,20 @@ export const GOALS_PROJECT_DATABASE: PluginDatabaseDeclaration = {
     `,
     reduces_rows: ["planning_method_packs"],
   }],
-  schema: [GOALS_BOARDS_SQL, GOALS_TABLES_SQL, GOALS_INPUT_BINDINGS_SQL, GOALS_EVENT_FACTS_SQL, GOALS_EVENT_STATE_SQL, GOALS_GOVERNANCE_SQL].join("\n"),
-  // A plugin's own tables in the project's library are its private storage (D23), not Goals' action permissions.
-  read_permission: "storage:private",
-  write_permission: "storage:private",
+} satisfies PluginDatabaseDeclaration;
+
+export const GOALS_APPROVAL_TRANSFER_SOURCE = GOALS_PROJECT_DATABASE_V4.version;
+
+/** Each source shape has its own verified ledger, including the corresponding sync tracking. */
+const GOALS_PROJECT_DATABASE_V2 = {
+  ...GOALS_PROJECT_DATABASE_V1, version: 2, schema: preV4Schema(GOALS_V2_EVENT_STATE_SQL),
 };
+const GOALS_PROJECT_DATABASE_V3 = {
+  ...GOALS_PROJECT_DATABASE_V1, version: 3, schema: preV4Schema(GOALS_EVENT_STATE_SQL),
+};
+
+export const GOALS_APPROVAL_TRANSFER_BASELINES = {
+  1: GOALS_PROJECT_DATABASE_V1, 2: GOALS_PROJECT_DATABASE_V2, 3: GOALS_PROJECT_DATABASE_V3,
+  [GOALS_APPROVAL_TRANSFER_SOURCE]: GOALS_PROJECT_DATABASE_V4,
+} satisfies Readonly<Record<number, PluginDatabaseDeclaration>>;
+export type GoalsApprovalSource = keyof typeof GOALS_APPROVAL_TRANSFER_BASELINES;

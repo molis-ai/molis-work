@@ -1,6 +1,7 @@
 import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import { existsSync } from "node:fs";
 import { homeSqlitePath, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
+import { ProjectDeletedDeferred } from "../project-deleted-deferred.js";
 import { AssistantRelations } from "./assistant-relations.js";
 import { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, type StoredWork } from "./assistant-store.js";
 
@@ -9,7 +10,7 @@ interface AssistantProjectLive {
   /** Stops the round the work is running. A work with nothing running is fine. */
   stop(workId: string): Promise<void>;
   /** Removes a timed follow-up and cancels what the runtime queued for it. */
-  dropFollowUp(followUpId: string): Promise<void>;
+  dropFollowUp?(followUpId: string): Promise<void>;
 }
 
 /** Everything a work keeps under its id, the work last. Usage counts stay: they are numbers the daily cap is read from. */
@@ -20,8 +21,8 @@ const WORK_TABLES = ["assistant_rounds", "assistant_cards", "assistant_notices",
  * The project is deleted: the Assistant's works that belong to it go, with their rounds, cards, notices, follow-ups,
  * background jobs (a job nobody follows is looked at no more), undo steps and the relations they recorded. A running
  * Assistant also stops the round a work is still running and cancels the timed rounds the runtime queued for it. The
- * conversation itself is the runtime's session record, which the Agent Host offers no way to delete. Works on the
- * library's file, so a process without the Assistant clears the rows too; running it again finds nothing.
+ * conversation itself is the runtime's session record. Forwarding processes leave this step for the running owner,
+ * which can close the work's original permission before removing its rows.
  * Returns how many works went.
  */
 export async function purgeAssistantProject(home: string, projectId: string, live?: AssistantProjectLive): Promise<number> {
@@ -32,11 +33,12 @@ export async function purgeAssistantProject(home: string, projectId: string, liv
     const works = (db.prepare("SELECT body FROM assistant_works WHERE json_extract(body, '$.project_ref.project_id') = ? OR json_extract(body, '$.scope.project_id') = ?")
       .all(projectId, projectId) as Array<{ body: string }>).map(row => JSON.parse(row.body) as StoredWork);
     if (!works.length) return 0;
-    if (live) {
-      for (const work of works) {
-        await live.stop(work.work_id).catch(() => undefined);
+    if (!live) throw new ProjectDeletedDeferred("助理需要结束原工作及其权限，运行中的 Molis Work 会接着清理", true);
+    for (const work of works) {
+      await live.stop(work.work_id);
+      if (live.dropFollowUp) {
         for (const row of db.prepare("SELECT followup_id FROM assistant_followups WHERE work_id = ?").all(work.work_id) as Array<{ followup_id: string }>) {
-          await live.dropFollowUp(row.followup_id).catch(() => undefined);
+          await live.dropFollowUp(row.followup_id);
         }
       }
     }

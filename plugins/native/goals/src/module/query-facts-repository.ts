@@ -1,34 +1,18 @@
 import type {
   GoalDependencyFact,
-  GoalPolicyHistoryRecord,
   GoalReplacementFact,
   GoalWorkEventLinkRecord,
 } from "../contract/goals.js";
-import { storedJson } from "../stored-json.js";
 import { rowText, type GoalsSqliteDatabase } from "./repository.js";
 
 type Row = Record<string, unknown>;
 
-/** Goal-owned reads consumed by the Web rule history and Runtime work gates. */
+/** Goal-owned relations and event links consumed by the Runtime work gates. */
 export class GoalQueryFactsRepository {
   constructor(private readonly db: GoalsSqliteDatabase) {}
 
   listProjectIds(): string[] {
     return (this.db.prepare("SELECT project_id FROM boards ORDER BY project_id").all() as Array<{ project_id: string }>).map(row => row.project_id);
-  }
-
-  listPolicyHistory(projectId: string): GoalPolicyHistoryRecord[] {
-    return (this.db.prepare("SELECT *, rowid AS stored_row FROM policy_bindings WHERE project_id = ? ORDER BY created_at, policy_binding_id")
-      .all(projectId) as Row[]).map(row => ({
-      policy_binding_id: rowText(row.policy_binding_id),
-      goal_id: row.goal_id == null ? null : rowText(row.goal_id),
-      scope: rowText(row.scope) as GoalPolicyHistoryRecord["scope"],
-      policy: storedJson(row, "policy_bindings", "policy_json", {}),
-      state: rowText(row.state) as GoalPolicyHistoryRecord["state"],
-      created_by: rowText(row.created_by),
-      reason: rowText(row.reason),
-      created_at: rowText(row.created_at),
-    }));
   }
 
   listWorkEventGoalLinks(projectId: string): GoalWorkEventLinkRecord[] {

@@ -135,7 +135,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
       || await handlePluginSlotsHttp(request, response, url, localHost, settingsProjectReference(composition.projectSettings, serverOptions.homeDirectory)) },
   { id: "connector-methods", handle: ({ request, response, url, serverOptions, localHost }) => handleConnectorMethodsHttp(request, response, url, serverOptions.homeDirectory, localHost) },
   { id: "connectors-settings", handle: ({ request, response, url, serverOptions }) => handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory) },
-  { id: "mcp-action-settings", handle: ({ request, response, url, serverOptions, localHost, composition }) => handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog) },
+  { id: "mcp-action-settings", handle: ({ request, response, url, serverOptions, localHost, composition }) => handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog, serverOptions.assertAccountCurrent) },
   { id: "runtime-settings", handle: ({ request, response, url, runtimeIntegrations, webService, serverOptions }) => handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService, serverOptions.assertAccountCurrent) },
   { id: "project-settings", handle: context => {
     const { request, response, url, serverOptions, projects, deletionPorts, localHost, composition } = context;

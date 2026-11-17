@@ -10,6 +10,7 @@ import type { SkillRef } from "./agent-definitions.js";
 import type { AgentActionOffer } from "./agent-host-offers.js";
 import type { AgentRecalledMemory } from "./agent-host-memory.js";
 import type { AgentSessionRef } from "./agent-host-runtime.js";
+import type { AgentDelegationSubject, AgentDelegationTargetOwner, AgentExactDelegationScope } from "./agent-delegations.js";
 
 /** Host-owned, in-memory: authority checks, and the call number the Host gave the round (never from a Plugin payload). */
 export interface AgentStartExecution extends ActionCallOrigin {
@@ -20,6 +21,14 @@ export interface AgentStartExecution extends ActionCallOrigin {
   beforeDispatch?(): void | (() => void) | Promise<void | (() => void)>;
   /** Release Host-only selected material controls at rejection or actual Run termination. */
   disposeDispatch?(): void;
+  /** Same owner check at the final write/answer boundary; must outlive the start invocation. */
+  assertBeforeDispatch?(): void;
+  /** The work owner's exact subject for this Run, supplied only by the trusted Host. */
+  delegation?: {
+    readonly subject: Extract<AgentDelegationSubject, { kind: "work" }>;
+    /** Runtime ownership key for a personal session, whose work project is null. */
+    readonly session_owner_id: string;
+  };
 }
 
 /** An authorized directory. The Host resolves and verifies it; the Plugin never passes a raw path. */
@@ -425,6 +434,21 @@ export interface AgentMemoryTools {
   propose?(input: { text: string; scope: "personal" | "project"; why: string; applies: string }, control: AgentMemoryToolControl): Promise<{ candidate_id: string; note: string }>;
 }
 
+/** Original proposal authority; it never carries the later approver's transport lifetime. */
+export interface AgentActionReviewControl { beforeEffect(): void | Promise<void>; assertCurrent(): void }
+
+/** The Host's original installed provider and actual target owners, resolved with the original action registration. */
+export interface AgentActionReviewAuthority extends AgentActionReviewControl {
+  resolveDelegation?(): Promise<{
+    readonly provider_installation_generation: string | null;
+    /** An MCP action gets its exact tool and connection identity from the original protocol owner. */
+    readonly mcp_scope?: Omit<Extract<AgentExactDelegationScope, { kind: "mcp-exact" }>, "input_json">;
+    confirmationRequired(): boolean;
+    assertProviderCurrent(): void;
+    readonly target_owners: Readonly<Record<string, { readonly identity: AgentDelegationTargetOwner; assertCurrent(): void }>>;
+  }>;
+}
+
 export interface AgentActionClient {
   discover(): Promise<readonly ActionView[]>;
   /** Who reads this round's replies: absent, the person; `work`, the work that handed this one over (a delegated work reports to it). */
@@ -439,12 +463,15 @@ export interface AgentActionClient {
   offer?(offer: AgentActionOffer): Promise<{ offer_id: string }>;
   /** Validate an input exactly as dispatch will, running nothing; throws the contract's own error. */
   check?(reference: ExactActionReference, input: unknown): Promise<void>;
+  /** Pin the selected original registration and grant while forming a review, before waiting for a decision. */
+  prepareReview?(view: ActionView, input: unknown, automaticPolicy?: "reversible"): Promise<AgentActionReviewAuthority>;
   /**
    * Whether this change may run without the person's confirmation: it declares how it is undone, its undo is offered
    * now, and the person has not set it to confirm each time. Absent: every change is confirmed.
    */
   direct?(view: ActionView): boolean;
-  invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal, memorySelection?: { assert_current(): void }): Promise<unknown>;
+  invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal,
+    memorySelection?: { assert_current(): void }, review?: AgentActionReviewControl): Promise<unknown>;
 }
 
 export interface AgentFrozenRole {

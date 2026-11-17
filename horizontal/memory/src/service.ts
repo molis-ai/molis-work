@@ -1,3 +1,4 @@
+import { MemoryCandidates } from "./candidates.js";
 import { MemoryBatch } from "./batch.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { randomUUID } from "node:crypto";
@@ -51,7 +52,7 @@ import { consumerAccess, CONSUMER_LABELS } from "./prefs.js";
 import { callerClassAllowed } from "./class-restrictions.js";
 import { memoryRunRecipe } from "./run-recipe.js";
 import { MemorySessionClear } from "./session-clear.js";
-import { learnedInSession, type MemorySourceSession } from "./session-links.js";
+import { type MemorySourceSession } from "./session-links.js";
 import { MemoryForgetting, type MemoryForgettingPhase } from "./forgetting.js";
 import { MemoryPreferences } from "./preferences.js";
 import { MemoryOperations, type MemoryPurgeTarget } from "./operations.js";
@@ -61,14 +62,14 @@ import { MemoryManagementPages, type MemoryPageLimits } from "./management-pages
 import { MemoryMoves } from "./moves.js";
 import { MemoryUpkeep } from "./upkeep.js";
 import { memoryUses } from "./usage.js";
-import { assertFormationFacts, automaticMemoryHold, CANDIDATE_TTL_MS, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
+import { assertFormationFacts, automaticMemoryHold, candidateExpired, CANDIDATE_TTL_MS, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
 import { memoryErrors } from "./errors.js";
 import { applies, disownAutomatic, isExpired, personOnly, placeOf, visibleTo } from "./places.js";
 import { MAX_TEXT, candidateView, changeView, pairKey, useTitle } from "./shapes.js";
 import { UNCHECKED, UNSAID, theirWords } from "./spoken.js";
 import { keywordScore, looksLikeInstruction, looksLikeSecret, recallKeywords, sameText, sameWords, similarity } from "./text.js";
 import { fromEntryMeta, restoredEntryFacts, toEntryMeta } from "./facts.js";
-import { newMemoryClassification, requestedMemoryClassification, belongsToMemorySession, assertManagedMemorySession } from "./classification.js";
+import { newMemoryClassification, requestedMemoryClassification, assertManagedMemorySession } from "./classification.js";
 import { MemoryScopeCommands, type Located } from "./scope-commands.js";
 import type { AgentMemoryCaller, AgentMemoryClassPolicy, AgentMemoryMeta, AgentMemoryUseReceipt, AgentRecalledMemory, AgentMemorySourceRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -167,6 +168,7 @@ export class MemoryService {
   private readonly promotions: MemoryPromotion;
   private readonly forgetting: MemoryForgetting;
   private readonly maintenance: MemoryUpkeep;
+  private readonly candidateFacts: MemoryCandidates;
   private readonly moves: MemoryMoves;
   private readonly duplicates: MemoryDuplicates;
   private readonly edits: MemoryEdits;
@@ -182,6 +184,8 @@ export class MemoryService {
     this.promotions = new MemoryPromotion({ ledger: ports.ledger, now: this.now, newId: this.newId,
       prefs: (actor, scope, project) => this.preferences.prefsFor(actor, scope, project) });
     this.forgetting = new MemoryForgetting({ ...ports, operations: this.operations, promotions: this.promotions });
+    this.candidateFacts = new MemoryCandidates({ ...ports, operations: this.operations, now: this.now,
+      isForgotten: (scope, owner, id) => this.isForgotten(scope, owner, "memory-candidate", id) });
     this.maintenance = new MemoryUpkeep({ backend: ports.backend, ledger: ports.ledger, operations: this.operations,
       promotions: this.promotions, now: this.now, newId: this.newId });
     this.scopeCommands = new MemoryScopeCommands({ backend: ports.backend, ledger: ports.ledger, preferences: this.preferences, operations: this.operations,
@@ -481,7 +485,7 @@ export class MemoryService {
     const asCandidate = async (why: string, basis: MemoryBasis | null = input.basis): Promise<MemoryWriteResult> => {
       if (!formationKind) return refused("正式扩展类别不能自动形成候选");
       if (basis === null) return refused("原记忆依据未知，不能替它生成新的候选依据");
-      const waiting = input.candidate_id ? (await this.candidateRecords(caller, input.scope, where.owner)).find(item => item.candidate_id === input.candidate_id) : undefined;
+      const waiting = input.candidate_id ? (await this.candidateFacts.records(caller, input.scope, where.owner)).find(item => item.candidate_id === input.candidate_id) : undefined;
       await this.ports.beforeEffect?.();
       if (input.candidate_id || this.operations.find(caller, "candidate-hold")) {
         const held = this.operations.holdCandidate(caller, waiting, input, why);
@@ -658,7 +662,6 @@ export class MemoryService {
    */
   async candidates(caller: MemoryCaller, filter: { scope?: MemoryScope | "all"; work_id?: string; anywhere?: boolean } = {}): Promise<MemoryCandidate[]> {
     if (!caller.person && caller.purpose === "task") caller = { ...caller, purpose: "management", source_use: undefined };
-    const stale = this.now().getTime() - CANDIDATE_TTL_MS;
     const anywhere = filter.anywhere === true && caller.person === true;
     const owners = new Map(this.scopeCommands.scopesFor(caller, filter.scope && filter.scope !== "all" ? [filter.scope] : undefined, true).map(where => [`${where.scope}:${where.owner}`, where]));
     if (anywhere) for (const note of this.ports.ledger.candidates(caller.actor_id)) owners.set(`${note.scope}:${note.owner}`, { scope: note.scope, owner: note.owner, project: note.project_id });
@@ -667,10 +670,10 @@ export class MemoryService {
       if (!caller.person && !consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id).allowed) continue;
       const holder = anywhere ? { ...caller, project_id: where.project } : caller;
       const canonical = new Map<string, MemoryBackendCandidate>();
-      for (const record of await this.candidateRecords(holder, where.scope, where.owner, canonical)) {
+      for (const record of await this.candidateFacts.records(holder, where.scope, where.owner, canonical)) {
         if (record.state !== "pending") continue;
         if (filter.work_id && record.work?.work_id !== filter.work_id) continue;
-        if (Date.parse(record.created_at) < stale) { await this.settleCandidate(holder,record, "expired"); continue; }
+        if (candidateExpired(canonical.get(record.candidate_id)!, this.now().getTime())) continue;
         targets.push({ scope: where.scope, owner: where.owner, project: where.project ?? null, entry: canonical.get(record.candidate_id)! });
         out.push(candidateView(record));
       }
@@ -701,7 +704,8 @@ export class MemoryService {
     const candidateCaller: MemoryCaller = { ...caller, purpose: "management", source_use: caller.source_use ?? "explicit",
       candidate_access: { purpose: "proposal-check", operation_id: caller.operation_id!, scope: input.scope === "personal" ? "user" : input.scope, owner: where.owner } };
     const canonical = new Map<string, MemoryBackendCandidate>();
-    let earlier = await this.candidateRecords(candidateCaller, input.scope, where.owner, canonical);
+    let earlier = await this.candidateFacts.records(candidateCaller, input.scope, where.owner, canonical);
+    earlier = earlier.filter(note => note.state !== "pending" || !candidateExpired(canonical.get(note.candidate_id)!, this.now().getTime()));
     const work = caller.work ?? null;
     if (options.sources && !this.sourceAllowed(caller.actor_id, input.scope, where.owner, options.sources)) throw memoryErrors.forbidden("这份来源已遗忘，不能重新形成候选");
     const prior = options.combines ? (await this.ports.backend.withCaller(candidateCaller).candidates.list(input.scope, where.owner)).find(item => item.candidate_id === options.combines) : undefined;
@@ -771,7 +775,7 @@ export class MemoryService {
         || input.expected_version !== undefined && input.expected_version !== original.expected_version)
         throw memoryErrors.conflict("原认可结果已变化，不能按原建议补账");
       for (const twin of this.duplicateSuggestions(holder, record, candidate, candidateScope, text, true))
-        await this.settleCandidate(holder, twin, "discarded");
+        await this.candidateFacts.settle(holder, twin, "discarded");
       if (this.isForgotten(record.scope, record.owner, "memory", current.entry.memory_id)) throw memoryErrors.conflict("记忆已删除，不能交付原认可结果");
       return { candidate: candidateView(record), memory: this.scopeCommands.item(current) };
     }
@@ -828,7 +832,7 @@ export class MemoryService {
       this.ports.ledger.saveCandidate(kept);
       for (const twin of duplicates) this.operations.candidate(holder, twin, "discarded");
     });
-    for (const twin of duplicates) await this.settleCandidate(holder, twin, "discarded");
+    for (const twin of duplicates) await this.candidateFacts.settle(holder, twin, "discarded");
     if (this.isForgotten(record.scope, record.owner, "memory", located.entry.memory_id)) throw memoryErrors.conflict("记忆已删除，不能交付原认可结果");
     return { candidate: candidateView(kept), memory: this.scopeCommands.item(located) };
   }
@@ -860,41 +864,7 @@ export class MemoryService {
     if (record.state !== "pending" && !this.operations.find(caller, `discarded:${candidateId}`)) throw memoryErrors.invalid("这条建议已经不在了");
     const original = this.operations.find(caller, `discarded:${candidateId}`);
     if (expectedVersion !== undefined && expectedVersion !== (original?.expected_version ?? record.version)) throw memoryErrors.conflict("建议已变化，请重新查看后再决定");
-    return { candidate: candidateView(await this.settleCandidate(caller,record, "discarded")) };
-  }
-
-  /** Join the ledger's notes with the current candidate owner; reading never repairs missing facts. */
-  private async candidateRecords(caller: MemoryCaller, scope: MemoryScope, owner: string, canonical?: Map<string, MemoryBackendCandidate>,
-    listed?: readonly MemoryBackendCandidate[]): Promise<MemoryCandidateRecord[]> {
-    const held = new Map((listed ?? await this.ports.backend.withCaller(caller).candidates.list(scope, owner)).map(item => [item.candidate_id, item]));
-    const out: MemoryCandidateRecord[] = [];
-    for (const note of this.ports.ledger.candidates(caller.actor_id).filter(item => item.scope === scope && item.owner === owner)) {
-      if (this.isForgotten(scope, owner, "memory-candidate", note.candidate_id)) continue;
-      let found = held.get(note.candidate_id);
-      if (!found && (!caller.person || caller.memory_session)) {
-        try { found = await this.ports.backend.withCaller(caller).candidates.get({ scope, owner, candidate_id: note.candidate_id, ...(caller.signal ? { signal: caller.signal } : {}) }); }
-        catch (error) {
-          caller.signal?.throwIfAborted();
-          if (error instanceof Error && "code" in error && error.code === "MEMORY_SCOPE_DENIED") continue;
-          throw error;
-        }
-      }
-      if (!found) throw memoryErrors.not_found("记忆建议的原记录不可读；请核对存储后继续");
-      if (!belongsToMemorySession(caller, found.meta) && !learnedInSession(caller, found.meta, found.sources ?? [], this.ports.sourceSession)) continue;
-      canonical?.set(found.candidate_id, found);
-      const state: MemoryCandidateRecord["state"] = found.state === "promoted" ? "accepted" : found.state;
-      out.push({ ...note, version: found.version, state, memory_id: found.memory_id ?? note.memory_id });
-    }
-    return out;
-  }
-
-  private async settleCandidate(caller: MemoryCaller, record: MemoryCandidateRecord, state: "discarded" | "expired"): Promise<MemoryCandidateRecord> {
-    caller = this.operations.caller(caller.person && caller.project_id === null ? { ...caller, project_id: record.project_id } : caller);
-    const where = { scope: record.scope, owner: record.owner, candidate_id: record.candidate_id, ...this.operations.candidate(caller, record, state) };
-    const settled = state === "discarded" ? await this.ports.backend.withCaller(caller).candidates.discard(where) : await this.ports.backend.withCaller(caller).candidates.expire(where);
-    const next: MemoryCandidateRecord = { ...record, state, version: settled.version };
-    this.ports.ledger.saveCandidate(next);
-    return next;
+    return { candidate: candidateView(await this.candidateFacts.settle(caller,record, "discarded")) };
   }
 
   /* ---- recent changes ---- */
@@ -1036,10 +1006,12 @@ export class MemoryService {
     // The person's, each project's, and each project's Characters' (kept per project).
     const scopes: Array<{ scope: MemoryScope; owner: string; project: string | null }> = [{ scope: "personal", owner: caller.actor_id, project: null },
       ...[...new Set(options.projects)].flatMap(id => [{ scope: "project" as const, owner: id, project: id },
-        ...this.ports.ledger.owners(id).filter(owner => owner.scope === "character").map(owner => ({ scope: "character" as const, owner: owner.owner, project: id }))])];
+        ...[...new Set([...this.ports.ledger.owners(id), ...this.ports.ledger.candidateOwners(id)].filter(owner => owner.scope === "character").map(owner => owner.owner))]
+          .map(owner => ({ scope: "character" as const, owner, project: id }))])];
     for (const where of scopes) {
+      const holder: MemoryCaller = { ...caller, project_id: where.project ?? caller.project_id, person: true, purpose: "management" };
+      await this.candidateFacts.expire(holder, where.scope, where.owner);
       if (!this.scopeCommands.prefsAt(caller.actor_id, where).enabled) continue;
-      const holder: MemoryCaller = { ...caller, project_id: where.project ?? caller.project_id, person: true };
       await this.maintenance.recover(holder, where.scope, where.owner, report);
       let located = await this.scopeCommands.located(holder, where.scope, where.owner);
       if (!located.length) continue;
@@ -1231,7 +1203,7 @@ export class MemoryService {
     const note = this.ports.ledger.candidates(caller.actor_id).find(item => item.candidate_id === candidateId);
     if (!note) throw memoryErrors.not_found("没有这条建议");
     const holder = caller.person && caller.project_id === null ? { ...caller, project_id: note.project_id } : caller;
-    const record = (await this.candidateRecords(holder, note.scope, note.owner, canonical)).find(item => item.candidate_id === candidateId);
+    const record = (await this.candidateFacts.records(holder, note.scope, note.owner, canonical)).find(item => item.candidate_id === candidateId);
     if (!record) throw memoryErrors.not_found("没有这条建议");
     assertManagedMemorySession(caller, canonical.get(candidateId)!.meta);
     return record;

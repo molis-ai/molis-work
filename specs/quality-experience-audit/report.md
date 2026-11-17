@@ -484,3 +484,20 @@ PF-02 新增正常入口证据：`/tmp/quality-audit-composer-required.log` 15�
 实施前置已核实：`scripts/check-package-boundaries.mjs:247–274` 硬编码五个旧集成包的 Manifest/包文件/入口身份，退役需要精确移除这两个退役对象的检查，不能改成文件缺失就跳过。仓库要求门禁修改先获用户批准；先准备具体退役差异、包清单/锁文件/六个专属版本声明及生成物同步，再提交该规则调整供审阅。共享 schema/host/listener/signals 版本与仍使用的集成检查保留。BL-unused-integration-packages 此时仍未完成。
 
 另有独立重复实现：Feed `source-request.ts:74` 生成的 intent 只用于本地指纹，`runtime-source-pull.ts:40` 的实际 pull 忽略它，Host 又生成一份；平台已有 sourcePull.plan。后续迁移实际消费者时，必须比较原 operation/key 指纹、终态重放及取消/引用回收，不能直接删掉本地检查。候选验收沿 Runtime Feed 的 YouTube 注册→实际拉取→同key重放、integration-registry/source-pull拒绝、RSS socket、AnySearch single owner及真实npm产物；目前只有静态证据，未宣称这些路径已验收。
+
+
+### QF-32 / P1：仅有读取权限的候选查询会结算过期状态，期限也未使用原件事实
+
+旧位置 `horizontal/memory/src/service.ts:659–673` 的 candidates query 按账注 created_at+14天调用 settleCandidate，写 SDK expired/version、操作marker和候选账注；`memory.candidates.list@1` 只有memory:read，Assistant聚合/独立列表和设置overview均到达该服务。SDK的manage-read不改候选state，因此分支真实可达；Assistant原服务有Host存活检查，问题不能误写成完全无控制。候选创建已保存min(正式期限,14天)，但查询忽略更短实际期限；到期pending还占提议去重和每工作三条额度。
+
+旧构建4个有效反例均失败、原13项通过（`/tmp/quality-audit-candidate-expiry-baseline2.log`）：1天到期、精确14天仍显示；15天查询实际增加SDK版本及expired状态、operation和账注；未先打开列表时，过期同文仍拒绝新提议。第一轮反例只测精确期限，尚未到读中写分支；第二轮独立增加15天快照，才证明了实际副作用。
+
+处置：SDK拥有期限/状态/版本；Memory query和propose复用实际期限判断，读取无写。`horizontal/memory/src/candidates.ts` 收回原件合读、条件结算和维护恢复，Service公共用例调用同一实现，主文件1269→1241行。原upkeep先处理候选独存及使用关闭的范围；固定候选expiry子操作，SDK先保留决定但终态未写时续原决定，已expired但账注仍pending时只补原投影。无新定时器、状态账或正式记忆变动计数。
+
+角色候选独存没有正式owner，原upkeep只枚举正式owners，SDK本人管理也拒绝。现在维护合并原candidateOwners，Host仅为当前项目的本人management、candidate manage-read/delete认可该归属，target/before分别复核，不扩大正式记忆、accept/promote或模型读取。初次定向验收18/19通过，角色项揭示遗漏before围栏；修正后真实SDK的范围拒绝、读取纯度、额度释放、SDK保留决定后的实际SQLite写失败重启恢复及账注失败重启恢复，2文件42项均通过（`/tmp/quality-audit-candidate-expiry-acceptance2.log`）。完整构建2次退出0；正常HTTP/公开只读动作、实际服务器断连、维护取消/撤权后零追加写入及恢复，连同README必跑集合19文件209项全部通过（3分钟，`/tmp/quality-audit-candidate-expiry-required.log`）。两批合计21文件251项；健康检查初次仅要求登记缩小后的巨大单元实际尺寸，随后同步class 1110行/54方法→1081行/52方法、file 1270→1242，规则/阈值未改，第二次退出0（`/tmp/quality-audit-candidate-expiry-health2.log`）。本片已获本地工程及实际HTTP验收证据；当前头Full CI/跨批资源验收和整项逐包深查仍未完成。
+
+本片不关闭角色候选的完整本人管理：没有正式owner时accept仍按原权限拒绝，已用反例保留该边界，如何接通完整认可归属另需沿真实角色入口确认。后台已开始的定时维护按原调度合同不可取消；这里验证的是受控手动维护，不新增调度承诺。
+
+### QF-33 / 待复现：配对查询还包含失效状态写入
+
+`horizontal/memory/src/service.ts` 的 pairs() 在正式条目缺失或非active时直接savePair(resolved)后继续；公开memory.pairs.list仍为query。这与候选读取属于同类职责问题，但尚未核实正常设置/维护入口的实际交错及用户影响。保留在本轮深查，不因候选query修复一并关闭；先验证真实owner读失败、删除和状态变化，再决定纯投影及已有维护的归属。

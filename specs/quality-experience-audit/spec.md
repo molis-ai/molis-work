@@ -419,11 +419,21 @@ QEA-45 同一未知发送的重试：复核发现当前材料改变/撤回后，
 
 ## 第二十批：记忆候选读取与到期维护的职责（QF-32）
 
-状态：调用链与当前 SDK 实现已核实，待旧构建动态复现。公开 `memory.candidates.list@1` 是仅要求读取许可的 query；当前 `MemoryService.candidates` 却按 created_at+14天调用 settleCandidate，写 SDK 终态/版本及 ledger operation和候选。SDK 管理读取原样返回 pending，故这不是不可达分支。实际候选期限可能更短；形成时已写 min(正式期限,14天)，查询却仍显示短期到期项。Assistant 聚合/独立列表和设置 overview 均经过该服务；Assistant 另有Host存活检查，不能误报成完全无控制。
+状态：4个旧构建反例已复现；修复后2文件42项及Memory必跑/真实入口19文件209项通过，构建和健康门禁通过。当前头CI及跨批资源验收仍待完成。公开 `memory.candidates.list@1` 是仅要求读取许可的 query；当前 `MemoryService.candidates` 却按 created_at+14天调用 settleCandidate，写 SDK 终态/版本及 ledger operation和候选。SDK 管理读取原样返回 pending，故这不是不可达分支。实际候选期限可能更短；形成时已写 min(正式期限,14天)，查询却仍显示短期到期项。Assistant 聚合/独立列表和设置 overview 均经过该服务；Assistant 另有Host存活检查，不能误报成完全无控制。
 
 SDK继续拥有唯一候选、实际期限、版本和决定；Memory拥有最多等待14天的产品规则。读取依据canonical期限投影有效pending，不能结算或补账。propose同文/相似检查和每工作三条限额使用同一有效性判断，过期pending不占名额，已接受/已拒绝的同文规则保留。持久expired结算归已有upkeep，在正式条目为空/使用偏好关闭前处理，使用原稳定操作号、SDK CAS及Host取消/存活控制。候选独存的角色范围从原ledger归属枚举，不建新定时器、状态表或兼容格式；SDK已写但投影失败的恢复只核原事实，不重写后来决定。
+
+候选原件与账注的合读、条件结算和到期恢复统一归 `MemoryCandidates`，从现Service移入既有实现；Service保留提议/认可产品规则与公开用例，不增加无职责转发。维护调用该模块，按候选固定原expiry子操作，后一次维护仍续同一次SDK决定。角色候选归属只授予本人management的候选manage-read/delete；不扩正式记忆、accept/promote或模型读权限，不冒用项目删除权限。候选-only角色的其他本人管理行为若仍有缺口，独立记录而不以维护通过冒充全链完成。
 
 - **QEA-51** 真实SDK与Memory共用时钟。14天及短于14天的候选到期后，公开查询/正常读取返回无待处理项，SDK候选版本/状态、候选ledger及操作marker均与读取前一致；在途读取取消不新增业务写入。未到期仍可正常决定。未运行维护也能在原工作形成新候选，不受过期同文/三条上限阻挡，accepted/discarded不重复建议的原规则不变。
 - **QEA-52** 既有维护入口结算到期候选，覆盖候选独存、项目/角色、使用关闭、重启与重试。实际SDK只推进一次，ledger对应；真实提交前取消/撤权不结算，原请求重试恢复。SDK成功但ledger保存失败后，同一操作只修复原投影，不重复版本或覆盖后来决定。维护后的查询仍只读，不伪造正式记忆变动数量。
 
 先运行旧构建反例，确认实际写入及短期限误显示，再实施和构建；跑候选/保留期/维护的定向测试及Memory README必跑集合，安全/取消入口使用生产控制，不仅检查返回数组。该片无新UI；继续用正常HTTP与公开动作验证实际消费者，界面候选故障验收证据沿QEA-50。配对查询的另一个读中写分支独立核对，不借本片改动宣称已解决。
+
+## 第二十一批：移除助理候选旧写入口与不可达路由（QF-31 清理）
+
+状态：生产调用和测试调用已核对，准备实施。AssistantMemoryBridge.acceptMemoryCandidate/discardMemoryCandidate在全仓只有assistant-memory.test的三个调用点；真实卡片早已走Memory公开动作。这两个旧入口绕开当前动作合同的版本必填与调用控制，没有独立职责。将原“本人改写认可、拒绝后不重复建议”的测试迁到夹具已注册的真实Memory动作，保留业务断言和所见版本，再删除转发。memory-host里第二条相同GET pairs条件不可达，删除后仍由原第一条路由处理，不改变scope行为。
+
+- **QEA-53** 原真实模型工具形成候选后，通过注册动作认可改写并在下一次读取/模型上下文看到正确记忆；重复认可仍拒绝，真实动作拒绝后同文提议仍拒绝。生产与测试均不再调用旧转发；候选HTTP断连、读取故障/重试及正常决定回归保持。原pairs HTTP行为保持，配对query读中写的QF-33单独处理。
+
+这是已有合同的调用方迁移和死路清理，不新增状态、资源或公开能力；构建后验assistant-memory、memory-actions、memory HTTP管理及本轮真实候选入口。未验的QF-27/Git/PF-03/PF-07和逐包审查继续保留在本任务范围。

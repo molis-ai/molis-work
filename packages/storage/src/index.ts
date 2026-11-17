@@ -45,6 +45,7 @@ export { assertSqliteDatabaseFiles, assertSqliteLibraryReady, sqliteLibraryDirec
 export { withSqliteLibraryTransaction } from "./sqlite-library-transaction.js";
 export { homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type HomeStoreRegistry } from "./home-stores.js";
 export {
+  assertSqliteBaselineShape,
   isSqliteSchemaStructureMismatch,
   isSqliteVersionRefusal,
   onUpgradePending,

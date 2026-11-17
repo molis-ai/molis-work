@@ -6,6 +6,8 @@
 
 第42批本地结算：上述13文件最终均有通过证据、共161项；无关 Schedule 读取从1变0，真实未知 Home 插件的“新建输入”入口保留，成果归档和输入确认后刷新正确，Feed 菜单/Goal迟到响应/原保存交错通过。二文件补验24+14项见 `/tmp/quality-audit-goal-stage-final.log`。会话滚轮测试先观察 follower 的真实落底再测量向上滚动，未修改产品滚动语义或放宽原断言。五次20条判断p50从22595ms降至10768ms，health在3–4/20条返回（`/tmp/quality-audit-goal-stage-performance.log`）；等待仍偏长，QF-51及性能BL保留。构建/API/健康/只读复核通过；离线Skill回放和替身3简报通过，真实模型因隔离Home无可用模型未运行。后续第43批复用Storage现有结构校验机制，版本/归属/授权事实继续逐次读取；整项、最终CI与资源验收均未完成。
 
+第43批本地结算：`packages/storage/src/sqlite-baseline.ts:214` 提取现行成功结构比较，`apps/local-host/src/home-plugin-store.ts:22` 复用 exact 模式；原 Inspector 保留允许额外表及声明触发器的检查。暖读反证旧版132≠66，新版不再增加结构扫描，8次读取仍分别检查版本并关闭连接；WAL暖读后主文件字节不变但结构变化拒绝，两种比较模式互不冒充，损坏/外来归属/恢复均通过。完整构建/API/健康和14文件149项通过，日志 `/tmp/quality-audit-home-schema-acceptance.log`。未改变存储版本、授权事实或只读事务寿命。总耗时p50=11721ms，未证明优于上一批，故保留QF-51；当前CPU采样聚合显示允许动作名单匹配自身约3.14秒、SQLite行转换与get合计约2.23秒，Home开库自身约0.15秒。继续沿真实许可名单来源和当前读取核根因，不把查询数减少当作体验已达标。采样 `/tmp/quality-audit-schema-cpu/CPU.20261117.055750.75612.0.001.cpuprofile`，临时测试已清理。
+
 最新主干登录交集：9文件中8文件104项通过，子任务会话文件12/14项通过但滚轮位置验证失败（`/tmp/quality-audit-login-merge-acceptance.log`）；失败待复现和裁决，不能记全绿。第42批首个定向命令误用默认并发，已按本次PID终止，仅成果输入4项有效通过，其余未完成；改用公共机器槽和 `--jobs 1` 后重新执行，日志 `/tmp/quality-audit-goal-stage-acceptance-serial.log`。
 
 最新交集记录（2026-11-17）：第39批两个新服务已沿真实生产路径核对。建议由项目到达、Assistant、创作台读取目录和 Workspace，偏好归 recommender，文稿由 Pages 按固定 request_id 保存；临时报告绑定 actor/project/incarnation 并有期限。审批经 Web/CLI/管理 MCP 和 Kernel 单次可信凭据进入原业务 owner，平台规则与决定归 project-approvals。等待后的权限与安装复核有真实边界依据；新包不是无职责转发层。静态结论不替代视觉和运行验收。

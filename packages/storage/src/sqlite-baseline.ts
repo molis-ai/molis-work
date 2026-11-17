@@ -207,6 +207,22 @@ function shapeIdentity(path: string, db: SqliteBaselineDatabase, version: number
 }
 
 /**
+ * Compare the current file structure once per unchanged identity and comparison mode. Callers still check version and ownership
+ * and read current business rows on every open. Exact mode compares the whole table/index/foreign-key shape; baseline mode also
+ * checks declared triggers and permits the extra tables that project plugins own. A failed comparison is never remembered.
+ */
+export function assertSqliteBaselineShape(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline,
+  { home, mode = "baseline" }: { home?: string; mode?: "baseline" | "exact" } = {}): void {
+  const identity = `${shapeIdentity(path, db, baseline.version)}:${mode}`;
+  let compared = comparedShapes.get(baseline);
+  if (compared?.get(path) === identity) return;
+  const matches = mode === "exact" ? JSON.stringify(describeSqliteSchema(db)) === JSON.stringify(expectedShape(baseline)) : baselineShapePresent(db, baseline);
+  if (!matches) throw structureMismatch(path, home);
+  if (!compared) comparedShapes.set(baseline, compared = new Map());
+  compared.set(path, identity);
+}
+
+/**
  * Refuse an existing store before a writable connection can change it: another version (or tables without one) is refused by what it is,
  * and a same-version store whose structure is not the baseline's is refused too. A missing or empty file is left for the
  * writable open to create. Everything here runs read-only: bytes, mode and journal files are exactly as they were when it returns.
@@ -228,12 +244,7 @@ function inspectSqliteBaseline(path: string, baseline: SqliteBaseline, home?:str
       if (verifyOwnership) assertExistingHomeSpace(inspection, path, home);
       // A current version mark claims the baseline's schema: every baseline table must be there, even when no other business table is
       // left (a store whose tables were dropped is damaged, not an empty one). Only a file without a version is the creation path.
-      const identity = shapeIdentity(path, inspection, baseline.version);
-      let compared = comparedShapes.get(baseline);
-      if (compared?.get(path) === identity) return true;
-      if (!baselineShapePresent(inspection, baseline)) throw structureMismatch(path, home);
-      if (!compared) comparedShapes.set(baseline, compared = new Map());
-      compared.set(path, identity);
+      assertSqliteBaselineShape(inspection, path, baseline, { home });
       return true;
     } finally {
       inspection.close();

@@ -274,3 +274,5 @@ QF-47最终健康门禁退出0（`/tmp/quality-audit-surface-health-final.log`�
 ## Git 主结果区与回执归属深查（QF-23/46，QEA-77/78）
 
 入口覆盖独立 Git 与 Coding 借用的同一客户端；目录选择→公开 diff/prepare-index/operations→Host 审查→真实 Git index/文件→原 operation 结果→确切草稿清理。六向处理：分散显示状态收敛到一份选择；保留真实输出目录/版本/权限围栏；冲突正文离开窄目录，错误重试跟随正文；删旧 ticket/displayed/decisionNotice 等被替换路径；业务写入与 owner 回执继续归 Host/原 drafts，展示归选择；复用既有 clientUses/openResult 合同，没有 Coding 特判或新导航平台。新增晚到成功/失败、同键重试、隐藏重入、历史选择/保存交错和实际写入验证，22/22正常入口通过；三宽两主题覆盖两真实调用方。完整包必跑和最终CI另记，不把代表用例当整仓完成。
+
+认可栏QF-49/QEA-87：workbench 原 renderer/styles 的 title/单行截断改为真实正文换行；通过正常界面读当前要求、认可/退回/改要求，Host写入回读原版本/决定。两UI文件7项通过，1440中文及390英文长路径/历史图已实看。状态与事实仍归Acceptance，外壳不再用编辑入口或hover弥补正文不可读。资源与最终共享核心CI继续。

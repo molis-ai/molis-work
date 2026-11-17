@@ -14,6 +14,8 @@ const pad = (value: number) => String(value).padStart(2, "0");
 const today = () => { const at = new Date(); return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`; };
 const COLUMN = "document.querySelector('[data-acceptance-column]')";
 const card = (id: string) => `${COLUMN}.querySelector('[data-requirement=${id}]')`;
+const RETURN_REASON = "隐私政策的链接是 404。请修复移动端页脚中的完整地址，核对重定向后保留访问结果：" + "https://example.test/" + "long-policy-path-".repeat(12);
+const OBSERVED = "在三种宽度下逐一检查了全部价格、按钮和页脚：" + "说明文字完整显示，触屏可以阅读。".repeat(4);
 const FOUR = [
   { id: "r1", statement: "三档并排，三种宽度都不掉行", part: "三档价格表", requires_person: false },
   { id: "r2", statement: "企业版写联系我们，不写价格，按钮通到销售的表单并且在三种宽度下都看得见", part: "企业版一栏", requires_person: false },
@@ -21,7 +23,7 @@ const FOUR = [
   { id: "r4", statement: "页脚链接都能打开", part: "页脚", requires_person: false },
 ];
 
-test("PWA-144 PWA-145 PWA-146: the event's card sums up its requirements in three readings and the column goes through them one by one — accept, return with a reason, change what is asked — at 1440 and 390, in Chinese and English", { timeout: 180_000 }, async t => {
+test("QEA-87 PWA-144 PWA-145 PWA-146: the event's card sums up its requirements in three readings and the column goes through them one by one — accept, return with a reason, change what is asked — at 1440 and 390, in Chinese and English", { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor, click, setViewport } = browser;
@@ -77,7 +79,7 @@ test("PWA-144 PWA-145 PWA-146: the event's card sums up its requirements in thre
   try {
     await acceptance.service.deliver(maker, { subject: target, version: "v1", made_in: { run_id: "run-1" } }, ports);
     await acceptance.service.report(maker, { subject: target, reports: [
-      { requirement_id: "r1", verdict: "supports", checked: { version: "v1" }, method: "三种宽度截图比对", observed: "都不掉行", evidence: [{ kind: "command_receipt", run_id: "run-1", call_id: "c1" }] },
+      { requirement_id: "r1", verdict: "supports", checked: { version: "v1" }, method: "三种宽度截图比对", observed: OBSERVED, evidence: [{ kind: "command_receipt", run_id: "run-1", call_id: "c1" }] },
       { requirement_id: "r2", verdict: "supports", checked: { version: "v1" }, method: "执行者说明", observed: "已按要求改" },
       { requirement_id: "r3", verdict: "supports", checked: { version: "v1" }, method: "整页截图", observed: "与定样一致", evidence: [{ kind: "command_receipt", run_id: "run-1", call_id: "c3" }] },
     ] }, ports);
@@ -108,8 +110,8 @@ test("PWA-144 PWA-145 PWA-146: the event's card sums up its requirements in thre
     const cards = [...column.querySelectorAll('[data-requirement]')];
     return { column: { left: box.left, right: box.right, width: box.width }, stage: stage ? { left: stage.getBoundingClientRect().left } : null,
       primary: column.querySelectorAll('.mw-btn--primary').length, lead: column.querySelector('[data-lead]')?.dataset.requirement ?? null,
-      // A row is one line: its name, its state, its reason each end in an ellipsis rather than fold.
-      wrapped: cards.flatMap(one => [...one.querySelectorAll('.work-req-head, .work-req-meta, .work-req-why, .work-card-actions')].filter(row => row.getBoundingClientRect().height > 40).map(row => one.dataset.requirement + ':' + row.className)),
+      // QEA-87: text may wrap; short metadata and actions retain their compact layout.
+      wrapped: cards.flatMap(one => [...one.querySelectorAll('.work-req-meta, .work-card-actions')].filter(row => row.getBoundingClientRect().height > 40).map(row => one.dataset.requirement + ':' + row.className)),
       // A state is a ring and words together, never colour alone.
       unnamed: cards.filter(one => !one.querySelector('.work-req-head svg') || !one.querySelector('.work-req-meta .mw-badge')?.textContent.trim()).map(one => one.dataset.requirement) };
   })()`);
@@ -122,6 +124,22 @@ test("PWA-144 PWA-145 PWA-146: the event's card sums up its requirements in thre
   assert.match(String(await evaluate(`${card("r3")}.textContent`)), /要你认可/u, "machine-checked, and still the person's to accept");
   assert.match(String(await evaluate(`${card("r4")}.textContent`)), /没有证据/u);
   assert.equal(await evaluate(`${card("r1")}.querySelector('[data-acceptance-accept]') === null`), true, "what needs no one's word offers no accept");
+  const readable = async (selector: string, expected: string) => {
+    const text = await evaluate<{ text: string; whitespace: string; clipped: boolean; lines: number }>(`(() => {
+      const element = document.querySelector(${JSON.stringify(selector)}), box = element.getBoundingClientRect(), range = document.createRange();
+      range.selectNodeContents(element);
+      const rects = [...range.getClientRects()];
+      return { text: element.textContent, whitespace: getComputedStyle(element).whiteSpace,
+        clipped: element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1
+          || rects.some(rect => rect.left < box.left - 1 || rect.right > box.right + 1 || rect.bottom > box.bottom + 1),
+        lines: new Set(rects.map(rect => Math.round(rect.top))).size };
+    })()`);
+    assert.ok(text.text.includes(expected), text.text);
+    assert.notEqual(text.whitespace, "nowrap"); assert.equal(text.clipped, false, selector);
+    assert.ok(text.lines > 1, "the long content occupies actual visible lines: " + selector);
+  };
+  await readable('[data-requirement=r2] .work-req-head strong', FOUR[1]!.statement);
+  await readable('[data-requirement=r1] .work-req-observed', OBSERVED);
   await picture("acceptance-column-1440");
 
   // The person accepts the leading item: the versions on screen go with it, and the next one that waits takes the lead.
@@ -138,7 +156,7 @@ test("PWA-144 PWA-145 PWA-146: the event's card sums up its requirements in thre
   const before = await evaluate<number>("window.__acceptance.filter(one => one.door === 'decide').length");
   await click(`[data-acceptance-column] [data-requirement=r4] [data-acceptance-note-send]`);
   assert.equal(await evaluate("window.__acceptance.filter(one => one.door === 'decide').length"), before, "an empty reason is not sent");
-  await evaluate(`(() => { const field = ${card("r4")}.querySelector('[data-acceptance-note]'); field.value = '隐私政策的链接是 404'; field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()`);
+  await evaluate(`(() => { const field = ${card("r4")}.querySelector('[data-acceptance-note]'); field.value = ${JSON.stringify(RETURN_REASON)}; field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()`);
   await waitFor(`${card("r4")}.textContent.includes('已退回 · 在返工')`);
   assert.match(String(await evaluate(`${card("r4")}.textContent`)), /隐私政策的链接是 404/u);
   assert.equal(await evaluate(`${card("r4")}.querySelector('[data-acceptance-accept]') === null`), true, "what was returned waits for the rework, not for another answer");
@@ -151,6 +169,11 @@ test("PWA-144 PWA-145 PWA-146: the event's card sums up its requirements in thre
     { headers: globalThis.molisWorkControlHeaders?.() || {} }).then(async response => ({ status: response.status, rows: ((await response.json()).rows || []) }))`);
   assert.equal(reviewHistory.status, 200);
   assert.ok(reviewHistory.rows.some(row => row.id === reopened.body.decision!.decision_id), "authorization provenance lists the committed acceptance decision");
+
+  await readable('[data-requirement=r4] .work-req-why span', RETURN_REASON);
+  await click('[data-requirement=r4] .work-req-history summary');
+  await readable('[data-requirement=r4] .work-req-history li:last-child', RETURN_REASON);
+  await picture("acceptance-column-reason-1440");
 
   // PWA-146: the person changes what is asked; what was checked for the old words stops counting.
   await click(`[data-acceptance-column] [data-requirement=r3] [data-acceptance-edit]`);
@@ -178,11 +201,24 @@ test("PWA-144 PWA-145 PWA-146: the event's card sums up its requirements in thre
     const column = ${COLUMN}, box = column.getBoundingClientRect();
     return { left: box.left, right: box.right, title: column.querySelector('.work-reqs-head strong').textContent,
       // What is pressed is really on top: nothing else takes the press.
-      covered: [...column.querySelectorAll('.work-reqs-head button, [data-lead] button')].filter(one => { const at = one.getBoundingClientRect(); return !one.contains(document.elementFromPoint(at.left + at.width / 2, at.top + at.height / 2)); }).map(one => { const at = one.getBoundingClientRect(), hit = document.elementFromPoint(at.left + at.width / 2, at.top + at.height / 2); return (one.getAttribute('aria-label') || one.textContent.trim()) + ' @' + Math.round(at.top) + ' under ' + (hit ? hit.tagName + '.' + hit.className : 'nothing'); }),
+      covered: [...column.querySelectorAll('.work-reqs-head button')].filter(one => { const at = one.getBoundingClientRect(); return !one.contains(document.elementFromPoint(at.left + at.width / 2, at.top + at.height / 2)); }).map(one => { const at = one.getBoundingClientRect(), hit = document.elementFromPoint(at.left + at.width / 2, at.top + at.height / 2); return (one.getAttribute('aria-label') || one.textContent.trim()) + ' @' + Math.round(at.top) + ' under ' + (hit ? hit.tagName + '.' + hit.className : 'nothing'); }),
       spill: [...column.querySelectorAll('[data-requirement]')].filter(one => one.getBoundingClientRect().right > box.right || one.scrollWidth > one.clientWidth + 1).map(one => one.dataset.requirement),
       small: [...column.querySelectorAll('button, summary')].filter(one => one.getClientRects().length && one.getBoundingClientRect().height < 44).map(one => one.getAttribute('aria-label') || one.textContent.trim()) };
   })()`);
+  await readable('[data-requirement=r2] .work-req-head strong', FOUR[1]!.statement);
+  await readable('[data-requirement=r1] .work-req-observed', OBSERVED);
+  await readable('[data-requirement=r4] .work-req-why span', RETURN_REASON);
+  await click('[data-requirement=r4] .work-req-history summary');
+  await readable('[data-requirement=r4] .work-req-history li:last-child', RETURN_REASON);
+  await evaluate("document.querySelector('[data-requirement=r4] .work-req-history').scrollIntoView({block:'end'})");
   await picture("acceptance-column-390-en");
+  // Long content remains scrollable; a real pointer reaches the original edit/cancel controls below it.
+  await click('[data-requirement=r4] [data-acceptance-edit]');
+  await waitFor(`${card("r4")}.querySelector('[data-acceptance-text]') === document.activeElement`);
+  await click('[data-requirement=r4] [data-acceptance-cancel]');
+  await waitFor(`${card("r4")}.querySelector('[data-acceptance-text]') === null`);
+  const finalRead = await door<AcceptanceReadResult>("read", { subjects: [target] });
+  assert.equal(finalRead.body.views[0]!.requirements.find(item => item.id === "r4")?.decision?.note, RETURN_REASON);
   assert.equal(phone.title, "Item by item");
   assert.ok(phone.left >= 0 && phone.right <= 390, `the column fits the phone (${phone.left}–${phone.right})`);
   assert.deepEqual(phone.spill, []); assert.deepEqual(phone.small, [], "touch targets are 44px on a phone"); assert.deepEqual(phone.covered, [], "nothing lies over the column");

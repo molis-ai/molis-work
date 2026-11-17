@@ -177,6 +177,13 @@ export function createPrologueSubagents(
 
   return {
     list,
+    resultCandidates: parentSessionIds => runtime.subagents.list().flatMap(child => {
+      if (!parentSessionIds.has(child.parentSession.id)) return [];
+      const parent_run = { session_id: child.parentSession.id, run_id: child.parentRun.id };
+      const settled = ["completed", "failed", "cancelled"].includes(child.state);
+      return (child.attempts ?? [child.run]).filter(attempt => settled || attempt.id !== child.run.id)
+        .map(attempt => ({ parent_run, subagent_id: child.ref.id, attempt_run_id: attempt.id }));
+    }),
     ...subagentConversation(runtime, (run, id) => {
       const child = owned(run).find(one => one.ref.id === id);
       if (!child) throw agentErrors.collaboration_unknown("子任务不属于这一轮执行");

@@ -436,6 +436,10 @@ for (const scenario of ["live", "shared", "worktree"] as const) test(`child orig
       assert.equal((await port().list(parent.ref))[0]?.workspace_path, childPath);
       assert.deepEqual((await port().conversation!(parent.ref, child.subagent_id)).messages, finished.messages);
     }
+    const candidateRuns = port().resultCandidates!(new Set([parent.ref.session_id]))
+      .filter(one => one.parent_run.run_id === parent.ref.run_id && one.subagent_id === child.subagent_id).map(one => one.attempt_run_id);
+    assert.deepEqual(candidateRuns, resumed?.state === "applied" ? [child.child_run.run_id, resumed.run.run_id] : [child.child_run.run_id]);
+    assert.deepEqual(port().resultCandidates!(new Set(["outside-parent-session"])), []);
     assert.equal(childCalls, expectedChildCalls); assert.equal(parentCalls, beforeParent);
   } finally { await f.close(); }
 });

@@ -1,6 +1,6 @@
 import { assistantWorkPermission, holdAssistantWorkLifetime } from "./assistant-work-permissions.js";
 import { requireSynchronous, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AgentSubagentCommand, AgentSubagentView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRunRef, AgentSubagentCommand, AgentSubagentView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID, type AssistantSdkSubtaskReview } from "@molis-ai/molis-work-contracts/services/assistant";
 import { subagentExecution, waitForSubagentChange } from "@molis-ai/molis-work-service-agent-host";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -8,6 +8,9 @@ import { sessionRef, type AssistantServicePorts } from "./assistant-service-shar
 import { ownerOf } from "./assistant-round-start.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { hostLog } from "../host-log.js";
+
+const resultNoticeKey = (parent: AgentRunRef, childId: string, attemptId: string) =>
+  `sdk-subtask-result:${JSON.stringify([parent.session_id, parent.run_id, childId, attemptId])}`;
 
 /** The Assistant's SDK children use the same Host owner as Coding, addressed through their original Work and parent Run. */
 export class AssistantSdkSubtasks {
@@ -34,23 +37,49 @@ export class AssistantSdkSubtasks {
   }
   /** The existing notice sweep reads original results, even while the parent panel is closed. */
   noticeResults(): Promise<void> {
-    return this.noticing ??= this.scanResults().finally(() => { this.noticing = undefined; });
+    return this.noticing ??= this.scanResults()
+      .catch(error => { hostLog.warn("assistant", "subtask_result_unconfirmed", error); })
+      .finally(() => { this.noticing = undefined; });
   }
   private async scanResults(): Promise<void> {
-    // The page's latest-50 window is not a lifetime boundary for a child of an older work.
+    // Old Work remains eligible. Only result candidates without an original notice require replay.
+    const bySession = new Map<string, StoredWork>();
     for (const work of this.store.list(this.actorId, { limit: Number.MAX_SAFE_INTEGER })) {
       if (!work.session_id || work.archived || work.executor.kind !== "assistant" || work.delegated_by?.taken_back_at) continue;
+      if (!bySession.has(work.session_id)) bySession.set(work.session_id, work);
+    }
+    if (!bySession.size) return;
+    const { subagents } = (await this.ports.host()).adapter("prologue");
+    const candidates = subagents?.resultCandidates?.(new Set(bySession.keys()));
+    if (!candidates?.length) return;
+    const raised = this.store.noticeDedupeKeys(this.actorId, "result");
+    const pending = new Map<string, { work: StoredWork; run: AgentRunRef; keys: Set<string> }>();
+    for (const candidate of candidates) {
+      const run = candidate.parent_run, work = bySession.get(run.session_id);
+      const key = resultNoticeKey(run, candidate.subagent_id, candidate.attempt_run_id);
+      if (!work || raised.has(key)) continue;
+      const parent = JSON.stringify([run.session_id, run.run_id]);
+      const group = pending.get(parent) ?? { work, run, keys: new Set<string>() };
+      group.keys.add(key);
+      pending.set(parent, group);
+    }
+    for (const group of pending.values()) {
       try {
-        const children = await this.list(work.work_id);
-        this.current(work);
-        for (const child of children) {
-          const attempts = [...child.budget?.prior_attempts ?? [], ...(child.child_run ? [{ run_id: child.child_run.run_id, state: child.state }] : [])];
-          for (const attempt of attempts) if (["completed", "failed", "cancelled"].includes(attempt.state)) {
-            const key = `sdk-subtask-result:${JSON.stringify([work.session_id, child.parent_run.run_id, child.subagent_id, attempt.run_id])}`;
-            this.result(work, child.role_name ?? child.role_id, key);
-          }
-        }
+        await this.notifyResults(group.work, group.run, group.keys);
       } catch (error) { hostLog.warn("assistant", "subtask_result_unconfirmed", error); }
+    }
+  }
+  private async notifyResults(work: StoredWork, parent: AgentRunRef, keys: ReadonlySet<string>): Promise<void> {
+    const { run, port } = await this.original(work.work_id, parent.run_id);
+    const children = await port.list(run!);
+    this.current(work);
+    for (const child of children) {
+      if (child.parent_run.session_id !== parent.session_id || child.parent_run.run_id !== parent.run_id) continue;
+      const attempts = [...child.budget?.prior_attempts ?? [], ...(child.child_run ? [{ run_id: child.child_run.run_id, state: child.state }] : [])];
+      for (const attempt of attempts) {
+        const key = resultNoticeKey(parent, child.subagent_id, attempt.run_id);
+        if (keys.has(key) && ["completed", "failed", "cancelled"].includes(attempt.state)) this.result(work, child.role_name ?? child.role_id, key);
+      }
     }
   }
   async read(workId: string, parentRunId: string, childId: string) {

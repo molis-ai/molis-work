@@ -85,7 +85,9 @@ const ROUTES: RouteMaker[] = [
               : { kind: "retry" as const, source: body.source === "check-failed" || body.source === "model-error" ? body.source : "user-requested",
                 ...(typeof body.reason === "string" ? { reason: body.reason.slice(0, 2000) } : {}) }),
         }]);
-        return { ok: result.state === "applied", result };
+        if (result.state === "unknown") throw codingFailure("coding.subtask.unknown");
+        if (result.state === "not-applied") throw codingFailure("coding.subtask.unavailable");
+        return { ok: true, result };
       } else {
         if (!["accepted", "needs-work"].includes(String(body.action)) || child.state !== "completed") throw codingFailure("coding.server.rate-ended-only");
         const notes = typeof body.notes === "string" ? body.notes.trim() : "";

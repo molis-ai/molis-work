@@ -34,6 +34,11 @@ test("SAI-07/10: original SDK results outside the page window survive notice rec
   const originalSession = await adapter.readSession(session);
   t.mock.method(adapter, "readSession", async () => ({ ...originalSession, runs: [child.parent_run] }));
   assert.ok(adapter.subagents);
+  t.mock.method(adapter.subagents, "resultCandidates", (parents: ReadonlySet<string>) => {
+    const refs = parents.has(session.session_id) ? [child.budget!.prior_attempts![0]!.run_id, child.child_run!.run_id]
+      .map(attempt_run_id => ({ parent_run: child.parent_run, subagent_id: child.subagent_id, attempt_run_id })) : [];
+    return [...refs, { parent_run: { session_id: "foreign", run_id: "foreign-parent" }, subagent_id: "foreign-child", attempt_run_id: "foreign-attempt" }];
+  });
   t.mock.method(adapter.subagents, "list", async () => { reads++; reading?.(); await gate; return [child]; });
   t.mock.method(host, "start", async () => { starts++; throw new Error("notice must never start a run"); });
   const open = () => new AssistantService(store, { pages: async () => [], host: async () => host,
@@ -44,16 +49,20 @@ test("SAI-07/10: original SDK results outside the page window survive notice rec
   assert.equal(reads, 1, "concurrent global notice reads share one original scan");
   const first = store.openNotices("web-user");
   assert.equal(first.length, 2, "both original attempts are recovered, including the older parent's result");
+  await subtasks().noticeResults();
+  assert.equal(reads, 1, "sequential reads do not replay either already-notified attempt");
   for (const notice of first) store.settleNotices("web-user", { notice_id: notice.notice_id }, "seen");
   db.close(); db = new DatabaseSync(path); store = new AssistantStore(db); service = open();
   await subtasks().noticeResults();
   assert.equal(store.openNotices("web-user").length, 0, "a new service preserves durable read state for both attempts");
+  assert.equal(reads, 1, "reopened store recognizes the original dedupe keys without replay");
   const entered = Promise.withResolvers<void>(), released = Promise.withResolvers<void>();
   gate = released.promise; reading = entered.resolve;
   child.child_run = { session_id: "child-session", run_id: "child-run-3" };
   const late = subtasks().noticeResults(); await entered.promise;
   store.update("web-user", parent.work_id, null, { archived: true });
   released.resolve(); await late;
+  assert.equal(reads, 2, "only the newly observed attempt needed an original parent projection");
   assert.equal(store.openNotices("web-user").length, 0, "an archived parent cannot receive a late result notice");
   assert.equal(starts, 0);
 });

@@ -318,6 +318,10 @@ export class AssistantStore {
     return this.db.prepare("SELECT 1 FROM assistant_notices WHERE actor_id=? AND dedupe=?").get(actorId, dedupe) !== undefined;
   }
 
+  noticeDedupeKeys(actorId: string, kind: StoredNotice["kind"]): ReadonlySet<string> {
+    return new Set(this.db.prepare("SELECT dedupe FROM assistant_notices WHERE actor_id=? AND kind=?").all(actorId, kind).map(row => String(row.dedupe)));
+  }
+
   openNotices(actorId: string): StoredNotice[] {
     return this.db.prepare("SELECT body, state FROM assistant_notices WHERE actor_id=? AND state='new' ORDER BY created_at DESC LIMIT 50").all(actorId)
       .map(row => ({ ...JSON.parse(String(row.body)) as StoredNotice, state: String(row.state) as StoredNotice["state"] }));

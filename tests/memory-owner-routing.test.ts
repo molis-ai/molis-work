@@ -199,7 +199,7 @@ test("existing owners: mixed Assistant save keeps candidate/confirmation/unavail
     const catalog = await f.web.get<{ capabilities: Array<{ capability_id: string }> }>(`/projects/${f.project.project_id}/api/assistant/capabilities`);
     // Batch 42: the Assistant may open a Skill draft (`skills.drafts.create`), which nothing uses until the person adopts it
     // (S-skill-authoring); no capability that writes an installed Skill or method is offered to it.
-    assert.ok(!catalog.capabilities.some(item => item.capability_id !== "skills.drafts.create" && /skill.*(create|update)|method.*(create|update)/i.test(item.capability_id)), "this Home offers no public Skill author capability");
+    assert.ok(!catalog.capabilities.some(item => item.capability_id !== "skills.drafts.create" && /skill.*(create|update)|method.*(create|update)/i.test(item.capability_id)), "the Assistant can open a Skill draft but write no installed Skill or method");
     let declinedInput = "";
     const declinedNote = "遵守拒绝：这条项目长期说明未保存，不改用其它存储绕过；继续查询方法能力。";
     const mixed = await f.assistant(original, [

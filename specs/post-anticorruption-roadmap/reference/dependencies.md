@@ -67,6 +67,7 @@ flowchart LR
   IN --> VO[本机语音]
   IN --> SUBUI[58 子代理公共交互组件]
   SUBUI --> SUB[59 子代理双入口直接对话]
+  SUBROOT[SDK 原目录重启接续：待裁定窗口] -.完整恢复验收前置.-> SUB
   SUB -.最小业务 SDK 派发已移入 59.-> DISPATCH[43-1 完整助理团产品]
   IN --> CHIP[Coding 目标芯片]
   IN --> BT[主对话与交办任务后台执行]

@@ -210,18 +210,16 @@ describe("the records of this repository", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
   });
 
-  test("the current Prologue package is the Batch 39 official main build e7582079 (surface detach, target cancellation, stdio validation and durable reconciliation)", () => {
+  test("the current Prologue package is Batch 59 official main 97ee6617 (trusted child input and original report display metadata)", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    assert.equal(provenance.source.commit, "e75820791e862c2605c2ff169720b6189ed9a109");
-    // The packed tree is public main itself (PR #127 on top of #126, #125, #124, #123 and #122); no vendor patch and no dirty files.
-    assert.match(provenance.source.note, /PR #127/);
-    assert.match(provenance.source.note, /02a11ac5a566eab4afe15e5562240fdd11f5c9a4 \(PR #126/);
-    assert.match(provenance.source.note, /0a0dfdfa507f463efdce14611dcbfbf1506ac5d2 \(PR #125/);
-    assert.match(provenance.source.note, /e0625b62e349f49b31d70adcd631e885683c9724/);
-    assert.match(provenance.source.note, /3825662d/);
-    assert.match(provenance.source.note, /188d9f6c/);
+    assert.equal(provenance.source.commit, "97ee66172c356366e6032c69264c1b393b1dc74d");
+    // Official PR #133 is the independently reviewed tree, without vendor patches or root grant changes.
+    assert.match(provenance.source.note, /PR #133/);
+    assert.match(provenance.source.note, /independently reviewed 98429521/);
+    assert.equal(provenance.artifact.bytes, 1_486_978);
+    assert.equal(provenance.artifact.sha256, "df27da3fd1f7a8a1f358991730f5d0f83f1324f9ba962b53607b0ce8d50a0a6a");
     assert.equal(provenance.source.candidateUpstream, undefined);
     assert.deepEqual(provenance.source.patches, []);
     assert.equal(provenance.source.dirty, false);
@@ -281,8 +279,8 @@ describe("the records of this repository", () => {
     // The upstream audit keeps every commit it checked; batch 31 added 7e2de40b, 018947ae, 4493a5eb, 4a4d1d3c, 188d9f6c and 3825662d,
     // batch 32 e0625b62, 0a0dfdfa and 02a11ac5, and moved mainHead to 02a11ac5.
     const upstream = record.upstream;
-    assert.equal(upstream.mainHead, "e75820791e862c2605c2ff169720b6189ed9a109");
-    assert.equal(upstream.commitsChecked.length, 60);
+    assert.equal(upstream.mainHead, "97ee66172c356366e6032c69264c1b393b1dc74d");
+    assert.equal(upstream.commitsChecked.length, 66);
     assert.ok(upstream.commitsChecked.includes("02a11ac5a566eab4afe15e5562240fdd11f5c9a4"));
     assert.ok(upstream.commitsChecked.includes("0a0dfdfa507f463efdce14611dcbfbf1506ac5d2"));
     assert.ok(upstream.commitsChecked.includes("e0625b62e349f49b31d70adcd631e885683c9724"));
@@ -303,19 +301,21 @@ describe("the records of this repository", () => {
     assert.deepEqual(patches, named ? [named] : []);
   });
 
-  test("patch-history.json holds the 26 deleted patches and the 41 packages that never had one", () => {
+  test("patch-history.json holds the 26 deleted patches and the 47 packages that never had one", () => {
     const record = json(`${folder}/patch-history.json`);
     assert.equal(record.patches.length, 26);
-    assert.equal(record.packagesWithoutPatch.length, 41);
-    assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-main-02a11ac5.tgz");
-    assert.equal(record.packagesWithoutPatch.at(-1).sha256, "7f2ba8e9495bfca7412827c330197efc3cf53604232401a04099a67463d33bcb");
-    assert.equal(record.packagesWithoutPatch.at(-2).file, "prologue-sdk-0.0.0-rc.1-main-3825662d.tgz");
-    assert.equal(record.packagesWithoutPatch.at(-3).file, "prologue-sdk-0.0.0-rc.1-b31-4a4d1d3c.tgz");
-    assert.equal(record.packagesWithoutPatch.at(-4).file, "prologue-sdk-0.0.0-rc.1-main-c764d970.tgz");
-    assert.equal(record.packagesWithoutPatch.at(-5).file, "prologue-sdk-0.0.0-rc.1-main-5cbf2601.tgz");
-    assert.equal(record.packagesWithoutPatch.at(-6).file, "prologue-sdk-0.0.0-rc.1-window31.tgz");
-    assert.equal(record.packagesWithoutPatch.at(-7).file, "prologue-sdk-0.0.0-rc.1-final103-bridge.tgz");
-    assert.equal(record.packagesWithoutPatch.at(-8).file, "prologue-sdk-0.0.0-rc.1-memory-p0-107.tgz");
+    assert.equal(record.packagesWithoutPatch.length, 47);
+    const historical = record.packagesWithoutPatch.slice(0, -6);
+    assert.deepEqual(record.packagesWithoutPatch.slice(-6).map((one: { file: string }) => one.file), ["prologue-sdk-0.0.0-rc.1-main-f279024a.tgz","prologue-sdk-0.0.0-rc.1-main-ce40e40a.tgz","prologue-sdk-0.0.0-rc.1-main-e7582079.tgz","prologue-sdk-0.0.0-rc.1-main-71662135.tgz","prologue-sdk-0.0.0-rc.1-main-0afbe2c3.tgz","prologue-sdk-0.0.0-rc.1-main-46d8920b.tgz"]);
+    assert.equal(historical.at(-1).file, "prologue-sdk-0.0.0-rc.1-main-02a11ac5.tgz");
+    assert.equal(historical.at(-1).sha256, "7f2ba8e9495bfca7412827c330197efc3cf53604232401a04099a67463d33bcb");
+    assert.equal(historical.at(-2).file, "prologue-sdk-0.0.0-rc.1-main-3825662d.tgz");
+    assert.equal(historical.at(-3).file, "prologue-sdk-0.0.0-rc.1-b31-4a4d1d3c.tgz");
+    assert.equal(historical.at(-4).file, "prologue-sdk-0.0.0-rc.1-main-c764d970.tgz");
+    assert.equal(historical.at(-5).file, "prologue-sdk-0.0.0-rc.1-main-5cbf2601.tgz");
+    assert.equal(historical.at(-6).file, "prologue-sdk-0.0.0-rc.1-window31.tgz");
+    assert.equal(historical.at(-7).file, "prologue-sdk-0.0.0-rc.1-final103-bridge.tgz");
+    assert.equal(historical.at(-8).file, "prologue-sdk-0.0.0-rc.1-memory-p0-107.tgz");
     // main #2020 used the second artifact with the same file name; both versions are recorded, not just the older one.
     const second = record.packagesWithoutPatch.find((one: { file: string; sha256: string }) => one.file === "prologue-sdk-0.0.0-rc.1-memory-p0.tgz");
     assert.ok(second, "the memory-p0 second version (main #2020) is recorded after replacement");
@@ -333,7 +333,7 @@ describe("the records of this repository", () => {
     const networkDispatch = record.patches.find((patch: { file: string }) => patch.file === "network-dispatch.patch");
     assert.equal(networkDispatch.package.sha256, "7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e");
     assert.equal(networkDispatch.package.file, "prologue-sdk-0.0.0-rc.1-network-dispatch.tgz");
-    assert.equal(record.upstream.commitsChecked.length, 60);
+    assert.equal(record.upstream.commitsChecked.length, 66);
     // The commit named for retrieval is one that is known to hold every patch; it is not "the last one" (every later commit
     // on main up to the deletion holds them too), so the key must not say so.
     assert.deepEqual(Object.keys(record.retrieval).filter((key) => /^last/i.test(key)), []);

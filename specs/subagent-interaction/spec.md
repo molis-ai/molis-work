@@ -586,3 +586,11 @@ C 轨 2026-11-17 代码前合审通过上述 D1 显示合同：notice 仅在 kin
 本轮 C/D 只读复核已关闭本人开场来源、D2 和 D3，另指出两个 D1 漏口：SDK 父 Session 给自己的等待注入没有子回报附件，旧 SDK 的 caller 开场又混有任务板指令。自注入按精确 from/to 归属投影为通用通知；子任务正文和摘要只取父索引证明的原委派/原重试原文，无法证明的开场投影为空 notice（新增显示种类 `task-unavailable`，由现有消费者本地化为“原任务说明不可用”），摘要同样不回退原混合 prompt。原消息账、模型输入、回复及本人补充均保留，不按文本内容切割、不迁移历史、不增加权限或入口。补旧历史、模糊来源与自注入的真实 Node 回归和已有浮窗浏览器证据；这不包含 §12.10 待决目录授权。
 
 C 轨代码前合审补充两条实施边界：Host 重试必须同时有已核验的原委派和本次 Run 的原重试文本，不能只凭 `subagent_retry_tasks` 展示旧 v1 混合说明；公开 `AgentSubagentView.task` 明确为“已核验的原任务说明，缺证据时为空”。缺原任务时 Coding 仍保存原评价，但不预填返工草稿，并在现有状态位置说明原因。D 轨已确认中英文占位及已有入口的展示范围。
+
+本轮已采用 [Prologue #133](https://github.com/molis-ai/molis-prologue/pull/133) 的官方 main `97ee66172c356366e6032c69264c1b393b1dc74d`，与独立审过的 `98429521b8123cd1749fdd67028e784d3fc1bbfe` 同树。两份独立 archive 构建的包逐字节相同，1,486,978 B，SHA-256 `df27da3fd1f7a8a1f358991730f5d0f83f1324f9ba962b53607b0ce8d50a0a6a`。上游 build/types/API/ratchet/docs/clean-consumer 及相关边界回归通过；CI run 44133072297 因付款/额度未启动，不记 CI 通过。包只补原信封显示摘要与精确 attempt 归属，不包含待决目录重授权。
+
+同步 main `dbcf562a67` 后构建与快照重生成通过（合并头 `a45da4ad5b`）。资源门禁独立基线通过：Coding 359,809→395,544 B（+35,735 B，gzip 132,196 B），共享懒包 96,161 B（gzip 34,618 B）；两项在已批 36,000/100,000 B 内。字面量翻译改用 SDK 同一函数的 const 引用，保持每次读取当前语言及原门禁追踪，不改压缩口径或门禁。
+
+本轮验证：`/tmp/molis-b59-unavailable-browser-tests.log` 中子任务 8/8、source 6/6、Coding rich HTML 2/2、Coding 状态/原成果/中英文返工 7/7 通过；会话 4/5，唯一失败仍是 §12.10 的 `ROOT_NOT_FOUND`。首条 Node 回归包含真实 Session 的旧 v1 首开场及旧重试，验证显示占位、原 SDK 历史仍可读取、本人补充和结果保留；父 Session 自通知仍进入实际模型但不进界面正文。共用浮窗中英文实物 `/tmp/molis-b59-unavailable-locales-final.log` 1/1 通过，截图在已忽略的 `.impeccable/qa/review/b59-unavailable/`；此浏览器用已投影的 owner fixture 验公共 source 和组件，不能代替 SDK 端到端或本人验收。C/D 轨已关闭本轮 P1（D 已查看中英文截图），当前 health 门禁通过且无翻译问题；完整统一验证、全 PR 评审、CI Full、收尾五问与合入尚未完成。
+
+同步后的消费者复验：Coding 三入口 3/3、助理四条路径 4/4、原 TaskBoard HTTP 1/1、助理 SDK 通知 1/1、原子轮次 1/1 通过（`/tmp/molis-b59-dbcf-consumers.log`）。换包测试暴露四处旧版本固定预期与漏记的新审计提交，已按官方 #133 更新，旧包记录及哈希检查保留；实际核过本批换下六份包的 Git blob、大小、SHA-256 及源码祖先关系，来源回归 79/79 通过（`/tmp/molis-b59-vendor-final.log`）。本轮测试、Auth/Work 与定样预览服务已清理本会话临时进程；独立 dev Home、浏览器资料及 #133 双打包目录已移除，截图和脱敏通过摘要保留。批次分支/工作树继续保留以完成 §12.10 后续，未声称完成整批清理或五问。

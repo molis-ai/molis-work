@@ -1,4 +1,5 @@
 import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AgentTurnView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderRichText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
 import { codingChangeHtml } from "./change-html.js";
@@ -30,7 +31,7 @@ function richHtml(text: string): string {
 }
 
 type PageBody = {
-  runs?: Array<{ turns?: Array<{ text: string; kind: string; notice?: "peer-update" | "subagent-input" }>; awaiting_input?: unknown }>;
+  runs?: Array<{ turns?: Array<{ text: string; kind: string; notice?: AgentTurnView["notice"] }>; awaiting_input?: unknown }>;
   subagents?: Array<{ children: Array<{ result: string | null }> }>;
   report?: { title: string; body_markdown: string; run_id: string };
 };

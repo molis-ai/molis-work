@@ -870,7 +870,7 @@ export interface AssistantWorkView {
     schedule_survives_close?: boolean;
     unsettled?: AssistantUnsettledChange[];
     undoable?: AssistantUndoable[];
-    memory_candidates?: AssistantMemoryCandidate[];
+    memory_candidates?: AssistantMemoryCandidate[] | null;
     memory_changes?: MemoryChange[];
     jobs?: AssistantBackgroundJob[];
     usage?: {

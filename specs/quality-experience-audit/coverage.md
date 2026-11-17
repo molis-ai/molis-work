@@ -120,8 +120,8 @@ Git QF-03 的独立与 Coding 内嵌入口已补真实仓库复现：提交说�
 | `plugins/official-integrations/github` | production | `.` | provider：受控网络、真实/fixture 显式分开、闭合错误与凭据不入内容行；未调用真实账户。 |
 | `plugins/official-integrations/gmail` | production | `.`、`./history-cursor`、`./scope` | provider-sync/history-cursor：分页边界、仅完整历史记录推进游标、失败重放与限额；未调用真实账户。 |
 | `plugins/official-integrations/rss` | production | `.`、`./host` | pinned-request/host：DNS 固定地址、TLS、压缩/大小限制、取消后释放；不是可直接换普通 fetch 的重复层。 |
-| `plugins/official-integrations/web-query` | experimental | `.` | index 工厂及仓内调用方：工厂无生产消费者；实际查询经 Host SEL/AnySearch。公开退役候选，未删除。 |
-| `plugins/official-integrations/youtube` | production | `.` | channel 归一化→Host source-vocabulary→公开 RSS；工厂无仓内调用，channel 工具仍被生产使用。 |
+| `plugins/official-integrations/web-query` | experimental | `.` | 工厂无生产入边/Runtime登记，也不进入当前运行依赖打包链；实际查询经 Host SEL/AnySearch。已补包根导出、Manifest/版本与门禁退役依赖，尚未删除；正常来源数据保留。 |
+| `plugins/official-integrations/youtube` | production | `.` | channel→Host vocabulary/intent/runtime→Runtime sourcePull→Feed，另核真实npm产物依赖；工厂/安装Manifest无消费者，channel与原包名仍需保留。完整退役旧安装面依赖包文件和门禁同步，尚未实施/验收。 |
 | `tooling/plugin-cli` | production | `.` | validate/package-files：只读 manifest/locales，不执行入口；CLI 打包/签名链登记，未生成发布包。 |
 | `plugins/native/alchemist` | slice | `.`、`./registration` | SqliteJobRunner、action-operations：持久 job、lease/attempt、取消与事务 fence；Host 特殊装配是已登记例外。 |
 | `plugins/native/coding` | production | `.`、`./contract`、`./registration` | session-observation 与 session-lifecycle：只读投影默认不落库；归档业务/执行两份不同 owner 事实并可接续半成功。 |
@@ -196,4 +196,4 @@ PF-02 接续实证：同 child id shape 重挂通过旧 file input 已卸载确�
 
 主干整合检查点：`31b0cba134` 合入 #2106 与 #2108，包数仍74。冲突处并入 Home attention 与 Sessions 的拒绝断言、旧页分页/开头消息/范围变化/取消回归，以及新主干账号恢复；parent drop 统一释放 ready 等待、回执和adapter。构建通过后，公开SDK本地子输入、框架来源/重挂、普通输入、真实Coding、Sessions等19文件183项组合验证全部通过（`/tmp/quality-audit-main-635-acceptance.log`）。材料恢复已生成三宽两主题6图，本次复核1024双主题及390深色；重复失败提示仍列QF-27接续，不因按钮恢复关闭整体体验问题。
 
-Memory 候选决定补深：正常助理工具生成候选→卡片HTTP接受/拒绝→Memory公开动作→SDK提交/ledger→后续读取。旧构建在两种实际响应断连交错中均继续写入，QF-30已据此从静态发现升级为真实复现；最小信号修复后取消零业务变动、新请求恢复、正常close不误取消均通过，相关8文件96项通过。候选读取故障的空列表兜底、无真实调用方的旧转发仍是本轮待改项，见QF-31；不能用前一条工具取消链的通过替代这些入口。QF-31新正常入口故障基线亦有效失败（应null、实际undefined），尚未改生产行为。
+Memory 候选决定补深：正常助理工具生成候选→卡片HTTP接受/拒绝→Memory公开动作→SDK提交/ledger→后续读取。旧构建在两种实际响应断连交错中均继续写入，QF-30已据此从静态发现升级为真实复现；最小信号修复后取消零业务变动、新请求恢复、正常close不误取消均通过，相关8文件96项通过。QF-31空列表兜底已由正常入口故障反例确认并修复：聚合明确null、独立HTTP安全报错，真实UI重试/恢复有候选及恢复为空、草稿保留、正式写入读回一次全部通过；最终3文件23项、构建与健康检查通过。旧决定转发及重复GET仍待清理；同链新发现候选query会结算过期状态，且短期候选到期仍可显示，按QF-32/QEA-51–52继续复现与处理。当前头Full CI和资源验收未完成。

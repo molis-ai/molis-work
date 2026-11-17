@@ -4,7 +4,7 @@
 
 ## 当前判断
 
-2026-11-16 已整合基线：`4a08c41ca`（Sessions #2097）已整合到工作树，74包构建通过，合并提交 fc4e39e38 已保留，后续 Git 批保存于 84987a6c3 与 8ac8b806e。新增 `horizontal/sessions` 及其 UI/搜索/助理链纳入接续范围，不能继续沿用 73 包作为最新主干总数。BL-177 在该主干已改“部分实现”，保留 35/45/60 批和本人验收，不按新实现标题关闭整项。前批改造保存于 `a31a745e6`。现已保存共享输入材料检查点 `ba93f5c0b5`，并合入 `6359987103`（Sessions 合后复查 #2106 与公共子任务部件 #2108），合并提交 `31b0cba134`。两边新增的权限/会话回归均保留，公共 composer 的 ready/local placement 与本批来源/ack合同同时保留；API快照已重新生成，完整构建通过，组合验收19文件183项全部通过（13.9分钟，`/tmp/quality-audit-main-635-acceptance.log`）。新增重试用例第一次排队被主动撤下，未运行；后续已在这次组合验收实际执行通过。随后健康门禁发现 pageComposer 153行，已把独立的提交结果转换移到同文件函数，不改阈值；正在复验。QF-30 真实断连基线复现接受/拒绝晚写，最小信号修复已构建，等待独立验收；仍不能据此将本轮全部六方向结项。
+2026-11-16 已整合基线：`4a08c41ca`（Sessions #2097）已整合到工作树，74包构建通过，合并提交 fc4e39e38 已保留，后续 Git 批保存于 84987a6c3 与 8ac8b806e。新增 `horizontal/sessions` 及其 UI/搜索/助理链纳入接续范围，不能继续沿用 73 包作为最新主干总数。BL-177 在该主干已改“部分实现”，保留 35/45/60 批和本人验收，不按新实现标题关闭整项。前批改造保存于 `a31a745e6`。现已保存共享输入材料检查点 `ba93f5c0b5`，并合入 `6359987103`（Sessions 合后复查 #2106 与公共子任务部件 #2108），合并提交 `31b0cba134`。两边新增的权限/会话回归均保留，公共 composer 的 ready/local placement 与本批来源/ack合同同时保留；API快照已重新生成，完整构建通过，组合验收19文件183项全部通过（13.9分钟，`/tmp/quality-audit-main-635-acceptance.log`）。新增重试用例第一次排队被主动撤下，未运行；后续已在这次组合验收实际执行通过。随后健康门禁发现 pageComposer 153行，已把独立的提交结果转换移到同文件函数，不改阈值，复验通过。QF-30 真实断连基线复现接受/拒绝晚写，最小信号修复与相关8文件96项验收通过，保存于56afa9c44e；仍不能据此将本轮全部六方向结项。QF-31读取故障基线有效失败，分区失败与原位重试实现已写，尚待本次构建和实操。
 
 第九批视觉补验已通过，12 张中英文/三宽/两主题截图生成，人工复核英文390深色与中文1440浅色，Git 固定差异已加载。第十/十一批14文件126项通过，第十二批11文件65项通过，具体边界见下文。英文导入中的旧中文警告另列 QF-15，未宣称语言全通过。
 
@@ -201,7 +201,7 @@ Host JSON、原件上传原来都没有把断连传给已支持取消的 artifac
 | PF-04 后台任务：`apps/local-host/src/home-background-tasks.ts:22` 与 mainline；Coding/Images 已贡献，项目引导整理仍只有后台执行 | 有工作却不在任务入口；汇总失败又看似无工作 | 任务状态仍归业务 owner，平台管发现/完整性/可执行命令。接入既有 background_tasks/reports_to，修 QF-04；引导归 [BL-107](../backlog/BL-107.md) | P1体验/中 |
 | PF-05 设置：`packages/contracts/src/platform/settings.ts:16,30` 有层级/CAS/request_id；`packages/plugin-sdk/src/sandbox-agent-declarations.ts:51` 仍拒绝沙箱 settings_entries；原生插件没有声明消费者 | 有合同不等于作者可用，局部设置仍各做继承、修订、返回 | 设置值/规则归 owner，平台管声明、继承呈现和调用。先完成 Runtime 读写兑现、选一个真实设置迁入再推广；本轮不建立全局配置大仓 | P2/高 |
 | PF-06 草稿/返回：`packages/design-system/src/composer-rules.ts` 与 frame drafts 已有；Git 自有 drafts 未进正常编辑入口 | 同样离开再回来，不同编辑器丢失情况不同；未用工具及单测形成“已支持”的错觉 | 草稿文本归编辑器，平台提供按 Home/项目/安装/入口隔离与返回。Git 按工作区/文件修订接入，冲突正文不套输入框 4KB 限额；成功后才清草稿 | P1体验/中 |
-| PF-07 来源拉取：Feed/Alchemist 用 `services.sourcePull`；`apps/local-host/src/source-vocabulary.ts:13-31` 的 presentation 已走 IntegrationRegistry，另保留 RSS/YouTube 专属纯函数；`plugins/official-integrations/web-query/src/index.ts:29` 与 `plugins/official-integrations/youtube/src/index.ts:28` 工厂无仓内生产调用 | 新声明路径与旧工厂并存，旧专属词汇又固化在服务合同；但新增来源的展示已经可走登记表，不能泛称所有新增来源都要改 Host | 集成拥有 URL/cursor/格式规则，平台管受控网络/凭据/证据。优先复用已有 presentation 登记；迁移剩余专属调用方时评估声明式输入是否足够，再废弃旧词汇/工厂。先核包外导出，保留 channel 工具；RSS 固定 IP 与 OAuth 刷新不硬并成普通 fetch | P2/中高 |
+| PF-07 来源拉取：Feed 用 `services.sourcePull`；Alchemist 研究走 Host Search Runtime，市场脉搏用插件来源适配器；`apps/local-host/src/source-vocabulary.ts:13-31` 的 presentation 已走 IntegrationRegistry，另保留 RSS/YouTube 专属纯函数；`plugins/official-integrations/web-query/src/index.ts:29` 与 `plugins/official-integrations/youtube/src/index.ts:28` 工厂无仓内生产调用 | 新声明路径与旧工厂并存，旧专属词汇又固化在服务合同；但新增来源的展示已经可走登记表，不能泛称所有新增来源都要改 Host | 集成拥有 URL/cursor/格式规则，平台管受控网络/凭据/证据。优先复用已有 presentation 登记；迁移剩余专属调用方时评估声明式输入是否足够，再废弃旧词汇/工厂。先核包外导出，保留 channel 工具；RSS 固定 IP 与 OAuth 刷新不硬并成普通 fetch | P2/中高 |
 | PF-08 等待/调度/取消：`packages/plugin-sdk/src/execution-lifetime.ts`、`packages/plugin-runtime/src/activation-jobs.ts`、`horizontal/scheduler/src/index.ts:252,274,392` 租约、Workflow/Alchemist 自有进程记录 | 散落的计时器容易泄漏；但不同业务终态强并会破坏恢复 | 复用资源生命期工具；业务流程状态及租约回执留原 owner。Feed QF-02 已修；不再造通用万能 Job 表 | P2/低到中 |
 | PF-09 调用追踪：`packages/kernel/src/action-settlement.ts:107,152,175`、`horizontal/observation/src/records.ts:164` 已有 call_id/invocation_id/parent_invocation_id；本轮 request-failure-call-id 浏览器回归覆盖故障详情 | 这部分已有跨层身份，不是应重新建设的缺口；本轮未证明所有插件业务写入均已完整关联 | Kernel 管调用身份，owner 管 subject/revision/事务结果，Workbench 管可见反馈。保留现有观测/查询；后续按具体未关联写入补证，不把泛化风险登记成已复现缺陷，不建立第二套日志身份 | 保持现有方案 |
 | PF-10 HTTP 中止：Search 入口未透传、composer 已透传 | 调用方取消了，后台继续做；重复请求叠加 | Host 负责 transport→Action signal，SDK/Runtime 负责停止和写入 fence；修 QF-08，不为每插件造 AbortController 框架 | P2/低到中 |
@@ -467,6 +467,20 @@ PF-02 新增正常入口证据：`/tmp/quality-audit-composer-required.log` 15�
 
 ### QF-31 / P2：助理把候选读取故障显示成没有待处理事项
 
-`apps/local-host/src/assistant/assistant-memory-bridge.ts:65` 将异常转成[]，`assistant-service.ts:181` 据此省略候选分区，页面无从区分空集合与暂时读不到。应补该分区读取完整性与原位重试，正常空结果继续为空，不将整个work伪造成失败，不再给每个入口复制候选状态。动态故障/恢复与正式用户入口尚待验证。
+原 `apps/local-host/src/assistant/assistant-memory-bridge.ts:65` 将异常转成[]，`assistant-service.ts:181` 据此省略候选分区，页面无从区分空集合与暂时读不到。旧构建正常入口故障用例有效失败（期望null、实际undefined，`/tmp/quality-audit-memory-read-baseline.log`）。已让桥保留错误，聚合只将该分区投影为null，正常空继续省略；工作台显示原位重试、移除旧决定按钮，不把整个work伪造成失败。独立候选HTTP未知错误映射为固定通用说明，合法业务拒绝保留；原始诊断只经repeatingFailure记录无正文的错误类型/码及work_id，不暴露给用户。
+
+`/tmp/quality-audit-memory-read-final.log` 中 QEA-50 已通过真实UI故障、失败重试、恢复候选、接受后Memory公开管理读回一个正式版本1/一条accepted变动、再次故障后恢复为空，草稿保留；六张三宽两主题图已生成，复核1440浅色与390深色。最初实操因把并发日志误定为固定两段而失败，测试已改为等待在途真实成功读取后检查稳定失败期不继续增长。该批6/7文件通过，唯一未通过是主脚本773行超过原770行限制；现按原片段装配方式把待处理分区整体归既有 assistant-side-path.ts 侧栏片段，主脚本降至739行；保留可静态展开的原装配和结构断言，阈值与门禁不改。最终侧栏归并构建退出0（/tmp/quality-audit-memory-sidepath-build.log），3文件23项复验全部通过（/tmp/quality-audit-memory-sidepath-acceptance.log），健康门禁退出0（/tmp/quality-audit-memory-sidepath-health.log）。三宽两主题图均生成，另已实看1024浅色：提示与单一重试完整可见、草稿未丢。中间新增独立片段因静态展开器不认识而使健康检查失败；最终复用已有侧栏片段，未改门禁映射、阈值或例外。公开API快照已更新，当前Full CI与资源审批仍待执行。
 
 同链清理核对：`apps/local-host/src/memory/memory-host.ts:419,421` 两条相同GET pairs分支，后一条不可达；`assistant-memory-bridge.ts:73,79` 的旧accept/discard方法只有 `tests/assistant-memory.test.ts:328,332,339` 调用，正常卡片已迁Memory公开动作。后续迁移这些测试到真实公开入口后删旧转发，保留业务断言，不为减少测试数量删除保障。
+
+### PF-07 来源链复核与退役边界（只读结论，未实施）
+
+补核 `source-pull-service.ts` → Host `plugin-source-pull-service.ts` / `source-pull-intent.ts` / `source-pull-runtime.ts` → RSS/YouTube 规则与 Search Runtime → Feed `runtime-source-pull.ts` / `source-sync.ts`。Feed 拥有来源/游标/重试及提交前配置复核，平台拥有实例身份、授权与取消、正文 hold 后写入和证据清理；RSS 的 DNS/固定地址、跨主机跳转限制、ETag/304 是实际网络边界，不能因精简重复逻辑删除。presentation 已有 IntegrationRegistry，不另建平台目录。
+
+报告此前把 Alchemist 列作 sourcePull 消费者不准确，现已纠正：`apps/local-host/src/alchemist-service-host.ts:72` → `alchemist-search.ts:20` → 共享 Search Runtime；市场脉搏由 `plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts:140` 装配来源。Alchemist 保留自己的作业 lease/checkpoint，和 Feed 来源游标不是同一事实。复核未确认新的P1，也没有证据支持为退役工厂统一两套业务状态。
+
+可退役对象：WebQuery 整包没有生产依赖入边；YouTube 保留包根 channel 工具及原包名，移除无调用的工厂与安装 Manifest。两包虽 private:true，旧工厂是 package exports 的包根导出，不能称为文件私有函数。YouTube 的真实 Host 调用在 source-vocabulary/source-pull-intent/source-pull-runtime，运行时依赖经 `apps/local-host/src/installer/npm-package.ts:29` 打入产物；移除 Manifest 必须同时调整 package.files，验实际产物仍能导入 channel。WebQuery 不在当前运行时依赖产物链。保留现行 Source 的 youtube_channel/web_query 数据和 SourcePullRequest，无需迁移用户来源。
+
+实施前置已核实：`scripts/check-package-boundaries.mjs:247–274` 硬编码五个旧集成包的 Manifest/包文件/入口身份，退役需要精确移除这两个退役对象的检查，不能改成文件缺失就跳过。仓库要求门禁修改先获用户批准；先准备具体退役差异、包清单/锁文件/六个专属版本声明及生成物同步，再提交该规则调整供审阅。共享 schema/host/listener/signals 版本与仍使用的集成检查保留。BL-unused-integration-packages 此时仍未完成。
+
+另有独立重复实现：Feed `source-request.ts:74` 生成的 intent 只用于本地指纹，`runtime-source-pull.ts:40` 的实际 pull 忽略它，Host 又生成一份；平台已有 sourcePull.plan。后续迁移实际消费者时，必须比较原 operation/key 指纹、终态重放及取消/引用回收，不能直接删掉本地检查。候选验收沿 Runtime Feed 的 YouTube 注册→实际拉取→同key重放、integration-registry/source-pull拒绝、RSS socket、AnySearch single owner及真实npm产物；目前只有静态证据，未宣称这些路径已验收。

@@ -7,6 +7,7 @@ import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/se
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { memoryInputSnapshots } from "../memory/memory-source-identity.js";
 import { assistantMemoryTrail } from "./assistant-memory-trail.js";
+import { repeatingFailure } from "../host-log.js";
 import { hasExternalSessionContext } from "./assistant-external-sessions.js";
 import type { AssistantContinuations } from "./assistant-continuations.js";
 import type { AssistantServicePorts } from "./assistant-service-shared.js";
@@ -20,6 +21,7 @@ export type AssistantMemoryBridgeLinks = Pick<AssistantWorkReads, "assistantPart
  * collaborators come through `link`.
  */
 export class AssistantMemoryBridge {
+  private readonly candidateReads = repeatingFailure("assistant", "memory_candidates_unavailable");
   constructor(private readonly store: Pick<AssistantStore, "get" | "rounds">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly recalled: Map<string, string>, private readonly chosenMemory: Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>, private readonly memorySourceWithdrawals: Set<(eventId: string) => void>, private readonly link: AssistantMemoryBridgeLinks) {}
 
   /** The platform memory (specs/archive/memory-system): the Assistant reads and writes it like every other consumer. */
@@ -65,8 +67,15 @@ export class AssistantMemoryBridge {
   async memoryCandidates(workId?: string): Promise<AssistantMemoryCandidate[]> {
     const memory = this.ports.memory?.();
     if (!memory) return [];
-    return (await memory.candidates({ actor_id: this.actorId, project_id: null, consumer: "assistant", person: true }, { scope: "all", anywhere: true, ...(workId ? { work_id: workId } : {}) })
-      .catch(() => [])).filter(candidate => candidate.work).map(candidate => assistantCandidate(candidate));
+    const key = workId ?? "all";
+    try {
+      const candidates = await memory.candidates({ actor_id: this.actorId, project_id: null, consumer: "assistant", person: true }, { scope: "all", anywhere: true, ...(workId ? { work_id: workId } : {}) });
+      this.candidateReads.worked(key);
+      return candidates.filter(candidate => candidate.work).map(candidate => assistantCandidate(candidate));
+    } catch (error) {
+      this.candidateReads.failed(key, error, { work_id: workId ?? null });
+      throw error;
+    }
   }
 
   /** The person keeps a suggestion (as it was, or as they reworded it): written like anything they asked to remember. */

@@ -178,13 +178,13 @@ export class AssistantService {
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     const jobs = await this.jobs.views(work);
     const undoable = this.store.undos(this.actorId, work.work_id).slice(-10).map(({ work_id: _work, reference, input: _input, told: _told, ...view }) => ({ ...view, capability_id: reference.capability_id }));
-    const memory_candidates = await this.memory.memoryCandidates(work.work_id);
+    const memory_candidates = await this.memory.memoryCandidates(work.work_id).catch(() => null);
     const { changes: memory_changes } = await this.memory.memoryTrail(work, rounds, this.store.rounds(work.work_id), assistant?.memory ?? new Map()).catch(() => ({ changes: [] as MemoryChange[] }));
     const usage = work.executor.kind === "plugin" ? null : await this.budget.workUsage(work).catch(() => null);
     await this.offers.sweep(work);
     return { work: this.reads.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(plugin?.reviews ?? [])],
       cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.reads.workObjects(work), ...(delegated.length ? { delegated } : {}),
-      ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}), ...(undoable.length ? { undoable } : {}), ...(memory_candidates.length ? { memory_candidates } : {}), ...(memory_changes.length ? { memory_changes } : {}),
+      ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}), ...(undoable.length ? { undoable } : {}), ...(memory_candidates === null || memory_candidates.length ? { memory_candidates } : {}), ...(memory_changes.length ? { memory_changes } : {}),
       ...(usage && (usage.rounds || usage.budget_tokens !== null) ? { usage } : {}), ...(problem ? { problem } : {}),
       ...assistant?.queued };
   }

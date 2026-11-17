@@ -204,36 +204,6 @@ ${ASSISTANT_CONVERSATION_PART}
   };
 ${ASSISTANT_SIDE_KIT_PART}
 
-  /* 还等你处理: everything in this work that waits on the person besides the conversation's own cards, each with its button. */
-  const renderAttention = (work) => {
-    const node = blocks.attention;
-    if (!node) return;
-    const objects = work && view.objects ? view.objects.filter((o) => o.state !== "current") : [];
-    const children = work && view.delegated ? view.delegated.filter((child) => WAITING.has(child.state) && !child.taken_back) : [];
-    const suggestions = work && view.memory_candidates ? view.memory_candidates : [];
-    const signature = JSON.stringify([work && work.work_id, objects.map((o) => [o.subject.id, o.state, o.title, o.current_revision]), children.map((c) => [c.work_id, c.state, c.title]), suggestions.map((c) => c.candidate_id)]);
-    if (node.dataset.signature === signature) return;
-    node.dataset.signature = signature;
-    keepFocus(node, () => {
-      const cards = [];
-      children.forEach((child) => cards.push(card({ icon: "workflow", tone: "attention", ask: true, title: child.title,
-        sub: readText("workbench.assistant-island.sub-task") + " · " + stateLabel(child.state), actions: [sideAct(child.state === "waiting-input" ? readText("workbench.assistant-island.answer") : readText("workbench.assistant-island.take-look"), child.title, async () => switchTo(child.work_id), false, "primary")] })));
-      objects.forEach((object) => {
-        const open = openObject(object);
-        cards.push(card({ icon: "alert", tone: object.state === "missing" || object.state === "unavailable" ? "blocked" : "attention", ask: true, title: objectTitle(object),
-          sub: object.state === "changed" ? readText("workbench.assistant-island.changed-since-was-used") + " · " + objectDetail(object) : objectState(object),
-          actions: open ? [sideAct(readText("workbench.assistant-island.open"), object.title, open, false, "secondary")] : [] }));
-      });
-      suggestions.forEach((candidate) => {
-        const settle = (path) => async () => { await api("/memory-candidates/" + encodeURIComponent(candidate.candidate_id) + path, "POST", { expected_version: candidate.version }); await reload(); };
-        cards.push(card({ icon: "sparkles", tone: "suggest", ask: true, title: readText(candidate.held ? "workbench.assistant-island.asked-me-remember-named" : "workbench.assistant-island.remember-named", { text: candidate.text }), detail: candidate.held,
-          sub: (candidate.held ? "" : candidate.why + " · ") + proc.memoryScope(candidate.scope),
-          actions: [sideAct(readText("workbench.assistant-island.keep"), candidate.text, settle("/accept"), false, "primary"), sideAct(readText("workbench.assistant-island.no-thanks"), candidate.text, settle("/discard"), false, "secondary")] }));
-      });
-      paintBlock(node, readText("workbench.assistant-island.still-waiting"), "bell", cards.length ? stack(cards) : null, String(cards.length), true, true);
-    });
-  };
-
 ${ASSISTANT_SIDE_PATH_PART}
 
   /* 上下文, 工作环境, 连接与工具 are drawn in assistant-side-context.ts: what the next Send carries and what rounds used; where the work runs and what it can call. */
@@ -415,7 +385,7 @@ ${ASSISTANT_STRIP_PART}
     const children = work && view.delegated ? view.delegated : [];
     const usage = work && view.usage ? view.usage : null;
     const look = objects.some((o) => o.state !== "current") || children.some((child) => WAITING.has(child.state))
-      || Boolean(work && view.memory_candidates && view.memory_candidates.length) || Boolean(usage && usage.budget_tokens !== null && usage.tokens >= usage.budget_tokens);
+      || Boolean(work && (view.memory_candidates === null || view.memory_candidates?.length)) || Boolean(usage && usage.budget_tokens !== null && usage.tokens >= usage.budget_tokens);
     sideDot.hidden = !look;
   };
 

@@ -1403,6 +1403,7 @@
     "workbench.assistant-island.keep": "Keep",
     "workbench.assistant-island.kept-its-own": "kept on its own",
     "workbench.assistant-island.kept-memory": "Kept in memory",
+    "workbench.assistant-island.memory-candidates-unavailable": "Memory suggestions are temporarily unavailable",
     "workbench.assistant-island.merged-older-one": "merged with an older one",
     "workbench.assistant-island.mode": "Mode",
     "workbench.assistant-island.mode-first-turn": "Mode for the first turn",

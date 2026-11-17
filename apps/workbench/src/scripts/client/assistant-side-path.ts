@@ -1,5 +1,38 @@
-/** The side pane's 路径 block: from who asked and where it started, through the session and the sub-tasks. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place. */
-export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 路径: a line from who asked and where it started, through the session and the sub-tasks, to what comes later. */
+/** The side pane’s pending decisions and work relationships: changed objects, memory suggestions, the session and its sub-tasks. Joined into ASSISTANT_ISLAND_FACTORY_SCRIPT. */
+export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 还等你处理: everything in this work that waits on the person besides the conversation's own cards, each with its button. */
+  const renderAttention = (work) => {
+    const node = blocks.attention;
+    if (!node) return;
+    const objects = work && view.objects ? view.objects.filter((o) => o.state !== "current") : [];
+    const children = work && view.delegated ? view.delegated.filter((child) => WAITING.has(child.state) && !child.taken_back) : [];
+    const suggestions = work && view.memory_candidates ? view.memory_candidates : [];
+    const suggestionsUnavailable = Boolean(work && view.memory_candidates === null);
+    const signature = JSON.stringify([work && work.work_id, objects.map((o) => [o.subject.id, o.state, o.title, o.current_revision]), children.map((c) => [c.work_id, c.state, c.title]), suggestionsUnavailable, suggestions.map((c) => c.candidate_id)]);
+    if (node.dataset.signature === signature) return;
+    node.dataset.signature = signature;
+    keepFocus(node, () => {
+      const cards = [];
+      children.forEach((child) => cards.push(card({ icon: "workflow", tone: "attention", ask: true, title: child.title,
+        sub: readText("workbench.assistant-island.sub-task") + " · " + stateLabel(child.state), actions: [sideAct(child.state === "waiting-input" ? readText("workbench.assistant-island.answer") : readText("workbench.assistant-island.take-look"), child.title, async () => switchTo(child.work_id), false, "primary")] })));
+      objects.forEach((object) => {
+        const open = openObject(object);
+        cards.push(card({ icon: "alert", tone: object.state === "missing" || object.state === "unavailable" ? "blocked" : "attention", ask: true, title: objectTitle(object),
+          sub: object.state === "changed" ? readText("workbench.assistant-island.changed-since-was-used") + " · " + objectDetail(object) : objectState(object),
+          actions: open ? [sideAct(readText("workbench.assistant-island.open"), object.title, open, false, "secondary")] : [] }));
+      });
+      if (suggestionsUnavailable) cards.push(card({ icon: "alert", tone: "attention", title: readText("workbench.assistant-island.memory-candidates-unavailable"),
+        actions: [sideAct(readText("common.control.retry"), readText("workbench.assistant-island.memory-candidates-unavailable"), () => reload(), false, "secondary")] }));
+      suggestions.forEach((candidate) => {
+        const settle = (path) => async () => { await api("/memory-candidates/" + encodeURIComponent(candidate.candidate_id) + path, "POST", { expected_version: candidate.version }); await reload(); };
+        cards.push(card({ icon: "sparkles", tone: "suggest", ask: true, title: readText(candidate.held ? "workbench.assistant-island.asked-me-remember-named" : "workbench.assistant-island.remember-named", { text: candidate.text }), detail: candidate.held,
+          sub: (candidate.held ? "" : candidate.why + " · ") + proc.memoryScope(candidate.scope),
+          actions: [sideAct(readText("workbench.assistant-island.keep"), candidate.text, settle("/accept"), false, "primary"), sideAct(readText("workbench.assistant-island.no-thanks"), candidate.text, settle("/discard"), false, "secondary")] }));
+      });
+      paintBlock(node, readText("workbench.assistant-island.still-waiting"), "bell", cards.length ? stack(cards) : null, suggestionsUnavailable ? "" : String(cards.length), true, true);
+    });
+  };
+
+  /* 路径: a line from who asked and where it started, through the session and the sub-tasks, to what comes later. */
   const renderPath = (work) => {
     const node = blocks.path;
     if (!node) return;

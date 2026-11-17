@@ -48,7 +48,7 @@ import { memoryHostFor } from "../memory/memory-host.js";
 import { builtinRegistrations } from "../agent-definitions/builtin-agents.js";
 import { projectDeletedHooksFor } from "../project-deleted-hooks.js";
 import { purgeAssistantProject } from "./assistant-project-purge.js";
-import { questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
+import { actionErrorKind, questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 import { questionErrors } from "../agent-question-card.js";
 import { AssistantQuestionDrafts } from "./assistant-questions.js";
 import { drawAssistantReply } from "./assistant-view-html.js";
@@ -498,7 +498,10 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "memory-prefs") return { status: 200, body: { prefs: service.memory.saveMemoryPrefs(body as never) } };
       // What works suggest keeping: the person accepts (optionally reworded) or declines each.
-      if (method === "GET" && parts.length === 1 && parts[0] === "memory-candidates") return { status: 200, body: { candidates: await service.memory.memoryCandidates() } };
+      if (method === "GET" && parts.length === 1 && parts[0] === "memory-candidates") return { status: 200, body: { candidates: await service.memory.memoryCandidates().catch(error => {
+        if (error instanceof ActionError && actionErrorKind(error) !== "internal") throw error;
+        throw new ActionError("actions.execution_failed", uiText.text("workbench.assistant-island.memory-candidates-unavailable"), { cause: error });
+      }) } };
       // Keeping or declining a suggestion is Memory's own action, with the version the panel saw (B9).
       if (method === "POST" && parts.length === 3 && parts[0] === "memory-candidates" && (parts[2] === "accept" || parts[2] === "discard")) {
         return { status: 200, body: await settleMemoryCandidate(ports, parts[1]!, parts[2], body, responseAbortSignal(response)) };

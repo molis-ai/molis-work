@@ -1365,6 +1365,7 @@
     "workbench.assistant-island.keep": "记住",
     "workbench.assistant-island.kept-its-own": "自动记住",
     "workbench.assistant-island.kept-memory": "记住的事",
+    "workbench.assistant-island.memory-candidates-unavailable": "记忆建议暂时读不到",
     "workbench.assistant-island.merged-older-one": "和旧的一条合并",
     "workbench.assistant-island.mode": "方式",
     "workbench.assistant-island.mode-first-turn": "第一轮的方式",

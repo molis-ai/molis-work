@@ -130,6 +130,8 @@ async function projectSubagentView(
     child_run: { session_id: child.session.id, run_id: child.run.id },
     ...(nodeId ? { node_id: nodeId } : {}),
     role_id: role.role_id,
+    role_version: role.version,
+    execution: role.execution,
     role_name: role.name,
     task: latestStream.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => turn.text).join("\n\n"),
     state: effectiveState,

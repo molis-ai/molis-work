@@ -46,6 +46,10 @@ function boardNode(page: Page, target: BoardTarget): HTMLElement | undefined {
 async function navigate(page: Page, id: string, target: BoardTarget) {
   const { host, refs, root, s, turns } = page, record = s.state.sessions.find(item => item.session_id === id);
   if (!record) throw new Error(uiText.text("coding.error.session-unreadable"));
+  if (target.kind === "child") {
+    await host.view.openTask({ session: id, run: target.run_id, child: target.child_id });
+    return;
+  }
   host.openItem("coding", id, record.title);
   await openCodingItem(page, id);
   if (s.current !== id) return;
@@ -53,10 +57,9 @@ async function navigate(page: Page, id: string, target: BoardTarget) {
   if (target.kind === "step") { await refs.stepReports.open(id, target.run_id, target.step_id); return; }
   // Everything else lives in the conversation or the results panel: leave the board and show it there.
   showBoard(page, false);
-  if (["plan", "child", "recovery", "reviews"].includes(target.kind)) root.dataset.codingResults = "true";
+  if (["plan", "recovery", "reviews"].includes(target.kind)) root.dataset.codingResults = "true";
   const node = boardNode(page, target);
   if (!node || node.hidden) throw new Error(uiText.text("coding.error.content-unreadable"));
-  if (target.kind === "child" && node instanceof HTMLDetailsElement) node.open = true;
   if (turns.contains(node)) s.follow.release();
   node.scrollIntoView({ block: "nearest" });
   node.tabIndex = -1;

@@ -23,7 +23,7 @@ export interface AgentStartExecution extends ActionCallOrigin {
   /** Bind the real business child before its first Run freezes tools; re-resolve on an explicit continuation. */
   subagentGateway?(role: AgentFrozenSubagentRole, session: AgentSessionRef): Promise<NonNullable<AgentFrozenRole["action_gateway"]>>;
   /** Current declaration and execution ceiling, checked again at the child's actual dispatch. */
-  assertSubagent?(role: AgentFrozenSubagentRole): void;
+  assertSubagent?(role: Pick<AgentFrozenSubagentRole, "role_id" | "version" | "execution" | "host_tools">): void;
 }
 
 /** An authorized directory. The Host resolves and verifies it; the Plugin never passes a raw path. */

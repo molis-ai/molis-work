@@ -75,6 +75,8 @@ test("subtask original requests deliver once, continue the same child and surviv
     await f.until(() => childCalls === 1);
     const [child] = await f.adapter.subagents!.list(parent.ref); assert.ok(child?.child_run);
     const port = () => f.adapter.subagents!;
+    assert.doesNotThrow(() => port().assertCurrent!(parent.ref, child.subagent_id, child.child_run!));
+    assert.throws(() => port().assertCurrent!({ ...parent.ref, run_id: "another-parent" }, child.subagent_id, child.child_run!));
     const control: AgentSubagentControl = { actor_id: owner.actor_id, original_text: text, execution: {} };
     const send: AgentSubagentCommand = { kind: "send", text, child_run: child.child_run, request_id: "original-send" };
     await assert.rejects(port().command!(parent.ref, child.subagent_id, send, { ...control, original_text: undefined }), /原件/);
@@ -97,6 +99,8 @@ test("subtask original requests deliver once, continue the same child and surviv
     const [after] = await port().list(parent.ref); assert.ok(after?.child_run);
     assert.equal(after.subagent_id, child.subagent_id); assert.equal(after.child_run.session_id, child.child_run.session_id);
     assert.notEqual(after.child_run.run_id, child.child_run.run_id); assert.equal(childCalls, 3);
+    assert.throws(() => port().assertCurrent!(parent.ref, child.subagent_id, child.child_run!), /原子任务执行已改变/);
+    assert.doesNotThrow(() => port().assertCurrent!(parent.ref, child.subagent_id, after.child_run!));
     assert.equal((await port().command!(parent.ref, child.subagent_id, { kind: "stop", child_run: child.child_run, request_id: "stale-stop" }, control)).state, "not-applied");
     const before = f.requests.length;
     await f.reopen();

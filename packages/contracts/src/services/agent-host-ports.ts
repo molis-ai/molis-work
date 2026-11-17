@@ -117,6 +117,8 @@ export interface AgentSubagentView {
   subagent_id: string;
   parent_run: AgentRunRef;
   role_id: string;
+  role_version: number;
+  execution: import("./agent-host-start.js").AgentFrozenSubagentRole["execution"];
   /** Name frozen at dispatch, unaffected by later role edits. */
   role_name?: string;
   /** Raw historical task for viewing; not an attestation for reuse as model input. */
@@ -173,6 +175,8 @@ export interface AgentSubagentsCapability {
   workspaces?: true;
   list(run: AgentRunRef): Promise<AgentSubagentView[]>;
   conversation?(run: AgentRunRef, subagentId: string): Promise<AgentSubagentConversation>;
+  /** Trusted synchronous effect fence against the original child attempt and retained ancestor authority. */
+  assertCurrent?(run: AgentRunRef, subagentId: string, childRun: AgentRunRef): void;
   /** Ephemeral invalidation only; subscribe before reading original facts. */
   subscribe?(run: AgentRunRef, changed: () => void): Promise<() => void>;
   command?(run: AgentRunRef, subagentId: string, input: AgentSubagentCommand, control: AgentSubagentControl): Promise<AgentSubagentRequestResult>;

@@ -221,9 +221,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const closeMessages = onFailureClose(() => messages.close());
   const closeStepBoards = onFailureClose(() => stepBoards.close());
   const reviews = { runtime, host, state, index, options, surfaces, projectWork };
-  const pendings = createPendingPort(reviews);
+  const pendings = createPendingPort(reviews, effects.assertCurrent);
   const remember = createReviewMemory(reviews);
-  const approvals = createApprovals(reviews, pendings, remember);
+  const approvals = createApprovals(reviews, pendings, remember, effects.assertCurrent);
   const detachReviews = restoreReviewHistory(reviews, pendings, remember);
   const closeReviews = onFailureClose(() => detachReviews?.());
   const checkpoints = options.reviewQueue ? createPrologueCheckpoints({ runtime, queue: options.reviewQueue, readIndex: index.read, readResource: ref => readResource(runtime, ref),

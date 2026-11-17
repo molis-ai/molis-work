@@ -10,14 +10,16 @@ import { closeTaskFloatContent, forgetTaskFloatContent, openTaskFloatContent } f
 
 import { accountTransition } from "./account-transition.js";
 import { installTaskFloatShell } from "./task-float-shell.js";
+import { assistantSubtaskReviews, type AssistantWorkReviewMount, type AssistantSubtaskReviewFactories } from "./assistant-subtask-reviews.js";
+import type { AssistantScope } from "@molis-ai/molis-work-contracts/services/assistant";
 
-interface AssistantTaskOpen { interaction(root: HTMLElement, host: InteractionClientHost): InteractionClient; base: string; signal: AbortSignal; focus: HTMLElement | null; work_id: string; parent_run_id?: string; child_id?: string }
+interface AssistantTaskOpen { interaction(root: HTMLElement, host: InteractionClientHost): InteractionClient; reviews: AssistantWorkReviewMount; base: string; signal: AbortSignal; focus: HTMLElement | null; work_id: string; parent_run_id?: string; child_id?: string }
 const sdkPath = (target: string) => { const [, work, run, child] = JSON.parse(target) as string[]; return `/works/${encodeURIComponent(work!)}/sdk-subtasks/${encodeURIComponent(run!)}/${encodeURIComponent(child!)}`; };
 const kind = (target: string) => (JSON.parse(target) as string[])[0];
 const say = (key: string) => t.text(`workbench.subtask-conversation.${key === "unavailable" ? "not-available" : key}`);
 
 /** The native Assistant borrows the task panel's same float; it never changes the main conversation or main input receiver. */
-export function installAssistantSubtasks(): void {
+export function installAssistantSubtasks(factories: AssistantSubtaskReviewFactories): void {
   const account = accountTransition();
   const home = document.querySelector(".arrival-bar[data-dock]") ? installTaskFloatShell({ dialog: "assistant-panel", back: () => home?.hide() }) : undefined;
   const owners = new Map<string, { owner: object; target: string; focus: HTMLElement | null; ticket: number; unwatch?: () => void }>();
@@ -25,6 +27,7 @@ export function installAssistantSubtasks(): void {
   const open = (event: Event) => {
     const input = (event as CustomEvent<AssistantTaskOpen>).detail;
     if (!alive || account.preparing || !input || !(input.signal instanceof AbortSignal) || input.signal.aborted || typeof input.interaction !== "function" || typeof input.base !== "string" || !/^\/(?:projects\/[^/]+\/)?api\/assistant$/.test(input.base) || typeof input.work_id !== "string" || !input.work_id || input.work_id.length > 1000
+      || typeof input.reviews?.mount !== "function" || typeof input.reviews.retitle !== "function"
       || (input.parent_run_id === undefined) !== (input.child_id === undefined) || input.parent_run_id !== undefined && (typeof input.parent_run_id !== "string" || typeof input.child_id !== "string")) return;
     const base = input.base, target = JSON.stringify(input.child_id ? ["sdk", input.work_id, input.parent_run_id, input.child_id] : ["work", input.work_id]);
     let context = owners.get(base);
@@ -38,15 +41,16 @@ export function installAssistantSubtasks(): void {
     void openTaskFloatContent(current.owner, (root, navigation) => {
       const assert = () => { if (!alive || !root.isConnected) throw new DOMException("View closed", "AbortError"); };
       const drafts = pageDraftStore("molis-plugin-page:native-assistant:" + base + ":drafts", assert);
+      const reviews = assistantSubtaskReviews({ ...factories, api, sdkPath, work: input.reviews, refresh: () => { void handle.refresh(); } });
       const questions = createSubtaskQuestions({ drafts, text: say, draft: (target, _binding, question) => kind(target) === "work" ? assistantWorkQuestionDraft(api, target, question.pending_id) : undefined,
         interaction: (root, options) => input.interaction(root, { references: async (source, query) => {
         const found = await molisWorkRequest<{ candidates: Array<{ kind: string; id: string; label: string; plugin_title: string }> }>(base.replace(/\/assistant$/, "/search/references"), { body: { kinds: source.split(","), query, limit: 8 } });
         return { items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) };
       }, ...options }) });
-      const work = assistantWorkSubtaskSource(api, drafts, (target, binding, original) => questions.remember(target, binding, original.rounds.flatMap(round => round.awaiting_input))), sdk = createAgentSubtaskSource({ drafts, labels: assistantComposerLabels(t.text, /Mac/i.test(navigator.platform)), text: say,
+      const work = assistantWorkSubtaskSource(api, drafts, (target, binding, original) => [...questions.remember(target, binding, original.rounds.flatMap(round => round.awaiting_input)), ...reviews.rememberWork(target, binding, original)]), sdk = createAgentSubtaskSource({ drafts, labels: assistantComposerLabels(t.text, /Mac/i.test(navigator.platform)), text: say,
         async read(target, signal) {
-          const result = await api<{ conversation: AgentSubagentConversation; parent_title: string }>(sdkPath(target), undefined, signal);
-          return { conversation: result.conversation, details: questions.remember(target, JSON.stringify(result.conversation.child.child_run), result.conversation.questions), parent: { target: "", title: result.parent_title } };
+          const result = await api<{ conversation: AgentSubagentConversation; parent_title: string; scope: AssistantScope; has_reviews: boolean }>(sdkPath(target), undefined, signal);
+          return { conversation: result.conversation, details: [...questions.remember(target, JSON.stringify(result.conversation.child.child_run), result.conversation.questions), ...reviews.rememberSdk(target, result.scope, result.conversation, result.has_reviews)], parent: { target: "", title: result.parent_title } };
         },
         command: (target, command, signal) => api<AgentSubagentRequestResult>(sdkPath(target), command, signal),
         check: (target, requestId, signal) => api<AgentSubagentRequestResult>(sdkPath(target) + "/requests/" + encodeURIComponent(requestId), undefined, signal),
@@ -60,7 +64,7 @@ export function installAssistantSubtasks(): void {
           (kind(target) === "sdk" ? sdkPath(target) : "/works/" + encodeURIComponent(JSON.parse(target)[1])) + "/wait?" + new URLSearchParams(version ? { since: version } : {}), undefined, signal), invalidate, signal),
       };
       const leave = () => { navigation.close(); if (current.focus?.isConnected) current.focus.focus({ preventScroll: true }); };
-      const handle = createSubtaskConversation(root, { get labels() { return subtaskConversationLabels(); }, source, mountDetail: questions.mount,
+      const handle = createSubtaskConversation(root, { get labels() { return subtaskConversationLabels(); }, source, mountDetail: (...args) => questions.mount(...args) ?? reviews.mount(...args),
         onBack: parent => { if (parent?.target && kind(parent.target) === "work") { current.target = parent.target; void handle.open(parent.target); } else navigation.back(); }, onClose: leave });
       let resume = false;
       const unregister = account.page(root, async () => { resume = !root.hidden; handle.close(); await Promise.all([work.flush(), sdk.flush(), questions.flush()]); }, () => { forgetTaskFloatContent(current.owner); }, () => { if (resume && !root.hidden) void handle.open(current.target); resume = false; });

@@ -79,7 +79,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   let works = [];
   let curId = store.get(scoped("current"));
   let view = null;
-  const openSubtask = (work_id, parent_run_id, child_id) => document.dispatchEvent(new CustomEvent("molis:assistant-subtask-open", { detail: { work_id, ...(child_id ? { parent_run_id, child_id } : {}) } }));
   let problem = null;
   let nextScope = project ? "project" : "personal";
   let nextExec = "assistant";

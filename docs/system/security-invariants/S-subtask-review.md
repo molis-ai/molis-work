@@ -1,0 +1,5 @@
+# S-subtask-review
+
+| ID | 不变量（拒绝什么） | 代码位置 | 测试（CI 里跑） | 测试（只在本机跑） |
+| --- | --- | --- | --- | --- |
+| S-subtask-review | 子任务审批只决定原 Work/父子关系及精确 Run 的原待审项；Work 已归档、收回、换手或当前角色权限不再覆盖时，在原决定写入和 SDK pending 接纳前拒绝，不错误投递到兄弟或新执行。受控审批的异步检查后仍执行当前授权检查；调用结束后继承的控制不得继续决定。Work 下一步确认仍由原 step_gate 写入，不以 Runtime 审批替代。已接受决定保留真实回执，额外授权失败不冒充原决定送达未知；送达未知不能建立后续免询问规则 | `apps/local-host/src/assistant/assistant-work-subtasks.ts`、`apps/local-host/src/assistant/assistant-sdk-subtasks.ts`、`apps/local-host/src/assistant/assistant-outcomes.ts`、`apps/local-host/src/assistant/assistant-step-gate.ts`、`horizontal/agent-host/src/reviews.ts`、`horizontal/agent-host/src/adapters/prologue-review-documents.ts`、`horizontal/agent-host/src/adapters/prologue-approvals.ts` | `tests/prologue-approval-bridge.test.ts`「a scoped review refuses revocation after canAnswer」「review control cannot escape to another review」「an app allowance requires the original pending's accepted delivery」「a refused wider app allowance preserves the already accepted decision」；`tests/assistant-delegation.test.ts`「scoped Work next-step review」「Assistant SDK child review」 | |

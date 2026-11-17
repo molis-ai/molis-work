@@ -24,3 +24,20 @@ export interface AssistantSubtaskResumeAnswer {
 /** Stored in the existing request owner; the original Send result remains its current branch. */
 export type AssistantRequestResult = AssistantSendResult | { outcome: "stopped"; work: AssistantWork; run_id: string };
 
+
+/** A decision on the original Work review, bound to its exact child execution. */
+export interface AssistantSubtaskReview {
+  subtask: AssistantSubtaskBinding;
+  review_id: string;
+  decision: "approve" | "reject";
+  note?: string;
+}
+
+/** A decision on one SDK child's original review; no Session-wide approval. */
+export interface AssistantSdkSubtaskReview {
+  child_run: AgentRunRef;
+  review_id: string;
+  decision: "approve" | "reject";
+  note?: string;
+  remember?: "session" | "app-this-round";
+}

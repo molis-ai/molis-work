@@ -1,2 +1,1 @@
-import { installAssistantSubtasks } from "./assistant-subtasks.js";
-installAssistantSubtasks();
+export { installAssistantSubtasks } from "./assistant-subtasks.js";

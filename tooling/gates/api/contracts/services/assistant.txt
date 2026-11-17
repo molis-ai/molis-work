@@ -649,6 +649,14 @@ export type AssistantScope = {
     project_id: string;
 };
 
+export interface AssistantSdkSubtaskReview {
+    child_run: AgentRunRef;
+    review_id: string;
+    decision: "approve" | "reject";
+    note?: string;
+    remember?: "session" | "app-this-round";
+}
+
 export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
     subtask?: {
         binding: AssistantSubtaskBinding;
@@ -712,6 +720,13 @@ export interface AssistantSubtaskResumeAnswer {
     subtask: AssistantSubtaskBinding;
     pending_id: string;
     queued_input_id: string;
+}
+
+export interface AssistantSubtaskReview {
+    subtask: AssistantSubtaskBinding;
+    review_id: string;
+    decision: "approve" | "reject";
+    note?: string;
 }
 
 export interface AssistantSurfaceChangedDetail {

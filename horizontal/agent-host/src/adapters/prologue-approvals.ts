@@ -210,8 +210,6 @@ export class PrologueApprovalBridge {
     try {
       await this.#recordDecision?.(pending, receipt);
       if (input.decision === "approve") this.#queue.consumeApproval(input.review_id);
-      // "Allow in this app this round" rests on the same approval: applied only after it was accepted, never on a reject.
-      if (input.decision === "approve" && input.remember === "app-this-round") await this.#allowAppForRound?.(pending);
       const result = await this.#pendings.answer(pendingRef, {
         kind: "effect-approval", answer: input.decision === "approve" ? "allow" : "deny",
       });
@@ -221,6 +219,11 @@ export class PrologueApprovalBridge {
       }
       if (input.decision === "approve" && !result.authorized) {
         return this.#queue.settle(input.review_id, { ok: false, error: "执行主人没有把这次批准记为已授权" });
+      }
+      // A wider allowance is optional after accepted delivery. Its refusal cannot make the original answer unknown.
+      if (input.decision === "approve" && result.authorized && input.remember === "app-this-round") {
+        try { await this.#allowAppForRound?.(pending); }
+        catch { return this.#queue.receipt(input.review_id) ?? receipt; }
       }
       // Authorization wakes execution. It is not a write or command receipt.
       // Only the execution owner may subsequently settle the queue from facts.

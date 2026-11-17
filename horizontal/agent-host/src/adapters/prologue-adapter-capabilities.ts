@@ -67,6 +67,7 @@ export function guardedSubagents(subagents: AgentSubagentsCapability, read: (run
     list: async run => { await read(run); return subagents.list(run); },
     ...(subagents.subscribe ? { subscribe: async (run, changed) => { await read(run); return subagents.subscribe!(run, changed); } } : {}),
     ...(subagents.conversation ? { conversation: async (run, id) => { await read(run); return subagents.conversation!(run, id); } } : {}),
+    ...(subagents.assertCurrent ? { assertCurrent: (run, id, childRun) => subagents.assertCurrent!(run, id, childRun) } : {}),
     ...(subagents.command ? { command: async (run, id, input, control) => {
       await read(run);
       if (input.kind !== "continue" && input.kind !== "retry" && input.kind !== "resume-answer") return subagents.command!(run, id, input, control);

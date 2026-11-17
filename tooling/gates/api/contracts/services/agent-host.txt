@@ -1930,7 +1930,7 @@ export interface AgentStartExecution extends ActionCallOrigin {
     beforeDispatch?(): void | (() => void) | Promise<void | (() => void)>;
     disposeDispatch?(): void;
     subagentGateway?(role: AgentFrozenSubagentRole, session: AgentSessionRef): Promise<NonNullable<AgentFrozenRole["action_gateway"]>>;
-    assertSubagent?(role: AgentFrozenSubagentRole): void;
+    assertSubagent?(role: Pick<AgentFrozenSubagentRole, "role_id" | "version" | "execution" | "host_tools">): void;
 }
 
 export type AgentStartInput = AgentStartInputFields & AgentWorkspace;
@@ -2141,6 +2141,8 @@ export interface AgentSubagentView {
     subagent_id: string;
     parent_run: AgentRunRef;
     role_id: string;
+    role_version: number;
+    execution: import("services/agent-host-start").AgentFrozenSubagentRole["execution"];
     role_name?: string;
     task: string;
     continuation_task?: {
@@ -2165,6 +2167,7 @@ export interface AgentSubagentsCapability {
     workspaces?: true;
     list(run: AgentRunRef): Promise<AgentSubagentView[]>;
     conversation?(run: AgentRunRef, subagentId: string): Promise<AgentSubagentConversation>;
+    assertCurrent?(run: AgentRunRef, subagentId: string, childRun: AgentRunRef): void;
     subscribe?(run: AgentRunRef, changed: () => void): Promise<() => void>;
     command?(run: AgentRunRef, subagentId: string, input: AgentSubagentCommand, control: AgentSubagentControl): Promise<AgentSubagentRequestResult>;
     checkRequest?(run: AgentRunRef, subagentId: string, requestId: string, actorId: string): Promise<AgentSubagentRequestResult>;

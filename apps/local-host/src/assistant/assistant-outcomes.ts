@@ -1,7 +1,7 @@
 import { assistantWords } from "./assistant-saved-text.js";
 import { isDeepStrictEqual } from "node:util";
 import { recordAssistantResultCard } from "./assistant-result-card.js";
-import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { isTerminalAgentPhase, type AgentMemoryExecutionControl, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { actionResultSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { describeReview } from "./assistant-review-words.js";
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -71,20 +71,29 @@ export class AssistantOutcomes {
     return afterParkedAnswer(question.parked ? await roundAfterParkedAnswer(() => this.link.dispatch(this.store.get(this.actorId, workId), PARKED_ANSWER_TASK, [], null, undefined, "host", undefined, caller.beforeStart, caller.assertBeforeStart, { byHost: true, ...(caller.reply_locale ? { reply_locale: caller.reply_locale } : {}) }), async () => host.adapter(RUNTIME).recovery?.inspect(sessionRef(work))) : undefined, await this.link.read(workId));
   }
 
-  async decide(workId: string, input: { review_id: string; decision: "approve" | "reject"; note?: string }): Promise<AssistantWorkView> {
+  async decide(workId: string, input: { review_id: string; decision: "approve" | "reject"; note?: string }, execution?: AgentMemoryExecutionControl & { run: AgentRunRef }): Promise<AssistantWorkView> {
+    await execution?.beforeEffect(); execution?.assert_current();
     const work = this.store.get(this.actorId, workId);
+    if (execution && work.step_gate?.id === input.review_id && work.step_gate.run_id !== execution.run.run_id) throw assistantErrors.stale("下一步确认不属于这次原执行");
     // 「接着做下一步？」 is the Host's own confirmation (PWA-156), answered here the same as through the task's row.
-    if (work.step_gate?.id === input.review_id && await this.link.stepGate?.answer(workId, input.review_id, input.decision)) return this.link.read(workId);
+    if (work.step_gate?.id === input.review_id && await this.link.stepGate?.answer(workId, input.review_id, input.decision, execution?.assert_current)) return this.link.read(workId);
     const host = await this.ports.host();
     const review = host.reviews.get(String(input.review_id));
     // A plugin-carried work's confirmations are the plugin's own, in the same queue its page decides from.
     const session = work.executor.kind === "plugin" && work.executor.session_id
       ? (await (await this.link.executorOf(work)).read(work.executor.session_id, 1)).runtime_session_id ?? null : work.session_id;
-    if (!review || review.run?.session_id !== session || review.project_id !== ownerOf(work)) throw assistantErrors.scope("这项确认不属于这项工作");
+    if (!review || review.run?.session_id !== session || review.project_id !== ownerOf(work)
+      || execution && (review.run.run_id !== execution.run.run_id || review.run.session_id !== execution.run.session_id)) throw assistantErrors.scope("这项确认不属于这项工作");
     if (!["approve", "reject"].includes(input.decision)) throw assistantErrors.invalid("请选择允许或拒绝");
-    await host.reviews.respond({ review_id: review.review_id, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: String(input.note).slice(0, 2000) } : {}) });
-    // The runtime tells the round only that policy blocked the change; the round must know the person declined it.
-    if (input.decision === "reject" && work.executor.kind !== "plugin" && review.run) {
+    const decide = () => host.reviews.respond({ review_id: review.review_id, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: String(input.note).slice(0, 2000) } : {}) }, execution);
+    if (execution) {
+      const adapter = host.adapter(RUNTIME);
+      if (!adapter.withEffect) throw assistantErrors.unsupported("当前运行时不能核对审批提交边界");
+      await adapter.withEffect(execution, decide);
+    } else await decide();
+    // Scoped decisions use the original approval bridge's exact-Run feedback; do not queue a second notice after acceptance.
+    // The main Work path also tells the round the person declined it.
+    if (!execution && input.decision === "reject" && work.executor.kind !== "plugin" && review.run) {
       const latest = await this.link.latestRun(host, work).catch(() => null);
       if (latest && latest.ref.run_id === review.run.run_id && !isTerminalAgentPhase(latest.phase)) {
         const why = input.note ? `，理由：${String(input.note).slice(0, 500)}` : "";

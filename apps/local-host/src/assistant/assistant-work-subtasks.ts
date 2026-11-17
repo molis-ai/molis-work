@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { AssistantControl, AssistantSendResult, AssistantSubtaskAnswer, AssistantSubtaskBinding, AssistantSubtaskResumeAnswer, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantControl, AssistantSendResult, AssistantSubtaskAnswer, AssistantSubtaskBinding, AssistantSubtaskResumeAnswer, AssistantSubtaskReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import type { AssistantOutcomes } from "./assistant-outcomes.js";
 import type { AssistantDispatch } from "./assistant-dispatch.js";
@@ -112,6 +112,14 @@ export class AssistantWorkSubtasks {
       }
     };
     try { await beforeEffect(); prepared = true; return { work, adapter, current, beforeEffect, dispose, accepted: () => { accepted = true; } }; } catch (error) { dispose(); throw error; }
+  }
+
+  async review(workId: string, input: AssistantSubtaskReview, caller: AssistantCaller): Promise<AssistantWorkView> {
+    const frozen = structuredClone(input);
+    if (frozen.subtask?.work_id !== workId) throw assistantErrors.invalid("原审批的子任务引用不完整");
+    const scope = await this.scope(frozen.subtask, caller);
+    try { return await this.link.outcomes.decide(workId, frozen, { beforeEffect: scope.beforeEffect, assert_current: scope.current, run: frozen.subtask.run }); }
+    finally { scope.dispose(); }
   }
 
   async answer(workId: string, input: AssistantSubtaskAnswer, caller: AssistantCaller = {}): Promise<AssistantWorkView> {

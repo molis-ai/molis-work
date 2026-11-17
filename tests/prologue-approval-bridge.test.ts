@@ -335,3 +335,54 @@ test("a repeated decision on an ended pending never redelivers prior approval or
     }
   }
 });
+
+// SAI-06/08/09: permission changes after the pending read must fail at the original decision owner.
+test("SAI-08/09: a scoped review refuses revocation after canAnswer without recording approval", async () => {
+  const ledger = pendingLedger(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let current = true;
+  ledger.port.canAnswer = async () => { entered.resolve(); await release.promise; return true; };
+  const { queue, bridge } = bridgeFor(ledger.port);
+  const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+  const deciding = queue.respond({ review_id: request.review_id, actor_id: "person", decision: "approve" }, {
+    beforeEffect() {}, assert_current() { if (!current) throw new Error("Work taken back"); },
+  });
+  await entered.promise; current = false; release.resolve();
+  await assert.rejects(deciding, /Work taken back/);
+  assert.equal(queue.receipt(request.review_id)!.status, "pending");
+  assert.deepEqual(ledger.answers, []);
+});
+
+test("SAI-08: review control cannot escape to another review or a detached asynchronous decision", async () => {
+  const queue = new AgentReviewQueue({ now: () => new Date("2026-09-19T00:00:00.000Z") });
+  const input = (review_id: string) => ({ review_id, actor_id: "person", decision: "approve" as const });
+  for (const review_id of ["own", "sibling"]) queue.request({ review_id, project_id: BOARD, plugin_id: PLUGIN, kind: "text-edit", document, run: RUN, requested_at: "2026-09-19T00:00:00.000Z", expires_at: null });
+  const release = Promise.withResolvers<void>(); let escaped!: Promise<unknown>;
+  queue.registerDecisionHandler("own", async decision => {
+    assert.throws(() => queue.decide(input("sibling")), { code: "agent.review_not_permitted" });
+    escaped = release.promise.then(() => queue.decide(decision));
+    return queue.receipt("own")!;
+  });
+  await queue.respond(input("own"), { beforeEffect() {}, assert_current() {} });
+  release.resolve(); await assert.rejects(escaped, { code: "agent.review_not_permitted" });
+  assert.equal(queue.receipt("own")!.status, "pending"); assert.equal(queue.receipt("sibling")!.status, "pending");
+});
+
+test("SAI-06/08: an app allowance requires the original pending's accepted delivery", async () => {
+  for (const failure of ["uncertain", "refused", "accepted"]) {
+    const ledger = pendingLedger(failure === "uncertain" ? { throwOnAnswer: "Delivery lost" } : { authorized: failure === "accepted" });
+    const queue = new AgentReviewQueue({ now: () => new Date("2026-09-19T00:00:00.000Z") });
+    let allowed = 0;
+    const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port, allowAppForRound: async () => { allowed++; } });
+    const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+    await queue.respond({ review_id: request.review_id, actor_id: "person", decision: "approve", remember: "app-this-round" });
+    assert.equal(allowed, Number(failure === "accepted"));
+  }
+});
+
+test("SAI-06/08: a refused wider app allowance preserves the already accepted decision", async () => {
+  const ledger = pendingLedger(), queue = new AgentReviewQueue({ now: () => new Date("2026-09-19T00:00:00.000Z") });
+  const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port, allowAppForRound: async () => { throw new Error("Work taken back after acceptance"); } });
+  const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+  const receipt = await queue.respond({ review_id: request.review_id, actor_id: "person", decision: "approve", remember: "app-this-round" });
+  assert.deepEqual(ledger.answers, ["allow"]); assert.equal(receipt.status, "approved"); assert.ok(!receipt.delivery_error);
+});

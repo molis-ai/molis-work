@@ -482,7 +482,17 @@ Work 原 `/answer` 接受冻结的子任务 binding、request_id、pending_id/re
 
 Native Work/插件承载 Work 保留原 Work reviews/Outcomes.decide 与 `next-step` 的 step_gate；公共挂载只抽出原卡片 DOM 和点击绑定，结果只刷新浮窗，不改主对话。SDK 子 Run 使用原 Agent review renderer/client，通过父 Work 与精确 child Run 的 scoped owner 调用同一 ReviewQueue/ApprovalBridge。不得新增审批账、借普通消息批准，或把 Host 的下一步确认替换成 Runtime pending。
 
-当前 generic reviews HTTP 与 Work.decide 的原校验不能单独证明 Work 归档、收回、换手后的拒绝。提交须携带冻结 binding 和调用 execution，复用原 Work/SDK 子任务归属检查；原审批 owner 在异步读取 pending 后、生成决定前执行同步 current fence。已接受的决定及送达未知状态沿原回执，不猜结果或重放。需要原挂载点击到实际决定的归档/收回/换手/旧 Run 交错及兄弟隔离测试。本节仍为待实现范围，未把原审批回归结算为完成。
+generic reviews HTTP 与 Work.decide 的原校验不能单独证明 Work 归档、收回、换手后的拒绝。提交携带冻结 binding 和调用 execution，复用原 Work/SDK 子任务归属检查；原审批 owner 在异步读取 pending 后、生成决定前执行同步 current fence。已接受的决定及送达未知状态沿原回执，不猜结果或重放。需要原挂载点击到实际决定的归档/收回/换手/旧 Run 交错及兄弟隔离测试。本节尚未全部实现，不能把局部回归结算为整批完成。
 
 
 重入修复验证：完整构建通过；`assistant-delegation` 21/21、`coding-work-executor` 4/4、`assistant-coding-subtask-question` live/parked 2/2 通过。后者真正关闭并重新打开 Host、保留隔离 Home 的原目录与数据库，回答只接受到原队列，显式接续与重放共新增一轮，模型请求带原答案。它证明的是插件承载 Work 的原启动路径；不等同 §12.10 仍失败的 SDK child 根恢复。职责清理后的 `health:check` 通过（merge-base `4aa5496e3f`），未改门禁阈值或 exception 基线；最终 PR 仍须对同步后的 main 与最终头验证。
+
+审批接线增量（2026-11-17）：Work 与 SDK 子任务已有 scoped review owner，下一步确认仍走原 step_gate。`AgentSubagentsCapability.assertCurrent` 同步读取 SDK 原 registry，核对精确当前 child Run 及祖先范围；不从 attempts 历史推断当前轮。此 fence 同时进入 ReviewQueue 决定前与 SDK pending 接纳前。已接受决定后的可选 app 授权失败不更改原回执，送达未知或提交后撤权不建立 session standing rule。只读评审确认两处最终 fence 修复无剩余 P1；构建和审批回归 51/51、SDK 原始会话选定 3 项通过。原操作 recovery 只核对并收口既有 effect，保留原 HTTP owner；按原 Work.scope 与精确 review/Run 路由，不因 child 已续跑而阻止查验历史。
+
+Native 审批挂载候选复用原 Work mount/retitle 与 Agent review factory，Work 的主对话刷新和子浮层刷新分别由调用方提供。每个详情持有固定 binding、route 与独立 lifetime；内层 renderer 在单独 content 节点挂载并随外层销毁。新浏览器交错回归 2/2 已通过，覆盖确认期间关闭、A→B→A 迟到决定、原 scope/run、remember 透传及关闭后仅重读。原 Assistant 脚本结构检查发现已有主脚本 771 行超过 770 行上限，子任务打开意图已归入 conversation 职责；审批上下文与自动规则执行已归入 `review-decision-scope.ts`，不改变门禁标准。两项整理后的完整构建通过；Assistant 原窄屏/语言切换 2/2、脚本结构 13/13、standing rule 5/5、审批桥接 21/21 通过。新浏览器夹具改为编译实际 Host 程序并注入，不为测试增加包出口；对应 2/2 复验通过。`health:check` 对 `4aa5496e3f` 通过，门禁未放宽。
+
+资源申请更新：包含原问卷、审批与生命周期 factory 的共享懒加载包候选实测 96,472 B（gzip 32,665 B）。2026-11-17 已向用户申请新增 `/assets/molis-work-assistant-subtasks.js`，最大 100,000 B、仅首次打开子任务时加载、Home 与项目共用；替代先前 70,000 B 申请。尚未收到批准，未添加构建入口、资源路由或 lazy-loader 激活，不写资源许可文件。源码挂载候选与浏览器 fixture 不是产品真实入口验收；§12.10 的上游目录重授权窗口也仍待用户裁定。
+
+同步 main 前补充：恢复 Coding 时间线“评价并整合/查看成果”按钮到原成果面板；已有 TaskBoard child 行按精确 session/parent Run/child 打开已定浮窗，在切主会话之前返回。真实浏览器点原 TaskBoard 行回归 1/1 通过，主会话、看板和主草稿保持；原卡片/结果的状态渲染回归 6/6 通过。子角色提示中“总是阻塞回报父任务”已改为获准 ask-user 时使用原问卷，SDK live 问答回归通过。
+
+2026-11-17 fetch 后 main 为 `eafff2b526`，新增 #2105（39 批审批/权限 owner）与 #2104（统一登录 P1），与本批多处枢纽相交，须同步。只读合同复核指出应采用 main 唯一原决定持久化及 ReviewDecisionControl，把本批 SAI scope/最终权限检查接入它，移除已被覆盖的临时 ReviewDecisionScope 层；保留用户所见 review version、本人/原页面边界、permission owner 与原恢复控制。上述 pre-sync 测试不能替代同步后的合约验证。main 的官方 #127 SDK（e7582079）已核为本批 #130（71662135）的祖先，包合并保留后继官方 #130，并合并 #127 的采用记录。

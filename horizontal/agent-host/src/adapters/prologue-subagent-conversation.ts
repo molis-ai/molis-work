@@ -47,7 +47,7 @@ export function subagentConversation(
   owned: (run: AgentRunRef, id: string) => SubagentHandle,
   list: AgentSubagentsCapability["list"],
   hooks: PrologueSubagentHooks,
-): Pick<AgentSubagentsCapability, "conversation" | "command" | "checkRequest"> {
+): Pick<AgentSubagentsCapability, "conversation" | "command" | "checkRequest" | "assertCurrent"> {
   const conversation: NonNullable<AgentSubagentsCapability["conversation"]> = async (run, id) => {
     let child = owned(run, id);
     if (child.state === "reconcile-required") { await runtime.sessions.inspectRecovery(child.session); child = owned(run, id); }
@@ -82,6 +82,13 @@ export function subagentConversation(
   };
   return {
     conversation,
+    assertCurrent(run, id, childRun) {
+      const child = owned(run, id);
+      if (child.session.id !== childRun.session_id || child.run.id !== childRun.run_id)
+        throw agentErrors.collaboration_unknown("原子任务执行已改变");
+      const reason = subagentAuthorityProblem(runtime, child);
+      if (reason) throw agentErrors.capability_unavailable(reason);
+    },
     async checkRequest(run, id, request, actor) {
       const child = owned(run, id), key = requestKey(run, id, request, actor);
       const result = await runtime.inspectIdempotent<AgentSubagentRequestResult>({ command: commandName, key });

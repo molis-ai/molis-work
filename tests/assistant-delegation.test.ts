@@ -820,3 +820,67 @@ for (const parked of [false, true]) test(`SAI-06/08/09/15: delegated Work answer
     assert.equal((await f.service.checkSubtaskRequest(child.work_id, input.request_id)).state, "applied");
   } finally { await f.close(); }
 });
+
+for (const takenBack of [false, true]) test(`SAI-06/08/09: scoped Work next-step review ${takenBack ? 'refuses a take-back at its final write' : 'uses the original step owner'}`, { timeout: 90_000 }, async t => {
+  const f = await delegationFixture(t, [
+    () => reply({ name: "delegate-work", input: { title: "Read the note", brief: "整理记录", acceptance: "一句话" } }),
+    () => reply(undefined, "收到。"),
+  ], async () => reply(undefined, "整理完成。"));
+  try {
+    const parent = await f.service.send({ text: "委托整理记录", request_id: `sai-review-parent-${takenBack}` }, { project_ref: f.project });
+    const view = await until(async () => { const current = await f.service.read(parent.work.work_id); return current.rounds.length === 2 && current.work.state === "completed" ? current : undefined; });
+    const childId = view.delegated![0]!.work_id, binding = (await f.service.readSubtask(childId)).binding!;
+    await f.service.continuations.stepGate.set(childId, true);
+    assert.equal(f.service.continuations.stepGate.pass(f.store.get("web-user", childId), "continuation", "sai-original-step", binding.run.run_id), false);
+    const gate = f.store.get("web-user", childId).step_gate!;
+    const answer = f.service.continuations.stepGate.answer.bind(f.service.continuations.stepGate);
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    if (takenBack) t.mock.method(f.service.continuations.stepGate, "answer", async (...args: Parameters<typeof answer>) => { entered.resolve(); await release.promise; return answer(...args); });
+    const deciding = f.service.workSubtasks.review(childId, { subtask: binding, review_id: gate.id, decision: "reject" }, {});
+    if (takenBack) {
+      await entered.promise;
+      const work = f.store.get("web-user", childId);
+      f.store.update("web-user", childId, null, { delegated_by: { ...work.delegated_by!, taken_back_at: new Date().toISOString() } }, false);
+      release.resolve(); await assert.rejects(deciding, { code: "assistant.stale" });
+      assert.equal(f.store.get("web-user", childId).step_gate?.id, gate.id);
+      assert.equal(f.store.get("web-user", childId).step_answer, undefined, "a refused original decision leaves no answer record");
+    } else {
+      await deciding;
+      assert.equal(f.store.get("web-user", childId).step_gate, undefined);
+      assert.deepEqual(f.store.get("web-user", childId).step_answer, { request_key: "sai-original-step", decision: "reject" });
+    }
+    assert.equal((await f.service.read(parent.work.work_id)).rounds.length, view.rounds.length);
+  } finally { await f.close(); }
+});
+
+for (const archived of [false, true]) test(`SAI-06/08/09: Assistant SDK child review ${archived ? 'refuses parent archival inside the original decision handler' : 'keeps exact child ownership'}`, { timeout: 60_000 }, async t => {
+  const childHeld = Promise.withResolvers<void>(), deciding = Promise.withResolvers<void>(), releaseDecision = Promise.withResolvers<void>();
+  const f = await delegationFixture(t, [() => {
+    const character = f.parentBodies.at(-1)!.match(/molis-child-[a-z0-9-]+@\d+/u)?.[0]; assert.ok(character);
+    return reply({ name: "dispatch-subagent", input: { instruction: "SAI_REVIEW_CHILD: wait for the review.", tools: [], character, idempotencyKey: "sai-review-sdk-child" } });
+  }, () => reply(undefined, "子任务处理中。")], async () => { await childHeld.promise; return reply(undefined, "完成。"); }, body => JSON.stringify(body.messages.find((one: { role: string }) => one.role === "user")?.content).includes("SAI_REVIEW_CHILD"));
+  try {
+    const parent = await f.service.send({ text: "派子任务核对", request_id: `sai-review-sdk-parent-${archived}` }, { project_ref: f.project });
+    const child = await until(async () => {
+      for (const review of f.queue.list("board", "pending")) if (review.run?.session_id === parent.work.session_id)
+        await f.queue.respond({ review_id: review.review_id, actor_id: "web-user", decision: "approve" });
+      return (await f.service.sdkSubtasks.list(parent.work.work_id)).find(one => one.child_run);
+    }, "actual SDK child binding");
+    const reviewId = `sai-original-owner-${archived}`;
+    f.queue.request({ review_id: reviewId, project_id: "board", plugin_id: ASSISTANT_PLUGIN_ID, run: child.child_run!, kind: "text-edit",
+      document: { kind: "text-edit", target_path: "fixture", exists: false, before_text: "", after_text: "one" }, requested_at: new Date().toISOString(), expires_at: null });
+    let accepted = 0;
+    // A delayed original execution owner tests propagation; SDK pending/bridge behavior has separate original-owner tests.
+    f.queue.registerDecisionHandler(reviewId, async input => { deciding.resolve(); await releaseDecision.promise; const receipt = f.queue.decide(input); accepted++; return receipt; });
+    const input = { child_run: child.child_run!, review_id: reviewId, decision: "approve" as const }, caller = { beforeEffect: async () => {}, assertCurrent() {} };
+    await assert.rejects(f.service.sdkSubtasks.review(parent.work.work_id, child.parent_run.run_id, child.subagent_id,
+      { ...input, child_run: { ...input.child_run, run_id: "another-run" } }, caller), { code: "assistant.stale" });
+    assert.equal(accepted, 0);
+    const pending = f.service.sdkSubtasks.review(parent.work.work_id, child.parent_run.run_id, child.subagent_id, input, caller);
+    await deciding.promise;
+    if (archived) f.store.update("web-user", parent.work.work_id, null, { archived: true }, false);
+    releaseDecision.resolve();
+    if (archived) { await assert.rejects(pending, { code: "assistant.stale" }); assert.equal(accepted, 0); assert.equal(f.queue.receipt(reviewId)!.status, "pending"); }
+    else { assert.equal((await pending).status, "approved"); assert.equal(accepted, 1); }
+  } finally { childHeld.resolve(); releaseDecision.resolve(); await f.close(); }
+});

@@ -33,10 +33,11 @@ export class AssistantStepGate {
   }
 
   /** The person's answer to the ask (through the conversation's card or the task's row): the same answer either way. */
-  async answer(workId: string, review_id: string, decision: "approve" | "reject"): Promise<boolean> {
+  async answer(workId: string, review_id: string, decision: "approve" | "reject", assertCurrent?: () => void): Promise<boolean> {
     const work = this.ports.store.get(this.ports.actorId, workId), gate = work.step_gate;
     if (!gate || gate.id !== review_id) return false;
     if (!["approve", "reject"].includes(decision)) throw assistantErrors.invalid("请选择接着做或先不做");
+    assertCurrent?.();
     const now = this.ports.store.update(this.ports.actorId, workId, null, { step_gate: undefined, step_answer: { request_key: gate.request_key, decision } }, false);
     if (decision === "approve") await this.ports.goOn(now, gate);
     return true;

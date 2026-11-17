@@ -222,6 +222,7 @@
     "action.assistant.panel.works.cards.run": 1,
     "action.assistant.panel.works.control": 1,
     "action.assistant.panel.works.subtask.command": 1,
+    "action.assistant.panel.works.subtask.review": 1,
     "action.assistant.panel.works.draft": 1,
     "action.assistant.panel.works.handover": 1,
     "action.assistant.panel.works.mode": 1,

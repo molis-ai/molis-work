@@ -18,7 +18,7 @@ export function subagentExecution(authority: AgentStartAuthority, runtimeId: str
       throw agentErrors.role_execution_exceeded("原 Character 已不可用");
     }
   };
-  const assertSubagent = (role: AgentFrozenSubagentRole) => {
+  const assertSubagent = (role: Pick<AgentFrozenSubagentRole, "role_id" | "version" | "execution" | "host_tools">) => {
     assertParent();
     const declaration = authority.manifest.subagents;
     const current = declaration?.parent_role_ids.includes(parent.role_id)

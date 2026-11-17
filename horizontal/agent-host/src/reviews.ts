@@ -1,8 +1,10 @@
+import { mayRemember, ReviewDecisionScope } from "./review-decision-scope.js";
 import { agentErrors } from "./errors.js";
 import { isDeepStrictEqual } from "node:util";
 import type {
 
   AgentReviewDecisionInput,
+  AgentMemoryExecutionControl,
   AgentReviewQueueApi,
   AgentReviewReceipt,
   AgentReviewRequest,
@@ -84,11 +86,11 @@ interface RecoveryHandler {
 export class AgentReviewQueue implements AgentReviewQueueApi {
   /** "Allow this command for this session", keyed by the exact command and its session; in memory only. */
   readonly #standing = new Map<string, { set_by: string; set_at: string }>();
-  readonly #automatic = new Map<string, { set_by: string; set_at: string }>();
   readonly #rows = new Map<string, ReviewRow>();
   readonly #consumed = new Set<string>();
   readonly #settlements = new Set<ReviewSettlementListener>();
   readonly #listeners = new Set<(request: AgentReviewRequest) => void>();
+  readonly #decisions = new ReviewDecisionScope();
   readonly #deciders = new Map<string, (input: AgentReviewDecisionInput) => Promise<AgentReviewReceipt>>();
   readonly #refreshers = new Set<(projectId: string) => Promise<void>>();
   readonly #recoverers = new Map<string, RecoveryHandler>();
@@ -198,28 +200,24 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     // An exact repeat of a command a person allowed for this session goes through the same decision path,
     // attributed to that person and marked as coming from their rule. If it cannot, it simply stays pending.
     const key = standingKey(row.request), rule = key ? this.#standing.get(key) : undefined;
-    if (!rule || this.#status(row) !== "pending") return;
-    queueMicrotask(() => {
-      if (this.#status(row) !== "pending") return;
-      this.#automatic.set(reviewId, rule);
-      void this.respond({ review_id: reviewId, decision: "approve", actor_id: rule.set_by,
-        note: `按本会话规则批准：同一命令已由 ${rule.set_by} 于 ${rule.set_at} 允许本会话内不再询问` })
-        .catch(() => { /* left pending for a person to decide */ })
-        .finally(() => this.#automatic.delete(reviewId));
-    });
+    this.#decisions.applyRule(reviewId, rule, () => this.#status(row) === "pending", input => this.respond(input));
   }
 
-  async respond(input: AgentReviewDecisionInput): Promise<AgentReviewReceipt> {
-    const handler = this.#deciders.get(input.review_id);
-    if (!handler) throw agentErrors.capability_unavailable("执行方未接通或已中断，不能只在页面记录一次假批准");
-    const row = this.#rows.get(input.review_id);
-    const key = input.remember === "session" && row ? standingKey(row.request) : null;
-    if (input.remember === "session" && (!key || input.decision !== "approve")) {
-      throw agentErrors.capability_unavailable("只有在宿主执行边界内的命令可以设为本会话内不再询问");
-    }
-    const receipt = await handler(input);
-    if (key && row && this.#status(row) === "approved") this.#standing.set(key, { set_by: input.actor_id, set_at: row.receipt.decided_at ?? this.#now().toISOString() });
-    return key && row ? structuredClone({ ...receipt, ...this.receipt(input.review_id) }) : receipt;
+  /** A trusted caller's checks follow this one decision through its original asynchronous handler. */
+  async respond(input: AgentReviewDecisionInput, control?: AgentMemoryExecutionControl): Promise<AgentReviewReceipt> {
+    return this.#decisions.run(input.review_id, control, async () => {
+      const handler = this.#deciders.get(input.review_id);
+      if (!handler) throw agentErrors.capability_unavailable("执行方未接通或已中断，不能只在页面记录一次假批准");
+      const row = this.#rows.get(input.review_id);
+      const key = input.remember === "session" && row ? standingKey(row.request) : null;
+      if (input.remember === "session" && (!key || input.decision !== "approve")) {
+        throw agentErrors.capability_unavailable("只有在宿主执行边界内的命令可以设为本会话内不再询问");
+      }
+      const receipt = await handler(input);
+      if (key && row && this.#status(row) === "approved" && !receipt.delivery_error && mayRemember(control))
+        this.#standing.set(key, { set_by: input.actor_id, set_at: row.receipt.decided_at ?? this.#now().toISOString() });
+      return key && row ? structuredClone({ ...receipt, ...this.receipt(input.review_id) }) : receipt;
+    });
   }
 
   deliveryFailed(reviewId: string, message: string): AgentReviewReceipt {
@@ -250,6 +248,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   }
 
   decide(input: AgentReviewDecisionInput): AgentReviewReceipt {
+    this.#decisions.assertCurrent(input.review_id);
     const row = this.#rows.get(input.review_id);
     if (!row) {
       throw agentErrors.review_unknown("找不到这条待审操作");
@@ -266,7 +265,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     if (kind && !this.#authorities.get(input.review_id)?.holds()) {
       throw agentErrors.review_not_permitted(`发起这项操作的插件已不再持有 review:${kind}（撤权、停用、停止、升级或应用重启过），不能批准，只能拒绝`);
     }
-    const automatic = input.decision === "approve" ? this.#automatic.get(input.review_id) : undefined;
+    const automatic = input.decision === "approve" ? this.#decisions.automatic(input.review_id) : undefined;
     row.receipt = {
       ...row.receipt,
       status: input.decision === "approve" ? "approved" : "rejected",

@@ -154,6 +154,7 @@ assistant.panel.works.results	1	system.assistant-panel	command	operation	home	wr
 assistant.panel.works.resume_answer	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.review	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	77f500e02234	a2c799262a3c	3cfff55e5308
 assistant.panel.works.subtask.command	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	37c1032ed045	a2c799262a3c	613063238287
+assistant.panel.works.subtask.review	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	54d444f218b4	a2c799262a3c	3cfff55e5308
 assistant.panel.works.take_back	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.undo	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	77f500e02234	a2c799262a3c	3cfff55e5308
 attention.waiting.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	88db02166b7c	6c35b8e1ec1c	-

@@ -1,5 +1,5 @@
 import type { AssistantSubtaskBinding } from "./assistant-subtasks.js";
-export type { AssistantSubtaskBinding, AssistantSubtaskAnswer, AssistantSubtaskResumeAnswer, AssistantRequestResult } from "./assistant-subtasks.js";
+export type { AssistantSubtaskBinding, AssistantSubtaskAnswer, AssistantSubtaskResumeAnswer, AssistantSubtaskReview, AssistantSdkSubtaskReview, AssistantRequestResult } from "./assistant-subtasks.js";
 import type { MaterialRef } from "../platform/project-materials.js";
 import type { SignedAgentReference, SignedAgentInstallation, SkillRef } from "./agent-definitions.js";
 import type { SkillCatalogEntry, SkillPick } from "./skills.js";

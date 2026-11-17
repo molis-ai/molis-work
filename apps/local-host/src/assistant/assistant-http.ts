@@ -314,6 +314,7 @@ const ofPanel = { type: "object", properties: { body }, required: ["body"], addi
 const ofWork = { type: "object", properties: { work_id: pageId, body }, required: ["work_id", "body"], additionalProperties: false } as const;
 const ofItem = { type: "object", properties: { work_id: pageId, item: pageId, body }, required: ["work_id", "item", "body"], additionalProperties: false } as const;
 const ofSdkSubtask = { type: "object", properties: { work_id: pageId, parent_run_id: pageId, child_id: pageId, body: agentSubagentCommandSchema }, required: ["work_id", "parent_run_id", "child_id", "body"], additionalProperties: false } as const;
+const ofSdkReview = { ...ofSdkSubtask, properties: { ...ofSdkSubtask.properties, item: pageId, body }, required: [...ofSdkSubtask.required, "item"] } as const;
 const scoped = (entry: AssistantPageEntry) => entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {};
 const panel = <const S extends ActionSchema, Output>(name: string, version: number, title: string, input_schema: S,
   handle: (entry: AssistantPageEntry, input: InferActionInput<S>, caller: ActionExecutionContext) => Output | Promise<Output>, metered = false, draft?: true) =>
@@ -343,6 +344,12 @@ export const assistantPanelActions = {
     const asked = await source.read(input.work_id, input.parent_run_id, input.child_id).then(value => value.conversation.questions.find(question => question.pending_id === command.pending_id)?.questions).catch(() => undefined);
     return { ...result, details: { errors: questionErrors(result.problems, readText, asked) } };
   }, true),
+  subtaskReview: panel("works.subtask.review", /* @version action.assistant.panel.works.subtask.review */ 1, "决定指定子任务的原审批", ofSdkReview, async (entry, input, caller) => ({
+    receipt: await of(entry).service.sdkSubtasks.review(input.work_id, input.parent_run_id, input.child_id,
+      { ...pageBody<Omit<import("@molis-ai/molis-work-contracts/services/assistant").AssistantSdkSubtaskReview, "review_id">>(input.body), review_id: input.item }, {
+        beforeEffect: () => caller.beforeEffect(), assertCurrent: () => { caller.signal?.throwIfAborted(); caller.assert_authority_current?.(); },
+      }),
+  })),
   cards: panel("cards", /* @version action.assistant.panel.cards */ 1, "放下页面准备的操作卡", ofPanel, (entry, { body }) => of(entry).service.offers.offerFromPage(pageBody<AssistantPageCardInput>(body), scoped(entry))),
   attachments: panel("attachments", /* @version action.assistant.panel.attachments */ 1, "读出带来的文档", ofPanel,
     async (entry, { body }) => ({ material: await of(entry).service.materials.readAttachment({ name: String(body.name ?? ""), data: String(body.data ?? "") }) })),
@@ -373,8 +380,14 @@ export const assistantPanelActions = {
     async (entry, input, caller) => ({ work: await of(entry).service.archive(input.work_id, input.body.archived !== false, {
       beforeEffect: async () => { caller.signal?.throwIfAborted(); await caller.beforeEffect?.(); caller.signal?.throwIfAborted(); },
       assert_current: () => caller.signal?.throwIfAborted() }) })),
-  review: panel("works.review", /* @version action.assistant.panel.works.review */ 1, "批准或拒绝工作里的待审操作", ofItem, (entry, input) => of(entry).service.outcomes.decide(input.work_id,
-    { review_id: input.item, decision: pageBody<{ decision: "approve" | "reject" }>(input.body).decision, ...(typeof input.body.note === "string" ? { note: input.body.note } : {}) })),
+  review: panel("works.review", /* @version action.assistant.panel.works.review */ 1, "批准或拒绝工作里的待审操作", ofItem, (entry, input, caller) => {
+    const decision = { review_id: input.item, decision: pageBody<{ decision: "approve" | "reject" }>(input.body).decision,
+      ...(typeof input.body.note === "string" ? { note: input.body.note } : {}) };
+    return input.body.subtask === undefined ? of(entry).service.outcomes.decide(input.work_id, decision)
+      : of(entry).service.workSubtasks.review(input.work_id, { ...decision, subtask: pageBody<Pick<import("@molis-ai/molis-work-contracts/services/assistant").AssistantSubtaskReview, "subtask">>(input.body).subtask }, {
+        beforeStart: () => caller.beforeEffect(), assertBeforeStart: () => { caller.signal?.throwIfAborted(); caller.assert_authority_current?.(); },
+      });
+  }),
   answer: panel("works.answer", /* @version action.assistant.panel.works.answer */ 1, "回答待答的问题", ofWork, (entry, input, caller) => answerQuestion(entry, input.work_id, input.body, caller), true),
   resumeAnswer: panel("works.resume_answer", /* @version action.assistant.panel.works.resume_answer */ 1, "接续已接受答案的子任务", ofWork, (entry, input, caller) => of(entry).service.workSubtasks.resume(input.work_id,
     pageBody<import("@molis-ai/molis-work-contracts/services/assistant").AssistantSubtaskResumeAnswer>(input.body), {
@@ -421,6 +434,7 @@ async function panelWrite(parts: readonly string[], body: Readonly<Record<string
       results: a.results, handover: a.handover, recovery: a.recovery, archive: a.archive, answer: a.answer, "resume-answer": a.resumeAnswer, "question-draft": a.questionDraft }, parts[2]);
     return own && run(own.definition, { work_id, body });
   }
+  if (parts.length === 7 && parts[2] === "sdk-subtasks" && parts[5] === "reviews") return run(a.subtaskReview.definition, { work_id, parent_run_id: parts[3]!, child_id: parts[4]!, item: parts[6]!, body });
   if (parts.length === 5 && parts[2] === "sdk-subtasks") return run(a.subtaskCommand.definition, { work_id, parent_run_id: parts[3]!, child_id: parts[4]!, body });
   const item = parts[3]!;
   if (parts.length === 4) { const one = named<Panel<typeof ofItem>>({ undo: a.undo, reviews: a.review }, parts[2]); return one && run(one.definition, { work_id, item, body }); }

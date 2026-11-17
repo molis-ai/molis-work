@@ -1,7 +1,9 @@
+import { ASSISTANT_REVIEW_PART } from "./assistant-review.js";
 import { ASSISTANT_REPLY_KIND } from "@molis-ai/molis-work-contracts/services/contextual";
 
 /** The conversation: opening a thing, copying, questions, confirmations, operation cards, material chips, drawing each round and following the scroll. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place. */
-export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a thing: the side panel previews it when it is there, otherwise it opens where it lives ─── */
+export const ASSISTANT_CONVERSATION_PART = String.raw`  const openSubtask = (work_id, parent_run_id, child_id) => document.dispatchEvent(new CustomEvent("molis:assistant-subtask-open", { detail: { work_id, ...(child_id ? { parent_run_id, child_id } : {}) } }));
+  /* ─── Showing a thing: the side panel previews it when it is there, otherwise it opens where it lives ─── */
   // The side panel claims the request (preventDefault); unclaimed, the object opens in its own surface as before.
   const sidePanelHere = () => document.body.hasAttribute("data-side-open");
   const sidePreview = (target) => !document.dispatchEvent(new CustomEvent("molis:side-open", { detail: { tab: "files", target, focus: false }, cancelable: true }));
@@ -16,12 +18,15 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
   /* The Host draws text and code from raw words; only reading interactions live here. A copy answers on its button through
      the design system's one copy feedback; a refusal also says how to copy by hand. */
   const copyFrom = (button, text) => window.molisCopy?.(button, text, { done: globalThis.t.text("workbench.assistant-conversation.copied"), failed: globalThis.t.text("workbench.assistant-conversation.could-not-copy") }).then((copied) => { if (!copied) host.showToast?.(globalThis.t.text("workbench.assistant-conversation.could-not-copy-select-text-instead")); });
-  const bindText = (root) => {
+  const bindReviewCode = (root) => {
     root.querySelectorAll(".assistant-code:not([data-bound])").forEach((figure) => {
       figure.dataset.bound = ""; const copy = figure.querySelector(".assistant-code-copy");
       copy.addEventListener("click", () => copyFrom(copy, () => figure.dataset.code));
       bindMore(figure); if (figure.dataset.paint) paintCode(figure);
     });
+  };
+  const bindText = (root) => {
+    bindReviewCode(root);
     root.querySelectorAll("[data-assistant-object]:not([data-bound])").forEach((button) => {
       button.dataset.bound = ""; const object = view.objects[Number(button.dataset.assistantObject)];
       if (!object || !host.openItem) { button.replaceWith(document.createTextNode(globalThis.t.text("workbench.assistant-conversation.quoted", { text: button.textContent }))); return; }
@@ -70,48 +75,12 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
     if (card.contains(document.activeElement) && input.getClientRects().length && !input.closest("[inert]")) input.focus({ preventScroll: true });
     card.remove();
   };
-  const setReviewWord = (node, words) => {
-    if (!node || node.textContent === words) return;
-    const text = node.firstChild;
-    if (text?.nodeType === Node.TEXT_NODE && !text.nextSibling) text.data = words;
-    else node.textContent = words;
-  };
-  const retitleReviewText = (card) => {
-    for (const node of card.querySelectorAll('[data-assistant-review-copy]')) setReviewWord(node, globalThis.say.text(JSON.parse(node.dataset.assistantReviewCopy)));
-    for (const figure of card.querySelectorAll('.assistant-code')) {
-      const n = Number(figure.dataset.lines), copy = figure.querySelector('.assistant-code-copy');
-      setReviewWord(figure.querySelector('.assistant-code-lines'), globalThis.t.text('workbench.assistant-code-grow.lines', { n }));
-      setReviewWord(figure.querySelector('.assistant-code-more'), figure.hasAttribute('data-folded')
-        ? globalThis.t.text('workbench.assistant-code-grow.show-all-n-n', { n }) : globalThis.t.text('workbench.assistant-code-grow.collapse'));
-      setReviewWord(copy?.querySelector('[data-copy-face=idle]') || copy, globalThis.t.text('common.control.copy'));
-      for (const [state, key] of [['done', 'workbench.assistant-conversation.copied'], ['failed', 'workbench.assistant-conversation.could-not-copy']]) {
-        const face = copy?.querySelector('[data-copy-face=' + state + ']');
-        if (face) { face.dataset.label = globalThis.t.text(key); setReviewWord(face, face.dataset.label); }
-      }
-    }
-  };
-  const renderReview = (card, work, review) => {
-    card.innerHTML = review.html;
-    card.querySelectorAll("[data-assistant-review-glyph]").forEach((node) => node.replaceWith(glyph(node.dataset.assistantReviewGlyph)));
-    retitleReviewText(card);
-    bindText(card);
-    const row = card.querySelector(".assistant-card-actions");
-    const buttons = row.querySelectorAll("[data-assistant-decision]");
-    const decide = async (decision) => {
-      if (row.ariaBusy === "true") return;
-      row.ariaBusy = "true";
-      buttons.forEach((button) => { button.ariaDisabled = "true"; });
-      try {
-        const next = await api("/works/" + encodeURIComponent(work.work_id) + "/reviews/" + encodeURIComponent(review.review_id), "POST", { decision });
-        if (card.isConnected) { view = next; render(); poll(); }
-      } catch (error) {
-        row.removeAttribute("aria-busy");
-        buttons.forEach((button) => button.removeAttribute("aria-disabled"));
-        if (card.isConnected) showError(error);
-      }
-    };
-    buttons.forEach((button) => button.addEventListener("click", () => decide(button.dataset.assistantDecision)));
-  };
+${ASSISTANT_REVIEW_PART}
+  const renderReview = (card, work, review) => mountWorkReview(card, review, {
+    current: () => card.isConnected,
+    decide: decision => api("/works/" + encodeURIComponent(work.work_id) + "/reviews/" + encodeURIComponent(review.review_id), "POST", { decision }),
+    refresh: next => { view = next; render(); poll(); }, error: showError,
+  });
   const renderCard = (node, work, card) => {
     node.dataset.status = card.status;
     const client = drawn(node, card.html, { onAction: async (id, button) => {

@@ -179,7 +179,7 @@ async function workspaceCard(deps: ReviewDeps, pending: Pending, effect: Effect,
 }
 
 /** The pending port the approval bridge uses: read, whether it can be answered now, answer, and the card to show. */
-export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
+export function createPendingPort(deps: ReviewDeps, assertBeforeAnswer: () => void): ProloguePendingPort {
   const { runtime, host, state } = deps;
   return {
     async read(ref) {
@@ -204,7 +204,7 @@ export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
         && effect.pending?.ref.id === ref.id && effect.pending.ref.revision === ref.revision
         && Boolean(pending.origin?.run && state.activeRuns.get(pending.origin.run)?.live());
     },
-    async answer(ref, answer) { return runtime.effects.pendings.answer(ref, answer, await host.readClock()); },
+    async answer(ref, answer) { return runtime.effects.pendings.answer(ref, answer, await host.readClock(), { assertBeforeAnswer }); },
     async document(pending) {
       const effect = pending.effectRef && runtime.effects.get(pending.effectRef);
       const ref = effect?.proposal.reviewRef;
@@ -241,13 +241,13 @@ export function createReviewMemory(deps: Pick<ReviewDeps, "index" | "options">) 
 }
 
 /** The approval bridge: requests mirrored to the Host's review queue; a refusal with a note reaches the round as a steer. */
-export function createApprovals(deps: ReviewDeps, pendings: ProloguePendingPort, remember: ReturnType<typeof createReviewMemory>) {
+export function createApprovals(deps: ReviewDeps, pendings: ProloguePendingPort, remember: ReturnType<typeof createReviewMemory>, assertCurrent: () => void) {
   const queue = deps.options.reviewQueue;
   if (!queue) return undefined;
   return new PrologueApprovalBridge({
     queue, pendings,
     async recordRequest(pending, request) { await remember(pending.origin!.session!, pending.ref.id, queue.receipt(request.review_id)!); },
-    async allowAppForRound(pending) { allowDesktopAppForRound(deps.surfaces(), pending.effectRef && deps.runtime.effects.get(pending.effectRef), pending.origin?.run ? deps.state.runRefs.get(pending.origin.run) : undefined); },
+    async allowAppForRound(pending) { assertCurrent(); allowDesktopAppForRound(deps.surfaces(), pending.effectRef && deps.runtime.effects.get(pending.effectRef), pending.origin?.run ? deps.state.runRefs.get(pending.origin.run) : undefined); },
     async recordDecision(pending, receipt) {
       if (!pending.origin?.session) throw new Error("审查缺少会话归属，不能保存决定");
       await remember(pending.origin.session, pending.ref.id, receipt);

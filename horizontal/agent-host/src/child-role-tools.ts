@@ -1,4 +1,5 @@
 import type { AgentRoleExecution } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { agentErrors } from "./errors.js";
 
 /**
@@ -15,9 +16,10 @@ export function childRoleTools(execution: AgentRoleExecution, hasOwnWorkspace: b
 }
 
 /** Refuse a child role that reaches past what its own workspace and its parent's tools allow (BL-305: one cap, one message). */
-export function assertChildRoleTools(execution: AgentRoleExecution, tools: readonly string[], hasOwnWorkspace: boolean, parentTools: readonly string[]): void {
-  const allowed = childRoleTools(execution, hasOwnWorkspace, parentTools);
-  if (!hasOwnWorkspace && execution === "text-edit" || tools.some(tool => !allowed.includes(tool) || !hasOwnWorkspace && !parentTools.includes(tool))) {
+export function assertChildRoleTools(execution: AgentRoleExecution, tools: readonly string[], hasOwnWorkspace: boolean, parentTools: readonly string[], business = false): void {
+  const allowed: readonly string[] = business ? BUSINESS_HOST_TOOLS : childRoleTools(execution, hasOwnWorkspace, parentTools);
+  if (business && (hasOwnWorkspace || !["read-only", "operate"].includes(execution))
+    || !business && !hasOwnWorkspace && execution === "text-edit" || tools.some(tool => !allowed.includes(tool) || !hasOwnWorkspace && !parentTools.includes(tool))) {
     throw agentErrors.role_execution_exceeded("子角色请求了当前父任务未开放的工具与目录");
   }
 }

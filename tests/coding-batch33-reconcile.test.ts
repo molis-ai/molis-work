@@ -270,9 +270,9 @@ test("BL-182 (R2-M1): subagent retry preserves parent's frozen resolved model ev
   }
 
   const reqBefore = providerRequests.length;
-  await adapter.subagents!.retry(directEnded.ref, children[0]!.subagent_id, {
-    source: "user-requested",
-  });
+  await adapter.subagents!.command!(directEnded.ref, children[0]!.subagent_id, {
+    kind: "retry", source: "user-requested", child_run: children[0]!.child_run!, request_id: "frozen-model-retry",
+  }, { actor_id: owner.actor_id, execution: {} });
   for (const deadline = Date.now() + 25_000; ;) {
     const row = (await adapter.subagents!.list(directEnded.ref)).find(item => item.subagent_id === children[0]!.subagent_id);
     if (row && row.state !== "running") break;

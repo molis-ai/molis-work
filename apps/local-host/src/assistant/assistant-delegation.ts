@@ -57,6 +57,7 @@ interface DelegationPorts {
   read(workId: string): Promise<AssistantWorkView>;
   /** Tell the person, once per key. */
   notify(work: StoredWork, text: AssistantSavedText, key: string): void;
+  subtaskReports?: { kick(workId: string): void; attach(): void };
 }
 
 /**
@@ -221,7 +222,7 @@ export class AssistantDelegations {
   /** The work that delegated `work` (the one whose graph its step is on), if it still exists. */
   parentOf(work: StoredWork): StoredWork | undefined {
     const graph = work.delegated_by?.graph_id;
-    return graph ? this.ports.store.list(this.ports.actorId, { archived: "any", limit: 500 }).find(item => item.graph_id === graph && !item.delegated_by) : undefined;
+    return graph ? this.ports.store.graphOwner(this.ports.actorId, graph) : undefined;
   }
 
   /** A delegated work's `delegated_by` as it is shown: which work asked, found from its graph. */
@@ -264,6 +265,8 @@ export class AssistantDelegations {
     const child = store.get(actorId, childId), parent = this.parentOf(child);
     if (!child.delegated_by || !parent) throw assistantErrors.invalid("这不是一个子任务");
     if (child.delegated_by.taken_back_at) throw assistantErrors.invalid("这个子任务已经收回了");
+    // Revoke admission synchronously before waiting on the graph or the Run. Prepared personal sends can no longer commit.
+    store.update(actorId, child.work_id, null, { delegated_by: { ...child.delegated_by, taken_back_at: new Date().toISOString() } }, false);
     await this.#endOpen(child, TAKEN_BACK_NOTE);
     const host = await this.ports.host();
     const latest = await this.ports.latestRun(host, child);
@@ -271,7 +274,6 @@ export class AssistantDelegations {
       await host.adapter(RUNTIME).control(latest.ref, { kind: "stop" });
       host.reviews.cancelPending(latest.ref.run_id, "用户把这个子任务收回了");
     }
-    store.update(actorId, child.work_id, null, { delegated_by: { ...child.delegated_by, taken_back_at: new Date().toISOString() } }, false);
     return this.ports.read(parent.work_id);
   }
 
@@ -294,7 +296,8 @@ export class AssistantDelegations {
    * The graph says once more which roots may go on; only this work's is acted on.
    */
   async roundEnded(work: StoredWork): Promise<void> {
-    if (work.delegated_by || !work.graph_id) return;
+    if (work.delegated_by) { this.ports.subtaskReports?.kick(work.work_id); return; }
+    if (!work.graph_id) return;
     const graphs = await this.#graphs();
     graphs.onReady(ready => { if (ready.graph_id === work.graph_id) void this.#continue(ready).catch(() => undefined); })();
   }
@@ -314,7 +317,7 @@ export class AssistantDelegations {
   }
 
   /** The Host started: works whose parts all came back while it was away go on now (the SDK kept their continuations). */
-  async attach(): Promise<void> { this.#listen(await this.#graphs()); }
+  async attach(): Promise<void> { this.#listen(await this.#graphs()); this.ports.subtaskReports?.attach(); }
 
   #listen(graphs: AgentWorkGraphPort): void {
     this.#listening ??= graphs.onReady(ready => void this.#continue(ready).catch(() => undefined));
@@ -336,8 +339,8 @@ export class AssistantDelegations {
   /** Its parts are all back and its root may go on: the work goes on by itself in one round the Host writes, when it should. */
   async #continue(ready: { graph_id: string; request_key: string }): Promise<void> {
     const { store, actorId } = this.ports;
-    const parent = store.list(actorId, { limit: 500 }).find(work => work.graph_id === ready.graph_id && !work.delegated_by);
-    if (!parent || parent.executor.kind === "plugin" || this.#continuing.has(parent.work_id) || this.#refused.has(ready.request_key)) return;
+    const parent = store.graphOwner(actorId, ready.graph_id);
+    if (!parent || parent.archived || parent.executor.kind === "plugin" || this.#continuing.has(parent.work_id) || this.#refused.has(ready.request_key)) return;
     const preparing = { withdrawn: false };
     this.#continuing.set(parent.work_id, preparing);
     try {
@@ -355,6 +358,7 @@ export class AssistantDelegations {
       const rounds = store.rounds(parent.work_id);
       let auto = 0;
       while (auto < rounds.length && rounds[rounds.length - 1 - auto]!.written_by === "host") auto++;
+      if (!stillCurrent()) return;
       if (auto >= DELEGATION_LIMITS.autoRounds) {
         this.#refused.add(ready.request_key);
         this.ports.notify(parent, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: parent.title }), original: `已经连续自己接着做了 ${DELEGATION_LIMITS.autoRounds} 轮，先停下来等你看一眼；你再说一句，它就接着做` }, key);

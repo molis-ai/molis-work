@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { agentBodyIn } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export {readSavedAgentHistory,savedAgentHistoryView,type PrologueSavedHistoryPort,type SavedHistoryOwner} from './adapters/prologue-saved-history.js';
 import { trustedOriginalInput } from "./original-inputs.js";
+import { subagentExecution } from "./subagent-authority.js";
 import { agentErrors } from "./errors.js";
 import { parseAgentRunBudget } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { parseExactActionReferences, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -64,6 +65,8 @@ export {
 } from "./model-configuration.js";
 export { fetchModelList, listProviderModels, modelListErrors, modelListRequest, readModelList, type ListedModel, type ModelListSend } from "./model-list.js";
 export { registerAgentHostCapabilities } from "./capability-registration.js";
+export { subagentExecution } from "./subagent-authority.js";
+export { waitForSubagentChange } from "./subagent-wait.js";
 export { runViewVersion } from "./run-wait.js";
 export { actionDigest } from "./action-digest.js";
 export type {
@@ -421,7 +424,10 @@ export class AgentHost implements AgentHostApi {
         ...(compaction ? { compaction } : {}), ...(endingReview ? { ending_review: { prompt: endingReview } } : {}),
         host_tools: hostTools,
       },
-    }, { beforeStart, assertBeforeStart, beforeDispatch, disposeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}) });
+    }, { beforeStart, assertBeforeStart, beforeDispatch, disposeDispatch,
+      ...(workspace === "business" && subagents?.length ? { subagentGateway: subagentExecution(authority, runtimeId,
+        { role_id: role.role_id, role_version: role.version, execution, host_tools: hostTools, character }, request).subagentGateway } : {}),
+      ...(authority.call_id ? { call_id: authority.call_id } : {}) });
     if (widensFrozen(handle, { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills, replyLocale: authority.reply_language?.locale })) {
       await adapter.control(handle.ref, { kind: "cancel" });
       throw agentErrors.role_execution_exceeded(`Runtime 返回的角色权限与 Manifest 冻结的不一致，已取消该 Run`);

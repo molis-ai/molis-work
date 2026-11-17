@@ -1,16 +1,17 @@
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { isTerminalAgentPhase, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantControl } from "@molis-ai/molis-work-contracts/services/assistant";
-import type { WorkExecutor } from "./assistant-executor.js";
+import type { WorkExecutor, ExecutorControl } from "./assistant-executor.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import type { AssistantContinuations } from "./assistant-continuations.js";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import { assistantErrors } from "./assistant-errors.js";
+import { assertSubtaskGraph, assertSubtaskRun, assertSubtaskWork } from "./assistant-subtask-binding.js";
 
 /** Controls both a live round and a parked work. Stopping a wait does not pretend its already committed effects vanished. */
 export async function controlAssistantWork(work: StoredWork, control: Exclude<AssistantControl, { kind: "withdraw" }>, ports: {
   actorId: string; store: AssistantStore; continuations: AssistantContinuations; delegations: AssistantDelegations;
-  host(): Promise<AgentHost>; executor(work: StoredWork): Promise<WorkExecutor>;
+  host(): Promise<AgentHost>; executor(work: StoredWork, control?: ExecutorControl): Promise<WorkExecutor>;
   latest(host: AgentHost, work: StoredWork): Promise<AgentRunView | null>;
   cancelSetups?(sessionId: string): void;
   retainSetups?(sessionId: string): Promise<void>;
@@ -18,6 +19,43 @@ export async function controlAssistantWork(work: StoredWork, control: Exclude<As
   if (!["pause", "resume", "stop"].includes(control?.kind)) throw assistantErrors.invalid("不支持的操作");
   if ("keep_connections" in control && (control.kind !== "stop" || typeof control.keep_connections !== "boolean")) throw assistantErrors.invalid("保留接入必须由停止操作明确选择");
   if (control.kind === "stop" && control.keep_connections && (work.executor.kind !== "assistant" || !ports.retainSetups)) throw assistantErrors.state("当前工作不支持停止后保留接入");
+  if (control.subtask) {
+    if (control.kind !== "stop" || control.keep_connections) throw assistantErrors.invalid("子任务只停止绑定的原执行");
+    const binding = control.subtask, release = ports.continuations.blockStart(work.work_id);
+    let revision = work.revision;
+    const current = () => {
+      const own = assertSubtaskWork(ports.store, ports.actorId, binding);
+      if (own.revision !== revision) throw assistantErrors.stale("原工作在停止提交前已改变，请读取后再操作");
+    };
+    try {
+      const host = await ports.host();
+      const beforeEffect = async () => {
+        current();
+        await assertSubtaskGraph(host.adapter("prologue"), work, ports.store.get(ports.actorId, binding.parent_work_id));
+        const latest = work.executor.kind === "plugin" ? (await (await ports.executor(work)).read(work.executor.session_id!, 1)).runs.at(-1)
+          : await ports.latest(host, work);
+        current(); assertSubtaskRun(binding, latest, "send");
+      };
+      await beforeEffect();
+      if (work.executor.kind === "plugin") {
+        const executor = await ports.executor(work, { beforeEffect, assert_authority_current: current });
+        await executor.control(work.executor.session_id!, binding.run.run_id, { kind: "stop" });
+      } else {
+        const adapter = host.adapter("prologue");
+        if (!adapter.withEffect) throw assistantErrors.unsupported("当前运行时不能核对原执行的停止边界");
+        // A later personal Send changes the Work revision before its first await. The old stop then fails at the SDK write.
+        current();
+        revision = ports.store.update(ports.actorId, work.work_id, revision, { continuation_hold: "stopped" }, false).revision;
+        await adapter.withEffect({ beforeEffect, assert_current: current }, async () => { await beforeEffect(); current(); await adapter.control(binding.run, { kind: "stop" }); });
+        // The stop has already been admitted. Session-wide cleanup must still belong to this same input generation.
+        if (ports.store.get(ports.actorId, work.work_id).revision === revision) {
+          current(); if (work.session_id) ports.cancelSetups?.(work.session_id);
+        }
+        host.reviews.cancelPending(binding.run.run_id, "这一轮已停止");
+      }
+    } finally { release(); }
+    return;
+  }
   if (work.executor.kind === "plugin") {
     const executor = await ports.executor(work);
     const latest = work.executor.session_id ? (await executor.read(work.executor.session_id, 1)).runs.at(-1) : undefined;

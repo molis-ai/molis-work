@@ -75,7 +75,7 @@ function fixture(executors: Array<ReturnType<typeof fakeExecutor>> = [fakeExecut
   const caller = { project_ref: PROJECT_REF };
   const plugin = { kind: "plugin" as const, plugin_id: PLUGIN };
   const project = { kind: "project" as const, project_id: "project" };
-  return { exec, store, service, caller, plugin, project };
+  return { exec, store, service, caller, plugin, project, host };
 }
 
 test("W2-18-FOLLOWUP-DELETE-04 the person's bound client, carrying the follow-up's control, refuses a deleted request after the final beforeEffect await", async () => {
@@ -433,4 +433,35 @@ test("CHO-04 an executor that cannot be found says why: a version short of the p
   assert.match(reasons[1]!, /不在这个项目里/, "the plugin is not in the project");
   assert.match(reasons[2]!, /没有运行/, "the plugin is in the project and not running");
   assert.equal(new Set(reasons).size, 3, "three causes, three different sentences");
+});
+
+test("SAI-08/09: request recovery follows original executor relations after handover and rejects a foreign Host Session", async t => {
+  const f = fixture(), installId = "fixture-install";
+  for (const view of f.exec.views) view.provider.plugin_install_id = installId;
+  const sent = await f.service.send({ executor: f.plugin, scope: f.project, text: "执行", request_id: "sai-executor-first" }, f.caller);
+  const workId = sent.work.work_id, requestId = "sai-executor-lost";
+  f.store.requests.claimRequest("web-user", requestId, workId);
+  const invoke = f.exec.actions.invoke.bind(f.exec.actions);
+  t.mock.method(f.exec.actions, "invoke", async (definition, input, context) => {
+    const result = await invoke(definition, input, context);
+    return roleOfCapability(PLUGIN, definition.capability_id) === "session.read" ? { ...result as object, runtime_session_id: "original-runtime" } : result;
+  });
+  let owner = { actor_id: "web-user", project_id: "project", plugin_id: PLUGIN, install_id: installId }, reads = 0;
+  const ref = { session_id: "original-runtime", run_id: "accepted-original-run" };
+  const adapter = { sessionLifecycle: { read: async () => ({ owner }) }, readSession: async () => ({}), read: async () => null,
+    readOriginalInput: async (input: { session_id: string; input_id: string }) => {
+      reads++; assert.deepEqual(input, { session_id: "original-runtime", input_id: requestId, version: 1 });
+      return { accepted_run: ref };
+    } };
+  t.mock.method(f.host, "adapter", () => adapter);
+  // The original relation, written by the real dispatch above, remains after returning the Work to the Assistant.
+  f.store.update("web-user", workId, null, { executor: { kind: "assistant" } });
+  assert.deepEqual(await f.service.checkSubtaskRequest(workId, requestId), { state: "applied", run: ref });
+  assert.equal(reads, 1);
+  for (const field of ["actor_id", "project_id", "plugin_id", "install_id"] as const) {
+    const before = owner; owner = { ...owner, [field]: "foreign" };
+    await assert.rejects(f.service.checkSubtaskRequest(workId, requestId), (error: unknown) => (error as { code?: string }).code === "assistant.scope");
+    assert.equal(reads, 1, "foreign history is never read"); owner = before;
+  }
+  f.service.continuations.close();
 });

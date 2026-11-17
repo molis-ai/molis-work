@@ -156,7 +156,7 @@ for (const decision of ["approve", "reject", "stop", "bridge-failure", "escape",
             assert.equal(calls, count, "restart at pending cannot call the provider");
             await assert.rejects(queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" }));
             break polling;
-          } else if (decision === "stop") { const [child] = await adapter.subagents!.list(handle.ref); await adapter.subagents!.cancel(handle.ref, child!.subagent_id, "user"); }
+          } else if (decision === "stop") { const [child] = await adapter.subagents!.list(handle.ref); await adapter.subagents!.command!(handle.ref, child!.subagent_id, { kind: "stop", request_id: "stop-writer", child_run: child!.child_run! }, { actor_id: "user", execution: {} }); }
           else if (decision === "approve" || decision === "reject") {
             if (decision === "approve") {
               await new Promise(resolve => setTimeout(resolve, 65_000));

@@ -73,7 +73,7 @@ test('packed SDK child dispatch uses Host review, frozen roles, actual reads and
     assert.ok(before[0].host_tools?.includes('read-file'));assert.equal(before[0].host_tools?.includes('write'),false);
     const foreign=await adapter.createSession({...owner,directory,title:'Other'});
     await assert.rejects(adapter.subagents!.list({...handle.ref,session_id:foreign.session_id}),/不属于/);
-    await assert.rejects(adapter.subagents!.cancel(handle.ref,'foreign','user'),/不属于/);
+    await assert.rejects(adapter.subagents!.command!(handle.ref,'foreign',{kind:'stop',request_id:'stop-foreign',child_run:{session_id:'foreign',run_id:'foreign'}},{actor_id:'user',execution:{}}),{code:'agent.collaboration_unknown'});
     const forbidden=structuredClone(codingAgentManifest);forbidden.subagents!.roles[0]!.host_tools!.push('write');
     await assert.rejects(host.start('prologue',{...owner,session,directory,role_id:'coordinator',task:'must not start'},
       {manifest:forbidden,prompts:codingPrompts,authorizedDirectories:[root]}),
@@ -110,7 +110,7 @@ for (const outcome of ['rejected','cancelled','failed','unknown-role'] as const)
       for(const review of queue.list('b','pending'))if(!decided.has(review.review_id)){
         assert.equal(childCalls,0);decided.add(review.review_id);await queue.respond({review_id:review.review_id,decision:outcome==='rejected'?'reject':'approve',actor_id:'user'});
       }
-      if(outcome==='cancelled'&&childCalls&&!cancelled){const rows=await adapter.subagents!.list(handle.ref);assert.equal(rows.length,1);await adapter.subagents!.cancel(handle.ref,rows[0].subagent_id,'user');cancelled=true;}
+      if(outcome==='cancelled'&&childCalls&&!cancelled){const rows=await adapter.subagents!.list(handle.ref);assert.equal(rows.length,1);await adapter.subagents!.command!(handle.ref,rows[0].subagent_id,{kind:'stop',request_id:'stop-child',child_run:rows[0].child_run!},{actor_id:'user',execution:{}});cancelled=true;}
       await new Promise(resolve=>setTimeout(resolve,10));
     }
     const children=await adapter.subagents!.list(handle.ref);

@@ -161,6 +161,10 @@ export const codingManifest: PluginManifest = {
   onboarding: { takes: [{ kind: "code_root", capability_id: codingOnboardingTake.capability_id, version: codingOnboardingTake.version }] },
   actions: [memoryLearningActions.run, ...CODING_ACTIONS, ...codingPresentationActions, ...Object.values(codingExecutorActions), codingOnboardingTake, codingArtifactPreview, codingResultDocument, codingBackgroundTasks, codingWorkEventsAction],
   routes: [
+    { route_id: "coding.read-subtask-conversation", method: "GET", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/conversation" },
+    { route_id: "coding.wait-subtask-conversation", method: "GET", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/conversation/live" },
+    { route_id: "coding.check-subtask-request", method: "GET", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/conversation/request" },
+    { route_id: "coding.command-subtask", method: "POST", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/conversation" },
     { route_id: "coding.evaluate-step", method: "POST", path: "/sessions/:sessionId/runs/:runId/steps/:stepId" },
     { route_id: "coding.writer-directories", method: "GET", path: "/workspaces/:workspaceId/writers" },
     { route_id: "coding.prepare-writer-directory", method: "POST", path: "/workspaces/:workspaceId/writers" },

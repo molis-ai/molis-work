@@ -20,6 +20,10 @@ export interface AgentStartExecution extends ActionCallOrigin {
   beforeDispatch?(): void | (() => void) | Promise<void | (() => void)>;
   /** Release Host-only selected material controls at rejection or actual Run termination. */
   disposeDispatch?(): void;
+  /** Bind the real business child before its first Run freezes tools; re-resolve on an explicit continuation. */
+  subagentGateway?(role: AgentFrozenSubagentRole, session: AgentSessionRef): Promise<NonNullable<AgentFrozenRole["action_gateway"]>>;
+  /** Current declaration and execution ceiling, checked again at the child's actual dispatch. */
+  assertSubagent?(role: AgentFrozenSubagentRole): void;
 }
 
 /** An authorized directory. The Host resolves and verifies it; the Plugin never passes a raw path. */

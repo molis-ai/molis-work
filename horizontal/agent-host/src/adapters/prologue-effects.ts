@@ -14,6 +14,8 @@ export interface PrologueEffects {
   beforeEffect(): Promise<void>;
   assertCurrent(): void;
   accepted(): boolean;
+  /** SDK continuation returned its durable accepted Run; background work releases the submitting invocation. */
+  accept(): void;
   detach<T>(work: () => T): T;
   bind(memory: AgentMemoryCapability, control: AgentMemoryExecutionControl): AgentMemoryCapability;
   observeMemoryWrites(): () => void;
@@ -113,5 +115,7 @@ export function prologueEffects(host: NodeHost, appId: string): PrologueEffects 
     };
     const value: unknown = Reflect.get(object, key); return typeof value === "function" ? value.bind(object) : value;
   } });
-  return { observeSessionWrites, close() { closed = true; for (const observation of observers) observation.closed = true; observers.clear(); }, host: { ...host, storage }, call, memory, start, session, beforeEffect, assertCurrent, observeMemoryWrites, accepted: () => calls.getStore()?.accepted ?? false, detach: <T>(work: () => T) => calls.exit(work), bind: (memory: AgentMemoryCapability, control: AgentMemoryExecutionControl) => wrap(memory, control) };
+  return { observeSessionWrites, close() { closed = true; for (const observation of observers) observation.closed = true; observers.clear(); }, host: { ...host, storage }, call, memory, start, session, beforeEffect, assertCurrent, observeMemoryWrites, accepted: () => calls.getStore()?.accepted ?? false,
+    accept() { const frame = calls.getStore(); if (frame) { frame.accepted = true; frame.active = false; } },
+    detach: <T>(work: () => T) => calls.exit(work), bind: (memory: AgentMemoryCapability, control: AgentMemoryExecutionControl) => wrap(memory, control) };
 }

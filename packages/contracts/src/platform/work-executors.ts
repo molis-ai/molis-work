@@ -133,7 +133,7 @@ export const WORK_EXECUTOR_PROTOCOL: Readonly<Record<WorkExecutorRole, WorkExecu
   "run.control": role("run.control", "command", { oneOf: [
     control("answer", { ...answer, text: words(100_000) }), control("answer", { ...answer, answers: { type: "array", minItems: 1, maxItems: 10, items: { type: "object" } } }),
     control("steer", { text: words(100_000), source: { enum: [...AGENT_INPUT_SOURCES] }, key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN },
-      mode: { enum: [...AGENT_STEER_MODES] }, about: words(200) }, ["text"]),
+      mode: { enum: [...AGENT_STEER_MODES] }, require_running: { const: true }, about: words(200) }, ["text"]),
     control("withdraw", { input_id: words(200) }), control("stop"), control("pause"), control("resume"),
   ] }, closed({ accepted: { type: "boolean" }, receipt: closed({ input_id: id, replayed: { type: "boolean" }, delivered: { enum: ["run", "queued"] } }) }, ["accepted"])),
 };

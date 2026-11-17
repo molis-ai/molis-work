@@ -95,7 +95,9 @@ const codeOf = (error: unknown) => (error as { code?: unknown } | null)?.code;
 export async function deliverSteer(input: AgentInputSend, ended: boolean, steer: (input: SteerInput) => Promise<{ steerId: string; replayed: boolean }>,
   queue: QueueInput | undefined, beforeQueue?: () => void): Promise<AgentSteerReceipt> {
   const one = { ...(input.original ? { original: { ...input.original } } : {}), text: input.text, ...(input.source === "host" ? { source: "app" as const } : {}), ...(input.key ? { key: input.key } : {}), ...(input.about ? { about: input.about } : {}) };
+  if (input.require_running && input.mode === "after-run") throw agentErrors.control_failed("A running-only input cannot be queued for a later run");
   const keep = async (): Promise<AgentSteerReceipt> => {
+    if (input.require_running) throw agentErrors.control_failed("The selected run ended; choose to continue the subtask explicitly");
     if (!queue) throw agentErrors.capability_unavailable(ended ? "这一轮已经结束，当前运行时不能把补充留到下一轮" : "当前运行时不能把补充留到下一轮");
     beforeQueue?.();
     const kept = await queue(one);

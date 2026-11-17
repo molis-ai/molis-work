@@ -91,6 +91,7 @@ export interface PrologueStartInput {
   assertBeforeStart?: AgentStartExecution["assertBeforeStart"];
   beforeDispatch?: AgentStartExecution["beforeDispatch"];
   disposeDispatch?: AgentStartExecution["disposeDispatch"];
+  subagentGateway?: AgentStartExecution["subagentGateway"];
   actions?: NonNullable<AgentStartRequest["role"]>["actions"];
   action_gateway?: NonNullable<AgentStartRequest["role"]>["action_gateway"];
   subagent_workspaces?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentWorkspace[];
@@ -189,6 +190,8 @@ export interface PrologueRuntimePort {
     create(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<{ ref: { id: string } }>;
     originalInput?(sessionId: string, input: Pick<AgentStartRequest, "original_input" | "continued_from">): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput | undefined>;
     readOriginalInput?: AgentRuntimeAdapter["readOriginalInput"];
+    inputIdByKey?(sessionId: string, key: string): Promise<string | undefined>;
+    notify?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentInputsPort["notify"];
     locateInput?(sessionId: string, inputId: string): Promise<SupplementaryLocation | undefined>;
     restore?(sessionId: string): Promise<PrologueRestoredSession | undefined>;
     /** Same owner/recovery checks as restore, without restoring historical controls or retaining transcripts. */

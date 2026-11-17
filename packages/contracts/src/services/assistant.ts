@@ -11,7 +11,7 @@ export type { AssistantActivity, AssistantActivityFailure } from "./assistant-ac
 import type { ContractDescriptor } from "../platform/package.js";
 import type { DirectoryReadOrigin } from "../platform/plugin-directory.js";
 import type { OwnedTextRef } from "../platform/ui-text.js";
-import type { AgentRetryWait, AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
+import type { AgentRunRef, AgentRetryWait, AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
 import type { AgentPendingQuestion, AgentQuestionReask } from "./agent-interaction.js";
 import type { AgentInputSend, AgentQueuedInput, AgentSteerMode } from "./agent-inputs.js";
 import type { MemoryChange } from "./memory.js";
@@ -479,7 +479,21 @@ export interface AssistantWorkView {
 
 export type { AssistantRecovery } from "./assistant-recovery.js";
 
+/** Issued from original Work/delegation facts; never a permission grant. */
+export interface AssistantSubtaskBinding {
+  work_id: string;
+  parent_work_id: string;
+  graph_id: string;
+  node_id: string;
+  executor: AssistantExecutorChoice;
+  /** The executor's business session when a plugin carries this Work. */
+  executor_session_id?: string;
+  run: AgentRunRef;
+}
+
 export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
+  /** The child conversation never silently redirects to a newer execution or starts from a plain supplement. */
+  subtask?: { binding: AssistantSubtaskBinding; operation: "send" | "continue" };
   /** Omitted starts a new work. */
   work_id?: string;
   main?: true; for_event?: { kind: string; id: string }; // `main`, without `work_id`: the main conversation of this scope with this counterpart (`character`, or the Assistant), opened on first use. `for_event`, for a new work said in an event's tab: the event on the person's work line it is done for (the Host reads the line as the person).
@@ -534,6 +548,9 @@ export interface AssistantSendResult {
   run_id?: string;
 }
 
+/** Stored in the existing request owner; the original Send result remains its current branch. */
+export type AssistantRequestResult = AssistantSendResult | { outcome: "stopped"; work: AssistantWork; run_id: string };
+
 /**
  * Hand a work to another agent and keep it one work: to a plugin's Agent (in its project, with a note of what was agreed and
  * produced so far), or back to the Assistant (whose next round reads what the plugin did). Only between rounds.
@@ -545,11 +562,11 @@ export interface AssistantHandover {
 }
 
 /** What the page asks of a work's latest round: pause, resume or stop it, or take back a supplement no model has seen (§4.3). */
-export type AssistantControl =
+export type AssistantControl = (
   | { kind: "pause" }
   | { kind: "resume" }
   | { kind: "stop"; keep_connections?: boolean }
-  | { kind: "withdraw"; run_id: string; input_id: string };
+  | { kind: "withdraw"; run_id: string; input_id: string }) & { subtask?: AssistantSubtaskBinding; request_id?: string };
 
 /** What one provider contributes for the Assistant (read from the action directory), and the gaps that limit it. */
 export interface AssistantContribution {

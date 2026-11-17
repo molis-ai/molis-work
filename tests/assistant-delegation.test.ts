@@ -294,14 +294,15 @@ test("the person takes a sub-task back: it stops, the board says so, no more fol
 });
 
 /** A delegating work and a runtime whose model can be held or switched off; the parent's model script is the caller's. */
-async function delegationFixture(t: import("node:test").TestContext, parentScript: Array<() => Response>, child: (round: number, signal: AbortSignal | null | undefined) => Promise<Response>) {
+async function delegationFixture(t: import("node:test").TestContext, parentScript: Array<() => Response>, child: (round: number, signal: AbortSignal | null | undefined) => Promise<Response>, isChild?: (body: any) => boolean) {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-fixture-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = { project_id: "board", storage_key: "memory:project" };
-  let parentStep = 0, childRound = 0;
+  let parentStep = 0, childRound = 0; const parentBodies: string[] = [];
   t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
-    if (JSON.stringify(body.messages).includes("委托的子任务")) return child(childRound++, init.signal);
+    if (isChild ? isChild(body) : JSON.stringify(body.messages).includes("委托的子任务")) return child(childRound++, init.signal);
+    parentBodies.push(JSON.stringify(body));
     return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))();
   }));
   const flags = { model: true, beforeAuthority: undefined as (() => Promise<void>) | undefined, beforeStart: undefined as (() => Promise<void>) | undefined, assertBeforeStart: undefined as (() => void) | undefined,
@@ -311,13 +312,15 @@ async function delegationFixture(t: import("node:test").TestContext, parentScrip
     modelConfiguration: async () => flags.model ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" } : null, resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
+  let service: AssistantService;
+  const openService = () => new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => {
       const base = assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work));
       if (!work.delegated_by) await flags.beforeAuthority?.();
       return { ...base, beforeStart: async () => { await base.beforeStart?.(); await (work.delegated_by ? flags.partBeforeStart : flags.beforeStart)?.(); }, assertBeforeStart: () => { base.assertBeforeStart?.(); if(!work.delegated_by)flags.assertBeforeStart?.(); } };
     }, projectTitle: async () => "项目" }, "web-user");
-  return { service, store, project, flags, adapter, home, close: async () => { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  service = openService();
+  return { get service() { return service; }, restart: () => { service.continuations.close(); service = openService(); service.subtaskReports.attach(); }, store, project, flags, adapter, queue, home, parentBodies, close: async () => { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a sub-task the person put away still counts for the work that handed it out: its tokens and its place among the limit; it takes no follow-up until the person restores it, then the stop reaches it", { timeout: 60_000 }, async t => {
@@ -602,4 +605,153 @@ test("W2-18-HANDBACK-CURRENT-03: a hand-back refused after it took the continuat
     assert.equal((await rootOf(f, sent.work.work_id)).continuation?.state, "started", "the person's round took it up");
     assert.equal(parentCalls, 3);
   } finally { finishChild.resolve(); await f.close(); }
+});
+
+test("SAI-03/04/05/08/10: Work child input binds the original execution; a lost receipt is queried without resending and a completed continuation replays", { timeout: 60_000 }, async t => {
+  const held = Promise.withResolvers<void>(); let childCalls = 0;
+  const f = await delegationFixture(t, [
+    () => reply({ name: "delegate-work", input: { title: "起草", brief: "写一段。", acceptance: "一段文字" } }),
+    () => reply(undefined, "等待子任务。"),
+  ], async (round, signal) => {
+    childCalls++;
+    if (round > 0) await Promise.race([held.promise, new Promise((_resolve, reject) => signal?.addEventListener("abort", () => reject(signal.reason), { once: true }))]);
+    return reply(undefined, `草稿 ${round + 1}`);
+  });
+  const caller = (id: string, text: string) => ({ project_ref: f.project, original_input: {
+    input_id: id, text, written_by: "person" as const, occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID,
+  } });
+  try {
+    const parent = await f.service.send({ text: "委托起草", request_id: "req-b59-work-parent" }, { project_ref: f.project });
+    await until(async () => { const view = await f.service.read(parent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed" && view.delegated?.[0]?.state === "completed"; }, "first child and hand-back completed");
+    const child = f.store.delegatedBy("web-user", f.store.get("web-user", parent.work.work_id))[0]!;
+    const original = (await f.service.readSubtask(child.work_id)).binding!;
+    const notify = f.adapter.inputs.notify!.bind(f.adapter.inputs), notices: Array<{ text: string; notification_id: string }> = [];
+    const faults = ["before", "after"];
+    t.mock.method(f.adapter.inputs, "notify", async (...args: Parameters<typeof notify>) => {
+      const fault = faults.shift();
+      if (fault === "before") throw new Error("notification transport unavailable before acceptance");
+      const result = await notify(...args); notices.push({ text: args[0].text, ...result });
+      if (fault === "after") throw new Error("notification response lost after acceptance");
+      return result;
+    });
+    const request_id = "req-b59-work-continue", text = "只继续这项子任务";
+    const input = { work_id: child.work_id, request_id, text, subtask: { binding: original, operation: "continue" as const } };
+    const continued = await f.service.send(input, caller(request_id, text));
+    assert.equal(continued.work.session_id, original.run.session_id);
+    assert.notEqual(continued.run_id, original.run.run_id);
+    await f.service.subtaskReports.idle();
+    assert.equal(notices.length, 0, "a failed report does not roll back or repeat the accepted child input");
+    f.restart(); await f.service.subtaskReports.idle();
+    assert.equal(notices.length, 1, "a fresh service finds the accepted input from its original owner");
+    f.restart(); await f.service.subtaskReports.idle();
+    assert.equal(new Set(notices.map(one => one.notification_id)).size, 1, "recovery after a lost report receipt keeps its original envelope");
+    await until(() => childCalls === 2, "the second child attempt is running");
+    const active = (await f.service.readSubtask(child.work_id)).binding!;
+    await assert.rejects(f.service.control(child.work_id, { kind: "stop", request_id: "req-b59-stale-stop", subtask: original }), (error: unknown) => error instanceof ActionError && error.code === "assistant.stale");
+    assert.equal((await f.adapter.read(active.run)).phase, "running", "an old stop never targets the new Run");
+    const send = f.adapter.inputs.send.bind(f.adapter.inputs);
+    let sends = 0;
+    t.mock.method(f.adapter.inputs, "send", async (...args: Parameters<typeof send>) => { sends++; await send(...args); throw new Error("response lost after owner accepted"); });
+    const supplementId = "req-b59-work-supplement", supplement = "保留这句原话";
+    await assert.rejects(f.service.send({ work_id: child.work_id, request_id: supplementId, text: supplement, subtask: { binding: active, operation: "send" } }, caller(supplementId, supplement)),
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.pending_request");
+    assert.equal((await f.service.checkSubtaskRequest(child.work_id, supplementId)).state, "applied");
+    await assert.rejects(f.service.send({ work_id: child.work_id, request_id: supplementId, text: supplement, subtask: { binding: active, operation: "send" } }, caller(supplementId, supplement)),
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.pending_request");
+    assert.equal(sends, 1, "checking and repeating the pending request never resends");
+    const originalInput = await f.adapter.inputs.findByKey!(active.run.session_id, `send.${supplementId}`);
+    assert.equal(originalInput?.state, "run");
+    assert.equal(originalInput?.state === "run" ? originalInput.receipt.original?.text ?? originalInput.text : undefined, supplement);
+    await f.service.control(child.work_id, { kind: "stop", request_id: "req-b59-current-stop", subtask: active });
+    assert.equal((await f.service.checkSubtaskRequest(child.work_id, "req-b59-current-stop")).state, "applied");
+    await f.service.control(child.work_id, { kind: "stop", request_id: "req-b59-current-stop", subtask: active });
+    const replay = await f.service.send(input, caller(request_id, text));
+    assert.equal(replay.run_id, continued.run_id); assert.equal(childCalls, 2, "replaying the old accepted continue starts nothing");
+    await until(() => notices.some(one => one.text.includes("已结束") && one.text.includes(active.run.run_id)), "the original child result was reported");
+    await f.service.subtaskReports.idle();
+    assert.equal(new Set(notices.map(one => one.notification_id)).size, 3, "original start, supplement and result each keep one envelope");
+    assert.equal(f.store.rounds(parent.work.work_id).length, 2, "human continuation and stop never start the parent");
+    const parentNext = await f.service.send({ work_id: parent.work.work_id, text: "现在核对子任务更新", request_id: "req-b59-parent-explicit" }, { project_ref: f.project });
+    await until(async () => (await f.service.read(parent.work.work_id)).rounds.some(round => round.run_id === parentNext.run_id && round.phase === "completed"), "explicit parent round completed");
+    assert.match(f.parentBodies.at(-1)!, new RegExp(active.run.run_id));
+    assert.match(f.parentBodies.at(-1)!, new RegExp(request_id));
+    assert.match(f.parentBodies.at(-1)!, new RegExp(originalInput!.ref.input_id));
+  } finally { held.resolve(); await f.close(); }
+});
+
+test("SAI-05/08: a stop held before SDK admission cannot change the next personal child Run", { timeout: 60_000 }, async t => {
+  const first = Promise.withResolvers<void>(), second = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const f = await delegationFixture(t, [() => reply({ name: "delegate-work", input: { title: "起草", brief: "写一段。", acceptance: "一段文字" } }), () => reply(undefined, "等待子任务。")],
+    async (round, signal) => {
+      if (round > 0) await Promise.race([(round === 1 ? first : second).promise, new Promise((_resolve, reject) => signal?.addEventListener("abort", () => reject(signal.reason), { once: true }))]);
+      return reply(undefined, `草稿 ${round}`);
+    });
+  try {
+    const parent = await f.service.send({ text: "委托起草", request_id: "sai-stale-parent" }, { project_ref: f.project });
+    await until(async () => { const view = await f.service.read(parent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed" && view.delegated?.[0]?.state === "completed"; });
+    const child = f.store.delegatedBy("web-user", f.store.get("web-user", parent.work.work_id))[0]!;
+    const more = async (id: string) => {
+      const binding = (await f.service.readSubtask(child.work_id)).binding!;
+      return f.service.send({ work_id: child.work_id, request_id: id, text: id, subtask: { binding, operation: "continue" } }, { project_ref: f.project,
+        original_input: { input_id: id, text: id, written_by: "person", occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID } });
+    };
+    await more("sai-stale-first");
+    const binding = (await f.service.readSubtask(child.work_id)).binding!;
+    const effect = f.adapter.withEffect.bind(f.adapter); let held = false;
+    t.mock.method(f.adapter, "withEffect", async (fence, operation) => {
+      if (!held) { held = true; entered.resolve(); await release.promise; }
+      return effect(fence, operation);
+    });
+    const stopped = f.service.control(child.work_id, { kind: "stop", request_id: "sai-stale-stop", subtask: binding });
+    const refused = assert.rejects(stopped, (error: unknown) => error instanceof ActionError && error.code === "assistant.stale");
+    await entered.promise;
+    first.resolve(); await until(async () => (await f.adapter.read(binding.run)).phase === "completed");
+    const next = await more("sai-stale-next");
+    release.resolve(); await refused;
+    const now = (await f.service.readSubtask(child.work_id)).binding!;
+    assert.equal(now.run.run_id, next.run_id);
+    assert.equal((await f.adapter.read(now.run)).phase, "running");
+    assert.equal(f.store.get("web-user", child.work_id).continuation_hold, undefined);
+    assert.equal((await f.service.checkSubtaskRequest(child.work_id, "sai-stale-stop")).state, "unknown");
+    for (let i = 0; i < 501; i++) f.store.create({ actor_id: "web-user", title: `Later ${i}`, scope: { kind: "person" }, origin: null });
+    assert.equal((await f.service.readSubtask(child.work_id)).binding!.parent_work_id, parent.work.work_id, "original parent lookup is not a recent-Work window");
+    await f.service.control(child.work_id, { kind: "stop", request_id: "sai-current-stop", subtask: now });
+  } finally { first.resolve(); second.resolve(); release.resolve(); await f.close(); }
+});
+
+test("SAI-01/02/04/09: the actual Assistant business role dispatches SDK children and continues only its owned child", { timeout: 60_000 }, async t => {
+  const childBodies: string[] = [];
+  const f = await delegationFixture(t, [() => {
+    const character = f.parentBodies.at(-1)!.match(/molis-child-[a-z0-9-]+@\d+/u)?.[0]; assert.ok(character);
+    return reply({ name: "dispatch-subagent", input: { instruction: "SAI_SDK_CHILD: draft one sentence.", tools: [], character, idempotencyKey: "assistant-sdk-child" } });
+  }, () => reply(undefined, "等待子代理结果。")], async round => reply(undefined, `SDK child answer ${round}`), body => {
+    const first = body.messages.find((one: { role: string }) => one.role === "user");
+    const child = JSON.stringify(first?.content).includes("SAI_SDK_CHILD");
+    if (child) childBodies.push(JSON.stringify(body.messages));
+    return child;
+  });
+  try {
+    const parent = await f.service.send({ text: "派一个 SDK 子代理起草", request_id: "sai-sdk-parent" }, { project_ref: f.project });
+    const [child] = await until(async () => { for (const review of f.queue.list("board", "pending")) await f.queue.respond({ review_id: review.review_id, actor_id: "web-user", decision: "approve" }); const children = await f.service.sdkSubtasks.list(parent.work.work_id); return children.length && children.every(one => one.state === "completed") ? children : undefined; }, "Assistant SDK child completion");
+    assert.ok(child?.child_run);
+    const view = await f.service.sdkSubtasks.read(parent.work.work_id, child.parent_run.run_id, child.subagent_id);
+    assert.ok(view.conversation.messages.some(one => one.text.includes("SDK child answer 0")));
+    const text = "Make that exact sentence shorter.", command = { kind: "continue" as const, child_run: child.child_run, request_id: "sai-sdk-continue", text };
+    const caller = { beforeEffect: async () => {}, assertCurrent: () => {}, original: { input_id: command.request_id, text, written_by: "person" as const, occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID } };
+    await assert.rejects(f.service.sdkSubtasks.command(parent.work.work_id, child.parent_run.run_id, child.subagent_id, command, { ...caller, original: undefined }), /原件/);
+    const result = await f.service.sdkSubtasks.command(parent.work.work_id, child.parent_run.run_id, child.subagent_id, command, caller);
+    assert.equal(result.state, "applied");
+    await until(async () => {
+      for (const review of f.queue.list("board", "pending")) await f.queue.respond({ review_id: review.review_id, actor_id: "web-user", decision: "approve" });
+      return (await f.service.sdkSubtasks.list(parent.work.work_id))[0]?.state === "completed" && childBodies.length === 2;
+    });
+    assert.match(childBodies.at(-1)!, /Make that exact sentence shorter/);
+    assert.deepEqual(await f.service.sdkSubtasks.check(parent.work.work_id, child.parent_run.run_id, child.subagent_id, command.request_id), result);
+    assert.deepEqual(await f.service.sdkSubtasks.command(parent.work.work_id, child.parent_run.run_id, child.subagent_id, command, caller), result);
+    assert.equal(childBodies.length, 2);
+    const other = f.store.create({ actor_id: "web-user", title: "Other", scope: { kind: "project", project_id: "board" }, project_ref: f.project, origin: null });
+    await assert.rejects(f.service.sdkSubtasks.read(other.work_id, child.parent_run.run_id, child.subagent_id), /原助理会话/);
+    await f.service.archive(parent.work.work_id, true);
+    assert.ok((await f.service.sdkSubtasks.read(parent.work.work_id, child.parent_run.run_id, child.subagent_id)).conversation.input_unavailable);
+  } finally { await f.close(); }
 });

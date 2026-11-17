@@ -23,6 +23,9 @@ type RoundInputOutcome = "answered" | "steered" | "queued";
 export interface SendIntent { id?: string; target?: AssistantSendInput["target"]; delivery?: AgentSteerMode; byHost?: boolean; about?: string; original_input?: Omit<HostOfferedOriginalInput, "action">; continued_from?: AgentRunRef; reply_locale?: WebLocale; draftCurrent?: () => boolean;
   /** False: the person asked for this round without automatic Skills (`AssistantSendInput.auto_skills`). */
   auto_skills?: false;
+  subtask?: AssistantSendInput["subtask"];
+  /** Entering an execution owner may have an effect even if its response is lost. */
+  handed?(): void;
   /** A round the Host starts only to report a task no conversation started: it reads, and does nothing else (`reportOnlyAuthority`). */
   report_only?: true }
 
@@ -146,7 +149,7 @@ export class AssistantInputs {
     const key = intent.id && new RegExp(AGENT_INPUT_KEY_PATTERN).test(`send.${intent.id}`) ? { key: `send.${intent.id}` } : {};
     const original = !intent.byHost && intent.original_input?.written_by === "person" ? { text: intent.original_input.text, source: "person" as const } : undefined;
     const derived = intent.byHost || !original || materials.length > 0 || Boolean(context?.selection);
-    const receipt = await port.send({ text: this.compose(text, materials, context), ...(derived && original ? { original } : {}), ...key, ...(derived ? { source: "host" as const } : {}), ...(intent.about ? { about: intent.about } : {}), ...(intent.delivery ? { mode: intent.delivery } : {}) });
+    const receipt = await port.send({ text: this.compose(text, materials, context), ...(derived && original ? { original } : {}), ...key, ...(derived ? { source: "host" as const } : {}), ...(intent.about ? { about: intent.about } : {}), ...(intent.delivery ? { mode: intent.delivery } : {}), ...(intent.subtask?.operation === "send" ? { require_running: true as const } : {}) });
     // A round that ended as the words arrived does not take them; they wait in its session for the next round.
     return receipt?.delivered === "queued" ? "queued" : "steered";
   }

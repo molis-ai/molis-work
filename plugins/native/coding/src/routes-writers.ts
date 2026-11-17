@@ -75,21 +75,17 @@ const ROUTES: RouteMaker[] = [
       const children = await codingActions(context, beforeWrite).invoke(agent.listSubagents, [session, run]);
       const child = children.find(child => child.subagent_id === request.params.childId);
       if (!child) throw codingFailure("coding.server.subtask-elsewhere");
-      if (body.action === "stop") await codingActions(context, beforeWrite).invoke(agent.cancelSubagent, [session, run, child.subagent_id]);
-      else if (body.action === "retry") {
-        const source = body.source === "check-failed" || body.source === "model-error" ? body.source : "user-requested";
-        const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim().slice(0, 500) : undefined;
-        const extend = typeof body.extend_attempts === "number" && Number.isSafeInteger(body.extend_attempts) && body.extend_attempts > 0 ? body.extend_attempts : undefined;
-        const updated = await codingActions(context, beforeWrite).invoke(agent.retrySubagent, [session, run, child.subagent_id, {
-          source, ...(reason ? { reason } : {}), ...(extend ? { extend_attempts: extend } : {}),
+      if (["stop", "retry", "extend-budget"].includes(String(body.action))) {
+        const target = body.child_run as { session_id?: unknown; run_id?: unknown } | undefined;
+        const child_run = { session_id: text(target?.session_id, "coding.field.original-run"), run_id: text(target?.run_id, "coding.field.original-run") };
+        const request_id = text(body.request_id, "coding.field.original-run");
+        const result = await codingActions(context, beforeWrite).invoke(agent.commandSubagent, [session, run, child.subagent_id, {
+          child_run, request_id, ...(body.action === "stop" ? { kind: "stop" as const }
+            : body.action === "extend-budget" ? { kind: "extend-budget" as const, attempts: typeof body.extend_attempts === "number" ? body.extend_attempts : 3 }
+              : { kind: "retry" as const, source: body.source === "check-failed" || body.source === "model-error" ? body.source : "user-requested",
+                ...(typeof body.reason === "string" ? { reason: body.reason.slice(0, 2000) } : {}) }),
         }]);
-        return { ok: true, subagent: updated };
-      } else if (body.action === "extend-budget") {
-        const extend = typeof body.extend_attempts === "number" && Number.isSafeInteger(body.extend_attempts) && body.extend_attempts > 0 ? body.extend_attempts : 3;
-        const updated = await codingActions(context, beforeWrite).invoke(agent.retrySubagent, [session, run, child.subagent_id, {
-          source: "user-requested", only_extend: true, extend_attempts: extend,
-        }]);
-        return { ok: true, subagent: updated };
+        return { ok: result.state === "applied", result };
       } else {
         if (!["accepted", "needs-work"].includes(String(body.action)) || child.state !== "completed") throw codingFailure("coding.server.rate-ended-only");
         const notes = typeof body.notes === "string" ? body.notes.trim() : "";

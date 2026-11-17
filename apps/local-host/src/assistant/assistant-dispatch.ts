@@ -1,3 +1,4 @@
+import { assertSubtaskRun } from "./assistant-subtask-binding.js";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { MethodHandoff } from "./assistant-signed-materials.js";
 import { threadReplyMaterials } from "./assistant-thread-types.js";
@@ -182,7 +183,7 @@ export class AssistantDispatch {
     const skills = [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill" ? [[JSON.stringify(item.method.ref), item.method.ref] as const] : [])).values()];
     const told = materials.filter(item => !(item.kind === "method" && item.method?.kind === "skill"));
     const locale = intent?.reply_locale ?? this.ports.lastLocale?.();
-    const executor = await this.executorOf(work, undefined, { original: !intent?.byHost && !work.delegated_by && !work.reply_target ? intent?.original_input : undefined, skills, control: { beforeEffect: async () => { await beforeStart?.(); requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); handoff?.assertCurrent(); },
+    const executor = await this.executorOf(work, undefined, { original: !intent?.byHost ? intent?.original_input : undefined, skills, control: { beforeEffect: async () => { await beforeStart?.(); requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); handoff?.assertCurrent(); },
       assert_authority_current: () => { requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); handoff?.assertCurrent(); }, ...(locale ? { locale } : {}) } });
     if (work.executor.kind !== "plugin") throw assistantErrors.invalid("这项工作不由执行方插件承担");
     // The mode chosen before the first Send is saved on the session, where the plugin's page reads it too.
@@ -192,16 +193,18 @@ export class AssistantDispatch {
     assertSendCurrent(stillCurrent);
     if (read.recovery) throw assistantErrors.needs_check(read.recovery.message, { action: uiText.text("workbench.assistant-dispatch.check-executor-s-page") });
     const latest = read.runs.at(-1);
+    if (intent?.subtask) assertSubtaskRun(intent.subtask.binding, latest, intent.subtask.operation);
     assertRoundToAddress(Boolean(latest), intent?.delivery);
     if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about || addressesRound(intent?.delivery))) {
       // A Skill is the start of a round's own: a round already running takes none, and none is dropped on the way.
       if (skills.length) throw assistantErrors.invalid("选定的技能要在新一轮开始时交给执行方：等这一轮结束后再发");
       // The executor's own control carries both: every answer with the revision it answers, every supplement with its receipt and its source, so words a page wrote reach the round as a note (BL-144).
       const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: control => executor.control(sessionId, latest.ref.run_id, control),
-        send: async input => { const receipt = await executor.send(sessionId, latest.ref.run_id, input); handoff?.accepted(); return receipt; } }, intent);
+        send: async input => { intent?.handed?.(); const receipt = await executor.send(sessionId, latest.ref.run_id, input); handoff?.accepted(); return receipt; } }, intent);
       return this.result(work, outcome, latest.ref.run_id, stillCurrent, intent?.draftCurrent);
     }
     const task = work.handover_brief ? `${work.handover_brief}\n\n用户现在的要求：${text}` : text;
+    intent?.handed?.();
     const runId = await executor.start(sessionId, this.inputs.compose(task, told, context), skills);
     handoff?.accepted();
     if (work.handover_brief) work = this.store.update(this.actorId, work.work_id, null, { handover_brief: undefined }, false);
@@ -226,7 +229,7 @@ export class AssistantDispatch {
     const autoSkills = intent?.auto_skills !== false;
     const roundAuthority = async () => { const authority = await this.ports.authority(work, undefined, replyLocale, namedSkills, autoSkills); return intent?.report_only ? reportOnlyAuthority(authority) : authority; };
     let base = await roundAuthority();
-    const original_input = !work.delegated_by && !work.reply_target ? intent?.original_input : undefined;
+    const original_input = !intent?.byHost ? intent?.original_input : undefined;
 
     const startAuthority = () => ({ ...(stillCurrent || beforeStart || assertBeforeStart || sourceHandoff ? { ...base, beforeStart: async () => {
       await base.beforeStart?.(); await beforeStart?.(); assertSendCurrent(stillCurrent); handoff.assertCurrent();
@@ -248,6 +251,7 @@ export class AssistantDispatch {
     if (session.recovery) throw assistantErrors.needs_check(session.recovery.reason, { action: recoveryAction([session.latest_run && await adapter.read(session.latest_run.ref).catch(() => null)]) });
     assertSendCurrent(stillCurrent);
     const latest = session.latest_run;
+    if (intent?.subtask) assertSubtaskRun(intent.subtask.binding, latest, intent.subtask.operation);
     assertRoundToAddress(Boolean(latest), intent?.delivery);
     if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about || addressesRound(intent?.delivery))) {
       if (latest.phase === "reconcile-required") throw assistantErrors.needs_check("上一轮有结果未确认的操作，需要先核对", { action: "打开这项工作核对" });
@@ -255,6 +259,7 @@ export class AssistantDispatch {
           await authority.beforeStart?.();
           const assertCurrent = () => { requireSynchronous(authority.assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); handoff.assertCurrent(); };
           assertCurrent();
+          intent?.handed?.();
           const receipt = await inputsOf(adapter).send(latest.ref, input, assertCurrent);
           handoff.accepted(); return receipt;
         },
@@ -299,7 +304,7 @@ export class AssistantDispatch {
       }
       handle = await this.link.delegations.startPlaced(work, async placed => {
         work = placed; assertSendCurrent(stillCurrent);
-        dispatchHanded = true;
+        dispatchHanded = true; intent?.handed?.();
         const started = await host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: ready.materials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from, ...(intent?.report_only ? { report_only: true as const } : {}) }), authority);
         if (intent?.report_only) this.reportRuns.add(started.ref.run_id);
         handoff.accepted(); return started;

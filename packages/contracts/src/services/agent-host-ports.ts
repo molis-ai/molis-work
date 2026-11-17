@@ -1,8 +1,9 @@
 /** The agent-host contract (`services/agent-host`): a runtime's checkpoints, Skills, MCP, subagents, schedule and recovery. */
 import type { AgentWorkingDirectory, AgentMcpToolRef, AgentMcpSourceRef } from "./agent-host-start.js";
-import type { AgentSessionRef, AgentRunRef } from "./agent-host-runtime.js";
+import type { AgentSessionRef, AgentRunRef, AgentRunPhase } from "./agent-host-runtime.js";
 import type { AgentReviewRequest } from "./agent-host-reviews.js";
-import type { AgentToolActivity, AgentRunUsage } from "./agent-host-run-view.js";
+import type { AgentToolActivity, AgentRunUsage, AgentTurnView } from "./agent-host-run-view.js";
+import type { AgentStartExecution } from "./agent-host-start.js";
 
 export interface AgentCheckpoint {
   checkpoint_id: string;
@@ -128,13 +129,50 @@ export interface AgentSubagentView {
   budget?: AgentSubagentBudgetView;
 }
 
+/** The original child's history, including prior attempts; never a second message store. */
+export interface AgentSubagentConversation {
+  child: AgentSubagentView;
+  messages: Array<AgentTurnView & { run: AgentRunRef }>;
+  phase: AgentRunPhase;
+  questions: Array<{ pending_id: string; pending_revision?: number; kind: string; why: string }>;
+  approvals: Array<{ pending_id: string; pending_revision?: number }>;
+  /** A retained scope, recovery or attempt-budget refusal. Reads remain available. */
+  input_unavailable?: string;
+}
+
+/** A page freezes these references before awaiting anything. actor/authority are never payload fields. */
+export type AgentSubagentCommand = {
+  request_id: string;
+  child_run: AgentRunRef;
+} & (
+  | { kind: "send" | "continue"; text: string }
+  | { kind: "retry"; source?: AgentSubagentRetrySource; reason?: string }
+  | { kind: "stop" }
+  | { kind: "extend-budget"; attempts: number }
+);
+
+export type AgentSubagentRequestResult =
+  | { state: "applied"; run: AgentRunRef; input_id?: string }
+  | { state: "not-applied"; reason: string }
+  | { state: "unknown" };
+
+export interface AgentSubagentControl {
+  actor_id: string;
+  /** Verified by the protected user entry, never inferred from a model-supplied DTO. */
+  original_text?: string;
+  execution: AgentStartExecution;
+}
+
 export interface AgentSubagentsCapability {
   /** Distinct child roots and their review/recovery bridge are actually wired. */
   workspaces?: true;
   list(run: AgentRunRef): Promise<AgentSubagentView[]>;
-  cancel(run: AgentRunRef, subagentId: string, actorId: string): Promise<void>;
-  retry?(run: AgentRunRef, subagentId: string, options: { actor_id: string; source: AgentSubagentRetrySource; reason?: string; extend_attempts?: number }): Promise<AgentSubagentView>;
-  extendBudget?(run: AgentRunRef, subagentId: string, extraAttempts: number, actorId: string): Promise<AgentSubagentView>;
+  conversation?(run: AgentRunRef, subagentId: string): Promise<AgentSubagentConversation>;
+  /** Ephemeral invalidation only; subscribe before reading original facts. */
+  subscribe?(run: AgentRunRef, changed: () => void): Promise<() => void>;
+  command?(run: AgentRunRef, subagentId: string, input: AgentSubagentCommand, control: AgentSubagentControl): Promise<AgentSubagentRequestResult>;
+  /** Read the original request, including after its target attempt ended; never retries. */
+  checkRequest?(run: AgentRunRef, subagentId: string, requestId: string, actorId: string): Promise<AgentSubagentRequestResult>;
 }
 
 /**

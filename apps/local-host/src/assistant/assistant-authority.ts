@@ -77,8 +77,8 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       && !off.has(actionKey({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })));
   };
   let offered: readonly ActionView[] = [];
-  const context = async (validate?: () => void | Promise<void>, signal?: AbortSignal): Promise<ActionCallContext> => {
-    const caller = base(work.session_id ?? undefined, signal);
+  const context = async (validate?: () => void | Promise<void>, signal?: AbortSignal, sessionId = work.session_id ?? undefined): Promise<ActionCallContext> => {
+    const caller = base(sessionId, signal);
     const allowed = accepted(await localHost.inspectActions(caller, reference), caller);
     offered = allowed;
     return { ...caller, permissions: [...new Set(allowed.flatMap(view => view.action.permissions))],
@@ -96,15 +96,18 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   const service = () => reference ? localHost.actionClient(reference) : localHost.homeActionClient();
   // What this round was last shown, with availability: a change runs directly only if its undo is available now.
   let discovered: readonly ActionView[] = [];
-  const discover = async (validate?: () => void | Promise<void>) => { discovered = await service().discover(await context(validate)); return discovered; };
+  const discover = async (validate?: () => void | Promise<void>, sessionId?: string) => { discovered = await service().discover(await context(validate, undefined, sessionId)); return discovered; };
   return {
     call_id: callId,
     manifest: ASSISTANT_AGENT,
     prompts: ASSISTANT_PROMPTS,
     authorizedDirectories: [],
-    actions: async (_runtimeId, validate) => ({
-      discover: () => discover(validate),
-      ...(offer ? { offer: async (proposal: AgentActionOffer) => offer(proposal, await service().discover(await context(validate))) } : {}),
+    actions: async (_runtimeId, validate, session) => {
+      const sessionId = session?.session_id ?? work.session_id ?? undefined;
+      const currentContext = (signal?: AbortSignal) => context(validate, signal, sessionId);
+      return {
+      discover: () => discover(validate, sessionId),
+      ...(offer ? { offer: async (proposal: AgentActionOffer) => offer(proposal, await service().discover(await currentContext())) } : {}),
       ...(delegation ? { delegate: delegation } : {}),
       ...(delivery ? { deliver: delivery } : {}),
       ...(memory ? { memory } : {}),
@@ -114,9 +117,9 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       direct: view => directEligible(view, discovered, confirmAlways?.() ?? new Set()),
       // Exactly the validation dispatch performs, so a bad input is refused before the person is asked.
       check: async (action, input) => {
-        const view = (await service().discover(await context(validate))).find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
+        const view = (await service().discover(await currentContext())).find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
         if (!view) throw assistantErrors.action_revoked("这项能力已对助理关闭或不再可用");
-        assertActionCommandInput(view, base(), input);
+        assertActionCommandInput(view, base(sessionId), input);
       },
       invoke: async (action, input, signal) => {
         const stoppedBeforeDispatch = (view: Omit<ActionView, "availability">) => {
@@ -126,13 +129,13 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
           return refused;
         };
         let caller: ActionCallContext;
-        try { caller = await context(validate, signal); }
+        try { caller = await currentContext(signal); }
         catch (error) {
           if (!signal?.aborted) throw error;
           const cached = offered.find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
           if (cached?.operation === "command") return await stoppedBeforeDispatch(cached);
           // Naming a cancelled operation needs only registered metadata; it must not start a plugin or Runtime.
-          const metadataCaller = base(work.session_id ?? undefined);
+          const metadataCaller = base(sessionId);
           let rows: readonly Omit<ActionView, "availability">[];
           try { rows = accepted(localHost.inspectActionMetadata(metadataCaller, reference), metadataCaller); }
           catch { throw error; /* An unavailable diagnostic name does not replace the original cancellation. */ }
@@ -161,7 +164,8 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
         }
         return output;
       },
-    }),
+      };
+    },
   };
 }
 

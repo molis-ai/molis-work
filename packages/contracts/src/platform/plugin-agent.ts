@@ -24,6 +24,8 @@ export type AgentRoleExecution = "read-only" | "text-edit" | "workspace-write" |
  * each under the effect policy, while `read-only` limits it to queries.
  */
 export const BUSINESS_HOST_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"] as const;
+/** Only a business role that explicitly declares children may hold these root-free orchestration tools. */
+export const BUSINESS_SUBAGENT_HOST_TOOLS = ["dispatch-subagent", "await-subagents", "steer-subagent"] as const;
 
 /**
  * Tools a method for business work may name: the capability gateway and the tools that touch no directory. A method a

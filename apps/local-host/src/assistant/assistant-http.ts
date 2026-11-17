@@ -13,6 +13,7 @@ import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
+import { agentSubagentCommandSchema, type AgentSubagentCommand } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ASSISTANT_INSTALL_ID, type AssistantControl, type AssistantHandover, type AssistantPageCardInput, type AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -311,6 +312,7 @@ const pageId = { type: "string", minLength: 1, maxLength: 200 } as const, body =
 const ofPanel = { type: "object", properties: { body }, required: ["body"], additionalProperties: false } as const;
 const ofWork = { type: "object", properties: { work_id: pageId, body }, required: ["work_id", "body"], additionalProperties: false } as const;
 const ofItem = { type: "object", properties: { work_id: pageId, item: pageId, body }, required: ["work_id", "item", "body"], additionalProperties: false } as const;
+const ofSdkSubtask = { type: "object", properties: { work_id: pageId, parent_run_id: pageId, child_id: pageId, body: agentSubagentCommandSchema }, required: ["work_id", "parent_run_id", "child_id", "body"], additionalProperties: false } as const;
 const scoped = (entry: AssistantPageEntry) => entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {};
 const panel = <const S extends ActionSchema, Output>(name: string, version: number, title: string, input_schema: S,
   handle: (entry: AssistantPageEntry, input: InferActionInput<S>, caller: ActionExecutionContext) => Output | Promise<Output>, metered = false, draft?: true) =>
@@ -326,6 +328,15 @@ export const assistantPanelActions = {
       ...(!body.written_by && body.reask === undefined && typeof body.text === "string" && typeof body.request_id === "string" ? { original_input: {
         input_id: body.request_id, text: body.text, written_by: "person" as const, occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID,
       } } : {}) }, undefined, () => { caller.signal?.throwIfAborted(); return true; });
+  }, true),
+  subtaskCommand: panel("works.subtask.command", /* @version action.assistant.panel.works.subtask.command */ 1, "操作指定子任务", ofSdkSubtask, (entry, input, caller) => {
+    const command = input.body as AgentSubagentCommand;
+    const original = command.kind === "send" || command.kind === "continue" ? {
+      input_id: command.request_id, text: command.text, written_by: "person" as const, occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID,
+    } : undefined;
+    return of(entry).service.sdkSubtasks.command(input.work_id, input.parent_run_id, input.child_id, command, {
+      original, beforeEffect: () => caller.beforeEffect(), assertCurrent: () => { caller.signal?.throwIfAborted(); caller.assert_authority_current?.(); },
+    });
   }, true),
   cards: panel("cards", /* @version action.assistant.panel.cards */ 1, "放下页面准备的操作卡", ofPanel, (entry, { body }) => of(entry).service.offers.offerFromPage(pageBody<AssistantPageCardInput>(body), scoped(entry))),
   attachments: panel("attachments", /* @version action.assistant.panel.attachments */ 1, "读出带来的文档", ofPanel,
@@ -401,6 +412,7 @@ async function panelWrite(parts: readonly string[], body: Readonly<Record<string
       results: a.results, handover: a.handover, recovery: a.recovery, archive: a.archive, answer: a.answer, "question-draft": a.questionDraft }, parts[2]);
     return own && run(own.definition, { work_id, body });
   }
+  if (parts.length === 5 && parts[2] === "sdk-subtasks") return run(a.subtaskCommand.definition, { work_id, parent_run_id: parts[3]!, child_id: parts[4]!, body });
   const item = parts[3]!;
   if (parts.length === 4) { const one = named<Panel<typeof ofItem>>({ undo: a.undo, reviews: a.review }, parts[2]); return one && run(one.definition, { work_id, item, body }); }
   if (parts.length === 5 && parts[2] === "cards") {
@@ -509,6 +521,21 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
       if (parts[0] !== "works" || !parts[1]) return null;
       const workId = parts[1];
       if (method === "GET" && parts.length === 2) return { status: 200, body: await service.read(workId) };
+      if (method === "GET" && parts.length === 3 && parts[2] === "sdk-subtasks") return { status: 200, body: { children: await service.sdkSubtasks.list(workId) } };
+      if (method === "GET" && parts.length >= 5 && parts[2] === "sdk-subtasks") {
+        const parentRun = parts[3]!, child = parts[4]!;
+        if (parts.length === 5) return { status: 200, body: await service.sdkSubtasks.read(workId, parentRun, child) };
+        if (parts.length === 7 && parts[5] === "requests") return { status: 200, body: await service.sdkSubtasks.check(workId, parentRun, child, parts[6]!) };
+        if (parts.length === 6 && parts[5] === "wait") {
+          const ended = new AbortController(), stop = () => ended.abort(); response.once("close", stop);
+          try { return { status: 200, body: await service.sdkSubtasks.wait(workId, parentRun, child, url.searchParams.get("since"), Number(url.searchParams.get("timeout") ?? 25_000), ended.signal) }; }
+          finally { response.off("close", stop); }
+        }
+      }
+      if (method === "GET" && parts.length === 3 && parts[2] === "subtask") return { status: 200, body: await service.readSubtask(workId) };
+      if (method === "GET" && parts.length === 5 && parts[2] === "subtask" && parts[3] === "requests") {
+        return { status: 200, body: await service.checkSubtaskRequest(workId, parts[4]!) };
+      }
       // The page follows a live work by waiting for its view to change (closing the request ends the wait).
       if (method === "GET" && parts.length === 3 && parts[2] === "wait") {
         const ended = new AbortController(), stop = () => ended.abort();

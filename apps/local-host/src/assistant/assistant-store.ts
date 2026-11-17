@@ -222,6 +222,13 @@ export class AssistantStore {
     return work.executor ? work : { ...work, executor: { kind: "assistant" } };
   }
 
+  /** The original graph owner, independent of directory windows and archive ordering. */
+  graphOwner(actorId: string, graphId: string): StoredWork | undefined {
+    const row = this.db.prepare("SELECT body FROM assistant_works WHERE actor_id=? AND json_extract(body,'$.graph_id')=? AND json_extract(body,'$.delegated_by') IS NULL")
+      .get(actorId, graphId);
+    return row ? JSON.parse(String(row.body)) as StoredWork : undefined;
+  }
+
   list(actorId: string, options: { archived?: boolean | "any"; limit?: number } = {}): StoredWork[] {
     const [low, high] = options.archived === "any" ? [0, 1] : options.archived ? [1, 1] : [0, 0];
     return this.db.prepare("SELECT body FROM assistant_works WHERE actor_id=? AND archived BETWEEN ? AND ? ORDER BY updated_at DESC LIMIT ?")

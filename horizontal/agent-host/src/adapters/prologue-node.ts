@@ -174,7 +174,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const starts = createContinuationStarts(async id => (await index.read(id).catch(() => undefined))?.owner);
   const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, {
     forRun: runId => state.dispatchChecks.get(runId),
-    onAdmitted: async ({ parentRunId, parentSessionId, childSessionId, node }) => {
+    onAdmitted: async request => {
+      const { parentRunId, parentSessionId, childSessionId, node } = request;
+      await state.childAdmissions.get(parentRunId)?.(request);
       await index.update(parentSessionId, saved => {
         const attempt = saved.attempts.find(item => item.run_id === parentRunId) ?? saved.attempts.at(-1);
         if (attempt) (attempt.subagent_nodes ??= {})[childSessionId] = node;
@@ -242,6 +244,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       await closeMcp();
       await closeInference();
       for (const controller of state.actionControllers.values()) controller.abort();
+      for (const controller of state.childActionControllers.values()) controller.abort();
+      state.childActionControllers.clear(); state.childAdmissions.clear(); state.subagentListeners.clear();
       state.actionControllers.clear();
       await closeStepBoards(); await closeMessages(); await closeChecks();
       await closeReviews();

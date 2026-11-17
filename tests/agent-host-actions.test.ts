@@ -9,7 +9,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type Action
 import { agentHostCapabilities as agent, type AgentRunRef, type AgentRunView, type AgentRuntimeAdapter, type AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
-import { callerPlugin, startPlugin } from "./fixtures/plugin-callers.js";
+import { callerPlugin, startPlugin, withReaderRole } from "./fixtures/plugin-callers.js";
 import { codingProductHost } from "./fixtures/coding-product-host.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 
@@ -254,7 +254,8 @@ test("RAC-197 the project's work and the sessions' standing are plugin-only acti
  * R8 batch 3 (RAC-199): a round's controls, its command receipts, its recovery and checkpoints, and stopping one of its subtasks are
  * plugin-only actions on the calling plugin's own session. Who stops a subtask is the caller, never an input.
  */
-const SIX = [agent.controlRun, agent.readCommandOutput, agent.inspectRecovery, agent.recoverRun, agent.listCheckpoints, agent.cancelSubagent];
+const CHILD_STOP = { kind: "stop", request_id: "stop-child", child_run: { session_id: "child-session", run_id: "child-run" } } as const;
+const SIX = [agent.controlRun, agent.readCommandOutput, agent.inspectRecovery, agent.recoverRun, agent.listCheckpoints, agent.commandSubagent];
 /** R8 batch 3, second part: reading a session, a round, its reviews and subtasks, and preparing a rewind. */
 const READS = [agent.readSession, agent.readRun, agent.readRunReviews, agent.listSubagents, agent.prepareRewind];
 const recovery = { session_id: "s1", blockers: [], runs: [{ run_id: "r1", version: 1, live: false, waiting: 0, can_close: true, blockers: [], operations: [] }] };
@@ -282,10 +283,10 @@ async function roundsSetup(t: TestContext, home = false, additionalConsumedIds: 
     readCommandOutput: answer("command", args => ({ ref: args[1], command: "node --test", exit_code: 0, stdout: "ok", stderr: "", truncated: false })),
     recovery: { inspect: answer("inspect", () => structuredClone(recovery)), close: answer("close", () => structuredClone(recovery)) },
     checkpoints: { list: answer("checkpoints", () => []), prepareRewind: answer("rewind", () => { throw new Error("A read-only plugin prepares no rewind"); }) },
-    subagents: { list: answer("subagents", () => []), cancel: answer("cancel", () => undefined) },
+    subagents: { list: answer("subagents", () => []), command: answer("child-command", () => ({ state: "applied", run: { session_id: "child-session", run_id: "child-run" } })) },
   } as AgentRuntimeAdapter);
   const store = new LocalProjectDatabase(join(directory, "plugins.sqlite"));
-  const consumer = callerPlugin("rounds", "project", {}, [...[...SIX, ...READS, agent.waitRun, agent.startRun].map(definition => definition.capability_id), ...additionalConsumedIds]);
+  const consumer = withReaderRole(callerPlugin("rounds", "project", {}, [...[...SIX, ...READS, agent.waitRun, agent.startRun].map(definition => definition.capability_id), ...additionalConsumedIds]));
   const bystander = callerPlugin("rounds-bystander", "project");
   await startPlugin(localHost, reference, store, consumer, { actorId: "web-user" });
   await startPlugin(localHost, reference, store, bystander, { actorId: "web-user" });
@@ -354,8 +355,10 @@ test("RAC-199 a round's controls, receipts, recovery, checkpoints and subtasks a
   const mine = { project_id: PROJECT, plugin_id: consumer.id, install_id: consumer.context(PROJECT).install_id, actor_id: "web-user" };
   owner.current = mine;
   // The subtask is stopped by the plugin's own actor, as the Host knows it from the call.
-  await actions.invoke(agent.cancelSubagent, [session, run, "child"]);
-  assert.deepEqual(seen.at(-1), ["cancel", [run, "child", "web-user"]]);
+  await actions.invoke(agent.commandSubagent, [session, run, "child", CHILD_STOP]);
+  assert.deepEqual(seen.at(-1)?.[0], "child-command");
+  assert.deepEqual(seen.at(-1)?.[1].slice(0, 3), [run, "child", CHILD_STOP]);
+  assert.equal((seen.at(-1)?.[1][3] as { actor_id: string }).actor_id, "web-user");
   await actions.invoke(agent.controlRun, [session, run, { kind: "pause" }]);
   assert.deepEqual(seen.at(-1), ["control", [run, { kind: "pause" }]]);
   assert.equal((await actions.invoke(agent.readCommandOutput, [session, { run_id: "r1", call_id: "c1" }])).stdout, "ok");
@@ -364,7 +367,7 @@ test("RAC-199 a round's controls, receipts, recovery, checkpoints and subtasks a
   assert.deepEqual(seen.at(-1), ["close", [session, "r1", 1]]);
 
   const calls: Array<[ActionDefinition<never, unknown>, unknown[]]> = [
-    [agent.cancelSubagent, [session, run, "child"]], [agent.controlRun, [session, run, { kind: "stop" }]], [agent.readCommandOutput, [session, { run_id: "r1", call_id: "c1" }]],
+    [agent.commandSubagent, [session, run, "child", CHILD_STOP]], [agent.controlRun, [session, run, { kind: "stop" }]], [agent.readCommandOutput, [session, { run_id: "r1", call_id: "c1" }]],
     [agent.inspectRecovery, [session]], [agent.recoverRun, [session, run, 1]], [agent.listCheckpoints, [session]],
   ] as never;
   const before = seen.length;
@@ -375,13 +378,13 @@ test("RAC-199 a round's controls, receipts, recovery, checkpoints and subtasks a
   }
   owner.current = mine;
   // A run of no round of this session is not this session's.
-  await assert.rejects(actions.invoke(agent.cancelSubagent, [session, { session_id: "s1", run_id: "elsewhere" }, "child"]), { code: "agent.run_unknown" });
+  await assert.rejects(actions.invoke(agent.commandSubagent, [session, { session_id: "s1", run_id: "elsewhere" }, "child", CHILD_STOP]), { code: "agent.run_unknown" });
   await assert.rejects(actions.invoke(agent.controlRun, [session, { session_id: "s2", run_id: "r1" }, { kind: "stop" }]), { code: "agent.run_unknown" });
   // Nothing but a consuming plugin calls them, and the schemas refuse identity in the input and controls the Runtime has none of.
-  await assert.rejects(bystander.actions(PROJECT).invoke(agent.cancelSubagent, [session, run, "child"]), { code: "actions.forbidden" });
+  await assert.rejects(bystander.actions(PROJECT).invoke(agent.commandSubagent, [session, run, "child", CHILD_STOP]), { code: "actions.forbidden" });
   for (const audience of ["user", "agent", "workflow", "mcp"] as const)
-    await assert.rejects(localHost.actionClient(reference).invoke(person(audience), agent.cancelSubagent, [session, run, "child"]), { code: "actions.forbidden" }, audience);
-  await assert.rejects(actions.invoke(agent.cancelSubagent, [session, run, "child", "someone-else"] as never), { code: "actions.input_invalid" });
+    await assert.rejects(localHost.actionClient(reference).invoke(person(audience), agent.commandSubagent, [session, run, "child", CHILD_STOP]), { code: "actions.forbidden" }, audience);
+  await assert.rejects(actions.invoke(agent.commandSubagent, [session, run, "child", "someone-else"] as never), { code: "actions.input_invalid" });
   await assert.rejects(actions.invoke(agent.controlRun, [session, run, { kind: "steer", text: "x" }] as never), { code: "actions.input_invalid" });
   await assert.rejects(actions.invoke(agent.controlRun, [session, run, { kind: "pause", actor_id: "someone-else" }] as never), { code: "actions.input_invalid" });
   await assert.rejects(actions.invoke(agent.readCommandOutput, [session, { call_id: "c1" }] as never), { code: "actions.input_invalid" });

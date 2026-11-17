@@ -1,5 +1,5 @@
-import { readOriginalInput, resolveOriginalInput } from "./prologue-original-inputs.js";
-import { createHash, randomUUID } from "node:crypto";
+import { readOriginalInput, resolveOriginalInput, originalInputIdByKey, sessionNotifier } from "./prologue-original-inputs.js";
+import { createHash } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type PendingAnswer, type QueuedTask, type Runtime, type SessionOpeningReader } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef, AgentWriteCheckNote } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -12,7 +12,8 @@ import { MAX_BROADCAST } from "./prologue-messages.js";
 import { workPaths } from "./prologue-project-work.js";
 import { answerProblems, ownedReferences, projectQuestion, questionUnavailable } from "./prologue-questions.js";
 import { queuedInput, type createPrologueRecovery } from "./prologue-recovery.js";
-import { startPrologueRun, type RunDeps } from "./prologue-run.js";
+import { bindBusinessSubagent, startPrologueRun, type RunDeps } from "./prologue-run.js";
+import { watchRoundFacts } from "./prologue-stop-guard.js";
 import { runModelParams } from "./prologue-run-params.js";
 import type { createPrologueSchedule } from "./prologue-schedule.js";
 import { createPrologueSubagents, exactCharacterKey, runLineage, SUBAGENT_DEFAULT_MAX_ATTEMPTS, type PrologueSubagentHooks } from "./prologue-subagents.js";
@@ -275,6 +276,11 @@ function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
     restore: id => deps.recovery.restore(id),
     originalInput: (id, input) => resolveOriginalInput(deps.index, id, input),
     readOriginalInput: ref => readOriginalInput(deps.index, ref),
+    notify: sessionNotifier(deps.runtime, deps.index, deps.effects),
+    async inputIdByKey(sessionId, key) {
+      const index = await deps.index.read(sessionId), session = index && await deps.runtime.sessions.open(index.ref);
+      return index && session ? originalInputIdByKey(index, session, key) : undefined;
+    },
     async locateInput(sessionId, inputId) {
       const index = await deps.index.read(sessionId);
       if (!index) return undefined;
@@ -302,8 +308,8 @@ async function openSessionOf(deps: PortDeps, sessionId: string, unreadable: stri
 
 async function continueSubagentAttempt(
   deps: PortDeps,
-  { parentRun, child, baseTask, reason, source, attemptNumber }: Parameters<NonNullable<PrologueSubagentHooks["continueChild"]>>[0],
-): Promise<void> {
+  { parentRun, child, baseTask, reason, source, attemptNumber, requestKey, text, execution }: Parameters<NonNullable<PrologueSubagentHooks["continueChild"]>>[0],
+): Promise<AgentRunRef> {
   const { runtime, state } = deps;
   const parentIndex = await deps.index.read(parentRun.session_id);
   const parentAttempt = parentIndex?.attempts.find(item => item.run_id === parentRun.run_id);
@@ -319,9 +325,9 @@ async function continueSubagentAttempt(
   const credentialRef = await deps.credentials.prologueRefFor(model.credential_ref);
   const params = runModelParams(model, parentAttempt.frozen.budget ?? null, parentAttempt.frozen.reasoning_effort);
   const cache = model.prompt_cache === undefined || model.prompt_cache === "off" ? {} : { promptCache: model.prompt_cache };
-  const retryText = reason?.trim()
+  const retryText = text ?? (reason?.trim()
     ? `${baseTask}\n\n[第 ${attemptNumber} 次尝试（来源：${source}）补充说明：${reason.trim()}]`
-    : `${baseTask}\n\n[第 ${attemptNumber} 次尝试（来源：${source}）：请先核对前次尝试的结果与失败点，再继续完成任务。]`;
+    : `${baseTask}\n\n[第 ${attemptNumber} 次尝试（来源：${source}）：请先核对前次尝试的结果与失败点，再继续完成任务。]`);
   const firstRunId = (child.attempts?.[0] ?? child.run).id;
   const retryTasksSnapshot = { ...parentAttempt.subagent_retry_tasks };
   const readOpening: SessionOpeningReader = async ({ sessionRef, runRef }) => {
@@ -332,6 +338,15 @@ async function continueSubagentAttempt(
   };
   await deps.effects.beforeEffect();
   deps.effects.assertCurrent();
+  if (!role) throw agentErrors.role_not_declared("原子角色不可核验");
+  execution?.assertSubagent?.(role);
+  if (parentAttempt.frozen.workspace === "business") {
+    if (!role || !execution?.subagentGateway || !execution.beforeDispatch) throw agentErrors.capability_unavailable("业务子任务接续需要当前宿主动作授权");
+    const gateway = await execution.subagentGateway(role, { runtime_id: PROLOGUE_RUNTIME_ID, session_id: child.session.id });
+    await bindBusinessSubagent(deps, child.session, role, gateway, child.tools ?? []);
+    const stopGuard = state.stopGuards.get(child.session.id);
+    if (stopGuard) stopGuard.task = retryText;
+  }
   const fallbackGuard: DispatchGuard = async () => {
     const latestParent = await deps.index.read(parentRun.session_id);
     if (!latestParent) throw agentErrors.session_unknown("父会话已不存在，不能继续子任务");
@@ -347,9 +362,21 @@ async function continueSubagentAttempt(
     await deps.mcpLibrary.validateSources(latestParent.owner, parentAttempt.frozen.mcp_sources ?? []);
     return () => {};
   };
-  const guard = state.dispatchChecks.get(parentRun.run_id) ?? fallbackGuard;
-  const continued = await deps.effects.detach(() => deps.dispatchGuards.run(guard, () => runtime.subagents.continue({
+  let releaseBinding!: () => void, refuseBinding!: (reason: unknown) => void;
+  const bound = { promise: new Promise<void>((resolve, reject) => { releaseBinding = resolve; refuseBinding = reject; }),
+    resolve: () => releaseBinding(), reject: (reason: unknown) => refuseBinding(reason) };
+  void bound.promise.catch(() => undefined);
+  const guard: DispatchGuard = async () => {
+    await bound.promise;
+    await fallbackGuard();
+    const original = await state.dispatchChecks.get(parentRun.run_id)?.();
+    const current = await execution?.beforeDispatch?.();
+    execution?.assertSubagent?.(role);
+    return () => { original?.(); current?.(); execution?.assertSubagent?.(role); };
+  };
+  const continued = await deps.dispatchGuards.run(guard, () => runtime.subagents.continue({
     child: child.ref,
+    expected: { parent: { session: child.parentSession, run: child.parentRun }, expectedRun: child.run },
     history: "session",
     readOpening,
     start: {
@@ -363,18 +390,26 @@ async function continueSubagentAttempt(
       ...cache,
     },
     agent: {
-      idempotencyKey: `molis-child-retry-${child.ref.id}-${attemptNumber}-${randomUUID()}`,
+      idempotencyKey: requestKey,
       mode: child.envelope?.mode ?? "autonomous",
       toolNames: child.tools ? [...child.tools] : [],
     },
-  })));
+  })).catch(error => { bound.reject(error); state.childActionControllers.get(child.session.id)?.abort(); state.childActionControllers.delete(child.session.id); throw error; });
+  deps.effects.accept();
   const newRunId = continued.run.ref.id;
   const childRun = { session_id: child.session.id, run_id: newRunId };
   state.activeRuns.set(newRunId, {
     live: () => ["prepared", "running"].includes(continued.run.state),
-    steer: async text => { await continued.control.steer({ text }); },
+    steer: async text => { await continued.control.steer({ text, source: "app" }); },
   });
   state.liveSessions.set(child.session.id, newRunId);
+  state.runSessions.set(newRunId, child.session.id); state.runRefs.set(newRunId, continued.run.ref);
+  const childController = state.childActionControllers.get(child.session.id);
+  if (childController) {
+    state.childActionControllers.delete(child.session.id);
+    state.actionControllers.set(newRunId, childController);
+    watchRoundFacts(state, continued.run);
+  }
   if (rootRef) state.runRoots.set(newRunId, rootRef);
   const bridgeFailed = async () => {
     const failReason = "子任务的宿主审查或归属记录失败，已停止执行；请核对原工具结果后继续";
@@ -392,10 +427,12 @@ async function continueSubagentAttempt(
     }
   };
   continued.run.subscribe(event => {
+    for (const changed of state.subagentListeners) changed(parentRun.run_id);
     if (["completed", "failed", "cancelled", "tripped", "circuit-tripped"].includes(event.type)) {
       if (state.liveSessions.get(child.session.id) === newRunId) state.liveSessions.delete(child.session.id);
       state.activeRuns.delete(newRunId);
       state.runRoots.delete(newRunId);
+      childController?.abort(); state.actionControllers.delete(newRunId);
     }
     if (!rootRef && !role) return;
     if (event.type === "command-receipt") {
@@ -409,6 +446,7 @@ async function continueSubagentAttempt(
     }
   });
   try {
+    await deps.effects.start(execution, async () => {
     await deps.index.update(parentRun.session_id, saved => {
       const attempt = saved.attempts.find(item => item.run_id === parentRun.run_id);
       if (!attempt) return;
@@ -416,26 +454,28 @@ async function continueSubagentAttempt(
       if (reason?.trim()) (attempt.subagent_attempt_reasons ??= {})[newRunId] = reason.trim();
       (attempt.subagent_retry_tasks ??= {})[newRunId] = retryText;
     });
-    if (childIndex && rootRef && baseFrozen) {
+    if (childIndex && baseFrozen && (rootRef || baseFrozen.workspace === "business")) {
       await deps.index.update(child.session.id, saved => {
-        saved.attempts.push({ started_at: new Date().toISOString(), task: retryText, run_id: newRunId, root_ref: rootRef, frozen: structuredClone(baseFrozen) });
+        saved.attempts.push({ started_at: new Date().toISOString(), task: retryText, run_id: newRunId, ...(rootRef ? { root_ref: rootRef } : {}), frozen: structuredClone(baseFrozen) });
       });
     }
+    });
+    bound.resolve();
   } catch (error) {
+    bound.reject(error);
     continued.control.stop("cancelled");
     throw error;
   }
+  return childRun;
 }
 
 function nodeSubagentsPort(deps: PortDeps): NonNullable<PrologueRuntimePort["subagents"]> {
-  return {
-    workspaces: true as const,
-    ...createPrologueSubagents(deps.runtime, async run => {
+  const port = createPrologueSubagents(deps.runtime, async run => {
       const index = await deps.index.read(run.session_id), attempts = index?.attempts.filter(attempt => attempt.run_id === run.run_id) ?? [], attempt = attempts[0];
-      if (!attempt?.frozen.directory) throw agentErrors.directory_unauthorized("原父任务没有工作区归属，不能分派目录子任务");
+      if (!attempt || !attempt.frozen.directory && attempt.frozen.workspace !== "business") throw agentErrors.directory_unauthorized("原父任务没有工作区或业务归属");
       return {
         child_openings: attempts.length === 1 && !attempt.refused ? attempt.child_openings : undefined,
-        path: attempt.frozen.directory.canonical_path,
+        path: attempt.frozen.directory?.canonical_path ?? null,
         roles: attempt.subagent_roles ?? [],
         roots: attempt.subagent_roots,
         step_prefix: attempt.step_prefix,
@@ -457,7 +497,25 @@ function nodeSubagentsPort(deps: PortDeps): NonNullable<PrologueRuntimePort["sub
         });
       },
       continueChild: input => continueSubagentAttempt(deps, input),
-    }),
+    });
+  return {
+    workspaces: true as const,
+    ...port,
+    async subscribe(run, changed) {
+      const listen = (parentRunId: string) => { if (parentRunId === run.run_id) changed(); };
+      deps.state.subagentListeners.add(listen);
+      return () => { deps.state.subagentListeners.delete(listen); };
+    },
+    command: async (run, id, input, control) => {
+      const child = deps.runtime.subagents.list().find(one => one.ref.id === id && one.parentRun.id === run.run_id && one.parentSession.id === run.session_id);
+      if (!child) throw agentErrors.collaboration_unknown("Subtask does not belong to this parent run");
+      const parent = await deps.index.read(run.session_id);
+      const role = child?.character && new Map(parent?.attempts.find(one => one.run_id === run.run_id)?.subagent_roles ?? []).get(exactCharacterKey(child.character));
+      if (!role) throw agentErrors.role_not_declared("原子角色不可核验");
+      const execution = { ...control.execution, assertBeforeStart: () => { control.execution.assertBeforeStart?.(); control.execution.assertSubagent?.(role); } };
+      try { return await deps.effects.start(execution, () => port.command!(run, id, input, { ...control, execution })); }
+      finally { for (const changed of deps.state.subagentListeners) changed(run.run_id); }
+    },
   };
 }
 

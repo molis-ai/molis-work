@@ -2,7 +2,8 @@ import type { ActionDefinition, ActionView } from "../platform/actions.js";
 import { MATERIAL_REF_SCHEMA } from "../platform/project-materials.js";
 import { memoryClassRestrictionsSchema } from "./memory.js";
 import type { AgentDraftTextRequest, AgentDraftTextResult } from "./agent-host.js";
-import type { AgentMcpServerInput, AgentMcpServerView, AgentCheckpoint, AgentRecoveryReport, AgentSubagentRetrySource, AgentSubagentView } from "./agent-host-ports.js";
+import type { AgentSubagentCommand, AgentSubagentConversation, AgentSubagentRequestResult } from "./agent-host-ports.js";
+import type { AgentMcpServerInput, AgentMcpServerView, AgentCheckpoint, AgentRecoveryReport, AgentSubagentView } from "./agent-host-ports.js";
 import type { AgentReviewReceipt, AgentReviewRequest } from "./agent-host-reviews.js";
 import type { AgentCommandOutput, AgentCommandOutputRef, AgentEvidenceCheck, AgentEvidenceCheckRequest, AgentRunControl, AgentRunHandle, AgentRunView, AgentSessionStatus, AgentSessionView } from "./agent-host-run-view.js";
 import type { AgentRunRef, AgentRuntimeDescriptor, AgentSessionLifecycleView, AgentSessionRef } from "./agent-host-runtime.js";
@@ -235,8 +236,49 @@ const mcpServerInput = { type: "object", required: ["expected_version", "label",
   auth: { type: "object", required: ["kind"], additionalProperties: false, properties: { kind: { enum: ["none", "keep-existing", "replace-secret", "connection"] }, secret: text(65_536), connection_id: entryId } } } } as const;
 const sessionLifecycleOutput = { type: "object", required: ["session", "state"], additionalProperties: false, properties: { session: sessionRefOutput, state: { enum: ["active", "archived"] } } } as const;
 const pluginOnly = { scope: "project", audiences: ["plugin"], permissions: [], subject_kinds: [] } as const;
+const subagentRequestOutput = { anyOf: [
+  shape(["state", "run"], { state: { const: "applied" }, run: runRefOutput, input_id: string }),
+  shape(["state", "reason"], { state: { const: "not-applied" }, reason: string }),
+  shape(["state"], { state: { const: "unknown" } }),
+] } as const;
+const subagentCommandFields = { request_id: entryId, child_run: runRef } as const;
+export const agentSubagentCommandSchema = { anyOf: [
+  shape(["request_id", "child_run", "kind", "text"], { ...subagentCommandFields, kind: { enum: ["send", "continue"] }, text: text(1_000_000) }),
+  shape(["request_id", "child_run", "kind"], { ...subagentCommandFields, kind: { const: "retry" }, source: subagentRetrySource, reason: text(2000) }),
+  shape(["request_id", "child_run", "kind"], { ...subagentCommandFields, kind: { const: "stop" } }),
+  shape(["request_id", "child_run", "kind", "attempts"], { ...subagentCommandFields, kind: { const: "extend-budget" }, attempts: { type: "integer", minimum: 1, maximum: 10 } }),
+] } as const;
+
+const subagentConversationOutput = shape(["child", "messages", "phase", "questions", "approvals"], {
+        child: subagentOutput, messages: list({ ...turnOutput, required: [...turnOutput.required, "run"], properties: { ...turnOutput.properties, run: runRefOutput } }),
+        phase: { enum: RUN_PHASES }, questions: list(shape(["pending_id", "kind", "why"], { pending_id: string, pending_revision: number, kind: string, why: string, sequence: number })),
+        approvals: list(shape(["pending_id"], { pending_id: string, pending_revision: number })), input_unavailable: string });
 
 export const agentHostCapabilities = {
+  readSubagentConversation: {
+    capability_id: "agent.subagents.conversation", version: /* @version action.agent.subagents.conversation */ 1, operation: "query",
+    action: { title: "读取子任务对话", description: "读取原子会话历次执行、输入回执及问题审批引用。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, entryId], additionalItems: false },
+      output_schema: subagentConversationOutput },
+  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], AgentSubagentConversation>,
+  waitSubagentConversation: {
+    capability_id: "agent.subagents.wait", version: /* @version action.agent.subagents.wait */ 1, operation: "query",
+    action: { title: "Wait for child conversation", description: "Read original child facts after an update or timeout.", kind: "query", ...pluginOnly,
+      scheduling: "concurrent", execution: { timeout_ms: 30_000 },
+      input_schema: { type: "array", minItems: 5, maxItems: 5, additionalItems: false,
+        items: [sessionRef, runRef, entryId, { type: ["string", "null"], maxLength: 200 }, { type: "integer", minimum: 0, maximum: 25_000 }] },
+      output_schema: shape(["version", "view"], { version: string, view: subagentConversationOutput }) },
+  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, since: string | null, timeoutMs: number], { version: string; view: AgentSubagentConversation }>,
+  commandSubagent: {
+    capability_id: "agent.subagents.command", version: /* @version action.agent.subagents.command */ 1, operation: "command",
+    action: { title: "操作原子任务", description: "把本人输入或明确控制交给指定子任务执行，按原请求去重。", kind: "operation", scheduling: "concurrent", ...pluginOnly,
+      input_schema: { type: "array", minItems: 4, maxItems: 4, items: [sessionRef, runRef, entryId, agentSubagentCommandSchema], additionalItems: false }, output_schema: subagentRequestOutput },
+  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, input: AgentSubagentCommand], AgentSubagentRequestResult>,
+  checkSubagentRequest: {
+    capability_id: "agent.subagents.request", version: /* @version action.agent.subagents.request */ 1, operation: "query",
+    action: { title: "核对子任务原请求", description: "只读取原请求回执，不重新发送或启动。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 4, maxItems: 4, items: [sessionRef, runRef, entryId, entryId], additionalItems: false }, output_schema: subagentRequestOutput },
+  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, requestId: string], AgentSubagentRequestResult>,
   /** What the calling plugin's own grants let a round on this Runtime call (R8 rule 3); empty where the Runtime has no action tools. */
   listActions: {
     capability_id: "agent.actions.list", version: /* @version action.agent.actions.list */ 1, operation: "query",
@@ -268,22 +310,6 @@ export const agentHostCapabilities = {
     action: { title: "列出一轮的子任务", description: "自己会话里一轮派出的子任务。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [sessionRef, runRef], additionalItems: false }, output_schema: { type: "array", items: subagentOutput } },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>,
-  /** Stop a subtask of the calling plugin's own round; who stopped it is the caller (R8 rule 4). */
-  cancelSubagent: {
-    capability_id: "agent.subagents.cancel", version: /* @version action.agent.subagents.cancel */ 1, operation: "command",
-    action: { title: "停下一个子任务", description: "本人停下自己会话里一轮派出的一个子任务。", kind: "operation", ...pluginOnly,
-      input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, entryId], additionalItems: false } },
-  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], void>,
-  /** Retry an ended subtask within its attempt budget, or extend its attempt budget (BL-051). */
-  retrySubagent: {
-    capability_id: "agent.subagents.retry", version: /* @version action.agent.subagents.retry */ 1, operation: "command",
-    action: { title: "重试子任务或增加额度", description: "在尝试额度内沿原子会话继续一个已结束的子任务，并记录重试来源；额度用尽时须先显式增加次数。", kind: "operation", ...pluginOnly,
-      output_schema: subagentOutput,
-      input_schema: { type: "array", minItems: 4, maxItems: 4, additionalItems: false, items: [sessionRef, runRef, entryId,
-        { type: "object", additionalProperties: false, properties: {
-          source: { enum: ["check-failed", "model-error", "user-requested"] }, reason: text(2000),
-          extend_attempts: { type: "integer", minimum: 1, maximum: 10 }, only_extend: { const: true } } }] } },
-  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, options: { source?: AgentSubagentRetrySource; reason?: string; extend_attempts?: number; only_extend?: true }], AgentSubagentView>,
   readSessionLifecycle: {
     capability_id: "agent.session.lifecycle.read", version: /* @version action.agent.session.lifecycle.read */ 1, operation: "query",
     action: { title: "读取会话归档状态", description: "读取或改变调用插件自己的原执行会话，不新建会话或修改记忆期限。", kind: "query", ...pluginOnly,

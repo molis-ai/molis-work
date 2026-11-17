@@ -139,9 +139,9 @@ test('Coding results index follows section visibility, jumps with focus, and rel
   }
   await evaluate("indexTools.querySelector('[data-index-fixture=second]').hidden=true");
   await waitFor("![...indexNav.children].some(chip=>chip.textContent==='Index second')");
-  await evaluate("indexTools.dataset.companionOpen='true'");
+  await evaluate("indexRoot.dataset.companionOpen='true'");
   await waitFor('indexNav.hidden && indexNav.children.length===0');
-  await evaluate("indexTools.removeAttribute('data-companion-open')");
+  await evaluate("indexRoot.removeAttribute('data-companion-open')");
   await waitFor("[...indexNav.children].some(chip=>chip.textContent==='Index first')");
   await evaluate("indexRoot.dataset.codingResults='false'");
   await waitFor("indexNav.hidden && indexRoot.querySelector('[data-coding-results-open]').getAttribute('aria-expanded')==='false'");

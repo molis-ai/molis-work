@@ -167,11 +167,21 @@ for (const surface of ["git", "coding"] as const) {
       const reject = "[data-host-review-slot] [data-agent-review-reject]";
       await browser.waitFor(`document.querySelector(${JSON.stringify(reject)})?.checkVisibility()`);
       const reviewId = await browser.evaluate<string>(`document.querySelector(${JSON.stringify(reject)}).dataset.agentReviewReject`);
+      const sameReview = `[data-host-review-slot] [data-agent-review-reject=${JSON.stringify(reviewId)}]`;
+      const canReject = `(() => {
+        const control = document.querySelector(${JSON.stringify(sameReview)});
+        if (!control || control.disabled) return false;
+        const rect = control.getBoundingClientRect();
+        return control.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+      })()`;
+      await frame.waitFor("document.querySelector('[data-git-reviews]').offsetHeight > 50");
+      const point = await frame.point("[data-git-notice]", "start");
+      await browser.command("Input.dispatchMouseEvent", { type: "mouseWheel", ...point, deltaX: 0, deltaY: 600 }, browser.sessionId);
+      await browser.waitFor(canReject);
       await browser.click(".navigator-project-settings");
       await frame.waitFor("document.body.hidden");
       await browser.click("[data-cover-close]");
-      const sameReview = `[data-host-review-slot] [data-agent-review-reject=${JSON.stringify(reviewId)}]`;
-      await browser.waitFor(`document.querySelector(${JSON.stringify(sameReview)})?.checkVisibility()`);
+      await browser.waitFor(canReject);
     }
     await decide(ctx, "reject");
     await frame.waitFor("document.querySelector('[data-git-operations] [data-outcome=denied]') && !document.querySelector('[data-git-refresh]').disabled");

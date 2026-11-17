@@ -190,3 +190,5 @@ WORK-07 的订阅、席位与平台变更专项联调：构建后以 `MOLIS_AUTH
 冷启动内容选择器仍只投影 owner 的惰性 HTML 元数据。需要跨页完整枚举的 owner，在已授权页面上声明 `data-frame-assets-input`（字符串输入对象的 JSON）；每页在 `data-frame-assets-next-input` 声明下一页输入，末页省略。输入只经既有 Manifest 舞台参数合同，平台不识别具体插件或过滤值。每页读取前后校验同一个 producer/page 授权，重复输入拒绝；一位 owner 的任一页失败就不交付该 owner 的部分候选。对象解析可在找到精确引用后停止；拖拽仍必须先通过原句柄的投影范围检查，不以新页面放大旧句柄权限。FBR-05 的跨200条/归档候选、伪造与撤回拒绝由 `tests/workbench-frame-container.e2e.test.ts` 覆盖。
 
 审查按钮取自 AgentReviewQueue 的 `decisions/readMany`，pending 本身不表示仍可批准或拒绝。原安装授权失效仅给拒绝，无执行处理器则说明暂不能提交；已批准但结果未知保持原核对路径。必跑：`tests/agent-review-surface.test.ts`、`tests/agent-review-http.test.ts`、`tests/agent-review-availability.e2e.test.ts`、`tests/plugin-page-reviews.e2e.test.ts`。
+
+父页临时遮住插件时，子页留住当前审查空占位的实测高度，可信控件和旧请求随原可见期释放。重新可见后，新的审查槽从 Host 当前回答重算内容和高度。离开挂载与断开元素沿原清理路径。

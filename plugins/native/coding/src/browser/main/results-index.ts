@@ -10,7 +10,8 @@ const sectionLabel = (section: HTMLElement): string => {
 
 /** The sections of the results panel the person can jump to: those on show, when the panel is open and the companion is not. */
 function sectionsOnShow(page: Page, nav: HTMLElement, tools: HTMLElement): HTMLElement[] {
-  if (page.root.dataset.codingResults !== "true" || tools.dataset.companionOpen === "true") return [];
+  const { codingResults, companionOpen } = page.root.dataset;
+  if (codingResults !== "true" || companionOpen === "true") return [];
   return [...tools.children].filter((node): node is HTMLElement => node instanceof HTMLElement && node !== nav && !node.classList.contains("coding-tool-tabs") && !node.hidden && Boolean(sectionLabel(node)) && getComputedStyle(node).display !== "none");
 }
 
@@ -63,7 +64,7 @@ export function mountResultsIndex(page: Page) {
     section.tabIndex = -1;
     section.focus({ preventScroll: true });
   });
-  lifetime.observe(new MutationObserver(() => scheduleResultsIndex(page)), q("[data-coding-tools]"), { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden", "data-companion-open"] });
-  lifetime.observe(new MutationObserver(() => resultVisibility(page)), root, { attributes: true, attributeFilter: ["data-coding-results"] });
+  lifetime.observe(new MutationObserver(() => scheduleResultsIndex(page)), q("[data-coding-tools]"), { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
+  lifetime.observe(new MutationObserver(() => resultVisibility(page)), root, { attributes: true, attributeFilter: ["data-coding-results", "data-companion-open"] });
   resultVisibility(page);
 }

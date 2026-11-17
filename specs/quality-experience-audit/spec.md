@@ -625,3 +625,19 @@ SDK继续拥有唯一候选、实际期限、版本和决定；Memory拥有最�
 PF-03 当前处置复核：BL-memory-session-kinds 明确记录用户 2026-11-12 批准 Coding/Assistant 两消费者例外，第三个真实需要会话记忆的插件出现时再补合同；沿真实绑定公开动作、形成前后来源核验及 SDK 写入观察检查未发现必须提前迁移的第三调用方。保留该已批后续条件，不新造通用状态；本任务仍交付该项审查结论、具体owner和迁移边界，不能标为已实现平台化。公开 memory-session binding、Host mapping 与 session-clear-plan 持久结构须同片迁移，不能只扩大 kind 字符串。
 
 第三十一批补验结束：完整 feed-runtime-plugin 75/75、AnySearch唯一owner 4/4、RSS真实TLS安全4/4，共3文件83项通过（`/tmp/quality-audit-feed-runtime-network-final.log`）。自定义RSS与web query真实消费覆盖已取得，包必跑205文件尚未执行。
+
+
+第三十三批实施前补充：主结果区以一次明确的显示选择拥有差异、冲突、历史或审查，等待后的界面变化核原选择和工作区；周期性刷新目录不等于用户改变选择，不应取消正在读的固定内容。迁移冲突编辑器时同步移动其状态/重试入口，文件选择与仓库控制继续留目录。prepare-index迟到成功/失败不能隐藏或改写后来文件按钮；operations已受理的review仍按原operation关联读取、核真实结果和清理确切已提交草稿，显示归属拒绝不能跳过这些owner处理。保持原公开路由、Host审查与目录输出边界，不用新增自动重试或缓存账替代现有回执。具体代码收口以原ticket/displayed/conflictTicket的实际使用者为界，减少互相独立的显示状态。
+
+
+第三十五批本地定向结果：生产完整构建通过。原 installed-plugin-host 40项全部通过，新增 lifecycle 变体首次因未开启可选capabilities:call被正确拒绝；按正常本人授权regrant后，QEA-81保留恢复/正常安装恢复两项均通过，实际数据/调度/Feed wake断言全保留。SCS-16整文件11项通过，包含无关自身呈现正常安装、引用缺失拒绝且零记录/pin/包、同ID未来声明不得替代当前项。新增反证夹具最初使用Home unsigned安装和签名字面量均被正确安全边界拒绝，现使用真实项目范围及普通unsigned标签；没有改产品信任规则。健康首轮因新增测试私读内部包被拒，已改用公开runningProjectPlatform和正常preview/confirm，并通过Host fixture声明待启动版本；没有为测试新增生产出口或放宽门禁。最终健康继续；当前头CI待完成。
+
+## 第三十六批：整合第39批主干并复核真实合同交集
+
+2026-11-17 fetch发现origin/main由4aa5496e3f更新到a717e44284（#2105，第39批授权、人审与统一管理页，959文件）。当前已验证Pages/Feed/引导及QF-47修复先保存检查点，quality-audit-followthrough固定29f6d1383e的205文件回归继续，只证明该检查点；不在运行树改源码。原quality-experience-audit主线整合新main，冲突逐处保留最新合同及本轮有效行为，生成快照按合后代码重算。新主干涉及授权/人审/原生输入与浏览器、Assistant、SDK调用身份及Goals/项目批准事实，须核交集入口和包清单，不能假定与本轮正交。
+
+- **QEA-83** 完整构建及公开合同/包边界/健康检查通过；新主干人审/授权/身份与本轮取消、原版本提交和界面恢复相关正常入口通过，原拒绝反证保留。新调用方纳入六方向覆盖，旧头日志只记原头。最终CI在整合后的准确提交运行。
+
+Git QEA-77/78仍在本轮范围；先基于新审查合同完成整合，再实施已确认布局/迟到归属问题。合并不替代后续体验验收。
+
+QF-47最终健康门禁退出0（`/tmp/quality-audit-surface-health-final.log`），测试内部导入违规已消除，未放宽规则。

@@ -259,3 +259,10 @@ Memory 候选决定补深：正常助理工具生成候选→卡片HTTP接受/�
 PF-03已追公开绑定→学习owner→SDK实际来源/写入→清理恢复。BL-memory-session-kinds有用户批准的两个现用消费者例外及第三消费者触发条件；保留已批后续，记为审查/处置完成而非平台改造完成，不静默以此缩减其他方向范围。276文件历史回归保留272通过/4失败；Coding7项及安装策略11项正式夹具修正已通过，安装恢复真实P1继续处理。
 
 第三十一批补验结束：完整 feed-runtime-plugin 75/75、AnySearch唯一owner 4/4、RSS真实TLS安全4/4，共3文件83项通过（`/tmp/quality-audit-feed-runtime-network-final.log`）。自定义RSS与web query真实消费覆盖已取得，包必跑205文件尚未执行。
+
+
+QF-47本地实现已验证：surface-installation只在非pinned且无精确声明时贡献空动作，完整目录及pending遮盖规则保持；原安装恢复40项及新增正常lifecycle恢复通过，后者明确开启可选平台调用权限后原数据/定时/Feed wake全部成立。SCS-16整文件11项通过，包括缺失引用及同ID pending拒绝、真实安装/pin/包零新增；无新生产导出。测试首版Home unsigned/签名标签和缺可选授权被正确拒绝，修正夹具后通过，不算产品缺陷。日志surface-build、surface-acceptance、surface-targets-final、surface-refusals-final分别保留结果，最终健康与CI仍独立核对。
+
+2026-11-17最新主干a717e44284（#2105第39批，959文件）已fetch。当前固定29f6d1383e的205文件回归继续；根主线准备整合，审查/授权/SDK及真实入口交集纳入QEA-83。此前“最新主干4aa”及包清单为历史检查点，未将旧头验收挪作新头证据；原六方向目标不变。
+
+QF-47最终健康门禁退出0（`/tmp/quality-audit-surface-health-final.log`），测试内部导入违规已消除，未放宽规则。

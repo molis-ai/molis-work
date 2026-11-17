@@ -84,6 +84,9 @@ function installedActions(catalog: SurfaceInstallCatalog, candidate: PluginManif
     if (source && (source.kind !== "app" || source.actions?.length || record.publisher_trust !== "pinned")) {
       return (source.actions ?? []).filter(action => action.action.scope === scope);
     }
+    // A retained Studio installation may precede its declaration reader during restart. It contributes no provable actions;
+    // the complete catalog still refuses actual references to them, and its pending edition was already removed above.
+    if (!source && record.publisher_trust !== "pinned") return [];
     const kept = record.publisher_trust === "pinned" && packages?.load(record.plugin_id, record.publisher_signature, record.version);
     if (!kept || !kept.packaged || !hasRelease(kept.packaged.manifest, record)) {
       throw pluginErrors.declaration_invalid(`读不到已装插件 ${record.plugin_id} 的呈现动作声明`);

@@ -116,4 +116,6 @@ export async function changeInstalledVersion(c: InstalledLifecycleContext, actio
     if (!failures.length) throw error;
     throw new AggregateError([error, ...failures], '版本切换没有完成；原版本或密钥恢复仍需核对', { cause: error });
   }
+  // A committed database upgrade is already active. Check who can receive its result outside activation recovery.
+  if (databaseVersionChanged) control?.assertCurrent?.();
 }

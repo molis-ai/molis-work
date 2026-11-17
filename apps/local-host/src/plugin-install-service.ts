@@ -144,7 +144,11 @@ interface Held extends PreviewOwner {
 }
 
 export function assertInstallAuthority(caller?: InstallAuthority): void {
-  caller?.signal?.throwIfAborted();
+  const signal = caller?.signal;
+  if (signal?.aborted) {
+    const reason: unknown = signal.reason;
+    throw reason instanceof ActionError ? reason : new ActionError('actions.cancelled', '这次插件操作已取消');
+  }
   requireSynchronous(caller?.assert_authority_current?.());
 }
 

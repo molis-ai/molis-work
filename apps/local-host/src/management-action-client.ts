@@ -65,7 +65,39 @@ function reviewOperation(reference: GoalsActionReference): keyof typeof trustedR
   });
 }
 
-/** The previously authorized standalone local entry. Production MCP forwards only to the resident. */
+/**
+ * What the command line is handed (PEQ-15, H6): the platform's two protected review operations on the one project it is bound to, as the
+ * person on this machine. No plugin's action: any other reference is refused here, before it reaches a resident or a local Host.
+ */
+export interface ReviewManagementActions {
+  readonly project_id: string;
+  invoke<Output = unknown>(reference: GoalsActionReference, input: object, evidence?: unknown): Promise<Output>;
+}
+
+function requireReview(reference: GoalsActionReference, evidence: unknown): keyof typeof trustedReviewActions {
+  const name = reviewOperation(reference);
+  if (!name) throw new ActionError("actions.forbidden", "命令行只提供平台的审阅操作");
+  if (evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");
+  return name;
+}
+
+/** The resident's port, narrowed to the review operations before anything is sent. */
+export function reviewOnly(port: Pick<GoalsManagementActions, "project_id" | "invoke">): ReviewManagementActions {
+  return { project_id: port.project_id, async invoke<Output>(reference: GoalsActionReference, input: object, evidence?: unknown) {
+    requireReview(reference, evidence);
+    return await port.invoke<Output>(reference, input);
+  } };
+}
+
+/** The command line's standalone local entry: the protected review entry on the bound project, and no Goals port at all. */
+export function bindStandaloneReviewActions(host: MolisWorkLocalHost, project: LocalHostProjectReference, signal?: AbortSignal): ReviewManagementActions {
+  return { project_id: project.project_id, async invoke<Output>(reference: GoalsActionReference, input: object, evidence?: unknown) {
+    const name = requireReview(reference, evidence);
+    return await invokeProjectReviewManagement(host, project, name, input, currentCallId() ?? newCallId(), signal) as Output;
+  } };
+}
+
+/** The previously authorized standalone local entry of the management MCP. Production MCP forwards only to the resident. */
 export function bindStandaloneManagementActions(host: MolisWorkLocalHost, project: LocalHostProjectReference, signal?: AbortSignal): GoalsManagementActions {
   const goals = bindGoalsManagementActions(host.actionClient(project), project, { signal });
   return { ...goals, async invoke<Output>(reference: GoalsActionReference, input: object, evidence?: unknown) {
@@ -80,7 +112,7 @@ export function bindStandaloneManagementActions(host: MolisWorkLocalHost, projec
 export function residentManagementActions(options: {
   home: string; origin: string; controlToken?:string; databasePath: string; projectId: string; signal?: AbortSignal;
   ensureResident?(): Promise<void>;
-  fallback(): GoalsManagementActions;
+  fallback(): Pick<GoalsManagementActions, "invoke">;
 }): GoalsManagementActions {
   const origin = residentHostOrigin(options.origin);
   let delivered = false;

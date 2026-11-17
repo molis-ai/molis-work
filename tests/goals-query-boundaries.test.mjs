@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { checkGoalReadOwnerSql, checkNoGoalTypedAdapters, checkGoalTransportCallers, checkGoalsCommandOwnership, checkStandaloneManagementPort, ENTRY_SOURCE_FILE, hostSourceFiles, readEntrySources, WEB_DISPATCH_FILES } from "../scripts/check-package-boundaries.mjs";
+import { checkGoalReadOwnerSql, checkNoGoalTypedAdapters, checkGoalTransportCallers, checkGoalsCommandOwnership, checkStandaloneManagementPort, checkStandaloneReviewPort, ENTRY_SOURCE_FILE, hostSourceFiles, readEntrySources, WEB_DISPATCH_FILES } from "../scripts/check-package-boundaries.mjs";
 
 test("Goal read guard covers actual root callers and rejects restored Policy and relation SQL", () => {
   for (const file of ["apps/desktop/launchers/web/server.ts", ...WEB_DISPATCH_FILES, "apps/desktop/launchers/mcp/server.ts", "apps/local-host/src/mcp-server.ts", "apps/mcp/src/tool-dispatch.ts", "apps/local-host/src/cli-project.ts", "apps/cli/src/command-dispatch.ts",
@@ -82,9 +82,9 @@ test("the CLI and management MCP call Goals' actions through the management call
   assert.match(changed("dispatcher", add("const x = client.withProject(reference);")), /withProject/);
   assert.match(changed("dispatcher", add("const x = coordinator.goals.query;")), /coordinator\.goals/);
   // The Host side builds the caller with the factory, over the project's client (it starts the project's plugins, Goals among them).
-  assert.match(changed("project", source => source.replace("bindStandaloneManagementActions(", "somethingElse(")), /cli-project\.ts.*bindStandaloneManagementActions/);
+  assert.match(changed("project", source => source.replace("bindStandaloneReviewActions(", "somethingElse(")), /cli-project\.ts.*bindStandaloneReviewActions/);
   assert.match(changed("project", source => source.replace("options.signal);\n  };", "otherSignal);\n  };")), /cli-project\.ts.*original signal/);
-  assert.match(changed("project", source => source.replace("return bindStandaloneManagementActions", "localHost.client(reference);\n    return bindStandaloneManagementActions")), /cli-project\.ts/);
+  assert.match(changed("project", source => source.replace("return bindStandaloneReviewActions", "localHost.client(reference);\n    return bindStandaloneReviewActions")), /cli-project\.ts/);
   // W3-07-4-01: management MCP has the same boundary; Runtime is handed no management port.
   assert.match(changed("mcp", source => source.replace(/McpManagementActions/g, "Other")), /tool-dispatch\.ts.*McpManagementActions/);
   assert.match(changed("mcp", add("const x = coordinator.goals;")), /tool-dispatch\.ts/);
@@ -133,6 +133,9 @@ test("W3-07-4-01 / APR-17: MCP keeps registered Goals actions and uses the commo
 test("APR-17 the same standalone port pins the original action client, project, evidence and cancellation", () => {
   const source = read("apps/local-host/src/management-action-client.ts");
   assert.deepEqual(checkStandaloneManagementPort(source), []);
+  // The command line's review port has some of the same lines; each mutation edits the management MCP's port.
+  const at = source.indexOf("export function bindStandaloneManagementActions");
+  const within = (from, to) => source.slice(0, at) + source.slice(at).replace(from, to);
   for (const [from, to] of [
     ["host.actionClient(project)", "otherHost.actionClient(project)"],
     ["host.actionClient(project)", "host.actionClient(otherProject)"],
@@ -142,8 +145,26 @@ test("APR-17 the same standalone port pins the original action client, project, 
     ["currentCallId() ?? newCallId(), signal)", "currentCallId() ?? newCallId(), undefined)"],
     ['if (evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");', "void evidence;"],
   ]) {
+    assert.ok(source.slice(at).includes(from), from);
+    assert.match(checkStandaloneManagementPort(within(from, to)).join("\n"), /standalone management/);
+  }
+});
+
+test("PEQ-15 H6 the command line's port refuses everything but the review operations and binds no Goals port", () => {
+  const source = read("apps/local-host/src/management-action-client.ts");
+  assert.deepEqual(checkStandaloneReviewPort(source), []);
+  for (const [from, to] of [
+    ['if (!name) throw new ActionError("actions.forbidden", "命令行只提供平台的审阅操作");', "void name;"],
+    ['if (evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");\n  return name;', "return name;"],
+    ["const name = requireReview(reference, evidence);", "const name = reviewOperation(reference)!;"],
+    ["return await invokeProjectReviewManagement(host, project, name, input, currentCallId() ?? newCallId(), signal) as Output;\n  } };\n}\n\n/** The previously",
+      "return await bindGoalsManagementActions(host.actionClient(project), project, { signal }).invoke<Output>(reference, input);\n  } };\n}\n\n/** The previously"],
+    ["currentCallId() ?? newCallId(), signal) as Output;\n  } };\n}\n\n/** The previously", "currentCallId() ?? newCallId(), undefined) as Output;\n  } };\n}\n\n/** The previously"],
+    ["    requireReview(reference, evidence);\n", ""],
+    ["return await port.invoke<Output>(reference, input);", "return await port.invoke<Output>(reference, input, evidence);"],
+  ]) {
     assert.ok(source.includes(from), from);
-    assert.match(checkStandaloneManagementPort(source.replace(from, to)).join("\n"), /standalone management/);
+    assert.match(checkStandaloneReviewPort(source.replace(from, to)).join("\n"), /review operations/, from);
   }
 });
 
@@ -231,21 +252,25 @@ test("the CLI boundary rule reads every way into the Goals package and into a Ho
   assert.equal(changed("dispatcher", add('// the CLI never calls host.client(reference) or client.withProject(reference)\nconst note = "coordinator.goals";')), "");
 
   // The local fallback keeps its original reference and signal; the dispatcher receives the selected resident/local port.
-  const bind = "bindStandaloneManagementActions(localHost ??= createMolisWorkLocalHost(), reference, options.signal)";
+  const bind = "bindStandaloneReviewActions(localHost ??= createMolisWorkLocalHost(), reference, options.signal)";
   const source = read("apps/local-host/src/cli-project.ts");
   assert.ok(source.includes(bind), "the real cli-project.ts holds the call these mutations edit");
   for (const [mutation, edit] of [
     ["another factory reference", source => source.replace(bind, bind.replace(", reference,", ", otherReference,"))],
     ["a copy of the factory reference", source => source.replace(bind, bind.replace(", reference,", ", { ...reference },"))],
     ["extra factory argument", source => source.replace(bind, `${bind.slice(0, -1)}, caller)`)],
-    ["missing factory reference", source => source.replace(bind, "bindStandaloneManagementActions(localHost)")],
+    ["missing factory reference", source => source.replace(bind, "bindStandaloneReviewActions(localHost)")],
     ["wrong factory import", source => source.replace('from "./management-action-client.js"', 'from "./elsewhere.js"')],
-    ["type-only factory import", source => source.replace('{ bindStandaloneManagementActions,', '{ type bindStandaloneManagementActions,')],
+    ["type-only factory import", source => source.replace('{ bindStandaloneReviewActions,', '{ type bindStandaloneReviewActions,')],
+    // H6 (batch 44): the command line gets the review operations only, from either side.
+    ["the Goals port as fallback", source => source.replace(bind, bind.replace("bindStandaloneReviewActions", "bindStandaloneManagementActions"))],
+    ["resident port not narrowed", source => source.replace("project ? reviewOnly(residentManagementActions(", "project ? (residentManagementActions(")],
+    ["type-only narrowing import", source => source.replace(" reviewOnly, upgradeOlderCatalog }", " type reviewOnly, upgradeOlderCatalog }")],
     ["unused selected port", source => source.replace("dispatchCliProjectCommand(actions, args, input)", "dispatchCliProjectCommand(makeActions(), args, input)")],
     ["second typed route", source => source.replace("const actions =", "const extra = localHost.client(reference);\n  const actions =")],
     ["direct Goal Query port", source => `${source}\nconst query = runtime.goalQueries;`],
     ["eager local fallback", source => source.replace("const fallback = () => ", "const fallback = ")],
-    ["bypass resident", source => source.replace("project ? residentManagementActions", "false ? residentManagementActions")],
+    ["bypass resident", source => source.replace("project ? reviewOnly(residentManagementActions", "false ? reviewOnly(residentManagementActions")],
     ["lost cancellation signal", source => source.replace("signal: options.signal, fallback", "signal: undefined, fallback")],
     ["forged resident database", source => source.replace("databasePath: project.database_path, projectId", "databasePath: databasePath, projectId")],
   ]) {
@@ -300,7 +325,7 @@ test("RAC-105-S-08: the CLI fallback requires ownership before Home init and ret
   const source = read("apps/local-host/src/cli-project.ts");
   const account = 'if(!allowLocalFallback&&homeDatabase)throw new ActionError("actions.service_unavailable","当前账号宿主尚未连接，不能回退匿名业务。");';
   const own = "if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home, preflightMemoryHome);";
-  const bind = "bindStandaloneManagementActions(localHost ??= createMolisWorkLocalHost(), reference, options.signal)";
+  const bind = "bindStandaloneReviewActions(localHost ??= createMolisWorkLocalHost(), reference, options.signal)";
   const guarded = `const fallback = () => {\n    ${account}\n    ${own}\n    return ${bind};\n  };`;
   assert.ok(source.includes(guarded), "mutations edit the actual canonical fallback");
   for (const [mutation, edit] of [

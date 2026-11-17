@@ -577,6 +577,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     }
   }
   errors.push(...checkStandaloneManagementPort(read("apps/local-host/src/management-action-client.ts")));
+  errors.push(...checkStandaloneReviewPort(read("apps/local-host/src/management-action-client.ts")));
   errors.push(...checkGoalTransportCallers({
     cli: { dispatcher: read("apps/cli/src/command-dispatch.ts"), project: read("apps/local-host/src/cli-project.ts") },
     mcp: { dispatcher: read("apps/mcp/src/tool-dispatch.ts"), host: read("apps/local-host/src/mcp-v1-tool.ts") },
@@ -1190,6 +1191,35 @@ export function checkStandaloneManagementPort(source) {
     && compact(calls[3]) === "returnawaitinvokeProjectReviewManagement(host,project,name,input,currentCallId()??newCallId(),signal)asOutput;";
   return valid ? [] :
     [file.fileName + ": standalone management must keep the same project, original signal, protected review entry and source checks"];
+}
+
+/**
+ * The command line's port (batch 44, H6): the standalone entry and the resident narrowing both refuse any reference that is not one of the
+ * platform's review operations, and evidence from the caller, before anything runs; the standalone entry calls only the protected review
+ * entry on the bound project with the original signal, and binds no Goals port.
+ */
+export function checkStandaloneReviewPort(source) {
+  const file = ts.createSourceFile("apps/local-host/src/management-action-client.ts", source, ts.ScriptTarget.Latest, true);
+  const compact = node => node?.getText(file).replace(/\s+/gu, "");
+  const fn = name => file.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === name);
+  const invokeBody = declaration => {
+    const [only] = declaration?.body?.statements ?? [];
+    const returned = only && ts.isReturnStatement(only) && only.expression && ts.isObjectLiteralExpression(only.expression) ? only.expression : undefined;
+    const invoke = returned?.properties.find(item => ts.isMethodDeclaration(item) && compact(item.name) === "invoke");
+    return declaration?.body?.statements.length === 1 && returned?.properties.length === 2 ? invoke?.body?.statements.map(compact) : undefined;
+  };
+  const require = fn("requireReview")?.body?.statements.map(compact) ?? [];
+  const standalone = fn("bindStandaloneReviewActions"), narrowed = fn("reviewOnly");
+  const valid = require.length === 4 && require[0] === "constname=reviewOperation(reference);"
+    && require[1].startsWith('if(!name)thrownewActionError("actions.forbidden",')
+    && require[2].startsWith('if(evidence!==undefined)thrownewActionError("actions.input_invalid",') && require[3] === "returnname;"
+    && standalone?.parameters.map(parameter => compact(parameter.name)).join(",") === "host,project,signal"
+    && JSON.stringify(invokeBody(standalone)) === JSON.stringify(["constname=requireReview(reference,evidence);",
+      "returnawaitinvokeProjectReviewManagement(host,project,name,input,currentCallId()??newCallId(),signal)asOutput;"])
+    && narrowed?.parameters.length === 1
+    && JSON.stringify(invokeBody(narrowed)) === JSON.stringify(["requireReview(reference,evidence);", "returnawaitport.invoke<Output>(reference,input);"])
+    && !/bindGoalsManagementActions/u.test(compact(standalone) ?? "") && !/bindGoalsManagementActions/u.test(compact(narrowed) ?? "");
+  return valid ? [] : [file.fileName + ": the command line's port must refuse everything but the platform's review operations before it runs, and bind no Goals port"];
 }
 
 function importsTrustedReviewActions(file) {

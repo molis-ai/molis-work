@@ -49,7 +49,7 @@ export { describePluginTablesRefusal, describeUnavailable, diagnosticId, dismiss
 export { homeUpgradeDescriptors, registerHomeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, type HomeUpgradeDescriptor, type UpgradeBlock, type HomeUpgradeDescriptorSource, type HomeUpgradeFileDescriptor, type HomeUpgradeStoreDescriptor, type HomeUpgradeTablesDescriptor } from "./home-upgrade-stores.js";
 export { pluginTablesDescriptor, projectDatabases, upgradePluginLibraryFile, type PluginTablesLibrary } from "./platform-upgrade-stores.js";
 export { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
-export { catalogManagementProject, upgradeOlderCatalog } from "./management-action-client.js";
+export { bindStandaloneReviewActions, catalogManagementProject, reviewOnly, upgradeOlderCatalog } from "./management-action-client.js";
 export { createHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";
 export { restoreHomeSnapshot, recoverHomeRestore, type HomeRestoreOptions, type HomeRestoreRecoveryOptions } from "./home-restore.js";
 export type { HomeRestoreCatalogInspector, HomeRestoreResult } from "./home-restore-contract.js";

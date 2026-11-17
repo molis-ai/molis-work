@@ -41,7 +41,7 @@ function dropSkillLink(value: unknown): unknown {
 
 /** `runtime-integrations/<runtime>.json` (upgrade-chain-design §2.6), upgraded by the Host's upgrade round under the Home's lock. */
 export const RUNTIME_INTEGRATION_RECEIPT_FILE: VersionedFile<IntegrationReceipt> = {
-  version: CURRENT,
+  version: /* @version format.runtime.integration.receipt */ 2,
   field: "schema_version",
   upgrades: [{ from: 1, transform: dropSkillLink }],
   parse: parseReceipt,

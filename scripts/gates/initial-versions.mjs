@@ -52,6 +52,9 @@ const PERSISTENT_ENTRIES = new Map([
   ["database.ledger_baseline", "apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE"],
   ["database.memory_ledger_baseline", "packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE"],
   ["format.jelly.workspace", "plugins/native/jelly/src/contract.ts#schema_version"],
+  // The Runtime integration receipt (batch 44 took the goal-advance link out of it; the user agreed to register it on 2026-11-17). Goldens hold a
+  // sample, since only an installed Home has one (scripts/golden/populate.mjs).
+  ["format.runtime.integration.receipt", "apps/local-host/src/installer/runtime-integration-receipt.ts#RUNTIME_INTEGRATION_RECEIPT_FILE"],
 ]);
 export const PERSISTENT_DEFINITIONS = Object.freeze([...PERSISTENT_CONSTANTS.keys(), ...PERSISTENT_ENTRIES.values()]);
 export const PERSISTENT_ENTRY_KEYS = Object.freeze(Object.fromEntries(PERSISTENT_ENTRIES));

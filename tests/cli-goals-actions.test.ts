@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { mock } from "node:test";
 
-import { MolisWorkLocalHost, molisWorkHostProjectReference, runV1Cli } from "@molis-ai/molis-work-app-local-host";
+import { bindStandaloneReviewActions, MolisWorkLocalHost, molisWorkHostProjectReference, reviewOnly, runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -174,5 +174,23 @@ test("the CLI keeps its wire: the payload's project must be the bound one, and i
       await assert.rejects(cli("review-decide", { ...decide, authority: named }), contractSays, `decide refuses ${Object.keys(named)} in the authority`);
     }
     assert.deepEqual(await decisions(proposalId), [], "nothing was decided");
+  } finally { await done(); }
+});
+
+test("PEQ-15 H6 the command line's port refuses a Goals action on either path before anything is sent", async () => {
+  const { host, reference, calls, done } = await setup();
+  try {
+    // The resident here records every call; the local port runs on a real Host whose calls are watched.
+    const sent: unknown[] = [];
+    const resident = { project_id: PROJECT, invoke: async <Output>(...args: unknown[]) => { sent.push(args); return {} as Output; } };
+    calls.length = 0;
+    for (const port of [bindStandaloneReviewActions(host, reference), reviewOnly(resident)]) {
+      await assert.rejects(port.invoke(goalsActions.list, {}), (error: { code?: string }) => error.code === "actions.forbidden");
+      await assert.rejects(port.invoke(trustedReviewActions.read, {}, { origin: "forged" }), (error: { code?: string }) => error.code === "actions.input_invalid");
+    }
+    assert.deepEqual(sent, []);
+    assert.deepEqual(calls, [], "the Host ran nothing");
+    await reviewOnly(resident).invoke(trustedReviewActions.read, { request_key: "k" });
+    assert.deepEqual(sent, [[trustedReviewActions.read, { request_key: "k" }]], "a review operation goes through, without caller evidence");
   } finally { await done(); }
 });

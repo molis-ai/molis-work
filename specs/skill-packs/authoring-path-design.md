@@ -1,6 +1,6 @@
 # Skill 创作与改进完整路径：设计稿（第 42 批）
 
-状态：已按本稿实现（2026-11-16，第 42 批主会话），待合入。界面定样用户选方案 B（左边改、右边试，[原型](../../docs/design/skill-improvement/README.md)）；实现时定下的取舍写在 §4，与原型不同的地方见[第 42 批](../post-anticorruption-roadmap/reference/batches/42.md)「与设计不同的地方」。
+状态：已按本稿实现并经 [#2107](https://github.com/molis-ai/molis-work/pull/2107) 合入 main `4cf1c742e6`（2026-11-17）。界面定样用户选方案 B（左边改、右边试，[原型](../../docs/design/skill-improvement/README.md)）；实现时定下的取舍写在 §4，与原型不同的地方见[第 42 批](../post-anticorruption-roadmap/reference/batches/42.md)「与设计不同的地方」。
 
 [第 42 批](../post-anticorruption-roadmap/reference/batches/42.md) · [技能包 spec](spec.md) · [主动助理 §5.9／§6](../proactive-assistant/spec.md) · BL-166（随本批关闭）
 
@@ -49,7 +49,7 @@
 
 「改一份我的」开的草稿记下来源（技能引用与版本）；采用后这份对应关系存进宿主的技能表（见 §3），目录项多一个 `based_on`。来源出了新版时，能力包的版本信息照提示词已有的 `default_updated` 写法标出（`KitEntry.version.change`），详情顶上说「原来的有第 N 版了，你的照旧在用」，可看差别（你的 → 新版）、带进草稿（新版正文开草稿，你的占位符替换再套一遍）或先不管（记下已看过的版本）。占位符（`~~类别`，第 08 批的连接器类别写法）在定制草稿里列出来逐个换。采用时可选把原来的改成关（沿 `skills.settings.set`，同一次采用里做，失败不影响采用并如实说）。
 
-## 3. 存储（要用户确认）
+## 3. 存储（用户 2026-11-16 已确认）
 
 `agent-definitions` 库是技能设置与用量的主人（第 08 批），草稿、已知答案、回放与来源对应关系归它：库 **2 → 3 只新建四张空表**：
 
@@ -60,7 +60,7 @@
 | `skill_trials` | 回放：草稿修订、已知答案、各入口 × 版本的结果与判定（模型与用量没有存，见 §2.3） |
 | `skill_lineage` | 自己的技能 ← 来源技能与版本、已看过的来源版本 |
 
-按[合同变更流程](../../docs/system/CONTRACT-CHANGES.md)「当前保留机制」登记一行（同第 08 批 `skill_settings` 建表）：只建空表、不动已有数据，U1 升级执行，普通打开仍拒绝旧版本。这一条要用户确认后才写。
+按[合同变更流程](../../docs/system/CONTRACT-CHANGES.md)「当前保留机制」登记一行（同第 08 批 `skill_settings` 建表）：只建空表、不动已有数据，U1 升级执行，普通打开仍拒绝旧版本。用户 2026-11-16 已确认这一条，并随 #2107 合入。
 
 ## 4. 合同稿（`services/skills`，C1）
 
@@ -80,7 +80,7 @@
 | `skills.versions.list@1` | 本人 | 自己的某个技能的各版 |
 | `skills.lineage.dismiss@1` | 本人 | 「先不管」：记下已看过的来源版本 |
 
-目录项 `SkillCatalogEntry` 加可选 `based_on`、`draft`（有没有草稿），`KitEntry` 的版本变化对技能也给 `default_updated`。第 41 批的 `skills.authored.save` 由 `drafts.adopt` 取代（阶段一，同一 PR 改完全部消费者）；`skills.authored.read`、`remove`、`draft`（一句话起草表单）保留：新建技能时页面先用 `authored.draft` 填表，再 `drafts.create` 开草稿（实现时定，原稿写的是一并取代）。错误码用 `defineErrorCodes` 加在 `skills` 下：`draft_unknown`、`draft_conflict`、`trial_required`、`trial_differs`、`case_invalid`。
+目录项 `SkillCatalogEntry` 加可选 `based_on`、`draft`（有没有草稿）与 `recent_uses`（按入口的近期次数），`KitEntry` 的版本变化对技能也给 `default_updated`。第 41 批的 `skills.authored.save` 由 `drafts.adopt` 取代（阶段一，同一 PR 改完全部消费者）；`skills.authored.read`、`remove`、`draft`（一句话起草表单）保留：新建技能时页面先用 `authored.draft` 填表，再 `drafts.create` 开草稿（实现时定，原稿写的是一并取代）。错误码用 `defineErrorCodes` 加在 `skills` 下：`draft_unknown`、`draft_conflict`、`trial_required`、`trial_differs`、`case_invalid`。
 
 ## 5. 开工前检查（需求开发流程第 4 节）
 
@@ -91,10 +91,10 @@
 | 1 | 事实主人 | 草稿、已知答案、回放、来源对应归宿主 Agent 定义（技能设置与用量的主人）；技能内容归「我的技能」包（安装服务）；对话归助理；观测记录归观测层。没有第二个主人 |
 | 2 | 插件同等待遇 | 回放、草稿、定制对任何包的技能一样（系统自带、已装、第三方、自己写的）；不点名哪个插件 |
 | 3 | 能力注册 | 全部是 `system.skills` 的动作，页面、助理、Agent 用同一份；起草与回放给 Agent，采用只给本人；等模型的声明 `concurrent` |
-| 4 | 合同 | 改 `services/skills`（C1）：新动作、目录项两个可选字段、错误码；阶段一按现行版本改，一个 PR 改完消费者；刷新 API 与动作快照 |
+| 4 | 合同 | 改 `services/skills`（C1）：新动作、目录项三个可选字段（`draft`、`based_on`、`recent_uses`）、错误码；阶段一按现行版本改，一个 PR 改完消费者；刷新 API 与动作快照 |
 | 5 | 放在哪个包 | 合同在 contracts；实现在宿主 `agent-definitions` 与 `skill-authoring`（技能目录本来在这里，不新起服务：目录与设置的主人就是宿主 Agent 定义，第 08 批定）；界面在工作台能力包页 |
 | 6 | 表与存储 | 四张新表归 `agent-definitions`，2 → 3 只建空表；只在 `apps/local-host` 里读写，不是共写的表，不登记 `table-owners` |
-| 7 | 兼容与迁移 | 只建空表的升级段一条，按「当前保留机制」登记，**待用户确认**；不读旧形状 |
+| 7 | 兼容与迁移 | 只建空表的升级段一条，按「当前保留机制」登记；用户 2026-11-16 已确认。不读旧形状 |
 | 8 | 安全边界 | 碰提示注入面（Agent 可起草）：起草不生效、采用只给本人，补 `S-skill-authoring` 的拒绝测试（Agent 调采用被拒、Agent 起草的草稿不进目录、回放不能调工具）；试用不越过 `HostCompleteText` 口 |
 | 9 | 调用次数 | 打开草稿一次读（草稿＋已知答案＋最近回放一起回）；边写边存去抖、一次一请求；一次回放 ≤ 入口数 × 版本数 ＋ 1 次模型调用、一次写库；版本列表一次读发布 |
 | 10 | 升级与数据 | 已有自己的技能、设置、用量不动；第 41 批的包照常是第 1 版历史 |

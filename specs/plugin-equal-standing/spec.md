@@ -1,6 +1,6 @@
 # 插件同等地位收口：Goals 减负与去特权（Plugin Equal Standing）
 
-状态：需求已整理，用户 2026-11-13 已就第 6 节 D1～D10 与 D6b 全部拍板（D9 取代 D4）；排期定为独立一批（D10）：即路线书[第 44 批](../post-anticorruption-roadmap/reference/batches/44.md)，原 44～89 已顺延为 45～90；片 3 并进第 39 批、片 4 并进第 41 批；片 4 已随第 41 批 #2078 完成（规划方法变技能、Goals 去 Home 半实例），其余片尚未实现（2026-11-13）。本文盘点取自 main `6f6ac8d060`，行号以该提交为准。
+状态：需求已整理，用户 2026-11-13 已就第 6 节 D1～D10 与 D6b 全部拍板（D9 取代 D4）；排期定为独立一批（D10）：即路线书[第 44 批](../post-anticorruption-roadmap/reference/batches/44.md)，原 44～89 已顺延为 45～90；片 3 并进第 39 批、片 4 并进第 41 批；片 3 已随第 39 批 #2105 完成（平台可信决定与项目审批规则、受保护通用入口、Goals 改消费方），片 4 已随第 41 批 #2078 完成（规划方法变技能、Goals 去 Home 半实例）；其余片（1、2、5～10）仍按第 44 批推进。本文盘点取自 main `6f6ac8d060`，行号以该提交为准。
 
 需求维护：Claude（本会话）；实现：待分配。类型：底层与架构（主）、横向能力、产品线（Goals、Feed、Coding、Inbox、Todo、Pages、灵光、Images）。决策标记：**直接做**（D1～D10、D6b 已定，见第 6 节）。
 
@@ -70,7 +70,7 @@
 | # | 事实 | 现在在哪 | 谁依赖它 |
 | --- | --- | --- | --- |
 | G1 | **项目指导**：每次 Agent Run、助理回合的项目层提示词 | Goals 的 guidance 动作；宿主 `goal-callers.ts` 的 `readProjectGuidance` 经 `goals.guidance.read` 读 | `agent-host-composition.ts:388`、`assistant/assistant-authority.ts:167`、`mcp-context-tools.ts:15`；项目没有 Goals 就没有项目指导 |
-| G2 | **可信用户决定、项目审批规则、策略绑定**（原 Governance Module，S9-3 并入） | `plugins/native/goals/src/governance/`、`contract/governance-collaboration.ts` | MCP 只为 Goals 开受保护的管理入口 `initialize`、`event_decide`、`goal_tree_decide`（`apps/mcp/src/tool-dispatch.ts:5`、`goal-tools.ts`）；设置页 rules 节；页面视图的 `policy_bindings`（`apps/workbench/src/page-view.ts:53`） |
+| G2 | **可信用户决定、项目审批规则、策略绑定**（原 Governance Module，S9-3 并入） | `plugins/native/goals/src/governance/`、`contract/governance-collaboration.ts` | MCP 的管理入口是 `initialize` 与平台通用的 `review_request`／`review_decide`；旧的 Goals 专用 `event_decide`／`goal_tree_decide` 已在第 39 批删除。设置页 rules 节；页面视图的 `policy_bindings` 读取平台规则投影（第 39 批后不再有 Goals 私有表） |
 | G3 | **规划方法库**：37 个方法、个人副本、项目>个人>内置的取用顺序 | `plugins/native/goals/methods/`；Goals 的 Home 半实例 `home-plugin.ts`（`dual_instance`） | 设置页 planning 节、规划页（`web-planning.ts`）。**第 41 批已删**（2026-11-14）：方法是随系统自带的技能包，Goals 不读、不存、不采用，Home 半实例与规划页都没有了 |
 | G4 | **逐项依据与验收**：要求的认可、完成批准、证据档位 | Goals（第 24-3 批、[决定 25、35](../post-anticorruption-roadmap/reference/decisions.md)） | 第 66-3 批「Goals 依据三档与同一验收卡」、第 27-4 批 Goals 余项还要继续加；第 32-2 批助理后台任务的逐项认可原本也要用它 |
 | G5 | **工作终端与推进提示**：按 Goal 开、列、关工作终端，生成「推进这个 Goal」的提示 | Goals 的 `terminal-actions.ts`、路由 `/goals/:goalId/terminals`（`plugins/native/goals/src/manifest.ts:54-56`、`http/terminals.ts`）；工作台 `apps/workbench/src/terminal/client-prompt.ts` | 平台的启动终端服务（S-103）已在，但「对一个对象开工作终端」只有 Goals 能做 |

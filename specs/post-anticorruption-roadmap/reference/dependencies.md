@@ -241,6 +241,7 @@ flowchart LR
 | SRV-8-1 | 25-3 的回到上一版、REL-4 的副本演练（原 26-6）、REL-5（M1；2026-11-14 改） | [SRV-8](batches/srv-8.md) |
 | 32-2 | 沿用第 39 批先交的共用审查合同；32-2 已随 [#2093](https://github.com/molis-ai/molis-work/pull/2093) 合入，并在 [39-2](batches/39.md#batch-39-item-2) 接通通用可信决定入口（[决定 43 补充](decisions.md#decision-43-review-order)） | [32](batches/32.md#batch-32-item-2)、[39](batches/39.md#收尾检查) |
 | 39 | 删去找不到出处的「02 的政策边界」，只等 13、24（用户 11-13 定）；39-1、39-2 已做完（[第 39 批收尾检查](batches/39.md#收尾检查)） | [39](batches/39.md) |
+| 39 的服务消费 | 44-1、53、65-2、66-3 消费 `project-approvals`／受保护决定入口；61 消费 `automation-recommender` 只读建议；45 只以 39 为批次前置、未单列 automation；64 没有 39 依赖边（64-2 是智能组合，不是 CEX 执行器） | [39](batches/39.md#收尾检查)、[44](batches/44.md)、[53](batches/53.md)、[61](batches/61.md)、[65](batches/65.md#batch-65-item-2)、[66](batches/66.md) |
 | 31-2 | Memory P0（#2020）已合入、P1 短合同已冻结，随 [31](batches/31.md#收尾检查) 完成 | [31](batches/31.md) |
 
 上面一节「还没核实」里，41、43-1、35-2 的 SDK 缺口已由 24 核实，35-2 的 LSP 归属已于 2026-11-12 由用户定走宿主侧并在 [31-1](batches/31.md#batch-31-item-1) 落地。这次仍没写到项的：69、89-1 的「53」（图里按 53-2 推断）、68／71／72／76～78／82 等对多项批次只写批号的前置（图里按语义推断，带 `*`），以及 73-1 为什么等 46。

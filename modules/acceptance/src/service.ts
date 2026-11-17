@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { acceptanceErrors, type AcceptanceDecideRequest, type AcceptanceDeliverRequest, type AcceptanceEvidenceRef, type AcceptanceGap, type AcceptanceReadRequest, type AcceptanceReadResult, type AcceptanceReportInput,
   type AcceptanceReportRequest, type AcceptanceSetRequest, type AcceptanceSubject, type AcceptanceTier, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { acceptanceView, currentRequirements, standsOn, type DeliveryRow } from "./state.js";
+import type { CommitIntentRow } from "./intents.js";
 import { openStore, type AcceptanceStore } from "./store.js";
 
 /** Who is calling, as the Host established it: never read from an action's input. `session` is a session the Host itself bound. */
@@ -166,7 +167,8 @@ export class AcceptanceService {
    * every listed requirement still at the version shown. Each accepted or returned requirement is recorded against the delivery it
    * stands on, under one decision id; requirements not listed are untouched. Only the person's own call reaches here.
    */
-  decide(caller: AcceptanceCaller, request: AcceptanceDecideRequest, decisionId: string = randomUUID(), beforeCommit?: (view: AcceptanceView) => void): AcceptanceView {
+  decide(caller: AcceptanceCaller, request: AcceptanceDecideRequest, decisionId: string = randomUUID(),
+    beforeCommit?: (view: AcceptanceView, recordIntent: (record: unknown) => void) => void): AcceptanceView {
     if (!caller.person) throw acceptanceErrors.scope("只有用户本人能认可或退回");
     const subject = this.subject(request.subject), at = this.now();
     const items = [...request.accepts.map(item => ({ ...item, decision: "accepted" as const, note: null as string | null })), ...request.returns.map(item => ({ ...item, decision: "returned" as const, note: clean(item.note) }))];
@@ -189,10 +191,19 @@ export class AcceptanceService {
         }
       }
       const view = this.view(caller, subject);
-      beforeCommit?.(view);
+      beforeCommit?.(view, record => this.store.intents.add(decisionId, caller.project_id, JSON.stringify(record), at));
       return view;
     });
   }
+
+  /** Decisions whose acceptance rows committed while the platform record did not; read by the Host's recovery. */
+  pendingCommitIntents(projectId?: string): CommitIntentRow[] { return this.store.intents.list(projectId); }
+
+  /** The acceptance rows are present, so a pending intent is a completed acceptance transaction. */
+  hasDecision(projectId: string, decisionId: string): boolean { return this.store.hasDecision(projectId, decisionId); }
+
+  /** The platform record is present and equal, so the durable intent can go. */
+  completeCommitIntent(decisionId: string): void { this.store.intents.remove(decisionId); }
 }
 
 /** The service on a Home's library, for as long as the caller needs it; `close` releases the file. `now` is for tests. */

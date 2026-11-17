@@ -257,6 +257,10 @@ export interface SkillDraftDiscardResult {
     discarded: boolean;
 }
 
+export interface SkillDraftListRequest {
+    include_discarded?: boolean;
+}
+
 export interface SkillDraftOrigin {
     by: "person" | "assistant";
     at: string;
@@ -286,6 +290,7 @@ export interface SkillDraftSummary {
     origin: SkillDraftOrigin;
     updated_at: string;
     verdict?: SkillTrialVerdict;
+    discarded_at?: string;
 }
 
 export type SkillDraftTarget = {
@@ -515,7 +520,7 @@ export declare const skillCatalogActions: {
 };
 
 export declare const skillDraftActions: {
-    list: ActionDefinition<Record<string, never>, {
+    list: ActionDefinition<SkillDraftListRequest, {
         drafts: SkillDraftSummary[];
     }>;
     read: ActionDefinition<SkillDraftReadRequest, SkillDraft>;

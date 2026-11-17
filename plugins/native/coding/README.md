@@ -72,6 +72,8 @@ The project's folders come from the [current-project settings protocol](../../..
 
 ## 开发要求
 
+环境检查只展示成功读取的事实；公开读取的失败outcome、目录截断或实际异常使该分区为unavailable，不能代入零值或空集合。取消仍沿原调用拒绝。检查结果类型由`environment-state.ts`一处定义，页面原位重试复用state读取；非仓库和无HEAD仓库不请求不适用的工作树检查。环境卡安装由`drawEnvironmentReadiness`一处负责，轮次和环境读取顺序均可恢复控件。本地公共renderer输出保持交互属性，模型正文仍走内容净化。
+
 Coding 的 `coding.subject.state@1` 只读当前原记录的 active / archived / deleted，不读 Run、不启动 SDK。通用 subject reader 在读取前后核归档和原映射；已归档原件仍由本人原详情入口查看。Search 的更新版本保留原 updated_at/state；资料内容版本只由原有界 title/summary/content 生成 `content-v1:` token。下一轮方式改变时，配置与 updated_at 在当前项目同一 Host SQLite 写事务内提交，原 record guard 失败或写入失败不留下新的方式。直接回归：`tests/coding-subject-source.test.ts`、`tests/knowledge-source-retention.test.ts`。
 
 Coding 完成后，原 `follow` 作业仅对已成功回执的 completed Run 调用 `memory.learning.enqueue@1`。持久任务再次进入当前安装的 `memory.learning.run@1`，该调用内等待 `memory.learning.form@1`、SDK 形成、晋升与 ledger 完成。Coding 用自己的同步 SessionStore 核全部实际 Coding 来源 Session 的归档、项目与 runtime 映射；不把闭包存入队列。默认 reviewed 留待审候选，未装配来源主人或持久队列时不旁路提炼。补账仍沿原 SDK 合同：已成候选后 App 投影失败，原操作的有界重试可能再次调用提炼模型，再 replay 同一候选/版本；不能宣称模型 exactly-once。来源归档后的拒绝只挡后续派发和写入，先前已确认的 SDK 事实保留。直接回归：`tests/coding-memory-learning.test.ts`。

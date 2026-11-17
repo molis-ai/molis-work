@@ -93,7 +93,11 @@ async function readWorkspaceEnvironment(
   const cacheKey = `${target.workspace_id}:${hasRunningSession ? "live" : "idle"}`;
   const cached = a.environmentChecks.get(cacheKey);
   if (cached && Date.now() - cached.at < 15_000) return cached.value;
-  const pending = inspectCodingEnvironment(a.context, target.workspace_id, target.canonical_path, hasRunningSession, beforeWrite).catch(() => null);
+  const forgetFailed = () => { if (a.environmentChecks.get(cacheKey)?.value === pending) a.environmentChecks.delete(cacheKey); };
+  const pending = inspectCodingEnvironment(a.context, target.workspace_id, target.canonical_path, hasRunningSession, beforeWrite).then(value => {
+    if (value?.status === "unavailable") forgetFailed();
+    return value;
+  }, error => { forgetFailed(); throw error; });
   a.environmentChecks.set(cacheKey, { at: Date.now(), value: pending });
   return pending;
 }

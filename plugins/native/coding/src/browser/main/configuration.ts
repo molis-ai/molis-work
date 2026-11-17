@@ -1,5 +1,4 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { codingIntentOptions } from "../../composer-labels.js";
 import { buildEnvironmentChecklistHtml } from "../../recovery-parts.js";
 import { el, errorMessage } from "../dom.js";
@@ -113,25 +112,35 @@ export function drawEnvironmentReadiness(page: Page, readiness: StateRead["envir
     }
     if (box.dataset.html !== html) {
       box.dataset.html = html;
-      setContentHtml(box, html);
+      box.innerHTML = html;
     }
     return;
   }
   turns.querySelector(":scope > [data-coding-env-checklist]")?.remove();
-  const mounted = turns.querySelector<HTMLElement>("[data-run] > [data-coding-env-checklist]");
-  if (!mounted) return;
   const last = s.lastRun;
+  const block = [...turns.querySelectorAll<HTMLElement>(":scope > [data-run]")].find(node => node.dataset.run === last?.ref.run_id);
+  turns.querySelectorAll("[data-run] > [data-coding-env-checklist]").forEach(node => { if (node.parentElement !== block) node.remove(); });
+  if (!block || !last) return;
+  let mounted = block.querySelector<HTMLElement>(":scope > [data-coding-env-checklist]");
   const matchesLastRun = Boolean(readiness)
     && last?.frozen?.directories?.execution.kind !== "worktree"
     && (!last?.frozen?.directory?.canonical_path || !readiness?.canonical_path || last.frozen.directory.canonical_path === readiness.canonical_path);
   const html = matchesLastRun ? buildEnvironmentChecklistHtml(readiness) : "";
   if (!html) {
-    mounted.remove();
+    mounted?.remove();
     return;
+  }
+  if (!mounted) {
+    mounted = el("div", "", "coding-env-checklist");
+    mounted.dataset.codingEnvChecklist = "";
+  }
+  const user = block.querySelector(":scope > [data-kind=user]");
+  if (user ? user.nextElementSibling !== mounted : block.firstElementChild !== mounted) {
+    if (user) user.after(mounted); else block.prepend(mounted);
   }
   if (mounted.dataset.html !== html) {
     mounted.dataset.html = html;
-    setContentHtml(mounted, html);
+    mounted.innerHTML = html;
   }
 }
 

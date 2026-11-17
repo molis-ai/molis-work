@@ -198,7 +198,7 @@ function drawBudget(ports: SubagentCardPorts, node: HTMLElement, run: CardsRun, 
       text: uiText.text("coding.card.budget.past-line", { attempt: item.attempt, state: stateWord, detail: detail ? " · " + detail : "" }),
     };
   });
-  setContentHtml(box, renderTaskAttemptBudget({
+  box.innerHTML = renderTaskAttemptBudget({
     headerText,
     budgetPercent: budget.max_attempts > 0 ? Math.round((budget.attempt / budget.max_attempts) * 100) : 0,
     meterLabel: uiText.text("coding.card.budget.meter-label"),
@@ -206,7 +206,7 @@ function drawBudget(ports: SubagentCardPorts, node: HTMLElement, run: CardsRun, 
     ...(budget.retry_reason ? { summaryText: budget.retry_reason } : {}),
     ...(pastAttempts?.length ? { pastSummaryLabel: uiText.text("coding.card.budget.past-summary", { count: pastAttempts.length }), pastAttempts } : {}),
     ...(ended && budget.exhausted ? { actions: [{ label: uiText.text("coding.card.extend-budget"), variant: "secondary", attrs: { "data-coding-extend-budget": child.subagent_id } }] } : {}),
-  }));
+  });
   const extendBtn = box.querySelector<HTMLButtonElement>("[data-coding-extend-budget]");
   if (extendBtn) {
     ports.lifetime.listen(extendBtn, "click", async () => {

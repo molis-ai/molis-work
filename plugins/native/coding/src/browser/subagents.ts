@@ -234,14 +234,14 @@ function outcome(panel: Panel, row: HTMLElement, child: Child) {
       };
     });
     const wrap = el("div");
-    setContentHtml(wrap, renderTaskAttemptBudget({
+    wrap.innerHTML = renderTaskAttemptBudget({
       headerText,
       budgetPercent: budget.max_attempts > 0 ? Math.round((budget.attempt / budget.max_attempts) * 100) : 0,
       meterLabel: uiText.text("coding.card.budget.meter-label"),
       ...(budget.retry_source && sources[budget.retry_source] ? { retryReasonLabel: sources[budget.retry_source], retryReasonTone: budget.retry_source === "user-requested" ? "info" : "warning" } : {}),
       ...(budget.retry_reason ? { summaryText: budget.retry_reason } : {}),
       ...(pastAttempts?.length ? { pastSummaryLabel: uiText.text("coding.card.budget.past-summary", { count: pastAttempts.length }), pastAttempts } : {}),
-    }));
+    });
     row.append(wrap);
   }
   if (child.result) row.append(resultBox(child));

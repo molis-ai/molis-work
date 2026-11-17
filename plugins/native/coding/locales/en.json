@@ -2112,6 +2112,9 @@
       }
     },
     "coding.env.status.ready": "All ready",
+    "coding.env.unavailable": "Environment check incomplete",
+    "coding.env.unavailable-detail": "Some workspace information could not be read. Retry to check before running commands.",
+    "coding.env.retry": "Check again",
     "coding.env.title": "Environment checklist",
     "coding.env.vars.checked": "Checked {file} (secret values never read)",
     "coding.env.vars.missing": "No local .env found; {file} declares {keys}",

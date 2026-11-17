@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-16 质量与体验审查 QEA-54/55：Coding环境读取增加明确的unavailable分区，仅含目录身份与检查时间，不提供未读取的事实。原ready/attention事实形状保持；检查、state与浏览器共用一份插件内类型，公共renderer接受同一结果并显示原位重试。取消仍拒绝调用，失败不进入成功缓存；无存储、状态机或权限变更，无历史兼容。阶段一同步公开renderer签名的API快照；实际文件失败与正常入口恢复见quality-experience-audit第二十二批。
+
 2026-11-16 质量与体验审查 QEA-50：`AssistantWorkView.memory_candidates` 增加 null，表示这一次候选分区读取失败；正常数组/空时省略的语义不变。助理聚合按部分失败投影，独立候选 HTTP 不再把失败返回为空；工作台同批显示分区重试并重画恢复有候选/空结果，不保留旧决定按钮。原 Memory 候选事实、版本与公开决定动作不变，无持久结构或历史兼容。阶段一原位更新 API 快照；实际消费与故障恢复见 quality-experience-audit QEA-50。
 
 2026-11-16 质量与体验审查 PF-02：Coding `coding.runs.control@1` 的 steer 分支接收可选 materials，复用本插件现有引用校验与 owner 读取，标题与平台来源的1000字符上限一致；开始/等待/补充均在业务写入前读取，排队实际开轮再次读取。SDK `ComposerOptions.submit` 增加第三参数 acknowledge 成功通知回调，绑定本次调用快照；普通消费者可忽略，Workbench框架桥和Coding同批接入，旧回调不能结算后一次提交。无持久格式、作者权限或状态词表变化；阶段一原位更新API与动作快照，不留旧分支。实际调用和验收见 quality-experience-audit QEA-41～46。

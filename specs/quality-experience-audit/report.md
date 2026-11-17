@@ -443,7 +443,11 @@ b5e52d390 的 [Verify #8037](https://github.com/molis-ai/molis-work/actions/runs
 
 已复现位置：`plugins/native/coding/src/browser/main/composer.ts:91`；净化边界 `packages/plugin-sdk/src/browser.ts:259` 按明确的 inert 合同删除任意 data-coding 属性。真实材料先删除、再恢复健康长期选择、然后排除该长期材料，HTTP 正确返回 failed_materials；界面提示中可见按钮却没有绑定所需的属性，正常点击无路可走。诊断 `/tmp/quality-audit-material-recovery-diagnosis.log` 记录实际请求、失败与 DOM，不是只有静态字符串匹配。该材料恢复调用已改用本页公共 renderer 的逐字段转义输出；不放宽正文净化白名单，真实按钮与恶意格式标题回归已在 required 日志通过，未弱化净化边界。
 
-同语义接续候选仍在本任务内：`browser/main/configuration.ts:116,134` 与 `run-block.ts:94,114` 把本地环境检查/材料控件传给同一净化函数；`browser/subagent-cards.ts:201` 的增加尝试预算按钮标记也会被删除，`subagents.ts:237` 的进度样式亦被消掉。已区分全插件16个调用点：模型回复、报告、外部预览与 diff 正文仍应净化，本地转义过的 UI 则由实际行为的插件安装并绑定，不新增平台特权或通用 HTML 兜底。上述其他调用尚待正常入口动态复现、迁移与验收，不能因材料一处修复关闭整项。
+六处本地renderer安装已迁移：`browser/main/configuration.ts`、`run-block.ts`、`browser/subagent-cards.ts`和`subagents.ts`。模型回复、报告、外部预览与diff正文仍沿原净化边界。环境卡的创建、更新、删除统一归`drawEnvironmentReadiness`，由当前末轮和目录事实推导；删除轮次模块重复匹配/安装，修复轮次先到导致重载后缺卡的隐式顺序依赖。按钮仍只准备草稿、切换明确意图或打开原面板，不代用户执行命令。
+
+定向验收：`/tmp/quality-audit-coding-recovery-acceptance10.log` 两个真实浏览器场景通过。QEA-47覆盖新会话、结束轮次、切回/重载及三宽两主题的实际点击，保留草稿和真实Git冲突，无额外模型或命令。QEA-48由真实SDK派发两个子任务并耗尽额度，从主卡和侧栏分别扩额度；一次真实owner写入失败后预算不变且可重试，扩额度不自动执行；明确重试沿原模型及只读权限成功，原尝试历史和实际预算可重读，进度语义及外部正文净化保留。三宽两主题图已生成，1440浅色和390深色均实看；包必跑与最终门禁待完成。
+
+排除项：SDK `continue`明确在同一子Session发起新尝试，不重绑已经归还的task-board步骤（当前`composition/core/runtime.d.ts:260–262`）；因此重试不再有board-read/report是现行合同，不按完整工具数组相等制造回归。原只读工具上限与冻结模型仍验证。原测试的模型配置、派发审批和活跃父轮次假设已纠正，不计产品缺陷。材料失败在卡片与底栏重复说明仍待同链收敛，控件恢复不代表QF-27全部体验问题关闭。
 
 PF-02 新增正常入口证据：`/tmp/quality-audit-composer-required.log` 15文件全部通过，含 Coding 材料3项、安全17项、设计系统与HTML边界回归。Coding 的 `+` 只随当次发送交材料、原 `@` 仍选择工作区文件、下一轮不重复来源；混合长期/临时引用去重、真实 owner 删除/排除后准确移除且不自动重发；实际已受理响应被丢弃后，原轮结束、正常读取 owner 队列结算旧材料，保留后来输入，额外POST与模型调用均0。材料恢复的桌面浅色1440与手机深色390已实看，按钮可操作、无横向越界、HTML格式标题不成为元素。另记录本轮待收敛的重复提示：同次失败在材料卡和底栏重复说明，修复控件可用不代表该体验已简化。generic frame 的系统 `@` 入口与完整5项已通过（`/tmp/quality-audit-composer-frame-final.log`）；清理诊断后的 Coding3项中2项通过，混合材料项在创建会话的测试点击安装监听时耗尽30秒预算，尚未进入本项行为（`coding-materials-final.log`），保留记录并补跑三宽截图；完整包必跑、资源与最终头CI仍待完成。
 
@@ -453,11 +457,13 @@ PF-02 新增正常入口证据：`/tmp/quality-audit-composer-required.log` 15�
 
 旧构建调用真实客户端工厂的 QEA-45 新用例有效失败：重试拒绝后 lost bubble 消失（期望1、实际undefined），原8项仍通过，日志 `/tmp/quality-audit-lost-retry-baseline.log`。最小修复保留相同意图原 key 与先前未知事实；首次拒绝照常恢复，成功或原 owner 可见后才结算，另给准确的重试提示。合入6359987103并构建后，实际 current 修改/排除→连续重试→原轮结束→一条队列及固定原件正文通过；同一文件5项237秒全部通过，见 `/tmp/quality-audit-main-635-acceptance.log`，其余组合验收继续进行。不新增材料正文缓存或键账；SDK虽有 knownInputKeys 查询，但它不能独自证明材料不同仍是同一请求，本项不为立即回执扩平台。
 
-### QF-29 / P2 候选：环境检查把读取失败投影成不存在或已就绪
+### QF-29 / P2：环境检查把读取失败投影成不存在或已就绪
 
-代码证据：`plugins/native/coding/src/environment-prep.ts:71–93,118–154,171–197` 的三段宽 catch 分别回退到非Git、无目录内容、无工作树；最终由这些缺省值计算 ready。`routes-sessions.ts:93–98` 又缓存15秒的检查 Promise并把外层异常转null。消费方 `recovery-parts.ts:210–215,247–250` 把缺省解释为“不是仓库”“无依赖”，用户无法区分真实空目录和暂时读不到。边界尾检仍应保留，这里不能据故障推导业务事实。
+已实现，定向验收通过；包必跑、主干整合与最终门禁待完成。原`plugins/native/coding/src/environment-prep.ts`的三段catch把Git、目录、工作树失败回退成空事实，`routes-sessions.ts`又把外层异常转null并缓存15秒。旧构建真实binary模板、超限package.json及损坏Git索引三项均误报ready（`/tmp/quality-audit-coding-environment-failure-baseline2.log`），无法告知用户环境是否真正读过。
 
-本项目前为静态确认的失败语义候选，尚未经正常入口注入读取失败，不宣称已复现用户事故。下一步对真实存在依赖/冲突的隔离目录制造公开读取故障，核对整体state可用性、缓存恢复及准确提示；预计让检查负责读取完整性、UI只投影未知/部分可读，避免阻断正常会话列表，不新增检查状态表。补充验收后决定最小改动；不得以本地控件修复关闭本项。
+处置：`environment-state.ts`统一后端与界面形状，失败仅有目录身份、检查时间和unavailable，不带伪造false/0/空数组；`environment-prep.ts`按实际公开outcome判断完整性，保留非Git、合法空目录和无HEAD语义，尾部取消/授权检查继续拒绝失效调用。`routes-sessions.ts:96`按原Promise身份删除失败缓存，不吞取消。`recovery-parts.ts`与`browser/main/click-round.ts`原位显示单个重新检查入口，复用正常state读取，不改变草稿或发送任务。不新增检查任务、权限、表或宿主专路。
+
+验证：完整构建通过，API生成0差异；QEA-54三种真实读取失败及修复后立即恢复3/3通过（`/tmp/quality-audit-coding-environment-failure-acceptance.log`）；QEA-55实际Git/文件/工作树动作拒绝、截断目录、合法空/默认未创建/无HEAD目录及服务端已观察的HTTP取消5/5通过（`coding-environment-boundaries2.log`）。隔离Home正常新会话和已结束轮次、失败重试、修复恢复、草稿/模型调用不变及三宽两主题真实点击1/1通过（`coding-environment-failure-ui.log`）。未创建默认目录的首次夹具缺少正常Host的prepareDirectory端口，补齐夹具后通过，生产未加例外。只读复核无Blocker/P1；补测确认coding.state按项目串行；按真实队列验证失败后下次读取恢复并复用成功结果，边界最终6/6通过（`coding-environment-boundaries4.log`）。最初强制超越读取的测试超时属错误调度假设，未改生产调度或放宽原断言。当前health通过（`coding-environment-final-health.log`）；最终回归与资源批准仍需完成。
 
 ### QF-30 / P1：助理候选卡的决定未接 HTTP 断连控制
 
@@ -471,7 +477,7 @@ PF-02 新增正常入口证据：`/tmp/quality-audit-composer-required.log` 15�
 
 `/tmp/quality-audit-memory-read-final.log` 中 QEA-50 已通过真实UI故障、失败重试、恢复候选、接受后Memory公开管理读回一个正式版本1/一条accepted变动、再次故障后恢复为空，草稿保留；六张三宽两主题图已生成，复核1440浅色与390深色。最初实操因把并发日志误定为固定两段而失败，测试已改为等待在途真实成功读取后检查稳定失败期不继续增长。该批6/7文件通过，唯一未通过是主脚本773行超过原770行限制；现按原片段装配方式把待处理分区整体归既有 assistant-side-path.ts 侧栏片段，主脚本降至739行；保留可静态展开的原装配和结构断言，阈值与门禁不改。最终侧栏归并构建退出0（/tmp/quality-audit-memory-sidepath-build.log），3文件23项复验全部通过（/tmp/quality-audit-memory-sidepath-acceptance.log），健康门禁退出0（/tmp/quality-audit-memory-sidepath-health.log）。三宽两主题图均生成，另已实看1024浅色：提示与单一重试完整可见、草稿未丢。中间新增独立片段因静态展开器不认识而使健康检查失败；最终复用已有侧栏片段，未改门禁映射、阈值或例外。公开API快照已更新，当前Full CI与资源审批仍待执行。
 
-同链清理核对：`apps/local-host/src/memory/memory-host.ts:419,421` 两条相同GET pairs分支，后一条不可达；`assistant-memory-bridge.ts:73,79` 的旧accept/discard方法只有 `tests/assistant-memory.test.ts:328,332,339` 调用，正常卡片已迁Memory公开动作。后续迁移这些测试到真实公开入口后删旧转发，保留业务断言，不为减少测试数量删除保障。
+同链清理核对：原 `apps/local-host/src/memory/memory-host.ts:419,421` 两条相同GET pairs分支，后一条不可达；原 `assistant-memory-bridge.ts:73,79` 的accept/discard方法只有 `tests/assistant-memory.test.ts:328,332,339` 调用，正常卡片已迁Memory公开动作。QEA-53现已将原本人改写认可/拒绝后不重复建议测试迁到真实注册Memory动作并携带所见版本，删除两个旧桥方法和第二条不可达GET，业务断言保留。64df918968保存清理结果，构建与6文件44项通过（/tmp/quality-audit-memory-legacy-cleanup-build.log、/tmp/quality-audit-memory-legacy-cleanup-acceptance.log）。提交后健康检查发现新安全登记未按规定格式标测试标题，已修正引文格式；最终门禁退出0（/tmp/quality-audit-memory-legacy-cleanup-health2.log），不改门禁规则。
 
 ### PF-07 来源链复核与退役边界（只读结论，未实施）
 
@@ -501,3 +507,11 @@ PF-02 新增正常入口证据：`/tmp/quality-audit-composer-required.log` 15�
 ### QF-33 / 待复现：配对查询还包含失效状态写入
 
 `horizontal/memory/src/service.ts` 的 pairs() 在正式条目缺失或非active时直接savePair(resolved)后继续；公开memory.pairs.list仍为query。这与候选读取属于同类职责问题，但尚未核实正常设置/维护入口的实际交错及用户影响。保留在本轮深查，不因候选query修复一并关闭；先验证真实owner读失败、删除和状态变化，再决定纯投影及已有维护的归属。
+
+### QF-34 / P1 待动态确认：文档保留的旧Memory写入口丢版本且未接本次取消
+
+`apps/local-host/src/assistant/assistant-http.ts:490–499` 的memories/memory-prefs仍可达，`docs/system/CALL-CHAINS.md:291`和归档memory-system规格明确保留。现行设置已用`/api/memory/*`，模型工具另走受控memoryInvocation；未找到当前生产UI/插件/后台对旧HTTP的调用，但不能据此删公共端点。GET在mixed-input-originals仍有真实调用；旧POST的error-model测试只覆盖缺失对象和非法动作。
+
+旧memories POST丢弃输入expected_version，Bridge.changeMemory直调service且无本次HTTP signal；GET的AssistantMemory投影也不带version。这和已修候选卡不是同一写分支，Host存活及SDK范围围栏仍存在。先用真实v1→v2和旧版本POST复现忽略确认，再暂停真实SDK提交、HTTP断连、放行核写入。保留路径的方向是GET给真实版本、POST经公共Memory动作保留原版本及信号；不得服务现读版本代替本人确认。未经动态验收不记完成。
+
+旧memory-prefs有独立产品语义：MemoryPreferences.saveAssistantPrefs原子更新personal与project-default，现公共savePrefs写personal或具体project，不能用两次现动作冒充等价迁移。保留原主人的原子写入并核实际默认/覆写效果；不因“转发”命名删除有职责的协调，不新增第二份偏好事实。

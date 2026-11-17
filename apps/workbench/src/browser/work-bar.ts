@@ -12,6 +12,7 @@
  * Bundled by esbuild into dist/work-bar-client.js and carried in workbench.js; the workbench's start calls the page global
  * `molisWorkBar` once its shell is drawn (not in a pane-embedded page, which has no bar).
  */
+import { installAssistantSubtasks } from "./assistant-subtasks.js";
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { StateRingState, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTasksReadResult, MainlineIssue, WorkLineEvent, WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
@@ -154,6 +155,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   // The tasks this page heard wait on the person, by task and decision (WLN-06): the row stays, folded, once the task no longer waits.
   const asked = new Map<string, { at: string; provider: string; title: string; event: WorkLineEvent; settled: boolean }>();
   const panel = installTaskPanel(host, { events: () => events.values(), press, keyOf, hue, again, request, repaint: () => cards.paint(), acceptance: (slot, target) => acceptance.overview(slot, () => [target]) });
+  installAssistantSubtasks(host.route);
 
   const eventOf = (subject: ActionSubject) => [...events.values()].find(one => keyOf(one.subject) === keyOf(subject));
   // Requirements hang on the event's own object or on the tasks done for it; the card asks about both.

@@ -75,6 +75,10 @@ export const PAGE_STATE_OWNERS = {
     files: ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts", "apps/workbench/src/scripts/client/context-card-target.ts", "apps/workbench/src/scripts/client/context-landing.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],
     state: "What the person has in hand on the focused surface, where it would land on the left, the ranked actions offered for it, and the starters offered for the open Work.",
   },
+  "task-float": {
+    files: ["apps/workbench/src/browser/task-float-content.ts", "apps/workbench/src/browser/work-task-panel.ts", "apps/workbench/src/browser/plugin-frame/task-parent.ts", "apps/workbench/src/browser/assistant-subtasks.ts"],
+    state: "The existing task float and the lifetime of its trusted content mounts; task facts remain with their original service.",
+  },
   "context-toolbar": {
     files: ["packages/design-system/src/context-toolbar.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],
     state: "The toolbar next to what the person has in hand, in the document that owns it: the tools a plugin offered for the open context, and the small form under it.",
@@ -406,6 +410,11 @@ export const DOM_EVENTS = [
     summary: "A plugin page tells the Assistant something. What happens depends on message.purpose: background, change, suggest, delegate or reply. A suggest with `thread` offers 「让助理回复」 for that comment thread; only the person's press there starts it, for the plugin whose frame sent it.",
   },
   {
+    name: "molis-work:task-float", kind: "request", owner: "task-float", on: "document",
+    detail: "Trusted shell-only TaskFloatRequest: open/close/forget with an opaque mount owner and lifecycle callbacks; never forwarded from a plugin frame.",
+    summary: "The separately bundled frame bridge asks the existing task panel to mount its independently authorized child projection. The panel alone owns visibility, cancellation and cache lifetime; the callback does not carry task facts or grant authority.",
+  },
+  {
     name: "molis:assistant-open", kind: "request", owner: "assistant", on: "document",
     detail: "{ work_id?, new?, source?, materials? ({ title, text }, a piece of project knowledge { title, subject: { kind, id } }, or a materials reference { title, ref: MaterialRef }), object? }",
     summary: "Open the Assistant panel on a Work, or a new one, with what is in hand (materials and the object they are from) put in its strip; no words are written and nothing is sent. A piece of project knowledge goes in by its subject (the knowledge picker sends these), a quote or snapshot of the project's folders by its materials reference (the side panel's reader), and either is read from its owner when the message is sent.",
@@ -414,6 +423,11 @@ export const DOM_EVENTS = [
     name: "molis:assistant-starter-choose", kind: "request", owner: "context-actions", on: "document",
     detail: "{ object_key, key }",
     summary: "The person picked a starter in the Assistant; the context row runs it.",
+  },
+  {
+    name: "molis:assistant-subtask-open", kind: "request", owner: "task-float", on: "document",
+    detail: "{ work_id, parent_run_id?, child_id? }; Work alone selects a delegated Work; both execution fields select that Work's original SDK child.",
+    summary: "Open an authorized child in the shared task float without changing the main conversation or its input receiver. The original service checks every supplied reference.",
   },
   {
     name: "molis:assistant-starters", kind: "announcement", owner: "context-actions", on: "document",

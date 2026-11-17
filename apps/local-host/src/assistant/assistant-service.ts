@@ -183,6 +183,7 @@ export class AssistantService {
     const shown: StoredWork = work.executor.kind === "plugin" && plugin?.mode ? { ...work, executor: { ...work.executor, mode: plugin.mode } } : work;
     // Its task board: the sub-tasks it handed out, each as its own work.
     const delegated = await this.delegations.parts(work);
+    const sdk_subtasks = work.session_id ? await this.sdkSubtasks.list(work.work_id).then(children => ({ children }), error => ({ error: assistantFailure(error).message })) : undefined;
     const scheduled = this.followUps.list(work.work_id);
     const claim = scheduled.length ? await this.followUps.claim() : null;
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
@@ -192,7 +193,7 @@ export class AssistantService {
     const { changes: memory_changes } = await this.memory.memoryTrail(work, rounds, this.store.rounds(work.work_id), assistant?.memory ?? new Map()).catch(() => ({ changes: [] as MemoryChange[] }));
     const usage = work.executor.kind === "plugin" ? null : await this.budget.workUsage(work).catch(() => null);
     await this.offers.sweep(work);
-    return { work: this.reads.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(plugin?.reviews ?? [])],
+    return { work: this.reads.publicWork(shown, state), ...(sdk_subtasks ? { sdk_subtasks } : {}), rounds, reviews: [...(assistant?.reviews ?? []), ...(plugin?.reviews ?? [])],
       cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.reads.workObjects(work), ...(delegated.length ? { delegated } : {}),
       ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}), ...(undoable.length ? { undoable } : {}), ...(memory_candidates.length ? { memory_candidates } : {}), ...(memory_changes.length ? { memory_changes } : {}),
       ...(usage && (usage.rounds || usage.budget_tokens !== null) ? { usage } : {}), ...(problem ? { problem } : {}),
@@ -312,16 +313,16 @@ export class AssistantService {
     assertSubtaskRun(binding, latest, operation);
   }
 
-  async readSubtask(workId: string): Promise<{ view: AssistantWorkView; binding: AssistantSubtaskBinding | null; input_unavailable?: string }> {
+  async readSubtask(workId: string): Promise<{ view: AssistantWorkView; binding: AssistantSubtaskBinding | null; parent_subtask: boolean; input_unavailable?: string }> {
     const work = this.store.get(this.actorId, workId), parent = this.delegations.parentOf(work);
     if (!work.delegated_by || !parent) throw assistantErrors.scope("This Work is not a delegated child");
     const view = await this.read(workId), latest = await this.subtaskLatest(work);
-    if (!latest) return { view, binding: null, input_unavailable: "The original child execution is unavailable" };
+    if (!latest) return { view, parent_subtask: Boolean(parent.delegated_by), binding: null, input_unavailable: "The original child execution is unavailable" };
     const binding: AssistantSubtaskBinding = { work_id: workId, parent_work_id: parent.work_id, graph_id: work.delegated_by.graph_id,
       node_id: work.delegated_by.node_id, run: { ...latest.ref }, executor: work.executor.kind === "plugin" ? { kind: "plugin", plugin_id: work.executor.plugin_id } : { kind: "assistant" },
       ...(work.executor.kind === "plugin" && work.executor.session_id ? { executor_session_id: work.executor.session_id } : {}) };
-    try { await this.assertSubtask(binding); return { view, binding }; }
-    catch (error) { return { view, binding, input_unavailable: assistantFailure(error).message }; }
+    try { await this.assertSubtask(binding); return { view, binding, parent_subtask: Boolean(parent.delegated_by) }; }
+    catch (error) { return { view, binding, parent_subtask: Boolean(parent.delegated_by), input_unavailable: assistantFailure(error).message }; }
   }
 
   /** Read the original request even after its child advanced or was taken back. No replay or notification effect. */

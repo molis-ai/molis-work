@@ -8914,6 +8914,26 @@
     "workbench.subtask-conversation.approval-scope": "仅查看页面，不发布。允许只适用于这一次操作。",
     "workbench.subtask-conversation.demo-history": "加入长对话",
     "workbench.subtask-conversation.demo-read-error": "模拟读取失败",
-    "workbench.subtask-conversation.demo-reset": "重置演示"
+    "workbench.subtask-conversation.demo-reset": "重置演示",
+    "workbench.subtask-conversation.phase.awaiting-input": "等你回答",
+    "workbench.subtask-conversation.phase.awaiting-review": "等你批准",
+    "workbench.subtask-conversation.phase.cancelled": "已停止",
+    "workbench.subtask-conversation.phase.compacting": "正在整理上下文",
+    "workbench.subtask-conversation.phase.completed": "本轮结束",
+    "workbench.subtask-conversation.phase.failed": "失败",
+    "workbench.subtask-conversation.phase.paused": "已暂停",
+    "workbench.subtask-conversation.phase.pausing": "正在暂停",
+    "workbench.subtask-conversation.phase.reconcile-required": "需要核对",
+    "workbench.subtask-conversation.phase.running": "进行中",
+    "workbench.subtask-conversation.phase.starting": "正在启动",
+    "workbench.subtask-conversation.phase.stopped": "已停止",
+    "workbench.subtask-conversation.receipt.applied": "已进入上下文",
+    "workbench.subtask-conversation.receipt.read": "已随回复处理",
+    "workbench.subtask-conversation.receipt.received": "已接收",
+    "workbench.subtask-conversation.receipt.unread": "本轮未处理",
+    "workbench.subtask-conversation.receipt.withdrawn": "已撤回",
+    "workbench.subtask-conversation.reconcile": "请先核对原执行结果",
+    "workbench.subtask-conversation.not-available": "当前子任务不可操作",
+    "workbench.subtask-conversation.parent-task": "父任务"
   }
 }

@@ -1,13 +1,10 @@
+import { subtaskConversationLabels } from "./subtask-conversation-labels.js";
+export { subtaskConversationLabels } from "./subtask-conversation-labels.js";
 import { escapeHtml, renderButton, renderComposer, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantComposerLabels } from "./assistant-composer-labels.js";
-import { renderSubtaskConversation, type MwSubtaskConversationLabels, type MwSubtaskConversationView } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderSubtaskConversation, type MwSubtaskConversationView } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const say = (key: string) => t.text(`workbench.subtask-conversation.${key}`);
-export function subtaskConversationLabels(): MwSubtaskConversationLabels {
-  return { back: say("back"), close: say("close"), loading: say("loading"), readFailed: say("read-failed"), retry: say("retry"),
-    latest: say("latest"), messages: say("messages"), children: say("children"), unread: say("unread"), working: say("working"),
-    actionFailed: say("action-failed"), unknown: say("unknown"), check: say("check") };
-}
 export type SubtaskSpecimenState = "running" | "round-ended" | "answer" | "approval" | "stopped" | "failed" | "interrupted" | "unavailable";
 export function subtaskSpecimenView(state: SubtaskSpecimenState): MwSubtaskConversationView {
   const held = ["stopped", "failed", "interrupted", "unavailable"].includes(state);

@@ -79,6 +79,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   let works = [];
   let curId = store.get(scoped("current"));
   let view = null;
+  const openSubtask = (work_id, parent_run_id, child_id) => document.dispatchEvent(new CustomEvent("molis:assistant-subtask-open", { detail: { work_id, ...(child_id ? { parent_run_id, child_id } : {}) } }));
   let problem = null;
   let nextScope = project ? "project" : "personal";
   let nextExec = "assistant";
@@ -217,7 +218,7 @@ ${ASSISTANT_SIDE_KIT_PART}
     keepFocus(node, () => {
       const cards = [];
       children.forEach((child) => cards.push(card({ icon: "workflow", tone: "attention", ask: true, title: child.title,
-        sub: readText("workbench.assistant-island.sub-task") + " · " + stateLabel(child.state), actions: [sideAct(child.state === "waiting-input" ? readText("workbench.assistant-island.answer") : readText("workbench.assistant-island.take-look"), child.title, async () => switchTo(child.work_id), false, "primary")] })));
+        sub: readText("workbench.assistant-island.sub-task") + " · " + stateLabel(child.state), actions: [sideAct(child.state === "waiting-input" ? readText("workbench.assistant-island.answer") : readText("workbench.assistant-island.take-look"), child.title, async () => openSubtask(child.work_id), false, "primary")] })));
       objects.forEach((object) => {
         const open = openObject(object);
         cards.push(card({ icon: "alert", tone: object.state === "missing" || object.state === "unavailable" ? "blocked" : "attention", ask: true, title: objectTitle(object),
@@ -624,7 +625,7 @@ ${ASSISTANT_TABS_PART}
     }
   };
   // A work is followed while it, its last round (stopped, the work answers before the round has ended) or a sub-task it handed out is live.
-  const followed = (seen) => isLive(seen.work.state) || /^(starting|running|compacting)$/.test(seen.rounds?.at(-1)?.phase || "") || (seen.delegated || []).some((child) => !child.taken_back && isLive(child.state));
+  const followed = (seen) => isLive(seen.work.state) || /^(starting|running|compacting)$/.test(seen.rounds?.at(-1)?.phase || "") || (seen.delegated || []).some((child) => !child.taken_back && isLive(child.state)) || (seen.sdk_subtasks?.children || []).some(child => child.state === "running");
   const follower = (${ASSISTANT_FOLLOW_FACTORY_SCRIPT})({ route: host.route, headers: host.headers, followed, current: () => curId, show: (next) => { view = named(next); render(); } });
   const poll = () => { if (curId && view && view.work.work_id === curId && followed(view)) follower.follow(curId); else follower.stop(); };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { reload().then(poll); loadWorks(); } });

@@ -442,6 +442,8 @@ export interface AssistantRelatedWork {
 }
 
 export interface AssistantWorkView {
+  /** Original SDK dispatches, separate from delegated Works; read failure is never an empty child list. */
+  sdk_subtasks?: { children: import("./agent-host.js").AgentSubagentView[] } | { error: string };
   work: AssistantWork;
   rounds: AssistantRound[];
   reviews: AssistantPendingReview[];

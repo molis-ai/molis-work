@@ -48,19 +48,15 @@ function mountDraft(page: Page) {
 
 /** The round's side of the page: reports of a step, the subagents' cards, the usage meter and the model controls. */
 function mountRoundParts(page: Page) {
-  const { readText, host, lifetime, q, refs, root, s } = page;
+  const { readText, host, lifetime, q, refs, s } = page;
   refs.integrations = writerIntegration({ lifetime, translate: readText, q, api: s.ports.api, reviews: (box, workspace) => host.showReviews?.(box, [], null, workspace), status: s.ports.status });
   refs.stepReports = stepReports({ ...s.ports, prepareRework: reason => refs.plans.prepareStepRework(reason), receipts: host.receipts });
   refs.subagentCards = subagentCards({
     ...s.ports, timeline: refs.timeline, roleName: id => s.ROLE_NAMES[id] || id || "Agent", showReviews: (container, found, sid) => showReviews(page, container, found, sid),
     sessionId: () => s.runtimeSessionId, parentLive: run => !terminal(run.phase), prefill: text => prefill(page, text, true),
     openInPanel: childId => {
-      root.dataset.codingResults = "true";
-      const row = root.querySelector<HTMLDetailsElement>('[data-coding-subagents] details[data-child="' + CSS.escape(childId) + '"]');
-      if (!row) return;
-      row.open = true;
-      row.scrollIntoView({ block: "center" });
-      row.querySelector("textarea")?.focus({ preventScroll: true });
+      const group = s.subagentGroups.find(one => one.children?.some(child => child.subagent_id === childId));
+      if (group) void host.view.openTask({ session: s.current, run: group.run_id, child: childId }).catch(error => status(page, String(error), true));
     },
   });
   refs.usageMeter = usageMeter(s.ports);

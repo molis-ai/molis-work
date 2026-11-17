@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { pageTaskFloat, type TaskFrame, type TaskFrameContext } from "./task-parent.js";
 import { collapsePage } from "./view.js";
 import { accountTransition } from "../account-transition.js";
 import { pagePlacement } from "./placement.js";
@@ -200,7 +201,7 @@ function observeFrameRevision(scope: FrameScope, route: (path: string) => string
  * A page's `invalidateView()` tells the other views; the page refreshes itself (BL-131). The workbench dispatches the invalidation
  * synchronously, so while it runs this page's own copy is the echo of its request and is not sent back: it would read the page twice.
  */
-export async function mountFrame(root: HTMLElement, host: FrameHost, pack: FramePack) {
+export async function mountFrame(root: HTMLElement, host: FrameHost, pack: FramePack, task?: TaskFrameContext): Promise<TaskFrame> {
   if (accountTransition().preparing) throw new Error("Account is switching");
   const route = host.route ?? (path => path), scope = host.mountPluginClient(root);
   if (!scope) throw new Error("View is already mounted");
@@ -291,7 +292,11 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, uiText.text);
   const pickMaterials = pageMaterialsPicker(port, scope, grant.page_id, route, text => host.showToast?.(text, true));
   const pickSkill = pageSkillPicks(port, scope, frame, grant.page_id);
-  const composer = pageComposer(port, scope, root, frame, pack, visible);
+  const composer = task ? () => {} : pageComposer(port, scope, root, frame, pack, visible);
+  const tasks = pageTaskFloat({ root, frame, pack, scope, port, pageId: grant.page_id, route, mount: (child, context) => {
+    const fresh = { ...pack }; delete fresh.authorization;
+    return mountFrame(child, { ...host, side: false }, fresh, context);
+  } });
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
     if (!scope.alive || !message || typeof message.type !== "string") return;
@@ -319,6 +324,11 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
         && (value.intent === undefined || value.intent === "open" || value.intent === "select")) host.openView?.(root, value);
       return;
     }
+    if (message.type === "task-open") {
+      if (!task) void tasks(message); else port.postMessage({ type: "task-opened", id: message.id, error: "Task projections cannot open another float" });
+      return;
+    }
+    if (message.type === "task-close") { task?.close(); return; }
     if (message.type === "on-closing") {
       try { if (message.action === null || message.action && typeof message.action === "object" && JSON.stringify(message.action).length <= 16000) closing = message.action; }
       catch { /* A cyclic registration is not a closing action. */ }
@@ -407,7 +417,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     mount: clientMount, subjectSurfaces: surfaces, search: location.search, origin: location.origin,
     pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, surface: pack.id,
     searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack),
-    nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, bar: barTakes(Boolean(host.side), mount?.target_slot_id), appearance: environment.initial, text: await openingFrameLanguage(route(""), grant, pack.plugin_id, businessScope).then(text => trackFrameLanguage({ route: route(""), id: grant.page_id, owner: pack.plugin_id, root, port, scope: businessScope }, text)),
+    nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, bar: task ? false : barTakes(Boolean(host.side), mount?.target_slot_id), ...(task ? { task: task.input() } : {}), appearance: environment.initial, text: await openingFrameLanguage(route(""), grant, pack.plugin_id, businessScope).then(text => trackFrameLanguage({ route: route(""), id: grant.page_id, owner: pack.plugin_id, root, port, scope: businessScope }, text)),
     stage: frameStageWords(root, pack.id),
     projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: page ?? host.page?.() ?? null,
     storage,
@@ -417,7 +427,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   frame.hidden = Boolean(root.dataset.previewTab);
   root.append(frame);
   const assetLayout = pageFrameAssets(port, scope, root, frame);
-  await ready; return { frame, scope };
+  await ready; return { frame, scope, pageId: grant.page_id, taskInput(input) { if (scope.alive && task) port.postMessage({ type: "task-input", input: { ...input } }); } };
   } catch (error) {
     if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "failed"; }
     scope.dispose(); throw error;

@@ -1,0 +1,66 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { recordingTextModel, type ModelWire } from "./fixtures/recording-text-model.js";
+import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
+
+const userTexts = (body: ModelWire) => body.messages.filter(message => message.role === "user").map(message => typeof message.content === "string" ? message.content : JSON.stringify(message.content));
+
+// SAI-01/02/04/05/07/11/15: real local HTTP provider, installed SDK, resident Host, native page, original Work/child histories.
+// The model responses are scripted; this is engineering integration evidence, not a real-provider or user acceptance claim.
+for (const source of ["work", "sdk"] as const) test(`Assistant ${source} child opens in the shared float, continues its own context, and leaves main input untouched`, { timeout: 120_000 }, async t => {
+  let parentCalls = 0, childCalls = 0; const bodies: ModelWire[] = [];
+  const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, { prepareHome: async home => {
+    await recordingTextModel(t, home, async body => {
+      bodies.push(body);
+      const words = userTexts(body).join("\n");
+      if (words.includes(`CHILD_${source}_59`)) { childCalls++; return reply(undefined, `Child answer ${childCalls}`); }
+      if (words.includes(`PARENT_${source}_59`) && ++parentCalls === 1) {
+        if (source === "work") return reply({ name: "delegate-work", input: { title: "真实子任务 59", brief: `CHILD_${source}_59: reply with one sentence.`, acceptance: "一句话" } });
+        const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@\d+/u)?.[0]; assert.ok(character, "real registered child Character is offered");
+        return reply({ name: "dispatch-subagent", input: { instruction: `CHILD_${source}_59: reply with one sentence.`, tools: [], character, idempotencyKey: "ui-child" } });
+      }
+      return reply(undefined, "Parent stays here.");
+    });
+  } }); if (!browser) return;
+  await browser.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, browser.sessionId);
+  await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: `window.__subtaskErrors=[];addEventListener('error',e=>window.__subtaskErrors.push(e.message));addEventListener('unhandledrejection',e=>window.__subtaskErrors.push(String(e.reason?.stack??e.reason)));` }, browser.sessionId);
+  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/` }, browser.sessionId));
+  await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input')", 20_000);
+  const base = `/projects/${browser.projectId}/api/assistant`;
+  const sent = await browser.evaluate<AssistantSendResult>(`fetch(${JSON.stringify(base + "/send")}, {method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({text:${JSON.stringify(`PARENT_${source}_59`)},scope:{kind:'project',project_id:${JSON.stringify(browser.projectId)}},request_id:crypto.randomUUID()})}).then(r=>r.json())`);
+  assert.ok(sent.work, JSON.stringify(sent));
+  await browser.evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open',{detail:{work_id:${JSON.stringify(sent.work.work_id)}}}))`);
+  const read = () => browser.evaluate<AssistantWorkView>(`fetch(${JSON.stringify(base + "/works/" + sent.work.work_id)}).then(r=>r.json())`);
+  let current: AssistantWorkView | undefined;
+  for (const end = Date.now() + 35_000; Date.now() < end;) {
+    current = await read();
+    for (const review of current.reviews) await browser.evaluate(`fetch(${JSON.stringify(base + "/works/" + sent.work.work_id + "/reviews/" + review.review_id)}, {method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({decision:'approve'})}).then(r=>r.json())`);
+    if (childCalls && (source === "work" ? current.delegated?.some(child => child.state === "completed") : current.sdk_subtasks && "children" in current.sdk_subtasks && current.sdk_subtasks.children.some(child => child.state === "completed"))) break;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  assert.ok(childCalls, JSON.stringify(current));
+  // Read the existing path list after the parent has settled, then use its actual child-name button.
+  await browser.evaluate("window.dispatchEvent(new Event('focus'))");
+  await browser.waitFor("document.querySelector('.assistant-subtask-name')", 15_000);
+  await browser.evaluate(`(() => { const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.value='main draft stays';input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+  await browser.click(".assistant-subtask-name");
+  try { await browser.waitFor("document.querySelector('[data-work-task-float] .mw-subtask__composer .mw-composer__input')", 15_000); }
+  catch (error) { t.diagnostic(JSON.stringify(await browser.evaluate("({errors:window.__subtaskErrors,bar:!!document.querySelector('[data-work-bar]'),float:document.querySelector('[data-work-task-float]')?.outerHTML.slice(0,1500)})"))); throw error; }
+  const childInput = "document.querySelector('[data-work-task-float] .mw-subtask__composer .mw-composer__input')";
+  await browser.waitFor(`${childInput} && !${childInput}.disabled`);
+  const before = childCalls;
+  await browser.evaluate(`(() => { const input=${childInput};input.value='FOLLOW_UP_${source}_59';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus(); })()`);
+  await browser.command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, browser.sessionId);
+  await browser.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, browser.sessionId);
+  try { await browser.waitFor(`document.querySelector('[data-work-task-float]')?.textContent.includes('FOLLOW_UP_${source}_59')`, 20_000); }
+  catch (error) { t.diagnostic(JSON.stringify({ parentCalls, childCalls, view: await read(), ui: await browser.evaluate("({errors:window.__subtaskErrors,float:document.querySelector('[data-work-task-float]')?.outerHTML})") })); throw error; }
+  for (const end = Date.now() + 20_000; childCalls === before && Date.now() < end;) await new Promise(resolve => setTimeout(resolve, 50));
+  assert.equal(childCalls, before + 1);
+  assert.ok(bodies.some(body => userTexts(body).some(text => text.includes(`FOLLOW_UP_${source}_59`))));
+  assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "main draft stays");
+  await browser.evaluate("document.querySelector('[data-work-task-float] [data-subtask-close]').click()");
+  await browser.waitFor("!document.querySelector('[data-work-task-float]')");
+  assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "main draft stays");
+});

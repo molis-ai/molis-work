@@ -9648,6 +9648,26 @@
     "workbench.subtask-conversation.approval-scope": "View the page only; do not publish. Permission applies to this operation only.",
     "workbench.subtask-conversation.demo-history": "Add long history",
     "workbench.subtask-conversation.demo-read-error": "Simulate read failure",
-    "workbench.subtask-conversation.demo-reset": "Reset demo"
+    "workbench.subtask-conversation.demo-reset": "Reset demo",
+    "workbench.subtask-conversation.phase.awaiting-input": "Needs your answer",
+    "workbench.subtask-conversation.phase.awaiting-review": "Needs approval",
+    "workbench.subtask-conversation.phase.cancelled": "Stopped",
+    "workbench.subtask-conversation.phase.compacting": "Compacting context",
+    "workbench.subtask-conversation.phase.completed": "Round ended",
+    "workbench.subtask-conversation.phase.failed": "Failed",
+    "workbench.subtask-conversation.phase.paused": "Paused",
+    "workbench.subtask-conversation.phase.pausing": "Pausing",
+    "workbench.subtask-conversation.phase.reconcile-required": "Needs reconciliation",
+    "workbench.subtask-conversation.phase.running": "Working",
+    "workbench.subtask-conversation.phase.starting": "Starting",
+    "workbench.subtask-conversation.phase.stopped": "Stopped",
+    "workbench.subtask-conversation.receipt.applied": "In context",
+    "workbench.subtask-conversation.receipt.read": "Included in a reply",
+    "workbench.subtask-conversation.receipt.received": "Received",
+    "workbench.subtask-conversation.receipt.unread": "Not processed this round",
+    "workbench.subtask-conversation.receipt.withdrawn": "Withdrawn",
+    "workbench.subtask-conversation.reconcile": "Check the original execution first",
+    "workbench.subtask-conversation.not-available": "This subtask is unavailable",
+    "workbench.subtask-conversation.parent-task": "Parent task"
   }
 }

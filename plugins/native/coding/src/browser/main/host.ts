@@ -38,6 +38,7 @@ export interface CodingHost {
   readInstructions(): Promise<UiPageInstructionSettings>;
   confirm(question: string): Promise<boolean>;
   /** The platform's drafts and the way to the settings and back (specs/draft-and-return §2.4); main/returns.ts uses them. */
+  readonly view: import("@molis-ai/molis-work-contracts/platform/ui").UiPageView;
   readonly drafts: UiPageDrafts;
   readonly returns: UiPageReturns;
   /** The directory column's face was chosen; the embedded Git shows its changes under the files face. */

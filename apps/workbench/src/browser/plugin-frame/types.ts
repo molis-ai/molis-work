@@ -44,6 +44,7 @@ export interface FramePack { id: string; plugin_id: string; bundle: string; asse
   projection?: string;
   authorization?: { page_id: string; storage_scope: string } }
 export interface FrameConfig {
+  task?: Readonly<Record<string, string>>;
   mount: UiClientMount | null;
   appearance?: AppearanceProjection;
   text: FrameLanguage;
@@ -105,6 +106,8 @@ export type ConnectionNeedDown = { type: "connection-need-size"; id: number; hei
 export type ReturnUp = { type: "return-go"; id: number; need: unknown; carry?: unknown } | { type: "return-arrived"; id: number } | { type: "return-abort"; id: number };
 export type ReturnDown = { type: "return-result"; id: number; outcome?: import("@molis-ai/molis-work-contracts/platform/ui").UiReturnOutcome | null; error?: string };
 export type FrameUp =
+  | { type: "task-open"; id: number; input: Readonly<Record<string, string>> }
+  | { type: "task-close" }
   | { type: "frame-asset-layout"; handle: string; slots: Array<{ reference: UiFrameAssetReference; box: { x: number; y: number; width: number; height: number } | null }> }
   | { type: "connection-slot-cancel"; id: number }
   | { type: "view-open"; selection: UiViewSelection }
@@ -127,7 +130,7 @@ export type FrameUp =
   | { type: "document-cancel"; id: number } | { type: "refresh-shell" }
   | { type: "context-intake"; intake_id: string; id: string; title: string; text: string }
   | { type: "copy"; id: number; text: string }
-  | { type: "draft"; id: number; key: string; value?: string | null }
+  | { type: "draft"; id: number; key: string; value?: string | null; expected?: string | null }
   | { type: "draft-flushed"; id: number; error?: string }
   | { type: "shortcut"; keys: string } | { type: "close-side" }
   | { type: "native-files"; id: number; operation: "copy" | "drag" | "open"; paths: readonly string[]; itemIds?: readonly string[] }
@@ -141,6 +144,9 @@ export type FrameUp =
   | { type: "link"; url: string; download: boolean } | { type: "context"; value: string | null; expanded: string | null }
   | { type: "storage"; area: "localStorage" | "sessionStorage"; key: string; value: string | null };
 export type FrameDown =
+  | { type: "task-opened"; id: number; error?: string }
+  | { type: "task-input"; input: Readonly<Record<string, string>> }
+  | { type: "task-return-focus" }
   | { type: "frame-asset-source"; handle: string }
   | { type: "connection-slot"; id: number; value?: UiConnectionSlotChoice | null; error?: string; need?: true }
   | { type: "placement-label"; id: number; html: string }
@@ -155,7 +161,7 @@ export type FrameDown =
   | FrameLanguageUpdate
   | { type: "document"; id: number; html?: string; error?: string }
   | { type: "copied"; id: number; error?: string }
-  | { type: "draft-result"; id: number; value?: string | null; error?: string }
+  | { type: "draft-result"; id: number; value?: string | null; swapped?: boolean; error?: string }
   | { type: "draft-flush"; id: number }
   | { type: "draft-resume" }
   | { type: "native-files-done"; id: number; error?: string }

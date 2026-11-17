@@ -423,3 +423,17 @@ Work 草稿复用原 Work owner；SDK 子任务草稿与未决操作引用复用
 浮窗挂载合同细化：`UiPageView.openTask(input: Readonly<Record<string,string>>): Promise<void>` 只能请求当前已授权 contribution 的同安装投影；输入沿现有有限 stage 参数上限校验，仅作客户端定位，记录可读性和操作权限仍在原 HTTP/Action owner 校验。浮窗实例收到 `view.task`，含当前 `input`、`subscribe(listener)` 与 `close()`；普通页面没有该上下文。壳重用同一源页面的一份隔离浮窗实例，切目标只更新输入并通知控制器，不重新挂载 iframe；关闭隐藏浮窗、保留组件阅读状态，源页面失权/卸载时销毁。源页不能传 HTML、地址、安装或 contribution 身份。首次挂载经现有 `mountFrame` 发独立 grant，不能沿用源页 `pack.authorization`；缓存重开核验源页及投影授权，失效销毁重建，使用原页面登记的脚本及授权文档。全局 task-panel 管显示、返回、Escape 与焦点；浮窗内的主输入只绑定组件冻结的子目标。
 
 2026-11-17 只读合同设计合审确认此窄口可行（评审代理 `contract_review`，审阅 `7a82f8649f`）。补充按实际源页 scope 绑定缓存与待打开操作；首次挂载合并，最新打开意图决定 input，迟到 A 不覆盖 B。初始 input 随握手给出，后续冻结快照经原 MessagePort 更新；源 scope 结束取消待打开并销毁投影。task 投影显式 `bar=false`，Coding 客户端优先走 `view.task`，不借 `side=true`，不改变主输入与侧栏消息语义。
+
+浮窗与发送恢复的实现复核（2026-11-17）：任务面板在开始读取授权前登记待打开操作；关闭、返回、切走或卸载取消该次打开，迟到完成不能重开或销毁后来选中的浮窗。源页明确失权销毁投影；只有投影缓存过期时，在同次打开里重新授权挂载。挂载及最后源页核验完成、冻结目标送达后才揭示内容。WorkBar 与 iframe 桥是独立构建的程序，借已登记 `molis-work:task-float` 请求事件交接可信壳挂载回调；隔离页面只发 `view.openTask`，不转发这个壳事件。
+
+同安装的多个隔离页面可打开同一逻辑子任务，因此浏览器草稿不能仅靠单实例 Promise 串行链。沿现有 `UiPageDrafts` owner 补 `compareAndSwap(key, expected, value): Promise<boolean>`：与普通写入共用同键 Web Lock，在原 Cache 内比较原字符串并写入，不建任务、消息或请求事实表。公共子对话适配器仅保存草稿与待核对原请求引用；接纳、原输入、执行代次、历史和回报仍查原 owner。迟到接纳只清除自己提交的草稿代次；不同页面的 pending 冲突拒绝第二次发送，须先查原请求。Work 草稿仍由原 Work 服务持久化，这个浏览器 CAS 不替代它的 `draft_revision`。
+
+### 12.9 原问题恢复接线（2026-11-17，实施中）
+
+SAI-06 的子问题使用原 `AgentPendingQuestion`、冻结表单和 `answerPending` owner；回答命令冻结 child Run、pending/revision 与请求键，与普通聊天及审批分开。没有独立子 SessionIndex 时，按原父子关系取可信父 owner，并用真实 child Session 查询原问题；不新建 Host 子会话。引用按原 owner 重读，最后提交前核当前角色、Work/父子归属及调用授权。原请求不明时仅查询，不凭问题已结束推定该请求成功。
+
+上游官方 `ce40e40a` 的恢复仅在 `recoverRun` 刷新子任务投影，`answerInterrupted` 与 inspect 补交付缺失。已授权的最小上游窗口内补同一恢复链，评审合入后采用官方包；答案已收下、执行尚未启动必须分开显示，不重复回答或自动启动父任务。Coding 子角色开放原 `ask-user` 工具，并同步原角色声明、提示词版本和旧拒问测试。问题/审批在浮窗内复用现有问题与审查部件，不新设普通聊天回答协议。
+
+恢复补口已于 2026-11-17 经独立评审合入上游 [#130](https://github.com/molis-ai/molis-prologue/pull/130)，官方 main `71662135799fedf7bca4ab6875cefbe6cc6c7d72` 与评审头 `542eb0c7` 整棵树相同；本批采用提交 `a128e43b43`。新增真实 Node 用例进一步覆盖正常停放、原答案交付/投影失败、恢复锁、父前台等待关机及停放写失败；7 文件 56/56、构建/types/API/ratchet/docs/干净安装消费者通过。CI 因账户付款/额度未启动，不记通过。两次独立官方构建产物一致，来源与回滚 blob 见 vendor 记录。
+
+当前产品进度仍为实施中：项目工作台的 Work 委派与业务 SDK 子代理均已通过真实浏览器点击、原上下文追问和主输入草稿隔离的本机 HTTP 模型用例；不是实际 Provider 或本人验收。原问题/审批接线、主页浮窗挂载、Coding 完整入口、SAI 剩余恢复/布局验收、最终 C/D 合审、CI Full 与整批合入尚未完成。主页没有项目 WorkBar，须使用同一壳浮窗挂载，不得以项目入口通过替代主页能力。

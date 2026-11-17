@@ -11,6 +11,7 @@ import type { BackgroundTaskRow, BackgroundTasksReadResult, WorkLineEvent } from
 import { escapeHtml, renderButton, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPlaceMenu, renderTaskCard, renderReplyMini, renderReplyPeek, renderTaskDecision, renderTaskFloat, renderTaskMark, renderTaskPanel, renderTaskRow, type TaskRowView } from "../work-line-parts.js";
 import type { LineEventPress, WorkBarHost } from "./work-bar.js";
+import { installTaskFloatContentHost, type TaskFloatContent } from "./task-float-content.js";
 import { installWorkLineLayout } from "./work-line-layout.js";
 
 export const ASKS: ReadonlySet<StateRingState> = new Set(["answer", "approval", "reauth"]);
@@ -126,6 +127,14 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
   // `carded`: the task whose card stands in the panel's place (WLN-36); `placing`: its 「改」 menu is open.
   // `wanted`: the task asked for from outside the panel (「改」 under a reply), shown as soon as the table has it.
   let tasks: BackgroundTaskRow[] = [], float: HTMLElement | null = null, tasksShown = "", carded = "", placing = false, wanted = "", offlineSince: string | null = null;
+  let floatRoot: HTMLElement | null = null, cardsRoot: HTMLElement | null = null;
+  type Content = { owner: object; root: HTMLElement; ready: Promise<TaskFloatContent>; value?: TaskFloatContent; disposed: boolean };
+  const contents = new Map<object, Content>(); let active: Content | undefined;
+  let opening: { owner: object; controller: AbortController; close?: () => void } | undefined;
+  const cancelOpening = (notify = true, keepOwner?: object) => {
+    const old = opening; opening = undefined; old?.controller.abort(); if (notify) old?.close?.();
+    if (old && old.owner !== keepOwner) { const entry = contents.get(old.owner); if (entry && !entry.value) { entry.disposed = true; entry.root.remove(); contents.delete(old.owner); } }
+  };
   let accepting: { update(): void; destroy(): void } | undefined;
   const answers = installDecisionAnswers(host, request, { task: id => tasks.find(one => one.id === id), repaint: () => repaint(), again, failed: error => failed(error), go: task => go(task) });
   /** The decisions of these tasks in order, the first carrying the primary button; `named`: say which task asks, where the card is not its own. */
@@ -166,10 +175,10 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     if (asked) { carded = asked.id; placing = true; wanted = ""; }
     const shown = tasks.find(task => task.id === carded);
     if (!shown) { carded = ""; placing = false; }
-    if (float) { const on = float; keepNote(on, () => { on.innerHTML = shown ? card(shown) : renderTaskPanel({ id: PANEL, live: live.map(row), returned: returned.map(row), counts, ...(offlineSince === null ? {} : { offlineSince }) }); }); installWorkLineLayout(document); }
+    if (float && cardsRoot && !active) { const on = cardsRoot; keepNote(on, () => { on.innerHTML = shown ? card(shown) : renderTaskPanel({ id: PANEL, live: live.map(row), returned: returned.map(row), counts, ...(offlineSince === null ? {} : { offlineSince }) }); }); installWorkLineLayout(document); }
     // A task's card sums up the requirements hung on the task itself: a task done for no event has no event card to say it.
     accepting?.destroy(); accepting = undefined;
-    const slot = shown ? float?.querySelector<HTMLElement>("[data-task-acceptance]") : null;
+    const slot = shown && !active ? float?.querySelector<HTMLElement>("[data-task-acceptance]") : null;
     if (shown && slot) { accepting = line.acceptance(slot, { provider_id: shown.source.provider_id, subject: shown.subject }); accepting.update(); }
   };
   let unread: ReadonlySet<string> = new Set();
@@ -180,12 +189,70 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     tasksShown = next; tasks = result.tasks; paintTasks();
   };
   const showTasks = (open: boolean) => {
+    if (!open) cancelOpening();
     if (open === Boolean(float)) return;
-    if (open) { document.body.insertAdjacentHTML("beforeend", renderTaskFloat("assistant-panel", "")); float = document.body.lastElementChild as HTMLElement; again(); }
-    else { accepting?.destroy(); accepting = undefined; float?.remove(); float = null; carded = ""; placing = false; wanted = ""; }
+    if (open) {
+      if (!floatRoot) {
+        document.body.insertAdjacentHTML("beforeend", renderTaskFloat("assistant-panel", "")); floatRoot = document.body.lastElementChild as HTMLElement; floatRoot.tabIndex = -1;
+        cardsRoot = document.createElement("div"); cardsRoot.style.cssText = "height:100%;min-height:0"; floatRoot.append(cardsRoot);
+      }
+      float = floatRoot; float.dataset.workTaskFloat = "assistant-panel"; float.hidden = false; again();
+    } else {
+      accepting?.destroy(); accepting = undefined; active?.value?.suspend?.();
+      if (active) active.root.hidden = true; active = undefined;
+      if (cardsRoot) { cardsRoot.hidden = false; cardsRoot.replaceChildren(); }
+      if (floatRoot) { floatRoot.hidden = true; delete floatRoot.dataset.workTaskFloat; delete floatRoot.dataset.content; } float = null; carded = ""; placing = false; wanted = "";
+    }
     paintTasks();
     if (!open) [...document.querySelectorAll<HTMLElement>("[data-task-mark]")].find(mark => mark.getClientRects().length)?.focus();
   };
+  const backToCard = () => {
+    cancelOpening(); if (floatRoot) delete floatRoot.dataset.content;
+    active?.value?.suspend?.(); if (active) active.root.hidden = true; active = undefined;
+    if (cardsRoot) cardsRoot.hidden = false; paintTasks();
+    cardsRoot?.querySelector<HTMLElement>("[data-task-panel-list], [data-task-panel-close]")?.focus();
+  };
+  installTaskFloatContentHost({
+    async open(owner, mount, options) {
+      cancelOpening(false, owner);
+      const ticket = { owner, controller: new AbortController(), close: options?.onClose }; opening = ticket;
+      const current = () => { if (opening !== ticket || ticket.controller.signal.aborted) throw new DOMException("Task view closed", "AbortError"); };
+      // Register before awaiting: an outside click, Escape, or source hide also cancels a view still reading its grant.
+      showTasks(true); floatRoot?.focus({ preventScroll: true });
+      let entry: Content | undefined;
+      try {
+        const prepared = await options?.prepare?.(ticket.controller.signal); current();
+        if (prepared?.discard) { const old = contents.get(owner); if (old) { old.disposed = true; old.value?.destroy(); old.root.remove(); contents.delete(owner); if (active === old) active = undefined; } }
+        active?.value?.suspend?.(); if (active) active.root.hidden = true;
+        entry = contents.get(owner);
+        if (!entry) {
+          const root = document.createElement("div"); root.style.cssText = "height:100%;width:100%;min-height:0;min-width:0"; root.hidden = true; floatRoot!.append(root);
+          entry = { owner, root, ready: Promise.resolve(undefined as never), disposed: false }; contents.set(owner, entry);
+          const saved = entry;
+          entry.ready = Promise.resolve().then(() => mount(root, { back: () => { if (active === saved) backToCard(); }, close: () => { if (active === saved) showTasks(false); } })).then(value => {
+            if (saved.disposed) { value.destroy(); throw new DOMException("Task view closed", "AbortError"); }
+            saved.value = value; if (active !== saved || !float) value.suspend?.(); return value;
+          });
+        }
+        active = entry; entry.root.hidden = true;
+        const value = await entry.ready; current();
+        await options?.beforeShow?.(ticket.controller.signal); current();
+        cardsRoot!.hidden = true; entry.root.hidden = false; floatRoot!.dataset.content = "conversation"; paintTasks(); installWorkLineLayout(document);
+        value.resume?.(); return value;
+      } catch (error) {
+        // An old open cannot remove a newer entry or close the task that replaced it.
+        if (opening === ticket) { backToCard(); if (entry && contents.get(owner) === entry && !entry.value) { entry.disposed = true; contents.delete(owner); entry.root.remove(); } }
+        throw error;
+      }
+    },
+    close(owner) { if (opening?.owner === owner || active?.owner === owner) showTasks(false); },
+    forget(owner) {
+      if (opening?.owner === owner || active?.owner === owner) showTasks(false);
+      const entry = contents.get(owner); if (!entry) return;
+      entry.disposed = true; entry.value?.destroy(); entry.root.remove(); contents.delete(owner);
+    },
+  });
+  window.addEventListener("pagehide", () => { for (const entry of contents.values()) { entry.disposed = true; entry.value?.destroy(); } contents.clear(); }, { once: true });
   installDialogRow(PANEL, () => paintTasks());
   const failed = (error: unknown) => request.toast?.(document.querySelector("[data-toast]") as never, error);
   // The stop is the command the row carries; the mainline service checks it with the owner again (WLN-39).
@@ -208,7 +275,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
       const on = tasks.find(one => one.id === (control?.dataset.task ?? opened?.dataset.taskOpen));
       if (!on) return;
       if (control?.dataset.taskControl === "stop") stopTask(on); else if (control) go(on);
-      else { wanted = ""; showTasks(true); carded = on.id; placing = false; paintTasks(); }
+      else { wanted = ""; showTasks(true); backToCard(); carded = on.id; placing = false; paintTasks(); }
       return;
     }
     if (!float) return;
@@ -254,6 +321,6 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     subjects: subject => [...tasks].filter(task => task.serves.some(one => keyOf(one) === keyOf(subject))).map(task => ({ provider_id: task.source.provider_id, subject: task.subject })),
     // 「改」 under a reply (WLN-32): the panel opens on that task's card with where it can go — at once when the table has the
     // task, else when the read this asks for brings it. A task that has ended is not in the table: the panel shows its list.
-    place(subject) { wanted = keyOf(subject); if (float) again(); else showTasks(true); paintTasks(); },
+    place(subject) { backToCard(); wanted = keyOf(subject); if (float) again(); else showTasks(true); paintTasks(); },
   };
 }

@@ -92,7 +92,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     openView: (selection: import("@molis-ai/molis-work-contracts/platform/ui").UiViewSelection) => send({ type: "view-open", selection }),
     invalidateView: () => send({ type: "view-invalidate" }),
     ...pageDialogs(scope, uiText.text), confirmBox: pageConfirmBox(scope, uiText.text), drafts: childDrafts(port, scope),
-    reviews: childReviews(port, scope), view: childView(port, scope), workspaces: childWorkspaces(port, scope),
+    reviews: childReviews(port, scope), view: childView(port, scope, config.task), workspaces: childWorkspaces(port, scope),
     taskGrants: childTaskGrants(port, scope), returns: childReturns(port, scope),
     ...pageFiles(port, scope, globalThis.molisWorkRequest, copyText),
     ...(config.nativeFiles ? { nativeFiles: childNativeFiles(port, scope) } : {}),

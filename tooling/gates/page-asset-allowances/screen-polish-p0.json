@@ -1,11 +1,11 @@
 {
-  "reason": "逐屏打磨 P0 的十条缺陷修复（specs/screen-polish/spec.md 第九节，小修档）。工作台脚本 +1644：右翼只显示完整的事件并在标签上计数、回应行按渲染后的节点成文、点插件页面内部与盖层出现时收起回应行并记住收起、页签条量宽时算上小片和分隔线的外边距与设置小片名字缺的宽度。工作台样式 +626：两翼胶囊的最大宽度、右翼的滚动留边、回应行里标题与列表的间距、设置空状态的选择器。设置页样式 +51：同一组设置空状态选择器。插件框脚本 +100：盖层出现时把底栏收件人交还给 Assistant。Coding 样式 +690、脚本 +46：会话目录行名字一列留出最小宽度、状态片省略号、窄于 320px 时状态片只留圆环（等你的状态除外），状态片与目录标记带 title。没有新增路径；每个资源与每页净增都远低于 10,000 字节。到达页与项目选择页的 +726 来自它们也下发的工作台样式与插件框脚本。",
-  "review": "本机对照 merge-base 0d45ba58b 的隔离构建实测（2026-11-16，node scripts/gates/page-assets.mjs --base origin/main、node scripts/gates/first-screen.mjs --base origin/main），数字按实测填写；尚未经人评审，随分支 fix/screen-polish-p0 的 PR 评审核对。",
+  "reason": "逐屏打磨 P0 的十条缺陷修复（specs/screen-polish/spec.md 第九节，小修档）。工作台脚本 +1658（合入 main 6359987103 之后实测；此前对照 0d45ba58b 是 +1644，差的 14 字节来自构建在新基点上的不同结果，源码没有变）：右翼只显示完整的事件并在标签上计数、回应行按渲染后的节点成文、点插件页面内部与盖层出现时收起回应行并记住收起、页签条量宽时算上小片和分隔线的外边距与设置小片名字缺的宽度。工作台样式 +626：两翼胶囊的最大宽度、右翼的滚动留边、回应行里标题与列表的间距、设置空状态的选择器。设置页样式 +51：同一组设置空状态选择器。插件框脚本 +100：盖层出现时把底栏收件人交还给 Assistant。Coding 样式 +690、脚本 +46：会话目录行名字一列留出最小宽度、状态片省略号、窄于 320px 时状态片只留圆环（等你的状态除外），状态片与目录标记带 title。没有新增路径；每个资源与每页净增都远低于 10,000 字节。到达页与项目选择页的 +726 来自它们也下发的工作台样式与插件框脚本。",
+  "review": "本机对照 merge-base 6359987103 的隔离构建实测（2026-11-16，node scripts/gates/page-assets.mjs --base origin/main、node scripts/gates/first-screen.mjs --base origin/main），数字按实测填写；尚未经人评审，随分支 fix/screen-polish-p0 的 PR 评审核对。",
   "assets": {
     "/assets/molis-work-plugin-frame.js": 100,
     "/assets/molis-work-settings.css": 51,
     "/assets/molis-work-workbench.css": 626,
-    "/assets/molis-work-workbench.js": 1644,
+    "/assets/molis-work-workbench.js": 1658,
     "/assets/molis-work-plugins/coding.js": 46,
     "/assets/molis-work-plugins/coding.css": 690
   },
@@ -14,9 +14,9 @@
     "arrival-empty/en": { "cold": 726, "warm": 0 },
     "chooser/zh": { "cold": 726, "warm": 0 },
     "chooser/en": { "cold": 726, "warm": 0 },
-    "workbench-default/zh": { "cold": 2351, "warm": 0 },
-    "workbench-default/en": { "cold": 2351, "warm": 0 },
-    "workbench-all-plugins/zh": { "cold": 2351, "warm": 0 },
-    "workbench-all-plugins/en": { "cold": 2351, "warm": 0 }
+    "workbench-default/zh": { "cold": 2365, "warm": 0 },
+    "workbench-default/en": { "cold": 2365, "warm": 0 },
+    "workbench-all-plugins/zh": { "cold": 2365, "warm": 0 },
+    "workbench-all-plugins/en": { "cold": 2365, "warm": 0 }
   }
 }

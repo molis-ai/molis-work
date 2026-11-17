@@ -494,7 +494,10 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
       if (method === "POST" && parts.length === 1 && parts[0] === "memories") {
         const action = body.action === "update" || body.action === "disable" || body.action === "enable" || body.action === "remove" ? body.action : null;
         if (!action) throw assistantErrors.invalid("不支持的操作");
-        return { status: 200, body: { memories: await service.memory.changeMemory({ memory_id: String(body.memory_id ?? ""), action, ...(typeof body.text === "string" ? { text: body.text } : {}) }, ports.projectRef?.project_id ?? null) } };
+        const person = bindLocalWebActions(ports.localHost, ports.projectRef, [MEMORY_WRITE_PERMISSION], { signal: responseAbortSignal(response) });
+        await person.invoke(memoryActions.change, { memory_id: body.memory_id as string, action, expected_version: body.expected_version as number,
+          ...(body.text === undefined ? {} : { text: body.text as string }) });
+        return { status: 200, body: { memories: await service.memory.memories(ports.projectRef?.project_id ?? null) } };
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "memory-prefs") return { status: 200, body: { prefs: service.memory.saveMemoryPrefs(body as never) } };
       // What works suggest keeping: the person accepts (optionally reworded) or declines each.

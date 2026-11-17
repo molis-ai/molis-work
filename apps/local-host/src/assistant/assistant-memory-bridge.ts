@@ -21,8 +21,8 @@ export type AssistantMemoryBridgeLinks = Pick<AssistantWorkReads, "assistantPart
  * collaborators come through `link`.
  */
 export class AssistantMemoryBridge {
-  private readonly candidateReads = repeatingFailure("assistant", "memory_candidates_unavailable");
   constructor(private readonly store: Pick<AssistantStore, "get" | "rounds">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly recalled: Map<string, string>, private readonly chosenMemory: Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>, private readonly memorySourceWithdrawals: Set<(eventId: string) => void>, private readonly link: AssistantMemoryBridgeLinks) {}
+  private readonly candidateReads = repeatingFailure("assistant", "memory_candidates_unavailable");
 
   /** The platform memory (specs/archive/memory-system): the Assistant reads and writes it like every other consumer. */
   private memory(): MemoryService {
@@ -43,7 +43,7 @@ export class AssistantMemoryBridge {
   async memories(projectId?: string | null): Promise<AssistantMemory[]> {
     const { items } = await this.memory().list(this.memoryCaller(null, projectId ?? null, true), { scope: "all" });
     return items.sort((a, b) => (a.scope === b.scope ? 0 : a.scope === "personal" ? -1 : 1) || (a.created_at === null ? b.created_at === null ? 0 : 1 : b.created_at === null ? -1 : a.created_at.localeCompare(b.created_at)))
-      .map(item => ({ memory_id: item.memory_id, scope: item.scope, ...(item.project_id ? { project_id: item.project_id } : {}), text: item.text, origin: item.origin, disabled: item.state !== "active" }));
+      .map(item => ({ memory_id: item.memory_id, version: item.version, scope: item.scope, ...(item.project_id ? { project_id: item.project_id } : {}), text: item.text, origin: item.origin, disabled: item.state !== "active" }));
   }
 
   memoryPrefs(): AssistantMemoryPrefs {
@@ -54,13 +54,6 @@ export class AssistantMemoryBridge {
   saveMemoryPrefs(input: Partial<AssistantMemoryPrefs>): AssistantMemoryPrefs {
     const pick = (key: keyof AssistantMemoryPrefs) => typeof input?.[key] === "boolean" ? { [key]: input[key] as boolean } : {};
     return this.memory().saveAssistantPrefs(this.actorId, { ...pick("form"), ...pick("use_personal"), ...pick("use_project"), ...pick("learn_personal"), ...pick("learn_project") });
-  }
-
-  /** Change, switch off or delete one memory, in the scope it lives in (a project's only from that project's page). */
-  async changeMemory(input: { memory_id: string; action: "update" | "disable" | "enable" | "remove"; text?: string }, projectId?: string | null): Promise<AssistantMemory[]> {
-    if (!["update", "disable", "enable", "remove"].includes(input?.action)) throw assistantErrors.invalid("不支持的操作");
-    await this.memory().change(this.memoryCaller(null, projectId ?? null, true), { memory_id: String(input?.memory_id ?? ""), action: input.action, ...(typeof input.text === "string" ? { text: input.text } : {}) });
-    return this.memories(projectId);
   }
 
   /** What works suggest keeping, still waiting for the person (one work's, or all). Left alone for 14 days, a suggestion goes. */

@@ -1,10 +1,10 @@
 # Molis Work 审查报告与优化策略
 
-状态：进行中。已有六方向代表入口检查和前四批成果保留；搜索取消、Home 完整性、任务操作与切换上下文、Run 时间四条链已补深查及定向验收，审查选项、导入停止与正文可用性已定向验收，Git 编辑恢复与交接已完成本地定向验收；共享输入材料正在实施与验收；2026-11-16 按用户原始范围继续深入检查与分批改造，不将原“留后续”当作已获批准的排除。当前同步 main `6359987103`；旧头 `77e2cc0d5` 的 CI 仅覆盖旧批次。负责人 Codex，草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101)。[需求与验收](spec.md) · [逐包覆盖](coverage.md)。
+状态：进行中，负责人 Codex。按原始范围继续逐包、逐入口深入六方向检查及分批改造；74包清单与首轮代表路径核对不等于全仓深查完成，局部验收不用于整项结项。现已保留搜索、后台操作、Sessions、Git、共享输入材料、Coding恢复及Memory候选等批次；Memory正式管理/配对查询已完成本地包回归，Workflows进入真实界面反例验证。当前已整合main `4aa5496e3f`，工作树头`b45f75bba1`；本批尚未提交。旧头`77e2cc0d5`的CI只覆盖旧批次。草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) · [需求与验收](spec.md) · [逐包覆盖](coverage.md)。
 
 ## 当前判断
 
-2026-11-16 已整合基线：`4a08c41ca`（Sessions #2097）已整合到工作树，74包构建通过，合并提交 fc4e39e38 已保留，后续 Git 批保存于 84987a6c3 与 8ac8b806e。新增 `horizontal/sessions` 及其 UI/搜索/助理链纳入接续范围，不能继续沿用 73 包作为最新主干总数。BL-177 在该主干已改“部分实现”，保留 35/45/60 批和本人验收，不按新实现标题关闭整项。前批改造保存于 `a31a745e6`。现已保存共享输入材料检查点 `ba93f5c0b5`，并合入 `6359987103`（Sessions 合后复查 #2106 与公共子任务部件 #2108），合并提交 `31b0cba134`。两边新增的权限/会话回归均保留，公共 composer 的 ready/local placement 与本批来源/ack合同同时保留；API快照已重新生成，完整构建通过，组合验收19文件183项全部通过（13.9分钟，`/tmp/quality-audit-main-635-acceptance.log`）。新增重试用例第一次排队被主动撤下，未运行；后续已在这次组合验收实际执行通过。随后健康门禁发现 pageComposer 153行，已把独立的提交结果转换移到同文件函数，不改阈值，复验通过。QF-30 真实断连基线复现接受/拒绝晚写，最小信号修复与相关8文件96项验收通过，保存于56afa9c44e；仍不能据此将本轮全部六方向结项。QF-31读取故障基线有效失败，分区失败与原位重试实现已写，尚待本次构建和实操。
+2026-11-16 已整合基线：`4a08c41ca`（Sessions #2097）已整合到工作树，74包构建通过，合并提交 fc4e39e38 已保留，后续 Git 批保存于 84987a6c3 与 8ac8b806e。新增 `horizontal/sessions` 及其 UI/搜索/助理链纳入接续范围，不能继续沿用 73 包作为最新主干总数。BL-177 在该主干已改“部分实现”，保留 35/45/60 批和本人验收，不按新实现标题关闭整项。前批改造保存于 `a31a745e6`。现已保存共享输入材料检查点 `ba93f5c0b5`，并合入 `6359987103`（Sessions 合后复查 #2106 与公共子任务部件 #2108），合并提交 `31b0cba134`。两边新增的权限/会话回归均保留，公共 composer 的 ready/local placement 与本批来源/ack合同同时保留；API快照已重新生成，完整构建通过，组合验收19文件183项全部通过（13.9分钟，`/tmp/quality-audit-main-635-acceptance.log`）。新增重试用例第一次排队被主动撤下，未运行；后续已在这次组合验收实际执行通过。随后健康门禁发现 pageComposer 153行，已把独立的提交结果转换移到同文件函数，不改阈值，复验通过。QF-30 真实断连基线复现接受/拒绝晚写，最小信号修复与相关8文件96项验收通过，保存于56afa9c44e；仍不能据此将本轮全部六方向结项。QF-31读取故障、分区失败与原位重试已通过真实界面及写入读回；QF-32候选读写分离和QF-31旧入口清理也已完成本地验收，细节见各项记录。
 
 第九批视觉补验已通过，12 张中英文/三宽/两主题截图生成，人工复核英文390深色与中文1440浅色，Git 固定差异已加载。第十/十一批14文件126项通过，第十二批11文件65项通过，具体边界见下文。英文导入中的旧中文警告另列 QF-15，未宣称语言全通过。
 
@@ -504,14 +504,40 @@ PF-02 新增正常入口证据：`/tmp/quality-audit-composer-required.log` 15�
 
 本片不关闭角色候选的完整本人管理：没有正式owner时accept仍按原权限拒绝，已用反例保留该边界，如何接通完整认可归属另需沿真实角色入口确认。后台已开始的定时维护按原调度合同不可取消；这里验证的是受控手动维护，不新增调度承诺。
 
-### QF-33 / 待复现：配对查询还包含失效状态写入
+### QF-33 / P1 已修复、本地验收通过：配对查询替用户写入已处理决定，且忽略正式期限
 
-`horizontal/memory/src/service.ts` 的 pairs() 在正式条目缺失或非active时直接savePair(resolved)后继续；公开memory.pairs.list仍为query。这与候选读取属于同类职责问题，但尚未核实正常设置/维护入口的实际交错及用户影响。保留在本轮深查，不因候选query修复一并关闭；先验证真实owner读失败、删除和状态变化，再决定纯投影及已有维护的归属。
+位置：`horizontal/memory/src/service.ts:1092–1103`。公开`memory.pairs.list@1`只有读取权限，原pairs在一方缺失或非active时直接savePair(resolved)；重新启用后原冲突已永久隐藏，召回不再按pending冲突避让。正常HTTP写入两份真实SDK记忆→原upkeep形成配对→公开管理停用→只有memory:read的query，实际ledger由pending变resolved，反例有效失败（`/tmp/quality-audit-memory-pair-baseline2.log`）。首次测试从错误包根导入内部Host测试端口未启动，不算产品缺陷。
 
-### QF-34 / P1 待动态确认：文档保留的旧Memory写入口丢版本且未接本次取消
+处置：查询只根据当前可读正式事实投影，不写配对。明确resolvePair拥有本人决定，已有Storage遗忘清理拥有删除后的配对回收（`memory-ledger-retention.ts:64–65`），不增加维护状态或任务。停用/启用/明确保留两条的召回效果、真实SDK读取故障和取消、成功删除清理两项已通过（`memory-management-acceptance.log`）。追加正式到期反例又证实meta仍active时，普通列表已投影disabled但pairs仍提供操作（`memory-pair-expiry-baseline.log`）；已复用现有isExpired按正式期限过滤，正常HTTP维护形成配对后的3项通过，原分页合同6项通过（`/tmp/quality-audit-memory-pair-final.log`）。分页管理页有意保留原始active并单独返回expired，设置界面按expired显示/续期；早期测试把普通list的disabled投影误套到分页，已按现行MEM-15合同修正，没有改生产分页语义。每对重复owner读取属于可优化成本，未为一行正确性修复新增跨请求缓存。
+
+### QF-34 / P1 已修复、本地验收通过：文档保留的旧Memory写入口丢版本且未接本次取消
 
 `apps/local-host/src/assistant/assistant-http.ts:490–499` 的memories/memory-prefs仍可达，`docs/system/CALL-CHAINS.md:291`和归档memory-system规格明确保留。现行设置已用`/api/memory/*`，模型工具另走受控memoryInvocation；未找到当前生产UI/插件/后台对旧HTTP的调用，但不能据此删公共端点。GET在mixed-input-originals仍有真实调用；旧POST的error-model测试只覆盖缺失对象和非法动作。
 
 旧memories POST丢弃输入expected_version，Bridge.changeMemory直调service且无本次HTTP signal；GET的AssistantMemory投影也不带version。这和已修候选卡不是同一写分支，Host存活及SDK范围围栏仍存在。先用真实v1→v2和旧版本POST复现忽略确认，再暂停真实SDK提交、HTTP断连、放行核写入。保留路径的方向是GET给真实版本、POST经公共Memory动作保留原版本及信号；不得服务现读版本代替本人确认。未经动态验收不记完成。
 
 旧memory-prefs有独立产品语义：MemoryPreferences.saveAssistantPrefs原子更新personal与project-default，现公共savePrefs写personal或具体project，不能用两次现动作冒充等价迁移。保留原主人的原子写入并核实际默认/覆写效果；不因“转发”命名删除有职责的协调，不新增第二份偏好事实。
+
+QF-34真实反例：`/tmp/quality-audit-memory-management-baseline.log`七项均有效失败。正常保存v1→公开动作更新v2后，旧POST更新/停用/启用/删除全部返回200；GET无version。实际SDK更新等待及删除目标读取等待期间，服务端已观察HTTP断连后仍更新版本/流水或接受遗忘并删除。测试未伪造成功回执或生产结果；当前版本恢复、项目隔离与旧偏好默认/覆写已纳入后续验收。
+
+主干4aa5496e3f已由b45f75bba1合入，完整构建通过。Coding README全部41文件加11个新增/共享消费者合计52文件全部通过（8.3分钟，`/tmp/quality-audit-coding-main-required.log`）。补强的原Session新Run/历史次数、原权限和冻结模型断言亦通过；环境失败390深色截图重取后已实看，提示和重试完整可见。此结果只关闭Coding该批包回归，不替代当前头Full CI/资源许可或整项逐包深查。
+
+QF-34实现与证据：旧POST已迁memory.change并传原项目/版本/取消，GET投影正式version；删除Bridge.changeMemory及重复校验，原启停和失败后开轮用例迁真实注册动作。构建通过，API仅AssistantMemory增加version一项。最终定向9/9通过（`/tmp/quality-audit-memory-management-acceptance2.log`），项目隔离和偏好覆写保留；首次8/9中enable对已启用条目不会增加SDK版本，改用真实已停用v2验证重新启用，未改生产幂等语义。健康门禁通过（`/tmp/quality-audit-memory-management-health2.log`）；Host/Memory/合同必跑与相关消费者103文件全部通过：6文件定向证据加其余97文件（17.1分钟，`/tmp/quality-audit-memory-required.log`），未重复已有效通过的6文件；最终Full CI待完成。
+
+### QF-35 / P1 已复现，待改造：工作流迟到预览可能把A的内容交给B
+
+`plugins/native/workflows/src/browser/handoff.ts:99–124`在等待preview/continue后不核导航身份；`click.ts:28–44`可打开另一实例，`nav.ts:88`只在打开成功时清handoff、不清旧busy。A回执把A正文放到共享handoff，后续表单经`root-events.ts:103`使用当前B实例；错误分支还重新打开旧实例。影响可能是目标内容错配，必须验证真实目标与handoff，不只断言标题。最小方向是原导航/实例/步骤约束所有迟到效果，沿已有navId实现，不改变owner写入合同。
+
+### QF-36 / P1 已复现，待改造：人工交接失败重载没有恢复冻结提交
+
+`actions.ts:211–217`的preview重新读取源正文，`browser/handoff.ts:107`用input初始化；owner已有pending.output时`continuation.ts:40–42`正确拒绝不同正文。原人工改写后接收失败，重载再预览可能进入内容冲突循环。恢复应来自当前owner的pending原提交，保留固定交接身份和幂等接收，不能删除pending或替换已发内容解锁。
+
+### QF-37 / P1 已复现，待改造：人工确认过程丢掉明确重试意图
+
+`browser/click.ts:87`传retry:true，`handoff.ts:103–111`却只打开人工预览后返回；`root-events.ts:103`再提交未带该意图，最终`step-runner.ts:134–135`按结果未知拒绝。后端拒绝与显式重试合同应保留，修复页面意图随原实例、步骤、固定提交到达retry_action。验证真实首次已执行后报错及本人再次执行的目标次数。
+
+### QF-38 / P2 已复现，待改造：判断拦下仍提示交接成功
+
+`browser/handoff.ts:115–119`无条件选下一站并提示交接/动作完成，实际continuation可以返回stopped且目标未执行。现有判断浏览器测试先从后台生成终态再打开，未覆盖这次点击的反馈。按返回实例当前步骤、handoff和停止事实反馈，验证零目标调用和无成功提示。上述四项现已有下段正常入口反例，尚未修复或验收通过。
+
+Workflows动态证据：`/tmp/quality-audit-workflows-handoff-baseline2.log`中，B的实际handoff正文为A正文；迟到成功与真实CAS拒绝均把页面恢复为A；Pages真实接收已落一份文档、回答失败后重载，人工表单重新变为旧源正文；判断真实stopped且Pages零写，页面选中下一站。目录离开控制项通过。明确动作重试首次真实Shelf写入后丢回执，点击重试只完成preview却不出现表单/继续，实际请求完成断言进一步确认：仅preview已返回，目标次数仍为1，未派出带retry_action的continue（`/tmp/quality-audit-workflows-retry-baseline.log`）。第一轮6项夹具失败不作为产品证据。

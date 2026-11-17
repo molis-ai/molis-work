@@ -5,6 +5,8 @@ export interface AssistantRoundMemory { memory_id: string; scope: MemoryScope; t
 /** Something the person asked the Assistant to keep: personal (all their work) or one project's. */
 export interface AssistantMemory {
   memory_id: string;
+  /** The formal version read by the caller; management changes must name this version. */
+  version: number;
   scope: "personal" | "project" | "character";
   /** For a project memory: which project. */
   project_id?: string;

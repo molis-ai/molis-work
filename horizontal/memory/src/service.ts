@@ -1095,8 +1095,8 @@ export class MemoryService {
     for (const pair of this.ports.ledger.pairs(caller.actor_id)) {
       if (pair.state !== "pending" || !owners.has(`${pair.scope}:${pair.owner}`)) continue;
       const live = new Map((await this.scopeCommands.located({ ...caller, project_id: pair.project_id ?? caller.project_id }, pair.scope, pair.owner)).map(one => [one.entry.memory_id, one]));
-      const a = live.get(pair.a.memory_id), b = live.get(pair.b.memory_id);
-      if (!a || !b || a.meta.state !== "active" || b.meta.state !== "active") { this.ports.ledger.savePair(caller.actor_id, { ...pair, state: "resolved" }); continue; }
+      const a = live.get(pair.a.memory_id), b = live.get(pair.b.memory_id), now = this.now();
+      if (!a || !b || a.meta.state !== "active" || b.meta.state !== "active" || isExpired(a.meta, now) || isExpired(b.meta, now)) continue;
       const { owner: _owner, state: _state, ...view } = pair;
       out.push({ ...view, a: { ...pair.a, text: a.entry.text }, b: { ...pair.b, text: b.entry.text } });
     }

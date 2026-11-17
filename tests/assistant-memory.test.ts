@@ -148,7 +148,8 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
     return (script.shift() ?? (() => reply()))(body);
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const { storageOwner, memory, memoryPolicy, store, memoryForCall, actions } = platformMemory(host, home, t);
+  const personCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user" as const, permissions: [...MEMORY_PERMISSIONS] };
   const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
@@ -222,11 +223,11 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
     assert.match(recalled(inA.first), /memory-recall[\s\S]{0,400}项目甲里 NSM 指北极星指标/);
 
     // Switched off: kept, but not used; switched on again: used again.
-    await service.memory.changeMemory({ memory_id: kept[0]!.memory_id, action: "disable" }, "project-a");
+    const disabled = await actions.invoke(personCaller, memoryActions.change, { memory_id: kept[0]!.memory_id, expected_version: kept[0]!.version, action: "disable" });
     const off = await round("用要点列表再总结一次", projectA, "req-memory-004");
     assert.doesNotMatch(recalled(off.first), /回答用要点列表/);
     assert.equal((await service.memory.memories("project-a"))[0]!.disabled, true);
-    await service.memory.changeMemory({ memory_id: kept[0]!.memory_id, action: "enable" }, "project-a");
+    await actions.invoke(personCaller, memoryActions.change, { memory_id: kept[0]!.memory_id, expected_version: disabled.memory!.version, action: "enable" });
 
     // Forgotten through the round's own tool: switched off for good as far as the work goes (never recalled again), but not deleted —
     // it stays the person's to switch on again or delete in settings, and the change is the Assistant's own, takeable back.
@@ -487,7 +488,8 @@ test("a round with no configured model never prepares memory or sends a model re
   const modelFetch = t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async (_url: unknown, init: RequestInit) => (script.shift() ?? (() => reply()))(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array)))));
   const flags = { model: true };
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const { storageOwner, memory, memoryPolicy, store, memoryForCall, actions } = platformMemory(host, home, t);
+  const personCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user" as const, permissions: [...MEMORY_PERMISSIONS] };
   const preparedReceipts: string[] = [], forRun = memory.forRun.bind(memory);
   t.mock.method(memory, "forRun", async (...args: Parameters<MemoryService["forRun"]>) => {
     const recipe = await forRun(...args);
@@ -518,7 +520,7 @@ test("a round with no configured model never prepares memory or sends a model re
     const rejectedReceipt = preparedReceipts.at(-1)!;
 
     // The memory is switched off, and the next send gets a new recipe; the failed attempt's receipt is never reused.
-    await service.memory.changeMemory({ memory_id: kept!.memory_id, action: "disable" }, "project-a");
+    await actions.invoke(personCaller, memoryActions.change, { memory_id: kept!.memory_id, expected_version: kept!.version, action: "disable" });
     flags.model = true;
     await sendAsPerson(service, { work_id: workId, text: "总结一下", request_id: "req-memory-start-3" }, {});
     await until(async () => { const v = await service.read(workId); return v.rounds.length === 2 && v.work.state === "completed"; }, "second round");

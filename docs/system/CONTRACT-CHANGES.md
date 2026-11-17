@@ -1,5 +1,7 @@
 # 合同变更流程
 
+- 质量审查 QF-34：保留 `/api/assistant/memories`，GET 的 AssistantMemory 增加正式 `version`；POST 四种原操作通过现行 `memory.change@1`，要求调用方原 `expected_version` 并继承本次HTTP取消。无版本/坏类型由原动作schema拒绝，不服务端补版本；现行Memory动作和持久结构不变。旧Bridge变更转发无生产调用后删除，业务回归迁公共动作；memory-prefs仍保留原子personal+project-default语义。
+
 2026-11-16 质量与体验审查 QEA-54/55：Coding环境读取增加明确的unavailable分区，仅含目录身份与检查时间，不提供未读取的事实。原ready/attention事实形状保持；检查、state与浏览器共用一份插件内类型，公共renderer接受同一结果并显示原位重试。取消仍拒绝调用，失败不进入成功缓存；无存储、状态机或权限变更，无历史兼容。阶段一同步公开renderer签名的API快照；实际文件失败与正常入口恢复见quality-experience-audit第二十二批。
 
 2026-11-16 质量与体验审查 QEA-50：`AssistantWorkView.memory_candidates` 增加 null，表示这一次候选分区读取失败；正常数组/空时省略的语义不变。助理聚合按部分失败投影，独立候选 HTTP 不再把失败返回为空；工作台同批显示分区重试并重画恢复有候选/空结果，不保留旧决定按钮。原 Memory 候选事实、版本与公开决定动作不变，无持久结构或历史兼容。阶段一原位更新 API 快照；实际消费与故障恢复见 quality-experience-audit QEA-50。

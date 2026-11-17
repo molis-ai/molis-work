@@ -292,3 +292,5 @@ SDK `get` 本身不核来源。形成登记在精确 get 后复用原 `beforeEff
 受保护 Session 单条 remove 在首次 canonical/当前控制核验之后、独立接受和SDK清理之前，把已核 session_binding 与原 scope/owner/id/version 一同保留在既有无正文 change-request marker。完整原请求重试只准原绑定（含缺失/存在的区别），继续交原 SDK operation/CAS核回执；不以已被遗忘的 revisions 充当授权，不补造绑定、不改operation，也不借此恢复非删除写。
 
 已接受的原 bound 单条 remove 可由本人全局 UI management 沿原无正文 marker/related 决定继续：必须显式提供原版本，actor/op/scope/owner/id/version 完全相符，当前无 Session binding，且原决定已独立接受；不复制或更改 marker 的绑定。任何受保护入口仍须完整同绑定。操作发现对 bound 单删只返回绑定和原决定/purge元组可核的原 remove 请求，全局保持原 DTO/当前删除授权，不新增业务导航身份，也不授予 Session 非删除权。
+
+配对查询只投影当前可处理的pending配对，不把一方暂时停用或不可读写成resolved。重新启用后仍须尊重原冲突；只有明确配对决定和现有删除清理改变其终结事实。回归：`tests/security-invariants-memory-pair-queries.test.ts`（QEA-58/59）。

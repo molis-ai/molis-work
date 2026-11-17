@@ -293,6 +293,7 @@ export interface AssistantMaterialText {
 
 export interface AssistantMemory {
     memory_id: string;
+    version: number;
     scope: "personal" | "project" | "character";
     project_id?: string;
     text: string;

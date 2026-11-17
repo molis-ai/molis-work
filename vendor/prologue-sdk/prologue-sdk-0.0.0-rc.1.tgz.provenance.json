@@ -9,17 +9,17 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "f279024aba6faffb76ce79f2ffa3e808aa6c8db0",
+    "commit": "ce40e40a5112d0dfb3a44b5e38003576ed0cab99",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
-    "note": "Official main PR #128, tree identical to reviewed b6f46901: trusted child input; original idempotent command inspection; exact parent/run/graph authority; per-attempt reports and original Session atomic injection consumption. Includes main PR #127 above the previous vendor source. No vendor patches."
+    "note": "Official main PR #129, tree identical to reviewed 128aca37: consume all accepted Session notifications at live model boundaries. Includes PR #128 trusted child input and reports. No vendor patches."
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1.tgz",
-    "bytes": 1484512,
-    "sha256": "c7a33b56f36b114a70d2c84ced3fd2d8dbc83ee794041a7de03040f2812279f3",
-    "integrity": "sha512-gxBZWUkrs9nk8TA4B84nd7EEJHZ6evZGafEm4s1cLDfBus8A0nI5Xl/md91xk2NoBd1N+3qHgM8lNHeiGSwdyQ=="
+    "bytes": 1484597,
+    "sha256": "2c320919c799bd33614775df2924465037622811a8be3414f75e0af669667f91",
+    "integrity": "sha512-TckKwRC+YdL2eEQrgZKLn4wH2QXLPijcFjdlUrWIPVXrO9PA5Ia44V5v0JodLfsFMxMXBxTqC7zpGVuiXRGPzA=="
   },
   "build": {
     "node": "24.14.0",
@@ -27,14 +27,14 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Extract git archive f279024aba6faffb76ce79f2ffa3e808aa6c8db0 into two independent clean directories.",
+      "Extract git archive ce40e40a5112d0dfb3a44b5e38003576ed0cab99 into two independent clean directories.",
       "In each: pnpm install --frozen-lockfile --offline --ignore-scripts; pnpm build; pnpm -C packages/sdk pack --pack-destination <external-directory>.",
       "Both archives are byte-identical.",
-      "Reviewed source: build, full typecheck, public-api, quality-ratchet, check-doc-links, clean-consumer and scoped regression pass; final input/live/installed consumer group 24/24. See upstream PR #128 for exact run scopes.",
+      "Reviewed source: build, full typecheck, public-api, quality-ratchet, check-doc-links, clean-consumer pass. Six ordinary-injection boundary/live tests and 48 existing session/subagent regressions pass; see PR #129.",
       "Upstream CI did not start any steps due to account payment/spending limit; main has the same infrastructure failure. CI is not claimed green.",
       "Molis Work installs this official archive through the sole horizontal/agent-host dependency; product adoption validation belongs to Batch 59."
     ],
     "packedOn": "2026-11-16",
-    "note": "User-authorized minimal upstream window for Batch 59. Replaced official 02a11ac5 archive is recorded in patch-history.json."
+    "note": "User-authorized minimal upstream window for Batch 59. Replaced official f279024a archive is recorded in patch-history.json."
   }
 }

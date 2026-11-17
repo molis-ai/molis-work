@@ -1,6 +1,16 @@
 # Prologue SDK 构建来源
 
-## 当前包：official main f279024a（2026-11-16，第 59 批）
+## 当前包：official main ce40e40a（2026-11-16，第 59 批）
+
+当前唯一运行包为 `prologue-sdk-0.0.0-rc.1.tgz`，**1,484,597 字节**，SHA-256 `2c320919c799bd33614775df2924465037622811a8be3414f75e0af669667f91`。来自上游 [PR #129](https://github.com/molis-ai/molis-prologue/pull/129) 的 main 合并提交 `ce40e40a5112d0dfb3a44b5e38003576ed0cab99`，与独立评审通过的 `128aca37` 整棵树相同，没有 vendor 补丁。
+
+在 #128 的可信子输入和父回报基础上，普通 Work 通知由原 Session 接受后，也进入活动 Run 的下个模型边界；Delivery 完成补记失败不妨碍已接受通知消费。没有活动 Run 时只保存，后续显式启动才消费，不自动起跑。消费与 Run 进度仍同事务，未增加公开写口、存储格式或模型权限。
+
+从官方提交两次独立 `git archive`，分别离线安装、构建、打包，产物逐字节相同（Node 24.14.0、pnpm 11.9.0）。构建、类型、API、ratchet、文档、干净安装消费者通过，新增 6 项边界/真实 Node HTTP 跨进程测试及原 48 项回归通过。上游 CI 因账户付款/额度未启动步骤，不称 CI 通过；Molis 双入口的产品验证另归第 59 批。具体范围见 PR 和 provenance。
+
+换下的 `f279024a` 包可由 `patch-history.json` 的 Git blob 取回。以下是历史采用记录。
+
+## 上一份：official main f279024a（2026-11-16，第 59 批）
 
 当前唯一运行包是 `prologue-sdk-0.0.0-rc.1.tgz`，**1,484,512 字节**，SHA-256 `c7a33b56f36b114a70d2c84ced3fd2d8dbc83ee794041a7de03040f2812279f3`。来自上游 [PR #128](https://github.com/molis-ai/molis-prologue/pull/128) 的 main 合并提交 `f279024aba6faffb76ce79f2ffa3e808aa6c8db0`，与独立评审通过的 `b6f46901` 整棵树相同，没有 vendor 补丁。用户授权窗口及 Molis 的交付边界见[子代理交互 §12](../../specs/subagent-interaction/spec.md#12-第-59-批真实接线开工2026-11-16)。
 

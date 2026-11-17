@@ -238,7 +238,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. A package of a plugin already installed here is its upgrade (BL-623). */
       installPackage: (release: InstalledRelease, input: { consent: true } & InstalledPackageControl) =>
         lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, { ...input, refresh: refreshPublicActions }),
-      packageOf: (pluginId: string) => signedPackageOf(packages, recordFor(pluginId)),
+      packageOf: (pluginId: string) => packages.packageForControl(recordFor(pluginId)),
       /** Takes a signed package's installation off from its trusted row, its package not read; and the tombstones whose clean-up did not finish, listed until it has (BL-915). */
       uninstall: (pluginId: string, input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }) => uninstallInstalledRecord(lifecycleContext, pluginId, input),
       pendingUninstalls: () => platform.runtime.list().filter(isPendingUninstall),
@@ -252,11 +252,6 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
  * What a sandboxed plugin declared to the Host, for the caller its capability calls run under (S-15): the Manifest its running
  * installation was started with, or for a trial, the one its build would install with. Anything else has declared nothing.
  */
-/** The package a signed-package installation runs, read back and checked, without asking whether its publisher is still trusted: the person can still take it off. */
-function signedPackageOf(packages: SandboxPackageStore, record: PluginInstanceRecord | undefined): InstalledRelease | undefined {
-  return record?.publisher_trust === 'pinned' ? packages.load(record.plugin_id, record.publisher_signature, record.version) : undefined;
-}
-
 export function sandboxDeclaration(identity: Readonly<SandboxIdentity>, releases: Pick<AgentBuilderStore, 'get'>, started: (release: AgentRelease) => PluginManifest | undefined,
   installed: { recordFor(pluginId: string): { install_id: string; state: string } | undefined; releaseFor(pluginId: string): AgentRelease | undefined }): HostPluginCaller['declaration'] | undefined {
   if (identity.namespace === 'installed') {

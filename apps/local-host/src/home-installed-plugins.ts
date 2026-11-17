@@ -232,10 +232,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     /** Takes a signed package's installation off from its trusted row, its package not read (BL-915). */
     uninstall: (pluginId: string, input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }) => uninstallInstalledRecord(lifecycleContext, pluginId, input),
     /** The package an installation runs, read back and checked, without asking whether its publisher is still trusted: for the lifecycle (switch off, on, take off) only, so the person can still take a revoked publisher's package off; starting and running go through `releaseFor`. */
-    packageOf: (pluginId: string): InstalledRelease | undefined => {
-      const record = recordFor(pluginId);
-      return record ? packages.load(record.plugin_id, record.publisher_signature, record.version) : undefined;
-    },
+    packageOf: (pluginId: string) => packages.packageForControl(recordFor(pluginId)),
     /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. */
     installPackage: (release: InstalledRelease, input: { consent: true } & InstalledPackageControl) => {
       assertHomePackageAllowed(release.packaged!.manifest);

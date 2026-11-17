@@ -944,6 +944,8 @@ QEA-119 追加实际独立停用交错：在Home签名新装正式目录第二�
 
 第52批最新构建4通过。修正后QEA‑104/119的两文件8项通过，包括真实停用后完整安装和草稿保留、取消和迟到回执、真实同安装新版本保留（`quality-audit-adoption-commit-build4-lifecycle.log`）。构建3普通签名安装、Home换版恢复及浏览器复验等6文件85项通过（`quality-audit-adoption-commit-final-focused.log`），包括QEA‑118四条失败重试的目录与真实案例投影、QEA‑120校验无原始SQL诊断、同按钮成功采用。最后一版的本地健康及冻结包要求补验仍进行中。
 
+第52批健康首验拦下 `openHomeInstalledPlugins` 从193行增到194行。复用项目已有的签名包控制读取，将其放回 `SandboxPackageStore.packageForControl`，Home/Project 同一装配端口，保持已撤信任包的停用能力和有效信任下的运行准入。预计原单元收至191行，登记仅记实际缩减。不变更判据、阈值或例外种类。构建、相同调用方回归与准确基线健康待复验。
+
 ## 第五十三批准备：Skill 草稿冲突的原位恢复
 
 状态：路径已核实，准备复现和实施。现行 `apps/workbench/src/browser/kit/draft-editing.ts:63` 的 CAS 冲突只给刷新提示，保留的输入无法继续按旧修订保存。`draft-turns.ts` 的采用、回放和改写拥有各自冲突提示，保存失败的重试与已知冲突的恢复尚未区分。目标是从原设置页继续编辑，不重新输入，也不隐式覆盖别处的已存修改。

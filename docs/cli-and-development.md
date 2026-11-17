@@ -55,10 +55,11 @@ pnpm build
 
 ```text
 init | snapshot | active-goal
-goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
+goal-tree-propose | goal-tree-read | goal-tree-check
+review-request | review-decide
 ```
 
-上述每条 v1 命令都要用 `--db PATH` 指明项目数据库；没有默认路径，没给（缺值、空白，或 `--db` 后紧跟另一个 `--` 旗标）就报错，不会按当前目录猜一个库（`init` 也一样，数据库在 `PATH` 处创建）。相对路径按你写的那个，相对当前目录解析。复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。每条 v1 命令调用 Goals 的一个动作（`goals.board.initialize`、`goals.snapshot.read`、`goals.active.set`、`goals.tree.submit`、`.read`、`.check`、`.decide`），调用者由宿主造：本机这个人，出处 `management`，只带这一个动作自己的权限；命令的输入与输出不变（只有一处例外，S8：`init` 不再收 `title`，项目的名字只在项目目录里，`snapshot` 里的看板也不再带 `title`），命令的 JSON 必须带这条命令绑定的 `project_id`，否则 `actions.scope_mismatch`。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。`init`、`goal-tree-propose`、`goal-tree-check`、`active-goal` 与 `goal-tree-decide` 以本机这个人的身份写入，参数里不带身份：`goal-tree-propose` 和 `goal-tree-check` 的参数带了 `actor_id` 或 `actor_kind` 会被拒绝（`actions.input_invalid`），`goal-tree-propose` 的 `submitted_session_id` 也一样（这扇门背后没有 Runtime 会话），`goal-tree-decide` 的参数带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 同样被拒绝（决定是本机这个人作的，没有 Runtime 转交；`authority` 只写 `conversation_ref`、`message_ref` 这类出处，写了 `actor_id`、`actor_kind` 或 `authority_source` 也被拒绝），`active-goal` 不再读 JSON 里的 `actor_id`，旧脚本多写这个字段也不会被当成别人。
+每条 v1 命令用 `--db PATH` 指明项目数据库，并在 JSON 中带当前项目的 `project_id`。复杂输入可以通过 `--json` 或 `--file payload.json` 传入。 `review-request` 以原动作 `action` 和 `request_id` 读取待审请求，也可传精确 `reference` 回看。本人确认当前选项后用 `review-decide` 提交同一引用、`choice_id`、稳定的 `request_key` 和可选备注。常驻 Host 给出本机本人身份和管理出处。日常笔记、报告、约定、收尾与继续用 MCP 或 Web。
 
 插件作者的命令（`molis-work plugin create`、`validate`、`dev`、`pack`）见[插件开发手册](platform/PLUGIN-DEVELOPMENT.md#创建和运行)；`validate` 也查 Manifest `ui.locales` 声明的语言文件，挡得住的失败、只提示的放进 `locale_notes`，读法见手册的[界面文字与语言文件](platform/PLUGIN-DEVELOPMENT.md#界面文字与语言文件)。
 

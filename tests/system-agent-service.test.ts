@@ -96,17 +96,20 @@ test("MCP composes a lazy Host-owned review service before Web; later Web approv
     const origin = `http://127.0.0.1:${address.port}`;
     const base = `/projects/${project.project_id}/api/agent/reviews`;
     const listed = await fetch(origin + base, { headers: { "x-molis-work-control-token": token } });
-    assert.equal(listed.status, 200); assert.ok((await listed.json() as any).reviews.some((row: any) => row.request.review_id === first.review_id));
+    assert.equal(listed.status, 200);
+    const firstReview = (await listed.json() as { reviews: { request: import("@molis-ai/molis-work-contracts/services/agent-host").AgentReviewRequest }[] }).reviews.find(row => row.request.review_id === first.review_id)!.request;
+    assert.equal(firstReview.review_id, first.review_id);
     const decided = await fetch(origin + base + "/decide", { method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token,
-      "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify({ review_id: first.review_id, decision: "approve" }) });
+      "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify({ review_id: first.review_id, version: firstReview.reference.version, decision: "approve" }) });
     assert.equal(decided.status, 200, await decided.text());
     assert.equal(git("show", ":note"), "after\n");
     assert.equal((await actions.invoke(gitActions.results, {})).results[0]?.result.outcome, "succeeded");
     await writeFile(join(directory, "note"), "later\n");
     const pending = await prepare();
+    const pendingReview = service.agentHost.reviews.get(pending.review_id)!;
     await stopWeb(); await mcp.close();
     assert.equal(service.agentHost.reviews.receipt(pending.review_id)?.status, "pending", "borrowed transports cannot dispose the Host service");
-    await service.agentHost.reviews.respond({ review_id: pending.review_id, decision: "approve", actor_id: "web-user" });
+    await service.agentHost.reviews.respond({ review_id: pending.review_id, version: pendingReview.reference.version, decision: "approve", actor_id: "web-user" });
     assert.equal(git("show", ":note"), "later\n");
     await writeFile(join(directory, "note"), "never staged\n");
     const abandoned = await prepare();

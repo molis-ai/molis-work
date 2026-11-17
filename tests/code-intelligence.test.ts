@@ -309,7 +309,7 @@ test("A4-1 Coding 全部 7 个主角色开放 find-symbol，目录模式子角�
     });
     for (const deadline = Date.now() + 20_000;;) {
       for (const pending of queue.list("proj-sym", "pending")) {
-        await queue.respond({ review_id: pending.review_id, decision: "approve", actor_id: "user" });
+        await queue.respond({ review_id: pending.review_id, version: pending.reference.version, decision: "approve", actor_id: "user" });
       }
       const view = await adapter.read(handle.ref);
       if (["completed", "failed", "cancelled", "stopped"].includes(view.phase)) {

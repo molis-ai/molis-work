@@ -225,11 +225,12 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
       categories: sent.categories, expected_revision: subject.revision })).subject, () => doneText(act, row));
   }
 
-  /** Everything a task may read, taken back in one `clear` once the person says so. */
+  /** Everything a task may read, taken back from the revision shown in the confirmation. */
   async function clear(subject: TaskGrantSubject): Promise<void> {
     const task = nameOf(subject);
     if (!await ask(root, uiText.text("workbench.task-grants-page.withdraw-all-title"), uiText.text("workbench.task-grants-page.withdraw-all-description", { task }))) return;
-    await write(subject, async () => { await post({ mode: "clear", plugin_install_id: subject.plugin_install_id, key: subject.key }); return null; },
+    await write(subject, async () => (await post<{ subject: TaskGrantSubject }>({ mode: "set", plugin_install_id: subject.plugin_install_id,
+      key: subject.key, categories: [], expected_revision: subject.revision })).subject,
       () => uiText.text("workbench.task-grants-page.all-withdrawn", { task }));
   }
 

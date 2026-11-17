@@ -225,7 +225,9 @@ export function createWorkbenchProjectBriefRenderer(primitives: ProjectBriefPrim
       ? renderBriefRecent(model.recent.map(item => ({ when: time.when(item.at), text: item.title })))
       : `<p class="mw-brief__quiet">${model.issues.includes("events") ? uiText("workbench.project-brief.can-t-read-recent-activity-right-now") : uiText("workbench.project-brief.nothing-yet")}</p>`;
     const sections = [renderBriefSection({ title: uiText.text("workbench.project-brief.next"), body: nextBody }), renderBriefSection({ title: uiText.text("workbench.project-brief.last"), body: recentBody })];
-    const facts = model.workspace_path ? `<p class="mw-brief__facts"><span>${uiText("workbench.project-brief.working-directory")} ${escapeHtml(model.workspace_path)}</span></p>` : "";
+    const directory = model.workspace_path ? `<p class="mw-brief__facts"><span>${uiText("workbench.project-brief.working-directory")} ${escapeHtml(model.workspace_path)}</span></p>` : "";
+    const facts = directory + (model.personal ? "" : renderButton({ variant: "ghost", size: "md", icon: "sparkles",
+      label: uiText.text("workbench.automation.title"), attrs: { "data-automation-open": model.project_id } }));
     return renderBrief({ kicker, title: name, description, descriptionMissing: missing, focus, sections, facts, attrs: { "data-id": model.project_id } });
   }
 

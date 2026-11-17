@@ -125,14 +125,15 @@ test("TGA-24 TGA-25 TGA-27 授权与放行 reads once, takes a category back wit
   assert.match(await p.toast(), /已在别处改动，已刷新/u);
   assert.equal(JSON.stringify((await readMcpToolPreference(browser.homeDirectory)).action_grants.filter(grant => grant.client_id.endsWith(":weekly"))), held, "the refused set changed nothing");
 
-  // TGA-25: all of a task is one clear naming its installation, once the person says so in the dialog.
+  // TGA-25: all of a task is one revision-checked write, once the person says so in the dialog.
+  const dailyNow = (await p.call<Listed>({ mode: "list" })).subjects.find(subject => subject.key === "daily")!;
   const mark3 = (await p.sent()).length;
   await p.pressIn(p.task(daily), `[data-task-grants-act="clear"]`);
   await browser.waitFor(`document.querySelector("dialog[open] [data-task-grants-act=confirm]")`);
   await p.shot("zh-light-confirm");
   await p.press(`dialog[open] [data-task-grants-act=confirm]`);
   await browser.waitFor(`!(${p.task(daily)})`);
-  assert.deepEqual((await p.sent()).slice(mark3), [{ mode: "clear", plugin_install_id: install, key: "daily" }]);
+  assert.deepEqual((await p.sent()).slice(mark3), [{ mode: "set", plugin_install_id: install, key: "daily", categories: [], expected_revision: dailyNow.revision }]);
   assert.equal((await readMcpToolPreference(browser.homeDirectory)).action_grants.filter(grant => grant.client_id.endsWith(":daily")).length, 0);
   await p.pressIn(p.task(weekly), `[data-task-grants-act="clear"]`);
   await browser.waitFor(`document.querySelector("dialog[open] [data-task-grants-act=confirm]")`);

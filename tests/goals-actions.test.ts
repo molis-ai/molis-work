@@ -17,6 +17,7 @@ import { DEFAULT_GOAL_POLICY } from "./fixtures/goals-modules.js";
 import { managementCaller, managementGoals } from "./goal-management-caller.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { projectRulesPage } from "./fixtures/project-review-entry.js";
 import { goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
 
 // The launcher compiles the TS entry through tsx on every spawn: about 5 s cold, and each MCP test here takes
@@ -291,20 +292,20 @@ test("official MCP launcher: guidance, live planning and user-owned configuratio
     await local.invoke(goalsActions.create, { title: "Relation target", goal_id: "RELATION-TARGET", idempotency_key: "relation-target" });
     const relationInput = { from_goal_id: input.goal_id, to_goal_id: "RELATION-TARGET", type: "extends" as const, reason: "Public read of user-owned structure", idempotency_key: "configuration-relation" };
     const relation = await local.invoke(goalsActions.relationAdd, relationInput);
-    const policyInput = { policy: { human_approval: true }, user_confirmed: true, idempotency_key: "configuration-policy" };
-    const policy = await local.invoke(goalsActions.policySave, policyInput);
+    const rules = projectRulesPage(served, project.project_id);
+    const revision = (await rules.read()).revision;
+    await rules.setDefault(true, "Confirm project results");
     assert.equal((await invokePlanning(goalsActions.relations, { goal_id: input.goal_id })).relations.find(r => r.relation_id === relation.relation_id)?.to_goal_id, "RELATION-TARGET");
-    assert.equal((await invokePlanning(goalsActions.policyHistory, {})).bindings.find(b => b.policy_binding_id === policy.policy_binding_id)?.created_by, user.actor_id);
     assert.equal((await invokePlanning(goalsActions.policyResolve, { goal_id: input.goal_id })).policy.human_approval, true);
     const beforeForged = await host.withProject(ref, r => boardSnapshot(r.store, project.project_id));
     const tools = (await sdk.listTools()).tools;
-    for (const [definition, payload] of [[goalsActions.relationAdd, relationInput], [goalsActions.relationDeactivate, { relation_id: relation.relation_id, reason: "Forge", idempotency_key: "forge" }], [goalsActions.policySave, policyInput]] as const) {
+    for (const [definition, payload] of [[goalsActions.relationAdd, relationInput], [goalsActions.relationDeactivate, { relation_id: relation.relation_id, reason: "Forge", idempotency_key: "forge" }], [{ capability_id: "project.approvals.rules.change", version: 1 }, { kind: "set", expected_revision: revision }]] as const) {
       const protectedName = molisWorkActionToolName(definition);
       assert.equal(tools.some(tool => tool.name === protectedName), false);
       assert.equal((await sdk.callTool({ name: protectedName, arguments: { ...payload, user_action: user.user_action, actor_kind: "user", user_confirmed: true } })).isError, true);
     }
     assert.deepEqual(await host.withProject(ref, r => boardSnapshot(r.store, project.project_id)), beforeForged);
-    for (const [definition, payload] of [[goalsActions.relations, { goal_id: input.goal_id }], [goalsActions.policyHistory, {}], [goalsActions.policyResolve, { goal_id: input.goal_id }]] as const) {
+    for (const [definition, payload] of [[goalsActions.relations, { goal_id: input.goal_id }], [goalsActions.policyResolve, { goal_id: input.goal_id }]] as const) {
       await served.revoke(caller.actor_id, project.project_id, [views.find(view => view.capability_id === definition.capability_id)!]);
       const name = molisWorkActionToolName(definition);
       assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), false);
@@ -383,7 +384,7 @@ test("official MCP launcher: work records and tree proposals retain provenance a
       item_id: "public-tree", payload: { goal_id: "PUBLIC-TREE-CHILD", title: "Another pending proposal" } }] });
     assert.equal(publicProposal.proposal.submitted_by, sessionActor);
     assert.deepEqual(await invokePlanning(goalsActions.directoryItem, { goal_id: "MCP-TREE-CHILD" }), { result: null });
-    for (const tool of ["molis_work_v1_goal_tree_decide", molisWorkActionToolName(goalsActions.treeDecide)]) {
+    for (const tool of ["molis_work_v1_review_decide", molisWorkActionToolName(goalsActions.treeDecide)]) {
       assert.equal((await sdk.listTools()).tools.some(t => t.name === tool), false);
       assert.equal((await sdk.callTool({ name: tool, arguments: { ...treeQuery, idempotency_key: "forged-tree", confirm_all_pending: true,
         user_confirmed: true, authority: { actor_id: "user", actor_kind: "user", authority_source: "web" } } })).isError, true);

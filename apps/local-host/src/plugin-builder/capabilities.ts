@@ -37,7 +37,7 @@ const capabilityTimeout = (id: string, capabilities: readonly CapabilityExecutio
 export function slowOperations(contract: { operations: ReadonlyArray<{ id: string; effects: SandboxEffects }> }, capabilities: readonly CapabilityExecution[]): Set<string> {
   return new Set(contract.operations.filter(operation => (operation.effects.capabilities ?? []).some(id => capabilityTimeout(id, capabilities) > 30_000)).map(operation => operation.id));
 }
-export type Lane = 'quick' | 'slow';
+export type Lane = 'quick' | 'slow' | 'review';
 
 /** A plugin that may wait on a slow capability gets operation and service limits that fit one such call. */
 export function capabilityLimits(effects: SandboxEffects, capabilities: readonly CapabilityExecution[]): Partial<SandboxLimits> {

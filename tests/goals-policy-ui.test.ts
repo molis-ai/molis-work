@@ -39,7 +39,7 @@ test("progress checks describe the resolved policy without writing it", () => {
 });
 
 test("archived/read-only policy presentation has no writable forms and locale remains request-local", () => {
-  const readOnly = withGoalLocale("en", () => renderer.renderPolicyEditor(item, { editGoal: false, editProject: false }));
+  const readOnly = withGoalLocale("en", () => renderer.renderPolicyEditor(item, { editGoal: false }));
   assert.match(readOnly, /Effective rules now/);
   assert.match(readOnly, /You have the final confirmation/);
   assert.doesNotMatch(readOnly, /data-policy-form|<input|<textarea/);
@@ -48,40 +48,14 @@ test("archived/read-only policy presentation has no writable forms and locale re
   assert.doesNotMatch(chinese, /Effective rules now/);
 });
 
-test("project policy form preserves its current scope and save fields", () => {
-  const html = renderer.renderPolicyForm(null, "project_default", base, undefined, "project-one", true);
-  assert.match(html, /name="scope" value="project_default"/);
-  assert.match(html, /data-live-form="policy-project_default-project-one"/);
-  assert.doesNotMatch(html, /name="reason"/);
-  assert.match(html, /name="human_approval" checked>/);
-  assert.doesNotMatch(html, /name="goal_id"/);
-});
-
-test("project policy document selects the last active project binding and uses default values when absent", () => {
-  const active = item.policy_bindings[0]!;
-  const recent = { ...active, policy_binding_id: "recent", policy: { human_approval: false }, reason: 'Latest "<safe>' };
-  const view = { project: { project_id: 'project-"<safe>' }, policy_bindings: [active, recent,
-    { ...active, state: "inactive", policy: { human_approval: true } },
-    { ...active, scope: "goal", goal_id: "other", policy: { human_approval: true } }] };
+test("APR-19 Goals renders the resolved approval rule and the link to its platform owner", () => {
+  const view = { ...item, resolved_policy: { human_approval: false } };
   const before = structuredClone(view);
-  const html = renderer.renderProjectPolicyDocument(view);
-  assert.match(html, /id="project-rules-title">项目工作规则/);
-  assert.match(html, /data-project-rules-receipt role="status" tabindex="-1" hidden/);
-  assert.match(html, /class="mw-hint"/);
-  assert.match(html, /<section class="settings-section"><h2>完成要求<\/h2>/);
-  assert.doesNotMatch(html, /data-rules-advanced|<details/);
-  assert.match(html, /settings-save-footer/);
-  assert.doesNotMatch(html, /name="reason"|修改原因/);
-  assert.match(html, /class="mw-switch"/);
-  assert.match(html, /name="human_approval">/, "the last active project binding turned it off");
-  assert.doesNotMatch(html, /Latest &quot;&lt;safe&gt;/);
-  assert.match(html, /data-live-form="policy-project_default-project-&quot;&lt;safe&gt;"/);
-  assert.equal(html.split("data-policy-form").length - 1, 1);
+  const html = renderer.renderPolicyEditor(view);
+  assert.match(html, /href="__PROJECT_RULES_SETTINGS__"/);
+  assert.doesNotMatch(html, /<form|name="reason"|name="goal_id"|name="human_approval"|Minimum baseline/);
   assert.deepEqual(view, before);
-  const defaults = renderer.renderProjectPolicyDocument({ project: null, policy_bindings: [] });
-  assert.match(defaults, /name="human_approval" checked>/, "with no binding the system default applies");
-  assert.match(defaults, /policy-project_default-current-project/);
-  const english = withGoalLocale("en", () => renderer.renderProjectPolicyDocument(view));
-  assert.match(english, /Project work rules/);
-  assert.match(english, /These rules are checked when a Goal closes/);
+  const english = withGoalLocale("en", () => renderer.renderPolicyEditor(view));
+  assert.match(english, /Effective rules now/);
+  assert.match(english, /No final user approval required/i);
 });

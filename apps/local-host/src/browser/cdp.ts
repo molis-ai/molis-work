@@ -1,4 +1,5 @@
 import { WebSocket } from "ws";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostLog } from "../host-log.js";
 
 /**
@@ -38,7 +39,7 @@ export class CdpConnection {
 
   get closed(): boolean { return this.closedReason !== null; }
 
-  send(method: string, params: CdpParams = {}, sessionId?: string, timeoutMs = 30_000): Promise<CdpResult> {
+  send(method: string, params: CdpParams = {}, sessionId?: string, timeoutMs = 30_000, beforeSend?: () => void): Promise<CdpResult> {
     if (this.closedReason !== null) return Promise.reject(new CdpError(method, this.closedReason));
     const id = ++this.nextId;
     return new Promise((resolve, reject) => {
@@ -51,12 +52,16 @@ export class CdpConnection {
         resolve: value => { clearTimeout(timer); resolve(value); },
         reject: error => { clearTimeout(timer); reject(error); },
       });
-      this.socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }), error => {
-        if (!error) return;
-        const held = this.waiting.get(id);
-        this.waiting.delete(id);
-        held?.reject(new CdpError(method, "发不到浏览器"));
-      });
+      try {
+        const frame = JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) });
+        requireSynchronous(beforeSend?.());
+        this.socket.send(frame, error => {
+          if (!error) return;
+          const held = this.waiting.get(id);
+          this.waiting.delete(id);
+          held?.reject(new CdpError(method, "发不到浏览器"));
+        });
+      } catch (error) { this.waiting.delete(id); clearTimeout(timer); reject(error); }
     });
   }
 

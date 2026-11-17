@@ -7,12 +7,14 @@ import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 import { chinesePagePacks, withPagePacks } from "./fixtures/page-text-packs.js";
+import { insertHistoricalPolicy } from "./historical-sql-fixture.js";
+import { projectApprovalRules } from "@molis-ai/molis-work-service-project-approvals";
 
 test("public Query preserves complete rule history and Runtime dependency/replacement facts", () => {
   const store = new LocalProjectDatabase(":memory:");
   try {
     const coordinator = new GoalProjectApplication(store);
-    const goals = new GoalsModule(pluginLegalSql(store).db, store, {});
+    const goals = new GoalsModule(pluginLegalSql(store).db, store, {}, { approvalRules: (project, history) => projectApprovalRules(store.db, project).read(history).rules });
     for (const board of ["query-main", "query-other"]) coordinator.initializeBoard({
       project_id: board, actor_id: "user", idempotency_key: `init:${board}`,
     });
@@ -25,13 +27,11 @@ test("public Query preserves complete rule history and Runtime dependency/replac
     }
     const at = "2026-09-01T01:00:00.000Z";
     // Historical rows deliberately include inactive rules and equal timestamps.
-    const rule = store.db.prepare(`INSERT INTO policy_bindings
-      (policy_binding_id, project_id, goal_id, scope, policy_json, state, created_by, reason, created_at)
-      VALUES (?, ?, ?, 'goal', ?, ?, 'historical-user', ?, ?)`);
-    for (const [id, state, human_approval] of [["rule-z", "withdrawn", true], ["rule-a", "replaced", true], ["rule-m", "active", false]] as const) {
-      rule.run(id, "query-main", "subject", JSON.stringify({ human_approval }), state, `reason:${id}`, at);
+    for (const [id, state, human_approval] of [["rule-a", "replaced", true], ["rule-m", "active", false], ["rule-z", "withdrawn", true]] as const) {
+      insertHistoricalPolicy(store.db, { policy_binding_id: id, project_id: "query-main", goal_id: "subject", policy: { human_approval }, state,
+        created_by: "historical-user", reason: `reason:${id}`, created_at: at });
     }
-    rule.run("rule-foreign", "query-other", "foreign", '{"human_approval":true}', "active", "foreign", at);
+    insertHistoricalPolicy(store.db, { policy_binding_id: "rule-foreign", project_id: "query-other", goal_id: "foreign", policy: { human_approval: true }, created_at: at });
     const expectedHistory = [["rule-a", "replaced", true], ["rule-m", "active", false], ["rule-z", "withdrawn", true]].map(([id, state, human_approval]) => ({
       policy_binding_id: id, goal_id: "subject", scope: "goal", policy: { human_approval },
       state, created_by: "historical-user", reason: `reason:${id}`, created_at: at,
@@ -60,7 +60,8 @@ test("public Query preserves complete rule history and Runtime dependency/replac
 
     const before = boardSnapshot(store, "query-main");
     const view = withPagePacks("zh", chinesePagePacks("goals"), () => buildMolisWorkWebView(store, coordinator, { projectId: "query-main" }));
-    assert.deepEqual(view.policy_bindings, expectedHistory, "The real Web view must carry inactive rules and original ordering");
+    assert.equal(Object.hasOwn(view, "policy_bindings"), false, "rule history stays in its platform settings entry");
+    assert.deepEqual(projectApprovalRules(store.db, "query-main").page().rules.map(rule => rule.id), ["rule-z", "rule-m", "rule-a"]);
     const after = boardSnapshot(store, "query-main");
     assert.deepEqual(after.goals, before.goals);
     assert.deepEqual(after, before, "Read paths must not write");

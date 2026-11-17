@@ -1,13 +1,12 @@
 import type { SessionHandoffGoalContext } from "@molis-ai/molis-work-plugin-work";
 import type { GoalProjectApplication } from "./fixtures/goal-application.js";
+import { GOALS_PLUGIN_ID, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 
 type SqlDatabase = {
   prepare(sql: string): { run(...params: unknown[]): unknown };
 };
 
-const DEFAULT_POLICY_JSON = JSON.stringify({ human_approval: false });
-
-/** Temporary historical Policy binding. Production Policy writers are retired. */
+/** Seed the platform projection of a v3 historical binding. The original columns are checked in the upgrade tests. */
 export function insertHistoricalPolicy(
   db: SqlDatabase,
   input: {
@@ -23,20 +22,18 @@ export function insertHistoricalPolicy(
     created_at?: string;
   },
 ): void {
-  db.prepare(`
-    INSERT INTO policy_bindings (
-      policy_binding_id, project_id, goal_id, scope, policy_json, state, created_by, reason, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    input.policy_binding_id,
-    input.project_id,
-    input.goal_id ?? null,
-    input.scope ?? "project_default",
-    input.policy_json ?? JSON.stringify(input.policy),
+  const owner = { kind: "plugin", plugin_id: GOALS_PLUGIN_ID, publisher_signature: goalsManifest.publisher.signature };
+  const scope = input.goal_id ? { kind: input.scope === "ancestor_minimum" ? "ancestor_minimum" : "object", owner,
+    subject: { kind: "goal", id: input.goal_id } } : { kind: "project_default", owner };
+  const policy = (input.policy_json === undefined ? input.policy : JSON.parse(input.policy_json)) as { human_approval?: boolean };
+  db.prepare(`INSERT INTO project_approval_rules (id, project_id, scope_json, requires_person, state, created_by, reason, created_at, rule_order, revision)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, (SELECT coalesce(max(rule_order),0)+1 FROM project_approval_rules WHERE project_id=?), 1)`)
+    .run(input.policy_binding_id, input.project_id, JSON.stringify(scope), typeof policy.human_approval === "boolean" ? Number(policy.human_approval) : null,
     input.state ?? "active",
     input.created_by ?? "original-user",
     input.reason ?? "historical policy",
     input.created_at ?? "2026-09-01T00:00:00.000Z",
+    input.project_id,
   );
 }
 

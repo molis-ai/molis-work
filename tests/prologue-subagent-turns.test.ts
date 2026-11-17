@@ -47,7 +47,7 @@ test("packed SDK: a subagent dispatched without maxTurns may take 20 turns", { t
       const view = await adapter.read(handle.ref);
       if (["completed", "failed", "cancelled"].includes(view.phase)) break;
       if (Date.now() > deadline) throw new Error("timed out: " + JSON.stringify({ view, childCalls }));
-      for (const review of queue.list("b", "pending")) if (!decided.has(review.review_id)) { decided.add(review.review_id); await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" }); }
+      for (const review of queue.list("b", "pending")) if (!decided.has(review.review_id)) { decided.add(review.review_id); await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "user" }); }
       await new Promise(resolve => setTimeout(resolve, 10));
     }
     const children = await adapter.subagents!.list(handle.ref);

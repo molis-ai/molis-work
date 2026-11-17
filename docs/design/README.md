@@ -18,6 +18,7 @@
 - [连续对话与后台任务定样](assistant-background-tasks/README.md)
 - [助理卡片规格板](assistant-cards/README.md)
 - [助理三条路径定样](assistant-proactive-paths/README.md)
+- [权限选择、授权管理与审批来源定样（第 39 批）](authorization-review/README.md)
 - [基础首页定样](basic-home/README.md)
 - [能力包：定样（路线书第 09 批 9-11）](capability-pack/README.md)
 - [35-2 · Coding A 期定样（命令与说明文件、图片、代码理解工具、写后检查与格式化）](coding-daily-basics/README.md)

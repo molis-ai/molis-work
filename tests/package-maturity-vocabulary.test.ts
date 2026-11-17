@@ -41,8 +41,11 @@ test("W5-15-03 the registry rejects any maturity word outside the vocabulary, wi
     counts[item.maturity] = (counts[item.maturity] ?? 0) + 1;
   }
   // Batch 17 adds the experimental plugins/native/risk, batch 19 plugins/native/work-brief, batch 30 horizontal/evaluation; batch 32
-  // the slices modules/acceptance and horizontal/mainline; batch 34 the slice horizontal/sessions.
-  assert.deepEqual(counts, { production: 47, experimental: 4, slice: 23 });
+  // the slices modules/acceptance and horizontal/mainline; batch 34 the slice horizontal/sessions; batch 39 the slices
+  // horizontal/automation-recommender and horizontal/project-approvals.
+  assert.deepEqual(counts, { production: 47, experimental: 4, slice: 25 });
+  assert.deepEqual(WORKSPACE_PACKAGES.filter(item => item.path === "horizontal/automation-recommender").map(item => item.maturity), ["slice"]);
+  assert.deepEqual(WORKSPACE_PACKAGES.filter(item => item.path === "horizontal/project-approvals").map(item => item.maturity), ["slice"]);
   assert.deepEqual(WORKSPACE_PACKAGES.filter(item => item.path === "horizontal/sessions").map(item => item.maturity), ["slice"]);
   assert.deepEqual(WORKSPACE_PACKAGES.filter(item => item.path === "horizontal/observation").map(item => item.maturity), ["slice"]);
   assert.deepEqual(WORKSPACE_PACKAGES.filter(item => item.path === "horizontal/evaluation").map(item => item.maturity), ["slice"]);

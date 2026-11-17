@@ -2,7 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabase, PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { currentPluginInvocation, inPluginInstance, lastBegunPluginInvocation, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { hostLog } from "./host-log.js";
-import { openPluginDatabase } from "./plugin-database.js";
+import { openPluginDatabase } from "./plugin-home-database-client.js";
 
 /**
  * How often open project libraries are looked at. One that was not used since the last look, and has no write under way, is closed:

@@ -5,6 +5,7 @@ import {buildSync} from 'esbuild';
 import {UI_REQUEST_CLIENT_SCRIPT} from '@molis-ai/molis-work-ui-host';
 import {workbenchClientSource} from '../dist/page-assets.js';
 import {ACCOUNT_CLIENT_SCRIPT} from '../dist/scripts/account.js';
+import {capabilitiesClientSource} from '../dist/scripts/capabilities-client.js';
 const compactor=fileURLToPath(new URL('../../../scripts/client-literals.mjs',import.meta.url));
 const compactClientScript=source=>execFileSync(process.execPath,[compactor],{
   input:source,encoding:'utf8',maxBuffer:16*1024*1024,stdio:['pipe','pipe','inherit'],
@@ -17,6 +18,7 @@ const [frame]=buildSync({
 writeFileSync(frame.path,compactClientScript(frame.text));
 const kit=new URL('../dist/kit-client.js',import.meta.url);
 writeFileSync(kit,compactClientScript(readFileSync(kit,'utf8')));
+writeFileSync(new URL('../dist/capabilities-client.js',import.meta.url),compactClientScript(capabilitiesClientSource()));
 const workRecords=new URL('../dist/work-records-client.js',import.meta.url);
 writeFileSync(workRecords,compactClientScript(readFileSync(workRecords,'utf8')));
 const sessions=new URL('../dist/sessions-client.js',import.meta.url);

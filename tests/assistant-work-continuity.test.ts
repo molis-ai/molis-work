@@ -111,7 +111,7 @@ test("a work keeps what it used and produced; an edit by hand shows as changed a
       context: { source: { surface: "notes", title: "Notes" }, object: { kind: "note", id: "bg", version: 4, title: "background" }, captured_at: new Date().toISOString() },
       materials: [{ material_id: "m1", kind: "object", title: "background", explicit: true, object: { kind: "note", id: "bg", version: 4 }, text: "background" }] }, { project_ref: f.project });
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
-    await f.service.outcomes.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    await f.service.outcomes.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, version: held.reviews[0]!.version, decision: "approve" });
     let view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "first round");
     const produced = view.objects.find(object => object.relation === "result")!;
     assert.deepEqual({ relation: produced.relation, kind: produced.subject.kind, recorded: produced.recorded_revision, state: produced.state, open: produced.open },
@@ -137,7 +137,7 @@ test("a work keeps what it used and produced; an edit by hand shows as changed a
     // The first attempt without a version never reached the person.
     assert.equal(second.reviews.length, 1);
     assert.ok(second.reviews[0]!.fields.some(field => field.value === "2"), "the approved change carries the version it was read at");
-    await f.service.outcomes.decide(sent.work.work_id, { review_id: second.reviews[0]!.review_id, decision: "approve" });
+    await f.service.outcomes.decide(sent.work.work_id, { review_id: second.reviews[0]!.review_id, version: second.reviews[0]!.version, decision: "approve" });
     view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "second round");
     assert.deepEqual(f.notes.get("n1"), { text: "Q4 draft + hand edit, shorter", version: 3 });
     const results = view.objects.filter(object => object.relation === "result").map(object => [object.subject.id, object.recorded_revision, object.state]);
@@ -161,7 +161,7 @@ test("an object edited by hand while a change to it waits for approval is not ov
     const sent = await f.service.send({ text: "改写 n9", request_id: "req-00000121" }, { project_ref: f.project });
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     f.notes.set("n9", { text: "the person's own edit", version: 2 });
-    await f.service.outcomes.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    await f.service.outcomes.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, version: held.reviews[0]!.version, decision: "approve" });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["completed", "failed"].includes(v.work.state) ? v : undefined; }, "end");
     assert.deepEqual(f.notes.get("n9"), { text: "the person's own edit", version: 2 }, "the newer version stays");
     const change = done.rounds[0]!.activity.find(item => item.verb === "change")!;
@@ -197,7 +197,7 @@ test("what the person does in the plugin settles what it made redundant: a sugge
     await f.service.list();
     await f.service.send({ work_id: sent.work.work_id, text: "再新建一条", request_id: "req-00000132" }, {});
     const held = await until(async () => { await f.service.list(); const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
-    await f.service.outcomes.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    await f.service.outcomes.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, version: held.reviews[0]!.version, decision: "approve" });
     await until(async () => (await f.service.list()).find(work => work.work_id === sent.work.work_id)?.state === "completed", "completed");
     assert.ok(f.service.notices.notices(null).some(notice => notice.work_id === sent.work.work_id && notice.kind === "completed"));
     assert.equal(await f.service.notices.settleHandledNotices(), 0, "not yet acted on");

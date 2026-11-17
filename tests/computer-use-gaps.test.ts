@@ -1,4 +1,7 @@
+import { reviewDecisionStorage } from "./fixtures/review-decision-storage.js";
+import { AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
+import { desktopState, observeSurface, performSurface, surfaceContext } from "./fixtures/surface-target.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -81,7 +84,7 @@ test("a confirm opened from another project still resolves for the round that ho
 
 function pending(reviewId: string, projectId: string, sessionId: string): AgentReviewRequest {
   return {
-    review_id: reviewId,
+    reference: { owner: { kind: "agent-review" as const, project_id: projectId, plugin_id: "io.molis.work.coding", install_id: "install" }, id: reviewId, version: "proposal-1" }, review_id: reviewId,
     run: { run_id: `run-${reviewId}`, session_id: sessionId },
     project_id: projectId,
     plugin_id: "io.molis.work.coding",
@@ -93,7 +96,7 @@ function pending(reviewId: string, projectId: string, sessionId: string): AgentR
 }
 
 test("the review HTTP follows the holding round, and a fresh click cannot approve itself", async () => {
-  const agentHost = new AgentHost(), host = await hostForReviews();
+  const agentHost = new AgentHost({ reviews: new AgentReviewQueue({ decisions: reviewDecisionStorage().store }) }), host = await hostForReviews();
   let now = 5_000;
   const holder = { sessionId: "hold", projectId: "project-a", lastInjectAt: null as number | null };
   const server = createServer((request, response) => {
@@ -106,13 +109,13 @@ test("the review HTTP follows the holding round, and a fresh click cannot approv
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const decide = (reviewId: string) => fetch(`${base}/api/agent/reviews/decide`, {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ review_id: reviewId, decision: "approve" }),
+    body: JSON.stringify({ review_id: reviewId, version: "proposal-1", decision: "approve" }),
   });
   try {
     agentHost.reviews.request(pending("held", "project-a", "hold"));
-    agentHost.reviews.registerDecisionHandler("held", async input => agentHost.reviews.decide(input));
+    agentHost.reviews.registerDecisionHandler("held", async (input, commit) => await commit());
     agentHost.reviews.request(pending("other", "project-c", "other"));
-    agentHost.reviews.registerDecisionHandler("other", async input => agentHost.reviews.decide(input));
+    agentHost.reviews.registerDecisionHandler("other", async (input, commit) => await commit());
 
     const away = await (await fetch(`${base}/api/agent/reviews?status=pending`)).json() as { reviews: Array<{ request: { review_id: string } }> };
     assert.deepEqual(away.reviews.map(row => row.request.review_id), []);
@@ -143,7 +146,7 @@ test("switching a desktop app is asked about, not denied before a confirm card e
 });
 
 test("no project selected still lists and decides the personal round's confirm", async () => {
-  const agentHost = new AgentHost(), host = await hostForReviews();
+  const agentHost = new AgentHost({ reviews: new AgentReviewQueue({ decisions: reviewDecisionStorage().store }) }), host = await hostForReviews();
   let now = 10_000;
   const holder = { sessionId: "hold", projectId: null as string | null, lastInjectAt: null as number | null };
   const server = createServer((request, response) => {
@@ -156,13 +159,13 @@ test("no project selected still lists and decides the personal round's confirm",
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const decide = (reviewId: string) => fetch(`${base}/api/agent/reviews/decide`, {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ review_id: reviewId, decision: "approve", remember: "app-this-round" }),
+    body: JSON.stringify({ review_id: reviewId, version: "proposal-1", decision: "approve", remember: "app-this-round" }),
   });
   try {
     agentHost.reviews.request(pending("personal", "home", "hold"));
-    agentHost.reviews.registerDecisionHandler("personal", async input => agentHost.reviews.decide(input));
+    agentHost.reviews.registerDecisionHandler("personal", async (input, commit) => await commit());
     agentHost.reviews.request(pending("foreign", "project-a", "other"));
-    agentHost.reviews.registerDecisionHandler("foreign", async input => agentHost.reviews.decide(input));
+    agentHost.reviews.registerDecisionHandler("foreign", async (input, commit) => await commit());
     const listed = await (await fetch(`${base}/api/agent/reviews?status=pending&limit=20`)).json() as { reviews: Array<{ request: { review_id: string } }> };
     assert.deepEqual(listed.reviews.map(row => row.request.review_id), ["personal"]);
     assert.equal((await fetch(`${base}/api/agent/reviews/recovery`)).status, 404);
@@ -243,14 +246,15 @@ test("the desktop driver stores the round's project and frees the computer when 
   const desk = new ComputerDesk({
     helper: {
       on: () => () => undefined,
-      ready: true,
+      ready: true, generation: 1,
       status: () => ({ version: "test", pid: 1, bundle_id: "test.helper", permissions: { accessibility: true, screen_recording: true, input_monitoring: true }, presence: { locked: false, screensaver: false, displays_asleep: false, on_console: true, idle_seconds: 0 }, watching: false, last_synthetic: 0 }),
       unsupported: () => null,
       problem: () => null,
       ensure: async () => ({ version: "test", pid: 1, bundle_id: "test.helper", permissions: { accessibility: true, screen_recording: true, input_monitoring: true }, presence: { locked: false, screensaver: false, displays_asleep: false, on_console: true, idle_seconds: 0 }, watching: false, last_synthetic: 0 }),
-      call: async <T>(op: string): Promise<T> => {
+      call: async <T>(op: string, params?: Record<string, unknown>, _timeout?: number, beforeSend?: () => void): Promise<T> => {
+        beforeSend?.();
         if (op === "apps.running") return { apps: [] } as T;
-        if (op === "monitor") return {} as T;
+        if (op === "monitor") return { watching: params?.on === true } as T;
         throw new Error(op);
       },
     },
@@ -262,9 +266,10 @@ test("the desktop driver stores the round's project and frees the computer when 
     assert.equal(typeof driver.describeRound, "function");
     assert.equal(typeof driver.noteRun, "function");
     assert.equal(typeof driver.release, "function");
-    driver.describeRound!("sess-molis", { run_id: null, project_id: "project-a", goal: "打开备忘录" });
-    driver.noteRun!("sess-prologue-ref", "run-9");
-    await driver.observe("accessibility-tree", { session_id: "sess-molis" });
+    const first = surfaceContext("sess-molis"), next = surfaceContext("sess-2");
+    driver.describeRound!(first, { run_id: null, project_id: "project-a", goal: "打开备忘录" });
+    driver.noteRun!(first, "run-9");
+    await observeSurface(driver, "accessibility-tree", first);
 
     assert.equal(desk.holding()?.sessionId, "sess-molis");
     assert.equal(desk.holding()?.projectId, "project-a");
@@ -277,13 +282,13 @@ test("the desktop driver stores the round's project and frees the computer when 
     assert.equal(open?.goal, "打开备忘录");
     assert.equal(open?.ended_at, null);
 
-    await assert.rejects(() => driver.observe("accessibility-tree", { session_id: "sess-2" }), /另一项工作/);
+    await assert.rejects(() => observeSurface(driver, "accessibility-tree", next), /另一项工作|原轮次不再占用电脑/);
     assert.equal(desk.holding()?.sessionId, "sess-molis");
 
     // The surface host keys drivers by the Prologue session ref and ends the round with how its run settled. The
     // driver must still finish the Molis lease: using that ref as the lease id would leave the computer held.
     const release = driver.release!;
-    await release("completed");
+    await release(first, "completed");
     assert.equal(desk.holding(), null);
     assert.equal(desk.state().record_id, null);
     const finished = records.get(openId);
@@ -292,12 +297,12 @@ test("the desktop driver stores the round's project and frees the computer when 
     assert.match(finished?.conclusion ?? "", /没有写要核对的窗口、文件或记录/);
     assert.equal(typeof finished?.ended_at, "string");
 
-    driver.describeRound!("sess-2", { run_id: null, project_id: "project-b", goal: "下一轮" });
-    driver.noteRun!("sess-prologue-ref-2", "run-10");
-    await driver.observe("accessibility-tree", { session_id: "sess-2" });
+    driver.describeRound!(next, { run_id: null, project_id: "project-b", goal: "下一轮" });
+    driver.noteRun!(next, "run-10");
+    await observeSurface(driver, "accessibility-tree", next);
     assert.equal(desk.holding()?.projectId, "project-b");
     assert.equal(records.get(desk.state().record_id!)?.run_id, "run-10");
-    await release();
+    await release(next);
     assert.equal(desk.holding(), null);
   } finally {
     desk.close();
@@ -305,24 +310,32 @@ test("the desktop driver stores the round's project and frees the computer when 
   }
 });
 
-function desktop(state: ReturnType<typeof seen>, probe: { window?: { pid?: number; title?: string }; element?: { pid?: number; window_title?: string } }, shot: Record<string, unknown> = { png: "" }, extra: { steps?: { kind?: string }[]; fail?: Record<string, Error>; field?: { name: string; secure: boolean } } = {}): DeskContext {
+function desktop(state: ReturnType<typeof seen>, probe: { window?: { pid?: number; title?: string }; element?: { pid?: number; window_title?: string } }, shot: Record<string, unknown> = { png: "" }, extra: { steps?: { kind?: string }[]; fail?: Record<string, Error>; field?: { name: string; secure: boolean } } = {}): DeskContext & { injected(): number } {
   let injected = 0;
+  const target = { bundle_id: state.bundle_id, name: state.name, pid: state.pid, verdict: { tier: "ask" as const, reason: "", built_in: true } };
   return {
-    helper: { async call<T>(op: string): Promise<T> {
+    helper: { async call<T>(op: string, _params?: Record<string, unknown>, _timeout?: number, beforeSend?: () => void, onDispatch?: () => void): Promise<T> {
+      beforeSend?.(); onDispatch?.();
       if (extra.fail?.[op]) throw extra.fail[op];
       if (op === "app.state" || op === "app.open") return state as T;
       if (op === "apps.installed" || op === "apps.running") return { apps: [{ bundle_id: state.bundle_id, name: state.name }] } as T;
-      if (op === "probe.point") return probe as T;
+      if (op === "probe.point") return {
+        ...probe, window: probe.window ? { id: 1, ...probe.window } : undefined,
+        element: probe.element ? { name: "按钮", ...probe.element } : undefined,
+      } as T;
       if (op === "observe.screenshot") return shot as T;
       if (op === "observe.tree") return { window: { title: state.window?.title ?? "", frame: state.window?.frame ?? [0, 0, 1, 1] }, nodes: [{ role: "AXButton", name: "按钮", depth: 0, frame: [0, 0, 10, 10] }], truncated: false, menus: [] } as T;
-      if (op.startsWith("input.") || op === "focused.field") return (op === "focused.field" ? extra.field ?? { name: "", secure: false } : {}) as T;
+      if (op === "input.pointer" && probe.window?.pid !== undefined && probe.window.pid !== state.pid) throw helperFailure("landing.covered", "落点不在目标应用", false);
+      if (op.startsWith("input.") || op === "focused.field") return (op === "focused.field" ? extra.field ?? { name: "", secure: false } : { done: true }) as T;
       throw new Error(op);
     } },
     settings: { forbiddenIds: () => [] },
     noteInjected: () => { injected += 1; },
-    target: () => ({ bundle_id: state.bundle_id, name: state.name, pid: state.pid, verdict: { tier: "ask" as const, reason: "", built_in: true } }),
+    target: () => target,
     setTarget: () => undefined,
     takeovers: () => 0,
+    assertCurrent: () => undefined,
+    assertReady: () => undefined,
     ready: async () => undefined,
     readiness: async () => null,
     mark: () => undefined,
@@ -334,16 +347,19 @@ function desktop(state: ReturnType<typeof seen>, probe: { window?: { pid?: numbe
     pauseForPerson: () => undefined,
     pendingPersonMove: () => false,
     changed: () => undefined,
+    describeRound: () => undefined,
+    noteRun: () => undefined,
+    release: () => undefined,
     injected: () => injected,
-  } as DeskContext & { injected(): number };
+  };
 }
 
 function seen(bundle: string, name: string, title: string, pid = 4) {
-  return { bundle_id: bundle, name, pid, active: true, hidden: false, front_pid: pid, window: { title, frame: [0, 0, 120, 80] as [number, number, number, number], window_id: 1, document: "" } };
+  return desktopState({ bundle_id: bundle, name, pid, active: true, hidden: false, front_pid: pid, window: { title, frame: [0, 0, 120, 80] as [number, number, number, number], window_id: 1, document: "" } });
 }
 
 test("the desktop driver refuses the same four inputs before it acts", async () => {
-  const perform = async (action: HostSurfaceAction, context: DeskContext) => context && new ComputerDriver(context).surface().perform(action, { session_id: "s" });
+  const perform = async (action: HostSurfaceAction, context: DeskContext) => context && performSurface(new ComputerDriver(context).surface(), action, surfaceContext("s"));
   const terminalSteps: { kind?: string }[] = [];
   await assert.rejects(() => perform({ what: "text", text: "rm" }, desktop(seen("com.apple.Terminal", "Terminal", TEXT), {}, { png: "" }, { steps: terminalSteps })), (error: unknown) => isRefused(error) && /只能看和点/.test(error.message));
   assert.equal(terminalSteps.at(-1)?.kind, "refused");
@@ -354,12 +370,12 @@ test("the desktop driver refuses the same four inputs before it acts", async () 
   const covered = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), { window: { pid: 9, title: "Mail" }, element: { pid: 9, window_title: "Mail" } });
   await assert.rejects(() => perform({ what: "pointer", x: 1, y: 1, button: "left", clicks: 1 }, covered), (error: unknown) => isRefused(error) && /落点不在目标应用/.test(error.message));
   const capture = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), { window: { pid: 4 }, element: { pid: 4, window_title: "Notes" } }, { png: "", included_pids: [4, 8] });
-  await assert.rejects(() => new ComputerDriver(capture).surface().observe("screenshot", { session_id: "s" }), (error: unknown) => isRefused(error) && /别的应用/.test(error.message));
+  await assert.rejects(() => observeSurface(new ComputerDriver(capture).surface(), "screenshot", surfaceContext("s")), (error: unknown) => isRefused(error) && /别的应用/.test(error.message));
   const passwords = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), {}, { png: "", password_fields: 1, masked: 0 });
-  await assert.rejects(() => new ComputerDriver(passwords).surface().observe("screenshot", { session_id: "s" }), (error: unknown) => isRefused(error) && /密码框/.test(error.message));
+  await assert.rejects(() => observeSurface(new ComputerDriver(passwords).surface(), "screenshot", surfaceContext("s")), (error: unknown) => isRefused(error) && /密码框/.test(error.message));
   const helperShot: { kind?: string }[] = [];
   const helperCapture = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), {}, { png: "" }, { steps: helperShot, fail: { "observe.screenshot": helperFailure("capture.password", "截图会带出没有涂黑的密码框") } });
-  await assert.rejects(() => new ComputerDriver(helperCapture).surface().observe("screenshot", { session_id: "s" }), (error: unknown) => isRefused(error) && /密码框/.test(error.message));
+  await assert.rejects(() => observeSurface(new ComputerDriver(helperCapture).surface(), "screenshot", surfaceContext("s")), (error: unknown) => isRefused(error) && /密码框/.test(error.message));
   assert.equal(helperShot.at(-1)?.kind, "refused");
   const typed: { kind?: string }[] = [];
   const lookOnly = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), { window: { pid: 4 }, element: { pid: 4, window_title: "Notes" } }, { png: Buffer.from("png").toString("base64"), included_pids: [4], password_fields: 0, masked: 0 }, { steps: typed, fail: { "input.text": helperFailure("input.look_only", "「Terminal」只能看和点：助理不能在这里输入或按键（命令走 Coding）") } });
@@ -367,7 +383,7 @@ test("the desktop driver refuses the same four inputs before it acts", async () 
   assert.equal(typed.at(-1)?.kind, "refused");
   await assert.rejects(() => perform({ what: "text", text: "secret" }, desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), { window: { pid: 4 }, element: { pid: 4 } }, { png: "" }, { field: { name: "密码", secure: true } })), (error: unknown) => isRefused(error) && /密码/.test(error.message));
   const clear = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), { window: { pid: 4 }, element: { pid: 4, window_title: "Notes" } }, { png: Buffer.from("png").toString("base64"), included_pids: [4], password_fields: 0, masked: 0 });
-  await new ComputerDriver(clear).surface().perform({ what: "pointer", x: 1, y: 1, button: "left", clicks: 1 }, { session_id: "s" });
+  await performSurface(new ComputerDriver(clear).surface(), { what: "pointer", x: 1, y: 1, button: "left", clicks: 1 }, surfaceContext("s"));
   assert.equal((clear as DeskContext & { injected(): number }).injected(), 1);
   const menuSteps: { kind?: string }[] = [];
   const menu = desktop(seen("com.apple.Terminal", "Terminal", TEXT), {}, { png: "" }, { steps: menuSteps });
@@ -380,28 +396,26 @@ test("a look at the assistant's own window is recorded as refused", async () => 
   const steps: { kind?: string; summary?: string }[] = [];
   const own = desktop(seen("com.apple.Safari", "Safari", "确认 · Molis Work"), {}, { png: "" }, { steps });
   const driver = new ComputerDriver(own);
-  await assert.rejects(() => driver.surface().observe("accessibility-tree", { session_id: "s" }), (error: unknown) => isRefused(error) && /Molis Work/.test(error.message));
+  await assert.rejects(() => observeSurface(driver.surface(), "accessibility-tree", surfaceContext("s")), (error: unknown) => isRefused(error) && /Molis Work/.test(error.message));
   await assert.rejects(() => driver.freshFrame(), (error: unknown) => isRefused(error) && /Molis Work/.test(error.message));
   assert.equal(steps.filter(step => step.kind === "refused").length, 2);
   assert.match(steps[0]?.summary ?? "", /Molis Work/);
 });
 
-test("a refused picture after the action is not recorded as a successful step", async () => {
+test("a refused picture is not saved or exposed after a confirmed action", async () => {
   const shot = { png: Buffer.from("png").toString("base64"), included_pids: [4], password_fields: 1, masked: 0 };
   const probe = { window: { pid: 4 }, element: { pid: 4, window_title: "Notes" } };
   const steps: { kind?: string }[] = [];
   const clicked = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), probe, shot, { steps });
-  await assert.rejects(
-    () => new ComputerDriver(clicked).surface().perform({ what: "pointer", x: 1, y: 1, button: "left", clicks: 1 }, { session_id: "s" }),
-    (error: unknown) => isRefused(error) && /密码/.test((error as Error).message),
-  );
-  assert.equal(steps.filter(step => step.kind === "act").length, 0);
-  assert.equal(steps.filter(step => step.kind === "refused").length, 1);
+  const receipt = await performSurface(new ComputerDriver(clicked).surface(), { what: "pointer", x: 1, y: 1, button: "left", clicks: 1 }, surfaceContext("s"));
+  assert.deepEqual(receipt, { tree: "操作已完成，请重新观察窗口。" });
+  assert.equal(steps.filter(step => step.kind === "act").length, 1);
+  assert.equal(steps.filter(step => step.kind === "refused").length, 0);
   assert.equal((clicked as DeskContext & { injected(): number }).injected(), 1);
   const switched: { kind?: string }[] = [];
   const opened = desktop(seen("com.apple.TextEdit", "TextEdit", "Notes"), probe, shot, { steps: switched });
   await assert.rejects(
-    () => new ComputerDriver(opened).surface().perform({ what: "app", app: "com.apple.TextEdit" }, { session_id: "s" }),
+    () => performSurface(new ComputerDriver(opened).surface(), { what: "app", app: "com.apple.TextEdit" }, surfaceContext("s")),
     (error: unknown) => isRefused(error),
   );
   assert.equal(switched.filter(step => step.kind === "refused").length, 1);

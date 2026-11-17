@@ -10,6 +10,8 @@
 
 Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副作用 Review 队列。
 
+Surface 每轮创建新的 SDK target，`HostSurfaceContext` 固定原轮检查与驱动租约身份。临时拒绝不释放独占浏览器；接受停止或实际终态才永久释放。SDK `detach` 清掉活 target/observation/plan，原 effect/pending 仍由 SDK 保存与结算。审批卡展示完整输入和原目标；原权限丢失、目标/焦点/正文不可读只保留可拒绝的摘要，不能批准或记住本轮许可。关闭时 Surface 失败仍执行原关闭链，依赖 SDK 的 owner 失败则保留 Runtime；已确认在关库后抛出的原 Surface 错误不能被一次空 shutdown 冲掉。工程拒绝证据见 [S-surface-round](../../docs/system/security-invariants/S-surface-round.md)；实际 CDP、桌面 helper 和最终用户操作仍须另验。
+
 Node 适配器类型与运行时都要求明确的绝对 `storageRoot`；缺失、空值、相对路径以 `agent.storage_root_invalid` 在 SDK 与磁盘初始化前拒绝，不回退到 cwd 或用户默认目录。适配器通过 storage 的同一 SQLite 独占端口取得所有权，或借用本 Home Host 已持有的 opaque owner；没有另一套锁、同 PID 放行或可复制的 proof。获取或第二借用失败报告 `agent.storage_busy`，不读取恢复记录。只有实际 SDK 关闭成功才归还借用；失败关闭保留所有权，下一次明确 close 可以重试。初始化失败先清理已创建的 Runtime 资源再归还自己的部分，父 Host 继续持锁。跨进程入口转发给常驻 Host，不能用多个 Runtime 直接共享目录。回归：`tests/security-invariants-home-storage-sdk.test.ts`、`tests/security-invariants-home-storage-host.test.ts`。
 
 `verifyPrologueNodeStorageContents` 是离线快照/恢复的无正文薄包装，直接调用 SDK 的公开 `verifyNodeStorageContents`，不创建 Node Host 或 Runtime。可信 Host 从同一 registry 和已持的离线 lease 提供已有归档数据根、原 Home key 根、同步 `assertCurrent` 和 signal；认证所有实际记录 kind/分页、空正文和带密文墓碑，所有 SDK 拒绝都传回。它不读取原锁 fd，不复制 key、补 leases/claims、生成 key 或运行模型；无 sealed 数据不要求 key、不声称认证了 key。回归：`tests/security-invariants-home-snapshot-sdk.test.ts`，完整 C2 结论见 [W5-16 slice](../../specs/archive/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
@@ -47,6 +49,8 @@ adapter 只报告事实并执行已批准的工作。
 
 已经接受的 Run 停止时，当前控制调用先通过原权限检查并持久化停止意图；随后取消和 SDK 终态收尾经现有 effects.detach 脱离该短调用。终态仍由 SDK 保存并发布，界面不提前伪报停止；普通迟到业务写仍受原调用检查。
 
+已派发的业务动作可能在停止时仍等回执。工作权限的终止以原 Run 已提交的结束事件为准，效果继续待核对。原 ActionService 调用成功返回时，Host 用原 SDK 派发许可结算原效果。原调用方能证明尚未调用 ActionService 时，原效果可结算为未派出。宿主关闭时只等已受理的本地回执落盘。其余待核对效果在重启后仍归原轮和原审批。助理仅在当前授权有效时发布动作结果卡、后台工作和结果关系。
+
 Host 可注入版本化 `memory.promotion`，Adapter 将候选、来源、正式变更与 App 历史回执转换为纯 AgentHost DTO，只有这里依赖 SDK 类型。`decide` 只读返回 promote/hold；`undo.prepare` 保存当前操作的准备，`undo.record` 以 SDK 已提交的 canonical entry 补历史及撤销身份。回调首参只能来自当前 `withCaller` 的独立调用上下文，或 SDK 请求对应的可信 Session owner；prepare/record 没有来源上下文时要求原调用绑定仍在，缺失即拒绝，不从模型参数恢复身份，不新建操作账。 App 的 prepare/record 写账也复用原调用的 `PrologueEffects`：异步身份解析和 `beforeEffect` 后紧邻写入核 `assertCurrent` 及本次 `signal`，任一等待中取消不再调用 App 写账；撤权后不能留下准备历史，正式已提交而补账被拒时沿原操作恢复。
 
 SDK 仍拥有来源、权限、期限、取消与正式 CAS 门。App 的回执必须保持原 operation、候选原版本、policy/version 和实际 memory/version；Adapter 不伪造成功，也不证明 App 的历史事务已实际可撤销。已提交而 record 未完成时，SDK 的 `MEMORY_PROMOTION_RECORD_PENDING` 映为 `agent.memory_promotion_record_pending`（conflict），保留`operation_id` 与无正文 `committed: { memory_id, version }`，可用完整原请求重试，不能报成零写入。未装完整晋升实例仍不可用。
@@ -70,13 +74,21 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
 **批准刻意不是插件可调的动作**：那是用户在宿主审查面里的动作；开成插件可调的能力，
 就等于让插件批准自己的副作用。
 
+审查决定只经异步 `AgentReviewQueue.respond`：输入带显示时的提案 `version`，可信入口创建来源，原执行 owner 先提交 `ReviewDecisionStore` 的原子决定，再回答 SDK。来源、决定和原请求快照同条保存，实际执行结果仍归 SDK；旧历史没有新记录就显示来源未记录。保存或读取未知时禁用决定，按原键重读；重启恢复只投影事实，不重新执行。Git 和 checkpoint 使用同一个存储入口。平台动作将原登记、整轮权限和所选 MCP 授权世代固定到 SDK 原调用，批准后也带到真实执行边界。见 [设计合同](../../specs/agent-approval/review-contract-design.md) 与 [安全不变量](../../docs/system/security-invariants/S-review-decision-provenance.md)。
+
 ## 从哪里读代码
+
+有限委托由 `WorkDelegationStore` 独占当前工作及持续选择，Node adapter 的 `delegations` 使用 `molis-work-delegation-<app hash>` 加密记录。工作 epoch、存储 CAS 版本与单条授权 revision 分开；收窄/撤销在核过当前管理调用后同步失效原引用。`permission().assertCurrent` 同时固定原工作和持续权限（包括未选择），执行入口不自行拼授权限制。取消 listener 同步捕获原 Run，返回可重试的 settle 回执；等待在存储队列外，`cancellationPending/settle` 提供原回执的查询/重试，失败不假称撤销已收口。结束保存 ending，原工作 owner 确认收口后再 finishEnd；新一次明确授权只有 owner 核过可重开后才使用 reopen。当前选择撤销或到期保留确认模式，损坏记录拒绝，不恢复旧自动策略。暂时读回失败可在原键恢复，但旧执行闭包已经失效；列表逐键串行读，关闭等待已接受的列表和取消任务。
+
+工作选择可以早于首个 Session（助理工作现行的 session_id 此时为空），所以持久主键固定可信工作 owner/id 与执行者安装世代；实际 Run 的原 Session 仍由原工作 owner 验证并绑定最终检查，不能把任意同名 Session 接过来。`actionDelegationMatches` 按整行目标交集匹配；`delegationScopesNarrow` 不拼接不同组合。新 Node 存储与这些基础行为的证据见 [S-work-delegations](../../docs/system/security-invariants/S-work-delegations.md)。这不表示工作入口和真实执行派发已接通。
 
 - `src/index.ts`：`AgentHost` 的注册、能力矩阵与启动授权。
 - `src/reviews.ts`：`AgentReviewQueue` 的请求、决定、一次性消费与回执。
 - `src/capability-registration.ts`：对外暴露的动作与它们的授权边界。
 - `src/session-actions.ts`：关于会话轮次的统一动作——等待与接续（`agent.collaboration.*`），以及插件向一轮补充要求（`agent.inputs.send`，回执说这一轮收下了还是留到下一轮；纠正用 `about` 指向原来那条）、撤回还没交给模型的补充（`agent.inputs.withdraw`）。
 - `tests/agent-host.test.ts`：授权与批准各条边界的断言。
+
+原轮次的命令派发控制沿 `DispatchGuards` 同时携带异步准备和同步检查。前台与后台命令在现行 Node Host 真正启动进程前核原 Run 的停止/取消及持续授权，不取 Session 当前轮次代替。网络继续以原 `beforeNetworkDispatch` 消费异步检查；模型专用同步检查走 `beforeModelDispatch`，保留 SDK 的授权拒绝、取消和 handle 结算语义。改这些边界跑 `tests/security-invariants-run-dispatch.test.ts` 与 `tests/security-invariants-run-mcp-cleanup.test.ts`；MCP 单条请求和 Surface 的最终边界仍须各自接线验证。
 
 ## 开发要求
 
@@ -94,6 +106,7 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
 - MCP 连接的 Host 解析结果可带同步 `assertCurrent`；这是本次原来源/世代的可信运行期闭包，不进入 SDK 配置。连接、刷新和工具调用在后续等待、实际网络派发及结果交付前复查同一闭包，不以新世代替换旧快照。回归：`tests/connector-mcp.test.ts` 的 RAC2885 Agent source withdrawal 两组真实交错。
 - 不负责：编码业务含义、角色与提示词正文、模型选择与凭据、批准决定本身。
 - 公开入口：`@molis-ai/molis-work-service-agent-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/agent-host`。
+- 审查生命周期（BL-359）：拒绝、取消和期限到达会释放执行 handler 与原授权引用；批准保留一次消费和实际结算来源，结算通知后释放。未知结果不能重发，Host caller 只由原签发对象的弱引用核当前活性。`settleNotDispatched` 仅供执行 owner 已确认取消且未派发时静默结算；单凭送达错误不能调用它。Git 关闭等待已开始的决定、核对和刷新，共享 queue 只在最终 Host 关闭时关闭，初始化重试不关闭它。新增回归 `tests/agent-review-lifecycle.test.ts`、`tests/prologue-git.test.ts` 的 BL-359 用例；真实 Host 关闭接线随本批完成后一起验收。派发记录暂不可读时保持待核对。原 SDK 回执恢复可读后，同一 Host 刷新即可结算，已覆盖暂存区和工作树创建。原回执始终缺失时保留待核对。暂存区另有本人提交未发生依据的入口。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`、`@molis-ai/molis-work-plugin-sdk`（共用对象判断）；第三方依赖见 `package.json`。方向：依赖合同、底层共享包、同目录适配端口与 storage 的排他所有权技术端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 目录 Action 的工具时限取提供方 `execution.timeout_ms` 与 Agent 入口上限中的较小者；完整声明参与冻结合同，不按能力名称猜测成本。

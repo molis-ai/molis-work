@@ -9,6 +9,9 @@ import {
   type DesktopTaskFacts,
   type DesktopTaskWanted,
 } from "@molis-ai/molis-work-app-local-host";
+import { desktopState, observeSurface, performSurface, surfaceContext } from "./fixtures/surface-target.js";
+
+const TEST_CONTEXT = surfaceContext("s");
 
 /**
  * CU-G12: ten deterministic desktop scenarios over the real driver with a fake helper. It measures what the line can
@@ -50,13 +53,15 @@ function harness(scenario: Scenario): { desk: DeskContext; state: Mutable } {
   const state: Mutable = { title: scenario.title, files: [], records: [], takeovers: 0 };
   const trees = [...scenario.trees];
   const nextTree = () => trees.length > 1 ? trees.shift()! : trees[0]!;
-  const appState = () => ({
+  const appState = () => desktopState({
     bundle_id: scenario.app.bundle_id, name: scenario.app.name, pid: 4, active: true, hidden: false, front_pid: 4,
     window: { title: state.title, frame, window_id: 1, document: "" },
     windows: (scenario.windows ?? [state.title]).map(title => ({ title, frame, focused: title === state.title, minimized: false })),
   });
+  const target = { bundle_id: scenario.app.bundle_id, name: scenario.app.name, pid: 4, verdict: { tier: "ask" as const, reason: "", built_in: true } };
   const desk: DeskContext = {
-    helper: { async call<T>(op: string): Promise<T> {
+    helper: { async call<T>(op: string, _payload?: Record<string, unknown>, _timeout?: number, beforeSend?: () => void, onDispatch?: () => void): Promise<T> {
+      beforeSend?.(); onDispatch?.();
       if (op === "app.state" || op === "app.open") return appState() as T;
       if (op === "apps.installed" || op === "apps.running") return { apps: [{ bundle_id: scenario.app.bundle_id, name: scenario.app.name }] } as T;
       if (op === "observe.tree") {
@@ -66,16 +71,18 @@ function harness(scenario: Scenario): { desk: DeskContext; state: Mutable } {
       if (op === "observe.ocr") return { lines: scenario.ocrLines ?? [] } as T;
       if (op === "observe.menus") return { items: scenario.windowMenuItems ?? [] } as T;
       if (op === "observe.screenshot") return (scenario.shot ?? { png: Buffer.from("png").toString("base64"), included_pids: [4], password_fields: 0, masked: 0 }) as T;
-      if (op === "probe.point") return { window: { pid: 4, title: state.title }, element: { pid: 4, name: "按钮", window_title: state.title } } as T;
+      if (op === "probe.point") return { window: { id: 1, pid: 4, title: state.title }, element: { pid: 4, name: "按钮", window_title: state.title } } as T;
       if (op === "focused.field") return (scenario.field ?? { name: "", secure: false }) as T;
-      if (op.startsWith("input.")) return {} as T;
+      if (op.startsWith("input.")) return { done: true } as T;
       throw new Error(op);
     } },
     settings: { forbiddenIds: () => [] },
     noteInjected: () => undefined,
-    target: () => ({ bundle_id: scenario.app.bundle_id, name: scenario.app.name, pid: 4, verdict: { tier: "ask", reason: "", built_in: true } }),
+    target: () => target,
     setTarget: () => undefined,
     takeovers: () => state.takeovers,
+    assertCurrent: () => undefined,
+    assertReady: () => undefined,
     ready: async () => undefined,
     readiness: async () => null,
     mark: () => undefined,
@@ -103,12 +110,12 @@ async function run(scenario: Scenario): Promise<Row> {
     for (const action of scenario.actions) {
       if (action.what === "observe") {
         steps += 1;
-        const text = new TextDecoder().decode(await driver.surface().observe("accessibility-tree", { session_id: "s" }));
+        const text = new TextDecoder().decode(await observeSurface(driver.surface(), "accessibility-tree", TEST_CONTEXT));
         tokens += Math.ceil(text.length / 4);
         continue;
       }
       steps += 1;
-      const receipt = await driver.surface().perform(action, { session_id: "s" }) as HostSurfaceActReceipt | void;
+      const receipt = await performSurface(driver.surface(), action, TEST_CONTEXT) as HostSurfaceActReceipt | void;
       if (receipt) tokens += Math.ceil(receipt.tree.length / 4);
       scenario.onAction?.(action, state);
     }

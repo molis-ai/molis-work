@@ -4,6 +4,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { computerErrors, helperFailure, markHelper } from "./computer-errors.js";
 import { eachListener } from "../host-log.js";
 
@@ -77,6 +78,8 @@ export class HelperConnection {
   private readonly restarts: number[] = [];
   private closed = false;
   private problemCode: HelperProblem | null = null;
+  private epoch = 0;
+  get generation(): number { return this.epoch; }
 
   constructor(private readonly options: HelperConnectionOptions) {}
 
@@ -176,7 +179,7 @@ export class HelperConnection {
           const token = typeof message.token === "string" ? Buffer.from(message.token) : Buffer.alloc(0);
           const expected = Buffer.from(this.token);
           if (message.event !== "hello" || token.length !== expected.length || !timingSafeEqual(token, expected)) { socket.destroy(); return; }
-          trusted = true;
+          trusted = true; this.epoch++;
           this.socket = socket;
           this.last = message.status as HelperStatus;
           this.onHello?.(this.last);
@@ -189,11 +192,19 @@ export class HelperConnection {
     socket.on("close", () => {
       if (this.socket !== socket) return;
       this.socket = null;
-      for (const [id, entry] of this.waiting) { clearTimeout(entry.timer); entry.reject(markHelper(computerErrors.crashed("电脑助手中途退出了，这一步结果不确定。"))); this.waiting.delete(id); }
+      this.rejectOutstanding();
       if (!this.closed) this.problemCode = "computer.crashed";
       this.emit({ event: "closed", unexpected: !this.closed });
     });
     socket.on("error", () => undefined);
+  }
+
+  private rejectOutstanding(): void {
+    for (const entry of this.waiting.values()) {
+      clearTimeout(entry.timer);
+      entry.reject(markHelper(computerErrors.crashed("电脑助手中途退出了，这一步结果不确定。")));
+    }
+    this.waiting.clear();
   }
 
   private receive(message: Record<string, unknown>): void {
@@ -211,9 +222,9 @@ export class HelperConnection {
     clearTimeout(entry.timer);
     if (message.ok === true) entry.resolve(message.result);
     else {
-      const error = (message.error ?? {}) as { code?: string; message?: string };
+      const error = (message.error ?? {}) as { code?: string; message?: string; partial?: boolean };
       const text = error.message ?? "电脑助手没能完成这一步";
-      entry.reject(error.code ? helperFailure(error.code, text) : markHelper(computerErrors.failed(text)));
+      entry.reject(error.code ? helperFailure(error.code, text, error.partial) : markHelper(computerErrors.failed(text)));
     }
   }
 
@@ -221,9 +232,10 @@ export class HelperConnection {
     eachListener("computer", "helper_events", this.listeners, listener => listener(event));
   }
 
-  /** One request; starts the helper first when needed. */
-  async call<T>(op: string, params: Record<string, unknown> = {}, timeoutMs?: number): Promise<T> {
+  /** One request; the original caller's optional synchronous fence runs after ensure, before any request is registered or sent. */
+  async call<T>(op: string, params: Record<string, unknown> = {}, timeoutMs?: number, assertCurrent?: () => void, onDispatch?: () => void): Promise<T> {
     await this.ensure();
+    requireSynchronous(assertCurrent?.());
     const socket = this.socket;
     if (!socket) throw markHelper(computerErrors.crashed("电脑助手不在运行"));
     const id = this.nextId++;
@@ -233,15 +245,22 @@ export class HelperConnection {
         reject(markHelper(computerErrors.timeout("电脑助手没有按时回答，这一步结果不确定。")));
       }, timeoutMs ?? this.options.requestTimeoutMs ?? 20_000);
       this.waiting.set(id, { resolve: resolve as (value: unknown) => void, reject, timer });
-      socket.write(`${JSON.stringify({ id, op, params })}\n`);
+      try {
+        const frame = `${JSON.stringify({ id, op, params })}\n`;
+        requireSynchronous(assertCurrent?.());
+        if (this.socket !== socket || socket.destroyed) throw markHelper(computerErrors.crashed("原电脑助手连接已断开"));
+        requireSynchronous(onDispatch?.());
+        socket.write(frame);
+      } catch (error) { clearTimeout(timer); this.waiting.delete(id); reject(error); }
     });
   }
 
   /** Stops the helper (it exits when its socket closes) and removes the socket. */
   async close(): Promise<void> {
     this.closed = true;
-    this.socket?.end();
+    this.socket?.destroy();
     this.socket = null;
+    this.rejectOutstanding();
     await new Promise<void>(resolve => this.server ? this.server.close(() => resolve()) : resolve());
     this.server = null;
     if (this.socketPath) fs.rmSync(path.dirname(this.socketPath), { recursive: true, force: true });

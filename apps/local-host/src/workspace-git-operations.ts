@@ -21,6 +21,11 @@ import { runWorkspaceGit, statusWithoutHelpers } from "./workspace-git.js";
 const exec = promisify(execFile);
 const OPERATION_TIMEOUT = 120_000;
 
+/** The reviewed write may have happened; the SDK must keep it for reconciliation instead of retrying it. */
+export function uncertainGitResult(message: string, cause: unknown): Error {
+  return Object.assign(new Error(message, { cause }), { code: "EFFECT_RECONCILE_REQUIRED" });
+}
+
 async function operationRun(command: "git" | "gh", root: string, args: string[], input?: string, configuration?: GitCommandConfiguration): Promise<{ stdout: string; stderr: string }> {
   const env: Record<string, string | undefined> = { ...process.env, LC_ALL: "C", GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "Never", GH_PROMPT_DISABLED: "1", GIT_EDITOR: "true" };
   for (const key of Object.keys(env)) if (key.startsWith("GIT_") && !["GIT_TERMINAL_PROMPT", "GIT_EDITOR", "GIT_SSH_COMMAND", "GIT_ASKPASS"].includes(key)) delete env[key];
@@ -95,7 +100,7 @@ interface PreparedGitOperation {
   fields: Array<{ label: string; value: string }>;
   check(): Promise<void>;
   /** Runs the operation and returns what it produced (a commit, a pushed range, a PR address) in plain words. */
-  execute(): Promise<string>;
+  execute(assertCurrent?: () => void): Promise<string>;
 }
 
 const ACTION_TOOL: Record<GitOperation["action"], string> = { commit: "git-commit", "branch-create": "git-branch-create", "branch-switch": "git-branch-switch", push: "git-push", "pr-create": "git-pr-create",
@@ -148,7 +153,7 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       return { tool: ACTION_TOOL.commit, summary: `提交暂存区的 ${summary.staged.length} 个文件`, check,
         fields: [...where, { label: "提交说明", value: message }, { label: "暂存的文件", value: summary.staged.map(file => `${file.status} ${file.path}`).join("\n") || "（完成合并）" },
           { label: "执行范围", value: "只提交已暂存的内容，未暂存的改动保持原样；会运行仓库配置的 Git hooks（如有）；不推送远端。" }],
-        async execute() { await check(); await operationRun("git", root, ["commit", "-F", "-"], message + "\n"); const head = (await gitText(root, ["log", "-1", "--no-show-signature", "--format=%h %s"])).trim(); return `已提交 ${head}`; } };
+        async execute(assertCurrent) { await check(); assertCurrent?.(); await operationRun("git", root, ["commit", "-F", "-"], message + "\n"); const head = (await gitText(root, ["log", "-1", "--no-show-signature", "--format=%h %s"])).trim(); return `已提交 ${head}`; } };
     }
     case "branch-create": {
       const name = operation.name.trim();
@@ -157,7 +162,7 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       return { tool: ACTION_TOOL["branch-create"], summary: operation.checkout ? `新建分支「${name}」并切换过去` : `新建分支「${name}」`, check,
         fields: [...where, { label: "新分支", value: name }, { label: "起点", value: summary.head_commit?.slice(0, 12) ?? "（尚无提交）" },
           { label: "执行范围", value: operation.checkout ? "从当前提交建分支并切换；未提交的改动随你带到新分支，不会丢失。不推送远端。" : "只建分支，不切换、不推送远端。" }],
-        async execute() { await check(); await operationRun("git", root, operation.checkout ? ["switch", "-c", name] : ["branch", name]); return operation.checkout ? `已新建并切换到「${name}」` : `已新建分支「${name}」`; } };
+        async execute(assertCurrent) { await check(); assertCurrent?.(); await operationRun("git", root, operation.checkout ? ["switch", "-c", name] : ["branch", name]); return operation.checkout ? `已新建并切换到「${name}」` : `已新建分支「${name}」`; } };
     }
     case "branch-switch": {
       const name = operation.name.trim();
@@ -165,7 +170,7 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       if (name === summary.branch) throw new Error("已经在这个分支上");
       return { tool: ACTION_TOOL["branch-switch"], summary: `切换到分支「${name}」`, check,
         fields: [...where, { label: "切换到", value: name }, { label: "未提交的改动", value: summary.staged.length + summary.unstaged ? `${summary.staged.length + summary.unstaged} 个文件；Git 会把它们带到新分支，有冲突时会拒绝切换，不会覆盖` : "没有" }],
-        async execute() { await check(); await operationRun("git", root, ["switch", name]); return `已切换到「${name}」`; } };
+        async execute(assertCurrent) { await check(); assertCurrent?.(); await operationRun("git", root, ["switch", name]); return `已切换到「${name}」`; } };
     }
     case "push": return preparePush(root, summary, operation, where, check,
       (args, config) => operationRun("git", root, args, undefined, config));
@@ -182,7 +187,7 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       return { tool: ACTION_TOOL["pr-create"], summary: `建 PR：${summary.branch} → ${base}`, check,
         fields: [...where, { label: "目标分支", value: base }, { label: "标题", value: title }, { label: "描述", value: body || "（空）" }, { label: "草稿", value: operation.draft ? "是" : "否" },
           { label: "执行范围", value: `经 GitHub CLI 在 ${support.host} 建 PR，使用它已有的登录；不改动本地仓库。` }],
-        async execute() { await check(); const out = await operationRun("gh", root, ["pr", "create", "--base", base, "--head", summary.branch!, "--title", title, "--body", body, ...(operation.draft ? ["--draft"] : [])]);
+        async execute(assertCurrent) { await check(); assertCurrent?.(); const out = await operationRun("gh", root, ["pr", "create", "--base", base, "--head", summary.branch!, "--title", title, "--body", body, ...(operation.draft ? ["--draft"] : [])]);
           const url = out.stdout.split("\n").map(line => line.trim()).find(line => /^https?:\/\//.test(line)); return url ? `已建 PR：${url}` : "已建 PR"; } };
     }
     case "merge": {
@@ -194,7 +199,7 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       return { tool: ACTION_TOOL.merge, summary: `把「${branch}」合并到「${summary.branch}」`, check,
         fields: [...where, { label: "合并进来的分支", value: branch },
           { label: "执行范围", value: "在本地合并，能快进时快进，否则生成合并提交；有冲突时停下，冲突文件留给你在面板里逐个解决。不推送远端。" }],
-        async execute() { await check(); return mergeOutcome(workspace, () => operationRun("git", root, ["merge", "--no-edit", branch]), `已把「${branch}」合并到「${summary.branch}」`); } };
+        async execute(assertCurrent) { await check(); assertCurrent?.(); return mergeOutcome(workspace, () => operationRun("git", root, ["merge", "--no-edit", branch]), `已把「${branch}」合并到「${summary.branch}」`); } };
     }
     case "pull": {
       if (!summary.branch || !summary.upstream) throw new Error("这个分支还没有远端跟踪分支，先推送并设置跟踪");
@@ -202,7 +207,7 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       return { tool: ACTION_TOOL.pull, summary: `从 ${summary.upstream} 拉取并合并到「${summary.branch}」`, check,
         fields: [...where, { label: "远端跟踪分支", value: summary.upstream },
           { label: "执行范围", value: "使用这台电脑上已有的 Git 凭据取回远端，再合并（不变基）；有冲突时停下，冲突文件留给你逐个解决。不推送。" }],
-        async execute() { await check(); return mergeOutcome(workspace, () => operationRun("git", root, ["pull", "--no-rebase", "--no-edit"]), `已从 ${summary.upstream} 拉取并合并`); } };
+        async execute(assertCurrent) { await check(); assertCurrent?.(); return mergeOutcome(workspace, () => operationRun("git", root, ["pull", "--no-rebase", "--no-edit"]), `已从 ${summary.upstream} 拉取并合并`); } };
     }
     case "resolve": {
       const file = operation.path.trim(), content = operation.content.replace(/\r\n/g, "\n");
@@ -214,13 +219,13 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       return { tool: ACTION_TOOL.resolve, summary: `解决冲突：${file}`, check,
         fields: [...where, { label: "文件", value: file }, { label: "解决后的内容", value: content.length > 20_000 ? content.slice(0, 20_000) + "\n…（其余未显示，将按你编辑的全文写入）" : content },
           { label: "执行范围", value: "把这个文件写成上面的内容并暂存，标记冲突已解决；其他文件不动，不提交。" }],
-        async execute() { await resolveConflict(root, reviewed, content, check); return `已解决并暂存 ${file}`; } };
+        async execute(assertCurrent) { await resolveConflict(root, reviewed, content, check, assertCurrent); return `已解决并暂存 ${file}`; } };
     }
     case "merge-abort": {
       if (!summary.merging) throw new Error("没有进行中的合并");
       return { tool: ACTION_TOOL["merge-abort"], summary: "放弃这次合并", check,
         fields: [...where, { label: "执行范围", value: "回到合并开始前的状态：冲突文件和已暂存的合并结果都撤回；合并前已提交的内容不受影响。" }],
-        async execute() { await check(); await operationRun("git", root, ["merge", "--abort"]); return "已放弃这次合并"; } };
+        async execute(assertCurrent) { await check(); assertCurrent?.(); await operationRun("git", root, ["merge", "--abort"]); return "已放弃这次合并"; } };
     }
   }
 }
@@ -276,18 +281,19 @@ async function preparePush(root: string, summary: WorkspaceGitSummary, operation
       { label: "推送的提交", value: summary.upstream ? `${summary.ahead} 个（远端跟踪分支 ${summary.upstream}）` : "整个分支（远端还没有这个分支）" },
       ...(summary.behind ? [{ label: "注意", value: `远端比本地多 ${summary.behind} 个提交，Git 会拒绝推送；不会强制推送` }] : []),
       { label: "执行范围", value: `推送已审查的提交 ${commit.slice(0, 12)} 到以上全部地址；使用已有 Git 凭据，不强制推送${setUpstream ? "；同时设置远端跟踪分支" : ""}；会运行仓库的 pre-push hook（如有）。` }],
-    async execute() {
+    async execute(assertCurrent) {
       await checkPush();
+      assertCurrent?.();
       let out;
       try { out = await run(["push", "--no-force", "--no-follow-tags", "--recurse-submodules=no", alias, `${commit}:refs/heads/${branch}`], config); }
-      catch (error) { throw Object.assign(new Error(`推送结果未确认；请核对以上远端，不要直接重试：${error instanceof Error ? error.message : String(error)}`), { code: "EFFECT_RECONCILE_REQUIRED" }); }
+      catch (error) { throw uncertainGitResult(`推送结果未确认；请核对以上远端，不要直接重试：${error instanceof Error ? error.message : String(error)}`, error); }
       if (setUpstream) {
         if (await configured(root, `branch.${branch}.remote`) !== branchRemote || await configured(root, `branch.${branch}.merge`) !== branchMerge
           || await configured(root, `remote.${name}.fetch`) !== fetch) return `已推送到 ${name}；后来改过的本地跟踪设置已保留，请核对。`;
         try {
-          await run(["config", "--local", `branch.${branch}.remote`, name]);
-          await run(["config", "--local", `branch.${branch}.merge`, `refs/heads/${branch}`]);
-        } catch (error) { throw Object.assign(new Error(`已推送到 ${name}，本地跟踪设置未完成：${error instanceof Error ? error.message : String(error)}`), { code: "EFFECT_RECONCILE_REQUIRED" }); }
+          assertCurrent?.(); await run(["config", "--local", `branch.${branch}.remote`, name]);
+          assertCurrent?.(); await run(["config", "--local", `branch.${branch}.merge`, `refs/heads/${branch}`]);
+        } catch (error) { throw uncertainGitResult(`已推送到 ${name}，本地跟踪设置未完成：${error instanceof Error ? error.message : String(error)}`, error); }
       }
       return `已推送到 ${name}：${(out.stderr.split("\n").find(line => /->/.test(line)) ?? branch).trim()}`;
     } };
@@ -349,14 +355,15 @@ async function indexBytes(indexPath: string): Promise<Buffer> {
   finally { await file.close(); }
 }
 
-async function writeHeld(file: FileHandle, contents: Buffer): Promise<void> {
+async function writeHeld(file: FileHandle, contents: Buffer, assertCurrent?: () => void): Promise<void> {
   let written = 0;
   while (written < contents.length) {
+    assertCurrent?.();
     const result = await file.write(contents, written, contents.length - written, written);
     if (!result.bytesWritten) throw new Error("冲突正文未完整写入，请核对");
     written += result.bytesWritten;
   }
-  await file.truncate(contents.length); await file.sync();
+  assertCurrent?.(); await file.truncate(contents.length); await file.sync();
 }
 
 async function lineage(root: string): Promise<string> {
@@ -366,7 +373,7 @@ async function lineage(root: string): Promise<string> {
 }
 
 /** Freeze the resolved bytes in a temporary index and publish under Git's own lock, never `git add` a later path. */
-async function resolveConflict(root: string, reviewed: ConflictSnapshot, content: string, check: () => Promise<void>): Promise<void> {
+async function resolveConflict(root: string, reviewed: ConflictSnapshot, content: string, check: () => Promise<void>, assertCurrent?: () => void): Promise<void> {
   await check();
   const file = await fs.open(await assertPath(root, reviewed.name), constants.O_RDWR | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   let written = false;
@@ -375,33 +382,33 @@ async function resolveConflict(root: string, reviewed: ConflictSnapshot, content
     const indexPath = path.resolve(root, (await runWorkspaceGit(root, ["rev-parse", "--git-path", "index"])).toString().trimEnd());
     const original = await indexBytes(indexPath), originalLineage = await lineage(root), lockPath = indexPath + ".lock";
     let lock: FileHandle;
-    try { lock = await fs.open(lockPath, "wx", 0o600); }
+    try { assertCurrent?.(); lock = await fs.open(lockPath, "wx", 0o600); }
     catch (error) { if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error("Git 暂存区正被其他操作使用，原操作未执行"); throw error; }
     const lockIdentity = await lock.stat();
     let temp: string | undefined, published = false;
     try {
       await check();
       if (!(await indexBytes(indexPath)).equals(original)) throw new Error("暂存区在审查期间变化了，原操作未执行");
-      temp = await fs.mkdtemp(path.join(path.dirname(indexPath), "molis-resolve-"));
+      assertCurrent?.(); temp = await fs.mkdtemp(path.join(path.dirname(indexPath), "molis-resolve-"));
       const temporaryIndex = path.join(temp, "index");
-      await fs.writeFile(temporaryIndex, original);
-      const oid = (await runWorkspaceGit(root, ["hash-object", "-w", "--stdin"], undefined, { input: content })).toString().trim();
+      assertCurrent?.(); await fs.writeFile(temporaryIndex, original);
+      assertCurrent?.(); const oid = (await runWorkspaceGit(root, ["hash-object", "-w", "--stdin"], undefined, { input: content })).toString().trim();
       const converted = (await runWorkspaceGit(root, ["hash-object", "--stdin", `--path=${reviewed.name}`], undefined, { input: content })).toString().trim();
       if (converted !== oid) throw new Error("Git 内容转换会改变审查正文，本次未写入；请在编辑器里处理");
       const mode = reviewed.identity.mode & 0o100 ? "100755" : "100644";
-      await runWorkspaceGit(root, ["update-index", "-z", "--index-info"], undefined,
+      assertCurrent?.(); await runWorkspaceGit(root, ["update-index", "-z", "--index-info"], undefined,
         { indexFile: temporaryIndex, input: `0 ${"0".repeat(oid.length)}\t${reviewed.name}\0${mode} ${oid}\t${reviewed.name}\0` });
       await check();
       if ((await readHeld(root, reviewed.name, file)).fingerprint !== reviewed.fingerprint) throw new Error("冲突正文或文件身份在审查期间变化了，原操作未执行");
-      written = true;
-      await writeHeld(file, Buffer.from(content));
+      assertCurrent?.(); written = true;
+      await writeHeld(file, Buffer.from(content), assertCurrent);
       const after = await readHeld(root, reviewed.name, file);
       if (after.text !== content) throw new Error("写入后的冲突正文已变化，请核对");
-      await lock.writeFile(await fs.readFile(temporaryIndex)); await lock.sync();
+      const index = await fs.readFile(temporaryIndex); assertCurrent?.(); await lock.writeFile(index); await lock.sync();
       if (await lineage(root) !== originalLineage) throw new Error("分支或提交在写入期间变化了，请核对");
       if (!(await indexBytes(indexPath)).equals(original)) throw new Error("暂存区在写入期间变化了，请核对");
       if ((await readHeld(root, reviewed.name, file)).fingerprint !== after.fingerprint) throw new Error("冲突正文在写入期间又被修改，请核对");
-      await lock.close(); await fs.rename(lockPath, indexPath); published = true;
+      await lock.close(); assertCurrent?.(); await fs.rename(lockPath, indexPath); published = true;
     } finally {
       // The outcome is already decided; a lock file handle that is already closed needs nothing.
       await lock.close().catch(() => undefined);
@@ -413,7 +420,7 @@ async function resolveConflict(root: string, reviewed: ConflictSnapshot, content
       if (temp) await fs.rm(temp, { recursive: true, force: true });
     }
   } catch (error) {
-    if (written) throw Object.assign(new Error(`冲突正文已开始写入，但完成结果未确认；请核对文件与暂存区：${error instanceof Error ? error.message : String(error)}`), { code: "EFFECT_RECONCILE_REQUIRED" });
+    if (written) throw uncertainGitResult(`冲突正文已开始写入，但完成结果未确认；请核对文件与暂存区：${error instanceof Error ? error.message : String(error)}`, error);
     throw error;
   } finally { await file.close(); }
 }

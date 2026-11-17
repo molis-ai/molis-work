@@ -2,6 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalTreeProposalRecord } from "./contract/governance-collaboration.js";
 import { goalTreeProposalNeedsDecision } from "./decision-groups.js";
+import { treeDecisionVersion } from "./decision-offers.js";
 import { goalRelationLabel } from "./relation-presentation.js";
 import { createGoalsDecisionPresentation } from "./decision-common-ui.js";
 import { createGoalsProposalPresentation } from "./proposal-presentation.js";
@@ -162,7 +163,7 @@ function renderGoalTreeProposalDecision(proposal: GoalTreeProposalRecord, view: 
   const invalidMessage = invalidItemCount
     ? `<section class="goal-tree-proposal-readiness" role="alert"><div>${icon("blocked")}</div><div><h4>${uiText("goals.proposal-ui.proposal-cannot-be-applied-yet")}</h4><p>${invalidSummary}</p><strong>${uiText("goals.proposal-ui.what-do-now-select-return-correction-return-reason")}</strong></div></section>`
     : "";
-  return `<form class="decision-record goal-tree-proposal-decision" data-goal-tree-decision-form data-live-form="goal-tree-${escapeHtml(proposal.proposal_id)}" data-goal-tree-proposal-id="${escapeHtml(proposal.proposal_id)}" data-has-system-issues="${problemCount ? "true" : "false"}" novalidate>
+  return `<form class="decision-record goal-tree-proposal-decision" data-goal-tree-decision-form data-live-form="goal-tree-${escapeHtml(proposal.proposal_id)}" data-goal-tree-proposal-id="${escapeHtml(proposal.proposal_id)}" data-review-version="${treeDecisionVersion(proposal)}" data-has-system-issues="${problemCount ? "true" : "false"}" novalidate>
     <header class="decision-record-heading"><span class="decision-kind">${icon("tree")} ${uiText("goals.proposal-ui.goal-summary")}${renderNewDecisionBadge(proposal.created_at, view, "goalTree", proposal.proposal_id)}</span><details class="decision-record-tech"><summary>${uiText("goals.proposal-ui.record-details")}</summary><small>${uiText("goals.proposal-ui.plan-version-version", { version: proposal.version })} · ${escapeHtml(proposal.proposal_id)}</small></details></header>
     <div class="decision-record-body"><h3>${invalidItemCount ? invalidHeading : uiText("goals.proposal-ui.use-goal-plan-send-back-changes")}</h3><p>${invalidItemCount ? uiText("goals.proposal-ui.can-still-review-rest-proposal-but-cannot-be") : uiText("goals.proposal-ui.runtime-has-organized-goal-completion-conditions-relationship-ch")}</p>
       <div class="goal-tree-proposal-summary"><small>${uiText("goals.proposal-ui.goal-ready-approval")}</small><strong>${escapeHtml(proposedTitle)}</strong><p>${escapeHtml(proposedOutcome)}</p></div>

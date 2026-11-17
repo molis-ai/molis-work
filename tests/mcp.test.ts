@@ -167,7 +167,7 @@ it("a management call that names no database fails instead of using a path under
       const named = path.join(directory, "named", "project.db");
       process.env.MOLIS_WORK_DATABASE = named;
       await assert.rejects(
-        () => management.callTool("molis_work_v1_goal_tree_decide", { project_id: "no-default" }),
+        () => management.callTool("molis_work_v1_review_decide", { project_id: "no-default" }),
         (error: unknown) => error instanceof ActionError && error.code === "mcp.not_found" && error.message.includes(named),
       );
       assert.deepEqual(fs.readdirSync(directory), []);
@@ -215,10 +215,10 @@ it("a management call that names no project_id runs as database:<path>, and a la
         finally { store.close(); }
       };
       const before = facts();
-      // goal_tree_decide reads no project_id of its own: only the scope the call runs in is in play.
-      await assert.rejects(() => management.callTool("molis_work_v1_goal_tree_decide", { database_path: project.database_path }),
+      // The protected request must name the project it runs in.
+      await assert.rejects(() => management.callTool("molis_work_v1_review_decide", { database_path: project.database_path }),
         { code: "actions.scope_mismatch" });
-      await assert.rejects(() => management.callTool("molis_work_v1_goal_tree_decide", { database_path: project.database_path, project_id: project.project_id }),
+      await assert.rejects(() => management.callTool("molis_work_v1_review_decide", { database_path: project.database_path, project_id: project.project_id }),
         (error: unknown) => (error as { code?: string }).code === "host.project_identity_conflict"
           && (error as Error).message.includes(`database:${path.resolve(project.database_path)}`));
       assert.deepEqual(facts(), before, "both refusals preserve the original project facts");

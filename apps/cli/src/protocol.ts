@@ -34,10 +34,10 @@ export function cliGoalUrl(goalPath: string, baseUrl: string): string {
 export function printV1Help(): void {
   console.log(`molis-work v1 <operation> --db PATH --json '{...}'
 
-The management entry of the Goals plugin. Other plugins' capabilities are called through the action catalog and MCP.
+The management entry for Goals and for project approvals from registered plugins.
 
 Operations:
-  init | snapshot | goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
+  init | snapshot | goal-tree-propose | goal-tree-read | goal-tree-check | review-request | review-decide
   active-goal
 
 Complex payloads may use --file payload.json instead of --json.

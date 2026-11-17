@@ -1,3 +1,4 @@
+import { AUTOMATION_PREFERENCES_PATH, AUTOMATION_PREFERENCES_FILE } from "@molis-ai/molis-work-service-automation-recommender";
 import { basename, dirname, join, relative } from "node:path";
 import { readdirSync } from "node:fs";
 import { APPEARANCE_STATE_FILE, APPEARANCE_STATE_PATH, UI_LOCALE_FILE } from "@molis-ai/molis-work-service-appearance";
@@ -22,7 +23,8 @@ import { assertArtifactDatabaseFiles } from "./artifact-row-storage-policy.js";
 import { homeStores, platformModelPreferences } from "./home-stores.js";
 import type { HomeUpgradeDescriptor, UpgradeBlock } from "./home-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { builtinPluginByProjectKey, PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { isGoalsApprovalSource } from "./goal-callers.js";
 import { projectDatabasePlugins, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
 
 const CATALOG = join("projects", "catalog.db"), PROJECT_LIBRARY = join("projects", "*", "molis-work.db");
@@ -119,7 +121,8 @@ export function pluginTablesDescriptor(manifest: PluginManifest, library: Plugin
     tables: {
       version: declaration.version,
       read: file => readUpgradeStore(file, db => (USER_VERSION_ACCESS.read(db) > library.version ? undefined : pluginProjectTablesVersion(db, manifest.plugin_id))),
-      problem: found => upgradeStepsProblem({ version: declaration.version, schema: declaration.schema, upgrades: declaration.upgrades ?? [] }, found),
+      problem: found => manifest.plugin_id === builtinPluginByProjectKey("goals")?.manifest.plugin_id && isGoalsApprovalSource(found)
+        ? undefined : upgradeStepsProblem({ version: declaration.version, schema: declaration.schema, upgrades: declaration.upgrades ?? [] }, found),
       upgrade: file => {
         const db = openSqliteConnection(file);
         try {
@@ -142,6 +145,7 @@ function computerRecords(home: string): readonly string[] {
 
 /** The JSON files of §2.6. `config/installation.json` and `release.json` are not here: the installer upgrades them when it reads them. */
 const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
+  { owner: "horizontal/automation-recommender", block: { kind: "projects" }, pattern: AUTOMATION_PREFERENCES_PATH, file: AUTOMATION_PREFERENCES_FILE },
   { owner: "horizontal/appearance", block: { kind: "setting", page: "appearance" }, pattern: APPEARANCE_STATE_PATH, file: APPEARANCE_STATE_FILE },
   { owner: "apps/local-host", block: { kind: "setting", page: "access" }, pattern: join("config", "mcp-tools.json"), file: MCP_TOOL_PREFERENCE_FILE },
   { owner: "apps/local-host", block: HOME_BLOCK, pattern: join("config", "onboarding.json"), file: ONBOARDING_FILE },

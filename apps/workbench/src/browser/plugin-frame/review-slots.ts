@@ -50,6 +50,7 @@ export function childReviews(port: MessagePort, scope: FrameScope): UiPageReview
 
 export interface HostReviewFactory {
   (host: { mountPluginClient(root: HTMLElement): FrameScope | null; route(path: string): string; headers(): Record<string, string>;
+    permission?(trigger: HTMLElement, id: string, version: string): Promise<boolean>;
     confirm(message: string): Promise<boolean>; onDecision(result: {error?: string | null; receipt?: {status?: string; effect_uncertain?: string; effect_error?: string; reconciliation?: unknown; effect_settled?: boolean} | null}): void }):
     (container: HTMLElement, refs: {run_id: string}[], session: string | null, workspace: string | null,
       query: Pick<UiPageReviewQuery, "runSession" | "limit">, control: {lifetime: FrameScope; signal: AbortSignal}) => Promise<void>;

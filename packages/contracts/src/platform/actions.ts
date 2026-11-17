@@ -4,9 +4,11 @@ export * from "./action-result.js";
 export * from "./action-input.js";
 export { actionFieldInput, actionFieldLabel, actionFieldLabelSource, actionFieldOptions, actionFieldValue } from "./action-field-presentation.js";
 export * from "./action-execution.js";
+export type { ActionDelegationTarget, ActionDelegationOperation, ActionDelegationDeclaration, ActionDelegationEffect, ActionDelegationExtraction } from "./action-delegation.js";
 import { ActionError, type ActionErrorKind } from "./action-errors.js";
 export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
+import type { ActionDelegationDeclaration } from "./action-delegation.js";
 import type { ActionDelegationSource, ActionPersonEntry } from "./action-source.js";
 import type { UiLanguageTag } from "./ui-text.js";
 import type { ActionResultView } from "./action-result.js";
@@ -294,6 +296,14 @@ export interface ActionMetadata {
   readonly audiences: readonly ActionAudience[];
   readonly permissions: readonly string[];
   readonly subject_kinds: readonly string[];
+  /** Finite input targets and operations, or an explicit refusal of reusable automatic delegation. Unset keeps the original policy. */
+  readonly delegation?: ActionDelegationDeclaration | "confirmation-only";
+  /** This project command can execute only with the platform's proof for one original person decision. */
+  readonly requires_trusted_decision?: true;
+  /** Same-provider query that projects the exact request and prepares its option inputs. */
+  readonly trusted_decision_request?: Pick<ActionReference, "capability_id" | "version">;
+  /** Exact row and version check for a command whose project writer is a sandbox process. */
+  readonly trusted_decision_row?: import("../services/project-approvals.js").TrustedReviewRow;
   readonly input_schema: ActionSchema;
   readonly output_schema?: ActionSchema;
   /** Plain-language result and original-object link, declared by the provider for all consumers. */

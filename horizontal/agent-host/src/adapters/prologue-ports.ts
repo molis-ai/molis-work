@@ -90,6 +90,8 @@ export interface PrologueStartInput {
   beforeStart?: AgentStartExecution["beforeStart"];
   assertBeforeStart?: AgentStartExecution["assertBeforeStart"];
   beforeDispatch?: AgentStartExecution["beforeDispatch"];
+  assertBeforeDispatch?: AgentStartExecution["assertBeforeDispatch"];
+  delegation?: AgentStartExecution["delegation"];
   disposeDispatch?: AgentStartExecution["disposeDispatch"];
   actions?: NonNullable<AgentStartRequest["role"]>["actions"];
   action_gateway?: NonNullable<AgentStartRequest["role"]>["action_gateway"];
@@ -226,6 +228,8 @@ export interface PrologueRestoredSession {
     /** Why the Host stopped this run itself, when it did. */ stop_reason?: string;
     /** The runtime holds this run as finished (sealed), whatever its saved progress shows. */
     terminal?: boolean;
+    /** The original SDK effect still has no verified result. */
+    uncertain_effect?: true;
     timing?: PrologueRunTiming;
     original_questions?: Array<{ pending_id: string; pending_revision: number; kind: string; why: string }>;
     /** May be a durable incomplete prefix. Only an actual terminal event proves an ended Run. */

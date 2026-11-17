@@ -1,3 +1,4 @@
+import { reviewDecisionStorage } from "./fixtures/review-decision-storage.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
@@ -294,7 +295,7 @@ test("a Runtime that returns wider authority than the Manifest froze has its run
 
 function reviewRequest(reviewId: string, expiresAt: string | null = null): AgentReviewRequest {
   return {
-    review_id: reviewId,
+    reference: { owner: { kind: "agent-review" as const, project_id: BOARD, plugin_id: PLUGIN, install_id: "install" }, id: reviewId, version: "proposal-1" }, review_id: reviewId,
     run: { run_id: "run-1", session_id: "session-1" },
     project_id: BOARD,
     plugin_id: PLUGIN,
@@ -311,8 +312,9 @@ function reviewRequest(reviewId: string, expiresAt: string | null = null): Agent
   };
 }
 
-test("an effect runs only after a recorded approval, and that approval is single use", () => {
-  const queue = new AgentReviewQueue();
+test("an effect runs only after a recorded approval, and that approval is single use", async () => {
+  const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store });
+  queue.observe(review => queue.registerDecisionHandler(review.review_id, async (_input, commit) => commit()));
   const seen: string[] = [];
   queue.observe((request) => seen.push(request.review_id));
   queue.request(reviewRequest("review-1"));
@@ -332,7 +334,7 @@ test("an effect runs only after a recorded approval, and that approval is single
     "未批准就执行必须被拒绝",
   );
 
-  const receipt = queue.decide({ review_id: "review-1", decision: "approve", actor_id: "tester" });
+  const receipt = await queue.respond({ review_id: "review-1", version: "proposal-1", decision: "approve", actor_id: "tester" });
   assert.equal(receipt.status, "approved");
   assert.equal(receipt.decided_by, "tester");
   assert.equal(receipt.effect_settled, false, "批准不等于已经发生");
@@ -349,18 +351,19 @@ test("an effect runs only after a recorded approval, and that approval is single
   assert.equal(settled.effect_settled, true);
 });
 
-test("a rejected review can never be turned into permission", () => {
-  const queue = new AgentReviewQueue();
+test("a rejected review can never be turned into permission", async () => {
+  const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store });
+  queue.observe(review => queue.registerDecisionHandler(review.review_id, async (_input, commit) => commit()));
   queue.request(reviewRequest("review-2"));
-  queue.decide({ review_id: "review-2", decision: "reject", actor_id: "tester", note: "先别改" });
+  await queue.respond({ review_id: "review-2", version: "proposal-1", decision: "reject", actor_id: "tester", note: "先别改" });
 
   assert.throws(
     () => queue.consumeApproval("review-2"),
     (error: unknown) => error instanceof ActionError
       && error.code === "agent.review_not_approved",
   );
-  assert.throws(
-    () => queue.decide({ review_id: "review-2", decision: "approve", actor_id: "tester" }),
+  await assert.rejects(
+    () => queue.respond({ review_id: "review-2", version: "proposal-1", decision: "approve", actor_id: "tester" }),
     (error: unknown) => error instanceof ActionError
       && error.code === "agent.review_already_decided",
     "拒绝之后不能换个入口再批一次",
@@ -368,26 +371,28 @@ test("a rejected review can never be turned into permission", () => {
   assert.equal(queue.receipt("review-2")?.note, "先别改");
 });
 
-test("an expired review is refused rather than silently approved", () => {
+test("an expired review is refused rather than silently approved", async () => {
   let now = Date.parse("2026-09-19T00:00:00.000Z");
-  const queue = new AgentReviewQueue({ now: () => new Date(now) });
+  const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date(now) });
+  queue.observe(review => queue.registerDecisionHandler(review.review_id, async (_input, commit) => commit()));
   queue.request(reviewRequest("review-3", "2026-09-19T00:01:00.000Z"));
   assert.deepEqual(queue.list(BOARD, "pending").map((item) => item.review_id), ["review-3"]);
 
   now = Date.parse("2026-09-19T00:02:00.000Z");
   assert.equal(queue.receipt("review-3")?.status, "expired");
   assert.deepEqual(queue.list(BOARD, "pending"), []);
-  assert.throws(
-    () => queue.decide({ review_id: "review-3", decision: "approve", actor_id: "tester" }),
+  await assert.rejects(
+    () => queue.respond({ review_id: "review-3", version: "proposal-1", decision: "approve", actor_id: "tester" }),
     (error: unknown) => error instanceof ActionError && error.code === "agent.review_expired",
   );
 });
 
-test("stopping a run withdraws everything still pending for it", () => {
-  const queue = new AgentReviewQueue();
+test("stopping a run withdraws everything still pending for it", async () => {
+  const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store });
+  queue.observe(review => queue.registerDecisionHandler(review.review_id, async (_input, commit) => commit()));
   queue.request(reviewRequest("review-4"));
   queue.request(reviewRequest("review-5"));
-  queue.decide({ review_id: "review-5", decision: "approve", actor_id: "tester" });
+  await queue.respond({ review_id: "review-5", version: "proposal-1", decision: "approve", actor_id: "tester" });
 
   assert.equal(queue.cancelPending("run-1"), 1, "只撤回仍在等待的那条");
   assert.equal(queue.receipt("review-4")?.status, "cancelled");
@@ -675,11 +680,12 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
   );
 });
 
-test("review replay preserves consumed approval and refuses changed content under the same id", () => {
-  const queue = new AgentReviewQueue();
+test("review replay preserves consumed approval and refuses changed content under the same id", async () => {
+  const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store });
+  queue.observe(review => queue.registerDecisionHandler(review.review_id, async (_input, commit) => commit()));
   const request = reviewRequest("stable-review");
   queue.request(request);
-  queue.decide({ review_id: request.review_id, decision: "approve", actor_id: "user" });
+  await queue.respond({ review_id: request.review_id, version: request.reference.version, decision: "approve", actor_id: "user" });
   queue.consumeApproval(request.review_id);
   queue.settle(request.review_id, { ok: true });
   queue.request(structuredClone(request));
@@ -688,6 +694,7 @@ test("review replay preserves consumed approval and refuses changed content unde
   assert.throws(() => queue.consumeApproval(request.review_id), /没有可用的批准/);
   const changed = structuredClone(request);
   changed.project_id = "another-board";
+  changed.reference = { ...changed.reference, owner: { ...changed.reference.owner, project_id: changed.project_id } };
   assert.throws(() => queue.request(changed), /不能替换/);
   assert.equal(queue.get(request.review_id)?.project_id, request.project_id);
 });

@@ -64,7 +64,9 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
     const key = `fu-${followUp!.followup_id}-${due.getTime()}`;
     assert.deepEqual([schedule.find(key)?.kind, schedule.find(key)?.state], ["assistant.follow-up", "queued"], "the time lives in the runtime's queue");
 
-    const second = await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed" ? view : undefined; }, "timed round");
+    const second = await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed" ? view : undefined; }, "timed round").catch(error => {
+      throw new Error(`Timed round did not finish: ${JSON.stringify({ task: schedule.find(key), last: service.followUps.list(sent.work.work_id)[0]?.last })}`, { cause: error });
+    });
     assert.match(second.rounds[1]!.text, /每天六点汇总.*汇总今天的进展/);
     assert.deepEqual(store.rounds(sent.work.work_id).map(round => round.written_by ?? "person"), ["person", "host"], "a timed round is marked as the Host's words when it is written");
     const after = service.followUps.list(sent.work.work_id)[0]!;

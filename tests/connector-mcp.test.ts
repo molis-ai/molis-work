@@ -88,7 +88,7 @@ const ORIGINAL_MCP_SERVERS: Readonly<Record<string, McpServerConfiguration>> = {
   x: { endpoint: "https://api.x.com/mcp", auth: "either", registration: "manual" },
 };
 
-type FixtureTool = { name: string; description?: string; inputSchema: { type: "object"; [key: string]: unknown } };
+type FixtureTool = { name: string; description?: string; inputSchema: { type: "object"; [key: string]: unknown }; outputSchema?: { type: "object"; [key: string]: unknown } };
 async function fixture(options: { token?: string; tokenScheme?: "Sentry-Bearer"; oauth?: boolean; sse?: boolean; toolError?: boolean; fail?: boolean; slow?: boolean; publicOrigin?: string; beforeToken?(): void | Promise<void>;
   beforeList?(): void | Promise<void>; beforeInitialize?(): void | Promise<void>; tools?(): FixtureTool[];
   /** How a tool call is answered instead of its result: a JSON-RPC error from the server, or an HTTP 503 for the call's request. */
@@ -1030,6 +1030,23 @@ test("ASC-58: an MCP call's run of failures counts only what the server did not 
     assert.deepEqual([(await lastCall()).last_call?.outcome, (await lastCall()).last_call?.failures], ["succeeded", undefined]);
     assert.equal(remote.stats().callCount, 7);
   } finally { await remote.close(); }
+});
+
+test("APR-11: a real MCP write without its required structured result stays unknown", async t => {
+  const local = await openTestHome(t);
+  const remote = await fixture({ tools: () => [{ name: "echo", inputSchema: { type: "object", properties: { message: { type: "string" } } },
+    outputSchema: { type: "object", properties: { message: { type: "string" } }, required: ["message"] } }] });
+  t.after(() => remote.close());
+  const started = await local.web.post<{ connection_id: string }>("/api/settings/connectors/methods/mcp/start", {
+    service_id: "mcp-bearer", display_name: "Unconfirmed write", endpoint: remote.endpoint, authentication: "none", transport: "http",
+  });
+  const ref = local.host.connectorMcp!.reference(started.connection_id, connectorMcpCapabilityId(started.connection_id, "echo"))!;
+  const caller: ActionCallContext = { actor_id: "status-user", audience: "agent", project_id: null, permissions: [CONNECTOR_MANAGEMENT_READ, "mcp:external"] };
+  const actions = local.host.homeActionClient();
+  await assert.rejects(actions.invoke(caller, ref, { message: "The server accepted this" }), { code: "actions.outcome_unknown" });
+  const connections = await actions.invoke(caller, connectorManagementActions.list, {}) as { connections: Array<{ connection_id: string; status: { last_call?: { outcome: string } } }> };
+  assert.equal(connections.connections.find(row => row.connection_id === started.connection_id)?.status.last_call?.outcome, "unknown");
+  assert.equal(remote.stats().callCount, 1);
 });
 
 for (const sse of [false, true]) test(`ASC-05 ASC-09 ASC-12: prepared anonymous ${sse ? "SSE" : "HTTP"} executes once without a form and leaves the external service running`, async t => {

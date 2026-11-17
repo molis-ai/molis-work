@@ -26,6 +26,14 @@
 - 处理器里等模型或外部服务的，声明 `scheduling: "concurrent"`，并在返回后 `await caller.beforeEffect()`、按读取时的版本提交。
 - 结果合同读写都按严格合同校验，只认现行取值；存量数据由维护改成现行形状，schema 里不留历史取值。结果不合合同时，查询报 `actions.output_invalid`；写动作此时已提交，报 `actions.output_invalid_after_effect`，调用方刷新而不重试。
 
+## 声明有限委托范围
+
+无法固定目标或在业务写入前验证归属的动作，声明 `action.delegation: "confirmation-only"`。这是禁止可复用自动委托，不禁用人工确认后的调用；会间接调用这种入口的外层动作也须声明。SDK 提取结果只有 `undeclared` 能进入完整参数精确授权，`confirmation-only` 和有限声明的其他失败均保留原确认；准备、授予和实际执行一致处理，不按插件名猜。
+
+插件可在同一动作的 `action.delegation` 声明有限 string 目标、各项副作用与版本／幂等控制字段。输入必须是封闭顶层对象，每个业务字段只归一个操作；移动或关联字段同时是目标和副作用，不能藏在 control_fields。省略目标只允许 owner 明确声明的常量 default_value；动态读取当前关联的默认值不能当授权。名称沿提供方词包：目标／操作的 title_text、目标空串的 empty_title 都是非 literal 的 TextRef；空值名称不能代替允许值。
+
+原 schema 验证之后才用 SDK `extractActionDelegation`；字段存在就激活操作，包括 false 和空串，所有操作都须在完整授权行内。提取结果不是许可，执行仍核原 owner 的对象、项目、版本、安装与写前当前性。有声明但本次缺目标或不支持该值时保留确认，不能改走完整参数匹配来放行。名字复用 `presentation.values` 按 owner 批读标题，不读正文；授予时读过不替代业务写入前的 owner 校验。Pages 的非空 Goal 目前缺最终 owner 校验，仅支持明确不关联的空串自动范围；见[有限委托合同](../../specs/agent-approval/delegation-contract-design.md)。
+
 ## 生成插件用能力时
 
 - 只能用能力板上列出的、并且安装时用户授权过的能力。读类随安装一并授予；写类在安装清单里逐项列出；不可撤销的不会出现。

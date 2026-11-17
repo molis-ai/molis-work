@@ -116,7 +116,7 @@ await act("goals.decisions.request", {
 
 Show the Goal page (the connection's `goal_url_template` with this Goal's ID) and the concrete decision awaiting the user. The user records acceptance or rejection in the protected interface. If that page needs starting, follow [service-start.md](service-start.md); continue unrelated work meanwhile.
 
-Then read `goals.state.read` and use its actual requirement conclusions and pending decisions. Runtime cannot invoke `event_decide`, copy the user's wording into a fake identity, or treat “request saved” as “accepted.” A rejected decision leaves the requirement unmet.
+Then read `goals.state.read` and use its actual requirement conclusions and pending decisions. Runtime cannot invoke the protected `review_decide` management tool, copy the user's wording into a fake identity, or treat “request saved” as “accepted.” A rejected decision leaves the requirement unmet.
 
 ## Close and explicitly continue
 

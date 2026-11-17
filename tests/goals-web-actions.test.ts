@@ -8,6 +8,11 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { goalApplicationOf } from "./fixtures/goal-application.js";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import type { GoalEventDecisionResult } from "@molis-ai/molis-work-plugin-goals/contract";
+import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
+import { prepareGoalReview } from "./fixtures/project-review-entry.js";
 
 test("Web Goals use shared actions and store a result exactly once across async policy and replay", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-web-actions-"));
@@ -107,8 +112,15 @@ test("Web Goals use shared actions and store a result exactly once across async 
     const reported = await response.json() as { events: Array<{ actor_id: string; payload: { body: string } }> };
     assert.equal(reported.events[0]?.actor_id, "web-user"); assert.equal(reported.events[0]?.payload.body, "实际报告原文");
     assert.equal(await storedCount(payload => payload.body === "实际报告原文"), 1);
-    const decisionPath = `/api/plugins/io.molis.work.goals/goals/${input.goal_id}/event-decision`;
-    const decisionInput = { idempotency_key: "web-decision", conclusion: "用户明确允许发布", effects: [{ kind: "authorize_action", action: "publish" }], scope: { action: "publish" } };
+    const decisionPath = "/api/project-approvals/decide";
+    const prepare = async (idempotency_key: string) => {
+      const answer = await request("/api/project-approvals/request", prepareGoalReview(goalsActions.decide, { goal_id: input.goal_id, idempotency_key,
+        conclusion: "用户明确允许发布", effects: [{ kind: "authorize_action", action: "publish" }], scope: { action: "publish" } }));
+      assert.equal(answer.status, 200, await answer.clone().text());
+      return { reference: (await answer.json() as ReviewRequest).reference, choice_id: "apply", request_key: idempotency_key };
+    };
+    const decisionInput = await prepare("web-decision");
+    assert.equal((await request(`/api/plugins/io.molis.work.goals/goals/${input.goal_id}/event-decision`, decisionInput)).status, 404);
     assert.equal((await request(decisionPath, decisionInput, false)).status, 403);
     assert.equal((await request(decisionPath, { ...decisionInput, authority: { actor_id: "forged" } })).status, 400);
     gateAction = "goals.decisions.record";
@@ -119,17 +131,18 @@ test("Web Goals use shared actions and store a result exactly once across async 
     assert.equal(await storedCount(payload => payload.operation === "user_decision"), 0, "a decision waiting at the policy checkpoint has stored nothing");
     release!(); response = await pending; pending = undefined; gate = undefined;
     assert.equal(response.status, 200, await response.clone().text());
-    const decision = await response.json() as { event_id: string; replayed: boolean; decision: { actor_id: string; authority_source: string } };
-    assert.equal(decision.decision.actor_id, "web-user"); assert.equal(decision.decision.authority_source, "web");
+    const decision = await response.json() as { record: ProjectTrustedDecision; replayed: boolean; result: GoalEventDecisionResult };
+    assert.equal(decision.result.decision.actor_id, "web-user"); assert.equal(decision.result.decision.authority_source, "web");
     assert.equal(decision.replayed, false);
     assert.equal(await storedCount(payload => payload.operation === "user_decision"), 1);
     response = await request(decisionPath, decisionInput);
     assert.equal(response.status, 200, await response.clone().text());
-    assert.deepEqual(await response.json(), { ...decision, replayed: true });
+    assert.deepEqual(await response.json(), { record: decision.record, replayed: true });
     assert.equal(await storedCount(payload => payload.operation === "user_decision"), 1, "a replay stores nothing again");
+    const disabled = await prepare("disabled-decision");
     const decisionDeniedEntered = new Promise<void>(resolve => { enter = resolve; });
     gate = new Promise<void>(resolve => { release = resolve; });
-    pending = request(decisionPath, { ...decisionInput, idempotency_key: "disabled-decision" });
+    pending = request(decisionPath, disabled);
     await Promise.race([decisionDeniedEntered, pending.then(() => { throw new Error("Decision bypassed policy wait"); })]);
     deniedQueries.add(gateAction); release!(); response = await pending; pending = undefined; gate = undefined; gateAction = "goals.note";
     assert.equal(response.status, 403);

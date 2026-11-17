@@ -80,8 +80,8 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
   release = async () => { server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await host.close(); };
-  const call = async <Output>(projectId: string, path: string, body?: unknown, locale?: "en" | "zh"): Promise<{ status: number; body: Output }> => {
-    const response = await fetch(origin + `/projects/${projectId}` + path, { method: body === undefined ? "GET" : "POST", headers: {
+  const call = async <Output>(projectId: string, path: string, body?: unknown, locale?: "en" | "zh", method = body === undefined ? "GET" : "POST"): Promise<{ status: number; body: Output }> => {
+    const response = await fetch(origin + `/projects/${projectId}` + path, { method, headers: {
       origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID(),
       ...(locale ? { cookie: `${LOCALE_COOKIE}=${locale}` } : {}),
     }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
@@ -103,5 +103,5 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
     off = adapter.observe(ref, view => { if (!["completed", "failed", "cancelled"].includes(view.phase)) return;
       clearTimeout(timer); queueMicrotask(() => off()); resolve(view); });
   });
-  return { home, host, directory, project, other, workspaceId, call, ended, requests, providerRequests, close, web: new LocalHostHttpClient({ origin, controlToken }) };
+  return { home, host, directory, project, other, workspaceId, call, ended, requests, providerRequests, close, origin, web: new LocalHostHttpClient({ origin, controlToken }) };
 }

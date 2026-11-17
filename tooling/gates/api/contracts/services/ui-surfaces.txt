@@ -66,51 +66,66 @@ export interface HostSurfaceActivity {
     } | null;
 }
 
+export interface HostSurfaceContext {
+    readonly session_id: string | null;
+    beforeEffect(): void | Promise<void>;
+    assertCurrent(): void;
+}
+
 export interface HostSurfaceDriver {
     readonly kind: HostSurfaceKind;
     readonly project_id: string | null;
-    identity(): Promise<string>;
-    scope(): Promise<string>;
-    observe(kind: HostSurfaceObservationKind, context?: {
-        readonly session_id: string | null;
-    }): Promise<Uint8Array>;
-    perform(action: HostSurfaceAction, context: {
-        readonly session_id: string | null;
-    }): Promise<HostSurfaceActReceipt | void>;
-    release?(ended?: HostSurfaceRoundEnd): Promise<void>;
+    identity(context: HostSurfaceContext): Promise<string>;
+    scope(context: HostSurfaceContext): Promise<string>;
+    observe(kind: HostSurfaceObservationKind, context: HostSurfaceContext, expected: HostSurfaceExpectedTarget): Promise<Uint8Array>;
+    perform(action: HostSurfaceAction, context: HostSurfaceContext, expected: HostSurfaceExpectedTarget): Promise<HostSurfaceActReceipt | void>;
+    release?(context: HostSurfaceContext, ended?: HostSurfaceRoundEnd): Promise<void>;
     close(): Promise<void>;
-    describePoint?(x: number, y: number): Promise<string>;
-    describeNode?(node: string): Promise<string>;
-    focusedField?(): Promise<{
+    describeNode?(node: string, context: HostSurfaceContext, expected: HostSurfaceExpectedTarget): Promise<string>;
+    focusedField?(context: HostSurfaceContext, expected: HostSurfaceExpectedTarget): Promise<{
         readonly label: string;
         readonly sensitive: boolean;
+        readonly focus?: string;
     }>;
     masked(bytes: Uint8Array): boolean;
-    readiness?(context: {
-        readonly session_id: string | null;
-    }): Promise<{
+    readiness?(context: HostSurfaceContext): Promise<{
         readonly refusal: HostSurfaceRefusal;
         readonly detail: string;
     } | null>;
-    assess?(action: HostSurfaceAction): Promise<{
+    assess?(action: HostSurfaceAction, context: HostSurfaceContext, expected: HostSurfaceExpectedTarget): Promise<{
         readonly irreversible: boolean;
         readonly why: string;
+        readonly pointer?: HostSurfacePointerTarget;
     }>;
-    currentApp?(): Promise<{
+    currentApp?(context: HostSurfaceContext, expected: HostSurfaceExpectedTarget): Promise<{
         readonly bundle_id: string;
         readonly name: string;
     } | null>;
-    describeRound?(sessionId: string, context: {
+    describeRound?(context: HostSurfaceContext, metadata: {
         readonly run_id: string | null;
         readonly project_id: string | null;
         readonly goal: string;
     }): void;
-    noteRun?(sessionId: string, runId: string): void;
+    noteRun?(context: HostSurfaceContext, runId: string): void;
+}
+
+export interface HostSurfaceExpectedTarget {
+    readonly identity: string;
+    readonly scope: string;
+    readonly approved_focus?: string;
+    readonly assessed_pointer?: HostSurfacePointerTarget;
+    assertCurrent(): void;
 }
 
 export type HostSurfaceKind = "browser" | "desktop";
 
 export type HostSurfaceObservationKind = "dom" | "accessibility-tree" | "screenshot" | "window-metadata";
+
+export interface HostSurfacePointerTarget {
+    readonly x: number;
+    readonly y: number;
+    readonly fingerprint: string;
+}
 
 export type HostSurfaceRefusal = "driver-unavailable" | "person-present" | "screen-locked" | "outside-target";
 

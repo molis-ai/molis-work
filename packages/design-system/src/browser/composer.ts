@@ -74,6 +74,7 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
   c.paint(true);
 
   return {
+    ready: () => c.signal.aborted ? Promise.reject(c.signal.reason) : Promise.resolve(),
     setRunning(next) { if (c.running !== next) { c.running = next; if (!next) c.note = undefined; c.paint(); } },
     refresh() { c.paint(true); },
     focus() { c.field.focus(); },

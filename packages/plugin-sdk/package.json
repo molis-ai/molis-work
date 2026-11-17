@@ -46,6 +46,10 @@
       "types": "./dist/browser.d.ts",
       "import": "./dist/browser.js"
     },
+    "./subtask-conversation": {
+      "types": "./dist/subtask-conversation.d.ts",
+      "import": "./dist/subtask-conversation.js"
+    },
     "./page-globals": {
       "types": "./dist/page-globals.d.ts",
       "import": "./dist/page-globals.js"

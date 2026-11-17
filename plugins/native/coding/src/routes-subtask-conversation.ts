@@ -31,7 +31,10 @@ export function subtaskConversationRoutes(a: CodingActivation): PluginRouteBindi
     a.route("coding.command-subtask", async (request, api, execution) => {
       const { session, run, child } = target(request, execution);
       // The public Host Action validates this payload. Its original input is the protected route envelope, never this cast.
-      return api.invoke(agent.commandSubagent, [session, run, child, bodyOf(request) as AgentSubagentCommand]);
+      const command = bodyOf(request) as AgentSubagentCommand, result = await api.invoke(agent.commandSubagent, [session, run, child, command]);
+      if (result.state !== "not-applied" || !result.problems || command.kind !== "answer") return result;
+      const questions = await api.invoke(agent.readSubagentConversation, [session, run, child]).then(value => value.questions.find(question => question.pending_id === command.pending_id)?.questions).catch(() => undefined);
+      return { ...result, details: { problems: result.problems, ...(questions ? { questions } : {}) } };
     }),
   ];
 }

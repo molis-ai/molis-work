@@ -12,7 +12,7 @@ import { replyLanguage } from "../reply-language.js";
 import { runBackgroundWork } from "../web-locale.js";
 import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_MAIN_ROLE_ID, ASSISTANT_REPORT_ROLE_ID, ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { agentActions } from "./assistant-directory.js";
-import { openSession } from "./assistant-executor-session.js";
+import { openSession, setExecutorMode } from "./assistant-executor-session.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
 import { reportOnlyAuthority } from "./assistant-task-reports.js";
@@ -165,13 +165,7 @@ export class AssistantDispatch {
 
   /** A plugin-carried work's next-round mode, kept on the executor's session so both entries agree. */
   async setExecutorMode(workId: string, mode: string): Promise<AssistantWorkView> {
-    const work = this.store.get(this.actorId, workId);
-    if (work.executor.kind !== "plugin") throw assistantErrors.invalid("这项工作不由执行方插件承担");
-    const executor = await this.executorOf(work);
-    let sessionId = work.executor.session_id;
-    if (!sessionId) sessionId = (await openSession(this.store, this.actorId, work, executor, mode)).executor.session_id;
-    else await executor.setMode(sessionId, mode);
-    return this.link.read(workId);
+    return setExecutorMode(this.store, this.actorId, workId, mode, { executor: work => this.executorOf(work), read: workId => this.link.read(workId) });
   }
 
   /** A work carried by a plugin: its round starts, continues or is answered in the plugin's own session. */
@@ -199,13 +193,13 @@ export class AssistantDispatch {
       // A Skill is the start of a round's own: a round already running takes none, and none is dropped on the way.
       if (skills.length) throw assistantErrors.invalid("选定的技能要在新一轮开始时交给执行方：等这一轮结束后再发");
       // The executor's own control carries both: every answer with the revision it answers, every supplement with its receipt and its source, so words a page wrote reach the round as a note (BL-144).
-      const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: control => executor.control(sessionId, latest.ref.run_id, control),
+      const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: async control => { await executor.control(sessionId, latest.ref.run_id, control); },
         send: async input => { intent?.handed?.(); const receipt = await executor.send(sessionId, latest.ref.run_id, input); handoff?.accepted(); return receipt; } }, intent);
       return this.result(work, outcome, latest.ref.run_id, stillCurrent, intent?.draftCurrent);
     }
     const task = work.handover_brief ? `${work.handover_brief}\n\n用户现在的要求：${text}` : text;
     intent?.handed?.();
-    const runId = await executor.start(sessionId, this.inputs.compose(task, told, context), skills);
+    const runId = await executor.start(sessionId, this.inputs.compose(task, told, context), skills, intent?.resume_answer);
     handoff?.accepted();
     if (work.handover_brief) work = this.store.update(this.actorId, work.work_id, null, { handover_brief: undefined }, false);
     this.store.addRound(work.work_id, { run_id: runId, executor: "plugin", text, materials, context, started_at: this.now().toISOString(), ...(writtenBy ? { written_by: writtenBy } : {}) });
@@ -305,7 +299,7 @@ export class AssistantDispatch {
       handle = await this.link.delegations.startPlaced(work, async placed => {
         work = placed; assertSendCurrent(stillCurrent);
         dispatchHanded = true; intent?.handed?.();
-        const started = await host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: ready.materials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from, ...(intent?.report_only ? { report_only: true as const } : {}) }), authority);
+        const started = await host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: ready.materials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from, resume_answer: intent?.resume_answer, ...(intent?.report_only ? { report_only: true as const } : {}) }), authority);
         if (intent?.report_only) this.reportRuns.add(started.ref.run_id);
         handoff.accepted(); return started;
       });

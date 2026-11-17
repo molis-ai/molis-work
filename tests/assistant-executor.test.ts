@@ -30,7 +30,7 @@ function fakeExecutor(pluginId = PLUGIN, kind = KIND) {
   const calls: Call[] = [];
   const started: Array<{ session_id: string; task: string; mode: string }> = [];
   // What the executor's control says became of a supplement: the round took it, unless a test says it had just ended.
-  const receipt = { delivered: "run" as "run" | "queued" };
+  const receipt = { delivered: "run" as "run" | "queued", accepted: true };
   const views = roleViews(pluginId, "样例 Agent", kind);
   const run = (id: string, task: string): AgentRunView => ({ ref: { run_id: id }, phase: "completed", turns: [{ turn_id: "u", kind: "user", text: task }],
     activity: [], awaiting_input: [], usage: {}, started_at: "2026-09-28T00:00:00.000Z", ended_at: "2026-09-28T00:00:01.000Z" }) as AgentRunView;
@@ -51,7 +51,7 @@ function fakeExecutor(pluginId = PLUGIN, kind = KIND) {
         session!.runs.push(run(run_id, task)); started.push({ session_id: sessionId, task, mode: session!.mode ?? "execute" });
         return { run_id };
       }
-      case "run.control": return input.kind === "steer" ? { accepted: true, receipt: { input_id: "steer-1", replayed: false, delivered: receipt.delivered } } : { accepted: true };
+      case "run.control": return input.kind === "steer" ? { accepted: true, receipt: { input_id: "steer-1", replayed: false, delivered: receipt.delivered } } : { accepted: receipt.accepted };
     }
   };
   const actions: BoundActionClient = { discover: async () => views,
@@ -464,4 +464,19 @@ test("SAI-08/09: request recovery follows original executor relations after hand
     assert.equal(reads, 1, "foreign history is never read"); owner = before;
   }
   f.service.continuations.close();
+});
+
+test("SAI-06: an executor's explicit answer refusal cannot become an answered receipt", async () => {
+  const { service, exec, caller, plugin, project } = fixture();
+  const sent = await service.send({ executor: plugin, scope: project, text: "Ask before proceeding", request_id: randomUUID() }, caller);
+  const session = [...exec.sessions.values()][0]!, run = session.runs[0]!;
+  run.phase = "awaiting-input";
+  run.awaiting_input = [{ pending_id: "original-question", pending_revision: 1, kind: "clarification", prompt: "What next?", options: [], allows_free_text: true, answerable: true }];
+  exec.receipt.accepted = false;
+  let accepted = 0;
+  await assert.rejects(service.outcomes.answer(sent.work.work_id, { run_id: run.ref.run_id, pending_id: "original-question", pending_revision: 1, text: "Proceed" }, caller,
+    { beforeEffect: async () => {}, assertCurrent() {}, handed() {}, accepted() { accepted++; } }), { code: "assistant.state", details: { answer_accepted: false } });
+  assert.equal(accepted, 0);
+  assert.equal(exec.controls().at(-1)!.input.continue_after_answer, false);
+  assert.equal(exec.started.length, 1, "an answer-only refusal starts no next round");
 });

@@ -117,7 +117,7 @@ export function createWorkGraphs(runtime: Runtime, index: SessionIndexStore) {
       await waits.handOut(input.graph_id, { node: input.node_id, add, remove }, input.wait_reason);
     },
     async read(graphId) { return runtime.boards.get(boardRef(graphId)).nodes.map(node => view(graphId, node)); },
-    watch(graphId, listener) { return runtime.boards.subscribe(event => { if (event.board === graphId) listener(); }); },
+    watch(graphId, listener) { return runtime.boards.subscribe(event => { if (event.board === graphId) listener(runtime.boards.get(boardRef(graphId)).nodes.map(node => view(graphId, node))); }); },
     hold: waits.hold,
     onReady: waits.onReady,
     follow: jobs.follow,

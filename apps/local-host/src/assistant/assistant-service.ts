@@ -1,8 +1,10 @@
+import { readWorkView, listWorkViews } from "./assistant-work-view.js";
 import { AssistantSdkSubtasks } from "./assistant-sdk-subtasks.js";
+import { AssistantWorkSubtasks } from "./assistant-work-subtasks.js";
 import { AssistantSubtaskReports } from "./assistant-subtask-reports.js";
-import { assertSubtaskGraph, assertSubtaskRun, assertSubtaskWork } from "./assistant-subtask-binding.js";
+import { assertSubtaskWork } from "./assistant-subtask-binding.js";
 import { subtaskInputSessions } from "./assistant-subtask-inputs.js";
-import { assistantSessionLifecycleProblem, changeAssistantSessionLifecycle } from "./assistant-session-lifecycle.js";
+import { changeAssistantSessionLifecycle } from "./assistant-session-lifecycle.js";
 import type { MethodHandoff } from "./assistant-signed-materials.js";
 import { sentOriginal } from "./assistant-round-start.js";
 import { memoryInputSource } from "../memory/memory-source-identity.js";
@@ -17,9 +19,8 @@ import { runBackgroundWork } from "../web-locale.js";
 import { say } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { waitForAssistantWork } from "./assistant-wait.js";
 import { AssistantDelegations } from "./assistant-delegation.js";
-import { cardView } from "./assistant-card-view.js";
 import { AssistantOffers } from "./assistant-offers.js";
-import type { AssistantCharacterChoice, AssistantCharacterRef, AssistantContextSnapshot, AssistantControl, AssistantSubtaskBinding, AssistantRecovery, AssistantScope, AssistantSendInput, AssistantSendResult, AssistantWork, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantCharacterChoice, AssistantCharacterRef, AssistantContextSnapshot, AssistantControl, AssistantRecovery, AssistantScope, AssistantSendInput, AssistantSendResult, AssistantWork, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { withinTime } from "./assistant-material-scan.js";
 import { adoptSession } from "./assistant-executor-session.js";
 import { linkSent } from "./assistant-relations.js";
@@ -29,7 +30,6 @@ import { AGENT_STEER_MODES } from "@molis-ai/molis-work-contracts/services/agent
 import { assistantErrors } from "./assistant-errors.js";
 import { renameWork } from "./assistant-work-title.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { MemoryChange } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { assertRoundToAddress, inputsOf, withdrawInput } from "./assistant-inputs.js";
 import { hasExternalSessionContext } from "./assistant-external-sessions.js";
@@ -40,7 +40,7 @@ import { eventServes, lineEventsFor, mainSendInput } from "./assistant-line-acti
 import { AssistantReportRounds } from "./assistant-task-reports.js";
 import { checkHeldImages, checkMaterials } from "./assistant-send-materials.js";
 import { RUNTIME, MAX_TEXT, sessionRef, checkText, assertSendCurrent, type AssistantServicePorts, type AssistantCaller } from "./assistant-service-shared.js";
-import { stateOf, titleFrom, recoveryView, type CapabilityTitles } from "./assistant-present.js";
+import { titleFrom, recoveryView, type CapabilityTitles } from "./assistant-present.js";
 import { AssistantWorkReads } from "./assistant-work-reads.js";
 import { AssistantDispatch } from "./assistant-dispatch.js";
 import { AssistantOutcomes } from "./assistant-outcomes.js";
@@ -85,6 +85,7 @@ export class AssistantService {
   readonly reads: AssistantWorkReads;
   readonly dispatcher: AssistantDispatch;
   readonly outcomes: AssistantOutcomes;
+  readonly workSubtasks: AssistantWorkSubtasks;
   readonly materials: AssistantRoundMaterials;
   readonly memory: AssistantMemoryBridge;
   readonly budget: AssistantBudget;
@@ -134,6 +135,9 @@ export class AssistantService {
     this.reads = new AssistantWorkReads(store, ports, actorId, now, { capabilityTitles: (...a) => this.outcomes.capabilityTitles(...a), rememberTitle: (...a) => this.outcomes.rememberTitle(...a), rememberedTitle: (...a) => this.outcomes.rememberedTitle(...a), executorOf: (...a) => this.dispatcher.executorOf(...a), holdsImage: (...a) => this.materials.holdsImage(...a), continuations: this.continuations, delegations: this.delegations });
     this.dispatcher = new AssistantDispatch(store, ports, actorId, now, this.starting, this.titles, this.recalled, this.chosenMemory, { assistantPart: (...a) => this.reads.assistantPart(...a), workObjects: (...a) => this.reads.workObjects(...a), stateSafely: (...a) => this.reads.stateSafely(...a), publicWork: (...a) => this.reads.publicWork(...a), readSubject: (...a) => this.materials.readSubject(...a), roundMaterials: (...a) => this.materials.roundMaterials(...a), assertBudget: (...a) => this.budget.assertBudget(...a), workUsage: (...a) => this.budget.workUsage(...a), memoryForRound: (...a) => this.memory.memoryForRound(...a), notice: (...a) => this.notices.notice(...a), read: (...a) => this.read(...a), continuations: this.continuations, delegations: this.delegations });
     this.outcomes = new AssistantOutcomes(store, ports, actorId, now, this.titles, { executorOf: (...a) => this.dispatcher.executorOf(...a), dispatch: (...a) => this.dispatcher.dispatch(...a), latestRun: (...a) => this.reads.latestRun(...a), read: (...a) => this.read(...a), jobs: this.jobs, stepGate: this.continuations.stepGate });
+    this.workSubtasks = new AssistantWorkSubtasks(store, ports, actorId, { outcomes: this.outcomes, dispatch: (...args) => this.dispatcher.dispatch(...args), executorOf: (...args) => this.dispatcher.executorOf(...args), parentOf: work => this.delegations.parentOf(work), read: workId => this.read(workId),
+      applyControl: (work, control) => controlAssistantWork(work, control, { store, actorId, continuations: this.continuations, delegations: this.delegations,
+        host: () => ports.host(), executor: (current, fence) => this.dispatcher.executorOf(current, undefined, fence ? { control: fence } : undefined), latest: (host, current) => this.reads.latestRun(host, current), cancelSetups: ports.cancelSetups, retainSetups: ports.retainSetups }) });
     this.materials = new AssistantRoundMaterials(store, ports, actorId, now, this.starting, this.chosenMemory, { workObjects: (...a) => this.reads.workObjects(...a), related: (...a) => this.reads.related(...a), methods: (...a) => this.reads.methods(...a), readRole: (...a) => this.reads.readRole(...a), readSkills: (...a) => this.reads.readSkills(...a), memoryTools: (...a) => this.memory.memoryTools(...a), jobs: this.jobs, delegations: this.delegations });
     this.memory = new AssistantMemoryBridge(store, ports, actorId, this.recalled, this.chosenMemory, this.memorySourceWithdrawals, { assistantPart: (...a) => this.reads.assistantPart(...a), continuations: this.continuations });
     this.budget = new AssistantBudget(store, ports, actorId, now, { read: (...a) => this.read(...a), delegations: this.delegations });
@@ -150,16 +154,7 @@ export class AssistantService {
       } });
   }
 
-  async list(): Promise<AssistantWork[]> {
-    const works = this.store.list(this.actorId);
-    if (!works.length) return [];
-    const host = await this.ports.host();
-    return Promise.all(works.map(async work => {
-      const state = await this.reads.stateFor(host, work);
-      this.notices.notice(work, state);
-      return this.reads.publicWork(await this.reads.named(work), state);
-    }));
-  }
+  list(): Promise<AssistantWork[]> { return listWorkViews(this.store, this.ports, this.actorId, this.reads, this.notices); }
 
   /** The same business owner, without reading a Run, an executor or conversation contents. */
   memorySessionBinding(workId: string): { session_id: string | null; project_ref: LocalHostProjectReference | null; archived: boolean } {
@@ -169,35 +164,9 @@ export class AssistantService {
     return { session_id: work.session_id, project_ref: work.project_ref ? { ...work.project_ref } : null, archived: work.archived };
   }
 
-  async read(workId: string): Promise<AssistantWorkView> {
-    const work = await this.reads.named(this.store.get(this.actorId, workId));
-    // One work, whoever ran each round: the Assistant's own session, and the executor's session it carries or handed to.
-    const assistant = work.session_id ? await this.reads.assistantPart(work) : null;
-    const carried = await this.dispatcher.carried(work).catch(() => null);
-    const plugin = carried ? await this.reads.executorPart(work, carried) : null;
-    const rounds = this.dispatcher.settleUnsent(work, [...(assistant?.rounds ?? []), ...(plugin?.rounds ?? [])].sort((a, b) => a.started_at.localeCompare(b.started_at)));
-    const latest = rounds.at(-1);
-    const problem = await assistantSessionLifecycleProblem(this.ports, work) ?? assistant?.problem ?? plugin?.problem;
-    const state = plugin?.unreadable && work.executor.kind === "plugin" ? "needs-check"
-      : await this.continuations.state(work, stateOf(latest && latest.phase !== "unknown" ? latest.phase : latest ? null : undefined, Boolean(assistant?.recovery || plugin?.recovery)));
-    const shown: StoredWork = work.executor.kind === "plugin" && plugin?.mode ? { ...work, executor: { ...work.executor, mode: plugin.mode } } : work;
-    // Its task board: the sub-tasks it handed out, each as its own work.
-    const delegated = await this.delegations.parts(work);
-    const sdk_subtasks = work.session_id ? await this.sdkSubtasks.list(work.work_id).then(children => ({ children }), error => ({ error: assistantFailure(error).message })) : undefined;
-    const scheduled = this.followUps.list(work.work_id);
-    const claim = scheduled.length ? await this.followUps.claim() : null;
-    const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
-    const jobs = await this.jobs.views(work);
-    const undoable = this.store.undos(this.actorId, work.work_id).slice(-10).map(({ work_id: _work, reference, input: _input, told: _told, ...view }) => ({ ...view, capability_id: reference.capability_id }));
-    const memory_candidates = await this.memory.memoryCandidates(work.work_id);
-    const { changes: memory_changes } = await this.memory.memoryTrail(work, rounds, this.store.rounds(work.work_id), assistant?.memory ?? new Map()).catch(() => ({ changes: [] as MemoryChange[] }));
-    const usage = work.executor.kind === "plugin" ? null : await this.budget.workUsage(work).catch(() => null);
-    await this.offers.sweep(work);
-    return { work: this.reads.publicWork(shown, state), ...(sdk_subtasks ? { sdk_subtasks } : {}), rounds, reviews: [...(assistant?.reviews ?? []), ...(plugin?.reviews ?? [])],
-      cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.reads.workObjects(work), ...(delegated.length ? { delegated } : {}),
-      ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}), ...(undoable.length ? { undoable } : {}), ...(memory_candidates.length ? { memory_candidates } : {}), ...(memory_changes.length ? { memory_changes } : {}),
-      ...(usage && (usage.rounds || usage.budget_tokens !== null) ? { usage } : {}), ...(problem ? { problem } : {}),
-      ...assistant?.queued };
+  read(workId: string): Promise<AssistantWorkView> {
+    return readWorkView(workId, this.store, this.ports, this.actorId, { reads: this.reads, dispatcher: this.dispatcher, continuations: this.continuations,
+      delegations: this.delegations, sdkSubtasks: this.sdkSubtasks, followUps: this.followUps, jobs: this.jobs, memory: this.memory, budget: this.budget, offers: this.offers });
   }
 
   /** A work's view when it differs from `since`, or as it is once the wait runs out: the page follows a live work this way. */
@@ -256,7 +225,7 @@ export class AssistantService {
       assertSendCurrent(stillCurrent);
       work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, choice, input.main === true, await eventServes(input, this.ports.scopeActions && (() => this.ports.scopeActions!({ project_ref: caller.project_ref }))));
       this.store.requests.bindWork(this.actorId, input.request_id, work.work_id);
-      if (input.subtask) await this.assertSubtask(input.subtask.binding, input.subtask.operation);
+      if (input.subtask) await this.workSubtasks.assert(input.subtask.binding, input.subtask.operation);
       const draftWorkId = work.work_id, ownsDraft = input.draft_revision === undefined || input.draft_revision === work.draft_revision;
       let savedDraft = work.draft_revision; draftCurrent = () => ownsDraft && this.store.get(this.actorId, draftWorkId).draft_revision === savedDraft;
       // Before the input hold and the material links: a work with no session yet has no round to interrupt or wait behind.
@@ -275,7 +244,7 @@ export class AssistantService {
       if (input.reask !== undefined) materials = [...materials, await reaskMaterial(work, input.reask, this.store.rounds(work.work_id), (await this.ports.host()).adapter(RUNTIME))];
       assertSendCurrent(stillCurrent);
       linkSent(this.store.relations, work, materials, created ? context : null);
-      const beforeStart = async () => { await caller.beforeStart?.(); if (input.subtask && !accepted) await this.assertSubtask(input.subtask.binding, input.subtask.operation); };
+      const beforeStart = async () => { await caller.beforeStart?.(); if (input.subtask && !accepted) await this.workSubtasks.assert(input.subtask.binding, input.subtask.operation); };
       const assertBeforeStart = () => { caller.assertBeforeStart?.(); if (input.subtask) assertSubtaskWork(this.store, this.actorId, input.subtask.binding); };
       const result = await this.dispatcher.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, beforeStart, assertBeforeStart, { id: input.request_id, subtask: input.subtask, handed: () => { handed = true; }, target: input.target, delivery: input.delivery, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input, about: input.about, original_input, reply_locale: caller.reply_locale, draftCurrent, ...(input.auto_skills === false ? { auto_skills: false as const } : {}) }, { assertCurrent: () => { for (const item of handoffs) item.assertCurrent(); }, accepted: () => { accepted = true; for (const item of handoffs) item.accepted(); } });
       if (inputHold) { inputHold.accept(); const current = this.store.get(this.actorId, work.work_id); result.work = this.reads.publicWork(current, await this.reads.stateSafely(current)); }
@@ -299,64 +268,12 @@ export class AssistantService {
     } finally { inputHold?.end(); if (work?.delegated_by) this.subtaskReports.kick(work.work_id); }
   }
 
-  private async subtaskLatest(work: StoredWork) {
-    if (work.executor.kind === "plugin") return work.executor.session_id
-      ? (await (await this.dispatcher.executorOf(work)).read(work.executor.session_id, 1)).runs.at(-1) : undefined;
-    return work.session_id ? (await (await this.ports.host()).adapter(RUNTIME).readSession(sessionRef(work))).latest_run : undefined;
-  }
-
-  private async assertSubtask(binding: AssistantSubtaskBinding, operation?: "send" | "continue"): Promise<void> {
-    const work = assertSubtaskWork(this.store, this.actorId, binding);
-    await assertSubtaskGraph((await this.ports.host()).adapter(RUNTIME), work, this.store.get(this.actorId, binding.parent_work_id));
-    const latest = await this.subtaskLatest(work);
-    assertSubtaskWork(this.store, this.actorId, binding);
-    assertSubtaskRun(binding, latest, operation);
-  }
-
-  async readSubtask(workId: string): Promise<{ view: AssistantWorkView; binding: AssistantSubtaskBinding | null; parent_subtask: boolean; input_unavailable?: string }> {
-    const work = this.store.get(this.actorId, workId), parent = this.delegations.parentOf(work);
-    if (!work.delegated_by || !parent) throw assistantErrors.scope("This Work is not a delegated child");
-    const view = await this.read(workId), latest = await this.subtaskLatest(work);
-    if (!latest) return { view, parent_subtask: Boolean(parent.delegated_by), binding: null, input_unavailable: "The original child execution is unavailable" };
-    const binding: AssistantSubtaskBinding = { work_id: workId, parent_work_id: parent.work_id, graph_id: work.delegated_by.graph_id,
-      node_id: work.delegated_by.node_id, run: { ...latest.ref }, executor: work.executor.kind === "plugin" ? { kind: "plugin", plugin_id: work.executor.plugin_id } : { kind: "assistant" },
-      ...(work.executor.kind === "plugin" && work.executor.session_id ? { executor_session_id: work.executor.session_id } : {}) };
-    try { await this.assertSubtask(binding); return { view, binding, parent_subtask: Boolean(parent.delegated_by) }; }
-    catch (error) { return { view, binding, parent_subtask: Boolean(parent.delegated_by), input_unavailable: assistantFailure(error).message }; }
-  }
-
-  /** Read the original request even after its child advanced or was taken back. No replay or notification effect. */
-  async checkSubtaskRequest(workId: string, requestId: string) {
-    const work = this.store.get(this.actorId, workId);
-    if (this.store.requests.workOf(this.actorId, requestId) !== workId) return { state: "unknown" as const };
-    const receipt = this.store.requests.read(this.actorId, requestId);
-    if (receipt.state === "sent") return { state: "applied" as const, result: receipt.result };
-    const adapter = (await this.ports.host()).adapter(RUNTIME);
-    const sessions = await subtaskInputSessions(work, { store: this.store, actorId: this.actorId, adapter, personActions: this.ports.personActions, executor: (current, pluginId) => this.dispatcher.executorOf(current, pluginId) });
-    for await (const inputSession of sessions) {
-      const start = await adapter.readOriginalInput?.({ session_id: inputSession, input_id: requestId, version: 1 });
-      if (start) return { state: "applied" as const, run: start.accepted_run };
-      const input = await adapter.inputs?.findByKey?.(inputSession, `send.${requestId}`);
-      if (input) return { state: "applied" as const, input_id: input.ref.input_id };
-    }
-    return { state: "unknown" as const };
-  }
+  readSubtask(workId: string) { return this.workSubtasks.conversation(workId); }
+  checkSubtaskRequest(workId: string, requestId: string) { return this.workSubtasks.checkRequest(workId, requestId); }
 
   async control(workId: string, control: AssistantControl): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
-    if (control.subtask) {
-      if (control.kind !== "stop" || control.subtask.work_id !== workId || !control.request_id) throw assistantErrors.invalid("Invalid subtask stop request");
-      const claim = this.store.requests.claimStop(this.actorId, control.request_id, workId);
-      if (!claim.claimed) return this.read(workId);
-      try { await this.assertSubtask(control.subtask, "send"); }
-      catch (error) { this.store.requests.releaseRequest(this.actorId, control.request_id); throw error; }
-      // From this handoff onward a missing response stays unknown, including a failure while reading the final view.
-      await controlAssistantWork(work, control, { store: this.store, actorId: this.actorId, continuations: this.continuations, delegations: this.delegations,
-        host: () => this.ports.host(), executor: (current, fence) => this.dispatcher.executorOf(current, undefined, fence ? { control: fence } : undefined), latest: (host, current) => this.reads.latestRun(host, current), cancelSetups: this.ports.cancelSetups, retainSetups: this.ports.retainSetups });
-      const view = await this.read(workId);
-      this.store.requests.finishRequest(this.actorId, control.request_id, { outcome: "stopped", work: view.work, run_id: control.subtask.run.run_id });
-      return view;
-    }
+    if (control.subtask) return this.workSubtasks.stop(workId, control);
     if (control?.kind === "withdraw") {
       await withdrawInput(work, this.store.rounds(work.work_id), control, { executor: () => this.dispatcher.executorOf(work), runtime: async () => inputsOf((await this.ports.host()).adapter(RUNTIME)),
         beforeWithdraw: (session_id, input_id) => { const source = memoryInputSource({ actor_id: this.actorId, session_id, input_id, kind: "supplement" }); for (const cancel of this.memorySourceWithdrawals) cancel(source.event_id); } });

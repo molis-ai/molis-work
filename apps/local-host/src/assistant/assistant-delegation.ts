@@ -1,4 +1,5 @@
 import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
+import { takeBackAssistantWork } from "./assistant-work-control.js";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { eventBehind } from "./assistant-line-actions.js";
 import { deliveryOf, handedBackLines, hangRequirements, readStanding, requirementsBrief, type WorkAcceptancePort } from "./assistant-delegated-delivery.js";
@@ -222,7 +223,7 @@ export class AssistantDelegations {
   /** The work that delegated `work` (the one whose graph its step is on), if it still exists. */
   parentOf(work: StoredWork): StoredWork | undefined {
     const graph = work.delegated_by?.graph_id;
-    return graph ? this.ports.store.graphOwner(this.ports.actorId, graph) : undefined;
+    return graph ? this.ports.store.list(this.ports.actorId, { archived: "any", root_graph_id: graph, limit: 1 })[0] : undefined;
   }
 
   /** A delegated work's `delegated_by` as it is shown: which work asked, found from its graph. */
@@ -261,20 +262,8 @@ export class AssistantDelegations {
    * delegating work's session, whose rounds stand on its own root (§6.0k).
    */
   async takeBack(childId: string): Promise<AssistantWorkView> {
-    const { store, actorId } = this.ports;
-    const child = store.get(actorId, childId), parent = this.parentOf(child);
-    if (!child.delegated_by || !parent) throw assistantErrors.invalid("这不是一个子任务");
-    if (child.delegated_by.taken_back_at) throw assistantErrors.invalid("这个子任务已经收回了");
-    // Revoke admission synchronously before waiting on the graph or the Run. Prepared personal sends can no longer commit.
-    store.update(actorId, child.work_id, null, { delegated_by: { ...child.delegated_by, taken_back_at: new Date().toISOString() } }, false);
-    await this.#endOpen(child, TAKEN_BACK_NOTE);
-    const host = await this.ports.host();
-    const latest = await this.ports.latestRun(host, child);
-    if (latest && !isTerminalAgentPhase(latest.phase)) {
-      await host.adapter(RUNTIME).control(latest.ref, { kind: "stop" });
-      host.reviews.cancelPending(latest.ref.run_id, "用户把这个子任务收回了");
-    }
-    return this.ports.read(parent.work_id);
+    const child = this.ports.store.get(this.ports.actorId, childId);
+    return takeBackAssistantWork(child, this.parentOf(child), { ...this.ports, endOpen: work => this.#endOpen(work, TAKEN_BACK_NOTE) });
   }
 
   /** The person closed an interrupted round of a part: what of it was not done ends as theirs, and its delegating work may go on. */
@@ -339,7 +328,7 @@ export class AssistantDelegations {
   /** Its parts are all back and its root may go on: the work goes on by itself in one round the Host writes, when it should. */
   async #continue(ready: { graph_id: string; request_key: string }): Promise<void> {
     const { store, actorId } = this.ports;
-    const parent = store.graphOwner(actorId, ready.graph_id);
+    const parent = store.list(actorId, { archived: "any", root_graph_id: ready.graph_id, limit: 1 })[0];
     if (!parent || parent.archived || parent.executor.kind === "plugin" || this.#continuing.has(parent.work_id) || this.#refused.has(ready.request_key)) return;
     const preparing = { withdrawn: false };
     this.#continuing.set(parent.work_id, preparing);

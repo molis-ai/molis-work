@@ -205,6 +205,7 @@ const startInput = { type: "object", required: ["session", "task", "role_id"], a
   original_input: { type: "object", required: ["input_id", "text", "written_by", "occurred_at"], additionalProperties: false, properties: {
     input_id: entryId, text: text(1_000_000), written_by: { enum: ["person", "host"] }, occurred_at: text(200) } },
   continued_from: runRef,
+  resume_answer: shape(["run_id", "pending_id", "queued_input_id"], { run_id: entryId, pending_id: entryId, queued_input_id: entryId }),
   action_tools: { type: "array", maxItems: 500, items: { type: "object", required: ["capability_id", "version", "provider_id"], additionalProperties: false, properties: { capability_id: entryId, version: count, provider_id: entryId } } },
   action_gateway: { type: "boolean" }, character_skill_ids: ids(200),
   execution_plan: { type: "object", required: ["source", "title", "steps"], additionalProperties: false, properties: { source: artifactInput, title: text(2000),
@@ -237,12 +238,14 @@ const mcpServerInput = { type: "object", required: ["expected_version", "label",
 const sessionLifecycleOutput = { type: "object", required: ["session", "state"], additionalProperties: false, properties: { session: sessionRefOutput, state: { enum: ["active", "archived"] } } } as const;
 const pluginOnly = { scope: "project", audiences: ["plugin"], permissions: [], subject_kinds: [] } as const;
 const subagentRequestOutput = { anyOf: [
-  shape(["state", "run"], { state: { const: "applied" }, run: runRefOutput, input_id: string }),
-  shape(["state", "reason"], { state: { const: "not-applied" }, reason: string }),
+  shape(["state", "run"], { state: { const: "applied" }, run: runRefOutput, input_id: string, answer_delivery: { enum: ["delivered", "queued"] } }),
+  shape(["state", "reason"], { state: { const: "not-applied" }, reason: string, problems: list(shape(["question", "reason"], { question: number, id: string, reason: string })) }),
   shape(["state"], { state: { const: "unknown" } }),
 ] } as const;
 const subagentCommandFields = { request_id: entryId, child_run: runRef } as const;
 export const agentSubagentCommandSchema = { anyOf: [
+  shape(["request_id", "child_run", "kind", "pending_id", "pending_revision"], { ...runControl.oneOf[2].properties, ...subagentCommandFields, pending_revision: { type: "integer", minimum: 1 } }),
+  shape(["request_id", "child_run", "kind", "pending_id", "pending_revision"], { ...subagentCommandFields, kind: { const: "resume-answer" }, pending_id: entryId, pending_revision: { type: "integer", minimum: 1 } }),
   shape(["request_id", "child_run", "kind", "text"], { ...subagentCommandFields, kind: { enum: ["send", "continue"] }, text: text(1_000_000) }),
   shape(["request_id", "child_run", "kind"], { ...subagentCommandFields, kind: { const: "retry" }, source: subagentRetrySource, reason: text(2000) }),
   shape(["request_id", "child_run", "kind"], { ...subagentCommandFields, kind: { const: "stop" } }),
@@ -251,7 +254,7 @@ export const agentSubagentCommandSchema = { anyOf: [
 
 const subagentConversationOutput = shape(["child", "messages", "phase", "questions", "approvals"], {
         child: subagentOutput, messages: list({ ...turnOutput, required: [...turnOutput.required, "run"], properties: { ...turnOutput.properties, run: runRefOutput } }),
-        phase: { enum: RUN_PHASES }, questions: list(shape(["pending_id", "kind", "why"], { pending_id: string, pending_revision: number, kind: string, why: string, sequence: number })),
+        phase: { enum: RUN_PHASES }, questions: list(questionOutput), queued_answer: shape(["pending_id", "pending_revision"], { pending_id: string, pending_revision: number }),
         approvals: list(shape(["pending_id"], { pending_id: string, pending_revision: number })), input_unavailable: string });
 
 export const agentHostCapabilities = {

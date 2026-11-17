@@ -1,3 +1,5 @@
+import type { AssistantSubtaskBinding } from "./assistant-subtasks.js";
+export type { AssistantSubtaskBinding, AssistantSubtaskAnswer, AssistantSubtaskResumeAnswer, AssistantRequestResult } from "./assistant-subtasks.js";
 import type { MaterialRef } from "../platform/project-materials.js";
 import type { SignedAgentReference, SignedAgentInstallation, SkillRef } from "./agent-definitions.js";
 import type { SkillCatalogEntry, SkillPick } from "./skills.js";
@@ -11,7 +13,7 @@ export type { AssistantActivity, AssistantActivityFailure } from "./assistant-ac
 import type { ContractDescriptor } from "../platform/package.js";
 import type { DirectoryReadOrigin } from "../platform/plugin-directory.js";
 import type { OwnedTextRef } from "../platform/ui-text.js";
-import type { AgentRunRef, AgentRetryWait, AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
+import type { AgentRetryWait, AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
 import type { AgentPendingQuestion, AgentQuestionReask } from "./agent-interaction.js";
 import type { AgentInputSend, AgentQueuedInput, AgentSteerMode } from "./agent-inputs.js";
 import type { MemoryChange } from "./memory.js";
@@ -481,18 +483,6 @@ export interface AssistantWorkView {
 
 export type { AssistantRecovery } from "./assistant-recovery.js";
 
-/** Issued from original Work/delegation facts; never a permission grant. */
-export interface AssistantSubtaskBinding {
-  work_id: string;
-  parent_work_id: string;
-  graph_id: string;
-  node_id: string;
-  executor: AssistantExecutorChoice;
-  /** The executor's business session when a plugin carries this Work. */
-  executor_session_id?: string;
-  run: AgentRunRef;
-}
-
 export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   /** The child conversation never silently redirects to a newer execution or starts from a plain supplement. */
   subtask?: { binding: AssistantSubtaskBinding; operation: "send" | "continue" };
@@ -543,15 +533,14 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
 
 /** What one Send did: started a round, reached a running one, waits for the next (its round had just ended), or answered its question. */
 export interface AssistantSendResult {
+  /** An explicit original-question request; absent on historical Send outcomes, including Send's own `answered`. */
+  question_request?: { operation: "answer" | "resume-answer"; binding: AssistantSubtaskBinding; pending_id: string; fingerprint: string };
   /** The content attempt that won request_id, when the caller supplied one; replays and read-only checks preserve it. */
   submission_id?: string;
   work: AssistantWork;
   outcome: "started" | "steered" | "queued" | "answered" | "repeated";
   run_id?: string;
 }
-
-/** Stored in the existing request owner; the original Send result remains its current branch. */
-export type AssistantRequestResult = AssistantSendResult | { outcome: "stopped"; work: AssistantWork; run_id: string };
 
 /**
  * Hand a work to another agent and keep it one work: to a plugin's Agent (in its project, with a note of what was agreed and

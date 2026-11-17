@@ -10,6 +10,7 @@ import { agentErrors } from "./errors.js";
  */
 export function childRoleTools(execution: AgentRoleExecution, hasOwnWorkspace: boolean, parentTools: readonly string[]): readonly string[] {
   return ["read-file", "list", "search", "context-remaining",
+    ...(parentTools.includes("ask-user") ? ["ask-user"] : []),
     ...(hasOwnWorkspace && execution !== "read-only" ? ["write", "edit-file"] : []),
     ...(execution === "workspace-write" ? ["run-command"] : []),
     ...(parentTools.includes("await-commands") ? ["command-output", "await-commands"] : [])];

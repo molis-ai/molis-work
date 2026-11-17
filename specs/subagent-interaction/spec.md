@@ -420,7 +420,7 @@ Prologue 提供无 UI 的公共合同，不包含 Molis Work 文案、组件、W
 
 Work 草稿复用原 Work owner；SDK 子任务草稿与未决操作引用复用平台 `host.drafts`，按稳定逻辑 target 分键。未决数据仅保留原 request/target/binding，不是消息或执行账。发送前先保存引用，结果未知时只查原请求；组件重开、刷新、A→B→A 与子 iframe 卸载均不能重发或清理另一个任务的输入。验收覆盖两种助理来源和 Coding 真实 iframe，尤其主输入独立、关闭与重开、终态继续、失权及原审批/成果入口。
 
-浮窗挂载合同细化：`UiPageView.openTask(input: Readonly<Record<string,string>>): Promise<void>` 只能请求当前已授权 contribution 的同安装投影；输入沿现有有限 stage 参数上限校验，仅作客户端定位，记录可读性和操作权限仍在原 HTTP/Action owner 校验。浮窗实例收到 `view.task`，含当前 `input`、`subscribe(listener)` 与 `close()`；普通页面没有该上下文。壳重用同一源页面的一份隔离浮窗实例，切目标只更新输入并通知控制器，不重新挂载 iframe；关闭隐藏浮窗、保留组件阅读状态，源页面失权/卸载时销毁。源页不能传 HTML、地址、安装或 contribution 身份。首次挂载经现有 `mountFrame` 发独立 grant，不能沿用源页 `pack.authorization`；缓存重开核验源页及投影授权，失效销毁重建，使用原页面登记的脚本及授权文档。全局 task-panel 管显示、返回、Escape 与焦点；浮窗内的主输入只绑定组件冻结的子目标。
+浮窗挂载合同细化：`UiPageView.openTask(input: Readonly<Record<string,string>>): Promise<void>` 只能请求当前已授权 contribution 的同安装投影；输入沿现有有限 stage 参数上限校验，仅作客户端定位，记录可读性和操作权限仍在原 HTTP/Action owner 校验。浮窗实例收到 `view.task`，含当前 `input`、`subscribe(listener)` 与 `close()`；普通页面没有该上下文。壳重用同一源页面的一份隔离浮窗实例，切目标只更新输入并通知控制器，不重新挂载 iframe；关闭隐藏浮窗、保留组件阅读状态，源页面失权/卸载时销毁。源页不能传 HTML、地址、安装或 contribution 身份。首次挂载经现有 `mountFrame` 发独立 grant，不能沿用源页 `pack.authorization`；缓存重开核验源页及投影授权，失效销毁重建，使用原页面登记的脚本及授权文档。共用壳浮窗管显示、返回、Escape 与焦点，项目 task-panel 在它内提供原任务卡；浮窗内的主输入只绑定组件冻结的子目标。
 
 2026-11-17 只读合同设计合审确认此窄口可行（评审代理 `contract_review`，审阅 `7a82f8649f`）。补充按实际源页 scope 绑定缓存与待打开操作；首次挂载合并，最新打开意图决定 input，迟到 A 不覆盖 B。初始 input 随握手给出，后续冻结快照经原 MessagePort 更新；源 scope 结束取消待打开并销毁投影。task 投影显式 `bar=false`，Coding 客户端优先走 `view.task`，不借 `side=true`，不改变主输入与侧栏消息语义。
 
@@ -437,3 +437,52 @@ SAI-06 的子问题使用原 `AgentPendingQuestion`、冻结表单和 `answerPen
 恢复补口已于 2026-11-17 经独立评审合入上游 [#130](https://github.com/molis-ai/molis-prologue/pull/130)，官方 main `71662135799fedf7bca4ab6875cefbe6cc6c7d72` 与评审头 `542eb0c7` 整棵树相同；本批采用提交 `a128e43b43`。新增真实 Node 用例进一步覆盖正常停放、原答案交付/投影失败、恢复锁、父前台等待关机及停放写失败；7 文件 56/56、构建/types/API/ratchet/docs/干净安装消费者通过。CI 因账户付款/额度未启动，不记通过。两次独立官方构建产物一致，来源与回滚 blob 见 vendor 记录。
 
 当前产品进度仍为实施中：项目工作台的 Work 委派与业务 SDK 子代理均已通过真实浏览器点击、原上下文追问和主输入草稿隔离的本机 HTTP 模型用例；不是实际 Provider 或本人验收。原问题/审批接线、主页浮窗挂载、Coding 完整入口、SAI 剩余恢复/布局验收、最终 C/D 合审、CI Full 与整批合入尚未完成。主页没有项目 WorkBar，须使用同一壳浮窗挂载，不得以项目入口通过替代主页能力。
+
+主页接线复核（2026-11-17）：项目与主页共用同一壳浮窗生命周期和原定位规则；项目 TaskPanel 提供卡片返回，主页顶层返回关闭浮窗并回到父对话。原浮窗 CSS 小段供 arrival 与工作台共用，窄屏避让主页原主输入。native consumer 从 WorkBar 移到助理首开懒加载，点击时同步冻结原 API base、目标、opener 与父对话；加载后切项目、切父对话、关闭或账号准备切换均不得迟到打开。每个 document 明确装配一个 host，不通过试开广播补装。账号切换复用 accountTransition.page：先关闭组件输入使延迟草稿写入排队，再等原草稿写入完成，随后销毁缓存/订阅/布局观察器；恢复只恢复读。无新增外观、控件或用户动线。
+
+### 12.10 重启后 Coding 原目录接续：合同待决（2026-11-17）
+
+真实 Node Host 回归已经区分两个阶段：无独立 child SessionIndex 的 live 问卷回答通过；正常停机后原问题仍可答，答案也已准确进入原 child Session 队列，但 `resume-answer` 在新的 Node Host 上被 SDK `ROOT_NOT_FOUND` 拒绝。当前 `NodeWorkspace.authorize()` 每次签发新的随机 RootRef，旧根只存在旧进程内；`Runtime.subagents.continue` 固定使用原 `handle.root`。公开 `workspace.adopt` 要求同一 Host 仍能用该 grant 执行 `listDir`，不能恢复已失效的旧根。证据为 `tests/prologue-subagent-conversation.test.ts` 的正常停机用例及本机日志 `/tmp/molis-b59-original-questions-tests.log`。这是当前安全合同边界，不能假造 RootRef、给旧根做别名或私改 vendor 包绕过。
+
+待用户裁定的最小上游方向：只对已经终止、原效果无未核对结果的子任务，增加可信 App 明确指定“本次接续采用当前重新授权的新根”的公开入口；保持旧 RootRef 失效及旧历史不变。请求须固定原父子关系、原 child Run、原根及新 grant，沿原 continuation claim、启动去重和 envelope 上限校验；新根在当前 Runtime 可用，权限不能高于原包络，模型派发工具不能调用该重绑入口。SDK 应在新尝试接受时记录其新根，不改写旧尝试的根。
+
+Molis 只允许原冻结 owner 的同一 canonical directory：从原父/子执行记录读取路径，重新 `realpath`、核对当前项目目录授权、角色权限与 actor/install，申请当前 Host 的新 grant；页面不能传新目录或根。接续仍使用原 child Session 和原已接受答案，不转为新的逻辑任务，不扩大到完整目录迁移或持久化旧授权。须验证同目录重启接续一次、换目录/越权/失效 grant/旧 Run/并发请求拒绝、旧审批及旧文件观察不被重用、结果仍回原父任务。上游独立评审合入并重新生成可复现官方包后才采用。
+
+此方向改变 SDK 当前“续跑不重新选根”的合同和目录授权边界，超出 §12 最初列举的上游窗口；目前只有方案和失败证据，尚未授权实施。第 59 批内部完整目标与该失败用例保留，不降级为仅业务子代理或仅同进程可用。其他接线继续推进。
+
+### 12.11 回答后接续的未确认引用与原部件挂载
+
+复用原问题表单、审批和浮窗详情，不增加新页面或新的回答/审批入口。公共浮窗只提供可信 owner 的详情挂载及销毁边界；原 renderer 生成表单，原 interaction client 绑定输入，模型 HTML 仍经过内容过滤，不能借内容挂载控件。切目标、精确执行改变、失权和关闭均销毁原挂载，保存已有 owner 的草稿；普通输入与问题回答分别调用原入口。
+
+原答案已接受但外层请求回执丢失时，`PendingSettlement` 没有请求键，不能推断该请求成功。原 `UiPageDrafts` 因而保留多份未确认引用（requestId、操作引用、冻结 binding），不存答案或执行结果；同键 CAS 新增/结算只影响对应引用。源仅在原 Host 返回精确 `queued_answer` 时放行单独的 `resume-answer`，旧回答仍是 unknown、仍可查询，新接续另用原请求键。新 Run 出现后，旧问题范围的 unknown 只作为未确认提示，不再锁新 Run。普通输入或无精确排队答案时仍锁住有冲突的操作。组件按 requestId 保留并发查询结果，迟到旧查询不能覆盖新操作。
+
+只读合同复核（contract_review，2026-11-17）确认以上为既有缓存、原问题/队列 owner 的最小接线，不是新请求事实表。须验证两个页面 CAS 交错、接续未知再重开、旧查询迟到、队列消费/Run 变化/撤权后零额外启动。回答接受与接续启动分两次原 SDK idempotent 记录；回答失败不启动，接续失败不重答，不自动起父 Run。
+
+### 12.12 Work 委派的原问题与两阶段接续
+
+Work 原 `/answer` 接受冻结的子任务 binding、request_id、pending_id/revision 及原表单答案，复用 `assistant_requests`。已完成回答回执保留 `answered`，附原执行、问题、binding 与输入指纹；普通发送、停止、回答、接续的请求键不能互借，同键异输入拒绝。待确认行保持原有语义，不新建表、不为历史 Send 补推回答元数据。只在原执行 owner 确认接受后写回执；交给执行者后失败且无回执时保持 unknown，查询不重答、不按问题消失或文本推断成功。
+
+提交前和原副作用边界核 Work revision、归档/收回、执行者、最新 Run、图节点归属与当前调用授权；原图监听在读取前安装，变更使本次提交失效，退出即释放。业务 Work 用原 adapter.withEffect；插件托管 Work 经原 WorkExecutor.control，增加明确的 `continue_after_answer:false`，使原 Coding 回答入口只接受答案，保留普通问题入口原有行为。
+
+接续由另一请求启动，精确引用原 Session 队列的 input_id、pending_id 与 left_by.run_id，经原 dispatcher/执行者启动同一子 Work。窄 `resume_answer` 沿 WorkExecutor→Coding→AgentHost 透传；在原 Session 的启动锁内核对最新 Run 和该队列项，再固定 `queued:[input_id]`，由 SDK 原消费事务拒绝已被消费的答案。旧 Run/queue 条件只用于启动准入，不能误拒执行者接受后的原记录写入；Work/图/调用授权一直守到请求结束，图 placement 也在原 effect control 内。执行方返回 `accepted:false` 是明确拒绝，不写 answered。读取、刷新、原请求查询均不启动。
+
+两条来源都复用原队列投影、表单/审批部件和草稿，普通输入不充当问卷。Work 问题草稿沿原 `question_drafts`；迟到回答只清与这次提交一致且未再改变的草稿。公共详情挂载原表单客户端，原字段错误仍在对应字段显示并聚焦；目标切换销毁挂载，未交给 owner 的旧提交不能迟到发送。验收包含 live/parked、同键及跨操作重放、最后提交前收回/归档/图换手/Run 替换、回答接受后回执失败、接续失败/丢响应及迟到回执保留新草稿。
+
+**2026-11-17 检查点（未交付）：** 本节 owner/合同增量经独立只读评审，无剩余已确认 P1；完整构建通过。Work 委派回归 21/21、Coding 执行方 4/4、执行方协议 4/4、其他执行方 19/19 通过；追加的原回答 live/parked 与最终 Work revision 拒绝 2/2 通过。公共组件 13/13、数据源 5/5、原问题字段浏览器用例 1/1、既有停驻问题与安全用例 12/12 通过。这些是隔离测试及脚本模型证据，不是实际 Provider/Home 或本人验收。其余撤权交错与丢回执、Native 审批、Home 资源接通和全量验收仍待补齐；§12.10 的目录重启失败仍待授权窗口，不因本检查点通过而关闭。
+
+
+**2026-11-17 后续检查点（仍未交付）：** Work-origin 子任务的原读取、请求核对、停止、回答及接续收拢到 `AssistantWorkSubtasks`，服务保留主调度时序，Work 详情组装归 `assistant-work-view.ts`。未增加事实库或重复停止栅栏。完整构建及上述五组关键回归再次通过。新增 `assistant-coding-subtask-question.test.ts` 经过真实 HTTP、项目目录、Host、Coding 执行方协议和已安装 SDK：子 Work 转交 Coding 后旧执行引用被拒；非法值不结算原问题，有效答案进入原子 Run，重复答案不再调用模型，已结束的父任务不重启。模型回复仍是脚本控制，不记作实际 Provider 验收。
+
+审批接线核查：原 `/api/agent/reviews` 的 Run 与 Session 筛选为并集，子任务浮窗只传精确 Run，避免混入整个 Session 的历史；项目审批 route 来自原 Work scope。Native 复用原审批 client 和原 lifecycle，不能复用会改主对话状态的 `assistant-island` 闭包；Work 的 `next-step` 仍由原 Work.step_gate/decide 负责，不能换成 Runtime queue。关闭、切目标或账号准备切换须 dispose 审批 lifetime，不能只取消 GET。此处是待完成接线约束，不是审批验收证据。
+
+
+插件承载 Work 的重启问答回归发现一个提交期重入：SDK `answerInterrupted` 已在原 Session 事务中时，Host 的 `beforeEffect` 再经 executor.read/inspectRecovery 读取该 Session，会等待自己的事务。子任务 scope 初始化读取精确 Run/原答案队列；进入原 owner 后，提交回调继续核对 Work revision、图归属观察和 caller 当前授权，不重入同一 Session。原问题的 pending/origin/Run/version 仍由 question owner 与 SDK 事务校验，原答案接续的 Run/queue 仍在 PrologueAdapter 的 Session 锁内校验。此修复保留停驻回归，禁止用跳过或超时放宽换绿。
+
+### 12.13 子任务审批沿原 owner 的提交边界
+
+Native Work/插件承载 Work 保留原 Work reviews/Outcomes.decide 与 `next-step` 的 step_gate；公共挂载只抽出原卡片 DOM 和点击绑定，结果只刷新浮窗，不改主对话。SDK 子 Run 使用原 Agent review renderer/client，通过父 Work 与精确 child Run 的 scoped owner 调用同一 ReviewQueue/ApprovalBridge。不得新增审批账、借普通消息批准，或把 Host 的下一步确认替换成 Runtime pending。
+
+当前 generic reviews HTTP 与 Work.decide 的原校验不能单独证明 Work 归档、收回、换手后的拒绝。提交须携带冻结 binding 和调用 execution，复用原 Work/SDK 子任务归属检查；原审批 owner 在异步读取 pending 后、生成决定前执行同步 current fence。已接受的决定及送达未知状态沿原回执，不猜结果或重放。需要原挂载点击到实际决定的归档/收回/换手/旧 Run 交错及兄弟隔离测试。本节仍为待实现范围，未把原审批回归结算为完成。
+
+
+重入修复验证：完整构建通过；`assistant-delegation` 21/21、`coding-work-executor` 4/4、`assistant-coding-subtask-question` live/parked 2/2 通过。后者真正关闭并重新打开 Host、保留隔离 Home 的原目录与数据库，回答只接受到原队列，显式接续与重放共新增一轮，模型请求带原答案。它证明的是插件承载 Work 的原启动路径；不等同 §12.10 仍失败的 SDK child 根恢复。职责清理后的 `health:check` 通过（merge-base `4aa5496e3f`），未改门禁阈值或 exception 基线；最终 PR 仍须对同步后的 main 与最终头验证。

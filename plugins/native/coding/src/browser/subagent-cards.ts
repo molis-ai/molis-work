@@ -146,7 +146,7 @@ function stopButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
     stop.disabled = true;
     const id = current();
     try {
-      await api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "stop" });
+      await api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "stop", request_id: crypto.randomUUID(), child_run: child.child_run });
       status(uiText.text("coding.card.stop-asked"));
     } catch (error) {
       if (!lifetime.alive) return;
@@ -213,7 +213,7 @@ function drawBudget(ports: SubagentCardPorts, node: HTMLElement, run: CardsRun, 
       extendBtn.disabled = true;
       const id = ports.current();
       try {
-        await ports.api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "extend-budget", extend_attempts: 3 });
+        await ports.api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "extend-budget", extend_attempts: 3, request_id: crypto.randomUUID(), child_run: child.child_run });
         ports.status(uiText.text("coding.card.budget-extended"));
       } catch (error) {
         if (!ports.lifetime.alive) return;
@@ -258,7 +258,7 @@ function retryButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
       retry.disabled = true;
       const id = current();
       try {
-        await api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "retry" });
+        await api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "retry", request_id: crypto.randomUUID(), child_run: child.child_run });
         status(uiText.text("coding.card.retry-asked"));
       } catch (error) {
         if (!lifetime.alive) return;

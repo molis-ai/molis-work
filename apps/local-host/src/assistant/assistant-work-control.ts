@@ -1,12 +1,29 @@
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { isTerminalAgentPhase, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { AssistantControl } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantControl, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { WorkExecutor, ExecutorControl } from "./assistant-executor.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import type { AssistantContinuations } from "./assistant-continuations.js";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { assertSubtaskGraph, assertSubtaskRun, assertSubtaskWork } from "./assistant-subtask-binding.js";
+
+/** Taking back a delegation revokes admission before any graph or Run await; its produced results remain. */
+export async function takeBackAssistantWork(child: StoredWork, parent: StoredWork | undefined, ports: {
+  store: AssistantStore; actorId: string; host(): Promise<AgentHost>; latestRun(host: AgentHost, work: StoredWork): Promise<AgentRunView | null>;
+  endOpen(work: StoredWork): Promise<void>; read(workId: string): Promise<AssistantWorkView>;
+}): Promise<AssistantWorkView> {
+  if (!child.delegated_by || !parent) throw assistantErrors.invalid("这不是一个子任务");
+  if (child.delegated_by.taken_back_at) throw assistantErrors.invalid("这个子任务已经收回了");
+  ports.store.update(ports.actorId, child.work_id, null, { delegated_by: { ...child.delegated_by, taken_back_at: new Date().toISOString() } }, false);
+  await ports.endOpen(child);
+  const host = await ports.host(), latest = await ports.latestRun(host, child);
+  if (latest && !isTerminalAgentPhase(latest.phase)) {
+    await host.adapter("prologue").control(latest.ref, { kind: "stop" });
+    host.reviews.cancelPending(latest.ref.run_id, "用户把这个子任务收回了");
+  }
+  return ports.read(parent.work_id);
+}
 
 /** Controls both a live round and a parked work. Stopping a wait does not pretend its already committed effects vanished. */
 export async function controlAssistantWork(work: StoredWork, control: Exclude<AssistantControl, { kind: "withdraw" }>, ports: {

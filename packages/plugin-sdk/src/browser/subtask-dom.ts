@@ -1,3 +1,4 @@
+import type { SubtaskConversationOptions } from "./subtask-contract.js";
 import { contentHtml } from "../browser.js";
 import type { ScrollFollower } from "../page-globals.js";
 import { escapeHtml } from "../ui/html.js";
@@ -43,7 +44,8 @@ function detailNode(document: Document, detail: MwSubtaskDetail, open: boolean, 
   if (!existing) node.innerHTML = '<summary></summary><div class="mw-subtask__detail-body" translate="no"></div><div class="mw-subtask__answers"></div>';
   const summary = node.querySelector("summary")!;
   if (summary.textContent !== detail.title) summary.textContent = detail.title;
-  patch(node.querySelector<HTMLElement>(".mw-subtask__detail-body")!, htmlOf(detail.content, document), true);
+  const body = node.querySelector<HTMLElement>(".mw-subtask__detail-body")!;
+  if (!body.hasAttribute("data-subtask-owner-mounted")) patch(body, htmlOf(detail.content, document), true);
   patch(node.querySelector<HTMLElement>(".mw-subtask__answers")!, (detail.actions ?? []).map(subtaskAction).join(""));
   if (node.open !== open) node.open = open;
   return node;
@@ -60,7 +62,10 @@ function keyed<T extends { readonly id: string }>(root: HTMLElement, rows: reado
 }
 
 interface Place { readonly top: number; readonly following: boolean; readonly unread: boolean; readonly expanded: Map<string, boolean> }
-export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversationLabels) {
+export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversationLabels, mount?: (root: HTMLElement, view: MwSubtaskConversationView, detail: MwSubtaskDetail) => ReturnType<NonNullable<SubtaskConversationOptions["mountDetail"]>>) {
+  const mounts = new Map<HTMLElement, { key: string; handle: NonNullable<ReturnType<NonNullable<SubtaskConversationOptions["mountDetail"]>>> }>();
+  const release = (body: HTMLElement) => { const mounted = mounts.get(body); mounts.delete(body); mounted?.handle.destroy(); body.removeAttribute("data-subtask-owner-mounted"); body.replaceChildren(); };
+  const releaseAll = () => { for (const body of mounts.keys()) release(body); };
   root.innerHTML = renderSubtaskConversation({ labels: labels() });
   const find = (name: string) => root.querySelector<HTMLElement>(`[data-subtask-${name}]`)!;
   const thread = find("thread"), messages = find("messages"), details = find("details"), latest = find("latest");
@@ -76,6 +81,7 @@ export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversatio
     follower = window.molisFollow?.(thread, { onChange: state => { if (state === "following") latest.hidden = true; } });
   }
   function clear() {
+    releaseAll();
     for (const name of ["context", "intro", "messages", "details", "children", "feedback"]) find(name).replaceChildren();
     latest.hidden = true;
   }
@@ -87,6 +93,19 @@ export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversatio
     patch(find("intro"), subtaskIntroduction(view));
     keyed(messages, view.messages, "data-subtask-message", (message, old) => messageNode(root.ownerDocument, message, old));
     keyed(details, view.details ?? [], "data-subtask-detail", (detail, old) => detailNode(root.ownerDocument, detail, expanded.get(detail.id) ?? Boolean(detail.expanded), old));
+    for (const body of mounts.keys()) if (!details.contains(body)) release(body);
+    for (const node of Array.from(details.querySelectorAll<HTMLElement>("[data-subtask-detail]"))) {
+      const detail = view.details?.find(one => one.id === node.dataset.subtaskDetail), body = node.querySelector<HTMLElement>(".mw-subtask__detail-body")!;
+      if (!detail) continue;
+      const key = JSON.stringify([view.target, view.binding, detail.id]); let mounted = mounts.get(body);
+      if (mounted && mounted.key !== key) { release(body); mounted = undefined; }
+      if (!mounted && mount) {
+        const handle = mount(body, view, detail);
+        if (handle) { mounted = { key, handle }; mounts.set(body, mounted); body.setAttribute("data-subtask-owner-mounted", ""); }
+        else patch(body, htmlOf(detail.content, root.ownerDocument), true);
+      }
+      mounted?.handle.update?.(view, detail);
+    }
     patch(find("children"), subtaskChildren(view, words));
     root.querySelector(".mw-subtask")!.setAttribute("aria-label", view.title);
     thread.setAttribute("aria-label", words.messages); find("follow").setAttribute("title", words.latest);
@@ -107,6 +126,7 @@ export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversatio
   };
   details.addEventListener("toggle", toggled, true);
   return {
+    releaseDetails: releaseAll, holdDetails: (held: boolean) => { for (const body of mounts.keys()) body.inert = held; },
     find, draw, show, composer: find("composer"),
     forget() { if (target) places.delete(target); expanded.clear(); first = true; follower?.resume(); clear(); },
     idle() { patch(find("head"), subtaskHeader(undefined, labels())); },

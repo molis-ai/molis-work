@@ -1,3 +1,4 @@
+import type { AgentAnswerControl, AgentPendingQuestion, AgentQuestionProblem } from "./agent-interaction.js";
 /** The agent-host contract (`services/agent-host`): a runtime's checkpoints, Skills, MCP, subagents, schedule and recovery. */
 import type { AgentWorkingDirectory, AgentMcpToolRef, AgentMcpSourceRef } from "./agent-host-start.js";
 import type { AgentSessionRef, AgentRunRef, AgentRunPhase } from "./agent-host-runtime.js";
@@ -134,7 +135,9 @@ export interface AgentSubagentConversation {
   child: AgentSubagentView;
   messages: Array<AgentTurnView & { run: AgentRunRef }>;
   phase: AgentRunPhase;
-  questions: Array<{ pending_id: string; pending_revision?: number; kind: string; why: string }>;
+  questions: AgentPendingQuestion[];
+  /** Original parked answer still in this child Session queue; no new answer is required. */
+  queued_answer?: { pending_id: string; pending_revision: number };
   approvals: Array<{ pending_id: string; pending_revision?: number }>;
   /** A retained scope, recovery or attempt-budget refusal. Reads remain available. */
   input_unavailable?: string;
@@ -146,14 +149,16 @@ export type AgentSubagentCommand = {
   child_run: AgentRunRef;
 } & (
   | { kind: "send" | "continue"; text: string }
+  | (AgentAnswerControl & { pending_revision: number })
+  | { kind: "resume-answer"; pending_id: string; pending_revision: number }
   | { kind: "retry"; source?: AgentSubagentRetrySource; reason?: string }
   | { kind: "stop" }
   | { kind: "extend-budget"; attempts: number }
 );
 
 export type AgentSubagentRequestResult =
-  | { state: "applied"; run: AgentRunRef; input_id?: string }
-  | { state: "not-applied"; reason: string }
+  | { state: "applied"; run: AgentRunRef; input_id?: string; answer_delivery?: "delivered" | "queued" }
+  | { state: "not-applied"; reason: string; problems?: readonly AgentQuestionProblem[] }
   | { state: "unknown" };
 
 export interface AgentSubagentControl {

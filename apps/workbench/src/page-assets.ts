@@ -91,6 +91,7 @@ import { NAVIGATION_FLOW_STYLES } from "./styles/navigation-flow.js";
 import { TAB_GROUP_STYLES } from "./styles/tab-groups.js";
 import { GLYPH_TAB_STYLES } from "./styles/glyph-tabs.js";
 import { WORKBENCH_NAVIGATION_STYLES } from "./styles/workbench-navigation.js";
+import { TASK_FLOAT_STYLES } from "./styles/task-float.js";
 import { WORK_LINE_STYLES } from "./styles/work-line.js";
 import { PROMPT_SETTINGS_CLIENT_SCRIPT } from "./settings-prompts.js";
 import { ASSISTANT_SETTINGS_CLIENT_SCRIPT } from "./settings-assistant.js";
@@ -123,7 +124,7 @@ export function renderMolisWorkWorkbenchStylesheet(): string {
  * titlebar, a stage, the resident bar) and one sheet, so the browser keeps it across the pages of the way in.
  */
 export function renderMolisWorkArrivalStylesheet(): string {
-  return `${STYLES}${VISUAL_FOUNDATION_PAGE_STYLES}${IMMERSIVE_NAVIGATION_STYLES}${PAGE_CHROME_OVERLAY}${PAGE_PRIMITIVE_TAIL}${TYPEFACE_STYLES}${CRAFT_FINISH_STYLES}${ASSISTANT_INTERACTION_STYLES}${NAVIGATION_FLOW_STYLES}${ARRIVAL_STYLES}${MATERIALS_RECOVERY_PARTS_STYLES}${COMPOSER_STYLES}${SUBTASK_CONVERSATION_STYLES}${GLYPH_TAB_STYLES}`;
+  return `${STYLES}${VISUAL_FOUNDATION_PAGE_STYLES}${IMMERSIVE_NAVIGATION_STYLES}${PAGE_CHROME_OVERLAY}${PAGE_PRIMITIVE_TAIL}${TYPEFACE_STYLES}${CRAFT_FINISH_STYLES}${ASSISTANT_INTERACTION_STYLES}${NAVIGATION_FLOW_STYLES}${ARRIVAL_STYLES}${MATERIALS_RECOVERY_PARTS_STYLES}${COMPOSER_STYLES}${SUBTASK_CONVERSATION_STYLES}${TASK_FLOAT_STYLES}${GLYPH_TAB_STYLES}`;
 }
 
 /** Shared settings presentation, reused across project and global settings routes. */

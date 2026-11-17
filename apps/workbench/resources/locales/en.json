@@ -9668,6 +9668,10 @@
     "workbench.subtask-conversation.receipt.withdrawn": "Withdrawn",
     "workbench.subtask-conversation.reconcile": "Check the original execution first",
     "workbench.subtask-conversation.not-available": "This subtask is unavailable",
-    "workbench.subtask-conversation.parent-task": "Parent task"
+    "workbench.subtask-conversation.parent-task": "Parent task",
+    "workbench.subtask-conversation.answer-needed": "Answer the question before submitting.",
+    "workbench.subtask-conversation.draft-unsaved": "Your answer draft could not be saved. Please try again.",
+    "workbench.subtask-conversation.answer-accepted": "Your answer was accepted; the next round has not started.",
+    "workbench.subtask-conversation.approvals": "Approval"
   }
 }

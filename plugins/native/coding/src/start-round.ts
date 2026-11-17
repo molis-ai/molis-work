@@ -283,7 +283,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     session_title: firstRound && record.title === DEFAULT_SESSION_TITLE ? codingSessionTitleFrom(task) : record.title,
     ...(mode === "digest" ? { history: "digest" as const } : {}),
     // What waits in the session comes in with the round: asked for the next round, or unread when its round ended (specs/ai-input-receipts §4.8).
-    queued: "carry",
+    queued: "carry", ...(body.resume_answer ? { resume_answer: body.resume_answer as import("@molis-ai/molis-work-contracts/services/agent-host").AgentStartRequest["resume_answer"] } : {}),
     budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
     model_selection: { provider_id: model.provider_id, model_id: model.model_id }, ...(effort ? { reasoning_effort: effort } : {}), skills: chosenSkills, ...(body.auto_skills === false ? { auto_skills: false as const } : {}), action_tools, mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
   const follower = follow(a, execution, record.session_id, session, workspace.workspace_id);

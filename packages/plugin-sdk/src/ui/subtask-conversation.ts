@@ -13,6 +13,8 @@ export interface MwSubtaskAction {
   readonly label: string;
   readonly title?: string;
   readonly disabled?: string;
+  /** Owner proved this operation independent of the retained unknown request; it still checks original authority. */
+  readonly pendingSafe?: boolean;
 }
 export interface MwSubtaskMessage {
   /** Stable identity from the owner's original history, including its attempt where needed. */
@@ -48,7 +50,7 @@ export interface MwSubtaskConversationView {
   /** Owner's reason sending is unavailable; does not hide accessible history. */
   readonly inputUnavailable?: string;
   /** Unresolved original request restored from its owner. A check reports that original outcome, not just that the query ran. */
-  readonly pending?: { readonly kind: "input" | "action"; readonly requestId: string; readonly message: string; readonly check: MwSubtaskAction };
+  readonly pending?: { readonly blocking?: boolean; readonly kind: "input" | "action"; readonly requestId: string; readonly message: string; readonly check: MwSubtaskAction };
 }
 export interface MwSubtaskConversationLabels {
   readonly back: string;

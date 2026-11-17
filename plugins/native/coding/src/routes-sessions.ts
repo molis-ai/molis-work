@@ -361,7 +361,7 @@ const ROUTES: RouteMaker[] = [
       // The answer's receipt, in the words the page shows. A round parked at a restart ended with the answer; the next round
       // takes it from the session's queue, or, refused, it waits there for 「从断点继续」.
       const say = codingText;
-      if (!question?.parked) return { accepted: true, message: say("coding.server.answered") };
+      if (!question?.parked || body.continue_after_answer === false) return { accepted: true, message: say("coding.server.answered") };
       const next = busy.has(record.session_id) ? { started: false as const, reason: say("coding.server.submitting") } : await (async () => {
         busy.add(record.session_id);
         try { return await roundAfterParkedAnswer(a, record, session, api!, execution, beforeWrite); } finally { busy.delete(record.session_id); }

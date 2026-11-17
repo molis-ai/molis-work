@@ -24,6 +24,7 @@ export interface SendIntent { id?: string; target?: AssistantSendInput["target"]
   /** False: the person asked for this round without automatic Skills (`AssistantSendInput.auto_skills`). */
   auto_skills?: false;
   subtask?: AssistantSendInput["subtask"];
+  resume_answer?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStartRequest["resume_answer"];
   /** Entering an execution owner may have an effect even if its response is lost. */
   handed?(): void;
   /** A round the Host starts only to report a task no conversation started: it reads, and does nothing else (`reportOnlyAuthority`). */

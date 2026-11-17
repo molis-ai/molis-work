@@ -1,3 +1,4 @@
+import type { AgentAnswerControl, AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { agentErrors } from "../errors.js";
 import { childCallerTask } from "./prologue-session-opening.js";
 import type { ChildOpeningFact } from "./prologue-session-index.js";
@@ -38,6 +39,8 @@ interface PrologueSubagentProvenance {
 
 export interface PrologueSubagentHooks {
   defaultMaxTurns?: number;
+  readQuestion?(parent: AgentRunRef, child: SubagentHandle, id: string, revision: number): Promise<AgentPendingQuestion | null>;
+  answerQuestion?(parent: AgentRunRef, child: SubagentHandle, answer: AgentAnswerControl): Promise<"delivered" | "queued">;
   extendBudget?(run: AgentRunRef, subagentId: string, addAttempts: number): Promise<void>;
   continueChild?(input: {
     parentRun: AgentRunRef;
@@ -49,6 +52,7 @@ export interface PrologueSubagentHooks {
     attemptNumber: number;
     requestKey: string;
     text?: string;
+    queued?: string[];
     execution?: AgentStartExecution;
   }): Promise<AgentRunRef>;
 }

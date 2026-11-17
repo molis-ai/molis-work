@@ -8934,6 +8934,10 @@
     "workbench.subtask-conversation.receipt.withdrawn": "已撤回",
     "workbench.subtask-conversation.reconcile": "请先核对原执行结果",
     "workbench.subtask-conversation.not-available": "当前子任务不可操作",
-    "workbench.subtask-conversation.parent-task": "父任务"
+    "workbench.subtask-conversation.parent-task": "父任务",
+    "workbench.subtask-conversation.answer-needed": "请先回答再提交。",
+    "workbench.subtask-conversation.draft-unsaved": "回答草稿未能保存，请重试。",
+    "workbench.subtask-conversation.answer-accepted": "答案已接受，后续执行尚未开始。",
+    "workbench.subtask-conversation.approvals": "审批"
   }
 }

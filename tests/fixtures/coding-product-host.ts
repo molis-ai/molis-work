@@ -70,6 +70,7 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
     const request = JSON.parse(body) as CodingProviderRequest; requests.push(request);
     return respond(request, requests.length);
   });
+  const open = async () => {
   const host: MolisWorkLocalHost = new MolisWorkLocalHost({ homeDirectory: home,
     workspacesFor: projectId => withCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
     workspaceFor: projectId => withCatalog({ homeDirectory: home }, catalog => workspaceRefFor(catalog, projectId)),
@@ -79,8 +80,12 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
   const server = createSingleHomeTestWebServer({ homeDirectory: home, localHost: host, controlToken });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
-  release = async () => { server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await host.close(); };
+  const release = async () => { server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await host.close(); };
+    return { host, origin, controlToken, release };
+  };
+  let current = await open(); release = current.release;
   const call = async <Output>(projectId: string, path: string, body?: unknown, locale?: "en" | "zh"): Promise<{ status: number; body: Output }> => {
+    const { origin, controlToken } = current;
     const response = await fetch(origin + `/projects/${projectId}` + path, { method: body === undefined ? "GET" : "POST", headers: {
       origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID(),
       ...(locale ? { cookie: `${LOCALE_COOKIE}=${locale}` } : {}),
@@ -98,10 +103,13 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
   assert.equal(output.length, 1, JSON.stringify(set.body));
   const workspaceId = output[0]!.workspace_id;
   const ended = (ref: AgentRunRef) => new Promise<AgentRunView>((resolve, reject) => {
-    const adapter = ensureSystemAgentService(host, home).agentHost.adapter("prologue");
+    const adapter = ensureSystemAgentService(current.host, home).agentHost.adapter("prologue");
     let off = () => {}; const timer = setTimeout(() => { off(); reject(new Error("controlled Coding Run did not finish")); }, 15_000);
     off = adapter.observe(ref, view => { if (!["completed", "failed", "cancelled"].includes(view.phase)) return;
       clearTimeout(timer); queueMicrotask(() => off()); resolve(view); });
   });
-  return { home, host, directory, project, other, workspaceId, call, ended, requests, providerRequests, close, web: new LocalHostHttpClient({ origin, controlToken }) };
+  return { home, get host() { return current.host; }, directory, project, other, workspaceId, call, ended, requests, providerRequests, close,
+    get web() { return new LocalHostHttpClient(current); },
+    async restart() { await close(); current = await open(); release = current.release; closing = undefined; },
+  };
 }

@@ -237,6 +237,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   async start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle> {
     request = { ...request, budget: parseAgentRunBudget(request.budget),
       ...(request.original_input ? { original_input: structuredClone(request.original_input) } : {}),
+      ...(request.resume_answer ? { resume_answer: structuredClone(request.resume_answer) } : {}),
       ...(request.continued_from ? { continued_from: structuredClone(request.continued_from) } : {}) };
     request = { ...request, execution_plan: freezeExecutionPlan(request), text_materials: structuredClone(request.text_materials ?? []) };
     const session = await this.#store.loadSession(request.session.session_id);
@@ -262,6 +263,14 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       throw agentErrors.session_busy("这个会话仍在执行或保存上一轮；可以补充要求，结束后再开新一轮");
     }
     return this.#store.withSessionHeld(request.session.session_id, async () => {
+      if (request.resume_answer) {
+        const expected = request.resume_answer, current = await this.readSession(request.session);
+        if (!expected.run_id || !expected.pending_id || !expected.queued_input_id || current.latest_run?.ref.run_id !== expected.run_id
+          || !isTerminalAgentPhase(current.latest_run.phase) || current.latest_run.phase === "reconcile-required"
+          || !current.queued_inputs?.some(input => input.input_id === expected.queued_input_id && input.key === `answer.${expected.pending_id}`
+            && input.left_by?.run_id === expected.run_id && !input.left_by.applied)) throw agentErrors.input_not_queued("原问题的已接受答案已不在这次执行的队列中");
+        request = { ...request, queued: [expected.queued_input_id] };
+      }
       try { return await startPrologueRun({ runtime: this.#runtime, ports: this.#ports, descriptor: this.descriptor, store: this.#store, read: run => this.read(run) }, request, session, execution); }
       catch (error) {
         // A durable start intent may exist even when no handle was returned.

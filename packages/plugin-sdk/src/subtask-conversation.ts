@@ -5,3 +5,4 @@ export type { SubtaskConversationRead, SubtaskActionOutcome, SubtaskComposerOpti
 export { createAgentSubtaskSource, type AgentSubtaskSourcePorts } from "./browser/agent-subtask-source.js";
 export { subtaskDraft, type SubtaskPending } from "./browser/subtask-draft.js";
 export { subscribeSubtask } from "./browser/subtask-watch.js";
+export { createSubtaskQuestions } from "./browser/subtask-questions.js";

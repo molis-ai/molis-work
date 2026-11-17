@@ -22,6 +22,9 @@ import type { AssistantDispatch } from "./assistant-dispatch.js";
 import type { AssistantStepGate } from "./assistant-step-gate.js";
 
 export type AssistantOutcomesLinks = Pick<AssistantDispatch, "executorOf" | "dispatch"> & Pick<AssistantWorkReads, "latestRun"> & { read(workId: string): Promise<AssistantWorkView>; jobs: Pick<AssistantJobs, "follow">; stepGate?: Pick<AssistantStepGate, "answer"> };
+export interface AssistantAnswerExecution {
+  beforeEffect(): Promise<void>; assertCurrent(): void; handed(): void; accepted(): void;
+}
 
 /**
  * What the person decides and what a round produced: answers and confirmations, results handed back or made, the undo
@@ -32,15 +35,19 @@ export class AssistantOutcomes {
   constructor(private readonly store: Pick<AssistantStore, "addCard" | "get" | "raiseNotice" | "relations" | "rounds" | "saveUndo" | "setSetting" | "setting" | "undos">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly titles: Map<string, CapabilityTitles>, private readonly link: AssistantOutcomesLinks) {}
 
   async answer(workId: string, input: { run_id: string; pending_id: string; pending_revision?: number; text?: string;
-    answers?: ReadonlyArray<import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionAnswer> }, caller: AssistantCaller = {}): Promise<AssistantWorkView> {
+    answers?: ReadonlyArray<import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionAnswer> }, caller: AssistantCaller = {}, execution?: AssistantAnswerExecution): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
     if (work.executor.kind === "plugin") {
-      const executor = await this.link.executorOf(work);
+      const executor = await this.link.executorOf(work, undefined, execution ? { control: { beforeEffect: execution.beforeEffect, assert_authority_current: execution.assertCurrent } } : undefined);
       const run = work.executor.session_id ? (await executor.read(work.executor.session_id, 6)).runs.find(item => item.ref.run_id === input.run_id) : undefined;
       const question = run?.awaiting_input.find(item => item.pending_id === input.pending_id);
       if (!run || !question || run.phase !== answerablePhase(question)) throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
-      await executor.control(work.executor.session_id!, run.ref.run_id, { kind: "answer", pending_id: input.pending_id, pending_revision: exactRevision(input.pending_revision, question.pending_revision),
+      await execution?.beforeEffect(); execution?.handed();
+      const result = await executor.control(work.executor.session_id!, run.ref.run_id, { kind: "answer", pending_id: input.pending_id, pending_revision: exactRevision(input.pending_revision, question.pending_revision),
+        ...(execution ? { continue_after_answer: false } : {}),
         ...(input.text !== undefined ? { text: input.text } : {}), ...(input.answers ? { answers: input.answers } : {}) });
+      if (!result.accepted) throw assistantErrors.state("执行方没有接受这份答案", { answer_accepted: false });
+      execution?.accepted();
       return this.link.read(workId);
     }
     if (!this.store.rounds(work.work_id).some(round => round.run_id === input.run_id)) throw assistantErrors.scope("这个问题不属于这项工作");
@@ -50,9 +57,17 @@ export class AssistantOutcomes {
     // A late answer to a question that is already closed or replaced starts nothing; one parked at a restart ends its round.
     if (!question || run.phase !== answerablePhase(question)) throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
     if (input.text !== undefined && (typeof input.text !== "string" || input.text.length > MAX_TEXT)) throw assistantErrors.invalid("回答过长");
-    await host.adapter(RUNTIME).control(run.ref, { kind: "answer", pending_id: input.pending_id,
+    const adapter = host.adapter(RUNTIME), answer = () => adapter.control(run.ref, { kind: "answer", pending_id: input.pending_id,
       ...(input.pending_revision !== undefined ? { pending_revision: input.pending_revision } : question.pending_revision !== undefined ? { pending_revision: question.pending_revision } : {}),
       ...(input.text !== undefined ? { text: input.text } : {}), ...(input.answers ? { answers: input.answers } : {}) });
+    if (execution) {
+      if (!adapter.withEffect) throw assistantErrors.unsupported("当前运行时不能核对原问题的提交边界");
+      await execution.beforeEffect(); execution.handed();
+      await adapter.withEffect({ beforeEffect: execution.beforeEffect, assert_current: execution.assertCurrent }, answer);
+      execution.accepted();
+      return this.link.read(workId);
+    }
+    await answer();
     return afterParkedAnswer(question.parked ? await roundAfterParkedAnswer(() => this.link.dispatch(this.store.get(this.actorId, workId), PARKED_ANSWER_TASK, [], null, undefined, "host", undefined, caller.beforeStart, caller.assertBeforeStart, { byHost: true, ...(caller.reply_locale ? { reply_locale: caller.reply_locale } : {}) }), async () => host.adapter(RUNTIME).recovery?.inspect(sessionRef(work))) : undefined, await this.link.read(workId));
   }
 

@@ -202,8 +202,8 @@ export interface AgentWorkGraphPort {
    */
   add(input: { graph_id: string; node_id: string; under?: string; session_id: string; title: string; wait_reason?: string }): Promise<void>;
   read(graph_id: string): Promise<AgentWorkNode[]>;
-  /** `listener` hears every change of the graph until the returned function is called. */
-  watch(graph_id: string, listener: () => void): () => void;
+  /** Every graph change, with its current original projection when available. A missing projection cannot prove an unchanged assignment. */
+  watch(graph_id: string, listener: (nodes?: readonly AgentWorkNode[]) => void): () => void;
   /**
    * End a step that is not done: as the person `actor_id` did, or (without one) as its holder gave it up. With `if_ready`,
    * only while no round has started on it (`ready`): the state is checked and the step ended against the same read of

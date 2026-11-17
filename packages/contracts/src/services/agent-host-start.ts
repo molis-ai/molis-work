@@ -485,6 +485,8 @@ export interface AgentFrozenRole {
 }
 
 interface AgentStartInputFields {
+  /** Start only from this ended Run and consume this exact original queued answer under the Session's admission lock. */
+  resume_answer?: { run_id: string; pending_id: string; queued_input_id: string };
   /** Host-proven original text before assembly. Mutually exclusive with continued_from; person requires Host authority. */
   original_input?: import("./agent-inputs.js").AgentOriginalInputDraft;
   /** Reuse the original input of this exact Run in the same Session, without creating a new personal statement. */

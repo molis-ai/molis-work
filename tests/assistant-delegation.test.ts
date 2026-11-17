@@ -15,7 +15,7 @@ import { createRequire } from "node:module";
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { installHostUiText, LocalHost, AssistantStore, AssistantService, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, LocalHost, AssistantStore, AssistantService, assistantAuthority, hostQuestionTypes } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
 import { roundParts } from "./fixtures/round-parts.js";
@@ -294,7 +294,7 @@ test("the person takes a sub-task back: it stops, the board says so, no more fol
 });
 
 /** A delegating work and a runtime whose model can be held or switched off; the parent's model script is the caller's. */
-async function delegationFixture(t: import("node:test").TestContext, parentScript: Array<() => Response>, child: (round: number, signal: AbortSignal | null | undefined) => Promise<Response>, isChild?: (body: any) => boolean) {
+async function delegationFixture(t: import("node:test").TestContext, parentScript: Array<() => Response>, child: (round: number, signal: AbortSignal | null | undefined) => Promise<Response>, isChild?: (body: { messages: Array<{ role: string; content?: unknown }> }) => boolean) {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-fixture-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = { project_id: "board", storage_key: "memory:project" };
@@ -307,10 +307,14 @@ async function delegationFixture(t: import("node:test").TestContext, parentScrip
   }));
   const flags = { model: true, beforeAuthority: undefined as (() => Promise<void>) | undefined, beforeStart: undefined as (() => Promise<void>) | undefined, assertBeforeStart: undefined as (() => void) | undefined,
     partBeforeStart: undefined as (() => Promise<void>) | undefined };
-  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegation-fixture-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
-    modelConfiguration: async () => flags.model ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" } : null, resolveCredential: () => "fixture-only" });
-  host.register(adapter);
+  const queue = new AgentReviewQueue();
+  const openHost = async () => {
+    const host = new AgentHost({ reviews: queue });
+    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegation-fixture-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue, questionTypes: hostQuestionTypes(),
+      modelConfiguration: async () => flags.model ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" } : null, resolveCredential: () => "fixture-only" });
+    host.register(adapter); return { host, adapter };
+  };
+  let { host, adapter } = await openHost();
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   let service: AssistantService;
   const openService = () => new AssistantService(store, { pages: async () => ["home"], host: async () => host,
@@ -320,7 +324,9 @@ async function delegationFixture(t: import("node:test").TestContext, parentScrip
       return { ...base, beforeStart: async () => { await base.beforeStart?.(); await (work.delegated_by ? flags.partBeforeStart : flags.beforeStart)?.(); }, assertBeforeStart: () => { base.assertBeforeStart?.(); if(!work.delegated_by)flags.assertBeforeStart?.(); } };
     }, projectTitle: async () => "项目" }, "web-user");
   service = openService();
-  return { get service() { return service; }, restart: () => { service.continuations.close(); service = openService(); service.subtaskReports.attach(); }, store, project, flags, adapter, queue, home, parentBodies, close: async () => { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  return { get service() { return service; }, restart: () => { service.continuations.close(); service = openService(); service.subtaskReports.attach(); },
+    restartHost: async () => { service.continuations.close(); await adapter.close(); ({ host, adapter } = await openHost()); service = openService(); },
+    store, project, flags, get adapter() { return adapter; }, queue, home, parentBodies, close: async () => { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a sub-task the person put away still counts for the work that handed it out: its tokens and its place among the limit; it takes no follow-up until the person restores it, then the stop reaches it", { timeout: 60_000 }, async t => {
@@ -753,5 +759,64 @@ test("SAI-01/02/04/09: the actual Assistant business role dispatches SDK childre
     await assert.rejects(f.service.sdkSubtasks.read(other.work_id, child.parent_run.run_id, child.subagent_id), /原助理会话/);
     await f.service.archive(parent.work.work_id, true);
     assert.ok((await f.service.sdkSubtasks.read(parent.work.work_id, child.parent_run.run_id, child.subagent_id)).conversation.input_unavailable);
+  } finally { await f.close(); }
+});
+
+for (const parked of [false, true]) test(`SAI-06/08/09/15: delegated Work answers its original ${parked ? 'parked' : 'live'} question once and resumes separately`, { timeout: 90_000 }, async t => {
+  const f = await delegationFixture(t, [
+    () => reply({ name: "delegate-work", input: { title: "Confirm duration", brief: "问清时长再交回。", acceptance: "给出确认的时长" } }),
+    () => reply(undefined, "主任务等子任务的结果。"),
+  ], async round => round === 1 ? reply({ name: "ask-user", input: { why: "确认时长", questions: [{ id: "minutes", type: "number", prompt: "时长", min: 15, max: 120, integer: true }] } }) : reply(undefined, "确认时长为 45 分钟。"));
+  try {
+    const parent = await f.service.send({ text: "委托确认时长", request_id: `sai-question-parent-${parked}` }, { project_ref: f.project });
+    const child = await until(async () => (await f.service.read(parent.work.work_id)).delegated?.[0], "delegated child");
+    await until(async () => { const view = await f.service.read(parent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed"; }, "original parent wait and hand-back finish");
+    const first = (await f.service.readSubtask(child.work_id)).binding!;
+    await f.service.send({ work_id: child.work_id, text: "重新问清时长", request_id: `sai-question-child-again-${parked}`, subtask: { binding: first, operation: "continue" } }, { project_ref: f.project });
+    await until(async () => (await f.service.read(child.work_id)).rounds.at(-1)?.awaiting_input.length, "original question");
+    if (parked) await f.restartHost();
+    const original = await f.service.readSubtask(child.work_id), binding = original.binding!;
+    const question = original.view.rounds.at(-1)!.awaiting_input[0]!;
+    assert.equal(Boolean(question.parked), parked);
+    const input = { request_id: `sai-original-answer-${parked}`, subtask: binding, pending_id: question.pending_id, pending_revision: question.pending_revision!, answers: [{ question: 0, value: 45 }] };
+    if (!parked) {
+      const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), control = f.adapter.control.bind(f.adapter);
+      const intercepted = t.mock.method(f.adapter, "control", async (...args: Parameters<typeof control>) => { entered.resolve(); await release.promise; return control(...args); });
+      const attempt = { ...input, request_id: "sai-answer-final-revision-fence" }, waiting = f.service.workSubtasks.answer(child.work_id, attempt);
+      await entered.promise;
+      f.store.update("web-user", child.work_id, null, { title: "Changed while answering" }, false);
+      release.resolve(); await assert.rejects(waiting, { code: "assistant.pending_request" });
+      intercepted.mock.restore();
+      assert.equal((await f.service.read(child.work_id)).rounds.at(-1)!.awaiting_input[0]!.pending_id, question.pending_id, "final refusal writes no answer");
+      await assert.rejects(f.service.workSubtasks.answer(child.work_id, attempt), { code: "assistant.pending_request" });
+      assert.equal((await f.service.checkSubtaskRequest(child.work_id, attempt.request_id)).state, "unknown", "a failed handoff is never inferred accepted");
+    }
+    await assert.rejects(f.service.workSubtasks.answer(child.work_id, { ...input, request_id: `sai-invalid-answer-${parked}`, answers: [{ question: 0, value: 400 }] }), { code: "agent.answer_invalid" });
+    assert.equal((await f.service.read(child.work_id)).rounds.at(-1)!.awaiting_input[0]!.pending_id, question.pending_id);
+    const beforeParent = (await f.service.read(parent.work.work_id)).rounds.length;
+    const answered = await f.service.workSubtasks.answer(child.work_id, input);
+    const receipt = f.store.requests.read("web-user", input.request_id);
+    assert.equal(receipt.state, "sent");
+    if (receipt.state === "sent") assert.equal(receipt.result.outcome, "answered");
+    await f.service.workSubtasks.answer(child.work_id, input);
+    await assert.rejects(f.service.workSubtasks.answer(child.work_id, { ...input, answers: [{ question: 0, value: 60 }] }), { code: "assistant.conflict" });
+    await assert.rejects(f.service.send({ work_id: child.work_id, request_id: input.request_id, text: "same key is not a Send" }, { project_ref: f.project }), { code: "assistant.conflict" });
+    await assert.rejects(f.service.control(child.work_id, { kind: "stop", request_id: input.request_id, subtask: binding }), { code: "assistant.conflict" });
+    if (parked) {
+      assert.equal(answered.rounds.length, original.view.rounds.length, "answer-only starts no replacement Run");
+      const queued = answered.queued_inputs!.find(item => item.key === `answer.${question.pending_id}`)!;
+      assert.equal(queued.left_by?.run_id, binding.run.run_id);
+      f.store.update("web-user", child.work_id, null, { draft: "keep the independent composer" }, false);
+      const resume = { request_id: "sai-resume-original-answer", subtask: binding, pending_id: question.pending_id, queued_input_id: queued.input_id };
+      await f.service.workSubtasks.resume(child.work_id, resume);
+      await f.service.workSubtasks.resume(child.work_id, resume);
+      await until(async () => (await f.service.read(child.work_id)).rounds.at(-1)?.phase === "completed", "resumed child");
+      const after = await f.service.read(child.work_id);
+      assert.equal(after.rounds.length, original.view.rounds.length + 1);
+      assert.equal(after.work.draft, "keep the independent composer");
+      assert.ok(after.rounds.at(-1)!.turns.some(turn => turn.text.includes("45")));
+    } else await until(async () => (await f.service.read(child.work_id)).rounds.at(-1)?.phase === "completed", "answered live child");
+    assert.equal((await f.service.read(parent.work.work_id)).rounds.length, beforeParent, "the answer and explicit child continuation never start the parent");
+    assert.equal((await f.service.checkSubtaskRequest(child.work_id, input.request_id)).state, "applied");
   } finally { await f.close(); }
 });

@@ -1987,6 +1987,10 @@
     "coding.subtask.unavailable": "当前子任务不可操作",
     "coding.subtask.unknown": "结果还不能确定，请先核对。",
     "coding.subtask.unread": "有新进展",
-    "coding.subtask.working": "正在处理…"
+    "coding.subtask.working": "正在处理…",
+    "coding.subtask.answer-needed": "请先回答再提交。",
+    "coding.subtask.draft-unsaved": "回答草稿未能保存，请重试。",
+    "coding.subtask.answer-accepted": "答案已接受，后续执行尚未开始。",
+    "coding.subtask.approvals": "审批"
   }
 }

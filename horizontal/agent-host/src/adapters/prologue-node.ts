@@ -1,3 +1,4 @@
+import { answerPending, questionReader } from "./prologue-question-port.js";
 import {createPrologueSavedHistory,type PrologueSavedHistoryPort} from './prologue-saved-history.js';
 import { AsyncLocalStorage } from "node:async_hooks";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -21,7 +22,7 @@ import { readResource, readResourceText, createRoundState, type DispatchGuards, 
 import { createNodeCoordination, createNodeInference, createNodeProjectWork } from "./prologue-node-parts.js";
 import { createWorkGraphs } from "./prologue-work-graphs.js";
 import { createContinuationStarts } from "./prologue-collaboration.js";
-import { answerPending, createNodeGitReviews, createNodePort, createNodeRuntime, directoriesIdle, questionReader } from "./prologue-node-port.js";
+import { createNodeGitReviews, createNodePort, createNodeRuntime, directoriesIdle } from "./prologue-node-port.js";
 import { createPrologueRecovery } from "./prologue-recovery.js";
 import { createApprovals, createPendingPort, createReviewMemory, restoreReviewHistory } from "./prologue-review-documents.js";
 import { createPrologueSchedule } from "./prologue-schedule.js";

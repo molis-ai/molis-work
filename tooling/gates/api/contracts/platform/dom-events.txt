@@ -251,6 +251,13 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ owner, id, title }";
     readonly summary: "Focus or open one system-owned object in the common tab layout.";
 }, {
+    readonly name: "molis-work:task-float";
+    readonly kind: "request";
+    readonly owner: "task-float";
+    readonly on: "document";
+    readonly detail: "Trusted shell-only TaskFloatRequest: open/close/forget with an opaque mount owner and lifecycle callbacks; never forwarded from a plugin frame.";
+    readonly summary: "The separately bundled frame bridge asks the existing task panel to mount its independently authorized child projection. The panel alone owns visibility, cancellation and cache lifetime; the callback does not carry task facts or grant authority.";
+}, {
     readonly name: "molis-work:terminal-theme-change";
     readonly kind: "announcement";
     readonly owner: "preferences";
@@ -328,6 +335,13 @@ export declare const DOM_EVENTS: readonly [{
     readonly on: "document";
     readonly detail: "{ context, request_id }";
     readonly summary: "The Assistant asks which starters the Host offers for the context it shows.";
+}, {
+    readonly name: "molis:assistant-subtask-open";
+    readonly kind: "request";
+    readonly owner: "task-float";
+    readonly on: "document";
+    readonly detail: "{ work_id, parent_run_id?, child_id? }; Work alone selects a delegated Work; both execution fields select that Work's original SDK child.";
+    readonly summary: "Open an authorized child in the shared task float without changing the main conversation or its input receiver. The original service checks every supplied reference.";
 }, {
     readonly name: "molis:assistant-surface-changed";
     readonly kind: "request";
@@ -521,6 +535,10 @@ export declare const PAGE_STATE_OWNERS: {
     readonly "context-actions": {
         readonly files: readonly ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts", "apps/workbench/src/scripts/client/context-card-target.ts", "apps/workbench/src/scripts/client/context-landing.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"];
         readonly state: "What the person has in hand on the focused surface, where it would land on the left, the ranked actions offered for it, and the starters offered for the open Work.";
+    };
+    readonly "task-float": {
+        readonly files: readonly ["apps/workbench/src/browser/task-float-content.ts", "apps/workbench/src/browser/work-task-panel.ts", "apps/workbench/src/browser/plugin-frame/task-parent.ts", "apps/workbench/src/browser/assistant-subtasks.ts"];
+        readonly state: "The existing task float and the lifetime of its trusted content mounts; task facts remain with their original service.";
     };
     readonly "context-toolbar": {
         readonly files: readonly ["packages/design-system/src/context-toolbar.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"];

@@ -2191,6 +2191,10 @@
     "coding.subtask.unavailable": "This subtask is unavailable",
     "coding.subtask.unknown": "The outcome is not known yet. Check it first.",
     "coding.subtask.unread": "New activity",
-    "coding.subtask.working": "Working…"
+    "coding.subtask.working": "Working…",
+    "coding.subtask.answer-needed": "Answer the question before submitting.",
+    "coding.subtask.draft-unsaved": "Your answer draft could not be saved. Please try again.",
+    "coding.subtask.answer-accepted": "Your answer was accepted; the next round has not started.",
+    "coding.subtask.approvals": "Approval"
   }
 }

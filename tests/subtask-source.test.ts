@@ -74,3 +74,32 @@ test("SAI-04/11: a late receipt loses its CAS to a newer draft in another page a
   assert.equal(await otherInput.draft.adapter.read(signal()), "written in the other page");
   assert.equal((await f.view(other, "A")).pending, undefined);
 });
+
+test("SAI-04/06: an unknown accepted answer retains its original reference while a distinct queued resume proceeds once across pages", async () => {
+  const f = fixture(); let current = data("A", "awaiting-input"), resumes = 0;
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  f.ports.read = async () => ({ conversation: current, parent: { target: "parent", title: "parent" } });
+  f.ports.check = async () => ({ state: "unknown" });
+  f.ports.command = async (_target, input) => {
+    if (input.kind === "answer") {
+      current = { ...current, phase: "failed", queued_answer: { pending_id: input.pending_id, pending_revision: input.pending_revision } };
+      return { state: "unknown" };
+    }
+    assert.equal(input.kind, "resume-answer"); resumes++; entered.resolve(); await release.promise;
+    current = { ...current, phase: "completed", child: { ...current.child, child_run: { session_id: "A", run_id: "A-r2" } } }; delete current.queued_answer;
+    return { state: "applied", run: current.child.child_run! };
+  };
+  const first = createAgentSubtaskSource(f.ports), initial = await f.view(first, "A");
+  const answer = await first.act(initial, { id: "answer", ref: JSON.stringify({ pending_id: "q", pending_revision: 1, answers: [{ question: 0, value: 45 }] }), label: "Answer" }, "unknown-answer", signal());
+  assert.equal(answer.state, "unknown");
+  const second = createAgentSubtaskSource(f.ports), before = await f.view(second, "A");
+  assert.equal(before.pending?.requestId, "unknown-answer"); assert.equal(before.pending?.blocking, true);
+  const resume = before.actions!.find(action => action.id === "resume-answer")!; assert.equal(resume.pendingSafe, true);
+  const continuing = second.act(before, resume, "resume-original-answer", signal()); await entered.promise;
+  const competing = await first.act(before, resume, "competing-resume", signal()); assert.equal(competing.state, "not-applied"); assert.equal(resumes, 1);
+  release.resolve(); assert.equal((await continuing).state, "applied");
+  const reopened = createAgentSubtaskSource(f.ports), after = await f.view(reopened, "A");
+  assert.equal(after.pending?.requestId, "unknown-answer", "the old receipt is neither discarded nor guessed successful");
+  assert.equal(after.pending?.blocking, false, "an old exact-question scope cannot lock the new Run");
+  assert.equal((await reopened.check("A", "unknown-answer", signal())).state, "unknown"); assert.equal(resumes, 1, "querying never resumes again");
+});

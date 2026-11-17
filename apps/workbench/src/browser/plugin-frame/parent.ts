@@ -201,6 +201,29 @@ function observeFrameRevision(scope: FrameScope, route: (path: string) => string
  * A page's `invalidateView()` tells the other views; the page refreshes itself (BL-131). The workbench dispatches the invalidation
  * synchronously, so while it runs this page's own copy is the echo of its request and is not sent back: it would read the page twice.
  */
+function createPluginFrame(root: HTMLElement, pack: FramePack, directory: string | undefined): HTMLIFrameElement {
+  const frame = document.createElement("iframe");
+  frame.setAttribute("sandbox", "allow-scripts allow-forms"); frame.setAttribute("referrerpolicy", "no-referrer");
+  frame.title = root.dataset.workSurfaceLabel ?? pack.id; frame.dataset.pluginFrame = directory ? pack.id + ":" + directory : root.dataset.workSurface || pack.id;
+  frame.style.cssText = "position:absolute;inset:0;width:100%;height:100%;border:0;padding:0;background:transparent";
+  return frame;
+}
+
+/** Only source frames may open a task; task frames return through their original close owner. */
+function taskMessages(root: HTMLElement, frame: HTMLIFrameElement, host: FrameHost, pack: FramePack, scope: FrameScope, port: MessagePort,
+  pageId: string, route: (path: string) => string, task?: TaskFrameContext) {
+  const open = pageTaskFloat({ root, frame, pack, scope, port, pageId, route, mount: (child, context) => {
+    const fresh = { ...pack }; delete fresh.authorization;
+    return mountFrame(child, { ...host, side: false }, fresh, context);
+  } });
+  return (message: FrameUp) => {
+    if (message.type === "task-close") { task?.close(); return true; }
+    if (message.type !== "task-open") return false;
+    if (!task) void open(message); else port.postMessage({ type: "task-opened", id: message.id, error: "Task projections cannot open another float" });
+    return true;
+  };
+}
+
 export async function mountFrame(root: HTMLElement, host: FrameHost, pack: FramePack, task?: TaskFrameContext): Promise<TaskFrame> {
   if (accountTransition().preparing) throw new Error("Account is switching");
   const route = host.route ?? (path => path), scope = host.mountPluginClient(root);
@@ -220,10 +243,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   if (accountTransition().preparing) throw new Error("Account is switching");
   root.dataset.pluginPage = grant.page_id;
   const storagePrefix = "molis-plugin-page:" + grant.storage_scope + ":", storage = stored(storagePrefix);
-  const frame = document.createElement("iframe"), channel = new MessageChannel();
-  frame.setAttribute("sandbox", "allow-scripts allow-forms"); frame.setAttribute("referrerpolicy", "no-referrer");
-  frame.title = root.dataset.workSurfaceLabel ?? pack.id; frame.dataset.pluginFrame = mount?.target_slot_id === "workbench.directory" ? pack.id + ":" + mount.surface : root.dataset.workSurface || pack.id;
-  frame.style.cssText = "position:absolute;inset:0;width:100%;height:100%;border:0;padding:0;background:transparent";
+  const frame = createPluginFrame(root, pack, mount?.target_slot_id === "workbench.directory" ? mount.surface : undefined), channel = new MessageChannel();
   const transition = accountTransition();
   const businessScope = new Proxy(scope, {get(target, key) {
     if (key === "assertCurrent") return () => { target.assertCurrent(); if (transition.preparing) throw new Error("Account is switching"); };
@@ -293,10 +313,8 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const pickMaterials = pageMaterialsPicker(port, scope, grant.page_id, route, text => host.showToast?.(text, true));
   const pickSkill = pageSkillPicks(port, scope, frame, grant.page_id);
   const composer = task ? () => {} : pageComposer(port, scope, root, frame, pack, visible);
-  const tasks = pageTaskFloat({ root, frame, pack, scope, port, pageId: grant.page_id, route, mount: (child, context) => {
-    const fresh = { ...pack }; delete fresh.authorization;
-    return mountFrame(child, { ...host, side: false }, fresh, context);
-  } });
+  const tasks = taskMessages(root, frame, host, pack, scope, port,
+    grant.page_id, route, task);
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
     if (!scope.alive || !message || typeof message.type !== "string") return;
@@ -324,11 +342,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
         && (value.intent === undefined || value.intent === "open" || value.intent === "select")) host.openView?.(root, value);
       return;
     }
-    if (message.type === "task-open") {
-      if (!task) void tasks(message); else port.postMessage({ type: "task-opened", id: message.id, error: "Task projections cannot open another float" });
-      return;
-    }
-    if (message.type === "task-close") { task?.close(); return; }
+    if (tasks(message)) return;
     if (message.type === "on-closing") {
       try { if (message.action === null || message.action && typeof message.action === "object" && JSON.stringify(message.action).length <= 16000) closing = message.action; }
       catch { /* A cyclic registration is not a closing action. */ }

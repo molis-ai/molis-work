@@ -24,7 +24,15 @@ export class AssistantRequests {
     return this.claim(actorId, requestId, workId, true) as ReturnType<AssistantRequests["claimStop"]>;
   }
 
-  private claim(actorId: string, requestId: string, workId: string | undefined, stop: boolean): { claimed: true } | { claimed: false; result: AssistantRequestResult } {
+  claimQuestion(actorId: string, requestId: string, workId: string, question: NonNullable<AssistantSendResult["question_request"]>): { claimed: true } | { claimed: false; result: AssistantSendResult } {
+    const claim = this.claim(actorId, requestId, workId, false, question.operation);
+    if (claim.claimed) return claim;
+    const result = claim.result as AssistantSendResult;
+    if (result.question_request?.fingerprint !== question.fingerprint) throw assistantErrors.conflict("The original question request has different input");
+    return { claimed: false, result };
+  }
+
+  private claim(actorId: string, requestId: string, workId: string | undefined, stop: boolean, question?: "answer" | "resume-answer"): { claimed: true } | { claimed: false; result: AssistantRequestResult } {
     if (!/^[A-Za-z0-9-]{8,80}$/.test(requestId)) throw assistantErrors.conflict("Invalid request identifier");
     const inserted = this.db.prepare("INSERT OR IGNORE INTO assistant_requests(actor_id,request_id,work_id,state,created_at) VALUES (?,?,?,'pending',?)")
       .run(actorId, requestId, workId ?? null, this.now().toISOString()).changes;
@@ -34,6 +42,7 @@ export class AssistantRequests {
     if (row.state !== "done" || !row.result) throw assistantErrors.pending_request("The original request is unconfirmed; it was not repeated");
     const result = JSON.parse(row.result) as AssistantRequestResult;
     if ((result.outcome === "stopped") !== stop) throw assistantErrors.conflict("The request belongs to another operation");
+    if (("question_request" in result ? result.question_request?.operation : undefined) !== question) throw assistantErrors.conflict("The request belongs to another operation");
     return { claimed: false, result };
   }
 

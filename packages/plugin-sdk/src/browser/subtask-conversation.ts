@@ -9,7 +9,10 @@ import { subtaskReader } from "./subtask-read.js";
 
 /** Mount the shared conversation inside the caller's existing task float. No main-input or shell DOM is consulted. */
 export function createSubtaskConversation(root: HTMLElement, options: SubtaskConversationOptions): SubtaskConversationHandle {
-  const dom = subtaskDom(root, () => options.labels);
+  const dom = subtaskDom(root, () => options.labels, (body, original, detail) => options.mountDetail?.(body, original, detail, async action => {
+    const signal = reader.signal();
+    if (!dead && signal && !signal.aborted && target === original.target && view?.binding === original.binding) return actions.run(original, action, signal);
+  }));
   let target: string | undefined, view: MwSubtaskConversationView | undefined, readFailed = false, dead = false;
   let backFocus: { parent: string; child: string; from: HTMLElement } | undefined;
   const changed = (key: string) => { if (target === key && !dead) { paint(); void reader.refresh(); } };
@@ -26,9 +29,10 @@ export function createSubtaskConversation(root: HTMLElement, options: SubtaskCon
     if (!view) { feedback(readFailed ? labels.readFailed : labels.loading, readFailed ? "retry" : undefined); return; }
     actions.observe(view, composer.local(view));
     const operation = actions.get(view.target);
-    const hold = operation?.state === "working" ? labels.working : operation?.state === "unknown" ? operation.recovered?.message ?? labels.unknown : undefined;
-    const blocked = (action: NonNullable<MwSubtaskConversationView["actions"]>[number]) => hold ? { ...action, disabled: action.disabled ?? hold } : action;
+    const hold = operation?.state === "working" ? labels.working : operation?.state === "unknown" && view.pending?.blocking !== false ? operation.recovered?.message ?? labels.unknown : undefined;
+    const blocked = (action: NonNullable<MwSubtaskConversationView["actions"]>[number]) => hold && !(operation?.state === "unknown" && action.pendingSafe) ? { ...action, disabled: action.disabled ?? hold } : action;
     dom.draw({ ...view, actions: view.actions?.map(blocked), details: view.details?.map(detail => ({ ...detail, actions: detail.actions?.map(blocked) })) });
+    dom.holdDetails(Boolean(hold));
     dom.composer.hidden = false;
     if (!composer.show(view, view.inputUnavailable ?? hold ?? null)) { dom.composer.hidden = true; feedback(labels.readFailed, "retry"); return; }
     if (operation?.state === "working") feedback(labels.working);
@@ -44,7 +48,7 @@ export function createSubtaskConversation(root: HTMLElement, options: SubtaskCon
       dom.forget(); dom.idle(); feedback(result.reason, "retry");
     } else { view = result.view; paint(); }
   }
-  function close() { reader.stop(); composer.close(); dom.hide(); target = undefined; }
+  function close() { reader.stop(); composer.close(); dom.releaseDetails(); dom.hide(); target = undefined; }
   async function open(next: string) {
     if (dead) return;
     const returning = backFocus?.parent === next ? backFocus : undefined;

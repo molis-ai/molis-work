@@ -1,4 +1,5 @@
 import { isTerminalAgentPhase, type AgentRuntimeAdapter, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentWorkNode } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import type { AssistantSubtaskBinding } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { assistantErrors } from "./assistant-errors.js";
@@ -27,7 +28,13 @@ export function assertSubtaskRun(binding: AssistantSubtaskBinding, latest: Pick<
 export async function assertSubtaskGraph(adapter: AgentRuntimeAdapter, work: StoredWork, parent: StoredWork): Promise<void> {
   const own = work.delegated_by, graphs = adapter.collaboration?.works;
   if (!own || !graphs) throw assistantErrors.scope("原子任务归属不可核对");
-  const nodes = await graphs.read(own.graph_id), root = nodes.find(node => node.node_id === "work"), child = nodes.find(node => node.node_id === own.node_id);
+  assertSubtaskNodes(await graphs.read(own.graph_id), work, parent);
+}
+
+export function assertSubtaskNodes(nodes: readonly AgentWorkNode[], work: StoredWork, parent: StoredWork): void {
+  const own = work.delegated_by;
+  if (!own) throw assistantErrors.scope("原子任务归属不可核对");
+  const root = nodes.find(node => node.node_id === "work"), child = nodes.find(node => node.node_id === own.node_id);
   if (!root || root.parent || root.session_id !== parent.session_id || child?.parent !== root.node_id || child.session_id !== work.session_id)
     throw assistantErrors.stale("原子任务的图节点或会话归属已改变");
 }

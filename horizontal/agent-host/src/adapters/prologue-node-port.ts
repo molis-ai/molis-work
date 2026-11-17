@@ -1,7 +1,9 @@
+import { subagentAuthorityProblem } from "./prologue-subagent-conversation.js";
+import { answerPending, readPendingQuestion, childQuestionScope } from "./prologue-question-port.js";
 import { readOriginalInput, resolveOriginalInput, originalInputIdByKey, sessionNotifier } from "./prologue-original-inputs.js";
 import { createHash } from "node:crypto";
 import { realpath } from "node:fs/promises";
-import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type PendingAnswer, type QueuedTask, type Runtime, type SessionOpeningReader } from "@prologue/sdk";
+import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type QueuedTask, type Runtime, type SessionOpeningReader } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef, AgentWriteCheckNote } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
@@ -10,7 +12,6 @@ import { createPrologueDocuments } from "./prologue-documents.js";
 import { createPrologueGitReviews } from "./prologue-git.js";
 import { MAX_BROADCAST } from "./prologue-messages.js";
 import { workPaths } from "./prologue-project-work.js";
-import { answerProblems, ownedReferences, projectQuestion, questionUnavailable } from "./prologue-questions.js";
 import { queuedInput, type createPrologueRecovery } from "./prologue-recovery.js";
 import { bindBusinessSubagent, startPrologueRun, type RunDeps } from "./prologue-run.js";
 import { watchRoundFacts } from "./prologue-stop-guard.js";
@@ -19,11 +20,11 @@ import type { createPrologueSchedule } from "./prologue-schedule.js";
 import { createPrologueSubagents, exactCharacterKey, runLineage, SUBAGENT_DEFAULT_MAX_ATTEMPTS, type PrologueSubagentHooks } from "./prologue-subagents.js";
 import { surfaceRules, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { codingExecutionRules } from "./prologue-taskboard.js";
-import type { PrologueAdapterOptions, PrologueRuntimePort } from "./prologue.js";
+import type { PrologueRuntimePort } from "./prologue.js";
 import { PROLOGUE_RUNTIME_ID } from "./prologue-adapter-capabilities.js";
 import { agentErrors } from "../errors.js";
 import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, unexecutedApprovalCallOf, type CommandEvent, type DispatchGuard, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
-import { SESSION_INDEX_SCHEMA, type SessionIndexStore } from "./prologue-session-index.js";
+import { SESSION_INDEX_SCHEMA, type SessionIndex, type SessionIndexStore } from "./prologue-session-index.js";
 import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 
 /**
@@ -306,9 +307,28 @@ async function openSessionOf(deps: PortDeps, sessionId: string, unreadable: stri
   return session;
 }
 
+/** Rechecks the original child directory and MCP grants for every new dispatch. */
+function continuationGrantGuard(deps: PortDeps, parentRun: AgentRunRef, parentAttempt: SessionIndex["attempts"][number], baseFrozen: SessionIndex["attempts"][number]["frozen"] | undefined): DispatchGuard {
+  return async () => {
+    const latestParent = await deps.index.read(parentRun.session_id);
+    if (!latestParent) throw agentErrors.session_unknown("父会话已不存在，不能继续子任务");
+    const childDir = baseFrozen?.directory?.canonical_path ?? parentAttempt.frozen.directory?.canonical_path;
+    if (childDir) {
+      const resolved = await realpath(childDir).catch(() => undefined);
+      if (resolved !== childDir) throw agentErrors.directory_unauthorized("子任务工作区路径不可读或已变更");
+      if (deps.options.checks?.directoryAuthorized && !(await deps.options.checks.directoryAuthorized(latestParent.owner.project_id, childDir))) {
+        throw agentErrors.directory_unauthorized("子任务工作区已不再授权");
+      }
+    }
+    await deps.mcpLibrary.validate(latestParent.owner, parentAttempt.frozen.mcp_tools ?? []);
+    await deps.mcpLibrary.validateSources(latestParent.owner, parentAttempt.frozen.mcp_sources ?? []);
+    return () => {};
+  };
+}
+
 async function continueSubagentAttempt(
   deps: PortDeps,
-  { parentRun, child, baseTask, reason, source, attemptNumber, requestKey, text, execution }: Parameters<NonNullable<PrologueSubagentHooks["continueChild"]>>[0],
+  { parentRun, child, baseTask, reason, source, attemptNumber, requestKey, text, queued, execution }: Parameters<NonNullable<PrologueSubagentHooks["continueChild"]>>[0],
 ): Promise<AgentRunRef> {
   const { runtime, state } = deps;
   const parentIndex = await deps.index.read(parentRun.session_id);
@@ -325,7 +345,7 @@ async function continueSubagentAttempt(
   const credentialRef = await deps.credentials.prologueRefFor(model.credential_ref);
   const params = runModelParams(model, parentAttempt.frozen.budget ?? null, parentAttempt.frozen.reasoning_effort);
   const cache = model.prompt_cache === undefined || model.prompt_cache === "off" ? {} : { promptCache: model.prompt_cache };
-  const retryText = text ?? (reason?.trim()
+  const retryText = queued ? "" : text ?? (reason?.trim()
     ? `${baseTask}\n\n[第 ${attemptNumber} 次尝试（来源：${source}）补充说明：${reason.trim()}]`
     : `${baseTask}\n\n[第 ${attemptNumber} 次尝试（来源：${source}）：请先核对前次尝试的结果与失败点，再继续完成任务。]`);
   const firstRunId = (child.attempts?.[0] ?? child.run).id;
@@ -334,7 +354,7 @@ async function continueSubagentAttempt(
     if (!sameRef(sessionRef, child.session) || runRef.kind !== "run" || runRef.revision !== 1) return { status: "unavailable" };
     if (runRef.id === firstRunId) return { status: "original", user: [baseTask] };
     const priorTask = retryTasksSnapshot[runRef.id];
-    return priorTask ? { status: "original", user: [priorTask] } : { status: "unavailable" };
+    return typeof priorTask === "string" ? { status: "original", user: priorTask ? [priorTask] : [] } : { status: "unavailable" };
   };
   await deps.effects.beforeEffect();
   deps.effects.assertCurrent();
@@ -347,21 +367,7 @@ async function continueSubagentAttempt(
     const stopGuard = state.stopGuards.get(child.session.id);
     if (stopGuard) stopGuard.task = retryText;
   }
-  const fallbackGuard: DispatchGuard = async () => {
-    const latestParent = await deps.index.read(parentRun.session_id);
-    if (!latestParent) throw agentErrors.session_unknown("父会话已不存在，不能继续子任务");
-    const childDir = baseFrozen?.directory?.canonical_path ?? parentAttempt.frozen.directory?.canonical_path;
-    if (childDir) {
-      const resolved = await realpath(childDir).catch(() => undefined);
-      if (resolved !== childDir) throw agentErrors.directory_unauthorized("子任务工作区路径不可读或已变更");
-      if (deps.options.checks?.directoryAuthorized && !(await deps.options.checks.directoryAuthorized(latestParent.owner.project_id, childDir))) {
-        throw agentErrors.directory_unauthorized("子任务工作区已不再授权");
-      }
-    }
-    await deps.mcpLibrary.validate(latestParent.owner, parentAttempt.frozen.mcp_tools ?? []);
-    await deps.mcpLibrary.validateSources(latestParent.owner, parentAttempt.frozen.mcp_sources ?? []);
-    return () => {};
-  };
+  const fallbackGuard = continuationGrantGuard(deps, parentRun, parentAttempt, baseFrozen);
   let releaseBinding!: () => void, refuseBinding!: (reason: unknown) => void;
   const bound = { promise: new Promise<void>((resolve, reject) => { releaseBinding = resolve; refuseBinding = reject; }),
     resolve: () => releaseBinding(), reject: (reason: unknown) => refuseBinding(reason) };
@@ -378,6 +384,7 @@ async function continueSubagentAttempt(
     child: child.ref,
     expected: { parent: { session: child.parentSession, run: child.parentRun }, expectedRun: child.run },
     history: "session",
+    ...(queued ? { queued } : {}),
     readOpening,
     start: {
       protocol: model.protocol,
@@ -386,7 +393,7 @@ async function continueSubagentAttempt(
       credentialRef,
       ...(Object.keys(params).length ? { params } : {}),
       timeoutMs: 180_000,
-      messages: [{ role: "user", text: retryText }],
+      messages: retryText ? [{ role: "user", text: retryText }] : [],
       ...cache,
     },
     agent: {
@@ -487,6 +494,8 @@ function nodeSubagentsPort(deps: PortDeps): NonNullable<PrologueRuntimePort["sub
       };
     }, {
       defaultMaxTurns: SUBAGENT_DEFAULT_TURNS,
+      readQuestion: async (parent, child, id, revision) => readPendingQuestion(deps, { session_id: child.session.id, run_id: child.run.id }, id, revision, await childQuestionScope(deps.index, parent, child)),
+      answerQuestion: async (parent, child, answer) => (await answerPending(deps, await childQuestionScope(deps.index, parent, child))({ session_id: child.session.id, run_id: child.run.id }, answer)) as "delivered" | "queued",
       async extendBudget(parentRun, subagentId, addAttempts) {
         await deps.index.update(parentRun.session_id, saved => {
           const attempt = saved.attempts.find(item => item.run_id === parentRun.run_id);
@@ -512,7 +521,15 @@ function nodeSubagentsPort(deps: PortDeps): NonNullable<PrologueRuntimePort["sub
       const parent = await deps.index.read(run.session_id);
       const role = child?.character && new Map(parent?.attempts.find(one => one.run_id === run.run_id)?.subagent_roles ?? []).get(exactCharacterKey(child.character));
       if (!role) throw agentErrors.role_not_declared("原子角色不可核验");
-      const execution = { ...control.execution, assertBeforeStart: () => { control.execution.assertBeforeStart?.(); control.execution.assertSubagent?.(role); } };
+      const execution = { ...control.execution, assertBeforeStart: () => {
+        control.execution.assertBeforeStart?.(); control.execution.assertSubagent?.(role);
+        if (input.kind !== "answer") return;
+        const current = deps.runtime.subagents.list().find(one => one.ref.id === id);
+        if (!current || current.parentSession.id !== run.session_id || current.parentRun.id !== run.run_id
+          || current.run.id !== input.child_run.run_id || current.session.id !== input.child_run.session_id) throw agentErrors.collaboration_conflict("原子任务执行已改变");
+        const problem = subagentAuthorityProblem(deps.runtime, current);
+        if (problem) throw agentErrors.collaboration_conflict(problem);
+      } };
       try { return await deps.effects.start(execution, () => port.command!(run, id, input, { ...control, execution })); }
       finally { for (const changed of deps.state.subagentListeners) changed(run.run_id); }
     },
@@ -565,83 +582,11 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     },
     actionTools: true,
     mcpLibrary,
-    async readPendingQuestion(run, id, revision) {
-      const pending = await deps.readQuestion(run, id, revision);
-      // The original persisted answer owns this fact, including after restart.
-      // Do not turn an answered question back into an empty disabled form.
-      if (pending.state === "settled") return null;
-      const live = Boolean(state.activeRuns.get(run.run_id)?.live() && runtime.effects.pendings.hasLiveWaiter(pending.ref));
-      const parked = !live && pending.state === "open" ? await parkedOn(runtime, deps.index, run, pending.ref) : undefined;
-      const unavailable = questionUnavailable(pending, (await deps.host.readClock()).monotonicMs, live || parked !== undefined);
-      return { pending_id: pending.ref.id, pending_revision: pending.ref.revision, kind: pending.kind,
-        prompt: pending.why, options: [], allows_free_text: pending.kind === "text",
-        ...(pending.kind === "questionnaire" ? { questions: pending.questions.map(projectQuestion) } : {}), answerable: unavailable === undefined,
-        ...(parked && !unavailable ? { parked: true as const } : {}), ...(unavailable ? { unavailable_reason: unavailable } : {}) };
-    },
+    readPendingQuestion: (run, id, revision) => readPendingQuestion(deps, run, id, revision),
     readCommandOutput: readCommandOutput(deps),
     sessions: sessionsPort(deps),
     startAgentRun: input => startPrologueRun(deps, input),
     shutdown: deps.shutdown,
-  };
-}
-
-/** A question the round asked, read for its own run only (text or questionnaire). */
-export function questionReader(runtime: Runtime) {
-  return async (run: AgentRunRef, id: string, revision: number) => {
-    const pending = await runtime.effects.pendings.read({ kind: "pending", id, revision });
-    if (!pending || pending.origin?.session !== run.session_id || pending.origin.run !== run.run_id
-      || !["text", "questionnaire"].includes(pending.kind)) {
-      throw agentErrors.pending_not_open("原问题不属于本轮执行，不能提交答案");
-    }
-    return pending;
-  };
-}
-
-/**
- * The round's parked view, when a normal shutdown parked it on exactly this question and the runtime says it can be answered
- * now (prologue#40). A crash orphan has no marker and is never answerable.
- */
-async function parkedOn(runtime: Runtime, index: SessionIndexStore, run: AgentRunRef, pending: ExactRef<"pending">) {
-  const saved = await index.read(run.session_id).catch(() => undefined);
-  const report = saved && await runtime.sessions.inspectRecovery(saved.ref).catch(() => undefined);
-  const view = report?.runs.find(entry => entry.ref.id === run.run_id && entry.parked && sameRef(entry.parked.pending, pending));
-  return saved && view?.canAnswer ? { session: saved.ref, view } : undefined;
-}
-
-/**
- * The adapter's answer path: the original question, still open, answered in its own kind. A live run takes the answer at
- * once (`delivered`). A run parked at a normal shutdown ends with the question answered and the answer queued as the
- * person's input for the session's next round, which the caller opens (`queued`); the runtime settles it under this call's
- * own final authority check, the gateway's, at the moment it writes (S-33).
- */
-export function answerPending(deps: Pick<PortDeps, "runtime" | "host" | "state" | "readQuestion" | "index" | "options" | "effects">): NonNullable<PrologueAdapterOptions["answerPending"]> {
-  return async (run, answer) => {
-    const { runtime } = deps;
-    if (!Number.isInteger(answer.pending_revision) || answer.pending_revision! < 1) {
-      throw agentErrors.pending_not_open("原问题缺少精确版本，不能提交答案");
-    }
-    const pending = await deps.readQuestion(run, answer.pending_id, answer.pending_revision!);
-    const now = await deps.host.readClock();
-    const live = Boolean(deps.state.activeRuns.get(run.run_id)?.live() && runtime.effects.pendings.hasLiveWaiter(pending.ref));
-    const parked = !live && pending.state === "open" ? await parkedOn(runtime, deps.index, run, pending.ref) : undefined;
-    const unavailable = questionUnavailable(pending, now.monotonicMs, live || parked !== undefined);
-    if (unavailable) throw agentErrors.pending_not_open(unavailable);
-    let reply: PendingAnswer;
-    if (pending.kind === "text") {
-      if (typeof answer.text !== "string" || !answer.text.trim() || answer.answers !== undefined) throw agentErrors.answer_invalid("请填写原问题的文字回答");
-      reply = { kind: "text", text: answer.text };
-    } else {
-      if (!answer.answers || answer.text !== undefined) throw agentErrors.answer_invalid("请按原问卷逐题回答");
-      // A picked object is used only while its owner still hands it to the session's owner, under the owner's label (S-26).
-      const owned = await ownedReferences(deps.options.readReferences, (await deps.index.read(run.session_id).catch(() => undefined))?.owner, pending.questions, answer.answers);
-      const problems = answerProblems(pending.questions, owned.answers);
-      if (problems.length) throw Object.assign(agentErrors.answer_invalid(`有 ${problems.length} 道题的回答不能提交`, { problems }), { problems });
-      if (owned.refused.length) throw Object.assign(agentErrors.answer_invalid("选的对象现在不能用，请重新选择", { problems: owned.refused }), { problems: owned.refused });
-      reply = { kind: "questionnaire", answers: owned.answers };
-    }
-    if (!parked) { await runtime.effects.pendings.answer(pending.ref, reply, now); return "delivered"; }
-    await runtime.sessions.answerInterrupted(parked.session, parked.view.ref, parked.view.version, pending.ref, reply, { assertBeforeAnswer: deps.effects.assertCurrent });
-    return "queued";
   };
 }
 

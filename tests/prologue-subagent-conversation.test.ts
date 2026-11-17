@@ -32,7 +32,7 @@ async function fixture(script: (body: Wire) => Response | Promise<Response>) {
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   let queue = new AgentReviewQueue();
-  const make = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.sai", appVersion: "1.0.0" }, storageRoot: join(root, "sdk"), reviewQueue: queue,
+  const make = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.sai", appVersion: "1.0.0" }, storageRoot: join(root, "sdk"), reviewQueue: queue, questionTypes: ["choice", "number", "reference"],
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: `http://127.0.0.1:${address.port}/v1/messages`, model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "test-only" });
   let adapter = await make(), host = new AgentHost({ reviews: queue }); host.register(adapter);
   const until = async (done: () => boolean | Promise<boolean>) => {
@@ -165,5 +165,59 @@ test("business subagent's first run binds its own action session and keeps write
     assert.deepEqual(actionSessions, [child.child_run.session_id, child.child_run.session_id]);
 
     assert.deepEqual(f.errors, []);
+  } finally { await f.close(); }
+});
+
+// SAI-06/08/09: original pending owner, real child without a SessionIndex, live and normal-shutdown recovery.
+for (const parked of [false, true]) test(`child original question answers once${parked ? " after normal shutdown and resumes only its queued answer" : " while live"}`, { timeout: 60_000 }, async () => {
+  let childCalls = 0, parentCalls = 0;
+  const f = await fixture(body => {
+    if (userTexts(body).includes("Dispatch the question child.")) {
+      if (++parentCalls > 1) return reply(undefined, "Parent finished.");
+      const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@\d+/u)?.[0]; assert.ok(character);
+      return reply({ name: "dispatch-subagent", input: { instruction: "SAI_QUESTION_CHILD: ask the original duration question.", tools: [], character, idempotencyKey: "question-child", background: true } });
+    }
+    if (++childCalls === 1) return reply({ name: "ask-user", input: { why: "约复盘会", questions: [{ id: "minutes", type: "number", prompt: "时长", min: 15, max: 120, integer: true }] } });
+    assert.match(JSON.stringify(body.messages), /45/u, "the actual child model consumes the original answer");
+    return reply(undefined, "The child recorded 45 minutes.");
+  });
+  try {
+    const manifest = structuredClone(codingAgentManifest); manifest.subagents!.roles = manifest.subagents!.roles.filter(one => one.role_id === "coding-reader");
+    const directory = { canonical_path: f.root, realpath_verified: true };
+    const session = await f.adapter.createSession({ ...owner, title: "Original question parent", directory });
+    const parent = await f.host.start("prologue", { ...owner, session, directory, role_id: "coordinator", task: "Dispatch the question child." }, { manifest, prompts: codingPrompts, authorizedDirectories: [f.root] });
+    const port = () => f.adapter.subagents!;
+    await f.until(async () => { const [one] = await port().list(parent.ref); return !!one && (await port().conversation!(parent.ref, one.subagent_id)).questions.length === 1; });
+    const [child] = await port().list(parent.ref); assert.ok(child?.child_run);
+    await f.until(async () => (await f.adapter.read(parent.ref)).phase === "completed");
+    const beforeParent = parentCalls;
+    if (parked) await f.reopen();
+    const view = await port().conversation!(parent.ref, child.subagent_id), question = view.questions[0]!;
+    assert.equal(question.questions?.[0]?.prompt, "时长"); assert.equal(question.questions?.[0]?.type, "number");
+    assert.equal(question.answerable, true); assert.equal(question.parked, parked ? true : undefined);
+    const control: AgentSubagentControl = { actor_id: owner.actor_id, execution: {} };
+    const answer: AgentSubagentCommand = { kind: "answer", request_id: "duration-answer", child_run: child.child_run, pending_id: question.pending_id, pending_revision: question.pending_revision!, answers: [{ question: 0, value: 45 }] };
+    const invalid = await port().command!(parent.ref, child.subagent_id, { ...answer, request_id: "invalid-duration", answers: [{ question: 0, value: 1 }] }, control);
+    assert.equal(invalid.state, "not-applied"); assert.equal((await port().conversation!(parent.ref, child.subagent_id)).questions.length, 1);
+    const wrong = await port().command!(parent.ref, child.subagent_id, { ...answer, request_id: "wrong-pending", pending_id: "foreign" }, control);
+    assert.equal(wrong.state, "not-applied");
+    const accepted = await port().command!(parent.ref, child.subagent_id, answer, control);
+    assert.equal(accepted.state, "applied"); assert.ok(accepted.state === "applied"); assert.equal(accepted.answer_delivery, parked ? "queued" : "delivered");
+    assert.deepEqual(await port().command!(parent.ref, child.subagent_id, answer, control), accepted);
+    await assert.rejects(port().command!(parent.ref, child.subagent_id, { ...answer, answers: [{ question: 0, value: 60 }] }, control));
+    if (parked) {
+      assert.equal(childCalls, 1, "answer acceptance does not implicitly start a child or parent");
+      const waiting = await port().conversation!(parent.ref, child.subagent_id);
+      assert.deepEqual(waiting.queued_answer, { pending_id: question.pending_id, pending_revision: question.pending_revision });
+      const resume: AgentSubagentCommand = { kind: "resume-answer", request_id: "resume-duration", child_run: child.child_run, pending_id: question.pending_id, pending_revision: question.pending_revision! };
+      const resumed = await port().command!(parent.ref, child.subagent_id, resume, control);
+      assert.equal(resumed.state, "applied"); assert.deepEqual(await port().command!(parent.ref, child.subagent_id, resume, control), resumed);
+    }
+    await f.until(async () => (await port().list(parent.ref))[0]?.state === "completed");
+    assert.equal(childCalls, 2); assert.equal(parentCalls, beforeParent);
+    assert.equal((await port().conversation!(parent.ref, child.subagent_id)).questions.length, 0);
+    await f.reopen();
+    assert.deepEqual(await port().checkRequest!(parent.ref, child.subagent_id, answer.request_id, owner.actor_id), accepted);
+    assert.equal(childCalls, 2); assert.equal(parentCalls, beforeParent);
   } finally { await f.close(); }
 });

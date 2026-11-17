@@ -153,9 +153,9 @@ const act = async (panel: Panel, id: string, group: SubagentGroup, child: Child,
   panel.stale();
   try {
     const payload = action === "extend-budget"
-      ? { action, extend_attempts: 3 }
+      ? { action, extend_attempts: 3, request_id: crypto.randomUUID(), child_run: child.child_run }
       : action === "retry" || action === "stop"
-        ? { action }
+        ? { action, request_id: crypto.randomUUID(), child_run: child.child_run }
         : { action, notes, expected_revision: child.verdict?.revision ?? 0 };
     await api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(group.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", payload);
     if (action === "accepted" || action === "needs-work") {

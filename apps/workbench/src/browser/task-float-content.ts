@@ -15,7 +15,7 @@ interface TaskFloatHost {
 type TaskFloatRequest = { operation: "open"; owner: object; mount: TaskFloatMount; opening?: TaskFloatOpening; resolve(value: TaskFloatContent): void; reject(error: unknown): void }
   | { operation: "close" | "forget"; owner: object };
 /** Both programs are independently bundled. The registered event carries trusted shell lifecycle callbacks, never plugin-page authority or task facts. */
-export function installTaskFloatContentHost(host: TaskFloatHost): void {
+export function installTaskFloatContentHost(host: TaskFloatHost): () => void {
   const receive = (event: Event) => {
     const request = (event as CustomEvent<TaskFloatRequest>).detail;
     event.preventDefault();
@@ -24,7 +24,7 @@ export function installTaskFloatContentHost(host: TaskFloatHost): void {
     else host.forget(request.owner);
   };
   document.addEventListener("molis-work:task-float", receive);
-  window.addEventListener("pagehide", () => document.removeEventListener("molis-work:task-float", receive), { once: true });
+  return () => document.removeEventListener("molis-work:task-float", receive);
 }
 export function openTaskFloatContent<T extends TaskFloatContent>(owner: object, mount: TaskFloatMount<T>, opening?: TaskFloatOpening): Promise<T> {
   return new Promise<TaskFloatContent>((resolve, reject) => {

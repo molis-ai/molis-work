@@ -29,6 +29,7 @@ export function roundStartInput(work: StoredWork, round: {
   actor_id: string; session: AgentSessionRef; role_id: string; task: string; text_materials: AgentTextMaterial[];
   materials: readonly AssistantMaterial[]; tokens_left?: number;
   original_input?: Omit<HostOfferedOriginalInput, "action">; continued_from?: AgentRunRef;
+  resume_answer?: AgentStartRequest["resume_answer"];
   /** A round that only reports: it never drives the side panel's browser. */
   report_only?: true;
 }): AgentStartRequest {
@@ -40,6 +41,7 @@ export function roundStartInput(work: StoredWork, round: {
     text_materials: round.text_materials,
     ...(round.original_input ? { original_input: { input_id: round.original_input.input_id, text: round.original_input.text, written_by: round.original_input.written_by, occurred_at: round.original_input.occurred_at } } : {}),
     ...(round.continued_from ? { continued_from: round.continued_from } : {}),
+    ...(round.resume_answer ? { resume_answer: round.resume_answer } : {}),
     // Pictures the person added: the runtime shows them to the model in this round (refused if the model cannot see).
     ...(materials.some(item => item.kind === "image") ? { image_materials: materials.filter(item => item.kind === "image" && item.image)
       .map(item => ({ material_id: item.material_id, title: item.title, resource: { id: item.image!.resource_id, revision: item.image!.revision }, media_type: item.image!.media_type })) } : {}),

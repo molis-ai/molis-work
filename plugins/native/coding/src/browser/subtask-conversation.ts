@@ -1,5 +1,5 @@
 import type { AgentSubagentConversation, AgentSubagentRequestResult } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { createAgentSubtaskSource, createSubtaskConversation, subscribeSubtask } from "@molis-ai/molis-work-plugin-sdk/subtask-conversation";
+import { createAgentSubtaskSource, createSubtaskConversation, createSubtaskQuestions, subscribeSubtask } from "@molis-ai/molis-work-plugin-sdk/subtask-conversation";
 import { t, type MwSubtaskConversationLabels } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingComposerLabels } from "../composer-labels.js";
 import { hostRequest } from "./main/request.js";
@@ -22,18 +22,26 @@ export function mountCodingSubtask(host: CodingWorkbenchHost): void {
   if (!lifetime) return;
   const root = host.root as HTMLElement;
   root.replaceChildren(); root.style.cssText = "height:100%;min-height:0";
+  const questions = createSubtaskQuestions({ drafts: host.drafts, interaction: host.interaction, text: say });
   const source = createAgentSubtaskSource({
     drafts: host.drafts, labels: codingComposerLabels(t.text, /Mac/i.test(navigator.platform)), text: say,
     async read(target, signal) {
       const conversation = await hostRequest<AgentSubagentConversation>(host, lifetime, pathOf(target), { signal });
-      return { conversation, parent: { target: "", title: say("parent") } };
+      return { conversation, details: [...questions.remember(target, JSON.stringify(conversation.child.child_run), conversation.questions), ...(conversation.approvals.length ? [{ id: "approvals:" + JSON.stringify(conversation.approvals), title: say("approvals"), content: { text: "" }, expanded: true }] : [])], parent: { target: "", title: say("parent") } };
     },
     command: (target, command, signal) => hostRequest<AgentSubagentRequestResult>(host, lifetime, pathOf(target), { method: "POST", body: command, signal }),
     check: (target, requestId, signal) => hostRequest<AgentSubagentRequestResult>(host, lifetime, pathOf(target) + "/request?request_id=" + encodeURIComponent(requestId), { signal }),
     subscribe: (target, invalidate, signal) => subscribeSubtask((version, signal) => hostRequest<{ version: string }>(host, lifetime,
       pathOf(target) + "/live?" + new URLSearchParams(version ? { since: version } : {}), { signal }), invalidate, signal),
   });
-  const handle = createSubtaskConversation(root, { get labels() { return labels(); }, source, onBack: () => task.close(), onClose: () => task.close() });
+  const handle = createSubtaskConversation(root, { get labels() { return labels(); }, source, mountDetail: (element, view, detail, submit) => {
+    if (!detail.id.startsWith("approvals:")) return questions.mount(element, view, detail, submit);
+    const run = JSON.parse(view.binding) as { run_id: string }, controller = new AbortController();
+    void host.reviews.show(element, { runIds: [run.run_id] }, { signal: controller.signal }).catch(() => {
+      if (!controller.signal.aborted) element.textContent = say("read-failed");
+    });
+    return { destroy: () => controller.abort() };
+  }, onBack: () => task.close(), onClose: () => task.close() });
   let target = targetOf(task.input);
   const open = () => { if (lifetime.visible) void handle.open(target); };
   lifetime.own(task.subscribe(input => { const next = targetOf(input); if (next !== target) { target = next; open(); } }));

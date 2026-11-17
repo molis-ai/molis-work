@@ -69,7 +69,7 @@ export function guardedSubagents(subagents: AgentSubagentsCapability, read: (run
     ...(subagents.conversation ? { conversation: async (run, id) => { await read(run); return subagents.conversation!(run, id); } } : {}),
     ...(subagents.command ? { command: async (run, id, input, control) => {
       await read(run);
-      if (input.kind !== "continue" && input.kind !== "retry") return subagents.command!(run, id, input, control);
+      if (input.kind !== "continue" && input.kind !== "retry" && input.kind !== "resume-answer") return subagents.command!(run, id, input, control);
       const owned = (await subagents.list(run)).find(one => one.subagent_id === id)?.child_run;
       if (!owned) throw agentErrors.collaboration_unknown("原子任务不存在");
       return hold(owned.session_id, () => subagents.command!(run, id, input, control));

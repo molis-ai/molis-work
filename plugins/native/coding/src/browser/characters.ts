@@ -77,13 +77,15 @@ export function characterChoice(ports: CharacterPorts) {
       const options: CharacterRow[] = [{ ref: null, title: uiText.text('coding.character.no-character'), available: true, note: uiText.text('coding.character.no-character-note') }, ...rows];
       for (const [index, item] of options.entries()) {
         const row = document.createElement('section'), label = document.createElement('label'), radio = document.createElement('input'), name = document.createElement('span');
+        // Whether this row is the one chosen when the list is drawn; a later change redraws the skills from the radios.
+        const mine = key(candidate) === key(item.ref);
         row.className = 'coding-material';
         label.className = 'mw-check-row';
         radio.className = 'mw-radio';
         radio.type = 'radio';
         radio.name = 'coding-character-choice';
         radio.value = String(index);
-        radio.checked = key(candidate) === key(item.ref);
+        radio.checked = mine;
         radio.disabled = !item.available;
         name.textContent = item.title;
         label.append(radio, name);
@@ -110,16 +112,16 @@ export function characterChoice(ports: CharacterPorts) {
           summary.textContent = uiText.text('coding.character.skills');
           skills.append(summary);
           for (const skill of item.imported_skills) {
-            const label = document.createElement('label'), check = document.createElement('input'), title = document.createElement('span');
+            const label = document.createElement('label'), check = document.createElement('input'), title = document.createElement('span'), portable = skill.compatibility === 'portable';
             label.className = 'mw-check-row';
             check.type = 'checkbox';
             check.className = 'mw-check';
             check.dataset.characterSkill = skill.id;
             check.dataset.owner = key(item.ref);
-            check.dataset.compatible = String(skill.compatibility === 'portable');
-            check.disabled = key(candidate) !== key(item.ref) || skill.compatibility !== 'portable';
-            check.checked = key(candidate) === key(item.ref) && selectedSkills.includes(skill.id);
-            title.textContent = skill.name + (skill.compatibility !== 'portable' ? uiText.text('coding.character.native') : '');
+            check.dataset.compatible = String(portable);
+            check.disabled = !mine || !portable;
+            check.checked = mine && selectedSkills.includes(skill.id);
+            title.textContent = skill.name + (portable ? '' : uiText.text('coding.character.native'));
             label.append(check, title);
             skills.append(label);
             check.onchange = () => { selectedSkills = check.checked ? [...selectedSkills, skill.id] : selectedSkills.filter(id => id !== skill.id); };

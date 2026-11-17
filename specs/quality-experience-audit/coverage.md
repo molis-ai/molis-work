@@ -1,5 +1,7 @@
 # 审查覆盖记录
 
+第41批已通过本地验收：沿工作台、桌面壳、CLI、MCP、SDK及插件的实际URL调用核对，只移除旧Events HTTP转发和POST只读例外，公开事件动作保留。未知插件正式动作、原HTTP offers/execute、正式MCP、安装撤权/恢复/停用与实际写入，8文件50项、构建/健康通过。当前包表与登记75行一致（WebQuery退役不计活动包），83个contracts子路径及根入口；这些范围核对不替代最终整合头CI。
+
 第44批完成单目标许可匹配收敛：真实调用的进入/返回和嵌套复核每次仍匹配当前名单，第二个不同目标才建原索引。12文件92项、构建/健康通过；旧无关尾项反证100→0、同轮变更立即拒绝，正式Host/场景/Runtime消费者通过。实际CPU该函数自身3.143→0.972秒，但20条总耗时仍偏长，QF-51继续；没有跨等待授权缓存或缩减审查范围。
 
 第43批继续沿真实授权链核性能：Catalog membership → Home常开插件安装/同意 → Storage当前版本/空间/完整结构 → 当前业务行。结构比较复用平台既有文件身份/schema_version机制，Home保留exact模式，普通baseline合同不变；没有把跨await事实或只读连接缓存起来。14文件149项、构建/API/健康通过，暖读多余扫描消失，WAL结构/版本/归属/失败恢复及实际取消重试保持。UI p50仍约11秒，QF-51未完成，继续按当前CPU实际热点核允许动作名单匹配和行读取。
@@ -8,7 +10,7 @@
 
 第39批新增 `horizontal/automation-recommender`、`horizontal/project-approvals` 已从登记、项目到达/Assistant/创作台、Web/CLI/管理 MCP、Kernel、事实 owner、存储及反馈追踪。六向结论：临时建议与固定文稿分开；保留权限/目录等待后复核；页面隔离旧读取且不自动启用；两包有真实职责与消费者；偏好/文稿、平台决定/业务各有主人；Acceptance 同事务缺口应复用现有跨库原子及恢复能力。QEA-84 已实际复现最终提交失败仍留下认可（QF-48/P1），现迁共享同连接事务；QEA-84–86 的最终失败、清理故障、真实进程中断/恢复和原成果消费者8文件41项通过，必跑与准确头CI继续。新增包视觉和外部执行未声称通过，交集验证及失败处理见报告。
 
-状态：深入检查进行中（2026-11-17，负责人 Codex）。当前整合 main `a717e44284`，登记75包、83个 contracts 子路径；两个新服务 automation-recommender/project-approvals 的实际调用链加入六方向交集审查。下表保留首轮代表入口与历史基线的证据，不能据此宣称原任务已完整验收。最新整合构建通过、合同快照重算，23文件交集验证中；固定旧检查点的205文件回归独立记录。登记核对、静态检查、构建通过均不等于业务路径或外部服务验收。
+状态：深入检查进行中（2026-11-17，负责人 Codex）。当前整合 main `eafff2b526`，登记75包、83个 contracts 子路径（另有根入口）；两个新服务 automation-recommender/project-approvals 的实际调用链加入六方向交集审查。下表按当前包登记列出检查入口，详细改造及最新验证见上文与报告，不能据此宣称原任务已完整验收。初轮和中途检查点的回归结果作为历史证据分别保留。登记核对、静态检查、构建通过均不等于业务路径或外部服务验收。
 
 ## 主干新增 Sessions（已整合，定向验收通过，最终门禁待完成）
 
@@ -92,7 +94,7 @@ Git QF-03 的独立与 Coding 内嵌入口已补真实仓库复现：提交说�
 | `apps/local-host` | production | `.` | 动作 HTTP→Kernel→owner；项目/ Home 插件登记、background aggregate、单一项目删除、sourcePull、Memory 身份接线。QF-04、PF-03。 |
 | `apps/cli` | production | `.` | `src/dispatch.ts`：命令分发与既有 Home 入口；不另开执行事实 owner。安装/公开发版未做。 |
 | `apps/mcp` | production | `.` | `src/action-tools.ts`：实时目录→公开动作→Kernel 再授权；输入 _meta 不提供身份。 |
-| `packages/contracts` | production | `./modules/sync-replication`、`./platform/sync-transport`、`.` 等 82 个子路径 | action-input、object-link、plugin-manifest、plugin-sandbox、公开状态：声明与输入/输出的单一合同。公开零引用不等于死代码。 |
+| `packages/contracts` | production | `./modules/sync-replication`、`./platform/sync-transport`、`.` 等 83 个子路径 | action-input、object-link、plugin-manifest、plugin-sandbox、公开状态：声明与输入/输出的单一合同。公开零引用不等于死代码。 |
 | `packages/kernel` | production | `.`、`./contextual` | action-schema、action-settlement 与执行控制：输入校验、call/invocation 关联、嵌套调用、beforeEffect；保留异步后授权复核。 |
 | `packages/plugin-runtime` | production | `.` | activation-jobs、notification-queue 与调用身份：激活代次/迟到提交、停止与 drain、事务内通知及稳定幂等键。 |
 | `packages/plugin-sdk` | production | `.`、`./highlight`、`./rich-text` 等 13 个子路径 | state-machine、execution-lifetime、browser、sandbox-read-protocol：CAS 状态迁移、取消资源、请求方法差异和生成插件读协议。 |
@@ -109,6 +111,9 @@ Git QF-03 的独立与 Coding 内嵌入口已补真实仓库复现：提交说�
 | `modules/shelf` | slice | `.`、`./contract` | jobs、job-steps、copy-checks：只读原件副本、任务生命期、写前权限和结果提交；取消后不补业务失败记录。 |
 | `modules/characters` | slice | `.` | service 与工作台 client：草稿 CAS、冻结发布、启停/删除、保留未提交内容；确认是否可减少列策略。 |
 | `modules/judgment-rules` | production | `.` | authoring-actions、declared-rules：预览/发布前样本、绑定场景、await 后 beforeEffect；规则版本仍归 owner。 |
+| `horizontal/sessions` | slice | `.` | 范围配置/本机与云发现/分页列表/详情/系统搜索与助理开头材料；原始事实归来源、许可与索引归Sessions，QF-16～19及正常浏览器/撤回交错已验，真实外部云账户未验。 |
+| `horizontal/automation-recommender` | slice | `.` | 项目到达/Assistant/创作台 → 当前动作目录与Workspace → 临时建议 → Pages固定文稿；偏好归此服务，冻结文稿归Pages，失效权限及安装继续拒绝。 |
+| `horizontal/project-approvals` | slice | `.` | Web/CLI/管理MCP → Kernel可信决定 → 平台规则/决定账 → 原业务owner；Acceptance联合提交最终失败和真实中断恢复已验(QF-48)，原业务状态不复制。 |
 | `horizontal/account` | slice | `.` | session-refresh 与 session-state：Host 单次轮换、多请求各自取消；不取消仍被合法等待者使用的刷新。#2094增量核对authentication:37-65、authentication-protocol:70-77与Host三条登录HTTP入口的句柄、世代和取消检查；中央事实仍归Auth。 |
 | `horizontal/agent-host` | production | `.` | prologue-run-store、approvals、reviews、恢复：账本终态与控制意图区分；显示时间另有阻塞耦合 QF-06。未新增真实模型调用。 |
 | `horizontal/connector-host` | production | `.` | `src/index.ts:38,67`：受控驱动调用、超时、当前连接复核和闭合失败；Provider 数据仍在集成边界解析。 |
@@ -128,8 +133,7 @@ Git QF-03 的独立与 Coding 内嵌入口已补真实仓库复现：提交说�
 | `plugins/official-integrations/github` | production | `.` | provider：受控网络、真实/fixture 显式分开、闭合错误与凭据不入内容行；未调用真实账户。 |
 | `plugins/official-integrations/gmail` | production | `.`、`./history-cursor`、`./scope` | provider-sync/history-cursor：分页边界、仅完整历史记录推进游标、失败重放与限额；未调用真实账户。 |
 | `plugins/official-integrations/rss` | production | `.`、`./host` | pinned-request/host：DNS 固定地址、TLS、压缩/大小限制、取消后释放；不是可直接换普通 fetch 的重复层。 |
-| `plugins/official-integrations/web-query` | experimental | `.` | 工厂无生产入边/Runtime登记，也不进入当前运行依赖打包链；实际查询经 Host SEL/AnySearch。已补包根导出、Manifest/版本与门禁退役依赖，尚未删除；正常来源数据保留。 |
-| `plugins/official-integrations/youtube` | production | `.` | channel→Host vocabulary/intent/runtime→Runtime sourcePull→Feed，另核真实npm产物依赖；工厂/安装Manifest无消费者，channel与原包名仍需保留。完整退役旧安装面依赖包文件和门禁同步，尚未实施/验收。 |
+| `plugins/official-integrations/youtube` | production | `.` | channel→Host vocabulary/intent/runtime→Runtime sourcePull→Feed，另核真实npm产物依赖；工厂/安装Manifest无消费者，channel与原包名仍需保留。旧工厂/安装Manifest已按第28批批准退役，channel及包名保留，当前来源请求仍通过Host/Runtime，相关拒绝验收保留。 |
 | `tooling/plugin-cli` | production | `.` | validate/package-files：只读 manifest/locales，不执行入口；CLI 打包/签名链登记，未生成发布包。 |
 | `plugins/native/alchemist` | slice | `.`、`./registration` | SqliteJobRunner、action-operations：持久 job、lease/attempt、取消与事务 fence；Host 特殊装配是已登记例外。 |
 | `plugins/native/coding` | production | `.`、`./contract`、`./registration` | session-observation 与 session-lifecycle：只读投影默认不落库；归档业务/执行两份不同 owner 事实并可接续半成功。 |

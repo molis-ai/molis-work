@@ -344,7 +344,7 @@
 
 **登记之外**：页面渲染、静态资产、终端和浏览器 WebSocket、面板会话等传输层路由（`apps/local-host/src/web-server.ts`）不是「能力」，不进这两张表，但它们也不能绕开链 1 的步骤 2。IM 服务的路由（`/im`、`/projects/<id>/api/im/connect`）同样是「讨论」页签自己的传输层（宿主不再直接读它的表，见 W2-06）。
 
-**首页事项与动作**。`apps/local-host/src/web-request.ts` 从已认证的项目上下文绑定调用者。`apps/local-host/src/home-dock-http.ts` 的六个 POST 路径都经现行 `system.home` 动作。事项列表、打开位置、动作选项与准备分别调用 `home.events.read`、`home.events.open`、`home.actions.choices`、`home.actions.prepare` 的查询。`POST /api/home/actions/execute` 调 `home.actions.execute`，最终写入由所选动作的主人执行。`POST /api/home/dock-judgment` 调 `home.judgment.write`，由场景绑定服务保存选择，然后经 `home.judgment.read` 读回。HTTP 负责收发和刷新工作台视图。
+**首页事项与动作**。`apps/local-host/src/web-request.ts` 从已认证的项目上下文绑定调用者。`apps/local-host/src/home-dock-http.ts` 的四个 POST 路径都经现行 `system.home` 动作。动作选项与准备分别调用 `home.actions.choices`、`home.actions.prepare` 查询。公开的 `home.events.read/open` 继续供 MCP 等动作调用者使用，旧 Events HTTP 转发已移除。`POST /api/home/actions/execute` 调 `home.actions.execute`，最终写入由所选动作的主人执行。`POST /api/home/dock-judgment` 调 `home.judgment.write`，由场景绑定服务保存选择，然后经 `home.judgment.read` 读回。HTTP 负责收发和刷新工作台视图。
 
 B9 其余三组的写入已接入动作，见 §10.1.1；插件创作台一组属于用户批过的构建期例外，随 BL-377 重做。
 

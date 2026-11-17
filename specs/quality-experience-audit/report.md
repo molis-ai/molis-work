@@ -1,8 +1,12 @@
 # Molis Work 审查报告与优化策略
 
+第41批本地结算：`apps/local-host/src/home-dock-http.ts:14` 删除两个无生产调用的Events POST转发，`web-request.ts:87` 删除其专用只读放行。公开 `home.events.read/open@1`、原事件聚合和MCP保留。旧地址带正常控制头仍404，插件reader和写入均未触发；未知插件完成后撤回、故障隐私、实际regrant撤权/恢复/停用与正式MCP独立授权通过。3个原测试通过公开Host客户端读取同一事实，不新导出内部权限适配器；HTTP session/目录捕获仍由现行HTTP消费者安全套件覆盖，不把此读取称Events HTTP验证。构建、健康和8文件50项通过（`/tmp/quality-audit-events-retirement-acceptance.log`）；BL-home-events-endpoint-unused已本地落地，待最终头CI后清理。用户路径未新增步骤，Host少维护两个无调用入口和专用方法分类。
+
+当前包表已按登记逐项对齐75包，83个contracts子路径另加根入口；补列Sessions、automation-recommender、project-approvals并移除已退役WebQuery工厂包，相关深入结论仍见各批。另核SQLite行复制候选：Node24.15.0下原对象复用与复制在交替样本无稳定差异（`/tmp/quality-audit-sqlite-row-bench.log`），未改生产实现，不用微基准代替真实体验或新增通用优化层。
+
 第44批本地结算：`packages/kernel/src/action-execution-context.ts:82` 单目标的反复复核继续逐条匹配，遇第二个不同目标才建原轮内索引；名单可变，不缓存首答。QEA-98经公开同步动作旧版遍历100个无关项、新版0，provider/版本/移除/恢复与原实时授权均验。完整构建、健康、12文件92项通过（`/tmp/quality-audit-allowed-list-acceptance.log`），只读复核无新增Blocker/P1。真实20条采样 allowedAction 自身3.143→0.972秒，但五样本总耗时p50=14127ms，未证端到端改善；QF-51和性能BL继续。用户等待问题尚未宣称解决，代码只减少不必要的全名单索引构建，没有承担第二份授权状态。
 
-当前状态（2026-11-17，负责人 Codex）：**整项仍在进行中**。原六方向、逻辑 Bug、需求实现度与 BL 清理均保留。已整合 main `eafff2b526`，75包、83个 contracts 子路径；合并检查点 `ff0c7ab018` 保留此前成果，第40批保存为 `651a35be6d`。第42批 Goal 片段读取收窄已通过本地定向验收，继续第43批结构扫描成本和第41批旧入口清理；以下各检查点的证据不代替最终提交的 Full CI。
+当前状态（2026-11-17，负责人 Codex）：**整项仍在进行中**。原六方向、逻辑 Bug、需求实现度与 BL 清理均保留。已整合 main `eafff2b526`，75包、83个 contracts 子路径；合并检查点 `ff0c7ab018` 保留此前成果，第40批保存为 `651a35be6d`。第42～44批 Goal 片段、结构校验和许可匹配已通过本地定向验收，第41批旧入口清理正在验收，QF-51端到端性能仍未关闭；以下各检查点的证据不代替最终提交的 Full CI。
 
 第42批 / QF-51 后续：正常网络探针证明8次 Goal 刷新均来自顶层工作台（`/tmp/quality-audit-inbox-refresh-probe.log`）。`web-goals-read.ts:153` 的片段读取经 `web-request.ts:202` 重读所有显示插件舞台并渲染 Home 内容，放大 Inbox 批次成本。QEA-94 在旧构建真实 HTTP 入口失败：无关 Schedule reader 被调用一次（`/tmp/quality-audit-goal-stage-baseline.log`）。现按声明路由匹配 owner 准备舞台，保留目标正文/关系/策略/成果与创建输入所需目录；移除无生产消费者的 Inbox 摘要转发和 StagePageContext.client_data。完整构建通过、API 快照仅删除该可选字段，定向验收进行中，不预报性能通过。
 
@@ -10,7 +14,7 @@
 
 第43批本地结算：`packages/storage/src/sqlite-baseline.ts:214` 提取现行成功结构比较，`apps/local-host/src/home-plugin-store.ts:22` 复用 exact 模式；原 Inspector 保留允许额外表及声明触发器的检查。暖读反证旧版132≠66，新版不再增加结构扫描，8次读取仍分别检查版本并关闭连接；WAL暖读后主文件字节不变但结构变化拒绝，两种比较模式互不冒充，损坏/外来归属/恢复均通过。完整构建/API/健康和14文件149项通过，日志 `/tmp/quality-audit-home-schema-acceptance.log`。未改变存储版本、授权事实或只读事务寿命。总耗时p50=11721ms，未证明优于上一批，故保留QF-51；当前CPU采样聚合显示允许动作名单匹配自身约3.14秒、SQLite行转换与get合计约2.23秒，Home开库自身约0.15秒。继续沿真实许可名单来源和当前读取核根因，不把查询数减少当作体验已达标。采样 `/tmp/quality-audit-schema-cpu/CPU.20261117.055750.75612.0.001.cpuprofile`，临时测试已清理。
 
-最新主干登录交集：9文件中8文件104项通过，子任务会话文件12/14项通过但滚轮位置验证失败（`/tmp/quality-audit-login-merge-acceptance.log`）；失败待复现和裁决，不能记全绿。第42批首个定向命令误用默认并发，已按本次PID终止，仅成果输入4项有效通过，其余未完成；改用公共机器槽和 `--jobs 1` 后重新执行，日志 `/tmp/quality-audit-goal-stage-acceptance-serial.log`。
+主干登录交集首轮历史：9文件中8文件104项通过，子任务会话文件12/14项通过但滚轮位置验证失败（`/tmp/quality-audit-login-merge-acceptance.log`）；该观察时序问题已在第42批修正并补验14/14通过，见上文，首轮记录保留。第42批首个定向命令误用默认并发，已按本次PID终止，仅成果输入4项有效通过，其余未完成；改用公共机器槽和 `--jobs 1` 后重新执行，日志 `/tmp/quality-audit-goal-stage-acceptance-serial.log`。
 
 最新交集记录（2026-11-17）：第39批两个新服务已沿真实生产路径核对。建议由项目到达、Assistant、创作台读取目录和 Workspace，偏好归 recommender，文稿由 Pages 按固定 request_id 保存；临时报告绑定 actor/project/incarnation 并有期限。审批经 Web/CLI/管理 MCP 和 Kernel 单次可信凭据进入原业务 owner，平台规则与决定归 project-approvals。等待后的权限与安装复核有真实边界依据；新包不是无职责转发层。静态结论不替代视觉和运行验收。
 

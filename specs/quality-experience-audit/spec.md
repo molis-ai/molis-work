@@ -722,7 +722,7 @@ QF-51 CPU复核（`/tmp/quality-audit-scene-cpu.log` 与同名profile目录）�
 
 ## 第四十一批：退役旧首页 Events HTTP 转发（BL-home-events-endpoint-unused）
 
-状态：调用方核对完成，待第四十批冻结后实施。第15批已删除工作台旧Events客户端，现行桌面壳、CLI、MCP、SDK及插件工具均未引用这两个URL；MCP的真实调用经原 `home.events.read/open@1` 动作。现行合同为阶段一，无兼容窗口；此处只删无生产调用的HTTP适配和专用POST只读放行，不删除有真实MCP/助理消费者的事件动作、聚合规则及插件 `work_events` 声明。不存在写库/数据迁移。
+状态：调用方核对完成，现已实施，构建通过，QEA-92/93定向验收中。第15批已删除工作台旧Events客户端，现行桌面壳、CLI、MCP、SDK及插件工具均未引用这两个URL；MCP的真实调用经原 `home.events.read/open@1` 动作。现行合同为阶段一，无兼容窗口；此处只删无生产调用的HTTP适配和专用POST只读放行，不删除有真实MCP/助理消费者的事件动作、聚合规则及插件 `work_events` 声明。不存在写库/数据迁移。
 
 移除 `home-dock-http.ts` 的 `/api/home/events`、`/api/home/events/open` 分支及两项仅服务此分支的类型；保留现行offers/execute和判断配置入口。相关集成验证改通过本人现行动作入口核同一事实，继续覆盖真实未知插件、原权限撤回、停用、当前建议和隐私错误；MCP仍从正式stdio入口执行。旧地址仅验证不再可用，不再为保留旧路由造新调用方。同步CALL-CHAINS与BL的剩余状态，最终CI前不销整条。
 
@@ -730,6 +730,8 @@ QF-51 CPU复核（`/tmp/quality-audit-scene-cpu.log` 与同名profile目录）�
 - **QEA-93** 未知插件的事件仍由公开动作读到；完成/撤权/停用撤回，故障只显示安全原因。正式MCP与本人的独立权限仍分别约束当前建议，原历史不改写。复用home-events.e2e、home-mcp-actions、home-event-actions、functions-system-capability、action-error-edges、web-route-table、安全路由套件及Host包要求。
 
 处置依据是当前注册/真实调用与合同阶段，不以单次搜索零命中删除整个能力；如果迁移测试时发现真实生产URL消费者，先迁消费者再删分支。
+
+第四十一批结果：已删除两个转发及其POST只读例外，3个旧URL测试迁公开Host动作客户端，正式MCP继续实际stdio调用。QEA-92/93真实隔离Home验证旧POST404且reader/写入不增；现行HTTP操作一次写入、未知插件授权撤回/恢复/停用、MCP独立授权和原历史保持。构建、健康、8文件50项通过（`/tmp/quality-audit-events-retirement-acceptance.log`），只读复核无新增Blocker/P1。公共本人客户端不承担HTTP session/目录捕获验证，原现行HTTP权限套件仍保留并通过。最终CI前不销整条BL。
 
 第四十批检查点：完整构建、API生成（0差异）、健康通过；17个相关文件153项均已有通过证据。首轮16/17文件通过，BRC-05受控额外读取确被拒绝，但反证匹配旧错误文案；同步精确文案后整文件5/5通过，未放宽任何调用预算。QEA-90两次实际浏览器通过，最终5样本每次均在4/20条时返回health，事件循环最大延迟1.09–2.65秒；取消后原已提交第一条保留、剩余重试不重复的QEA-91通过。日志 `/tmp/quality-audit-inbox-yield-acceptance.log`、`/tmp/quality-audit-inbox-yield-final.log`。
 

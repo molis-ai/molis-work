@@ -84,7 +84,7 @@ export async function handleMolisWorkWebRequest(
   agentHost: AgentHost,
   agentReady: () => Promise<void>,
 ): Promise<void> {
-  const readonly = request.method === "GET" || request.method === "POST" && url.pathname.endsWith("/api/home/events");
+  const readonly = request.method === "GET";
   const handle = async () => {
     const context: WebRequestContext = { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, webViewCache, projectSchedules,
       ptyHost, webUrl, localHost, composition, agentHost, agentReady };

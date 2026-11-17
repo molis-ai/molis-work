@@ -36,10 +36,10 @@ import {
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import { liveHostJudgmentRuleAuthoringCatalog } from "@molis-ai/molis-work-app-local-host";
-import { defineSubjectOffersAction, type ActionProvider, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, defineSubjectOffersAction, type ActionProvider, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, LOCAL_OWNER_PERMISSIONS } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome } from "./fixtures/test-home.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -464,11 +464,12 @@ test("home dock HTTP binds a published function at the scene without executing w
   assert.doesNotMatch(homeClient, /data-home-dock-judgment/);
   assert.doesNotMatch(functionsClient, /\/api\/home\/dock-judgment|\/api\/inbox\/judgment/, "the generic editor must not keep native scene dispatch branches");
   const now = new Date();
-  const eventResponse = await webFetch(`${origin}${prefix}/api/home/events`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
-    from: new Date(now.getTime() - 86400000).toISOString(), to: new Date(now.getTime() + 86400000).toISOString(), now: now.toISOString(),
-  }) });
-  assert.equal(eventResponse.status, 200);
-  assert.ok((await eventResponse.json() as { events: Array<{ suggested_behavior_ids: string[] }> }).events.every(event => event.suggested_behavior_ids.length === 0), "Home has no judgment suggestions before a rule is bound");
+  const eventResult = await localHost.actionClient(molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path })).invoke(
+    { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: LOCAL_OWNER_PERMISSIONS },
+    { capability_id: "home.events.read", version: 1 }, {
+      from: new Date(now.getTime() - 86400000).toISOString(), to: new Date(now.getTime() + 86400000).toISOString(), now: now.toISOString(),
+    }) as { events: Array<{ suggested_behavior_ids: string[] }> };
+  assert.ok(eventResult.events.every(event => event.suggested_behavior_ids.length === 0), "Home has no judgment suggestions before a rule is bound");
   assert.doesNotMatch(page, /"dock_behaviors"/);
 
   const mismatched = await webFetch(`${origin}${prefix}/api/home/dock-judgment`, {

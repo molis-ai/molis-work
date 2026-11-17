@@ -10,12 +10,6 @@ export function directoryWidth(value: unknown, viewportWidth: number, immersive:
 export function directoryWidthPreferenceScript(projectId: string, collection: "current" | "archive" | "trash", embedded: boolean): string {
   if (!projectId || embedded) return "";
   const key = JSON.stringify("molis-work-ui:" + projectId).replaceAll("<", "\\u003c");
-  return `(()=>{if(window.parent!==window&&new URLSearchParams(location.search).has('workbenchPane'))return;
-    if(matchMedia('(max-width:600px)').matches)return;
-    try{const scope=(${pageSessionScope.toString()})(document.querySelector('meta[name="molis-work-page-session"]')?.content);
-      const key=(scope?(${accountCachePrefix.toString()})(scope):'')+${key},raw=sessionStorage.getItem(key+${JSON.stringify(":" + collection)})${collection === "current" ? "||sessionStorage.getItem(key)" : ""};
-      if(!raw)return;const value=JSON.parse(raw)?.treeWidth;if(!value||!Number.isFinite(Number(value)))return;
-      const {width}=(${directoryWidth.toString()})(value,innerWidth,true),style=document.createElement('style');
-      style.textContent='body.immersive-workbench .immersive-workspace[data-workspace]{--tree-width:'+width+'px}';document.head.append(style);
-    }catch{/* Unreadable session preferences follow the normal restore path. */}})();`;
+  // Unreadable session preferences follow the normal restore path.
+  return `(()=>{if(window.parent!==window&&new URLSearchParams(location.search).has('workbenchPane'))return;if(matchMedia('(max-width:600px)').matches)return;try{const scope=(${pageSessionScope.toString()})(document.querySelector('meta[name="molis-work-page-session"]')?.content);const key=(scope?(${accountCachePrefix.toString()})(scope):'')+${key},raw=sessionStorage.getItem(key+${JSON.stringify(":" + collection)})${collection === "current" ? "||sessionStorage.getItem(key)" : ""};if(!raw)return;const value=JSON.parse(raw)?.treeWidth;if(!value||!Number.isFinite(Number(value)))return;const {width}=(${directoryWidth.toString()})(value,innerWidth,true),style=document.createElement('style');style.textContent='body.immersive-workbench .immersive-workspace[data-workspace]{--tree-width:'+width+'px}';document.head.append(style);}catch(e){void e}})();`;
 }

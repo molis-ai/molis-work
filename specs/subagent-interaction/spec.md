@@ -600,3 +600,44 @@ C 轨代码前合审补充两条实施边界：Host 重试必须同时有已核�
 本轮验证：`/tmp/molis-b59-unavailable-browser-tests.log` 中子任务 8/8、source 6/6、Coding rich HTML 2/2、Coding 状态/原成果/中英文返工 7/7 通过；会话 4/5，唯一失败仍是 §12.10 的 `ROOT_NOT_FOUND`。首条 Node 回归包含真实 Session 的旧 v1 首开场及旧重试，验证显示占位、原 SDK 历史仍可读取、本人补充和结果保留；父 Session 自通知仍进入实际模型但不进界面正文。共用浮窗中英文实物 `/tmp/molis-b59-unavailable-locales-final.log` 1/1 通过，截图在已忽略的 `.impeccable/qa/review/b59-unavailable/`；此浏览器用已投影的 owner fixture 验公共 source 和组件，不能代替 SDK 端到端或本人验收。C/D 轨已关闭本轮 P1（D 已查看中英文截图），当前 health 门禁通过且无翻译问题；完整统一验证、全 PR 评审、CI Full、收尾五问与合入尚未完成。
 
 同步后的消费者复验：Coding 三入口 3/3、助理四条路径 4/4、原 TaskBoard HTTP 1/1、助理 SDK 通知 1/1、原子轮次 1/1 通过（`/tmp/molis-b59-dbcf-consumers.log`）。换包测试暴露四处旧版本固定预期与漏记的新审计提交，已按官方 #133 更新，旧包记录及哈希检查保留；实际核过本批换下六份包的 Git blob、大小、SHA-256 及源码祖先关系，来源回归 79/79 通过（`/tmp/molis-b59-vendor-final.log`）。本轮测试、Auth/Work 与定样预览服务已清理本会话临时进程；独立 dev Home、浏览器资料及 #133 双打包目录已移除，截图和脱敏通过摘要保留。批次分支/工作树继续保留以完成 §12.10 后续，未声称完成整批清理或五问。
+
+### 12.19 第 59 批验收索引
+
+本机产品验证使用隔离 Home、专用测试浏览器和当前构建。实际 Provider 实操见 §12.17，角色及原问卷的停机恢复见 §12.10。正式体验由一骏按 [BL-b59-subtask-acceptance](../backlog/BL-b59-subtask-acceptance.md) 试用。
+
+| 编号 | 验证路径和可观察结果 |
+| --- | --- |
+| SAI-01 | `assistant-subtasks.e2e` 从 Home、项目分别打开真实 Work 与 SDK 子任务。`coding-subtask-real-entry.e2e` 从任务面板、时间线卡片、原成果面板进入同一子对话，核对角色、状态及原父任务。 |
+| SAI-02 | §12.17 的真实 Provider Coding 追问与 dev Auth 登录后的助理 SDK 追问，均沿原子 Session 保留上下文。Work 对话沿原委派执行端验证。 |
+| SAI-03 | `prologue-subagent-conversation`、`agent-input-delivery` 核对原本人输入、接收及消费回执。模型实际读取该输入，界面只把有本人原件的消息标为本人。 |
+| SAI-04 | `subtask-conversation.e2e`、`subtask-source` 与 `assistant-coding-subtask-question` 制造切换、原回执未知、两次请求竞争和草稿更新的交错，查询原请求无重复投递或派出。 |
+| SAI-05 | `prologue-subagent-conversation` 保留旧结果和逻辑子任务，明确继续只开一个 Run。同键重放与竞争启动沿原 Session，旧 Run 请求被拒。 |
+| SAI-06 | `assistant-subtask-original-question.e2e`、`assistant-subtask-original-review.e2e`、`prologue-subagent-conversation` 走原问卷和审批。普通补充不结算问题；重启后答题与明确继续各有独立原回执。 |
+| SAI-07 | `assistant-delegation`、`assistant-sdk-subtask-notices`、`prologue-subagents` 检查活跃、等待和终态父任务，原输入或结果关联原父 Run，终态父任务只收到新进展提示。 |
+| SAI-08 | `coding-subagents-http`、`prologue-subagents`、`prologue-subagent-conversation` 覆盖错 owner、安装、项目、旧 Run、失权及目录更换，拒绝后子模型零调用，原答案仍在原队列。 |
+| SAI-09 | `assistant-delegation`、`prologue-subagent-conversation` 与原审批收回回归覆盖兄弟停止隔离及迟到审批，撤权后的请求不替其他执行者派出或写入。 |
+| SAI-10 | §12.10 的真实 Node 重启分别覆盖共享目录、指定独立工作树和业务角色；检查原历史、同逻辑子任务、只消费一次、父 Run 保持终态及已知不可核对状态。 |
+| SAI-11 | `subtask-conversation.e2e`、`assistant-subtask-navigation.e2e`、`coding-subtask-real-entry.e2e` 检查焦点、选区、草稿、滚动、兄弟切换和输入法，兼顾原入口被重绘后的关闭回焦。 |
+| SAI-12 | 两入口实操和用户选定的 B 样稿见 §12.14、§12.17，最终本人试用记录留在 BL-b59-subtask-acceptance。 |
+| SAI-13 | 定样中英／深浅／三宽度和减少动态效果，真实短窗、键盘及长草稿浏览器回归见 §12.17～18；最终本人试用留在同一验收单。 |
+| SAI-14 | `coding-subtask-entry.e2e`、`coding-state-rings.e2e`、`assistant-subtask-original-review.e2e`、`prologue-writer-authority` 走原审批、停止、评价及成果面板。继续对话保持原成果的确认入口。 |
+| SAI-15 | `plugin-sample.e2e` 离线安装公开 contracts/SDK 后验证子任务 source、原请求及草稿；`vendor-provenance` 校验实际 SDK 产物和来源。Work 的真实入口沿 §12.17 实操。 |
+
+首屏实测（`479378f043` 对 `dbcf562a67`，2026-11-17）：第 59 批文案更新产生中英文启动词包的新内容地址。静态资源门禁已在独立基线对比通过，Coding +35,735 B，共用懒包 96,161 B。首屏门禁另按真实 HTTP 计量，报告以下实际净增。两个词包路径替代各自的旧版本。需按[开发手册「首屏字节」](../../docs/cli-and-development.md#首屏字节)取得词包路径许可，随后将实测上限写入本批独立许可。
+
+| 页面 | 中文冷／热 | 英文冷／热 |
+| --- | ---: | ---: |
+| 到达页 | +6,940 / 0 B | +6,963 / 0 B |
+| 项目选择 | +12,831 / +5,891 B | +12,854 / +5,891 B |
+| 新项目工作台 | +12,508 / 0 B | +12,531 / 0 B |
+| 全插件工作台 | +12,508 / 0 B | +12,531 / 0 B |
+
+首屏词包路径为 `/assets/locale/workbench.zh.82b88c379da6da1b63726292.js` 与 `/assets/locale/workbench.en.2504d1a20d07d42216a73edd.js`。详见本机日志 `/tmp/molis-b59-479-first-screen.log`；复用现有首屏测量器和资源许可格式。
+
+### 12.20 父结果通知的最小查询
+
+本批全 PR 预审发现，助理每次读取全局通知都重放所有 Work 的父 Run 和子尝试历史。结果仍须覆盖超过列表 50 项的旧父任务、原子任务的多次尝试和重启后的已读状态。
+
+拟扩充仅供可信 Host 消费的 `AgentSubagentsCapability.resultCandidates(parents)`。输入由助理原 Work 记录取得，限已选择的父 Session。Prologue 从现有子代理登记返回原父 Run、原子任务和可能已结束的尝试引用。早于当前的尝试已由原接续合同收口；当前尝试只在登记显示终态时列出。此投影只是待查引用，不能单独授权、发通知或代表已核对 Kit。助理一次读取原通知表的去重键，只对尚未通知的引用按父 Run 合并读取、经现有 owner 核结果与角色。成功继续写原通知表，同键保持原已读状态。父任务在等待期间归档或撤回时不通知。
+
+检验顺序与并发读取、超出列表窗口的旧 Work、旧尝试、多尝试、已读后重开、归档交错；顺序读取与重开对已有回执均为零次历史重放。没有新增表、计时轮询或通知缓存，页面行为沿既有浮窗与提示。合同先做只读设计复核，再写代码、刷 API 快照，由 C 轨在最终 PR 合审。

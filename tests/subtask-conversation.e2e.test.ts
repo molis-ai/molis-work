@@ -83,7 +83,8 @@ test("B58-01..05: public child conversation, two owners, original receipts and r
 
   await t.test("B58-02: user scroll, unread update and reopen retain reading position and process expansion", async () => {
     await evaluate("probe.owner.record('a').messages = Array.from({length:80},(_,i)=>({id:'long-'+i,role:'assistant',content:{text:'Paragraph '+i+' with enough words to read.'}})); probe.handle.refresh()");
-    await evaluate(`${root}.querySelector('details').open = true`);
+    await evaluate(`${root}.querySelector('details').open = true; ${control("follow")}.click()`);
+    await wait(`${control("thread")}.scrollTop > 0`);
     const point = await evaluate<{ x: number; y: number; top: number }>(`(() => { const box=${control("thread")}.getBoundingClientRect(); return {x:box.x+box.width/2,y:box.y+box.height/2,top:${control("thread")}.scrollTop}; })()`);
     // Detached is reported on wheel input, before the browser finishes its asynchronous scroll.
     await evaluate(`void (probe.scrollFinished = new Promise(resolve => ${control("thread")}.addEventListener('wheel', () => ${control("thread")}.addEventListener('scrollend', resolve, {once:true}), {once:true})))`);
@@ -100,6 +101,26 @@ test("B58-01..05: public child conversation, two owners, original receipts and r
     assert.equal(await evaluate(`${control("latest")}.hidden`), false);
     await evaluate(`${control("follow")}.click()`);
     await wait(`${control("thread")}.dataset.follow==='following'`);
+  });
+
+  await t.test("SAI-11: shell reveal after close and an unfinished read cannot overwrite saved expansion without a scroll follower", async () => {
+    await evaluate("probe.handle.close(); probe.follow = window.molisFollow; window.molisFollow = undefined");
+    try {
+      await evaluate(`${root}.hidden=false; probe.handle.open('b')`);
+      await evaluate(`${root}.querySelector('details').open = true`);
+      await evaluate("new Promise(resolve => setTimeout(resolve, 0))");
+      await evaluate("probe.handle.close()");
+      await evaluate(`${root}.hidden=false; probe.handle.open('a')`);
+      await evaluate("probe.handle.close()");
+      await evaluate(`${root}.hidden=false; probe.handle.open('b')`);
+      assert.equal(await evaluate(`${root}.querySelector('details').open`), true);
+      await evaluate("probe.unfinished = probe.owner.blockRead(); void probe.handle.open('a')");
+      await evaluate("probe.handle.close()");
+      await evaluate(`${root}.hidden=false; probe.handle.open('b')`);
+      assert.equal(await evaluate(`${root}.querySelector('details').open`), true);
+      await evaluate("probe.unfinished.resolve({state:'available',view:probe.owner.view('a')})");
+      assert.equal(await evaluate(`${control("head")}.querySelector('strong').textContent`), "b");
+    } finally { await evaluate("probe.handle.close(); window.molisFollow = probe.follow; probe.handle.open('a')"); }
   });
 
   await t.test("B58-01/04: content cannot create actions; control binding survives navigation and rejects a stale execution", async () => {

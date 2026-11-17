@@ -71,7 +71,7 @@ export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversatio
   const thread = find("thread"), messages = find("messages"), details = find("details"), latest = find("latest");
   const places = new Map<string, Place>();
   let target: string | undefined, expanded = new Map<string, boolean>(), follower: ScrollFollower | undefined, first = true;
-  const remember = () => { if (target && !root.hidden) places.set(target, { top: thread.scrollTop, following: follower?.state !== "detached", unread: !latest.hidden, expanded }); };
+  const remember = () => { if (target && !first && !root.hidden) places.set(target, { top: thread.scrollTop, following: follower?.state !== "detached", unread: !latest.hidden, expanded }); };
   function show(next: string) {
     remember(); follower?.dispose();
     first = true;
@@ -131,7 +131,7 @@ export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversatio
     forget() { if (target) places.delete(target); expanded.clear(); first = true; follower?.resume(); clear(); },
     idle() { patch(find("head"), subtaskHeader(undefined, labels())); },
     latest() { latest.hidden = true; follower?.toLatest(); },
-    hide() { remember(); follower?.dispose(); follower = undefined; root.hidden = true; },
+    hide() { remember(); first = true; follower?.dispose(); follower = undefined; root.hidden = true; },
     destroy() { follower?.dispose(); details.removeEventListener("toggle", toggled, true); places.clear(); root.replaceChildren(); },
   };
 }

@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### 授权、人审、可信决定回平台与项目自动化建议（2026-11-16，第 39 批）
+
+- **有限委托与统一管理页（Layout B）**：助理与 Coding 的授权按工作或持续委托跨轮、等待与重启复用；设置新增「授权与审批」（`/settings/authorizations`，列表加详情栏、窄屏上下排），一处查看、收窄、撤销全部授权，展示「审批来源」（本人决定、沿用授权、自动策略、AI 代批）与「项目规则」。
+- **显式人审、原目标绑定与生命周期（BL-359、BL-360）**：`agent.reviews.decide@1` 绑定审查版本；待审投影携带 `AgentReviewDecisions` 可决定性，恢复或撤权后不再显示点不成的批准按钮并保留草稿与焦点；队列在终态与结算后释放执行闭包与宿主 caller；浏览器与 macOS 原生助手贯穿原观察目标与最终派发检查；GitHub PR 真人批准检查支持 N 票写权限真人、`/approve <sha>`、推新头后旧票失效与合并队列原头证明。
+- **可信决定回平台（39-2）与逐项认可合流（APR-15／16）**：新增 `horizontal/project-approvals` 持有平台可信决定记录与项目审批规则；任何插件或系统提供方声明 `requires_trusted_decision` 的动作（含 Goals 事件／目标树决定与 `modules/acceptance` 的 `acceptance.decide@1`）统一走 Web、CLI `review-decide` 与管理 MCP `molis_work_v1_review_request`／`molis_work_v1_review_decide` 受保护入口；任务决定卡、概况与要求栏共享同一 `ReviewReference`；项目库 `3 → 4` 与 Goals 私有库 `1～4 → 5` 升级移交旧决定与规则。
+- **项目自动化建议（只读闭环）**：新增 `horizontal/automation-recommender`，在项目到达页、助理新对话区与插件创作台只读扫描已授权目录与已注册能力，给出证据、风险与前置条件，支持忽略偏好与保存为 Pages 报告文稿。
+- **Prologue**：合入上游 [molis-prologue#127](https://github.com/molis-ai/molis-prologue/pull/127)（`e7582079`）并更换正式包，旧包记入 `patch-history.json`。
+
 ### 事项线第一片、明确交办与逐项认可（2026-11-16，#2093）
 
 - **事项线第一片**：工作台顶部一条放标签与插件图标，底部整条成线（线头、已办、输入、接下来）；事件由插件在 Manifest 声明的事件读取动作登记（助理、Coding、待办、Feed、Inbox 与沙箱插件同一路），事件卡、事件标签、停到侧边、390 宽与键盘路径；原右侧「后台任务」页删除，后台任务改从助理对话框右上角的图标打开的面板看。
@@ -108,6 +116,8 @@
 - 平台内部createUiRequest工厂显式接收共享UI_HOST_CLIENT_CODES；序列化脚本与所有平台调用方已更新。外部插件仍使用现有SDK页面端口。
 
 ### 升级须知（需要动手）
+
+- **第 39 批把项目审批移到平台。** 调用管理 MCP `molis_work_v1_event_decide`、`molis_work_v1_goal_tree_decide` 或 CLI `goal-tree-decide` 的脚本，先用 `molis_work_v1_review_request` 或 `review-request` 读取原请求，再用 `molis_work_v1_review_decide` 或 `review-decide` 提交当前审查引用、选项与本次请求键；`acceptance.decide@1` 同样改为经 `acceptance.review@1` 与通用可信决定入口兑现。读取或修改原 `goals.policy.history@1`、`goals.policy.save@1` 的调用改用 `project.approvals.rules.read@1`、`project.approvals.rules.change@1`。调用 `agent.reviews.decide@1` 时带上原审查的 `reference.version` 作为 `version`。页面从「授权与审批」查看原决定和修改规则。正常升级把项目库从 v3 升到 v4，把 Goals 私有库从 v1～v4 升到 v5，保留原记录和归属。使用同步的项目按已确认的交接窗口升级。[管理 CLI](../cli-and-development.md) · [项目审批移交](../../specs/agent-approval/trusted-decisions-design.md)
 
 - **第 31 批：记忆适用情境 `applies.goal_ids` 改为 `applies.objects`，导出包拒绝旧 `goal_ids`（阶段一不留兼容）**（#2081 及复查修复，2026-11-15）：`memory.write@1`、`memory.change@1`、`memory.recall@1`、`memory.list@1`、`memory.page@1`、`memory.candidates.list@1`、`memory.candidates.accept@1`、`memory.candidates.discard@1`、`memory.history@1` 的适用条件删掉 `goal_ids`，改为通用关联对象 `objects: [{ plugin_id, kind, id }]`；固定构造旧字段的调用方与工作流绑定要改用 `objects`，带 `applies.goal_ids` 的旧导出包在导入预检即整包拒绝。`memory/memory.db` 由升级链自动走 `2 → 3` 清洗重复历史正文，无需手工操作。
 

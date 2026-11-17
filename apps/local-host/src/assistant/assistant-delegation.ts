@@ -5,13 +5,14 @@ import { deliveryOf, handedBackLines, hangRequirements, readStanding, requiremen
 export type { WorkAcceptancePort } from "./assistant-delegated-delivery.js";
 import { randomUUID } from "node:crypto";
 import type { AgentWorkGraphPort, AgentWorkNode } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
-import { isTerminalAgentPhase, type AgentDelegatedWork, type AgentDelegation, type AgentDelivery, type AgentRunView, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { isTerminalAgentPhase, type AgentActionReviewControl, type AgentDelegatedWork, type AgentDelegation, type AgentDelivery, type AgentRunView, type AgentRuntimeAdapter, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AssistantCharacterChoice, AssistantCharacterRef, AssistantMaterial, AssistantSavedText, AssistantWork, AssistantWorkState, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assistantWords } from "./assistant-saved-text.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { identity } from "./assistant-relations.js";
+import { assertAssistantSessionSettled, assistantEndControl, assistantWorkEnding, holdAssistantWorkLifetime, inAssistantWorkEffect, stopOriginalRun } from "./assistant-work-permissions.js";
 import { promptTitle } from "./assistant-work-title.js";
 import type { AssistantStepGate } from "./assistant-step-gate.js";
 
@@ -105,7 +106,8 @@ export class AssistantDelegations {
     };
     return {
       start: async input => {
-        const host = await this.ports.host(), graphs = await this.#graphs(host), graph_id = graphOf();
+        const host = await this.ports.host(), assertCurrent = await this.#holdParent(host, parent);
+        const graphs = await this.#graphs(host), graph_id = graphOf();
         // A professional role, when asked for: exactly one the person published here and can run now — never a stand-in.
         let role: AssistantCharacterChoice | undefined;
         if (input.character) {
@@ -116,13 +118,16 @@ export class AssistantDelegations {
           if (!role) throw assistantErrors.not_found(`没有叫「${input.character}」的专业角色（只能用「可委托的专业角色」里列出的）；没有换成别的角色`);
           if (!role.available) throw assistantErrors.character_unavailable(`角色「${role.title}」现在不能用：${role.reason ?? "不可用"}；没有换成别的角色`);
         }
-        const children = store.delegatedBy(actorId, { graph_id }, "any"), nodes = await graphs.read(graph_id);
+        const nodes = await graphs.read(graph_id);
+        assertCurrent();
+        const children = store.delegatedBy(actorId, { graph_id }, "any");
         if (children.filter(child => open(partSteps(nodes, child)).length).length >= DELEGATION_LIMITS.active) throw assistantErrors.limit(`已有 ${DELEGATION_LIMITS.active} 个子任务在办：这一件没有开始。告诉用户它在排队，等其中一个交回后再委托`);
         // Which event it is done for is its owner's record (the `serves` relation): only an event the line shows to this work's project.
         if (input.for_event) {
           const wanted = input.for_event;
           if (!parent.project_ref || !this.ports.lineEvents) throw assistantErrors.scope("个人工作没有事项线，子任务不能挂到事件上");
           const events = await this.ports.lineEvents(parent);
+          assertCurrent();
           if (!events.some(event => event.kind === wanted.kind && event.id === wanted.id)) throw assistantErrors.not_found("事项线上没有这个事件（或这项工作读不到它）：子任务没有开始。先读事项线，用它给出的事件对象；不属于任何事件就不要带 for_event");
         }
         // Item-by-item requirements hang on the sub-task's own object, in its project (`modules/acceptance`); a personal work has
@@ -145,8 +150,8 @@ export class AssistantDelegations {
           const assigned = carrier ? await this.ports.chooseCharacter(child, carrier) : child;
           // What being delegated means is the delegated role's own layer; the message is only this part's brief and its bar.
           // Written as the sub-task itself, before its first round: what it is measured against stands before it starts.
-          if (hung) await hangRequirements(this.ports, child, listed);
-          await this.ports.dispatch(assigned, [`「${promptTitle(parent)}」委托的子任务`, input.brief, `验收标准：${input.acceptance}`, requirementsBrief(listed, hung)].filter(Boolean).join("\n\n"), materials, "assistant");
+          if (hung) { await hangRequirements(this.ports, child, listed); assertCurrent(); }
+          await this.ports.dispatch(assigned, [`「${promptTitle(parent)}」委托的子任务`, input.brief, `验收标准：${input.acceptance}`, requirementsBrief(listed, hung)].filter(Boolean).join("\n\n"), materials, "assistant", undefined, () => { assertCurrent(); return true; });
         } catch (error) {
           // A part that never started leaves no step behind on the graph.
           await graphs.end({ graph_id, node_id, note: "子任务没能开始" }).catch(() => undefined);
@@ -171,27 +176,34 @@ export class AssistantDelegations {
         return Promise.all(works().map(work => view(work, nodes, host)));
       },
       follow_up: async (workId, text) => {
-        const child = own(workId), { graph_id, node_id } = child.delegated_by!, graphs = await this.#graphs();
+        const child = own(workId), { graph_id, node_id } = child.delegated_by!;
+        const host = await this.ports.host(), assertParent = await this.#holdParent(host, parent), graphs = await this.#graphs(host);
         if (child.delegated_by?.taken_back_at) throw assistantErrors.invalid("用户已把这个子任务收回到这项工作，这部分由你在这里继续，不要再对它追加");
-        // Put away is the person's decision, and its execution session is archived with it: an agent does not undo that.
         if (child.archived) throw assistantErrors.invalid("用户已把这个子任务收起，不要再对它追加；还需要它时告诉用户，由用户先恢复它");
+        const assertLifetime = await holdAssistantWorkLifetime(host, child);
+        const assertCurrent = () => {
+          assertParent(); assertLifetime?.(); store.permissionTransitions.assertWorkPermissionTransitionFree(child.work_id);
+          if (own(workId).delegated_by?.taken_back_at) throw assistantErrors.state("这项子任务已被收回");
+        };
         const steps = partSteps(await graphs.read(graph_id), child);
         if (open(steps).length || !child.session_id) throw assistantErrors.state("这个子任务还在做：先用 check-delegated-work 等它交回，再按验收标准追加");
         if (followUps(steps) >= DELEGATION_LIMITS.followUps) throw assistantErrors.limit(`已经追加过 ${DELEGATION_LIMITS.followUps} 次；仍达不到验收时停止它，并把实际情况告诉用户`);
         // A follow-up is a step of its own under the part: an ended step is never reopened. The work waits for it too.
         const step = steps.length ? { graph_id, node_id: `${node_id}.f${followUps(steps) + 1}`, under: node_id, session_id: child.session_id, title: `追加：${text.split("\n")[0]!.slice(0, 60)}` }
           : { graph_id, node_id, session_id: child.session_id, title: child.title };
-        await graphs.add({ ...step, wait_reason: WAITS_FOR_PARTS });
-        try { await this.ports.dispatch(child, text, [], "assistant"); }
+        await inAssistantWorkEffect(host.adapter(RUNTIME), { assertCurrent, beforeEffect: async () => assertCurrent() }, () => graphs.add({ ...step, wait_reason: WAITS_FOR_PARTS }));
+        try { await this.ports.dispatch(child, text, [], "assistant", undefined, () => { assertCurrent(); return true; }); }
         catch (error) { await graphs.end({ graph_id, node_id: step.node_id, note: "追加没能开始" }).catch(() => undefined); throw error; }
         return view(store.get(actorId, child.work_id), await graphs.read(graph_id));
       },
       stop: async workId => {
         const child = own(workId);
         const host = await this.ports.host();
+        const assertCurrent = await this.#holdParent(host, parent);
         const latest = await this.ports.latestRun(host, child);
         if (latest && !isTerminalAgentPhase(latest.phase)) {
-          await host.adapter(RUNTIME).control(latest.ref, { kind: "stop" });
+          const control = assistantEndControl(store, child, { assertCurrent, beforeEffect: async () => assertCurrent() });
+          await stopOriginalRun(host.adapter(RUNTIME), latest.ref, control);
           host.reviews.cancelPending(latest.ref.run_id, "委托它的工作停止了这个子任务");
         }
         return view(store.get(actorId, child.work_id), await (await this.#graphs(host)).read(child.delegated_by!.graph_id), host);
@@ -209,8 +221,10 @@ export class AssistantDelegations {
    * on with it; a step a round has started on is that round's, so only one still ready is ended (`if_ready`: the graph
    * checks and ends it in one step).
    */
-  async startPlaced<T>(work: StoredWork, start: (work: StoredWork) => Promise<T>): Promise<T> {
-    const placed = await placeOn(async () => { const graphs = await this.#graphs(); this.#listen(graphs); return graphs; }, this.ports, work);
+  async startPlaced<T>(work: StoredWork, adapter: AgentRuntimeAdapter, control: AgentActionReviewControl, start: (work: StoredWork) => Promise<T>): Promise<T> {
+    const placed = await inAssistantWorkEffect(adapter, control, () => placeOn(async () => {
+      const graphs = await this.#graphs(); this.#listen(graphs); return graphs;
+    }, this.ports, work, control.assertCurrent));
     try { return await start(placed.work); } catch (error) {
       const added = placed.added;
       if (added) await this.#graphs().then(graphs => graphs.end({ ...added, note: "这一轮没有开始", if_ready: true })).catch(() => undefined);
@@ -242,9 +256,23 @@ export class AssistantDelegations {
   }
 
   /** The person ends what of a part is not done: its round can no longer report on it (the generation moved on). */
-  async #endOpen(work: StoredWork, note: string): Promise<void> {
-    const graphs = await this.#graphs(), { graph_id } = work.delegated_by!;
-    for (const step of open(partSteps(await graphs.read(graph_id), work))) await graphs.end({ graph_id, node_id: step.node_id, note, actor_id: this.ports.actorId });
+  async #endOpen(work: StoredWork, note: string, control?: AgentActionReviewControl): Promise<void> {
+    const host = await this.ports.host(), graphs = await this.#graphs(host), { graph_id } = work.delegated_by!;
+    for (const step of open(partSteps(await graphs.read(graph_id), work))) {
+      const end = () => graphs.end({ graph_id, node_id: step.node_id, note, actor_id: this.ports.actorId });
+      if (control) await inAssistantWorkEffect(host.adapter(RUNTIME), control, end);
+      else await end();
+    }
+  }
+
+  async #holdParent(host: AgentHost, parent: StoredWork): Promise<() => void> {
+    const { store, actorId } = this.ports, original = store.get(actorId, parent.work_id);
+    const assertLifetime = await holdAssistantWorkLifetime(host, original), control = assistantEndControl(store, original);
+    return () => {
+      store.permissionTransitions.assertWorkPermissionTransitionFree(parent.work_id); assertLifetime?.(); control.assertCurrent();
+      const current = store.get(actorId, parent.work_id);
+      if (current.archived || current.executor.kind !== "assistant" || current.session_id !== parent.session_id) throw assistantErrors.state("原工作已结束或转交");
+    };
   }
 
   async #graphs(host?: AgentHost): Promise<AgentWorkGraphPort> {
@@ -259,20 +287,28 @@ export class AssistantDelegations {
    * the person ends what of the part is not done (its round can no longer report on it); nothing is handed to the
    * delegating work's session, whose rounds stand on its own root (§6.0k).
    */
-  async takeBack(childId: string): Promise<AssistantWorkView> {
+  async takeBack(childId: string, caller?: AgentActionReviewControl): Promise<AssistantWorkView> {
     const { store, actorId } = this.ports;
     const child = store.get(actorId, childId), parent = this.parentOf(child);
     if (!child.delegated_by || !parent) throw assistantErrors.invalid("这不是一个子任务");
-    if (child.delegated_by.taken_back_at) throw assistantErrors.invalid("这个子任务已经收回了");
-    await this.#endOpen(child, TAKEN_BACK_NOTE);
-    const host = await this.ports.host();
-    const latest = await this.ports.latestRun(host, child);
-    if (latest && !isTerminalAgentPhase(latest.phase)) {
-      await host.adapter(RUNTIME).control(latest.ref, { kind: "stop" });
-      host.reviews.cancelPending(latest.ref.run_id, "用户把这个子任务收回了");
-    }
-    store.update(actorId, child.work_id, null, { delegated_by: { ...child.delegated_by, taken_back_at: new Date().toISOString() } }, false);
-    return this.ports.read(parent.work_id);
+    const release = store.permissionTransitions.holdWorkPermissions([child.work_id]);
+    try {
+      const host = await this.ports.host(), ending = assistantWorkEnding(host, child), control = assistantEndControl(store, child, caller);
+      assertAssistantSessionSettled(host, child);
+      if (child.delegated_by.taken_back_at && (await ending?.read())?.lifecycle !== "ending") throw assistantErrors.invalid("这个子任务已经收回了");
+      const finish = await ending?.begin("taken-back", control);
+      await this.#endOpen(child, TAKEN_BACK_NOTE, control);
+      const latest = await this.ports.latestRun(host, child);
+      if (latest && !isTerminalAgentPhase(latest.phase)) {
+        if (ending) await stopOriginalRun(host.adapter(RUNTIME), latest.ref, control);
+        else await inAssistantWorkEffect(host.adapter(RUNTIME), control, () => host.adapter(RUNTIME).control(latest.ref, { kind: "stop" }));
+        host.reviews.cancelPending(latest.ref.run_id, "用户把这个子任务收回了");
+      }
+      await control.beforeEffect(); control.assertCurrent();
+      store.update(actorId, child.work_id, null, { delegated_by: { ...child.delegated_by, taken_back_at: child.delegated_by.taken_back_at ?? new Date().toISOString() } }, false);
+      await finish?.();
+      return this.ports.read(parent.work_id);
+    } finally { release(); }
   }
 
   /** The person closed an interrupted round of a part: what of it was not done ends as theirs, and its delegating work may go on. */
@@ -283,10 +319,14 @@ export class AssistantDelegations {
   }
 
   /** The person stopped `work`: what its sub-tasks hand back waits for the person's next round; it does not go on by itself. */
-  async hold(work: StoredWork): Promise<void> {
+  async hold(work: StoredWork, control: AgentActionReviewControl): Promise<void> {
+    control.assertCurrent();
     const preparing = this.#continuing.get(work.work_id);
     if (preparing) preparing.withdrawn = true;
-    if (work.graph_id && !work.delegated_by) await (await this.#graphs()).hold({ graph_id: work.graph_id, note: "用户停止了这项工作，子任务交回的结果等用户下一轮再看" });
+    if (work.graph_id && !work.delegated_by) {
+      const graph_id = work.graph_id, host = await this.ports.host(), graphs = await this.#graphs(host);
+      await inAssistantWorkEffect(host.adapter(RUNTIME), control, () => graphs.hold({ graph_id, note: "用户停止了这项工作，子任务交回的结果等用户下一轮再看" }));
+    }
   }
 
   /**
@@ -377,11 +417,12 @@ export class AssistantDelegations {
 }
 
 /** Where a round of `work` stands: its graph (from its first round on), or for a part, the step it stands on, if added for it. */
-async function placeOn(graphsOf: () => Promise<AgentWorkGraphPort>, ports: DelegationPorts, work: StoredWork): Promise<{ work: StoredWork; added?: { graph_id: string; node_id: string } }> {
+async function placeOn(graphsOf: () => Promise<AgentWorkGraphPort>, ports: DelegationPorts, work: StoredWork, assertCurrent: () => void): Promise<{ work: StoredWork; added?: { graph_id: string; node_id: string } }> {
   if (!work.session_id || !work.delegated_by && work.graph_id) return { work };
   const graphs = await graphsOf();
   if (!work.delegated_by) {
     const { graph_id } = await graphs.open({ key: `assistant-work:${work.work_id}`, session_id: work.session_id, title: promptTitle(work) });
+    assertCurrent();
     return { work: ports.store.update(ports.actorId, work.work_id, null, { graph_id }, false) };
   }
   const { graph_id, node_id } = work.delegated_by, steps = partSteps(await graphs.read(graph_id), work);

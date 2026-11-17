@@ -52,6 +52,11 @@ export interface SandboxDataOperation extends SandboxOperationFields {
     input: SandboxSchema;
     output: SandboxSchema;
     read_protocol?: never;
+    trusted_review?: {
+        readonly reader: string;
+        readonly subject_kinds: readonly string[];
+        readonly row: import("@molis-ai/molis-work-contracts/services/project-approvals").TrustedReviewRow;
+    };
     background_job?: {
         status: string;
         id: string;
@@ -425,6 +430,7 @@ export interface SandboxReadOperation extends SandboxOperationFields {
     input: ActionSchema;
     output: ActionSchema;
     background_job?: never;
+    trusted_review?: never;
 }
 
 export type SandboxReadProtocol = {
@@ -490,7 +496,7 @@ export interface SandboxSdk {
     projectDatabase: {
         get(sql: string, parameters?: SandboxSqlValue[]): Promise<SandboxSqlRow | null>;
         all(sql: string, parameters?: SandboxSqlValue[]): Promise<SandboxSqlRow[]>;
-        transaction(statements: SandboxSqlStatement[]): Promise<Array<{
+        transaction(statements: SandboxSqlWrite[]): Promise<Array<{
             changes: number;
         }>>;
     };
@@ -564,6 +570,10 @@ export interface SandboxSqlStatement {
 }
 
 export type SandboxSqlValue = null | number | string;
+
+export interface SandboxSqlWrite extends SandboxSqlStatement {
+    expected_changes?: number;
+}
 
 export type SandboxVisibleText = string | TextRef;
 

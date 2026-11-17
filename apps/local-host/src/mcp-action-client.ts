@@ -1,9 +1,24 @@
-import { requireSynchronous, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { assertMcpActionAuthority, isExternalRuntimeClient, mcpGrantErrors, pinMcpActionGrants, resolveMcpActionContext } from "./mcp-action-grants.js";
 import { readMcpToolPreference, readMcpToolPreferenceSync } from "./mcp-settings-store.js";
 import { mcpBackgroundAuthority } from "./mcp-background-authority.js";
+
+/** One already selected Agent proposal: keep its grant generation, without rediscovering unrelated actions. */
+export async function prepareMcpActionReview(host: Pick<MolisWorkLocalHost, "prepareActionReview">, caller: ActionCallContext, home: string | undefined,
+  view: ActionView, input: unknown, project: LocalHostProjectReference, beforeEffect: () => void | Promise<void>, assertCurrent: () => void) {
+  await beforeEffect();
+  const preference = home ? await readMcpToolPreference(home) : { version: /* @version format.mcp.tool-preference */ 1 as const, action_grants: [] };
+  const pinned = pinMcpActionGrants(caller, [view], preference), action = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+  const check = () => {
+    assertCurrent();
+    const current = home ? readMcpToolPreferenceSync(home) : preference;
+    assertMcpActionAuthority(caller, pinned([view], current), current, action);
+  };
+  const held = host.prepareActionReview({ ...resolveMcpActionContext(caller, [view], preference), assert_authority_current: check }, view, input, project);
+  return { assertCurrent: held.assertCurrent, beforeEffect: async () => { await beforeEffect(); await held.beforeEffect(); } };
+}
 
 /** Shared by direct MCP and its authenticated local transport. Neither grants itself authority. */
 export async function authorizeMcpActions(host: Pick<MolisWorkLocalHost, "inspectActions" | "actionClient" | "homeActionClient">, caller: ActionCallContext, home: string | undefined,

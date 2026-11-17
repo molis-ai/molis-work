@@ -317,7 +317,7 @@ test("IUI-02 IUI-03 IUI-06 IUI-21 IUI-26: discussion picks and quotes a Goal and
   const pageChip = '[data-im-object-part="message"] [data-home-subject-id="' + document.id + '"]';
   await b.waitFor(`${query(pageChip)}?.innerText.includes(${quoted(pageTitle)})`, 15_000);
   assert.doesNotMatch(await b.evaluate<string>(`${query(pageChip)}.innerText`), new RegExp(pageBody, "u"));
-  assert.equal(await b.evaluate(`${query(pageChip)}.querySelectorAll("[data-presentation-action]").length`), 1);
+  assert.equal(await b.evaluate(`${query(pageChip)}.querySelectorAll("[data-presentation-action]").length`), 6);
   await imClick(pageChip + ' [data-presentation-action$=":open"]');
   await b.waitFor(`[...document.querySelectorAll('[data-tab-id]')].some(tab => tab.dataset.itemId === ${quoted(document.id)})`);
 });

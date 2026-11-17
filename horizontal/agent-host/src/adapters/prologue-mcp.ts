@@ -1,11 +1,15 @@
-import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { DispatchGuard } from "./prologue-node-kit.js";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createPrologueError, isPrologueError, redactMcpError, type ExactRef, type Runtime, type ToolAbort } from "@prologue/sdk";
 import { realpath } from "node:fs/promises";
+import { realpathSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { isDeepStrictEqual } from "node:util";
 import type { AgentMcpSourceRef, AgentMcpLibrary, AgentMcpServerInput, AgentMcpServerView, AgentMcpToolDescriptor, AgentMcpToolRef, AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ReviewDecisionControl } from "../review-decisions.js";
+import type { DispatchControl } from "./prologue-node-kit.js";
+import type { HeldMcpTool, McpTransport } from "./prologue-mcp-dispatch.js";
 
 export type HostMcpConnection = string | { credentialRef?: string; revision: string;
   /** Trusted synchronous check of this resolution's original source; never saved in SDK configuration. */
@@ -80,11 +84,12 @@ async function listMcpConfigurations(runtime: Runtime, view: (saved: Saved, vers
 }
 
 interface McpLibraryOptions {
-  withDispatchGuard<T>(guard: DispatchGuard, operation: () => Promise<T>): Promise<T>;
+  withDispatchGuard<T>(guard: DispatchControl, operation: () => Promise<T>): Promise<T>;
   resolveConnection?: (connectionId: string, endpoint: string) => HostMcpConnection | Promise<HostMcpConnection>;
   subscribeConnections?: (listener: (connectionId: string) => void) => () => void;
   saveConnection?: SaveMcpConnection;
   directoryAuthorized?: (projectId: string, directory: string) => Promise<boolean>;
+  holdDirectory?: (projectId: string, directory: string) => Promise<(ReviewDecisionControl & { identity: string }) | undefined>;
   credentialRefFor?: (ref: string) => Promise<ExactRef<"credential">>;
 }
 type Held = { saved: Saved; version: number };
@@ -96,9 +101,15 @@ async function heldConfiguration(runtime: Runtime, owner: AgentSkillOwner, id: s
   return { saved: record.metadata as unknown as Saved, version: record.version };
 }
 
-async function closeConnections(runtime: Runtime, id: string) {
+async function closeConnections(state: Pick<McpState, "runtime" | "transports" | "withDispatchGuard">, id: string) {
+  const { runtime, transports, withDispatchGuard } = state;
   for (const conn of runtime.mcp.list().filter(item => item.id === id || item.id.startsWith(id + "@"))) {
-    await runtime.disconnectMcp(conn.ref); runtime.mcp.remove(conn.ref);
+    const transport = transports.get(conn.id);
+    transports.delete(conn.id);
+    const disconnect = () => runtime.disconnectMcp(conn.ref);
+    if (transport) await withDispatchGuard({ beforeEffect: () => {}, assertCurrent: () => {}, mcp: { maintenance: transport } }, disconnect);
+    else await disconnect();
+    runtime.mcp.remove(conn.ref);
   }
 }
 
@@ -143,17 +154,32 @@ async function savedConfiguration(owner: AgentSkillOwner, id: string, input: Age
 /** What connecting and checking a configuration share with the library that owns it. */
 interface McpState {
   runtime: Runtime;
+  transports: Map<string, McpTransport>;
   linked: Map<string, { account: string; credential?: string; revision?: string }>;
   invalidated: Set<string>;
   held(owner: AgentSkillOwner, id: string): Promise<Held>;
   assertDirectory(saved: Saved): Promise<void>;
+  holdDirectory(saved: Saved): Promise<ReviewDecisionControl & { identity?: string }>;
   resolveHost(saved: Saved): ReturnType<typeof resolveHostCredential>;
   withDispatchGuard: McpLibraryOptions["withDispatchGuard"];
   refreshSelected(saved: Saved): Promise<void>;
 }
 
+async function connectTransport(state: McpState, transport: McpTransport, dispatch: ReviewDecisionControl,
+  connect: () => ReturnType<Runtime["connectMcp"]>) {
+  state.transports.set(transport.connection, transport);
+  try {
+    await dispatch.beforeEffect();
+    await state.withDispatchGuard({ ...dispatch, mcp: { maintenance: transport } }, connect);
+    dispatch.assertCurrent();
+  } catch (error) {
+    await closeConnections(state, transport.connection);
+    throw error;
+  }
+}
+
 /** Connect one saved configuration over its transport and adopt its tools; a changed account or a cancel closes it again. */
-async function connectConfiguration(state: McpState, { saved }: Held, connectionId: string, abort: AbortController, dispatch: DispatchGuard) {
+async function connectConfiguration(state: McpState, { saved }: Held, connectionId: string, abort: AbortController, dispatch: ReviewDecisionControl) {
   const { runtime, linked, invalidated } = state, id = saved.id;
   if (!saved.enabled) throw new Error("请先启用这个 MCP 服务");
   if (findConnection(runtime, connectionId)?.health === "connected") throw new Error("这个 MCP 已连接");
@@ -161,33 +187,76 @@ async function connectConfiguration(state: McpState, { saved }: Held, connection
   linked.delete(id);
   const conn = findConnection(runtime, connectionId) ?? runtime.mcp.add({ id: connectionId, label: saved.label, transport: saved.transport, enabled: true, protocolMajor: 1 });
   if (saved.transport === "stdio") {
-    await state.assertDirectory(saved);
+    const control = await state.holdDirectory(saved);
     const root = await runtime.workspace.authorize({ path: saved.directory!.canonical_path });
-    await dispatch(); await state.assertDirectory(saved);
-    await runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "stdio", rootRef: root.ref, executable: saved.executable!, argv: saved.argv!, cwd: ".", requestTimeoutMs: saved.timeout_ms } });
+    const identity = control.identity && connectionDigest([connectionId, saved.transport, control.identity]);
+    const transport: Extract<McpTransport, { kind: "stdio" }> = { source: id, connection: connectionId, kind: "stdio", control, identity, responses: new Map() };
+    await connectTransport(state, transport, dispatch,
+      () => runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "stdio", rootRef: root.ref,
+        executable: saved.executable!, argv: saved.argv!, cwd: ".", requestTimeoutMs: saved.timeout_ms,
+        assertResponseCurrent: request => {
+          if (request.method !== "tools/call") return;
+          const check = transport.responses.get(request.requestId);
+          transport.responses.delete(request.requestId);
+          if (transport.session !== request.sessionId || !check) throw createPrologueError("EFFECT_NOT_AUTHORIZED", "The original MCP reply is no longer authorized.");
+          check();
+        },
+      } }));
   } else {
     if (saved.credential_ref) throw new Error("这个 MCP 的凭据没有持久保存，请重新填写认证信息或选择已有连接");
     let credentialRef: ExactRef<"credential"> | undefined;
-    let assertCurrent: (() => void) | undefined;
+    let sourceCurrent: (() => void) | undefined, revision: string | undefined;
     if (saved.auth_connection_id) {
       linked.set(saved.id, { account: saved.auth_connection_id });
       const host = await state.resolveHost(saved);
       credentialRef = host.credentialRef;
-      assertCurrent = host.assertCurrent;
+      sourceCurrent = host.assertCurrent;
+      revision = host.revision;
       linked.set(saved.id, { account: saved.auth_connection_id, credential: JSON.stringify(credentialRef), revision: host.revision });
     }
     if (invalidated.has(id)) throw new Error("MCP 账号已改变，请重新连接");
-    const check = async () => {
-      const fence = await dispatch(); assertCurrent?.();
-      return () => { requireSynchronous(fence?.(), "最终派发检查必须同步完成"); assertCurrent?.(); };
+    const assertCurrent = () => {
+      requireSynchronous(sourceCurrent?.());
+      if (invalidated.has(id)) throw new Error("MCP 账号已改变，请重新连接");
     };
-    await check();
-    await state.withDispatchGuard(check, () => runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "http", endpoint: saved.endpoint!, requestTimeoutMs: saved.timeout_ms, ...(credentialRef ? { credentialRef } : {}) } }));
-    assertCurrent?.();
+    const identity = !saved.auth_connection_id || revision && sourceCurrent
+      ? connectionDigest([connectionId, saved.transport, saved.auth_connection_id, revision]) : undefined;
+    const transport: McpTransport = { source: id, connection: connectionId, kind: "http", endpoint: saved.endpoint!, credential: credentialRef, identity,
+      control: { beforeEffect: assertCurrent, assertCurrent } };
+    await connectTransport(state, transport, dispatch,
+      () => runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "http", endpoint: saved.endpoint!, requestTimeoutMs: saved.timeout_ms, ...(credentialRef ? { credentialRef } : {}) } }));
   }
-  if (invalidated.has(id)) { await closeConnections(runtime, id); throw new Error("MCP 账号已改变，请重新连接"); }
-  if (abort.signal.aborted) { await closeConnections(runtime, id);throw new Error("连接已取消"); }
+  if (invalidated.has(id)) { await closeConnections(state, id); throw new Error("MCP 账号已改变，请重新连接"); }
+  if (abort.signal.aborted) { await closeConnections(state, id);throw new Error("连接已取消"); }
   runtime.adoptMcpTools(conn.ref);
+}
+
+const connectionDigest = (identity: readonly (string | undefined)[]) => createHash("sha256").update(JSON.stringify(identity)).digest("hex");
+
+function holdMcpTransport(state: McpState, owner: AgentSkillOwner, ref: AgentMcpSourceRef): Promise<McpTransport> {
+  return state.held(owner, ref.server).then(({ saved, version }) => {
+    const id = mcpConnectionId(ref), transport = state.transports.get(id);
+    if (!saved.enabled || version !== ref.configuration_version || !transport || findConnection(state.runtime, id)?.health !== "connected") {
+      throw new Error("原 MCP 连接已改变，请重新选择");
+    }
+    transport.control.assertCurrent();
+    return transport;
+  });
+}
+
+async function holdMcpTool(state: McpState, owner: AgentSkillOwner, ref: AgentMcpToolRef, args: Readonly<Record<string, unknown>>): Promise<HeldMcpTool> {
+  const transport = await holdMcpTransport(state, owner, ref);
+  const assertCurrent = () => {
+    const conn = findConnection(state.runtime, transport.connection);
+    if (state.transports.get(transport.connection) !== transport || conn?.health !== "connected"
+      || !state.runtime.mcp.snapshotOf(conn.ref).tools.some(tool => tool.name === ref.tool && tool.shapeFingerprint === ref.version)) {
+      throw new Error("原 MCP 工具或连接已改变，请重新选择");
+    }
+    transport.control.assertCurrent();
+  };
+  const beforeEffect = async () => { assertCurrent(); await transport.control.beforeEffect(); assertCurrent(); };
+  assertCurrent();
+  return { transport, tool: ref.tool, digest: ref.version, args: structuredClone(args), beforeEffect, assertCurrent };
 }
 
 async function validateMcpSources(state: McpState, owner: AgentSkillOwner, selected: readonly AgentMcpSourceRef[]) {
@@ -232,15 +301,16 @@ function connectedTools(runtime: Runtime, servers: readonly AgentMcpServerView[]
 }
 
 /** Configuration belongs to the project; connection, tools and effects belong to SDK. */
-export function createPrologueMcpLibrary(runtime: Runtime, options: McpLibraryOptions): AgentMcpLibrary & { dispose(): void } {
+export function createPrologueMcpLibrary(runtime: Runtime, options: McpLibraryOptions) {
   const linked = new Map<string, { account: string; credential?: string; revision?: string }>();
+  const transports = new Map<string, McpTransport>();
   const invalidated = new Set<string>();
   const busy = new Map<string, { action: string; abort: AbortController }>();
   const errors = new Map<string, string>();
   const connection = (id: string) => findConnection(runtime, id);
   const held = (owner: AgentSkillOwner, id: string) => heldConfiguration(runtime, owner, id);
   const view = (saved: Saved, version: number) => serverView(runtime, saved, version, busy, errors);
-  const close = (id: string) => closeConnections(runtime, id);
+  const close = (id: string) => closeConnections({ runtime, transports, withDispatchGuard: options.withDispatchGuard }, id);
   const unsubscribe = options.subscribeConnections?.(account => {
     for (const [id, link] of linked) if (link.account === account) {
       invalidated.add(id);
@@ -273,7 +343,24 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: McpLibraryOp
   const assertDirectory = async (saved: Saved) => {
     if (saved.transport === "stdio" && options.directoryAuthorized && !await options.directoryAuthorized(saved.project_id, saved.directory!.canonical_path)) throw new Error("MCP 的原工作区已取消授权，请重新配置");
   };
-  const state: McpState = { runtime, linked, invalidated, held, assertDirectory, resolveHost, withDispatchGuard: options.withDispatchGuard,
+  const holdDirectory = async (saved: Saved) => {
+    const directory = saved.directory!.canonical_path;
+    if (options.holdDirectory) {
+      const control = await options.holdDirectory(saved.project_id, directory);
+      if (!control) throw new Error("MCP 的原工作区已取消授权，请重新配置");
+      return control;
+    }
+    const original = statSync(directory, { bigint: true });
+    const assertCurrent = () => {
+      const current = statSync(directory, { bigint: true });
+      if (!current.isDirectory() || current.dev !== original.dev || current.ino !== original.ino || current.birthtimeNs !== original.birthtimeNs
+        || realpathSync.native(directory) !== directory) throw new Error("MCP 的原工作区已变化");
+    };
+    await assertDirectory(saved);
+    assertCurrent();
+    return { assertCurrent, beforeEffect: async () => { await assertDirectory(saved); assertCurrent(); } };
+  };
+  const state: McpState = { runtime, transports, linked, invalidated, held, assertDirectory, holdDirectory, resolveHost, withDispatchGuard: options.withDispatchGuard,
     refreshSelected: async saved => { await refreshSelected(saved); } };
   const reconnecting = new Map<string, Promise<void>>();
   const prepare = async (owner: AgentSkillOwner, ref: AgentMcpSourceRef, callOptions: NonNullable<Parameters<NonNullable<AgentMcpLibrary["call"]>>[3]>) => {
@@ -315,24 +402,25 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: McpLibraryOp
       await locked(id, action, async abort => {
         const cancelled = () => abort.abort();
         callOptions.signal?.addEventListener("abort", cancelled, { once: true });
-        const dispatch = async () => {
-          await callOptions.beforeDispatch?.();
-          const fence = () => { if (callOptions.signal?.aborted || abort.signal.aborted) throw createPrologueError("CANCELLED", "MCP connection cancelled before dispatch."); assertCurrent?.(); };
-          fence(); return fence;
+        const current = () => {
+          if (callOptions.signal?.aborted || abort.signal.aborted) throw createPrologueError("CANCELLED", "MCP connection cancelled before dispatch.");
+          requireSynchronous(assertCurrent?.());
         };
+        const dispatch: ReviewDecisionControl = { assertCurrent: current, beforeEffect: async () => { await callOptions.beforeDispatch?.(); current(); } };
         try {
         const record = await held(owner, id);
         if (callOptions.expected_version !== undefined && record.version !== callOptions.expected_version) throw new Error("MCP 配置已变化，请重新读取后操作");
-        if (action !== "connect") await dispatch();
+        if (action !== "connect") await dispatch.beforeEffect();
         const connectionId = mcpConnectionId({server:id,configuration_version:record.version});
         if (action === "connect") await connectConfiguration(state, record, connectionId, abort, dispatch);
         else if (action === "refresh") {
           if (!record.saved.enabled) throw new Error("请先启用这个 MCP 服务");
           await assertDirectory(record.saved);
           const conn = connection(connectionId);
-          if (conn?.health !== "connected") throw new Error("这个 MCP 已断开，请重新连接");
-          await options.withDispatchGuard(dispatch, () => runtime.refreshMcp({ ref: conn.ref, signal: abort.signal }));
-          await dispatch(); await assertDirectory(record.saved);
+          const transport = transports.get(connectionId);
+          if (conn?.health !== "connected" || !transport) throw new Error("这个 MCP 已断开，请重新连接");
+          await options.withDispatchGuard({ ...dispatch, mcp: { maintenance: transport } }, () => runtime.refreshMcp({ ref: conn.ref, signal: abort.signal }));
+          await dispatch.beforeEffect(); await assertDirectory(record.saved);
           assertCurrent?.();
           runtime.adoptMcpTools(conn.ref);
         } else if (action === "disconnect") await close(id);
@@ -349,35 +437,40 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: McpLibraryOp
       const conn = connection(mcpConnectionId(ref));
       return conn?.health === "connected" && runtime.mcp.snapshotOf(conn.ref).tools.some(tool => tool.name === ref.tool && tool.shapeFingerprint === ref.version);
     },
-    call: (...args) => callMcpTool(runtime, library, held, prepare, assertDirectory, resolveHost, options.withDispatchGuard, ...args),
+    call: (...args) => callMcpTool(state, library, prepare, ...args),
     validate: (owner, selected) => validateMcpTools(state, owner, selected),
   };
-  return Object.assign(library, { dispose: () => { unsubscribe?.(); linked.clear(); } });
+  return Object.assign(library, {
+    holdTransport: (owner: AgentSkillOwner, ref: AgentMcpSourceRef) => holdMcpTransport(state, owner, ref),
+    holdTool: (owner: AgentSkillOwner, ref: AgentMcpToolRef, args: Readonly<Record<string, unknown>>) => holdMcpTool(state, owner, ref, args),
+    async dispose() {
+      unsubscribe?.();
+      await Promise.all([...new Set([...transports.values()].map(transport => transport.source))].map(close));
+      linked.clear();
+    },
+  });
 }
 
-async function callMcpTool(runtime: Runtime, library: AgentMcpLibrary,
-  held: (owner: AgentSkillOwner, id: string) => Promise<{ saved: Saved; version: number }>,
+async function callMcpTool(state: McpState, library: AgentMcpLibrary,
   prepare: (owner: AgentSkillOwner, ref: AgentMcpSourceRef, options: NonNullable<Parameters<NonNullable<AgentMcpLibrary["call"]>>[3]>) => Promise<void>,
-  assertDirectory: (saved: Saved) => Promise<void>,
-  resolveHost: McpState["resolveHost"],
-  withDispatchGuard: <T>(guard: DispatchGuard, operation: () => Promise<T>) => Promise<T>,
   ...[owner, ref, args, callOptions = {}]: Parameters<NonNullable<AgentMcpLibrary["call"]>>
 ) {
+  const { runtime, held, assertDirectory, resolveHost, withDispatchGuard } = state;
   const connection = (id: string) => runtime.mcp.list().find(item => item.id === id);
   let assertSourceCurrent: (() => void) | undefined;
-  const assertActive = () => {
+  const assertCurrent = () => {
     // This guard runs before dispatch. Preserve cancellation through the SDK's
     // public error contract; an arbitrary DOM AbortError is otherwise an App denial.
     if (callOptions.signal?.aborted) throw createPrologueError("CANCELLED", "MCP call cancelled before dispatch.");
+    requireSynchronous(callOptions.assertCurrent?.());
+    requireSynchronous(assertSourceCurrent?.());
   };
   const beforeDispatch = async () => {
-    assertActive();
-    assertSourceCurrent?.();
+    assertCurrent();
     try { await callOptions.beforeDispatch?.(); await assertDirectory((await held(owner, ref.server)).saved); }
-    finally { assertActive(); assertSourceCurrent?.(); }
-    return () => { assertActive(); assertSourceCurrent?.(); };
+    finally { assertCurrent(); }
   };
-  return withDispatchGuard(beforeDispatch, async () => {
+  return withDispatchGuard({ beforeEffect: beforeDispatch, assertCurrent }, async () => {
     await beforeDispatch();
     const { saved: initial } = await held(owner, ref.server);
     if (initial.auth_connection_id) assertSourceCurrent = (await resolveHost(initial)).assertCurrent;
@@ -386,6 +479,12 @@ async function callMcpTool(runtime: Runtime, library: AgentMcpLibrary,
     assertSourceCurrent?.();
     const [checked] = await library.validate(owner, [ref]);
     assertSourceCurrent?.();
+    let dispatched = false;
+    const tool = { ...await holdMcpTool(state, owner, checked!, args), onDispatch: () => {
+      if (dispatched) throw createPrologueError("EFFECT_RECONCILE_REQUIRED", "The original MCP request was already dispatched.");
+      dispatched = true;
+      callOptions.onBusinessDispatch?.();
+    } };
     const { saved } = await held(owner, checked!.server);
     assertSourceCurrent?.();
     const name = `mcp:${mcpConnectionId(checked!)}/${checked!.tool}`;
@@ -399,13 +498,20 @@ async function callMcpTool(runtime: Runtime, library: AgentMcpLibrary,
       request: { name, version: checked!.version!, args: { ...args } },
       run: async request => {
         await beforeDispatch();
-        callOptions.onBusinessDispatch?.();
         try {
-          const result = await run(callOptions.signal ? { ...request, abort: callAbort(callOptions.signal, request.abort) } : request);
-          assertSourceCurrent?.();
+          await tool.beforeEffect();
+          const result = await withDispatchGuard({ beforeEffect: () => {}, assertCurrent: () => {}, mcp: {
+            tool: (name, actual, matches) => name === tool.tool && matches(tool.transport) && isDeepStrictEqual(actual, tool.args) ? tool : undefined,
+          } }, () => run(callOptions.signal ? { ...request, abort: callAbort(callOptions.signal, request.abort) } : request));
+          try { assertCurrent(); tool.assertCurrent(); }
+          catch (error) {
+            if (!dispatched) throw error;
+            throw createPrologueError("EFFECT_RECONCILE_REQUIRED", "The original MCP request was dispatched but its result can no longer be used.");
+          }
           callOptions.onBusinessResult?.("succeeded"); return result;
         } catch (error) {
-          callOptions.onBusinessResult?.(isPrologueError(error) && error.code === "MCP_CALL_FAILED" ? "failed" : "unknown"); throw error;
+          if (dispatched) callOptions.onBusinessResult?.(isPrologueError(error) && error.code === "MCP_CALL_FAILED" ? "failed" : "unknown");
+          throw error;
         }
       },
       recheck: async () => { await beforeDispatch(); return library.live!(checked!); },

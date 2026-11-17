@@ -1,6 +1,5 @@
 import type { GoalsInputBinding, GoalsDocumentView } from "../document-view.js";
 import type { GoalsDecisionEvent } from "../decision-view.js";
-import type { GoalsPolicyBinding } from "../policy-ui-model.js";
 import type { GoalPresentationState } from "../tree-order.js";
 import type { BoardSnapshot } from "../contract/goals.js";
 
@@ -20,7 +19,6 @@ export interface GoalsPageView {
   trashed_goals: GoalsDocumentView[];
   counts: Record<GoalPresentationState, number>;
   input_bindings: GoalsInputBinding[];
-  policy_bindings: GoalsPolicyBinding[];
   events: GoalsDecisionEvent[];
   /** The Inbox scene owner's live status; the page only carries it to the client as data. */
   inbox_judgment?: unknown;

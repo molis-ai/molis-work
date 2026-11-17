@@ -121,10 +121,18 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
         const control = el("span", "mw-switch"), toggle = el("input"); toggle.type = "checkbox"; toggle.setAttribute("role", "switch"); toggle.checked = row.enabled;
         const track = el("span", "mw-switch__track"); track.setAttribute("aria-hidden", "true"); control.append(toggle, track);
         toggle.setAttribute("aria-label", row.title);
+        const save = async (patch) => {
+          const saved = await api("/capabilities", { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, expected: row.expected, ...patch });
+          window.dispatchEvent(new CustomEvent("molis:authorization-changed"));
+          return saved;
+        };
         toggle.addEventListener("change", async () => {
           toggle.disabled = true;
-          try { await api("/capabilities", { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, enabled: toggle.checked }); row.enabled = toggle.checked; paint(); }
-          catch (failure) { toggle.checked = row.enabled; toggle.disabled = false; alert(molisWorkRequest.text(failure)); }
+          try { Object.assign(row, await save({ enabled: toggle.checked })); if (body.contains(item)) paint(); }
+          catch (failure) {
+            if (failure.status === 409 && failure.body?.details?.current) Object.assign(row, failure.body.details.current);
+            if (body.contains(item)) { paint(); alert(molisWorkRequest.text(failure)); }
+          }
         });
         head.append(copy, meta, control);
         item.append(head);
@@ -134,8 +142,11 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
           mode.append(box, document.createTextNode(" " + globalThis.t.text("workbench.settings-assistant.ask-me-before-each-run-can-be-undone")));
           box.addEventListener("change", async () => {
             box.disabled = true;
-            try { await api("/capabilities", { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, confirm_always: box.checked }); row.confirm_always = box.checked; }
-            catch (failure) { box.checked = Boolean(row.confirm_always); alert(molisWorkRequest.text(failure)); }
+            try { Object.assign(row, await save({ confirm_always: box.checked })); }
+            catch (failure) {
+              if (failure.status === 409 && failure.body?.details?.current) Object.assign(row, failure.body.details.current);
+              if (body.contains(item)) { paint(); alert(molisWorkRequest.text(failure)); }
+            }
             finally { box.disabled = false; }
           });
           item.append(mode);

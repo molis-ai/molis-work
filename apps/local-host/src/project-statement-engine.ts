@@ -1,7 +1,9 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginProjectDatabaseErrors, pluginStatementGuard, type PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
 import { LocalSqliteStorage, openHomeSqliteFile } from "@molis-ai/molis-work-storage";
-import { assertReadStatement, assertWriteStatement, type StatementReply, type StatementStep, type StatementRow, type StatementValue } from "./project-statement-protocol.js";
+import { assertReadStatement, assertWriteStatement, statementFailure, type ReviewedStatementTarget, type StatementReply, type StatementStep, type StatementRow, type StatementValue } from "./project-statement-protocol.js";
+import { commitProjectReview } from "./project-review-commit.js";
+import type { ProjectReviewCommit } from "./project-review-effect.js";
 
 // The statements of one sandboxed plugin, run on connections of this process's own to the project's library. This runs in the
 // SQL Worker inside the child of `project-statement-process.ts`; its controller kills the whole process independently of the Host:
@@ -10,6 +12,7 @@ import { assertReadStatement, assertWriteStatement, type StatementReply, type St
 
 export interface StatementEngine {
   handle(request: StatementStep): StatementReply;
+  finishCommit(request: Extract<StatementStep, { op: "commit" }>): StatementReply;
   close(): void;
 }
 
@@ -24,6 +27,7 @@ interface StatementConnections {
   readonly writer: StatementConnection;
   /** S-46's check of a statement on the connection that will run it; a library in the Home has nothing more than the keyword filters. */
   check(connection: StatementConnection, sql: string, parameters: readonly StatementValue[], mode: "read" | "write"): void;
+  joinProjectDecision?(decision: ProjectReviewCommit, check: () => void): void;
   close(): void;
 }
 
@@ -36,6 +40,7 @@ function projectConnections(path: string, record: PluginProjectDatabaseRecord): 
     const reader = readStorage.db, writer = writeStorage.db;
     const reads = pluginStatementGuard(reader, record), writes = pluginStatementGuard(writer, record);
     return { reader, writer, check: (connection, sql, parameters, mode) => (connection === reader ? reads : writes)(sql, parameters, mode),
+      joinProjectDecision: (decision, check) => commitProjectReview(writer, decision, check),
       close() { writeStorage?.close(); readStorage.close(); } };
   } catch (error) {
     writeStorage?.close(); readStorage.close();
@@ -91,7 +96,7 @@ export function openStatementEngine(path: string, record: PluginProjectDatabaseR
       }
       case "begin":
         if (writer.inTransaction) throw new Error("事务已在进行");
-        writer.exec("BEGIN IMMEDIATE");
+        beginTransaction(connections, request.reviewed);
         return { id: request.id, ok: true };
       case "run": {
         if (!writer.inTransaction) throw pluginProjectDatabaseErrors.statement_refused("事务尚未开始，不能写入");
@@ -100,6 +105,14 @@ export function openStatementEngine(path: string, record: PluginProjectDatabaseR
       }
       case "commit":
         if (!writer.inTransaction) throw pluginProjectDatabaseErrors.statement_refused("事务尚未开始，不能提交");
+        if (request.decision) {
+          if (!connections.joinProjectDecision) throw pluginProjectDatabaseErrors.statement_refused("本人决定必须与原项目的写入一同提交");
+          connections.joinProjectDecision(request.decision, () => {
+            if (request.decision!.deadline !== undefined && Date.now() >= request.decision!.deadline) throw new ActionError("actions.expired", "原决定请求已过期");
+            if (Date.now() >= request.deadline) throw pluginProjectDatabaseErrors.statement_refused("原项目事务已超过提交时限");
+          });
+          return { id: request.id, ok: true };
+        }
         writer.exec("COMMIT");
         return { id: request.id, ok: true };
       case "rollback":
@@ -109,17 +122,41 @@ export function openStatementEngine(path: string, record: PluginProjectDatabaseR
   };
   return {
     handle(request) {
-      try { return handle(request); } catch (error) { return failure(request.id, error); }
+      try { return handle(request); } catch (error) { return statementFailure(request.id, error); }
+    },
+    finishCommit(request) {
+      try {
+        if (!writer.inTransaction || !request.decision || Date.now() >= request.deadline) throw pluginProjectDatabaseErrors.statement_refused("原项目事务已结束");
+        if (request.decision.deadline !== undefined && Date.now() >= request.decision.deadline) throw new ActionError("actions.expired", "原决定请求已过期");
+        writer.exec("COMMIT");
+        return { id: request.id, ok: true };
+      } catch (error) { return statementFailure(request.id, error); }
     },
     close() { connections.close(); },
   };
 }
 
-export function failure(id: number, error: unknown): StatementReply {
-  const message = (error instanceof Error ? error.message : String(error)).slice(0, 2048);
-  if (error instanceof ActionError && error.code === "plugin.project_database.result_too_large") return { id, ok: false, kind: "too_large", message };
-  if (error instanceof ActionError && error.code === "plugin.project_database.statement_refused") return { id, ok: false, kind: "refused", message };
-  return { id, ok: false, kind: "error", message };
+function beginTransaction(connections: StatementConnections, reviewed?: ReviewedStatementTarget): void {
+  const { writer } = connections;
+  writer.exec("BEGIN IMMEDIATE");
+  if (!reviewed) return;
+  try {
+    if (!connections.joinProjectDecision) throw pluginProjectDatabaseErrors.statement_refused("原审批对象必须属于项目库");
+    const { table, id_column, version_column } = reviewed.row;
+    const name = (identifier: string) => '"' + identifier.replaceAll('"', '""') + '"';
+    // Qualifiers prevent SQLite from treating a nonexistent quoted column as a string literal.
+    const sql = `SELECT t.${name(version_column)} AS revision FROM ${name(table)} AS t WHERE t.${name(id_column)} = ? LIMIT 2`;
+    const parameters = [reviewed.id];
+    connections.check(writer, sql, parameters, "read");
+    const rows = [...writer.prepare(sql).iterate(...parameters)] as Array<{ revision: unknown }>;
+    const revision = rows[0]?.revision;
+    if (rows.length !== 1 || (typeof revision !== "string" && !Number.isSafeInteger(revision)) || String(revision) !== reviewed.version) {
+      throw new ActionError("actions.conflict", "待审对象的原版本已变化，请重新查看");
+    }
+  } catch (error) {
+    if (writer.inTransaction) writer.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 /** A row the channel can carry: text, finite numbers, null. A BLOB, an infinity or an integer past 2^53 is refused, not changed. */

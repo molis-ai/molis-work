@@ -81,11 +81,11 @@ export type BackgroundPlugin = ReturnType<typeof backgroundPlugin>;
  */
 export async function backgroundRig(t: TestContext, plugin: BackgroundPlugin, names: readonly string[], { off = [], closed = [] }: { off?: readonly string[]; closed?: readonly string[] } = {}) {
   const home = await mkdtemp(join(tmpdir(), "home-background-"));
-  const references = new Map<string, LocalHostProjectReference>(), catalog: Array<{ project_id: string; display_name: string }> = [];
+  const references = new Map<string, LocalHostProjectReference>(), catalog: Array<{ project_id: string; display_name: string; database_path: string }> = [];
   for (const name of names) {
     const project = await withCatalog({ homeDirectory: home }, projects => projects.createProject({ display_name: name, actor_id: "user" }));
     references.set(name, molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }));
-    catalog.push({ project_id: project.project_id, display_name: name });
+    catalog.push({ project_id: project.project_id, display_name: name, database_path: project.database_path });
   }
   const offIds = new Set(off.map(name => references.get(name)!.project_id));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [plugin.definition] },
@@ -95,5 +95,5 @@ export async function backgroundRig(t: TestContext, plugin: BackgroundPlugin, na
   host.configurePersonalPlanning(home, withCatalog);
   t.after(async () => { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } });
   for (const [name, reference] of references) if (!closed.includes(name)) await startProjectPlugins(host, reference);
-  return { host, catalog, project: (name: string) => references.get(name)! };
+  return { home, host, catalog, project: (name: string) => references.get(name)! };
 }

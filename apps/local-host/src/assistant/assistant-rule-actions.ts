@@ -12,6 +12,7 @@ import type { AssistantRuleInput } from "@molis-ai/molis-work-contracts/services
 import type { AssistantService } from "./assistant-service.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { computerRecordFileSource } from "../computer/computer-record-source.js";
+import { assistantPermissionCaller } from "./assistant-work-permissions.js";
 
 export const ASSISTANT_RULES_PROVIDER = "io.molis.work.assistant.rules";
 
@@ -99,7 +100,7 @@ export function registerAssistantRuleActions(registry: ActionRegistryPort, servi
       const work = callingWork(context);
       if (!work) throw assistantErrors.invalid("定时要在一项助理工作里添加");
       const value = input as { text: string; at: string; repeat?: "none" | "daily" | "weekly"; label: string };
-      await service().followUps.save({ work_id: work, text: value.text, at: value.at, label: value.label, ...(value.repeat ? { repeat: value.repeat } : {}) });
+      await service().followUps.save({ work_id: work, text: value.text, at: value.at, label: value.label, ...(value.repeat ? { repeat: value.repeat } : {}) }, assistantPermissionCaller(context));
       return { followups: service().followUps.list(work) };
     } },
     { capability_id: "assistant.methods.read", version: /* @version action.assistant.methods.read */ 1, handle: async (context, input) => {

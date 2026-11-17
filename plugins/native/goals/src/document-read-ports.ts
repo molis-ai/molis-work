@@ -7,7 +7,7 @@ import type { GoalEventApplication } from "./goal-event-application.js";
 export interface GoalsDocumentReadPorts {
   snapshot(projectId: string): BoardSnapshot;
   events(projectId: string): GoalsDecisionEvent[];
-  goals: Pick<GoalReadApplication, "listPolicyHistory" | "listWorkEventGoalLinks" | "getResolvedGoalPolicy" | "listTrashedGoals">;
+  goals: Pick<GoalReadApplication, "listWorkEventGoalLinks" | "getResolvedGoalPolicy" | "listTrashedGoals">;
   inputs: Pick<GoalInputBindingsApi, "list" | "register" | "deactivate" | "accept">;
   eventWork: Pick<GoalEventApplication, "readState">;
 }

@@ -1,15 +1,16 @@
 import { treeErrors } from "./errors.js";
 import type { GoalTreeProposalDecisionRecord, GoalTreeProposalItemRecord, GoalTreeProposalRecord, GoalTreeItemOwner, GoalTreeSemanticReview, GovernanceRecordsApi, NewNativeGoalTreeProposal, NewNativeGoalTreeProposalItem } from "../contract/governance-collaboration.js";
 import { randomUUID } from "node:crypto";
-import { json, text, type GovernanceRow } from "./mappers.js";
+import { json, text, type GovernanceRow, type GoalTreeApprovalHistory } from "./mappers.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { GovernanceRepository, type GovernanceJournal, type GovernanceSqliteDatabase } from "./repository.js";
 import { assertGovernanceTransition, deriveGoalTreeProposalState } from "./state-machine.js";
 
-/** Owns native proposal, item and decision records in the existing Governance tables. */
+/** Saves proposal state and the item outcomes linked to the original platform decision. */
 export class GovernanceGoalTreeRecords {
   private readonly repository: GovernanceRepository;
-  constructor(private readonly db: GovernanceSqliteDatabase, journal: GovernanceJournal) {
-    this.repository = new GovernanceRepository(db, journal);
+  constructor(private readonly db: GovernanceSqliteDatabase, journal: GovernanceJournal, private readonly approvals?: GoalTreeApprovalHistory) {
+    this.repository = new GovernanceRepository(db, journal, approvals);
   }
 
   recordGoalTreeItemDecision(input: Parameters<GovernanceRecordsApi["recordGoalTreeItemDecision"]>[0]): GoalTreeProposalDecisionRecord {
@@ -30,7 +31,7 @@ export class GovernanceGoalTreeRecords {
       materialized_objects: input.materialized_objects,
       created_at: input.at,
     };
-    this.insertGoalTreeDecision(decisionRecord);
+    this.insertItemEffect(decisionRecord);
     this.transitionGoalTreeItem({
       proposal_id: input.proposal_id,
       item_id: input.item.item_id,
@@ -204,17 +205,19 @@ export class GovernanceGoalTreeRecords {
       );
   }
 
-  insertGoalTreeDecision(decision: GoalTreeProposalDecisionRecord): void {
-    this.db.prepare(`INSERT INTO goal_tree_proposal_decisions (
-      decision_id, project_id, proposal_id, item_id, decision, actor_id,
-      authority_source, runtime_actor_id, conversation_ref, message_ref,
-      reason, revision_proposal_id, materialized_objects_json, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+  insertItemEffect(decision: GoalTreeProposalDecisionRecord): void {
+    const approval = this.approvals?.current();
+    if (!approval || approval.reference.owner.project_id !== decision.project_id || approval.actor_id !== decision.actor_id
+      || approval.review.target.subject.kind !== "goal-tree-proposal" || approval.review.target.subject.id !== decision.proposal_id) {
+      throw new ActionError("actions.forbidden", "目标树条目需要本次事务里的原决定");
+    }
+    this.db.prepare(`INSERT INTO goal_tree_item_effects (
+      effect_id, project_id, proposal_id, item_id, approval_id, result, runtime_actor_id, reason,
+      revision_proposal_id, materialized_objects_json, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(
         decision.decision_id, decision.project_id, decision.proposal_id,
-        decision.item_id, decision.decision, decision.actor_id,
-        decision.authority_source, decision.runtime_actor_id,
-        decision.conversation_ref, decision.message_ref, decision.reason,
+        decision.item_id, approval.decision_id, decision.decision, decision.runtime_actor_id, decision.reason,
         decision.revision_proposal_id, json(decision.materialized_objects),
         decision.created_at,
       );

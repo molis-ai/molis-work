@@ -310,7 +310,7 @@ test("project guidance edits, deactivation, and restoration preserve immutable r
   assert.equal(restoredView.revisions.filter((revision) => revision.guidance_id === created.entry.guidance_id).length, 4);
   assert.match(restoredView.runtime_prompt_prefix, /回滚和安装路径/);
   assert.equal(
-    (store.db.prepare("SELECT COUNT(*) AS count FROM goal_tree_proposal_decisions").get() as { count: number }).count,
+    (store.db.prepare("SELECT COUNT(*) AS count FROM project_review_decisions").get() as { count: number }).count,
     0,
   );
   store.close();

@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { LocalProjectDatabase, upgradePluginTables } from "@molis-ai/molis-work-app-local-host";
-import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
-import { assessGoalReport, GOALS_PROJECT_DATABASE, goalsManifest, hostEventDecisionAuthority, type GoalEvidencePorts } from "@molis-ai/molis-work-plugin-goals";
+import { LocalProjectDatabase, pluginSyncDatabaseDeclaration, pluginSyncNamespace, PROJECT_DATABASE_BASELINE, PROJECT_DATABASE_VERSION_3_SCHEMA } from "@molis-ai/molis-work-app-local-host";
+import { describeSqliteSchema, runSqliteUpgrade, sqliteBaselineTriggers } from "@molis-ai/molis-work-storage";
+import { assessGoalReport, goalsApprovalTransferManifest, GOALS_PROJECT_DATABASE, goalsManifest, hostEventDecisionAuthority, type GoalEvidencePorts } from "@molis-ai/molis-work-plugin-goals";
 import { goalEventAssessmentKey, type GoalEventJudgmentAssessment, type GoalEventJudgmentBasisInput } from "@molis-ai/molis-work-plugin-goals/contract";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
@@ -367,12 +367,9 @@ test("EVD-20: a library at Goals' version 1 is taken to the current version with
   // ledger at 1. Versions 1 to 3 also had the planning method table and the adopted-methods column that version 4 drops (batch 41),
   // so they are put back for the chain to run over.
   const added = ["    basis_json TEXT,\n", "    tier TEXT NOT NULL DEFAULT 'self_reported',\n", "    gap TEXT,\n", "    reporter_session TEXT,\n", "    checked_artifact_id TEXT,\n", "    checked_version INTEGER,\n"];
-  const ledger = `VALUES ('io.molis.work.goals','official-goals-binding','goals',${GOALS_PROJECT_DATABASE.version},`, actor = "    version INTEGER NOT NULL,\n    actor_id TEXT NOT NULL,\n    created_at TEXT NOT NULL,\n    config_event_id TEXT NOT NULL,\n";
-  assert.equal(current.split(ledger).length, 2); assert.equal(current.split(actor).length, 2);
-  const objects = ledger + "'[\"acceptance_criteria\",";
-  assert.equal(current.split(objects).length, 2);
-  let old = current.replace(objects, "VALUES ('io.molis.work.goals','official-goals-binding','goals',1,'[\"planning_method_packs\",\"acceptance_criteria\",")
-    .replace(actor, actor.replace("    created_at", "    adopted_planning_json TEXT NOT NULL DEFAULT '[]',\n    created_at"))
+  const actor = "    version INTEGER NOT NULL,\n    actor_id TEXT NOT NULL,\n    created_at TEXT NOT NULL,\n    config_event_id TEXT NOT NULL,\n";
+  assert.equal(current.split(actor).length, 2);
+  let old = current.replace(actor, actor.replace("    created_at", "    adopted_planning_json TEXT NOT NULL DEFAULT '[]',\n    created_at"))
     + "\nCREATE TABLE planning_method_packs (project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE, method_id TEXT NOT NULL, version INTEGER NOT NULL, enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)), pack_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (project_id, method_id));\n";
   const cited = "    updated_at TEXT NOT NULL,\n    cited_subjects_json TEXT NOT NULL DEFAULT '[]'\n";
   assert.equal(old.split(cited).length, 2, cited);
@@ -381,13 +378,27 @@ test("EVD-20: a library at Goals' version 1 is taken to the current version with
   const before = new DatabaseSync(":memory:"), fresh = new DatabaseSync(":memory:");
   try {
     before.exec(old); fresh.exec(current);
+    const original = goalsApprovalTransferManifest(goalsManifest, 1);
+    const ns = pluginSyncNamespace(original, "project_goals");
+    const version4Triggers = before.prepare("SELECT name FROM sqlite_schema WHERE type='trigger' AND name GLOB ?")
+      .all(ns + "_*").map(row => String(row.name));
+    assert.ok(version4Triggers.length > 0);
+    for (const name of version4Triggers) before.exec(`DROP TRIGGER "${name}"`);
+    const version1Triggers = sqliteBaselineTriggers(pluginSyncDatabaseDeclaration(original, original.databases!.project!).schema, PROJECT_DATABASE_VERSION_3_SCHEMA);
+    for (const sql of version1Triggers.values()) before.exec(sql);
+    const priorLedger = before.prepare("SELECT version, tables_json FROM plugin_project_databases WHERE plugin_id=?").get(goalsManifest.plugin_id);
+    assert.equal(priorLedger?.version, 4);
+    const objects = (JSON.parse(String(priorLedger?.tables_json)) as string[]).filter(name => !version4Triggers.includes(name));
+    objects.push("planning_method_packs", ...version1Triggers.keys());
+    before.prepare("UPDATE plugin_project_databases SET version=1,tables_json=? WHERE plugin_id=?").run(JSON.stringify(objects.sort()), goalsManifest.plugin_id);
     const count = (db: DatabaseSync, table: string) => Number((db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n);
     // The version 3 library really has a method row: the 3→4 step drops the table and its data, not only an empty shape.
     before.exec("INSERT INTO planning_method_packs(project_id, method_id, version, enabled, pack_json, created_at, updated_at) SELECT project_id, 'method-1', 1, 1, '{}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z' FROM boards LIMIT 1");
     assert.equal(count(before, "planning_method_packs"), 1);
     const judgments = count(before, "goal_work_event_judgments"), conclusions = count(before, "goal_event_requirement_conclusions");
     assert.ok(judgments > 0);
-    upgradePluginTables(before, "evidence-test", goalsManifest);
+    assert.deepEqual(runSqliteUpgrade(before, ":memory:", PROJECT_DATABASE_BASELINE), { from: 3, to: PROJECT_DATABASE_BASELINE.version });
+    runSqliteUpgrade(fresh, ":memory:", PROJECT_DATABASE_BASELINE);
     assert.equal((before.prepare("SELECT version FROM plugin_project_databases WHERE plugin_id = ?").get(goalsManifest.plugin_id) as { version: number }).version, GOALS_PROJECT_DATABASE.version);
     assert.equal(count(before, "goal_work_event_judgments"), judgments);
     assert.equal(count(before, "goal_event_requirement_conclusions"), conclusions);

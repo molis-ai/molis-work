@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -10,7 +10,7 @@ import { codingAgentManifest, codingPrompts, CODING_INPUT_RECEIPTS_CLIENT_FACTOR
 import vm from "node:vm";
 import type { AgentRunRef, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingProductHost } from "./fixtures/coding-product-host.js";
-import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
+import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -31,6 +31,59 @@ async function completed(f: Environment, result: Awaited<ReturnType<typeof start
   assert.equal(result.status, 200, JSON.stringify(result.body));
   const view = await f.ended(result.body.run.ref); assert.equal(view.phase, "completed", view.stop_reason); return view;
 }
+
+test("APR-07/08/11: the protected Coding route saves a future exact command and ends it when its original session is archived", { timeout: 80_000 }, async t => {
+  let send = true;
+  const script = "require('node:fs').appendFileSync('approval.txt','approved note\\n')";
+  const f = await codingProductHost(t, (_request, _turn) => {
+    const next = send ? { name: "run-command", input: { executable: "node", argv: ["-e", script] } } : undefined;
+    send = false;
+    return cogniaScriptedResponse(next, "The note was checked.");
+  });
+  const id = await session(f), other = await session(f), projectId = f.project.project_id;
+  const at = coding + `/sessions/${id}`;
+  const startCommand = () => start(f, id, "Record the note once.", { intent: "execute", budget: { max_turns: 2 } });
+  const original = await startCommand();
+  assert.equal(original.status, 200, JSON.stringify(original.body));
+  const service = ensureSystemAgentService(f.host, f.home), queue = service.agentHost.reviews;
+  const originalRef = original.body.run.ref;
+  const review = await new Promise<ReturnType<typeof queue.list>[number]>((resolve, reject) => {
+    const timer = setTimeout(() => { clearInterval(poll); reject(new Error("The actual command review did not appear")); }, 10_000);
+    const poll = setInterval(() => {
+      const review = queue.list(projectId, "pending").find(row => row.run?.run_id === originalRef.run_id && queue.hasExactPermission(row.review_id));
+      if (review) { clearInterval(poll); clearTimeout(timer); resolve(review); }
+    }, 20);
+  });
+  const control = "/api/agent/reviews/permission";
+  const query = new URLSearchParams({ review_id: review.review_id, version: review.reference.version, lifetime: "work" });
+  const preview = await f.call<{ automatic: boolean; scope_version: string; storage_version: number }>(projectId, control + "?" + query);
+  assert.equal(preview.status, 200, JSON.stringify(preview.body));
+  assert.equal(preview.body.automatic, true);
+  assert.equal((await f.call(f.other.project_id, control + "?" + query)).status, 404);
+  const marker = join(f.directory, "approval.txt");
+  await assert.rejects(readFile(marker), { code: "ENOENT" });
+  const saved = await f.call(projectId, control, { review_id: review.review_id, version: review.reference.version, lifetime: "work", mode: "automatic",
+    scope_version: preview.body.scope_version, expected_version: preview.body.storage_version });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  await f.ended(originalRef);
+  await assert.rejects(readFile(marker), { code: "ENOENT" });
+  send = true;
+  const reused = await completed(f, await startCommand());
+  const decided = queue.list(projectId).filter(row => row.run?.run_id === reused.ref.run_id).map(row => queue.receipt(row.review_id));
+  assert.ok(decided.some(receipt => receipt?.source?.kind === "delegation"), JSON.stringify({ decided, events: reused.turns }));
+  assert.equal(await readFile(marker, "utf8").catch(error => { if (error.code === "ENOENT") return ""; throw error; }), "approved note\n",
+    JSON.stringify({ decided, events: reused.turns }));
+  const store = service.agentHost.workDelegations("prologue")!;
+  const ours = (await store.list()).find(state => state.subject.kind === "work" && state.subject.work.id === originalRef.session_id)!;
+  assert.equal(ours.lifecycle, "open");
+  assert.equal((await f.call(projectId, coding + `/sessions/${other}`, { archive: true }, undefined, "PATCH")).status, 200);
+  assert.equal((await store.read(ours.subject))?.lifecycle, "open");
+  const archived = await f.call(projectId, at, { archive: true }, undefined, "PATCH");
+  assert.equal(archived.status, 200, JSON.stringify(archived.body));
+  assert.equal((await store.read(ours.subject))?.lifecycle, "ended");
+  assert.notEqual((await startCommand()).status, 200);
+  assert.equal(await readFile(marker, "utf8"), "approved note\n");
+});
 
 test("Coding protected HTTP keeps the exact original separately from the assembled task and restores it from the existing attempt", { timeout: 60_000 }, async t => {
   const f = await codingProductHost(t, () => cogniaModelResponse("已读。")), id = await session(f);

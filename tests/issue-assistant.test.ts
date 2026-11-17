@@ -86,7 +86,7 @@ test("ISSUE-07 assistant discovers Home Issue and confirms exact writes; refusal
   const { replies, requests, request, list, state, send } = await assistantHome(t);
   const change = (capability_id: string, input: unknown) => reply({ name: "change-capability", input: { capability_id, version: 1, provider_id: ISSUES_PLUGIN_ID, input } });
   const input = { title: "按确认标题记录", type: "experience", description: "  我的原话\n第二行。\n" };
-  const decide = (id: string, view: AssistantWorkView, decision: "approve" | "reject") => request(`/api/assistant/works/${id}/reviews/${view.reviews[0]!.review_id}`, { decision });
+  const decide = (id: string, view: AssistantWorkView, decision: "approve" | "reject") => request(`/api/assistant/works/${id}/reviews/${view.reviews[0]!.review_id}`, { decision, version: view.reviews[0]!.version });
   {
     replies.push(reply({ name: "find-capabilities", input: { query: "Issue" } }), change("issues.create", input), reply());
     const sent = await send("录入体验问题，标题是按确认标题记录，原文保持不变。");

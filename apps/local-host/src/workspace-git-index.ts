@@ -24,7 +24,7 @@ export interface PreparedGitIndex {
   files: GitIndexFile[];
   check(): Promise<void>;
   /** No write happens until the owning Effect dispatches this callback. */
-  execute(): Promise<void>;
+  execute(assertCurrent?: () => void): Promise<void>;
 }
 const digest = (value: Buffer | null) => value === null ? "absent" : createHash("sha256").update(value).digest("hex");
 async function indexBytes(file: string): Promise<Buffer | null> {
@@ -123,26 +123,31 @@ export async function prepareGitIndex(intent: GitIndexIntent, workspaces: () => 
     if (intent.action === "stage") await rawStagingAllowed(root, name);
   };
   await unchanged();
-  return { files: structuredClone(files), check: unchanged, async execute() {
+  return { files: structuredClone(files), check: unchanged, async execute(assertCurrent) {
     await unchanged();
+    assertCurrent?.();
     const temp = await fs.mkdtemp(path.join(path.dirname(indexPath), "molis-index-"));
     const temporaryIndex = path.join(temp, "index"), lockPath = indexPath + ".lock";
     let lock: Awaited<ReturnType<typeof fs.open>> | undefined, renamed = false;
     try {
+      assertCurrent?.();
       if (original) await fs.writeFile(temporaryIndex, original);
       else await git(root, ["read-tree", "--empty"], undefined, { indexFile: temporaryIndex });
       const oidLength = (await git(root, ["rev-parse", "--show-object-format"])).toString().trim() === "sha256" ? 64 : 40;
       let entries = "";
       for (const file of files) {
+        assertCurrent?.();
         const oid = file.after_text === null ? "0".repeat(oidLength) : (await git(root, ["hash-object", "-w", "--stdin"], undefined, { input: file.after_text })).toString().trim();
         entries += `${file.after_mode ?? "0"} ${oid}\t${file.path}\0`;
       }
-      await git(root, ["update-index", "-z", "--index-info"], undefined, { indexFile: temporaryIndex, input: entries });
+      assertCurrent?.(); await git(root, ["update-index", "-z", "--index-info"], undefined, { indexFile: temporaryIndex, input: entries });
+      assertCurrent?.();
       try { lock = await fs.open(lockPath, "wx", 0o600); }
       catch (error) { if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error("Git 暂存区正被其他操作使用，本次没有覆盖它"); throw error; }
       await unchanged();
-      await lock.writeFile(await fs.readFile(temporaryIndex)); await lock.sync(); await lock.close();
-      await fs.rename(lockPath, indexPath); renamed = true;
+      const bytes = await fs.readFile(temporaryIndex); assertCurrent?.();
+      await lock.writeFile(bytes); await lock.sync(); await lock.close();
+      assertCurrent?.(); await fs.rename(lockPath, indexPath); renamed = true;
     } catch (error) {
       if (renamed) throw Object.assign(new Error("暂存结果尚未确认，请核对后再继续"), { code: "EFFECT_RECONCILE_REQUIRED" });
       throw error;

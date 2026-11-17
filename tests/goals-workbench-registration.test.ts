@@ -3,7 +3,8 @@ import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { registration } from "@molis-ai/molis-work-plugin-goals/registration";
-import { workbenchClientSource, pluginPageClients, pluginSettingsClients, pluginSettingsStyles, pluginWorkbenchPacks, pluginWorkbenchStyles } from "@molis-ai/molis-work-app-workbench";
+import { workbenchClientSource, pluginPageClients, pluginSettingsClients, pluginSettingsStyles, pluginWorkbenchPacks, pluginWorkbenchStyles,
+  renderMolisWorkCapabilitiesClientScript } from "@molis-ai/molis-work-app-workbench";
 import { renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
 
 // PG-060 (T-115): the workbench takes Goals' styles and browser scripts from the plugin's registration, through the channels
@@ -27,29 +28,34 @@ test("RAC-2090 Goals' page rules reach the workbench sheet once, from its regist
   }
 });
 
-test("RAC-2091 the rules of Goals' settings pages reach both sheets that draw settings, once each", () => {
-  const rules = goals.settingsStylesheet!;
-  assert.match(rules, /\.project-rules-/u);
-  assert.equal(pluginSettingsStyles(), rules, "Goals is the one plugin with settings rules");
-  for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkSettingsStylesheet()]) assert.equal(count(sheet, rules), 1);
+test("RAC-2091 and APR-19 project rule settings use the shared authorization styles on both settings surfaces", () => {
+  assert.equal(goals.settingsStylesheet, undefined);
+  assert.doesNotMatch(pluginSettingsStyles(), /\.project-rules-page|\[data-authorization-rule-form\]/u);
+  for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkSettingsStylesheet()]) {
+    assert.equal([...sheet.matchAll(/\[data-authorization-layout\]\s*\{[^}]*grid-template-columns/gu)].length, 1);
+    assert.doesNotMatch(sheet, /\.project-rules-page|\[data-project-rules-form\]/u);
+  }
 });
 
 test("RAC-2092 the Goals page script takes each factory from the registration, by name", () => {
   const script = workbenchClientSource(), clients = goals.pageClients!;
-  assert.equal(Object.keys(clients).length, 12);
+  assert.deepEqual(Object.keys(clients).sort(), ["goalsDialogs", "goalsDocument", "goalsEventDocument", "goalsLifecycle", "goalsMomentum",
+    "goalsNavigation", "goalsPanels", "goalsProposal", "goalsRefresh", "goalsRelation", "goalsTree"]);
   assert.equal(pluginPageClients("goals"), clients);
   for (const [name, factory] of Object.entries(clients)) assert.equal(count(script, factory), 1, `${name} is in the page script once`);
   assert.doesNotMatch(script, /\(undefined\)\(/u, "no factory the page script names is missing");
   assert.throws(() => pluginPageClients("files"), /files registers no page clients/u);
 });
 
-test("RAC-2093 Goals' settings scripts run from the registration's settings client", () => {
-  const settings = goals.settingsClient!;
-  // Batch 41 (41-2): the planning settings pages left Goals with the method library; the project rules page is what remains.
-  assert.match(settings, /molisWorkBindProjectRules/u);
-  assert.doesNotMatch(settings, /molisWorkBindPlanning/u);
-  assert.ok(pluginSettingsClients().includes(settings));
-  assert.equal(count(workbenchClientSource(), settings), 1);
+test("RAC-2093 and APR-19 project rule updates use the same client as authorization settings", () => {
+  assert.equal(goals.settingsClient, undefined);
+  const script = renderMolisWorkCapabilitiesClientScript();
+  for (const code of [pluginSettingsClients(), workbenchClientSource(), script]) {
+    assert.doesNotMatch(code, /molisWorkBindProjectRules|molisWorkBindPlanning/u);
+  }
+  assert.equal([...script.matchAll(/globalThis\.molisWorkBindAuthorizationSettings\s*=/gu)].length, 1);
+  assert.match(script, /\/api\/settings\/authorizations/u);
+  assert.match(script, /\/project-rules/u);
 });
 
 

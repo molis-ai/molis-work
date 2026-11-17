@@ -19,6 +19,7 @@ import type { SurfaceInstallRegistry } from "./surface-installation.js";
 import { awaitPluginStopHook, type PluginStopExecution } from "./plugin-stop-hook.js";
 
 import { commitInstalledDatabaseUpgrade } from "./plugin-sandbox-database-upgrade.js";
+import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -236,6 +237,7 @@ export class PluginHostExecutor implements PluginExecutor {
     const { assertCurrent, ...expected } = change;
     await commitInstalledDatabaseUpgrade({
       op: "upgrade-project-database", home: home.directory, path: projectLibrary.path, projectId, target: definition.manifest, change: expected,
+      platformVersion: PROJECT_DATABASE_BASELINE.version,
     }, () => { assertCurrent(); home.assertStorageOwner(); });
   }
 

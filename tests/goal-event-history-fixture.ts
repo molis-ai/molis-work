@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
+import { PROJECT_DATABASE_BASELINE } from "@molis-ai/molis-work-app-local-host";
+import { runSqliteUpgrade } from "@molis-ai/molis-work-storage";
 
 export const goalEventHistoryKinds = ["imported", "mixed", "approved", "approved-completed"] as const;
 export type GoalEventHistoryKind = (typeof goalEventHistoryKinds)[number];
@@ -25,6 +27,7 @@ export function materializeGoalEventHistory(kind: GoalEventHistoryKind, director
     raw.exec(readFileSync(new URL(`./fixtures/goal-event-history/${kind}.sql`, import.meta.url), "utf8"));
     raw.prepare("UPDATE events SET type = ? || type, object_type = ? || object_type").run(namespace, namespace);
     raw.prepare("UPDATE idempotency_records SET operation = ? || operation").run(namespace);
+    runSqliteUpgrade(raw, path, PROJECT_DATABASE_BASELINE);
   } finally { raw.close(); }
   return { directory, path };
 }

@@ -4,6 +4,7 @@ import { resolveMcpConnectionToken } from "./connector-mcp.js";
 import { captureMcpOperationSource, type StoredMcpConfiguration } from "./connector-mcp-configuration.js";
 import { LOCAL_MCP_SERVERS, requiresMcpDeclaration } from "./connector-mcp-endpoint.js";
 import { subscribeConnectorChanges } from "./connector-lifecycle.js";
+import { oauthRefreshGuard } from "./connector-oauth-targets.js";
 
 export function agentMcpEndpoint(home: string, id: string): string | null {
   const config = withConnectorProtocols(home, store => store.get<StoredMcpConfiguration>(id), true);
@@ -36,11 +37,12 @@ export function createAgentConnectorPorts(home: string, resolveToken = resolveMc
         return { ...(token === null ? {} : { credentialRef: `connector-mcp:${id}` }), revision: source ? `${row.updated_at}:${source.installation_generation}` : row.updated_at,
           assertCurrent: check };
       }
+      const assertCurrent = oauthRefreshGuard(home, id);
       return withConnectorConnections(home, store => {
         const connection = store.require(id, "mcp-bearer");
         if (store.state(connection) !== "connected") return null;
         store.assertTarget(id, "mcp-bearer", endpoint);
-        return { credentialRef: connection.credential_ref ?? undefined, revision: connection.updated_at };
+        return { credentialRef: connection.credential_ref ?? undefined, revision: connection.updated_at, assertCurrent };
       });
     },
     async resolveMcpCredential(ref: string): Promise<string | null> {

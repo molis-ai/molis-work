@@ -493,6 +493,7 @@ export type GoalEventSatisfactionGround = (typeof goalEventSatisfactionGrounds)[
 
 export interface GoalEventRequirementStatus {
   requirement_id: string;
+  revision: number;
   goal_id: string;
   statement: string;
   origin: {

@@ -10,10 +10,10 @@ import type { GoalsRendererFactories } from "./factories.js";
 
 /** The Goals owners' renderers bound to this request's words: status, tree, momentum, relations, context, policy and proposals. */
 export function createGoalsRenderers<TView extends GoalsPageView>(
-  ports: Pick<GoalsPagePorts<TView>, "readText" | "goalsL" | "currentLocale" | "listJoin" | "formatDate" | "renderList" | "renderReference"> & { defaultPolicy: { human_approval: boolean } },
+  ports: Pick<GoalsPagePorts<TView>, "readText" | "goalsL" | "currentLocale" | "listJoin" | "renderList" | "renderReference">,
   factories: GoalsRendererFactories,
 ) {
-  const { readText, goalsL, currentLocale, listJoin, formatDate, renderList, defaultPolicy } = ports;
+  const { readText, goalsL, currentLocale, listJoin, renderList } = ports;
   const { sectionHeading, subsectionHeading, renderFocusSectionDeck } = createFocusSections({ readText, escapeHtml });
   const { renderGoalTreeProposalDecision, renderGoalTreeProposalList } = factories.proposal({ translate: goalsL, escapeHtml, icon, renderList });
   const { explainWorkState, explainParentCompletion } = createGoalStateExplainer(goalsL);
@@ -44,14 +44,12 @@ export function createGoalsRenderers<TView extends GoalsPageView>(
     translate: goalsL, escapeHtml, icon, currentLocale,
     subsectionHeading, explainWorkState, explainParentCompletion,
   });
-  const { renderProjectPolicyDocument, renderPolicyEditor } = factories.policy({
-    translate: goalsL, escapeHtml, formatDate, icon, defaultPolicy,
-  });
+  const { renderPolicyEditor } = factories.policy({ escapeHtml, icon });
 
   return {
     sectionHeading, renderFocusSectionDeck, renderGoalTreeProposalDecision, renderGoalTreeProposalList, explainWorkState, renderReference,
     renderStatus, renderVisibleGoalStatus, visibleGoalStatusIcon, sortGoals, goalsTreeRenderer,
     renderGoalMomentum, renderMomentumPlaceholder, renderGoalKanban, renderRelations, renderChildProgress, renderContractCoverage,
-    renderProjectPolicyDocument, renderPolicyEditor,
+    renderPolicyEditor,
   };
 }

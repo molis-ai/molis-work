@@ -16,6 +16,7 @@ import type { ActionSkillRound } from "@molis-ai/molis-work-contracts/platform/a
 import { freezeRoundSkills, type AgentRoundSkillCatalog, type AgentSkillSource } from "./round-skills.js";
 import type {
   AgentActionClient,
+  AgentSessionOwner,
   AgentHostApi,
   AgentSessionRef,
   AgentRunHandle,
@@ -66,16 +67,23 @@ export { fetchModelList, listProviderModels, modelListErrors, modelListRequest, 
 export { registerAgentHostCapabilities } from "./capability-registration.js";
 export { runViewVersion } from "./run-wait.js";
 export { actionDigest } from "./action-digest.js";
+export { ReviewDecisionStore, reviewProposalVersion, reviewDecisionKey, type ReviewDecisionControl, type ReviewDecisionStorage, type ReviewDecisionSave, type StoredReviewDecision } from "./review-decisions.js";
+export { WorkDelegationStore, workDelegationKey, type WorkDelegationStorage, type WorkDelegationGrant, type WorkDelegationChange, type WorkDelegationInvalidation } from "./delegations.js";
+export { actionDelegationMatches, delegationScopesNarrow } from "./delegation-scopes.js";
+export type { WorkDelegationPermission } from "./delegation-permissions.js";
+export type { WorkDelegationCancellation } from "./delegation-cancellations.js";
 export type {
   AgentCapabilityPorts,
   AgentCapabilityRegistrar,
 } from "./capability-registration.js";
 export { PrologueAgentAdapter, PROLOGUE_RUNTIME_ID } from "./adapters/prologue.js";
 export { createPrologueNodeAdapter, SUBAGENT_DEFAULT_TURNS } from "./adapters/prologue-node.js";
+export { actionCancelledBeforeDispatch } from "./adapters/prologue-action-reviews.js";
+export { guardNodeDispatch } from "./adapters/prologue-dispatch.js";
 export { observeRun, type RoundObserver, type RunObservationStart } from "./adapters/prologue-run-observation.js";
 export { verifyPrologueNodeStorageContents, type PrologueNodeStorageVerificationOptions } from "./adapters/prologue-storage-verification.js";
 export { openPrologueMemoryRestore } from "./adapters/prologue-memory-restore.js";
-export { surfaceRules } from "./adapters/prologue-surfaces.js";
+export { createPrologueSurfaces, surfaceRules } from "./adapters/prologue-surfaces.js";
 export { createCollaborationHost, createContinuationStarts } from "./adapters/prologue-collaboration.js";
 export { deliverDesktopAct } from "./adapters/desktop-act-delivery.js";
 export { screenModelMaterial } from "./adapters/prologue-screening.js";
@@ -136,6 +144,12 @@ function assertSessionCreation(adapter: AgentRuntimeAdapter, input: import("@mol
   } else placeOf(input.directory, authority, worktrees, "这个目录没有被授权给当前项目");
 }
 
+function sessionDelegation(owner: AgentSessionOwner, session: AgentSessionRef, role: string, generation: string): NonNullable<AgentStartAuthority["delegation"]> {
+  return { session_owner_id: owner.project_id, subject: { kind: "work", actor_id: owner.actor_id, project_id: owner.project_id,
+    work: { owner_id: owner.plugin_id, id: session.session_id }, executor: { plugin_id: owner.plugin_id, install_id: owner.install_id,
+      installation_generation: generation, role_id: role } } };
+}
+
 export interface AgentStartAuthority {
   /** Original text from the protected Host entry/current Action, never a plugin's start DTO. */
   original_input?: Omit<import("@molis-ai/molis-work-contracts/platform/actions").HostOfferedOriginalInput, "action">;
@@ -152,6 +166,12 @@ export interface AgentStartAuthority {
   beforeDispatch?(): void | (() => void) | Promise<void | (() => void)>;
   /** Host-only lifetime transferred to the actual accepted Run. */
   disposeDispatch?(): void;
+  /** Persistent owner fence, synchronous with an approval save or SDK answer. */
+  assertBeforeDispatch?(): void;
+  /** Stable work identity resolved by the protected work owner. The request carries no such authority. */
+  delegation?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStartExecution["delegation"];
+  /** The original activation, used only after the runtime verified the session and selected role. */
+  sessionInstallation?: { readonly generation: string };
   /** Current runtime grants, resolved by Host; selecting a tool grants nothing. */
   /** The trusted guard must run again at dispatch, including after the Host queue. */
   /**
@@ -236,7 +256,7 @@ export interface AgentPromptResolver {
 }
 
 export class AgentHost implements AgentHostApi {
-  readonly #adapters = new Map<string, AgentRuntimeAdapter>();
+  readonly #adapters = new Map<string, AgentRuntimeAdapter & { readonly delegations?: import("./delegations.js").WorkDelegationStore }>();
   readonly reviews: AgentReviewQueue;
 
   /** The person's edits of registered prompts, looked up when a run starts. Absent means every prompt runs as shipped. */
@@ -247,7 +267,7 @@ export class AgentHost implements AgentHostApi {
     this.#prompts = options.prompts;
   }
 
-  register(adapter: AgentRuntimeAdapter): void {
+  register(adapter: AgentRuntimeAdapter & { readonly delegations?: import("./delegations.js").WorkDelegationStore }): void {
     const runtimeId = adapter.descriptor.runtime_id;
     if (this.#adapters.has(runtimeId)) {
       throw agentErrors.runtime_duplicate(`Agent Runtime ${runtimeId} 已注册`);
@@ -268,6 +288,9 @@ export class AgentHost implements AgentHostApi {
     }
     return adapter;
   }
+
+  /** Host composition only. The same runtime owner serves both decisions and management. */
+  workDelegations(runtimeId: string) { return this.#adapters.get(runtimeId)?.delegations; }
 
   matrix(runtimeIds: string[]): Array<{
     runtime_id: string;
@@ -354,12 +377,15 @@ export class AgentHost implements AgentHostApi {
         return resolve ? resolve.effective(request.plugin_id, declaration, locale) : { ...prompt, body: agentBodyIn(declaration, locale) };
       }) };
     const adapter = this.adapter(runtimeId);
+    if (authority.delegation && !this.workDelegations(runtimeId)) throw agentErrors.capability_unavailable("当前运行时没有工作授权服务");
     const worktrees = request.workspace === "none" || request.workspace === "business" ? [] : await worktreesFor(authority, request.directory, request.subagent_workspaces?.length);
     const { role, execution, workspace, place } = checkStartRole(adapter, runtimeId, request, authority, worktrees);
     const session = await adapter.readSession(request.session);
     checkStartSession(session, request, runtimeId, workspace);
+    const delegation = authority.delegation ?? (workspace === "required" && authority.sessionInstallation && this.workDelegations(runtimeId)
+      ? sessionDelegation(session.owner, session.session, role.role_id, authority.sessionInstallation.generation) : undefined);
     const { character, hostTools } = selectStartCharacter(role, request, authority);
-    const { validateCharacter, assertBeforeStart, beforeStart, beforeDispatch } = startGuards(authority, character, request);
+    const { validateCharacter, assertBeforeStart, beforeStart, beforeDispatch, assertBeforeDispatch } = startGuards(authority, character, request);
     if (request.execution_plan && STEP_TOOLS.some(tool => !hostTools.includes(tool))) {
       throw agentErrors.role_execution_exceeded("当前角色未开放计划回报工具，请调整角色或取消角色选择后执行计划");
     }
@@ -421,7 +447,8 @@ export class AgentHost implements AgentHostApi {
         ...(compaction ? { compaction } : {}), ...(endingReview ? { ending_review: { prompt: endingReview } } : {}),
         host_tools: hostTools,
       },
-    }, { beforeStart, assertBeforeStart, beforeDispatch, disposeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}) });
+    }, { beforeStart, assertBeforeStart, beforeDispatch, assertBeforeDispatch, disposeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}),
+      ...(delegation ? { delegation: structuredClone(delegation) } : {}) });
     if (widensFrozen(handle, { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills, replyLocale: authority.reply_language?.locale })) {
       await adapter.control(handle.ref, { kind: "cancel" });
       throw agentErrors.role_execution_exceeded(`Runtime 返回的角色权限与 Manifest 冻结的不一致，已取消该 Run`);

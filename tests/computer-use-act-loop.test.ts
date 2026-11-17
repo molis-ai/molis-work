@@ -1,8 +1,12 @@
+import { desktopState, observeSurface, performSurface, surfaceContext } from "./fixtures/surface-target.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostSurfaceActReceipt, HostSurfaceAction } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { ComputerDriver, type DeskContext } from "@molis-ai/molis-work-app-local-host";
+
 import { deliverDesktopAct } from "@molis-ai/molis-work-service-agent-host";
+
+const TEST_CONTEXT = surfaceContext("s");
 
 type Call = { op: string; payload?: Record<string, unknown> };
 type Node = { role: string; name: string; depth: number; frame: [number, number, number, number]; disabled?: boolean };
@@ -16,25 +20,29 @@ function shot(extra: Record<string, unknown> = {}): Record<string, unknown> {
 }
 
 function desk(options: { nodes?: Node[]; truncated?: boolean; picture?: Record<string, unknown>; now?: () => number; calls?: Call[]; frame?: [number, number, number, number] } = {}): DeskContext {
-  const state = { bundle_id: "com.apple.TextEdit", name: "TextEdit", pid: 4, active: true, hidden: false, front_pid: 4,
-    window: { title: "Notes", frame: options.frame ?? [0, 0, 120, 80], window_id: 1, document: "" } };
+  const state = desktopState({ bundle_id: "com.apple.TextEdit", name: "TextEdit", pid: 4, active: true, hidden: false, front_pid: 4,
+    window: { title: "Notes", frame: options.frame ?? [0, 0, 120, 80], window_id: 1, document: "" } });
   const nodes = options.nodes ?? [button];
+  const target = { bundle_id: state.bundle_id, name: state.name, pid: state.pid, verdict: { tier: "ask" as const, reason: "", built_in: true } };
   return {
-    helper: { async call<T>(op: string, payload?: Record<string, unknown>): Promise<T> {
+    helper: { async call<T>(op: string, payload?: Record<string, unknown>, _timeout?: number, beforeSend?: () => void, onDispatch?: () => void): Promise<T> {
+      beforeSend?.(); onDispatch?.();
       options.calls?.push({ op, payload });
       if (op === "app.state" || op === "app.open") return state as T;
       if (op === "apps.installed" || op === "apps.running") return { apps: [{ bundle_id: state.bundle_id, name: state.name }] } as T;
       if (op === "observe.screenshot") return (options.picture ?? shot()) as T;
       if (op === "observe.tree") return { window: { title: "Notes", frame: state.window.frame }, nodes, truncated: options.truncated === true, menus: [] } as T;
-      if (op === "probe.point") return { window: { pid: 4, title: "Notes" }, element: { pid: 4, name: "保存", window_title: "Notes" } } as T;
-      if (op.startsWith("input.")) return {} as T;
+      if (op === "probe.point") return { window: { id: 1, pid: 4, title: "Notes" }, element: { pid: 4, name: "保存", window_title: "Notes" } } as T;
+      if (op.startsWith("input.")) return { done: true } as T;
       throw new Error(op);
     } },
     settings: { forbiddenIds: () => [] },
     noteInjected: () => undefined,
-    target: () => ({ bundle_id: state.bundle_id, name: state.name, pid: state.pid, verdict: { tier: "ask", reason: "", built_in: true } }),
+    target: () => target,
     setTarget: () => undefined,
     takeovers: () => 0,
+    assertCurrent: () => undefined,
+    assertReady: () => undefined,
     ready: async () => undefined,
     readiness: async () => null,
     mark: () => undefined,
@@ -56,7 +64,7 @@ function desk(options: { nodes?: Node[]; truncated?: boolean; picture?: Record<s
 const click = (node?: string): HostSurfaceAction => ({ what: "pointer", x: 1, y: 1, button: "left", clicks: 1, ...(node ? { node } : {}) });
 
 function acted(context: DeskContext, action: HostSurfaceAction = click()): Promise<HostSurfaceActReceipt> {
-  return new ComputerDriver(context).surface().perform(action, { session_id: "s" }) as Promise<HostSurfaceActReceipt>;
+  return performSurface(new ComputerDriver(context).surface(), action, TEST_CONTEXT) as Promise<HostSurfaceActReceipt>;
 }
 
 test("a desktop step returns the tree from after it, and a stale coordinate is not clicked", async () => {
@@ -68,10 +76,10 @@ test("a desktop step returns the tree from after it, and a stale coordinate is n
   const calls: Call[] = [];
   const context = desk({ now: () => clock, calls });
   const driver = new ComputerDriver(context);
-  await driver.surface().observe("accessibility-tree", { session_id: "s" });
+  await observeSurface(driver.surface(), "accessibility-tree", TEST_CONTEXT);
   clock = 10_001;
   calls.length = 0;
-  await assert.rejects(() => driver.surface().perform(click(), { session_id: "s" }), /重新观察/);
+  await assert.rejects(() => performSurface(driver.surface(), click(), TEST_CONTEXT), /重新观察/);
   assert.equal(calls.some(call => call.op === "input.pointer"), false);
 });
 
@@ -111,8 +119,10 @@ test("the model is offered a target-window picture only when the tree is not eno
   assert.equal(words.some(call => call.op === "input.text"), false);
   assert.equal(words.filter(call => call.op === "input.pointer").length, 1);
 
-  await assert.rejects(() => acted(desk({ picture: shot({ password_fields: 1, masked: 0 }) })), /密码/);
-  await assert.rejects(() => acted(desk({ picture: shot({ included_pids: [4, 8] }) })), /别的应用/);
+  assert.deepEqual(await acted(desk({ truncated: true, picture: shot({ password_fields: 1, masked: 0 }) })), { tree: "操作已完成，请重新观察窗口。" });
+  assert.deepEqual(await acted(desk({ truncated: true, picture: shot({ included_pids: [4, 8] }) })), { tree: "操作已完成，请重新观察窗口。" });
+  await assert.rejects(() => observeSurface(new ComputerDriver(desk({ picture: shot({ password_fields: 1, masked: 0 }) })).surface(), "screenshot", TEST_CONTEXT), /密码/);
+  await assert.rejects(() => observeSurface(new ComputerDriver(desk({ picture: shot({ included_pids: [4, 8] }) })).surface(), "screenshot", TEST_CONTEXT), /别的应用/);
 });
 
 test("switching apps keeps that window's picture when the tree is not enough", async () => {

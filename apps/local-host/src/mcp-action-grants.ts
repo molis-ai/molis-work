@@ -49,7 +49,7 @@ function matches(grant: McpActionGrant, view: ActionView, caller: ActionCallCont
  * and the project's own read-only listings and object readers they read through. A record for the action, enabled or revoked,
  * always decides instead, so the person turns any of these off in 对外接入.
  */
-export function openByDefault(view: ActionView, caller: Pick<ActionCallContext, "actor_id" | "project_id" | "skill_round">): boolean {
+export function openByDefault(view: Omit<ActionView, "availability">, caller: Pick<ActionCallContext, "actor_id" | "project_id" | "skill_round">): boolean {
   // A task's grant subject holds nothing it was not given, project knowledge and permission-free system actions included (§3.3, G1).
   if (isTaskGrantSubject(caller.actor_id)) return false;
   if (view.provider.kind === "system" && view.action.permissions.length === 0) return true;

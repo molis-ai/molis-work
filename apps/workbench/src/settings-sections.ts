@@ -43,6 +43,7 @@ const HOST_SECTIONS: readonly HostSection[] = [
   { id: "library", label: "workbench.settings-sections.capability-library", icon: "book", group: "workbench.settings-sections.tools-and-access", order: 60 },
   { id: "connections", label: "workbench.settings-sections.service-connections", icon: "link", group: "workbench.settings-sections.tools-and-access", order: 61 },
   { id: "access", label: "workbench.settings-sections.external-access", icon: "shield", group: "workbench.settings-sections.tools-and-access", order: 62 },
+  { id: "authorizations", label: "workbench.authorization.manage", icon: "key", group: "workbench.settings-sections.tools-and-access", order: 62.5 },
   { id: "history", label: "workbench.settings-sections.call-history", icon: "workflow", group: "workbench.settings-sections.tools-and-access", order: 63 },
   { id: "running", label: "workbench.settings-sections.running", icon: "clock", group: "workbench.settings-sections.system", order: 88, desktop: true },
   { id: "update", label: "workbench.settings-sections.update", icon: "download", group: "workbench.settings-sections.system", order: 89 },

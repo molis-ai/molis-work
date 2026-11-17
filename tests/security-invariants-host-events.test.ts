@@ -1,3 +1,4 @@
+import { reviewDecisionStorage } from "./fixtures/review-decision-storage.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -89,7 +90,8 @@ async function platform(t: TestContext, extra: ReturnType<typeof probe>[] = [], 
   const running = createPluginPlatform({ actions, project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, journal: store,
     artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(),
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest), home: null });
-  const queue = new AgentReviewQueue(), forwarder = reviewSettlementForwarder(running.hostEvents);
+  const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store }), forwarder = reviewSettlementForwarder(running.hostEvents);
+  queue.observe(review => queue.registerDecisionHandler(review.review_id, async (_input, commit) => commit()));
   forwarder.update(listener => observeReviewSettlements(queue, DEMO_PROJECT_ID, listener, places));
   const failures: PluginEventDeliveryFailure[] = [];
   running.hostEvents.observeFailures(failure => failures.push(failure));
@@ -108,16 +110,16 @@ async function platform(t: TestContext, extra: ReturnType<typeof probe>[] = [], 
   /** A plugin operation `who` asks for now, still waiting for a person. */
   const request = (who: ReturnType<typeof probe>, projectId = DEMO_PROJECT_ID, expiresAt: string | null = null) => {
     const reviewId = `review-${++counter}`, pluginId = who.definition.manifest.plugin_id, asked = who.state.activation;
-    queue.request({ review_id: reviewId, run: null, project_id: projectId, plugin_id: pluginId, kind: "tool-operation",
+    queue.request({ reference: { owner: { kind: "agent-review" as const, project_id: projectId, plugin_id: pluginId, install_id: installOf(pluginId).install_id }, id: reviewId, version: "proposal-1" }, review_id: reviewId, run: null, project_id: projectId, plugin_id: pluginId, kind: "tool-operation",
       operation: { kind: "git-operation", operation_id: `operation-${counter}`, workspace_id: "w" },
       document: { kind: "tool-operation", tool: "git-commit", summary: "提交暂存区", fields: [] }, requested_at: "2026-10-22T00:00:00Z", expires_at: expiresAt },
     { plugin_id: pluginId, install_id: installOf(pluginId).install_id, holds: () => asked.live });
     return reviewId;
   };
   /** A plugin operation `who` asks for now, approved by a person and handed to its execution owner. */
-  const ask = (who: ReturnType<typeof probe>, projectId = DEMO_PROJECT_ID) => {
+  const ask = async (who: ReturnType<typeof probe>, projectId = DEMO_PROJECT_ID) => {
     const reviewId = request(who, projectId);
-    queue.decide({ review_id: reviewId, decision: "approve", actor_id: "owner" });
+    await queue.respond({ review_id: reviewId, version: "proposal-1", decision: "approve", actor_id: "owner" });
     queue.consumeApproval(reviewId);
     return reviewId;
   };
@@ -128,7 +130,7 @@ async function platform(t: TestContext, extra: ReturnType<typeof probe>[] = [], 
 test("X6-01 S-54 a settled review goes only to the installation that asked for it, never to another subscriber or another project", async t => {
   const { running, queue, asker, bystander, ask, settled, installOf, db } = await platform(t);
   for (const outcome of ["succeeded", "failed", "unknown"] as const) {
-    const reviewId = ask(asker);
+    const reviewId = await ask(asker);
     if (outcome === "unknown") queue.uncertain(reviewId, "结果未确认");
     else queue.settle(reviewId, outcome === "succeeded" ? { ok: true } : { ok: false, error: "失败" });
     await settled();
@@ -144,13 +146,13 @@ test("X6-01 S-54 a settled review goes only to the installation that asked for i
   assert.equal(asker.heard().length, 3);
   assert.deepEqual(bystander.heard(), [], "a plugin that subscribes to the same type hears nothing of a review it did not ask for");
   // The bystander's own review reaches it, and not the asker.
-  const own = ask(bystander);
+  const own = await ask(bystander);
   queue.settle(own, { ok: true });
   await settled();
   assert.deepEqual(bystander.heard().map(record => record.correlation_id), [own]);
   assert.equal(asker.heard().length, 3);
   // A review of another project is not this project's to send.
-  queue.settle(ask(asker, "another-project"), { ok: true });
+  queue.settle(await ask(asker, "another-project"), { ok: true });
   await settled();
   assert.equal(asker.heard().length, 3);
   assert.deepEqual(running.events.log(DEMO_PROJECT_ID).filter(record => record.event_type_id.startsWith("host.")), [], "host events are not in the event log");
@@ -159,7 +161,7 @@ test("X6-01 S-54 a settled review goes only to the installation that asked for i
 
 test("X6-02 S-54 an installation that does not subscribe gets nothing, and a stopped subscriber is not started for one", async t => {
   const { running, queue, asker, deaf, ask, settled, installOf } = await platform(t);
-  queue.settle(ask(deaf), { ok: true });
+  queue.settle(await ask(deaf), { ok: true });
   await settled();
   assert.deepEqual(deaf.heard(), [], "asked for the review, but its Manifest does not subscribe");
   assert.equal(running.hostEvents.notify({ plugin_id: C, install_id: installOf(C).install_id },
@@ -199,7 +201,7 @@ test("X6-05 S-54 a reinstalled, disabled, stopped or restarted installation gets
   const { running, queue, asker, ask, settled, failures, installOf } = await platform(t);
   const install = () => installOf(A).install_id;
   // Reinstalled: the installation id stays, the activation that asked is gone.
-  const beforeReinstall = ask(asker);
+  const beforeReinstall = await ask(asker);
   await running.runtime.stop(install());
   await running.runtime.uninstall(install());
   running.runtime.install({ definition: asker.definition, deployment: "local", grants: [], trust: { level: "host" } });
@@ -208,7 +210,7 @@ test("X6-05 S-54 a reinstalled, disabled, stopped or restarted installation gets
   await settled();
   assert.deepEqual(asker.heard(), [], "the new installation does not hear what the old one asked for");
   // Disabled.
-  const beforeDisable = ask(asker);
+  const beforeDisable = await ask(asker);
   running.supervisor.revoke(A);
   queue.settle(beforeDisable, { ok: true });
   await settled();
@@ -219,7 +221,7 @@ test("X6-05 S-54 a reinstalled, disabled, stopped or restarted installation gets
   // Stopped after queued: the first handler holds the queue, the second waits; stopping aborts the first and drops the second.
   const entered = deferred(), release = deferred();
   asker.state.handle = async (_record, context) => { entered.resolve(); await Promise.race([release.promise, new Promise(resolve => context.signal.addEventListener("abort", resolve))]); };
-  const first = ask(asker), second = ask(asker);
+  const first = await ask(asker), second = await ask(asker);
   queue.settle(first, { ok: true });
   queue.settle(second, { ok: true });
   await entered.promise;
@@ -236,7 +238,7 @@ test("X6-05 S-54 a reinstalled, disabled, stopped or restarted installation gets
   await running.runtime.start(install());
   const held = deferred(), letGo = deferred();
   asker.state.handle = async () => { held.resolve(); await letGo.promise; };
-  const third = ask(asker), fourth = ask(asker);
+  const third = await ask(asker), fourth = await ask(asker);
   queue.settle(third, { ok: true });
   queue.settle(fourth, { ok: true });
   await held.promise;
@@ -255,7 +257,7 @@ test("X6-05 S-54 a crashing installation gets nothing queued for it, even while 
   // The first handler holds the queue, the second waits behind it; then the installation crashes.
   const entered = deferred(), stopHook = deferred();
   asker.state.handle = async (_record, context) => { entered.resolve(); await new Promise(resolve => context.signal.addEventListener("abort", resolve)); };
-  const first = ask(asker), second = ask(asker);
+  const first = await ask(asker), second = await ask(asker);
   queue.settle(first, { ok: true });
   queue.settle(second, { ok: true });
   await entered.promise;
@@ -275,17 +277,17 @@ test("X6-05 S-54 a crashing installation gets nothing queued for it, even while 
 test("X6-06 S-54 an Agent's own change sends no settlement to anyone, and a review restored from history sends nothing at all", async t => {
   const watching = watcher(W);
   const { queue, asker, bystander, deaf, settled } = await platform(t, [watching], places({ "run-1": "/repo" }));
-  queue.request({ review_id: "agent-own", run: { run_id: "run-1", session_id: "s-1" }, project_id: DEMO_PROJECT_ID, plugin_id: A, kind: "command",
+  queue.request({ reference: { owner: { kind: "agent-review" as const, project_id: DEMO_PROJECT_ID, plugin_id: A, install_id: "install" }, id: "agent-own", version: "proposal-1" }, review_id: "agent-own", run: { run_id: "run-1", session_id: "s-1" }, project_id: DEMO_PROJECT_ID, plugin_id: A, kind: "command",
     document: { kind: "command", command: "npm", args: ["test"], cwd: ".", timeout_ms: 30000, env_allowlist: ["PATH"] }, requested_at: "2026-10-22T00:00:00Z", expires_at: null });
-  queue.decide({ review_id: "agent-own", decision: "approve", actor_id: "owner" });
+  await queue.respond({ review_id: "agent-own", version: "proposal-1", decision: "approve", actor_id: "owner" });
   queue.consumeApproval("agent-own");
   queue.settle("agent-own", { ok: true });
-  const restored = { review_id: "restored", run: null, project_id: DEMO_PROJECT_ID, plugin_id: A, kind: "tool-operation" as const,
+  const restored = { reference: { owner: { kind: "agent-review" as const, project_id: DEMO_PROJECT_ID, plugin_id: A, install_id: "install" }, id: "restored", version: "proposal-1" }, review_id: "restored", run: null, project_id: DEMO_PROJECT_ID, plugin_id: A, kind: "tool-operation" as const,
     operation: { kind: "git-operation" as const, operation_id: "operation-restored", workspace_id: "w" },
     document: { kind: "tool-operation" as const, tool: "git-commit", summary: "提交暂存区", fields: [] }, requested_at: "2026-10-22T00:00:00Z", expires_at: null };
   queue.restoreDecision(restored, { status: "approved", decided_by: "owner", decided_at: "2026-10-22T00:00:00Z", note: null });
   queue.settle("restored", { ok: true }, { restored: true });
-  queue.restoreDecision({ ...restored, review_id: "restored-later" }, { status: "approved", decided_by: "owner", decided_at: "2026-10-22T00:00:00Z", note: null });
+  queue.restoreDecision({ ...restored, review_id: "restored-later", reference: { ...restored.reference, id: "restored-later" } }, { status: "approved", decided_by: "owner", decided_at: "2026-10-22T00:00:00Z", note: null });
   queue.uncertain("restored-later", "重启后才确认");
   await placed();
   await settled();
@@ -312,21 +314,21 @@ test("RAC-331 BL-366 S-54 an Agent's approved write is announced to the workspac
   let counter = 0;
   const agent = (document: Parameters<AgentReviewQueue["request"]>[0]["document"], options: { run?: string; project?: string } = {}) => {
     const reviewId = `agent-${++counter}`;
-    queue.request({ review_id: reviewId, run: { run_id: options.run ?? "run-1", session_id: "s-1" }, project_id: options.project ?? DEMO_PROJECT_ID, plugin_id: A,
+    queue.request({ reference: { owner: { kind: "agent-review" as const, project_id: options.project ?? DEMO_PROJECT_ID, plugin_id: A, install_id: "install" }, id: reviewId, version: "proposal-1" }, review_id: reviewId, run: { run_id: options.run ?? "run-1", session_id: "s-1" }, project_id: options.project ?? DEMO_PROJECT_ID, plugin_id: A,
       kind: document.kind, document, requested_at: "2026-10-23T00:00:00Z", expires_at: null });
     return reviewId;
   };
-  const approve = (reviewId: string) => { queue.decide({ review_id: reviewId, decision: "approve", actor_id: "owner" }); queue.consumeApproval(reviewId); return reviewId; };
+  const approve = async (reviewId: string) => { await queue.respond({ review_id: reviewId, version: "proposal-1", decision: "approve", actor_id: "owner" }); queue.consumeApproval(reviewId); return reviewId; };
   const edit = (extra: object = {}) => ({ kind: "text-edit" as const, target_path: "a.ts", exists: true, before_text: "a", after_text: "b", ...extra });
   const command = { kind: "command" as const, command: "npm", args: ["test"], cwd: ".", timeout_ms: 30000, env_allowlist: ["PATH"] };
   const heard = () => watching.heard().map(record => record.payload);
 
-  queue.settle(approve(agent(edit())), { ok: true });
-  queue.settle(approve(agent(command)), { ok: false, error: "失败" });
-  queue.uncertain(approve(agent(command)), "结果未确认");
+  queue.settle(await approve(agent(edit())), { ok: true });
+  queue.settle(await approve(agent(command)), { ok: false, error: "失败" });
+  queue.uncertain(await approve(agent(command)), "结果未确认");
   // A subtask's root inside the project names the deepest workspace that holds it; an integration names its target.
-  queue.settle(approve(agent(edit({ workspace_path: "/repo/docs/guide" }), { run: "run-2" })), { ok: true });
-  queue.settle(approve(agent({ kind: "git-integration", source: { session_id: "s-1", run_id: "run-3", subagent_id: "sub", branch: "b", base_commit: "c", directory: "/elsewhere" },
+  queue.settle(await approve(agent(edit({ workspace_path: "/repo/docs/guide" }), { run: "run-2" })), { ok: true });
+  queue.settle(await approve(agent({ kind: "git-integration", source: { session_id: "s-1", run_id: "run-3", subagent_id: "sub", branch: "b", base_commit: "c", directory: "/elsewhere" },
     target_directory: "/repo", files: [] }, { run: "run-3" })), { ok: true });
   await placed(); await settled();
   // Each write is placed on its own, so they may arrive in any order.
@@ -338,13 +340,13 @@ test("RAC-331 BL-366 S-54 an Agent's approved write is announced to the workspac
   // Refusals: rejected (never ran), another project's, a round whose directory is outside every workspace, a subtask's own worktree,
   // a round that is gone, and kinds that write no directory. (A review with no round is refused when asked: the queue needs one.)
   const rejected = agent(edit());
-  queue.decide({ review_id: rejected, decision: "reject", actor_id: "owner" });
-  queue.settle(approve(agent(edit(), { project: "another-project" })), { ok: true });
-  queue.settle(approve(agent(edit(), { run: "run-2" })), { ok: true });
-  queue.settle(approve(agent(edit({ workspace_path: "/tmp/subtask" }))), { ok: true });
-  queue.settle(approve(agent(edit(), { run: "run-gone" })), { ok: true });
-  queue.settle(approve(agent({ kind: "tool-operation", tool: "open", summary: "打开", fields: [] })), { ok: true });
-  queue.settle(approve(agent({ kind: "mcp", server: "s", tool: "t", arguments_json: "{}" })), { ok: true });
+  await queue.respond({ review_id: rejected, version: "proposal-1", decision: "reject", actor_id: "owner" });
+  queue.settle(await approve(agent(edit(), { project: "another-project" })), { ok: true });
+  queue.settle(await approve(agent(edit(), { run: "run-2" })), { ok: true });
+  queue.settle(await approve(agent(edit({ workspace_path: "/tmp/subtask" }))), { ok: true });
+  queue.settle(await approve(agent(edit(), { run: "run-gone" })), { ok: true });
+  queue.settle(await approve(agent({ kind: "tool-operation", tool: "open", summary: "打开", fields: [] })), { ok: true });
+  queue.settle(await approve(agent({ kind: "mcp", server: "s", tool: "t", arguments_json: "{}" })), { ok: true });
   await placed(); await settled();
   assert.equal(heard().length, 5, JSON.stringify(heard()));
   // The payload names the workspace and the cause only; nobody is addressed a settlement for an Agent's write.
@@ -358,9 +360,9 @@ test("RAC-331 BL-366 S-54 an Agent's write still being placed when the Host stop
   const { queue, settled, running } = await platform(t, [watching], places({ "run-1": "/repo" }, gate));
   const forwarder = reviewSettlementForwarder(running.hostEvents);
   forwarder.update(listener => observeReviewSettlements(queue, DEMO_PROJECT_ID, listener, places({ "run-1": "/repo" }, gate)));
-  queue.request({ review_id: "late", run: { run_id: "run-1", session_id: "s-1" }, project_id: DEMO_PROJECT_ID, plugin_id: A, kind: "text-edit",
+  queue.request({ reference: { owner: { kind: "agent-review" as const, project_id: DEMO_PROJECT_ID, plugin_id: A, install_id: "install" }, id: "late", version: "proposal-1" }, review_id: "late", run: { run_id: "run-1", session_id: "s-1" }, project_id: DEMO_PROJECT_ID, plugin_id: A, kind: "text-edit",
     document: { kind: "text-edit", target_path: "a.ts", exists: true, before_text: "a", after_text: "b" }, requested_at: "2026-10-23T00:00:00Z", expires_at: null });
-  queue.decide({ review_id: "late", decision: "approve", actor_id: "owner" });
+  await queue.respond({ review_id: "late", version: "proposal-1", decision: "approve", actor_id: "owner" });
   queue.consumeApproval("late");
   queue.settle("late", { ok: true });
   forwarder.stop();
@@ -372,7 +374,7 @@ test("RAC-331 BL-366 S-54 an Agent's write still being placed when the Host stop
 
 test("X6-07 S-54 a settlement inside an action is delivered outside it, as the subscriber itself; a failing handler changes nothing", async t => {
   const { queue, asker, ask, settled, failures, installOf, client } = await platform(t);
-  const reviewId = ask(asker);
+  const reviewId = await ask(asker);
   let receipt: unknown;
   asker.state.inside = id => { receipt = queue.settle(id, { ok: true }); };
   asker.state.handle = () => { throw new Error("the subscriber failed"); };
@@ -398,7 +400,7 @@ test("X6-05 S-54 a workspace change is not kept for a stopped, disabled or reins
   // Stopped.
   await running.runtime.stop(install());
   const starts = watching.state.starts;
-  queue.settle(ask(asker), { ok: true });
+  queue.settle(await ask(asker), { ok: true });
   await settled();
   assert.equal(watching.state.starts, starts, "never started for a broadcast");
   await running.runtime.start(install());
@@ -406,7 +408,7 @@ test("X6-05 S-54 a workspace change is not kept for a stopped, disabled or reins
   assert.deepEqual(watching.heard(), [], "nor replayed once it runs again");
   // Disabled.
   running.supervisor.revoke(W);
-  queue.settle(ask(asker), { ok: true });
+  queue.settle(await ask(asker), { ok: true });
   await settled();
   await running.supervisor.enable(W);
   await settled();
@@ -414,8 +416,8 @@ test("X6-05 S-54 a workspace change is not kept for a stopped, disabled or reins
   // Queued, then reinstalled before dispatch: the first handler holds the queue, the second waits behind it.
   const entered = deferred(), release = deferred();
   watching.state.handle = async () => { entered.resolve(); await release.promise; };
-  queue.settle(ask(asker), { ok: true });
-  queue.settle(ask(asker), { ok: true });
+  queue.settle(await ask(asker), { ok: true });
+  queue.settle(await ask(asker), { ok: true });
   await entered.promise;
   watching.state.handle = undefined;
   await running.runtime.stop(install());
@@ -436,7 +438,7 @@ test("X6-08 S-54 a workspace change goes only to a subscriber that holds workspa
   running.runtime.grant(off, []);
   await running.runtime.start(off);
   assert.deepEqual(installOf(V).grants, []);
-  queue.settle(ask(asker), { ok: true });
+  queue.settle(await ask(asker), { ok: true });
   await settled();
   assert.deepEqual(watching.heard().map(record => record.event_type_id), [HOST_WORKSPACE_CHANGED_EVENT]);
   assert.deepEqual(switchedOff.heard(), [], "declared but not granted");
@@ -487,10 +489,10 @@ test("X6-08 S-54 a workspace change queued while its subscriber held workspace:r
 test("X6-09 S-54 a workspace change reaches no installation that does not subscribe to it, and none for another project's write", async t => {
   const watching = watcher(W), reader = probe(R, [SETTLED], [READ]);
   const { queue, asker, bystander, deaf, ask, settled } = await platform(t, [watching, reader]);
-  queue.settle(ask(asker, "another-project"), { ok: true });
+  queue.settle(await ask(asker, "another-project"), { ok: true });
   await settled();
   assert.deepEqual(watching.heard(), [], "another project's write is not this project's to announce");
-  queue.settle(ask(bystander), { ok: true });
+  queue.settle(await ask(bystander), { ok: true });
   await settled();
   assert.equal(watching.heard().length, 1);
   assert.deepEqual(reader.heard(), [], "holds workspace:read, but subscribes only to settlements of its own reviews");
@@ -502,7 +504,7 @@ test("X6-09 S-54 a workspace change reaches no installation that does not subscr
 test("X6-10 S-54 a workspace change names only the workspace and the cause: no review, operation, outcome, asker or correlation", async t => {
   const first = watcher(W), second = watcher(V);
   const { running, queue, asker, ask, settled, installOf, db } = await platform(t, [first, second]);
-  const reviewId = ask(asker);
+  const reviewId = await ask(asker);
   queue.settle(reviewId, { ok: false, error: "失败" });
   await settled();
   const [mine, theirs] = [first, second].map(item => { assert.equal(item.heard().length, 1); return item.heard()[0]!; });
@@ -543,22 +545,22 @@ test("X6-11 S-54 the type table fixes how a host event is sent: a settlement is 
 test("X6-12 S-54 every settled workspace operation is announced, whatever its outcome and whether its asker still runs; one that never ran is not", async t => {
   const watching = watcher(W);
   const { running, queue, asker, request, ask, settled, installOf } = await platform(t, [watching]);
-  queue.settle(ask(asker), { ok: true });
-  queue.settle(ask(asker), { ok: false, error: "失败" });
-  queue.uncertain(ask(asker), "结果未确认");
+  queue.settle(await ask(asker), { ok: true });
+  queue.settle(await ask(asker), { ok: false, error: "失败" });
+  queue.uncertain(await ask(asker), "结果未确认");
   await settled();
   assert.equal(watching.heard().length, 3, "a failed or unknown operation may have written part of its change");
   assert.equal(asker.heard().length, 3, "and the asker hears each of its own settlements");
   // Rejected, withdrawn or expired: decided without running, so never settled.
   const rejected = request(asker), cancelled = request(asker), expired = request(asker, DEMO_PROJECT_ID, "2000-01-01T00:00:00Z");
-  queue.decide({ review_id: rejected, decision: "reject", actor_id: "owner" });
+  await queue.respond({ review_id: rejected, version: "proposal-1", decision: "reject", actor_id: "owner" });
   queue.cancel(cancelled, "已撤回");
   assert.equal(queue.receipt(expired)?.status, "expired");
   for (const reviewId of [rejected, cancelled, expired]) assert.throws(() => queue.settle(reviewId, { ok: true }), { message: /没有消费过批准的操作不能记录执行结果/ });
   await settled();
   assert.equal(watching.heard().length, 3);
   // The asker stopped after asking: the operation ran all the same, so the others still hear of it, and the asker does not.
-  const afterStop = ask(asker);
+  const afterStop = await ask(asker);
   await running.runtime.stop(installOf(A).install_id);
   queue.settle(afterStop, { ok: true });
   await settled();

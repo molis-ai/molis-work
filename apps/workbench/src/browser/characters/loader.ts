@@ -1,3 +1,5 @@
+import { CHARACTERS_CLIENT_PATH } from "../../characters/client-path.js";
+
 // What every settings page carries for Settings › 角色 and 项目设置 › 角色: fetch the role program once, when a page shows it (now, or when the settings
 // cover places it); the program mounts itself.
 const load = () => {
@@ -6,7 +8,7 @@ const load = () => {
   const loaded = (globalThis as { molisWorkbenchPluginFactories?: Record<string, (host: object) => void> }).molisWorkbenchPluginFactories?.characters;
   if (loaded) { loaded({}); return; }
   const script = document.createElement("script");
-  script.src = "/assets/molis-work-plugins/characters.js";
+  script.src = CHARACTERS_CLIENT_PATH;
   script.dataset.charactersClient = "";
   // A role's native runs show in the platform's terminal (PG-053): a settings document without it gets it first.
   if (document.querySelector('script[src$="/desktop/pty-client.js"]')) { document.head.append(script); return; }

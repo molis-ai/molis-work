@@ -99,6 +99,7 @@ export { renderMolisWorkWorkRecordsClientScript } from "./settings-work-records.
 export { renderMolisWorkChooserSearchClientScript } from "./arrival/chooser-search.js";
 export { renderCharacters } from "./characters/ui.js";
 export { renderMolisWorkCharactersClientScript } from "./characters/client-asset.js";
+export { CHARACTERS_CLIENT_PATH } from "./characters/client-path.js";
 export { renderMolisWorkSessionsClientScript } from "./sessions/client-asset.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";

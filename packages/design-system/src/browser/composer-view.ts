@@ -161,7 +161,9 @@ function notice(c: Composer) {
  * grows in and the others ease aside, one that goes leaves its neighbours closing up (`paint` runs it in `molisReflow`, with the board's motion tokens).
  */
 function strip(c: Composer) {
-  const html = renderComposerStrip(c.labels, c.items, c.fill), list = c.box.querySelector<HTMLElement>(".mw-composer__files");
+  const pictures = c.options.attachments?.pictures;
+  const items = pictures ? c.items.map((item) => item.thumb ? { ...item, open: c.fill(pictures.open, { name: item.title }) } : item) : c.items;
+  const html = renderComposerStrip(c.labels, items, c.fill, pictures ? { pictures: true, label: pictures.label } : {}), list = c.box.querySelector<HTMLElement>(".mw-composer__files");
   if (!html) return list?.remove();
   const fresh = document.createElement("template");
   fresh.innerHTML = html;

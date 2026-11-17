@@ -18,7 +18,7 @@ export type Request = <T>(url: string, init: { body?: unknown; signal?: AbortSig
  * added, kept for 重试 (`retry`: the page could not read it this time, so trying again may help); `thumb` is a picture's own preview.
  */
 export type Item = { key: string; title: string; state: "reading" | "attached" | "failed"; reason?: string; material?: ComposerMaterial; from?: string;
-  file?: File; retry?: boolean; thumb?: string };
+  file?: File; retry?: boolean; thumb?: string; meta?: string };
 let keys = 0;
 /** A new row's key, unique in the document. */
 export const itemKey = () => `f${++keys}`;

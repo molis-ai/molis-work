@@ -6,6 +6,7 @@ export type ComposerAttachmentState = {
     state: "attached";
     ref: string;
     title: string;
+    meta?: string;
 } | {
     state: "failed";
     reason: string;
@@ -36,6 +37,11 @@ export interface ComposerCommonOptions {
     attachments?: {
         accept?: string;
         upload(file: File, signal: AbortSignal): Promise<ComposerAttachmentState>;
+        pictures?: {
+            label: string;
+            open: string;
+            close: string;
+        };
     };
     onMaterials?(): void;
     sources?: boolean;

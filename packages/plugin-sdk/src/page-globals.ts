@@ -190,7 +190,11 @@ export interface ComposerCommonOptions {
    * A rejection's message is said in the menu. The page's own references: no other plugin reaches them.
    */
   mentions?: (query: string, signal: AbortSignal) => Promise<readonly ComposerMention[]>;
-  attachments?: { accept?: string; upload(file: File, signal: AbortSignal): Promise<ComposerAttachmentState> };
+  /**
+   * Files the person brings. With `pictures` the strip is one row of previews that scrolls sideways (Coding A3): `label` names the row,
+   * `open` ("打开 {name}") names a preview's button, which opens the picture in the board's dialog, and `close` names its close.
+   */
+  attachments?: { accept?: string; upload(file: File, signal: AbortSignal): Promise<ComposerAttachmentState>; pictures?: { label: string; open: string; close: string } };
   /** Called after what the strip carries (`ComposerHandle.materials()`) changed, for a page that names it elsewhere too. */
   onMaterials?(): void;
   /** Whether the registered sources are listed in `+`; by default when `kind` is `ai`. */
@@ -255,7 +259,7 @@ export interface ComposerPause { label: string; title: string; busy?: boolean; r
  * What an upload ends as; while it runs the strip says it is being read. `failed` is a file that will not go (its row offers only
  * ×); an upload that rejects could not be read this time, and its row offers 重试 beside × (VUX-18).
  */
-export type ComposerAttachmentState = { state: "attached"; ref: string; title: string } | { state: "failed"; reason: string };
+export type ComposerAttachmentState = { state: "attached"; ref: string; title: string; /** Its size and state in a few words, shown under it (「240 KB · 已存一份」). */ meta?: string } | { state: "failed"; reason: string };
 
 export interface ComposerSubmission {
   text: string;

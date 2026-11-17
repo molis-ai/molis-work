@@ -7,7 +7,8 @@ import { retainComposer } from "./composer-retained.js";
 import { composerMenus, type ComposerMenus } from "./composer-menus.js";
 import { composerSender, type ComposerSender } from "./composer-send.js";
 import "./composer-program.js";
-import { attached, composerBasics, composerState, itemKey, letGo, mac, type Composer } from "./composer-state.js";
+import { attached, composerBasics, composerState, itemKey, letGo, mac, type Composer, type Item } from "./composer-state.js";
+import { renderDialog } from "../primitives/overlay.js";
 import { firstScreen, paint } from "./composer-view.js";
 
 /**
@@ -121,6 +122,7 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
       c.items = c.items.filter((item) => item.key !== data.composerRemove); c.requestId = ""; c.paint(); return field.focus();
     }
     if (data.composerRetry) return void sender.retry(data.composerRetry);
+    if (data.composerOpen) { const item = c.items.find((one) => one.key === data.composerOpen); return void (item?.thumb && openPicture(item, target as HTMLElement, c.options.attachments?.pictures?.close)); }
     if (data.composerFiles !== undefined) { c.close(); menus.untype(); return files.click(); }
     if (data.composerSource && Array.isArray(c.sources)) return menus.pick(c.sources[Number(data.composerSource)]!);
     if (data.composerPick && c.picking && Array.isArray(c.picking.found)) {
@@ -188,3 +190,19 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
 }
 
 globalThis.molisComposerProgram ??= mount;
+
+/**
+ * A picture on the strip, at its own size, in the board's dialog: named by its file, the picture's alt is that name, and closing it
+ * (Esc, ×, or a press outside) gives the focus back to the preview that opened it.
+ */
+function openPicture(item: Item, opener: HTMLElement, closeLabel = "") {
+  const shell = document.createElement("template");
+  shell.innerHTML = renderDialog({ labelledBy: `mw-picture-${item.key}`, title: item.title, body: `<img class="mw-picture__image" alt="">`, footer: "", className: "mw-picture", ...(closeLabel ? { closeLabel } : {}) });
+  const dialog = shell.content.firstElementChild as HTMLDialogElement;
+  const image = dialog.querySelector("img")!;
+  image.src = item.thumb!; image.alt = item.title;
+  dialog.addEventListener("click", (event) => { if (event.target === dialog || (event.target as Element).closest("[data-dialog-close]")) dialog.close(); });
+  dialog.addEventListener("close", () => { dialog.remove(); if (opener.isConnected) opener.focus({ preventScroll: true }); }, { once: true });
+  document.body.append(dialog);
+  dialog.showModal();
+}

@@ -40,7 +40,7 @@
 | Pages `pages.delete`／`pages.discard` | 删除／丢弃是独立操作，目标 `id`；discard 的 expected_version 仍是原前置版本；名称明确一并删除评论 | 修改内容的委托不能授权删除。原 owner 决定可删除性，不能把副作用少的命名当作只读 |
 | 连接器业务动作 | 沿相同声明绑定实际连接字段与对象字段；额外固定 connector owner 提供的连接 id、账号／租户身份、授权世代及工具／声明摘要 | 原连接调用器在真实网络派发前核账号、来源和当前授权。刷新凭据且身份不变不自行扩大范围；身份或来源无法被当前 owner 证明时不得保存持续自动范围 |
 | 无可信声明的 MCP 工具 | 只保存完整 JSON 参数及实际工具身份的精确指纹；连接身份边界同上 | 参数有任何变化就不命中，包括省略和显式 null；工具 annotation 不证明只读。不显示数据库／目录宽范围的静态承诺；未改变原执行前授权和原 SDK effect 归属 |
-| Coding 命令 | 原工作区身份、会话／工作 epoch、完整 command/argv/cwd/env_allowlist/timeout/background/outlives_run | 原 command document 与原 SDK pending 精确匹配；现有 elevate/network/path 的硬边界不由“记住”扩大。后续独立低风险 AI 评估器仍归第 64 批 |
+| Coding 命令 | 原工作区身份、会话／工作 epoch、完整 command/argv/cwd/env_allowlist/timeout/background/outlives_run | 原 command document 与原 SDK pending 精确匹配；现有 elevate/network/path 的硬边界不由“记住”扩大。后续独立低风险 AI 评估器归第 65-2 批 |
 
 服务连接的 MCP 动作沿原 `AgentActionReviewAuthority.resolveDelegation` 给出 `mcp_scope`。服务连接 owner 固定当前连接 id、修订、协议目标与声明世代，以及当前登记中的工具名和完整输入形状摘要。工作权限动作和审批执行都使用该 owner 与同一精确 JSON 范围。该字段仅由 Host 填入，页面和模型只能引用原提案。实际客户端仍在最终 HTTP 或 stdio 发送时核对原权限。连接收到请求而没有可靠结果时，由原效果进入待核对。
 

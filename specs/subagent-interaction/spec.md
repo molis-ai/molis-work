@@ -667,3 +667,9 @@ C 轨代码前合审补充两条实施边界：Host 重试必须同时有已核�
 `subtask-conversation.e2e.test.ts` 首次在关闭按钮聚焦后，PageDown 的稳定位置断言得到 11 与 27。用例在复位滚动的同一轮订阅 `scrollend`，可能先接到复位事件。复测将准备动作与 PageDown 分开，待键盘实际滚动结束后再兑现延迟草稿，保留关闭和返回两个入口的同一位置断言。
 
 本机另有两处既有安装插件回归。[BL-installed-plugin-mac-fixtures](../backlog/BL-installed-plugin-mac-fixtures.md) 记录用 Node 24.15 在干净 `dbcf562a67` 原样复现的 `installed-plugin-policy` 403 与超时（0/11），及 `installed-plugin-host` 同一个 Feed 重启断言（39/40）。两处沿原权限断言和夹具保留首败。
+
+候选 `e6e9dfbbc9` 的统一回归首轮跑完 380 文件，376 个文件通过。修正 `aa243ba6f8` 用仓库规定的 Node 24.15 重建，六个受影响套件共 144 项通过。角色套件 11/11，子对话浏览器套件 17/17，PageDown 另一次整文件复跑 17/17。其余四个套件核对 SDK 业务授权、中英文设置、提示词登记和能力包实物。加上先前通过且不受窄屏或本次修正影响的 18 文件，本批范围为 398 文件。其中两文件按上段保留主线同样失败，另有一个需主动开启的独立实网测试按默认跳过。清单、首败与复验留在 `/tmp/molis-b59-e6-validation-files.txt`、`/tmp/molis-b59-e6-reused-list.txt`、统一日志及 `/tmp/molis-b59-role-keyboard-targets.log`、`/tmp/molis-b59-role-keyboard-second.log`。
+
+最终源码的本机 npm 包为 27,339,425 B，SHA-256 `c53feb014192a1b88fa91072e3abd004f83cdc667cc832accd508b3f70aa817d`。确认 Host、Desktop、Coding 和 SDK 解析自隔离安装的包，复走 4 文件、23/23，包括助理四条来源、Coding 三入口、同目录重启和旧工作线布局。静态资源复查 67 项通过，首屏两条词包路径和四类页面冷热数字与 §12.21 相同。词包内容地址许可尚待确认。
+
+本机临时基线工作树已核实际提交、干净状态与占用后移除。安装、基线和首败的日志保留，现有页面截图对照沿 §12.21。

@@ -1,6 +1,6 @@
 # Sessions：外部 AI 工作导入、持续跟进与会话接续
 
-状态：需求草案（2026-10-28）；用户已定覆盖国内外主流公司的 AI 开发工具，不限 Codex 与 Claude Code；冷启动导入、持续了解进展、直接控制外部会话三类场景都要；工具接入并获准读取后，自动发现范围内已有会话，无需逐个导入，查看历史不启动执行。已有明确的目录／仓库与项目关联时自动归入，关系不明确或有多个候选时由 AI 建议、用户确认或改选，不自动新建项目。跨工具交接时由用户选择停止原任务后接手，或保留原任务并行继续。场景、厂商、自动发现、项目归属及交接选择已定，交互与接入细节待继续梳理；尚未实现或验收。2026-11-04 第 22 批定样已定：发现按时间排加来源条、待归类集中处理、历史看原文对话（§8）。本轮交付为概念方案与需求记录，先不开发。负责人：Codex（需求维护），实现待分配。
+状态：需求与合同已定，第 34 批已合入 main（2026-11-16，PR #2097 / `4a08c41ca7`），本人验收待做（[`BL-b34-sessions-acceptance`](../backlog/BL-b34-sessions-acceptance.md)）；用户已定覆盖国内外主流公司的 AI 开发工具，不限 Codex 与 Claude Code；冷启动导入、持续了解进展、直接控制外部会话三类场景都要；工具接入并获准读取后，自动发现范围内已有会话，无需逐个导入，查看历史不启动执行。已有明确的目录／仓库与项目关联时自动归入，关系不明确或有多个候选时由 AI 建议、用户确认或改选，不自动新建项目。跨工具交接时由用户选择停止原任务后接手，或保留原任务并行继续。2026-11-04～11-12 第 22 批定样与来源／历史读取合同（#2001、#2038）已合入：发现按时间排加来源条、待归类集中处理、历史看原文对话（§8）。第 34 批落地 `horizontal/sessions` 服务、10 个来源适配器（8 个可读历史）、归属与 AI 建议、搜索与工作台界面；恢复／发送／交接与持续跟进仍在第 59／60 批范围内，未接通入口按产品与地区保留缺口。负责人：Codex（需求维护），第 34 批实现：Antigravity（本机）。
 
 2026-10-28 排期调整：防腐收尾后，阶段 1·C 盘点国内外主流产品／入口及历史读取合同；阶段 2·C/F 接通自动发现、历史读取、项目归属和 Onboarding 的已有工作接续；阶段 3·C 完成持续跟进、直接控制与跨工具交接。按产品／入口逐项保留三类能力的覆盖与缺口，不因历史切片前移缩小厂商范围或把整个需求标为完成。来源适配接同一[观测和采集层](../observation-collection/spec.md)，本轮不开发、实现仍待分配。
 
@@ -144,7 +144,7 @@
 | SRB-17 | 原会话运行时，用户可选“停止后接手”或“保留并行”；未选／取消不改变原任务也不启动目标，已在请求中明确选择的不重复询问，其他无关任务不受影响 | 用真实运行会话分别走界面选择和明确对话请求，核对两边任务的状态、执行位置、接收消息及无关任务 |
 | SRB-18 | 停止后接手确实先确认原任务停止；失败／未知不伪造成功，接手失败保留原任务已停止的状态；并行模式确实保持原任务运行；重启不重复交接效果 | 制造停止失败、回执丢失、接手启动失败和重启，核对原生工具状态、会话数量、输入与实际副作用 |
 
-本轮文档检查：`git diff --check`、仓库 `docGateProblems` 文档与仓库形状检查；提交推送前运行 `pnpm secrets:check`。实现期测试须调用实际生产适配与公共路径，测试名或注释标明 SRB 编号；具体命令随实现文件确定。当前未运行任何厂商的实际会话适配、产品功能测试或本人验收。
+第 34 批已合入并交付历史发现、按页读取、搜索、确定性目录／worktree 自动归属、AI 归属建议、工作台「外部会话」表面及安全不变量；Gemini/Qoder/Kimi/MiniMax/Pi 的未知 schema 与 Kimi 双格式、`gh` 403 恢复也已有测试（`tests/sessions-service.test.ts`、`tests/sessions-adapters.test.ts`、`tests/sessions-search-assistant.test.ts`、`tests/sessions-workbench.test.ts`、`tests/sessions-workbench.e2e.test.ts`、`tests/security-invariants-external-sessions.test.ts`）；界面实物与本机已装外部工具实操待用户本人验收（[`BL-b34-sessions-acceptance`](../backlog/BL-b34-sessions-acceptance.md)）。冷启动引导导入（`SRB-09`）与持续跟进、直接控制发送、运行中交接（`SRB-04`、`SRB-05`、`SRB-17`、`SRB-18` 及 `SRB-03/06/08/10/11` 控制侧）按路线书第 45、60 批推进。
 
 ## 6. 接续事项
 
@@ -156,24 +156,37 @@
 
 ## 7. 开工前检查
 
-第 22 批（[需求开发流程 §4](../post-anticorruption-roadmap/reference/development-workflow.md)）。本批现在只做定样与只读核查；下表回答的是合同与服务开工时的安排，统筹审过再开工。
+第 22 批定样与合同检查已随 #2001、#2038 完成；第 34 批（[需求开发流程 §4](../post-anticorruption-roadmap/reference/development-workflow.md)）开工前逐项复核如下：
 
 | # | 项 | 回答 |
 | --- | --- | --- |
-| 1 | 事实主人 | 原生会话与执行状态归外部工具；会话目录、来源状态、读取范围（含每个项目的 AI 读取许可）、归属与依据是平台事实，归新的 Sessions 平台服务；项目与目录关系归项目主人，经它的公开合同读（§1.3），不另存一份；持续跟进的记录归观测和采集层 |
+| 1 | 事实主人 | 原生会话与执行状态归外部工具；会话目录、来源状态、读取范围（含每个项目的 AI 读取许可）、归属与依据是平台事实，归新的 Sessions 平台服务（`horizontal/sessions`）；项目与目录关系归项目主人，经它的公开合同读（§1.3），不另存一份；持续跟进的记录归观测和采集层 |
 | 2 | 插件同等待遇 | 平台服务，不是插件；场景和插件经动作目录调用，不开私路 |
-| 3 | 能力注册 | 第 22 批 11 个动作（列表、读取，读取范围的读与写、项目 AI 读取许可、发现、归属的决定与建议、两个搜索、搜索结果的对象读取器；服务片 S-1 再加连接使用方，共 12 个；以后的恢复、发送、交接另加），各注册一次，页面、工作流、Agent、MCP 共用；身份与项目取自调用上下文；读外部工具与调模型的动作声明 `scheduling: "concurrent"` |
-| 4 | 合同 | 改：外部工具登记表、会话身份、上面 11 个动作（[合同设计](contract-design.md) §4～§8）；现在不留兼容期，一片合同 PR 改完这一片的所有消费者，分四片单独先开（合同设计 §10.1：登记表与派生、读取、归属与搜索，加改 Projects 的目录来源） |
-| 5 | 放在哪个包 | 登记表与动作合同在 `packages/contracts`；服务是 `horizontal/` 下的新包，宿主只装配（用户 2026-11-01 定） |
-| 6 | 表与存储 | 会话目录索引、来源进度、读取范围、项目 AI 读取许可、单条归属由新包建表、只它读写；新库只留当前基线，版本不符就拒绝，不写迁移链（[合同变更流程](../../docs/system/CONTRACT-CHANGES.md)），用户决定的表怎样跨版本保留跟第 05 批的升级规则；原生记录不复制，只存能回到来源的索引 |
+| 3 | 能力注册 | 共 12 个动作（`sessions.list`、`history.read`、`scope.read`、`scope.set`、`project_ai_read.set`、`discovery.run`、`attribution.set`、`attribution.suggest`、`search.entries`、`subject.read`、`tool.search`、`connector.usages`；以后的恢复、发送、交接另加），由 `system.sessions` 各注册一次，页面、工作流、Agent、MCP 共用；身份与项目取自调用上下文；读外部工具与调模型的动作声明 `scheduling: "concurrent"` |
+| 4 | 合同 | 沿用第 22 批已合入的 `platform/external-tools` 与 `services/sessions`（[合同设计](contract-design.md) §4～§8），本批按第 12 节第 30、38 行补 `sessions.connector.usages@1`、删无路径抛出的 `sessions.suggestion_unavailable`，并按实装复核更新 `external-tools.ts` 的 `claude-code`、`grok-build`、`gemini-cli`、`copilot-coding-agent`、`qoder-cn`、`kimi-code` |
+| 5 | 放在哪个包 | 登记表与动作合同在 `packages/contracts`；服务在 `horizontal/sessions`（`@molis-ai/molis-work-service-sessions`），宿主 `apps/local-host/src/sessions-actions.ts` 与 `sessions-ports.ts` 只做端口注入与动作登记（用户 2026-11-01 定） |
+| 6 | 表与存储 | `external-sessions/external-sessions.db` 第 1 版基线，8 张表（索引、目录缓存、来源进度、读取范围、项目 AI 读取许可、单条归属、AI 建议缓存、元数据）由 `horizontal/sessions` 建表、只它读写；版本不符就拒绝，不写迁移链（[合同变更流程](../../docs/system/CONTRACT-CHANGES.md)）；不用退役目录 `sessions/`；对话全文不复制（标题与建议短引文除外） |
 | 7 | 兼容与迁移 | 不加；工具 id 沿用现值，存量 `runtime_id` 照样有效 |
-| 8 | 安全边界 | 碰：读本机目录（只读允许的根目录，沿角色导入做法）、子进程调外部工具的正式命令（参数校验沿 S-103 的会话 ID 规则）、提示注入（会话原文进模型时按不可信内容处理）、读 `.git` 文件认仓库（绝不运行 git）。读取权与归属分开：每个项目一个 AI 读取许可，默认关，开一次长期有效，只有本人能改；Agent、工作流、生成页面读列表和原文都要它，且只到当前项目已归属的会话（含自动归入，不含工具报的绑定）；MCP 另需逐客户端授权；待归类与全部只有本人；团队项目先不开放。开工时在安全不变量表加行并写「拒绝」测试 |
-| 9 | 调用次数 | 一次打开列表一个请求，带回本页条目与来源状态；原文按页读；发现在后台按来源逐步进行；页面只在有来源在读且页面可见时询问，逐步拉长，隐藏即停、失败退避、读完即停（对抗式审查 N54） |
-| 10 | 升级与数据 | 索引可由原工具重建；读取范围、项目 AI 读取许可、单条归属与「先不归」是用户决定，升级后保留 |
-| 11 | 成果与过程项 | 会话不进成果库；冷启动整理出的背景、决定按各自主人的流程写入 |
-| 12 | 页面与外壳 | 列表与历史挂在工作台位置上，不出整页；入口位置随第 03 批工作台定样 |
-| 13 | 错误 | 新错误码用 `defineErrorCodes("sessions", …)` 声明；「需要登录」「这一版读不了」「没读成」「暂不支持」是不同的码，都不报成空列表 |
-| 14 | 冲突面 | 合同改动在 C1 合同队列；工作终端的 `RECIPES` 改为从登记表读，碰宿主文件 `apps/local-host/src/plugin-terminal-runtimes.ts`，另有手写名单七处（[合同设计](contract-design.md) §4.4），由 C 轨写手落；其中 `apps/desktop/src/web-host.ts` 归 F 轨，按轨道规则 7；目录来源一片改 `modules/projects`、动 `modules/projects.txt` 快照，由 C 轨写手认领、请 Module 主人评审 |
+| 8 | 安全边界 | 登记并守住 6 条语义名不变量：`S-sessions-read-roots`、`S-sessions-read-only-commands`、`S-sessions-recheck-before-return`、`S-sessions-untrusted-text`、`S-sessions-person-decides`、`S-sessions-git-files-only`，测试在 `tests/security-invariants-external-sessions.test.ts`；在登记 `sessions.search.entries@1` 与 `sessions.subject.read@1` 前先堵住插件经 Knowledge 代读、引用种类泄露与助理非明确动作带入三条路径 |
+| 9 | 调用次数 | 一次打开列表一个请求，带回本页条目与来源状态；原文按页读；发现在后台按来源逐步进行（全局并发 2、同来源 1）；页面只在有来源在读且页面可见时询问，2 秒起逐步拉长至 15 秒，隐藏即停、失败退避、读完即停（对抗式审查 N54） |
+| 10 | 升级与数据 | 索引可由原工具重建；读取范围、项目 AI 读取许可、单条归属与「先不归」是用户决定；项目删除经 `ProjectDataDeclaration` 清掉该项目的 AI 读取许可与指向该项目的建议，保留单条决定以显示 `project_gone` |
+| 11 | 成果与过程项 | 会话不进成果库，也不是过程项；冷启动整理出的背景、决定按各自主人的流程写入 |
+| 12 | 页面与外壳 | 列表与历史挂在工作台位置上，不出整页；来源差异、云端去连接与 `account_changed` 出路、助理明确动作提示与项目设置目录来源区分先出样确认后再落 S-5 产品界面 |
+| 13 | 错误 | 14 个错误码用 `defineErrorCodes("sessions", …)` 在合同中一处声明，在 `tooling/gates/error-owners.json` 登记主人；「需要登录」「这一版读不了」「没读成」「暂不支持」分码表达，绝不报成空列表 |
+| 14 | 界面文字与外观 | 新增界面全部走 `t("<主人>.<位置>.<元素>", 参数)`，中英双语词条齐备，日期数字走 `format`，样式只用设计系统语义令牌；`.mw-setting`／`.mw-who` 迁入产品样式表 |
+| 15 | 冲突面 | 在 `#1743` 认领 `services/sessions.txt`、`modules/private-work-context.txt`、`platform/external-tools.ts`、`sessions.*` 动作快照与 `database.external_sessions_database`；避开在途批次占用的 `horizontal/knowledge/src/index.ts`、`platform/actions.ts` 与 `services/assistant.ts`，S-4 守卫落在宿主接线层 |
+
+### 7.1 平台已有能力核对（流程 §4.1）
+
+对照 [`docs/reviews/platform-capability-audit-2026-11-14.md`](../../docs/reviews/platform-capability-audit-2026-11-14.md) 第 1 节：
+
+| 要做的事 | 复用的平台能力 | 不重造什么 |
+| --- | --- | --- |
+| 跨会话搜索与结果打开 | `defineSearchEntriesAction`、`defineSubjectContextAction`、`horizontal/search` 的 `markChanged` | 不自建第二套全局搜索索引或原文库 |
+| 云端工具账号与连接引用 | `connector-host`（含 `cli` 连接指纹核对）与 `defineConnectorUsagesAction`（`sessions.connector.usages@1`） | 不在 Sessions 里存 OAuth 令牌或另做连接管理 |
+| AI 归属建议调模型 | `horizontal/agent-host` 的 `hostTextGeneration`、系统提示词登记表 `system-prompts.ts`、S-13 JSON 围栏与 `plugin-sdk` 密钥脱敏 | 服务包不直接依赖 `@prologue/sdk`，也不自写 HTTP 调模型 |
+| 项目与目录关系、删除清理 | `ProjectsQueryApi.listWorkspaceDirectory()`（含 `person_project_ids`）、`modules/private-work-context` 只读绑定、`ProjectDataDeclaration`（`project-deleted-owners.ts`） | 不另建 Sessions 专属项目目录表或删除钩子 |
+| 界面控件与布局 | `@molis-ai/molis-work-design-system` 的 Sheet、Tabs、Switch、Badge、Button 与第 22 批已入组件板的 `.mw- transcript`／`.mw-setting`／`.mw-who` | 不手写平行按钮、弹窗或硬编码色值 |
 
 ## 8. 决策记录
 
@@ -199,5 +212,10 @@
 | 2026-11-09 | **升级补出的默认输出目录跟新建项目一致**：目录库从第 1 版升到第 2 版时补出的默认输出目录，只要项目原有的关系里有一条是本人建的，就记本人 | 用户原话「A 跟新建项目一致」：同一件事在新建和升级时结果一样 | 一律不算本人（升级后的项目要本人再连一次输出目录） |
 | 2026-11-09 | **终端旧关系接受，不修存量**：P-1 之前终端面板带 `cwd` 写下的目录关系 `bound_by` 是本人 id，按白名单算本人建的；不加维护逻辑，不写合同变更登记。只影响 2026-10-31 以后在终端面板带过 `cwd` 的开发机 Home | 用户原话「A 接受，不修存量」：范围只在开发机，修存量要写维护逻辑 | 写一次维护把这些行改成工具来源 |
 | 2026-11-12 | **第 22 批派子代理写的部分照收**：11-12 接续时优化、组件板两段与整批测试派给了子代理，和决定 34「主会话自己写、只有评审用子代理」不符；用户事后定接受，记为一次性例外，之后都由主会话自己写 | 评审台已逐提交审过、无挡合并的点；重做只花时间，结果多半一样 | 主会话逐提交复读再改（多一两小时）；回退重写（几小时加一轮整批测试） |
+| 2026-11-15 | **具体来源差异（块 1）用方案 A**：CLI 工具支持按会话恢复时，会话顶栏给「复制恢复命令」并在只读说明下安静列出命令文本；`minimax-code`（`mcode`）无单会话恢复参数时安静标明「仅目录内交互恢复」；云端带 PR 时给「在 GitHub 打开 Pull Request」；跨会话默认搜标题／目录／工具名，筛选到带自带搜索的 Droid 时露出「在 Droid 里搜」（`sessions.tool.search@1`）并注明跳过范围外条数；读取范围 Sheet 把登记的 50 个条目分成「已接通（10）」「仅手动导出（Grok Build、Amp）」「暂不支持（区分『工具未开放』与『待接通』）」三组；同时落实 Sheet 写明含子目录与互指核实的 git worktree、待归类写明发给配置模型的内容且与项目 AI 许可无关、改归属 Dialog 写明「它连着的工具调用仍落在旧项目」 | 不多占对话正文高度，不为不支持恢复或工具内搜索的 9 个来源画常灰按钮，用户也一眼分清是工具没给接口还是 Molis Work 还没接 | B 正文上方常驻命令行条＋工具栏常驻「工具内搜索」弹窗（多占高度且平时常灰）；C 收进下拉菜单＋敲字自动混跑工具子进程搜索（每次输入起子进程且难解释命中范围） |
+| 2026-11-15 | **云端连接与账号变化（块 2）用方案 A**：读取范围 Sheet 里云端来源行下直接给账号连接下拉（无连接时禁用勾选并给「去连接设置」按钮跳 `connect_service_id`）；`gh` 缺 `repo` 权限（`login_expired`）时说明不静默扩权并给 `gh auth refresh -h github.com -s repo` 一键复制与重试；`account_changed` 时给双出口恢复卡：①「我已在终端切回原账号，重新核对」（调 `sessions.discovery.run@1`），②「去读取范围改用新账号的连接」（说明旧账号会话移出范围、单条归属重置） | 少一层模态弹窗；遇到终端切号或权限不足时不用猜去哪修，两条路都在眼前 | B 勾选时弹窗选连接、`account_changed` 只给「打开读取范围」单按钮（多一层弹窗，切回原账号也要先进一次 Sheet） |
+| 2026-11-15 | **项目设置区分工具带入目录（块 3）用方案 A**：保持项目设置「输入与输出 → 读取的文件夹」单列表不拆卡；本人连的目录保持原样；外部工具经 MCP `context_bind` 带入的目录标 `工具带入 · 待确认`（attention 状态词）与一行后果说明（不进外部会话「项目连着的目录」范围、不自动归入会话），行尾给「确认连入」按钮（调 `add_input` 升为本人目录）；输出目录未确认时联动下方「读取仓库说明文件」开关 | 全部目录都是本人加时与现有界面完全一致；有工具带入目录时原地看清后果并一键确认，同一目录兼作输入输出时不用在两张卡之间对照 | B 拆成「你添加的文件夹」与「工具带入、待你确认」两张卡（目录少时多一层卡片标题，兼作输出的目录要两处找） |
+| 2026-11-15 | **助理引用外部会话与选区边界（块 4）用方案 A**：复用助理输入框上方的上下文条（`.assistant-strip-chip.is-optional`），外部会话页面的选区与当前外部会话都作为虚线候选签显示（点 `+` 才加入本轮，绝不自动发送）；加入后签内标 `不可信材料 · 仅本轮`；`@` 引用外部会话时标 `仅标题与目录 · 仅本轮` 并附一行安静提示引导用选区 `+` 带对话正文；当前轮还在运行时禁用 `+` 并一行说明为何不能中途补充外部会话内容 | 与工作台助理现有上下文条同构，不新造选区浮动按钮，也不常驻占高度的说明横幅 | B 原文选区浮动按钮＋输入框上方常驻横幅卡片（多一套浮层定位且横幅常驻占高） |
+| 2026-11-15 | **页面资源与首屏预算许可（`sessions-b34.json`）**：外部会话交互脚本拆为按需懒加载包 `/assets/molis-work-plugins/sessions.js`（批准额度 `+46,254 B`；合后审计修复后实测 `47,166 B`，增量登记在 `sessions-b34-audit-followup.json`，仍低于单次 10 KB 涨幅门槛，不进任何首屏）；工作台样式表 `/assets/molis-work-workbench.css`（`+14,331 B`）按批次文件要求收进组件板 `SETTING_ROW_STYLES`／`WHO_STYLES`／`SESSION_SOURCE_STYLES` 共用原语与表面／助手条／目录徽章样式；工作台与搜索脚本 `+3,647 B`／`+11 B` 及双语语言包更新经用户本人确认登记 | 交互脚本按需加载不压首屏，共用原语与首屏可见徽章留在样式表避免闪烁 | 将部分表面样式改由按需脚本运行时动态插 `<style>` |
 
-用户本人在原型（[`docs/design/sessions-sources/`](../../docs/design/sessions-sources/README.md)）上看过三处、各选推荐方案；原型按组件板实件做，中英文、浅深色、1440／1024／390 都看过。产品实物做出来后仍要用户本人验收。
+用户本人在原型（[`docs/design/sessions-sources/`](../../docs/design/sessions-sources/README.md)、[`docs/design/sessions-34/`](../../docs/design/sessions-34/README.md)）上看过两批共七处定样、各选推荐方案 A（及第 22 批 B/B/A/A）；原型按组件板实件做，中英文、浅深色、1440／1024／390 都看过。产品实物做出来后仍要用户本人验收（`BL-b34-sessions-acceptance`）。

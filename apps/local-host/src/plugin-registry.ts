@@ -33,6 +33,7 @@ export function catalogProblems(catalog: readonly PluginRegistration[]): string[
   const listed = new Set(catalog.map(entry => entry.project_plugin_id));
   for (const entry of catalog) {
     if (entry.project_plugin_id === ARTIFACTS_PROJECT_PLUGIN_ID) problems.push("artifacts: the project key belongs to the platform, not a Plugin");
+    if (entry.project_plugin_id === "sessions") problems.push("sessions: the project key belongs to the platform, not a Plugin");
     if ((entry.manifest.runtime?.scope === "home") !== (entry.runtime !== undefined)) {
       problems.push(`${entry.project_plugin_id}: the Manifest's runtime.scope and the registration's runtime (the code a Home instance starts from) go together`);
     }

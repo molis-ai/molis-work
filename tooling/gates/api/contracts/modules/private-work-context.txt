@@ -54,7 +54,7 @@ export interface MolisWorkRuntimeContextUnbindResult {
     unbound_project: MolisWorkProjectSelection | null;
     changed: boolean;
     kept?: {
-        code: "work.context.person_relation_kept";
+        code: typeof WORK_CONTEXT_PERSON_RELATION_KEPT_CODE;
         message: string;
     };
 }
@@ -141,6 +141,8 @@ export interface UnbindRuntimeWorkContextInput {
     binding_scope?: "session" | "workspace";
     project_id?: string;
 }
+
+export declare const WORK_CONTEXT_PERSON_RELATION_KEPT_CODE: "work.context.person_relation_kept";
 
 export declare const modulesPrivateWorkContextContract: {
     readonly contractId: "io.molis.work.module.private-work-context.v1";

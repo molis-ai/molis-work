@@ -104,7 +104,7 @@ test("RAC-605 a plugin's name and declared texts come out escaped, and the direc
   const evil = parsed.find(entry => entry.id === "evil") as { order?: unknown } | undefined;
   assert.equal(typeof evil?.order, "number", "the rail offers the installed plugin, and the client gets its position");
   assert.deepEqual(evil, { id: "evil", accepts_objects: true, hue: null, order: evil?.order }, "the client receives its routing fields without the unconsumed name");
-  assert.deepEqual(clientPluginDirectory([hostile]), [{ id: "artifacts", accepts_objects: true, hue: "pink" }, { id: "evil", accepts_objects: true, hue: null }], "the direct projection keeps the platform route and omits display names");
+  assert.deepEqual(clientPluginDirectory([hostile]), [{ id: "artifacts", accepts_objects: true, hue: "pink" }, { id: "sessions", accepts_objects: false, hue: "indigo" }, { id: "evil", accepts_objects: true, hue: null }], "the direct projection keeps the platform routes and omits display names");
   // Nothing the plugin wrote is markup in the page: its tag is text, its icon names no artwork.
   assert.doesNotMatch(html, /<img\b[^>]*src=x/u);
   assert.doesNotMatch(html, /<svg onload/u);
@@ -200,16 +200,16 @@ test("RAC-605-KEY-02 equal Manifest ids retain each entry's slots, chosen state,
   const other = installed("other", { order: 3 });
   const directory = pluginDirectoryFor([alpha, stage, other, beta]);
   const rail = railEntries(["beta"], directory);
-  assert.deepEqual(rail.map(item => [item.id, item.label, item.chosen]), [["beta", "beta nav", true], ["other", "Notes", false], ["alpha", "alpha nav", false], ["artifacts", "成果", false], ["stage-runtime", "Stage runtime", false]]);
-  assert.deepEqual(railEntries([], directory).map(item => item.id), ["other", "alpha", "artifacts", "stage-runtime"], "only chosen entries need membership; the platform and other running entries still open their own stage");
+  assert.deepEqual(rail.map(item => [item.id, item.label, item.chosen]), [["beta", "beta nav", true], ["other", "Notes", false], ["alpha", "alpha nav", false], ["artifacts", "成果", false], ["sessions", "外部会话", false], ["stage-runtime", "Stage runtime", false]]);
+  assert.deepEqual(railEntries([], directory).map(item => item.id), ["other", "alpha", "artifacts", "sessions", "stage-runtime"], "only chosen entries need membership; the platform and other running entries still open their own stage");
   assert.deepEqual(islandEntries(["beta"], directory).map(item => [item.id, item.label]), [["beta", "beta island"], ["alpha", "alpha island"]]);
   assert.deepEqual(settingsEntries(["beta"], directory).map(item => [item.plugin_title, item.plugin_id, item.view_id, item.contribution_id]),
     [["beta", pluginId, "preferences", `${pluginId}.preferences`], ["alpha", pluginId, "preferences", `${pluginId}.preferences`]], "shell keys do not rewrite Manifest or contribution identity");
   const tie = pluginDirectoryFor([entry("z-first", false, 1), entry("a-second", false, 1)]);
-  assert.deepEqual(railEntries([], tie).map(item => item.id), ["z-first", "a-second", "artifacts"], "equal order, Manifest id and view id retain declaration order, rather than sorting by shell key");
+  assert.deepEqual(railEntries([], tie).map(item => item.id), ["z-first", "a-second", "artifacts", "sessions"], "equal order, Manifest id and view id retain declaration order, rather than sorting by shell key");
   const copied: PluginDirectoryEntry = { ...entry("copied-runtime", false, 1), name: "Same name", ui: { views: [{ view_id: "main", slot: "navigator", title: "Same title", order: 1 }] } };
   assert.deepEqual(railEntries(["copied-market"], pluginDirectoryFor([copied, { ...copied, id: "copied-market", chosen: true }])).map(item => item.id),
-    ["copied-runtime", "copied-market", "artifacts"], "identical untrusted names and view declarations still belong to their own shell keys");
+    ["copied-runtime", "copied-market", "artifacts", "sessions"], "identical untrusted names and view declarations still belong to their own shell keys");
 });
 
 test("RAC-605-KEY-03 only a sanitized Runtime entry overrides its matching market key", () => {
@@ -245,7 +245,7 @@ test("RAC-619 the Host's marks (personal, home, always_on, companions) are kept 
   // under 个人 (07-S2, 口径 8); no display field and no other Host field. Since 07-1 S4b that `personal` is `isPersonalPlugin` (the
   // Host's personal and home marks both), so `kept` carries `home` here, and a chosen entry marked personal alone (data of the person's
   // across projects, but run per project, as Pages) is not listed under 个人.
-  assert.deepEqual(JSON.parse(directoryData(renderPluginDirectoryData([kept!]))), [{ id: "artifacts", accepts_objects: true, hue: "pink" }, { id: "kept", accepts_objects: false, hue: null, personal: true }]);
+  assert.deepEqual(JSON.parse(directoryData(renderPluginDirectoryData([kept!]))), [{ id: "artifacts", accepts_objects: true, hue: "pink" }, { id: "sessions", accepts_objects: false, hue: "indigo" }, { id: "kept", accepts_objects: false, hue: null, personal: true }]);
   const perProject = sanitizePluginDirectory([marked("per-project", true, { personal: true })]);
   assert.deepEqual(JSON.parse(directoryData(renderPluginDirectoryData(perProject))).find((entry: { id: string }) => entry.id === "per-project"), { id: "per-project", accepts_objects: false, hue: null });
 });
@@ -351,7 +351,7 @@ test("RAC-606 the page carries the directory for its scripts: a plugin that decl
   assert.deepEqual(parsed.filter(entry => entry.accepts_objects).map(entry => entry.id).includes("notes"), true);
   assert.equal(parsed.find(entry => entry.id === "plain")?.accepts_objects, false);
   assert.equal(parsed.find(entry => entry.id === "pages")?.accepts_objects, true, "a built-in the Host did not list is the market's, read the same way");
-  assert.deepEqual(clientPluginDirectory(builtinPluginDirectory()).map(entry => entry.id), ["artifacts", ...BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id)]);
+  assert.deepEqual(clientPluginDirectory(builtinPluginDirectory()).map(entry => entry.id), ["artifacts", "sessions", ...BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id)]);
   assert.match(CLIENT_SCRIPT, /script\[data-plugin-directory\]/u);
   // The two platform tabs (成果, and 资料 since batch 06) lead; every plugin after them comes from the page's directory, never a literal.
   assert.doesNotMatch(CLIENT_SCRIPT, /\["artifacts",\s*"(?!materials")/u);

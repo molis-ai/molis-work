@@ -169,6 +169,8 @@ export type ComposerOptions = ComposerCommonOptions & (
 );
 
 export interface ComposerCommonOptions {
+  /** Keep this instance in its given root, including an AI composer in a plugin frame. Omit to use the workbench bar's normal receiver routing. */
+  placement?: "local";
   /** The entry's name, unique inside the plugin ("session"). */
   entry: string;
   /**
@@ -282,6 +284,8 @@ export type ComposerOutcome =
   | { state: "unknown"; check(): Promise<"sent" | "not-sent" | "unknown"> };
 
 export interface ComposerHandle {
+  /** Wait for this input program to mount. A load failure rejects; another call retries. Closed or inactive mounts reject. Draft reads settle separately. */
+  ready(): Promise<void>;
   setRunning(running: boolean): void; refresh(): void; focus(): void; insert(text: string): void;
   /**
    * The page cannot take words now (Coding until a session's first read is in, or while it starts a round by another button): the

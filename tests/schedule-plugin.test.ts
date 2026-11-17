@@ -228,6 +228,7 @@ test("启用 Schedule 后导航出现且没有第二列目录", () => {
     ["schedule", "Schedule", "timer"],
     ["feed", "Feed", "rss"],
     ["artifacts", "成果", "package"],
+    ["sessions", "外部会话", "history"],
   ]);
   const view = {
     snapshot: {

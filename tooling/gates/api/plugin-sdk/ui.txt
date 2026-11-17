@@ -333,6 +333,82 @@ export interface MwScopeDeltaItem {
 
 export type MwStatusTone = "idle" | "progress" | "attention" | "hold" | "blocked" | "done" | "quiet";
 
+export interface MwSubtaskAction {
+    readonly id: string;
+    readonly ref: string;
+    readonly label: string;
+    readonly title?: string;
+    readonly disabled?: string;
+}
+
+export type MwSubtaskContent = {
+    readonly text: string;
+} | {
+    readonly html: string;
+};
+
+export interface MwSubtaskConversationLabels {
+    readonly back: string;
+    readonly close: string;
+    readonly loading: string;
+    readonly readFailed: string;
+    readonly retry: string;
+    readonly latest: string;
+    readonly messages: string;
+    readonly children: string;
+    readonly unread: string;
+    readonly working: string;
+    readonly actionFailed: string;
+    readonly unknown: string;
+    readonly check: string;
+}
+
+export interface MwSubtaskConversationView {
+    readonly target: string;
+    readonly binding: string;
+    readonly title: string;
+    readonly parent: MwSubtaskLink;
+    readonly status: {
+        readonly state: StateRingState;
+        readonly label: string;
+    };
+    readonly summary?: string;
+    readonly messages: readonly MwSubtaskMessage[];
+    readonly details?: readonly MwSubtaskDetail[];
+    readonly children?: readonly MwSubtaskLink[];
+    readonly actions?: readonly MwSubtaskAction[];
+    readonly running: boolean;
+    readonly inputUnavailable?: string;
+    readonly pending?: {
+        readonly kind: "input" | "action";
+        readonly requestId: string;
+        readonly message: string;
+        readonly check: MwSubtaskAction;
+    };
+}
+
+export interface MwSubtaskDetail {
+    readonly id: string;
+    readonly title: string;
+    readonly content: MwSubtaskContent;
+    readonly actions?: readonly MwSubtaskAction[];
+    readonly expanded?: boolean;
+}
+
+export interface MwSubtaskLink {
+    readonly target: string;
+    readonly title: string;
+    readonly unread?: boolean;
+}
+
+export interface MwSubtaskMessage {
+    readonly id: string;
+    readonly role: "user" | "assistant" | "notice";
+    readonly name?: string;
+    readonly content: MwSubtaskContent;
+    readonly receipt?: string;
+}
+
 export interface MwTaskAttemptBudgetOptions {
     readonly headerText: string;
     readonly budgetPercent: number;
@@ -1020,6 +1096,12 @@ export declare function renderStatusMark(options: {
 export declare function renderStepDot(options: {
     label: string;
     className?: string;
+}): string;
+
+export declare function renderSubtaskConversation(options: {
+    readonly labels: MwSubtaskConversationLabels;
+    readonly view?: MwSubtaskConversationView;
+    readonly composerHtml?: string;
 }): string;
 
 export declare function renderSwitch(options: {

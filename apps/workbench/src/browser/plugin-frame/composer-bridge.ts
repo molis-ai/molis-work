@@ -70,6 +70,7 @@ export type ComposerCalls = {
 export type ComposerOp = keyof ComposerCalls;
 
 export type ComposerUp =
+  | { type: "composer-ready"; id: number; call: number }
   | { type: "composer-state"; id: number; snapshot: ComposerSnapshot }
   | { type: "composer-text"; id: number; text: string }
   | { type: "composer-focus"; id: number }
@@ -80,6 +81,7 @@ export type ComposerUp =
   | { type: "composer-destroy"; id: number }
   | { type: "composer-answer"; id: number; call: number; value?: unknown; error?: string };
 export type ComposerDown =
+  | { type: "composer-ready"; id: number; call: number; ready: boolean }
   | { type: "composer-call"; id: number; call: number; op: ComposerOp; arg?: unknown }
   | { type: "composer-abort"; id: number; call: number }
   /** A control changed, a command chosen, (`receiver`) another of the page's receivers picked in 「发给」 by the id the page gave, or (`notice`) the button of the line above the box. */
@@ -100,5 +102,6 @@ export interface BarReceiver {
   column(): { left: number; width: number } | null;
   readonly options: import("@molis-ai/molis-work-plugin-sdk/page-globals").ComposerOptions;
   /** The bar mounted the composer on it (with the text box it uses), or let it go (null). */
-  bind(handle: import("@molis-ai/molis-work-plugin-sdk/page-globals").ComposerHandle | null, field?: HTMLTextAreaElement, retitle?: () => void): void;
+  bind(handle: null): void;
+  bind(handle: import("@molis-ai/molis-work-plugin-sdk/page-globals").ComposerHandle, field: HTMLTextAreaElement, retitle: () => void, selected: () => boolean): void;
 }

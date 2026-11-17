@@ -203,6 +203,7 @@ export class SearchService {
   private changeSeq = 0;
   /** `${project}|${provider}` → number of the provider's last announced change. */
   private readonly changed = new Map<string, number>();
+  private readonly cleared = new Map<string, number>();
   /** source_key → change number current when its last sync started. */
   private readonly syncedSeq = new Map<string, number>();
   private readonly registrations: ProviderSequences = new Map();
@@ -220,17 +221,16 @@ export class SearchService {
   }
 
   /** Called by the Host whenever a command of a provider succeeded, from any entry. Known sources refresh shortly after. */
-  markChanged(providerId: string, projectId: string | null): void {
+  markChanged(providerId: string, projectId: string | null): void { this.announce(providerId, projectId, false); }
+
+  /** Drop indexed entries for a provider immediately when its read scope may have narrowed, then refresh in the background. */
+  clearProvider(providerId: string, projectId: string | null): void {
+    clearProviderSources(this.options.index, this.cleared, this.syncedSeq, this.closed, providerId, projectId, this.changeSeq + 1);
     this.announce(providerId, projectId, false);
   }
 
-  /**
-   * Called by the Host when a provider is registered or withdrawn (install, enable, upgrade, disable, uninstall).
-   * Known sources refresh shortly after; the next query also re-checks them and drops the ones that are gone.
-   */
-  markRegistration(providerId: string, projectId: string | null): void {
-    this.announce(providerId, projectId, true);
-  }
+  /** Called by the Host when a provider is registered or withdrawn; known sources refresh and gone ones are dropped. */
+  markRegistration(providerId: string, projectId: string | null): void { this.announce(providerId, projectId, true); }
 
   private announce(providerId: string, projectId: string | null, registration: boolean): void {
     if (this.closed || providerId === SEARCH_PROVIDER_ID) return;
@@ -343,17 +343,11 @@ export class SearchService {
   /** Project deletion: the index keeps nothing of it. */
   removeProject(projectId: string): number {
     this.pendingRefreshes.delete(projectId);
-    if (!this.pendingRefreshes.size) {
-      clearTimeout(this.refreshTimer);
-      this.refreshTimer = undefined;
-    }
+    if (!this.pendingRefreshes.size) { clearTimeout(this.refreshTimer); this.refreshTimer = undefined; }
     return this.options.index.removeProject(projectId);
   }
-
   async close(): Promise<void> {
-    this.closed = true;
-    clearTimeout(this.refreshTimer);
-    this.pendingRefreshes.clear();
+    this.closed = true; clearTimeout(this.refreshTimer); this.pendingRefreshes.clear();
     // A sync waiting on a closing project must not hold the Host's shutdown; its next write fails and is dropped.
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([Promise.allSettled([...this.inflight.values()]), new Promise<void>(resolve => { timer = setTimeout(resolve, 3_000); })]);
@@ -475,8 +469,9 @@ export class SearchService {
   private sync(source: SourceView, owner: () => Promise<Owner>, notice?: RefreshNotice): Promise<void> {
     if (notice && (this.closed || registrationAfter(this.registrations, source.project_id, source.reference.provider_id, notice.observedAt))) return Promise.resolve();
     const running = this.inflight.get(source.key);
+    const wanted = Math.max(notice?.sequence ?? 0, clearedSequence(this.cleared, source.project_id, source.reference.provider_id));
     if (running) {
-      if (!notice || (this.syncedSeq.get(source.key) ?? 0) >= notice.sequence) return running;
+      if (!wanted || (this.syncedSeq.get(source.key) ?? 0) >= wanted) return running;
       return running.catch(() => undefined).then(() => this.sync(source, owner, notice));
     }
     const task = this.runSync(source, owner).catch(error => this.options.onError?.(error, "search.sync")).finally(() => {
@@ -489,11 +484,28 @@ export class SearchService {
   private runSync(source: SourceView, ownerOf: () => Promise<Owner>): Promise<void> {
     return syncSearchSource(this.options, {
       syncedSeq: this.syncedSeq, changeSeq: () => this.changeSeq, isClosed: () => this.closed,
+      clearedAfter: (projectId, providerId, seq) => clearedSequence(this.cleared, projectId, providerId) > seq,
     }, () => this.clock(), source, ownerOf);
   }
 }
 
 type ProviderSequences = Map<string | null, Map<string, number>>;
+
+function clearedSequence(cleared: ReadonlyMap<string, number>, projectId: string | null, providerId: string): number {
+  return Math.max(cleared.get(`${projectId ?? ""}|${providerId}`) ?? 0, cleared.get(`|${providerId}`) ?? 0);
+}
+
+function clearProviderSources(index: SearchIndexPort, cleared: Map<string, number>, syncedSeq: Map<string, number>,
+  closed: boolean, providerId: string, projectId: string | null, sequence: number): void {
+  if (closed || providerId === SEARCH_PROVIDER_ID) return;
+  cleared.set(`${projectId ?? ""}|${providerId}`, sequence);
+  for (const record of index.sources()) {
+    if (record.provider_id === providerId && (projectId === null || record.project_id === projectId)) {
+      index.removeSource(record.source_key);
+      syncedSeq.delete(record.source_key);
+    }
+  }
+}
 
 function setProviderSequence(scopes: ProviderSequences, scope: string | null, provider: string, sequence: number): void {
   const providers = scopes.get(scope) ?? new Map<string, number>();
@@ -658,14 +670,16 @@ function searchStatuses(options: SearchServiceOptions, sources: readonly SourceV
 }
 
 
-async function syncSearchSource(options: SearchServiceOptions, state: { syncedSeq: Map<string, number>; changeSeq(): number; isClosed(): boolean }, clock: () => number, source: SourceView, ownerOf: () => Promise<Owner>): Promise<void> {
+async function syncSearchSource(options: SearchServiceOptions, state: { syncedSeq: Map<string, number>; changeSeq(): number; isClosed(): boolean; clearedAfter(projectId: string | null, providerId: string, seq: number): boolean }, clock: () => number, source: SourceView, ownerOf: () => Promise<Owner>): Promise<void> {
   const index = options.index;
   const previous = index.source(source.key);
   const base: SearchIndexSourceRecord = previous ?? { source_key: source.key, project_id: source.project_id, provider_id: source.reference.provider_id,
     capability_id: source.reference.capability_id, version: source.reference.version, plugin_id: source.view.provider.plugin_id ?? source.reference.provider_id,
     title: source.view.provider.title, collection_revision: null, state: "indexing", error: null, synced_at: null, checked_at: null };
   const startedAt = clock();
-  state.syncedSeq.set(source.key, state.changeSeq());
+  const beganSeq = state.changeSeq();
+  state.syncedSeq.set(source.key, beganSeq);
+  const isCleared = () => state.clearedAfter(source.project_id, source.reference.provider_id, beganSeq);
   const save = (patch: Partial<SearchIndexSourceRecord>) => index.saveSource({ ...base, plugin_id: source.view.provider.plugin_id ?? source.reference.provider_id,
     title: source.view.provider.title, ...patch });
   if (!previous) save({});
@@ -677,6 +691,7 @@ async function syncSearchSource(options: SearchServiceOptions, state: { syncedSe
     const nested = retainActionAuthority(owner.caller, source.reference);
     const list = (cursor: string | null) => owner.client.invoke(nested, source.reference, { cursor, limit: SEARCH_ENTRIES_PAGE_LIMIT }) as Promise<SearchEntriesPage>;
     let first = await list(null);
+    if (isCleared()) return;
     if (previous?.state === "ready" && !previous.error && previous.collection_revision === first.collection_revision) {
       save({ checked_at: startedAt });
       return;
@@ -687,6 +702,7 @@ async function syncSearchSource(options: SearchServiceOptions, state: { syncedSe
       let page = first, moved = false;
       while (page.next_cursor) {
         page = await list(page.next_cursor);
+        if (isCleared()) return;
         if (page.collection_revision !== first.collection_revision) { moved = true; break; }
         entries.push(...page.entries);
       }
@@ -694,6 +710,7 @@ async function syncSearchSource(options: SearchServiceOptions, state: { syncedSe
       // The collection changed while it was being listed: start over from the new revision.
       if (attempt >= SYNC_RESTARTS) throw new ActionError("search.source_moving", "来源内容在读取期间持续变化，稍后重试");
       first = await list(null);
+      if (isCleared()) return;
     }
     const seen = new Map<string, SearchEntry>();
     for (const entry of entries) {
@@ -710,9 +727,13 @@ async function syncSearchSource(options: SearchServiceOptions, state: { syncedSe
     }
     for (let at = 0; at < changed.length; at += CONTEXT_BATCH) {
       if (state.isClosed()) throw new ActionError("search.closed", "搜索服务已关闭");
+      if (isCleared()) return;
       const batch = changed.slice(at, at + CONTEXT_BATCH);
-      index.upsert(await Promise.all(batch.map(entry => readSearchDocument(source, entry, readers.get(entry.subject.kind), owner, nested))));
+      const documents = await Promise.all(batch.map(entry => readSearchDocument(source, entry, readers.get(entry.subject.kind), owner, nested)));
+      if (isCleared()) return;
+      index.upsert(documents);
     }
+    if (isCleared()) return;
     const removed = [...known.keys()].filter(key => !seen.has(key)).map(key => {
       const [kind, object_id] = key.split("\u0000") as [string, string];
       return { kind, object_id };
@@ -720,6 +741,7 @@ async function syncSearchSource(options: SearchServiceOptions, state: { syncedSe
     if (removed.length) index.remove(source.key, removed);
     save({ collection_revision: first.collection_revision, state: "ready", error: null, synced_at: clock(), checked_at: startedAt });
   } catch (error) {
+    if (isCleared()) return;
     // Keep what was indexed; removals wait for a complete pass. The next query retries after a pause.
     save({ state: previous?.collection_revision ? "ready" : "failed", error: errorText(error), checked_at: startedAt });
     throw error;

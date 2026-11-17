@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { WHO_STYLES } from "@molis-ai/molis-work-design-system";
 import { escapeHtml, icon, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { RECEIPT_LAYERS_STYLES, renderReceiptLayersSpecimen } from "./receipt-layers-specimen.js";
 
@@ -128,10 +129,8 @@ export function renderCollabSection(say: Say): string {
   </section>`;
 }
 
-export const COLLAB_SECTION_STYLES = `#collab svg{width:14px;height:14px;flex:none}` + RECEIPT_LAYERS_STYLES
-  + `.mw-who{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--wash);color:var(--ink-soft);font-size:11px;font-weight:500;line-height:1;flex:none}`
-  + `.mw-who[data-kind=ai]{border-radius:6px;background:var(--ink);color:var(--paper)}.mw-who[data-assistant]{background:var(--accent-soft);color:var(--accent)}`
-  + `#collab .mw-who svg{width:12px;height:12px}.mw-who--lg{width:32px;height:32px;font-size:13px}.mw-who--lg[data-kind=ai]{border-radius:8px}#collab .mw-who--lg svg{width:16px;height:16px}`
+export const COLLAB_SECTION_STYLES = `#collab svg{width:14px;height:14px;flex:none}` + RECEIPT_LAYERS_STYLES + WHO_STYLES
+  + `#collab .mw-who svg{width:12px;height:12px}#collab .mw-who--lg svg{width:16px;height:16px}`
   + `.mw-collab-faces,.mw-collab-row{display:flex;flex-wrap:wrap;align-items:center;gap:16px}.mw-collab-row{gap:8px}.mw-collab-face{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}`
   + `.mw-owner{display:inline-flex;align-items:center;gap:6px;padding:2px 10px 2px 3px;border-radius:999px;background:var(--wash);font-size:12px;color:var(--ink-soft)}.mw-owner__faces{display:inline-flex}.mw-owner__faces .mw-who+.mw-who{margin-left:-6px;box-shadow:0 0 0 2px var(--wash)}`
   + `.mw-reqs{width:min(100%,400px);font-size:13px}.mw-reqs__head{display:flex;align-items:center;gap:8px;margin:0 0 6px;color:var(--muted)}.mw-reqs__head b{color:var(--ink);font-variant-numeric:tabular-nums}`

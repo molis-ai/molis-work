@@ -9130,6 +9130,43 @@
         }
       ]
     },
+    "LoginCapabilitiesQuery": {
+      "type": "object",
+      "properties": {
+        "clientId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "clientId"
+      ],
+      "additionalProperties": false
+    },
+    "LoginCapabilities": {
+      "type": "object",
+      "properties": {
+        "methods": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "ACCOUNT_PASSWORD",
+              "EMAIL_CODE",
+              "PHONE_OTP",
+              "GOOGLE",
+              "GITHUB"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 5,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "methods"
+      ],
+      "additionalProperties": false
+    },
     "ManagementHandoffRequest": {
       "type": "object",
       "properties": {
@@ -9191,6 +9228,22 @@
       },
       "required": [
         "account"
+      ],
+      "additionalProperties": false
+    },
+    "LoginCapabilitiesResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/LoginCapabilities"
+        },
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "data",
+        "requestId"
       ],
       "additionalProperties": false
     },

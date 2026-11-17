@@ -275,7 +275,7 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
   assert.doesNotMatch(selection, /pnpm install/, "no dependencies: it starts at once");
   assert.ok(!blockingJobs().includes("test-selection"), "the selector is an auxiliary Verify dependency, not a required test result");
   assert.match(jobBlock("verify"), /^    needs: \[.*test-selection\]$/m, "Verify directly receives the selection result and modes");
-  assert.deepEqual(blockingJobs(), ["gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks", "security-invariants", "product-subset", "golden-replay", "golden-replay-third-party"], "the blocking jobs are the ones of today, the two that read the selection among them (decision #14, 2026-10-31)");
+  assert.deepEqual(blockingJobs(), ["account-login", "gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks", "security-invariants", "product-subset", "golden-replay", "golden-replay-third-party"], "the blocking jobs are the ones of today, the two that read the selection among them (decision #14, 2026-10-31)");
   assert.match(jobBlock("verify"), /^    name: Verify$/m, "the required check keeps its name");
 
   for (const [name, key] of [["security-invariants", "security"], ["product-subset", "product"]] as const) {

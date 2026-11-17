@@ -63,3 +63,7 @@ Auth 的现行管理说明及本轮记录在 `docs/unified-account/integration-g
 
 
 2026-11-08 统一：Personal 安装入口拥有同一 V2 会话；Home 借用会话并固定原租约。候选登录验证、浏览器附着、页面准备及原生票据边界见 [统一账号规范](../../specs/unified-account/spec.md) 的 V2U 章节。旧 WORK-09 双栈切换材料只保留为历史，当前不做 D-09/存量回退。
+
+## 登录一致性 P1
+
+新增 `GET /api/account/auth/capabilities`，由 Host 配置绑定客户端调用中央能力接口。界面按返回清单显示登录方式，查询失败不猜测可用能力。固定合同来源、CI 与回归证据见[本次 P1 验收](account-login-p1.md)。

@@ -1,3 +1,4 @@
+import { createAccountService } from "./client.js";
 import type { AccountCallControl, AccountEnvironmentConfig } from "@molis-ai/molis-work-contracts/services/account";
 import type { AccountSessionManager } from "./session-types.js";
 import { assertAccountProviderCallback } from "./provider.js";
@@ -53,6 +54,10 @@ export function createAccountAuthentication(config: AccountEnvironmentConfig, se
     finally { t.busy = false; }
   }
   return {
+    async capabilities(control: AccountCallControl) {
+      const service = createAccountService(config, { currentCredential: () => null, resolveSecret: async () => null, ...(fetcher ? { fetch: fetcher } : {}) });
+      return (await service.invoke("getLoginCapabilities", { query: { clientId: config.clientId } }, control)).data;
+    },
     loginPassword: (input: unknown, control: AccountCallControl) => startLogin(input, control, true),
     sendVerification: (input: unknown, control: AccountCallControl) => startLogin(input, control, false),
     async loginCode(input: unknown, control: AccountCallControl) {

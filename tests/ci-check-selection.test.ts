@@ -36,7 +36,7 @@ const modes = { documentation_mode: "only", gate_rules_mode: "none", shell_mode:
 const scope = (event: string, result = "success") => ({ "github.event_name": event, "needs.queue-check.result": "skipped", "needs.queue-check.outputs.verified": "", "needs.test-selection.result": result, ...Object.fromEntries(Object.entries(modes).map(([k,v]) => [`needs.test-selection.outputs.${k}`, v])) });
 const skipped = ["health-gate-rules", "architecture-boundaries", "action-contracts", "native-checks", "shell-checks", "security-invariants", "product-subset", "golden-replay", "golden-replay-third-party"];
 test("CIP-01 CIP-02 CIP-04 workflow skips only successful scoped work, retains health gates and secrets, and uses the merge-group base", () => {
-  for (const name of [...skipped, "gates", "secret-scan"]) {
+  for (const name of [...skipped, "account-login", "gates", "secret-scan"]) {
     const condition = /^    if: \$\{\{ (.*) \}\}$/m.exec(jobBlock(name))![1]!;
     for (const event of ["pull_request", "merge_group", "push", "schedule", "workflow_dispatch"]) {
       assert.equal(Boolean(evaluateExpression(condition, scope(event))), !["pull_request", "merge_group"].includes(event) || !skipped.includes(name), `${event}: ${name}`);
@@ -57,8 +57,8 @@ test("CIP-01 CIP-02 CIP-04 workflow skips only successful scoped work, retains h
 test("CIP-03 Verify executes the real shell verdict and rejects unauthorized skips, failures and cancellation", () => {
   const step = jobBlock("verify").split("\n      - ").find(step => step.startsWith("name: Required package gate"))!;
   const script = stepScript(step);
-  const names = ["GATES", "SECRET_SCAN", "HEALTH_GATE_RULES", "PACKAGE_BOUNDARIES", "ACTION_CONTRACTS", "SHELL_CHECKS", "NATIVE_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
-  const skippedNames = names.filter(name => !["GATES", "SECRET_SCAN"].includes(name));
+  const names = ["ACCOUNT_LOGIN", "GATES", "SECRET_SCAN", "HEALTH_GATE_RULES", "PACKAGE_BOUNDARIES", "ACTION_CONTRACTS", "SHELL_CHECKS", "NATIVE_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
+  const skippedNames = names.filter(name => !["ACCOUNT_LOGIN", "GATES", "SECRET_SCAN"].includes(name));
   const env = { ...process.env, GITHUB_EVENT_NAME: "merge_group", QUEUE_CHECK_RESULT: "skipped", QUEUE_VERIFIED: "", TEST_SELECTION_RESULT: "success", ...Object.fromEntries(Object.entries(modes).map(([k,v]) => [k.toUpperCase(),v])), ...Object.fromEntries(names.map(name => [`${name}_RESULT`, skippedNames.includes(name) ? "skipped" : "success"])) };
   const verdict = (over: Record<string,string> = {}) => spawnSync("bash", ["-eo", "pipefail", "-c", script], { env: { ...env, ...over }, encoding: "utf8" }).status;
   assert.equal(verdict(), 0);

@@ -25,6 +25,10 @@ test("SKC-06 SKC-08 SKC-09: missing grants, revoked publisher and changed signed
     await assert.rejects(h.client.invoke(person, action(skillCatalogActions.readBodies), { refs: [skill.ref], named: [skill.ref] }), { code: "actions.input_invalid" });
     await set();
     assert.equal((await read()).results[0]!.ok, true);
+    // SKP-11 (batch 42): a used Skill names only the entries that used it, and the listed result still meets the action's contract
+    // (a contract that wanted every entry dropped all Skills from the page once one had been used).
+    homeAgentDefinitions(h.home).skills.recordUse({ ref: skill.ref, name: skill.name, scope_ref: person.project_id, caller: "assistant", at: new Date().toISOString() });
+    assert.deepEqual((await list()).recent_uses, { assistant: 1 });
     const bundles = async (directory: string): Promise<string[]> => (await Promise.all((await readdir(directory, { withFileTypes: true })).map(entry => entry.isDirectory() ? bundles(join(directory, entry.name)) : Promise.resolve(entry.name === "bundle.json" ? [join(directory, entry.name)] : [])))).flat();
     const file = (await bundles(join(h.home, "plugin-packages")))[0]!;
     const original = await readFile(file, "utf8"), bundle = JSON.parse(original); bundle.payload.manifest.name = "Tampered";

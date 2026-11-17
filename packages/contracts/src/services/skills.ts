@@ -603,7 +603,7 @@ export const SKILL_CATALOG_ENTRY_SCHEMA: ActionSchema = object({
   pack: object({ plugin_id: text, title: text, version: text, publisher_label: text, trust: { enum: ["host", "pinned", "home_local"] }, scope }),
   state, settings_revision: count, enabled: object({ at: text, by: text, scope }), availability,
   last_used: object({ at: text, caller: { enum: ["assistant", "coding", "agent"] }, run_ref: text }, ["at", "caller"]),
-  recent_uses: object({ assistant: count, coding: count, agent: count }),
+  recent_uses: object({ assistant: count, coding: count, agent: count }, []),
   based_on: object({ source: sourceRef, newer_version: skillVersion }, ["source"]), draft: object({ draft_id: text }),
 }, ["ref", "name", "description", "applies_to", "user_invocable", "tools", "resources", "connector_categories", "runs_scripts", "excerpt", "pack", "state",
   "settings_revision", "availability"]);

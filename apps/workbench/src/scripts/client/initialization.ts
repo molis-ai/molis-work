@@ -446,19 +446,20 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       updateAllRelationFormPreviews();
     }
     // Off the Goal stage the board cursor comes with the attention read (W4-10).
-    const goalStageShown = () => (document.body.dataset.desktopSurface || "goals") === "goals";
-    // The page was drawn at its snapshot's cursor (the Goals log's end: the same journal, never past the platform's), so the
-    // first poll redraws only what came after it. Without it the first poll always redrew the board and forced the relation
-    // graph that had just loaded to load again, replacing the node that had focus.
-    if (goalData && goalData.boardCursor === undefined && typeof state.snapshot?.cursor === "number") goalData.boardCursor = state.snapshot.cursor;
+    // Goals' snapshot cursor belongs to another journal; neither projection has acknowledged a platform cursor yet.
     boardLifetime.poll(async signal => {
       boardVisibleSignal = signal;
-      if (goalData && goalStageShown()) await refreshBoard(false, signal);
+      if (!goalData) return;
+      if (goalStageVisible()) await refreshBoard(false, signal);
+      else if (observedBoardCursor !== undefined && observedBoardCursor !== goalData.boardCursor) await refreshBoard(false, signal, observedBoardCursor);
     }, 4000);
     document.addEventListener("molis-work:attention", event => {
       const cursor = event.detail?.board_cursor;
-      if (goalData && typeof cursor === "number" && !goalStageShown() && cursor !== goalData.boardCursor) void refreshBoard();
+      if (goalData && typeof cursor === "number") void refreshBoard(false, boardVisibleSignal, cursor);
     });
+    const refreshVisibleGoal = () => { if (goalData && goalStageVisible()) void refreshBoard(); };
+    boardLifetime.listen(document, "molis-work:place-changed", () => requestAnimationFrame(refreshVisibleGoal));
+    boardLifetime.listen(window, "resize", refreshVisibleGoal);
     boardLifetime.own(() => clearTimeout(deferredRefreshTimer));
   })();
 `;

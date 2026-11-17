@@ -37,6 +37,8 @@ Local Host 提供页面模型和操作端口；Workbench renderer 组合公共�
 
 设置缓存页的地址及替换由 Settings 的 page 端口维护。Kit 的一次性草稿链接在挂载时消费并替换当前历史；切分类或收起遮罩保留原编辑器及窗口关闭保护，真正替换缓存前由编辑器保存，失败继续保留输入。缓存暂时脱离 DOM 仍可接收读取，销毁或本人选择另一项后旧初始化回执失效。回归见 `tests/skill-draft-recovery.e2e.test.ts` 的 QEA-110/111，覆盖失败恢复、实际修订、前进后退/重载、懒加载重试和响应交错。
 
+Goal 后台刷新由工作台判断实际正文及祖先窗格的可见性，Goals 提供完整或仅集合的投影。隐藏正文不重读、不替换，也不阻挡后台目录更新；返回后正文仍按平台游标读取关联成果及输入。集合与正文分别确认已应用游标，失败或在途新提示留待原刷新流程恢复；迟到响应不能跳回本人已离开的 Goal。分栏未聚焦窗格仍可见，solo、遮罩及窄屏隐藏的窗格恢复后追到当前事实。回归见 `tests/goals-refresh.e2e.test.ts`、`tests/goals-refresh-panes.e2e.test.ts`、`tests/goals-background-projections.e2e.test.ts`（QEA-113/114）。
+
 本包的装配依赖见 [package.json](package.json)；包之间的允许方向由仓库边界检查约束。
 
 ## 本地开发

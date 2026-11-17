@@ -1,5 +1,7 @@
 # Molis Work 审查报告与优化策略
 
+第50批本地验收通过：后台Goal只读集合，正文按实际可见性读取；分别确认已应用的平台游标，在途新变化和强制保存刷新不会丢失。57个相关包文件607项、实际UI20项、构建4/健康及最终五样本路径通过，详见文末QF-51追加。固定规则20条建议较空闲样本p50为5.4秒，末次有其他工作树并发测试时9.1秒，保留波动，不宣称已稳定达到响应目标。最新main dbcf562a67已拉取，下一批整合79文件交集；最终资源/CI、其他平台候选与整项目标仍未完成。
+
 第49批本地验收完成：Settings统一维护缓存页地址与实际释放，Kit同步消费一次性草稿链接；暂时隐藏保留未存输入和在途读取，实际替换前保存，保存失败继续显示原输入，迟到的旧地址读取不覆盖新内容。组合27文件215项通过，最终完整构建/API零差异/健康通过，只读窄复核无剩余Blocker/P1。详见QF-56。Home回执链接、QF-51性能、平台候选及最终资源/CI仍未结算。
 
 第48批已收回Sessions的非必要浏览器代码：`apps/workbench/src/sessions/ui.ts:24` 用现行合同生成搜索框maxlength，`browser/sessions/client.ts:2` 回到类型导入。正式Host脚本67,374→49,185 B，减少18,189 B；相比同一main只增2,020 B。用户少下载/执行一份服务动作初始化，浏览器不再为一个静态输入约束承担服务声明装配；搜索、分页、取消、权限与提示规则保留。构建/健康、5文件50项通过，含14项真实Chrome路径；资源总策略与首屏仍须最终头验收。日志 `quality-audit-sessions-size-assets.json`、`quality-audit-sessions-size-acceptance.log`、`quality-audit-sessions-size-boundary.log`；前一测试命令含一个误写的不存在文件，未计成功。
@@ -172,12 +174,12 @@ QEA-29～32 的最新界面验收 `/tmp/quality-audit-sessions-browser-final.log
 
 | 方向 | 检查方式与已确认结果 | 处置 |
 | --- | --- | --- |
-| 隐式状态 | 对照持久事实、内存执行句柄和 DOM 状态；导入队列曾由数组与 DOM 共同决定，Feed 等待没有完成清理。Coding 的业务归档和执行归档是不同 owner 的事实，不能强并 | QF-01/02 已改；Run 显示时间耦合另列 QF-06；业务状态声明按第 47 批兑现 |
-| 过度防御 | 从 HTTP/动作 schema 到 owner 写入核对校验；Home 把读取故障降成空列表确实掩盖故障。Search、SQLite、RSS 的重复外观检查分别保护等待后的权限、实际 SQL 和实际网络地址 | QF-04 已补完整性并通过定向验收；保留真实信任边界，不按 catch/if 数量删代码 |
-| 用户干扰 | 核资料导入/重试、任务查看、Git 编辑、模型接入返回、审批、角色启停和账号切换 | 导入减少重选与无效重试提示；“取消”仅关闭的剩余语义差异见 QF-10；审批选项 QF-07 在验收，Git 恢复 QF-03 仍待接续实施。删除、账号权限与模型下载等有实际决定的确认保留 |
-| 冗余代码 | 从注册到实际调用方，区分私有重复、公共导出和未完成能力 | Feed 三处纯绑定已删；Git drafts、WebQuery/YouTube 工厂与旧 Home events 是待核退役候选，不能连仍被使用的 channel 工具一起删 |
-| 边界与调用链 | UI/HTTP、Agent、后台、CLI/MCP 沿公开动作追到事务和反馈；73 包静态边界门禁通过 | 明确事实 owner、执行身份、最终写入与反馈；发现搜索取消传递中断 QF-08。没有把边界门禁通过误作所有业务正确 |
-| 平台化 | 同时从平台声明向下追消费者、从插件特判向上找 owner | 下表 13 项处置逐项区分已有能力、采用缺口、合同待补、共享工具及插件业务；优先补采用，不再建第二套目录或任务事实 |
+| 隐式状态 | 对照持久事实、执行句柄和DOM；导入队列、Feed等待、Run终态、Git/Pages输入、Skill草稿/案例/采用与Settings缓存、Goal刷新分别追到owner | 上述已有实施及定向证据；第50批确认集合/正文各自应用游标，正在结算包要求。安装提交后草稿结算失败仍在深查，不能由§46进程内占用宣称解决。业务状态声明按原路线兑现 |
+| 过度防御 | 从HTTP/动作schema到写点核校验；查Home/Memory读取故障降为空、Coding环境异常降为ready、Feed重复plan及Goals隐藏正文fallback | 已实施对应修复；保留Search等待后权限、SQLite严格结构、RSS实际网络地址等真实边界。第50批collection失败保留旧结果并由原poll恢复，不偷偷抓整页 |
+| 用户干扰 | 正常导入/停止/重试、Git独立及Coding内嵌、材料交付、Pages、首次引导、Skill创作/设置、Goal后台与分栏路径 | 已有实际写入及浏览器证据：减少重选、重写、重复解释和过期确认，保留未存输入及后来选择。Home草稿回执、其他平台候选、最终资源/CI及明列的本人验收仍未完成 |
+| 冗余代码 | 注册与实际调用方逐条核对，区分私有重复、公开合同和未完成能力 | 已退役Git旧draft工具、WebQuery/YouTube旧工厂、Events无人调用HTTP转发、Feed重复拉取计划及多插件绑定副本；YouTube频道工具保留。旧Feed版本门禁例外仍待原批准，不连带删除有效例外 |
+| 边界与调用链 | 75包及84个contracts子路径另加根入口；UI/HTTP、Agent、后台、CLI/MCP沿公开动作追事务和反馈 | 已修HTTP取消、共享输入/草稿、实际业务尾检等断点；新main dbcf562a67的79文件交集待整合。包数/门禁仅证明范围与静态约束，不冒充所有路径运行验收 |
+| 平台化 | 从平台能力下追消费者，也从插件/页面/后台特判上查归属，包括只有一个调用方的平台职责 | 下表13项加Skill/Goal交集分别判定复用、补合同、共享工具或插件业务；保持用户已定后续条件。共享能力均须验迁移后真实消费者，现有底座不另建一套 |
 
 ## 其他已确认问题和设计风险
 
@@ -244,9 +246,9 @@ Host JSON、原件上传原来都没有把断连传给已支持取消的 artifac
 | --- | --- | --- | --- |
 | PF-01 对象引用、跨插件呈现：`packages/contracts/src/platform/object-link.ts:12`、`horizontal/surfaces/src/position.ts:20-34`、`apps/local-host/src/surface-slot-http.ts:75,122` 已有受控 plugin-slot；Inbox `plugins/native/inbox/src/browser/client.ts:40`、Risk `plugins/native/risk/src/browser/client.ts:45`、Work Brief `plugins/native/work-brief/src/browser/client.ts:22` 已使用，PPT `plugins/native/ppt/src/plugin.ts:35-45` 经 Pages 公开动作读内容 | 未发现这条 PPT→Pages 路径跨实现直连。组合槽已有 UI contribution 声明、Host 兑现和真实消费者，不能只搜 manifest.ts 就误报未采用，更不应重建底座 | 插件拥有内容/修订；平台拥有位置、身份及授权。保持 surfaceSlot 与 objectLink；新增组合沿相同入口验停用、撤权、对象删除和返回，不开放任意 iframe、不解除 mountDeclared 的 owner 限制 | 保持现有方案 |
 | PF-02 输入的材料来源：旧 parent 固定 sources:false，底栏菜单和来源服务已存在；实施见 QF-24～29 | 已采用父页受控交接和 Coding 消费；首次/后续/steer、未知回执、来源撤回、混合材料失败与同child重挂已有真实验收，最终组合CI待完成 | 平台父页持本人身份获取选择，只在本人发送时交材料引用；当前 onMaterials 即时回传与 child composer-send 必须一起约束，不能让子页绕过本人发送。Coding 要实际消费 input.materials，并核首次/后续/steer 及失败引用留存；大小约束须与 owner 对齐，复用原菜单。归 [BL-composer-frame-sources](../backlog/BL-composer-frame-sources.md)，不是取消 frame 权限隔离 | P1体验/中 |
-| PF-03 Memory 会话来源：`apps/local-host/src/memory/memory-sources.ts:13`、`apps/local-host/src/memory/memory-session-binding.ts:51-64`、`apps/local-host/src/memory/memory-runtime.ts:20` 点名 Coding/Assistant | 第三个插件有合法 Agent 会话也要改 Host；来源资格和业务状态检查散在宿主 | 平台拥有可信会话身份/授权与记忆策略；插件提供来源可读性/业务状态的声明 reader。随 plugin-equal-standing 收口，迁移 Coding 实际路径再删特判，不能把资格交给输入字符串 | P2/高 |
+| PF-03 Memory 会话来源：`apps/local-host/src/memory/memory-sources.ts:13`、`apps/local-host/src/memory/memory-session-binding.ts:51-64`、`apps/local-host/src/memory/memory-runtime.ts:20` 点名 Coding/Assistant | 未来第三调用方须改Host；当前未找到必须提前迁移的第三消费者。用户2026-11-12已批准两消费者例外，详见BL-memory-session-kinds | 平台拥有可信会话身份/授权，插件提供来源可读性/业务状态。按原批准在第三真实消费者出现时一并迁移公开binding、Host mapping和session-clear-plan持久结构；不能只扩字符串或将资格交输入。不记“已平台化” | 按用户已定后续条件保留；P2/高 |
 | PF-04 后台任务：`apps/local-host/src/home-background-tasks.ts:22` 与 mainline；Coding/Images 已贡献，项目引导整理仍只有后台执行 | 有工作却不在任务入口；汇总失败又看似无工作 | 任务状态仍归业务 owner，平台管发现/完整性/可执行命令。接入既有 background_tasks/reports_to，修 QF-04；引导归 [BL-107](../backlog/BL-107.md) | P1体验/中 |
-| PF-05 设置：`packages/contracts/src/platform/settings.ts:16,30` 有层级/CAS/request_id；`packages/plugin-sdk/src/sandbox-agent-declarations.ts:51` 仍拒绝沙箱 settings_entries；原生插件没有声明消费者 | 有合同不等于作者可用，局部设置仍各做继承、修订、返回 | 设置值/规则归 owner，平台管声明、继承呈现和调用。先完成 Runtime 读写兑现、选一个真实设置迁入再推广；本轮不建立全局配置大仓 | P2/高 |
+| PF-05 设置：`packages/contracts/src/platform/settings.ts:16,30` 有层级/CAS/request_id；SDK现行拒绝沙箱settings_entries | 有合同不等于作者可用；用户2026-11-08已将沙箱设置兑现明确后置，当前拒绝是边界，不是应删除的过度防御。BL38-1与BL44-6不可混作同一完成项 | 设置业务规则归owner，平台管声明、继承呈现和调用。按原路线补Runtime并迁一个真实消费者后再推广；本轮已检查并保持拒绝，不建全局配置仓，不声称底座已全面采用 | 按用户已定后续条件保留；P2/高 |
 | PF-06 草稿/返回：Git已采用公共frame drafts，旧无生产读写工具已删除；QF-03/21/23/46 | 修复刷新/返回丢编辑、同键旧写覆盖、迟到回执干扰当前文件；独立Git及Coding内嵌的11文件109项通过，最终组合CI待完成 | 草稿文本归编辑器，平台提供按 Home/项目/安装/入口隔离与返回。Git 按工作区/文件修订接入，冲突正文不套输入框 4KB 限额；成功后才清草稿 | P1体验/中 |
 | PF-07 来源拉取：Feed已沿公开SourcePull plan消费；Alchemist研究走Host Search Runtime、市场脉搏用插件来源适配器；旧WebQuery/YouTube工厂已退役，YouTube频道工具保留 | 已删除Feed重复intent/计划与两项SEL依赖，复用平台预算/来源可用性；真实Runtime与RSS安全消费者通过。退役Feed版本例外仍待已提出的审批，最终组合CI待完成 | 集成拥有 URL/cursor/格式规则，平台管受控网络/凭据/证据。优先复用已有 presentation 登记；迁移剩余专属调用方时评估声明式输入是否足够，再废弃旧词汇/工厂。先核包外导出，保留 channel 工具；RSS 固定 IP 与 OAuth 刷新不硬并成普通 fetch | P2/中高 |
 | PF-08 等待/调度/取消：`packages/plugin-sdk/src/execution-lifetime.ts`、`packages/plugin-runtime/src/activation-jobs.ts`、`horizontal/scheduler/src/index.ts:252,274,392` 租约、Workflow/Alchemist 自有进程记录 | 散落的计时器容易泄漏；但不同业务终态强并会破坏恢复 | 复用资源生命期工具；业务流程状态及租约回执留原 owner。Feed QF-02 已修；不再造通用万能 Job 表 | P2/低到中 |
@@ -773,5 +775,28 @@ QF-51追加根因与处置：收窄目录后CPU采样仍指向项目归属/常�
 当前证据：完整构建4/API零差异，16项真实Chrome恢复与迟到场景通过（`quality-audit-settings-owner-recovery-final.log`，含10项新增和6项原回归）；只读窄复核无剩余Blocker/P1。资源失败/重试覆盖项目cover和无项目Home独立页。原草稿恢复后仅一次成功修订，新输入实存、旧草稿不额外修改。26文件调用方/包要求、采用/放弃后的返回、健康正在结算。初次点击命中失败由缓存页下一帧scroll reset尚未完成、项目菜单未打开引起，改测试等待真实页面帧并经菜单点击；整页重载等Page加载事件，保留命中/原数据断言。两次不工作的回执观察旗标不计反证，改为实际网络响应完成；临时诊断已移除。
 
 BL-b42-followups③只处理了项目/独立页的地址消费与缓存恢复；Home公开动作回执缺少草稿入口仍待补合同，不关闭整条BL。其他条目、真实模型/本人验收及整项任务的最终资源/CI也不能由本批替代。
+
+### QF-51 追加 / P1–P2：后台目录读取正文、刷新确认错位及迟到导航（第50批）
+
+入口为 Inbox 更新建议、Feed 后台创建/菜单、Goal 正文与 Frame、工作台 Home/Settings、分栏及窄屏恢复。真实链：平台 attention/原4秒poll → Workbench 可见性和刷新协调 → Goals 声明的 board-refresh 路由及 `goals.stage.read@1` → Goals 集合/正文 reader → Host 的关联成果与策略装饰 → Goals HTML/客户端贡献 → Workbench 当前选择与已应用游标。所有读取仍通过原授权和owner；没有新增业务写入、后台服务或插件名分支。
+
+| 位置与发现 | 影响、依据与优先级 | 处置及责任 |
+| --- | --- | --- |
+| `plugins/native/goals/src/stage-action.ts:39`、`apps/local-host/src/web-goals-read.ts:155`、`plugins/native/goals/src/page/workbench-stage.ts:66`：省略goal_id仍默认读取active正文，Host又读取关联成果/规则，渲染完整正文 | P2，正常Inbox每批多次读取与替换隐藏正文。只删goal_id无法消除成本，Feed仍需后台集合。迁移成本中 | 沿原动作、路由、Manifest声明可选collection投影；Goals拥有投影含义，Host按声明跳过正文装饰。省略参数保持现行完整语义，非法值仍在边界拒绝。 |
+| `apps/workbench/src/scripts/client/refresh-decisions.ts:123`、`initialization.ts:447`：平台游标与Goals日志游标混用，单一syncing丢弃在途force/新hint | P1，最后变化/保存回执可能不显示；真实持有两次响应、失败后无第二事件及实际关系保存验收。迁移成本中 | 同一刷新owner串行合并待读意图，集合与正文分别确认平台游标；attention提供同源hint，失败不确认、原poll恢复。删除syncing和错误初始赋值，不另建持久刷新账。 |
+| `refresh-decisions.ts:91,118,173`、`plugins/native/goals/src/refresh-client.ts:6,44`：后台替换隐藏正文，未存表单阻挡无关目录；焦点/舞台可见不能代表正文可见 | P1–P2，隐藏输入丢失、目录过期和重复重读。分栏未聚焦窗格仍必须更新。迁移成本中 | Workbench拥有DOM及祖先窗格可见性，Goals贡献只应用请求的区域；集合不替换正文、不恢复全局UI、不受正文dirty阻挡。正文重新出现时补读，包括独立成果/输入事实。未扩SDK生命周期为第二份布局状态。 |
+| `refresh-decisions.ts:190`：集合读开始后用户切到另一Goal，旧归档响应仍按原选择跳转 | P1，实际CORE→RELEASE后被导航到CORE归档地址；旧构建CDP记录见selection-baseline3。迁移成本低 | 跟随移动前核当前选择仍是原Goal且Goal区域可见；集合仍可更新，后来选择不被夺回。完整正文原代次/选择保护保留。 |
+
+六方向处置：①已观察hint、已应用集合及正文是不同事实，由原owner维护；②保留动作授权、未知投影拒绝和可见正文已有fallback，collection失败不借完整页掩盖故障；③用户少等待隐藏正文重读，少恢复丢失输入或找回被抢走的选择，无新确认；④删除syncing及重复cursor读取，隐藏投影不再承担正文渲染/绑定/全局UI恢复；⑤布局归Workbench、内容与投影归Goals、关联事实归原模块；⑥复用现有stage动作/路由/贡献合同，不造通用刷新框架或把Goal正文逻辑移进SDK。单调用方的可见性属于工作台布局职责，集合语义仍属于Goals。
+
+已验证：`quality-audit-collection-build4-ui.log` 2文件16项通过（刷新15、多窗格1）；`quality-audit-collection-ui-final.log` 的Feed菜单3项和成果/输入返回1项通过，后者确认Goals日志未变而平台游标变化，返回后仍显示实际归档与确认结果。QEA-112公开动作/HTTP读链及route文件此前通过，补充关联成果零读取断言随57文件复验。失败、持有两次响应、真实关系保存、切Home/Settings后完整回执只应用集合、dirty输入、归档/恢复、完整页fallback均覆盖，实际业务记录无额外写入。原分栏失败源于错误要求隐藏iframe另接attention；现按原`attention.ts:25`只由外层维护后台目录，可见窗格读当前、隐藏正文保留、恢复后追到当前事实。
+
+性能证据：`quality-audit-collection-inbox-performance.log` 五样本5416、5404、4649、9144、8746ms，p50=5416ms；每次20条固定规则建议显示后才完成提示，Inbox只重读1次，7–14次Goal后台请求均为collection。health在3–4/20条返回，最大事件循环延迟407–759ms。此为隔离Home真实HTTP/Chrome与固定规则结果，不证明真实模型质量/延迟。最终增加请求投影断言后的性能复核、57文件、健康、资源和准确提交Full CI待结算。
+
+新增体验候选：双栏设置遮罩不显示单窗格标题栏的关闭按钮，现有Escape可正常退出并恢复；需结合实际界面检查鼠标/触屏退出路径，暂不把“缺少这个按钮”直接认定为缺陷或增加第二入口。
+
+第50批结算：57文件初轮56通过，唯一Goals golden未反映已退役的`inbox_judgment:null`（-22字符）和Sessions SSR maxlength（全页+16字符）。固定b63亦失败；仅逆转这两处变更，52份原hash/长度全部复现，据此更新24份期望，其余28不变，完整补验56项通过、2个生成模式按默认跳过。组合57文件607项通过；未改断言、归一化或开候选RECORD模式。证据 `quality-audit-collection-required-final.log`、`quality-audit-collection-golden-proof.json`、`quality-audit-collection-golden-final.log`。
+
+最终性能断言亦过（`quality-audit-collection-inbox-performance-final.log`）：五样本11246、8794、9115、10459、8577ms，p50=9115ms，所有后台Goal刷新均collection；Inbox重读1次、20条实际建议先显示再提示。此时机器还有两个其他工作树测试批次，主会话没有并发构建/重测试；不能将其与较空闲5.4秒样本当作严格对照，也不能隐去变慢样本。保留QF-51/BL的最终环境与CI结论。健康 `quality-audit-collection-health-final.log` 在main 4cf1c742e6基线上退出0；新main整合后仍按新基线复核。
 
 最终结算：26文件197项调用方与Workbench要求通过（`quality-audit-settings-owner-acceptance.log`）；保持语义提取目录匹配后，最终构建通过、Skill创作与恢复2文件19项复验通过（`quality-audit-settings-owner-extraction-final.log`），去重组合27文件215项。健康通过（`quality-audit-settings-owner-health-final.log`），mountKit精确巨大单元记录155→153，无脚本或阈值放宽；首次158行失败记录保留。API零差异。覆盖实际Home持久化、失败/重试、采用/放弃、缓存/历史及资源加载，不替代Home动作回执链接、真实模型质量或最终头CI。

@@ -152,14 +152,15 @@ export function createLocalGoalsReadHttp(ports: {
       const shell = await readWebView(), stage = shell.stage_data?.goals as GoalsStageData | undefined;
       const view = stage ? { ...shell, ...stage.collection, snapshot: { ...stage.collection.snapshot,
         board: { ...stage.collection.snapshot.board, project_id: shell.snapshot.board.project_id } } } : shell;
-      return { view, stage, selected: route.kind === "momentum" ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, readArtifactDisplay, route.collection) };
+      return { view, stage, selected: route.kind === "momentum" || (route.kind === "refresh" && route.projection === "collection")
+        ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, readArtifactDisplay, route.collection) };
     }, ({ view, stage, selected }) => {
       const stageData = (data: GoalsWebView, selection: GoalsStageData["selection"]): GoalsStageData | undefined =>
         stage && { ...stage, collection: data, selection, selected: null };
       return {
-      refresh: (goalId, collection) => renderWorkbenchRefreshDocument({
+      refresh: (goalId, collection, projection) => renderWorkbenchRefreshDocument({
         body_html: declaredPageSurface(match!.plugin_id, match!.route_id, selected, stageData(selected, collection),
-          goalId ? { goal_id: goalId } : {}),
+          { ...(goalId ? { goal_id: goalId } : {}), ...(projection ? { projection } : {}) }),
         body_attributes: { "data-board-view": collection },
       }),
       momentum: (goalId, collection) => declaredPageSurface(match!.plugin_id, match!.route_id, view, stageData(view, collection), { goal_id: goalId }) || null,

@@ -7,7 +7,7 @@ import type { UiPageRouteDeclaration } from "@molis-ai/molis-work-contracts/plat
  * fetch; the page routes are the project's Goal pages.
  */
 export const GOALS_PAGE_ROUTES: UiPageRouteDeclaration[] = [
-  { route_id: "board-refresh", path: "/api/board/refresh", query: ["view", "goal_id"] },
+  { route_id: "board-refresh", path: "/api/board/refresh", query: ["view", "goal_id", "projection"] },
   { route_id: "board-momentum", path: "/api/board/momentum", query: ["view", "goal_id"] },
   { route_id: "goal-document", path: "/api/goals/:goal_id/document", query: ["view"] },
   { route_id: "project-page", path: "/", params: { collection: "current" } },

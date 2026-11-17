@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-17 质量审查第50批：Goals自有 `goals.stage.read@1` 输入新增可选 `projection: "collection"`，其现行输出的 `selected` 为 null，集合与呈现状态保持；省略该字段的固定版本调用方继续读取原完整正文。原页面声明、Manifest stage输入、Host片段和工作台刷新同批接入。按当前阶段一原位扩充，动作快照同步；没有持久结构变更、历史值兜底或兼容reader。公开contracts/SDK API快照无变化。
+
 2026-11-17 质量审查 QEA-69～72：Pages 编辑器的翻译另存回调携带原 `request_id` 与候选当前性判定，页面采用既有 `pages.create` 幂等合同；创建受理后的列表/导航失败单独反馈，不重新创建，无新动作或持久字段。现有 `molis-work:select-item` 在隔离 frame 中以可取消事件派发，完整处理本次选择的插件同步 preventDefault 接管，框架不再并行找行代点。Pages 等实际 ID 处理方同片迁移，Goals 的 create-dialog 和创作台不处理的 restore 分支不接管；未接管的行驱动页面及 Host 的 Feed source/Characters/Sessions 路径保持。事件 payload 与授权不变，原位更新 API 快照。
 
 2026-11-17 质量审查 QEA-67/68：移除无生产调用的私有 WebQuery 工厂包及 YouTube 根出口 `youtubeIntegrationManifest`/`createYoutubeIntegrationPlugin`，不留兼容空壳。YouTube 原包名、频道工具出口和 Host/npm 依赖保留；现行 web_query/youtube_channel 来源数据及 SourcePull 合同不变。同步删两份安装 Manifest、六个专用版本键和十六个 carrier。用户已批准包边界名单只保留 GitHub/Gmail/RSS，以及删除两条退役签名例外；活跃安装身份检查保留并补拒绝反证，无权限或持久格式变化。

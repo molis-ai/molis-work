@@ -16,6 +16,7 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 import { homeProbe } from "./fixtures/home-runtime.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 type Part = Record<string, unknown>;
 
@@ -221,6 +222,58 @@ test("QEA-94 a Goal refresh reads its owner without rereading another shown plug
     assert.equal(calls.filter(id => id === "goals.stage.read").length, 1, `${path}: the Goal fragment retains its actual owner read`);
     assert.equal(calls.filter(id => id === scheduleActions.list.capability_id).length, 0, `${path}: a Goal fragment must not read the unrelated Schedule stage`);
   }
+});
+
+test("QEA-112 the Goal collection projection keeps navigation without reading or rendering a selected document", { timeout: 60_000 }, async t => {
+  const { host, scheduled, base } = await servedHome(t);
+  const reference = molisWorkHostProjectReference({ databasePath: scheduled.database_path, projectId: scheduled.project_id });
+  const caller: ActionCallContext = { actor_id: "person", audience: "user", project_id: reference.project_id, permissions: ["goals:read", "goals:write"] };
+  const client = host.actionClient(reference), actions = bindActionClient(client, () => caller);
+  await actions.invoke(goalsActions.create, { goal_id: "COLLECTION", title: "Collection owner", outcome: "Keep the selected document separate", idempotency_key: "collection-goal" });
+  const events = await host.withProject(reference, runtime => goalApplicationOf(runtime).goalEvents);
+  const timeline = events.listLatestTimeline;
+  let timelines = 0;
+  t.mock.method(Object.getPrototypeOf(events), "listLatestTimeline", function(this: typeof events, ...args: Parameters<typeof timeline>) {
+    timelines++; return timeline.apply(this, args);
+  });
+  const full = await actions.invoke(goalsActions.stage, { goal_id: "COLLECTION" });
+  assert.equal(full.selected?.goal_id, "COLLECTION", "the default retains the existing document consumer");
+  assert.ok(timelines > 0, "the stage's internal document read reaches the real timeline owner");
+  timelines = 0;
+  const input = { goal_id: "COLLECTION", projection: "collection" as const };
+  const collection = await actions.invoke(goalsActions.stage, input);
+  assert.equal(collection.selected, null, "a collection request must not load the selected document");
+  assert.equal(timelines, 0, "the stage does not read a timeline and then discard it");
+  assert.deepEqual(collection.collection, full.collection);
+  assert.deepEqual(collection.presentation_states, full.presentation_states);
+  const reads: string[] = [], actionClient = host.actionClient.bind(host);
+  t.mock.method(host, "actionClient", (scope: Parameters<typeof actionClient>[0]) => {
+    const current = actionClient(scope);
+    return { discover: (...args: Parameters<typeof current.discover>) => current.discover(...args),
+      invoke(context: ActionCallContext, action: ActionReference, data: unknown) { reads.push(action.capability_id); return current.invoke(context, action, data); } };
+  });
+  const visible = await fetch(base(scheduled.project_id) + "/api/board/refresh?view=current&goal_id=COLLECTION");
+  assert.equal(visible.status, 200);
+  assert.match(await visible.text(), /data-goal-event-document/);
+  assert.ok(reads.includes(goalsActions.document.capability_id), "the normal fragment actually calls its document owner");
+  assert.ok(reads.includes("artifacts.goals.embeds"), "the normal fragment reads current artifact ownership too");
+  reads.length = 0;
+  timelines = 0;
+  const response = await fetch(base(scheduled.project_id) + "/api/board/refresh?view=current&projection=collection");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Collection owner/);
+  assert.match(html, /data-tree-scroll/);
+  assert.match(html, /data-create-dialog/);
+  assert.match(html, /id="molis-work-data"/);
+  assert.doesNotMatch(html, /data-document-pane|data-goal-event-document/);
+  assert.equal(reads.filter(id => id === goalsActions.document.capability_id).length, 0, "the collection fragment never calls the document owner");
+  assert.equal(timelines, 0, "neither the stage nor the Host reads the document internally");
+  assert.equal(reads.filter(id => id === "artifacts.goals.embeds").length, 0, "a collection fragment does not decorate a hidden document's artifacts");
+  await assert.rejects(client.invoke({ ...caller, permissions: [] }, goalsActions.stage, input), (cause: unknown) => cause instanceof ActionError && cause.code === "actions.forbidden");
+  await assert.rejects(client.invoke(caller, goalsActions.stage, { projection: "unknown" }));
+  const invalid = await fetch(base(scheduled.project_id) + "/api/board/refresh?projection=unknown");
+  assert.equal(invalid.status, 400);
 });
 
 test("RAC-2510 object reads and finite stage surfaces obey the same owner/read/placement declarations", () => {

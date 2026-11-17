@@ -99,6 +99,9 @@ test("BFP-01 BL-131: updating 20 Inbox suggestions reads the page once and says 
     const post = seen.findIndex(request => request.method === "POST" && request.url.includes("/judgment/evaluate"));
     assert.ok(post >= 0, "the judgment ran");
     const documents = seen.slice(post + 1).filter(request => html.has(request.id));
+    // QEA-115: this real Inbox consumer still refreshes the background Goal collection, without requesting its hidden document.
+    const goalRefreshes = documents.filter(request => new URL(request.url).pathname.endsWith("/api/board/refresh"));
+    assert.ok(goalRefreshes.every(request => new URL(request.url).searchParams.get("projection") === "collection"), "Inbox must not refresh a hidden Goal document");
     // The Inbox page itself; another view's own refresh (the Goals board) is reported above, not counted here.
     const reads = documents.filter(request => new URL(request.url).pathname === `/projects/${projectId}/`).length;
     t.diagnostic(`BFP sample ${sample + 1} document reads ${JSON.stringify(documents.map(request => ({ path: new URL(request.url).pathname + new URL(request.url).search, ms: request.at - seen[post]!.at, bytes: html.get(request.id) })))}`);

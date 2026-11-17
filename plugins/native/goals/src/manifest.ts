@@ -115,7 +115,7 @@ export const goalsManifest: PluginManifest = {
     page_routes: GOALS_PAGE_ROUTES,
     views: [
       { view_id: "stage", slot: "stage", title: "Goals", contribution_id: GOALS_STAGE_CONTRIBUTION_ID,
-        stage_data: { action: "goals.stage.read", input: ["collection", "goal_id"] } },
+        stage_data: { action: "goals.stage.read", input: ["collection", "goal_id", "projection"] } },
       { view_id: "tree", slot: "navigator", title: "Goals", contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID, icon: "target", hue: "blue", order: 10, rail: "core", pinned_default: true, accepts_objects: true,
         start: { title: "推进一个目标", hint: "明确要做成什么，接着往下走。" , title_text: { key: "goals.directory.start-title" }, hint_text: { key: "goals.directory.start-hint" } } },
     ],

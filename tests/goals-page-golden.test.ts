@@ -232,6 +232,11 @@ const pages: Record<string, Draw> = {
 // this audit's import-help sentence and English import-submit label are reversed (+7 zh / +38 en). Those two proved changes are
 // retained in the merged expectations; the other 36 records are unchanged. Candidate RECORD mode and normalization were not changed.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
+// QEA-94/109: all 52 normalized draws reproduce their previous hashes and lengths when only the retired final
+// `inbox_judgment:null` client-data property is restored and the Sessions SSR `maxlength="200"` is removed.
+// The 16 whole pages therefore change by -6 characters (-22 +16), and the 8 full refresh fragments by -22;
+// the other 28 records are unchanged. Expectations were derived after this exact reverse check, without RECORD mode.
+// QEA-112's collection projection has separate actual owner-read/HTTP assertions; the original full-page checks remain exact.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

@@ -44,12 +44,13 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       return true;
     };
 
-    let documentReplaceGeneration = 0;
+    let documentReplaceGeneration = 0, documentCursor;
     const { loadGoalDocument } = (${GOALS_PAGE.goalsDocument})({
       documentPane, documentCollection, route, translate: globalThis.t.text, isAbortError,
       showError: (message) => showToast(message, true),
       afterReplace: () => {
         documentReplaceGeneration += 1;
+        documentCursor = undefined;
         updateAllRelationFormPreviews();
         bindGoalEventDocument(pendingEventRestore);
         pendingEventRestore = null;
@@ -83,8 +84,11 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     });
     const searchInteractionActive = () => globalSearchPalette?.isBusy?.() || Date.now() < searchBusyUntil;
 
-    const liveUiInteractionActive = () => {
+    const liveUiInteractionActive = (collectionOnly = false) => {
       const active = document.activeElement;
+      if (collectionOnly) return Boolean(active?.closest?.('[data-tree-scroll], [data-tree-filter], [data-create-dialog]')
+        && active.matches('input, textarea, select, [contenteditable="true"]')
+        || treeScroll?.querySelector('[data-record-menu][open], .goal-more[open], [aria-busy=true]:is([data-live-form],[data-event-form])'));
       // Open menus and saving forms stay intact even after focus is lost.
       if (active?.closest?.("[data-live-form], [data-event-form]") || document.querySelector("[data-record-menu][open],.goal-more[open],[aria-busy=true]:is([data-live-form],[data-event-form])")) return true;
       const dirtyVisibleForm = [...document.querySelectorAll('[data-live-form][data-live-dirty="true"], [data-event-form][data-live-dirty="true"]')]
@@ -114,29 +118,38 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       scheduleDeferredRefresh();
     };
 
-    const refreshBoard = async (force = false, signal = boardVisibleSignal) => {
-      if (!goalData || syncing || document.hidden || (boardLifetime && !boardLifetime.visible)) return;
+    // Focus is not visibility: a split pane stays visible while another pane owns the keyboard.
+    const goalRegionVisible = nodes => {
+      const shown = node => Boolean(node?.checkVisibility({ visibilityProperty: true }));
+      if (!nodes.some(shown)) return false;
+      for (let view = window; view.frameElement; view = view.parent) if (!shown(view.frameElement)) return false;
+      return true;
+    };
+    const goalDocumentVisible = () => goalRegionVisible([documentPane?.querySelector('[data-work-surface="goals"]')]);
+    const goalStageVisible = () => goalRegionVisible([document.querySelector("[data-goal-canvas-shell]"), document.querySelector("[data-goal-frame-surface]"), documentPane?.querySelector('[data-work-surface="goals"]')]);
+    const readBoard = async ({ force, signal, cursor: hint }) => {
+      if (!goalData || document.hidden || !boardLifetime.visible || signal?.aborted) return;
+      const collectionOnly = !force && !goalDocumentVisible();
       if (!force && searchInteractionActive()) {
         scheduleDeferredRefresh();
         return;
       }
-      if (!force && liveUiInteractionActive()) {
+      if (!force && liveUiInteractionActive(collectionOnly)) {
         return;
       }
-      syncing = true;
       try {
-        const {observed_event_cursor:cursor}=await molisWorkRequest(route("/api/board/cursor"),{scope:boardLifetime,signal,fallback:"无法读取 Molis Work 游标"});
+        const cursor = hint ?? (await molisWorkRequest(route("/api/board/cursor"),{scope:boardLifetime,signal,fallback:"无法读取 Molis Work 游标"})).observed_event_cursor;
         boardLifetime.assertCurrent(signal);
         // The platform journal and the Goals plugin journal have independent sequence numbers.
         // Acknowledge the platform cursor only after its refresh was actually applied.
-        if (cursor === goalData.boardCursor) {
+        if (!force && cursor === (collectionOnly ? goalData.boardCursor : documentCursor)) {
           return;
         }
         if (!force && searchInteractionActive()) {
           scheduleDeferredRefresh();
           return;
         }
-        if (!force && liveUiInteractionActive()) return;
+        if (!force && liveUiInteractionActive(collectionOnly)) return;
         const refreshGoalId = selected;
         const pageBase = goalPageBase();
         const collectionPath = trashView ? "/trash" : archiveView ? "/archive" : "/";
@@ -144,37 +157,39 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
           ? pageBase + encodeURIComponent(refreshGoalId)
           : route(collectionPath);
         const compactRefreshPath = route("/api/board/refresh?view=" + documentCollection +
-          (refreshGoalId ? "&goal_id=" + encodeURIComponent(refreshGoalId) : ""));
+          (collectionOnly ? "&projection=collection" : refreshGoalId ? "&goal_id=" + encodeURIComponent(refreshGoalId) : ""));
         const refreshGeneration = documentReplaceGeneration;
         let pageResponse;
-        for (const path of [compactRefreshPath, pagePath, route(collectionPath)]) {
+        for (const path of collectionOnly ? [compactRefreshPath] : [compactRefreshPath, pagePath, route(collectionPath)]) {
           pageResponse=await molisWorkRequest(path,{scope:boardLifetime,signal,as:"response"});
           if (pageResponse.ok) break;
         }
         if (!pageResponse.ok) throw new Error("无法更新 Goal 页面");
         const parsed = new DOMParser().parseFromString(await pageResponse.text(), "text/html");
         boardLifetime.assertCurrent(signal);
-        if (!force && liveUiInteractionActive()) return;
+        const applyCollectionOnly = collectionOnly || (!force && !goalDocumentVisible());
+        if (!force && liveUiInteractionActive(applyCollectionOnly)) return;
         if (parsed.body.dataset.boardView !== document.body.dataset.boardView) {
+          if (applyCollectionOnly) { void refreshBoard(false, signal, cursor); return; }
           location.reload();
           return;
         }
         const nextStateNode = parsed.querySelector("#molis-work-data");
         if (!nextStateNode) throw new Error("页面状态不完整");
         const nextState = JSON.parse(nextStateNode.textContent);
-        if (refreshGeneration !== documentReplaceGeneration) {
+        if (!collectionOnly && refreshGeneration !== documentReplaceGeneration) {
           scheduleDeferredRefresh();
           return;
         }
         const goalRefresh = prepareGoalRefresh(parsed, {
           active_goal_id: nextState.active_goal_id, goals: nextState.goals,
           archived_goals: nextState.archived_goals, trashed_goals: nextState.trashed_goals,
-        }, visibleGoals(nextState), refreshGoalId, collectionPath);
+        }, visibleGoals(nextState), refreshGoalId, collectionPath, applyCollectionOnly, selected === refreshGoalId && (force || goalStageVisible()));
         if (!force && searchInteractionActive()) {
           scheduleDeferredRefresh();
           return;
         }
-        if (selected !== refreshGoalId) {
+        if (!collectionOnly && selected !== refreshGoalId) {
           scheduleDeferredRefresh();
           return;
         }
@@ -188,31 +203,59 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
           return "reloading";
         }
         const ui = readUiState();
+        const treePosition = treeScroll?.scrollTop;
         goalRefresh.apply(() => {});
         state = nextState;
         projectHome?.sync();
         projectPositions?.invalidate();
         document.querySelector("#molis-work-data").textContent = JSON.stringify(state).replaceAll("<", "\\u003c");
-        selected = goalRefresh.nextSelected;
-        if (selected) applySelection(selected, false);
+        if (!applyCollectionOnly) {
+          selected = goalRefresh.nextSelected;
+          if (selected) applySelection(selected, false);
+        }
         // Invalidate before restoring visible workspace state, so its graph consumer can reload.
         const refreshedGraph = graphElement();
         if (refreshedGraph?.dataset.loaded === "true") {
           if (workspace.dataset.workspaceMode === "graph") void loadGoalGraph(true);
           else refreshedGraph.dataset.loaded = "false";
         }
-        applyUiState(ui);
-        updateAllRelationFormPreviews();
-        bindGoalEventDocument();
+        if (applyCollectionOnly) {
+          restoreTreeCollapsed(ui.collapsed);
+          syncGoalCollectionFolds();
+          setSelectedStatuses(ui.statuses);
+          filterTree("");
+          selectTreeGoal(selected);
+          if (treeScroll) treeScroll.scrollTop = treePosition;
+        } else {
+          applyUiState(ui);
+          updateAllRelationFormPreviews();
+          bindGoalEventDocument();
+          documentCursor = cursor;
+          requestAnimationFrame(() => documentPane.classList.remove("is-syncing"));
+        }
         goalData.boardCursor = cursor;
-        requestAnimationFrame(() => documentPane.classList.remove("is-syncing"));
       } catch (error) {
         // A background refresh stays quiet for the person, but not for whoever has to find out why it stopped.
         if (!signal?.aborted) console.warn("Goal refresh failed", error);
-      } finally {
-        syncing = false;
-        if (signal?.aborted && boardLifetime.visible) queueMicrotask(() => refreshBoard());
       }
+    };
+    // Retain the latest requested read while one projection is in flight; it is not an acknowledgement.
+    let pendingRefresh, refreshJob, observedBoardCursor;
+    const refreshBoard = (force = false, signal = boardVisibleSignal, cursor) => {
+      if (typeof cursor === "number") observedBoardCursor = Math.max(observedBoardCursor ?? cursor, cursor);
+      pendingRefresh = { force: force || pendingRefresh?.force || false, signal, cursor: typeof cursor === "number" ? observedBoardCursor : pendingRefresh?.cursor };
+      if (!refreshJob) refreshJob = (async () => {
+        try {
+          let result;
+          while (pendingRefresh) {
+            const next = pendingRefresh; pendingRefresh = undefined;
+            result = await readBoard(next);
+            if (result === "reloading") { pendingRefresh = undefined; break; }
+          }
+          return result;
+        } finally { refreshJob = null; }
+      })();
+      return refreshJob;
     };
 
     const decisionReceiptContext = (decisionForm) => {

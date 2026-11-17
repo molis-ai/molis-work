@@ -26,7 +26,6 @@ export async function fixed(page: GitPage, item: Selected, selection: ResultSele
   title(page, item);
   setContentHtml(q("[data-git-diff]"), value.html || "");
   diffNotice.textContent = uiText.text("git.diff.as-read", { version: item.reference.version });
-  page.resultPanel.hidden = true;
   selection.item = item;
   action.hidden = false;
   action.textContent = item.side === "index" ? uiText.text("git.diff.unstage") : uiText.text("git.diff.stage");
@@ -43,7 +42,6 @@ export async function open(page: GitPage, path: string[], side: string, button: 
   result.setAttribute("aria-busy", "true");
   q("[data-git-title]").textContent = path.join("/");
   q("[data-git-scope]").textContent = "";
-  q("[data-git-diff]").replaceChildren();
   diffNotice.textContent = uiText.text("git.diff.reading");
   try {
     const value = await request<DiffAnswer>(page, "/diff", "POST", { workspace_id: id, path, side });
@@ -105,9 +103,6 @@ async function openHistory(page: GitPage): Promise<void> {
   const selection = selectResult(page, { kind: "history" }, history);
   q("[data-git-title]").textContent = uiText.text("git.history.title");
   q("[data-git-scope]").textContent = uiText.text("git.history.scope");
-  q("[data-git-diff]").replaceChildren();
-  page.diffNotice.textContent = "";
-  page.resultPanel.hidden = false;
   await showReviews(page);
   if (currentResult(page, selection)) await loadResults(page);
 }

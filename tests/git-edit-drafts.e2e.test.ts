@@ -153,7 +153,7 @@ for (const surface of ["git", "coding"] as const) {
 }
 
 for (const surface of ["git", "coding"] as const) {
-  test(`QEA-33 QEA-34: ${surface} keeps rejected and later edits, and clears only the successful snapshot after reload`, { timeout: 150_000 }, async t => {
+  test(`QEA-33 QEA-34 QEA-133: ${surface} keeps rejected and later edits, and clears only the successful snapshot after reload`, { timeout: 150_000 }, async t => {
     const ctx = await gitEditor(t, surface); if (!ctx) return;
     const { browser, frame, root, git, show } = ctx;
     git("config", "user.name", "Fixture"); git("config", "user.email", "fixture@example.test");
@@ -162,7 +162,18 @@ for (const surface of ["git", "coding"] as const) {
     await frame.click("[data-git-refresh]"); await show();
     const originalHead = git("rev-parse", "HEAD");
     await edit(ctx, "commit-message", "First proposed commit");
-    await frame.click("[data-git-commit]"); await decide(ctx, "reject");
+    await frame.click("[data-git-commit]");
+    if (surface === "coding") {
+      const reject = "[data-host-review-slot] [data-agent-review-reject]";
+      await browser.waitFor(`document.querySelector(${JSON.stringify(reject)})?.checkVisibility()`);
+      const reviewId = await browser.evaluate<string>(`document.querySelector(${JSON.stringify(reject)}).dataset.agentReviewReject`);
+      await browser.click(".navigator-project-settings");
+      await frame.waitFor("document.body.hidden");
+      await browser.click("[data-cover-close]");
+      const sameReview = `[data-host-review-slot] [data-agent-review-reject=${JSON.stringify(reviewId)}]`;
+      await browser.waitFor(`document.querySelector(${JSON.stringify(sameReview)})?.checkVisibility()`);
+    }
+    await decide(ctx, "reject");
     await frame.waitFor("document.querySelector('[data-git-operations] [data-outcome=denied]') && !document.querySelector('[data-git-refresh]').disabled");
     await browser.reloadPage(); await show();
     assert.equal(await frame.evaluate("document.querySelector('[data-git-commit-message]').value"), "First proposed commit");

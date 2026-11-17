@@ -172,7 +172,6 @@ export async function prepare(page: GitPage, operation: { action: string } & Rec
     q("[data-git-title]").textContent = label;
     q("[data-git-kind]").textContent = uiText.text("git.op.review-kind");
     q("[data-git-scope]").textContent = "";
-    q("[data-git-diff]").replaceChildren();
     diffNotice.textContent = uiText.text("git.op.review-note");
     await showReviews(page);
     if (current()) await afterDecision(page, { workspaceId: page.workspace, state: "pending" });

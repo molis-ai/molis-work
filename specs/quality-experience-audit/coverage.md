@@ -1,5 +1,7 @@
 # 审查覆盖记录
 
+当前范围以已整合的 main `dbcf562a67` 为准。仓库登记与下表 75 包的路径、成熟度相符，公开合同有 84 个子路径及根入口。现行 [报告](report.md) 记录结论、改造、明确保留的业务和外部路径。第 59 批受影响包级复验为 55 文件 463 项，Git 审查在同期安全回归暴露的恢复缺口纳入第 60 批。
+
 第51批交集：main dbcf562a67 已在工作树整合。新增既存验收意向恢复及7天草稿找回、trial来源沿原动作入口纳入范围；原本轮原子提交、保存排队/缓存/版本与案例守护保留。首轮9文件63项通过，最终构建/补强恢复与动作合同2文件31项通过，62个受影响包文件907项通过；准确main基线健康通过。后续Skill真实恢复缺口与最终资源/CI仍未完成。
 
 第50批追加：外层attention/后台poll、Inbox固定规则更新、Feed后台集合与菜单、Goal Frame/正文、Home/Settings、分栏/solo/窄屏实际入口已沿公开stage动作与Host装饰追到owner和DOM反馈。集合投影由Goals声明，布局可见性及请求协调由Workbench维护；保留独立成果/输入的游标变化。构建4后15项刷新及1项多窗格全部通过，另有Feed菜单3项、成果/输入返回1项通过；QF-51表列六方向处置、迟到归档有效反证与修复。五样本20条建议p50=5.4秒，最终包要求、性能断言复核、资源与CI继续，未扩大为整项完成。
@@ -108,17 +110,17 @@ Git QF-03 的独立与 Coding 内嵌入口已补真实仓库复现：提交说�
 | `packages/plugin-sandbox` | production | `.` | `src/runner.ts:31` 与 read protocol：子进程身份、调用限额、取消和受控服务；旧 BL 的进程内执行说法过时。 |
 | `apps/desktop` | production | `.` | `src/web-host.ts:12,28`：桌面装配复用 Local Host；终端可用性归 runtime-host。未实操系统 WebKit。 |
 | `apps/workbench` | production | `.`、`./terminal` | 资料导入→成果服务、attention→后台列表、chooser→brief、插件 frame→挂载/输入、角色确认。另沿Settings→Kit地址/缓存→草稿动作→SQLite核生命周期；QF-56真实隐藏、失败保存、后退/刷新、迟到读取及资源重试18项通过，含其他设置调用方/包要求共27文件215项通过，最终构建/API/健康通过。其余各批证据见下文。 |
-| `apps/local-host` | production | `.` | 动作 HTTP→Kernel→owner；项目/ Home 插件登记、background aggregate、单一项目删除、sourcePull、Memory 身份接线。QF-04、PF-03。 |
+| `apps/local-host` | production | `.` | 动作 HTTP→Kernel→owner；项目/ Home 插件登记、background aggregate、单一项目删除、sourcePull、Memory 身份接线。另核签名采用、模型设置与 Skill/引导的实际写入，见 QF-58、61–64。 |
 | `apps/cli` | production | `.` | `src/dispatch.ts`：命令分发与既有 Home 入口；不另开执行事实 owner。安装/公开发版未做。 |
 | `apps/mcp` | production | `.` | `src/action-tools.ts`：实时目录→公开动作→Kernel 再授权；输入 _meta 不提供身份。 |
-| `packages/contracts` | production | `./modules/sync-replication`、`./platform/sync-transport`、`.` 等 83 个子路径 | action-input、object-link、plugin-manifest、plugin-sandbox、公开状态：声明与输入/输出的单一合同。公开零引用不等于死代码。 |
+| `packages/contracts` | production | 根入口及 84 个子路径，含 `./modules/sync-replication`、`./platform/sync-transport` | action-input、object-link、plugin-manifest、plugin-sandbox、公开状态：声明与输入/输出的单一合同。Home 回执、后台完整性和页面选择由现行消费者复验。公开导出按其合同及实际调用方判断用途。 |
 | `packages/kernel` | production | `.`、`./contextual` | action-schema、action-settlement 与执行控制：输入校验、call/invocation 关联、嵌套调用、beforeEffect；保留异步后授权复核。 |
 | `packages/plugin-runtime` | production | `.` | activation-jobs、notification-queue 与调用身份：激活代次/迟到提交、停止与 drain、事务内通知及稳定幂等键。 |
-| `packages/plugin-sdk` | production | `.`、`./highlight`、`./rich-text` 等 13 个子路径 | state-machine、execution-lifetime、browser、sandbox-read-protocol：CAS 状态迁移、取消资源、请求方法差异和生成插件读协议。 |
+| `packages/plugin-sdk` | production | 根入口及 13 个子路径，含 `./browser`、`./highlight`、`./rich-text` | state-machine、execution-lifetime、browser、sandbox-read-protocol：CAS 状态迁移、取消资源、请求方法差异和生成插件读协议。 |
 | `packages/storage` | production | `.` | `src/sqlite-owner-boundary.ts:19,59`：SQLite 实际 prepare/step 授权、finally 清理；升级/快照公开入口核对。第43/47批沿Home成员读取与升级入口复用结构比较，版本/归属逐次检查；QEA-108覆盖空间形式交错和绑定行消失，10文件154项通过，版本文件仍有旧Feed例外待批准。未执行用户存量迁移。 |
 | `packages/ui-host` | slice | `.` | `src/index.ts:76,107`、declared-mount-host：登记 surface、owner 与位置兑现；另追 Host surface-slot-http 与 surfaces/position 的受控 plugin-slot，以及 Inbox/Risk/Work Brief 的 UI contribution 声明和 surfaceSlot 消费者，不重建槽能力。 |
-| `packages/design-system` | production | `.`、`./produced-text`、`./capability-pack` 等 4 个子路径 | composer-rules 的草稿身份、输入法/发送规则、迟到代次；公开组件/语义样式入口。导入沿用现有组件。 |
-| `packages/test-kit` | slice | `.`、`./browser`、`./local-host-http` 等 4 个子路径 | browser launch/close、隔离目录与 CDP；本轮实际使用独立浏览器、临时 Home、真实成果库。 |
+| `packages/design-system` | production | `.`、`./produced-text`、`./capability-pack`、`./navigation`、`./work-records`、`./session-sources` | composer-rules 的草稿身份、输入法/发送规则、迟到代次；公开组件/语义样式入口。导入沿用现有组件，Kit 使用既有导航。 |
+| `packages/test-kit` | slice | `.`、`./browser`、`./local-host-http`、`./sqlite` | browser launch/close、隔离目录与 CDP；本轮实际使用独立浏览器、临时 Home、真实成果库。 |
 | `modules/projects` | production | `.` | project-service、project-deletion：创建/成员/目录事实，删除预检与阶段回执；Host 唯一删除服务保持。 |
 | `modules/context-ledger` | slice | `.` | `src/service.ts:28,60,77`：引用完整性、scope 授权、追加版本和 remove；不拥有 Feed/Session 业务状态。 |
 | `modules/acceptance` | slice | `.` | state、service：要求版本→交付/证据→机器核对→人认可；状态由事实推导，个人范围仍未完成。 |
@@ -143,7 +145,7 @@ Git QF-03 的独立与 Coding 内嵌入口已补真实仓库复现：提交说�
 | `horizontal/search` | production | `.` | query/open 及索引同步：目录发现→等待→原调用身份复核→读；第二次 discover 是安全边界。 |
 | `horizontal/appearance` | slice | `.` | selection：选择事实与可用显示分开；失效时保留原选择并呈现恢复项；原子写不因返回错误冒认失败。 |
 | `horizontal/kit` | production | `.` | `src/index.ts:25`：声明 reporter 汇总，系统代报白名单属于可信来源边界；不存第二份能力事实。 |
-| `horizontal/mainline` | slice | `.` | index 的后台读取、command、事件：保留 issues、重新读取 offered command 再执行；Home 丢 issues 是消费方缺口。 |
+| `horizontal/mainline` | slice | `.` | index 的后台读取、command、事件：保留 issues、重新读取 offered command 再执行。Home 已消费同一行投影和问题列表，见 QF-04。 |
 | `horizontal/placement` | production | `.` | project-copy-execution：预览指纹→身份计划→owner prepare/apply→发布；仅声明依赖等待可重试，不吞其他失败。 |
 | `horizontal/surfaces` | slice | `.` | composition/fallback：声明发现、授权、组合缓存与 revision；降级只用允许的本地只读动作。 |
 | `plugins/official-integrations/catalog` | production | `.` | document-import、http/provider：有限时外部读取、每次 dispatch 检查、HTTP200 业务错误分类；未连真实 OAuth。 |
@@ -157,17 +159,17 @@ Git QF-03 的独立与 Coding 内嵌入口已补真实仓库复现：提交说�
 | `plugins/native/cognia` | production | `.`、`./registration` | actions、ai、drafts：输入材料→模型引用校验→授权写入；saved_id 由资料存在性推导。 |
 | `plugins/native/dataset` | production | `.`、`./contract`、`./registration` | actions、promote：模型输入版本、await 后授权/CAS；数据与成果固定在联合事务提交。 |
 | `plugins/native/diff` | production | `.`、`./registration` | registration/actions/comparison：公开读取固定版本、变更集与文件，SDK diff 呈现；未私读其他插件存储。 |
-| `plugins/native/feed` | slice | `.`、`./contract`、`./registration` 等 4 个子路径 | 来源/条目/入箱/规则动作、回放、后台连接、来源删除；QF-02、QF-05 已改，实际业务回归中。 |
+| `plugins/native/feed` | slice | `.`、`./contract`、`./registration`、`./store` | 来源/条目/入箱/规则动作、回放、后台连接、来源删除。已迁现有 SourcePull，验实际暂停后旧正文无写入、真实同步及恢复，见 QF-02、05、44/PF-07。 |
 | `plugins/native/form` | production | `.`、`./contract`、`./registration` | actions/plugin/store：版本写入、发布固定资料、收集关闭可重开；拒绝旧报告的终态化建议。 |
-| `plugins/native/git` | production | `.`、`./registration` | actions/routes/drafts/browser source/conflicts：公开工作区/目录、操作回执与草稿入口脱节 QF-03。 |
-| `plugins/native/goals` | production | `.`、`./contract`、`./module` 等 6 个子路径 | actions/module lifecycle-archive：满足后归档、回收恢复、事务回执/事件/active 清理；Goals 平台特判待第44批。 |
+| `plugins/native/git` | production | `.`、`./registration` | 独立 Git 路由和 Coding 内嵌页面动作经同一客户端；工作区、Git 审查、实际操作回执和界面草稿按主人读取。编辑、固定差异和审查恢复见 QF-03、23、46、65。 |
+| `plugins/native/goals` | production | `.`、`./contract`、`./module`、`./governance`、`./page`、`./registration` | actions/module lifecycle-archive：满足后归档、回收恢复、事务回执/事件/active 清理。后台读集合、可见时读正文见 QF-51，平台特判待第 44 批。 |
 | `plugins/native/images` | production | `.`、`./contract`、`./registration` | service-job/background/browser request：Runtime job→受控厂商→文件→结果；取消不写业务，孤儿文件下次授权启动回收。 |
 | `plugins/native/inbox` | slice | `.`、`./registration` | actions/content/scene：通过 Feed 公开动作取材料、Pages 生成、attention 状态；失效主体保留事项。 |
 | `plugins/native/issues` | production | `.`、`./registration` | capture/store：临时采集、取消删草稿、保存前身份/CAS、稳定草稿ID 去重；并发不重复记录。 |
 | `plugins/native/jelly` | production | `.`、`./contract`、`./registration` | ai/command-actions：模型只出预览计划，原文 hash/版本确认后提交；日历重复规则是业务而非 scheduler 副本。 |
 | `plugins/native/lingguang` | production | `.`、`./contract`、`./registration` | content-actions/actions：公开内容交接、request_id 去重、生成回复前快照与取消检查；部分材料显式标记。 |
-| `plugins/native/pages` | production | `.`、`./contract`、`./registration` 等 5 个子路径 | actions/ai-run/删除撤销：写作助手不静默用假结果，简短命令验证变短；版本、保存和撤销归 Pages。 |
-| `plugins/native/plugin-builder` | slice | `.`、`./registration` | manifest/agent-state/workflow/SDK sandbox：执行token、暂停恢复、生成合同与进程沙箱；BL040/055 需改旧描述。 |
+| `plugins/native/pages` | production | `.`、`./contract`、`./registration`、`./code-highlight`、`./editor` | actions/ai-run/删除撤销：写作助手失败明确可见，简短命令验证归实际输入边界；版本、保存和撤销归 Pages。 |
+| `plugins/native/plugin-builder` | slice | `.`、`./registration` | manifest/agent-state/workflow/SDK sandbox：执行 token、暂停恢复、生成合同与进程沙箱。BL-040/055 的过时描述已校正，仍有来源、质量及跨项目待办。 |
 | `plugins/native/ppt` | production | `.`、`./contract`、`./registration` | actions/promote：Pages 经公开动作读取、模型草稿后版本检查、联合成果提交；保留授权绑定。 |
 | `plugins/native/risk` | experimental | `.`、`./registration` | review/actions：关闭后复查归档、串行安排及部分失败可见；历次结果/采纳仍在 BL。 |
 | `plugins/native/schedule` | slice | `.`、`./registration` | registration/plugin：业务排期归本插件、平台 scheduler 负责持久唤醒与授权；不另造计时器。 |

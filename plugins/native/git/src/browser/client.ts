@@ -14,6 +14,10 @@ export function gitClient(host: GitHost): GitBrowser | null {
   const page = createPage(host);
   if (!page) return null;
   const { lifetime, refreshButton, notice, result, list } = page;
+  const currentReview = () => {
+    const selection = page.resultSelection;
+    if (selection?.kind === "review" || (selection?.kind === "diff" && selection.preparation.phase === "review")) return selection;
+  };
   installResults(page);
   installDiff(page);
   installFormDrafts(page);
@@ -21,11 +25,15 @@ export function gitClient(host: GitHost): GitBrowser | null {
   lifetime.listen(refreshButton, "click", () => void (host.refreshWorkspace ? host.refreshWorkspace() : refresh(page)));
   lifetime.whenVisible((signal) => {
     page.viewSignal = signal;
+    // The same mounted result can display its review again, with a fresh identity for this visible period.
+    const review = currentReview();
+    if (review) page.resultSelection = { ...review, signal };
     page.initialRead = true;
     reading(page, true);
     notice.textContent = uiText.text("git.list.reading-workspace");
     return () => {
-      page.generation++; page.resultsTicket++; clearResultSelection(page);
+      page.generation++; page.resultsTicket++;
+      if (!lifetime.alive || !currentReview()) clearResultSelection(page);
       reading(page, false);
       list.setAttribute("aria-busy", "false");
     };

@@ -75,14 +75,14 @@ function rememberConflict(page: GitPage): void {
 }
 
 export async function openConflict(page: GitPage, path: string, source: HTMLElement | null = page.opener): Promise<ResultSelection> {
-  const { q, conflictEditor, conflictText } = page;
+  const { q, conflictText } = page;
   const workspace = page.workspace;
   const selection = selectResult(page, { kind: "conflict", path }, source);
   const current = () => currentResult(page, selection);
   q("[data-git-title]").textContent = path;
   q("[data-git-kind]").textContent = uiText.text("git.conflict.region");
   q("[data-git-scope]").textContent = "";
-  conflictEditor.hidden = false; conflictText.value = ""; conflictText.disabled = true;
+  conflictText.value = "";
   q<HTMLButtonElement>("[data-git-conflict-resolve]").disabled = true;
   q("[data-git-conflict-changed]").hidden = true;
   q<HTMLDetailsElement>("[data-git-conflict-current]").hidden = true;

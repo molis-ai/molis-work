@@ -54,10 +54,10 @@ export interface PluginInstallPorts {
   skillStates?(scopeRef: string, installId: string): ReadonlyMap<string, import("@molis-ai/molis-work-contracts/services/skills").SkillState>;
   ledger: PluginConsentLedger;
   packages: SandboxPackageStore;
-  /** Installs a release in the project the person is in. */
-  installInProject(projectId: string, release: InstalledRelease, assertCurrent?: () => void): Promise<void>;
+  /** Installs a release in the current project. The owner runs `complete` synchronously after refresh and authority checks, inside its compensation window. */
+  installInProject(projectId: string, release: InstalledRelease, assertCurrent?: () => void, complete?: () => void): Promise<void>;
   /** Installs a release in the Home: one instance every project shares, which a package asks for in its Manifest (`runtime.scope`, BL-628). */
-  installInHome(release: InstalledRelease, assertCurrent?: () => void): Promise<void>;
+  installInHome(release: InstalledRelease, assertCurrent?: () => void, complete?: () => void): Promise<void>;
   runHomeInstallation?<Result>(operation: (assertOpen: () => void) => Promise<Result>): Promise<Result>;
   presentationCatalog?(projectId: string | null): Promise<SurfaceInstallCatalog>;
   /**
@@ -317,23 +317,24 @@ export class PluginInstallService {
   }
 
   /**
+   * `complete` is a trusted owner commit supplied by Host composition, never by the preview or action input.
    * Installs what a preview showed. The preview is used up by this call, whatever happens. A publisher the person has not pinned is pinned
    * here only when they said so (`pin_label`); the install then runs under that pin.
    */
-  async confirm(input: { preview_id: string; consent: boolean; pin_label?: string }, who: PreviewOwner, caller?: ActionExecutionContext): Promise<{ plugin_id: string; version: string; publisher_key_id: string }> {
+  async confirm(input: { preview_id: string; consent: boolean; pin_label?: string }, who: PreviewOwner, caller?: ActionExecutionContext, complete?: () => void): Promise<{ plugin_id: string; version: string; publisher_key_id: string }> {
     const entry = this.held.get(input.preview_id);
     this.held.delete(input.preview_id);
     const held = requireHeldPreview(entry, who);
     if (input.consent !== true) throw pluginErrors.consent_required('安装前请确认插件要使用的权限');
     const { runHomeInstallation } = this.ports;
     if (held.view.runtime_scope === 'home' && runHomeInstallation) {
-      return runHomeInstallation(assertOpen => this.confirmHeld(held, input.pin_label, who.actor_id, caller, assertOpen));
+      return runHomeInstallation(assertOpen => this.confirmHeld(held, input.pin_label, who.actor_id, caller, assertOpen, complete));
     }
     if (held.view.runtime_scope === 'home' && held.pkg.manifest.presentation !== undefined) throw pluginErrors.declaration_invalid('这个宿主没有 Home 安装串行入口');
-    return this.confirmHeld(held, input.pin_label, who.actor_id, caller);
+    return this.confirmHeld(held, input.pin_label, who.actor_id, caller, undefined, complete);
   }
 
-  private async confirmHeld(held: Held, pinLabel: string | undefined, actorId: string, caller?: ActionExecutionContext, assertOpen?: () => void) {
+  private async confirmHeld(held: Held, pinLabel: string | undefined, actorId: string, caller?: ActionExecutionContext, assertOpen?: () => void, complete?: () => void) {
     const { runtime_scope, publisher: { key_id } } = held.view;
     // The range the person saw is the range of the package: checked again, as another preview may have been confirmed since.
     if (scopeOf(held.pkg.manifest) !== runtime_scope) throw pluginErrors.preview_unknown('预览之后这个包的运行范围变了，请重新预览');
@@ -377,10 +378,9 @@ export class PluginInstallService {
       }
       const directory = this.ports.packages.save(held.bundle, held.pkg);
       const release = packagedRelease(held.pkg, directory, this.now());
-      if (inHome) await this.ports.installInHome(release, assertCurrent);
-      else await this.ports.installInProject(held.project_id, release, assertCurrent);
-      if (caller?.signal?.aborted) throw new ActionError('actions.cancelled', '此次安装确认的调用已取消');
-      assertCurrent();
+      // The installation owner checks authority and commits the dependent owner's state inside its compensation window.
+      if (inHome) await this.ports.installInHome(release, assertCurrent, complete);
+      else await this.ports.installInProject(held.project_id, release, assertCurrent, complete);
       return { plugin_id: held.pkg.manifest.plugin_id, version: held.pkg.manifest.version, publisher_key_id: key_id };
     };
     return catalog ? withSurfacePresentationCheck(held.pkg.manifest, catalog, keep) : keep();

@@ -138,7 +138,8 @@ export function pluginInstallProviderFor(home: string, source: ProjectPluginHost
 
 function pluginInstallServiceFor(home: string, source: ProjectPluginHost): PluginInstallService {
   return new PluginInstallService({ skillStates: (scope, install) => new Map(homeAgentDefinitions(home).skills.settings(scope).filter(row => row.install_id === install).map(row => [row.skill_id, row.state])), ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home),
-    installInProject: (projectId, release, check) => installPackageInProject(source, projectId, release, check), installInHome: (release, check) => installPackageInHome(source, release, check),
+    installInProject: (projectId, release, check, complete) => installPackageInProject(source, projectId, release, check, complete),
+    installInHome: (release, check, complete) => installPackageInHome(source, release, check, complete),
     presentationCatalog: projectId => installationPresentationCatalog(source, projectId),
     runHomeInstallation: operation => {
       const host = source.homePlugins();

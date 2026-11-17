@@ -3,10 +3,19 @@
  * is the other (`packaged`). Nothing here names how either was made.
  */
 import type { AgentRelease } from './installed-plugin-host.js';
-import type { PluginManifest, SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginInstanceRecord, PluginManifest, SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { PluginTrust } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import type { PluginLocaleReader } from '@molis-ai/molis-work-plugin-runtime';
 import type { ContentPackage } from '@molis-ai/molis-work-plugin-sdk';
+
+/** Trusted Host completion inside the existing install/upgrade compensation window. */
+export interface InstalledPackageControl {
+  assertCurrent?(): void;
+  scopeOpen?(): boolean;
+  refresh?(): Promise<void>;
+  /** The owning service's synchronous commit, after every asynchronous preparation and authority check. */
+  complete?(): void;
+}
 
 export const HOME_INSTALL_SCOPE = '~home';
 
@@ -29,3 +38,10 @@ export type InstalledRelease = AgentRelease & {
 
 /** The version the plugin's installation record carries. */
 export const installedVersion = (release: InstalledRelease): string => release.packaged?.manifest.version ?? releaseVersion(release.version);
+
+type InstalledEdition = Pick<PluginInstanceRecord, 'install_id' | 'installation_generation' | 'version' | 'manifest_digest'>;
+
+export function sameInstalledRelease(expected: InstalledEdition, actual: InstalledEdition | null | undefined): boolean {
+  return actual?.install_id === expected.install_id && actual.installation_generation === expected.installation_generation
+    && actual.version === expected.version && actual.manifest_digest === expected.manifest_digest;
+}

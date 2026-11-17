@@ -15,7 +15,7 @@ import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
 import { INSTALLED_MODEL_KEY, sandboxDeclaration, sandboxGrants, staleInstallation } from './installed-plugin-host.js';
 import { APPROVED_KEY, installedLifecycle, type InstalledPluginPlatform, isPendingUninstall, onlyOne, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
-import { HOME_INSTALL_SCOPE, installedVersion, type InstalledRelease } from './installed-release.js';
+import { HOME_INSTALL_SCOPE, installedVersion, type InstalledPackageControl, type InstalledRelease } from './installed-release.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
 import { isPluginTableRefusal } from './home-unavailable-owners.js';
 import { installedHomeUpgradeBlocked } from './installed-home-upgrade-recovery.js';
@@ -226,6 +226,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     }
   } catch (error) { close(); throw error; }
 
+  const refreshPublicActions = async () => { await stops.reconcile(); if (exposed.size) await catalog(); };
   return {
     lifecycle, recordFor, releaseFor, records, recoveryErrors, close, projectReach: reach, pendingUninstalls,
     /** Takes a signed package's installation off from its trusted row, its package not read (BL-915). */
@@ -236,9 +237,9 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       return record ? packages.load(record.plugin_id, record.publisher_signature, record.version) : undefined;
     },
     /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. */
-    installPackage: (release: InstalledRelease, input: { consent: true; assertCurrent?: () => void }) => {
+    installPackage: (release: InstalledRelease, input: { consent: true } & InstalledPackageControl) => {
       assertHomePackageAllowed(release.packaged!.manifest);
-      return lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, input);
+      return lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, { ...input, refresh: refreshPublicActions });
     },
     /** The packages that run now, by plugin id: personal plugins every project reaches unless it hides them (#679). An integration package is not one: it offers sources, no actions (BL-530). */
     running: (): string[] => records().filter(item => item.state === 'running' && !recoveryErrors.has(item.plugin_id) && standing.trusted(item) && releaseFor(item.plugin_id)?.packaged?.manifest.kind !== 'integration').map(item => item.plugin_id),
@@ -256,7 +257,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       if (failedUpgrade && !manifest?.databases?.home) return [];
       return manifest?.kind === 'app' && manifest.ui?.views?.some(view => view.slot === 'stage') ? [{ key: item.plugin_id, manifest }] : [];
     }),
-    refreshPublicActions: async () => { await stops.reconcile(); if (exposed.size) await catalog(); },
+    refreshPublicActions,
     /** Stops the installations whose publisher the person took back since this last looked, their data kept. */
     reconcilePublishers: stops.reconcile,
   };

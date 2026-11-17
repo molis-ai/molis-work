@@ -4,13 +4,13 @@
  * the person gave, the secrets they typed in the consent dialog, the data an uninstall kept, the prompts and the actions
  * the plugin shows. An action that does not finish leaves none of that behind.
  */
-import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionError, requireSynchronous } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { PluginRetainedItem, PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { collectRetained } from './uninstall-retained.js';
 import type { AgentBuilderPorts } from './installed-plugin-host.js';
-import type { InstalledRelease } from './installed-release.js';
+import { sameInstalledRelease, type InstalledPackageControl, type InstalledRelease } from './installed-release.js';
 import { assertUpgradeOf } from './package-upgrade.js';
 import { leaveRefusal, UNINSTALL_PENDING, UNSIGNED_TRUST, type SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginPlatform } from './plugin-platform.js';
@@ -62,7 +62,15 @@ export interface InstalledLifecycleContext {
 
 type Secret = { name: string; header: string; value: string };
 type EnableControl = NonNullable<Parameters<InstalledPluginPlatform['supervisor']['enable']>[1]>;
-type Grants = { assertCurrent?: () => void; scopeOpen?: () => boolean; consent?: unknown; keepData?: unknown; discardKeptData?: unknown; secrets?: unknown; enable?: EnableControl };
+type Grants = InstalledPackageControl & { consent?: unknown; keepData?: unknown; discardKeptData?: unknown; secrets?: unknown; enable?: EnableControl };
+
+/** Refresh before publishing the settled installation and completing the dependent owner's write. */
+export async function finishInstalledPackage(control: InstalledPackageControl | undefined, assertCurrent: () => void, publish: () => void): Promise<void> {
+  if (control?.refresh) await control.refresh();
+  assertCurrent();
+  publish();
+  requireSynchronous(control?.complete?.());
+}
 
 /** The secrets the consent dialog collected, each for a reference the release declared. */
 function secretsOf(value: unknown, release: InstalledRelease): Secret[] {
@@ -156,19 +164,39 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     const found = platform.runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === entry.definition.manifest.publisher.signature);
     const earlier = found?.state === 'uninstalled' ? found : undefined, kept = earlier?.retain_private_data === true;
     const before = earlier && kept ? c.privateStorage.snapshotInstallationData(earlier.install_id) : undefined;
-    grants.assertCurrent?.();
+    const assertCurrent = () => {
+      if (c.closed() || grants.scopeOpen?.() === false) throw new ActionError('actions.host_closed', '原插件安装范围已经关闭');
+      grants.assertCurrent?.();
+    };
+    assertCurrent();
     const { install } = platform.runtime.install({ ...entry, deployment: 'local', ...(grants.discardKeptData === true ? { discard_kept_data: true } : {}) });
+    let startedGeneration: number | undefined;
     try {
       if (before && grants.discardKeptData === true) c.privateStorage.deleteInstallationData(install.install_id);
       for (const secret of secrets) c.secrets.save(pluginId, secret);
       c.storage.set(APPROVED_KEY + pluginId, JSON.stringify(release.permissions));
-      await platform.start([entry], { assertCurrent: grants.assertCurrent });
-      grants.assertCurrent?.();
+      await platform.start([entry], { assertCurrent });
+      assertCurrent();
       const state = platform.supervisor.state(pluginId)?.code === 'plugin.revoked' ? await platform.supervisor.enable(pluginId) : platform.supervisor.state(pluginId);
-      grants.assertCurrent?.();
       if (state?.status !== 'running') throw new Error('安装没有完成：' + (state?.message ?? '插件未能启动'));
-      await c.expose(release); grants.assertCurrent?.(); c.registerPrompts(release, 'enabled'); c.recoveryErrors.delete(pluginId);
+      assertCurrent();
+      startedGeneration = platform.supervisor.generation(pluginId);
+      // Exposure leaves cleanup to the install owner, as it does for a version switch.
+      await c.expose(release, 'caller');
+      await finishInstalledPackage(grants, () => {
+        assertCurrent();
+        const current = c.recordFor(pluginId);
+        if (current?.state !== 'running' || !sameInstalledRelease(install, current) || platform.supervisor.generation(pluginId) !== startedGeneration) {
+          throw new ActionError('actions.provider_replaced', '原插件安装或启用状态已变化，请重新查看');
+        }
+        if (!c.trusted(current)) throw pluginErrors.publisher_revoked('插件发布者已经被撤销');
+      }, () => {
+        c.registerPrompts(release, 'enabled');
+        c.recoveryErrors.delete(pluginId);
+      });
     } catch (error) {
+      // A separate stop or enable can run during exposure. Leave that later activation choice standing.
+      if (startedGeneration !== undefined && platform.supervisor.generation(pluginId) !== startedGeneration) throw error;
       const unfinished: unknown[] = [];
       let ours = true;
       try { ours = await uninstall(release, install, kept, { earlier }); } catch (failure) { unfinished.push(failure); }

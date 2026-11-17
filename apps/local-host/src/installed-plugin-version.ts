@@ -1,17 +1,17 @@
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginManifestDigest } from '@molis-ai/molis-work-plugin-runtime';
 import { studioStorageInstallation } from './plugin-builder/storage.js';
-import { HOME_INSTALL_SCOPE } from './installed-release.js';
+import { HOME_INSTALL_SCOPE, sameInstalledRelease, type InstalledPackageControl } from './installed-release.js';
 import { pluginErrors, type PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentRelease } from './installed-plugin-host.js';
-import { APPROVED_KEY, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
+import { APPROVED_KEY, finishInstalledPackage, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
 import { withSurfaceRestoration } from './surface-installation.js';
 import { logInstalledUpgradeRefusal } from './home-unavailable-owners.js';
 
 /** Runtime owns the version switch; this Host operation owns consent values and its exposure of the new release. */
 export async function changeInstalledVersion(c: InstalledLifecycleContext, action: 'upgrade' | 'rollback', release: AgentRelease,
-  record: PluginInstanceRecord, nextApproval: SandboxEffects, inputs: Array<{ name: string; header: string; value: string }>, control?: { assertCurrent?: () => void; scopeOpen?: () => boolean }): Promise<void> {
+  record: PluginInstanceRecord, nextApproval: SandboxEffects, inputs: Array<{ name: string; header: string; value: string }>, control?: InstalledPackageControl): Promise<void> {
   const assertStanding = () => {
     if (c.closed() || control?.scopeOpen?.() === false) throw new ActionError('actions.host_closed', '原插件安装范围已经关闭');
     if (record.publisher_trust === 'pinned' && !c.trusted(record)) throw pluginErrors.publisher_revoked('插件发布者已经被撤销');
@@ -26,10 +26,8 @@ export async function changeInstalledVersion(c: InstalledLifecycleContext, actio
   if (inputs.length && !changes) throw new Error('密钥存储尚未接通版本切换');
   const same = (expected: PluginInstanceRecord, requireState = true) => {
     const current = c.recordFor(pluginId);
-    return ownsScope() && current?.install_id === expected.install_id
-      && current.installation_generation === expected.installation_generation && (!requireState || current.state === expected.state)
-      && current.publisher_id === expected.publisher_id && current.publisher_signature === expected.publisher_signature
-      && current.version === expected.version && current.manifest_digest === expected.manifest_digest;
+    return ownsScope() && !!current && sameInstalledRelease(expected, current) && (!requireState || current.state === expected.state)
+      && current.publisher_id === expected.publisher_id && current.publisher_signature === expected.publisher_signature;
   };
   if (!same(record)) throw new Error('插件安装已变化，请重新核对当前版本');
   const previousManifest = earlier?.packaged?.manifest;
@@ -60,9 +58,14 @@ export async function changeInstalledVersion(c: InstalledLifecycleContext, actio
     changes?.apply();
     if (!databaseVersionChanged) c.storage.set(key, persistApproval.value);
     if (!off) await c.expose(release, 'caller');
-    if (!same(moved)) throw new Error('插件安装已变化，不能继续采用旧切换结果');
-    if (databaseVersionChanged) assertScope(); else assertCurrent();
-    c.registerPrompts(release, off ? 'disabled' : 'enabled', action === 'rollback'); c.recoveryErrors.delete(pluginId);
+    const candidate = moved;
+    await finishInstalledPackage(control, () => {
+      if (databaseVersionChanged) assertScope(); else assertCurrent();
+      if (!same(candidate)) throw new ActionError('actions.provider_replaced', '插件安装已变化，不能继续采用旧切换结果');
+    }, () => {
+      c.registerPrompts(release, off ? 'disabled' : 'enabled', action === 'rollback');
+      c.recoveryErrors.delete(pluginId);
+    });
   } catch (error) {
     if ((error as { code?: unknown })?.code === 'actions.provider_replaced' && (!databaseVersionChanged || !ownsScope())) throw error;
     // The Supervisor can reject authority after the Runtime saved this candidate, before returning its receipt.

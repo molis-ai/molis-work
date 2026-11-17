@@ -1,18 +1,37 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { SKILL_AUTHORED_PLUGIN_IDS, SKILLS_PERMISSIONS, skillDraftActions, type SkillDraft, type SkillDraftAdoptResult, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
-import { homeAgentDefinitions } from "@molis-ai/molis-work-app-local-host";
+import { LocalHost, homeAgentDefinitions } from "@molis-ai/molis-work-app-local-host";
+import { LOCALE_COOKIE } from "@molis-ai/molis-work-app-workbench";
 import { deferred, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { mac } from "./fixtures/signed-package-host.js";
 
 const fields = { name: "采用期间的草稿", description: "整理任务时使用。", applies_to: "assistant", body: "# 原来批准的正文" };
 const known = { title: "已知答案", task: "整理这条记录", expected: "按顺序整理" };
-const api = (f: Awaited<ReturnType<typeof serveHomeRuntime>>) => async <Result>(project: string, route: string, body: object, signal?: AbortSignal) => {
-  const response = await f.request(`/projects/${project}/api/${route}`, { method: "POST", body, signal });
+const api = (f: Awaited<ReturnType<typeof serveHomeRuntime>>, locale: "zh" | "en" = "zh") => async <Result>(project: string, route: string, body: object, signal?: AbortSignal) => {
+  const response = await f.request(`/projects/${project}/api/${route}`, { method: "POST", body, signal, headers: { cookie: `${LOCALE_COOKIE}=${locale}` } });
   return { status: response.status, body: await response.json() as Result };
 };
 
-for (const { stage, upgrade } of [{ stage: "before", upgrade: false }, { stage: "after", upgrade: false }, { stage: "after", upgrade: true }] as const) test(`QEA-104 Home draft adoption ${stage} actual ${upgrade ? "upgrade" : "install"} refuses concurrent revision and another project's update`, { ...mac, timeout: 120_000 }, async t => {
+/** Let the real exposure read finish, then hold the final directory refresh for the running candidate. */
+function holdHomeSkillRefresh(t: Parameters<typeof serveHomeRuntime>[0], f: Awaited<ReturnType<typeof serveHomeRuntime>>, version: string) {
+  const entered = deferred(), release = deferred(), inspect = LocalHost.prototype.inspectActions;
+  let reads = 0;
+  t.after(release.resolve);
+  const hold = t.mock.method(LocalHost.prototype, "inspectActions", async function (this: LocalHost<unknown>, ...args: Parameters<typeof inspect>) {
+    const result = await inspect.apply(this, args);
+    const caller = args[0], current = f.host.homePlugins!.installation(SKILL_AUTHORED_PLUGIN_IDS.home);
+    if (caller.project_id === null && caller.locale === "zh" && caller.audience === "plugin" && !caller.permissions.length
+      && current?.state === "running" && current.version === version && ++reads === 2) {
+      entered.resolve();
+      await release.promise;
+    }
+    return result;
+  });
+  return { entered: entered.promise, release: release.resolve, restore: () => hold.mock.restore() };
+}
+
+for (const { stage, upgrade } of [{ stage: "before", upgrade: false }, { stage: "refresh", upgrade: false }, { stage: "refresh", upgrade: true }] as const) test(`QEA-104 Home draft adoption at ${stage} of actual ${upgrade ? "upgrade" : "install"} refuses concurrent revision and another project's update`, { ...mac, timeout: 120_000 }, async t => {
   const modelEntered = deferred(), modelRelease = deferred(), installEntered = deferred(), installRelease = deferred();
   t.after(() => { modelRelease.resolve(); installRelease.resolve(); });
   const f = await serveHomeRuntime(t, { completeText: (async () => {
@@ -34,22 +53,25 @@ for (const { stage, upgrade } of [{ stage: "before", upgrade: false }, { stage: 
   const revised = post<SkillDraft>(a.project_id, "skills/drafts/revise", { draft_id: draft.draft_id, expected_revision: 1, instruction: "补一个步骤" });
   await modelEntered.promise;
   const home = f.host.homePlugins!, install = home.installPackage;
+  const refresh = stage === "refresh" ? holdHomeSkillRefresh(t, f, upgrade ? "2.0.0" : "1.0.0") : undefined;
+  // The other project uses its own language's catalog, so it can reach the draft while this refresh is waiting.
+  const other = api(f, "en");
   let installs = 0;
   t.mock.method(home, "installPackage", async (...args: Parameters<typeof install>) => {
     if (args[0].packaged?.manifest.plugin_id !== SKILL_AUTHORED_PLUGIN_IDS.home) return install.apply(home, args);
     if (stage === "before") { installEntered.resolve(); await installRelease.promise; }
     const result = await install.apply(home, args); installs++;
-    if (stage === "after") { installEntered.resolve(); await installRelease.promise; }
     return result;
   });
   const adopting = post<SkillDraftAdoptResult>(a.project_id, "plugin-trust/skills/drafts/adopt", { draft_id: draft.draft_id, expected_revision: 1 });
   try {
-    await installEntered.promise;
+    await (refresh?.entered ?? installEntered.promise);
     modelRelease.resolve();
     const revisedResult = await revised;
-    const changed = await post<{ revision: number }>(b.project_id, "skills/drafts/update", { draft_id: draft.draft_id,
+    const changed = await other<{ revision: number }>(b.project_id, "skills/drafts/update", { draft_id: draft.draft_id,
       expected_revision: revisedResult.body.revision ?? 1, fields: { ...fields, body: "# 另一个项目提交的新修改" }, replacements: {} });
-    const beforeFinish = await post<SkillDraft>(b.project_id, "skills/drafts/read", { draft_id: draft.draft_id });
+    const beforeFinish = await other<SkillDraft>(b.project_id, "skills/drafts/read", { draft_id: draft.draft_id });
+    refresh?.release();
     installRelease.resolve();
     const adopted = await adopting;
     const read = await post<{ code: string }>(b.project_id, "skills/drafts/read", { draft_id: draft.draft_id });
@@ -68,8 +90,9 @@ for (const { stage, upgrade } of [{ stage: "before", upgrade: false }, { stage: 
     assert.equal(own[0]!.ref.version, upgrade ? 2 : 1);
     assert.equal(own[0]!.excerpt, fields.body);
   } finally {
-    modelRelease.resolve(); installRelease.resolve();
+    modelRelease.resolve(); installRelease.resolve(); refresh?.release();
     await Promise.allSettled([revised, adopting]);
+    refresh?.restore();
   }
 });
 
@@ -174,6 +197,111 @@ test("QEA-105 cancelling the real adoption request before installation retains t
     const adopted = await post<SkillDraftAdoptResult>(a.project_id, "plugin-trust/skills/drafts/adopt", { draft_id: draft.draft_id, expected_revision: 2 });
     assert.equal(adopted.status, 200); assert.equal(adopted.body.skill_version, 1);
   } finally { controller.abort(); release.resolve(); await Promise.allSettled([adopting, cancelled]); }
+});
+
+for (const stage of ["new", "upgrade", "committed"] as const) test(`QEA-119 disconnect during Home Skill adoption at ${stage} has the effect of its actual commit boundary`, { ...mac, timeout: 120_000 }, async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("采用断连"), post = api(f);
+  const home = f.host.homePlugins!, controller = new AbortController();
+  const create = async (target: object, body: string) => {
+    const result = await post<SkillDraft>(project.project_id, "skills/drafts/create", { scope: "home", target, fields: { ...fields, body } });
+    assert.equal(result.status, 200);
+    return result.body;
+  };
+  const adopt = (draft: SkillDraft, signal?: AbortSignal) => post<SkillDraftAdoptResult>(project.project_id, "plugin-trust/skills/drafts/adopt",
+    { draft_id: draft.draft_id, expected_revision: draft.revision }, signal);
+  const mine = async () => {
+    const result = await post<{ skills: SkillCatalogEntry[] }>(project.project_id, "skills/list", {});
+    assert.equal(result.status, 200, JSON.stringify(result.body));
+    return result.body.skills.filter(item => item.pack.plugin_id === SKILL_AUTHORED_PLUGIN_IDS.home);
+  };
+  const old = stage === "upgrade" ? await adopt(await create({ kind: "new" }, fields.body)) : undefined;
+  if (old) assert.equal(old.status, 200);
+  const draft = await create(old ? { kind: "own", skill_id: old.body.skill_id } : { kind: "new" }, "# 此次要采用的正文");
+  const committed = stage === "committed";
+  const refresh = committed ? undefined : holdHomeSkillRefresh(t, f, old ? "2.0.0" : "1.0.0");
+  const entered = deferred(), release = deferred(), abortSeen = deferred(), settled = deferred();
+  const install = home.installPackage;
+  const delayReceipt = committed ? t.mock.method(home, "installPackage", async (...args: Parameters<typeof install>) => {
+    await install.apply(home, args);
+    entered.resolve();
+    await release.promise;
+  }) : undefined;
+  const actionClient = f.host.actionClient;
+  const observe = t.mock.method(f.host, "actionClient", (...args: Parameters<typeof actionClient>) => {
+    const client = actionClient.apply(f.host, args);
+    return { ...client, invoke(...call: Parameters<typeof client.invoke>) {
+      const [caller, action] = call;
+      if (action.capability_id !== skillDraftActions.adopt.capability_id) return client.invoke(...call);
+      assert.ok(caller.signal, "the actual HTTP invocation carries a disconnect signal");
+      caller.signal.addEventListener("abort", abortSeen.resolve, { once: true });
+      return client.invoke(...call).finally(settled.resolve);
+    } };
+  });
+  const pending = adopt(draft, controller.signal);
+  const cancelled = assert.rejects(pending, /fixture disconnect after start/);
+  try {
+    await (refresh?.entered ?? entered.promise);
+    assert.equal(home.installation(SKILL_AUTHORED_PLUGIN_IDS.home)?.version, old ? "2.0.0" : "1.0.0", "the real installation already reached its candidate edition");
+    controller.abort(new Error("fixture disconnect after start"));
+    await Promise.all([cancelled, abortSeen.promise]);
+    refresh?.release();
+    release.resolve();
+    await settled.promise;
+    observe.mock.restore();
+    delayReceipt?.mock.restore();
+    refresh?.restore();
+    const remaining = await post<SkillDraft>(project.project_id, "skills/drafts/read", { draft_id: draft.draft_id });
+    const installed = await mine();
+    if (committed) {
+      assert.equal(remaining.status, 404, "losing the HTTP reply does not reopen the settled draft");
+      assert.equal((await adopt(draft)).status, 404, "the same draft cannot install a second time");
+    } else {
+      assert.equal(remaining.status, 200);
+      assert.equal(remaining.body.revision, draft.revision);
+      assert.deepEqual(remaining.body.fields, draft.fields);
+      assert.deepEqual(installed.map(item => [item.ref.version, item.excerpt]), old ? [[1, fields.body]] : []);
+      const retry = await adopt(draft);
+      assert.equal(retry.status, 200, JSON.stringify(retry.body));
+      assert.equal(retry.body.skill_version, old ? 2 : 1);
+    }
+    assert.deepEqual((await mine()).map(item => [item.ref.version, item.excerpt]), [[old ? 2 : 1, draft.fields.body]]);
+  } finally {
+    controller.abort(); refresh?.release(); release.resolve();
+    await Promise.allSettled([pending, cancelled]);
+  }
+});
+
+test("QEA-119 a real Home settings disable during a new install's final refresh is not turned into an uninstall", { ...mac, timeout: 120_000 }, async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("采用期间停用"), post = api(f);
+  const opened = await post<SkillDraft>(project.project_id, "skills/drafts/create", { scope: "home", target: { kind: "new" }, fields });
+  assert.equal(opened.status, 200);
+  const draft = opened.body, pluginId = SKILL_AUTHORED_PLUGIN_IDS.home;
+  const refresh = holdHomeSkillRefresh(t, f, "1.0.0");
+  const pending = post<{ code: string }>(project.project_id, "plugin-trust/skills/drafts/adopt", { draft_id: draft.draft_id, expected_revision: draft.revision });
+  try {
+    await refresh.entered;
+    const response = await f.request("/api/settings/plugin-permissions/disable", { method: "POST", body: { plugin_id: pluginId },
+      headers: { cookie: `${LOCALE_COOKIE}=en` } });
+    assert.equal(response.status, 200, await response.clone().text());
+    assert.equal((await response.json() as { state: string }).state, "disabled");
+    const disabled = f.host.homePlugins!.installation(pluginId);
+    assert.equal(disabled?.state, "disabled");
+    refresh.release();
+    const rejected = await pending;
+    assert.equal(rejected.body.code, "actions.provider_replaced", JSON.stringify(rejected.body));
+    const kept = f.host.homePlugins!.installation(pluginId);
+    assert.equal(kept?.state, "disabled", "cleanup of the older attempt cannot turn a later disable into an uninstall");
+    assert.equal(kept?.installation_generation, disabled?.installation_generation);
+    assert.equal(kept?.manifest_digest, disabled?.manifest_digest);
+    const remaining = await post<SkillDraft>(project.project_id, "skills/drafts/read", { draft_id: draft.draft_id });
+    assert.equal(remaining.status, 200);
+    assert.deepEqual(remaining.body.fields, draft.fields);
+    assert.equal(remaining.body.revision, draft.revision);
+  } finally {
+    refresh.release();
+    await Promise.allSettled([pending]);
+    refresh.restore();
+  }
 });
 
 for (const change of ["adopt", "discard", "fill", "discard-remove"] as const) test(`QEA-107 a case write rechecks the draft after authority waits across ${change}`, { ...mac, timeout: 120_000 }, async t => {

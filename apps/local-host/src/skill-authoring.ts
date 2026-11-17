@@ -6,7 +6,7 @@
  * with every other Skill as it was; taking the last one away takes the package off. Only text: no resources, no scripts.
  */
 import { randomUUID } from 'node:crypto';
-import type { ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionError, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import { instructed, composeInstructedPrompt, type InstructedPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import { CONTENT_PACKAGE_FILES, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SKILL_APPLIES_TO, SKILL_LIMITS, type PluginMethodDeclaration, type SkillAppliesTo } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
@@ -14,10 +14,12 @@ import { SKILL_AUTHORED_PLUGIN_IDS, SKILL_DRAFT_INTENT_CHARS, skillErrors, type 
   type SkillAuthoredSaveResult, type SkillDraftAdoptRequest, type SkillDraftAdoptResult, type SkillScope } from '@molis-ai/molis-work-contracts/services/skills';
 import { draftCases, untriedCases, type SkillDraftStore } from './agent-definitions/skill-drafts.js';
 import { contentPackageDraft, type FolderSkill } from '@molis-ai/molis-work-plugin-sdk';
+import { t } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { cutHead } from '@molis-ai/molis-work-plugin-sdk/whole-units';
 import { SKILL_DRAFT } from './agent-definitions/system-prompts.js';
 import { textModelRequired, type HostCompleteText } from './host-complete-text.js';
 import type { InstalledRelease } from './installed-release.js';
+import { hostLog } from './host-log.js';
 import type { SkillImportPorts } from './skill-import.js';
 
 /** The name this Home's publisher is pinned under the first time the person saves a Skill, as an import pins it. */
@@ -112,12 +114,12 @@ export class SkillAuthoringService {
   }
 
   /** Signs the package holding `skills` at its next version and installs it over the installed one. */
-  private async publish(skills: readonly FolderSkill[], scope: SkillScope, installed: Packaged | undefined, who: Who, caller: ActionExecutionContext) {
+  private async publish(skills: readonly FolderSkill[], scope: SkillScope, installed: Packaged | undefined, who: Who, caller: ActionExecutionContext, complete?: () => void) {
     const draft = this.draftOf(skills, scope, installed);
     await this.assertOwn(installed, scope, who, draft, caller);
     const { preview_id } = await this.ports.sign(draft, caller);
     const preview = this.ports.install.readPreview(preview_id, who);
-    return this.ports.install.confirm({ preview_id, consent: true, ...(preview.publisher.pinned_label === null ? { pin_label: PIN_LABEL } : {}) }, who, caller);
+    return this.ports.install.confirm({ preview_id, consent: true, ...(preview.publisher.pinned_label === null ? { pin_label: PIN_LABEL } : {}) }, who, caller, complete);
   }
 
   /**
@@ -125,7 +127,7 @@ export class SkillAuthoringService {
    * scope stays as it was. Since batch 42 only adopting a draft calls this: the person compared the draft with the version in use, so a
    * version adopted elsewhere in between is followed by the next one, not refused.
    */
-  async save(input: SkillSave, who: Who, caller: ActionExecutionContext): Promise<SkillAuthoredSaveResult> {
+  async save(input: SkillSave, who: Who, caller: ActionExecutionContext, complete?: (skillId: string) => void): Promise<SkillAuthoredSaveResult> {
     const fields = checkedFields(input);
     const installed = await this.ports.installed(SKILL_AUTHORED_PLUGIN_IDS[input.scope], input.scope, who.project_id), held = this.held(installed);
     const others = held.filter(skill => skill.declaration.skill_id !== input.skill_id);
@@ -139,7 +141,8 @@ export class SkillAuthoringService {
       if (!current) throw skillErrors.authored_unknown('这个范围里没有你写的这个技能');
       declaration = declarationOf(current.skill_id, current.version + 1, fields);
     }
-    const result = await this.publish([...others, folderSkill(declaration, fields.body)], input.scope, installed, who, caller);
+    const result = await this.publish([...others, folderSkill(declaration, fields.body)], input.scope, installed, who, caller,
+      complete && (() => complete(declaration.skill_id)));
     return { ...result, skill_id: declaration.skill_id, skill_version: declaration.version };
   }
 
@@ -173,9 +176,14 @@ export async function adoptDraft(service: SkillAuthoringService, drafts: SkillDr
   }
   const scope: SkillScope = draft.scope_ref === 'home' ? 'home' : 'project', target = draft.target;
   return drafts.withAdoption(draft.draft_id, async () => {
-    const result = await service.save({ ...draft.fields, scope, ...(target.kind === 'own' ? { skill_id: target.skill_id } : {}) }, who, caller);
     const source = target.kind === 'custom' ? target.source : target.kind === 'own' ? target.rebase : undefined;
-    drafts.adopted(draft.draft_id, draft.scope_ref, result.skill_id, source && { source, replacements: draft.replacements, seen_version: source.version });
+    const result = await service.save({ ...draft.fields, scope, ...(target.kind === 'own' ? { skill_id: target.skill_id } : {}) }, who, caller, skillId => {
+      try { drafts.adopted(draft.draft_id, draft.scope_ref, skillId, source && { source, replacements: draft.replacements, seen_version: source.version }); }
+      catch (error) {
+        hostLog.error('skills', 'adoption_settlement_failed', error, { draft_id: draft.draft_id });
+        throw new ActionError('actions.execution_failed', t.text('workbench.http.request-could-not-be-completed-please-try-again'), { cause: error });
+      }
+    });
     return { ...result, ...(target.kind === 'custom' ? { source: target.source } : {}) };
   });
 }

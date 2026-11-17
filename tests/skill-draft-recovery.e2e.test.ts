@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
-import type { SkillDraft } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_AUTHORED_PLUGIN_IDS, type SkillCatalogEntry, type SkillDraft } from "@molis-ai/molis-work-contracts/services/skills";
+import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -28,7 +29,7 @@ async function skillHome(t: TestContext, home = false) {
   await page.command("Page.enable");
   await page.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
   const address = `${prefix}/settings/kit?draft=${draft.draft_id}`;
-  return { page, api, draft, browser, address, origin: f.origin, projectId: project?.project_id };
+  return { page, api, draft, browser, address, origin: f.origin, projectId: project?.project_id, home: f.home, request: f.request };
 }
 
 async function editor(t: TestContext, cover = false) {
@@ -355,6 +356,35 @@ test("QEA-102 a delayed real adoption receipt leaves the later draft open and sa
   assert.equal(listed.drafts.length, 1, "the adopted draft is gone and the new draft remains");
   assert.notEqual(listed.drafts[0]!.draft_id, draft.draft_id);
   assert.equal((await api("read", { draft_id: listed.drafts[0]!.draft_id })).fields.body, local);
+});
+
+test("QEA-120 the Skill workshop retries a failed real settlement in place", { timeout: 120_000, skip: process.platform !== "darwin" }, async t => {
+  const { page, api, draft, home, request, projectId } = await editor(t, true);
+  const mine = async () => {
+    const response = await request(`/projects/${projectId}/api/skills/list`, { method: "POST", body: {} });
+    assert.equal(response.status, 200);
+    const { skills } = await response.json() as { skills: SkillCatalogEntry[] };
+    return skills.filter(item => item.pack.plugin_id === SKILL_AUTHORED_PLUGIN_IDS.project);
+  };
+  const alter = (sql: string) => {
+    const db = openSqliteConnection(homeSqlitePath(home, "agent-definitions"), { fileMustExist: true });
+    try { db.exec(sql); } finally { db.close(); }
+  };
+  alter("CREATE TRIGGER qea_browser_adopt_failure BEFORE DELETE ON skill_drafts BEGIN SELECT RAISE(ABORT, 'fixture storage diagnostic'); END");
+  const retry = '.au-failure [data-kit-act="sk-adopt"]';
+  try {
+    await page.click('[data-kit-act="sk-adopt"]');
+    await page.wait(`!!document.querySelector(${JSON.stringify(retry)})`);
+    assert.equal(await page.evaluate("document.querySelector('[data-au-field=body]')?.value"), draft.fields.body);
+    const message = await page.evaluate<string>("document.querySelector('.au-failure')?.innerText");
+    assert.doesNotMatch(message, /fixture storage diagnostic/u, "the page gives a retry instead of showing the SQLite diagnostic");
+    assert.equal((await api("read", { draft_id: draft.draft_id })).revision, draft.revision);
+    assert.deepEqual(await mine(), []);
+  } finally { alter("DROP TRIGGER qea_browser_adopt_failure"); }
+  await page.click(retry);
+  await page.wait("!document.querySelector('[data-sk-work]') && !document.querySelector('[data-kit-notice]').hidden");
+  assert.deepEqual((await api<{ drafts: unknown[] }>("list", {})).drafts, []);
+  assert.deepEqual((await mine()).map(item => [item.ref.version, item.name]), [[1, draft.fields.name]]);
 });
 
 test("QEA-101 closing a saved editor removes it before the catalog reload can accept and lose new input", { timeout: 120_000 }, async t => {

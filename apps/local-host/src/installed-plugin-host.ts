@@ -24,7 +24,7 @@ import { closePlugin, supervisedInstall } from './plugin-platform-close.js';
 import { configuredModelChoices } from './configured-models.js';
 import { STABLE_PREVIEW, studioStorage } from './plugin-builder/storage.js';
 import { generatedPluginManifest, installedSignature } from './plugin-builder/installed.js';
-import { installedVersion, releaseVersion, type InstalledRelease } from './installed-release.js';
+import { installedVersion, releaseVersion, type InstalledPackageControl, type InstalledRelease } from './installed-release.js';
 import { SandboxPackageStore } from './sandbox-package-store.js';
 import { HomeConsentLedger } from './home-plugin-store.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
@@ -233,14 +233,16 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       } catch (error) { recoveryErrors.set(record.plugin_id, error); }
     }
 
+    const refreshPublicActions = async () => { await stops.reconcile(); if (exposed.size) await catalog(); };
     return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors,
       /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. A package of a plugin already installed here is its upgrade (BL-623). */
-      installPackage: (release: InstalledRelease, input: { consent: true; assertCurrent?: () => void; scopeOpen?: () => boolean }) => lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, input),
+      installPackage: (release: InstalledRelease, input: { consent: true } & InstalledPackageControl) =>
+        lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, { ...input, refresh: refreshPublicActions }),
       packageOf: (pluginId: string) => signedPackageOf(packages, recordFor(pluginId)),
       /** Takes a signed package's installation off from its trusted row, its package not read; and the tombstones whose clean-up did not finish, listed until it has (BL-915). */
       uninstall: (pluginId: string, input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }) => uninstallInstalledRecord(lifecycleContext, pluginId, input),
       pendingUninstalls: () => platform.runtime.list().filter(isPendingUninstall),
-      refreshPublicActions: async () => { await stops.reconcile(); if (exposed.size) await catalog(); }, reconcilePublishers: stops.reconcile,
+      refreshPublicActions, reconcilePublishers: stops.reconcile,
       installations: () => records().map(item => ({ pluginId: item.plugin_id, buildId: item.publisher_signature.startsWith(SIGNATURE) ? item.publisher_signature.slice(SIGNATURE.length) : item.publisher_signature, version: Number(item.version.split('.')[0]),
         state: recoveryErrors.has(item.plugin_id) ? 'failed' : item.state, effects: approvedFor(item.plugin_id) ?? {}, ...(recoveryErrors.has(item.plugin_id) ? { error: recoveryErrors.get(item.plugin_id) } : {}) })) };
   } catch (error) { await close(); throw error; }

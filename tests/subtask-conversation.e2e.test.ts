@@ -84,8 +84,12 @@ test("B58-01..05: public child conversation, two owners, original receipts and r
   await t.test("B58-02: user scroll, unread update and reopen retain reading position and process expansion", async () => {
     await evaluate("probe.owner.record('a').messages = Array.from({length:80},(_,i)=>({id:'long-'+i,role:'assistant',content:{text:'Paragraph '+i+' with enough words to read.'}})); probe.handle.refresh()");
     await evaluate(`${root}.querySelector('details').open = true`);
-    const point = await evaluate<{ x: number; y: number }>(`(() => { const box=${control("thread")}.getBoundingClientRect(); return {x:box.x+box.width/2,y:box.y+box.height/2}; })()`);
-    await b.command("Input.dispatchMouseEvent", {type:"mouseWheel",...point,deltaX:0,deltaY:-3000}, b.sessionId);
+    const point = await evaluate<{ x: number; y: number; top: number }>(`(() => { const box=${control("thread")}.getBoundingClientRect(); return {x:box.x+box.width/2,y:box.y+box.height/2,top:${control("thread")}.scrollTop}; })()`);
+    // Detached is reported on wheel input, before the browser finishes its asynchronous scroll.
+    await evaluate(`void (probe.scrollFinished = new Promise(resolve => ${control("thread")}.addEventListener('wheel', () => ${control("thread")}.addEventListener('scrollend', resolve, {once:true}), {once:true})))`);
+    await b.command("Input.dispatchMouseEvent", {type:"mouseWheel",x:point.x,y:point.y,deltaX:0,deltaY:-3000}, b.sessionId);
+    await evaluate("probe.scrollFinished.then(() => true)");
+    assert.ok(await evaluate<number>(`${control("thread")}.scrollTop`) < point.top, "the native wheel actually moved the reading position before it is saved");
     await wait(`${control("thread")}.dataset.follow === 'detached'`);
     await evaluate(`${control("thread")}.scrollTop=200; ${field}.focus(); probe.owner.record('a').messages=[...probe.owner.record('a').messages,{id:'unread',role:'assistant',content:{text:'Unread result'}}]; probe.handle.refresh()`);
     assert.deepEqual(await evaluate(`[${control("latest")}.hidden,${control("thread")}.scrollTop,document.activeElement===${field}]`), [false,200,true]);

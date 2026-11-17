@@ -33,9 +33,10 @@ export class AssistantStepGate {
   }
 
   /** The person's answer to the ask (through the conversation's card or the task's row): the same answer either way. */
-  async answer(workId: string, review_id: string, decision: "approve" | "reject"): Promise<boolean> {
+  async answer(workId: string, review_id: string, version: string, decision: "approve" | "reject"): Promise<boolean> {
     const work = this.ports.store.get(this.ports.actorId, workId), gate = work.step_gate;
     if (!gate || gate.id !== review_id) return false;
+    if (gate.request_key !== version) throw assistantErrors.stale("这一步询问已经更新或结束");
     if (!["approve", "reject"].includes(decision)) throw assistantErrors.invalid("请选择接着做或先不做");
     const now = this.ports.store.update(this.ports.actorId, workId, null, { step_gate: undefined, step_answer: { request_key: gate.request_key, decision } }, false);
     if (decision === "approve") await this.ports.goOn(now, gate);
@@ -48,7 +49,7 @@ export class AssistantStepGate {
     const work = this.ports.store.get(this.ports.actorId, workId);
     if (work.executor.kind === "plugin" || work.reply_target) throw assistantErrors.invalid("这项工作由别的执行方接着做，这里管不到它的每一步");
     const updated = this.ports.store.update(this.ports.actorId, workId, null, { ask_each_step: on ? true : undefined }, false);
-    if (!on && work.step_gate) await this.answer(workId, work.step_gate.id, "approve");
+    if (!on && work.step_gate) await this.answer(workId, work.step_gate.id, work.step_gate.request_key, "approve");
     return whenThere(() => this.ports.store.get(this.ports.actorId, workId)) ?? updated;
   }
 }
@@ -56,7 +57,7 @@ export class AssistantStepGate {
 /** The held step as a confirmation of the work's (its conversation's card and its task's row read it like any other), in the reader's language. */
 export function stepReview(work: Pick<StoredWork, "step_gate">): AssistantPendingReview[] {
   const gate = work.step_gate;
-  return gate ? [{ review_id: gate.id, kind: ASSISTANT_NEXT_STEP_REVIEW, run_id: gate.run_id, summary: uiText.text("workbench.assistant-step-gate.ask"),
+  return gate ? [{ review_id: gate.id, version: gate.request_key, decisions: { approve: { available: true }, reject: { available: true } }, kind: ASSISTANT_NEXT_STEP_REVIEW, run_id: gate.run_id, summary: uiText.text("workbench.assistant-step-gate.ask"),
     fields: [{ label: uiText.text("workbench.assistant-step-gate.why-label"), value: uiText.text(gate.path === "hand-back" ? "workbench.assistant-step-gate.why-hand-back" : "workbench.assistant-step-gate.why-continuation") }],
     requested_at: gate.asked_at, expires_at: null }] : [];
 }

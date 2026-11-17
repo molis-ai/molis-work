@@ -80,7 +80,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
   const ctx=canvas.getContext('2d');
   const projectId=document.body.dataset.projectId||'';
   const routePrefix=document.body.dataset.routePrefix||(projectId?'/projects/'+encodeURIComponent(projectId):'');
-  let socket=null,ready=false,state=null,shown=false,panelOpen=false,retry=0,retryTimer=null,pending=null,drawing=false,lastMode='idle',lastWork=null,reviewTimer=null,reviewing=null,reviewMode=null;
+  let socket=null,ready=false,state=null,shown=false,panelOpen=false,retry=0,retryTimer=null,pending=null,drawing=false,lastMode='idle',lastWork=null,reviewTimer=null,reviewing=null,reviewMode=null,reviewVersion=null;
   const say=(text)=>{if(live)live.textContent=text||'';};
   const sayError=(error)=>{if(live)molisWorkRequest.show(live,error);};
   const sendRaw=(message)=>{if(socket&&socket.readyState===1&&ready)socket.send(JSON.stringify(message));};
@@ -165,23 +165,29 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     if(rows.length||(state?.control?.mode&&state.control.mode!=='idle'))reviewTimer=setTimeout(pollReviews,1500);
   };
   const renderApproval=(row)=>{
-    if(!row){approval.hidden=true;approval.innerHTML='';reviewing=null;reviewMode=null;return;}
+    const focused=approval.contains(document.activeElement)?document.activeElement:null;
+    if(!row){if(focused)document.querySelector('[data-side-tab=computer][aria-selected=true]')?.focus({preventScroll:true});approval.hidden=true;approval.innerHTML='';reviewing=null;reviewMode=null;return;}
     const held=state?.control?.mode==='taken-over'||state?.control?.mode==='paused';
-    if(reviewing===row.request.review_id&&reviewMode===held)return;
-    reviewing=row.request.review_id;reviewMode=held;
+    const mode=JSON.stringify([held,row.decisions,row.request.reference.version]);
+    const same=reviewing===row.request.review_id;
+    if(same&&reviewMode===mode)return;
+    reviewing=row.request.review_id;reviewMode=mode;reviewVersion=row.request.reference.version;
     const doc=row.request.document||{},fields=doc.fields||[],roundAllow=doc.round_allow;
-    approval.innerHTML='<h2>'+esc(globalThis.t.text("workbench.side-panel-computer.assistant-asks-confirm"))+'</h2><p>'+esc(doc.summary||'')+'</p><dl>'+fields.map(f=>'<dt>'+esc(f.label)+'</dt><dd>'+esc(f.value)+'</dd>').join('')+'</dl>'+(held
-      ?'<p>'+esc(globalThis.t.text("workbench.side-panel-computer.while-have-paused-taken-over-step-will-not"))+'</p><div class="side-computer-approval-row">'+btn('reject',globalThis.t.text("workbench.side-panel-computer.dont-allow"),'ghost')+'</div>'
-      :'<div class="side-computer-approval-row">'+btn('approve',globalThis.t.text("workbench.side-panel-computer.allow-once"),'primary')+btn('reject',globalThis.t.text("workbench.side-panel-computer.dont-allow"),'')+'</div>'+(roundAllow?'<div class="side-computer-approval-row">'+btn('approve-round',globalThis.t.text("workbench.side-panel-computer.allow-acting-app-turn",{app:roundAllow.label}),'ghost')+'</div>':''));
+    const canApprove=!held&&row.decisions.approve.available;
+    const note=held?globalThis.t.text("workbench.side-panel-computer.while-have-paused-taken-over-step-will-not"):!row.decisions.approve.available?globalThis.say.text(row.decisions.approve.reason):'';
+    const choices=(canApprove?btn('approve',globalThis.t.text("workbench.side-panel-computer.allow-once"),'primary'):'')+(row.decisions.reject.available?btn('reject',globalThis.t.text("workbench.side-panel-computer.dont-allow"),''):'');
+    approval.innerHTML='<h2 tabindex="-1">'+esc(globalThis.t.text("workbench.side-panel-computer.assistant-asks-confirm"))+'</h2><p>'+esc(doc.summary||'')+'</p><dl>'+fields.map(f=>'<dt>'+esc(f.label)+'</dt><dd>'+esc(f.value)+'</dd>').join('')+'</dl>'+(note?'<p>'+esc(note)+'</p>':'')
+      +'<div class="side-computer-approval-row">'+choices+'</div>'+(canApprove&&roundAllow?'<div class="side-computer-approval-row">'+btn('approve-round',globalThis.t.text("workbench.side-panel-computer.allow-acting-app-turn",{app:roundAllow.label}),'ghost')+'</div>':'');
     approval.hidden=false;
+    if(same&&focused)(approval.querySelector('[data-computer-review="'+focused.dataset.computerReview+'"]')||approval.querySelector('h2')).focus({preventScroll:true});
     if(!visible())document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'computer'}}));
   };
   const btn=(action,label,cls)=>'<button type="button" data-computer-review="'+action+'" class="'+(cls||'')+'">'+esc(label)+'</button>';
   const decide=async(decision,remember)=>{
     const id=reviewing;if(!id)return;
-    const body={review_id:id,decision};if(remember)body.remember=remember;
+    const body={review_id:id,version:reviewVersion,decision};if(remember)body.remember=remember;
     try{await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body,fallback:globalThis.t.text("workbench.side-panel-computer.answer-was-not-sent")});}catch(error){sayError(error);}
-    approval.hidden=true;reviewing=null;void pollReviews();
+    if(reviewing===id){approval.hidden=true;reviewing=null;reviewMode=null;}void pollReviews();
   };
   const control=async(action)=>{
     if(action==='stop'){

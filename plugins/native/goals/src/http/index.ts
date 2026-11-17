@@ -4,8 +4,6 @@ import type { GoalsRoutePorts } from "./types.js";
 import { goalCreateRoutes } from "./create.js";
 import { goalPolicyGuidanceRoutes } from "./policy-guidance.js";
 import { goalLifecycleRoutes } from "./lifecycle.js";
-import { goalDecisionRoutes } from "./decisions.js";
-import { goalEventDecisionRoutes } from "./event-decisions.js";
 import { goalEventRoutes } from "./events.js";
 import { goalDeliverableRoutes } from "./deliverables.js";
 import { goalInputRoutes } from "./inputs.js";
@@ -18,9 +16,7 @@ export function goalsRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
     ...goalPolicyGuidanceRoutes(ports),
     ...goalRelationRoutes(ports),
     ...goalLifecycleRoutes(ports),
-    ...goalDecisionRoutes(ports),
     ...goalEventRoutes(ports),
-    ...goalEventDecisionRoutes(ports),
     ...goalDeliverableRoutes(ports),
     ...goalInputRoutes(ports),
     ...goalTerminalRoutes(ports),

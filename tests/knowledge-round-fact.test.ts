@@ -66,7 +66,11 @@ test("PMAT-33 PMAT-35 PMAT-37 PMAT-39 本轮情况 counts the project's document
   assert.match(one.text, /这个项目的资料目录已收录 1 份（[^）]+ 1），/, "a document kept from agents is not counted");
   assert.ok(one.catalog.includes("已收录 1 份") && (one.catalog.includes("「安全生产制度") !== one.catalog.includes("「差旅标准")), `a document kept from agents is not listed: ${one.catalog}`);
 
-  await home.web.post(prefix + "/api/assistant/capabilities", { capability_id: "knowledge.list", version: 1, provider_id: "system.knowledge", enabled: false });
+  const capabilities = prefix + "/api/assistant/capabilities";
+  const { capabilities: available } = await home.web.get<{ capabilities: { capability_id: string; expected: string }[] }>(capabilities);
+  const expected = available.find(row => row.capability_id === "knowledge.list")?.expected;
+  assert.ok(expected);
+  await home.web.post(capabilities, { capability_id: "knowledge.list", version: 1, provider_id: "system.knowledge", enabled: false, expected });
   const off = await ask(empty.work_id);
   assert.ok(!off.text.includes("这个项目的资料"), `a round that cannot list the documents is not told about them: ${off.text}`);
   assert.equal(off.catalog, "", "nor given their catalog");

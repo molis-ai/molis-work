@@ -31,7 +31,7 @@ async function terminal(adapter: Awaited<ReturnType<typeof createPrologueNodeAda
     const view = await adapter.read(ref);
     if (["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes(view.phase)) return view;
     if (Date.now() > deadline) throw new Error(`Run did not finish: ${view.phase}`);
-    for (const review of queue.list("project", "pending")) await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "person" });
+    for (const review of queue.list("project", "pending")) await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "person" });
     await new Promise(resolve => setTimeout(resolve, 20));
   }
 }

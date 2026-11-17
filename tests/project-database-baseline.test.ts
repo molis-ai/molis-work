@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import test from "node:test";
@@ -69,28 +69,28 @@ const declaring = BUILTIN_PLUGIN_CATALOG.filter(entry => (entry.manifest.runtime
 const opened = shape([PROJECT_DATABASE_BASELINE.schema, ...declaring.map(manifest => pluginSyncDatabaseDeclaration(manifest, manifest.databases!.project!).schema)].join("\n"));
 /** The eleven tables of the baseline and the plugins (other than Goals' board) whose rows belong to the project (PLIB-09). */
 const ROOTED = ["coding_sessions", "events", "feed_items", "feed_materials", "feed_out_rules", "feed_source_runs", "feed_sources",
-  "idempotency_records", "inbox_entries", "library_artifacts", "process_items"];
+  "idempotency_records", "inbox_entries", "library_artifacts", "process_items", "project_approval_rules", "project_review_decisions"];
 
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of the platform's and the Modules'
 // creation statements; the plugins' own tables, Goals' among them (S8), are theirs (PG-020) and come with their declarations.
 // Version 3 adds the surface composition service's corrections (surface-composition §3, §14.1).
-test("RAC-2360 the project database baseline is version 3 and the platform's and Modules' current tables", () => {
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 3);
-  assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql")));
+test("RAC-2360 APR-19 the project database baseline is version 4 and includes the platform's approvals", () => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 4);
+  assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql") + fixture("project-approval-schema.sql")));
 });
 
-test("RAC-2360 an existing empty file initializes the complete current library at 3", () => {
+test("RAC-2360 an existing empty file initializes the complete current library at 4", () => {
   const directory = mkdtempSync(join(tmpdir(), "project-empty-file-")), file = join(directory, "project.db");
   try {
     writeFileSync(file, "");
     const current = new LocalProjectDatabase(file);
-    try { assert.equal(current.db.pragma("user_version", { simple: true }), 3); } finally { current.close(); }
+    try { assert.equal(current.db.pragma("user_version", { simple: true }), 4); } finally { current.close(); }
     assert.deepEqual(shapeOf(file), opened);
     assert.deepEqual(ledgerOf(file).map(row => [row.plugin_id, row.version]), declaring.map(manifest => [manifest.plugin_id, manifest.databases!.project!.version]).sort());
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test("RAC-2360 the 1→2 step takes a version-1 library to the adopted journal and 2→3 to the current version", () => {
+test("RAC-2360 the 1→4 upgrade preserves the adopted journal and includes the surface and approval tables", () => {
   const directory = mkdtempSync(join(tmpdir(), "project-v1-upgrade-")), file = join(directory, "project.db");
   try {
     const v1 = `${PROJECT_DATABASE_VERSION_2_SCHEMA.replace(PROJECT_REPLICATION_SCHEMA_SQL, ORIGINAL_PROJECT_REPLICATION_SCHEMA_SQL)
@@ -99,13 +99,14 @@ test("RAC-2360 the 1→2 step takes a version-1 library to the adopted journal a
     const db = new DatabaseSync(file);
     db.exec(v1); db.exec("PRAGMA user_version = 1");
     const result = runSqliteUpgrade(db, file, PROJECT_DATABASE_BASELINE);
-    assert.deepEqual(result, { from: 1, to: 3 });
-    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 3);
+    assert.deepEqual(result, { from: 1, to: 4 });
+    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 4);
     assert.equal(db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='project_browsing_settings'").get(), undefined,
       "the old browsing setting is gone");
     assert.ok(db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='material_recent_uses'").get(), "the recent-use table is created");
     assert.ok(db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='process_items_adopted_replica_state'").get(), "the adopted journal is installed");
     assert.ok(db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='surface_corrections'").get(), "2→3 adds the surface corrections");
+    assert.ok(db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='project_review_decisions'").get(), "3→4 adds project approvals");
     db.close();
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
@@ -139,7 +140,7 @@ test("PLIB-01, PLIB-13: the library's baseline imports no plugin package, so no 
   const imported = [...source.matchAll(/\bfrom\s+["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']/g)].map(match => match[1] ?? match[2]!);
   assert.ok(imported.length > 0, "the baseline is still put together from its owners' statements");
   const plugins = new URL("../plugins/native/", import.meta.url);
-  const pluginPackages = new Set(readdirSync(plugins, { withFileTypes: true }).filter(entry => entry.isDirectory())
+  const pluginPackages = new Set(readdirSync(plugins, { withFileTypes: true }).filter(entry => entry.isDirectory() && existsSync(new URL(`${entry.name}/package.json`, plugins)))
     .map(entry => (JSON.parse(readFileSync(new URL(`${entry.name}/package.json`, plugins), "utf8")) as { name: string }).name));
   assert.ok(pluginPackages.has("@molis-ai/molis-work-plugin-coding"));
   assert.deepEqual(imported.filter(name => pluginPackages.has(name) || /plugins\/native\//.test(name)), []);
@@ -152,7 +153,7 @@ test("PLIB-01, PLIB-13: the library's baseline imports no plugin package, so no 
 
 test("RAC-2362 PLIB-02: every plugin's declared tables match the complete current business fixture", () => {
   assert.deepEqual(declaring.map(manifest => manifest.plugin_id).sort(), ["io.molis.work.coding", "io.molis.work.feed", "io.molis.work.goals", "io.molis.work.inbox", "io.molis.work.risk", "io.molis.work.schedule"]);
-  const expected = shape(fixture("goal-event-history/approved.sql")).tables;
+  const expected = shape(fixture("goal-event-history/approved.sql") + fixture("goals-tree-item-effects.sql")).tables;
   for (const manifest of declaring) {
     // The business fixture does not activate Inbox's optional scene-binding store.
     if (manifest.plugin_id === "io.molis.work.inbox") continue;

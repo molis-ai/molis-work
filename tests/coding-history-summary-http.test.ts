@@ -213,7 +213,7 @@ test("PG035-07 with model:invoke switched off Coding's two drafts are refused wi
   actions.registry.registerProvider({ provider: { provider_id: "agent-fixture", title: "Agent", kind: "system" }, definitions: [agent.draftText],
     handlers: [{ ...agent.draftText, handle: (_caller, input) => { drafts.push(structuredClone(input as AgentDraftTextRequest)); return { text: "补上归档", usage: { input: 50, output: 5 } }; } }] });
   // Each round wrote one file and the write was applied: what a commit message is drafted from.
-  const applied = (view: AgentRunView) => [{ request: { review_id: `review-${view.ref.run_id}`, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", run: view.ref, kind: "text-edit",
+  const applied = (view: AgentRunView) => [{ request: { reference: { owner: { kind: "agent-review" as const, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", install_id: "install" }, id: `review-${view.ref.run_id}`, version: "proposal-1" }, review_id: `review-${view.ref.run_id}`, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", run: view.ref, kind: "text-edit",
     document: { kind: "text-edit", target_path: `src/f-${view.ref.run_id}.ts`, exists: true, before_text: "a\n", after_text: "b\n" }, requested_at: "2026-09-26T00:00:00.000Z", expires_at: null },
     receipt: { review_id: `review-${view.ref.run_id}`, status: "approved", decided_by: "web-user", decided_at: "2026-09-26T00:00:30.000Z", note: null, effect_settled: true, effect_error: null } }];
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",

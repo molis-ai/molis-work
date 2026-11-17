@@ -1,4 +1,5 @@
-import { actionExecutionContext, assertReadOnlyEffects, visibleAction, prepareSubjectStateResult } from "./action-execution-context.js";
+import { isDeepStrictEqual } from "node:util";
+import { assertReadOnlyEffects, captureActionRegistration, visibleAction } from "./action-execution-context.js";
 import { actionDirectoryLookup, actionKey } from "./action-directory-lookup.js";
 import { assertSceneHandler, consumeScene, protectSceneReads, runSceneEffect } from "./action-scene-execution.js";
 import { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
@@ -12,11 +13,12 @@ import {
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { CapabilityRegistry } from "./index.js";
 import { assertCallerProvenance } from "./action-authorship.js";
-import { assertCurrentAuthority, bindCall, describeCall, settleCall, settleCallSync, runActionHandler, type CallContext, type CallReports } from "./action-settlement.js";
+import { assertCurrentAuthority, bindCall, describeCall, settleCall, settleCallSync, type CallContext, type CallReports } from "./action-settlement.js";
 import { actionSchemaAccepts, createActionSchemaCompiler, validateActionValue, type ActionValidator } from "./action-schema.js";
 import { validateActionInput } from "./version-precondition.js";
+import { registerActionExecution, type ActionExecutionEffects } from "./action-registered-execution.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
-import { createExecutionLifetime, inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk/execution";
+import { inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk/execution";
 
 interface RegisteredScene {
   definition: ActionSceneDefinition;
@@ -38,27 +40,25 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   private readonly checkingDependencies = new WeakMap<ActionCallContext, Set<string>>(); // per context: a delegated caller's authority check reads its original's own, which is not a cycle
 
   constructor(readonly registry = new CapabilityRegistry<ActionCallContext>(),
-    private readonly effects: CallReports & {
-      beforeEffect?(context: ActionCallContext, reference: ActionReference): void | Promise<void>;
-      /** The Host's live runtime check, without yielding after the final authority check. */
-      assertCurrent?(context: ActionCallContext, reference: ActionReference): void;
+    private readonly effects: CallReports & ActionExecutionEffects & {
       /** Host policy, before anything is resolved or dispatched. Asynchronous, so a synchronous call is never offered to it. */
       admit?(context: CallContext, reference: ActionReference): void | Promise<void>;
     } = {}) {}
 
   registerProvider(registration: ActionProviderRegistration): () => void {
     const problems = inspectActionDeclarations(registration.definitions, registration.scenes);
-    // A background launcher may be replaced independently of its unchanged status query. Only an actual registered query
-    // of this provider and scope supplies that reference; callers cannot invent a declaration without a handler.
-    const statuses = problems.length ? [] : registration.definitions.flatMap(definition => {
-      const reference = definition.action.background_job?.status;
+    // A command may be replaced independently of its unchanged status or review query.
+    // Only an actual registered query of this provider and scope supplies either reference.
+    const readers = problems.length ? [] : registration.definitions.flatMap(definition => [
+      definition.action.background_job?.status, definition.action.trusted_decision_request,
+    ].flatMap(reference => {
       if (!reference || registration.definitions.some(item => item.capability_id === reference.capability_id && item.version === reference.version)) return [];
-      const target = this.registry.descriptor(reference, registration.provider.project_id);
-      return target?.operation === 'query' && target.action && target.action.scope === definition.action.scope
-        && target.action_provider?.provider_id === registration.provider.provider_id
-        && target.action_provider.project_id === registration.provider.project_id ? [{ ...target, action: target.action }] : [];
-    });
-    problems.push(...inspectActionCrossReferences(statuses.length ? [...registration.definitions, ...statuses] : registration.definitions));
+      const target = this.registry.descriptors(item => actionKey(item) === actionKey(reference) && item.operation === "query"
+        && item.action?.scope === definition.action.scope && item.action_provider?.provider_id === registration.provider.provider_id
+        && item.action_provider?.project_id === registration.provider.project_id)[0];
+      return target?.action ? [{ ...target, action: target.action }] : [];
+    }));
+    problems.push(...inspectActionCrossReferences(readers.length ? [...registration.definitions, ...readers] : registration.definitions));
     if (problems.length) throw new ActionError("actions.definition_invalid", problems.join("；"));
     const provider = structuredClone(registration.provider);
     if (!provider.provider_id || !provider.title) throw new ActionError("actions.provider_invalid", "能力来源缺少身份或名称");
@@ -104,51 +104,8 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           return own.available ? this.dependencyAvailability(context, definition, metadata) : own;
         };
         const registeredDefinition = { ...definition, action_provider: provider };
-        const callWindows = new Map<string, number[]>();
-        const execute = (context: ActionCallContext, input: unknown) => {
-          assertReadOnlyEffects(context, definition);
-          context.signal?.throwIfAborted(); assertCallerProvenance(definition.action, context);
-          validateActionInput(validateInput, definition, context, input);
-          const policy = definition.action.execution;
-          if (policy?.max_calls_per_minute) {
-            const now = Date.now();
-            for (const [key, calls] of callWindows) {
-              const recent = calls.filter(at => now - at < 60_000);
-              if (recent.length) callWindows.set(key, recent); else callWindows.delete(key);
-            }
-            const key = JSON.stringify([context.actor_id, context.project_id ?? null, context.plugin_install_id ?? null]);
-            const recent = callWindows.get(key) ?? [];
-            if (recent.length >= policy.max_calls_per_minute) throw new ActionError("actions.rate_limited", "这项能力一分钟内调用次数太多，请稍后再试");
-            recent.push(now); callWindows.set(key, recent);
-          }
-          const lifetime = policy?.timeout_ms === undefined ? undefined : createExecutionLifetime({ signal: context.signal,
-            timeout: { milliseconds: policy.timeout_ms, reason: new ActionError("actions.timeout", "这项能力执行超时，已停止本机等待；请检查结果后决定是否重试") } });
-          const registration = this.registry.registrationToken(registeredDefinition);
-          const reference = { capability_id: definition.capability_id, version: definition.version, provider_id: provider.provider_id };
-          let executing = true;
-          const assertCurrent = () => inDirectoryPass(() => {
-            if (!executing) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
-            lifetime?.assertActive();
-            context.signal?.throwIfAborted();
-            if (this.registry.registrationToken(registeredDefinition) !== registration) throw new ActionError("actions.provider_changed", "能力已重新加载，不能继续原副作用");
-            assertAvailable(availability(context));
-            requireSynchronous(this.effects.assertCurrent?.(context, reference), "最终运行环境检查必须同步完成");
-          });
-          // Copy the context so a concurrent/nested invocation cannot replace this call's check.
-          try {
-            const execution: ActionExecutionContext = { ...actionExecutionContext(context, reference,
-              definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
-            const checked = prepareSubjectStateResult(execution, definition, provider, input, this.registry, () => executing, value => checkedActionResult(definition, validateOutput, value), assertCurrent);
-            // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
-            const result = runActionHandler(context, execution, () => executing, () => handler.handle(execution, input));
-            if (handler.execution === "sync") {
-              try { return checked(requireSynchronous(result)); }
-              finally { executing = false; lifetime?.dispose(); }
-            }
-            const pending = Promise.resolve(result);
-            return (lifetime ? lifetime.wait(pending) : pending).then(checked).finally(() => { executing = false; lifetime?.dispose(); });
-          } catch (error) { executing = false; lifetime?.dispose(); throw error; }
-        };
+        const execute = registerActionExecution({ registeredDefinition, handler, validateInput, validateOutput,
+          registry: this.registry, resolve: (context, ref) => this.actionDefinition(context, ref), availability, effects: this.effects });
         disposers.push(this.registry.register(registeredDefinition, execute,
           { availability, metadataAvailability: context => availability(context, true), synchronous: handler.execution === "sync" }));
       }
@@ -206,6 +163,34 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     return this.directory(context, true);
   }
 
+  /** Host-only: pin one reviewed proposal without discovering the rest of the directory or invoking its handler. */
+  prepareReview(context: ActionCallContext, offered: ActionView, input: unknown) {
+    const saved = captureActionRegistration(this.registry, ref => this.registry.descriptor(ref, context.project_id),
+      { capability_id: offered.capability_id, version: offered.version, provider_id: offered.provider.provider_id }, context);
+    if (saved.definition.operation !== offered.operation || !isDeepStrictEqual(saved.definition.action, offered.action)) throw new ActionError("actions.definition_changed", "审查的能力合同已经变化");
+    assertReadOnlyEffects(context, offered); assertCallerProvenance(offered.action, context);
+    validateActionInput(createActionSchemaCompiler()(offered.action.input_schema), offered, context, input);
+    return this.registrationReviewControl(context, saved);
+  }
+
+  /** Pin a related registration without constructing business input for it, e.g. the undo of a reversible action. */
+  holdReviewRegistration(context: ActionCallContext, reference: ExactActionReference) {
+    const saved = captureActionRegistration(this.registry, ref => this.registry.descriptor(ref, context.project_id), reference, context);
+    return this.registrationReviewControl(context, saved);
+  }
+
+  private registrationReviewControl(context: ActionCallContext, saved: ReturnType<typeof captureActionRegistration>) {
+    const assertCurrent = () => {
+      saved.assertCurrent(); this.effects.assertCurrent?.(context, saved.reference);
+      assertCurrentAuthority(context, saved.reference, saved.permissions);
+    };
+    assertCurrent();
+    return { assertCurrent, beforeEffect: async () => {
+      assertCurrent(); await context.validate_authority?.(saved.reference); await context.validate_permissions?.(saved.permissions);
+      await this.effects.beforeEffect?.(context, saved.reference); assertCurrent();
+    } };
+  }
+
   private directory(context: ActionCallContext, inspection: boolean, observe?: ObserveActionRegistration, select?: ActionSelection): ActionView[] {
     // Visibility is checked before any row is made. One pass: a provider is asked once for all its actions, the caller once for its authority.
     const visible = inspection ? undefined : (definition: ActionDefinition, provider: ActionProvider) =>
@@ -253,6 +238,22 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   /** Composition-only declarations. No handler, availability evaluation or execution authority is returned. */
   inspectSceneMetadata(context: ActionCallContext): Array<Pick<ActionSceneView, "definition" | "provider">> {
     return this.sceneDeclarations(context).map(({ metadata }) => metadata);
+  }
+
+  /** Pin the consuming owner's enabled bindings before an external action grant is written. */
+  holdRequiredScene(context: ActionCallContext, required: { scene_id: string; version: number }) {
+    const reference = { scene_id: required.scene_id, scene_version: required.version };
+    const original = this.requireScene(context, reference);
+    const bindings = () => {
+      if (this.requireScene(context, reference) !== original) throw new ActionError("actions.provider_changed", "原消费场景已变化");
+      const rows = requireSynchronous(original.handler.bindings(context), "此场景未提供可在保存时核对的绑定");
+      return rows.filter(row => row.enabled && bindingBelongsTo(row, original.definition, context));
+    };
+    const seen = structuredClone(bindings());
+    if (!seen.length) throw new ActionError("actions.binding_required", "请先为此场景选择并启用判断规则");
+    return { definition: original.definition, provider: original.provider, bindings: seen, assertCurrent: () => {
+      if (!isDeepStrictEqual(bindings(), seen)) throw new ActionError("actions.conflict", "消费场景的原绑定已变化，请重新查看授权");
+    } };
   }
 
   discoverScenes(context: ActionCallContext, judgment?: ActionReference): ActionSceneView[] {
@@ -506,17 +507,6 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     assertAvailable(fn!.availability);
     return fn!;
   }
-}
-
-function checkedActionResult(definition: ActionDefinition, validateOutput: ActionValidator | undefined, value: unknown): unknown {
-  if (!validateOutput) return value;
-  try { validateActionValue(validateOutput, value, "output"); }
-  catch (error) {
-    // An operation that returned has already committed; reporting a plain failure would invite a retry that repeats it.
-    if (definition.operation === "command" && definition.action.kind === "operation" && error instanceof ActionError) throw new ActionError("actions.output_invalid_after_effect", `操作已执行，但${error.message}；请刷新后查看，不要重复操作`);
-    throw error;
-  }
-  return value;
 }
 
 function sceneVisible(s: RegisteredScene, c: ActionCallContext): boolean {

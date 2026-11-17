@@ -19,6 +19,4 @@ export const CLIENT_EVENTS_ACCESSIBILITY_SCRIPT = `    });
 
       const relationSubmit = handleGoalRelationSubmit(submittedForm, event);
       if (relationSubmit) { await relationSubmit; return; }
-      const policySubmit = handleGoalPolicySubmit(submittedForm, event);
-      if (policySubmit) { await policySubmit; return; }
 `;

@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT, GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT, GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT,
-  GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT, GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT, GOALS_POLICY_CLIENT_FACTORY_SCRIPT,
-  GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT, GOALS_RELATION_CLIENT_FACTORY_SCRIPT, PROJECT_RULES_CLIENT_SCRIPT,
+  GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT, GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT,
+  GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT, GOALS_RELATION_CLIENT_FACTORY_SCRIPT,
 } from "@molis-ai/molis-work-plugin-goals";
 import { createUiRequest } from "@molis-ai/molis-work-ui-host";
 import { chinesePagePacks, installPageClientText, pageTextForPacks } from "./fixtures/page-text-packs.js";
@@ -35,15 +35,11 @@ const factory = <T>(source: string, request: unknown, document: unknown = undefi
 test("PG094-09: every Goals client script parses and sends no request of its own", () => {
   const factories = {
     GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT, GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT, GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT,
-    GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT, GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT, GOALS_POLICY_CLIENT_FACTORY_SCRIPT,
+    GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT, GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT,
     GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT, GOALS_RELATION_CLIENT_FACTORY_SCRIPT,
   };
-  const pages = { PROJECT_RULES_CLIENT_SCRIPT };
   for (const [name, source] of Object.entries(factories)) {
     assert.doesNotThrow(() => new Function(`return (${source});`), name + " does not parse");
-  }
-  for (const [name, source] of Object.entries(pages)) assert.doesNotThrow(() => new Function(source), name + " does not parse");
-  for (const [name, source] of Object.entries({ ...factories, ...pages })) {
     assert.ok(!/(^|[^.\w])fetch\(/.test(source), name + " calls fetch itself");
     assert.ok(!/molisWorkControlHeaders|controlHeaders/.test(source), name + " builds its own control headers");
   }

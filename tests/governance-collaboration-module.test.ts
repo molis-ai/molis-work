@@ -13,27 +13,33 @@ import {
 
 import { DEMO_PROJECT_ID, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GOALS_PLUGIN_ID, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
+import { projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
+import { fixtureApprovals } from "./fixtures/goal-application.js";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
 
 async function fixture(name: string): Promise<{
   store: LocalProjectDatabase;
   governance: GovernanceCollaborationModule;
+  approvals: ReturnType<typeof fixtureApprovals>;
   dispose(): void;
 }> {
   const directory = mkdtempSync(join(tmpdir(), `molis-work-governance-${name}-`));
   const databasePath = join(directory, "molis-work.sqlite");
   await seedDemoGoals(databasePath);
   const store = new LocalProjectDatabase(databasePath);
-  let sequence = 0;
+  const clock = () => "2026-09-02T00:00:00.000Z";
+  const approvals = fixtureApprovals(store, () => new Date(clock()));
   const governance = new GovernanceCollaborationModule({
+    ...approvals,
     db: pluginLegalSql(store).governance,
     journal: store,
-    now: () => `2026-09-02T00:00:0${sequence}.000Z`,
-    id: () => `test-${sequence += 1}`,
+    now: clock,
   });
   return {
     store,
     governance,
+    approvals,
     dispose: () => {
       store.close();
       rmSync(directory, { recursive: true, force: true });
@@ -42,7 +48,7 @@ async function fixture(name: string): Promise<{
 }
 
 test("Governance decision provenance and target-owner materialization share one rollback boundary", async () => {
-  const { store, governance, dispose } = await fixture("decisions");
+  const { store, governance, approvals, dispose } = await fixture("decisions");
   try {
     // W5-08-MOD-01/02: only business services are public; their transaction still owns both effects below.
     assert.equal("GovernanceRepository" in governanceExports, false);
@@ -55,7 +61,7 @@ test("Governance decision provenance and target-owner materialization share one 
       project_id: DEMO_PROJECT_ID,
       root_goal_id: "V1",
       submitted_by: "runtime-a",
-      discovered_in_run_id: null,
+      submitted_session_id: null,
       state: "pending",
       version: 1,
       supersedes_proposal_id: null,
@@ -95,48 +101,42 @@ test("Governance decision provenance and target-owner materialization share one 
       item_id: itemId,
       decision: "confirmed" as const,
       actor_id: "user-a",
-      authority_source: "runtime_dialogue" as const,
+      authority_source: "management" as const,
       runtime_actor_id: "runtime-a",
       conversation_ref: "codex://threads/test",
       message_ref: "message-test",
-      reason: "confirmed in the current dialogue",
+      reason: "confirmed in the management entry",
       revision_proposal_id: null,
       materialized_objects: [{ object_type: "goal" as const, object_id: "V1-child" }],
       created_at: "2026-09-02T00:00:01.000Z",
     };
 
     assert.throws(() => governance.decisions.materializeAtomically(() => {
-      governance.records.insertGoalTreeDecision(decision);
-      governance.records.transitionGoalTreeItem({
-        proposal_id: proposalId,
-        item_id: itemId,
-        state: "applied",
-        materialized_objects: decision.materialized_objects,
-        updated_at: decision.created_at,
-      });
-      store.db.prepare("UPDATE boards SET updated_at = ? WHERE project_id = ?")
-        .run("must roll back", DEMO_PROJECT_ID);
-      throw new Error("target owner failed");
-    }), /target owner failed/);
+      governance.records.insertGoalTreeDecision({ ...decision, authority_source: "runtime_dialogue" });
+    }), { code: "actions.forbidden" });
+    const materialize = (time: string, complete: () => void) => approvals.tree(DEMO_PROJECT_ID, proposalId, "target-owner-review",
+      { ...decision, actor_kind: "user" }, decision, () => governance.decisions.materializeAtomically(() => {
+        governance.records.insertGoalTreeDecision(decision);
+        governance.records.transitionGoalTreeItem({
+          proposal_id: proposalId, item_id: itemId, state: "applied",
+          materialized_objects: decision.materialized_objects, updated_at: decision.created_at,
+        });
+        store.db.prepare("UPDATE boards SET updated_at = ? WHERE project_id = ?").run(time, DEMO_PROJECT_ID);
+        complete();
+      }));
+    const history = projectReviewDecisions(store.db, DEMO_PROJECT_ID);
+    const historyBefore = history.count();
+    assert.throws(() => materialize("must roll back", () => { throw new Error("target owner failed"); }), /target owner failed/);
+    assert.equal(history.count(), historyBefore);
     assert.equal(governance.query.getGoalTreeProposal(DEMO_PROJECT_ID, proposalId)?.decisions.length, 0);
     assert.equal(governance.query.getGoalTreeProposal(DEMO_PROJECT_ID, proposalId)?.items[0]?.state, "pending");
     assert.equal((store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?")
       .get(DEMO_PROJECT_ID) as { updated_at: string }).updated_at, beforeUpdatedAt);
 
-    governance.decisions.materializeAtomically(() => {
-      governance.records.insertGoalTreeDecision(decision);
-      governance.records.transitionGoalTreeItem({
-        proposal_id: proposalId,
-        item_id: itemId,
-        state: "applied",
-        materialized_objects: decision.materialized_objects,
-        updated_at: decision.created_at,
-      });
-      store.db.prepare("UPDATE boards SET updated_at = ? WHERE project_id = ?")
-        .run("materialized", DEMO_PROJECT_ID);
-    });
+    materialize("materialized", () => undefined);
+    assert.equal(history.count(), historyBefore + 1);
     const persisted = governance.query.getGoalTreeProposal(DEMO_PROJECT_ID, proposalId);
-    assert.equal(persisted?.decisions[0]?.authority_source, "runtime_dialogue");
+    assert.equal(persisted?.decisions[0]?.authority_source, "management");
     assert.equal(persisted?.decisions[0]?.conversation_ref, "codex://threads/test");
     assert.equal(persisted?.decisions[0]?.message_ref, "message-test");
     assert.equal(persisted?.items[0]?.state, "applied");
@@ -157,11 +157,11 @@ test("Governance decision provenance and target-owner materialization share one 
 });
 
 /** The one thing the stored-JSON cases assert: a read that cannot parse raises the owner's "record unreadable" code. */
-function capturedGovernanceRead(action: () => unknown): ActionError {
+function capturedGovernanceRead(action: () => unknown, code = "goals.storage.record_unreadable"): ActionError {
   let thrown: unknown = null;
   try { action(); } catch (error) { thrown = error; }
   if (!(thrown instanceof ActionError)) assert.fail("读不出来的 JSON 应当抛 ActionError，而不是当成备用值");
-  assert.equal(thrown.code, "goals.storage.record_unreadable");
+  assert.equal(thrown.code, code);
   assert.equal(thrown.kind, "internal");
   return thrown;
 }
@@ -174,7 +174,7 @@ function insertProposalWithItem(store: LocalProjectDatabase, governance: Governa
     project_id: DEMO_PROJECT_ID,
     root_goal_id: "V1",
     submitted_by: "runtime-a",
-    discovered_in_run_id: null,
+    submitted_session_id: null,
     state: "pending",
     version: 1,
     supersedes_proposal_id: null,
@@ -221,15 +221,18 @@ test("RAC-1267: an unreadable trusted decision scope stops the decision read", a
   try {
     const goalId = (store.db.prepare("SELECT goal_id FROM goals ORDER BY goal_id LIMIT 1").get() as { goal_id: string }).goal_id;
     const decisionId = "decision-unreadable-scope";
-    store.db.prepare(`INSERT INTO goal_event_trusted_decisions (
-      decision_id, project_id, goal_id, actor_id, actor_kind, authority_source,
-      conversation_ref, message_ref, request_id, selected_option_id, conclusion,
-      accepts_requirements, scope_json, change_json, recorded_at
-    ) VALUES (?, ?, ?, ?, 'user', 'management', ?, ?, NULL, NULL, ?, 1, ?, NULL, ?)`).run(
-      decisionId, DEMO_PROJECT_ID, goalId, "review-user",
-      "codex://threads/test", "message-test", "我确认可以完成", '{"action":', "2026-09-02T00:00:01.000Z",
-    );
-    capturedGovernanceRead(() => governance.eventDecisions.read(DEMO_PROJECT_ID, decisionId));
+    const recorded_at = "2026-09-02T00:00:01.000Z";
+    const marker = "damaged-decision-scope-marker";
+    const original = { decision_id: decisionId, project_id: DEMO_PROJECT_ID, goal_id: goalId, actor_id: "review-user", actor_kind: "user",
+      authority_source: "management", conversation_ref: "codex://threads/test", message_ref: "message-test", request_id: null, selected_option_id: null,
+      conclusion: "我确认可以完成", accepts_requirements: 1, scope_json: `{"${marker}":`, change_json: null, recorded_at };
+    store.db.prepare(`INSERT INTO project_review_decisions(decision_id, project_id, record_json, recorded_at) VALUES (?, ?, ?, ?)`)
+      .run(decisionId, DEMO_PROJECT_ID, JSON.stringify({ kind: "history", subject: "event", decision_id: decisionId,
+        project_id: DEMO_PROJECT_ID, recorded_at, owner: { kind: "plugin", plugin_id: GOALS_PLUGIN_ID, publisher_signature: goalsManifest.publisher.signature }, original }), recorded_at);
+    const error = capturedGovernanceRead(() => governance.eventDecisions.read(DEMO_PROJECT_ID, decisionId), "actions.execution_failed");
+    const location = store.db.prepare("SELECT CAST(rowid AS TEXT) AS ref FROM project_review_decisions WHERE decision_id = ?").get(decisionId) as { ref: string };
+    assert.deepEqual(error.details, { storage: { table: "project_review_decisions", column: "record_json", row_ref: location.ref } });
+    assert.doesNotMatch(error.message, new RegExp(marker));
   } finally { dispose(); }
 });
 

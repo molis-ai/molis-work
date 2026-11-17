@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": {
+      "kind": "cohesive-unit",
+      "reason": "手动回退的单一执行状态机，共同持有原等待、恢复及不确定结果；纯文档和结算函数已分开，继续拆工厂会把同一原操作的授权和结束状态分散到多处。",
+      "size": 166
+    }
+  }
+}

@@ -567,7 +567,7 @@ for (const kind of ["coding", "assistant"] as const) test(`${kind} real Run leav
     const fields = Object.fromEntries(pending.document.fields.map(field => [field.label, field.value]));
     assert.equal(fields.Capability, memoryActions.write.capability_id); assert.equal(fields.Version, String(memoryActions.write.version)); assert.equal(fields.Provider, MEMORY_PROVIDER_ID);
     assert.ok(modelTarget); assert.deepEqual(JSON.parse(fields.Arguments!), { scope: "project", kind: "preference", text: proposedText, said: task, replaces: modelTarget });
-    const approved = await f.call<{ receipt: { status: string } }>(target.project!, "/api/agent/reviews/decide", { review_id: pending.review_id, decision: "approve" });
+    const approved = await f.call<{ receipt: { status: string } }>(target.project!, "/api/agent/reviews/decide", { review_id: pending.review_id, version: pending.reference.version, decision: "approve" });
     assert.equal(approved.status, 200, JSON.stringify(approved.body)); assert.equal(approved.body.receipt.status, "approved");
   } else {
     const sent = await f.web.post<AssistantSendResult>(`/projects/${target.project}/api/assistant/send`, { work_id: target.id, text: task, request_id: randomUUID() });

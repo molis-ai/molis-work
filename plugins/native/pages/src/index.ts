@@ -152,7 +152,7 @@ export { runPagesAi } from "./ai-run.js";
 
 export { pagesContentActions, createPagesContentHandlers } from "./content-actions.js";
 
-export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND, PAGES_READABLE_FILE, PAGES_READABLE_EXTENSIONS, createPagesActionHandlers } from "./actions.js";
+export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND, PAGES_FOLDER_KIND, PAGES_READABLE_FILE, PAGES_READABLE_EXTENSIONS, createPagesActionHandlers } from "./actions.js";
 export type { PagesActionPorts } from "./actions.js";
 
 export { pagesCommentActions, createPagesCommentHandlers } from "./comment-actions.js";

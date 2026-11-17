@@ -8,14 +8,15 @@ import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
 export async function handleAccountAuthenticationHttp(request: IncomingMessage, response: ServerResponse, url: URL, account: AccountHostBinding,
   isNativeAccountRequest?: (request: IncomingMessage) => boolean): Promise<boolean> {
   const login = ({ "/api/account/auth/login/password": "loginPassword", "/api/account/auth/verification-codes": "sendVerification", "/api/account/auth/login/code": "loginCode" } as Record<string, "loginPassword" | "sendVerification" | "loginCode" | undefined>)[url.pathname];
+  const capabilities = url.pathname === "/api/account/auth/capabilities";
   const create = url.pathname === "/api/account/auth/transactions" && request.method === "POST";
   const reset = url.pathname === "/api/account/password/reset" && request.method === "POST";
   const reauth = url.pathname === "/api/account/reauthentications";
   const sensitive = /^\/api\/account\/(password\/change|login-methods\/(bind|([a-zA-Z0-9_-]+)\/(replace|unlink)))$/u.exec(url.pathname);
   const match = /^\/api\/account\/auth\/transactions\/([a-zA-Z0-9_-]+)(?:\/(submit|resend|cancel))?$/u.exec(url.pathname);
-  if (!login && !create && !reset && !reauth && !sensitive && !match) return false;
+  if (!capabilities && !login && !create && !reset && !reauth && !sensitive && !match) return false;
   if (["cross-site", "same-site"].includes(String(request.headers["sec-fetch-site"] ?? ""))) throw accountErrors.forbidden("Authentication requires a same-origin request");
-  const operation = login ?? (create ? "create" : reset ? "reset" : reauth ? "reauthenticate" : sensitive ? "mutate" : match![2] ?? "get"), handle = match?.[1] ?? "";
+  const operation = capabilities ? "get" : login ?? (create ? "create" : reset ? "reset" : reauth ? "reauthenticate" : sensitive ? "mutate" : match![2] ?? "get"), handle = match?.[1] ?? "";
   if (request.method !== (operation === "get" ? "GET" : "POST")) throw accountErrors.invalid_request("Invalid authentication method");
   const stop = new AbortController();
   const disconnected = () => { if (!response.writableEnded) stop.abort(); };
@@ -25,6 +26,7 @@ export async function handleAccountAuthenticationHttp(request: IncomingMessage, 
     if (operation === "get" && (request.headers["transfer-encoding"] || Number(request.headers["content-length"] ?? 0) !== 0)) throw accountErrors.invalid_request("Authentication reads do not accept a body");
     if ((operation === "resend" || operation === "cancel") && !validateAccountContract("Empty", body)) throw accountErrors.invalid_request("Unexpected authentication fields");
     const data = await account.authenticate(`http://${requestHost(request)}`, stop.signal, async (auth, control) => {
+      if (capabilities) return auth.capabilities(control);
       if (operation === "reauthenticate") return auth.reauthenticate(body, control);
       if (operation === "mutate") {
         const key = request.headers["idempotency-key"];

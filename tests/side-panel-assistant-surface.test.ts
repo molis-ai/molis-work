@@ -1,4 +1,5 @@
 // S-16: the side panel's browser surface follows the Home's site policy — every page-changing action asks the person first.
+import { surfaceContext } from "./fixtures/surface-target.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -66,7 +67,6 @@ function fakePage(decisions: ReadonlyArray<{ scope: string; decision: "allow" | 
     },
     async release() { released += 1; },
     async close() {},
-    async describePoint() { return "Learn more"; },
     masked: () => false,
   };
   return { driver, done, looks: () => looks, released: () => released };
@@ -130,13 +130,13 @@ test("from a blank page the Assistant looks, then opens a site and clicks only a
     assert.ok(opening.document.fields?.some(field => field.value === "打开 https://example.com/"), JSON.stringify(opening.document));
     assert.equal(f.page.looks(), 1, "looking did not wait for anyone");
     assert.deepEqual(f.page.done, [], "nothing happens on the page before approval");
-    await f.queue.respond({ review_id: opening.review_id, decision: "approve", actor_id: "web-user" });
+    await f.queue.respond({ review_id: opening.review_id, version: opening.reference.version, decision: "approve", actor_id: "web-user" });
 
     const click = await until(() => f.queue.list("board", "pending").find(row => row.review_id !== opening.review_id), "the click's review");
     assert.match(click.document.summary, /在 https:\/\/example\.com 点击页面/u);
-    assert.ok(click.document.fields?.some(field => field.value === "点击「Learn more」"), JSON.stringify(click.document));
+    assert.ok(click.document.fields?.some(field => field.value === "点击页面上的位置（10, 20）"), JSON.stringify(click.document));
     assert.equal(f.page.done.length, 1);
-    await f.queue.respond({ review_id: click.review_id, decision: "approve", actor_id: "web-user" });
+    await f.queue.respond({ review_id: click.review_id, version: click.reference.version, decision: "approve", actor_id: "web-user" });
 
     const done = await until(async () => { const view = await f.service.read(sent.work.work_id); return view.work.state === "completed" ? view : undefined; }, "completion");
     assert.deepEqual(f.page.done, [{ what: "navigate", url: "https://example.com/" }, { what: "pointer", x: 10, y: 20, button: "left", clicks: 1 }]);
@@ -154,20 +154,17 @@ test("T405-S4-01 SDK node approvals name the original owner's target, preserve t
       () => reply(undefined, "这一步结束。"),
     ], [], "https://example.com");
     const described: string[] = [];
-    let points = 0;
     f.page.driver.observe = async () => new TextEncoder().encode(`页面：Example Domain\nnode=${node} input「准确字段」 @(120,80)`);
     f.page.driver.describeNode = async target => {
       described.push(target);
       if (outcome === "unavailable") throw new Error("目标已离开页面");
       return "准确字段";
     };
-    f.page.driver.describePoint = async () => { points += 1; return "错误坐标诱饵"; };
     try {
       const sent = await f.send("双击准确字段");
       const pending = await f.pending();
       const detail = pending.document.fields?.find(field => field.label === "详情")?.value ?? "";
       assert.deepEqual([...new Set(described)], [node], "the SDK's node token is described by this session's original owner");
-      assert.equal(points, 0, "a node approval never describes the supplied fallback point");
       if (outcome === "unavailable") assert.match(detail, /目标已不可用/u);
       else assert.equal(detail, "双击「准确字段」");
       assert.doesNotMatch(detail, /错误坐标诱饵|（0, 0）/u);
@@ -176,7 +173,7 @@ test("T405-S4-01 SDK node approvals name the original owner's target, preserve t
         await f.service.control(sent.work.work_id, { kind: "stop" });
         await until(() => f.page.released() >= 1, "the stopped node step released");
       } else {
-        await f.queue.respond({ review_id: pending.review_id, decision: outcome === "approve" ? "approve" : "reject", actor_id: "web-user" });
+        await f.queue.respond({ review_id: pending.review_id, version: pending.reference.version, decision: outcome === "approve" ? "approve" : "reject", actor_id: "web-user" });
         await until(async () => ["completed", "failed"].includes((await f.service.read(sent.work.work_id)).work.state), "the node round ended");
       }
       assert.deepEqual(f.page.done, outcome === "approve" ? [{ what: "pointer", node, x: 0, y: 0, button: "left", clicks: 2 }] : [], "only explicit approval dispatches the original typed node action");
@@ -252,12 +249,12 @@ test("a site the person allowed is acted on without asking; a blocked one is not
     const first = await f.send("打开 example.com 点 Learn more");
     const opening = await f.pending();
     assert.match(opening.document.summary, /空白页/u, "leaving the blank page still asks");
-    await f.queue.respond({ review_id: opening.review_id, decision: "approve", actor_id: "web-user" });
+    await f.queue.respond({ review_id: opening.review_id, version: opening.reference.version, decision: "approve", actor_id: "web-user" });
     await until(async () => (await f.service.read(first.work.work_id)).work.state === "completed", "the first round");
     assert.equal(f.queue.list("board", "pending").length, 0);
     assert.deepEqual(f.page.done.map(action => action.what), ["navigate", "pointer"], "the click on the allowed site did not ask");
 
-    await f.page.driver.perform({ what: "navigate", url: "https://blocked.test/" }, { session_id: null });
+    await f.page.driver.perform({ what: "navigate", url: "https://blocked.test/" }, surfaceContext(null), { identity: "fixture", scope: "about:blank", assertCurrent() {} });
     const looksBefore = f.page.looks();
     const second = await f.send("看看这个页面");
     await until(async () => { const view = await f.service.read(second.work.work_id); return ["completed", "failed"].includes(view.work.state) ? view : undefined; }, "the second round");
@@ -304,7 +301,7 @@ test("waiting on the page is not asked about; the next real action still is", { 
     const click = await f.pending();
     assert.match(click.document.summary, /点击页面/u, "the first card is the click, not the wait");
     assert.deepEqual(f.page.done, [{ what: "wait", ms: 50 }], "the wait ran without a card");
-    await f.queue.respond({ review_id: click.review_id, decision: "approve", actor_id: "web-user" });
+    await f.queue.respond({ review_id: click.review_id, version: click.reference.version, decision: "approve", actor_id: "web-user" });
     await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "completion");
     assert.deepEqual(f.page.done.map(action => action.what), ["wait", "pointer"]);
   } finally { await f.close(); }
@@ -337,8 +334,9 @@ test("turning the Assistant's browser off stops a round that already holds the p
   const page = { controlMode: "person" } as unknown as BrowserPage;
   const driver = createBrowserSurfaceDriver(page, () => false, () => on);
   on = false;
-  await assert.rejects(driver.observe("accessibility-tree", { session_id: "s" }), /允许助理使用侧栏浏览器/u);
-  await assert.rejects(driver.perform({ what: "pointer", x: 1, y: 1, button: "left", clicks: 1 }, { session_id: "s" }), /允许助理使用侧栏浏览器/u);
+  const control = surfaceContext("s"), expected = { identity: "original", scope: "about:blank", assertCurrent() {} };
+  await assert.rejects(driver.observe("accessibility-tree", control, expected), /允许助理使用侧栏浏览器/u);
+  await assert.rejects(driver.perform({ what: "pointer", x: 1, y: 1, button: "left", clicks: 1 }, control, expected), /允许助理使用侧栏浏览器/u);
 });
 
 test("a work that already holds the page gets no browser in its next round once the person turned it off", { timeout: 60_000 }, async t => {

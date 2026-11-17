@@ -21,7 +21,7 @@ Pages 不读旧库，也不自动迁移：错版的库被拒绝，旧 Home 按�
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
 
-动作服务迁移：插件自己的 `actions.ts` 声明并实现 20 项公开业务能力（文档、文件夹、模板、文件导入、已解析材料保存、生成及历史、写作、提取、发布），加上 12 项标准能力（主体读取、片段、系统搜索、文件条目与内容、成果库的预览/固定/比较/继续/被引用、放置的移动与复制），加上 4 项评论线程能力，共 36 项，统一由 `PAGES_ACTIONS` 声明，与 `createPagesActionHandlers` 逐项对应。Manifest 注册这些能力和四项内容交接合同；Host 组合原 Store、模型和 Artifact owner，HTTP 不再自行打开文档库。工作流内容处理器调用同一业务动作并保留调用者身份与权限。MCP 只经授权的动作工具。
+动作服务迁移：插件自己的 `actions.ts` 声明并实现 20 项公开业务能力（文档、文件夹、模板、文件导入、已解析材料保存、生成及历史、写作、提取、发布），加上 13 项标准能力（主体读取、名称呈现、片段、系统搜索、文件条目与内容、成果库的预览/固定/比较/继续/被引用、放置的移动与复制），加上 4 项评论线程能力，共 37 项，统一由 `PAGES_ACTIONS` 声明，与 `createPagesActionHandlers` 逐项对应。Manifest 注册这些能力和四项内容交接合同；Host 组合原 Store、模型和 Artifact owner，HTTP 不再自行打开文档库。工作流内容处理器调用同一业务动作并保留调用者身份与权限。MCP 只经授权的动作工具。
 
 `pages.create@1` 接受可选 `request_id`，只有本次真正新建才返回 `created_version`，用来安全撤销；重放交回当前文档但不提供撤销版本。它替换 1，MCP 工具为 `pages.create__v1`；固定旧版本的工作流、绑定和外部插件须重新发现、绑定当前版本。HTTP `/pages` 路径不变，其他 Pages 动作的版本不变。
 
@@ -36,6 +36,10 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 标准 MCP 的查询、写入、AI、生成、历史及固定失败后重新保存有独立 stdio 客户端验证；生产客户端授权管理和系统生命周期仍属于系统服务未完成范围，测试启动授权不能替代它。
 
 ## 开发要求
+
+有限委托声明覆盖新建、编辑、移动、关联、发布、删除与撤销新建。修改正文的范围不含移动或关联；发布同时需要保存成果及关联权限，并且自动范围必须明确提供 goal_id，不能猜当前文稿／未完成快照的目标。非空 Goal 因 Pages 尚无 Goals owner 的最终校验继续确认，完整参数匹配不能绕过。beginPublication 在原事务内比较明确目标、未完成快照与已有成果目标，不一致时不写新 intent。文稿和文件夹的名称由 `pages.presentation.values` 按当前项目一次批量读元数据，不读正文、不逐条查库；它只提供名称与状态，不能替代执行授权。相关新增证据在 `tests/security-invariants-pages-delegation.test.ts`，完整授权入口和运行时接线仍由 agent-host 实现。
+
+`pages.artifacts.pin` 从当前文稿或原 intent 读取目标，`pages.revert` 从历史快照恢复关联和文件夹，均声明 `confirmation-only`；不能以完整参数匹配获取可复用自动委托，人工确认后的原操作保留。删除及撤销新建的授权名称明确包含删除评论。
 
 项目变更观察由 owner 解码稳定日志键，覆盖已删除记录、冻结上传与保留冲突，未启用上传也不能冒充无本机修改；`hasProjectChanges` 不读取或导出正文，不跨其他 owner 查询。
 

@@ -322,7 +322,7 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
   const goalsPane = `document.querySelector(${JSON.stringify(goalsPaneSelector)})`;
   await evaluate(`${goalsPane}.querySelector('.tab-item[data-tab-kind=plugin][data-plugin=goals] .tab-item-trigger').click()`);
   const frame = `document.querySelector('iframe[data-pane-owner="' + ${goalsPane}.dataset.tabPane + '"]')`;
-  await waitFor(`${frame}?.contentDocument?.querySelector('[data-record-owner=goals] [data-tree-item][data-goal-id=CORE]')`, 30_000);
+  await waitFor(`${frame}?.contentDocument?.readyState === 'complete' && ${frame}?.contentDocument?.querySelector('[data-record-owner=goals] [data-tree-item][data-goal-id=CORE]')`, 30_000);
   await evaluate(`(() => { const f = ${frame}; f.contentDocument.querySelector('[data-tree-item][data-goal-id=CORE] .tree-node').dispatchEvent(new f.contentWindow.MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true, ctrlKey: true })); })()`);
   await waitFor(`${goalsPane}.querySelector('[data-plugin-group=goals] .tab-item[data-tab-kind=item][data-item-id=CORE]')`);
   assert.equal(await evaluate(`${goalsPane}.querySelector('[data-plugin-group=goals] .tab-item[aria-current]')?.dataset.tabKind`), "plugin", "the pane stays on the Goals page");

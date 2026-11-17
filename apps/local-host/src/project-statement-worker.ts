@@ -1,5 +1,5 @@
 import { Worker } from "node:worker_threads";
-import { isDatabaseUpgrade, isPreparation, type StatementFatal, type StatementMemoryLimits, type StatementPrepared, type StatementReply, type StatementRequest, type StatementUpgradeDecision } from "./project-statement-protocol.js";
+import { isDatabaseUpgrade, isPreparation, type StatementCommitPermit, type StatementReadyToCommit, type StatementFatal, type StatementMemoryLimits, type StatementPrepared, type StatementReply, type StatementRequest, type StatementUpgradeDecision } from "./project-statement-protocol.js";
 
 // This process's main thread never runs SQLite. Its timers and disconnect handler remain runnable while the SQL Worker is in
 // a native call or the Host is blocked in its own synchronous writer. Ending the entire process releases SQLite's locks.
@@ -8,6 +8,7 @@ let pending: StatementRequest | undefined;
 let requestTimer: NodeJS.Timeout | undefined;
 let transaction: { id: number; deadline: number; timer: NodeJS.Timeout } | undefined;
 let ending = false;
+let reviewPrepared = false;
 let commit: { view: Int32Array; prepared: boolean; sent: boolean } | undefined;
 
 function end(fatal: StatementFatal): void {
@@ -32,10 +33,19 @@ function startEngine(limits: StatementMemoryLimits, upgrade: boolean): Worker {
     resourceLimits: { maxOldGenerationSizeMb: limits.heapMb },
     workerData: { upgrade },
   });
-  worker.on("message", (reply: StatementReply | StatementPrepared) => {
+  worker.on("message", (reply: StatementReply | StatementPrepared | StatementReadyToCommit) => {
     const request = pending;
     if (ending || !request || request.id !== reply.id) return;
     if (Date.now() >= request.deadline || (transaction && Date.now() >= transaction.deadline)) { timeout(); return; }
+    if ("ready_to_commit" in reply) {
+      if (request.op !== "commit" || !request.decision || !transaction || reviewPrepared) {
+        end({ fatal: "process", message: "意外的事务提交请求" });
+        return;
+      }
+      reviewPrepared = true;
+      forward(reply);
+      return;
+    }
     if ("prepared" in reply) {
       if (!commit || commit.prepared) { end({ fatal: "process", message: "重复或无效的升级提交请求" }); return; }
       commit.prepared = true;
@@ -60,13 +70,23 @@ function startEngine(limits: StatementMemoryLimits, upgrade: boolean): Worker {
   return worker;
 }
 
-function forward(reply: StatementReply | StatementPrepared): void {
+function forward(reply: StatementReply | StatementPrepared | StatementReadyToCommit): void {
   try { process.send?.(reply, error => { if (error) end({ fatal: "process", message: "宿主通道已经关闭" }); }); }
   catch { end({ fatal: "process", message: "宿主通道已经关闭" }); }
 }
 
-process.on("message", (request: StatementRequest | StatementUpgradeDecision) => {
+process.on("message", (request: StatementRequest | StatementUpgradeDecision | StatementCommitPermit) => {
   if (ending) return;
+  if ("commit_permit" in request) {
+    if (!engine || pending?.op !== "commit" || !pending.decision || pending.id !== request.commit_permit || !transaction || !reviewPrepared) {
+      end({ fatal: "process", message: "项目提交许可与原事务不一致" });
+      return;
+    }
+    if (Date.now() >= pending.deadline || Date.now() >= transaction.deadline) { timeout(); return; }
+    reviewPrepared = false;
+    engine.postMessage(request);
+    return;
+  }
   if ("publishUpgrade" in request) {
     if (!pending || pending.id !== request.id || !commit?.prepared || commit.sent) {
       end({ fatal: "process", message: "宿主的升级提交不匹配" });

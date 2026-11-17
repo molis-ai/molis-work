@@ -1,4 +1,5 @@
-import { MolisWorkLocalHost, discoverRuntimeSyncCollections, molisWorkHostProjectReference, runningProjectPlatform } from '@molis-ai/molis-work-app-local-host';
+import { MolisWorkLocalHost, discoverRuntimeSyncCollections, molisWorkHostProjectReference, projectApprovalSyncSelection,
+  runningProjectPlatform } from '@molis-ai/molis-work-app-local-host';
 import { goalsManifest } from '@molis-ai/molis-work-plugin-goals';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { ensureStorageSpace } from '@molis-ai/molis-work-storage';
@@ -17,11 +18,11 @@ export function runtimeGoalSync(home:string,spaceId:string,userId:string,authori
   const host=new MolisWorkLocalHost({homeDirectory:home,completeText:null});
   const catalogAccess=host.ensureWebCatalog(home,openMolisWorkProjectCatalog);
   const withCatalog=host.configurePersonalPlanning(home,catalogAccess.withCatalog);
-  let policy=():SpaceSyncPolicy=>({spaceId,revision:0,selections:[goalSyncSelection]});
+  let policy=():SpaceSyncPolicy=>({spaceId,revision:0,selections:[goalSyncSelection, projectApprovalSyncSelection]});
   const authority=personalRuntimeSyncAuthority({home,spaceId,authorize,readCatalog:catalogAccess.read,withCatalog:withCatalog,policy:()=>policy(),hasArtifact:()=>false,hasReference:()=>false});
   let current:SyncRegistration|undefined;
   const required=()=>{authorize();if(!current)throw new Error('SYNC_OWNER_NOT_INSTALLED');return current;};
-  const registration:SyncRegistration={selection:goalSyncSelection,title:collection.title,
+  const registration:SyncRegistration={selection:goalSyncSelection,title:collection.title, dependencies: [projectApprovalSyncSelection],
     available:()=>current?.available?.()??false,
     async refresh(){
       await catalogAccess.warm();
@@ -32,6 +33,6 @@ export function runtimeGoalSync(home:string,spaceId:string,userId:string,authori
     withReplica:run=>required().withReplica(run),prepare:async(event,options)=>required().prepare(event,options),
     content:{encode:(...args)=>required().content!.encode(...args),decode:(...args)=>required().content!.decode(...args)},
   };
-  return {registration,host,withCatalog,setPolicy(read:()=>SpaceSyncPolicy){policy=read;},async close(){try{await host.close();}finally{release();}}};
+  return {registration,host,withCatalog,readCatalog:catalogAccess.read,setPolicy(read:()=>SpaceSyncPolicy){policy=read;},async close(){try{await host.close();}finally{release();}}};
 }
 export function goalWire(value:unknown):unknown{return (value as {value:unknown}).value;}

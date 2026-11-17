@@ -10,6 +10,7 @@ export interface PrologueEffects {
   call<T>(control: AgentMemoryExecutionControl, work: () => Promise<T>): Promise<T>;
   memory<T>(control: AgentMemoryExecutionControl | undefined, work: () => Promise<T>): Promise<T>;
   start<T>(execution: AgentStartExecution | undefined, work: () => Promise<T>): Promise<T>;
+  bindStart(execution: AgentStartExecution): () => void;
   session(target: Session): Session;
   beforeEffect(): Promise<void>;
   assertCurrent(): void;
@@ -98,11 +99,18 @@ export function prologueEffects(host: NodeHost, appId: string): PrologueEffects 
     return calls.run({ control: original, active: true, accepted: false, memory: true }, work);
   };
   const start = <T>(execution: AgentStartExecution | undefined, work: () => Promise<T>): Promise<T> => {
-    if (!execution?.beforeStart && !execution?.assertBeforeStart) {
+    if (!execution?.beforeStart && !execution?.assertBeforeStart && !execution?.delegation) {
       const inherited = calls.getStore();
       return inherited?.active && inherited.memory ? call(inherited.control, work) : work();
     }
     return call({ beforeEffect: () => execution.beforeStart?.(), assert_current: () => execution.assertBeforeStart?.() }, work);
+  };
+  const bindStart = (execution: AgentStartExecution) => {
+    const frame = calls.getStore();
+    if (!frame || !frame.active) throw new Error("缺少原执行启动授权");
+    const before = frame.control;
+    frame.control = { beforeEffect: () => execution.beforeStart?.(), assert_current: () => execution.assertBeforeStart?.() };
+    return () => { frame.control = before; };
   };
   const session = (target: Session): Session => new Proxy(target, { get(object, key) {
     // Everything after `drive` goes through as given: `carry` there names the session's waiting supplements the run takes (specs/ai-input-receipts D29).
@@ -113,5 +121,5 @@ export function prologueEffects(host: NodeHost, appId: string): PrologueEffects 
     };
     const value: unknown = Reflect.get(object, key); return typeof value === "function" ? value.bind(object) : value;
   } });
-  return { observeSessionWrites, close() { closed = true; for (const observation of observers) observation.closed = true; observers.clear(); }, host: { ...host, storage }, call, memory, start, session, beforeEffect, assertCurrent, observeMemoryWrites, accepted: () => calls.getStore()?.accepted ?? false, detach: <T>(work: () => T) => calls.exit(work), bind: (memory: AgentMemoryCapability, control: AgentMemoryExecutionControl) => wrap(memory, control) };
+  return { observeSessionWrites, close() { closed = true; for (const observation of observers) observation.closed = true; observers.clear(); }, host: { ...host, storage }, call, memory, start, bindStart, session, beforeEffect, assertCurrent, observeMemoryWrites, accepted: () => calls.getStore()?.accepted ?? false, detach: <T>(work: () => T) => calls.exit(work), bind: (memory: AgentMemoryCapability, control: AgentMemoryExecutionControl) => wrap(memory, control) };
 }

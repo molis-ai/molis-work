@@ -1,0 +1,12 @@
+{
+  "exceptions": {
+    "class apps/local-host/src/local-host.ts#LocalHost": {
+      "kind": "cohesive-unit",
+      "reason": "本机宿主管理同一动作目录、Home 与项目执行线及生命周期；可用性、客户端与实际运行时另由各文件实现，剩余为同一宿主的入口与归属检查。",
+      "size": {
+        "lines": 325,
+        "methods": 26
+      }
+    }
+  }
+}

@@ -145,45 +145,48 @@ test("orderGrantViews refuses a cycle before anything is sent", () => {
 test("grantMcpAction posts the exact grant the settings page posts; revokeMcpAction posts the same identity as disabled", async () => {
   const { seen, client, stop } = await fakeHost(request => ({ body: { ...request.body, permissions: [] } }));
   try {
-    const action = { capability_id: "goals.list", version: 2, provider_id: "goals" };
+    const expected = { expected_generation: "observed" };
+    const action = { capability_id: "goals.list", version: 2, provider_id: "goals", expected };
     const saved = await grantMcpAction(client, { clientId: "runtime:codex", projectId: "p1", action });
     assert.equal(saved.enabled, true);
-    await grantMcpAction(client, { clientId: "runtime:codex", projectId: null, action, with: [{ capability_id: "goals.read", version: 1, provider_id: "goals" }] });
+    await grantMcpAction(client, { clientId: "runtime:codex", projectId: null, action, with: [{ capability_id: "goals.read", version: 1, provider_id: "goals", expected }] });
     await revokeMcpAction(client, { clientId: "runtime:codex", projectId: "p1", action });
     assert.deepEqual(seen.map(request => [request.method, request.url]), Array(3).fill(["POST", "/api/settings/mcp/actions"]));
-    assert.deepEqual(seen[0].body, { client_id: "runtime:codex", project_id: "p1", capability_id: "goals.list", version: 2, provider_id: "goals", enabled: true });
-    assert.deepEqual(seen[1].body, { client_id: "runtime:codex", project_id: null, capability_id: "goals.list", version: 2, provider_id: "goals", enabled: true,
-      with: [{ capability_id: "goals.read", version: 1, provider_id: "goals" }] });
-    assert.deepEqual(seen[2].body, { client_id: "runtime:codex", project_id: "p1", capability_id: "goals.list", version: 2, provider_id: "goals", enabled: false });
+    assert.deepEqual(seen[0].body, { client_id: "runtime:codex", project_id: "p1", capability_id: "goals.list", version: 2, provider_id: "goals", enabled: true, expected });
+    assert.deepEqual(seen[1].body, { client_id: "runtime:codex", project_id: null, capability_id: "goals.list", version: 2, provider_id: "goals", enabled: true, expected,
+      with: [{ capability_id: "goals.read", version: 1, provider_id: "goals", expected }] });
+    assert.deepEqual(seen[2].body, { client_id: "runtime:codex", project_id: "p1", capability_id: "goals.list", version: 2, provider_id: "goals", enabled: false, expected });
   } finally { await stop(); }
 });
 
 test("grantMcpActions grants in dependency order, one request per view, home-scope views with no project", async () => {
-  const { seen, client, stop } = await fakeHost(request => ({ body: request.body }));
+  const { seen, client, stop } = await fakeHost(request => ({ body: request.method === "GET" ? { grants: [] } : request.body }));
   try {
     const scene = { scene_id: "home.judgment", version: 1 };
     const views = [view("home.judgment.evaluate", { scene, scope: "home" }), view("project.use", { needs: [{ capability_id: "home.dep", version: 1 }] }),
       view("home.dep", { scope: "home" })];
     const saved = await grantMcpActions(client, { clientId: "runtime:codex", projectId: "p1", actions: views });
-    assert.deepEqual(seen.map(request => request.body.capability_id), ["home.dep", "project.use", "home.judgment.evaluate"]);
-    assert.deepEqual(seen.map(request => request.body.project_id), [null, "p1", null], "a home action is granted for the Home, as the settings page does");
-    assert.ok(seen.every(request => request.body.enabled === true && request.body.with === undefined), "ordering carries the dependencies; `with` stays a single-grant option");
+    assert.equal(seen.filter(request => request.method === "GET").length, 2, "one snapshot per scope");
+    const posts = seen.filter(request => request.method === "POST");
+    assert.deepEqual(posts.map(request => request.body.capability_id), ["home.dep", "project.use", "home.judgment.evaluate"]);
+    assert.deepEqual(posts.map(request => request.body.project_id), [null, "p1", null], "a home action is granted for the Home, as the settings page does");
+    assert.ok(posts.every(request => request.body.enabled === true && request.body.with === undefined && request.body.expected.expected_absent), "ordering carries the dependencies and the original absence tokens");
     assert.deepEqual(saved.map(row => row.capability_id), ["home.dep", "project.use", "home.judgment.evaluate"]);
   } finally { await stop(); }
 });
 
 test("grantMcpActions sends one request for a view the set names twice", async () => {
-  const { seen, client, stop } = await fakeHost(request => ({ body: request.body }));
+  const { seen, client, stop } = await fakeHost(request => ({ body: request.method === "GET" ? { grants: [] } : request.body }));
   try {
     const b = view("b.read"), a = view("a.write", { needs: [{ capability_id: "b.read", version: 1 }] });
     const saved = await grantMcpActions(client, { clientId: "runtime:codex", projectId: "p1", actions: [a, a, b] });
-    assert.deepEqual(seen.map(request => request.body.capability_id), ["b.read", "a.write"]);
+    assert.deepEqual(seen.filter(request => request.method === "POST").map(request => request.body.capability_id), ["b.read", "a.write"]);
     assert.deepEqual(saved.map(row => row.capability_id), ["b.read", "a.write"]);
   } finally { await stop(); }
 });
 
 test("grantMcpActions stops at the first refusal and names the capability the Host refused", async () => {
-  const { seen, client, stop } = await fakeHost(request => request.body.capability_id === "b.second"
+  const { seen, client, stop } = await fakeHost(request => request.method === "GET" ? { body: { grants: [] } } : request.body.capability_id === "b.second"
     ? { status: 400, body: { error: "此能力还要同时授权：x.dep", code: "mcp.grant_requires" } } : { body: request.body });
   try {
     await assert.rejects(grantMcpActions(client, { clientId: "c", projectId: "p", actions: [view("a.first"), view("b.second"), view("c.third")] }), error => {
@@ -192,7 +195,7 @@ test("grantMcpActions stops at the first refusal and names the capability the Ho
       assert.match(error.message, /b\.second/); assert.match(error.message, /x\.dep/);
       return true;
     });
-    assert.deepEqual(seen.map(request => request.body.capability_id), ["a.first", "b.second"], "nothing after the refusal was sent");
+    assert.deepEqual(seen.filter(request => request.method === "POST").map(request => request.body.capability_id), ["a.first", "b.second"], "nothing after the refusal was sent");
     // A cycle never reaches the Host.
     const before = seen.length;
     await assert.rejects(grantMcpActions(client, { clientId: "c", projectId: "p", actions: [view("a", { needs: [{ capability_id: "b", version: 1 }] }), view("b", { needs: [{ capability_id: "a", version: 1 }] })] }), /cycle/i);

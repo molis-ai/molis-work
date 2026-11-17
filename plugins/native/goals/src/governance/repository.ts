@@ -4,6 +4,7 @@ import type {
   GoalTreeProposalRecord,
   GovernanceSnapshot,
 } from "../contract/governance-collaboration.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import {
   mapGoalTreeProposal,
@@ -11,6 +12,7 @@ import {
   mapGoalTreeProposalItem,
   text,
   type GovernanceRow,
+  type GoalTreeApprovalHistory,
 } from "./mappers.js";
 
 export interface GovernanceSqliteStatement {
@@ -47,7 +49,8 @@ export interface GovernanceJournal {
 }
 
 export class GovernanceRepository {
-  constructor(private readonly db: GovernanceSqliteDatabase, readonly journal: GovernanceJournal) {}
+  constructor(private readonly db: GovernanceSqliteDatabase, readonly journal: GovernanceJournal,
+    private readonly approvals?: GoalTreeApprovalHistory) {}
 
   immediate<T>(operation: () => T): T {
     return this.db.transaction(operation).immediate();
@@ -70,11 +73,17 @@ export class GovernanceRepository {
   listGoalTreeProposals(projectId: string): GoalTreeProposalRecord[] {
     const decisionsByProposal = new Map<string, GoalTreeProposalDecisionRecord[]>();
     const latestDecisionByItem = new Map<string, GoalTreeProposalDecisionRecord>();
-    for (const row of this.db.prepare(`
-      SELECT *, rowid AS stored_row FROM goal_tree_proposal_decisions WHERE project_id = ?
-      ORDER BY proposal_id, item_id, created_at, decision_id
-    `).all(projectId) as GovernanceRow[]) {
-      const decision = mapGoalTreeProposalDecision(row);
+    const history = (this.approvals?.transferred(projectId) ?? []).map(record => mapGoalTreeProposalDecision(record.original));
+    const effects = this.db.prepare("SELECT *, rowid AS stored_row FROM goal_tree_item_effects WHERE project_id = ?").all(projectId) as GovernanceRow[];
+    const records = effects.map(row => {
+      const approval = this.approvals?.read(projectId, text(row.approval_id));
+      if (!approval || approval.review.target.subject.kind !== "goal-tree-proposal" || approval.review.target.subject.id !== row.proposal_id) {
+        throw new ActionError("actions.conflict", "目标树的物化结果缺少对应的原决定");
+      }
+      return mapGoalTreeProposalDecision(row, approval);
+    });
+    for (const decision of [...history, ...records].sort((left, right) => left.created_at.localeCompare(right.created_at)
+      || left.decision_id.localeCompare(right.decision_id))) {
       decisionsByProposal.set(decision.proposal_id, [
         ...(decisionsByProposal.get(decision.proposal_id) ?? []), decision,
       ]);

@@ -157,8 +157,8 @@ test("PA-08: two sub-task results and the person's own round arriving together s
 
 // A delegation the person closed does not come back by itself: the work they stopped, or a sub-task someone stopped,
 // waits for their next round, which is told what happened.
-test("no hand-back round when the person stopped the delegating work; their next round is told what the sub-tasks did", { timeout: 90_000 }, async t => {
-  const { service, parentId, children, release, later, rounds, root } = await fixture(t, "stopped", ["开头", "结尾"]);
+test("APR-11: no automatic hand-back after stop; the next round with a renewed permission receives the sub-task results", { timeout: 90_000 }, async t => {
+  const { service, adapter, parentId, children, release, later, rounds, root } = await fixture(t, "stopped", ["开头", "结尾"]);
   // The person stops the work: its wait ends before the sub-tasks still running stop with it, so their stop is not what
   // the work waited for, and nothing moves it on.
   await service.control(parentId, { kind: "stop" });
@@ -169,7 +169,16 @@ test("no hand-back round when the person stopped the delegating work; their next
   assert.equal(rounds().length, 1, "nothing starts after the person stopped it");
   assert.equal(later.length, 0);
   assert.equal((await root()).continuation?.state, "cancelled");
-  await service.send({ work_id: parentId, text: "子任务做得怎么样？", request_id: "req-stopped-ask" }, {});
+  const next = { work_id: parentId, text: "子任务做得怎么样？", request_id: "req-stopped-ask" };
+  await assert.rejects(service.send(next, {}), { code: "agent.delegation_ended" });
+  assert.equal(rounds().length, 1);
+  const ended = (await adapter.delegations.list()).find(row => row.subject.kind === "work" && row.subject.work.id === parentId);
+  assert.ok(ended && ended.lifecycle === "ended");
+  // This fixture holds the owner port. The protected person grant is exercised by APR-11's Pages journey.
+  const renewed = await adapter.delegations.reopen(ended.subject, { expected_version: ended.storage_version, mode: "confirm", scopes: [], expires_at: null },
+    { async beforeEffect() {}, assertCurrent() {} });
+  assert.notEqual(renewed.epoch, ended.epoch);
+  await service.send(next, {});
   await until(async () => (await service.read(parentId)).work.state === "completed" && rounds().length === 2, "the person's round");
   assert.match(later[0]!, /子任务交回/);
   assert.match(later[0]!, /「开头」：被停止了/);
@@ -291,7 +300,7 @@ test("PWA-156: with 每步先问我 on, a part handed back waits for the person'
   await pause(300);
   assert.equal(rounds().length, 1, "no hand-back round started by itself");
   assert.equal(later.length, 0, "no model request");
-  await service.outcomes.decide(parentId, { review_id: ask.review_id, decision: "approve" });
+  await service.outcomes.decide(parentId, { review_id: ask.review_id, version: ask.version, decision: "approve" });
   await until(async () => rounds().length === 2 && (await service.read(parentId)).work.state === "completed", "the hand-back round after the yes");
   assert.equal(rounds()[1]!.written_by, "host");
   assert.match(rounds()[1]!.text, /^（子任务都已交回）请核对「开头」的结果/);

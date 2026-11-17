@@ -125,6 +125,13 @@ export function webRequestAuthenticated(request: IncomingMessage, control: strin
   return controlTokenMatches(control, request.headers["x-molis-work-control-token"]);
 }
 
+/** The request's transport credential was captured before the renderer received its page proof. */
+export function webManagementAuthenticated(request: IncomingMessage): boolean {
+  const bound = requestSessions.get(request);
+  return Boolean(bound && (webRequestAuthenticated(request, bound.expected)
+    || request.method === "GET" && webBrowserReadAuthenticated(request, bound.expected)));
+}
+
 /** Browser reads may omit the CSRF header (images/frames), but never the current HttpOnly session. */
 export function webBrowserReadAuthenticated(request: IncomingMessage, control: string): boolean {
   const context = requestSessions.get(request);

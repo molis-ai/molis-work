@@ -7,9 +7,51 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference, readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
-import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition, type ActionSceneBinding, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
+import { openTestHome } from "./fixtures/test-home.js";
+
+test("H1: a grant waiting on its original scene refuses a binding edit and writes no grants", { timeout: 30_000 }, async t => {
+  const entered = Promise.withResolvers<void>(), resume = Promise.withResolvers<void>();
+  const f = await openTestHome(t);
+  const project = await f.createProject("Grant consumes a rule");
+  const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const empty = { type: "object", additionalProperties: false }, result = { type: "boolean" };
+  const scene: ActionSceneDefinition = { scene_id: "fixture.original-scene", version: 1, title: "Original rule", description: "Check the note",
+    trigger: "When a note is recorded", scope: "project", permissions: [],
+    subject_kinds: [], input_schema: empty, result_schema: result };
+  const provider_id = "fixture.scene-authority";
+  const judgment: ActionDefinition = { capability_id: "fixture.rule", version: 1, operation: "command",
+    action: { title: "Original rule", description: "Check the reviewed note.", scope: "project", audiences: ["mcp"], kind: "judgment", permissions: [],
+      subject_kinds: [], input_schema: empty, output_schema: result } };
+  const required: ActionDefinition = { capability_id: "fixture.use-rule", version: 1, operation: "command",
+    action: { ...judgment.action, title: "Use original rule", kind: "operation", required_scene: { scene_id: scene.scene_id, version: scene.version } } };
+  let binding: ActionSceneBinding = { binding_id: "one", scene_id: scene.scene_id, scene_version: scene.version, project_id: project.project_id,
+    enabled: true, function: { capability_id: judgment.capability_id, version: judgment.version, provider_id }, title: "Original", revision: "one" };
+  const dispose = f.host.actionRegistry(reference).registerProvider({ provider: { provider_id, title: "Scene", kind: "system" }, definitions: [judgment, required],
+    handlers: [{ ...judgment, handle: () => true }, { ...required, handle: () => true }], scenes: [scene],
+    scene_handlers: [{ scene_id: scene.scene_id, version: scene.version, bindings: () => [binding], bind: () => {}, consume: () => true }] });
+  t.after(() => { resume.resolve(); dispose(); });
+  const discover = f.host.actionClient.bind(f.host);
+  let pause = true;
+  t.mock.method(f.host, "actionClient", (...args: Parameters<typeof discover>) => {
+    const client = discover(...args);
+    return { ...client, discover: async (caller: Parameters<typeof client.discover>[0]) => {
+      if (pause && caller.actor_id === "runtime:scene-revision") { entered.resolve(); await resume.promise; }
+      return client.discover(caller);
+    } };
+  });
+  const write = () => f.web.post("/api/settings/mcp/actions", { capability_id: required.capability_id, version: required.version,
+    provider_id, client_id: "runtime:scene-revision", project_id: project.project_id, expected: { expected_absent: true }, enabled: true });
+  const request = write(), refused = assert.rejects(request, { status: 409, code: "actions.conflict" });
+  await Promise.race([entered.promise, request.then(() => { throw new Error("Grant settled before reading the original scene"); })]);
+  binding = { ...binding, revision: "two" };
+  pause = false; resume.resolve();
+  await refused;
+  assert.deepEqual((await readMcpToolPreference(f.home)).action_grants, []);
+  assert.equal((await write() as { enabled: boolean }).enabled, true);
+});
 
 test("local management discovers an unknown plugin, authorizes its exact contract and can revoke a missing provider without granting from supplied permissions", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "mcp-action-settings-")), token = "mcp-action-grant-test-control-token";
@@ -31,7 +73,7 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
   try {
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
-    const input = { client_id: "runtime:external", project_id: project.project_id, capability_id: id, version: 7, provider_id: id, enabled: true };
+    const input = { client_id: "runtime:external", project_id: project.project_id, capability_id: id, version: 7, provider_id: id, enabled: true, expected: { expected_absent: true } };
     const endpoint = `${origin}/api/settings/mcp/actions`;
     const send = (value: unknown, authorized = true) => fetch(endpoint, { method: "POST", body: JSON.stringify(value), headers: {
       origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), ...(authorized ? { "x-molis-work-control-token": token } : {}),
@@ -105,14 +147,14 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
       handlers: [{ capability_id: id, version: 7, handle: () => ++calls }] });
     assert.equal(entry(await read()).status, "stale");
     assert.deepEqual((await read()).grants[0].permissions, ["fixture:write"], "changed declarations cannot silently expand saved authority");
-    assert.equal((await send(input)).status, 200);
+    assert.equal((await send({ ...input, expected: entry(await read()).expected })).status, 200);
     assert.equal(entry(await read()).status, "enabled");
     assert.deepEqual((await read()).grants[0].permissions, ["fixture:extra", "fixture:write"]);
     stop();
     const removed = await read(); assert.equal(removed.actions.some((row: any) => row.capability_id === id), false); assert.equal(removed.grants.length, 1);
     assert.equal(entry(removed).status, "missing");
     assert.equal(entry(removed).can_revoke, true);
-    const revoked = await send({ ...input, enabled: false }); assert.equal(revoked.status, 200);
+    const revoked = await send({ ...input, enabled: false, expected: entry(removed).expected }); assert.equal(revoked.status, 200);
     const rows = (await readMcpToolPreference(home)).action_grants;
     assert.equal(rows.find(row => row.client_id === input.client_id)?.enabled, false);
     assert.equal(rows.find(row => row.client_id === never.client_id)?.enabled, true, "revoking one client leaves the other client's grant");
@@ -129,7 +171,7 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
     const orphanPage = await fetch(`${origin}/capabilities/access?client=${never.client_id}&project=${never.project_id}`);
     assert.equal(orphanPage.status, 200);
     assert.match(await orphanPage.text(), /所选项目已不存在/);
-    assert.equal((await send({ ...never, enabled: false })).status, 200);
+    assert.equal((await send({ ...never, enabled: false, expected: entry(orphan).expected })).status, 200);
     assert.equal(entry(await read(never.client_id)).can_revoke, false);
     assert.equal(calls, 1);
   } finally {
@@ -151,13 +193,13 @@ test("an action that writes through other actions is granted together with them:
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
     const endpoint = `${origin}/api/settings/mcp/actions`;
-    const read = async (client: string) => (await fetch(`${endpoint}?client_id=${client}&project_id=${projectId}`)).json() as Promise<{ entries: Array<{ capability_id: string; version: number; provider_id: string; status: string }>; grants: unknown[] }>;
+    const read = async (client: string) => (await fetch(`${endpoint}?client_id=${client}&project_id=${projectId}`)).json() as Promise<{ entries: Array<{ capability_id: string; version: number; provider_id: string; status: string; expected: { expected_absent: true } | { expected_generation: string } }>; grants: unknown[] }>;
     const send = (value: unknown, language = "zh") => fetch(endpoint, { method: "POST", body: JSON.stringify(value), headers: {
       origin, "content-type": "application/json", "accept-language": language, "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token } });
     const identity = async (client: string, capability: string) => {
       const entry = (await read(client)).entries.find(row => row.capability_id === capability);
       assert.ok(entry, `${capability} is in the catalog`);
-      return { capability_id: entry.capability_id, version: entry.version, provider_id: entry.provider_id };
+      return { capability_id: entry.capability_id, version: entry.version, provider_id: entry.provider_id, expected: entry.expected };
     };
     const grant = (client: string, action: { capability_id: string; version: number; provider_id: string }, extra: Record<string, unknown> = {}) =>
       ({ client_id: client, project_id: projectId, ...action, enabled: true, ...extra });
@@ -194,13 +236,26 @@ test("an action that writes through other actions is granted together with them:
 
     // A dependency that is not in the catalog saves nothing, and `with` is for granting only.
     const third = "runtime:nothing-saved";
-    const missing = await send(grant(third, await identity(third, "feed.items.promote"), { with: [...all, { capability_id: "goals.no-such-action", version: 1, provider_id: all[0]!.provider_id }] }));
+    const missing = await send(grant(third, await identity(third, "feed.items.promote"), { with: [...all, { capability_id: "goals.no-such-action", version: 1, provider_id: all[0]!.provider_id, expected: { expected_absent: true } }] }));
     assert.equal(missing.status, 404);
     assert.deepEqual((await read(third)).grants, []);
     const revoking = await send({ ...grant(third, await identity(third, "feed.items.promote"), { with: all }), enabled: false });
     assert.equal(revoking.status, 400);
     assert.equal(((await revoking.json()) as { code: string }).code, "mcp.grant_invalid");
     assert.deepEqual((await read(third)).grants, []);
+
+    // H1: a formerly absent dependency was granted by another page. The stale multi-row write cannot overwrite it or enable the main action.
+    const concurrent = "runtime:concurrent-grant";
+    const stale = await Promise.all(dependencies.map(id => identity(concurrent, id)));
+    const promoteConcurrent = await identity(concurrent, "feed.items.promote");
+    const { expected: _missing, ...withoutToken } = promoteConcurrent;
+    assert.equal((await send(grant(concurrent, withoutToken))).status, 400);
+    assert.equal((await send(grant(concurrent, stale[0]!))).status, 200);
+    const before = (await read(concurrent)).grants;
+    const failed = await send(grant(concurrent, promoteConcurrent, { with: stale }));
+    assert.equal(failed.status, 409, await failed.clone().text());
+    assert.equal((await failed.json() as { code: string }).code, "actions.conflict");
+    assert.deepEqual((await read(concurrent)).grants, before);
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     await host.close(); await rm(home, { recursive: true, force: true });
@@ -228,7 +283,7 @@ test("RAC-1331 W3-02-G4-04 an unavailable action answers by the kind its owner d
   try {
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
-    const input = { client_id: "runtime:external", project_id: project.project_id, capability_id: id, version: 1, provider_id: id, enabled: true };
+    const input = { client_id: "runtime:external", project_id: project.project_id, capability_id: id, version: 1, provider_id: id, enabled: true, expected: { expected_absent: true } };
     const send = () => fetch(`${origin}/api/settings/mcp/actions`, { method: "POST", body: JSON.stringify(input), headers: {
       origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token,
     } });
@@ -262,7 +317,7 @@ test("RAC-1332 an oversized body answers 413 and a POST naming a missing project
     const oversized = await send(JSON.stringify({ client_id: "runtime:external", project_id: null, padding: "x".repeat(300_000) }));
     assert.equal(oversized.status, 413, await oversized.clone().text());
     assert.equal((await oversized.json() as { code?: string }).code, "actions.input_too_large");
-    const missing = await send(JSON.stringify({ client_id: "runtime:external", project_id: "no-such-project", capability_id: "x", version: 1, provider_id: "x", enabled: true }));
+    const missing = await send(JSON.stringify({ client_id: "runtime:external", project_id: "no-such-project", capability_id: "x", version: 1, provider_id: "x", enabled: true, expected: { expected_absent: true } }));
     assert.equal(missing.status, 404, await missing.clone().text());
     assert.equal((await missing.json() as { code?: string }).code, "catalog.project_not_found");
   } finally {
@@ -313,7 +368,7 @@ test("RAC-1333 the whole-read failures of the MCP settings answer by kind over H
     assert.equal(unavailableBody.error, "插件停用了");
     // Any other failure is the Host's unhandled answer: 500 with a diagnostic id on both methods, never the internal text.
     replaceInspect(async () => { throw new Error("内部秘密"); });
-    for (const response of [await read(), await post({ client_id: "runtime:external", project_id: project.project_id, capability_id: id, version: 1, provider_id: id, enabled: true })]) {
+    for (const response of [await read(), await post({ client_id: "runtime:external", project_id: project.project_id, capability_id: id, version: 1, provider_id: id, enabled: true, expected: { expected_absent: true } })]) {
       assert.equal(response.status, 500, await response.clone().text());
       const body = await response.json() as { code?: string; error?: string; diagnostic_id?: string };
       assert.equal(body.code, "actions.execution_failed");

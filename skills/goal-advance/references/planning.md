@@ -95,7 +95,7 @@ Use a goal_id that does not collide with existing work, or the tool's supported 
 
 Explain the proposal's intended outcome, changed relationships, scope and remaining uncertainties. Include narrative and item explanations when the change set is large enough to need them; follow the schema's requirement for larger proposals. Address check conflicts before seeking a decision.
 
-The user applies or rejects the stored items through the protected Web/management interface. Runtime cannot call goal_tree_decide or self-attest approval. A selected relationship must not implicitly approve an unselected Goal. Whole-proposal application is atomic; do not convert its conflict into an unrequested partial application.
+The user applies or rejects the stored items through the protected Web/management interface. Runtime cannot call the protected review_decide management tool or self-attest approval. A selected relationship must not implicitly approve an unselected Goal. Whole-proposal application is atomic; do not convert its conflict into an unrequested partial application.
 
 ## Review only the affected work
 

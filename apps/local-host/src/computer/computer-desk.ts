@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import type { HostSurfaceDriver, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostSurfaceContext, HostSurfaceDriver, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import type { ComputerActivity, ComputerControlMode, ComputerState } from "@molis-ai/molis-work-contracts/services/computer";
 import { showsMolis, tierOf } from "./app-tiers.js";
 import { refused } from "./computer-errors.js";
@@ -11,7 +12,7 @@ import { desktopRoundOutcome } from "./task-outcome.js";
 import { eachListener } from "../host-log.js";
 
 /** The helper methods the desk calls. A real connection satisfies this, and a test can stand in without starting one. */
-type ComputerHelper = Pick<HelperConnection, "on" | "ensure" | "call" | "status" | "unsupported" | "problem" | "ready">;
+type ComputerHelper = Pick<HelperConnection, "on" | "ensure" | "call" | "status" | "unsupported" | "problem" | "ready" | "generation">;
 
 /** No input for this long while nothing is locked: the person is away, and the Assistant does not act. */
 const AWAY_SECONDS = 10 * 60;
@@ -33,7 +34,9 @@ interface ComputerDeskOptions {
 export class ComputerDesk implements DeskContext {
   private mode: ComputerControlMode = "idle";
   private pausedReason: "person-input" | "person" | null = null;
-  private lease: { session_id: string; record_id: string | null } | null = null;
+  private lease: { control: HostSurfaceContext; session_id: string; record_id: string | null; monitoring?: Promise<void>; monitoredGeneration?: number } | null = null;
+  private closed = false;
+  private monitorGeneration = 0;
   private targetApp: Target | null = null;
   private activityNow: ComputerActivity | null = null;
   /** Grows on every take-over and hand-back: older observations no longer match, so the Assistant looks again. */
@@ -43,7 +46,7 @@ export class ComputerDesk implements DeskContext {
   private readonly listeners = new Set<(state: ComputerState) => void>();
   private readonly frameListeners = new Set<(png: Buffer) => void>();
   private allowedThisRound: { session_id: string; apps: Set<string> } | null = null;
-  private context: { readonly run_id: string | null; readonly project_id: string | null; readonly goal: string } | null = null;
+  private readonly contexts = new WeakMap<HostSurfaceContext, { readonly run_id: string | null; readonly project_id: string | null; readonly goal: string }>();
   /** When the last action reached the screen. Null until one does, so a confirm with nothing injected is the person's. */
   private lastInjectAt: number | null = null;
   /** The window title last read this round, and files this round handed over, took out, or saw as the document. */
@@ -61,6 +64,21 @@ export class ComputerDesk implements DeskContext {
     this.settings = options.settings;
     this.unsubscribe = options.helper.on(event => this.heard(event));
     this.surfaceDriver = new ComputerDriver(this);
+  }
+
+  assertCurrent(control: HostSurfaceContext): void {
+    requireSynchronous(control.assertCurrent());
+    if (this.closed || (this.lease && this.lease.control !== control)) throw refused("driver-unavailable", "原轮次不再占用电脑");
+    if (!this.settings.enabled) throw refused("driver-unavailable", "用户没有打开「允许助理使用电脑」。");
+    if (this.mode === "paused" || this.mode === "taken-over") throw refused("person-present", "用户已暂停或接手电脑，请等待交还后重新观察。");
+    const status = this.helper.status();
+    if (status && Object.values(status.permissions).some(granted => granted !== true)) throw refused("driver-unavailable", "电脑助手的系统权限已被收回");
+    const presence = this.presence(status);
+    if (presence.locked || presence.away) throw refused("screen-locked", presence.reason ?? "用户不在");
+  }
+  assertReady(control: HostSurfaceContext): void {
+    this.assertCurrent(control);
+    if (this.lease?.control !== control || this.lease.monitoredGeneration !== this.helper.generation || !this.helper.ready) throw refused("driver-unavailable", "原轮次的输入监视尚未确认启用");
   }
 
   target = (): Target | null => this.targetApp;
@@ -94,8 +112,11 @@ export class ComputerDesk implements DeskContext {
 
   /** A fresh picture for the tab, when the person is watching and the computer is in use. */
   async refreshFrame(): Promise<void> {
-    if (!this.lease || (this.mode !== "assistant" && this.mode !== "paused")) return;
-    await this.surfaceDriver.freshFrame().catch(() => undefined);
+    const lease = this.lease, target = this.targetApp;
+    if (!lease || (this.mode !== "assistant" && this.mode !== "paused")) return;
+    // A person's live preview may remain visible while paused, but it never follows a later lease or app.
+    const current = () => { if (this.closed || this.lease !== lease || this.targetApp !== target) throw refused("driver-unavailable", "原预览已结束"); };
+    await this.surfaceDriver.freshFrame(current).catch(() => undefined);
   }
 
   state(): ComputerState {
@@ -153,8 +174,9 @@ export class ComputerDesk implements DeskContext {
   }
 
   /** A round of this session ended or was stopped: the computer is free again and its record is finished. */
-  release(sessionId: string, ended?: HostSurfaceRoundEnd): void {
-    if (this.lease?.session_id !== sessionId) return;
+  release(control: HostSurfaceContext, ended?: HostSurfaceRoundEnd): void {
+    this.contexts.delete(control);
+    if (this.lease?.control !== control) return;
     const record = this.lease.record_id ? this.options.records.get(this.lease.record_id) : null;
     if (record) {
       const unfinished = record.steps.filter(step => step.kind === "refused" || step.kind === "failed" || step.kind === "declined").map(step => step.summary);
@@ -172,14 +194,19 @@ export class ComputerDesk implements DeskContext {
     this.targetApp = null;
     this.activityNow = null;
     this.allowedThisRound = null;
+    this.produced.length = 0;
     if (this.mode === "assistant") this.mode = "idle";
-    void this.options.helper.call("monitor", { on: false }).catch(() => undefined);
+    const generation = ++this.monitorGeneration;
+    void this.options.helper.call("monitor", { on: false }, undefined, () => {
+      if (this.monitorGeneration !== generation || this.lease) throw refused("driver-unavailable", "原监视已结束");
+    }).catch(() => undefined);
     this.changed();
   }
 
   /** The round about to use the computer names its goal and ids, so the record the desk starts on first look names them. */
-  describeRound(sessionId: string, context: { readonly run_id: string | null; readonly project_id: string | null; readonly goal: string }): void {
-    if (!this.lease || this.lease.session_id !== sessionId) this.context = context;
+  describeRound(control: HostSurfaceContext, metadata: { readonly run_id: string | null; readonly project_id: string | null; readonly goal: string }): void {
+    requireSynchronous(control.assertCurrent());
+    this.contexts.set(control, metadata);
   }
 
   /** The round holding the computer, including the project its record was started for. Null when the computer is free. */
@@ -190,17 +217,22 @@ export class ComputerDesk implements DeskContext {
   }
 
   /** The run id arrives after attach; fold it into the round's context so the record names it (until the lease is taken). */
-  noteRun(sessionId: string, runId: string): void {
-    if ((!this.lease || this.lease.session_id !== sessionId) && this.context) this.context = { ...this.context, run_id: runId };
+  noteRun(control: HostSurfaceContext, runId: string): void {
+    requireSynchronous(control.assertCurrent());
+    const context = this.contexts.get(control);
+    if (context) this.contexts.set(control, { ...context, run_id: runId });
   }
 
   // ── readiness ────────────────────────────────────────────────────────────
 
   /** Whether the session may look or act at all right now; null when nothing stands in the way. */
-  async readiness(sessionId: string | null): Promise<{ refusal: HostSurfaceRefusal; detail: string } | null> {
+  async readiness(control: HostSurfaceContext): Promise<{ refusal: HostSurfaceRefusal; detail: string } | null> {
+    requireSynchronous(control.assertCurrent());
     if (!this.options.settings.enabled) return { refusal: "driver-unavailable", detail: "用户没有打开「允许助理使用电脑」。" };
     let status: HelperStatus;
     try { status = await this.options.helper.ensure(); } catch (error) { return { refusal: "driver-unavailable", detail: error instanceof Error ? error.message : "电脑助手不可用" }; }
+    requireSynchronous(control.assertCurrent());
+    if (this.closed) return { refusal: "driver-unavailable", detail: "电脑服务已关闭" };
     const missing = (Object.entries(status.permissions) as [string, boolean][]).filter(([, granted]) => !granted).map(([name]) =>
       name === "accessibility" ? "辅助功能" : name === "screen_recording" ? "屏幕录制" : "输入监控");
     if (missing.length) return { refusal: "driver-unavailable", detail: `电脑助手缺少系统权限：${missing.join("、")}。请用户在「电脑」标签里按引导授权。` };
@@ -209,41 +241,66 @@ export class ComputerDesk implements DeskContext {
     if (this.mode === "taken-over") return { refusal: "person-present", detail: "用户已接手电脑，助理暂停；等用户交还后先重新观察。" };
     if (this.mode === "paused") return { refusal: "person-present", detail: this.pausedReason === "person-input"
       ? "用户动了鼠标或键盘，助理已暂停；等用户在「电脑」标签里交还后先重新观察。" : "用户暂停了助理对电脑的使用；等用户交还后先重新观察。" };
-    if (sessionId && this.lease && this.lease.session_id !== sessionId && (this.options.live?.(this.lease.session_id) ?? true)) {
+    if (this.lease && this.lease.control !== control) {
       return { refusal: "driver-unavailable", detail: "电脑正被另一项工作使用，这一轮不能用它。" };
     }
     return null;
   }
 
-  async ready(sessionId: string | null): Promise<void> {
-    const blocked = await this.readiness(sessionId);
+  async ready(control: HostSurfaceContext): Promise<void> {
+    const blocked = await this.readiness(control);
+    this.assertCurrent(control);
     if (blocked) throw refused(blocked.refusal, blocked.detail);
     // The first look or action of a round takes the computer for it, starts its record, and watches the person's input.
-    if (sessionId && (!this.lease || this.lease.session_id !== sessionId)) {
-      const record = this.options.records.start({ session_id: sessionId, run_id: this.context?.run_id ?? null, project_id: this.context?.project_id ?? null, goal: this.context?.goal ?? "" });
-      this.lease = { session_id: sessionId, record_id: record.id };
+    if (!this.lease) {
+      if (!control.session_id) throw refused("driver-unavailable", "电脑操作缺少原会话");
+      const metadata = this.contexts.get(control);
+      const record = this.options.records.start({ session_id: control.session_id, run_id: metadata?.run_id ?? null, project_id: metadata?.project_id ?? null, goal: metadata?.goal ?? "" });
+      this.lease = { control, session_id: control.session_id, record_id: record.id };
       this.lastInjectAt = null;
       this.seenTitle = "";
       this.seenFiles.length = 0;
-      this.context = null;
+      this.contexts.delete(control);
       this.targetApp = null;
       this.mode = "assistant";
-      await this.options.helper.call("monitor", { on: true }).catch(() => undefined);
-      this.changed();
     }
+    await this.monitor(this.lease!);
+    this.assertReady(control); this.changed();
+  }
+
+  private async monitor(lease: NonNullable<ComputerDesk["lease"]>): Promise<void> {
+    if (lease.monitoredGeneration === this.helper.generation && this.helper.ready) return;
+    if (lease.monitoring) return lease.monitoring;
+    const generation = ++this.monitorGeneration, helper = this.helper.generation;
+    const current = () => {
+      this.assertCurrent(lease.control);
+      if (this.lease !== lease || this.monitorGeneration !== generation || this.helper.generation !== helper) throw refused("driver-unavailable", "原监视已结束");
+    };
+    lease.monitoring = this.helper.call<{ watching: boolean }>("monitor", { on: true }, undefined, current).then(result => {
+      current();
+      if (result.watching !== true) throw refused("driver-unavailable", "电脑助手未能启用输入监视");
+      lease.monitoredGeneration = helper;
+    }).finally(() => { lease.monitoring = undefined; });
+    return lease.monitoring;
   }
 
   // ── what the helper tells ────────────────────────────────────────────────
 
   private heard(event: HelperEvent): void {
-    if (event.event === "status" || event.event === "closed" || event.event === "watch_failed") { this.changed(); return; }
+    if (event.event === "status" || event.event === "closed" || event.event === "watch_failed") {
+      if (this.lease && (event.event !== "status" || !event.watching || Object.values(event.permissions).some(granted => granted !== true))) this.lease.monitoredGeneration = undefined;
+      this.changed(); return;
+    }
+    const lease = this.lease;
+    if (lease) { try { requireSynchronous(lease.control.assertCurrent()); } catch { return; } }
     if (event.event === "app_exit" && this.targetApp && event.pid === this.targetApp.pid) { this.note(`「${this.targetApp.name}」已经退出`); this.changed(); return; }
     if (event.event !== "input" || !this.lease || this.mode !== "assistant") return;
     if (event.kind === "move") { this.lastPersonMove = Date.now(); return; }
     // The person clicked, scrolled or typed somewhere other than Molis Work: they are using the computer, so the Assistant
     // stops at once and waits for them to hand it back. Using Molis Work itself — answering a card — does not count.
     void this.isMolisFront(event.front_pid).then(molis => {
-      if (molis || !this.lease || this.mode !== "assistant") return;
+      if (molis || !lease || this.lease !== lease || this.mode !== "assistant") return;
+      try { requireSynchronous(lease.control.assertCurrent()); } catch { return; }
       this.pauseForPerson();
       this.note("用户动了鼠标或键盘，助理暂停");
     });
@@ -260,7 +317,7 @@ export class ComputerDesk implements DeskContext {
     if (this.lease?.record_id) this.options.records.step(this.lease.record_id, { kind: "note", app: this.targetApp ? { bundle_id: this.targetApp.bundle_id, name: this.targetApp.name } : null, summary });
   }
 
-  close(): void { this.unsubscribe(); this.listeners.clear(); this.frameListeners.clear(); }
+  close(): void { this.closed = true; this.monitorGeneration++; this.unsubscribe(); this.listeners.clear(); this.frameListeners.clear(); }
 }
 
 function problemMessage(code: string): string {

@@ -4,9 +4,6 @@ import { GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "./event-document-cli
 import { GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT } from "./momentum-client.js";
 import { GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT } from "./navigation-client.js";
 import { GOALS_PANELS_CLIENT_FACTORY_SCRIPT } from "./panels-client.js";
-import { GOALS_POLICY_CLIENT_FACTORY_SCRIPT } from "./policy-client.js";
-import { PROJECT_RULES_CLIENT_SCRIPT } from "./project-policy-client.js";
-import { PROJECT_RULES_SETTINGS_STYLES } from "./project-policy-styles.js";
 import { GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT } from "./proposal-client.js";
 import { GOALS_REFRESH_CLIENT_FACTORY_SCRIPT } from "./refresh-client.js";
 import { GOALS_RELATION_CLIENT_FACTORY_SCRIPT } from "./relation-client.js";
@@ -25,13 +22,8 @@ export const GOALS_PAGE_CLIENTS = {
   goalsMomentum: GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT,
   goalsNavigation: GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT,
   goalsPanels: GOALS_PANELS_CLIENT_FACTORY_SCRIPT,
-  goalsPolicy: GOALS_POLICY_CLIENT_FACTORY_SCRIPT,
   goalsProposal: GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT,
   goalsRefresh: GOALS_REFRESH_CLIENT_FACTORY_SCRIPT,
   goalsRelation: GOALS_RELATION_CLIENT_FACTORY_SCRIPT,
   goalsTree: GOALS_TREE_CLIENT_FACTORY_SCRIPT,
 } as const;
-
-/** The project's rules, as a settings page: its style rules and the script that binds its form. */
-export const GOALS_SETTINGS_STYLESHEET = PROJECT_RULES_SETTINGS_STYLES;
-export const GOALS_SETTINGS_CLIENT_SCRIPT = PROJECT_RULES_CLIENT_SCRIPT.trim();

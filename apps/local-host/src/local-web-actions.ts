@@ -78,7 +78,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
 }
 
 /** The homepage may use only registrations and installations that are already here: a Home owner not yet started adds none. */
-export function openProjectPersonContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference, store: LocalProjectDatabase, signal: AbortSignal) {
+export function openProjectPersonContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference, store: LocalProjectDatabase, signal?: AbortSignal) {
   const { caller, sessionCurrent } = localWebCaller(reference, LOCAL_OWNER_PERMISSIONS, signal);
   const metadata = host.inspectActionMetadata(caller, reference);
   return { metadata, inspect: () => host.inspectActionMetadata(caller, reference), caller: localWebAuthority(host, reference, caller, sessionCurrent, metadata,

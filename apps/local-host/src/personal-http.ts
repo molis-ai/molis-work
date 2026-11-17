@@ -1,3 +1,4 @@
+import { WEB_PAGE_SESSION_HEADER, webPageToken } from './web-sessions.js';
 import { createPersonalAccountProtocol } from './personal-account-protocol.js';
 import { createPersonalPageHttp } from './personal-page-http.js';
 import { AccountRefreshPages } from './account-refresh-pages.js';
@@ -75,6 +76,7 @@ function browserStatusFence(desktop:boolean,session:WebAccountSession|null,respo
 
 interface PersonalAccountEnvironment {
   ready(retry?:boolean):Promise<void>;
+  loginDelivered?():void;
   status():{ready:boolean;switching:boolean;error?:string;viewScope?:string};
 }
 
@@ -120,11 +122,16 @@ async function respondPersonalStatus({desktop,session,response,service,setupErro
 }
 
 /** Anonymous entry owns Cookie creation; a refused competitor cannot overwrite the pending owner. */
-async function openAnonymousSession(load:()=>PersonalAuth|null,sessions:PersonalWebSessions,pending:()=>AccountNavigation|null,response:ServerResponse,origin:string):Promise<WebAccountSession|null> {
+async function openAnonymousSession(load:()=>PersonalAuth|null,sessions:PersonalWebSessions,pending:()=>AccountNavigation|null,response:ServerResponse,origin:string,current:()=>boolean):Promise<WebAccountSession|null> {
   try {
-    const shared=load();if(!shared)throw new Error('LOGIN_REQUIRED');await shared.currentIdentity();
+    const shared=load();if(!shared)throw new Error('LOGIN_REQUIRED');
     const navigation=pending();
-    if(shared.loginPending()||navigation&&!navigation.complete&&navigation.expires>Date.now()){
+    const occupied=()=>shared.loginPending()||!!pending()&&!pending()!.complete&&pending()!.expires>Date.now();
+    // Admission retains the original page/attempt across upstream identity reads.
+    if(occupied()){sendLocalWebJson(response,409,{error:'已有账号操作正在进行，请在原页面完成或取消。'});return null;}
+    await shared.currentIdentity();
+    if(!current()){sendLocalWebJson(response,403,{error:'页面会话已失效，请刷新页面后重试。'});return null;}
+    if(occupied()||navigation!==pending()){
       sendLocalWebJson(response,409,{error:'已有账号操作正在进行，请在原页面完成或取消。'});return null;
     }
     const session=sessions.adopt(shared,false);
@@ -169,7 +176,8 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
           response.setHeader('Set-Cookie',webSessions.cookie(session,service.config.productOrigin.startsWith('https:')));
         }
         // Anonymous auto-entry must not replace this attempt while its final account read or response is still pending.
-        const delivered=()=>{if(pendingNavigation===navigation)service.finishLogin();};
+        let deliveredOnce=false;
+        const delivered=()=>{if(!deliveredOnce&&pendingNavigation===navigation){deliveredOnce=true;environment?.loginDelivered?.();service.finishLogin();}};
         response.once('finish',delivered);response.once('close',delivered);
         await environment?.ready(true);
       },
@@ -197,7 +205,7 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
     let session=desktop?null:webSessions.get(request.headers.cookie);
     const setSessionCookie=()=>response.setHeader('Set-Cookie',webSessions.cookie(session,origin.startsWith('https:')));
     if(!desktop && !session && config && request.method==='POST' && ['/api/personal/login','/api/personal/switch'].includes(url.pathname)){
-      session=await openAnonymousSession(getAuth,webSessions,()=>pendingNavigation,response,origin);
+      session=await openAnonymousSession(getAuth,webSessions,()=>pendingNavigation,response,origin,()=>request.headers[WEB_PAGE_SESSION_HEADER]===undefined||webPageToken(request)===request.headers[WEB_PAGE_SESSION_HEADER]);
       if(!session)return true;
     }
     if(request.method==='GET' && url.pathname==='/api/personal/status' && !desktop && !session){

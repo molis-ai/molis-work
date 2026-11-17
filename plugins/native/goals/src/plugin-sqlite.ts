@@ -1,5 +1,5 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabaseReader, PluginDatabaseTransaction, PluginJournalReader, PluginJournalWriter, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabaseReader, PluginDatabaseTransaction, PluginJournalReader, PluginJournalWriter, PluginProjectDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 const storageErrors = defineErrorCodes("goals.storage", {
   no_window: "internal",
@@ -63,6 +63,10 @@ export class PluginSqlite implements PluginSqliteDatabase {
   /** The transaction of this window, for the platform services that join it (Attention, Context Ledger). A read window has none. */
   joined(what: string): PluginDatabaseTransaction {
     return this.writer(what);
+  }
+
+  currentDecision() {
+    return (this.writer("本人决定") as Partial<PluginProjectDatabaseTransaction>).decision;
   }
 
   /** The project's journal for a read; the window must have been given one. */

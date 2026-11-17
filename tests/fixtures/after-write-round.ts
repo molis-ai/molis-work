@@ -75,8 +75,8 @@ export async function afterWriteRound(t: TestContext, setup: { readonly checkers
     pending: (kind: AgentReviewRequest["document"]["kind"], seen: ReadonlySet<string> = new Set()) =>
       until(() => queue.list(OWNER.project_id, "pending").find(row => row.document.kind === kind && !seen.has(row.review_id)), `a pending ${kind} review`),
     pendingNow: () => queue.list(OWNER.project_id, "pending"),
-    approve: (review: AgentReviewRequest, remember?: "session") => queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user", ...(remember ? { remember } : {}) }),
-    reject: (review: AgentReviewRequest) => queue.respond({ review_id: review.review_id, decision: "reject", actor_id: "user" }),
+    approve: (review: AgentReviewRequest, remember?: "session") => queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "user", ...(remember ? { remember } : {}) }),
+    reject: (review: AgentReviewRequest) => queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "reject", actor_id: "user" }),
     ended: (ref: Parameters<typeof adapter.read>[0]) => until(async () => { const view = await adapter.read(ref); return ["completed", "failed", "stopped", "cancelled"].includes(view.phase) ? view : null; }, "the round's end"),
     until,
   };

@@ -1,45 +1,38 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { GoalsModule, DEFAULT_GOAL_POLICY } from "./fixtures/goals-modules.js";
-import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
-import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
-import { boardSnapshot } from "./fixtures/goal-application.js";
+import { projectRulesPage } from "./fixtures/project-review-entry.js";
+import { openTestHome } from "./fixtures/test-home.js";
 
-test("project policy saves atomically replace history, replay lost responses, and reject invalid or unconfirmed changes", t => {
-  const directory = mkdtempSync(join(tmpdir(), "project-policy-"));
-  const store = new LocalProjectDatabase(join(directory, "project.sqlite"));
-  t.after(() => { store.close(); rmSync(directory, { recursive: true, force: true }); });
-  const goals = new GoalsModule(pluginLegalSql(store).db, store, {});
-  writeProjectRoot(store.db, "project", "2026-10-20T00:00:00.000Z");
-  goals.commands.initializeBoard({ project_id: "project", actor_id: "user", idempotency_key: "init" });
-  const input = { project_id: "project", actor_id: "user", user_confirmed: true,
-    policy: { ...DEFAULT_GOAL_POLICY }, idempotency_key: "save-one" };
-  const first = goals.commands.saveProjectPolicy(input);
-  const replay = goals.commands.saveProjectPolicy(input);
-  assert.equal(replay.replayed, true);
-  assert.equal(replay.policy_binding_id, first.policy_binding_id);
-  assert.equal(replay.observed_event_cursor, first.observed_event_cursor);
-  assert.equal(goals.query.listPolicyHistory("project").length, 1);
-  const second = goals.commands.saveProjectPolicy({ ...input, idempotency_key: "save-two", policy: { human_approval: true } });
-  const history = goals.query.listPolicyHistory("project");
-  assert.equal(history.find(row => row.policy_binding_id === first.policy_binding_id)?.state, "replaced");
-  const active = history.find(row => row.policy_binding_id === second.policy_binding_id)!;
-  assert.equal(active.state, "active");
-  assert.equal(active.policy.human_approval, true);
-  assert.equal(active.reason, "");
-  const beforeEvents = boardSnapshot(store, "project").cursor;
-  for (const invalid of [
-    { ...input, user_confirmed: false },
-    { ...input, policy: { ...input.policy, cross_reviewers: 2 } as typeof input.policy },
-    { ...input, policy: { ...input.policy, human_approval: "false" as unknown as boolean } },
-  ]) {
-    assert.throws(() => goals.commands.saveProjectPolicy({ ...invalid, idempotency_key: "invalid" }));
+test("APR-19 rule saves atomically preserve history, resist stale retries and require the protected local entry", async t => {
+  const host = await openTestHome(t);
+  const project = await host.createProject("Project rule save");
+  const rules = projectRulesPage(host, project.project_id);
+  const before = await rules.read();
+  const scope = { kind: "project_default" };
+  const first = { kind: "set", scope, requires_person: true, reason: "Review the final result", expected_revision: before.revision };
+  const saved = await rules.change(first);
+  const original = saved.rules[0]!;
+  assert.equal(original.requires_person, true);
+  assert.equal(original.reason, first.reason);
+  assert.equal(saved.rules.length, before.rules.length + 1);
+  // A caller that lost the reply reads the current revision; an old form cannot submit another rule.
+  await assert.rejects(rules.change(first), { code: "actions.conflict" });
+  assert.deepEqual(await rules.read(), saved);
+  const second = { ...first, requires_person: false, reason: "The current task can finish without an extra rule", expected_revision: saved.revision };
+  for (const invalid of [{ ...second, requires_person: "false" }, { ...second, scope: { ...scope, reviewers: 2 } }, { ...second, reason: " " }]) {
+    await assert.rejects(rules.change(invalid), { code: "actions.input_invalid" });
   }
-  assert.throws(() => goals.commands.saveProjectPolicy({ ...input, policy: { human_approval: true } }), /幂等键/);
-  assert.deepEqual(goals.query.listPolicyHistory("project"), history);
-  assert.equal(boardSnapshot(store, "project").cursor, beforeEvents);
+  const refused = await fetch(`${host.origin}/api/settings/authorizations/project-rules?project=${encodeURIComponent(project.project_id)}`, {
+    method: "POST", headers: { origin: host.origin, "content-type": "application/json", "x-molis-work-idempotency-key": crypto.randomUUID() },
+    body: JSON.stringify(second),
+  });
+  assert.equal(refused.status, 403);
+  assert.deepEqual(await rules.read(), saved);
+  const changed = await rules.change(second);
+  assert.equal(changed.rules[0]?.state, "active");
+  assert.equal(changed.rules[0]?.requires_person, false);
+  assert.equal(changed.rules[0]?.reason, second.reason);
+  assert.equal(changed.rules.find(rule => rule.id === original.id)?.state, "replaced");
+  assert.equal(changed.rules.find(rule => rule.id === original.id)?.change_reason, second.reason);
+  assert.deepEqual(await rules.read(), changed);
 });

@@ -373,7 +373,6 @@ export interface GoalsQueryApi {
   /** Global ID collision check only; does not expose another Board's Goal contents. */
   hasGoalIdentity(goalId: string): boolean;
   getRelation(projectId: string, relationId: string): GoalRelationRecord | null;
-  policyBindingState(projectId: string, bindingId: string): "active" | "replaced" | "withdrawn" | null;
   /** Global criterion identity is needed to reject cross-Goal ID collisions. */
   criterionGoalId(criterionId: string): string | null;
   getBoard(projectId: string): GoalsBoardRecord | null;
@@ -464,11 +463,6 @@ export interface ConfirmedRelationBatch {
 }
 
 export interface GoalsCommandApi {
-  /** User-submitted project defaults. Replaces the active binding and preserves history. */
-  saveProjectPolicy(input: {
-    project_id: string; actor_id: string; user_confirmed: boolean;
-    policy: GoalPolicy; idempotency_key: string;
-  }): { policy_binding_id: string; observed_event_cursor: number; replayed: boolean };
   validateGoalInput(input: CreateGoalInput): void;
   applyConfirmedRelations(input: ConfirmedRelationBatch): Array<{ relation_id: string }>;
   initializeBoard(input: { project_id: string; actor_id: string; idempotency_key: string }): { project_id: string; replayed: boolean; observed_event_cursor: number };

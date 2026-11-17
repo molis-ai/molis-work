@@ -1,5 +1,6 @@
-import type { ActionDefinition, ActionIntake, ActionResultView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionDefinition, ActionIntake, ActionResultView, InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { objectLinkTemplate } from "@molis-ai/molis-work-contracts/platform/object-link";
+import { TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA, type TrustedReviewOffer } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import type { BoardSnapshot, CreateGoalIntentInput, CreateGoalIntentResult, GoalEventDecisionResult, GoalEventDirectoryItem, GoalsCommandApi,
   ProjectGuidanceView, RecordGoalUserDecisionInput } from "./goals.js";
 import type { GoalTreeProposalCheckInput, GoalTreeProposalCheckResult, GoalTreeProposalDecideInput, GoalTreeProposalDecisionResult,
@@ -65,14 +66,32 @@ const submit = goalAction<Business<GoalTreeProposalSubmitInput>, { proposal: Goa
   "提交新目标及父子或依赖关系的待确认提案；提交不会创建正式目标。五项及以上变化须提供整份 narrative 和逐项 explanation。用户通过 Web 或管理入口审批后落地", "command", tree.treeSubmitInputSchema, tree.treeSubmitResultSchema);
 const treeSubmit: ActionDefinition<Business<GoalTreeProposalSubmitInput>, { proposal: GoalTreeProposalRecord; replayed: boolean; observed_event_cursor: number }> = {
   ...submit, action: { ...submit.action, intake: GOALS_TREE_INTAKE, result_view: GOALS_TREE_SUBMIT_RESULT } };
-const treeDecide = goalAction<Business<GoalTreeProposalDecideInput>, GoalTreeProposalDecisionResult<never>>("goals.tree.decide", /* @version action.goals.tree.decide */ 1, "审批结构提案",
+const goalTreeDecisionRef = { capability_id: "goals.tree.decide", version: /* @version action.goals.tree.decide */ 1 } as const;
+const goalEventDecisionRef = { capability_id: "goals.decisions.record", version: /* @version action.goals.decisions.record */ 1 } as const;
+
+const treeDecide = goalAction<Business<GoalTreeProposalDecideInput>, GoalTreeProposalDecisionResult<never>>(goalTreeDecisionRef.capability_id, goalTreeDecisionRef.version, "审批结构提案",
   "保存用户通过受保护入口作出的逐项或整组决定；整组确认全有或全无。实际用户和操作出处由 Host 提供", "command", tree.treeDecideInputSchema, tree.treeDecisionResultSchema);
-const decide = goalAction<GoalDecisionActionInput, GoalEventDecisionResult>("goals.decisions.record", /* @version action.goals.decisions.record */ 1, "记录用户决定",
+const decide = goalAction<GoalDecisionActionInput, GoalEventDecisionResult>(goalEventDecisionRef.capability_id, goalEventDecisionRef.version, "记录用户决定",
   "保存用户本人通过受保护入口作出的决定；模型只能请求或引用决定。作者及操作出处由 Host 注入，仍核对原请求和当前承诺", "command",
   object({ goal_id: identifier, idempotency_key: identifier, request_id: identifier, selected_option_id: identifier,
     conclusion: identifier, accepts_requirements: boolean, effects: array({ ...effect, properties: { ...effect.properties as Record<string, unknown>, action: identifier } }), authorized_change: change,
     scope: { ...scope, required: [] } }, ["goal_id", "idempotency_key", "conclusion"]),
   object({ event_id: identifier, observed_event_cursor: count, replayed: boolean, recorded: { const: true }, decision }));
+
+const eventReview = reviewReader("goals.decisions.review", /* @version action.goals.decisions.review */ 1, "goal", "查看目标事件决定");
+const treeReview = reviewReader("goals.tree.review", /* @version action.goals.tree.review */ 1, "goal-tree-proposal", "查看目标树决定");
+
+function reviewReader(id: string, version: number, subject: string, title: string) {
+  const definition = goalAction<InferActionInput<typeof TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA>, TrustedReviewOffer>(id, version, title,
+    "查看原对象和已选事项，供本人确认。", "query", TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA, { type: "object" });
+  return { ...definition, action: { ...definition.action, audiences: ["user"] as const, subject_kinds: [subject] } };
+}
+
+function protectedDecision<I, O>(definition: ActionDefinition<I, O>, reader: typeof eventReview) {
+  const action = userOnly(definition, ["goals:decide"]);
+  return { ...action, action: { ...action.action, subject_kinds: reader.action.subject_kinds,
+    requires_trusted_decision: true as const, trusted_decision_request: { capability_id: reader.capability_id, version: reader.version } } };
+}
 
 /**
  * The Goals actions the platform's own entries call (command line, management MCP, onboarding, Feed promotion, project arrival); the plugin
@@ -86,14 +105,16 @@ export const goalEntryActions = {
     "读取当前项目的结构提案；可按提案 ID 或根目标筛选", "query", tree.treeReadInputSchema, tree.treeReadResultSchema),
   treeCheck: goalAction<Business<GoalTreeProposalCheckInput>, GoalTreeProposalCheckResult>("goals.tree.check", /* @version action.goals.tree.check */ 1, "检查结构提案",
     "检查提案的事实基线及目标关系约束，保存检查结果；预检回滚正式目标和关系变更", "command", tree.treeCheckInputSchema, tree.treeCheckResultSchema),
-  treeDecide: userOnly(treeDecide, ["goals:decide"]),
+  treeDecide: protectedDecision(treeDecide, treeReview),
+  treeReview,
   active: goalAction<{ goal_id: string; reason: string; idempotency_key: string }, ReturnType<GoalsCommandApi["setActiveGoal"]>>("goals.active.set", /* @version action.goals.active.set */ 1, "设为当前目标",
     "选择当前未完成且不在归档/回收站的目标；不启动工作，不改变完成状态", "command",
     object({ goal_id: identifier, reason: identifier, idempotency_key: identifier }), object({ active_goal_id: text, observed_event_cursor: count, replayed: boolean })),
   /** The board in the snapshot no longer carries a name. */
   snapshot: goalAction<Record<string, never>, BoardSnapshot>("goals.snapshot.read", /* @version action.goals.snapshot.read */ 1, "读取项目目标完整快照",
     "读取当前项目的目标资料：全部目标、关系、项目长期说明和结构提案；不含事件正文，需要时用 goals.events.list 或 goals.history.list 读取", "query", object({}), boardSnapshotSchema),
-  decide: userOnly(decide, ["goals:decide"]),
+  decide: protectedDecision(decide, eventReview),
+  eventReview,
   guidanceRead: goalAction<Record<string, never>, ProjectGuidanceView>("goals.guidance.read", /* @version action.goals.guidance.read */ 1, "读取项目长期说明", "读取已确认的长期说明、停用项、完整修订和当前 Runtime Prompt 前缀", "query",
     object({}), object({ entries: array(projectGuidanceEntrySchema), inactive_entries: array(projectGuidanceEntrySchema), revisions: array(projectGuidanceRevisionSchema),
       virtual_document: text, runtime_prompt_prefix: text })),

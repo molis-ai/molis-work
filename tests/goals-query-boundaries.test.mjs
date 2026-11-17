@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { checkGoalReadOwnerSql, checkNoGoalTypedAdapters, checkGoalTransportCallers, checkGoalsCommandOwnership, ENTRY_SOURCE_FILE, hostSourceFiles, readEntrySources, WEB_DISPATCH_FILES } from "../scripts/check-package-boundaries.mjs";
+import { checkGoalReadOwnerSql, checkNoGoalTypedAdapters, checkGoalTransportCallers, checkGoalsCommandOwnership, checkStandaloneManagementPort, ENTRY_SOURCE_FILE, hostSourceFiles, readEntrySources, WEB_DISPATCH_FILES } from "../scripts/check-package-boundaries.mjs";
 
 test("Goal read guard covers actual root callers and rejects restored Policy and relation SQL", () => {
   for (const file of ["apps/desktop/launchers/web/server.ts", ...WEB_DISPATCH_FILES, "apps/desktop/launchers/mcp/server.ts", "apps/local-host/src/mcp-server.ts", "apps/mcp/src/tool-dispatch.ts", "apps/local-host/src/cli-project.ts", "apps/cli/src/command-dispatch.ts",
@@ -22,7 +22,7 @@ test("Goal read guard covers actual root callers and rejects restored Policy and
 test("W3-07-5-01 / W3-07-9-01: no production definition, export, registration or caller restores a Goals typed adapter", () => {
   const production = (source, path = "apps/local-host/src/project-capabilities.ts") => [{ path, source }];
   const files = ["apps/local-host/src/project-capabilities.ts", "apps/local-host/src/index.ts", "plugins/native/goals/src/index.ts",
-    "plugins/native/goals/src/goal-entry-contract.ts", "plugins/native/goals/src/goal-tree-contract.ts", "plugins/native/goals/src/management-evidence.ts",
+    "plugins/native/goals/src/goal-entry-contract.ts", "plugins/native/goals/src/goal-tree-contract.ts",
     "plugins/native/goals/src/contract/goals.ts", "plugins/native/coding/src/manifest.ts", "plugins/native/coding/src/goal-context.ts", "plugins/native/coding/src/routes.ts"];
   for (const file of files) assert.deepEqual(checkNoGoalTypedAdapters(production(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), file)), []);
   const goals = "@molis-ai/molis-work-plugin-goals";
@@ -84,15 +84,15 @@ test("the CLI and management MCP call Goals' actions through the management call
   // The snapshot is read through Goals' own action, not another one and not by hand.
   assert.match(changed("dispatcher", source => source.replace("GOALS.snapshot", "GOALS.list")), /GOALS\.snapshot/);
   // The Host side builds the caller with the factory, over the project's client (it starts the project's plugins, Goals among them).
-  assert.match(changed("project", source => source.replace("bindGoalsManagementActions(", "somethingElse(")), /cli-project\.ts.*bindGoalsManagementActions/);
-  assert.match(changed("project", source => source.replace("actionClient(reference)", "actionClient(reference, false)")), /cli-project\.ts.*actionClient\(reference\)/);
-  assert.match(changed("project", source => source.replace("actionClient(reference)", "client(reference)")), /cli-project\.ts/);
+  assert.match(changed("project", source => source.replace("bindStandaloneManagementActions(", "somethingElse(")), /cli-project\.ts.*bindStandaloneManagementActions/);
+  assert.match(changed("project", source => source.replace("options.signal);\n  };", "otherSignal);\n  };")), /cli-project\.ts.*original signal/);
+  assert.match(changed("project", source => source.replace("return bindStandaloneManagementActions", "localHost.client(reference);\n    return bindStandaloneManagementActions")), /cli-project\.ts/);
   // W3-07-4-01: management MCP has the same boundary; Runtime is handed no management port.
   assert.match(changed("mcp", source => source.replace(/McpManagementActions/g, "Other")), /tool-dispatch\.ts.*McpManagementActions/);
   assert.match(changed("mcp", add("const x = coordinator.goals;")), /tool-dispatch\.ts/);
 });
 
-test("W3-07-4-01: the MCP gate rejects typed or domain callers and requires three actual Goals action calls", () => {
+test("W3-07-4-01 / APR-17: MCP keeps registered Goals actions and uses the common review entry", () => {
   const goals = "@molis-ai/molis-work-contracts/modules/goal-actions";
   for (const code of [
     `import { initializeBoardCapability } from "${goals}";`,
@@ -117,33 +117,53 @@ test("W3-07-4-01: the MCP gate rejects typed or domain callers and requires thre
     assert.match(changed("mcp", add(code)), /tool-dispatch\.ts.*Host client/, code);
   }
   assert.equal(changed("mcp", add('// No host.client(reference), withScope or coordinator.goals here.\nconst note = "LocalHostProjectClient";')), "");
-  for (const action of ["initialize", "decide", "treeDecide"]) {
-    const actual = `actions.invoke(MANAGEMENT_GOAL_ACTIONS.${action},`;
+  for (const action of ["MANAGEMENT_GOAL_ACTIONS.initialize", "trustedReviewActions.read", "trustedReviewActions.decide"]) {
+    const actual = `actions.invoke(${action},`;
     const source = transportSources().mcp.dispatcher;
     assert.ok(source.includes(actual), `${action} mutation reaches the production call`);
     assert.match(changed("mcp", text => text.replace(actual, "actions.invoke(MANAGEMENT_GOAL_ACTIONS.list,")
-      .concat(`\n// ${actual}\nconst note = ${JSON.stringify(actual)};`)), new RegExp(`MANAGEMENT_GOAL_ACTIONS\\.${action}`));
+      .concat(`\n// ${actual}\nconst note = ${JSON.stringify(actual)};`)), new RegExp(action.replace(".", "\\.")));
   }
   assert.match(changed("mcp", text => text.replace("actions.invoke(MANAGEMENT_GOAL_ACTIONS.initialize,", "actions.invoke(typed,")), /invoke must name a Goals action/);
+  for (const [part, retired] of [["dispatcher", "goal-tree-decide"], ["mcp", "molis_work_v1_event_decide"], ["mcp", "molis_work_v1_goal_tree_decide"]]) {
+    assert.match(changed(part, add(`const retired = ${JSON.stringify(retired)};`)), /retired Goals decision reference/);
+  }
+  assert.match(changed("dispatcher", source => source.replace("actions.invoke(trustedReviewActions.decide,", "actions.invoke(GOALS.snapshot,")), /trustedReviewActions\.decide/);
+  assert.match(changed("mcp", source => source.replace("bound(actions, project_id);", "bound(actions, otherProject);")), /trustedReviewActions\.(read|decide)/);
+});
+
+test("APR-17 the same standalone port pins the original action client, project, evidence and cancellation", () => {
+  const source = read("apps/local-host/src/management-action-client.ts");
+  assert.deepEqual(checkStandaloneManagementPort(source), []);
+  for (const [from, to] of [
+    ["host.actionClient(project)", "otherHost.actionClient(project)"],
+    ["host.actionClient(project)", "host.actionClient(otherProject)"],
+    ["host.actionClient(project)", "host.actionClient(project, true)"],
+    ["host.actionClient(project)", "host.actionClient(project, false)"],
+    ["host.actionClient(project)", "host.client(project)"],
+    ["currentCallId() ?? newCallId(), signal)", "currentCallId() ?? newCallId(), undefined)"],
+    ['if (evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");', "void evidence;"],
+  ]) {
+    assert.ok(source.includes(from), from);
+    assert.match(checkStandaloneManagementPort(source.replace(from, to)).join("\n"), /standalone management/);
+  }
 });
 
 test("W3-07-4-01 / W3-07-4-02: the MCP Host gate preserves the bound pre-open and gives only management its project action port", () => {
-  const bind = "bindGoalsManagementActions(caller.localHost.actionClient(reference), reference, { signal: caller.resident?.signal })";
+  const bind = "bindStandaloneManagementActions(caller.localHost, reference, caller.resident?.signal)";
   const preopen = "await caller.localHost.client(reference).withScope(() => undefined);";
   const dispatch = "dispatchMcpProjectTool(actions, name, arguments_,";
   const source = transportSources().mcp.host;
   for (const actual of [bind, preopen, dispatch]) assert.ok(source.includes(actual), "mutation reaches the production call");
   for (const [mutation, edit] of [
-    ["wrong factory", text => text.replace("bindGoalsManagementActions(", "anotherFactory(")],
-    ["factory from elsewhere", text => text.replace('from "./goal-callers.js"', 'from "./elsewhere.js"')],
-    ["type-only factory", text => text.replace("import { bindGoalsManagementActions }", "import type { bindGoalsManagementActions }")],
-    ["explicit preparation", text => text.replace("actionClient(reference)", "actionClient(reference, true)")],
-    ["unprepared client", text => text.replace("actionClient(reference)", "actionClient(reference, false)")],
-    ["another Host", text => text.replace("caller.localHost.actionClient", "otherHost.actionClient")],
-    ["another client reference", text => text.replace("actionClient(reference)", "actionClient(otherReference)")],
+    ["wrong factory", text => text.replace("bindStandaloneManagementActions(", "anotherFactory(")],
+    ["factory from elsewhere", text => text.replace('from "./management-action-client.js"', 'from "./elsewhere.js"')],
+    ["type-only factory", text => text.replace("{ bindStandaloneManagementActions,", "{ type bindStandaloneManagementActions,")],
+    ["another Host", text => text.replace(bind, bind.replace("caller.localHost", "otherHost"))],
     ["another factory reference", text => text.replace(bind, bind.replace(", reference,", ", otherReference,"))],
     ["extra factory argument", text => text.replace(bind, `${bind.slice(0, -1)}, caller)`) ],
-    ["missing reference", text => text.replace(bind, "bindGoalsManagementActions(caller.localHost.actionClient(reference))")],
+    ["missing reference", text => text.replace(bind, "bindStandaloneManagementActions(caller.localHost)")],
+    ["missing fallback signal", text => text.replace(bind, bind.replace("caller.resident?.signal", "undefined"))],
     ["Runtime gets a port", text => text.replace('audience === "management"', 'audience === "runtime"')],
     ["every audience gets a port", text => text.replace('audience !== "management" ? null : ', "")],
     ["Runtime gets an object", text => text.replace('audience !== "management" ? null : ', 'audience !== "management" ? {} : ')],
@@ -215,19 +235,16 @@ test("the CLI boundary rule reads every way into the Goals package and into a Ho
   assert.match(changed("dispatcher", source => source.replace("GOALS.snapshot", "GOALS.list").concat('\n// GOALS.snapshot\nconst note = "GOALS.snapshot";')), /GOALS\.snapshot/);
 
   // The local fallback keeps its original reference and signal; the dispatcher receives the selected resident/local port.
-  const bind = "bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference), reference, { signal: options.signal })";
+  const bind = "bindStandaloneManagementActions(localHost ??= createMolisWorkLocalHost(), reference, options.signal)";
   const source = read("apps/local-host/src/cli-project.ts");
   assert.ok(source.includes(bind), "the real cli-project.ts holds the call these mutations edit");
   for (const [mutation, edit] of [
     ["another factory reference", source => source.replace(bind, bind.replace(", reference,", ", otherReference,"))],
     ["a copy of the factory reference", source => source.replace(bind, bind.replace(", reference,", ", { ...reference },"))],
     ["extra factory argument", source => source.replace(bind, `${bind.slice(0, -1)}, caller)`)],
-    ["missing factory reference", source => source.replace(bind, "bindGoalsManagementActions(localHost.actionClient(reference))")],
-    ["another client reference", source => source.replace("actionClient(reference)", "actionClient(otherReference)")],
-    ["explicit preparation", source => source.replace("actionClient(reference)", "actionClient(reference, true)")],
-    ["unprepared client", source => source.replace("actionClient(reference)", "actionClient(reference, false)")],
-    ["wrong factory import", source => source.replace('from "./goal-callers.js"', 'from "./elsewhere.js"')],
-    ["type-only factory import", source => source.replace('import { bindGoalsManagementActions }', 'import type { bindGoalsManagementActions }')],
+    ["missing factory reference", source => source.replace(bind, "bindStandaloneManagementActions(localHost)")],
+    ["wrong factory import", source => source.replace('from "./management-action-client.js"', 'from "./elsewhere.js"')],
+    ["type-only factory import", source => source.replace('{ bindStandaloneManagementActions,', '{ type bindStandaloneManagementActions,')],
     ["unused selected port", source => source.replace("dispatchCliProjectCommand(actions, args, input)", "dispatchCliProjectCommand(makeActions(), args, input)")],
     ["second typed route", source => source.replace("const actions =", "const extra = localHost.client(reference);\n  const actions =")],
     ["direct Goal Query port", source => `${source}\nconst query = runtime.goalQueries;`],
@@ -292,7 +309,7 @@ test("RAC-105-S-08: the CLI fallback requires ownership before Home init and ret
   const account = 'if(!allowLocalFallback&&homeDatabase)throw new ActionError("actions.service_unavailable","当前账号宿主尚未连接，不能回退匿名业务。");';
   const own = "if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home, preflightMemoryHome);";
   const initialize = 'if (operation === "init" && homeDatabase) prepareLocalProjectStorage(databasePath, "create");';
-  const bind = "bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference), reference, { signal: options.signal })";
+  const bind = "bindStandaloneManagementActions(localHost ??= createMolisWorkLocalHost(), reference, options.signal)";
   const guarded = `const fallback = () => {\n    ${account}\n    ${own}\n    ${initialize}\n    return ${bind};\n  };`;
   assert.ok(source.includes(guarded), "mutations edit the actual canonical fallback");
   for (const [mutation, edit] of [
@@ -314,8 +331,7 @@ test("RAC-105-S-08: the CLI fallback requires ownership before Home init and ret
     ["extra directory creation", text => `${text}\nprepareLocalProjectStorage(databasePath, "create");`],
     ["extra business statement", text => text.replace(`return ${bind};`, `writeBusinessData();\n    return ${bind};`)],
     ["early return", text => text.replace(`return ${bind};`, `return otherPort;\n    return ${bind};`)],
-    ["lost original signal", text => text.replace("{ signal: options.signal }", "{ signal: otherSignal }")],
-    ["explicit client preparation", text => text.replace("actionClient(reference)", "actionClient(reference, true)")],
+    ["lost original signal", text => text.replace(bind, bind.replace("options.signal", "otherSignal"))],
     ["extra client path", text => text.replace(`return ${bind};`, `localHost.client(reference);\n    return ${bind};`)],
   ]) {
     assert.notEqual(edit(source), source, mutation);

@@ -1,7 +1,7 @@
 import { openAccountManagement } from "./account-management.js";
 import { openAccountTenants } from "./account-tenants.js";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
-import type { AccountView } from "@molis-ai/molis-work-contracts/services/account";
+import type { AccountView, LoginCapabilities } from "@molis-ai/molis-work-contracts/services/account";
 
 const uiText = globalThis.t;
 interface AuthReply { verificationId: string; handle: string; nextStep: string; challengeHandle: string; retryAfterSeconds: number; account?: AccountView; remoteRevocation?: string; status?: string; browserStartUrl?: string }
@@ -31,6 +31,7 @@ interface AuthReply { verificationId: string; handle: string; nextStep: string; 
     dialog.append(head,close,modes,form,message,social,help); document.body.append(dialog); dialog.showModal();
     let mode = 'login', transaction: AuthReply | null = null, challenge: string | null = null, address = '', busy = false, generation = 0, retryAt = 0, timer: ReturnType<typeof setInterval> | undefined;
     let disposeManagement: (() => void) | undefined;
+    let methods: LoginCapabilities["methods"] | null = null;
     let providerTimer: ReturnType<typeof setTimeout> | undefined, providerWindow: Window | null = null;
     const buttons: [HTMLButtonElement, string][] = [];
     const cancel = () => { clearTimeout(providerTimer); providerWindow?.close(); providerWindow=null; const old = transaction; transaction = null; challenge = null; generation++; if(old) void request('/auth/transactions/'+old.handle+'/cancel',{}).catch(() => { /* Local page is already closed; Host expiry also fences abandoned attempts. */ }); };
@@ -38,6 +39,7 @@ interface AuthReply { verificationId: string; handle: string; nextStep: string; 
     const button = (text: string, action: () => void | Promise<void>, parent: HTMLElement = form) => { const b=node('button',readText(text),'mw-btn mw-btn--secondary'); b.type='button'; b.onclick=action;parent.append(b);return b; };
     function draw() {
       clearInterval(timer);form.replaceChildren();
+      if (!methods) return;
       buttons.forEach(([b,m])=>{b.disabled=busy;b.setAttribute('aria-pressed',String(m===mode));});
       if(mode==='provider') { form.append(node('p',readText("workbench.account.complete-authorization-browser-view-updates-automatically"))); button("workbench.account.cancel-sign",()=>{cancel();mode='login';draw();});return; }
       if(challenge) { form.append(node('p',readText(mode==='reset'?'workbench.account.reset-recipient':'workbench.account.code-recipient',{address:mode==='phone'?address.replace(/^(\+86)(\d{3})\d{4}(\d{4})$/, '$1 $2****$3'):address}),'mw-muted')); field("workbench.account.six-digit-code",'code','text','one-time-code'); const resend=button("workbench.account.resend-code",()=>perform(async()=>{if(mode==='phone'||mode==='signup'){await sendCode(generation);}else{await request('/auth/transactions/'+transaction!.handle+'/resend',{});retryAt=Date.now()+60000;}})); resend.dataset.resend=''; const tick=()=>{resend.disabled=busy||Date.now()<retryAt;resend.textContent=readText("workbench.account.resend-code")+(Date.now()<retryAt?' ('+Math.ceil((retryAt-Date.now())/1000)+')':'');};timer=setInterval(tick,1000);tick(); }
@@ -49,7 +51,7 @@ interface AuthReply { verificationId: string; handle: string; nextStep: string; 
         const policy=node('a',readText('workbench.account.privacy-policy'));policy.href='https://molis.ai/privacy';policy.target='_blank';policy.rel='noopener noreferrer';
         consent.append(check,document.createTextNode(readText('workbench.account.privacy-consent')),policy);form.append(consent);
       }
-      if(mode==='login')button('workbench.account.recover-password',()=>switchMode('reset')).className='mw-btn mw-btn--link account-back';
+      if(mode==='login'&&methods.includes('EMAIL_CODE'))button('workbench.account.recover-password',()=>switchMode('reset')).className='mw-btn mw-btn--link account-back';
       else if(challenge||mode==='reset'||mode==='reset-ready')button('workbench.account.back-to-login',()=>switchMode('login')).className='mw-btn mw-btn--link account-back';
       const submit=node('button',readText(challenge?"workbench.account.verify-continue":mode==='reset-ready'?"workbench.account.reset-password":mode==='login'?"workbench.account.sign":"workbench.account.send-code"),'mw-btn mw-btn--primary');submit.type='submit';submit.disabled=busy;form.append(submit);
 
@@ -132,11 +134,11 @@ interface AuthReply { verificationId: string; handle: string; nextStep: string; 
     });};
     function switchMode(next: string) { cancel(); mode=next; address='';retryAt=0;message.textContent='';draw(); }
     for (const [next, key] of [['login','workbench.account.sign-in-with-email'],['signup','workbench.account.sign-up-with-email'],['phone','workbench.account.sign-in-with-phone-code']]) {
-      const modeButton=button(key!,()=>switchMode(next!),modes);modeButton.className='mw-toggle';buttons.push([modeButton,next!]);
+      const modeButton=button(key!,()=>switchMode(next!),modes);modeButton.className='mw-toggle';buttons.push([modeButton,next!]);modeButton.hidden=true;
     }
-    for(const [provider,key] of [['GOOGLE','workbench.account.sign-in-with-google'],['GITHUB','workbench.account.sign-in-with-github']])button(key!,()=>startProvider(provider!),social);
+    for(const [provider,key] of [['GOOGLE','workbench.account.sign-in-with-google'],['GITHUB','workbench.account.sign-in-with-github']]){const b=button(key!,()=>startProvider(provider!),social);b.dataset.method=provider;b.hidden=true;}
     dialog.addEventListener('close',()=>{disposeManagement?.();cancel();clearInterval(timer);form.reset();dialog.remove();opened=null;(trigger.closest('details:not([open])')?.querySelector<HTMLElement>(':scope > summary') || trigger).focus();});
-    draw();void perform(async()=>{const account=await request<AccountView>('/session');if(!dialog.open)return;if(account.state==='AUTHENTICATED'||account.state==='OFFLINE_CACHED'){showAccount(account);if(!loginNonce&&account.state==='AUTHENTICATED'&&document.visibilityState==='visible')await request('/activity',{eventId:crypto.randomUUID(),kind:'OPEN'});}else if(account.state==='EXPIRED')message.textContent=readText('workbench.account.session-expired-please-sign-again');});
+    draw();void perform(async()=>{const account=await request<AccountView>('/session');if(!dialog.open)return;if(account.state==='AUTHENTICATED'||account.state==='OFFLINE_CACHED'){showAccount(account);if(!loginNonce&&account.state==='AUTHENTICATED'&&document.visibilityState==='visible')await request('/activity',{eventId:crypto.randomUUID(),kind:'OPEN'});}else {methods=(await request<LoginCapabilities>('/auth/capabilities')).methods;if(!dialog.open)return;buttons.forEach(([b,m])=>b.hidden=!(methods as readonly string[]).includes(({login:'ACCOUNT_PASSWORD',signup:'EMAIL_CODE',phone:'PHONE_OTP'} as Record<string,string>)[m]!));social.querySelectorAll<HTMLElement>('[data-method]').forEach(b=>b.hidden=!(methods as readonly string[]).includes(b.dataset.method!));draw();if(account.state==='EXPIRED')message.textContent=readText('workbench.account.session-expired-please-sign-again');}});
   });
   if(loginNonce)document.querySelector<HTMLElement>('[data-unified-account-link]')?.click();
 })();

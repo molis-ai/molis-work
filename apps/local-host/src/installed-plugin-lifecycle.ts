@@ -171,6 +171,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     assertCurrent();
     const { install } = platform.runtime.install({ ...entry, deployment: 'local', ...(grants.discardKeptData === true ? { discard_kept_data: true } : {}) });
     let startedGeneration: number | undefined;
+    const activationChanged = () => platform.supervisor.generation(pluginId) !== startedGeneration;
     try {
       if (before && grants.discardKeptData === true) c.privateStorage.deleteInstallationData(install.install_id);
       for (const secret of secrets) c.secrets.save(pluginId, secret);
@@ -186,17 +187,21 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       await finishInstalledPackage(grants, () => {
         assertCurrent();
         const current = c.recordFor(pluginId);
-        if (current?.state !== 'running' || !sameInstalledRelease(install, current) || platform.supervisor.generation(pluginId) !== startedGeneration) {
+        const changed = activationChanged();
+        // Settings may stop the same installed release. A dependent owner's write still needs the original activation.
+        const keptDisabled = changed && current?.state === 'disabled';
+        if (!current || !sameInstalledRelease(install, current) || (current.state !== 'running' && !keptDisabled) || (changed && grants.complete)) {
           throw new ActionError('actions.provider_replaced', '原插件安装或启用状态已变化，请重新查看');
         }
         if (!c.trusted(current)) throw pluginErrors.publisher_revoked('插件发布者已经被撤销');
       }, () => {
+        if (activationChanged()) return;
         c.registerPrompts(release, 'enabled');
         c.recoveryErrors.delete(pluginId);
       });
     } catch (error) {
       // A separate stop or enable can run during exposure. Leave that later activation choice standing.
-      if (startedGeneration !== undefined && platform.supervisor.generation(pluginId) !== startedGeneration) throw error;
+      if (startedGeneration !== undefined && activationChanged()) throw error;
       const unfinished: unknown[] = [];
       let ours = true;
       try { ours = await uninstall(release, install, kept, { earlier }); } catch (failure) { unfinished.push(failure); }

@@ -119,25 +119,15 @@ test("IUI-21 IUI-26: Tab and Enter reach one peek, menu Escape restores focus, a
     await setViewport(width, 900);
     await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog?lang=en&keyboard-width=${width}${selector}` }, sessionId));
     await waitFor(`document.readyState === "complete" && !!document.querySelector("${selector}")`, 15_000);
-    // Start at the non-focusable section heading, then enter through a genuine Tab.
-    // Other specimens on the board still settle their own scrolling just after load, which can move the catalog under a
-    // point measured too early; click only once the heading has held the same place for a few frames.
-    const { x, y, hit } = await evaluate<{ x: number; y: number; hit: string }>(`(async () => {
-      const header = document.querySelector("${selector} h2"), frame = () => new Promise(done => requestAnimationFrame(() => done()));
-      let last = NaN, still = 0;
-      for (let round = 0; round < 60 && still < 3; round++) {
-        if (round === 0 || still === 0) header.scrollIntoView({ block: "center", behavior: "instant" });
-        await frame();
-        const top = header.getBoundingClientRect().top; still = top === last ? still + 1 : 0; last = top;
-      }
-      const { left, top, height } = header.getBoundingClientRect(); const x = left + 4, y = top + height / 2; return { x, y, hit: document.elementFromPoint(x, y)?.outerHTML.slice(0, 200) };
+    // Establish the keyboard origin explicitly; clicking a non-focusable heading does not reliably reset it.
+    await evaluate(`(() => {
+      const header = document.querySelector("${selector} h2"); header.scrollIntoView({ block: "center", behavior: "instant" });
+      header.tabIndex = -1; header.focus({ preventScroll: true });
     })()`);
-    assert.match(hit, /^<h2>/, `the click starts on the section heading at ${width}`);
-    await command("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, x, y }, sessionId);
-    await command("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, x, y }, sessionId);
+    assert.equal(await active(`${selector} h2`), true, "the heading owns the starting focus");
     await key("Tab");
     const focus = await evaluate<string>("document.activeElement.outerHTML.slice(0, 200)");
-    assert.equal(await active("[data-presentation-peek]"), true, `Tab enters the name chip at ${width} after ${hit}; focus ${focus}`);
+    assert.equal(await active("[data-presentation-peek]"), true, `Tab enters the name chip at ${width} from the heading; focus ${focus}`);
     if (width === 1024) await waitFor('document.querySelector("#presentation-popover:popover-open") !== null', 3000);
     await key("Enter");
     const layer = width === 390 ? "#presentation-sheet[open]" : "#presentation-popover:popover-open";

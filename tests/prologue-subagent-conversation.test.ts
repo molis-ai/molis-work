@@ -225,3 +225,45 @@ for (const parked of [false, true]) test(`child original question answers once${
     assert.equal(childCalls, 2); assert.equal(parentCalls, beforeParent);
   } finally { await f.close(); }
 });
+
+// SAI-09: stopping one exact child Run must not abort its sibling's model or input queue.
+test("stopping one SDK child leaves its sibling running and able to consume personal input", { timeout: 60_000 }, async () => {
+  const releaseA=Promise.withResolvers<void>(),releaseB=Promise.withResolvers<void>();
+  let parentCalls=0,aCalls=0,bCalls=0;
+  const supplement="SAI_SIBLING_B_PERSON_INPUT";
+  const f=await fixture(async body=>{
+    const first=userTexts(body)[0]??"";
+    if(first.startsWith("SAI_SIBLING_A")){aCalls++;await releaseA.promise;return reply(undefined,"A late result");}
+    if(first.startsWith("SAI_SIBLING_B")){
+      if(++bCalls===1){await releaseB.promise;return reply({name:"context-remaining",input:{}});}
+      assert.ok(userTexts(body).some(text=>text.includes(supplement)));return reply(undefined,"B finished with its own supplement");
+    }
+    if(++parentCalls<=2){
+      const character=JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@\d+/u)?.[0];assert.ok(character);
+      const child=parentCalls===1?"A":"B";
+      return reply({name:"dispatch-subagent",input:{instruction:`SAI_SIBLING_${child}: independently read.`,tools:[],character,idempotencyKey:`sibling-${child}`,background:true}});
+    }
+    return reply(undefined,"Parent finished its original turn.");
+  });
+  try{
+    const manifest=structuredClone(codingAgentManifest);manifest.subagents!.roles=manifest.subagents!.roles.filter(one=>one.role_id==="coding-reader");
+    const directory={canonical_path:f.root,realpath_verified:true};
+    const session=await f.adapter.createSession({...owner,title:"Independent siblings",directory});
+    const parent=await f.host.start("prologue",{...owner,session,directory,role_id:"coordinator",task:"Dispatch A and B."},{manifest,prompts:codingPrompts,authorizedDirectories:[f.root]});
+    await f.until(()=>aCalls===1&&bCalls===1);
+    const children=await f.adapter.subagents!.list(parent.ref);assert.equal(children.length,2);
+    const a=children.find(one=>one.task.startsWith("SAI_SIBLING_A"))!,b=children.find(one=>one.task.startsWith("SAI_SIBLING_B"))!;
+    assert.ok(a?.child_run);assert.ok(b?.child_run);
+    const port=f.adapter.subagents!,control={actor_id:owner.actor_id,execution:{}};
+    assert.equal((await port.command!(parent.ref,a.subagent_id,{kind:"stop",child_run:a.child_run,request_id:"stop-only-A"},control)).state,"applied");
+    assert.equal((await port.list(parent.ref)).find(one=>one.subagent_id===b.subagent_id)?.state,"running");
+    assert.equal((await port.command!(parent.ref,b.subagent_id,{kind:"send",child_run:b.child_run,text:supplement,request_id:"send-only-B"},{...control,original_text:supplement})).state,"applied");
+    releaseB.resolve();releaseA.resolve();
+    await f.until(async()=>(await port.list(parent.ref)).find(one=>one.subagent_id===b.subagent_id)?.state==="completed");
+    const final=await port.list(parent.ref);
+    assert.equal(final.find(one=>one.subagent_id===a.subagent_id)?.state,"cancelled");
+    const original=await port.conversation!(parent.ref,b.subagent_id);
+    assert.equal(original.messages.filter(one=>one.text===supplement).length,1);
+    assert.equal(bCalls,2);assert.equal(aCalls,1);assert.equal(parentCalls,3);
+  }finally{releaseA.resolve();releaseB.resolve();await f.close();}
+});

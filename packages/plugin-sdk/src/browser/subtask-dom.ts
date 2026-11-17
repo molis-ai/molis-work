@@ -61,7 +61,7 @@ function keyed<T extends { readonly id: string }>(root: HTMLElement, rows: reado
   for (const node of existing.values()) node.remove();
 }
 
-interface Place { readonly top: number; readonly following: boolean; readonly unread: boolean; readonly expanded: Map<string, boolean> }
+interface Place { readonly outerTop: number; readonly top: number; readonly following: boolean; readonly unread: boolean; readonly expanded: Map<string, boolean> }
 export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversationLabels, mount?: (root: HTMLElement, view: MwSubtaskConversationView, detail: MwSubtaskDetail) => ReturnType<NonNullable<SubtaskConversationOptions["mountDetail"]>>) {
   const mounts = new Map<HTMLElement, { key: string; handle: NonNullable<ReturnType<NonNullable<SubtaskConversationOptions["mountDetail"]>>> }>();
   const release = (body: HTMLElement) => { const mounted = mounts.get(body); mounts.delete(body); mounted?.handle.destroy(); body.removeAttribute("data-subtask-owner-mounted"); body.replaceChildren(); };
@@ -69,9 +69,10 @@ export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversatio
   root.innerHTML = renderSubtaskConversation({ labels: labels() });
   const find = (name: string) => root.querySelector<HTMLElement>(`[data-subtask-${name}]`)!;
   const thread = find("thread"), messages = find("messages"), details = find("details"), latest = find("latest");
-  const places = new Map<string, Place>();
+  const places = new Map<string, Place>(), surface = root.querySelector<HTMLElement>(".mw-subtask")!;
+  let restoreOuter: number | undefined;
   let target: string | undefined, expanded = new Map<string, boolean>(), follower: ScrollFollower | undefined, first = true;
-  const remember = () => { if (target && !first && !root.hidden) places.set(target, { top: thread.scrollTop, following: follower?.state !== "detached", unread: !latest.hidden, expanded }); };
+  const remember = () => { if (target && !first && !root.hidden) places.set(target, { outerTop: restoreOuter ?? surface.scrollTop, top: thread.scrollTop, following: follower?.state !== "detached", unread: !latest.hidden, expanded }); };
   function show(next: string) {
     remember(); follower?.dispose();
     first = true;
@@ -112,6 +113,7 @@ export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversatio
     const latestLabel = find("follow").querySelector('[data-slot="button-label"]'); if (latestLabel) latestLabel.textContent = words.latest;
     if (first) {
       const place = places.get(view.target);
+      restoreOuter = place?.outerTop ?? 0;
       if (place && !place.following) follower?.restore(place.top); else { follower?.resume(); thread.scrollTop = thread.scrollHeight; follower?.pin(); }
       first = false;
     } else if (following) follower?.pin();
@@ -127,8 +129,10 @@ export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversatio
   details.addEventListener("toggle", toggled, true);
   return {
     releaseDetails: releaseAll, holdDetails: (held: boolean) => { for (const body of mounts.keys()) body.inert = held; },
-    find, draw, show, composer: find("composer"),
-    forget() { if (target) places.delete(target); expanded.clear(); first = true; follower?.resume(); clear(); },
+    find, draw, show,
+    laidOut() { if (restoreOuter !== undefined) { surface.scrollTop = restoreOuter; restoreOuter = undefined; } },
+    composer: find("composer"),
+    forget() { if (target) places.delete(target); restoreOuter = undefined; expanded.clear(); first = true; follower?.resume(); clear(); },
     idle() { patch(find("head"), subtaskHeader(undefined, labels())); },
     latest() { latest.hidden = true; follower?.toLatest(); },
     hide() { remember(); first = true; follower?.dispose(); follower = undefined; root.hidden = true; },

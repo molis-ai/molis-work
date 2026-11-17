@@ -294,7 +294,7 @@ test("the person takes a sub-task back: it stops, the board says so, no more fol
 });
 
 /** A delegating work and a runtime whose model can be held or switched off; the parent's model script is the caller's. */
-async function delegationFixture(t: import("node:test").TestContext, parentScript: Array<() => Response>, child: (round: number, signal: AbortSignal | null | undefined) => Promise<Response>, isChild?: (body: { messages: Array<{ role: string; content?: unknown }> }) => boolean) {
+async function delegationFixture(t: import("node:test").TestContext, parentScript: Array<() => Response | Promise<Response>>, child: (round: number, signal: AbortSignal | null | undefined) => Promise<Response>, isChild?: (body: { messages: Array<{ role: string; content?: unknown }> }) => boolean) {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-fixture-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = { project_id: "board", storage_key: "memory:project" };
@@ -919,4 +919,52 @@ for (const archived of [false, true]) test(`SAI-06/08/09: Assistant SDK child re
     if (archived) { await assert.rejects(pending, { code: "assistant.stale" }); assert.equal(accepted, 0); assert.equal(f.queue.receipt(reviewId)!.status, "pending"); }
     else { assert.equal((await pending).status, "approved"); assert.equal(accepted, 1); }
   } finally { childHeld.resolve(); releaseDecision.resolve(); await f.close(); }
+});
+
+// SAI-07/09: real parent turn boundaries consume child input/report without an extra parent Run.
+for (const waiting of [false, true]) test(`SAI-07: ${waiting ? "waiting" : "running"} parent receives the original child supplement and result once`, { timeout: 60_000 }, async t => {
+  const parentAtBoundary = Promise.withResolvers<void>(), releaseParent = Promise.withResolvers<void>();
+  const childStarted = Promise.withResolvers<void>(), releaseChild = Promise.withResolvers<void>();
+  const f = await delegationFixture(t, [
+    () => reply({ name: "delegate-work", input: { title: "Child report", brief: "SAI_LIVE_CHILD", acceptance: "one result" } }),
+    async () => {
+      parentAtBoundary.resolve();
+      if (waiting) return reply({ name: "check-delegated-work", input: { wait_seconds: 20 } });
+      await releaseParent.promise;
+      return reply({ name: "check-delegated-work", input: { wait_seconds: 0 } });
+    },
+    () => reply(undefined, "Parent consumed its child's update."),
+  ], async round => {
+    if (round === 0) { childStarted.resolve(); await releaseChild.promise; return reply({ name: "context-remaining", input: {} }); }
+    return reply(undefined, "SAI_RESULT_AFTER_ORIGINAL_SUPPLEMENT");
+  });
+  const waitEntered = Promise.withResolvers<void>(), delegation = f.service.delegation.bind(f.service);
+  t.mock.method(f.service, "delegation", (...args: Parameters<typeof delegation>) => {
+    const original = delegation(...args);
+    return original && { ...original, status: (...input: Parameters<typeof original.status>) => { waitEntered.resolve(); return original.status(...input); } };
+  });
+  try {
+    const sent = await f.service.send({ text: "Dispatch the child", request_id: `sai-active-parent-${waiting}` }, { project_ref: f.project });
+    await Promise.all([parentAtBoundary.promise, childStarted.promise]);
+    if (waiting) await waitEntered.promise;
+    const child = f.store.delegatedBy("web-user", f.store.get("web-user", sent.work.work_id))[0]!;
+    const binding = (await f.service.readSubtask(child.work_id)).binding!;
+    const text = "SAI_DIRECT_PERSON_SUPPLEMENT", request_id = `sai-live-input-${waiting}`;
+    const caller = { project_ref: f.project, original_input: { input_id: request_id, text, written_by: "person" as const, occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID } };
+    await f.service.send({ work_id: child.work_id, text, request_id, subtask: { binding, operation: "send" } }, caller);
+    await f.service.subtaskReports.idle();
+    const input = await f.adapter.inputs.findByKey!(binding.run.session_id, `send.${request_id}`); assert.ok(input);
+    await f.service.subtaskReports.kick(child.work_id); await f.service.subtaskReports.idle();
+    releaseChild.resolve();
+    await until(async () => (await f.service.read(child.work_id)).work.state === "completed", "original child completed");
+    releaseParent.resolve();
+    const parent = await until(async () => { const view=await f.service.read(sent.work.work_id);return view.work.state === "completed" ? view : undefined; }, "original parent completed");
+    assert.equal(parent.rounds.length,1,"the running or waiting parent continues its original Run");
+    const last = f.parentBodies.at(-1)!;
+    assert.ok(last.includes(input.ref.input_id),"the parent receives the exact original child input reference");
+    assert.equal(last.split("用户向子任务补充了要求").length-1,1,"reconciliation delivers one parent notification");
+    assert.match(last,/SAI_RESULT_AFTER_ORIGINAL_SUPPLEMENT/u);
+    const original = await f.adapter.read(binding.run);
+    assert.equal(original.turns.filter(turn=>turn.kind === "user" && turn.text.includes(text)).length,1);
+  } finally { releaseParent.resolve(); releaseChild.resolve(); await f.close(); }
 });

@@ -16,7 +16,7 @@ export function createSubtaskConversation(root: HTMLElement, options: SubtaskCon
   let target: string | undefined, view: MwSubtaskConversationView | undefined, readFailed = false, dead = false;
   let backFocus: { parent: string; child: string; from: HTMLElement } | undefined;
   const changed = (key: string) => { if (target === key && !dead) { paint(); void reader.refresh(); } };
-  const composer = subtaskComposer(dom.composer, options.source, changed);
+  const composer = subtaskComposer(dom.composer, options.source, changed, dom.laidOut);
   const actions = subtaskActions(options.source, changed, composer.reload);
   const reader = subtaskReader(options.source, accept, () => { readFailed = true; paint(); });
   function feedback(message: string, control?: "retry" | "check", label?: string) {
@@ -34,7 +34,7 @@ export function createSubtaskConversation(root: HTMLElement, options: SubtaskCon
     dom.draw({ ...view, actions: view.actions?.map(blocked), details: view.details?.map(detail => ({ ...detail, actions: detail.actions?.map(blocked) })) });
     dom.holdDetails(Boolean(hold));
     dom.composer.hidden = false;
-    if (!composer.show(view, view.inputUnavailable ?? hold ?? null)) { dom.composer.hidden = true; feedback(labels.readFailed, "retry"); return; }
+    if (!composer.show(view, view.inputUnavailable ?? hold ?? null)) { dom.composer.hidden = true; feedback(labels.readFailed, "retry"); dom.laidOut(); return; }
     if (operation?.state === "working") feedback(labels.working);
     else if (operation?.state === "unknown") feedback(operation.recovered?.message ?? labels.unknown, "check", operation.recovered?.check.label);
     else if (readFailed) feedback(labels.readFailed, "retry");
@@ -48,13 +48,13 @@ export function createSubtaskConversation(root: HTMLElement, options: SubtaskCon
       dom.forget(); dom.idle(); feedback(result.reason, "retry");
     } else { view = result.view; paint(); }
   }
-  function close() { reader.stop(); composer.close(); dom.releaseDetails(); dom.hide(); target = undefined; }
+  function close() { reader.stop(); dom.hide(); composer.close(); dom.releaseDetails(); target = undefined; }
   async function open(next: string) {
     if (dead) return;
     const returning = backFocus?.parent === next ? backFocus : undefined;
-    reader.stop(); composer.close();
+    reader.stop();
     if (view?.target !== next) view = undefined;
-    target = next; readFailed = false; dom.show(next); dom.composer.hidden = !view;
+    target = next; readFailed = false; dom.show(next); composer.close(); dom.composer.hidden = !view;
     if (!view) dom.idle(); paint();
     const opening = reader.open(next), life = reader.signal(); await opening;
     const active = root.ownerDocument.activeElement;

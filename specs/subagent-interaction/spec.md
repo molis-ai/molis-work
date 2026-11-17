@@ -548,3 +548,11 @@ Native 审批挂载候选复用原 Work mount/retitle 与 Agent review factory�
 结果提示沿既有通知 owner：Work 在原回报投递成功且归属复查后落同键 result notice；SDK 在已有全局通知读取中扫描原 Session/child 终态，以原父/子 Run 稳定键入同一 notice 表。扫描不受页面最近 50 项限制，不新建逐子任务轮询、订阅器或消息账。通知时间表示首次观察并创建通知的时刻，不伪造 SDK 未提供的结束时间；首次发现的未读结果可提示一次，已读/略过记录跨重启继续去重，既有通知 TTL 按通知创建时间计算。所有通知只读原执行，不派出或重启父任务。
 
 真实 Provider 的 Coding 三入口及子上下文接续 1/1 已过（`/tmp/molis-b59-coding-real-provider-2.log`）；第一次验收指令自行拼写了未登记角色，模型拒绝派发，已按系统登记角色引用修正验收指令，不改产品提示词或权限。Work result notice/已读后重启及原回报回归 25/25、Work→Coding 原问卷含丢回执后 Host 重开与两个请求竞争同一停放答案 2/2 已过（`/tmp/molis-b59-result-and-parked.log`）。随后四条实际 Home/项目 Work/SDK 入口闭窗提示 4/4、SDK 超过 50 项的旧父/两次尝试/持久已读/归档交错 1/1、父旧成果结算 6/6 已过（`/tmp/molis-b59-sdk-result-tests.log`）。当前与历史尝试均按原 Run 去重，并发通知读取合并一次扫描；原父成果被改过不自动消费子进展通知。只读 scoped 复核无剩余 Blocker/P1，整仓构建与 health 通过，最终全 PR 与 C/D 合审仍未完成。
+
+实际浮窗原问卷：Work 路径已验证普通补充不回答原问卷、表单答案与补充均进入同一 Run；SDK 路径在 800×600 的短窗口发现原浮窗高度 243px 时固定头部与输入区挤空正文，滚动区域只剩 32px padding，鼠标提交被 context 遮住。保持已定浮窗几何、主输入位置与控件尺寸，正文保留可容纳完整触控目标的最小可读高度；容器不足时允许既有浮窗整体滚动，使头部、反馈、原问卷与输入均可到达，不以缩小按钮或隐藏内容换取适配。此修正须通过短窗真实鼠标回归、常规高度回归与最终 D 轨审阅。干净离线 contracts/plugin-sdk 安装后的本批 source 导入、原请求未知后查询、CAS 新草稿保留及原问题引用验证已过（`/tmp/molis-b59-original-question-consumer.log` 的 plugin-sample 1/1）。
+
+短窗增量最终局部验证（2026-11-17）：保留头部和输入控件尺寸，正文 `min-height:96px`、外层不足时滚动。外层位置加入同一 `Place`，切换/关闭先记位置再销毁输入；沿原 composer 的 ready/loaded 等异步长草稿布局完成，仅当前挂载恢复一次，不新增 observer。延迟 12 行草稿、外层到底、兄弟切换与关闭重开均有断言；公共组件 16/16 通过（`/tmp/molis-b59-scroll-regression.log`），独立只读复核关闭该 P1。旧原生 wheel 用例的 scrollend 可能先于目标位移，现等待实际 scrollTop 减小再保留原断言；没有减少验收。
+
+原浮窗到原 owner 的联合验证：Work/SDK 问卷 2/2、审批 POST 被保留后收回原 Work，再提交原版本审批被拒且 Todo 零写入 1/1 通过。审批测试初次漏拦截是 URL 编码匹配错误，修正测试后走真实浏览器请求和 Host 拒绝。运行中/等待中的父 Work 获得原输入引用及子结果一次，父仍同一 Run；委派套件 27/27 通过（`/tmp/molis-b59-parent-siblings.log` 第一文件）。原 SDK 并行子任务 A 停止、B 仍运行并消费本人补充通过；`prologue-subagent-conversation` 当前 4/5，唯一失败仍为 §12.10 正常停机后的 `ROOT_NOT_FOUND`（`/tmp/molis-b59-recovery-final.log`）。不能称全绿或全批完成。
+
+真实产品实操：隔离 Home 启动 dev Auth（8787）及本批已构建 Work（4207），测试账号登录后实际 MiniMax 派发 SDK child；从原路径打开右侧浮窗，39+7 得 46，同一上下文追问减 5 得 41，主输入草稿保留，父 Run 仍一轮。日志 `/tmp/molis-b59-dev-subtask-5.log`，实物图 `.impeccable/qa/review/b59-dev-sdk-before.png`、`b59-dev-sdk-after.png`；不是用户本人验收。最新资源候选共享懒包 95,579 B、Coding 392,680 B（gzip 34,383/131,526 B），最终许可仍须对最新 main 独立基线复量。全批必跑、视觉对照、C/D 最终头合审、CI Full、收尾和合入均继续保留。

@@ -312,7 +312,7 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 - **第 42 批：Skill 草稿、已知答案回放、版本恢复与通用技能定制**（2026-11-16，[设计稿](../../specs/skill-packs/authoring-path-design.md)；阶段一在原版本改，没有读取兼容）：
   - **新增动作**（`system.skills`）：`skills.drafts.{list,read,create,update,revise,discard}@1`、`skills.cases.{put,remove}@1`、`skills.trials.run@1`、`skills.versions.list@1`、`skills.lineage.dismiss@1`；采用 `skills.drafts.adopt@1` 登记在 `plugin-install`。受众：`drafts.create`、`drafts.discard`、`trials.run` 给本人与助理（权限 `skills:draft`、`model:invoke`），其余只给本人；都不成为 MCP 工具。
   - **删除动作**：`skills.authored.save@1`，由采用草稿取代（技能内容只经采用改变）；`skills.authored.read/remove/draft@1` 保留。调用 `skills.authored.save@1` 的调用方改为起草再采用。
-  - **目录形状**：`SkillCatalogEntry` 加 `draft`（开着的草稿）与 `based_on`（改的那份通用技能及其新版本），只给本人受众；`contracts/services/skill-placeholders` 新子路径导出 `SKILL_PLACEHOLDER_PATTERN`、`skillPlaceholders`（页面不必加载整份 `services/skills`）。
+  - **目录形状**：`SkillCatalogEntry` 加 `draft`（开着的草稿）与 `based_on`（改的那份通用技能及其新版本），只给本人受众；加 `recent_uses`（按入口的近期使用次数，三个入口都可缺，只给用过的）；`contracts/services/skill-placeholders` 新子路径导出 `skillPlaceholders`（页面不必加载整份 `services/skills`）。
   - **库**：`agent-definitions` 2→3（见上文建表一步）。动作与 API 快照随本批刷新。
 
 - **第 32 批结果回流：接续由运行时来问、插件会话由宿主通知、无对话来源的任务可报给助理**（2026-11-15，[事项线需求书](../../specs/work-line/spec.md) §12 当日三项用户决定，[合同设计](../../specs/work-line/contract-design.md) §9）：

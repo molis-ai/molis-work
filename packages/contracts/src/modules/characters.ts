@@ -210,7 +210,7 @@ export const characterRoleActions: {
   read: roleAction("characters.roles.read", /* @version action.characters.roles.read */ 1, "query", "批读角色与采用回执", "按角色引用或采用请求读取角色及回执",
     ["user"], { input: CHARACTER_ROLE_READ_INPUT_SCHEMA, output: CHARACTER_ROLE_READ_OUTPUT_SCHEMA }),
   list: roleAction("characters.roles.list", /* @version action.characters.roles.list */ 1, "query", "角色列表",
-    "一次读出我的角色（当前版本、几个项目在用）、本项目的角色（跟随或改过哪一节）、两层默认、新任务由谁来做，以及每个角色现在能不能选", READERS, CHARACTER_ROLE_SCHEMAS.list),
+    "一次读出我的角色（当前版本、几个项目在用）、本项目的角色（跟随或改过哪一节）、两层默认、新任务默认用哪个角色，以及每个角色现在能不能选", READERS, CHARACTER_ROLE_SCHEMAS.list),
   resolve: roleAction("characters.roles.resolve", /* @version action.characters.roles.resolve */ 1, "query", "新任务由哪个角色来做",
     "按「这一次 → 项目默认 → 我的默认 → 助理自己」得出新任务的角色和要存在任务上的稳定选择；这一次另选的角色不能用时拒绝并说原因，不换成别的", READERS, CHARACTER_ROLE_SCHEMAS.resolve),
   versions: roleAction("characters.versions.read", /* @version action.characters.versions.read */ 1, "query", "角色的版本", "读一个角色保存过的固定版本与各版内容，最新的在前", VERSION_READERS, CHARACTER_ROLE_SCHEMAS.versions),

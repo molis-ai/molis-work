@@ -7,6 +7,9 @@ export const CHARACTERS_STYLES = `
   .settings-content > .roles-page, .desktop-work-surface.roles-page { display: block; width: 100%; max-width: 760px; margin-inline: auto; }
   .desktop-work-surface.roles-page[hidden] { display: none; }
   .roles-page .settings-heading p, .roles-hint { text-wrap: pretty; }
+  /* The page's empty list is a stage empty state: centred, its actions too (order audit, VUX-46). */
+  .roles-page .mw-empty { justify-items: center; text-align: center; }
+  .roles-page .mw-empty__actions { justify-content: center; }
   .roles-hint { margin: 4px 0 12px; color: var(--muted); font-size: 13px; line-height: 1.6; }
   .roles-sec-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
   .roles-sec-head h2 { margin: 0 auto 0 0; }
@@ -26,7 +29,7 @@ export const CHARACTERS_STYLES = `
   .roles-row:focus:not(:focus-visible) { outline: none; }
   .roles-row.is-flash { animation: roles-flash var(--dur-reveal) var(--ease-standard); }
   @keyframes roles-flash { from { background: var(--accent-soft); } }
-  .roles-inset { margin: 8px 0 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface-soft); animation: roles-rise var(--dur-move) var(--ease-standard); }
+  .roles-inset { margin: 8px 0 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface-soft); animation: craft-drop var(--dur-move) var(--ease-standard); }
   .mw-alert .roles-inset { margin-bottom: 0; background: var(--paper); }
   .roles-inset__title { margin: 0 0 8px; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
   .roles-inset__title:focus { outline: none; }
@@ -40,7 +43,7 @@ export const CHARACTERS_STYLES = `
   .roles-diff h4 { margin: 0 0 6px; color: var(--muted); font-size: 12px; font-weight: var(--weight-control); }
   .roles-diff p { margin: 0; font-size: 13px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
   .roles-more { position: relative; display: inline-flex; }
-  .roles-more .mw-menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 20; min-width: 12rem; animation: roles-rise var(--dur-move) var(--ease-standard); }
+  .roles-more .mw-menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 20; min-width: 12rem; animation: craft-drop var(--dur-move) var(--ease-standard); }
   .roles-notice { position: sticky; bottom: 12px; z-index: 3; width: fit-content; max-width: 100%; margin: 12px auto 0; padding: 8px 14px; border-radius: 10px; background: var(--action); color: var(--action-ink); font-size: 12px; box-shadow: var(--shadow-soft, var(--shadow)); }
   .roles-notice:empty { display: none; }
   .roles-builtin-list { display: grid; gap: 2px; }
@@ -90,13 +93,12 @@ export const CHARACTERS_STYLES = `
   .roles-where { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .roles-where__k { color: var(--muted); font-size: 12px; }
   .roles-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
-  .roles-ask { display: grid; gap: 4px; width: 100%; animation: roles-rise var(--dur-move) var(--ease-standard); }
+  .roles-ask { display: grid; gap: 4px; width: 100%; animation: craft-rise var(--dur-move) var(--ease-standard); }
   .roles-ask__title { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--ink); font-size: 13px; font-weight: var(--weight-title); }
   .roles-ask__title:focus { outline: none; }
   .roles-ask__title:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 4px; }
   .roles-ask__title svg { flex: none; width: 16px; height: 16px; color: var(--amber); }
   .roles-ask__body { margin: 0 0 8px 24px; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
-  @keyframes roles-rise { from { opacity: 0; transform: translateY(-4px); } }
   @media (prefers-reduced-motion: reduce) { .roles-inset, .roles-more .mw-menu, .roles-ask, .roles-row.is-flash { animation: none; } }
   @media (max-width: 759px) { .roles-diff { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 599px) { .roles-btns { width: 100%; justify-content: flex-end; } }

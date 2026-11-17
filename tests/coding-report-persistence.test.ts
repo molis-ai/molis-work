@@ -84,15 +84,16 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
     assert.doesNotMatch(preview.body.html, /<script>|<img src=x/);
     assert.equal(preview.body.report.frozen.directory, undefined);
     assert.match(preview.body.report.body_markdown, /未使用 Character/);
-    run.frozen.character = { character_id: "profile", title: "旧角色 <script>bad()</script>", instructions: "原要求\n```\n不可变", host_tools: [],
-      source: { owner_actor_id: "web-user", draft_revision: 2 }, reference: { artifact_id: "original-character", version: 1 }, project_id: DEMO_PROJECT_ID,
-      content_digest: "sha256:original", published_at: "2026-09-21T00:00:00Z", producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "official-characters-binding" } };
+    // The role as the Host pinned it for the round: a member of this project at its own version, built on the original's.
+    run.frozen.character = { version: { kind: "project", member_id: "profile", member_version: 2, original: { kind: "personal", character_id: "profile", version: 1 } },
+      character_id: "profile", title: "旧角色 <script>bad()</script>", instructions: "原要求\n```\n不可变", host_tools: [],
+      project_id: DEMO_PROJECT_ID, owner_actor_id: "web-user", saved_at: "2026-09-21T00:00:00Z" };
     const saves = await Promise.all([request("app", "failed", "POST"), request("app", "failed", "POST")]);
     assert.equal(saves[0].status, 200); assert.deepEqual(saves[0], saves[1]);
     const saved = saves[0].body;
     assert.equal(saved.reference.version, 1);
     assert.deepEqual(saved.report.frozen.character, run.frozen.character);
-    assert.match(saved.report.body_markdown, /original-character/);assert.match(saved.report.body_markdown, /sha256:original/);
+    assert.match(saved.report.body_markdown, /本项目第 2 版 · 原件第 1 版/);assert.match(saved.report.body_markdown, /保存时间：2026-09-21T00:00:00Z/);
     assert.doesNotMatch(saved.html, /<script>/);
     run.frozen.character.instructions = "来源改变后的新要求";
 

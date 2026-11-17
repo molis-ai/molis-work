@@ -25,9 +25,10 @@ interface CharactersRead {
   readonly defaults: { readonly personal: DefaultRef; readonly project: DefaultRef };
 }
 
-/** Why a role cannot be picked, in the person's words; Characters gives the reason as a code. */
-const reasonText = (reason: string | undefined) => reason === "disabled" || reason === "original_disabled" || reason === "unsaved"
-  ? uiText.text(`coding.character.reason-${reason}`) : reason || uiText.text('coding.character.unavailable');
+/** Why a role cannot be picked, in the person's words; Characters gives the reason as a code (none: the row says it is unavailable). */
+const reasonText = (reason: string | undefined) => reason === "disabled" ? uiText.text('coding.character.reason-disabled')
+  : reason === "original_disabled" ? uiText.text('coding.character.reason-original_disabled')
+  : reason === "unsaved" ? uiText.text('coding.character.reason-unsaved') : reason;
 
 export interface CharacterPorts extends PagePorts {
   /** The Character each session's next round names, and the title it was picked under. */
@@ -45,7 +46,7 @@ export function characterChoice(ports: CharacterPorts) {
   const { lifetime, q, api, current, selections, titles, skillSelections, save, controls, status } = ports;
   const dialog = q<HTMLDialogElement>('[data-coding-character-dialog]'), list = q('[data-coding-character-list]'), error = q('[data-coding-character-error]'), submit = q<HTMLButtonElement>('[data-coding-character-save]');
   const closeButton = q<HTMLButtonElement>('[data-coding-character-close]');
-  const key = (ref: DefaultRef | undefined) => !ref || ref.kind === 'assistant' ? '' : ref.kind === 'personal' ? 'personal:' + ref.character_id : 'project:' + ref.member_id;
+  const key = (ref: DefaultRef | undefined) => !ref || ref.kind === 'assistant' ? '' : ref.kind + (ref.kind === 'personal' ? ref.character_id : ref.member_id);
   let ticket = 0, session = '', busy = false;
   let rows: CharacterRow[] = [], candidate: CharacterRef | null = null, selectedSkills: string[] = [];
   const close = () => { if (busy)
@@ -67,9 +68,9 @@ export function characterChoice(ports: CharacterPorts) {
       if (request !== ticket || current() !== id || !dialog.open)
         return;
       // Where each role stands for a new session: the project's default, else the person's (the same words as the Assistant's picker).
-      const tag = (ref: CharacterRef) => key(ref) === key(data.defaults.project) ? uiText.text('coding.character.project-default')
-        : !data.defaults.project && key(ref) === key(data.defaults.personal) ? uiText.text('coding.character.my-default') : '';
-      rows = data.characters.map(item => ({ ...item, title: item.title + (item.ref && tag(item.ref) ? ' · ' + tag(item.ref) : ''),
+      const tag = (ref: CharacterRef) => key(ref) === key(data.defaults.project) ? ' · ' + uiText.text('coding.character.project-default')
+        : !data.defaults.project && key(ref) === key(data.defaults.personal) ? ' · ' + uiText.text('coding.character.my-default') : '';
+      rows = data.characters.map(item => ({ ...item, title: item.title + (item.ref ? tag(item.ref) : ''),
         available: item.available && data.limits_verified, reason: data.limits_verified ? reasonText(item.reason) : uiText.text('coding.character.runtime') }));
       if (candidate && !rows.some(item => key(item.ref) === key(candidate)))
         rows.unshift({ ref: candidate, title: titles.get(id) || uiText.text('coding.character.gone-title'), available: false, reason: uiText.text('coding.character.gone') });
@@ -92,20 +93,15 @@ export function characterChoice(ports: CharacterPorts) {
         row.append(label);
         lifetime.listen(radio, 'change', () => { if (busy)
           return; candidate = structuredClone(item.ref); selectedSkills = []; list.querySelectorAll<HTMLInputElement>('[data-character-skill]').forEach(input => { input.checked = false; input.disabled = input.dataset.owner !== key(candidate) || input.dataset.compatible !== 'true'; }); submit.disabled = false; error.textContent = ''; });
-        if (!item.available) {
-          const reason = document.createElement('p');
-          reason.textContent = item.reason || uiText.text('coding.character.unavailable');
-          row.append(reason);
-        }
-        if (!item.ref && item.note) {
-          const note = document.createElement('p');
-          note.textContent = item.note;
-          row.append(note);
-        }
+        // The row's lines under its name: why it cannot be picked, what choosing no role means, and the role's tools.
+        const say = (text: string) => { const line = document.createElement('p'); line.textContent = text; row.append(line); };
+        if (!item.available)
+          say(item.reason || uiText.text('coding.character.unavailable'));
+        if (!item.ref && item.note)
+          say(item.note);
         if (item.ref) {
-          const scope = document.createElement('p'), hostTools = item.host_tools ?? null;
-          scope.textContent = uiText.text('coding.character.tools', { tools: hostTools === null ? uiText.text('coding.character.tools-inherit') : hostTools.length ? hostTools.join(uiText.text('coding.list.joiner')) : uiText.text('coding.character.tools-none') });
-          row.append(scope);
+          const hostTools = item.host_tools ?? null;
+          say(uiText.text('coding.character.tools', { tools: hostTools === null ? uiText.text('coding.character.tools-inherit') : hostTools.length ? hostTools.join(uiText.text('coding.list.joiner')) : uiText.text('coding.character.tools-none') }));
         }
         if (item.imported_skills?.length) {
           const skills = document.createElement('details'), summary = document.createElement('summary');

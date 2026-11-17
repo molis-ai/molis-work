@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
-import { SKILL_AUTHORED_PLUGIN_IDS, type SkillCatalogEntry, type SkillDraft, type SkillDraftSummary } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_AUTHORED_PLUGIN_IDS, type SkillAuthoredSource, type SkillCatalogEntry, type SkillDraft, type SkillDraftSummary } from "@molis-ai/molis-work-contracts/services/skills";
 import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -118,7 +118,7 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await page.fill("#sk-case-title", "上周的周报");
   await page.fill("#sk-case-task", "整理 11 月第二周的进展");
   await page.fill("#sk-case-expected", "周报：按负责人分组。");
-  await page.click(act("sk-case-save"));
+  await page.click("[data-sk-case-form] [type=submit]");
   await page.wait("document.querySelectorAll('.sk-case').length === 1", { describe: state });
   assert.match(await text("[data-sk-bar]"), /先回放/);
   assert.match(await text(".sk-try"), /调用模型 3 次/);
@@ -239,12 +239,52 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
     [updated.revision + 1, { "~~聊天工具": "Teams" }, "补充目标"]);
   assert.match(settledCopy.fields.body, /结论发到 Teams。/);
   assert.doesNotMatch(settledCopy.fields.body, /别处补充的实操说明。/);
-  await page.click(act("sk-adopt"));
+  // QEA-129: actual completed operations can have a late HTTP receipt. Every editor control follows the same busy state.
+  const holdReceipt = (route: string) => page.evaluate(`(() => {
+    const send = window.fetch.bind(window);
+    window.__qeaCopyReceipt = { status: 0 };
+    const release = new Promise(done => { window.__qeaCopyReceipt.release = done; });
+    window.fetch = async (url, options) => {
+      const response = await send(url, options);
+      if (String(url).endsWith(${JSON.stringify(route)})) {
+        window.fetch = send;
+        window.__qeaCopyReceipt.status = response.status;
+        await release;
+      }
+      return response;
+    };
+  })()`);
+  const copyControls = () => page.evaluate<boolean[]>(`['[data-sk-placeholder]', '[data-sk-turn-off]'].map(selector => document.querySelector(selector).disabled)`);
+  await holdReceipt("/api/skills/drafts/revise");
+  answers.push(JSON.stringify({ ...settledCopy.fields, when_not_to_use: "只想抄录原文时。" }));
+  await page.fill("[data-sk-ask-input]", "补一句什么时候不适用");
+  let duringRevise: boolean[];
+  try {
+    await page.click("[data-sk-ask] [type=submit]");
+    await page.wait("window.__qeaCopyReceipt.status === 200", { describe: state });
+    duringRevise = await copyControls();
+  } finally { await page.evaluate("window.__qeaCopyReceipt.release()"); }
+  await page.wait("document.querySelector('#au-when_not_to_use')?.value === '只想抄录原文时。' && !document.querySelector('[data-sk-placeholder]').disabled", { describe: state });
+  assert.equal(await page.evaluate("document.querySelector('[data-sk-placeholder]').value"), "Teams");
+  await holdReceipt("/api/plugin-trust/skills/drafts/adopt");
+  let duringAdoption: boolean[];
+  try {
+    await page.click(act("sk-adopt"));
+    await page.wait("window.__qeaCopyReceipt.status === 200", { describe: state });
+    duringAdoption = await copyControls();
+    assert.equal(await page.evaluate("document.querySelector('[data-sk-ask-input]').readOnly && document.querySelector('[data-sk-ask] [type=submit]').disabled"), true,
+      "adopting also holds the next rewrite instruction");
+  } finally { await page.evaluate("window.__qeaCopyReceipt.release()"); }
   await page.wait(noticeHas("原来的已关掉"), { describe: state });
   assert.equal((await mine()).length, 2);
   assert.equal((await all()).find(item => item.name === "分析与决策" && item.pack.plugin_id !== SKILL_AUTHORED_PLUGIN_IDS.project)?.state, "off", "the original is off");
   const copy = (await mine()).find(item => item.name === "分析与决策");
   assert.ok(copy?.based_on, "the copy remembers where it came from");
+  const installedCopy = await api<SkillAuthoredSource>("source", { ref: copy.ref });
+  assert.equal(installedCopy.when_not_to_use, "只想抄录原文时。");
+  assert.equal(installedCopy.argument_hint, "补充目标");
+  assert.match(installedCopy.body, /结论发到 Teams。/);
+  assert.deepEqual([duringRevise, duringAdoption], [[true, true], [true, true]], "companion fields are protected for the same operation as the main fields");
 
   // 1024 与 390、深色：1024 时两栏变成页签；390 没有横向滚动。
   const draft = await (await f.request(`/projects/${project.project_id}/api/skills/drafts/create`, { method: "POST", body: { scope: "project", target: { kind: "own", skill_id: copy!.ref.skill_id } } })).json() as { draft_id: string };

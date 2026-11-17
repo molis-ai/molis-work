@@ -3,7 +3,8 @@
  * their known answers, replays, the versions of one's own Skills and the sources of copies, over the catalog's own snapshot. Nothing
  * here is used by a round: a draft becomes a Skill only when the person adopts it (`adoptDraft` in `skill-authoring.ts`, the install provider's).
  *
- * A replay calls only the Host's text model (`HostCompleteText`): no tools, no workspace, no actions, so by construction it changes
+ * A replay calls only the Host's text model. It hands the original model result guard to the draft writer.
+ * Replays have no tools, workspace or actions, so by construction they change
  * nothing in a project and sends nothing out (PWA-16). It runs as a `trial` observation source, which reports and effect figures
  * leave out (PWA-83).
  */
@@ -20,7 +21,7 @@ import { SKILL_CASE_LIMITS, SKILL_CASES_MAX, SKILL_REVISE_INSTRUCTION_CHARS, SKI
   type SkillTrialVerdict, type SkillVersion } from "@molis-ai/molis-work-contracts/services/skills";
 import { withObservationSource } from "@molis-ai/molis-work-service-observation";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
-import { textModelAvailability, textModelRequired, type HostCompleteText } from "../host-complete-text.js";
+import { textModelAvailability, textModelRequired, type HostTextForCommit } from "../host-complete-text.js";
 import type { InstalledRelease } from "../installed-release.js";
 import { SKILL_REVISE, SKILL_TRIAL, SKILL_TRIAL_JUDGE } from "./system-prompts.js";
 import { isOwnSkill, skillFields, type CatalogSkill, type SkillCatalogPorts } from "./skill-catalog.js";
@@ -36,7 +37,7 @@ export interface SkillWorkshopPorts {
   /** When each kept release of a plugin by a publisher was saved, by package version. */
   savedAt(pluginId: string, keyId: string): ReadonlyMap<string, string>;
   /** The configured text model; absent when there is none. */
-  model(): HostCompleteText | undefined;
+  model(): HostTextForCommit | undefined;
   /** The registered instructions as the person may have changed them, with their data. */
   resolve(prompt: InstructedPrompt): string;
 }
@@ -267,7 +268,7 @@ export class SkillWorkshop {
   /** Replaying and 「告诉助理怎么改」 are offered only while a text model is set up; otherwise they say where to set one up. */
   modelAvailability(purpose: string) { return textModelAvailability(() => this.ports.model(), purpose); }
 
-  private model(purpose: string): HostCompleteText {
+  private model(purpose: string): HostTextForCommit {
     const model = this.ports.model();
     if (!model) throw textModelRequired(purpose);
     return model;
@@ -282,9 +283,10 @@ export class SkillWorkshop {
     await authority.beforeDispatch();
     const data = fencedMaterials({ draft: draft.fields, instruction: asked }, randomBytes(8).toString("hex"));
     const answer = await complete(this.ports.resolve(instructed(SKILL_REVISE, data)), authority);
-    const fields = revisedFields(answer, draft.fields);
+    const fields = revisedFields(answer.value, draft.fields);
     if (!fields) throw skillErrors.draft_unreadable("助理没有给出能用的修改，请换个说法再试，或者自己改");
     await caller.beforeEffect();
+    answer.validateResult();
     const result = this.store.update(draft.draft_id, input.expected_revision, { fields }, caller.actor_id);
     this.written(result);
     return this.ports.withSkills(caller, skills => this.view(result as StoredSkillDraft, skills));
@@ -304,19 +306,27 @@ export class SkillWorkshop {
     const complete = this.model("回放技能"), authority = { signal: caller.signal, beforeDispatch: caller.beforeEffect };
     const sides: Array<{ side: SkillTrialCell["side"]; fields: SkillAuthoredFields }> = [...base ? [{ side: "base" as const, fields: skillFields(base) }] : [], { side: "draft", fields: draft.fields }];
     const runs = consumersOf(draft.fields.applies_to).flatMap(consumer => sides.map(side => ({ consumer, ...side })));
-    const cells = await withObservationSource("trial", async () => {
+    const { cells, answers } = await withObservationSource("trial", async () => {
       await authority.beforeDispatch();
-      const outputs = await Promise.all(runs.map(async run => {
+      const outputs = await Promise.all(runs.map(run => {
         const data = fencedMaterials({ role: ROLES[run.consumer], skill: { name: run.fields.name, body: run.fields.body }, task: known.task, ...(known.material ? { material: known.material } : {}) },
           randomBytes(8).toString("hex"));
-        return cutHead((await complete(this.ports.resolve(instructed(SKILL_TRIAL, data)), authority)).trim(), SKILL_TRIAL_OUTPUT_CHARS);
+        return complete(this.ports.resolve(instructed(SKILL_TRIAL, data)), authority);
       }));
-      await authority.beforeDispatch();
-      const judged = judgement(await complete(this.ports.resolve(instructed(SKILL_TRIAL_JUDGE, fencedMaterials({ expected: known.expected,
-        results: outputs.map((output, index) => ({ index, output })) }, randomBytes(8).toString("hex")))), authority), outputs.length);
-      return runs.map((run, index): SkillTrialCell => ({ consumer: run.consumer, side: run.side, output: outputs[index]!, ...judged[index]! }));
+      const beforeJudge = async () => {
+        await authority.beforeDispatch();
+        for (const result of outputs) result.validateResult();
+      };
+      const values = outputs.map(result => cutHead(result.value.trim(), SKILL_TRIAL_OUTPUT_CHARS));
+      const data = fencedMaterials({ expected: known.expected, results: values.map((output, index) => ({ index, output })) }, randomBytes(8).toString("hex"));
+      await beforeJudge();
+      const answer = await complete(this.ports.resolve(instructed(SKILL_TRIAL_JUDGE, data)), { ...authority, beforeDispatch: beforeJudge });
+      const judged = judgement(answer.value, values.length);
+      return { cells: runs.map((run, index): SkillTrialCell => ({ consumer: run.consumer, side: run.side, output: values[index]!, ...judged[index]! })),
+        answers: [...outputs, answer] };
     });
     await caller.beforeEffect();
+    for (const answer of answers) answer.validateResult();
     const recorded = this.store.recordTrial(draft.draft_id, { draft_revision: draft.revision, case_id: known.case_id, ran_at: new Date().toISOString(), cells, verdict: overall(cells) }, known, caller.actor_id);
     if (recorded === "missing") throw skillErrors.draft_unknown("这份草稿已经不在了，可能已被采用或放弃");
     if (recorded === "conflict") throw skillErrors.draft_conflict("回放时草稿又改过了，请再回放一次");

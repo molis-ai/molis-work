@@ -70,23 +70,24 @@ function scalarAt(result: unknown, path: string): string | undefined {
   return typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value)) ? String(value) : undefined;
 }
 
+function presentLink(link: NonNullable<ActionResultView["link"]>, result: unknown, projectId?: string): ActionResultPresentation["link"] {
+  const template = projectId === undefined ? link.home_href_template ?? link.href_template : link.href_template;
+  let complete = true;
+  const href = template.replace(TOKEN, (_match, token: string) => {
+    const value = token === "project_id" ? projectId : scalarAt(result, token);
+    if (!value || value === "." || value === "..") { complete = false; return ""; }
+    // A malformed surrogate in provider text must not invalidate its successful operation.
+    try { return encodeURIComponent(value); } catch { complete = false; return ""; }
+  });
+  if (complete && href.length <= 4000 && internal(href)) return { label: link.label, href };
+}
+
 /** Rendering cannot fail an already completed business call or expose unselected output fields. */
 export function presentActionResult(view: ActionResultView | undefined, result: unknown, projectId?: string): ActionResultPresentation | undefined {
   if (!view) return undefined;
   const title = view.title_pointer === undefined ? undefined : scalarAt(result, view.title_pointer);
   const text = view.text_pointer === undefined ? undefined : scalarAt(result, view.text_pointer);
-  let link: ActionResultPresentation["link"];
-  if (view.link) {
-    let complete = true;
-    const template = projectId === undefined ? view.link.home_href_template ?? view.link.href_template : view.link.href_template;
-    const href = template.replace(TOKEN, (_match, token: string) => {
-      const value = token === "project_id" ? projectId : scalarAt(result, token);
-      if (!value || value === "." || value === "..") { complete = false; return ""; }
-      // A malformed surrogate in provider text must not invalidate its successful operation.
-      try { return encodeURIComponent(value); } catch { complete = false; return ""; }
-    });
-    if (complete && href.length <= 4000 && internal(href)) link = { label: view.link.label, href };
-  }
+  const link = view.link && presentLink(view.link, result, projectId);
   return { summary: view.summary, ...(title ? { title: title.slice(0, 300) } : {}),
     ...(text ? { text: text.slice(0, 4000), ...(text.length > 4000 ? { text_truncated: true as const } : {}) } : {}), ...(link ? { link } : {}),
     ...pendingConnection(view, result) };

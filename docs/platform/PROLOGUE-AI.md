@@ -18,7 +18,7 @@
 | 层 | 负责 | 不负责 |
 | --- | --- | --- |
 | 业务插件 / 模块（Pages、灵光、Coding…） | 用户意图、提示词正文、输入材料的选取、结果怎样写回自己的数据、失败时保留什么 | 选模型、拿密钥、直连供应商、构造 Runtime |
-| Local Host（`apps/local-host`） | 给 Runtime 插件提供 `services.model`，自己的代码用 `hostCompleteText`、`resolvePrologueInference`；模型选择与凭据解析；项目/调用者身份；动作授权与调用记录 | 业务提示词、插件数据 |
+| Local Host（`apps/local-host`） | 给 Runtime 插件提供 `services.model`。宿主用 `hostTextGeneration` 或 `resolvePrologueInference` 承接推理。由 Host 解析模型、凭据、调用者身份及项目，记录动作授权与调用 | 业务提示词、插件数据 |
 | Agent Host（`horizontal/agent-host`） | 唯一直接依赖 `@prologue/sdk` 的包：有界推理、Agent 轮次、角色冻结、目录授权、审查队列、预算、MCP 接入、任务板、子代理、检查点、后台命令 | 业务含义、审批决定本身 |
 | Prologue SDK（`vendor/prologue-sdk/*.tgz`，源码在 `molis-ai/prologue`） | 协议适配、流式事件、用量回执、取消、超时、会话/运行持久化、工具循环 | 产品身份、权限政策、界面 |
 
@@ -28,7 +28,7 @@
 
 | 场景 | 用什么 | 例子 |
 | --- | --- | --- |
-| 一次有界的文字/结构化/图片/判断调用，没有工具 | 宿主自己的代码：文字用 `hostCompleteText`，需要结构、进度和回执时用同一绑定的 `hostTextGeneration`（`apps/local-host/src/host-complete-text.ts`）；Runtime 插件用 `context.services.model`（第 4 节），构建期插件仍是 Host 注入的端口（见本表下方）；图片、TypeSafe 判断、需要用量时用 `resolvePrologueInference(home)` 的 `generateImages` / `evaluateTypeSafe` / `completeTextResult` | 灵光对话、Pages 写作助手与生成、Form/Dataset 的 AI 拟题拟列、Images、判断函数 |
+| 一次有界的文字/结构化/图片/判断调用，没有工具 | 宿主用 `hostTextGeneration` 获取文字、结构、进度与执行回执（`apps/local-host/src/host-complete-text.ts`）。Runtime 插件用 `context.services.model`（第 4 节），构建期插件由 Host 注入端口（见本表下方）。图片和 TypeSafe 判断使用 `resolvePrologueInference(home)` 的 `generateImages` 与 `evaluateTypeSafe` | 灵光对话、Pages 写作助手与生成、Form/Dataset 的 AI 拟题拟列、Images、判断函数 |
 | 有工具、工作区、审查的多轮工作 | Manifest `agent` 块声明角色，经 Host 能力 `agent.session.create` / `agent.run.start` / `agent.run.wait` / `agent.run.control`；宿主自己的调用方在进程内直接 `AgentHost.start` | Coding（经 `agent.run.*`）、个人助理（`apps/local-host/src/assistant/assistant-agent.ts` 的角色）、Schedule 到点任务（经 Runtime 的 `services.agents.run`，`plugins/native/schedule/src/runtime-wakeups.ts`；宿主在 `apps/local-host/src/plugin-agent-service.ts` 内调 `AgentHost.start`，不经 `agent.run.*`）。Characters（不是插件，是 `modules/characters` 加宿主提供方）不声明角色：它发布的 Character 由 Coding 或助理的一轮按固定版本带上 |
 | 需要专门编排边界的新 Agent | 在 `horizontal/agent-host/src/adapters/` 为该场景新建适配器，仍用同一 Home Runtime | 插件创作台代码 Agent（`adapters/plugin-builder.ts`） |
 
@@ -46,7 +46,7 @@
 页面 → 插件 HTTP 路由（只转发）
   → 动作 pages.ai（plugins/native/pages/src/actions.ts，声明 model:invoke 与 scheduling: "concurrent"）
   → Plugin Runtime 的 services.model（plugins/native/pages/src/plugin.ts 接成 complete）：未配置模型时报 actions.connection_required
-  → hostCompleteText（apps/local-host/src/host-complete-text.ts）：固定这次的供应商与模型、读凭据快照、每次派发前复查配置与凭据、120 秒上限
+  → hostTextGeneration（apps/local-host/src/host-complete-text.ts）：固定这次的供应商、模型和凭据快照，派发前复核，返回原执行回执与结果校验
   → resolvePrologueInference(home)（apps/local-host/src/prologue-inference-host.ts）：取该 Home 唯一的推理绑定，由 system-agent-service.ts 装配
   → createPrologueInference（horizontal/agent-host/src/adapters/prologue-inference.ts）：临时会话、借助 SDK collectRun 收集结果、取消与超时
   → Prologue Runtime → 供应商
@@ -196,7 +196,7 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
 
 ## 5. 模型、凭据、上下文
 
-- 模型来自设置里的 `catalog.models` 与服务连接；`hostCompleteText` 发现阶段只读元数据，执行前才解密，派发前与返回后都核对「这次固定的供应商/模型/凭据」没变，变了报 `actions.configuration_changed` 且不提交结果。
+- 模型来自设置里的 `catalog.models` 与服务连接。发现阶段只读元数据，执行前才解密。派发前与返回后核对本次供应商、模型和凭据。宿主消费者在最后一次异步等待（例如动作授权或引导的并行待办）完成后，调用原结果的 `validateResult()` 再交付或同步写入。修改模型或连接时以 `actions.configuration_changed` 拒绝旧结果。`hostCompleteText` 仍是公开的纯文字便利函数。
 - 产品里只有模型目录配置模型；没配时提示去设置。密钥库里目录之外的旧凭据（`model:text:api_key`）不读。
 - 环境变量只给开发与测试用，且仅在 Home 的模型目录为空时生效。已有目录记录或明确选择时，它不能绕过停用。
   - `MINIMAX_API_KEY`：MiniMax。端点默认 `https://api.minimax.cn/anthropic`（与设置页的 MiniMax 模板同一个国内地址，宿主里只写一次：`apps/local-host/src/model-provider-templates.ts` 的 `MINIMAX_ANTHROPIC_BASE_URL`；MiniMax 文档已迁到 platform.minimax.cn，其 Anthropic 兼容页写的就是这个地址，2026-10-10 核对），模型默认 `MiniMax-M3`；实测用 `appkey exec minimax` 注入。

@@ -1,7 +1,7 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { KitEntry, KitKind } from "@molis-ai/molis-work-contracts/platform/kit-report";
 import type { KitCatalog, KitPack } from "@molis-ai/molis-work-contracts/services/kit";
-import { escapeHtml, renderBadge, renderButton, renderStatusMark, type AttrValue, type MwTone, type MwStatusTone, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, renderBadge, renderButton, renderStatusMark, type AttrValue, type MwButtonOptions, type MwTone, type MwStatusTone, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** 08's Skill parts (apps/workbench/src/settings-skills.ts), in the page before this program. */
 export interface SkillUi {
@@ -26,8 +26,8 @@ export const KIND_GLYPH: Record<KitKind, PluginIconName> = { role: "user", promp
 export const KIND_WORD: Record<KitKind, string> = { role: "workbench.assistant-island.role", prompt: "workbench.settings-agent-diagnostics.prompts", skill: "workbench.settings-skills.skills", mcp: "workbench.kit.mcp", tool: "workbench.context-toolbar.tools" };
 
 export const act = (name: string, value?: string): Record<string, AttrValue> => value === undefined ? { "data-kit-act": name } : { "data-kit-act": name, "data-kit-v": value };
-export const button = (label: string, options: { variant?: "primary" | "secondary" | "ghost" | "link"; icon?: PluginIconName; attrs?: Record<string, AttrValue>; size?: "sm" | "md"; disabled?: boolean } = {}) =>
-  renderButton({ label, variant: options.variant ?? "secondary", size: options.size ?? "sm", icon: options.icon, attrs: options.attrs, disabled: options.disabled });
+export const button = (label: string, options: { variant?: "primary" | "secondary" | "ghost" | "link"; icon?: PluginIconName; attrs?: Record<string, AttrValue>; size?: "sm" | "md"; disabled?: boolean; type?: MwButtonOptions["type"] } = {}) =>
+  renderButton({ label, variant: options.variant ?? "secondary", size: options.size ?? "sm", icon: options.icon, attrs: options.attrs, disabled: options.disabled, type: options.type });
 /** A link styled as a button: the way to the page that owns the thing. */
 export const goTo = (label: string, href: string, variant: "secondary" | "ghost" | "primary" = "secondary") =>
   `<a class="mw-btn mw-btn--${variant} mw-btn--sm" data-slot="button" href="${esc(href)}"><span data-slot="button-label">${esc(label)}</span></a>`;

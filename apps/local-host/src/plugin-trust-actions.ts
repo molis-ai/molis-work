@@ -19,7 +19,7 @@ import { studioPublisherIdentity, localPublisherKeyId, readSealedLocalPublisherK
 import { SkillImportService, localSkillScan, type SkillImportPorts } from "./skill-import.js";
 import { SkillAuthoringService, draftSkill } from "./skill-authoring.js";
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";
-import { hostCompleteText, textModelAvailability, type HostCompleteText } from "./host-complete-text.js";
+import { hostTextForCommit, textModelAvailability, type HostCompleteText } from "./host-complete-text.js";
 import type { SkillAuthoring } from "./plugin-install-actions.js";
 import { bundledPackagesDirectory } from "./bundled-packages.js";
 
@@ -109,7 +109,7 @@ function skillPackagePorts(home: string, source: ProjectPluginHost, install: Plu
  */
 export function skillAuthoringFor(home: string, source: ProjectPluginHost, install: PluginInstallService,
   resolveProject?: (projectId: string) => Promise<LocalHostProjectReference | null>, completion?: HostCompleteText | null): SkillAuthoring {
-  const model = () => completion === undefined ? hostCompleteText({ homeDirectory: home }) : completion ?? undefined;
+  const model = () => hostTextForCommit(home, completion);
   return {
     service: new SkillAuthoringService({ ...skillPackagePorts(home, source, install, resolveProject),
       uninstall: async (scope, who, caller) => {

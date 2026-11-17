@@ -25,7 +25,7 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
   }
 
   async function ask(w: Workshop): Promise<void> {
-    if (w.asking || !w.ask.trim() || !(await edit.flush(w))) return;
+    if (w.asking || w.adopting || !w.ask.trim() || !(await edit.flush(w))) return;
     w.asking = true; w.askFailure = undefined; w.changed = undefined; draw("sk-ask");
     try {
       const next = await reviseDraft(project, w.draft, w.ask);
@@ -140,7 +140,6 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
     if (name === "sk-case-add") { w.caseForm = { title: "", task: "", expected: "" }; w.caseErrors = {}; return draw("sk-case"); }
     if (name === "sk-case-edit" && value) { const known = w.draft.cases.find(item => item.case_id === value); if (known) { w.caseForm = { ...known }; w.caseErrors = {}; } return draw("sk-case"); }
     if (name === "sk-case-cancel") { w.caseForm = undefined; return draw("sk-side"); }
-    if (name === "sk-case-save") return saveCase(w);
     if (name === "sk-case-remove" && value) { await removeCase(project, w.draft.draft_id, value); await edit.refresh(w); if (view.workshop === w) draw("sk-side"); return; }
     if (name === "sk-adopt") return adopt(w, false);
     if (name === "sk-adopt-anyway") { w.confirm = false; return adopt(w, true); }

@@ -17,7 +17,7 @@ import { contentPackageDraft, type FolderSkill } from '@molis-ai/molis-work-plug
 import { t } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { cutHead } from '@molis-ai/molis-work-plugin-sdk/whole-units';
 import { SKILL_DRAFT } from './agent-definitions/system-prompts.js';
-import { textModelRequired, type HostCompleteText } from './host-complete-text.js';
+import { textModelRequired, type HostTextForCommit, type HostTextRequestOptions } from './host-complete-text.js';
 import type { InstalledRelease } from './installed-release.js';
 import { hostLog } from './host-log.js';
 import type { SkillImportPorts } from './skill-import.js';
@@ -192,7 +192,7 @@ export async function adoptDraft(service: SkillAuthoringService, drafts: SkillDr
  * One sentence into the form's fields, by the configured text model under the registered instructions (`skills.draft`). It proposes
  * only: what comes back is cut to the form's limits and handed to the person, and an answer that is not a draft is refused.
  */
-export async function draftSkill(intent: string, complete: HostCompleteText | undefined, authority: Parameters<HostCompleteText>[1] | undefined,
+export async function draftSkill(intent: string, complete: HostTextForCommit | undefined, authority: HostTextRequestOptions | undefined,
   resolve: (prompt: InstructedPrompt) => string = value => composeInstructedPrompt(value.instruction.body, value.data)): Promise<SkillAuthoredFields> {
   const asked = intent.trim();
   if (!asked || asked.length > SKILL_DRAFT_INTENT_CHARS) throw skillErrors.authored_invalid(`请用 1～${SKILL_DRAFT_INTENT_CHARS} 字说想让这个技能做什么`, { field: 'intent' });
@@ -200,9 +200,10 @@ export async function draftSkill(intent: string, complete: HostCompleteText | un
   await authority?.beforeDispatch?.();
   const answer = await complete(resolve(instructed(SKILL_DRAFT, `用户想要的技能：${asked}`)), authority);
   await authority?.beforeDispatch?.();
+  answer.validateResult();
   const unreadable = () => skillErrors.draft_unreadable('助理没有给出能用的初稿，请再试一次，或者自己写');
   let parsed: Record<string, unknown>;
-  try { parsed = JSON.parse(answer.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, '')) as Record<string, unknown>; } catch { throw unreadable(); }
+  try { parsed = JSON.parse(answer.value.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, '')) as Record<string, unknown>; } catch { throw unreadable(); }
   const text = (key: string) => typeof parsed?.[key] === 'string' ? (parsed[key] as string).trim() : '';
   const name = cutHead(text('name').replace(/\s+/gu, ' '), NAME_CHARS), description = cutHead(text('description'), SKILL_LIMITS.descriptionChars);
   const body = cutHead(text('body').replace(/\r\n?/gu, '\n').split('\n').slice(0, SKILL_LIMITS.bodyLines).join('\n'), SKILL_LIMITS.bodyChars).trim();

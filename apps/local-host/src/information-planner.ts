@@ -1,6 +1,6 @@
 import { composeInstructedPrompt, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { INFORMATION_PLANNER } from "./agent-definitions/system-prompts.js";
-import { textModelRequired, type HostCompleteText } from "./host-complete-text.js";
+import { textModelRequired, type HostTextForCommit, type HostTextRequestOptions } from "./host-complete-text.js";
 
 /** At most `max` whole characters: a two-unit character is never cut in half. */
 const wholeCharacters = (text: string, max: number) => [...text.slice(0, 2 * max)].slice(0, max).join("");
@@ -24,7 +24,7 @@ export interface InformationPlanSnapshot {
 }
 
 /** Read-only proposals. Confirmed actions run through the existing plugin HTTP contracts. */
-export async function planInformationWork(snapshot: InformationPlanSnapshot, projectId: string, body: Record<string, unknown>, completeText?: HostCompleteText, authority?: Parameters<HostCompleteText>[1],
+export async function planInformationWork(snapshot: InformationPlanSnapshot, projectId: string, body: Record<string, unknown>, completeText?: HostTextForCommit, authority?: HostTextRequestOptions,
   /** The registered instructions as the person left them; without it, the shipped default. */
   resolve?: (prompt: InstructedPrompt) => string) {
   const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
@@ -40,7 +40,8 @@ export async function planInformationWork(snapshot: InformationPlanSnapshot, pro
   const result = await completeText((resolve ?? (value => composeInstructedPrompt(value.instruction.body, value.data)))(
     instructed(INFORMATION_PLANNER, ["当前范围：" + JSON.stringify(context), "用户请求：" + prompt].join("\n\n"))), authority);
   await authority?.beforeDispatch?.();
-  const cleaned = result.trim().replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+  result.validateResult();
+  const cleaned = result.value.trim().replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
   let parsed: { message?: unknown; action?: Record<string, unknown> | null };
   try { parsed = JSON.parse(cleaned); } catch { throw new Error("助手没有返回有效方案，请重试"); }
   const message = typeof parsed.message === "string" ? parsed.message.slice(0, 4000) : "请检查以下方案后执行。";

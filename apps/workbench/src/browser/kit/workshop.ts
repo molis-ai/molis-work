@@ -40,24 +40,26 @@ function head(w: Workshop): string {
 function askRow(w: Workshop): string {
   const after = w.changed !== undefined ? renderBadge({ label: improve("ask-changed", { n: w.changed }), tone: "info" }) + button(improve("see-change"), { variant: "link", attrs: act("sk-side", "compare") }) : "";
   const failed = w.askFailure ? renderAlert({ title: improve("ask-failed"), body: w.askFailure, tone: "danger", role: "alert" }) : "";
-  return renderAskRow({ id: "sk-ask", label: improve("ask-label"), placeholder: improve("ask-placeholder"), value: w.ask, go: button(improve("ask-go"), { attrs: { type: "submit" } }),
+  return renderAskRow({ id: "sk-ask", label: improve("ask-label"), placeholder: improve("ask-placeholder"), value: w.ask, go: button(improve("ask-go"), { type: "submit", disabled: w.adopting }),
     ...(w.asking ? { busy: renderStatusMark({ label: improve("ask-busy"), tone: "progress", state: "running" }) } : {}), ...(after ? { after } : {}),
-    attrs: { "data-sk-ask": true }, inputAttrs: { "data-sk-ask-input": true, maxlength: 1000 } }) + failed;
+    attrs: { "data-sk-ask": true }, inputAttrs: { "data-sk-ask-input": true, maxlength: 1000, readonly: w.adopting } }) + failed;
 }
 
-function placeholders(w: Workshop): string {
+function placeholders(w: Workshop, disabled: boolean): string {
   const found = placeholdersOf(w), source = w.draft.target.kind === "custom" && w.turnOffSource !== undefined ? w.draft.target.source : undefined;
+  const turnOff = source && renderCheckbox({ label: improve("turn-off-source-named", { n: source.name }), checked: w.turnOffSource, disabled, attrs: { "data-sk-turn-off": true } });
   // A copy with nothing to replace still offers to turn the original off when it is adopted.
-  if (!found.length) return source ? `<div class="sk-turn-off">${renderCheckbox({ label: improve("turn-off-source-named", { n: source.name }), checked: w.turnOffSource, attrs: { "data-sk-turn-off": true } })}</div>` : "";
+  if (!found.length) return turnOff ? `<div class="sk-turn-off">${turnOff}</div>` : "";
   const left = found.filter(placeholder => !w.replacements[placeholder]).length;
   return renderPlaceholderList({ id: "sk-ph", title: improve("placeholders-title"), lead: improve("placeholders-lead"),
     ...(left ? { badge: renderBadge({ label: improve("placeholders-left", { n: left }), tone: "neutral" }) } : {}),
-    rows: found.map(placeholder => ({ placeholder, label: improve("placeholder-name", { p: placeholder }), value: w.replacements[placeholder] ?? "", hint: improve("placeholder-hint"), attrs: { "data-sk-placeholder": placeholder } })),
-    ...(source ? { after: renderCheckbox({ label: improve("turn-off-source-named", { n: source.name }), checked: w.turnOffSource, attrs: { "data-sk-turn-off": true } }) } : {}) });
+    rows: found.map(placeholder => ({ placeholder, label: improve("placeholder-name", { p: placeholder }), value: w.replacements[placeholder] ?? "", hint: improve("placeholder-hint"), attrs: { "data-sk-placeholder": placeholder, disabled } })),
+    after: turnOff });
 }
 
 function editor(w: Workshop, limits: SkillWritingLimits): string {
-  return `<div class="sk-editor" data-au>${askRow(w)}${placeholders(w)}${fieldsMarkup(w.fields, w.errors, limits, Boolean(w.asking || w.adopting))}</div>`;
+  const disabled = Boolean(w.asking || w.adopting);
+  return `<div class="sk-editor" data-au>${askRow(w)}${placeholders(w, disabled)}${fieldsMarkup(w.fields, w.errors, limits, disabled)}</div>`;
 }
 
 function verdictMark(cell: SkillTrialCell | undefined): string {
@@ -91,7 +93,7 @@ function caseForm(w: Workshop): string {
       : `<input class="mw-input" data-slot="input" type="text" autocomplete="off" value="${esc(form[name] ?? "")}" ${common}>`}${error ? `<p class="mw-field__error" id="${id}-error">${esc(error)}</p>` : ""}</div>`;
   };
   return `<form class="sk-case-form" data-sk-case-form>${row("title", 0, 80)}${row("task", 3, 4000)}${row("material", 3, 8000)}${row("expected", 5, 8000)}
-    <div class="au-actions">${button(improve("case-save"), { variant: "primary", attrs: { ...act("sk-case-save"), type: "submit" } })}${button(readText("common.control.cancel"), { variant: "ghost", attrs: act("sk-case-cancel") })}</div></form>`;
+    <div class="au-actions">${button(improve("case-save"), { variant: "primary", type: "submit" })}${button(readText("common.control.cancel"), { variant: "ghost", attrs: act("sk-case-cancel") })}</div></form>`;
 }
 
 function tryPanel(w: Workshop): string {

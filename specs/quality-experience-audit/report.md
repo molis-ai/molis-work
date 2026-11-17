@@ -1,6 +1,6 @@
 # Molis Work 审查报告与优化策略
 
-第51批已整合 main `dbcf562a67` 的恢复能力，当前在最终本地验收：新认可保持两库一次原子提交，既存提交意向继续幂等恢复；Skill保留本轮输入/并发修复，同时接入主干7天找回与可信trial来源。首轮完整构建和9文件63项通过，只读复核无新增生产Blocker/P1；补强重复恢复反例及合同文件职责拆分后正在重建。尚未推送本次提交，最终资源/CI及剩余原任务继续。
+第51批已整合 main `dbcf562a67` 的恢复能力，当前在最终本地验收：新认可保持两库一次原子提交，既存提交意向继续幂等恢复；Skill保留本轮输入/并发修复，同时接入主干7天找回与可信trial来源。合并已保存为 `67433d5851`；最终构建、补强恢复及动作合同2文件31项通过，受影响包62文件907项通过（10.3分钟），公开API拆分零变化，只读复核无新增生产Blocker/P1。准确main基线的健康门禁通过，错误表仍按精确路径归原skills主人，尚未推送本次提交，最终资源/CI及剩余原任务继续。
 
 第50批本地验收通过：后台Goal只读集合，正文按实际可见性读取；分别确认已应用的平台游标，在途新变化和强制保存刷新不会丢失。57个相关包文件607项、实际UI20项、构建4/健康及最终五样本路径通过，详见文末QF-51追加。固定规则20条建议较空闲样本p50为5.4秒，末次有其他工作树并发测试时9.1秒，保留波动，不宣称已稳定达到响应目标。最新main dbcf562a67已拉取，下一批整合79文件交集；最终资源/CI、其他平台候选与整项目标仍未完成。
 
@@ -809,8 +809,17 @@ BL-b42-followups③只处理了项目/独立页的地址消费与缓存恢复；
 
 处置：Acceptance owner 在数据库删除提交返回后再清理既存意向；正常认可继续 QEA-84–86 的同连接 ATTACH 单次 COMMIT。新主干两次提交专用的意向写入回调、Service转发和无生产调用writer删除；既存格式的读取/清理及Host幂等restore保留，不新建第二份决定事实或新兼容取值。`modules/acceptance/src/store.ts:81`、`apps/local-host/src/acceptance-recovery.ts:14`、`horizontal/project-approvals/src/decisions.ts` 分别负责清除、组合与平台决定恢复。
 
-首轮真实隔离Home通过：QEA-117在原库加deferred FK，最终COMMIT拒绝后要求/对象和意向均保留；移除故障后同一清除成功。正常认可不写旧意向；原主干未落平台记录能够恢复。QEA-84–86最终提交拒绝、清理故障和真实SIGKILL等原测试继续通过。9文件63项见 `/tmp/quality-audit-main-integration-focused.log`。只读复核要求补“平台决定已恢复、文件未清除”的重入：已补完整内容/行数/意向清理断言，重建后待验。
+首轮真实隔离Home通过：QEA-117在原库加deferred FK，最终COMMIT拒绝后要求/对象和意向均保留；移除故障后同一清除成功。正常认可不写旧意向；原主干未落平台记录能够恢复。QEA-84–86最终提交拒绝、清理故障和真实SIGKILL等原测试继续通过。9文件63项见 `/tmp/quality-audit-main-integration-focused.log`。只读复核要求补“平台决定已恢复、文件未清除”的重入：已补完整内容/行数/意向清理断言，最终6项安全回归与25项动作合同全部通过，见 `quality-audit-main-integration-recovery-final.log`。
 
 六方向处置：状态事实仍归两库各自owner及唯一正常事务；去掉第二条正常写路径和无调用转发；失败不会迫使人重新认可；恢复协调由Host调用公开owner端口；已有Storage原子与维护恢复能力继续复用。文档已纠正主干“库1→2”误写，实际数据库仍为1，没有结构迁移。
 
 继续查深的已定位缺口：Skill并发冲突保住输入，但只有刷新提示、缺少能继续编辑的恢复入口；采用时签名安装成功后的目录刷新/草稿结算仍在原安装补偿范围之外。前者需真实双入口恢复验证，后者需真实SQL/异步故障反证再按owner边界落地；均不能算本次整合已解决。
+
+
+### QF-58 / P1（已复现，待实施）：Skill采用失败后正式版本已改变
+
+`apps/local-host/src/skill-authoring.ts:175–178` 先等待签名安装成功，再调用草稿owner结算。真实路径是本人设置HTTP → `PluginInstallService.confirm` → Home/Project安装 → Runtime版本/目录 → `SkillDraftStore.adopted`。目录刷新和外层授权尾检也有部分位于原安装补偿返回之后（`home-plugins.ts:141`、`project-plugin-ports.ts:85`、`plugin-install-service.ts:380`）。
+
+QEA-118隔离Home使用真实SQL触发器拒绝草稿DELETE：项目新建返回500但目录已有Skill v1；项目换版返回500但已变v2；Home按页面实际personal安装入口得到同样两项结果，草稿仍是原版本。这会让用户误以为没采用，重试新建遇同名、重试换版额外增加版本，正式做法与页面结果不一致。初次Home用错根安装路由得到400是夹具错误，已保留日志并纠正，不算产品证据。有效日志 `quality-audit-adoption-commit-baseline.log` 项目两项及 `quality-audit-adoption-commit-home-baseline.log` Home两项。
+
+拟处置见spec§52：既有安装补偿包住必要刷新、授权尾检及同步草稿结算；各owner仍写自己的事实，Host组合，不建立第二套通用恢复账。还需实际取消/撤权与重试、目录/版本/草稿写入和正式设置入口验收。未将静态方案或反证记作修复完成。

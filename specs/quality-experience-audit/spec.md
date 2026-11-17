@@ -913,3 +913,25 @@ QEA-115 build3五样本通过（`quality-audit-collection-inbox-performance.log`
 第51批首轮：构建/合并快照生成通过；9文件63项定向全过（Skill浏览器恢复18、采用1、后台14，Acceptance真实SIGKILL2/拒绝与恢复6/要求4、审批11、能力板7）。只读复核无新增生产Blocker/P1，但指出重复恢复仅走空列表；补入“决定已落库、原意向再次存在”的完整内容不变/只写一行断言。健康门禁发现合并后Skill合同801行越过文件上限：将现有统一错误分类表独立为同目录 `skill-errors.ts`，原 `services/skills` 公开入口重导出；不改变取值/权限/schema，不加子路径或放宽阈值。需完整重建及生成确认公开API未发生意外变化。
 
 第51批最终构建3通过（第二次构建后只移除新文件多余尾空行，再重建保持指纹）；`api:update` 0变化。QEA-117补强后的6项验收安全回归通过，覆盖重新出现的旧意向及完整决定不变，日志 `quality-audit-main-integration-recovery-final.log`。主干整合本地保存后，以dbcf562a67为merge-base重验健康，并运行Contracts/Kernel/Observation/Workbench包要求与新增真实调用交集；此前其他模块有效证据保持，最终CI仍未完成。
+
+
+## 第五十二批：Skill 采用的实际安装与草稿结算
+
+状态：真实故障反证准备中；第51批62文件回归期间不改生产代码。继续原六方向范围，不将本批等同原任务完成。
+
+候选链：本人 HTTP `plugin-trust/skills/drafts/adopt` → `adoptDraft` → `SkillAuthoringService.save/publish` → 签名包 `PluginInstallService.confirm` → Home/Project 安装 owner → Runtime 实例/版本与公开目录 → `SkillDraftStore.adopted`。当前 `service.save` 返回后才结算草稿，目录刷新及外层取消尾检也在原安装补偿返回后。需先用隔离Home的真实SQL拒绝和真实异步入口证明实际状态，不将静态猜测直接记为已修Bug。
+
+目标：一次采用要么完成当前正式版本、草稿/案例/来源结算和可读目录，要么失败后保留原正式版本与原草稿，用户能直接重试且不增加Skill版本或重复Skill。规则分别归签名安装与草稿owner，Host仅组合；不把验收专用旧意向扩成新通用账本。复用已有新装撤销、版本回滚与精确安装身份检查；检查外层目录刷新是否重复，以及哪个尾检必须进入原补偿范围。若需要同步结算回调，仅供可信Host组合，不进外部输入，不跨异步持有SQLite事务。签名包的留存不等同采用，历史沿实际已装版本的前驱链读取（现有 `SkillWorkshop.chain` 已符合，保留）。进程崩溃跨库一致性不借这批进程内补偿夸称通过。
+
+- **QEA-118** Home/Project、新建/已有Skill换版，真实草稿DELETE事务拒绝时HTTP失败，草稿/案例原样保留，正式Skill不存在或保持原版；移除故障后同稿重试成功且只有一次Skill增版、只结算该稿。读取实际目录与持久结果，不只断言返回错误。
+- **QEA-119** 从实际安装/公开目录等待制造取消或撤权：提交前不留下新正式版本，原草稿可继续；确认已完成后的迟到HTTP回执不重新执行。共享安装原有新装/升级/停用/替换保护继续通过，不补偿另一次安装或别的用户决定。
+
+验收沿原公开HTTP与公共test-kit隔离Home。先定向故障/正常采用，再必跑安装与Skill包要求，完整build、API/动作快照和健康；涉及体验的采用与重试由正式设置入口实操，资源与准确头CI仍按总spec结算。Skill编辑冲突的可操作恢复入口是随后需处理的另一个已定位问题，当前保留输入不算体验闭环。
+
+第51批门禁补充：准确merge-base dbcf562a67的健康检查发现移出的错误表尚未登记owner（23个`skills.*`），不是码值/分类变化。按 `tooling/gates/README.md`「自由的：给新文件加主人」在原skills主人条目加入 `services/skill-errors.ts` 精确路径，原路径/前缀/规则/阈值全部保留；该处仅补新文件的既有归属，不改门禁判据。API重生成0差异、动作合同25项通过。
+
+第52批反证结果：项目新建/换版真实SQL结算拒绝后HTTP500、草稿仍在，目录却分别出现Skill v1/v2（应不存在/保留v1）；Home首轮误用了没有项目的安装HTTP入口，400不算产品反证，改为页面真实 `/projects/personal/api/plugin-trust/...` 后两项同样HTTP500且实际v1/v2，四条路径均已确认。日志 `quality-audit-adoption-commit-baseline.log` 保留初次夹具错误，Home有效证据 `quality-audit-adoption-commit-home-baseline.log`。尚未修改安装生产逻辑。
+
+第52批实施边界已收敛：保持安装/升级原补偿逻辑，將原Home/Project外层 `refreshPublicActions` 放回其成功收尾范围；随后同步核原授权并由可信Host回调草稿owner完成SQL结算。`SkillAuthoringService` 在生成确定skill_id时绑定结算回调，`PluginInstallService`/真实安装port传递，不由输入提供回调。所有可失败的异步工作位于草稿SQL提交之前，SQL完成后不再做会将成功改报失败的异步刷新/权限尾检。普通安装没有草稿回调，仍走相同安装、授权和目录路径；共享安装能力覆盖Home与Project，非Skill专线。已签名包和发布者pin遵循原保留策略，正式版本及历史仍以实际安装链为准。待原62文件结算后实施并以QEA-118四条反证复验。
+
+第51批本地结算：准确main基线 dbcf562a67 的健康门禁通过（`quality-audit-main-integration-health3.log`），新增错误表仍归原skills主人，未放宽规则；62文件907项包要求回归全过（10.3分钟，`quality-audit-main-integration-required.log`）。最终构建3、API零意外变化、补强恢复及动作合同2文件31项通过。前批UI19项及Skill后台14/原子中断2等首轮证据保留，不重复计数。第51批仅本地验收完成；第52批四条真实故障已确认待修，最终资源/当前头CI和其余原需求继续。

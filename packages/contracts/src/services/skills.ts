@@ -432,7 +432,11 @@ export interface SkillDraftSummary {
   updated_at: string;
   /** The latest replay's verdict, when it replayed this revision. */
   verdict?: SkillTrialVerdict;
+  /** Present when the draft was discarded and is still inside the 7-day keeping window: the person can restore it. */
+  discarded_at?: string;
 }
+/** `include_discarded`: also list drafts given up in the last `SKILL_DISCARDED_KEPT_DAYS`, so the person can find them again. */
+export interface SkillDraftListRequest { include_discarded?: boolean }
 
 /**
  * Where a new draft starts. `own`: one of the person's own Skills in the scope, from the version in use or from an older one
@@ -722,7 +726,7 @@ const replacements = { type: "object", maxProperties: 50, propertyNames: { type:
 const draftSchema = object({ draft_id: draftId, scope, target, fields: draftFieldsSchema, revision, origin, created_at: text, updated_at: text,
   cases: { type: "array", maxItems: SKILL_CASES_MAX, items: caseSchema }, trial: trialSchema, base: object({ version: skillVersion, fields: draftFieldsSchema }),
   replacements, untried: { type: "array", items: draftId }, trial_needed: { type: "boolean" } }, ["draft_id", "scope", "target", "fields", "revision", "origin", "created_at", "updated_at", "cases", "replacements", "untried", "trial_needed"]);
-const summarySchema = object({ draft_id: draftId, scope, target, name: text, revision, origin, updated_at: text, verdict }, ["draft_id", "scope", "target", "name", "revision", "origin", "updated_at"]);
+const summarySchema = object({ draft_id: draftId, scope, target, name: text, revision, origin, updated_at: text, verdict, discarded_at: text }, ["draft_id", "scope", "target", "name", "revision", "origin", "updated_at"]);
 /** Drafting and replaying: the person's, and the Assistant's from a piece of work; never a plugin's, a workflow's or an MCP tool's. */
 const drafter = { kind: "operation" as const, scope: "home" as const, effect: "write" as const, subject_kinds: [] as string[],
   audiences: ["user", "agent"] as ("user" | "agent")[], permissions: [SKILLS_DRAFT_PERMISSION], plugin: false as const };
@@ -736,9 +740,9 @@ const personRead = { ...personDraft, kind: "query" as const, effect: "read" as c
  */
 export const skillDraftActions = {
   list: { capability_id: "skills.drafts.list", version: /* @version action.skills.drafts.list */ 1, operation: "query", action: { ...personRead,
-    title: "列出技能草稿", description: "本人列出个人空间和当前项目里还开着的技能草稿：改的是哪个技能（新的、自己的某个、或从别的技能改的一份）、名称、修订号、谁起的头、最近一次回放的结果。草稿不影响任何一轮。",
-    input_schema: inputSchemaFor<Record<string, never>>()(object({}, [])),
-    output_schema: object({ drafts: { type: "array", items: summarySchema } }) } } as ActionDefinition<Record<string, never>, { drafts: SkillDraftSummary[] }>,
+    title: "列出技能草稿", description: "本人列出个人空间和当前项目里还开着的技能草稿：改的是哪个技能（新的、自己的某个、或从别的技能改的一份）、名称、修订号、谁起的头、最近一次回放的结果。带 include_discarded 时也列出放弃后仍在 7 天保留期内的草稿，用来找回。草稿不影响任何一轮。",
+    input_schema: inputSchemaFor<SkillDraftListRequest>()(object({ include_discarded: { type: "boolean" } }, [])),
+    output_schema: object({ drafts: { type: "array", items: summarySchema } }) } } as ActionDefinition<SkillDraftListRequest, { drafts: SkillDraftSummary[] }>,
   read: { capability_id: "skills.drafts.read", version: /* @version action.skills.drafts.read */ 1, operation: "query", action: { ...personRead,
     title: "读取一份技能草稿", description: "本人一次读出一份草稿：字段、修订号、已知答案、最近一次回放，以及拿来对照的版本（自己的技能现在在用的那一版，或改的那份通用技能）。",
     input_schema: inputSchemaFor<SkillDraftReadRequest>()(object({ draft_id: draftId })), output_schema: draftSchema } } as ActionDefinition<SkillDraftReadRequest, SkillDraft>,

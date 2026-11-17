@@ -128,6 +128,8 @@ export interface CallFacts {
   readonly invocation_id?: string;
   readonly parent_invocation_id?: string;
   readonly provider_id?: string;
+  /** A class the Host registration fixed for this call (a trial replay); it wins over the ambient source. */
+  readonly source_class?: "trial";
   readonly coalesce_key?: string;
   /** Evidence the exit made itself (the call's input and result); it replaces `input.evidence`. */
   readonly evidence?: readonly PendingEvidence[];
@@ -146,7 +148,7 @@ export function pendingRecord(env: ObservationEnvironment, owner: ObservationOwn
   const background = isBackground(origin) ? origin : undefined, context = background ? undefined : origin as ActionCallContext;
   const projectId = origin.project_id;
   const own = owner.kind !== "shell" && input.source_class && (OBSERVATION_OWNER_SOURCE_CLASSES as readonly string[]).includes(input.source_class) ? input.source_class : undefined;
-  const source: ObservationSourceClass = projectId && env.projectClass(projectId) === "regenerable_demo" ? "demo" : currentObservationSource() ?? own ?? "real";
+  const source: ObservationSourceClass = projectId && env.projectClass(projectId) === "regenerable_demo" ? "demo" : call.source_class ?? currentObservationSource() ?? own ?? "real";
   const detail = boundedDetail(input.detail);
   const subjects: ObservationSubject[] = (input.subjects ?? []).slice(0, OBSERVATION_LIMITS.subjects).map(subject => ({ kind: cut(subject.kind, OBSERVATION_LIMITS.ref_text),
     id: cut(subject.id, OBSERVATION_LIMITS.ref_text), ...(subject.version !== undefined ? { version: subject.version } : {}) }));

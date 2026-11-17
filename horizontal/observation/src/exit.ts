@@ -12,6 +12,8 @@ export interface ExitAction {
   readonly operation: string;
   /** An unsent draft's input: when the person saves it, its words are not kept, by rule (OCL-11). */
   readonly draft?: true;
+  /** The Host's registration classifies this call (today only a trial), so its record does not join real work. */
+  readonly source_class?: "trial";
 }
 
 /** What the kernel's exit was told of one call (the kernel's `CallObservation`). */
@@ -85,6 +87,7 @@ export function exitRecord(env: ObservationEnvironment, context: ActionCallConte
     invocation_id: observation.invocation_id,
     ...(observation.parent_invocation_id ? { parent_invocation_id: observation.parent_invocation_id } : {}),
     ...(action.provider_id ? { provider_id: action.provider_id } : {}),
+    ...(action.source_class ? { source_class: action.source_class } : {}),
     ...(coalesce ? { coalesce_key: coalesce } : {}),
     evidence,
   });

@@ -16,7 +16,8 @@ export type DraftTurns = ReturnType<typeof draftTurns>;
 
 export function draftTurns(c: WritingContext, edit: DraftEditing) {
   const { project, view, draw, say } = c;
-  const modelsHref = `/projects/${encodeURIComponent(project || "personal")}/settings/models`;
+  // Model settings are Home-wide: a project settings path has no models page.
+  const modelsHref = "/settings/models";
 
   async function ask(w: Workshop): Promise<void> {
     if (w.asking || !w.ask.trim() || !(await edit.flush())) return;
@@ -32,15 +33,18 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
   }
   async function replay(w: Workshop, caseId: string): Promise<void> {
     if (w.running || !(await edit.flush())) return;
-    w.running = caseId; w.runFailure = undefined; w.side = "try"; if (w.tab !== "edit") w.tab = "try";
+    w.running = caseId; w.runFailure = undefined; w.runFailureCode = undefined; w.side = "try"; if (w.tab !== "edit") w.tab = "try";
     draw();
     try {
       const trial = await runTrial(project, w.draft, caseId);
       const untried = w.draft.untried.filter(id => id !== caseId);
       w.draft = { ...w.draft, trial, untried, trial_needed: untried.length > 0 };
     } catch (cause) {
-      if (failureOf(cause).code === "skills.draft_conflict") w.draft = await readDraft(project, w.draft.draft_id);
-      w.runFailure = messageOf(cause);
+      if (failureOf(cause).code === "skills.draft_conflict") {
+        const current = await readDraft(project, w.draft.draft_id).catch(() => undefined);
+        if (current) { w.draft = current; w.fields = fieldsOf(current.fields); w.replacements = { ...current.replacements }; w.savedAt = current.updated_at; }
+      }
+      w.runFailure = messageOf(cause); w.runFailureCode = failureOf(cause).code;
     }
     w.running = undefined;
     if (view.workshop === w) draw(w.runFailure ? "sk-side" : "sk-replay");
@@ -86,7 +90,11 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
     } catch (cause) {
       const code = failureOf(cause).code, field = fieldOf(cause) as FieldName;
       if (code === "skills.trial_differs") w.confirm = true;
-      else if (code === "skills.trial_required" || code === "skills.draft_conflict") { w.draft = await readDraft(project, w.draft.draft_id).catch(() => w.draft); w.adoptFailure = messageOf(cause); }
+      else if (code === "skills.trial_required" || code === "skills.draft_conflict") {
+        const current = await readDraft(project, w.draft.draft_id).catch(() => undefined);
+        if (current) { w.draft = current; w.fields = fieldsOf(current.fields); w.replacements = { ...current.replacements }; w.savedAt = current.updated_at; }
+        w.adoptFailure = messageOf(cause);
+      }
       else if (field && field in w.fields) { w.errors = { [field]: messageOf(cause) }; w.tab = "edit"; }
       else w.adoptFailure = messageOf(cause);
     } finally { w.adopting = false; }
@@ -103,8 +111,8 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
 
   /** One of the open draft's actions; nothing when it is not one. */
   async function run(w: Workshop, name: string, value: string | undefined): Promise<void> {
-    if (name === "sk-close") { await edit.flush(); view.workshop = undefined; await c.reload(); return draw("detail"); }
-    if (name === "sk-models") { await edit.flush(); location.href = modelsHref; return; }
+    if (name === "sk-close") { if (!(await edit.flush())) return; view.workshop = undefined; await c.reload(); return draw("detail"); }
+    if (name === "sk-models") { if (!(await edit.flush())) return; location.href = modelsHref; return; }
     if (name === "au-applies") { w.fields.applies_to = value as Fields["applies_to"]; edit.schedule(w); return draw("au-applies"); }
     if (name === "sk-tab") { w.tab = value as Workshop["tab"]; if (w.tab !== "edit") w.side = w.tab; return draw("sk-tab"); }
     if (name === "sk-side") { w.side = value as Workshop["side"]; w.tab = w.side; return draw("sk-side"); }

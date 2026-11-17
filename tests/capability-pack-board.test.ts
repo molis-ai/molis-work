@@ -11,7 +11,8 @@ import { renderMolisWorkSettingsStylesheet } from "./workbench-renderer-fixture.
 // 09 AI kits (docs/design/capability-pack/README.md「组件板新增」, decided 2026-11-09): the board's eight new parts as renderers a
 // page calls, their board sections, their English, tokens only, and the settings shell's scrolling-area height.
 
-const SECTIONS = ["now-block", "item-group", "cell-grid", "detail-trail", "icon-counts", "state-rows", "usage-figure", "sticky-detail"];
+const SECTIONS = ["now-block", "item-group", "cell-grid", "detail-trail", "icon-counts", "state-rows", "usage-figure", "sticky-detail",
+  "text-count", "leave-bar", "adopt-bar", "replay-grid", "ask-row", "placeholder-list"];
 const sectionOf = (html: string, id: string) => {
   const start = html.indexOf(`<section class="mw-catalog__section" id="${id}"`);
   assert.ok(start >= 0, `section ${id}`);
@@ -61,11 +62,17 @@ test("SKL-41-2-AU-20: the text count and the leave bar (batch 41) are board part
   for (const id of ["text-count", "leave-bar"]) assert.deepEqual(sectionOf(english, id).replace(/<style>[\s\S]*?<\/style>/g, "").match(/[㐀-鿿]+/gu) ?? [], [], `no Chinese is left in ${id}`);
 });
 
-test("CPK-01: the board has the eight sections, in order, with English for every word and tokens only", () => {
+test("CPK-01: the board has its sections, in order, with English for every word and tokens only", () => {
   const board = runWithLocale("zh", () => renderPrimitiveCatalog());
   const at = SECTIONS.map((id) => board.indexOf(`id="${id}"`));
   assert.ok(at.every((index, n) => index > 0 && (n === 0 || index > at[n - 1]!)), "every new part has its section, in order");
   assert.match(sectionOf(board, "sticky-detail"), /<div class="mw-list-detail" data-list-detail data-sticky-detail>/);
+  // Batch 42's four parts: the adopt bar with its states, the replay grid with both versions, the ask row and the placeholder list.
+  assert.match(sectionOf(board, "adopt-bar"), /class="mw-adopt-bar"/);
+  assert.match(sectionOf(board, "adopt-bar"), /data-state="saving"/);
+  assert.match(sectionOf(board, "replay-grid"), /class="mw-replay-grid"/);
+  assert.match(sectionOf(board, "ask-row"), /class="mw-ask-row"/);
+  assert.match(sectionOf(board, "placeholder-list"), /class="mw-placeholders"/);
   const english = runWithLocale("en", () => renderPrimitiveCatalog());
   assert.match(sectionOf(english, "item-group"), /Writing editor/);
   assert.match(sectionOf(english, "icon-counts"), /2 roles/);

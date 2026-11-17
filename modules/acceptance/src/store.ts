@@ -4,13 +4,16 @@ import type { AcceptanceCheck, AcceptanceEvidenceRef, AcceptanceSubject } from "
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ACCEPTANCE_BASELINE, ACCEPTANCE_STORE } from "./schema.js";
 import type { CheckRow, DecisionRow, DeliveryRow, RequirementRow, SubjectRows } from "./state.js";
+import { AcceptanceCommitIntents } from "./intents.js";
 
 type Row = Record<string, unknown>;
 const text = (value: unknown) => (typeof value === "string" ? value : null);
 
 /** The logs of `<Home>/acceptance/acceptance.db`. It appends and reads; what the rows mean is in `state.ts` and `service.ts`. */
 export class AcceptanceStore {
-  constructor(private readonly db: DatabaseSync) { db.exec("PRAGMA busy_timeout = 5000;"); }
+  /** The durable commit intents beside this database; see intents.ts. */
+  readonly intents: AcceptanceCommitIntents;
+  constructor(private readonly db: DatabaseSync, homeDirectory: string) { db.exec("PRAGMA busy_timeout = 5000;"); this.intents = new AcceptanceCommitIntents(homeDirectory); }
   close(): void { this.db.close(); }
 
   /** One write: everything in `work` is saved, or nothing is. */
@@ -58,10 +61,14 @@ export class AcceptanceStore {
     this.db.prepare("INSERT INTO acceptance_decisions (decision_id, subject_no, requirement_id, requirement_version, stands_round, version, decision, note, actor_id, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
       .run(row.decision_id, subjectNo, row.requirement_id, row.requirement_version, row.stands_round, row.version, row.decision, row.note, row.actor_id, row.decided_at);
   }
+  hasDecision(projectId: string, decisionId: string): boolean {
+    return this.db.prepare("SELECT 1 FROM acceptance_decisions d JOIN acceptance_subjects s ON s.subject_no = d.subject_no WHERE s.project_id = ? AND d.decision_id = ? LIMIT 1")
+      .get(projectId, decisionId) !== undefined;
+  }
 }
 
 export function openStore(homeDirectory: string): AcceptanceStore {
-  return new AcceptanceStore(openBaselineHomeSqlite(homeDirectory, ACCEPTANCE_STORE, ACCEPTANCE_BASELINE));
+  return new AcceptanceStore(openBaselineHomeSqlite(homeDirectory, ACCEPTANCE_STORE, ACCEPTANCE_BASELINE), homeDirectory);
 }
 
 /** The project is deleted: everything attached to its objects goes. Works on the library's file; running it again finds nothing. */
@@ -69,6 +76,7 @@ export function purgeAcceptanceProject(homeDirectory: string, projectId: string)
   clearInExistingHomeSqlite(homeDirectory, ACCEPTANCE_STORE, ACCEPTANCE_BASELINE, db => {
     for (const table of ["requirements", "deliveries", "checks", "decisions"]) db.prepare(`DELETE FROM acceptance_${table} WHERE subject_no IN (SELECT subject_no FROM acceptance_subjects WHERE project_id = ?)`).run(projectId);
     db.prepare("DELETE FROM acceptance_subjects WHERE project_id = ?").run(projectId);
+    new AcceptanceCommitIntents(homeDirectory).removeProject(projectId);
   });
 }
 

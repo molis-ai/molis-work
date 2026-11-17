@@ -99,7 +99,7 @@
 |  | [全产品文案与按需帮助](reference/batches/40.md#batch-40-item-2) |
 | [41](reference/batches/41.md) | [Skill 选用](reference/batches/41.md#batch-41-item-1) |
 |  | [规划方法变成技能](reference/batches/41.md#batch-41-item-2) |
-| [42](reference/batches/42.md) | [Skill 创作与改进完整路径](reference/batches/42.md#batch-42-item-1) |
+| [42](reference/batches/42.md) | [Skill 创作与改进完整路径](reference/batches/42.md#batch-42-item-1)：已实现并合入 `4cf1c742e6`（[#2107](https://github.com/molis-ai/molis-work/pull/2107)；最终 CI/Full/队列通过）；本人验收保留 |
 | [43](reference/batches/43.md) | [项目助理团执行与交付](reference/batches/43.md#batch-43-item-1) |
 |  | [Dataset 汇总、追加与规模性能](reference/batches/43.md#batch-43-item-2) |
 | [44](reference/batches/44.md) | [合同去插件化](reference/batches/44.md#batch-44-item-1) |

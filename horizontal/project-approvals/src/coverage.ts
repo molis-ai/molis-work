@@ -51,7 +51,7 @@ function requirement(value: unknown, owner: Owner) {
   return { id: value.id, version: value.version, target: reviewTarget(value.target, owner), evidence: reviewEvidence(value.evidence, owner) };
 }
 
-function readRequirements(values: unknown, owner: Owner, read?: ReadDecision): ReviewRequirement[] {
+function readRequirements(values: unknown, owner: Owner, read?: ReadDecision, actorId?: string): ReviewRequirement[] {
   if (!Array.isArray(values) || values.length > 100) throw invalid();
   const requirements = values.map((value: unknown) => {
     if (!isRecord(value) || typeof value.statement !== "string" || !value.statement.trim() || value.statement.length > 2000
@@ -59,7 +59,7 @@ function readRequirements(values: unknown, owner: Owner, read?: ReadDecision): R
     const row = requirement(value, owner);
     for (const evidence of row.evidence) if (read && evidence.tier === "person_accepted") {
       const original = read(evidence.decision.decision_id);
-      if (!original || !same(original.reference, evidence.decision.reference) || !original.review.requirements.some(accepted =>
+      if (!original || (actorId !== undefined && original.actor_id !== actorId) || !same(original.reference, evidence.decision.reference) || !original.review.requirements.some(accepted =>
         accepted.disposition === "accepted" && accepted.id === row.id && accepted.version === row.version
         && same(accepted.target, row.target) && (same(accepted.target, evidence.target) ||
           accepted.evidence.some(prior => same(prior.target, evidence.target))))) throw invalid();
@@ -116,12 +116,12 @@ function reviewChoice(value: unknown, owner: Owner, stored: boolean): ReviewRequ
 }
 
 /** A project command may describe only facts read by its registered review query. */
-export function projectReviewPresentation(value: unknown, owner: Owner, read?: ReadDecision): TrustedReviewOffer["request"] {
+export function projectReviewPresentation(value: unknown, owner: Owner, read?: ReadDecision, actorId?: string): TrustedReviewOffer["request"] {
   if (!isRecord(value) || typeof value.summary !== "string" || !value.summary.trim() || value.summary.length > 20_000
     || !Array.isArray(value.choices) || !value.choices.length || value.choices.length > 30
     || !isRecord(value.approver) || value.approver.kind !== "person" || value.approver.actor_id !== undefined && !key(value.approver.actor_id)
     || value.expires_at !== null && (typeof value.expires_at !== "string" || !Number.isFinite(Date.parse(value.expires_at)))) throw invalid();
-  const requirements = readRequirements(value.requirements, owner, read);
+  const requirements = readRequirements(value.requirements, owner, read, actorId);
   const ids = new Set(requirements.map(row => row.id));
   const choices = value.choices.map(row => reviewChoice(row, owner, !read));
   if (new Set(choices.map(row => row.id)).size !== choices.length || choices.some(({ accepts, returns }) => {

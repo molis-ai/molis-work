@@ -19,6 +19,7 @@ export interface HostCapabilityDescriptor {
     operation: HostCapabilityOperation;
     readonly action?: import("@molis-ai/molis-work-contracts/platform/actions").ActionMetadata;
     readonly action_provider?: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider;
+    readonly observation_source?: "trial";
 }
 
 export interface HostCapabilityInvocation extends ActionCallOrigin {

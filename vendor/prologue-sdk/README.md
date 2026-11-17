@@ -1,6 +1,14 @@
 # Prologue SDK 构建来源
 
-## 当前包：official main ce40e40a（2026-11-16，第 59 批）
+## 当前包：official main 71662135（2026-11-17，第 59 批）
+
+唯一运行包 `prologue-sdk-0.0.0-rc.1.tgz` 为 **1,486,129 字节**，SHA-256 `61ffb434c6568c2d31e4677f49076251bc52e3041b25ad695a5b13f4a40494bc`。来自上游 [PR #130](https://github.com/molis-ai/molis-prologue/pull/130) 的 main 合并提交 `71662135799fedf7bca4ab6875cefbe6cc6c7d72`，整棵树与独立评审通过的 `542eb0c7` 相同，无 vendor 补丁。
+
+合法的持久子问题可在正常关机时停放；回答与恢复补交付在原 Session 串行区内刷新确证终态，显式继续可消费原答案队列。只在父已取消且子已封口时结束前台等待，停放写失败也不会卡关机；普通取消保留未知副作用判断。恢复不覆盖新执行、当前权限或已有回报，不自动起父 Run，不改变存储格式。公开增量为原 continue 的 queued 选择与原低层 registry 的精确终态恢复方法。
+
+从官方提交两次独立 archive、离线安装、构建与打包，两份产物逐字节相同（Node 24.14.0 / pnpm 11.9.0）。上游 build/types/API/ratchet/docs/clean-consumer 与 7 文件 56 项定向回归通过。CI run 44048729451 因账户付款/额度未启动任何步骤，不称 CI 通过。Molis 双入口、问题/审批及完整产品验收仍属本批未完部分。换下的 ce40e40a 包可由 patch-history.json 的 Git blob 取回。
+
+## 上一份：official main ce40e40a（2026-11-16，第 59 批）
 
 当前唯一运行包为 `prologue-sdk-0.0.0-rc.1.tgz`，**1,484,597 字节**，SHA-256 `2c320919c799bd33614775df2924465037622811a8be3414f75e0af669667f91`。来自上游 [PR #129](https://github.com/molis-ai/molis-prologue/pull/129) 的 main 合并提交 `ce40e40a5112d0dfb3a44b5e38003576ed0cab99`，与独立评审通过的 `128aca37` 整棵树相同，没有 vendor 补丁。
 

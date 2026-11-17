@@ -18,6 +18,7 @@ export interface SubagentCardPorts extends PagePorts {
   readonly sessionId: () => string | null;
   /** Opens the results panel on the subagent. */
   readonly openInPanel: (id: string) => void;
+  readonly openConversation: (session: string, run: string, child: string) => Promise<void>;
   /** Whether the run can still be asked something through the supplemental channel. */
   readonly parentLive: (run: CardsRun) => boolean;
   /** Puts a request in the composer, sent only when the person chooses. */
@@ -275,7 +276,8 @@ function retryButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
 
 /** The buttons a child in its state is offered, drawn again only when what they depend on changed. */
 function drawFoot(ports: SubagentCardPorts, node: HTMLElement, run: CardsRun, child: Child, edited: readonly string[]) {
-  const foot = part(node, ".coding-child-foot"), key = JSON.stringify([child.state, child.verdict?.status, child.integration_available, edited.length > 0, child.budget?.attempt, child.budget?.max_attempts, child.budget?.exhausted]);
+  const session = ports.current();
+  const foot = part(node, ".coding-child-foot"), key = JSON.stringify([session, run.ref.run_id, child.state, child.verdict?.status, child.integration_available, edited.length > 0, child.budget?.attempt, child.budget?.max_attempts, child.budget?.exhausted]);
   if (foot.dataset.key === key) return;
   foot.dataset.key = key;
   foot.replaceChildren();
@@ -283,6 +285,9 @@ function drawFoot(ports: SubagentCardPorts, node: HTMLElement, run: CardsRun, ch
     ports.lifetime.listen(made.node, "click", made.action);
     foot.append(made.node);
   };
+  const conversation = button(uiText.text("coding.subtask.open"), () => ports.openConversation(session, run.ref.run_id, child.subagent_id).catch(error => ports.status(errorMessage(error), true)));
+  conversation.node.dataset.codingChildConversation = child.subagent_id;
+  add(conversation);
   if (child.state === "running") add(stopButton(ports, run, child));
   if (child.state === "completed") add(button(child.integration_available ? uiText.text("coding.card.judge-integrate") : uiText.text("coding.card.judge"), () => ports.openInPanel(child.subagent_id)));
   const ended = ["failed", "cancelled"].includes(child.state);

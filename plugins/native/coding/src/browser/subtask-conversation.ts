@@ -21,7 +21,8 @@ export function mountCodingSubtask(host: CodingWorkbenchHost): void {
   const task = host.view.task!, lifetime = host.mountPluginClient(host.root);
   if (!lifetime) return;
   const root = host.root as HTMLElement;
-  root.replaceChildren(); root.style.cssText = "height:100%;min-height:0";
+  const content = root.ownerDocument.createElement("div"); content.style.height = "100%";
+  root.replaceChildren(content); root.style.cssText = "height:100%;min-height:0";
   const questions = createSubtaskQuestions({ drafts: host.drafts, interaction: host.interaction, text: say });
   const source = createAgentSubtaskSource({
     drafts: host.drafts, labels: codingComposerLabels(t.text, /Mac/i.test(navigator.platform)), text: say,
@@ -29,12 +30,13 @@ export function mountCodingSubtask(host: CodingWorkbenchHost): void {
       const conversation = await hostRequest<AgentSubagentConversation>(host, lifetime, pathOf(target), { signal });
       return { conversation, details: [...questions.remember(target, JSON.stringify(conversation.child.child_run), conversation.questions), ...(conversation.approvals.length ? [{ id: "approvals:" + JSON.stringify(conversation.approvals), title: say("approvals"), content: { text: "" }, expanded: true }] : [])], parent: { target: "", title: say("parent") } };
     },
-    command: (target, command, signal) => hostRequest<AgentSubagentRequestResult>(host, lifetime, pathOf(target), { method: "POST", body: command, signal }),
+    command: (target, command, signal) => hostRequest<AgentSubagentRequestResult>(host, lifetime, pathOf(target), { method: "POST", signal,
+      body: command.kind === "send" || command.kind === "continue" ? { ...command, original_input: { input_id: command.request_id, text: command.text, use: "supplement" } } : command }),
     check: (target, requestId, signal) => hostRequest<AgentSubagentRequestResult>(host, lifetime, pathOf(target) + "/request?request_id=" + encodeURIComponent(requestId), { signal }),
     subscribe: (target, invalidate, signal) => subscribeSubtask((version, signal) => hostRequest<{ version: string }>(host, lifetime,
       pathOf(target) + "/live?" + new URLSearchParams(version ? { since: version } : {}), { signal }), invalidate, signal),
   });
-  const handle = createSubtaskConversation(root, { get labels() { return labels(); }, source, mountDetail: (element, view, detail, submit) => {
+  const handle = createSubtaskConversation(content, { get labels() { return labels(); }, source, mountDetail: (element, view, detail, submit) => {
     if (!detail.id.startsWith("approvals:")) return questions.mount(element, view, detail, submit);
     const run = JSON.parse(view.binding) as { run_id: string }, controller = new AbortController();
     void host.reviews.show(element, { runIds: [run.run_id] }, { signal: controller.signal }).catch(() => {

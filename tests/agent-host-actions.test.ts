@@ -359,6 +359,12 @@ test("RAC-199 a round's controls, receipts, recovery, checkpoints and subtasks a
   assert.deepEqual(seen.at(-1)?.[0], "child-command");
   assert.deepEqual(seen.at(-1)?.[1].slice(0, 3), [run, "child", CHILD_STOP]);
   assert.equal((seen.at(-1)?.[1][3] as { actor_id: string }).actor_id, "web-user");
+  // SAI-08: ordinary plugin data cannot attest the person's input; only the Host's protected route envelope can.
+  const childCommands = seen.filter(([name]) => name === "child-command").length;
+  for (const kind of ["send", "continue"] as const) await assert.rejects(actions.invoke(agent.commandSubagent, [session, run, "child", {
+    kind, request_id: "untrusted-" + kind, child_run: CHILD_STOP.child_run, text: "Not a trusted person input",
+  }]), { code: "agent.capability_unavailable" });
+  assert.equal(seen.filter(([name]) => name === "child-command").length, childCommands, "unattested words never reach the child");
   await actions.invoke(agent.controlRun, [session, run, { kind: "pause" }]);
   assert.deepEqual(seen.at(-1), ["control", [run, { kind: "pause" }]]);
   assert.equal((await actions.invoke(agent.readCommandOutput, [session, { run_id: "r1", call_id: "c1" }])).stdout, "ok");

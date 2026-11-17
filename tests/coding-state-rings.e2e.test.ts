@@ -102,7 +102,7 @@ test("VUX-40: cooperation, subagents and the usage meter speak English in Englis
       const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root),errors=[],q=selector=>root.querySelector(selector);
       // The page names a role from its id and falls back to the id (client.ts ROLE_NAMES); the cards and results take that port.
       const roleName=id=>({builder:'Builder',reader:'Reader',reviewer:'Reviewer',coordinator:'Coordination'})[id]||id||'Agent';
-      const ports={lifetime,translate:globalThis.t.text,q,api:async()=>({}),current:()=>'session',status:message=>errors.push(message),refresh:async()=>{},openStep:()=>{},roleName};
+      const ports={lifetime,translate:globalThis.t.text,q,api:async()=>({}),current:()=>'session',status:message=>errors.push(message),refresh:async()=>{},openStep:()=>{},openConversation:async()=>{},roleName};
       const {timeline}=(${codingTranscriptBundle()})({readText:globalThis.t.text,lifetime,turns:root});
       const children=[{subagent_id:'c1',role_id:'builder',role_name:'Builder',state:'running',task:'Write the parser',usage:{tokens:{input:1200,output:300}}},
         {subagent_id:'c2',role_id:'reader',role_name:'Reader',state:'failed',task:'Read the docs',error:'MODEL_NETWORK_FAILED: fetch failed',integration_available:true,workspace_path:'/tmp/w/c2',

@@ -178,9 +178,9 @@ const subagentBudgetOutput = shape(["attempt", "max_attempts"], {
     reason: string, usage: usageOutput, error: string,
   })),
 });
-const subagentOutput = { type: "object", required: ["subagent_id", "parent_run", "role_id", "task", "state", "result", "workspace_path"], additionalProperties: false, properties: {
+const subagentOutput = { type: "object", required: ["subagent_id", "parent_run", "role_id", "role_version", "execution", "task", "state", "result", "workspace_path"], additionalProperties: false, properties: {
   child_run: runRefOutput, activity: list(activityOutput), usage: usageOutput, host_tools: strings, error: { type: "string" }, subagent_id: { type: "string" }, parent_run: runRefOutput,
-  role_id: { type: "string" }, role_name: { type: "string" }, task: { type: "string" }, continuation_task: { anyOf: [
+  role_id: { type: "string" }, role_version: { type: "integer", minimum: 1 }, execution: { enum: ["read-only", "text-edit", "workspace-write", "operate"] }, role_name: { type: "string" }, task: { type: "string" }, continuation_task: { anyOf: [
     shape(["status", "text"], { status: { const: "available" }, text: string }), shape(["status"], { status: { const: "unavailable" } })] }, state: { type: "string" }, result: { type: ["string", "null"] }, workspace_path: { type: ["string", "null"] },
   node_id: { type: "string" }, budget: subagentBudgetOutput } } as const;
 /** A directory the Host granted, a fixed Artifact version: what a start names, never a raw path or a live object. */

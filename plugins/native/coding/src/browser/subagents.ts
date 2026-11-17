@@ -35,6 +35,7 @@ export interface SubagentGroup { readonly run_id: string; readonly error?: strin
 
 export interface SubagentPorts extends PagePorts {
   readonly roleName: (id: string) => string;
+  readonly openConversation: (session: string, run: string, child: string) => Promise<void>;
   readonly openIntegration: (id: string, runId: string, child: Child) => Promise<void> | void;
   readonly usageSummary: (usage: ChildUsage) => string;
   /** Puts a rework instruction for a subagent in the composer. */
@@ -259,7 +260,9 @@ function childRow(panel: Panel, id: string, group: SubagentGroup, child: Child, 
   const row = el("details"), summary = el("summary", heading(panel, child) + " · " + resultState);
   row.dataset.child = child.subagent_id;
   row.open = opened.has(child.subagent_id);
-  row.append(summary, assignment(panel, child, opened));
+  const conversation = button(panel, uiText.text("coding.subtask.open-result"), () => panel.ports.openConversation(id, group.run_id, child.subagent_id).catch(error => panel.ports.status(errorMessage(error), true)));
+  conversation.classList.add("mw-btn--ghost"); conversation.dataset.codingChildConversation = child.subagent_id;
+  row.append(summary, conversation, assignment(panel, child, opened));
   if (child.state !== "running") row.append(compareToggle(panel, child));
   outcome(panel, row, child);
   offers(panel, row, id, group, child);

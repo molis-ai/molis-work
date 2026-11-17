@@ -89,6 +89,7 @@ export function mountBoard(page: Page) {
   });
   refs.planProgress = planProgress({ ...s.ports, roleLabel: id => s.ROLE_NAMES[id], openStep: (runId, stepId) => refs.stepReports.open(s.current, runId, stepId), from: node => refs.inputReceipts.from(node), word: state => host.receipts.step(state) });
   refs.subagents = subagentGroups({
+    openConversation: (session, run, child) => host.view.openTask({ session, run, child }),
     ...s.ports, roleName: id => s.ROLE_NAMES[id] || id || "Agent", openIntegration: refs.integrations.open, usageSummary: usage => codingUsageSummary(usage, readText),
     prepareRework: async (id, runId, child, notes) => {
       if (s.current !== id) return;

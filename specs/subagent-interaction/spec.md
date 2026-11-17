@@ -419,3 +419,5 @@ Prologue 提供无 UI 的公共合同，不包含 Molis Work 文案、组件、W
 两处 UI 继续使用 58 的公共组件及已定右侧浮窗。工作台 task-panel 是浮窗唯一 owner，列表刷新不替换活跃子对话根节点；助理 child 点击改为浮窗意图，主 Work、主输入与材料不切换。Coding 通过通用 `UiPageView` 任务浮窗挂载口请求本安装已登记 contribution/view 的子对话投影，由现有隔离 frame 授权、挂载和回收流程承载；插件不获得父文档权限，不自报 Host URL 或其他安装。投影内使用同一公共组件与 Coding 原端口，原评价、审批和成果整合保持可达。此挂载只承载已定组件，不增加用户可见交互；如实现发现超出 58 的布局或动线，仍先定样确认。
 
 Work 草稿复用原 Work owner；SDK 子任务草稿与未决操作引用复用平台 `host.drafts`，按稳定逻辑 target 分键。未决数据仅保留原 request/target/binding，不是消息或执行账。发送前先保存引用，结果未知时只查原请求；组件重开、刷新、A→B→A 与子 iframe 卸载均不能重发或清理另一个任务的输入。验收覆盖两种助理来源和 Coding 真实 iframe，尤其主输入独立、关闭与重开、终态继续、失权及原审批/成果入口。
+
+浮窗挂载合同细化：`UiPageView.openTask(input: Readonly<Record<string,string>>): Promise<void>` 只能请求当前已授权 contribution 的同安装投影；输入沿现有有限 stage 参数上限校验，仅作客户端定位，记录可读性和操作权限仍在原 HTTP/Action owner 校验。浮窗实例收到 `view.task`，含当前 `input`、`subscribe(listener)` 与 `close()`；普通页面没有该上下文。壳重用同一源页面的一份隔离浮窗实例，切目标只更新输入并通知控制器，不重新挂载 iframe；关闭隐藏浮窗、保留组件阅读状态，源页面失权/卸载时销毁。源页不能传 HTML、地址、安装或 contribution 身份。每次打开先核原页面有效，投影经现有 `mountFrame` 重新发 grant，使用原页面登记的脚本及授权文档。全局 task-panel 管显示、返回、Escape 与焦点；浮窗内的主输入只绑定组件冻结的子目标。

@@ -328,6 +328,8 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 ### 舞台的数据
 
+舞台业务事实只由声明的动作结果 `StagePageModel.data` 提供；`context` 只含平台位置与展示上下文，不再提供 `client_data` 转发其他插件事实。需要其他 owner 的内容时，由实际消费者通过公开读取合同取得，不能要求整页壳先读一遍再代传。
+
 打开舞台的那个 view（`stage` view，没有就是第一个 `navigator` view）可用 `stage_data: { action }` 声明本 Manifest 自己的只读、面向 `user`、只有一个版本的查询，规则与 `settings_data` 相同。宿主按页面上的这个人、只带这个动作自己的权限调用，结果交给舞台的 `StagePageModel.data`；整页与原地重画（`GET /api/stage/<project_plugin_id>`）走同一条路。插件不在或被拒时没有 `data`，其他失败照常报错。当前只对内置目录兑现（T-133）。
 
 ## 状态与状态机

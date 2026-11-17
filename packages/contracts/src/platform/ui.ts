@@ -340,8 +340,6 @@ export interface StagePageContext {
   readonly project: { readonly project_id: string; readonly display_name: string } | null;
   readonly demo: boolean;
   readonly cli_availability: Record<string, boolean>;
-  /** Optional client-side projections already read by their owners for this page. */
-  readonly client_data?: Readonly<Record<string, unknown>>;
 }
 
 /** What the Host writes text and markup with on a plugin's stage, in the page's locale. */

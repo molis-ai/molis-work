@@ -734,3 +734,25 @@ QF-51 CPU复核（`/tmp/quality-audit-scene-cpu.log` 与同名profile目录）�
 第四十批检查点：完整构建、API生成（0差异）、健康通过；17个相关文件153项均已有通过证据。首轮16/17文件通过，BRC-05受控额外读取确被拒绝，但反证匹配旧错误文案；同步精确文案后整文件5/5通过，未放宽任何调用预算。QEA-90两次实际浏览器通过，最终5样本每次均在4/20条时返回health，事件循环最大延迟1.09–2.65秒；取消后原已提交第一条保留、剩余重试不重复的QEA-91通过。日志 `/tmp/quality-audit-inbox-yield-acceptance.log`、`/tmp/quality-audit-inbox-yield-final.log`。
 
 **QF-51整体仍未收口。** 最终测量总耗时p50反升到22.6秒，每次更新引发6–8次 `/api/board/refresh`；原阻塞掩盖的其他页面重复工作现已能在批次期间运行。`initialization.ts:460`在非Goals舞台收到平台attention全局cursor即刷新Goals，`refresh-decisions.ts:128`读取全平台cursor，而Goals文档快照的cursor来自其自己的日志；Inbox判断每次记事件也推动全平台cursor。下一步先明确Goals正文/目录及关联投影实际依赖的事实与正常返回需要，再收敛刷新来源或可见性，不暂停所有页面、不让取消重新饿死、也不通过拉长超时收口。该检查点只证明普通场景不读无关目录和批次可取消，性能BL保留。
+
+## 第四十二批：页面片段只读实际渲染 owner（QF-51 后续）
+
+状态：当前头 ff0c7ab018 已合入 origin/main eafff2b526，调用链和真实网络证据已核实，实施中。正常 Inbox 20 条期间的 8 次 Goal 刷新均来自顶层工作台；每次 web-goals-read.fragments → projectWebView 重读所有 shown 插件舞台，再渲染 Home 舞台和目录。Goal 片段只消费匹配页面 owner 的舞台、目标正文/关系/策略及关联成果，不消费其他舞台；保留插件目录元数据，因为真实“新建输入”菜单仍读取各插件的 creates 声明。另有 inbox_judgment 从 Inbox 舞台经 Host、Workbench、Goals 转发进 bootstrap，当前没有生产读取者；测试的字段存在断言不能成为保留理由。
+
+沿用现有声明路由和 Runtime stage owner 的读取、权限、提供方固定和 await 后复核；片段只准备匹配页面的舞台，不执行其他舞台读取或 Home 整页渲染。整页仍准备全部显示舞台。清掉无消费方的 inbox_judgment 转发及夹具旧入口，以及仅为它存在、全仓无其他消费者的 StagePageContext.client_data 可选合同字段（阶段一直接清理，更新 API 快照）；Inbox 自己的 stage_data 和真实判断界面保持。当前 bootstrap 实际仅含 Goal 导航事实和项目身份，因此不引入局部状态合并协议。Goal 正文、关系、策略、输入绑定、成果装饰保持原公开 owner 路径；不以 Goals 日志替换全平台变化通知，不新增缓存/兼容层/持久格式。
+
+- **QEA-94** 正常 HTTP Goal 刷新/正文/推进片段保留真实内容、集合与输入/成果变化；无关插件的实际 stage reader 不被调用。整页仍读取无关插件的真实舞台，构成正向对照；原拒绝、停用和提供方尾检保留。
+- **QEA-95** 隔离 Home 的 Inbox 20 条正常点击复量耗时和 health 响应位置，保留全部判断及实际记录；Feed 活跃时新增 Goal 仍刷新目录且不打断菜单；Goal 刷新迟到、切换选择、保存/搜索焦点及相关成果/输入变化不回退。只有实际证据支持才关闭性能问题。
+
+验证：先保留旧构建运行新增无关 reader 反例，再完整构建；定向 stage/Goal HTTP 与 UI、Feed 菜单、Inbox 批量及相关授权测试，API 和健康门禁，最终准确头全量。删除 bootstrap 字段同步正常路由结构快照，只改变已无消费者的字段，不放宽安全或调用预算门禁。
+
+第四十二批检查点：13文件中12文件147项通过（`/tmp/quality-audit-goal-stage-acceptance-serial.log`），剩余为主干带入的会话滚轮用例；补充诊断单跑14项通过，但发现其在 follower 下一帧落底前即读取起点的时序缺口，现改为先观察真实落底再发原生滚轮，保留滚动、未读、返回位置断言。QEA-94 补运行中的未知 Home 插件创建入口保留，待二文件复验。健康和 API 通过；Skill 离线回放及隔离替身3简报通过，真实模型冒烟因隔离 Home 没有可用模型未运行。五次正常 Inbox 20条复量p50=10768ms，health均在3–4/20条返回，仍有约7次Goal刷新；相比上一批22595ms改善，但QF-51仍继续。
+
+## 第四十三批：复用 Storage 的结构校验结果（QF-51 后续）
+
+状态：调用链与现有能力已核实，待第四十二批保存后实施。每次 projectActionAvailability → projectReachablePlugins → Catalog membership → alwaysOnCatalogEntries 都打开 Home 插件库并执行全结构扫描。版本、归属和业务授权必须每次读取；结构相同却重复扫描不增加授权证据。Storage 在 upgrade-chain-design §3.2/N45 已按文件身份和 schema_version 复用成功比较，Home 专用只读入口尚未使用。
+
+从 sqlite-baseline 提取现行成功比较机制，明确 baseline（原允许额外表）与 exact（Home 现行完整结构相等）两种比较要求，不把后者替换成宽检查；结果按基线、模式、文件身份、schema_version及当前基线版本隔离。原 Inspector 使用同一机制，Home 的两种绑定结构复用稳定基线定义。每次仍新开只读事务、检查当前版本/Home归属、读当前安装与同意行并关闭；不缓存活连接、授权结果、业务行或失败，不改变持久格式、不新增批准机制。若实测仍慢，再按实际证据决定是否复用 owner 连接，本批不提前做。
+
+- **QEA-96** 同一真实 Catalog/Host 授权读取暖读不再扫描未变结构；各次仍检查版本、归属并关闭连接，独立 Home 不共享结构身份。新版号、缺表、额外表、WAL结构改变、文件替换仍拒绝；失败不记为成功，恢复后可正常读。普通 baseline 仍保留其原允许额外表合同。
+- **QEA-97** 原常开插件安装/批准/撤权及异步尾检全部保留；隔离 Home 正常 Inbox 20条复量耗时/健康响应，失败取消重试核实际记录无重复。API/健康、Storage及Host相关必跑、最终准确头CI按原范围完成。

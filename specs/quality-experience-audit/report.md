@@ -1,6 +1,12 @@
 # Molis Work 审查报告与优化策略
 
-当前状态（2026-11-17，负责人 Codex）：**整项仍在进行中**。原六方向、逻辑 Bug、需求实现度与 BL 清理均保留。已整合 main `a717e44284`，75包、83个 contracts 子路径；已 fetch `eafff2b526`，待第40批保存后整合。已保存到 `d7d146a2da`，第40批 QF-51 正在真实入口验收。以下各检查点的通过证据不代替最终提交的 Full CI。
+当前状态（2026-11-17，负责人 Codex）：**整项仍在进行中**。原六方向、逻辑 Bug、需求实现度与 BL 清理均保留。已整合 main `eafff2b526`，75包、83个 contracts 子路径；合并检查点 `ff0c7ab018` 保留此前成果，第40批保存为 `651a35be6d`。第42批 Goal 片段读取收窄已通过本地定向验收，继续第43批结构扫描成本和第41批旧入口清理；以下各检查点的证据不代替最终提交的 Full CI。
+
+第42批 / QF-51 后续：正常网络探针证明8次 Goal 刷新均来自顶层工作台（`/tmp/quality-audit-inbox-refresh-probe.log`）。`web-goals-read.ts:153` 的片段读取经 `web-request.ts:202` 重读所有显示插件舞台并渲染 Home 内容，放大 Inbox 批次成本。QEA-94 在旧构建真实 HTTP 入口失败：无关 Schedule reader 被调用一次（`/tmp/quality-audit-goal-stage-baseline.log`）。现按声明路由匹配 owner 准备舞台，保留目标正文/关系/策略/成果与创建输入所需目录；移除无生产消费者的 Inbox 摘要转发和 StagePageContext.client_data。完整构建通过、API 快照仅删除该可选字段，定向验收进行中，不预报性能通过。
+
+第42批本地结算：上述13文件最终均有通过证据、共161项；无关 Schedule 读取从1变0，真实未知 Home 插件的“新建输入”入口保留，成果归档和输入确认后刷新正确，Feed 菜单/Goal迟到响应/原保存交错通过。二文件补验24+14项见 `/tmp/quality-audit-goal-stage-final.log`。会话滚轮测试先观察 follower 的真实落底再测量向上滚动，未修改产品滚动语义或放宽原断言。五次20条判断p50从22595ms降至10768ms，health在3–4/20条返回（`/tmp/quality-audit-goal-stage-performance.log`）；等待仍偏长，QF-51及性能BL保留。构建/API/健康/只读复核通过；离线Skill回放和替身3简报通过，真实模型因隔离Home无可用模型未运行。后续第43批复用Storage现有结构校验机制，版本/归属/授权事实继续逐次读取；整项、最终CI与资源验收均未完成。
+
+最新主干登录交集：9文件中8文件104项通过，子任务会话文件12/14项通过但滚轮位置验证失败（`/tmp/quality-audit-login-merge-acceptance.log`）；失败待复现和裁决，不能记全绿。第42批首个定向命令误用默认并发，已按本次PID终止，仅成果输入4项有效通过，其余未完成；改用公共机器槽和 `--jobs 1` 后重新执行，日志 `/tmp/quality-audit-goal-stage-acceptance-serial.log`。
 
 最新交集记录（2026-11-17）：第39批两个新服务已沿真实生产路径核对。建议由项目到达、Assistant、创作台读取目录和 Workspace，偏好归 recommender，文稿由 Pages 按固定 request_id 保存；临时报告绑定 actor/project/incarnation 并有期限。审批经 Web/CLI/管理 MCP 和 Kernel 单次可信凭据进入原业务 owner，平台规则与决定归 project-approvals。等待后的权限与安装复核有真实边界依据；新包不是无职责转发层。静态结论不替代视觉和运行验收。
 

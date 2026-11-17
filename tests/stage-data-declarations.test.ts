@@ -10,10 +10,12 @@ import { join } from "node:path";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionReference, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BUILTIN_PLUGIN_CATALOG, stageDataAction, renderStagePage } from "@molis-ai/molis-work-app-workbench";
 import { scheduleActions, scheduleManifest } from "@molis-ai/molis-work-plugin-schedule";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { MolisWorkLocalHost, declaredStageData, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
+import { homeProbe } from "./fixtures/home-runtime.js";
 
 type Part = Record<string, unknown>;
 
@@ -94,7 +96,7 @@ test("RAC-2504 any other failure of a stage read is the page's to show, not an e
  * A Home with two projects, one showing Schedule and one not, served by the real web server over a real local Host; `actions` writes
  * Schedule's tasks as a person who may. Everything is closed and removed after the test.
  */
-async function servedHome(t: TestContext) {
+async function servedHome(t: TestContext, options: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]> = {}) {
   const home = await mkdtemp(join(tmpdir(), "stage-data-"));
   const { scheduled, bare } = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
     const make = async (name: string) => { const { project_id } = await catalog.createProject({ display_name: name, actor_id: "test" }); return project_id; };
@@ -103,7 +105,7 @@ async function servedHome(t: TestContext) {
     if (catalog.listProjectPlugins(bareId).includes("schedule")) catalog.removeProjectPlugin({ project_id: bareId, plugin_id: "schedule", actor_id: "test" });
     return { scheduled: catalog.getProject(scheduledId), bare: catalog.getProject(bareId) };
   });
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, ...options });
   const reference = molisWorkHostProjectReference({ databasePath: scheduled.database_path, projectId: scheduled.project_id });
   const caller: ActionCallContext = { actor_id: "person", audience: "user", project_id: reference.project_id, permissions: ["schedule:read", "schedule:write"] };
   const actions = bindActionClient(host.actionClient(reference), () => caller);
@@ -182,6 +184,44 @@ test("RAC-2505 the page and redraw keep the person, owner references, read-only 
   }
 });
 
+
+test("QEA-94 a Goal refresh reads its owner without rereading another shown plugin's stage", { timeout: 60_000 }, async t => {
+  const probe = homeProbe("fragmentcreate"), contribution_id = `${probe.id}.stage`, start = probe.definition.start;
+  probe.definition.manifest = { ...probe.definition.manifest, ui: { contributions: [contribution_id], views: [{ view_id: "notes", slot: "navigator", title: "Fragment notes", contribution_id,
+    creates: { station: "fragment-notes", title: "Fragment note" } }] } };
+  probe.definition.start = async context => ({ ...await start(context), views: [{ descriptor: { contribution_id, kind: "embedded", label: "Fragment notes", slots: [],
+    surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }] }, render: () => "<section>Fragment notes</section>" }] });
+  const { host, scheduled, actions, base } = await servedHome(t, { pluginFixtures: { home: [probe.definition] } });
+  await actions.invoke(scheduleActions.createTask, { title: "Unrelated stage", instructions: "Keep the actual Schedule consumer", time: "08:00" });
+  const calls: string[] = [], actionClient = host.actionClient.bind(host);
+  t.mock.method(host, "actionClient", (reference: Parameters<typeof actionClient>[0]) => {
+    const client = actionClient(reference);
+    return { discover: (...args: Parameters<typeof client.discover>) => client.discover(...args),
+      invoke(context: ActionCallContext, action: ActionReference, input: unknown) {
+        calls.push(action.capability_id); return client.invoke(context, action, input);
+      } };
+  });
+  const page = await fetch(base(scheduled.project_id) + "/");
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /Unrelated stage/);
+  assert.equal(calls.filter(id => id === scheduleActions.list.capability_id).length, 1, "the whole page still reads the actual shown stage");
+  const reference = molisWorkHostProjectReference({ databasePath: scheduled.database_path, projectId: scheduled.project_id });
+  await host.actionClient(reference).invoke({ actor_id: "person", audience: "user", project_id: reference.project_id, permissions: ["goals:read", "goals:write"] },
+    goalsActions.create, { goal_id: "FRAGMENT", title: "Actual Goal owner", outcome: "Read current owner facts", idempotency_key: "fragment-goal" });
+  for (const path of ["/api/board/refresh?view=current&goal_id=FRAGMENT", "/api/goals/FRAGMENT/document", "/api/board/momentum?goal_id=FRAGMENT"]) {
+    calls.length = 0;
+    const fragment = await fetch(base(scheduled.project_id) + path);
+    assert.equal(fragment.status, 200, path);
+    const html = await fragment.text();
+    if (path.includes("refresh")) assert.match(html, /id="molis-work-data"/);
+    if (!path.includes("momentum")) {
+      assert.match(html, /Actual Goal owner/);
+      assert.match(html, /data-placement-create="fragment-notes"/, "the actual installed Home plugin still contributes its input creation entry");
+    }
+    assert.equal(calls.filter(id => id === "goals.stage.read").length, 1, `${path}: the Goal fragment retains its actual owner read`);
+    assert.equal(calls.filter(id => id === scheduleActions.list.capability_id).length, 0, `${path}: a Goal fragment must not read the unrelated Schedule stage`);
+  }
+});
 
 test("RAC-2510 object reads and finite stage surfaces obey the same owner/read/placement declarations", () => {
   const object = readAction({}, "notes.object");

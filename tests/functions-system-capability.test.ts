@@ -457,7 +457,7 @@ test("home dock HTTP binds a published function at the scene without executing w
 
   const page = await (await webFetch(`${origin}${prefix}/`)).text();
   assert.doesNotMatch(page, /"function_scenes"/);
-  assert.match(page, /"inbox_judgment"/);
+  assert.doesNotMatch(page, /"inbox_judgment"/, "QEA-94 Goals bootstrap does not carry an unused Inbox summary");
   assert.doesNotMatch(page, /"home_dock_functions"/);
   const homeClient = (await Promise.all(["project-home", "project-home-render"].map(part => readFile(join(ROOT, "..", `apps/workbench/src/browser/${part}.ts`), "utf8")))).join("\n");
   const functionsClient = (await Promise.all(["client", "client-render", "client-records", "client-events"].map(part => readFile(join(ROOT, "..", `apps/workbench/src/judgment-rules/${part}.ts`), "utf8")))).join("\n");

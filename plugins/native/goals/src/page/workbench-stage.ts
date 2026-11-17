@@ -37,8 +37,7 @@ export const goalsStageUiContribution: UiContribution<StagePageModel<GoalsStageD
       ...(states.has(item.goal.goal_id) ? { presentation_status: states.get(item.goal.goal_id) } : {}),
     });
     const view: GoalsPageView = { ...data.collection, project: context.project, demo: context.demo, route_prefix: model.route_prefix,
-      goals: data.collection.goals.map(decorate), archived_goals: data.collection.archived_goals.map(decorate), trashed_goals: data.collection.trashed_goals.map(decorate),
-      inbox_judgment: context.client_data?.inbox_judgment };
+      goals: data.collection.goals.map(decorate), archived_goals: data.collection.archived_goals.map(decorate), trashed_goals: data.collection.trashed_goals.map(decorate) };
     if (surface === "create-dialog") return page.documents.renderCreateDialog(view);
     if (surface === "trash-dialog") return page.documents.renderGoalTrashDialog();
     const archive = data.selection === "archive", trash = data.selection === "trash";

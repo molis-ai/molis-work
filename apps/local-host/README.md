@@ -19,6 +19,8 @@
 
 Home Runtime 渲染工作台页面时，同时交回每个已画 stage 的 contribution ID（打开 stage 的那个视图指的贡献：`stage` 视图，否则目录入口，`stageContributionId`）；项目装配将它们与项目 stage ID 合并，工作台按 Manifest 画 stage 时只画尚未提供的。插件停用或启动失败时，不可用占位也占据同一个 stage，不能再由静态补位生成可用页面。单一页面与停用后恢复的回归见 `tests/workbench-deferred-clients.e2e.test.ts`、`tests/home-plugin-private-store.test.ts`。项目级 Runtime 实例同样（W5-06 第 3 片）：`project-plugin-stages.ts` 用运行中实例的视图画它们的 stage，模型取渲染器的 `declaredStageModel`；没在运行的画 `data-project-plugin-unavailable` 占位并报同一个 ID。项目平台在启动前就记下自己该跑的插件（`ProjectPluginState.plugins`），整个平台没起来也照样画占位。项目与 Home 的不可用状态经 `unavailable_plugin_stages` 结构化字段交给工作台，和插件 HTML 分开；占位不申请 page grant、不启动客户端，插件不能用 HTML 标记选择宿主渲染。回归见 `tests/runtime-plugin-http-discovery.test.ts` 的 S-47、RAC-79。
 `plugin_stage_ids` 只在真实页面渲染的读取回调中提供，用于内部补位去重；通用读取与 `/api/board` 保持原返回合同，路由快照不包含该字段。
+Goal 刷新、正文和推进片段只准备声明路由匹配的 Runtime 舞台，复用其 owner 固定和等待后授权检查；整页仍读取所有显示舞台。片段保留目标正文、关系、策略、关联成果，以及新建输入菜单所需的插件目录元数据，不触发其他舞台读取和 Home 整页渲染。回归 `tests/stage-data-declarations.test.ts` 的 QEA-94 同时验证实际 Schedule 整页读取与 Goal 片段零无关读取。
+
 
 助理接续监听归 Local Host：关闭借用 Web 传输不终止共享助理，Host 关闭开始时释放监听，持久等待留待重启恢复。手动构造 `AssistantService` 的嵌入者需在关闭运行时及数据库前调用 `service.continuations.close()`；回归见 `tests/assistant-continuation-control.test.ts`、`tests/assistant-connector-continuation.test.ts`。
 

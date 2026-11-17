@@ -117,6 +117,17 @@ function deciderRow(row: ReviewRow | undefined, hasDecider: boolean): ReviewRow 
  * the one-time authority. A rejected, expired or already-consumed review can
  * never be turned into permission by asking a second way.
  */
+function projectDecisionReceipt(row: ReviewRow, record: ReviewDecisionRecord): void {
+    row.decision = { reference: structuredClone(record.reference), decision_id: record.reference.id };
+    row.receipt = {
+      ...row.receipt,
+      status: record.decision === "approve" ? "approved" : "rejected",
+      decided_by: record.actor_id, decided_at: record.decided_at, note: record.note, source: structuredClone(record.source),
+      ...(record.source.kind === "policy" && record.source.owner === "agent.session-rule" ? { standing_rule: { set_by: record.source.set_by, set_at: record.source.set_at } } : {}),
+    };
+    delete row.receipt.decision_save_error;
+}
+
 export class AgentReviewQueue implements AgentReviewQueueApi {
   readonly permissions = new ReviewPermissionRules();
   readonly #claims = new Map<string, DecisionClaim>();
@@ -499,14 +510,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   #projectDecision(record: ReviewDecisionRecord): void {
     const row = this.#rows.get(record.reference.id);
     if (!row || !isDeepStrictEqual(row.request.reference, record.reference)) throw agentErrors.review_version_changed("已保存的决定属于另一份提案，不能用于本次执行");
-    row.decision = { reference: structuredClone(record.reference), decision_id: record.reference.id };
-    row.receipt = {
-      ...row.receipt,
-      status: record.decision === "approve" ? "approved" : "rejected",
-      decided_by: record.actor_id, decided_at: record.decided_at, note: record.note, source: structuredClone(record.source),
-      ...(record.source.kind === "policy" && record.source.owner === "agent.session-rule" ? { standing_rule: { set_by: record.source.set_by, set_at: record.source.set_at } } : {}),
-    };
-    delete row.receipt.decision_save_error;
+    projectDecisionReceipt(row, record);
     this.#release(record.reference.id, record.decision === "approve");
   }
 

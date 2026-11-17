@@ -1,3 +1,4 @@
+import { bindBusinessSubagent } from "./prologue-business-child.js";
 import { stopSdkRun } from "./prologue-stop-run.js";
 import type { ReviewDecisionControl } from "../review-decisions.js";
 import { bindExistingWorkDelegation } from "./prologue-work-delegation.js";
@@ -16,7 +17,7 @@ import { createPrologueGitReviews } from "./prologue-git.js";
 import { MAX_BROADCAST } from "./prologue-messages.js";
 import { workPaths } from "./prologue-project-work.js";
 import { queuedInput, type createPrologueRecovery } from "./prologue-recovery.js";
-import { bindBusinessSubagent, startPrologueRun, type RunDeps } from "./prologue-run.js";
+import { startPrologueRun, type RunDeps } from "./prologue-run.js";
 import { watchRoundFacts } from "./prologue-stop-guard.js";
 import type { PrologueEffects } from "./prologue-effects.js";
 import { runModelParams } from "./prologue-run-params.js";
@@ -336,6 +337,53 @@ function continuationGrantGuard(deps: PortDeps, parentRun: AgentRunRef, parentAt
   };
 }
 
+function continuationAuthority(deps: PortDeps, input: Pick<Parameters<NonNullable<PrologueSubagentHooks["continueChild"]>>[0], "parentRun" | "execution">,
+  role: NonNullable<SessionIndex["attempts"][number]["subagent_roles"]>[number][1],
+  work: Awaited<ReturnType<typeof bindExistingWorkDelegation>>, fallbackGuard: DispatchGuard) {
+  const { runtime, state } = deps, { parentRun, execution } = input;
+  let stopped = false;
+  const policies = new Map<string, () => void>(), exact = new Map<string, { ref: ExactRef<"effect">; control: ReviewDecisionControl }>();
+  const activeExact = () => {
+    for (const [id, held] of exact) if (!["awaiting-approval", "authorized", "dispatching"].includes(runtime.effects.get(held.ref)?.state ?? "")) exact.delete(id);
+    return exact.values();
+  };
+  const assertCurrent = () => {
+    if (stopped) throw agentErrors.capability_unavailable("原子任务执行已结束");
+    work?.assertCurrent();
+    for (const check of policies.values()) check();
+    for (const held of activeExact()) held.control.assertCurrent();
+    requireSynchronous(execution?.assertBeforeDispatch?.()); execution?.assertSubagent?.(role);
+  };
+  let releaseBinding!: () => void, refuseBinding!: (reason: unknown) => void;
+  const bound = { promise: new Promise<void>((resolve, reject) => { releaseBinding = resolve; refuseBinding = reject; }),
+    resolve: () => releaseBinding(), reject: (reason: unknown) => refuseBinding(reason) };
+  void bound.promise.catch(() => undefined);
+  const guard: DispatchGuard = async () => {
+    await bound.promise;
+    assertCurrent();
+    await fallbackGuard();
+    for (const held of activeExact()) await held.control.beforeEffect();
+    const original = await state.dispatchChecks.get(parentRun.run_id)?.();
+    const current = await execution?.beforeDispatch?.();
+    execution?.assertSubagent?.(role);
+    return () => { original?.(); current?.(); assertCurrent(); };
+  };
+  const control: DispatchControl = {
+    assertCurrent,
+    prepareDispatch: guard,
+    beforeEffect: async () => { const fence = await guard(); requireSynchronous(fence?.()); assertCurrent(); },
+  };
+  return { assertCurrent, control, bound, stopping: () => stopped,
+    finish: () => { stopped = true; work?.release(); },
+    usePolicy: (id: string, check: () => void) => { policies.set(id, check); },
+    useExact: (id: string, control: ReviewDecisionControl) => {
+      const ref = state.reviewEffects.get(`prologue:${id}`);
+      if (!ref) throw agentErrors.review_not_permitted("原授权操作不可读");
+      exact.set(id, { ref, control });
+    },
+  };
+}
+
 async function continueSubagentAttempt(
   deps: PortDeps,
   { parentRun, child, baseTask, reason, source, attemptNumber, requestKey, text, queued, execution }: Parameters<NonNullable<PrologueSubagentHooks["continueChild"]>>[0],
@@ -371,46 +419,16 @@ async function continueSubagentAttempt(
   if (!role) throw agentErrors.role_not_declared("原子角色不可核验");
   execution?.assertSubagent?.(role);
   const work = await bindExistingWorkDelegation(deps.delegations, execution?.delegation, parentAttempt.frozen.role_id, parentIndex.owner);
-  let stopped = false;
-  const policies = new Map<string, () => void>(), exact = new Map<string, { ref: ExactRef<"effect">; control: ReviewDecisionControl }>();
-  const activeExact = () => {
-    for (const [id, held] of exact) if (!["awaiting-approval", "authorized", "dispatching"].includes(runtime.effects.get(held.ref)?.state ?? "")) exact.delete(id);
-    return exact.values();
-  };
-  const assertCurrent = () => {
-    if (stopped) throw agentErrors.capability_unavailable("原子任务执行已结束");
-    work?.assertCurrent();
-    for (const check of policies.values()) check();
-    for (const held of activeExact()) held.control.assertCurrent();
-    requireSynchronous(execution?.assertBeforeDispatch?.()); execution?.assertSubagent?.(role);
-  };
+  const authority = continuationAuthority(deps, { parentRun, execution }, role, work,
+    continuationGrantGuard(deps, parentRun, parentAttempt, baseFrozen));
+  const { assertCurrent, control, bound } = authority;
   if (parentAttempt.frozen.workspace === "business") {
     if (!role || !execution?.subagentGateway || !execution.beforeDispatch) throw agentErrors.capability_unavailable("业务子任务接续需要当前宿主动作授权");
     const gateway = await execution.subagentGateway(role, { runtime_id: PROLOGUE_RUNTIME_ID, session_id: child.session.id }).catch(error => { work?.release(); throw error; });
-    await bindBusinessSubagent(deps, child.session, role, gateway, child.tools ?? [], { assertCurrent, stopping: () => stopped, work }).catch(error => { work?.release(); throw error; });
+    await bindBusinessSubagent(deps, child.session, role, gateway, child.tools ?? [], { assertCurrent, stopping: authority.stopping, work }).catch(error => { work?.release(); throw error; });
     const stopGuard = state.stopGuards.get(child.session.id);
     if (stopGuard) stopGuard.task = retryText;
   }
-  const fallbackGuard = continuationGrantGuard(deps, parentRun, parentAttempt, baseFrozen);
-  let releaseBinding!: () => void, refuseBinding!: (reason: unknown) => void;
-  const bound = { promise: new Promise<void>((resolve, reject) => { releaseBinding = resolve; refuseBinding = reject; }),
-    resolve: () => releaseBinding(), reject: (reason: unknown) => refuseBinding(reason) };
-  void bound.promise.catch(() => undefined);
-  const guard: DispatchGuard = async () => {
-    await bound.promise;
-    assertCurrent();
-    await fallbackGuard();
-    for (const held of activeExact()) await held.control.beforeEffect();
-    const original = await state.dispatchChecks.get(parentRun.run_id)?.();
-    const current = await execution?.beforeDispatch?.();
-    execution?.assertSubagent?.(role);
-    return () => { original?.(); current?.(); assertCurrent(); };
-  };
-  const control: DispatchControl = {
-    assertCurrent,
-    prepareDispatch: guard,
-    beforeEffect: async () => { const fence = await guard(); requireSynchronous(fence?.()); assertCurrent(); },
-  };
   // A new child attempt has its own ongoing authority; the submitting call still controls the SDK acceptance write.
   const continued = await deps.dispatchGuards.run(control, () => runtime.subagents.continue({
     child: child.ref,
@@ -441,12 +459,8 @@ async function continueSubagentAttempt(
   state.sessionRuns.add(newRunId);
   state.activeRuns.set(newRunId, {
     live: () => ["prepared", "running"].includes(continued.run.state), policy: continued.policy,
-    stop: () => stopSdkRun(continued.run), usePolicy: (id, check) => { policies.set(id, check); },
-    ...(work ? { work, workSelection: work.permission.mode !== "original", useExact: (id: string, control: ReviewDecisionControl) => {
-      const ref = state.reviewEffects.get(`prologue:${id}`);
-      if (!ref) throw agentErrors.review_not_permitted("原授权操作不可读");
-      exact.set(id, { ref, control });
-    } } : {}),
+    stop: () => stopSdkRun(continued.run), usePolicy: authority.usePolicy,
+    ...(work ? { work, workSelection: work.permission.mode !== "original", useExact: authority.useExact } : {}),
     assertAuthority: assertCurrent,
     steer: async text => { await continued.control.steer({ text, source: "app" }); },
   });
@@ -477,7 +491,7 @@ async function continueSubagentAttempt(
   continued.run.subscribe(event => {
     for (const changed of state.subagentListeners) changed(parentRun.run_id);
     if (["completed", "failed", "cancelled", "tripped", "circuit-tripped"].includes(event.type)) {
-      stopped = true; work?.release();
+      authority.finish();
       if (state.liveSessions.get(child.session.id) === newRunId) state.liveSessions.delete(child.session.id);
       state.activeRuns.delete(newRunId);
       state.runRoots.delete(newRunId);

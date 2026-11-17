@@ -23,6 +23,14 @@ function publishResult(publish: () => void, assertCurrent: () => void, capabilit
   try { publish(); } catch (error) { hostLog.warn("assistant", "relation_unrecorded", error, { step: "command", capability_id: capabilityId }); }
 }
 
+function observeUnsettledCommand(view: ActionView | undefined, call: Promise<unknown>, signal: AbortSignal | undefined,
+  unsettled: ((view: Omit<ActionView, "availability">, call: Promise<unknown>) => void) | undefined): void {
+  if (!view || view.operation !== "command" || !unsettled || !signal || signal.aborted) return;
+  const left = () => unsettled(view, call);
+  signal.addEventListener("abort", left, { once: true });
+  call.then(() => signal.removeEventListener("abort", left), () => signal.removeEventListener("abort", left));
+}
+
 export const actionKey = (ref: Pick<ActionReference, "capability_id" | "version" | "provider_id">) => JSON.stringify([ref.capability_id, ref.version, ref.provider_id ?? ""]);
 
 export const actionReference = (view: Pick<ActionView, "capability_id" | "version" | "provider">) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
@@ -209,11 +217,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
         };
         const call = service().invoke({ ...caller, ...(memorySelection ? { memory_context_selection: memorySelection } : {}), assert_authority_current: assertCurrent }, action, input);
         // The round may stop while the owner is still changing things: the call goes on, and how it ends is kept for the work.
-        if (view && view.operation === "command" && unsettled && signal && !signal.aborted) {
-          const left = () => unsettled(view, call);
-          signal.addEventListener("abort", left, { once: true });
-          call.then(() => signal.removeEventListener("abort", left), () => signal.removeEventListener("abort", left));
-        }
+        observeUnsettledCommand(view, call, signal, unsettled);
         const output = await call;
         if (view?.operation === "command" && changed && !signal?.aborted) publishResult(() => changed(view, input, output),
           () => requireSynchronous(assertCurrent(action, view.action.permissions)), view.capability_id);

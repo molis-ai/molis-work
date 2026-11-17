@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantScope, AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { recordingTextModel, type ModelWire } from "./fixtures/recording-text-model.js";
 import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
@@ -24,12 +24,16 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
       return reply(undefined, "Parent stays here.");
     });
   } }); if (!browser) return;
-  await browser.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, browser.sessionId);
+  const width = place === "home" ? source === "work" ? 390 : 1024 : 1440;
+  const locale = source === "sdk" ? "en" : "zh", theme = source === "sdk" ? "dark" : "light";
+  await browser.command("Emulation.setDeviceMetricsOverride", { width, height: 960, deviceScaleFactor: 1, mobile: width === 390 }, browser.sessionId);
+  await browser.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }, { name: "prefers-reduced-motion", value: "reduce" }] }, browser.sessionId);
+  await browser.command("Network.setCookie", { name: "molis_work_locale", value: locale, url: browser.origin }, browser.sessionId);
   await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: `window.__subtaskErrors=[];addEventListener('error',e=>window.__subtaskErrors.push(e.message));addEventListener('unhandledrejection',e=>window.__subtaskErrors.push(String(e.reason?.stack??e.reason)));` }, browser.sessionId);
   await browser.navigate(() => browser.command("Page.navigate", { url: place === "project" ? `${browser.origin}/projects/${browser.projectId}/` : `${browser.origin}/` }, browser.sessionId));
   await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input')", 20_000);
   const base = place === "project" ? `/projects/${browser.projectId}/api/assistant` : "/api/assistant";
-  const scope = place === "project" ? { kind: "project", project_id: browser.projectId } : { kind: "home" };
+  const scope: AssistantScope = place === "project" ? { kind: "project", project_id: browser.projectId } : { kind: "personal" };
   assert.equal(await browser.evaluate("!!document.querySelector('script[data-assistant-subtasks]')"), false, "subtask program is not fetched before first opening");
   const sent = await browser.evaluate<AssistantSendResult>(`fetch(${JSON.stringify(base + "/send")}, {method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({text:${JSON.stringify(`PARENT_${source}_59`)},scope:${JSON.stringify(scope)},request_id:crypto.randomUUID()})}).then(r=>r.json())`);
   assert.ok(sent.work, JSON.stringify(sent));
@@ -46,13 +50,38 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
   // Read the existing path list after the parent has settled, then use its actual child-name button.
   await browser.evaluate("window.dispatchEvent(new Event('focus'))");
   await browser.waitFor("document.querySelector('.assistant-subtask-name')", 15_000);
+  if (!await browser.evaluate("document.querySelector('.assistant-subtask-name').getBoundingClientRect().width > 0")) await browser.click("[data-assistant-side-toggle]");
   await browser.evaluate(`(() => { const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.value='main draft stays';input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+  if (place === "home" && source === "sdk") {
+    // SAI-04/11: the first load is still pending when its parent is closed; a late error cannot reopen it.
+    const held = Promise.withResolvers<{ requestId: string; session: string | undefined }>();
+    const off = browser.on("Fetch.requestPaused", (event, session) => held.resolve({ requestId: String(event.requestId), session }));
+    t.after(off);
+    await browser.command("Fetch.enable", { patterns: [{ urlPattern: "*/assets/molis-work-assistant-subtasks.js", requestStage: "Request" }] }, browser.sessionId);
+    await browser.click(".assistant-subtask-name");
+    const request = await held.promise;
+    await browser.click("[data-assistant-panel-close]");
+    await browser.command("Fetch.failRequest", { requestId: request.requestId, errorReason: "ConnectionFailed" }, request.session);
+    await browser.command("Fetch.disable", {}, browser.sessionId); off();
+    await browser.waitFor("!document.querySelector('script[data-assistant-subtasks]')");
+    assert.equal(await browser.evaluate("!!document.querySelector('[data-work-task-float]')"), false);
+    await browser.evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open',{detail:{work_id:${JSON.stringify(sent.work.work_id)}}}))`);
+    if (!await browser.evaluate("document.querySelector('.assistant-subtask-name')?.getBoundingClientRect().width > 0")) await browser.click("[data-assistant-side-toggle]");
+    await browser.waitFor("document.querySelector('.assistant-subtask-name')?.getBoundingClientRect().width > 0");
+  }
   await browser.click(".assistant-subtask-name");
   try { await browser.waitFor("document.querySelector('[data-work-task-float] .mw-subtask__composer .mw-composer__input')", 15_000); }
   catch (error) { t.diagnostic(JSON.stringify(await browser.evaluate("({errors:window.__subtaskErrors,bar:!!document.querySelector('[data-work-bar]'),float:document.querySelector('[data-work-task-float]')?.outerHTML.slice(0,1500)})"))); throw error; }
   assert.equal(await browser.evaluate("document.querySelectorAll('script[data-assistant-subtasks]').length"), 1, "both native shells load the same shared program once");
   const childInput = "document.querySelector('[data-work-task-float] .mw-subtask__composer .mw-composer__input')";
   await browser.waitFor(`${childInput} && !${childInput}.disabled`);
+  // SAI-13: the actual shell/float, not a component fixture, contains both inputs at the supported widths.
+  const layout = await browser.evaluate<{ left: number; right: number; top: number; bottom: number; viewport: number; height: number; theme: string; locale: string }>(`(() => {
+    const rect=document.querySelector('[data-work-task-float]').getBoundingClientRect();
+    return {left:rect.left,right:rect.right,top:rect.top,bottom:rect.bottom,viewport:innerWidth,height:innerHeight,theme:document.documentElement.dataset.resolvedTheme,locale:document.documentElement.lang};
+  })()`);
+  assert.ok(layout.left >= 0 && layout.right <= layout.viewport + 1 && layout.top >= 0 && layout.bottom <= layout.height + 1, JSON.stringify(layout));
+  assert.equal(layout.theme, theme); assert.ok(layout.locale.startsWith(locale));
   const before = childCalls;
   await browser.evaluate(`(() => { const input=${childInput};input.value='FOLLOW_UP_${source}_59';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus(); })()`);
   await browser.command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, browser.sessionId);

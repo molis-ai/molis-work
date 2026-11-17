@@ -1,0 +1,10 @@
+{
+  "reason": "第 59 批复用既有浮窗定位和样式，Home 共用挂载；iframe 固定来源与 task 投影接线，主输入保持原接收者。",
+  "review": "specs/subagent-interaction/spec.md §12.8、12.9、12.13；当前实测增量，最终头重新量并由评审核对。",
+  "assets": {
+    "/assets/molis-work-arrival.css": 1185,
+    "/assets/molis-work-plugin-frame.js": 4696,
+    "/assets/molis-work-workbench.css": 537,
+    "/assets/molis-work-workbench.js": 6515
+  }
+}

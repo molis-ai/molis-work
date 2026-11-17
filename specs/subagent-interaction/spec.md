@@ -489,7 +489,7 @@ generic reviews HTTP 与 Work.decide 的原校验不能单独证明 Work 归档�
 
 审批接线增量（2026-11-17）：Work 与 SDK 子任务已有 scoped review owner，下一步确认仍走原 step_gate。`AgentSubagentsCapability.assertCurrent` 同步读取 SDK 原 registry，核对精确当前 child Run 及祖先范围；不从 attempts 历史推断当前轮。此 fence 同时进入 ReviewQueue 决定前与 SDK pending 接纳前。已接受决定后的可选 app 授权失败不更改原回执，送达未知或提交后撤权不建立 session standing rule。只读评审确认两处最终 fence 修复无剩余 P1；构建和审批回归 51/51、SDK 原始会话选定 3 项通过。原操作 recovery 只核对并收口既有 effect，保留原 HTTP owner；按原 Work.scope 与精确 review/Run 路由，不因 child 已续跑而阻止查验历史。
 
-Native 审批挂载候选复用原 Work mount/retitle 与 Agent review factory，Work 的主对话刷新和子浮层刷新分别由调用方提供。每个详情持有固定 binding、route 与独立 lifetime；内层 renderer 在单独 content 节点挂载并随外层销毁。新浏览器交错回归 2/2 已通过，覆盖确认期间关闭、A→B→A 迟到决定、原 scope/run、remember 透传及关闭后仅重读。原 Assistant 脚本结构检查发现已有主脚本 771 行超过 770 行上限，子任务打开意图已归入 conversation 职责；审批上下文与自动规则执行已归入 `review-decision-scope.ts`，不改变门禁标准。两项整理后的完整构建通过；Assistant 原窄屏/语言切换 2/2、脚本结构 13/13、standing rule 5/5、审批桥接 21/21 通过。新浏览器夹具改为编译实际 Host 程序并注入，不为测试增加包出口；对应 2/2 复验通过。`health:check` 对 `4aa5496e3f` 通过，门禁未放宽。
+Native 审批挂载候选复用原 Work mount/retitle 与 Agent review factory，Work 的主对话刷新和子浮层刷新分别由调用方提供。每个详情持有固定 binding、route 与独立 lifetime；内层 renderer 在单独 content 节点挂载并随外层销毁。新浏览器交错回归 2/2 已通过，覆盖确认期间关闭、A→B→A 迟到决定、原 scope/run、remember 透传及关闭后仅重读。原 Assistant 脚本结构检查发现已有主脚本 771 行超过 770 行上限，子任务打开意图已归入 conversation 职责；当时审批上下文与自动规则执行暂归入 `review-decision-scope.ts`，该临时层已在后续同步 main 时删除并接回原决定 owner；没有保留两套执行入口。两项整理后的完整构建通过；Assistant 原窄屏/语言切换 2/2、脚本结构 13/13、standing rule 5/5、审批桥接 21/21 通过。新浏览器夹具改为编译实际 Host 程序并注入，不为测试增加包出口；对应 2/2 复验通过。`health:check` 对 `4aa5496e3f` 通过，门禁未放宽。
 
 资源申请更新：包含原问卷、审批与生命周期 factory 的共享懒加载包候选实测 96,472 B（gzip 32,665 B）。2026-11-17 已向用户申请新增 `/assets/molis-work-assistant-subtasks.js`，最大 100,000 B、仅首次打开子任务时加载、Home 与项目共用；替代先前 70,000 B 申请。用户于 2026-11-17 批准最多 100,000 B 的共享懒包；随后接入构建、资源路由与首次打开加载，并按最终产物复测。源码挂载候选与浏览器 fixture 不是产品真实入口验收；§12.10 的上游目录重授权窗口也仍待用户裁定。
 
@@ -498,6 +498,19 @@ Native 审批挂载候选复用原 Work mount/retitle 与 Agent review factory�
 2026-11-17 fetch 后 main 为 `eafff2b526`，新增 #2105（39 批审批/权限 owner）与 #2104（统一登录 P1），与本批多处枢纽相交，须同步。只读合同复核指出应采用 main 唯一原决定持久化及 ReviewDecisionControl，把本批 SAI scope/最终权限检查接入它，移除已被覆盖的临时 ReviewDecisionScope 层；保留用户所见 review version、本人/原页面边界、permission owner 与原恢复控制。上述 pre-sync 测试不能替代同步后的合约验证。main 的官方 #127 SDK（e7582079）已核为本批 #130（71662135）的祖先，包合并保留后继官方 #130，并合并 #127 的采用记录。
 
 
-主线审批合同整合与资源接入（2026-11-17，尚未完成整批）：采用 main `eafff2b526` 的原决定持久化、用户所见版本与权限 lifecycle，移除临时 ReviewDecisionScope。Work/SDK 输入在首次异步读取前持有原输入代次；exact stop 只结束指定 child Work，并保留原 Run 核对到收尾。接续新 Run 独立派发与 policy/exact 校验，SDK #130 未回报其原 policy 的只读合同遗漏已独立核实，纳入既有“父子归属及回报”上游窗口修正；没有扩大尚待批的目录重授权。
+主线审批合同整合与资源接入（2026-11-17，尚未完成整批）：采用 main `eafff2b526` 的原决定持久化、用户所见版本与权限 lifecycle，移除临时 ReviewDecisionScope。Work/SDK 输入在首次异步读取前持有原输入代次；exact stop 只结束指定 child Work，并保留原 Run 核对到收尾。接续新 Run 独立派发与 policy/exact 校验，SDK #130 未回报其原 policy 的只读合同遗漏已独立核实，纳入既有“父子归属及回报”上游窗口。修正经独立评审合入 [Prologue #131](https://github.com/molis-ai/molis-prologue/pull/131)，采用官方 main `0afbe2c3f868565e6af85965a585ad889c044c43` 的两次相同构建产物，SHA-256 `1895a23683664565db37579cb68d467ab53ee7ed9c7c9bbaf277495fe029b39b`；没有扩大尚待批的目录重授权。上游 11/11、构建/type/API/ratchet/docs/干净消费者通过；CI 受账户付款/额度限制未启动，不记通过。
 
 用户已批准的共享懒包已接构建与原入口，当前浏览器构建实测 95,351 B（gzip 34,047 B）。首次打开固定原路由、原任务、焦点与页面生命周期；关闭/换项目/账号失效取消迟到打开。浮层沿原审批及权限面板，提交所见版本。以上为中途构建证据，真实双入口、最终体积与最终头验证仍须完成。
+
+
+同步后验证（检查点 `f55371ada1` 及后续职责拆分，2026-11-17）：首轮 child 的实际启动回调已透传原 Work；继续执行独立持有 DispatchControl、真实 policy 及原 exact effect 的最后授权检查。只读增量评审未发现剩余 Blocker/P1，后续拆分将业务 child 绑定与接续持续授权分开，未增加控制入口。完整构建通过；`health:check --base origin/main` 对 `eafff2b526` 通过，巨型单元降为 63，未提高阈值。
+
+当前工程证据：`assistant-subtasks.e2e` 的 Home/项目 × Work/SDK 四条真实 HTTP、正式安装 SDK 和浏览器路径 4/4 通过，包含首次加载失败、父窗口关闭后迟到错误不重开，以及再次打开成功；主草稿与子上下文保持独立。原 Coding 命令审查 1/1、子 Run 转话 1/1、Work 权限 20/20、插件承载 Work 的 live/重启问答 2/2、原审批 bridge 21/21、standing rule 5/5、公共原问题浏览器 1/1、Coding TaskBoard 入口 1/1 通过。SDK 原始会话与业务子代理、live 问答 3/4 通过；保留的第 4 项在重启后以 `ROOT_NOT_FOUND` 失败，属于 §12.10 待决合同。上述测试使用本机脚本模型；真实 Provider、最终全部 SAI、最终 C/D/CI Full 与整批合入仍未完成。
+
+
+同步后资源实测（`eafff2b526` 独立基线构建）：新共享懒包 95,351 B，未超已批 100,000 B。Coding 原程序 359,809 → 391,731 B（+31,922 B），包含隔离插件页面消费同一 SDK 子对话、原问题与原审批的接线；没有另写子对话实现。该项超过单资源 10,000 B 门槛，用户于 2026-11-17 已单独批准最多 +33,000 B，已登记本批独立许可；它不重复消费 native 懒包批准。其余必要增量为 arrival CSS +1,185 B、plugin-frame JS +4,696 B、workbench CSS +537 B、workbench JS +6,515 B，许可按实际作用逐项供评审，不改门禁规则。
+
+
+最终资源许可本轮复验：补充获批的 Coding +33,000 B 及四项实际壳资源增量后，`page-assets:check` 对 `eafff2b526` 独立基线构建通过，共 67 资源（`/tmp/molis-b59-approved-resources.log`）；只读资源评审确认许可与实际变更一致、无必须删除的重复打包。Native 浏览器补验覆盖项目 1440、中/英文与深浅主题，Home 390 中文浅色、1024 英文深色及 reduced motion；窄屏经原侧栏按钮找到子任务，首次加载失败/关闭/重开沿原动线。布局范围、主题语言及上下文追问通过（`/tmp/molis-b59-native-layout-tests-2.log` 中 3 项及 `/tmp/molis-b59-home-sdk-narrow.log` 的末项复验）。
+
+真实 Provider 实操（2026-11-17）：隔离 Home、独立测试浏览器、正式 vendor #131，使用 MiniMax-M3 的平台既定 `anthropic-messages` 接口，Home 的 SDK 与 Work 两来源 2/2 通过。模型真实派出原 child，回复 39+7=46；浮窗输入追问“上次数字减5”得到41，子任务新尝试保留原上下文，父任务仍仅一轮，主输入草稿保留。证据 `/tmp/molis-b59-real-declared-child.log`；这不代表 Coding 真实 Provider、人工最终产品验收或完整 SAI 已通过。先前两轮未通过记录保留：第一轮“记住”被模型理解为长期记忆，第二轮 SDK 省略显式 child Character 被 Host 拒绝，Work 浏览器夹具漏点折叠侧栏；第三轮使用明确已登记子角色及纯计算任务，并按原响应式动线操作。没有为模型行为改产品提示词、放宽角色或记忆权限。

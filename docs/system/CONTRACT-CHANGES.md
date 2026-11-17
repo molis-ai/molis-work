@@ -94,6 +94,68 @@
 
 第 39-2 批移交（2026-11-14 用户批准在隔离库实现并验证，2026-11-15 批准增加第 41 批的 v4 来源）。平台项目库 3→4 的显式升级事务同时更新 Goals 私有库到 v5，并将 `goal_event_trusted_decisions`、`goal_tree_proposal_decisions` 和 `policy_bindings` 交给平台。分别校验 Goals v1～v4 的旧库，沿原升级保留事件证据和第 17 批的风险引用，完成第 41 批的旧方法表与采用列清理。未知组合、错误发布者、未记账旧表均拒。保留原主键、关系、历史来源和规则语义，旧资料按原证据展示。消费者为 Goals、统一管理、保护决定的 Web／MCP 入口及同步恢复。Goals 同步集合升为 `project_goals@2`，旧游标、待发和冲突只保存在升级备份。同步写方和恢复边界见[移交设计](../../specs/agent-approval/trusted-decisions-design.md#3-存量交接方案)。最早支持的金样已包含平台事实时移除此转换段。
 
+第 44 批存量搬迁（2026-11-17 用户确认 A、B1、C，未实现）。B1 的前提「平台认可补同步集合」在第 3 项开工时定：本批补，或明确接受补上之前第二台设备看不到要求认可；定之前不写 B1 的升级段。
+
+三项的共同规则：
+- 只在持存储主人锁的升级轮里执行；
+- 只认现行版本，不做读时兼容；
+- 未知组合拒绝，原数据不变；
+- 在隔离 Home 用金样验证，不动真实 Home。
+
+**A 项目指导回平台**（片 2，PEQ-01、PEQ-10）
+
+推荐做法：平台项目库 4→5 的显式升级事务，同时把 Goals 私有库升到 v6（照 39-2 的做法）。
+- 新表：平台新建 `project_guidance_entries`、`project_guidance_revisions`，主人是 `modules/projects`。列与约束照原表，但不再引用 Goals 的 `boards`。
+- 搬什么：原样拷入主键、位置、修订号、内容哈希、来源引用、操作者与时间，再在 Goals 库删这两张表。`project.guidance_%` 日志类型和 `add_project_guidance`、`update_project_guidance` 收据随表移交。
+- 只认 Goals v5 的登记结构。
+- 同步：Goals 集合升 `project_goals@3`，去掉这两张表和这两类日志；平台另登记一个项目指导集合；旧游标、待发和冲突只留在升级备份里。
+- 消费者：Agent Run 与助理回合的项目层提示词、MCP 上下文工具、Coding、设置页「项目指导」、同步恢复。
+- 没装 Goals 的项目，升级后得到空表。
+- 金样：带指导与修订的 v4 项目库，验 4→5，并验失败时原数据保留。
+- 删除条件：最早支持的金样已含平台表时，删这一段。
+
+PEQ-10 要求旧指导能读，所以不提供「从空开始」的选项。
+
+**B 要求与认可交给平台**（片 9，PEQ-02、PEQ-16）
+
+两边模型不同：
+
+| | 平台认可 | Goals 现在 |
+| --- | --- | --- |
+| 存在哪 | Home 库 `acceptance.db`，目前不同步 | 项目库，随 `project_goals@2` 同步 |
+| 要求挂在 | 主体（provider、kind、id），要求有版本 | 每个 Goal，挂在事件类型与配置版本上 |
+| 判断 | 每轮交付的检查，只有 `supports`／`contradicts` | 挂在工作报告上，还有 `unknown` |
+| 认可 | 逐条要求的人的决定：`accepted`／`returned` | 对一个决定请求整体 `accepts_requirements`；结论是 `accepted`／`rejected` |
+
+三个选项：
+
+- **B1（推荐）全部搬过去，保留历史。**
+  - 主体：每个 Goal 一个主体（`goals`、`goal`、goal_id）。
+  - 要求：修订号转成版本，`retired` 转成撤回。
+  - 判断：每份带判断的工作报告转成一轮交付，版本记 `goal-event:<event_id>`。`supports`／`contradicts` 判断转成检查，档位照搬。`unknown` 不产生检查，原文仍在报告里。
+  - 认可：要求结论转成逐条决定，`rejected` 转成 `returned`。
+  - Goals 保留：Goal、关系、工作事件，以及「事件类型→要求」的绑定（存平台的要求号）。删掉要求、判断、结论三类表。`project_goals` 升 `@3`。
+  - 跨两个库文件：先按来源键幂等地写 `acceptance.db`，再提交项目库事务。任何一步失败，用升级快照把两边一起还原。
+  - 前提：平台认可要有同步集合。要么本批补上，要么接受补上之前第二台设备看不到要求认可。
+- **B2 只搬要求定义和最后的结论。**
+  - 不搬逐份报告的判断。
+  - 更简单，但删掉了用户的历史，和上表「Goal 事件历史、成果的固定版本」一行冲突（那一行规定不因防腐清理删除用户历史）。
+- **B3 不搬，升级时删除。**
+  - 照 41-2「没有用户」的做法，删掉 Goals 的要求、判断与结论。Goal 和工作事件保留。
+  - 要求要在平台上重新挂。
+  - 这样 PEQ-02「要求认可都在」只对新数据成立。
+
+**C 删 `goal-advance` 的运行时接入**（第 7 项）
+
+推荐做法：收据 `format.runtime.integration.receipt` 1→2，去掉 `skill_path`、`skill_target`。
+- 什么时候升：安装器读收据时升，和 `installation.json` 走同一条路。
+- 删哪些链接：外部运行时目录里的 `goal-advance` 链接只在一种情况下删（用现有的 `removeExpectedSkillLink`）——它仍指向收据里记的目标。目录是 `~/.codex/skills/`、`~/.claude/skills/`、`~/.config/opencode/skills/`、`~/.pi/agent/skills/`。
+- 指向别处或被用户改过的链接不动，在接入状态里报出来。
+- 运行时配置条目和客户端凭据不变。
+- 删除条件：最早支持的金样不再含 v1 收据时，删这一段。
+
+另一个做法是留下断链（目标随包一起删掉）。这会在用户的运行时目录里留下坏条目，不推荐。
+
 ### 存储版本变更登记
 
 当前版本的唯一清单是 [CHECKLIST.md 第 3 节](../releases/CHECKLIST.md#3-各库版本表)，本表只登记版本变化及其来源、取消或未验证状态。2026-10-30 已取消的旧维护不因搬迁复活；真实重建、Memory 与旧 Home 的授权和 HOLD 仍按原决定。表内的 `slices/` 路径均相对原 `specs/archive/repository-anti-corruption/` 目录。

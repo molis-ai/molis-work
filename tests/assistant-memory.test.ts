@@ -9,6 +9,7 @@ import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_STORE_NAME, homeAgentDefinitions, memoryRuntimePolicy, memorySources } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { memoryActions, MEMORY_PERMISSIONS } from "@molis-ai/molis-work-contracts/services/memory";
 import { registerMemoryHost } from "../apps/local-host/dist/memory/memory-host.js";
 import type { AgentMemoryExecutionControl, AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { MemoryService, recallKeywords, type MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
@@ -111,7 +112,7 @@ function platformMemory(host: AgentHost, home: string, t: { after(fn: () => void
       && owner.plugin_id === ASSISTANT_PLUGIN_ID && owner.install_id === ASSISTANT_INSTALL_ID,
   })), promotion: memory.promotion };
   const memoryForCall = (...execution: [] | [AgentMemoryExecutionControl, NonNullable<MemoryServicePorts["bindChangeTarget"]>]) => execution.length ? registered.withExecution(...execution) : memory;
-  return { memory, memoryPolicy, store, memoryForCall, storageOwner };
+  return { memory, memoryPolicy, store, memoryForCall, storageOwner, actions: localHost.homeActionClient() };
 }
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -281,7 +282,7 @@ test("recall words cover Chinese two-character pieces and Latin words", () => {
   assert.ok(recallKeywords("北极星指标").includes("星指"));
 });
 
-test("a work suggests keeping a lesson only where the person allows it; nothing is kept until they accept, and a declined one is not suggested again", { timeout: 90_000 }, async t => {
+test("QEA-53 · a work suggests only where allowed; public actions accept a reworded lesson or decline it without repeat suggestions", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-candidates-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = { project_id: "project-a", storage_key: "memory:a" };
@@ -293,7 +294,7 @@ test("a work suggests keeping a lesson only where the person allows it; nothing 
     return (script.shift() ?? (() => reply()))(body);
   }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { storageOwner, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const { storageOwner, memoryPolicy, store, memoryForCall, actions } = platformMemory(host, home, t);
   const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
@@ -303,6 +304,7 @@ test("a work suggests keeping a lesson only where the person allows it; nothing 
     projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: memoryForCall, memorySources: memoryPolicy.sources }, LOCAL_PERSON_ACTOR_ID);
   const tools = (body: any) => (body.tools as Array<{ name: string }>).map(tool => tool.name);
   const lesson = { text: "项目甲的周报先写风险，再写进展", scope: "project", why: "这次和上次你都把风险挪到了最前面", applies: "写项目甲的周报时" };
+  const person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user" as const, permissions: [...MEMORY_PERMISSIONS] };
   try {
     // The platform default is on (specs/archive/memory-system §10.1); switched off, the tool is not offered and nothing can be suggested.
     assert.deepEqual([service.memory.memoryPrefs().learn_personal, service.memory.memoryPrefs().learn_project], [true, true]);
@@ -325,18 +327,20 @@ test("a work suggests keeping a lesson only where the person allows it; nothing 
     assert.deepEqual(await service.memory.memories("project-a"), [], "nothing is kept yet");
 
     // Accepted (reworded by the person): kept like a remembered item, recalled in the project's next work.
-    const kept = await service.memory.acceptMemoryCandidate(view.memory_candidates![0]!.candidate_id, { text: "项目甲的周报：先写风险，再写进展" });
+    const candidate = view.memory_candidates![0]!;
+    const { candidate: kept } = await actions.invoke(person, memoryActions.accept, { candidate_id: candidate.candidate_id,
+      expected_version: candidate.version, text: "项目甲的周报：先写风险，再写进展" });
     assert.equal(kept.state, "accepted");
     assert.deepEqual((await service.memory.memories("project-a")).map(item => [item.text, item.scope]), [["项目甲的周报：先写风险，再写进展", "project"]]);
     assert.match((await service.memory.memories("project-a"))[0]!.origin, /你认可的建议/);
-    await assert.rejects(service.memory.acceptMemoryCandidate(kept.candidate_id), /已经记住了/);
+    await assert.rejects(actions.invoke(person, memoryActions.accept, { candidate_id: kept.candidate_id, expected_version: kept.version }), /已经记住了/);
     assert.equal((await service.read(first.work.work_id)).memory_candidates, undefined);
 
     // Declined: it goes, and the same one is refused if suggested again.
     script.push(() => reply({ name: "suggest-memory", input: { ...lesson, text: "项目甲的周报用表格" } }), () => reply(undefined, "好的。"));
     await sendAsPerson(service, { work_id: first.work.work_id, text: "这次用表格", request_id: "req-candidate-3" }, {});
     const third = await until(async () => { const v = await service.read(first.work.work_id); return v.rounds.length === 3 && v.work.state === "completed" ? v : undefined; }, "third");
-    await service.memory.discardMemoryCandidate(third.memory_candidates![0]!.candidate_id);
+    await actions.invoke(person, memoryActions.discard, { candidate_id: third.memory_candidates![0]!.candidate_id, expected_version: third.memory_candidates![0]!.version });
     script.push(() => reply({ name: "suggest-memory", input: { ...lesson, text: "项目甲的周报用表格" } }), () => reply(undefined, "好的。"));
     await sendAsPerson(service, { work_id: first.work.work_id, text: "再用表格", request_id: "req-candidate-4" }, {});
     await until(async () => { const v = await service.read(first.work.work_id); return v.rounds.length === 4 && v.work.state === "completed"; }, "fourth");

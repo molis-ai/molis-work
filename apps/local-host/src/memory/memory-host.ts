@@ -418,7 +418,6 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       }
       if (method === "GET" && parts.length === 1 && parts[0] === "pairs") return { status: 200,
         body: await call(memoryActions.pairs, { scope: url.searchParams.get("scope") ?? (ports.projectRef ? "project" : "personal") }) };
-      if (method === "GET" && parts.length === 1 && parts[0] === "pairs") return { status: 200, body: await call(memoryActions.pairs, { scope: scope(url.searchParams.get("scope")) }) };
       if (method === "GET" && parts.length === 3 && parts[0] === "items" && parts[2] === "history") return { status: 200, body: await call(memoryActions.history, { memory_id: parts[1] }) };
       if (method !== "POST") return null;
       if (parts.length === 2 && parts[0] === "clear" && parts[1] === "preview") {

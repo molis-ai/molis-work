@@ -78,17 +78,6 @@ export class AssistantMemoryBridge {
     }
   }
 
-  /** The person keeps a suggestion (as it was, or as they reworded it): written like anything they asked to remember. */
-  async acceptMemoryCandidate(candidateId: string, input: { text?: string } = {}): Promise<AssistantMemoryCandidate> {
-    const { candidate } = await this.memory().accept(this.memoryCaller(null, null, true), candidateId, input);
-    return assistantCandidate(candidate);
-  }
-
-  /** The person declines a suggestion: it goes, and the same one is not suggested again. */
-  async discardMemoryCandidate(candidateId: string): Promise<AssistantMemoryCandidate> {
-    return assistantCandidate((await this.memory().discard(this.memoryCaller(null, null, true), candidateId)).candidate);
-  }
-
   /** The round's memory tools (see assistant-memory-tools.ts), or none when forming memories is off. */
   memoryTools(work: StoredWork): AgentMemoryTools | undefined {
     const memory = this.ports.memory?.();

@@ -1838,7 +1838,6 @@
     "coding.material.reason.forbidden": "当前没有读取权限",
     "coding.material.round-overflow-summary": "前 {inline} 份已读，其余 {rest} 份已核对、要时再读",
     "coding.material.round-summary": "本轮带入 {count} 份材料",
-    "coding.material.unreadable-banner": "有材料暂不可读：{materials}。草稿与其他材料已保留。",
     "coding.plan.points-field": "故事点（斐波那契数列，可选）",
     "coding.plan.points-reason-field": "估点理由（可选）",
     "coding.recovery.check-first": "先核对：以下动作在中断前已发出，结果未知，系统不会自动重做。",

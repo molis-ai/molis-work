@@ -111,6 +111,8 @@ renderPluginStageShell({
 
 ## 浏览器客户端
 
+统一输入的`submit`返回`ComposerOutcome`。失败由页面自己的可操作恢复区域完整解释时，可返回`{ state: "failed", message, feedback: "page" }`，输入框保留未受理草稿和材料，不再重复错误/通用重试；`unreadable`仍按提交索引标记原材料。没有完整恢复区域时用普通failed；未知结果用unknown，不以sent或空错误掩盖失败。Coding长期材料恢复卡是实际采用例。
+
 打包的 TypeScript 客户端使用 `@molis-ai/molis-work-contracts/platform/ui` 的 `UiPluginClientHost`，用 `Pick` 只取需要的字段，不另写一套宿主接口；DOM 类型由浏览器消费者传入泛型。`molisWorkRequest` 的形状也来自该合同；全局声明由 Plugin SDK 公共入口提供，浏览器文件用 `import type {} from "@molis-ai/molis-work-plugin-sdk"` 纳入，页面不重复声明、不另建请求实现。用 `host.pluginRoute(relativePath)` 请求自己的路由，用 `host.route(platformPath)` 请求已获准的平台路径；`host.pluginId` 来自 Manifest，仅作展示，授权仍由宿主绑定。生命周期 `scope.fetch` 与 `assertCurrent` 保留取消及迟到回应拒绝。打包器作为包的直接开发依赖，与根目录同版。
 
 构建与检查（样板 `plugins/native/form`）：浏览器代码在 `src/browser/*.ts`，入口 `factory.ts`；页面状态放在一个页面对象里，各部件是拿它当第一个参数的函数。包里的 `tsconfig.browser.json` 只含 `src/browser/**/*.ts`、`noEmit`、带 DOM 库；`package.json` 的 `build` 先 `tsc -p tsconfig.browser.json`，再用包内直接声明的 `esbuild`（命令直接写 `esbuild`，不写根目录二进制的相对路径）打成 `dist/<插件>-client.js`（`--bundle --format=iife --minify`，banner 与 footer 把它包成 `(host) => {…}`），`typecheck` 同样含这一步；`src/client.ts` 只读这份包。升级 esbuild 会改变压缩后的字节，页面资源预算照 `AGENTS.md` 的规则办，不能借工具升级绕过。页面每句话用自己的稳定键和 `ui.locales` 声明的语言文件，详见 [文字与外观](text-and-appearance.md)

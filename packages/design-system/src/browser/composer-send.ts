@@ -50,7 +50,7 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
         const item = submitted.items[index];
         if (item && c.items.includes(item)) Object.assign(item, { state: "failed", reason });
       }
-      if (outcome.unreadable?.length) c.phase = "";
+      if (outcome.feedback === "page" || outcome.unreadable?.length) c.phase = "";
     } else { c.phase = "unknown"; c.check = outcome.check; }
     current?.paint();
   }

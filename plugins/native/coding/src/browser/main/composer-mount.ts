@@ -151,7 +151,13 @@ async function submit(page: Page, id: string, input: ComposerSubmission, acknowl
       const key = selectionMaterialKey(item), failed = failures?.find(one => (one.key ?? selectionMaterialKey(sentMaterials[one.index ?? -1])) === key);
       return failed ? [{ index, reason: failed.reason }] : [];
     });
-    return { state: "failed", message: errorMessage(error), ...(unreadable.length ? { unreadable } : {}) };
+    const savedKeys = new Set((s.materialSelections.get(id) || []).map(selectionMaterialKey));
+    const stripKeys = new Set(unreadable.map(item => selectionMaterialKey(input.materials[item.index])));
+    const failedKeys = failures?.map(item => item.key ?? selectionMaterialKey(sentMaterials[item.index ?? -1]));
+    // startRound has drawn the saved selections' recovery. Each remaining failed choice is marked in the input's own strip.
+    const pageFeedback = s.current === id && !(run && !terminal(run.phase)) && failedKeys?.some(key => savedKeys.has(key))
+      && failedKeys.every(key => savedKeys.has(key) || stripKeys.has(key));
+    return { state: "failed", message: errorMessage(error), ...(pageFeedback ? { feedback: "page" } : {}), ...(unreadable.length ? { unreadable } : {}) };
   } finally {
     s.sending = false;
     s.composerSending = false;

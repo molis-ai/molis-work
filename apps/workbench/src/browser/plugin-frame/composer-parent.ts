@@ -174,7 +174,7 @@ function outcomeOf(value: BridgedOutcome, check: (key: number) => Promise<Compos
   return !value || typeof value !== "object" ? { state: "failed", message: "" }
     : value.state === "unknown"
     ? { state: "unknown", check: () => check(value.check).then(answer => answer === "sent" || answer === "not-sent" ? answer : "unknown") }
-    : value.state === "failed" ? { state: "failed", message: short(value.message, 4000), ...(Array.isArray(value.unreadable) ? { unreadable: value.unreadable.slice(0, 50)
+    : value.state === "failed" ? { state: "failed", message: short(value.message, 4000), ...(value.feedback === "page" ? { feedback: "page" } : {}), ...(Array.isArray(value.unreadable) ? { unreadable: value.unreadable.slice(0, 50)
       .filter(one => one && Number.isInteger(one.index) && typeof one.reason === "string").map(one => ({ index: one.index, reason: short(one.reason, 400) })) } : {}) }
     : value.state === "sent" ? { state: "sent", ...(value.receipt && typeof value.receipt === "object" ? { receipt: value.receipt as never } : {}) }
     : { state: "failed", message: "" };

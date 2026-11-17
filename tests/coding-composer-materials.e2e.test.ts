@@ -53,6 +53,7 @@ async function fixture(t: TestContext, answer?: (turn: number) => Promise<Respon
     return response;
   }, original); }`);
   const choose = async (title = "共享来源待办") => {
+    await b.waitFor(`${CODING_OPEN} && !document.querySelector(${JSON.stringify(CODING_COMPOSER + ' [data-composer-add]')}).disabled`);
     await b.click(`${CODING_COMPOSER} [data-composer-add]`);
     await b.waitFor(`document.querySelector(${JSON.stringify(CODING_COMPOSER + " [data-composer-source]")})`);
     await b.evaluate(`[...document.querySelectorAll(${JSON.stringify(CODING_COMPOSER + " [data-composer-source]")})].find(item => item.textContent.includes('待办')).click()`);
@@ -106,7 +107,7 @@ test("QEA-42 QEA-46: Coding sends a real Todo source once and preserves a reject
   assert.deepEqual(await child.evaluate("materialCommands.at(-1).body.materials"), []);
 });
 
-test("QEA-42 QEA-46: mixed saved and one-shot choices deduplicate exact refs and recover the failed owner's selection without automatic resend", { timeout: 180_000 }, async t => {
+for (const both of [false, true]) test(`QEA-42 QEA-46 QEA-65: mixed choices recover ${both ? "both saved and one-shot failures" : "a saved failure"} without automatic resend`, { timeout: 180_000 }, async t => {
   const f = await fixture(t, undefined, '共享来源待办<img src=x onerror="globalThis.materialInjected=1">'); if (!f) return;
   const { b, child, requests, access, picked, choose, send } = f;
   await b.evaluate(codingAdd("materials"));
@@ -129,11 +130,22 @@ test("QEA-42 QEA-46: mixed saved and one-shot choices deduplicate exact refs and
   await b.waitFor(`document.querySelector(${JSON.stringify(CODING_BOX)}).value === ''`, 30_000);
   assert.equal(await child.evaluate("materialCommands[1].body.materials.length"), 1, "the same exact reference selected through both entries is sent once");
   await b.waitFor(`!document.querySelector(${JSON.stringify(CODING_COMPOSER + " [data-composer-stop]")})?.checkVisibility()`, 30_000);
+  if (both) {
+    const current = openTodoStore(b.homeDirectory);
+    const removed = (() => { try { return current.create({ title: "同时撤回的临时材料", placement: "project" }, access).item; } finally { current.close(); } })();
+    await choose(removed.title);
+    await b.web.post(`/projects/${b.projectId}/api/plugins/io.molis.work.todo/items/${removed.id}/delete`, { expected_revision: removed.revision });
+  }
   await b.web.post(`/projects/${b.projectId}/api/knowledge/exclude`, { subject: { kind: "todo_item", id: picked.id }, excluded: true });
   const before = requests.length;
   await send("长期材料失败以后请保留我的输入");
   await child.waitFor("document.querySelector('[data-coding-drop-failed-materials]')?.checkVisibility()", 20_000);
   assert.deepEqual(await child.evaluate("[document.querySelectorAll('[data-coding-material-recovery] img').length, typeof globalThis.materialInjected]"), [0, "undefined"], "untrusted material names remain text in the locally rendered controls");
+  // QEA-65: the owner already explains this rejection and offers the exact recovery actions.
+  assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(CODING_COMPOSER + ' [data-composer-status-action="retry"]')})?.checkVisibility() ?? false`), false, "there is no duplicate retry alongside the material owner's recovery");
+  assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(CODING_COMPOSER + ' .mw-composer__status')})?.textContent?.includes('共享来源待办') ?? false`), false, "the material rejection is explained once by its owner");
+  assert.equal(requests.length, before, "rejection starts no inference");
+  assert.equal(await child.evaluate("document.querySelector('[data-coding-material-recovery]').textContent.split('共享来源待办').length - 1"), 1, "the recovery instructions do not repeat every failed material and reason");
   const shots = join(process.cwd(), ".impeccable/qa/review/quality-audit-composer"); await mkdir(shots, { recursive: true });
   for (const width of [1440, 1024, 390]) for (const theme of ["light", "dark"]) {
     await b.evaluate(`localStorage.setItem('molis-work:theme',${JSON.stringify(theme)}); dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:${JSON.stringify(theme)}}))`);
@@ -143,13 +155,19 @@ test("QEA-42 QEA-46: mixed saved and one-shot choices deduplicate exact refs and
     const bounds = await child.evaluate<{ left: number; right: number; width: number }>("{ const box = document.querySelector('[data-coding-material-recovery]').getBoundingClientRect(); ({left:box.left,right:box.right,width:innerWidth}) }");
     assert.ok(bounds.left >= 0 && bounds.right <= bounds.width + 1, JSON.stringify(bounds));
     const shot = await b.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, b.sessionId);
-    await writeFile(join(shots, `material-recovery-${theme}-${width}.png`), Buffer.from(shot.data, "base64"));
+    await writeFile(join(shots, `material-recovery${both ? "-mixed" : ""}-${theme}-${width}.png`), Buffer.from(shot.data, "base64"));
   }
   await child.click("[data-coding-drop-failed-materials]");
   await child.waitFor("!document.querySelector('[data-coding-material-recovery]')");
+  assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(CODING_COMPOSER + ' [data-composer-status-action="retry"]')}) !== null`), false, "the corrected choice leaves no old generic failure behind");
   assert.equal(requests.length, before);
   assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(CODING_BOX)}).value`), "长期材料失败以后请保留我的输入");
   assert.equal(await child.evaluate("materialCommands.length"), 3, "removing the failed saved choice does not submit from the frame");
+  if (both) {
+    assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(CODING_SEND)}).disabled`), true, "the independently failed one-shot choice still blocks sending");
+    await b.click(`${CODING_COMPOSER} .mw-upload [data-composer-remove]`);
+    assert.equal(requests.length, before, "removing the second failure does not send either");
+  }
   await b.click(CODING_SEND); await b.waitFor(`document.querySelector(${JSON.stringify(CODING_BOX)}).value === ''`, 30_000);
   assert.deepEqual(await child.evaluate("materialCommands[3].body.materials"), []);
 });

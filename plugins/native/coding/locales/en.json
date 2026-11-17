@@ -1982,7 +1982,6 @@
         "other": "{count} materials in this round"
       }
     },
-    "coding.material.unreadable-banner": "Unreadable materials: {materials}. Your draft and other materials are kept.",
     "coding.plan.points-field": "Story points (Fibonacci, optional)",
     "coding.plan.points-reason-field": "Estimate reason (optional)",
     "coding.recovery.check-first": "Check first: the actions below were sent before the interruption with an unknown outcome and are never re-run automatically.",

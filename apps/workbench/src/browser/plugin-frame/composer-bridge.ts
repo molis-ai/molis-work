@@ -53,7 +53,7 @@ export interface ComposerSnapshot {
 /** An outcome as it crosses: `unknown` names the page's check by a number the parent asks with. */
 export type BridgedOutcome =
   | { state: "sent"; receipt?: unknown }
-  | { state: "failed"; message: string; unreadable?: { index: number; reason: string }[] }
+  | { state: "failed"; message: string; feedback?: "page"; unreadable?: { index: number; reason: string }[] }
   | { state: "unknown"; check: number };
 
 export type ComposerCalls = {

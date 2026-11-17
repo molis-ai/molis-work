@@ -146,6 +146,7 @@ export type ComposerOutcome = {
 } | {
     state: "failed";
     message: string;
+    feedback?: "page";
     unreadable?: readonly {
         index: number;
         reason: string;

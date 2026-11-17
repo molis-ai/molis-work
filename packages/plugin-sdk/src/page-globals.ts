@@ -281,10 +281,13 @@ export interface ComposerSubmission {
  * `unknown`: the page cannot tell yet whether it went; `check` asks the target. A failure may name the materials the target could
  * not read (by their place in `materials`): the strip says why beside each, they stay, and the next send waits until the person
  * removes them (never sent without them unasked).
+ * `feedback: "page"` means the calling page already shows this failure and its recovery actions. The input keeps the unsent
+ * draft and materials, including unreadable rows, but does not repeat the error or offer a generic retry. Never use it for an
+ * unknown outcome or a failure the page has not explained.
  */
 export type ComposerOutcome =
   | { state: "sent"; receipt?: AgentSteerReceipt }
-  | { state: "failed"; message: string; unreadable?: readonly { index: number; reason: string }[] }
+  | { state: "failed"; message: string; feedback?: "page"; unreadable?: readonly { index: number; reason: string }[] }
   | { state: "unknown"; check(): Promise<"sent" | "not-sent" | "unknown"> };
 
 export interface ComposerHandle {

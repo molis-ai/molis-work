@@ -1,6 +1,6 @@
 # Molis Work 审查报告与优化策略
 
-状态：进行中，负责人 Codex。按原始范围继续逐包、逐入口深入六方向检查及分批改造；74包清单与首轮代表路径核对不等于全仓深查完成，局部验收不用于整项结项。现已保留搜索、后台操作、Sessions、Git、共享输入材料、Coding恢复及Memory候选等批次；Memory正式管理/配对查询已完成本地包回归，Workflows四项改造及AI交接恢复变体已完成本地验收。当前已整合main `4aa5496e3f`，Memory批已保存于`67b8ed3193`；Workflows批尚未提交。旧头`77e2cc0d5`的CI只覆盖旧批次。草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) · [需求与验收](spec.md) · [逐包覆盖](coverage.md)。
+状态：进行中，负责人 Codex。按原始范围继续逐包、逐入口深入六方向检查及分批改造；74包清单与首轮代表路径核对不等于全仓深查完成，局部验收不用于整项结项。现已保留搜索、后台操作、Sessions、Git、共享输入材料、Coding恢复及Memory候选等批次；Memory正式管理/配对查询已完成本地包回归，Workflows四项改造及AI交接恢复变体已完成本地验收。当前已整合main `4aa5496e3f`，Memory批已保存于`67b8ed3193`，Workflows批保存于`7aca76b7c6`；Coding材料反馈收敛正在最终包回归。2026-11-17再次fetch确认origin/main仍为4aa5496e3f。旧头`77e2cc0d5`的CI只覆盖旧批次。草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) · [需求与验收](spec.md) · [逐包覆盖](coverage.md)。
 
 ## 当前判断
 
@@ -240,8 +240,8 @@ PF-03/05/07/13 是采用或职责收口候选，即使目前只有一个实际�
 | --- | --- | --- |
 | [BL-1039](../backlog/BL-1039.md) | 现行首次使用按钮已区分未连接/已连接，`tests/context-onboarding-action-copy.e2e.test.ts:22` 覆盖；第27批 action-copy spec §验证已有隔离实操证据 | 可关闭“未实现”的工程记录；本人验收并入 BL-batch27-acceptance，保留原编号到墓碑，不代签本人验收 |
 | [BL-1040](../backlog/BL-1040.md) | `plugins/native/git/src/browser/source.ts:103-124` 已将状态改普通文字、缺远端隐藏 PR；`tests/git-source-controls.e2e.test.ts:18` 覆盖真实本地仓库、AX 与键盘 | 可关闭重复工程记录，剩余体验认可并入第27批验收；与 QF-03 的刷新/冲突草稿恢复不是同一问题 |
-| [BL-040](../backlog/BL-040.md) | `packages/contracts/src/platform/plugin-sandbox.ts:121` 和 SDK sandbox-read-protocol 已有 subject_context；“生成插件不能声明对象读取器”过宽 | 改写为搜索来源与创作台草稿动作层缺口，保留未支持的 search_source；不能整条删除 |
-| [BL-055](../backlog/BL-055.md) | `packages/plugin-sandbox/src/runner.ts:31` 已是真实子进程沙箱，“当前进程内执行器”描述失效 | 删过时括注，分别保留 Jev 质量/延迟、跨项目草稿；沙箱剩余平台限制链接当前专项 |
+| [BL-040](../backlog/BL-040.md) | `packages/contracts/src/platform/plugin-sandbox.ts:121` 和 SDK sandbox-read-protocol 已有 subject_context；“生成插件不能声明对象读取器”过宽 | 已纠正正文：保留搜索来源与创作台草稿动作层缺口，区分read_protocol与ui.subject_context，未删除整条 |
+| [BL-055](../backlog/BL-055.md) | `packages/plugin-sandbox/src/runner.ts:31` 已是真实子进程沙箱，“当前进程内执行器”描述失效 | 已删除过时进程内括注；保留Jev质量/延迟、实际平台边界验证及跨项目草稿，负责人不变 |
 | [BL-observation-b28-known-limits](../backlog/BL-observation-b28-known-limits.md) | 正文已记录第29批补齐①②③、后续修⑥ | 完成子项移到来源 spec 的证据段，BL 只留④⑤等当前残余；不因列表里有已做项删整条 |
 | [BL-115](../backlog/BL-115.md) | 正文记录离线备份/恢复/续接已在 main，真实 Home 2026-11-07 已做 | 将已完实施转为来源说明；只保留登记覆盖核对与 C 端在线定时备份，避免再次立离线备份实现 |
 | [BL-117](../backlog/BL-117.md) | 策略、版本检查与0.3.0候选已有；公开发布资格仍在发布记录 | 与发行检查单保持一个剩余清单入口，不删除 Developer ID/公证/公开发布待办 |
@@ -549,3 +549,9 @@ Workflows第二十五批本地验收：最终构建和健康门禁通过，READM
 QF-36扩展：`browser/state.ts:readyState`仍把原模型可用性当作已有pending的恢复条件。真实SDK已生成、Pages已写、原模型经设置HTTP停用后，继续按钮消失，反例有效失败（`workflows-pending-model-baseline2.log`）。当前站点检查保留，只有已经完成的准备条件按owner.pending跳过；真实交付进度不冒充重新生成。修复已构建，目标去重/原交接键/无新增模型请求及新实例仍需模型的验收在进行。
 
 Workflows最终本地验收（2026-11-17）：最终构建通过；QEA-64真实SDK/配置/Pages恢复1文件通过（`/tmp/quality-audit-workflows-pending-model-acceptance.log`），随后同构建README必跑及交错23文件全部通过（6.2分钟，`/tmp/quality-audit-workflows-final-required.log`），共24文件。最终健康门禁通过（`/tmp/quality-audit-workflows-pending-model-health.log`）。18张三宽两主题图已刷新，root复看最新390深色pending：固定正文及继续按钮完整可见，没有重复准备说明。原目标仅一份、原交接键不变、模型请求不增加，新实例仍需模型。用户少重做一次人工预览/改写，后台继续由原owner决定幂等与未知结果；页面不再跨实例拥有迟到结果。当前头Full CI和整项逐包深查仍未完成。
+
+QF-27反馈收敛（第二十七批）：旧构建新增正常入口断言有效复现重复retry（`material-feedback-baseline.log`）。SDK ComposerOutcome.failed以可选feedback:page明确已有恢复UI的归属，统一输入与框桥保留失败草稿/材料，普通错误和unknown保持；Coding只对当前会话已完整解释的材料失败采用。首版3文件30项、构建与健康通过，只读review无本片Blocker/P1。实看390深色后进一步删除材料卡内重复名称/原因长段及两语言失用词条，最终构建通过，130文件包回归进行中；新增同时失败场景在再次打开来源菜单的准备步骤超时，尚未到本次失败处理，待单独诊断，不能把首版通过当作最终全过。Skill固定答卷回放与隔离Home替身smoke3/3通过，不作为真实模型质量结论。
+
+PF-07退役准备：已核真实注册builtin-integrations仅消费GitHub/Gmail/RSS工厂及Catalog，YouTube频道工具仍进入Host/npm产物。独立只读复核无阻塞退役的运行时P1；用户2026-11-17批准spec§28两处门禁改动，待当前回归完成后实施。另补实际采用证据：FeedSourceService的生产createRuntime仅见`plugins/native/feed/src/plugin.ts:129`，旧底层Host runtime注入仅存tests/fixtures/feed-assembly；Feed本地构造完整搜索intent再由Runtime忽略，平台sourcePull.plan/pull重建同一intent。后续迁移应让平台独有计划/指纹、取消/hold与受控读取，Feed继续拥有来源配置/游标/幂等run和写入，不移除真实网络/权限边界。该采用收敛尚未实施，工厂退役不等于PF-07全部完成。
+
+第二十七批最终本地验收：构建、健康门禁通过；130文件运行129通过，唯一失败在新增混合失败场景的来源菜单准备步骤。补等待当前输入框/加号可操作后，最终整文件6/6通过，真实失败/草稿/删除恢复/模型次数断言保持。日志：`/tmp/quality-audit-material-feedback-required.log`、`material-feedback-final-ui.log`；另两份普通composer与框架证据有效，合计132文件有通过证据，不改写首轮失败。12张截图已生成，root实看390深色与1440浅色混合失败。共享合同仅新增可选反馈归属，不改变受理身份或未知结果；用户少看重复错误/重试，卡内亦不再重复各材料名称/原因。最终Full CI及新内容地址资源核准仍待完成。

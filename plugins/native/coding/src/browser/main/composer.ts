@@ -86,7 +86,6 @@ function showMaterialRecovery(page: Page, id: string, failures: readonly FailedM
       statusTone: "blocked",
     };
   });
-  const names = items.map(item => item.name + (item.how ? " (" + item.how + ")" : "")).join(uiText.text("coding.list.joiner"));
   // Local UI renders and escapes every value; content sanitization would remove its action bindings.
   bar.innerHTML = renderCodingRoundMaterials({
     title: uiText.text("coding.material.round-title"),
@@ -96,7 +95,7 @@ function showMaterialRecovery(page: Page, id: string, failures: readonly FailedM
     recovery: {
       tone: "warning",
       title: uiText.text("coding.material.recovery.title"),
-      body: uiText.text("coding.material.unreadable-banner", { materials: names }) + " " + uiText.text("coding.material.kept-summary", { kept: keptSelection.length }),
+      body: uiText.text("coding.material.kept-summary", { kept: keptSelection.length }),
       actions: [
         { label: uiText.text("coding.material.remove-unreadable"), variant: "primary", attrs: { "data-coding-drop-failed-materials": "" } },
         { label: uiText.text("coding.material.pick-another"), variant: "secondary", attrs: { "data-coding-replace-failed-materials": "" } },

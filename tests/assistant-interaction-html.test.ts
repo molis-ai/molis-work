@@ -127,10 +127,10 @@ test("AC-23: an open card is the shared operation card: the fields the person ma
 });
 
 test("AC-23: a card that ran or went stale says how it stands; a stale one only offers to be prepared again", () => {
-  const done = assistantCardHtml({ ...card("done"), outcome: "「报销」" }, say);
+  const done = assistantCardHtml({ ...card("done"), outcome: { literal: "「报销」" } }, say);
   assert.match(done, /data-ix-status role="status">已完成：「报销」/);
   assert.doesNotMatch(done, /data-ix-action="run"/);
-  const stale = assistantCardHtml({ ...card("stale"), outcome: "数据在建议之后变化了" }, say);
+  const stale = assistantCardHtml({ ...card("stale"), outcome: { literal: "数据在建议之后变化了" } }, say);
   assert.match(stale, /data-ix-status role="status" data-tone="waiting">已失效：数据在建议之后变化了/);
   assert.match(stale, /data-ix-recovery[\s\S]*data-ix-action="redo"/);
   assert.doesNotMatch(stale, /data-ix-action="(run|dismiss)"/);

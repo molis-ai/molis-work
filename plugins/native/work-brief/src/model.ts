@@ -25,7 +25,8 @@ export interface Claim { claim_id: string; text: string; cites: Cite[]; supplied
 /** How one source read at the time. `turn` comes only from this brief's own content and the comparison with the version before. */
 export interface SourceRow {
   plugin_id: string;
-  name: string;
+  /** The source plugin's name as its Manifest's `name_text`, with the name it had then as the fallback: it reads in the language shown. */
+  name: OwnedTextRef;
   read: "ok" | "stale" | "unreadable" | "unauthorized" | "none";
   read_at?: string;
   summary?: OwnedTextRef;
@@ -67,7 +68,7 @@ export interface NextMark { option_id: string; state: NextMarkState; card?: Acti
 
 /** One line of the comparison of two versions: nothing here is stored, it is computed from the two bodies. */
 export type BriefChange =
-  | { kind: "source"; plugin_id: string; name: string; from: SourceRow["read"] | null; to: SourceRow["read"] | null; subjects_added: number; subjects_removed: number }
+  | { kind: "source"; plugin_id: string; name: OwnedTextRef; from: SourceRow["read"] | null; to: SourceRow["read"] | null; subjects_added: number; subjects_removed: number }
   | { kind: "claim"; claim_id: string; change: "added" | "removed" | "reworded" }
   | { kind: "cite"; claim_id: string; subject: ActionSubject; change: "added" | "removed" | "changed" | "gone" | "unreadable" }
   | { kind: "attention"; subject: ActionSubject; change: "added" | "removed" };

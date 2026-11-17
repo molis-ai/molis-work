@@ -57,7 +57,7 @@ function harness(start = "2026-10-15T08:00:00.000Z", options: { file?: string; t
     at: (iso: string) => { now = new Date(iso); }, working: (running: boolean) => { workState = running ? "running" : "idle"; }, setHome: (actions: typeof homeActions) => { homeActions = actions; } };
 }
 
-test("FSS-38 FSS-39 nonempty follow-ups and notices retain stable keys, zoned instants and long original failures after a v1 restart", async t => {
+test("FSS-38 FSS-39 nonempty follow-ups and notices retain stable keys, zoned instants and long original failures after a restart", async t => {
   const directory = await mkdtemp(join(tmpdir(), "molis-assistant-saved-text-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, "assistant.db"), timeZone = "America/Los_Angeles";
@@ -77,7 +77,7 @@ test("FSS-38 FSS-39 nonempty follow-ups and notices retain stable keys, zoned in
   } finally { live.db.close(); }
   const restarted = harness("2026-03-08T10:15:00.000Z", { file, timeZone });
   try {
-    assert.equal(restarted.db.prepare("PRAGMA user_version").get()?.user_version, 1);
+    assert.equal(restarted.db.prepare("PRAGMA user_version").get()?.user_version, 2);
     const [failed, missed] = restarted.followUps.list("w1");
     assert.deepEqual(failed!.last!.detail, { original });
     assert.equal(savedText(failed!.last!.detail, "en"), original, "no size limit for the upstream's own words");

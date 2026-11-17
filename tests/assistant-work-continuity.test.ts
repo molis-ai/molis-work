@@ -15,6 +15,11 @@ import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { roundParts } from "./fixtures/round-parts.js";
+import { pagePack } from "./fixtures/page-text.js";
+import { createTextReader } from "@molis-ai/molis-work-plugin-sdk/ui";
+
+// A card's outcome is a key with its raw values, read in the language the person reads.
+const chinese = createTextReader({ locale: "zh", packs: [pagePack("workbench", "zh")] }).text;
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -188,7 +193,7 @@ test("what the person does in the plugin settles what it made redundant: a sugge
     f.notes.set("n7", { text: "short by hand", version: 2 });
     view = await f.service.read(sent.work.work_id);
     assert.equal(view.cards[0]!.status, "stale");
-    assert.match(view.cards[0]!.outcome ?? "", /你在原处改过「a long note」/);
+    assert.match(view.cards[0]!.outcome ? chinese(view.cards[0]!.outcome) : "", /你在原处改过「a long note」/);
     const clicked = await f.service.offers.runCard(sent.work.work_id, view.cards[0]!.card_id, { revision: view.cards[0]!.revision });
     assert.equal(clicked.status, "stale");
     assert.deepEqual(f.notes.get("n7"), { text: "short by hand", version: 2 }, "the suggestion never ran over their edit");

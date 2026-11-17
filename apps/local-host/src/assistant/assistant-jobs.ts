@@ -146,8 +146,9 @@ export class AssistantJobs {
   #settleCards(workId: string, step: JobStep): void {
     for (const card of this.ports.store.cards(workId).filter(one => one.status === "running" && one.job_step?.node_id === step.node_id)) {
       try {
-        this.ports.store.updateCard(card, card.revision, step.job.ended === "done" ? { status: "done", outcome: "后台已完成" }
-          : step.job.ended === "failed" ? { status: "failed", outcome: "后台没有完成" } : { status: "unknown", outcome: step.job.ended === "expired" ? "过了 6 小时仍没有结束，请到原处查看" : "不能再查看它的状态，请到原处查看" });
+        this.ports.store.updateCard(card, card.revision, step.job.ended === "done" ? { status: "done", outcome: assistantWords("workbench.assistant-job.card-done") }
+          : step.job.ended === "failed" ? { status: "failed", outcome: assistantWords("workbench.assistant-job.card-failed") }
+          : { status: "unknown", outcome: assistantWords(step.job.ended === "expired" ? "workbench.assistant-job.card-expired" : "workbench.assistant-job.card-unchecked") });
       } catch (error) { if (!(error instanceof ActionError && error.code === "assistant.conflict")) hostLog.warn("assistant", "job_card_unsettled", error); } // Changed meanwhile is expected (the notice still says how the job ended); anything else is written.
     }
   }

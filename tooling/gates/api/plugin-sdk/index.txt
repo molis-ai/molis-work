@@ -23,7 +23,7 @@ export interface ActionCard {
         question: string;
     }>;
     status: ActionCardStatus;
-    outcome?: string;
+    outcome?: OwnedTextRef;
     presentation?: ActionResultPresentation;
     request_id?: string;
     target?: {

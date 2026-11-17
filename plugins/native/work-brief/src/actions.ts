@@ -1,6 +1,7 @@
 import { arraySchema as array, createActionDefinition, nullableSchema, objectSchema as object } from "@molis-ai/molis-work-plugin-sdk";
 import { ACTION_SUBJECT_SCHEMA, type ActionAudience, type ActionSchema, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BRIEF_KIND } from "./identity.js";
+import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BRIEF_LIMITS, type BriefChange, type BriefEdit, type BriefProposal, type BriefRecord, type BriefVersion, type BriefVersionHead, type NextMark } from "./model.js";
 
 export const WORK_BRIEF_READ = ["work-brief:read"], WORK_BRIEF_WRITE = ["work-brief:read", "work-brief:write"];
@@ -103,7 +104,7 @@ export interface PersonalItem {
   brief_id?: string;
   subject?: { kind: string; id: string };
   owner_plugin_id?: string;
-  owner_name?: string;
+  owner_name?: OwnedTextRef;
   blocked?: true;
 }
 export interface PersonalView { as_of: string | null; version: number; items: PersonalItem[]; sources: BriefVersion["sources"]; projects_complete: boolean }

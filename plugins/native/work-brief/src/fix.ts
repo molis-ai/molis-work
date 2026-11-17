@@ -1,5 +1,6 @@
 import { bindActionHandler, bindArtifactPreview, defineArtifactPreviewAction, nextPinnedVersion, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { say } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { WORK_BRIEF_READ, workBriefActions } from "./actions.js";
 import type { BriefPorts } from "./briefs.js";
 import { workBriefErrors } from "./error.js";
@@ -16,7 +17,8 @@ function payloadOf(title: string, version: BriefVersion): FixedPayload {
   return { title, version: version.version, as_of: version.as_of,
     claims: version.claims.map(claim => ({ text: claim.text, cites: claim.cites.map(cite => ({ ...cite.subject, title: cite.title, revision: cite.revision })),
       ...(claim.supplied_by ? { supplied_by: claim.supplied_by } : {}) })),
-    sources: version.sources.map(row => ({ name: row.name, read: row.read, ...(row.read_at ? { read_at: row.read_at } : {}) })),
+    // A fixed version is a document kept as it read when it was fixed (its preview and export are text), so a source's name goes in as words, in the language of the call that fixed it.
+    sources: version.sources.map(row => ({ name: say.text(row.name), read: row.read, ...(row.read_at ? { read_at: row.read_at } : {}) })),
     attention: version.attention.map(item => ({ ...item.subject, why: item.why })), next: version.next.map(option => ({ text: option.text, why: option.why })) };
 }
 

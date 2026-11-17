@@ -127,6 +127,8 @@
 
 ### 升级须知（需要动手）
 
+- **动作卡片的 `outcome` 改成文字引用**（2026-11-17，阶段一不留兼容）：合同 `AssistantCard.outcome` 与 SDK `ActionCard.outcome` 现在是 `OwnedTextRef`，不再是句子；自己读它的插件改用 `say.text(card.outcome)`，交给 Host 的卡片只许 `{ literal }` 或平台 `common.action-card.*` 键。助理库升到 2、项目库升到 5、Work Brief 库升到 2，旧句子在升级时原样转成 `{ literal }`，打开 Home 时自动完成；已固定进成果库的简报版本不改。
+
 - **第 39 批把项目审批移到平台。** 调用管理 MCP `molis_work_v1_event_decide`、`molis_work_v1_goal_tree_decide` 或 CLI `goal-tree-decide` 的脚本，先用 `molis_work_v1_review_request` 或 `review-request` 读取原请求，再用 `molis_work_v1_review_decide` 或 `review-decide` 提交当前审查引用、选项与本次请求键；`acceptance.decide@1` 同样改为经 `acceptance.review@1` 与通用可信决定入口兑现。读取或修改原 `goals.policy.history@1`、`goals.policy.save@1` 的调用改用 `project.approvals.rules.read@1`、`project.approvals.rules.change@1`。调用 `agent.reviews.decide@1` 时带上原审查的 `reference.version` 作为 `version`。页面从「授权与审批」查看原决定和修改规则。正常升级把项目库从 v3 升到 v4，把 Goals 私有库从 v1～v4 升到 v5，保留原记录和归属。使用同步的项目按已确认的交接窗口升级。[管理 CLI](../cli-and-development.md) · [项目审批移交](../../specs/agent-approval/trusted-decisions-design.md)
 
 - **第 31 批：记忆适用情境 `applies.goal_ids` 改为 `applies.objects`，导出包拒绝旧 `goal_ids`（阶段一不留兼容）**（#2081 及复查修复，2026-11-15）：`memory.write@1`、`memory.change@1`、`memory.recall@1`、`memory.list@1`、`memory.page@1`、`memory.candidates.list@1`、`memory.candidates.accept@1`、`memory.candidates.discard@1`、`memory.history@1` 的适用条件删掉 `goal_ids`，改为通用关联对象 `objects: [{ plugin_id, kind, id }]`；固定构造旧字段的调用方与工作流绑定要改用 `objects`，带 `applies.goal_ids` 的旧导出包在导入预检即整包拒绝。`memory/memory.db` 由升级链自动走 `2 → 3` 清洗重复历史正文，无需手工操作。

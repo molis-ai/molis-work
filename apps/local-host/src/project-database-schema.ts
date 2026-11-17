@@ -1,6 +1,7 @@
 import { ADOPTED_PROCESS_ITEMS_JOURNAL_SQL, ADOPTED_PROCESS_ITEMS_TRIGGERS_SQL, PROJECT_REPLICATION_SCHEMA_SQL } from './project-replication-schema.js';
 import { STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
-import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
+import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline, type SqliteBaselineDatabase, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
+import { storedSentenceAsText } from "./stored-sentences.js";
 import { MATERIAL_RECENT_USES_SCHEMA_SQL, PROJECT_ROOT_SCHEMA_SQL } from "@molis-ai/molis-work-module-projects";
 import { ARTIFACTS_SCHEMA_SQL, PROCESS_ITEMS_SCHEMA_SQL } from "@molis-ai/molis-work-module-artifacts";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
@@ -61,6 +62,32 @@ export const PROJECT_DATABASE_VERSION_2_SCHEMA = [
 
 export const PROJECT_DATABASE_VERSION_3_SCHEMA = `${PROJECT_DATABASE_VERSION_2_SCHEMA}\n${SURFACE_CORRECTIONS_SCHEMA_SQL}`;
 
+const CODING_PLUGIN_ID = "io.molis.work.coding";
+
+/**
+ * 4 → 5 (BL-action-card-outcome-text, user 2026-11-17): Coding keeps a session's action cards as one JSON value under `cards:<session>` in
+ * `plugin_private_values`, by its installation. A card's outcome was a sentence in the language of the day it was written, and is now a key with
+ * its values; a sentence already written cannot be taken back to its key, so it stays the words it was, as a `literal`. Only Coding's own rows,
+ * found by its installation records here, are read; every other value is left as it is.
+ */
+function codingCardOutcomesAsText(db: SqliteBaselineDatabase): void {
+  const write = db.prepare("UPDATE plugin_private_values SET item_value = ? WHERE install_id = ? AND item_key = ?");
+  const rows = db.prepare(`SELECT v.install_id, v.item_key, v.item_value FROM plugin_private_values v
+    WHERE v.item_key LIKE 'cards:%' AND v.install_id IN (SELECT install_id FROM plugin_runtime_installs WHERE json_extract(record_json, '$.plugin_id') = ?)`)
+    .all(CODING_PLUGIN_ID) as Array<{ install_id: string; item_key: string; item_value: string }>;
+  for (const row of rows) {
+    const value = JSON.parse(row.item_value) as { cards?: unknown };
+    if (!Array.isArray(value.cards) || !value.cards.some(card => typeof (card as { outcome?: unknown })?.outcome === "string")) continue;
+    const cards = value.cards.map(card => {
+      const { outcome, ...rest } = card as { outcome?: unknown };
+      if (typeof outcome !== "string") return card;
+      const text = storedSentenceAsText(outcome);
+      return text ? { ...rest, outcome: text } : rest;
+    });
+    write.run(JSON.stringify({ ...value, cards }), row.install_id, row.item_key);
+  }
+}
+
 const PROJECT_DATABASE_UPGRADES = [
     // 1 → 2 (specs/shared-sources-and-surfaces §2.1, §3): where a project was browsed is no setting any more, and 「最近用过」 starts empty.
     // The step also lands on the adopted process-items journal (user 2026-11-12, specs/batch-06-shared-tools/current-version-adoption.md):
@@ -71,12 +98,14 @@ const PROJECT_DATABASE_UPGRADES = [
     { from: 2, sql: SURFACE_CORRECTIONS_SCHEMA_SQL },
     { from: 3, sql: PROJECT_APPROVALS_SCHEMA_SQL, run: transferProjectApprovals,
       get reduces_rows() { return projectApprovalUpgradeReductions(); } },
+    // 4 → 5: Coding's action cards, kept in this library's private values, say their outcome by key and values; a sentence already written stays as words.
+    { from: 4, run: codingCardOutcomesAsText },
 ] satisfies readonly SqliteUpgradeStep[];
 
 export const projectApprovalUpgrade: SqliteUpgradeStep = PROJECT_DATABASE_UPGRADES[2]!;
 
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: /* @version database.project_database_baseline */ 4,
+  version: /* @version database.project_database_baseline */ 5,
   schema: `${PROJECT_DATABASE_VERSION_3_SCHEMA}\n${PROJECT_APPROVALS_SCHEMA_SQL}`,
   upgrades: PROJECT_DATABASE_UPGRADES,
 };

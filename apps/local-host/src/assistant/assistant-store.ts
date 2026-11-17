@@ -6,7 +6,9 @@ import type { AssistantThreadRound } from "./assistant-thread-types.js";
 import { randomUUID } from "node:crypto";
 import { assistantErrors } from "./assistant-errors.js";
 import { AssistantFollowUpRecords } from "./assistant-followups.js";
-import { applySqliteBaseline, openBaselineHomeSqlite, type openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, openBaselineHomeSqlite, type openHomeSqliteDatabase, type SqliteBaseline, type SqliteBaselineDatabase, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
+import { storedSentenceAsText } from "../stored-sentences.js";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
@@ -30,7 +32,20 @@ export const ASSISTANT_STORE_NAME = "assistant";
  * The current schema retains the table and its stored work shape.
  * The current executor is `{ kind: "plugin", plugin_id, ... }`; other stored versions are refused, never translated on read.
  */
-export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: /* @version database.assistant_store_baseline */ 1, schema: `
+/**
+ * 1 → 2 (BL-action-card-outcome-text, user 2026-11-17): a card's outcome was a sentence in the language of the day it was written, and is
+ * now a key with its values. A sentence already written cannot be taken back to its key, so it stays the words it was, as a `literal`.
+ */
+function cardOutcomesAsText(db: SqliteBaselineDatabase): void {
+  const write = db.prepare("UPDATE assistant_cards SET body = ? WHERE card_id = ?");
+  for (const row of db.prepare("SELECT card_id, body FROM assistant_cards WHERE json_type(body, '$.outcome') = 'text'").all() as Array<{ card_id: string; body: string }>) {
+    const { outcome, ...body } = JSON.parse(row.body) as { outcome: string };
+    const text = storedSentenceAsText(outcome);
+    write.run(JSON.stringify(text ? { ...body, outcome: text } : body), row.card_id);
+  }
+}
+
+export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: /* @version database.assistant_store_baseline */ 2, upgrades: [{ from: 1, run: cardOutcomesAsText }], schema: `
 CREATE TABLE assistant_works (
   work_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL,
   archived INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
@@ -154,7 +169,7 @@ export interface StoredCard {
   editable: string[];
   missing: Array<{ field: string; question: string }>;
   status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
-  outcome?: string;
+  outcome?: OwnedTextRef;
   presentation?: ActionResultPresentation;
   /** Set when the person clicked; the one execution this card may have. */
   request_id?: string;

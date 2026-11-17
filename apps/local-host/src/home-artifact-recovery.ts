@@ -72,7 +72,11 @@ export function assertNoPendingArtifactRows(home: string, owner: StorageOwner): 
     if (!lstatSync(file, { throwIfNoEntry: false })) continue;
     assertArtifactLibraryReady(file);
     const ids = readUpgradeStore(file, db => {
-      if (!checkSqliteBaselineVersion(db, file, library, root)) return [];
+      // An older library its owner's declared steps take to this version still holds the old build's pending pins, and they are read here,
+      // before the upgrade below this check moves the library out of the old build's reach. Any other version is classified as before.
+      const found = Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
+      const upgradable = found >= 1 && found < library.version && (library.upgrades ?? []).some(step => step.from === found);
+      if (!upgradable && !checkSqliteBaselineVersion(db, file, library, root)) return [];
       if (!space || JSON.stringify(readDatabaseSpace(db)) !== JSON.stringify(space)) throw wrongArtifactSpace();
       return db.prepare(`SELECT ${quoted(declaration.id_column)} AS id FROM ${quoted(declaration.table)} WHERE ${quoted(declaration.pending_column!)} IS NOT NULL LIMIT 20`)
         .all().map(row => String(row.id));

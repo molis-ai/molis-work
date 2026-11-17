@@ -1,8 +1,10 @@
 # Molis Work 审查报告与优化策略
 
-整项进行中，负责人 Codex。已整合并复核 main `dbcf562a67`，登记范围覆盖 75 个包、84 个 contracts 子路径及根入口。报告有 67 项编号发现和 14 项平台候选，列明已实施、复用或继续保留的依据。[逐包覆盖](coverage.md)、[六方向结论](#六个方向的独立结论)、[平台候选及处置](#平台化与通用化检查及处置)、[需求实现度](#需求整体实现度)、[BL 清理与保留事项](#bl-与事项清理建议)和[验收编号](spec.md)均可按入口查阅。
+整项进行中，负责人 Codex。已整合并复核 main `dbcf562a67`，登记范围覆盖 75 个包、84 个 contracts 子路径及根入口。报告有 69 项编号发现和 14 项平台候选，列明已实施、复用或继续保留的依据。[逐包覆盖](coverage.md)、[六方向结论](#六个方向的独立结论)、[平台候选及处置](#平台化与通用化检查及处置)、[需求实现度](#需求整体实现度)、[BL 清理与保留事项](#bl-与事项清理建议)和[验收编号](spec.md)均可按入口查阅。
 
 第 53–55 批 8 文件 78 项定向通过。第 56–59 批 8 文件 144 项及长材料 2 项通过，验证改写、回放、起草、引导、信息方案和真实采用。固定 `4c54241e96` 的受影响包级复验 55/55 文件、463/463 项通过。第 60 批 Git、Coding 与工作台 77 文件、521 项通过，含真实提交、拒绝、暂存和编辑恢复。第 62 批 Placement 与工作台 22 文件、194 项通过。第 52 批冻结头的 104/105 个包回归文件通过，唯一失败定位到 Feed 已失效的发布版本例外。
+
+第 63–65 批签名插件相关的 11 文件、123 项均有通过证据。另有真实 Home 更新签名包、Inbox 更新建议和 Home 提供事项 3 个浏览器用例通过。最新 66 条静态资源的原始与压缩字节和第 62 批逐条相同。包边界和健康通过，准确组合 CI 待结算。
 
 当前本地证据按构建提交记录。实际首屏清单和资源许可、组合提交的 Full CI、Feed 退役例外及历史导入警告迁移仍待结算。实际首屏和最新增长见 [QF-66](#qf-66--p2-资源清单曾采样已替换的任务和-goal-请求)。草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) 的旧 CI 只覆盖 `77e2cc0d5`。
 
@@ -816,6 +818,8 @@ BL-b42-followups③只处理了项目/独立页的地址消费与缓存恢复；
 
 最终性能断言亦过（`quality-audit-collection-inbox-performance-final.log`）：五样本11246、8794、9115、10459、8577ms，p50=9115ms，所有后台Goal刷新均collection；Inbox重读1次、20条实际建议先显示再提示。此时机器还有两个其他工作树测试批次，主会话没有并发构建/重测试；不能将其与较空闲5.4秒样本当作严格对照，也不能隐去变慢样本。保留QF-51/BL的最终环境与CI结论。健康 `quality-audit-collection-health-final.log` 在main 4cf1c742e6基线上退出0；新main整合后仍按新基线复核。
 
+第 65 批当前组合复跑 QEA-115，五次真实点击的完成耗时为 10,159、9,396、9,937、9,148、9,210 ms，中位数 9,396 ms。20 条实际写入投影先全部显示，随后才完成提示。每轮只重读一次 Inbox，后台 Goals 全部是集合请求。独立健康查询均在第 3–4 条判断返回，事件循环最大延迟 733–978 ms。运行时另外有本轮安全回归和其他工作树测试。早先的长时间整宿主无法响应在本样本未出现；耗时会随负载变化，实际模型端到端体验和当前 Full CI 仍未验证。真实 Home 提供事项浏览器回归另通过。日志 `quality-audit-b65-{committed-and-inbox,form-inbox}.log`。
+
 最终结算：26文件197项调用方与Workbench要求通过（`quality-audit-settings-owner-acceptance.log`）；保持语义提取目录匹配后，最终构建通过、Skill创作与恢复2文件19项复验通过（`quality-audit-settings-owner-extraction-final.log`），去重组合27文件215项。健康通过（`quality-audit-settings-owner-health-final.log`），mountKit精确巨大单元记录155→153，无脚本或阈值放宽；首次158行失败记录保留。API零差异。覆盖实际Home持久化、失败/重试、采用/放弃、缓存/历史及资源加载，不替代Home动作回执链接、真实模型质量或最终头CI。
 
 ### QF-57 / P1：项目清除回滚可能先丢失尚未恢复的验收决定
@@ -951,3 +955,24 @@ QF-58 实施和验收记录。`apps/local-host/src/installed-plugin-lifecycle.ts
 第 62 批本地验收完成。Placement、其真实页面消费者和 Workbench 必跑的 22 文件、194 项全部通过。第 62 批浏览器记录含两种语言、三种项目工作台、冷热共 12 次真实打开，每次关联资料 GET 一次并响应 200。所有 20 个样本中旧 Home Events 路径为零。可在最终组合验收完成后结算重复请求 BL。隐藏的 Issues 侧栏文档仍在首屏取走完整 HTML，沿 [BL-first-screen-hidden-side-doc](../backlog/BL-first-screen-hidden-side-doc.md) 保留，报告未纳入本片改行为的范围。
 
 本地审查分支已快进至代码检查点 `6df79f442d`，相对 main 有 480 个文件的差异，含代码、测试、快照与文档。该树完整构建通过，准确版本的包边界、健康与密钥检查通过，密钥检查覆盖 14,320 行。已在该代码树启动原 `pnpm test:security`（`quality-audit-current-security.log`）。当前安全状态和 Full CI 以各自最终结果为准。
+
+### QF-68 / P1 签名数据库升级漏掉已提交结果的回执检查
+
+实际入口为本人调用 `plugins.install.confirm@1`。签名包经本机 Host 确认，Runtime 在实际 SQLite worker 内提交现行版、数据库变更和批准，Host 继续公开可用动作。第 52 批把 `plugin-install-service.ts` 尾部授权收进可补偿的 Skill 采用窗口。`installed-plugin-version.ts:57,62` 的数据库路径在 SQLite 提交后只核对安装范围，使取消或撤权的调用仍收到成功。干净 main 的 17 个原用例全过。审查分支在同一真实 SQL 回执到达时两个 Project 拒绝都未发生（`quality-audit-{b64-main-baseline,current-security}.log`）。
+
+第 64 批由状态 owner 先完成已提交版本的发布，再在 `installed-plugin-version.ts:120` 复核原签名确认调用是否可接收回执。回执失败离开激活恢复分支，已提交 SQLite、审批和当前目录继续由原 owner 维护。Install 服务把无动作码的取消归到已有 `actions.cancelled`，保留传输给出的动作错误码。普通安装及 Skill 草稿采用照现有可补偿流程，用户可从当前安装读回实际结果，无须重新安装。QEA-137 复验 Home 和 Project 的两种迟到拒绝、实际版本与正常动作。
+
+当前构建的升级验收 19/19。Home 和 Project 分别在真实 SQL 回执时取消与撤回调用授权，原调用收到对应错误，新库结构、安装行和动作仍可读。同版本再次确认被拒，每次只出现一笔真实迁移。真实 Home 签名包更新的文件选择、取消和确认浏览器用例也通过。见 `quality-audit-b65-committed-and-inbox.log`。
+
+### QF-69 / P2 签名插件安全用例的准备脱离了现行用户路径
+
+| 证据及影响 | 处置和依据 |
+| --- | --- |
+| `tests/security-invariants-sandbox-home-instance.test.ts:32,57` 直接调用 Home 安装端口生成正例和冷启动记录，绕过 `plugin-install-service.ts:380` 本人固定发布者。收尾复核 `installed-plugin-lifecycle.ts:192` 是正常拒绝，旧准备让测试到不了想验证的冷启动 | 第 63 批经实际预览、确认和动作写入准备三份记录，再独立制造冷启动的撤销与缺失固定。原五种拒绝保留，补缺固定时不留安装和公开动作。冷启动核对两份已有原件及第三份继续可写。 |
+| `tests/security-invariants-sandbox-permission-switches.test.ts:97` 原来直走已经退役的写入口，撞上 `plugin-builder/installed.ts:33` 的原动作校验。另三条签名表单用例在进入原页面交错前，被未开启的 `capabilities:call` 拦下。两组在干净 main 复现 | 第 65 批用实际签名组件和 `plugin-page-actions.ts:41` 验开关关闭零执行、开启后退役入口仍拒、原页只执行一次。准备表单时从真实设置开启该许可，再验证原拒绝、停用、依赖替换及实际数据。安装权、权限和页面范围的生产规则继续归原 owner。 |
+
+Home 签名包 6/6、沙箱开关 5/5、签名表单 3/3 通过。Home 签名表单撤下原项目使用真实设置读取的成员修订，并在原操作到达写入之前验证拒绝。保留安全表的测试定位和原拒绝条件。原页面失败反馈还会显示技术许可名。`installed-permission-projection.ts:69` 生成动作原因，`plugins/native/plugin-builder/src/agent-studio.ts:191` 交给当前传输，`packages/design-system/src/plugin-component-part.ts:51` 直接显示错误文字。正文语言和设置的许可标签需要同一套平台展示合同，列为后续体验事项，具体名称仍由插件授权 owner 提供。
+
+### 隐藏问题收集的首屏取舍
+
+`apps/workbench/src/side-panel.ts:487` 按声明的组合键预载文档，触发真实首屏观测中的 Issues iframe。路由、文档和录入由工作台与 Issues 各自负责。现有 ISSUE-35 明确要求第一次按键前已经预载，项目测试也会查已加载的 iframe，再发送真实按键。`BL-first-screen-hidden-side-doc` 提议首开才取，两者的时点要求需要统一。可先量出能否缩减预载文档，同时保留首次按键后立即录入与原稿恢复。到达页、项目选择页和工作台分别实测。当前保留该 BL 与已验快捷键约定。[ISSUE-35](../archive/issue-home-v0/spec.md#首期体验重构issue-35-至-issue-412026-10-12) · [首屏事项](../backlog/BL-first-screen-hidden-side-doc.md)

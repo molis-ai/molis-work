@@ -274,6 +274,10 @@
       "types": "./dist/services/skills.d.ts",
       "import": "./dist/services/skills.js"
     },
+    "./services/skill-placeholders": {
+      "types": "./dist/services/skill-placeholders.d.ts",
+      "import": "./dist/services/skill-placeholders.js"
+    },
     "./services/kit": {
       "types": "./dist/services/kit.d.ts",
       "import": "./dist/services/kit.js"

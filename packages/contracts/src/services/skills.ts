@@ -27,7 +27,9 @@ export const SKILLS_PROVIDER_ID = "system.skills";
 export const SKILLS_READ_PERMISSION = "skills:read";
 /** Changing a Skill's state in a scope and importing Skills: the person's own. */
 export const SKILLS_MANAGE_PERMISSION = "skills:manage";
-export const SKILLS_PERMISSIONS = [SKILLS_READ_PERMISSION, SKILLS_MANAGE_PERMISSION] as const;
+/** Opening a draft of a Skill and replaying it (batch 42): the person's, and the Assistant's from a piece of work. A draft is used by nothing and grants nothing; adopting one stays `skills:manage`, the person's alone. */
+export const SKILLS_DRAFT_PERMISSION = "skills:draft";
+export const SKILLS_PERMISSIONS = [SKILLS_READ_PERMISSION, SKILLS_MANAGE_PERMISSION, SKILLS_DRAFT_PERMISSION] as const;
 
 /**
  * Most references one `skills.body.read` takes (contract-design §4.2). A round freezes its Skills and reads their bodies in one
@@ -137,6 +139,12 @@ export interface SkillCatalogEntry {
   enabled?: { at: string; by: string; scope: SkillScope };
   availability: SkillAvailability;
   last_used?: { at: string; caller: "assistant" | "coding" | "agent"; run_ref?: string };
+  /** How many of the uses kept for this Skill in this scope each entry made (the latest `USES_KEPT` per Skill, not a total): after adopting a version, the person sees it used from the Assistant and from Coding (batch 42, across-entry check). Entries with none are left out. */
+  recent_uses?: { assistant?: number; coding?: number; agent?: number };
+  /** Only on the person's view of one of their own Skills that is a copy (batch 42): where it came from, and the source's newer version when one is installed that the person has not looked at and left. The copy stays in use as it is either way. */
+  based_on?: { source: SkillSourceRef; newer_version?: number };
+  /** Only on the person's view: an open draft of this Skill (one of their own) or a copy of it in this scope. */
+  draft?: { draft_id: string };
 }
 
 /**
@@ -292,13 +300,7 @@ export interface SkillAuthoredSource extends SkillAuthoredFields {
   scope: SkillScope;
   mine: boolean;
 }
-export interface SkillAuthoredSaveRequest extends SkillAuthoredFields {
-  scope: SkillScope;
-  /** One of the person's own Skills in this scope, to save its next version; absent for a new Skill, whose id the Host makes. */
-  skill_id?: string;
-  /** The version read, with `skill_id`: saving over a version that is no longer the current one is refused. */
-  expected_version?: number;
-}
+/** What adopting a draft installs: the package's new version, and the Skill's id and version in it. */
 export interface SkillAuthoredSaveResult extends SkillImportConfirmResult {
   skill_id: string;
   skill_version: number;
@@ -317,6 +319,210 @@ export interface SkillAuthoredRemoveResult {
 export const SKILL_DRAFT_INTENT_CHARS = 1000;
 export interface SkillDraftRequest {
   intent: string;
+}
+
+/*
+ * Making a Skill better (batch 42, specs/skill-packs/authoring-path-design.md; 定样 docs/design/skill-improvement, scheme B). Every change
+ * to a Skill of one's own is first a draft: written by the person, drafted by the Assistant from a real piece of work, opened from an
+ * old version, or a copy of a general Skill. Nothing a draft holds is used by any round: the catalog, the picks and `skills.body.read`
+ * know only the installed versions. Adopting a draft (`skills.drafts.adopt`, the person's alone) signs and installs it as the scope's
+ * package of own Skills' next version, exactly as batch 41's saving did.
+ */
+
+export { skillPlaceholders } from "./skill-placeholders.js";
+
+/** One installed Skill a draft or a copy comes from, as it was when read: enough to find it again and say which version it was. */
+export interface SkillSourceRef {
+  install_id: string;
+  plugin_id: string;
+  skill_id: string;
+  version: number;
+  name: string;
+}
+
+/** What a draft changes: a new Skill; the next version of one of the person's own Skills, read at `base_version`; or the person's own copy of another Skill (a general one that came with the system or was installed), which remembers where it came from. */
+export type SkillDraftTarget =
+  | { kind: "new" }
+  | { kind: "own"; skill_id: string; base_version: number; /** The copy's source at a newer version this draft was brought up to. */ rebase?: SkillSourceRef }
+  | { kind: "custom"; source: SkillSourceRef };
+
+/** Who opened a draft: the person in settings, or the Assistant from a piece of work (`work_ref` is the work, from the call context). */
+export interface SkillDraftOrigin {
+  by: "person" | "assistant";
+  at: string;
+  work_ref?: string;
+}
+
+/** Most known answers one draft keeps. */
+export const SKILL_CASES_MAX = 5;
+export const SKILL_CASE_LIMITS = { titleChars: 80, taskChars: 4000, materialChars: 8000, expectedChars: 8000 } as const;
+/** A known answer: a task, the material it was done on, and the result the person accepted. A draft from a conversation carries the one that piece of work gave; the person can add others. Replaying it is how a draft is checked before it is adopted. */
+export interface SkillCaseFields {
+  title: string;
+  task: string;
+  material?: string;
+  expected: string;
+}
+export interface SkillCase extends SkillCaseFields {
+  case_id: string;
+  origin: "conversation" | "person";
+}
+
+/** How a replayed result compares with the known answer: the same in substance, different in some places, or not judged. */
+export const SKILL_TRIAL_VERDICTS = ["match", "differs", "unknown"] as const;
+export type SkillTrialVerdict = (typeof SKILL_TRIAL_VERDICTS)[number];
+/** The entries a Skill is replayed in: the Assistant and Coding, each with its own role, as `applies_to` says. */
+export type SkillTrialConsumer = Exclude<SkillAppliesTo, "both">;
+/** Most characters of one replayed result kept and shown. */
+export const SKILL_TRIAL_OUTPUT_CHARS = 8000;
+/** One entry × one version of a replay: what the model wrote with that version's body, and how it compares with the known answer. */
+export interface SkillTrialCell {
+  consumer: SkillTrialConsumer;
+  /** `base`: the version the draft is compared with (the Skill in use now, or the copy's source); `draft`: the draft. */
+  side: "base" | "draft";
+  output: string;
+  verdict: SkillTrialVerdict;
+  /** In plain words, each place the result differs from the known answer; empty when it matches. */
+  differences: string[];
+}
+/**
+ * One replay of one known answer against one revision of a draft. Only the model is called, with no tools, no workspace and no actions,
+ * so a replay changes nothing in a project and sends nothing out; its observation records are marked `trial`.
+ */
+export interface SkillTrial {
+  trial_id: string;
+  draft_revision: number;
+  case_id: string;
+  ran_at: string;
+  cells: SkillTrialCell[];
+  /** The draft's: `differs` when any of its cells differs, else `unknown` when any is not judged, else `match`. */
+  verdict: SkillTrialVerdict;
+}
+
+/** A draft as the editor opens it, in one read: its fields, its known answers, its latest replay, and the version it is compared with. */
+export interface SkillDraft {
+  draft_id: string;
+  scope: SkillScope;
+  target: SkillDraftTarget;
+  /** The form's fields as written so far; a field may still be empty until the draft is adopted. */
+  fields: SkillAuthoredFields;
+  revision: number;
+  origin: SkillDraftOrigin;
+  created_at: string;
+  updated_at: string;
+  cases: SkillCase[];
+  /** The latest replay, of any revision: compare its `draft_revision` with `revision`. */
+  trial?: SkillTrial;
+  /** What the draft is compared with: the own Skill's version in use now (which may be newer than `base_version`), or the copy's source. */
+  base?: { version: number; fields: SkillAuthoredFields };
+  /** The placeholders a copy replaced, kept so bringing in the source's next version replaces them again. */
+  replacements: Record<string, string>;
+  /** The known answers not replayed on this revision yet, in their order: adopting needs every one replayed since the last change. */
+  untried: string[];
+  /** Adopting needs a replay first: `untried` is not empty. */
+  trial_needed: boolean;
+}
+export interface SkillDraftSummary {
+  draft_id: string;
+  scope: SkillScope;
+  target: SkillDraftTarget;
+  name: string;
+  revision: number;
+  origin: SkillDraftOrigin;
+  updated_at: string;
+  /** The latest replay's verdict, when it replayed this revision. */
+  verdict?: SkillTrialVerdict;
+}
+
+/**
+ * Where a new draft starts. `own`: one of the person's own Skills in the scope, from the version in use or from an older one
+ * (`from_version`, restoring); `from_source` instead starts from the newer version of the Skill it was copied from, with the copy's
+ * placeholders replaced again. `custom`: the person's copy of any catalog Skill.
+ */
+export type SkillDraftCreateTarget =
+  | { kind: "new" }
+  | { kind: "own"; skill_id: string; from_version?: number; from_source?: true }
+  | { kind: "custom"; ref: SkillRef };
+export interface SkillDraftCreateRequest {
+  scope: SkillScope;
+  target: SkillDraftCreateTarget;
+  /** The fields to start with; absent, they are read from the target (empty for a new Skill). */
+  fields?: SkillAuthoredFields;
+  /** A known answer to keep with the draft: the Assistant's from the piece of work it drafted from. */
+  case?: SkillCaseFields;
+}
+export interface SkillDraftReadRequest {
+  draft_id: string;
+}
+export interface SkillDraftUpdateRequest {
+  draft_id: string;
+  expected_revision: number;
+  fields: SkillAuthoredFields;
+  replacements?: Record<string, string>;
+}
+export interface SkillDraftUpdateResult {
+  draft_id: string;
+  revision: number;
+  updated_at: string;
+}
+/** Most characters of the sentence that tells the Assistant how to change a draft. */
+export const SKILL_REVISE_INSTRUCTION_CHARS = 1000;
+export interface SkillDraftReviseRequest {
+  draft_id: string;
+  expected_revision: number;
+  instruction: string;
+}
+export interface SkillDraftDiscardRequest {
+  draft_id: string;
+  /** Takes a discarded draft back, while it is still kept (`SKILL_DISCARDED_KEPT_DAYS`). */
+  restore?: boolean;
+}
+/** How long a discarded draft is kept so that discarding it can be undone. */
+export const SKILL_DISCARDED_KEPT_DAYS = 7;
+export interface SkillDraftDiscardResult {
+  draft_id: string;
+  discarded: boolean;
+}
+export interface SkillDraftAdoptRequest {
+  draft_id: string;
+  expected_revision: number;
+  /** The person saw the latest replay differ from the known answer and adopts anyway. */
+  accept_differences?: boolean;
+}
+export interface SkillDraftAdoptResult extends SkillAuthoredSaveResult {
+  /** The copy's source, when the draft was a copy: the person may switch the source off in the same step (`skills.settings.set`). */
+  source?: SkillSourceRef;
+}
+export interface SkillCasePutRequest extends SkillCaseFields {
+  draft_id: string;
+  /** One of the draft's known answers to change; absent for a new one. */
+  case_id?: string;
+}
+export interface SkillCaseRemoveRequest {
+  draft_id: string;
+  case_id: string;
+}
+export interface SkillTrialRunRequest {
+  draft_id: string;
+  expected_revision: number;
+  case_id: string;
+}
+/** One version of one of the person's own Skills, read from the scope's signed releases: nothing keeps a second history. */
+export interface SkillVersion {
+  version: number;
+  fields: SkillAuthoredFields;
+  /** When the release that holds this version was signed. */
+  adopted_at?: string;
+}
+export interface SkillVersionsListRequest {
+  scope: SkillScope;
+  skill_id: string;
+}
+export interface SkillLineageDismissRequest {
+  scope: SkillScope;
+  skill_id: string;
+  /** The source's version the person looked at and left: told about again only when a newer one comes. */
+  source_version: number;
 }
 
 /**
@@ -355,6 +561,18 @@ export const skillErrors = defineErrorCodes("skills", {
   authored_full: "conflict",
   /** The model answered with something that is not a draft. */
   draft_unreadable: "upstream",
+  /** No draft of this id in a scope this call can see, or it was discarded and is no longer kept. */
+  draft_unknown: "not_found",
+  /** `expected_revision` is not the draft's current revision (`details.revision`). */
+  draft_conflict: "conflict",
+  /** The Assistant replays or takes back only a draft it opened in the same piece of work; the person's own drafts are theirs. */
+  draft_refused: "forbidden",
+  /** The draft has known answers and this revision was not replayed: replay before adopting. */
+  trial_required: "conflict",
+  /** The latest replay differs from the known answer and `accept_differences` was not given. */
+  trial_differs: "conflict",
+  /** A known answer is empty or over its limit, the draft has `SKILL_CASES_MAX` already, or `case_id` is not the draft's (`details.field`). */
+  case_invalid: "invalid",
 });
 
 // The input schemas keep their literal types so `inputSchemaFor` holds each to its handwritten request interface
@@ -371,6 +589,7 @@ const role = { enum: Object.keys(SKILL_RESOURCE_FOLDERS) };
 /** `SkillRef` (`services/agent-definitions`): nothing else, so a caller cannot slip a project, an actor or an installation of its own in. */
 export const SKILL_REF_SCHEMA: ActionSchema = skillRef;
 const resourceSummary = object({ path: text, role, bytes: count });
+const sourceRef = object({ install_id: text, plugin_id: text, skill_id: text, version: { type: "integer", minimum: 1 }, name: text });
 /** Under one of the Skill's resource folders, with no `.` or `..` segment, backslash or NUL; the Host still takes only declared paths. */
 const resourcePath = { type: "string", maxLength: 1024,
   pattern: String.raw`^(?!.*/\.{1,2}(?:/|$))skills/[a-z0-9][a-z0-9-]*/(?:${Object.values(SKILL_RESOURCE_FOLDERS).join("|")})(?:/[^/\\\u0000]+)+$` } as const;
@@ -384,6 +603,8 @@ export const SKILL_CATALOG_ENTRY_SCHEMA: ActionSchema = object({
   pack: object({ plugin_id: text, title: text, version: text, publisher_label: text, trust: { enum: ["host", "pinned", "home_local"] }, scope }),
   state, settings_revision: count, enabled: object({ at: text, by: text, scope }), availability,
   last_used: object({ at: text, caller: { enum: ["assistant", "coding", "agent"] }, run_ref: text }, ["at", "caller"]),
+  recent_uses: object({ assistant: count, coding: count, agent: count }, []),
+  based_on: object({ source: sourceRef, newer_version: skillVersion }, ["source"]), draft: object({ draft_id: text }),
 }, ["ref", "name", "description", "applies_to", "user_invocable", "tools", "resources", "connector_categories", "runs_scripts", "excerpt", "pack", "state",
   "settings_revision", "availability"]);
 
@@ -460,19 +681,14 @@ const skillIdText = { type: "string", minLength: 1, maxLength: SKILL_LIMITS.skil
 
 /**
  * Writing Skills of one's own in settings (specs/prologue-strategies/skill.md §10, batch 41): the person's, no MCP tool, never handed
- * to an Agent, a workflow or a plugin, as importing is. Saving signs and installs the scope's package of own Skills at its next
- * version; a new Skill is `off` until `skills.settings.set` says otherwise. `draft` only proposes the form's fields from one sentence
- * and writes nothing.
+ * to an Agent, a workflow or a plugin, as importing is. Since batch 42 a change is made in a draft and saved by adopting it
+ * (`skillDraftActions.adopt`); `draft` only proposes the form's fields from one sentence and writes nothing.
  */
 export const skillAuthoringActions = {
   read: { capability_id: "skills.authored.read", version: /* @version action.skills.authored.read */ 1, operation: "query", action: { ...person, kind: "query" as const, effect: "read" as const,
     title: "读取一个技能的可编辑内容", description: "本人在设置里按精确引用读一个技能的名称、什么时候用、什么时候不用、参数提示、给谁用和正文（不带 frontmatter），用来修改自己写的技能，或从别的技能起一份自己的。不看它在这个范围里是不是关着。",
     input_schema: inputSchemaFor<SkillAuthoredReadRequest>()(object({ ref: skillRef })),
     output_schema: object({ ...authoredFields, skill_id: skillIdText, version: skillVersion, scope, mine: { type: "boolean" } }, [...authoredRequired, "skill_id", "version", "scope", "mine"]) } } as ActionDefinition<SkillAuthoredReadRequest, SkillAuthoredSource>,
-  save: { capability_id: "skills.authored.save", version: /* @version action.skills.authored.save */ 1, operation: "command", action: { ...person,
-    title: "保存自己写的技能", description: "本人在设置里新建一个技能，或把自己写的一个技能保存为下一版：只有正文、没有附带文件。做成这个范围里「我的技能」包的下一个版本，用这个 Home 的发布身份签名并安装。新建的技能是关着的，要用再由 skills.settings.set 打开；修改时按读到的 expected_version 提交。同一范围里自己的技能不能重名。",
-    input_schema: inputSchemaFor<SkillAuthoredSaveRequest>()(object({ ...authoredFields, scope, skill_id: skillIdText, expected_version: skillVersion }, [...authoredRequired, "scope"])),
-    output_schema: object({ plugin_id: text, version: text, publisher_key_id: text, skill_id: skillIdText, skill_version: skillVersion }) } } as ActionDefinition<SkillAuthoredSaveRequest, SkillAuthoredSaveResult>,
   remove: { capability_id: "skills.authored.remove", version: /* @version action.skills.authored.remove */ 1, operation: "command", action: { ...person,
     title: "删除自己写的技能", description: "本人在设置里删除自己写的一个技能，按读到的 expected_version 提交：这个范围里「我的技能」包出下一个不含它的版本；删到一个不剩时卸载这个包。别人的包和装来的技能不能这样删。",
     input_schema: inputSchemaFor<SkillAuthoredRemoveRequest>()(object({ scope, skill_id: skillIdText, expected_version: skillVersion })),
@@ -482,4 +698,97 @@ export const skillAuthoringActions = {
     title: "起草一个技能", description: `本人用一句话（至多 ${SKILL_DRAFT_INTENT_CHARS} 字）说想让技能做什么，由文字模型起草名称、什么时候用、什么时候不用、给谁用和正文，交回表单由本人改；什么都不保存。没有配置文字模型时说明去哪里配置。`,
     input_schema: inputSchemaFor<SkillDraftRequest>()(object({ intent: { type: "string", minLength: 1, maxLength: SKILL_DRAFT_INTENT_CHARS } })),
     output_schema: object({ ...authoredFields }, [...authoredRequired]) } } as ActionDefinition<SkillDraftRequest, SkillAuthoredFields>,
+};
+
+const draftFields = { name: { type: "string", maxLength: 80 }, description: { type: "string", maxLength: SKILL_LIMITS.descriptionChars },
+  when_not_to_use: authoredFields.when_not_to_use, argument_hint: authoredFields.argument_hint, applies_to: appliesTo,
+  body: { type: "string", maxLength: SKILL_LIMITS.bodyChars } } as const;
+const draftFieldsSchema = object({ ...draftFields }, [...authoredRequired]);
+const draftId = { type: "string", minLength: 1, maxLength: 80 } as const;
+const revision = { type: "integer", minimum: 1 } as const;
+const origin = object({ by: { enum: ["person", "assistant"] }, at: text, work_ref: text }, ["by", "at"]);
+const target = { oneOf: [object({ kind: { const: "new" } }),
+  object({ kind: { const: "own" }, skill_id: skillIdText, base_version: skillVersion, rebase: sourceRef }, ["kind", "skill_id", "base_version"]),
+  object({ kind: { const: "custom" }, source: sourceRef })] };
+const caseFields = { title: { type: "string", minLength: 1, maxLength: SKILL_CASE_LIMITS.titleChars }, task: { type: "string", minLength: 1, maxLength: SKILL_CASE_LIMITS.taskChars },
+  material: { type: "string", maxLength: SKILL_CASE_LIMITS.materialChars }, expected: { type: "string", minLength: 1, maxLength: SKILL_CASE_LIMITS.expectedChars } } as const;
+const caseRequired = ["title", "task", "expected"] as const;
+const caseSchema = object({ ...caseFields, case_id: draftId, origin: { enum: ["conversation", "person"] } }, [...caseRequired, "case_id", "origin"]);
+const verdict = { enum: [...SKILL_TRIAL_VERDICTS] };
+const trialSchema = object({ trial_id: draftId, draft_revision: revision, case_id: draftId, ran_at: text, verdict,
+  cells: { type: "array", maxItems: 4, items: object({ consumer: { enum: ["assistant", "coding"] }, side: { enum: ["base", "draft"] },
+    output: { type: "string", maxLength: SKILL_TRIAL_OUTPUT_CHARS }, verdict, differences: { type: "array", maxItems: 20, items: text } }) } });
+const replacements = { type: "object", maxProperties: 50, propertyNames: { type: "string", maxLength: 80 }, additionalProperties: { type: "string", maxLength: 200 } } as const;
+const draftSchema = object({ draft_id: draftId, scope, target, fields: draftFieldsSchema, revision, origin, created_at: text, updated_at: text,
+  cases: { type: "array", maxItems: SKILL_CASES_MAX, items: caseSchema }, trial: trialSchema, base: object({ version: skillVersion, fields: draftFieldsSchema }),
+  replacements, untried: { type: "array", items: draftId }, trial_needed: { type: "boolean" } }, ["draft_id", "scope", "target", "fields", "revision", "origin", "created_at", "updated_at", "cases", "replacements", "untried", "trial_needed"]);
+const summarySchema = object({ draft_id: draftId, scope, target, name: text, revision, origin, updated_at: text, verdict }, ["draft_id", "scope", "target", "name", "revision", "origin", "updated_at"]);
+/** Drafting and replaying: the person's, and the Assistant's from a piece of work; never a plugin's, a workflow's or an MCP tool's. */
+const drafter = { kind: "operation" as const, scope: "home" as const, effect: "write" as const, subject_kinds: [] as string[],
+  audiences: ["user", "agent"] as ("user" | "agent")[], permissions: [SKILLS_DRAFT_PERMISSION], plugin: false as const };
+const personDraft = { ...drafter, audiences: ["user"] as ("user")[] };
+const personRead = { ...personDraft, kind: "query" as const, effect: "read" as const };
+
+/**
+ * Drafts, known answers, replays, versions and copies of Skills (batch 42), registered by the catalog's owner (`system.skills`), except
+ * adopting, which signs and installs and so is the install provider's as saving was. Opening a draft and replaying it are offered to
+ * the Assistant (a draft is used by nothing and grants nothing); adopting, and switching a Skill on, stay the person's alone.
+ */
+export const skillDraftActions = {
+  list: { capability_id: "skills.drafts.list", version: /* @version action.skills.drafts.list */ 1, operation: "query", action: { ...personRead,
+    title: "列出技能草稿", description: "本人列出个人空间和当前项目里还开着的技能草稿：改的是哪个技能（新的、自己的某个、或从别的技能改的一份）、名称、修订号、谁起的头、最近一次回放的结果。草稿不影响任何一轮。",
+    input_schema: inputSchemaFor<Record<string, never>>()(object({}, [])),
+    output_schema: object({ drafts: { type: "array", items: summarySchema } }) } } as ActionDefinition<Record<string, never>, { drafts: SkillDraftSummary[] }>,
+  read: { capability_id: "skills.drafts.read", version: /* @version action.skills.drafts.read */ 1, operation: "query", action: { ...personRead,
+    title: "读取一份技能草稿", description: "本人一次读出一份草稿：字段、修订号、已知答案、最近一次回放，以及拿来对照的版本（自己的技能现在在用的那一版，或改的那份通用技能）。",
+    input_schema: inputSchemaFor<SkillDraftReadRequest>()(object({ draft_id: draftId })), output_schema: draftSchema } } as ActionDefinition<SkillDraftReadRequest, SkillDraft>,
+  create: { capability_id: "skills.drafts.create", version: /* @version action.skills.drafts.create */ 1, operation: "command", action: { ...drafter,
+    title: "起一份技能草稿", description: `把一种做法起成技能草稿，交给用户在设置里改、回放、采用；草稿不生效，也不给 AI 任何新权限。用户说「存成技能」或者刚才的过程明显值得反复用时，从这次真实的过程里提取固定步骤、可变参数（写成「先弄清」里要问的事）和要问用户的地方，写进 fields（正文是给 AI 读的做法，不写这次的具体内容；会发送、花钱、发布或删除的步骤写明要什么授权，按已有的许可放行，不写成每次都要批准的关卡），再把这次的任务、材料摘要和用户认可的结果作为 case 一起给（已知答案，采用前要回放）。target 为 new 起新技能；own 改用户自己的某个技能（from_version 从旧版恢复）；custom 改一份别的技能（通用技能），记住来源。scope 为 project 放在当前项目，home 放在个人空间。`,
+    input_schema: inputSchemaFor<SkillDraftCreateRequest>()(object({ scope, target: { oneOf: [object({ kind: { const: "new" } }),
+      object({ kind: { const: "own" }, skill_id: skillIdText, from_version: skillVersion, from_source: { const: true } }, ["kind", "skill_id"]), object({ kind: { const: "custom" }, ref: skillRef })] },
+      fields: draftFieldsSchema, case: object({ ...caseFields }, [...caseRequired]) }, ["scope", "target"])),
+    output_schema: draftSchema,
+    result_view: { summary: "已起草技能草稿，打开后可以改、回放和采用；采用前不生效", title_pointer: "/fields/name",
+      link: { label: "打开草稿", href_template: "/projects/{project_id}/settings/kit?draft={/draft_id}" } },
+    result_subject: { id: "draft_id", revision: "revision" },
+    undo: { capability_id: "skills.drafts.discard", version: /* @version action.skills.drafts.discard */ 1, input: { draft_id: "draft_id" } } } } as ActionDefinition<SkillDraftCreateRequest, SkillDraft>,
+  update: { capability_id: "skills.drafts.update", version: /* @version action.skills.drafts.update */ 1, operation: "command", action: { ...personDraft,
+    title: "保存技能草稿", description: "本人边写边存一份草稿的字段（和改一份通用技能时换掉的占位符），按读到的 expected_revision 提交；字段可以暂时空着，采用时才检查。不影响任何一轮。",
+    input_schema: inputSchemaFor<SkillDraftUpdateRequest>()(object({ draft_id: draftId, expected_revision: revision, fields: draftFieldsSchema, replacements }, ["draft_id", "expected_revision", "fields"])),
+    output_schema: object({ draft_id: draftId, revision, updated_at: text }) } } as ActionDefinition<SkillDraftUpdateRequest, SkillDraftUpdateResult>,
+  revise: { capability_id: "skills.drafts.revise", version: /* @version action.skills.drafts.revise */ 1, operation: "command", action: { ...personDraft,
+    scheduling: "concurrent" as const, execution: { cost: "metered" as const }, permissions: [SKILLS_DRAFT_PERMISSION, "model:invoke"],
+    title: "让助理改技能草稿", description: `本人用一句话（至多 ${SKILL_REVISE_INSTRUCTION_CHARS} 字）说草稿怎么改，由文字模型按这句话改写字段并存成草稿的下一修订；按读到的 expected_revision 提交。不影响任何一轮。没有配置文字模型时说明去哪里配置。`,
+    input_schema: inputSchemaFor<SkillDraftReviseRequest>()(object({ draft_id: draftId, expected_revision: revision, instruction: { type: "string", minLength: 1, maxLength: SKILL_REVISE_INSTRUCTION_CHARS } })),
+    output_schema: draftSchema } } as ActionDefinition<SkillDraftReviseRequest, SkillDraft>,
+  discard: { capability_id: "skills.drafts.discard", version: /* @version action.skills.drafts.discard */ 1, operation: "command", action: { ...drafter,
+    title: "放弃技能草稿", description: `放弃一份技能草稿，什么都不生效；${SKILL_DISCARDED_KEPT_DAYS} 天内带 restore 可以把它找回来。`,
+    input_schema: inputSchemaFor<SkillDraftDiscardRequest>()(object({ draft_id: draftId, restore: { type: "boolean" } }, ["draft_id"])),
+    output_schema: object({ draft_id: draftId, discarded: { type: "boolean" } }) } } as ActionDefinition<SkillDraftDiscardRequest, SkillDraftDiscardResult>,
+  adopt: { capability_id: "skills.drafts.adopt", version: /* @version action.skills.drafts.adopt */ 1, operation: "command", action: { ...person,
+    title: "采用技能草稿", description: "本人把一份草稿采用为技能：按读到的 expected_revision 检查字段，有已知答案的草稿要先回放过这一修订，回放和已知答案有出入时要带 accept_differences；然后做成这个范围里「我的技能」包的下一个版本，用这个 Home 的发布身份签名并安装。新技能是关着的；改的是已有技能时，下一次用到它时用新版，进行中的那一轮不变。草稿采用后就关上。",
+    input_schema: inputSchemaFor<SkillDraftAdoptRequest>()(object({ draft_id: draftId, expected_revision: revision, accept_differences: { type: "boolean" } }, ["draft_id", "expected_revision"])),
+    output_schema: object({ plugin_id: text, version: text, publisher_key_id: text, skill_id: skillIdText, skill_version: skillVersion, source: sourceRef },
+      ["plugin_id", "version", "publisher_key_id", "skill_id", "skill_version"]) } } as ActionDefinition<SkillDraftAdoptRequest, SkillDraftAdoptResult>,
+  putCase: { capability_id: "skills.cases.put", version: /* @version action.skills.cases.put */ 1, operation: "command", action: { ...personDraft,
+    title: "写技能草稿的已知答案", description: `本人给草稿加一个已知答案（任务、材料、认可的结果），或改其中一个；一份草稿至多 ${SKILL_CASES_MAX} 个。`,
+    input_schema: inputSchemaFor<SkillCasePutRequest>()(object({ ...caseFields, draft_id: draftId, case_id: draftId }, [...caseRequired, "draft_id"])),
+    output_schema: caseSchema } } as ActionDefinition<SkillCasePutRequest, SkillCase>,
+  removeCase: { capability_id: "skills.cases.remove", version: /* @version action.skills.cases.remove */ 1, operation: "command", action: { ...personDraft,
+    title: "删去技能草稿的已知答案", description: "本人从草稿里删去一个已知答案。",
+    input_schema: inputSchemaFor<SkillCaseRemoveRequest>()(object({ draft_id: draftId, case_id: draftId })),
+    output_schema: object({ case_id: draftId }) } } as ActionDefinition<SkillCaseRemoveRequest, { case_id: string }>,
+  runTrial: { capability_id: "skills.trials.run", version: /* @version action.skills.trials.run */ 1, operation: "command", action: { ...drafter,
+    scheduling: "concurrent" as const, execution: { cost: "metered" as const }, permissions: [SKILLS_DRAFT_PERMISSION, "model:invoke"],
+    title: "回放技能草稿", description: "拿草稿的一个已知答案回放：在技能适用的入口（助理、Coding）各跑一次，改已有技能时现在的版本和草稿并排跑，再把各个结果和用户认可的结果对照，给出一致、有几处不同或判断不了。只调文字模型、不调任何工具，所以改不了项目、发不出去；回放记录和真实工作分开。按读到的 expected_revision 提交。",
+    input_schema: inputSchemaFor<SkillTrialRunRequest>()(object({ draft_id: draftId, expected_revision: revision, case_id: draftId })),
+    output_schema: trialSchema } } as ActionDefinition<SkillTrialRunRequest, SkillTrial>,
+  versions: { capability_id: "skills.versions.list", version: /* @version action.skills.versions.list */ 1, operation: "query", action: { ...person, kind: "query" as const, effect: "read" as const,
+    title: "列出自己的技能的各版", description: "本人列出这个范围里自己的一个技能的全部版本（从「我的技能」包签名的各版里读）：每版的字段和采用时间，用来对照和恢复。",
+    input_schema: inputSchemaFor<SkillVersionsListRequest>()(object({ scope, skill_id: skillIdText })),
+    output_schema: object({ versions: { type: "array", items: object({ version: skillVersion, fields: object({ ...authoredFields }, [...authoredRequired]), adopted_at: text }, ["version", "fields"]) } }) } } as ActionDefinition<SkillVersionsListRequest, { versions: SkillVersion[] }>,
+  dismissSource: { capability_id: "skills.lineage.dismiss", version: /* @version action.skills.lineage.dismiss */ 1, operation: "command", action: { ...person,
+    title: "先不管来源的新版", description: "本人看过自己那份技能的来源出的新版、决定先不管：记下看过的版本，出更新的版本前不再提示。自己的那份照旧在用。",
+    input_schema: inputSchemaFor<SkillLineageDismissRequest>()(object({ scope, skill_id: skillIdText, source_version: skillVersion })),
+    output_schema: object({ skill_id: skillIdText, seen_version: skillVersion }) } } as ActionDefinition<SkillLineageDismissRequest, { skill_id: string; seen_version: number }>,
 };

@@ -1,0 +1,139 @@
+/*
+ * 第 42 批原型「技能的生成、试用与采用」的版式。目录沿用 ../skill-packs/skills.css（第 08 批的左列表右详情），表单沿用
+ * ../skill-authoring/authoring.css（第 41 批）；这里只排草稿的工作区、回放结果、对照、采用条、版本与对话里的卡片。
+ * 只用组件板令牌，不写 hex。标「组件板新增」的部件在 README 里写了理由，定样后交 D 轨补标本。
+ */
+@keyframes im-arrive { from { opacity: 0; transform: translateY(4px); } }
+.im-dot { color: var(--faint, var(--muted)); }
+.im-note { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--ink-soft); }
+.im-note svg, .im-lead svg, .im-live svg, .im-gate svg, .im-used svg, .im-same svg { width: 14px; height: 14px; flex: none; margin-top: 2px; color: var(--muted); }
+.im-sec { display: grid; gap: 8px; min-width: 0; }
+.im-sec h4, .im-ph h4 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: var(--weight-control, 560); color: var(--muted); }
+
+/* 草稿的头：标题、草稿记号、基于哪一版；下面一行说「还没生效」和从哪来。 */
+.im-head { display: grid; gap: 6px; min-width: 0; }
+.im-head__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.im-head h3 { margin: 0; font-size: 16px; font-weight: var(--weight-title, 600); min-width: 0; }
+.im-live { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 4px 6px; margin: 0; font-size: 12.5px; color: var(--ink-soft); }
+.im-back { justify-self: start; }
+
+/* 共用：表单、助理改、占位符 */
+.im-editor { display: grid; gap: 16px; min-width: 0; }
+/* 组件板新增 · im-ask：「告诉助理怎么改」一行，改完给一个改了几处的记号和「看改动」。 */
+.im-ask { display: grid; gap: 6px; padding: 10px 12px; border-radius: var(--r-card); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); }
+.im-ask > label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: var(--weight-control, 560); }
+.im-ask > label svg { width: 14px; height: 14px; color: var(--accent); }
+.im-ask__row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.im-ask__row .mw-input { flex: 1; min-width: 0; }
+.im-ask__row .mw-btn { flex: none; white-space: nowrap; }
+.im-asked { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; animation: im-arrive var(--dur-move) var(--ease-quint); }
+.im-parts { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 0; font-size: 12px; color: var(--muted); }
+/* 组件板新增 · im-ph：通用写法里的占位符，一行一个，左边原词、右边你用的。 */
+.im-ph { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-card); }
+.im-ph p { margin: 0; }
+.im-ph ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.im-ph li { display: grid; grid-template-columns: minmax(0, auto) 16px minmax(0, 1fr); align-items: center; gap: 8px; }
+.im-ph li svg { width: 14px; height: 14px; color: var(--muted); }
+.im-ph code { font-size: 12px; overflow-wrap: anywhere; color: var(--ink-soft); }
+
+/* 试用 */
+.im-try, .im-compare { display: grid; gap: 14px; min-width: 0; align-content: start; }
+.im-lead { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 10px 12px; border-radius: var(--r-card); background: var(--surface-soft); font-size: 12.5px; line-height: 1.55; color: var(--ink-soft); }
+.im-cases { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.im-case { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-card); min-width: 0; }
+.im-case__text { display: grid; gap: 2px; min-width: 0; }
+.im-case__text strong { font-size: 13px; }
+.im-case__text small { font-size: 12px; color: var(--muted); }
+.im-case__in { color: var(--ink-soft) !important; overflow-wrap: anywhere; }
+.im-run { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+/*
+ * 组件板新增 · im-grid：回放结果表。一行一个入口（助理、Coding），一列一个版本（现在的、草稿）；格里是判定、不同的地方和「看结果」。
+ * 列等宽，格有边界；窄屏每格占满一行，入口名留在格上方。
+ */
+.im-grid { display: grid; gap: 6px; min-width: 0; animation: im-arrive var(--dur-move) var(--ease-quint); }
+.im-grid__row { display: grid; grid-template-columns: minmax(96px, 120px) repeat(var(--im-cols, 2), minmax(0, 1fr)); gap: 6px; align-items: stretch; min-width: 0; }
+.im-grid__head span { font-size: 12px; color: var(--muted); padding: 0 2px; }
+.im-grid__entry { display: inline-flex; align-items: flex-start; gap: 6px; padding-top: 10px; font-size: 13px; font-weight: var(--weight-control, 560); }
+.im-grid__entry svg { width: 14px; height: 14px; flex: none; margin-top: 2px; color: var(--muted); }
+.im-cell { display: grid; gap: 6px; align-content: start; min-width: 0; padding: 10px 12px; border-radius: var(--r-card); box-shadow: inset 0 0 0 1px var(--line); background: var(--paper); }
+.im-cell[data-verdict="match"] { box-shadow: inset 0 0 0 1px var(--line), inset 3px 0 0 var(--success, var(--accent)); }
+.im-cell[data-verdict="differs"] { box-shadow: inset 0 0 0 1px var(--line), inset 3px 0 0 var(--warning, var(--accent)); }
+.im-cell .mw-status { max-width: 100%; white-space: normal; height: auto; min-height: 22px; }
+.im-cell .mw-btn--link { justify-self: start; }
+.im-cell__col { display: none; font-size: 11.5px; color: var(--muted); }
+.im-diffs { margin: 0; padding-left: 18px; display: grid; gap: 2px; font-size: 12.5px; color: var(--ink-soft); }
+
+/* 比较 */
+.im-compare .mw-toggle-group { justify-self: start; max-width: 100%; }
+.im-compare .mw-toggle-group button { white-space: nowrap; }
+.im-cmp-what { margin: 0; font-size: 12.5px; color: var(--muted); }
+.im-same { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--ink-soft); }
+.im-diff { max-height: 520px; overflow: auto; border-radius: var(--r-card); }
+
+/* 组件板新增 · im-bar：草稿的采用条，钉在工作区底部：主按钮「采用为第 N 版」、放弃、右边一句状态。还要回放时主按钮换成「先回放」。 */
+.im-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 0 0; border-top: 1px solid var(--line); position: sticky; bottom: -96px; background: var(--paper); z-index: 2; }
+.im-bar .grow { flex: 1; min-width: 8px; }
+.im-gate { display: inline-flex; align-items: flex-start; gap: 6px; font-size: 12.5px; color: var(--ink-soft); }
+.im-bar--card { position: static; padding-top: 10px; background: transparent; }
+.im-confirm { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: var(--r-card); background: var(--warning-soft, var(--surface-soft)); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; animation: im-arrive var(--dur-move) var(--ease-quint); }
+.im-confirm .grow { flex: 1; min-width: 160px; }
+
+/* A：详情里分页 */
+.im-work { display: grid; gap: 14px; align-content: start; min-width: 0; }
+.im-panel { min-width: 0; }
+.im-tabs { min-width: 0; }
+
+/* B：左边改、右边试。打开草稿时列表收起，工作区占满；1100 以下右栏变成页签，同 A。 */
+.im-sheet--wide { max-width: 1320px; }
+.im-split--focus { grid-template-columns: minmax(0, 1fr); }
+.im-work--b { padding: 4px 0; }
+.im-cols { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 24px; align-items: start; min-width: 0; }
+.im-col--side { display: grid; gap: 12px; align-content: start; min-width: 0; position: sticky; top: 0; padding-left: 24px; border-left: 1px solid var(--line); }
+.im-col--side[data-side="try"] .im-panel--compare, .im-col--side[data-side="compare"] .im-panel--try { display: none; }
+.im-tabs--narrow { display: none; }
+@media (max-width: 1100px) {
+  .im-cols { grid-template-columns: minmax(0, 1fr); }
+  .im-col--side { position: static; padding-left: 0; border-left: 0; }
+  .im-col--side > .im-tabs { display: none; }
+  .im-tabs--narrow { display: block; }
+  .im-work--b[data-tab="edit"] .im-col--side, .im-work--b:not([data-tab="edit"]) .im-col--edit { display: none; }
+  .im-work--b[data-tab="try"] .im-panel--compare, .im-work--b[data-tab="compare"] .im-panel--try { display: none !important; }
+  .im-work--b[data-tab="try"] .im-panel--try, .im-work--b[data-tab="compare"] .im-panel--compare { display: block !important; }
+}
+
+/* 详情里的草稿条、版本、用过几次 */
+.im-band { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: var(--r-card); background: var(--accent-soft); font-size: 13px; }
+.im-band .grow { flex: 1; min-width: 160px; }
+.im-used { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 12.5px; color: var(--ink-soft); }
+.im-vers { width: 100%; }
+.im-ver { flex-wrap: wrap; row-gap: 6px; }
+.im-ver .mw-item__end { display: flex; gap: 6px; flex-wrap: wrap; }
+.im-ver[data-live] strong { color: var(--ink); }
+
+/* 对话：结果回执（平台现有的 ActionResultView 画法）与 C 的草稿卡 */
+.im-chat { max-width: 760px; }
+.im-receipt { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: var(--r-card); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); }
+.im-receipt__text { display: grid; gap: 2px; flex: 1 1 200px; min-width: 0; }
+.im-receipt__text strong { font-size: 13px; }
+.im-receipt__text small { font-size: 12px; color: var(--muted); }
+/* 组件板新增 · im-card（只有方案 C）：对话里的技能草稿卡，头、提取到的部分、全文或改动、回放结果、采用条。 */
+.im-card { display: grid; gap: 12px; padding: 12px 14px; border-radius: var(--r-card); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line-strong), var(--lift-1, none); min-width: 0; }
+.im-card__head { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.im-card__title { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.im-card__title strong { font-size: 13.5px; }
+.im-card__title small { font-size: 12px; color: var(--muted); }
+.im-pre { margin: 0; white-space: pre-wrap; font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; line-height: 1.65; color: var(--ink-soft); }
+.im-card .im-grid__row { grid-template-columns: minmax(84px, 104px) repeat(var(--im-cols, 2), minmax(0, 1fr)); }
+
+@media (max-width: 640px) {
+  .im-grid__row { grid-template-columns: minmax(0, 1fr); }
+  .im-grid__head { display: none; }
+  .im-cell__col { display: block; }
+  .im-grid__entry { padding-top: 4px; }
+  .im-card .im-grid__row { grid-template-columns: minmax(0, 1fr); }
+  .im-bar { position: static; }
+  .im-ask__row { flex-wrap: wrap; }
+  .im-ph li { grid-template-columns: minmax(0, 1fr); }
+  .im-ph li svg { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .im-grid, .im-asked, .im-confirm { animation: none; } }

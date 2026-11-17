@@ -1,5 +1,5 @@
 import { escapeHtml, renderBadge } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { EXTERNAL_SESSION_QUERY_MAX_CHARS, type ExternalSessionRow, type ExternalSessionSuggestion } from "@molis-ai/molis-work-contracts/services/sessions";
+import type { ExternalSessionRow, ExternalSessionSuggestion } from "@molis-ai/molis-work-contracts/services/sessions";
 import { currentProjectId, formatActivityTime, sessionsApi, type SessionScopeWithMeta, type SessionToolMeta } from "./api.js";
 import { createDiscoveryPoller, type DiscoveryPoller } from "./poll.js";
 import { bindSourcesEvents, renderSourcesSection } from "./sources-bar.js";
@@ -208,7 +208,6 @@ export function mountSessionsSurface(
     selectedKey: null, detail: null, listRead: null, pageCursors: [null], nextCursor: null, detailSeq: 0, dirtyChoices: new Map(), liveSuggestions: new Map(),
     showError: message => showToast?.(message, true),
   };
-  ctx.searchInput.maxLength = EXTERNAL_SESSION_QUERY_MAX_CHARS;
   bindSourcesEvents(ctx.sourcesEl, {
     onToggle: () => { ctx.sourcesExpanded = !ctx.sourcesExpanded; renderSourcesSection(ctx.sourcesEl, ctx.sources, ctx.sourcesExpanded); },
     onRetry: (entryId) => { void sessionsApi.discoveryRun({ entry_id: entryId as never }).then(() => { ctx.poller.kick(true); return loadSurfaceList(ctx, false); }); },

@@ -1,3 +1,4 @@
+// QEA-109: keep the real search, paging, cancellation and scope paths when the input limit moves into the Host-rendered control.
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";

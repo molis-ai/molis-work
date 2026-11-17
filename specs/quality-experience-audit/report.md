@@ -1,5 +1,9 @@
 # Molis Work 审查报告与优化策略
 
+第48批已收回Sessions的非必要浏览器代码：`apps/workbench/src/sessions/ui.ts:24` 用现行合同生成搜索框maxlength，`browser/sessions/client.ts:2` 回到类型导入。正式Host脚本67,374→49,185 B，减少18,189 B；相比同一main只增2,020 B。用户少下载/执行一份服务动作初始化，浏览器不再为一个静态输入约束承担服务声明装配；搜索、分页、取消、权限与提示规则保留。构建/健康、5文件50项通过，含14项真实Chrome路径；资源总策略与首屏仍须最终头验收。日志 `quality-audit-sessions-size-assets.json`、`quality-audit-sessions-size-acceptance.log`、`quality-audit-sessions-size-boundary.log`；前一测试命令含一个误写的不存在文件，未计成功。
+
+固定b63f404345的86文件包要求完整结算85通过/1失败（版本文件）。第47批已在受影响定向验证中消除其中的新基线声明错误，剩余Feed退役例外待批准。此证据不等于最终头全部通过；原任务仍有QF-51后台刷新、设置深链/输入保护、平台候选和最终CI等未完成项。
+
 第47批定向结果：第43批的派生结构对象被版本门禁误当第二份库声明，这是本轮引入的表达问题，已修正。`apps/local-host/src/home-plugin-store.ts:19` 只传现行基线和当次绑定事实；`packages/storage/src/sqlite-baseline.ts:140,218` 统一组合空间元数据，按比较模式和绑定形式复用成功结构比较。版本/归属继续逐次读取，未改库版本或门禁。QEA-108 先在旧实现取得缺少拒绝的反证；修复后10文件154项通过，包括实际Home缺绑定行、WAL额外表、损坏恢复和升级回滚。第11个版本文件34/35通过，剩余仅旧Feed例外待批准，不能记全绿。完整构建/API零差异/健康通过，只读复核无新增Blocker/P1；固定头86文件回归继续。日志 `quality-audit-space-shape-acceptance.log`、`quality-audit-space-shape-health.log`。
 
 资源检查点 b63f404345：正式门禁以main 4cf1c742e6隔离构建实测，Sessions脚本+20,209 B；首屏最大冷增6,021 B、热增3,694 B，已超过早期批准额度，两项检查均未通过。只读消除实验已证明约20 KB来自客户端仅为长度常量引入的服务动作初始化，第48批先收回这部分成本，再按最终下发量审阅许可。日志 `/tmp/quality-audit-b63-page-assets.log`、`/tmp/quality-audit-b63-first-screen.log`；尚未新增资源批准或宣称最终验收。原六方向、平台化候选、QF-51端到端性能与准确头Full CI保持进行中。

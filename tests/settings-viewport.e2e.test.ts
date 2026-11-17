@@ -3,9 +3,8 @@ import test from 'node:test';
 import { createProject } from '@molis-ai/molis-work-test-kit/local-host-http';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
-import { DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
-import { boardSnapshot } from "./fixtures/goal-application.js";
+import { projectRulesPage } from "./fixtures/project-review-entry.js";
 
 for (const [width, height] of [[1024, 400], [390, 500]]) {
   test(`Settings ${width}×${height}: fixed actions, cancel, failed retry and pending save`, { timeout: 60000 }, async t => {
@@ -41,35 +40,43 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     // Project settings open in the workbench (specs/artifact-positioning S6); a save reloads it on the same category.
     const loaded = (selector: string) => waitFor(`!!document.querySelector('[data-work-surface=project-settings] ${selector}')`, 15000);
     await navigate(() => command('Page.navigate', { url: prefix + '/settings/rules' }, sessionId));
-    await loaded('[data-policy-form]');
-    const cursor = boardSnapshot(b.store, DEMO_PROJECT_ID).cursor;
-    const accepted = "document.querySelector('[name=human_approval]').checked";
+    const form = '[data-authorization-rule-form]';
+    const ruleAPI = '/api/settings/authorizations/project-rules?project=' + encodeURIComponent(projectId!);
+    const readRules = projectRulesPage(b, projectId!).read;
+    const accepted = `document.querySelector('${form} [name=requires_person]').checked`;
+    await waitFor(`!!document.querySelector('${form}')`);
+    const before = await readRules();
     const original = await evaluate<boolean>(accepted);
     await evaluate(accepted + " = " + String(!original));
-    await click('[data-policy-cancel]');
+    await click('[data-authorization-reload]');
+    await waitFor(`document.querySelector('${form} [name=requires_person]')?.checked===${original}`);
     assert.equal(await evaluate(accepted), original);
-    assert.equal(boardSnapshot(b.store, DEMO_PROJECT_ID).cursor, cursor);
+    assert.deepEqual(await readRules(), before);
     await evaluate(accepted + " = " + String(!original));
-    await command('Network.setBlockedURLs', { urls: [prefix + '/api/plugins/io.molis.work.goals/policy-bindings'] }, sessionId);
-    await click('[data-policy-form] button[type=submit]');
-    await waitFor("!document.querySelector('[data-policy-error]').hidden");
-    await contained('[data-policy-error]');
-    assert.match(await evaluate<string>("document.querySelector('[data-policy-error]').textContent"), /输入已保留/);
-    await evaluate("document.querySelector('.settings-save-footer').scrollIntoView({block:'nearest'})");
-    await contained('.settings-save-footer');
+    const reason = '校验规则修改的等待、断线与恢复';
+    await fill(form + ' [name=reason]', reason);
+    await command('Network.setBlockedURLs', { urls: [origin + ruleAPI] }, sessionId);
+    await click(form + ' button[type=submit]');
+    const error = form + ' [role=alert]:not([hidden])';
+    await waitFor(`!!document.querySelector('${error}')`);
     assert.equal(await evaluate(accepted), !original);
+    assert.equal(await evaluate(`document.querySelector('${form} [name=reason]').value`), reason);
+    assert.deepEqual(await readRules(), before);
     await command('Network.setBlockedURLs', { urls: [] }, sessionId);
     await command('Network.emulateNetworkConditions', { offline: false, latency: 800, downloadThroughput: -1, uploadThroughput: -1 }, sessionId);
-    await navigate(async () => {
-      await click('[data-policy-form] button[type=submit]');
-      assert.equal(await evaluate("document.querySelector('[data-policy-cancel]').disabled && document.querySelector('[name=human_approval]').disabled"), true);
-    });
+    await click(form + ' button[type=submit]');
+    assert.equal(await evaluate(`document.querySelector('${form} button[type=submit]').disabled && document.querySelector('${form} [name=requires_person]').disabled`), true);
     await command('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }, sessionId);
-    await loaded('[data-policy-form]');
+    await waitFor("!!document.querySelector('[data-authorization-detail] [role=status]')");
     assert.equal(await evaluate(accepted), !original);
-    assert.ok(boardSnapshot(b.store, DEMO_PROJECT_ID).cursor > cursor);
+    const after = await readRules();
+    assert.notEqual(after.revision, before.revision);
+    assert.equal(after.project_default_requires_person, !original);
     await b.reloadPage();
-    await loaded('[data-policy-form]');
+    if (!await evaluate("!!document.querySelector('[data-authorization-settings]')")) {
+      await navigate(() => command('Page.navigate', { url: prefix + '/settings/rules' }, sessionId));
+    }
+    await waitFor(`!!document.querySelector('${form}')`);
     assert.equal(await evaluate(accepted), !original);
 
     await navigate(() => command('Page.navigate', { url: prefix + '/settings/guidance' }, sessionId));

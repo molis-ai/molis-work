@@ -903,13 +903,13 @@ test("FSS-35 FSS-36 an opened Git review retitles the retained view without anot
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=%2Fsettings%2Fappearance" }, b.sessionId));
   await b.waitFor("typeof molisWorkRequest === 'function' && typeof molisWorkRetitleRegion === 'function'");
   const date = "2026-11-09T12:34:00Z", raw = "回执保持原样", original = "<git> 文件原文";
-  const request: AgentReviewRequest = { review_id: "known", project_id: "fixture", plugin_id: "io.molis.work.git", kind: "git-index",
+  const request: AgentReviewRequest = { reference: { owner: { kind: "agent-review" as const, project_id: "fixture", plugin_id: "io.molis.work.git", install_id: "install" }, id: "known", version: "proposal-1" }, review_id: "known", project_id: "fixture", plugin_id: "io.molis.work.git", kind: "git-index",
     run: null, requested_at: date, expires_at: null, operation: { kind: "git-index", workspace_id: "review-ws", operation_id: "review-op" },
     document: { kind: "git-index", action: "stage", workspace_name: "Review fixture", files: [{ path: "原路径", before_text: "before", after_text: original, before_mode: "100644", after_mode: "100644" }] } };
   const view: AgentReviewRecoveryView = { review_id: request.review_id, message: { owner: "workbench", key: "workbench.agent-review.recovery-matches-before" },
     receipt: { review_id: request.review_id, status: "approved", decided_by: "tester", decided_at: date, note: null, effect_settled: false, effect_error: null, effect_uncertain: raw },
     observation: { revision: "exact", observed_at: date, files: [{ path: "原路径", text: original, mode: "100644" }], matches_before: true, matches_after: false }, can_confirm_not_happened: true };
-  const rows = [{ request, receipt: view.receipt }];
+  const rows = [{ request, receipt: view.receipt, decisions: { approve: { available: true as const }, reject: { available: true as const } } }];
   const payload = (locale: string) => runWithLocale(locale, () => ({ reviews: rows,
     html: renderAgentReviewSurface({ rows, primitives: { escape: escapeHtml, icon, formatDate: at => format.date(at, "datetime") } }),
     recovery: renderAgentReviewRecovery(view, escapeHtml), omitted: 0 }));

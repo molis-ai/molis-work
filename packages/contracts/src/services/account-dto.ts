@@ -1,5 +1,5 @@
-// Generated from Auth unified-account 1.2.0 schemas.json; do not hand-edit business enums.
-// Source digest: e5a405a00e34a1855cbc7bd52992457d645ab395fd657b9278a91aba10be3d89
+// Generated from Auth unified-account 1.3.0 schemas.json; do not hand-edit business enums.
+// Source digest: 02ae9396da4dee2935027cb88cc3673e29ace4ad611abb6d167e17275f8e1c13
 export type AccountView = ({ readonly state: "ANONYMOUS" | "EXPIRED" }) | ({ readonly state: "AUTHENTICATED"; readonly user: UserView; readonly session: SessionView; readonly capabilities: ReadonlyArray<PlatformCapability> }) | ({ readonly state: "OFFLINE_CACHED"; readonly user: UserView });
 export type Assignment = ({ readonly assignmentId: Id; readonly subscriptionId: Id; readonly seatTypeId: Id; readonly membershipId: Id; readonly userId: Id; readonly assignedAt: Timestamp; readonly version: Version; readonly status: "ASSIGNED"; readonly endedAt: null; readonly endReason: null }) | ({ readonly assignmentId: Id; readonly subscriptionId: Id; readonly seatTypeId: Id; readonly membershipId: Id; readonly userId: Id; readonly assignedAt: Timestamp; readonly version: Version; readonly status: "ENDED"; readonly endedAt: Timestamp; readonly endReason: "RELEASED" | "REASSIGNED" | "MEMBER_LEFT" | "MEMBER_REMOVED" });
 export type AuditEvent = { readonly auditEventId: Id; readonly actorUserId: Id; readonly operation: Id; readonly target: { readonly kind: Id; readonly id: Id }; readonly tenantId: (Id) | (null); readonly occurredAt: Timestamp; readonly result: "SUCCEEDED" | "DENIED"; readonly changes: ReadonlyArray<{ readonly field: Id; readonly before: (string) | (null); readonly after: (string) | (null) }> };
@@ -13,6 +13,7 @@ export type Feature = { readonly featureId: Id; readonly product: "WORK" | "CLUB
 export type HttpUrl = string;
 export type Id = string;
 export type Invitation = { readonly invitationId: Id; readonly tenantId: Id; readonly targetSummary: string; readonly status: "PENDING" | "ACCEPTED" | "DECLINED" | "REVOKED" | "EXPIRED"; readonly expiresAt: Timestamp; readonly version: Version };
+export type LoginCapabilities = { readonly methods: ReadonlyArray<"ACCOUNT_PASSWORD" | "EMAIL_CODE" | "PHONE_OTP" | "GOOGLE" | "GITHUB"> };
 export type LoginMethod = { readonly bindingId: Id; readonly type: LoginMethodType; readonly maskedLabel: string; readonly verified: boolean; readonly usableForLogin: boolean };
 export type LoginMethodsView = { readonly loginMethods: ReadonlyArray<LoginMethod>; readonly version: Version };
 export type LoginMethodType = "EMAIL" | "PHONE" | "GOOGLE" | "GITHUB";

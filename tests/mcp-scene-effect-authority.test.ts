@@ -6,6 +6,7 @@ import { recordedCallId, subjectOfferChoices, withCallId } from "@molis-ai/molis
 import { readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
 import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
 import type { JudgmentRuleRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import { revokeMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openTestHome } from "./fixtures/test-home.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
@@ -79,7 +80,9 @@ test("W3-09-AUTH-03 a real published function cannot consume Home Dock after its
     assert.deepEqual(judgment.action.permissions, ["functions:invoke"], "the judgment does not itself grant Home's independent permissions");
     const configured = await home.web.post<{ binding: ActionSceneBinding }>(`/projects/${project.project_id}/api/home/dock-judgment`, { function_key: rule.function_key });
     assert.ok(configured.binding.enabled); bindingId = configured.binding.binding_id;
-    await home.grant(clientId, project.project_id, [...ownerActions, judgment, scenePermission, functionContextActions.history, call]);
+    const savedGrants = await home.grant(clientId, project.project_id, [...ownerActions, judgment, scenePermission, functionContextActions.history, call]);
+    const sceneGrant = savedGrants.find(grant => grant.capability_id === scenePermission.capability_id && grant.provider_id === scenePermission.provider.provider_id);
+    assert.ok(sceneGrant?.enabled);
     const mcp = await home.mcp(clientId, project.project_id), actions = bindActionClient(mcp.client, () => mcp.caller);
     const before = (await actions.invoke(functionContextActions.history, {})).judgments;
     const modelCount = models;
@@ -90,7 +93,9 @@ test("W3-09-AUTH-03 a real published function cannot consume Home Dock after its
       catch (error) { return { result: undefined, error, recorded: recordedCallId() }; }
     });
     await Promise.race([entered.promise, pending.then(() => { throw new Error("Scene settled before its real consumer's later availability wait"); })]);
-    await home.revoke(clientId, project.project_id, [scenePermission]);
+    await revokeMcpAction(home.web, { clientId, projectId: sceneGrant.project_id, action: {
+      ...sceneGrant, expected: { expected_generation: sceneGrant.generation },
+    } });
     const current = (await readMcpToolPreference(home.home)).action_grants.filter(grant => grant.client_id === clientId && grant.enabled);
     assert.ok(current.some(grant => grant.capability_id === call.capability_id));
     assert.ok(current.some(grant => grant.capability_id === judgment.capability_id));

@@ -2,7 +2,7 @@
 // Moved here from modules/goals (S8, PG-020). The statements are as they were in the project library's baseline, except `boards`: it lost
 // its `title` (the Catalog owns the project's name) and its `project_id` points at the library's `project_root` row.
 
-/** The Goal tree: Goals, criteria, relations, trash, policy bindings, project guidance. */
+/** The Goal tree: Goals, criteria, relations, trash, and project guidance. */
 export const GOALS_TABLES_SQL = `
   CREATE TABLE goals (
     goal_id TEXT PRIMARY KEY,
@@ -91,19 +91,6 @@ export const GOALS_TABLES_SQL = `
   CREATE INDEX goal_trash_relation_records_relation_idx
     ON goal_trash_relation_records(relation_id, restored_at);
 
-  CREATE TABLE policy_bindings (
-    policy_binding_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT REFERENCES goals(goal_id),
-    scope TEXT NOT NULL CHECK (scope IN ('project_default', 'ancestor_minimum', 'goal')),
-    policy_json TEXT NOT NULL,
-    state TEXT NOT NULL CHECK (state IN ('active', 'replaced', 'withdrawn')),
-    created_by TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    created_at TEXT NOT NULL
-  );
-  CREATE INDEX policies_scope_idx ON policy_bindings(project_id, goal_id, state);
-
   CREATE TABLE project_guidance_entries (
     guidance_id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
@@ -145,6 +132,22 @@ export const GOALS_TABLES_SQL = `
   );
   CREATE INDEX project_guidance_revisions_project_idx
     ON project_guidance_revisions(project_id, guidance_id, revision DESC);
+`;
+
+/** The v2 rules that explicit maintenance moves into the platform library. */
+export const GOALS_V2_POLICY_SQL = `
+  CREATE TABLE policy_bindings (
+    policy_binding_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+    goal_id TEXT REFERENCES goals(goal_id),
+    scope TEXT NOT NULL CHECK (scope IN ('project_default', 'ancestor_minimum', 'goal')),
+    policy_json TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('active', 'replaced', 'withdrawn')),
+    created_by TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX policies_scope_idx ON policy_bindings(project_id, goal_id, state);
 `;
 
 /**

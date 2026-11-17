@@ -2,8 +2,9 @@ import { isDeepStrictEqual } from "node:util";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { skillErrors } from "@molis-ai/molis-work-contracts/services/skills";
-import { installedHomePlugins, installedPluginsInProject, type ProjectPluginHost } from "./project-plugin-ports.js";
+import { installedHomePlugins, installedPluginsInProject, observedHomePlugins, type ProjectPluginHost } from "./project-plugin-ports.js";
 import { pluginInstallRecords } from "./plugin-install-records.js";
+import { installedPluginEntries } from "./plugin-installation-directory.js";
 import type { InstalledPluginEntry } from "./plugin-installed-view.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { KitSource } from "@molis-ai/molis-work-contracts/platform/kit-report";
@@ -25,7 +26,7 @@ export interface ScopeInstallation extends InstalledPluginEntry {
 /** Installation identity, including its current state, is rechecked after any asynchronous permission check. */
 function currentInstallation(record: PluginInstanceRecord, current: () => PluginInstanceRecord | null): () => void {
   const identity = (value: PluginInstanceRecord) => [value.install_id, value.installation_generation, value.plugin_id, value.version,
-    value.publisher_signature, value.manifest_digest, value.state];
+    value.publisher_signature, value.manifest_digest, value.state, value.grants];
   const expected = identity(record);
   return () => {
     const now = current();
@@ -47,24 +48,40 @@ function currentWords(record: PluginInstanceRecord, supervisors: readonly (Plugi
  * The installations a call reaches, read once: the Home's and, with a project, the project's. A project installation shadows the same
  * identity's Home installation; two publishers remain distinct. The Skill catalog and the AI kit's reporters read the same list.
  */
-export async function scopeInstallations(source: ProjectPluginHost, caller: ActionCallContext): Promise<{ reference?: LocalHostProjectReference; installations: ScopeInstallation[] }> {
+type ScopeSnapshot = { reference?: LocalHostProjectReference; installations: ScopeInstallation[] };
+
+export async function scopeInstallations(source: ProjectPluginHost, caller: ActionCallContext): Promise<ScopeSnapshot> {
   const reference = caller.project_id ? source.host.projects().find(project => project.project_id === caller.project_id) : undefined;
   if (caller.project_id && !reference) throw new ActionError("actions.scope_mismatch", "需要当前项目");
   const home = source.homePlugins(), homeRows = await installedHomePlugins(home);
-  const homeSupervisor = (await home?.ready({ start: false }))?.supervisor;
   const projectRows = reference ? await installedPluginsInProject(source, reference.project_id) : [];
-  const project = reference ? await source.host.withRuntime(reference, async runtime => {
+  return collectInstallations(source, homeRows, reference, projectRows);
+}
+
+/** Recommendations reuse the catalog's installation readers without preparing a project or reconciling publishers. */
+export async function observedScopeInstallations(source: ProjectPluginHost, reference: LocalHostProjectReference): Promise<ScopeSnapshot> {
+  const home = source.homePlugins();
+  const ready = await home?.ready({ start: false }).then(() => true, () => false);
+  return collectInstallations(source, home && ready ? observedHomePlugins(home) : [], reference);
+}
+
+async function collectInstallations(source: ProjectPluginHost, homeRows: InstalledPluginEntry[], reference?: LocalHostProjectReference,
+  preparedProjectRows?: InstalledPluginEntry[]): Promise<ScopeSnapshot> {
+  const homeSupervisor = homeRows.length ? (await source.homePlugins()?.ready({ start: false }))?.supervisor : undefined;
+  const project = reference ? await source.host.withExistingRuntime(reference, async runtime => {
     const records = pluginInstallRecords(runtime.store.db);
     const platforms = await Promise.all([runningProjectPlatform(runtime.store, runtime.project_id), runningInstalledPluginPlatform(runtime.store, runtime.project_id)]);
-    return { checks: new Map(projectRows.map(({ record }) => [record.install_id, currentInstallation(record, () => records.get(record.install_id))])),
-      supervisors: platforms.map(platform => platform?.supervisor) };
+    return (preparedProjectRows ?? installedPluginEntries(runtime.store.db)).map((row): ScopeInstallation => ({
+      ...row, scope: "project",
+      readLocalePacks: () => currentWords(row.record, platforms.map(platform => platform?.supervisor)),
+      assertCurrent: currentInstallation(row.record, () => records.get(row.record.install_id)),
+    }));
   }) : null;
   const installations = new Map<string, ScopeInstallation>([
     ...homeRows.map(row => [row.record.install_id, { ...row, scope: "home" as const,
       readLocalePacks: () => currentWords(row.record, [homeSupervisor]),
       assertCurrent: currentInstallation(row.record, () => source.homePlugins()?.installation(row.record.install_id) ?? null) }] as const),
-    ...projectRows.map(row => [row.record.install_id, { ...row, scope: "project" as const,
-      readLocalePacks: () => currentWords(row.record, project!.supervisors), assertCurrent: project!.checks.get(row.record.install_id)! }] as const),
+    ...(project ?? []).map(row => [row.record.install_id, row] as const),
   ]);
   return { reference, installations: [...installations.values()] };
 }

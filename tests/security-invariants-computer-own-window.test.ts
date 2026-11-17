@@ -6,6 +6,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ComputerDriver, isRefused, type DeskContext } from "@molis-ai/molis-work-app-local-host";
+import { desktopState, observeSurface, performSurface, surfaceContext } from "./fixtures/surface-target.js";
+
+const TEST_CONTEXT = surfaceContext("s");
 
 type Call = { op: string; payload?: Record<string, unknown> };
 type Step = { kind?: string; summary?: string };
@@ -14,11 +17,13 @@ const MOLIS_WINDOW = "确认 · Molis Work";
 
 function desk(calls: Call[], steps: Step[]): DeskContext {
   const frame: [number, number, number, number] = [0, 0, 120, 80];
-  const state = { bundle_id: "com.apple.TextEdit", name: "TextEdit", pid: 4, active: true, hidden: false, front_pid: 4,
+  const state = desktopState({ bundle_id: "com.apple.TextEdit", name: "TextEdit", pid: 4, active: true, hidden: false, front_pid: 4,
     window: { title: "Notes", frame, window_id: 1, document: "" },
-    windows: ["Notes", "Ideas", MOLIS_WINDOW].map(title => ({ title, frame, focused: title === "Notes", minimized: false })) };
+    windows: ["Notes", "Ideas", MOLIS_WINDOW].map(title => ({ title, frame, focused: title === "Notes", minimized: false })) });
+  const target = { bundle_id: state.bundle_id, name: state.name, pid: state.pid, verdict: { tier: "ask" as const, reason: "", built_in: true } };
   return {
-    helper: { async call<T>(op: string, payload?: Record<string, unknown>): Promise<T> {
+    helper: { async call<T>(op: string, payload?: Record<string, unknown>, _timeout?: number, beforeSend?: () => void, onDispatch?: () => void): Promise<T> {
+      beforeSend?.(); onDispatch?.();
       calls.push({ op, ...(payload ? { payload } : {}) });
       if (op === "app.state" || op === "app.open") return state as T;
       if (op === "apps.installed" || op === "apps.running") return { apps: [{ bundle_id: state.bundle_id, name: state.name }] } as T;
@@ -27,15 +32,17 @@ function desk(calls: Call[], steps: Step[]): DeskContext {
         return { window: { title: "Notes", frame }, nodes: [{ role: "AXButton", name: "保存", depth: 0, frame: [10, 10, 40, 20] }], truncated: false, menus: ["文件", "窗口", "帮助"] } as T;
       }
       if (op === "observe.menus") return { items: [{ title: "Notes" }, { title: "Ideas" }, { title: "Minimize" }, { title: MOLIS_WINDOW }] } as T;
-      if (op === "probe.point") return { window: { pid: 4, title: "Notes" }, element: { pid: 4, name: "保存", window_title: "Notes" } } as T;
-      if (op.startsWith("input.")) return {} as T;
+      if (op === "probe.point") return { window: { id: 1, pid: 4, title: "Notes" }, element: { pid: 4, name: "保存", window_title: "Notes" } } as T;
+      if (op.startsWith("input.")) return { done: true } as T;
       throw new Error(op);
     } },
     settings: { forbiddenIds: () => [] },
     noteInjected: () => undefined,
-    target: () => ({ bundle_id: state.bundle_id, name: state.name, pid: state.pid, verdict: { tier: "ask", reason: "", built_in: true } }),
+    target: () => target,
     setTarget: () => undefined,
     takeovers: () => 0,
+    assertCurrent: () => undefined,
+    assertReady: () => undefined,
     ready: async () => undefined,
     readiness: async () => null,
     mark: () => undefined,
@@ -57,14 +64,14 @@ test("S-25 a menu path to a window that shows Molis Work is refused before it is
   const calls: Call[] = [];
   const steps: Step[] = [];
   const surface = new ComputerDriver(desk(calls, steps)).surface();
-  const tree = new TextDecoder().decode(await surface.observe("accessibility-tree", { session_id: "s" }));
+  const tree = new TextDecoder().decode(await observeSurface(surface, "accessibility-tree", TEST_CONTEXT));
   assert.match(tree, /Ideas/, "the Window menu hint still lists the app's other windows");
   assert.doesNotMatch(tree, /Molis Work/, "the Window menu hint does not offer a window that shows Molis Work");
-  const metadata = JSON.parse(new TextDecoder().decode(await surface.observe("window-metadata", { session_id: "s" }))) as { windows: { title: string }[] };
+  const metadata = JSON.parse(new TextDecoder().decode(await observeSurface(surface, "window-metadata", TEST_CONTEXT))) as { windows: { title: string }[] };
   assert.equal(metadata.windows.some(one => one.title.includes("Molis Work")), false, "window-metadata does not list it either");
 
   const injectedBefore = calls.filter(call => call.op.startsWith("input.")).length;
-  await assert.rejects(() => surface.perform({ what: "menu", path: ["窗口", MOLIS_WINDOW] }, { session_id: "s" }),
+  await assert.rejects(() => performSurface(surface, { what: "menu", path: ["窗口", MOLIS_WINDOW] }, TEST_CONTEXT),
     (error: unknown) => isRefused(error) && /Molis Work/.test(error.message));
   assert.equal(calls.filter(call => call.op.startsWith("input.")).length, injectedBefore, "nothing reaches the input helper");
   assert.equal(steps.at(-1)?.kind, "refused");

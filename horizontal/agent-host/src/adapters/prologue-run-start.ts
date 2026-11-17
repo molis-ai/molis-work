@@ -77,6 +77,8 @@ function startInput(request: AgentStartRequest, role: FrozenRole, model: Prologu
     beforeStart: execution?.beforeStart,
     assertBeforeStart: execution?.assertBeforeStart,
     beforeDispatch: execution?.beforeDispatch,
+    assertBeforeDispatch: execution?.assertBeforeDispatch,
+    ...(execution?.delegation ? { delegation: structuredClone(execution.delegation) } : {}),
     disposeDispatch: execution?.disposeDispatch,
     provenance,
     session_id: request.session.session_id,

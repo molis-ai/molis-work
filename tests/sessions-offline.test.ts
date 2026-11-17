@@ -50,10 +50,13 @@ test("RAC-211 the private work context module keeps only Runtime context binding
 });
 
 test("RAC-212 RAC-2378 product code never opens or registers the retired store", () => {
-  const opener = /sessions\.db|session_meta|content\.key|["']sessions["']\s*,\s*["'](?:sessions\.db|content)["']/u;
+  const opener = /(?<![a-z-])sessions\.db|content\.key|["']sessions["']\s*,\s*["'](?:sessions\.db|content)["']/u;
   const source = (path: string) => text(path);
   const offenders = productSources().map(path => relative(root, path)).filter(path => opener.test(source(path)));
   assert.deepEqual(offenders, []);
+  const metaOffenders = productSources().map(path => relative(root, path))
+    .filter(path => /session_meta/u.test(source(path)) && !path.startsWith("horizontal/sessions/src/"));
+  assert.deepEqual(metaOffenders, [], "only external-sessions/external-sessions.db (BL-177 §9.2) defines session_meta");
   const mentions = productSources().map(path => relative(root, path))
     .filter(path => /join\([^)]*["']sessions["']/u.test(source(path)) && !path.startsWith("plugins/native/coding/"));
   assert.deepEqual(mentions, [], "the only place that names the directory is the store registry");
@@ -95,11 +98,28 @@ test("RAC-216 the action snapshot has no sessions.* and no home.talk rows", () =
   assert.doesNotMatch(actions, /io\.molis\.work\.sessions/u);
 });
 
-test("RAC-217 no name list in the workbench or the design system carries sessions", () => {
+const EXTERNAL_SESSIONS_WORKBENCH_FILES = new Set([
+  "apps/workbench/src/browser/sessions/api.ts",
+  "apps/workbench/src/browser/sessions/detail-view.ts",
+  "apps/workbench/src/plugin-workbench.ts",
+  "apps/workbench/src/scripts/client/assistant-materials.ts",
+  "apps/workbench/src/scripts/client/initialization.ts",
+  "apps/workbench/src/search-rows.ts",
+  "apps/workbench/src/sessions/navigation.ts",
+  "apps/workbench/src/sessions/ui.ts",
+]);
+
+test("RAC-217 SRB-08 design-system and builtin plugin lists carry no retired sessions entry while workbench hosts only the BL-177 surface", () => {
   const listed = /["']sessions["']/u;
-  const offenders = productSources().map(path => relative(root, path))
-    .filter(path => (path.startsWith("apps/workbench/src/") || path.startsWith("packages/design-system/src/")) && listed.test(text(path)));
-  assert.deepEqual(offenders, []);
+  const designOffenders = productSources().map(path => relative(root, path))
+    .filter(path => path.startsWith("packages/design-system/src/") && listed.test(text(path)));
+  assert.deepEqual(designOffenders, []);
+  const workbenchOffenders = productSources().map(path => relative(root, path))
+    .filter(path => path.startsWith("apps/workbench/src/") && !EXTERNAL_SESSIONS_WORKBENCH_FILES.has(path) && listed.test(text(path)));
+  assert.deepEqual(workbenchOffenders, []);
+  assert.doesNotMatch(text("apps/workbench/src/builtin-plugins.ts"), listed);
+  assert.doesNotMatch(text("apps/workbench/src/styles/goal-canvas.ts"), listed);
+  assert.doesNotMatch(text("apps/local-host/src/web-goals-read.ts"), listed);
 });
 
 test("RAC-219 the product documents say Sessions is offline and the redo is BL-177", () => {

@@ -9,18 +9,22 @@ import { nativeSkill } from "../skill-portability.js";
 import { localPublisherKeyId } from "../plugin-builder/publisher-identity.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
-import { skillErrors, type SkillAvailability } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILLS_PROVIDER_ID, skillErrors, type SkillAvailability } from "@molis-ai/molis-work-contracts/services/skills";
+import { hostCompleteText, type HostCompleteText } from "../host-complete-text.js";
+import { resolveModelPrompt } from "./instructions.js";
+import { SkillWorkshop } from "./skill-workshop.js";
 import { HomeConsentLedger } from "../home-plugin-store.js";
 import { SandboxPackageStore } from "../sandbox-package-store.js";
 import { homeAgentDefinitions } from "./builtin-registrations.js";
 import { skillCatalogProvider } from "./skill-catalog-actions.js";
 import { scopeInstallations } from "../scope-installations.js";
+import { SkillCatalog, type SkillCatalogPorts } from "./skill-catalog.js";
 import type { ProjectPluginHost } from "../project-plugin-ports.js";
 import { isDeepStrictEqual } from "node:util";
 import type { CatalogSkill } from "./skill-catalog.js";
+import type { AgentDefinitions } from "./agent-definitions.js";
 import { SYSTEM_PACK_SIGNATURE, systemPackInstallId, systemSkillPacks, type SystemSkillPack } from "./system-skill-packs.js";
 
-/** The catalog reads existing owners once per call: installations, verified packages, declarations, and scoped settings. */
 /** A system pack's name and what it is, in the caller's language: its own words, as an installed package's are read. */
 export function systemSkillPackWords(pack: SystemSkillPack, callerLocale?: string): { name: string; summary?: string } {
   const { manifest, localePacks: reader } = pack;
@@ -28,15 +32,39 @@ export function systemSkillPackWords(pack: SystemSkillPack, callerLocale?: strin
   return projectDirectoryWords({ ...manifest, ui: {} }, reader ? directoryWordResolver(reader, locale) : undefined);
 }
 
-export function skillCatalogProviderFor(home: string, source: ProjectPluginHost, systemSkillsDirectory?: string) {
-  const definitions = homeAgentDefinitions(home), packages = new SandboxPackageStore(home), ledger = new HomeConsentLedger(home);
-  const publishers = () => new Map(ledger.publishers().map(pin => [pin.key_id, pin]));
+/**
+ * The catalog over this Home, with the drafts and replays of Skills (batch 42); it reads existing owners once per call: installations,
+ * verified packages, declarations, and scoped settings. `completion`: the Host's injected text model, `null` for none, absent for the
+ * person's configured model.
+ */
+export function skillCatalogProviderFor(home: string, source: ProjectPluginHost, systemSkillsDirectory?: string, completion?: HostCompleteText | null) {
+  const definitions = homeAgentDefinitions(home), packages = new SandboxPackageStore(home);
+  const ports = skillCatalogPorts(home, source, definitions, scopeInstallations, true, undefined, systemSkillsDirectory);
+  const model = () => completion === undefined ? hostCompleteText({ homeDirectory: home }) : completion ?? undefined;
+  const workshop = new SkillWorkshop({ drafts: definitions.skillDrafts, withSkills: ports.withSkills,
+    release: (pluginId, keyId, version) => { try { return packages.load(pluginId, keyId, version).packaged; } catch { return undefined; } },
+    savedAt: (pluginId, keyId) => new Map(packages.retainedVersions(pluginId, keyId).map(row => [row.version, row.saved_at])),
+    model, resolve: prompt => resolveModelPrompt(home, prompt, SKILLS_PROVIDER_ID) });
+  return skillCatalogProvider(ports, workshop);
+}
+
+export function observedSkillCatalog(home: string, source: ProjectPluginHost, definitions: AgentDefinitions, installations: Awaited<ReturnType<typeof scopeInstallations>>,
+  pins: ReadonlyMap<string, PluginPublisherPin>) {
+  return new SkillCatalog(skillCatalogPorts(home, source, definitions, async () => installations, false, pins));
+}
+
+function skillCatalogPorts(home: string, source: ProjectPluginHost, definitions: AgentDefinitions, list: typeof scopeInstallations, prepare: boolean,
+  observedPins?: ReadonlyMap<string, PluginPublisherPin>, systemSkillsDirectory?: string): SkillCatalogPorts {
+  const packages = new SandboxPackageStore(home), ledger = new HomeConsentLedger(home);
+  const publishers = () => new Map((prepare ? ledger.publishers() : ledger.observedPublishers()).map(pin => [pin.key_id, pin]));
+  // The observation catalog is reserved for candidates with a current installation to pin.
+  const systemPacks = () => prepare ? systemSkillPacks(systemSkillsDirectory) : [];
   const withSkills = async <Result>(caller: ActionCallContext, use: (skills: readonly CatalogSkill[]) => Result): Promise<Result> => {
-    const { reference, installations } = await scopeInstallations(source, caller);
-    const directory = await source.host.inspectActions(caller, reference);
+    const { reference, installations } = await list(source, caller);
+    const directory = await source.host.inspectActions(caller, reference, prepare);
     const localKey = localPublisherKeyId(home);
     // A publisher can be revoked during inspection while its installation still runs. Take one snapshot and use it synchronously.
-    const pins = publishers();
+    const pins = observedPins ?? publishers();
     const result: CatalogSkill[] = [];
     for (const { record, manifest, scope, recoveryCode, readLocalePacks, assertCurrent: assertInstallation } of installations) {
       if (!manifest?.methods?.length) continue;
@@ -85,7 +113,7 @@ export function skillCatalogProviderFor(home: string, source: ProjectPluginHost,
       }
     }
     // The packs that come with the system: the Host's own content, in every scope, with no installation to check or publisher to pin.
-    for (const pack of systemSkillPacks(systemSkillsDirectory)) {
+    for (const pack of systemPacks()) {
       const { manifest, localePacks: reader } = pack;
       const locale = matchLocale(caller.locale ?? activeLocale(), manifest.ui.locales?.available ?? [], reader?.default ?? DEFAULT_WEB_LOCALE);
       const title = systemSkillPackWords(pack, caller.locale).name;
@@ -101,12 +129,11 @@ export function skillCatalogProviderFor(home: string, source: ProjectPluginHost,
     }
     return use(result);
   };
-  return skillCatalogProvider({ definitions, withSkills, resource: (skill, path) => {
-    const system = systemSkillPacks(systemSkillsDirectory).find(pack => systemPackInstallId(pack.manifest.plugin_id) === skill.ref.install_id);
+  return { definitions, withSkills, resource: (skill, path) => {
+    const system = systemPacks().find(pack => systemPackInstallId(pack.manifest.plugin_id) === skill.ref.install_id);
     if (!system) return packages.skillResource(skill.ref.source.plugin_id, skill.ref.source.publisher_signature, skill.ref.source.plugin_version, skill.ref.skill_id, path);
     const bytes = system.file(path);
     if (!bytes) throw skillErrors.read_refused("技能的附带文件缺失", { reason: "resource_invalid" });
     return bytes;
-  },
-    publishers });
+  }, publishers };
 }

@@ -1,5 +1,5 @@
-import { defineErrorCodes, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { cancelConnectorAuthorization, connectorAuthorizationInitiator, connectorAuthorizationStatus, releaseConnectorAuthorizationIntent } from "./connector-authorization-status.js";
+import { defineErrorCodes, requireSynchronous, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { cancelConnectorAuthorization, connectorAuthorizationInitiator, connectorAuthorizationStatus } from "./connector-authorization-status.js";
 import { commitRetainedConnectorAuthorization } from "./connector-authorization-commit.js";
 import { verifyEnabledConnection } from "./connector-check-service.js";
 import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
@@ -18,7 +18,9 @@ export const connectorSetupIntentAction: ActionDefinition = {
 export function connectorSetupIntentHandler(home: string, remember: ConnectorMcpDirectory["remember"]): ActionHandlerBinding {
   return { capability_id: connectorSetupIntentAction.capability_id, version: connectorSetupIntentAction.version, handle: async (caller, input) => {
     const choice = input as { authorization_id: string; intent_revision: string; decision: "retain" | "cancel" };
+    const assertCurrent = () => { caller.signal?.throwIfAborted(); requireSynchronous(caller.assert_authority_current?.()); };
     await caller.beforeEffect();
+    assertCurrent();
     const initiator = connectorAuthorizationInitiator(home, choice.authorization_id);
     if (!caller.runtime_session_id || initiator?.runtime_session_id !== caller.runtime_session_id || initiator.actor_id !== caller.actor_id || initiator.project_id !== caller.project_id) {
       throw errors.denied("只能根据本会话最新要求处理它自己发起的接入");
@@ -26,8 +28,8 @@ export function connectorSetupIntentHandler(home: string, remember: ConnectorMcp
     const request = connectorAuthorizationStatus(home, choice.authorization_id);
     if (request?.intent_revision !== choice.intent_revision || !["prepared", "pending"].includes(request.status)) throw errors.changed("接入要求已变化或请求已结束，请重新读取");
     if (choice.decision === "cancel") return cancelConnectorAuthorization(home, choice.authorization_id)!;
-    releaseConnectorAuthorizationIntent(home, choice.authorization_id, choice.intent_revision);
-    const result = (await commitRetainedConnectorAuthorization(home, choice.authorization_id))!;
-    return result.status === "connected" ? { ...result, verification: await verifyEnabledConnection(home, result.connection_id, remember, caller) } : result;
+    const control = { beforeEffect: () => caller.beforeEffect(), assertCurrent, signal: caller.signal };
+    const result = (await commitRetainedConnectorAuthorization(home, choice.authorization_id, choice.intent_revision, control))!;
+    return result.status === "connected" ? { ...result, verification: await verifyEnabledConnection(home, result.connection_id, remember, control) } : result;
   } };
 }

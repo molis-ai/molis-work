@@ -173,9 +173,10 @@ test("S-50 PG-009 an installation that did not declare, was not granted or stopp
     // The same path runs for an installation holding its kind once a person approves: the refusals above are the check, not the fixture.
     await host.runtime.start(holder);
     const prepared = await host.prepare("holder", "operation-held");
+    const preparedReview = host.reviews.get(prepared.review_id)!;
     assert.equal(host.reviews.get(prepared.review_id)?.plugin_id, pluginId("holder"), "the review names the installation that asked");
     assert.equal(host.worktrees(), 1, "nothing is created before a person approves");
-    const receipt = await host.reviews.respond({ review_id: prepared.review_id, decision: "approve", actor_id: "web-user" });
+    const receipt = await host.reviews.respond({ review_id: prepared.review_id, version: preparedReview.reference.version, decision: "approve", actor_id: "web-user" });
     assert.equal(receipt.status, "approved");
     assert.equal(receipt.effect_error, null);
     assert.equal(host.worktrees(), 2);
@@ -192,25 +193,27 @@ test("S-50 PG-009 a review whose installation stopped, restarted or lost review:
   try {
     const holder = await host.start("holder", declared, [REVIEW]);
     const first = await host.prepare("holder", "operation-stopped");
+    const firstReview = host.reviews.get(first.review_id)!;
     // W5-01-CODING-45: a review waiting for a person is not an approval, and the operation has not run.
     assert.throws(() => host.reviews.consumeApproval(first.review_id), { code: "agent.review_not_approved" });
     assert.equal(host.worktrees(), 1);
     // W5-01-CODING-44: the installation stops; what it asked for can no longer be approved, not even once it runs again,
     // since the new activation is not the one that asked. The person can still reject it.
     await host.runtime.stop(holder, { preserve_enabled: true });
-    await assert.rejects(host.reviews.respond({ review_id: first.review_id, decision: "approve", actor_id: "web-user" }), refused);
+    await assert.rejects(host.reviews.respond({ review_id: first.review_id, version: firstReview.reference.version, decision: "approve", actor_id: "web-user" }), refused);
     await host.runtime.start(holder);
-    await assert.rejects(host.reviews.respond({ review_id: first.review_id, decision: "approve", actor_id: "web-user" }), refused);
+    await assert.rejects(host.reviews.respond({ review_id: first.review_id, version: firstReview.reference.version, decision: "approve", actor_id: "web-user" }), refused);
     assert.equal(host.reviews.receipt(first.review_id)?.status, "pending");
-    assert.equal((await host.reviews.respond({ review_id: first.review_id, decision: "reject", actor_id: "web-user" })).status, "rejected");
+    assert.equal((await host.reviews.respond({ review_id: first.review_id, version: firstReview.reference.version, decision: "reject", actor_id: "web-user" })).status, "rejected");
     // The grant taken back: the person stops the plugin, withdraws review:git-worktree and starts it again.
     const second = await host.prepare("holder", "operation-withdrawn");
+    const secondReview = host.reviews.get(second.review_id)!;
     await host.runtime.stop(holder, { preserve_enabled: true });
     host.runtime.grant(holder, []);
     await host.runtime.start(holder);
-    await assert.rejects(host.reviews.respond({ review_id: second.review_id, decision: "approve", actor_id: "web-user" }), refused);
+    await assert.rejects(host.reviews.respond({ review_id: second.review_id, version: secondReview.reference.version, decision: "approve", actor_id: "web-user" }), refused);
     await assert.rejects(host.prepare("holder", "operation-after-withdrawal"), notHeld);
-    assert.equal((await host.reviews.respond({ review_id: second.review_id, decision: "reject", actor_id: "web-user" })).status, "rejected");
+    assert.equal((await host.reviews.respond({ review_id: second.review_id, version: secondReview.reference.version, decision: "reject", actor_id: "web-user" })).status, "rejected");
     assert.equal(host.worktrees(), 1, "no worktree was created");
   } finally {
     await host.close();
@@ -291,8 +294,9 @@ test("S-50 S-15 PG035-GIT-01 a staging or Git operation review is started only b
   // The same calls from the installation holding both kinds start the reviews: the refusals above are the check, not the fixture.
   // A workspace has one Git review waiting at a time, so the person rejects the first before the second is asked for.
   const staged = await holder.actions.invoke(prepareGitIndexCapability, stage(revision.index, "index-held"));
+  const stagedReview = h.reviews.get(staged.review_id)!;
   assert.equal(h.reviews.get(staged.review_id)?.plugin_id, holder.plugin.id, "the review names the installation that asked");
-  assert.equal((await h.reviews.respond({ review_id: staged.review_id, decision: "reject", actor_id: "web-user" })).status, "rejected");
+  assert.equal((await h.reviews.respond({ review_id: staged.review_id, version: stagedReview.reference.version, decision: "reject", actor_id: "web-user" })).status, "rejected");
   const branched = await holder.actions.invoke(prepareGitOperationCapability, branch(revision.operation, "operation-held"));
   assert.equal(h.reviews.get(branched.review_id)?.plugin_id, holder.plugin.id);
   assert.equal(h.reviews.receipt(branched.review_id)?.status, "pending");

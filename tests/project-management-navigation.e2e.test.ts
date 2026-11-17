@@ -17,7 +17,7 @@ test("Manage projects leaves a Coding session and returns from a responsive dire
     // nothing; on a loaded machine that can be a while, so the press is repeated, as a person would, until Coding is current.
     for (const deadline = Date.now() + 30_000; ;) {
       await click('[data-plugin-strip] [data-plugin-id="coding"]');
-      try { await waitFor("document.body.dataset.desktopSurface === 'coding'", 3_000); break; }
+      try { await waitFor("document.body.dataset.desktopSurface === 'coding' && document.querySelector('[data-plugin-picker-popover]')?.hidden !== false", 3_000); break; }
       catch (error) { if (Date.now() > deadline) throw error; }
     }
     await child.click('[data-coding-new]');

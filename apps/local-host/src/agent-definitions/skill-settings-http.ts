@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SKILLS_PERMISSIONS, skillAuthoringActions, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
+import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { SKILLS_PERMISSIONS, skillAuthoringActions, skillCatalogActions, skillDraftActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { isDeepStrictEqual } from "node:util";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -9,6 +9,14 @@ import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { pluginPageRequest } from "../plugin-page-authority.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
+
+/** A Skill's drafts, known answers, replays, versions and source (batch 42); adopting is under `/api/plugin-trust/skills/drafts/adopt`. */
+const WORKSHOP_ROUTES = new Map<string, ActionDefinition>([
+  ["/api/skills/drafts/list", skillDraftActions.list], ["/api/skills/drafts/read", skillDraftActions.read], ["/api/skills/drafts/create", skillDraftActions.create],
+  ["/api/skills/drafts/update", skillDraftActions.update], ["/api/skills/drafts/revise", skillDraftActions.revise], ["/api/skills/drafts/discard", skillDraftActions.discard],
+  ["/api/skills/drafts/cases/put", skillDraftActions.putCase], ["/api/skills/drafts/cases/remove", skillDraftActions.removeCase], ["/api/skills/drafts/trial", skillDraftActions.runTrial],
+  ["/api/skills/versions", skillDraftActions.versions], ["/api/skills/lineage/dismiss", skillDraftActions.dismissSource],
+] as Array<[string, ActionDefinition]>);
 
 /** Both settings scopes invoke the same catalog, through the authenticated person's transport. */
 export async function handleSkillSettingsHttp(request: IncomingMessage, response: ServerResponse, url: URL,
@@ -20,10 +28,10 @@ export async function handleSkillSettingsHttp(request: IncomingMessage, response
   try { return await dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/skills", maxBodyBytes: 32_000,
     async handle({ method, pathname, body }) {
       const definition = pathname === "/api/skills/list" ? skillCatalogActions.list : pathname === "/api/skills/set" ? skillCatalogActions.setState : pathname === "/api/skills/body" ? skillCatalogActions.readBodies
-        : pathname === "/api/skills/source" ? skillAuthoringActions.read : undefined;
+        : pathname === "/api/skills/source" ? skillAuthoringActions.read : WORKSHOP_ROUTES.get(pathname);
       if (!definition || method !== "POST") return null;
       if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人管理技能");
-      const caller = { ...await localWebActionContext(host, project, SKILLS_PERMISSIONS, controller.signal),
+      const caller = { ...await localWebActionContext(host, project, [...new Set([...SKILLS_PERMISSIONS, ...definition.action.permissions])], controller.signal),
         user_action: { source: "web" as const, conversation_ref: `web:${project?.project_id ?? "home"}`, message_ref: `web:${randomUUID()}` } };
       const client = project ? host.actionClient(project) : host.homeActionClient();
       const invoke = (context = caller) => client.invoke(context, { capability_id: definition.capability_id, version: definition.version }, body);

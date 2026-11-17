@@ -5,7 +5,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
-import type { AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRunRef, AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { CodingChangeSet } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingProductHost } from "./fixtures/coding-product-host.js";
@@ -28,10 +28,11 @@ test("S6 Coding writes the actual workspace through the installed SDK, Git stage
   });
   assert.equal(started.status, 200, JSON.stringify(started.body));
   const deadline = Date.now() + 15_000;
-  let reviewId = "";
+  let reviewId = "", reviewVersion = "";
   while (!reviewId) {
-    const reviews = await f.call<{ reviews: Array<{ request: { review_id: string; kind: string } }> }>(project, "/api/agent/reviews?status=pending");
-    reviewId = reviews.body.reviews.find(row => row.request.kind === "text-edit")?.request.review_id ?? "";
+    const reviews = await f.call<{ reviews: Array<{ request: AgentReviewRequest }> }>(project, "/api/agent/reviews?status=pending");
+    const presented = reviews.body.reviews.find(row => row.request.kind === "text-edit")?.request;
+    reviewId = presented?.review_id ?? ""; reviewVersion = presented?.reference.version ?? "";
     if (Date.now() > deadline) {
       const state = await f.call(project, coding + `/sessions/${session.body.session.session_id}`);
       assert.fail("the actual SDK write did not request its human review: " + JSON.stringify({ state, reviews: reviews.body, providerRequests: f.requests.length }));
@@ -40,7 +41,7 @@ test("S6 Coding writes the actual workspace through the installed SDK, Git stage
   }
   assert.equal(await readFile(join(f.directory, "note"), "utf8"), before, "SDK preparation cannot write before approval");
   assert.equal(await git("show", ":note"), before);
-  const approved = await f.call<{ receipt: { status: string } }>(project, "/api/agent/reviews/decide", { review_id: reviewId, decision: "approve" });
+  const approved = await f.call<{ receipt: { status: string } }>(project, "/api/agent/reviews/decide", { review_id: reviewId, version: reviewVersion, decision: "approve" });
   assert.equal(approved.status, 200, JSON.stringify(approved.body)); assert.equal(approved.body.receipt.status, "approved");
   const run = await f.ended(started.body.run.ref); assert.equal(run.phase, "completed", run.stop_reason);
   const settled = await f.call<{ reviews: Array<{ request: { review_id: string }; receipt: { effect_settled: boolean; effect_error: string | null } }> }>(project, "/api/agent/reviews");
@@ -61,7 +62,9 @@ test("S6 Coding writes the actual workspace through the installed SDK, Git stage
   assert.equal(selected.status, 200, JSON.stringify(selected.body)); assert.deepEqual([selected.body.result.before, selected.body.result.after], [before, after]);
   const prepared = await f.call<{ review_id: string }>(project, gitApi + "/prepare-index", { workspace_id: f.workspaceId, path: ["note"], action: "stage", revision: selected.body.result.revision, operation_id: randomUUID() });
   assert.equal(prepared.status, 200, JSON.stringify(prepared.body)); assert.equal(await git("show", ":note"), before);
-  const staged = await f.call<{ receipt: { effect_settled: boolean } }>(project, "/api/agent/reviews/decide", { review_id: prepared.body.review_id, decision: "approve" });
+  const pending = await f.call<{ reviews: Array<{ request: AgentReviewRequest }> }>(project, "/api/agent/reviews?status=pending");
+  const presented = pending.body.reviews.find(row => row.request.review_id === prepared.body.review_id)!.request;
+  const staged = await f.call<{ receipt: { effect_settled: boolean } }>(project, "/api/agent/reviews/decide", { review_id: prepared.body.review_id, version: presented.reference.version, decision: "approve" });
   assert.equal(staged.status, 200, JSON.stringify(staged.body)); assert.equal(staged.body.receipt.effect_settled, true);
   assert.equal(await git("show", ":note"), after);
   const gitView = await f.call<{ html: string }>(project, fixedPath(selected.body.selected.reference)); assert.equal(gitView.status, 200); assert.match(gitView.body.html, /SDK authored line/); assert.match(gitView.body.html, /Keep this exact final line/);

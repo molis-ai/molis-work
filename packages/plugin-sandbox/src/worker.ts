@@ -67,7 +67,9 @@ function sdk(callId: string): SandboxSdk {
     projectDatabase: {
       get: (sql, parameters) => invoke('projectDatabase.get', [sql, parameters ?? []]) as Promise<SandboxSqlRow | null>,
       all: (sql, parameters) => invoke('projectDatabase.all', [sql, parameters ?? []]) as Promise<SandboxSqlRow[]>,
-      transaction: statements => invoke('projectDatabase.transaction', [statements.map(item => ({ sql: item.sql, parameters: item.parameters ?? [] }))]) as Promise<Array<{ changes: number }>>,
+      transaction: statements => invoke('projectDatabase.transaction', [statements.map(({ sql, parameters, expected_changes }) => ({
+        sql, parameters: parameters ?? [], ...(expected_changes === undefined ? {} : { expected_changes }),
+      }))]) as Promise<Array<{ changes: number }>>,
     },
     homeDatabase: {
       get: (sql, parameters) => invoke('homeDatabase.get', [sql, parameters ?? []]) as Promise<SandboxSqlRow | null>,

@@ -8,6 +8,7 @@ export interface McpAccessEntry {
   plugin_id?: string;
   title: string; provider_title: string; description: string; kind: string;
   permissions: readonly string[];
+  expected: { expected_generation: string } | { expected_absent: true };
   status: "ungranted" | "enabled" | "disabled" | "unavailable" | "stale" | "missing" | "public";
   reason?: string;
   can_enable: boolean;
@@ -35,7 +36,7 @@ export function renderMcpAccessRows(model: Pick<McpAccessModel, "entries" | "que
   // One capability is one row: what it is, its state, the one thing to do; who provides it and what it needs open in place.
   return `<p class="mw-settings-section__note mcp-access-count" role="status">${uiText("workbench.mcp-access.count-count", { count: entries.length })}</p>${entries.length ? entries.map(row => {
     const key = mcpAccessEntryKey(row);
-    const action = (enabled: boolean, label: string) => `<button type="button" class="mw-btn mw-btn--secondary" data-mcp-grant="${e(key)}" data-grant-enabled="${enabled}">${uiText(label)}</button>`;
+    const action = (enabled: boolean, label: string) => `<button type="button" class="mw-btn mw-btn--secondary" data-mcp-grant="${e(key)}" data-grant-expected="${e(JSON.stringify(row.expected))}" data-grant-enabled="${enabled}">${uiText(label)}</button>`;
     return `<article class="mcp-access-row" data-grant-row="${e(key)}">${renderObjectRow({
       name: row.title, hint: row.description,
       state: { label: `${uiText.text(labels[row.status])}${row.reason ? ` · ${row.reason}` : ""}`, tone: tones[row.status] ?? "quiet",

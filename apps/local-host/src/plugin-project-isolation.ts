@@ -4,6 +4,7 @@ import { assertPluginActionCurrent, assertPluginReadCurrent, type PluginInstance
 import { SandboxError } from "@molis-ai/molis-work-plugin-sandbox";
 import type { ProjectStatementProcess } from "./project-statement-process.js";
 import { assertReadStatement, assertWriteStatement } from "./project-statement-protocol.js";
+import { projectReviewCommitControl, projectReviewForWrite } from "./project-review-effect.js";
 
 // A sandboxed plugin's statements in its own tables (`sdk.projectDatabase`), run in a process the Host can kill
 // (`project-statement-process.ts`) instead of on the Host's thread. The rules are those of `pluginDatabaseClient`, asked here
@@ -15,7 +16,7 @@ import { assertReadStatement, assertWriteStatement } from "./project-statement-p
 
 /** `services.project_statements` over one plugin's process; `declaration` names the grants. */
 export function isolatedProjectStatements(processes: ProjectStatementProcess, declaration: PluginDatabaseDeclaration,
-  authorize: (permission: string) => void, instance: PluginInstance, closed: () => boolean): PluginProjectStatements {
+  authorize: (permission: string) => void, instance: PluginInstance, closed: () => boolean, projectId?: string): PluginProjectStatements {
   const permit = (permission: string) => {
     if (closed()) throw new ActionError("actions.plugin_unavailable", "插件数据库已关闭");
     authorize("storage:private"); authorize(permission);
@@ -38,16 +39,33 @@ export function isolatedProjectStatements(processes: ProjectStatementProcess, de
     async transaction(beforeEffect, statements, signal) {
       permitWrite();
       await beforeEffect();
+      const decision = projectReviewForWrite(projectId, instance);
+      if (decision && (!decision.row || !statements.some(statement => (statement.expected_changes ?? 0) > 0))) {
+        throw new ActionError("actions.input_invalid", "本人决定的写入需要在事务内核对待审版本和预期的更新行数");
+      }
+      const target = decision?.review.review.target;
+      const reviewed = decision?.row && target ? { row: decision.row, id: target.subject.id, version: target.version } : undefined;
+      const control = decision && projectReviewCommitControl(instance);
       return await processes.transaction(signal, async transaction => {
         const results: Array<{ changes: number }> = [];
         for (const statement of statements) {
           signal.throwIfAborted(); permitWrite(); assertWriteStatement(statement.sql);
-          results.push({ changes: await transaction.run(statement.sql, statement.parameters) });
+          const changes = await transaction.run(statement.sql, statement.parameters);
+          if (statement.expected_changes !== undefined && changes !== statement.expected_changes) {
+            throw new ActionError("actions.conflict", "原业务对象已变化，已撤销本次事务");
+          }
+          results.push({ changes });
         }
         signal.throwIfAborted(); permitWrite();
-        try { await transaction.commit(); } catch (error) { throw committing(error, signal); }
+        let permitIssued = false;
+        try { await transaction.commit(decision, control ? () => {
+          permitWrite();
+          control.submit();
+          permitIssued = true;
+        } : undefined, () => { if (permitIssued) { control?.rolledBack(); permitIssued = false; } }); }
+        catch (error) { throw !decision || permitIssued ? committing(error, signal) : error; }
         return results;
-      }, permitWrite);
+      }, permitWrite, reviewed);
     },
   };
 }

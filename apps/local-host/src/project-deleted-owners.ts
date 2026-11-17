@@ -1,3 +1,4 @@
+import { forgetAutomationPreferences } from "@molis-ai/molis-work-service-automation-recommender";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { artifactsProjectData } from "@molis-ai/molis-work-module-artifacts";
@@ -9,6 +10,7 @@ import { rm } from "node:fs/promises";
 import { memoryErrors, purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
 import { clearObservationProjectFile } from "@molis-ai/molis-work-service-observation";
 import { clearEvaluationProjectFile } from "@molis-ai/molis-work-service-evaluation";
+import { clearExternalSessionsProjectFile, sessionsProjectData } from "@molis-ai/molis-work-service-sessions";
 import { randomUUID } from "node:crypto";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, hasStorageBusinessFiles, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
@@ -33,6 +35,8 @@ export const SEARCH_OWNER = { id: "search", label: null } as const;
 /** The work records of the project (observation-collection §6): a running Host's layer takes this id over, to drop its queue too. */
 export const OBSERVATION_OWNER = { id: "observation", label: { key: "workbench.project-deletion.observation" } } as const;
 export const EVALUATION_OWNER = { id: "evaluation", label: null } as const;
+/** External sessions' per-project AI read permit and filing suggestions (sessions-rebuild §8.5); a running Host updates its open index too. */
+export const EXTERNAL_SESSIONS_OWNER = { id: "external-sessions", label: sessionsProjectData.label } as const;
 
 /**
  * Memory is kept in the Agent runtime, which one process of the Home owns: the executor, the resident Web Host. A
@@ -128,7 +132,7 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     // Without a running Host there is no studio to close, only its directory to remove; the Host's own owner replaces this one.
     { id: "alchemist", label: { key: "workbench.project-deletion.alchemist" }, clear: projectId => rm(alchemistProjectDirectory(home, projectId), { recursive: true, force: true }) },
     pluginBuilderProjectOwner(home),
-    // Without a running Assistant nothing is queued or running for these works, so their rows are all there is to clear.
+    // The running Assistant closes original work permissions; another process leaves that step pending.
     { id: "assistant", label: { key: "workbench.project-deletion.assistant" }, clear: async projectId => { await purgeAssistantProject(home, projectId); } },
     // Project knowledge's cards (what the person edited on them, and what organizing used) are a plain library any process clears.
     { id: "knowledge", label: { key: "workbench.project-deletion.knowledge" }, clear: projectId => { clearKnowledgeProject(home, projectId); } },
@@ -139,8 +143,10 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     { id: "plugin-project-reach", label: null, clear: projectId => { new HomeConsentLedger(home).revokeProjectReach({ project_id: projectId }, new Date().toISOString()); } },
     // What the person let the project's background tasks read (task grant subjects of this project, in the Home's action grants).
     { id: "task-grants", label: null, clear: async projectId => { await forgetTaskGrantSubjects(home, subject => subject.project_id === projectId, "project_deleted"); } },
+    { id: "automation-recommendations", label: null, clear: projectId => forgetAutomationPreferences(home, projectId) },
     { ...OBSERVATION_OWNER, clear: projectId => { clearObservationProjectFile(home, projectId); } },
     { ...EVALUATION_OWNER, clear: projectId => { clearEvaluationProjectFile(home, projectId); } },
+    { ...EXTERNAL_SESSIONS_OWNER, clear: projectId => { clearExternalSessionsProjectFile(home, projectId); } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).
     memoryOwnerWithoutService(home),
     searchOwnerWithoutService(home),

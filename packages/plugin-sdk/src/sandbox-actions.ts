@@ -2,12 +2,35 @@ import { createHash } from 'node:crypto';
 import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxOperationContract, SandboxPluginContract, SandboxSchema, SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { TRUSTED_REVIEW_OWNER_INPUT_SCHEMA } from '@molis-ai/molis-work-contracts/services/project-approvals';
+import { canonicalJsonText, isRecord } from './json-value.js';
 import { sandboxOperationPermissions } from './sandbox-manifest.js';
 import { sandboxReadProtocolAction } from './sandbox-read-protocol.js';
+import { validTrustedReviewRow } from './action-declarations.js';
 
 /** The package identity already used for installed signed releases. It never depends on the running directory. */
 export const sandboxPackageBuildId = (pluginId: string, signature: string) => createHash('sha256').update(JSON.stringify([pluginId, signature])).digest('hex').slice(0, 32);
 export const sandboxActionId = (buildId: string, operationId: string) => 'generated.' + buildId.slice(0, 8) + '.' + operationId;
+
+function reviewDeclarationProblems(contract: SandboxPluginContract, scope: 'home' | 'project'): string[] {
+  return contract.operations.flatMap(operation => {
+    const review: unknown = operation.trusted_review;
+    if (review === undefined) return [];
+    const problem = (message: string) => ['Trusted review of ' + operation.id + ': ' + message];
+    if (scope !== 'project' || operation.kind !== 'command' || operation.external !== undefined || operation.background_job !== undefined
+      || !operation.effects.projectDatabase?.includes('write') || Object.keys(operation.effects).some(key => key !== 'projectDatabase')) {
+      return problem('the command must apply its change in its project database transaction');
+    }
+    if (!isRecord(review) || Object.keys(review).length !== 3 || !validTrustedReviewRow(review.row) || typeof review.reader !== 'string' || !Array.isArray(review.subject_kinds)
+      || !review.subject_kinds.length || review.subject_kinds.length > 30 || new Set(review.subject_kinds).size !== review.subject_kinds.length
+      || !review.subject_kinds.every(kind => typeof kind === 'string' && /^[a-z][a-z0-9_.:-]{0,127}$/.test(kind))) return problem('declare a reader, bounded subject kinds, and the reviewed row');
+    const reader = contract.operations.find(item => item.id === review.reader);
+    if (reader?.kind !== 'query' || reader.read_protocol !== undefined || reader.external !== undefined
+      || Object.keys(reader.effects).some(key => key !== 'projectDatabase') || reader.effects.projectDatabase?.includes('write')
+      || canonicalJsonText(reader.input) !== canonicalJsonText(TRUSTED_REVIEW_OWNER_INPUT_SCHEMA)) return problem('the original package must supply a local query by request_id');
+    return [];
+  });
+}
 
 function requiredPath(schema: SandboxSchema, path: unknown): SandboxSchema | undefined {
   if (typeof path !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(path) || path.length > 256) return;
@@ -89,7 +112,7 @@ export function assertSandboxUpgradeValidator(manifest: Pick<PluginManifest, "up
 
 /** One deterministic action projection for signed packages, generated releases and their running scopes. */
 export function sandboxOperationActions(input: { contract: SandboxPluginContract; buildId: string; version: number; title: string; scope: 'home' | 'project'; upgradeOperation?: string; hasProjectDatabase?: boolean }): ActionDefinition[] {
-  const problems = sandboxBackgroundProblems(input.contract);
+  const problems = [...sandboxBackgroundProblems(input.contract), ...reviewDeclarationProblems(input.contract, input.scope)];
   if (problems.length) throw pluginErrors.declaration_invalid(problems.join('; '));
   return input.contract.operations.filter(operation => operation.id !== input.upgradeOperation).map(operation => {
     if (operation.read_protocol !== undefined) {
@@ -103,10 +126,13 @@ export function sandboxOperationActions(input: { contract: SandboxPluginContract
       action: { local_id: operation.id, title: input.title + ' · ' + (operation.description || operation.id),
         description: '插件「' + input.title + '」的功能：' + (operation.description || operation.id), kind: operation.kind === 'query' ? 'query' : 'operation',
         scope: input.scope, scheduling: 'concurrent', audiences: ['user', 'agent', 'workflow', 'mcp', 'plugin'],
-        permissions: sandboxOperationPermissions(sandboxOperationEffects(input.contract, operation), input.hasProjectDatabase), subject_kinds: [],
+        permissions: sandboxOperationPermissions(sandboxOperationEffects(input.contract, operation), input.hasProjectDatabase), subject_kinds: operation.trusted_review?.subject_kinds ?? [],
         input_schema: { ...operation.input }, output_schema: { ...operation.output },
         ...(operation.external === undefined ? {} : { external: operation.external }),
         ...(operation.draft === undefined ? {} : { draft: operation.draft }),
+        ...(operation.trusted_review ? { requires_trusted_decision: true as const,
+          trusted_decision_row: operation.trusted_review.row,
+          trusted_decision_request: { capability_id: sandboxActionId(input.buildId, operation.trusted_review.reader), version: input.version } } : {}),
         ...(operation.background_job ? { background_job: { ...operation.background_job,
           status: { capability_id: sandboxActionId(input.buildId, operation.background_job.status), version: input.version } } } : {}),
       },

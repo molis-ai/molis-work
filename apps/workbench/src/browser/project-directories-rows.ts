@@ -1,10 +1,10 @@
 import type { ProjectDirectories, ProjectDirectory, ProjectDirectoryPage } from "@molis-ai/molis-work-contracts/modules/projects";
 
 /** `page` is the route's drawing half, one shape with the Host (`ProjectDirectoryPage`). */
-export type Answer = ProjectDirectories & { page: ProjectDirectoryPage };
+export type Answer = ProjectDirectories & { page: ProjectDirectoryPage & { tool_brought_ids?: readonly string[] } };
 export type Say = Record<"loading" | "failed" | "stale" | "added" | "removed" | "output" | "repaired" | "mapped" | "unmapped" | "remove_named" | "output_named"
   | "change_named" | "unmap_named" | "default_name" | "source_folder" | "source_other_default" | "source_former_default" | "choose_output" | "choose_source" | "stands" | "input_role" | "output_role"
-  | "instructions_on" | "instructions_off" | "instructions_default" | "instructions_unconfirmed", string>;
+  | "instructions_on" | "instructions_off" | "instructions_default" | "instructions_unconfirmed" | "confirmed" | "confirm_named", string>;
 export type Consequence = Record<"output" | "output_pick" | "source" | "source_pick", string>;
 /** A change the page posts, by the name `project-workspace-http.ts` maps to its `projects.directories.*` action; the revision is added there. */
 export type Change = { change: "add_input" | "remove_input" | "set_output" | "repair" | "map_source" | "unmap_source" | "set_instructions"; input: Record<string, unknown> };
@@ -48,19 +48,25 @@ export interface RowParts {
 export function directoryRows(parts: RowParts, directory: ProjectDirectory, place: "input" | "output"): HTMLElement[] {
   const { clone, say, names, state } = parts;
   const element = clone("row"), page = state.page, isOutput = directory.roles.includes("output"), isInput = directory.roles.includes("input");
+  const isToolBrought = Boolean(page.tool_brought_ids?.includes(directory.workspace_id));
   const name = names.nameOf(directory);
   const shown: Record<string, boolean> = {
     "input-glyph": place === "input", "output-glyph": place === "output", input: isInput, output: isOutput, missing: directory.state === "missing",
+    "tool-brought": isToolBrought,
+    "tool-brought-note": isToolBrought && (place === "input" || !isInput),
+    "confirm-input": isToolBrought && place === "input" && directory.state === "ok",
     unmade: place === "output" && directory.workspace_id === page.default_output_id && !page.default_output_made,
     same: place === "input" && isInput && isOutput, repair: directory.state === "missing" && (place === "input" || !isInput),
     "set-output": place === "input" && !isOutput, "change-output": place === "output", remove: place === "input",
   };
   element.querySelectorAll<HTMLElement>("[data-if]").forEach(node => { if (!shown[node.dataset.if as string]) node.remove(); });
   element.dataset.directoryRow = directory.workspace_id;
+  if (isToolBrought) element.dataset.toolBrought = "true";
   (element.querySelector("[data-text=name]") as HTMLElement).textContent = name;
   const path = element.querySelector("[data-text=path]") as HTMLElement;
   path.textContent = path.title = directory.canonical_path;
   const label = (act: string, text: string) => element.querySelector(`[data-act=${act}]`)?.setAttribute("aria-label", fill(text, { name }));
+  label("confirm-input", say.confirm_named);
   label("remove", say.remove_named);
   label("set-output", say.output_named);
   element.querySelectorAll<HTMLElement>("[data-act]").forEach(button => { button.dataset.workspace = directory.workspace_id; });

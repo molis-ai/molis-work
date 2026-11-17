@@ -230,6 +230,10 @@
       "types": "./dist/services/scheduler.d.ts",
       "import": "./dist/services/scheduler.js"
     },
+    "./services/automation-recommender": {
+      "types": "./dist/services/automation-recommender.d.ts",
+      "import": "./dist/services/automation-recommender.js"
+    },
     "./services/knowledge": {
       "types": "./dist/services/knowledge.d.ts",
       "import": "./dist/services/knowledge.js"
@@ -250,6 +254,10 @@
       "types": "./dist/services/observation.d.ts",
       "import": "./dist/services/observation.js"
     },
+    "./services/project-approvals": {
+      "types": "./dist/services/project-approvals.d.ts",
+      "import": "./dist/services/project-approvals.js"
+    },
     "./services/evaluation": {
       "types": "./dist/services/evaluation.d.ts",
       "import": "./dist/services/evaluation.js"
@@ -265,6 +273,10 @@
     "./services/skills": {
       "types": "./dist/services/skills.d.ts",
       "import": "./dist/services/skills.js"
+    },
+    "./services/skill-placeholders": {
+      "types": "./dist/services/skill-placeholders.d.ts",
+      "import": "./dist/services/skill-placeholders.js"
     },
     "./services/kit": {
       "types": "./dist/services/kit.d.ts",

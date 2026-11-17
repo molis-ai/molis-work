@@ -444,9 +444,9 @@ test("workbench settings directory and standalone settings list the same grouped
   // 本机目录 (PG-049) is the platform's page of local-folder permissions, under 本机. The AI group is 模型设置 · 助理 · 角色 · 能力包
   // (specs/capability-pack/spec.md decision 3): 技能 merged into 能力包, and 提示词 is opened from a prompt's detail there.
   // 更新 (upgrade-continuity U3 §5.4) is under 系统; 运行 (resident-runtime-design §5, RES-11) is the desktop app's own and listed only there.
-  assert.deepEqual(sectionOrder, ["appearance", "directories", "memory", "work-records", "sync", "models", "assistant", "characters", "kit", "runtimes", "library", "connections", "access", "history", "update", "diagnostics", "shelf"]);
+  assert.deepEqual(sectionOrder, ["appearance", "directories", "memory", "work-records", "sync", "models", "assistant", "characters", "kit", "runtimes", "library", "connections", "access", "authorizations", "history", "update", "diagnostics", "shelf"]);
   const inDesktop = renderSettingsDirectorySection(directoryPrimitives, shownProjectPlugins(["goals"]), true);
-  assert.deepEqual([...inDesktop.matchAll(/data-settings-section="([^"]+)"/g)].map((match) => match[1]).slice(14, 17), ["running", "update", "diagnostics"], "RES-11 运行 in the desktop");
+  assert.deepEqual([...inDesktop.matchAll(/data-settings-section="([^"]+)"/g)].map((match) => match[1]).slice(15, 18), ["running", "update", "diagnostics"], "RES-11 运行 in the desktop");
   assert.doesNotMatch(withGoals, /data-settings-cover/);
   assert.deepEqual([...withGoals.matchAll(/class="settings-directory-group"[^>]*>([^<]+)</g)].map((match) => match[1]), ["本机", "个人", "AI", "工具与接入", "系统", "插件"]);
   assert.doesNotMatch(directory, /Gmail|Inbox/);
@@ -478,7 +478,7 @@ test("workbench settings directory and standalone settings list the same grouped
   assert.match(appearance, /href="\/settings\/shelf"/);
   assert.match(appearance, /href="\/capabilities\/library"/);
   const standaloneOrder = [...appearance.matchAll(/href="\/settings\/([a-z-]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(standaloneOrder, ["appearance", "directories", "memory", "work-records", "sync", "models", "assistant", "characters", "kit", "runtimes", "update", "diagnostics", "shelf"]);
+  assert.deepEqual(standaloneOrder, ["appearance", "directories", "memory", "work-records", "sync", "models", "assistant", "characters", "kit", "runtimes", "authorizations", "update", "diagnostics", "shelf"]);
   assert.doesNotMatch(appearance, /href="\/settings\/connectors"/);
   assert.match(appearance, /class="settings-document appearance-document"/);
   assert.doesNotMatch(appearance, /data-settings-panel="shelf"|name="drop_wheel_enabled"|class="shelf-settings-document"/);

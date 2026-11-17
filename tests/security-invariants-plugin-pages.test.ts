@@ -45,7 +45,7 @@ test("SYS-15 S-47 registered HTTP pages allow only their own concrete routes and
     ["io.molis.work.alchemist", "/api/alchemist/studio/api/v1/bootstrap", "/api/plugin-builder/studio/state"]]) {
     const headers = await open(id), second = await open(id);
     assert.equal((await f.request(prefix + read, { headers })).status, 200);
-    for (const path of [foreign, "/api/settings/models", `/api/plugins/${id}/view-revision`, "/api/host/directory-grants", "/api/host/plugin-page-actions", "/api/host/plugin-page-files"]) {
+    for (const path of [foreign, "/api/settings/models", `/api/plugins/${id}/view-revision`, "/api/host/directory-grants", "/api/host/plugin-page-actions", "/api/host/plugin-page-files", "/api/sessions/list", "/api/sessions/scope"]) {
       const result = await f.request(prefix + path, { headers, ...(path.startsWith("/api/host/") ? { method: "POST", body: {} } : {}) });
       assert.equal(result.status, 403, path + ": " + await result.text());
     }
@@ -751,9 +751,12 @@ test("S-skill-authoring a plugin page cannot call the authored Skills routes thr
   const opened = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: "io.molis.work.plugin-builder" } });
   assert.equal(opened.status, 200, await opened.clone().text());
   const headers = { "x-molis-plugin-page": (await opened.json()).page_id as string };
-  for (const route of ["save", "draft", "remove"]) {
-    const response = await f.request(`${prefix}/api/plugin-trust/skills/authored/${route}`, { method: "POST", headers,
-      body: { name: "p", description: "d", applies_to: "assistant", body: "b", scope: "project", intent: "i", skill_id: "s", expected_version: 1 } });
+  // Adopting a draft is the only way a Skill's content changes (batch 42); writing, replaying and the rest of the workshop are
+  // under `/api/skills/` and are refused the same way.
+  for (const route of ["/api/plugin-trust/skills/drafts/adopt", "/api/plugin-trust/skills/authored/draft", "/api/plugin-trust/skills/authored/remove",
+    "/api/skills/drafts/create", "/api/skills/drafts/update", "/api/skills/drafts/trial", "/api/skills/drafts/revise", "/api/skills/drafts/discard"]) {
+    const response = await f.request(`${prefix}${route}`, { method: "POST", headers,
+      body: { draft_id: "d", revision: 1, target: { kind: "new" }, scope: "project", intent: "i", instruction: "i", skill_id: "s" } });
     assert.equal(response.status, 403, `${route}: ${await response.text()}`);
   }
 });

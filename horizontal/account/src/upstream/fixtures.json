@@ -1,5 +1,5 @@
 {
-  "contractVersion": "1.2.0",
+  "contractVersion": "1.3.0",
   "syntheticOnly": true,
   "fixtures": [
     {
@@ -4856,6 +4856,34 @@
       }
     },
     {
+      "name": "LoginCapabilitiesQuery:minimal-valid",
+      "schema": "LoginCapabilitiesQuery",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "LoginCapabilitiesQuery:wrong-root-type",
+      "schema": "LoginCapabilitiesQuery",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginCapabilities:minimal-valid",
+      "schema": "LoginCapabilities",
+      "valid": true,
+      "value": {
+        "methods": []
+      }
+    },
+    {
+      "name": "LoginCapabilities:wrong-root-type",
+      "schema": "LoginCapabilities",
+      "valid": false,
+      "value": null
+    },
+    {
       "name": "ManagementHandoffRequest:minimal-valid",
       "schema": "ManagementHandoffRequest",
       "valid": true,
@@ -4914,6 +4942,23 @@
     {
       "name": "ProductLoginResult:wrong-root-type",
       "schema": "ProductLoginResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginCapabilitiesResponse:minimal-valid",
+      "schema": "LoginCapabilitiesResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "methods": []
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "LoginCapabilitiesResponse:wrong-root-type",
+      "schema": "LoginCapabilitiesResponse",
       "valid": false,
       "value": null
     },

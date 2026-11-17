@@ -36,13 +36,6 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
 
     const showToast = (message,error=false) => {molisWorkRequest.toast(toast,typeof message==="string"?undefined:message,typeof message==="string"?message:undefined,{ms:2200});toast.dataset.mwState=error?"failed":"done";toast.classList.toggle("is-error",error);};
 
-    const { handleGoalPolicySubmit } = (${GOALS_PAGE.goalsPolicy})({
-      route, controlHeaders: molisWorkControlHeaders, translate: globalThis.t.text, requireFormFacts, showToast,
-      refreshBoard: (...args) => refreshBoard(...args),
-      showFactorReceipt: (...args) => showFactorReceipt(...args),
-      humanDecisionError: (...args) => humanDecisionError(...args),
-    });
-
     const goalPageBase = () => route(trashView ? "/trash/goals/" : archiveView ? "/archive/goals/" : "/goals/");
     const goalPageUrl = (goalId) => goalPageBase() + encodeURIComponent(goalId) + (document.body.dataset.nativeDesktop === "true" ? "?desktop=1" : "");
 

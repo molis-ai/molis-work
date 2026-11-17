@@ -1,8 +1,9 @@
-import { isRecord } from "./json-value.js";
+import { canonicalJsonText, isRecord } from "./json-value.js";
 import { isId, isOutputPath, isText, isVersion } from "./action-declarations.js";
 import { readerKinds } from "./context-declarations.js";
 import { schemaFields, schemaPathExists } from "./schema-paths.js";
 import { workExecutorSetProblems } from "./work-executor-declarations.js";
+import { TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA, TRUSTED_REVIEW_OWNER_INPUT_SCHEMA } from "@molis-ai/molis-work-contracts/services/project-approvals";
 
 // The checks a group of action declarations gets as a whole: the actions one declaration points at (the undo command, the job's
 // status query, the targets of fragment and subject options) must be declared in the same group, as the kind of action the
@@ -40,7 +41,18 @@ export function inspectActionCrossReferences(definitions: unknown): string[] {
     ...subjectTargetProblems(source, group),
     ...resultSubjectProblems(source),
     ...composerKindProblems(source, readable),
+    ...trustedReviewReaderProblems(source, group),
   ]), ...workExecutorSetProblems([...group.values()])];
+}
+
+function trustedReviewReaderProblems(source: Declared, group: DeclaredGroup): string[] {
+  const ref = source.action.trusted_decision_request;
+  if (!isRecord(ref) || !isPointer(ref)) return [];
+  const reader = group.get(referenceText(ref)), audiences = reader?.action.audiences;
+  if (reader?.operation === "query" && reader.action.scope === "project" && Array.isArray(audiences) && audiences.includes("user")
+    && [TRUSTED_REVIEW_OWNER_INPUT_SCHEMA, TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA].some(schema =>
+      canonicalJsonText(reader.action.input_schema) === canonicalJsonText(schema))) return [];
+  return [`能力 ${source.key} 的可信决定查询必须来自原提供方，按 request_id 读项目且对本人开放`];
 }
 
 function declaredGroup(definitions: unknown): DeclaredGroup {

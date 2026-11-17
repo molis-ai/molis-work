@@ -146,10 +146,18 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
       items.forEach((row) => {
         const item = el("li", "assistant-capability");
         const { control, toggle } = switchOf(row.enabled, row.title);
+        const save = async (patch) => {
+          const saved = await api("/capabilities", { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, expected: row.expected, ...patch });
+          window.dispatchEvent(new CustomEvent("molis:authorization-changed"));
+          return saved;
+        };
         toggle.addEventListener("change", async () => {
           toggle.disabled = true;
-          try { await api("/capabilities", { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, enabled: toggle.checked }); row.enabled = toggle.checked; paint(); }
-          catch (failure) { toggle.checked = row.enabled; toggle.disabled = false; alert(molisWorkRequest.text(failure)); }
+          try { Object.assign(row, await save({ enabled: toggle.checked })); if (body.contains(item)) paint(); }
+          catch (failure) {
+            if (failure.status === 409 && failure.body?.details?.current) Object.assign(row, failure.body.details.current);
+            if (body.contains(item)) { paint(); alert(molisWorkRequest.text(failure)); }
+          }
         });
         item.append(settingRow(row.title, row.description || "", [el("span", "assistant-capability-effect", EFFECT[row.effect] ? globalThis.t.text(EFFECT[row.effect]) : row.effect), control]));
         // A change that can be undone runs when asked without a confirmation; the person may want it confirmed each time.
@@ -157,8 +165,11 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
           const ask = switchOf(Boolean(row.confirm_always)), box = ask.toggle;
           box.addEventListener("change", async () => {
             box.disabled = true;
-            try { await api("/capabilities", { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, confirm_always: box.checked }); row.confirm_always = box.checked; }
-            catch (failure) { box.checked = Boolean(row.confirm_always); alert(molisWorkRequest.text(failure)); }
+            try { Object.assign(row, await save({ confirm_always: box.checked })); }
+            catch (failure) {
+              if (failure.status === 409 && failure.body?.details?.current) Object.assign(row, failure.body.details.current);
+              if (body.contains(item)) { paint(); alert(molisWorkRequest.text(failure)); }
+            }
             finally { box.disabled = false; }
           });
           item.append(settingRow(globalThis.t.text("workbench.settings-assistant.ask-me-before-each-run-can-be-undone"), "", [ask.control], "label", "mw-setting-row--sub"));

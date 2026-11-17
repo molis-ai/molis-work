@@ -45,7 +45,7 @@ async function world(t: TestContext, script: (hold: () => PromiseWithResolvers<v
   /** The round ends; a step the round asks the person about is approved. */
   const ended = async (ref: AgentRunRef) => {
     await until("the round ends", async () => {
-      for (const review of queue.list("project", "pending")) await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "person" });
+      for (const review of queue.list("project", "pending")) await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "person" });
       return ["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes((await adapter.read(ref)).phase);
     });
     return adapter.read(ref);

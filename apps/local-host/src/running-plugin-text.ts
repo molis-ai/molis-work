@@ -51,7 +51,7 @@ export function runningPluginTextIn({ store, localHost, projectId }: {
 }
 
 /** Outside a project only the Home's own plugins run. */
-export function runningHomePluginText(localHost: MolisWorkLocalHost): (release: RunningRelease) => Promise<RunningPluginText | null> {
+export function runningHomePluginText(localHost: Pick<MolisWorkLocalHost, "homePlugins">): (release: RunningRelease) => Promise<RunningPluginText | null> {
   let homePlatform: Promise<HomePluginPlatform | undefined> | undefined;
   return async release => {
     homePlatform ??= localHost.homePlugins?.ready({ start: false }).catch(() => undefined);

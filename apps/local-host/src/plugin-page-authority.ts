@@ -377,8 +377,8 @@ export class PluginPageAuthority {
     const surfaceSlot = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
       && Boolean(page.project_id && page.selection?.surfaceSlotSource) && request.method === "POST" && pathname === "/api/contextual/surface-slot";
     const reviewChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined && Boolean(page.project_id)
-      && (request.method === "GET" && ["/api/agent/reviews", "/api/agent/reviews/recovery"].includes(pathname)
-        || request.method === "POST" && ["/api/agent/reviews/decide", "/api/agent/reviews/recovery"].includes(pathname));
+      && (request.method === "GET" && ["/api/agent/reviews", "/api/agent/reviews/recovery", "/api/agent/reviews/permission"].includes(pathname)
+        || request.method === "POST" && ["/api/agent/reviews/decide", "/api/agent/reviews/recovery", "/api/agent/reviews/permission"].includes(pathname));
     if (contextual !== undefined ? !contextChoice && !workspaceChoice && !reviewChoice && !slotChoice && !taskGrantsChoice && !surfaceSlot : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
     const permission = directory ? "directory:read" : workspaceChoice ? "workspace:read" : route?.permission ?? undefined;
     const controller = new AbortController();

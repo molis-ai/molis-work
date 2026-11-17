@@ -34,8 +34,9 @@ const settingsSections = (shown?: readonly string[]) => inChinese(() => groupedG
 
 test("Characters' page is the Host's Settings › 角色 with the user glyph, not in navigation", () => {
   const artifacts = { id: "artifacts", surface: "artifacts", glyph: "package", group: "make", rail: null, pinned_default: false, chosen: false };
-  assert.deepEqual(inChinese(() => railEntries(["characters"])), [{ ...artifacts, label: "成果" }]);
-  assert.deepEqual(withPagePacks("en", [...packs, shippedPagePack("workbench", "en")], () => railEntries(["characters"])), [{ ...artifacts, label: "Artifacts" }]);
+  const sessions = { id: "sessions", surface: "sessions", glyph: "history", group: "make", rail: null, pinned_default: false, chosen: false };
+  assert.deepEqual(inChinese(() => railEntries(["characters"])), [{ ...artifacts, label: "成果" }, { ...sessions, label: "外部会话" }]);
+  assert.deepEqual(withPagePacks("en", [...packs, shippedPagePack("workbench", "en")], () => railEntries(["characters"])), [{ ...artifacts, label: "Artifacts" }, { ...sessions, label: "External Sessions" }]);
   assert.equal(pluginTabGlyphs().characters, undefined);
   const sections = settingsSections(["characters"]);
   const pages = sections.filter((item) => item.id === "characters");

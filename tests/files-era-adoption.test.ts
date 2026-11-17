@@ -154,10 +154,12 @@ test("BSH-14-F/M3 a Home the Files-era build made is adopted project by project 
       assert.equal(adoptProjectDatabase({ home, owner, projectId: project.project_id, backupDirectory: join(root, "backups") }).state, "current", `${project.display_name}: nothing left to adopt`);
     }
   } finally { owner.release(); }
-  // The next start finds each adopted library at this build's version and brings the plugin tables that waited behind it up with it.
+  // The next start finds each adopted library at this build's version and brings the plugin tables that waited behind it up with it
+  // (`#goals` was already migrated atomically with `molis-work.db` 3 → 4 during adoption).
   const restarted = runHomeUpgrade(home);
-  assert.deepEqual(restarted.units.filter(unit => unit.kind === "plugin_tables" && unit.state === "committed").map(unit => unit.relative_path).sort(), waitingTables);
-  assert.ok(restarted.stamped && restarted.units.every(unit => unit.state === "committed"), JSON.stringify(restarted.units));
+  assert.deepEqual(restarted.units.filter(unit => unit.kind === "plugin_tables" && unit.state === "committed").map(unit => unit.relative_path).sort(),
+    waitingTables.filter(path => !path.endsWith("#goals")));
+  assert.ok(restarted.stamped && restarted.units.every(unit => unit.state === "committed" || (unit.relative_path.endsWith("#goals") && unit.state === "current")), JSON.stringify(restarted.units));
   assert.deepEqual(membership(home), membershipBefore, "the catalog is as it was");
   assert.deepEqual(consents(home), consentsBefore, "the person's agreements are exactly as they were: the one taken back keeps its time, the rest stay current");
 

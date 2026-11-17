@@ -43,7 +43,7 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 
 - **连接工具**（平台工具，名称以 `molis_work_v1_` 开头）：`context_resolve`、`context_list_projects`、`context_reject_suggestion`、`context_bind`、`context_unbind`、`context_create_and_bind`、`project_delete`。连接工具不收 `actor_id`：宿主记录这次调用的 MCP 客户端与 Runtime 会话（`runtime:<runtime_id>:<会话>`；宿主没有声明稳定会话时只记 `runtime:<runtime_id>`），参数里带了身份字段会被 `mcp.unexpected_field` 拒绝，什么也不写。
 - **动作工具**：系统同一能力注册表里的每个动作，名称是 `molis_work_v1_action_<动作>__v<版本>`，例如 `molis_work_v1_action_goals.list__v1`。Goals、判断规则和各插件的能力都只经这一种方式对外。
-- **管理工具**（只在受信管理入口 `MOLIS_WORK_MCP_AUDIENCE=management` 出现）：`molis_work_v1_initialize`、`molis_work_v1_goal_tree_decide`、`molis_work_v1_event_decide`，各调用一个 Goals 动作（`goals.board.initialize@1`、`goals.tree.decide@1`、`goals.decisions.record@1`）；说明与业务字段取自动作定义，名字只在 `apps/mcp/src/tool-dispatch.ts` 与动作并列写一处。身份与参数的规则见本节末尾「用户的决定」那一段。
+- **管理工具**（`MOLIS_WORK_MCP_AUDIENCE=management`）提供 `molis_work_v1_initialize`、`molis_work_v1_review_request` 和 `molis_work_v1_review_decide`。项目审批由平台把决定送到原动作提供方，同一入口适用于各插件。
 
 动作工具只在用户为这个客户端、这个范围（全局或某个项目）逐项授权后出现。在「能力 → 对外接入」选择客户端和范围，可按名称或来源搜索、查看所需权限并逐项授权或撤销。授权准确绑定能力版本与提供方；发现和每次实际执行都检查最新授权，撤销后原连接的下一次调用也会被拒绝；客户端自己的工具列表可能需要刷新。项目绑定本身不授予任何动作。 在途搜索与已受理后台任务保留这次受理时的原精确授权代次；撤销后同值重新授权只对新受理调用生效，无关授权编辑和幂等保存不会打断合法调用。错版的授权配置由统一离线维护窗口处理，运行时拒绝并保留原件。
 
@@ -69,7 +69,7 @@ AI来源修改已有对象时，提交动作schema声明的读取版本（`expec
 
 最短工作路径是 `goals.create` → `goals.note`，无需类型或规划。需要结构化结果时用 `goals.events.configure` / `goals.events.report`。报告可以含多个事实和进展，整批有效才保存，回执给出当前状态、差距和游标。
 
-用户的决定只在受保护的 Web 界面或受信管理入口写入，不属于 Runtime。Runtime 可以提交具体变化、请求或引用已保存的有效决定，不能自填用户身份、确认文本或会话字段批准自己。受信管理入口使用 `MOLIS_WORK_MCP_AUDIENCE=management`，额外有平台工具 `initialize`、`event_decide`、`goal_tree_decide`；身份由宿主定为本机这个人（`web-user`），这三个工具的参数里没有身份字段：`event_decide` 带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 被拒绝（`mcp.unexpected_field`），`goal_tree_decide` 同样被拒绝（`actions.input_invalid`），`event_decide` 本身不带 `authority`，决定指向管理入口自身，宿主记本机这个人（出处 management）；`goal_tree_decide` 的 `authority` 只写对话出处 `conversation_ref`、`message_ref`（以及整组确认），在 `authority` 里带身份或出处（`actor_id`、`actor_kind`、`authority_source`）被拒绝（`goals.goal_tree_proposal.authority_source_invalid`）；`initialize` 只取 `project_id`、`title`、`idempotency_key`，其余参数不读、不当作身份，也不报错。三个管理业务各调用一个 Goals 动作，身份与单一动作权限由 Host 的私有管理工厂提供。传输未知字段、身份和 authority 的前置拒绝可无动作行、无编号；进入动作后的调用只结算一次，留行才带 Host 编号，客户端自带的编号不读。工具名、schema、成功 JSON 和原出处规则不变。这三个工具指向项目库时必须给出路径：参数 `database_path`，或环境变量 `MOLIS_WORK_DATABASE`；两者都没有就报 `mcp.path_required`，没有按当前目录猜的默认路径。
+用户在受保护的 Web 或管理入口作出决定。管理 MCP 先调用 `molis_work_v1_review_request`，传入原动作的 `action` 和 `request_id`，或直接传 `reference` 回看。同一请求有多个可能的业务效果时，先在只读调用中提交本人选定的 `draft`。确认当前选项之后，调用 `molis_work_v1_review_decide` 并传同一 `reference`、`choice_id` 和 `request_key`，可以附备注。原版本、项目、安装、授权与规则仍有效时才执行；原操作编号的相同重试返回原回执。身份和出处由 Host 注入。Runtime 可请求或引用已保存的决定。管理工具使用显式 `database_path` 或 `MOLIS_WORK_DATABASE` 指定项目库。
 
 服务不可用时报告失败，不切换数据库、改 URL 或使用 CLI 兜底。`mcp.context_refresh_required` 仅要求只读 `context_resolve`：返回 bound 后用原 idempotency_key 原样重试；未绑定则按项目选择流程处理。
 

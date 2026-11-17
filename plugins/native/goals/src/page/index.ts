@@ -1,4 +1,3 @@
-import { DEFAULT_GOAL_POLICY } from "../module/default-policy.js";
 import { createGoalsDocuments } from "./documents.js";
 import { createGoalsRendererFactories } from "./factories.js";
 import { createGoalsRenderers } from "./renderers.js";
@@ -23,7 +22,7 @@ export type { GoalInputsCreatableKind } from "./inputs.js";
  */
 export function createGoalsPage<TView extends GoalsPageView>(ports: GoalsPagePorts<TView>) {
   const factories = createGoalsRendererFactories(ports.mount);
-  const goals = createGoalsRenderers<TView>({ ...ports, defaultPolicy: DEFAULT_GOAL_POLICY }, factories);
+  const goals = createGoalsRenderers<TView>(ports, factories);
   const documents = createGoalsDocuments<TView>({ ...ports, goals }, factories);
   return { goals, documents };
 }

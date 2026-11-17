@@ -279,8 +279,6 @@ export interface MwMaterialsTrackOptions {
     readonly title?: string;
 }
 
-export type MwObjectRowTone = "ok" | "quiet" | "attention" | "bad";
-
 export interface MwRoundReportCardOptions {
     readonly statusLabel: string;
     readonly statusTone: MwStatusTone;
@@ -334,6 +332,82 @@ export interface MwScopeDeltaItem {
 }
 
 export type MwStatusTone = "idle" | "progress" | "attention" | "hold" | "blocked" | "done" | "quiet";
+
+export interface MwSubtaskAction {
+    readonly id: string;
+    readonly ref: string;
+    readonly label: string;
+    readonly title?: string;
+    readonly disabled?: string;
+}
+
+export type MwSubtaskContent = {
+    readonly text: string;
+} | {
+    readonly html: string;
+};
+
+export interface MwSubtaskConversationLabels {
+    readonly back: string;
+    readonly close: string;
+    readonly loading: string;
+    readonly readFailed: string;
+    readonly retry: string;
+    readonly latest: string;
+    readonly messages: string;
+    readonly children: string;
+    readonly unread: string;
+    readonly working: string;
+    readonly actionFailed: string;
+    readonly unknown: string;
+    readonly check: string;
+}
+
+export interface MwSubtaskConversationView {
+    readonly target: string;
+    readonly binding: string;
+    readonly title: string;
+    readonly parent: MwSubtaskLink;
+    readonly status: {
+        readonly state: StateRingState;
+        readonly label: string;
+    };
+    readonly summary?: string;
+    readonly messages: readonly MwSubtaskMessage[];
+    readonly details?: readonly MwSubtaskDetail[];
+    readonly children?: readonly MwSubtaskLink[];
+    readonly actions?: readonly MwSubtaskAction[];
+    readonly running: boolean;
+    readonly inputUnavailable?: string;
+    readonly pending?: {
+        readonly kind: "input" | "action";
+        readonly requestId: string;
+        readonly message: string;
+        readonly check: MwSubtaskAction;
+    };
+}
+
+export interface MwSubtaskDetail {
+    readonly id: string;
+    readonly title: string;
+    readonly content: MwSubtaskContent;
+    readonly actions?: readonly MwSubtaskAction[];
+    readonly expanded?: boolean;
+}
+
+export interface MwSubtaskLink {
+    readonly target: string;
+    readonly title: string;
+    readonly unread?: boolean;
+}
+
+export interface MwSubtaskMessage {
+    readonly id: string;
+    readonly role: "user" | "assistant" | "notice";
+    readonly name?: string;
+    readonly content: MwSubtaskContent;
+    readonly receipt?: string;
+}
 
 export interface MwTaskAttemptBudgetOptions {
     readonly headerText: string;
@@ -801,19 +875,6 @@ export declare function renderLabel(options: {
     className?: string;
 }): string;
 
-export declare function renderListToolbar(options: {
-    label: string;
-    search: string;
-    filters?: string;
-    more?: {
-        label: string;
-        body: string;
-    };
-    end?: string;
-    className?: string;
-    attrs?: Record<string, AttrValue>;
-}): string;
-
 export declare function renderMaterialIssueRow(options: MwMaterialIssueRowOptions): string;
 
 export declare function renderMaterialsFunnel(counts: ReadonlyArray<{
@@ -859,23 +920,6 @@ export declare function renderNumberField(options: {
     attrs?: Record<string, AttrValue>;
 }): string;
 
-export declare function renderObjectRow(options: {
-    name: string;
-    hint?: string;
-    icon?: PluginIconName;
-    mark?: string;
-    state?: {
-        label: string;
-        tone?: MwObjectRowTone;
-        attrs?: Record<string, AttrValue>;
-    };
-    action?: string;
-    body?: string;
-    open?: boolean;
-    className?: string;
-    attrs?: Record<string, AttrValue>;
-}): string;
-
 export declare function renderOtpField(options?: {
     length?: number;
     name?: string;
@@ -909,16 +953,6 @@ export declare function renderProgress(options: {
     value: number;
     max?: number;
     label?: string;
-    className?: string;
-}): string;
-
-export declare function renderQuestionList(options: {
-    rows: ReadonlyArray<{
-        question: string;
-        answer: string;
-        action?: string;
-        attrs?: Record<string, AttrValue>;
-    }>;
     className?: string;
 }): string;
 
@@ -975,27 +1009,6 @@ export declare function renderSelect(options?: MwInputOptions & {
 
 export declare function renderSeparator(options?: {
     className?: string;
-}): string;
-
-export declare function renderSettingRow(options: {
-    name: string;
-    hint?: string;
-    control: string;
-    label?: boolean;
-    className?: string;
-    attrs?: Record<string, AttrValue>;
-    nameAttrs?: Record<string, AttrValue>;
-    hintAttrs?: Record<string, AttrValue>;
-}): string;
-
-export declare function renderSettingsSection(options: {
-    title?: string;
-    body: string;
-    id?: string;
-    action?: string;
-    lead?: string;
-    className?: string;
-    attrs?: Record<string, AttrValue>;
 }): string;
 
 export declare function renderSeverityGrid(options: {
@@ -1083,6 +1096,12 @@ export declare function renderStatusMark(options: {
 export declare function renderStepDot(options: {
     label: string;
     className?: string;
+}): string;
+
+export declare function renderSubtaskConversation(options: {
+    readonly labels: MwSubtaskConversationLabels;
+    readonly view?: MwSubtaskConversationView;
+    readonly composerHtml?: string;
 }): string;
 
 export declare function renderSwitch(options: {

@@ -39,7 +39,10 @@ export async function changeCodingSessionLifecycle(a: CodingActivation, executio
   if (record.archived === archived && (!session || executionArchived === archived)) throw codingStoreErrors.session_unknown(archived ? "会话已归档" : "会话没有归档");
   try {
     const control = { beforeEffect: async () => { await beforeWrite(); current(); }, assert_authority_current: current };
-    if (archived && session) await api.invoke(agent.archiveSession, [session], control);
+    if (archived && session) {
+      await api.invoke(agent.endSessionWork, [session], control);
+      if (!executionArchived) await api.invoke(agent.archiveSession, [session], control);
+    }
     current();
     // A later request finishing the other half finds the business record already there; the store refuses a repeat write.
     if (expected.archived !== archived) expected = await execution.sessions.archive(beforeWrite, projectId, record.session_id, new Date().toISOString(), current, archived);

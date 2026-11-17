@@ -298,7 +298,7 @@ export class SandboxBroker {
       const database = this.services[key];
       if (method === `${key}.transaction`) {
         count(1); permit(key, 'write');
-        const statements = sandboxStatements(args[0]);
+        const statements = sandboxStatements(args[0], key === 'projectDatabase');
         return database ? database.transaction(context, statements) : missing();
       }
       if (method !== `${key}.get` && method !== `${key}.all`) throw new SandboxError('sandbox.invalid_request', 'Unknown database method');

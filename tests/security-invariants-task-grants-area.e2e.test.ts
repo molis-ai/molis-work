@@ -397,9 +397,9 @@ test("S-task-grants-area TGA-02 TGA-03 TGA-04 TGA-05 TGA-10 TGA-15 TGA-18 TGA-19
   await browser.waitFor(`window.tgaSent.filter(item => item.body && item.body.mode === "read" && item.body.key === "daily").length === ${before + 1}`);
   await surface(true);
   await browser.waitFor(`document.querySelector("[data-framed-area]").hidden`);
-  const listed = await settings<{ subjects: Array<{ plugin_install_id: string; key: string }> }>({ mode: "list" });
+  const listed = await settings<{ subjects: Array<{ plugin_install_id: string; key: string; revision: string }> }>({ mode: "list" });
   const daily = listed.subjects.find(subject => subject.key === "daily")!;
-  await settings({ mode: "clear", plugin_install_id: daily.plugin_install_id, key: "daily" });
+  await settings({ mode: "set", plugin_install_id: daily.plugin_install_id, key: "daily", categories: [], expected_revision: daily.revision });
   await surface(false);
   await browser.evaluate("window.tgaHoldRead = null; window.tgaReleaseRead(); true");
   await browser.waitFor(`document.querySelectorAll(${JSON.stringify(AREA + " [data-task-grants-row]")})[${target}]?.dataset.status === "off"`);

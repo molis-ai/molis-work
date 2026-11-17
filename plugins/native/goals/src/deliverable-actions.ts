@@ -30,6 +30,9 @@ const subject = object({ kind: identifier, id: identifier });
 /** A link is written to the ledger and the version is read from its owner as the caller: both are asked of the caller's grants (see `usingServices`). */
 const linking = <Input, Output>(definition: ActionDefinition<Input, Output>): ActionDefinition<Input, Output> =>
   usingServices(definition, [CONTEXT_LEDGER_WRITE_PERMISSION, ARTIFACTS_READ_PERMISSION]);
+// Pinning delegates to a live object owner whose current association is not fixed by this input.
+const pinning = <Input, Output>(definition: ActionDefinition<Input, Output>): ActionDefinition<Input, Output> =>
+  linking({ ...definition, action: { ...definition.action, delegation: "confirmation-only" } });
 const reading = <Input, Output>(definition: ActionDefinition<Input, Output>): ActionDefinition<Input, Output> =>
   usingServices(definition, [ARTIFACTS_READ_PERMISSION]);
 const deliverable = object({ goal_id: text, reference, title: text, artifact_type_id: text, recorded_at: text, proposed: boolean, reason: nullable(text) });
@@ -49,7 +52,7 @@ export const goalsDeliverableActions = {
     object({ goal_id: identifier, reference }), object({ removed: boolean }))),
   list: reading(goalAction<{ goal_id: string }, { deliverables: GoalDeliverable[] }>("goals.deliverables.list", /* @version action.goals.deliverables.list */ 1,
     "目标的交付物", "列出目标交付的成果版本，以及还在等用户确认的提议（proposed）", "query", object({ goal_id: identifier }), object({ deliverables: array(deliverable) }))),
-  pin: linking(goalAction<{ goal_id: string; subject: { kind: string; id: string }; reason?: string }, { deliverable: GoalDeliverable; replayed: boolean }>("goals.deliverables.pin", /* @version action.goals.deliverables.pin */ 1,
+  pin: pinning(goalAction<{ goal_id: string; subject: { kind: string; id: string }; reason?: string }, { deliverable: GoalDeliverable; replayed: boolean }>("goals.deliverables.pin", /* @version action.goals.deliverables.pin */ 1,
     "固定并交付", "把一份资料（文档、问卷、演示稿、数据表）的当前内容固定为成果库里的一版，并记为目标的交付物；每次固定都是新的一版，原对象之后仍可修改。由助理等调用时只记为提议", "command",
     object({ goal_id: identifier, subject, reason }, ["goal_id", "subject"]), object({ deliverable, replayed: boolean }))),
   candidates: goalAction<{ goal_id: string }, { objects: Array<{ subject: { kind: string; id: string }; title: string }> }>("goals.deliverables.candidates", /* @version action.goals.deliverables.candidates */ 1,
@@ -74,7 +77,7 @@ export const goalsArtifactInputActions = {
   list: reading(goalAction<{ goal_id: string }, { inputs: GoalDeliverable[] }>("goals.artifact_inputs.list", /* @version action.goals.artifact_inputs.list */ 1,
     "目标的成果输入", "列出目标作为输入的成果版本，以及还在等用户确认的提议（proposed）", "query", object({ goal_id: identifier }), object({ inputs: array(deliverable) }))),
   /** 「固定这一版」 when a Goal takes an object as input (one entry for both kinds, artifact-positioning 五.1). */
-  pin: linking(goalAction<{ goal_id: string; subject: { kind: string; id: string }; reason?: string }, { input: GoalDeliverable; replayed: boolean }>("goals.artifact_inputs.pin", /* @version action.goals.artifact_inputs.pin */ 1,
+  pin: pinning(goalAction<{ goal_id: string; subject: { kind: string; id: string }; reason?: string }, { input: GoalDeliverable; replayed: boolean }>("goals.artifact_inputs.pin", /* @version action.goals.artifact_inputs.pin */ 1,
     "固定这一版作为输入", "把一份资料（文档、问卷、演示稿、数据表）的当前内容固定为成果库里的一版，并记为目标的输入；目标认的是这一版，原对象之后仍可修改。由助理等调用时只记为提议", "command",
     object({ goal_id: identifier, subject, reason }, ["goal_id", "subject"]), object({ input: deliverable, replayed: boolean }))),
 } as const;

@@ -55,7 +55,7 @@ test("Git operations approved together in several workspaces each keep what they
       operation: { action: "branch-create", name: "fixture-branch", checkout: false } }));
   }
   // The person approves all of them at once: the operations run, and save what they produced, at the same time.
-  const receipts = await Promise.all(prepared.map(({ review_id }) => reviews.respond({ review_id, decision: "approve", actor_id: "web-user" })));
+  const receipts = await Promise.all(prepared.map(({ review_id }) => reviews.respond({ review_id, version: reviews.get(review_id)!.reference.version, decision: "approve", actor_id: "web-user" })));
   assert.deepEqual(receipts.map(receipt => [receipt.status, receipt.effect_settled, receipt.effect_error]), NAMES.map(() => ["approved", true, null]));
   for (const { workspace_id } of workspaces) {
     const records = await actions(workspace_id).invoke(readGitOperationsCapability, { workspace_id });

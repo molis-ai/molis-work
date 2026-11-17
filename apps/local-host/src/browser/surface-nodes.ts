@@ -26,7 +26,7 @@ export class BrowserSurfaceNodes {
   private retained: Retained | null = null;
   private generation = 0;
 
-  constructor(private readonly page: BrowserPage) {}
+  constructor(private readonly page: BrowserPage, private readonly assertRound: () => void) {}
 
   async clear(): Promise<number> {
     const generation = ++this.generation;
@@ -37,22 +37,26 @@ export class BrowserSurfaceNodes {
   }
 
   private current(retained: Retained, session: PageSession): boolean {
+    this.assertRound(); retained.session.assertCurrent(); session.assertCurrent();
     const state = this.page.snapshot();
     return retained.session.targetId === session.targetId && retained.url === state.url && retained.takeovers === this.page.takeoverCount && retained.popupDepth === state.popup_depth && !state.loading;
   }
 
   /** Called after the driver invalidates the preceding observation, including any non-tree look. */
-  async observe(generation: number): Promise<Outline> {
+  async observe(generation: number, original: () => void): Promise<Outline> {
+    original(); this.assertRound();
     if (generation !== this.generation) throw unavailable();
-    const session = await this.page.session();
+    const session = await this.page.session(() => { original(); this.assertRound(); });
     const retained: Retained = { session, group: `molis-browser-nodes-${randomUUID()}`, objectId: "", url: this.page.snapshot().url, takeovers: this.page.takeoverCount, popupDepth: this.page.snapshot().popup_depth, nodes: new Map() };
+    const assertCurrent = () => { original(); if (generation !== this.generation || !this.current(retained, session)) throw unavailable(); };
     try {
-      const captured = await session.send("Runtime.evaluate", { expression: OUTLINE_SCRIPT, objectGroup: retained.group, returnByValue: false }) as RemoteValue<never>;
+      const captured = await session.send("Runtime.evaluate", { expression: OUTLINE_SCRIPT, objectGroup: retained.group, returnByValue: false }, assertCurrent) as RemoteValue<never>;
+      assertCurrent();
       if (captured.exceptionDetails || !captured.result?.objectId) throw unavailable();
       retained.objectId = captured.result.objectId;
-      const read = await session.send("Runtime.callFunctionOn", { objectId: retained.objectId, functionDeclaration: READ_OUTLINE, returnByValue: true }) as RemoteValue<Omit<Outline, "elements"> & { elements: ElementOutline[] }>;
-      const current = await this.page.session();
-      if (read.exceptionDetails || !read.result?.value || generation !== this.generation || !this.current(retained, current)) throw unavailable();
+      const read = await session.send("Runtime.callFunctionOn", { objectId: retained.objectId, functionDeclaration: READ_OUTLINE, returnByValue: true }, assertCurrent) as RemoteValue<Omit<Outline, "elements"> & { elements: ElementOutline[] }>;
+      assertCurrent();
+      if (read.exceptionDetails || !read.result?.value) throw unavailable();
       const outline = read.result.value;
       const elements = outline.elements.map((element, index) => {
         const node = `node_${randomUUID().replaceAll("-", "")}`;
@@ -67,31 +71,34 @@ export class BrowserSurfaceNodes {
     }
   }
 
-  async resolve(node: string): Promise<{ x: number; y: number; label: string; session: PageSession; assertCurrent(): void; release(): Promise<void> }> {
+  async resolve(node: string, original: () => void): Promise<{ x: number; y: number; label: string; session: PageSession; assertCurrent(): void; release(): Promise<void> }> {
+    original(); this.assertRound();
     const retained = this.retained, index = retained?.nodes.get(node), generation = this.generation;
     if (!retained || index === undefined) throw unavailable();
     let documentId: string | undefined;
     try {
-      const session = await this.page.session();
+      const session = await this.page.session(() => { original(); this.assertRound(); });
+      original();
       if (retained !== this.retained || !this.current(retained, session)) throw unavailable();
-      const document = await session.send("Runtime.evaluate", { expression: "document", objectGroup: retained.group, returnByValue: false }) as RemoteValue<never>;
-      if (document.exceptionDetails || !document.result?.objectId) throw unavailable();
-      documentId = document.result.objectId;
       const assertCurrent = () => {
+        original();
         if (retained !== this.retained || generation !== this.generation || !this.current(retained, session)) throw unavailable();
       };
+      const document = await session.send("Runtime.evaluate", { expression: "document", objectGroup: retained.group, returnByValue: false }, assertCurrent) as RemoteValue<never>;
+      if (document.exceptionDetails || !document.result?.objectId) throw unavailable();
+      documentId = document.result.objectId;
       assertCurrent();
       // This is the final awaited check before the caller dispatches input. The temporary document handle is released
       // after that input, so neither cleanup nor another asynchronous identity read can stale the checked point.
       const resolved = await session.send("Runtime.callFunctionOn", { objectId: retained.objectId, functionDeclaration: RESOLVE_NODE,
-        arguments: [{ value: index }, { objectId: documentId }], returnByValue: true }) as RemoteValue<{ x: number; y: number; label: string } | null>;
+        arguments: [{ value: index }, { objectId: documentId }], returnByValue: true }, assertCurrent) as RemoteValue<{ x: number; y: number; label: string } | null>;
       assertCurrent();
       if (resolved.exceptionDetails || !resolved.result?.value) throw unavailable();
       return { ...resolved.result.value, session: retained.session, assertCurrent,
         async release() { await session.send("Runtime.releaseObject", { objectId: documentId }).catch(() => undefined); } };
-    } catch {
+    } catch (error) {
       if (documentId) await retained.session.send("Runtime.releaseObject", { objectId: documentId }).catch(() => undefined);
-      throw unavailable();
+      throw error;
     }
   }
 }

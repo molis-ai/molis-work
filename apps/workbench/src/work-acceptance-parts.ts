@@ -67,7 +67,8 @@ export function renderAcceptanceSummary(view: AcceptanceView): string {
 /** On an event card: the summary and the way into the column. Nothing when the object has no requirements. */
 export function renderAcceptanceOverview(view: AcceptanceView, key: string): string {
   if (!view.requirements.length) return "";
-  return `<section class="work-accept" data-acceptance-overview="${escapeHtml(key)}" aria-label="${escapeHtml(say("title"))}"><p class="work-reqs-sum">${renderAcceptanceSummary(view)}</p>`
+  const ref = view.review_reference ? ` data-review-reference="${escapeHtml(view.review_reference.id)}" data-review-version="${escapeHtml(view.review_reference.version)}"` : "";
+  return `<section class="work-accept" data-acceptance-overview="${escapeHtml(key)}"${ref} aria-label="${escapeHtml(say("title"))}"><p class="work-reqs-sum">${renderAcceptanceSummary(view)}</p>`
     + `<div class="work-card-actions">${renderButton({ variant: "secondary", size: "sm", icon: "list", label: say("review-items"), attrs: { "data-acceptance-open": escapeHtml(key) } })}</div></section>`;
 }
 
@@ -75,7 +76,8 @@ export function renderAcceptanceOverview(view: AcceptanceView, key: string): str
 export function renderRequirementColumn(view: AcceptanceView, ui: RequirementColumnUi): string {
   const lead = view.requirements.find(item => item.stands_on !== null && item.person === "pending" && item.recheck !== "returned")?.id;
   const moved = view.changes ? view.requirements.filter(item => view.changes!.touched.includes(item.id)).map(item => item.part ?? item.statement) : [];
-  return `<div class="work-reqs-head"><strong>${escapeHtml(say("title"))}</strong><span>${escapeHtml(view.version === null ? say("not-delivered") : say("checked-version", { version: view.version }))}</span><span class="work-reqs-fill"></span>`
+  const ref = view.review_reference ? ` data-review-reference="${escapeHtml(view.review_reference.id)}" data-review-version="${escapeHtml(view.review_reference.version)}"` : "";
+  return `<div class="work-reqs-head"${ref}><strong>${escapeHtml(say("title"))}</strong><span>${escapeHtml(view.version === null ? say("not-delivered") : say("checked-version", { version: view.version }))}</span><span class="work-reqs-fill"></span>`
     + renderButton({ variant: "ghost", size: "sm", icon: "x", iconOnly: true, label: say("close"), attrs: { "data-acceptance-close": "" } }) + `</div>`
     + `<p class="work-reqs-sum">${renderAcceptanceSummary(view)}</p>`
     + (ui.error ? `<p class="mw-alert mw-alert--danger" role="alert">${escapeHtml(ui.error)}</p>` : "")

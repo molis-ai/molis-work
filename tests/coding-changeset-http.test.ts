@@ -16,7 +16,7 @@ test("AC-09: Coding freezes original multi-edit reviews, binds feedback to exact
   for (const id of ["app", "foreign"]) { await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() }); await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, id, id === "app" ? "sdk" : "other-sdk", new Date().toISOString()); }
   const ref = { session_id: "sdk", run_id: "r" };
   let readable = true, reads = 0;
-  const rows = [false, true].map((applied, n) => ({ request: { review_id: `review-${n}`, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", run: ref, kind: "text-edit",
+  const rows = [false, true].map((applied, n) => ({ request: { reference: { owner: { kind: "agent-review" as const, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", install_id: "install" }, id: `review-${n}`, version: "proposal-1" }, review_id: `review-${n}`, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", run: ref, kind: "text-edit",
     document: { kind: "text-edit", target_path: "cart.mjs", exists: true, before_text: n ? "new\r\n" : "old\r\n", after_text: n ? "latest <script>\n" : "new\r\n" } },
     receipt: { review_id: `review-${n}`, status: "approved", effect_settled: applied, effect_error: null } }));
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", escapeHtml: String, translate: (s: string) => s,

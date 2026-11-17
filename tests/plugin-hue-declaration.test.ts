@@ -25,6 +25,7 @@ const COLOURS: Readonly<Record<string, string>> = {
 const SPARE_HUES = ["blue", "green", "orange", "purple", "cyan", "pink", "yellow", "mint", "red", "indigo"];
 // PG-077: the Artifact surface belongs to the platform, independent of any Manifest or project membership.
 const ARTIFACT_SURFACE = { id: "artifacts", accepts_objects: true, hue: "pink" };
+const SESSIONS_SURFACE = { id: "sessions", accepts_objects: false, hue: "indigo" };
 
 /** The first hue a plugin's views declare: the plugin's colour. */
 const hueOf = (views: readonly UiViewDeclaration[] | undefined) => views?.find(view => view.hue !== undefined)?.hue;
@@ -45,12 +46,12 @@ test("RAC-702 each built-in plugin declares the colour it had on the tab strip b
 test("RAC-703 the directory keeps a design-system hue and drops anything else; the page's data carries the first one declared", () => {
   const view = (hue: unknown, id = "main"): UiViewDeclaration => ({ view_id: id, slot: "navigator", title: "Ext", hue: hue as UiViewDeclaration["hue"] });
   const entry = (...views: UiViewDeclaration[]) => ({ id: "ext", plugin_id: "ext.plugin", name: "Ext", chosen: false, ui: { views } });
-  assert.deepEqual(clientPluginDirectory([]), [ARTIFACT_SURFACE], "the platform's colour is present without a Plugin directory");
-  assert.deepEqual(clientPluginDirectory(sanitizePluginDirectory([entry(view("pink"))])), [ARTIFACT_SURFACE, { id: "ext", accepts_objects: false, hue: "pink" }]);
+  assert.deepEqual(clientPluginDirectory([]), [ARTIFACT_SURFACE, SESSIONS_SURFACE], "the platform's colours are present without a Plugin directory");
+  assert.deepEqual(clientPluginDirectory(sanitizePluginDirectory([entry(view("pink"))])), [ARTIFACT_SURFACE, SESSIONS_SURFACE, { id: "ext", accepts_objects: false, hue: "pink" }]);
   for (const hostile of ["magenta", "#ff0000", "url(javascript:alert(1))", "pink; color: red", 3, null]) {
-    assert.deepEqual(clientPluginDirectory(sanitizePluginDirectory([entry(view(hostile))])), [ARTIFACT_SURFACE, { id: "ext", accepts_objects: false, hue: null }], String(hostile));
+    assert.deepEqual(clientPluginDirectory(sanitizePluginDirectory([entry(view(hostile))])), [ARTIFACT_SURFACE, SESSIONS_SURFACE, { id: "ext", accepts_objects: false, hue: null }], String(hostile));
   }
-  assert.deepEqual(clientPluginDirectory(sanitizePluginDirectory([entry({ ...view(undefined, "a"), hue: undefined }, view("slate", "b"), view("red", "c"))])).map(item => item.hue), ["pink", "slate"],
+  assert.deepEqual(clientPluginDirectory(sanitizePluginDirectory([entry({ ...view(undefined, "a"), hue: undefined }, view("slate", "b"), view("red", "c"))])).map(item => item.hue), ["pink", "indigo", "slate"],
     "a plugin has one colour: the first of its views that declares one");
   assert.match(renderPluginDirectoryData(sanitizePluginDirectory([entry(view("mint"))])), /"hue":"mint"/);
 });
@@ -117,5 +118,5 @@ test("RAC-707 the icon inventory on the board keeps the platform surfaces and th
 test("RAC-708 a plugin installed at run time is drawn like a built-in: its hue reaches the page's data the same way", () => {
   const installed = sanitizePluginDirectory(builtinPluginDirectory().map(entry => ({ ...entry, chosen: false })));
   const hues = Object.fromEntries(clientPluginDirectory(installed).flatMap(entry => entry.hue ? [[entry.id, entry.hue]] : []));
-  assert.deepEqual(hues, { artifacts: "pink", ...COLOURS });
+  assert.deepEqual(hues, { artifacts: "pink", sessions: "indigo", ...COLOURS });
 });

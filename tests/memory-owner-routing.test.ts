@@ -79,7 +79,7 @@ async function ownerFixture(t: TestContext) {
       const current = await web.get<AssistantWorkView>(`${prefix}/api/assistant/works/${sent.work.work_id}`);
       for (const review of current.reviews) if (!decided.has(review.review_id)) {
         const decision = decisions.shift(); assert.ok(decision, `unexpected review: ${review.summary}`); decided.add(review.review_id);
-        await web.post(`${prefix}/api/assistant/works/${sent.work.work_id}/reviews/${review.review_id}`, { decision });
+        await web.post(`${prefix}/api/assistant/works/${sent.work.work_id}/reviews/${review.review_id}`, { decision, version: review.version });
       }
       if (current.work.state === "failed" && options.expected_failure === "MEMORY_SCOPE_DENIED") {
         const round = current.rounds.at(-1); assert.ok(round && current.work.session_id);
@@ -110,7 +110,7 @@ async function ownerFixture(t: TestContext) {
     const view = await untilSetup(async () => {
       for (const review of system.agentHost.reviews.list(f.project.project_id, "pending")) if (!decided.has(review.review_id)) {
         const decision = pending.shift(); assert.ok(decision, "unexpected Coding write review"); decided.add(review.review_id);
-        await system.agentHost.reviews.respond({ review_id: review.review_id, actor_id: LOCAL_PERSON_ACTOR_ID, decision });
+        await system.agentHost.reviews.respond({ review_id: review.review_id, version: review.reference.version, actor_id: LOCAL_PERSON_ACTOR_ID, decision });
       }
       const current = await adapter.read(started.run.ref);
       assert.ok(!["failed", "cancelled"].includes(current.phase), JSON.stringify(current));
@@ -197,7 +197,9 @@ test("existing owners: mixed Assistant save keeps candidate/confirmation/unavail
     await manager.invoke(memoryActions.savePrefs, { scope: "project", preset: "reviewed" });
     await allowCodingFacts(f);
     const catalog = await f.web.get<{ capabilities: Array<{ capability_id: string }> }>(`/projects/${f.project.project_id}/api/assistant/capabilities`);
-    assert.ok(!catalog.capabilities.some(item => /skill.*(create|update)|method.*(create|update)/i.test(item.capability_id)), "this Home offers no public Skill author capability");
+    // Batch 42: the Assistant may open a Skill draft (`skills.drafts.create`), which nothing uses until the person adopts it
+    // (S-skill-authoring); no capability that writes an installed Skill or method is offered to it.
+    assert.ok(!catalog.capabilities.some(item => item.capability_id !== "skills.drafts.create" && /skill.*(create|update)|method.*(create|update)/i.test(item.capability_id)), "the Assistant can open a Skill draft but write no installed Skill or method");
     let declinedInput = "";
     const declinedNote = "遵守拒绝：这条项目长期说明未保存，不改用其它存储绕过；继续查询方法能力。";
     const mixed = await f.assistant(original, [
@@ -224,7 +226,8 @@ test("existing owners: mixed Assistant save keeps candidate/confirmation/unavail
       request => {
         assert.equal(typeof toolField(request.messages, "found"), "number", "the Skill query really returned a directory result");
         const capabilities = toolField(request.messages, "capabilities");
-        if (Array.isArray(capabilities)) assert.ok(capabilities.every(item => !/skill.*(create|update)|method.*(create|update)/i.test(String(item.capability_id))));
+        // Only a Skill draft may be found (batch 42): it is used by nothing until the person adopts it.
+        if (Array.isArray(capabilities)) assert.ok(capabilities.every(item => item.capability_id === "skills.drafts.create" || !/skill.*(create|update)|method.*(create|update)/i.test(String(item.capability_id))));
         return "偏好待你认可；项目规则未保存（你拒绝了确认）；方法未保存（没有创作能力）；今天的要求只留本次会话。";
       },
     ], { decisions: ["reject"] });

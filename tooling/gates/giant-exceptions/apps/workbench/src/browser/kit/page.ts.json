@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function apps/workbench/src/browser/kit/page.ts#mountKit": {
+      "kind": "cohesive-unit",
+      "reason": "能力包设置页的同一挂载生命周期处理读写后的当前区域、语言切换、原条目定位与焦点归还；绘制和安装逻辑已由各自模块实现。",
+      "size": 155
+    }
+  }
+}

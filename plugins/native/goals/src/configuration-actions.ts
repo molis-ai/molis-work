@@ -1,7 +1,7 @@
-import { goalPolicySchema, goalPolicyBindingSchema, goalRelationSchema, goalRelationEndpoints } from "./contract/goal-actions.js";
+import { goalPolicySchema, goalRelationSchema, goalRelationEndpoints } from "./contract/goal-actions.js";
 export { goalPolicySchema, goalPolicyBindingSchema, goalRelationSchema } from "./contract/goal-actions.js";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { type AddGoalRelationInput, type GoalPolicy, type GoalPolicyHistoryRecord, type GoalRelationRecord, type GoalsCommandApi, type GoalsQueryApi } from "./contract/goals.js";
+import { type AddGoalRelationInput, type GoalPolicy, type GoalRelationRecord, type GoalsCommandApi, type GoalsQueryApi } from "./contract/goals.js";
 import { goalAction } from "./action-contract.js";
 import { identifier, boolean, count, object, array, enumeration } from "./contract/goal-actions.js";
 
@@ -12,7 +12,7 @@ function requireUser(caller: ActionCallContext): void {
   const p = caller.user_action;
   if (caller.audience !== "user" || caller.actor_kind !== "user" || !caller.actor_id.trim()
     || !p?.conversation_ref.trim() || !p.message_ref.trim() || !["web", "management"].includes(p.source)) {
-    throw new ActionError("goals.configuration_user_required", "直接修改目标关系或项目规则需要受保护的用户操作；执行工具应提交结构提案");
+    throw new ActionError("goals.configuration_user_required", "直接修改目标关系需要受保护的用户操作；执行工具应提交结构提案");
   }
 }
 function protectedHandler(binding: ActionHandlerBinding): ActionHandlerBinding {
@@ -25,7 +25,6 @@ function protectedHandler(binding: ActionHandlerBinding): ActionHandlerBinding {
 const policy = goalPolicySchema;
 const endpoints = goalRelationEndpoints;
 const relation = goalRelationSchema;
-type SavePolicyInput = Omit<Parameters<GoalsCommandApi["saveProjectPolicy"]>[0], "project_id" | "actor_id">;
 export const goalsConfigurationActions = {
   relations: goalAction<{ goal_id?: string }, { relations: GoalRelationRecord[]; observed_event_cursor: number }>("goals.relations.list", /* @version action.goals.relations.list */ 1, "读取目标关系",
     "读取当前项目或指定目标的入向及出向关系，保留 proposed、active、inactive 状态和原方向；不会重新启用历史关系", "query",
@@ -37,19 +36,13 @@ export const goalsConfigurationActions = {
   relationDeactivate: userOperation(goalAction<{ relation_id: string; reason: string; idempotency_key: string }, ReturnType<GoalsCommandApi["deactivateRelation"]>>("goals.relations.deactivate", /* @version action.goals.relations.deactivate */ 1, "解除目标关系",
     "解除指定的 active 关系并保留原记录和历史；必须说明原因，重试返回原回执", "command",
     object({ relation_id: identifier, reason: identifier, idempotency_key: identifier }), object({ relation, replayed: boolean, observed_event_cursor: count }))),
-  policyHistory: goalAction<Record<string, never>, { bindings: GoalPolicyHistoryRecord[]; observed_event_cursor: number }>("goals.policy.history", /* @version action.goals.policy.history */ 1, "读取项目规则历史",
-    "读取当前项目的规则绑定历史，保留作用范围、原作者及 active、replaced、withdrawn 状态；历史绑定不代表当前最终生效规则", "query",
-    object({}), object({ bindings: array(goalPolicyBindingSchema), observed_event_cursor: count })),
   policyResolve: goalAction<{ goal_id: string }, { policy: GoalPolicy; observed_event_cursor: number }>("goals.policy.resolve", /* @version action.goals.policy.resolve */ 1, "读取目标生效规则",
     "合并项目默认规则、上级最低要求与目标覆盖，返回指定目标当前生效的规则（是否需要人工确认）；只读，不改变规则历史", "query",
     object({ goal_id: identifier }), object({ policy, observed_event_cursor: count })),
-  policySave: userOperation(goalAction<SavePolicyInput, ReturnType<GoalsCommandApi["saveProjectPolicy"]>>("goals.policy.save", /* @version action.goals.policy.save */ 1, "保存项目默认规则",
-    "用户明确确认后替换当前项目默认规则，保留历史绑定和原幂等回执；不创建目标单独规则，也不产生目标审批决定", "command",
-    object({ policy, user_confirmed: boolean, idempotency_key: identifier }), object({ policy_binding_id: identifier, observed_event_cursor: count, replayed: boolean }))),
 } as const;
 export interface GoalsConfigurationActionPorts {
-  commands: Pick<GoalsCommandApi, "addRelation" | "deactivateRelation" | "saveProjectPolicy">;
-  query: Pick<GoalsQueryApi, "listRelations" | "listPolicyHistory" | "resolvePolicy">;
+  commands: Pick<GoalsCommandApi, "addRelation" | "deactivateRelation">;
+  query: Pick<GoalsQueryApi, "listRelations" | "resolvePolicy">;
   eventCursor(): number;
 }
 export function createGoalsConfigurationActionHandlers(ports: GoalsConfigurationActionPorts, projectId: string): ActionHandlerBinding[] {
@@ -64,9 +57,6 @@ export function createGoalsConfigurationActionHandlers(ports: GoalsConfiguration
       const { idempotency_key, ...relation } = input as { relation_id: string; reason: string; idempotency_key: string };
       return ports.commands.deactivateRelation(projectId, relation, { actor_id: caller.actor_id, idempotency_key });
     } }),
-    { ...goalsConfigurationActions.policyHistory, handle: () => ({ bindings: ports.query.listPolicyHistory(projectId), observed_event_cursor: ports.eventCursor() }) },
     { ...goalsConfigurationActions.policyResolve, handle: (_caller, input) => ({ policy: ports.query.resolvePolicy(projectId, (input as { goal_id: string }).goal_id), observed_event_cursor: ports.eventCursor() }) },
-    protectedHandler({ ...goalsConfigurationActions.policySave, handle: (caller, input) => ports.commands.saveProjectPolicy({ ...input as SavePolicyInput,
-      project_id: projectId, actor_id: caller.actor_id }) }),
   ];
 }

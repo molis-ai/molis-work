@@ -36,8 +36,8 @@ test("a fresh project's createIntent is immediately writable", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-02-fresh-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   try {
-    const trusted = store.db.prepare("PRAGMA table_info(goal_event_trusted_decisions)").all() as Array<{ name: string }>;
-    assert.ok(trusted.some((column) => column.name === "change_json"));
+    const trusted = store.db.prepare("PRAGMA table_info(project_review_decisions)").all() as Array<{ name: string }>;
+    assert.ok(trusted.some((column) => column.name === "record_json"));
     const app = new GoalProjectApplication(store);
     app.initializeBoard({ project_id: "board-new", actor_id: "user-1", idempotency_key: "init" });
     const created = app.goalEvents.createIntent({
@@ -151,7 +151,7 @@ test("still-valid same-scope complete approval satisfies imported policy after t
     assert.equal(policy?.user_conclusion?.received_at, original.recorded_at);
     assert.equal(mixed.requirements.find((item) => item.requirement_id === "MIXED-C1")?.currently_satisfied, true);
     assert.deepEqual(mixed.current_decisions.map((item) => item.decision_id), [original.decision_id, accepted.decision.decision_id]);
-    const trustedBefore = (store.db.prepare("SELECT COUNT(*) AS n FROM goal_event_trusted_decisions").get() as { n: number }).n;
+    const trustedBefore = (store.db.prepare("SELECT COUNT(*) AS n FROM project_review_decisions").get() as { n: number }).n;
     const appliedBefore = (store.db.prepare("SELECT COUNT(*) AS n FROM goal_event_applied_decisions").get() as { n: number }).n;
     const conclusionsBefore = store.db.prepare(
       "SELECT decision_id, actor_id, received_at, verdict FROM goal_event_requirement_conclusions WHERE requirement_id = ?",
@@ -190,7 +190,7 @@ test("still-valid same-scope complete approval satisfies imported policy after t
     assert.equal(closed.completion_applied, true);
     const after = app.goalEvents.readState(BOARD, "MIXED-OWNER");
     assert.deepEqual(after.current_decisions.map((item) => item.decision_id), [original.decision_id, accepted.decision.decision_id]);
-    assert.equal((store.db.prepare("SELECT COUNT(*) AS n FROM goal_event_trusted_decisions").get() as { n: number }).n, trustedBefore);
+    assert.equal((store.db.prepare("SELECT COUNT(*) AS n FROM project_review_decisions").get() as { n: number }).n, trustedBefore);
     assert.equal((store.db.prepare("SELECT COUNT(*) AS n FROM goal_event_applied_decisions").get() as { n: number }).n, appliedBefore);
 
     store.close();

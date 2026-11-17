@@ -10,6 +10,7 @@ import {createPersonalFixedVersionBindings} from './personal-artifact-sync.js';
 import {createPersonalPluginRegistrations,createPersonalCharacterRegistration} from './personal-plugin-sync.js';
 import {createPersonalProjectRegistrations} from './personal-project-sync.js';
 import {createPersonalCatalogRegistration} from './personal-catalog-sync.js';
+import {createProjectApprovalSyncRegistration} from './personal-project-approval-sync.js';
 
 /** Built-in bindings only; the sync service and Rust transport never import plugin owners. */
 export async function createPersonalSync(home:string,space:StorageSpace,lease:PersonalAccountLease,withCatalog:LocalWebCatalogRunner,assertActive:()=>void,discover?: (authorize:()=>void)=>Promise<readonly SyncRegistration[]>,lifecycleService?:ProjectDeletionService,readCatalog?:import('./personal-runtime-sync-authority.js').SyncCatalogReader) {
@@ -31,9 +32,11 @@ export async function createPersonalSync(home:string,space:StorageSpace,lease:Pe
   const catalog=createPersonalCatalogRegistration(home,space.spaceId,lease.userId,check,withCatalog,'molis',lifecycleService?{service:lifecycleService,refreshChildren:async()=>{for(const child of [...children,...discovered]){await child.refresh();check();}},assertChildrenSettled:projectId=>assertProjectSyncChildren([...children,...discovered],projectId,check)}:undefined);await catalog.refresh();
   const projectPlugins=createPersonalProjectRegistrations(home,space.spaceId,lease.userId,check,withCatalog,readCatalog);
   for(const plugin of projectPlugins)await plugin.refresh();
-  children=[...projectPlugins,...versions,...plugins];
   let service: PersonalSync;
+  const approvals=createProjectApprovalSyncRegistration(home,space.spaceId,check,withCatalog,readCatalog,()=>service.policy());
+  await approvals.refresh();
+  children=[approvals,...projectPlugins,...versions,...plugins];
   const runtimeAuthority=personalRuntimeSyncAuthority({home,spaceId:space.spaceId,authorize:check,policy:()=>service.policy(),withCatalog,readCatalog,hasArtifact:(projectId,id,version)=>artifacts.hasReference(projectId,{owner:'artifacts',assetId:id,version}),hasReference:(projectId,reference)=>artifacts.hasReference(projectId,reference)});
-  service=new PersonalSync({home,spaceId:space.spaceId,endpoint,authority:{...lease,assertCurrent:check},registrations:[catalog,...projectPlugins,...versions,...plugins],...(discover?{discover:async()=>{await runtimeAuthority.refresh();discovered=(await discover(check)).map(runtimeAuthority.bind);return discovered;}}:{})});
+  service=new PersonalSync({home,spaceId:space.spaceId,endpoint,authority:{...lease,assertCurrent:check},registrations:[catalog,approvals,...projectPlugins,...versions,...plugins],...(discover?{discover:async()=>{await runtimeAuthority.refresh();discovered=(await discover(check)).map(runtimeAuthority.bind);return discovered;}}:{})});
   return service;
 }

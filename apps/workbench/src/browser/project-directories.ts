@@ -6,6 +6,18 @@ import type { WriteCheckersHost } from "./write-checkers.js";
 declare const molisWorkWriteCheckers: ((host: WriteCheckersHost) => void) | undefined;
 
 /**
+ * 「读取说明文件」 (batch12-design §3.4): on when the output's instruction files are read. The default output's are never read, so the
+ * switch waits for a folder of the person's own; an output not confirmed yet shows off, and turning it on confirms it.
+ */
+function drawInstructions(reading: HTMLInputElement, readingNote: HTMLElement, say: Say, instructions: Answer["instructions"]): void {
+  reading.checked = !instructions.off && instructions.why_not !== "not_chosen";
+  reading.disabled = instructions.why_not === "default_output";
+  const note = instructions.why_not === "default_output" ? say.instructions_default : instructions.why_not === "not_chosen" ? say.instructions_unconfirmed : "";
+  (readingNote.querySelector("[data-text=note]") as HTMLElement).textContent = note;
+  readingNote.hidden = !note;
+}
+
+/**
  * The project's 「输入与输出」 (the host draws its words: src/project-directories-section.ts). Every change is posted with the revision
  * the page read; one made elsewhere in the meantime is refused (`actions.conflict`), and the page reads again and says so. Nothing a
  * folder is called is put in as markup: the templates' `[data-text]` parts are filled with `textContent`. The rows are drawn by
@@ -40,20 +52,8 @@ export function bindProjectDirectories(root: HTMLElement): void {
     inputs.replaceChildren(...list("input"));
     output.replaceChildren(...list("output"));
     if (again) root.querySelector<HTMLElement>(again)?.focus({ preventScroll: true });
-    drawInstructions(state.instructions);
+    drawInstructions(reading, readingNote, say, state.instructions);
     void checkers.load?.(state.directories.filter(item => item.state === "ok"));
-  }
-
-  /**
-   * 「读取说明文件」 (batch12-design §3.4): on when the output's instruction files are read. The default output's are never read, so the
-   * switch waits for a folder of the person's own; an output not confirmed yet shows off, and turning it on confirms it.
-   */
-  function drawInstructions(instructions: Answer["instructions"]): void {
-    reading.checked = !instructions.off && instructions.why_not !== "not_chosen";
-    reading.disabled = instructions.why_not === "default_output";
-    const note = instructions.why_not === "default_output" ? say.instructions_default : instructions.why_not === "not_chosen" ? say.instructions_unconfirmed : "";
-    (readingNote.querySelector("[data-text=note]") as HTMLElement).textContent = note;
-    readingNote.hidden = !note;
   }
 
   async function read(): Promise<void> {
@@ -114,6 +114,13 @@ export function bindProjectDirectories(root: HTMLElement): void {
         if (path) { pathField.value = path; form.requestSubmit(); }
         return;
       }
+      case "confirm-input": {
+        const directory = state?.directories.find(item => item.workspace_id === workspace);
+        if (!directory) return;
+        const name = names.nameOf(directory);
+        await change({ change: "add_input", input: { workspace_path: directory.canonical_path } }, () => fill(say.confirmed, { name }));
+        return;
+      }
       case "remove": {
         const directory = state?.directories.find(item => item.workspace_id === workspace);
         const name = directory ? names.nameOf(directory) : "";
@@ -141,7 +148,7 @@ export function bindProjectDirectories(root: HTMLElement): void {
   reading.addEventListener("change", async () => {
     const on = reading.checked;
     // A refused change draws the switch back as the project has it.
-    if (await change({ change: "set_instructions", input: { off: !on } }, () => on ? say.instructions_on : say.instructions_off) !== "done" && state) drawInstructions(state.instructions);
+    if (await change({ change: "set_instructions", input: { off: !on } }, () => on ? say.instructions_on : say.instructions_off) !== "done" && state) drawInstructions(reading, readingNote, say, state.instructions);
   });
   form.addEventListener("submit", async event => {
     event.preventDefault();

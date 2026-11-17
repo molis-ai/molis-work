@@ -41,6 +41,9 @@ const rows = (db: ReturnType<typeof openHomeSqliteDatabase>, table: string) => N
 test("deleting a project removes the Assistant's works that belong to it, archived ones too, and what hangs off them", async t => {
   const { home, db, store, gone, archived, kept, personal } = await assistantHome(t);
   const stopped: string[] = [], dropped: string[] = [];
+  await assert.rejects(purgeAssistantProject(home, "project-gone"), { code: "host.project_deleted_deferred" });
+  assert.equal(store.get(ACTOR, gone.work_id).work_id, gone.work_id);
+  assert.equal(store.get(ACTOR, archived.work_id).archived, true);
 
   const purged = await purgeAssistantProject(home, "project-gone", { stop: async id => { stopped.push(id); }, dropFollowUp: async id => { dropped.push(id); } });
 
@@ -98,7 +101,7 @@ test("a running Assistant cancels the timed rounds the runtime queued for a dele
   const key = `fu-${followUp.followup_id}-${due.getTime()}`;
   assert.equal(adapter.schedule!.find(key)?.state, "queued");
 
-  const purged = await purgeAssistantProject(home, "project-gone", { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.followUps.remove(id); } });
+  const purged = await purgeAssistantProject(home, "project-gone", { stop: id => service.closeForProjectDeletion(id) });
 
   assert.equal(purged, 1);
   assert.deepEqual(service.followUps.list(), []);

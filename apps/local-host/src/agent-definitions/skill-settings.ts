@@ -118,6 +118,17 @@ export class SkillSettingsStore {
     return result;
   }
 
+  /** How many of each Skill's kept uses in this scope each entry made: one read for a whole list. */
+  usesByCaller(scopeRef: string): Map<string, Partial<Record<SkillUseCaller, number>>> {
+    const rows = this.db.prepare("SELECT install_id, skill_id, caller, COUNT(*) AS count FROM skill_uses WHERE scope_ref = ? GROUP BY install_id, skill_id, caller").all(scopeRef) as Array<{ install_id: string; skill_id: string; caller: SkillUseCaller; count: number }>;
+    const result = new Map<string, Partial<Record<SkillUseCaller, number>>>();
+    for (const row of rows) {
+      const key = `${row.install_id}\0${row.skill_id}`;
+      result.set(key, { ...result.get(key), [row.caller]: Number(row.count) });
+    }
+    return result;
+  }
+
   /** How many uses each Skill has on record and the last one, by installation and Skill: one read for a whole list (the AI kit's usage). */
   useCounts(): Map<string, { count: number; last_at: string }> {
     const rows = this.db.prepare("SELECT install_id, skill_id, COUNT(*) AS count, MAX(at) AS last_at FROM skill_uses GROUP BY install_id, skill_id").all() as Array<{ install_id: string; skill_id: string; count: number; last_at: string }>;

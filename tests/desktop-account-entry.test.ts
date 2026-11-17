@@ -7,7 +7,7 @@ import {withPageText} from './fixtures/page-text.js';
 async function openEntry(desktop:boolean, state:Record<string,unknown>, browserState:Record<string,unknown>={identity:null}, failAttach=false) {
   const html=withPageText('zh',[],()=>renderPersonalAccountEntry('test-page-token',desktop));
   const script=html.slice(html.lastIndexOf('(() => {'),html.lastIndexOf('</script>'));
-  const calls:string[]=[], destinations:string[]=[],status={},retry={hidden:true};
+  const calls:string[]=[], destinations:string[]=[],status={},retry:{hidden:boolean;onclick?:()=>void}={hidden:true};
   let finish!:()=>void;
   const done=new Promise<void>(resolve=>{finish=resolve;});
   const request=Object.assign(async(path:string)=>{
@@ -23,7 +23,7 @@ async function openEntry(desktop:boolean, state:Record<string,unknown>, browserS
   runInNewContext(script,{
     document:{body:{dataset:{nativeDesktop:String(desktop)}},querySelector:(selector:string)=>selector.includes('status')?status:retry},
     molisWorkRequest:request,navigator:{},URL,
-    location:{origin:'http://localhost',replace:(url:string)=>{destinations.push(url);finish();}},
+    location:{origin:'http://localhost',replace:(url:string)=>{destinations.push(url);finish();},reload:()=>destinations.push('reload')},
   });
   await done;
   return {calls,destinations,retry};
@@ -53,4 +53,6 @@ test('failed native attachment stays retryable and never starts another account 
   assert.equal(result.calls.includes('/api/personal/login'),false);
   assert.deepEqual(result.destinations,[]);
   assert.equal(result.retry.hidden,false);
+  result.retry.onclick?.();
+  assert.deepEqual(result.destinations,['reload'],'retry obtains a fresh document and page proof instead of reusing a revoked entry');
 });

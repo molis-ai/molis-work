@@ -1,6 +1,7 @@
 import type { AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantContextSnapshot, AssistantLanding } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+import { hasExternalSessionContext, isExternalSessionObject, SESSIONS_SURFACE_ID } from "./assistant-external-sessions.js";
 
 /**
  * Where something would be put on the left, told to a round (specs/context-program §21.8 step 7, decision readText-2).
@@ -26,7 +27,8 @@ export function checkLanding(context: AssistantContextSnapshot): { landing?: Ass
   const value = context.landing, object = context.object;
   if (!value || typeof value !== "object" || !value.object || typeof value.object.kind !== "string" || typeof value.object.id !== "string"
     || typeof value.plugin_id !== "string" || typeof value.position !== "string" || !Object.hasOwn(WHERE, value.position)
-    || !object || object.kind !== value.object.kind || object.id !== value.object.id) return {};
+    || !object || object.kind !== value.object.kind || object.id !== value.object.id
+    || hasExternalSessionContext(context) || isExternalSessionObject(value.object) || value.plugin_id === SESSIONS_SURFACE_ID) return {};
   const headings = Array.isArray(value.heading_path) ? value.heading_path.filter((item): item is string => typeof item === "string").slice(-6).map(item => item.slice(0, 120)) : [];
   const [before, after, selected] = [text(value.before, 400), text(value.after, 400), text(value.selected, 4000)];
   return { landing: { plugin_id: value.plugin_id.slice(0, 120), position: value.position,

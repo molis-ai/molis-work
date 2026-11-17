@@ -74,6 +74,27 @@
   },
   "permissions": [
     {
+      "operationId": "loginPassword",
+      "authority": "initiator",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "LoginPasswordRequest",
+      "outputSchema": "LoginResult"
+    },
+    {
+      "operationId": "sendLoginVerification",
+      "authority": "initiator",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "SendLoginVerificationRequest",
+      "outputSchema": "LoginVerification"
+    },
+    {
+      "operationId": "loginCode",
+      "authority": "initiator",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "LoginCodeRequest",
+      "outputSchema": "LoginResult"
+    },
+    {
       "operationId": "createTransaction",
       "authority": "transaction-create",
       "idempotency": "NOT_APPLICABLE",
@@ -123,6 +144,13 @@
       "outputSchema": "VerifiedResult"
     },
     {
+      "operationId": "signInCode",
+      "authority": "initiator",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "CodeLoginRequest",
+      "outputSchema": "VerifiedResult"
+    },
+    {
       "operationId": "completeTransaction",
       "authority": "initiator",
       "idempotency": "NOT_APPLICABLE",
@@ -149,6 +177,20 @@
       "idempotency": "NOT_APPLICABLE",
       "inputSchema": "Empty",
       "outputSchema": "ProviderStartResult"
+    },
+    {
+      "operationId": "createManagementHandoff",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "ManagementHandoffRequest",
+      "outputSchema": "ManagementHandoffView"
+    },
+    {
+      "operationId": "approveManagementHandoff",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "ManagementHandoffApproval",
+      "outputSchema": "ManagementHandoffView"
     },
     {
       "operationId": "exchangeToken",
@@ -655,6 +697,27 @@
       "outputSchema": "EntitlementCheckResult"
     },
     {
+      "operationId": "productLoginPassword",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "ProductLoginPasswordRequest",
+      "outputSchema": "ProductLoginResult"
+    },
+    {
+      "operationId": "productSendLoginVerification",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "ProductSendVerificationRequest",
+      "outputSchema": "LoginVerification"
+    },
+    {
+      "operationId": "productLoginCode",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "LoginCodeRequest",
+      "outputSchema": "ProductLoginResult"
+    },
+    {
       "operationId": "productSession",
       "authority": "product",
       "idempotency": "NOT_APPLICABLE",
@@ -737,6 +800,13 @@
       "idempotency": "NOT_APPLICABLE",
       "inputSchema": null,
       "outputSchema": "LoginMethodsView"
+    },
+    {
+      "operationId": "product_getMe",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "MeView"
     },
     {
       "operationId": "productBindMethod",
@@ -1378,10 +1448,12 @@
     {
       "purpose": "LOGIN",
       "methods": [
-        "PHONE_OTP"
+        "PHONE_OTP",
+        "EMAIL_CODE"
       ],
-      "verification": "CHALLENGE_THEN_PHONE",
-      "verifiedBy": "phone",
+      "verification": "CHALLENGE_THEN_LOGIN_OR_INITIAL_PASSWORD",
+      "verifiedBy": "code",
+      "initialPasswordRequired": true,
       "completion": "LOGIN_CODE",
       "createsUser": true,
       "requiresCurrentSession": false

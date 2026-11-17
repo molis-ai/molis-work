@@ -2,7 +2,7 @@
 
 状态：需求已整理（2026-10-27）；2026-11-04 第 21 批完成事实来源盘点、设计稿、评测案例与界面四块定样（[盘点](inventory-2026-11.md)、[设计](design.md)、[评测案例](eval-cases.md)，定样见 §9）；2026-11-05 用户定 D1（证据快照归采集层），合同归第 28 批第一片。**2026-11-14：第 28 批已随 #2059（`4417d2bcd3`）与复核 #2073 合入写入面，第 29 批完成 §2.4～§3 的历史查询、用途与跨项目边界、保留与清理、空间占用及「设置 › 工作记录」四个页签与两个组件板标本**（见 [contract-design.md](contract-design.md) §16～17 与[第 29 批记录](../post-anticorruption-roadmap/reference/batches/29.md)）；**2026-11-15：第 30 批接入评测样本留存、独立预期判定、隔离回放与隔离 Home 可复现评测命令**（合同与设计见 [evaluation-path-design.md](evaluation-path-design.md)），实物与连续工作走查见 [BL-work-records-acceptance](../backlog/BL-work-records-acceptance.md)。功能目标完成程度为**内部完整**：在产品支持且获准的范围内，连续记录用户行为、工作过程、结果与当时条件，并经公开动作供页面、主动助理、评测及其他平台消费者按权限读取与管理。
 
-需求维护：Codex；实施沿用[后续演进计划](../post-anticorruption-roadmap/spec.md)的 C 轨。第 28 批已接入写入面，第 29 批已接入历史查询、记录管理与设置界面；评测留存与回放在第 30 批。各入口与插件的接入仍由原负责人落实。
+需求维护：Codex；实施沿用[后续演进计划](../post-anticorruption-roadmap/spec.md)的 C 轨。第 28 批已接入写入面，第 29 批已接入历史查询、记录管理与设置界面；第 30 批已接入评测样本留存、独立判定与隔离回放（`observation.db` v2、`observation.holds.*@1`、`horizontal/evaluation`）。各入口与插件的接入仍由原负责人落实。
 
 ## 1 目标与职责
 
@@ -141,7 +141,7 @@ flowchart LR
 
 ## 6 验收标准与验证
 
-以下标准定义内部完整门槛。第 28 批已接入写入面，并按本表编号写了工程级用例（逐条结论见[批次文件「本次复核整改」](../post-anticorruption-roadmap/reference/batches/28.md#batch-28-audit-2026-11-14)）；读取、保留与评测未完成的部分分别留给 29、30，OCL-18 是人工核对。自动化测试必须使用实际接入路径并在测试名或注释中引用对应编号；有真实语义和体验判断的部分以真实工作人工核对。模拟、文档检查与日志字段存在不能代替关键行为、持久化结果和后续可观察结果。
+以下标准定义内部完整门槛。第 28 批已接入写入面，并按本表编号写了工程级用例（逐条结论见[批次文件「本次复核整改」](../post-anticorruption-roadmap/reference/batches/28.md#batch-28-audit-2026-11-14)）；读取与保留由第 29 批接入，评测样本留存、独立判定与隔离回放由第 30 批接入；OCL-18 是人工核对。自动化测试必须使用实际接入路径并在测试名或注释中引用对应编号；有真实语义和体验判断的部分以真实工作人工核对。模拟、文档检查与日志字段存在不能代替关键行为、持久化结果和后续可观察结果。
 
 | 编号 | 通过条件 |
 | --- | --- |
@@ -218,7 +218,7 @@ flowchart LR
 | 7 | 兼容与迁移 | 不加。读取时只认现行取值；清理过的时间段在 `coverage_gaps` 记 `expired`，不从旧副本回填。 |
 | 8 | 安全边界 | 扩展 `docs/system/security-invariants/S-observation-records.md`（8～10）与 `docs/system/SECURITY-INVARIANTS.md`：① 跨项目读取遵循 S-74，仅本人非委托会话且经宿主现算的未关闭可读项目集合可跨项目查询或使用 `lookback`，`agent`／`mcp`／`workflow`／`plugin` 或委托会话请求 `all_projects`、非当前项目或 `lookback` 一律拒 `forbidden`；② 用途开关关闭后，对应 `use`（含非本人默认的 `assistant`、`evaluation`、`export`、`upload`）调 `records.query`、`evidence.get`、`coverage.get` 立即拒 `use_disabled`，不能借已拿到的 `record_id` 或 `digest` 读旧快照；③ 管理动作（`settings.*`、`space.get`、`cleanup.*`）仅本人非委托会话可调，其他受众或委托会话拒 `forbidden`。每条均配拒绝测试（`tests/security-invariants-observation-records.test.ts`）。 |
 | 9 | 调用次数 | 读取按 `after_seq` 游标与 `limit` 有界分页；全局设置「工作记录」首次进入时并发 3 个只读请求（`settings`、`space`、`coverage`），切四个页签纯本地切换零额外请求，改设置时 1 次写请求、随后刷新占用与覆盖（2 个只读）；点清理时 1 次预览或执行请求，执行成功后刷新（3 个只读），后台不轮询；`bindLocalWebActions` 单请求只解析一次上下文（`tests/call-budget.test.ts`）。 |
-| 10 | 升级与数据 | 观测库保持版本 1；管理设置存于 `writer_state`，重启后保持；升级说明页（`platform-upgrade-stores.ts`）对 `observation` 库升级失败改为局部阻断 `/settings/work-records`，不阻断工作台与项目其余功能。 |
+| 10 | 升级与数据 | 第 29 批时观测库保持版本 1（第 30 批已升到 2，见 §11）；管理设置存于 `writer_state`，重启后保持；升级说明页（`platform-upgrade-stores.ts`）对 `observation` 库升级失败改为局部阻断 `/settings/work-records`，不阻断工作台与项目其余功能。 |
 | 11 | 成果与过程项 | 工作记录与证据快照不进成果库，也不是过程项；手动或自动清理工作记录不删除成果库版本、Pages 历史版本、已存简报或已留存评测样本。 |
 | 12 | 页面、外壳与文字 | 全局设置「个人」组在「记忆」后挂「工作记录」（`/settings/work-records`），不出独立整页；按需脚本资源 `/assets/molis-work-work-records.js` 与启动词包入口更新已弹窗获用户批准（[决定 47](../post-anticorruption-roadmap/reference/decisions.md#decision-47)，`tooling/gates/page-asset-allowances/batch-29.json`）；所有中英文文案走 `t("workbench.settings-work-records.*", …)`，数字日期走 `format`，颜色与间距只用语义变量；数据库只存枚举键与数值，不存译文。 |
 | 13 | 错误 | 在 `horizontal/observation/src/errors.ts` 的 `observationErrors`（`defineErrorCodes("observation", …)`）新增 `forbidden`、`use_disabled`、`not_found`、`invalid_query`、`store_unavailable`，不建 Error 子类。 |
@@ -234,4 +234,24 @@ flowchart LR
 5. **助理和 Agent 能不能发现、调用它？** 能：`records.query@1`、`evidence.get@1`、`coverage.get@1` 均登记在动作目录（含 `agent`、`mcp`、`workflow`、`plugin`、`user` 受众），受用途开关与 S-74 约束。
 - **结论：现在收进平台**（`horizontal/observation` 公共动作 + `@molis-ai/molis-work-design-system/work-records` 公共部件）。
 
+## 11 第 30 批开工前检查（最小真实评测路径）
 
+按[需求开发流程第 4 节](../post-anticorruption-roadmap/reference/development-workflow.md#4-开工前检查)（含第 4.1 节平台能力检查与第 15 项五个全局场景）逐项回答；合同与实现细节见 [evaluation-path-design.md](evaluation-path-design.md) §1～§5。
+
+| # | 项 | 回答 |
+| --- | --- | --- |
+| 1 | 需求与验收 | `OCL-12`（样本留存）、`OCL-13`（回放来源隔离）、`OCL-14`（公共读取与缺口）、`OCL-17`（判定依据与复查），`PWA-51`～`PWA-56`，`EC-01`/`02`/`06`/`08`/`09`/`16`/`18`，`BL-328`，`BL-observation-b28-known-limits` ⑤ |
+| 2 | 事实主人 | 记录、证据快照、覆盖与留存归 `horizontal/observation`（`observation.db` v2）；样本、冻结预期、运行结论与人工复查归 `horizontal/evaluation`（`evaluation.db` v1）；业务对象归插件 |
+| 3 | 依赖与边界 | `horizontal/evaluation` 只依赖 contracts/plugin-sdk/storage；经 `ActionClient` 调 `system.observation` 公开 `@1` 动作（`use: "evaluation"`），不 import observation 内部或插件实现 |
+| 4 | 平台能力 | 复用 `ActionService`、`observation.*` 与 `withObservationSource("replay", ...)`；模型调用经 `horizontal/agent-host`，不另起执行核或模型通道 |
+| 5 | 公开合同 | `observation.holds.{put,release,list}@1`；新 `services/evaluation`（`system.evaluation` 九个 `@1` 动作）；纯新增，既有 `observation.report@1` 不变 |
+| 6 | 库与升级 | `observation.db` 1→2 只加两张空表；`evaluation.db` v1 一次到位；无读取兼容，旧版本仍拒绝 |
+| 7 | 身份与项目边界 | 动作从可信上下文取 actor/project/audience；仅本人（非委托）可写；S-74 跨项目经采集层现算可读项目 |
+| 8 | 取消与并发 | `samples.put/remove`、`runs.execute`、`reviews.record` 在落库前检查 `signal`/`beforeEffect`；回放外部副作用阻断并记回执 |
+| 9 | 安全不变量 | `S-evaluation-isolation` 1～6；`S-observation-records` ⑪；含本人/委托、冻结样本、回放、用途开关、复查不改史、取消零写 |
+| 10 | 界面与资源 | 本批无产品 UI；`EVALUATION_OWNER` 用 `label: null`；页面资源增量 0 B，无语言包改动 |
+| 11 | 宿主装配 | `apps/local-host/src/evaluation-host.ts` 只注入 home、clock、ActionClient、replay scope，注册 `system.evaluation` 与删项目清理；`MolisWorkLocalHost` 保持 341 行/26 方法 |
+| 12 | 隔离 Home CLI | `scripts/run-evaluation.mts` 严拒真实 Home 及父子目录和真实 Home 内 `--json`；默认临时 Home 自删；9 个内置样本；`--verify-reproducible` 双 Home；`--mode live` 默认 Gemini，密钥只进临时文件库 |
+| 13 | 门禁 | `table-owners` 0 例外；store/schemas/golden/api/actions/boundary/page-assets/secrets/health 全绿；页面资源 0 B |
+| 14 | 路线图与 Backlog | 删除 BL-328 并留墓碑；收口 BL-observation-b28-known-limits ⑤；更新 requirements 中 PWA-51～56、OCL-12/13/14/17、BL-328 行；依赖图 `COL --> EV`、`EV --> PE` 不变 |
+| 15 | 用户拍板 | 无新增 UI 或兼容机制；模型系列按用户明确指令默认 Gemini 系列，已记入 [30.md](../post-anticorruption-roadmap/reference/batches/30.md) 偏离说明 |

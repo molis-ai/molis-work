@@ -283,7 +283,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     // Its tag opens 「发给」; the page's own name and glyph, nothing else of what it said.
     options.receiver = () => { const named = target.options.receiver?.(); return named ? { label: named.label, ...(named.icon ? { icon: named.icon } : {}), open: openSendTo } : null; };
     composer = window.molisComposer(compose, options);
-    target.bind(composer, input, refreshComposerWords);
+    target.bind(composer, input, refreshComposerWords, () => pageInFront() === target);
   };
   const mountComposer = () => {
     island.removeAttribute("data-receiver"); paintAim(false);
@@ -341,6 +341,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   }
   globalThis.molisBarReceiverChanged = () => syncComposer();
   stripPending = () => (composer && !boundPage ? composer.materials() : []).map((one) => ({ kind: one.kind === "attachment" ? (upload.material(one.ref) || {}).kind || "file" : "object", title: one.title }));
+  externalMentions = () => (composer && !boundPage ? composer.materials() : []).filter((one) => one.kind === "material" && one.ref?.subject?.kind === "external_session").map((one) => ({ id: one.ref.subject.id, title: one.title }));
   function pickFile() { compose.querySelector("[data-composer-add]")?.click(); }
   /* 「发给」 (one input, unified-input-voice §10.4, O4): with a page in front that takes words, the tag beside ＋ lists who the next
      Send can go to — this page's receiver, the Assistant (a new work or a recent one) and the page's other receivers — in the

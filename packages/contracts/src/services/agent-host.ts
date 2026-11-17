@@ -200,7 +200,9 @@ export type AgentHostErrorCode =
   | "agent.pending_not_open"
   // An answer to a question the Runtime would not take; the problems name each question and why (agent-interaction)
   | "agent.answer_invalid"
-  | "agent.pinned_revision_mismatch";
+  | "agent.pinned_revision_mismatch"
+  // A subagent's idempotency key outside the admitted pattern (prologue-collaboration admission)
+  | "agent.subagent_key_invalid";
 
 export interface AgentHostApi {
   register(adapter: AgentRuntimeAdapter): void;

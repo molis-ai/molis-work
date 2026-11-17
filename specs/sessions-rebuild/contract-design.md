@@ -1,6 +1,6 @@
 # Sessions 来源与历史的合同设计（路线书 22）
 
-状态：设计稿，2026-11-05 写，2026-11-06 按用户定的八项改完（第 13 节，决策记录在[需求 §8](spec.md#8-决策记录)）；没有实现，等公共合同台合审。第 02 批交完（#1762 已合入，#1775、#1786、#1790 在途）、C 轨交接之前不开合同代码。按 `origin/main` `1e8110a5e` 核对，形状按 #1762 合入后写（2026-11-06 已合入 `d82329833`）：动作 id 不带 `.v1`，版本写在 `version`，所以这里写 `projects.workspaces.list@1`。2026-11-07 合同片 C-2 按写出的代码回写了第 5.1、6.1、6.2、7.1、7.2、7.4、9.1、9.3、9.4 节，答了合同台合审留的「命令接入的云端入口」，见第 5.1 节和第 12 节第 26 行。合同片 C-3 回写了第 6、6.1、6.4、7.3、8.3、8.4、9.3、10.1 节，第 12 节加第 37～45 行。
+状态：设计稿，2026-11-05 写，2026-11-06 按用户定的八项改完（第 13 节，决策记录在[需求 §8](spec.md#8-决策记录)）；合同片 C-1～C-3 与 P-1 已随 #2001、#2038 合入。2026-11-15 第 34 批实现 `horizontal/sessions` 服务、10 家适配、归属建议、搜索与工作台界面，同步回写第 3.1、3.2、7.2、9.3、9.5、12、14 节。
 
 ## 0. 这份稿子做什么
 
@@ -80,16 +80,16 @@
 | `codex-ide` | Codex IDE 扩展 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 |
 | `codex-desktop` | Codex 桌面 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 帮 0.166.0（只知道 `codex app` 能启动） |
 | `codex-cloud` | Codex 云端任务 | 待（`codex cloud list` 存在，输出格式未核） | 待（同左） | 无：`status`、`diff` 只有状态和差异，不是对话 | 待 | 无：只有把差异应用到本地 | 无：`codex cloud exec` 是新任务，不算续接 | 待 | 待 | 帮 0.166.0，experimental |
-| `claude-code` | Claude Code CLI | 协 Agent SDK `listSessions()` | 协 `listSessions()` | 协 `getSessionMessages()` | 界（选择器内） | 命 `--resume <id>`（工作终端已接） | 命 `-p --resume <id>` | 待：`claude agents --json` 只列运行中的 | 待 | 官。默认只留 30 天，读不到早期的不算没有。不用 SDK 时的备选是读 `~/.claude/projects/`，第 34 批这一片定，登记表只写实际走的那条 |
+| `claude-code` | Claude Code CLI | 录 `~/.claude/projects/` | 界（选择器内；Agent SDK 需另引外部包） | 录 `~/.claude/projects/` | 界（选择器内） | 命 `--resume <id>`（工作终端已接） | 命 `-p --resume <id>` | 待：`claude agents --json` 只列运行中的 | 待 | 官。默认只留 30 天，读不到早期的不算没有。第 34 批定走本地记录 `~/.claude/projects/`，不额外引入第三方 SDK 依赖 |
 | `claude-code-desktop` | Claude Code 桌面 | 界 | 界 | 界 | 界 | 界（官方说能恢复 CLI 会话，是否共用未实测） | 界 | 界 | 待 | 官 |
 | `claude-code-ide` | Claude Code VS Code | 界 | 界 | 界 | 界 | 界 | 界 | 界 | 待 | 官 |
 | `claude-code-web` | Claude Code 网页 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待（盘点第 5 节待核） |
-| `gemini-cli` | Gemini CLI | 待（`gemini --list-sessions` 存在，输出格式未查到） | 待（同左） | 录 `~/.gemini/tmp/<项目哈希>/chats/` | 待 | 命 `--resume <UUID>`（只用 UUID，序号会变） | 待 | 待 | 待 | 官 |
+| `gemini-cli` | Gemini CLI | 录 `~/.gemini/tmp/<项目哈希>/chats/` | 待（`gemini --list-sessions` 存在，输出格式未查到） | 录 `~/.gemini/tmp/<项目哈希>/chats/` | 待 | 命 `--resume <UUID>`（只用 UUID，序号会变） | 待 | 待 | 待 | 官 |
 | `antigravity-cli` | Antigravity 终端 | 私 | 界 `/resume` | 私 | 待 | 界 `/resume` | 待 | 待 | 待 | 三 |
 | `antigravity-desktop` | Antigravity 桌面 | 私 | 界 | 私 | 界 | 界 | 界 | 界 | 无（三） | 三 |
 | `copilot-cli` | Copilot CLI | 待（线索：`~/.copilot/session-state/<id>/`，三） | 界 `--resume` 选择器 | 待（线索：`events.jsonl`，格式未公开，三） | 待 | 命 `--resume <id>` | 待 | 待 | 待 | 官（命令） |
 | `copilot-ide` | Copilot IDE 会话 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待（盘点漏了，本稿补） |
-| `copilot-coding-agent` | Copilot 编码 Agent（云端） | 命 `gh agent-task list` | 命 `gh agent-task list` | 命 `gh agent-task view --log` | 待 | 无 | 待 | 待 | 待 | 官，preview；盘点第 5 节写未查到，本稿查到 |
+| `copilot-coding-agent` | Copilot 编码 Agent（云端） | 命 `gh agent-task list --json …` | 命 `gh agent-task list --json …` | 命 `gh agent-task view --log` | 待 | 无 | 待 | 待 | 待 | 官，preview；帮 `gh` 2.96.0 核实 `--json` 字段 |
 | `cursor` | Cursor Agent CLI | 私：`~/.cursor/chats` 是私有库（三） | 界：`agent ls` 不支持无头，官方人员确认过（2026-01 版） | 私 | 待 | 命 `--resume [chatId]` | 待 | 待 | 待 | 官 |
 | `cursor-editor` | Cursor 编辑器 | 私 | 界 | 私 | 界 | 界 | 界 | 界 | 无 | 三 |
 | `cursor-cloud` | Cursor 云端 Agent | 待（线索：`GET /v0/agents`，三） | 待（同左） | 待（线索：`/conversation`，三） | 待 | 待 | 待（线索：followup，三） | 待（线索：stop，三） | 待 | 三；需求 §2 没列，本稿补，官方页要再核 |
@@ -98,7 +98,7 @@
 | `devin-cloud` | Devin 云端 | 账 企业 API | 账 | 账 会话消息接口，要服务账号 | 待 | 界 网页 | 待 | 待 | 待 | 官（接口文档） |
 | `devin-desktop` | Devin Desktop（原 Windsurf，2026-06 改名） | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 官（改名公告）；会话未查到，盘点没写，本稿补 |
 | `windsurf-cascade` | Windsurf／Cascade（旧版） | 私：加密 `.pb` | 界 | 私 | 界 | 界 | 界 | 界 | 无 | 三。Cascade 据报 2026-07-01 停，旧记录仍可能在用户机器上，行不删 |
-| `grok-build` | Grok Build | 待（`grok sessions list` 存在，输出格式未核） | 待（同左） | 待：`~/.grok/` 无官方读取口 | 待（`grok sessions search` 存在，输出格式未核） | 命 `--resume <id>`（工作终端已接；别用标题） | 待 | 待 | 待 | 帮 1.0.70 |
+| `grok-build` | Grok Build | 待（`grok sessions list` 存在，无 `--json`，输出格式未核） | 待（同左） | 命 `grok export <id>`（Markdown 到标准输出） | 待（`grok sessions search` 存在，无 `--json`，输出格式未核） | 命 `--resume <id>`（工作终端已接；别用标题） | 待 | 待 | 命 `grok export <id>` | 帮 1.0.62（`sessions list`/`search` 只支持 `--limit` 与 `--leader-socket`，无机器读标志；`export` 省去输出路径时写标准输出） |
 | `junie-cli` | Junie CLI | 待（线索：`transcript.md`、`events.jsonl`，根目录未写） | 界 `/history` | 待（同左） | 界 | 界 `/history` | 待 | 待 | 待 | 官 |
 | `junie-ide` | Junie IDE | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待（盘点漏了，本稿补） |
 | `droid` | Droid | 命 `droid search --json` | 界 `/sessions` | 待：`-o json` 是运行输出 | 命 `droid search --json` | 命 `droid resume <id>` | 命 `droid exec -s <id>` | 待 | 待 | 官 |
@@ -113,7 +113,7 @@
 | `lingma` | 通义灵码 | 私 | 界 | 私 | 界 | 界 | 界 | 界 | 无（三） | 三 |
 | `qoder` | Qoder CLI（国际） | 待（`--list-sessions` 存在，输出格式未核） | 待（同左） | 待：`-p -o json` 是运行输出 | 待 | 命 `-r <id>` | 待 | 待 | 待 | 官 |
 | `qoder-ide` | Qoder IDE（国际） | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待（盘点漏了，本稿补） |
-| `qoder-cn` | Qoder CLI（国内，`qodercn`） | 待（`qodercn --list-sessions` 存在，JSON 输出未写） | 待（同左） | 录 `~/.qoder-cn/projects/<目录>/<id>.jsonl` | 待 | 命 `qodercn -r <id>` | 待 | 待 | 待 | 官；盘点写待核，本稿查到。与国际版是否共用未写，按不共用 |
+| `qoder-cn` | Qoder CLI（国内，`qodercn`） | 录 `~/.qoder-cn/projects/<目录>/<id>.jsonl` | 待（`qodercn --list-sessions` 存在，JSON 输出未写） | 录 `~/.qoder-cn/projects/<目录>/<id>.jsonl` | 待 | 命 `qodercn -r <id>` | 待 | 待 | 待 | 官；盘点写待核，本稿查到。与国际版是否共用未写，按不共用 |
 | `qoder-cn-ide` | Qoder IDE（国内） | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待（盘点漏了，本稿补） |
 | `codebuddy` | CodeBuddy Code（国际） | 待 | 待：列表命令未查到 | 待：只知日志在 `~/.codebuddy/logs/` | 待 | 命 `-r <id>`（交互模式） | 待 | 待 | 待 | 官 |
 | `codebuddy-cn` | CodeBuddy（国内） | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待（地区版本未核，本稿补） |
@@ -122,7 +122,7 @@
 | `trae-cn` | TRAE（国内） | 私 | 界 | 私 | 界 | 界 | 界 | 界 | 无（三） | 三 |
 | `solo` | SOLO（国际） | 私 | 界 | 私 | 界 | 界 | 界 | 界 | 无（三） | 三 |
 | `solo-cn` | SOLO（国内） | 私 | 界 | 私 | 界 | 界 | 界 | 界 | 无（三） | 三 |
-| `kimi-code` | Kimi Code | 录 `~/.kimi-code/sessions/` | 界 `/sessions` | 待（`kimi export <id>` 存在，输出格式未核） | 待 | 命 `--session <id>` | 待：`kimi acp`、Server API 未核 | 待 | 待（同左） | 官 |
+| `kimi-code` | Kimi Code | 录 `~/.kimi-code/sessions/` | 界 `/sessions` | 录 `~/.kimi-code/sessions/`（`state.json` + `wire.jsonl`） | 待 | 命 `--session <id>` | 待：`kimi acp`、Server API 未核 | 待 | 待（`kimi export <id>` 存在，输出格式未核） | 官 |
 | `zcode` | ZCode | 私 | 界 | 私 | 界 | 界 | 界 | 界 | 待 | 三 |
 | `minimax-code` | MiniMax Code | 录 `~/.minimax` | 界 `/sessions` | 录 | 界 | 命 `mcode --session <id>` | 待 | 待 | 待 | 官 |
 | `minimax-agent` | MiniMax 开发 Agent（网页） | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待（盘点漏了，本稿补） |
@@ -634,7 +634,7 @@ export interface ExternalSessionScopeSetInput {
 // 输出：ExternalSessionScopeView
 ```
 
-整份替换。`location_key` 由服务算，不从输入读；云端来源第一次允许时给 `connection_id`，没给报平台码 `actions.connection_required`，给的不在这个来源能选的连接里报 `actions.connection_unavailable`。`expected_revision` 不符报 `sessions.scope_conflict`。步骤：
+整份替换：未在 `sources` 里列出的既有范围行按 `allowed: false` 收起（其原有 `directories` 偏好保留），同一 `(entry_id, location_key)` 重复写两行或本机来源带了 `connection_id` 报 `actions.input_invalid`，登记表里不存在的 `entry_id` 报 `sessions.source_unsupported`。`location_key` 由服务算，不从输入读；云端来源第一次允许时给 `connection_id`，没给报平台码 `actions.connection_required`，给的不在这个来源能选的连接里报 `actions.connection_unavailable`。`expected_revision` 不符报 `sessions.scope_conflict`。步骤：
 
 1. 写新范围，`revision` 加一，全局 `scope_revision` 加一。
 2. 事务后取消被收窄来源的在跑任务（每个来源一个 `AbortController`）。
@@ -1017,7 +1017,7 @@ export interface SessionsPorts {
 
 ### 9.3 错误码
 
-`packages/contracts/src/services/sessions.ts`，一处声明，不写 Error 子类，写法同 `projectCatalogErrors`。这些码由动作抛出，外壳和第 20 批要分得清，所以放合同，服务包直接用，不另写 `horizontal/sessions/src/errors.ts`。下面 15 个码都已声明，`project_unavailable`、`attribution_conflict`、`suggestion_unavailable`、`too_many_groups` 随 C-3 加。云端来源的连接缺了或不对，用平台码（第 7.2 节），不另声明。
+`packages/contracts/src/services/sessions.ts`，一处声明，不写 Error 子类，写法同 `projectCatalogErrors`。这些码由动作抛出，外壳和第 20 批要分得清，所以放合同，服务包直接用，不另写 `horizontal/sessions/src/errors.ts`。下面 14 个码都已声明（第 22 批预留的 `suggestion_unavailable` 因第 8.4 节规定模型未配或失败按逐条 `status: "failed"` 返回、无整次抛错路径，已在第 34 批删去）。云端来源的连接缺了或不对，用平台码（第 7.2 节），不另声明。
 
 ```ts
 export const sessionsErrors = defineErrorCodes("sessions", {
@@ -1034,7 +1034,6 @@ export const sessionsErrors = defineErrorCodes("sessions", {
   project_unavailable: "invalid",
   attribution_conflict: "conflict",
   cursor_invalid: "invalid",
-  suggestion_unavailable: "unavailable",
   too_many_groups: "too_large",
 });
 ```
@@ -1060,13 +1059,13 @@ SRB-11 的「读取不推导控制」等第 60 批加控制动作时补进新行
 | --- | --- | --- | --- | --- |
 | 打开列表 | 1 | 1 遍（动作网关照常） | 服务长开，0 | 0（过期时后台排一次，不在请求里） |
 | 翻下一页 | 1 | 1 | 0 | 0 |
-| 打开一个会话 | 1 | 1 | 0 | 1 次读取；项目快照 2 次（等待前后） |
-| 往上读 | 1 | 1 | 0 | 1 次读取，同文件走短缓存 |
-| 会话内搜索 | 1 | 1 | 0 | 1 次流式扫描 |
+| 打开一个会话 | 1 | 1 | 0 | 1 次读取（若走 `cli` 连接如 `gh`，读前读后各核一次账号指纹，多 2 次轻量命令）；项目快照 2 次（等待前后） |
+| 往上读 | 1 | 1 | 0 | 1 次读取（`cli` 连接同上多 2 次指纹核对），同文件走短缓存 |
+| 会话内搜索 | 1 | 1 | 0 | 1 次流式扫描（`cli` 连接同上多 2 次指纹核对） |
 | 改读取范围 | 1 | 1 | 0 | 放宽的来源每家 1 轮发现 |
 | 打开待归类 | 2（列表 + 建议，后者不挡页面） | 各 1 | 0 | 取 `opening` 最多 20 次来源读取（每组一次，可能是子进程），模型 1 次；往下翻再一轮；材料没变走缓存，这两样都不发生 |
 | 读取中询问一次 | 1 | 1 | 0 | 0；每次是完整的 `sessions.list@1`，含一遍动作发现和一次项目快照。最坏：发现一直没读完、页面一直可见，稳定后每分钟 4 次（15 秒一次） |
-| 打开读取范围 Sheet | 1（全部项目的许可和计数都在这一个响应里，只给 `user`） | 1 | 0 | 0；计数是一条 `GROUP BY`，项目再多也是一条查询，不走外部工具 |
+| 打开读取范围 Sheet | 1（全部项目的许可和计数都在这一个响应里，只给 `user`） | 1 | 0 | 0；额外读一遍连接表（`connector-host`）列出云端可选连接；计数是一条 `GROUP BY`，项目再多也是一条查询，不走外部工具 |
 | 第 20 批判断就绪 | 1（不带计数，不做聚合） | 1 | 0 | 0 |
 | 改项目的 AI 读取许可 | 1（发到目标项目的路径） | 1，且要打开目标项目 | 目标项目 1 | 0 |
 | 在这个工具里搜 | 1 | 1 | 0 | 1 次命令 |
@@ -1206,7 +1205,7 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 11 | 盘点 §4、§5 | 待核项已查到：Amp 的 `threads` 命令、Qoder CN、Pi、`gh agent-task`；Codex 有 `thread/*` 协议和 `codex queue`，Claude Agent SDK 有列表与读取函数 | 矩阵已更新；盘点是 11-03 的记录，不改 |
 | 12 | 核查 §3.2 | 说 `isTerminalSessionId` 不动；服务包要同一规则 | 第 4.3 节只搬定义，行为不动 |
 | 13 | 本机 | `claude --help` 被本机的包装命令盖住 | `claude-code` 一行只写官 |
-| 14 | [定样](../../docs/design/sessions-sources/README.md) | D2、D4、D8 让用户看过的样多了三处：Sheet 写明含 worktree，读取范围里多一个项目许可开关，待归类写明发给模型的内容（含项目名和目录） | 2026-11-12 转第 34 批定样（S-5 才进产品，见第 34 批 UI 要求） |
+| 14 | [定样](../../docs/design/sessions-sources/README.md) | D2、D4、D8 让用户看过的样多了三处：Sheet 写明含 worktree，读取范围里多一个项目许可开关，待归类写明发给模型的内容（含项目名和目录） | 已定（用户 2026-11-15 确认块 1 方案 A，含改归属 Dialog 第 8.2 节说明），落在片 S-5 |
 | 15 | [核查 §1](source-contract-checks-2026-11.md#1-第-20-批要的历史读取能力)、第 20 批 | 核查说就绪只看读取范围；D4 之后还要看项目许可 | 就绪说法以第 6.5 节为准。第 20 批合入时 Sessions 服务还没有，2026-11-12 转第 34 批接服务时一并做；核查是 11-04 的记录，不改 |
 | 16 | 需求 SRB-09、第 35 批 | 冷启动由 AI 读历史整理，而项目许可默认关 | 2026-11-12 已写进第 35 批交付项，列在第 10.2 节 |
 | 17 | 需求 SRB-16 | 写「自动归入不扩大读取权限」，而 D4 让项目 AI 读到含自动归入的会话 | 已裁定：授权来自项目许可，归属只定范围，写在第 11 节 SRB-16 一行 |
@@ -1216,28 +1215,28 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 21 | `bound_by` 存量 | 两种存量行：P-1 之前终端面板带 `cwd` 写下的目录关系，`bound_by` 是本人的 id，按白名单算本人建的；目录库 1→2 升级补出的默认输出目录，原来记 `molis-work-upgrade`。`context_bind` 的旧行不是本人 id，白名单下自动不算 | 已定（用户 2026-11-09）：终端旧关系接受、不修存量，不加维护逻辑，也不写 `docs/system/CONTRACT-CHANGES.md`；只影响 2026-10-31 以后在终端面板带过 `cwd` 的开发机 Home，这些目录会被当成本人连的，进「只读项目连着的目录」和自动归入。默认输出目录和新建项目一样处理：项目原有关系里有一条本人建的就记本人（#2001 的 `c398e173a`） |
 | 22 | 已定裁定之间 | 第一版让 `reported` 进项目 AI 的可读范围，和 P4 的本意有张力 | 已定（2026-11-06）：收紧，`reported` 不进，本人确认后才算（第 7.4 节、S-sessions-person-decides） |
 | 23 | 绑定指向另一个项目 | 会话在本人连的 A 目录下，工具绑到 B | 已定（2026-11-06）：仍 `automatic` 归 A，行上标「工具另报」，打开后写「工具报的是另一个项目」，写在第 8.2 节、S-sessions-person-decides |
-| 24 | 项目设置 | 工具带进来的目录和本人连的看起来一样，「本人再连一次」没有入口 | **要进定样**：两种目录分开显示，后者给确认入口；2026-11-12 转第 34 批定样，实现列在片 S-5 |
+| 24 | 项目设置 | 工具带进来的目录和本人连的看起来一样，「本人再连一次」没有入口 | 已定（用户 2026-11-15 确认块 3 方案 A：同一张「读取的文件夹」列表内标 `工具带入 · 待确认`、后果说明与行尾「确认连入」按钮），落在片 S-5 |
 | 25 | 需求 §2「开放工具同走公共接入合同」 | 登记表在合同里、适配在服务包里，第三方插件现在贡献不了来源适配 | 本批不做；要开放成扩展点在第 60 批之后另议 |
 | 26 | 第 5.1 节云端的 `location_key`（公共合同台合审） | `copilot-coding-agent` 走 `gh`，账号在 `gh` 里，这一行原来写的 `connection:` + `connection_id` 取不到 | 已答（C-2）：走 `auth_method: "cli"` 的连接，不另立规则，规则和类型的改动写在第 5.1 节 |
-| 27 | `codex-cloud` | 命令 `codex cloud list` 核完之后，`CONNECTOR_CLIS` 里没有 `codex`，没有可选连接 | 现在是缺口，不影响 C-2；接这一家时要先加连接定义，第 34 批这一片定 |
-| 28 | `gh agent-task` 的权限 | `CONNECTOR_CLIS.github` 登录时要的 scope 是 `notifications,read:user`，这组 scope 能不能读 `agent-task` 没实测 | 第 34 批这一家的适配片实测；不够时改那条登录命令，那是 connector 的改动 |
-| 29 | 定样 | 云端来源没有可选连接时读取范围这一行怎样给去连接的入口，以及 `account_changed` 的两条出路（第 5.1 节），定样都没画 | **要进定样**，这片不做界面；合同给足了 `connections`、`connect_service_id`；2026-11-12 转第 34 批定样，实现列在片 S-5 |
-| 30 | 连接的使用方（S-1） | `session_read_scopes.connection_id` 是对连接的长期引用，`services/connector-usages.ts` 要每个使用方报告，否则连接页显示没人在用，删连接时也没有提示 | 服务片加 `defineConnectorUsagesAction`，是第 12 个动作（第 37 行）。只报告，不声明 switch：换连接等于换 `location_key` |
-| 31 | `sessions.scope.set@1` 的边界（S-1） | 三处没写：整份替换时没列出的来源怎样算；同一 `entry_id` 同一连接写两行；本机来源带了 `connection_id` | 合同台建议：第一处写明保持原状或一律不允许，二选一；后两处报 `actions.input_invalid` |
-| 32 | 没有登记行的 `entry_id`（S-1） | schema 只核写法，文件头说服务会答，没说答什么 | 合同台建议报 `sessions.source_unsupported` |
-| 33 | `return_target.label`（S-1） | 不能写进原生 ID 或账号 | 非本人已是 `null`（第 6.1 节）；给本人的写法服务片定 |
-| 34 | 本人的权限（S-1） | 三个 `sessions:*` 不在 `LOCAL_OWNER_PERMISSIONS` 里，动作调不了 | 服务片加 |
-| 35 | 第 9.5 节（S-1） | 少两处：`cli` 连接每次读多跑两次进程（读前读后核指纹）；`sessions.scope.read@1` 要读一遍连接表 | 服务片补进调用次数 |
-| 36 | S-sessions-read-only-commands 与 `cli` 连接（S-1） | S-sessions-read-only-commands 要求最小环境，`cliEnvironment` 在没有受管安装时传整份 `process.env` | 走 `connections.command` 时定按哪条，要改 S-sessions-read-only-commands 的写法就同步改表 |
+| 27 | `codex-cloud` | 命令 `codex cloud list` 核完之后，`CONNECTOR_CLIS` 里没有 `codex`，没有可选连接 | 第 34 批复核：`codex cloud` 只有状态与差异、没有对话读取口，且本批不新增 `codex` CLI 连接器，保持缺口（`adapter: "none"`，`tool_gap`） |
+| 28 | `gh agent-task` 的权限 | `CONNECTOR_CLIS.github` 登录时要的 scope 是 `notifications,read:user`，这组 scope 能不能读 `agent-task` 没实测 | 第 34 批核查：`gh agent-task` 需要 `repo`（组织仓另需 `read:org`），终端自行 `gh auth login` 的用户默认已有；不静默把 `CONNECTOR_CLIS.github` 扩成带完整仓写权限的 `repo`，权限不足时报 `needs_login`（`login_expired`）并说明刷权限命令或由定样确认 |
+| 29 | 定样 | 云端来源没有可选连接时读取范围这一行怎样给去连接的入口，以及 `account_changed` 的两条出路（第 5.1 节），定样都没画 | 已定（用户 2026-11-15 确认块 2 方案 A：Sheet 行内选连接／无连接去设置＋`account_changed` 双出口恢复卡），落在片 S-5 |
+| 30 | 连接的使用方（S-1） | `session_read_scopes.connection_id` 是对连接的长期引用，`services/connector-usages.ts` 要每个使用方报告，否则连接页显示没人在用，删连接时也没有提示 | 已定并落地：`sessionsActions.connectorUsages`（`sessions.connector.usages@1`），第 12 个动作；只报告，不声明 switch |
+| 31 | `sessions.scope.set@1` 的边界（S-1） | 三处没写：整份替换时没列出的来源怎样算；同一 `entry_id` 同一连接写两行；本机来源带了 `connection_id` | 已定（第 7.2 节）：未列出的已有来源按 `allowed: false` 收起（保留原 `directories`）；同一 `(entry_id, location_key)` 重复或本机来源带 `connection_id` 报 `actions.input_invalid` |
+| 32 | 没有登记行的 `entry_id`（S-1） | schema 只核写法，文件头说服务会答，没说答什么 | 已定：报 `sessions.source_unsupported` |
+| 33 | `return_target.label`（S-1） | 不能写进原生 ID 或账号 | 非本人已是 `null`；给本人：本机 CLI 给拼接好的恢复命令行（如 `claude --resume <id>`），云端任务有 PR 链接时给 URL，否则 `null` |
+| 34 | 本人的权限（S-1） | 三个 `sessions:*` 不在 `LOCAL_OWNER_PERMISSIONS` 里，动作调不了 | 已在 `apps/local-host/src/local-owner-permissions.ts` 补入 `SESSIONS_PERMISSIONS` |
+| 35 | 第 9.5 节（S-1） | 少两处：`cli` 连接每次读多跑两次进程（读前读后核指纹）；`sessions.scope.read@1` 要读一遍连接表 | 已补进第 9.5 节 |
+| 36 | S-sessions-read-only-commands 与 `cli` 连接（S-1） | S-sessions-read-only-commands 要求最小环境，`cliEnvironment` 在没有受管安装时传整份 `process.env` | 已定：`sessions-ports.ts` 对 `commands.run` 与 `connections.command` 统一构造最小环境白名单（仅保留 `PATH`、`HOME`、`USER`、`TMPDIR`、`LANG`、XDG／代理／平台系统目录及 `gh` 认证所需 `GH_CONFIG_DIR`），不透传整份 `process.env`，与 `S-sessions-read-only-commands` 一致 |
 | 37 | 动作总数 | 批次文件、需求 §7 第 3 项都写 10 个；对象读取器没算，第 6.4 节要它 | 合同里 11 个，加第 30 行是 12 个；批次文件与需求 §7 已改 |
-| 38 | `sessions.suggestion_unavailable` | 第 9.3 节声明了，但第 8.4 节写模型没配或失败时逐条 `status: "failed"`，现在没有路径抛它 | C-3 照第 9.3 节声明。片 S-3 定：有整次调用失败的情形就用，没有就删 |
-| 39 | 搜索结果的打开位置 | `search_source` 和 `open` 要写一个界面位置，入口随第 03 批，还没定 | 先写 `sessions`，片 S-5 定了入口后改；改它要 `pnpm api:update` |
-| 40 | 插件经 Knowledge 读到外部会话（S-4） | `knowledge.search` 只留当前项目的结果，外部会话进不来；但 `knowledge.read`、`outline`、`grep` 没有这道过滤，以本人身份代插件读，能到 `sessions.subject.read@1`（第 6.4 节） | **读取器登记之前必须堵住**，前置条件和候选做法在第 10.2 节，改 Knowledge 的部分交它的主人；拒绝测试在 S-sessions-person-decides |
-| 41 | 引用种类（S-4） | `projectReferenceKinds`、`pluginReferenceKinds` 会把 `external_session` 自动列进引用种类，不用谁新加入口（第 6.4 节） | **读取器登记之前必须堵住**，前置条件和候选做法在第 10.2 节；拒绝测试在 S-sessions-person-decides |
-| 42 | 本人亲手给的算不算 AI 读 | 第 7.4 节原来没写这种情况。`readReferences` 的注释写本人亲手选就放行，这和第 7.4 节的许可有张力 | **已定（用户 2026-11-07）：** 本人明确动作给的内容放行，不看许可，带三个限制，写在第 6.4 节。张力这样解：许可管项目的 AI 自己去读，本人亲手给的是本人的意思，所以 `readReferences` 放行不违反许可。但现行代码放行之后还会记成工作对象、后面的轮次一直带着，这一段要按第三个限制改，光放行不够 |
-| 43 | `sessions.tool.search@1` 的 `query` 前导空白 | schema 放过前导空白，只拦空白之后的 `-` | 服务片定去不去掉，别让一个空白改变工具的结果 |
-| 44 | 外壳取的选区和标签页对象（S-5） | 第 6.4 节「不经读取器的一条」：选区和标签页回退由外壳做，页面不声明也会发生，选区带的是原文，默认带上。不靠读取器，S-1 除开读取器挡不住 | **已定（用户 2026-11-07）：** 这个页面选区不自动带、对象要本人点选。靠外壳，页面做不到，候选和上线前提在第 10.2 节。2026-11-12 转第 34 批定样：点选的样子、「只进这一轮」怎样让人看懂、「@」没带对话内容、一轮还在跑时为什么不能加 |
-| 45 | 「只进这一轮」的边界（S-4） | 评审台顺着 vendored 的 Prologue 包读过，没有实跑。开工时的材料（`text_materials`）作为这一跑的 `mounted` 组装，后面各轮的历史由 `historyFromTurns` 从轮次生成，大概率不留。运行中补充会作为一条输入留在后面每一轮的模型历史里，由第 6.4 节「一轮还在跑时不收」挡住。AI 在这一轮的回答和工具调用里引用的内容，后面各轮都还看得到：这是第三个限制之外的事实，同第 7.4 节「已经写进回答的内容不会收回」 | 片 S-4 实测两件：开工时的材料确实不进后面各轮的模型历史；记忆学习从轮次读内容（`assistant-memory-sources.ts`），读不读得到这一轮的材料。`addRound` 存下的轮次记录只给本人回看 |
+| 38 | `sessions.suggestion_unavailable` | 第 9.3 节声明了，但第 8.4 节写模型没配或失败时逐条 `status: "failed"`，现在没有路径抛它 | 第 34 批核实无整次抛错路径，已从 `sessionsErrors` 与第 9.3 节删去（共 14 个错误码） |
+| 39 | 搜索结果的打开位置 | `search_source` 和 `open` 要写一个界面位置，入口随第 03 批，还没定 | 已定：工作台主导航平台入口 `sessions`（`data-work-surface="sessions"`），全局搜索命中点击后切到 `sessions` 并直接打开对应 `session_key` |
+| 40 | 插件经 Knowledge 读到外部会话（S-4） | `knowledge.search` 只留当前项目的结果，外部会话进不来；但 `knowledge.read`、`outline`、`grep` 没有这道过滤，以本人身份代插件读，能到 `sessions.subject.read@1`（第 6.4 节） | 已在登记读取器前堵住：`apps/local-host/src/knowledge-actions.ts` 替插件代读对象读取器和搜索来源时按 `actionReachesAudience(action, capabilityId, "plugin")` 过滤，拒绝测试在 `S-sessions-person-decides` |
+| 41 | 引用种类（S-4） | `projectReferenceKinds`、`pluginReferenceKinds` 会把 `external_session` 自动列进引用种类，不用谁新加入口（第 6.4 节） | 已在登记读取器前堵住：`apps/local-host/src/agent-question-surfaces.ts` 只把 `action.audiences.includes("agent")` 的对象读取器纳入引用种类，拒绝测试在 `S-sessions-person-decides` |
+| 42 | 本人亲手给的算不算 AI 读 | 第 7.4 节原来没写这种情况。`readReferences` 的注释写本人亲手选就放行，这和第 7.4 节的许可有张力 | **已定并落地（用户 2026-11-07）：** 本人明确动作给的内容放行、标不可信、只进这一轮，不记成工作对象（不调 `linkSent`、不进 `landing`），后面轮次不再带着 |
+| 43 | `sessions.tool.search@1` 的 `query` 前导空白 | schema 放过前导空白，只拦空白之后的 `-` | 已定：服务在校验和替换 `{query}` 前 `trim()` 去首尾空白，避免空白改变工具搜索结果或让 `-` 漏检 |
+| 44 | 外壳取的选区和标签页对象（S-5） | 第 6.4 节「不经读取器的一条」：选区和标签页回退由外壳做，页面不声明也会发生，选区带的是原文，默认带上。不靠读取器，S-1 除开读取器挡不住 | **已定并落地：** 外部会话区域标明选区不自动带、标签页回退对象不自动发，选区带上来源，运行中补充拒收外部会话内容 |
+| 45 | 「只进这一轮」的边界（S-4） | 评审台顺着 vendored 的 Prologue 包读过，没有实跑。开工时的材料（`text_materials`）作为这一跑的 `mounted` 组装，后面各轮的历史由 `historyFromTurns` 从轮次生成，大概率不留。运行中补充会作为一条输入留在后面每一轮的模型历史里，由第 6.4 节「一轮还在跑时不收」挡住。AI 在这一轮的回答和工具调用里引用的内容，后面各轮都还看得到：这是第三个限制之外的事实，同第 7.4 节「已经写进回答的内容不会收回」 | 第 34 批 S-4 实测验证通过：第一轮带入的外部会话材料不出现在第二轮模型历史里，也不被 `assistantMemorySources` 读取为记忆提炼来源 |
 
 ## 13. 已定
 
@@ -1264,4 +1263,4 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 
 第三方（没核对）：[Copilot 会话目录](https://docs.entire.io/integrations/copilot-cli)、[Cursor 云端 Agent 路由](https://docs.litellm.ai/docs/pass_through/cursor.md)、[Cascade 停用日期](https://businesstechnavigator.com/news/windsurf-devin-desktop-cascade-eol-2026)、[Amp 导出字段](https://docs.rs/txcript/0.4.2/txcript/harness/amp/index.html)。
 
-本机 `--help`（只看帮助，没读任何会话）：Codex 0.166.0、Grok Build 1.0.70、Pi 1.5.0。
+本机 `--help`（只看帮助，没读任何会话）：Codex 0.166.0、Grok Build 1.0.62（原记录 1.0.70／1.0.77）、Pi 1.5.0、GitHub CLI (`gh`) 2.96.0。

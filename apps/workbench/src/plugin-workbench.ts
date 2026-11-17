@@ -169,11 +169,16 @@ export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[
 }
 
 /**
- * Every surface the deferred loader mounts on first show. The Host's 角色 pages are settings pages now (Settings › 角色 and 项目设置 ›
- * 角色, docs/design/role-scope), loaded by their own settings loader, so none of the Host's own is a surface.
+ * The Host's own surfaces, mounted on first show beside the plugins'. The Host's 角色 pages are settings pages now (Settings › 角色 and
+ * 项目设置 › 角色, docs/design/role-scope), loaded by their own settings loader, so 角色 is not among them.
  */
+const HOST_SURFACE_CLIENTS: readonly Pick<PluginSurfaceClient, "id" | "bundle" | "assets">[] = [
+  { id: "sessions", bundle: "sessions", assets: [] },
+];
+
+/** Every surface the deferred loader mounts on first show: the plugins' and the Host's own. */
 export function deferredSurfaceClients(): (Pick<PluginSurfaceClient, "id" | "bundle" | "assets"> & Partial<Pick<PluginSurfaceClient, "plugin_id" | "styles" | "searchRow" | "recordRow">>)[] {
-  return pluginSurfaceClients();
+  return [...pluginSurfaceClients(), ...HOST_SURFACE_CLIENTS];
 }
 
 /** Fixed-build client assets derived from the same registration as styles and UI: one per bundle. */

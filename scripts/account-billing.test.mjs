@@ -58,7 +58,7 @@ try {
   async function login(phone){
     await db.prepare('UPDATE auth_rate_bucket SET expires_at=0 WHERE bucket_hash=?').bind(createHash('sha256').update('v2-delivery-resend:SMS:'+phone).digest('hex')).run();
     const tx=await create('PHONE_OTP'), sent=await step(tx,{step:'REQUEST_CHALLENGE',address:phone});
-    await step(tx,{step:'VERIFY_CHALLENGE',challengeHandle:sent.challengeHandle,credential:await code(phone)});await step(tx,{step:'PHONE_LOGIN'});return (await step(tx,{step:'COMPLETE'})).account;
+    await step(tx,{step:'VERIFY_CHALLENGE',challengeHandle:sent.challengeHandle,credential:await code(phone)});await step(tx,{step:'CODE_LOGIN'});return (await step(tx,{step:'COMPLETE'})).account;
   }
   let owner=await login(ownerPhone);
   for(const permission of ['TENANT_CREATE','TENANT_READ','TENANT_STATUS','CATALOG_WRITE','SUBSCRIPTION_READ','SUBSCRIPTION_WRITE'])
@@ -71,7 +71,7 @@ try {
   const st=await otherAuth.create({purpose:'LOGIN',method:'PHONE_OTP'},current);
   const sent=await otherAuth.submit(st.handle,{step:'REQUEST_CHALLENGE',address:ownerPhone},current);
   await otherAuth.submit(st.handle,{step:'VERIFY_CHALLENGE',challengeHandle:sent.challengeHandle,credential:await code(ownerPhone)},current);
-  await otherAuth.submit(st.handle,{step:'PHONE_LOGIN'},current);await otherAuth.submit(st.handle,{step:'COMPLETE'},current);
+  await otherAuth.submit(st.handle,{step:'CODE_LOGIN'},current);await otherAuth.submit(st.handle,{step:'COMPLETE'},current);
   const central=async(id,body,params)=>(await otherSession.invoke(id,{...(body?{body,idempotencyKey:crypto.randomUUID()}:{}),params},current)).data;
   browser=await ChromeHarness.start(join(home,'chrome'));assert.ok(browser);page=await browser.page();await page.command('Page.enable');await page.viewport(1440,900);
   const ready=()=>page.wait("!document.querySelector('.account-form')?.hasAttribute('aria-busy')");

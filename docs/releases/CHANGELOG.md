@@ -10,6 +10,31 @@
 - **生效顺序**：任务自己选的 → 项目默认 → 个人默认 → 助理。Coding、助理只交稳定引用，Host 起跑时钉住版本；同一会话沿用上一轮的版本；停用不打断进行中的一轮，版本被移出或删除才在下一步前停下（S-character-role-scope）。
 - **合同与库**：`agent.run.start@1` 的 `character` 改为任务选择；`characters.create@1` 必填正文并返回版本；新增 11 个角色动作，删除 `characters.list@1`、`characters.runnable@1`；`characters/characters.sqlite` 升到第 2 版（只建表）。详见 `docs/system/CONTRACT-CHANGES.md` 第 8 节。
 
+### 事项线第一片、明确交办与逐项认可（2026-11-16，#2093）
+
+- **事项线第一片**：工作台顶部一条放标签与插件图标，底部整条成线（线头、已办、输入、接下来）；事件由插件在 Manifest 声明的事件读取动作登记（助理、Coding、待办、Feed、Inbox 与沙箱插件同一路），事件卡、事件标签、停到侧边、390 宽与键盘路径；原右侧「后台任务」页删除，后台任务改从助理对话框右上角的图标打开的面板看。
+- **主线服务**：新横向包 `horizontal/mainline`（不存存储），系统动作 `mainline.line.read`、`attention.waiting.read`、`mainline.place`、`background.tasks.read`、`background.tasks.command`、`background.tasks.decide`、`objects.open`；线读取随返回带上同一次读到的任务总表。
+- **明确交办与结果回流**：主对话持续接单；任务办完、失败、缺信息、要决定、等待满足回到派出对话；`reports_to: "assistant"` 的无对话来源任务只汇报；新增宿主事件 `host.agent.continuation.ready@1`（载荷只有 `runtime_id`/`session_id`/`request_key`/`wait_id`），插件会话自己起轮；删 `agent.collaboration.await@1` 与助理、Coding 两处 25 秒长请求。
+- **逐项认可**：新模块 `modules/acceptance` 与 Home 库 `acceptance/acceptance.db` 第 1 版；`acceptance.requirements.set`、`deliveries.record`、`reports.submit`、`read`（一次至多 32 个对象）、`decide` 由 Host 装配为 `system.acceptance`；不经 Goals；要求版本、证据层级、返工复核与历史保留。
+- **合同与外观**：`platform/background-tasks`、`platform/work-events`、`platform/object-link` 等新形状；页面资源 `workbench.js`/`workbench.css` 按用户 2026-11-15 弹窗上调；首屏 `32-first-screen.json` 按实测放行；`DESIGN.md` 的顶部一条与事项线一节按用户认可改写。
+- **Prologue**：换到上游 main `02a11ac5`（#124 结果回流、#125 评审跟进、#126 授权变化时放回占用），旧包记入 `patch-history.json`。
+- **未完成/待验收**：本人验收（`BL-b32-acceptance`）与部分用例缺口（`BL-b32-acceptance-test-gaps`）；合入头 full-suite 的 5 个文件红由合后 #2098 收口（最终头 Full 48/48、CI 全绿，已合入 main `0d45ba58`）；32-2 认可入口、无来源同时汇报与后台 provider 覆盖的余项见对应 BL。
+### 最小真实评测路径（2026-11-15，#2096，`ddda618006`）
+
+- **观测样本留存**：`observation/observation.db` 由 1 升到 2，新增 `evaluation_holds` 与 `evaluation_hold_records`；`system.observation` 新增 `observation.holds.{put,release,list}@1`。有效留存豁免手动/自动到期清理及其加密快照，过期后失去豁免，删项目/清插件数据仍优先彻底删除；手动与自动清理在缺口里如实记 `expired`。
+- **独立横向评测服务**：新包 `horizontal/evaluation`（`@molis-ai/molis-work-service-evaluation`，`<Home>/evaluation/evaluation.db` v1），`system.evaluation` 九个 `@1` 动作；样本按 `(sample_id, version)` 冻结预期，`tuning`/`validation` 分离，三种判定来源（确定性、带版本评测器、人工参考准则），人工复查只追加不改写 `run_json`，`unknown`/`failed` 分离，六阶段跨版本对比、队列与漏斗指标、`withObservationSource("replay")` 下阻断外部副作用的隔离回放。
+- **隔离 Home 可复现 CLI**：`pnpm eval:run`（`scripts/run-evaluation.mts`）严拒真实 `~/.molis-work` 及父子目录和真实 Home 内的 `--json`，默认一次性临时 Home，跑完自动删除；9 个内置样本（EC-01/02/06/08/09/16/18）、双独立 Home `--verify-reproducible` 摘要 `IDENTICAL`，`--mode live` 默认 Gemini 系列（`gemini-2.5-flash`、`openai-chat-completions`），密钥只进临时 Home 文件凭据库并脱敏。真实 Gemini 凭据运行未验证。
+- **未完成/待验收**：真实 Gemini 现场结果（需用户授权/凭据）；N+1 证据读取等后续限制见评测服务 README 与 [BL-evaluation-read-cost](../../specs/backlog/BL-evaluation-read-cost.md)；本批无产品 UI，本人验收不适用。
+
+### Coding 与材料恢复闭环（2026-11-15，#2082）
+
+- **Coding 上下文与完成闭环**：按模型有效窗口动态缩放预算与压缩阈值（Coding 声明 `window_ratio: 0.4`，窗口未知回退固定阈值）；跨轮摘要保留失败/未知命令与未完步骤；环境准备清单含依赖、脚本端口、`.env` 样例变量名核对、独立工作树与基线测试行；四节收尾报告卡带验证 commit 与重跑入口；无上界正整数斐波那契估点、叶子加权进度、`skipped` 与 `scope_removed` 分开；未知命令的步骤标「结果未知，待核对」并从完成数/加权进度扣除。
+- **子任务与材料**：`agent.subagents.retry@1` 继承父轮冻结的模型/预算/推理档位，输出尝试额度、`prior_attempts` 与重试来源，用完给「再给 3 次」；宿主发起的无预算追加记 `source: "host"`。Coding 一轮下方材料清单复用恢复原语，运行中补读实时更新，读不到接 12 恢复块；超 30 份只全文读前 30 份，其余用 head/200 字核对并固定版本；`knowledge.read@1` 的 `expected_revision` 在动作工具与业务网关两处统一注入（`S-41`）。
+- **引导材料与重启**：文件行可打开详情（路径、大小、修改时间、来源、状态，不读正文）；代码/无后缀文本按内容识别、`.env*` 标 ENV；疑似密钥文件默认扣留，`onboarding.context.secret@1` 三选一（默认扣留，推荐只发变量名去值），`S-onboarding-secret-hold` 配拒绝测试；Tauri 大目录分批进度/取消/`resume_offset`/统计；浏览器 IndexedDB 跨刷新保留，中断清点可继续；五格漏斗、问题行、范围增删卡、增量改范围与旧纪元迟到结果丢弃；模型错误六类恢复；采用前对账项目/文稿/待办与 `onboarding.takes` 代码根目录，幂等。
+- **合同**：`agent-host` 窗口比例、宿主启动时刻、估点/加权进度、子任务重试、材料交付与 `knowledge.read` 版本钉住；`onboarding.context.secret@1`；全部在 @1 原版本内扩展或新增，API/动作快照同批更新。CONTRACT-CHANGES、GLOSSARY、CALL-CHAINS 与设计说明同步。
+- **合后五维收口（PR #2095）**：`knowledge.read@1` 与 `materials.read@1` 在动作工具和业务网关两个出口都按轮次冻结版本钉住；任务板/进度统一按叶子节点汇总并持久化 `skipped`，跨轮接续保留 `progress_basis`／`scope_removed`／`unknown_outcome`／`skipped`；目录扫描与 Tauri 枚举同步识别 `client_secret*.json`、`auth.json`、`.npmrc`、`.netrc`、`.pypirc`、`.pgpass`；`onboarding.context.secret@1` 写前复核，取消/过期不写旅程；删除 19 条死词条与服务端预翻译字段，环境清单按所选目录展示。
+- **未完成/待验收**：本人实物走查（[BL-batch33-acceptance](../../specs/backlog/BL-batch33-acceptance.md)）；页面资源在最终头重测后更新许可；`BL-106`、`BL-107` 按原排期留第 45／57 批。
+
 ### 工作记录：历史查询与记录管理（2026-11-15，#2084、#2088）
 
 - **公共动作**：`system.observation` 新增 8 个 `@1` 动作：只读 `records.query`／`evidence.get`／`coverage.get`，本人管理 `settings.get/set`／`space.get`／`cleanup.preview/apply`；按受众、用途开关、S-74 与模拟来源隔离裁决；支持当时证据快照解封、主人版本引用核对、`after_seq` 增量与迟到标记。既有 `observation.report@1` 形状不变，合同成熟度升为 `implemented`。
@@ -17,7 +42,7 @@
 - **组件板**：`#kind-mark`（五种 `--mark-*` 色相与独立字形）与 `#category-bar`（比例轨道与零值图例），组件板与产品页共用 `@molis-ai/molis-work-design-system/work-records`。
 - **合后小修 #2088**：`purged`/全部写入缺口原因的徽章、影响说明与横幅判定；收敛 5 个包内未跨文件 `export` 与 6 个不可达短名分支；同步 `CALL-CHAINS.md`、observation spec §10、design README 与 29.md 的旧字面量/合入号。
 - **合后审计收口**：OCL-05 的主人对版本引用比较当前 revision，改写后标 `unverified`；OCL-13 的默认模拟隔离扩到 `assistant`／`evaluation`／`export`（本机回看保留并标注来源）；覆盖横幅考虑 unavailable/redacted entry；保留需求改从服务端 `requirements` 取。
-- **未完成/待验收**：本人实物与连续工作走查（`BL-work-records-acceptance`）；评测样本留存与回放归第 30 批。
+- **未完成/待验收**：本人实物与连续工作走查（`BL-work-records-acceptance`）；评测样本留存与回放已由第 30 批接入（见上一条）。
 
 ### Work Brief 首页与简报核心（2026-11-14，#2077）
 

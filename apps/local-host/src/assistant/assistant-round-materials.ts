@@ -16,6 +16,7 @@ import { randomUUID } from "node:crypto";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
 import type { PersonActions } from "./assistant-executor.js";
 import { landingMaterials } from "./assistant-landing.js";
+import { formatExternalSessionObjectBackground, formatExternalSessionReferenceText, formatPageContextLines, formatSentMaterialBlock, isExternalSessionMaterial, isExternalSessionObject } from "./assistant-external-sessions.js";
 import { readPickedPiece } from "./assistant-send-materials.js";
 import { skillChoiceRow, skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { RUNTIME, belongsElsewhere, whereNow, type AssistantServicePorts, type RoundMaterials } from "./assistant-service-shared.js";
@@ -170,21 +171,16 @@ export class AssistantRoundMaterials {
       if (background) out.push(...chunked({ title: "当前对象（所有者提供）" }, "object", background));
     }
     if (context) {
-      const lines = [`页面：${context.source.title ?? context.source.surface}${context.source.plugin_id ? `（${context.source.plugin_id}）` : ""}`,
-        context.object ? `正在看的对象：${context.object.title ?? context.object.id}（${context.object.kind}${context.object.version !== undefined ? `，版本 ${context.object.version}` : ""}）` : "",
-        context.unsaved ? "对象有未保存的修改：选区来自草稿，不是已保存版本。" : "",
-        context.selection ? `选中的内容${context.selection.truncated ? "（已截断）" : ""}：\n${context.selection.text}` : ""].filter(Boolean).join("\n");
-      out.push(...chunked({ title: "当前页面（发送时）" }, "page", lines), ...await landingMaterials(this.ports, work.scope.kind === "personal" ? null : work.scope.project_id, context));
+      const page = formatPageContextLines(context);
+      out.push(...chunked({ title: page.title }, "page", page.text), ...await landingMaterials(this.ports, work.scope.kind === "personal" ? null : work.scope.project_id, context));
     }
     for (const material of materials) {
       if (material.method?.kind === "role") {
         if (!material.text || material.text.length > 20_000) throw assistantErrors.invalid("签名资料正文超过单份材料预算，请减少内容后重发");
         out.push({ material_id: `signed-${material.material_id}`, title: material.title, text: material.text }); continue;
       }
-      const head = [`${material.explicit ? "用户明确添加" : "来自当前页面，用户保留"}；类型：${material.kind}${material.draft ? "；未保存草稿" : ""}`,
-        material.source ? `来源：${material.source.title ?? material.source.surface}` : "",
-        material.object ? `对象：${material.object.title ?? material.object.id}（${material.object.kind}${material.object.version !== undefined ? `，版本 ${material.object.version}` : ""}）` : ""].filter(Boolean).join("\n");
-      out.push(...chunked({ title: `材料：${material.title}` }, `material-${material.material_id}`, `${head}\n\n${material.text ?? "（没有可读正文）"}`));
+      const formatted = formatSentMaterialBlock(material);
+      out.push(...chunked({ title: formatted.title }, `material-${material.material_id}`, formatted.text));
     }
     const signed = out.filter(item => item.material_id.startsWith("signed-"));
     const assembled = [...out.filter(item => !item.material_id.startsWith("signed-")).slice(0, 30 - signed.length), ...signed];
@@ -219,6 +215,7 @@ export class AssistantRoundMaterials {
       catch { return null; }
     };
     const found = await read(object.kind, object.id);
+    if (isExternalSessionObject(object)) return formatExternalSessionObjectBackground(found);
     const context = found && belongsElsewhere(work, found) ? null : found;
     if (!context) {
       const moved = await whereNow(work, actions, object);
@@ -265,8 +262,8 @@ export class AssistantRoundMaterials {
         catch { context = null; }
       }
       const where = material.source?.title ?? material.source?.plugin_id ?? "搜索";
-      const text = context
-        ? `用户用“@”引用的对象，已向${where}重新读取（版本 ${context.revision}${context.truncated ? "，正文为节选" : ""}）。\n${context.content.slice(0, 12_000)}`
+      const text = isExternalSessionObject(subject) ? formatExternalSessionReferenceText(context, material.text)
+        : context ? `用户用“@”引用的对象，已向${where}重新读取（版本 ${context.revision}${context.truncated ? "，正文为节选" : ""}）。\n${context.content.slice(0, 12_000)}`
         : `用户用“@”引用的对象。${where}没有提供正文读取，下面只是搜索结果里的摘要，不是全文：\n${material.text ?? "（没有摘要）"}`;
       out.push({ ...material, title: opened.title || material.title, object: { kind: subject.kind, id: subject.id, version: context?.revision ?? opened.revision, title: opened.title || material.title }, text });
     }
@@ -343,7 +340,8 @@ export class AssistantRoundMaterials {
     const work = this.store.get(this.actorId, workId);
     const found = this.store.rounds(work.work_id).flatMap(round => round.materials).find(item => item.material_id === materialId);
     if (!found) throw assistantErrors.not_found("这项工作里没有这份材料");
-    const text = typeof found.text === "string" ? found.text : undefined;
+    const text = typeof found.text === "string" ? found.text
+      : isExternalSessionMaterial(found) ? "（外部会话内容仅在发送当轮提供给模型，不在助理记录中留存原文）" : undefined;
     // A page brought from the browser says where it came from on its first line.
     const url = text?.match(/^来源：\s*(https?:\/\/\S+)/u)?.[1];
     return { material_id: found.material_id, kind: found.kind, title: found.title,

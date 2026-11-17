@@ -1935,7 +1935,13 @@
     "coding.board.points-by-user": "Set by you",
     "coding.board.points-pending": "Pending estimate",
     "coding.board.points-pending-hint": "No Fibonacci story-point estimate yet",
-    "coding.board.points-rollup": "Rolled up from {count} sub-steps: {points} pt",
+    "coding.board.points-rollup": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Rolled up from {count} sub-step: {points} pt",
+        "other": "Rolled up from {count} sub-steps: {points} pt"
+      }
+    },
     "coding.board.progress-basis": "{percent}% done · {basis}",
     "coding.board.remove-scope": "Remove from scope",
     "coding.board.remove-scope-reason": "Reason for removing from scope",
@@ -1962,12 +1968,18 @@
     "coding.material.delivery.on-demand": "Listed; read on demand",
     "coding.material.delivery.truncated": "First 12,000 chars; read more on demand",
     "coding.material.drop-and-start": "Remove and start",
-    "coding.material.kept-summary": "This round has not started. The other {kept} materials and your draft are still in place.",
+    "coding.material.kept-summary": {
+      "plural_arg": "kept",
+      "forms": {
+        "one": "This round has not started. The other {kept} material and your draft are still in place.",
+        "other": "This round has not started. The other {kept} materials and your draft are still in place."
+      }
+    },
     "coding.material.pick-another": "Pick another",
     "coding.material.pinned-note": "Pinned to start revision",
     "coding.material.reason.deleted": "Not found in project (may have been deleted)",
     "coding.material.reason.forbidden": "Read permission is turned off",
-    "coding.material.round-overflow-summary": "Read {inline}; {rest} more on demand",
+    "coding.material.round-overflow-summary": "First {inline} read; {rest} checked, on demand",
     "coding.material.round-summary": {
       "plural_arg": "count",
       "forms": {
@@ -2001,9 +2013,21 @@
     "coding.round.card.remaining": "Remaining",
     "coding.round.card.verified": "How it was verified",
     "coding.round.card.where": "Where code stands",
-    "coding.round.card.where-checkpoint": "Working tree has {count} changed files from this round (checkpoint available)",
+    "coding.round.card.where-checkpoint": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Working tree has {count} changed file from this round (checkpoint available)",
+        "other": "Working tree has {count} changed files from this round (checkpoint available)"
+      }
+    },
     "coding.round.card.where-clean": "Working tree untouched in this round",
-    "coding.round.card.where-dirty": "Working tree has {count} changed files from this round",
+    "coding.round.card.where-dirty": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Working tree has {count} changed file from this round",
+        "other": "Working tree has {count} changed files from this round"
+      }
+    },
     "coding.round.done-unknown-cmd": "Turn ended ({count} command outcomes unknown)",
     "coding.round.pre-existing-fail": "Already failing before edits",
     "coding.round.stale-check": "Ran before later edits; not re-run after",
@@ -2086,7 +2110,13 @@
     "coding.env.scripts.invalid-pkg": "package.json could not be parsed",
     "coding.env.scripts.ports": "Ports {ports} (switches to free port if busy)",
     "coding.env.scripts.summary": "Scripts {scriptList}",
-    "coding.env.status.attention": "{count} need attention",
+    "coding.env.status.attention": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} needs attention",
+        "other": "{count} need attention"
+      }
+    },
     "coding.env.status.ready": "All ready",
     "coding.env.title": "Environment checklist",
     "coding.env.vars.checked": "Checked {file} (secret values never read)",

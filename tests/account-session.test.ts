@@ -261,8 +261,9 @@ test("WORK-02/UAS-11/26: unknown durable records, extra fields and another envir
 
 test("WORK-02/UAS-25/26: cached identity never authorizes management and a write 401 is not automatically replayed", async () => {
   const h = harness(); await h.login();
-  for (const operation of ["exchangeToken", "logoutCurrent", "recordActivity", "getMe", "createTransaction"])
+  for (const operation of ["exchangeToken", "logoutCurrent", "recordActivity", "createTransaction"])
     await assert.rejects(h.manager.invoke(operation, {}, control()), { code: "account.invalid_request" });
+  assert.ok((await h.manager.invoke("getMe", {}, control())).data);
   h.setHook(async call => { if (call.path.endsWith("/current")) throw new Error("offline"); return undefined; });
   assert.equal((await h.manager.readSession(control())).state, "OFFLINE_CACHED");
   await assert.rejects(h.manager.invoke("updateProfile", { body: { displayName: "Changed", expectedVersion: 0 }, idempotencyKey: key() }, control()), { code: "account.unavailable" });

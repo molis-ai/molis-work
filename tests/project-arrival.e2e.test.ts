@@ -101,9 +101,9 @@ test("the chooser opens on the project last opened, shows its brief, and Enter g
 
 test("FSS-36 the project chooser opens sign-in methods in its own language", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  for (const [locale, modes, providers] of [
-    ["en", ["Email sign in", "Phone code", "Email sign up", "Reset password"], ["Sign in with Google", "Sign in with GitHub"]],
-    ["zh", ["邮箱登录", "手机验证码", "邮箱注册", "找回密码"], ["使用 Google 登录", "使用 GitHub 登录"]],
+  for (const [locale, modes, providers, reset, back] of [
+    ["en", ["Password", "Email code", "Phone code"], ["Sign in with Google", "Sign in with GitHub"], "Reset password", "Back to sign in"],
+    ["zh", ["账号密码", "邮箱验证", "手机验证"], ["使用 Google 登录", "使用 GitHub 登录"], "找回密码", "返回登录"],
   ] as const) {
     await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/locale?lang=${locale}&next=%2F` }, browser.sessionId));
     await browser.waitFor("document.querySelector('.chooser') && document.querySelector('[data-unified-account-link]')");
@@ -111,7 +111,13 @@ test("FSS-36 the project chooser opens sign-in methods in its own language", { t
     await browser.click("[data-unified-account-link]");
     await browser.waitFor("document.querySelector('.account-dialog[open] .account-form')");
     assert.deepEqual(await browser.evaluate("[...document.querySelectorAll('.account-dialog .account-modes button')].map(button => button.textContent)"), modes);
-    assert.deepEqual(await browser.evaluate("[...document.querySelectorAll('.account-dialog .account-form button[type=button]')].map(button => button.textContent)"), providers);
+    assert.deepEqual(await browser.evaluate("[...document.querySelectorAll('.account-dialog .account-social button[type=button]')].map(button => button.textContent)"), providers);
+    assert.equal(await browser.evaluate("document.querySelector('.account-form .account-back').textContent"), reset);
+    await browser.click(".account-form .account-back");
+    assert.equal(await browser.evaluate("document.querySelector('.account-form .account-back').textContent"), back);
+    assert.equal(await browser.evaluate("document.querySelector('.account-form input[name=address]').type"), "email");
+    await browser.click(".account-form .account-back");
+    assert.equal(await browser.evaluate("document.querySelector('.account-form input[name=password]').autocomplete"), "current-password");
     await browser.click(".account-dialog > button");
     await browser.waitFor("!document.querySelector('.account-dialog')");
     assert.equal(await browser.evaluate("location.pathname"), "/");
@@ -180,7 +186,7 @@ test("the arrow keys move through the directory and the brief and the bar follow
 test("moving quickly down the directory asks the Host for the project it stops on, not for every one it passes", { timeout: 90_000 }, async t => {
   const chooser = await openChooser(t);
   if (!chooser) return;
-  const { evaluate, waitFor, press, view, open, settled, others } = chooser;
+  const { evaluate, waitFor, view, open, settled, others } = chooser;
   await view(1440);
   await open("/");
   await settled();
@@ -189,10 +195,17 @@ test("moving quickly down the directory asks the Host for the project it stops o
     const real = window.fetch.bind(window);
     window.fetch = (input, init) => { const url = String(input?.url ?? input); if (/\\/api\\/projects\\/[^/]+\\/brief/.test(url)) window.__briefCalls.push(decodeURIComponent(url)); return real(input, init); };
   })()`);
-  await evaluate("document.querySelector('.chooser-dir [aria-selected=true]').focus()");
-  for (let step = 0; step < 3; step++) await press("ArrowDown");
-  assert.equal(await evaluate("document.querySelector('.chooser').dataset.selected"), others[2], "three rows down");
-  assert.ok(await evaluate("!!document.querySelector('#chooser-detail .mw-brief--loading')"), "the sheet answers at once with what is known");
+  // Keep the rapid burst and its immediate feedback in one browser task: CDP round trips can outlast the 160 ms settle window.
+  // These synthetic keys exercise the production handler; the adjacent navigation test keeps native CDP keyboard coverage.
+  const burst = await evaluate<{ selected: string; loading: boolean }>(`(() => {
+    document.querySelector('.chooser-dir [aria-selected=true]').focus();
+    for (let step = 0; step < 3; step++) document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'ArrowDown', code: 'ArrowDown', bubbles: true, cancelable: true,
+    }));
+    return { selected: document.querySelector('.chooser').dataset.selected, loading: !!document.querySelector('#chooser-detail .mw-brief--loading') };
+  })()`);
+  assert.equal(burst.selected, others[2], "three rows down");
+  assert.ok(burst.loading, "the sheet answers at once with what is known");
   await waitFor("document.querySelector('#chooser-detail .mw-brief__title')?.textContent === 'Footballnia'");
   await settled();
   const calls = await evaluate<string[]>("window.__briefCalls");

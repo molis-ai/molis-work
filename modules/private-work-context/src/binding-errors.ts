@@ -1,4 +1,4 @@
-import type { MolisWorkRuntimeContextUnbindResult } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import { WORK_CONTEXT_PERSON_RELATION_KEPT_CODE, type MolisWorkRuntimeContextUnbindResult } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export const bindingErrors = defineErrorCodes("work.context", {
@@ -16,6 +16,6 @@ export const bindingErrors = defineErrorCodes("work.context", {
 
 /** Not thrown: nothing failed, the tool is told why nothing was unlinked and what to pass on to the person. */
 export function personRelationKept(): NonNullable<MolisWorkRuntimeContextUnbindResult["kept"]> {
-  const { code, message } = bindingErrors.person_relation_kept("这个目录关系是用户本人建的，工具解除不了；请告诉用户到项目设置里解除");
-  return { code: code as "work.context.person_relation_kept", message };
+  const { message } = bindingErrors.person_relation_kept("这个目录关系是用户本人建的，工具解除不了；请告诉用户到项目设置里解除");
+  return { code: WORK_CONTEXT_PERSON_RELATION_KEPT_CODE, message };
 }

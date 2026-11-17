@@ -4,7 +4,7 @@ import { parseExactActionReferences, type ActionView, type ExactActionReference 
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { workspaceReadActions, writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { projectFolders } from "./project-folders.js";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentSessionView, type AgentSubagentWorkspace } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { characterSelection, characterSkillSelection, saveCharacter, savedCharacter, savedCharacterSkills } from "./characters.js";
@@ -130,6 +130,16 @@ async function chosenWorktree(a: CodingActivation, body: Record<string, unknown>
     .find(child => child.worktree_id === worktreeId && !child.problem);
   if (!tree) throw codingFailure("coding.server.worktree-gone");
   return tree;
+}
+
+/** What a round is about to test: the worktree's base, or the workspace's HEAD at the moment it starts (`CHO-11`). */
+async function roundCodeRevision(a: CodingActivation, beforeWrite: CodingBeforeWrite, workspaceId: string, tree: unknown): Promise<string | undefined> {
+  const base = (tree as { base_commit?: string } | undefined)?.base_commit;
+  if (base) return base;
+  try {
+    const git = await codingActions(a.context, beforeWrite).invoke(workspaceReadActions.git, { workspace_id: workspaceId, kind: "summary" });
+    return git.outcome === "summary" ? git.head_commit ?? undefined : undefined;
+  } catch { return undefined; }
 }
 
 /**
@@ -282,6 +292,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
       context.services!.storage!.set(`digest-usage:${record.session_id}`, JSON.stringify({ calls: spent.calls + 1,
         tokens: { input: spent.tokens.input + usage.input, output: spent.tokens.output + usage.output } }));
     });
+  const codeRevision = await roundCodeRevision(a, beforeWrite, workspace.workspace_id, tree);
   const start = async (mode: "session" | "digest") => codingActions(a.context, beforeWrite).invoke(agent.startRun, [record.runtime_id, { session, directory, task: mode === "digest" ? (await digestFor()).text : task, ...(original_input ? { original_input } : {}), ...(continued_from ? { continued_from } : {}), role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
     ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: executionSteps(plan.content) } } : {}),
     ...(continueOf !== undefined ? { continue_step_board_of: continueOf } : {}),
@@ -301,6 +312,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     history = "digest"; historyReason = "完整的对话历史已放不进模型窗口";
     return start("digest");
   }); } catch (error) { follower.cancel(); throw error; }
+  if (codeRevision) context.services!.storage!.set(`code-revision:${record.session_id}:${run.ref.run_id}`, codeRevision);
   try {
     await beforeWrite(); beforeWrite.assert_current();
     if (history === "digest") context.services!.storage!.delete(`compact-next:${record.session_id}`);

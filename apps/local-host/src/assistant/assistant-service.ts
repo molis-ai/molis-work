@@ -30,6 +30,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { MemoryChange } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { assertRoundToAddress, inputsOf, withdrawInput } from "./assistant-inputs.js";
+import { hasExternalSessionContext } from "./assistant-external-sessions.js";
 import { checkLanding } from "./assistant-landing.js";
 import { reaskMaterial, reaskTask } from "./assistant-reask.js";
 import { readComposerMaterials, sendScope } from "./assistant-composer-materials.js";
@@ -197,7 +198,6 @@ export class AssistantService {
         return carried ? (await (await this.dispatcher.executorOf(work, carried.plugin_id)).read(carried.session_id, 1).catch(() => null))?.runs.at(-1)?.ref : undefined; } }, workId, since, timeoutMs, signal);
   }
 
-  
   /**
    * Work the Host starts by itself runs in a language scope of its own, the one last used as of now, so it does not keep the language of the
    * page whose request its async chain happened to begin in (FSS-69).
@@ -306,15 +306,12 @@ export class AssistantService {
     return this.reads.publicWork(work, hasSession ? await this.reads.stateSafely(work) : "idle");
   }
 
-  private async createWork(text: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot | null, caller: AssistantCaller,
-    choice: AssistantSendInput["executor"], main = false, serves?: StoredWork["serves"]): Promise<StoredWork> {
+  private async createWork(text: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot | null, caller: AssistantCaller, choice: AssistantSendInput["executor"], main = false, serves?: StoredWork["serves"]): Promise<StoredWork> {
     const wanted = sendScope(scope, caller, choice);
     // Chosen only among the executors this project offers now, and kept by the plugin's id.
     const executor = choice?.kind === "plugin" ? await this.dispatcher.executorOf({ project_ref: caller.project_ref }, choice.plugin_id) : null;
     const scopeTitle = wanted.kind === "project" ? await this.ports.projectTitle?.(wanted.project_id).catch(() => null) : null;
-    return this.store.create({ actor_id: this.actorId, title: main ? "" : titleFrom(text), scope: wanted, origin: context?.source ?? null, ...(scopeTitle ? { scope_title: scopeTitle } : {}), ...(main ? { main: true as const } : {}), ...(serves ? { serves } : {}),
-      ...(executor ? { executor: { kind: "plugin" as const, plugin_id: executor.provider.plugin_id, title: executor.provider.title, session_id: null } } : {}),
-      ...(wanted.kind === "project" ? { project_ref: caller.project_ref! } : {}) });
+    return this.store.create({ actor_id: this.actorId, title: main ? "" : titleFrom(text), scope: wanted, origin: context && !hasExternalSessionContext(context) ? context.source : null, ...(scopeTitle ? { scope_title: scopeTitle } : {}), ...(main ? { main: true as const } : {}), ...(serves ? { serves } : {}), ...(executor ? { executor: { kind: "plugin" as const, plugin_id: executor.provider.plugin_id, title: executor.provider.title, session_id: null } } : {}), ...(wanted.kind === "project" ? { project_ref: caller.project_ref! } : {}) });
   }
 
   /** What an interrupted round really did, from the runtime's receipts. Nothing is replayed. */

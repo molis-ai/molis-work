@@ -6,6 +6,7 @@ import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 export type {PluginRegistration as BuiltinPluginEntry} from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
+import { SESSIONS_NAVIGATION, SESSIONS_PROVIDER_ID } from "./sessions/navigation.js";
 import { ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
 import { projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
 import { isPersonalPlugin, sanitizePluginDirectory, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
@@ -91,7 +92,7 @@ function shippedDirectoryIds(): string[] {
     .filter((entry) => entry.personal === true || Boolean(entry.manifest.summary))
     .map((entry) => entry.project_plugin_id);
   const market = builtinPlacementDirectory();
-  const ids = navigationEntries(shipped, market, ARTIFACT_NAVIGATION.label).map(entry => entry.id);
+  const ids = navigationEntries(shipped, market, ARTIFACT_NAVIGATION.label, SESSIONS_NAVIGATION.label).map(entry => entry.id);
   const unique = [...new Set(ids)];
   if (unique.includes("feed") && !unique.includes("sources")) unique.push("sources");
   return unique;
@@ -151,12 +152,26 @@ function railEntry({ id, entry, view }: PlacedDirectoryView): RailEntry {
     rail: entry.chosen ? view.rail ?? null : null, pinned_default: entry.chosen && view.pinned_default === true, chosen: entry.chosen };
 }
 
-function railFrom(registry: DirectoryRegistry, artifactLabel: string): RailEntry[] {
-  const views = placedDirectoryViews(registry, "navigator"), entries = views.map(railEntry);
-  const at = views.findIndex(({ view }) => view.order > ARTIFACT_NAVIGATION.order
-    || (view.order === ARTIFACT_NAVIGATION.order && view.plugin_id.localeCompare(ARTIFACTS_PROVIDER_ID) > 0));
-  const { id, surface, glyph, group, rail, pinned_default, chosen } = ARTIFACT_NAVIGATION;
-  entries.splice(at < 0 ? entries.length : at, 0, { id, surface, label: artifactLabel, glyph, group, rail, pinned_default, chosen });
+function insertPlatformEntry(
+  views: Array<{ order: number; plugin_id: string }>,
+  entries: RailEntry[],
+  nav: typeof ARTIFACT_NAVIGATION | typeof SESSIONS_NAVIGATION,
+  providerId: string,
+  label: string,
+): void {
+  const at = views.findIndex((item) => item.order > nav.order || (item.order === nav.order && item.plugin_id.localeCompare(providerId) > 0));
+  const pos = at < 0 ? entries.length : at;
+  const { id, surface, glyph, group, rail, pinned_default, chosen } = nav;
+  views.splice(pos, 0, { order: nav.order, plugin_id: providerId });
+  entries.splice(pos, 0, { id, surface, label, glyph, group, rail, pinned_default, chosen });
+}
+
+function railFrom(registry: DirectoryRegistry, artifactLabel: string, sessionsLabel: string): RailEntry[] {
+  const placed = placedDirectoryViews(registry, "navigator");
+  const views = placed.map(({ view }) => ({ order: view.order, plugin_id: view.plugin_id }));
+  const entries = placed.map(railEntry);
+  insertPlatformEntry(views, entries, ARTIFACT_NAVIGATION, ARTIFACTS_PROVIDER_ID, artifactLabel);
+  insertPlatformEntry(views, entries, SESSIONS_NAVIGATION, SESSIONS_PROVIDER_ID, sessionsLabel);
 
   // Installed plugins with only a stage open there; a directory or island view already represents its plugin (ui-host's one rule).
   entries.push(...stageOnlyDirectoryViews(registry).map(railEntry));
@@ -165,7 +180,7 @@ function railFrom(registry: DirectoryRegistry, artifactLabel: string): RailEntry
 
 /** Platform navigation and the enabled Plugins' views, in their declared order. Platform entries are never project members. */
 export function railEntries(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): RailEntry[] {
-  return railFrom(registryFor(directory, enabled), artifactNavigationLabel());
+  return railFrom(registryFor(directory, enabled), artifactNavigationLabel(), sessionsNavigationLabel());
 }
 
 /** Personal island entries above the project card. */
@@ -173,9 +188,9 @@ export function islandEntries(enabled: readonly ProjectPluginId[], directory: Pl
   return placedDirectoryViews(registryFor(directory, enabled), "island").map(railEntry);
 }
 
-function navigationEntries(enabled: readonly ProjectPluginId[], directory: PluginDirectory, artifactLabel: string): RailEntry[] {
+function navigationEntries(enabled: readonly ProjectPluginId[], directory: PluginDirectory, artifactLabel: string, sessionsLabel: string): RailEntry[] {
   const registry = registryFor(directory, enabled);
-  return [...railFrom(registry, artifactLabel), ...placedDirectoryViews(registry, "island").map(railEntry)];
+  return [...railFrom(registry, artifactLabel, sessionsLabel), ...placedDirectoryViews(registry, "island").map(railEntry)];
 }
 
 function launchViews(enabled: readonly ProjectPluginId[], directory: PluginDirectory): PlacedDirectoryView[] {
@@ -290,7 +305,7 @@ export function pluginTabGlyphs(): Record<string, string> {
   return Object.fromEntries([
     ["home", "home"],
     ["market", "grid"],
-    ...navigationEntries(enabled, market, ARTIFACT_NAVIGATION.label).map(entry => [entry.id, entry.glyph]),
+    ...navigationEntries(enabled, market, ARTIFACT_NAVIGATION.label, SESSIONS_NAVIGATION.label).map(entry => [entry.id, entry.glyph]),
   ]);
 }
 
@@ -310,8 +325,16 @@ function artifactNavigationLabel(): string {
   }
 }
 
+function sessionsNavigationLabel(): string {
+  try { return uiText.text("workbench.sessions.navigation-name"); }
+  catch (error) {
+    if (typeof error === "object" && error && "code" in error && error.code === "ui.text_no_context") return SESSIONS_NAVIGATION.label;
+    throw error;
+  }
+}
+
 /** The rail and island titles of a directory's plugins; the Host passes its own (`builtinMarketDirectory`), a page drawn without one uses the catalog's. */
 export function pluginTabTitles(market: PluginDirectory = builtinPluginDirectory()): Record<string, string> {
   const enabled = market.map((entry) => entry.id);
-  return Object.fromEntries(navigationEntries(enabled, market, artifactNavigationLabel()).map(entry => [entry.id, entry.label]));
+  return Object.fromEntries(navigationEntries(enabled, market, artifactNavigationLabel(), sessionsNavigationLabel()).map(entry => [entry.id, entry.label]));
 }

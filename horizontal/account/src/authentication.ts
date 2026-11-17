@@ -34,7 +34,37 @@ export function createAccountAuthentication(config: AccountEnvironmentConfig, se
     if (t.busy) throw accountErrors.conflict("Authentication operation in progress");
     t.busy = true; try { return await run(t); } finally { t.busy = false; }
   }
+  async function startLogin(input: unknown, control: AccountCallControl, password: boolean) {
+    validAuthentication(password ? "ProductLoginPasswordRequest" : "ProductSendVerificationRequest", input);
+    const attempt = sessions.beginLogin(control), t = newAuthentication("LOGIN", password ? "ACCOUNT_PASSWORD" : input.channel === "SMS" ? "PHONE_OTP" : "EMAIL_CODE");
+    if (current) { discard(current); pending.delete(current.handle); }
+    t.attempt = attempt; current = t; keep(t);
+    const guarded = { ...control, initiatorProofRef: t.handle, assertCurrent: () => { control.assertCurrent(); assertAuthentication(t); } };
+    try {
+      const result = await protocol.service(t).invoke(password ? "loginPassword" : "sendLoginVerification", { body: {
+        ...input, clientId: config.clientId, redirectUri: config.redirectAllowlist[0], state: t.state,
+        codeChallenge: authenticationDigest(t.verifier), codeChallengeMethod: "S256", initiatorChallenge: authenticationDigest(t.proof),
+      } }, guarded);
+      if (!isRecord(result.data)) throw accountErrors.upstream_invalid("Invalid login response");
+      if (password) return await protocol.acceptLogin(t, result.data, guarded);
+      t.id = String(result.data.verificationId); t.expiresAt = String(result.data.expiresAt); t.nextStep = "LOGIN_CODE";
+      return { verificationId: t.handle, expiresAt: t.expiresAt, retryAfterSeconds: result.data.retryAfterSeconds };
+    } catch (error) { sessions.cancelLogin(attempt); discard(t); pending.delete(t.handle); throw error; }
+    finally { t.busy = false; }
+  }
   return {
+    loginPassword: (input: unknown, control: AccountCallControl) => startLogin(input, control, true),
+    sendVerification: (input: unknown, control: AccountCallControl) => startLogin(input, control, false),
+    async loginCode(input: unknown, control: AccountCallControl) {
+      validAuthentication("LoginCodeRequest", input);
+      return exclusive(String(input.verificationId), control, async t => {
+        if (t.purpose !== "LOGIN" || t.nextStep !== "LOGIN_CODE") throw accountErrors.forbidden("Verification is not for login");
+        const guarded = { ...control, initiatorProofRef: t.handle, assertCurrent: () => { control.assertCurrent(); assertAuthentication(t); } };
+        const result = await protocol.service(t).invoke("loginCode", { body: { verificationId: t.id, code: input.code } }, guarded);
+        if (!isRecord(result.data)) throw accountErrors.upstream_invalid("Invalid login response");
+        return protocol.acceptLogin(t, result.data, guarded);
+      });
+    },
     async create(input: unknown, control: AccountCallControl) {
       validAuthentication("ProductTransactionRequest", input);
       if (["BIND", "REPLACE"].includes(String(input.purpose))) return management.create(input, control);

@@ -80,7 +80,9 @@ test("H1/APR-12: the authorization manager shows the original source, revokes th
       await selectProject();
       await page.wait(`!document.querySelector('[data-authorization-list][aria-busy]') && document.querySelector(${JSON.stringify(list)})?.textContent.includes('Review a note title')`);
       await page.click(rows);
-      assert.match(await page.evaluate<string>(`document.querySelector(${JSON.stringify(detail)})?.innerText`), locale === "en" ? /person|human/i : /本人|人工/);
+      const reviewDetailText = await page.evaluate<string>(`document.querySelector(${JSON.stringify(detail)})?.innerText ?? ""`);
+      assert.match(reviewDetailText, locale === "en" ? /person|human/i : /本人|人工/);
+      assert.doesNotMatch(reviewDetailText, /local:person|io\.molis\.work\./);
       await capture(`source-${locale}-${width}-${theme}`);
       await page.evaluate("(() => { const select = document.querySelector('[data-authorization-project]'); select.value = ''; })()");
       await page.click('[data-authorization-view="grants"]');
@@ -165,9 +167,12 @@ test("H1/APR-11: choose Pages permissions, narrow them in the manager, and revok
   await openManager("en");
   await waitFor(`document.querySelectorAll('${operationCheckboxes}').length === 2`);
   assert.deepEqual(await labels(), ["Edit documents", "Move documents"]);
+  assert.match(await evaluate<string>(`document.querySelector('${detail}')?.innerText ?? ""`), /Assistant/);
+  assert.doesNotMatch(await evaluate<string>(`document.querySelector('${detail}')?.innerText ?? ""`), /助理|local:person|io\.molis\.work\./);
   await openManager("zh");
   await waitFor(`document.querySelectorAll('${operationCheckboxes}').length === 2`);
   assert.deepEqual(await labels(), ["编辑文档", "移动文档"]);
+  assert.match(await evaluate<string>(`document.querySelector('${detail}')?.innerText ?? ""`), /助理/);
   const narrow = detail + " .authorization-actions > button:first-of-type";
   assert.equal(await evaluate(`document.querySelector('${narrow}').disabled`), true);
   await click(detail + " .authorization-operation:nth-of-type(2) > label > input");

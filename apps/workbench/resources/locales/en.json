@@ -1402,6 +1402,7 @@
     "workbench.authorization.session-next-round": "Saving closes the current request. The next round will check each operation against the new permissions.",
     "workbench.authorization.session-end": "Applies to this session across rounds and restarts. You can revoke it at any time.",
     "workbench.authorization.ongoing": "Ongoing",
+    "workbench.authorization.ongoing-delegation": "Ongoing work permissions",
     "workbench.authorization.ongoing-end": "Applies to the same project, actor and selected scope until you narrow or revoke it.",
     "workbench.authorization.read-only": "Read-only help",
     "workbench.authorization.read-only-note": "The Assistant can read and suggest. Change its permissions before it can make changes.",

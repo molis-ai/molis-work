@@ -7,7 +7,7 @@ import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { ACCEPTANCE_DECIDE_PERMISSION, ACCEPTANCE_PROVIDER_ID, ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_REPORT_PERMISSION, acceptanceActions, acceptanceRequestId, type AcceptanceReadResult, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
-import { projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
+import { projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
 import { backgroundPlugin, backgroundRig } from "./fixtures/home-background-plugin.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 
@@ -236,6 +236,29 @@ test("S-acceptance-person-decides APR-15 APR-16: same ReviewReference across Ass
   } finally {
     readerAvailable = true;
   }
+
+  // Commit-stage refusal inside `projectReviewDecisions.commit` / `checkCommit` rolls back `acceptance.db` too (zero business records on either side).
+  await env.host.withProject(ref, ({ store }) => {
+    store.db.exec(`
+      CREATE TRIGGER test_rule_change_mid_commit AFTER INSERT ON project_review_decisions
+      BEGIN
+        INSERT INTO project_approval_rules (id, project_id, scope_json, rule_order, requires_person, revision, state, created_by, created_at, reason, changed_by, changed_at, change_reason)
+        VALUES ('mid-commit-rule', '${pid}', '{"kind":"project_default"}', 999, 1, 1, 'active', 'local:person', '2026-11-16T00:00:00.000Z', 'race', NULL, NULL, NULL);
+      END
+    `);
+  });
+  try {
+    await assert.rejects(
+      env.web.post(`${approvalsPrefix}/decide`, { reference: v2Gated.reference, choice_id: "accept:r2", request_key: "revoked-mid-commit" }),
+      { code: "actions.conflict" },
+    );
+  } finally {
+    await env.host.withProject(ref, ({ store }) => { store.db.exec("DROP TRIGGER IF EXISTS test_rule_change_mid_commit"); });
+  }
+  const afterRollback = (await env.web.post<AcceptanceReadResult>(`${acceptancePrefix}/read`, { subjects: [gatedSubject] })).views[0]!;
+  assert.equal(afterRollback.requirements.find(item => item.id === "r2")?.person, "pending", "acceptance.db rolled back when projectReviewDecisions.commit rejected");
+  assert.equal(await env.host.withProject(ref, ({ store }) => projectReviewDecisions(store.db, pid).forRequest(v2Gated.reference.id)), null);
+  assert.equal(await env.host.withProject(ref, ({ store }) => projectApprovalRules(store.db, pid).read(false).rules.some(rule => rule.id === "mid-commit-rule")), false);
 
   // Applied decision history: settled v1 ReviewReference reopens frozen facts + decision receipt even after v2, and appears in authorization review history.
   const reopenedWeb = await env.web.post<ReviewRequest>(`${approvalsPrefix}/request`, { reference: v1Gated.reference });

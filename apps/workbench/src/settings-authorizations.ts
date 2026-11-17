@@ -35,24 +35,24 @@ export function renderAuthorizationSettings(projects: readonly WebProjectNavigat
 
 export const AUTHORIZATION_SETTINGS_CLIENT = String.raw`
 globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
-  const root = container.matches?.("[data-authorization-settings]") ? container : container.querySelector?.("[data-authorization-settings]");
+  const attr = name => "[data-authorization-" + name + "]", sel = attr("settings");
+  const root = container.matches?.(sel) ? container : container.querySelector?.(sel);
   if (!root || root.dataset.bound) return;
   root.dataset.bound = "true";
-  const attribute = name => "[data-authorization-" + name + "]";
-  const part = name => root.querySelector(attribute(name));
+  const part = name => root.querySelector(attr(name));
   const list = part("list"), detail = part("detail"), banner = part("error");
   const project = part("project"), owner = part("owner"), client = part("client"), search = part("search");
-  const ui = globalThis.t.text;
-  const text = (key, args) => ui("workbench.authorization." + key, args);
+  const ui = globalThis.t.text, text = (key, args) => ui("workbench.authorization." + key, args);
+  const who = value => value === "local:person" ? ui("workbench.common.label") : value;
   const word = value => typeof value === "string" ? value : globalThis.say.text(value);
-  const title = item => item.title_text ? word(item.title_text) : item.title;
-  const lower = value => value.toLocaleLowerCase();
-  const el = (tag, className, textContent) => Object.assign(document.createElement(tag), className ? { className } : {}, textContent ? { textContent } : {});
-  const button = (label, onclick, variant = "secondary") => Object.assign(el("button", "mw-btn mw-btn--" + variant, label), { type: "button", onclick });
-  const muted = copy => el("p", "settings-muted", copy);
-  const set = (node, ...children) => node.replaceChildren(...children);
+  const title = item => item.title_text ? word(item.title_text) : item.title, lower = value => value.toLocaleLowerCase();
+  const el = (tag, cls, copy, props) => Object.assign(document.createElement(tag), cls ? { className: cls } : {}, copy ? { textContent: copy } : {}, props);
+  const button = (label, onclick, variant = "secondary") => el("button", "mw-btn mw-btn--" + variant, label, { type: "button", onclick });
+  const muted = copy => el("p", "settings-muted", copy), set = (node, ...children) => node.replaceChildren(...children);
+  const statusMsg = copy => { const node = muted(copy); node.setAttribute("role", "status"); return node; };
+  const setDisabled = (nodes, disabled) => nodes.forEach(control => { control.disabled = disabled; });
   const errorMessage = failure => {
-    const node = el("p", "settings-form-error"); node.setAttribute("role", "alert");
+    const node = el("p", "settings-form-error", "", { role: "alert" });
     if (failure) problem(node, failure); else node.hidden = true;
     return node;
   };
@@ -62,30 +62,25 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     set(detail, el("h2", "", heading), facts);
   };
   const rowButton = (heading, status, selected, run) => {
-    const pick = button("", run, "ghost"); pick.classList.add("authorization-row");
-    pick.setAttribute("aria-current", String(Boolean(selected)));
+    const pick = button("", run, "ghost authorization-row");
+    pick.setAttribute("aria-current", String(!!selected));
     pick.append(el("strong", "", heading), el("span", "settings-muted", status));
     list.append(pick); return pick;
   };
-  const date = at => format.date(at, "datetime");
-  const focus = node => node.focus({ preventScroll: true });
-  const focusDetails = () => focus(detail);
+  const date = at => format.date(at, "datetime"), focus = node => node.focus({ preventScroll: true }), focusDetails = () => focus(detail);
   const busy = (node, on) => on ? node.setAttribute("aria-busy", "true") : node.removeAttribute("aria-busy");
-  const nonProject = value => !value || value === "home";
-  const showBanner = copy => { banner.textContent = copy; banner.hidden = false; };
+  const nonProject = value => !value || value === "home", showBanner = copy => { banner.textContent = copy; banner.hidden = false; };
   let rows = [], row = null, generation = 0, detailGeneration = 0, saving = false, removed;
-  let showing = root.querySelector(attribute("view") + '[aria-pressed="true"]').dataset.authorizationView;
+  let showing = root.querySelector(attr("view") + '[aria-pressed="true"]').dataset.authorizationView;
   let sources = [], source = null, policy = null, selectedRule = null;
-  const sameGen = next => next === generation && root.isConnected;
-  const identity = item => JSON.stringify([item.owner, item.id]);
+  const sameGen = next => next === generation && root.isConnected, identity = item => JSON.stringify([item.owner, item.id]);
   const path = "/api/settings/authorizations";
   const query = () => { const params = new URLSearchParams(); if (project.value) params.set("project", project.value === "home" ? "" : project.value); return params; };
   const request = (params, suffix = "", options) => molisWorkRequest(path + suffix + "?" + params, options);
   const read = () => { const params = query(); if (owner.value) params.set("owner", owner.value); if (owner.value === "mcp-client" && client.value) params.set("client", client.value); return request(params); };
   const problem = (node, failure) => { molisWorkRequest.show(node, failure); node.hidden = false; };
-  const live = selected => root.isConnected && row && identity(row) === identity(selected);
+  const live = selected => root.isConnected && row && identity(row) === identity(selected), searchText = () => lower(search.value.trim());
   const replaceRow = current => { rows = rows.map(item => identity(item) === identity(current) ? current : item); row = current; paintList(); };
-  const searchText = () => lower(search.value.trim());
   function paintList() {
     if (showing === "reviews") return paintSources();
     if (showing === "rules") return paintRules();
@@ -101,7 +96,7 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
   function showDetail(current, feedback) {
     showFacts(current.title, [["mode", text(current.mode)], ["lifetime", text(current.lifetime)], ["status", text(current.status)],
       ["expires", current.expires_at && date(current.expires_at)], ["source", current.source ? ui("workbench.agent-review.source-" + current.source.kind) : text("unknown")],
-      ["actor", current.actor], ["recent", current.recent_use_at ? date(current.recent_use_at) : text("unknown")]]);
+      ["actor", who(current.actor)], ["recent", current.recent_use_at ? date(current.recent_use_at) : text("unknown")]]);
     if (current.reason) detail.append(muted(current.reason));
     const scope = el("div", "authorization-scope"), change = el("div", "authorization-actions");
     const edits = current.changes.includes("narrow");
@@ -109,7 +104,7 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     let selection, narrow;
     const setAllowed = (key, on) => { on ? removed.delete(key) : removed.add(key); if (narrow) narrow.disabled = !removed.size; };
     const check = (title, checked, update) => {
-      const label = el("label", "settings-check"), box = Object.assign(el("input"), { type: "checkbox", checked, disabled: !edits, onchange: () => update(box.checked) });
+      const label = el("label", "settings-check"), box = el("input", "", "", { type: "checkbox", checked, disabled: !edits, onchange: () => update(box.checked) });
       label.append(box, title);
       return label;
     };
@@ -166,8 +161,7 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     }
     if (scope.childElementCount) detail.append(scope);
     if (edits && selection) { narrow = button(text("narrow"), () => void save(current, "narrow", selection())); narrow.disabled = !removed.size; change.append(narrow); }
-    const message = errorMessage();
-    const announce = muted(feedback); announce.dataset.authorizationStatus = ""; announce.setAttribute("role", "status");
+    const message = errorMessage(), announce = statusMsg(feedback); announce.dataset.authorizationStatus = "";
     for (const kind of current.changes.filter(item => item !== "narrow")) {
       change.append(button(text(kind), event => {
         if (kind !== "revoke") { void save(current, kind); return; }
@@ -201,8 +195,7 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     if (saving) return;
     saving = true;
     const next = detailGeneration, actions = detail.querySelectorAll("button,input:not(:disabled)"), status = part("status");
-    const disable = disabled => actions.forEach(control => { control.disabled = disabled; });
-    disable(true); status.textContent = text("saving");
+    setDisabled(actions, true); status.textContent = text("saving");
     try {
       const saved = await request(query(), "", { method: "POST", body: { owner: current.owner, id: current.id, expected: current.expected, kind, ...(keep ? { keep } : {}) } });
       window.dispatchEvent(new CustomEvent("molis:authorization-changed"));
@@ -215,7 +208,7 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
       else if (failure.status === 409 || kind === "revoke" || kind === "settle") await choose(current, false, removed);
       else status.textContent = "";
       detail.report?.(failure);
-    } finally { saving = false; disable(false); }
+    } finally { saving = false; setDisabled(actions, false); }
   }
   function paintSources() {
     const needle = searchText(), filtered = sources.filter(item => !needle || lower(item.title).includes(needle));
@@ -224,11 +217,12 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     for (const item of filtered) rowButton(item.title, item.phase, source?.id === item.id, () => { source = item; paintSources(); focusDetails(); });
     if (!list.children.length) list.append(muted(text("review-empty")));
     if (!source) { set(detail, muted(text("review-empty"))); return; }
-    showFacts(source.title, [["status", source.phase], ["decision", source.decision], ["source", source.source], ["actor", source.person], ["review-time", date(source.at)]]);
+    showFacts(source.title, [["status", source.phase], ["decision", source.decision], ["source", source.source], ["actor", who(source.person)], ["review-time", date(source.at)]]);
     if (source.detail) detail.append(el("p", "settings-form-error", source.detail));
   }
   const scopeName = kind => text({ project_default: "project-default", ancestor_minimum: "ancestor-minimum", object: "object-rule" }[kind]);
-  const ruleName = ({ scope }) => scope.kind === "project_default" ? scope.owner?.plugin_id || scope.owner?.provider_id || text("project-default") : scopeName(scope.kind) + " · " + scope.subject.id;
+  const ruleName = r => r.scope.kind === "project_default" ? r.owner_title || text("project-default")
+    : [scopeName(r.scope.kind), r.owner_title, r.scope.subject.id].filter(Boolean).join(" · ");
   const ruleLabel = rule => rule.reason ? ruleName(rule) + " · " + rule.reason : ruleName(rule);
   function paintRules() {
     set(list);
@@ -245,16 +239,16 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     if (policy.next_cursor) { const more = button(ui("workbench.account.load-more"), () => { void loadRules(more); }); list.append(more); }
     const rule = policy.rules.find(item => item.id === selectedRule);
     showFacts(rule ? ruleName(rule) : defaultLabel, rule ? [
-      ["status", text(rule.state)], ["rule-scope", scopeName(rule.scope.kind)], ["actor", rule.created_by], ["review-time", date(rule.created_at)],
+      ["status", text(rule.state)], ["rule-scope", scopeName(rule.scope.kind)], ["actor", who(rule.created_by)], ["review-time", date(rule.created_at)],
       ["decision", text(rule.requires_person ? "person-required" : rule.requires_person === false ? "no-extra-rule" : "follows-other-rules")],
       ["change-reason", rule.change_reason || rule.reason],
     ] : []);
     if (rule && rule.state !== "active") return;
     const revision = policy.revision, why = text("change-reason"), form = el("form", "authorization-scope"); form.dataset.authorizationRuleForm = "";
-    const required = Object.assign(el("input"), { type: "checkbox", name: "requires_person", checked: policy.project_default_requires_person });
+    const required = el("input", "", "", { type: "checkbox", name: "requires_person", checked: policy.project_default_requires_person });
     if (!rule) { const choice = el("label", "settings-check"); choice.append(required, text("person-required")); form.append(choice); }
-    const reason = Object.assign(el("input", "mw-input"), { name: "reason", maxLength: 2000, required: true, placeholder: why, ariaLabel: why });
-    const submit = Object.assign(el("button", "mw-btn mw-btn--secondary", text(rule ? "withdraw-rule" : "save-rule")), { type: "submit" });
+    const reason = el("input", "mw-input", "", { name: "reason", maxLength: 2000, required: true, placeholder: why, ariaLabel: why });
+    const submit = el("button", "mw-btn mw-btn--secondary", text(rule ? "withdraw-rule" : "save-rule"), { type: "submit" });
     const message = errorMessage(); form.append(reason, submit, message); detail.append(form);
     form.onsubmit = event => {
       event.preventDefault();
@@ -276,14 +270,14 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
   }
   async function saveRule(form, message, body) {
     const next = generation, controls = form.querySelectorAll("button,input");
-    saving = true; controls.forEach(control => { control.disabled = true; });
+    saving = true; setDisabled(controls, true);
     try {
       const current = await request(query(), "/project-rules", { method: "POST", body });
       if (!sameGen(next)) return;
       policy = current; paintRules(); focusDetails();
-      const receipt = muted(text("updated")); receipt.setAttribute("role", "status"); detail.append(receipt);
+      detail.append(statusMsg(text("updated")));
     } catch (failure) { if (sameGen(next)) problem(message, failure); }
-    finally { saving = false; controls.forEach(control => { control.disabled = false; }); }
+    finally { saving = false; setDisabled(controls, false); }
   }
   const syncControls = pick => {
     root.dataset.view = showing; root.dataset.owner = owner.value;
@@ -327,21 +321,17 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     } catch (failure) { if (sameGen(next)) problem(banner, failure); }
     finally { if (next === generation) busy(list, false); }
   }
-  const modes = root.querySelectorAll(attribute("view"));
+  const modes = root.querySelectorAll(attr("view"));
   for (const mode of modes) mode.addEventListener("click", () => {
     if (saving || showing === mode.dataset.authorizationView) return;
     showing = mode.dataset.authorizationView;
     for (const option of modes) option.setAttribute("aria-pressed", String(option === mode));
-    syncControls(true);
-    row = null; set(list); set(detail);
-    void load();
+    syncControls(true); row = null; set(list); set(detail); void load();
   });
   for (const select of [project, owner, client]) select.addEventListener("change", () => { syncControls(); void load(); });
   part("reload").addEventListener("click", () => { void load(); });
   window.addEventListener("molis:authorization-changed", () => { if (root.isConnected && !saving) void load(); });
-  search.addEventListener("input", paintList);
-  syncControls(true);
-  void load();
+  search.addEventListener("input", paintList); syncControls(true); void load();
 };
 globalThis.molisWorkBindAuthorizationSettings(document);
 `;

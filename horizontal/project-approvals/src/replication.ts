@@ -13,9 +13,24 @@ const ruleColumns = ["id", "project_id", "scope_json", "rule_order", "requires_p
 const invalid = () => new ActionError("actions.input_invalid", "项目审批的同步内容与原项目或决定不符");
 const collision = () => new ActionError("actions.conflict", "同一审批决定或规则版本有不同内容，原件已保留");
 const text = (value: unknown): value is string => typeof value === "string" && value.length > 0;
+const idText = (value: unknown): value is string => typeof value === "string" && value.length <= 240 && value.trim().length > 0;
 const fields = (value: Record<string, unknown>, columns: readonly string[]) =>
   Object.keys(value).length === columns.length && columns.every(column => Object.hasOwn(value, column));
 const canonical = (value: unknown) => canonicalJsonText(value, "null");
+
+function decisionOwner(owner: unknown, projectId: string, publisherSignature: string) {
+  if (!isRecord(owner) || owner.kind !== "trusted-decision" || owner.scope !== "project" || owner.project_id !== projectId) throw invalid();
+  if (fields(owner, ["kind", "project_id", "scope", "plugin_id", "install_id", "installation_generation"])
+    && idText(owner.plugin_id) && idText(owner.install_id) && idText(owner.installation_generation)) {
+    return { kind: "trusted-decision" as const, scope: "project" as const, project_id: projectId,
+      plugin_id: owner.plugin_id, install_id: owner.install_id, installation_generation: owner.installation_generation };
+  }
+  if (fields(owner, ["kind", "project_id", "scope", "provider_id"]) && idText(owner.provider_id)
+    && publisherSignature === `system:${owner.provider_id}`) {
+    return { kind: "trusted-decision" as const, scope: "project" as const, project_id: projectId, provider_id: owner.provider_id };
+  }
+  throw invalid();
+}
 
 function parsedJson(value: unknown): Record<string, unknown> {
   try { if (typeof value === "string") { const row: unknown = JSON.parse(value); if (isRecord(row)) return row; } }
@@ -41,14 +56,12 @@ function validateDecision(row: ApprovalRow) {
   if (!text(row.request_id) || !text(row.request_key) || value.request_key !== row.request_key || value.decided_at !== row.recorded_at
     || !text(value.decision) || (value.note !== null && typeof value.note !== "string")
     || typeof value.choice_fingerprint !== "string" || !/^[a-f0-9]{64}$/u.test(value.choice_fingerprint)
-    || !isRecord(ref) || ref.id !== row.request_id || !text(ref.version) || !isRecord(ref.owner) || ref.owner.kind !== "trusted-decision"
-    || ref.owner.project_id !== row.project_id || ref.owner.scope !== "project" || !text(ref.owner.plugin_id)
-    || !text(ref.owner.install_id) || !text(ref.owner.installation_generation) || !isRecord(source) || source.kind !== "person"
+    || !isRecord(ref) || ref.id !== row.request_id || !idText(ref.version) || !isRecord(source) || source.kind !== "person"
     || !text(value.actor_id) || source.actor_id !== value.actor_id || !isRecord(source.entry)
     || (source.entry.source !== "management" && source.entry.source !== "web")
     || !text(source.entry.conversation_ref) || !text(source.entry.message_ref) || !text(value.publisher_signature)) throw invalid();
-  const coverage = assertProjectReviewCoverage(value.review, { kind: "trusted-decision", scope: "project", project_id: row.project_id,
-    plugin_id: ref.owner.plugin_id, install_id: ref.owner.install_id, installation_generation: ref.owner.installation_generation });
+  const owner = decisionOwner(ref.owner, row.project_id, value.publisher_signature);
+  const coverage = assertProjectReviewCoverage(value.review, owner);
   assertFrozenProjectReview(value.presentation, coverage, value.decision, value.actor_id);
 }
 

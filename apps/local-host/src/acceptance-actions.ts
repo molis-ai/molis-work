@@ -97,23 +97,26 @@ export function acceptanceProvider(
               throw new ActionError("actions.conflict", "项目审批规则已变化，请重新查看");
             }
           };
-          const view = store.db.transaction(() => {
-            checkCommit();
-            const decided = openAcceptance(homeDirectory);
-            let next: ReturnType<AcceptanceService["decide"]>;
-            try { next = decided.service.decide(person, input, bound.held.decisionId); }
-            finally { decided.close(); }
-            projectReviewDecisions(store.db, person.project_id).commit(
-              bound.held.command,
-              { actor_id: bound.held.actor_id, source: { kind: "person", actor_id: bound.held.actor_id, entry: bound.held.entry } },
-              bound.held.frozenChoice,
-              bound.held.review,
-              new Date().toISOString(),
-              checkCommit,
-              bound.held.decisionId,
-            );
-            return next;
-          }).immediate();
+          const decided = openAcceptance(homeDirectory);
+          let view: ReturnType<AcceptanceService["decide"]>;
+          try {
+            view = store.db.transaction(() => {
+              checkCommit();
+              return decided.service.decide(person, input, bound.held.decisionId, () => {
+                projectReviewDecisions(store.db, person.project_id).commit(
+                  bound.held.command,
+                  { actor_id: bound.held.actor_id, source: { kind: "person", actor_id: bound.held.actor_id, entry: bound.held.entry } },
+                  bound.held.frozenChoice,
+                  bound.held.review,
+                  new Date().toISOString(),
+                  checkCommit,
+                  bound.held.decisionId,
+                );
+              });
+            }).immediate();
+          } finally {
+            decided.close();
+          }
           try { attentionChanged(person.project_id); } catch { /* the write is done */ }
           return view;
         });

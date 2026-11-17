@@ -1364,6 +1364,7 @@
     "workbench.authorization.session-next-round": "保存会结束这轮待批。开始下一轮时，执行方会按新权限重新核对操作。",
     "workbench.authorization.session-end": "用于这个会话，跨轮次和重启有效，可随时撤销。",
     "workbench.authorization.ongoing": "持续允许",
+    "workbench.authorization.ongoing-delegation": "持续工作权限",
     "workbench.authorization.ongoing-end": "对同一项目、执行者和所选范围持续有效，可随时收窄或撤销。",
     "workbench.authorization.read-only": "只读协助",
     "workbench.authorization.read-only-note": "可以查看和建议。需要改动时，由你重新选择权限。",

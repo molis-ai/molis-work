@@ -6,7 +6,7 @@
 | --- | --- | --- | --- | --- |
 | S-surface-dispatch | 原调用提供同步检查时，Helper 连接建立后的撤权不分配请求 ID、不登记等待或计时器、不发送输入帧；异步函数不能充当最终同步检查。浏览器在启动后、恢复旧地址及发送新导航前核同一检查，拒绝不改目标地址；文件交付拒绝保留原选择器，不发文件帧。后续明确的用户调用仍可恢复原操作。观察、审查和输入拒绝后来替换的页面、窗口、焦点或文档。 | `apps/local-host/src/computer/helper-connection.ts`；`apps/local-host/src/browser/browser-page.ts` | `tests/security-invariants-surface-transport.test.ts`「APR-07/08: helper rejects after ensure」「APR-07/08: navigation refuses after page startup」「APR-07/08: a refused file handoff」「APR-07/08: restarting a page cannot send」；`tests/security-invariants-surface-original-target.test.ts`「the browser refuses the original observation」「the final browser focus read refuses a field that became」「same desktop PID, title and frame」「desktop download refuses another document」「refuses a replaced assessed control」「the exact desktop acknowledgment survives revoke during」 | — |
 
-以上证据使用实际 Unix socket、CDP websocket 与 Host 子进程，另一端是无 OS 输入的协议夹具。它证明底层入口收到原检查后的拒绝；上游 Agent 轮次、Driver 每个输入、桌面记录与原生手势释放仍需完整接线，不能以本片声明整个 Surface 已受新委托保护。
+以上证据使用实际 Unix socket、CDP websocket 与 Host 子进程，另一端是无 OS 输入的协议夹具。它证明底层入口收到原检查后的拒绝；上游 Agent 轮次、Driver 每个输入、桌面记录与原生手势释放分别由 [S-surface-round](S-surface-round.md)、[S-surface-browser-round](S-surface-browser-round.md) 与 [S-surface-computer-round](S-surface-computer-round.md) 覆盖。
 
 共享启动只创建、挂接空白页面；每个 ensure 调用者以自己的检查决定是否恢复旧地址，不共用 Agent 的权限闭包。追加的「a revoked starter cannot lend its guard」「a sent restore is not relabelled as unsent」覆盖交错启动和已发恢复的回执。用例不加入 Linux 产品子集：其原生协议夹具显式模拟 macOS，被现有平台探测标为 darwin；仍由 security 用例清单和批末定向验证覆盖，不修改平台探测规则。
 

@@ -5,6 +5,7 @@ import { say, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
 import type { ProjectDecisionHistory, ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { agentAuthorizationActions } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { authorizationOwnerTitles } from "./authorization-action-owners.js";
 import { authorizationSettingsControl } from "./authorization-settings-control.js";
 import { invokeAuthorizationManagement, type AuthorizationManagementPorts } from "./authorization-management.js";
 import type { WebRequestContext } from "./web-route-table.js";
@@ -59,8 +60,14 @@ export async function handleAuthorizationManagementHttp(context: WebRequestConte
       }
       const answer = await projectRulesFromSettings({ host, project, request, assertCurrent: control.assertCurrent },
         request.method === "POST" ? await readLocalWebBody(request) : undefined, cursor?.id ? { id: cursor.id, order: cursor.order } : undefined);
+      const names = await authorizationOwnerTitles(host, project);
+      const rulesWithTitles = answer.rules.map(rule => {
+        const owner = rule.scope.owner, id = owner ? ("plugin_id" in owner ? owner.plugin_id : owner.provider_id) : undefined;
+        const owner_title = id ? (names.get(id) ?? id) : undefined;
+        return owner_title ? { ...rule, owner_title } : rule;
+      });
       control.assertCurrent();
-      sendLocalWebJson(response, 200, answer);
+      sendLocalWebJson(response, 200, { ...answer, rules: rulesWithTitles });
       return true;
     }
     if (history) {

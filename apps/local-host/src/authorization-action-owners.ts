@@ -2,6 +2,9 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type Action
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AuthorizationChange, AuthorizationDetail, AuthorizationEntry } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
+import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { actionGrantKey, type McpGrantIdentity, type McpToolPreference } from "./mcp-settings-store.js";
 import { actionClientAudience, openByDefault } from "./mcp-action-grants.js";
@@ -11,6 +14,9 @@ import { parseTaskGrantSubject, taskGrantSubjectId } from "./task-grant-subjects
 import { restrictTaskGrant, taskGrantHostPorts, taskGrantSubjects } from "./task-grant-actions.js";
 import { assistantActionPolicyView, writeAssistantActionPolicy } from "./assistant/assistant-action-policy.js";
 import type { AssistantStore } from "./assistant/assistant-store.js";
+import { installedPluginEntries } from "./plugin-installation-directory.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { directoryWordResolver, drawRegisteredText, registeredInstallationText } from "./ui-text-provider.js";
 
 type McpGrant = McpToolPreference["action_grants"][number];
 export type AuthorizationProjects = ReadonlyMap<string, LocalHostProjectReference>;
@@ -76,9 +82,37 @@ export async function defaultMcpAuthorizations(host: MolisWorkLocalHost, prefere
   });
 }
 
-export function taskAuthorization(project: string, task: TaskGrantSubject): AuthorizationDetail {
+export async function authorizationOwnerTitles(host: MolisWorkLocalHost, project?: LocalHostProjectReference,
+  extraProjects: readonly LocalHostProjectReference[] = []): Promise<ReadonlyMap<string, string>> {
+  const names = new Map<string, string>();
+  for (const { provider } of host.inspectActionMetadata({ actor_id: actor, project_id: project?.project_id ?? null, audience: "user", permissions: [] }, project)) {
+    for (const id of [provider.provider_id, provider.plugin_id, provider.plugin_install_id]) if (id && provider.title) names.set(id, provider.title);
+  }
+  for (const { manifest } of PLATFORM_PLUGIN_REGISTRATIONS) {
+    names.set(manifest.plugin_id, drawRegisteredText(manifest, resolve => projectDirectoryWords({ ...manifest, ui: {} }, resolve).name));
+  }
+  const home = host.homePlugins;
+  for (const record of home?.installations() ?? []) {
+    const manifest = home?.manifest(record.plugin_id);
+    const title = manifest ? projectDirectoryWords({ ...manifest, ui: {} }, directoryWordResolver(registeredInstallationText(record))).name : record.plugin_id;
+    names.set(record.install_id, title); names.set(record.plugin_id, title);
+  }
+  const seen = new Set<string>();
+  for (const ref of [...(project ? [project] : []), ...extraProjects]) {
+    if (seen.has(ref.project_id)) continue;
+    seen.add(ref.project_id);
+    for (const { record, manifest } of await host.withProject(ref, runtime => installedPluginEntries(runtime.store.db)).catch(() => [])) {
+      const title = manifest ? projectDirectoryWords({ ...manifest, ui: {} }, directoryWordResolver(registeredInstallationText(record))).name : record.plugin_id;
+      names.set(record.install_id, title); names.set(record.plugin_id, title);
+    }
+  }
+  names.set(ASSISTANT_PLUGIN_ID, t.text("workbench.settings-renderer.assistant"));
+  return names;
+}
+
+export function taskAuthorization(project: string, task: TaskGrantSubject, actorName?: string): AuthorizationDetail {
   return { owner: "task-grant", id: taskGrantSubjectId(project, task.plugin_install_id, task.key), expected: task.revision, project_id: project,
-    title: task.key, actor: task.plugin_install_id, scope: task.categories.map(row => row.title), mode: "read-only", lifetime: "task", expires_at: null,
+    title: task.key, actor: actorName ?? task.plugin_install_id, scope: task.categories.map(row => row.title), mode: "read-only", lifetime: "task", expires_at: null,
     status: task.categories.length ? "restricted" : "revoked", source, recent_use_at: null, changes: task.categories.length ? ["narrow", "revoke"] : [], categories: task.categories };
 }
 
@@ -86,26 +120,28 @@ export async function readTaskAuthorization(home: string, host: MolisWorkLocalHo
   id: string, caller: ActionExecutionContext, change?: Extract<AuthorizationChange, { owner: "task-grant" | "run-app" | "session-command" | "mcp-client" }>): Promise<AuthorizationDetail> {
   const subject = parseTaskGrantSubject(id), reference = subject && projects.get(subject.project_id);
   if (!subject || !reference) throw missing();
-  const ports = taskGrantHostPorts(home, host);
+  const ports = taskGrantHostPorts(home, host), names = await authorizationOwnerTitles(host, reference);
+  const label = (installId: string) => names.get(installId);
   if (change) {
     if (!change.expected || !preference.action_grants.some(grant => grant.client_id === id)) throw missing();
     const projectCurrent = host.holdAuthorizationProject(reference);
-    return taskAuthorization(subject.project_id, await restrictTaskGrant(ports, { ...caller, assert_authority_current: (target, required) => {
+    const updated = await restrictTaskGrant(ports, { ...caller, assert_authority_current: (target, required) => {
       caller.assert_authority_current?.(target, required);
       projectCurrent();
-    } }, subject, reference, preference, change.expected, change.kind === "narrow" ? change.keep : []));
+    } }, subject, reference, preference, change.expected, change.kind === "narrow" ? change.keep : []);
+    return taskAuthorization(subject.project_id, updated, label(updated.plugin_install_id));
   }
   const found = await taskGrantSubjects(ports, { projectId: subject.project_id, reference }, preference, caller.signal, subject.plugin_install_id);
   const row = found.subjects.find(row => row.key === subject.key);
   if (!row) throw missing();
-  return taskAuthorization(subject.project_id, row);
+  return taskAuthorization(subject.project_id, row, label(row.plugin_install_id));
 }
 
 type Policy = NonNullable<Awaited<ReturnType<typeof assistantActionPolicyView>>>;
 export function assistantPolicyEntry(key: string, policy: Pick<Policy, "enabled" | "confirm_always" | "expected">, view?: Policy, meta?: { title: string; provider: string }): AuthorizationDetail {
   const enabled = policy.enabled, confirm = policy.confirm_always;
   return { owner: "assistant-policy", id: key, expected: policy.expected, project_id: null, title: view?.title ?? meta?.title ?? String(parsedArray(key)[0] ?? ""),
-    actor: "助理", scope: [view?.provider ?? meta?.provider ?? String(parsedArray(key)[2] ?? "")], mode: "confirm", lifetime: "ongoing", expires_at: null,
+    actor: t.text("workbench.settings-renderer.assistant"), scope: [view?.provider ?? meta?.provider ?? String(parsedArray(key)[2] ?? "")], mode: "confirm", lifetime: "ongoing", expires_at: null,
     status: enabled ? "restricted" : "revoked", source, recent_use_at: null, changes: enabled ? ["disable", ...view?.reversible && !confirm ? ["confirm" as const] : []] : [],
     ...(view ? { action: { capability_id: view.capability_id, version: view.version, provider_id: view.provider_id } } : {}) };
 }

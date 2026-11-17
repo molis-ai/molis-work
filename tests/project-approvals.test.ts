@@ -196,3 +196,51 @@ test("APR-17/18: the action gateway only spends the original proof once and rech
   assert.deepEqual(seen(), [input]);
   assert.equal(entered, 2);
 });
+
+test("APR-19: platform sync replicates system.acceptance trusted decisions and rejects forged system owners", t => {
+  const from = projectLibrary(t), to = projectLibrary(t);
+  const sender = projectApprovalReplica(from, "p1", "same-space", () => undefined);
+  const receiver = projectApprovalReplica(to, "p1", "same-space", () => undefined);
+  const systemOwner = { kind: "trusted-decision", project_id: "p1", scope: "project", provider_id: "system.acceptance" } as const;
+  const systemCommand: TrustedReviewCommand = {
+    reference: { owner: systemOwner, id: "acceptance:todo-1:v1", version: "digest-1" },
+    choice_id: "accept_all",
+    request_key: "system-acceptance-click",
+  };
+  const systemReview = {
+    publisher_signature: "system:system.acceptance",
+    review: {
+      target: {
+        owner: { kind: "system", scope: "project", project_id: "p1", provider_id: "system.acceptance" },
+        subject: { kind: "todo_item", id: "todo-1" },
+        version: "v1",
+      },
+      requirements: [],
+    },
+  } satisfies Pick<ProjectTrustedDecision, "publisher_signature" | "review">;
+  const committed = from.transaction(() =>
+    projectReviewDecisions(from, "p1").commit(systemCommand, person, frozen, systemReview, at, current.assertCurrent).record,
+  ).immediate();
+  const outbound = sender.next()!;
+  assert.ok(outbound);
+  receiver.receive({ ...outbound, revision: 1 });
+  assert.deepEqual(projectReviewDecisions(to, "p1").read(committed.decision_id), committed);
+
+  for (const mutate of [
+    (record: Record<string, unknown>) => ({ ...record, publisher_signature: "system:other.provider" }),
+    (record: Record<string, unknown>) => ({
+      ...record,
+      reference: { ...(record.reference as object), owner: { ...systemOwner, plugin_id: "io.molis.work.todo" } },
+    }),
+  ]) {
+    const badTo = projectLibrary(t);
+    const badReceiver = projectApprovalReplica(badTo, "p1", "same-space", () => undefined);
+    const tampered = structuredClone(outbound.value) as { decisions: Array<{ decision_id: string; record_json: string }>; rules: unknown[] };
+    const bad = mutate({ ...JSON.parse(tampered.decisions[0]!.record_json), decision_id: "forged-system-id" });
+    tampered.decisions = [{ ...tampered.decisions[0]!, decision_id: "forged-system-id", record_json: JSON.stringify(bad) }];
+    badReceiver.receive({ ...outbound, revision: 1, operationId: "forged", value: tampered });
+    assert.equal(badReceiver.conflicts().length, 1);
+    assert.equal(projectReviewDecisions(badTo, "p1").read("forged-system-id"), null);
+    assert.equal(projectReviewDecisions(badTo, "p1").count(), 0);
+  }
+});

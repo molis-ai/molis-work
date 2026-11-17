@@ -166,30 +166,32 @@ export class AcceptanceService {
    * every listed requirement still at the version shown. Each accepted or returned requirement is recorded against the delivery it
    * stands on, under one decision id; requirements not listed are untouched. Only the person's own call reaches here.
    */
-  decide(caller: AcceptanceCaller, request: AcceptanceDecideRequest, decisionId: string = randomUUID()): AcceptanceView {
+  decide(caller: AcceptanceCaller, request: AcceptanceDecideRequest, decisionId: string = randomUUID(), beforeCommit?: (view: AcceptanceView) => void): AcceptanceView {
     if (!caller.person) throw acceptanceErrors.scope("只有用户本人能认可或退回");
     const subject = this.subject(request.subject), at = this.now();
     const items = [...request.accepts.map(item => ({ ...item, decision: "accepted" as const, note: null as string | null })), ...request.returns.map(item => ({ ...item, decision: "returned" as const, note: clean(item.note) }))];
     if (!items.length || new Set(items.map(item => item.id)).size !== items.length) throw acceptanceErrors.invalid("要列出认可或退回的要求，同一项只能出现一次");
     if (items.some(item => item.decision === "returned" && !item.note)) throw acceptanceErrors.note_required("退回要写原因");
-    this.store.write(() => {
+    return this.store.write(() => {
       const subjectNo = this.known(caller, subject), rows = this.store.rows(subjectNo), current = currentRequirements(rows.requirements), latest = rows.deliveries.at(-1);
       const prior = rows.decisions.filter(row => row.decision_id === decisionId);
       if (prior.length) {
         if (prior.length !== items.length || prior.some(row => row.actor_id !== caller.actor_id)) throw acceptanceErrors.invalid("决定编号已经被别的决定使用");
-        return;
+      } else {
+        if (!latest) throw acceptanceErrors.version_unknown("还没有记过交付，没有可认可的版本");
+        if (latest.version !== request.version.trim()) throw acceptanceErrors.selection_changed("交付的版本在你看过之后变了，请按现在的版本再看一遍", { version: latest.version });
+        for (const item of items) {
+          const requirement = current.find(row => row.requirement_id === item.id);
+          if (!requirement || requirement.version !== item.version) throw acceptanceErrors.selection_changed("有一项要求在你看过之后变了，请按现在的内容再看一遍", { requirement_id: item.id });
+          const stands = standsOn(rows.deliveries, requirement.requirement_id)!;
+          this.store.addDecision(subjectNo, { decision_id: decisionId, requirement_id: requirement.requirement_id, requirement_version: requirement.version, stands_round: stands.round, version: stands.version,
+            decision: item.decision, note: item.note, actor_id: caller.actor_id, decided_at: at });
+        }
       }
-      if (!latest) throw acceptanceErrors.version_unknown("还没有记过交付，没有可认可的版本");
-      if (latest.version !== request.version.trim()) throw acceptanceErrors.selection_changed("交付的版本在你看过之后变了，请按现在的版本再看一遍", { version: latest.version });
-      for (const item of items) {
-        const requirement = current.find(row => row.requirement_id === item.id);
-        if (!requirement || requirement.version !== item.version) throw acceptanceErrors.selection_changed("有一项要求在你看过之后变了，请按现在的内容再看一遍", { requirement_id: item.id });
-        const stands = standsOn(rows.deliveries, requirement.requirement_id)!;
-        this.store.addDecision(subjectNo, { decision_id: decisionId, requirement_id: requirement.requirement_id, requirement_version: requirement.version, stands_round: stands.round, version: stands.version,
-          decision: item.decision, note: item.note, actor_id: caller.actor_id, decided_at: at });
-      }
+      const view = this.view(caller, subject);
+      beforeCommit?.(view);
+      return view;
     });
-    return this.view(caller, subject);
   }
 }
 

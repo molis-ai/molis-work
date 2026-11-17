@@ -9,6 +9,7 @@ import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contra
 import { SKILL_AUTHORED_PLUGIN_IDS, SKILLS_DRAFT_PERMISSION, SKILLS_PERMISSIONS, skillCatalogActions, skillDraftActions, skillPlaceholders, type SkillAuthoredFields,
   type SkillBodyReadResult, type SkillCatalogEntry, type SkillDraft, type SkillDraftAdoptResult, type SkillDraftSummary, type SkillTrial, type SkillVersion } from "@molis-ai/molis-work-contracts/services/skills";
 import { currentObservationSource } from "@molis-ai/molis-work-service-observation";
+import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, handlePluginTrustHttp, molisWorkHostProjectReference, pluginInstallActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { signedContentPackage } from "./fixtures/content-package.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
@@ -103,6 +104,53 @@ test("QEA-103 repeating one case does not evict another unchanged case's accepte
   } finally { await h.close(); }
 });
 
+for (const operation of ["put", "remove"] as const) test(`QEA-106 case ${operation} rolls back when trial cleanup fails and recovers through the public action`, mac, async () => {
+  const h = await harness(modelDouble(prompt => isJudge(prompt) ? judge(prompt) : "match"));
+  const alter = (sql: string) => { const db = openSqliteConnection(homeSqlitePath(h.home, "agent-definitions"), { fileMustExist: true }); try { db.exec(sql); } finally { db.close(); } };
+  const trigger = "qea_refuse_trial_cleanup";
+  try {
+    const opened = await h.draft({ scope: "project", target: { kind: "new" }, fields: fields("答案写入恢复"), case: KNOWN });
+    const trial = await h.call<SkillTrial>(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: 1, case_id: opened.cases[0]!.case_id });
+    const change = () => h.call(h.person, operation === "put" ? skillDraftActions.putCase : skillDraftActions.removeCase,
+      { draft_id: opened.draft_id, case_id: opened.cases[0]!.case_id, ...(operation === "put" ? { ...KNOWN, expected: "修改后的答案" } : {}) });
+    alter(`CREATE TRIGGER ${trigger} BEFORE DELETE ON skill_trials BEGIN SELECT RAISE(ABORT, 'fixture trial cleanup refused'); END`);
+    await assert.rejects(change(), /fixture trial cleanup refused/);
+    const after = await h.call<SkillDraft>(h.person, skillDraftActions.read, { draft_id: opened.draft_id });
+    assert.deepEqual(after.cases, opened.cases, "a refused change must not leave a modified or removed answer");
+    assert.deepEqual(after.trial, trial);
+    assert.deepEqual(after.untried, []);
+    assert.equal(after.revision, opened.revision);
+    alter(`DROP TRIGGER ${trigger}`);
+    await change();
+    const changed = await h.call<SkillDraft>(h.person, skillDraftActions.read, { draft_id: opened.draft_id });
+    assert.equal(changed.trial, undefined, "a successful answer change clears the old evidence");
+    if (operation === "put") {
+      assert.equal(changed.cases[0]!.expected, "修改后的答案");
+      assert.deepEqual(changed.untried, [opened.cases[0]!.case_id]);
+      await assert.rejects(h.adopt({ draft_id: opened.draft_id, expected_revision: 1 }), refused("skills.trial_required"));
+      await h.call(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: 1, case_id: opened.cases[0]!.case_id });
+    } else assert.deepEqual(changed.cases, []);
+    assert.equal((await h.adopt({ draft_id: opened.draft_id, expected_revision: 1 })).skill_version, 1);
+    assert.equal((await h.mine()).length, 1);
+  } finally { alter(`DROP TRIGGER IF EXISTS ${trigger}`); await h.close(); }
+});
+
+test("QEA-106 renaming a known answer preserves its valid replay without another model call", mac, async () => {
+  const model = modelDouble(prompt => isJudge(prompt) ? judge(prompt) : "match"), h = await harness(model);
+  try {
+    const opened = await h.draft({ scope: "project", target: { kind: "new" }, fields: fields("答案改名"), case: KNOWN });
+    const trial = await h.call<SkillTrial>(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: 1, case_id: opened.cases[0]!.case_id });
+    const calls = model.calls.length;
+    await h.call(h.person, skillDraftActions.putCase, { draft_id: opened.draft_id, case_id: opened.cases[0]!.case_id, ...KNOWN, title: "更容易辨认的标题" });
+    const after = await h.call<SkillDraft>(h.person, skillDraftActions.read, { draft_id: opened.draft_id });
+    assert.equal(after.cases[0]!.title, "更容易辨认的标题");
+    assert.equal(after.trial?.trial_id, trial.trial_id);
+    assert.deepEqual(after.untried, []);
+    assert.equal((await h.adopt({ draft_id: opened.draft_id, expected_revision: 1 })).skill_version, 1);
+    assert.equal(model.calls.length, calls);
+  } finally { await h.close(); }
+});
+
 async function harness(model: ReturnType<typeof modelDouble> | null) {
   const base = await mkdtemp(join(tmpdir(), "molis-work-skill-drafts-")), home = join(base, "home");
   await mkdir(home);
@@ -142,7 +190,7 @@ async function harness(model: ReturnType<typeof modelDouble> | null) {
     const preview = await call<{ preview_id: string }>(person, pluginInstallActions.preview, { bundle });
     await call(person, pluginInstallActions.confirm, { preview_id: preview.preview_id, consent: true, ...(label ? { pin_label: label } : {}) });
   };
-  return { client, person, assistant, call, draft, adopt, catalog, mine, drafts, write, install,
+  return { home, client, person, assistant, call, draft, adopt, catalog, mine, drafts, write, install,
     async close() { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await host.close(); await rm(base, { recursive: true, force: true }); } };
 }
 

@@ -172,10 +172,12 @@ export async function adoptDraft(service: SkillAuthoringService, drafts: SkillDr
     if (cases.some(known => trials.find(trial => trial.case_id === known.case_id)?.verdict === 'differs') && !input.accept_differences) throw skillErrors.trial_differs('回放的结果和你认可的结果还有出入：仍然采用，还是回去改');
   }
   const scope: SkillScope = draft.scope_ref === 'home' ? 'home' : 'project', target = draft.target;
-  const result = await service.save({ ...draft.fields, scope, ...(target.kind === 'own' ? { skill_id: target.skill_id } : {}) }, who, caller);
-  const source = target.kind === 'custom' ? target.source : target.kind === 'own' ? target.rebase : undefined;
-  drafts.adopted(draft.draft_id, draft.scope_ref, result.skill_id, source && { source, replacements: draft.replacements, seen_version: source.version });
-  return { ...result, ...(target.kind === 'custom' ? { source: target.source } : {}) };
+  return drafts.withAdoption(draft.draft_id, async () => {
+    const result = await service.save({ ...draft.fields, scope, ...(target.kind === 'own' ? { skill_id: target.skill_id } : {}) }, who, caller);
+    const source = target.kind === 'custom' ? target.source : target.kind === 'own' ? target.rebase : undefined;
+    drafts.adopted(draft.draft_id, draft.scope_ref, result.skill_id, source && { source, replacements: draft.replacements, seen_version: source.version });
+    return { ...result, ...(target.kind === 'custom' ? { source: target.source } : {}) };
+  });
 }
 
 /**

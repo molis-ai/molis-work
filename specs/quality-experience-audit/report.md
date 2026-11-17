@@ -1,5 +1,7 @@
 # Molis Work 审查报告与优化策略
 
+第46批本地结算：同Home草稿跨项目采用、并发模型尾写、案例与回放的事务、授权等待后的可写状态/数量均有真实反证及修复。完整构建、API生成（一个conflict错误码）、健康门禁和组合16文件189项通过；新增测试已纳入Git索引后再验门禁。当前75包/84个contracts子路径范围保持，QF-51性能、平台化后续、待批事项和准确头Full CI仍未完成，不把第45/46批当作整项结束。
+
 第45批已在最新主干交集发现并修复 Skill 草稿输入丢失、回放事实过期和重复确认问题。main `4cf1c742e6` 经 `3f9fc4c6b4` 合入；75包、84个contracts子路径（另加根入口），全部已有成果保留。完整构建、10文件83项定向验收通过，包括6项新增真实浏览器恢复及原创建/回放/采用/版本恢复/通用包定制。采用等待中同草稿修订的独立风险还在核实，整项、最终准确头Full CI和资源验收均未完成。详见 QF-52，不能把此检查点当作原任务完成。
 
 第41批本地结算：`apps/local-host/src/home-dock-http.ts:14` 删除两个无生产调用的Events POST转发，`web-request.ts:87` 删除其专用只读放行。公开 `home.events.read/open@1`、原事件聚合和MCP保留。旧地址带正常控制头仍404，插件reader和写入均未触发；未知插件完成后撤回、故障隐私、实际regrant撤权/恢复/停用与正式MCP独立授权通过。3个原测试通过公开Host客户端读取同一事实，不新导出内部权限适配器；HTTP session/目录捕获仍由现行HTTP消费者安全套件覆盖，不把此读取称Events HTTP验证。构建、健康和8文件50项通过（`/tmp/quality-audit-events-retirement-acceptance.log`）；BL-home-events-endpoint-unused已本地落地，待最终头CI后清理。用户路径未新增步骤，Host少维护两个无调用入口和专用方法分类。
@@ -718,3 +720,27 @@ QF-51追加根因与处置：收窄目录后CPU采样仍指向项目归属/常�
 第45批补充结算：只读复核指出本次close→reload新增等待可接收新输入，正常浏览器反证确实失败；现保存成功后同步收起编辑器，再刷新当前目录。6项新增UI最终全过（`/tmp/quality-audit-skill-close-final.log`），原完整创作UI在最终生产实现上另过1项（`/tmp/quality-audit-skill-close-acceptance.log`），与先前未改后端的76项组成10文件83项。中途测试曾在目录实际重画期间点击旧节点失败，现等待该节点被真实刷新替换且新正文仍在，再严格点击；未改点击工具、时限或产品语义。保存中的后续输入实存两次修订，回退未存改动后安全离开不覆盖另一入口。API重新生成0差异。实际查看1440回放与390深色编辑截图，原布局保持；截图在已忽略的 `.impeccable/qa/review/skill-authoring/`，不代表模型质量或本人验收。
 
 第45批最终健康门禁通过（`/tmp/quality-audit-skill-close-health-final.log`），门禁未放宽；前次仅报告中的BL简称无法解析，已改为真实条目全名后重验。第46批继续处理采用期间的写入生命周期，另发现案例写入与回放清理尚非同事务，须以实际SQL失败反证处理。
+
+### QF-53 / P1：采用旧快照后删除已经成功的新修订（第46批验收中）
+
+真实入口为两个项目的本人HTTP与已开始的模型修订，目标是同一Home草稿。`apps/local-host/src/skill-authoring.ts:175` 原先读取r1后等待签名/安装，随后`SkillDraftStore.adopted`无条件清草稿。Skills登记在项目system provider，实际走ProjectLine；同一Home的两个项目不共享这个排队事实，concurrent revise/trial的尾写也可穿过等待。反证在实际Home新装前、安装后返回前两处持有：采用200、revise200、另一项目update200，读到草稿r3，采用完成后404（`/tmp/quality-audit-skill-owner-baseline.log`）。这不是两份草稿覆盖政策，而是成功回执对应的用户修改被删除。
+
+处置：`apps/local-host/src/agent-definitions/skill-drafts.ts:82` 在原单Home store 内只占用正在采用的draft，从首个await前到原安装返回及同步adopted事务结束；失败/取消finally释放。update、discard/restore、案例增改删、trial尾写和二次adopt在原写点拒绝，普通读及其他draft继续。`packages/contracts/src/services/skills.ts:569` 声明 `skills.draft_adopting`（既有conflict分类），给准确的进行中原因，页面不误说成版本已经被他人修改。API仅新增此错误码。原安装授权、回滚和发布者检查保留，没有把领域CAS塞进安装后的授权尾检，没有另建持久状态、队列或自动重试。
+
+定向证据：新装前/后与实际换版回执通过，期间模型及另一项目写入409，正式版本仅1或2、草稿仅结算一次。失败用例覆盖每个上述写入口、等待中的trial、另一个draft正常保存，原案例与trial保持，明确恢复后安装一次。真实HTTP请求取消发生在安装前，原草稿/版本保持，随后编辑和采用正常；日志 `quality-audit-skill-adoption-recovery.log`（4项）、`quality-audit-skill-adoption-cancel.log`（1项）。不把这个进程内生命周期称作跨包安装与草稿存储的崩溃原子事务；安装实际提交后的独立故障/恢复仍需另核。当前更广16文件验收在跑，整项未完成。
+
+### QF-54 / P1、P2：案例写入与回放清理半次成功，以及改标题强迫重跑（第46批验收中）
+
+`apps/local-host/src/agent-definitions/skill-drafts.ts:181` 原putCase先提交答案、再删trial；removeCase同样两次独立提交。通过Storage公开连接在原表注入清理拒绝trigger后，公开动作报错但新答案已存在，或案例已被删；旧trial仍存且revision没变。前者会把旧匹配当新答案的采用依据，后者回报失败却已删除并遗留界面结果。反证的两个实际状态差异见 `quality-audit-skill-owner-baseline.log`，不是虚构无await两句之间的普通取消。
+
+处置：复用原store事务，让案例写入和相关trial清理一起提交/回滚。`sameCaseInput`（:71）统一模型实际使用的task/material/expected，与recordTrial写入检查同口径；title仅作界面识别，改名保留有效回放。第三条旧反证显示改名后trial_id消失，修复后仍为同一记录且模型调用数不增加。SQL故障后案例、trial、修订均不变；去掉故障后明确重试成功，新答案需要重新回放才能采用，删除则一次结算。三条QEA-106及原Skill流程通过（`quality-audit-skill-owner-focused.log`）；不增加库结构、兼容reader或独立恢复账。
+
+### QF-55 / P1：案例的可写状态与数量只在等待前判断（第46批本地定向通过）
+
+`SkillWorkshop.putCase`原先open/数量检查后等待dispatcher的beforeEffect，`SkillDraftStore.putCase`新增分支不再核草稿事实。正常公共ActionClient在原owner已读草稿后持有最终授权等待，另一项目依次真实采用、放弃或写入第五条；旧实现仍返回成功，前两种各留1条不应写的case，第三种实际存6条（`/tmp/quality-audit-skill-late-case-baseline.log`）。不是向handler输入伪造beforeEffect，也没有替换业务处理器。
+
+现 `apps/local-host/src/agent-definitions/skill-drafts.ts:181` 在原事务内核草稿仍存在且未放弃、读取当前数量再插入；`skill-workshop.ts:249` 删除等待前数量检查，输入文本与调用范围验证仍留真实边界。removeCase同样在写入事务核草稿可编辑，已放弃的内容留待用户恢复/清理。四项QEA-107覆盖采用后孤儿、放弃后新增、第六条与放弃后迟到删除，实际owner记录和错误码均核对。
+
+第46批定向结算：完整构建通过；16文件185项先通过（`/tmp/quality-audit-skill-owner-acceptance.log`），增加QEA-107及修复后，受影响3文件33项补过（`/tmp/quality-audit-skill-owner-final.log`），组合覆盖16文件189项。含正常Skill完整UI、6项UI恢复、Home真实安装/升级、签名/权限、Runtime回滚、实际HTTP取消、所有草稿写入口、SQL拒绝及明确重试。API只新增`skills.draft_adopting`错误码（现有conflict分类），无库结构、状态枚举或动作输入输出变更。只读复核先指出两处缺口，均取得反证并修复；末次窄复核无新增Blocker/P1。最终健康、整合头CI、资源与原QF-51性能继续，不能据此关闭整项。
+
+第46批最终健康通过：`/tmp/quality-audit-skill-owner-health-tracked.log`，新增生命周期测试已纳入索引。初次门禁指出第45批测试里的两次双重强转，现由同一个泛型HTTP助手正确声明各响应类型；不改测试运行、不放宽门禁。所有本次模型/安装等待在Home fixture之前注册清理，正常、失败与取消都释放；原finally仍等待请求结算。

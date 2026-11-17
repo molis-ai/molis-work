@@ -249,7 +249,6 @@ export class SkillWorkshop {
   async putCase(caller: ActionExecutionContext, input: SkillCasePutRequest): Promise<SkillCase> {
     this.open(caller, input.draft_id);
     const fields = checkedCase(input);
-    if (!input.case_id && this.store.cases(draftCases(input.draft_id)).length >= SKILL_CASES_MAX) throw skillErrors.case_invalid(`一份草稿至多 ${SKILL_CASES_MAX} 个已知答案`, { field: "case_id" });
     await caller.beforeEffect();
     const result = this.store.putCase(input.draft_id, fields, input.case_id);
     if (result === "missing") throw skillErrors.case_invalid("这份草稿没有这个已知答案", { field: "case_id" });

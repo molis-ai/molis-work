@@ -565,6 +565,8 @@ export const skillErrors = defineErrorCodes("skills", {
   draft_unknown: "not_found",
   /** `expected_revision` is not the draft's current revision (`details.revision`). */
   draft_conflict: "conflict",
+  /** This draft is being adopted; its fields, known answers and replay evidence cannot change until that attempt settles. */
+  draft_adopting: "conflict",
   /** The Assistant replays or takes back only a draft it opened in the same piece of work; the person's own drafts are theirs. */
   draft_refused: "forbidden",
   /** The draft has known answers and this revision was not replayed: replay before adopting. */

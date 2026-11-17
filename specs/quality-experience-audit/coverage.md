@@ -303,3 +303,7 @@ QF-47最终健康门禁退出0（`/tmp/quality-audit-surface-health-final.log`�
 真实链为Functions Host/HTTP/MCP只读→Kernel出口→Observation flush/close→Storage原Home密钥库；显式证据读取另沿公开observation.evidence.get。六向结论：钥匙/backend/cache仍由Storage维护，Observation只管缺失及覆盖；不把未尝试解锁缓存成真实Keychain故障；普通读取不再弹凭据交互；同一原缓存由两种访问策略复用，不造密钥或副本；Host按行为注入策略，Functions无特殊豁免；该能力归Storage，env/file和实际解锁消费者同片覆盖。未知摘要不能证明内容相同，删除将空摘要作为读取相同依据的行为。
 
 完整构建及10文件73项有通过证据（首轮Host用例错误期待本人页面query正文，改为正常MCP采集后整文件14项通过）；真实解封、后续加密恢复、旧缺失不重写，跨项目/用途拒绝、原key/backend均验。详细日志及首次失败归因见报告；最终整合头CI未完成。
+
+第46批新增交叉入口检查：项目A/B同时访问同一Home草稿，模型concurrent尾写，真实Home新装/换版及HTTP断连；不是假定“宿主只有一个进程，所以没有交错”。六向结论沿原owner：采用确有短发布生命周期，拒绝期间同draft写而不复制业务事实；保留安装授权；准确报告进行中和失败恢复；移除标题改名的无效trial清理；草稿与案例事务归Agent definitions，正式包归安装服务；复用原事务/错误分类，不给Skill添加另一套安装或版本账。实际SQL拒绝与安装前后交错均有旧反证，QF-53/54定向通过，更广验收继续。
+
+第46批最终定向组合为16文件189项：QEA-107正常动作授权等待跨采用/放弃/第五条后，迟到新增和删除在owner原事务拒绝；不存在新孤儿、第六条或已放弃内容被删。规则从handler等待前迁至store真实写点，属于边界/状态/冗余检查的同一闭环。新增公开合同仅一个conflict错误码，API快照已生成；复核无剩余Blocker/P1，健康与全仓最终验收仍另列。

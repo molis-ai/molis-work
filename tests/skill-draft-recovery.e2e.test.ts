@@ -13,10 +13,10 @@ async function editor(t: TestContext) {
   let browser: ChromeHarness | undefined;
   t.after(async () => { try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); } });
   const f = await serveHomeRuntime(t), project = await f.project("草稿保存恢复");
-  const api = async (path: string, body: object) => {
+  const api = async <Result = SkillDraft>(path: string, body: object) => {
     const response = await f.request(`/projects/${project.project_id}/api/skills/drafts/${path}`, { method: "POST", body });
     assert.equal(response.status, 200, await response.clone().text());
-    return await response.json() as SkillDraft;
+    return await response.json() as Result;
   };
   const draft = await api("create", { scope: "project", target: { kind: "new" }, fields: {
     name: "保存恢复", description: "整理记录时使用。", applies_to: "assistant", body: "# 原正文\n\n整理记录。",
@@ -113,7 +113,7 @@ test("QEA-102 a delayed real adoption receipt leaves the later draft open and sa
   assert.equal(await page.evaluate("document.querySelector('[data-au-field=body]')?.value"), local);
   await page.click('[data-kit-act="sk-close"]');
   await page.wait("!document.querySelector('[data-sk-work]')");
-  const listed = await api("list", {}) as unknown as { drafts: Array<{ draft_id: string }> };
+  const listed = await api<{ drafts: Array<{ draft_id: string }> }>("list", {});
   assert.equal(listed.drafts.length, 1, "the adopted draft is gone and the new draft remains");
   assert.notEqual(listed.drafts[0]!.draft_id, draft.draft_id);
   assert.equal((await api("read", { draft_id: listed.drafts[0]!.draft_id })).fields.body, local);
@@ -145,7 +145,7 @@ test("QEA-101 closing a saved editor removes it before the catalog reload can ac
     await page.wait(`!window.__qeaReload.editor.isConnected && document.querySelector('[data-au-field=body]')?.value === ${JSON.stringify(local)}`);
     await page.click('[data-kit-act="sk-close"]');
     await page.wait("!document.querySelector('[data-sk-work]')");
-    const listed = await api("list", {}) as unknown as { drafts: Array<{ draft_id: string }> };
+    const listed = await api<{ drafts: Array<{ draft_id: string }> }>("list", {});
     const newer = listed.drafts.find(item => item.draft_id !== draft.draft_id)!;
     assert.equal((await api("read", { draft_id: newer.draft_id })).fields.body, local);
     assert.equal((await api("read", { draft_id: draft.draft_id })).revision, draft.revision, "leaving unchanged content causes no write");

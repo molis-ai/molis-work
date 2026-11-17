@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { rollbackPreservingError, type openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { SKILL_DISCARDED_KEPT_DAYS, type SkillAuthoredFields, type SkillCase, type SkillCaseFields, type SkillDraftOrigin, type SkillDraftTarget,
+import { SKILL_CASES_MAX, SKILL_DISCARDED_KEPT_DAYS, skillErrors, type SkillAuthoredFields, type SkillCase, type SkillCaseFields, type SkillDraftOrigin, type SkillDraftTarget,
   type SkillSourceRef, type SkillTrial } from "@molis-ai/molis-work-contracts/services/skills";
 
 // Drafts of Skills, their known answers, replays and the copies' sources (batch 42, specs/skill-packs/authoring-path-design.md §3): four
@@ -67,9 +67,23 @@ const draftOf = (row: Row): StoredSkillDraft => ({ draft_id: row.draft_id as str
   created_at: row.created_at as string, updated_at: row.updated_at as string, actor_id: row.actor_id as string, ...(row.discarded_at ? { discarded_at: row.discarded_at as string } : {}) });
 const caseOf = (row: Row): SkillCase => ({ case_id: row.case_id as string, title: row.title as string, task: row.task as string,
   ...(row.material ? { material: row.material as string } : {}), expected: row.expected as string, origin: row.origin as SkillCase["origin"] });
+/** The inputs actually sent to the replay and judge; a display title is not one of them. */
+const sameCaseInput = (a: SkillCaseFields, b: SkillCaseFields) => a.task === b.task && (a.material ?? "") === (b.material ?? "") && a.expected === b.expected;
 
 export class SkillDraftStore {
+  private readonly adopting = new Set<string>();
   constructor(private readonly db: DatabaseSync, private readonly now: () => Date) {}
+
+  private assertEditable(draftId: string): void {
+    if (this.adopting.has(draftId)) throw skillErrors.draft_adopting("这份草稿正在采用，请完成后再改");
+  }
+
+  /** One draft stays fixed from the start of publishing through its synchronous adoption settlement, including across project callers. */
+  async withAdoption<Result>(draftId: string, publish: () => Promise<Result>): Promise<Result> {
+    this.assertEditable(draftId);
+    this.adopting.add(draftId);
+    try { return await publish(); } finally { this.adopting.delete(draftId); }
+  }
 
   private transaction<Result>(work: () => Result): Result {
     this.db.exec("BEGIN IMMEDIATE");
@@ -108,6 +122,7 @@ export class SkillDraftStore {
    */
   update(draftId: string, expected: number, change: { fields: SkillAuthoredFields; replacements?: Record<string, string>; target?: SkillDraftTarget }, actorId: string):
     StoredSkillDraft | "conflict" | "missing" {
+    this.assertEditable(draftId);
     const current = this.draft(draftId);
     if (!current || current.discarded_at) return "missing";
     if (current.revision !== expected) return "conflict";
@@ -119,6 +134,7 @@ export class SkillDraftStore {
 
   /** Discards a draft, or takes a discarded one back while it is kept. Answers whether it is discarded now; `missing` when there is none. */
   discard(draftId: string, restore: boolean): boolean | "missing" {
+    this.assertEditable(draftId);
     this.purge();
     const current = this.draft(draftId);
     if (!current) return "missing";
@@ -163,34 +179,47 @@ export class SkillDraftStore {
 
   /** Adds a known answer to a draft, or changes one of its own; `missing` when `case_id` is not the draft's. */
   putCase(draftId: string, fields: SkillCaseFields, caseId?: string): SkillCase | "missing" {
-    const owner = draftCases(draftId);
-    if (caseId) {
-      const changed = this.db.prepare("UPDATE skill_cases SET title = ?, task = ?, material = ?, expected = ? WHERE case_id = ? AND owner_ref = ?")
-        .run(fields.title, fields.task, fields.material ?? null, fields.expected, caseId, owner);
-      if (Number(changed.changes) !== 1) return "missing";
-      // A changed known answer is a new question: the replays of the old one say nothing of it.
-      this.db.prepare("DELETE FROM skill_trials WHERE draft_id = ? AND case_id = ?").run(draftId, caseId);
-      return this.cases(owner).find(item => item.case_id === caseId)!;
-    }
-    const id = this.insertCase(owner, fields, "person", this.now().toISOString());
-    return this.cases(owner).find(item => item.case_id === id)!;
+    this.assertEditable(draftId);
+    return this.transaction(() => {
+      const draft = this.draft(draftId);
+      if (!draft || draft.discarded_at) throw skillErrors.draft_unknown("这份草稿已经不在了，可能已被采用或放弃");
+      const owner = draftCases(draftId), cases = this.cases(owner);
+      if (caseId) {
+        const current = cases.find(item => item.case_id === caseId);
+        if (!current) return "missing";
+        this.db.prepare("UPDATE skill_cases SET title = ?, task = ?, material = ?, expected = ? WHERE case_id = ? AND owner_ref = ?")
+          .run(fields.title, fields.task, fields.material ?? null, fields.expected, caseId, owner);
+        // A changed question invalidates its proof in the same transaction. Renaming it leaves that proof intact.
+        if (!sameCaseInput(current, fields)) this.db.prepare("DELETE FROM skill_trials WHERE draft_id = ? AND case_id = ?").run(draftId, caseId);
+        return this.cases(owner).find(item => item.case_id === caseId)!;
+      }
+      if (cases.length >= SKILL_CASES_MAX) throw skillErrors.case_invalid(`一份草稿至多 ${SKILL_CASES_MAX} 个已知答案`, { field: "case_id" });
+      const id = this.insertCase(owner, fields, "person", this.now().toISOString());
+      return this.cases(owner).find(item => item.case_id === id)!;
+    });
   }
 
   removeCase(draftId: string, caseId: string): boolean {
-    const removed = this.db.prepare("DELETE FROM skill_cases WHERE case_id = ? AND owner_ref = ?").run(caseId, draftCases(draftId));
-    this.db.prepare("DELETE FROM skill_trials WHERE draft_id = ? AND case_id = ?").run(draftId, caseId);
-    return Number(removed.changes) === 1;
+    this.assertEditable(draftId);
+    return this.transaction(() => {
+      const draft = this.draft(draftId);
+      if (!draft || draft.discarded_at) throw skillErrors.draft_unknown("这份草稿已经不在了，可能已被采用或放弃");
+      const removed = this.db.prepare("DELETE FROM skill_cases WHERE case_id = ? AND owner_ref = ?").run(caseId, draftCases(draftId));
+      this.db.prepare("DELETE FROM skill_trials WHERE draft_id = ? AND case_id = ?").run(draftId, caseId);
+      return Number(removed.changes) === 1;
+    });
   }
 
   /** Keeps a replay only while both the draft revision and the known answer it used remain current. */
   recordTrial(draftId: string, trial: Omit<SkillTrial, "trial_id">, known: SkillCase, actorId: string): SkillTrial | "conflict" | "missing" {
+    this.assertEditable(draftId);
     return this.transaction(() => {
       const current = this.draft(draftId);
       if (!current || current.discarded_at) return "missing";
       if (current.revision !== trial.draft_revision) return "conflict";
       const currentCase = this.cases(draftCases(draftId)).find(item => item.case_id === trial.case_id);
       if (!currentCase) return "missing";
-      if (currentCase.task !== known.task || currentCase.material !== known.material || currentCase.expected !== known.expected) return "conflict";
+      if (!sameCaseInput(currentCase, known)) return "conflict";
       const trialId = `trial-${randomUUID()}`;
       this.db.prepare("INSERT INTO skill_trials(trial_id,draft_id,draft_revision,case_id,cells,verdict,ran_at,actor_id) VALUES (?,?,?,?,?,?,?,?)")
         .run(trialId, draftId, trial.draft_revision, trial.case_id, JSON.stringify(trial.cells), trial.verdict, trial.ran_at, actorId);

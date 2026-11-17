@@ -290,7 +290,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     } else return projectOwnSurface(pane, plugin, selection, tab);
     return true;
   };
-  const homeOrder = () => [...new Set([...(embedded ? parent.document : document).querySelectorAll(":is([data-dock-pins], [data-bar-own]) [data-dock-pin]:not(.is-leaving)")]
+  const homeOrder = () => [...new Set([...(embedded ? parent.document : document).querySelectorAll("[data-dock-pins] [data-dock-pin]:not(.is-leaving)")]
     .map(node => directory.find(entry => entry.id === node.dataset.dockPin)?.plugin_id).filter(Boolean))].slice(0, ${SURFACE_HOME_ORDER_LIMIT});
   // An installed package's stage mounts its own opaque frame from its page source only once it is opened. The homepage's reply is bound to that
   // exact page (the installation it names), and a panel or record reaches the frame through the stage, as the carrier page gives it, once mounted.

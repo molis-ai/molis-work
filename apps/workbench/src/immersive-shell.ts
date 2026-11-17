@@ -261,10 +261,12 @@ export function renderDirectoryPluginSections(
 }
 
 /**
- * The top strip (specs/work-line §4.2, WLN-16): the way back; the plugins chosen to stay (项目首页 first, the current one named);
- * the work area's tabs; ＋, which opens the start page (search, the market and the studio, then every plugin with the buttons that
- * keep it in the strip or add it to the project); the person's own plugins chosen to stay; the right side's tabs (side-panel.ts),
- * the one layout button (07-S2, 口径 6) and, last, the project as a round button whose menu holds the project and the person.
+ * The top strip (specs/screen-polish §3 方案 C「纸上的页签」; specs/work-line §4.2, WLN-16): the way back; 项目首页 and the plugins
+ * chosen to stay, each a glyph; the work area's tabs, the current one grown on its sheet; ＋, which opens the start page (search,
+ * the market and the studio, then every plugin with the buttons that keep it in the strip or add it to the project). Over the
+ * side sheet stands the name of the view it shows, which opens the list of the side's views (side-panel.ts). The right end holds
+ * three controls and no more (POLISH-05): the side's switch, the one layout button (07-S2, 口径 6) and the project, a round
+ * button whose menu holds the project and the person; the sync mark joins them only while it has something to say.
  * `nav` is given by the workbench page; without it the strip is the title bar alone (a frame that draws no navigation).
  */
 export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean, sideTabs: readonly SidePanelPluginTab[] = [], nav?: TopStripNavigation): string {
@@ -280,7 +282,9 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
         ${nav.rail}
       </div>
     </div>` : "";
-  const own = nav ? `<div class="bar-side bar-own" data-bar-own role="toolbar" aria-label="${uiText("workbench.immersive-shell.own")}"></div>` : "";
+  // The side sheet's own tab: the view it shows, by name. The script fills it (side-panel.ts); it is there only while the side is open.
+  const sideEar = `<button class="side-ear" type="button" data-side-ear data-ear aria-haspopup="true" aria-expanded="false" aria-controls="side-views" hidden><span class="side-ear-glyph" data-side-ear-glyph aria-hidden="true"></span><span class="side-ear-name" data-side-ear-name></span>${icon("chevron-down")}</button>`;
+  const sideToggle = renderButton({ label: uiText.text("workbench.immersive-shell.side-toggle"), icon: "panel", variant: "ghost", size: "sm", iconOnly: true, attrs: { "data-side-toggle": true, "aria-pressed": "false", "aria-controls": "side-panel", "aria-keyshortcuts": "Meta+\\", title: uiText.text("workbench.immersive-shell.side-toggle") } });
   return `<header class="workbench-header immersive-titlebar"${nav ? " data-dock" : ""}${desktop ? ' data-tauri-drag-region="deep"' : ""}>
     <div class="mw-group workspace-history">
       <button class="mw-btn mw-btn--ghost mw-btn--icon-only workspace-history-button" type="button" data-workspace-history="back" aria-label="${uiText("workbench.immersive-shell.previous")}" title="${uiText("workbench.immersive-shell.previous")}" disabled>${icon("back")}</button>
@@ -293,9 +297,9 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
     ${picker}
     <nav class="container-tabs" data-container-tabs data-overflow-fade aria-label="${uiText("workbench.immersive-shell.workspace-tabs")}" hidden></nav>
     <div class="desktop-titlebar-drag"${desktop ? " data-tauri-drag-region" : ""} aria-hidden="true"></div>
-    ${own}
-    ${renderSideStrip(primitives, sideTabs)}
-    <span class="titlebar-layout">${renderButton({ label: uiText.text("workbench.immersive-shell.layout"), icon: "columns", variant: "ghost", size: "sm", iconOnly: true, attrs: { "data-layout-open": true, "aria-haspopup": "menu", "aria-expanded": "false", title: uiText.text("workbench.immersive-shell.layout") } })}</span>
+    ${sideEar}
+    ${renderSideStrip(primitives, sideTabs, {}, { menu: true })}
+    <span class="titlebar-layout">${sideToggle}${renderButton({ label: uiText.text("workbench.immersive-shell.layout"), icon: "columns", variant: "ghost", size: "sm", iconOnly: true, attrs: { "data-layout-open": true, "aria-haspopup": "menu", "aria-expanded": "false", title: uiText.text("workbench.immersive-shell.layout") } })}</span>
     ${nav ? `<div class="titlebar-end">${renderSyncIndicator(primitives)}${nav.projectChrome}</div>` : ""}
   </header>`;
 }

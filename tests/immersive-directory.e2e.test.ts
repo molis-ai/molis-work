@@ -52,7 +52,9 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=goals]')?.getAttribute('aria-current') === 'page' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && document.querySelector('[data-goal-stage-chrome] [data-open-create]') && document.querySelector('[data-goal-stage-list] [data-tree-root]')");
   const addLayout = await evaluate<{ ok: boolean; dump: string }>(`(()=>{
     const tabs=[...document.querySelectorAll('[data-titlebar-tabs] .tab-item')].filter((tab)=>tab.getClientRects().length);
-    const titlebar=document.querySelector('.immersive-titlebar'), last=tabs.at(-1), add=titlebar?.querySelector('[data-plugin-picker-toggle]'), split=titlebar?.querySelector(':scope > .titlebar-layout [data-layout-open]'), strip=titlebar?.querySelector('[data-side-tabs]'), project=titlebar?.querySelector('.titlebar-end .navigator-project-selector');
+    // Goals is kept in the strip, so its own page is its glyph there and the strip draws no tab for it (specs/screen-polish §3
+    // 方案 C): ＋ then follows the kept plugins.
+    const titlebar=document.querySelector('.immersive-titlebar'), last=tabs.at(-1)??titlebar?.querySelector('[data-dock-pins]'), add=titlebar?.querySelector('[data-plugin-picker-toggle]'), split=titlebar?.querySelector(':scope > .titlebar-layout [data-layout-open]'), strip=titlebar?.querySelector('[data-side-tabs]'), project=titlebar?.querySelector('.titlebar-end .navigator-project-selector');
     if(!last||!add||!split||!titlebar||!project) return {ok:false, dump:'missing'};
     const l=last.getBoundingClientRect(), a=add.getBoundingClientRect(), s=split.getBoundingClientRect(), t=titlebar.getBoundingClientRect(), p=project.getBoundingClientRect();
     const g=strip?.checkVisibility() ? strip.getBoundingClientRect() : null;
@@ -314,19 +316,21 @@ test("顶条与事项线：输入框常驻在线上，回答在上方先写问�
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId, 20_000));
   await waitFor("document.querySelector('[data-work-bar] [data-assistant-composer] .mw-composer__input') && document.querySelector('[data-dock-pins] [data-dock-pin=home]')");
-  // The strip reads the kept plugins · the tabs · ＋ · the person's own · the project, none covering another; the foot is the
+  // The strip reads the kept plugins · the tabs · ＋ · the side's switch · the layout button · the project (specs/screen-polish §3
+  // 方案 C, POLISH-05), none covering another; a strip with no tab in it is not drawn, so ＋ follows the kept plugins. The foot is the
   // line, and the Assistant's input stands on it between what happened and what comes next (specs/work-line §4.1, §6.5).
   assert.deepEqual(await evaluate(`(()=>{
     const box=(selector)=>document.querySelector(selector).getBoundingClientRect();
     const strip='.workbench-header[data-dock] ';
-    const pins=box(strip+'[data-dock-pins]'), tabs=box(strip+'[data-titlebar-tabs]'), picker=box(strip+'.plugin-picker'), project=box(strip+'.titlebar-end .navigator-project-selector');
-    const own=document.querySelector(strip+'[data-bar-own]'), side=own.checkVisibility() ? own.getBoundingClientRect() : null;
+    const pins=box(strip+'[data-dock-pins]'), tabs=document.querySelector(strip+'[data-titlebar-tabs]'), picker=box(strip+'.plugin-picker'), project=box(strip+'.titlebar-end .navigator-project-selector');
+    const side=box(strip+'[data-side-toggle]'), layout=box(strip+'[data-layout-open]'), drawn=tabs.checkVisibility() ? tabs.getBoundingClientRect() : null;
     const composer=box('[data-work-line] .work-line-slot [data-assistant-composer]'), past=box('[data-work-line] [data-wing=past]'), next=box('[data-work-line] [data-wing=next]');
-    return { strip: pins.right<=tabs.left && tabs.right<=picker.left && (side ? picker.right<=side.left && side.right<=project.left : picker.right<=project.left),
+    return { strip: (drawn ? pins.right<=drawn.left && drawn.right<=picker.left+4 : pins.right<=picker.left+4) && picker.right<=side.left && side.right<=layout.left && layout.right<=project.left,
+      own: document.querySelector(strip+'[data-bar-own]')!==null,
       project: [project.right<=innerWidth, Math.round(project.width)],
       line: past.right<=composer.left+1 && composer.right<=next.left+1 && composer.bottom<=innerHeight,
       foot: document.querySelectorAll('.workbench-bar[data-work-bar] :is([data-dock-pin],[data-plugin-picker-toggle],.navigator-project-selector)').length };
-  })()`), { strip: true, project: [true, 30], line: true, foot: 0 }, "the strip reads kept plugins · tabs · ＋ · the person's own · project; the input stands on the line; the foot holds no plugin entry");
+  })()`), { strip: true, own: false, project: [true, 30], line: true, foot: 0 }, "the strip reads kept plugins · tabs · ＋ · side switch · layout · project; the input stands on the line; the foot holds no plugin entry");
   // At rest the bar is the input (K3, UIV-12): its receiver names the project and the Assistant, with nothing to reset
   // and no chooser nobody changed; “+” only adds (files, methods, capabilities) — who carries a new work and where it lives
   // are chosen in its tab.
@@ -385,11 +389,11 @@ test("顶条与事项线：输入框常驻在线上，回答在上方先写问�
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), false, "working elsewhere leaves the answer open");
   await click("[data-assistant-panel-close]");
   await waitFor("document.querySelector('[data-assistant-panel]').hidden");
-  // Shelf and 灵光 are tabs of the side panel (side-shelf §3.1). Since 07-1 S4b the right of the bar is the person's own tray, with
-  // no side button: the side opens from its current glyph in the titlebar and closes from the layout menu (收起右侧).
-  assert.equal(await evaluate("document.querySelector('[data-side-toggle]')"), null);
-  assert.equal(await evaluate("document.querySelector('.workbench-header [data-bar-own]')?.getAttribute('aria-label')"), "你自己的");
-  await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
+  // Shelf and 灵光 are views of the side panel (side-shelf §3.1). Since specs/screen-polish §3 方案 C the side opens and closes from
+  // its switch at the right end of the top strip, and the foot has no side button.
+  assert.equal(await evaluate("document.querySelector('.workbench-bar [data-side-toggle]')"), null);
+  assert.equal(await evaluate("document.querySelector('.workbench-header [data-side-toggle]')?.getAttribute('aria-pressed')"), "false");
+  await click("[data-side-toggle]");
   await waitFor("document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]').parentElement.getAttribute('aria-current') === 'page'");
   await click("[data-layout-open]"); await click("[data-layout-action=side]");
   await waitFor("document.body.dataset.sideOpen === 'false'");
@@ -399,6 +403,9 @@ test("顶条与事项线：输入框常驻在线上，回答在上方先写问�
   for (const id of ["workflows", "pages", "form", "dataset", "ppt", "images", "artifacts", "cognia", "coding"]) {
     await evaluate(`document.querySelector('[data-dock-choice="${id}"]')?.click()`);
   }
+  // A kept plugin is a glyph alone (specs/screen-polish §3 方案 C), so that many still fit a window of 1024px: keep every
+  // plugin the list offers, and the strip runs short in a window of 820px (wider than a phone, which keeps 项目首页 alone).
+  await evaluate("document.querySelectorAll('[data-dock-choice][aria-pressed=\"false\"]').forEach((button) => button.click())");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   assert.equal(await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden"), false, "ticking plugins keeps the list open");
   // Ticking that many plugins refits the Dock (a ResizeObserver, a frame or more later); a press that lands while the bar
@@ -413,9 +420,9 @@ test("顶条与事项线：输入框常驻在线上，回答在上方先写问�
   await evaluate("(() => { const area = document.querySelector('.tab-workspace') || document.body; area.classList.add('is-nudged'); area.classList.remove('is-nudged'); return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); })()");
   await command("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "left", clickCount: 1 }, sessionId);
   await waitFor("document.querySelector('[data-plugin-picker-popover]').hidden");
-  await command("Emulation.setDeviceMetricsOverride", { width: 1024, height: 760, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width: 820, height: 760, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor("!document.querySelector('[data-dock-more]')?.hidden && document.querySelector('[data-dock-more]')?.isConnected");
-  assert.ok(await evaluate(`(()=>{const pins=document.querySelector('.workbench-header [data-dock-pins]').getBoundingClientRect(),tabs=document.querySelector('.workbench-header [data-titlebar-tabs]').getBoundingClientRect();return pins.right<=tabs.left;})()`), "the kept plugins end before the tabs start");
+  assert.ok(await evaluate(`(()=>{const pins=document.querySelector('.workbench-header [data-dock-pins]').getBoundingClientRect(),strip=document.querySelector('.workbench-header [data-titlebar-tabs]'),next=(strip.checkVisibility()?strip:document.querySelector('.workbench-header .plugin-picker')).getBoundingClientRect();return pins.right<=next.left;})()`), "the kept plugins end before the tabs (or ＋, when no tab is drawn) start");
   await click("[data-dock-more]");
   await waitFor("!document.querySelector('[data-dock-overflow]').hidden && document.querySelectorAll('[data-dock-overflow] [data-dock-pin]').length > 0");
   const folded = await evaluate<string>("document.querySelector('[data-dock-overflow] [data-dock-pin]').dataset.dockPin");

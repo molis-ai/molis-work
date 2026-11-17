@@ -72,6 +72,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       leavePlugin: (plugin) => tabWorkspace?.leavePlugin?.(plugin) === true,
       open: (plugin, origin) => openSurfaceEntry(plugin, origin),
       shownPlugin: () => tabWorkspace?.shownPlugin?.() || null,
+      pagePlugin: () => tabWorkspace?.pagePlugin?.() || null,
+      redrawTabs: () => tabWorkspace?.apply?.(),
       startPage: () => tabWorkspace?.startPage, openBeside: (plugin) => tabWorkspace?.openBeside(plugin),
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
     });

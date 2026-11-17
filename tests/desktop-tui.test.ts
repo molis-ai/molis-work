@@ -595,10 +595,14 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     // the two buttons that get more plugins, every plugin with its own Dock button), then the person's own tray, the side's
     // glyphs and the project, whose menu holds the person. The foot is the work line alone, with the Assistant's input in
     // its slot and the side panel beside it.
-    assert.match(browser, /<header class="workbench-header immersive-titlebar" data-dock[^>]*>[\s\S]*data-dock-pins[\s\S]*data-titlebar-tabs[\s\S]*data-plugin-picker-toggle[\s\S]*data-global-menu[\s\S]*class="plugin-rail-items"[\s\S]*<div class="bar-side bar-own" data-bar-own role="toolbar" aria-label="你自己的"><\/div>[\s\S]*<div class="titlebar-end">[\s\S]*data-project-menu[\s\S]*<\/header>/);
+    // specs/screen-polish §3 方案 C (POLISH-05): no tray of the person's own; the side's view name, its list, then the side's switch, the layout button and the project.
+    assert.doesNotMatch(browser, /class="bar-side bar-own"/);
+    assert.match(browser, /<header class="workbench-header immersive-titlebar" data-dock[^>]*>[\s\S]*data-dock-pins[\s\S]*data-titlebar-tabs[\s\S]*data-plugin-picker-toggle[\s\S]*data-global-menu[\s\S]*class="plugin-rail-items"[\s\S]*data-side-ear[\s\S]*data-side-tabs data-side-menu hidden[\s\S]*data-side-toggle[\s\S]*data-layout-open[\s\S]*<div class="titlebar-end">[\s\S]*data-project-menu[\s\S]*<\/header>/);
     assert.match(browser, /class="workbench-bar" data-work-bar[^>]*>\s*<div class="work-line"[\s\S]*data-work-line-head[\s\S]*data-assistant-island data-system-view-owner="assistant"[\s\S]*data-assistant-composer[\s\S]*class="mw-composer__input"[\s\S]*id="side-panel"/);
     assert.doesNotMatch(browser.slice(browser.indexOf('class="workbench-bar"'), browser.indexOf('id="side-panel"')), /data-plugin-picker|data-dock-pins|data-project-menu/, "the foot holds the line, not the plugins or the project");
-    assert.doesNotMatch(browser, /data-side-toggle/, "the bar has no side button (07-1 S4b)");
+    // The side's one switch is the top strip's (specs/screen-polish §3 方案 C, POLISH-05; matched in the header above): the foot has none (07-1 S4b).
+    assert.doesNotMatch(browser.slice(browser.indexOf('class="workbench-bar"'), browser.indexOf('id="side-panel"')), /data-side-toggle/, "the bar has no side button (07-1 S4b)");
+    assert.equal(browser.match(/<button[^>]*\bdata-side-toggle\b/g)?.length, 1, "the page has one side switch");
     assert.doesNotMatch(browser, /data-bar-resident|data-dock-toggle|data-dock-window|dock-window-im/, "the side panel has one button and no group-chat names (side-shelf §7)");
     assert.doesNotMatch(browser, /class="plugin-stack"|class="workbench-dock"|data-navigation-labels-toggle/);
     assert.doesNotMatch(pluginStrip, /返回项目目录/);

@@ -198,8 +198,15 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
         const picker = element.closest('[data-plugin-picker-popover]');
         if (picker && picker.hidden) document.querySelector('[data-plugin-picker-toggle]')?.click();
         const sidePanel = element.closest('[data-side-panel]');
-        // The side opens from its current glyph in the titlebar (the bar's side button left in 07-1 S4b).
-        if (sidePanel && sidePanel.hidden) document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]')?.click();
+        // The side opens from its switch at the right end of the top strip (specs/screen-polish §3 方案 C, POLISH-05).
+        const sideSwitch = document.querySelector('[data-side-toggle]');
+        if (sidePanel && sidePanel.hidden) (sideSwitch ?? document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]'))?.click();
+        // A side view is chosen in the list that opens from the view's name on the side sheet: open the side, then the list.
+        const sideViews = element.closest('[data-side-tabs][data-side-menu]');
+        if (sideViews && sideViews.hidden) {
+          if (document.body.dataset.sideOpen !== 'true') sideSwitch?.click();
+          document.querySelector('[data-side-ear]')?.click();
+        }
         const rail = element.closest('.plugin-rail-items');
         if (rail && !element.getClientRects().length && !rail.classList.contains('is-tools-open')) rail.querySelector('[data-rail-tools-toggle]')?.click();
         // A Goal tab opens on its Frame; its workspace (directory, records, timeline) is behind 打开工作区.

@@ -435,7 +435,7 @@ ${TAB_WORKSPACE_DRAG_PART}
   document.addEventListener("click", (event) => { const button = !embedded && event.target?.closest?.("[data-layout-open]"); if (button) openLayoutMenu(button); });
   /* Which column the person is in, the focused main pane or the right side (§4.6 口径 1: one focus over both): the layout menu
      acts on it and the titlebar's arrows walk its way back. It follows where they press or move the focus, a frame included. */
-  const columnOf = (node) => node?.closest?.("[data-side-panel], [data-side-tabs]") ? "side" : node?.closest?.("[data-tab-panes], [data-titlebar-tabs]") ? "main" : "";
+  const columnOf = (node) => node?.closest?.("[data-side-panel], [data-side-tabs], [data-side-ear]") ? "side" : node?.closest?.("[data-tab-panes], [data-titlebar-tabs]") ? "main" : "";
   const followColumn = (node) => { const next = columnOf(node); if (next && next !== column) { column = next; syncHistoryButtons(); markFocus(); } };
   if (!embedded) {
     document.addEventListener("pointerdown", (event) => followColumn(event.target), true);
@@ -730,5 +730,7 @@ ${TAB_WORKSPACE_DRAG_PART}
   return { apply, readView, writeView, openView, homeOrder, homeNavigationFrom, adoptHomeLead, releaseHomeLead, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, startPage, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,
     shownPlugin: () => state.exclusive ? null : ops.shownPlugin(ops.focused(state)),
+    // The plugin whose own page the focused pane shows: none while a tab or a cover is what shows.
+    pagePlugin: () => state.exclusive || ops.focused(state)?.activeTabId ? null : ops.shownPlugin(ops.focused(state)),
     exclusive: () => state.exclusive, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };
 }`;

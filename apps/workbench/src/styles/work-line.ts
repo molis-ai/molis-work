@@ -18,7 +18,6 @@
 const W = "body.immersive-workbench";
 /** The shell outside a pane and the component board's real-bar specimen, as the design system's own rules name it. */
 const SHELL = "html :is(body.immersive-workbench:not([data-pane-embedded]),.mw-catalog-bar-stage)";
-const TOP = `${SHELL} .workbench-header[data-dock]`;
 const HOVER = "var(--dur-hover) var(--ease-quint)";
 const MOVE = "var(--dur-move) var(--ease-quint)";
 const ELLIPSIS = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
@@ -29,80 +28,9 @@ const BUTTON_GROUNDS = ":is(.work-reply-placed,.work-reply-waiting,.work-reply-a
 const ANIMATED = ":is(.work-event[data-fresh],.work-task-panel,.work-reply-placed,.work-reply-waiting[data-waiting=\"open\"],.work-reply-peek,.work-reply-mini)";
 
 const SHEET = `
-/* The shell around the line (WLN-16). The bottom is the line and nothing else; the plugins chosen to stay, the start page's ＋,
-   the person's own plugins and the project stand in the top strip, which is 44px tall for them. */
-@media (min-width:761px){html body.immersive-workbench:not(.arrival-page){--desktop-titlebar-height:44px}}
+/* The shell around the line (WLN-16). The bottom is the line and nothing else; the plugins chosen to stay, the start page's ＋
+   and the project stand in the top strip (styles/top-strip.ts). */
 ${SHELL} .workbench-bar[data-work-bar]{display:block}
-${TOP}{position:relative;gap:6px;padding:0 var(--sheet-inset,14px) 0 8px;--dock-btn:30px}
-${TOP}>.dock-pins{order:1;flex:0 1 auto;height:36px;margin:0 2px;padding:3px;gap:2px;border-radius:calc(var(--r-control,8px) + 3px);background:color-mix(in srgb,var(--ink) 4%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 6%,transparent)}
-${TOP}>.dock-pins::before,${TOP} .dock-pin[aria-current]::after,${TOP}>.plugin-picker::after{content:none}
-${TOP} .dock-pin{border-radius:var(--r-control,8px)}
-${TOP} .dock-pin:hover{transform:none}
-${TOP} .dock-pin svg{width:16px;height:16px}
-.dock-pin-name{display:none}
-${TOP} .dock-pin[aria-current]{display:inline-flex;align-items:center;gap:6px;width:auto;max-width:160px;padding:0 10px 0 8px;font:inherit;font-size:12px;font-weight:500}
-${TOP} .dock-pin[aria-current]>.dock-pin-name{display:block;${ELLIPSIS}}
-${TOP} .dock-pin.is-fixed{flex:none;margin-right:0}
-${TOP} .dock-pin.is-fixed::before{content:none}
-/* The kept plugins are this browser's choice, so the page's script draws them, and names the current one, after the first paint:
-   until it has, what they would push along is held unseen, so the strip is not laid out a second way while it loads (VUX-31).
-   Should the script never get there, the strip shows anyway. */
-${TOP}:not([data-dock-drawn])>:not(.workspace-history){visibility:hidden;animation:work-strip-shown 0s forwards;animation-delay:3s}
-@keyframes work-strip-shown{to{visibility:visible}}
-/* The tabs take what they need and ＋ follows them; the strip's own ＋ (a list of plugins to open) is the start page now.
-   What they need is written by the script that shares their widths (--tabs-hug: every tab at its own width; --tabs-floor:
-   every tab at its narrowest), so the strip's box never hangs on the widths that script then gives the tabs. Where the strip
-   runs short the tabs narrow first, down to that floor while it leaves the rest of the strip 500px (the right side's glyphs slide in what is left); then the kept plugins
-   fold; then the tabs slide. Until the script has measured, the strip starts at its floor (0px, held at 120px), where an empty
-   or one-tab strip ends up, so the first paint does not lay the bar out a second way (VUX-31). */
-${TOP}>[data-titlebar-tabs]{flex:0 1000 var(--tabs-hug,0px);min-width:clamp(120px,var(--tabs-floor,120px),100% - 500px)}
-/* The right side's glyphs line up over the side panel while there is room; where the strip runs short they slide in their own box (down to one glyph) before anything is pushed off the window. */
-${TOP}>.side-strip{flex:0 1 auto;min-width:var(--dock-btn,32px);overflow-x:auto;justify-content:safe flex-end}
-@media (min-width:761px){body[data-side-open=true] ${TOP}>.side-strip{flex-basis:calc(var(--side-panel-width,35vw) + var(--sheet-inset,14px) - 8px);min-width:var(--dock-btn,32px)}}
-${TOP}>.desktop-titlebar-drag{flex:1 1 0;width:auto;min-width:0}
-${TOP} .tab-add-button{display:none}
-${TOP}>.plugin-picker{order:2;position:static;flex:none;max-width:none;padding:0}
-${TOP} .plugin-picker-trigger{justify-content:center;width:28px;height:28px;padding:0;border:1px solid var(--line-strong);border-radius:var(--r-control,8px);background:var(--paper)}
-${TOP} .plugin-picker-trigger>svg{width:14px;height:14px}
-${TOP} .plugin-picker-trigger[aria-expanded="true"]>svg{transform:rotate(45deg)}
-${TOP} .plugin-picker-current{display:none}
-${TOP} .plugin-picker-popover:not([hidden]){animation:craft-fade-in var(--dur-hover) var(--ease-quint) both}
-${TOP}>.bar-own{order:5;height:36px;gap:2px}
-${TOP}>.titlebar-end{order:8;flex:none;display:flex;align-items:center;gap:8px;margin-left:2px}
-/* A phone: two rows and never more, in the order a wide window reads them. The first is the way back, the kept plugins (glyphs
-   alone, no tray: they take what the row has left and fold into +N, down to 项目首页 alone on the narrowest), the right side's glyphs (all of them from 601px; two at 600px and under, the rest
-   slide), the layout button and the project. The second is the tab strip as a phone draws it (the switch, the current tab,
-   全部标签; 52px, VUX-31), ＋ and the person's own plugins, which fold into their own +N. The break between the rows is the strip's own. */
-@media (max-width:760px){
-  ${TOP}{--dock-btn:44px;padding:0 4px;gap:0}
-  ${TOP}::before{content:"";order:4;flex:0 0 100%;height:0}
-  ${TOP}>.workspace-history{order:0;gap:0;padding:0}
-  ${TOP}>.dock-pins{order:1;flex:1 1 0;min-width:var(--dock-btn);height:44px;margin:0;padding:0;gap:0;overflow:hidden;background:none;box-shadow:none}
-  ${TOP} .dock-pin[aria-current]{width:var(--dock-btn);padding:0;justify-content:center}
-  ${TOP} .dock-pin[aria-current]>.dock-pin-name{display:none}
-  ${TOP}>.side-strip{order:2;flex:0 1 auto;min-width:var(--dock-btn);max-width:max-content;justify-content:flex-start}
-  ${TOP}>.titlebar-layout{order:2;padding:0}
-  ${TOP}>.titlebar-end{order:3;margin-left:0;gap:0}
-  ${TOP}>.titlebar-end>.workspace-chrome{margin-left:0}
-  /* The row is as tall from the first paint as the strip draws it (52px, workbench-navigation.ts), before the tabs are in it. */
-  ${TOP}>[data-titlebar-tabs]{order:5;flex:1 1 0;min-width:0;min-height:52px}
-  ${TOP}>.plugin-picker{order:6}
-  ${TOP}>.bar-own{order:7;flex:0 1 auto;min-width:var(--dock-btn);max-width:max(var(--dock-btn),100% - 330px);height:44px;gap:0;overflow:hidden}
-  ${TOP}>.bar-own:not(:has([data-dock-pin])){display:none}
-  ${TOP}>.desktop-titlebar-drag{display:none}
-  ${TOP} .plugin-picker-trigger{width:44px;height:44px}
-}
-/* 600px and under: the right side shows two whole glyphs (its always-there one and one more; the rest slide). A page with a directory gets its drawer's button before the project, as the foot had it; the kept plugins
-   make the room, down to 项目首页 alone, and the start page lists every one of them. Under 360px the row cannot hold all of
-   that, so the way forward goes (the way back stays). */
-@media (max-width:600px){
-  ${TOP}>.side-strip{flex:none;max-width:calc(var(--dock-btn)*2)}
-  ${SHELL} .immersive-workspace:not(.is-plugin-directory-empty) .workbench-header .titlebar-end .immersive-show-directory,
-  /* The design system hides the strip's directory buttons with !important (craft-finish-assistant.ts): only !important shows one again. */
-  ${SHELL} .is-directory-drawer-open .workbench-header .titlebar-end .navigator-directory-toggle{display:inline-grid!important;place-items:center;order:-1;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border:0;background:transparent;box-shadow:none;color:var(--ink-soft)}
-  ${SHELL} .immersive-workspace.is-directory-drawer-open .workbench-header .titlebar-end .immersive-show-directory{display:none!important}
-}
-@media (max-width:359px){${TOP} [data-workspace-history="forward"]{display:none}}
 /* The line: what happened on the left, the composer in the middle, what comes next on the right. Its height is constant.
    The left wing holds what is in progress and what waits for the person, so it keeps 420px before the right one grows: the
    composer is centred from 1444px up and sits a little right of centre below that. */
@@ -391,18 +319,11 @@ html[data-craft-still] ${ANIMATED}{animation:none}
   ${BUTTON_GROUNDS} .mw-btn{min-width:44px;min-height:44px}
   .work-task-row-main{min-height:48px}
   .work-card-process>summary{min-height:44px;align-content:center}
-  /* Where the right side's glyphs slide, its always-there entry (a Home tool with a chord) leads the row and stays at its edge. */
-  ${TOP}>.side-strip>.tab-item:has(>[data-side-keys]){order:-1;position:sticky;inset-inline-start:0;z-index:1;background:var(--nav-bg)}
 }
 /* A dialog tab with 44px marks in it keeps room for its title. */
 @media (pointer:coarse) and (min-width:761px){${W} .assistant-tabs[data-work-tabs] .assistant-tab{min-width:128px}}
 @media (pointer:coarse){
-  ${TOP}{--dock-btn:44px}
-  ${TOP}>.dock-pins{height:44px;padding:0;gap:0}
-  ${TOP} .plugin-picker-trigger{width:44px;height:44px}
   .work-line-row .work-line-wing .work-line-head,.work-event,.work-line-earlier{height:44px;min-width:44px}
-  /* Its glyphs are 44px each: where the strip runs short they slide in their own box before anything is pushed off the window. */
-  ${TOP}>.side-strip{flex-shrink:1;padding-block:2px;margin-block:-2px;overflow-x:auto;justify-content:safe flex-end}
 }
 `;
 /** The sheet as the page gets it: the notes above are for whoever reads this file. */

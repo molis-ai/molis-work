@@ -217,6 +217,12 @@ const pages: Record<string, Draw> = {
 // background-tasks tab and page are gone from a project page (the task panel beside the dialog replaces them). Every page state
 // grew by the same amount in each language and no document or settings record moved, so no Goals markup changed here. The 16
 // were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// Screen polish P1 (specs/screen-polish §3 方案 C, the top strip as tabs on paper), on main 0dceaca09: the 16 page-* records grew
+// by 627 zh / 647 en characters and the 50 fragment records did not change. It is the shell's top strip alone, in three places:
+// the person's tray (`data-bar-own`) gave way to the side sheet's own tab (`data-side-ear data-ear`), the side's glyph row became the list
+// of its views (`side-strip side-views`, `data-side-menu hidden`), and the layout button is preceded by the side's switch
+// (`data-side-toggle`). Each of the 16 candidate normalized draws, with only those three put back as they were, had its prior hash
+// and length exactly; the new expectations are those draws' own. Candidate RECORD mode was not used; no Goals markup or JSON changed.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

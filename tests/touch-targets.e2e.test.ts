@@ -38,8 +38,9 @@ const KINDS: Record<string, string> = {
   ".workspace-history-button": "history",
   ".tab-item-trigger": "tab",
   ".tab-item-close": "tab close",
-  // 07-1 S3: at 760px and under the strip leads with 主区｜右侧 and always shows 全部标签, in the one row it paints first.
-  ".tab-pane-switch > .mw-toggle": "main or side",
+  // specs/screen-polish §3 方案 C (POLISH-05, POLISH-07): the side's switch at the right end takes the place of 主区｜右侧 and of
+  // the side's row of glyphs; at 760px and under the strip is one row.
+  "[data-side-toggle]": "side switch",
   "[data-tab-all]": "all tabs",
   "[data-layout-open]": "layout", // 07-S2: the titlebar's one layout button replaces each strip's
   ".tab-view-chip-close": "cover close",
@@ -151,7 +152,8 @@ const ROW_FIT = `(() => {
 const DOCK_FOLD = `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const pins = [...document.querySelectorAll("[data-dock-pins] [data-dock-pin]")];
-  const hidden = pins.filter(pin => pin.hidden).map(pin => pin.dataset.dockPin).sort();
+  // Off the row: folded by the Dock (hidden), or not drawn at all (a phone's one row keeps 项目首页 alone, specs/screen-polish §3 方案 C).
+  const hidden = pins.filter(pin => pin.hidden || !pin.getClientRects().length).map(pin => pin.dataset.dockPin).sort();
   const all = pins.map(pin => pin.dataset.dockPin).sort();
   const more = document.querySelector("[data-dock-pins] [data-dock-more]");
   const shown = !!more?.isConnected && more.checkVisibility();
@@ -403,111 +405,91 @@ const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-side|bar-chat|plu
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
-/** What a phone's scrolling glyph row was asked about a Home tool (see assertHomeToolsReachable). */
+/** What a phone's list of side views was asked about a Home tool (see assertHomeToolsReachable). */
 type HomeToolPhone = {
   count: number;
-  first: boolean;
   left: boolean;
   right: boolean;
-  overflow: boolean;
-  scrolled: boolean;
-  staticPast: boolean;
-  inStrip: boolean;
-  inWindow: boolean;
-  hits: boolean[];
-  clickable: boolean;
+  sideways: boolean;
+  inList: boolean;
 };
 
 /**
- * ISSUE-30 / 07-AUDIT: declared Home tools stay inside the viewport, and the visible target can actually be reached, without
- * scrolling anything to it. Since 07-1 S4b a Home tool with a chord (Issue) is reached by its glyph on the right side of the
- * titlebar, no longer a titlebar button of its own; on a phone the glyph row scrolls, and the Home tool leads it there, so it is
- * in view as the page draws (the always-there entry the person kept at the top right, 10-12).
+ * ISSUE-30 / 07-AUDIT: a declared Home tool (Issue, a side view with a chord) can be reached and pressed without scrolling
+ * anything to it. Until specs/screen-polish §3 方案 C it was a glyph in the row at the right end of the titlebar (07-1 S4b), the
+ * always-there entry of 10-12. 方案 C leaves three controls there (POLISH-05: the side's switch, layout, project) and puts every
+ * side view, the Home tool among them, in the list that opens from the side sheet's own tab; its chord still opens it from
+ * anywhere. So this opens the side and that list, and requires the Home tool to be inside the window and to take the press at
+ * its top, middle and bottom with nothing above it.
  *
- * BL-phone-home-tools-stay-visible: leading the row is not enough once the row scrolls — revealing the current side tab at the
- * row's end used to scroll the Home tool out of sight at the left. So on a phone this also scrolls the row to its end and requires
- * the Home tool to stay in the strip's box and in the window, to take the press at its top, middle and bottom (nothing above it),
- * and to lead the arrow keys in the order the glyphs are drawn. `side-panel.ts` keeps it in place with `position:sticky` at a
- * phone's width; the checks that follow fail without that rule.
+ * BL-phone-home-tools-stay-visible was about a phone's glyph row scrolling the Home tool out of sight. There is no such row any
+ * more: on a phone the list runs the window's width and must not scroll sideways, the Home tool is inside it, and the arrow keys
+ * walk the views in the order they are drawn. The side is put back as it was (closed) before the shell is measured.
  */
 async function assertHomeToolsReachable(browser: Browser, width: number): Promise<void> {
-  const report = await browser.evaluate<{ count: number; blocked: string[]; phone: HomeToolPhone | null }>(`(async () => {
+  const report = await browser.evaluate<{ count: number; blocked: string[]; phone: HomeToolPhone | null; restored: boolean }>(`(async () => {
+    const frame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const strip = document.querySelector('[data-side-tabs]'), toggle = document.querySelector('[data-side-toggle]'), ear = document.querySelector('[data-side-ear]');
     const nodes = [...document.querySelectorAll('[data-side-tabs] [data-side-keys]')];
-    const blocked = nodes.filter(el => {
-      const r = el.getBoundingClientRect(), x = r.left + r.width / 2;
+    const wasOpen = document.body.dataset.sideOpen === 'true';
+    if (!wasOpen) toggle.click();
+    await frame();
+    if (strip.hidden) ear.click();
+    await frame();
+    const shown = strip.querySelector('[data-side-tab][aria-selected="true"]');
+    const blocked = nodes.flatMap(el => {
+      el.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+      const r = el.getBoundingClientRect(), x = r.left + r.width / 2, style = getComputedStyle(el);
       const inside = r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;
-      return !inside || ![r.top + 2, r.top + r.height / 2, r.bottom - 2].every(y => el.contains(document.elementFromPoint(x, y)));
-    }).map(el => el.textContent.trim() || el.getAttribute('aria-label') || el.parentElement.title);
-    // BL-phone-home-tools-stay-visible / 07-AUDIT: a phone's glyph row scrolls to its end; the Home tool must still be drawn first,
-    // in view, and able to take the press there.
+      const over = [r.top + 2, r.top + r.height / 2, r.bottom - 2].map(y => document.elementFromPoint(x, y)).filter(at => !el.contains(at));
+      if (inside && !el.disabled && style.pointerEvents !== 'none' && !over.length) return [];
+      const name = el.textContent.trim() || el.getAttribute('aria-label') || el.parentElement.title;
+      // What is in the way, for whoever reads the failure.
+      return [name + ' ' + Math.round(r.left) + ',' + Math.round(r.top) + ' ' + Math.round(r.width) + '×' + Math.round(r.height) + ' in ' + innerWidth + '×' + innerHeight
+        + (over.length ? ' under ' + over.map(at => at ? at.tagName.toLowerCase() + '.' + String(at.className).split(' ')[0] : 'nothing').join(' / ') : '')];
+    });
     let phone = null;
-    const strip = document.querySelector('[data-side-tabs]'), button = nodes[0] ?? null;
-    if (button && strip && matchMedia('(max-width: 600px)').matches) {
-      const frame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      // The tabs the strip draws, as its own arrow keys take them (side-panel.ts): a hidden context tab is not one.
-      const tabs = () => [...strip.querySelectorAll('[data-side-tab]')].filter((tab) => !tab.hidden);
-      const before = strip.scrollLeft, rest = button.getBoundingClientRect(), stripLeft = strip.getBoundingClientRect().left;
-      strip.scrollLeft = strip.scrollWidth;
-      await frame();
-      const stripBox = strip.getBoundingClientRect(), box = button.getBoundingClientRect(), style = getComputedStyle(button), x = box.left + box.width / 2;
-      // A press has to land on it: hit-test at three heights, plus the styles that would take the press away. Opening the Issue
-      // panel here would change the side's state in the middle of the shell's measurements, so the press is proven, not taken.
-      const hits = [box.top + 2, box.top + box.height / 2, box.bottom - 2].map((y) => { const at = document.elementFromPoint(x, y); return !!at && (at === button || button.contains(at)); });
-      const scrolled = strip.scrollLeft > 0;
-      const seen = { overflow: strip.scrollWidth > strip.clientWidth + 1, scrolled,
-        staticPast: scrolled && strip.scrollLeft + 0.5 >= rest.left - stripLeft + before + rest.width,
-        inStrip: box.left >= stripBox.left - 0.5 && box.right <= stripBox.right + 0.5,
-        inWindow: box.width > 0 && box.height > 0 && box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight,
-        hits, clickable: hits.every(Boolean) && style.pointerEvents !== 'none' && !button.disabled };
-      strip.scrollLeft = 0;
-      await frame();
-      // The order the glyphs are drawn in is the order the strip's arrows walk: ← from the current tab follows it to the Home tool.
-      // The keys are cancelable, as a real press is: the strip takes them (preventDefault), so the page's roving focus, which walks
-      // the DOM order, does not move the focus a second time. Before batch 17 they were not, and the walk passed only because the
-      // Home tool happened to be the last tab in the DOM.
-      const ordered = tabs().sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
-      const first = ordered[0] === button;
-      let left = false, right = false;
-      if (first && ordered.length > 1) {
-        const selected = ordered.find((tab) => tab.getAttribute('aria-selected') === 'true') ?? ordered[1];
-        const startAt = ordered.indexOf(selected);
-        selected.focus({ preventScroll: true });
-        let steps = 0, followed = true;
-        while (document.activeElement !== button && steps <= ordered.length) {
-          const from = ordered.indexOf(document.activeElement);
-          document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }));
-          steps += 1;
-          followed = followed && document.activeElement === ordered[(from - 1 + ordered.length) % ordered.length];
-        }
-        left = followed && steps === startAt && document.activeElement === button;
-        button.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
-        right = document.activeElement === ordered[1];
-        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    const button = nodes[0] ?? null;
+    if (button && matchMedia('(max-width: 600px)').matches) {
+      // The views the list draws, as its own arrow keys take them (side-panel.ts): a hidden context tab is not one.
+      const ordered = [...strip.querySelectorAll('[data-side-tab]')].filter((tab) => !tab.hidden && tab.getClientRects().length).sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+      const box = button.getBoundingClientRect(), listBox = strip.getBoundingClientRect();
+      // The keys are cancelable, as a real press is: the list takes them (preventDefault), so the page's roving focus does not
+      // move the focus a second time.
+      let left = true, right = true;
+      const at = ordered.indexOf(button);
+      if (ordered.length > 1) {
+        const from = ordered[(at + 1) % ordered.length];
+        from.focus({ preventScroll: true });
+        from.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+        left = document.activeElement === button;
+        button.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+        right = document.activeElement === from;
       }
-      strip.scrollLeft = before;
-      phone = { ...seen, count: ordered.length, first, left, right };
+      phone = { count: ordered.length, left, right, sideways: strip.scrollWidth > strip.clientWidth + 1,
+        inList: box.left >= listBox.left - 0.5 && box.right <= listBox.right + 0.5 && listBox.left >= 0 && listBox.right <= innerWidth };
     }
-    return { count: nodes.length, blocked, phone };
+    // Back as it was: the view that showed (the arrows chose others), the list closed, the side closed, nothing focused in the
+    // strip; then a moment for the strip to fit itself again (the Dock folds after its ResizeObserver).
+    if (shown && shown.getAttribute('aria-selected') !== 'true') shown.click();
+    if (!strip.hidden) ear.click();
+    if (!wasOpen && document.body.dataset.sideOpen === 'true') toggle.click();
+    if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+    await frame();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    return { count: nodes.length, blocked, phone, restored: (document.body.dataset.sideOpen === 'true') === wasOpen && strip.hidden && (!shown || shown.getAttribute('aria-selected') === 'true') };
   })()`);
   assert.ok(report.count > 0, "the current Home tools are present");
-  assert.deepEqual(report.blocked, [], "Home tools are neither clipped nor covered, including their target's top and bottom");
+  assert.deepEqual(report.blocked, [], "Home tools, in the side's list, are neither clipped nor covered, including their target's top and bottom");
+  assert.equal(report.restored, true, "the side and its list are back as they were before the shell is measured");
   const phone = report.phone;
   if (!phone) return;
-  assert.equal(phone.first, true, `ISSUE-30 07-AUDIT: the Home tool is the first glyph a phone draws in the right side's row (${width}px)`);
+  assert.equal(phone.sideways, false, `ISSUE-30 / BL-phone-home-tools-stay-visible: a phone's list of side views does not scroll sideways (${width}px)`);
+  assert.equal(phone.inList, true, `ISSUE-30 / BL-phone-home-tools-stay-visible: the Home tool is inside the list, and the list inside the window (${width}px)`);
   if (phone.count > 1) {
-    assert.equal(phone.left, true, `ISSUE-30 07-AUDIT: ← from the current tab walks the drawn order and reaches the Home tool first (${width}px)`);
-    assert.equal(phone.right, true, `ISSUE-30 07-AUDIT: → from the Home tool goes to the glyph drawn after it (${width}px)`);
+    assert.equal(phone.left, true, `ISSUE-30 07-AUDIT: ↑ from the view drawn after the Home tool reaches it (${width}px)`);
+    assert.equal(phone.right, true, `ISSUE-30 07-AUDIT: ↓ from the Home tool goes to the view drawn after it (${width}px)`);
   }
-  if (width <= 360) {
-    assert.equal(phone.overflow, true, `ISSUE-30 07-AUDIT: at ${width}px the glyph row overflows, so its end is the case measured`);
-    assert.equal(phone.scrolled, true, `ISSUE-30 07-AUDIT: at ${width}px the row really scrolled to its end`);
-    assert.equal(phone.staticPast, true, `ISSUE-30 07-AUDIT: at ${width}px the scroll passes where the Home tool would sit without staying in place`);
-  }
-  if (!phone.staticPast) return;
-  assert.equal(phone.inStrip, true, `ISSUE-30 / BL-phone-home-tools-stay-visible: the Home tool stays inside the strip's box at the row's end (${width}px)`);
-  assert.equal(phone.inWindow, true, `ISSUE-30 / BL-phone-home-tools-stay-visible: and inside the window, not scrolled out of sight (${width}px)`);
-  assert.deepEqual(phone.hits, [true, true, true], `ISSUE-30 / BL-phone-home-tools-stay-visible: its top, middle and bottom take the press, with nothing above them (${width}px)`);
-  assert.equal(phone.clickable, true, `ISSUE-30 / BL-phone-home-tools-stay-visible: it is enabled and takes pointer input (${width}px)`);
 }
 
 /** The windows of one test: open a size on a path, measure the shell, and put the Assistant line in a state. */
@@ -722,12 +704,10 @@ for (const scheme of ["light", "dark"] as const) {
     await w.start();
 
     // A phone. Three screens carry every control: the project's home, a plugin's page (its plugin tab), and the project's
-    // settings (a cover chip with its close mark, and the directory toggle: the widest the bar gets, eight 44px targets in its
-    // second row). The row's targets touch one another, so it is an exact sum: eight need 375px as they are. Narrower than 375px
-    // the bar's column gap and side padding give way, which holds eight from 356px and seven from 312px; below that a window
-    // neither overlaps the targets, shrinks one nor pushes one off the edge: the Dock drops its "+N" button and keeps 项目首页
-    // (a decision of the Dock's round four), and the switcher lists what the Dock dropped. 390, 375 and 360px keep the "+N";
-    // 350 and 320px are the windows that cannot.
+    // settings (a cover chip with its close mark, and the directory toggle: the widest the row gets). Since specs/screen-polish §3
+    // 方案 C (POLISH-07) the strip is one row of 44px targets that touch one another — the way back, 项目首页, the tabs' own box
+    // (which scrolls inside itself), ＋, the side's switch, the directory button and the project — and no window overlaps the
+    // targets, shrinks one or pushes one off the edge. The Dock keeps 项目首页 alone there, and the switcher lists the rest.
     const seen = new Set<string>();
     const HOME = ["home", "", "true"] as const, PLUGIN = ["a plugin's page", "?openPlugin=todo", "!!document.querySelector('[data-tab-kind=\"plugin\"]')"] as const;
     const SETTINGS = ["the project's settings", "settings", "!!document.querySelector('.tab-view-chip-close')"] as const;
@@ -760,37 +740,41 @@ for (const scheme of ["light", "dark"] as const) {
         moreShown[`${width} ${name}`] = dock.more;
       }
     }
-    // One button at the bar's end instead of three (side-shelf §3.1) leaves every width room for 项目首页 and the "+N" button,
-    // even beside the directory button at 320px. Should the row ever run short, the "+N" gives way and the check above holds
-    // the dropped buttons to the switcher's list.
-    // The strip's first row (specs/work-line §6.5) holds the way back and forward, the kept plugins, two of the right side's
-    // glyphs, the layout button and the project: every width has room for 项目首页 and the "+N" button (under 360px the way
-    // forward gives up its place for them).
-    for (const width of [390, 375, 360, 350, 320]) assert.equal(moreShown[`${width} home`], true, `${width}px home: the row holds 项目首页 and the "+N" button`);
-    // A page with a directory puts its drawer's button on that row too, and the kept plugins make the room for it.
-    for (const width of [390, 375, 360, 350, 320]) assert.equal(moreShown[`${width} the project's settings`], false, `${width}px settings: 项目首页 stands alone beside the directory button`);
+    // specs/screen-polish §3 方案 C (POLISH-07): a phone's strip is one row — the way back, 项目首页, the current tab, ＋, the
+    // side's switch, a directory button on a page that has one, and the project. Of the kept plugins it keeps 项目首页 alone, at
+    // home and beside the directory button, and draws no "+N": the check above holds every other one to the switcher's list.
+    for (const width of [390, 375, 360, 350, 320]) {
+      for (const name of ["home", "the project's settings"]) assert.equal(moreShown[`${width} ${name}`], false, `${width}px ${name}: 项目首页 stands alone of the kept plugins, with no "+N" button`);
+    }
 
     // The Dock's "+N" list is measured where it has to exist. The popovers loops below skip it in a window that holds every pin, which is
-    // right for a wide one but would let the 44px check of its items pass over nothing; the 360px home is the narrowest scene that keeps the button
-    // (the pins above do not fit beside 项目首页 and the "+N" button), so it asserts the list itself and cannot reach a skip.
-    await w.open(360, 740, HOME[1], HOME[2]);
+    // right for a wide one but would let the 44px check of its items pass over nothing. Since a phone's row has no "+N" (above), the
+    // narrowest touch window that keeps the button is one just wider than a phone (800px) with enough plugins kept that the row runs
+    // short; it asserts the list itself and cannot reach a skip. The pins are put back afterwards.
+    const KEPT = ["goals", "inbox", "feed", "pages", "lingguang", "workflows"];
+    await w.evaluate(`localStorage.setItem('molis-work:dock-pins', JSON.stringify(${JSON.stringify([...KEPT, "form", "dataset", "ppt", "images", "artifacts", "cognia", "coding"])}))`);
+    await w.open(800, 740, HOME[1], HOME[2]);
     const folded = await w.dockFold();
-    assert.ok(folded.hidden.length > 0, `360px home: the Dock folds some pins (${JSON.stringify(folded)})`);
-    assert.equal(folded.more, true, `360px home: and draws the "+N" button for them (${JSON.stringify(folded)})`);
-    assert.deepEqual(folded.listed, folded.hidden, `360px home: the "+N" list holds exactly the pins the row folded (${JSON.stringify(folded)})`);
+    assert.ok(folded.hidden.length > 0, `800px home: the Dock folds some pins (${JSON.stringify(folded)})`);
+    assert.equal(folded.more, true, `800px home: and draws the "+N" button for them (${JSON.stringify(folded)})`);
+    assert.deepEqual(folded.listed, folded.hidden, `800px home: the "+N" list holds exactly the pins the row folded (${JSON.stringify(folded)})`);
     assert.deepEqual([...folded.pins.filter(pin => !folded.hidden.includes(pin)), ...folded.listed].sort(), folded.pins,
-      `360px home: the pins on the row plus the pins in the list are the whole set, none lost and none twice (${JSON.stringify(folded)})`);
-    for (const pin of ["home", "goals", "inbox", "feed", "pages"]) assert.ok(folded.pins.includes(pin), `360px home: the Dock drew ${pin} (${JSON.stringify(folded)})`);
+      `800px home: the pins on the row plus the pins in the list are the whole set, none lost and none twice (${JSON.stringify(folded)})`);
+    for (const pin of ["home", "goals", "inbox", "feed", "pages"]) assert.ok(folded.pins.includes(pin), `800px home: the Dock drew ${pin} (${JSON.stringify(folded)})`);
     const dockList = (await w.popovers(44))["the Dock's list"];
-    assert.ok(dockList, "360px home: the \"+N\" button is there to open the Dock's list");
-    assert.equal(dockList.shown, true, "360px home: the Dock's list opens");
-    assert.deepEqual(dockList.missing, [], "360px home: the Dock's list holds its items");
-    assert.ok(dockList.items.length > 0, "360px home: the Dock's report is not empty");
-    assert.deepEqual(dockList.items.map(item => item.pin).sort(), folded.hidden, "360px home: the report's items are the pins the row folded");
-    assert.deepEqual(dockList.items.filter(item => item.h < 44).map(item => `${item.pin} ${item.h}px`), [], "360px home: every item of the Dock's list is a 44px target");
-    assert.deepEqual(dockList.small, [], "360px home: and nothing else in it is smaller");
-    t.diagnostic(`the Dock's "+N" list at 360px held ${dockList.items.length} items (${dockList.items.map(item => `${item.pin} ${item.h}px`).join(", ")}) beside ${folded.pins.length - folded.hidden.length} pins on the row`);
-    assert.deepEqual(Object.values(KINDS).filter(kind => !LINE_KINDS.includes(kind) && !seen.has(kind)), [], "the three screens showed every kind of control, so none went unmeasured");
+    assert.ok(dockList, "800px home: the \"+N\" button is there to open the Dock's list");
+    assert.equal(dockList.shown, true, "800px home: the Dock's list opens");
+    assert.deepEqual(dockList.missing, [], "800px home: the Dock's list holds its items");
+    assert.ok(dockList.items.length > 0, "800px home: the Dock's report is not empty");
+    assert.deepEqual(dockList.items.map(item => item.pin).sort(), folded.hidden, "800px home: the report's items are the pins the row folded");
+    assert.deepEqual(dockList.items.filter(item => item.h < 44).map(item => `${item.pin} ${item.h}px`), [], "800px home: every item of the Dock's list is a 44px target");
+    assert.deepEqual(dockList.small, [], "800px home: and nothing else in it is smaller");
+    t.diagnostic(`the Dock's "+N" list at 800px held ${dockList.items.length} items (${dockList.items.map(item => `${item.pin} ${item.h}px`).join(", ")}) beside ${folded.pins.length - folded.hidden.length} pins on the row`);
+    await w.evaluate(`localStorage.setItem('molis-work:dock-pins', JSON.stringify(${JSON.stringify(KEPT)}))`);
+    // A phone's one row has no layout button (specs/screen-polish §3 方案 C, POLISH-07: one column shows, and the row has no room
+    // for it beside a 98px tab); it is measured in the touch windows wider than a phone, below.
+    assert.equal(seen.has("layout"), false, "a phone's row draws no layout button");
+    assert.deepEqual(Object.values(KINDS).filter(kind => !LINE_KINDS.includes(kind) && kind !== "layout" && !seen.has(kind)), [], "the three screens showed every other kind of control, so none went unmeasured");
 
     // The Assistant's composer stays a 44px input with room to type, and its ＋ and send keep their size while typing.
     await w.evaluate(`(() => { const input = document.querySelector('[data-assistant-composer] .mw-composer__input'); input.focus(); input.value = '整理一下本周的待办'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
@@ -807,6 +791,7 @@ for (const scheme of ["light", "dark"] as const) {
         assert.deepEqual(controls.filter(control => w.short(control) < 44).map(control => `${control.kind} 「${control.label}」 ${control.w}×${control.h}`), [],
           `${name} · ${screen} · ${width}×${height}: every control of the strip and the bar is a 44px target`);
         assert.deepEqual(controls.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name} · ${screen}: every control is a known one`);
+        assert.ok(controls.some(control => control.kind === "layout"), `${name} · ${screen}: the layout button is on the strip, so it is among the 44px targets measured`);
         assert.deepEqual(await w.shellFindings(), [], `${name} · ${screen} · ${width}×${height}: the bar and the strip lay out cleanly with 44px targets`);
       }
     }

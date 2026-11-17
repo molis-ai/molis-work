@@ -143,29 +143,28 @@ test("PFG-22 PFG-24 PFG-26 scheme A: two tiers, tabs narrow to 96px before the s
   await waitFor(`!document.querySelector('${TABS} [data-tab-id=tgone]') && !document.querySelector('[data-tab-gone-stage]')`);
 
   // The column without the focus keeps only its place: moving into the right side marks the main strip unfocused, and the
-  // current tab there loses its lift. 07-AUDIT: the computed look is asserted, not just the attribute.
+  // current tab there, an ear on its sheet (specs/screen-polish §3 方案 C), loses the accent line and stays the sheet's
+  // paper. 07-AUDIT: the computed look is asserted, not just the attribute.
   assert.equal(await evaluate(`document.querySelector('${TABS}').hasAttribute('data-unfocused')`), false);
   await click(ALL);
   await waitFor(`document.querySelector('${ALL_MENU}').matches(':popover-open')`);
   await click(`${ALL_MENU} [data-all-tab=tg4]`);
   await waitFor(`document.querySelector('${TABS} [data-tab-id=tg4][aria-current]') && !document.querySelector('${ALL_MENU}').matches(':popover-open')`, 15_000);
-  const look = () => evaluate<{ background: string; shadow: string; after: string; other: string }>(`(() => {
+  const look = () => evaluate<{ background: string; line: string; sheet: string; other: string }>(`(() => {
     const tab = document.querySelector('${TABS} [data-tab-id=tg4]'), style = getComputedStyle(tab);
     const other = document.querySelector('${TABS} [data-tab-id=tgoals]');
-    return { background: style.backgroundColor, shadow: style.boxShadow, after: getComputedStyle(tab, '::after').display,
+    return { background: style.backgroundColor, line: style.backgroundImage, sheet: getComputedStyle(document.querySelector('[data-tab-pane]')).backgroundColor,
       other: getComputedStyle(other).backgroundColor };
   })()`);
   const focusedLook = await look();
   await click("[data-side-tabs] [data-side-tab]");
   await waitFor(`document.querySelector('${TABS}').hasAttribute('data-unfocused') && !document.querySelector('[data-side-tabs]').hasAttribute('data-unfocused')`);
-  // The tab's look transitions to the unfocused rule: measure it after the transition has settled.
-  await waitFor(`getComputedStyle(document.querySelector('${TABS} [data-tab-id=tg4]')).boxShadow === 'none'`, 5_000);
+  await waitFor(`getComputedStyle(document.querySelector('${TABS} [data-tab-id=tg4]')).backgroundImage === 'none'`, 5_000);
   const unfocusedLook = await look();
-  assert.notEqual(focusedLook.shadow, "none", "the focused column's current tab carries the lift");
-  assert.equal(unfocusedLook.shadow, "none", "without the focus the current tab has no lift");
-  assert.notEqual(unfocusedLook.background, focusedLook.background, "it keeps only a background of its own, not the focused column's");
-  assert.notEqual(focusedLook.after, "none", "the current tab of a group says so in the focused column");
-  assert.equal(unfocusedLook.after, "none", "and keeps none of it without the focus");
+  assert.notEqual(focusedLook.line, "none", "the focused column's current tab carries the accent line");
+  assert.equal(focusedLook.background, focusedLook.sheet, "and is its sheet's paper");
+  assert.equal(unfocusedLook.line, "none", "without the focus the current tab has no line");
+  assert.equal(unfocusedLook.background, unfocusedLook.sheet, "it stays joined to its sheet, in the sheet's paper");
   assert.equal(unfocusedLook.other, focusedLook.other, "a tab that is not the current one does not change when the focus leaves");
 });
 
@@ -185,23 +184,24 @@ test("PFG-22 PFG-26 独看 says so at the strip's end, and a phone leads with �
 
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor(`document.querySelector('${TABS} > .tab-pane-switch')?.checkVisibility()`, 15_000);
+  // specs/screen-polish §3 方案 C (POLISH-07): a phone's top strip is one row; the side's switch at its right end stands where 主区 | 右侧 was.
+  await waitFor(`document.querySelector('${ALL}')?.checkVisibility() && document.querySelector('[data-side-toggle]')?.checkVisibility()`, 15_000);
   const phone = await evaluate<{ shown: string[]; all: boolean; switch: (string | null)[]; overflow: boolean; rowHeight: number; target: number }>(`(() => ({
     shown: [...document.querySelectorAll('${TABS} [data-tab-id]')].filter(tab => tab.checkVisibility()).map(tab => tab.dataset.tabId),
     all: document.querySelector('${ALL}').checkVisibility(),
-    switch: [...document.querySelectorAll('${TABS} [data-pane-switch]')].map(button => button.getAttribute('aria-pressed')),
+    switch: [...document.querySelectorAll('[data-pane-switch]')].map(button => button.getAttribute('aria-pressed')).concat(document.querySelector('[data-side-toggle]').getAttribute('aria-pressed')),
     overflow: document.documentElement.scrollWidth > innerWidth,
     rowHeight: Math.round(document.querySelector('${TABS}').getBoundingClientRect().height),
-    target: Math.min(...[...document.querySelectorAll('${TABS} > .tab-pane-switch > button, ${ALL}')].map(node => node.getBoundingClientRect().height)),
+    target: Math.min(...[...document.querySelectorAll('[data-side-toggle], ${ALL}')].map(node => node.getBoundingClientRect().height)),
   }))()`);
   assert.deepEqual(phone.shown, ["tg1"], "a phone shows the current tab alone; the pinned one too is in 全部标签");
   assert.equal(phone.all, true, "a phone always shows 全部标签");
-  assert.deepEqual(phone.switch, ["true", "false"]);
+  assert.deepEqual(phone.switch, ["false"], "no 主区 | 右侧 switch; the side's switch is not pressed while the main area shows");
   assert.equal(phone.overflow, false);
-  // One row, as the 定样 draws it (52px at most): the current tab beside the switch, so the page is not pushed down once the strip is drawn (VUX-31).
+  // One row (POLISH-07): the current tab in the strip's only row, so the page is not pushed down once the strip is drawn (VUX-31).
   assert.ok(phone.rowHeight <= 52, `the phone strip is one row: ${phone.rowHeight}px`);
   assert.ok(phone.target >= 44, `touch targets ${phone.target}`);
-  // 右侧 shows the right side and takes the focus there.
-  await click(`${TABS} [data-pane-switch=side]`);
-  await waitFor(`document.querySelector('${TABS} [data-pane-switch=side]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('[data-side-panel]')?.checkVisibility()`);
+  // The side's switch shows the right side and takes the focus there; the side's view name stands where the current tab was.
+  await click("[data-side-toggle]");
+  await waitFor(`document.querySelector('[data-side-toggle]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('[data-side-panel]')?.checkVisibility() && document.querySelector('[data-side-ear]')?.checkVisibility() && !document.querySelector('${TABS}').checkVisibility()`);
 });

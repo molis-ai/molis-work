@@ -10,6 +10,11 @@ test("titlebar tabs hug short titles and share width when they overflow the stri
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
+  // A plugin kept in the strip has no tab of its own there (its glyph is that tab; specs/screen-polish §3 方案 C), so this
+  // browser keeps none: Goals' own page is then a tab with a short name beside the two Goal tabs.
+  await evaluate("localStorage.setItem('molis-work:dock-pins', '[]')");
+  await navigate(() => command("Page.reload", {}, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.workbench-header[data-dock-drawn] [data-dock-pin=home]') && !document.querySelector('[data-dock-pin=goals]')");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
@@ -33,7 +38,14 @@ test("titlebar tabs hug short titles and share width when they overflow the stri
   assert.ok(compact.widths.some((width) => width < 140), "short titles must hug below the old 172px capsule: " + JSON.stringify(compact));
   assert.ok(compact.lastRight <= compact.addLeft + 1, "tabs stay left of the plus control: " + JSON.stringify(compact));
 
-  // Narrow enough that the two Goal titles exceed the available strip. Home and the plugin tab keep their names;
+  // The top strip holds tabs only (specs/screen-polish §3 方案 C), so two Goal tabs fit a window of 860px: a third makes
+  // the strip run short there.
+  await click('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=goals] .tab-item-trigger');
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('.tab-item[aria-current][data-tab-kind=plugin][data-plugin=goals]')");
+  await openGoalFrame('.tree-node[data-select-goal="V1"]');
+  await waitFor("document.querySelectorAll('[data-titlebar-tabs] .tab-item[data-tab-kind=item]').length === 3");
+
+  // Narrow enough that the Goal titles exceed the available strip. Home and the plugin tab keep their names;
   // the item tabs share what is left. Still wider than a phone: at 760px and under the strip keeps only the current tab and
   // reaches the rest from 全部标签 (07-1 S3, tab-strip-scheme-a.e2e.test.ts), so there is nothing left to share there.
   await command("Emulation.setDeviceMetricsOverride", { width: 860, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);

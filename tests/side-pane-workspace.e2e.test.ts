@@ -31,16 +31,19 @@ test("PFG-22 PFG-24 the side's tabs live in the title bar, collapse with ⌘\\, 
     await command("Input.dispatchKeyEvent", { type: "keyUp", key, code, modifiers }, sessionId);
   };
 
-  // Collapsed, the glyphs stay at the right end of the title bar; the title bar has no background-tasks button of its own,
-  // and the strip has no "+". The background tasks are no side tab: their mark is the line's dialog's (batch 32).
-  const shown = await evaluate<string[]>(`[...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility()).map(tab => tab.dataset.sideTab)`);
+  // Collapsed, no view of the side stands in the title bar (specs/screen-polish §3 方案 C): they are the list behind the side
+  // sheet's own tab. The title bar has no background-tasks button of its own, and the list has no "+". The background tasks
+  // are no side view: their mark is the line's dialog's (batch 32).
+  assert.deepEqual(await evaluate<string[]>(`[...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility()).map(tab => tab.dataset.sideTab)`), []);
+  const shown = await evaluate<string[]>(`[...document.querySelectorAll('${strip} [role=tab]:not([hidden])')].map(tab => tab.dataset.sideTab)`);
   assert.ok(shown.includes(SHELF) && shown.includes("files") && !shown.includes("tasks"), JSON.stringify(shown));
   assert.equal(await evaluate("document.querySelector('[data-background-tasks]')"), null);
   assert.equal(await evaluate(`document.querySelector('${strip} [data-tab-add], ${strip} [aria-label*="新"]')`), null);
-  // 07-S2 (口径 6): the strip ends right before the one layout button; WLN-16: only the project follows it, ending the title bar.
+  // specs/screen-polish §3 方案 C (POLISH-05): the side's switch stands right before the one layout button (07-S2, 口径 6);
+  // WLN-16: only the project follows it, ending the title bar.
   const [edge, layoutEdge, projectEdge] = await evaluate<[number, number, number]>(`(() => { const layout = document.querySelector('[data-layout-open]').getBoundingClientRect(), project = document.querySelector('.titlebar-end').getBoundingClientRect();
-    return [layout.left - [...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility()).at(-1).getBoundingClientRect().right, project.left - layout.right, innerWidth - project.right]; })()`);
-  assert.ok(edge >= 0 && edge < 24, `the strip ends right before the layout button (${edge}px between)`);
+    return [layout.left - document.querySelector('[data-side-toggle]').getBoundingClientRect().right, project.left - layout.right, innerWidth - project.right]; })()`);
+  assert.ok(edge >= 0 && edge < 24, `the side's switch stands right before the layout button (${edge}px between)`);
   assert.ok(layoutEdge >= 0 && layoutEdge < 24, `the project follows the layout button (${layoutEdge}px between)`);
   assert.ok(projectEdge >= 0 && projectEdge < 24, `the project ends the title bar (${projectEdge}px left)`);
 
@@ -63,17 +66,22 @@ test("PFG-22 PFG-24 the side's tabs live in the title bar, collapse with ⌘\\, 
   assert.deepEqual(back, placed, "back in its place, a whole glyph tab");
   assert.deepEqual(await evaluate("window.__sideErrors"), []);
 
-  // Resting on a glyph writes its name before it; the glyph does not move.
-  const glyph = `document.querySelector('${strip} [data-side-tab="browser"] svg').getBoundingClientRect().right`;
-  const before = await evaluate<number>(glyph);
-  const point = await evaluate<{ x: number; y: number }>(`(() => { const r = document.querySelector('${strip} [data-side-tab="browser"]').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
-  await command("Input.dispatchMouseEvent", { type: "mouseMoved", ...point }, sessionId);
-  await waitFor(`document.querySelector('${strip} [data-side-tab="browser"]').closest('.tab-item').classList.contains('is-grown') && document.querySelector('${strip} [data-side-tab="browser"] .tab-item-name').checkVisibility()`, 5_000);
-  const after = await evaluate<number>(glyph);
-  assert.ok(Math.abs(after - before) < 0.5, `the tab grows leftward; its glyph stays put (its right edge ${before} → ${after})`);
-  await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 400, y: 400 }, sessionId);
+  // The side's switch opens the side; its own tab names the view it shows, and the list behind that tab names every view.
+  await click("[data-side-toggle]");
+  await waitFor("document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-ear]').checkVisibility() && document.querySelector('[data-side-ear-name]').textContent.trim().length > 0");
+  assert.equal(await evaluate(`document.querySelector('${strip}').checkVisibility()`), false, "the list waits behind the side's tab");
+  await click("[data-side-ear]");
+  await waitFor(`document.querySelector('${strip}').checkVisibility()`);
+  const named = await evaluate<{ views: number; names: number }>(`(() => { const tabs = [...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility());
+    return { views: tabs.length, names: tabs.filter(tab => tab.querySelector('.tab-item-name')?.checkVisibility() && tab.querySelector('.tab-item-name').textContent.trim()).length }; })()`);
+  assert.ok(named.views >= 6 && named.names === named.views, `every view in the list shows its name (${JSON.stringify(named)})`);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor(`!document.querySelector('${strip}').checkVisibility() && document.activeElement?.hasAttribute('data-side-ear')`);
+  await click("[data-side-toggle]");
+  await waitFor("document.body.dataset.sideOpen === 'false' && document.querySelector('[data-side-toggle]').getAttribute('aria-pressed') === 'false'");
 
-  // A glyph opens the side on its tab.
+  // Choosing a view in the list opens the side on it.
   await click(`${strip} [data-side-tab="${SHELF}"]`);
   await waitFor(`document.body.dataset.sideOpen === 'true' && ${current} === ${JSON.stringify(SHELF)}`);
   await waitFor(`document.querySelector('[data-side-body="${SHELF}"] iframe')?.contentDocument?.readyState === 'complete'`, 15_000);
@@ -103,20 +111,23 @@ test("PFG-22 PFG-24 the side's tabs live in the title bar, collapse with ⌘\\, 
   assert.equal(await evaluate(`${stored}.side.tabs.length`), count);
   assert.equal(await evaluate(`document.querySelectorAll('[data-side-body="files"]').length`), 1);
 
-  // ⌘\ collapses; the glyphs stay where they were and the side keeps its tab; ⌘\ again opens it on that tab.
+  // ⌘\ collapses: the side's own tab leaves the strip with its sheet, the switch stays and the side keeps its tab; ⌘\ again
+  // opens it on that tab.
   await chord("\\", "Backslash");
   await waitFor("document.body.dataset.sideOpen === 'false'");
   assert.equal(await evaluate(`${stored}.side.open`), false);
-  assert.equal(await evaluate(`document.querySelector('${strip} [data-side-tab="files"]').checkVisibility()`), true);
+  assert.deepEqual(await evaluate(`[document.querySelector('[data-side-ear]').checkVisibility(), document.querySelector('[data-side-toggle]').checkVisibility(), ${current}]`), [false, true, "files"]);
   assert.equal(await evaluate(`document.querySelector('${strip} .tab-item[aria-current]')`), null, "collapsed, no tab says it is on show");
   await chord("\\", "Backslash");
   await waitFor(`document.body.dataset.sideOpen === 'true' && ${current} === 'files'`);
 
-  // Closing a side tab (Delete on it) is undone with ⌘⇧T, back where it was, and with the undo chip.
-  const order = `[...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility()).map(tab => tab.dataset.sideTab)`;
+  // Closing a side view (Delete on it in the list) is undone with ⌘⇧T, back where it was, and with the undo chip.
+  const order = `[...document.querySelectorAll('${strip} [role=tab]:not([hidden]):not([data-side-closed])')].map(tab => tab.dataset.sideTab)`;
   const was = await evaluate<string[]>(order);
-  await evaluate(`document.querySelector('${strip} [data-side-tab="browser"]').focus()`);
   await click(`${strip} [data-side-tab="browser"]`);
+  await waitFor(`${current} === 'browser' && !document.querySelector('${strip}').checkVisibility()`);
+  await click("[data-side-ear]");
+  await waitFor(`document.querySelector('${strip}').checkVisibility() && document.activeElement?.dataset.sideTab === 'browser'`);
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Delete", code: "Delete" }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Delete", code: "Delete" }, sessionId);
   await waitFor(`!${order}.includes('browser') && document.querySelector('[data-side-undo]')`);
@@ -206,76 +217,66 @@ test("PFG-22 review shots of the right side at 1440, 1024 and 390, Chinese and E
   // The background tasks' count is the line's (work-line-event-tab shows it), not a side tab's.
 });
 
-// 07-S1 review B3: from 601 to 760 every side tab shows; since WLN-16 the side's strip shares the first row with the way back, the
-// kept plugins (which fold first) and the layout button, and the main tabs are the second; on the narrowest phone, where it still scrolls, the current tab is
-// kept in view.
-test("PFG-22 between 601 and 760 every side tab shows in the first row, and a phone's strip keeps the current tab in view while the layout button ends the tabs' row", { timeout: 150_000 }, async t => {
+// 07-S1 review B3, as specs/screen-polish §3 方案 C draws it (POLISH-07): at 760px and under the top strip is one row. With the
+// side open, its view's name stands in that row, and the list behind it holds every view, inside the window and none scrolled
+// out of sight; the side sheet starts below the row.
+test("PFG-22 POLISH-07 at 760 and under the strip is one row: the side's views are one list inside the window, and its view's name stands in the row", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
   const shown = `[...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility())`;
   const outside = `(() => { const box = document.querySelector('${strip}').getBoundingClientRect(); return ${shown}.filter(tab => { const at = tab.getBoundingClientRect(); return at.left < Math.max(0, box.left) - 0.5 || at.right > Math.min(innerWidth, box.right) + 0.5; }).map(tab => tab.dataset.sideTab); })()`;
+  const row = `(() => { const bar = document.querySelector('.immersive-titlebar'), at = bar.getBoundingClientRect();
+    return { height: Math.round(at.height), below: [...bar.children].filter(child => { const box = child.getBoundingClientRect(); return child.checkVisibility() && !child.matches('${strip}') && box.width > 0 && box.height > 0 && box.top >= at.bottom - 0.5; }).map(child => child.className),
+      wide: document.documentElement.scrollWidth > innerWidth }; })()`;
   for (const [width, height] of [[601, 900], [700, 900], [760, 900], [700, 420]]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-    await waitFor(`document.querySelector('${strip} [data-side-tab="files"]')`, 15_000);
+    await waitFor(`document.querySelector('${strip} [data-side-tab="files"]') && document.querySelector('[data-side-toggle]')?.checkVisibility()`, 15_000);
+    assert.deepEqual(await evaluate(row), { height: 44, below: [], wide: false }, `${width}×${height}: the strip is one 44px row`);
     await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'computer' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
+    await waitFor("document.querySelector('[data-side-ear]').checkVisibility() && document.querySelector('[data-side-ear-name]').textContent.trim().length > 0");
+    assert.deepEqual(await evaluate(row), { height: 44, below: [], wide: false }, `${width}×${height}: still one row with the side open`);
+    await click("[data-side-ear]");
+    await waitFor(`document.querySelector('${strip}').checkVisibility()`);
     const tabs = await evaluate<string[]>(`${shown}.map(tab => tab.dataset.sideTab)`);
     assert.ok(tabs.includes("files") && tabs.length >= 6, `${width}×${height}: ${JSON.stringify(tabs)}`);
-    assert.deepEqual(await evaluate<string[]>(outside), [], `${width}×${height}: every tab is inside the strip and the window`);
-    assert.equal(await evaluate<boolean>(`(() => { const s = document.querySelector('${strip}'); return s.scrollWidth <= s.clientWidth + 1; })()`), true, `${width}×${height}: nothing scrolled out of sight`);
-    const rows = await evaluate<{ strip: number; tabs: number }>(`(() => ({ strip: document.querySelector('${strip}').getBoundingClientRect().top, tabs: document.querySelector('[data-titlebar-tabs]').getBoundingClientRect().top }))()`);
-    assert.ok(rows.strip < rows.tabs, `${width}×${height}: the side's strip is in the first row, the main tabs in the second (WLN-16, ${JSON.stringify(rows)})`);
-    // The strip's own box, not the title bar's: a bar pinned at one row lets the strip spill over the work below it.
-    const below = await evaluate<{ strip: number; stage: number; panel: number; corner: boolean }>(`(() => {
-      const stage = document.querySelector('[data-plugin-stage]').getBoundingClientRect();
-      const corner = document.elementFromPoint(stage.right - 12, stage.top + 12);
-      return { strip: document.querySelector('${strip}').getBoundingClientRect().bottom, stage: stage.top, panel: document.querySelector('.side-panel').getBoundingClientRect().top,
-        corner: Boolean(corner && document.querySelector('[data-plugin-stage]').contains(corner) && !corner.closest('${strip}')) };
-    })()`);
-    assert.ok(below.stage >= below.strip - 0.5, `${width}×${height}: the work starts below the side's strip (${JSON.stringify(below)})`);
-    assert.ok(below.panel >= below.strip - 0.5, `${width}×${height}: the side sheet starts below its strip (${JSON.stringify(below)})`);
-    assert.equal(below.corner, true, `${width}×${height}: the main area's top right corner is the work's own, not the strip`);
+    assert.deepEqual(await evaluate<string[]>(outside), [], `${width}×${height}: every view is inside the list and the window`);
+    assert.equal(await evaluate<boolean>(`(() => { const s = document.querySelector('${strip}'); return s.scrollWidth <= s.clientWidth + 1; })()`), true, `${width}×${height}: nothing scrolled out of sight sideways`);
+    await click("[data-side-ear]");
+    await waitFor(`!document.querySelector('${strip}').checkVisibility()`);
+    const below = await evaluate<{ strip: number; panel: number }>(`(() => ({ strip: document.querySelector('.immersive-titlebar').getBoundingClientRect().bottom, panel: document.querySelector('.side-panel').getBoundingClientRect().top }))()`);
+    assert.ok(below.panel >= below.strip - 0.5, `${width}×${height}: the side sheet starts below the strip (${JSON.stringify(below)})`);
   }
-  // 07-S2 on a phone: the title bar keeps the two rows S1 gave it (the strip shares the first); nothing that takes room starts below
-  // the tabs. 07-1 S3: the layout button ends the first row, after the side's strip, as it ends the bar after the side's glyphs on
-  // a wide window (the Home tools left that row in S4b), so the second row keeps its whole width for the main strip, which holds
-  // everything it shows. Measured at 390, 360 and 320 before the 320 walk below.
+  // On a phone: one row and no second one, nothing wider than the window, and the side's switch inside it.
   for (const width of [390, 360, 320]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-    await waitFor(`document.querySelector('${strip} [data-side-tab="files"]') && document.querySelector('[data-layout-open]')`, 15_000);
-    const bar = await evaluate<{ tabs: { top: number; bottom: number; fits: boolean; clipped: string[] }; layout: { top: number; left: number; right: number }; strip: number; stripRight: number; history: number; below: string[] }>(`(() => {
-      const box = selector => document.querySelector(selector).getBoundingClientRect();
-      const tabs = box('[data-titlebar-tabs]');
-      const bar = document.querySelector('[data-titlebar-tabs]');
-      const clipped = [...bar.children].filter(child => { const at = child.getBoundingClientRect(); return at.width > 0 && (at.left < tabs.left - 0.5 || at.right > tabs.right + 0.5 || at.top < tabs.top - 0.5 || at.bottom > tabs.bottom + 0.5); }).map(child => child.className);
-      return { tabs: { top: tabs.top, bottom: tabs.bottom, fits: bar.scrollWidth <= bar.clientWidth + 1, clipped }, layout: { top: box('[data-layout-open]').top, left: box('[data-layout-open]').left, right: box('[data-layout-open]').right },
-        strip: box('${strip}').top, stripRight: box('${strip}').right, history: box('[data-workspace-history]').top,
-        below: [...document.querySelector('.immersive-titlebar').children].filter(child => { const at = child.getBoundingClientRect(); return at.width > 0 && at.height > 0 && at.top >= tabs.bottom - 0.5; }).map(child => child.className) };
-    })()`);
-    assert.ok(Math.abs(bar.layout.top - bar.history) <= 3 && bar.layout.left >= bar.stripRight - 0.5, `${width}: the layout button ends the first row, after the side's strip (${JSON.stringify(bar)})`);
-    assert.ok(bar.layout.right <= width + 0.5, `${width}: the layout button is inside the window (${JSON.stringify(bar)})`);
-    assert.ok(bar.tabs.fits && bar.tabs.clipped.length === 0, `${width}: the main strip holds all it shows, none of it clipped (${JSON.stringify(bar)})`);
-    assert.ok(Math.abs(bar.strip - bar.history) <= 3 && bar.tabs.top > bar.strip, `${width}: the side's strip shares the first row; the tabs are the second (${JSON.stringify(bar)})`);
-    assert.deepEqual(bar.below, [], `${width}: no third row in the title bar (${JSON.stringify(bar)})`);
+    await waitFor(`document.querySelector('${strip} [data-side-tab="files"]') && document.querySelector('[data-side-toggle]')?.checkVisibility()`, 15_000);
+    assert.deepEqual(await evaluate(row), { height: 44, below: [], wide: false }, `${width}: the strip is one 44px row`);
+    const toggle = await evaluate<{ left: number; right: number }>("(() => { const at = document.querySelector('[data-side-toggle]').getBoundingClientRect(); return { left: at.left, right: at.right }; })()");
+    assert.ok(toggle.left >= -0.5 && toggle.right <= width + 0.5, `${width}: the side's switch is inside the window (${JSON.stringify(toggle)})`);
   }
+  // At 320 the first and the last view, opened by an event, each stand by name in the row, inside the window.
   await command("Emulation.setDeviceMetricsOverride", { width: 320, height: 720, deviceScaleFactor: 1, mobile: true }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor(`document.querySelector('${strip} [data-side-tab="files"]')`, 15_000);
-  const ends = await evaluate<string[]>(`${shown}.map(tab => tab.dataset.sideTab)`);
+  const ends = await evaluate<string[]>(`[...document.querySelectorAll('${strip} [role=tab]:not([hidden])')].map(tab => tab.dataset.sideTab)`);
   for (const tab of [ends[0], ends.at(-1)]) {
     await waitFor(`(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: ${JSON.stringify(tab)} }, cancelable: true })), document.querySelector('${strip} [aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(tab)})`, 5_000);
-    await waitFor(`!${outside}.includes(${JSON.stringify(tab)})`, 3_000);
+    await waitFor(`(() => { const ear = document.querySelector('[data-side-ear]'), at = ear.getBoundingClientRect(); return ear.checkVisibility() && at.left >= -0.5 && at.right <= innerWidth + 0.5
+      && document.querySelector('[data-side-ear-name]').textContent.trim() === document.querySelector('${strip} [aria-selected=true] .tab-item-name').textContent.trim(); })()`, 3_000);
+    assert.deepEqual(await evaluate(row), { height: 44, below: [], wide: false }, `320: one row with ${tab} open`);
   }
   // 07-1 S3: on a phone only one column shows, so the side opened by an event (the focus where it was, as the Assistant or ⌘\
-  // opens it) is the one shown, and 主区 | 右侧 says 右侧.
+  // opens it) is the one shown. Since specs/screen-polish §3 方案 C (POLISH-07) the top strip says so with the side's switch
+  // pressed and the side view's name standing where the current tab was (主区 | 右侧 is gone).
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor(`document.querySelector('${strip} [data-side-tab="files"]') && document.querySelector('[data-pane-switch=side]')`, 15_000);
+  await waitFor(`document.querySelector('${strip} [data-side-tab="files"]') && document.querySelector('[data-side-toggle]')?.checkVisibility()`, 15_000);
   await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'computer' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
-  await waitFor("document.querySelector('[data-pane-switch=side]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('[data-pane-switch=main]')?.getAttribute('aria-pressed') === 'false'", 5_000)
-    .catch(async () => assert.fail(`390: the side opened by an event shows 右侧 pressed (${await evaluate<string>("JSON.stringify([...document.querySelectorAll('[data-pane-switch]')].map(b => b.dataset.paneSwitch + ':' + b.getAttribute('aria-pressed')))")})`));
+  await waitFor("document.querySelector('[data-side-toggle]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('[data-side-ear]')?.checkVisibility() && !document.querySelector('[data-side-ear]').hasAttribute('data-unfocused') && !document.querySelector('[data-titlebar-tabs]').checkVisibility()", 5_000)
+    .catch(async () => assert.fail(`390: the side opened by an event shows its switch pressed and its view's name (${await evaluate<string>("JSON.stringify({ pressed: document.querySelector('[data-side-toggle]')?.getAttribute('aria-pressed'), ear: document.querySelector('[data-side-ear]')?.checkVisibility(), unfocused: document.querySelector('[data-side-ear]')?.hasAttribute('data-unfocused') })")})`));
   // 07-1 S3: just after a group closes, a 360 or 320 phone row cannot hold the switch, a 98px current tab, the undo chip and
   // 全部标签 at once (English is the wider switch). The row scrolls rather than clips, as scheme A narrows the tabs to
   // 96px and then scrolls: the current tab is in view as the chip comes in and each part shows whole once scrolled to. Since
@@ -284,7 +285,7 @@ test("PFG-22 between 601 and 760 every side tab shows in the first row, and a ph
   for (const width of [360, 320]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=en&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
-    await waitFor("typeof molisWorkOpenPlugin === 'function' && document.querySelector('[data-titlebar-tabs] .tab-pane-switch')", 15_000);
+    await waitFor("typeof molisWorkOpenPlugin === 'function' && document.querySelector('[data-side-toggle]')?.checkVisibility()", 15_000);
     await evaluate("molisWorkOpenPlugin('todo')");
     await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[aria-current][data-plugin=todo]')", 15_000);
     await evaluate("molisWorkOpenPlugin('pages')");

@@ -29,11 +29,9 @@ export const NAVIGATION_PRESENTATION_SCRIPT = `(readText) => {
   document.addEventListener('click', dismiss);
 }`;
 
-/** The bottom bar in three zones (07-1 S4b). Left: the switcher as its glyph alone, whose name says what the work area shows
- * (one plugin, or one per pane when split), then the Dock: 项目首页 and the project's plugins chosen to stay. Centre: the
- * resident Assistant. Right: the person's own plugins chosen to stay (those the directory marks `personal`), then the project
- * with its menu. One list of kept plugins feeds both trays; every button opens its plugin through the switcher's own entry, so
- * navigation has one path. A plugin that did not start carries the amber point here and in the switcher. Choices here are
+/** The Dock in the top strip (specs/screen-polish §3 方案 C): 项目首页, then every plugin chosen to stay, the person's own
+ * among them, each as its glyph; the one whose own page is showing stands as the ear on that sheet. One list of kept plugins
+ * feeds the tray; every button opens its plugin through the switcher's own entry, so navigation has one path. A plugin that did not start carries the amber point here and in the switcher. Choices here are
  * per-viewer conveniences.
  *
  * What a tray folds (`fit`): the pins leave from the end until the "+N" button fits with them, and 项目首页 never
@@ -153,7 +151,7 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
         put(chipOf(' is-focused is-cover', source?.querySelector('svg')?.cloneNode(true), source?.querySelector(':scope > span')?.textContent || ''));
         nameSwitcher([source?.querySelector(':scope > span')?.textContent || '']);
         current.parentElement?.classList.remove('is-split');
-        dock.querySelectorAll('[data-dock-pin][aria-current]').forEach((button) => button.removeAttribute('aria-current'));
+        dock.querySelectorAll('[data-dock-pin][aria-current]').forEach((button) => { button.removeAttribute('aria-current'); button.removeAttribute('data-ear'); });
         trays.forEach((tray) => tray.more.classList.remove('has-current'));
         holdHome(); drawn();
         return;
@@ -166,18 +164,20 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
         const id = button.dataset.dockPin;
         const on = entries.some((entry) => entry.plugin === id && entry.focused);
         if (on) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
+        // A kept plugin's own page has no tab of its own in the strip: its glyph here is that tab, and grows on the sheet while
+        // the page shows (specs/screen-polish §3 方案 C). An object of that plugin open in a tab is that tab's, not the glyph's.
+        button.toggleAttribute('data-ear', on && host.pagePlugin?.() === id);
       });
       trays.forEach((tray) => tray.more.classList.toggle('has-current', [...tray.pins.querySelectorAll('[data-dock-pin][hidden]')].some((pin) => pin.hasAttribute('aria-current'))));
       holdHome(); drawn();
     });
   };
 
-  /* The Dock: 项目首页 always, then the plugins chosen with the button at the end of their entry in the switcher; those in the
-     switcher's 个人 group (the tile says its group) sit in the right tray instead. */
+  /* The Dock: 项目首页 always, then the plugins chosen with the button at the end of their entry in the switcher, the person's
+     own among them (specs/screen-polish §3 方案 C: the strip has one row of kept plugins and no tray at its right end). */
   const PINS_KEY = 'molis-work:dock-pins';
   const DEFAULT_PINS = ${JSON.stringify(dockDefaultPins())};
-  const pins = dock.querySelector('[data-dock-pins]'), own = dock.querySelector('[data-bar-own]');
-  const personal = new Set([...dock.querySelectorAll('[data-plugin-tile][data-rail-group="personal"]')].map((tile) => tile.dataset.pluginTile));
+  const pins = dock.querySelector('[data-dock-pins]');
   // A plugin that did not start keeps its place and its stage says why; wherever it is named here it carries the amber point.
   const failed = (id) => Boolean(document.querySelector('[data-work-surface="' + CSS.escape(id) + '"]${UNAVAILABLE_STAGE}'));
   // A pin says so in its own name; an entry that reads its plugin's name aloud gets the words on the point (say).
@@ -228,9 +228,7 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
           return row;
         }));
         const origin = container.parentElement?.getBoundingClientRect() ?? { left: 0, right: 0 }, at = more.getBoundingClientRect();
-        // The right tray's list opens toward the middle of the window, as the left one's does.
-        if (container === own) { overflow.style.left = 'auto'; overflow.style.right = Math.max(0, origin.right - at.right - 6) + 'px'; }
-        else overflow.style.left = Math.max(0, at.left - origin.left - 6) + 'px';
+        overflow.style.left = Math.max(0, at.left - origin.left - 6) + 'px';
       }
       overflow.hidden = !open;
       more.setAttribute('aria-expanded', String(open));
@@ -242,9 +240,8 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
       more.remove();
       if (container.scrollWidth <= container.clientWidth + 1) { tray.setOverflow(false); return; }
       container.append(more);
-      // 项目首页 never folds; the right tray has no such pin and can fold every one of its own.
-      const keep = container === pins ? 1 : 0;
-      for (let index = all.length; --index >= keep && container.scrollWidth > container.clientWidth + 1;) all[index].hidden = true;
+      // 项目首页 never folds.
+      for (let index = all.length; --index >= 1 && container.scrollWidth > container.clientWidth + 1;) all[index].hidden = true;
       if (container.scrollWidth > container.clientWidth + 1) more.remove();
       const count = all.filter((pin) => pin.hidden).length;
       more.textContent = '+' + count;
@@ -253,7 +250,7 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     };
     return tray;
   };
-  const trays = [makeTray(pins, globalThis.t.text("workbench.navigation-presentation.more-pinned-plugins")), makeTray(own, globalThis.t.text("workbench.navigation-presentation.own"))].filter(Boolean);
+  const trays = [makeTray(pins, globalThis.t.text("workbench.navigation-presentation.more-pinned-plugins"))].filter(Boolean);
   const fit = () => { trays.forEach((tray) => tray.fit()); paintCurrent(); };
   const closeOverflows = (except) => trays.forEach((tray) => { if (tray !== except && !tray.overflow.hidden) tray.setOverflow(false); });
   // The trays keep the buttons they have: one that is kept stays where it is, a new one lands, one that goes lets go.
@@ -275,13 +272,10 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
   const paintDock = () => {
     if (!pins) return;
     const kept = readPins().filter((id) => id !== 'home');
-    paintTray(pins, ['home', ...kept.filter((id) => !personal.has(id))]);
-    if (own) {
-      const mine = kept.filter((id) => personal.has(id) && railItem(id));
-      paintTray(own, mine);
-      // The bar's columns read this mark (navigation-flow.ts), not a :has() over the whole bar (VUX-36).
-      dock.toggleAttribute('data-own-kept', mine.length > 0);
-    }
+    paintTray(pins, ['home', ...kept]);
+    // The tab strip reads this mark: a kept plugin's own page is its glyph here, so the strip draws no second tab for it.
+    const mark = kept.filter((id) => railItem(id)).join(' ');
+    if (dock.dataset.kept !== mark) { dock.dataset.kept = mark; host.redrawTabs?.(); }
     dockPainted = true;
     fit();
   };
@@ -355,12 +349,16 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
   });
   // The bar's width is the window's; watching it (not the Dock itself) keeps folding from feeding back into itself. The right
   // group and the strip's end too: a directory button joins the end after the first fit. And the switcher, whose name (a long plugin name) takes room
-  // from the pins.
+  // from the pins. And the strip's free room (the drag line): the side sheet opening or closing takes it from the pins or gives
+  // it back while no tab is drawn to say so.
   // The refit waits for the next frame: what it folds moves the tabs it is watching, and a change made while the sizes are being
   // delivered would be reported as a loop.
   let refitting = false;
   const refit = () => { if (refitting) return; refitting = true; requestAnimationFrame(() => { refitting = false; fit(); }); };
-  if (pins && 'ResizeObserver' in window) { const watcher = new ResizeObserver(refit); for (const node of [dock, dock.querySelector('.titlebar-end'), dock.querySelector('[data-titlebar-tabs]'), dock.querySelector('.plugin-picker'), own]) if (node) watcher.observe(node); }
+  if (pins && 'ResizeObserver' in window) { const watcher = new ResizeObserver(refit); for (const node of [dock, dock.querySelector('.titlebar-end'), dock.querySelector('[data-titlebar-tabs]'), dock.querySelector('.plugin-picker'), dock.querySelector('.desktop-titlebar-drag')]) if (node) watcher.observe(node); }
+  // The side sheet closing gives the pins their room back, but folded pins do not grow into it and the drag line just takes it,
+  // so no size changes for the watcher to see: the side says so itself.
+  if (pins) document.addEventListener('molis:side-shown', refit);
 
   const searchKey = dock.querySelector('.plugin-picker-search kbd');
   if (searchKey && !/Mac|iPhone|iPad/.test(navigator.platform)) searchKey.textContent = 'Ctrl K';
@@ -382,8 +380,9 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     if (pin) {
       closeOverflows();
       const id = pin.dataset.dockPin;
-      // Pressed again while its plugin is showing, an entry of the bar puts back what was there before it.
-      if (host.leavePlugin?.(id)) return;
+      // Pressed again while its plugin's own page is showing, an entry of the bar puts back what was there before it; while a
+      // tab of that plugin shows, it goes to the plugin's page.
+      if ((!host.pagePlugin || host.pagePlugin() === id) && host.leavePlugin?.(id)) return;
       host.open?.(id, railItem(id));
       return;
     }

@@ -74,6 +74,8 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 ## 开发要求
 
+Skill 草稿的未存输入归当前编辑对象：保存失败保持编辑区，离开前检查同一对象的保存结果；回放/案例读取不把另一入口的修订号配上本地旧字段，迟到采用回执不关闭后开的草稿。回归 `tests/skill-draft-recovery.e2e.test.ts`（QEA-101/102）走隔离 Home 的真实保存、并发修订和实际采用回执。
+
 资料导入的选择队列归工作台：进行中“停止后续”等待当前文件真实回执，再停止启动其余文件；成功项不重发，未开始和失败项保留。标题栏/Escape 只收起，空闲页脚取消才清空选择；在线单项进行中写“收起”。转写等待单独保留待处理文件，不长期保存 DOM 行引用，继续时重画对应结果。两种执行入口用同一批次生命周期控制，资料版本及内容复用仍由 artifacts owner 维护（QEA-23～25）。
 
 插件设置中，双实例的项目可选权限只读定位到个人空间，Home disabled/crashed 仍按安装、插件、发布者签名与信任配对；可信内部安装 ID 标识避免 Home 缺失时回落项目开关。required/requested/granted 仍表示各安装自己的声明与记录。回归：`tests/plugin-permission-switch.e2e.test.ts`（RAC-2910）。

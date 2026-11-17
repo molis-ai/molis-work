@@ -169,7 +169,7 @@ export async function adoptDraft(service: SkillAuthoringService, drafts: SkillDr
   if (cases.length) {
     const trials = drafts.trialsOf(draft.draft_id, draft.revision);
     if (untriedCases(cases, trials).length) throw skillErrors.trial_required('这份草稿有已知答案还没在这一版上回放，先回放再采用');
-    if (trials.some(trial => trial.verdict === 'differs') && !input.accept_differences) throw skillErrors.trial_differs('回放的结果和你认可的结果还有出入：仍然采用，还是回去改');
+    if (cases.some(known => trials.find(trial => trial.case_id === known.case_id)?.verdict === 'differs') && !input.accept_differences) throw skillErrors.trial_differs('回放的结果和你认可的结果还有出入：仍然采用，还是回去改');
   }
   const scope: SkillScope = draft.scope_ref === 'home' ? 'home' : 'project', target = draft.target;
   const result = await service.save({ ...draft.fields, scope, ...(target.kind === 'own' ? { skill_id: target.skill_id } : {}) }, who, caller);

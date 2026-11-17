@@ -63,7 +63,7 @@ function listen(c: WritingContext, edit: DraftEditing, turns: DraftTurns): void 
     event.preventDefault(); event.stopPropagation();
     void turns.run(view.workshop, "sk-confirm-back", undefined);
   });
-  // Typed words are saved within a moment; only a save still waiting holds the window.
+  // Typed words remain ours until saved, including when the last request failed.
   addEventListener("beforeunload", event => { if (root.isConnected && view.workshop && edit.pending()) event.preventDefault(); });
 }
 
@@ -96,10 +96,12 @@ export function skillWriting(page: WritingPage) {
    * as written, so leaving it loses nothing) and then left.
    */
   function holds(name: string, go: () => void): boolean {
-    if (name.startsWith("au-") || name.startsWith("sk-") || name.startsWith("skill-")) return false;
+    const opensAnother = ["skill-new", "skill-edit", "skill-copy", "skill-delete", "sk-open", "sk-undiscard", "au-undelete", "sk-version-restore", "sk-up-take"].includes(name);
+    if (!opensAnother && (name.startsWith("au-") || name.startsWith("sk-") || name.startsWith("skill-"))) return false;
     if (view.asking && !view.asking.busy) view.asking = undefined;
-    if (!view.workshop) return false;
-    void edit.flush().then(() => { view.workshop = undefined; go(); });
+    const w = view.workshop;
+    if (!w) return false;
+    void edit.flush(w).then(saved => { if (saved && view.workshop === w) { view.workshop = undefined; go(); } });
     return true;
   }
 

@@ -41,6 +41,68 @@ const judge = (prompt: string) => {
 };
 const isJudge = (prompt: string) => prompt.includes("你在对照技能回放的结果");
 
+test("QEA-103 a case changed while the model waits refuses its old replay, retains other cases, and recovers before adoption", mac, async () => {
+  let release!: () => void, entered!: () => void, held = false;
+  const waiting = new Promise<void>(resolve => { entered = resolve; }), resume = new Promise<void>(resolve => { release = resolve; });
+  const model = modelDouble(prompt => isJudge(prompt) ? judge(prompt) : "当前答案"), complete = model.complete;
+  model.complete = async prompt => { const answer = await complete(prompt); if (held && !isJudge(String(prompt))) { held = false; entered(); await resume; } return answer; };
+  const h = await harness(model);
+  try {
+    const opened = await h.draft({ scope: "project", target: { kind: "new" }, fields: fields("等待中修改答案"), case: KNOWN });
+    const extra = await h.call<{ case_id: string }>(h.person, skillDraftActions.putCase, { draft_id: opened.draft_id, ...KNOWN, title: "不变的另一条" });
+    await h.call(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: 1, case_id: extra.case_id });
+    held = true;
+    const pending = h.call(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: 1, case_id: opened.cases[0]!.case_id });
+    const refusedTrial = assert.rejects(pending, refused("skills.draft_conflict"));
+    await waiting;
+    await h.call(h.person, skillDraftActions.putCase, { draft_id: opened.draft_id, case_id: opened.cases[0]!.case_id, ...KNOWN, expected: "另一份正确答案" });
+    release(); await refusedTrial;
+    const after = await h.call<SkillDraft>(h.person, skillDraftActions.read, { draft_id: opened.draft_id });
+    assert.equal(after.cases.find(item => item.case_id === opened.cases[0]!.case_id)!.expected, "另一份正确答案");
+    assert.equal(after.revision, 1, "changing an answer does not invalidate the unchanged Skill and other case");
+    assert.deepEqual(after.untried, [opened.cases[0]!.case_id]);
+    assert.equal(after.trial?.case_id, extra.case_id, "the outdated result did not write a trial");
+    await assert.rejects(h.adopt({ draft_id: opened.draft_id, expected_revision: 1 }), refused("skills.trial_required"));
+    assert.deepEqual(await h.mine(), []);
+    await h.call(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: 1, case_id: opened.cases[0]!.case_id });
+    const adopted = await h.adopt({ draft_id: opened.draft_id, expected_revision: 1 });
+    assert.equal(adopted.skill_version, 1);
+    assert.equal((await h.mine()).length, 1);
+    assert.equal((await h.drafts()).length, 0);
+  } finally { release(); await h.close(); }
+});
+
+test("QEA-103 adoption uses each case's latest replay, preserving another case's current difference", mac, async () => {
+  let answer = "differs";
+  const model = modelDouble(prompt => isJudge(prompt) ? judge(prompt) : answer), h = await harness(model);
+  try {
+    const opened = await h.draft({ scope: "project", target: { kind: "new" }, fields: fields("回放恢复"), case: KNOWN });
+    const extra = await h.call<{ case_id: string }>(h.person, skillDraftActions.putCase, { draft_id: opened.draft_id, ...KNOWN, title: "另一条" });
+    const replay = (caseId: string) => h.call(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: 1, case_id: caseId });
+    await replay(opened.cases[0]!.case_id); await replay(extra.case_id);
+    answer = "match"; await replay(opened.cases[0]!.case_id);
+    await assert.rejects(h.adopt({ draft_id: opened.draft_id, expected_revision: 1 }), refused("skills.trial_differs"));
+    await replay(extra.case_id);
+    const adopted = await h.adopt({ draft_id: opened.draft_id, expected_revision: 1 });
+    assert.equal(adopted.skill_version, 1);
+    assert.equal((await h.mine()).length, 1);
+  } finally { await h.close(); }
+});
+
+test("QEA-103 repeating one case does not evict another unchanged case's accepted replay", mac, async () => {
+  const h = await harness(modelDouble(prompt => isJudge(prompt) ? judge(prompt) : "match"));
+  try {
+    const opened = await h.draft({ scope: "project", target: { kind: "new" }, fields: fields("保留已验证答案"), case: KNOWN });
+    const extra = await h.call<{ case_id: string }>(h.person, skillDraftActions.putCase, { draft_id: opened.draft_id, ...KNOWN, title: "反复试的答案" });
+    await h.call(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: 1, case_id: opened.cases[0]!.case_id });
+    for (let turn = 0; turn < 6; turn++) await h.call(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: 1, case_id: extra.case_id });
+    const current = await h.call<SkillDraft>(h.person, skillDraftActions.read, { draft_id: opened.draft_id });
+    assert.deepEqual(current.untried, [], "the unchanged answer already passed and does not need the model again");
+    assert.equal(current.trial?.case_id, extra.case_id);
+    assert.equal((await h.adopt({ draft_id: opened.draft_id, expected_revision: 1 })).skill_version, 1);
+  } finally { await h.close(); }
+});
+
 async function harness(model: ReturnType<typeof modelDouble> | null) {
   const base = await mkdtemp(join(tmpdir(), "molis-work-skill-drafts-")), home = join(base, "home");
   await mkdir(home);

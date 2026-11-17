@@ -53,8 +53,6 @@ export interface SkillLineage {
   seen_version: number;
 }
 
-/** Replays kept per draft: the latest is what adopting checks; a few before it are kept for nothing else, so they go. */
-const TRIALS_KEPT = 5;
 /** Whose known answers these are: a draft's, or an adopted Skill's (kept with it for the next draft of it). */
 /** The known answers with no replay on this revision: adopting waits for each (S-skill-authoring). */
 export const untriedCases = (cases: readonly { case_id: string }[], trials: readonly { case_id: string }[]) =>
@@ -184,18 +182,22 @@ export class SkillDraftStore {
     return Number(removed.changes) === 1;
   }
 
-  /** Keeps a replay, unless the draft moved past the revision it replayed while the model answered (`conflict`) or is gone (`missing`). */
-  recordTrial(draftId: string, trial: Omit<SkillTrial, "trial_id">, actorId: string): SkillTrial | "conflict" | "missing" {
+  /** Keeps a replay only while both the draft revision and the known answer it used remain current. */
+  recordTrial(draftId: string, trial: Omit<SkillTrial, "trial_id">, known: SkillCase, actorId: string): SkillTrial | "conflict" | "missing" {
     return this.transaction(() => {
       const current = this.draft(draftId);
       if (!current || current.discarded_at) return "missing";
       if (current.revision !== trial.draft_revision) return "conflict";
-      if (!this.cases(draftCases(draftId)).some(item => item.case_id === trial.case_id)) return "missing";
+      const currentCase = this.cases(draftCases(draftId)).find(item => item.case_id === trial.case_id);
+      if (!currentCase) return "missing";
+      if (currentCase.task !== known.task || currentCase.material !== known.material || currentCase.expected !== known.expected) return "conflict";
       const trialId = `trial-${randomUUID()}`;
       this.db.prepare("INSERT INTO skill_trials(trial_id,draft_id,draft_revision,case_id,cells,verdict,ran_at,actor_id) VALUES (?,?,?,?,?,?,?,?)")
         .run(trialId, draftId, trial.draft_revision, trial.case_id, JSON.stringify(trial.cells), trial.verdict, trial.ran_at, actorId);
-      this.db.prepare("DELETE FROM skill_trials WHERE draft_id = ? AND trial_id NOT IN (SELECT trial_id FROM skill_trials WHERE draft_id = ? ORDER BY ran_at DESC, rowid DESC LIMIT ?)")
-        .run(draftId, draftId, TRIALS_KEPT);
+      // Keep the latest result of each case. Repeating one answer must not evict another answer's valid replay.
+      this.db.prepare(`DELETE FROM skill_trials WHERE draft_id = ? AND trial_id NOT IN (
+        SELECT trial_id FROM (SELECT trial_id, ROW_NUMBER() OVER (PARTITION BY case_id ORDER BY ran_at DESC, rowid DESC) AS position
+          FROM skill_trials WHERE draft_id = ?) WHERE position = 1)`).run(draftId, draftId);
       return { trial_id: trialId, ...trial };
     });
   }

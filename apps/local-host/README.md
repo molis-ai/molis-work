@@ -140,6 +140,8 @@ Surface 的浏览器和电脑驱动按原 `HostSurfaceContext` 保留观察与�
 
 ## 开发要求
 
+Skill 回放结果在 Agent definitions 原事务同时复核草稿修订和本次模型使用的案例任务/材料/答案；等待中变化拒绝写结果。每条案例保留最近结果，采用按每条案例最新有效回放判断，不因其他案例重复回放要求重跑。回归 `tests/skill-drafts.test.ts`（QEA-103）包含真实公开动作交错、拒绝后的实际未写入与恢复采用。
+
 助理候选卡的接受/拒绝从 HTTP 响应绑定同次取消信号，再交 Memory 公开动作；断连后原 SDK 提交检查拒绝晚写，不另做回滚或自动重试。定向回归 `tests/security-invariants-assistant-memory-candidates.test.ts`（QEA-49）覆盖真实候选、接受/拒绝取消、正式记忆/流水账不变及新请求恢复。
 
 成果导入 JSON 与原件上传的 HTTP 调用通过既有 BoundActionClient control 绑定响应断连信号；流式进度超界也取消本次动作，实际读取/登记前复核仍在原 owner。当前文件已提交后不承诺因断连回滚，也不自动重发；原件内容缓存和成果版本分开，取消未登记版本不代表未暂存原件。定向回归：`tests/artifact-import-cancellation.test.ts`（QEA-24 的原生提取替身仅 macOS；真实传输、动作与版本写入）。

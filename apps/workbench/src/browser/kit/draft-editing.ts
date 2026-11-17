@@ -46,12 +46,12 @@ export function draftEditing(c: WritingContext) {
     timer = setTimeout(() => void flush(), 600);
   }
   /** Saves what is typed now; waits for a save in flight first. False when it could not be saved. */
-  async function flush(): Promise<boolean> {
+  async function flush(w = view.workshop): Promise<boolean> {
     clearTimeout(timer); timer = undefined;
     while (saving) await saving;
-    const w = view.workshop;
+    if (view.workshop !== w) return false;
     if (!w) return true;
-    if (!dirty(w)) { if (w.save === "saving") { w.save = "saved"; redrawBar(w); } return w.save !== "failed"; }
+    if (!dirty(w)) { if (w.save === "saving") { w.save = "saved"; redrawBar(w); } return true; }
     const fields = sentFields(w.fields), replacements = { ...w.replacements };
     saving = (async () => {
       try {
@@ -66,8 +66,17 @@ export function draftEditing(c: WritingContext) {
     })();
     await saving; saving = undefined;
     redrawBar(w); redrawSide(w);
-    if (w.save === "saving") return flush();
+    if (view.workshop !== w) return false;
+    if (w.save === "saving") return flush(w);
     return w.save === "saved";
+  }
+
+  /** Refresh replay/case facts without pairing another editor's revision with our local fields. */
+  async function refresh(w: Workshop): Promise<void> {
+    const revision = w.draft.revision, next = await readDraft(project, w.draft.draft_id);
+    if (view.workshop !== w || w.draft.revision !== revision) return;
+    if (next.revision === revision) w.draft = next;
+    else { w.save = "failed"; w.saveFailure = improve("save-conflict"); }
   }
 
   function typedField(w: Workshop, target: HTMLInputElement | HTMLTextAreaElement): void {
@@ -97,11 +106,11 @@ export function draftEditing(c: WritingContext) {
   }
 
   return {
-    opened, flush, schedule, typedField, typedPlaceholder,
+    opened, flush, refresh, schedule, typedField, typedPlaceholder,
     create: async (scope: SkillScope, target: SkillDraftCreateTarget, fields?: SkillAuthoredFields, side?: "compare") => opened(await createDraft(project, scope, target, fields), side),
     openDraft: async (draftId: string) => opened(await readDraft(project, draftId)),
-    /** A save still waiting, which holds the window. */
-    pending: () => Boolean(timer || saving),
+    /** Unsaved input still holds the window after a failed request. */
+    pending: () => Boolean(timer || saving || view.workshop && dirty(view.workshop)),
     /** Stops a save that has not started (the draft is being discarded). */
     cancel: () => { clearTimeout(timer); timer = undefined; },
   };

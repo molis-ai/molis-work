@@ -1,12 +1,14 @@
 # Molis Work 审查报告与优化策略
 
+第45批已在最新主干交集发现并修复 Skill 草稿输入丢失、回放事实过期和重复确认问题。main `4cf1c742e6` 经 `3f9fc4c6b4` 合入；75包、84个contracts子路径（另加根入口），全部已有成果保留。完整构建、10文件83项定向验收通过，包括6项新增真实浏览器恢复及原创建/回放/采用/版本恢复/通用包定制。采用等待中同草稿修订的独立风险还在核实，整项、最终准确头Full CI和资源验收均未完成。详见 QF-52，不能把此检查点当作原任务完成。
+
 第41批本地结算：`apps/local-host/src/home-dock-http.ts:14` 删除两个无生产调用的Events POST转发，`web-request.ts:87` 删除其专用只读放行。公开 `home.events.read/open@1`、原事件聚合和MCP保留。旧地址带正常控制头仍404，插件reader和写入均未触发；未知插件完成后撤回、故障隐私、实际regrant撤权/恢复/停用与正式MCP独立授权通过。3个原测试通过公开Host客户端读取同一事实，不新导出内部权限适配器；HTTP session/目录捕获仍由现行HTTP消费者安全套件覆盖，不把此读取称Events HTTP验证。构建、健康和8文件50项通过（`/tmp/quality-audit-events-retirement-acceptance.log`）；BL-home-events-endpoint-unused已本地落地，待最终头CI后清理。用户路径未新增步骤，Host少维护两个无调用入口和专用方法分类。
 
 当前包表已按登记逐项对齐75包，83个contracts子路径另加根入口；补列Sessions、automation-recommender、project-approvals并移除已退役WebQuery工厂包，相关深入结论仍见各批。另核SQLite行复制候选：Node24.15.0下原对象复用与复制在交替样本无稳定差异（`/tmp/quality-audit-sqlite-row-bench.log`），未改生产实现，不用微基准代替真实体验或新增通用优化层。
 
 第44批本地结算：`packages/kernel/src/action-execution-context.ts:82` 单目标的反复复核继续逐条匹配，遇第二个不同目标才建原轮内索引；名单可变，不缓存首答。QEA-98经公开同步动作旧版遍历100个无关项、新版0，provider/版本/移除/恢复与原实时授权均验。完整构建、健康、12文件92项通过（`/tmp/quality-audit-allowed-list-acceptance.log`），只读复核无新增Blocker/P1。真实20条采样 allowedAction 自身3.143→0.972秒，但五样本总耗时p50=14127ms，未证端到端改善；QF-51和性能BL继续。用户等待问题尚未宣称解决，代码只减少不必要的全名单索引构建，没有承担第二份授权状态。
 
-当前状态（2026-11-17，负责人 Codex）：**整项仍在进行中**。原六方向、逻辑 Bug、需求实现度与 BL 清理均保留。已整合 main `eafff2b526`，75包、83个 contracts 子路径；合并检查点 `ff0c7ab018` 保留此前成果，第40批保存为 `651a35be6d`。第42～44批 Goal 片段、结构校验和许可匹配已通过本地定向验收，第41批旧入口清理正在验收，QF-51端到端性能仍未关闭；以下各检查点的证据不代替最终提交的 Full CI。
+当前状态（2026-11-17，负责人 Codex）：**整项仍在进行中**。原六方向、逻辑 Bug、需求实现度与 BL 清理均保留。已整合 main `4cf1c742e6`，75包、84个 contracts 子路径；合并检查点 `3f9fc4c6b4` 保留此前成果。第41～44批已有本地定向验收，第45批新增 Skill 交集持续深入；QF-51端到端性能仍未关闭，以下各检查点的证据不代替最终提交的 Full CI。
 
 第42批 / QF-51 后续：正常网络探针证明8次 Goal 刷新均来自顶层工作台（`/tmp/quality-audit-inbox-refresh-probe.log`）。`web-goals-read.ts:153` 的片段读取经 `web-request.ts:202` 重读所有显示插件舞台并渲染 Home 内容，放大 Inbox 批次成本。QEA-94 在旧构建真实 HTTP 入口失败：无关 Schedule reader 被调用一次（`/tmp/quality-audit-goal-stage-baseline.log`）。现按声明路由匹配 owner 准备舞台，保留目标正文/关系/策略/成果与创建输入所需目录；移除无生产消费者的 Inbox 摘要转发和 StagePageContext.client_data。完整构建通过、API 快照仅删除该可选字段，定向验收进行中，不预报性能通过。
 
@@ -694,3 +696,25 @@ QF-50冻结头d7d146a2da包要求续跑已通过8/86文件（Home升级81项、�
 QF-51追加根因与处置：收窄目录后CPU采样仍指向项目归属/常开插件的现读链，整批本地结果连续占用微任务；不跨等待缓存这些授权。在Inbox原批读与逐项判断之间让出事件循环，整批输入仍先验证，原提交前复核保留。QEA-91旧构建反例稳定出现“Missing expected rejection”：取消排入事件循环后整批先跑完；修复后实际Host仅保留第一条账本，剩余重试各一条，三条对应事件各一次。QEA-90真实20条页面新增同Host `/health` 请求，已确认在第20条前返回，建议及完成提示顺序和单次重读保持；完整17文件仍在验。首轮BRC-05八种业务/目录预算均过，额外discover反证已正确拒绝，但断言仍匹配旧错误文字而失败；只同步该精确文字，保留受控额外读取与预算断言，整文件待复验。只读复核新增部分无Blocker/P1；不据单次HTTP响应宣称最大延迟已达标。
 
 第四十批定向检查点已通过：17文件153项有通过证据（BRC精确报错文字修正后5/5，额外调用反证保留），完整构建/API零差异/健康通过。最新真实20条五样本中，另一个HTTP请求都在4/20条时返回，最大事件循环延迟1.09–2.65秒；但总耗时p50为22.6秒，且每批出现6–8次Goals刷新。`apps/workbench/src/scripts/client/initialization.ts:460`把非Goals舞台的全平台cursor变化转为Goals刷新，`refresh-decisions.ts:128`再读取全平台cursor；Inbox原历史事件也触发它。原连续占用遮住了这部分重复工作，故**不能宣称QF-51或BL-inbox-update-blocks-host已完成**。继续追实际Goals投影依赖及当前可见性，保留已验证的取消/写入与目录收敛，不靠放宽时限或暂停其他工作掩盖总成本。
+
+### QF-52 / P1–P2：Skill 草稿恢复与回放事实失配（第45批本地定向通过）
+
+入口及归属：Assistant 工作中的公开草稿动作、本人能力包页和 `/api/plugin-trust/skills/drafts/adopt` → Host Agent definitions → `SkillDraftStore`；采用继续经原签名/安装服务，正式正文和版本不写回草稿历史。最新主干 #2107 的这条真实链纳入原六方向，未把已有 BL 或主干测试通过当作无缺陷依据。
+
+| 发现与位置 | 用户影响与处置依据 | 本次处置 |
+| --- | --- | --- |
+| `apps/workbench/src/browser/kit/draft-turns.ts:106`、`writing.ts:99` 忽略保存失败或直接清编辑区；`draft-editing.ts:113` 只认正在保存 | 保存失败后关闭/新建丢输入，用户被迫重写；原“不增加离开确认”的承诺须以内容已保存为前提 | `flush`绑定原编辑对象，离开核成功；未保存的失败仍保护窗口关闭，不加自动重试和新确认 |
+| `draft-turns.ts:69` 迟到采用回执清当前界面；冲突后读新draft但仍保留旧fields | 旧操作关闭后来新建的草稿；下一次输入可能以他人的新版本号覆盖其正文 | 结果只更新原对象；`draft-editing.ts:75` 刷新案例/回放时核原revision，不前移本地编辑基线 |
+| `apps/local-host/src/agent-definitions/skill-workshop.ts:319`、`skill-drafts.ts:186` 只核草稿修订/案例存在 | 等模型时更换已知答案，旧结果可冒作新答案的有效回放并解除采用门 | 在原存储事务比较模型实际使用的任务/材料/答案；拒旧结果，不写trial，其余案例无需重跑 |
+| `apps/local-host/src/skill-authoring.ts:172` 检查所有保留回放的差异 | 最新已匹配仍再次确认，界面反馈与采用行为不一致 | 每条当前案例取最近有效回放；其他案例仍不同则仍确认 |
+| `skill-drafts.ts:198` 原全草稿只留最近5次 | 反复试一条会挤掉另一条已过结果，要求无关重跑 | 原表每案例保留最近结果；最多案例数仍由原合同约束，无新表/状态/版本 |
+
+证据：旧浏览器两条丢输入反证均失败，`/tmp/quality-audit-skill-save-baseline.log`；旧后端错收回放与历史差异两条失败，`/tmp/quality-audit-skill-replay-baseline.log`；旧保留策略真实Host反证要求重跑另一条，`/tmp/quality-audit-skill-retention-baseline.log`。修复后完整构建通过，10文件81项全过（`/tmp/quality-audit-skill-recovery-acceptance.log`），包括4项新增浏览器、3项新增Host交错/恢复及原完整创作、权限/签名、存储基线、Memory真实owner消费者。实际采用回执是在Host成功安装后延迟返回，第二份草稿的文本与真实保存仍保留；并发修订用另一真实HTTP写入，拒绝后回读对方正文与修订均未变。
+
+边界：模型替身只证明调度、事实绑定、采用门和存储恢复，不证明模型质量。真实签名安装、HTTP与浏览器路径已经运行；本人验收没有代签。采用等待中其他入口或已开始的并发 revise 更新同一草稿后被清理的独立风险，仍在构造真实交错，不冒称由本批解决。设置遮罩缓存/深链消费还需继续核，不能把页内离开测试扩称所有导航均通过。
+
+新增 BL 对照：`BL-b42-acceptance` 保留用户本人/真实模型验收；`BL-b42-followups` 不整项关闭。①用量应由HostCompleteText与现有Observation统一补平台合同，实际调用方为起草、修订、回放、信息动作，不在Skill另造账；②组合失败提示随词包变更合并处理；③深链消费应回到设置地址owner，包含Home回执；④页签/开关应复用现有设计系统并补id/子路径合同，不新建Skill专用组件库；⑤两份草稿覆盖现行政策已明记后续，不能与同一草稿并发丢修订混为一谈；⑥删除后仍可读/放弃的草稿有保留用户内容的职责，不能当死代码删除。①③④继续按本任务平台化方向审查并裁决批次，待实际实施/验收后才更新BL状态。
+
+第45批补充结算：只读复核指出本次close→reload新增等待可接收新输入，正常浏览器反证确实失败；现保存成功后同步收起编辑器，再刷新当前目录。6项新增UI最终全过（`/tmp/quality-audit-skill-close-final.log`），原完整创作UI在最终生产实现上另过1项（`/tmp/quality-audit-skill-close-acceptance.log`），与先前未改后端的76项组成10文件83项。中途测试曾在目录实际重画期间点击旧节点失败，现等待该节点被真实刷新替换且新正文仍在，再严格点击；未改点击工具、时限或产品语义。保存中的后续输入实存两次修订，回退未存改动后安全离开不覆盖另一入口。API重新生成0差异。实际查看1440回放与390深色编辑截图，原布局保持；截图在已忽略的 `.impeccable/qa/review/skill-authoring/`，不代表模型质量或本人验收。
+
+第45批最终健康门禁通过（`/tmp/quality-audit-skill-close-health-final.log`），门禁未放宽；前次仅报告中的BL简称无法解析，已改为真实条目全名后重验。第46批继续处理采用期间的写入生命周期，另发现案例写入与回放清理尚非同事务，须以实际SQL失败反证处理。

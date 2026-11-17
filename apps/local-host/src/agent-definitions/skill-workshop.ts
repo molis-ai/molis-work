@@ -316,7 +316,7 @@ export class SkillWorkshop {
       return runs.map((run, index): SkillTrialCell => ({ consumer: run.consumer, side: run.side, output: outputs[index]!, ...judged[index]! }));
     });
     await caller.beforeEffect();
-    const recorded = this.store.recordTrial(draft.draft_id, { draft_revision: draft.revision, case_id: known.case_id, ran_at: new Date().toISOString(), cells, verdict: overall(cells) }, caller.actor_id);
+    const recorded = this.store.recordTrial(draft.draft_id, { draft_revision: draft.revision, case_id: known.case_id, ran_at: new Date().toISOString(), cells, verdict: overall(cells) }, known, caller.actor_id);
     if (recorded === "missing") throw skillErrors.draft_unknown("这份草稿已经不在了，可能已被采用或放弃");
     if (recorded === "conflict") throw skillErrors.draft_conflict("回放时草稿又改过了，请再回放一次");
     return recorded;

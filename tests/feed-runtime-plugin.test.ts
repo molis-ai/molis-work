@@ -1,4 +1,5 @@
 import { SignalsModule, fromBetterSqlite } from "@molis-ai/molis-work-plugin-feed/store";
+import { scriptAnysearchNetwork, scriptRssNetwork } from "./fixtures/source-network.js";
 import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -129,7 +130,7 @@ function goalsStandIn(known: readonly string[], asked: GoalsAsked): PluginDefini
   } };
 }
 
-async function platform(t: TestContext, options: { fetch?: (input: string | URL) => Promise<Response>; ledger?: boolean; git?: ReturnType<typeof libraryGit>; clock?: boolean; goals?: readonly string[]; provider?: (binding: IntegrationBinding) => IntegrationProviderPort } = {}) {
+async function platform(t: TestContext, options: { afterPlan?: () => Promise<void>; fetch?: (input: string | URL) => Promise<Response>; ledger?: boolean; git?: ReturnType<typeof libraryGit>; clock?: boolean; goals?: readonly string[]; provider?: (binding: IntegrationBinding) => IntegrationProviderPort } = {}) {
   const home = mkdtempSync(join(tmpdir(), "feed-runtime-plugin-")), file = join(home, "project.db");
   seedDemoBoard(file);
   // Every call once it is over, as the Host's call log writes it: which action, and whether it went through.
@@ -155,7 +156,16 @@ async function platform(t: TestContext, options: { fetch?: (input: string | URL)
     } finally { homeHalf?.close(); store.close(); rmSync(home, { recursive: true, force: true }); }
   });
   const trust = { level: "host" as const };
-  const started = await running.start([{ definition: createFeedPlugin(), trust, dual_instance: true }, ...(homeHalf ? [{ definition: homeHalf.definition, trust }] : []),
+  const definition = createFeedPlugin();
+  const feedDefinition: PluginDefinition = options.afterPlan ? { ...definition, start(context) {
+    const pull = context.services!.sourcePull!;
+    return definition.start({ ...context, services: { ...context.services, sourcePull: { ...pull, async plan(request) {
+      const result = await pull.plan!(request);
+      await options.afterPlan!();
+      return result;
+    } } } });
+  } } : definition;
+  const started = await running.start([{ definition: feedDefinition, trust, dual_instance: true }, ...(homeHalf ? [{ definition: homeHalf.definition, trust }] : []),
     ...(options.goals ? [{ definition: goalsStandIn(options.goals, goalsAsked), trust }] : [])]);
   // Which plugin the Runtime starts first is its own business; that each one runs is the fixture's.
   assert.deepEqual([...started.running].sort(), [feedManifest.plugin_id, ...(homeHalf ? [homeHalf.definition.manifest.plugin_id] : []), ...(options.goals ? ["io.molis.work.goals"] : [])].sort(), JSON.stringify(started));
@@ -311,17 +321,19 @@ const feedXml = (entries: Array<{ id: string; title: string }>) => `<?xml versio
   <item><guid>https://example.com/posts/${entry.id}</guid><title>${entry.title}</title><link>https://example.com/posts/${entry.id}</link>
   <description>Body of ${entry.title} for the runtime sync test.</description><pubDate>Sat, 30 Aug 2026 08:00:00 GMT</pubDate></item>`).join("")}</channel></rss>`;
 
-async function syncing(t: TestContext, options: { ledger?: boolean; clock?: boolean; goals?: readonly string[] } = {}) {
+async function syncing(t: TestContext, options: { custom?: boolean; ledger?: boolean; clock?: boolean; goals?: readonly string[] } = {}) {
   const fetched: string[] = [], feeds = new Map<string, string>();
+  if (options.custom) scriptRssNetwork(t, feeds, fetched);
   const fetch = async (input: string | URL) => {
     fetched.push(String(input));
     const body = feeds.get(String(input));
     return body ? new Response(body, { status: 200, headers: { "content-type": "application/rss+xml" } }) : new Response("missing", { status: 404 });
   };
   const f = await platform(t, { fetch, ledger: options.ledger ?? true, ...(options.clock ? { clock: true } : {}), ...(options.goals ? { goals: options.goals } : {}) });
-  const entry = listTestFeedSourceCatalog()[0]!;
+  const catalogEntry = listTestFeedSourceCatalog()[0]!;
+  const entry = options.custom ? { ...catalogEntry, feed_url: "https://example.com/held.xml" } : catalogEntry;
   feeds.set(entry.feed_url, feedXml([{ id: "one", title: "First" }, { id: "two", title: "Second" }]));
-  const registered = await f.client.invoke(caller(DESCRIBE).context, feedSourceActions.register, { kind: "rss", definition_id: entry.id }) as { source: { source_id: string } };
+  const registered = await f.client.invoke(caller(DESCRIBE).context, feedSourceActions.register, options.custom ? { kind: "custom_rss", feed_url: entry.feed_url } : { kind: "rss", definition_id: entry.id }) as { source: { source_id: string } };
   const sourceId = registered.source.source_id;
   const sourceEvents = (type: string) => f.count(`SELECT count(*) AS n FROM events WHERE object_type = '${FEED_PLUGIN_ID}:feed_source' AND object_id = ? AND type = ? AND actor_id = ?`, sourceId, `${FEED_PLUGIN_ID}:feed_source.${type}`, OWNER);
   /** The bodies the source's runs name, whatever state each run is in. */
@@ -1708,4 +1720,127 @@ test("FBR-01 FBR-02 FBR-04 FBR-05 owner pages include later data, facets and ded
   assert.deepEqual(refPages.flat(), expected);
   assert.deepEqual([...feed.reads.history("foreign-project", source.source_id, "refs")], []);
   assert.deepEqual([...feed.reads.history(DEMO_PROJECT_ID, "foreign-source", "refs")], []);
+});
+
+// QEA-74: the source owner must recheck after its actual Home hold reply, before the platform stores the body.
+test("QEA-74 pausing a source through its action while Home hold waits prevents any later body write", { timeout: 60_000 }, async t => {
+  const entered=Promise.withResolvers<void>(), release=Promise.withResolvers<void>();
+  t.after(()=>release.resolve());
+  const f=await syncing(t);
+  f.feeds.set(f.entry.feed_url, feedXml([{id:"late-hold",title:"Body that must not be written after pause"}]));
+  f.pauseLedger(()=>{entered.resolve();return release.promise;});
+  const pending=f.client.invoke(caller(SYNC).context,feedSourceActions.sync,{source_id:f.sourceId,idempotency_key:"qea-74-hold-pause"}).then(()=>null,(error:unknown)=>error);
+  await entered.promise;
+  let held:string[]=[];
+  try {
+    held=f.holds().map(row=>row.content_ref);
+    assert.equal(held.length,1);
+    assert.deepEqual(f.named(),held,"the run names the body before its Home hold returns");
+    assert.ok(held.every(ref=>!f.bodies().has(ref)),"the body has not been written yet");
+    const paused=await f.client.invoke(caller(WRITE).context,feedSourceActions.enabled,{source_id:f.sourceId,enabled:false}) as {source:{enabled:boolean}};
+    assert.equal(paused.source.enabled,false);
+  } finally { release.resolve(); }
+  const outcome=await pending as {code?:string};
+  assert.equal(outcome?.code,"feed.source_paused");
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?",f.sourceId),0);
+  assert.equal(f.sourceEvents("sync_completed"),0);
+  assert.deepEqual(held.map(ref=>f.bodies().has(ref)),[false],"a pause accepted while Home held the reply must stop the ensuing body write");
+  await f.client.invoke(caller(WRITE).context,feedSourceActions.enabled,{source_id:f.sourceId,enabled:true});
+  const recovered=await f.client.invoke(caller(SYNC).context,feedSourceActions.sync,{source_id:f.sourceId,idempotency_key:"qea-74-hold-pause"}) as {created:number;run:{recovery_count:number};replayed:boolean};
+  assert.deepEqual([recovered.created,recovered.run.recovery_count,recovered.replayed],[1,1,false]);
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_source_runs WHERE source_id = ?",f.sourceId),1);
+  assert.deepEqual(f.holds().map(row=>row.content_ref),held,"the retry retains the same ledger reference without duplication");
+  assert.ok(held.every(ref=>f.bodies().has(ref)),"the successful retry writes the body");
+  await f.client.invoke(caller(DELETE).context,feedSourceActions.delete,{source_id:f.sourceId,history_decision:"delete_local_history"});
+  assert.equal(f.holds().length,0);assert.ok(held.every(ref=>!f.bodies().has(ref)),"deleting the recovered source clears its actual body");
+
+});
+
+// QEA-73/74: hold only the real platform plan's reply, after permission and owner planning have run.
+for (const change of ["pause", "configure", "delete", "cancel", "revoke", "pause-after-terminal"] as const) {
+  test(`QEA-74 a ${change} accepted while the real SourcePull plan waits refuses later work`, { timeout: 60_000 }, async t => {
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    let waiting = false, allowed = true, fetched = 0;
+    const original = caller(SYNC);
+    t.after(() => { waiting = false; release.resolve(); original.cancel(); });
+    const f = await platform(t, { ledger: true, afterPlan: async () => { if (waiting) { entered.resolve(); await release.promise; } },
+      fetch: async () => { fetched++; return new Response(feedXml([{ id:"planned-body", title:"Body after a current plan" }]), { headers: { "content-type":"application/rss+xml" } }); } });
+    const registered = await f.client.invoke(caller(DESCRIBE).context, feedSourceActions.register,
+      { kind:"custom_rss", feed_url:"https://example.com/plan.xml" }) as { source:{source_id:string} };
+    const source_id = registered.source.source_id, input = { source_id, idempotency_key:"qea74-plan" };
+    if (change === "pause-after-terminal") await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, input);
+    waiting = true;
+    const context = { ...original.context, assert_authority_current() { if (!allowed) throw new ActionError("actions.forbidden", "revoked during plan"); } };
+    const before = [fetched, f.count("SELECT count(*) AS n FROM feed_source_runs WHERE source_id = ?", source_id), f.holds().length];
+    const pending = f.client.invoke(context, feedSourceActions.sync, input).then(() => null, (error: unknown) => error);
+    await entered.promise;
+    assert.deepEqual([fetched, f.count("SELECT count(*) AS n FROM feed_source_runs WHERE source_id = ?", source_id), f.holds().length], before, "planning fetched and wrote nothing");
+    try {
+      if (change.startsWith("pause")) await f.client.invoke(caller(WRITE).context, feedSourceActions.enabled, { source_id, enabled:false });
+      else if (change === "configure") await f.client.invoke(caller(DESCRIBE).context, feedSourceActions.update, { source_id, feed_url:"https://example.com/changed.xml" });
+      else if (change === "delete") await f.client.invoke(caller(DELETE).context, feedSourceActions.delete, { source_id, history_decision:"retain_history" });
+      else if (change === "cancel") original.cancel();
+      else allowed = false;
+    } finally { waiting = false; release.resolve(); }
+    const error = await pending as { code?:string };
+    const expected = change.startsWith("pause") ? "feed.source_paused" : change === "configure" ? "feed.source_configuration_changed"
+      : change === "delete" ? "feed.source_not_found" : change === "cancel" ? "actions.cancelled" : "actions.forbidden";
+    assert.equal(error?.code, expected);
+    assert.deepEqual([fetched, f.count("SELECT count(*) AS n FROM feed_source_runs WHERE source_id = ?", source_id), f.holds().length], before, "no pull or run follows the refused plan, including terminal replay");
+  });
+}
+
+for (const change of ["configure", "delete", "cancel", "revoke"] as const) {
+  test(`QEA-74 ${change} during the actual Home hold prevents body writes and preserves named references`, { timeout:60_000 }, async t => {
+    const entered=Promise.withResolvers<void>(), release=Promise.withResolvers<void>(), original=caller(SYNC);
+    let allowed=true;
+    t.after(()=>{release.resolve();original.cancel();});
+    const f=await syncing(t,{custom:true});
+    f.feeds.set(f.entry.feed_url,feedXml([{id:"held-ref",title:"A held body"}]));
+    f.pauseLedger(()=>{entered.resolve();return release.promise;});
+    const context={...original.context,assert_authority_current(){if(!allowed)throw new ActionError("actions.forbidden","revoked while holding");}};
+    const input={source_id:f.sourceId,idempotency_key:"qea74-held-owner"};
+    const pending=f.client.invoke(context,feedSourceActions.sync,input).then(()=>null,(error:unknown)=>error);
+    await Promise.race([entered.promise, pending.then(error => { throw error ?? new Error("sync completed before the expected Home hold"); })]);
+    const held=f.holds().map(row=>row.content_ref);
+    try {
+      assert.equal(held.length,1);assert.deepEqual(f.named(),held);assert.ok(held.every(ref=>!f.bodies().has(ref)));
+      if(change==="configure")await f.client.invoke(caller(DESCRIBE).context,feedSourceActions.update,{source_id:f.sourceId,feed_url:"https://example.com/reconfigured.xml"});
+      else if(change==="delete")await f.client.invoke(caller(DELETE).context,feedSourceActions.delete,{source_id:f.sourceId,history_decision:"retain_history"});
+      else if(change==="cancel")original.cancel();else allowed=false;
+    } finally {release.resolve();}
+    const error=await pending as {code?:string};
+    assert.equal(error?.code,change==="configure"?"feed.source_configuration_changed":change==="delete"?"feed.source_not_found":change==="cancel"?"actions.cancelled":"actions.forbidden");
+    assert.ok(held.every(ref=>!f.bodies().has(ref)),"no body is written after the accepted change");
+    assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?",f.sourceId),0);assert.equal(f.sourceEvents("sync_completed"),0);
+    assert.deepEqual(f.named(),held,"the interrupted run still names everything the Home holds");
+    if(change==="delete")return;
+    if(change==="configure")await f.client.invoke(caller(DESCRIBE).context,feedSourceActions.update,{source_id:f.sourceId,feed_url:f.entry.feed_url});
+    const recovered=await f.client.invoke(caller(SYNC).context,feedSourceActions.sync,input) as {created:number;run:{recovery_count:number}};
+    assert.deepEqual([recovered.created,recovered.run.recovery_count],[1,1]);assert.equal(f.holds().length,1);assert.ok(held.every(ref=>f.bodies().has(ref)));
+    await f.client.invoke(caller(DELETE).context,feedSourceActions.delete,{source_id:f.sourceId,history_decision:"delete_local_history"});
+    assert.equal(f.holds().length,0);assert.ok(held.every(ref=>!f.bodies().has(ref)));
+  });
+}
+
+
+// QEA-73: the real Feed Runtime consumer uses the same public plan and AnySearch transport, not a fabricated pull receipt.
+test("QEA-73 a Runtime Feed pulls a web query through SourcePull and replays without repeated network or writes", { timeout: 30_000 }, async t => {
+  const seen = scriptAnysearchNetwork(t, { system: "1.1.1.1", proxy: false });
+  const f = await platform(t, { ledger: true });
+  const registered = await f.client.invoke(caller(DESCRIBE).context, feedSourceActions.register, {
+    kind: "web_query", query: "interview evidence",
+  }) as { source: { source_id: string } };
+  const input = { source_id: registered.source.source_id, idempotency_key: "qea73-web-query" };
+  const result = await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, input) as { created: number; run: { phase: string; outcome: string } };
+  assert.deepEqual([result.created, result.run.phase, result.run.outcome], [1, "terminal", "completed"]);
+  assert.deepEqual(seen.calls, ["search", "extract"]);
+  assert.equal(f.holds().length, 1);
+  assert.ok(f.bodies().has(f.holds()[0]!.content_ref), "the real platform wrote the retained source body");
+  const counts = () => [f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", input.source_id),
+    f.count("SELECT count(*) AS n FROM feed_source_runs WHERE source_id = ?", input.source_id), f.holds().length, seen.connections];
+  const before = counts();
+  const replay = await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, input) as { replayed: boolean; created: number };
+  assert.deepEqual([replay.replayed, replay.created], [true, 0]);
+  assert.deepEqual(counts(), before);
 });

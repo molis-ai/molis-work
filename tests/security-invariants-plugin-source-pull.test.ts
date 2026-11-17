@@ -1,8 +1,9 @@
+import { createTestSourcePull } from "./fixtures/source-pull.js";
 import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test, { type TestContext } from "node:test";
-import { createSourcePullRuntime, createPluginPlatform, IntegrationRegistry } from "@molis-ai/molis-work-app-local-host";
+import { createPluginPlatform, IntegrationRegistry } from "@molis-ai/molis-work-app-local-host";
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -161,7 +162,7 @@ test("S-97 RAC-1016: the platform's fingerprint of a pull is the one the Feed re
   const f = await fixture(t);
   const entry = f.catalog[1]!, probe = await f.start("pullplan", [FEED]);
   f.feeds.set(entry.feed_url, rss("Plan feed", [{ id: "plan-1", title: "Plan one", text: "A body for the fingerprint comparison." }]));
-  const service = createLocalFeedSourceService(f.runtime.store.db, f.reference.project_id, (db, source) => createSourcePullRuntime({ db, sourceCursor: source?.cursor,
+  const service = createLocalFeedSourceService(f.runtime.store.db, f.reference.project_id, db => createTestSourcePull({ db,
     async fetch(input) { return new Response(f.feeds.get(String(input)) ?? "", { status: 200, headers: { "content-type": "application/rss+xml" } }); } }));
   const source = service.register({ kind: "rss", definition_id: entry.id }).source;
   const synced = await service.sync(source.source_id, { idempotencyKey: "plan-parity" });

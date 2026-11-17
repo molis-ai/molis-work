@@ -248,3 +248,14 @@ Memory 候选决定补深：正常助理工具生成候选→卡片HTTP接受/�
 - Feed正常Runtime source.sync→run引用事务→Home ledger真实写账/持有回复→平台正文写入，另一正常enabled动作暂停后仍写正文（QF-44）。这是来源owner尾检缺口，不移除平台的调用身份复核。PF-07采用合同方案已核，尚未实施。
 - Git独立与Coding内嵌分别走路由和git.prepare-index公开动作，两个正常入口都复现旧A审查回执隐藏新B操作（QF-46）。后台审查仍合法且未批准index不写；用户界面反馈归当前结果选择，和QF-23布局迁移一起验收。
 - Coding首次读取的正式夹具只增加“frame创建操作结束”这一真实等待，去掉诊断后整个7项原断言通过（`/tmp/quality-audit-coding-first-read-acceptance.log`）；原276文件运行中的失败保留记录，不把该运行写成全绿。生产构建未变。
+
+
+## 本轮更新：Feed公开计划、引导恢复及安装声明（2026-11-17）
+
+上节“尚未实施”为旧检查点。Feed已沿真实Runtime→公开plan/pull→Host网络/正文→run和Home引用账收口，来源与平台各自保留真实围栏；删除私有适配和重复SEL计划，155项原定向及12项新增真实交错通过。自定义RSS和web query覆盖真实消费者，响应仅在网络边界受控；同键重试/清理实际正文通过。引导QF-43/45已修，正常选择及实际SQLite拒绝→重试有19项组合验收和2项六截图补验。完整包回归/当前头CI仍待完成。
+
+安装链另查到QF-47：Studio未打包release→installed.lifecycle→Runtime安装事实→重启AgentBuilderStore恢复，surface-installation对无关缺声明项的全目录硬拒绝使Feed启动失败。按真实引用收窄故障影响；不能弱化同ID精确版本/签名包或complete目录要求。QEA-81/82列入第三十五批，尚未修复。
+
+PF-03已追公开绑定→学习owner→SDK实际来源/写入→清理恢复。BL-memory-session-kinds有用户批准的两个现用消费者例外及第三消费者触发条件；保留已批后续，记为审查/处置完成而非平台改造完成，不静默以此缩减其他方向范围。276文件历史回归保留272通过/4失败；Coding7项及安装策略11项正式夹具修正已通过，安装恢复真实P1继续处理。
+
+第三十一批补验结束：完整 feed-runtime-plugin 75/75、AnySearch唯一owner 4/4、RSS真实TLS安全4/4，共3文件83项通过（`/tmp/quality-audit-feed-runtime-network-final.log`）。自定义RSS与web query真实消费覆盖已取得，包必跑205文件尚未执行。

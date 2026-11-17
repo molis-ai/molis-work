@@ -1,6 +1,6 @@
 # Molis Work 审查报告与优化策略
 
-状态：进行中，负责人 Codex。按原始范围继续逐包、逐入口深入六方向检查及分批改造；74包清单与首轮代表路径核对不等于全仓深查完成，局部验收不用于整项结项。现已保留搜索、后台操作、Sessions、Git、共享输入材料、Coding恢复及Memory候选等批次；Memory正式管理/配对查询已完成本地包回归，Workflows四项改造及AI交接恢复变体已完成本地验收。当前已整合main `4aa5496e3f`，Memory批已保存于`67b8ed3193`，Workflows批保存于`7aca76b7c6`；Coding材料反馈收敛已保存于`0c8e14de4b`并完成本地验收。未接入工厂退役已保存于ca6b8428c0并通过本地验收，当前包清单由74减为73；Pages四项恢复缺陷及平台重复打开已修复、定向验收通过，受影响包回归继续。2026-11-17再次fetch确认origin/main仍为4aa5496e3f。旧头`77e2cc0d5`的CI只覆盖旧批次。草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) · [需求与验收](spec.md) · [逐包覆盖](coverage.md)。
+状态：进行中，负责人 Codex。按原始范围继续逐包、逐入口深入六方向检查及分批改造；74包清单与首轮代表路径核对不等于全仓深查完成，局部验收不用于整项结项。现已保留搜索、后台操作、Sessions、Git、共享输入材料、Coding恢复及Memory候选等批次；Memory正式管理/配对查询已完成本地包回归，Workflows四项改造及AI交接恢复变体已完成本地验收。当前已整合main `4aa5496e3f`，Memory批已保存于`67b8ed3193`，Workflows批保存于`7aca76b7c6`；Coding材料反馈收敛已保存于`0c8e14de4b`并完成本地验收。未接入工厂退役已保存于ca6b8428c0并通过本地验收，当前包清单由74减为73；Pages四项恢复缺陷及平台重复打开已保存于67288d2e47；包回归276文件272通过4失败，已分别定位，不能记全绿。Feed合同迁移与首次引导修复已实施并通过定向验收；新发现的生成插件恢复阻断Feed问题列QF-47继续处理。2026-11-17再次fetch确认origin/main仍为4aa5496e3f。旧头`77e2cc0d5`的CI只覆盖旧批次。草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) · [需求与验收](spec.md) · [逐包覆盖](coverage.md)。
 
 ## 当前判断
 
@@ -605,3 +605,20 @@ QEA-72追加消费者：Issues与Alchemist分别通过真实Host创建→正常o
 `plugins/native/git/src/browser/diff.ts:74-93`的prepareIndex只核工作区generation；返回/切文件只改变ticket，旧回执仍写共享action.hidden和diffNotice。正常独立Git与Coding嵌入入口：文件A发起暂存审查→持有真实成功回执→返回列表→打开B→释放A，B标题仍正确但暂存按钮被隐藏（`/tmp/quality-audit-git-result-owner-baseline2.log`，两个消费者均复现）。没有批准、index未变。处置：展示反馈绑定原结果选择；后台审查事实仍保留，明确打开原结果可查看。随QF-23统一Git主结果区域归属和迟到读写验收，不在Host按插件特判。成本中，QEA-78待实施。
 
 PF-05再次核对：`packages/contracts/src/platform/settings.ts:58`仍明确无仓内设置声明owner，SDK `sandbox-agent-declarations.ts:51`仍拒绝签名包的未接通设置。`BL-settings-sandbox-execution`记录的是尚缺安装私有库内同步owner事务/持久回执，路线书38-1负责现有配置采用，44-6负责公共设置呈现；它们不是重复或已完成BL，不能因为合同/SDK单测存在而清理。需要先选真实owner设置迁移、保留同事务CAS/回执/回读与撤权，再核签包执行，未用本轮审查替代该产品实现。
+
+
+### 第三十一/三十二批结果：Feed 合同归属与引导恢复
+
+`plugins/native/feed/src/source-sync.ts:31` 直接取得平台 plan 的指纹，等待后核原来源，再按原运行键决定重放/执行；`:80` 在run命名和Home hold之后复核来源，阻止暂停、改配置、删除、取消或撤权后正文迟到写入（QF-44 / P1）。来源配置与运行/CAS归Feed，计划/预算/网络/正文归平台；移除runtime-source-pull适配器、重复intent/字段转换/引用集合及空shutdown。`source-request.ts`只转换公开请求，去掉Feed两项SEL依赖；旧Host有实际测试调用的runtime保留。用户暂停后不再落下不该新增的正文，明确重试沿原身份恢复；系统少维护一份计划和两份可用性集合。退役materials_v1门禁条目待用户批准，未擅改。
+
+`apps/workbench/src/scripts/context-onboarding.ts:601` 删除restart内绘制，首次准备完成后只展示一次可操作问题（QF-43 / P2）；`:747` 配对恢复操作按钮，`:385` reselect展示本次错误（QF-45 / P2）。保存失败后用户可直接重试，不必刷新或重新找入口；页面少承担中途绘制和依赖HTML缓存碰巧重建按钮的隐式顺序。
+
+最终生产构建、API和健康门禁通过；Feed来源/并发/权限/实际Runtime七文件155项通过，新增custom RSS hold四种交错、plan六种交错、暂停hold及真实web query共12项通过。测试只控制网络/DNS/TLS响应，真实Runtime/Host/引用账/SQLite/正文存储执行，未声称公网可达。onboarding16项和Feed反馈3项通过，QEA-76两项补验及6张三宽两主题图通过；已实看390深色。日志分别为feed-public-acceptance、feed-hold-network、onboarding-feed-ui和onboarding-refusal-views。custom RSS首版夹具误用fetch导致四项超时，现改测实际通道，不算产品故障；全Runtime/network及包必跑尚在执行。
+
+### QF-47 / P1：未打包生成插件的恢复顺序阻断无关插件启动（已复现，待实施）
+
+位置：`apps/local-host/src/surface-installation.ts:71-96`；实际正常安装链`plugins/native/plugin-builder/src/agent-workflow.ts:757` → `apps/local-host/src/plugin-builder/studio-ports.ts:113` → `installed-plugin-lifecycle.ts:154`，重启由`installed-plugin-host.ts:144`恢复。未打包生成插件在恢复reader前已有安装事实，声明目录对该无关项直接抛错；Feed仅引用自身呈现动作也因此启动失败、缺后台wake。两次Home启动的SYS-15原断言稳定失败，诊断确认Feed监督器declaration_invalid且无数据库拒绝；没有用加等待或捏造archive替代修复。处置为只承认实际可证明动作，缺声明项不冒充可用；真实引用缺失仍拒绝，且已装同ID覆盖pending的规则保留。低成本，纳入本轮QEA-81/82并验证安装/信任/包零新增及原安全套件。
+
+PF-03 补正：`specs/backlog/BL-memory-session-kinds.md`已有用户2026-11-12的明确延后决定，触发条件是第三个真实会话记忆消费者。实际Coding/Assistant绑定通过各自公开reader，无直接跨表读取；形成前后核来源与SDK写围栏有真实职责。保留该已批例外和BL，不报已通用化，不为猜想第三消费者新增架构。未来迁移除公开绑定类型/Host映射外，还涉及`horizontal/memory/src/session-clear.ts`的持久恢复计划，须按合同整体处理。其他未获延后决定的PF候选不适用此例外。
+
+第三十一批补验结束：完整 feed-runtime-plugin 75/75、AnySearch唯一owner 4/4、RSS真实TLS安全4/4，共3文件83项通过（`/tmp/quality-audit-feed-runtime-network-final.log`）。自定义RSS与web query真实消费覆盖已取得，包必跑205文件尚未执行。

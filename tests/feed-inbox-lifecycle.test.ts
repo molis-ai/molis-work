@@ -7,13 +7,12 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
+import { createTestSourcePull, completedSourcePull } from "./fixtures/source-pull.js";
 import {
-  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, seedDemoGoals, type SourcePullRuntime,
+  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, seedDemoGoals,
 } from "@molis-ai/molis-work-app-local-host";
 import { FEED_ACTION_PERMISSIONS, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedApplication, createLocalFeedSourceScheduler, createLocalFeedSourceService } from "./fixtures/feed-library.js";
-import type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@molis-ai/molis-work-app-local-host";
 
 type FeedApp = ReturnType<typeof createLocalFeedApplication>;
 type SourceRecord = Parameters<FeedApp["ingestItem"]>[0]["source"];
@@ -59,10 +58,8 @@ async function itemWithTwoActiveEntries(feed: FeedApp, externalId = "x1") {
 test("a failed scheduled pull still moves the schedule on, so the source is not pulled again on every tick", async () => {
   await withProject("molis-work-feed-sched-fail-", async store => {
     let now = new Date("2026-08-30T09:00:00.000Z"), pulls = 0;
-    const runtimeFactory = (): SourcePullRuntime => ({
-      intelligenceCollect: { async executeExact() { pulls++; throw Object.assign(new Error("down"), { code: "feed_unavailable" }); } },
-      content: { has: () => false }, publicFeedReceipt: () => null, async shutdown() {},
-    }) as unknown as SourcePullRuntime;
+    const runtimeFactory = (db: typeof store.db) => ({ ...createTestSourcePull({ db }),
+      async pull() { pulls++; throw Object.assign(new Error("down"), { code: "feed_unavailable" }); } });
     const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now);
     const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
     service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 15 });
@@ -93,14 +90,10 @@ test("a failed scheduled pull still moves the schedule on, so the source is not 
 test("a person's edit during a failing scheduled pull still refuses the bookkeeping and keeps the slot", async () => {
   await withProject("molis-work-feed-sched-edit-", async store => {
     let now = new Date("2026-08-30T09:00:00.000Z");
-    const runtimeFactory = (): SourcePullRuntime => ({
-      intelligenceCollect: { async executeExact() {
-        // The person renames the source while the provider call is in flight, then the provider fails.
-        createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now).update(source.source_id, { name: "Renamed while pulling" });
-        throw Object.assign(new Error("down"), { code: "feed_unavailable" });
-      } },
-      content: { has: () => false }, publicFeedReceipt: () => null, async shutdown() {},
-    }) as unknown as SourcePullRuntime;
+    const runtimeFactory = (db: typeof store.db) => ({ ...createTestSourcePull({ db }), async pull() {
+      createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now).update(source.source_id, { name: "Renamed while pulling" });
+      throw Object.assign(new Error("down"), { code: "feed_unavailable" });
+    } });
     const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now);
     const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
     service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 15 });
@@ -348,48 +341,35 @@ esac
 /** The one material a provider pull that completes brings in; the judgments on it run after the commit. */
 const COMMITTED_MATERIAL = {
   id: "material:scheduled-committed-then-failed",
-  candidateId: "candidate:scheduled-committed-then-failed",
-  canonicalUrl: "https://example.com/scheduled-committed-then-failed",
+  candidate_id: "candidate:scheduled-committed-then-failed",
+  canonical_url: "https://example.com/scheduled-committed-then-failed",
   title: "定时拉取已提交的材料",
-  sourceName: "Example",
+  source_name: "Example",
   preview: "定时拉取提交之后判断才失败的正文",
-  contentRef: `molis-work-feed/sha256/${"e".repeat(64)}`,
-  contentHash: `sha256:${"e".repeat(64)}`,
-  contentHashProfile: "search-markdown-v1",
-  contentType: "text/markdown",
-  characterCount: 12,
-  capturedAt: "2026-08-30T09:10:00.000Z",
+  content_ref: `molis-work-feed/sha256/${"e".repeat(64)}`,
+  content_hash: `sha256:${"e".repeat(64)}`,
+  content_type: "text/markdown",
+  character_count: 12,
+  captured_at: "2026-08-30T09:10:00.000Z",
+  content_available: true,
   provenance: {
     operationId: "feed-operation", providerId: "rss", providerVersion: "1.0.0", bindingRevision: 1,
     retrievedAt: "2026-08-30T09:10:00.000Z", matchedLaneIds: ["intent:exact"], rankProfile: "feed-v1",
     transportProfileFingerprint: `sha256:${"f".repeat(64)}`,
   },
-  extractorRef: { providerId: "rss", providerVersion: "1.0.0" },
-  truncated: false,
-  availability: "available",
 };
 
 // RAC-1214 BL-801: a scheduled pull that committed and then failed in its judgments spends its slot and reports the failure as a result, not a refusal.
 test("RAC-1214 a scheduled pull that fails judging after it committed spends its slot and raises no source fault", { timeout: 15_000 }, async () => {
   await withProject("molis-work-feed-sched-judged-", async store => {
     let now = new Date("2026-08-30T09:00:00.000Z"), renaming = "";
-    const runtimeFactory = (): SourcePullRuntime => ({
-      intelligenceCollect: {
-        async executeExact(request: IntelligenceCollectRequest): Promise<IntelligenceCollectResult> {
-          // A person may rename the source while the pull is in flight, which must still be a refusal.
-          if (renaming) createLocalFeedSourceService(store.db, DEMO_PROJECT_ID).update(renaming, { name: "Renamed while pulling" });
-          return { ...createCompletedIntentResultFixtureV1(request), materials: [COMMITTED_MATERIAL] } as IntelligenceCollectResult;
-        },
-        async shutdown() {},
-      },
-      content: {
-        write() { return { contentRef: COMMITTED_MATERIAL.contentRef }; },
-        read() { return COMMITTED_MATERIAL.preview; },
-        has() { return true; },
-        inspect() { return { referenced: 1, available: 1, missing: 0, keyAvailable: true }; },
-      },
-      async shutdown() {},
-    });
+    const runtimeFactory = (db: typeof store.db) => {
+      const client = createTestSourcePull({ db });
+      return { ...client, async pull(request, options) {
+        if (renaming) createLocalFeedSourceService(store.db, DEMO_PROJECT_ID).update(renaming, { name: "Renamed while pulling" });
+        return completedSourcePull(client, request, options, [COMMITTED_MATERIAL]);
+      } } satisfies typeof client;
+    };
     const feedOptions = { captureJudgment: async () => { throw new ActionError("actions.execution_failed", "判断失败"); } };
     const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now, feedOptions);
     const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;

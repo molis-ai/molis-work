@@ -130,3 +130,5 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
 来源用哪个账号是本人在平台上按来源绑定的（`connectors.plugin_slot.record.bind@1`，槽即服务、记录即来源；T-121），Feed 不在来源配置里写连接 id、凭据引用或 token 引用；换账号是先断开（`feed.sources.disconnect`，清游标并释放绑定）再选。账号来源由 `feed.sources.add_account@1` 新建（GitHub、Gmail），新建时不带账号。连接的使用位置由平台的 `connectors.plugin_slot.usages@1` 报，Feed 不另报。
 
 Feed 主区声明通用 `data-frame-assets-input` / `data-frame-assets-next-input`，使冷启动内容选择器经 owner 的分页舞台读取全部元数据（包含归档），而普通列表继续使用当前筛选；不把完整正文、材料或全量元数据塞回页面快照。
+
+公开来源同步通过平台 `services.sourcePull.plan/pull/forget`：平台拥有计划、预算、网络策略与指纹，Feed拥有来源配置、运行、游标与引用。拉取前先计划并复核来源；正文引用先写运行、再写Home引用账，等待后复核来源再允许平台落正文。终态同键重放不再抓取；非终态恢复继承原引用，暂停/改配置/删除/取消后不追加结果。

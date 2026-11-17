@@ -552,7 +552,7 @@ SDK继续拥有唯一候选、实际期限、版本和决定；Memory拥有最�
 
 ## 第三十一批：Feed采用平台的来源计划与拉取合同（PF-07续）
 
-状态：调用链已核实，方案完成，等待第二十九/三十批包回归退出后实施；不在全量回归中改源码。source-sync.ts:31先调用source-request.ts:74构造SEL exact intent并本地计算指纹；唯一生产createRuntime在plugin.ts:129进入runtime-source-pull.ts:43，后者忽略intent，转SourcePullRequest；Host source-pull-intent.ts重新构造同一计划。平台plan已公开且Runtime兑现了权限/调用身份，但真实Feed未用。适配层还把公共蛇形字段转回SEL驼峰、维护available/written集合与no-op shutdown，供Feed再转回持久字段。旧Host runtime注入只有测试夹具，不是另一生产入口。
+状态：调用链已核实，方案完成，在独立quality-audit-followthrough树实施；原第二十九/三十批测试树保持固定。source-sync.ts:31先调用source-request.ts:74构造SEL exact intent并本地计算指纹；唯一生产createRuntime在plugin.ts:129进入runtime-source-pull.ts:43，后者忽略intent，转SourcePullRequest；Host source-pull-intent.ts重新构造同一计划。平台plan已公开且Runtime兑现了权限/调用身份，但真实Feed未用。适配层还把公共蛇形字段转回SEL驼峰、维护available/written集合与no-op shutdown，供Feed再转回持久字段。旧Host runtime注入只有测试夹具，不是另一生产入口。
 
 实施方向：FeedSourcePorts接公开sourcePull.plan/pull/forget；插件只把自身来源配置/游标转成SourcePullRequest，计划、预算、域名策略、指纹唯一归平台。先纯plan，等待后重核原来源/调用，再决定终态重放或写入running；原运行key、终态配置冲突、非终态恢复、lease与CAS保持。pull必须先调用hold，Feed同事务写run引用、再写Home引用账，平台才落正文；取消、撤权、暂停/配置变化后不写结果。直接消费SourcePullResult，删除旧intent生成、私有SEL类型依赖、重复字段转换/可用性集合/空shutdown与废弃工厂端口。来源注册的规范化/去重及用户名称仍归Feed，网络与权限边界不删除。
 
@@ -565,14 +565,14 @@ SDK继续拥有唯一候选、实际期限、版本和决定；Memory拥有最�
 
 ## 第三十二批：首次引导只在完成准备后展示可操作页面（QF-43）
 
-状态：包回归、单例复跑和DOM写入栈均复现欢迎区被晚到启动重绘替换；诊断日志 `/tmp/quality-audit-onboarding-paint-trace.log`。本批生产改动待正在执行的包回归结束后实施。context-onboarding.ts中restart在创建/保存journey后render；startup随后await restoreUploadFiles再render。快速进入语言问题时，后一次整块写入cx-app替换正在操作的欢迎区、丢掉节点焦点。语言服务本身只更新文字/属性；不能靠延迟测试或取消同节点断言掩盖。该源码与已合入4aa5496基线相同，尚未独立运行基线，不宣称已取得基线运行证据。
+状态：包回归、单例复跑和DOM写入栈均复现欢迎区被晚到启动重绘替换；诊断日志 `/tmp/quality-audit-onboarding-paint-trace.log`。前批测试树保持固定；本批在独立quality-audit-followthrough树实施，验收仍待完成。context-onboarding.ts中restart在创建/保存journey后render；startup随后await restoreUploadFiles再render。快速进入语言问题时，后一次整块写入cx-app替换正在操作的欢迎区、丢掉节点焦点。语言服务本身只更新文字/属性；不能靠延迟测试或取消同节点断言掩盖。该源码与已合入4aa5496基线相同，尚未独立运行基线，不宣称已取得基线运行证据。
 
 方案：restart只维护新journey与URL/持久化，不在准备途中绘制。startup在恢复完材料和连接后绘制；正常new-journey按钮由已有try/finally负责成功/失败后的绘制。状态事实、材料恢复、语言选择与动画规则保留，不增加启动布尔状态或第二套页面缓存。已核全部两个调用；等待期间已有服务端loading，恢复上传不依赖提前绘制。检查首次进入、选择语言/外观、材料到项目闭环和重新选择材料的恢复入口。
 
 - **QEA-75** 隔离Home正常首次进入后，快速进入语言问题、切中英文，欢迎区和焦点不被后台准备重绘替换；材料选择、保存和创建项目实际完成。原FSS-37同节点断言保留；减弱动画和正常进入均验证，不靠增加固定sleep。
 - **QEA-76** 已有需要重选的journey通过正常new-journey入口创建新journey，旧暂存清理和新选择状态按原合同完成；实际保存失败准确显示且可恢复，不留下永久busy，也不提前展示未恢复完的材料。当前修复不重写整个onboarding业务/后台职责。
 
-回归诊断补记：Coding首次读取两项失败源于测试start只等父输入框可用，可能读到旧会话；诊断副本等待frame内创建动作结束，再检查原输入框条件，两项原业务断言均通过（`/tmp/quality-audit-coding-first-read-trace.log`）。生产代码未改；正式夹具修正及无诊断输出复验仍待完成，不把诊断通过计作正式验收。
+回归诊断补记：Coding首次读取两项失败源于测试start只等父输入框可用，可能读到旧会话；诊断副本等待frame内创建动作结束，再检查原输入框条件，两项原业务断言均通过（`/tmp/quality-audit-coding-first-read-trace.log`）。生产代码未改；正式夹具仅增加创建动作完成的等待，无诊断输出整组7/7通过（`/tmp/quality-audit-coding-first-read-acceptance.log`），原业务断言未放宽。
 
 取舍：复用现有平台合同，平台不接手Feed业务状态或引入自动重试，Alchemist的不同研究计划不强制迁成Feed计划。此片本地验收仍不能替代当前头CI或全仓六方向完成。
 
@@ -590,3 +590,38 @@ SDK继续拥有唯一候选、实际期限、版本和决定；Memory拥有最�
 平台化决定：复用现有Git共享结果区与宿主openResult/closeResult合同；合并展示行为归Git自身，不引入通用全局导航状态机。此前草稿、权限拒绝、实际审查/撤销和分区写入验证保留。
 
 第三十三批新增实证（QF-46）：正常暂存A，持有Host真实prepare-index回执，返回列表并打开B后释放，两个入口均把B暂存按钮隐藏（`/tmp/quality-audit-git-result-owner-baseline2.log`）。首次探针在800宽隐藏目录点击以及Coding公开动作封装识别失败，只算夹具准备错误；最终版走可见返回按钮并识别真实git.prepare-index动作。问题在diff.ts prepareIndex只核页面generation，不核结果选择ticket；本轮QEA-78按同一请求/展示归属收口，保留后台已受理审查，不自动取消或重送。
+
+## 第三十四批：导入警告按显示语言呈现，固定版本保留原文（QF-15）
+
+状态：只读调用链与方案已完成，以下合同/门禁决定待用户确认，尚未实施。覆盖Host的OCR/转写/名称提示、artifacts模块的大小/HTML提示，以及official-integrations/catalog的Notion、飞书/Lark、Google Docs提示；即时导入结果与固定版本预览共用稳定TextRef，不能只翻译某一个入口。
+
+新导入把`artifact.io.molis.work.document`从1升2：warnings保存TextRef键和原始参数，由可信导入owner绑定workbench词包，动作输出OwnedTextRef；即时提示/预览在显示时翻译。已有固定schema 1的payload、digest、版本、时间、精确引用和导出一律保持，限定历史读取只把原字符串当literal展示，不按中文匹配回推键。旧警告可仍为原语言，这是保留历史原文的边界。显式再次导入schema 1时追加schema 2固定版本，随后相同导入复用；切语言不新增版本，不批量重写历史。
+
+完整消费者：Host两处supported_types、artifact-host-producer、artifact-display-words、workbench browser-ui/knowledge import、Pages消费声明/继续处理；原件下载、分析引用与同步原件字段不变。artifactContinuers按所选schema匹配声明，避免同一Pages消费者因1/2双声明出现两次，GET展示和POST继续采用同一口径。Onboarding/Shelf的纯ID调用保持。import.file/external按阶段一仍@1，同片更新动作/API快照，项目库与同步envelope不升版。
+
+请求的有限机制：在CONTRACT-CHANGES登记上述schema 1只读保留，存续条件为仍有固定版本/精确引用；新写只认2，不引入任意历史兼容。现有SQLite/VersionedFile升级不适用于不可变payload，不伪造原地升级段。initial-versions只对`artifact.io.molis.work.document`承认现行写2及明确历史读1，以固定版本不变/跨版本继续/同步回放的实际断言覆盖；其他自有格式“为1或已注册连续升级链”的规则保持。门禁须有拒绝未知3和无关未注册格式2的反证，不扩大成任意artifact豁免。
+
+- **QEA-79** 所有本地/外部导入来源写稳定键参数；中英文即时提示与固定版本预览正确，语言切换零数据写入。保留正文/原件/模型下载授权、取消、大小边界和失败恢复。正常浏览器隔离Home验证三宽两主题关键提示可读，不称模拟模型为真实模型质量验收。
+- **QEA-80** 真实冻结schema 1成果经重启、精确版本引用、下载与Pages继续保持payload/digest/原件不变；本人显式再次导入得到schema 2，之后相同导入复用。两种固定版本同步后保持原值；继续入口恰一份，未知schema明确拒绝。复用artifact-document-import/document-import-providers/knowledge-transcription-result.e2e/personal-sync/security-invariants-sync-attachments，门禁反证与快照按本片改动跑。
+
+第三十一批另一个待批的精确门禁清理：只删除`tooling/gates/version-exceptions.json`中`plugins/native/feed/src/source-request.ts`的`materials_v1`条目（原两个字面量已随重复计划删除）；Host/source-pull-intent.ts的同名有效例外保留。只读reviewer已核对这项是退役清理，不增加阈值或例外，当前文件尚未修改。
+
+第二十九/三十批包回归结果：276文件272通过，4失败（onboarding-journey、coding-session-first-read、installed-plugin-host、installed-plugin-policy）；后两项待定位，不记全绿。Coding正式7/7复验已通过；引导修复进入第三十二批。第三十一批首次新树构建在client-literals子进程读stdin处挂起（进程采样证实），按自身pid终止后原命令重试通过；没有修改构建语义。离线锁更新误清无关optional依赖已恢复，只保留Feed两项已无生产引用的SEL依赖删除。最终锁及源码下构建/验收继续。
+
+
+第三十一/三十二批实施与定向验收更新（2026-11-17）：Feed 已直接采用 SourcePull plan/pull/forget，移除私有适配层、重复 SEL intent、两个无生产引用的依赖；hold 在真实 Home 引用账回包后再次核原来源 guard。源码/锁最终构建通过，API 生成无差异，健康门禁通过；来源、实际 Runtime、并发及权限 7 文件155项通过。新增 custom RSS 的真实 Host 固定地址通道以 DNS/HTTPS 边界替身供响应，配置/删除/取消/撤权四种 hold 交错及实际恢复/删除均通过，web query 经真实 Runtime/AnySearch 到实际正文与同键重放通过，12项定向均绿（feed-hold-network.log）。之前 custom RSS 测试用 fetch 替身无法拦到固定地址 HTTPS，四项超时是夹具问题，未改生产网络安全语义；原 RSS 真 TLS 安全套件保留。完整 Runtime/network 回归及包必跑继续。
+
+首次引导的 restart 只维护准备事实，由两个调用入口收尾绘制；new-journey finally 配对解除临时 disabled，reselect 展示本次错误。onboarding-journey16项、feed-feedback3项均通过；QEA-76另经两项真实保存/拒绝与重试生成三宽两主题6图，390深色实看无溢出、按钮可再试。状态持久化、旧历史和再次创建均检查；不是模拟成功。276文件原回归仍记272通过4失败：Coding夹具正式7项通过；installed-plugin-policy 原夹具绕过 installedOperation 身份，已迁真实 service.invoke，11项通过；installed-plugin-host SYS-15 是下批真实产品缺陷，不能将276文件改记全绿。
+
+## 第三十五批：未就绪的无关插件不阻断自身呈现声明有效的插件（QF-47）
+
+状态：P1 已由真实 Home 两次启动复现，尚未实施。SYS-15 在正常恢复生成插件、私有数据和排期时，Feed 的监督器拒绝启动，自动同步 wake 缺失；错误是读不到已安装 generated 插件的呈现动作声明。正常 Studio 通过 agent-workflow → studio-ports → installed.lifecycle 安装未 packaged 的生成发行物，重启后由 AgentBuilderStore 恢复；其 Runtime 安装事实在呈现声明 reader 就绪之前已经存在，不是测试专有的不合法记录。Feed 只有自己的呈现动作，并未引用该生成插件。
+
+根因边界：surface-installation.ts 的 installedActions 枚举所有安装事实，无法读取无关项的精确声明也直接抛错。待安装清单不能冒充已有安装版本；平台只承认当前能证明的动作，实际引用必须在完整目录中存在。最小方案是在未打包/非 pinned 项缺精确声明时不向目录提供动作；仍删除其同ID pending，绝不使用未来版本代替。当前候选自身声明、系统动作及其他精确声明继续有效；真实引用缺失动作仍由 complete=true 拒绝。签名包历史 operation 投影、精确版本/digest、disabled 声明、Host follow-build、串行安装/最终授权与回滚身份不改。若反证显示这个范围不足，再沿具体调用链调整，不吞任意故障或取消验证。
+
+- **QEA-81** 真实 Home 关闭/重启后，已安装未打包生成插件恢复其公开动作/原数据/持久排期，同时 Feed 自身声明通过、后台 wake 正常存在。使用 SYS-15 原正常入口与业务断言，不伪造 Native archive 或删断言。
+- **QEA-82** 无精确声明的已安装项可与只引用自身/系统的候选共存；实际引用该项动作必须拒绝，安装记录、发布者信任和包留存均无新增。同ID pending 新声明不能替代不可读的当前安装声明。签名依赖停用、换版移除动作、排队撤权/关闭及回滚原测试保持通过。
+
+PF-03 当前处置复核：BL-memory-session-kinds 明确记录用户 2026-11-12 批准 Coding/Assistant 两消费者例外，第三个真实需要会话记忆的插件出现时再补合同；沿真实绑定公开动作、形成前后来源核验及 SDK 写入观察检查未发现必须提前迁移的第三调用方。保留该已批后续条件，不新造通用状态；本任务仍交付该项审查结论、具体owner和迁移边界，不能标为已实现平台化。公开 memory-session binding、Host mapping 与 session-clear-plan 持久结构须同片迁移，不能只扩大 kind 字符串。
+
+第三十一批补验结束：完整 feed-runtime-plugin 75/75、AnySearch唯一owner 4/4、RSS真实TLS安全4/4，共3文件83项通过（`/tmp/quality-audit-feed-runtime-network-final.log`）。自定义RSS与web query真实消费覆盖已取得，包必跑205文件尚未执行。

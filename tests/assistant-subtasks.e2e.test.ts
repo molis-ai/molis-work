@@ -9,7 +9,7 @@ const userTexts = (body: ModelWire) => body.messages.filter(message => message.r
 
 // SAI-01/02/04/05/07/11/15: real local HTTP provider, installed SDK, resident Host, native page, original Work/child histories.
 // The model responses are scripted; this is engineering integration evidence, not a real-provider or user acceptance claim.
-for (const source of ["work", "sdk"] as const) test(`Assistant ${source} child opens in the shared float, continues its own context, and leaves main input untouched`, { timeout: 120_000 }, async t => {
+for (const place of ["project", "home"] as const) for (const source of ["work", "sdk"] as const) test(`Assistant ${place} ${source} child opens in the shared float, continues its own context, and leaves main input untouched`, { timeout: 120_000 }, async t => {
   let parentCalls = 0, childCalls = 0; const bodies: ModelWire[] = [];
   const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, { prepareHome: async home => {
     await recordingTextModel(t, home, async body => {
@@ -26,17 +26,19 @@ for (const source of ["work", "sdk"] as const) test(`Assistant ${source} child o
   } }); if (!browser) return;
   await browser.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, browser.sessionId);
   await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: `window.__subtaskErrors=[];addEventListener('error',e=>window.__subtaskErrors.push(e.message));addEventListener('unhandledrejection',e=>window.__subtaskErrors.push(String(e.reason?.stack??e.reason)));` }, browser.sessionId);
-  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/` }, browser.sessionId));
+  await browser.navigate(() => browser.command("Page.navigate", { url: place === "project" ? `${browser.origin}/projects/${browser.projectId}/` : `${browser.origin}/` }, browser.sessionId));
   await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input')", 20_000);
-  const base = `/projects/${browser.projectId}/api/assistant`;
-  const sent = await browser.evaluate<AssistantSendResult>(`fetch(${JSON.stringify(base + "/send")}, {method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({text:${JSON.stringify(`PARENT_${source}_59`)},scope:{kind:'project',project_id:${JSON.stringify(browser.projectId)}},request_id:crypto.randomUUID()})}).then(r=>r.json())`);
+  const base = place === "project" ? `/projects/${browser.projectId}/api/assistant` : "/api/assistant";
+  const scope = place === "project" ? { kind: "project", project_id: browser.projectId } : { kind: "home" };
+  assert.equal(await browser.evaluate("!!document.querySelector('script[data-assistant-subtasks]')"), false, "subtask program is not fetched before first opening");
+  const sent = await browser.evaluate<AssistantSendResult>(`fetch(${JSON.stringify(base + "/send")}, {method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({text:${JSON.stringify(`PARENT_${source}_59`)},scope:${JSON.stringify(scope)},request_id:crypto.randomUUID()})}).then(r=>r.json())`);
   assert.ok(sent.work, JSON.stringify(sent));
   await browser.evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open',{detail:{work_id:${JSON.stringify(sent.work.work_id)}}}))`);
   const read = () => browser.evaluate<AssistantWorkView>(`fetch(${JSON.stringify(base + "/works/" + sent.work.work_id)}).then(r=>r.json())`);
   let current: AssistantWorkView | undefined;
   for (const end = Date.now() + 35_000; Date.now() < end;) {
     current = await read();
-    for (const review of current.reviews) await browser.evaluate(`fetch(${JSON.stringify(base + "/works/" + sent.work.work_id + "/reviews/" + review.review_id)}, {method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({decision:'approve'})}).then(r=>r.json())`);
+    for (const review of current.reviews) await browser.evaluate(`fetch(${JSON.stringify(base + "/works/" + sent.work.work_id + "/reviews/" + review.review_id)}, {method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({decision:'approve',version:${JSON.stringify(review.version)}})}).then(r=>r.json())`);
     if (childCalls && (source === "work" ? current.delegated?.some(child => child.state === "completed") : current.sdk_subtasks && "children" in current.sdk_subtasks && current.sdk_subtasks.children.some(child => child.state === "completed"))) break;
     await new Promise(resolve => setTimeout(resolve, 100));
   }
@@ -48,6 +50,7 @@ for (const source of ["work", "sdk"] as const) test(`Assistant ${source} child o
   await browser.click(".assistant-subtask-name");
   try { await browser.waitFor("document.querySelector('[data-work-task-float] .mw-subtask__composer .mw-composer__input')", 15_000); }
   catch (error) { t.diagnostic(JSON.stringify(await browser.evaluate("({errors:window.__subtaskErrors,bar:!!document.querySelector('[data-work-bar]'),float:document.querySelector('[data-work-task-float]')?.outerHTML.slice(0,1500)})"))); throw error; }
+  assert.equal(await browser.evaluate("document.querySelectorAll('script[data-assistant-subtasks]').length"), 1, "both native shells load the same shared program once");
   const childInput = "document.querySelector('[data-work-task-float] .mw-subtask__composer .mw-composer__input')";
   await browser.waitFor(`${childInput} && !${childInput}.disabled`);
   const before = childCalls;

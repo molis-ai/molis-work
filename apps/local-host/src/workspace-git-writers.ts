@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { reviewProposalVersion } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { directoryInputOnly, type ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -92,12 +93,13 @@ export function registerWorkspaceGitWriters(ports: WriterHostActionPorts): () =>
     // The caller's authority is checked again right before the review is created, as for Git's own reviews.
     await invocation.beforeEffect();
     const request = await reviews.prepare({ project_id: project.project_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
+      proposal_fingerprint: reviewProposalVersion({ input, root: parent.canonical_path, target, preview }),
       operation_kind: "git-worktree", document: { kind: "tool-operation", tool: "git-worktree-create", summary: "创建独立工作树，供本项目的轮次在其中写入",
         fields: [{ label: "输出目录", value: parent.canonical_path }, { label: "新目录", value: target }, { label: "新分支", value: preview.branch },
           { label: "起点提交", value: preview.base_commit }, { label: "执行范围", value: "仅创建独立目录和本地分支，不加进项目的目录；不发送模型任务、不修改输出目录、不推送远端。禁用 Git hooks。" }] } },
-      { authority: reviewAuthority(invocation.plugin, "git-worktree"), check, async execute() {
+      { authority: reviewAuthority(invocation.plugin, "git-worktree"), check, async execute(assertCurrent) {
         await check();
-        await port.create(id, preview.base_commit);
+        assertCurrent(); await port.create(id, preview.base_commit, assertCurrent);
       } });
     return { review_id: request.review_id, directory: { worktree_id: id, branch: preview.branch, base_commit: preview.base_commit, canonical_path: target } };
   });
@@ -167,6 +169,7 @@ export function registerWorkspaceGitWriters(ports: WriterHostActionPorts): () =>
     // The caller's authority is checked again right before the review is created.
     await invocation.beforeEffect();
     const request = await reviews.prepare({ project_id: project.project_id, workspace_id, operation_id: input.operation_id,
+      proposal_fingerprint: reviewProposalVersion({ input, workspace_id, worktree_id, target: prepared.view.target_path, source: prepared.view.source_path, branch: prepared.view.branch, base: prepared.view.base_commit, files: prepared.files }),
       operation_kind: "git-integration", document: { kind: "git-integration", target_directory: prepared.view.target_path,
         source: { session_id: input.session_id, run_id: input.run_id, ...(input.subagent_id === undefined ? {} : { subagent_id: input.subagent_id }), branch: prepared.view.branch, base_commit: prepared.view.base_commit, directory: prepared.view.source_path },
         files: prepared.files.map(file => ({ path: file.path.join("/"), before_text: file.before_text!, after_text: file.after_text!, before_mode: file.before_mode!, after_mode: file.after_mode! })) } },

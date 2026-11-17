@@ -491,8 +491,13 @@ generic reviews HTTP 与 Work.decide 的原校验不能单独证明 Work 归档�
 
 Native 审批挂载候选复用原 Work mount/retitle 与 Agent review factory，Work 的主对话刷新和子浮层刷新分别由调用方提供。每个详情持有固定 binding、route 与独立 lifetime；内层 renderer 在单独 content 节点挂载并随外层销毁。新浏览器交错回归 2/2 已通过，覆盖确认期间关闭、A→B→A 迟到决定、原 scope/run、remember 透传及关闭后仅重读。原 Assistant 脚本结构检查发现已有主脚本 771 行超过 770 行上限，子任务打开意图已归入 conversation 职责；审批上下文与自动规则执行已归入 `review-decision-scope.ts`，不改变门禁标准。两项整理后的完整构建通过；Assistant 原窄屏/语言切换 2/2、脚本结构 13/13、standing rule 5/5、审批桥接 21/21 通过。新浏览器夹具改为编译实际 Host 程序并注入，不为测试增加包出口；对应 2/2 复验通过。`health:check` 对 `4aa5496e3f` 通过，门禁未放宽。
 
-资源申请更新：包含原问卷、审批与生命周期 factory 的共享懒加载包候选实测 96,472 B（gzip 32,665 B）。2026-11-17 已向用户申请新增 `/assets/molis-work-assistant-subtasks.js`，最大 100,000 B、仅首次打开子任务时加载、Home 与项目共用；替代先前 70,000 B 申请。尚未收到批准，未添加构建入口、资源路由或 lazy-loader 激活，不写资源许可文件。源码挂载候选与浏览器 fixture 不是产品真实入口验收；§12.10 的上游目录重授权窗口也仍待用户裁定。
+资源申请更新：包含原问卷、审批与生命周期 factory 的共享懒加载包候选实测 96,472 B（gzip 32,665 B）。2026-11-17 已向用户申请新增 `/assets/molis-work-assistant-subtasks.js`，最大 100,000 B、仅首次打开子任务时加载、Home 与项目共用；替代先前 70,000 B 申请。用户于 2026-11-17 批准最多 100,000 B 的共享懒包；随后接入构建、资源路由与首次打开加载，并按最终产物复测。源码挂载候选与浏览器 fixture 不是产品真实入口验收；§12.10 的上游目录重授权窗口也仍待用户裁定。
 
 同步 main 前补充：恢复 Coding 时间线“评价并整合/查看成果”按钮到原成果面板；已有 TaskBoard child 行按精确 session/parent Run/child 打开已定浮窗，在切主会话之前返回。真实浏览器点原 TaskBoard 行回归 1/1 通过，主会话、看板和主草稿保持；原卡片/结果的状态渲染回归 6/6 通过。子角色提示中“总是阻塞回报父任务”已改为获准 ask-user 时使用原问卷，SDK live 问答回归通过。
 
 2026-11-17 fetch 后 main 为 `eafff2b526`，新增 #2105（39 批审批/权限 owner）与 #2104（统一登录 P1），与本批多处枢纽相交，须同步。只读合同复核指出应采用 main 唯一原决定持久化及 ReviewDecisionControl，把本批 SAI scope/最终权限检查接入它，移除已被覆盖的临时 ReviewDecisionScope 层；保留用户所见 review version、本人/原页面边界、permission owner 与原恢复控制。上述 pre-sync 测试不能替代同步后的合约验证。main 的官方 #127 SDK（e7582079）已核为本批 #130（71662135）的祖先，包合并保留后继官方 #130，并合并 #127 的采用记录。
+
+
+主线审批合同整合与资源接入（2026-11-17，尚未完成整批）：采用 main `eafff2b526` 的原决定持久化、用户所见版本与权限 lifecycle，移除临时 ReviewDecisionScope。Work/SDK 输入在首次异步读取前持有原输入代次；exact stop 只结束指定 child Work，并保留原 Run 核对到收尾。接续新 Run 独立派发与 policy/exact 校验，SDK #130 未回报其原 policy 的只读合同遗漏已独立核实，纳入既有“父子归属及回报”上游窗口修正；没有扩大尚待批的目录重授权。
+
+用户已批准的共享懒包已接构建与原入口，当前浏览器构建实测 95,351 B（gzip 34,047 B）。首次打开固定原路由、原任务、焦点与页面生命周期；关闭/换项目/账号失效取消迟到打开。浮层沿原审批及权限面板，提交所见版本。以上为中途构建证据，真实双入口、最终体积与最终头验证仍须完成。

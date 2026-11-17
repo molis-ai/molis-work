@@ -1,4 +1,4 @@
-import type { BoardSnapshot, GoalPolicyHistoryRecord } from "@molis-ai/molis-work-plugin-goals/contract";
+import type { BoardSnapshot } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { UiContribution, UiLocalePack, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 import type { UnavailablePluginStage } from "./unavailable-plugin-stage.js";
@@ -50,7 +50,6 @@ export interface MolisWorkWebView {
   /** Empty only for in-process test fixtures; normal Web URLs are project-scoped. */
   route_prefix: string;
   demo: boolean;
-  policy_bindings: GoalPolicyHistoryRecord[];
   /**
    * The answers of the plugins' declared stage reads (`stage_data`), by project plugin id, read per request as the person (T-133). A
    * plugin that is not shown, declares none, or is not there to answer has no key; its stage is drawn without `data`.

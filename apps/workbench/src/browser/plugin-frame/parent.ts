@@ -272,7 +272,6 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const placement = pagePlacement(port, scope, root, frame);
   const presentation = pagePresentation(scope, frame, root, pack, grant.page_id);
   const modal = pageModal(scope, frame);
-  const reviews = pageReviews(port, scope, root, frame, grant.page_id, route, host);
   const embed = pageEmbeds(port, scope, root, frame, grant.page_id, route);
   const workspaces = pageWorkspaces(port, scope, grant.page_id, route, uiText.text, frame.title, host.projectTitle?.() ?? "");
   let childExpanded: string | null = null;
@@ -286,13 +285,14 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   let invalidated = false, shellRefreshed = false, ownInvalidation = false;
   const environment = frameEnvironment(port, scope, root, frame);
   const { visible } = environment;
+  const reviews = pageReviews(port, scope, root, frame, grant.page_id, route, host, visible);
   // One registry of framed areas a page: the reads area and the connection card share its four places, layer and checks (§13.5).
   const areas = pageFramedAreas(scope, root, frame, visible), owner = frame.title;
   const surfaceSlot = pageSurfaceSlots(port, scope, areas, grant.page_id, JSON.stringify([grant.storage_scope, mount ?? pack.id]), route, host, root);
   const taskGrants = pageTaskGrants(port, scope, areas, grant.page_id, route, uiText.text, () => frame.title);
   const returns = pageReturns(port, scope, root, pack, grant.storage_scope, visible), connectionNeed = pageConnectionNeed(port, scope, areas, grant.page_id, route, uiText.text, owner, returns.connection);
   const state = () => {
-    const shown = visible();
+    const shown = visible(); reviews.sync(shown);
     if (shown && invalidated) {
       invalidated = false;
       port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) });
@@ -334,6 +334,12 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "connection-slot-cancel") { connectionSlot.cancel(message.id); return; }
     if (message.type === "connection-slot") { void connectionSlot(message); return; }
     if (message.type === "view-invalidate") { if (scope.visible) { ownInvalidation = true; try { host.invalidateView?.(root); } finally { ownInvalidation = false; } } return; }
+    if (message.type === "automation-suggestions") {
+      if (visible() && root.isConnected && document.body.dataset.projectId) {
+        document.dispatchEvent(new CustomEvent("molis:automation-suggestions-open", { detail: { trigger: frame } }));
+      }
+      return;
+    }
     if (message.type === "view-open") {
       const value = message.selection;
       if (scope.visible && value && typeof value.surface === "string" && value.surface.length < 200

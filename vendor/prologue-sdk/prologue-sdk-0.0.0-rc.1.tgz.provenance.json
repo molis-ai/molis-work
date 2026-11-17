@@ -9,17 +9,17 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "71662135799fedf7bca4ab6875cefbe6cc6c7d72",
+    "commit": "0afbe2c3f868565e6af85965a585ad889c044c43",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
-    "note": "Official main PR #130, tree identical to reviewed 542eb0c7: park eligible child questions, refresh exact recovered terminal reports and explicitly carry original queued answers on continuation. No vendor patches."
+    "note": "Official main PR #131, same tree as independently reviewed bf814ff2. Returns the exact started.policy for a child continuation; content-addressed references and original freezing time are preserved. No vendor patch or permission change."
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1.tgz",
-    "bytes": 1486129,
-    "sha256": "61ffb434c6568c2d31e4677f49076251bc52e3041b25ad695a5b13f4a40494bc",
-    "integrity": "sha512-/zu7LE0MOJhKFPhC4pi8zI4FuqNWQwv4KpucKyzgx5TqB6ps+70L711KvT8kgsIhYDyKUot5KIJ79U2bmIXaWA=="
+    "bytes": 1486171,
+    "sha256": "1895a23683664565db37579cb68d467ab53ee7ed9c7c9bbaf277495fe029b39b",
+    "integrity": "sha512-+/t30MUeEfiiwl8Rx2wc5ZE3eN8JncoIV0kVs/0es4k5Ah4Jk0h+B0B45jEpkYK47fT+1V3qdX8inlc/ASc66w=="
   },
   "build": {
     "node": "24.14.0",
@@ -27,14 +27,14 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Extract git archive 71662135799fedf7bca4ab6875cefbe6cc6c7d72 into two independent clean directories.",
+      "Extract git archive 0afbe2c3f868565e6af85965a585ad889c044c43 into two independent clean directories.",
       "In each: pnpm install --frozen-lockfile --offline --ignore-scripts; pnpm build; pnpm -C packages/sdk pack --pack-destination <external-directory>.",
       "Both archives are byte-identical.",
-      "Reviewed source: build, full typecheck, public-api, quality-ratchet, check-doc-links and clean-consumer pass. Seven targeted files, 56/56 tests; see PR #130. Local HTTP model fixtures, not real Provider acceptance.",
-      "Upstream CI run 44048729451 did not start any steps due to account payment/spending limit; CI is not claimed green.",
+      "Reviewed source build/types/API/ratchet/docs/clean-consumer pass; continuation safety 5/5 and Node Host parked-answer live 6/6. Local HTTP fixtures, not real Provider acceptance.",
+      "Upstream CI run 44085869806 / check 134048021067 did not start any steps due to account payment/spending limit; CI is not claimed green.",
       "Molis Work installs this official archive through the sole horizontal/agent-host dependency; product adoption validation belongs to Batch 59."
     ],
     "packedOn": "2026-11-17",
-    "note": "User-authorized minimal upstream window for Batch 59. Replaced official ce40e40a archive is recorded in patch-history.json."
+    "note": "User-authorized minimal original child identity/result window. Replaced official 71662135 archive is recorded in patch-history.json. Root reauthorization remains outside this change."
   }
 }

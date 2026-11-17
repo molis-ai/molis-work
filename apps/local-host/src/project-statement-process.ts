@@ -1,9 +1,11 @@
 import { fork, type ChildProcess } from "node:child_process";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
-import { type HomePreparationCall, type StatementCall, type StatementFatal, type StatementMessage, type StatementReply, type StatementRow, type StatementValue, isDatabaseUpgrade, type StatementUpgradeDecision } from "./project-statement-protocol.js";
+import { type HomePreparationCall, type ReviewedStatementTarget, type StatementCall, type StatementFatal, type StatementMessage, type StatementReply, type StatementRow, type StatementValue, isDatabaseUpgrade, type StatementCommitPermit, type StatementUpgradeDecision } from "./project-statement-protocol.js";
+import type { ProjectReviewCommit } from "./project-review-effect.js";
 
 // The process that runs one sandboxed plugin's statements (specs/archive/repository-anti-corruption/slices/sandbox-project-database-limits.md
 // §2). Neither SQLite driver the Host has can interrupt a statement that is running, and `Worker.terminate()` cannot stop a native
@@ -41,13 +43,14 @@ const WORKER = fileURLToPath(new URL("./project-statement-worker.js", import.met
 
 type Step = Exclude<StatementCall, { readonly op: "open" } | { readonly op: HomePreparationCall["op"] }>;
 type Answered = Extract<StatementReply, { ok: true }>;
-interface Waiting { readonly id: number; settle(reply: StatementReply): void; fail(error: unknown): void; authorize?: () => void }
+type CommitMessage = "review" | "upgrade";
+interface Waiting { readonly id: number; settle(reply: StatementReply): void; fail(error: unknown): void; permit?(kind: CommitMessage): void }
 type HomePreparationResult = { readonly ok: true } | { readonly ok: false; readonly error: unknown; readonly interrupted: boolean };
 
 /** The steps of one write transaction, between its BEGIN and its COMMIT; the process is held for it. */
 export interface StatementTransaction {
   run(sql: string, parameters: readonly StatementValue[]): Promise<number>;
-  commit(): Promise<void>;
+  commit(decision?: ProjectReviewCommit, authorize?: () => void, refused?: () => void): Promise<void>;
 }
 
 export class ProjectStatementProcess {
@@ -109,21 +112,23 @@ export class ProjectStatementProcess {
   }
 
   /** `body` runs between BEGIN IMMEDIATE and the COMMIT it asks for; any way out of it without that COMMIT rolls the transaction back. */
-  async transaction<T>(signal: AbortSignal | undefined, body: (transaction: StatementTransaction) => Promise<T>, beforeBegin: () => void): Promise<T> {
+  async transaction<T>(signal: AbortSignal | undefined, body: (transaction: StatementTransaction) => Promise<T>, beforeBegin: () => void,
+    reviewed?: ReviewedStatementTarget): Promise<T> {
     return await this.exclusive(async () => {
       signal?.throwIfAborted();
       const owner = this.child ?? await this.start();
       signal?.throwIfAborted(); beforeBegin();
       const { writeMs, transactionMs } = this.limits;
       const deadline = Date.now() + transactionMs;
-      const step = (request: Step, ms: number) => this.callOn(owner, request, Math.min(Date.now() + ms, deadline), signal);
+      const step = (request: Step, ms: number, authorize?: () => void, refused?: () => void) =>
+        this.callOn(owner, request, Math.min(Date.now() + ms, deadline), signal, authorize, refused);
       let open = false;
       try {
-        await step({ op: "begin", transactionDeadline: deadline }, writeMs);
+        await step({ op: "begin", transactionDeadline: deadline, reviewed }, writeMs);
         open = true;
         return await body({
           run: async (sql, parameters) => (await step({ op: "run", sql, parameters }, writeMs)).changes ?? 0,
-          commit: async () => { await step({ op: "commit" }, transactionMs); open = false; },
+          commit: async (decision, authorize, refused) => { await step({ op: "commit", decision }, transactionMs, authorize, refused); open = false; },
         });
       } finally {
         if (open && this.child === owner) {
@@ -168,7 +173,7 @@ export class ProjectStatementProcess {
     return this.callOn(child, request, Date.now() + ms, signal);
   }
 
-  private async callOn(child: ChildProcess, request: Step, deadline: number, signal?: AbortSignal): Promise<Answered> {
+  private async callOn(child: ChildProcess, request: Step, deadline: number, signal?: AbortSignal, authorize?: () => void, refused?: () => void): Promise<Answered> {
     signal?.throwIfAborted();
     if (Date.now() >= deadline) {
       const error = timedOut();
@@ -176,10 +181,13 @@ export class ProjectStatementProcess {
       throw error;
     }
     if (this.child !== child) throw this.ended.get(child) ?? pluginProjectDatabaseErrors.process_failed("项目库的语句进程已结束，事务不能继续");
-    const reply = await this.exchange(child, request, deadline, signal);
+    const reply = await this.exchange(child, request, deadline, signal, authorize);
     if (reply.ok) return reply;
+    refused?.();
     if (reply.kind === "refused") throw pluginProjectDatabaseErrors.statement_refused(reply.message);
     if (reply.kind === "too_large") throw pluginProjectDatabaseErrors.result_too_large(reply.message);
+    if (reply.kind === "decision_conflict") throw new ActionError("actions.conflict", reply.message);
+    if (reply.kind === "decision_expired") throw new ActionError("actions.expired", reply.message);
     throw new Error(reply.message);
   }
 
@@ -198,9 +206,9 @@ export class ProjectStatementProcess {
       if (!("id" in message)) return;
       const waiting = this.waiting;
       if (this.child !== child || !waiting || message.id !== waiting.id) return;
-      if ("prepared" in message) {
-        if (waiting.authorize) waiting.authorize();
-        else this.kill(pluginProjectDatabaseErrors.process_failed("收到没有授权回调的升级请求"));
+      if ("ready_to_commit" in message || "prepared" in message) {
+        if (!waiting.permit) { this.kill(pluginProjectDatabaseErrors.process_failed("意外的事务提交请求")); return; }
+        waiting.permit("prepared" in message ? "upgrade" : "review");
       } else waiting.settle(message);
     });
     child.on("exit", (code, signal) => {
@@ -236,15 +244,19 @@ export class ProjectStatementProcess {
       const abort = () => kill(signal?.reason ?? new DOMException("Aborted", "AbortError"));
       signal?.addEventListener("abort", abort, { once: true });
       const done = () => { clearTimeout(timer); signal?.removeEventListener("abort", abort); if (this.waiting?.id === id) this.waiting = undefined; };
+      const kind = isDatabaseUpgrade(request) ? "upgrade" : request.op === "commit" && request.decision ? "review" : undefined;
+      let permitSent = false;
       this.waiting = { id, settle: reply => { done(); resolve(reply); }, fail: error => { done(); reject(error); },
-        ...(authorize ? { authorize: () => {
+        ...(authorize && kind ? { permit: AsyncLocalStorage.bind((received: CommitMessage) => {
+          if (received !== kind || permitSent) { kill(pluginProjectDatabaseErrors.process_failed("提交许可与当前请求不一致")); return; }
           if (Date.now() >= deadline) { kill(timedOut()); return; }
           try { signal?.throwIfAborted(); authorize(); }
           catch (error) { kill(error); return; }
-          const decision: StatementUpgradeDecision = { id, publishUpgrade: true };
-          child.send(decision, error => { if (error) kill(error); });
-        } } : {}),
-      };
+          permitSent = true;
+          // The final check and sending the one-use permit stay in the same Host turn.
+          const decision: StatementCommitPermit | StatementUpgradeDecision = kind === "upgrade" ? { id, publishUpgrade: true } : { commit_permit: id };
+          child.send(decision, error => { if (error) kill(pluginProjectDatabaseErrors.process_failed("项目提交许可未送达")); });
+        }) } : {}) };
       child.send({ ...request, id, deadline }, error => { if (error) kill(pluginProjectDatabaseErrors.process_failed(`项目库的语句进程收不到请求：${error.message}`)); });
     });
   }

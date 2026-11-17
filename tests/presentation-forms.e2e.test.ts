@@ -119,16 +119,15 @@ test("IUI-21 IUI-26: Tab and Enter reach one peek, menu Escape restores focus, a
     await setViewport(width, 900);
     await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog?lang=en&keyboard-width=${width}${selector}` }, sessionId));
     await waitFor(`document.readyState === "complete" && !!document.querySelector("${selector}")`, 15_000);
-    // Start at the non-focusable section heading, then enter through a genuine Tab.
-    const { x, y, hit } = await evaluate<{ x: number; y: number; hit: string }>(`(() => {
+    // Establish the keyboard origin explicitly; clicking a non-focusable heading does not reliably reset it.
+    await evaluate(`(() => {
       const header = document.querySelector("${selector} h2"); header.scrollIntoView({ block: "center", behavior: "instant" });
-      const { left, top, height } = header.getBoundingClientRect(); const x = left + 4, y = top + height / 2; return { x, y, hit: document.elementFromPoint(x, y)?.outerHTML.slice(0, 200) };
+      header.tabIndex = -1; header.focus({ preventScroll: true });
     })()`);
-    await command("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, x, y }, sessionId);
-    await command("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, x, y }, sessionId);
+    assert.equal(await active(`${selector} h2`), true, "the heading owns the starting focus");
     await key("Tab");
     const focus = await evaluate<string>("document.activeElement.outerHTML.slice(0, 200)");
-    assert.equal(await active("[data-presentation-peek]"), true, `Tab enters the name chip at ${width} after ${hit}; focus ${focus}`);
+    assert.equal(await active("[data-presentation-peek]"), true, `Tab enters the name chip at ${width} from the heading; focus ${focus}`);
     if (width === 1024) await waitFor('document.querySelector("#presentation-popover:popover-open") !== null', 3000);
     await key("Enter");
     const layer = width === 390 ? "#presentation-sheet[open]" : "#presentation-popover:popover-open";

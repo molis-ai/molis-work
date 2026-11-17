@@ -24,7 +24,24 @@ test('ASR-01/02/03/08 account handoff keeps the public listener and waits for ev
   // WUA-29: old-page auto-entry cannot overwrite B while A's resources are still retiring.
   const premature=await fetch(f.origin+'/api/personal/login',{method:'POST',headers:{Origin:f.origin,'content-type':'application/json','x-molis-work-control-token':f.rootToken,'x-molis-work-idempotency-key':'handoff-auto-entry'},body:'{}'});
   assert.equal(premature.status,409,'installation login remains reserved through Home readiness');
+  // P1-2 / WUA-29: an entry rendered during handoff can send its automatic POST after completion.
+  const entry=await fetch(f.origin+'/',{headers:{Cookie:oldCookie,'sec-fetch-site':'same-origin','sec-fetch-dest':'document'}});
+  const entryCookie=entry.headers.getSetCookie().map(value=>value.split(';')[0]).join('; ');
+  const entryProof=(await entry.text()).match(/name="molis-work-page-session" content="([^"]+)"/)?.[1];assert.ok(entryProof);
   release();assert.equal((await pending).status,200);assert.equal((await f.status()).ready,true);assert.deepEqual(opened,[alice,bob]);
+  const late=await fetch(f.origin+'/api/personal/login',{method:'POST',headers:{Cookie:oldCookie+'; '+entryCookie,Origin:f.origin,'sec-fetch-site':'same-origin','content-type':'application/json','x-molis-work-page-session':entryProof,'x-molis-work-idempotency-key':'late-entry-after-login'},body:'{}'});
+  assert.equal(late.status,403,'a pre-completion entry cannot create a login after the successor is installed');
+  assert.equal(late.headers.get('set-cookie'),null,'late entry never overwrites the successful account cookie');
+  assert.equal((await f.status()).loginPending,false,'the successor is not blocked by a hidden login');
+  const fresh=await fetch(f.origin+'/',{headers:{Cookie:oldCookie+'; '+entryCookie,'sec-fetch-site':'same-origin','sec-fetch-dest':'document'}});
+  const freshCookie=fresh.headers.getSetCookie().map(value=>value.split(';')[0]).join('; ');
+  const freshProof=(await fresh.text()).match(/name="molis-work-page-session" content="([^"]+)"/)?.[1];assert.ok(freshProof);assert.notEqual(freshProof,entryProof);
+  const start=await fetch(f.origin+'/api/personal/login',{method:'POST',headers:{Cookie:oldCookie+'; '+freshCookie,Origin:f.origin,'sec-fetch-site':'same-origin','content-type':'application/json','x-molis-work-page-session':freshProof,'x-molis-work-idempotency-key':'fresh-entry-after-login'},body:'{}'});
+  assert.equal(start.status,200,'a refreshed stale-cookie entry still permits explicit reauthentication');
+  const {loginAttempt}=await start.json(),pendingCookie=start.headers.get('set-cookie')!.split(';')[0];
+  const cancel=await fetch(f.origin+'/api/personal/login-cancel?attempt='+loginAttempt,{method:'POST',headers:{Cookie:pendingCookie+'; '+freshCookie,Origin:f.origin,'sec-fetch-site':'same-origin','content-type':'application/json','x-molis-work-page-session':freshProof,'x-molis-work-idempotency-key':'fresh-entry-cancel'},body:'{}'});assert.equal(cancel.status,200);
+
+
   assert.deepEqual(f.server.address(),listener,'public listener is not restarted');
   const nextA=await f.login('alice');assert.equal(nextA.ready,true);assert.deepEqual(opened,[alice,bob,alice]);
   assert.notEqual(nextA.viewScope,firstA.viewScope,'ASR-03 old A control credentials cannot revive');

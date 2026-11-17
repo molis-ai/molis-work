@@ -7,12 +7,12 @@ import { randomUUID } from "node:crypto";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
-import { bindGoalsManagementActions } from "@molis-ai/molis-work-app-local-host";
-import type { GoalTreeProposalItemInput } from "@molis-ai/molis-work-plugin-goals/contract";
+import type { GoalTreeProposalDecisionResult, GoalTreeProposalItemInput } from "@molis-ai/molis-work-plugin-goals/contract";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { prepareGoalReview, webGoalReviews } from "./fixtures/project-review-entry.js";
 import { callerPlugin, projectPluginCaller } from "./fixtures/plugin-callers.js";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { initializeBoard } from "./fixtures/goals-board.js";
@@ -45,6 +45,8 @@ test("tree actions preserve proposals, protected authority, atomic materializati
   const snapshot = () => host.withProject(ref, r => boardSnapshot(r.store, project.project_id));
   const input = proposalInput("original");
   try {
+    const served = await serveTestHost(t, { home, host });
+    const review = webGoalReviews(served.web, project.project_id);
     await initializeBoard(host, ref);
     const empty = await snapshot();
     // I5-01: real Host submission retains all provenance issues, and rejection writes no facts.
@@ -113,40 +115,41 @@ test("tree actions preserve proposals, protected authority, atomic materializati
     const view = (await host.inspectActions(trusted, ref)).find(v => v.capability_id === goalsActions.treeDecide.capability_id)!;
     // A model's client cannot hold a grant for the person's decision: the access settings never offer the action to the client, so the
     // request is refused as unknown and nothing is saved (`createMcpActionGrant`'s own audience rule is pinned in mcp-action-grants.test.ts).
-    const served = await serveTestHost(t, { home, host });
     await assert.rejects(served.grant("runtime:tree", project.project_id, [view]), { status: 404, code: "actions.missing" });
     assert.deepEqual((await readMcpActionAccess(served.web, { clientId: "runtime:tree", projectId: project.project_id })).grants, [], "a refused grant leaves no record");
-    await served.close();
     await assert.rejects(client.invoke({ ...trusted, user_action: undefined }, goalsActions.treeDecide, decision), { code: "goals.goal_tree_proposal.untrusted_actor" });
     await assert.rejects(client.invoke({ ...trusted, user_action: { ...trusted.user_action!, source: "runtime_dialogue" } }, goalsActions.treeDecide, decision), { code: "goals.goal_tree_proposal.untrusted_actor" });
     await assert.rejects(client.invoke(trusted, goalsActions.treeDecide, { ...decision, authority }), { code: "actions.input_invalid" });
-    // W3-07-5-01: the management evidence owner still refuses identity and source claims;
-    // the actual action input cannot carry an authority at all.
+    // W3-07-5-01: the reviewed business draft cannot carry a source or an identity.
     const evidence = { conversation_ref: authority.conversation_ref, message_ref: authority.message_ref, whole_confirmation_prompted: true };
     for (const forged of [{ ...authority, actor_id: "another-person" }, { ...authority, authority_source: "web" as const }, { ...evidence, actor_kind: "runtime" }, authority]) {
-      await assert.rejects(bindGoalsManagementActions(client, ref).invoke(goalsActions.treeDecide, decision, forged), { code: "goals.goal_tree_proposal.authority_source_invalid" });
+      await assert.rejects(review.prepare(goalsActions.treeDecide, { ...decision, authority: forged } as typeof decision), { code: "actions.input_invalid" });
       await assert.rejects(client.invoke(trusted, goalsActions.treeDecide, { ...decision, authority: forged } as never), { code: "actions.input_invalid" });
     }
+    const command = await review.prepare(goalsActions.treeDecide, decision);
     const before = await snapshot();
     // The plugin's own tables take no trigger (a statement with one is refused): the failure comes at the decision's event in the journal.
     await host.withProject(ref, r => r.store.db.exec(`CREATE TRIGGER reject_tree_decision BEFORE INSERT ON events
       WHEN NEW.type = '${GOALS_PLUGIN_ID}:goal_tree_proposal.decided'
       BEGIN SELECT RAISE(ABORT, 'injected tree decision failure'); END`));
-    await assert.rejects(client.invoke(trusted, goalsActions.treeDecide, decision), /injected tree decision failure/);
+    await assert.rejects(review.submit(command), /injected tree decision failure/);
     assert.deepEqual(await snapshot(), before, "failed decision rolls back materialized Goals, relations and audits");
     await host.withProject(ref, r => r.store.db.exec("DROP TRIGGER reject_tree_decision"));
-    const approved = await client.invoke(trusted, goalsActions.treeDecide, decision);
+    const { record, result: approved } = await review.submit<GoalTreeProposalDecisionResult<never>>(command);
+    assert.ok(approved);
     assert.deepEqual(approved.applied_item_ids, ["original-parent", "original-child", "original-relation"]);
     assert.equal(approved.proposal.decisions[0]?.actor_id, trusted.actor_id);
-    assert.deepEqual(await client.invoke(trusted, goalsActions.treeDecide, decision), { ...approved, replayed: true });
+    assert.deepEqual(await review.submit(command), { record, replayed: true });
     const revisionInput = proposalInput("revision");
     const pendingRevision = await bound.invoke(goalsActions.treeSubmit, revisionInput);
-    const revised = await bindActionClient(client, () => trusted).invoke(goalsActions.treeDecide, {
+    const revisedDraft = {
       proposal_id: pendingRevision.proposal.proposal_id, idempotency_key: "revise-items", reason: "Revise one item and reject the others",
       decisions: [{ item_id: "revision-parent", decision: "revise", reason: "Change the proposed title",
         revised_item: { ...revisionInput.items[0]!, item_id: "revised-parent-item", payload: { goal_id: "revision-parent", title: "Corrected parent" } } as GoalTreeProposalItemInput },
       { item_id: "revision-child", decision: "reject", reason: "Not needed" }, { item_id: "revision-relation", decision: "reject", reason: "Not needed" }],
-    });
+    };
+    const { result: revised } = await review.submit<GoalTreeProposalDecisionResult<never>>(await review.prepare(goalsActions.treeDecide, revisedDraft));
+    assert.ok(revised);
     assert.equal(revised.revision_proposals.length, 1);
     assert.deepEqual(revised.revised_item_ids, ["revision-parent"]);
     assert.deepEqual(revised.rejected_item_ids, ["revision-child", "revision-relation"]);
@@ -160,16 +163,18 @@ test("tree actions preserve proposals, protected authority, atomic materializati
     await assert.rejects(client.invoke(trusted, goalsActions.treeRead, {}), { code: "actions.plugin_disabled" });
     await assert.rejects(client.invoke(trusted, goalsActions.treeSubmit, proposalInput("denied")), { code: "actions.plugin_disabled" });
     await assert.rejects(client.invoke(trusted, goalsActions.treeCheck, check), { code: "actions.plugin_disabled" });
-    await assert.rejects(client.invoke(trusted, goalsActions.treeDecide, decision), { code: "actions.plugin_disabled" });
+    await assert.rejects(review.submit(command), { code: "actions.plugin_disabled" });
     assert.deepEqual(await snapshot(), after);
+    await served.close();
     await host.close();
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [decider.definition] } });
+    const next = await serveTestHost(t, { home, host: restarted });
     try {
       assert.deepEqual(await restarted.withProject(ref, r => boardSnapshot(r.store, project.project_id)), after);
-      assert.deepEqual(await restarted.actionClient(ref).invoke(trusted, goalsActions.treeDecide, decision), { ...approved, replayed: true });
+      assert.deepEqual(await webGoalReviews(next.web, project.project_id).submit(command), { record, replayed: true });
       assert.equal((await bindActionClient(restarted.actionClient(ref), () => caller).invoke(goalsActions.treeSubmit, input)).replayed, true);
       assert.deepEqual(await restarted.withProject(ref, r => boardSnapshot(r.store, project.project_id)), after);
-    } finally { await restarted.close(); }
+    } finally { await next.close(); await restarted.close(); }
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
@@ -190,32 +195,40 @@ test("Web tree approval reaches action policy, preserves trusted provenance and 
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
-    // The page's one-time key for an act (a retry reuses it) and the header only its "confirm the whole proposal" control sends.
-    // The body's key names the act (a retry replays); the Host's one-time key is fresh for each attempt, so a retry is not the same
-    // mutation key submitted twice. `lastHostKey` is the one the most recent request carried into the recorded provenance.
+    // The body names the reviewed choice. The Host's one-time key is fresh for each request and names actual Web provenance.
     let lastHostKey = "";
-    const request = (proposalId: string, body: { idempotency_key: string; [field: string]: unknown }, authorized = true) => {
+    const request = (route: "request" | "decide", body: object, authorized = true) => {
       lastHostKey = randomUUID();
-      return fetch(`${origin}/projects/${project.project_id}/api/plugins/io.molis.work.goals/goal-tree-proposals/${proposalId}/decision`, {
-        method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-whole-confirmation": "1", "x-molis-work-idempotency-key": lastHostKey,
+      return fetch(`${origin}/projects/${project.project_id}/api/project-approvals/${route}`, {
+        method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": lastHostKey,
           ...(authorized ? { "x-molis-work-control-token": token } : {}) }, body: JSON.stringify(body) });
     };
-    const decision = { confirm_all_pending: true, reason: "Approve from protected Web", idempotency_key: "web-decision" };
+    const decision = { proposal_id: id, confirm_all_pending: true, reason: "Approve from protected Web", idempotency_key: "web-decision" };
+    const prepare = async (draft: typeof decision) => {
+      const read = await request("request", prepareGoalReview(goalsActions.treeDecide, draft));
+      assert.equal(read.status, 200, await read.clone().text());
+      const { reference } = await read.json();
+      return { reference, choice_id: "apply", request_key: draft.idempotency_key };
+    };
     const before = await snapshot();
-    assert.equal((await request(id, decision, false)).status, 403);
+    const command = await prepare(decision);
+    assert.equal((await request("decide", command, false)).status, 403);
     denied = true;
-    const blocked = await request(id, decision); assert.equal(blocked.status, 403); assert.match(await blocked.text(), /Tree disabled/);
+    const blocked = await request("decide", command); assert.equal(blocked.status, 403); assert.match(await blocked.text(), /Tree disabled/);
     assert.deepEqual(await snapshot(), before);
     denied = false;
-    const response = await request(id, { ...decision, authority: { actor_id: "forged" }, runtime_actor_id: "forged" });
+    assert.equal((await request("decide", { ...command, authority: { actor_id: "forged" }, runtime_actor_id: "forged" })).status, 400);
+    assert.deepEqual(await snapshot(), before);
+    const response = await request("decide", command);
     assert.equal(response.status, 200, await response.clone().text());
-    const result = await response.json() as { proposal: { decisions: { actor_id: string; authority_source: string; runtime_actor_id: string | null; message_ref: string }[] }; replayed: boolean };
-    assert.ok(result.proposal.decisions.every(d => d.actor_id === "web-user" && d.authority_source === "web" && d.runtime_actor_id === null && d.message_ref === `web:${lastHostKey}`));
-    assert.equal((await (await request(id, decision)).json() as { replayed: boolean }).replayed, true);
+    const { result, record } = await response.json() as { result: GoalTreeProposalDecisionResult<never>; record: unknown };
+    assert.ok(result.proposal.decisions.length > 0 && result.proposal.decisions.every(d =>
+      d.actor_id === LOCAL_PERSON_ACTOR_ID && d.authority_source === "web" && d.runtime_actor_id === null && d.message_ref === `web:${lastHostKey}`));
+    assert.deepEqual(await (await request("decide", command)).json(), { record, replayed: true });
     const conflict = await actions.invoke(goalsActions.treeSubmit, proposalInput("conflict"));
     await actions.invoke(goalsActions.create, { goal_id: "conflict-child", title: "Created elsewhere", idempotency_key: "conflicting-create" });
     const beforeConflict = await snapshot();
-    const failed = await request(conflict.proposal.proposal_id, { ...decision, idempotency_key: "conflict-decision" });
+    const failed = await request("decide", await prepare({ ...decision, proposal_id: conflict.proposal.proposal_id, idempotency_key: "conflict-decision" }));
     assert.equal(failed.status, 400);
     assert.deepEqual(await snapshot(), beforeConflict, "whole confirmation does not partially create the parent or relation");
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true }); }

@@ -16,6 +16,16 @@ const webEntries = new WeakSet<ActionUserAction>();
 /** Only `webEntryDoor` calls these: the issued object keeps its identity through the Host's queue while its request lasts. */
 export function issueWebEntryAction(action: ActionUserAction): void { webEntries.add(action); }
 export function revokeWebEntryAction(action: ActionUserAction): void { webEntries.delete(action); }
+export function hasProtectedWebAction(action: ActionUserAction | undefined): action is ActionUserAction & { readonly source: "web" } {
+  return Boolean(action && action.source === "web" && webEntries.has(action));
+}
+
+/** The protected review entry also issues a request-local immutable action to the management transport. */
+export async function withProtectedHostAction<T>(action: ActionUserAction, invoke: () => Promise<T>): Promise<T> {
+  if (webEntries.has(action)) return invoke();
+  webEntries.add(action);
+  try { return await invoke(); } finally { webEntries.delete(action); }
+}
 
 export async function withProjectReachSettingsEntry<Result>(caller: ActionCallContext,
   invoke: (caller: ActionCallContext) => Promise<Result>): Promise<Result> {

@@ -18,7 +18,7 @@ async function clientPiece(file: string, name: string): Promise<string> {
 
 for (const mode of ["work", "sdk"] as const) test(`SAI-06/08/10/11: ${mode} original review mount keeps its owner through close and A→B→A`, { timeout: 90_000 }, async t => {
   const forms = Object.fromEntries(["a", "b"].map(target => {
-    const review: AssistantPendingReview = { review_id: "review-" + target, kind: ASSISTANT_NEXT_STEP_REVIEW, run_id: "run-" + target,
+    const review: AssistantPendingReview = { review_id: "review-" + target, version: "proposal-" + target, kind: ASSISTANT_NEXT_STEP_REVIEW, run_id: "run-" + target,
       summary: "Continue " + target, fields: [], requested_at: "2026-11-17T00:00:00Z", expires_at: null };
     return [target, { ...review, html: assistantReviewHtml(review, pageText("en")) }];
   }));
@@ -52,6 +52,7 @@ for (const mode of ["work", "sdk"] as const) test(`SAI-06/08/10/11: ${mode} orig
   if (mode === "sdk") { await b.waitFor("Boolean(document.querySelector('dialog[open]'))"); await b.click("dialog[open] .mw-btn--primary"); }
   await b.waitFor("rp.calls.length===1");
   const submitted = await b.evaluate<{ path: string; body: Record<string, unknown> }>("({path:rp.calls[0].path,body:rp.calls[0].body})");
+  assert.equal(submitted.body.version, "proposal-a", "the original owner receives the version the person saw");
   assert.match(submitted.path, mode === "work" ? /^\/works\/a\/reviews\/review-a$/ : /\/sdk-subtasks\/parent-run\/a\/reviews\/review-a$/);
   if (mode === "sdk") { assert.equal(submitted.body.remember, "session"); assert.deepEqual(submitted.body.child_run, { run_id: "run-a", session_id: "session-a" }); }
   else assert.deepEqual((submitted.body.subtask as { run: unknown }).run, { run_id: "run-a", session_id: "session-a" });

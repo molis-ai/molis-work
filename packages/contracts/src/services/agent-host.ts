@@ -2,6 +2,16 @@ export type { AgentOriginalInputRef, AgentOriginalInputDraft, AgentOriginalInput
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRuntimeAdapter, AgentRuntimeDescriptor, AgentRuntimeCapabilityMatrix } from "./agent-host-runtime.js";
 import type { AgentReviewQueueApi } from "./agent-host-reviews.js";
+export type { ReviewReference, ReviewDelegationReference, ReviewDecisionSource, ReviewDecisionRecord } from "../platform/reviews.js";
+export type { AgentDelegationMode, AgentDelegationExecutor, AgentDelegationSubject, AgentDelegationTargetOwner, AgentDelegationOperationScope,
+  AgentActionDelegationScope, AgentExactDelegationScope, AgentDelegationScope, AgentDelegationSelection, AgentDelegationState } from "./agent-delegations.js";
+export { AGENT_DELEGATIONS_PROVIDER_ID, agentDelegationActions } from "./agent-delegation-actions.js";
+export { AGENT_AUTHORIZATIONS_PROVIDER_ID, AUTHORIZATION_OWNERS, agentAuthorizationActions } from "./agent-authorizations.js";
+export type { AuthorizationOwner, AuthorizationStatus, AuthorizationChangeKind, AuthorizationKey, AuthorizationFilter, AuthorizationEntry,
+  AuthorizationDetail, AuthorizationChange, AuthorizationList } from "./agent-authorizations.js";
+export type { AgentDelegationActionChoice, AgentDelegationCandidate, AgentDelegationWorkChoice, AgentDelegationProposal, AgentDelegationGrantInput,
+  AgentDelegationNarrowInput, AgentDelegationUpdateInput, AgentDelegationModeInput, AgentDelegationToken, AgentDelegationProjection,
+  AgentDelegationPreparation } from "./agent-delegation-actions.js";
 export type {AgentSavedHistoryMessage,AgentSavedHistoryRun,AgentSavedHistoryView} from './agent-history.js';
 // Declared by domain in the agent-host-*.ts files beside this one (W5-09); this subpath exports all of them.
 export { AGENT_RUNTIME_CAPABILITIES, defaultAgentRuntime, hostsAgentSessions, isTerminalAgentPhase, resolveProjectRuntime } from "./agent-host-runtime.js";
@@ -24,6 +34,8 @@ export type {
 } from "./agent-host-runtime.js";
 export { agentTextMaterialContent, AGENT_REASONING_EFFORTS, FIBONACCI_STORY_POINTS, isValidFibonacciStoryPoints, parseAgentRunBudget } from "./agent-host-start.js";
 export type {
+  AgentActionReviewControl,
+  AgentActionReviewAuthority,
   AgentWorkingDirectory,
   AgentWorkspace,
   AgentTextMaterial,
@@ -111,6 +123,9 @@ export type {
   AgentReviewStatus,
   AgentReviewRequest,
   AgentReviewDecisionInput,
+  AgentReviewDecisionAvailability,
+  AgentReviewDecisions,
+  AgentReviewRow,
   AgentReviewReceipt,
   AgentGitIndexObservation,
   AgentReviewRecoveryView,

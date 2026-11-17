@@ -1,8 +1,9 @@
 import { assistantWords } from "./assistant-saved-text.js";
 import { isDeepStrictEqual } from "node:util";
+import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { recordAssistantResultCard } from "./assistant-result-card.js";
-import { isTerminalAgentPhase, type AgentMemoryExecutionControl, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { actionResultSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isTerminalAgentPhase, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { actionResultSubject, requireSynchronous, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { describeReview } from "./assistant-review-words.js";
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { identity, revisionOf } from "./assistant-relations.js";
@@ -19,6 +20,7 @@ import { RUNTIME, MAX_TEXT, sessionRef, type AssistantServicePorts, type Assista
 import { titleIn, type CapabilityTitles } from "./assistant-present.js";
 import type { AssistantWorkReads } from "./assistant-work-reads.js";
 import type { AssistantDispatch } from "./assistant-dispatch.js";
+import { assistantEndControl, holdAssistantWorkLifetime, inAssistantWorkEffect } from "./assistant-work-permissions.js";
 import type { AssistantStepGate } from "./assistant-step-gate.js";
 
 export type AssistantOutcomesLinks = Pick<AssistantDispatch, "executorOf" | "dispatch"> & Pick<AssistantWorkReads, "latestRun"> & { read(workId: string): Promise<AssistantWorkView>; jobs: Pick<AssistantJobs, "follow">; stepGate?: Pick<AssistantStepGate, "answer"> };
@@ -32,17 +34,34 @@ export interface AssistantAnswerExecution {
  * `link`.
  */
 export class AssistantOutcomes {
-  constructor(private readonly store: Pick<AssistantStore, "addCard" | "get" | "raiseNotice" | "relations" | "rounds" | "saveUndo" | "setSetting" | "setting" | "undos">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly titles: Map<string, CapabilityTitles>, private readonly link: AssistantOutcomesLinks) {}
+  constructor(private readonly store: Pick<AssistantStore, "addCard" | "get" | "permissionTransitions" | "raiseNotice" | "relations" | "rounds" | "saveUndo" | "setSetting" | "setting" | "undos">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly titles: Map<string, CapabilityTitles>, private readonly link: AssistantOutcomesLinks) {}
 
   async answer(workId: string, input: { run_id: string; pending_id: string; pending_revision?: number; text?: string;
     answers?: ReadonlyArray<import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionAnswer> }, caller: AssistantCaller = {}, execution?: AssistantAnswerExecution): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
+    const entry = this.store.permissionTransitions.holdWorkInput(workId);
+    try { return await this.answerOriginal(work, input, caller, entry.assertCurrent, execution); }
+    finally { entry.release(); }
+  }
+
+  private async answerOriginal(work: StoredWork, input: Parameters<AssistantOutcomes["answer"]>[1], caller: AssistantCaller, assertEntry: () => void, execution?: AssistantAnswerExecution): Promise<AssistantWorkView> {
+    const workId = work.work_id;
+    const host = await this.ports.host();
+    const assertLifetime = await holdAssistantWorkLifetime(host, work);
+    const original = assistantEndControl(this.store, work);
+    const assertCurrent = () => {
+      assertEntry(); assertLifetime?.(); original.assertCurrent(); execution?.assertCurrent();
+      const current = this.store.get(this.actorId, workId);
+      if (current.archived || current.delegated_by?.taken_back_at) throw assistantErrors.state("这项工作已经归档或收回");
+      requireSynchronous(caller.assertBeforeStart?.());
+    };
+    const beforeEffect = async () => { await caller.beforeStart?.(); await execution?.beforeEffect(); assertCurrent(); };
     if (work.executor.kind === "plugin") {
-      const executor = await this.link.executorOf(work, undefined, execution ? { control: { beforeEffect: execution.beforeEffect, assert_authority_current: execution.assertCurrent } } : undefined);
+      const executor = await this.link.executorOf(work, undefined, { control: { beforeEffect, assert_authority_current: assertCurrent } });
       const run = work.executor.session_id ? (await executor.read(work.executor.session_id, 6)).runs.find(item => item.ref.run_id === input.run_id) : undefined;
       const question = run?.awaiting_input.find(item => item.pending_id === input.pending_id);
       if (!run || !question || run.phase !== answerablePhase(question)) throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
-      await execution?.beforeEffect(); execution?.handed();
+      await beforeEffect(); execution?.handed();
       const result = await executor.control(work.executor.session_id!, run.ref.run_id, { kind: "answer", pending_id: input.pending_id, pending_revision: exactRevision(input.pending_revision, question.pending_revision),
         ...(execution ? { continue_after_answer: false } : {}),
         ...(input.text !== undefined ? { text: input.text } : {}), ...(input.answers ? { answers: input.answers } : {}) });
@@ -51,49 +70,46 @@ export class AssistantOutcomes {
       return this.link.read(workId);
     }
     if (!this.store.rounds(work.work_id).some(round => round.run_id === input.run_id)) throw assistantErrors.scope("这个问题不属于这项工作");
-    const host = await this.ports.host();
-    const run = await host.adapter(RUNTIME).read({ session_id: work.session_id!, run_id: input.run_id });
+    const adapter = host.adapter(RUNTIME);
+    const run = await adapter.read({ session_id: work.session_id!, run_id: input.run_id });
     const question = run.awaiting_input.find(item => item.pending_id === input.pending_id);
     // A late answer to a question that is already closed or replaced starts nothing; one parked at a restart ends its round.
     if (!question || run.phase !== answerablePhase(question)) throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
     if (input.text !== undefined && (typeof input.text !== "string" || input.text.length > MAX_TEXT)) throw assistantErrors.invalid("回答过长");
-    const adapter = host.adapter(RUNTIME), answer = () => adapter.control(run.ref, { kind: "answer", pending_id: input.pending_id,
+    await beforeEffect(); execution?.handed();
+    await inAssistantWorkEffect(adapter, { beforeEffect, assertCurrent }, () => adapter.control(run.ref, { kind: "answer", pending_id: input.pending_id,
       ...(input.pending_revision !== undefined ? { pending_revision: input.pending_revision } : question.pending_revision !== undefined ? { pending_revision: question.pending_revision } : {}),
-      ...(input.text !== undefined ? { text: input.text } : {}), ...(input.answers ? { answers: input.answers } : {}) });
-    if (execution) {
-      if (!adapter.withEffect) throw assistantErrors.unsupported("当前运行时不能核对原问题的提交边界");
-      await execution.beforeEffect(); execution.handed();
-      await adapter.withEffect({ beforeEffect: execution.beforeEffect, assert_current: execution.assertCurrent }, answer);
-      execution.accepted();
-      return this.link.read(workId);
-    }
-    await answer();
-    return afterParkedAnswer(question.parked ? await roundAfterParkedAnswer(() => this.link.dispatch(this.store.get(this.actorId, workId), PARKED_ANSWER_TASK, [], null, undefined, "host", undefined, caller.beforeStart, caller.assertBeforeStart, { byHost: true, ...(caller.reply_locale ? { reply_locale: caller.reply_locale } : {}) }), async () => host.adapter(RUNTIME).recovery?.inspect(sessionRef(work))) : undefined, await this.link.read(workId));
+      ...(input.text !== undefined ? { text: input.text } : {}), ...(input.answers ? { answers: input.answers } : {}) }));
+    if (execution) { execution.accepted(); return this.link.read(workId); }
+    return afterParkedAnswer(question.parked ? await roundAfterParkedAnswer(() => this.link.dispatch(this.store.get(this.actorId, workId), PARKED_ANSWER_TASK, [], null, undefined, "host", undefined, beforeEffect, assertCurrent, { byHost: true, ...(caller.reply_locale ? { reply_locale: caller.reply_locale } : {}) }), async () => adapter.recovery?.inspect(sessionRef(work))) : undefined, await this.link.read(workId));
   }
 
-  async decide(workId: string, input: { review_id: string; decision: "approve" | "reject"; note?: string }, execution?: AgentMemoryExecutionControl & { run: AgentRunRef }): Promise<AssistantWorkView> {
-    await execution?.beforeEffect(); execution?.assert_current();
+  async decide(workId: string, input: { review_id: string; version: string; decision: "approve" | "reject"; note?: string }, boundary?: Parameters<AgentHost["reviews"]["respond"]>[1], subtaskRun?: AgentRunRef, assertSubtaskCurrent?: () => void): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
-    if (execution && work.step_gate?.id === input.review_id && work.step_gate.run_id !== execution.run.run_id) throw assistantErrors.stale("下一步确认不属于这次原执行");
+    if (subtaskRun && work.step_gate?.id === input.review_id && work.step_gate.run_id !== subtaskRun.run_id) throw assistantErrors.stale("下一步确认不属于这次原执行");
+    await boundary?.beforeEffect?.();
     // 「接着做下一步？」 is the Host's own confirmation (PWA-156), answered here the same as through the task's row.
-    if (work.step_gate?.id === input.review_id && await this.link.stepGate?.answer(workId, input.review_id, input.decision, execution?.assert_current)) return this.link.read(workId);
+    if (work.step_gate?.id === input.review_id && await this.link.stepGate?.answer(workId, input.review_id, input.version, input.decision, assertSubtaskCurrent)) return this.link.read(workId);
     const host = await this.ports.host();
     const review = host.reviews.get(String(input.review_id));
     // A plugin-carried work's confirmations are the plugin's own, in the same queue its page decides from.
     const session = work.executor.kind === "plugin" && work.executor.session_id
       ? (await (await this.link.executorOf(work)).read(work.executor.session_id, 1)).runtime_session_id ?? null : work.session_id;
     if (!review || review.run?.session_id !== session || review.project_id !== ownerOf(work)
-      || execution && (review.run.run_id !== execution.run.run_id || review.run.session_id !== execution.run.session_id)) throw assistantErrors.scope("这项确认不属于这项工作");
+      || subtaskRun && (review.run.run_id !== subtaskRun.run_id || review.run.session_id !== subtaskRun.session_id)) throw assistantErrors.scope("这项确认不属于这项工作");
     if (!["approve", "reject"].includes(input.decision)) throw assistantErrors.invalid("请选择允许或拒绝");
-    const decide = () => host.reviews.respond({ review_id: review.review_id, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: String(input.note).slice(0, 2000) } : {}) }, execution);
-    if (execution) {
-      const adapter = host.adapter(RUNTIME);
-      if (!adapter.withEffect) throw assistantErrors.unsupported("当前运行时不能核对审批提交边界");
-      await adapter.withEffect(execution, decide);
-    } else await decide();
-    // Scoped decisions use the original approval bridge's exact-Run feedback; do not queue a second notice after acceptance.
-    // The main Work path also tells the round the person declined it.
-    if (!execution && input.decision === "reject" && work.executor.kind !== "plugin" && review.run) {
+    await host.reviews.respond({ review_id: review.review_id, version: input.version, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: String(input.note).slice(0, 2000) } : {}) }, {
+      beforeEffect: boundary?.beforeEffect,
+      assertCurrent: request => {
+        const current = this.store.get(this.actorId, workId);
+        if (ownerOf(current) !== request.project_id || current.session_id !== work.session_id || current.archived !== work.archived || !isDeepStrictEqual(current.executor, work.executor)) {
+          throw assistantErrors.scope("这项工作的执行归属已经改变，原确认没有提交");
+        }
+        return boundary?.assertCurrent?.(request);
+      },
+    });
+    // The runtime tells the round only that policy blocked the change; the round must know the person declined it.
+    if (!subtaskRun && input.decision === "reject" && work.executor.kind !== "plugin" && review.run) {
       const latest = await this.link.latestRun(host, work).catch(() => null);
       if (latest && latest.ref.run_id === review.run.run_id && !isTerminalAgentPhase(latest.phase)) {
         const why = input.note ? `，理由：${String(input.note).slice(0, 500)}` : "";

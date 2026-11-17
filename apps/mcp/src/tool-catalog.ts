@@ -1,5 +1,5 @@
 import type { McpToolDefinition } from "./protocol.js";
-import { managementGoalTools, type McpManagementActionSource } from "./goal-tools.js";
+import { managementGoalTools, MANAGEMENT_REVIEW_TOOLS, type McpManagementActionSource } from "./goal-tools.js";
 import { MANAGEMENT_GOAL_TOOL_NAMES } from "./tool-dispatch.js";
 import { CONTEXT_TOOLS } from "./context-tools.js";
 
@@ -12,10 +12,10 @@ const SERVER_INFO = { name: "molis-work-mcp", version: /* @version identity.mcp.
 
 /** Every platform tool, in the order a management client lists them: the Goals management tools, then the connection tools. */
 export function platformMcpTools(read: McpManagementActionSource): McpToolDefinition[] {
-  return [...managementGoalTools(read), ...CONTEXT_TOOLS];
+  return [...managementGoalTools(read), ...MANAGEMENT_REVIEW_TOOLS, ...CONTEXT_TOOLS];
 }
 
-const PLATFORM_TOOL_NAMES: ReadonlySet<string> = new Set<string>([...Object.values(MANAGEMENT_GOAL_TOOL_NAMES), ...CONTEXT_TOOLS.map(tool => tool.name)]);
+const PLATFORM_TOOL_NAMES: ReadonlySet<string> = new Set<string>([...Object.values(MANAGEMENT_GOAL_TOOL_NAMES), ...MANAGEMENT_REVIEW_TOOLS.map(tool => tool.name), ...CONTEXT_TOOLS.map(tool => tool.name)]);
 
 const RUNTIME_CONTEXT_TOOL_NAMES = new Set([
   "molis_work_v1_context_resolve",

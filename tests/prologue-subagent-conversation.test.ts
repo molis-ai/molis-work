@@ -39,7 +39,7 @@ async function fixture(script: (body: Wire) => Response | Promise<Response>) {
     for (const deadline = Date.now() + 25_000; !await done();) {
       if (errors.length) throw errors[0];
       if (Date.now() > deadline) throw new Error("timed out: " + JSON.stringify({ requests, reviews: queue.list(owner.project_id) }));
-      for (const item of queue.list(owner.project_id, "pending")) await queue.respond({ review_id: item.review_id, actor_id: owner.actor_id, decision: "approve" });
+      for (const item of queue.list(owner.project_id, "pending")) await queue.respond({ review_id: item.review_id, version: item.reference.version, actor_id: owner.actor_id, decision: "approve" });
       await new Promise(resolve => setTimeout(resolve, 10));
     }
   };

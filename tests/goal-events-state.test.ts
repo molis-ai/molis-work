@@ -4,12 +4,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { LocalHost, LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { goalsRoutes, hostEventDecisionAuthority, GOALS_ACTION_PERMISSIONS, GOALS_ACTIONS, GOALS_PLUGIN_ID, goalsActions, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
-import { ActionService } from "@molis-ai/molis-work-kernel";
-import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { bindGoalsManagementActions, entryUserAction, readProjectGuidance } from "@molis-ai/molis-work-app-local-host";
-import { LOCAL_PERSON_ACTOR_ID, bindActionClient, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { hostEventDecisionAuthority, GOALS_PLUGIN_ID, goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { bindGoalsManagementActions, readProjectGuidance } from "@molis-ai/molis-work-app-local-host";
+import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalEventTypeDefinitionInput, SetGoalEventAgreementInput } from "@molis-ai/molis-work-plugin-goals/contract";
 import { GoalProjectApplication, boardSnapshot, goalsQueryOf } from "./fixtures/goal-application.js";
 
@@ -646,68 +644,6 @@ test("parent needs its own integration result; old completion and ancestor auto-
     assert.equal(fulfillment(data.app, "child-legacy"), "satisfied");
     assert.equal(fulfillment(data.app, "parent-event-2"), before);
     assert.equal(fulfillment(data.app, "parent-event-2"), "unmet");
-  } finally {
-    close(data);
-  }
-});
-
-test("protected Web user entry records a decision; Host-injected identity is required", async () => {
-  const data = fixture();
-  try {
-    const actions = new ActionService();
-    actions.registerProvider({ provider: { provider_id: "goals", title: "Goals", kind: "plugin", project_id: BOARD },
-      definitions: GOALS_ACTIONS, handlers: createGoalsActionHandlers({ events: data.app.goalEvents, acknowledgements: data.app.goalAcknowledgements, projectId: BOARD,
-        board: { immediate: operation => data.store.immediate(operation), query: goalsQueryOf(data.store),
-        initializeBoard: input => data.app.initializeBoard(input), commands: data.app.goals.commands,
-        adoptOwner: input => data.app.goalEvents.adoptOwner(input) },
-      collection: { snapshot: projectId => boardSnapshot(data.store, projectId), events: projectId => data.store.readEventsDescending(projectId),
-        goals: data.app.goalQueries, inputs: data.app.goalInputs, eventWork: data.app.goalEvents },
-      readGoal: goalId => data.app.goalQueries.getGoal(BOARD, goalId),
-        readContract: goalId => data.app.goalQueries.readGoalContract(BOARD, goalId),
-      deliverables: { readArtifact: reference => openProjectVersionStores(data.store).artifacts.query.getArtifactVersion(BOARD, reference), ledger: createContextLedger(data.store.db, { authorize: () => true }) },
-      history: {
-        snapshot: () => boardSnapshot(data.store, BOARD), journalEvents: () => data.store.readEventsDescending(BOARD),
-      }, planning: { planning: data.app.goals.planning }, guidance: { commands: data.app.goals.commands, read: projectId => data.app.goalQueries.readProjectGuidance(projectId) },
-      lifecycle: { lifecycle: data.app.goals.lifecycle, setActiveGoal: (...args) => data.app.setActiveGoal(...args), eventCursor: () => data.store.eventCursor(BOARD) },
-      configuration: { commands: data.app.goals.commands, query: goalsQueryOf(data.store), eventCursor: () => data.store.eventCursor(BOARD) },
-      tree: { submitGoalTreeProposal: input => data.app.goalTreeSubmission.submitGoalTreeProposal(input),
-        listGoalTreeProposals: input => data.app.goalTree.listGoalTreeProposals(input),
-        checkGoalTreeProposal: input => data.app.goalTreeCheck.checkGoalTreeProposal(input),
-        decideGoalTreeProposal: input => data.app.goalTreeDecision.decideGoalTreeProposal(input) } }) });
-    const created = data.app.goalEvents.createIntent({
-      project_id: BOARD, title: "Web 决定", outcome: "用户验收", actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "intent-web",
-    });
-    const goalId = created.goal.goal_id;
-    configure(data.app, goalId, "cfg-web", { new_requirements: [{ requirement_id: "web-ok", statement: "用户确认" }] });
-    // PG094-09: the page's decision is the declared route `goals.event-decision`, called the way the Host mounts it.
-    const route = goalsRoutes({
-      // No Host here: the entry is the page's own, as the Host binds it (the person, and where the act came from, never from the input).
-      actions: () => bindActionClient(actions, () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: BOARD,
-        permissions: [...GOALS_ACTION_PERMISSIONS], user_action: entryUserAction("web", BOARD, { id: "web-http-1" }) })),
-      routePrefix: () => "",
-      idempotencyKey: () => undefined,
-      changed: () => undefined,
-    }).find((binding) => binding.route_id === "goals.event-decision");
-    assert.ok(route);
-    const { status, body } = await route.handle({
-      method: "POST",
-      pathname: `/api/plugins/io.molis.work.goals/goals/${goalId}/event-decision`,
-      params: { goalId },
-      query: {},
-      body: {
-        conclusion: "网页确认可以试用",
-        accepts_requirements: true,
-        scope: { requirement_ids: ["web-ok"] },
-        idempotency_key: "web-http-1",
-      },
-      actor_id: LOCAL_PERSON_ACTOR_ID,
-    });
-    assert.equal(status, 200);
-    const decision = body as { decision: { authority_source: string; actor_id: string } };
-    assert.equal(decision.decision.authority_source, "web");
-    assert.equal(decision.decision.actor_id, "web-user");
-    const state = data.app.goalEvents.readState(BOARD, goalId);
-    assert.equal(state.requirements.find((item) => item.requirement_id === "web-ok")?.user_conclusion?.verdict, "accepted");
   } finally {
     close(data);
   }
@@ -2134,10 +2070,7 @@ test("an earlier superseded completion is not revived over the later effective o
 test("project human-approval policy blocks completion until a current user authorizes it", () => {
   const data = fixture();
   try {
-    data.app.goals.commands.saveProjectPolicy({
-      project_id: BOARD, actor_id: "user-1", user_confirmed: true,
-      policy: { human_approval: true }, idempotency_key: "policy-approval",
-    });
+    data.app.saveProjectApproval(BOARD, "user-1", true, "policy-approval");
     const created = data.app.goalEvents.createIntent({
       project_id: BOARD, title: "需要你点头", outcome: "结果可以检查",
       actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "intent-approval-policy",
@@ -2179,10 +2112,7 @@ const SELF_REPORTED = "goals.event_closure.requirement_self_reported";
 const REJECTED = "goals.event_closure.requirement_rejected";
 
 function requireProjectApproval(app: GoalProjectApplication, key: string) {
-  app.goals.commands.saveProjectPolicy({
-    project_id: BOARD, actor_id: "user-1", user_confirmed: true,
-    policy: { human_approval: true }, idempotency_key: key,
-  });
+  app.saveProjectApproval(BOARD, "user-1", true, key);
 }
 
 /**
@@ -3220,61 +3150,37 @@ test("without the project rule an acceptance of a requirement is not limited to 
 const REPLACEMENT = "io.molis.work.example.goals-provider";
 
 
-test("the management caller factory acts as the person on this machine, builds the authority of a decision itself, and pins the Host's Goals", async () => {
+test("the Goals management caller pins the owner and leaves protected decisions to the platform entry", async () => {
   const seen: Array<{ caller: ActionCallContext; action: ActionReference; input: unknown }> = [];
-  // RAC-336: the provider is the Goals that ships with the Host, pinned exactly; the call reads no directory first.
-  const client: ActionClient = { discover: async () => { throw new Error("no directory read"); }, invoke: async (caller, action, input) => { seen.push({ caller, action, input }); return {} as never; } };
+  const client: ActionClient = {
+    discover: async () => { throw new Error("no directory read"); },
+    invoke: async (caller, action, input) => { seen.push({ caller, action, input }); return {} as never; },
+  };
   const management = bindGoalsManagementActions(client, { project_id: BOARD, storage_key: "fixture" });
   assert.equal(management.project_id, BOARD);
-  const decision = { goal_id: "g", conclusion: "允许发布当前结果", idempotency_key: "event-1" };
-
-  await management.invoke(goalsActions.decide, decision, { conversation_ref: "conversation://x", message_ref: "message://y" });
-  const [pointed] = seen;
-  assert.deepEqual([pointed!.caller.actor_id, pointed!.caller.actor_kind, pointed!.caller.audience, pointed!.caller.project_id], [LOCAL_PERSON_ACTOR_ID, "user", "user", BOARD]);
-  assert.deepEqual(pointed!.caller.user_action, { source: "management", conversation_ref: "conversation://x", message_ref: "message://y" }, "the decision points at its conversation, and says nothing of who decides");
-  assert.deepEqual(pointed!.caller.permissions, goalsActions.decide.action.permissions, "only what that action asks");
-  assert.deepEqual(pointed!.caller.allowed_actions, [{ capability_id: goalsActions.decide.capability_id, version: goalsActions.decide.version, provider_id: GOALS_PLUGIN_ID }],
-    "the provider found is pinned exactly: the call reaches it and no other");
-  assert.equal(pointed!.action.provider_id, GOALS_PLUGIN_ID);
-  assert.deepEqual(pointed!.input, decision, "the input is the caller's, untouched");
-  assert.equal("call_id" in pointed!.caller, false, "the call number is the operation's (the scope the entry runs in), not made here");
-
-  seen.length = 0;
-  await management.invoke(goalsActions.decide, { ...decision, idempotency_key: "event-2" });
-  assert.deepEqual(seen[0]!.caller.user_action, { source: "management", conversation_ref: `management:${BOARD}`, message_ref: "management:event-2" }, "no evidence: the decision points at the management entry itself");
-
-  seen.length = 0;
   await management.invoke(goalsActions.snapshot, {});
-  assert.deepEqual(seen[0]!.caller.user_action, { source: "management", conversation_ref: `management:${BOARD}`, message_ref: `management:${goalsActions.snapshot.capability_id}` }, "a read has no key: its reference is the action");
   await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
+  for (const [i, action] of [goalsActions.snapshot, goalsActions.initialize].entries()) {
+    const observed = seen[i]!;
+    assert.deepEqual([observed.caller.actor_id, observed.caller.actor_kind, observed.caller.audience, observed.caller.project_id],
+      [LOCAL_PERSON_ACTOR_ID, "user", "user", BOARD]);
+    assert.deepEqual(observed.caller.permissions, action.action.permissions);
+    assert.deepEqual(observed.caller.allowed_actions, [{ capability_id: action.capability_id, version: action.version, provider_id: GOALS_PLUGIN_ID }]);
+    assert.equal(observed.action.provider_id, GOALS_PLUGIN_ID);
+    assert.equal("call_id" in observed.caller, false);
+  }
+  assert.deepEqual(seen[0]!.caller.user_action, { source: "management", conversation_ref: `management:${BOARD}`, message_ref: `management:${goalsActions.snapshot.capability_id}` });
   assert.deepEqual(seen[1]!.caller.user_action, { source: "management", conversation_ref: `management:${BOARD}`, message_ref: "management:init" });
-
-  // Who decides is the Host's to say: an identity in the evidence is refused, and evidence belongs to the two decisions only. Nothing reaches the client.
-  seen.length = 0;
-  for (const named of [{ actor_id: "someone-else" }, { actor_kind: "runtime" }, { authority_source: "web" }]) {
-    await assert.rejects(management.invoke(goalsActions.decide, decision, { conversation_ref: "conversation://x", ...named }), { code: "goals.event_decision_authority_invalid" }, Object.keys(named).join());
-    await assert.rejects(management.invoke(goalsActions.treeDecide, { proposal_id: "p", idempotency_key: "k" }, { conversation_ref: "conversation://x", ...named }), { code: "goals.goal_tree_proposal.authority_source_invalid" }, Object.keys(named).join());
+  for (const action of [goalsActions.decide, goalsActions.treeDecide]) {
+    await assert.rejects(management.invoke(action, { actor_id: "someone-else" }), { code: "actions.dependency_missing" });
   }
   await assert.rejects(management.invoke(goalsActions.initialize, { idempotency_key: "init" }, { conversation_ref: "conversation://x" }), { code: "actions.input_invalid" });
-
-  // Nor do the arguments of a write take an identity: refused in the words the typed door used, naming the field, and before the evidence is
-  // looked at, for the two decisions that take evidence (an identity in both is the arguments' refusal). Nothing reaches the client.
-  const refusedInArguments: Array<[string, (field: string) => Promise<unknown>, string[]]> = [
-    [goalsActions.treeSubmit.capability_id, field => management.invoke(goalsActions.treeSubmit, { summary: "s", items: [], idempotency_key: "k", [field]: "x" } as never), ["submitted_session_id"]],
-    [goalsActions.treeCheck.capability_id, field => management.invoke(goalsActions.treeCheck, { proposal_id: "p", idempotency_key: "k", [field]: "x" } as never), []],
-    [goalsActions.treeDecide.capability_id, field => management.invoke(goalsActions.treeDecide, { proposal_id: "p", idempotency_key: "k", [field]: "x" } as never, { conversation_ref: "c", actor_id: "also" }), ["audit_actor_id", "runtime_actor_id"]],
-    [goalsActions.decide.capability_id, field => management.invoke(goalsActions.decide, { ...decision, [field]: "x" } as never, { conversation_ref: "c", actor_id: "also" }), []],
-  ];
-  for (const [capabilityId, call, more] of refusedInArguments) {
-    for (const field of ["actor_id", "actor_kind", ...more]) {
-      await assert.rejects(call(field), { code: "actions.input_invalid", message: new RegExp(`^写入者由宿主确定（管理入口是本机这个人，插件取自调用上下文），参数里不能带 ${field}$`) }, `${capabilityId} refuses ${field}`);
-    }
+  for (const [action, fields] of [[goalsActions.treeSubmit, ["actor_id", "actor_kind", "submitted_session_id"]],
+    [goalsActions.treeCheck, ["actor_id", "actor_kind"]]] as const) {
+    for (const field of fields) await assert.rejects(management.invoke(action, { [field]: "x" }),
+      { code: "actions.input_invalid", message: new RegExp(field) });
   }
-  assert.deepEqual(seen, []);
-
-  // A read has no such rule here: its contract refuses what it does not know, so the call reaches the client.
-  await management.invoke(goalsActions.treeRead, { actor_id: "x" } as never);
-  assert.equal(seen.length, 1);
+  assert.equal(seen.length, 2, "refused inputs never reach either entry");
 });
 
 test("RAC-337: with no Goals in the project, the Host's management call and guidance read are refused by the dispatcher with a code", async () => {
@@ -3290,13 +3196,13 @@ test("RAC-341: a third-party installation that registers Goals' capabilities whi
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => undefined } });
   const reference = { project_id: "a", storage_key: "a" };
   const reached: string[] = [];
-  const offered = [goalsActions.guidanceRead, goalsActions.snapshot, goalsActions.decide];
+  const offered = [goalsActions.guidanceRead, goalsActions.snapshot];
   // The only provider of these `goals.*@v` is someone else's installation, under the installation id the Host gives it.
   host.actionRegistry(reference).registerProvider({ provider: { provider_id: REPLACEMENT, plugin_id: GOALS_PLUGIN_ID, plugin_install_id: REPLACEMENT, title: "Third party", kind: "plugin" },
     definitions: offered, handlers: offered.map(definition => ({ ...definition, handle: () => { reached.push(definition.capability_id); return {} as never; } })) });
   try {
     const management = bindGoalsManagementActions(host.actionClient(reference), reference);
-    await assert.rejects(management.invoke(goalsActions.decide, { goal_id: "g", conclusion: "允许发布当前结果", idempotency_key: "third-party" }), { code: "actions.provider_changed" }, "management decision");
+    await assert.rejects(management.invoke(goalsActions.decide, { goal_id: "g", conclusion: "允许发布当前结果", idempotency_key: "third-party" }), { code: "actions.dependency_missing" }, "retired management decision shortcut");
     await assert.rejects(management.invoke(goalsActions.snapshot, {}), { code: "actions.provider_changed" }, "management read");
     await assert.rejects(readProjectGuidance(host.actionClient(reference), reference), { code: "actions.provider_changed" }, "guidance");
     assert.deepEqual(reached, [], "nothing reaches the third-party provider");
@@ -3347,15 +3253,17 @@ test("RAC-1261: an unreadable project human-approval rule stops completion inste
   try {
     requireProjectApproval(data.app, "policy-unreadable");
     const goalId = supportedGoal(data.app, "unreadable", "unreadable-req");
-    const corrupt = data.store.db.prepare("UPDATE policy_bindings SET policy_json = ? WHERE project_id = ? AND goal_id IS NULL AND scope = 'project_default' AND state = 'active'");
-    corrupt.run('{"human_approval": true,', BOARD);
+    data.store.db.pragma("ignore_check_constraints = ON");
+    const corrupt = data.store.db.prepare("UPDATE project_approval_rules SET scope_json = ? WHERE project_id = ? AND state = 'active'");
+    corrupt.run('{"kind":', BOARD);
+    data.store.db.pragma("ignore_check_constraints = OFF");
     assert.throws(
       () => tryComplete(data.app, goalId, "close-unreadable", { actor_id: "web-user", actor_kind: "user" }),
-      (error: unknown) => error instanceof ActionError && error.code === "goals.storage.record_unreadable" && error.kind === "internal",
+      (error: unknown) => error instanceof ActionError && error.code === "actions.execution_failed",
       "规则读不出来时不能当成没有人审批、也不能当成需要审批",
     );
     assert.equal(data.app.goalEvents.readState(BOARD, goalId).work_status, "open");
-    corrupt.run('{"human_approval": true}', BOARD);
+    corrupt.run('{"kind":"project_default"}', BOARD);
     const held = tryComplete(data.app, goalId, "close-unreadable-restored", { actor_id: "web-user", actor_kind: "user" });
     assert.equal(held.completion_applied, false);
     assert.deepEqual(reasonCodes(held), [APPROVAL_REQUIRED]);

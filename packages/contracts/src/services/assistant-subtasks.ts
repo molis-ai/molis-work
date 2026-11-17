@@ -29,6 +29,7 @@ export type AssistantRequestResult = AssistantSendResult | { outcome: "stopped";
 export interface AssistantSubtaskReview {
   subtask: AssistantSubtaskBinding;
   review_id: string;
+  version: string;
   decision: "approve" | "reject";
   note?: string;
 }
@@ -37,6 +38,7 @@ export interface AssistantSubtaskReview {
 export interface AssistantSdkSubtaskReview {
   child_run: AgentRunRef;
   review_id: string;
+  version: string;
   decision: "approve" | "reject";
   note?: string;
   remember?: "session" | "app-this-round";

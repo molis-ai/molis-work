@@ -1,33 +1,12 @@
 import type { GoalEventStateView, GoalPolicy } from "./contract/goals.js";
 
-/** The Web projection of a rule binding; its scope strings are the page's, not the Module's binding scopes. */
-export interface GoalsPolicyBinding {
-  policy_binding_id: string;
-  goal_id: string | null;
-  scope: string;
-  policy: Partial<GoalPolicy>;
-  state: string;
-  created_by: string;
-  reason: string;
-  created_at: string;
-}
-
 export interface GoalsPolicyItem {
   goal: { goal_id: string };
-  policy_bindings: GoalsPolicyBinding[];
   resolved_policy: GoalPolicy;
   event_document?: { state: Pick<GoalEventStateView, "requirements"> } | null;
 }
 
 export interface GoalsPolicyUiPrimitives {
-  translate(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
-  formatDate(value: string | null | undefined): string;
-  icon(name: "chevron-down" | "target" | "database" | "shield" | "history" | "arrow" | "folder" | "circle-alert"): string;
-  defaultPolicy: GoalPolicy;
-}
-
-/** Prefills editable fields only; resolved_policy from the Module remains authoritative. */
-export function mergeGoalPolicyFormValues(base: GoalPolicy, binding?: GoalsPolicyBinding): GoalPolicy {
-  return { human_approval: binding?.policy.human_approval ?? base.human_approval };
+  icon(name: "shield" | "folder"): string;
 }

@@ -134,14 +134,14 @@ for (const decision of ["approve", "reject", "stop", "bridge-failure", "escape",
         assert.equal(await readFile(join(parent, "sample.txt"), "utf8"), "PARENT\n");
         assert.equal(await readFile(join(childPath, "sample.txt"), "utf8"), "CHILD ORIGINAL\n", "approval is required before writing");
         if (review.kind === "tool-operation") {
-          assert.equal(childCalls, 0); await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" });
+          assert.equal(childCalls, 0); await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "user" });
         } else if (decision === "command") {
           assert.equal(review.document.kind, "command");
           if (review.document.kind !== "command") throw new Error("wrong command review");
           assert.equal(review.document.command, "pwd");
           assert.equal(review.document.workspace_path, childPath); assert.equal(review.document.cwd, ".");
           writeReview = review.review_id;
-          const result = await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" });
+          const result = await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "user" });
           assert.equal(result.delivery_error, undefined);
         } else {
           assert.equal(review.document.kind, "text-edit");
@@ -154,7 +154,7 @@ for (const decision of ["approve", "reject", "stop", "bridge-failure", "escape",
             await adapter.close(); queue = new AgentReviewQueue(); adapter = await make();
             await queue.refresh("b");
             assert.equal(calls, count, "restart at pending cannot call the provider");
-            await assert.rejects(queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" }));
+            await assert.rejects(queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "user" }));
             break polling;
           } else if (decision === "stop") { const [child] = await adapter.subagents!.list(handle.ref); await adapter.subagents!.command!(handle.ref, child!.subagent_id, { kind: "stop", request_id: "stop-writer", child_run: child!.child_run! }, { actor_id: "user", execution: {} }); }
           else if (decision === "approve" || decision === "reject") {
@@ -168,7 +168,7 @@ for (const decision of ["approve", "reject", "stop", "bridge-failure", "escape",
               assert.equal(await readFile(join(childPath, "sample.txt"), "utf8"), "CHILD ORIGINAL\n");
               assert.equal((await adapter.subagents!.list(handle.ref)).length, 1);
             }
-            const result = await queue.respond({ review_id: review.review_id, decision, actor_id: "user" });
+            const result = await queue.respond({ review_id: review.review_id, version: review.reference.version, decision, actor_id: "user" });
             assert.equal(result.delivery_error, undefined);
           }
           else throw new Error("A rejected path or failed bridge must not create an actionable write review");
@@ -208,7 +208,7 @@ for (const decision of ["approve", "reject", "stop", "bridge-failure", "escape",
     if (writeReview) assert.equal(queue.get(writeReview)?.document.kind, decision === "command" ? "command" : "text-edit");
     if (decision === "approve" || decision === "command") assert.equal(queue.receipt(writeReview!)?.effect_settled, true);
     if (commandResult) assert.deepEqual(await adapter.readCommandOutput({ runtime_id: "prologue", session_id: before[0]!.child_run.session_id }, { run_id: before[0]!.child_run.run_id, call_id: "fixture-run-command" }), commandResult);
-    if (writeReview) await assert.rejects(queue.respond({ review_id: writeReview, decision: "approve", actor_id: "user" }));
+    if (writeReview) await assert.rejects(queue.respond({ review_id: writeReview, version: restoredReviews.find(row => row.request.review_id === writeReview)!.request.reference.version, decision: "approve", actor_id: "user" }));
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });
 
@@ -265,7 +265,7 @@ test("production writers role runs two isolated children concurrently with indep
       if (Date.now() > deadline) throw new Error("Timed out: " + JSON.stringify({ view, reviews: queue.list("b"), childCalls, parentCalls }));
       const pending = queue.list("b", "pending").filter(review => !decided.has(review.review_id));
       for (const review of pending.filter(review => review.kind === "tool-operation")) {
-        decided.add(review.review_id); await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" });
+        decided.add(review.review_id); await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "user" });
       }
       const writes = pending.filter(review => review.document.kind === "text-edit");
       if (writes.length === 2) {
@@ -275,7 +275,7 @@ test("production writers role runs two isolated children concurrently with indep
           if (review.document.kind !== "text-edit") throw new Error("wrong review");
           assert.ok(childPaths.includes(review.document.workspace_path));
           decided.add(review.review_id);
-          const response = await queue.respond({ review_id: review.review_id, decision: review.document.workspace_path === childPaths[0] ? "approve" : "reject", actor_id: "user" });
+          const response = await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: review.document.workspace_path === childPaths[0] ? "approve" : "reject", actor_id: "user" });
           assert.equal(response.delivery_error, undefined);
         }
       }

@@ -397,6 +397,10 @@ export interface AssistantPageCardInput {
 
 export interface AssistantPendingReview {
     review_id: string;
+    version: string;
+    reference?: ReviewReference;
+    decisions: AgentReviewDecisions;
+    permission_available?: true;
     kind: string;
     run_id: string | null;
     summary: string;
@@ -652,6 +656,7 @@ export type AssistantScope = {
 export interface AssistantSdkSubtaskReview {
     child_run: AgentRunRef;
     review_id: string;
+    version: string;
     decision: "approve" | "reject";
     note?: string;
     remember?: "session" | "app-this-round";
@@ -725,6 +730,7 @@ export interface AssistantSubtaskResumeAnswer {
 export interface AssistantSubtaskReview {
     subtask: AssistantSubtaskBinding;
     review_id: string;
+    version: string;
     decision: "approve" | "reject";
     note?: string;
 }

@@ -1,3 +1,6 @@
+import { stopSdkRun } from "./prologue-stop-run.js";
+import type { ReviewDecisionControl } from "../review-decisions.js";
+import { bindExistingWorkDelegation } from "./prologue-work-delegation.js";
 import { subagentAuthorityProblem } from "./prologue-subagent-conversation.js";
 import { answerPending, readPendingQuestion, childQuestionScope } from "./prologue-question-port.js";
 import { readOriginalInput, resolveOriginalInput, originalInputIdByKey, sessionNotifier } from "./prologue-original-inputs.js";
@@ -15,6 +18,7 @@ import { workPaths } from "./prologue-project-work.js";
 import { queuedInput, type createPrologueRecovery } from "./prologue-recovery.js";
 import { bindBusinessSubagent, startPrologueRun, type RunDeps } from "./prologue-run.js";
 import { watchRoundFacts } from "./prologue-stop-guard.js";
+import type { PrologueEffects } from "./prologue-effects.js";
 import { runModelParams } from "./prologue-run-params.js";
 import type { createPrologueSchedule } from "./prologue-schedule.js";
 import { createPrologueSubagents, exactCharacterKey, runLineage, SUBAGENT_DEFAULT_MAX_ATTEMPTS, type PrologueSubagentHooks } from "./prologue-subagents.js";
@@ -23,9 +27,11 @@ import { codingExecutionRules } from "./prologue-taskboard.js";
 import type { PrologueRuntimePort } from "./prologue.js";
 import { PROLOGUE_RUNTIME_ID } from "./prologue-adapter-capabilities.js";
 import { agentErrors } from "../errors.js";
-import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, unexecutedApprovalCallOf, type CommandEvent, type DispatchGuard, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, unexecutedApprovalCallOf, type CommandEvent, type DispatchControl, type DispatchGuard, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
 import { SESSION_INDEX_SCHEMA, type SessionIndex, type SessionIndexStore } from "./prologue-session-index.js";
 import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
+import type { ReviewDecisionStore } from "../review-decisions.js";
 
 /**
  * The runtime the Node composition makes, and the port it hands the adapter (W4-06 split these out of
@@ -75,7 +81,7 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
       // A change through the business gateway always stops for the person's review of its exact input; its reads do not.
       { source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.change } },
       // A reversible change the person lets run without asking: the gateway itself refuses any other change on this tool.
-      { source: "runtime" as const, effect: "allow" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.direct } },
+      { source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.direct } },
       // A suggestion, a delegated work, a memory: recorded under the Host's own rules and limits, as before, without asking.
       ...HOST_GOVERNED_TOOLS.map(name => ({ source: "runtime" as const, effect: "allow" as const, match: { what: "tool" as const, name } })),
       // The side panel's browser: looking is allowed, every action asks, the person's standing site decisions apply.
@@ -85,21 +91,24 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
 }
 
 /** Git index reviews, their decisions kept encrypted in the Host's store. Only when the Host owns a review queue. */
-export function createNodeGitReviews(options: PrologueNodeAdapterOptions, host: NodeHost, runtime: Runtime) {
+export function createNodeGitReviews(options: PrologueNodeAdapterOptions, host: NodeHost, runtime: Runtime, decisions: ReviewDecisionStore) {
   if (!options.reviewQueue) return undefined;
   const kind = `molis-git-review-${createHash("sha256").update(options.app.appId).digest("hex").slice(0, 24)}`;
-  const update = async (id: string, patch: { failure_reason?: string; reconciliation?: NonNullable<AgentReviewReceipt["reconciliation"]> }) => {
+  const update = async (id: string, patch: { failure_reason?: string; reconciliation?: NonNullable<AgentReviewReceipt["reconciliation"]> },
+    decided?: Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note">) => {
     const record = await host.storage.get({ kind, id });
-    if (!record || record.tombstoned) throw new Error("原 Git 审查记录不可读取");
-    const original = await host.storage.readSecure({ kind, id });
+    if (record?.tombstoned || !record && !decided) throw new Error("原 Git 审查记录不可读取");
+    // An explicit reconciliation uses the already restored decision, including
+    // when the optional old projection never committed. No source is inferred here.
+    const original = decided ? undefined : await host.storage.readSecure({ kind, id });
     let bytes: Uint8Array | undefined;
     try {
-      const decision = JSON.parse(new TextDecoder().decode(original));
+      const decision = decided ?? JSON.parse(new TextDecoder().decode(original));
       bytes = new TextEncoder().encode(JSON.stringify({ ...decision, ...patch }));
-      await host.storage.commit({ kind, id, expectedVersion: record.version, metadata: { schema: 1 }, secureBody: bytes });
-    } finally { original.fill(0); bytes?.fill(0); }
+      await host.storage.commit({ kind, id, expectedVersion: record?.version ?? 0, metadata: { schema: 1 }, secureBody: bytes });
+    } finally { original?.fill(0); bytes?.fill(0); }
   };
-  return createPrologueGitReviews({ runtime, queue: options.reviewQueue,
+  return createPrologueGitReviews({ runtime, queue: options.reviewQueue, decisionStore: decisions,
     publish: value => stageTextResource(runtime, JSON.stringify(value), "git-index-review"), read: ref => readResource(runtime, ref),
     async saveDecision(id, value) {
       const bytes = new TextEncoder().encode(JSON.stringify(value));
@@ -109,7 +118,7 @@ export function createNodeGitReviews(options: PrologueNodeAdapterOptions, host: 
     async saveFailure(id, reason) {
       await update(id, { failure_reason: reason });
     },
-    saveReconciliation: (id, reconciliation) => update(id, { reconciliation }),
+    saveReconciliation: (id, reconciliation, decided) => update(id, { reconciliation }, decided),
     async readDecision(id) {
       const record = await host.storage.get({ kind, id });
       if (!record || record.tombstoned) return undefined;
@@ -123,6 +132,7 @@ interface PortDeps extends RunDeps {
   readonly host: NodeHost;
   readonly starts: ContinuationStarts;
   readonly schedule: ReturnType<typeof createPrologueSchedule>;
+  readonly effects: PrologueEffects;
   readonly recovery: ReturnType<typeof createPrologueRecovery>;
   readonly checkpoints: ReturnType<typeof createPrologueCheckpoints> | undefined;
   readonly readQuestion: (run: AgentRunRef, id: string, revision: number) => ReturnType<Runtime["effects"]["pendings"]["read"]> extends Promise<infer P> ? Promise<NonNullable<P>> : never;
@@ -360,10 +370,24 @@ async function continueSubagentAttempt(
   deps.effects.assertCurrent();
   if (!role) throw agentErrors.role_not_declared("原子角色不可核验");
   execution?.assertSubagent?.(role);
+  const work = await bindExistingWorkDelegation(deps.delegations, execution?.delegation, parentAttempt.frozen.role_id, parentIndex.owner);
+  let stopped = false;
+  const policies = new Map<string, () => void>(), exact = new Map<string, { ref: ExactRef<"effect">; control: ReviewDecisionControl }>();
+  const activeExact = () => {
+    for (const [id, held] of exact) if (!["awaiting-approval", "authorized", "dispatching"].includes(runtime.effects.get(held.ref)?.state ?? "")) exact.delete(id);
+    return exact.values();
+  };
+  const assertCurrent = () => {
+    if (stopped) throw agentErrors.capability_unavailable("原子任务执行已结束");
+    work?.assertCurrent();
+    for (const check of policies.values()) check();
+    for (const held of activeExact()) held.control.assertCurrent();
+    requireSynchronous(execution?.assertBeforeDispatch?.()); execution?.assertSubagent?.(role);
+  };
   if (parentAttempt.frozen.workspace === "business") {
     if (!role || !execution?.subagentGateway || !execution.beforeDispatch) throw agentErrors.capability_unavailable("业务子任务接续需要当前宿主动作授权");
-    const gateway = await execution.subagentGateway(role, { runtime_id: PROLOGUE_RUNTIME_ID, session_id: child.session.id });
-    await bindBusinessSubagent(deps, child.session, role, gateway, child.tools ?? []);
+    const gateway = await execution.subagentGateway(role, { runtime_id: PROLOGUE_RUNTIME_ID, session_id: child.session.id }).catch(error => { work?.release(); throw error; });
+    await bindBusinessSubagent(deps, child.session, role, gateway, child.tools ?? [], { assertCurrent, stopping: () => stopped, work }).catch(error => { work?.release(); throw error; });
     const stopGuard = state.stopGuards.get(child.session.id);
     if (stopGuard) stopGuard.task = retryText;
   }
@@ -374,13 +398,21 @@ async function continueSubagentAttempt(
   void bound.promise.catch(() => undefined);
   const guard: DispatchGuard = async () => {
     await bound.promise;
+    assertCurrent();
     await fallbackGuard();
+    for (const held of activeExact()) await held.control.beforeEffect();
     const original = await state.dispatchChecks.get(parentRun.run_id)?.();
     const current = await execution?.beforeDispatch?.();
     execution?.assertSubagent?.(role);
-    return () => { original?.(); current?.(); execution?.assertSubagent?.(role); };
+    return () => { original?.(); current?.(); assertCurrent(); };
   };
-  const continued = await deps.dispatchGuards.run(guard, () => runtime.subagents.continue({
+  const control: DispatchControl = {
+    assertCurrent,
+    prepareDispatch: guard,
+    beforeEffect: async () => { const fence = await guard(); requireSynchronous(fence?.()); assertCurrent(); },
+  };
+  // A new child attempt has its own ongoing authority; the submitting call still controls the SDK acceptance write.
+  const continued = await deps.dispatchGuards.run(control, () => runtime.subagents.continue({
     child: child.ref,
     expected: { parent: { session: child.parentSession, run: child.parentRun }, expectedRun: child.run },
     history: "session",
@@ -401,12 +433,21 @@ async function continueSubagentAttempt(
       mode: child.envelope?.mode ?? "autonomous",
       toolNames: child.tools ? [...child.tools] : [],
     },
-  })).catch(error => { bound.reject(error); state.childActionControllers.get(child.session.id)?.abort(); state.childActionControllers.delete(child.session.id); throw error; });
+  })).catch(error => { bound.reject(error); work?.release(); state.childActionControllers.get(child.session.id)?.abort(); state.childActionControllers.delete(child.session.id); throw error; });
   deps.effects.accept();
+  try { work?.accept(continued.run); } catch (error) { bound.reject(error); continued.control.stop("cancelled"); work?.release(); throw error; }
   const newRunId = continued.run.ref.id;
   const childRun = { session_id: child.session.id, run_id: newRunId };
+  state.sessionRuns.add(newRunId);
   state.activeRuns.set(newRunId, {
-    live: () => ["prepared", "running"].includes(continued.run.state),
+    live: () => ["prepared", "running"].includes(continued.run.state), policy: continued.policy,
+    stop: () => stopSdkRun(continued.run), usePolicy: (id, check) => { policies.set(id, check); },
+    ...(work ? { work, workSelection: work.permission.mode !== "original", useExact: (id: string, control: ReviewDecisionControl) => {
+      const ref = state.reviewEffects.get(`prologue:${id}`);
+      if (!ref) throw agentErrors.review_not_permitted("原授权操作不可读");
+      exact.set(id, { ref, control });
+    } } : {}),
+    assertAuthority: assertCurrent,
     steer: async text => { await continued.control.steer({ text, source: "app" }); },
   });
   state.liveSessions.set(child.session.id, newRunId);
@@ -436,6 +477,7 @@ async function continueSubagentAttempt(
   continued.run.subscribe(event => {
     for (const changed of state.subagentListeners) changed(parentRun.run_id);
     if (["completed", "failed", "cancelled", "tripped", "circuit-tripped"].includes(event.type)) {
+      stopped = true; work?.release();
       if (state.liveSessions.get(child.session.id) === newRunId) state.liveSessions.delete(child.session.id);
       state.activeRuns.delete(newRunId);
       state.runRoots.delete(newRunId);
@@ -564,7 +606,7 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     projectWork: projectWorkPort(deps),
     documents: createPrologueDocuments(runtime, deps.options.storageRoot),
     memory: deps.platformMemory.capability,
-    schedule: deps.schedule.port(runtime, deps.index),
+    schedule: deps.schedule.port(runtime, deps.index, deps.effects),
     recovery: deps.recovery.port,
     ...(deps.options.reviewQueue ? { subagents: nodeSubagentsPort(deps) } : {}),
     workspaceNone: true,

@@ -53,6 +53,7 @@ export interface HostReviewFactory {
   (host: { mountPluginClient(root: HTMLElement): FrameScope | null; route(path: string): string; headers(): Record<string, string>;
     /** Host-only routing to an original owner; never included in the plugin page bridge. */
     decide?(input: Omit<AgentReviewDecisionInput, "actor_id">, signal: AbortSignal): Promise<{ receipt: AgentReviewReceipt }>;
+    permission?(trigger: HTMLElement, id: string, version: string): Promise<boolean>;
     confirm(message: string): Promise<boolean>; onDecision(result: {error?: string | null; receipt?: {status?: string; effect_uncertain?: string; effect_error?: string; reconciliation?: unknown; effect_settled?: boolean} | null}): void }):
     (container: HTMLElement, refs: {run_id: string}[], session: string | null, workspace: string | null,
       query: Pick<UiPageReviewQuery, "runSession" | "limit">, control: {lifetime: FrameScope; signal: AbortSignal}) => Promise<void>;

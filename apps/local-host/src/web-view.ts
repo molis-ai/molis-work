@@ -60,7 +60,7 @@ export function buildMolisWorkWebView(_store: LocalProjectDatabase, collection: 
     active_goal_id: collection.active_goal_id, goals: collection.goals,
     archived_goals: collection.archived_goals, trashed_goals: collection.trashed_goals,
     counts: collection.counts, input_bindings: collection.input_bindings,
-    policy_bindings: collection.policy_bindings, events: collection.events,
+    events: collection.events,
     // Which plugins the page shows is the Host's fact (W5-02 PR-B). Without a project's selection: the shell's page default and the
     // personal plugins. A project's view is given its Catalog's selection per request instead (`projectWebView`), never this.
     ...(options.project ? {} : { shown_plugins: shownProjectPlugins(PAGE_PLUGINS_WITHOUT_SELECTION) }),

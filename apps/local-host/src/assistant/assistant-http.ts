@@ -1,6 +1,10 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { pluginPageRequest } from "../plugin-page-authority.js";
+import { computerHolderFor } from "../computer/computer-surfaces.js";
+import { assertHumanReview } from "../computer/computer-policy.js";
 import { pluginInstallRecords } from "../plugin-install-records.js";
 import { HomeConsentLedger } from "../home-plugin-store.js";
+import { assistantLineAcceptance } from "../acceptance-review.js";
 import { assistantLineRegistration, assistantLineSource, personTaskTable } from "./assistant-line-actions.js";
 import { AssistantTaskReports, type AssistantReportRounds } from "./assistant-task-reports.js";
 import { onAttentionChangeOf } from "../attention-changes.js";
@@ -13,7 +17,6 @@ import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { agentSubagentCommandSchema, type AgentSubagentCommand } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -26,20 +29,21 @@ import { bindLocalWebActions, localWebActionContext } from "../local-web-actions
 import { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import type { MolisWorkLocalHost } from "../project-host.js";
-import { ActionError, actionEffect, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema, type ActionView, type BoundActionClient, type InferActionInput, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema, type ActionView, type BoundActionClient, type InferActionInput, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_WRITE_PERMISSION, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
-import { webEntryDoor, webEntryProvider, type WebEntryCall } from "../web-entry-actions.js";
+import { responseAbortSignal, webEntryDoor, webEntryProvider, type WebEntryCall } from "../web-entry-actions.js";
 import { assistantCandidate } from "./assistant-memory-tools.js";
-import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
+import { assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { registerWorkAuthority } from "../agent-work-authority.js";
 import { AssistantService, type AssistantServicePorts } from "./assistant-service.js";
-import type { SignedBinding } from "./assistant-service-shared.js";
+import { RUNTIME, type SignedBinding } from "./assistant-service-shared.js";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { assistantSurroundings } from "./assistant-surroundings.js";
 import { assistantErrors } from "./assistant-errors.js";
+import { assistantPermissionCaller } from "./assistant-work-permissions.js";
 import type { PersonActions } from "./assistant-executor.js";
-import { ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE, AssistantStore } from "./assistant-store.js";
+import type { AssistantStore } from "./assistant-store.js";
 import { freezeProjectCharacter } from "../characters-host.js";
 import { assistantCharacterChoices } from "./assistant-characters.js";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -62,7 +66,12 @@ import { currentRoundPageContext } from "./assistant-external-sessions.js";
 import { pageChoices } from "./assistant-pages.js";
 import { hostLog } from "../host-log.js";
 import { assistantConnectionCard } from "./assistant-connection-card.js";
+import { authorizationSettingsControl, webEffectControl } from "../authorization-settings-control.js";
+import { assistantActionPolicies, changeAssistantActionPolicy } from "./assistant-action-policy.js";
+import { workPermissionHttp } from "./assistant-work-permission-http.js";
 import { handleAssistantSurfaceHttp } from "./assistant-surface-http.js";
+import { hasStorageBusinessFiles } from "@molis-ai/molis-work-storage";
+import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
 
 /** The works related to an object, and each one's objects, as `assistant.works.related@1` and its HTTP read them. */
 const relatedSource = (service: AssistantService): RelatedWorksSource => ({ related: (projectId, subject) => service.reads.related(projectId, subject), read: workId => service.read(workId) });
@@ -130,7 +139,8 @@ const personCacheKey = (reference: LocalHostProjectReference | undefined) =>
 export function assistantServiceFor(ports: AssistantHttpPorts): { service: AssistantService; store: AssistantStore; threads: AssistantThreads; surroundings: ReturnType<typeof assistantSurroundings> } {
   const existing = services.get(ports.localHost);
   if (existing && existing.home === ports.homeDirectory) return existing;
-  const store = new AssistantStore(openBaselineHomeSqlite(ports.homeDirectory, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE));
+  const store = ports.localHost.assistantStore?.();
+  if (!store) throw assistantErrors.executor_unavailable("宿主未装配助理工作存储");
   // The person's grants in a project (or the Home), shared by the calls one list or one round makes in quick succession:
   // working them out inspects every capability, so a list of works re-did it several times per work. Each call is still
   // checked against its current definition, availability and grant owner when it is dispatched.
@@ -178,10 +188,17 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   const servicePorts: AssistantServicePorts = {
     lastLocale: () => lastUsedLocale(ports.homeDirectory),
     cancelSetups: sessionId => cancelConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR),
-    retainSetups: sessionId => retainConnectorSetupsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, (...args) => ports.localHost.connectorMcp!.remember(...args)),
+    retainSetups: (sessionId, control) => retainConnectorSetupsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, (...args) => ports.localHost.connectorMcp!.remember(...args), control),
     holdSetups: (sessionId, revision) => holdConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, revision),
     setupMaterial: (work, offered, withdrawn) => assistantSetupMaterial(ports.homeDirectory, work, offered, withdrawn),
     host: async () => { await ports.agentReady(); return ports.agentHost; },
+    hostForDraftPermissions: async () => {
+      if (ports.agentHost.workDelegations(RUNTIME)) return ports.agentHost;
+      if (hasStorageBusinessFiles(agentRuntimeDirectory(ports.homeDirectory))) {
+        await ports.agentReady();
+        return ports.agentHost;
+      }
+    },
     pages: () => ports.pages(),
     // The platform memory, registered with this Home's Agent service (the Assistant is one of its consumers).
     memory: (...execution) => { const memory = memoryHostFor(ports.localHost); return execution.length ? memory?.withExecution(...execution) : memory?.service; },
@@ -191,14 +208,15 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       void memoryHostFor(ports.localHost)?.learnLater({ actor_id: WEB_ACTOR, work_id: work.work_id, run_id, session_id: work.session_id, sources })
         .catch(error => hostLog.warn("memory", "learning_not_queued", error));
     },
-    authority: async (work, origin, locale, namedSkills, autoSkills) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
+    authority: async (work, origin, locale, namedSkills, autoSkills) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work), assertBeforeDispatch: () => threads.assertAuthority(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.outcomes.recordResult(work, view, input, output, origin?.source !== "card"), service.delegation(work),
       (view, call) => service.dispatcher.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memory.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
       view => service.dispatcher.noteDispatched(work, view), () => {
         const snapshot = currentRoundPageContext(store.rounds(work.work_id).at(-1)?.context);
         return snapshot ? { url: null, title: snapshot.source.title ?? snapshot.source.surface, provenance: "client_reported" } : undefined;
-      }, locale, namedSkills, service.delivery(work), autoSkills),
+      }, locale, namedSkills, service.delivery(work), autoSkills, (key, automatic) => store.policies.hold(WEB_ACTOR, key, automatic)),
       project_prompts: await assistantProjectPrompts(ports.localHost, work),
+      assertBeforeDispatch: () => { if (ports.localHost.lifecycle() !== "running") throw assistantErrors.state("运行环境已经关闭"); },
       // The platform memory, under the Assistant's switch: re-read and injected by the runtime as data.
       memory: task => service.memory.memoryForRound(work, task),
       // A Character published in the work's project, frozen at its exact version for the round (the Host checks it again at dispatch).
@@ -273,9 +291,10 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   registerWorkAuthority(ports.localHost, at => service.jobs.authority(at));
   // Deleting a project also stops the round its works still run and cancels their timed follow-ups, which only this service can do.
   projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: { key: "workbench.project-deletion.assistant" }, alive: () => ports.localHost.lifecycle() === "running",
-    clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.followUps.remove(id); } }); } });
+    clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: id => service.closeForProjectDeletion(id) }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
-  const threadActions = assistantThreadRegistration(threads), relatedActions = assistantRelatedRegistration(() => relatedSource(service)), lineActions = assistantLineRegistration(() => assistantLineSource(store, personTaskTable(ports.projectReference, personClient), service, WEB_ACTOR));
+  const threadActions = assistantThreadRegistration(threads), relatedActions = assistantRelatedRegistration(() => relatedSource(service)), lineActions = assistantLineRegistration(() => assistantLineSource(store, personTaskTable(ports.projectReference, personClient), service, WEB_ACTOR,
+    review => assertHumanReview(computerHolderFor(ports.localHost)?.(), review.run?.session_id), assistantLineAcceptance(ports)));
   try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service, ports.homeDirectory,
     { definitions: [...threadActions.definitions, ...relatedActions.definitions, ...lineActions.definitions], handlers: [...threadActions.handlers, ...relatedActions.handlers, ...lineActions.handlers] }); }
   catch (error) { hostLog.warn("assistant", "rule_actions_registration_failed", error); }
@@ -305,7 +324,7 @@ export async function assistantNotices(ports: AssistantHttpPorts, surface: strin
 }
 
 /** What the panel's route hands its writes for one request (B9): the Assistant's ports with the page's project, and the page's language. */
-interface AssistantPageEntry { readonly ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }; readonly language: () => { reply_locale?: WebLocale } }
+interface AssistantPageEntry { readonly ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }; readonly language: () => { reply_locale?: WebLocale }; readonly page: ReturnType<typeof pluginPageRequest> }
 const door = webEntryDoor<AssistantPageEntry>("assistant:panel", () => uiText.text("workbench.assistant-http.entry-refused"));
 /** The panel's fields as their owner reads them: the owner checks each one, the action's schema bounds only the envelope. */
 const pageBody = <T>(body: Readonly<Record<string, unknown>>): T => body as unknown as T;
@@ -315,6 +334,9 @@ const ofWork = { type: "object", properties: { work_id: pageId, body }, required
 const ofItem = { type: "object", properties: { work_id: pageId, item: pageId, body }, required: ["work_id", "item", "body"], additionalProperties: false } as const;
 const ofSdkSubtask = { type: "object", properties: { work_id: pageId, parent_run_id: pageId, child_id: pageId, body: agentSubagentCommandSchema }, required: ["work_id", "parent_run_id", "child_id", "body"], additionalProperties: false } as const;
 const ofSdkReview = { ...ofSdkSubtask, properties: { ...ofSdkSubtask.properties, item: pageId, body }, required: [...ofSdkSubtask.required, "item"] } as const;
+const ofReview = { ...ofItem, properties: { ...ofItem.properties, body: { type: "object", properties: {
+  decision: { enum: ["approve", "reject"] }, version: { type: "string", minLength: 1, maxLength: 200 }, note: { type: "string", maxLength: 2000 }, subtask: body,
+}, required: ["decision", "version"], additionalProperties: false } } } as const;
 const scoped = (entry: AssistantPageEntry) => entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {};
 const panel = <const S extends ActionSchema, Output>(name: string, version: number, title: string, input_schema: S,
   handle: (entry: AssistantPageEntry, input: InferActionInput<S>, caller: ActionExecutionContext) => Output | Promise<Output>, metered = false, draft?: true) =>
@@ -326,7 +348,9 @@ const of = (entry: AssistantPageEntry) => assistantServiceFor(entry.ports);
 export const assistantPanelActions = {
   send: panel("send", /* @version action.assistant.panel.send */ 1, "发送一条输入", ofPanel, (entry, { body }, caller) => {
     checkSendRequest(body);
+    const control = assistantPermissionCaller(caller, entry.page);
     return of(entry).service.send(pageBody<AssistantSendInput>(body), { ...entry.language(), ...scoped(entry),
+      beforeStart: async () => { await control.beforeEffect(); }, assertBeforeStart: control.assertCurrent,
       ...(!body.written_by && body.reask === undefined && typeof body.text === "string" && typeof body.request_id === "string" ? { original_input: {
         input_id: body.request_id, text: body.text, written_by: "person" as const, occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID,
       } } : {}) }, undefined, () => { caller.signal?.throwIfAborted(); return true; });
@@ -338,7 +362,7 @@ export const assistantPanelActions = {
     } : undefined;
     const source = of(entry).service.sdkSubtasks;
     const result = await source.command(input.work_id, input.parent_run_id, input.child_id, command, {
-      original, beforeEffect: () => caller.beforeEffect(), assertCurrent: () => { caller.signal?.throwIfAborted(); caller.assert_authority_current?.(); },
+      original, ...assistantPermissionCaller(caller, entry.page), beforeEffect: async () => { await assistantPermissionCaller(caller, entry.page).beforeEffect(); },
     });
     if (result.state !== "not-applied" || !result.problems || command.kind !== "answer") return result;
     const asked = await source.read(input.work_id, input.parent_run_id, input.child_id).then(value => value.conversation.questions.find(question => question.pending_id === command.pending_id)?.questions).catch(() => undefined);
@@ -347,7 +371,7 @@ export const assistantPanelActions = {
   subtaskReview: panel("works.subtask.review", /* @version action.assistant.panel.works.subtask.review */ 1, "决定指定子任务的原审批", ofSdkReview, async (entry, input, caller) => ({
     receipt: await of(entry).service.sdkSubtasks.review(input.work_id, input.parent_run_id, input.child_id,
       { ...pageBody<Omit<import("@molis-ai/molis-work-contracts/services/assistant").AssistantSdkSubtaskReview, "review_id">>(input.body), review_id: input.item }, {
-        beforeEffect: () => caller.beforeEffect(), assertCurrent: () => { caller.signal?.throwIfAborted(); caller.assert_authority_current?.(); },
+        beforeEffect: async () => { await assistantPermissionCaller(caller, entry.page).beforeEffect(); }, assertCurrent: review => { assistantPermissionCaller(caller, entry.page).assertCurrent(); assertHumanReview(computerHolderFor(entry.ports.localHost)?.(), review.run?.session_id); },
       }),
   })),
   cards: panel("cards", /* @version action.assistant.panel.cards */ 1, "放下页面准备的操作卡", ofPanel, (entry, { body }) => of(entry).service.offers.offerFromPage(pageBody<AssistantPageCardInput>(body), scoped(entry))),
@@ -357,41 +381,44 @@ export const assistantPanelActions = {
     { ...(typeof body.notice_id === "string" ? { notice_id: body.notice_id } : {}), ...(typeof body.work_id === "string" ? { work_id: body.work_id } : {}) }, body.state === "dismissed" ? "dismissed" : "seen") })),
   followupRemove: panel("followups.remove", /* @version action.assistant.panel.followups.remove */ 1, "移除一项跟进", ofPanel,
     async (entry, { body }) => ({ removed: await of(entry).service.followUps.remove(String(body.followup_id ?? "")) })),
-  control: panel("works.control", /* @version action.assistant.panel.works.control */ 1, "暂停、继续、停止或撤回", ofWork, (entry, input) => of(entry).service.control(input.work_id, pageBody<AssistantControl>(input.body))),
+  control: panel("works.control", /* @version action.assistant.panel.works.control */ 1, "暂停、继续、停止或撤回", ofWork,
+    (entry, input, caller) => of(entry).service.control(input.work_id, pageBody<AssistantControl>(input.body), assistantPermissionCaller(caller, entry.page))),
   draft: panel("works.draft", /* @version action.assistant.panel.works.draft */ 1, "保存输入草稿", ofWork,
     (entry, input) => ({ work: of(entry).service.saveDraft(input.work_id, pageBody<{ draft: string }>(input.body).draft) }), false, true),
   rename: panel("works.rename", /* @version action.assistant.panel.works.rename */ 1, "改工作名", ofWork,
     async (entry, input) => ({ work: await of(entry).service.rename(input.work_id, Number(input.body.revision), String(input.body.title ?? "")) })),
   mode: panel("works.mode", /* @version action.assistant.panel.works.mode */ 1, "设定执行方的后续模式", ofWork,
     (entry, input) => of(entry).service.dispatcher.setExecutorMode(input.work_id, String(input.body.mode ?? ""))),
-  takeBack: panel("works.take_back", /* @version action.assistant.panel.works.take_back */ 1, "收回委托的子任务", ofWork, (entry, input) => of(entry).service.takeBack(input.work_id)),
+  takeBack: panel("works.take_back", /* @version action.assistant.panel.works.take_back */ 1, "收回委托的子任务", ofWork,
+    (entry, input, caller) => of(entry).service.takeBack(input.work_id, assistantPermissionCaller(caller, entry.page))),
   undo: panel("works.undo", /* @version action.assistant.panel.works.undo */ 1, "撤销一项已做的操作", ofItem, (entry, input) => of(entry).service.outcomes.undo(input.work_id, input.item)),
   budget: panel("works.budget", /* @version action.assistant.panel.works.budget */ 1, "设定工作用量上限", ofWork,
     (entry, input) => of(entry).service.budget.saveWorkBudget(input.work_id, input.body.budget_tokens)),
   askEachStep: panel("works.ask_each_step", /* @version action.assistant.panel.works.ask_each_step */ 1, "设定每步先问我", ofWork,
     async (entry, input) => { await of(entry).service.continuations.stepGate.set(input.work_id, input.body.on); return of(entry).service.read(input.work_id); }),
   results: panel("works.results", /* @version action.assistant.panel.works.results */ 1, "交回页面里的结果", ofWork, (entry, input) => of(entry).service.outcomes.receiveResult(input.work_id, input.body)),
-  handover: panel("works.handover", /* @version action.assistant.panel.works.handover */ 1, "转交给执行方", ofWork, (entry, input) => of(entry).service.dispatcher.handover(input.work_id,
-    { to: pageBody<Pick<AssistantHandover, "to">>(input.body).to, ...(typeof input.body.mode === "string" ? { mode: input.body.mode } : {}) })),
+  handover: panel("works.handover", /* @version action.assistant.panel.works.handover */ 1, "转交给执行方", ofWork, (entry, input, caller) => of(entry).service.dispatcher.handover(input.work_id,
+    { to: pageBody<Pick<AssistantHandover, "to">>(input.body).to, ...(typeof input.body.mode === "string" ? { mode: input.body.mode } : {}) }, assistantPermissionCaller(caller, entry.page))),
   recovery: panel("works.recovery", /* @version action.assistant.panel.works.recovery */ 1, "关闭中断的一轮", ofWork, async (entry, input): Promise<object> => typeof input.body.run_id === "string"
     ? of(entry).service.closeInterrupted(input.work_id, { run_id: input.body.run_id, version: Number(input.body.version) }) : of(entry).service.recovery(input.work_id)),
   // A closed request aborts this action's signal; archive checks it around its own remaining writes, as send/answer/redo do.
   archive: panel("works.archive", /* @version action.assistant.panel.works.archive */ 1, "归档或恢复工作", ofWork,
-    async (entry, input, caller) => ({ work: await of(entry).service.archive(input.work_id, input.body.archived !== false, {
-      beforeEffect: async () => { caller.signal?.throwIfAborted(); await caller.beforeEffect?.(); caller.signal?.throwIfAborted(); },
-      assert_current: () => caller.signal?.throwIfAborted() }) })),
-  review: panel("works.review", /* @version action.assistant.panel.works.review */ 1, "批准或拒绝工作里的待审操作", ofItem, (entry, input, caller) => {
-    const decision = { review_id: input.item, decision: pageBody<{ decision: "approve" | "reject" }>(input.body).decision,
-      ...(typeof input.body.note === "string" ? { note: input.body.note } : {}) };
-    return input.body.subtask === undefined ? of(entry).service.outcomes.decide(input.work_id, decision)
+    async (entry, input, caller) => ({ work: await of(entry).service.archive(input.work_id, input.body.archived !== false, assistantPermissionCaller(caller, entry.page)) })),
+  review: panel("works.review", /* @version action.assistant.panel.works.review */ 1, "批准或拒绝工作里的待审操作", ofReview, (entry, input, caller) => {
+    const control = assistantPermissionCaller(caller, entry.page);
+    const decision = { review_id: input.item, version: input.body.version, decision: input.body.decision, ...(typeof input.body.note === "string" ? { note: input.body.note } : {}) };
+    const assertReview = (review: import("@molis-ai/molis-work-contracts/services/agent-host").AgentReviewRequest) => {
+      control.assertCurrent(); assertHumanReview(computerHolderFor(entry.ports.localHost)?.(), review.run?.session_id);
+    };
+    return input.body.subtask === undefined ? of(entry).service.outcomes.decide(input.work_id, decision, { beforeEffect: async () => { await control.beforeEffect(); }, assertCurrent: assertReview })
       : of(entry).service.workSubtasks.review(input.work_id, { ...decision, subtask: pageBody<Pick<import("@molis-ai/molis-work-contracts/services/assistant").AssistantSubtaskReview, "subtask">>(input.body).subtask }, {
-        beforeStart: () => caller.beforeEffect(), assertBeforeStart: () => { caller.signal?.throwIfAborted(); caller.assert_authority_current?.(); },
+        beforeStart: async () => { await control.beforeEffect(); }, assertBeforeStart: control.assertCurrent, assertReview,
       });
   }),
-  answer: panel("works.answer", /* @version action.assistant.panel.works.answer */ 1, "回答待答的问题", ofWork, (entry, input, caller) => answerQuestion(entry, input.work_id, input.body, caller), true),
+  answer: panel("works.answer", /* @version action.assistant.panel.works.answer */ 1, "回答待答的问题", ofWork, (entry, input, caller) => answerQuestion(entry, input.work_id, input.body, assistantPermissionCaller(caller, entry.page)), true),
   resumeAnswer: panel("works.resume_answer", /* @version action.assistant.panel.works.resume_answer */ 1, "接续已接受答案的子任务", ofWork, (entry, input, caller) => of(entry).service.workSubtasks.resume(input.work_id,
     pageBody<import("@molis-ai/molis-work-contracts/services/assistant").AssistantSubtaskResumeAnswer>(input.body), {
-      ...entry.language(), beforeStart: async () => { caller.signal?.throwIfAborted(); await caller.beforeEffect?.(); }, assertBeforeStart: () => { caller.signal?.throwIfAborted(); caller.assert_authority_current?.(); },
+      ...entry.language(), beforeStart: async () => { await assistantPermissionCaller(caller, entry.page).beforeEffect(); }, assertBeforeStart: assistantPermissionCaller(caller, entry.page).assertCurrent,
     })),
   questionDraft: panel("works.question_draft", /* @version action.assistant.panel.works.question_draft */ 1, "保存问题的草稿", ofWork, (entry, input) => ({ ok: true,
     ...questionDrafts(of(entry).store).save(input.work_id, String(input.body.pending_id ?? ""), input.body.values, input.body.draft_revision) }), false, true),
@@ -413,13 +440,9 @@ const named = <T>(table: Readonly<Record<string, T>>, key: string | undefined): 
 
 /** The panel's write a POST names, called as the person through the panel's door; undefined when the path is not one of them. */
 async function panelWrite(parts: readonly string[], body: Readonly<Record<string, unknown>>, ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference },
-  request: IncomingMessage, response?: ServerResponse): Promise<{ result: unknown } | undefined> {
-  // Every panel write carries the request's signal; the owner methods that wait for a model or another service check it before their
-  // effect, and a closed page therefore cannot leave an answer or a card behind.
-  const ended = new AbortController();
-  const stop = () => { if (!response?.writableEnded) ended.abort(); };
-  response?.once("close", stop);
-  const call: WebEntryCall<AssistantPageEntry> = { host: ports.localHost, request, entry: { ports, language: () => pageRoundLanguage(ports) }, signal: ended.signal };
+  request: IncomingMessage, response: ServerResponse, assertCurrent: () => void): Promise<{ result: unknown } | undefined> {
+  const call: WebEntryCall<AssistantPageEntry> = { host: ports.localHost, request, signal: responseAbortSignal(response), assertCurrent,
+    entry: { ports, language: () => pageRoundLanguage(ports), page: pluginPageRequest(request) } };
   const run = async <I>(definition: ActionDefinition<I, unknown>, input: I) => ({ result: await door.invoke(call, definition, input) });
   const a = assistantPanelActions;
   if (parts.length === 1) {
@@ -450,18 +473,23 @@ async function panelWrite(parts: readonly string[], body: Readonly<Record<string
  * scope of a *new* work; an existing work keeps the scope it was started with.
  */
 export async function handleAssistantHttp(request: IncomingMessage, response: ServerResponse, url: URL,
-  ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }): Promise<boolean> {
+  ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }, accountCurrent?: () => void): Promise<boolean> {
   return handleAssistantSurfaceHttp(request, response, url, ports.localHost, ports.projectRef, () => assistantServiceFor(ports).store)
-    ?? handleAssistantActions(request, response, url, ports);
+    ?? handleAssistantActions(request, response, url, ports, accountCurrent);
 }
 
 function handleAssistantActions(request: IncomingMessage, response: ServerResponse, url: URL,
-  ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }): Promise<boolean> {
+  ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }, accountCurrent?: () => void): Promise<boolean> {
+  const policyControl = authorizationSettingsControl(request, response, ports.localHost, accountCurrent);
+  const requestControl = webEffectControl(request, response, ports.localHost, accountCurrent);
   // A document the person brings travels as base64 (up to 8 MB of file); everything else stays small.
   return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/assistant", maxBodyBytes: url.pathname.endsWith("/api/assistant/attachments") ? 11_500_000 : 400_000,
     async handle({ method, pathname, body }) {
       const { service, store, surroundings } = assistantServiceFor(ports);
       const parts = pathname.slice("/api/assistant/".length).split("/").map(decodeURIComponent);
+      if (parts.length === 3 && parts[0] === "works" && parts[2] === "permission") {
+        return workPermissionHttp(parts[1]!, method, method === "GET" ? url.searchParams : body, ports, store, policyControl);
+      }
       const thread = await handleThreadHttp(parts, method, url, body, ports);
       if (thread) return thread;
       if (method === "GET" && parts.length === 1 && parts[0] === "works") return { status: 200, body: { works: await service.list() } };
@@ -481,21 +509,11 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
         return { status: 200, body: { executors: await service.dispatcher.executors(ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
       }
       // The panel's own writes (send, a card a page prepared, an attachment, notices, a follow-up) are actions behind its door (B9).
-      if (method === "POST" && parts[0] !== "works") { const written = await panelWrite(parts, body, ports, request); if (written) return { status: 200, body: written.result }; }
+      if (method === "POST" && parts[0] !== "works") { const written = await panelWrite(parts, body, ports, request, response, requestControl.assertCurrent); if (written) return { status: 200, body: written.result }; }
       if (method === "GET" && parts.length === 2 && parts[0] === "requests") return { status: 200, body: store.requests.read(WEB_ACTOR, parts[1]!) };
       // What the Assistant may use here, and what the person switched off for it.
       if (method === "GET" && parts.length === 1 && parts[0] === "capabilities") {
-        const off = store.disabledActions(WEB_ACTOR), confirm = store.confirmAlways(WEB_ACTOR);
-        const reference = ports.projectRef;
-        const caller = { actor_id: WEB_ACTOR, actor_kind: "runtime" as const, project_id: reference?.project_id ?? null, audience: "agent" as const, permissions: [] };
-        const catalog = await ports.localHost.inspectActions(caller, reference);
-        return { status: 200, body: { capabilities: catalog.filter(view => view.action.audiences.includes("agent") && (!view.provider.project_id || view.provider.project_id === caller.project_id)).map(view => ({
-          capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, provider: view.provider.title, title: view.action.title,
-          description: view.action.description, operation: view.operation, effect: actionEffect(view.action, view.capability_id), scope: view.action.scope,
-          enabled: !off.has(actionKey({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })),
-          // A change that says how it is undone runs when asked without a confirmation, unless the person set it to confirm each time.
-          ...(view.action.undo && view.operation === "command" ? { reversible: true, confirm_always: confirm.has(actionKey({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })) } : {}),
-        })) } };
+        return { status: 200, body: { capabilities: await assistantActionPolicies(ports.localHost, store, ports.projectRef) } };
       }
       // The runtime's assembly and the latest rounds with their exact identities (developer diagnostics).
       if (method === "GET" && parts.length === 1 && parts[0] === "diagnostics") return { status: 200, body: await service.reads.diagnostics() };
@@ -507,12 +525,14 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
         return { status: 200, body: { contributions: assistantContributions(catalog) } };
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "capabilities") {
-        if (typeof body.capability_id !== "string" || !Number.isSafeInteger(body.version) || typeof body.provider_id !== "string"
-          || (typeof body.enabled !== "boolean" && typeof body.confirm_always !== "boolean")) throw assistantErrors.invalid("能力标识无效");
-        const key = actionKey({ capability_id: body.capability_id, version: body.version as number, provider_id: body.provider_id });
-        if (typeof body.enabled === "boolean") store.setActionEnabled(WEB_ACTOR, key, body.enabled);
-        if (typeof body.confirm_always === "boolean") store.setConfirmAlways(WEB_ACTOR, key, body.confirm_always);
-        return { status: 200, body: { ok: true } };
+        policyControl.assertCurrent();
+        const { capability_id, version, provider_id, expected, enabled, confirm_always } = body;
+        if (typeof capability_id !== "string" || !capability_id || typeof version !== "number" || !Number.isSafeInteger(version) || version < 1
+          || typeof provider_id !== "string" || !provider_id || typeof expected !== "string" || !/^[0-9a-f]{64}$/.test(expected)
+          || (enabled !== undefined && typeof enabled !== "boolean") || (confirm_always !== undefined && typeof confirm_always !== "boolean")
+          || (enabled === undefined && confirm_always === undefined)) throw assistantErrors.invalid("需要当前能力标识和授权版本");
+        const current = await changeAssistantActionPolicy(ports.localHost, store, ports.projectRef, { capability_id, version, provider_id }, { expected, enabled, confirm_always }, policyControl);
+        return { status: 200, body: { ok: true, ...current } };
       }
       if (method === "GET" && parts.length === 1 && parts[0] === "notices") return { status: 200, body: { notices: await assistantNotices(ports, url.searchParams.get("surface") || null) } };
       // Methods Plugins offer that this scope can use (for “/”).
@@ -577,7 +597,7 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
       if (method !== "POST") return null;
       const threadWork = await threadWorkRoute(workId, parts, body, ports);
       if (threadWork) return threadWork;
-      const written = await panelWrite(parts, body, ports, request, response);
+      const written = await panelWrite(parts, body, ports, request, response, requestControl.assertCurrent);
       return written ? { status: 200, body: written.result } : null;
     },
     // Questions, cards and next steps are drawn by their Host owner; common refusals keep the shared error envelope.
@@ -623,7 +643,7 @@ function writeDrawn(ports: AssistantHttpPorts, response: ServerResponse, result:
 }
 
 /** An answer as the question card's fields hold it (specs/ai-interaction-experience A1): it becomes the Runtime's answer, and its draft goes once the answer is taken. */
-async function answerQuestion(entry: AssistantPageEntry, workId: string, body: Readonly<Record<string, unknown>>, caller: ActionExecutionContext) {
+async function answerQuestion(entry: AssistantPageEntry, workId: string, body: Readonly<Record<string, unknown>>, control: ReturnType<typeof assistantPermissionCaller>) {
   const { service, store } = assistantServiceFor(entry.ports);
   const answer = body.values === undefined ? {} : questionAnswer(body.values);
   if (!answer) throw assistantErrors.invalid("请先回答再提交");
@@ -631,7 +651,7 @@ async function answerQuestion(entry: AssistantPageEntry, workId: string, body: R
     ...(body.pending_revision !== undefined ? { pending_revision: Number(body.pending_revision) } : {}), ...(typeof body.text === "string" ? { text: body.text } : {}),
     ...(Array.isArray(body.answers) ? { answers: pageBody<Pick<Parameters<typeof service.outcomes.answer>[1], "answers">>(body).answers } : {}), ...answer };
   const authority = { ...entry.language(), ...(entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {}),
-    beforeStart: async () => { caller.signal?.throwIfAborted(); await caller.beforeEffect?.(); }, assertBeforeStart: () => { caller.signal?.throwIfAborted(); caller.assert_authority_current?.(); } };
+    beforeStart: async () => { await control.beforeEffect(); }, assertBeforeStart: control.assertCurrent };
   const draft = questionDrafts(store).read(workId)[input.pending_id];
   const submittedDraft = draft && isDeepStrictEqual(questionAnswer(draft), { ...(input.text === undefined ? {} : { text: input.text }), ...(input.answers === undefined ? {} : { answers: input.answers }) }) ? draft : undefined;
   const view = await (body.subtask === undefined ? service.outcomes.answer(workId, input, authority) : service.workSubtasks.answer(workId, {
@@ -647,6 +667,7 @@ async function answerQuestion(entry: AssistantPageEntry, workId: string, body: R
     }))?.rounds.flatMap(round => round.awaiting_input).find(item => item.pending_id === body.pending_id)?.questions;
     throw assistantErrors.invalid(String(error.message), Array.isArray(error.problems) ? { errors: questionErrors(error.problems, readText, asked) } : undefined);
   });
+  await control.beforeEffect(); control.assertCurrent();
   if (body.subtask === undefined) questionDrafts(store).drop(workId, String(body.pending_id ?? ""));
   else if (submittedDraft) questionDrafts(store).drop(workId, input.pending_id, submittedDraft);
   return view;

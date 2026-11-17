@@ -1,8 +1,9 @@
+import { ASSISTANT_SUBTASK_ENTRY_PART } from "./assistant-subtask-entry.js";
 import { ASSISTANT_REVIEW_PART } from "./assistant-review.js";
 import { ASSISTANT_REPLY_KIND } from "@molis-ai/molis-work-contracts/services/contextual";
 
 /** The conversation: opening a thing, copying, questions, confirmations, operation cards, material chips, drawing each round and following the scroll. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place. */
-export const ASSISTANT_CONVERSATION_PART = String.raw`  const openSubtask = (work_id, parent_run_id, child_id) => document.dispatchEvent(new CustomEvent("molis:assistant-subtask-open", { detail: { work_id, ...(child_id ? { parent_run_id, child_id } : {}) } }));
+export const ASSISTANT_CONVERSATION_PART = String.raw`${ASSISTANT_SUBTASK_ENTRY_PART}
   /* ─── Showing a thing: the side panel previews it when it is there, otherwise it opens where it lives ─── */
   // The side panel claims the request (preventDefault); unclaimed, the object opens in its own surface as before.
   const sidePanelHere = () => document.body.hasAttribute("data-side-open");
@@ -76,11 +77,18 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  const openSubtask = (wor
     card.remove();
   };
 ${ASSISTANT_REVIEW_PART}
-  const renderReview = (card, work, review) => mountWorkReview(card, review, {
-    current: () => card.isConnected,
-    decide: decision => api("/works/" + encodeURIComponent(work.work_id) + "/reviews/" + encodeURIComponent(review.review_id), "POST", { decision }),
-    refresh: next => { view = next; render(); poll(); }, error: showError,
-  });
+  const mountedReviews = new WeakMap();
+  const renderReview = (card, work, review) => {
+    let mounted = mountedReviews.get(card);
+    if (!mounted) {
+      mounted = mountWorkReview(card, review, {
+        current: () => card.isConnected,
+        decide: (decision, version) => api("/works/" + encodeURIComponent(work.work_id) + "/reviews/" + encodeURIComponent(review.review_id), "POST", { decision, version }),
+        refresh: next => { view = next; render(); poll(); }, error: showError,
+      });
+      mountedReviews.set(card, mounted);
+    } else mounted.update(review);
+  };
   const renderCard = (node, work, card) => {
     node.dataset.status = card.status;
     const client = drawn(node, card.html, { onAction: async (id, button) => {

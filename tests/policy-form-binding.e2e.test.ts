@@ -13,15 +13,16 @@ test("W1-18-GOAL-POLICY-01 Goal requirements use events, while the project rules
     actor_kind: "user", source_kind: "web", idempotency_key: "policy-current-goal" }).goal;
   // Every rules request the page sends is kept for this browser session, through any reload a save causes.
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `(() => { const original = window.fetch;
-    window.fetch = (url, options) => { if (String(url).endsWith('/api/plugins/io.molis.work.goals/policy-bindings') && options?.method === 'POST') {
+    window.fetch = (url, options) => { if (String(url).includes('/api/settings/authorizations/project-rules?') && options?.method === 'POST') {
       const posts = JSON.parse(sessionStorage.getItem('policy-posts') || '[]'); posts.push(JSON.parse(options.body).scope); sessionStorage.setItem('policy-posts', JSON.stringify(posts)); }
       return original(url, options); }; })()` }, sessionId);
   // The Goal details sit beside the work at a desktop width; below 840px they fold away.
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/" + goal.goal_id }, sessionId));
   await browser.openGoalWork();
-  const posts = () => evaluate<string[]>("JSON.parse(sessionStorage.getItem('policy-posts') || '[]')");
-  const projectDefaults = () => JSON.stringify(browser.store.db.prepare("SELECT policy_binding_id, policy_json FROM policy_bindings WHERE scope = 'project_default' AND state = 'active'").all());
+  const posts = () => evaluate<Array<{ kind: string }>>("JSON.parse(sessionStorage.getItem('policy-posts') || '[]')");
+  const projectDefaults = () => JSON.stringify(browser.store.db.prepare(`SELECT id, requires_person FROM project_approval_rules
+    WHERE json_extract(scope_json, '$.kind') = 'project_default' AND state = 'active'`).all());
   const before = projectDefaults();
 
   await waitFor("!!document.querySelector('[data-goal-event-document]')", 15_000);
@@ -38,21 +39,27 @@ test("W1-18-GOAL-POLICY-01 Goal requirements use events, while the project rules
   assert.deepEqual(await posts(), []);
   assert.equal(projectDefaults(), before, "a Goal requirement does not rewrite the project default");
 
-  await evaluate("sessionStorage.removeItem('policy-posts')");
-  await evaluate(`document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: ${JSON.stringify(prefix + "/settings/rules")} } }))`);
-  await waitFor("!!document.querySelector('[data-work-surface=project-settings] [data-project-rules-form]')", 15_000);
-  const accepted = await evaluate<boolean>("(() => { const box = document.querySelector('[data-project-rules-form] [name=human_approval]'); box.checked = !box.checked; return box.checked; })()");
-  // With the service out of reach the page stays, so every request the one save sent is still on record.
+  await navigate(() => command("Page.navigate", { url: origin + "/settings/authorizations?view=project-rules&project=" + projectId }, sessionId));
+  await waitFor("!!document.querySelector('[data-authorization-rule-form]')", 15_000);
+  assert.equal(await evaluate("document.querySelector('[data-authorization-project]').value"), projectId);
+  const accepted = await evaluate<boolean>(`(() => {
+    const form = document.querySelector('[data-authorization-rule-form]');
+    const box = form.querySelector('[name=requires_person]');
+    box.checked = !box.checked;
+    form.querySelector('[name=reason]').value = '确认项目审批规则';
+    return box.checked;
+  })()`);
   await command("Network.enable", {}, sessionId);
-  await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/plugins/io.molis.work.goals/policy-bindings"] }, sessionId);
-  await click("[data-project-rules-form] button[type=submit]");
-  await waitFor("!document.querySelector('[data-project-rules-form] [data-policy-error]').hidden", 10_000);
-  await new Promise(resolve => setTimeout(resolve, 500));
-  assert.deepEqual(await posts(), ["project_default"]);
-  assert.match(await evaluate<string>("document.querySelector('[data-project-rules-form] [data-policy-error]').textContent"), /输入已保留/);
+  await command("Network.setBlockedURLs", { urls: [origin + "/api/settings/authorizations/project-rules?*"] }, sessionId);
+  await click("[data-authorization-rule-form] button[type=submit]");
+  await waitFor("!document.querySelector('[data-authorization-rule-form] [role=alert]').hidden", 10_000);
+  assert.deepEqual(await posts(), [{ kind: "project_default" }]);
+  assert.equal(await evaluate("document.querySelector('[data-authorization-rule-form] [name=reason]').value"), '确认项目审批规则');
+  assert.equal(projectDefaults(), before, "a disconnected submission changes no project rule");
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
-  await navigate(() => click("[data-project-rules-form] button[type=submit]"));
-  const saved = JSON.parse(projectDefaults()) as { policy_json: string }[];
+  await click("[data-authorization-rule-form] button[type=submit]");
+  await waitFor("!!document.querySelector('[data-authorization-detail] [role=status]')", 10_000);
+  const saved = JSON.parse(projectDefaults()) as { requires_person: number }[];
   assert.equal(saved.length, 1);
-  assert.deepEqual(JSON.parse(saved[0]!.policy_json), { human_approval: accepted });
+  assert.equal(saved[0]!.requires_person, accepted ? 1 : 0);
 });

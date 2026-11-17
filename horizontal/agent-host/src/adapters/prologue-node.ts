@@ -13,9 +13,11 @@ import { createPrologueConditionCheckers } from "./prologue-checkers.js";
 import { createPrologueCheckpoints } from "./prologue-checkpoints.js";
 import { PrologueCredentialBridge } from "./prologue-credentials.js";
 import { prologueEffects } from "./prologue-effects.js";
+import { guardNodeDispatch, prepareDispatchFence, withDispatchControl } from "./prologue-dispatch.js";
 import type { PrologueGitReviewPort } from "./prologue-git.js";
 import type { PrologueInferenceClient } from "../inference.js";
 import { createPrologueMcpLibrary } from "./prologue-mcp.js";
+import { guardMcpDispatch } from "./prologue-mcp-dispatch.js";
 import { createPrologueMemory } from "./prologue-memory.js";
 import { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 import { readResource, readResourceText, createRoundState, type DispatchGuards, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
@@ -24,7 +26,11 @@ import { createWorkGraphs } from "./prologue-work-graphs.js";
 import { createContinuationStarts } from "./prologue-collaboration.js";
 import { createNodeGitReviews, createNodePort, createNodeRuntime, directoriesIdle } from "./prologue-node-port.js";
 import { createPrologueRecovery } from "./prologue-recovery.js";
+import { actionDispatchReceipts } from "./prologue-review-effects.js";
 import { createApprovals, createPendingPort, createReviewMemory, restoreReviewHistory } from "./prologue-review-documents.js";
+import { createPrologueReviewDecisions } from "./prologue-review-decisions.js";
+import { createPrologueDelegations } from "./prologue-delegations.js";
+import type { WorkDelegationStore } from "../delegations.js";
 import { createPrologueSchedule } from "./prologue-schedule.js";
 import { createSessionIndexStore } from "./prologue-session-index.js";
 import { createPrologueWriteCheckers } from "./prologue-write-checkers.js";
@@ -91,7 +97,7 @@ export function prologueAcceptsProtocol(protocol: string): boolean {
  */
 export function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
-): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; savedHistory: PrologueSavedHistoryPort; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort; writeCheckers: AgentWriteCheckerStore;
+): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; savedHistory: PrologueSavedHistoryPort; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort; writeCheckers: AgentWriteCheckerStore; delegations: WorkDelegationStore;
   surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> & { close(): Promise<void> } {
   let release: (() => void) | undefined, closeAdapter: (() => Promise<void>) | undefined, closing: Promise<void> | undefined;
   let storageCleanup: (() => Promise<void>) | undefined;
@@ -147,24 +153,31 @@ export function createPrologueNodeAdapter(
 async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions, onFailureClose: (close: () => unknown, nodeStorage?: boolean) => () => Promise<void>) {
   // Async context holds only a trusted denial guard, never serializes it in a Run.
   const dispatchGuards: DispatchGuards = new AsyncLocalStorage();
-  const host = createNodeHost({
+  const node = createNodeHost({
     // This runtime owns or borrows the actual owner lock until all App I/O and Host storage have closed, so a write claim
     // found there at start is one a crashed owner left: the Host clears it instead of refusing that record for ever.
     storageRoot: options.storageRoot, exclusiveOwner: true, memoryStorageFormat: "indexed-v1",
     resolveHost: resolveModelHostname,
-    beforeNetworkDispatch: async () => dispatchGuards.getStore()?.(),
+    beforeNetworkDispatch: () => prepareDispatchFence(dispatchGuards.getStore()),
     // A model call that got no response at all (the connection dropped) is sent again under the retry policy, rather
     // than ending the round: the person's decision (2026-09-27), knowing a dropped request may be billed twice.
     retryUnansweredModelCalls: true,
   });
+  const state = createRoundState();
+  let runtime: Awaited<ReturnType<typeof createNodeRuntime>>;
+  const receiptBridge = actionDispatchReceipts(guardMcpDispatch(guardNodeDispatch(node, dispatchGuards), dispatchGuards), state, () => runtime);
+  const host = receiptBridge.host;
   onFailureClose(() => host.closeStorage(), true);
-  // Each invocation's SDK writes re-check its caller first (prologue-effects); accepted runs detach from the start call.
+  const closeReceipts = onFailureClose(receiptBridge.close);
   const effects = prologueEffects(host, options.app.appId);
   const closeEffects = onFailureClose(() => effects.close());
+  const decisions = createPrologueReviewDecisions(effects, options.app.appId);
+  const delegations = createPrologueDelegations(effects, options.app.appId);
+  const closeDelegations = onFailureClose(() => delegations.close());
+  options.reviewQueue?.bindDecisionStore(decisions);
   const schedule = createPrologueSchedule();
   // Bound after the runtime exists; the redactor it is given reaches it only when a screenshot is taken.
   let surfaceHost: PrologueSurfaces | undefined;
-  const state = createRoundState();
   const index = createSessionIndexStore(effects.host, options.app.appId);
   const memoryAuthority = createPrologueMemoryAuthority(options.memory, index, effects);
   const closeMemoryAuthority = onFailureClose(() => memoryAuthority.close());
@@ -173,7 +186,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     owner: async id => (await index.read(id).catch(() => undefined))?.owner });
   // Who starts a continuation that may go on by itself: the starter the composition root serves, asked per session owner.
   const starts = createContinuationStarts(async id => (await index.read(id).catch(() => undefined))?.owner);
-  const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, {
+  runtime = await createNodeRuntime(options, effects.host, task => dispatchGuards.exit(() => schedule.run(task)), () => surfaceHost, {
     forRun: runId => state.dispatchChecks.get(runId),
     onAdmitted: async request => {
       const { parentRunId, parentSessionId, childSessionId, node } = request;
@@ -185,10 +198,21 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     },
   }, checks.checkers, memoryAuthority, state.modelRequests, starts);
   starts.bind(runtime);
-  const closeRuntime = onFailureClose(() => runtime.shutdown());
+  let runtimeClosing: Promise<unknown> | undefined;
+  const surfaceFailures = new Set<unknown>();
+  const closeRuntime = onFailureClose(() => runtimeClosing ??= runtime.shutdown().catch(error => {
+    // The SDK rethrows this exact Surface failure only after closing storage. A stopped state alone is insufficient:
+    // later run cancellation and subagent flushing may still fail, and their original owner must remain retryable.
+    if (!surfaceFailures.has(error)) runtimeClosing = undefined;
+    throw error;
+  }));
   const closeChecks = onFailureClose(() => checks.close());
   checks.open();
   surfaceHost = options.surfaces ? createPrologueSurfaces(() => runtime, options.surfaces, ref => readResourceText(runtime, ref)) : undefined;
+  const closeSurfaces = onFailureClose(async () => {
+    try { await surfaceHost?.close(); }
+    catch (error) { rememberSurfaceFailures(error, surfaceFailures); throw error; }
+  });
   // Sites the person allowed earlier, as approvals the person can take back at once (not as rules fixed at start).
   if (surfaceHost && options.reviewQueue) for (const entry of options.surfaces!.siteDecisions()) if (entry.decision === "allow") surfaceHost.decide(entry);
   const credentials = new PrologueCredentialBridge({
@@ -196,14 +220,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     resolve: options.resolveCredential,
   });
   const mcpLibrary = createPrologueMcpLibrary(runtime, {
-    withDispatchGuard: (guard, operation) => {
-      const inherited = dispatchGuards.getStore();
-      return dispatchGuards.run(async () => {
-        const inheritedFence = await inherited?.(), fence = await guard();
-        return () => { requireSynchronous(inheritedFence?.(), "最终派发检查必须同步完成"); requireSynchronous(fence?.(), "最终派发检查必须同步完成"); };
-      }, operation);
-    },
+    withDispatchGuard: (guard, operation) => withDispatchControl(dispatchGuards, guard, operation),
     directoryAuthorized: options.checks?.directoryAuthorized,
+    holdDirectory: options.checks?.holdMcpDirectory,
     resolveConnection: options.resolveMcpConnection, saveConnection: options.saveMcpConnection,
     subscribeConnections: options.subscribeMcpConnections,
     credentialRefFor: (ref) => credentials.prologueRefFor(ref),
@@ -211,7 +230,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const closeMcp = onFailureClose(() => mcpLibrary.dispose());
   const surfaces = () => surfaceHost;
   const platformMemory = createPrologueMemory(runtime, effects, memoryAuthority.binding);
-  const gitReviews = createNodeGitReviews(options, host, runtime);
+  const gitReviews = createNodeGitReviews(options, effects.host, runtime, decisions);
   const closeGit = onFailureClose(() => gitReviews?.close());
   const projectWork = createNodeProjectWork(options, host, runtime, state);
   const workGraphs = createWorkGraphs(runtime, index);
@@ -220,13 +239,13 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const { messages, waitsPort, stepBoards } = createNodeCoordination(runtime, index, state, projectWork);
   const closeMessages = onFailureClose(() => messages.close());
   const closeStepBoards = onFailureClose(() => stepBoards.close());
-  const reviews = { runtime, host, state, index, options, surfaces, projectWork };
-  const pendings = createPendingPort(reviews, effects.assertCurrent);
+  const reviews = { runtime, host, state, index, options, surfaces, projectWork, decisions };
+  const pendings = createPendingPort(reviews);
   const remember = createReviewMemory(reviews);
-  const approvals = createApprovals(reviews, pendings, remember, effects.assertCurrent);
-  const detachReviews = restoreReviewHistory(reviews, pendings, remember);
-  const closeReviews = onFailureClose(() => detachReviews?.());
-  const checkpoints = options.reviewQueue ? createPrologueCheckpoints({ runtime, queue: options.reviewQueue, readIndex: index.read, readResource: ref => readResource(runtime, ref),
+  const approvals = createApprovals(reviews, pendings, remember);
+  const closeReviewHistory = restoreReviewHistory(reviews, pendings, remember);
+  const closeReviews = onFailureClose(async () => { await Promise.all([approvals?.close(), closeReviewHistory?.()]); });
+  const checkpoints = options.reviewQueue ? createPrologueCheckpoints({ runtime, queue: options.reviewQueue, decisionStore: decisions, readIndex: index.read, readResource: ref => readResource(runtime, ref),
     remember: (id, intent) => index.update(id, saved => { (saved.rewinds ??= []).push(intent); }),
     decision: (id, pendingId, receipt) => index.update(id, saved => {
       (saved.review_decisions ??= {})[pendingId] = { status: receipt.status, decided_by: receipt.decided_by, decided_at: receipt.decided_at, note: receipt.note };
@@ -237,21 +256,16 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const closeInference = onFailureClose(stopInference);
   const recovery = createPrologueRecovery({ runtime, index, state, checkpoints });
   const readQuestion = questionReader(runtime);
-  const port = createNodePort({ runtime, starts, effects, memoryAuthority, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork, workGraphs,
+  const port = createNodePort({ runtime, starts, effects, memoryAuthority, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork, workGraphs, delegations,
     messages, waitsPort, checkpoints, approvals, schedule, recovery, readQuestion,
     shutdown: async () => {
-      await closeMemoryAuthority();
-      await closeEffects();
-      await closeMcp();
-      await closeInference();
+      await closeReceipts();
       for (const controller of state.actionControllers.values()) controller.abort();
       for (const controller of state.childActionControllers.values()) controller.abort();
       state.childActionControllers.clear(); state.childAdmissions.clear(); state.subagentListeners.clear();
       state.actionControllers.clear();
-      await closeStepBoards(); await closeMessages(); await closeChecks();
-      await closeReviews();
-      await closeCheckpoints(); await closeGit();
-      return closeRuntime();
+      await closeNodeResources(closeSurfaces, [closeMemoryAuthority, closeEffects, closeMcp, closeInference, closeStepBoards, closeMessages, closeChecks,
+        closeReviews, closeCheckpoints, closeGit, closeDelegations, closeRuntime]);
     } });
 
   return Object.assign(new PrologueAgentAdapter({
@@ -274,13 +288,28 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     endedOnPromise: (runId, sessionId) => endedOnPromise(state, runId, sessionId),
     approvals,
     answerPending: answerPending({ runtime, host, state, readQuestion, index, options, effects }),
-  }), { inference, savedHistory:createPrologueSavedHistory(runtime,index), createBuilderAgent, gitReviews, writeCheckers: createPrologueWriteCheckers(runtime), diagnostics: () => {
+  }), { inference, savedHistory:createPrologueSavedHistory(runtime,index), createBuilderAgent, gitReviews, delegations, writeCheckers: createPrologueWriteCheckers(runtime), diagnostics: () => {
     const seen = runtimeDiagnostics(runtime);
     return { ...seen, ledger_failures: [...seen.ledger_failures, ...workGraphs.failures().map((entry, at) => ({ ...entry, seq: seen.ledger_failures.length + at + 1 }))] };
   },
     /** The person's standing site decisions for the side panel's browser, applied to the running runtime. */
     surfaces: surfaceHost ? { decide: (decision: Parameters<PrologueSurfaces["decide"]>[0]) => surfaceHost!.decide(decision) } : undefined,
     assertDirectoriesIdle: directoriesIdle(runtime, index), withEffect: effects.call });
+}
+
+function rememberSurfaceFailures(error: unknown, failures: Set<unknown>): void {
+  if (error instanceof AggregateError) for (const cause of error.errors) rememberSurfaceFailures(cause, failures);
+  else failures.add(error);
+}
+
+/** Surface cleanup can fail after an unknown write; other owners must finish before the Runtime they depend on closes. */
+async function closeNodeResources(closeSurfaces: () => Promise<void>, closers: readonly (() => Promise<void>)[]): Promise<void> {
+  const failures: unknown[] = [];
+  try { await closeSurfaces(); } catch (error) { failures.push(error); }
+  try { for (const close of closers) await close(); }
+  catch (error) { failures.push(error); }
+  if (failures.length === 1) throw failures[0];
+  if (failures.length) throw new AggregateError(failures, "Agent 资源关闭未全部成功；原未知结果仍需核对");
 }
 
 /** The runtime's own receipts, as the developer diagnostics page shows them. */

@@ -1,3 +1,6 @@
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AgentActionReviewControl } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { holdAssistantWorkLifetime } from "./assistant-work-permissions.js";
 import { createHash } from "node:crypto";
 import type { AssistantControl, AssistantSendResult, AssistantSubtaskAnswer, AssistantSubtaskBinding, AssistantSubtaskResumeAnswer, AssistantSubtaskReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -13,7 +16,7 @@ import { PARKED_ANSWER_TASK } from "./assistant-parked-answer.js";
 
 type Links = Pick<AssistantDispatch, "dispatch" | "executorOf"> & Pick<AssistantDelegations, "parentOf"> & {
   outcomes: AssistantOutcomes;
-  applyControl(work: StoredWork, control: Exclude<AssistantControl, { kind: "withdraw" }>): Promise<void>;
+  applyControl(work: StoredWork, control: Exclude<AssistantControl, { kind: "withdraw" }>, caller?: AgentActionReviewControl): Promise<void>;
   read(workId: string): Promise<AssistantWorkView>;
 };
 // Only request identity is retained here; the original question owner keeps the answer.
@@ -67,7 +70,7 @@ export class AssistantWorkSubtasks {
     return { state: "unknown" as const };
   }
 
-  async stop(workId: string, control: AssistantControl): Promise<AssistantWorkView> {
+  async stop(workId: string, control: AssistantControl, caller?: AgentActionReviewControl): Promise<AssistantWorkView> {
     const work = this.store.get(this.actor, workId);
     if (!control.subtask) throw assistantErrors.invalid("Missing original subtask binding");
     if (control.kind !== "stop" || control.subtask.work_id !== workId || !control.request_id) throw assistantErrors.invalid("Invalid subtask stop request");
@@ -76,15 +79,23 @@ export class AssistantWorkSubtasks {
     try { await this.assert(control.subtask, "send"); }
     catch (error) { this.store.requests.releaseRequest(this.actor, control.request_id); throw error; }
     // From this handoff onward a missing response stays unknown, including a failure while reading the final view.
-    await this.link.applyControl(work, control);
+    await this.link.applyControl(work, control, caller);
     const view = await this.link.read(workId);
     this.store.requests.finishRequest(this.actor, control.request_id, { outcome: "stopped", work: view.work, run_id: control.subtask.run.run_id });
     return view;
   }
 
   private async scope(binding: AssistantSubtaskBinding, caller: AssistantCaller, queue?: { pending_id: string; queued_input_id: string }) {
+    const input = this.store.permissionTransitions.holdWorkInput(binding.work_id);
+    try { return await this.heldScope(binding, caller, input, queue); }
+    catch (error) { input.release(); throw error; }
+  }
+
+  private async heldScope(binding: AssistantSubtaskBinding, caller: AssistantCaller, input: ReturnType<AssistantStore["permissionTransitions"]["holdWorkInput"]>, queue?: { pending_id: string; queued_input_id: string }) {
     const work = assertSubtaskWork(this.store, this.actor, binding), revision = work.revision;
-    const adapter = (await this.ports.host()).adapter("prologue");
+    const host = await this.ports.host(), adapter = host.adapter("prologue");
+    const assertLifetime = await holdAssistantWorkLifetime(host, work);
+    input.assertCurrent(); assertLifetime?.();
     if (!adapter.collaboration?.works) throw assistantErrors.unsupported("原子任务归属不可核对");
     let changed = false, accepted = false, prepared = false;
     const parent = this.store.get(this.actor, binding.parent_work_id);
@@ -93,7 +104,7 @@ export class AssistantWorkSubtasks {
       try { assertSubtaskNodes(nodes, work, parent); } catch { changed = true; }
     });
     const current = () => {
-      caller.assertBeforeStart?.();
+      input.assertCurrent(); assertLifetime?.(); requireSynchronous(caller.assertBeforeStart?.());
       const current = assertSubtaskWork(this.store, this.actor, binding);
       if (changed || !accepted && current.revision !== revision) throw assistantErrors.stale("原子任务在提交前已改变，请读取后再操作");
     };
@@ -111,14 +122,14 @@ export class AssistantWorkSubtasks {
         current(); if (!queued) throw assistantErrors.stale("原问题的已接受答案已不在此执行的队列中");
       }
     };
-    try { await beforeEffect(); prepared = true; return { work, adapter, current, beforeEffect, dispose, accepted: () => { accepted = true; } }; } catch (error) { dispose(); throw error; }
+    try { await beforeEffect(); prepared = true; return { work, adapter, current, beforeEffect, dispose: () => { dispose(); input.release(); }, accepted: () => { accepted = true; } }; } catch (error) { dispose(); throw error; }
   }
 
-  async review(workId: string, input: AssistantSubtaskReview, caller: AssistantCaller): Promise<AssistantWorkView> {
+  async review(workId: string, input: AssistantSubtaskReview, caller: AssistantCaller & { assertReview?(request: import("@molis-ai/molis-work-contracts/services/agent-host").AgentReviewRequest): void }): Promise<AssistantWorkView> {
     const frozen = structuredClone(input);
     if (frozen.subtask?.work_id !== workId) throw assistantErrors.invalid("原审批的子任务引用不完整");
     const scope = await this.scope(frozen.subtask, caller);
-    try { return await this.link.outcomes.decide(workId, frozen, { beforeEffect: scope.beforeEffect, assert_current: scope.current, run: frozen.subtask.run }); }
+    try { return await this.link.outcomes.decide(workId, frozen, { beforeEffect: scope.beforeEffect, assertCurrent: request => { scope.current(); caller.assertReview?.(request); } }, frozen.subtask.run, scope.current); }
     finally { scope.dispose(); }
   }
 

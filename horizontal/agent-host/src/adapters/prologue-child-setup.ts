@@ -1,3 +1,4 @@
+import type { PrologueWorkDelegation } from "./prologue-work-delegation.js";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { AGENT_TOOLS } from "../tool-catalog.js";
@@ -21,7 +22,7 @@ const WORKSPACE_PARENT_TOOLS: readonly string[] = WORKSPACE_PARENT_TOOL_NAMES.ma
 });
 
 /** The round's child directories and fixed child roles, each a published Character, and what the round is told of them. */
-export async function childSetup(deps: RunDeps, input: PrologueStartInput, actionNames: readonly string[]) {
+export async function childSetup(deps: RunDeps, input: PrologueStartInput, actionNames: readonly string[], work?: PrologueWorkDelegation) {
   const { runtime } = deps;
   const childRoots: PrologueSubagentRoot[] = [];
   if (input.subagent_workspaces?.length && input.character.tools.some(tool => !WORKSPACE_PARENT_TOOLS.includes(tool))) throw agentErrors.role_execution_exceeded("独立目录协调者只能读取和分派，不能持有其他执行工具");
@@ -33,6 +34,7 @@ export async function childSetup(deps: RunDeps, input: PrologueStartInput, actio
   }
   const childRoles = new Map<string, ChildRole>();
   for (const role of input.subagents ?? []) {
+    if (work && work.permission.mode !== "original" && (role.execution !== "read-only" || role.host_tools.some(tool => AGENT_TOOLS.some(entry => entry.name === tool && entry.writes)))) continue;
     assertChildRoleTools(role.execution, role.host_tools, childRoots.length > 0, input.character.tools, input.workspace === "business");
     const tools = [...role.host_tools.map(prologueToolName), ...(input.workspace === "business" ? businessChildTools(actionNames, role.execution) : [])];
     const ref = await stageInstructions(runtime, role.prompts.map(prompt => prompt.body).join("\n\n"));

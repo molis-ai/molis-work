@@ -88,6 +88,7 @@ export function answerPending(deps: QuestionDeps, scope?: QuestionScope): NonNul
       if (owned.refused.length) throw Object.assign(agentErrors.answer_invalid("选的对象现在不能用，请重新选择", { problems: owned.refused }), { problems: owned.refused });
       reply = { kind: "questionnaire", answers: owned.answers };
     }
+    await deps.effects.beforeEffect();
     if (!parked) { await runtime.effects.pendings.answer(pending.ref, reply, now, { assertBeforeAnswer: deps.effects.assertCurrent }); return "delivered"; }
     await runtime.sessions.answerInterrupted(parked.session, parked.view.ref, parked.view.version, pending.ref, reply, { assertBeforeAnswer: deps.effects.assertCurrent });
     return "queued";

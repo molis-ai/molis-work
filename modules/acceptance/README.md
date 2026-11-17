@@ -2,7 +2,7 @@
 
 把一件工作要满足的各项要求挂到任何插件的对象上（助理的后台任务、待办、Goal……），记下每次交付的确切版本、每项要求的核对结果与证据、用户本人的认可或退回，并从这些记录现算每项此刻的状态。平台能力，不认识 Goals；没有 Goals 的项目照样完整可用（[主动助理](../../specs/proactive-assistant/spec.md) §7.3.1，PWA-144～147；[授权需求书](../../specs/agent-approval/spec.md) §3.5 的共用审查合同）。
 
-包名：`@molis-ai/molis-work-module-acceptance`。工作区内部包，由 Host 装配成 `system.acceptance` 的五个动作：`acceptance.requirements.set@1`、`acceptance.deliveries.record@1`、`acceptance.reports.submit@1`、`acceptance.read@1`、`acceptance.decide@1`。`acceptance.read@1` 一次读一个或几个对象（`subjects`，至多 32 个），按所问的顺序返回 `views`，只开一次库。
+包名：`@molis-ai/molis-work-module-acceptance`。工作区内部包，由 Host 装配成 `system.acceptance` 的六个动作：`acceptance.requirements.set@1`、`acceptance.deliveries.record@1`、`acceptance.reports.submit@1`、`acceptance.read@1`、`acceptance.review@1`、`acceptance.decide@1`。`acceptance.read@1` 一次读一个或几个对象（`subjects`，至多 32 个），按所问的顺序返回 `views`，只开一次库；`acceptance.decide@1` 声明 `requires_trusted_decision: true`，由受保护可信决定入口（Web、CLI、管理 MCP）经 `acceptance.review@1` 冻结审查快照后在同一项目事务内同时记下逐项决定与项目库的不可变 `ProjectTrustedDecision`（APR-15、APR-16）。
 
 ## 一次典型调用
 
@@ -45,7 +45,7 @@ node scripts/run-tests.mjs tests/acceptance-requirements.test.ts tests/security-
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。不依赖 Goals、助理或任何插件的包。
 - 不变量：
   - 层级只由平台得出：报告的输入里没有层级字段；拿不到平台事实的证据一律按自述计并记下缺口（S-acceptance-evidence-tier，PWA-144）。
-  - 只有用户本人能认可或退回：`acceptance.decide@1` 只给本人，服务再核一遍调用确是本人自己的页面调用；Agent、工作流、MCP、插件和插件转来的调用都拒，被拒的调用什么都不写（S-acceptance-person-decides）。
+  - 只有用户本人经受保护可信决定入口能认可或退回：`acceptance.decide@1` 绑定 `requires_trusted_decision: true` 与 `acceptance.review@1`，任何绕过受保护入口的直接调用、Agent、工作流、MCP、插件和插件转来的调用都拒，被拒的调用什么都不写（S-acceptance-person-decides）。
   - 交付过之后只有本人能改要求；改了的要求得到新版本，此前的核验与认可不再算数，改要求和返工分别记录（PWA-146）。
   - 认可记下它针对的要求版本和交付版本；之后的交付动到这一项、或要求变了，这一项回到待定，其余不受影响。
   - 除对象表外的记录只追加、不改写、不删除（项目删除时整项目清掉）；历史结论和证据引用都读得到。

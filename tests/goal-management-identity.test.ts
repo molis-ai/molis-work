@@ -5,17 +5,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { MolisWorkServer, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import * as goalsPlugin from "@molis-ai/molis-work-plugin-goals";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
+import type { GoalEventDecisionResult } from "@molis-ai/molis-work-plugin-goals/contract";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionMetadata, type ActionReference, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { managementCaller, managementGoals } from "./goal-management-caller.js";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
 import { goalApplicationOf } from "./fixtures/goal-application.js";
+import { mcpGoalReviews, projectRulesPage, webGoalReviews } from "./fixtures/project-review-entry.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 /**
  * The ten writes that used to have a typed management door of their own. They are registered actions now, and a management caller
@@ -197,7 +200,18 @@ async function approvalProject(name: string) {
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const project_id = project.project_id, management = managementGoals(host.actionClient(ref), project_id);
-  const mcp = new MolisWorkServer("management", null, null, host);
+  const served = await serveTestHost(null, { home, host });
+  const server = new LocalMcpServer(withCatalog, "management", null, { homeDirectory: home,
+    runtimeContext: { runtime_id: "approval-project", stable_work_context_id: name, host_declares_stable: true } },
+    host, served.origin, async () => undefined);
+  const webReview = webGoalReviews(served.web, project_id), mcp = mcpGoalReviews(server, project_id, project.database_path);
+  const rule = projectRulesPage(served, project_id);
+  type DecideInput = typeof goalsActions.decide extends ActionDefinition<infer Input, infer _Output> ? Input : never;
+  const decide = async (input: DecideInput) => {
+    const output = await webReview.submit<GoalEventDecisionResult>(await webReview.prepare(goalsActions.decide, input));
+    assert.ok(output.result);
+    return output.result;
+  };
   const runtime = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:closer", audit_actor_id: "runtime:closer:session",
     actor_kind: "runtime", audience: "agent", project_id, permissions: ["goals:read", "goals:write", "attention:write"] }));
   const web = bindActionClient(host.actionClient(ref), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id,
@@ -213,7 +227,7 @@ async function approvalProject(name: string) {
     await runtime.invoke(goalsActions.report, { goal_id, idempotency_key: `report-${goal_id}`,
       events: [{ type_id: "work", type_version: 1, title: "交付", fields: { body: "已交付" },
         judgments: [{ requirement_id: requirement(goal_id), verdict: "supports" }] }] });
-    if (accepted) await web.invoke(goalsActions.decide, { goal_id, idempotency_key: `accept-supported-${goal_id}`, conclusion: "看过交付，接受这条要求",
+    if (accepted) await decide({ goal_id, idempotency_key: `accept-supported-${goal_id}`, conclusion: "看过交付，接受这条要求",
       accepts_requirements: true, scope: { requirement_ids: [requirement(goal_id)] } });
   };
   const closeInput = async (goal_id: string, idempotency_key: string) => {
@@ -221,8 +235,8 @@ async function approvalProject(name: string) {
     return { goal_id, kind: "complete" as const, result: "结果可以检查", reason: "试着完成", idempotency_key,
       expected_config_version: state.config.version, expected_agreement_version: state.agreement.version };
   };
-  return { host, ref, mcp, management, project_id, runtime, web, requirement, supported, closeInput,
-    done: async () => { await mcp.close(); await host.close(); await rm(home, { recursive: true, force: true }); } };
+  return { host, ref, mcp, management, project_id, runtime, web, decide, rule, requirement, supported, closeInput,
+    done: async () => { await server.close(); await served.close(); await host.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 const SELF_REPORTED = "goals.event_closure.requirement_self_reported";
@@ -234,7 +248,7 @@ const SELF_REPORTED = "goals.event_closure.requirement_self_reported";
  * is not it (user decision 2026-11-05: accepting requirements and approving completion are separate).
  */
 test("under the project approval rule a close from the management door, the Web or a runtime is not the approval, and neither is an accepted requirement (user decision 2026-11-05)", async () => {
-  const { host, ref, mcp, management, project_id, runtime, web, requirement, supported, closeInput, done } = await approvalProject("approval");
+  const { host, ref, mcp, management, project_id, runtime, web, decide, rule, requirement, supported, closeInput, done } = await approvalProject("approval");
   const closers = {
     runtime: async (goal_id: string, key: string) => runtime.invoke(goalsActions.close, await closeInput(goal_id, key)),
     web: async (goal_id: string, key: string) => web.invoke(goalsActions.close, await closeInput(goal_id, key)),
@@ -246,7 +260,7 @@ test("under the project approval rule a close from the management door, the Web 
     await supported("CONTROL");
     assert.equal((await closers.management("CONTROL", "close-control")).completion_applied, true);
 
-    await web.invoke(goalsActions.policySave, { policy: { human_approval: true }, user_confirmed: true, idempotency_key: "policy" });
+    await rule.setDefault(true, "The project requires approval");
     await supported("DECIDED");
     for (const [name, close] of Object.entries(closers)) {
       const held = await close("DECIDED", `close-${name}`);
@@ -260,20 +274,21 @@ test("under the project approval rule a close from the management door, the Web 
     }
     // A decision from the person that authorizes complete releases it, for the same door that was held back before. The door sends no
     // authority: the Host decides as the person on this machine.
-    await mcp.callTool("molis_work_v1_event_decide", { database_path: ref.storage_key, project_id, goal_id: "DECIDED", idempotency_key: "allow", conclusion: "可以完成",
-      effects: [{ kind: "authorize_action", action: "complete" }], scope: { action: "complete" } });
+    const draft = { goal_id: "DECIDED", idempotency_key: "allow", conclusion: "可以完成",
+      effects: [{ kind: "authorize_action", action: "complete" }], scope: { action: "complete" } };
+    await mcp.submit(await mcp.prepare(goalsActions.decide, draft));
     assert.equal((await closers.management("DECIDED", "close-management-after")).completion_applied, true);
 
     // An accepted conclusion on the requirement meets the requirement and does not release the rule: with no decision about
     // completing, the close stays held for the approval alone, and an authorization from the person then releases it.
     await supported("ACCEPTED", { accepted: false });
     assert.deepEqual((await closers.runtime("ACCEPTED", "close-before")).unmet_reasons.map(reason => reason.code), [SELF_REPORTED, APPROVAL_REQUIRED]);
-    await web.invoke(goalsActions.decide, { goal_id: "ACCEPTED", idempotency_key: "accept", conclusion: "接受这条要求",
+    await decide({ goal_id: "ACCEPTED", idempotency_key: "accept", conclusion: "接受这条要求",
       accepts_requirements: true, scope: { requirement_ids: [requirement("ACCEPTED")] } });
     const accepted = await closers.runtime("ACCEPTED", "close-after");
     assert.equal(accepted.completion_applied, false, "an accepted requirement is not the approval");
     assert.deepEqual(accepted.unmet_reasons.map(reason => reason.code), [APPROVAL_REQUIRED]);
-    await web.invoke(goalsActions.decide, { goal_id: "ACCEPTED", idempotency_key: "allow-accepted", conclusion: "可以完成",
+    await decide({ goal_id: "ACCEPTED", idempotency_key: "allow-accepted", conclusion: "可以完成",
       effects: [{ kind: "authorize_action", action: "complete" }], scope: { action: "complete" } });
     assert.equal((await closers.runtime("ACCEPTED", "close-authorized")).completion_applied, true);
   } finally { await done(); }
@@ -285,9 +300,9 @@ test("under the project approval rule a close from the management door, the Web 
  * was given in, though the accepted conclusion it leaves on the requirement outlives both.
  */
 test("under the project approval rule a decision from the Web that accepts a requirement and authorizes complete ends with the round and with the agreement", async () => {
-  const { runtime, web, requirement, supported, closeInput, done } = await approvalProject("accepting");
+  const { runtime, decide, rule, requirement, supported, closeInput, done } = await approvalProject("accepting");
   const APPROVAL_REQUIRED = "goals.event_closure.human_approval_required";
-  const approve = (goal_id: string, idempotency_key: string, requirement_ids: string[]) => web.invoke(goalsActions.decide, { goal_id, idempotency_key,
+  const approve = (goal_id: string, idempotency_key: string, requirement_ids: string[]) => decide({ goal_id, idempotency_key,
     conclusion: "这些要求通过，可以完成", accepts_requirements: true, scope: { action: "complete", requirement_ids } });
   const closeNow = async (goal_id: string, key: string) => runtime.invoke(goalsActions.close, await closeInput(goal_id, key));
   const reportAgain = (goal_id: string, requirement_id: string, idempotency_key: string) => runtime.invoke(goalsActions.report, { goal_id, idempotency_key,
@@ -298,7 +313,7 @@ test("under the project approval rule a decision from the Web that accepts a req
     assert.deepEqual(closure.unmet_reasons.map(reason => reason.code), [APPROVAL_REQUIRED], what);
   };
   try {
-    await web.invoke(goalsActions.policySave, { policy: { human_approval: true }, user_confirmed: true, idempotency_key: "policy" });
+    await rule.setDefault(true, "The project requires approval");
 
     // The round: completed, resumed and supported again, with the requirement still accepted. The person approves again.
     await supported("ROUND");
@@ -319,7 +334,7 @@ test("under the project approval rule a decision from the Web that accepts a req
     await runtime.invoke(goalsActions.agree, { goal_id: "AGREEMENT", idempotency_key: "add-agreement", expected_config_version: state.config.version,
       expected_agreement_version: state.agreement.version, new_requirements: [{ requirement_id: "AGREEMENT-new", statement: "新加的要求", bound_type_id: "work" }] });
     await reportAgain("AGREEMENT", "AGREEMENT-new", "report-agreement-new");
-    await web.invoke(goalsActions.decide, { goal_id: "AGREEMENT", idempotency_key: "accept-agreement-new", conclusion: "接受新加的要求",
+    await decide({ goal_id: "AGREEMENT", idempotency_key: "accept-agreement-new", conclusion: "接受新加的要求",
       accepts_requirements: true, scope: { requirement_ids: ["AGREEMENT-new"] } });
     await held("AGREEMENT", "close-agreement-1", "requirement added, earlier approval that also accepted a requirement");
     await approve("AGREEMENT", "approve-agreement-again", [requirement("AGREEMENT"), "AGREEMENT-new"]);
@@ -335,11 +350,11 @@ test("under the project approval rule a decision from the Web that accepts a req
  * decision button.
  */
 test("under the project approval rule a plain acceptance of a requirement from the Web is not the approval, in any round or for any agreement (user decision 2026-11-05: accepting requirements and approving completion are separate)", async () => {
-  const { runtime, web, requirement, supported, closeInput, done } = await approvalProject("accepted");
+  const { runtime, decide, rule, requirement, supported, closeInput, done } = await approvalProject("accepted");
   const APPROVAL_REQUIRED = "goals.event_closure.human_approval_required";
-  const accept = (goal_id: string, idempotency_key: string, requirement_ids: string[]) => web.invoke(goalsActions.decide, { goal_id, idempotency_key,
+  const accept = (goal_id: string, idempotency_key: string, requirement_ids: string[]) => decide({ goal_id, idempotency_key,
     conclusion: "接受这些要求", accepts_requirements: true, scope: { requirement_ids } });
-  const authorize = (goal_id: string, idempotency_key: string) => web.invoke(goalsActions.decide, { goal_id, idempotency_key,
+  const authorize = (goal_id: string, idempotency_key: string) => decide({ goal_id, idempotency_key,
     conclusion: "可以完成", effects: [{ kind: "authorize_action", action: "complete" }], scope: { action: "complete" } });
   const closeNow = async (goal_id: string, key: string) => runtime.invoke(goalsActions.close, await closeInput(goal_id, key));
   const reportAgain = (goal_id: string, requirement_id: string, idempotency_key: string) => runtime.invoke(goalsActions.report, { goal_id, idempotency_key,
@@ -352,7 +367,7 @@ test("under the project approval rule a plain acceptance of a requirement from t
   const verdictOn = async (goal_id: string) => (await runtime.invoke(goalsActions.state, { goal_id })).requirements
     .find(item => item.requirement_id === requirement(goal_id))?.user_conclusion?.verdict;
   try {
-    await web.invoke(goalsActions.policySave, { policy: { human_approval: true }, user_confirmed: true, idempotency_key: "policy" });
+    await rule.setDefault(true, "The project requires approval");
 
     // The round: the acceptance alone is held for the approval; authorized, it completes. Resumed and supported again, the requirement
     // is still accepted and the close is held again; accepting again changes nothing, an authorization in the new round releases it.

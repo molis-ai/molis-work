@@ -52,7 +52,7 @@ test("PG062-09: Coding's change reader and integration preview draw their own ma
   const ref = { session_id: "sdk", run_id: "r" };
   // Two approved writes of one file, the second with markup in it, so both a write and the net change can be read.
   const writes = [["old\n", "new\r\n"], ["new\r\n", "latest <script>\n"]] as const;
-  const rows = writes.map(([before_text, after_text], n) => ({ request: { review_id: `review-${n}`, project_id: DEMO_PROJECT_ID, plugin_id: CODING, run: ref, kind: "text-edit",
+  const rows = writes.map(([before_text, after_text], n) => ({ request: { reference: { owner: { kind: "agent-review" as const, project_id: DEMO_PROJECT_ID, plugin_id: CODING, install_id: "install" }, id: `review-${n}`, version: "proposal-1" }, review_id: `review-${n}`, project_id: DEMO_PROJECT_ID, plugin_id: CODING, run: ref, kind: "text-edit",
     document: { kind: "text-edit", target_path: "cart.mjs", exists: true, before_text, after_text } },
     receipt: { review_id: `review-${n}`, status: "approved", effect_settled: true, effect_error: null } }));
   const files = [{ path: ["src", "a.ts"], target: "modified", selectable: true, revision: "1", before_text: "keep\nold <b>\n", after_text: "keep\nnew <b>\n" },

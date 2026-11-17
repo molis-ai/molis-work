@@ -7,6 +7,7 @@ import { PAGES_UI_CONTRIBUTION_ID } from "./ui.js";
 import { pagesSkills } from "./skills.js";
 import { PAGES_DATABASE } from "./database.js";
 import { pagesSyncDeclaration } from './sync-declaration.js';
+import { pagesPresentation } from "./presentation.js";
 
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID };
 
@@ -19,6 +20,7 @@ export const pagesManifest: PluginManifest = {
   host_api_version: /* @version host.api */ 1,
   plugin_id: PAGES_PLUGIN_ID,
   sync: pagesSyncDeclaration,
+  presentation: pagesPresentation,
   version: /* @version product.release */ "0.1.0",
   name: "Pages",
   summary: "写文档，可导出 Markdown / PDF。", summary_text: { key: "pages.directory.summary" },

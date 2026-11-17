@@ -1,3 +1,4 @@
+import { openReviewPermission } from "./plugin-frame/review-permission.js";
 import type { AssistantPendingReview, AssistantScope, AssistantSubtaskBinding, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentSubagentConversation } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { SubtaskConversationOptions } from "@molis-ai/molis-work-plugin-sdk/subtask-conversation";
@@ -9,8 +10,9 @@ import type { FrameScope } from "./plugin-frame/types.js";
 
 type DrawnReview = AssistantPendingReview & { html: string };
 export interface AssistantWorkReviewMount {
-  mount(root: HTMLElement, review: DrawnReview, control: { current(): boolean; decide(decision: "approve" | "reject"): Promise<unknown>; refresh(): void; error(error: unknown): void }): { destroy(): void };
+  mount(root: HTMLElement, review: DrawnReview, control: { current(): boolean; decide(decision: "approve" | "reject", version: string): Promise<unknown>; refresh(): void; error(error: unknown): void; permission?(trigger: HTMLElement, reviewId: string, version: string): void }): { update(review: DrawnReview): void; destroy(): void };
   retitle(root: HTMLElement): void;
+  permission?(trigger: HTMLElement, work: AssistantWorkView["work"], review: DrawnReview, signal: AbortSignal): Promise<boolean>;
 }
 export interface AssistantSubtaskReviewFactories {
   mountPluginClient(root: HTMLElement): FrameScope | null;
@@ -21,7 +23,7 @@ export interface AssistantSubtaskReviewFactories {
 export function assistantSubtaskReviews(ports: AssistantSubtaskReviewFactories & {
   api: AssistantSubtaskRequest; sdkPath(target: string): string; work: AssistantWorkReviewMount; refresh(): void;
 }) {
-  const works = new Map<string, { binding: AssistantSubtaskBinding; workId: string; reviews: DrawnReview[] }>();
+  const works = new Map<string, { binding: AssistantSubtaskBinding; workId: string; work: AssistantWorkView["work"]; reviews: DrawnReview[] }>();
   const children = new Map<string, { scope: AssistantScope; conversation: AgentSubagentConversation }>();
   const key = (target: string, binding: string) => JSON.stringify([target, binding]);
   const mount: NonNullable<SubtaskConversationOptions["mountDetail"]> = (root, view, detail) => {
@@ -40,16 +42,20 @@ export function assistantSubtaskReviews(ports: AssistantSubtaskReviewFactories &
     if (review && record) {
       content.className = "assistant-card assistant-review";
       const mounted = ports.work.mount(content, review, { current: () => lifetime.alive && lifetime.visible,
-        decide: decision => ports.api("/works/" + encodeURIComponent(record.workId) + "/reviews/" + encodeURIComponent(review.review_id),
-          { decision, subtask: record.binding }, lifetime.signal), refresh: () => ports.refresh(), error });
+        decide: (decision, version) => ports.api("/works/" + encodeURIComponent(record.workId) + "/reviews/" + encodeURIComponent(review.review_id),
+          { decision, version, subtask: record.binding }, lifetime.signal), refresh: () => ports.refresh(), error,
+        permission: (trigger, reviewId, version) => { const original = works.get(key(view.target, view.binding))?.reviews.find(one => one.review_id === reviewId && one.version === version);
+          if (original) void ports.work.permission?.(trigger, record.work, original, lifetime.signal).then(changed => { if (changed && lifetime.alive && lifetime.visible) ports.refresh(); }).catch(error); },
+      });
       lifetime.own(() => mounted.destroy());
-      update = () => { if (lifetime.alive) ports.work.retitle(content); };
+      update = () => { if (lifetime.alive) { const current = works.get(key(view.target, view.binding))?.reviews.find(one => one.review_id === review.review_id); if (current) mounted.update(current); ports.work.retitle(content); } };
       lifetime.listen(document, "molis-work:language-changed", update);
     } else {
       const original = sdk!, childRun = original.conversation.child.child_run!;
       const route = (path: string) => (original.scope.kind === "project" ? "/projects/" + encodeURIComponent(original.scope.project_id) : "") + path;
       const show = ports.reviews({ mountPluginClient: node => { const child = ports.mountPluginClient(node); if (child) lifetime.own(() => child.dispose()); return child; }, route, headers: () => ({}),
         confirm: pageDialogs(lifetime, t.text, true).confirm,
+        permission: (trigger, reviewId, version) => openReviewPermission(trigger, reviewId, version, lifetime, route, () => ({})),
         decide: (input, signal) => ports.api(ports.sdkPath(view.target) + "/reviews/" + encodeURIComponent(input.review_id), { ...input, child_run: childRun }, signal),
         onDecision: () => { if (lifetime.alive && lifetime.visible) ports.refresh(); } });
       update = () => { if (lifetime.alive) void show(content, [{ run_id: childRun.run_id }], null, null, { limit: 20 }, { lifetime, signal: lifetime.signal }).catch(error); };
@@ -62,7 +68,7 @@ export function assistantSubtaskReviews(ports: AssistantSubtaskReviewFactories &
       const parsed = JSON.parse(binding) as AssistantSubtaskBinding | null;
       if (!parsed) return [];
       const reviews = original.reviews.filter(one => one.run_id === parsed.run.run_id).filter((one): one is DrawnReview => typeof (one as Partial<DrawnReview>).html === "string");
-      works.set(key(target, binding), { binding: parsed, workId: original.work.work_id, reviews });
+      works.set(key(target, binding), { binding: parsed, workId: original.work.work_id, work: original.work, reviews });
       return reviews.map(review => ({ id: "review:" + review.review_id, title: review.summary, content: { text: "" }, expanded: true }));
     },
     rememberSdk(target: string, scope: AssistantScope, conversation: AgentSubagentConversation, hasReviews: boolean): MwSubtaskDetail[] {

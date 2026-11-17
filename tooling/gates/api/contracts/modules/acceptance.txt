@@ -16,6 +16,8 @@ export declare const ACCEPTANCE_REPORT_PERMISSION = "acceptance:report";
 
 export declare const ACCEPTANCE_REQUIREMENT_MAX = 40;
 
+export declare const ACCEPTANCE_REVIEW_SUBJECT_KINDS: readonly ["acceptance_subject", "acceptance_requirement", "acceptance_check"];
+
 export interface AcceptanceCheck {
     kind: AcceptanceCheckKind;
     verdict: "supports" | "contradicts";
@@ -151,6 +153,11 @@ export interface AcceptanceRequirementState {
     history: AcceptanceHistoryEntry[];
 }
 
+export interface AcceptanceReviewRequest {
+    request_id: string;
+    draft?: Readonly<Record<string, unknown>>;
+}
+
 export interface AcceptanceSetRequest {
     subject: AcceptanceSubject;
     requirements: AcceptanceRequirementInput[];
@@ -180,6 +187,7 @@ export interface AcceptanceView {
         summary: string | null;
         touched: string[];
     } | null;
+    review_reference?: ReviewReference<ReviewOwner>;
 }
 
 export declare const acceptanceActions: {
@@ -187,6 +195,7 @@ export declare const acceptanceActions: {
     deliver: ActionDefinition<AcceptanceDeliverRequest, AcceptanceView>;
     report: ActionDefinition<AcceptanceReportRequest, AcceptanceView>;
     read: ActionDefinition<AcceptanceReadRequest, AcceptanceReadResult>;
+    review: ActionDefinition<AcceptanceReviewRequest, object>;
     decide: ActionDefinition<AcceptanceDecideRequest, AcceptanceView>;
 };
 
@@ -200,3 +209,7 @@ export declare const acceptanceErrors: import("platform/action-errors").ErrorCod
     readonly selection_changed: "conflict";
     readonly note_required: "invalid";
 }>;
+
+export declare function acceptanceRequestId(subject: AcceptanceSubject): string;
+
+export declare function parseAcceptanceRequestId(requestId: string): AcceptanceSubject | null;

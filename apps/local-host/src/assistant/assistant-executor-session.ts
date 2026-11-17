@@ -37,10 +37,11 @@ function sessionHolder(store: SessionStore, actorId: string, projectId: string |
  * A new work that continues a session the person started on the executor's own page: the same session, so both entries show
  * one conversation. The session must exist in this project; a session another work already carries stays with it.
  */
-export async function adoptSession(store: SessionStore, actorId: string, work: StoredWork, executor: WorkExecutor, sessionId: string): Promise<StoredWork> {
+export async function adoptSession(store: SessionStore, actorId: string, work: StoredWork, executor: WorkExecutor, sessionId: string, assertCurrent?: () => void): Promise<StoredWork> {
   if (work.executor.kind !== "plugin") throw assistantErrors.invalid("只有交给执行方插件的新工作可以接着一个已有的会话");
   const { provider } = executor;
   await executor.read(sessionId, 1);
+  assertCurrent?.();
   const holder = sessionHolder(store, actorId, identity(work).project_id, { kind: provider.session_kind, id: sessionId }, work.work_id);
   if (holder) throw assistantErrors.conflict(`这个会话已属于工作「${holder.title}」，请切换到那项工作继续`);
   const adopted = store.update(actorId, work.work_id, null, { executor: { ...work.executor, session_id: sessionId } });
@@ -49,9 +50,10 @@ export async function adoptSession(store: SessionStore, actorId: string, work: S
 }
 
 /** The executor's new session for a plugin-carried work that has none yet, linked to the work; opened in `mode` when one is given. */
-export async function openSession(store: SessionStore, actorId: string, work: StoredWork, executor: WorkExecutor, mode?: string): Promise<SessionWork> {
+export async function openSession(store: SessionStore, actorId: string, work: StoredWork, executor: WorkExecutor, mode?: string, assertCurrent?: () => void): Promise<SessionWork> {
   if (work.executor.kind !== "plugin") throw assistantErrors.invalid("这项工作不由执行方插件承担");
   const sessionId = await executor.createSession(promptTitle(work), mode);
+  assertCurrent?.();
   const opened = store.update(actorId, work.work_id, null, { executor: { ...work.executor, session_id: sessionId } });
   store.relations.link(identity(opened), "session", { kind: executor.provider.session_kind, id: sessionId, revision: null }, `「${executor.provider.title}」的会话承接这项工作`);
   return opened as SessionWork;

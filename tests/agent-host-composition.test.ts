@@ -1,3 +1,4 @@
+import { reviewDecisionStorage } from "./fixtures/review-decision-storage.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ensureProjectRoot } from "./fixtures/goals-board.js";
 import assert from "node:assert/strict";
@@ -321,13 +322,15 @@ test('Git result projection excludes active, uncertain, undelivered and foreign 
     await startPlugin(item.localHost, item.reference, store, reader);
     const actions = reader.actions(item.reference.project_id);
     const queue = item.composition.agentHost.reviews;
+    queue.bindDecisionStore(reviewDecisionStorage().store);
     for (const id of ['pending', 'approved', 'unknown', 'undelivered', 'done', 'failed', 'denied', 'other-workspace', 'other-project']) {
-      queue.request({ review_id: id, project_id: id === 'other-project' ? 'project-b' : 'project-a', run: null, plugin_id: 'io.molis.work.git', kind: 'git-index',
+      queue.request({ reference: { owner: { kind: "agent-review" as const, project_id: id === 'other-project' ? 'project-b' : 'project-a', plugin_id: 'io.molis.work.git', install_id: 'fixture' }, id: id, version: "proposal-1" }, review_id: id, project_id: id === 'other-project' ? 'project-b' : 'project-a', run: null, plugin_id: 'io.molis.work.git', kind: 'git-index',
         operation: { kind: 'git-index', operation_id: id, workspace_id: id === 'other-workspace' ? 'other' : 'w' },
         document: { kind: 'git-index', action: 'stage', workspace_name: 'fixture', files: [{ path: 'note', before_text: 'old', after_text: 'new', before_mode: '100644', after_mode: '100644' }] },
         requested_at: '2026-09-22T00:00:00Z', expires_at: null }, { plugin_id: 'io.molis.work.git', install_id: 'fixture', holds: () => true });
       if (id === 'pending') continue;
-      queue.decide({ review_id: id, decision: id === 'denied' ? 'reject' : 'approve', actor_id: 'reviewer' });
+      queue.registerDecisionHandler(id, async (_input, commit) => commit());
+      await queue.respond({ review_id: id, version: "proposal-1", decision: id === 'denied' ? 'reject' : 'approve', actor_id: 'reviewer' });
       if (id === 'denied') continue;
       queue.consumeApproval(id);
       if (id === 'unknown') queue.uncertain(id, 'missing receipt');

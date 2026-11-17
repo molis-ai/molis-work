@@ -867,7 +867,7 @@ test("BL-051, BL-182: subagent attempt budget tracking, exhaustion guard, +3 bud
     for (const review of service.agentHost.reviews.list(project.project_id, "pending")) {
       if (!decided.has(review.review_id)) {
         decided.add(review.review_id);
-        await service.agentHost.reviews.respond({ review_id: review.review_id, decision: "approve", actor_id: "web-user" });
+        await service.agentHost.reviews.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "web-user" });
       }
     }
   };

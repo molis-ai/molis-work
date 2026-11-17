@@ -1,6 +1,8 @@
 import type { AsyncLocalStorage } from "node:async_hooks";
-import { OFFICIAL_CODING_PACK, SYSTEM_TOOL_NAMES, type ExactRef, type ModelEvent, type ModelRequestObserved, type Runtime, type Skill } from "@prologue/sdk";
+import { OFFICIAL_CODING_PACK, SYSTEM_TOOL_NAMES, type ExactRef, type ModelEvent, type ModelRequestObserved, type PolicySnapshot, type Runtime, type Skill } from "@prologue/sdk";
 import type { createNodeHost } from "@prologue/sdk/node";
+import type { McpDispatch } from "./prologue-mcp-dispatch.js";
+import type { RoundMcp } from "./prologue-round-mcp.js";
 import type { AgentStartExecution } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -12,6 +14,9 @@ import type { AgentReviewQueue } from "../reviews.js";
 import type { RoundFacts } from "./announce-guard.js";
 import type { StopGuard } from "./prologue-stop-guard.js";
 import { agentTool } from "../tool-catalog.js";
+import type { PrologueActionReviews } from "./prologue-action-reviews.js";
+import type { ReviewDecisionControl } from "../review-decisions.js";
+import type { PrologueWorkDelegation } from "./prologue-work-delegation.js";
 
 /**
  * What the parts of the Node composition share (W4-06 split `initializePrologueNodeAdapter` into them): the adapter's
@@ -75,7 +80,8 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
 
 export type NodeHost = ReturnType<typeof createNodeHost>;
 export type DispatchGuard = NonNullable<AgentStartExecution["beforeDispatch"]>;
-export type DispatchGuards = AsyncLocalStorage<DispatchGuard>;
+export type DispatchControl = ReviewDecisionControl & { readonly mcp?: McpDispatch; prepareDispatch?: DispatchGuard };
+export type DispatchGuards = AsyncLocalStorage<DispatchControl>;
 export type CommandEvent = Extract<ModelEvent, { type: "command-receipt" }>;
 /** The kinds of ending a round's stop check holds once each. */
 export type HeldKind = "memory" | "written" | "button" | "ids" | "saved" | "announce";
@@ -97,6 +103,7 @@ export interface RoundState {
   /** Per session, the exact identities the round now running has seen offered (so one gone later reads as taken away). */
   readonly gatewayOffered: Map<string, Set<string>>;
   readonly gatewayHooks: Set<string>;
+  readonly actionReviews: Map<string, PrologueActionReviews>;
   /** Why each held ending was held, in order (the runtime's event does not say). */
   readonly heldLabels: Map<string, Array<{ target: string; summary: string }>>;
   /** Per business session, what the round now running really kept and forgot, and whether it could: switched off, or given without the tool that keeps (or forgets), as a work handed down by another work is. */
@@ -110,7 +117,11 @@ export interface RoundState {
   readonly roundFacts: Map<string, RoundFacts>;
   readonly actionControllers: Map<string, AbortController>;
   readonly runRoots: Map<string, ExactRef<"authorized-root">>;
-  readonly activeRuns: Map<string, { live(): boolean; steer(text: string): Promise<void> }>;
+  readonly activeRuns: Map<string, { live(): boolean; assertAuthority(): void; steer(text: string): Promise<void>;
+    usePolicy?(id: string, assertCurrent: () => void): void; useExact?(id: string, control: ReviewDecisionControl): void;
+    stop?(): Promise<void>; readonly policy?: PolicySnapshot; readonly work?: PrologueWorkDelegation; readonly workSelection?: boolean; readonly mcp?: RoundMcp }>;
+  /** Run ids started during this adapter process lifetime; historical restore only reads earlier processes. */
+  readonly sessionRuns: Set<string>;
   /** Which session each run belongs to, and the run ref, so "allow in this app this round" binds to that run. */
   readonly runSessions: Map<string, string>;
   readonly runRefs: Map<string, ExactRef<"run">>;
@@ -135,8 +146,8 @@ export interface RoundState {
 export function createRoundState(): RoundState {
   return {
     registeredMethods: new Map(), sessions: new Map(), actionToolSessions: new Set(), gatewayRuns: new Map(), gatewayKnown: new Map(), gatewayOffered: new Map(),
-    gatewayHooks: new Set(), heldLabels: new Map(), memoryRounds: new Map(), changeRounds: new Map(),
-    stopGuards: new Map(), stopHooks: new Set(), roundFacts: new Map(), actionControllers: new Map(), runRoots: new Map(), activeRuns: new Map(), runSessions: new Map(),
+    gatewayHooks: new Set(), actionReviews: new Map(), heldLabels: new Map(), memoryRounds: new Map(), changeRounds: new Map(),
+    stopGuards: new Map(), stopHooks: new Set(), roundFacts: new Map(), actionControllers: new Map(), runRoots: new Map(), activeRuns: new Map(), sessionRuns: new Set(), runSessions: new Map(),
     runRefs: new Map(), reviewEffects: new Map(), deadlines: new Map(), commandEvents: new Map(), subagentBridgeErrors: new Map(),
     liveSessions: new Map(), runWork: new Map(), dispatchChecks: new Map(), childAdmissions: new Map(), subagentListeners: new Set(), childActionControllers: new Map(), modelRequests: new Set(),
   };
@@ -166,15 +177,18 @@ export function unexecutedApprovalCallOf(
 /** A text resource the person brought, read whole (bounded at 1 MiB). */
 export async function readResourceText(runtime: Runtime, ref: ExactRef<"resource">): Promise<string> {
   const handle = runtime.resources.inspect(ref);
-  if (!handle || handle.byteLength > 1024 * 1024) throw new Error("要输入的文字不可读取");
+  if (!handle || handle.mediaKind !== "text" || !Number.isSafeInteger(handle.byteLength) || handle.byteLength < 0
+    || handle.byteLength > 1024 * 1024) throw new Error("要输入的文字不可读取");
   const bytes = new Uint8Array(handle.byteLength);
   let offset = 0;
   while (offset < bytes.byteLength) {
-    const chunk = await runtime.resources.readChunk(ref, offset, Math.min(64 * 1024, bytes.byteLength - offset));
-    if (!chunk.bytes.byteLength) break;
+    const requested = Math.min(64 * 1024, bytes.byteLength - offset);
+    const chunk = await runtime.resources.readChunk(ref, offset, requested);
+    if (chunk.offset !== offset || !chunk.bytes.byteLength || chunk.bytes.byteLength > requested) throw new Error("要输入的文字不完整");
     bytes.set(chunk.bytes, offset); offset += chunk.bytes.byteLength;
+    if (chunk.done !== (offset === bytes.byteLength)) throw new Error("要输入的文字提前结束或长度不符");
   }
-  return new TextDecoder().decode(bytes.subarray(0, offset));
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 }
 
 /** An execution resource (a review, a receipt), read whole and exactly, as JSON; anything short or out of order is refused. */

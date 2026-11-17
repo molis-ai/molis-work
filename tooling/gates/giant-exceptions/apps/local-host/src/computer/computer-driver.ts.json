@@ -1,0 +1,12 @@
+{
+  "exceptions": {
+    "class apps/local-host/src/computer/computer-driver.ts#ComputerDriver": {
+      "kind": "cohesive-unit",
+      "reason": "同一桌面应用的观察、定位、输入与结果读取适配器，操作共享原目标、观察时间与步骤进展；共享电脑租约仍归 ComputerDesk，原调用核验独立在 computer-round，此类不负责连接或存储，不为行数拆散同一次操作。",
+      "size": {
+        "lines": 398,
+        "methods": 24
+      }
+    }
+  }
+}

@@ -56,6 +56,14 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
       });
       state.lifetime.listen(container,'click',async event=>{
         if(!event.isTrusted || !state.control.lifetime.visible)return;
+        const permission=event.target.closest('[data-agent-review-permission]');
+        if(permission && host.permission && container.contains(permission)) {
+          const row=permission.closest('[data-agent-review-item]');
+          if(await host.permission(permission,row.dataset.agentReviewItem,row.dataset.agentReviewVersion) && current(state,state.control)) {
+            void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);
+          }
+          return;
+        }
         const recoveryButton=event.target.closest('[data-agent-review-inspect],[data-review-recheck],[data-review-confirm-not]');
         if(recoveryButton && container.contains(recoveryButton)) {
           const row=recoveryButton.closest('[data-agent-review-item]'), review_id=row.dataset.agentReviewItem;
@@ -104,12 +112,12 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
         if(!button || !container.contains(button)) return;
         const review_id=button.dataset.agentReviewApprove || button.dataset.agentReviewReject;
         if(busy.has(review_id)) return;
-        const row=button.closest('[data-agent-review-item]'),note=row.querySelector('[data-agent-review-feedback]')?.value.trim() || '';
+        const row=button.closest('[data-agent-review-item]'),version=row.dataset.agentReviewVersion,note=row.querySelector('[data-agent-review-feedback]')?.value.trim() || '';
         if(button.dataset.agentReviewApprove && note)return;
         busy.add(review_id); syncActions(row);
         const control=state.control,scopeKey=state.key,scope={workspaceId:state.workspaceId,sessionId:state.sessionId};let receipt=null,decisionError=null,attempted=false;
         const remember=Boolean(button.dataset.agentReviewApprove && row.querySelector('[data-agent-review-remember]')?.checked);
-        try { if(host.confirm && !await host.confirm(button.textContent+'\\n'+row.textContent))return;if(!current(state,control))return;attempted=true;({receipt}=await read('/api/agent/reviews/decide',{review_id,decision:button.dataset.agentReviewApprove ? 'approve' : 'reject',...(note?{note}: {}),...(remember?{remember:'session'}:{})},control));if(!receipt.delivery_error)saveFeedback(review_id,''); }
+        try { if(host.confirm && !await host.confirm(button.textContent+'\\n'+row.textContent))return;if(!current(state,control))return;attempted=true;({receipt}=await read('/api/agent/reviews/decide',{review_id,version,decision:button.dataset.agentReviewApprove ? 'approve' : 'reject',...(note?{note}: {}),...(remember?{remember:'session'}:{})},control));if(!receipt.delivery_error)saveFeedback(review_id,''); }
         catch(error) {
           decisionError=error.message;
           if(!current(state,control) || scopeKey!==state.key)return;
@@ -142,6 +150,8 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
         const details=new Map([...container.querySelectorAll('details[data-review-detail]')].map(item=>[detailKey(item),item.open]));
         const panels=new Map([...container.querySelectorAll('[data-review-recovery-view]')].map(panel=>[panel.closest('[data-agent-review-item]').dataset.agentReviewItem,panel]));
         const focused=container.contains(document.activeElement) && document.activeElement.matches('[data-agent-review-feedback]') ? {id:document.activeElement.closest('[data-agent-review-item]').dataset.agentReviewItem,start:document.activeElement.selectionStart,end:document.activeElement.selectionEnd,direction:document.activeElement.selectionDirection}:null;
+        const choice=container.contains(document.activeElement)?['approve','reject','remember','inspect','check'].find(name=>document.activeElement.hasAttribute('data-agent-review-'+name)):null;
+        const focusedChoice=choice?{id:document.activeElement.closest('[data-agent-review-item]').dataset.agentReviewItem,choice}:null;
         let scroller=container.parentElement;while(scroller && scroller.scrollHeight<=scroller.clientHeight)scroller=scroller.parentElement;
         const visibleTop=scroller?.getBoundingClientRect().top || 0;
         const anchor=scroller?.scrollTop>0 ? [...container.querySelectorAll('[data-agent-review-item]')].find(row=>row.getBoundingClientRect().bottom>visibleTop) : null;
@@ -153,6 +163,12 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
           const id=input.closest('[data-agent-review-item]').dataset.agentReviewItem;input.value=readFeedback(id);
           if(focused?.id===id){input.focus({preventScroll:true});input.setSelectionRange(focused.start,focused.end,focused.direction);}
         });
+        if(focusedChoice){
+          const row=[...container.querySelectorAll('[data-agent-review-item]')].find(item=>item.dataset.agentReviewItem===focusedChoice.id);
+          const next=row?.querySelector('[data-agent-review-'+focusedChoice.choice+']')||row||container;
+          if(next===row||next===container)next.tabIndex=-1;
+          next.focus({preventScroll:true});
+        }
         if(anchorId && scroller){const next=[...container.querySelectorAll('[data-agent-review-item]')].find(row=>row.dataset.agentReviewItem===anchorId);if(next)scroller.scrollTop+=next.getBoundingClientRect().top-anchorTop;}
       }
       container.dataset.reviewHtml=data.html;state.reviews=data.reviews;state.locale=locale;

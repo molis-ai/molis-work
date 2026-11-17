@@ -20,7 +20,7 @@ export function mountReviewProbe(mode: "work" | "sdk", forms: Record<string, Dra
     if (!path.includes("/api/agent/reviews?")) return requests<T>(path);
     reads.push(path);
     const url = new URL(path, location.origin), target = url.searchParams.get("run_id")!.slice("run-".length), id = "review-" + target;
-    return { reviews: [{ review_id: id }], omitted: 0, html: `<article data-agent-review-item="${id}"><textarea data-agent-review-feedback></textarea><label><input type="checkbox" data-agent-review-remember>Remember</label><button data-agent-review-approve="${id}">Approve</button><button data-agent-review-reject="${id}">Reject</button><div data-review-recovery></div></article>` } as T;
+    return { reviews: [{ review_id: id }], omitted: 0, html: `<article data-agent-review-item="${id}" data-agent-review-version="proposal-${target}"><textarea data-agent-review-feedback></textarea><label><input type="checkbox" data-agent-review-remember>Remember</label><button data-agent-review-approve="${id}">Approve</button><button data-agent-review-reject="${id}">Reject</button><div data-review-recovery></div></article>` } as T;
   }, requests);
   globalThis.molisWorkRequest = request;
   const reviews = createReviews({ ...factories, work, sdkPath: (target: string) => "/works/parent/sdk-subtasks/parent-run/" + target,

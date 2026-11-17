@@ -79,7 +79,7 @@ test("BL-222, CHO-12, CHO-35: succeeded step with unknown command outcome deduct
       for (const rev of service.agentHost.reviews.list(project.project_id, "pending")) {
         if (!decided.has(rev.review_id)) {
           decided.add(rev.review_id);
-          await service.agentHost.reviews.respond({ review_id: rev.review_id, decision: "approve", actor_id: "web-user" });
+          await service.agentHost.reviews.respond({ review_id: rev.review_id, version: rev.reference.version, decision: "approve", actor_id: "web-user" });
         }
       }
       const view = await getAdapter().read(ref);
@@ -225,7 +225,7 @@ test("BL-182 (R2-M1): subagent retry preserves parent's frozen resolved model ev
       for (const rev of service.agentHost.reviews.list(project.project_id, "pending")) {
         if (!decided.has(rev.review_id)) {
           decided.add(rev.review_id);
-          await service.agentHost.reviews.respond({ review_id: rev.review_id, decision: "approve", actor_id: "web-user" });
+          await service.agentHost.reviews.respond({ review_id: rev.review_id, version: rev.reference.version, decision: "approve", actor_id: "web-user" });
         }
       }
       const view = await adapter.read(ref);
@@ -353,7 +353,7 @@ test("BL-222, CHO-35: in-place rerun on non-succeeded step (chain.length === 1) 
       for (const rev of service.agentHost.reviews.list(project.project_id, "pending")) {
         if (!decided.has(rev.review_id)) {
           decided.add(rev.review_id);
-          await service.agentHost.reviews.respond({ review_id: rev.review_id, decision: "approve", actor_id: "web-user" });
+          await service.agentHost.reviews.respond({ review_id: rev.review_id, version: rev.reference.version, decision: "approve", actor_id: "web-user" });
         }
       }
       const view = await getAdapter().read(ref);

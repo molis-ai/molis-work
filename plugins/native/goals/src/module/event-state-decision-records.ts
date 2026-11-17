@@ -128,6 +128,12 @@ export class GoalEventDecisionRecords {
 /** A decision of the Goal, marked with whether it was recorded in the round of work the Goal is in now. */
 export type AppliedDecisionWithRound = GoalEventAppliedDecisionView & { in_current_round: boolean };
 
+export function goalForDecisionRequest(db: GoalsSqliteDatabase, projectId: string, requestId: string): string | null {
+  const row = db.prepare("SELECT goal_id FROM goal_event_decision_requests WHERE project_id = ? AND request_id = ?")
+    .get(projectId, requestId) as { goal_id: string } | undefined;
+  return row?.goal_id ?? null;
+}
+
 /**
  * Every decision of the Goal in the order it was recorded, each marked with whether it falls in the round of work the Goal is in
  * now: after the latest time it was reopened or resumed. A completed or cancelled Goal works again only through one of those two

@@ -67,7 +67,7 @@ export interface AgentMcpLibrary {
   live?(ref: AgentMcpToolRef): boolean;
   /** One call outside an Agent run. Recheck Host authority after asynchronous preparation and at the runtime's dispatch gate. */
   call?(owner: AgentSkillOwner, ref: AgentMcpToolRef, args: Readonly<Record<string, unknown>>, options?: {
-    signal?: AbortSignal; beforeDispatch?(): void | Promise<void>;
+    signal?: AbortSignal; beforeDispatch?(): void | Promise<void>; assertCurrent?(): void;
     /** Host observation only, after preparation and the business dispatch guard; never grants authority. */
     onBusinessDispatch?(): void;
     onBusinessResult?(outcome: "succeeded" | "failed" | "unknown"): void;

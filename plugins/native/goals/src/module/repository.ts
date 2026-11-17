@@ -1,4 +1,5 @@
 import { storedJson } from "../stored-json.js";
+import { goalApprovalBindings, goalApprovalHistory, type GoalApprovalRules } from "./policy-projection.js";
 import type {
   GoalAcceptanceCriterion,
   GoalPolicyBindingRecord,
@@ -60,7 +61,7 @@ export interface GoalsJournal {
 }
 
 export class GoalsRepository {
-  constructor(readonly db: GoalsSqliteDatabase, private readonly journal: GoalsJournal) {}
+  constructor(readonly db: GoalsSqliteDatabase, private readonly journal: GoalsJournal, private readonly approvalRules: GoalApprovalRules) {}
 
   immediate<T>(operation: () => T): T {
     return this.db.transaction(operation).immediate();
@@ -145,51 +146,11 @@ export class GoalsRepository {
   }
 
 
-  replacePolicyBinding(input: {
-    project_id: string; goal_id: string | null; policy_binding_id: string;
-    policy: GoalPolicyBindingRecord["policy"]; actor_id: string; reason: string; at: string;
-  }): string[] {
-    const { project_id: projectId, goal_id: goalId } = input;
-    const replaced = (goalId
-      ? this.db.prepare("SELECT policy_binding_id FROM policy_bindings WHERE project_id = ? AND goal_id = ? AND scope = 'goal' AND state = 'active'").all(projectId, goalId)
-      : this.db.prepare("SELECT policy_binding_id FROM policy_bindings WHERE project_id = ? AND goal_id IS NULL AND scope = 'project_default' AND state = 'active'").all(projectId)) as Row[];
-    if (goalId) {
-      this.db.prepare("UPDATE policy_bindings SET state = 'replaced' WHERE project_id = ? AND goal_id = ? AND scope = 'goal' AND state = 'active'").run(projectId, goalId);
-    } else {
-      this.db.prepare("UPDATE policy_bindings SET state = 'replaced' WHERE project_id = ? AND goal_id IS NULL AND scope = 'project_default' AND state = 'active'").run(projectId);
-    }
-    this.db.prepare(`INSERT INTO policy_bindings (
-      policy_binding_id, project_id, goal_id, scope, policy_json, state, created_by, reason, created_at
-    ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)`).run(input.policy_binding_id, projectId, goalId,
-      goalId ? "goal" : "project_default", sqliteJson(input.policy), input.actor_id, input.reason, input.at);
-    return replaced.map(row => text(row.policy_binding_id));
-  }
-
-  deactivatePolicyBinding(projectId: string, bindingId: string): boolean {
-    return this.db.prepare("UPDATE policy_bindings SET state = 'replaced' WHERE project_id = ? AND policy_binding_id = ? AND state = 'active'")
-      .run(projectId, bindingId).changes === 1;
-  }
-
   listActivePolicyBindings(projectId: string, goalId?: string): GoalPolicyBindingRecord[] {
-    const rows = goalId == null
-      ? this.db.prepare(`
-          SELECT scope, goal_id, policy_json, rowid AS stored_row FROM policy_bindings
-          WHERE project_id = ? AND state = 'active'
-          ORDER BY CASE scope WHEN 'project_default' THEN 0 WHEN 'ancestor_minimum' THEN 1 ELSE 2 END,
-                   created_at
-        `).all(projectId)
-      : this.db.prepare(`
-          SELECT scope, goal_id, policy_json, rowid AS stored_row FROM policy_bindings
-          WHERE project_id = ? AND state = 'active' AND (goal_id IS NULL OR goal_id = ?)
-          ORDER BY CASE scope WHEN 'project_default' THEN 0 WHEN 'ancestor_minimum' THEN 1 ELSE 2 END,
-                   created_at
-        `).all(projectId, goalId);
-    return (rows as Row[]).map((row) => ({
-      scope: text(row.scope) as GoalPolicyBindingRecord["scope"],
-      goal_id: nullableText(row.goal_id),
-      policy: storedJson(row, "policy_bindings", "policy_json", {}),
-    }));
+    return goalApprovalBindings(this.approvalRules(projectId, false), goalId);
   }
+
+  listPolicyHistory(projectId: string) { return goalApprovalHistory(this.approvalRules(projectId, true)); }
 
   getRelation(projectId: string, relationId: string): GoalRelationRecord | null {
     const row = this.db

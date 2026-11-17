@@ -5,14 +5,13 @@ import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { ExactRef, PackTool, Runtime } from "@prologue/sdk";
 import { BUSINESS_HOST_TOOLS, BUSINESS_SUBAGENT_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { requireSynchronous, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
-import { businessChildTools, gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
+import { businessChildTools } from "./prologue-action-gateway.js";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
-import { pinnedMaterialRevisions, prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
-import { createCodeIntelligence, unavailableSymbolIndex, unconfiguredSymbolIndex } from "../code-intelligence/index.js";
-import { FIND_SYMBOL_HOST_TOOL, FIND_SYMBOL_TOOL, withSymbolTool } from "../code-intelligence/coding-tools.js";
+import { SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
+import { FIND_SYMBOL_HOST_TOOL } from "../code-intelligence/coding-tools.js";
 import { AFTER_WRITE_EXECUTOR, afterWriteExecutor } from "./prologue-after-write.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
@@ -28,12 +27,13 @@ import type { createWorkGraphs } from "./prologue-work-graphs.js";
 import { createPrologueWriteCheckers } from "./prologue-write-checkers.js";
 import { withInteractionRepairLimit } from "./prologue-questions.js";
 import { roundReferenceKinds } from "./prologue-reference-kinds.js";
+import { roundGateway } from "./prologue-round-gateway.js";
 import { roundInstructions } from "./prologue-run-instructions.js";
 import { runModelParams } from "./prologue-run-params.js";
 import { blockId, canTakeUp, collaborates, eligibleContinuation, planPrefix, readyStep, releaseStartClaim, sessionBlock } from "./prologue-collaboration.js";
 import type { PlanPlace } from "./prologue-plan-steps.js";
 import { exactCharacterKey, verifySubagentStart, type PrologueSubagentRoot } from "./prologue-subagents.js";
-import { DESKTOP_GUIDANCE, SURFACE_GUIDANCE, type PrologueSurfaces, type SurfaceAttachment } from "./prologue-surfaces.js";
+import { DESKTOP_GUIDANCE, SURFACE_GUIDANCE, emptySurfaceAttachment, type PrologueSurfaces, type SurfaceAttachment } from "./prologue-surfaces.js";
 import { placeOf, type createPrologueTaskBoards } from "./prologue-taskboard.js";
 import type { createPrologueWaits } from "./prologue-waits.js";
 import type { PrologueEvent, PrologueUsageReceipt } from "./prologue-stream.js";
@@ -41,6 +41,11 @@ import type { PrologueRuntimePort, PrologueStartInput } from "./prologue.js";
 import { prologueToolName, sameRef, stageInstructions, stageTextResource, type DispatchGuards, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
 import { SESSION_INDEX_SCHEMA, type SessionIndex, type SessionIndexStore } from "./prologue-session-index.js";
 import { ensureStopGuard, guardRound, watchRoundFacts } from "./prologue-stop-guard.js";
+import { roundMcp, type RoundMcp } from "./prologue-round-mcp.js";
+import { stopSdkRun } from "./prologue-stop-run.js";
+import { bindWorkDelegation, type PrologueWorkDelegation } from "./prologue-work-delegation.js";
+import type { WorkDelegationStore } from "../delegations.js";
+import type { ReviewDecisionControl } from "../review-decisions.js";
 
 /**
  * Starting one round on the Prologue runtime (W4-06 moved `startAgentRun` here from the Node composition, in stages):
@@ -89,12 +94,12 @@ export interface RunDeps {
   readonly waitsPort: ReturnType<typeof createPrologueWaits>;
   readonly checkpoints: ReturnType<typeof createPrologueCheckpoints> | undefined;
   readonly approvals: PrologueApprovalBridge | undefined;
+  readonly delegations: WorkDelegationStore;
 }
 
 type Started = Awaited<ReturnType<Runtime["startAgentRun"]>>;
 type Session = NonNullable<Awaited<ReturnType<Runtime["sessions"]["open"]>>>;
 type ChildRole = NonNullable<PrologueStartInput["subagents"]>[number];
-type Memory = RoundState["memoryRounds"] extends Map<string, infer M> ? M : never;
 type Mode = { readonly none: boolean; readonly business: boolean };
 
 /** The session's workspace mode fixes what the round may hold: none holds no tools; business holds only root-free ones. */
@@ -121,91 +126,6 @@ const systemTools = (input: PrologueStartInput, overrides?: ReadonlyMap<string, 
     .map(tool => overrides?.get(tool) ?? prologueToolName(tool));
 
 /**
- * The round's actions: the business gateway's three tools, or one tool per frozen action. What the round really keeps,
- * forgets and changes is counted for the stop check; a call to a capability that is gone is refused before review.
- */
-function roundGateway(deps: Pick<RunDeps, "runtime" | "state" | "options">,
-  input: Pick<PrologueStartInput, "action_gateway" | "actions" | "session_id" | "text_materials" | "character" | "root_path">, none: boolean) {
-  const { state, runtime } = deps;
-  const actionController = new AbortController();
-  // A business round the person gave no memory (switched off) keeps nothing, so any claim of keeping is held too.
-  const memory = input.action_gateway?.client.memory;
-  const memoryDone: Memory = { keep: 0, forget: 0, off: !memory, without: { keep: !!memory && !memory.remember, forget: !!memory && !memory.forget } };
-  if (input.action_gateway) state.memoryRounds.set(input.session_id, memoryDone); else state.memoryRounds.delete(input.session_id);
-  const client = input.action_gateway?.client;
-  const changesDone = client ? { client, invoked: [] as ExactActionReference[] } : undefined;
-  if (changesDone) state.changeRounds.set(input.session_id, changesDone); else state.changeRounds.delete(input.session_id);
-  const gatewayForRun = input.action_gateway && client ? { ...input.action_gateway, client: { ...client,
-    invoke: async (reference: ExactActionReference, value: unknown, signal?: AbortSignal) => { const result = await client.invoke(reference, value, signal); changesDone!.invoked.push(reference); return result; },
-    ...(memory ? { memory: {
-      ...(memory.remember ? { remember: async (...args: Parameters<NonNullable<typeof memory.remember>>) => { const kept = await memory.remember!(...args); memoryDone.keep += 1; return kept; } } : {}),
-      list: memory.list.bind(memory),
-      ...(memory.forget ? { forget: async (...args: Parameters<NonNullable<typeof memory.forget>>) => { const result = await memory.forget!(...args); if (result.forgotten) memoryDone.forget += 1; return result; } } : {}),
-      ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
-    } } : {}),
-  } } : input.action_gateway;
-  const pinnedRevisions = none ? undefined : pinnedMaterialRevisions(input.text_materials);
-  const gatewayTools = none || !gatewayForRun ? undefined : prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, pinnedRevisions);
-  const actionTools = none ? undefined : gatewayTools ? { ...gatewayTools, scope: "gateway" }
-    : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, input.character.tools.includes(SUGGEST_HOST_TOOL),
-      // The symbol tool is part of this pack's identity (the catalog allows one registration per name and `prepare` compares content).
-      !none && input.root_path !== undefined && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL), pinnedRevisions);
-  if (input.action_gateway) {
-    state.gatewayRuns.set(input.session_id, { ...input.action_gateway, declare: gatewayTools?.declare });
-    if (gatewayTools) { state.gatewayKnown.set(input.session_id, gatewayTools.known); state.gatewayOffered.set(input.session_id, gatewayTools.offered); }
-    // Refused before any review: a call to a capability that is gone, switched off or asked through the wrong tool.
-    if (!state.gatewayHooks.has(input.session_id)) {
-      state.gatewayHooks.add(input.session_id);
-      const sessionId = input.session_id;
-      runtime.hooks.register({ id: `molis-action-gateway-${sessionId}`, event: "tool-before", forSession: sessionId, handler: async context => {
-        const gateway = state.gatewayRuns.get(sessionId);
-        if (!gateway || !context.toolName) return { kind: "allow" as const };
-        const problem = await gatewayProblem(gateway, context.toolName, context.input, state.gatewayKnown.get(sessionId), state.gatewayOffered.get(sessionId));
-        return problem ? { kind: "deny" as const, why: problem } : { kind: "allow" as const };
-      } });
-    }
-  }
-  /*
-   * Code intelligence for a workspace round whose role names the tool. The servers start on first use and are closed when
-   * the round ends; nothing is downloaded. **The tool is always declared** to a role that names it: a person with no
-   * language server configured gets a call that says so, not a tool that silently vanished from the model's list (the
-   * Runtime's own rule for a tool whose executor is missing).
-   */
-  // The gateway pack has a fixed id and the symbol tool is scoped per actions pack: the two never mix.
-  const wantsSymbols = actionTools !== undefined && !none && gatewayTools === undefined && input.root_path !== undefined
-    && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL);
-  const codeServers = deps.options.codeIntelligence;
-  const codeProblem = codeServers?.problem;
-  const codeIntelligence = wantsSymbols && codeServers !== undefined
-    ? createCodeIntelligence({
-      servers: codeServers.servers,
-      rootPath: input.root_path!,
-      // Q5: a server that is not installed is fetched into this Home's isolated tools root, only if the person allowed it.
-      ...(codeServers.toolsRoot === undefined ? {} : {
-        tools: {
-          root: codeServers.toolsRoot,
-          allow: () => codeServers.downloadsAllowed === true,
-          ...(codeServers.registry === undefined ? {} : { registry: codeServers.registry }),
-        },
-      }),
-    })
-    : undefined;
-  // Scoped like the action tools: the catalog keeps one registration per name for the Runtime's life. A round that does
-  // not carry the tool gets no name for it — a Character must not be told about a tool its pack does not hold.
-  const symbolToolName = wantsSymbols ? `${FIND_SYMBOL_TOOL}-${actionTools!.scope}` : undefined;
-  const withCoding = symbolToolName === undefined || actionTools === undefined ? actionTools
-    : { ...actionTools, ...withSymbolTool({
-      pack: actionTools.pack,
-      executors: actionTools.executors,
-      symbolIndex: codeProblem !== undefined ? unavailableSymbolIndex(codeProblem)
-        : codeIntelligence === undefined ? unconfiguredSymbolIndex : codeIntelligence.symbolIndex,
-      name: symbolToolName,
-    }), names: [...actionTools.names, symbolToolName] };
-  return { actionController, actionTools: withCoding, parameterBranches: gatewayTools?.parameterBranches, codeIntelligence, symbolTool: wantsSymbols,
-    ...(symbolToolName === undefined ? {} : { symbolToolName }) };
-}
-
-/**
  * A Coding round's after-write check (specs/prologue-adoption §6.0p.3): given when the round's pack declares the check and
  * the round works in a directory whose workspace has the person's checkers now. Without it the pack may still declare the
  * check, and nothing is asked.
@@ -229,9 +149,9 @@ async function roundChecks(deps: RunDeps, input: PrologueStartInput, index: Sess
 
 /** Called at admission (before first-run freezing), and again under current authority for an explicit continuation. */
 export async function bindBusinessSubagent(deps: Pick<RunDeps, "runtime" | "state" | "options">, ref: ExactRef<"session">,
-  role: ChildRole, gateway: NonNullable<PrologueStartInput["action_gateway"]>, requested: readonly string[]) {
+  role: ChildRole, gateway: NonNullable<PrologueStartInput["action_gateway"]>, requested: readonly string[], authority: { assertCurrent(): void; stopping(): boolean; work?: PrologueWorkDelegation }) {
   const parts = roundGateway(deps, { session_id: ref.id, action_gateway: gateway,
-    character: { id: role.role_id, version: role.version, tools: role.host_tools, name: role.name, instructions: "" } }, false);
+    assertBeforeDispatch: authority.assertCurrent, character: { id: role.role_id, version: role.version, tools: role.host_tools, name: role.name, instructions: "" } }, false, authority.stopping, authority.work, undefined);
   const tools = parts.actionTools;
   if (!tools) throw agentErrors.capability_unavailable("业务子任务缺少动作工具绑定");
   // The SDK grants these two for the child's assigned step, independently of the Character's own tool declaration.
@@ -321,12 +241,16 @@ async function roundBinding(deps: RunDeps, input: PrologueStartInput, index: Ses
  * The project's side panel browser, for this session only: its tools join the round and the round is told how to use
  * them. Read-only rounds only look; a page another live round holds is not shared, and the round is told why.
  */
-async function roundSurface(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, session: Session, business: boolean): Promise<SurfaceAttachment> {
+async function roundSurface(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, session: Session, business: boolean, control: NonNullable<ReturnType<DispatchGuards["getStore"]>>): Promise<SurfaceAttachment> {
   const surfaceHost = deps.surfaces();
-  if (!(business && surfaceHost && input.browser !== false)) return { tools: [] as readonly string[], note: null, surfaces: [] as readonly ("browser" | "desktop")[] };
+  if (!(business && surfaceHost && input.browser !== false)) return emptySurfaceAttachment();
   return surfaceHost.attach(session, index.owner.project_id, input.session_id, { readOnly: input.provenance.frozen.execution === "read-only",
-    live: sessionRefId => [...deps.state.activeRuns.entries()].some(([runId, run]) => run.live() && deps.state.runSessions.get(runId) === sessionRefId), goal: input.task, projectId: index.owner.project_id })
-    .catch((error: unknown) => ({ tools: [] as readonly string[], note: `界面控制这一轮不可用：${error instanceof Error ? error.message : String(error)}` as string | null, surfaces: [] as readonly ("browser" | "desktop")[] }));
+    control, goal: input.task, projectId: index.owner.project_id })
+    .catch((error: unknown) => {
+      requireSynchronous(control.assertCurrent());
+      if (error instanceof AggregateError) throw error;
+      return emptySurfaceAttachment(`界面控制这一轮不可用：${error instanceof Error ? error.message : String(error)}`);
+    });
 }
 
 /** The round's Character: its instructions (role, methods, guidance, plan, recovery), its tools, and the memories chosen for it. */
@@ -403,7 +327,7 @@ async function recordAttempt(deps: RunDeps, input: PrologueStartInput, attempt: 
  * A child the round dispatched, as the runtime starts it: checked against the round's fixed roles and directories, and
  * when it has operations to review, recorded under its own index and bridged to the Host's review queue.
  */
-function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, attemptIndex: number, children: { readonly roles: Map<string, ChildRole>; readonly roots: PrologueSubagentRoot[]; readonly root: { ref: ExactRef<"authorized-root"> } | undefined }) {
+function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, attemptIndex: number, children: { readonly work?: PrologueWorkDelegation; readonly roles: Map<string, ChildRole>; readonly roots: PrologueSubagentRoot[]; readonly root: { ref: ExactRef<"authorized-root"> } | undefined }) {
   const { runtime, state } = deps;
   return async (observed: Parameters<NonNullable<NonNullable<Parameters<Runtime["startAgentRun"]>[0]["subagents"]>["onStarted"]>>[0]) => {
     verifySubagentStart(runtime, children.roles, children.roots)(observed);
@@ -411,10 +335,17 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
     const registered = runtime.subagents.list().find(child => child.run.id === observed.run.ref.id && child.session.id === observed.childSession.ref.id)!;
     const role = children.roles.get(exactCharacterKey(registered.character!))!;
     // Every child's run hears what its neighbours on the task graph send it (letters are handed over by the Host).
-    // Host notices are app context. Only the trusted subagents.send entry may attest personal authorship.
-    state.activeRuns.set(observed.run.ref.id, { live: () => ["prepared", "running"].includes(observed.run.state), steer: async text => { await observed.control.steer({ text, source: "app" }); } });
-    state.liveSessions.set(observed.childSession.ref.id, observed.run.ref.id);
-    observed.run.subscribe(event => { if (isTerminalRunEvent(event.type) && state.liveSessions.get(observed.childSession.ref.id) === observed.run.ref.id) state.liveSessions.delete(observed.childSession.ref.id); });
+    state.sessionRuns.add(observed.run.ref.id); state.liveSessions.set(observed.childSession.ref.id, observed.run.ref.id);
+    const parentWork = children.work;
+    state.activeRuns.set(observed.run.ref.id, { live: () => ["prepared", "running"].includes(observed.run.state), policy: observed.policy,
+      ...(parentWork ? { work: parentWork, workSelection: parentWork.permission.mode !== "original" } : {}),
+      assertAuthority: () => { requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成"); },
+      steer: async text => { await observed.control.steer({ text, source: "app" }); } });
+    observed.run.subscribe(event => {
+      if (!isTerminalRunEvent(event.type)) return;
+      state.activeRuns.delete(observed.run.ref.id);
+      if (state.liveSessions.get(observed.childSession.ref.id) === observed.run.ref.id) state.liveSessions.delete(observed.childSession.ref.id);
+    });
     // SDK493 invokes this observer only for this claim's newly created child. Its held driver has not started.
     // subscribe replays the initial opening synchronously; peer/carried input is never this canonical caller.
     const opening: import("@prologue/sdk").ModelEvent[] = [];
@@ -486,7 +417,7 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
 
 /** What the SDK is asked to start: the session, workspace, history, children, context, compaction, model and agent. */
 function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, parts: {
-  readonly attemptIndex: number; readonly session: Session; readonly root: { ref: ExactRef<"authorized-root"> } | undefined; readonly business: boolean; readonly credentialRef: ExactRef<"credential">;
+  readonly work?: PrologueWorkDelegation; readonly attemptIndex: number; readonly session: Session; readonly root: { ref: ExactRef<"authorized-root"> } | undefined; readonly business: boolean; readonly credentialRef: ExactRef<"credential">;
   readonly childRoles: Map<string, ChildRole>; readonly childRoots: PrologueSubagentRoot[]; readonly runTools: string[];
   readonly character: { ref: ExactRef<"character"> }; readonly textResources: Array<{ ref: ExactRef<"resource">; as: "original" }>;
   readonly pinnedMemory: Awaited<ReturnType<typeof roundCharacter>>["pinnedMemory"];
@@ -507,7 +438,7 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
     ...(childRoles.size ? { subagents: {
       // The user's decision: a parent that split work across directories may read (never write) exactly those.
       ...(childRoots.length ? { workspaces: childRoots.map(({ id, rootRef }) => ({ id, rootRef })), requireWorkspace: true, parentReads: true } : {}),
-      onStarted: watchChild(deps, input, index, parts.attemptIndex, { roles: childRoles, roots: childRoots, root }),
+      onStarted: watchChild(deps, input, index, parts.attemptIndex, { roles: childRoles, roots: childRoots, root, work: parts.work }),
     } } : {}),
     // Packed against the model's own window when it states a smaller one than the runtime default.
     ...(input.compaction || input.provenance.frozen.model_context || input.project_trusted ? { context: {
@@ -570,19 +501,31 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
 /** After the SDK started the run: its root, its id in the index, its controls, and in a main round its project work. */
 async function afterStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, at: {
   readonly started: Started; readonly session: Session; readonly root: { ref: ExactRef<"authorized-root"> } | undefined; readonly attemptIndex: number;
-  readonly actionController: AbortController; readonly hasActions: boolean; readonly none: boolean; readonly project: string; readonly scopePaths: string[];
+  readonly actionController: AbortController; readonly surface: SurfaceAttachment; readonly hasActions: boolean; readonly none: boolean; readonly project: string; readonly scopePaths: string[];
   readonly plan: PrologueStartInput["provenance"]["frozen"]["execution_plan"]; readonly stepBoard: Awaited<ReturnType<typeof roundMaterials>>["stepBoard"]; readonly stopping: () => boolean;
+  readonly work?: PrologueWorkDelegation; readonly appliedPolicies: Map<string, () => void>;
+  readonly exactPermissions: Map<string, { ref: ExactRef<"effect">; control: ReviewDecisionControl }>; readonly mcp?: RoundMcp;
 }): Promise<void> {
   const { state } = deps;
   const { started, session } = at;
-  const surfaceHost = deps.surfaces();
   if (at.root) state.runRoots.set(started.run.ref.id, at.root.ref);
   try { await deps.index.update(input.session_id, saved => { saved.attempts[at.attemptIndex]!.run_id = started.run.ref.id; }); }
   catch (error) { at.actionController.abort(); started.control.stop("cancelled"); throw error; }
   if (at.hasActions) state.actionControllers.set(started.run.ref.id, at.actionController);
   // A round is live until it ends: before its first model event it is still "prepared", and it hears a steer then too.
-  state.runSessions.set(started.run.ref.id, session.ref.id); state.runRefs.set(started.run.ref.id, started.run.ref); if (surfaceHost) surfaceHost.noteRun(session.ref.id, started.run.ref.id);
-  state.activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state) && !at.stopping(),
+  state.sessionRuns.add(started.run.ref.id); state.runSessions.set(started.run.ref.id, session.ref.id); state.runRefs.set(started.run.ref.id, started.run.ref); at.surface.noteRun(started.run.ref.id);
+  state.activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state), policy: started.policy,
+    stop: () => stopSdkRun(started.run), usePolicy: (id, assert) => { at.appliedPolicies.set(id, assert); },
+    ...(at.work ? { work: at.work, workSelection: at.work.permission.mode !== "original",
+      useExact: (id: string, control: ReviewDecisionControl) => {
+        const ref = state.reviewEffects.get(`prologue:${id}`);
+        if (!ref) throw agentErrors.review_not_permitted("原授权操作不可读");
+        at.exactPermissions.set(id, { ref, control });
+      } } : {}), mcp: at.mcp,
+    assertAuthority: () => {
+      if (at.stopping()) throw agentErrors.review_not_permitted("原轮次正在停止");
+      requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成");
+    },
     steer: async text => { await started.control.steer({ text, source: "app" }); } });
   if (at.stepBoard) deps.stepBoards.follow(at.stepBoard, { session_id: session.ref.id, run_id: started.run.ref.id });
   // A main round is work under way in its project until it ends; a subtask's work is its parent's.
@@ -598,17 +541,20 @@ async function afterStart(deps: RunDeps, input: PrologueStartInput, index: Sessi
 }
 
 /** When the round ends: its actions and step board let go, the page released, its project work ended and its messages settled. */
-function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard: { ref: { id: string } } | undefined, type: TerminalRunEventType, actionController: AbortController): void {
+function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard: { ref: { id: string } } | undefined, type: TerminalRunEventType, actionController: AbortController, surface: SurfaceAttachment, onAborted: () => void): void {
   const { state } = deps;
   const surfaceHost = deps.surfaces();
   const end = cleanupEnd(type);
-  actionController.abort(); state.actionControllers.delete(started.run.ref.id); state.dispatchChecks.delete(started.run.ref.id);
+  if (type === "cancelled" || type === "tripped" || type === "circuit-tripped") onAborted();
+  actionController.abort(); state.actionControllers.delete(started.run.ref.id); state.dispatchChecks.delete(started.run.ref.id); state.activeRuns.delete(started.run.ref.id);
+  deps.options.reviewQueue?.permissions.releaseRun(started.run.ref.id);
   state.childAdmissions.delete(started.run.ref.id);
   if (stepBoard) deps.stepBoards.unfollow(started.run.ref.id);
   deps.workGraphs.ended(started.run.ref, session.ref, end.graph);
   if (state.liveSessions.get(session.ref.id) === started.run.ref.id) state.liveSessions.delete(session.ref.id);
   // The side panel stops saying the Assistant is using the page the moment its round is over, and this run's app approvals are dropped.
-  if (surfaceHost) { void surfaceHost.release(session.ref.id, end.surface).catch(() => undefined); surfaceHost.releaseRun(started.run.ref); } state.runRefs.delete(started.run.ref.id);
+  void surface.release(end.surface).catch(() => undefined);
+  surfaceHost?.releaseRun(started.run.ref); state.runRefs.delete(started.run.ref.id);
   const work = state.runWork.get(started.run.ref.id);
   if (work) { state.runWork.delete(started.run.ref.id); void deps.projectWork.end(work.project, work.id, end.surface).catch(() => undefined); }
   // A round that finished normally saw every message given to it; unanswered requests are settled.
@@ -620,8 +566,10 @@ function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard
 
 /** The run and its controls as the adapter sees them; stopping saves the person's intent before the SDK stops the run. */
 function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
-  readonly started: Started; readonly session: Session; readonly attemptIndex: number; readonly actionController: AbortController;
-  readonly stepBoard: { ref: { id: string } } | undefined; readonly stopping: { current: Promise<void> | undefined };
+  readonly started: Started; readonly session: Session; readonly attemptIndex: number; readonly actionController: AbortController; readonly surface: SurfaceAttachment;
+  readonly stepBoard: { ref: { id: string } } | undefined; readonly stopping: { current: Promise<void> | undefined }; readonly onAborted: () => void;
+  readonly actionReviews: ReturnType<typeof roundGateway>["reviews"];
+  readonly work?: PrologueWorkDelegation;
 }): Awaited<ReturnType<PrologueRuntimePort["startAgentRun"]>> {
   const { started, actionController } = at;
   const control = started.control;
@@ -630,7 +578,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
   let hostStop: string | undefined;
   const stopForHost = (reason: string) => {
     if (hostStop || ["completed", "failed", "stopped", "cancelled"].includes(control.state)) return;
-    hostStop = reason; control.stop("stopped");
+    hostStop = reason; at.onAborted(); void at.surface.release("stopped").catch(() => undefined); control.stop("stopped");
     void deps.index.update(input.session_id, index => { Object.assign(index.attempts[at.attemptIndex]!, { stop_intent: "stopped", stop_reason: reason }); }).catch(() => undefined);
   };
   return {
@@ -639,7 +587,10 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
       ref: { id: started.run.ref.id },
       subscribe: (listener: (event: PrologueEvent) => void) =>
         started.run.subscribe(withInteractionRepairLimit(stopForHost, (event) => {
-          if (isTerminalRunEvent(event.type)) roundEnded(deps, started, at.session, at.stepBoard, event.type, actionController);
+          if (isTerminalRunEvent(event.type)) {
+            if (at.actionReviews.releaseRun(started.run.ref.id) && deps.state.actionReviews.get(at.session.ref.id) === at.actionReviews) deps.state.actionReviews.delete(at.session.ref.id);
+            at.work?.release(); roundEnded(deps, started, at.session, at.stepBoard, event.type, actionController, at.surface, at.onAborted);
+          }
           if (event.type === "command-receipt") {
             const events = deps.state.commandEvents.get(started.run.ref.id) ?? [];
             if (!events.some(saved => sameRef(saved.receiptRef, event.receiptRef))) events.push(event);
@@ -650,10 +601,16 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
             listener({ ...event, receipt });
           } else listener(event);
         })),
-      cancel: () => { actionController.abort(); return started.run.cancel(); },
+      cancel: () => { at.onAborted(); actionController.abort(); void at.surface.release("stopped").catch(() => undefined); return started.run.cancel(); },
     },
     control: {
-      get state() { const state = control.state; return state === "sleeping" ? "paused" : state; },
+      get state() {
+        const state = control.state;
+        if (state === "sleeping") return "paused";
+        if (state === "reconcile-required" && at.actionReviews.hasReconciledResult
+          && !deps.runtime.effects.openEffects().some(effect => effect.proposal.origin?.run === started.run.ref.id)) return "failed";
+        return state;
+      },
       get stopReason() { return hostStop; },
       stop(reason) {
         if (["completed", "failed", "stopped", "cancelled"].includes(control.state)) return Promise.resolve();
@@ -662,7 +619,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
         return at.stopping.current ??= (async () => {
           await deps.index.update(input.session_id, index => { index.attempts[at.attemptIndex]!.stop_intent = reason; });
           // The accepted Run owns its terminal settlement after this control invocation returns.
-          deps.effects.detach(() => { actionController.abort(); control.stop(reason); });
+          deps.effects.detach(() => { actionController.abort(); void at.surface.release("stopped").catch(() => undefined); control.stop(reason); });
         })().catch(error => { at.stopping.current = undefined; throw error; });
       },
       pause: () => control.pause(), resume: () => control.resume(),
@@ -673,19 +630,74 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
         await deps.effects.beforeEffect();
         return control.switchModel({ protocol: target.protocol, endpoint: target.endpoint, model: target.model, credentialRef }, { beforeAccept: () => { deps.effects.assertCurrent(); beforeAccept(); } });
       },
-      steer: input => control.steer(input), withdrawSteer: steerId => control.withdrawSteer(steerId), subscribe: listener => control.subscribe(listener),
+      steer: input => control.steer(input), withdrawSteer: steerId => control.withdrawSteer(steerId),
+      subscribe(listener) {
+        const controlSubscription = control.subscribe(listener), receiptSubscription = at.actionReviews.observeReconciliation(listener);
+        return () => { controlSubscription(); receiptSubscription(); };
+      },
     },
   };
 }
 
 /** Start one round: the stages above, in order. */
 export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput): ReturnType<PrologueRuntimePort["startAgentRun"]> {
-  const { runtime, state } = deps;
   const mode: Mode = { none: input.workspace === "none", business: input.workspace === "business" };
   const index = await deps.index.read(input.session_id);
-  assertWorkspace(input, index, state, mode);
+  assertWorkspace(input, index, deps.state, mode);
+  const work = await bindWorkDelegation(deps.delegations, input, index.owner);
+  let restore: (() => void) | undefined;
+  if (work) {
+    const original = input;
+    const assertStart = () => { requireSynchronous(original.assertBeforeStart?.()); work.assertCurrent(); };
+    const assertDispatch = () => { requireSynchronous(original.assertBeforeDispatch?.()); work.assertCurrent(); };
+    input = { ...original, assertBeforeStart: assertStart, assertBeforeDispatch: assertDispatch, beforeStart: async () => {
+      await original.beforeStart?.(); assertStart();
+    } };
+    restore = deps.effects.bindStart(input);
+  }
+  try { return await startBoundRound(deps, input, index, mode, work); }
+  catch (error) { work?.release(); throw error; }
+  finally { restore?.(); }
+}
+
+async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, mode: Mode, work?: PrologueWorkDelegation): ReturnType<PrologueRuntimePort["startAgentRun"]> {
+  const { runtime, state } = deps;
   const ref = state.sessions.get(input.session_id);
-  const { actionController, actionTools, parameterBranches, codeIntelligence, symbolTool, symbolToolName } = roundGateway(deps, input, mode.none);
+  const stopping: { current: Promise<void> | undefined } = { current: undefined };
+  let aborted = false, accepted: Started | undefined; const onAborted = () => { aborted = true; };
+  const appliedPolicies = new Map<string, () => void>();
+  const exactPermissions = new Map<string, { ref: ExactRef<"effect">; control: ReviewDecisionControl }>();
+  const activeExact = () => {
+    for (const [id, { ref }] of exactPermissions) {
+      const state = runtime.effects.get(ref)?.state;
+      if (state !== "awaiting-approval" && state !== "authorized" && state !== "dispatching") exactPermissions.delete(id);
+    }
+    return exactPermissions.values();
+  };
+  const mcp = input.mcp_tools?.length || input.mcp_sources?.length ? roundMcp(runtime, deps.mcpLibrary, index.owner, input) : undefined;
+  const { actionController, actionTools, reviews: actionReviews, parameterBranches, codeIntelligence, symbolTool, symbolToolName } = roundGateway(deps, input, mode.none, () => stopping.current !== undefined || aborted, work, mcp);
+  const assertDispatchCurrent = () => {
+    if (stopping.current !== undefined || aborted) throw new Error("原轮次正在停止");
+    for (const check of appliedPolicies.values()) check();
+    for (const { control } of activeExact()) control.assertCurrent();
+    requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成");
+  };
+  const prepareDispatch = async () => {
+    assertDispatchCurrent();
+    const original = await input.beforeDispatch?.();
+    if (!mode.none && !mode.business) {
+      await deps.mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
+      await deps.mcpLibrary.validateSources(index.owner, input.mcp_sources ?? []);
+    }
+    for (const { control } of activeExact()) await control.beforeEffect();
+    return () => { requireSynchronous(original?.()); assertDispatchCurrent(); };
+  };
+  const dispatchGuard = { assertCurrent: assertDispatchCurrent, mcp: mcp?.dispatch, prepareDispatch,
+    beforeEffect: async () => { const fence = await prepareDispatch(); fence(); } };
+  const surfaceControl = { ...dispatchGuard,
+    assertCurrent: () => { if (!accepted) requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成"); assertDispatchCurrent(); },
+    beforeEffect: async () => { if (accepted) return dispatchGuard.beforeEffect(); await input.beforeStart?.(); surfaceControl.assertCurrent(); },
+  };
   ensureStopGuard(runtime, state, input.session_id);
   const afterWrite = await roundChecks(deps, input, index, mode, actionTools?.pack.tools);
   const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id) || !!afterWrite || symbolTool);
@@ -700,72 +712,93 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
     hostSystemTools(input).filter(tool => tool !== FIND_SYMBOL_HOST_TOOL || symbolToolName !== undefined), resolveHostTool);
   const textResources: Array<{ ref: ExactRef<"resource">; as: "original" }> = [];
   for (const material of input.text_materials ?? []) textResources.push({ ref: await stageTextResource(runtime, agentTextMaterialContent(material), "coding-material"), as: "original" });
-  const { childRoots, childRoles, childInstructions } = await childSetup(deps, input, actionTools?.names ?? []);
+  const { childRoots, childRoles, childInstructions } = await childSetup(deps, input, actionTools?.names ?? [], work);
   const plan = input.provenance.frozen.execution_plan;
   const materials = await roundMaterials(deps, input, index, session, mode.none, plan, textResources);
-  const surface = await roundSurface(deps, input, index, session, mode.business);
-  const binding = await roundBinding(deps, input, index, session, materials.stepBoard);
-  const { character, runTools, pinnedMemory } = await roundCharacter(deps, input, index, { mode, methods, childInstructions, childRoles, surface, stepBoard: materials.stepBoard, actionTools,
-    ...(symbolToolName === undefined ? {} : { symbolToolName }) });
-  const referenceKinds = await roundReferenceKinds(deps.options, index.owner);
-  // Exchange our reference for one Prologue can resolve, before the Run is started rather than when it first calls out.
-  const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);
-  const { attemptIndex, abandon } = await recordAttempt(deps, input, { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
-    ...(input.model_selection ? { model_selection: structuredClone(input.model_selection) } : {}),
-    frozen_model: structuredClone(input.model),
-    ...(actionTools?.names.length ? { action_tool_scope: actionTools.scope } : {}),
-    ...(materials.stepBoard ? { step_board: materials.stepBoard.ref, step_prefix: materials.stepBoard.prefix } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}),
-    ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) });
-  const dispatchGuard = async () => {
-    const fence = await input.beforeDispatch?.();
-    if (!mode.none && !mode.business) {
-      await deps.mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
-      await deps.mcpLibrary.validateSources(index.owner, input.mcp_sources ?? []);
+  const surface = await roundSurface(deps, input, index, session, mode.business, surfaceControl);
+  try {
+    const binding = await roundBinding(deps, input, index, session, materials.stepBoard);
+    const { character, runTools, pinnedMemory } = await roundCharacter(deps, input, index, { mode, methods, childInstructions, childRoles, surface, stepBoard: materials.stepBoard, actionTools,
+      ...(symbolToolName === undefined ? {} : { symbolToolName }) });
+    const referenceKinds = await roundReferenceKinds(deps.options, index.owner);
+    // Exchange our reference for one Prologue can resolve, before the Run is started rather than when it first calls out.
+    const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);
+    const { attemptIndex, abandon } = await recordAttempt(deps, input, { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
+      ...(input.model_selection ? { model_selection: structuredClone(input.model_selection) } : {}),
+      frozen_model: structuredClone(input.model),
+      ...(actionTools?.names.length ? { action_tool_scope: actionTools.scope } : {}),
+      ...(materials.stepBoard ? { step_board: materials.stepBoard.ref, step_prefix: materials.stepBoard.prefix } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}),
+      ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) });
+    // The stop check follows this round; its ending review, when the round's owner gave one, runs with the owner's
+    // instructions on the round's own model, behind the same pre-dispatch check.
+    guardRound(state, input, mode.business, input.ending_review ? { instructions: input.ending_review.prompt, protocol: input.model.protocol, endpoint: input.model.endpoint,
+      model: input.model.model, credentialRef, dispatch: operation => deps.dispatchGuards.run(dispatchGuard, operation) } : undefined, actionController.signal);
+    // A new Run owns its dispatch scope. A callback from a completed Run may have asked for this start.
+    const started = await deps.memoryAuthority.forAttempt(input.session_id, attemptIndex, () =>
+      deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
+        attemptIndex, session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, work, textResources: materials.textResources, pinnedMemory, binding, referenceKinds,
+      }))), input.disposeDispatch).catch(async (error: unknown) => {
+      onAborted(); actionController.abort();
+      // Not accepted by the SDK: refused while the context was still being packed (the runtime creates the run only after
+      // that) is a settled refusal; anything else, or a caller no longer current, takes the intent back.
+      if (!deps.effects.accepted()) {
+        const code = (error as { code?: string }).code;
+        let current = true;
+        try { requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成"); } catch { current = false; }
+        if (!current || !code || !REFUSED_BEFORE_RUN.has(code)) await abandon();
+        else await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.refused = { code, at: new Date().toISOString() }; }).catch(() => undefined);
+        // The continuation the SDK claimed for this start: its own give-back is refused with the rest once the caller is not current.
+        const requestKey = binding?.requestKey;
+        if (requestKey) await deps.effects.detach(() => releaseStartClaim(runtime, { ...binding!, requestKey })).catch(() => undefined);
+      }
+      if ((error as { code?: string }).code === "SESSION_HISTORY_UNAVAILABLE") throw agentErrors.capability_unavailable("旧会话开场无法可靠核验，不能继续携带历史，没有发给模型。原记录仍可查看，请新建会话并补充必要背景。");
+      throw error;
+    });
+    accepted = started; work?.accept(started.run);
+    if (mcp) started.run.subscribe(event => { if (event.type === "tool-result") mcp.release((event as Extract<PrologueEvent, { type: "tool-result" }>).callId); });
+    watchRoundFacts(state, started.run);
+    // The language servers this round started belong to it: they go when it ends, however it ends.
+    if (codeIntelligence !== undefined) started.run.subscribe(event => { if (isTerminalRunEvent(event.type)) void codeIntelligence.close().catch(() => undefined); });
+    // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).
+    state.dispatchChecks.set(started.run.ref.id, prepareDispatch);
+    if (mode.business && childRoles.size) state.childAdmissions.set(started.run.ref.id, async request => {
+      const role = request.character && childRoles.get(exactCharacterKey(request.character));
+      if (!role || !input.subagentGateway) throw agentErrors.role_not_declared("没有可用的业务子角色授权");
+      const ref = { kind: "session", id: request.childSessionId, revision: 1 } as const;
+      const gateway = await input.subagentGateway(role, { runtime_id: "prologue", session_id: ref.id });
+      await bindBusinessSubagent(deps, ref, role, gateway, request.tools, {
+        assertCurrent: assertDispatchCurrent, stopping: () => stopping.current !== undefined || aborted, work,
+      });
+    });
+
+    await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, surface, appliedPolicies, exactPermissions, work, mcp,
+      hasActions: Boolean(actionTools?.names.length), none: mode.none,
+      project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined || aborted });
+    // Report the files the SDK actually packed and persist only the successful owner update.
+    const packed = roundInstructions(input, started.pack);
+    const instructions = packed && await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.frozen.instructions = structuredClone(packed); })
+      .then(() => packed, () => undefined);
+    work?.assertCurrent();
+    const desktopTargets = [...new Set([...index.attempts.flatMap(item => item.desktop_target ? [item.desktop_target] : []),
+      ...(surface.desktop_target ? [surface.desktop_target] : [])])];
+    return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, surface, stepBoard: materials.stepBoard, stopping, onAborted, actionReviews, work }),
+      ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}),
+      ...(desktopTargets.length ? { desktop_targets: desktopTargets } : {}), ...(instructions ? { instructions } : {}) };
+  } catch (error) {
+    onAborted(); actionController.abort();
+    const failures: unknown[] = [error];
+    if (accepted) {
+      accepted.control.stop("cancelled");
+      try {
+        await accepted.run.cancel();
+        state.activeRuns.delete(accepted.run.ref.id);
+        state.actionControllers.delete(accepted.run.ref.id); state.dispatchChecks.delete(accepted.run.ref.id);
+        deps.surfaces()?.releaseRun(accepted.run.ref); state.runRefs.delete(accepted.run.ref.id);
+      } catch (failure) { failures.push(failure); }
     }
-    return () => { requireSynchronous(fence?.(), "最终派发检查必须同步完成"); };
-  };
-  // The stop check follows this round; its ending review, when the round's owner gave one, runs with the owner's
-  // instructions on the round's own model, behind the same pre-dispatch check.
-  guardRound(state, input, mode.business, input.ending_review ? { instructions: input.ending_review.prompt, protocol: input.model.protocol, endpoint: input.model.endpoint,
-    model: input.model.model, credentialRef, dispatch: operation => deps.dispatchGuards.run(dispatchGuard, operation) } : undefined, actionController.signal);
-  const started = await deps.memoryAuthority.forAttempt(input.session_id, attemptIndex, () => deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
-    attemptIndex, session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding, referenceKinds,
-  }))), input.disposeDispatch).catch(async (error: unknown) => {
-    await codeIntelligence?.close().catch(() => undefined);
-    // Not accepted by the SDK: refused while the context was still being packed (the runtime creates the run only after
-    // that) is a settled refusal; anything else, or a caller no longer current, takes the intent back.
-    if (!deps.effects.accepted()) {
-      const code = (error as { code?: string }).code;
-      let current = true;
-      try { requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成"); } catch { current = false; }
-      if (!current || !code || !REFUSED_BEFORE_RUN.has(code)) await abandon();
-      else await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.refused = { code, at: new Date().toISOString() }; }).catch(() => undefined);
-      // The continuation the SDK claimed for this start: its own give-back is refused with the rest once the caller is not current.
-      const requestKey = binding?.requestKey;
-      if (requestKey) await deps.effects.detach(() => releaseStartClaim(runtime, { ...binding!, requestKey })).catch(() => undefined);
-    }
-    if ((error as { code?: string }).code === "SESSION_HISTORY_UNAVAILABLE") throw agentErrors.capability_unavailable("旧会话开场无法可靠核验，不能继续携带历史，没有发给模型。原记录仍可查看，请新建会话并补充必要背景。" );
+    try { await surface.release("failed"); } catch (failure) { failures.push(failure); }
+    try { await codeIntelligence?.close(); } catch (failure) { failures.push(failure); }
+    if (failures.length > 1) throw new AggregateError(failures, "启动失败，原执行或界面仍需收口");
     throw error;
-  });
-  watchRoundFacts(state, started.run);
-  // The language servers this round started belong to it: they go when it ends, however it ends.
-  if (codeIntelligence !== undefined) started.run.subscribe(event => { if (isTerminalRunEvent(event.type)) void codeIntelligence.close().catch(() => undefined); });
-  const stopping: { current: Promise<void> | undefined } = { current: undefined };
-  // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).
-  state.dispatchChecks.set(started.run.ref.id, dispatchGuard);
-  if (mode.business && childRoles.size) state.childAdmissions.set(started.run.ref.id, async request => {
-    const role = request.character && childRoles.get(exactCharacterKey(request.character));
-    if (!role || !input.subagentGateway) throw agentErrors.role_not_declared("没有可用的业务子角色授权");
-    const ref = { kind: "session", id: request.childSessionId, revision: 1 } as const;
-    const gateway = await input.subagentGateway(role, { runtime_id: "prologue", session_id: ref.id });
-    await bindBusinessSubagent(deps, ref, role, gateway, request.tools);
-  });
-  await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, hasActions: Boolean(actionTools?.names.length), none: mode.none,
-    project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined });
-  // Which instruction files the runtime packed, written once into the round's record; a failed write leaves the round without it.
-  const read = roundInstructions(input, started.pack);
-  const instructions = read && await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.frozen.instructions = structuredClone(read); })
-    .then(() => read, () => undefined);
-  return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, stepBoard: materials.stepBoard, stopping }),
-    ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}), ...(instructions ? { instructions } : {}) };
+  }
 }

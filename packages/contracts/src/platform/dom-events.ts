@@ -92,8 +92,12 @@ export const PAGE_STATE_OWNERS = {
     state: "The open tabs and panes of the work area and of the right side (whether it is open, its tabs, the current one and its width: `side`, per project), the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).",
   },
   "settings-directory": {
-    files: ["apps/workbench/src/scripts/client/settings-directory.ts", "apps/workbench/src/scripts/home-model-settings.ts", "apps/workbench/src/browser/plugin-frame/child.ts"],
+    files: ["apps/workbench/src/scripts/client/settings-directory.ts", "apps/workbench/src/scripts/home-model-settings.ts", "apps/workbench/src/settings-authorizations.ts", "apps/workbench/src/browser/plugin-frame/child.ts", "apps/workbench/src/browser/plugin-frame/review-permission.ts"],
     state: "The settings area: which global or project settings page is open, and the embedded settings pages inside it, including the standalone Home settings host.",
+  },
+  "automation-recommendations": {
+    files: ["apps/workbench/src/scripts/client/automation-recommendations.ts"],
+    state: "The project suggestions dialog, its selected project and the report it is showing.",
   },
   "settings-return": {
     files: ["apps/workbench/src/browser/settings-return.ts", "apps/workbench/src/browser/return-trips.ts"],
@@ -436,13 +440,23 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis:assistant-subtask-open", kind: "request", owner: "task-float", on: "document",
-    detail: "{ work_id, parent_run_id?, child_id? }; Work alone selects a delegated Work; both execution fields select that Work's original SDK child.",
+    detail: "{ base, signal, focus, interaction, reviews, work_id, parent_run_id?, child_id? }; Native Host entry supplies the frozen route, lifetime and original UI factories; never forwarded through a plugin frame. Work alone selects a delegated Work; both execution fields select that Work's original SDK child.",
     summary: "Open an authorized child in the shared task float without changing the main conversation or its input receiver. The original service checks every supplied reference.",
   },
   {
     name: "molis:assistant-surface-changed", kind: "request", owner: "assistant", on: "window",
     detail: "{ plugin_id, object: { kind, id } }; ASSISTANT_SURFACE_CHANGED_EVENT (services/assistant)",
     summary: "A surface changed an object the Assistant may be showing (Coding's session settings); the Assistant reads its Work again.",
+  },
+  {
+    name: "molis:authorization-changed", kind: "request", owner: "settings-directory", on: "window",
+    detail: "none",
+    summary: "A local authorization setting changed. Settings in this document re-read their owners; the event carries no authorization or result.",
+  },
+  {
+    name: "molis:automation-suggestions-open", kind: "request", owner: "automation-recommendations", on: "document",
+    detail: "{ trigger: HTMLIFrameElement }",
+    summary: "A visible framed surface asks the shell to open project suggestions. The shell chooses its current project and the original frame is the focus return point. No data, storage or action authority goes to the frame.",
   },
   {
     name: "molis:context-intake", kind: "request", owner: "context-actions", on: "element", bubbles: true,

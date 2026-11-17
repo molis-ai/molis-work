@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { AgentReviewQueue, createPrologueNodeAdapter, reviewProposalVersion } from "@molis-ai/molis-work-service-agent-host";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, handleProjectPluginHttp, observeReviewSettlements, openProjectVersionStores, type ReviewSettlement } from "@molis-ai/molis-work-app-local-host";
 import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { pluginActions, projectDirectories, withFakeAgentHost } from "./fixtures/plugin-actions.js";
@@ -53,7 +53,7 @@ test("committed SDK receipts notify real project consumers once; history, other 
     let gitRevision = await revision(GIT);
     // The installation that asked, as the Host records it when the review is requested: Git's own unless a test says otherwise.
     const asking = (plugin_id = GIT) => ({ plugin_id, install_id: platform.supervisor.state(plugin_id)!.install_id!, holds: () => true });
-    const prepare = async (id: string, outcome: "succeeded" | "failed" | "unknown", board = DEMO_PROJECT_ID, authority = asking()) => adapter.gitReviews!.prepare({ project_id: board, workspace_id: id, operation_id: id,
+    const prepare = async (id: string, outcome: "succeeded" | "failed" | "unknown", board = DEMO_PROJECT_ID, authority = asking()) => adapter.gitReviews!.prepare({ project_id: board, workspace_id: id, operation_id: id, proposal_fingerprint: reviewProposalVersion({ root, id, path: "note", before: "before", after: "after" }),
       document: { kind: "git-index", action: "stage", workspace_name: "fixture", files: [{ path: "note", before_text: "before", after_text: "after", before_mode: "100644", after_mode: "100644" }] } },
       { authority, check: async () => {}, execute: async () => {
         await writeFile(join(root, id), "executed once");
@@ -62,7 +62,7 @@ test("committed SDK receipts notify real project consumers once; history, other 
     for (const outcome of ["succeeded", "failed", "unknown"] as const) {
       const request = await prepare(`operation-${outcome}`, outcome), before = log().length;
       assert.equal(log().length, before, "preparation is not execution");
-      await queue.respond({ review_id: request.review_id, decision: "approve", actor_id: "tester" });
+      await queue.respond({ review_id: request.review_id, version: request.reference.version, decision: "approve", actor_id: "tester" });
       await drain();
       assert.equal(await readFile(join(root, `operation-${outcome}`), "utf8"), "executed once");
       assert.equal(log().length, before + 1);
@@ -77,21 +77,21 @@ test("committed SDK receipts notify real project consumers once; history, other 
       assert.equal(await revision(GIT), gitRevision);
     }
     const rejected = await prepare("operation-rejected", "succeeded");
-    await queue.respond({ review_id: rejected.review_id, decision: "reject", actor_id: "tester" });
+    await queue.respond({ review_id: rejected.review_id, version: rejected.reference.version, decision: "reject", actor_id: "tester" });
     const foreign = await prepare("operation-foreign", "succeeded", "other-board");
-    await queue.respond({ review_id: foreign.review_id, decision: "approve", actor_id: "tester" });
+    await queue.respond({ review_id: foreign.review_id, version: foreign.reference.version, decision: "approve", actor_id: "tester" });
     // Another installation's review goes to that installation, never to Git, even though it settled in Git's project (S-54).
     const others = await prepare("operation-coding", "succeeded", DEMO_PROJECT_ID, asking(CODING));
-    await queue.respond({ review_id: others.review_id, decision: "approve", actor_id: "tester" });
+    await queue.respond({ review_id: others.review_id, version: others.reference.version, decision: "approve", actor_id: "tester" });
     const forged = await prepare("operation-forged", "succeeded", DEMO_PROJECT_ID, { ...asking(), install_id: "another-install" });
-    await queue.respond({ review_id: forged.review_id, decision: "approve", actor_id: "tester" });
+    await queue.respond({ review_id: forged.review_id, version: forged.reference.version, decision: "approve", actor_id: "tester" });
     await drain();
     assert.equal(await readFile(join(root, "operation-coding"), "utf8"), "executed once");
     assert.equal(log().length, 3, "a rejected review, another project's, another plugin's and another installation's settlements reach no Git publication");
     const install = platform.supervisor.state(GIT)!.install_id!;
     platform.supervisor.revoke(GIT);await platform.runtime.stop(install);
     const stopped = await prepare("operation-stopped", "succeeded", DEMO_PROJECT_ID, { plugin_id: GIT, install_id: install, holds: () => true });
-    await queue.respond({ review_id: stopped.review_id, decision: "approve", actor_id: "tester" });
+    await queue.respond({ review_id: stopped.review_id, version: stopped.reference.version, decision: "approve", actor_id: "tester" });
     await drain();
     assert.equal(log().length, 3, "a stopped activation has no publication authority");
     await releaseProjectPlugins(store, DEMO_PROJECT_ID);await adapter.close();

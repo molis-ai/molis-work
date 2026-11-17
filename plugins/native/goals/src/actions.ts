@@ -71,6 +71,8 @@ export const goalsActions = {
   ...goalsGuidanceActions,
   ...goalsLifecycleActions,
   ...goalsTreeActions,
+  treeReview: goalEntryActions.treeReview,
+  eventReview: goalEntryActions.eventReview,
   ...goalsConfigurationActions,
   decide: goalDecisionAction,
   document: goalDocumentAction,

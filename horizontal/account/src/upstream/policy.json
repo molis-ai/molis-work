@@ -1,5 +1,5 @@
 {
-  "contractVersion": "1.2.0",
+  "contractVersion": "1.3.0",
   "implementationStatus": "CONTRACT_ONLY",
   "policyProfile": "unified-account-v2",
   "defaults": {
@@ -73,6 +73,13 @@
     ]
   },
   "permissions": [
+    {
+      "operationId": "getLoginCapabilities",
+      "authority": "grant",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "LoginCapabilities"
+    },
     {
       "operationId": "loginPassword",
       "authority": "initiator",
@@ -695,6 +702,13 @@
       "idempotency": "NOT_APPLICABLE",
       "inputSchema": "EntitlementCheckRequest",
       "outputSchema": "EntitlementCheckResult"
+    },
+    {
+      "operationId": "productLoginCapabilities",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "LoginCapabilities"
     },
     {
       "operationId": "productLoginPassword",

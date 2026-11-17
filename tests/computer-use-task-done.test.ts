@@ -1,3 +1,4 @@
+import { desktopState, performSurface, surfaceContext } from "./fixtures/surface-target.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -28,16 +29,19 @@ function endedRound(window: { title: string; document?: string }) {
   const settings = new ComputerSettings(home);
   settings.setEnabled(true);
   const records = new ComputerRecords(home);
-  const state = { bundle_id: "com.apple.TextEdit", name: "TextEdit", pid: 4, active: true, hidden: false, front_pid: 4,
-    window: { title: window.title, frame: [0, 0, 120, 80] as [number, number, number, number], window_id: 1, document: window.document ?? "" } };
+  const state = desktopState({ bundle_id: "com.apple.TextEdit", name: "TextEdit", pid: 4, active: true, hidden: false, front_pid: 4,
+    window: { title: window.title, frame: [0, 0, 120, 80] as [number, number, number, number], window_id: 1, document: window.document ?? "" } });
   const desk = new ComputerDesk({
     settings, records,
     helper: {
-      on: () => () => undefined, ready: true, unsupported: () => null, problem: () => null,
+      on: () => () => undefined, ready: true, generation: 1, unsupported: () => null, problem: () => null,
       status: () => ({ version: "test", pid: 1, bundle_id: "test.helper", permissions, presence, watching: false, last_synthetic: 0 }),
       ensure: async () => ({ version: "test", pid: 1, bundle_id: "test.helper", permissions, presence, watching: false, last_synthetic: 0 }),
-      call: async <T>(op: string): Promise<T> => {
-        if (op === "monitor" || op === "file.give" || op === "input.menu") return {} as T;
+      call: async <T>(op: string, params?: Record<string, unknown>, _timeout?: number, beforeSend?: () => void, onDispatch?: () => void): Promise<T> => {
+        beforeSend?.(); onDispatch?.();
+        if (op === "monitor") return { watching: params?.on === true } as T;
+        if (op === "file.give") return { accepted: true } as T;
+        if (op === "input.menu") return { done: true } as T;
         if (op === "apps.installed" || op === "apps.running") return { apps: [{ bundle_id: state.bundle_id, name: state.name }] } as T;
         if (op === "app.open" || op === "app.state") return state as T;
         if (op === "observe.screenshot") return { png: Buffer.from("window").toString("base64"), included_pids: [4], password_fields: 0, masked: 0 } as T;
@@ -53,12 +57,13 @@ async function finishRound(goal: string, window: { title: string; document?: str
   const round = endedRound(window);
   try {
     const driver = round.desk.driver();
-    driver.describeRound!("sess-molis", { run_id: "run-1", project_id: null, goal });
-    for (const action of actions) await driver.perform(action, { session_id: "sess-molis" });
+    const context = surfaceContext("sess-molis");
+    driver.describeRound!(context, { run_id: "run-1", project_id: null, goal });
+    for (const action of actions) await performSurface(driver, action, context);
     const id = round.desk.state().record_id;
     assert.ok(id);
     // null: a Host that releases without saying how the run ended.
-    await (ended === null ? driver.release?.() : driver.release?.(ended));
+    await driver.release?.(context, ended ?? undefined);
     return round.records.get(id);
   } finally {
     round.desk.close();

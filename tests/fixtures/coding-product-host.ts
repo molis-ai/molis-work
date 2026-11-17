@@ -84,9 +84,9 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
     return { host, origin, controlToken, release };
   };
   let current = await open(); release = current.release;
-  const call = async <Output>(projectId: string, path: string, body?: unknown, locale?: "en" | "zh"): Promise<{ status: number; body: Output }> => {
+  const call = async <Output>(projectId: string, path: string, body?: unknown, locale?: "en" | "zh", method = body === undefined ? "GET" : "POST"): Promise<{ status: number; body: Output }> => {
     const { origin, controlToken } = current;
-    const response = await fetch(origin + `/projects/${projectId}` + path, { method: body === undefined ? "GET" : "POST", headers: {
+    const response = await fetch(origin + `/projects/${projectId}` + path, { method, headers: {
       origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID(),
       ...(locale ? { cookie: `${LOCALE_COOKIE}=${locale}` } : {}),
     }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
@@ -108,7 +108,7 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
     off = adapter.observe(ref, view => { if (!["completed", "failed", "cancelled"].includes(view.phase)) return;
       clearTimeout(timer); queueMicrotask(() => off()); resolve(view); });
   });
-  return { home, get host() { return current.host; }, directory, project, other, workspaceId, call, ended, requests, providerRequests, close,
+  return { home, get origin() { return current.origin; }, get host() { return current.host; }, directory, project, other, workspaceId, call, ended, requests, providerRequests, close,
     get web() { return new LocalHostHttpClient(current); },
     async restart() { await close(); current = await open(); release = current.release; closing = undefined; },
   };

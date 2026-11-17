@@ -31,15 +31,15 @@ Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在�
 
 ## 接入与边界
 
-`goalsActions` 当前提供 61 项 project 动作（2026-10-07 从构建产物数出，第 41 批删去四个方法动作后为 61），由 Manifest 声明并在项目动作服务中注册；没有 Home 动作（原 `personalPlanningActions` 两个已随方法库删除）：
+`goalsActions` 的项目动作由 Manifest 声明并在项目动作服务中注册（调用方从动作目录读取当前版本、受众和权限，本人通过平台的受保护入口审批）；没有 Home 动作（原 `personalPlanningActions` 两个已随方法库删除）：
 
 - 本地管理：`goals.board.initialize`（输入只有 `idempotency_key`，项目的名字是项目目录的，Goals 的看板不再记它，S8），只接受可信 management 用户上下文。CLI 与管理 MCP 经宿主造的管理动作端口调用这一动作，已登记且连接到 Home 的项目转交常驻宿主，身份由宿主定为本机这个人（`LOCAL_PERSON_ACTOR_ID`），输入不带 `actor_id`；普通 MCP/Agent/插件不获管理权。原初始化回执与禁止覆盖保持。V3 导入已删（2026-10-04，用户决定不留旧数据入口）。
 - 目录、创建、便笺：`goals.list`、`goals.create`、`goals.note`。
 - 对象上下文、搜索与片段：`goals.subject.read`（目标上下文，供调用者明确引用）、`goals.search.entries`（系统搜索条目）、`goals.fragment.offers`（按选中的片段准备本插件真实动作的参数，不执行）。这三项与 `goals.list`、`goals.note` 同样向已安装插件开放。
 - 资料与成果输入：`goals.inputs.bind`、`goals.inputs.release`、`goals.inputs.list` 把文档、演示稿、问卷、数据表、Shelf 材料等记为目标的绑定资料，不复制、不移动原对象；`goals.inputs.confirm` 由拥有来源的插件（目前是 Feed 的「升格为 Goal」）调用，让 Goals 记下：这条来源按确认时内容的摘要，是这个目标的输入（重复确认返回原记录，写的是 Goals 自己的回执，记在调用者的身份下）。它是普通的 Goals 命令（权限 `goals:write`，受众 user、agent、workflow、mcp，声明 `authorship: "session"`），可单独授权、被 MCP 与内置 Agent 直接调用；只有用户（本人）调用时记为已确认，助理、Agent、工作流和外部工具调用只记为待确认（`proposed`）。本人直接调用 Feed 的升格、Feed 经动作目录转来的调用（S-43）也算本人：Goals 只看 Host 在委托调用上设的 `delegated_by`、`delegated_audience`，不看输入；场景运行、两跳委托和 Feed 自己的定时调用不算（`personAsked`，`goals.create` 的创建渠道同样只许本人指定），与成果库的条目一样；待确认的输入由本人在 Goals 里认可（`goals.inputs.accept`，受众只有 user，`proposed` 记为 `confirmed`）或用 `goals.inputs.release` 移除（它也能停用来源材料的输入；已确认的来源输入只有用户能移除，其他调用者只能撤回待确认的提议），Goal 的输入列表写「待确认／已确认」并给「认可这条输入」「移除」两个按钮（页面经 `POST /api/plugins/io.molis.work.goals/goals/{id}/inputs`）；本人对一条还在待确认的来源再调 `goals.inputs.confirm` 会被拒绝（`goals.input_proposed`），要先认可；Goals 不核对来源是否存在，也不核对摘要真伪，只收严格形状的输入：摘要必须是 `sha256:` 加 64 位小写十六进制，理由 1–300 字，名称与来源标识各 1–200 字，来源种类目前只有 `feed_item`；`goals.deliverables.add`、`.remove`、`.list`、`.pin`、`.candidates` 与 `goals.artifact_inputs.add`、`.remove`、`.list`、`.pin` 把成果库里的一版记为目标的交付物或输入，或把资料当前内容固定成新的一版再记入。助理、Coding、工作流或 MCP 调用时只记为提议（附理由），等用户确认；移除已确认的条目只有用户能做。
-- 结构提案：`goals.tree.submit`、`goals.tree.read`、`goals.tree.check`、`goals.tree.decide`。提交只保存提案，检查保存检查结果并回滚预检变更；审批为受保护的用户操作。已决定的提案保持可读。
+- 结构提案使用 `goals.tree.submit`、`goals.tree.read`、`goals.tree.check`、`goals.tree.review` 和 `goals.tree.decide`。提交只保存提案，检查保存检查结果并回滚预检变更。平台先读取提案当前是否可审批，再将本人确认的选择交给 Goals 执行。已决定的提案保持可读。
 - 目标生命周期：`goals.active.set`、`goals.archive.set`、`goals.trash.set`、`goals.trash.list`。当前目标不启动工作；归档须已完成；回收站操作须明确确认，保留阻塞、完整历史及关系恢复结果。
-- 关系与规则：`goals.relations.list`、`goals.relations.add`、`goals.relations.deactivate`、`goals.policy.history`、`goals.policy.resolve`、`goals.policy.save`。三项查询可按授权供 MCP 使用；建立/解除关系与保存项目默认规则是受保护的用户操作。模型需使用结构提案。
+- MCP 可按授权调用 `goals.relations.list` 和 `goals.policy.resolve` 查询关系列表和生效规则。本人可用 `goals.relations.add` 和 `goals.relations.deactivate` 建立或解除关系，模型走结构提案。
 - 项目长期说明：`goals.guidance.read`、`goals.guidance.add`、`goals.guidance.update`。读取完整修订与提示词；新增/编辑/停用/恢复保留明确确认、原因、确认摘要、原去重及幂等回执。
 - 工作记录与状态写入：`goals.events.configure`、`goals.events.report`、`goals.progress.record`、`goals.concerns.apply`、`goals.decisions.request`、`goals.decisions.cite`、`goals.agreement.set`、`goals.closure.submit`、`goals.work.resume`。
 - 项目规划：`goals.planning.impact`、`goals.planning.graph.check`。只剩关系图检查与影响分析；规划方法是技能目录里的技能，不归 Goals（第 41 批）。
@@ -48,7 +48,7 @@ Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在�
 - 目标正文：`goals.document.read`，组合当前状态、原始说明、混合历史首屏、关系、关注项与继续方式。网页完整页和正文 fragment 与标准 MCP 共同读取，归档/回收站历史保持。
 - 当前状态与目录项：`goals.state.read`、`goals.directory.read`。
 - 进展保存回执：`goals.progress.receipt`，按可信调用者、目标和原幂等键读取；不存在时返回 null，不接受指定其他作者。
-- 用户决定：`goals.decisions.record`，仅 user audience、`goals:decide` 权限和 Host 提供的用户操作出处共同满足时执行；原 Governance 和 Goal 事务保持不变。
+- 用户决定：`goals.decisions.record` 由平台按原审查引用执行。项目库在同一事务写入平台决定、Goals 事件和业务结果。
 - 事件原文与索引：`goals.events.list`（正序）、`goals.events.latest`（倒序）、`goals.events.read`、`goals.timeline.list`（紧凑索引），分页使用数字事件游标。
 - 完整历史：`goals.history.list`、`goals.history.read`，合并当前事件与 Journal 记录，分页使用返回的字符串游标。历史正文保留来源和 HTML 转义；目录项或历史条目不存在时返回 null。
 
@@ -58,15 +58,15 @@ Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在�
 
 Coding 的进展回执查询也转入统一动作，保留原保存回执和重启恢复行为。进展附带的成果来源是提交者的引用，不表示系统已验证成果内容，也不构成用户授权。
 
-用户决定的 Web、CLI 和管理 MCP 共用注册动作。Web 的直接事件端口及同步观察包装已删除。管理 MCP `event_decide` 从同一动作派生业务 schema，不能作为普通 MCP 授权能力导出；工具不接受 `authority`，由 Host 固定本人和 management 出处。
+用户决定的 Web、CLI 和管理 MCP 共用平台的审查引用。管理 MCP 通过 `molis_work_v1_review_request` 读取原请求，由本人选定后用 `molis_work_v1_review_decide` 提交。Host 固定本人、项目、动作、待审批版本、选择和操作出处。Goals 保留事件及物化效果。
 
 管理入口（CLI、管理 MCP）的写入由 Host 私有 `bindGoalsManagementActions` 工厂固定记本机这个人（`LOCAL_PERSON_ACTOR_ID`、`user`），权限只取该次动作自己的，身份不从输入读。结构提案的提交、检查、决定和用户决定带身份字段会以 `actions.input_invalid` 拒绝；提交另拒 `submitted_session_id`，结构决定另拒 `audit_actor_id`、`runtime_actor_id`。CLI 先核项目，管理 MCP 保留原数据库/项目绑定和参数选择顺序。首次引导调 `goals.create`（`bindGoalsWebActions`，创建渠道 `onboarding`）；Run 与助理轮次读长期说明只调 `goals.guidance.read`（`readProjectGuidance`，只授 `goals:read`）。
 
 W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、快照、创建意图、用户决定、结构提案提交/读取/检查/决定、项目说明读取和设当前目标。旧 v1 引用由公开 Host/SDK 拒绝为 `actions.dependency_missing`，调用方自造描述符或去掉 `host_only` 不能恢复；`checkNoGoalTypedAdapters`（`pnpm boundary:check`）按 AST 拦重新定义、注册、导出或调用。`tests/goal-management-identity.test.ts` 走真实 Host/SDK 验十四个 literal；`tests/goals-query-boundaries.test.mjs` 验实际源码和别名/动态入口的 mutation。现行管理动作的身份、证据、幂等和重启由 `tests/management-door-identity.test.ts`、`tests/proposal-entry-chain.test.ts` 走实际 CLI/MCP 验。PR-8 已删除 Coding 的另外四个 typed 协议与注册。Coding 按动作 id 与版本调用这些动作（`plugins/native/coding/src/goals-actions.ts`，PG-111 起不再与 Goals 共用合同）；约定、状态、进展与回执要求当前宿主运行的内置实例，撤资格、停用或重启前的旧对象均不能继续调用。PR-9 将这四个 literal 与原导出名加入同一回流门禁；`tests/typed-registry-inventory.test.ts` 核实际 Host 剩余注册和动作目录。
 
-动作输入不含调用者或项目；结构提交不含 Runtime 会话，结构检查的领域输入 `GoalTreeProposalCheckInput` 由动作处理器补作者。管理决定的两个 authority 和共用证据检查归 `src/management-evidence.ts`，仍拒证据里的 `actor_id`、`actor_kind` 或 `authority_source`。`BoardSnapshot`、`GoalContractView` 保留事实 owner 的记录形状；初始化输出 `InitializeBoardOutput` 归现有 `src/library-actions.ts`。同一幂等键只在同一作者下重放，Runtime 动作保留自己的 Session 作者。
+动作输入的调用者与项目由 Host 绑定。结构提交的 Runtime 会话来自实际调用，结构检查的领域输入 `GoalTreeProposalCheckInput` 由动作处理器补作者。管理决定的范围和版本见 [平台审查合同](../../../specs/agent-approval/spec.md#review-contract)。`BoardSnapshot`、`GoalContractView` 保留事实 owner 的记录形状。初始化输出 `InitializeBoardOutput` 归 `src/library-actions.ts`。用原操作编号重试时读取同一人的原决定回执。Runtime 动作保留自己的 Session 作者。
 
-项目规则「完成前必须你点头」（`human_approval`）进入完成检查：没有仍然有效的可信用户结论、也没有授权 `complete` 的当前决定时，收尾回执的原因是 `goals.event_closure.human_approval_required`。授权 `complete` 的决定和某条要求上的接受结论（含协议里 `requirement_acceptance` 请求的答复）都只对做出它时的约定和那一轮工作有效：约定整份承诺里任何一处变了，或 Goal 被继续、重新打开之后，要重新授权或接受。
+Goals 消费统一授权管理页的项目审批规则。「完成前必须你点头」要求当前轮次和约定下的 `complete` 授权。否则收尾回执会写 `goals.event_closure.human_approval_required`。要求认可单独对应所选要求和依据。重新打开或继续工作会开始新的完成批准周期。
 
 文档页完整集合和所选正文已共用动作；Host 仅组合已授权资料。初始化管理入口也已转入动作；与其他插件的剩余消费和系统生命周期仍待全量审计。MCP 连接恢复摘要已使用当前客户端的精确动作授权与常驻服务；typed 恢复和 MCP 共用原目录/焦点组合，缺权限或服务不可用时返回缺失内容原因，连接状态保持真实。同步事务和历史合并内部继续使用原业务 owner。
 
@@ -80,15 +80,15 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 
 生命周期的 Web API、CLI 当前目标与回收站组合动作已转入动作。删除/恢复固定操作方向，拒绝输入 trashed 覆盖；work_state 从本次原回执生成，后续排队写入不会改写它。`goals.active.set` 只收 goal_id、reason、idempotency_key，身份和项目由已授权连接绑定；删除与恢复共享同一授权；原领域数据和回执保留。
 
-目标树的动作、CLI、Web 审批与管理 `goal_tree_decide` 共用四个动作，原 Submission/Query/Check/Decision owner 保留幂等、事务、基线冲突及修订语义。新输入只允许 goal/create、relation/create|deactivate；part_of 为子目标到父目标，depends_on 为消费目标到前置目标。修订条目须使用新的稳定 item_id，修订后的提案仍需审批。schema 位于插件，不另维护 MCP 业务 schema。
+Goals 的原动作处理目标树的提交、查询、检查和决定，保留幂等、事务、基线冲突及修订语义。新输入只允许 goal/create、relation/create|deactivate。part_of 为子目标到父目标，depends_on 为消费目标到前置目标。修订条目须使用新的稳定 item_id，修订后的提案仍需审批。原提案的业务 schema 由插件维护。
 
-`goals.tree.decide` 只接受 user audience、goals:decide 及受保护 Host 注入的用户和操作出处；普通 MCP、模型、工作流和插件不能通过自填 authority 获得审批权。管理 `goal_tree_decide` 与 CLI `goal-tree-decide` 经同一私有工厂调该动作：Host 的 `bindGoalsManagementActions` 固定本人和 management 来源（出处由入口给，`entryUserAction("management", …)`；证据检查是本包导出的 `managementEvidence`），输入的证据只能指向对话及整组确认（`conversation_ref`、`message_ref`、`whole_confirmation_prompted`、`prompted_proposal_id`），身份或来源声明返回 `goals.goal_tree_proposal.authority_source_invalid`。管理 `event_decide` 的出处同样由入口给出（`entryUserAction`），默认为 `management:<项目>` 与 `management:<键>`（原 `management-event-decision:<键>`、`management-tree-decision:<键>`、`web-decision:<键>` 一并改成这一种写法，见 CONTRACT-CHANGES §8）；共用 owner 仍以 `goals.event_decision_authority_invalid` 拒证据身份。旧 Runtime 对话自报确认帮助器已删除，历史记录中的 runtime_dialogue 来源仍保留可读。
+结构与事件决定由平台通用入口记录。Web、CLI `review-request`／`review-decide` 和管理 MCP `molis_work_v1_review_request`／`molis_work_v1_review_decide` 使用同一已阅请求、选择和重放键，原动作在实际提交时核对一次许可。本人、项目与原操作出处由 Host 提供。Goals 继续拥有提案条目、事件、逐项结果和物化效果。升级前的决定保留原出处供追溯。
 
 动作提交的 submitted_session_id 从可信 ActionCallContext.runtime_session_id 注入，经常驻网关保持，插件 Agent 的一轮取宿主在启动时核过归属的那条会话（审计作者 `agent:<runtime_id>:<会话>`，幂等按会话分开）；管理入口背后没有 Runtime 会话，提案记 `submitted_session_id: null`。业务输入不能覆盖它。原始用户身份和整组提示由 user_action 提供，审计 Runtime 身份不能替代用户。
 
-关系和项目规则的 Web 写入、规则设置页、所选目标正文均消费共同动作；原领域事务、关系方向、规则合并及历史绑定保持不变。三项直接写入要求 user audience、goals:decide、Host 提供的真实用户与 web/management 出处，普通 MCP 无法授予这些权限。原 HTTP commands/query 端口和没有调用者的 Workbench/CLI/MCP GoalsApplicationApi 转发工厂已删除。整页目录的历史组合也通过集合动作读取。
+项目规则的创建、撤回和历史查询由统一授权管理页调用 `project.approvals.rules.read@1` 和 `project.approvals.rules.change@1`。Goals 的详情读取适用规则，显示生效结论和授权管理页入口。
 
-第 41 批（2026-11-14）起 Goals 没有方法库，也没有 Home 那一半：方法目录、读取、保存、个人方法和事件配置里的「采用」都已删除，`planning` 只剩关系图检查（`goals.planning.graph.check`）与影响分析（`goals.planning.impact`）。项目库 3→4 的升级段删掉 `planning_method_packs` 表和 `goal_event_config_versions.adopted_planning_json` 列；原 Home 库 `goals/goals.db` 在升级轮里连目录删除（宿主的 `REMOVED_HOME_STORES`）。
+第 41 批（2026-11-14）起 Goals 没有方法库，也没有 Home 那一半：方法目录、读取、保存、个人方法和事件配置里的「采用」都已删除，`planning` 只剩关系图检查（`goals.planning.graph.check`）与影响分析（`goals.planning.impact`）。Goals 私有库 v3→v4 的升级段删掉 `planning_method_packs` 表和 `goal_event_config_versions.adopted_planning_json` 列；原 Home 库 `goals/goals.db` 在升级轮里连目录删除（宿主的 `REMOVED_HOME_STORES`）。
 
 ## 开发要求
 
@@ -96,11 +96,13 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 
 固定输入和交付物的动作等待 owner，因此声明并发调度；委托保留原调用的授权、取消和生命周期，owner 返回后再次检查原 beforeEffect、同步授权和 Goal 是否归档/移入回收站，再写 Ledger 关联。owner 已提交的成果保留。收尾表单遇到固定回执未知时先核对清单，同一意图不自动再次固定；已有版本可沿 reference 关联，新明确固定意图仍增版。
 
-问题的解决/推翻提交后续事件 `supporting_event_ids` 或已有可信用户决定，拒绝时保留输入。Goal 规则只展示现行项目默认和事件记录中的完成要求；要求修改沿事件表单，项目默认沿项目设置。规划详情按请求和当前选择回写，关闭或页面拆除后忽略迟到成功与失败。
+`goals.deliverables.pin`、`goals.artifact_inputs.pin` 声明 `delegation: "confirmation-only"`：对象 owner 固定当前内容时可能读取它自己的动态关联，外层输入不能固定这个目标，因此不能以完整参数匹配获得可复用自动委托。人工确认后的调用、原授权和业务检查保留。声明提取证据见 `tests/security-invariants-pages-delegation.test.ts`；实际自动委托消费由 agent-host 接线。
 
-- 负责：Goals 的导航、界面、命令与组合（每个项目都带的内置插件）；Goals 与 Governance 在项目库里的表声明（Manifest 的 `databases.project`，即 `GOALS_PROJECT_DATABASE`，`src/project-database.ts`，建表语句在 `src/project-database-*.ts`；S8，PG-020）；Goal 约定与要求、工作事件与关注项、关系图、项目规则、生命周期、项目指导、关系图检查与影响分析（`src/module/`，原 `modules/goals`，S9-3 搬入）；Goal Tree 结构提案、可信用户决定与确认来源（`src/governance/`，原 `modules/governance-collaboration`，S9-3 搬入）。不负责：拆解与规划的方法——它们是技能目录里随系统自带的技能包（`plugins/content/planning-methods`），由助理选用，Goals 不读、不存、不采用（第 41 批，用户 2026-11-14 定）。
-- 不负责：用户决定之外的 Session，终端进程本身（归平台的 `services.terminal`，S-103；Goals 只有一个 Goal 的工作终端四个动作与推进提示，`src/terminal-actions.ts`）、跨模块来源、直接修改 Artifact 或 Project 的事实、其他插件的实现。`src/module/` 与 `src/governance/` 读写这些表的 SQL 登记在 `tooling/gates/table-owners.json`。
-- 公开入口：`@molis-ai/molis-work-plugin-goals`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；Goals 自己的合同（Goal、事件、状态、动作描述符与 schema、治理协作的类型与 schema）在 `@molis-ai/molis-work-plugin-goals/contract`（`src/contract/`，PG-111 从平台合同搬来，平台合同不再有 `modules/goals`、`modules/goal-actions`、`modules/governance-collaboration`）；平台合同 `@molis-ai/molis-work-contracts/platform/plugin`。CLI、MCP、Coding、Feed 不 import 这份合同，按动作 id 与版本调用、就地声明用到的字段；宿主与工作台只有已经点名 Goals 包的文件取它的类型。
+问题的解决/推翻提交后续事件 `supporting_event_ids` 或已有可信用户决定，拒绝时保留输入。Goal 规则只展示现行项目默认和事件记录中的完成要求。要求修改沿事件表单，项目默认沿统一授权管理页。
+
+- 负责：Goals 的导航、界面、命令与组合，以及 Goals 与 Governance 的项目私有表声明（Manifest 的 `databases.project`、`src/project-database.ts`，S8、PG-020）。`src/module/` 拥有 Goal 约定、要求、工作事件、关注项、关系图、规则生效计算、生命周期、项目指导、关系图检查与影响分析。`src/governance/` 拥有 Goal Tree 结构提案和物化结果。
+- 不负责：平台拥有审批规则、可信决定记录和终端进程。Goals 提供工作终端动作与推进提示（`src/terminal-actions.ts`）。拆解与规划方法归自带技能包（`plugins/content/planning-methods`），由助理选用。Goals 支持跨模块来源引用。Artifact、Project 与 Session 的事实归各自主人。Goals 的项目表读写登记见 `tooling/gates/table-owners.json`。
+- 公开入口：`@molis-ai/molis-work-plugin-goals`。Goal、事件、状态、动作和治理协作的类型与 schema 在 `@molis-ai/molis-work-plugin-goals/contract`，平台合同在 `@molis-ai/molis-work-contracts/platform/plugin`。CLI、MCP、Coding、Feed 按动作 id 与版本调用，按需就地声明字段。宿主与工作台沿现有依赖边界取类型。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同、SDK 与声明过的 Service/UI 包；不导入 Module 实现包，也不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1、2 节）。
 - 不变量：
   - 状态变化只经 `src/module/` 的公开入口，页面不另算完成。
@@ -108,7 +110,7 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
   - CLI 与管理 MCP 使用同一 owner 动作；有幂等合同的写入沿用原事务与幂等键。
   - 回收站操作要用户明确确认；`goals.trash.set` 可恢复，因此声明为写而不是不可撤销，并且不进生成插件。
   - MCP 只经动作工具（逐客户端授权、常驻 Host）调用 Goals，不能指定数据库或自填作者、创建渠道。
-  - Goals 管理业务只走注册动作，没有 typed 管理写入桥；输入类型不含 `actor_id`、`actor_kind` 或决定 authority，结构提交不含 `submitted_session_id`，结构决定不含 `runtime_actor_id`。真实 CLI/MCP 由 Host 私有管理工厂固定本人和出处；两个管理 authority 的证据规则仍归 `src/management-evidence.ts`。`tests/management-door-identity.test.ts` 核公开入口和动作输入类型，`tests/goal-management-identity.test.ts` 核十四个旧 v1 引用即使伪造描述符也拒绝，AST 门禁不许恢复 typed 定义/注册/导出/消费者。Coding 在自己的 `goals-actions.ts` 里按动作 id 与版本就地声明（`GOALS_ACTIONS`，不 import Goals 合同）；四项受限读写核当前内置实例资格，身份仍取原调用上下文，其余测试用现行动作验证业务。
+  - Goals 管理业务只走注册动作，没有 typed 管理写入桥；输入类型不含 `actor_id`、`actor_kind` 或决定 authority，结构提交不含 `submitted_session_id`，结构决定不含 `runtime_actor_id`。真实 CLI/MCP 由 Host 私有管理工厂固定本人和出处；通用入口固定选项与当前原提供方。`tests/management-door-identity.test.ts` 核公开入口和动作输入类型，`tests/goal-management-identity.test.ts` 核十四个旧 v1 引用即使伪造描述符也拒绝，AST 门禁不许恢复 typed 定义/注册/导出/消费者。Coding 在自己的 `goals-actions.ts` 里按动作 id 与版本就地声明（`GOALS_ACTIONS`，不 import Goals 合同）；四项受限读写核当前内置实例资格，身份仍取原调用上下文，其余测试用现行动作验证业务。
   - Feed 升格为 Goal 经 `goals.directory.read`、`goals.create`、`goals.inputs.confirm` 写 Goals（升格动作用 `required_actions` 声明了这三项，授权设置要一起授权），Feed 不写 Goals 的表；Goals 不在项目里时升格不可用，Feed 的入口也不再出现。
   - `src/module/`（原 `modules/goals`）的不变量：
     - Repository 只由包内装配；公开 Module、查询服务和只读装配不提供 `repository` 成员，调用方通过命令、查询、事件及生命周期服务工作。

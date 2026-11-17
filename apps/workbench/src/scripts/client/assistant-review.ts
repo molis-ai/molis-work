@@ -19,30 +19,57 @@ export const ASSISTANT_REVIEW_PART = String.raw`  const setReviewWord = (node, w
       }
     }
   };
-  const mountWorkReview = (card, review, control) => {
+  const mountWorkReview = (card, initial, control) => {
+    let review = initial;
     let alive = true;
     const current = () => alive && card.isConnected && control.current();
+    const paint = next => {
+      review = next;
+      const decisions = JSON.stringify([review.decisions, review.permission_available]);
+      const sameVersion = card.dataset.reviewVersion === review.version;
+      if (card.dataset.painted && sameVersion && card.dataset.reviewDecisions === decisions) return;
+      card.dataset.reviewDecisions = decisions; card.dataset.reviewVersion = review.version;
+      if (card.dataset.painted && sameVersion) {
+        const row = card.querySelector('.assistant-card-actions'), active = row.contains(document.activeElement) ? document.activeElement : null;
+        const focused = active?.dataset.assistantDecision, permissionFocused = active?.hasAttribute('data-assistant-permission-open');
+        const updated = document.createElement('template'); updated.innerHTML = review.html;
+        row.innerHTML = updated.content.querySelector('.assistant-card-actions').innerHTML;
+        card.querySelector('.assistant-card-hint').replaceWith(updated.content.querySelector('.assistant-card-hint'));
+        if (row.ariaBusy === 'true') row.querySelectorAll('[data-assistant-decision]').forEach(button => { button.ariaDisabled = 'true'; });
+        retitleReviewText(card);
+        if (active) { let next = permissionFocused ? row.querySelector('[data-assistant-permission-open]') : focused ? row.querySelector('[data-assistant-decision="' + focused + '"]') : null; if (!next) { next = card.querySelector('.assistant-card-title'); next.tabIndex = -1; } next.focus({ preventScroll: true }); }
+        return;
+      }
+      card.dataset.painted = '1';
     card.innerHTML = review.html;
     card.querySelectorAll("[data-assistant-review-glyph]").forEach((node) => node.replaceWith(glyph(node.dataset.assistantReviewGlyph)));
     retitleReviewText(card);
     bindReviewCode(card);
     const row = card.querySelector(".assistant-card-actions");
-    const buttons = row.querySelectorAll("[data-assistant-decision]");
+    const buttons = () => row.querySelectorAll("[data-assistant-decision]");
     const decide = async (decision) => {
       if (!current() || row.ariaBusy === "true") return;
       row.ariaBusy = "true";
-      buttons.forEach((button) => { button.ariaDisabled = "true"; });
+      buttons().forEach((button) => { button.ariaDisabled = "true"; });
       try {
-        const next = await control.decide(decision);
+        const next = await control.decide(decision, review.version);
         if (current()) control.refresh(next);
       } catch (error) {
         if (!current()) return;
         row.removeAttribute("aria-busy");
-        buttons.forEach((button) => button.removeAttribute("aria-disabled"));
+        buttons().forEach((button) => button.removeAttribute("aria-disabled"));
         control.error(error);
       }
     };
-    buttons.forEach((button) => button.addEventListener("click", event => { if (event.isTrusted) void decide(button.dataset.assistantDecision); }));
-    return { destroy() { alive = false; } };
+    row.addEventListener("click", event => {
+      if (!event.isTrusted || !current()) return;
+      const button = event.target.closest('[data-assistant-decision]');
+      if (button && button.ariaDisabled !== "true") void decide(button.dataset.assistantDecision);
+      const permission = event.target.closest('[data-assistant-permission-open]');
+      if (permission) control.permission?.(permission, review.review_id, review.version);
+    });
+    };
+    paint(initial);
+    return { update: paint, destroy() { alive = false; } };
   };
 `;

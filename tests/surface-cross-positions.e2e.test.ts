@@ -62,6 +62,7 @@ async function nativeInboxSurface(t: TestContext, late: boolean) {
   await inbox.waitFor(`document.querySelector(${quoted(own)})?.hidden === false`);
   assert.equal(await inbox.evaluate(`document.querySelector(${quoted(own + " " + slot)})?.childElementCount`), 0);
   assert.match(await inbox.evaluate<string>(`document.querySelector(${quoted(own + " .mw-presentation--chip")}).textContent`), /Report for the inbox mount/);
+  const frames = () => b.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))");
   const area = '[data-framed-area] .surface-slot-body';
   await b.waitFor(visible(area + ' .mw-presentation--card'));
   assert.match(await b.evaluate<string>(`document.querySelector(${quoted(area)}).innerText`), /Report for the inbox mount/);
@@ -74,8 +75,12 @@ async function nativeInboxSurface(t: TestContext, late: boolean) {
     await b.click(editing);
     await b.waitFor(visible(area + " .surface-correction-menu[open]"));
     await key("End", 35);
+    // The next animation frame applies the focused-control dwell guard before aria-disabled can be trusted.
+    await frames();
     await b.waitFor('document.activeElement.textContent.trim() === "从这里移走" && !document.activeElement.hasAttribute("aria-disabled")');
     await key("Enter", 13);
+    await b.waitFor(`document.activeElement === document.querySelector(${quoted(recovery)})`);
+    await frames();
     await b.waitFor(`document.activeElement === document.querySelector(${quoted(recovery)}) && !document.activeElement.hasAttribute("aria-disabled")`);
     await key("Enter", 13);
     await b.waitFor(`document.activeElement === document.querySelector(${quoted(editing)}) && ${visible(area + ' .mw-presentation--card')}`);
@@ -103,7 +108,7 @@ async function nativeInboxSurface(t: TestContext, late: boolean) {
       if (body.intent === "activate" || body.intent === "confirm") activations.push(body.intent);
     }
   }));
-  const frames = () => b.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))");
+
   const blocked = async (reason: string, click: () => Promise<unknown>) => {
     const before = activations.length;
     await click(); await frames();
@@ -312,7 +317,7 @@ test("IUI-02 IUI-03 IUI-06 IUI-21 IUI-26: discussion picks and quotes a Goal and
   const pageChip = '[data-im-object-part="message"] [data-home-subject-id="' + document.id + '"]';
   await b.waitFor(`${query(pageChip)}?.innerText.includes(${quoted(pageTitle)})`, 15_000);
   assert.doesNotMatch(await b.evaluate<string>(`${query(pageChip)}.innerText`), new RegExp(pageBody, "u"));
-  assert.equal(await b.evaluate(`${query(pageChip)}.querySelectorAll("[data-presentation-action]").length`), 1);
+  assert.equal(await b.evaluate(`${query(pageChip)}.querySelectorAll("[data-presentation-action]").length`), 6);
   await imClick(pageChip + ' [data-presentation-action$=":open"]');
   await b.waitFor(`[...document.querySelectorAll('[data-tab-id]')].some(tab => tab.dataset.itemId === ${quoted(document.id)})`);
 });

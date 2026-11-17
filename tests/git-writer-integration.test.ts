@@ -26,6 +26,18 @@ async function fixture() {
   return { home, root, child, tree, git, selection, current, read, prepare, revoke: () => { grants = []; }, close: () => rm(home, { recursive: true, force: true }) };
 }
 
+test("APR-08: writer integration rechecks the original review after asynchronous patch validation", async t => {
+  const f = await fixture(); t.after(f.close);
+  await writeFile(path.join(f.child, "modify.txt"), "proposed\n");
+  const prepared = await f.prepare(["modify.txt"]), index = await readFile(path.join(f.root, ".git/index"));
+  let current = true;
+  const executing = prepared.execute(() => assert.ok(current, "original approval revoked")); current = false;
+  await assert.rejects(executing, /original approval revoked/);
+  assert.equal(await readFile(path.join(f.root, "modify.txt"), "utf8"), "original\n");
+  assert.equal(await readFile(path.join(f.child, "modify.txt"), "utf8"), "proposed\n");
+  assert.deepEqual(await readFile(path.join(f.root, ".git/index")), index);
+});
+
 test("selected child changes integrate exact text, modes and deletions while preserving index, unrelated edits and child work", async () => {
   const f = await fixture();
   try {

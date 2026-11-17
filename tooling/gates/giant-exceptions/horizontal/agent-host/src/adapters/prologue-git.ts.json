@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": {
+      "kind": "cohesive-unit",
+      "reason": "宿主 Git 审查的单一执行状态机，共同持有原安装活性、等待和恢复集合；索引核对与结算已有独立函数，原子决定和派发收口须共享同一生命周期。",
+      "size": 173
+    }
+  }
+}

@@ -1,8 +1,10 @@
-import type { ExactRef, PolicyRule, Runtime, UiAction, UiAssessment, UiReadiness, UiSurface } from "@prologue/sdk";
-import { APP_MODE_SURFACE_TOOLS, createSurfaceRefusal } from "@prologue/sdk";
-import type { HostSurfaceAction, HostSurfaceDriver, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
-import { isHostSurfaceRefusal } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
-import { deliverDesktopAct } from "./desktop-act-delivery.js";
+import type { ExactRef, PolicyRule, UiExpectedTarget } from "@prologue/sdk";
+import { APP_MODE_SURFACE_TOOLS } from "@prologue/sdk";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostSurfaceDriver, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import { agentErrors } from "../errors.js";
+import type { ReviewDecisionControl } from "../review-decisions.js";
+import { createSurfaceBinding, detachSurfaceBindings, type SurfaceBinding, type SurfaceRuntime } from "./prologue-surface-binding.js";
 import { presentToolReview, reviewField, reviewText } from "../review-presentation.js";
 import { describeBrowserAction, describeDesktopAction, surfaceActionWords, type SurfaceReviewDetail } from "./prologue-surface-review-words.js";
 
@@ -54,36 +56,6 @@ function siteApprovals(scope: string): PolicyRule[] {
     match: { what: "surface" as const, scope, action }, why: "The person lets the Assistant act on this site without asking." }));
 }
 
-/** Prologue's typed action → the driver's, with text read back from the resource Prologue staged it in. */
-async function hostAction(action: UiAction, readText: (ref: ExactRef<"resource">) => Promise<string>): Promise<HostSurfaceAction> {
-  switch (action.what) {
-    case "text": return { what: "text", text: await readText(action.body) };
-    case "pointer": return { what: "pointer", x: action.x, y: action.y, button: action.button, clicks: action.clicks, ...(action.node ? { node: action.node } : {}) };
-    case "key": return { what: "key", keys: [...action.keys] };
-    case "navigate": return { what: "navigate", url: action.url };
-    case "wait": return { what: "wait", ms: action.ms };
-    case "upload": return { what: "upload", from: [...action.from] };
-    case "download": return { what: "download", to: [...action.to] };
-    case "scroll": return { what: "scroll", x: action.x, y: action.y, dx: action.dx, dy: action.dy };
-    case "drag": return { what: "drag", x: action.x, y: action.y, to_x: action.toX, to_y: action.toY };
-    case "hover": return { what: "hover", x: action.x, y: action.y };
-    case "app": return { what: "app", app: action.app };
-    case "menu": return { what: "menu", path: [...action.path] };
-  }
-}
-
-/** A refusal the desktop driver threw → Prologue's refusal, so it never retries and never claims success. */
-function asRefusal(error: unknown): Error {
-  if (isHostSurfaceRefusal(error)) return createSurfaceRefusal(error.refusal as HostSurfaceRefusal, { partial: error.partial === true });
-  return error instanceof Error ? error : new Error(String(error));
-}
-
-/** The desk's readiness → Prologue's `UiReadiness`: "ready" or one refusal reason, asked before any bytes or action. */
-async function desktopReadiness(driver: HostSurfaceDriver, sessionId: string): Promise<UiReadiness> {
-  const blocked = driver.readiness ? await driver.readiness({ session_id: sessionId }) : null;
-  return blocked ? blocked.refusal : "ready";
-}
-
 export interface SurfaceAttachment {
   /** The surface tools this round gets: all three, looking only, or none. */
   readonly tools: readonly string[];
@@ -93,6 +65,9 @@ export interface SurfaceAttachment {
   readonly surfaces: readonly ("browser" | "desktop")[];
   /** The desk's target id when the desktop is attached, so the round's record knows its calls are desktop steps. */
   readonly desktop_target?: string;
+  /** Bound to this exact attachment, not the session's later current round. */
+  noteRun(runId: string): void;
+  release(ended?: HostSurfaceRoundEnd): Promise<void>;
 }
 
 export interface PrologueSurfaces {
@@ -101,13 +76,10 @@ export interface PrologueSurfaces {
    * only looks; a browser page another live session holds is not shared, and the round is told so rather than silently
    * getting nothing. The desktop is one per computer; whether another work holds it is decided by its own readiness.
    */
-  attach(session: { readonly ref: ExactRef<"session"> }, owner: string, sessionId: string, options: { readonly readOnly: boolean; readonly live: (sessionRefId: string) => boolean; readonly goal?: string; readonly projectId?: string | null }): Promise<SurfaceAttachment>;
-  /** Original and display words for the exact browser action, including the element's own name when available. */
-  describe(sessionRefId: string, action: string, summary: string, typed?: string): Promise<SurfaceReviewDetail>;
-  /** Original and display words for the exact desktop action, including the control's own name when available. */
-  describeDesktop(sessionRefId: string, action: string, summary: string, typed?: string): Promise<SurfaceReviewDetail>;
-  /** The display name of a desktop app the Assistant is about to act in, for the card; the bundle id when unknown. */
-  describeApp(sessionRefId: string, bundleId: string): Promise<string>;
+  attach(session: { readonly ref: ExactRef<"session"> }, owner: string, sessionId: string, options: { readonly readOnly: boolean; readonly control: ReviewDecisionControl; readonly goal?: string; readonly projectId?: string | null }): Promise<SurfaceAttachment>;
+  /** Capture the SDK's original plan and its exact attached driver once for this card. */
+  review(runId: string, sessionRefId: string, effect: ExactRef<"effect">,
+    subject: { readonly surface: "browser" | "desktop"; readonly scope: string; readonly action: string }): SurfaceReviewTarget;
   /** The redactor Prologue calls before a screenshot may leave: only the driver's own covered screenshots pass. */
   redact(bytes: Uint8Array): Promise<Uint8Array>;
   /** The person changed a standing decision about a site. */
@@ -116,132 +88,179 @@ export interface PrologueSurfaces {
    * The person allowed the Assistant to act in one desktop app for the rest of this round (spec D06): a remembered
    * approval bound to this run, dropped when it ends, never persisted, only for reversible local actions.
    */
-  allowAppForRound(run: ExactRef<"run">, bundleId: string): void;
-  /** A round of this session ended or was stopped: the surfaces it used are the person's again, not after an idle wait. */
-  release(sessionRefId: string, ended?: HostSurfaceRoundEnd): Promise<void>;
+  /** Whether this run still holds its original binding. Review decisions additionally require the exact effect. */
+  current(runId: string, sessionRefId: string, kind: "browser" | "desktop"): boolean;
   /** A run reached a terminal state: its run-bound approvals are dropped. */
   releaseRun(run: ExactRef<"run">): void;
-  /** The round's run started (after attach): name it on the desktop driver so the record names the run. */
-  noteRun(sessionRefId: string, runId: string): void;
   close(): Promise<void>;
 }
 
-export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSurfacePorts,
+export interface SurfaceReviewTarget extends ReviewDecisionControl {
+  describe(action: string, summary: string, typed?: string): Promise<SurfaceReviewDetail>;
+  appName(bundleId: string): Promise<string>;
+  retainTextApproval(body: ExactRef<"resource">, focus: string): void;
+}
+
+interface SurfaceRound extends ReviewDecisionControl {
+  readonly session: string;
+  readonly bindings: SurfaceBinding[];
+  readonly run: string | undefined;
+  current(): boolean;
+  noteRun(runId: string): void;
+  release(ended?: HostSurfaceRoundEnd): Promise<void>;
+}
+
+/** Session serialization belongs to the adapter; this holds only that round's attached SDK targets. */
+function surfaceRound(session: string, control: ReviewDecisionControl,
+  named: (round: SurfaceRound) => void, retired: (round: SurfaceRound) => void, settled: (round: SurfaceRound) => void): SurfaceRound {
+  let live = true, run: string | undefined, releasing: Promise<void> | undefined;
+  let authority: ReviewDecisionControl | undefined = control;
+  const bindings: SurfaceBinding[] = [];
+  const round: SurfaceRound = {
+    session, bindings, get run() { return run; },
+    assertCurrent() {
+      if (!live || !authority) throw agentErrors.review_not_permitted("原轮次的界面已释放");
+      requireSynchronous(authority.assertCurrent());
+    },
+    async beforeEffect() { round.assertCurrent(); await authority!.beforeEffect(); round.assertCurrent(); },
+    current() { try { round.assertCurrent(); return true; } catch { return false; } },
+    noteRun(runId) {
+      round.assertCurrent();
+      if (run && run !== runId) throw agentErrors.review_not_permitted("不能把原界面改绑到另一轮");
+      run = runId; named(round);
+      for (const binding of bindings) { binding.context.assertCurrent(); binding.driver.noteRun?.(binding.context, runId); }
+    },
+    release(ended) {
+      live = false; retired(round);
+      return releasing ??= detachSurfaceBindings(bindings, ended).then(() => { bindings.length = 0; authority = undefined; settled(round); })
+        .finally(() => { releasing = undefined; });
+    },
+  };
+  return round;
+}
+
+export function emptySurfaceAttachment(note: string | null = null): SurfaceAttachment {
+  return { tools: [], surfaces: [], note, noteRun() {}, release: async () => {} };
+}
+
+/** Review helpers receive bound methods, so none can silently use a newer round's driver context. */
+function surfaceReviewTarget(binding: SurfaceBinding, expected: UiExpectedTarget): SurfaceReviewTarget {
+  const { driver, context, checked } = binding;
+  const assertCurrent = () => {
+    context.assertCurrent();
+    requireSynchronous(expected.assertCurrent());
+  };
+  assertCurrent();
+  const details = {
+    ...(driver.describeNode ? { describeNode: (node: string) => checked(() => driver.describeNode!(node, context, expected), expected) } : {}),
+  };
+  return {
+    assertCurrent,
+    beforeEffect: () => checked(async () => {
+      const scope = await driver.scope(context);
+      assertCurrent();
+      const identity = await driver.identity(context);
+      assertCurrent();
+      if (identity !== expected.identity || scope !== expected.scope) throw agentErrors.review_not_permitted("原观察的页面或窗口已变化，请重新观察");
+    }, expected),
+    async describe(action, summary, typed) {
+      const describe = driver.kind === "desktop" ? describeDesktopAction : describeBrowserAction;
+      const field = action === "text" && driver.focusedField
+        ? await checked(() => driver.focusedField!(context, expected), expected) : undefined;
+      const detail = await describe(field ? { ...details, focusedField: async () => field } : details, action, summary, typed);
+      assertCurrent();
+      return field?.focus ? { ...detail, focus: field.focus } : detail;
+    },
+    async appName(bundleId) {
+      const app = await checked(async () => driver.currentApp?.(context, expected) ?? null, expected);
+      return app?.bundle_id === bundleId ? app.name : bundleId;
+    },
+    retainTextApproval: (body, focus) => binding.retainTextApproval(expected, body, focus),
+  };
+}
+
+export function createPrologueSurfaces(runtime: () => SurfaceRuntime, ports: PrologueSurfacePorts,
   readText: (ref: ExactRef<"resource">) => Promise<string>): PrologueSurfaces {
-  const attached = new Map<string, { target: ExactRef<"ui-target">; driver: HostSurfaceDriver }>();
-  const desktopAttached = new Map<string, { target: ExactRef<"ui-target">; driver: HostSurfaceDriver }>();
-  const drivers = new Set<HostSurfaceDriver>();
-
-  const attachBrowser = async (session: { readonly ref: ExactRef<"session"> }, owner: string, sessionId: string,
-    options: { readonly readOnly: boolean; readonly live: (sessionRefId: string) => boolean }): Promise<"browser" | "held" | null> => {
-    const held = attached.get(session.ref.id);
-    const driver = await ports.driverFor(owner);
-    if (!driver) {
-      if (held) { await runtime().surfaces.close(held.target).catch(() => undefined); attached.delete(session.ref.id); }
-      return null;
-    }
-    if (held && held.driver === driver && runtime().surfaces.get(held.target)?.open) return "browser";
-    for (const [other, entry] of attached) {
-      if (other !== session.ref.id && entry.driver === driver && runtime().surfaces.get(entry.target)?.open && options.live(other)) return "held";
-    }
-    for (const [other, entry] of attached) {
-      if (other !== session.ref.id && entry.driver === driver) { await runtime().surfaces.close(entry.target).catch(() => undefined); attached.delete(other); }
-    }
-    drivers.add(driver);
-    const surface: UiSurface = {
-      kind: "browser",
-      identity: () => driver.identity(),
-      scope: () => driver.scope(),
-      observe: kind => driver.observe(kind, { session_id: sessionId }),
-      perform: async action => { await driver.perform(await hostAction(action, readText), { session_id: sessionId }); },
-      close: async () => { drivers.delete(driver); attached.delete(session.ref.id); },
-    };
-    const target = runtime().surfaces.attach(surface, { owner: session.ref });
-    attached.set(session.ref.id, { target: target.ref, driver });
-    return "browser";
+  const sessions = new Map<string, SurfaceRound>(), runs = new Map<string, SurfaceRound>();
+  const rounds = new Set<SurfaceRound>(), browserOwners = new Map<HostSurfaceDriver, SurfaceBinding>();
+  let closed = false;
+  const requireOpen = () => { if (closed) throw agentErrors.review_not_permitted("界面控制正在关闭"); };
+  const attachDriver = (round: SurfaceRound, driver: HostSurfaceDriver, session: ExactRef<"session">, sessionId: string) => {
+    round.assertCurrent();
+    let binding: SurfaceBinding | undefined;
+    binding = createSurfaceBinding(runtime().surfaces, driver, session, sessionId, round, readText, () => {
+      if (binding && browserOwners.get(driver) === binding) browserOwners.delete(driver);
+    });
+    round.bindings.push(binding);
+    if (driver.kind === "browser") browserOwners.set(driver, binding);
+    return binding;
   };
-
-  const attachDesktop = async (session: { readonly ref: ExactRef<"session"> }, sessionId: string,
-    context: { readonly goal?: string; readonly projectId?: string | null }): Promise<string | null> => {
-    const held = desktopAttached.get(session.ref.id);
-    const driver = ports.desktop?.() ?? null;
-    if (!driver) {
-      if (held) { await runtime().surfaces.close(held.target).catch(() => undefined); desktopAttached.delete(session.ref.id); }
-      return null;
-    }
-    // Name this round so the record the desk starts on first look names it; only takes effect until the lease is taken.
-    driver.describeRound?.(sessionId, { run_id: null, project_id: context.projectId ?? null, goal: context.goal ?? "" });
-    if (held && held.driver === driver && runtime().surfaces.get(held.target)?.open) return held.target.id;
-    drivers.add(driver);
-    const surface: UiSurface = {
-      kind: "desktop",
-      identity: () => driver.identity(),
-      scope: () => driver.scope(),
-      readiness: () => desktopReadiness(driver, sessionId),
-      observe: async kind => { try { return await driver.observe(kind, { session_id: sessionId }); } catch (error) { throw asRefusal(error); } },
-      perform: async action => { try { return deliverDesktopAct(await driver.perform(await hostAction(action, readText), { session_id: sessionId })); } catch (error) { throw asRefusal(error); } },
-      assess: async (action): Promise<UiAssessment> => driver.assess ? driver.assess(await hostAction(action, readText)) : { irreversible: false },
-      close: async () => { drivers.delete(driver); desktopAttached.delete(session.ref.id); },
-    };
-    const target = runtime().surfaces.attach(surface, { owner: session.ref });
-    desktopAttached.set(session.ref.id, { target: target.ref, driver });
-    return target.ref.id;
-  };
-
   return {
     async attach(session, owner, sessionId, options) {
-      const browser = await attachBrowser(session, owner, sessionId, options);
-      const desktop = await attachDesktop(session, sessionId, { goal: options.goal, projectId: options.projectId });
-      const present: ("browser" | "desktop")[] = [...(browser === "browser" ? ["browser" as const] : []), ...(desktop ? ["desktop" as const] : [])];
-      if (present.length === 0) {
-        return { tools: [], note: browser === "held" ? "侧栏浏览器正被这个项目里的另一项工作使用，这一轮不能用它；需要的话请用户稍后再让你继续。" : null, surfaces: [] };
+      requireOpen(); requireSynchronous(options.control.assertCurrent());
+      if (sessions.has(session.ref.id)) throw agentErrors.session_busy("上一轮的界面尚未释放");
+      const round = surfaceRound(session.ref.id, {
+        assertCurrent() { requireOpen(); requireSynchronous(options.control.assertCurrent()); },
+        beforeEffect: () => options.control.beforeEffect(),
+      }, item => { runs.set(item.run!, item); }, item => {
+        if (sessions.get(item.session) === item) sessions.delete(item.session);
+        if (item.run && runs.get(item.run) === item) runs.delete(item.run);
+      }, item => { rounds.delete(item); });
+      sessions.set(session.ref.id, round); rounds.add(round);
+      try {
+        await round.beforeEffect();
+        const browser = await ports.driverFor(owner); round.assertCurrent();
+        // Temporary authority loss (including a stop save that may fail) does not transfer this lease.
+        const held = !!(browser && browserOwners.get(browser)?.held());
+        if (browser && !held) attachDriver(round, browser, session.ref, sessionId);
+        const desktop = ports.desktop?.(); round.assertCurrent();
+        const desk = desktop ? attachDriver(round, desktop, session.ref, sessionId) : undefined;
+        if (desk) desk.driver.describeRound?.(desk.context, { run_id: null, project_id: options.projectId ?? null, goal: options.goal ?? "" });
+        round.assertCurrent();
+        const present = round.bindings.map(binding => binding.driver.kind);
+        const notes = [held ? "侧栏浏览器正被这个项目里的另一项工作使用，这一轮用不了它。" : "",
+          present.length && options.readOnly ? "这一轮是只读的：可以查看，不能操作。" : ""].filter(Boolean);
+        return { tools: !present.length ? [] : options.readOnly ? SURFACE_TOOL_NAMES.filter(name => name !== "surface-act") : SURFACE_TOOL_NAMES,
+          note: notes.length ? notes.join(" ") : null, surfaces: present, ...(desk ? { desktop_target: desk.target.id } : {}),
+          noteRun: round.noteRun, release: round.release };
+      } catch (error) {
+        try { await round.release("failed"); } catch (cleanup) { throw new AggregateError([error, cleanup], "界面绑定失败，原绑定尚未释放"); }
+        throw error;
       }
-      const notes = [browser === "held" ? "侧栏浏览器正被这个项目里的另一项工作使用，这一轮用不了它。" : "",
-        options.readOnly ? "这一轮是只读的：可以查看，不能操作。" : ""].filter(Boolean);
-      return {
-        tools: options.readOnly ? SURFACE_TOOL_NAMES.filter(name => name !== "surface-act") : SURFACE_TOOL_NAMES,
-        note: notes.length ? notes.join(" ") : null,
-        surfaces: present,
-        ...(desktop ? { desktop_target: desktop } : {}),
-      };
     },
-    describe: (sessionRefId, action, summary, typed) => describeBrowserAction(attached.get(sessionRefId)?.driver, action, summary, typed),
-    describeDesktop: (sessionRefId, action, summary, typed) => describeDesktopAction(desktopAttached.get(sessionRefId)?.driver, action, summary, typed),
-    async describeApp(sessionRefId, bundleId) {
-      const current = await desktopAttached.get(sessionRefId)?.driver.currentApp?.().catch(() => null);
-      return current && current.bundle_id === bundleId ? current.name : bundleId;
+    review(runId, sessionRefId, effect, subject) {
+      const round = runs.get(runId);
+      const original = runtime().surfaces.reviewTarget(effect);
+      const binding = round?.bindings.find(item => item.driver.kind === subject.surface);
+      // A switch is approved for its destination. The driver still checks the pre-switch window.
+      const switchApp = subject.surface === "desktop" && subject.action === "app";
+      if (round?.session !== sessionRefId || !binding || !original
+        || original.targetRef.kind !== binding.target.kind || original.targetRef.id !== binding.target.id
+        || original.targetRef.revision !== binding.target.revision || !switchApp && original.expected.scope !== subject.scope) {
+        throw agentErrors.review_not_permitted("原观察与这项审查的页面或窗口不一致");
+      }
+      return surfaceReviewTarget(binding, original.expected);
+    },
+    current(runId, sessionRefId, kind) {
+      const round = runs.get(runId);
+      return !!round && round.session === sessionRefId && round.current()
+        && round.bindings.some(binding => binding.driver.kind === kind && binding.current());
     },
     async redact(bytes) {
-      for (const driver of drivers) if (driver.masked(bytes)) return bytes;
+      for (const round of rounds) for (const binding of round.bindings) if (binding.current() && binding.driver.masked(bytes)) return bytes;
       throw new Error("截图没有经过遮蔽，不交给模型");
     },
     decide(decision) {
       const effects = runtime().effects;
       for (const action of SITE_ALLOWED_ACTIONS) effects.forget({ what: "surface", scope: decision.scope, action });
       if (decision.decision === "allow") for (const rule of siteApprovals(decision.scope)) effects.remember(rule);
-      // A block takes effect in the driver, which refuses to look or act on the site from the moment it is saved.
     },
-    allowAppForRound(run, bundleId) {
-      // Only reversible, local desktop actions in this app, only this run. Sending or saving a file, an irreversible
-      // action (mutate-external) and switching into another app are not covered and still ask.
-      runtime().effects.remember({ source: "user", effect: "approved", kinds: ["mutate-local", "user-visible"],
-        match: { what: "surface", surface: "desktop", scope: bundleId },
-        why: "The person lets the Assistant act in this app for the rest of this round." }, { run });
-    },
-    async release(sessionRefId, ended) {
-      await attached.get(sessionRefId)?.driver.release?.(ended);
-      await desktopAttached.get(sessionRefId)?.driver.release?.(ended);
-    },
-    releaseRun(run) {
-      runtime().effects.releaseRun(run);
-    },
-    noteRun(sessionRefId, runId) {
-      desktopAttached.get(sessionRefId)?.driver.noteRun?.(sessionRefId, runId);
-    },
+    releaseRun(run) { runtime().effects.releaseRun(run); },
     async close() {
-      for (const { target } of [...attached.values(), ...desktopAttached.values()]) await runtime().surfaces.close(target).catch(() => undefined);
-      attached.clear();
-      desktopAttached.clear();
+      closed = true;
+      const outcomes = await Promise.allSettled([...rounds].map(round => round.release("stopped")));
+      const failures = outcomes.flatMap(outcome => outcome.status === "rejected" ? [outcome.reason] : []);
+      if (failures.length) throw new AggregateError(failures, "界面控制尚未完成释放");
     },
   };
 }
@@ -280,30 +299,18 @@ const DESKTOP_VERBS: Record<string, string> = {
 
 /** The approval card for one desktop action. Reversible actions inside an app may be allowed for the rest of the round. */
 export async function desktopActionCard(
-  surfaces: Pick<PrologueSurfaces, "describeDesktop" | "describeApp"> | undefined,
-  sessionId: string, action: string, scope: string, label: string, typed: string | undefined, proposalKind: string,
+  target: SurfaceReviewTarget | undefined,
+  action: string, scope: string, label: string, typed: string | undefined, proposalKind: string,
 ) {
-  const detail = surfaces ? await surfaces.describeDesktop(sessionId, action, label, typed) : { raw: label, words: [label] };
-  const appName = surfaces ? await surfaces.describeApp(sessionId, scope).catch(() => scope) : scope;
-  const reversible = proposalKind !== "mutate-external" && action !== "app", actionWords = surfaceActionWords(DESKTOP_VERBS, action, "desktop");
-  return presentToolReview({ kind: "tool-operation", tool: "surface-act", summary: `在「${appName}」${DESKTOP_VERBS[action] ?? action}`,
+  const detail = target ? await target.describe(action, label, typed) : { raw: label, words: [label], reviewable: false };
+  const appName = target ? await target.appName(scope) : scope;
+  const reversible = detail.reviewable && (proposalKind === "mutate-local" || proposalKind === "user-visible")
+    && !["app", "upload", "download"].includes(action), actionWords = surfaceActionWords(DESKTOP_VERBS, action, "desktop");
+  return { reviewable: detail.reviewable, focus: detail.focus, document: presentToolReview({ kind: "tool-operation", tool: "surface-act", summary: `在「${appName}」${DESKTOP_VERBS[action] ?? action}`,
     ...(reversible ? { round_allow: { app: scope, label: appName } } : {}) }, [
     reviewField("应用", appName, "app"), reviewField("动作", DESKTOP_VERBS[action] ?? action, "action", { value: actionWords }),
     reviewField("详情", detail.raw, "detail", { value: detail.words }),
     ...(action === "upload" || action === "download" ? [reviewField("注意", "这会在这台电脑和应用之间传文件，确认前请核对是哪个文件", "warning",
       { value: [reviewText("surface.app-transfer-warning")] })] : []),
-  ], [reviewText("surface.in-app"), " ", appName, " · ", ...actionWords]);
-}
-
-/** Binds "allow in this app for the rest of the round" to the run of one live desktop approval. */
-export function allowDesktopAppForRound<S extends { what: string; surface?: string; scope?: string }>(
-  surfaces: Pick<PrologueSurfaces, "allowAppForRound"> | undefined,
-  effect: { proposal: { subject: S } } | undefined | false,
-  run: ExactRef<"run"> | undefined,
-): void {
-  const subject = effect ? effect.proposal.subject : undefined;
-  if (!surfaces || !run || !subject || subject.what !== "surface" || subject.surface !== "desktop" || !subject.scope) {
-    throw new Error("只有桌面应用的待审操作可以设为「本轮内允许在这个应用里操作」");
-  }
-  surfaces.allowAppForRound(run, subject.scope);
+  ], [reviewText("surface.in-app"), " ", appName, " · ", ...actionWords]) };
 }

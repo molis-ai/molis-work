@@ -69,7 +69,7 @@ export class AssistantWorkReads {
     const waiting = new Set(rounds.filter(round => round.phase === "awaiting-review").map(round => round.run_id));
     // What each run really took from memory, from the runtime's own event.
     const memory = new Map([...views].filter(([, view]) => view.memory_recalled).map(([runId, view]) => [runId, view.memory_recalled!]));
-    return { rounds, sourceViews: [...views.values()], reviews: [...this.reviewsFor(host, work).filter(review => review.run_id !== null && waiting.has(review.run_id)), ...stepReview(work)], recovery: Boolean(recovery), memory,
+    return { rounds, sourceViews: [...views.values()], reviews: [...(await this.reviewsFor(host, work)).filter(review => review.run_id !== null && waiting.has(review.run_id)), ...stepReview(work)], recovery: Boolean(recovery), memory,
       queued: queuedInputs(session),
       ...sessionProblem(recovery, rounds, session) };
   }
@@ -91,7 +91,7 @@ export class AssistantWorkReads {
     });
     const host = await this.ports.host();
     const waiting = new Set(rounds.filter(round => round.phase === "awaiting-review").map(round => round.run_id));
-    const reviews = read.runtime_session_id ? this.reviewsFor(host, { ...work, session_id: read.runtime_session_id }).filter(review => review.run_id !== null && waiting.has(review.run_id)) : [];
+    const reviews = read.runtime_session_id ? (await this.reviewsFor(host, { ...work, session_id: read.runtime_session_id })).filter(review => review.run_id !== null && waiting.has(review.run_id)) : [];
     return { rounds, reviews, recovery: Boolean(read.recovery), ...(read.mode ? { mode: read.mode } : {}),
       ...(read.recovery ? { problem: { message: read.recovery.message, action: uiText.text("workbench.assistant-work-reads.check-executor-s-page") } } : {}) };
   }
@@ -245,7 +245,7 @@ export class AssistantWorkReads {
     return (await host.adapter(RUNTIME).readSession(sessionRef(work))).latest_run;
   }
 
-  async stateFor(host: AgentHost, work: StoredWork): Promise<AssistantWorkState> {
+  async stateFor(host: AgentHost, work: StoredWork, inspectActual = false): Promise<AssistantWorkState> {
     if (work.executor.kind === "plugin") {
       if (!work.executor.session_id) return "idle";
       try { const read = await (await this.link.executorOf(work)).read(work.executor.session_id, 1); return stateOf(read.runs.at(-1)?.phase, Boolean(read.recovery)); }
@@ -253,21 +253,23 @@ export class AssistantWorkReads {
     }
     if (!work.session_id) return "idle";
     const adapter = host.adapter(RUNTIME);
+    const project = (state: AssistantWorkState) => state === "needs-check" ? state
+      : this.link.continuations.state(inspectActual ? { ...work, continuation_hold: undefined } : work, state, inspectActual);
     try {
       if (adapter.readSessionStatus) {
         const { status } = await adapter.readSessionStatus(sessionRef(work));
-        return this.link.continuations.state(work, stateOf(status.latest_phase, status.recovery));
+        return await project(stateOf(status.latest_phase, status.recovery || status.checkpoint_busy));
       }
       const session = await adapter.readSession(sessionRef(work));
-      return this.link.continuations.state(work, stateOf(session.latest_run?.phase, Boolean(session.recovery)));
+      return await project(stateOf(session.latest_run?.phase, Boolean(session.recovery || session.checkpoint_busy)));
     } catch { return "needs-check"; }
   }
 
-  async stateSafely(work: StoredWork): Promise<AssistantWorkState> {
-    try { return await this.stateFor(await this.ports.host(), work); } catch { return work.session_id ? "needs-check" : "idle"; }
+  async stateSafely(work: StoredWork, inspectActual = false): Promise<AssistantWorkState> {
+    try { return await this.stateFor(await this.ports.host(), work, inspectActual); } catch { return work.session_id ? "needs-check" : "idle"; }
   }
 
-  private reviewsFor(host: AgentHost, work: StoredWork): AssistantPendingReview[] {
+  private async reviewsFor(host: AgentHost, work: StoredWork): Promise<AssistantPendingReview[]> {
     const pending = host.reviews.list(ownerOf(work), "pending").filter(review => review.run?.session_id === work.session_id);
     if (!pending.length) return [];
     // A field that is just the identifier of an object this work knows reads as that object's name (seen: “对象 = 6d3502b1-…”).
@@ -279,7 +281,13 @@ export class AssistantWorkReads {
     for (const round of this.store.rounds(work.work_id)) if (round.context?.object?.title) titles.set(round.context.object.id, round.context.object.title);
     // Also an object another work made or a page named (titles are kept per person): a delete of one is the usual case.
     const titleOf = (value: string) => titles.get(value) ?? (/^[\w.:-]{8,200}$/.test(value) && /\d/.test(value) ? this.store.objectTitleById(this.actorId, value) : null);
-    return pending.map(review => projectAssistantReview(review, titleOf));
+    const rows = await host.reviews.readMany(pending.map(review => review.review_id));
+    return rows.flatMap(row => {
+      if (row.receipt?.status !== "pending") return [];
+      const review = projectAssistantReview(row.request, titleOf, row.decisions);
+      if (!work.reply_target && !work.archived && row.decisions.approve.available && host.reviews.canProposeDelegation(row.request.review_id)) review.permission_available = true;
+      return [review];
+    });
   }
 
   /**

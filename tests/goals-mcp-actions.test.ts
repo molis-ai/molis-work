@@ -12,6 +12,7 @@ import { MolisWorkLocalHost, LocalMcpServer, molisWorkHostProjectReference } fro
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { revokeMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { goalApplicationOf } from "./fixtures/goal-application.js";
@@ -67,7 +68,9 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     const names = async () => (await sdk.listTools()).tools.map(tool => tool.name);
     for (const alias of Object.values(aliases)) assert.equal((await names()).includes(alias), false);
     assert.equal((await sdk.callTool({ name: aliases.create, arguments: input })).isError, true, "a project binding grants no writes");
-    await grantGoalsMcp(served, project, clientId);
+    const savedGrants = await grantGoalsMcp(served, project, clientId);
+    const noteGrant = savedGrants.find(grant => grant.capability_id === goalsActions.note.capability_id && grant.project_id === project.project_id);
+    assert.ok(noteGrant?.enabled);
     // Saving the grants asked the policy about the client too; what the assertions below read is what the MCP calls asked.
     policies.length = 0;
     const tools = (await sdk.listTools()).tools;
@@ -136,12 +139,13 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
       assert.equal((await sdk.callTool({ name: aliases.note, arguments: { ...newInput, [field]: "forged" } })).isError, true);
     }
     const caller = { actor_id: clientId, project_id: project.project_id, audience: "mcp" as const, permissions: [] };
-    const noteView = (await host.inspectActions(caller, ref)).find(view => view.capability_id === goalsActions.note.capability_id)!;
     const started = new Promise<void>(resolve => { entered = resolve; });
     gate = new Promise<void>(resolve => { release = resolve; });
     pending = sdk.callTool({ name: aliases.note, arguments: { ...newInput, idempotency_key: "revoked-in-flight" } });
     await Promise.race([started, pending.then(() => { throw new Error("Expected an asynchronous policy checkpoint"); })]);
-    await served.revoke(clientId, project.project_id, [noteView]);
+    await revokeMcpAction(served.web, { clientId, projectId: project.project_id, action: {
+      ...noteGrant, expected: { expected_generation: noteGrant.generation },
+    } });
     release!(); assert.equal((await pending).isError, true); pending = undefined; gate = undefined;
     const afterRevoke = await names();
     assert.equal(afterRevoke.includes(aliases.note), false); assert.equal(afterRevoke.includes(molisWorkActionToolName(goalsActions.note)), false);

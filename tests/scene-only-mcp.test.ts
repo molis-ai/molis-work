@@ -77,10 +77,14 @@ test("scene-only plugin receives exact MCP configuration grants through existing
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`, endpoint = `${origin}/api/settings/mcp/actions`;
+    const generations = new Map<string, string>();
     const grant = async (definition: ActionDefinition, enabled = true, authorized = true) => {
+      const previous = generations.get(definition.capability_id);
       const response = await fetch(endpoint, { method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(),
-        ...(authorized ? { "x-molis-work-control-token": token } : {}) }, body: JSON.stringify({ ...actionRef(definition), client_id: "runtime:scene-only", project_id: project.project_id, enabled }) });
+        ...(authorized ? { "x-molis-work-control-token": token } : {}) }, body: JSON.stringify({ ...actionRef(definition), client_id: "runtime:scene-only", project_id: project.project_id, enabled,
+          expected: previous ? { expected_generation: previous } : { expected_absent: true } }) });
       assert.equal(response.status, authorized ? 200 : 403, await response.clone().text());
+      if (response.ok) generations.set(definition.capability_id, (await response.json() as { generation: string }).generation);
     };
     const settings = await (await fetch(`${endpoint}?client_id=runtime:scene-only&project_id=${project.project_id}`)).json();
     assert.equal(settings.actions.filter((row: { provider: { provider_id: string } }) => row.provider.provider_id === installed.install_id).length, 3);

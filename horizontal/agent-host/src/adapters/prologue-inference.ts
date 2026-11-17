@@ -1,5 +1,6 @@
 import { collectRun, type ExactRef, type Runtime } from "@prologue/sdk";
 import { withInferenceImages } from "./prologue-inference-materials.js";
+import type { ReviewDecisionControl } from "../review-decisions.js";
 import { PrologueInferenceError, isDispatchRefusal, markDispatchRefusal, type PrologueCredentialInput, type PrologueInferenceClient, type PrologueTextInput, type PrologueTextResult } from "../inference.js";
 
 /** The most one picture resource may hold before it is copied out, whoever asks. */
@@ -8,7 +9,7 @@ const IMAGE_RESOURCE_BYTES = 20 * 1024 * 1024;
 /** Borrows the owning Runtime; never constructs a Host or a second model execution path. */
 export function createPrologueInference(runtime: Runtime,
   credential: (input: PrologueCredentialInput, signal: AbortSignal, optional?: boolean) => Promise<{ ref?: ExactRef<"credential">; assertCurrent(): Promise<void> }>,
-  withDispatchGuard: <T>(guard: () => Promise<void>, operation: () => Promise<T>) => Promise<T>,
+  withDispatchGuard: <T>(guard: ReviewDecisionControl, operation: () => Promise<T>) => Promise<T>,
 ): PrologueInferenceClient & { close(): Promise<void> } {
   const active = new Map<AbortController, Promise<unknown>>();
   let closed = false;
@@ -31,7 +32,8 @@ export function createPrologueInference(runtime: Runtime,
     };
     try {
       await guard();
-      return await withDispatchGuard(guard, async () => { const value = await operation(prepared.ref, guard); await guard(); return value; });
+      return await withDispatchGuard({ beforeEffect: guard, assertCurrent: () => { signal.throwIfAborted(); if (closed) throw new PrologueInferenceError("agent.inference.closed", "推理服务已关闭"); } },
+        async () => { const value = await operation(prepared.ref, guard); await guard(); return value; });
     } catch (error) { throw refused ?? error; }
   })();
   const completeTextResult = (input: PrologueTextInput): Promise<PrologueTextResult> => bounded(input, signal => execute(input, signal, false, async (credentialRef, check) => {

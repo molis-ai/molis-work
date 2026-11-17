@@ -30,6 +30,7 @@ export interface McpActionGrantRow {
   readonly provider_id: string;
   readonly enabled: boolean;
   readonly permissions: readonly string[];
+  readonly generation: string;
 }
 
 /** One row of the access page: the action as the client may see it, and what its grant is doing. */
@@ -39,6 +40,7 @@ export interface McpActionAccessEntry {
   readonly provider_id: string;
   readonly status: string;
   readonly reason?: string;
+  readonly expected: McpGrantExpected;
   readonly can_enable: boolean;
   readonly can_revoke: boolean;
 }
@@ -51,22 +53,33 @@ export interface McpActionAccess {
   readonly entries: readonly McpActionAccessEntry[];
 }
 
-const body = (scope: McpGrantScope, action: GrantedAction, enabled: boolean) => ({
+export type McpGrantExpected = { readonly expected_generation: string } | { readonly expected_absent: true };
+type CurrentGrant = GrantedAction & { readonly expected?: McpGrantExpected };
+
+function grantExpected(access: McpActionAccess | undefined, action: CurrentGrant): McpGrantExpected {
+  if (action.expected) return action.expected;
+  const grant = access?.grants.find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider_id === action.provider_id);
+  return grant ? { expected_generation: grant.generation } : { expected_absent: true };
+}
+
+const body = (scope: McpGrantScope, action: GrantedAction, enabled: boolean, expected: McpGrantExpected) => ({
   client_id: scope.clientId, project_id: scope.projectId, capability_id: action.capability_id, version: action.version,
-  provider_id: action.provider_id, enabled,
+  provider_id: action.provider_id, enabled, expected,
 });
 
-/** Save one grant through the settings route. `with` names the actions to save together with it (at most 16, in the same scope). */
-export function grantMcpAction(client: LocalHostHttpClient, input: McpGrantScope & { readonly action: GrantedAction; readonly with?: readonly GrantedAction[] }): Promise<McpActionGrantRow> {
+/** Save one grant using a single snapshot of this scope. `with` uses the same snapshot for every dependency. */
+export async function grantMcpAction(client: LocalHostHttpClient, input: McpGrantScope & { readonly action: CurrentGrant; readonly with?: readonly CurrentGrant[] }): Promise<McpActionGrantRow> {
+  const access = input.action.expected && (input.with ?? []).every(entry => entry.expected) ? undefined : await readMcpActionAccess(client, input);
   return client.post<McpActionGrantRow>(MCP_ACTION_SETTINGS, {
-    ...body(input, input.action, true),
-    ...(input.with ? { with: input.with.map(entry => ({ capability_id: entry.capability_id, version: entry.version, provider_id: entry.provider_id })) } : {}),
+    ...body(input, input.action, true, grantExpected(access, input.action)),
+    ...(input.with ? { with: input.with.map(entry => ({ capability_id: entry.capability_id, version: entry.version, provider_id: entry.provider_id, expected: grantExpected(access, entry) })) } : {}),
   });
 }
 
 /** Turn a saved grant off through the same route. */
-export function revokeMcpAction(client: LocalHostHttpClient, input: McpGrantScope & { readonly action: GrantedAction }): Promise<McpActionGrantRow> {
-  return client.post<McpActionGrantRow>(MCP_ACTION_SETTINGS, body(input, input.action, false));
+export async function revokeMcpAction(client: LocalHostHttpClient, input: McpGrantScope & { readonly action: CurrentGrant }): Promise<McpActionGrantRow> {
+  const access = input.action.expected ? undefined : await readMcpActionAccess(client, input);
+  return client.post<McpActionGrantRow>(MCP_ACTION_SETTINGS, body(input, input.action, false, grantExpected(access, input.action)));
 }
 
 /**
@@ -76,10 +89,15 @@ export function revokeMcpAction(client: LocalHostHttpClient, input: McpGrantScop
  */
 export async function grantMcpActions(client: LocalHostHttpClient, input: McpGrantScope & { readonly actions: readonly ActionView[] }): Promise<McpActionGrantRow[]> {
   const saved: McpActionGrantRow[] = [];
-  for (const view of orderGrantViews(input.actions)) {
+  const ordered = orderGrantViews(input.actions);
+  const scopes = new Map<string | null, Promise<McpActionAccess>>();
+  for (const view of ordered) {
     try {
-      saved.push(await grantMcpAction(client, { clientId: input.clientId, projectId: view.action.scope === "home" ? null : input.projectId,
-        action: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id } }));
+      const scope = { clientId: input.clientId, projectId: view.action.scope === "home" ? null : input.projectId };
+      let access = scopes.get(scope.projectId);
+      if (!access) { access = readMcpActionAccess(client, scope); scopes.set(scope.projectId, access); }
+      const action = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+      saved.push(await client.post<McpActionGrantRow>(MCP_ACTION_SETTINGS, body(scope, action, true, grantExpected(await access, action))));
     } catch (error) {
       if (!isLocalHostHttpError(error)) throw error;
       throw localHostHttpError(error.status, error.code, `${view.capability_id}: ${error.message}`, error.method, error.path);

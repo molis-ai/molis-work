@@ -104,6 +104,12 @@ export class HomeConsentLedger implements PluginConsentLedger {
     return this.use(ledger => ledger.revokeProjectReach(selection, at));
   };
   publishers: PluginConsentLedger["publishers"] = () => this.use(ledger => ledger.publishers());
+  observedPublishers(): ReturnType<PluginConsentLedger["publishers"]> {
+    const db = openReadOnlyHomePluginStore(this.home);
+    if (!db) return [];
+    try { return new SqlitePluginConsentLedger(db).publishers(); }
+    finally { db.close(); }
+  }
   pinPublisher: PluginConsentLedger["pinPublisher"] = pin => this.use(ledger => ledger.pinPublisher(pin));
   revokePublisher: PluginConsentLedger["revokePublisher"] = (keyId, at) => this.use(ledger => ledger.revokePublisher(keyId, at));
 }

@@ -4,7 +4,7 @@ import { zonedParts } from "@molis-ai/molis-work-plugin-sdk";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentActionReviewControl, AgentRuntimeAdapter, AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, RUN_MISSED_GRACE_MS, RUNS_MISSED_LIMIT, RUNS_UPCOMING_LIMIT, assertRunsWindow, withinRunsWindow, type ActionView,
   type DueReminderCollection, type ExactActionReference, type MissedRun, type RunDecided, type RunDecision, type RunsOverview, type RunsWindow, type ScheduledRun } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantFollowUp, AssistantNotice, AssistantNoticeKind, AssistantRule, AssistantRuleInput, AssistantSavedText, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -12,6 +12,11 @@ import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { assistantWords } from "./assistant-saved-text.js";
 import { repeatingFailure } from "../host-log.js";
+
+async function inFollowUpWorkEffect<T>(adapter: AgentRuntimeAdapter, control: AgentActionReviewControl, operation: () => Promise<T>): Promise<T> {
+  await control.beforeEffect(); control.assertCurrent();
+  return adapter.withEffect ? adapter.withEffect({ beforeEffect: async () => { await control.beforeEffect(); }, assert_current: control.assertCurrent }, operation) : operation();
+}
 
 /**
  * The Assistant's reminders and follow-ups (W4-05, the first collaborator split out of `AssistantService` along a
@@ -87,6 +92,7 @@ export interface AssistantFollowUpPorts<W extends FollowUpWork> {
   readonly timeZone?: string;
   /** The work by id; throws when it no longer exists. */
   work(workId: string): W;
+  holdWork?(work: W): Promise<{ assertCurrent(): void; release(): void } | undefined>;
   notify(notice: Pick<AssistantNotice, "kind" | "work_id" | "work_title" | "text" | "open">, dedupe: string): boolean;
   setting(key: string): string | null;
   setSetting(key: string, value: string): void;
@@ -127,7 +133,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
    * A standing request on a work: at `at` (and then daily or weekly), start a round of it with these words. The time is
    * kept by Prologue's durable local queue (it survives a restart), not by a timer of the Host's own.
    */
-  async save(input: { work_id: string; text: string; at: string; repeat?: AssistantFollowUp["repeat"]; label: string; time_zone?: string }): Promise<AssistantFollowUp> {
+  async save(input: { work_id: string; text: string; at: string; repeat?: AssistantFollowUp["repeat"]; label: string; time_zone?: string }, control?: AgentActionReviewControl): Promise<AssistantFollowUp> {
     const { ports } = this, work = ports.work(String(input?.work_id ?? ""));
     if (work.reply_target || work.archived) throw assistantErrors.state("评论回复或已归档工作不能添加定时");
     const text = typeof input.text === "string" ? input.text.trim().slice(0, 4000) : "";
@@ -139,13 +145,22 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     if (!["none", "daily", "weekly"].includes(repeat)) throw assistantErrors.invalid("重复只能是一次、每天或每周");
     if (this.list(work.work_id).filter(item => item.enabled).length >= MAX_FOLLOW_UPS_PER_WORK) throw assistantErrors.limit(`一项工作最多 ${MAX_FOLLOW_UPS_PER_WORK} 个定时`);
     if (!work.session_id) throw assistantErrors.state("这项工作还没有开始过：先让助理做一轮，再给它加定时");
-    const schedule = await ports.schedule();
-    const followUp: AssistantFollowUp = { followup_id: randomUUID(), work_id: work.work_id, label, text, repeat, next_at: at.toISOString(),
-      time_zone: input.time_zone || ports.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone, enabled: true, created_at: ports.now().toISOString() };
-    ports.records.save(ports.actorId, followUp);
-    this.#runnerFor(schedule);
-    await this.#enqueueCurrent(followUp, work.session_id, schedule);
-    return followUp;
+    const held = await ports.holdWork?.(work);
+    try {
+      const schedule = await ports.schedule();
+      await control?.beforeEffect(); control?.assertCurrent(); held?.assertCurrent();
+      const current = ports.work(work.work_id);
+      if (current.archived || current.session_id !== work.session_id) throw assistantErrors.state("原工作已变化，不能继续添加定时");
+      const followUp: AssistantFollowUp = { followup_id: randomUUID(), work_id: work.work_id, label, text, repeat, next_at: at.toISOString(),
+        time_zone: input.time_zone || ports.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone, enabled: true, created_at: ports.now().toISOString() };
+      ports.records.save(ports.actorId, followUp);
+      this.#runnerFor(schedule);
+      await this.#enqueueCurrent(followUp, work.session_id, schedule, held && {
+        beforeEffect: async () => { await control?.beforeEffect(); },
+        assertCurrent: () => { control?.assertCurrent(); held.assertCurrent(); },
+      });
+      return followUp;
+    } finally { held?.release(); }
   }
 
   async remove(followupId: string): Promise<boolean> {
@@ -156,11 +171,19 @@ export class AssistantFollowUps<W extends FollowUpWork> {
   }
 
   /** The work is put away: its timed rounds stop with it, each saying why. */
-  async stopForArchive(workId: string): Promise<void> {
-    const { ports } = this, schedule = await ports.schedule().catch(() => null), at = ports.now().toISOString();
-    for (const { next_at, missed: _missed, ...rest } of this.list(workId).filter(item => item.enabled || item.missed?.length)) {
-      if (next_at) await schedule?.cancel(followUpTask({ ...rest, next_at }, "").key).catch(() => null);
-      ports.records.save(ports.actorId, { ...rest, enabled: false, last: { due_at: next_at ?? at, at, outcome: "skipped", detail: assistantWords("workbench.assistant-followup.archived") } });
+  async stopForArchive(workId: string, original?: { adapter: AgentRuntimeAdapter; control: AgentActionReviewControl }): Promise<void> {
+    const { ports } = this, at = ports.now().toISOString();
+    const followUps = this.list(workId).filter(item => item.enabled || item.missed?.length);
+    const schedule = followUps.some(item => item.next_at) ? await ports.schedule().catch(error => { if (original) throw error; return null; }) : null;
+    for (const followUp of followUps) {
+      const { next_at, missed: _missed, ...rest } = followUp;
+      if (next_at && schedule) {
+        const cancel = () => schedule.cancel(followUpTask(followUp, "").key);
+        if (original) await inFollowUpWorkEffect(original.adapter, original.control, cancel);
+        else await cancel().catch(() => null);
+      }
+      await original?.control.beforeEffect(); original?.control.assertCurrent();
+      ports.records.save(ports.actorId, { ...rest, enabled: false, last: { due_at: next_at ?? at, at, outcome: "skipped", detail: assistantWords("workbench.assistant-followup.archived") } }, followUp);
     }
   }
 
@@ -176,11 +199,14 @@ export class AssistantFollowUps<W extends FollowUpWork> {
       try { work = whenThere(() => this.ports.work(followUp.work_id)); this.#unreadableWorks.worked(followUp.followup_id); }
       catch (error) { this.#unreadableWorks.failed(followUp.followup_id, error, { followup_id: followUp.followup_id }); continue; }
       if (!work?.session_id) continue;
-      const task = followUpTask(followUp, work.session_id), held = schedule.find(task.key);
-      // Its time came with no runner attached (the Host was still starting): decided now by the same rule — on time
-      // enough it runs, too late it is reported as missed — never left silently undone.
-      if (held && (held.state === "failed" || held.state === "reconcile-required")) { await this.#run(followUp).catch(() => undefined); continue; }
-      await this.#enqueueCurrent(followUp, work.session_id, schedule).catch(() => undefined);
+      const task = followUpTask(followUp, work.session_id), queued = schedule.find(task.key);
+      // A task that failed before its runner attached is decided by the normal missed-time rule.
+      if (queued && (queued.state === "failed" || queued.state === "reconcile-required")) { await this.#run(followUp).catch(() => undefined); continue; }
+      const held = await this.ports.holdWork?.(work).catch(() => undefined);
+      if (this.ports.holdWork && !held) continue;
+      try { await this.#enqueueCurrent(followUp, work.session_id, schedule, held && { assertCurrent: held.assertCurrent }); }
+      catch (error) { this.#unreadableWorks.failed(followUp.followup_id, error, { followup_id: followUp.followup_id }); }
+      finally { held?.release(); }
     }
   }
 
@@ -197,10 +223,16 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     return isDeepStrictEqual(this.list().find(item => item.followup_id === expected.followup_id), expected);
   }
 
-  async #enqueueCurrent(followUp: AssistantFollowUp, sessionId: string, schedule: AgentScheduleCapability): Promise<void> {
+  async #enqueueCurrent(followUp: AssistantFollowUp, sessionId: string, schedule: AgentScheduleCapability,
+    original?: Pick<AgentActionReviewControl, "assertCurrent"> & Partial<Pick<AgentActionReviewControl, "beforeEffect">>): Promise<void> {
     if (!this.#isCurrent(followUp)) return;
     const task = followUpTask(followUp, sessionId);
-    await schedule.enqueue(task);
+    const assertCurrent = () => {
+      original?.assertCurrent();
+      if (!this.#isCurrent(followUp)) throw assistantErrors.state("原定时已变化，不能再加入运行队列");
+    };
+    // Admission uses the original request. The later timer wakes under the queue's own authority.
+    await schedule.enqueue(task, { beforeCommit: async () => { await original?.beforeEffect?.(); assertCurrent(); return assertCurrent; } });
     if (!this.#isCurrent(followUp)) await schedule.cancel(task.key);
   }
 
@@ -217,8 +249,8 @@ export class AssistantFollowUps<W extends FollowUpWork> {
    * queued. The standing request is read again across every await: deletion stops future work and its final write.
    */
   async #run(followUp: AssistantFollowUp): Promise<void> {
-    const { ports } = this, current = () => this.#isCurrent(followUp);
-    if (!current()) return;
+    const { ports } = this;
+    if (!this.#isCurrent(followUp)) return;
     const now = ports.now(), due = followUp.next_at!;
     let outcome: NonNullable<AssistantFollowUp["last"]>["outcome"] = "started", detail: AssistantSavedText | undefined;
     // Gone is said so. A store that cannot be read writes nothing to the follow-up: it is written to the Host log (once, the same key as at
@@ -226,33 +258,42 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     let work: W | undefined;
     try { work = whenThere(() => ports.work(followUp.work_id)) ?? undefined; this.#unreadableWorks.worked(followUp.followup_id); }
     catch (error) { this.#unreadableWorks.failed(followUp.followup_id, error, { followup_id: followUp.followup_id }); throw error; }
-    if (!work) { outcome = "failed"; detail = assistantWords("workbench.assistant-followup.missing"); }
-    else if (work.archived) { outcome = "skipped"; detail = assistantWords("workbench.assistant-followup.archived-skip"); }
-    else if (work && now.getTime() - Date.parse(due) > RUN_MISSED_GRACE_MS) {
-      outcome = "missed"; detail = assistantWords("workbench.assistant-followup.missed");
-      ports.notify({ kind: "failed", work_id: work.work_id, work_title: work.title,
-        text: assistantWords("workbench.assistant-notice.followup-missed", { label: followUp.label, at: dateArg(due, "datetime", { time_zone: followUp.time_zone }) }) }, `followup:${followUp.followup_id}:${due}:missed`);
-    } else if (work) {
-      const host = await ports.host();
+    const held = work && !work.archived ? await ports.holdWork?.(work).catch(() => undefined) : undefined;
+    if (work && !work.archived && ports.holdWork && !held) return;
+    const current = () => {
+      try { held?.assertCurrent(); return this.#isCurrent(followUp); }
+      catch { return false; }
+    };
+    try {
       if (!current()) return;
-      const state = await ports.state(host, work);
-      if (!current()) return;
-      if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) { outcome = "skipped"; detail = assistantWords("workbench.assistant-followup.busy"); }
-      else {
-        try { await ports.send(work, assistantWords("workbench.assistant-followup.scheduled-message", { label: followUp.label, text: followUp.text }), `fu-${followUp.followup_id}-${Date.parse(due)}`, current); }
-        catch (error) { outcome = "failed"; detail = { original: error instanceof Error ? error.message : String(error) }; }
+      if (!work) { outcome = "failed"; detail = assistantWords("workbench.assistant-followup.missing"); }
+      else if (work.archived) { outcome = "skipped"; detail = assistantWords("workbench.assistant-followup.archived-skip"); }
+      else if (work && now.getTime() - Date.parse(due) > RUN_MISSED_GRACE_MS) {
+        outcome = "missed"; detail = assistantWords("workbench.assistant-followup.missed");
+        ports.notify({ kind: "failed", work_id: work.work_id, work_title: work.title,
+          text: assistantWords("workbench.assistant-notice.followup-missed", { label: followUp.label, at: dateArg(due, "datetime", { time_zone: followUp.time_zone }) }) }, `followup:${followUp.followup_id}:${due}:missed`);
+      } else if (work) {
+        const host = await ports.host();
+        if (!current()) return;
+        const state = await ports.state(host, work);
+        if (!current()) return;
+        if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) { outcome = "skipped"; detail = assistantWords("workbench.assistant-followup.busy"); }
+        else {
+          try { await ports.send(work, assistantWords("workbench.assistant-followup.scheduled-message", { label: followUp.label, text: followUp.text }), `fu-${followUp.followup_id}-${Date.parse(due)}`, current); }
+          catch (error) { outcome = "failed"; detail = { original: error instanceof Error ? error.message : String(error) }; }
+        }
       }
-    }
-    if (!current()) return;
-    const days = followUp.repeat === "daily" ? 1 : followUp.repeat === "weekly" ? 7 : 0;
-    let next = days && !work?.archived ? sameLocalTimeLater(Date.parse(due), days, followUp.time_zone) : undefined;
-    while (next !== undefined && next <= now.getTime()) next = sameLocalTimeLater(next, days, followUp.time_zone);
-    const { next_at: _next, missed: earlier = [], ...rest } = followUp;
-    const missed = outcome === "missed" ? [...earlier.filter(entry => entry.due_at !== due), { due_at: due, missed_at: now.toISOString() }].slice(-MISSED_KEPT) : earlier;
-    const saved: AssistantFollowUp = { ...rest, ...(next !== undefined ? { next_at: new Date(next).toISOString() } : {}), enabled: next !== undefined,
-      last: { due_at: due, at: now.toISOString(), outcome, ...(detail ? { detail } : {}) }, ...(missed.length ? { missed } : {}) };
-    if (!ports.records.save(ports.actorId, saved, followUp)) return;
-    if (next !== undefined && work?.session_id) await this.#enqueueCurrent(saved, work.session_id, await ports.schedule());
+      if (!current()) return;
+      const days = followUp.repeat === "daily" ? 1 : followUp.repeat === "weekly" ? 7 : 0;
+      let next = days && !work?.archived ? sameLocalTimeLater(Date.parse(due), days, followUp.time_zone) : undefined;
+      while (next !== undefined && next <= now.getTime()) next = sameLocalTimeLater(next, days, followUp.time_zone);
+      const { next_at: _next, missed: earlier = [], ...rest } = followUp;
+      const missed = outcome === "missed" ? [...earlier.filter(entry => entry.due_at !== due), { due_at: due, missed_at: now.toISOString() }].slice(-MISSED_KEPT) : earlier;
+      const saved: AssistantFollowUp = { ...rest, ...(next !== undefined ? { next_at: new Date(next).toISOString() } : {}), enabled: next !== undefined,
+        last: { due_at: due, at: now.toISOString(), outcome, ...(detail ? { detail } : {}) }, ...(missed.length ? { missed } : {}) };
+      if (!ports.records.save(ports.actorId, saved, followUp)) return;
+      if (next !== undefined && work?.session_id) await this.#enqueueCurrent(saved, work.session_id, await ports.schedule(), held && { assertCurrent: held.assertCurrent });
+    } finally { held?.release(); }
   }
 
   /**

@@ -46,10 +46,10 @@ export function markHelper(error: ActionError): ActionError {
 }
 
 /** A failure whose code arrived from the helper process, not from this owner's table. */
-export function helperFailure(code: string, message: string): ActionError {
-  return markHelper(new ActionError(code, message, { kind: "unavailable" }));
+export function helperFailure(code: string, message: string, partial?: boolean): ActionError & { readonly partial?: boolean } {
+  return Object.assign(markHelper(new ActionError(code, message, { kind: "unavailable" })), typeof partial === "boolean" ? { partial } : {});
 }
 
-export function isHelperFailure(error: unknown): error is ActionError {
+export function isHelperFailure(error: unknown): error is ActionError & { readonly partial?: boolean } {
   return error instanceof ActionError && error.name === "HelperError";
 }

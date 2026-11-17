@@ -23,6 +23,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { parseStoreSchemas, SCHEMA_COLUMNS, SCHEMAS_FILE } from "./store-schemas.mjs";
+import { GOALS_APPROVAL_TRANSFER } from "./goals-approval-transfer.mjs";
 import { isMainScript } from "../script-paths.mjs";
 
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -67,8 +68,16 @@ export async function productRows() {
       const name = store.library.file ?? `${store.path}.db`;
       return row(store.library.partition ? `${store.path}/projects/*/${name}` : `${store.path}/${name}`, store.owner, store.library.baseline);
     }),
-    ...host.PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.databases?.project).map(entry =>
-      row(`projects/*/molis-work.db#${entry.manifest.plugin_id}`, entry.manifest.plugin_id, entry.manifest.databases.project)),
+    ...host.PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.databases?.project).map(({ manifest }) => {
+      const result = row(`projects/*/molis-work.db#${manifest.plugin_id}`, manifest.plugin_id, manifest.databases.project);
+      const transfer = GOALS_APPROVAL_TRANSFER;
+      if (manifest.plugin_id === transfer.pluginId && result.version === transfer.goalsTo
+        && host.PROJECT_DATABASE_BASELINE.version === transfer.to && host.projectApprovalUpgrade?.from === transfer.from && host.projectApprovalUpgrade.run
+        && host.PROJECT_DATABASE_BASELINE.upgrades?.includes(host.projectApprovalUpgrade)) {
+        result.froms = [...new Set([...result.froms, transfer.goalsFrom])].sort((a, b) => a - b);
+      }
+      return result;
+    }),
   ];
   return rows.sort((left, right) => (left.store < right.store ? -1 : left.store > right.store ? 1 : 0));
 }

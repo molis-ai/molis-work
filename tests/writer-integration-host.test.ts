@@ -49,7 +49,7 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
   const deadline=Date.now()+15000,decided=new Set<string>();
   while(!["completed","failed"].includes((await adapter.read(handle.ref)).phase)){
    assert.ok(Date.now()<deadline,"fixture task must complete");await composition.agentHost.reviews.refresh("board");
-   for(const review of composition.agentHost.reviews.list("board"))if(composition.agentHost.reviews.receipt(review.review_id)?.status==="pending"&&!decided.has(review.review_id)){decided.add(review.review_id);await composition.agentHost.reviews.respond({review_id:review.review_id,decision:"approve",actor_id:"user"});}
+   for(const review of composition.agentHost.reviews.list("board"))if(composition.agentHost.reviews.receipt(review.review_id)?.status==="pending"&&!decided.has(review.review_id)){decided.add(review.review_id);await composition.agentHost.reviews.respond({review_id:review.review_id, version: review.reference.version,decision:"approve",actor_id:"user"});}
    await new Promise(r=>setTimeout(r,10));
   }
   assert.equal((await adapter.read(handle.ref)).phase,parentOutcome);
@@ -80,17 +80,21 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
   await assert.rejects(gateway.invoke(unissued,integration.prepare,{...source,files,operation_id:randomUUID()}),{code:"host.plugin_caller_invalid"});
   assert.equal(composition.agentHost.reviews.list("board").length,asked,"none of those refusals left a review");
   const operation_id=randomUUID(),pending=await reads.invoke(integration.prepare,{...source,files,operation_id});
+  const pendingReview=composition.agentHost.reviews.get(pending.review_id)!;
   assert.equal((await reads.invoke(integration.prepare,{...source,files,operation_id})).review_id,pending.review_id);
-  await composition.agentHost.reviews.respond({review_id:pending.review_id,decision:"reject",actor_id:"user"});assert.equal(await readFile(path.join(root,"note.txt"),"utf8"),"base\n");
-  const stale=await reads.invoke(integration.prepare,{...source,files,operation_id:randomUUID()});await writeFile(path.join(childRoot,"note.txt"),"changed after review\n");
-  await composition.agentHost.reviews.respond({review_id:stale.review_id,decision:"approve",actor_id:"user"});assert.ok(composition.agentHost.reviews.receipt(stale.review_id)?.effect_error);assert.equal(await readFile(path.join(root,"note.txt"),"utf8"),"base\n");
+  await composition.agentHost.reviews.respond({review_id:pending.review_id, version: pendingReview.reference.version,decision:"reject",actor_id:"user"});assert.equal(await readFile(path.join(root,"note.txt"),"utf8"),"base\n");
+  const stale=await reads.invoke(integration.prepare,{...source,files,operation_id:randomUUID()});
+  const staleReview=composition.agentHost.reviews.get(stale.review_id)!;
+  await writeFile(path.join(childRoot,"note.txt"),"changed after review\n");
+  await composition.agentHost.reviews.respond({review_id:stale.review_id, version: staleReview.reference.version,decision:"approve",actor_id:"user"});assert.ok(composition.agentHost.reviews.receipt(stale.review_id)?.effect_error);assert.equal(await readFile(path.join(root,"note.txt"),"utf8"),"base\n");
   const refreshed=await reads.invoke(integration.read,source),ready=await reads.invoke(integration.prepare,{...source,files:refreshed.files.map(f=>({path:f.path,revision:f.revision!})),operation_id:randomUUID()});
-  const index=await readFile(path.join(root,".git/index"));await composition.agentHost.reviews.respond({review_id:ready.review_id,decision:"approve",actor_id:"user"});
+  const readyReview=composition.agentHost.reviews.get(ready.review_id)!;
+  const index=await readFile(path.join(root,".git/index"));await composition.agentHost.reviews.respond({review_id:ready.review_id, version: readyReview.reference.version,decision:"approve",actor_id:"user"});
   assert.equal(composition.agentHost.reviews.receipt(ready.review_id)?.effect_settled,true);assert.equal(await readFile(path.join(root,"note.txt"),"utf8"),"changed after review\n");assert.deepEqual(await readFile(path.join(root,".git/index")),index);
   const receipt=composition.agentHost.reviews.receipt(ready.review_id),request=composition.agentHost.reviews.get(ready.review_id),calls=parentCalls+childCalls;
   await composition.dispose();composition=make();await composition.ready;await composition.agentHost.reviews.refresh("board");
   assert.deepEqual(composition.agentHost.reviews.receipt(ready.review_id),receipt);assert.deepEqual(composition.agentHost.reviews.get(ready.review_id),request);
-  await assert.rejects(composition.agentHost.reviews.respond({review_id:ready.review_id,decision:"approve",actor_id:"user"}));assert.equal(parentCalls+childCalls,calls);
+  await assert.rejects(composition.agentHost.reviews.respond({review_id:ready.review_id, version: readyReview.reference.version,decision:"approve",actor_id:"user"}));assert.equal(parentCalls+childCalls,calls);
   // It comes back only to the folder the round ran in while that is still the output, and only from the worktree the Host made for it.
   output=null;await assert.rejects(reads.invoke(integration.read,source),{code:"workspace_git.writer.workspace_unavailable",message:/输出目录/});output=grants[0]!;
   await git("worktree","remove","--force",childRoot);await assert.rejects(reads.invoke(integration.read,source),{code:"workspace_git.writer.workspace_unavailable",message:/独立工作树/});
@@ -125,7 +129,7 @@ test("CODING-WORKTREE-05 CODING-WORKTREE-06 CODING-WORKTREE-08 a round that ran 
   const settle=async(ref:{session_id:string;run_id:string})=>{const deadline=Date.now()+15000,decided=new Set<string>();
    while(!["completed","failed"].includes((await adapter.read(ref)).phase)){
     assert.ok(Date.now()<deadline,"fixture round must end");await composition.agentHost.reviews.refresh("board");
-    for(const review of composition.agentHost.reviews.list("board"))if(composition.agentHost.reviews.receipt(review.review_id)?.status==="pending"&&!decided.has(review.review_id)){decided.add(review.review_id);await composition.agentHost.reviews.respond({review_id:review.review_id,decision:"approve",actor_id:"user"});}
+    for(const review of composition.agentHost.reviews.list("board"))if(composition.agentHost.reviews.receipt(review.review_id)?.status==="pending"&&!decided.has(review.review_id)){decided.add(review.review_id);await composition.agentHost.reviews.respond({review_id:review.review_id, version: review.reference.version,decision:"approve",actor_id:"user"});}
     await new Promise(r=>setTimeout(r,10));
    }};
   // CODING-WORKTREE-05: the round runs in the worktree and writes there; the output is untouched.
@@ -153,9 +157,10 @@ test("CODING-WORKTREE-05 CODING-WORKTREE-06 CODING-WORKTREE-08 a round that ran 
   // CODING-WORKTREE-05: what the person approves lands in the output, and the worktree stays (nothing removes it; switching the session
   // back to the output is CODING-WORKTREE-07, tests/coding-writer-assignments-http.test.ts).
   const asked=await reads.invoke(integration.prepare,{...source,files:view.files.map(f=>({path:f.path,revision:f.revision!})),operation_id:randomUUID()});
-  const document=composition.agentHost.reviews.get(asked.review_id)?.document;
+  const askedReview=composition.agentHost.reviews.get(asked.review_id)!;
+  const document=askedReview.document;
   assert.ok(document?.kind==="git-integration"&&document.source.run_id===inTree.ref.run_id&&!("subagent_id" in document.source),"the review names the round, with no child");
-  await composition.agentHost.reviews.respond({review_id:asked.review_id,decision:"approve",actor_id:"user"});
+  await composition.agentHost.reviews.respond({review_id:asked.review_id, version: askedReview.reference.version,decision:"approve",actor_id:"user"});
   assert.equal(composition.agentHost.reviews.receipt(asked.review_id)?.effect_settled,true);
   assert.equal(await readFile(path.join(root,"note.txt"),"utf8"),"from the worktree\n");
   assert.equal((await createGitWorktreePort(root).list()).length,1,"the worktree is kept");

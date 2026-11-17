@@ -164,8 +164,9 @@ export async function prepareWriterIntegration(selection: WriterIntegrationSelec
   const args = ["-c", "core.hooksPath=/dev/null", "apply", "--whitespace=nowarn"];
   const check = async () => { await read(); await git(prepared.view.target_path, [...args, "--check", "-"], undefined, { input: patch }); };
   await check();
-  return { view: prepared.view, files: prepared.files, check, async execute() {
+  return { view: prepared.view, files: prepared.files, check, async execute(assertCurrent?: () => void) {
     await check();
+    assertCurrent?.();
     try {
       await git(prepared.view.target_path, [...args, "-"], undefined, { input: patch });
       for (const file of prepared.files) {

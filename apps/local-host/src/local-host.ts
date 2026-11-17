@@ -13,7 +13,7 @@ import { ActionService, CapabilityRegistry, refuseCall, registeredActionMetadata
 import type { ActionSelection } from "@molis-ai/molis-work-kernel";
 import { projectCallCaller } from "./project-call-caller.js";
 import { ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionReference,
-  type ActionProviderRegistration, type ActionView, type ActionSceneClient, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+  type ActionProviderRegistration, type ActionView, type ActionSceneClient, type ActionSceneDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostBoundSession } from "@molis-ai/molis-work-plugin-sdk";
 import { dependencyCaller, verifiedCaller } from "./plugin-callers.js";
 import { HostAvailability } from "./local-host-availability.js";
@@ -149,9 +149,34 @@ export class LocalHost<Runtime> {
     return snapshotCaller(caller);
   }
 
+  projectClosingSignal(reference: LocalHostProjectReference): AbortSignal | undefined {
+    this.assertProjectOpenForCatalog(reference);
+    return this.line.existingObservation(reference)?.observing.signal;
+  }
+
+  assertProjectOpenForCatalog(reference: LocalHostProjectReference): void {
+    this.assertRunning();
+    this.line.assertCompatibleReference(reference);
+    this.options.assertProjectAvailable?.(reference.project_id);
+    if (this.line.isClosing(reference.storage_key)) throw new ActionError("actions.host_closed", "原项目正在关闭");
+  }
+
   /** System capabilities share the registry but do not create a fictitious project Runtime. */
   inspectActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) {
     return registeredActionMetadata(this.capabilities, this.metadataCaller(caller, reference));
+  }
+
+  /** A proposal keeps the original registration and caller, independently of a later approval request. */
+  prepareActionReview(caller: ActionCallContext, view: ActionView, input: unknown, project?: LocalHostProjectReference, related?: ExactActionReference) {
+    const bound = this.metadataCaller(caller, project), held = this.actionService.prepareReview(bound, view, input);
+    const other = related && this.actionService.holdReviewRegistration(bound, related);
+    const assertCurrent = () => {
+      this.assertRunning();
+      if (project) { this.line.assertCompatibleReference(project); if (this.line.isClosing(project.storage_key)) throw new ActionError("actions.host_closed", "原项目正在关闭"); }
+      held.assertCurrent();
+      other?.assertCurrent();
+    };
+    return { assertCurrent, beforeEffect: async () => { assertCurrent(); await held.beforeEffect(); await other?.beforeEffect(); assertCurrent(); } };
   }
 
   /** The same registered scene declarations and visibility rules discovery uses; never an execution grant. */
@@ -159,13 +184,17 @@ export class LocalHost<Runtime> {
     return this.actionService.inspectSceneMetadata(this.metadataCaller(caller, reference));
   }
 
-  async inspectActions(caller: ActionCallContext, reference?: LocalHostProjectReference): Promise<ActionView[]> {
+  holdRequiredScene(caller: ActionCallContext, scene: { scene_id: string; version: number }, reference?: LocalHostProjectReference) {
+    return this.actionService.holdRequiredScene(this.metadataCaller(caller, reference), scene);
+  }
+
+  async inspectActions(caller: ActionCallContext, reference?: LocalHostProjectReference, prepareRuntime = true): Promise<ActionView[]> {
     this.assertRunning();
     caller.signal?.throwIfAborted();
     const project = reference ? normalizeReference(reference) : undefined;
     if (caller.project_id !== (project?.project_id ?? null)) throw new ActionError("actions.scope_mismatch", "目录上下文与项目不一致");
     const bound = snapshotCaller(caller);
-    if (project) await this.withRuntime(project, () => undefined);
+    if (project && prepareRuntime) await this.withRuntime(project, () => undefined);
     caller.signal?.throwIfAborted();
     return this.availability.views(bound, this.actionService.inspect(bound));
   }

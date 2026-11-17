@@ -336,6 +336,20 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ plugin_id, object: { kind, id } }; ASSISTANT_SURFACE_CHANGED_EVENT (services/assistant)";
     readonly summary: "A surface changed an object the Assistant may be showing (Coding's session settings); the Assistant reads its Work again.";
 }, {
+    readonly name: "molis:authorization-changed";
+    readonly kind: "request";
+    readonly owner: "settings-directory";
+    readonly on: "window";
+    readonly detail: "none";
+    readonly summary: "A local authorization setting changed. Settings in this document re-read their owners; the event carries no authorization or result.";
+}, {
+    readonly name: "molis:automation-suggestions-open";
+    readonly kind: "request";
+    readonly owner: "automation-recommendations";
+    readonly on: "document";
+    readonly detail: "{ trigger: HTMLIFrameElement }";
+    readonly summary: "A visible framed surface asks the shell to open project suggestions. The shell chooses its current project and the original frame is the focus return point. No data, storage or action authority goes to the frame.";
+}, {
     readonly name: "molis:context-intake";
     readonly kind: "request";
     readonly owner: "context-actions";
@@ -535,8 +549,12 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "The open tabs and panes of the work area and of the right side (whether it is open, its tabs, the current one and its width: `side`, per project), the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).";
     };
     readonly "settings-directory": {
-        readonly files: readonly ["apps/workbench/src/scripts/client/settings-directory.ts", "apps/workbench/src/scripts/home-model-settings.ts", "apps/workbench/src/browser/plugin-frame/child.ts"];
+        readonly files: readonly ["apps/workbench/src/scripts/client/settings-directory.ts", "apps/workbench/src/scripts/home-model-settings.ts", "apps/workbench/src/settings-authorizations.ts", "apps/workbench/src/browser/plugin-frame/child.ts", "apps/workbench/src/browser/plugin-frame/review-permission.ts"];
         readonly state: "The settings area: which global or project settings page is open, and the embedded settings pages inside it, including the standalone Home settings host.";
+    };
+    readonly "automation-recommendations": {
+        readonly files: readonly ["apps/workbench/src/scripts/client/automation-recommendations.ts"];
+        readonly state: "The project suggestions dialog, its selected project and the report it is showing.";
     };
     readonly "settings-return": {
         readonly files: readonly ["apps/workbench/src/browser/settings-return.ts", "apps/workbench/src/browser/return-trips.ts"];

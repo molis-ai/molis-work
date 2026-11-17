@@ -47,9 +47,12 @@ export function routedPluginCaller(caller: HostPluginCaller, projectId: string |
 export function reviewAuthority(caller: HostPluginCaller | undefined, kind: PluginReviewKind) {
   if (!caller) throw hostErrors.plugin_caller_invalid("需要人审查的宿主操作只能由插件发起");
   const permission = PLUGIN_REVIEW_PERMISSION_PREFIX + kind;
+  // Unknown effects may still need a later settlement notification. Keeping that origin must not retain its old caller.
+  const original = new WeakRef(caller);
   return { plugin_id: caller.plugin_id, install_id: caller.install_id, holds(): boolean {
-    if (!issued.get(caller)?.held.has(permission)) return false;
-    try { caller.assertActive(); return true; } catch { return false; }
+    const active = original.deref();
+    if (!active || !issued.get(active)?.held.has(permission)) return false;
+    try { active.assertActive(); return true; } catch { return false; }
   } };
 }
 

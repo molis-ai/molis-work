@@ -1,0 +1,186 @@
+# 第 39 批授权与审查合同设计稿
+
+状态：分段设计评审中（2026-11-13）。同一个获用户授权的 GPT-6.1 high 只读评审代理已通过 §3.1 对象范围与执行边界、§3.2 工作边界与存储、§4 审查与来源、§5 统一管理及 BL-360 可决定性，可据此实施；§6 自动化建议与 §7 GitHub 接入仍待合审。已按通过的审查设计修改本批隔离分支上的合同与来源存储实现；未改外部 SDK 或旧持久格式。最终头的公共合同合审仍须进行。行为与验收以 [spec](spec.md) 为准，开工前 15 项、用户决定与范围边界在该文档第 7 节。本稿不是产品已经具备的能力。
+
+## 1. 要闭合的两条路径
+
+**已获授权的工作**：用户看到执行者、对象、操作与结束条件 → 可信用户入口保存有限委托 → 后续轮次引用同一委托 → 派出前与写入前都按当前事实复核 → 完成、取消、到期、收窄或撤销改变后续可执行范围。重启恢复的是仍有效的委托，不是把旧批准重新消费一次。单次未知效果须核对，不能因有委托就重复发送。
+
+**需要本次决定的操作**：执行方冻结对象／版本／范围并发起 → 队列返回人现在可以做哪些决定与原因 → 真人在可信入口决定 → 决定先持久记录，执行方再取得一次性许可 → 写前复核 → 回执区分完成、失败、未知及送达失败。人审来源与委托来源同看，但计票只认满足当前人审政策的真人。
+
+页面、智能呈现决定请求与验收卡只拿这些事实的引用。Goal 的接受／返工、工作完成、连接是否有效各由原主人决定，审查页不得替它们改状态。
+
+## 2. 复用与最小新增
+
+| 当前能力 | 处理 |
+| --- | --- |
+| `AgentReviewQueue`、Prologue 审批桥、`consumeApproval`、恢复回执 | 扩展现有模型。批准仍只消费一次，不复制一份审批仓库 |
+| Agent session index / Prologue storage | 保留审查决定的现行存储；新有限委托优先使用独立的新记录 kind，由 agent-host 经现有 storage 接口读写。需要改旧格式时单列升级方案，未获批准不落地 |
+| Host `agent.task_grants.*` / MCP grants | 保留原动作、数据与只读限制；管理页从该 owner 读，收窄／撤销调用该 owner，不把它迁成新委托 |
+| `validate_authority`、`assert_authority_current`、`beforeEffect` | 用现有调用链注入委托的当前性复核，不引入与其并行的“许可已检查”缓存标志 |
+| connector-host 连接、Projects 工作区、插件安装 | 委托仅引用稳定身份与版本；连接不是业务授权。原 owner 决定当前有效性，委托不能扩大其权限 |
+| `agent.reviews.decide/recover` 的可信用户入口 | 扩展公开合同并同步所有消费者；不开放给 Agent 自签。查询和管理分别限制 audience，不靠页面隐藏来保护 |
+
+不做通用流程引擎、策略 DSL、新的团队身份库或跨 owner 复制存储；不预建为未知消费者准备的审批 provider 注册框架。真正需要新平台服务时先完成责任边界审查，不把新增业务塞进 Host。
+
+## 3. 有限委托的候选数据合同
+
+`WorkDelegation`（名称和所在 subpath 待 C 合审）：
+
+| 字段 | 来源与含义 |
+| --- | --- |
+| `delegation_id`、`revision` | owner 分配的稳定引用与并发修订号；浏览器不能自选以覆盖另一条 |
+| `subject` | 项目、安装、执行主体及被授权的工作／会话引用。项目与安装来自可信调用上下文；工作引用必须经实际主人核归属及世代，不能只信输入字符串 |
+| `mode` | 只读协助／改动前确认／授权内自动执行，沿已定的三种模式。确认模式保留逐次决定；只读模式不会因对象在范围内变成可写 |
+| `scope` | 当前动作的 capability/version/provider、对象或工作区的稳定范围、相应操作。命令沿现有精确 argv/cwd/env 与执行边界；不是自然语言匹配，不用 URL 前缀代替资源身份 |
+| `lifetime` | 当前工作或用户显式选定的持续委托；可带明确到期。当前工作不因轮次、等待、重启结束，也不能自动延长到另一项工作 |
+| `granted_by/at` | 可信用户入口给出，不从模型、页面业务输入、正文、引用或参数说明生成 |
+| `revoked_at`、`supersedes` | owner 记录撤销／用户明确重新授予的关系。历史只用于解释，不自动复活旧授权 |
+
+授权写入使用 `expected_revision`；过期页面的保存不能覆盖刚发生的撤销或收窄。收窄操作只能求子集，不能用旧详情勾回刚被别人移除的范围。扩大范围须通过一次新的明确授权，展示增加了什么，不能藏在“保存收窄”里。
+
+主体先核现有任务授权主体是否足以表达同一工作世代；可复用部分沿原公开类型，不能只因命名接近就把只读任务改成能写。`scope` 中的对象限制必须由实际动作执行路径验证；某个动作不能表达或验证精确对象限制时，不允许保存一个界面看似受限、执行实际更宽的自动委托，仍走该动作的明确确认。
+
+存储决定待合审：新记录不迁移原 MCP 授权，不给旧内存规则补造用户授权。恢复失败时仅阻止需要该委托的工作，保留可独立使用的有效授权；数据坏了明确报告，不能把异常当“默认允许”。
+
+### 3.1 实际参数怎样约束
+
+权限选择不是一组仅供展示的标签。授权目标由动作主人声明，模型只能提出候选，可信用户入口重读目录、账号和对象后才保存。具体形状、首批 owner、最后检查与调用预算见已通过同一代理合审的 [有限委托合同细化](delegation-contract-design.md)。没有可验证目标声明的工具只允许完整参数精确匹配的有限授权；声明明确要求人审的输入不靠精确参数绕过。页面不能把它显示成“这个目录／这个数据库内任意操作”。
+
+| 执行入口 | 保存的边界 | 每次真实调用核对的位置 |
+| --- | --- | --- |
+| 助理动作 | 完整 capability/version/provider；原安装的持久 installation_generation、声明摘要；有限声明提取出的目标引用和明确允许的效果 | `AgentActionClient` 的判定扩为接收实际 input；`direct(view)` 不能独自放行。`check`、`invoke` 使用同一 SDK 提取器；此次调用把冻结 input/目标及原许可引用带入 `validate_authority` 和同步 `assert_authority_current` |
+| Connector / 外部 MCP | 连接 id、当前账号／租户与连接授权版本、工具合同摘要、目标与操作；若工具无可信目标解析，只支持完整参数相等 | 接入 owner 与 MCP 派发器重读连接及声明，并在真正网络派发前同步检查；换账号、换工具形状或重新绑定来源不继承旧授权。MCP 的只读 annotation 不是证明 |
+| Coding 精确命令 | 项目、工作区稳定身份、授权工作/会话、插件安装世代、command/argv/cwd/env_allowlist/timeout/background/outlives_run 全部精确值 | 原 Prologue 审批桥匹配冻结 document，命令派发前沿原 authority 复查。`escalate`、额外路径或 network grants 不由普通记住命令扩大；文件内容更改不冒充重复命令 |
+
+统一顺序是：现行身份与能力可用性 → 所有已有禁止／停用／更严格选择 → 专属人审或最终确认规则 → 本次模式 → 本次精确范围。只读模式拒绝写；确认模式即使存在可撤销动作的 `directEligible` 也要求本次决定；自动模式仅在明确范围内直接执行。它可覆盖用户明确包含的发送、发布或删除，不以“外部”另加逐次确认，但不能越过已经适用的人审或团队记忆最终确认。没有新增选择的已有工作继续遵守原策略，不用不存在的新委托解释成撤销原授权。
+
+本次 input 经原 schema 校验后冻结，有限字段声明从实际 input 计算操作与目标；不引入可以异步改写参数的通用 resolver。`beforeEffect` 完成所有 await 后，最后同步检查委托 revision、原安装 activation、账号/来源版本及动作登记；对象实际版本由原 owner 在同一写事务里按现有 CAS 检查。任何一步失效均拒绝，不能在最后一次 await 前检查完便提交。可变的默认目标无法从声明证明时不匹配自动范围，须明确传入目标；owner 必须保证实际写入与该目标一致。嵌套动作仍经过自己的主人，不能携带一张允许所有子调用的通行证。
+
+**落到现有网关的路径**：保留 `change-capability` 的 SDK `ask` 规则；在 `PrologueApprovalBridge` 已读取原 pending/effect、尚未发布需要人处理的通知时，以 `effect.proposal.subject.input` 的冻结参数解析 capability/version/provider/input，再请本轮可信 `AgentActionClient` 判定。不能从展示用 `tool-operation` 的标题、字段或 JSON 文案反解权限。符合自动委托时，同一决定入口先保存委托来源再回答原 SDK pending；未命中则保留原人工等待，不能另派一次工具或让模型重新提交。命令和外部 MCP 同样从原 SDK effect 的工具身份与参数核对，执行归属来自该 pending 的原 Session/Run。已有 `canAnswer` 与当前安装检查继续有效。
+
+`direct(view)` 只保留未设置新模式时的原可撤销能力提示。明确选择模式的工作统一从 `change-capability` 的原 SDK ask 进入：只读在 effect 前拒写，确认保留人工等待，自动命中后内部答复同一 pending。此时不再提供 `change-reversible`，模型仍调用旧工具名会在 effect 前被拒并得到正确入口，不在已派出 executor 里补造审批。未设置新模式的旧工作继续沿原可撤销策略；这类自动执行记录为原策略来源，不伪造一个用户刚授予的委托 id。每个真正的直接调用在效果前写一次来源决定记录，失败不调用业务动作；它的原 SDK tool-call/effect 身份由适配器传入，不用重试时新生成的 UUID 充当原操作。
+
+`pages.update` 的文档 id、文件夹/Goal 关联和 `pages.promote` 的目标 Goal 是不同限制；只校验文档 id 不能放行对任意关联对象的改动。无可信声明的 Notion/MCP 工具只展示完整参数精确授权，不在产品里照静态样承诺“该数据库内任意修改”。对象范围仍属本批验收，不以完整参数相等替代已有 owner 可以提供的对象级授权。
+
+### 3.2 工作边界与审查
+
+已通过的工作结束边界、来源原子记录、可决定性与 BL-359 生命周期合同移至 [工作边界与审查合同设计](review-contract-design.md)，以该文档作为唯一设计正文，不在本稿重复。
+
+## 5. 统一管理与调用成本
+
+用户已选 [B 原型](../../docs/design/authorization-review/README.md)。工作台现有设置入口汇总当前工作委托、持久授权和现有任务只读授权；展示执行者、范围、方式、结束条件、授权人及最近使用。收窄和撤销返回 owner 的新 revision 与状态，保存失败保留用户未保存的选择。
+
+统一读取与修改的具体输入、输出、并发和事件规则见 [有限委托合同细化 §4](delegation-contract-design.md#4-统一管理的公开投影)。本节保留各 owner 的责任与调用预算，不复制业务授权存储。
+
+首屏目标是一个聚合读取请求，不按条目发请求。owner 内部复用本次目录与安装快照；不能每行做一次相同的发现／打开同一个库。敏感详情需要另读时按当前展开的一条读取，不能为所有折叠条目预取。没有有效列表时显示错误或明确部分缺失，不把读失败显示成“没有授权”。后台页面不轮询；变更沿现有通知链失效重读。
+
+这是一项实现预算，不是现状测量结论；最终记录请求数、各 owner 读取及目录发现次数，并与 N42～N56 核对。执行前当前性检查不会为了页面性能被省掉。
+
+管理不漏掉普通外部 MCP 客户端：
+
+| 条目 owner | 查询与稳定范围 | 收窄／撤销与并发 |
+| --- | --- | --- |
+| 新工作/持续委托（agent-host） | id/revision；调用方、工作/会话、项目、安装、账号/目标/动作、模式、到期 | expected revision；收窄必须逐项为原范围子集，撤销写 tombstone |
+| 当前轮 app 允许与会话命令规则（agent-host） | 原 run/session + 原安装；到该真实边界结束 | 只撤销/转回确认；无持久恢复，管理不把它们升级成长委托 |
+| 任务只读授权（原 task-grant owner） | task subject 原 project/install/key + revision | 调现有 set([])/expected_revision 撤销，不用缺 CAS 的 clear 去覆盖并发新授权 |
+| 普通外部 MCP 客户端（MCP settings owner） | client/project/capability/version/provider + generation；完整权限、enabled；默认开放项没有记录时显式标 expected_absent | 在原文件串行队列内部比 expected_generation/expected_absent，收窄动作集合或将单个动作 disabled。每个动作所需 permissions 是完整相等的合同，不能删一个 permission 后冒称仍可部分调用；数据格式不变 |
+| 助理已有动作开关／强制确认（Assistant owner） | 本人及原精确动作引用 | 沿原 owner 修改；更严格选择优先于新委托，不挪用外部 MCP 的 caller |
+
+列表一次读 MCP 文件、一次读新委托集合，不按条目重新开库。按实际选择的 scope 复用 metadata/安装快照，最终 availability 不能跨 client 或 task caller 共用；首屏投影已存事实，默认开放项限选定 scope/client，展开项才读其当前可用性。原 metadata/availability 两阶段、task 自己的目录都如实计数，不隐去声称“最多一次”。各 owner 返回列表修订与部分错误，聚合本身不存事实。mutation 按 owner 分派并返回对应新投影；页面只读所需详情，不推送全量敏感参数。撤销默认开放项要在 expected_absent 仍成立时写 disabled，不能覆盖并发新授予；旧设置入口与新管理动作必须共用这一并发写边界。
+
+## 6. 引导中的只读自动化建议
+
+严格沿 AUT-01～08：只读已授权工作区的有限文件与当前注册目录；按五类各给最有依据的 1～2 条，没有可用能力的类别明确为空，不能凑数。配置与文件内容是不可信证据，不能把其中的指令升为安装或执行授权。已有配置与已安装能力用于去重，不从目录中随便选一个同名能力。
+
+报告列实际证据引用、效果、前置、风险／费用、置信度与一个可达的既有下一步。点击下一步仍进入原安装／创建确认；扫描不运行命令、不写项目、Goal 或正式业务事实。仅用户点保存才创建一份 Pages 文稿，忽略／已有／不再提示是项目内推荐偏好。部分读取失败保留成功部分和缺口，失败项不编造。
+
+已核实 `project-arrival.ts` 的版本 1 文件只保存上次打开时间、项目简介与上次项目，没有通用推荐偏好 CAS；`recommendation-catalog.ts` 服务判断规则创作，只提供已登记消费场景和可选项，不是文件扫描器。不能以这两个相近名字省去真实接线，也不向旧文件悄悄追加字段。
+
+最小完整落点为新的平台产品服务 `horizontal/automation-recommender`：同一个扫描/匹配/报告逻辑供项目到达、助理、创作台使用，只持有本服务的推荐偏好，不持有项目正文、连接或安装事实。新增包的理由是三个已定入口共用跨插件策略，且仓库明确要求新的平台服务不进 Host；不新增模型调用、索引库、后台扫描器或通用策略引擎。Host 只装配读取/保存端口和动作，三入口消费同一动作。新包及其公开合同需 C 合审后实施。
+
+| 接缝 | 本批行为与边界 |
+| --- | --- |
+| 扫描 | 调 Projects 的 `projects.workspace.files.read@1`，只用 directory/text 与原路径安全校验，可显式读 `.claude` / `.github`；不使用会写原文使用记录的 `knowledge.read/grep`。不拿裸 fs、不启动 shell、不读 `.env`/密钥文件；对 `.mcp.json` 只提取服务名/传输类型，凭据和 env 值不进入建议/报告。设目录、文件、单文件及总字节上限，缺口留在结果里 |
+| 可用候选 | 读取同一次请求中、原调用者当前可见的动作目录，以及已登记的技能包/连接器/角色列表；只使用它们实际提供的创建/设置入口和当前 availability。五类每类至多两条；没有可用候选或可达入口时说明该类没有建议，不根据依赖名编出产品能力 |
+| 返回 | 扫描结果只在当前请求/页面内存中，引用项目/工作区与读取到的文件证据。完成最后一次 await 后复核调用者、项目/目录和安装/连接快照；撤权的迟到正文不返回。正常技术调用审计可由原动作链记录，不写 Goal、Pages、项目配置或偏好；AUT-01 按这些业务存储与文件的前后值验证 |
+| 项目偏好 | 服务自己拥有新版本 1 文件 `config/automation-recommendations.json`，键为可信 actor/project；每组有 revision，条目以实际候选能力/目标/证据种类的稳定指纹定位。保存忽略/已有/不再提示在同一 Home 单写入队列中重读并比 expected_revision，再临时文件原子替换；只保存偏好，不保存扫描正文。坏文件报错不当空表，不改 `project-arrival.json`，无旧格式升级 |
+| 保存报告 | 本人点击后经受保护入口调用原 `pages.create@1` 保存一份可编辑文稿。冻结同一报告正文、项目与 request_id，响应丢失后沿原键重试；已有文稿由 Pages 返回，之后的本人编辑照常保留。AUT-07 要求可保存报告，可在 Pages 自己的入口另行发布固定成果 |
+| 三个入口 | 到达流程不阻塞项目打开，打开建议时才扫描；助理给出同一结果视图/报告动作；创作台从项目上下文调用同一只读动作。下一步只交到已有创建/安装界面，权限、来源、版本与最终确认仍由原 owner 提供；没有可达入口的候选不显示伪链接 |
+
+### 6.1 公开动作与入口细化
+
+新增合同子路径 `services/automation-recommender`，动作均为 project scope，且只面向 `user`。路径上的项目由 Host 用 catalog 固定到本次调用上下文。项目到达、助理面板、插件创作台由同一工作台视图投射按钮和报告，本人点击后发同一个受保护的页面入口。创作台内不发新权限给沙箱／插件，助理也不把扫描正文交给模型。AUT 原文要求本人打开建议，主动模型扫描另有产品决定再接。
+
+| 动作 | 输入 | 输出和最终检查 |
+| --- | --- | --- |
+| `automation.recommendations.scan@1`（query/read，concurrent） | 严格空对象。工作区是 Projects 中该人明确关联并验证的输入目录，按 catalog 顺序最多四个，经本人 membership、input、可读取且 verified 取交集；原 membership id／更新时间、目录 id／实际路径、项目生存期、Projects revision 固定 | `{ groups, evidence, gaps, preferences, save_token }`。每类实际候选至多二条，证据只有工作区名／相对路径／指纹和有限信号；带候选原公开引用及匹配的已存在入口枚举。报告保存凭据仅为本人当前项目绑定的短期引用，不承载 workspace authority。每次最多 20 次现有文件动作，最多 8 次目录、12 次文本；每次文本沿原上限 256 KiB，最多累计采信 512 KiB，达到上限即报告缺口。文件动作内部按现有目录读取与准备权限，各有其调用成本。读取结束后再次核项目与工作区 membership、安装和候选 owner 原引用，最后同步核原请求；拒绝迟到返回 |
+| `automation.recommendations.preferences.set@1`（command/write，concurrent） | `{ expected_revision, suggestion_id, choice, save_token }`，choice 为 `ignored / already-have / hidden / show`；本次报告中存在该 suggestion 或本项目已保存的隐藏项才可改；稳定 id 只含原逻辑身份与匹配信号，不含文案、文件内容或候选版本 | `{ revision, choices }`。原 actor/project 行 CAS，按原记录重算只改一项，其他项目保留。偏好按项目删除并列入 Home 快照和格式清单。保存临时文件后同步核同一调用并 rename；错误保留表单状态 |
+| `automation.recommendations.report.save@1`（command/write，concurrent） | `{ save_token }`。同一报告不可从浏览器提交替换过的正文、请求号或另一个项目 | `{ document_id }`。本机有界短期内存引用指向这次冻结的正文与原请求号，按 actor/project/原版本使用；重复请求仍用原 Pages 幂等键。过期或 Host 重启时提示重读建议，成功响应前后同一 token 一律沿同一个 Pages 幂等键，Pages 原有保存和阅读授权独立核对。保存不执行建议 |
+
+候选使用当前真实且可达的原目录。首个可操作类别为已安装、可用且当前 off 的技能，去 `/settings/kit` 按实际 SkillRef 找到条目，由现有设置展示发布者、版本和能力，启用／撤销仍走该 owner。已启用或配置中明确出现的技能省略。角色从实际注册且可用的子角色取，下一步是角色配置；连接器从实际连接目录返回且当前有可选接入方式的服务取，已经连过的省略。Hook 和命令需要原目录里可配置的实际项及可达创建入口；找不到时这一类显示缺口，不从 `package.json` 生成可运行按钮。已有配置只提取可识别有限信号。没有完成的读取明确显示，已有配置不可确认时不声明该类是新建议。
+
+扫描的未完成项与偏好读取失败分别呈现；偏好不可读时不宣称“没有忽略项”，也不覆盖原文件。保存报告和保存偏好是两次用户明确操作，扫描本身不会顺手做任何一次。AUT-08 仍须真实项目安装/启用并撤销一项建议来证明闭环，静态匹配测试不能替代。
+
+## 7. 可选 GitHub 人审检查
+
+检查逻辑与 GitHub 写入适配分离，服务读取可信 base 配置与 GitHub 身份、写权限、当前 head、reviews/comments、Agent run 来源；不 checkout PR head，不读取它的政策，不执行其代码。只有明确启用的范围受这道门约束。
+
+按 APR-01～06/09 计票：不同真人最多一票，当前 head 批准，排除 Agent/bot/无权限账号；作者可有一票；旧 head 的批准明确列为过期；提交新 head 后重算。PR 标题、正文、分支名、路径均不可信。网络或权限读取失败不能显示通过。sticky comment 复用同一条记录，不每次新增。
+
+本机等价检查是原需求允许的交付方式；先做纯逻辑与适配的隔离验证。实际挂 `agent-approval-check` 为 required 或修改本仓库 CI 是路线红线：必须拿具体配置、目标仓库和权限给用户决定，不能由这份设计稿自动授权。APR-10 的真实 PR 操作和人工验收仍为必需证据，不因暂未配置就算完成。
+
+身份、版本和竞争的具体规则：
+
+- 从 GitHub API 的 commits 读取关联 GitHub author/committer 的数字 id 和类型，另读 PR author、reviews/comments 作者与可信 Agent run。Agent 名单用稳定数字 id；不能仅凭 git 自报 name/email 认定真人，无法映射的提交标未知来源。检查范围是否启用来自固定 base SHA 的配置，不能借标题、分支名或改配置自豁免。
+- 计票按同一 GitHub 数字 user id 去重，review 与 `/approve` 合并成至多一票。当前有效的最新 APPROVED review 必须绑定当前 head，后续 CHANGES_REQUESTED 撤回该人更早的 review 与命令票。当前最新决定为 DISMISSED 且接口不给 dismiss 时间时，该人的评论不能与 dismiss 排序，要求本 head 新的原生 review。普通 COMMENTED 不产生票。评论正文必须是单行命令 `/approve <sha>`；GitHub 明确的 editor、lastEditedAt、isMinimized 与原作者及正文一起核对，编辑或隐藏的评论需重新发出。服务端读取作者当前写权限，Agent/bot/排除名单为零票。未知提交来源进入需要核对的路径，不能走“仅真人”的豁免；只读诊断在尾端重新核对审查、评论、计入票权限、当前 head/base 和配置，任一变化要求重新查询。
+- 原规格“完整 SHA（12–40 位）”解释为：40 位须等于当前 head；12–39 位须是当前 head 的精确前缀，并向 GitHub 解析为唯一且同一完整 commit；含糊/其他 commit/读失败拒绝。统一大小写后比较。PR 作者仍可一票，其余要求靠不同真人满足。
+- 获取一次 `{head_sha, base_sha, config_digest}`，读齐分页后计算；发布 status 前重读三者，变化则丢弃本轮计算、按新事实重算。状态写在实际计算的完整 commit 上；sticky comment 只更新检查器自身账号拥有且带固定 marker 的一条记录，不能采用 PR 作者伪造 marker 的评论。
+- 本机 runner 在同一仓库/PR 串行，sticky 带本次 head/base/config 的 generation；每次写前再读 PR，写后核对当前 generation。它只能保证自己的发布顺序，不能给 GitHub 的提交状态附加 PR 级原子 CAS。GitHub 状态按 commit + context 生效，同 head 的多个 PR 或 base 政策变化可能复用原 success；所以仅靠“再读一次”和内存锁不能宣称 APR-06 已通过。
+
+APR-06 的具体接入要求为：可信 base 的检查器在 PR 检查和 `merge_group` 两处都运行；保护分支要求合并队列，并要求 `agent-approval-check` 在当前队列生成的合并提交上通过。合并组须从 GitHub 的真实成员引用取每个原 PR 的当前 head 与批准、按固定 base 政策分别核验，组内全部达标才写当前 merge-group SHA 的通过；不能按临时分支名字猜成员，也不能仅拿其中一个 PR 的结果给整个组放行。实际接入前还须核目标仓库的队列能力、成员读取接口、token 权限与 concurrency，给出具体配置让用户批准。没有这些接线只交计票/诊断能力，APR-06/10 保持未完成，不把它写成已启用的合并门。
+
+依据：GitHub 的[提交状态文档](https://docs.github.com/en/rest/commits/statuses)说明状态反映到涉及同一提交的 PR；[合并队列文档](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)说明队列以最新 base 及前序 PR 生成不同 SHA，并必须运行 merge_group 检查。这里选择队列绑定是针对跨 PR/base 复用风险的设计决定，仍需真实目标仓库操作验证，不是官方文档替本批证明验收。
+
+2026-11-15 只读核对 Molis Work。`main` 当前要求由 GitHub Actions 发布的 `Verify`，队列配置为 ALLGREEN、SQUASH。实际队列先以 #2064、#2079 的顺序生成合并组，随后改为 #2079、#2064。当前检查器从 [MergeQueueEntry](https://docs.github.com/en/graphql/reference/pulls#mergequeueentry) 读取条目、原 PR、base/head 和真实父提交，已在真实组 `605696e3` 上核对两项原 PR 与 SHA。GitHub 的 [队列规则](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)与该观察一致。 [原组 #2079](https://github.com/molis-ai/molis-work/actions/runs/43631979571) · [改组后 #2064](https://github.com/molis-ai/molis-work/actions/runs/43633067092)
+
+检查器校验实时目标分支头、组引用、完整队列前缀与父提交链，按同一个目标分支头的政策检查各 PR 原头。原 PR 返回的历史 base 只用于还原提交集合。发布还须证明队列组包含所审的精确原头。双父提交的队列可以逐项核原头为第二父提交，已有隔离用例；squash 队列只有前一队列提交一个父提交，`scripts/agent-approval-squash-proof.mjs` 在隔离裸仓库中禁用自定义合并驱动、钩子与外部配置，逐项核对队列提交单父节点、树哈希、无属性三路合并树（`git --attr-source=4b825dc642cb6eb9a060e54bf8d69288fbee4904 merge-tree --write-tree`）、提交标题编号、入队及推送时间戳与强推时间线；仅靠实时 API 头而无 Git 树证明时继续拒绝发布通过。已在正式仓真实组 `605696e3`（前序 `#2079` `844c7329`、原头 `#2064` `2043a261`）和隔离双成员用例验证逐字节树一致与换头／强推／晚提交拒绝。
+
+上述两个真实合并组的 GitHub Actions run 与 Check Suite 的 `pull_requests` 均为空。#2064 与 #2079 的历史入队和出队事件也没有提交编号。改组后的提交 `605696e3` 只有一个 Git 父节点，GitHub 的提交关联查询仅返回已合并的 #2064；因此原头证明不依赖这些关联查询，而以 GraphQL 队列条目时序（使用父提交数区分双父合并与单父 squash，不请求需要额外管理权限的 `mergeQueue.configuration`；强推事件按 `timelineItems.filteredCount` 与 `hasNextPage` 核对）加隔离 Git 三路合并树核验。
+
+2026-11-15 按用户授权（A2）在纯合成、零业务代码的临时公开试验仓 `molis-ai/batch39-mq-lab`（`repoId=1458609687`，规则集 `27305064` 固定 `integration_id=5765361` 的 `agent-approval-check` 与 `SQUASH`、`ALLGREEN` 合并队列，接入 `pull_request`、`pull_request_review`、`issue_comment`、`merge_group` 事件工作流）完成端到端真实合并队列实测：未批准的合成 Agent PR `#3`（`6b933d272e4e9bc407c4edf9733e17a87a60b233`）发布失败状态后，入队请求被 GitHub 以 `Required status check "agent-approval-check" is failing` 拒绝；真人 `@yijunw0212` 批准 PR `#1`（`7faaab3c46115b51abd9a8b433a58ea09da3174e`）与 PR `#2`（`3b652faf0731ee08060fb2e5e1f73a7244e970ed`）并同时入队后，真实 `merge_group`（`checks_requested`）运行 `43698572683` 与 `43698573429` 分别生成单成员队列提交 `62d007115263f8a898b27a6f953dc0ec740086ba`（树 `bd2feeae275d9f524e165844dd060924c82e4ad0`）与双成员前缀队列提交 `e18fd9ea808b0217732827be17ad304de1a7ac62`（父节点 `62d00711...`、树 `c86fb2a286f30f3cb49b3476efee9c6f206bd5da`）。发布器用单仓短时安装令牌逐项证明两步无属性三路合并树与原 PR 批准、发布 `success` 并立即撤销令牌（`204`），GitHub 合并队列随即于 `2026-11-15T09:25:00Z` 将 `#1` 与 `#2` 按 squash 合并入 `main`，`#3` 保持未合并。取证后已立即关闭 `#3` 并将该临时仓收窄为私有，待收尾一并删除。
+
+发布器重算前把自己的旧通过设为待核对，在写入前后重读原批准与权限。缺证据、无策略或事实变化时保持待核对。正式接入仍需可信 runner 按审批、PR 和合并组变化及时重算受影响的提交，使用独立 App 的发布身份并验收。GitHub 的状态写入没有原子条件提交，外部变动能否及时中止合并需在真实队列实测。正式接入仍由用户批准。
+
+2026-11-14 用户选择保留私有试验仓，以只安装于该仓的独立 App 验证必需检查。已创建纯合成[试验 PR](https://github.com/molis-ai/batch39-approval-lab/pull/1)，可信基线政策要求一票。发布器核对精确 repo、PR、head 和 base，再发布 `agent-approval-check`，以 App id 和 bot id 更新自身的同一条固定说明，并从计票输入排除自身说明。
+
+2026-11-15 已注册组织私有 App，且只安装在试验仓。GitHub 对 Issues 读写权限发出的 PR 评论请求返回 403。经用户批准，安装采用 Pull requests 与 Commit statuses 读写，Contents 与 Metadata 只读，Issues 权限移除。Webhook 关闭。短时令牌限定试验仓，发布尝试结束后均主动撤销。
+
+同日在原试验 PR 的提交 `e3206cbe8a2d17fc5e25ec1a17ecd9d23db4c642` 证明 GitHub 识别了合成 Agent 作者，独立 App 更新[固定说明](https://github.com/molis-ai/batch39-approval-lab/pull/1#issuecomment-6888231876)并发布缺一票的失败状态。试验分支保护固定了 App 身份，并对管理员生效。GitHub 返回 `BLOCKED`。随后真人 `@yijunw0212` 发 `/approve e3206cbe8a2d17fc5e25ec1a17ecd9d23db4c642`（`#issuecomment-6892104879`），独立 App 原地更新同一条固定说明（`IC_kwDOVt0jMs8AAAABmpITxA`）为「已取得本版所需的 1 票。批准人：@yijunw0212。」并发布 `success`，PR 状态变为 `CLEAN`／`MERGEABLE`；接着推送第二个合成 Agent 提交 `6db35a1153d2029f1c2d2e1b5eb3b4d990953eef`，独立 App 将同一固定说明更新为「缺 1 票……已过期：@yijunw0212 · `e3206cbe8a2d17fc5e25ec1a17ecd9d23db4c642`」并发布 `failure`，PR 重新变为 `BLOCKED`；最后真人 `@yijunw0212` 对新头发出 `/approve 6db35a1153d2029f1c2d2e1b5eb3b4d990953eef`（`#issuecomment-6894563889`），独立 App 再次原地更新同一条固定说明（`IC_kwDOVt0jMs8AAAABmpITxA`，同时保留当前有效票 `@yijunw0212` 与过期票 `@yijunw0212 · e3206cbe8a2d17fc5e25ec1a17ecd9d23db4c642`）、发布 `success` 并立即撤销短时安装令牌（`204`），PR 恢复 `CLEAN`／`MERGEABLE`（`agent-approval-check: SUCCESS`）。取证完成后已立即删除本机临时 `.pem` 密钥与试验仓克隆，待用户在 GitHub App 设置中轮换删净远程公钥并删除临时合并队列试验仓。
+
+试验 App 用限定该仓的只读短时令牌成功读取 PR 作者的写权限、审查列表和固定说明的编辑及隐藏事实，读取后已撤销该令牌。隔离发布器回归覆盖已签名且关联真人账号的提交记录，在启用人审的目标上直接通过，并保留同一条固定说明。对需要人审的改动，补足当前版票数后，固定说明同时保留旧版的过期票。真实投票和合并队列继续按下列步骤取证。
+
+在同一 PR 依次记录缺票时的必需检查与合并拒绝、当前头的真人批准、合成新提交使旧票失效、再次批准，以及固定说明的原评论编号。私有 Team 仓用来收集必需检查证据；真实 merge group 的全组检查和本人投票仍待在有队列能力的已授权环境完成。 [分支保护](https://docs.github.com/en/rest/branches/branch-protection#update-status-check-protection) · [合并队列规则](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/managing-a-branch-protection-rule)
+
+本机检查从可信 checkout 启动。试验 PR 首次收到 App 发布的失败状态后，已用分支保护的 `checks` 字段把该 App 固定为必需来源。真实批准、push 和再次批准可用同一 PR 依次核验。用户批准试验结束时生成一把替换钥，撤销本次试验用钥并清除两把钥的本机文件。以下位置和标识由可信 runner 配置。正式 runner 读取 GitHub 合并组事件的原始参数，固定允许发布的 repo 和目标分支。App 的短时安装凭据由运行环境注入。
+
+```sh
+node scripts/agent-approval-publisher.mjs OWNER/REPO REPO_ID PR APP_ID APP_BOT_ID TARGET_BRANCH
+node scripts/agent-approval-publisher.mjs OWNER/REPO REPO_ID merge-group APP_ID APP_BOT_ID TARGET_BRANCH GROUP_REF GROUP_HEAD GROUP_BASE
+```
+
+第一个命令更新 PR 的固定说明和该次 PR head 的状态，第二个在能够证明各原头的合并组提交上发状态。退出 0 表示本次发布通过，1 表示已发布缺票，2 表示仍需核对来源、政策、权限、事件或网络。隔离用例覆盖两成员缺票／补票、旧通过回到待核对，以及组消失、缺成员、旧票和权限变化时的拒绝。
+
+## 8. 拟修改面与合审问题
+
+| 面 | 拟修改范围／要交代的影响 |
+| --- | --- |
+| 公共合同 | `packages/contracts/src/services/agent-host-reviews.ts` 与新的有限委托合同；可能的 action context 只增加可信引用，不接受输入自报身份；公开子路径快照须 C 协调后同改 |
+| 运行时 | `horizontal/agent-host/src/reviews.ts`、审批桥、持久来源与有限委托读取；沿现有存储与效果恢复，不换 Prologue 包 |
+| Host | 现有用户决定入口、设置汇聚和助理委托适配；保留 MCP/task grant owner 和当前调用链 |
+| Workbench | 已选 B；可决定性、来源和保存失败反馈；不另建与当前审查卡竞争的视觉模型 |
+| 建议闭环 | 现有读文件／目录／成果／偏好接线先核，扫描逻辑不得进入可写工具；没有接线证据前不把此项写成“已完成” |
+
+合审须回答：有限委托的工作世代与现有任务主体怎样复用；scope 能否在各实际效果入口验证；来源是否需要改旧持久格式及相应升级许可；可决定性由哪些当前事实计算；管理投影如何保持单 owner 与有界调用。第 06/Memory 在途 PR 正在改 agent-host 公开快照，写入前须明确排队与接力。
+
+主会话完成本稿核对不代替 C 合审。2026-11-13 用户明确同意：本批同一个 GPT-6.1 high 只读评审代理提前审设计稿，并代做公共合同合审，最终再审完整 PR。按该授权承接；最终头仍须留下合审结论，主会话不代审、不自行入队。

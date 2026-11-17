@@ -1,3 +1,4 @@
+import { reviewDecisionStorage } from "./fixtures/review-decision-storage.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -25,6 +26,8 @@ import type {
 
 const BOARD = "board-coding";
 const PLUGIN = "io.molis.work.coding";
+const REFERENCE = { owner: { kind: "agent-review" as const, project_id: BOARD, plugin_id: PLUGIN, install_id: "install" }, id: "prologue:pending-1", version: "proposal-1" };
+const APPROVAL = { beforeEffect: async () => {}, assertCurrent() {} };
 const DIRECTORY = { canonical_path: "/tmp/workspace", realpath_verified: true } as const;
 
 const MANIFEST: AgentManifest = {
@@ -48,7 +51,8 @@ function pendingLedger() {
     expiresAtWallMs: Date.parse("2026-09-19T01:00:00.000Z"),
   };
   const port: ProloguePendingPort = {
-    async canAnswer() { return true; },
+    reference: async () => REFERENCE, approvalAuthority: async () => APPROVAL,
+    canAnswer() { return true; },
     async document() { return { kind: "text-edit", target_path: "src/login.ts", exists: true, before_text: "const retries = 0;", after_text: "const retries = 3;" }; },
     async read() { return pending; },
     async answer(_ref, answer) {
@@ -104,7 +108,8 @@ function startRequest(roleId: string): AgentStartRequest {
 
 function bridgeFor(pendings = pendingLedger().port): PrologueApprovalBridge {
   return new PrologueApprovalBridge({
-    queue: new AgentReviewQueue({ now: () => new Date("2026-09-19T00:00:00.000Z") }),
+    queue: new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date("2026-09-19T00:00:00.000Z") }),
+    now: () => new Date("2026-09-19T00:00:00.000Z"),
     pendings,
   });
 }
@@ -129,9 +134,9 @@ test("没挂审批桥时，写入如实申报为不支持", () => {
 });
 
 test("挂上审批桥之后写入才算支持；命令不跟着变，因为回执没有来源", () => {
-  const queue = new AgentReviewQueue({ now: () => new Date("2026-09-19T00:00:00.000Z") });
+  const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date("2026-09-19T00:00:00.000Z") });
   const bridge = new PrologueApprovalBridge({
-    queue, pendings: pendingLedger().port,
+    queue, pendings: pendingLedger().port, now: () => new Date("2026-09-19T00:00:00.000Z"),
   });
   const { adapter } = adapterFor(bridge);
   assert.equal(adapter.descriptor.capabilities["text-edit"], "supported");
@@ -173,9 +178,9 @@ test("要跑命令的角色，挂了桥也照样被拒——命令回执没有�
 
 test("Run 停下来等的副作用，会先出现在宿主审查队列里", async () => {
   const ledger = pendingLedger();
-  const queue = new AgentReviewQueue({ now: () => new Date("2026-09-19T00:00:00.000Z") });
+  const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date("2026-09-19T00:00:00.000Z") });
   const bridge = new PrologueApprovalBridge({
-    queue, pendings: ledger.port,
+    queue, pendings: ledger.port, now: () => new Date("2026-09-19T00:00:00.000Z"),
   });
   const { adapter, emit } = adapterFor(bridge);
   await adapter.createSession({ project_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "改重试次数" });
@@ -203,7 +208,7 @@ test("Run 停下来等的副作用，会先出现在宿主审查队列里", asyn
 
   // 用户批准之后，答复才发给执行主人，而且只发一次
   const receipt = await bridge.decide({
-    review_id: pendingReviews[0]!.review_id, decision: "approve", actor_id: "user",
+    review_id: pendingReviews[0]!.review_id, version: pendingReviews[0]!.reference.version, decision: "approve", actor_id: "user",
   });
   assert.equal(receipt.status, "approved");
   assert.deepEqual(ledger.answers, ["allow"]);
@@ -243,8 +248,8 @@ test("a long command stops saying awaiting-review only after SDK accepts the dec
     let release!: () => void;
     const accepted = new Promise<void>(resolve => { release = resolve; });
     ledger.port.answer = async () => { await accepted; if (deliveryFails) throw new Error("delivery unknown"); return { authorized: true }; };
-    const queue = new AgentReviewQueue({ now: () => new Date("2026-09-19T00:00:00Z") });
-    const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port });
+    const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date("2026-09-19T00:00:00Z") });
+    const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port, now: () => new Date("2026-09-19T00:00:00.000Z") });
     const { adapter, emit } = adapterFor(bridge);
     await adapter.createSession({ project_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "long command" });
     const host = new AgentHost();host.register(adapter);
@@ -252,7 +257,7 @@ test("a long command stops saying awaiting-review only after SDK accepts the dec
     emit({ type: "awaiting-approval", effectRef: ledger.pending.effectRef!, pendingRef: ledger.pending.ref, why: "waiting" });
     await new Promise<void>(resolve => setImmediate(resolve));
     assert.equal((await adapter.read(handle.ref)).phase, "awaiting-review");
-    const delivery = bridge.decide({ review_id: "prologue:pending-1", decision: "approve", actor_id: "user" });
+    const delivery = bridge.decide({ review_id: "prologue:pending-1", version: "proposal-1", decision: "approve", actor_id: "user" });
     await new Promise<void>(resolve => setImmediate(resolve));
     assert.equal((await adapter.read(handle.ref)).phase, "awaiting-review", "Host decision alone does not release the waiting state");
     release();await delivery;

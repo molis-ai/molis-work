@@ -8,6 +8,9 @@ import { performance } from "node:perf_hooks";
 import test from "node:test";
 import type { HostSurfaceActReceipt, HostSurfaceAction } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { ComputerDriver, type DeskContext } from "@molis-ai/molis-work-app-local-host";
+import { desktopState, performSurface, surfaceContext } from "./fixtures/surface-target.js";
+
+const TEST_CONTEXT = surfaceContext("s");
 
 type Call = { op: string; payload?: Record<string, unknown> };
 type Node = { role: string; name: string; depth: number; frame: [number, number, number, number] };
@@ -20,24 +23,28 @@ const LONG_NAME = `${"a".repeat(40)}!`;
 const crowded: Node[] = Array.from({ length: 600 }, (_, index) => ({ role: "AXButton", name: LONG_NAME, depth: 0, frame: [index, 10, 1, 1] }));
 
 function desk(nodes: Node[], calls: Call[]): DeskContext {
-  const state = { bundle_id: "com.apple.TextEdit", name: "TextEdit", pid: 4, active: true, hidden: false, front_pid: 4,
-    window: { title: "Notes", frame: [0, 0, 800, 600], window_id: 1, document: "" } };
+  const state = desktopState({ bundle_id: "com.apple.TextEdit", name: "TextEdit", pid: 4, active: true, hidden: false, front_pid: 4,
+    window: { title: "Notes", frame: [0, 0, 800, 600], window_id: 1, document: "" } });
+  const target = { bundle_id: state.bundle_id, name: state.name, pid: state.pid, verdict: { tier: "ask" as const, reason: "", built_in: true } };
   return {
-    helper: { async call<T>(op: string, payload?: Record<string, unknown>): Promise<T> {
+    helper: { async call<T>(op: string, payload?: Record<string, unknown>, _timeout?: number, beforeSend?: () => void, onDispatch?: () => void): Promise<T> {
+      beforeSend?.(); onDispatch?.();
       calls.push({ op, payload });
       if (op === "app.state" || op === "app.open") return state as T;
       if (op === "apps.installed" || op === "apps.running") return { apps: [{ bundle_id: state.bundle_id, name: state.name }] } as T;
       if (op === "observe.screenshot") return { png: Buffer.from("target-window").toString("base64"), included_pids: [4], password_fields: 0, masked: 0 } as T;
       if (op === "observe.tree") return { window: { title: "Notes", frame: state.window.frame }, nodes, truncated: false, menus: [] } as T;
-      if (op === "probe.point") return { window: { pid: 4, title: "Notes" }, element: { pid: 4, name: "Save As…", window_title: "Notes" } } as T;
-      if (op.startsWith("input.")) return {} as T;
+      if (op === "probe.point") return { window: { id: 1, pid: 4, title: "Notes" }, element: { pid: 4, name: "Save As…", window_title: "Notes" } } as T;
+      if (op.startsWith("input.")) return { done: true } as T;
       throw new Error(op);
     } },
     settings: { forbiddenIds: () => [] },
     noteInjected: () => undefined,
-    target: () => ({ bundle_id: state.bundle_id, name: state.name, pid: state.pid, verdict: { tier: "ask", reason: "", built_in: true } }),
+    target: () => target,
     setTarget: () => undefined,
     takeovers: () => 0,
+    assertCurrent: () => undefined,
+    assertReady: () => undefined,
     ready: async () => undefined,
     readiness: async () => null,
     mark: () => undefined,
@@ -58,7 +65,7 @@ function desk(nodes: Node[], calls: Call[]): DeskContext {
 const click = (node: string): HostSurfaceAction => ({ what: "pointer", x: 1, y: 1, button: "left", clicks: 1, node });
 
 function acted(context: DeskContext, action: HostSurfaceAction): Promise<HostSurfaceActReceipt> {
-  return new ComputerDriver(context).surface().perform(action, { session_id: "s" }) as Promise<HostSurfaceActReceipt>;
+  return performSurface(new ComputerDriver(context).surface(), action, TEST_CONTEXT) as Promise<HostSurfaceActReceipt>;
 }
 
 /** Every pattern source compiled through the RegExp constructor while `run` is pending; the model's text is refused outright. */

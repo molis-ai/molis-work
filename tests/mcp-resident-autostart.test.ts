@@ -37,8 +37,8 @@ test("RAC-625 RAC-626 RAC-628 RAC-629: installed MCP cold start, contention, can
     const peer = await f.connect("management-session", { MOLIS_WORK_RUNTIME_ID: "", MOLIS_WORK_MCP_AUDIENCE: "management",
       NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --import=${JSON.stringify(preload)}` });
     const count = (await readdir(f.attempts)).length;
-    const forged = await peer.request("tools/call", { name: "molis_work_v1_event_decide", arguments: { database_path: managed.database_path,
-      project_id: managed.project_id, goal_id: "missing", idempotency_key: "forged-decision", actor_id: "forged" } }).promise;
+    const forged = await peer.request("tools/call", { name: "molis_work_v1_review_decide", arguments: { database_path: managed.database_path,
+      project_id: managed.project_id, choice_id: "approve", request_key: "forged-decision", actor_id: "forged" } }).promise;
     assert.equal((forged.result as { isError: boolean }).isError, true); assert.equal((await readdir(f.attempts)).length, count);
     const initialized = await peer.request("tools/call", { name: "molis_work_v1_initialize", arguments: {
       database_path: managed.database_path, project_id: managed.project_id, idempotency_key: "management-cold" } }).promise;

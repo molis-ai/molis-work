@@ -20,13 +20,14 @@ const SQL_LENGTH = 16_384, PARAMETERS = 256, STATEMENTS = 64, MESSAGE = 2048;
 const RESULT_ROWS = 1000, RESULT_BYTES = 512 * 1024;
 
 export type SandboxStatement = Required<SandboxSqlStatement>;
+type SandboxWrite = SandboxStatement & { readonly expected_changes?: number };
 
 /** The Host's side of `sdk.projectDatabase`. The broker has checked the effect, the grant and the statements' shape. */
 export interface SandboxDatabaseService {
   get(context: SandboxServiceContext, statement: SandboxStatement): Promise<SandboxSqlRow | null>;
   all(context: SandboxServiceContext, statement: SandboxStatement): Promise<SandboxSqlRow[]>;
   /** Every statement in one write transaction of the Host's: all of them or none. */
-  transaction(context: SandboxServiceContext, statements: readonly SandboxStatement[]): Promise<Array<{ changes: number }>>;
+  transaction(context: SandboxServiceContext, statements: readonly SandboxWrite[]): Promise<Array<{ changes: number }>>;
 }
 
 const RESULT_TOO_LARGE = 'plugin.project_database.result_too_large';
@@ -41,12 +42,16 @@ export function sandboxStatement(sql: SandboxJson | undefined, parameters: Sandb
   return { sql, parameters };
 }
 
-/** A write transaction's statements: 1 to 64 of them, each `{ sql, parameters }` and nothing else. */
-export function sandboxStatements(value: SandboxJson | undefined): SandboxStatement[] {
+/** Each statement can require an exact change count at the transaction's writer. */
+export function sandboxStatements(value: SandboxJson | undefined, checkChanges: boolean): SandboxWrite[] {
   if (!Array.isArray(value) || !value.length || value.length > STATEMENTS) throw invalid(`A transaction takes 1 to ${STATEMENTS} statements`);
   return value.map(item => {
-    if (!item || typeof item !== 'object' || Array.isArray(item) || Object.keys(item).some(key => key !== 'sql' && key !== 'parameters')) throw invalid('A statement is { sql, parameters }');
-    return sandboxStatement(item.sql, item.parameters);
+    if (!item || typeof item !== 'object' || Array.isArray(item) || Object.keys(item).some(key => key !== 'sql' && key !== 'parameters'
+      && !(key === 'expected_changes' && checkChanges))) throw invalid('A statement is { sql, parameters, expected_changes? }');
+    const statement = sandboxStatement(item.sql, item.parameters), changes = item.expected_changes;
+    if (changes === undefined) return statement;
+    if (typeof changes !== 'number' || !Number.isSafeInteger(changes) || changes < 0) throw invalid('Expected changes must be a non-negative safe integer');
+    return { ...statement, expected_changes: changes };
   });
 }
 

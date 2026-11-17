@@ -68,3 +68,5 @@ node scripts/run-tests.mjs tests/observation-layer.test.ts
   - 覆盖计划里说「完整」的每种事实都有代码在写，Host 接上的每个服务 sink 都在计划里（`tests/observation-coverage-plan.test.ts`）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/observation-layer.test.ts tests/observation-management.test.ts tests/observation-evaluation-holds.test.ts tests/observation-coverage-plan.test.ts tests/security-invariants-observation-records.test.ts`；改了外壳上报或工作流程的交接加跑 `tests/observation-shell-stages.test.ts tests/observation-workflow-steps.test.ts`
 - 相关手册：[docs/horizontal/observation.md](../../docs/horizontal/observation.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+宿主给自动采集的摘要/密封注入 Storage 的 Keychain cached 模式：不会因本地列表或关闭应用主动请求解锁。未获得原钥匙时沿既有 `not_obtained`/`unavailable` 记录元数据，未知内容不参与读取合并；以后合法解锁只恢复新记录采集，不补写旧正文。明确 evidence.get 的解封沿原凭据访问，HMAC和密文保护不变。回归见 QEA-88/89（`tests/secret-store-keychain-retry.test.ts`、`tests/observation-layer.test.ts`）。

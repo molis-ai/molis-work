@@ -276,3 +276,9 @@ QF-47最终健康门禁退出0（`/tmp/quality-audit-surface-health-final.log`�
 入口覆盖独立 Git 与 Coding 借用的同一客户端；目录选择→公开 diff/prepare-index/operations→Host 审查→真实 Git index/文件→原 operation 结果→确切草稿清理。六向处理：分散显示状态收敛到一份选择；保留真实输出目录/版本/权限围栏；冲突正文离开窄目录，错误重试跟随正文；删旧 ticket/displayed/decisionNotice 等被替换路径；业务写入与 owner 回执继续归 Host/原 drafts，展示归选择；复用既有 clientUses/openResult 合同，没有 Coding 特判或新导航平台。新增晚到成功/失败、同键重试、隐藏重入、历史选择/保存交错和实际写入验证，22/22正常入口通过；三宽两主题覆盖两真实调用方。完整包必跑和最终CI另记，不把代表用例当整仓完成。
 
 认可栏QF-49/QEA-87：workbench 原 renderer/styles 的 title/单行截断改为真实正文换行；通过正常界面读当前要求、认可/退回/改要求，Host写入回读原版本/决定。两UI文件7项通过，1440中文及390英文长路径/历史图已实看。状态与事实仍归Acceptance，外壳不再用编辑入口或hover弥补正文不可读。资源与最终共享核心CI继续。
+
+## 自动证据采集与原钥匙（QF-50，QEA-88/89）
+
+真实链为Functions Host/HTTP/MCP只读→Kernel出口→Observation flush/close→Storage原Home密钥库；显式证据读取另沿公开observation.evidence.get。六向结论：钥匙/backend/cache仍由Storage维护，Observation只管缺失及覆盖；不把未尝试解锁缓存成真实Keychain故障；普通读取不再弹凭据交互；同一原缓存由两种访问策略复用，不造密钥或副本；Host按行为注入策略，Functions无特殊豁免；该能力归Storage，env/file和实际解锁消费者同片覆盖。未知摘要不能证明内容相同，删除将空摘要作为读取相同依据的行为。
+
+完整构建及10文件73项有通过证据（首轮Host用例错误期待本人页面query正文，改为正常MCP采集后整文件14项通过）；真实解封、后续加密恢复、旧缺失不重写，跨项目/用途拒绝、原key/backend均验。详细日志及首次失败归因见报告；最终整合头CI未完成。

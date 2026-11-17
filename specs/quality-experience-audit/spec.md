@@ -680,7 +680,7 @@ QEA-84/85：完整构建通过，旧最终 COMMIT 反例转为两库零写；成
 
 ## 第三十九批：自动采集不触发无关钥匙串解锁（QF-50）
 
-状态：真实回归失败及调用栈已确认，待当前 Git 验收结束后实施。Functions 本地 list/describe 无须凭据，但新鲜 MCP 进程 close → ObservationWriter.flush → resolveEvidence → observationKeys.digest → createLazyFileSecretStore.createIfAbsent 触发 Keychain；三个独立进程各一次。e7 同头复跑及只记录栈的临时注入证据分别在 `/tmp/quality-audit-keychain-exact-repro.log`、`/tmp/quality-audit-keychain-full-stack.log`，临时测试注入已恢复。影响为被内部工作记录打断本地阅读，且关闭会等待钥匙串；不归咎业务凭据解析或本轮 Acceptance 提交。
+状态：真实回归失败及调用栈已确认，最小修复已实施、完整构建通过，定向验收中。Functions 本地 list/describe 无须凭据，但新鲜 MCP 进程 close → ObservationWriter.flush → resolveEvidence → observationKeys.digest → createLazyFileSecretStore.createIfAbsent 触发 Keychain；三个独立进程各一次。e7 同头复跑及只记录栈的临时注入证据分别在 `/tmp/quality-audit-keychain-exact-repro.log`、`/tmp/quality-audit-keychain-full-stack.log`，临时测试注入已恢复。影响为被内部工作记录打断本地阅读，且关闭会等待钥匙串；不归咎业务凭据解析或本轮 Acceptance 提交。
 
 复用 Storage 原 Home/backend/cache/keychainFailures 事实源，为自动采集提供不主动交互的密钥访问；可用的原密钥照常用于 HMAC 和加密，不可用时按 observation-collection/contract-design.md §6 记 missing:not_obtained 及 coverage unavailable/evidence_key，保留记录。显式证据解封与实际外部调用仍走原访问。不得创建替代后端、记录普通明文 hash、污染 keychainFailures 或新增自动解锁重试；后续合法调用获得密钥后，采集能够恢复。没有内容摘要的读取不能拿空摘要当同一内容去重，这一相关窗口同时修正。边界在 Storage 非交互能力、Host 注入和 Observation 对未知摘要的处理，不给 Functions 列表设置特殊豁免。
 
@@ -696,3 +696,9 @@ QEA-78收尾新增动态反证：持有真实commit审查回执，打开历史�
 QF-49沿渲染继续核对：`work-acceptance-parts.ts:26` 的核验观察只在 title 中，方法行也被省略；本批一并让方法与既有 observed 正文直接可读，复用原数据，不添说明标签或新状态。全文范围含要求、方法/观察、退回理由及展开的历史；版本/部位等简短元信息保持原栏位。
 
 QEA-87实操日志 `/tmp/quality-audit-acceptance-text-ui.log`：原认可/退回/变更要求、长正文/理由/历史及实际回读均过；root实看1440中文与390英文结果，2文件7项通过。窄屏用滚动触达原编辑/取消，不要求所有长内容同时塞进一屏。
+
+第三十三批最终冻结头 `ff006e19f0` 验收完成：11文件109项全部通过（`/tmp/quality-audit-git-frozen-acceptance.log`），含26项Git编辑实操和16项实际客户端生命周期；此结论只覆盖该检查点，不能替代后续组合头CI。
+
+QEA-88/89 本地结果：完整构建通过；10个相关文件合计73项已有通过证据。首轮9/10文件通过，新增真实Host解封用例误用本人的页面query，其结果按OCL-11只保摘要，断言被正确拒绝；改用真实MCP读取产生密文、本人公开evidence.get解封后，密钥文件整文件14/14通过（`/tmp/quality-audit-key-host-recovery.log`），其余9文件59项原通过结果保留（`/tmp/quality-audit-passive-key-acceptance.log`）。三个新鲜MCP进程的6条记录各自保留、零security访问；实际Functions调用失败仅一次原钥匙访问；同进程显式解封后新记录恢复加密，旧missing记录不改写。env/file/keychain三种原backend、无替代钥匙、用途/跨项目拒绝均已验。未知摘要误合并的旧构建反例1≠2已转通过（`/tmp/quality-audit-observation-digest-baseline.log`）。公开API生成无差异（Storage不在contracts/SDK快照范围）；健康、包要求剩余与最终CI分别结算。
+
+QF-50最终健康门禁退出0（`/tmp/quality-audit-passive-key-health.log`），无门禁阈值调整；完整包要求和最终Full CI继续。

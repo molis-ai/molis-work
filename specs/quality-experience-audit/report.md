@@ -16,7 +16,7 @@ QF-48 已实施：保留 Acceptance 原库、表、ID 和动作，用同一 atta
 
 已有成果保存在原分支：Pages/共享选择 `67288d2e47`、Feed 公开 SourcePull/首次引导恢复 `29f6d1383e`、无关安装声明隔离 `03b3a58f76`，以及此前搜索、后台操作、Sessions、Git 草稿、共享材料、Coding、Memory、Workflows 批次。QF-47 本地定向已过，当前头复验中。固定 `29f6d1383e` 的205文件包回归已结束：202通过，desktop-tui/verify-release-versions因退役 Feed 版本例外失败，editor-control-names因旧控件对象读取失败；日志 `/tmp/quality-audit-feed-onboarding-required.log`。后者已在主干整合批修夹具并通过23项，前两项待已提交的门禁删除审批。旧运行不能记全绿，也不能挪作新头证据。
 
-仍在本轮：Git 冲突主区与迟到审查反馈 QF-23/46、平台候选/后台入口的余下深查及处置、资源和最终准确提交的 Full CI。QF-15 固定版本警告迁移及 Feed 废弃版本例外删除有具体方案待既有批准请求回复；不阻断其他工作。用户已明确延后的 PF-03 第三个会话记忆消费者条件保留，不报告为已平台化。旧头 `77e2cc0d5` 的 CI 只覆盖旧批次。草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) · [需求与验收](spec.md) · [逐包覆盖](coverage.md)。
+Git 冲突主区及迟到反馈 QF-23/46 已保存于 `ff006e19f0`，冻结该头的11文件109项全部通过（`/tmp/quality-audit-git-frozen-acceptance.log`）；认可正文 QF-49 保存于 `b82dd631b3`，2文件7项通过。仍在本轮：自动采集钥匙串 QF-50、Inbox 阻塞的现行复测和处置、平台候选/后台入口的余下深查、资源和最终准确提交的 Full CI。QF-15 固定版本警告迁移及 Feed 废弃版本例外删除有具体方案待既有批准请求回复；不阻断其他工作。用户已明确延后的 PF-03 第三个会话记忆消费者条件保留，不报告为已平台化。旧头 `77e2cc0d5` 的 CI 只覆盖旧批次。草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) · [需求与验收](spec.md) · [逐包覆盖](coverage.md)。
 
 以下按发现保留代码依据与逐批证据；带旧基线的历史记录不表示当前状态。
 ## 早期批次判断与依据（历史基线）
@@ -617,9 +617,9 @@ QEA-72追加消费者：Issues与Alchemist分别通过真实Host创建→正常o
 
 `apps/workbench/src/scripts/context-onboarding.ts:745-747`手动禁用按钮，finally只render；`:403-409`缓存HTML相同就跳过绘制，无法恢复手动修改的disabled。`:385`的reselect视图未显示本次error。正常按钮→真实SQLite拒绝→HTTP400后，busy=false、按钮仍禁用、当前错误缺席；用户必须刷新才能再试。正常创建对照通过。拟将临时禁用在原finally配对恢复，再由视图决定最终状态，并以现有errorLine展示失败。属于页面行为与绘制缓存的职责问题，不新增持久状态/重试器。QEA-76最终验收待完成。
 
-### QF-46 / P2：Git前一个文件的迟到审查回执隐藏后来文件的操作（已复现，未实施）
+### QF-46 / P2：Git前一个文件的迟到审查回执隐藏后来文件的操作（已实施，本地验收通过）
 
-`plugins/native/git/src/browser/diff.ts:74-93`的prepareIndex只核工作区generation；返回/切文件只改变ticket，旧回执仍写共享action.hidden和diffNotice。正常独立Git与Coding嵌入入口：文件A发起暂存审查→持有真实成功回执→返回列表→打开B→释放A，B标题仍正确但暂存按钮被隐藏（`/tmp/quality-audit-git-result-owner-baseline2.log`，两个消费者均复现）。没有批准、index未变。处置：展示反馈绑定原结果选择；后台审查事实仍保留，明确打开原结果可查看。随QF-23统一Git主结果区域归属和迟到读写验收，不在Host按插件特判。成本中，QEA-78待实施。
+`plugins/native/git/src/browser/diff.ts:74-93`的prepareIndex只核工作区generation；返回/切文件只改变ticket，旧回执仍写共享action.hidden和diffNotice。正常独立Git与Coding嵌入入口：文件A发起暂存审查→持有真实成功回执→返回列表→打开B→释放A，B标题仍正确但暂存按钮被隐藏（`/tmp/quality-audit-git-result-owner-baseline2.log`，两个消费者均复现）。没有批准、index未变。处置：展示反馈绑定原结果选择；后台审查事实仍保留，明确打开原结果可查看。随QF-23统一Git主结果区域归属和迟到读写验收，不在Host按插件特判。成本中，QEA-78已实施；最终冻结头11文件109项通过，当前头CI另验。
 
 PF-05再次核对：`packages/contracts/src/platform/settings.ts:58`仍明确无仓内设置声明owner，SDK `sandbox-agent-declarations.ts:51`仍拒绝签名包的未接通设置。`BL-settings-sandbox-execution`记录的是尚缺安装私有库内同步owner事务/持久回执，路线书38-1负责现有配置采用，44-6负责公共设置呈现；它们不是重复或已完成BL，不能因为合同/SDK单测存在而清理。需要先选真实owner设置迁移、保留同事务CAS/回执/回读与撤权，再核签包执行，未用本轮审查替代该产品实现。
 
@@ -649,12 +649,16 @@ QF-47最终健康门禁退出0（`/tmp/quality-audit-surface-health-final.log`�
 
 PF-04 进一步沿实际入口核对：`context-onboarding-actions.ts:40` 的 start 是 Home scope，`context-onboarding-service.ts:60–64` 的 running/controllers 只是单宿主执行与取消索引，持久事实由 ContextJourneyStore 保存；`readContextJourney` 对重启后失去执行者的 reading/adopting 转为可继续的失败。`web-context-onboarding.ts:24` 的正常入口通过 latestIncomplete 提供续办。现行 `home-aggregate.ts:57` 仅枚举 openProjects，`contracts/services/mainline.ts:34` 的任务行必须有 project_id；项目尚未创建的整理不会因多声明一个项目 provider 就被发现。故原“接 background_tasks/reports_to 即可”的表述不足：该候选须补 Home scope 的发现、归属及目标定位，再让 Onboarding 按原旅程事实投影，禁止借假项目、复制 phase 或给聚合器加 Onboarding 名单。用户影响是离开引导后少一个统一任务入口，并非整理停止或记录丢失；本轮已修的重选/失败恢复与它分别验收。BL-107（Home 引导接续）和 BL-work-line-background-provider-gaps（Alchemist/平台后台作业）不是重复项，仍有不同生产 owner 与 scope 缺口，不可一并清理。PF-05 同样保留已明确后续的沙箱 owner 事务执行要求，不能把当前入口拒绝当作过度防御删除。
 
-**QF-50/P1 已复现、待实施：自动观测把本地只读操作变成钥匙串访问。** 入口是 `tests/secret-store-keychain-retry.test.ts:198–233` 的真实 Host/HTTP/新鲜 MCP Functions list/describe。在 `project-host.ts:565` close 时，`horizontal/observation/src/writer.ts:156` 解析证据，`keys.ts:30` 主动创建摘要密钥，`packages/storage/src/adapters/file-secret-store.ts:688` 开原密钥库，触发 Keychain；3进程各一次。临时仅写调用栈证实此链，已移除注入，没有记录参数或密钥。不是本地 Functions 业务需要凭据。处置按 spec §39 提供 Storage 原事实源上的非交互访问给自动采集，按现有缺失合同保留元数据；显式业务/证据解封仍正常请求凭据。摘要不可得时 writer 的 coalesce 不能用空摘要误并不同输入，须配对验证。自动采集不得创建替代 key、绕过 HMAC、污染真实钥匙串失败缓存。
+**QF-50/P1 已实施、定向验收中：自动观测把本地只读操作变成钥匙串访问。** 入口是 `tests/secret-store-keychain-retry.test.ts:198–233` 的真实 Host/HTTP/新鲜 MCP Functions list/describe。在 `project-host.ts:565` close 时，`horizontal/observation/src/writer.ts:156` 解析证据，`keys.ts:30` 主动创建摘要密钥，`packages/storage/src/adapters/file-secret-store.ts:688` 开原密钥库，触发 Keychain；3进程各一次。临时仅写调用栈证实此链，已移除注入，没有记录参数或密钥。不是本地 Functions 业务需要凭据。处置按 spec §39 提供 Storage 原事实源上的非交互访问给自动采集，按现有缺失合同保留元数据；显式业务/证据解封仍正常请求凭据。摘要不可得时 writer 的 coalesce 不能用空摘要误并不同输入，须配对验证。自动采集不得创建替代 key、绕过 HMAC、污染真实钥匙串失败缓存。
 
-第三十三批 Git 实施结果（QF-23/46，最终包验收进行中）：`plugins/native/git/src/ui.ts` 将原冲突编辑、磁盘对照及草稿错误/重试移入现有 result；Git 与 Coding 实际挂载共用客户端。`browser/result-selection.ts` 一份选择管理 diff/conflict/history/review，替代 displayed/preparing/conflictPath 及分散 ticket；目录 generation 只管目录读取。prepareIndex 的 ready/waiting/review 由可辨识类型约束，waiting/review 必有 operationId，review 必有 reviewId，未知回执显式重试用原 ID，已知审查的显示失败只读。`results.ts` 的列表应用保留当前选择，save 按原工作区和审查结算，错误不串到后来行；`source.ts` 读取实际 owner 回执后反馈与清草稿，不以通知状态冒充成功。离开/隐藏统一收起主结果，重新进入可正常选文件、重开固定 diff 与保存的草稿；同目录 refresh 不等于离开。
+第三十三批 Git 实施结果（QF-23/46，本地最终包验收通过）：`plugins/native/git/src/ui.ts` 将原冲突编辑、磁盘对照及草稿错误/重试移入现有 result；Git 与 Coding 实际挂载共用客户端。`browser/result-selection.ts` 一份选择管理 diff/conflict/history/review，替代 displayed/preparing/conflictPath 及分散 ticket；目录 generation 只管目录读取。prepareIndex 的 ready/waiting/review 由可辨识类型约束，waiting/review 必有 operationId，review 必有 reviewId，未知回执显式重试用原 ID，已知审查的显示失败只读。`results.ts` 的列表应用保留当前选择，save 按原工作区和审查结算，错误不串到后来行；`source.ts` 读取实际 owner 回执后反馈与清草稿，不以通知状态冒充成功。离开/隐藏统一收起主结果，重新进入可正常选文件、重开固定 diff 与保存的草稿；同目录 refresh 不等于离开。
 
 真实入口当前22/22通过（`/tmp/quality-audit-git-result-acceptance.log`）：两个入口各覆盖旧成功/失败、同ID重试只留一条待审且批准后实际暂存；历史读取/保存有真实交错与固定成果回读；拒绝、磁盘变化、后写草稿、缓存读失败重试及成功清理保留。两入口三宽两主题12截图已生成，root实看1440浅色Git与390深色Coding的原稿/当前磁盘/动作。第二轮20/22中的两个失败为测试误把未解决冲突文件当作可暂存diff，生产按原合同拒绝；夹具先结束原合并再建立普通改动，最终两项正常导航已过。原必跑列表及新增已知review展示失败用例仍在跑，不以22项当整批/整项验收。
 
-Git 收尾复核的两个窗口已以正常入口动态证实并修复：打开历史再返回的目录选择不复用 null，设为输出成功后的回调再次核原选择。基线4/4失败，修复后4/4通过（`/tmp/quality-audit-git-final-windows-fixed.log`），原审查依然仅一条且批准后实际提交；权限回执不再额外准备B的审查，也不重开A。第五次完整构建和最终健康门禁通过（`/tmp/quality-audit-git-result-build5.log`、`/tmp/quality-audit-git-result-health-final.log`）。此前11文件105项全过是尾部修复前的证据；检查点保存后将固定该头重跑11文件，以最终结果收口本批。
+Git 收尾复核的两个窗口已以正常入口动态证实并修复：打开历史再返回的目录选择不复用 null，设为输出成功后的回调再次核原选择。基线4/4失败，修复后4/4通过（`/tmp/quality-audit-git-final-windows-fixed.log`），原审查依然仅一条且批准后实际提交；权限回执不再额外准备B的审查，也不重开A。第五次完整构建和最终健康门禁通过（`/tmp/quality-audit-git-result-build5.log`、`/tmp/quality-audit-git-result-health-final.log`）。此前11文件105项全过是尾部修复前的证据；最终固定 `ff006e19f0` 已重跑11文件109项全过，日志 `/tmp/quality-audit-git-frozen-acceptance.log`。资源与最终整合头CI仍独立核对。
 
 第三十八批QEA-87：完整构建通过，认可栏与工作事件真实入口2文件7项通过（`/tmp/quality-audit-acceptance-text-ui.log`）。实际requirements/decide/read验证长要求、含连续长路径的退回理由及保存后的历史；1440中文/390英文均检查正文真实换行、字形范围不被元素裁切、原认可/退回/改要求与按钮触达。核验observed从title移到已有说明行直接显示，既有机器/本人状态不变。root实看1440首屏及390长理由/展开历史截图：用户不必进入编辑或依赖悬停才能读完整依据。机器检查证据仍为受控种子，只证明页面与决定写入，不冒称真实外部工程检查。最终资源/共享核心CI仍待完成。
+
+QEA-88/89 本地结果：完整构建通过；10个相关文件合计73项已有通过证据。首轮9/10文件通过，新增真实Host解封用例误用本人的页面query，其结果按OCL-11只保摘要，断言被正确拒绝；改用真实MCP读取产生密文、本人公开evidence.get解封后，密钥文件整文件14/14通过（`/tmp/quality-audit-key-host-recovery.log`），其余9文件59项原通过结果保留（`/tmp/quality-audit-passive-key-acceptance.log`）。三个新鲜MCP进程的6条记录各自保留、零security访问；实际Functions调用失败仅一次原钥匙访问；同进程显式解封后新记录恢复加密，旧missing记录不改写。env/file/keychain三种原backend、无替代钥匙、用途/跨项目拒绝均已验。未知摘要误合并的旧构建反例1≠2已转通过（`/tmp/quality-audit-observation-digest-baseline.log`）。公开API生成无差异（Storage不在contracts/SDK快照范围）；健康、包要求剩余与最终CI分别结算。
+
+QF-50最终健康门禁退出0（`/tmp/quality-audit-passive-key-health.log`），无门禁阈值调整；完整包要求和最终Full CI继续。

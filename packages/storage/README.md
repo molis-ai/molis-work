@@ -186,3 +186,5 @@ Memory recordUses 的批量 SQL 仍属于原同步 BEGIN IMMEDIATE 事务：有�
 `createAggregateCopy` 为原 owner 声明的保存图提供独立复制入口；源接口可在本地空间只读导出，不取得个人同步准入，目标仅向当前个人空间创建。owner 明确声明 copy kind、依赖及 JSON 引用重映射；普通正文不搜索 ID。根记录和全局子记录建立新标识，完整答卷、保存版本及终态对话保留。目标相同结果重试不重复导入，已编辑目标拒绝覆盖，最终撤权回滚业务与日志。此接口不是整项目复制用户入口，项目编排及其他 owner 尚在实现。
 
 `hasReplicaHistory` 只检查技术日志；副本当前不存在但已有删除/替换历史时，复制重试必须拒绝重新创建。
+
+自动记录等被动服务可给 `createLazyFileSecretStore(home, { keychain: "cached" })`（或原立即工厂同一选项）：复用该Home已有的解锁缓存，env/file后端仍按原规则读写；未解锁的Keychain在系统访问前明确拒绝，新Home也不因此改选file。该拒绝不是一次Keychain故障，不污染失败缓存；后续真正需要凭据的操作仍可按原模式访问，成功后被动服务复用同一缓存。Observation的digest/seal使用此模式，明确证据解封仍使用原模式。

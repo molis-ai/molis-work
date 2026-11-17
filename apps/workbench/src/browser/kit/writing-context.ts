@@ -13,9 +13,18 @@ export type WritingFocus = "au" | "au-error" | "au-failure" | "au-applies" | "au
 export type SkillEntry = Extract<KitEntry, { kind: "skill" }>;
 export type FieldName = Exclude<keyof Fields, "applies_to">;
 
+/** The settings shell owns the loaded page's address and the lifetime of its cached editor. */
+export interface KitSettingsPage {
+  address(): URL;
+  replace(next: URL, options?: { history: "replace" }): void;
+  retain(lifetime: { beforeReplace(): Promise<boolean>; dispose(): void }): void;
+}
+
 export interface WritingPage {
   root: HTMLElement;
   project: string;
+  address: Pick<KitSettingsPage, "address" | "replace">;
+  active(): boolean;
   view: View;
   kit(): Kit | undefined;
   load(): Promise<void>;
@@ -51,7 +60,7 @@ export function writingContext(page: WritingPage): WritingContext {
   const skills = () => (page.kit()?.catalog.entries ?? []).flatMap(entry => entry.kind === "skill" ? [entry] : []);
   const ownSkills = (scope: SkillScope) => skills().filter(entry => isMine(entry.skill) && entry.skill.pack.scope === scope);
   const context: WritingContext = {
-    root, project, view: page.view, kit: () => page.kit(), load: () => page.load(), draw: focus => page.draw(focus), say: (text, tone, next) => page.say(text, tone, next), show: entry => page.show(entry),
+    root, project, address: page.address, active: page.active, view: page.view, kit: () => page.kit(), load: () => page.load(), draw: focus => page.draw(focus), say: (text, tone, next) => page.say(text, tone, next), show: entry => page.show(entry),
     limits: JSON.parse(root.dataset.skillLimits ?? "{}") as SkillWritingLimits, pageScope: project ? "project" : "home",
     isMine, skills, ownSkills,
     skillOf: key => { const entry = key ? page.kit()?.byKey.get(key) : undefined; return entry?.kind === "skill" ? entry : undefined; },

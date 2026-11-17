@@ -2,7 +2,7 @@ import type { SkillScope } from "@molis-ai/molis-work-contracts/services/skills"
 import { askingMarkup, draftFromSentence } from "./authoring.js";
 import { draftEditing, type DraftEditing } from "./draft-editing.js";
 import { draftTurns, type DraftTurns } from "./draft-turns.js";
-import { listDrafts, messageOf } from "./drafts.js";
+import { listDrafts, messageOf, readDraft } from "./drafts.js";
 import { skillActions } from "./skill-actions.js";
 import { writingContext, type WritingContext, type WritingPage } from "./writing-context.js";
 import { draftsStrip, workshopMarkup } from "./workshop.js";
@@ -28,7 +28,7 @@ function focusIn(body: HTMLElement, where?: string): void {
 }
 
 /** Typing, choices and forms inside the sentence before a new Skill and inside an open draft. */
-function listen(c: WritingContext, edit: DraftEditing, turns: DraftTurns): void {
+function listen(c: WritingContext, edit: DraftEditing, turns: DraftTurns): () => void {
   const { root, view, say } = c;
   root.addEventListener("input", event => {
     const target = event.target as HTMLInputElement | HTMLTextAreaElement, w = view.workshop;
@@ -64,13 +64,19 @@ function listen(c: WritingContext, edit: DraftEditing, turns: DraftTurns): void 
     void turns.run(view.workshop, "sk-confirm-back", undefined);
   });
   // Typed words remain ours until saved, including when the last request failed.
-  addEventListener("beforeunload", event => { if (root.isConnected && view.workshop && edit.pending()) event.preventDefault(); });
+  const protect = (event: BeforeUnloadEvent) => { if (view.workshop && edit.pending()) event.preventDefault(); };
+  addEventListener("beforeunload", protect);
+  return () => removeEventListener("beforeunload", protect);
 }
 
 export function skillWriting(page: WritingPage) {
-  const c = writingContext(page), { root, project, view, draw, say } = c;
+  const c = writingContext(page), { project, view, draw, say } = c;
   const edit = draftEditing(c), turns = draftTurns(c, edit), skill = skillActions(c, edit);
-  listen(c, edit, turns);
+  const dispose = listen(c, edit, turns);
+  const address = c.address.address();
+  let addressedDraft = address.searchParams.get("draft");
+  // Consume the current place before any read can finish after a category switch.
+  if (addressedDraft) { address.searchParams.delete("draft"); c.address.replace(address, { history: "replace" }); }
 
   /** The sentence before a new Skill: draft from it, write it oneself, or leave it. */
   async function fromSentence(name: string, value: string | undefined): Promise<void> {
@@ -96,6 +102,7 @@ export function skillWriting(page: WritingPage) {
    * as written, so leaving it loses nothing) and then left.
    */
   function holds(name: string, go: () => void): boolean {
+    if (name !== "retry") addressedDraft = null;
     const opensAnother = ["skill-new", "skill-edit", "skill-copy", "skill-delete", "sk-open", "sk-undiscard", "au-undelete", "sk-version-restore", "sk-up-take"].includes(name);
     if (!opensAnother && (name.startsWith("au-") || name.startsWith("sk-") || name.startsWith("skill-"))) return false;
     if (view.asking && !view.asking.busy) view.asking = undefined;
@@ -107,18 +114,21 @@ export function skillWriting(page: WritingPage) {
 
   /** A draft named in the address (a receipt's 「打开草稿」 link) opens once the page has read the kit. */
   async function fromAddress(): Promise<void> {
-    c.drafts = await listDrafts(project).catch(() => []);
-    // Inside the workbench's settings the page's own address is kept on the panel it was loaded into, not in the location.
-    const holder = root.closest<HTMLElement>("[data-settings-search]"), asked = new URLSearchParams(holder ? holder.dataset.settingsSearch : location.search);
-    const named = asked.get("draft");
-    if (!named) return draw();
-    asked.delete("draft");
-    if (holder) holder.dataset.settingsSearch = asked.size ? `?${asked}` : "";
-    else { const url = new URL(location.href); url.searchParams.delete("draft"); history.replaceState(history.state, "", url); }
-    await edit.openDraft(named).catch(cause => { draw(); say(messageOf(cause), "danger"); });
+    const drafts = await listDrafts(project).catch(() => []);
+    if (!c.active()) return;
+    c.drafts = drafts;
+    const named = addressedDraft;
+    if (!named) { if (!view.workshop && !view.asking) draw(); return; }
+    try {
+      const draft = await readDraft(project, named);
+      if (c.active() && addressedDraft === named) { addressedDraft = null; edit.opened(draft); }
+    } catch (cause) {
+      if (c.active() && addressedDraft === named) { addressedDraft = null; draw(); say(messageOf(cause), "danger"); }
+    }
   }
 
   return {
+    beforeReplace: () => edit.flush(), dispose,
     isMine: c.isMine, run, holds, focus: focusIn, decorate: skill.decorate, fromAddress,
     strip: () => draftsStrip(c.drafts),
     asking: () => view.asking && askingMarkup(view.asking, c.limits, Boolean(project)),

@@ -8,26 +8,264 @@ import type { SkillDraft } from "@molis-ai/molis-work-contracts/services/skills"
 import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
-async function editor(t: TestContext) {
+async function skillHome(t: TestContext, home = false) {
   const directory = await mkdtemp(join(tmpdir(), "quality-skill-save-"));
   let browser: ChromeHarness | undefined;
   t.after(async () => { try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); } });
-  const f = await serveHomeRuntime(t), project = await f.project("草稿保存恢复");
+  const f = await serveHomeRuntime(t), project = home ? undefined : await f.project("草稿保存恢复");
+  const prefix = project ? `/projects/${project.project_id}` : "";
   const api = async <Result = SkillDraft>(path: string, body: object) => {
-    const response = await f.request(`/projects/${project.project_id}/api/skills/drafts/${path}`, { method: "POST", body });
+    const response = await f.request(`${prefix}/api/skills/drafts/${path}`, { method: "POST", body });
     assert.equal(response.status, 200, await response.clone().text());
     return await response.json() as Result;
   };
-  const draft = await api("create", { scope: "project", target: { kind: "new" }, fields: {
+  const draft = await api("create", { scope: home ? "home" : "project", target: { kind: "new" }, fields: {
     name: "保存恢复", description: "整理记录时使用。", applies_to: "assistant", body: "# 原正文\n\n整理记录。",
   } });
   browser = await ChromeHarness.start(directory, { executable: requiredHeadlessTestBrowser() });
   const page = await browser.page();
   await page.command("Runtime.enable");
-  await page.command("Page.navigate", { url: `${f.origin}/projects/${project.project_id}/settings/kit?draft=${draft.draft_id}` });
-  await page.wait("!!document.querySelector('[data-sk-work]')");
-  return { page, api, draft };
+  await page.command("Page.enable");
+  await page.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  const address = `${prefix}/settings/kit?draft=${draft.draft_id}`;
+  return { page, api, draft, browser, address, origin: f.origin, projectId: project?.project_id };
 }
+
+async function editor(t: TestContext, cover = false) {
+  const f = await skillHome(t);
+  await f.page.command("Page.navigate", { url: f.origin + (cover ? `/projects/${f.projectId}/?settingsPath=${encodeURIComponent(f.address)}` : f.address) });
+  const { page } = f;
+  await page.wait("!!document.querySelector('[data-sk-work]')");
+  return f;
+}
+
+test("QEA-110 a cached Skill editor retains failed input and window-close protection across settings categories", { timeout: 120_000 }, async t => {
+  const { page, api, draft } = await editor(t, true);
+  await page.evaluate("window.__qeaRetained = document.querySelector('[data-sk-work]')");
+  await page.click('[data-directory-panel="project-settings"] [data-settings-section="general"]');
+  await page.wait("!!document.querySelector('[data-settings-panel=general]')");
+  await page.click('[data-directory-panel="project-settings"] [data-settings-section="kit"]');
+  await page.wait("!!document.querySelector('[data-sk-work]')");
+  assert.equal(await page.evaluate("document.querySelector('[data-sk-work]') === window.__qeaRetained"), true,
+    "an ordinary category switch preserves the same editor, including before any save failure");
+  // The category places its scroll position on the next frame; finish that before the next pointer action scrolls to a field.
+  await page.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await page.evaluate(`(() => {
+    const original = window.fetch.bind(window);
+    window.__qeaSettingsSave = { fail: true };
+    window.fetch = (url, options) => String(url).endsWith('/api/skills/drafts/update') && window.__qeaSettingsSave.fail
+      ? Promise.resolve(new Response(JSON.stringify({ error: '保存暂不可用', code: 'fixture.unavailable' }), { status: 503, headers: { 'content-type': 'application/json' } }))
+      : original(url, options);
+  })()`);
+  const local = "# 切换设置后仍要保留的正文";
+  await page.fill('[data-au-field="body"]', local);
+  await page.wait("document.querySelector('[data-sk-bar]')?.innerText.includes('保存暂不可用')");
+  await page.click('[data-directory-panel="project-settings"] [data-settings-section="general"]');
+  await page.wait("!!document.querySelector('[data-settings-panel=general]') && !document.querySelector('[data-sk-work]')");
+  assert.equal(await page.evaluate("(() => { const event = new Event('beforeunload', { cancelable: true }); dispatchEvent(event); return event.defaultPrevented; })()"), true,
+    "a retained editor still owns its failed input while another settings category is shown");
+  await page.click('[data-directory-panel="project-settings"] [data-settings-section="kit"]');
+  await page.wait("!!document.querySelector('[data-sk-work]')");
+  assert.equal(await page.evaluate("document.querySelector('[data-au-field=body]')?.value"), local);
+  await page.click('[data-cover-close]');
+  await page.wait("!document.querySelector('[data-tab-workspace]').dataset.exclusive");
+  assert.equal(await page.evaluate("(() => { const event = new Event('beforeunload', { cancelable: true }); dispatchEvent(event); return event.defaultPrevented; })()"), true);
+  await page.click('[data-project-menu] summary');
+  await page.click('.navigator-project-settings');
+  await page.wait("document.querySelector('[data-tab-workspace]').dataset.exclusive === 'project-settings'");
+  await page.click('[data-directory-panel="project-settings"] [data-settings-section="kit"]');
+  await page.wait("!!document.querySelector('[data-sk-work]')");
+  assert.equal(await page.evaluate("document.querySelector('[data-au-field=body]')?.value"), local, "closing the cover retains its unsaved editor");
+  assert.equal((await api("read", { draft_id: draft.draft_id })).revision, draft.revision);
+  await page.evaluate("window.__qeaSettingsSave.fail = false");
+  await page.click('[data-kit-act="sk-close"]');
+  await page.wait("!document.querySelector('[data-sk-work]')");
+  const saved = await api("read", { draft_id: draft.draft_id });
+  assert.equal(saved.fields.body, local);
+  assert.equal(saved.revision, draft.revision + 1);
+  assert.equal(await page.evaluate("(() => { const event = new Event('beforeunload', { cancelable: true }); dispatchEvent(event); return event.defaultPrevented; })()"), false);
+});
+
+test("QEA-111 a consumed draft address does not reopen it through settings history", { timeout: 120_000 }, async t => {
+  const { page, api, draft, browser } = await editor(t, true);
+  await page.click('[data-kit-act="sk-close"]');
+  await page.wait("!document.querySelector('[data-sk-work]')");
+  await page.click('[data-directory-panel="project-settings"] [data-settings-section="general"]');
+  await page.wait("!!document.querySelector('[data-settings-panel=general]')");
+  await page.click('[data-workspace-history="back"]');
+  await page.wait(`!!document.querySelector('[data-sk-work], [data-kit-act="sk-open"][data-kit-v="${draft.draft_id}"]')`);
+  assert.equal(await page.evaluate("!!document.querySelector('[data-sk-work]')"), false, "Back returns to the kit without replaying the consumed draft address");
+  await page.click('[data-workspace-history="forward"]');
+  await page.wait("!!document.querySelector('[data-settings-panel=general]')");
+  await page.click('[data-workspace-history="back"]');
+  await page.wait(`!!document.querySelector('[data-kit-act="sk-open"][data-kit-v="${draft.draft_id}"]')`);
+  await page.click('[data-cover-close]');
+  await page.wait("!document.querySelector('[data-tab-workspace]').dataset.exclusive");
+  await page.click('[data-project-menu] summary');
+  await page.click('.navigator-project-settings');
+  await page.wait("document.querySelector('[data-tab-workspace]').dataset.exclusive === 'project-settings'");
+  await page.click('[data-directory-panel="project-settings"] [data-settings-section="kit"]');
+  await page.wait(`!!document.querySelector('[data-kit-act="sk-open"][data-kit-v="${draft.draft_id}"]')`);
+  await page.evaluate("window.__qeaBeforeReload = true");
+  await page.command("Page.enable");
+  const reloaded = browser.event("Page.loadEventFired");
+  await page.command("Page.reload");
+  await reloaded;
+  await page.wait(`!window.__qeaBeforeReload && !!document.querySelector('[data-kit-act="sk-open"][data-kit-v="${draft.draft_id}"]')`);
+  assert.equal(await page.evaluate("!!document.querySelector('[data-sk-work]')"), false, "reloading restores the consumed place, not its one-time draft link");
+  assert.equal((await api("read", { draft_id: draft.draft_id })).revision, draft.revision, "navigation does not mutate the retained draft");
+});
+
+for (const action of ["sk-adopt", "sk-discard"]) test(`QEA-111 settings history does not read a draft again after ${action}`, { timeout: 120_000, skip: action === "sk-adopt" && process.platform !== "darwin" }, async t => {
+  const { page, api } = await editor(t, true);
+  await page.click(`[data-kit-act="${action}"]`);
+  await page.wait("!document.querySelector('[data-sk-work]') && !document.querySelector('[data-kit-notice]').hidden");
+  assert.deepEqual((await api<{ drafts: unknown[] }>("list", {})).drafts, []);
+  await page.evaluate(`(() => { const original = window.fetch.bind(window); window.__qeaRetiredReads = 0;
+    window.fetch = (url, options) => { if (String(url).endsWith('/api/skills/drafts/read')) window.__qeaRetiredReads++; return original(url, options); };
+  })()`);
+  await page.click('[data-directory-panel="project-settings"] [data-settings-section="general"]');
+  await page.wait("!!document.querySelector('[data-settings-panel=general]')");
+  await page.click('[data-workspace-history="back"]');
+  await page.wait("!!document.querySelector('[data-kit-settings] [data-kit-body] .mw-list-detail')");
+  await page.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert.equal(await page.evaluate("window.__qeaRetiredReads"), 0);
+  assert.equal(await page.evaluate("!!document.querySelector('[data-sk-work]')"), false);
+});
+
+test("QEA-110 an explicit second draft address waits for the retained editor to save", { timeout: 120_000 }, async t => {
+  const { page, api, draft, projectId } = await editor(t, true);
+  const next = await api("create", { scope: "project", target: { kind: "new" }, fields: { ...draft.fields, name: "另一份草稿", body: "# 下一份正文" } });
+  await page.evaluate(`(() => {
+    const original = window.fetch.bind(window);
+    window.__qeaReplace = { fail: true, failures: 0 };
+    window.fetch = (url, options) => {
+      if (String(url).endsWith('/api/skills/drafts/update') && window.__qeaReplace.fail) {
+        window.__qeaReplace.failures++;
+        return Promise.resolve(new Response(JSON.stringify({ error: '保存暂不可用', code: 'fixture.unavailable' }), { status: 503, headers: { 'content-type': 'application/json' } }));
+      }
+      return original(url, options);
+    };
+  })()`);
+  const body = "# 必须先保存再换地址";
+  await page.fill('[data-au-field="body"]', body);
+  await page.wait("document.querySelector('[data-sk-bar]')?.innerText.includes('保存暂不可用')");
+  const failures = await page.evaluate<number>("window.__qeaReplace.failures");
+  const open = () => page.evaluate(`document.dispatchEvent(new CustomEvent('molis-work:open-settings-path', { detail: { href: ${JSON.stringify(`/projects/${projectId}/settings/kit?draft=${next.draft_id}`)} } }))`);
+  await open();
+  await page.wait(`window.__qeaReplace.failures > ${failures}`);
+  await page.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert.equal(await page.evaluate("document.querySelector('[data-au-field=body]')?.value"), body);
+  assert.equal((await api("read", { draft_id: draft.draft_id })).revision, draft.revision);
+  await page.evaluate("window.__qeaReplace.fail = false");
+  await open();
+  await page.wait(`document.querySelector('[data-au-field=body]')?.value === ${JSON.stringify(next.fields.body)}`);
+  const saved = await api("read", { draft_id: draft.draft_id });
+  assert.equal(saved.fields.body, body);
+  assert.equal(saved.revision, draft.revision + 1);
+  assert.equal((await api("read", { draft_id: next.draft_id })).revision, next.revision);
+  assert.equal(await page.evaluate("(() => { const event = new Event('beforeunload', { cancelable: true }); dispatchEvent(event); return event.defaultPrevented; })()"), false);
+});
+
+test("QEA-111 a late Kit program cannot take over the category opened while it loaded", { timeout: 120_000 }, async t => {
+  const { page, browser, address, origin, projectId, draft, api } = await skillHome(t);
+  await page.command("Fetch.enable", { patterns: [{ urlPattern: "*/assets/molis-work-kit.js", requestStage: "Response" }] });
+  const paused = browser.event("Fetch.requestPaused");
+  await page.command("Page.navigate", { url: `${origin}/projects/${projectId}/?settingsPath=${encodeURIComponent(address)}` });
+  const asset = await paused;
+  await page.click('[data-directory-panel="project-settings"] [data-settings-section="general"]');
+  await page.wait("!!document.querySelector('[data-settings-panel=general]')");
+  await page.command("Fetch.continueRequest", { requestId: asset.requestId });
+  await page.wait("typeof molisWorkBindKit === 'function'");
+  await page.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert.equal(await page.evaluate("document.querySelector('[data-settings-panel]')?.dataset.settingsPanel"), "general");
+  await page.click('[data-directory-panel="project-settings"] [data-settings-section="kit"]');
+  await page.wait(`!!document.querySelector('[data-kit-act="sk-open"][data-kit-v="${draft.draft_id}"]')`);
+  assert.equal(await page.evaluate("!!document.querySelector('[data-sk-work]')"), false, "the canceled address does not attach to a later ordinary category visit");
+  assert.equal((await api("read", { draft_id: draft.draft_id })).revision, draft.revision);
+  await page.command("Fetch.disable");
+});
+
+for (const cover of [false, true]) test(`QEA-111 a failed Kit asset can be retried from the ${cover ? "cover" : "standalone Home"} settings entry`, { timeout: 120_000 }, async t => {
+  const { page, browser, address, origin, projectId, draft, api } = await skillHome(t, !cover);
+  await page.command("Fetch.enable", { patterns: [{ urlPattern: "*/assets/molis-work-kit.js", requestStage: "Request" }] });
+  const first = browser.event("Fetch.requestPaused");
+  await page.command("Page.navigate", { url: origin + (cover ? `/projects/${projectId}/?settingsPath=${encodeURIComponent(address)}` : address) });
+  const failed = await first;
+  await page.command("Fetch.failRequest", { requestId: failed.requestId, errorReason: "ConnectionClosed" });
+  const retry = cover ? '[data-settings-loading][role="alert"] button' : '[data-kit-notice] button';
+  await page.wait(`!!document.querySelector(${JSON.stringify(retry)})`);
+  const second = browser.event("Fetch.requestPaused");
+  await page.click(retry);
+  const recovered = await second;
+  await page.command("Fetch.continueRequest", { requestId: recovered.requestId });
+  await page.wait(`document.querySelector('[data-au-field=body]')?.value === ${JSON.stringify(draft.fields.body)}`);
+  assert.equal((await api("read", { draft_id: draft.draft_id })).revision, draft.revision, "loading and retrying never writes the draft");
+  await page.command("Fetch.disable");
+});
+
+for (const read of ["kit/list", "skills/drafts/list"]) test(`QEA-111 a cached Kit finishes a late ${read} without replaying its consumed address`, { timeout: 120_000 }, async t => {
+  const { page, browser, address, origin, projectId, draft } = await skillHome(t);
+  await page.command("Fetch.enable", { patterns: [{ urlPattern: `*/api/${read}`, requestStage: "Response" }] });
+  const paused = browser.event("Fetch.requestPaused");
+  await page.command("Page.navigate", { url: `${origin}/projects/${projectId}/?settingsPath=${encodeURIComponent(address)}` });
+  const response = await paused;
+  await page.evaluate("window.__qeaLateKit = document.querySelector('[data-kit-settings]')");
+  await page.click('[data-directory-panel="project-settings"] [data-settings-section="general"]');
+  await page.wait("!!document.querySelector('[data-settings-panel=general]')");
+  await page.command("Fetch.continueRequest", { requestId: response.requestId });
+  await page.wait("!!window.__qeaLateKit.querySelector('[data-sk-work]')");
+  assert.equal(await page.evaluate("document.querySelector('[data-settings-panel]')?.dataset.settingsPanel"), "general", "a late retained read leaves the current category alone");
+  await page.click('[data-workspace-history="back"]');
+  await page.wait(`document.querySelector('[data-au-field=body]')?.value === ${JSON.stringify(draft.fields.body)}`);
+  assert.equal(await page.evaluate("document.querySelector('[data-kit-settings]') === window.__qeaLateKit"), true, "Back reuses the retained editor, not an old draft request");
+  await page.command("Fetch.disable");
+  await page.click('[data-kit-act="sk-close"]');
+  await page.wait("!document.querySelector('[data-sk-work]')");
+  await page.click('[data-directory-panel="project-settings"] [data-settings-section="general"]');
+  await page.wait("!!document.querySelector('[data-settings-panel=general]')");
+  await page.click('[data-workspace-history="back"]');
+  await page.wait(`!!document.querySelector('[data-kit-act="sk-open"][data-kit-v="${draft.draft_id}"]')`);
+  assert.equal(await page.evaluate("!!document.querySelector('[data-sk-work]')"), false);
+});
+
+for (const replace of [false, true]) test(`QEA-110 a late addressed draft cannot replace ${replace ? "a new settings controller" : "a newer editor in its controller"}`, { timeout: 120_000 }, async t => {
+  const { page, browser, address, origin, projectId, draft, api } = await skillHome(t);
+  await page.command("Network.enable");
+  await page.command("Fetch.enable", { patterns: [{ urlPattern: "*/api/skills/drafts/read", requestStage: "Response" }] });
+  const paused = browser.event("Fetch.requestPaused");
+  await page.command("Page.navigate", { url: `${origin}/projects/${projectId}/?settingsPath=${encodeURIComponent(address)}` });
+  const first = await paused;
+  await page.evaluate("window.__qeaOldController = document.querySelector('[data-kit-settings]')");
+  if (replace) {
+    const next = await api("create", { scope: "project", target: { kind: "new" }, fields: { ...draft.fields, body: "# 另一地址的正文" } });
+    const nextRead = browser.event("Fetch.requestPaused");
+    await page.evaluate(`document.dispatchEvent(new CustomEvent('molis-work:open-settings-path', { detail: { href: ${JSON.stringify(`/projects/${projectId}/settings/kit?draft=${next.draft_id}`)} } }))`);
+    const second = await nextRead;
+    await page.command("Fetch.continueRequest", { requestId: second.requestId });
+    await page.wait(`document.querySelector('[data-au-field=body]')?.value === ${JSON.stringify(next.fields.body)}`);
+  } else {
+    await page.click('[data-kit-act="skill-new"]');
+    await page.wait("!!document.querySelector('[data-kit-act=au-self]')");
+    await page.click('[data-kit-act="au-self"]');
+    await page.wait("!!document.querySelector('[data-sk-work]')");
+  }
+  const body = "# 后来的输入不能被旧链接覆盖";
+  await page.fill('[data-au-field="body"]', body);
+  const finished = browser.event("Network.loadingFinished", event => event.requestId === first.networkId);
+  await page.command("Fetch.continueRequest", { requestId: first.requestId });
+  await finished;
+  await page.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert.equal(await page.evaluate("document.querySelector('[data-au-field=body]')?.value"), body);
+  if (replace) assert.equal(await page.evaluate("!!window.__qeaOldController.querySelector('[data-sk-work]')"), false, "a disposed controller no longer applies its old response");
+  await page.command("Fetch.disable");
+  await page.click('[data-kit-act="sk-close"]');
+  await page.wait("!document.querySelector('[data-sk-work]')");
+  const listed = await api<{ drafts: Array<{ draft_id: string }> }>("list", {});
+  const newer = listed.drafts.find(item => item.draft_id !== draft.draft_id)!;
+  assert.equal((await api("read", { draft_id: newer.draft_id })).fields.body, body);
+  assert.equal((await api("read", { draft_id: draft.draft_id })).revision, draft.revision);
+});
 
 for (const leaving of ["sk-close", "skill-new"] as const) test(`QEA-101 failed Skill draft save retains typed input before ${leaving} and recovers once`, { timeout: 120_000 }, async t => {
   const { page, api, draft } = await editor(t);

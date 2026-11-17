@@ -40,6 +40,15 @@ export const note = (text: string) => `<p class="kit-note">${esc(text)}</p>`;
 /** What the page knows after one `kit.catalog.list`: the answer, each entry by key, and the derived facts every view uses. */
 export interface Kit { catalog: KitCatalog; byKey: Map<string, KitEntry> }
 export const kitOf = (catalog: KitCatalog): Kit => ({ catalog, byKey: new Map(catalog.entries.map(entry => [entry.key, entry])) });
+/** A link identifies the installed revision the person was shown, not a newer item with the same name. */
+export function linkedKitEntry(catalog: KitCatalog, link: URLSearchParams): KitEntry | undefined {
+  const install = link.get("install");
+  return catalog.entries.find(entry => entry.source.kind === "plugin" && entry.source.install_id === install
+    && (entry.kind === "skill" && entry.skill.ref.skill_id === link.get("skill")
+      && entry.skill.ref.installation_generation === link.get("generation") && String(entry.skill.ref.version) === link.get("version")
+      || entry.kind === "role" && entry.ref.kind === "plugin" && entry.ref.owner_id === link.get("owner")
+      && entry.ref.role_id === link.get("role") && entry.source.version === link.get("version")));
+}
 /** Apply only current display fields for the records this view already holds. */
 export function updateKitWords(kit: Kit, catalog: KitCatalog): void {
   const latest = kitOf(catalog);

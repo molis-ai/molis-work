@@ -197,7 +197,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
       closeCover: () => tabWorkspace?.closeCover?.(),
       openCover: (kind) => tabWorkspace?.openCover?.(kind),
-      noteCover: (kind, place) => tabWorkspace?.noteCover?.(kind, place),
+      noteCover: (kind, place, replace) => tabWorkspace?.noteCover?.(kind, place, replace),
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
       hideDirectory: () => immersiveNavigation?.hideDirectory(),
       showToast,

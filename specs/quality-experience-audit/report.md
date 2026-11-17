@@ -1,5 +1,7 @@
 # Molis Work 审查报告与优化策略
 
+第49批本地验收完成：Settings统一维护缓存页地址与实际释放，Kit同步消费一次性草稿链接；暂时隐藏保留未存输入和在途读取，实际替换前保存，保存失败继续显示原输入，迟到的旧地址读取不覆盖新内容。组合27文件215项通过，最终完整构建/API零差异/健康通过，只读窄复核无剩余Blocker/P1。详见QF-56。Home回执链接、QF-51性能、平台候选及最终资源/CI仍未结算。
+
 第48批已收回Sessions的非必要浏览器代码：`apps/workbench/src/sessions/ui.ts:24` 用现行合同生成搜索框maxlength，`browser/sessions/client.ts:2` 回到类型导入。正式Host脚本67,374→49,185 B，减少18,189 B；相比同一main只增2,020 B。用户少下载/执行一份服务动作初始化，浏览器不再为一个静态输入约束承担服务声明装配；搜索、分页、取消、权限与提示规则保留。构建/健康、5文件50项通过，含14项真实Chrome路径；资源总策略与首屏仍须最终头验收。日志 `quality-audit-sessions-size-assets.json`、`quality-audit-sessions-size-acceptance.log`、`quality-audit-sessions-size-boundary.log`；前一测试命令含一个误写的不存在文件，未计成功。
 
 固定b63f404345的86文件包要求完整结算85通过/1失败（版本文件）。第47批已在受影响定向验证中消除其中的新基线声明错误，剩余Feed退役例外待批准。此证据不等于最终头全部通过；原任务仍有QF-51后台刷新、设置深链/输入保护、平台候选和最终CI等未完成项。
@@ -752,3 +754,24 @@ QF-51追加根因与处置：收窄目录后CPU采样仍指向项目归属/常�
 第46批定向结算：完整构建通过；16文件185项先通过（`/tmp/quality-audit-skill-owner-acceptance.log`），增加QEA-107及修复后，受影响3文件33项补过（`/tmp/quality-audit-skill-owner-final.log`），组合覆盖16文件189项。含正常Skill完整UI、6项UI恢复、Home真实安装/升级、签名/权限、Runtime回滚、实际HTTP取消、所有草稿写入口、SQL拒绝及明确重试。API只新增`skills.draft_adopting`错误码（现有conflict分类），无库结构、状态枚举或动作输入输出变更。只读复核先指出两处缺口，均取得反证并修复；末次窄复核无新增Blocker/P1。最终健康、整合头CI、资源与原QF-51性能继续，不能据此关闭整项。
 
 第46批最终健康通过：`/tmp/quality-audit-skill-owner-health-tracked.log`，新增生命周期测试已纳入索引。初次门禁指出第45批测试里的两次双重强转，现由同一个泛型HTTP助手正确声明各响应类型；不改测试运行、不放宽门禁。所有本次模型/安装等待在Home fixture之前注册清理，正常、失败与取消都释放；原finally仍等待请求结算。
+
+### QF-56 / P1–P2：设置页地址和缓存寿命失配，旧草稿读取覆盖新输入
+
+下表源码位置均相对 `apps/workbench/src/`。
+
+真实链为草稿回执链接/工作台设置分类/前进后退 → Settings 缓存与地址端口 → Kit 初始化、草稿编辑 → 原草稿动作和 SQLite → 原编辑器的保存反馈。地址与历史归 Settings/工作台，待打开意图及编辑输入归 Kit，正式草稿及修订仍归 Skills；没有增加存储或第二份保存状态。
+
+| 问题与具体位置 | 用户影响与反证 | 处置及依据 |
+| --- | --- | --- |
+| `browser/kit/writing.ts:67` 原关闭保护只看 `root.isConnected`，Settings 分类切换却把根保留在缓存、暂时移出DOM | 保存失败后切另一分类，窗口关闭不再受保护；QEA-110旧实现实际 `false≠true`，原库仍是旧正文 | 保护条件继续来自原 `edit.pending`。`scripts/client/settings-directory.ts:73,226` 登记替换前保存与销毁，普通隐藏保留；真正替换前保存失败则回到原编辑器，成功替换才移除窗口监听。迁移成本中，现有page端口内完成。 |
+| `browser/kit/writing.ts:76` 原只改 `settingsSearch`；`settings-directory.ts:75` 的source/address、遮罩历史仍留draft | 关闭编辑器后后退再次打开；QEA-111旧实现 `true≠false`。失效链接还可能造成“草稿不在了”假警告 | 地址owner同步所有表示，消费替换当前历史位置。Kit在首次挂载、任何await之前消费一次性参数；比较分类身份时排除仅用于响应布局的embed参数。删除私改镜像和两处提前丢缓存；不新增确认。 |
+| `browser/kit/page.ts:30,165` 原目录回执以脱离DOM为失效，而返回缓存只看语言，不续初始化 | 持有真实`kit/list`响应→切General→放行，原缓存永久读取。持有草稿list响应也留下旧历史入口 | 缓存控制器继续接收已发读取；同一`disposed`事实只由Settings真正替换触发。目录、草稿和绘制据此拒收淘汰后的结果，不给导航另加一份初始化状态机。 |
+| `browser/kit/writing.ts:117` 原地址读取等待后直接openDraft | 持有实际draft/read→正常新建并输入→释放，后来的正文变回原正文；原已释放根仍被装回旧编辑器。`quality-audit-settings-owner-late-baseline3.log` 两条有效失败 | 原地址意图在本人后续操作时撤销；读取成功/失败均核原ID与同一控制器存活事实，再打开或显示错误。旧回执不再覆盖新操作，不作重试或拿新修订强存。 |
+
+六方向归类：①实际缓存寿命替代DOM连接隐式状态；②移除错误的连接防御及重复重载，保留真实替换前保存；③减少重开草稿、重输正文和无法恢复的读取态；④删除地址镜像写入和提前清缓存路径；⑤地址、缓存、编辑和持久化分别归原owner；⑥替换/释放属于Settings已有page端口，即使目前只有Kit登记编辑器也应由缓存owner兑现，未新增Skill专用导航服务。其他连接设置、MCP、Functions的page.replace保持默认历史语义，正在回归实际调用方。
+
+当前证据：完整构建4/API零差异，16项真实Chrome恢复与迟到场景通过（`quality-audit-settings-owner-recovery-final.log`，含10项新增和6项原回归）；只读窄复核无剩余Blocker/P1。资源失败/重试覆盖项目cover和无项目Home独立页。原草稿恢复后仅一次成功修订，新输入实存、旧草稿不额外修改。26文件调用方/包要求、采用/放弃后的返回、健康正在结算。初次点击命中失败由缓存页下一帧scroll reset尚未完成、项目菜单未打开引起，改测试等待真实页面帧并经菜单点击；整页重载等Page加载事件，保留命中/原数据断言。两次不工作的回执观察旗标不计反证，改为实际网络响应完成；临时诊断已移除。
+
+BL-b42-followups③只处理了项目/独立页的地址消费与缓存恢复；Home公开动作回执缺少草稿入口仍待补合同，不关闭整条BL。其他条目、真实模型/本人验收及整项任务的最终资源/CI也不能由本批替代。
+
+最终结算：26文件197项调用方与Workbench要求通过（`quality-audit-settings-owner-acceptance.log`）；保持语义提取目录匹配后，最终构建通过、Skill创作与恢复2文件19项复验通过（`quality-audit-settings-owner-extraction-final.log`），去重组合27文件215项。健康通过（`quality-audit-settings-owner-health-final.log`），mountKit精确巨大单元记录155→153，无脚本或阈值放宽；首次158行失败记录保留。API零差异。覆盖实际Home持久化、失败/重试、采用/放弃、缓存/历史及资源加载，不替代Home动作回执链接、真实模型质量或最终头CI。

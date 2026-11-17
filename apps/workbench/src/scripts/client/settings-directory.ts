@@ -70,13 +70,23 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const keptHash = (hash, section) => !hash ? "" : (declared(ADDRESS_HASHES, section) + " " + addressOf(section).hash).split(" ").includes(hash) || (section === PROJECT_ID_HASH_SECTION && /^#[A-Za-z0-9][A-Za-z0-9._~-]{0,199}$/u.test(hash)) ? hash : "";
   const keptAddress = (url, defaults, extras, section) => keptQuery(url.search, defaults, extras, section) + keptHash(url.hash, section);
   const CAPABILITY_SECTIONS = ["library", "connections", "access", "history"];
-  const pageOf = (root) => ({
+  const retained = new WeakMap();
+  const disposePage = (root) => { retained.get(root)?.dispose(); retained.delete(root); };
+  const pageOf = (root, options) => ({
     address: () => new URL(root.dataset.settingsSource || location.href, location.origin),
-    replace: (next) => {
+    replace: (next, change) => {
       const path = next.pathname + next.search + next.hash;
       root.dataset.settingsSource = path;
-      const kind = root.closest("[data-work-surface]")?.dataset.workSurface;
-      if (kind && root.dataset.settingsPanel) host.noteCover?.(kind, root.dataset.settingsPanel + " " + path);
+      root.dataset.settingsSearch = next.search;
+      root.dataset.settingsHash = next.hash;
+      const target = new URL(next), base = new URL(options.sectionPath(root.dataset.settingsPanel), location.origin);
+      // embed selects the response layout, not a different place in this settings category.
+      target.searchParams.delete("embed"); base.searchParams.delete("embed");
+      const nested = target.href !== base.href;
+      if (nested) root.dataset.settingsAddress = path; else delete root.dataset.settingsAddress;
+      if (root.isConnected && root.closest("[data-work-surface]")?.dataset.workSurface === options.kind) {
+        host.noteCover?.(options.kind, root.dataset.settingsPanel + (nested ? " " + path : ""), change?.history === "replace");
+      }
     },
   });
   const ensureCapabilityScripts = (html) => !/data-functions=|data-mcp-access|data-functions-settings|data-authorization-settings/.test(html) ? Promise.resolve()
@@ -103,10 +113,11 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const modelSaved = async ({ first, ready } = {}) => {
     try { await returns?.saved("model", ready === true); } finally { if (first) modelReady(); }
   };
-  const bindEmbed = (root) => {
+  const bindEmbed = (root, options) => {
     let owner = root;
     const page = {
-      address: () => pageOf(owner).address(), replace: next => pageOf(owner).replace(next), saved: kind => returns?.saved(kind),
+      address: () => pageOf(owner, options).address(), replace: (next, change) => pageOf(owner, options).replace(next, change), saved: kind => returns?.saved(kind),
+      retain: lifetime => retained.set(owner, lifetime),
       replaced: (before, after) => {
         for (const panel of [globalSettings, projectSettings]) panel?.replaceRoot(before, after);
         if (owner === before) owner = after;
@@ -127,6 +138,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindConnectorsSettings?.(root, page);
     globalThis.molisWorkBindMcpAccess?.(root, page);
     globalThis.molisWorkBindFunctionsRules?.(root, page);
+    globalThis.molisWorkBindKit?.(root, page);
     document.dispatchEvent(new CustomEvent("molis-work:settings-embed", { detail: { root } }));
   };
   const extractContent = ${settingsContentOf.toString()};
@@ -181,29 +193,31 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         wrap.dataset.settingsSearch = address.search;
         wrap.dataset.settingsHash = address.hash;
       }
+      const before = caches.get(section);
+      if (before) disposePage(before);
       caches.set(section, wrap);
       globalThis.molisWorkInstallSettingsText?.(wrap, page);
       showNode(wrap);
       active = section;
       markNav(section);
-      bindEmbed(wrap);
+      bindEmbed(wrap, options);
     };
     const loadSection = async (section, fetchPath) => {
       if (!body) return;
-      host.noteCover?.(options.kind, section + (fetchPath ? " " + fetchPath : ""));
       const local = options.local?.(section);
       if (local) {
         loading = null;
+        host.noteCover?.(options.kind, section);
         showNode(local);
         active = section;
         markNav(section);
         return;
       }
-      if (!fetchPath && caches.get(section)?.dataset.settingsAddress) caches.delete(section);
-      if (!fetchPath && caches.has(section)) {
+      if (!fetchPath && caches.has(section) && !caches.get(section).dataset.settingsAddress) {
         loading = null;
+        host.noteCover?.(options.kind, section);
         showNode(caches.get(section));
-        bindEmbed(caches.get(section));
+        bindEmbed(caches.get(section), options);
         active = section;
         markNav(section);
         return;
@@ -212,6 +226,18 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       if (loading?.key === requestKey) return;
       const request = { key: requestKey };
       loading = request;
+      const previous = caches.get(section), lifetime = previous && retained.get(previous);
+      if (lifetime) {
+        const saved = await lifetime.beforeReplace();
+        if (loading !== request) return;
+        if (!saved) {
+          loading = null;
+          showNode(previous); active = section; markNav(section);
+          host.noteCover?.(options.kind, section + (previous.dataset.settingsAddress ? " " + previous.dataset.settingsAddress : ""), true);
+          return;
+        }
+      }
+      host.noteCover?.(options.kind, section + (fetchPath ? " " + fetchPath : ""));
       const status = document.createElement("p");
       status.dataset.settingsLoading = "1";
       status.className = "mw-loading";
@@ -224,6 +250,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
           const locale = document.documentElement.dataset.uiLanguageTag;
           const html = await molisWorkRequest(path, { as: "text", headers: { Accept: "text/html" }, fallback: globalThis.t.text("workbench.settings-directory.try-again-moment") });
           await ensureCapabilityScripts(html);
+          if (html.includes("data-kit-settings")) await globalThis.molisWorkLoadKit();
           await ensureStyleSheets(html);
           if (loading !== request) return;
           if (locale === document.documentElement.dataset.uiLanguageTag) {
@@ -264,9 +291,18 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       for (const key of ['settingsPanel', 'settingsSource', 'settingsAddress', 'settingsSearch', 'settingsHash']) {
         if (before.dataset[key] !== undefined) after.dataset[key] = before.dataset[key];
       }
+      disposePage(before);
       caches.set(section, after);
     };
-    return { loadSection, loadFromHtml, getActive: () => active, caches, replaceRoot };
+    const drop = async (section) => {
+      const before = caches.get(section), lifetime = before && retained.get(before);
+      if (lifetime && !await lifetime.beforeReplace()) return false;
+      if (caches.get(section) !== before) return false;
+      if (before) disposePage(before);
+      caches.delete(section);
+      return true;
+    };
+    return { loadSection, loadFromHtml, getActive: () => active, caches, replaceRoot, drop };
   };
   const bindGlobal = () => bindPanel(
     document.querySelector("[data-directory-panel=settings]"),
@@ -344,7 +380,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const reopen = (kind, panel, fallback) => (place) => {
     const [section, ...address] = String(place || "").split(" ");
     const fetchPath = address.join(" ");
-    if (fetchPath) panel()?.caches.delete(section);
     openShell(kind, section || panel()?.getActive() || fallback, fetchPath || undefined);
   };
   host.registerCover?.("settings", reopen("settings", () => globalSettings, "appearance"));
@@ -390,7 +425,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       void globalSettings.loadSection("appearance");
       return true;
     }
-    globalSettings.caches.delete(section);
     void globalSettings.loadSection(section, pathname + (fromPage === true ? keptAddress(url, GLOBAL_DEFAULTS, GLOBAL_QUERY_EXTRAS, section) : url.search + url.hash));
     return true;
   };
@@ -476,8 +510,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const leave = (section) => {
     for (const [panel, first] of [[globalSettings, "appearance"], [projectSettings, "general"]]) {
       if (!panel) continue;
-      panel.caches.delete(section);
-      if (panel.getActive() === section) void panel.loadSection(first);
+      void panel.drop(section).then(dropped => { if (dropped && panel.getActive() === section) void panel.loadSection(first); });
     }
   };
   return {

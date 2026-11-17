@@ -101,7 +101,7 @@ Git QF-03 的独立与 Coding 内嵌入口已补真实仓库复现：提交说�
 | `packages/im-ui` | production | `.` | `src/browser/controller-sync.ts:10,34`：SSE、epoch、刷新合并和失败保留草稿；不把两个排队标志改成业务状态。 |
 | `packages/plugin-sandbox` | production | `.` | `src/runner.ts:31` 与 read protocol：子进程身份、调用限额、取消和受控服务；旧 BL 的进程内执行说法过时。 |
 | `apps/desktop` | production | `.` | `src/web-host.ts:12,28`：桌面装配复用 Local Host；终端可用性归 runtime-host。未实操系统 WebKit。 |
-| `apps/workbench` | production | `.`、`./terminal` | 资料导入→成果服务、attention→后台列表、chooser→brief、插件 frame→挂载/输入、角色确认。QF-01 实操；其余代表路径静态及必跑回归。 |
+| `apps/workbench` | production | `.`、`./terminal` | 资料导入→成果服务、attention→后台列表、chooser→brief、插件 frame→挂载/输入、角色确认。另沿Settings→Kit地址/缓存→草稿动作→SQLite核生命周期；QF-56真实隐藏、失败保存、后退/刷新、迟到读取及资源重试18项通过，含其他设置调用方/包要求共27文件215项通过，最终构建/API/健康通过。其余各批证据见下文。 |
 | `apps/local-host` | production | `.` | 动作 HTTP→Kernel→owner；项目/ Home 插件登记、background aggregate、单一项目删除、sourcePull、Memory 身份接线。QF-04、PF-03。 |
 | `apps/cli` | production | `.` | `src/dispatch.ts`：命令分发与既有 Home 入口；不另开执行事实 owner。安装/公开发版未做。 |
 | `apps/mcp` | production | `.` | `src/action-tools.ts`：实时目录→公开动作→Kernel 再授权；输入 _meta 不提供身份。 |

@@ -18,7 +18,7 @@
 
 刚合入、等真实 Home 采用或本人验收的项也留在这里，状态写在条目上。
 
-- [quality-experience-audit](quality-experience-audit/spec.md)：六方向代码质量与体验审查、逻辑缺陷、需求实现度和 BL 清理。负责人 Codex。已整合 main `dbcf562a67`，继续验证 Skill 草稿、采用与引导的改造。现状、各批证据及仍待决定的事项见[报告](quality-experience-audit/report.md)和[覆盖记录](quality-experience-audit/coverage.md)。[PR #2101](https://github.com/molis-ai/molis-work/pull/2101) 仍为草稿，最新组合头的资源和 CI 待验。
+- [quality-experience-audit](quality-experience-audit/spec.md) 涵盖六方向代码质量与体验审查、逻辑缺陷、需求实现度和 BL 清理。负责人 Codex。已整合 main `dbcf562a67`，本地已分批实施及验收。逐项证据与后续决定见[报告](quality-experience-audit/report.md)和[覆盖记录](quality-experience-audit/coverage.md)。[PR #2101](https://github.com/molis-ai/molis-work/pull/2101) 仍为草稿，当前组合头的资源与 CI 待结算。
 
 - [batch-06-shared-tools](batch-06-shared-tools/spec.md)：第 06 批成果固定、平台资料产生者与 SDK 公用工具；已随 #2009 合入 `a720834a09`（2026-11-13），剩余真实 Home 采用与本人验收。
 - [batch-06-call-cost](batch-06-call-cost/spec.md)：第 06 批调用成本整治；已随 #2009 合入 `a720834a09`，剩余 N42 首片范围与 BL-943 后续；BCC-09 直测已补。

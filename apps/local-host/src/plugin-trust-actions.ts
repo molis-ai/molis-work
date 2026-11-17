@@ -120,6 +120,7 @@ export function skillAuthoringFor(home: string, source: ProjectPluginHost, insta
         const rows = scope === "home" ? await installedHomePlugins(source.homePlugins()) : await installedPluginsInProject(source, projectId);
         return rows.find(({ record }) => record.plugin_id === SKILL_AUTHORED_PLUGIN_IDS[scope] && record.state !== "uninstalled" && record.publisher_trust === "pinned")?.record.publisher_signature;
       } }),
+    drafts: homeAgentDefinitions(home).skillDrafts,
     draft: (intent, caller) => draftSkill(intent, model(), { signal: caller.signal, beforeDispatch: caller.beforeEffect }, prompt => resolveModelPrompt(home, prompt, "system.skills")),
     draftAvailability: () => textModelAvailability(model, "起草技能"),
   };

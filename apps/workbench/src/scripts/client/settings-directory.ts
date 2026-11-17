@@ -358,9 +358,11 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     if (!projectSection) return false;
     const extra = keptAddress(url, PROJECT_DEFAULTS, PROJECT_QUERY_EXTRAS, projectSection);
     projectSettings ||= bindProject();
+    // A memory session, a linked catalog item or a Skill draft the address names is opened with the address; other pages open as they are.
     const linkedItem = projectSection === "kit" && new URLSearchParams(extra).has("install");
     const memoryTarget = projectSection === "memory" && (url.searchParams.has("memory_session_kind") || url.searchParams.has("memory_session_id"));
-    openProjectSettings(projectSection, linkedItem || memoryTarget ? url.pathname + (linkedItem || fromPage === true ? extra : url.search) : undefined);
+    const draftTarget = projectSection === "kit" && url.searchParams.has("draft");
+    openProjectSettings(projectSection, linkedItem || memoryTarget || draftTarget ? url.pathname + (linkedItem || fromPage === true ? extra : url.search) : undefined);
     return true;
   };
   const openGlobalSettingsFromUrl = (href, fromPage) => {

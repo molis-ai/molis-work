@@ -1,21 +1,16 @@
 import type { SkillAuthoredFields, SkillDraft, SkillDraftCreateTarget, SkillScope } from "@molis-ai/molis-work-contracts/services/skills";
 import { renderBadge } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { countOf } from "./authoring.js";
-import { applyReplacements, createDraft, failureOf, fieldsOf, messageOf, placeholdersOf, readDraft, sentFields, updateDraft, workshopOf, type Workshop } from "./drafts.js";
+import { draftSave } from "./draft-save.js";
+import { applyReplacements, createDraft, placeholdersOf, readDraft, workshopOf, type Workshop } from "./drafts.js";
 import type { FieldName, WritingContext } from "./writing-context.js";
 import { adoptBar, improve, sideMarkup } from "./workshop.js";
-
-// Opening a Skill's draft and keeping it saved as the person types (batch 42): what is typed is sent within a moment, against the
-// revision read, and the adopt bar says where it stands; the side column is drawn again when the saved draft changes.
-
-const same = (a: SkillAuthoredFields, b: SkillAuthoredFields) => JSON.stringify(sentFields(fieldsOf(a))) === JSON.stringify(sentFields(fieldsOf(b)));
-const dirty = (w: Workshop) => !same(sentFields(w.fields), w.draft.fields) || JSON.stringify(w.replacements) !== JSON.stringify(w.draft.replacements);
 
 export type DraftEditing = ReturnType<typeof draftEditing>;
 
 export function draftEditing(c: WritingContext) {
   const { root, project, view } = c;
-  let timer: ReturnType<typeof setTimeout> | undefined, saving: Promise<void> | undefined;
+  const save = draftSave(c, { bar: redrawBar, side: redrawSide, editor: redrawEditor });
 
   function opened(draft: SkillDraft, side?: "compare"): void {
     const own = draft.target.kind === "own" ? draft.target : undefined, entry = own && c.ownSkills(draft.scope).find(item => item.skill.ref.skill_id === own.skill_id);
@@ -39,44 +34,21 @@ export function draftEditing(c: WritingContext) {
     if (!side || view.workshop !== w || side.contains(document.activeElement)) return;
     side.innerHTML = sideMarkup(w);
   }
-  function schedule(w: Workshop): void {
-    w.confirm = false; w.adoptFailure = undefined;
-    if (w.save !== "saving") { w.save = "saving"; redrawBar(w); }
-    clearTimeout(timer);
-    timer = setTimeout(() => void flush(), 600);
-  }
-  /** Saves what is typed now; waits for a save in flight first. False when it could not be saved. */
-  async function flush(w = view.workshop): Promise<boolean> {
-    clearTimeout(timer); timer = undefined;
-    while (saving) await saving;
-    if (view.workshop !== w) return false;
-    if (!w) return true;
-    if (!dirty(w)) { if (w.save === "saving") { w.save = "saved"; redrawBar(w); } return true; }
-    const fields = sentFields(w.fields), replacements = { ...w.replacements };
-    saving = (async () => {
-      try {
-        const result = await updateDraft(project, w.draft, fields, replacements);
-        w.draft = { ...w.draft, fields, replacements, revision: result.revision, updated_at: result.updated_at,
-          untried: w.draft.cases.map(item => item.case_id), trial_needed: w.draft.cases.length > 0 };
-        w.savedAt = result.updated_at; w.save = dirty(w) ? "saving" : "saved"; w.saveFailure = undefined;
-      } catch (cause) {
-        w.save = "failed"; w.saveFailure = messageOf(cause);
-        if (failureOf(cause).code === "skills.draft_conflict") w.saveFailure = improve("save-conflict");
-      }
-    })();
-    await saving; saving = undefined;
-    redrawBar(w); redrawSide(w);
-    if (view.workshop !== w) return false;
-    if (w.save === "saving") return flush(w);
-    return w.save === "saved";
-  }
 
-  /** Refresh replay/case facts without pairing another editor's revision with our local fields. */
-  async function refresh(w: Workshop): Promise<void> {
-    const revision = w.draft.revision, next = await readDraft(project, w.draft.draft_id);
-    if (view.workshop !== w || w.draft.revision !== revision) return;
-    if (next.revision === revision) w.draft = next;
-    else { w.save = "failed"; w.saveFailure = improve("save-conflict"); }
+  function redrawEditor(w: Workshop): void {
+    if (view.workshop !== w) return;
+    const current = document.activeElement;
+    const input = (current instanceof HTMLInputElement || current instanceof HTMLTextAreaElement) && current.id && root.contains(current) ? current : undefined;
+    const start = input?.selectionStart, end = input?.selectionEnd, direction = input?.selectionDirection, scroll = input?.scrollTop;
+    const review = !input && w.compare === "draft" && w.save.kind === "conflict";
+    c.draw(review ? "sk-conflict" : undefined);
+    if (!input) return;
+    const editing = root.querySelector<HTMLInputElement | HTMLTextAreaElement>(`#${CSS.escape(input.id)}`);
+    editing?.focus({ preventScroll: true });
+    if (editing && start != null && end != null) {
+      editing.setSelectionRange(start, end, direction ?? undefined);
+      editing.scrollTop = scroll ?? 0;
+    }
   }
 
   function typedField(w: Workshop, target: HTMLInputElement | HTMLTextAreaElement): void {
@@ -88,7 +60,7 @@ export function draftEditing(c: WritingContext) {
       if (shown) { shown.textContent = count.text; shown.toggleAttribute("data-over", count.over); }
     }
     if (name === "name" && w.draft.target.kind === "new") { const title = root.querySelector("#sk-title"); if (title) title.textContent = w.fields.name.trim() || improve("title-new"); }
-    schedule(w);
+    save.schedule(w);
   }
   /** A placeholder's own word: written into the fields in place, and how many are left. */
   function typedPlaceholder(w: Workshop, target: HTMLInputElement): void {
@@ -102,16 +74,12 @@ export function draftEditing(c: WritingContext) {
     if (left && badge) badge.textContent = improve("placeholders-left", { n: left });
     else if (left && title) title.insertAdjacentHTML("beforeend", renderBadge({ label: improve("placeholders-left", { n: left }), tone: "neutral" }));
     else badge?.remove();
-    schedule(w);
+    save.schedule(w);
   }
 
   return {
-    opened, flush, refresh, schedule, typedField, typedPlaceholder,
+    ...save, opened, typedField, typedPlaceholder,
     create: async (scope: SkillScope, target: SkillDraftCreateTarget, fields?: SkillAuthoredFields, side?: "compare") => opened(await createDraft(project, scope, target, fields), side),
     openDraft: async (draftId: string) => opened(await readDraft(project, draftId)),
-    /** Unsaved input still holds the window after a failed request. */
-    pending: () => Boolean(timer || saving || view.workshop && dirty(view.workshop)),
-    /** Stops a save that has not started (the draft is being discarded). */
-    cancel: () => { clearTimeout(timer); timer = undefined; },
   };
 }

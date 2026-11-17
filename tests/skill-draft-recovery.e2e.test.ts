@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -299,26 +299,23 @@ for (const leaving of ["sk-close", "skill-new"] as const) test(`QEA-101 failed S
   assert.equal(saved.revision, draft.revision + 1, "only the successful recovery changes the persisted revision");
 });
 
-test("QEA-102 an adoption conflict does not pair another editor's revision with local fields", { timeout: 120_000 }, async t => {
+test("QEA-102 a stale adoption shows the current draft and leaves adoption for the person to retry", { timeout: 120_000 }, async t => {
   const { page, api, draft } = await editor(t);
   const otherBody = "# 另一入口的新正文\n\n必须保留的已存修改。";
   await api("update", { draft_id: draft.draft_id, expected_revision: draft.revision, fields: { ...draft.fields, body: otherBody }, replacements: {} });
   await page.click('[data-kit-act="sk-adopt"]');
-  await page.wait("document.querySelector('[data-sk-bar]')?.innerText.includes('别处')");
-  const local = "# 本地未存修改\n\n不能借用另一入口的修订号覆盖它。";
-  await page.fill('[data-au-field="body"]', local);
-  await page.wait("document.querySelector('[data-sk-bar]')?.innerText.includes('别处')");
-  await page.click('[data-kit-act="sk-close"]');
-  await page.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  assert.equal(await page.evaluate("document.querySelector('[data-au-field=body]')?.value"), local);
+  await page.wait(`document.querySelector('[data-au-field=body]')?.value === ${JSON.stringify(otherBody)} && !!document.querySelector('.au-failure')`);
+  assert.match(await page.evaluate<string>("document.querySelector('.au-failure')?.innerText"), /已载入最新草稿/);
   const stored = await api("read", { draft_id: draft.draft_id });
+  // The denied adoption loaded the actual current content and didn't adopt or write against its newer revision.
   assert.equal(stored.fields.body, otherBody);
   assert.equal(stored.revision, draft.revision + 1);
-  // Returning our own input to the read baseline leaves nothing to save; it must not force a destructive discard.
-  await page.fill('[data-au-field="body"]', draft.fields.body);
+  const name = "按看到的当前草稿继续改名";
+  await page.fill('[data-au-field="name"]', name);
   await page.click('[data-kit-act="sk-close"]');
   await page.wait("!document.querySelector('[data-sk-work]')");
-  assert.equal((await api("read", { draft_id: draft.draft_id })).fields.body, otherBody);
+  const saved = await api("read", { draft_id: draft.draft_id });
+  assert.deepEqual([saved.revision, saved.fields.body, saved.fields.name], [stored.revision + 1, otherBody, name]);
 });
 
 test("QEA-102 a delayed real adoption receipt leaves the later draft open and saved", { timeout: 120_000, skip: process.platform !== "darwin" }, async t => {
@@ -385,6 +382,107 @@ test("QEA-120 the Skill workshop retries a failed real settlement in place", { t
   await page.wait("!document.querySelector('[data-sk-work]') && !document.querySelector('[data-kit-notice]').hidden");
   assert.deepEqual((await api<{ drafts: unknown[] }>("list", {})).drafts, []);
   assert.deepEqual((await mine()).map(item => [item.ref.version, item.name]), [[1, draft.fields.name]]);
+});
+
+test("QEA-121 nonoverlapping saved Skill edits merge once, including typing during the latest read", { timeout: 120_000 }, async t => {
+  const { page, api, draft } = await editor(t, true);
+  const description = "另一窗口补充了使用时机。";
+  await api("update", { draft_id: draft.draft_id, expected_revision: draft.revision, fields: { ...draft.fields, description }, replacements: {} });
+  await page.evaluate(`(() => {
+    const original = window.fetch.bind(window);
+    window.__qeaReadDraft = { seen: false };
+    const waiting = new Promise(resolve => { window.__qeaReadDraft.release = resolve; });
+    window.fetch = async (url, options) => {
+      const response = await original(url, options);
+      if (String(url).endsWith('/api/skills/drafts/read') && !window.__qeaReadDraft.seen) {
+        window.__qeaReadDraft.seen = true; await waiting;
+      }
+      return response;
+    };
+  })()`);
+  await page.fill('[data-au-field="body"]', "# 我在本窗口编辑");
+  await page.wait("window.__qeaReadDraft.seen || !!document.querySelector('[data-sk-bar] [data-state=failed]')");
+  assert.equal(await page.evaluate("window.__qeaReadDraft.seen"), true, "a rejected save reads the current draft without asking the person to reload");
+  const body = "# 读取期间继续输入的正文";
+  try { await page.fill('[data-au-field="body"]', body); }
+  finally { await page.evaluate("window.__qeaReadDraft.release()"); }
+  await page.wait(`document.querySelector('[data-au-field=description]')?.value === ${JSON.stringify(description)} && !document.querySelector('[data-sk-bar] [data-state]')`);
+  assert.equal(await page.evaluate("document.activeElement?.dataset.auField"), "body", "merging another field does not take focus away from the editor");
+  const saved = await api("read", { draft_id: draft.draft_id });
+  assert.deepEqual([saved.revision, saved.fields.description, saved.fields.body], [draft.revision + 2, description, body]);
+});
+
+test("QEA-122 the Skill workshop shows actual conflicting text and resolves only the edition the person saw", { timeout: 120_000 }, async t => {
+  const { page, api, draft } = await editor(t);
+  const left = "# 别处已经保存的正文", right = "# 本窗口尚未保存的正文", name = "本窗口更新的名称";
+  const first = await api<{ revision: number }>("update", { draft_id: draft.draft_id, expected_revision: draft.revision, fields: { ...draft.fields, body: left }, replacements: {} });
+  await page.fill('[data-au-field="body"]', right);
+  await page.fill('[data-au-field="name"]', name);
+  const review = '[data-kit-act="sk-review-conflict"]';
+  await page.wait("!!document.querySelector('[data-sk-bar] [data-state=failed]')");
+  assert.equal(await page.evaluate(`!!document.querySelector(${JSON.stringify(review)})`), true, "the conflict offers an in-place action");
+  assert.equal(await page.evaluate("document.querySelector('[data-au-field=body]')?.value"), right);
+  assert.equal((await api("read", { draft_id: draft.draft_id })).fields.body, left);
+  await page.click(review);
+  const compared = await page.evaluate<string>("document.querySelector('[data-sk-conflict]')?.innerText ?? ''");
+  assert.ok(compared.includes(left) && compared.includes(right), "the person sees both versions before choosing");
+  const shots = join(process.cwd(), ".impeccable/qa/review/skill-draft-conflict");
+  await mkdir(shots, { recursive: true });
+  for (const [width, height] of [[1440, 900], [1024, 800], [390, 844]] as const) {
+    await page.command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
+    for (const scheme of ["light", "dark"]) {
+      await page.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] });
+      await page.wait(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
+      assert.equal(await page.evaluate("document.documentElement.scrollWidth <= innerWidth"), true, `no sideways scroll at ${width} in ${scheme}`);
+      const image = await page.command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
+      await writeFile(join(shots, `review-${width}-${scheme}.png`), Buffer.from(image.data, "base64"));
+    }
+  }
+  const later = "# 查看冲突期间别处再次修改";
+  const second = await api<{ revision: number }>("update", { draft_id: draft.draft_id, expected_revision: first.revision, fields: { ...draft.fields, body: later }, replacements: {} });
+  await page.click('[data-kit-act="sk-keep-edit"]');
+  await page.wait(`document.querySelector('[data-sk-conflict]')?.innerText.includes(${JSON.stringify(later)})`);
+  assert.equal(await page.evaluate("document.activeElement?.matches('[data-sk-conflict]')"), true, "the new comparison receives focus at 390");
+  assert.equal((await api("read", { draft_id: draft.draft_id })).revision, second.revision, "a choice for the earlier conflict cannot overwrite unseen text");
+  assert.equal(await page.evaluate("document.querySelector('[data-au-field=body]')?.value"), right);
+  await page.evaluate("document.querySelector('[data-kit-act=sk-use-saved]').focus()");
+  assert.equal(await page.evaluate("document.activeElement?.dataset.kitAct"), "sk-use-saved");
+  await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
+  await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  await page.wait("!document.querySelector('[data-sk-bar] [data-state]') && document.activeElement?.id === 'sk-title'", {
+    describe: "JSON.stringify({active: document.activeElement?.outerHTML.slice(0, 250), status: document.querySelector('[data-sk-bar]')?.innerText, tab: document.querySelector('.sk-narrow-tabs .is-active')?.innerText})",
+  });
+  assert.equal(await page.evaluate("getComputedStyle(document.querySelector('.sk-col--edit')).display !== 'none'"), true, "the resolved conflict returns to the editor");
+  const resolved = await api("read", { draft_id: draft.draft_id });
+  assert.deepEqual([resolved.revision, resolved.fields.name, resolved.fields.body], [second.revision + 1, name, later]);
+});
+
+test("QEA-122 a failed conflict read retains edits and Retry reads the saved edition first", { timeout: 120_000 }, async t => {
+  const { page, api, draft } = await editor(t);
+  const other = "另一入口的已存说明。", body = "# 等读取恢复后保存的正文";
+  await api("update", { draft_id: draft.draft_id, expected_revision: draft.revision, fields: { ...draft.fields, description: other }, replacements: {} });
+  await page.evaluate(`(() => {
+    const original = window.fetch.bind(window);
+    window.__qeaLatest = { fail: true, writes: 0 };
+    window.fetch = (url, options) => {
+      if (String(url).endsWith('/api/skills/drafts/update')) window.__qeaLatest.writes++;
+      if (String(url).endsWith('/api/skills/drafts/read') && window.__qeaLatest.fail)
+        return Promise.resolve(new Response(JSON.stringify({ error: '暂时读不到已存修改', code: 'actions.unavailable' }), { status: 503, headers: { 'content-type': 'application/json' } }));
+      return original(url, options);
+    };
+  })()`);
+  await page.fill('[data-au-field="body"]', body);
+  await page.wait("document.querySelector('[data-sk-bar]')?.innerText.includes('暂时读不到已存修改')");
+  assert.equal(await page.evaluate("document.querySelector('[data-au-field=body]')?.value"), body);
+  const held = await api("read", { draft_id: draft.draft_id });
+  assert.equal(held.revision, draft.revision + 1);
+  assert.equal(held.fields.body, draft.fields.body);
+  await page.evaluate("window.__qeaLatest.fail = false");
+  await page.click('[data-kit-act="sk-retry-save"]');
+  await page.wait(`document.querySelector('[data-au-field=description]')?.value === ${JSON.stringify(other)} && !document.querySelector('[data-sk-bar] [data-state]')`);
+  assert.equal(await page.evaluate("window.__qeaLatest.writes"), 2, "one old attempt and one rebased write, without another stale write during recovery");
+  const saved = await api("read", { draft_id: draft.draft_id });
+  assert.deepEqual([saved.revision, saved.fields.description, saved.fields.body], [held.revision + 1, other, body]);
 });
 
 test("QEA-101 closing a saved editor removes it before the catalog reload can accept and lose new input", { timeout: 120_000 }, async t => {

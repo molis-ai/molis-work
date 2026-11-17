@@ -16,7 +16,8 @@ export type { WritingFocus } from "./writing-context.js";
 
 const FOCUS: Record<string, string> = {
   "au-error": '[aria-invalid="true"]', "au-failure": ".au-failure", "sk-title": "#sk-title", "sk-ask": "[data-sk-ask-input]", "sk-replay": "[data-sk-replay] .mw-replay-grid",
-  "sk-confirm": "[data-slot='leave-bar']", "sk-case": "[data-sk-case-form] [aria-invalid='true'], [data-sk-case-form] input", "sk-side": ".sk-side-tabs .is-active", "sk-tab": ".sk-narrow-tabs .is-active",
+  "sk-confirm": "[data-slot='leave-bar']", "sk-case": "[data-sk-case-form] [aria-invalid='true'], [data-sk-case-form] input", "sk-side": ".sk-side-tabs .is-active",
+  "sk-tab": ".sk-narrow-tabs .is-active", "sk-conflict": "[data-sk-conflict]",
 };
 /** Where the focus goes after a draw the drafts asked for. */
 function focusIn(body: HTMLElement, where?: string): void {

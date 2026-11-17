@@ -9,7 +9,7 @@ import type { View } from "./view.js";
 // What the parts of the Skill drafts on the 「能力包」 page share (batch 42): the page they draw on, which Skills are the person's,
 // and what is kept between draws. writing.ts builds it once; draft-editing.ts, draft-turns.ts and skill-actions.ts work on it.
 
-export type WritingFocus = "au" | "au-error" | "au-failure" | "au-applies" | "au-scope" | "sk-title" | "sk-ask" | "sk-replay" | "sk-confirm" | "sk-case" | "sk-side" | "sk-tab";
+export type WritingFocus = "au" | "au-error" | "au-failure" | "au-applies" | "au-scope" | "sk-title" | "sk-ask" | "sk-replay" | "sk-confirm" | "sk-case" | "sk-side" | "sk-tab" | "sk-conflict";
 export type SkillEntry = Extract<KitEntry, { kind: "skill" }>;
 export type FieldName = Exclude<keyof Fields, "applies_to">;
 

@@ -101,6 +101,8 @@ node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home /tmp/m
 
 ## 开发要求
 
+浏览器页面从 `/navigation` 复用规格板的页签和分段控件。调用方给出选中状态、事件和标签 ID，控件负责生成标记与无障碍状态。
+
 生成插件组件的 `requiredText` 在原生 invalid 事件中显示，不取消 required 或调用后端。读取失败替换旧内容为通用错误与真实重试按钮，保留表单草稿；`refresh(componentId?)` 可只刷新绑定读取的一个组件，读取快照观察不发请求。
 
 - 负责：设计令牌、控件、图标、主题与无障碍基础。

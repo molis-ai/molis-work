@@ -649,6 +649,8 @@ test("RAC-2412 S-47 a settings address keeps only the parameters and fragment it
   }
   assert.equal(openSettingsAddress("/settings/assistant#contributions"),
     "/settings/assistant#contributions", "the assistant page keeps its declared contributions fragment");
+  assert.equal(openSettingsAddress("/settings/kit?draft=draft-record&role=not-read&mode=write#other", [], "link"),
+    "/settings/kit?draft=draft-record", "QEA-125 the Home Kit keeps the open draft only");
 });
 
 test("RAC-2412 S-47 the Home model dialog keeps only the parameters its page reads", async () => {

@@ -19,6 +19,11 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
   // Model settings are Home-wide: a project settings path has no models page.
   const modelsHref = "/settings/models";
 
+  async function reloadConflict(w: Workshop): Promise<string | undefined> {
+    await edit.refresh(w, true);
+    if (w.save.kind === "saved") return improve("draft-refreshed");
+  }
+
   async function ask(w: Workshop): Promise<void> {
     if (w.asking || !w.ask.trim() || !(await edit.flush(w))) return;
     w.asking = true; w.askFailure = undefined; w.changed = undefined; draw("sk-ask");
@@ -26,8 +31,10 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
       const next = await reviseDraft(project, w.draft, w.ask);
       if (view.workshop !== w) return;
       w.changed = changedFields(w.draft.fields, next.fields);
-      w.draft = next; w.fields = fieldsOf(next.fields); w.replacements = { ...next.replacements }; w.ask = ""; w.savedAt = next.updated_at;
-    } catch (cause) { w.askFailure = messageOf(cause); }
+      w.draft = next; w.fields = fieldsOf(next.fields); w.replacements = { ...next.replacements }; w.ask = "";
+    } catch (cause) {
+      w.askFailure = failureOf(cause).code === "skills.draft_conflict" ? await reloadConflict(w) : messageOf(cause);
+    }
     w.asking = false;
     if (view.workshop === w) draw("sk-ask");
   }
@@ -41,8 +48,8 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
       const untried = w.draft.untried.filter(id => id !== caseId);
       w.draft = { ...w.draft, trial, untried, trial_needed: untried.length > 0 };
     } catch (cause) {
-      if (failureOf(cause).code === "skills.draft_conflict") await edit.refresh(w);
-      w.runFailure = messageOf(cause); w.runFailureCode = failureOf(cause).code;
+      w.runFailureCode = failureOf(cause).code;
+      w.runFailure = w.runFailureCode === "skills.draft_conflict" ? await reloadConflict(w) : messageOf(cause);
     } finally { w.running = undefined; }
     if (view.workshop === w) draw(w.runFailure ? "sk-side" : "sk-replay");
   }
@@ -88,7 +95,11 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
     } catch (cause) {
       const code = failureOf(cause).code, field = fieldOf(cause) as FieldName;
       if (code === "skills.trial_differs") w.confirm = true;
-      else if (code === "skills.trial_required" || code === "skills.draft_conflict") { await edit.refresh(w); w.adoptFailure = messageOf(cause); }
+      else if (code === "skills.draft_conflict") w.adoptFailure = await reloadConflict(w);
+      else if (code === "skills.trial_required") {
+        await edit.refresh(w);
+        if (w.save.kind === "saved") w.adoptFailure = messageOf(cause);
+      }
       else if (field && field in w.fields) { w.errors = { [field]: messageOf(cause) }; w.tab = "edit"; }
       else w.adoptFailure = messageOf(cause);
     } finally { w.adopting = false; }
@@ -102,10 +113,24 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
     say(improve("discarded"), "success", { label: readText("workbench.context-bus.undo"), attrs: act("sk-undiscard", w.draft.draft_id) });
   }
 
+  function resumeEditing(w: Workshop, saved: boolean): void {
+    if (!saved || view.workshop !== w || w.compare !== "draft") return;
+    w.tab = "edit";
+    w.compare = "how";
+    draw("sk-title");
+  }
+
   /** One of the open draft's actions; nothing when it is not one. */
   async function run(w: Workshop, name: string, value: string | undefined): Promise<void> {
     if (name === "sk-close") { if (!(await edit.flush(w))) return; view.workshop = undefined; draw("detail"); await c.reload(); return; }
     if (name === "sk-models") { if (await edit.flush(w)) location.href = modelsHref; return; }
+    if (name === "sk-retry-save") return resumeEditing(w, await edit.flush(w));
+    if (name === "sk-review-conflict") {
+      if (w.save.kind !== "conflict") return;
+      w.side = w.tab = "compare"; w.compare = "draft";
+      return draw("sk-conflict");
+    }
+    if (name === "sk-use-saved" || name === "sk-keep-edit") return resumeEditing(w, await edit.resolve(w, name === "sk-use-saved" ? "saved" : "mine"));
     if (name === "au-applies") { w.fields.applies_to = value as Fields["applies_to"]; edit.schedule(w); return draw("au-applies"); }
     if (name === "sk-tab") { w.tab = value as Workshop["tab"]; if (w.tab !== "edit") w.side = w.tab; return draw("sk-tab"); }
     if (name === "sk-side") { w.side = value as Workshop["side"]; w.tab = w.side; return draw("sk-side"); }

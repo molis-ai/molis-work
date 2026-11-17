@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-17 质量审查 QEA-124/125：公开动作的 `result_view.link` 增加可选 `home_href_template`，仅供无可信项目上下文的回执使用。动作提供方声明目的地，Contracts 统一校验模板、插值和同源地址，旧项目或共享模板按原合同处理。Skills 的起草动作补个人空间目的地，工作台按设置页实际消费的参数打开该草稿。旧助理卡的已存呈现快照保持原回执，SDK、Workflows 继续共用呈现。阶段一原位更新 API 和动作快照。业务输入输出、动作版本、授权和持久结构均无变化。
+
 2026-11-17 质量审查第50批：Goals自有 `goals.stage.read@1` 输入新增可选 `projection: "collection"`，其现行输出的 `selected` 为 null，集合与呈现状态保持；省略该字段的固定版本调用方继续读取原完整正文。原页面声明、Manifest stage输入、Host片段和工作台刷新同批接入。按当前阶段一原位扩充，动作快照同步；没有持久结构变更、历史值兜底或兼容reader。公开contracts/SDK API快照无变化。
 
 2026-11-17 质量审查 QEA-69～72：Pages 编辑器的翻译另存回调携带原 `request_id` 与候选当前性判定，页面采用既有 `pages.create` 幂等合同；创建受理后的列表/导航失败单独反馈，不重新创建，无新动作或持久字段。现有 `molis-work:select-item` 在隔离 frame 中以可取消事件派发，完整处理本次选择的插件同步 preventDefault 接管，框架不再并行找行代点。Pages 等实际 ID 处理方同片迁移，Goals 的 create-dialog 和创作台不处理的 restore 分支不接管；未接管的行驱动页面及 Host 的 Feed source/Characters/Sessions 路径保持。事件 payload 与授权不变，原位更新 API 快照。

@@ -1,5 +1,7 @@
 # Molis Work 审查报告与优化策略
 
+第53–55批组合定向验收通过，8 文件 78 项。隔离 Home 验证了草稿冲突、键盘恢复、Home/项目助理回执及共用导航控件。第56批继续处理真实模型已经换版却保存旧结果。第52批冻结头的构建与健康检查通过，包回归继续，其中 Feed 退役版本例外的失败仍待原批准。页面资源检查已测到多项净增，首屏实测和准确头 Full CI 仍待结算。
+
 第52批已修复 Skill 采用失败却更改正式版本。最新构建4及两文件8项定向回归通过，原地重试的浏览器验收、真实案例转移、普通签名安装和 Home 恢复已有构建3的六文件85项通过证据。独立停用保留原安装和草稿，迟到撤销不能影响后来版本。包要求、当前头资源与最终 CI 继续。详见文末 QF-58。
 
 第51批已整合 main `dbcf562a67` 的恢复能力，当前在最终本地验收：新认可保持两库一次原子提交，既存提交意向继续幂等恢复；Skill保留本轮输入/并发修复，同时接入主干7天找回与可信trial来源。合并已保存为 `67433d5851`；最终构建、补强恢复及动作合同2文件31项通过，受影响包62文件907项通过（10.3分钟），公开API拆分零变化，只读复核无新增生产Blocker/P1。准确main基线的健康门禁通过，错误表仍按精确路径归原skills主人，尚未推送本次提交，最终资源/CI及剩余原任务继续。
@@ -830,3 +832,33 @@ QEA-118隔离Home使用真实SQL触发器拒绝草稿DELETE：项目新建返回
 QF-58 实施和验收记录。`apps/local-host/src/installed-plugin-lifecycle.ts:68` 的收尾把必要目录刷新、安装身份和原调用授权检查都纳入已有回退范围。`installed-plugin-version.ts:62` 复用同一收尾顺序。`skill-authoring.ts:180` 把唯一的草稿/案例/来源事务交给草稿 owner 同步完成。操作返回成功后无需再解释刷新或提交结果。Runtime 安装撤销根据原安装、世代、版本和摘要决定，旧安装补偿不会撤销同安装上后来的版本（`packages/plugin-runtime/src/install-rules.ts:119`）。原发布者 pin 和签名包留存按既有规则，历史只看实际已装链。没有公开动作字段、库版本或跨进程事务变更。
 
 真实反例与进度：构建2的三文件61项通过（`quality-audit-adoption-commit-focused2.log`）。包含同一草稿并发、安装等待断连、成功后丢响应拒绝重复采用、及真实Runtime换版。新版QEA-104等待真实目录活动期，保持并发修改409和提交后404。构建3的真实设置浏览器19项通过，原SQLite诊断露出反例见 `quality-audit-adoption-ui-baseline.log`。QEA-120改用现有本地化失败提示，调用ID与异常分类由Host日志保留，用户从原位重试，不需重写正文。构建3故障补验增加了实际案例与回放保留；移除SQL故障再成功采用后，新草稿可读已转移的已知答案。独立停用交错的真实反证已取得：正常设置HTTP成功停用，原撤销令其从安装列表消失（`quality-audit-adoption-disable-baseline.log`）。补上原运行世代的补偿边界，构建4及同一真实反例复验通过。后来的停用保有其真实决定，原草稿保留供继续编辑。
+
+冻结提交 `7cef3d20d5` 由 `SandboxPackageStore.packageForControl`（`apps/local-host/src/sandbox-package-store.ts:161`）复用原签名包与版本核对。Home 装配 193→191 行，精确巨型单元记录同步缩小，门禁规则保持。冻结构建及健康检查退出 0，日志 `quality-audit-adoption-frozen-build.log`、`quality-audit-adoption-frozen-health.log`。105 文件的包回归在冻结树继续。已知的 `tests/verify-release-versions.test.ts` 34/35 失败仍指向 Feed 无效例外，清单变更待原批准。
+
+### QF-59 / P1：草稿冲突让用户停在无法保存的原窗口
+
+旧 `apps/workbench/src/browser/kit/draft-editing.ts:63` 收到 `skills.draft_conflict` 后显示刷新提示，旧修订和本地字段一直留在窗口。用户关闭前仍试同一个失效修订。两条真实浏览器反证见 `quality-audit-draft-conflict-baseline.log`。Host 已有原 `read` 及 CAS `update`，无需新后台同步或草稿表。
+
+`draft-save.ts:9` 拥有一份可观察的保存状态、待执行定时器与在途写入。它用现草稿动作重新取得最新事实，能合并的更改在原窗合并并补一次 CAS。需要决策时，`draft-revisions.ts:18` 产生两种选择实际会提交的内容，`workshop.ts` 用现有 diff 展示。占位词与展开正文是一个编辑单位，另有非冲突字段会保留。明确选择后仍按所见修订提交。保存终态、草稿原时间和回放条件各按实际事实呈现，Workbench 移除重复的失败和时间字段。采用、回放、改写出现冲突可读最新；原动作由人按实际新内容重新发起。
+
+先行样本：四条定向实际浏览器通过 `quality-audit-draft-conflict-focused.log`，覆盖延迟读期间输入、再次冲突、失败重读和原采用恢复。重构后完整回归的恢复文件 21/22，新增窄屏键盘行为待复验；草稿创作完整文件通过，覆盖实际占位词及正文/非冲突填写提示的存储。清理巨大保存函数后健康已通过。尚未解决原草稿被另处采用或放弃且本窗还有输入的路径。此时原动作返回 `skills.draft_unknown`，保存不会覆盖真实数据，后续需按撤销或明确另存恢复输入，并保留原业务范围。
+
+### QF-60 / P2：Home 助理写成草稿却缺少回到草稿的入口
+
+`packages/contracts/src/services/skills.ts:708` 旧模板要求项目 ID。Home 助理成功写入后，`apps/local-host/src/assistant/assistant-result-card.ts:7` 和 `packages/contracts/src/platform/action-result.ts` 因缺参没有可显示结果链接。真实浏览器测到 1 份 Home 草稿、正文归助理、版本 1，但缺少按钮；同一测试的项目链已通过。证据 `quality-audit-home-skill-receipt-baseline.log`、`quality-audit-home-result-contract-baseline.log`。
+
+处置：结果提供方声明 Home 和项目目的地，由 Contracts 共用现行验证和插值，助理、SDK 卡片和 Workflows 沿原消费入口。Workbench 的设置参数表只保留 Home Kit 实际读到的 `draft`。此处一个真实 Home 消费者已足以证明能力应归平台，Skills 仍只管草稿和声明。组合构建及再次点击后的无新增写入待验。BL-b42-followups③需组合通过后结算。
+
+### PF-14 / P3：复用能力包的导航控件
+
+`apps/workbench/src/browser/kit/workshop.ts` 原两套页签及比较分段，和 `authoring.ts:79` 原适用入口、范围分段，都自行渲染已有样式和无障碍标记。`packages/design-system/src/primitives/navigation.ts:3,20` 的规格板控件能承接全部实际操作；`attrs.id` 已支持关联。浏览器使用包根入口的实测报 Node 模块无法解析，因此开放现成 `./navigation` 再迁真实调用方。页面负责动作与当前选择，控件负责结构和选中状态。QEA-126、资源与 BL-b42-followups④随组合验收结算。
+
+第53–55批定向验证结果。完整构建退出0。实际 Skill 恢复22/22、创作完整路径1/1、助理回执3/3，包含 390 px 键盘选择后回到编辑器、三宽度两主题截图、真实范围/适用入口读回、占位词与正文成对保存、Home和项目分别打开已保存原草稿且零额外写入。Workflows 执行1项、SDK卡6项、助理原回执含重启7项、结果合同4项通过。设置过滤首次33/34，夹具缺少现行 Home Kit 设置行，补真实导航行后原文件34/34通过。去重合计8文件78项，见 `quality-audit-b55-combined-focused.log`、`quality-audit-b55-settings-fixed.log`，初轮失败仍保留。API更新只增加 `platform/actions` 和转出的 `platform/plugin` 两行，动作输入输出快照无变化。第53批窄屏首轮失败来自 CDP Enter 缺字符事件，补生产同样的键盘激活后复验同时证明焦点回到正文。BL-b42-followups③④本地定向通过，合入前保留记录。
+
+页面资源检查点使用 main `dbcf562a67` 和独立构建。24 个实际下发路径净增，Kit +3,912 B、工作台脚本 +4,578 B、Sessions +2,020 B、Git脚本 +8,452 B。完整差异见 `quality-audit-b55-page-assets.log`。已有授权覆盖知识脚本96 B与之前词包/首屏限额，当前结果尚未通过资源门禁。
+
+### QF-61 / P1：模型在最终提交检查中被替换，旧改写和回放仍写入
+
+`apps/local-host/src/host-complete-text.ts:59` 的文字便捷口只保留字符串，`agent-definitions/skill-workshop.ts:275,300` 在最后一次等待后直接写当前草稿及回放。保持动作可用且替换当前模型时，调用的授权检查仍然通过，原结果的模型凭据快照已无法校验。隔离 Home 经注册的两条动作连接本机模型夹具，在 Agent Host 和 Host 对返回结果的两次检查之后、最终写入检查中切换真实模型配置。旧改写实际保存新正文及修订，旧回放实际落下 match 并影响是否需要继续试用。日志 `quality-audit-skill-model-write-proof.log`；先前过早切换的测试拒绝符合原合同，它不能证明提交边界安全。
+
+第56批沿现有模型执行回执保留校验能力，原 owner 在末次授权检查后、SQLite 提交前同步验证。回放的判定请求只消费仍有效的原回答，最终同时查所有回答及判定结果。已定位的邻接路径为 `plugin-trust-actions.ts:124` 的建议起草、`information-planner.ts:40` 的只读方案、`configured-text-port.ts:22` 的引导阶段调用。前两条需要把结果带到建议交付点，引导保存有自己的 run epoch、分段检查和重启恢复，需要单独验证最后写点与 checkpoint 复用。用量属于已有 Observation，并取用真实 `HostTextGeneration` 的回执，避免由回放业务再记一份。明确将此处写入修复与 BL-b42-followups①的完整模型记账分别验收。

@@ -22,6 +22,10 @@
       "types": "./dist/primitives/capability-pack.d.ts",
       "import": "./dist/primitives/capability-pack.js"
     },
+    "./navigation": {
+      "types": "./dist/primitives/navigation.d.ts",
+      "import": "./dist/primitives/navigation.js"
+    },
     "./work-records": {
       "types": "./dist/primitives/work-records.d.ts",
       "import": "./dist/primitives/work-records.js"

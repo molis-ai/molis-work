@@ -1,9 +1,11 @@
 import type { SkillDraft, SkillDraftSummary, SkillTrialCell, SkillTrialConsumer, SkillVersion } from "@molis-ai/molis-work-contracts/services/skills";
 import { renderAdoptBar, renderAskRow, renderPlaceholderList, renderReplayGrid, type ReplayCell } from "@molis-ai/molis-work-design-system/capability-pack";
+import { renderTabs, renderToggleGroup } from "@molis-ai/molis-work-design-system/navigation";
 import { compareChange, renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
-import { dateArg, icon, renderAlert, renderAttrs, renderBadge, renderCheckbox, renderStatusMark, type AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, icon, renderAlert, renderBadge, renderCheckbox, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { fieldsMarkup, type SkillWritingLimits } from "./authoring.js";
 import { act, button, esc, readText } from "./common.js";
+import { mergeDraftRevision } from "./draft-revisions.js";
 import { consumersOf, nextUntried, placeholdersOf, replayCalls, replayedNow, type Fields, type Workshop } from "./drafts.js";
 
 // One open draft on the 「能力包」 page, scheme B (docs/design/skill-improvement): the form on the left, trying and comparing on the
@@ -11,12 +13,6 @@ import { consumersOf, nextUntried, placeholdersOf, replayCalls, replayedNow, typ
 // the state; this only draws it.
 
 export const improve = (key: string, values?: Record<string, unknown>) => readText(`workbench.skill-improve.${key}`, values as Record<string, string | number>);
-type Choice = { id: string; label: string; selected: boolean; attrs: Record<string, AttrValue> };
-/** The board's tabs and toggle group, written here so the page does not load the whole design system for two small parts. */
-const tabs = (label: string, className: string, items: readonly Choice[]) => `<div class="mw-tabs ${className}" data-slot="tabs"><div class="mw-tabs__list" role="tablist" aria-label="${esc(label)}">${
-  items.map(item => `<button type="button" class="mw-tabs__tab${item.selected ? " is-active" : ""}" role="tab" aria-selected="${item.selected}" id="${esc(item.id)}"${renderAttrs(item.attrs)}>${esc(item.label)}</button>`).join("")}</div></div>`;
-const toggles = (label: string, items: readonly Choice[]) => `<div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="${esc(label)}">${
-  items.map(item => `<button type="button" class="mw-toggle${item.selected ? " is-current" : ""}" aria-pressed="${item.selected}"${renderAttrs(item.attrs)}>${esc(item.label)}</button>`).join("")}</div>`;
 const DIFF_WORDS = { insert: "workbench.settings-web-service.add", delete: "common.control.delete", same: "workbench.kit.diff-same", reveal: "workbench.kit.diff-reveal", identical: "workbench.kit.diff-identical", coarse: "workbench.kit.diff-coarse", partial: "workbench.kit.diff-partial",
   mismatch: "workbench.kit.diff-mismatch", created: "workbench.kit.diff-created", removed: "workbench.kit.diff-removed", comment_before: "workbench.kit.diff-comment-line", comment_after: "workbench.kit.diff-comment-line" };
 const SIDE = { workspace_id: "skill", workspace_name: "", path: "SKILL.md", source_plugin_id: "", content_version: 0 };
@@ -109,7 +105,7 @@ function tryPanel(w: Workshop): string {
   }).join("");
   const list = cases ? `<ul class="mw-items sk-cases">${cases}</ul>` : `<p class="kit-inline-empty">${esc(improve("cases-none"))}</p>`;
   const add = w.caseForm ? caseForm(w) : draft.cases.length < 5 ? `<div class="au-actions">${button(improve("case-add"), { icon: "plus", attrs: act("sk-case-add"), disabled: busy })}</div>` : "";
-  const failed = w.runFailure ? renderAlert({ title: improve("replay-failed"), body: `${w.runFailure} ${improve("keep-draft")}`, tone: "warning", role: "alert",
+  const failed = w.runFailure ? renderAlert({ title: improve("replay-failed"), body: w.runFailure, tone: "warning", role: "alert",
     ...(w.runFailureCode === "actions.connection_required" ? { actions: [{ label: improve("model-settings"), variant: "secondary", size: "sm", attrs: act("sk-models") }] } : {}) }) : "";
   const cost = draft.cases.length ? `<p class="sk-note">${icon("info")}<span>${esc(improve("replay-cost", { n: replayCalls(w) }))}</span></p>` : "";
   return `<div class="sk-try"><p class="sk-lead">${icon("shield")}<span>${esc(improve("try-lead"))}</span></p>
@@ -117,7 +113,19 @@ function tryPanel(w: Workshop): string {
 }
 
 function comparePanel(w: Workshop): string {
-  const pick = toggles(improve("compare-pick"), (["how", "out"] as const).map(value => ({ id: `sk-compare-${value}`, label: improve(`compare-${value}`), selected: w.compare === value, attrs: act("sk-compare", value) })));
+  if (w.compare === "draft" && w.save.kind === "conflict") {
+    const text = (fields: SkillDraft["fields"], replacements: Record<string, string>) => [
+      fields.name, fields.applies_to === "both" ? readText("workbench.settings-skills.assistant-and-coding") : entryWord(fields.applies_to),
+      fields.description, fields.when_not_to_use ?? "", fields.argument_hint ?? "", "", fields.body,
+      ...Object.entries(replacements).sort(([left], [right]) => left.localeCompare(right)).map(([name, replacement]) => `${name}: ${replacement}`),
+    ].join("\n");
+    const saved = mergeDraftRevision(w.draft, w, w.save.latest, "saved"), mine = mergeDraftRevision(w.draft, w, w.save.latest, "mine");
+    return `<section class="sk-compare" data-sk-conflict tabindex="-1"><p class="sk-what">${esc(improve("compare-draft-conflict"))}</p>${
+      diffOf(text(saved.fields, saved.replacements), text(mine.fields, mine.replacements))}<div class="au-actions">${button(improve("conflict-use-saved"), {
+      attrs: act("sk-use-saved"), variant: "secondary" })}${button(improve("conflict-keep-edit"), { attrs: act("sk-keep-edit"), variant: "secondary" })}</div></section>`;
+  }
+  const pick = renderToggleGroup({ label: improve("compare-pick"), items: (["how", "out"] as const).map(value => (
+    { value, label: improve(`compare-${value}`), current: w.compare === value, attrs: act("sk-compare", value) })) });
   const draft = w.draft;
   if (w.compare === "out") {
     const trial = draft.trial, chosen = w.out ?? { consumer: consumersOf(w.fields)[0]!, side: "draft" as const };
@@ -132,19 +140,24 @@ function comparePanel(w: Workshop): string {
 
 /** The adopt bar: its state sentence is updated in place while typing (`statusOf`), the whole bar only when what it offers changes. */
 function statusOf(w: Workshop): { text: string; state?: "owed" | "saving" | "failed" } {
-  if (w.save === "saving") return { text: improve("saving"), state: "saving" };
-  if (w.save === "failed") return { text: improve("save-failed", { m: w.saveFailure ?? "" }), state: "failed" };
+  if (w.save.kind === "saving") return { text: improve("saving"), state: "saving" };
+  if (w.save.kind === "conflict") return { text: improve("save-conflict"), state: "failed" };
+  if (w.save.kind === "failed" || w.save.kind === "latest-failed") return { text: improve("save-failed", { m: w.save.message }), state: "failed" };
   if (owed(w)) return { text: improve("not-replayed"), state: "owed" };
-  return { text: improve("saved-at", { at: w.savedAt ? dateArg(w.savedAt, "time") : "" }) };
+  return { text: improve("saved-at", { at: dateArg(w.draft.updated_at, "time") }) };
 }
 /** Adopting needs a replay of this revision first: the draft has known answers and none was replayed since the last change. */
 export const owed = (w: Workshop) => nextUntried(w) !== undefined;
 
 export function adoptBar(w: Workshop): string {
   const status = statusOf(w), busy = Boolean(w.adopting || w.asking || w.running), label = w.next ? improve("adopt-version", { v: w.next }) : improve("adopt-new");
-  const primary = owed(w) ? button(improve("replay-first"), { variant: "primary", icon: "play", attrs: act("sk-run", nextUntried(w)!), disabled: busy || w.save !== "saved" })
-    : button(label, { variant: w.confirm ? "secondary" : "primary", icon: "check", attrs: act("sk-adopt"), disabled: busy || w.save !== "saved" });
-  const failed = w.adoptFailure ? renderAlert({ title: improve("adopt-failed"), body: `${w.adoptFailure} ${improve("keep-draft")}`, tone: "danger", role: "alert", className: "au-failure", attrs: { tabindex: -1 },
+  const blocked = w.save.kind !== "saved";
+  let primary: string;
+  if (w.save.kind === "conflict") primary = button(improve("review-conflict"), { variant: "primary", attrs: act("sk-review-conflict"), disabled: busy });
+  else if (w.save.kind === "failed" || w.save.kind === "latest-failed") primary = button(readText("common.control.retry"), { variant: "primary", attrs: act("sk-retry-save"), disabled: busy });
+  else if (owed(w)) primary = button(improve("replay-first"), { variant: "primary", icon: "play", attrs: act("sk-run", nextUntried(w)!), disabled: busy || blocked });
+  else primary = button(label, { variant: w.confirm ? "secondary" : "primary", icon: "check", attrs: act("sk-adopt"), disabled: busy || blocked });
+  const failed = w.adoptFailure ? renderAlert({ title: improve("adopt-failed"), body: w.adoptFailure, tone: "danger", role: "alert", className: "au-failure", attrs: { tabindex: -1 },
     actions: [{ label: readText("common.control.retry"), variant: "secondary", size: "sm", attrs: act("sk-adopt") }] }) : "";
   const differs = (draft: SkillDraft) => draft.trial?.cells.filter(cell => cell.side === "draft" && cell.verdict === "differs").reduce((sum, cell) => sum + Math.max(1, cell.differences.length), 0) ?? 0;
   return `<div class="sk-work__bar" data-sk-bar>${failed}${renderAdoptBar({ primary, actions: button(improve("discard"), { variant: "ghost", attrs: act("sk-discard"), disabled: busy }), status: status.text,
@@ -155,12 +168,14 @@ export function adoptBar(w: Workshop): string {
 
 /** The side column (trying and comparing), drawn again on its own when a replay or a case changes. */
 export function sideMarkup(w: Workshop): string {
-  const side = tabs(improve("side-label"), "sk-side-tabs", (["try", "compare"] as const).map(value => ({ id: `sk-side-${value}`, label: improve(`tab-${value}`), selected: w.side === value, attrs: act("sk-side", value) })));
+  const side = renderTabs({ label: improve("side-label"), className: "sk-side-tabs", tabs: (["try", "compare"] as const).map(value => (
+    { id: value, label: improve(`tab-${value}`), selected: w.side === value, attrs: { id: `sk-side-${value}`, ...act("sk-side", value) } })) });
   return `${side}<div class="sk-panel" role="tabpanel" aria-labelledby="sk-side-${w.side}">${w.side === "try" ? tryPanel(w) : comparePanel(w)}</div>`;
 }
 
 export function workshopMarkup(w: Workshop, limits: SkillWritingLimits): string {
-  const narrow = tabs(improve("work-label"), "sk-narrow-tabs", (["edit", "try", "compare"] as const).map(tab => ({ id: `sk-tab-${tab}`, label: improve(`tab-${tab}`), selected: w.tab === tab, attrs: act("sk-tab", tab) })));
+  const narrow = renderTabs({ label: improve("work-label"), className: "sk-narrow-tabs", tabs: (["edit", "try", "compare"] as const).map(value => (
+    { id: value, label: improve(`tab-${value}`), selected: w.tab === value, attrs: { id: `sk-tab-${value}`, ...act("sk-tab", value) } })) });
   return `<div class="sk-work" data-sk-work data-tab="${w.tab}">${head(w)}${narrow}<div class="sk-work__cols"><div class="sk-col sk-col--edit">${editor(w, limits)}</div>
     <aside class="sk-col sk-col--side" data-sk-side aria-label="${esc(improve("side-label"))}">${sideMarkup(w)}</aside></div>${adoptBar(w)}</div>`;
 }

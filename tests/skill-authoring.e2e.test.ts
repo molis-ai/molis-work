@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
-import { SKILL_AUTHORED_PLUGIN_IDS, type SkillCatalogEntry, type SkillDraftSummary } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_AUTHORED_PLUGIN_IDS, type SkillCatalogEntry, type SkillDraft, type SkillDraftSummary } from "@molis-ai/molis-work-contracts/services/skills";
 import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -62,6 +62,10 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await page.wait("!!document.querySelector('.au-ask .au-failure')", { describe: state });
   assert.equal(await page.evaluate("document.querySelector('[data-au-field=intent]').value"), "每周五把一周的进展整理成周报", "the sentence stays");
   answers.push(JSON.stringify({ name: "每周周报", description: "要把一周的进展整理成周报时用。", when_not_to_use: "只想看某一天做了什么。", applies_to: "assistant", body: "# 每周周报\n\n1. 列出完成的事。\n2. 列出卡住的事。" }));
+  // QEA-126: the shared renderer still drives the draft's choices and their selected state.
+  await page.click(act("au-scope", "home"));
+  assert.equal(await page.evaluate(`document.querySelector('${act("au-scope", "home")}').getAttribute('aria-pressed')`), "true");
+  await page.click(act("au-scope", "project"));
   await page.click(act("au-draft"));
   await page.wait("document.querySelector('#au-name')?.value === '每周周报' && document.activeElement?.id === 'sk-title'", { describe: state });
   assert.equal(await page.evaluate("!!document.querySelector('[data-kit-body] .mw-list-detail')"), false, "the list folds away while a draft is open");
@@ -69,6 +73,15 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   assert.match(await text("[data-au-count]"), /4 \/ 500 行/);
   assert.match(await text("[data-sk-bar]"), /采用为新技能/);
   assert.deepEqual(await mine(), [], "a draft is in no catalog");
+  const newDrafts = await api<{ drafts: SkillDraftSummary[] }>("drafts/list");
+  const firstDraft = newDrafts.drafts.find(item => item.name === "每周周报")!;
+  assert.equal(firstDraft.scope, "project");
+  await page.click(act("au-applies", "both"));
+  await page.wait(saved, { describe: state });
+  assert.equal(await page.evaluate(`document.querySelector('${act("au-applies", "both")}').getAttribute('aria-pressed')`), "true");
+  assert.equal((await api<SkillDraft>("drafts/read", { draft_id: firstDraft.draft_id })).fields.applies_to, "both");
+  await page.click(act("au-applies", "assistant"));
+  await page.wait(saved, { describe: state });
   await shot("draft-new-1440");
   const gap = await page.evaluate<number>("document.querySelector('.settings-content').getBoundingClientRect().bottom - document.querySelector('[data-sk-bar]').getBoundingClientRect().bottom");
   assert.ok(Math.abs(gap) <= 1, `the adopt bar sits on the edge, nothing shows under it (gap ${gap}px)`);
@@ -117,6 +130,8 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await shot("replayed-1440");
   await page.click(act("sk-out", "assistant:draft"));
   await page.wait("!!document.querySelector('.sk-compare .sk-diff')", { describe: state });
+  assert.equal(await page.evaluate("document.querySelector('.sk-side-tabs [aria-selected=true]').id"), "sk-side-compare");
+  assert.equal(await page.evaluate("document.querySelector('.sk-panel').getAttribute('aria-labelledby')"), "sk-side-compare");
   assert.match(await text(".sk-what"), /草稿 · 助理 的结果 → 你认可的结果/);
   await page.click(act("sk-compare", "how"));
   await page.wait("document.querySelector('.sk-what')?.innerText.includes('第 1 版 → 草稿')", { describe: state });
@@ -197,6 +212,33 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   assert.equal(await page.evaluate("document.querySelector('[data-sk-placeholder]').getAttribute('aria-label')"), "把 ~~聊天工具 换成");
   await page.wait(saved, { describe: state });
   await shot("copy-1440");
+  // QEA-123: the placeholder and its expanded text are one decision, while an unrelated field survives.
+  const listedCopies = await api<{ drafts: SkillDraftSummary[] }>("drafts/list");
+  const editingCopy = listedCopies.drafts.find(item => item.name === "分析与决策");
+  assert.ok(editingCopy);
+  const oldCopy = await api<SkillDraft>("drafts/read", { draft_id: editingCopy.draft_id });
+  const otherBody = `${oldCopy.fields.body}\n\n别处补充的实操说明。`;
+  const updated = await api<{ revision: number }>("drafts/update", { draft_id: oldCopy.draft_id, expected_revision: oldCopy.revision,
+    fields: { ...oldCopy.fields, body: otherBody }, replacements: oldCopy.replacements });
+  assert.equal(updated.revision, oldCopy.revision + 1);
+  await page.click(".au-more summary");
+  await page.fill("#au-argument_hint", "补充目标");
+  await page.fill("[data-sk-placeholder]", "Teams");
+  await page.wait(`!!document.querySelector('[data-sk-bar] [data-kit-act=sk-review-conflict]')`, { describe: state });
+  assert.equal((await api<SkillDraft>("drafts/read", { draft_id: oldCopy.draft_id })).fields.body, otherBody);
+  await page.click(act("sk-review-conflict"));
+  await page.wait(`document.activeElement?.hasAttribute('data-sk-conflict')`, { describe: state });
+  const copyConflict = await text("[data-sk-conflict]");
+  assert.match(copyConflict, /结论发到 Slack。/);
+  assert.match(copyConflict, /结论发到 Teams。/);
+  assert.match(copyConflict, /别处补充的实操说明。/);
+  await page.click(act("sk-keep-edit"));
+  await page.wait(saved, { describe: state });
+  const settledCopy = await api<SkillDraft>("drafts/read", { draft_id: oldCopy.draft_id });
+  assert.deepEqual([settledCopy.revision, settledCopy.replacements, settledCopy.fields.argument_hint],
+    [updated.revision + 1, { "~~聊天工具": "Teams" }, "补充目标"]);
+  assert.match(settledCopy.fields.body, /结论发到 Teams。/);
+  assert.doesNotMatch(settledCopy.fields.body, /别处补充的实操说明。/);
   await page.click(act("sk-adopt"));
   await page.wait(noticeHas("原来的已关掉"), { describe: state });
   assert.equal((await mine()).length, 2);

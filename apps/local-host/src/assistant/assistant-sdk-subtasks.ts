@@ -7,10 +7,13 @@ import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { sessionRef, type AssistantServicePorts } from "./assistant-service-shared.js";
 import { ownerOf } from "./assistant-round-start.js";
 import { assistantErrors } from "./assistant-errors.js";
+import { hostLog } from "../host-log.js";
 
 /** The Assistant's SDK children use the same Host owner as Coding, addressed through their original Work and parent Run. */
 export class AssistantSdkSubtasks {
-  constructor(private readonly store: AssistantStore, private readonly actorId: string, private readonly ports: Pick<AssistantServicePorts, "host" | "authority">) {}
+  private noticing?: Promise<void>;
+  constructor(private readonly store: AssistantStore, private readonly actorId: string, private readonly ports: Pick<AssistantServicePorts, "host" | "authority">,
+    private readonly result: (parent: StoredWork, title: string, key: string) => void) {}
   private async original(workId: string, parentRunId?: string) {
     const work = this.store.get(this.actorId, workId), adapter = (await this.ports.host()).adapter("prologue");
     if (!work.session_id) throw assistantErrors.scope("原助理会话不可读取");
@@ -28,6 +31,27 @@ export class AssistantSdkSubtasks {
     if (!work.session_id) return [];
     const { session, port } = await this.original(workId);
     return (await Promise.all(session.runs.map(run => port.list(run)))).flat();
+  }
+  /** The existing notice sweep reads original results, even while the parent panel is closed. */
+  noticeResults(): Promise<void> {
+    return this.noticing ??= this.scanResults().finally(() => { this.noticing = undefined; });
+  }
+  private async scanResults(): Promise<void> {
+    // The page's latest-50 window is not a lifetime boundary for a child of an older work.
+    for (const work of this.store.list(this.actorId, { limit: Number.MAX_SAFE_INTEGER })) {
+      if (!work.session_id || work.archived || work.executor.kind !== "assistant" || work.delegated_by?.taken_back_at) continue;
+      try {
+        const children = await this.list(work.work_id);
+        this.current(work);
+        for (const child of children) {
+          const attempts = [...child.budget?.prior_attempts ?? [], ...(child.child_run ? [{ run_id: child.child_run.run_id, state: child.state }] : [])];
+          for (const attempt of attempts) if (["completed", "failed", "cancelled"].includes(attempt.state)) {
+            const key = `sdk-subtask-result:${JSON.stringify([work.session_id, child.parent_run.run_id, child.subagent_id, attempt.run_id])}`;
+            this.result(work, child.role_name ?? child.role_id, key);
+          }
+        }
+      } catch (error) { hostLog.warn("assistant", "subtask_result_unconfirmed", error); }
+    }
   }
   async read(workId: string, parentRunId: string, childId: string) {
     const { work, run, port } = await this.original(workId, parentRunId);

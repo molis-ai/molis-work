@@ -15,6 +15,7 @@ interface Ports {
   parent(work: StoredWork): StoredWork | undefined;
   inputSessions(work: StoredWork): AsyncIterable<string>;
   watch(work: StoredWork, run: AgentRunRef): void;
+  result(parent: StoredWork, title: string, key: string): void;
 }
 const keyOf = (...values: string[]) => `work-notice.${createHash("sha256").update(JSON.stringify(values)).digest("hex")}`;
 
@@ -68,7 +69,10 @@ export class AssistantSubtaskReports {
         if (isTerminalAgentPhase(view.phase) && view.phase !== "reconcile-required") {
           this.watching.delete(start.run_id);
           const reply = [...view.turns].reverse().find(turn => turn.kind === "assistant" && turn.text.trim())?.text.slice(0, 1400) ?? "";
-          await publish(keyOf(workId, "result", start.session_id, start.run_id, view.phase), `用户继续的子任务已结束，状态 ${view.phase}。原工作 ${workId}，执行 ${start.session_id}/${start.run_id}。${reply ? `子任务自述（尚未核验）：\n${reply}` : "请按原记录查看结果。"}`);
+          const key = keyOf(workId, "result", start.session_id, start.run_id, view.phase);
+          await publish(key, `用户继续的子任务已结束，状态 ${view.phase}。原工作 ${workId}，执行 ${start.session_id}/${start.run_id}。${reply ? `子任务自述（尚未核验）：\n${reply}` : "请按原记录查看结果。"}`);
+          current();
+          this.ports.result(parent, work.title, key);
         } else if (!isTerminalAgentPhase(view.phase) && !this.watching.has(start.run_id)) { this.watching.add(start.run_id); this.ports.watch(work, start); }
         continue;
       }

@@ -318,6 +318,7 @@ export async function assistantNotices(ports: AssistantHttpPorts, surface: strin
   const { service } = assistantServiceFor(ports);
   // Reading the works is what notices a change of state, so a closed panel still hears that a round finished.
   await service.list();
+  await service.sdkSubtasks.noticeResults();
   // What the person already acted on in its plugin is not news any more.
   await service.notices.settleHandledNotices().catch(error => { hostLog.warn("assistant", "handled_notices_settlement_failed", error); return 0; });
   return service.notices.notices(surface);

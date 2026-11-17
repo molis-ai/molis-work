@@ -1632,6 +1632,7 @@
       }
     },
     "workbench.assistant-notice.completed": "“{title}” is done.",
+    "workbench.assistant-notice.subtask-result": "Subtask “{title}” has an update.",
     "workbench.assistant-notice.dismiss": "Got it",
     "workbench.assistant-notice.dismiss-named": "Got it: “{title}”",
     "workbench.assistant-notice.failed": "“{title}” did not finish this round. Open it to see why.",

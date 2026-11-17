@@ -10,7 +10,7 @@ import wbZh from '../../../apps/workbench/resources/locales/zh.json';
 import wbEn from '../../../apps/workbench/resources/locales/en.json';
 window.molisComposer=(root,options)=>window.molisComposerProgram(root,options);
 document.querySelector('#icons').innerHTML=window.mwKitSprite;
-const params=new URLSearchParams(location.search), lang=params.get('lang')==='en'?'en':'zh', variant=params.get('variant')==='b'?'b':'a', theme=params.get('theme')==='dark'?'dark':'light', state=params.get('state')||'normal';
+const params=new URLSearchParams(location.search), lang=params.get('lang')==='en'?'en':'zh', variant=params.get('variant')==='a'?'a':'b', theme=params.get('theme')==='dark'?'dark':'light', state=params.get('state')||'normal';
 const tx=(a,b)=>lang==='en'?b:a, q=s=>document.querySelector(s);
 installTextForTest({packs:[zh,en,wbZh,wbEn],locale:lang});document.documentElement.lang=lang;document.documentElement.dataset.theme=theme;document.documentElement.dataset.resolvedTheme=theme;
 const go=(key,value)=>{params.set(key,value);location.search=params;};

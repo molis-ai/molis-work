@@ -156,9 +156,9 @@ export class AssistantService {
     this.memory = new AssistantMemoryBridge(store, ports, actorId, this.recalled, this.chosenMemory, this.memorySourceWithdrawals, { assistantPart: (...a) => this.reads.assistantPart(...a), continuations: this.continuations });
     this.budget = new AssistantBudget(store, ports, actorId, now, { read: (...a) => this.read(...a), delegations: this.delegations });
     this.notices = new AssistantNotices(store, ports, actorId, now, { assistantPart: (...a) => this.reads.assistantPart(...a), workObjects: (...a) => this.reads.workObjects(...a), continuations: this.continuations, followUps: this.followUps, jobs: this.jobs, delegations: this.delegations });
-    this.sdkSubtasks = new AssistantSdkSubtasks(store, actorId, ports);
+    this.sdkSubtasks = new AssistantSdkSubtasks(store, actorId, ports, (...args) => this.notices.subtaskResult(...args));
     this.subtaskReports = new AssistantSubtaskReports({ store, actorId, signal: this.continuations.signal, host: () => ports.host(), authority: (...args) => ports.authority(...args),
-      parent: work => this.delegations.parentOf(work), inputSessions: work => subtaskInputSessions(work, { store, actorId, adapter: ports.host().then(host => host.adapter(RUNTIME)), personActions: ports.personActions, executor: (current, pluginId) => this.dispatcher.executorOf(current, pluginId) }), watch: (work, run) => this.continuations.watch(work, run) });
+      parent: work => this.delegations.parentOf(work), inputSessions: work => subtaskInputSessions(work, { store, actorId, adapter: ports.host().then(host => host.adapter(RUNTIME)), personActions: ports.personActions, executor: (current, pluginId) => this.dispatcher.executorOf(current, pluginId) }), watch: (work, run) => this.continuations.watch(work, run), result: (...args) => this.notices.subtaskResult(...args) });
     this.reports = new AssistantReportRounds({ store, actorId, session: async work => (await this.ports.host()).adapter(RUNTIME).readSession(sessionRef(work)),
       continuation: async work => (await this.continuations.view(work).catch(() => undefined))?.continuation?.state,
       start: (work, text) => this.hostStarted(() => this.dispatcher.dispatch(work, text, [], null, undefined, "host", undefined, undefined, undefined, { byHost: true, report_only: true })),

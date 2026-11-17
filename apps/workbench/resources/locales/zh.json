@@ -1588,6 +1588,7 @@
     "workbench.assistant-notice.attention": "等你处理",
     "workbench.assistant-notice.attention-count": "{count} 件事等你处理",
     "workbench.assistant-notice.completed": "「{title}」做完了",
+    "workbench.assistant-notice.subtask-result": "子任务「{title}」有新进展",
     "workbench.assistant-notice.dismiss": "知道了",
     "workbench.assistant-notice.dismiss-named": "知道了：「{title}」",
     "workbench.assistant-notice.failed": "「{title}」这一轮没有完成，打开看看原因",

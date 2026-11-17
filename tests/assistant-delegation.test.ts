@@ -638,7 +638,7 @@ test("W2-18-HANDBACK-CURRENT-03: a hand-back refused after it took the continuat
   } finally { finishChild.resolve(); await f.close(); }
 });
 
-test("SAI-03/04/05/08/10: Work child input binds the original execution; a lost receipt is queried without resending and a completed continuation replays", { timeout: 60_000 }, async t => {
+test("SAI-03/04/05/07/08/10: Work child input binds the original execution; a lost receipt is queried without resending and a completed continuation replays", { timeout: 60_000 }, async t => {
   const held = Promise.withResolvers<void>(); let childCalls = 0;
   const f = await delegationFixture(t, [
     () => reply({ name: "delegate-work", input: { title: "起草", brief: "写一段。", acceptance: "一段文字" } }),
@@ -702,6 +702,13 @@ test("SAI-03/04/05/08/10: Work child input binds the original execution; a lost 
     await f.service.subtaskReports.idle();
     assert.equal(new Set(notices.map(one => one.notification_id)).size, 3, "original start, supplement and result each keep one envelope");
     assert.equal(f.store.rounds(parent.work.work_id).length, 2, "human continuation and stop never start the parent");
+    const results = f.service.notices.notices(null).filter(one => one.work_id === parent.work.work_id && one.kind === "result");
+    assert.equal(results.length, 1, "the closed parent entry retains the child's new result");
+    assert.match(noticeText(results[0]!), /起草.*新进展/u);
+    f.service.notices.settleNotices({ notice_id: results[0]!.notice_id }, "seen");
+    f.restart(); await f.service.subtaskReports.idle();
+    assert.equal(f.service.notices.notices(null).filter(one => one.work_id === parent.work.work_id && one.kind === "result").length, 0, "replaying original reports does not replay read news");
+    assert.equal(f.store.rounds(parent.work.work_id).length, 2, "restoring the result notice never restarts the parent");
     const parentNext = await f.service.send({ work_id: parent.work.work_id, text: "现在核对子任务更新", request_id: "req-b59-parent-explicit" }, { project_ref: f.project });
     await until(async () => (await f.service.read(parent.work.work_id)).rounds.some(round => round.run_id === parentNext.run_id && round.phase === "completed"), "explicit parent round completed");
     assert.match(f.parentBodies.at(-1)!, new RegExp(active.run.run_id));

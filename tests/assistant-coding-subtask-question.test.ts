@@ -51,7 +51,25 @@ for (const parked of [false, true]) test(`SAI-02/06/08/10/15: a delegated Work c
   const invalid = await f.call<{ error?: unknown }>(project, "/api/assistant" + workPath + "/answer", { ...input, request_id: "sai-coding-invalid-answer", answers: [{ question: 0, value: 400 }] });
   assert.notEqual(invalid.status, 200);
   assert.equal((await call<AssistantWorkView>(workPath)).rounds.at(-1)!.awaiting_input[0]!.pending_id, question.pending_id);
-  const accepted = await call<AssistantWorkView>(workPath + "/answer", input);
+  let accepted: AssistantWorkView;
+  if (parked) {
+    const transport = globalThis.fetch;
+    let lost = false;
+    const drop = t.mock.method(globalThis, "fetch", async (...args: Parameters<typeof fetch>) => {
+      const response = await transport(...args);
+      const url = args[0] instanceof Request ? args[0].url : String(args[0]);
+      if (!lost && url.endsWith(workPath + "/answer") && response.ok) {
+        await response.arrayBuffer(); lost = true;
+        throw new Error("original answer accepted; outer receipt lost");
+      }
+      return response;
+    });
+    await assert.rejects(call(workPath + "/answer", input), /outer receipt lost/);
+    drop.mock.restore();
+    await f.restart();
+    assert.equal((await call<{ state: string }>(workPath + "/subtask/requests/" + input.request_id)).state, "applied", "a fresh Host queries the accepted request without answering again");
+    accepted = await call<AssistantWorkView>(workPath);
+  } else accepted = await call<AssistantWorkView>(workPath + "/answer", input);
   await call(workPath + "/answer", input);
   assert.equal(accepted.work.work_id, child.work_id);
   if (parked) {
@@ -59,7 +77,10 @@ for (const parked of [false, true]) test(`SAI-02/06/08/10/15: a delegated Work c
     const queued = accepted.queued_inputs!.find(one => one.key === `answer.${question.pending_id}`)!;
     assert.equal(queued.left_by?.run_id, original.binding.run.run_id);
     const resume = { request_id: "sai-coding-resume-answer", subtask: original.binding, pending_id: question.pending_id, queued_input_id: queued.input_id };
-    await call(workPath + "/resume-answer", resume);
+    const competing = await Promise.all([resume, { ...resume, request_id: "sai-coding-resume-answer-other" }]
+      .map(body => f.call(project, "/api/assistant" + workPath + "/resume-answer", body)));
+    assert.ok(competing.some(one => one.status === 200), JSON.stringify(competing));
+    assert.ok(competing.every(one => one.status === 200 || one.status === 409), JSON.stringify(competing));
     await call(workPath + "/resume-answer", resume);
   }
   const after = await until(async () => { const view = await call<AssistantWorkView>(workPath); return view.work.state === "completed" ? view : undefined; }, "Coding original question resumes");

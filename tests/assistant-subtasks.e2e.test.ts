@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AssistantScope, AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantNotice, AssistantScope, AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { recordingTextModel, type ModelWire } from "./fixtures/recording-text-model.js";
 import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
@@ -47,6 +47,9 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   assert.ok(childCalls, JSON.stringify(current));
+  const notices = () => browser.evaluate<{ notices: AssistantNotice[] }>(`fetch(${JSON.stringify(base + "/notices")}).then(r=>r.json())`);
+  await notices();
+  await browser.evaluate(`fetch(${JSON.stringify(base + "/notices")},{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({work_id:${JSON.stringify(sent.work.work_id)},state:'seen'})}).then(r=>r.json())`);
   // Read the existing path list after the parent has settled, then use its actual child-name button.
   await browser.evaluate("window.dispatchEvent(new Event('focus'))");
   await browser.waitFor("document.querySelector('.assistant-subtask-name')", 15_000);
@@ -95,4 +98,15 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
   await browser.evaluate("document.querySelector('[data-work-task-float] [data-subtask-close]').click()");
   await browser.waitFor("!document.querySelector('[data-work-task-float]')");
   assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "main draft stays");
+  let updates: AssistantNotice[] = [];
+  for (const end = Date.now() + 15_000; Date.now() < end;) {
+    updates = (await notices()).notices.filter(one => one.work_id === sent.work.work_id && one.kind === "result");
+    if (updates.length) break;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  assert.equal(updates.length, 1, "a closed child float still leaves the new result at the parent entry");
+  assert.ok("key" in updates[0]!.text && updates[0]!.text.key === "workbench.assistant-notice.subtask-result");
+  assert.equal((await read()).rounds.length, source === "work" ? 2 : 1, "result observation never restarts the parent");
+  await browser.evaluate(`fetch(${JSON.stringify(base + "/notices")},{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({notice_id:${JSON.stringify(updates[0]!.notice_id)},state:'seen'})}).then(r=>r.json())`);
+  assert.equal((await notices()).notices.filter(one => one.work_id === sent.work.work_id && one.kind === "result").length, 0, "original result replay preserves the read state");
 });

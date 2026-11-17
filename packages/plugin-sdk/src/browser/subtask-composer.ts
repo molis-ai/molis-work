@@ -121,5 +121,5 @@ export function subtaskComposer(root: HTMLElement, source: SubtaskConversationSo
     // The recovered input is held throughout this read. Its owner already settled the persistent draft; this is only its display.
     if (field) { field.value = text; window.molisFit?.(field); mounted!.handle?.refresh(); }
   }
-  return { show, close, local, reload, focus: () => current?.handle?.focus(), destroy() { close(); pending.clear(); } };
+  return { show, close, local, reload, destroy() { close(); pending.clear(); } };
 }

@@ -38,6 +38,7 @@ function normalizedDescriptor(definition: HostCapabilityDescriptor): HostCapabil
     operation: definition.operation,
     ...(definition.action ? { action: structuredClone(definition.action) } : {}),
     ...(definition.action_provider ? { action_provider: structuredClone(definition.action_provider) } : {}),
+    ...(definition.observation_source ? { observation_source: definition.observation_source } : {}),
   };
 }
 

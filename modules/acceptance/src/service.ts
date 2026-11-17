@@ -167,7 +167,8 @@ export class AcceptanceService {
    * every listed requirement still at the version shown. Each accepted or returned requirement is recorded against the delivery it
    * stands on, under one decision id; requirements not listed are untouched. Only the person's own call reaches here.
    */
-  decide(caller: AcceptanceCaller, request: AcceptanceDecideRequest, decisionId: string = randomUUID(), beforeCommit?: (view: AcceptanceView) => void): AcceptanceView {
+  decide(caller: AcceptanceCaller, request: AcceptanceDecideRequest, decisionId: string = randomUUID(),
+    beforeCommit?: (view: AcceptanceView) => void): AcceptanceView {
     if (!caller.person) throw acceptanceErrors.scope("只有用户本人能认可或退回");
     const subject = this.subject(request.subject), at = this.now();
     const items = [...request.accepts.map(item => ({ ...item, decision: "accepted" as const, note: null as string | null })), ...request.returns.map(item => ({ ...item, decision: "returned" as const, note: clean(item.note) }))];
@@ -194,6 +195,10 @@ export class AcceptanceService {
       return view;
     });
   }
+
+  /** The acceptance rows are present, so a pending intent is a completed acceptance transaction. */
+  hasDecision(projectId: string, decisionId: string): boolean { return this.store.hasDecision(projectId, decisionId); }
+
 }
 
 /** The service on a Home's library, for as long as the caller needs it; `close` releases the file. `now` is for tests. */

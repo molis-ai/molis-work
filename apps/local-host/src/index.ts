@@ -456,3 +456,4 @@ export { contextOnboardingActions, contextOnboardingProvider } from "./context-o
 export { assertReadOnlyToolArgv, createHostSessionsPorts, type HostSessionsOptions } from "./sessions-ports.js";
 
 export { createSourcePullPort, type SourcePullPortOptions } from "./plugin-source-pull-service.js";
+export { recoverAcceptanceCommits } from "./acceptance-recovery.js";

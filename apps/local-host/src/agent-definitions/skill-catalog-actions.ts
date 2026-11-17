@@ -27,7 +27,7 @@ export function skillCatalogProvider(ports: SkillCatalogPorts, workshop?: SkillW
 
 function workshopHandlers(workshop: SkillWorkshop): ActionHandlerBinding[] {
   return [
-    bindActionHandler(skillDraftActions.list, (_input, caller) => workshop.list(caller)),
+    bindActionHandler(skillDraftActions.list, (input, caller) => workshop.list(caller, input.include_discarded === true)),
     bindActionHandler(skillDraftActions.read, (input, caller) => workshop.read(caller, input.draft_id)),
     bindActionHandler(skillDraftActions.create, (input, caller) => workshop.create(caller, input)),
     bindActionHandler(skillDraftActions.update, (input, caller) => workshop.update(caller, input)),
@@ -35,7 +35,10 @@ function workshopHandlers(workshop: SkillWorkshop): ActionHandlerBinding[] {
     bindActionHandler(skillDraftActions.discard, (input, caller) => workshop.discard(caller, input.draft_id, input.restore === true)),
     bindActionHandler(skillDraftActions.putCase, (input, caller) => workshop.putCase(caller, input)),
     bindActionHandler(skillDraftActions.removeCase, (input, caller) => workshop.removeCase(caller, input.draft_id, input.case_id)),
-    { ...bindActionHandler(skillDraftActions.runTrial, (input, caller) => workshop.runTrial(caller, input)), availability: () => workshop.modelAvailability("回放技能") },
+    // A replay is the Host's own trial: its action.call is kept apart from real work even though the kernel's exit runs after the
+    // handler's `withObservationSource("trial")` scope closes. Only a `system` provider's binding is honored.
+    { ...bindActionHandler(skillDraftActions.runTrial, (input, caller) => workshop.runTrial(caller, input)), observation_source: "trial" as const,
+      availability: () => workshop.modelAvailability("回放技能") },
     bindActionHandler(skillDraftActions.versions, (input, caller) => workshop.versions(caller, input.scope, input.skill_id)),
     bindActionHandler(skillDraftActions.dismissSource, (input, caller) => workshop.dismissSource(caller, input.scope, input.skill_id, input.source_version)),
   ];

@@ -1,5 +1,7 @@
+export { skillErrors } from "./skill-errors.js";
+
 import type { ContractDescriptor } from "../platform/package.js";
-import { defineErrorCodes, type ActionDefinition, type ActionSchema } from "../platform/actions.js";
+import type { ActionDefinition, ActionSchema } from "../platform/actions.js";
 import { inputSchemaFor } from "../platform/action-input.js";
 import { closedObjectSchema as object } from "../platform/closed-object-schema.js";
 import { SKILL_APPLIES_TO, SKILL_LIMITS, SKILL_RESOURCE_FOLDERS, type SkillAppliesTo, type SkillResourceRole } from "../platform/plugin-agent.js";
@@ -432,7 +434,11 @@ export interface SkillDraftSummary {
   updated_at: string;
   /** The latest replay's verdict, when it replayed this revision. */
   verdict?: SkillTrialVerdict;
+  /** Present when the draft was discarded and is still inside the 7-day keeping window: the person can restore it. */
+  discarded_at?: string;
 }
+/** `include_discarded`: also list drafts given up in the last `SKILL_DISCARDED_KEPT_DAYS`, so the person can find them again. */
+export interface SkillDraftListRequest { include_discarded?: boolean }
 
 /**
  * Where a new draft starts. `own`: one of the person's own Skills in the scope, from the version in use or from an older one
@@ -524,58 +530,6 @@ export interface SkillLineageDismissRequest {
   /** The source's version the person looked at and left: told about again only when a newer one comes. */
   source_version: number;
 }
-
-/**
- * The refusals of the actions below, declared once. A reference no longer current, off, not named, or unavailable is `read_refused`
- * with `details.reason` a `SkillReadRefusal`; `skills.body.read` answers the same reasons item by item instead of refusing the call.
- */
-export const skillErrors = defineErrorCodes("skills", {
-  /** No Skill of this installation and id in this scope's catalog. */
-  not_found: "not_found",
-  read_refused: "forbidden",
-  /** The path is not one the Skill's declaration lists. */
-  resource_undeclared: "not_found",
-  /** `expected_revision` is not the current settings revision. */
-  settings_conflict: "conflict",
-  /** The Skill is unavailable for a reason in `SKILL_SETTINGS_LOCKED_REASONS` (`details.reason`). */
-  settings_locked: "conflict",
-  /** `home` named for a Skill installed in a project: it can only be enabled in that project. */
-  scope_mismatch: "invalid",
-  /** The Runtime has no Skills folder here, or the directory is not granted to this project. */
-  import_source_unavailable: "not_found",
-  /** The preview is unknown, used, or not this person's. */
-  import_preview_unknown: "not_found",
-  /** A `skill_ids` entry is not an importable candidate of the preview. */
-  import_skill_unknown: "invalid",
-  /** The confirmation's `applies_to` misses a chosen Skill that writes none, names one that writes its own or is not chosen, or repeats one. */
-  import_applies_to_invalid: "invalid",
-  /** `skill_id` is not one of the person's own Skills in this scope, or the reference is not in the catalog. */
-  authored_unknown: "not_found",
-  /** `expected_version` is not the Skill's current version (`details.version`). */
-  authored_conflict: "conflict",
-  /** Another of the person's own Skills in this scope has this name. */
-  authored_name_taken: "conflict",
-  /** A field is empty or over its limit, or `skill_id` came without `expected_version` (`details.field`). */
-  authored_invalid: "invalid",
-  /** This scope's package is full (`SKILL_LIMITS.skillsPerPackage`). */
-  authored_full: "conflict",
-  /** The model answered with something that is not a draft. */
-  draft_unreadable: "upstream",
-  /** No draft of this id in a scope this call can see, or it was discarded and is no longer kept. */
-  draft_unknown: "not_found",
-  /** `expected_revision` is not the draft's current revision (`details.revision`). */
-  draft_conflict: "conflict",
-  /** This draft is being adopted; its fields, known answers and replay evidence cannot change until that attempt settles. */
-  draft_adopting: "conflict",
-  /** The Assistant replays or takes back only a draft it opened in the same piece of work; the person's own drafts are theirs. */
-  draft_refused: "forbidden",
-  /** The draft has known answers and this revision was not replayed: replay before adopting. */
-  trial_required: "conflict",
-  /** The latest replay differs from the known answer and `accept_differences` was not given. */
-  trial_differs: "conflict",
-  /** A known answer is empty or over its limit, the draft has `SKILL_CASES_MAX` already, or `case_id` is not the draft's (`details.field`). */
-  case_invalid: "invalid",
-});
 
 // The input schemas keep their literal types so `inputSchemaFor` holds each to its handwritten request interface
 // (specs/action-input-contracts §4.4); the exported schemas stay `ActionSchema`, so the literal stays out of the API.
@@ -724,7 +678,7 @@ const replacements = { type: "object", maxProperties: 50, propertyNames: { type:
 const draftSchema = object({ draft_id: draftId, scope, target, fields: draftFieldsSchema, revision, origin, created_at: text, updated_at: text,
   cases: { type: "array", maxItems: SKILL_CASES_MAX, items: caseSchema }, trial: trialSchema, base: object({ version: skillVersion, fields: draftFieldsSchema }),
   replacements, untried: { type: "array", items: draftId }, trial_needed: { type: "boolean" } }, ["draft_id", "scope", "target", "fields", "revision", "origin", "created_at", "updated_at", "cases", "replacements", "untried", "trial_needed"]);
-const summarySchema = object({ draft_id: draftId, scope, target, name: text, revision, origin, updated_at: text, verdict }, ["draft_id", "scope", "target", "name", "revision", "origin", "updated_at"]);
+const summarySchema = object({ draft_id: draftId, scope, target, name: text, revision, origin, updated_at: text, verdict, discarded_at: text }, ["draft_id", "scope", "target", "name", "revision", "origin", "updated_at"]);
 /** Drafting and replaying: the person's, and the Assistant's from a piece of work; never a plugin's, a workflow's or an MCP tool's. */
 const drafter = { kind: "operation" as const, scope: "home" as const, effect: "write" as const, subject_kinds: [] as string[],
   audiences: ["user", "agent"] as ("user" | "agent")[], permissions: [SKILLS_DRAFT_PERMISSION], plugin: false as const };
@@ -738,9 +692,9 @@ const personRead = { ...personDraft, kind: "query" as const, effect: "read" as c
  */
 export const skillDraftActions = {
   list: { capability_id: "skills.drafts.list", version: /* @version action.skills.drafts.list */ 1, operation: "query", action: { ...personRead,
-    title: "列出技能草稿", description: "本人列出个人空间和当前项目里还开着的技能草稿：改的是哪个技能（新的、自己的某个、或从别的技能改的一份）、名称、修订号、谁起的头、最近一次回放的结果。草稿不影响任何一轮。",
-    input_schema: inputSchemaFor<Record<string, never>>()(object({}, [])),
-    output_schema: object({ drafts: { type: "array", items: summarySchema } }) } } as ActionDefinition<Record<string, never>, { drafts: SkillDraftSummary[] }>,
+    title: "列出技能草稿", description: "本人列出个人空间和当前项目里还开着的技能草稿：改的是哪个技能（新的、自己的某个、或从别的技能改的一份）、名称、修订号、谁起的头、最近一次回放的结果。带 include_discarded 时也列出放弃后仍在 7 天保留期内的草稿，用来找回。草稿不影响任何一轮。",
+    input_schema: inputSchemaFor<SkillDraftListRequest>()(object({ include_discarded: { type: "boolean" } }, [])),
+    output_schema: object({ drafts: { type: "array", items: summarySchema } }) } } as ActionDefinition<SkillDraftListRequest, { drafts: SkillDraftSummary[] }>,
   read: { capability_id: "skills.drafts.read", version: /* @version action.skills.drafts.read */ 1, operation: "query", action: { ...personRead,
     title: "读取一份技能草稿", description: "本人一次读出一份草稿：字段、修订号、已知答案、最近一次回放，以及拿来对照的版本（自己的技能现在在用的那一版，或改的那份通用技能）。",
     input_schema: inputSchemaFor<SkillDraftReadRequest>()(object({ draft_id: draftId })), output_schema: draftSchema } } as ActionDefinition<SkillDraftReadRequest, SkillDraft>,

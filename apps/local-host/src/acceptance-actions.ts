@@ -6,6 +6,7 @@ import { decideAcceptanceInTransaction, openAcceptance, type AcceptanceCaller, t
 import { hostBoundSession } from "@molis-ai/molis-work-plugin-sdk";
 import { projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
 import { acceptanceSubjectFromReview, assertAcceptanceObjectReadable, buildAcceptanceReviewOffer } from "./acceptance-review.js";
+import { recoverAcceptanceCommits } from "./acceptance-recovery.js";
 import { attentionChanged } from "./attention-changes.js";
 import { projectReviewForSystemWrite } from "./project-review-effect.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -55,6 +56,7 @@ export function acceptanceProvider(
   };
   const projectOf = async (projectId: string): Promise<LocalHostProjectReference | undefined> => (await resolveProject?.(projectId)) ?? undefined;
   const A = acceptanceActions;
+  if (localHost && resolveProject) void recoverAcceptanceCommits(localHost, homeDirectory, resolveProject).catch(() => undefined);
   return {
     provider: { provider_id: ACCEPTANCE_PROVIDER_ID, title: "要求、证据与认可", kind: "system" },
     definitions: [A.set, A.deliver, A.report, A.read, A.review, A.decide],
@@ -70,10 +72,10 @@ export function acceptanceProvider(
         const project = await projectOf(person.project_id);
         await assertAcceptanceObjectReadable(caller, clientFor(caller), localHost, project, subject);
         const view = await run(service => service.read(person, { subjects: [subject] }).views[0]!);
-        if (!localHost || !project) return buildAcceptanceReviewOffer(view, person.project_id, input, () => null);
+        if (!localHost || !project) return buildAcceptanceReviewOffer(view, person.project_id, input, () => null, person.actor_id);
         return localHost.withProject(project, ({ store }) => {
           const decisions = projectReviewDecisions(store.db, person.project_id);
-          return buildAcceptanceReviewOffer(view, person.project_id, input, decisions.findCommitted);
+          return buildAcceptanceReviewOffer(view, person.project_id, input, decisions.findCommitted, person.actor_id);
         });
       }),
       bindActionHandler(A.decide, async (input, caller) => {

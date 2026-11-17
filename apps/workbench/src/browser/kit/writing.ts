@@ -114,7 +114,7 @@ export function skillWriting(page: WritingPage) {
 
   /** A draft named in the address (a receipt's 「打开草稿」 link) opens once the page has read the kit. */
   async function fromAddress(): Promise<void> {
-    const drafts = await listDrafts(project).catch(() => []);
+    const drafts = await listDrafts(project, true).catch(() => []);
     if (!c.active()) return;
     c.drafts = drafts;
     const named = addressedDraft;
@@ -129,7 +129,7 @@ export function skillWriting(page: WritingPage) {
 
   return {
     beforeReplace: () => edit.flush(), dispose,
-    isMine: c.isMine, run, holds, focus: focusIn, decorate: skill.decorate, fromAddress,
+    run, holds, focus: focusIn, decorate: skill.decorate, fromAddress,
     strip: () => draftsStrip(c.drafts),
     asking: () => view.asking && askingMarkup(view.asking, c.limits, Boolean(project)),
     workshop: () => view.workshop && workshopMarkup(view.workshop, c.limits),

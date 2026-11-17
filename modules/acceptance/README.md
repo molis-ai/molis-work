@@ -2,7 +2,7 @@
 
 把一件工作要满足的各项要求挂到任何插件的对象上（助理的后台任务、待办、Goal……），记下每次交付的确切版本、每项要求的核对结果与证据、用户本人的认可或退回，并从这些记录现算每项此刻的状态。平台能力，不认识 Goals；没有 Goals 的项目照样完整可用（[主动助理](../../specs/proactive-assistant/spec.md) §7.3.1，PWA-144～147；[授权需求书](../../specs/agent-approval/spec.md) §3.5 的共用审查合同）。
 
-包名：`@molis-ai/molis-work-module-acceptance`。工作区内部包，由 Host 装配成 `system.acceptance` 的六个动作：`acceptance.requirements.set@1`、`acceptance.deliveries.record@1`、`acceptance.reports.submit@1`、`acceptance.read@1`、`acceptance.review@1`、`acceptance.decide@1`。`acceptance.read@1` 一次读一个或几个对象（`subjects`，至多 32 个），按所问的顺序返回 `views`，只开一次库；`acceptance.decide@1` 声明 `requires_trusted_decision: true`，由受保护可信决定入口（Web、CLI、管理 MCP）经 `acceptance.review@1` 冻结审查快照后在同一项目事务内同时记下逐项决定与项目库的不可变 `ProjectTrustedDecision`（APR-15、APR-16）。
+包名：`@molis-ai/molis-work-module-acceptance`。工作区内部包，由 Host 装配成 `system.acceptance` 的六个动作：`acceptance.requirements.set@1`、`acceptance.deliveries.record@1`、`acceptance.reports.submit@1`、`acceptance.read@1`、`acceptance.review@1`、`acceptance.decide@1`。`acceptance.read@1` 一次读一个或几个对象（`subjects`，至多 32 个），按所问的顺序返回 `views`，只开一次库；`acceptance.decide@1` 声明 `requires_trusted_decision: true`，由受保护可信决定入口（Web、CLI、管理 MCP）经 `acceptance.review@1` 冻结审查快照后记下逐项决定与项目库的不可变 `ProjectTrustedDecision`（APR-15、APR-16）。认可结果在 `acceptance.db`、平台决定在项目库，由 Host 在同一连接以 ATTACH 组成单次原子提交。主干原有 `<Home>/acceptance/commit-intents/` 意向文件仍由 Host 在启动/读取时按原决定幂等恢复；新操作不再生成意向文件。
 
 ## 一次典型调用
 
@@ -20,8 +20,9 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/schema.ts](src/schema.ts) | Home 库 `acceptance/acceptance.db` 的结构：对象、要求的各个版本、交付、核对、决定；除对象表外都只追加 |
+| [src/schema.ts](src/schema.ts) | Home 库 `acceptance/acceptance.db` 的结构：对象、要求的各个版本、交付、核对、决定；业务表只追加 |
 | [src/store.ts](src/store.ts) | 追加与读取（不出包）；项目删除时清掉该项目的记录（`acceptanceProjectData`） |
+| [src/intents.ts](src/intents.ts) | 读取并清除 `<Home>/acceptance/commit-intents/` 中已存在的提交意向；恢复成功后删除 |
 | [src/state.ts](src/state.ts) | `acceptanceView`：从记录现算每项要求的状态、各轮记录和三个各自的进度（纯函数） |
 | [src/service.ts](src/service.ts) | 五个操作的规则与证据核对（`weigh`）；调用方身份由 Host 给（`AcceptanceCaller`）；`openAcceptance` 是包对外的入口 |
 
@@ -48,6 +49,7 @@ node scripts/run-tests.mjs tests/acceptance-requirements.test.ts tests/security-
 - 不变量：
   - 层级只由平台得出：报告的输入里没有层级字段；拿不到平台事实的证据一律按自述计并记下缺口（S-acceptance-evidence-tier，PWA-144）。
   - 只有用户本人经受保护可信决定入口能认可或退回：`acceptance.decide@1` 绑定 `requires_trusted_decision: true` 与 `acceptance.review@1`，任何绕过受保护入口的直接调用、Agent、工作流、MCP、插件和插件转来的调用都拒，被拒的调用什么都不写（S-acceptance-person-decides）。
+  - 提交与恢复：两库以同连接 ATTACH 单次 COMMIT，失败共同回滚；旧意向文件按同一 `decision_id` 幂等恢复，不重做业务动作；项目清除先提交数据库删除，再清理意向文件。
   - 交付过之后只有本人能改要求；改了的要求得到新版本，此前的核验与认可不再算数，改要求和返工分别记录（PWA-146）。
   - 认可记下它针对的要求版本和交付版本；之后的交付动到这一项、或要求变了，这一项回到待定，其余不受影响。
   - 除对象表外的记录只追加、不改写、不删除（项目删除时整项目清掉）；历史结论和证据引用都读得到。

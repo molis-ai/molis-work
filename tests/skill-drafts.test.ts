@@ -8,7 +8,7 @@ import test from "node:test";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SKILL_AUTHORED_PLUGIN_IDS, SKILLS_DRAFT_PERMISSION, SKILLS_PERMISSIONS, skillCatalogActions, skillDraftActions, skillPlaceholders, type SkillAuthoredFields,
   type SkillBodyReadResult, type SkillCatalogEntry, type SkillDraft, type SkillDraftAdoptResult, type SkillDraftSummary, type SkillTrial, type SkillVersion } from "@molis-ai/molis-work-contracts/services/skills";
-import { currentObservationSource } from "@molis-ai/molis-work-service-observation";
+import { currentObservationSource, readRecords } from "@molis-ai/molis-work-service-observation";
 import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, handlePluginTrustHttp, molisWorkHostProjectReference, pluginInstallActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { signedContentPackage } from "./fixtures/content-package.js";
@@ -190,7 +190,7 @@ async function harness(model: ReturnType<typeof modelDouble> | null) {
     const preview = await call<{ preview_id: string }>(person, pluginInstallActions.preview, { bundle });
     await call(person, pluginInstallActions.confirm, { preview_id: preview.preview_id, consent: true, ...(label ? { pin_label: label } : {}) });
   };
-  return { home, client, person, assistant, call, draft, adopt, catalog, mine, drafts, write, install,
+  return { home, host, client, person, assistant, call, draft, adopt, catalog, mine, drafts, write, install,
     async close() { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await host.close(); await rm(base, { recursive: true, force: true }); } };
 }
 
@@ -278,6 +278,40 @@ test("PWA-16 PWA-83 a replay calls only the text model, in the trial observation
   } finally { await h.close(); }
 });
 
+test("PWA-83 the replay's own action call is recorded as a trial, not as real work", mac, async () => {
+  const model = modelDouble(prompt => isJudge(prompt) ? judge(prompt) : "周报：按负责人分组。");
+  const h = await harness(model);
+  try {
+    const opened = await h.draft({ scope: "project", target: { kind: "new" }, fields: fields("周报整理"), case: KNOWN });
+    await h.call(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: opened.revision, case_id: opened.cases[0]!.case_id });
+    h.host.observation!.layer.flush();
+    const calls = readRecords(h.host.observation!.layer.writer.database()!.db, { fact: "action.call" });
+    const trial = calls.find(record => record.detail.action === "skills.trials.run@1");
+    assert.equal(trial?.source_class, "trial", "the replay's action.call is a trial; the model calls' source scope does not reach the kernel exit");
+    assert.ok(calls.filter(record => record.detail.action === "skills.trials.run@1").every(record => record.source_class === "trial"));
+  } finally { await h.close(); }
+});
+
+test("PWA-104 five known answers each replayed on this revision; re-running one does not push another's replay out", mac, async () => {
+  const model = modelDouble(prompt => isJudge(prompt) ? judge(prompt) : "周报：A 完成。");
+  const h = await harness(model);
+  try {
+    const opened = await h.draft({ scope: "project", target: { kind: "new" }, fields: fields("五份周报"), case: KNOWN });
+    const cases = [opened.cases[0]!.case_id];
+    for (let index = 2; index <= 5; index++) {
+      const added = await h.call<{ case_id: string }>(h.person, skillDraftActions.putCase, { draft_id: opened.draft_id,
+        title: `第 ${index} 份`, task: `整理第 ${index} 份周报`, material: `材料 ${index}`, expected: `周报：${index} 完成。` });
+      cases.push(added.case_id);
+    }
+    for (const caseId of cases) await h.call(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: opened.revision, case_id: caseId });
+    await h.call(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: opened.revision, case_id: cases[2]! });
+    const reread = await h.call<SkillDraft>(h.person, skillDraftActions.read, { draft_id: opened.draft_id });
+    assert.deepEqual(reread.untried, [], "the re-run replaces its answer's own replay, not another answer's");
+    const adopted = await h.adopt({ draft_id: opened.draft_id, expected_revision: reread.revision });
+    assert.equal(adopted.skill_version, 1);
+  } finally { await h.close(); }
+});
+
 test("PWA-14 PWA-105 every version of one's own Skill is listed from the signed releases; restoring one opens a draft and is adopted as the next version; a discarded draft can be taken back", mac, async () => {
   const h = await harness(null);
   try {
@@ -299,6 +333,8 @@ test("PWA-14 PWA-105 every version of one's own Skill is listed from the signed 
     const dropped = await h.draft({ scope: "project", target: { kind: "new" }, fields: fields("不要了") });
     assert.deepEqual(await h.call(h.person, skillDraftActions.discard, { draft_id: dropped.draft_id }), { draft_id: dropped.draft_id, discarded: true });
     assert.deepEqual(await h.drafts(), []);
+    const withDiscarded = await h.call<{ drafts: SkillDraftSummary[] }>(h.person, skillDraftActions.list, { include_discarded: true });
+    assert.ok(withDiscarded.drafts.find(row => row.draft_id === dropped.draft_id)?.discarded_at, "a discarded draft is listed for the 7-day restore");
     await assert.rejects(h.call(h.person, skillDraftActions.read, { draft_id: dropped.draft_id }), refused("skills.draft_unknown"));
     assert.deepEqual(await h.call(h.person, skillDraftActions.discard, { draft_id: dropped.draft_id, restore: true }), { draft_id: dropped.draft_id, discarded: false });
     assert.deepEqual((await h.drafts()).map(row => row.name), ["不要了"]);

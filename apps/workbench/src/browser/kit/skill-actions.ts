@@ -2,7 +2,7 @@ import type { SkillAuthoredSource, SkillCatalogEntry } from "@molis-ai/molis-wor
 import { fieldsOfSource, ownership, readSource, removeSkill, setState } from "./authoring.js";
 import { act, readText } from "./common.js";
 import type { DraftEditing } from "./draft-editing.js";
-import { adoptDraft, createDraft, discardDraft, dismissSource, listVersions, messageOf } from "./drafts.js";
+import { adoptDraft, createDraft, discardDraft, dismissSource, listDrafts, listVersions, messageOf } from "./drafts.js";
 import { written, type SkillEntry, type WritingContext } from "./writing-context.js";
 import { diffOf, draftBand, textOf, upstreamMarkup, versionsMarkup } from "./workshop.js";
 
@@ -50,7 +50,7 @@ export function skillActions(c: WritingContext, edit: DraftEditing) {
   async function start(name: string, value: string | undefined, origin: HTMLElement): Promise<boolean> {
     if (name === "skill-new") { view.asking = { scope: c.pageScope, intent: "" }; view.workshop = undefined; view.detail = true; draw("au"); return true; }
     if (name === "sk-open" && value) { await edit.openDraft(value); return true; }
-    if (name === "sk-undiscard" && value) { await discardDraft(project, value, true); await c.reload(); await edit.openDraft(value); return true; }
+    if (name === "sk-undiscard" && value) { await discardDraft(project, value, true); c.drafts = await listDrafts(project, true).catch(() => c.drafts); await c.reload(); await edit.openDraft(value); return true; }
     if (name === "au-undelete") { await undelete(); return true; }
     if (name !== "skill-edit" && name !== "skill-copy" && name !== "skill-delete" && name !== "au-auto") return false;
     const entry = c.skillOf(value);

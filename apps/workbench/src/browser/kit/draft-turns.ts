@@ -16,7 +16,8 @@ export type DraftTurns = ReturnType<typeof draftTurns>;
 
 export function draftTurns(c: WritingContext, edit: DraftEditing) {
   const { project, view, draw, say } = c;
-  const modelsHref = `/projects/${encodeURIComponent(project || "personal")}/settings/models`;
+  // Model settings are Home-wide: a project settings path has no models page.
+  const modelsHref = "/settings/models";
 
   async function ask(w: Workshop): Promise<void> {
     if (w.asking || !w.ask.trim() || !(await edit.flush(w))) return;
@@ -32,7 +33,7 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
   }
   async function replay(w: Workshop, caseId: string): Promise<void> {
     if (w.running || !(await edit.flush(w))) return;
-    w.running = caseId; w.runFailure = undefined; w.side = "try"; if (w.tab !== "edit") w.tab = "try";
+    w.running = caseId; w.runFailure = undefined; w.runFailureCode = undefined; w.side = "try"; if (w.tab !== "edit") w.tab = "try";
     draw();
     try {
       const trial = await runTrial(project, w.draft, caseId);
@@ -41,7 +42,7 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
       w.draft = { ...w.draft, trial, untried, trial_needed: untried.length > 0 };
     } catch (cause) {
       if (failureOf(cause).code === "skills.draft_conflict") await edit.refresh(w);
-      w.runFailure = messageOf(cause);
+      w.runFailure = messageOf(cause); w.runFailureCode = failureOf(cause).code;
     } finally { w.running = undefined; }
     if (view.workshop === w) draw(w.runFailure ? "sk-side" : "sk-replay");
   }

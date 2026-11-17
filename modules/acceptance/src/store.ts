@@ -4,6 +4,7 @@ import type { AcceptanceCheck, AcceptanceEvidenceRef, AcceptanceSubject } from "
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ACCEPTANCE_BASELINE, ACCEPTANCE_STORE } from "./schema.js";
 import type { CheckRow, DecisionRow, DeliveryRow, RequirementRow, SubjectRows } from "./state.js";
+import { AcceptanceCommitIntents } from "./intents.js";
 
 type Row = Record<string, unknown>;
 const text = (value: unknown) => (typeof value === "string" ? value : null);
@@ -65,6 +66,10 @@ export class AcceptanceStore {
     this.db.prepare(`INSERT INTO ${this.table("decisions")} (decision_id, subject_no, requirement_id, requirement_version, stands_round, version, decision, note, actor_id, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(row.decision_id, subjectNo, row.requirement_id, row.requirement_version, row.stands_round, row.version, row.decision, row.note, row.actor_id, row.decided_at);
   }
+  hasDecision(projectId: string, decisionId: string): boolean {
+    return this.db.prepare(`SELECT 1 FROM ${this.table("decisions")} d JOIN ${this.table("subjects")} s ON s.subject_no = d.subject_no WHERE s.project_id = ? AND d.decision_id = ? LIMIT 1`)
+      .get(projectId, decisionId) !== undefined;
+  }
 }
 
 export function openStore(homeDirectory: string): AcceptanceStore {
@@ -79,6 +84,7 @@ export function purgeAcceptanceProject(homeDirectory: string, projectId: string)
     for (const table of ["requirements", "deliveries", "checks", "decisions"]) db.prepare(`DELETE FROM acceptance_${table} WHERE subject_no IN (SELECT subject_no FROM acceptance_subjects WHERE project_id = ?)`).run(projectId);
     db.prepare("DELETE FROM acceptance_subjects WHERE project_id = ?").run(projectId);
   });
+  new AcceptanceCommitIntents(homeDirectory).removeProject(projectId);
 }
 
 /** What this module keeps in the Home for a project and how the project's deletion clears it. Not a plugin, so the Host lists it by hand. */

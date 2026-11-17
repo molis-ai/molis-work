@@ -1,5 +1,7 @@
 # Molis Work 审查报告与优化策略
 
+第51批已整合 main `dbcf562a67` 的恢复能力，当前在最终本地验收：新认可保持两库一次原子提交，既存提交意向继续幂等恢复；Skill保留本轮输入/并发修复，同时接入主干7天找回与可信trial来源。首轮完整构建和9文件63项通过，只读复核无新增生产Blocker/P1；补强重复恢复反例及合同文件职责拆分后正在重建。尚未推送本次提交，最终资源/CI及剩余原任务继续。
+
 第50批本地验收通过：后台Goal只读集合，正文按实际可见性读取；分别确认已应用的平台游标，在途新变化和强制保存刷新不会丢失。57个相关包文件607项、实际UI20项、构建4/健康及最终五样本路径通过，详见文末QF-51追加。固定规则20条建议较空闲样本p50为5.4秒，末次有其他工作树并发测试时9.1秒，保留波动，不宣称已稳定达到响应目标。最新main dbcf562a67已拉取，下一批整合79文件交集；最终资源/CI、其他平台候选与整项目标仍未完成。
 
 第49批本地验收完成：Settings统一维护缓存页地址与实际释放，Kit同步消费一次性草稿链接；暂时隐藏保留未存输入和在途读取，实际替换前保存，保存失败继续显示原输入，迟到的旧地址读取不覆盖新内容。组合27文件215项通过，最终完整构建/API零差异/健康通过，只读窄复核无剩余Blocker/P1。详见QF-56。Home回执链接、QF-51性能、平台候选及最终资源/CI仍未结算。
@@ -800,3 +802,15 @@ BL-b42-followups③只处理了项目/独立页的地址消费与缓存恢复；
 最终性能断言亦过（`quality-audit-collection-inbox-performance-final.log`）：五样本11246、8794、9115、10459、8577ms，p50=9115ms，所有后台Goal刷新均collection；Inbox重读1次、20条实际建议先显示再提示。此时机器还有两个其他工作树测试批次，主会话没有并发构建/重测试；不能将其与较空闲5.4秒样本当作严格对照，也不能隐去变慢样本。保留QF-51/BL的最终环境与CI结论。健康 `quality-audit-collection-health-final.log` 在main 4cf1c742e6基线上退出0；新main整合后仍按新基线复核。
 
 最终结算：26文件197项调用方与Workbench要求通过（`quality-audit-settings-owner-acceptance.log`）；保持语义提取目录匹配后，最终构建通过、Skill创作与恢复2文件19项复验通过（`quality-audit-settings-owner-extraction-final.log`），去重组合27文件215项。健康通过（`quality-audit-settings-owner-health-final.log`），mountKit精确巨大单元记录155→153，无脚本或阈值放宽；首次158行失败记录保留。API零差异。覆盖实际Home持久化、失败/重试、采用/放弃、缓存/历史及资源加载，不替代Home动作回执链接、真实模型质量或最终头CI。
+
+### QF-57 / P1：项目清除回滚可能先丢失尚未恢复的验收决定
+
+主干合入前路径 `modules/acceptance/src/store.ts` 的 `purgeAcceptanceProject` 在 `clearInExistingHomeSqlite` 回调内删除提交意向；该函数退出回调后才 COMMIT（`packages/storage/src/sqlite-baseline.ts:422`）。因此最终提交拒绝时数据库回滚，恢复文件却无法回滚，用户可能失去补全原平台决定的依据。
+
+处置：Acceptance owner 在数据库删除提交返回后再清理既存意向；正常认可继续 QEA-84–86 的同连接 ATTACH 单次 COMMIT。新主干两次提交专用的意向写入回调、Service转发和无生产调用writer删除；既存格式的读取/清理及Host幂等restore保留，不新建第二份决定事实或新兼容取值。`modules/acceptance/src/store.ts:81`、`apps/local-host/src/acceptance-recovery.ts:14`、`horizontal/project-approvals/src/decisions.ts` 分别负责清除、组合与平台决定恢复。
+
+首轮真实隔离Home通过：QEA-117在原库加deferred FK，最终COMMIT拒绝后要求/对象和意向均保留；移除故障后同一清除成功。正常认可不写旧意向；原主干未落平台记录能够恢复。QEA-84–86最终提交拒绝、清理故障和真实SIGKILL等原测试继续通过。9文件63项见 `/tmp/quality-audit-main-integration-focused.log`。只读复核要求补“平台决定已恢复、文件未清除”的重入：已补完整内容/行数/意向清理断言，重建后待验。
+
+六方向处置：状态事实仍归两库各自owner及唯一正常事务；去掉第二条正常写路径和无调用转发；失败不会迫使人重新认可；恢复协调由Host调用公开owner端口；已有Storage原子与维护恢复能力继续复用。文档已纠正主干“库1→2”误写，实际数据库仍为1，没有结构迁移。
+
+继续查深的已定位缺口：Skill并发冲突保住输入，但只有刷新提示、缺少能继续编辑的恢复入口；采用时签名安装成功后的目录刷新/草稿结算仍在原安装补偿范围之外。前者需真实双入口恢复验证，后者需真实SQL/异步故障反证再按owner边界落地；均不能算本次整合已解决。

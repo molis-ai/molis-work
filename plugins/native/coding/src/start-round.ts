@@ -1,3 +1,4 @@
+import { roundImages } from "./routes-images.js";
 import { memoryLearningActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { codingMemorySources } from "./memory-learning.js";
 import { parseExactActionReferences, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -185,6 +186,8 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   // A round woken by the activation's own loop (an answer arrived, a wait ended) answers to that loop's job (wake-loop.ts).
   api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
   const { context, projectId } = a;
+  // Pictures the person added in the composer: references to this installation's attachments, which the Agent Host reads again.
+  const image_materials = roundImages(body.images);
   const savedInput=execution.sessions.inputs.read(projectId,record.session_id);
   // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
   const original_input = originalForStart(body, beforeWrite), continued_from = continuedOriginal(body, record.runtime_session_id);
@@ -274,7 +277,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
         tokens: { input: spent.tokens.input + usage.input, output: spent.tokens.output + usage.output } }));
     });
   const codeRevision = await roundCodeRevision(a, beforeWrite, workspace.workspace_id, tree);
-  const start = async (mode: "session" | "digest") => codingActions(a.context, beforeWrite).invoke(agent.startRun, [record.runtime_id, { session, directory, task: mode === "digest" ? (await digestFor()).text : task, ...(original_input ? { original_input } : {}), ...(continued_from ? { continued_from } : {}), role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
+  const start = async (mode: "session" | "digest") => codingActions(a.context, beforeWrite).invoke(agent.startRun, [record.runtime_id, { session, directory, task: mode === "digest" ? (await digestFor()).text : task, ...(original_input ? { original_input } : {}), ...(continued_from ? { continued_from } : {}), role_id: role, text_materials, ...(image_materials.length ? { image_materials } : {}), character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
     ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: executionSteps(plan.content) } } : {}),
     ...(continueOf !== undefined ? { continue_step_board_of: continueOf } : {}),
     // A round that waited for other work takes over the item it waited as.

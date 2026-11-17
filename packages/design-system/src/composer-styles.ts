@@ -14,8 +14,6 @@ export const COMPOSER_PICTURES_STYLES = `
   .mw-composer__open:hover { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
   .mw-composer__open:focus-visible { outline: var(--focus-stroke) solid var(--accent); outline-offset: 2px; }
   @media (pointer: coarse) { .mw-composer__files.is-pictures .mw-mark { width: 44px; height: 44px; } }
-  .mw-picture { width: min(960px, calc(100vw - 32px)); }
-  .mw-picture__image { display: block; max-width: 100%; max-height: 70vh; margin: 0 auto; border-radius: var(--r-row); object-fit: contain; }
 `;
 
 /**
@@ -103,6 +101,7 @@ ${composerFoldRules("")}
     .mw-composer__notice { flex-wrap: wrap; }
     .mw-composer__notice-text { flex-basis: calc(100% - 22px); }
     .mw-composer__notice > .mw-btn { margin-inline-start: 22px; }
+    .mw-composer__notice > .mw-btn + .mw-btn { margin-inline-start: 0; }
   }
   @media (prefers-reduced-motion: reduce) { .mw-composer__box { transition: none; } .mw-composer__controls, .mw-composer__notice { animation: none; } }
   @media (max-width: 600px), (pointer: coarse) {

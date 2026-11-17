@@ -1,5 +1,5 @@
 import type { ComposerMaterial } from "@molis-ai/molis-work-contracts/platform/composer";
-import type { ComposerCommand, ComposerControl, ComposerHandle, ComposerNotice, ComposerOptions, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import type { ComposerCommand, ComposerControl, ComposerFileFact, ComposerHandle, ComposerNotice, ComposerOptions, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type { BridgedCommand, BridgedControl, ComposerCalls, ComposerDown, ComposerSnapshot, ComposerUp } from "./composer-bridge.js";
 import { childComposerReadiness } from "./composer-readiness.js";
 import type { FrameScope } from "./types.js";
@@ -14,7 +14,8 @@ function control(item: ComposerControl): BridgedControl {
 
 /** The line above the box as it crosses: words and tone, its button's label only (its press comes back as `composer-act` `notice`). */
 function bridgedNotice(notice: ComposerNotice | null): ComposerSnapshot["notice"] {
-  return notice ? { text: notice.text, tone: notice.tone, ...(notice.icon ? { icon: notice.icon } : {}), action: notice.action ? { label: notice.action.label } : null } : null;
+  return notice ? { text: notice.text, tone: notice.tone, ...(notice.icon ? { icon: notice.icon } : {}), action: notice.action ? { label: notice.action.label } : null,
+    ...(notice.action && notice.also ? { also: { label: notice.also.label } } : {}) } : null;
 }
 function command(item: ComposerCommand): BridgedCommand {
   return { slash: item.slash, label: item.label, ...(item.hint ? { hint: item.hint } : {}), ...(item.keywords ? { keywords: [...item.keywords] } : {}),
@@ -32,7 +33,7 @@ function childSnapshot(ai: Extract<ComposerOptions, { kind: "ai" }>, root: HTMLE
       ...(receiver.others ? { others: receiver.others.map(one => ({ id: one.id, label: one.label, ...(one.detail ? { detail: one.detail } : {}) })) } : {}) } : null,
     delivery: ai.delivery?.() ?? null, pause: pause ? { label: pause.label, title: pause.title, ...(pause.busy ? { busy: true } : {}) } : null,
     stop: Boolean(ai.stop), controls: (ai.controls ?? []).map(control), commands: (ai.commands ?? []).map(command),
-    mentions: Boolean(ai.mentions), attachments: ai.attachments ? { ...(ai.attachments.accept ? { accept: ai.attachments.accept } : {}) } : null,
+    mentions: Boolean(ai.mentions), attachments: ai.attachments ? { ...(ai.attachments.accept ? { accept: ai.attachments.accept } : {}), ...(ai.attachments.pictures ? { pictures: { ...ai.attachments.pictures } } : {}) } : null,
     sources: ai.sources ?? true, near: ai.near?.() ?? null, ...(ai.voice ? { voice: ai.voice } : {}), required: ai.required?.() ?? null,
     notice: bridgedNotice(ai.notice?.() ?? null), submitKeys: ai.submitKeys !== false, draft: Boolean(ai.draft), column, running, hold,
   };
@@ -105,7 +106,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
     const id = live = ++sequence, field = root.querySelector<HTMLTextAreaElement>(".mw-composer__input");
     const ai = options;
     const calls = new Map<number, AbortController>(), checks = new Map<number, () => Promise<"sent" | "not-sent" | "unknown">>();
-    let running = false, hold: string | null = null, materials: readonly ComposerMaterial[] = [], gone = false, last = "", queued = false;
+    let running = false, hold: string | null = null, materials: readonly ComposerMaterial[] = [], files: readonly ComposerFileFact[] = [], gone = false, last = "", queued = false;
     const readiness = childComposerReadiness(send, id, () => !gone && live === id);
     refuseReady = readiness.discard;
     root.dataset.composerRemote = "";
@@ -175,13 +176,13 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       if (!message || message.id !== id || gone) return;
       if (message.type === "composer-ready") { readiness.answer(message); return; }
       if (message.type === "composer-text") { mirror(message.text); return; }
-      if (message.type === "composer-materials") { materials = message.materials; ai.onMaterials?.(); return; }
+      if (message.type === "composer-materials") { materials = message.materials; files = message.files ?? []; ai.onMaterials?.(); changed(); return; }
       // The bar's input width: a page lines its conversation up with it through this one variable (§10.4).
       if (message.type === "composer-column") { if (Number.isFinite(message.width) && message.width > 0) document.documentElement.style.setProperty("--mw-bar-column", Math.round(message.width) + "px"); return; }
       if (message.type === "composer-abort") { calls.get(message.call)?.abort(); calls.delete(message.call); return; }
       if (message.type === "composer-act") {
         if (message.act === "command") ai.commands?.find(item => item.slash === message.key)?.run();
-        else if (message.act === "notice") ai.notice?.()?.action?.run();
+        else if (message.act === "notice") { const line = ai.notice?.(); (message.key === "also" ? line?.also : line?.action)?.run(); }
         else if (message.act === "receiver") {
           // Only one the page itself listed.
           const named = ai.receiver?.();
@@ -219,8 +220,9 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       refresh: changed,
       focus: () => send({ type: "composer-focus", id }),
       insert: (text) => send({ type: "composer-insert", id, text }),
-      attach: (files) => send({ type: "composer-attach", id, files: [...files] }),
+      attach: (given, replacing = []) => send({ type: "composer-attach", id, files: [...given], ...(replacing.length ? { replacing: replacing.map(({ name, size, type, lastModified }) => ({ name, size, type, lastModified })) } : {}) }),
       materials: () => materials,
+      files: () => files,
       destroy,
     };
     return handle;

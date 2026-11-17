@@ -22,7 +22,8 @@ export interface PluginModelSelection {
 
 export interface PluginModelChoice extends PluginModelSelection {
   readonly label: string;
-  readonly vision: boolean;
+  /** What the person marked in model settings: true can see pictures, false cannot; absent when they marked neither. */
+  readonly vision?: boolean;
   readonly reasoning_effort: boolean;
 }
 

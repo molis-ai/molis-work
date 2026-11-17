@@ -275,7 +275,7 @@ export type SandboxModelAvailability = {
 
 export interface SandboxModelChoice extends SandboxModelSelection {
     label: string;
-    vision: boolean;
+    vision?: boolean;
     reasoning_effort: boolean;
 }
 

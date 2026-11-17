@@ -76,6 +76,7 @@ export const codingManifest: PluginManifest = {
       reason: "把变更集、报告与图作为成果发布，带来源与版本",
     },
     { permission: "workspace:read", required: true, reason: "读取已关联工作目录里的目录与文本，用于任务里 @ 提到的文件与目录" },
+    { permission: "materials:read", required: true, reason: "把你贴进来的图片存成这次对话的附件，随这一轮发给模型" },
     { permission: "model:read", required: true, reason: "读取全局模型设置里可用的模型，供每一轮选用；不发起模型请求" },
     // The round's model call is the Agent runtime's; `model:invoke` covers only Coding's two explicit drafts (`agent.draft-text`):
     // the commit message and the digest of earlier rounds. Turned off, only those two stop (PG-035).
@@ -221,6 +222,9 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.command-output", method: "GET", path: "/sessions/:sessionId/runs/:runId/commands/:callId" },
     { route_id: "coding.update-session", method: "PATCH", path: "/sessions/:sessionId" },
     { route_id: "coding.start-run", method: "POST", path: "/sessions/:sessionId/runs" },
+    // One picture of at most 5 MB, as base64 in JSON (routes-images.ts).
+    { route_id: "coding.attachments", method: "POST", path: "/sessions/:sessionId/attachments", max_body_bytes: 7_100_000 },
+    { route_id: "coding.round-image", method: "GET", path: "/sessions/:sessionId/runs/:runId/images/:materialId" },
     { route_id: "coding.scope-check", method: "POST", path: "/sessions/:sessionId/scope-check" },
     { route_id: "coding.queued-round", method: "POST", path: "/sessions/:sessionId/queued" },
     { route_id: "coding.messages", method: "GET", path: "/sessions/:sessionId/messages" },

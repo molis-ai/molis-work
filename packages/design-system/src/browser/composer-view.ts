@@ -148,7 +148,7 @@ function notice(c: Composer) {
     return;
   }
   const fresh = document.createElement("template");
-  fresh.innerHTML = renderComposerNotice(id, { text: now.text, tone: now.tone, ...(now.icon ? { icon: now.icon } : {}), action: now.action ? { label: now.action.label } : null });
+  fresh.innerHTML = renderComposerNotice(id, { text: now.text, tone: now.tone, ...(now.icon ? { icon: now.icon } : {}), action: now.action ? { label: now.action.label } : null, also: now.also ? { label: now.also.label } : null });
   const next = fresh.content.firstElementChild as HTMLElement;
   if (!had) c.box.before(next); else if (had.outerHTML !== next.outerHTML) same(had, next);
   c.shell.dataset.notice = now.tone;

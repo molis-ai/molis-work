@@ -274,7 +274,7 @@ export interface SandboxAttachmentPart { data_base64: string; byte_length: numbe
 
 /** A model the person configured in this Home, as it crosses the channel: names and capabilities, never an endpoint or a credential. */
 export interface SandboxModelSelection { provider_id: string; model_id: string }
-export interface SandboxModelChoice extends SandboxModelSelection { label: string; vision: boolean; reasoning_effort: boolean }
+export interface SandboxModelChoice extends SandboxModelSelection { label: string; vision?: boolean; reasoning_effort: boolean }
 /** The package's model settings as the Host shows them to it: the enabled providers by name and model, never an endpoint, a connection or a credential. */
 export interface SandboxModelSettingsView {
   configured: boolean;

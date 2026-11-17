@@ -1,3 +1,4 @@
+import type { KeptImage } from "./images.js";
 import type {
   AgentMaterialChecklistItem,
   AgentMaterialDeliveryMode,
@@ -118,6 +119,8 @@ export interface CommandReceipt {
 
 /** The setup a round was frozen with: what it was allowed to use. */
 export interface FrozenSetup {
+  /** Pictures the round was sent with (A3): names and references only; the bytes are read back through the session's route. */
+  readonly image_materials?: readonly { readonly material_id: string; readonly title: string; readonly media_type: string }[];
   readonly model_id: string;
   readonly role_id: string;
   readonly role_version: number;
@@ -353,6 +356,8 @@ export interface RoundSelection {
   readonly materials: readonly unknown[];
   readonly character: CharacterRef | null;
   writer_assignments: readonly { readonly worktree_id: string; readonly task: string }[];
+  /** Pictures from the composer, kept by the platform; the round names them and the Agent Host reads them again (A3). */
+  readonly images?: readonly KeptImage[];
 }
 
 /** Other work under way that names the same files as the round about to start. */

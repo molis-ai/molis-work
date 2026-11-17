@@ -195,7 +195,7 @@ export interface ComposerCommonOptions {
    * `open` ("打开 {name}") names a preview's button, which opens the picture in the board's dialog, and `close` names its close.
    */
   attachments?: { accept?: string; upload(file: File, signal: AbortSignal): Promise<ComposerAttachmentState>; pictures?: { label: string; open: string; close: string } };
-  /** Called after what the strip carries (`ComposerHandle.materials()`) changed, for a page that names it elsewhere too. */
+  /** Called after what the strip carries (`ComposerHandle.materials()`) or its files (`files()`) changed, for a page that names it elsewhere too. */
   onMaterials?(): void;
   /** Whether the registered sources are listed in `+`; by default when `kind` is `ai`. */
   sources?: boolean;
@@ -251,7 +251,9 @@ export interface ComposerMention { title: string; hint?: string; insert: string 
  * `readonly`: the next send changes nothing, and the box's outline takes the read-only colour; `info`: a plain line. The text is the
  * page's own words; the platform escapes it.
  */
-export interface ComposerNotice { text: string; tone: "readonly" | "info"; icon?: PluginIconName; action?: { label: string; run(): void } }
+export interface ComposerNotice { text: string; tone: "readonly" | "info"; icon?: PluginIconName; action?: { label: string; run(): void };
+  /** A lesser second way out beside `action` (「不带图发」 beside 「换成能看图的模型」), drawn quieter after it; only with an `action`. */
+  also?: { label: string; run(): void } }
 /** Pause as the page has it now (`pause`): the button's name and tooltip, and what pressing it does. */
 export interface ComposerPause { label: string; title: string; busy?: boolean; run(signal: AbortSignal): Promise<void> }
 
@@ -287,6 +289,9 @@ export type ComposerOutcome =
   | { state: "failed"; message: string; unreadable?: readonly { index: number; reason: string }[] }
   | { state: "unknown"; check(): Promise<"sent" | "not-sent" | "unknown"> };
 
+/** What the page can tell of a file on the strip; a `File` is one. Across a frame it is these, not the file. */
+export type ComposerFileFact = Pick<File, "name" | "size" | "type" | "lastModified">;
+
 export interface ComposerHandle {
   /** Wait for this input program to mount. A load failure rejects; another call retries. Closed or inactive mounts reject. Draft reads settle separately. */
   ready(): Promise<void>;
@@ -297,10 +302,15 @@ export interface ComposerHandle {
    * own state, not a hold.
    */
   hold(reason: string | null): void;
-  /** Files the page was handed elsewhere (its own side pane, say) go onto the strip as if dropped on the box, through `attachments`. */
-  attach(files: readonly File[]): void;
+  /**
+   * Files the page was handed elsewhere (its own side pane, say) go onto the strip as if dropped on the box, through `attachments`.
+   * Rows for the files in `replacing` go first: a picture the page shrank takes the place of the one that was too large.
+   */
+  attach(files: readonly File[], replacing?: readonly ComposerFileFact[]): void;
   /** What the strip carries now, in its order: the rows that are read (a Send takes these); none until the program is in. */
   materials(): readonly ComposerMaterial[];
+  /** The files on the strip now, read or not (a row the page refused included): a note about one goes once its row is gone. */
+  files(): readonly ComposerFileFact[];
   destroy(): void;
 }
 
@@ -308,6 +318,8 @@ declare global {
   interface Window {
     /** `window.molisComposer(root, options)`: the unified input in `root`; mounting the same root again lets the last one go first. */
     molisComposer?: (root: HTMLElement, options: ComposerOptions) => ComposerHandle;
+    /** `window.molisPicture(opener, picture)`: one picture larger in the board's dialog, named by its title; closing it gives focus back to `opener`. */
+    molisPicture?: (opener: HTMLElement, picture: { src: string; title: string; close?: string }) => void;
     /** `window.molisMediaZoom(viewport, image, options)`: zoom about the point looked at, and bounded panning, for one image. */
     molisMediaZoom?: (viewport: HTMLElement, image: HTMLImageElement, options?: MediaZoomOptions) => MediaZoom;
     /** `window.molisDropZone(zone, mark, accepts, reason)`: `mark(true)` while a drag `accepts` takes (files, unless said) is over the

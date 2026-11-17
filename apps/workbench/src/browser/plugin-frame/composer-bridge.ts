@@ -1,5 +1,5 @@
 import type { ComposerMaterial } from "@molis-ai/molis-work-contracts/platform/composer";
-import type { ComposerDelivery, ComposerMention, ComposerSubmission } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import type { ComposerDelivery, ComposerFileFact, ComposerMention, ComposerSubmission } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
@@ -34,14 +34,14 @@ export interface ComposerSnapshot {
   controls: BridgedControl[];
   commands: BridgedCommand[];
   mentions: boolean;
-  attachments: { accept?: string } | null;
+  attachments: { accept?: string; pictures?: { label: string; open: string; close: string } } | null;
   sources: boolean;
   /** The page's own object; its owner is always the frame's plugin, whatever the page says. */
   near: ActionSubject | null;
   voice?: string;
   required: string | null;
   /** The page's line above the box, without its function: its button is pressed with `composer-act` `notice`. */
-  notice: { text: string; tone: "readonly" | "info"; icon?: string; action: { label: string } | null } | null;
+  notice: { text: string; tone: "readonly" | "info"; icon?: string; action: { label: string } | null; also?: { label: string } | null } | null;
   submitKeys: boolean;
   draft: boolean;
   /** Where the page's conversation stands across its frame (the box around the root it gave), so the bar lines up with it. */
@@ -75,7 +75,7 @@ export type ComposerUp =
   | { type: "composer-text"; id: number; text: string }
   | { type: "composer-focus"; id: number }
   | { type: "composer-insert"; id: number; text: string }
-  | { type: "composer-attach"; id: number; files: File[] }
+  | { type: "composer-attach"; id: number; files: File[]; replacing?: ComposerFileFact[] }
   /** The page pressed its own send (a way back from settings finishing the send the person began): the bar's send, if it is front. */
   | { type: "composer-send"; id: number }
   | { type: "composer-destroy"; id: number }
@@ -87,7 +87,7 @@ export type ComposerDown =
   /** A control changed, a command chosen, (`receiver`) another of the page's receivers picked in 「发给」 by the id the page gave, or (`notice`) the button of the line above the box. */
   | { type: "composer-act"; id: number; act: "control" | "command" | "receiver" | "notice"; key: string; value?: string }
   | { type: "composer-text"; id: number; text: string }
-  | { type: "composer-materials"; id: number; materials: ComposerMaterial[] }
+  | { type: "composer-materials"; id: number; materials: ComposerMaterial[]; files?: ComposerFileFact[] }
   /** How wide the bar's input stands over the page, so its conversation column can stand as wide (`--mw-bar-column` on the page). */
   | { type: "composer-column"; id: number; width: number };
 

@@ -4553,7 +4553,7 @@ export type PluginModelAvailability = ActionAvailability & {
 
 export interface PluginModelChoice extends PluginModelSelection {
     readonly label: string;
-    readonly vision: boolean;
+    readonly vision?: boolean;
     readonly reasoning_effort: boolean;
 }
 

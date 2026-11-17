@@ -116,7 +116,11 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
     if (done.state === "attached") {
       Object.assign(item, { state: "attached", title: done.title, material: { kind: "attachment", ref: done.ref, title: done.title }, ...(done.meta ? { meta: done.meta } : {}) });
       if (file.type.startsWith("image/")) item.thumb = URL.createObjectURL(file);
-    } else Object.assign(item, { state: "failed", reason: done.reason, retry });
+    } else {
+      Object.assign(item, { state: "failed", reason: done.reason, retry });
+      // A row of pictures shows a refused one too, so the person sees which picture it is (scheme A's 「超过 5 MB」 row).
+      if (take.pictures && file.type.startsWith("image/")) item.thumb = URL.createObjectURL(file);
+    }
     c.paint();
   }
 }

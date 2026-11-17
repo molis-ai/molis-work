@@ -92,6 +92,7 @@ function molisComposer(root: HTMLElement, options: ComposerOptions): ComposerHan
       later("hold")(reason);
     },
     materials: () => handle ? handle.materials() : [],
+    files: () => handle ? handle.files() : [],
     focus: () => { if (handle) handle.focus(); else root.querySelector<HTMLElement>(".mw-composer__input")?.focus(); },
     destroy,
   };

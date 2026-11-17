@@ -4,7 +4,8 @@ import { codingComposerLabels } from "../../composer-labels.js";
 import { errorMessage } from "../dom.js";
 import { mac } from "../matching.js";
 import { codingCommands } from "./commands.js";
-import { chooseIntent, drawIntents, refreshState, rememberConfiguration } from "./configuration.js";
+import { chooseIntent, configurationChanged, drawIntents, refreshState, rememberConfiguration } from "./configuration.js";
+import { codingImages } from "./images.js";
 import { terminal, unread } from "./composer-state.js";
 import { controls, counts } from "./controls.js";
 import { currentSelection } from "./composer.js";
@@ -109,8 +110,10 @@ function readOnlyNotice(page: Page): ComposerNotice | null {
 
 /** What stops a send before it goes, said in the composer's status line rather than by a send that does nothing. */
 function missing(page: Page): string | null {
-  const { readText, s } = page;
+  const { readText, refs, s } = page;
   if (s.recovery) return readText("coding.composer.recovering");
+  const pictures = refs.images?.waiting(refs.composer);
+  if (pictures) return pictures;
   if (s.checkpointBusy) return readText("coding.checkpoints.busy");
   if (roundActive(page)) return null;
   if (!s.state.models.some(model => JSON.stringify([model.provider_id, model.model_id]) === page.refs.composerModels.value())) return readText("coding.model.choose-first");
@@ -127,7 +130,10 @@ async function submit(page: Page, id: string, input: ComposerSubmission): Promis
   const { readText, refs, s } = page;
   if (s.current !== id || s.sending) return { state: "failed", message: readText("coding.composer.busy") };
   const run = s.lastRun, task = input.text;
-  const selection: RoundSelection = { ...currentSelection(page, id), action_tools: structuredClone(s.actionSelections.get(id) || []), writer_assignments: structuredClone(s.configurations.get(id)?.writer_assignments || []) };
+  // Pictures go with the task of a new round; words sent into a round under way carry none (the round's own were fixed when it began).
+  const images = refs.images?.take(input.materials) ?? [];
+  if (run && !terminal(run.phase) && images.length) return { state: "failed", message: readText("coding.images.next-round") };
+  const selection: RoundSelection = { ...currentSelection(page, id), action_tools: structuredClone(s.actionSelections.get(id) || []), writer_assignments: structuredClone(s.configurations.get(id)?.writer_assignments || []), ...(images.length ? { images } : {}) };
   s.sending = true;
   s.composerSending = true;
   controls(page);
@@ -158,6 +164,12 @@ export function mountCodingComposer(page: Page, id: string) {
   if (!window.molisComposer) throw new Error("The page has no composer");
   s.composerDrawn = "";
   refs.composerLabels = codingComposerLabels(readText, mac());
+  const models = refs.composerModels;
+  refs.images = id ? codingImages(page, () => id, () => models.current(), () => {
+    const value = models.sighted(), one = s.state.models.find(model => JSON.stringify([model.provider_id, model.model_id]) === value);
+    return one ? { label: one.label, choose: () => { models.choose(value); configurationChanged(page); refs.composer.refresh(); } } : null;
+  }) : null;
+  const images = refs.images;
   refs.composer = window.molisComposer(q("[data-coding-input]"), {
     kind: "ai", entry: "session", labels: refs.composerLabels, sources: false,
     ...(id ? { draft: { adapter: refs.draft.adapter(id) } } : {}),
@@ -177,8 +189,11 @@ export function mountCodingComposer(page: Page, id: string) {
     get controls() { return sceneControls(page); },
     get commands() { return composerCommands(page); },
     mentions: (query, signal) => refs.mentions(query, signal),
+    // Pictures pasted, dropped or picked (A3): the platform keeps each; the strip shows them as thumbnails that open larger.
+    ...(images ? { attachments: { accept: images.accept, upload: (file: File, signal: AbortSignal) => images.upload(file, signal),
+      pictures: { label: readText("coding.images.strip"), open: readText("coding.images.open"), close: readText("coding.images.close") } } } : {}),
     required: () => missing(page),
-    notice: () => readOnlyNotice(page),
+    notice: () => (images && refs.composer ? images.notice(refs.composer) : null) ?? readOnlyNotice(page),
     submit: input => submit(page, id, input),
   });
 }

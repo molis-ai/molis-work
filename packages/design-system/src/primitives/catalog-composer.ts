@@ -57,7 +57,7 @@ interface ShellOptions {
   readonly status?: MwComposerStatus;
   readonly focus?: boolean;
   /** The page's line above the box (`notice`), as the client draws it. */
-  readonly notice?: { text: string; tone: "readonly" | "info"; icon?: string; action?: { label: string } | null };
+  readonly notice?: { text: string; tone: "readonly" | "info"; icon?: string; action?: { label: string } | null; also?: { label: string } | null };
   /** The board opens this one's ▾ menu; keep room above it so the menu stays inside the specimen. */
   readonly menuRoom?: boolean;
 }
@@ -122,6 +122,7 @@ function notices(say: Say, add: string): string {
   return [
     specimen(escapeHtml(say("workbench.catalog-composer.notice-readonly")), shell(say, add, { notice: readonly, text: say("workbench.catalog-composer.notice-readonly-words") })),
     specimen(escapeHtml(say("workbench.catalog-composer.notice-info")), shell(say, add, { notice: info })),
+    specimen(escapeHtml(say("workbench.catalog-composer.notice-two")), `<div data-catalog-narrow>${shell(say, add, { notice: { text: say("workbench.catalog-composer.notice-two-text"), tone: "info", icon: "eye-off", action: { label: say("workbench.catalog-composer.notice-two-action") }, also: { label: say("workbench.catalog-composer.notice-two-also") } } })}</div>`),
     specimen(escapeHtml(say("workbench.catalog-composer.notice-readonly-alone")), shell(say, add, { notice: { ...readonly, action: null }, focus: true })),
     specimen(escapeHtml(say("workbench.catalog-composer.notice-narrow")), `<div data-catalog-narrow>${shell(say, add, { notice: readonly })}</div>`),
     specimen(escapeHtml(say("workbench.catalog-composer.notice-rest")), `<div data-catalog-compact="touch">${shell(say, add, { notice: readonly })}</div>`),

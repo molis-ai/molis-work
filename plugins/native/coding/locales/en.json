@@ -2153,6 +2153,52 @@
     "coding.round.card.code-version-title": "Code revision verified by this check",
     "coding.round.card.rerun-check": "Re-run checks",
     "coding.round.card.result-stale": "Result outdated",
-    "coding.round.rerun-prompt": "Code changed after the last check; please re-run the verification command ({command}) against the current code."
+    "coding.round.rerun-prompt": "Code changed after the last check; please re-run the verification command ({command}) against the current code.",
+    "coding.images.size-mb": "{n} MB",
+    "coding.images.size-kb": "{n} KB",
+    "coding.images.pasted": "Pasted image",
+    "coding.images.only-types": "Only PNG, JPEG, GIF and WebP images can be added",
+    "coding.images.over-limit": "{size} · over 5 MB",
+    "coding.images.kept": "{size} · saved",
+    "coding.images.too-large": "{name} is {size}, over the 5 MB limit",
+    "coding.images.shrink": "Shrink under 5 MB",
+    "coding.images.too-many": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "A round takes at most {n} image; remove some first",
+        "other": "A round takes at most {n} images; remove some first"
+      }
+    },
+    "coding.images.no-vision": "{model} can’t see images; it would get the text only",
+    "coding.images.use-sighted": "Use a model that sees images",
+    "coding.images.text-only": "Send without images",
+    "coding.images.unmarked": "Model settings don’t say whether {model} sees images; they go anyway, and it may not see them",
+    "coding.images.shrink-first": "Shrink or remove the image over 5 MB first",
+    "coding.images.choose-first": "Choose one first: switch model, or send without images",
+    "coding.images.next-round": "Images go with a new round; while this one runs you can only add words",
+    "coding.images.strip": "Images to send",
+    "coding.images.open": "View {name} larger",
+    "coding.images.close": "Close",
+    "coding.field.image": "Image",
+    "coding.server.images-too-many": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "A round takes at most {n} image",
+        "other": "A round takes at most {n} images"
+      }
+    },
+    "coding.server.image-reference": "That image reference isn’t right; add the image again",
+    "coding.server.image-only": "Only PNG, JPEG, GIF and WebP images can be sent",
+    "coding.server.images-unavailable": "Images can’t be kept here yet",
+    "coding.server.image-too-large": "The image is over {mb} MB",
+    "coding.server.image-not-in-round": "This round didn’t carry that image",
+    "coding.images.sent": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "The {n} image this round carried",
+        "other": "The {n} images this round carried"
+      }
+    },
+    "coding.images.unreadable": "{name} can’t be read"
   }
 }

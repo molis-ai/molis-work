@@ -156,6 +156,7 @@ export async function startRound(page: Page, id: string, task: string | undefine
       mcp_tools: selection.mcp_tools, mcp_sources: selection.mcp_sources, materials: selection.materials, character: selection.character,
       character_skill_ids: s.characterSkills.get(id), ...(intent === "parallel" ? { writer_assignments: selection.writer_assignments } : {}),
       ...(selection.worktree_id ? { worktree_id: selection.worktree_id } : {}),
+      ...(selection.images?.length ? { images: selection.images } : {}),
     });
   } catch (error) {
     if (id === s.current) showMaterialRecovery(page, id, failedMaterialsOf(error));

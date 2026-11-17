@@ -1,3 +1,4 @@
+import type { CodingImages } from "./images.js";
 import type { ComposerHandle, ComposerMention, ScrollFollower } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type { codingComposerLabels } from "../../composer-labels.js";
 import { createCodingTimeline } from "../../timeline.js";
@@ -152,6 +153,8 @@ export interface Refs {
   commandsUi: CommandsClient;
   /** The platform's composer (unified-input-voice K4), mounted again for each session on show with that session's draft. */
   composer: ComposerHandle;
+  /** The composer's pictures for the session on show (A3), or null when no session is. */
+  images: CodingImages | null;
   composerLabels?: ReturnType<typeof codingComposerLabels>;
   composerModels: ComposerModels;
   cooperationUi: CooperationClient;

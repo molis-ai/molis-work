@@ -8,7 +8,6 @@ import { composerMenus, type ComposerMenus } from "./composer-menus.js";
 import { composerSender, type ComposerSender } from "./composer-send.js";
 import "./composer-program.js";
 import { attached, composerBasics, composerState, itemKey, letGo, mac, type Composer, type Item } from "./composer-state.js";
-import { renderDialog } from "../primitives/overlay.js";
 import { firstScreen, paint } from "./composer-view.js";
 
 /**
@@ -44,7 +43,8 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
   let carried: readonly unknown[] = [];
   c.paint = (controls) => {
     paint(c, controls);
-    const now = attached(c);
+    // The read rows' materials, then every row's file: a refused row going is a change too, for a page whose note named it.
+    const now = [...attached(c), ...c.items.flatMap((item) => item.file ? [item.file] : [])];
     if (now.length !== carried.length || now.some((one, index) => one !== carried[index])) { carried = now; options.onMaterials?.(); }
   };
   const retained = retainComposer(c), drafts = composerDrafts(c, retained), menus = composerMenus(c), sender = composerSender(c, drafts, enterHint.done, retained);
@@ -82,7 +82,12 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
     insert(text) {
       c.field.setRangeText(text, c.field.selectionStart, c.field.selectionEnd, "end"); window.molisFit?.(c.field); drafts.save(); c.paint();
     },
-    attach(given) { if (given.length) void sender.upload(given); },
+    attach(given, replacing = []) {
+      const same = (file: File) => replacing.some((one) => one === file || (one.name === file.name && one.size === file.size && one.type === file.type && one.lastModified === file.lastModified));
+      const gone = c.items.filter((item) => item.file && same(item.file));
+      if (gone.length) { letGo(gone); c.items = c.items.filter((item) => !gone.includes(item)); c.paint(); }
+      if (given.length) void sender.upload(given);
+    },
     hold(reason) {
       const now = reason ?? "";
       if (c.held === now || c.signal.aborted) return;
@@ -90,6 +95,7 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
       c.paint(true);
     },
     materials: () => attached(c),
+    files: () => c.items.flatMap((item) => item.file ? [item.file] : []),
     destroy: release,
   };
 }
@@ -146,7 +152,7 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
       if (control?.kind === "toggle") { const on = target.getAttribute("aria-pressed") !== "true"; target.setAttribute("aria-pressed", String(on)); control.change?.(on); }
       if (control?.kind === "button") control.run();
     }
-    if (data.composerNotice !== undefined) return options.notice?.()?.action?.run();
+    if (data.composerNotice !== undefined) { const now = options.notice?.(); return (data.composerNotice === "also" ? now?.also : now?.action)?.run(); }
     if (data.composerReceiver !== undefined) c.ai?.receiver?.()?.open?.();
     if (data.tagRemove !== undefined) c.ai?.receiver?.()?.reset?.();
   }, { signal });
@@ -196,13 +202,5 @@ globalThis.molisComposerProgram ??= mount;
  * (Esc, ×, or a press outside) gives the focus back to the preview that opened it.
  */
 function openPicture(item: Item, opener: HTMLElement, closeLabel = "") {
-  const shell = document.createElement("template");
-  shell.innerHTML = renderDialog({ labelledBy: `mw-picture-${item.key}`, title: item.title, body: `<img class="mw-picture__image" alt="">`, footer: "", className: "mw-picture", ...(closeLabel ? { closeLabel } : {}) });
-  const dialog = shell.content.firstElementChild as HTMLDialogElement;
-  const image = dialog.querySelector("img")!;
-  image.src = item.thumb!; image.alt = item.title;
-  dialog.addEventListener("click", (event) => { if (event.target === dialog || (event.target as Element).closest("[data-dialog-close]")) dialog.close(); });
-  dialog.addEventListener("close", () => { dialog.remove(); if (opener.isConnected) opener.focus({ preventScroll: true }); }, { once: true });
-  document.body.append(dialog);
-  dialog.showModal();
+  window.molisPicture?.(opener, { src: item.thumb!, title: item.title, ...(closeLabel ? { close: closeLabel } : {}) });
 }

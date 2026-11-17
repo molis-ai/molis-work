@@ -97,6 +97,8 @@ export interface ComposerDraftAdapter {
     sent?(): Promise<void>;
 }
 
+export type ComposerFileFact = Pick<File, "name" | "size" | "type" | "lastModified">;
+
 export interface ComposerHandle {
     ready(): Promise<void>;
     setRunning(running: boolean): void;
@@ -104,8 +106,9 @@ export interface ComposerHandle {
     focus(): void;
     insert(text: string): void;
     hold(reason: string | null): void;
-    attach(files: readonly File[]): void;
+    attach(files: readonly File[], replacing?: readonly ComposerFileFact[]): void;
     materials(): readonly ComposerMaterial[];
+    files(): readonly ComposerFileFact[];
     destroy(): void;
 }
 
@@ -120,6 +123,10 @@ export interface ComposerNotice {
     tone: "readonly" | "info";
     icon?: PluginIconName;
     action?: {
+        label: string;
+        run(): void;
+    };
+    also?: {
         label: string;
         run(): void;
     };

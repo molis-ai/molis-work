@@ -19,7 +19,7 @@ test("Coding's business surface is redeemed by the project Runtime, owner-bound,
   // Coding reads the project's folders through `projects.directories.get`, which the Home catalog answers.
   host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-  const owner: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private"] };
+  const owner: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private", "materials:read"] };
   const client = host.actionClient(ref);
   const find = (id: string) => codingRouteActions[id]!.definition;
   try {

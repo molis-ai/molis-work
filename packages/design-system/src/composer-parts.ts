@@ -102,8 +102,9 @@ export function renderComposerRestore(labels: MwComposerLabels, when: string, fi
  * The line above the box (`notice`): a standing condition, not a message, so it is no live region; the text area points at it with
  * `aria-describedby` and it is read when the box has focus. `id` is the composer's own.
  */
-export function renderComposerNotice(id: string, notice: { text: string; tone: "readonly" | "info"; icon?: string; action?: { label: string } | null }): string {
+export function renderComposerNotice(id: string, notice: { text: string; tone: "readonly" | "info"; icon?: string; action?: { label: string } | null; also?: { label: string } | null }): string {
   const mark = notice.icon ?? (notice.tone === "readonly" ? "lock" : "");
   return `<div class="mw-composer__notice" id="${escapeHtml(id)}" data-tone="${notice.tone}">${mark ? icon(mark as PluginIconName) : ""}<span class="mw-composer__notice-text">${escapeHtml(notice.text)}</span>`
-    + `${notice.action ? renderButton({ label: notice.action.label, variant: "secondary", size: "sm", attrs: { "data-composer-notice": "" } }) : ""}</div>`;
+    + `${notice.action ? renderButton({ label: notice.action.label, variant: "secondary", size: "sm", attrs: { "data-composer-notice": "" } }) : ""}`
+    + `${notice.action && notice.also ? renderButton({ label: notice.also.label, variant: "ghost", size: "sm", attrs: { "data-composer-notice": "also" } }) : ""}</div>`;
 }

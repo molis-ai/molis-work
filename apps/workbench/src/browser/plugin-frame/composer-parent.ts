@@ -1,4 +1,4 @@
-import type { ComposerControl, ComposerHandle, ComposerOptions, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import type { ComposerControl, ComposerFileFact, ComposerHandle, ComposerOptions, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { PLUGIN_ICON_NAMES, type MwComposerAiLabels, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { BarReceiver, BridgedOutcome, ComposerCalls, ComposerDown, ComposerOp, ComposerSnapshot, ComposerUp } from "./composer-bridge.js";
 import { parentComposerReadiness } from "./composer-readiness.js";
@@ -56,8 +56,9 @@ const maybe = (value: unknown, limit: number) => value === undefined ? undefined
 function noticeOf(value: unknown): ComposerSnapshot["notice"] {
   if (value === null || value === undefined) return null;
   const raw = record(value), action = raw.action === null || raw.action === undefined ? null : record(raw.action);
+  const also = action && raw.also !== null && raw.also !== undefined ? record(raw.also) : null;
   want(raw.tone === "readonly" || raw.tone === "info");
-  return { text: text(raw.text, 400), tone: raw.tone as "readonly" | "info", ...icon(raw.icon), action: action ? { label: text(action.label, 100) } : null };
+  return { text: text(raw.text, 400), tone: raw.tone as "readonly" | "info", ...icon(raw.icon), action: action ? { label: text(action.label, 100) } : null, ...(also ? { also: { label: text(also.label, 100) } } : {}) };
 }
 const flag = (value: unknown) => { want(value === undefined || typeof value === "boolean"); return value === true; };
 const icon = (value: unknown) => { want(value === undefined || typeof value === "string"); return typeof value === "string" && ICONS.has(value) ? { icon: value as PluginIconName } : {}; };
@@ -121,7 +122,7 @@ function bounded(snapshot: ComposerSnapshot): ComposerSnapshot | null {
       pause: pause ? { label: text(pause.label, 100), title: text(pause.title, 200), ...(flag(pause.busy) ? { busy: true } : {}) } : null,
       stop: raw.stop as boolean, mentions: raw.mentions as boolean, sources: raw.sources as boolean, submitKeys: raw.submitKeys as boolean, draft: raw.draft as boolean,
       controls: list(raw.controls, 12).map(controlOf), commands: list(raw.commands, 200).map(commandOf),
-      attachments: attachments ? { ...optional("accept", maybe(attachments.accept, 400)) } : null,
+      attachments: attachments ? { ...optional("accept", maybe(attachments.accept, 400)), ...picturesOf(attachments.pictures) } : null,
       ...optional("voice", maybe(raw.voice, 80)),
       column: column && Number.isFinite(column.left) && Number.isFinite(column.width) && (column.width as number) > 0 ? { left: column.left as number, width: column.width as number } : null,
       near: near ? { kind: text(near.kind, 80), id: text(near.id, 200) } as ComposerSnapshot["near"] : null,
@@ -138,11 +139,23 @@ const mentionsOf = (found: unknown) => Array.isArray(found) ? found.slice(0, 50)
   try { const item = record(one); return [{ title: text(item.title, 200), ...optional("hint", maybe(item.hint, 400)), insert: text(item.insert, 2000) }]; } catch { return []; }
 }) : [];
 
+/** Files a page named to be replaced, as plain facts; anything else names none. */
+const factsOf = (value: unknown): ComposerFileFact[] => Array.isArray(value) ? value.slice(0, 20).flatMap(one => {
+  try { const raw = record(one); want(typeof raw.size === "number" && typeof raw.lastModified === "number"); return [{ name: text(raw.name, 400), size: raw.size as number, type: text(raw.type, 100), lastModified: raw.lastModified as number }]; } catch { return []; }
+}) : [];
+
+/** The words of a strip of pictures, when the page asked for one: all three, or none. */
+function picturesOf(value: unknown): { pictures?: { label: string; open: string; close: string } } {
+  if (value === undefined) return {};
+  const raw = record(value);
+  return { pictures: { label: text(raw.label, 200), open: text(raw.open, 200), close: text(raw.close, 100) } };
+}
+
 /** A page's answer to a file it was given to read, as one of the two the composer knows; anything else did not go. */
 const uploadOf = (raw: unknown): ComposerCalls["upload"][1] => {
   try {
     const item = record(raw);
-    if (item.state === "attached") return { state: "attached", ref: text(item.ref, 400), title: text(item.title, 200) };
+    if (item.state === "attached") return { state: "attached", ref: text(item.ref, 400), title: text(item.title, 200), ...optional("meta", maybe(item.meta, 200)) };
     if (item.state === "failed") return { state: "failed", reason: text(item.reason, 400) };
   } catch { /* falls through: the page's answer is not one the composer reads */ }
   return { state: "failed", reason: "" };
@@ -223,10 +236,10 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       get commands() { return now().commands.map(command => ({ ...command, icon: command.icon as PluginIconName | undefined, run: () => act(mine, "command", command.slash) })); },
       ...(at.mentions ? { mentions: (query: string, signal: AbortSignal) => call(mine, "mentions", query, signal).then(mentionsOf) } : {}),
       ...(at.attachments ? { attachments: { ...at.attachments, upload: (file: File, signal: AbortSignal) => call(mine, "upload", file, signal).then(uploadOf) } } : {}),
-      onMaterials: () => { if (bound && mine === id) post({ type: "composer-materials", id, materials: [...bound.materials()] }); },
+      onMaterials: () => { if (bound && mine === id) post({ type: "composer-materials", id, materials: [...bound.materials()], files: bound.files().map(({ name, size, type, lastModified }) => ({ name, size, type, lastModified })) }); },
       near: () => { const near = now().near; return near ? { ...near, plugin_id: pack.plugin_id } : null; },
       required: () => now().required,
-      notice: () => { const line = now().notice; return line ? { text: line.text, tone: line.tone, ...(line.icon ? { icon: line.icon as PluginIconName } : {}), ...(line.action ? { action: { label: line.action.label, run: () => act(mine, "notice", "") } } : {}) } : null; },
+      notice: () => { const line = now().notice; return line ? { text: line.text, tone: line.tone, ...(line.icon ? { icon: line.icon as PluginIconName } : {}), ...(line.action ? { action: { label: line.action.label, run: () => act(mine, "notice", "") } } : {}), ...(line.action && line.also ? { also: { label: line.also.label, run: () => act(mine, "notice", "also") } } : {}) } : null; },
       submit: (input, signal) => call(mine, "submit", input, signal).then(value => outcome(mine, value)),
     };
   };
@@ -246,7 +259,8 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     if (!bound) return;
     bound.setRunning(snapshot.running); bound.hold(snapshot.hold);
     if (field && field.placeholder !== snapshot.placeholder) field.placeholder = snapshot.placeholder;
-    const drawn = JSON.stringify([snapshot.labels, snapshot.receiver, snapshot.delivery, snapshot.pause, snapshot.controls, snapshot.commands]);
+    // The line above the box and what holds the send are drawn too: a page's note can change with nothing else (a picture refused).
+    const drawn = JSON.stringify([snapshot.labels, snapshot.receiver, snapshot.delivery, snapshot.pause, snapshot.controls, snapshot.commands, snapshot.notice, snapshot.required]);
     if (drawn !== shown) { shown = drawn; retitle?.(); bound.refresh(); }
   };
   const make = () => {
@@ -310,7 +324,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       text = field.value = message.text; window.molisFit?.(field); field.dispatchEvent(new Event("input", { bubbles: true }));
     } else if (message.type === "composer-insert" && typeof message.text === "string" && message.text.length <= 1024 * 1024) bound.insert(message.text);
     else if (message.type === "composer-focus") bound.focus();
-    else if (message.type === "composer-attach" && Array.isArray(message.files) && message.files.every(file => file instanceof File)) bound.attach(message.files.slice(0, 20));
+    else if (message.type === "composer-attach" && Array.isArray(message.files) && message.files.every(file => file instanceof File)) bound.attach(message.files.slice(0, 20), factsOf(message.replacing));
     else if (message.type === "composer-send") field.closest(".mw-composer")?.querySelector<HTMLButtonElement>("[data-composer-send]")?.click();
   };
 }

@@ -42,9 +42,9 @@ test("FI-6: Feed's Home reference ledger freezes its accepted v1 schema, with no
 // Alchemist store's directory, one per project, so it is not a registered library of its own. Changing a baseline means a
 // new version and a new fixture, never a silent drift.
 for (const [name, baseline] of [...libraries.filter(([name]) => !WITHOUT_REAL_HOME_FIXTURE.includes(name) && name !== "plugin-runtime"), ["alchemist-search", ALCHEMIST_SEARCH_BASELINE] as const]) {
-  // B10-R3: the Assistant stays at v1; agent-definitions and observation are at v2, and the memory ledger is at v3 (Memory P1).
+  // B10-R3: the Assistant stays at v1; observation is at v2; the memory ledger is at v3 (Memory P1), and agent-definitions at v3 (batch 42).
   test(`N41-PERSONAL-01 the ${name} store has its declared version and complete frozen schema`, () => {
-    assert.equal(baseline.version, name === "memory" ? 3 : name === "agent-definitions" || name === "observation" || name === "characters" ? 2 : 1);
+    assert.equal(baseline.version, name === "memory" || name === "agent-definitions" ? 3 : name === "observation" || name === "characters" ? 2 : 1);
     const existing = shape(readFileSync(new URL(`./fixtures/home-store-schemas/${name}.sql`, import.meta.url), "utf8")), want = shape(baseline.schema);
     // RAC-2384: the fixture carries the complete current schema; no missing-table allowance remains.
     assert.deepEqual(want, existing, `${name}: complete frozen schema`);
@@ -190,12 +190,31 @@ test("SKC-05: Agent definitions upgrade creates empty Skill tables and preserves
     const tables = ["prompt_overrides", "prompt_history", "prompt_uses"];
     const before = tables.map(table => db.prepare(`SELECT * FROM ${table}`).all());
     assert.throws(() => applySqliteBaseline(db, "agent-definitions", baseline), { code: "storage.upgrade_pending" });
-    assert.deepEqual(runSqliteUpgrade(db, "agent-definitions", baseline), { from: 1, to: 2 });
+    assert.deepEqual(runSqliteUpgrade(db, "agent-definitions", baseline), { from: 1, to: 3 });
     assert.deepEqual(tables.map(table => db.prepare(`SELECT * FROM ${table}`).all()), before);
-    assert.deepEqual(db.prepare("SELECT * FROM skill_settings").all(), []);
-    assert.deepEqual(db.prepare("SELECT * FROM skill_uses").all(), []);
+    for (const table of ["skill_settings", "skill_uses", "skill_drafts", "skill_cases", "skill_trials", "skill_lineage"]) assert.deepEqual(db.prepare(`SELECT * FROM ${table}`).all(), [], table);
     assert.deepEqual(describeSqliteSchema(db), shape(baseline.schema));
     applySqliteBaseline(db, "agent-definitions", baseline);
+  } finally { db.close(); }
+});
+
+// Batch 42 (specs/skill-packs/authoring-path-design.md §3, user 2026-11-16): 2 → 3 only creates the four tables of drafts, known answers,
+// replays and copies' sources, empty; every Skill setting, use and prompt record of version 2 stays as it was.
+test("SKP-11 SKC-05: Agent definitions 2 -> 3 creates the empty draft tables and keeps every version-2 row", () => {
+  const baseline = homeStores().stores.find(store => store.path === "agent-definitions")!.library!.baseline;
+  const db = new DatabaseSync(":memory:");
+  try {
+    // Version 2 as it was: version 1 and its one step, which only created the Skill settings and uses.
+    db.exec(readFileSync(new URL("./fixtures/agent-definitions-v1.sql", import.meta.url), "utf8") + baseline.upgrades!.find(step => step.from === 1)!.sql! + " PRAGMA user_version=2;");
+    db.prepare("INSERT INTO skill_settings(scope_ref,install_id,skill_id,state,enabled_at,enabled_by,updated_at,actor_id) VALUES (?,?,?,?,?,?,?,?)").run("home", "install", "weekly", "auto", "then", "person", "then", "person");
+    db.prepare("INSERT INTO skill_uses VALUES (?,?,?,?,?,?,?,?,?)").run("install", "weekly", 1, "周报", "{}", "home", "assistant", null, "then");
+    db.prepare("INSERT INTO prompt_overrides VALUES (?,?,?,?,?,?,?)").run("owner/prompt", 2, 1, "keep body", "then", "person", null);
+    const tables = ["skill_settings", "skill_uses", "prompt_overrides"], before = tables.map(table => db.prepare(`SELECT * FROM ${table}`).all());
+    assert.throws(() => applySqliteBaseline(db, "agent-definitions", baseline), { code: "storage.upgrade_pending" });
+    assert.deepEqual(runSqliteUpgrade(db, "agent-definitions", baseline), { from: 2, to: 3 });
+    assert.deepEqual(tables.map(table => db.prepare(`SELECT * FROM ${table}`).all()), before);
+    for (const table of ["skill_drafts", "skill_cases", "skill_trials", "skill_lineage"]) assert.deepEqual(db.prepare(`SELECT * FROM ${table}`).all(), [], table);
+    assert.deepEqual(describeSqliteSchema(db), shape(baseline.schema));
   } finally { db.close(); }
 });
 

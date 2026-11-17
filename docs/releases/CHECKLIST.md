@@ -67,7 +67,7 @@
 | 外部会话 | `external-sessions/external-sessions.db` | 1 | `user_version` | `horizontal/sessions/src/schema.ts#EXTERNAL_SESSIONS_BASELINE` | 低版本升级，高版本拒绝（第 34 批新建，从版本 1 起） |
 | Form | `form/form.db` | 1 | `user_version` | `plugins/native/form/src/database.ts#FORM_DATABASE` | 低版本升级，高版本拒绝 |
 | 放置 | `placement/placement.db` | 1 | `user_version` | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE` | 低版本升级，高版本拒绝 |
-| Agent 定义 | `agent-definitions/agent-definitions.db` | 2 | `user_version` | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE` | 低版本升级，高版本拒绝 |
+| Agent 定义 | `agent-definitions/agent-definitions.db` | 3 | `user_version` | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE` | 低版本升级（2 → 3 新增技能草稿、已知答案、回放、来源四张空表，已有的技能设置与用量不动），高版本拒绝 |
 | 插件的 Agent 声明 | `agent-declarations/agent-declarations.db` | 1 | `user_version` | `apps/local-host/src/agent-definitions/agent-declarations.ts#AGENT_DECLARATIONS_BASELINE` | 低版本升级，高版本拒绝 |
 | 连接 | `connectors/connectors.db` | 1 | `user_version` | `apps/local-host/src/connectors-store.ts#CONNECTORS_BASELINE` | 低版本升级，高版本拒绝 |
 | 引导 | `context-onboarding/context-onboarding.db` | 1 | `user_version` | `apps/local-host/src/context-onboarding-store.ts#CONTEXT_ONBOARDING_BASELINE` | 低版本升级，高版本拒绝 |

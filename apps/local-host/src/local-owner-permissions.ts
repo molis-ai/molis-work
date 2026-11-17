@@ -26,7 +26,7 @@ import { KNOWLEDGE_PERMISSIONS, KNOWLEDGE_PROVIDER_ID } from "@molis-ai/molis-wo
 import { SESSIONS_PERMISSIONS, SESSIONS_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/sessions";
 import { ARTIFACT_ACTION_PERMISSIONS, ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
 import { agentTaskGrantActions } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
-import { SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS, skillAuthoringActions, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS, skillAuthoringActions, skillDraftActions, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { TASK_GRANTS_PROVIDER_ID } from "./task-grant-actions.js";
 import { APPEARANCE_PROVIDER_ID, APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION } from "@molis-ai/molis-work-contracts/platform/ui";
 import { KIT_AGENT_DEFINITIONS_PROVIDER_ID, KIT_AGENT_MCP_PROVIDER_ID, KIT_AGENT_TOOLS_PROVIDER_ID, KIT_MCP_ACCESS_PROVIDER_ID, KIT_PROVIDER_ID, KIT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/kit";
@@ -63,8 +63,9 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [PLUGIN_CONSENT_PROVIDER_ID, PLUGIN_CONSENT_PERMISSIONS],
     // Importing Skills is installing the package the import makes: the same provider, the person's own (batch 08, 08-8).
     // Writing a Skill of one's own is the same: the package of own Skills is signed and installed here (batch 41).
-    [PLUGIN_INSTALL_PROVIDER_ID, [...PLUGIN_INSTALL_PERMISSIONS, ...asks([...Object.values(skillImportActions), skillAuthoringActions.save, skillAuthoringActions.remove, skillAuthoringActions.draft])]],
-    [SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS],
+    [PLUGIN_INSTALL_PROVIDER_ID, [...PLUGIN_INSTALL_PERMISSIONS, ...asks([...Object.values(skillImportActions), skillDraftActions.adopt, skillAuthoringActions.remove, skillAuthoringActions.draft])]],
+    // Drafts and replays (batch 42): replaying and 「告诉助理怎么改」 call the text model as well.
+    [SKILLS_PROVIDER_ID, [...new Set([...SKILLS_PERMISSIONS, ...asks(Object.values(skillDraftActions))])]],
     // The AI kit and the Host's own reporters it gathers: the person's to read (specs/capability-pack/contract-design.md §4.7).
     [KIT_PROVIDER_ID, [KIT_READ_PERMISSION]],
     // The mainline service asks the providers again as the person; a command's own action is still authorized on its own.

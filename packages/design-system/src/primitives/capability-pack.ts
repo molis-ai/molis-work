@@ -3,7 +3,7 @@
 // (catalog-capability-packs.ts) and the 「能力包」 settings page draws them (apps/workbench/src/browser/kit): one set of rules and
 // renderers for both. Every control inside them is an existing one (button, status mark, badge, menu); the rules only place them,
 // on tokens only. Browser-safe: a page's program imports this file alone (`@molis-ai/molis-work-design-system/capability-pack`).
-import { cx, escapeHtml, icon, renderAttrs, renderButton, type AttrValue, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { cx, escapeHtml, icon, renderAttrs, renderButton, renderStateRing, type AttrValue, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderMenu } from "./overlay.js";
 
 export const CAPABILITY_PACK_STYLES = `
@@ -107,6 +107,62 @@ export const CAPABILITY_PACK_STYLES = `
   .mw-leave-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; padding: 10px 12px; border-radius: var(--r-card, 12px); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--ink); font-size: 13px; line-height: 1.5; }
   .mw-leave-bar__text { flex: 1 1 160px; min-width: 0; margin: 0; }
   .mw-leave-bar__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+  .mw-leave-bar:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
+  .mw-leave-bar[data-tone="attention"] { background: var(--amber-soft); animation: craft-rise var(--dur-move) var(--ease-quint); }
+
+  /* 11 · An adopt bar (batch 42, docs/design/skill-improvement): at the foot of a draft, the main act first, then the others, then one
+     sentence of where it stands; while a step is owed, a save is under way or failed, the sentence carries a mark. Asking once more
+     (the replay differs) is a leave bar in the attention tone above it, in place, never a dialog. */
+  .mw-adopt-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--line); }
+  .mw-adopt-bar__status { display: inline-flex; align-items: flex-start; gap: 6px; flex: 1 1 160px; min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .mw-adopt-bar__status[data-state="owed"] { color: var(--ink-soft); }
+  .mw-adopt-bar__status[data-state="failed"] { color: var(--tone-blocked); }
+  .mw-adopt-bar__status > svg { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--muted); }
+  .mw-adopt-bar__status[data-state="failed"] > svg { color: var(--tone-blocked); }
+  .mw-adopt-bar__status .mw-state-ring { flex: none; margin-top: 2px; }
+  .mw-adopt-stack { display: grid; gap: 10px; min-width: 0; }
+
+  /* 12 · A replay grid (batch 42): one row per entry (the Assistant, Coding), one column per version (the one in use, the draft); each
+     cell its verdict, where it differs and the way to its result. Narrow, each cell takes the row and names its column itself. */
+  .mw-replay-grid { container: mw-replay-grid / inline-size; display: grid; gap: 6px; min-width: 0; }
+  .mw-replay-grid__row { display: grid; grid-template-columns: minmax(84px, 120px) repeat(var(--mw-replay-cols, 2), minmax(0, 1fr)); gap: 6px; align-items: stretch; min-width: 0; }
+  .mw-replay-grid__head > span { padding: 0 2px; color: var(--muted); font-size: 12px; }
+  .mw-replay-grid__entry { display: inline-flex; align-items: flex-start; gap: 6px; padding-top: 10px; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
+  .mw-replay-grid__entry > svg { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--muted); }
+  .mw-replay-cell { display: grid; gap: 6px; align-content: start; min-width: 0; padding: 10px 12px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); }
+  .mw-replay-cell[data-verdict="match"] { box-shadow: inset 0 0 0 1px var(--line), inset 3px 0 0 var(--tone-done); }
+  .mw-replay-cell[data-verdict="differs"] { box-shadow: inset 0 0 0 1px var(--line), inset 3px 0 0 var(--tone-attention); }
+  .mw-replay-cell .mw-status { max-width: 100%; height: auto; min-height: 22px; white-space: normal; }
+  .mw-replay-cell > .mw-btn { justify-self: start; }
+  .mw-replay-cell__col { display: none; color: var(--muted); font-size: 11px; }
+  .mw-replay-cell__diffs { display: grid; gap: 2px; margin: 0; padding-left: 18px; color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
+  @container mw-replay-grid (max-width: 480px) {
+    .mw-replay-grid__row { grid-template-columns: minmax(0, 1fr); }
+    .mw-replay-grid__head { display: none; }
+    .mw-replay-grid__entry { padding-top: 4px; }
+    .mw-replay-cell__col { display: block; }
+  }
+
+  /* 13 · An ask row (batch 42): one sentence to the Assistant about the text being written, and after it how much it changed. */
+  .mw-ask-row { display: grid; margin: 0; gap: 6px; min-width: 0; padding: 10px 12px; border-radius: var(--r-card, 12px); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); }
+  .mw-ask-row > label { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
+  .mw-ask-row > label > svg { width: 14px; height: 14px; color: var(--accent); }
+  .mw-ask-row__line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+  .mw-ask-row__line > .mw-input { flex: 1 1 200px; min-width: 0; }
+  .mw-ask-row__go { display: inline-flex; flex: none; }
+  .mw-ask-row__after { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; animation: craft-rise var(--dur-move) var(--ease-quint); }
+  @media (prefers-reduced-motion: reduce) { .mw-leave-bar[data-tone="attention"], .mw-ask-row__after { animation: none; } }
+  .mw-ask-row__after:empty { display: none; }
+
+  /* 14 · A placeholder list (batch 42): what a general Skill leaves to fill, one per row, the placeholder on the left and the person's own on the right. */
+  .mw-placeholders { container: mw-placeholders / inline-size; display: grid; gap: 8px; min-width: 0; padding: 12px; border-radius: var(--r-card, 12px); box-shadow: inset 0 0 0 1px var(--line); }
+  .mw-placeholders__title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); }
+  .mw-placeholders > p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .mw-placeholders > ul { display: grid; grid-template-columns: fit-content(45%) 16px minmax(0, 1fr); gap: 6px 8px; margin: 0; padding: 0; list-style: none; }
+  .mw-placeholders li { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; min-width: 0; }
+  .mw-placeholders li > code { color: var(--ink-soft); font-size: 12px; overflow-wrap: anywhere; }
+  .mw-placeholders li > svg { width: 14px; height: 14px; color: var(--muted); }
+  @container mw-placeholders (max-width: 420px) { .mw-placeholders > ul { grid-template-columns: minmax(0, 1fr); } .mw-placeholders li { grid-template-columns: minmax(0, 1fr); gap: 4px; } .mw-placeholders li > svg { display: none; } }
 
   /* 8 · List and detail with the detail kept in view, only where a page asks (data-sticky-detail): it stays at the top of the
      scrolling area and scrolls itself when taller; at its end the scroll goes on to the page (no overscroll containment). The
@@ -211,12 +267,77 @@ export function renderTextCount(options: { hint: string; count: string; over?: b
   return `<p class="mw-text-count" data-slot="text-count"${renderAttrs(options.attrs)}><span class="mw-text-count__hint"${options.hintId ? ` id="${escapeHtml(options.hintId)}"` : ""}>${escapeHtml(options.hint)}</span><span class="mw-text-count__n"${options.over ? " data-over" : ""}>${escapeHtml(options.count)}</span></p>`;
 }
 
+/** Already rendered HTML: only the output of `renderButton`, `renderStatusMark`, `renderBadge` and the like, never a person's text. */
+type RenderedHtml = string;
+
 /**
  * 10 · A leave bar: what is unsaved, then the ways on (`actions`: buttons, the main one last, as in every row of actions). It takes the
- * focus where it appears and is named by its own sentence (`id` when a page shows more than one).
+ * focus where it appears and is named by its own sentence (`id` when a page shows more than one). `tone: "attention"` asks once more
+ * about something the person is waiting on (an adopt whose replay differs): the same bar on the attention tint, arriving in place.
  */
-export function renderLeaveBar(options: { text: string; actions: string; id?: string; attrs?: Record<string, AttrValue> }): string {
+export function renderLeaveBar(options: { text: string; actions: RenderedHtml; id?: string; tone?: "attention"; attrs?: Record<string, AttrValue> }): string {
   const id = escapeHtml(options.id ?? "mw-leave-bar-text");
-  return `<div class="mw-leave-bar" data-slot="leave-bar" role="group" aria-labelledby="${id}" tabindex="-1"${renderAttrs(options.attrs)}><p class="mw-leave-bar__text" id="${id}">${escapeHtml(options.text)}</p><div class="mw-leave-bar__actions">${options.actions}</div></div>`;
+  return `<div class="mw-leave-bar" data-slot="leave-bar" role="group" aria-labelledby="${id}" tabindex="-1"${options.tone ? ` data-tone="${options.tone}"` : ""}${renderAttrs(options.attrs)}><p class="mw-leave-bar__text" id="${id}">${escapeHtml(options.text)}</p><div class="mw-leave-bar__actions">${options.actions}</div></div>`;
+}
+/**
+ * 11 · An adopt bar: the main act (`primary`), the others (`actions`), then `status`, one sentence of where it stands. `state` marks
+ * that sentence: `owed` (a step is still owed before the main act, and the sentence says which), `saving`, or `failed` (the last
+ * change was not saved; the blocked tone and a mark, never grey words alone). The sentence keeps its node across saves, so a page
+ * updates its text (`[data-adopt-status]`) rather than redrawing it; it is announced only when owed or failed. `confirm` is asked once
+ * above it, in place: a leave bar in the attention tone with its sentence and two ways on, inserted once when it is asked and not
+ * redrawn after (it arrives with a rise); while it is shown, the page lowers the bar's own main act to a secondary one, so there is one
+ * main act in view.
+ */
+export function renderAdoptBar(options: { primary: RenderedHtml; actions?: RenderedHtml; status: string; state?: "owed" | "saving" | "failed";
+  confirm?: { text: string; actions: RenderedHtml; id?: string }; attrs?: Record<string, AttrValue> }): string {
+  const mark = options.state === "owed" ? icon("info") : options.state === "failed" ? icon("alert") : options.state === "saving" ? renderStateRing({ state: "running" }) : "";
+  const announced = options.state === "owed" || options.state === "failed";
+  const bar = `<div class="mw-adopt-bar" data-slot="adopt-bar"${renderAttrs(options.attrs)}>${options.primary}${options.actions ?? ""}<span class="mw-adopt-bar__status"${
+    options.state ? ` data-state="${options.state}"` : ""}${announced ? ` role="${options.state === "failed" ? "alert" : "status"}"` : ""}>${mark}<span data-adopt-status>${escapeHtml(options.status)}</span></span></div>`;
+  if (!options.confirm) return bar;
+  return `<div class="mw-adopt-stack">${renderLeaveBar({ text: options.confirm.text, actions: options.confirm.actions, id: options.confirm.id ?? "mw-adopt-confirm-text", tone: "attention" })}${bar}</div>`;
+}
+
+export type ReplayVerdict = "match" | "differs" | "unknown" | "none";
+export interface ReplayCell { column: string; verdict: ReplayVerdict; mark: RenderedHtml; differences?: readonly string[]; action?: RenderedHtml }
+/**
+ * 12 · A replay grid: `columns` names each version, each row one entry with its cells in the same order. A cell is its verdict's
+ * `mark` (a status mark), where the result differs, and its `action` (the way to the result).
+ */
+export function renderReplayGrid(options: { label: string; columns: readonly string[]; rows: ReadonlyArray<{ entry: string; icon: PluginIconName; cells: readonly ReplayCell[] }> }): string {
+  const head = `<div class="mw-replay-grid__row mw-replay-grid__head" aria-hidden="true"><span></span>${options.columns.map((column) => `<span>${escapeHtml(column)}</span>`).join("")}</div>`;
+  const rows = options.rows.map((row) => `<div class="mw-replay-grid__row" role="group" aria-label="${escapeHtml(row.entry)}"><span class="mw-replay-grid__entry">${icon(row.icon)}${escapeHtml(row.entry)}</span>${row.cells.map((cell) =>
+    `<div class="mw-replay-cell" data-verdict="${escapeHtml(cell.verdict)}"><span class="mw-replay-cell__col" aria-hidden="true">${escapeHtml(cell.column)}</span><span class="mw-sr-only">${escapeHtml(cell.column)}</span>${cell.mark}${
+      cell.differences?.length ? `<ul class="mw-replay-cell__diffs">${cell.differences.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}${cell.action ?? ""}</div>`).join("")}</div>`).join("");
+  return `<div class="mw-replay-grid" data-slot="replay-grid" role="group" aria-label="${escapeHtml(options.label)}" style="--mw-replay-cols:${options.columns.length}">${head}${rows}</div>`;
+}
+
+/**
+ * 13 · An ask row: a form with a labelled one-line field and its submit button (`go`, a `type="submit"` button, so Enter is the
+ * button), or, while the Assistant works, `busy` (a status mark) in the button's place. The page handles `submit` with
+ * `preventDefault`, ignores it while the form is `data-busy`, and on submitting puts the focus back in the field, which stays there:
+ * while busy it is read-only and `aria-busy`, never disabled. `after` is what it changed (a badge and the way to see it). The busy
+ * mark and `after` are announced; the button coming back is not.
+ */
+export function renderAskRow(options: { id: string; label: string; placeholder: string; value?: string; go: RenderedHtml; busy?: RenderedHtml; after?: RenderedHtml;
+  inputAttrs?: Record<string, AttrValue>; attrs?: Record<string, AttrValue> }): string {
+  return `<form class="mw-ask-row" data-slot="ask-row"${options.busy ? " data-busy" : ""}${renderAttrs(options.attrs)}><label for="${escapeHtml(options.id)}">${icon("sparkles")}${escapeHtml(options.label)}</label><div class="mw-ask-row__line"><input class="mw-input" data-slot="input" type="text" autocomplete="off" id="${
+    escapeHtml(options.id)}" placeholder="${escapeHtml(options.placeholder)}" value="${escapeHtml(options.value ?? "")}"${options.busy ? ' readonly aria-busy="true"' : ""}${renderAttrs(options.inputAttrs)}><span class="mw-ask-row__go">${
+    options.busy ? `<span role="status">${options.busy}</span>` : options.go}</span></div><p class="mw-ask-row__after" role="status">${options.after ?? ""}</p></form>`;
+}
+
+/**
+ * 14 · A placeholder list: each placeholder a general Skill writes beside the person's own word for it (`attrs` on each field). Each
+ * field is named by its row's `label`, a sentence that says which way the replacing goes (“replace ~~… with”), never by the bare
+ * placeholder; `badge` says how many are left, `after` holds what goes with the list (a choice about the original). The title is a
+ * label, not a heading: the page owns its outline.
+ */
+export function renderPlaceholderList(options: { id: string; title: string; lead: string; badge?: RenderedHtml;
+  rows: ReadonlyArray<{ placeholder: string; label: string; value: string; hint: string; attrs?: Record<string, AttrValue> }>; after?: RenderedHtml }): string {
+  const id = escapeHtml(options.id);
+  return `<section class="mw-placeholders" data-slot="placeholders" aria-labelledby="${id}-title"><p class="mw-placeholders__title" id="${id}-title">${escapeHtml(options.title)}${options.badge ?? ""}</p><p>${
+    escapeHtml(options.lead)}</p><ul>${options.rows.map((row) =>
+    `<li><code>${escapeHtml(row.placeholder)}</code>${icon("arrow")}<input class="mw-input" data-slot="input" type="text" autocomplete="off" value="${escapeHtml(row.value)}" placeholder="${
+      escapeHtml(row.hint)}" aria-label="${escapeHtml(row.label)}"${renderAttrs(row.attrs)}></li>`).join("")}</ul>${options.after ?? ""}</section>`;
 }
 export { renderMenuGroup, renderMenuItem } from "./overlay.js";

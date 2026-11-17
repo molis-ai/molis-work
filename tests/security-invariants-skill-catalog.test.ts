@@ -25,6 +25,10 @@ test("SKC-06 SKC-08 SKC-09: missing grants, revoked publisher and changed signed
     await assert.rejects(h.client.invoke(person, action(skillCatalogActions.readBodies), { refs: [skill.ref], named: [skill.ref] }), { code: "actions.input_invalid" });
     await set();
     assert.equal((await read()).results[0]!.ok, true);
+    // SKP-11 (batch 42): a used Skill names only the entries that used it, and the listed result still meets the action's contract
+    // (a contract that wanted every entry dropped all Skills from the page once one had been used).
+    homeAgentDefinitions(h.home).skills.recordUse({ ref: skill.ref, name: skill.name, scope_ref: person.project_id, caller: "assistant", at: new Date().toISOString() });
+    assert.deepEqual((await list()).recent_uses, { assistant: 1 });
     const bundles = async (directory: string): Promise<string[]> => (await Promise.all((await readdir(directory, { withFileTypes: true })).map(entry => entry.isDirectory() ? bundles(join(directory, entry.name)) : Promise.resolve(entry.name === "bundle.json" ? [join(directory, entry.name)] : [])))).flat();
     const file = (await bundles(join(h.home, "plugin-packages")))[0]!;
     const original = await readFile(file, "utf8"), bundle = JSON.parse(original); bundle.payload.manifest.name = "Tampered";
@@ -100,14 +104,17 @@ test("SKC-12: rejected, cancelled and stale acceptance receipts record no uses; 
     current = false; await accept(); assert.deepEqual(definitions.skills.uses("install", "review"), []);
     current = true; await accept(); assert.equal(definitions.skills.uses("install", "review").length, 1, "one receipt does not duplicate a repeated reference");
     assert.equal((await catalog.list(caller, {})).skills[0]?.last_used?.run_ref, "run-1");
+    // SKP-11 (batch 42): the person sees how often each entry really used it, from the uses the rounds recorded.
+    await catalog.recordAcceptedUses({ ...caller, skill_round: { consumer: "coding", named: [skill.ref] } }, { accepted: true, refs: [skill.ref], run_ref: "run-2" });
+    assert.deepEqual((await catalog.list(caller, {})).skills[0]?.recent_uses, { assistant: 1, coding: 1 });
     // The person's protected preview names one Skill to read, frozen by the Host as that read's named list: a manual Skill opens. The view
     // itself records no use: a record without the Host's round is refused like any other.
     const pageRead = await catalog.readBodies({ ...caller, skill_round: { consumer: "assistant", named: [skill.ref] } }, [skill.ref]);
     assert.equal(pageRead.results[0]!.ok, true, "the page view may show a manual Skill it named");
     assert.equal((await catalog.readBodies(caller, [skill.ref])).results[0]!.ok, false, "without the Host's named list a manual Skill stays closed");
     await catalog.recordAcceptedUses(caller, { accepted: true, refs: [skill.ref], run_ref: "page" });
-    assert.equal(definitions.skills.uses("install", "review").length, 1, "a page view is not a round and records no use");
-    controller.abort(); await assert.rejects(accept()); assert.equal(definitions.skills.uses("install", "review").length, 1);
+    assert.equal(definitions.skills.uses("install", "review").length, 2, "a page view is not a round and records no use");
+    controller.abort(); await assert.rejects(accept()); assert.equal(definitions.skills.uses("install", "review").length, 2);
     definitions.skills.forget("project-a", "install");
     assert.equal(definitions.skills.uses("install", "review")[0]?.name, "Review v1");
     assert.equal(definitions.skills.uses("install", "review")[0]?.ref.version, 1);

@@ -18,6 +18,15 @@
 - **合同与库**：新 `platform/work-items`、呈现声明 `item`、通用关联定义器 `definePlacementRelationAction`、十六个主线动作与 `mainline:arrange`；新 Home 库 `mainline/mainline.db` 第 1 版。安全不变量 `S-mainline-own-line`。
 - **未完成/待验收**：切换器、列表菜单与按事项的工作台状态在第 37 批。
 
+### Skill 创作与改进完整路径（2026-11-16，第 42 批）
+
+- **草稿先行、采用才生效**：对技能的每次改动（新建、修改、恢复旧版、改一份通用技能）先是一份草稿，边写边存，不影响任何一轮；采用后签名装上成「我的技能」包的下一版，新技能是关着的，改的已有技能下一次用到时用新版。系统动作 `skills.drafts.{list,read,create,update,revise,discard}`、`skills.cases.{put,remove}`、`skills.trials.run`、`skills.versions.list`、`skills.lineage.dismiss`（`system.skills`），采用 `skills.drafts.adopt` 在安装提供方；助理只能起草，并回放、撤回这件工作里自己起的草稿，采用与打开技能只有本人（S-skill-authoring）。
+- **已知答案回放**：回放只让文字模型读做法与材料写结果，不调任何工具，观测来源 `trial`（默认报告与效果指标不算它）；现在的版本与草稿各跑一次再逐条对照；有已知答案的草稿要先把每个已知答案在这一修订上回放过，有出入要本人说「仍然采用」。
+- **版本与通用技能定制**：自己的技能列出各版，可对照、恢复成草稿；通用技能「改一份我的」记住来源，`~~` 占位符换成自己用的，采用时可关掉原来的；原来的出新版时提示，可看差别、带进草稿或先不管。BL-166 关闭。
+- **存储**：`agent-definitions/agent-definitions.db` 2→3，新增 `skill_drafts`、`skill_cases`、`skill_trials`、`skill_lineage`（用户 2026-11-16 批准）。
+- **界面**：设置 › 能力包的草稿工作区（左边改、右边试用与比较，采用条在下；窄时三个页签）；组件板新增采用条、回放结果表、问一句改、占位符替换四件（D 轨合审过）；助理回执「打开草稿」直达。提示词 `skills.trial`、`skills.trial-judge`、`skills.revise` 新增，`skills.draft` 补授权写法。
+- **未完成/待验收**：本人验收（`BL-b42-acceptance`）；随系统自带的技能还没有 `~~` 占位符，定制流程用测试里的占位符验过。
+
 ### 授权、人审、可信决定回平台与项目自动化建议（2026-11-16，第 39 批）
 
 - **有限委托与统一管理页（Layout B）**：助理与 Coding 的授权按工作或持续委托跨轮、等待与重启复用；设置新增「授权与审批」（`/settings/authorizations`，列表加详情栏、窄屏上下排），一处查看、收窄、撤销全部授权，展示「审批来源」（本人决定、沿用授权、自动策略、AI 代批）与「项目规则」。

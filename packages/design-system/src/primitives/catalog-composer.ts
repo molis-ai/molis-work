@@ -67,7 +67,7 @@ interface ShellOptions {
  * (`workbench.composer.next-boundary`) where the board has the platform's words: by its Chinese alone it would meet the receipts'
  * 补充 (an input's kind, English Supplement).
  */
-const composerLabelsIn = (say: Say, to: string, add: string): MwComposerAiLabels => ({
+export const composerLabelsIn = (say: Say, to: string, add: string): MwComposerAiLabels => ({
   input: say("workbench.catalog-composer.message-to-who", { who: to }), send: say("workbench.assistant-dock.send"), sendTitle: say("workbench.catalog-composer.send"), add: say("workbench.catalog-composer.add-files-and-materials"), more: say("workbench.context-toolbar.more"),
   files: say("workbench.catalog-composer.files-and-images"), filesHint: say("workbench.catalog-composer.pick-from-this-computer-or-drag-them"), dropRefused: say("workbench.catalog-composer.only-files-can-be-dropped-here"), commands: say("workbench.pane.command"),
   searching: say("workbench.catalog-composer.searching"), nothing: say("workbench.agent-question-card.no-matches"), unavailable: say("workbench.catalog-composer.name-cannot-be-used-right-now"), reading: say("workbench.assistant-context-strip.reading"), remove: say("workbench.catalog-composer.remove-name"), retryFile: say("workbench.catalog-composer.retry-name"),

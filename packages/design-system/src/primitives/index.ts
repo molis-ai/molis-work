@@ -129,9 +129,8 @@ export {
   codingBasicsSection,
   renderCheckLine,
   renderCommandChip,
-  renderThumbTray,
+  renderCommandPrompt,
   type MwCheckError,
   type MwCheckFact,
   type MwCommandChipOptions,
-  type MwThumbItem,
 } from "./coding-basics.js";

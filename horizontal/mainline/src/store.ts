@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
 import { ActionError, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MAINLINE_LIMITS, WORK_ITEM_KIND, mainlineErrors, type Mainline, type MainlineGroup, type MainlineGroupDefault, type MainlineGroupEditRequest,
   type WorkItem } from "@molis-ai/molis-work-contracts/services/mainline";
@@ -47,7 +47,7 @@ const fresh = (): Arrangement => ({ groups: DEFAULT_GROUPS.map(name => ({ group_
 const conflict = (current: Mainline) => mainlineErrors.conflict("主线在别处刚改过，请看当前的排列后再试", { current });
 const missing = () => mainlineErrors.item_missing("主线上没有这件事项");
 
-interface ItemRow { item_id: string; name: string | null; source_kind: string | null; source_id: string | null; created_at: string }
+interface ItemRow extends Record<string, SQLOutputValue> { item_id: string; name: string | null; source_kind: string | null; source_id: string | null; created_at: string }
 const itemOf = (row: ItemRow): WorkItem => ({ item_id: row.item_id, ...(row.name !== null ? { name: row.name } : {}),
   ...(row.source_kind !== null ? { source: { kind: row.source_kind, id: row.source_id! } } : {}), created_at: row.created_at });
 
@@ -85,7 +85,7 @@ export class MainlineStore {
     const completed = arrangement.completed.slice(0, MAINLINE_LIMITS.completed_read).map(entry => entry.item_id);
     const named = new Set([...arrangement.groups.flatMap(group => group.items.map(entry => entry.item_id)), ...completed]);
     const items = (this.db.prepare("SELECT item_id, name, source_kind, source_id, created_at FROM mainline_items WHERE owner_actor_id = ? AND project_id = ? ORDER BY created_at, item_id")
-      .all(this.actorId, this.projectId) as unknown as ItemRow[]).filter(row => named.has(row.item_id)).map(itemOf);
+      .all(this.actorId, this.projectId) as ItemRow[]).filter(row => named.has(row.item_id)).map(itemOf);
     return { revision, items, groups: arrangement.groups, completed, completed_total: arrangement.completed.length, current: arrangement.current, recent: arrangement.recent };
   }
 

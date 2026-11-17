@@ -202,9 +202,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       memory: task => service.memory.memoryForRound(work, task),
       // The person's role for the round: a new choice resolved now, or the session's pinned version (the Host checks it again at dispatch).
       ...await roleResolvers(ports, work.project_ref) }),
-    // The roles the person may choose, read as the person from Characters' own actions; personal work reads them in the personal space.
-    characters: async project => { const where = project ?? await personalSpace(ports);return where ? assistantRoleCatalog(personClient(where)) : null; },
-    resolveRole: async project => { const where = project ?? await personalSpace(ports);return where ? assistantResolveRole(personClient(where)) : null; },
+    characters: project => asPersonWithRoles(ports, project, where => assistantRoleCatalog(personClient(where))),
+    resolveRole: project => asPersonWithRoles(ports, project, where => assistantResolveRole(personClient(where))),
     projectTitle: ports.projectTitle,
     // Role material from the Home's registry of Agent definitions; Skills from the shared catalog, read as the person.
     methods: { roles: () => definitions().signedRoles(),
@@ -296,6 +295,15 @@ async function roleResolvers(ports: AssistantHttpPorts, project: LocalHostProjec
   const board = project ? await ports.localHost.withProject(project, async runtime => runtime.project_id) : PERSONAL_SPACE_PROJECT_ID;
   return { resolveCharacter: (choice, actorId) => resolveRoleCharacter(ports.homeDirectory, actorId, board, choice),
     characterVersion: (version, actorId) => readRoleVersion(ports.homeDirectory, actorId, board, version) };
+}
+
+/**
+ * The roles the person may choose, read as the person from Characters' own actions where they are: the work's project, or for personal
+ * work the personal space; nothing before the personal space exists.
+ */
+async function asPersonWithRoles<T>(ports: AssistantHttpPorts, project: LocalHostProjectReference | null, read: (where: LocalHostProjectReference) => Promise<T>): Promise<T | null> {
+  const where = project ?? await personalSpace(ports);
+  return where ? read(where) : null;
 }
 
 /** The personal space, where a personal work reads the person's roles; undefined before it exists (the catalog has no such project). */

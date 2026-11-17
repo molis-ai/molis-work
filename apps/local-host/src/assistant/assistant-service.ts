@@ -251,7 +251,7 @@ export class AssistantService {
       work = await this.chooseCharacter(work, input.character);
       // A new work of the Assistant's own takes the role a new task gets (task → project default → my default → the Assistant), once;
       // a main conversation is with the counterpart it names.
-      if (created && input.character === undefined && !work.main && !work.delegated_by && work.executor.kind === "assistant" && this.ports.resolveRole) work = await this.defaultCharacter(work);
+      if (created && input.character === undefined && !work.main && !work.delegated_by && work.executor.kind === "assistant" && this.ports.resolveRole) work = await defaultCharacter(this.store, this.actorId, this.ports.resolveRole, work);
       if (created && work.main && work.character) work = this.store.update(this.actorId, work.work_id, null, { title: `与「${work.character.title}」的对话` }, false);
       if (materials.some(item => item.reference)) materials = await this.materials.readReferences(work, materials);
       const handoffs: MethodHandoff[] = [];
@@ -352,28 +352,34 @@ export class AssistantService {
     return this.ports.characters(project);
   }
 
-  /** The effective role for a new work, kept as its stable choice; the Assistant itself keeps none. */
-  private async defaultCharacter(work: StoredWork): Promise<StoredWork> {
-    const resolved = await this.ports.resolveRole!(work.project_ref ?? null);
-    if (!resolved) return work;
-    const ref = resolved.selection.kind === "assistant" ? null : resolved.selection;
-    if (!ref || !resolved.title || resolved.effective.kind !== "role") return work;
-    const version = resolved.effective.version, character_id = version.kind === "personal" ? version.character_id : version.original.character_id;
-    return this.store.update(this.actorId, work.work_id, null, { character: { ref, title: resolved.title, character_id } }, false);
-  }
-
   /** The person's choice of Character for this work from its next round on: checked now, never swapped for another. */
-  private async chooseCharacter(work: StoredWork, choice: AssistantCharacterRef | null | undefined): Promise<StoredWork> {
-    if (choice === undefined) return work;
-    if (choice === null) return work.character ? this.store.update(this.actorId, work.work_id, null, { character: undefined }, false) : work;
-    const ref = parseRoleRef(choice);
-    if (!ref) throw assistantErrors.invalid("角色选择无效");
-    if (work.executor.kind === "plugin") throw assistantErrors.invalid("这项工作由执行方插件负责，它的角色在插件自己的会话里选择");
-    if (!this.ports.characters) throw assistantErrors.invalid("角色服务尚未接通");
-    const catalog = await this.ports.characters(work.project_ref ?? null), found = catalog ? catalogChoice(catalog, ref) : null;
-    if (!found) throw assistantErrors.invalid(work.project_ref ? "这个项目里没有这个角色" : "没有这个角色");
-    if (!found.available) throw assistantErrors.character_unavailable("所选角色已停用或还没保存成版本，请另选一个，或不指定角色", { action: "重新选择角色" });
-    if (roleKey(work.character?.ref) === roleKey(ref) && work.character?.title === found.character.title) return work;
-    return this.store.update(this.actorId, work.work_id, null, { character: found.character }, false);
+  private chooseCharacter(work: StoredWork, choice: AssistantCharacterRef | null | undefined): Promise<StoredWork> {
+    return chooseCharacter(this.store, this.actorId, this.ports.characters, work, choice);
   }
+}
+
+/** The effective role for a new work, kept as its stable choice; the Assistant itself keeps none. */
+async function defaultCharacter(store: AssistantStore, actorId: string, resolveRole: NonNullable<AssistantServicePorts["resolveRole"]>, work: StoredWork): Promise<StoredWork> {
+  const resolved = await resolveRole(work.project_ref ?? null);
+  if (!resolved) return work;
+  const ref = resolved.selection.kind === "assistant" ? null : resolved.selection;
+  if (!ref || !resolved.title || resolved.effective.kind !== "role") return work;
+  const version = resolved.effective.version, character_id = version.kind === "personal" ? version.character_id : version.original.character_id;
+  return store.update(actorId, work.work_id, null, { character: { ref, title: resolved.title, character_id } }, false);
+}
+
+/** A choice of role checked against the roles the person may choose for this work now; a role that cannot run is refused, never swapped. */
+async function chooseCharacter(store: AssistantStore, actorId: string, characters: AssistantServicePorts["characters"], work: StoredWork,
+  choice: AssistantCharacterRef | null | undefined): Promise<StoredWork> {
+  if (choice === undefined) return work;
+  if (choice === null) return work.character ? store.update(actorId, work.work_id, null, { character: undefined }, false) : work;
+  const ref = parseRoleRef(choice);
+  if (!ref) throw assistantErrors.invalid("角色选择无效");
+  if (work.executor.kind === "plugin") throw assistantErrors.invalid("这项工作由执行方插件负责，它的角色在插件自己的会话里选择");
+  if (!characters) throw assistantErrors.invalid("角色服务尚未接通");
+  const catalog = await characters(work.project_ref ?? null), found = catalog ? catalogChoice(catalog, ref) : null;
+  if (!found) throw assistantErrors.invalid(work.project_ref ? "这个项目里没有这个角色" : "没有这个角色");
+  if (!found.available) throw assistantErrors.character_unavailable("所选角色已停用或还没保存成版本，请另选一个，或不指定角色", { action: "重新选择角色" });
+  if (roleKey(work.character?.ref) === roleKey(ref) && work.character?.title === found.character.title) return work;
+  return store.update(actorId, work.work_id, null, { character: found.character }, false);
 }

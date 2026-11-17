@@ -55,57 +55,59 @@ function paint(part: HTMLElement, html: string): void {
   painted.set(part, html);
 }
 
-export class RoleDrawer {
-  private readonly dialog: HTMLDialogElement;
-  private target: DrawerTarget | null = null;
-  private versions: CharacterRoleVersionEntry[] = [];
+/**
+ * The role drawer in three layers: what it is editing (here), how it is drawn (`RoleDrawerView`) and what it does (`RoleDrawer`).
+ */
+class RoleDrawerState {
+  protected readonly dialog: HTMLDialogElement;
+  protected target: DrawerTarget | null = null;
+  protected versions: CharacterRoleVersionEntry[] = [];
   /** The member's original as it is now, to show what following means and to save a section to it. */
-  private original: CharacterRoleContent | null = null;
-  private baseline: CharacterRoleContent = { title: "", instructions: "", host_tools: null };
-  private phase: Phase = "clean";
-  private where: "project" | "mine" = "project";
-  private ask: Ask | null = null;
-  private saved: { title: string; body: string; undo?: () => Promise<void> } | null = null;
-  private theirs: CharacterRoleContent | null = null;
-  private diffOpen = false;
-  private busy = false;
-  private opener: HTMLElement | null = null;
-  private focusRow: string | null = null;
-  private readonly drafts: WindowDrafts;
+  protected original: CharacterRoleContent | null = null;
+  protected baseline: CharacterRoleContent = { title: "", instructions: "", host_tools: null };
+  protected phase: Phase = "clean";
+  protected where: "project" | "mine" = "project";
+  protected ask: Ask | null = null;
+  protected saved: { title: string; body: string; undo?: () => Promise<void> } | null = null;
+  protected theirs: CharacterRoleContent | null = null;
+  protected diffOpen = false;
+  protected busy = false;
+  protected opener: HTMLElement | null = null;
+  protected focusRow: string | null = null;
+  protected readonly drafts: WindowDrafts;
   /** The version an unsaved edit was typed over, kept with it in this window. */
-  private editBase = 0;
+  protected editBase = 0;
 
-  constructor(private readonly host: DrawerHost) {
+  constructor(protected readonly host: DrawerHost) {
     this.dialog = host.q<HTMLDialogElement>("drawer");
     this.drafts = new WindowDrafts(host.storage);
-    this.bind();
   }
 
-  private part<T extends HTMLElement = HTMLElement>(name: string): T { return this.host.q<T>(name); }
-  private member(): Member | undefined {
+  protected part<T extends HTMLElement = HTMLElement>(name: string): T { return this.host.q<T>(name); }
+  protected member(): Member | undefined {
     const target = this.target;
     return target?.kind === "member" ? this.host.catalog()?.members.find(entry => memberKey(entry) === target.id) : undefined;
   }
-  private originalEntry() {
+  protected originalEntry() {
     const target = this.target, catalog = this.host.catalog();
     if (!catalog || !target || target.kind === "new") return undefined;
     if (target.kind === "original") return catalog.originals.find(entry => entry.ref.character_id === target.id);
     const member = this.member();
     return member ? originalOf(catalog, member) : undefined;
   }
-  private title(): string {
+  protected title(): string {
     if (this.target?.kind === "new") return this.values().title.trim() || say("workbench.roles.new-role");
     return this.member()?.title ?? this.originalEntry()?.title ?? "";
   }
 
   /** The fields as they are now: what saving would write. */
-  private values(): CharacterRoleContent {
+  protected values(): CharacterRoleContent {
     const inherit = this.part<HTMLInputElement>("inherit").checked;
     return { title: this.part<HTMLInputElement>("title").value, instructions: this.part<HTMLTextAreaElement>("instructions").value,
       host_tools: inherit ? null : this.part<HTMLInputElement>("tools").value.split(",").map(tool => tool.trim()).filter(Boolean),
       action_tools: this.host.actions.value() as CharacterRoleContent["action_tools"] };
   }
-  private fill(content: CharacterRoleContent): void {
+  protected fill(content: CharacterRoleContent): void {
     this.part<HTMLInputElement>("title").value = content.title;
     this.part<HTMLTextAreaElement>("instructions").value = content.instructions;
     this.part<HTMLInputElement>("inherit").checked = content.host_tools === null;
@@ -113,19 +115,146 @@ export class RoleDrawer {
     this.part("tools-field").hidden = content.host_tools === null;
     this.host.actions.render((content.action_tools ?? null) as ActionRef[] | null);
   }
-  private edited(): { way: boolean; tools: boolean; title: boolean } {
+  protected edited(): { way: boolean; tools: boolean; title: boolean } {
     const now = this.values(), base = this.baseline;
     return { way: now.instructions !== base.instructions, title: now.title !== base.title,
       tools: !same(now.host_tools, base.host_tools) || !same(now.action_tools ?? null, base.action_tools ?? null) };
   }
-  private dirty(): boolean { return this.phase === "dirty" || this.phase === "conflict"; }
-  private roleKey(): string | null { const target = this.target; return !target || target.kind === "new" ? null : target.kind + ":" + target.id; }
-  private currentVersion(): number { const current = this.versions.find(entry => entry.current); return current ? versionOf(current.ref) : 0; }
+  protected dirty(): boolean { return this.phase === "dirty" || this.phase === "conflict"; }
+  protected roleKey(): string | null { const target = this.target; return !target || target.kind === "new" ? null : target.kind + ":" + target.id; }
+  protected currentVersion(): number { const current = this.versions.find(entry => entry.current); return current ? versionOf(current.ref) : 0; }
   /** Keeps this window's unsaved edit of the role, or forgets it once it is saved or dropped. */
-  private keep(): void {
+  protected keep(): void {
     const key = this.roleKey();
     if (!key) return;
     if (!this.drafts.set(key, this.dirty() ? { content: this.values(), version: this.editBase } : null)) this.host.note(say("workbench.characters.draft-cache-unavailable"));
+  }
+}
+
+/** How the drawer is drawn from its state. */
+class RoleDrawerView extends RoleDrawerState {
+  protected controls(): void {
+    this.dialog.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement>("[data-character-drawer-foot] button, [data-character-drawer-notices] button, [data-roles-version]")
+      .forEach(control => { control.disabled = this.busy || control.dataset.rolesDisabled === "true"; });
+  }
+
+  // ---------- drawing ----------
+  protected render(): void {
+    if (!this.target) return;
+    this.renderHead(); this.renderNotices(); this.renderSections(); this.renderVersions(); this.renderFoot(); this.controls();
+    // An imported original shows its source; it can be tried in a project's folder when this project uses it as it is
+    // (an original from Settings has no folder to run in, and a member that changed a section is not the original any more).
+    const entry = this.originalEntry(), member = this.member();
+    const content = this.target.kind === "original" ? this.versions.find(item => item.current)?.content
+      : member && SECTIONS.every(name => member.role.sections[name].mode === "follow") ? this.original ?? undefined : undefined;
+    const record: CharacterRecord | null = entry && content?.import_snapshot
+      ? { ...content, action_tools: (content.action_tools ?? null) as ActionRef[] | null, character_id: entry.ref.character_id, revision: entry.draft_revision, state: entry.state,
+        import_snapshot: content.import_snapshot as CharacterRecord["import_snapshot"] } : null;
+    this.host.imported(record, Boolean(record && this.host.scope === "project" && entry?.state === "active" && entry.version !== null));
+  }
+
+  protected caption(): string {
+    const target = this.target!, entry = this.originalEntry();
+    if (target.kind === "new") return say(this.host.scope === "project" ? "workbench.roles.new-caption-project" : "workbench.roles.new-caption");
+    if (target.kind === "original") return entry ? say("workbench.roles.original-caption", { version: entry.version ?? 0, count: entry.use.projects }) : "";
+    const member = this.member();
+    if (!member) return "";
+    const version = member.role.current.original.version, changed = SECTIONS.filter(name => member.role.sections[name].mode === "override");
+    return say(!changed.length ? "workbench.roles.member-caption-follow" : changed.length === 2 ? "workbench.roles.member-caption-both" : changed[0] === "work_style" ? "workbench.roles.member-caption-way" : "workbench.roles.member-caption-tools", { version });
+  }
+
+  protected renderHead(): void {
+    const title = this.title();
+    paint(this.part("drawer-head"), `<div class="roles-drawer__title">${renderAvatar({ label: title })}<div><h2 id="roles-drawer-title" translate="no">${esc(title)}</h2><p>${esc(this.caption())}</p></div></div>`
+      + renderButton({ variant: "ghost", size: "sm", iconOnly: true, icon: "x", label: say("common.control.close"), className: "mw-dialog__close", attrs: { "data-roles-drawer": "close" } }));
+  }
+
+  protected renderNotices(): void {
+    const parts: string[] = [];
+    if (this.phase === "saved" && this.saved) parts.push(renderAlert({ tone: "success", title: this.saved.title, body: this.saved.body,
+      actions: this.saved.undo ? [{ size: "sm", label: say("workbench.roles.undo"), attrs: { "data-roles-drawer": "undo" } }] : [] }));
+    if (this.phase === "conflict") {
+      const diff = this.diffOpen && this.theirs ? `<div class="roles-inset" role="group" aria-label="${esc(say("workbench.roles.theirs-vs-yours"))}"><div class="roles-diff"><section><h4>${esc(say("workbench.roles.theirs"))}</h4><p translate="no">${esc(this.theirs.instructions)}</p></section><section><h4>${esc(say("workbench.roles.yours"))}</h4><p translate="no">${esc(this.values().instructions)}</p></section></div></div>` : "";
+      parts.push(renderAlert({ tone: "danger", title: say(this.target?.kind === "member" ? "workbench.roles.conflict-project" : "workbench.roles.conflict-mine", { name: this.title() }), body: say("workbench.roles.conflict-body"), actions: [
+        { size: "sm", label: say(this.diffOpen ? "workbench.roles.hide-difference" : "workbench.roles.see-difference"), attrs: { "data-roles-drawer": "diff", "aria-expanded": String(this.diffOpen) } },
+        { size: "sm", variant: "primary", label: say("workbench.roles.keep-mine"), attrs: { "data-roles-drawer": "merge" } },
+        { size: "sm", variant: "ghost", label: say("workbench.roles.drop-mine"), attrs: { "data-roles-drawer": "reload" } },
+      ] }).replace(/<\/div>$/u, diff + "</div>"));
+    }
+    paint(this.part("drawer-notices"), parts.join(""));
+  }
+
+  /** Whether each section follows the original or is this project's, with the way back to following. */
+  protected sectionState(name: CharacterRoleSection): string {
+    const member = this.member();
+    if (!member) return "";
+    const status = member.role.sections[name];
+    return status.mode === "override"
+      ? state("warning", say("workbench.roles.changed-here")) + button({ variant: "ghost", label: say("workbench.roles.follow-again"), attrs: { "data-roles-drawer": "follow", "data-roles-section": name } })
+      : state("neutral", say("workbench.roles.follows-version", { version: member.role.current.original.version }));
+  }
+
+  protected renderSections(): void {
+    this.part("title-field").hidden = this.target?.kind === "member";
+    paint(this.part("way-state"), this.sectionState("work_style"));
+    paint(this.part("tools-state"), this.sectionState("capabilities"));
+  }
+
+  protected renderVersions(): void {
+    const fold = this.part<HTMLDetailsElement>("versions-fold");
+    fold.hidden = this.target?.kind === "new" || !this.versions.length;
+    this.part("versions-summary").textContent = say("workbench.roles.versions-count", { count: this.versions.length });
+    paint(this.part("versions"), this.versions.map(entry => {
+      const version = versionOf(entry.ref), when = uiText.text("workbench.roles.saved-at", { date: { kind: "date", at: entry.saved_at, style: "datetime" } } as never);
+      const sections = entry.sections ? " · " + SECTIONS.map(name => say(entry.sections![name] === "override" ? (name === "work_style" ? "workbench.roles.way-own" : "workbench.roles.tools-own") : (name === "work_style" ? "workbench.roles.way-follows" : "workbench.roles.tools-follow"))).join(" · ") : "";
+      return `<div class="roles-ver"><span><strong>v${version}</strong><small>${esc(when + sections)}</small></span>${entry.current ? state("neutral", say("workbench.roles.current"))
+        : button({ label: say("workbench.roles.restore-this"), attrs: { "data-roles-version": String(version), "aria-label": say("workbench.roles.restore-named", { version }) } })}</div>`;
+    }).join(""));
+  }
+
+  /** Where this save lands and what it changes, said before it happens. */
+  protected impact(): string {
+    const target = this.target!;
+    if (target.kind === "new") return say(this.host.scope === "project" ? "workbench.roles.impact-new-project" : "workbench.roles.impact-new");
+    const next = (this.originalEntry()?.version ?? 0) + 1;
+    if (target.kind === "member" && this.where === "project") return say("workbench.roles.impact-project");
+    return say("workbench.roles.impact-original", { version: next });
+  }
+
+  /**
+   * Whether what is in the fields can be saved. Being busy is not part of it: `controls()` disables every button while busy, and a
+   * footer drawn during a read (a kept edit brought back on opening, RAC-1607) must still offer saving once the read is done.
+   */
+  protected canSave(): boolean {
+    if (this.phase === "conflict") return false;
+    const now = this.values();
+    if (this.target?.kind === "new") return Boolean(now.title.trim() && now.instructions.trim());
+    return this.phase === "dirty" && (this.target?.kind !== "original" || Boolean(now.title.trim()));
+  }
+
+  protected renderFoot(): void {
+    const foot = this.part("drawer-foot");
+    foot.classList.toggle("is-asking", Boolean(this.ask));
+    if (this.ask) {
+      const restore = this.ask.kind === "restore" ? versionOf(this.ask.entry.ref) : null;
+      paint(foot, `<div class="roles-ask" role="group" aria-labelledby="roles-ask-title" aria-describedby="roles-ask-body"><p class="roles-ask__title" id="roles-ask-title" tabindex="-1">${icon("circle-alert")}<span>${esc(restore === null ? say("workbench.roles.ask-unsaved") : say("workbench.roles.ask-restore", { version: restore }))}</span></p>
+        <p class="roles-ask__body" id="roles-ask-body">${esc(restore === null ? say("workbench.roles.ask-unsaved-body") : say("workbench.roles.ask-restore-body", { version: restore }))}</p>
+        <div class="roles-btns">${button({ label: say("workbench.roles.keep-editing"), attrs: { "data-roles-drawer": "ask-keep" } })}${button({ variant: "danger", label: say(restore === null ? "workbench.roles.drop-edits" : "workbench.roles.drop-and-restore"), attrs: { "data-roles-drawer": "ask-drop" } })}</div></div>`);
+      return;
+    }
+    const saved = this.phase === "saved", showImpact = (this.dirty() || this.target?.kind === "new") && !saved;
+    const where = this.target?.kind === "member" && this.dirty() ? `<div class="roles-where"><span class="roles-where__k">${esc(say("workbench.roles.save-to"))}</span><span class="mw-toggle-group settings-segmented" data-slot="toggle-group" role="group" aria-label="${esc(say("workbench.roles.save-to-label"))}">${(["project", "mine"] as const).map(value =>
+      `<button type="button" class="mw-toggle${this.where === value ? " is-current" : ""}" aria-pressed="${this.where === value}" data-roles-drawer="where" data-roles-where="${value}">${esc(say(value === "project" ? "workbench.roles.save-project" : "workbench.roles.save-mine"))}</button>`).join("")}</span></div>` : "";
+    paint(foot, `${showImpact ? `<p class="roles-impact">${icon("info")}<span>${esc(this.impact())}</span></p>` : ""}${where}<div class="roles-btns">${button({ variant: "ghost", label: say(saved ? "workbench.roles.done" : "common.control.close"), attrs: { "data-roles-drawer": "close" } })}${saved ? ""
+      : button({ variant: "primary", label: say("workbench.roles.save-use"), attrs: { "data-roles-drawer": "save", "data-roles-disabled": String(!this.canSave()) } })}</div>`);
+  }
+}
+
+/** The drawer opened over the roles page: reads a role, edits it and saves, restores or follows as the person asks. */
+export class RoleDrawer extends RoleDrawerView {
+  constructor(host: DrawerHost) {
+    super(host);
+    this.bind();
   }
 
   /** Opens over the page; `opener` gets focus back when it closes. */
@@ -194,118 +323,6 @@ export class RoleDrawer {
       this.theirs = result.versions.find(entry => entry.current)?.content ?? null;
     }
     this.render();
-  }
-
-  private controls(): void {
-    this.dialog.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement>("[data-character-drawer-foot] button, [data-character-drawer-notices] button, [data-roles-version]")
-      .forEach(control => { control.disabled = this.busy || control.dataset.rolesDisabled === "true"; });
-  }
-
-  // ---------- drawing ----------
-  private render(): void {
-    if (!this.target) return;
-    this.renderHead(); this.renderNotices(); this.renderSections(); this.renderVersions(); this.renderFoot(); this.controls();
-    // An imported original shows its source; it can be tried in a project's folder when this project uses it as it is
-    // (an original from Settings has no folder to run in, and a member that changed a section is not the original any more).
-    const entry = this.originalEntry(), member = this.member();
-    const content = this.target.kind === "original" ? this.versions.find(item => item.current)?.content
-      : member && SECTIONS.every(name => member.role.sections[name].mode === "follow") ? this.original ?? undefined : undefined;
-    const record: CharacterRecord | null = entry && content?.import_snapshot
-      ? { ...content, action_tools: (content.action_tools ?? null) as ActionRef[] | null, character_id: entry.ref.character_id, revision: entry.draft_revision, state: entry.state,
-        import_snapshot: content.import_snapshot as CharacterRecord["import_snapshot"] } : null;
-    this.host.imported(record, Boolean(record && this.host.scope === "project" && entry?.state === "active" && entry.version !== null));
-  }
-
-  private caption(): string {
-    const target = this.target!, entry = this.originalEntry();
-    if (target.kind === "new") return say(this.host.scope === "project" ? "workbench.roles.new-caption-project" : "workbench.roles.new-caption");
-    if (target.kind === "original") return entry ? say("workbench.roles.original-caption", { version: entry.version ?? 0, count: entry.use.projects }) : "";
-    const member = this.member();
-    if (!member) return "";
-    const version = member.role.current.original.version, changed = SECTIONS.filter(name => member.role.sections[name].mode === "override");
-    return say(!changed.length ? "workbench.roles.member-caption-follow" : changed.length === 2 ? "workbench.roles.member-caption-both" : changed[0] === "work_style" ? "workbench.roles.member-caption-way" : "workbench.roles.member-caption-tools", { version });
-  }
-
-  private renderHead(): void {
-    const title = this.title();
-    paint(this.part("drawer-head"), `<div class="roles-drawer__title">${renderAvatar({ label: title })}<div><h2 id="roles-drawer-title" translate="no">${esc(title)}</h2><p>${esc(this.caption())}</p></div></div>`
-      + renderButton({ variant: "ghost", size: "sm", iconOnly: true, icon: "x", label: say("common.control.close"), className: "mw-dialog__close", attrs: { "data-roles-drawer": "close" } }));
-  }
-
-  private renderNotices(): void {
-    const parts: string[] = [];
-    if (this.phase === "saved" && this.saved) parts.push(renderAlert({ tone: "success", title: this.saved.title, body: this.saved.body,
-      actions: this.saved.undo ? [{ size: "sm", label: say("workbench.roles.undo"), attrs: { "data-roles-drawer": "undo" } }] : [] }));
-    if (this.phase === "conflict") {
-      const diff = this.diffOpen && this.theirs ? `<div class="roles-inset" role="group" aria-label="${esc(say("workbench.roles.theirs-vs-yours"))}"><div class="roles-diff"><section><h4>${esc(say("workbench.roles.theirs"))}</h4><p translate="no">${esc(this.theirs.instructions)}</p></section><section><h4>${esc(say("workbench.roles.yours"))}</h4><p translate="no">${esc(this.values().instructions)}</p></section></div></div>` : "";
-      parts.push(renderAlert({ tone: "danger", title: say(this.target?.kind === "member" ? "workbench.roles.conflict-project" : "workbench.roles.conflict-mine", { name: this.title() }), body: say("workbench.roles.conflict-body"), actions: [
-        { size: "sm", label: say(this.diffOpen ? "workbench.roles.hide-difference" : "workbench.roles.see-difference"), attrs: { "data-roles-drawer": "diff", "aria-expanded": String(this.diffOpen) } },
-        { size: "sm", variant: "primary", label: say("workbench.roles.keep-mine"), attrs: { "data-roles-drawer": "merge" } },
-        { size: "sm", variant: "ghost", label: say("workbench.roles.drop-mine"), attrs: { "data-roles-drawer": "reload" } },
-      ] }).replace(/<\/div>$/u, diff + "</div>"));
-    }
-    paint(this.part("drawer-notices"), parts.join(""));
-  }
-
-  /** Whether each section follows the original or is this project's, with the way back to following. */
-  private sectionState(name: CharacterRoleSection): string {
-    const member = this.member();
-    if (!member) return "";
-    const status = member.role.sections[name];
-    return status.mode === "override"
-      ? state("warning", say("workbench.roles.changed-here")) + button({ variant: "ghost", label: say("workbench.roles.follow-again"), attrs: { "data-roles-drawer": "follow", "data-roles-section": name } })
-      : state("neutral", say("workbench.roles.follows-version", { version: member.role.current.original.version }));
-  }
-
-  private renderSections(): void {
-    this.part("title-field").hidden = this.target?.kind === "member";
-    paint(this.part("way-state"), this.sectionState("work_style"));
-    paint(this.part("tools-state"), this.sectionState("capabilities"));
-  }
-
-  private renderVersions(): void {
-    const fold = this.part<HTMLDetailsElement>("versions-fold");
-    fold.hidden = this.target?.kind === "new" || !this.versions.length;
-    this.part("versions-summary").textContent = say("workbench.roles.versions-count", { count: this.versions.length });
-    paint(this.part("versions"), this.versions.map(entry => {
-      const version = versionOf(entry.ref), when = uiText.text("workbench.roles.saved-at", { date: { kind: "date", at: entry.saved_at, style: "datetime" } } as never);
-      const sections = entry.sections ? " · " + SECTIONS.map(name => say(entry.sections![name] === "override" ? (name === "work_style" ? "workbench.roles.way-own" : "workbench.roles.tools-own") : (name === "work_style" ? "workbench.roles.way-follows" : "workbench.roles.tools-follow"))).join(" · ") : "";
-      return `<div class="roles-ver"><span><strong>v${version}</strong><small>${esc(when + sections)}</small></span>${entry.current ? state("neutral", say("workbench.roles.current"))
-        : button({ label: say("workbench.roles.restore-this"), attrs: { "data-roles-version": String(version), "aria-label": say("workbench.roles.restore-named", { version }) } })}</div>`;
-    }).join(""));
-  }
-
-  /** Where this save lands and what it changes, said before it happens. */
-  private impact(): string {
-    const target = this.target!;
-    if (target.kind === "new") return say(this.host.scope === "project" ? "workbench.roles.impact-new-project" : "workbench.roles.impact-new");
-    const next = (this.originalEntry()?.version ?? 0) + 1;
-    if (target.kind === "member" && this.where === "project") return say("workbench.roles.impact-project");
-    return say("workbench.roles.impact-original", { version: next });
-  }
-
-  private canSave(): boolean {
-    if (this.phase === "conflict" || this.busy) return false;
-    const now = this.values();
-    if (this.target?.kind === "new") return Boolean(now.title.trim() && now.instructions.trim());
-    return this.phase === "dirty" && (this.target?.kind !== "original" || Boolean(now.title.trim()));
-  }
-
-  private renderFoot(): void {
-    const foot = this.part("drawer-foot");
-    foot.classList.toggle("is-asking", Boolean(this.ask));
-    if (this.ask) {
-      const restore = this.ask.kind === "restore" ? versionOf(this.ask.entry.ref) : null;
-      paint(foot, `<div class="roles-ask" role="group" aria-labelledby="roles-ask-title" aria-describedby="roles-ask-body"><p class="roles-ask__title" id="roles-ask-title" tabindex="-1">${icon("circle-alert")}<span>${esc(restore === null ? say("workbench.roles.ask-unsaved") : say("workbench.roles.ask-restore", { version: restore }))}</span></p>
-        <p class="roles-ask__body" id="roles-ask-body">${esc(restore === null ? say("workbench.roles.ask-unsaved-body") : say("workbench.roles.ask-restore-body", { version: restore }))}</p>
-        <div class="roles-btns">${button({ label: say("workbench.roles.keep-editing"), attrs: { "data-roles-drawer": "ask-keep" } })}${button({ variant: "danger", label: say(restore === null ? "workbench.roles.drop-edits" : "workbench.roles.drop-and-restore"), attrs: { "data-roles-drawer": "ask-drop" } })}</div></div>`);
-      return;
-    }
-    const saved = this.phase === "saved", showImpact = (this.dirty() || this.target?.kind === "new") && !saved;
-    const where = this.target?.kind === "member" && this.dirty() ? `<div class="roles-where"><span class="roles-where__k">${esc(say("workbench.roles.save-to"))}</span><span class="mw-toggle-group settings-segmented" data-slot="toggle-group" role="group" aria-label="${esc(say("workbench.roles.save-to-label"))}">${(["project", "mine"] as const).map(value =>
-      `<button type="button" class="mw-toggle${this.where === value ? " is-current" : ""}" aria-pressed="${this.where === value}" data-roles-drawer="where" data-roles-where="${value}">${esc(say(value === "project" ? "workbench.roles.save-project" : "workbench.roles.save-mine"))}</button>`).join("")}</span></div>` : "";
-    paint(foot, `${showImpact ? `<p class="roles-impact">${icon("info")}<span>${esc(this.impact())}</span></p>` : ""}${where}<div class="roles-btns">${button({ variant: "ghost", label: say(saved ? "workbench.roles.done" : "common.control.close"), attrs: { "data-roles-drawer": "close" } })}${saved ? ""
-      : button({ variant: "primary", label: say("workbench.roles.save-use"), attrs: { "data-roles-drawer": "save", "data-roles-disabled": String(!this.canSave()) } })}</div>`);
   }
 
   // ---------- acting ----------
@@ -414,10 +431,9 @@ export class RoleDrawer {
     if (target.kind === "original") {
       const original = this.originalEntry();
       if (!original) return;
-      const result = await this.host.request<{ draft: { revision: number }; version: { version: number } }>("PUT", "/drafts/" + encodeURIComponent(target.id), { ...values, expected_revision: original.draft_revision });
+      const result = await this.host.request<{ draft: { revision: number }; version: number }>("PUT", "/drafts/" + encodeURIComponent(target.id), { ...values, expected_revision: original.draft_revision });
       const previous = before?.ref;
-      this.done(say("workbench.roles.saved-original", { version: result.version.version }), say("workbench.roles.impact-original", { version: result.version.version }),
-        previous?.kind === "personal" ? async () => this.undo({ version: previous, expected_revision: result.draft.revision }) : undefined);
+      this.savedOriginal(result.version, previous?.kind === "personal" ? async () => this.undo({ version: previous, expected_revision: result.draft.revision }) : undefined);
       await this.host.reload(); await this.read(true);
       return;
     }
@@ -438,14 +454,14 @@ export class RoleDrawer {
       const base = this.original ?? this.baseline;
       const content = { title: entry.title, instructions: edited.way ? values.instructions : base.instructions,
         host_tools: edited.tools ? values.host_tools : base.host_tools, action_tools: (edited.tools ? values.action_tools : base.action_tools) ?? null };
-      const result = await this.host.request<{ draft: { revision: number }; version: { version: number } }>("PUT", "/drafts/" + encodeURIComponent(entry.ref.character_id), { ...content, expected_revision: entry.draft_revision });
+      const result = await this.host.request<{ draft: { revision: number }; version: number }>("PUT", "/drafts/" + encodeURIComponent(entry.ref.character_id), { ...content, expected_revision: entry.draft_revision });
       let current = role;
       for (const section of SECTIONS) {
         if (current.sections[section].mode !== "override" || !(section === "work_style" ? edited.way : edited.tools)) continue;
         current = (await this.host.request<{ role: MemberRole }>("POST", "/members/" + encodeURIComponent(target.id) + "/section",
-          { section, to: "follow", expected_revision: current.revision, expected_original_version: result.version.version })).role;
+          { section, to: "follow", expected_revision: current.revision, expected_original_version: result.version })).role;
       }
-      this.done(say("workbench.roles.saved-original", { version: result.version.version }), say("workbench.roles.impact-original", { version: result.version.version }));
+      this.savedOriginal(result.version);
     }
     await this.host.reload(); await this.read(true);
   }
@@ -475,6 +491,11 @@ export class RoleDrawer {
     await this.host.reload(); await this.read(false);
     this.fill(typed); this.saved = null; this.phase = "dirty"; this.editBase = this.currentVersion(); this.keep(); this.render();
     this.host.note(say("workbench.roles.undone"));
+  }
+
+  /** Saved as the original's next version: what it is now and what follows from it. */
+  private savedOriginal(version: number, undo?: () => Promise<void>): void {
+    this.done(say("workbench.roles.saved-original", { version }), say("workbench.roles.impact-original", { version }), undo);
   }
 
   private done(title: string, body: string, undo?: () => Promise<void>): void {

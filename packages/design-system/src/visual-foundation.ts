@@ -22,6 +22,7 @@ import { NAVIGATION_OWNERSHIP_STYLES } from "./styles/navigation-ownership.js";
 import { SOURCE_FEED_STYLES } from "./styles/source-feed.js";
 import { COSS_CONTROL_STYLES } from "./styles/coss-controls.js";
 import { PRIMITIVE_STYLES } from "./styles/primitives.js";
+import { NOTE_STYLES } from "./styles/note.js";
 import { ARRIVAL_COMPONENT_STYLES } from "./styles/arrival-components.js";
 import { STATE_RING_CLIENT_SCRIPT } from "./state-ring-client.js";
 
@@ -39,7 +40,7 @@ const FOUNDATION_LAYERS = [
 /** Complete pages place their control overlay after product CSS, exactly once. */
 export const VISUAL_FOUNDATION_PAGE_STYLES = FOUNDATION_LAYERS + ARRIVAL_COMPONENT_STYLES;
 /** Standalone consumers, including the catalog, retain the complete original cascade. */
-export const VISUAL_FOUNDATION_STYLES = FOUNDATION_LAYERS + COSS_CONTROL_STYLES + PRIMITIVE_STYLES + ARRIVAL_COMPONENT_STYLES;
+export const VISUAL_FOUNDATION_STYLES = FOUNDATION_LAYERS + COSS_CONTROL_STYLES + PRIMITIVE_STYLES + NOTE_STYLES + ARRIVAL_COMPONENT_STYLES;
 
 /** Theme preferences plus the measured micro-interactions; every page renderer inlines this. */
 export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `${PREFERENCE_CLIENT_SCRIPT}${MICRO_INTERACTION_CLIENT_SCRIPT}${OVERFLOW_FADE_CLIENT_SCRIPT}

@@ -352,8 +352,8 @@ test("RAC-2850 RAC-2851 Characters carries styles inside each extracted section 
   for (const page of [personal, project]) {
     assert.match(page, /<section[^>]+roles-page[^>]*>\s*<style>/u);
     assert.match(page, /\.roles-drawer/u);
-    assert.match(page, /\.characters-terminal \{ height: 360px/u);
-    assert.match(page, /\.characters-terminal \{ height: 300px/u);
+    assert.match(page, /\.characters-terminal \{ height: 420px/u);
+    assert.match(page, /\.characters-terminal \{ height: 350px/u);
   }
   for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkSettingsStylesheet()]) {
     assert.doesNotMatch(sheet, /\.characters-(?:terminal|project-link|page|dialog|steps)|\.roles-(?:page|drawer|row)/u);

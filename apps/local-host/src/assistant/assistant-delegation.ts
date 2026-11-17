@@ -63,6 +63,21 @@ interface DelegationPorts {
 }
 
 /**
+ * A professional role, when asked for: exactly one the person can choose here now, by its id (or a title only it has) — never a
+ * stand-in, and never a guess between two of the same name.
+ */
+function delegationRole(catalog: CharacterRoleCatalog | null, wanted: string): AssistantCharacter {
+  const all = catalog ? [...catalog.members.map(item => ({ ref: { kind: "project" as const, member_id: item.role.current.member_id }, title: item.title, available: item.availability.available, character_id: item.role.current.original.character_id })),
+    ...(catalog.in_project ? [] : catalog.originals.map(item => ({ ref: item.ref, title: item.title, available: item.availability.available, character_id: item.ref.character_id })))] : [];
+  const byId = all.filter(item => roleKey(item.ref) === wanted), named = byId.length ? byId : all.filter(item => item.title === wanted);
+  if (!named.length) throw assistantErrors.not_found(`没有「${wanted}」这个专业角色（只能用「可委托的专业角色」里列出的）；没有换成别的角色`);
+  if (named.length > 1) throw assistantErrors.invalid(`叫「${wanted}」的角色不止一个，请用它的 id：${named.map(item => roleKey(item.ref)).join(t.text("common.list.separator"))}`);
+  const found = named[0]!;
+  if (!found.available) throw assistantErrors.character_unavailable(`角色「${found.title}」现在不能用（已停用或还没保存成版本）；没有换成别的角色`);
+  return { ref: found.ref, title: found.title, character_id: found.character_id };
+}
+
+/**
  * A work hands independent parts to works of its own and gets their results back (specs/prologue-adoption §4.6, item 14).
  * Each work has its own task graph (§6.0k): its rounds stand on the root, each part it hands out is a step under it held
  * by the part's session, and each follow-up a step under the part. A part's step ends with the round that stands on it;
@@ -109,20 +124,7 @@ export class AssistantDelegations {
     return {
       start: async input => {
         const host = await this.ports.host(), graphs = await this.#graphs(host), graph_id = graphOf();
-        // A professional role, when asked for: exactly one the person can choose here now, by its id (or a title only it has) —
-        // never a stand-in, and never a guess between two of the same name.
-        let role: AssistantCharacter | undefined;
-        if (input.character) {
-          const catalog = this.ports.characters ? await this.ports.characters(parent.project_ref ?? null) : null;
-          const all = catalog ? [...catalog.members.map(item => ({ ref: { kind: "project" as const, member_id: item.role.current.member_id }, title: item.title, available: item.availability.available, character_id: item.role.current.original.character_id })),
-            ...(catalog.in_project ? [] : catalog.originals.map(item => ({ ref: item.ref, title: item.title, available: item.availability.available, character_id: item.ref.character_id })))] : [];
-          const byId = all.filter(item => roleKey(item.ref) === input.character), named = byId.length ? byId : all.filter(item => item.title === input.character);
-          if (!named.length) throw assistantErrors.not_found(`没有「${input.character}」这个专业角色（只能用「可委托的专业角色」里列出的）；没有换成别的角色`);
-          if (named.length > 1) throw assistantErrors.invalid(`叫「${input.character}」的角色不止一个，请用它的 id：${named.map(item => roleKey(item.ref)).join(t.text("common.list.separator"))}`);
-          const found = named[0]!;
-          if (!found.available) throw assistantErrors.character_unavailable(`角色「${found.title}」现在不能用（已停用或还没保存成版本）；没有换成别的角色`);
-          role = { ref: found.ref, title: found.title, character_id: found.character_id };
-        }
+        const role = input.character ? delegationRole(this.ports.characters ? await this.ports.characters(parent.project_ref ?? null) : null, input.character) : undefined;
         const children = store.delegatedBy(actorId, { graph_id }, "any"), nodes = await graphs.read(graph_id);
         if (children.filter(child => open(partSteps(nodes, child)).length).length >= DELEGATION_LIMITS.active) throw assistantErrors.limit(`已有 ${DELEGATION_LIMITS.active} 个子任务在办：这一件没有开始。告诉用户它在排队，等其中一个交回后再委托`);
         // Which event it is done for is its owner's record (the `serves` relation): only an event the line shows to this work's project.

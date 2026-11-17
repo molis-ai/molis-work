@@ -93,17 +93,21 @@ type RelationInput<R extends PlacementRelationRole> = R extends "bind" | "releas
 type RelationOutput<R extends PlacementRelationRole> = R extends "candidates" ? PlacementRelationCandidates : PlacementRelationResult;
 export const PLACEMENT_RELATION_LIMITS = { targets: 500, name: 120 } as const;
 
-const relationInputs = {
-  subject: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA }, required: ["subject"], additionalProperties: false },
-  target: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, target: ACTION_SUBJECT_SCHEMA }, required: ["subject", "target"], additionalProperties: false },
-  create: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, name: { type: "string", minLength: 1, maxLength: PLACEMENT_RELATION_LIMITS.name } },
-    required: ["subject", "name"], additionalProperties: false },
-} as const;
-const relationTargets = { type: "object", properties: { targets: { type: "array", maxItems: PLACEMENT_RELATION_LIMITS.targets, items: ACTION_SUBJECT_SCHEMA } },
-  required: ["targets"], additionalProperties: false } as const;
-const relationCandidates = { type: "object", properties: { targets: { type: "array", maxItems: PLACEMENT_RELATION_LIMITS.targets, items: { type: "object",
-  properties: { subject: ACTION_SUBJECT_SCHEMA, current: { type: "boolean" } }, required: ["subject", "current"], additionalProperties: false } } },
-  required: ["targets"], additionalProperties: false } as const;
+/**
+ * The shapes a relation part takes and returns, built when a part is defined: top-level schema objects that read the limits would stay
+ * in every page bundle that imports this module, used or not.
+ */
+function relationInput(role: PlacementRelationRole): object {
+  if (role === "bind" || role === "release") return { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, target: ACTION_SUBJECT_SCHEMA }, required: ["subject", "target"], additionalProperties: false };
+  if (role === "create") return { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, name: { type: "string", minLength: 1, maxLength: PLACEMENT_RELATION_LIMITS.name } },
+    required: ["subject", "name"], additionalProperties: false };
+  return { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA }, required: ["subject"], additionalProperties: false };
+}
+function relationOutput(role: PlacementRelationRole): object {
+  const item = role === "candidates" ? { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, current: { type: "boolean" } }, required: ["subject", "current"], additionalProperties: false }
+    : ACTION_SUBJECT_SCHEMA;
+  return { type: "object", properties: { targets: { type: "array", maxItems: PLACEMENT_RELATION_LIMITS.targets, items: item } }, required: ["targets"], additionalProperties: false };
+}
 
 export interface PlacementRelationOptions {
   /** The kinds of object it relates; empty when any object the caller can read may be related. */
@@ -119,13 +123,12 @@ export interface PlacementRelationOptions {
 export function definePlacementRelationAction<R extends PlacementRelationRole>(relation: string, role: R, capabilityId: string, version: number,
   options: PlacementRelationOptions): ActionDefinition<RelationInput<R>, RelationOutput<R>> {
   const reads = role === "list" || role === "candidates";
-  const input = role === "bind" || role === "release" ? relationInputs.target : role === "create" ? relationInputs.create : relationInputs.subject;
   if (role === "list" && !options.target) throw new ActionError("actions.definition_invalid", "关联的 list 一步要写明另一端是什么");
   return { capability_id: capabilityId, version, operation: reads ? "query" : "command", action: { title: options.title, description: options.description,
     kind: reads ? "query" : "operation", scope: "project", scheduling: "concurrent", effect: reads ? "read" : "write",
     audiences: [...options.audiences ?? (reads ? ["user", "agent", "workflow", "mcp"] : ["user", "agent", "mcp"])], permissions: [...options.permissions], subject_kinds: [...options.kinds],
     placement_relation: { relation, role, ...(role === "list" ? { target: options.target! } : {}) },
-    input_schema: inputSchemaFor<RelationInput<R>>()(input as never), output_schema: role === "candidates" ? relationCandidates : relationTargets } } as ActionDefinition<RelationInput<R>, RelationOutput<R>>;
+    input_schema: inputSchemaFor<RelationInput<R>>()(relationInput(role) as never), output_schema: relationOutput(role) } } as ActionDefinition<RelationInput<R>, RelationOutput<R>>;
 }
 
 /** The source partition is the caller's project; moving to where it already is has nothing to do. */

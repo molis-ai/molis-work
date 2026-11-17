@@ -33,7 +33,7 @@ test("HTTP import previews lazily, rejects forged input and preserves old publis
   assert.equal((await request(`/drafts/${id}/file`,{skill_id:s.id,path:"guide.txt"})).body.content,"NEW_ATTACHMENT");
   assert.equal((await request("/publication/file",{reference:original.body.reference,skill_id:s.id,path:"guide.txt"})).body.content,"OLD_ATTACHMENT");
   // The role list names the imported Skills and carries none of their files' contents.
-  const list=await request("/roles");assert.equal(list.body.originals.length,1);assert.deepEqual(list.body.originals[0].imported_skills.map((k:any)=>k.id),[s.id]);assert.doesNotMatch(JSON.stringify(list.body),/_ATTACHMENT/u);
+  const list=await request("/roles");assert.equal(list.body.originals.length,1);assert.deepEqual(list.body.originals[0].imported_skills.map((k:{id:string})=>k.id),[s.id]);assert.doesNotMatch(JSON.stringify(list.body),/_ATTACHMENT/u);
   await request(`/drafts/${id}/state`,{expected_revision:2,state:"tombstoned"});
   const fresh=await request("/imports",{candidate_id:rescanned.candidate_id,selection});assert.equal(fresh.status,200);assert.notEqual(fresh.body.draft.character_id,id);
 });

@@ -40,9 +40,13 @@ export const roleContentOf = (draft: Pick<CharacterDraft, "title" | "instruction
   title: draft.title, instructions: draft.instructions, host_tools: draft.host_tools,
   ...(draft.action_tools === undefined ? {} : { action_tools: draft.action_tools }), ...(draft.import_snapshot ? { import_snapshot: draft.import_snapshot } : {}) });
 
-export class CharacterRoles {
-  constructor(private readonly db: DatabaseSync, private readonly actorId: string, private readonly drafts: { get(id: string): CharacterDraft | null },
-    private readonly now: () => string = () => new Date().toISOString()) {}
+/**
+ * The person's roles in three layers, each built on the one before: an original's fixed versions (here), a project's members over them
+ * (`CharacterMembers`), and the defaults, resolution and reads over both (`CharacterRoles`). One store, one owner and one clock.
+ */
+class CharacterOriginals {
+  constructor(protected readonly db: DatabaseSync, protected readonly actorId: string, protected readonly drafts: { get(id: string): CharacterDraft | null },
+    protected readonly now: () => string = () => new Date().toISOString()) {}
 
   // ---- the original's fixed versions ----------------------------------------------------------------------------------------------
 
@@ -89,16 +93,20 @@ export class CharacterRoles {
     return { layer: "personal", state: draft.state, draft_revision: draft.revision, current: { kind: "personal", character_id: characterId, version: latest.version }, origin: this.originOf(characterId) };
   }
 
+}
+
+/** A project's members: each follows its original or keeps its own section, saved as member versions. */
+class CharacterMembers extends CharacterOriginals {
   // ---- members of a project -------------------------------------------------------------------------------------------------------
 
-  private memberRow(projectId: string, memberId: string): MemberRow | null {
+  protected memberRow(projectId: string, memberId: string): MemberRow | null {
     const row = this.db.prepare("SELECT member_id, project_id, character_id, state, revision, member_version, sections, origin FROM character_members WHERE member_id = ? AND owner_actor_id = ? AND project_id = ?")
       .get(memberId, this.actorId, projectId) as (Omit<MemberRow, "sections" | "origin"> & { sections: string; origin: string | null }) | undefined;
     return row ? { ...row, sections: JSON.parse(row.sections) as StoredSections, origin: row.origin ? JSON.parse(row.origin) as BlueprintPartOrigin : null } : null;
   }
 
   /** A live member of this project, or `not_found`: another project's member is not told apart from one that never existed. */
-  private liveMember(projectId: string, memberId: string): MemberRow {
+  protected liveMember(projectId: string, memberId: string): MemberRow {
     const row = this.memberRow(projectId, memberId);
     if (!row || row.state === "removed") throw characterErrors.not_found("本项目里没有这个角色");
     return row;
@@ -150,7 +158,7 @@ export class CharacterRoles {
   }
 
   /** The member's revision and the original version the caller saw both still hold, or `conflict`, which carries what is current. */
-  private confirmedMember(projectId: string, memberId: string, expectedRevision: string, expectedOriginalVersion?: number): { row: MemberRow; original: number } {
+  protected confirmedMember(projectId: string, memberId: string, expectedRevision: string, expectedOriginalVersion?: number): { row: MemberRow; original: number } {
     const row = this.liveMember(projectId, memberId), original = this.personalRole(row.character_id);
     if (!original) throw characterErrors.not_found("这个角色跟随的原件已删除");
     if (row.revision !== expectedRevision || (expectedOriginalVersion !== undefined && original.current.version !== expectedOriginalVersion)) {
@@ -160,7 +168,7 @@ export class CharacterRoles {
   }
 
   /** Writes the member's next version with these sections (and state), and a new revision. */
-  private writeMember(row: MemberRow, original: number, sections: StoredSections, state: MemberRow["state"] = row.state, newVersion = true): void {
+  protected writeMember(row: MemberRow, original: number, sections: StoredSections, state: MemberRow["state"] = row.state, newVersion = true): void {
     const version = row.member_version + Number(newVersion), at = this.now();
     this.db.prepare("UPDATE character_members SET sections = ?, state = ?, revision = ?, member_version = ?, updated_at = ? WHERE member_id = ? AND owner_actor_id = ? AND revision = ?")
       .run(JSON.stringify(sections), state, `${version}.${randomUUID()}`, version, at, row.member_id, this.actorId, row.revision);
@@ -219,6 +227,10 @@ export class CharacterRoles {
     return this.memberRole(projectId, ref.member_id)!;
   }
 
+}
+
+/** What the rest of the Home reads of the person's roles: fixed content, defaults, the effective role, the catalog and adoption. */
+export class CharacterRoles extends CharacterMembers {
   // ---- fixed content --------------------------------------------------------------------------------------------------------------
 
   /**

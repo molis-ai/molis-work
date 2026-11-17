@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
+import { monitorEventLoopDelay } from "node:perf_hooks";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionDefinition, ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -23,6 +24,10 @@ test("BFP-01 BL-131: updating 20 Inbox suggestions reads the page once and says 
   const { store, localHost, projectId, command, sessionId, navigate, origin } = browser;
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "inbox");
   assert.ok(localHost); assert.ok(projectId);
+  // QEA-90: a real request to this same Host must finish while the fixed-rule batch is still running.
+  let progress: { calls: number; healthAt: number; probe?: Promise<void>; error?: unknown } = { calls: 0, healthAt: 0 };
+  const loopDelay = monitorEventLoopDelay({ resolution: 20 });
+  t.after(() => loopDelay.disable());
   const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
   await localHost.withProject(reference, () => undefined);
   const feed = createLocalFeedApplication(store.db);
@@ -37,7 +42,12 @@ test("BFP-01 BL-131: updating 20 Inbox suggestions reads the page once and says 
   const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.bfp", version: "1.0.0", name: "固定判断插件",
     kind: "app", publisher: { publisher_id: "example", signature: "bfp-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [{ permission: "fixture:bfp", required: true, reason: "运行固定判断" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
-    async start() { return { kind: "app", actions: [{ ...definition, handle: () => ({ status: "ok", suggested_behavior_ids: ["inbox.verify"] }) }] }; } });
+    async start() { return { kind: "app", actions: [{ ...definition, handle: () => {
+      if (++progress.calls === 1) progress.probe = fetch(`${origin}/health`).then(async response => {
+        assert.equal(response.status, 200); await response.text(); progress.healthAt = progress.calls;
+      }).catch(error => { progress.error = error; });
+      return { status: "ok", suggested_behavior_ids: ["inbox.verify"] };
+    } }] }; } });
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
   const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:bfp"] }).install;
   await runtime.start(installed.install_id);
@@ -73,10 +83,17 @@ test("BFP-01 BL-131: updating 20 Inbox suggestions reads the page once and says 
         if (!window.__bfp.notice && status?.textContent.includes('已更新')) { window.__bfp.notice = performance.now(); window.__bfp.at = count(); }
         if (!window.__bfp.shown && count() >= ${ENTRIES}) window.__bfp.shown = performance.now(); }).observe(document.body, { subtree: true, childList: true, characterData: true }); })()`);
     const before = requests.length;
+    progress = { calls: 0, healthAt: 0 }; loopDelay.reset(); loopDelay.enable();
     const start = await evaluate<number>("performance.now()");
     await click(".inbox-next-config [data-inbox-evaluate]", 1, "center", 30_000);
     await waitFor(`window.__bfp.notice && window.__bfp.shown`, 30_000);
     const result = await evaluate<{ notice: number; shown: number; at: number }>("window.__bfp");
+    loopDelay.disable();
+    await progress.probe;
+    assert.equal(progress.error, undefined);
+    assert.equal(progress.calls, ENTRIES);
+    assert.ok(progress.healthAt > 0 && progress.healthAt < ENTRIES, `Host answered health after judgment ${progress.healthAt}/${ENTRIES}`);
+    t.diagnostic(`QEA-90 sample ${sample + 1} health responded after ${progress.healthAt}/${ENTRIES} judgments; max event-loop delay ${Math.round(loopDelay.max / 1e6)}ms`);
     await new Promise(resolve => setTimeout(resolve, 1500)); // let a late second read show up if there is one
     const seen = requests.slice(before);
     const post = seen.findIndex(request => request.method === "POST" && request.url.includes("/judgment/evaluate"));

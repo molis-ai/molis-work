@@ -414,3 +414,5 @@ WORK-07 的订阅、席位与平台变更专项联调：构建后以 `MOLIS_AUTH
 冲突解决由原 workspace Git owner 固定已审正文后写文件/暂存索引；发布私有索引前仅刷新 stat，避免解决后立即放弃合并被误判文件未更新。刷新禁用无关内容过滤器、子模块检查与额外 hook，不重新暂存路径内容；原 HEAD/index/文件身份与锁校验、部分写入未知回执保持。`tests/git-operations.test.ts` 的 QEA-40 覆盖 resolve→merge-abort、其他暂存项/工作区修改/缺失项、过滤器与 hook 次数。
 
 助理保留的 `/api/assistant/memories` 读回正式 `version`，四种写操作经 `memory.change@1` 传原 `expected_version` 和HTTP取消，不绕过动作合同或补当前版本；缺版本拒绝。`memory-prefs`仍原子更新个人和项目默认，保留具体项目覆写。回归：`tests/security-invariants-assistant-memory-management.test.ts`（QEA-56/57）。
+
+场景执行与 required_scene 依赖按原场景引用查询，普通 usages 只投影实际绑定的判断；推荐来源为 subject-offers 时仍查询完整授权目录。Host 策略与 Kernel 当前授权各自负责原边界，不缓存跨等待的批准。Inbox 批量更新通过同一生产路径验证，见 quality-experience-audit QEA-90/91。

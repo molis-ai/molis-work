@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
-import { inboxActions, inboxContentActions, inboxNextScene, INBOX_ACTION_PERMISSIONS, type InboxJudgmentState } from "@molis-ai/molis-work-plugin-inbox";
+import { inboxActions, inboxContentActions, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS, type InboxJudgmentState } from "@molis-ai/molis-work-plugin-inbox";
 import { feedContentActions, feedItemActions, type FeedJudgmentCatalog } from "@molis-ai/molis-work-plugin-feed";
 import { createFunctionsService, publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
 import type { ActionCallContext, ActionDefinition, ActionSceneBinding, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -15,6 +15,52 @@ import type { FunctionsHostOptions } from "../apps/local-host/dist/judgment-rule
 import { createLocalFeedApplication, createLocalFeedSourceService, listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import { sceneCandidateMeter, type SceneCandidateCounts } from "./fixtures/scene-candidate-meter.js";
 import { openTestHome } from "./fixtures/test-home.js";
+
+test("QEA-91 Inbox yields between committed judgments so a pending cancellation stops later writes and remaining entries can retry", async () => {
+  const home = await mkdtemp(join(tmpdir(), "inbox-batch-cancel-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+  const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "evidence:read"] };
+  let pending: ReturnType<typeof setImmediate> | undefined;
+  try {
+    const entries = await host.withProject(reference, runtime => {
+      const feed = createLocalFeedApplication(runtime.store.db);
+      const source = createLocalFeedSourceService(runtime.store.db, runtime.project_id).register({ kind: "research_library", repository: "fixture/cancel", research_source: "batch" }).source;
+      return Array.from({ length: 3 }, (_, index) => {
+        const item = feed.ingestItem({ source, externalId: `cancel-${index}`, title: `待核对 ${index}`, summary: "摘要", body: "原文", occurredAt: new Date().toISOString(), attention: false }).item;
+        return feed.ensureInboxEntryForFeedItem(runtime.project_id, item.item_id, "manual").entry;
+      });
+    });
+    await host.actionClient(reference).discover(caller);
+    const definition: ActionDefinition = { capability_id: "fixture.inbox.batch", version: 1, operation: "command", action: {
+      title: "固定判断", description: "local batch fixture", kind: "judgment", scope: "project", audiences: ["user"], permissions: [], subject_kinds: ["inbox_entry"],
+      input_schema: inboxNextScene.input_schema, output_schema: inboxNextScene.result_schema, output_type: inboxNextScene.result_type } };
+    const controller = new AbortController(), cancellation = new Error("cancel batch between entries");
+    let calls = 0, cancel = true;
+    const stop = host.actionRegistry(reference).registerProvider({ provider: { provider_id: "fixture.inbox.batch", title: "fixture", kind: "plugin", project_id: reference.project_id },
+      definitions: [definition], handlers: [{ ...definition, handle: () => {
+        if (++calls === 1 && cancel) pending = setImmediate(() => controller.abort(cancellation));
+        return { status: "ok", suggested_behavior_ids: ["inbox.verify"] };
+      } }] });
+    try {
+      await host.sceneClient(reference).bind(caller, { binding_id: inboxSceneBindingId(reference.project_id), scene_id: inboxNextScene.scene_id, scene_version: 1,
+        project_id: reference.project_id, enabled: true, function: definition, title: "Inbox 下一步", href: "/" });
+      const actions = host.actionClient(reference), history = () => withFunctionsService(home, service => service.listJudgments());
+      await assert.rejects(actions.invoke({ ...caller, signal: controller.signal }, inboxActions.evaluateJudgment, { entry_ids: entries.map(entry => entry.entry_id) }), /cancel batch between entries/);
+      assert.equal(calls, 1, "the event loop delivers cancellation before the second judgment starts");
+      assert.deepEqual(history().map(record => record.subject.id), [entries[0]!.entry_id]);
+      cancel = false;
+      const resumed = await actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: entries.slice(1).map(entry => entry.entry_id) }) as { judgments: JudgmentRecord[] };
+      assert.equal(resumed.judgments.length, 2);
+      const records = history();
+      assert.deepEqual(records.map(record => record.subject.id).sort(), entries.map(entry => entry.entry_id).sort(), "one record per entry, including the committed first result");
+      await host.withProject(reference, runtime => {
+        for (const record of records) assert.equal(runtime.store.db.prepare("SELECT COUNT(*) AS n FROM events WHERE object_id = ?").get(record.judgment_id)?.n, 1);
+      });
+    } finally { stop(); }
+  } finally { if (pending) clearImmediate(pending); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
 
 test("FI-1 RAC-482 binding a published rule goes through the plugin's own scene and refuses drafts, unknown rules, read-only callers and rules of another scene", async () => {
   const home = await mkdtemp(join(tmpdir(), "inbox-rule-identities-"));
@@ -268,11 +314,12 @@ const functionRef = (key: string): ExactActionReference => ({ capability_id: `fu
 const candidateKey = ({ capability_id, version, provider_id }: ExactActionReference) => `${capability_id}@${version}:${provider_id}`;
 
 function assertSceneCandidateBudget(counts: SceneCandidateCounts, isInbox: boolean, candidates: number) {
-  assert.deepEqual(counts.discover, { workflow: 2, user: 4 }, "full Kernel discoveries per audience");
-  assert.deepEqual(counts.scenePasses, { workflow: 1, user: 5 }, "actual scene declaration enumerations");
-  assert.equal(counts.sceneRows, 16, "only the requested owner's scene is projected for the batch");
-  assert.deepEqual(counts.bindingReads, { inbox: isInbox ? 4 : 3, feed: 3, home: 0 });
-  assert.deepEqual(counts.kernelUsages, { workflow: 1, user: 2 });
+  assert.deepEqual(counts.discover, { workflow: 1, user: 1 }, "Kernel directory projections per audience");
+  // QEA-90: required_scene checks have separate, selected reads; total passes stay six while actual rows and binding reads shrink.
+  assert.deepEqual(counts.scenePasses, { workflow: 2, user: 4 }, "actual scene declaration enumerations");
+  assert.equal(counts.sceneRows, 12, "only the requested owner's scene is projected for the batch");
+  assert.deepEqual(counts.bindingReads, { inbox: isInbox ? 3 : 2, feed: 1, home: 0 });
+  assert.deepEqual(counts.kernelUsages, { workflow: 2, user: 1 });
   assert.deepEqual(counts.ownerUsages, { user: 1 });
   assert.equal(counts.candidateDirectories, 1);
   assert.equal(counts.candidates, candidates);
@@ -383,6 +430,6 @@ test("BRC-05 Inbox and Feed HTTP candidate catalogs do the same full reads at ei
     const { body, counts } = await measure(feedId, () => home.web.get<FeedJudgmentCatalog>(catalog));
     assert.deepEqual(body.choices.map(choice => choice.reference), [incompatible, feedRef]);
     t.diagnostic(JSON.stringify({ extraDiscovery: counts.discover, sceneCalls: counts.sceneCalls }));
-    assert.throws(() => assertSceneCandidateBudget(counts, false, 2), /full Kernel discoveries per audience/);
+    assert.throws(() => assertSceneCandidateBudget(counts, false, 2), /Kernel directory projections per audience/);
   } finally { extra.mock.restore(); }
 });

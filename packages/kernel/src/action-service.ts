@@ -20,6 +20,8 @@ import { registerActionExecution, type ActionExecutionEffects } from "./action-r
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
 import { inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk/execution";
 
+type SceneReference = Pick<ActionSceneDefinition, "scene_id" | "version">;
+
 interface RegisteredScene {
   definition: ActionSceneDefinition;
   provider: ActionProvider;
@@ -229,10 +231,10 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     }, { value: input });
   }
 
-  private sceneDeclarations(context: ActionCallContext, selection?: ActionSceneSelection) {
+  private sceneDeclarations(context: ActionCallContext, selection?: ActionSceneSelection, reference?: SceneReference) {
     const declared = selection ? new Set(selection.scenes.map(sceneKey)) : undefined;
     return [...this.scenes.values()].filter(scene => (!selection || scene.provider.plugin_id === selection.plugin_id && declared!.has(sceneKey(scene.definition)))
-      && sceneVisible(scene, context)).map(scene => ({ scene, metadata: { definition: structuredClone(scene.definition), provider: structuredClone(scene.provider) } }));
+      && (!reference || sceneKey(scene.definition) === sceneKey(reference)) && sceneVisible(scene, context)).map(scene => ({ scene, metadata: { definition: structuredClone(scene.definition), provider: structuredClone(scene.provider) } }));
   }
 
   /** Composition-only declarations. No handler, availability evaluation or execution authority is returned. */
@@ -256,41 +258,35 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     } };
   }
 
-  discoverScenes(context: ActionCallContext, judgment?: ActionReference): ActionSceneView[] {
-    const directory = judgment ? this.discover(context) : [];
-    const fn = judgment ? directory.find(d => actionKey(d) === actionKey(judgment)) : undefined;
-    return this.sceneProjection(context, directory)(judgment, fn);
+  discoverScenes(context: ActionCallContext, judgment?: ActionReference, reference?: SceneReference): ActionSceneView[] {
+    const declared = this.sceneDeclarations(context, undefined, reference);
+    const directory = judgment && declared.some(({ scene }) => scene.definition.recommendation_source === "subject-offers") ? this.discover(context) : undefined;
+    const fn = judgment ? (directory ? actionDirectoryLookup(directory)(judgment) : this.discoverOne(context, judgment)) : undefined;
+    return projectScenes(context, declared, directory)(judgment, fn);
   }
 
   discoverScenesFor(context: ActionCallContext, judgments: readonly ExactActionReference[], selection?: ActionSceneSelection): ActionSceneView[][] {
     if (!judgments.length) return [];
     return inDirectoryPass(() => {
-      const directory = this.discover(context), first = actionDirectoryLookup(directory);
-      const project = this.sceneProjection(context, directory, selection);
+      const declared = this.sceneDeclarations(context, selection);
+      const directory = declared.some(({ scene }) => scene.definition.recommendation_source === "subject-offers") ? this.discover(context) : undefined;
+      const first = directory ? actionDirectoryLookup(directory) : (reference: ActionReference) => this.discoverOne(context, reference);
+      const project = projectScenes(context, declared, directory);
       return judgments.map(judgment => project(judgment, first(judgment)));
     });
   }
 
-  private sceneProjection(context: ActionCallContext, directory: readonly ActionView[], selection?: ActionSceneSelection) {
-    const rows = this.sceneDeclarations(context, selection).map(({ scene, metadata }) => ({ scene,
-      view: { ...metadata, configuration_availability: scene.configurationAvailability(context), availability: scene.availability(context) } }));
-    return (judgment?: ActionReference, fn?: ActionView): ActionSceneView[] => rows.map(({ scene, view }) => {
-      const reason = judgment ? actionSceneCompatibilityReason(scene.definition, fn, judgment, directory, scene.provider) : undefined;
-      return { ...view, compatible: !reason, ...(reason ? { reason } : {}) };
-    });
-  }
-
-  async usages(context: ActionCallContext, judgment?: ActionReference): Promise<ActionSceneUsage[]> {
+  async usages(context: ActionCallContext, judgment?: ActionReference, reference?: SceneReference): Promise<ActionSceneUsage[]> {
     const result: ActionSceneUsage[] = []; let known: ActionView[] | undefined, first: ReturnType<typeof actionDirectoryLookup> | undefined;
     for (const scene of this.scenes.values()) {
-      if (!sceneVisible(scene, context)) continue;
+      if ((reference && sceneKey(scene.definition) !== sceneKey(reference)) || !sceneVisible(scene, context)) continue;
       for (const binding of await scene.handler.bindings(context)) {
         if (!bindingBelongsTo(binding, scene.definition, context)) continue;
         if (judgment && actionKey(binding.function) !== actionKey(judgment)) continue;
         if (matchesStageMetadata(context, scene, binding)) { result.push(await this.stageMetadataUsage(context, scene, binding)); continue; }
         // Read only after the first ordinary binding callback, using the original caller's current authority.
-        const directory = known ??= this.discover(context);
-        const fn = (first ??= actionDirectoryLookup(directory))(binding.function);
+        const directory = scene.definition.recommendation_source === "subject-offers" ? known ??= this.discover(context) : undefined;
+        const fn = directory ? (first ??= actionDirectoryLookup(directory))(binding.function) : this.discoverOne(context, binding.function);
         const reason = !binding.function.provider_id ? "旧绑定缺少原提供方身份，请重新选择判断规则" : actionSceneCompatibilityReason(scene.definition, fn, binding.function, directory, scene.provider);
         const state = scene.availability(context);
         const availability = !binding.enabled ? unavailable("actions.binding_disabled", "此使用位置已停用")
@@ -500,13 +496,23 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   private requireCompatible(context: ActionCallContext, scene: RegisteredScene, ref: ActionReference): ActionView {
-    const directory = this.discover(context);
-    const fn = directory.find(d => actionKey(d) === actionKey(ref));
+    const directory = scene.definition.recommendation_source === "subject-offers" ? this.discover(context) : undefined;
+    const fn = directory ? actionDirectoryLookup(directory)(ref) : this.discoverOne(context, ref);
     const reason = actionSceneCompatibilityReason(scene.definition, fn, ref, directory, scene.provider);
     if (reason) throw new ActionError("actions.scene_incompatible", reason);
     assertAvailable(fn!.availability);
     return fn!;
   }
+}
+
+/** Project the selected declarations once; only offer-based compatibility consumes a wider action directory. */
+function projectScenes(context: ActionCallContext, declared: readonly { scene: RegisteredScene; metadata: Pick<ActionSceneView, "definition" | "provider"> }[], directory: readonly ActionView[] = []) {
+  const rows = declared.map(({ scene, metadata }) => ({ scene,
+    view: { ...metadata, configuration_availability: scene.configurationAvailability(context), availability: scene.availability(context) } }));
+  return (judgment?: ActionReference, fn?: ActionView): ActionSceneView[] => rows.map(({ scene, view }) => {
+    const reason = judgment ? actionSceneCompatibilityReason(scene.definition, fn, judgment, directory, scene.provider) : undefined;
+    return { ...view, compatible: !reason, ...(reason ? { reason } : {}) };
+  });
 }
 
 function sceneVisible(s: RegisteredScene, c: ActionCallContext): boolean {

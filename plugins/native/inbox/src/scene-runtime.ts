@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
+import { setImmediate } from "node:timers/promises";
 import { ActionError, type ActionReference, type ActionSceneBinding, type ActionSceneConfigureOptions, type ActionSceneExecutionContext, type ActionSceneHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { INBOX_NEXT_SCENE_ID, publishedFunctionKey, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { PluginJudgmentsClient, PluginSceneClient } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -169,12 +170,19 @@ export function createInboxSceneRuntime(options: InboxSceneRuntimeOptions): {
     evaluateJudgment: async (ids, caller) => {
       // The running action as the dispatcher resolved it, provider included: a client's grant names the provider, so a bare reference would read as revoked.
       const effect = async () => { await caller.validate_authority?.(caller.current_action ?? inboxActions.evaluateJudgment); };
-      const reads = await Promise.all([...new Set(ids)].map(fetched));
+      const reads: Awaited<ReturnType<typeof fetched>>[] = [];
+      // Local queries and fixed rules can finish entirely in microtasks. Give requests and cancellation a turn between entries;
+      // all inputs are still read and checked before the first judgment, and every scene retains its own live effect checks.
+      for (const id of new Set(ids)) {
+        await setImmediate();
+        reads.push(await fetched(id));
+      }
       if (reads.some(({ subject }) => !OPEN(subject.status))) throw new ActionError("actions.subject_unavailable", "已完成或已忽略的事项请先重新打开");
       const content = new Map<string, InboxFeedContent>();
       for (const { item } of reads) if (item) content.set(item.item_id, item);
       const results: JudgmentRecord[] = [];
       for (const { subject } of reads) {
+        await setImmediate();
         results.push(await withStagedFeedContent(content, () => scenes.runScene(inboxNextScene, inboxSceneBindingId(projectId), { entry_id: subject.entry_id }), effect) as JudgmentRecord);
         // The model took time: the item's text is read again, and a judgment on text that has since changed is reported as one. It stays in
         // the ledger but no longer matches the entry (`recommendations` compares its text), so it is never adopted.

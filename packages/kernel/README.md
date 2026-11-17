@@ -125,3 +125,5 @@ AI来源（Agent、内置助理与外部MCP）的顶层command若声明版本字
 ## 选中资料的派发边界
 
 选中资料的 state capture 只允许 query + subject-state 协议及同提供方、安装、项目的精确 reader/source。Kernel 自己保留三项实际注册；严格校验输出与 query 尾检之后才交出 current。current 同步读取前后复核原授权，结束 handler 不延长 beforeEffect。
+
+已知场景的 `discoverScenes` / `usages` 可由可信 Host 传场景引用，在 availability/bindings 回调前选择；普通固定结果兼容性现读原判断及实际依赖，只有 `subject-offers` 消费者查询完整推荐目录。声明选择不保留执行资格，等待后的绑定、注册、授权及取消检查不变；舞台元数据仍走专用权限投影。回归：QEA-90/91、`tests/action-service.test.ts`、`tests/inbox-action-scenes.test.ts` 与原场景拒绝测试。

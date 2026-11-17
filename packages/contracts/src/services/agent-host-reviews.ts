@@ -27,6 +27,27 @@ export interface AgentTextReviewDocument {
   after_text: string;
   /** Other sessions whose work under way in the same directory covers this file, as the proposal was made. */
   concurrent?: string[];
+  /**
+   * What the check before review found (Coding A4-2): new errors against the file as it is, and what formatting did. `after_text`
+   * is already the formatted version when formatting changed it; `formatting.as_written` is the text as the model wrote it.
+   */
+  checks?: AgentWriteChecks;
+}
+
+/** One error the proposed text brings: the server's code, the 1-based line in the proposed text, the first line of its message. */
+export interface AgentWriteCheckError { readonly code: string; readonly line: number; readonly text: string }
+
+/** The facts of a check before review. `unchecked` and `unavailable` carry why; neither is ever read as "no errors". */
+export interface AgentWriteChecks {
+  readonly diagnostics:
+    | { readonly state: "clean"; readonly source: string }
+    | { readonly state: "errors"; readonly source: string; readonly errors: readonly AgentWriteCheckError[]; readonly more: number }
+    | { readonly state: "unchecked"; readonly reason: string };
+  readonly formatting:
+    | { readonly state: "formatted"; readonly source: string; readonly lines: number; readonly as_written: string }
+    | { readonly state: "unchanged"; readonly source: string }
+    | { readonly state: "failed"; readonly source: string; readonly reason: string }
+    | { readonly state: "unavailable"; readonly reason: string };
 }
 
 export interface AgentCommandReviewDocument {

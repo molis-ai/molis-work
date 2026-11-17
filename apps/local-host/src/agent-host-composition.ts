@@ -3,7 +3,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { realpathSync, statSync } from "node:fs";
 import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
-import { languageServerSettings, type PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
+import { BUILTIN_LANGUAGE_SERVERS, languageServerSettings, type PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
 import { readConversationAttachment } from "./material-attachments.js";
 import { hostErrors } from "./host-errors.js";
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -532,14 +532,16 @@ export function codeIntelligenceConfig(homeDirectory: string | undefined): {
 } | undefined {
   if (homeDirectory === undefined) return undefined;
   const file = path.join(homeDirectory, "language-servers.json");
-  if (!existsSync(file)) return undefined;
   const toolsRoot = path.join(homeDirectory, "tools", "language-servers");
+  // Without the person's file, the built-in servers found on this machine still answer (A4); nothing is downloaded.
+  if (!existsSync(file)) return { servers: BUILTIN_LANGUAGE_SERVERS, downloadsAllowed: false, toolsRoot };
   try {
     let parsed: unknown;
     parsed = JSON.parse(readFileSync(file, "utf8"));
     const settings = languageServerSettings(parsed);
     return {
-      servers: settings.servers,
+      // The person's entries first: theirs win for an extension they name.
+      servers: [...settings.servers, ...BUILTIN_LANGUAGE_SERVERS],
       downloadsAllowed: settings.downloads,
       // The isolated tools root belongs to this Home, never to a project or a global prefix (Q5).
       toolsRoot,

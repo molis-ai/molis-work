@@ -2,6 +2,7 @@ import { requireSynchronous, type ExactActionReference } from "@molis-ai/molis-w
 import { createCodeIntelligence, unavailableSymbolIndex, unconfiguredSymbolIndex } from "../code-intelligence/index.js";
 import { FIND_SYMBOL_HOST_TOOL, FIND_SYMBOL_TOOL, withSymbolTool } from "../code-intelligence/coding-tools.js";
 import { gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
+import { registerWriteChecks } from "./prologue-write-checks.js";
 import { PrologueActionReviews } from "./prologue-action-reviews.js";
 import { pinnedMaterialRevisions, prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
 import type { RunDeps } from "./prologue-run.js";
@@ -95,6 +96,10 @@ export function roundGateway(deps: Pick<RunDeps, "state" | "runtime" | "options"
       }),
     })
     : undefined;
+  // A round that writes also has its writes formatted and checked before review (A4-2), with the same servers; off when it ends.
+  const writes = codeIntelligence !== undefined && input.character.tools.some(tool => tool === "write" || tool === "edit-file");
+  const stopChecks = writes ? registerWriteChecks(runtime, state.writeChecks, { sessionId: input.session_id, rootPath: input.root_path!, intelligence: codeIntelligence! }) : undefined;
+  const intelligence = codeIntelligence && stopChecks ? { ...codeIntelligence, close: () => { stopChecks(); return codeIntelligence.close(); } } : codeIntelligence;
   // Scoped like the action tools: the catalog keeps one registration per name for the Runtime's life. A round that does
   // not carry the tool gets no name for it — a Character must not be told about a tool its pack does not hold.
   const symbolToolName = wantsSymbols ? `${FIND_SYMBOL_TOOL}-${actionTools!.scope}` : undefined;
@@ -103,9 +108,9 @@ export function roundGateway(deps: Pick<RunDeps, "state" | "runtime" | "options"
       pack: actionTools.pack,
       executors: actionTools.executors,
       symbolIndex: codeProblem !== undefined ? unavailableSymbolIndex(codeProblem)
-        : codeIntelligence === undefined ? unconfiguredSymbolIndex : codeIntelligence.symbolIndex,
+        : intelligence === undefined ? unconfiguredSymbolIndex : intelligence.symbolIndex,
       name: symbolToolName,
     }), names: [...actionTools.names, symbolToolName] };
-  return { actionController, actionTools: withCoding, reviews, parameterBranches: gatewayTools?.parameterBranches, codeIntelligence, symbolTool: wantsSymbols,
+  return { actionController, actionTools: withCoding, reviews, parameterBranches: gatewayTools?.parameterBranches, codeIntelligence: intelligence, symbolTool: wantsSymbols,
     ...(symbolToolName === undefined ? {} : { symbolToolName }) };
 }

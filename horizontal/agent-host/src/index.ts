@@ -119,7 +119,8 @@ export type {
   PrologueApprovalBridgeOptions,
 } from "./adapters/prologue-approvals.js";
 export type { PrologueNodeAdapterOptions } from "./adapters/prologue-node.js";
-export { createCodeIntelligence, ensureTool, languageServersFrom, languageServerSettings, type CodeIntelligence, type LanguageServerSettings, type LanguageServerSpec, type ToolInstallSpec } from "./code-intelligence/index.js";
+export { registerWriteChecks, writeCheckKey } from "./adapters/prologue-write-checks.js";
+export { BUILTIN_LANGUAGE_SERVERS, createCodeIntelligence, ensureTool, languageServersFrom, languageServerSettings, type CodeIntelligence, type LanguageServerSettings, type LanguageServerSpec, type ToolInstallSpec } from "./code-intelligence/index.js";
 export type {
   PrologueAdapterOptions,
   PrologueAdapterPorts,

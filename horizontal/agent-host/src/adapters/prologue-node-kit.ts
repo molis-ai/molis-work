@@ -4,7 +4,7 @@ import type { createNodeHost } from "@prologue/sdk/node";
 import type { McpDispatch } from "./prologue-mcp-dispatch.js";
 import type { RoundMcp } from "./prologue-round-mcp.js";
 import type { AgentStartExecution } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentActionClient, AgentWriteChecks } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PrologueAdapterPorts, PrologueStartInput } from "./prologue.js";
 import { agentErrors } from "../errors.js";
@@ -102,6 +102,8 @@ export interface RoundState {
   readonly gatewayOffered: Map<string, Set<string>>;
   readonly gatewayHooks: Set<string>;
   readonly actionReviews: Map<string, PrologueActionReviews>;
+  /** What the check before review found for a proposed write, by session, path and the exact text (prologue-write-checks.ts). */
+  readonly writeChecks: Map<string, AgentWriteChecks>;
   /** Why each held ending was held, in order (the runtime's event does not say). */
   readonly heldLabels: Map<string, Array<{ target: string; summary: string }>>;
   /** Per business session, what the round now running really kept and forgot, and whether it could: switched off, or given without the tool that keeps (or forgets), as a work handed down by another work is. */
@@ -140,7 +142,7 @@ export interface RoundState {
 export function createRoundState(): RoundState {
   return {
     registeredMethods: new Map(), sessions: new Map(), actionToolSessions: new Set(), gatewayRuns: new Map(), gatewayKnown: new Map(), gatewayOffered: new Map(),
-    gatewayHooks: new Set(), actionReviews: new Map(), heldLabels: new Map(), memoryRounds: new Map(), changeRounds: new Map(),
+    gatewayHooks: new Set(), actionReviews: new Map(), writeChecks: new Map(), heldLabels: new Map(), memoryRounds: new Map(), changeRounds: new Map(),
     stopGuards: new Map(), stopHooks: new Set(), roundFacts: new Map(), actionControllers: new Map(), runRoots: new Map(), activeRuns: new Map(), sessionRuns: new Set(), runSessions: new Map(),
     runRefs: new Map(), reviewEffects: new Map(), deadlines: new Map(), commandEvents: new Map(), subagentBridgeErrors: new Map(),
     liveSessions: new Map(), runWork: new Map(), dispatchChecks: new Map(), modelRequests: new Set(),

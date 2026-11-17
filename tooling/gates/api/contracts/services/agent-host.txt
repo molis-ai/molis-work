@@ -2336,6 +2336,7 @@ export interface AgentTextReviewDocument {
     before_text: string | null;
     after_text: string;
     concurrent?: string[];
+    checks?: AgentWriteChecks;
 }
 
 export interface AgentTodoItem {
@@ -2422,6 +2423,12 @@ export type AgentWorkspace = {
     directory?: never;
 };
 
+export interface AgentWriteCheckError {
+    readonly code: string;
+    readonly line: number;
+    readonly text: string;
+}
+
 export interface AgentWriteCheckNote {
     checker_id: string;
     display_name: string;
@@ -2454,6 +2461,37 @@ export interface AgentWriteCheckerSave {
 export interface AgentWriteCheckerStore {
     read(projectId: string, workspaceId: string): Promise<AgentWriteCheckerList>;
     save(projectId: string, workspaceId: string, expectedVersion: number, checkers: Array<Required<AgentWriteChecker>>): Promise<AgentWriteCheckerList>;
+}
+
+export interface AgentWriteChecks {
+    readonly diagnostics: {
+        readonly state: "clean";
+        readonly source: string;
+    } | {
+        readonly state: "errors";
+        readonly source: string;
+        readonly errors: readonly AgentWriteCheckError[];
+        readonly more: number;
+    } | {
+        readonly state: "unchecked";
+        readonly reason: string;
+    };
+    readonly formatting: {
+        readonly state: "formatted";
+        readonly source: string;
+        readonly lines: number;
+        readonly as_written: string;
+    } | {
+        readonly state: "unchanged";
+        readonly source: string;
+    } | {
+        readonly state: "failed";
+        readonly source: string;
+        readonly reason: string;
+    } | {
+        readonly state: "unavailable";
+        readonly reason: string;
+    };
 }
 
 export type AuthorizationChange = AuthorizationKey & {

@@ -51,7 +51,8 @@ const sameSkill = (skill: CatalogSkill, source: Pick<SkillSourceRef, "install_id
 const replaced = (text: string, replacements: Record<string, string>) =>
   Object.entries(replacements).reduce((value, [placeholder, own]) => own ? value.split(placeholder).join(own) : value, text);
 const withReplacements = (fields: SkillAuthoredFields, replacements: Record<string, string>): SkillAuthoredFields =>
-  ({ ...fields, body: replaced(fields.body, replacements), description: replaced(fields.description, replacements) });
+  ({ ...fields, body: replaced(fields.body, replacements), description: replaced(fields.description, replacements),
+    ...(fields.when_not_to_use ? { when_not_to_use: replaced(fields.when_not_to_use, replacements) } : {}) });
 
 /** Who opens a draft: the person on a page, or the Assistant in a piece of work (the work is the call context's audit actor). */
 function originOf(caller: ActionCallContext, at: string): SkillDraftOrigin {
@@ -140,11 +141,12 @@ export class SkillWorkshop {
       untried, trial_needed: untried.length > 0 };
   }
 
-  list(caller: ActionCallContext): { drafts: SkillDraftSummary[] } {
-    return { drafts: this.store.drafts(this.scopes(caller)).map(draft => {
+  list(caller: ActionCallContext, includeDiscarded = false): { drafts: SkillDraftSummary[] } {
+    return { drafts: this.store.drafts(this.scopes(caller), includeDiscarded).map(draft => {
       const trial = this.store.latestTrial(draft.draft_id);
       return { draft_id: draft.draft_id, scope: scopeOfRef(draft.scope_ref), target: draft.target, name: draft.fields.name, revision: draft.revision, origin: draft.origin,
-        updated_at: draft.updated_at, ...(trial && trial.draft_revision === draft.revision ? { verdict: trial.verdict } : {}) };
+        updated_at: draft.updated_at, ...(trial && trial.draft_revision === draft.revision ? { verdict: trial.verdict } : {}),
+        ...(draft.discarded_at ? { discarded_at: draft.discarded_at } : {}) };
     }) };
   }
 

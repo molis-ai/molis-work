@@ -577,7 +577,7 @@ skills.catalog.list	1	system.skills	query	query	home	read	-	agent,plugin,user	sk
 skills.drafts.adopt	1	plugin-install	command	operation	home	write	-	user	skills:manage	-	-	-	23e172d16f94	e5406075cc5f	-
 skills.drafts.create	1	system.skills	command	operation	home	write	-	agent,user	skills:draft	-	-	-	99a3f7ac2bd8	0c8918dae10b	bee207368b8e
 skills.drafts.discard	1	system.skills	command	operation	home	write	-	agent,user	skills:draft	-	-	-	4150556a1d5f	69bebee7fc3a	5e0374458cf9
-skills.drafts.list	1	system.skills	query	query	home	read	-	user	skills:draft	-	-	-	d746974fa9af	c278f2e31890	5e0374458cf9
+skills.drafts.list	1	system.skills	query	query	home	read	-	user	skills:draft	-	-	-	16b17d5ead59	8214e8549570	5e0374458cf9
 skills.drafts.read	1	system.skills	query	query	home	read	-	user	skills:draft	-	-	-	e6f14eeebd0b	0c8918dae10b	5e0374458cf9
 skills.drafts.revise	1	system.skills	command	operation	home	write	concurrent	user	model:invoke,skills:draft	-	-	-	1dfc099b4745	0c8918dae10b	2b70679ea59b
 skills.drafts.update	1	system.skills	command	operation	home	write	-	user	skills:draft	-	-	-	d6961fce657a	263fefb978ef	5e0374458cf9

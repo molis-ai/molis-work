@@ -11,7 +11,7 @@ const page = globalThis as typeof globalThis & { molisWorkRequest: UiRequest };
 const settings = (project: string, path: string) => (project ? `/projects/${encodeURIComponent(project)}` : "") + `/api/skills/${path}`;
 const call = <T>(project: string, path: string, body: object) => page.molisWorkRequest<T>(settings(project, path), { body });
 
-export const listDrafts = (project: string) => call<{ drafts: SkillDraftSummary[] }>(project, "drafts/list", {}).then(result => result.drafts);
+export const listDrafts = (project: string, includeDiscarded = false) => call<{ drafts: SkillDraftSummary[] }>(project, "drafts/list", { ...(includeDiscarded ? { include_discarded: true } : {}) }).then(result => result.drafts);
 export const readDraft = (project: string, draftId: string) => call<SkillDraft>(project, "drafts/read", { draft_id: draftId });
 export const createDraft = (project: string, scope: SkillScope, target: SkillDraftCreateTarget, fields?: SkillAuthoredFields) =>
   call<SkillDraft>(project, "drafts/create", { scope, target, ...(fields ? { fields } : {}) });
@@ -69,6 +69,8 @@ export interface Workshop {
   changed?: number;
   running?: string;
   runFailure?: string;
+  /** The code of the failed replay, so only a missing model offers the model-settings link. */
+  runFailureCode?: string;
   caseForm?: CaseForm;
   caseErrors: Partial<Record<keyof SkillCaseFields, string>>;
   confirm?: boolean;

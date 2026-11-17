@@ -110,7 +110,7 @@ function tryPanel(w: Workshop): string {
   const list = cases ? `<ul class="mw-items sk-cases">${cases}</ul>` : `<p class="kit-inline-empty">${esc(improve("cases-none"))}</p>`;
   const add = w.caseForm ? caseForm(w) : draft.cases.length < 5 ? `<div class="au-actions">${button(improve("case-add"), { icon: "plus", attrs: act("sk-case-add"), disabled: busy })}</div>` : "";
   const failed = w.runFailure ? renderAlert({ title: improve("replay-failed"), body: `${w.runFailure} ${improve("keep-draft")}`, tone: "warning", role: "alert",
-    actions: [{ label: improve("model-settings"), variant: "secondary", size: "sm", attrs: act("sk-models") }] }) : "";
+    ...(w.runFailureCode === "actions.connection_required" ? { actions: [{ label: improve("model-settings"), variant: "secondary", size: "sm", attrs: act("sk-models") }] } : {}) }) : "";
   const cost = draft.cases.length ? `<p class="sk-note">${icon("info")}<span>${esc(improve("replay-cost", { n: replayCalls(w) }))}</span></p>` : "";
   return `<div class="sk-try"><p class="sk-lead">${icon("shield")}<span>${esc(improve("try-lead"))}</span></p>
     <section class="kit-sec"><h4>${esc(improve("cases"))}</h4>${list}${add}</section>${failed}${cost}${grid(w)}</div>`;
@@ -131,7 +131,7 @@ function comparePanel(w: Workshop): string {
 }
 
 /** The adopt bar: its state sentence is updated in place while typing (`statusOf`), the whole bar only when what it offers changes. */
-export function statusOf(w: Workshop): { text: string; state?: "owed" | "saving" | "failed" } {
+function statusOf(w: Workshop): { text: string; state?: "owed" | "saving" | "failed" } {
   if (w.save === "saving") return { text: improve("saving"), state: "saving" };
   if (w.save === "failed") return { text: improve("save-failed", { m: w.saveFailure ?? "" }), state: "failed" };
   if (owed(w)) return { text: improve("not-replayed"), state: "owed" };
@@ -167,12 +167,15 @@ export function workshopMarkup(w: Workshop, limits: SkillWritingLimits): string 
 
 /** New Skills not adopted yet, above the list: each opens its draft. A change to an existing Skill is found at that Skill. */
 export function draftsStrip(drafts: readonly SkillDraftSummary[]): string {
-  const fresh = drafts.filter(draft => draft.target.kind === "new");
-  if (!fresh.length) return "";
+  const fresh = drafts.filter(draft => draft.target.kind === "new" && !draft.discarded_at);
+  const dropped = drafts.filter(draft => draft.discarded_at);
   const verdict = (draft: SkillDraftSummary) => draft.verdict === "match" ? renderStatusMark({ label: improve("verdict-match"), tone: "done", state: "done" })
     : draft.verdict === "differs" ? renderStatusMark({ label: improve("verdict-differs-short"), tone: "attention", state: "verify" }) : "";
-  return `<section class="kit-sec sk-drafts"><h4>${esc(improve("drafts-title"))}</h4><ul class="mw-items">${fresh.map(draft => `<li class="mw-item mw-item--pick"><button type="button" class="mw-item__pick" data-kit-act="sk-open" data-kit-v="${esc(draft.draft_id)}"><span class="mw-mark" aria-hidden="true">${icon("sparkles")}</span><span><strong>${
-    esc(draft.name.trim() || improve("draft-untitled"))}</strong><small>${esc(improve(draft.origin.by === "assistant" ? "from-assistant" : "from-person"))} · ${esc(improve("updated-at", { at: dateArg(draft.updated_at, "date") }))}</small></span><span class="mw-item__end">${verdict(draft)}${renderBadge({ label: improve("draft-badge"), tone: "info" })}</span></button></li>`).join("")}</ul></section>`;
+  const open = fresh.length ? `<section class="kit-sec sk-drafts"><h4>${esc(improve("drafts-title"))}</h4><ul class="mw-items">${fresh.map(draft => `<li class="mw-item mw-item--pick"><button type="button" class="mw-item__pick" data-kit-act="sk-open" data-kit-v="${esc(draft.draft_id)}"><span class="mw-mark" aria-hidden="true">${icon("sparkles")}</span><span><strong>${
+    esc(draft.name.trim() || improve("draft-untitled"))}</strong><small>${esc(improve(draft.origin.by === "assistant" ? "from-assistant" : "from-person"))} · ${esc(improve("updated-at", { at: dateArg(draft.updated_at, "date") }))}</small></span><span class="mw-item__end">${verdict(draft)}${renderBadge({ label: improve("draft-badge"), tone: "info" })}</span></button></li>`).join("")}</ul></section>` : "";
+  const restored = dropped.length ? `<section class="kit-sec sk-drafts sk-drafts--discarded"><h4>${esc(improve("discarded"))}</h4><ul class="mw-items">${dropped.map(draft => `<li class="mw-item mw-item--pick"><button type="button" class="mw-item__pick" data-kit-act="sk-undiscard" data-kit-v="${esc(draft.draft_id)}"><span class="mw-mark" aria-hidden="true">${icon("undo")}</span><span><strong>${
+    esc(draft.name.trim() || improve("draft-untitled"))}</strong></span><span class="mw-item__end">${esc(improve("open-draft"))}</span></button></li>`).join("")}</ul></section>` : "";
+  return open + restored;
 }
 
 /** In an own Skill's detail: its versions from the signed releases, each but the one in use comparable and restorable. */

@@ -218,8 +218,8 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | --- | --- | --- |
 | 技能包身份、版本、签名与安装状态 | Plugin Runtime / Host 包存储 | 当前安装记录、验签的包；没有第二份 Skill 注册表 |
 | 技能声明和正文 | 提供技能的插件 | Manifest 的 methods 和已验签正文/资源；内置声明由原注册提供 |
-| 当前范围的目录与读取 | apps/local-host 的 Agent definitions | system.skills 的四个动作，每次投影安装、声明与授权；manual 只认宿主冻结点名 |
-| 技能自动/仅手动状态、接受后的使用记录 | apps/local-host 的 Agent definitions | agent-definitions 库第 2 版的 skill_settings、skill_uses；项目与 home 分开，off 不留行；卸载删除状态、保留历史 |
+| 当前范围的目录与读取 | apps/local-host 的 Agent definitions | `system.skills` 的目录、导入与草稿/回放动作，每次投影安装、声明与授权；manual 只认宿主冻结点名 |
+| 技能自动/仅手动状态、接受后的使用记录 | apps/local-host 的 Agent definitions | `agent-definitions` 库第 3 版的 `skill_settings`、`skill_uses`，以及第 42 批的 `skill_drafts`、`skill_cases`、`skill_trials`、`skill_lineage`；项目与 home 分开，off 不留行；卸载删除状态、保留历史 |
 | 随系统自带的技能包 | 宿主构建产物 | `plugins/content/<包>/pack-content.json` 的 `system`；构建产物 `apps/local-host/dist/system-skills/`；不安装、不验签、不固定发布者，和安装包共用同一目录 |
 | 自己写的技能 | 每范围一个内容包 + 已装记录的发布者签名 | `io.molis.work.my-skills.project`／`.home`；正文与声明在签名内容包，`skill_settings` 只存状态；认主只看已装记录的发布者签名 |
 

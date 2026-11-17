@@ -88,6 +88,7 @@ export function buildAcceptanceReviewOffer(
   projectId: string,
   input: AcceptanceReviewRequest,
   findCommitted: (id: string) => ProjectTrustedDecision | null,
+  actorId: string,
 ): TrustedReviewOffer {
   if (!view.requirements.length || view.version === null) throw missing();
   const requestId = acceptanceRequestId(view.subject);
@@ -106,7 +107,7 @@ export function buildAcceptanceReviewOffer(
     if (item.hands_on) evidence.push(checkEvidence(requestId, item.id, item.hands_on, owner));
     if (item.person === "accepted" && item.decision) {
       const committed = findCommitted(item.decision.decision_id);
-      if (committed && committed.review.requirements.some(accepted =>
+      if (committed && committed.actor_id === actorId && committed.review.requirements.some(accepted =>
         accepted.disposition === "accepted" && accepted.id === item.id && accepted.version === String(item.version) && same(accepted.target, reqTarget))) {
         evidence.push({ tier: "person_accepted", target: reqTarget, decision: { reference: committed.reference, decision_id: committed.decision_id } });
       }

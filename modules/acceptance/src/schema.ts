@@ -4,8 +4,8 @@ import type { HomeStoreDeclaration, SqliteBaseline } from "@molis-ai/molis-work-
 export const ACCEPTANCE_STORE = "acceptance";
 
 /**
- * Every table but `acceptance_subjects` is a log: a row is written once and never changed, so a requirement's earlier versions, every check
- * and every decision stay readable after rework (PWA-146). A requirement that changes gets a row with the next `version`; one that
+ * Every business table but `acceptance_subjects` is a log: a row is written once and never changed, so a requirement's earlier versions,
+ * every check and every decision stay readable after rework (PWA-146). A requirement that changes gets a row with the next `version`; one that
  * is taken off the list gets a row marked `withdrawn`. `acceptance_checks.round` and `acceptance_decisions.stands_round` say which delivery the row was
  * made against, which is how a later delivery that touches the requirement puts it back to "not yet checked or decided".
  */

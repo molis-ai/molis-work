@@ -5229,6 +5229,7 @@
     "workbench.project-deletion.files-default-output-folder-can-only-be-kept": "默认输出目录里的文件只能选择留下或删除。",
     "workbench.project-deletion.judgment-rules": "判断规则在这个项目里的场景绑定和判断记录",
     "workbench.project-deletion.knowledge": "项目资料的卡片与整理记录",
+    "workbench.project-deletion.mainline": "这个项目主线上的事项与排列",
     "workbench.project-deletion.observation": "这个项目的工作记录与证据快照",
     "workbench.project-deletion.memory": "这个项目及其角色的记忆",
     "workbench.project-deletion.partition": "{name} 在这个项目里的数据",

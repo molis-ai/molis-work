@@ -1,13 +1,19 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { isDeepStrictEqual } from "node:util";
-import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, TASK_SERVES_RELATION, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, assertWorkEventWindow, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionReference,
+import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, TASK_SERVES_RELATION, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, assertWorkEventWindow, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionReference,
   type ActionSubject, type ActionView, type BackgroundTask, type BackgroundTaskAnswer, type BackgroundTaskCollection, type BackgroundTaskCommand, type BackgroundTaskDecision, type BackgroundTaskPhrase, type OpenTarget, type TaskServesRole, type WorkEvent,
   type WorkEventCollection, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { STATE_RING_FAMILIES, type StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
 import { mainlineErrors, type BackgroundTaskCommandRequest, type BackgroundTaskCommandResult, type BackgroundTaskDecideRequest, type BackgroundTaskDecideResult, type BackgroundTaskRow, type BackgroundTasksReadResult, type MainlineIssue, type ObjectOpenRequest, type ObjectOpenResult, type TaskPlaceRequest, type TaskPlaceResult,
-  type WaitingItem, type WaitingReadResult, type WorkLineEvent, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
+  type WaitingItem, type WaitingReadResult, type WorkLineEvent, type WorkLineReadRequest, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
+import { PRESENTATION_VALUES_INPUT_TYPE, PRESENTATION_VALUES_OUTPUT_TYPE, type OwnedPresentationObject, type PresentationValues } from "@molis-ai/molis-work-contracts/platform/presentation";
+import { itemLineScope, placeInItem, type ItemLineScope, type MainlineItemPorts } from "./items.js";
 import { createExecutionLifetime, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
 import { MISSED_RUN_KIND, isRunDecisionOf, isRunsSource, missedRunTasks, missedRunsWindow } from "./missed-runs.js";
+
+export { MAINLINE_BASELINE, MAINLINE_HOME_STORE, MainlineStore, openMainlineDatabase, purgeMainlineProject } from "./store.js";
+export { completeItem, convertItem, createItem, editGroups, holdsBind, holdsCandidates, holdsCreate, holdsList, holdsRelease, moveItem, readContents, readItemSubject, readMainline,
+  removeItem, renameItem, switchItem, type ItemDeclaration, type MainlineItemPorts } from "./items.js";
 
 // The mainline service (specs/work-line §5–§6): it finds a project's event registrants and task providers in the caller's own
 // directory, asks each once and checks every row before a page draws it. Nothing is stored: every call asks again, so a caller
@@ -223,15 +229,21 @@ const sameSubject = (a: ActionSubject, b: ActionSubject) => a.kind === b.kind &&
  * happened (newest nearest), what is ahead by when it starts or falls due (soonest nearest), what is beside now with what waits
  * first. A registrant that is off in the project says nothing; one that cannot answer is an issue by its code (WLN-37, WLN-38).
  */
-export async function readWorkLine(caller: ActionCallContext, client: ActionClient, window: WorkEventWindow): Promise<WorkLineReadResult> {
+export async function readWorkLine(caller: ActionCallContext, client: ActionClient, request: WorkLineReadRequest, items?: MainlineItemPorts): Promise<WorkLineReadResult> {
+  const { item: itemId, ...window } = request;
   assertWorkEventWindow(window);
   const reader: ActionCallContext = { ...caller, query_only: true };
   const directory = await client.discover(reader);
-  const [answers, table] = await Promise.all([gatherWorkEvents(reader, client, window, directory.filter(isWorkEventSource)), readBackgroundTasks(caller, client, directory)]);
+  if (itemId !== undefined && !items) throw mainlineErrors.source_unavailable("这里读不到主线的事项");
+  const scope = itemId !== undefined ? await itemLineScope(caller, client, items!, itemId, directory) : undefined;
+  const [answers, wholeTable] = await Promise.all([gatherWorkEvents(reader, client, window, directory.filter(isWorkEventSource)), readBackgroundTasks(caller, client, directory)]);
+  const table = scope ? { ...wholeTable, tasks: wholeTable.tasks.filter(task => inScope(scope, task.subject) || task.serves.some(served => inScope(scope, served))) } : wholeTable;
   const behind = new Map<string, BackgroundTaskRow[]>();
   for (const task of table.tasks) for (const served of task.serves) behind.set(subjectKey(served), [...behind.get(subjectKey(served)) ?? [], task]);
   const issues: MainlineIssue[] = answers.flatMap(answer => !answer.failure || answer.failure.code === "actions.plugin_disabled" ? [] : [{ source: answer.source, title: answer.view.action.title, code: answer.failure.code }]);
-  const events = answers.flatMap(answer => answer.events ?? []).map((event): WorkLineEvent => {
+  const gathered = answers.flatMap(answer => answer.events ?? []).filter(event => !scope || inScope(scope, event.subject));
+  if (scope) gathered.push(...await heldEvents(reader, client, items!, scope, window, directory, gathered));
+  const events = gathered.map((event): WorkLineEvent => {
     const tasks = behind.get(subjectKey(event.subject)) ?? [];
     const waiting = tasks.filter(task => task.waiting).length, running = tasks.filter(task => !task.waiting && UNDER_WAY.has(FAMILY.get(task.state) ?? "")).length;
     const state = waiting ? "answer" : running ? "running" : event.state;
@@ -244,11 +256,72 @@ export async function readWorkLine(caller: ActionCallContext, client: ActionClie
     now: (a, b) => Number(b.waiting) - Number(a.waiting) || b.occurred_at.localeCompare(a.occurred_at),
     next: (a, b) => ahead(a).localeCompare(ahead(b)),
   };
+  if (scope?.next) events.push(suggestionOf(scope, window, events));
   for (const wing of ["done", "now", "next"] as const) {
-    events.filter(event => event.wing === wing).sort((a, b) => order[wing](a, b) || a.id.localeCompare(b.id)).forEach((event, rank) => { event.rank = rank; });
+    events.filter(event => event.wing === wing).sort((a, b) => Number(!!b.suggestion) - Number(!!a.suggestion) || order[wing](a, b) || a.id.localeCompare(b.id)).forEach((event, rank) => { event.rank = rank; });
   }
   const WINGS = ["done", "now", "next"];
-  return { events: events.sort((a, b) => WINGS.indexOf(a.wing) - WINGS.indexOf(b.wing) || a.rank - b.rank), table, issues: [...issues, ...table.issues] };
+  return { events: events.sort((a, b) => WINGS.indexOf(a.wing) - WINGS.indexOf(b.wing) || a.rank - b.rank), table, issues: [...issues, ...table.issues, ...scope?.issues ?? []] };
+}
+
+const inScope = (scope: ItemLineScope, subject: ActionSubject) => scope.subjects.has(subjectKey(subject));
+
+/** The task table as the mainline counts it (`mainline.read` with `counts`): waiting on the person, or under way by the line's own rule. */
+export async function readItemTasks(caller: ActionCallContext, client: ActionClient, directory?: readonly ActionView[]) {
+  const table = await readBackgroundTasks(caller, client, directory);
+  return { tasks: table.tasks.map(task => ({ subject: task.subject, serves: task.serves, waiting: task.waiting, running: !task.waiting && UNDER_WAY.has(FAMILY.get(task.state) ?? "") })) };
+}
+
+/** The source's next step, first ahead of now; it opens where the source object opens on the line, when it is there. */
+function suggestionOf(scope: ItemLineScope, window: WorkEventWindow, events: readonly WorkLineEvent[]): WorkLineEvent {
+  const subject = scope.item.source!, step = scope.next!.step, on = events.find(event => sameSubject(event.subject, subject));
+  return { event_id: `next:${subject.kind}:${subject.id}`.slice(0, 1000), subject, title: step.text, summary: step.waiting_on ?? "", content: "", facts: [], category: "personal",
+    placement: "today", occurred_at: window.now, needs_attention: false, open: on?.open ?? null, id: JSON.stringify([scope.next!.source.provider_id, scope.next!.source.capability_id, subject.kind, subject.id]),
+    source: scope.next!.source, origin: on?.origin ?? { surface: "mainline", title: subject.kind, icon: "next" }, wing: "next", rank: 0, waiting: false,
+    tasks: { running: 0, waiting: 0, refs: [] }, suggestion: step };
+}
+
+/**
+ * What an item holds that no registrant put on the line but whose owner's declaration gives it a time role: read from the owner's values
+ * action once per kind. Due → ahead; happened → behind; a state asking a decision or an acceptance → beside now and waiting. Without
+ * any of the three it is not on the line, only among the item's things.
+ */
+async function heldEvents(reader: ActionCallContext, client: ActionClient, items: MainlineItemPorts, scope: ItemLineScope, window: WorkEventWindow,
+  directory: readonly ActionView[], already: readonly GatheredWorkEvent[]): Promise<GatheredWorkEvent[]> {
+  const on = new Set(already.map(event => subjectKey(event.subject))), off = scope.held.filter(subject => !on.has(subjectKey(subject)));
+  if (!off.length) return [];
+  const declarations = await items.declarations(reader), kinds = [...new Set(off.map(subject => subject.kind))];
+  const found = await Promise.all(kinds.map(async kind => {
+    const declared = declarations.find(object => object.kind === kind), view = declared && directory.find(candidate => candidate.availability.available
+      && candidate.provider.provider_id === declared.provider_id && candidate.action.input_type === PRESENTATION_VALUES_INPUT_TYPE
+      && candidate.action.output_type === PRESENTATION_VALUES_OUTPUT_TYPE && candidate.action.subject_kinds.includes(kind));
+    if (!declared || !view) return [];
+    const roles = timeRoles(declared);
+    if (!roles.due && !roles.happened && !roles.status) return [];
+    try {
+      const values = await beforeDeadline(reader.signal, signal => client.invoke({ ...reader, signal }, referenceOf(view),
+        { subjects: off.filter(subject => subject.kind === kind), fields: [...new Set([roles.title, roles.due, roles.happened, roles.status].filter((key): key is string => !!key))] }), EVENT_SOURCE_MILLISECONDS, "事项里的对象读取超时") as PresentationValues;
+      return values.items.flatMap((entry): GatheredWorkEvent[] => {
+        if ((entry.state !== "ok" && entry.state !== "stale") || !entry.values) return [];
+        const value = (key?: string) => key ? entry.values![key] : undefined, text = (key?: string) => typeof value(key) === "string" ? value(key) as string : undefined;
+        const due = text(roles.due), happened = text(roles.happened), state = text(roles.status), mapping = state !== undefined ? declared.status?.map[state] : undefined;
+        const waiting = mapping?.attention === "needs_decision" || mapping?.attention === "needs_acceptance";
+        if (!waiting && !due && !happened) return [];
+        const placement = waiting ? "active" : happened && !due ? "occurred" : "today";
+        return [{ event_id: `held:${entry.subject.id}`.slice(0, 1000), subject: entry.subject, title: (text(roles.title) ?? entry.subject.id).slice(0, 1000), summary: "", content: "", facts: [],
+          category: "personal", placement, occurred_at: happened ?? due ?? window.now, ...(due ? { scheduled_at: due } : {}), ...(mapping ? { state: mapping.ring } : {}),
+          needs_attention: waiting, open: null, id: JSON.stringify([view.provider.provider_id, view.capability_id, entry.subject.kind, entry.subject.id]),
+          source: referenceOf(view), origin: { surface: "mainline", title: kind, icon: "item" } }];
+      });
+    } catch (error) { reader.signal?.throwIfAborted(); return []; }
+  }));
+  return found.flat();
+}
+
+/** The fields an object's declaration gives these roles: its title, when it falls due, when it happened, and its state. */
+function timeRoles(declared: OwnedPresentationObject): { title?: string; due?: string; happened?: string; status?: string } {
+  const role = (name: string) => declared.fields.find(field => field.role === name)?.key;
+  return { title: role("title"), due: role("due_at"), happened: role("happened_at"), status: declared.status?.field };
 }
 
 /**
@@ -281,10 +354,28 @@ function servesOf(output: unknown): ActionSubject[] {
  * `mainline.place@1`: the first placement of a task and every later change (specs/work-line §5, WLN-32, WLN-34). The owner of the
  * task kind is the one provider in the caller's directory that declares the `serves` relation for it; its `list` part is asked
  * first, so a task the caller may not read is refused by its owner before anything is changed. An event is accepted only if a
- * registrant the caller can read reports it in the window. The owner then records the change; nothing is kept here, and nothing
- * of the task's authority, budget or data scope is touched.
+ * registrant the caller can read reports it in the window. The owner then records the change; nothing of it is kept here, and nothing
+ * of the task's authority, budget or data scope is touched. With `item`, only the mainline's own `holds` relation changes.
  */
-export async function placeTask(caller: ActionCallContext, client: ActionClient, request: TaskPlaceRequest): Promise<TaskPlaceResult> {
+export async function placeTask(caller: ActionCallContext, client: ActionClient, request: TaskPlaceRequest, items?: MainlineItemPorts): Promise<TaskPlaceResult> {
+  if (!request.to && !request.item) throw new ActionError("actions.input_invalid", "安放要说明为哪个事件办，或在哪件事项里");
+  if (request.item && !items) throw mainlineErrors.source_unavailable("这里读不到主线的事项");
+  const placed = request.to ? await placeServes(caller, client, { ...request, to: request.to }) : { task: request.task, serves: await currentServes(caller, client, request.task) };
+  // The second dimension: which work item it is in. Only `holds` changes; the task goes on as it was (WLN-32).
+  if (!request.item) return placed;
+  const visible = async () => (await readBackgroundTasks({ ...caller, query_only: true }, client)).tasks.some(task => sameSubject(task.subject, request.task));
+  return { ...placed, items: await placeInItem(caller as ActionExecutionContext, items!, request.task, request.item, visible) };
+}
+
+/** What the task serves now, by its owner's `list` part; none when no owner keeps the relation for its kind. */
+async function currentServes(caller: ActionCallContext, client: ActionClient, task: ActionSubject): Promise<ActionSubject[]> {
+  const reader: ActionCallContext = { ...caller, query_only: true }, directory = await client.discover(reader);
+  const list = directory.find(view => view.availability.available && view.action.placement_relation?.relation === TASK_SERVES_RELATION
+    && view.action.placement_relation.role === "list" && view.action.subject_kinds.includes(task.kind));
+  return list ? servesOf(await client.invoke(reader, referenceOf(list), { task })) : [];
+}
+
+async function placeServes(caller: ActionCallContext, client: ActionClient, request: TaskPlaceRequest & { to: NonNullable<TaskPlaceRequest["to"]> }): Promise<TaskPlaceResult> {
   const { task, to } = request, reader: ActionCallContext = { ...caller, query_only: true };
   const directory = await client.discover(caller);
   const parts = directory.filter(view => view.availability.available && view.action.placement_relation?.relation === TASK_SERVES_RELATION && view.action.subject_kinds.includes(task.kind));

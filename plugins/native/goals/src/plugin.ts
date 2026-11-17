@@ -5,7 +5,8 @@ import { setTimeout } from "node:timers/promises";
 import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GovernanceApplicationApi } from "./contract/governance-collaboration.js";
 import type { PluginDefinition, PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { createGoalsPresentationHandlers } from "./presentation.js";
+import { goalEntryActions } from "./contract/goal-actions.js";
+import { createGoalItemHandlers, createGoalsPresentationHandlers } from "./presentation.js";
 import { createGoalsActionHandlers, goalsActions } from "./actions.js";
 import { confirmedGoalDeliverables } from "./deliverable-actions.js";
 import { goalsEventActions, type GoalReportTrust } from "./event-command-actions.js";
@@ -183,7 +184,10 @@ export function createGoalsPlugin(): PluginDefinition {
     }).done.then(() => undefined, () => undefined);
 
     return { kind: "app", sync: syncBindings(context), views: [goalsTreeUiContribution, goalsStageUiContribution],
-      actions: [...handlers.map(windowed), ...createGoalsPresentationHandlers(projectId, goals.query, application.goalEvents, window.read, ready)],
+      actions: [...handlers.map(windowed), ...createGoalsPresentationHandlers(projectId, goals.query, application.goalEvents, window.read, ready),
+        // 「建成目标」 is Goals' own create, in its own write window; the next step is a read like the presentation values.
+        ...createGoalItemHandlers(projectId, windowed(handlers.find(binding => binding.capability_id === goalEntryActions.create.capability_id)!), goals.query, application.goalEvents,
+          window.read, ready)],
       routes: goalsRoutes({ actions: request => ({ discover: async () => [], invoke: (definition, input) => actions.invoke(definition, input, request.execution) }) }) };
   }, async health() { return problem ? { ok: false, message: problem } : { ok: true, message: "Goals 已接通" }; } };
 }

@@ -19,7 +19,7 @@ import { EXTERNAL_MCP_PERMISSION } from "./mcp-tool-actions.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "./native-content-permissions.js";
 import { SEARCH_PERMISSIONS, SEARCH_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/search";
 import { ACCEPTANCE_DECIDE_PERMISSION, ACCEPTANCE_PROVIDER_ID, ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_REPORT_PERMISSION } from "@molis-ai/molis-work-contracts/modules/acceptance";
-import { MAINLINE_CONTROL_PERMISSION, MAINLINE_PLACE_PERMISSION, MAINLINE_PROVIDER_ID, MAINLINE_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/mainline";
+import { MAINLINE_ARRANGE_PERMISSION, MAINLINE_CONTROL_PERMISSION, MAINLINE_PLACE_PERMISSION, MAINLINE_PROVIDER_ID, MAINLINE_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/mainline";
 import { PLACEMENT_PERMISSIONS, PLACEMENT_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/placement";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { KNOWLEDGE_PERMISSIONS, KNOWLEDGE_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/knowledge";
@@ -67,7 +67,7 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     // The AI kit and the Host's own reporters it gathers: the person's to read (specs/capability-pack/contract-design.md §4.7).
     [KIT_PROVIDER_ID, [KIT_READ_PERMISSION]],
     // The mainline service asks the providers again as the person; a command's own action is still authorized on its own.
-    [MAINLINE_PROVIDER_ID, [MAINLINE_READ_PERMISSION, MAINLINE_CONTROL_PERMISSION, MAINLINE_PLACE_PERMISSION]],
+    [MAINLINE_PROVIDER_ID, [MAINLINE_READ_PERMISSION, MAINLINE_CONTROL_PERMISSION, MAINLINE_PLACE_PERMISSION, MAINLINE_ARRANGE_PERMISSION]],
     // Requirements and acceptance: the person reads, writes what is asked, and is the only one who accepts or returns.
     [ACCEPTANCE_PROVIDER_ID, [ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_REPORT_PERMISSION, ACCEPTANCE_DECIDE_PERMISSION]],
     [KIT_AGENT_TOOLS_PROVIDER_ID, [KIT_READ_PERMISSION]],

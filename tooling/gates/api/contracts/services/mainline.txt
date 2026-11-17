@@ -372,7 +372,20 @@ export interface BackgroundTasksReadResult {
     issues: MainlineIssue[];
 }
 
+export declare const MAINLINE_ARRANGE_PERMISSION = "mainline:arrange";
+
 export declare const MAINLINE_CONTROL_PERMISSION = "mainline:control";
+
+export declare const MAINLINE_HOLDS_RELATION = "holds";
+
+export declare const MAINLINE_LIMITS: {
+    readonly name: 120;
+    readonly groups: 20;
+    readonly open_items: 500;
+    readonly held: 500;
+    readonly completed_read: 100;
+    readonly recent: 3;
+};
 
 export declare const MAINLINE_PLACE_PERMISSION = "mainline:place";
 
@@ -380,10 +393,275 @@ export declare const MAINLINE_PROVIDER_ID = "system.mainline";
 
 export declare const MAINLINE_READ_PERMISSION = "mainline:read";
 
+export declare const MAINLINE_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly revision: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+        readonly items: {
+            readonly type: "array";
+            readonly items: {
+                readonly type: "object";
+                readonly properties: {
+                    readonly item_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 200;
+                    };
+                    readonly name: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 120;
+                    };
+                    readonly source: {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly kind: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                            };
+                            readonly id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                            };
+                        };
+                        readonly required: readonly ["kind", "id"];
+                        readonly additionalProperties: false;
+                    };
+                    readonly created_at: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 64;
+                    };
+                };
+                readonly required: readonly ["item_id", "created_at"];
+                readonly additionalProperties: false;
+            };
+        };
+        readonly groups: {
+            readonly type: "array";
+            readonly maxItems: 20;
+            readonly items: {
+                readonly type: "object";
+                readonly properties: {
+                    readonly group_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 200;
+                    };
+                    readonly default: {
+                        readonly enum: readonly ["now", "next", "waiting"];
+                    };
+                    readonly name: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 120;
+                    };
+                    readonly items: {
+                        readonly type: "array";
+                        readonly maxItems: 500;
+                        readonly items: {
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly item_id: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                    readonly maxLength: 200;
+                                };
+                                readonly pinned: {
+                                    readonly type: "boolean";
+                                };
+                            };
+                            readonly required: readonly ["item_id", "pinned"];
+                            readonly additionalProperties: false;
+                        };
+                    };
+                };
+                readonly required: readonly ["group_id", "items"];
+                readonly additionalProperties: false;
+            };
+        };
+        readonly completed: {
+            readonly type: "array";
+            readonly maxItems: 100;
+            readonly items: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 200;
+            };
+        };
+        readonly completed_total: {
+            readonly type: "integer";
+            readonly minimum: 0;
+        };
+        readonly current: {
+            readonly anyOf: readonly [{
+                readonly type: "null";
+            }, {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 200;
+            }];
+        };
+        readonly recent: {
+            readonly type: "array";
+            readonly maxItems: 3;
+            readonly items: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 200;
+            };
+        };
+    };
+    readonly required: readonly ["revision", "items", "groups", "completed", "completed_total", "current", "recent"];
+    readonly additionalProperties: false;
+};
+
+export interface Mainline {
+    revision: string;
+    items: WorkItem[];
+    groups: MainlineGroup[];
+    completed: string[];
+    completed_total: number;
+    current: string | null;
+    recent: string[];
+}
+
+export interface MainlineContentsRequest {
+    item_id: string;
+}
+
+export interface MainlineContentsResult {
+    held: ActionSubject[];
+    related: Array<{
+        source: Required<ActionReference>;
+        subjects: ActionSubject[];
+    }>;
+    issues: MainlineIssue[];
+}
+
+export interface MainlineCounts {
+    items: Record<string, {
+        waiting: number;
+        running: number;
+    }>;
+    groups: Record<string, {
+        waiting: number;
+        running: number;
+    }>;
+}
+
+export interface MainlineGroup {
+    group_id: string;
+    default?: MainlineGroupDefault;
+    name?: string;
+    items: Array<{
+        item_id: string;
+        pinned: boolean;
+    }>;
+}
+
+export type MainlineGroupDefault = "now" | "next" | "waiting";
+
+export type MainlineGroupEditRequest = {
+    expected_revision: string;
+} & ({
+    op: "add";
+    name: string;
+    index?: number;
+} | {
+    op: "rename";
+    group_id: string;
+    name: string;
+} | {
+    op: "delete";
+    group_id: string;
+} | {
+    op: "move";
+    group_id: string;
+    index: number;
+});
+
 export interface MainlineIssue {
     source: Required<ActionReference>;
     title: string;
     code: string;
+}
+
+export interface MainlineItemCompleteRequest {
+    expected_revision: string;
+    item_id: string;
+    completed: boolean;
+}
+
+export interface MainlineItemConvertRequest {
+    expected_revision: string;
+    item_id: string;
+    kind: string;
+    request_id?: string;
+}
+
+export interface MainlineItemCreateRequest {
+    name?: string;
+    from?: ActionSubject;
+    create_as?: {
+        kind: string;
+        name: string;
+    };
+    group_id?: string;
+    request_id?: string;
+}
+
+export interface MainlineItemMoveRequest {
+    expected_revision: string;
+    item_id: string;
+    group_id: string;
+    index: number;
+    pinned?: boolean;
+}
+
+export interface MainlineItemRemoveRequest {
+    expected_revision: string;
+    item_id: string;
+}
+
+export interface MainlineItemRenameRequest {
+    expected_revision: string;
+    item_id: string;
+    name: string;
+}
+
+export interface MainlineItemResult {
+    mainline: Mainline;
+    item: WorkItem;
+}
+
+export interface MainlineItemSource {
+    kind: string;
+    owner: string;
+    create: boolean;
+    next: boolean;
+}
+
+export interface MainlineReadRequest {
+    counts?: boolean;
+}
+
+export interface MainlineReadResult {
+    mainline: Mainline;
+    sources: MainlineItemSource[];
+    counts?: MainlineCounts;
+}
+
+export interface MainlineResult {
+    mainline: Mainline;
+}
+
+export interface MainlineSwitchRequest {
+    item_id: string | null;
 }
 
 export interface ObjectOpenRequest {
@@ -398,17 +676,24 @@ export interface ObjectOpenResult {
 
 export interface TaskPlaceRequest {
     task: ActionSubject;
-    to: {
+    to?: {
         kind: "event" | "new_event" | "none";
         subject?: ActionSubject;
     };
     window?: WorkEventWindow;
+    item?: {
+        kind: "item" | "none";
+        item_id?: string;
+    };
 }
 
 export interface TaskPlaceResult {
     task: ActionSubject;
     serves: ActionSubject[];
+    items?: ActionSubject[];
 }
+
+export declare const WORK_ITEM_KIND = "work_item";
 
 export declare const WORK_LINE_EVENT_SCHEMA: {
     properties: {
@@ -469,6 +754,52 @@ export declare const WORK_LINE_EVENT_SCHEMA: {
         };
         waiting: {
             type: string;
+        };
+        suggestion: {
+            readonly type: "object";
+            readonly properties: {
+                readonly text: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                    readonly maxLength: 200;
+                };
+                readonly waiting_on: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                    readonly maxLength: 200;
+                };
+                readonly start: {
+                    readonly type: "object";
+                    readonly properties: {
+                        readonly action: {
+                            readonly required: readonly ["capability_id", "version", "provider_id"];
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly capability_id: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                };
+                                readonly version: {
+                                    readonly type: "integer";
+                                    readonly minimum: 1;
+                                };
+                                readonly provider_id: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                };
+                            };
+                            readonly additionalProperties: false;
+                        };
+                        readonly input: {
+                            readonly type: "object";
+                        };
+                    };
+                    readonly required: readonly ["action", "input"];
+                    readonly additionalProperties: false;
+                };
+            };
+            readonly required: readonly ["text"];
+            readonly additionalProperties: false;
         };
         tasks: {
             type: string;
@@ -639,6 +970,13 @@ export interface WaitingReadResult {
     issues: MainlineIssue[];
 }
 
+export interface WorkItem {
+    item_id: string;
+    name?: string;
+    source?: ActionSubject;
+    created_at: string;
+}
+
 export interface WorkLineEvent extends WorkEvent {
     id: string;
     source: Required<ActionReference>;
@@ -652,7 +990,12 @@ export interface WorkLineEvent extends WorkEvent {
         waiting: number;
         refs: ActionSubject[];
     };
+    suggestion?: WorkItemNextStep;
 }
+
+export type WorkLineReadRequest = WorkEventWindow & {
+    item?: string;
+};
 
 export interface WorkLineReadResult {
     events: WorkLineEvent[];
@@ -661,7 +1004,7 @@ export interface WorkLineReadResult {
 }
 
 export declare const mainlineActions: {
-    line: ActionDefinition<WorkEventWindow, WorkLineReadResult>;
+    line: ActionDefinition<WorkLineReadRequest, WorkLineReadResult>;
     waiting: ActionDefinition<WorkEventWindow, WaitingReadResult>;
     place: ActionDefinition<TaskPlaceRequest, TaskPlaceResult>;
     tasks: ActionDefinition<Record<string, never>, BackgroundTasksReadResult>;
@@ -679,4 +1022,28 @@ export declare const mainlineErrors: import("platform/action-errors").ErrorCodeR
     readonly relation_ambiguous: "conflict";
     readonly event_unreadable: "not_found";
     readonly owner_answer_invalid: "upstream";
+    readonly conflict: "conflict";
+    readonly limit: "too_large";
+    readonly item_missing: "not_found";
+    readonly subject_unreadable: "not_found";
+    readonly source_unavailable: "unavailable";
 }>;
+
+export declare const mainlineItemActions: {
+    read: ActionDefinition<MainlineReadRequest, MainlineReadResult>;
+    subject: ActionDefinition<import("platform/action-subjects").SubjectContextRequest, import("platform/action-subjects").ActionSubjectContext>;
+    create: ActionDefinition<MainlineItemCreateRequest, MainlineItemResult>;
+    convert: ActionDefinition<MainlineItemConvertRequest, MainlineItemResult>;
+    rename: ActionDefinition<MainlineItemRenameRequest, MainlineResult>;
+    move: ActionDefinition<MainlineItemMoveRequest, MainlineResult>;
+    complete: ActionDefinition<MainlineItemCompleteRequest, MainlineResult>;
+    remove: ActionDefinition<MainlineItemRemoveRequest, MainlineResult>;
+    groups: ActionDefinition<MainlineGroupEditRequest, MainlineResult>;
+    switch: ActionDefinition<MainlineSwitchRequest, MainlineResult>;
+    contents: ActionDefinition<MainlineContentsRequest, MainlineContentsResult>;
+    holdsList: ActionDefinition<import("platform/placement").PlacementRelationSubjectInput, import("platform/placement").PlacementRelationResult>;
+    holdsBind: ActionDefinition<import("platform/placement").PlacementRelationTargetInput, import("platform/placement").PlacementRelationResult>;
+    holdsRelease: ActionDefinition<import("platform/placement").PlacementRelationTargetInput, import("platform/placement").PlacementRelationResult>;
+    holdsCandidates: ActionDefinition<import("platform/placement").PlacementRelationSubjectInput, import("platform/placement").PlacementRelationCandidates>;
+    holdsCreate: ActionDefinition<import("platform/placement").PlacementRelationCreateInput, import("platform/placement").PlacementRelationResult>;
+};

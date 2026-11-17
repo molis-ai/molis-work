@@ -77,6 +77,57 @@ export function isPlacementRelation(action: { placement_relation?: PlacementRela
   return action.placement_relation?.relation === relation && action.placement_relation.role === role;
 }
 
+/**
+ * The parts of a relation as one shape for any relation and any owner (specs/work-mainline/contract-design.md §3): both ends are
+ * `ActionSubject`s. `list` says what the object is related to now; `bind` and `release` add or take away one target; `candidates` are
+ * the targets the person may pick, the current one first; `create` makes a new target named so and binds it. Each returns what the
+ * object is related to after the call. A relation's owner declares its five parts with this, and placement finds them by
+ * `placement_relation`, never by a capability id.
+ */
+export interface PlacementRelationSubjectInput { subject: ActionSubject }
+export interface PlacementRelationTargetInput { subject: ActionSubject; target: ActionSubject }
+export interface PlacementRelationCreateInput { subject: ActionSubject; name: string }
+export interface PlacementRelationResult { targets: ActionSubject[] }
+export interface PlacementRelationCandidates { targets: Array<{ subject: ActionSubject; current: boolean }> }
+type RelationInput<R extends PlacementRelationRole> = R extends "bind" | "release" ? PlacementRelationTargetInput : R extends "create" ? PlacementRelationCreateInput : PlacementRelationSubjectInput;
+type RelationOutput<R extends PlacementRelationRole> = R extends "candidates" ? PlacementRelationCandidates : PlacementRelationResult;
+export const PLACEMENT_RELATION_LIMITS = { targets: 500, name: 120 } as const;
+
+const relationInputs = {
+  subject: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA }, required: ["subject"], additionalProperties: false },
+  target: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, target: ACTION_SUBJECT_SCHEMA }, required: ["subject", "target"], additionalProperties: false },
+  create: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, name: { type: "string", minLength: 1, maxLength: PLACEMENT_RELATION_LIMITS.name } },
+    required: ["subject", "name"], additionalProperties: false },
+} as const;
+const relationTargets = { type: "object", properties: { targets: { type: "array", maxItems: PLACEMENT_RELATION_LIMITS.targets, items: ACTION_SUBJECT_SCHEMA } },
+  required: ["targets"], additionalProperties: false } as const;
+const relationCandidates = { type: "object", properties: { targets: { type: "array", maxItems: PLACEMENT_RELATION_LIMITS.targets, items: { type: "object",
+  properties: { subject: ACTION_SUBJECT_SCHEMA, current: { type: "boolean" } }, required: ["subject", "current"], additionalProperties: false } } },
+  required: ["targets"], additionalProperties: false } as const;
+
+export interface PlacementRelationOptions {
+  /** The kinds of object it relates; empty when any object the caller can read may be related. */
+  kinds: readonly string[];
+  title: string;
+  description: string;
+  permissions: readonly string[];
+  /** The other end, on the `list` part only: its subject kind and the noun a person reads it by. */
+  target?: { kind: string; noun: string };
+  audiences?: readonly ("user" | "agent" | "workflow" | "mcp")[];
+}
+
+export function definePlacementRelationAction<R extends PlacementRelationRole>(relation: string, role: R, capabilityId: string, version: number,
+  options: PlacementRelationOptions): ActionDefinition<RelationInput<R>, RelationOutput<R>> {
+  const reads = role === "list" || role === "candidates";
+  const input = role === "bind" || role === "release" ? relationInputs.target : role === "create" ? relationInputs.create : relationInputs.subject;
+  if (role === "list" && !options.target) throw new ActionError("actions.definition_invalid", "关联的 list 一步要写明另一端是什么");
+  return { capability_id: capabilityId, version, operation: reads ? "query" : "command", action: { title: options.title, description: options.description,
+    kind: reads ? "query" : "operation", scope: "project", scheduling: "concurrent", effect: reads ? "read" : "write",
+    audiences: [...options.audiences ?? (reads ? ["user", "agent", "workflow", "mcp"] : ["user", "agent", "mcp"])], permissions: [...options.permissions], subject_kinds: [...options.kinds],
+    placement_relation: { relation, role, ...(role === "list" ? { target: options.target! } : {}) },
+    input_schema: inputSchemaFor<RelationInput<R>>()(input as never), output_schema: role === "candidates" ? relationCandidates : relationTargets } } as ActionDefinition<RelationInput<R>, RelationOutput<R>>;
+}
+
 /** The source partition is the caller's project; moving to where it already is has nothing to do. */
 export function placementSourceProject(caller: ActionCallContext, to: string): string {
   if (!caller.project_id) throw new ActionError("actions.project_required", "请在对象所在的位置里移动或复制");

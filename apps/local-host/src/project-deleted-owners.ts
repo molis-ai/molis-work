@@ -9,6 +9,7 @@ import { rm } from "node:fs/promises";
 import { memoryErrors, purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
 import { clearObservationProjectFile } from "@molis-ai/molis-work-service-observation";
 import { clearEvaluationProjectFile } from "@molis-ai/molis-work-service-evaluation";
+import { MAINLINE_HOME_STORE, openMainlineDatabase, purgeMainlineProject } from "@molis-ai/molis-work-service-mainline";
 import { randomUUID } from "node:crypto";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, hasStorageBusinessFiles, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
@@ -110,6 +111,14 @@ function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
     .map(({ order: _order, position: _position, ...owner }) => owner);
 }
 
+/** Every person's work items in the project go; a Home that never kept a mainline has nothing to open. */
+function purgeMainline(home: string, projectId: string): void {
+  if (!existsSync(homeSqlitePath(home, MAINLINE_HOME_STORE.path))) return;
+  const db = openMainlineDatabase(home);
+  try { db.exec("BEGIN IMMEDIATE"); purgeMainlineProject(db, projectId); db.exec("COMMIT"); }
+  catch (error) { db.exec("ROLLBACK"); throw error; } finally { db.close(); }
+}
+
 /** A module of the Host's own: its label is in the Host's words. */
 function ownerOf(home: string, id: string, data: ProjectDataDeclaration) {
   return { id, label: data.label, order: data.order, clear: (projectId: string) => data.purge(home, projectId) };
@@ -130,6 +139,8 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     pluginBuilderProjectOwner(home),
     // Without a running Assistant nothing is queued or running for these works, so their rows are all there is to clear.
     { id: "assistant", label: { key: "workbench.project-deletion.assistant" }, clear: async projectId => { await purgeAssistantProject(home, projectId); } },
+    // The work items of the project's mainline (specs/work-mainline §6): containers and references only; what they held stays with its owners.
+    { id: "mainline", label: { key: "workbench.project-deletion.mainline" }, clear: projectId => { purgeMainline(home, projectId); } },
     // Project knowledge's cards (what the person edited on them, and what organizing used) are a plain library any process clears.
     { id: "knowledge", label: { key: "workbench.project-deletion.knowledge" }, clear: projectId => { clearKnowledgeProject(home, projectId); } },
     // Where a project's plugins may read an imported file again: only the Host's record of the place goes, never the person's file.

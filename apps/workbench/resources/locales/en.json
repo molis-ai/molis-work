@@ -5591,6 +5591,7 @@
     "workbench.project-deletion.files-default-output-folder-can-only-be-kept": "The files in the default output folder can only be kept or deleted.",
     "workbench.project-deletion.judgment-rules": "Function bindings and judgments made in this project",
     "workbench.project-deletion.knowledge": "Project knowledge cards and organizing records",
+    "workbench.project-deletion.mainline": "Mainline work items and their order in this project",
     "workbench.project-deletion.observation": "Work records and evidence snapshots of this project",
     "workbench.project-deletion.memory": "Memories of this project and of its characters",
     "workbench.project-deletion.partition": "Data of {name} in this project",

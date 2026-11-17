@@ -8,6 +8,7 @@ import { pluginSyncDatabaseDeclaration } from './plugin-sync-database.js';
 import { ARTIFACTS_HOME_STORE } from "@molis-ai/molis-work-module-artifacts";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { CHARACTERS_HOME_STORE } from "@molis-ai/molis-work-module-characters";
+import { MAINLINE_HOME_STORE } from "@molis-ai/molis-work-service-mainline";
 import { FUNCTIONS_HOME_STORE } from "@molis-ai/molis-work-module-judgment-rules";
 import { KNOWLEDGE_CARDS_HOME_STORE, MEMORY_FORGETTING_HOME_STORE, MEMORY_LEDGER_HOME_STORE, TEXT_SEARCH_HOME_STORE,
   homeStoreRegistry, inspectMemoryForgetting, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
@@ -99,6 +100,8 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...owned("horizontal/appearance", ...at(dirname(APPEARANCE_STATE_PATH), UI_LOCALE_RELATIVE_PATH)),
     ...owned("horizontal/agent-host", { path: "agent-runtime", snapshot: agentSnapshot }),
     ...owned("horizontal/observation", OBSERVATION_HOME_STORE),
+    // Each person's work items of each project (specs/work-mainline §6): names, references and the arrangement only.
+    ...owned("horizontal/mainline", MAINLINE_HOME_STORE),
     ...owned("modules/acceptance", ACCEPTANCE_HOME_STORE),
     ...owned("horizontal/evaluation", EVALUATION_HOME_STORE),
     ...owned("apps/local-host/src/installer", { path: "runtime-config-backups", snapshot: runtimeBackupSnapshot }, ...at("runtime-integrations", "runtime-integration-attempts")),

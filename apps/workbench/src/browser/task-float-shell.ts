@@ -7,10 +7,10 @@ export function installTaskFloatShell(options: { dialog: string; shown?(): void;
   type Content = { owner: object; root: HTMLElement; ready: Promise<TaskFloatContent>; value?: TaskFloatContent; disposed: boolean };
   const contents = new Map<object, Content>(); let active: Content | undefined;
   let root: HTMLElement | null = null, cards: HTMLElement | null = null, visible = false, dead = false;
-  let opening: { owner: object; controller: AbortController; close?: () => void } | undefined;
+  let opening: { owner: object; controller: AbortController; close?: (returnFocus: boolean) => void } | undefined;
   let stopLayout: (() => void) | undefined;
-  const cancel = (notify = true, keepOwner?: object) => {
-    const old = opening; opening = undefined; old?.controller.abort(); if (notify) old?.close?.();
+  const cancel = (notify = true, keepOwner?: object, returnFocus = Boolean(root?.contains(document.activeElement))) => {
+    const old = opening; opening = undefined; old?.controller.abort(); if (notify) old?.close?.(returnFocus);
     if (old && old.owner !== keepOwner) { const entry = contents.get(old.owner); if (entry && !entry.value) { entry.disposed = true; entry.root.remove(); contents.delete(old.owner); } }
   };
   const show = () => {
@@ -23,9 +23,9 @@ export function installTaskFloatShell(options: { dialog: string; shown?(): void;
     visible = true; root.dataset.workTaskFloat = options.dialog; root.hidden = false;
     stopLayout ??= installTaskFloatLayout(root); options.shown?.();
   };
-  const hide = () => {
+  const hide = (returnFocus?: boolean) => {
     const hadContent = active !== undefined || opening !== undefined;
-    cancel(); if (!visible) return;
+    cancel(true, undefined, returnFocus); if (!visible) return;
     visible = false; active?.value?.suspend?.(); if (active) active.root.hidden = true; active = undefined;
     if (cards) { cards.hidden = false; cards.replaceChildren(); }
     if (root) { root.hidden = true; delete root.dataset.workTaskFloat; delete root.dataset.content; }
@@ -53,7 +53,7 @@ export function installTaskFloatShell(options: { dialog: string; shown?(): void;
           const holder = document.createElement("div"); holder.style.cssText = "height:100%;width:100%;min-height:0;min-width:0"; holder.hidden = true; root!.append(holder);
           entry = { owner, root: holder, ready: Promise.resolve(undefined as never), disposed: false }; contents.set(owner, entry);
           const saved = entry;
-          entry.ready = Promise.resolve().then(() => mount(holder, { back: () => { if (active === saved) back(); }, close: () => { if (active === saved) hide(); } })).then(value => {
+          entry.ready = Promise.resolve().then(() => mount(holder, { back: () => { if (active === saved) back(); }, close: returnFocus => { if (active === saved) hide(returnFocus); } })).then(value => {
             if (saved.disposed) { value.destroy(); throw new DOMException("Task view closed", "AbortError"); }
             saved.value = value; if (active !== saved || !visible) value.suspend?.(); return value;
           });

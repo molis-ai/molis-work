@@ -5,15 +5,15 @@ import { codingComposerLabels } from "../composer-labels.js";
 import { hostRequest } from "./main/request.js";
 import type { CodingWorkbenchHost } from "./workbench.js";
 
-const say = (key: string) => t.text(`coding.subtask.${key}`);
+import { subtaskWord as say } from "./subtask-words.js";
 const labels = (): MwSubtaskConversationLabels => ({ back: say("back"), close: say("close"), loading: say("loading"), readFailed: say("read-failed"), retry: say("retry"), latest: say("latest"), messages: say("messages"), children: say("children"), unread: say("unread"), working: say("working"), actionFailed: say("action-failed"), unknown: say("unknown"), check: say("check") });
 const targetOf = (input: Readonly<Record<string, string>>) => {
   if (!input.session || !input.run || !input.child) throw new Error(say("unavailable"));
   return JSON.stringify([input.session, input.run, input.child]);
 };
 const pathOf = (target: string) => {
-  const [session, run, child] = JSON.parse(target) as string[];
-  return `/sessions/${encodeURIComponent(session!)}/runs/${encodeURIComponent(run!)}/subagents/${encodeURIComponent(child!)}/conversation`;
+  const [session, run, child] = (JSON.parse(target) as string[]).map(encodeURIComponent);
+  return `/sessions/${session}/runs/${run}/subagents/${child}/conversation`;
 };
 
 /** Same registered Coding contribution, on an independent page grant in the existing task float. */

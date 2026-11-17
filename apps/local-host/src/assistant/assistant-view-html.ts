@@ -79,6 +79,7 @@ export function drawAssistantReply(body: unknown, ports: { say: (text: string, v
           none: ports.say("workbench.skill-picks.none"), choose: ports.say("workbench.skill-picks.choose") } }) });
       }
       for (const round of candidate.rounds) for (const turn of round.turns) {
+        if (turn.kind === "notice" && !turn.text && turn.notice) turn.text = ports.say(`workbench.subtask-conversation.notice.${turn.notice}`);
         if (turn.kind === "assistant") Object.assign(turn, { html: assistantTextHtml(turn.text, candidate.objects, ports.say) });
       }
       for (const review of candidate.reviews) Object.assign(review, { html: assistantReviewHtml(review, ports.say, assistantReviewDisplay(review)) });

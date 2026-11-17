@@ -4,6 +4,8 @@ import { createServer } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, waitForSubagentChange } from "@molis-ai/molis-work-service-agent-host";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import { BUSINESS_HOST_TOOLS, BUSINESS_SUBAGENT_HOST_TOOLS, type AgentManifest, type AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
@@ -14,6 +16,9 @@ import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-respons
 interface Wire { system?: unknown; tools?: Array<{ name: string }>; messages: Array<{ role: string; content: string | Array<{ type: string; text?: string }> }> }
 const userTexts = (body: Wire) => body.messages.filter(one => one.role === "user").map(one => typeof one.content === "string" ? one.content : one.content.map(part => part.text ?? "").join(""));
 const owner = { project_id: "p", plugin_id: "io.molis.work.fixture", install_id: "i", actor_id: "person" };
+const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
+const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
+const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
 
 async function fixture(script: (body: Wire) => Response | Promise<Response>) {
   const root = await mkdtemp(join(tmpdir(), "molis-sai-"));
@@ -58,7 +63,7 @@ test("subtask original requests deliver once, continue the same child and surviv
       childCalls++;
       if (childCalls === 1) { await release.promise; return reply({ name: "context-remaining", input: {} }); }
       assert.ok(userTexts(body).some(one => one.includes(text)), JSON.stringify(body.messages));
-      return reply(undefined, childCalls === 2 ? "Original child completed." : "Continued child completed.");
+      return reply(undefined, childCalls === 2 ? "Original child completed." : childCalls === 3 ? "Continued child completed." : "Retried child completed.");
     }
     if (++parentCalls === 1) {
       const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@\d+/u)?.[0]; assert.ok(character);
@@ -90,6 +95,9 @@ test("subtask original requests deliver once, continue the same child and surviv
     await f.until(async () => (await port().list(parent.ref))[0]?.state === "completed");
     const original = await port().conversation!(parent.ref, child.subagent_id);
     assert.equal(original.messages.filter(one => one.text === text).length, 1);
+    assert.equal(original.messages.find(one => one.text === text)?.kind, "user", "the SDK's attested person original stays a user message");
+    assert.equal(original.messages.find(one => one.text === "SAI_CHILD_ORIGINAL: inspect without changing files.")?.kind, "notice", "the first delegated task is not a person's message");
+    assert.ok(!original.messages.some(one => one.text.includes("Your task step reference")), "SDK execution instructions stay out of the child transcript projection");
     const nextText = "Continue this same child: SAI_NEXT_59.";
     const next: AgentSubagentCommand = { kind: "continue", text: nextText, child_run: child.child_run, request_id: "original-continue" };
     const continued = await port().command!(parent.ref, child.subagent_id, next, { ...control, original_text: nextText });
@@ -102,14 +110,139 @@ test("subtask original requests deliver once, continue the same child and surviv
     assert.throws(() => port().assertCurrent!(parent.ref, child.subagent_id, child.child_run!), /原子任务执行已改变/);
     assert.doesNotThrow(() => port().assertCurrent!(parent.ref, child.subagent_id, after.child_run!));
     assert.equal((await port().command!(parent.ref, child.subagent_id, { kind: "stop", child_run: child.child_run, request_id: "stale-stop" }, control)).state, "not-applied");
+    assert.equal((await port().command!(parent.ref, child.subagent_id, { kind: "extend-budget", child_run: after.child_run, attempts: 1, request_id: "allow-one-retry" }, control)).state, "applied");
+    assert.equal((await port().command!(parent.ref, child.subagent_id, { kind: "retry", child_run: after.child_run, source: "user-requested", request_id: "retry-without-person-text" }, control)).state, "applied");
+    await f.until(async () => (await port().list(parent.ref))[0]?.state === "completed");
+    const [retried] = await port().list(parent.ref); assert.ok(retried?.child_run);
+    assert.equal(retried.budget?.retry_source, "user-requested");
+    assert.equal(after.budget?.retry_source, "user-requested", "same operation source does not prove text authorship");
     const before = f.requests.length;
     await f.reopen();
     assert.deepEqual(await port().checkRequest!(parent.ref, child.subagent_id, send.request_id, owner.actor_id), accepted);
     assert.deepEqual(await port().checkRequest!(parent.ref, child.subagent_id, next.request_id, owner.actor_id), continued);
     const restored = await port().conversation!(parent.ref, child.subagent_id);
-    assert.ok(restored.messages.some(one => one.text === nextText));
+    assert.ok(restored.messages.some(one => one.text === nextText && one.kind === "user"));
+    assert.equal(restored.messages.filter(one => one.run.run_id === after.child_run!.run_id && one.kind === "user" && !one.steer).length, 1);
+    const retryOpening = restored.messages.find(one => one.run.run_id === retried.child_run!.run_id && one.text.includes("请先核对前次尝试"));
+    assert.equal(retryOpening?.kind, "notice", "Host retry instructions remain readable without claiming personal authorship after reopen");
     assert.equal(new Set(restored.messages.map(one => one.turn_id)).size, restored.messages.length);
     assert.equal(f.requests.length, before, "reading and reopening cannot restart either agent");
+    // SAI-03/10: corrupt optional provenance cannot manufacture personal authorship; raw history remains readable.
+    await f.adapter.close();
+    const inspector = createNodeHost({ storageRoot: join(f.root, "sdk") });
+    const kind = `molis-agent-index-${createHash("sha256").update("io.molis.work.sai").digest("hex").slice(0, 24)}`;
+    const bytes = await inspector.storage.readSecure({ kind, id: parent.ref.session_id });
+    type Index = { attempts: Array<{ refused?: { code: string; at: string }; subagent_person_continuations?: unknown }> };
+    let index: Index; try { index = JSON.parse(new TextDecoder().decode(bytes)) as Index; } finally { bytes.fill(0); }
+    const saveIndex = async (value: Index) => {
+      const row = await inspector.storage.get({ kind, id: parent.ref.session_id }); assert.ok(row);
+      await inspector.storage.commit({ kind, id: parent.ref.session_id, expectedVersion: row.version, metadata: { schema: 1 }, secureBody: new TextEncoder().encode(JSON.stringify(value)) });
+    };
+    for (const change of ["duplicate-parent", "refused-parent", "duplicate-marker", "malformed-marker"] as const) {
+      const changed = structuredClone(index);
+      if (change === "duplicate-parent") changed.attempts.push(structuredClone(changed.attempts[0]!));
+      else if (change === "refused-parent") changed.attempts[0]!.refused = { code: "SESSION_HISTORY_UNAVAILABLE", at: "2026-11-17T00:00:00.000Z" };
+      else changed.attempts[0]!.subagent_person_continuations = change === "duplicate-marker" ? [after.child_run.run_id, after.child_run.run_id] : { run: after.child_run.run_id };
+      await saveIndex(changed); await f.reopen();
+      const unproven = await port().conversation!(parent.ref, child.subagent_id);
+      const opening = unproven.messages.find(one => one.run.run_id === after.child_run!.run_id && !one.steer && one.kind !== "assistant");
+      assert.equal(opening?.kind, "notice", change);
+      assert.equal(opening?.text, change === "duplicate-parent" || change === "refused-parent" ? "" : nextText, change);
+      assert.equal(unproven.messages.find(one => one.text === text)?.kind, "user", "independent original supplement receipt remains valid");
+      await f.adapter.close();
+    }
+    await saveIndex(index);
+    // Public Session adoption supplies a historical fixture with two caller prompts, as a prompt hook can write.
+    const runtime = await createRuntime({ app: { appId: "io.molis.work.sai", appVersion: "1.0.0" }, host: inspector, preset: "local-agent" });
+    const parentSession = await runtime.sessions.open({ kind: "session", id: parent.ref.session_id, revision: 1 }); assert.ok(parentSession);
+    const originalParentRun = { kind: "run", id: parent.ref.run_id, revision: 1 } as const;
+    const parentEvents = await parentSession.replay(originalParentRun);
+    const envelopes = runtime.delivery.list({ to: parentSession.ref });
+    const results = envelopes.filter((envelope: { attachments: Array<{ kind: string }> }) => envelope.attachments.some(one => one.kind === "subagent-result"));
+    assert.equal(results.length, 3);
+    const ordinary = await runtime.sessions.create({ title: "Ordinary sender" });
+    const noticeEnvelope = (key: string, change: Record<string, unknown> = {}) => runtime.delivery.receiveInjection({
+      to: parentSession.ref, from: ordinary.ref, body: "Ordinary peer text", idempotencyKey: key, ...change,
+    }, Date.now());
+    const valid = results[0]!;
+    const malformed = [
+      noticeEnvelope("ordinary"),
+      noticeEnvelope("self-wait", { from: parentSession.ref, body: "SELF_WAIT_PROTOCOL: wait original-board original-step" }),
+      noticeEnvelope("missing", { from: valid.from, body: "Old protocol has no display metadata" }),
+      noticeEnvelope("wrong-parent", { from: valid.from, body: valid.body, attachments: valid.attachments.map((one: { kind: string }) => one.kind === "subagent-parent-run" ? { ...one, id: "another-parent" } : one) }),
+      noticeEnvelope("wrong-from", { body: valid.body, attachments: valid.attachments }),
+      noticeEnvelope("wrong-to", { to: ordinary.ref, from: valid.from, body: valid.body, attachments: valid.attachments }),
+      noticeEnvelope("duplicate-result", { from: valid.from, body: valid.body, attachments: [...valid.attachments, ...valid.attachments.filter((one: { kind: string }) => one.kind === "subagent-result")] }),
+    ];
+    const originalNotice = envelopes.find((envelope: { attachments: Array<{ kind: string }> }) => envelope.attachments.some(one => one.kind === "subagent-input")); assert.ok(originalNotice);
+    const displayEnvelopes = [...results, originalNotice, ...malformed];
+    await runtime.delivery.flush();
+    await parentSession.adoptRun(originalParentRun, [...displayEnvelopes.map(envelope => ({ type: "prompt", role: "user", source: "peer", text: envelope.body, injection: envelope.ref, atMs: 1 })), ...parentEvents]);
+    const childSession = await runtime.sessions.open({ kind: "session", id: after.child_run.session_id, revision: 1 }); assert.ok(childSession);
+    const run = { kind: "run", id: after.child_run.run_id, revision: 1 } as const;
+    const events = await childSession.replay(run);
+    await childSession.adoptRun(run, [{ type: "prompt", role: "user", source: "person", text: "NON_CALLER_PROMPT", atMs: 1 }, ...events]);
+    await runtime.shutdown(); await f.reopen();
+    const preceded = await port().conversation!(parent.ref, child.subagent_id);
+    assert.ok(preceded.messages.some(one => one.run.run_id === run.id && one.notice === "task-unavailable" && !one.text));
+    assert.ok(preceded.messages.every(one => one.text !== "NON_CALLER_PROMPT"));
+    assert.equal(preceded.messages.find(one => one.text === nextText)?.kind, "user", "authorship binds to the attested caller event, not the first user-shaped turn");
+    const parentView = await f.adapter.read(parent.ref);
+    assert.equal(parentView.turns.filter(turn => turn.text === "Dispatch one child.").length, 1, "peer prompts before the caller do not disable opening deduplication");
+    assert.deepEqual(parentView.turns.slice(1, 1 + displayEnvelopes.length).map(turn => [turn.kind, turn.text, turn.notice]), [
+      ["notice", "Original child completed.", undefined], ["notice", "Continued child completed.", undefined], ["notice", "Retried child completed.", undefined],
+      ["notice", "", "subagent-input"], ["notice", "Ordinary peer text", undefined],
+      ...Array.from({ length: 6 }, () => ["notice", "", "peer-update"]),
+    ], "each historical attempt keeps its own summary; incomplete and foreign facts cannot expose model protocol");
+    await f.adapter.close();
+    const changedRuntime = await createRuntime({ app: { appId: "io.molis.work.sai", appVersion: "1.0.0" }, host: inspector, preset: "local-agent" });
+    const changedSession = await changedRuntime.sessions.open(childSession.ref); assert.ok(changedSession);
+    await changedSession.adoptRun(run, [{ type: "prompt", role: "user", text: "HOOK_EXTRA_CALLER", atMs: 1 }, ...events]);
+    await changedRuntime.shutdown(); await f.reopen();
+    const ambiguous = await port().conversation!(parent.ref, child.subagent_id);
+    assert.equal(ambiguous.messages.filter(one => one.run.run_id === run.id && one.notice === "task-unavailable").length, 2);
+    assert.ok(ambiguous.messages.every(one => one.text !== nextText && one.text !== "HOOK_EXTRA_CALLER"), "ambiguous callers cannot manufacture a task description or personal text");
+    assert.equal(f.requests.length, before);
+    const followup = await f.host.start("prologue", { ...owner, session, directory, role_id: "coordinator", task: "PARENT_READ_RESULTS_59" }, { manifest, prompts: codingPrompts, authorizedDirectories: [f.root] });
+    await f.until(async () => (await f.adapter.read(followup.ref)).phase === "completed");
+    const currentParent = await f.adapter.read(followup.ref);
+    assert.equal(currentParent.turns.filter(turn => turn.text === "PARENT_READ_RESULTS_59").length, 1);
+    assert.ok(currentParent.turns.some(turn => turn.kind === "notice" && turn.text === "Continued child completed."));
+    assert.ok(currentParent.turns.some(turn => turn.kind === "notice" && turn.text === "Retried child completed."));
+    assert.ok(f.requests.slice(before).some(request => userTexts(request).some(body => body.includes(`run ${after.child_run.run_id}`))), `model report for ${after.child_run.run_id}`);
+    assert.ok(f.requests.slice(before).some(request => userTexts(request).some(body => body.includes("SELF_WAIT_PROTOCOL"))), "self-injection stays in the model's original input");
+    assert.ok(currentParent.turns.some(turn => turn.notice === "peer-update" && turn.text === ""));
+    assert.ok(currentParent.turns.every(turn => !turn.text.includes("SELF_WAIT_PROTOCOL")));
+    await f.reopen();
+    assert.deepEqual((await f.adapter.read(followup.ref)).turns.map(turn => [turn.kind, turn.text, turn.notice]), currentParent.turns.map(turn => [turn.kind, turn.text, turn.notice]));
+    // SAI-03/10: an old SDK wrote task + board protocol into caller prompts, including later Host retries.
+    await f.adapter.close();
+    const legacyRuntime = await createRuntime({ app: { appId: "io.molis.work.sai", appVersion: "1.0.0" }, host: inspector, preset: "local-agent" });
+    const legacySession = await legacyRuntime.sessions.open(childSession.ref); assert.ok(legacySession);
+    const legacyTask = "LEGACY_TASK\n\nTask board: private-board-id. Use board-read before working.";
+    const legacyRetry = "Retry the prior task: " + legacyTask;
+    for (const [id, text] of [[child.child_run!.run_id, legacyTask], [retried.child_run!.run_id, legacyRetry]]) {
+      const ref = { kind: "run", id, revision: 1 } as const;
+      const raw = await legacySession.replay(ref);
+      await legacySession.adoptRun(ref, raw.map(event => event.type === "prompt" && event.role === "user" && event.source === undefined && event.steerId === undefined && event.carried === undefined ? { ...event, text } : event));
+      assert.ok((await legacySession.replay(ref)).some(event => event.type === "prompt" && event.text === text), "raw history stays readable through the original SDK");
+    }
+    await legacyRuntime.shutdown();
+    const legacyBytes = await inspector.storage.readSecure({ kind, id: parent.ref.session_id });
+    let legacyIndex; try { legacyIndex = JSON.parse(new TextDecoder().decode(legacyBytes)); } finally { legacyBytes.fill(0); }
+    const legacyParent = legacyIndex.attempts.find((one: { run_id: string }) => one.run_id === parent.ref.run_id);
+    for (const fact of legacyParent.child_openings) fact.format = "caller-only-v1";
+    legacyParent.subagent_retry_tasks[retried.child_run!.run_id] = legacyRetry;
+    await saveIndex(legacyIndex); await f.reopen();
+    const legacy = await port().conversation!(parent.ref, child.subagent_id);
+    assert.equal(legacy.child.task, "");
+    assert.deepEqual(legacy.child.continuation_task, { status: "unavailable" });
+    for (const id of [child.child_run!.run_id, retried.child_run!.run_id]) {
+      assert.ok(legacy.messages.some(turn => turn.run.run_id === id && turn.notice === "task-unavailable" && turn.text === ""));
+    }
+    assert.ok(legacy.messages.every(turn => !turn.text.includes("private-board-id") && !turn.text.includes("board-read")));
+    assert.ok(legacy.messages.some(turn => turn.kind === "assistant" && turn.text === "Original child completed."));
+    assert.ok(legacy.messages.some(turn => turn.kind === "user" && turn.text === text), "the person's original input receipt stays readable");
     assert.deepEqual(f.errors, []);
   } finally { release.resolve(); await f.close(); }
 });

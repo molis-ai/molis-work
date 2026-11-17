@@ -49,13 +49,13 @@ export interface CodingWorkbenchHost {
  * (its own bundle, loaded beside this one); the files face is Coding's own (main/files-face.ts). Built with esbuild into `dist/workbench-bundle.js` (src/workbench-client.ts reads it).
  */
 export function codingWorkbench(host: CodingWorkbenchHost): void {
-  if (host.view.task) { mountCodingSubtask(host); return; }
   const codingRoot = (host.root.matches("[data-coding-workbench]") ? host.root : host.root.querySelector("[data-coding-workbench]")) as HTMLElement | null;
   if (!codingRoot) {
     const directory = host.root.matches("[data-coding-directory]") ? host.root : host.root.querySelector("[data-coding-directory]");
     if (directory) mountCodingDirectory({ ...host, root: directory });
     return;
   }
+  if (host.view.task) { mountCodingSubtask(host); return; }
   const { mountPluginClient, readRefusal, pluginId, pluginRoute, confirm, clients } = host;
   // What every client mounted here gets besides its own ports.
   const lent = { mountPluginClient, readRefusal, pluginId, pluginRoute, confirm };

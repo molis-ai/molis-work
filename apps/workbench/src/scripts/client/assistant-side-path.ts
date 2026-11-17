@@ -60,6 +60,7 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 路径: a line from who 
           const mark = el("span", "assistant-subtask-mark" + (tone ? " is-" + tone : ""));
           mark.append(spinner(ringState(child.state)));
           const name = el("button", "assistant-subtask-name", child.title); name.type = "button"; name.setAttribute("aria-label", globalThis.t.text("workbench.assistant-side-path.open-named", { title: child.title }));
+          name.id = subtaskEntryId(child.work_id);
           name.addEventListener("click", event => { event.stopPropagation(); openSubtask(child.work_id); });
           row.append(mark, name, el("span", "assistant-subtask-state", (child.taken_back ? globalThis.t.text("workbench.assistant-side-path.taken-back") : stateLabel(child.state)) + (child.follow_ups ? " · " + globalThis.t.text("workbench.assistant-side-path.follow-ups") + " " + child.follow_ups : "")));
           /* Stop one sub-task from here, without opening it; what it already did stays. */
@@ -82,6 +83,7 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 路径: a line from who 
           const phase = child.state === "reconcile-required" ? "reconcile-required" : child.state === "cancelled" ? "stopped" : child.state;
           mark.append(spinner(child.state === "completed" ? "round-ended" : child.state === "reconcile-required" ? "verify" : child.state));
           const name = el("button", "assistant-subtask-name", child.role_name || child.role_id); name.type = "button"; name.title = child.task;
+          name.id = subtaskEntryId(work.work_id, child.parent_run.run_id, child.subagent_id);
           name.addEventListener("click", event => { event.stopPropagation(); openSubtask(work.work_id, child.parent_run.run_id, child.subagent_id); });
           row.append(mark, name, el("span", "assistant-subtask-state", globalThis.t.text("workbench.subtask-conversation.phase." + phase)));
           return row;

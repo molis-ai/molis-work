@@ -9,6 +9,7 @@ import { BUSINESS_HOST_TOOLS, BUSINESS_SUBAGENT_HOST_TOOLS } from "@molis-ai/mol
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
+import { projectPeerNotice } from "./prologue-peer-notices.js";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
 import { FIND_SYMBOL_HOST_TOOL } from "../code-intelligence/coding-tools.js";
@@ -346,7 +347,7 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
       const attempt = saved.attempts[attemptIndex];
       if (saved.ref.id !== index.ref.id || observed.parentSession.id !== index.ref.id || !attempt || attempt.refused
         || attempt.task !== input.task || attempt.run_id && attempt.run_id !== observed.parentRun.id) throw new Error("子任务原启动身份不一致");
-      const fact = { parent_run: observed.parentRun.id, session: { ...observed.childSession.ref }, run: { ...observed.run.ref }, format: "caller-only-v1" as const };
+      const fact = { parent_run: observed.parentRun.id, session: { ...observed.childSession.ref }, run: { ...observed.run.ref }, format: "caller-only-v2" as const };
       const held = attempt.child_openings ??= [];
       if (held.some(item => item.session.id === fact.session.id || item.run.id === fact.run.id)) throw new Error("子任务生成事实已存在，不能重标旧记录");
       held.push(fact);
@@ -578,7 +579,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
           if (event.type === "usage" || event.type === "usage-recorded") {
             const receipt: PrologueUsageReceipt = event.receipt;
             listener({ ...event, receipt });
-          } else listener(event);
+          } else listener(projectPeerNotice(deps.runtime, at.session.ref, event));
         })),
       cancel: () => { at.onAborted(); actionController.abort(); void at.surface.release("stopped").catch(() => undefined); return started.run.cancel(); },
     },

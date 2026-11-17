@@ -1,4 +1,6 @@
 import { originalRunEvents } from "./prologue-original-inputs.js";
+import { canonicalCallerOpening } from "./prologue-session-opening.js";
+import { projectPeerNotice } from "./prologue-peer-notices.js";
 import { createHash } from "node:crypto";
 import { projectInputReceipts, type Runtime, type SubagentHandle } from "@prologue/sdk";
 import type { AgentRunRef, AgentSubagentConversation, AgentSubagentRequestResult, AgentSubagentsCapability } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -45,25 +47,45 @@ const requestKey = (run: AgentRunRef, id: string, request: string, actor: string
 export function subagentConversation(
   runtime: Runtime,
   owned: (run: AgentRunRef, id: string) => SubagentHandle,
-  list: AgentSubagentsCapability["list"],
+  read: (run: AgentRunRef) => Promise<{ children: Awaited<ReturnType<AgentSubagentsCapability["list"]>>; personOpenings?: Record<string, string>; retryOpenings?: Record<string, string> }>,
   hooks: PrologueSubagentHooks,
 ): Pick<AgentSubagentsCapability, "conversation" | "command" | "checkRequest" | "assertCurrent"> {
+  const list: AgentSubagentsCapability["list"] = async run => (await read(run)).children;
   const conversation: NonNullable<AgentSubagentsCapability["conversation"]> = async (run, id) => {
     let child = owned(run, id);
     if (child.state === "reconcile-required") { await runtime.sessions.inspectRecovery(child.session); child = owned(run, id); }
-    const view = (await list(run)).find(one => one.subagent_id === id);
+    const { children, personOpenings, retryOpenings } = await read(run);
+    const view = children.find(one => one.subagent_id === id);
     if (!view) throw agentErrors.collaboration_unknown("子任务不属于这一轮执行");
     const session = await runtime.sessions.open(child.session);
     if (!session) throw agentErrors.session_unknown("子任务原始会话不可读取");
     const messages: AgentSubagentConversation["messages"] = [];
     let latest = emptyPrologueStreamState();
-    for (const attempt of child.attempts ?? [child.run]) {
+    const attempts = child.attempts ?? [child.run];
+    for (const attempt of attempts) {
       latest = emptyPrologueStreamState();
-      for (const event of await originalRunEvents(session, attempt)) applyRunEvent(latest, event, null);
+      const events = await originalRunEvents(session, attempt);
+      const person = personOpenings?.[attempt.id];
+      const task = view.continuation_task?.status === "available" ? (attempt === attempts[0] ? view.continuation_task.text : retryOpenings?.[attempt.id]) : undefined;
+      const canonical = canonicalCallerOpening(events);
+      const personal = attempt !== attempts[0] && person !== undefined && canonical === person;
+      const opening = personal || task !== undefined && canonical === task
+        ? events.find(event => event.type === "prompt" && event.role === "user" && event.source === undefined && event.steerId === undefined && event.carried === undefined) : undefined;
+      let openingTurn: string | undefined;
+      for (const event of events) {
+        applyRunEvent(latest, projectPeerNotice(runtime, session.ref, event), null);
+        if (event === opening) openingTurn = latest.turns.at(-1)?.turn_id;
+      }
       const ref = { session_id: child.session.id, run_id: attempt.id };
       for (const turn of latest.turns) {
         if (turn.kind === "system") continue;
-        messages.push({ ...turn, turn_id: `${attempt.id}:${turn.turn_id}`, run: ref });
+        // A caller role does not attest authorship: only the protected continue or an original input receipt does.
+        const isOpening = turn.kind === "user" && !turn.steer;
+        const original = turn.steer?.original;
+        const shown = original ? { kind: "user" as const, text: original.text }
+          : !isOpening ? {} : turn.turn_id !== openingTurn ? { kind: "notice" as const, text: "", notice: "task-unavailable" as const }
+          : { kind: personal ? "user" as const : "notice" as const };
+        messages.push({ ...turn, ...shown, turn_id: `${attempt.id}:${turn.turn_id}`, run: ref });
       }
       if (latest.streaming) messages.push({ turn_id: `${attempt.id}:assistant-${latest.turns.length + 1}`, kind: "assistant", text: latest.streaming, at: latest.streaming_at, run: ref });
     }

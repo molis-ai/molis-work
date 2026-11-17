@@ -11,11 +11,12 @@ const userTexts = (body: ModelWire) => body.messages.filter(message => message.r
 // The model responses are scripted; this is engineering integration evidence, not a real-provider or user acceptance claim.
 for (const place of ["project", "home"] as const) for (const source of ["work", "sdk"] as const) test(`Assistant ${place} ${source} child opens in the shared float, continues its own context, and leaves main input untouched`, { timeout: 120_000 }, async t => {
   let parentCalls = 0, childCalls = 0; const bodies: ModelWire[] = [];
+  const followUp = Promise.withResolvers<void>(); t.after(() => followUp.resolve());
   const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, { prepareHome: async home => {
     await recordingTextModel(t, home, async body => {
       bodies.push(body);
       const words = userTexts(body).join("\n");
-      if (words.includes(`CHILD_${source}_59`)) { childCalls++; return reply(undefined, `Child answer ${childCalls}`); }
+      if (userTexts(body)[0]?.includes(`CHILD_${source}_59`)) { childCalls++; if (words.includes(`FOLLOW_UP_${source}_59`)) await followUp.promise; return reply(undefined, `Child answer ${childCalls}`); }
       if (words.includes(`PARENT_${source}_59`) && ++parentCalls === 1) {
         if (source === "work") return reply({ name: "delegate-work", input: { title: "真实子任务 59", brief: `CHILD_${source}_59: reply with one sentence.`, acceptance: "一句话" } });
         const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@\d+/u)?.[0]; assert.ok(character, "real registered child Character is offered");
@@ -47,6 +48,11 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   assert.ok(childCalls, JSON.stringify(current));
+  if (source === "sdk") {
+    await browser.waitFor("[...document.querySelectorAll('.assistant-msg--note')].some(node=>node.textContent.includes('Child answer 1'))", 15_000);
+    const peer = await browser.evaluate<string[]>("[...document.querySelectorAll('.assistant-msg--note')].map(node=>node.textContent)");
+    assert.doesNotMatch(peer.join("\n"), /resume: subagent|board-report|A person added input to subagent/, "SAI-07: parent notices show the original report summary, without model protocol");
+  }
   const notices = () => browser.evaluate<{ notices: AssistantNotice[] }>(`fetch(${JSON.stringify(base + "/notices")}).then(r=>r.json())`);
   await notices();
   await browser.evaluate(`fetch(${JSON.stringify(base + "/notices")},{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({work_id:${JSON.stringify(sent.work.work_id)},state:'seen'})}).then(r=>r.json())`);
@@ -72,6 +78,7 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
     if (!await browser.evaluate("document.querySelector('.assistant-subtask-name')?.getBoundingClientRect().width > 0")) await browser.click("[data-assistant-side-toggle]");
     await browser.waitFor("document.querySelector('.assistant-subtask-name')?.getBoundingClientRect().width > 0");
   }
+  await browser.evaluate("window.__subtaskEntry=document.querySelector('.assistant-subtask-name')");
   await browser.click(".assistant-subtask-name");
   try { await browser.waitFor("document.querySelector('[data-work-task-float] .mw-subtask__composer .mw-composer__input')", 15_000); }
   catch (error) { t.diagnostic(JSON.stringify(await browser.evaluate("({errors:window.__subtaskErrors,bar:!!document.querySelector('[data-work-bar]'),float:document.querySelector('[data-work-task-float]')?.outerHTML.slice(0,1500)})"))); throw error; }
@@ -95,9 +102,26 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
   assert.equal(childCalls, before + 1);
   assert.ok(bodies.some(body => userTexts(body).some(text => text.includes(`FOLLOW_UP_${source}_59`))));
   assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "main draft stays");
-  await browser.evaluate("document.querySelector('[data-work-task-float] [data-subtask-close]').click()");
+  await browser.evaluate("window.dispatchEvent(new Event('focus'))");
+  try { await browser.waitFor("!window.__subtaskEntry.isConnected", 15_000); }
+  catch (error) { t.diagnostic(JSON.stringify({ before, parentCalls, childCalls, original: current, now: await read(), ui: await browser.evaluate("({hidden:document.hidden,entry:window.__subtaskEntry.outerHTML,path:document.querySelector('[data-assistant-side-path]')?.textContent,errors:window.__subtaskErrors})") })); throw error; }
+  await browser.evaluate(`${childInput}.focus()`);
+  await browser.command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, browser.sessionId);
+  await browser.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, browser.sessionId);
   await browser.waitFor("!document.querySelector('[data-work-task-float]')");
+  await browser.waitFor("document.activeElement===document.getElementById(window.__subtaskEntry.id)");
+  assert.notEqual(await browser.evaluate("document.activeElement===window.__subtaskEntry"), true, "focus returns to the same logical entry after its actual state refresh");
   assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "main draft stays");
+  // A result still being read in the open parent is correctly marked seen. Close it before this new reply arrives.
+  await browser.click(".assistant-subtask-name"); await browser.waitFor(childInput);
+  await browser.click("[data-work-task-float] [data-subtask-close]");
+  await browser.waitFor("!document.querySelector('[data-work-task-float]') && document.activeElement===document.getElementById(window.__subtaskEntry.id)");
+  await browser.click(".assistant-subtask-name"); await browser.waitFor(childInput);
+  await browser.click("[data-assistant-composer] .mw-composer__input");
+  if (place === "project") await browser.waitFor("!document.querySelector('[data-work-task-float]')");
+  assert.equal(await browser.evaluate("document.activeElement===document.querySelector('[data-assistant-composer] .mw-composer__input')"), true, "choosing the main input preserves its focus; Home keeps both conversations open");
+  await browser.click("[data-assistant-panel-close]");
+  followUp.resolve();
   let updates: AssistantNotice[] = [];
   for (const end = Date.now() + 15_000; Date.now() < end;) {
     updates = (await notices()).notices.filter(one => one.work_id === sent.work.work_id && one.kind === "result");

@@ -85,6 +85,43 @@ test("RING-07 Coding plan and cooperation render actual rings and preserve recei
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
+// SAI-03/10/15: a missing attested task is display-only; feedback still saves, but cannot seed a model draft.
+test("Coding keeps old subtask results and saves rework without prefilling an unavailable task", { timeout: 30_000 }, async t => {
+  const directory = mkdtempSync(join(tmpdir(), "coding-unavailable-task-"));
+  const browser = await openStudioChrome(directory);
+  if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("Chrome is required"); return; }
+  try {
+    const page = await browser.page();
+    for (const locale of ["en", "zh"] as const) {
+      await page.evaluate(`(()=>{${pageTextScript(locale, "coding")}})()`);
+      const result = await page.evaluate<{ task: string; card: string; requests: Array<{ action: string; notes: string }>; prefills: number; status: string }>(`(async () => {
+        document.body.innerHTML=${JSON.stringify(codingFixtureHtml(locale))};
+        const root=document.querySelector('[data-coding-workbench]');root.hidden=false;
+        const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root), q=selector=>root.querySelector(selector);
+        const requests=[];let prefills=0,status='',finished;const saved=new Promise(resolve=>{finished=resolve;});
+        const ports={lifetime,translate:globalThis.t.text,q,current:()=>'s',status:value=>{status=value;},refresh:async()=>{finished();},roleName:id=>id};
+        const child={subagent_id:'old',role_id:'reader',role_name:'Reader',state:'completed',task:'',result:'Retained old result'};
+        const run={ref:{run_id:'r'},phase:'completed'}, group={run_id:'r',children:[child]};
+        const cards=(${embeddedFactory("subagentCards")})({...ports,api:async()=>({}),timeline:{update(){},remove(){}},showReviews(){},sessionId:()=>'s',openInPanel(){},parentLive:()=>false,prefill(){}});
+        const card=cards.render(run,group);root.append(card);
+        const panel=(${embeddedFactory("subagents")})({...ports,api:async(path,method,body)=>{requests.push(body);return {};},usageSummary:()=>'',prepareRework:async()=>{prefills++;},openIntegration(){}});
+        panel.update('s',[group]);
+        const input=q('[data-feedback]');input.value='Keep the result; check one more case';
+        const button=[...q('[data-coding-subagents]').querySelectorAll('button')].find(node=>node.textContent===globalThis.t.text('coding.sub.rework'));
+        button.click();await saved;
+        return {task:q('[data-coding-subagents]').textContent,card:card.textContent,requests,prefills,status};
+      })()`);
+      const description = locale === "en" ? "Original task description unavailable" : "原任务说明不可用";
+      assert.ok(result.task.includes(description)); assert.ok(result.card.includes(description));
+      assert.match(result.task, /Retained old result/);
+      assert.equal(result.requests.length, 1); assert.equal(result.requests[0]!.action, "needs-work");
+      assert.equal(result.requests[0]!.notes, "Keep the result; check one more case");
+      assert.equal(result.prefills, 0);
+      assert.equal(result.status, locale === "en" ? "The rework reason is saved; the original task description is unavailable, so no draft was added." : "返工原因已保存；原任务说明不可用，未预填返工草稿。");
+    }
+  } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
 // VUX-40: Coding's cooperation panel, the subagent cards in the conversation, the subagent results and the usage meter draw
 // no Chinese of their own through the English translator (the data below is English, as a person's would be).
 test("VUX-40: cooperation, subagents and the usage meter speak English in English", { timeout: 30_000 }, async t => {

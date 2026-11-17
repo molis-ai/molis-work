@@ -4,6 +4,7 @@ import type { FrameDown, FrameScope, FrameUp } from "./types.js";
 /** Only the shell supplies the floating context. The page asks for a target, never for a document or another installation. */
 export function childTaskView(port: MessagePort, scope: FrameScope, initial?: Readonly<Record<string, string>>): Pick<UiPageView, "openTask" | "task"> {
   let sequence = 0, input = initial ? Object.freeze({ ...initial }) : undefined;
+  let returnFocus: HTMLElement | null = null;
   const pending = new Map<number, { resolve(): void; reject(error: Error): void }>(), listeners = new Set<(input: Readonly<Record<string, string>>) => void>();
   const close = () => { if (scope.alive && input) port.postMessage({ type: "task-close" } satisfies FrameUp); };
   scope.own(() => { for (const one of pending.values()) one.reject(new Error("View closed")); pending.clear(); listeners.clear(); });
@@ -14,7 +15,10 @@ export function childTaskView(port: MessagePort, scope: FrameScope, initial?: Re
       if (message.error) one.reject(new Error(message.error)); else one.resolve();
     } else if (message.type === "task-input" && input) {
       input = Object.freeze({ ...message.input }); for (const listener of listeners) listener(input);
-    } else if (message.type === "task-return-focus") (document.activeElement as HTMLElement | null)?.focus();
+    } else if (message.type === "task-return-focus") {
+      (returnFocus?.isConnected ? returnFocus : document.getElementById(returnFocus?.id ?? ""))?.focus({ preventScroll: true });
+      returnFocus = null;
+    }
   });
   if (initial) scope.listen(document, "keydown", event => {
     const key = event as KeyboardEvent;
@@ -23,6 +27,7 @@ export function childTaskView(port: MessagePort, scope: FrameScope, initial?: Re
   return {
     openTask: value => new Promise<void>((resolve, reject) => {
       scope.assertCurrent(); const id = ++sequence; pending.set(id, { resolve, reject });
+      returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       port.postMessage({ type: "task-open", id, input: { ...value } } satisfies FrameUp);
     }),
     ...(input ? { task: { get input() { return input!; }, subscribe(listener: (value: Readonly<Record<string, string>>) => void) { listeners.add(listener); return () => listeners.delete(listener); }, close } } : {}),

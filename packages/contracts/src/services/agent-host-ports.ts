@@ -121,7 +121,7 @@ export interface AgentSubagentView {
   execution: import("./agent-host-start.js").AgentFrozenSubagentRole["execution"];
   /** Name frozen at dispatch, unaffected by later role edits. */
   role_name?: string;
-  /** Raw historical task for viewing; not an attestation for reuse as model input. */
+  /** Verified original task description; empty when its original source cannot be attested. */
   task: string;
   /** Exact caller task owned by this child's creator, or explicitly unavailable. */
   continuation_task?: { status: "available"; text: string } | { status: "unavailable" };

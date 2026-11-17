@@ -5,6 +5,28 @@ import type { AgentSubagentConversation } from "@molis-ai/molis-work-contracts/s
 import type { MwSubtaskConversationView } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const signal = () => new AbortController().signal;
+
+test("SAI-03/07: public child source localizes empty notices without replacing original text", async () => {
+  const f = fixture(), conversation = data("A");
+  conversation.messages = [
+    { kind: "notice", text: "", notice: "peer-update" },
+    { kind: "notice", text: "", notice: "subagent-input" },
+    { kind: "notice", text: "", notice: "task-unavailable" },
+    { kind: "notice", text: "Exact original report", notice: "peer-update" },
+    { kind: "user", text: "Person words", notice: "peer-update" },
+  ].map((turn, i) => ({ ...turn, turn_id: String(i), at: null, run: conversation.child.child_run! })) as AgentSubagentConversation["messages"];
+  f.ports.read = async () => ({ conversation, parent: { target: "parent", title: "Parent" } });
+  f.ports.text = key => `Translated ${key}`;
+  conversation.child.task = "";
+  conversation.child.continuation_task = { status: "unavailable" };
+  const shown = await f.view(createAgentSubtaskSource(f.ports), "A");
+  assert.deepEqual(shown.messages.map(one => [one.role, one.content]), [
+    ["notice", { text: "Translated notice.peer-update" }], ["notice", { text: "Translated notice.subagent-input" }],
+    ["notice", { text: "Translated notice.task-unavailable" }],
+    ["notice", { text: "Exact original report" }], ["user", { text: "Person words" }],
+  ]);
+  assert.equal(shown.summary, "Translated notice.task-unavailable");
+});
 const data = (target: string, phase: AgentSubagentConversation["phase"] = "completed"): AgentSubagentConversation => ({
   child: { subagent_id: target, parent_run: { session_id: "parent", run_id: "parent-run" }, child_run: { session_id: target, run_id: `${target}-r1` }, role_id: "writer", task: target, state: "completed", result: "kept", workspace_path: null },
   phase, messages: [], questions: [], approvals: [],

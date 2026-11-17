@@ -8,7 +8,7 @@ import { subtaskDraft } from "./subtask-draft.js";
 export interface AgentSubtaskSourcePorts {
   drafts: UiPageDrafts;
   labels: MwComposerAiLabels;
-  /** Owner-localized words. Phase and receipt names are passed as `phase.<value>` / `receipt.<value>`. */
+  /** Owner-localized words. Phase, receipt and empty notice names use `phase.<value>` / `receipt.<value>` / `notice.<value>`. */
   text(key: string): string;
   read(target: string, signal: AbortSignal): Promise<{ conversation: AgentSubagentConversation; parent: MwSubtaskLink; children?: MwSubtaskLink[]; details?: MwSubtaskDetail[] }>;
   command(target: string, command: AgentSubagentCommand, signal: AbortSignal): Promise<AgentSubagentRequestResult & { details?: { errors?: Record<string, string> } }>;
@@ -68,9 +68,9 @@ export function createAgentSubtaskSource(ports: AgentSubtaskSourcePorts): Subtas
       const state: StateRingState = data.phase === "completed" ? "round-ended" : data.phase === "awaiting-input" ? "answer" : data.phase === "awaiting-review" ? "approval" : data.phase === "reconcile-required" ? "interrupted" : data.phase === "failed" ? "failed" : data.phase === "stopped" || data.phase === "cancelled" ? "stopped" : "running";
       const pending = await draft(target).pending();
       return { state: "available", view: {
-        target, binding, parent, title: child.role_name ?? child.role_id, summary: child.task, status: { state, label: ports.text(`phase.${data.phase}`) }, running,
+        target, binding, parent, title: child.role_name ?? child.role_id, summary: child.task || ports.text("notice.task-unavailable"), status: { state, label: ports.text(`phase.${data.phase}`) }, running,
         ...(unavailable ? { inputUnavailable: unavailable } : {}),
-        messages: data.messages.map(message => ({ id: `${message.run.run_id}:${message.turn_id}`, role: message.kind === "user" ? "user" : message.kind === "assistant" ? "assistant" : "notice", content: { text: message.text },
+        messages: data.messages.map(message => ({ id: `${message.run.run_id}:${message.turn_id}`, role: message.kind === "user" ? "user" : message.kind === "assistant" ? "assistant" : "notice", content: { text: message.kind === "notice" && !message.text && message.notice ? ports.text(`notice.${message.notice}`) : message.text },
           ...(message.steer ? { receipt: ports.text(`receipt.${message.steer.state}`) } : {}) })),
         details: [...(child.activity?.length ? [{ id: "process", title: ports.text("process"), content: { text: child.activity.map(activity => [activity.name, activity.target, activity.summary, activity.output].filter(Boolean).join("\n")).join("\n\n") } }] : []), ...(details ?? [])], children,
         actions: !child.child_run || data.input_unavailable || data.phase === "reconcile-required" ? [] : data.queued_answer ? [{ id: "resume-answer", ref: JSON.stringify(data.queued_answer), label: ports.text("continue"), pendingSafe: true }] : running ? [{ id: "stop", ref: binding, label: ports.text("stop") }]

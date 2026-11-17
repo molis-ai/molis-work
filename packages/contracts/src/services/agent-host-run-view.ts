@@ -37,7 +37,7 @@ export interface AgentTurnView {
   kind: AgentTurnKind;
   text: string;
   /** Localized presentation for an empty notice only; never authorship, authority or a model instruction. */
-  notice?: "peer-update" | "subagent-input";
+  notice?: "peer-update" | "subagent-input" | "task-unavailable";
   /** Observation time; null when the original replay has no recorded time. */
   at: string | null;
   /** Relative presentation order within this Run, reconstructed from its events. */

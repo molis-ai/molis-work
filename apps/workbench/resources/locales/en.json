@@ -9959,6 +9959,9 @@
     "workbench.subtask-conversation.answer-needed": "Answer the question before submitting.",
     "workbench.subtask-conversation.draft-unsaved": "Your answer draft could not be saved. Please try again.",
     "workbench.subtask-conversation.answer-accepted": "Your answer was accepted; the next round has not started.",
-    "workbench.subtask-conversation.approvals": "Approval"
+    "workbench.subtask-conversation.approvals": "Approval",
+    "workbench.subtask-conversation.notice.peer-update": "Conversation update received",
+    "workbench.subtask-conversation.notice.task-unavailable": "Original task description unavailable",
+    "workbench.subtask-conversation.notice.subagent-input": "A person added input to this subtask"
   }
 }

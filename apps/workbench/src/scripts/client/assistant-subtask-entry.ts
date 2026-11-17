@@ -1,6 +1,7 @@
 /** The existing Assistant entry freezes its route and page lifetime before the shared program is fetched. */
 export const ASSISTANT_SUBTASK_ENTRY_PART = String.raw`
   let subtaskLifetime = new AbortController(), subtaskTicket = 0, releaseSubtaskAccount;
+  const subtaskEntryId = (...target) => 'assistant-child-' + encodeURIComponent(JSON.stringify([host.route('/api/assistant'), ...target]));
   const closeSubtask = () => { subtaskTicket++; subtaskLifetime.abort(); subtaskLifetime = new AbortController(); };
   const loadSubtasks = () => new Promise((resolve, reject) => {
     let script = document.querySelector('script[data-assistant-subtasks]');

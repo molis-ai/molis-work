@@ -4,8 +4,8 @@ export interface TaskFloatContent {
   resume?(): void;
   destroy(): void;
 }
-export interface TaskFloatNavigation { back(): void; close(): void }
-export interface TaskFloatOpening { prepare?(signal: AbortSignal): Promise<void | { discard: true }>; beforeShow?(signal: AbortSignal): Promise<void>; onClose?(): void }
+export interface TaskFloatNavigation { back(): void; close(returnFocus?: boolean): void }
+export interface TaskFloatOpening { prepare?(signal: AbortSignal): Promise<void | { discard: true }>; beforeShow?(signal: AbortSignal): Promise<void>; onClose?(returnFocus: boolean): void }
 export type TaskFloatMount<T extends TaskFloatContent = TaskFloatContent> = (root: HTMLElement, navigation: TaskFloatNavigation) => T | Promise<T>;
 interface TaskFloatHost {
   open(owner: object, mount: TaskFloatMount, opening?: TaskFloatOpening): Promise<TaskFloatContent>;

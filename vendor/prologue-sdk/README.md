@@ -1,6 +1,22 @@
 # Prologue SDK 构建来源
 
-## 当前包：official main 0afbe2c3（2026-11-17，第 59 批）
+## 当前包：official main 97ee6617（2026-11-17，第 59 批）
+
+唯一运行包 `prologue-sdk-0.0.0-rc.1.tgz` 为 **1,486,978 字节**，SHA-256 `df27da3fd1f7a8a1f358991730f5d0f83f1324f9ba962b53607b0ce8d50a0a6a`。来自 [PR #133](https://github.com/molis-ai/molis-prologue/pull/133) 的官方 main `97ee66172c356366e6032c69264c1b393b1dc74d`，树与独立评审提交 `98429521b8123cd1749fdd67028e784d3fc1bbfe` 相同。
+
+原信封保留精确 child/attempt 的显示摘要及本人补充通知种类；即时回报与等待接续共用同一附件与原幂等键。摘要拒绝不改变回执状态；旧摘要与原键重放不受新发送额度影响。下一轮开场保留原注入引用和原接受正文，模型协议包装不变，无 vendor 补丁；待决目录重授权不在此包中。
+
+两份独立官方 archive 离线安装、构建与打包逐字节相同（Node 24.14.0 / pnpm 11.9.0）。上游 build/types/API/ratchet/docs/clean-consumer 通过，3 文件 34 项及注入/队列边界 4 文件 14 项通过，最后旧字段顺序回归 5/5。CI run 44133072297 在合入时仍排队，随后官方 annotation 确认账户付款/额度原因使作业未启动任何步骤；不称 CI 通过。换下的 46d8920b 包由 patch-history.json 记录；Molis 最终采用与产品验收另记。
+
+## 上一份：official main 46d8920b（2026-11-17，第 59 批）
+
+唯一运行包 `prologue-sdk-0.0.0-rc.1.tgz` 为 **1,486,210 字节**，SHA-256 `5469736d20b346462d812f9a3c0049c36a7e379b522bf3121e0d2fd7d8436ece`。来自 [PR #132](https://github.com/molis-ai/molis-prologue/pull/132) 的官方 main `46d8920badfcc18ce24482639251b6f63ff5ff65`，树与独立评审提交 `3ff1be2e7e142d6f7a0686953d6a4b971116d173` 相同。
+
+子任务 caller 开场保留逐字任务正文；SDK 任务板执行协议另作 system 材料，模型提供的标题不混入更高优先级指令。原开场、hook 改写后的原文和后续上下文沿原事件保存，不依靠字符串裁剪。不改变权限、目录授权或父回报语义，无 vendor 补丁；§12.10 待裁定的目录重授权不在此包中。
+
+两次独立官方 archive、离线安装、构建与打包逐字节相同（Node 24.14.0 / pnpm 11.9.0）。上游 build/types/API/ratchet/docs/clean-consumer 与定向 5 文件 25 项通过。CI run 44124086839 的官方 annotation 明确因账户付款/额度未启动任何步骤，不称 CI 通过。消费方采用与最终验收另记；换下的 0afbe2c3 包由 patch-history.json 记录。
+
+## 上一份：official main 0afbe2c3（2026-11-17，第 59 批）
 
 唯一运行包 `prologue-sdk-0.0.0-rc.1.tgz` 为 **1,486,171 字节**，SHA-256 `1895a23683664565db37579cb68d467ab53ee7ed9c7c9bbaf277495fe029b39b`。来自 [PR #131](https://github.com/molis-ai/molis-prologue/pull/131) 的官方 main `0afbe2c3f868565e6af85965a585ad889c044c43`，树与独立评审提交 `bf814ff2937364c3703ce288d4f6e2338b6f6e0a` 相同。
 

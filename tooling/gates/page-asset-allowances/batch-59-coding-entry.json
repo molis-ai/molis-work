@@ -1,8 +1,8 @@
 {
   "reason": "第 59 批在 Coding 原隔离页面消费公共 SDK 子对话、问卷及原审批，保留原成果能力；没有新增页面或交互。",
-  "review": "specs/subagent-interaction/spec.md §12.13；对 eafff2b526 独立基线实测 359809 → 391731 B（+31922 B）。",
-  "userApproval": "用户 2026-11-17 明确批准 /assets/molis-work-plugins/coding.js 最多增加 33000 B；独立于已批 native 共享懒包。",
+  "review": "specs/subagent-interaction/spec.md §12.13、12.18；对 main b63321c273 的独立基线实测 359809 → 395439 B（+35630 B），低于用户更新批准的 36000 B。",
+  "userApproval": "用户 2026-11-17 明确将 /assets/molis-work-plugins/coding.js 增量上限从 33000 B 调整为 36000 B；独立于已批 100000 B native 共享懒包。",
   "assets": {
-    "/assets/molis-work-plugins/coding.js": 33000
+    "/assets/molis-work-plugins/coding.js": 36000
   }
 }

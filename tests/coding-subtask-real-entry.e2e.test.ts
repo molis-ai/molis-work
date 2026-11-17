@@ -10,7 +10,7 @@ import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-respons
 
 // SAI-01/02/03/05/11/14/15: installed Coding contribution and SDK, original TaskBoard, isolated grant and local HTTP model.
 // The selected B entries and original TaskBoard resolve the same child; this local HTTP model is separate from real-provider acceptance.
-test("Coding's card, results and TaskBoard open the same real SDK child without replacing the main input", { timeout: 150_000 }, async t => {
+for (const entry of ["board", "card", "results"] as const) test(`Coding's ${entry} returns focus after real child refresh and preserves its main input`, { timeout: 150_000 }, async t => {
   let parentCalls = 0, childCalls = 0; const childBodies: ModelWire[] = [];
   const b = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, { prepareHome: async home => {
     await recordingTextModel(t, home, body => {
@@ -54,11 +54,17 @@ test("Coding's card, results and TaskBoard open the same real SDK child without 
   }
   assert.ok(completed, JSON.stringify({ parentCalls, childCalls, status: await main.evaluate("document.body.innerText.slice(-12000)") }));
   assert.equal(childCalls, 1);
+  await main.waitFor("[...document.querySelectorAll('.coding-turn[data-kind=notice]')].some(node=>node.textContent.includes('CODING_ORIGINAL_CHILD_RESULT'))", 15_000);
+  const notices = await main.evaluate<string[]>("[...document.querySelectorAll('.coding-turn[data-kind=notice]')].map(node=>node.textContent)");
+  assert.doesNotMatch(notices.join("\n"), /resume: subagent|board-report|A person added input to subagent/, "SAI-07: original summaries reach the Coding parent without model protocol");
   await b.evaluate(codingType("CODING_MAIN_DRAFT_STAYS"));
   await b.evaluate(`window.__codingMainInput=document.querySelector(${JSON.stringify(CODING_BOX)})`);
-  await main.click('[data-coding-view="board"]');
-  await main.waitFor("document.querySelector('[data-coding-board] [data-board-key^=child-] .coding-board-node')");
-  await main.click("[data-coding-board] [data-board-key^=child-] .coding-board-node");
+  if (entry === "board") await main.click('[data-coding-view="board"]');
+  if (entry === "results") await main.click(".coding-child[data-state=completed] .coding-child-foot button:not([data-coding-child-conversation])");
+  const entrySelector = entry === "board" ? "[data-coding-board] [data-board-key^=child-] .coding-board-node" : entry === "card" ? ".coding-child [data-coding-child-conversation]" : "[data-coding-subagents] [data-coding-child-conversation]";
+  await main.waitFor(`document.querySelector(${JSON.stringify(entrySelector)})`);
+  await main.evaluate(`window.__taskEntry=document.querySelector(${JSON.stringify(entrySelector)})`);
+  await main.click(entrySelector);
   await b.waitFor("document.querySelector('[data-work-task-float] [data-ui-client-state=ready] iframe[data-plugin-frame]')");
   try { await child.waitFor("document.querySelector('.mw-subtask textarea')&&!document.querySelector('.mw-subtask textarea').disabled&&document.body.textContent.includes('CODING_ORIGINAL_CHILD_RESULT')"); }
   catch (error) { t.diagnostic(await child.evaluate("document.body.innerText.slice(-6000)")); throw error; }
@@ -70,7 +76,28 @@ test("Coding's card, results and TaskBoard open the same real SDK child without 
   assert.equal(childCalls, 2); assert.ok(JSON.stringify(childBodies[1]!.messages).includes("CODING_CHILD_FOLLOW_UP"));
   assert.ok(JSON.stringify(childBodies[1]!.messages).includes("CODING_ORIGINAL_CHILD_RESULT"), "continued model consumes its original child history");
   assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(CODING_BOX)}).value`), "CODING_MAIN_DRAFT_STAYS");
-  await child.click("[data-subtask-back]"); await b.waitFor("!document.querySelector('[data-work-task-float]')");
+  await main.waitFor("!window.__taskEntry.isConnected");
+  await child.evaluate("document.querySelector('.mw-subtask textarea').focus()");
+  await b.command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, b.sessionId);
+  await b.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, b.sessionId);
+  await b.waitFor("!document.querySelector('[data-work-task-float]')");
+  await main.waitFor("document.activeElement===document.getElementById(window.__taskEntry.id)");
+  assert.equal(await main.evaluate("document.activeElement===window.__taskEntry"), false, "the real state refresh rebuilt this entry");
+  await main.click(entrySelector); await child.waitFor("document.querySelector('[data-subtask-close]')");
+  await child.click("[data-subtask-close]"); await b.waitFor("!document.querySelector('[data-work-task-float]')");
+  await main.waitFor("document.activeElement===document.getElementById(window.__taskEntry.id)");
+  if (entry !== "board") {
+    assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(CODING_BOX)}).value`), "CODING_MAIN_DRAFT_STAYS");
+    assert.equal(await main.evaluate("document.querySelectorAll('[data-coding-turns] [data-run]').length"), 1);
+    await main.click(entrySelector);
+    await child.waitFor("document.querySelector('.mw-subtask textarea')");
+    await b.click(CODING_BOX);
+    await b.waitFor("!document.querySelector('[data-work-task-float]')");
+    assert.equal(await b.evaluate(`document.activeElement===document.querySelector(${JSON.stringify(CODING_BOX)})`), true, "clicking the main input closes the float without stealing focus back to the plugin");
+    await b.command("Input.insertText", { text: "x" }, b.sessionId);
+    assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(CODING_BOX)}).value`), "CODING_MAIN_DRAFT_STAYSx");
+    return;
+  }
   assert.equal(await main.evaluate("document.querySelector('[data-coding-board]').hidden"), false);
   await main.click('[data-coding-view="dialogue"]');
   await main.click(".coding-child [data-coding-child-conversation]");

@@ -3,6 +3,7 @@ import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { AgentRunUsage, AgentSubagentBudgetView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { el, errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
+import { subtaskDescription } from "./subtask-words.js";
 
 interface Activity { readonly name: string; readonly state: string; readonly target?: string; readonly at?: string | null }
 
@@ -142,7 +143,7 @@ const assignment = (_panel: Panel, child: Child, opened: ReadonlySet<string | un
   box.className = "coding-material";
   box.dataset.child = child.subagent_id + ":assignment";
   box.open = opened.has(box.dataset.child);
-  box.append(el("summary", uiText.text("coding.sub.assignment")), el("p", child.task), el("p", uiText.text("coding.sub.workspace", { path: child.workspace_path || uiText.text("coding.sub.unknown") })), el("p", uiText.text("coding.sub.tools", { tools: (child.host_tools || []).join(uiText.text("common.list.separator")) })));
+  box.append(el("summary", uiText.text("coding.sub.assignment")), el("p", subtaskDescription(child.task)), el("p", uiText.text("coding.sub.workspace", { path: child.workspace_path || uiText.text("coding.sub.unknown") })), el("p", uiText.text("coding.sub.tools", { tools: (child.host_tools || []).join(uiText.text("common.list.separator")) })));
   return box;
 };
 
@@ -162,9 +163,9 @@ const act = async (panel: Panel, id: string, group: SubagentGroup, child: Child,
     if (action === "accepted" || action === "needs-work") {
       try { sessionStorage.removeItem(draftKey(child.subagent_id)); } catch { /* storage closed: nothing was kept */ }
     }
-    if (action === "needs-work") await ports.prepareRework(id, group.run_id, child, notes);
+    if (action === "needs-work" && child.task) await ports.prepareRework(id, group.run_id, child, notes);
     if (current() === id) {
-      status(action === "needs-work" ? uiText.text("coding.sub.rework-saved") : action === "stop" ? uiText.text("coding.sub.stop-asked") : action === "extend-budget" ? uiText.text("coding.card.budget-extended") : action === "retry" ? uiText.text("coding.card.retry-asked") : uiText.text("coding.sub.verdict-saved"));
+      status(action === "needs-work" ? child.task ? uiText.text("coding.sub.rework-saved") : uiText.text("coding.rework.task-unavailable") : action === "stop" ? uiText.text("coding.sub.stop-asked") : action === "extend-budget" ? uiText.text("coding.card.budget-extended") : action === "retry" ? uiText.text("coding.card.retry-asked") : uiText.text("coding.sub.verdict-saved"));
       await refresh();
     }
   } catch (error) {
@@ -262,6 +263,7 @@ function childRow(panel: Panel, id: string, group: SubagentGroup, child: Child, 
   row.open = opened.has(child.subagent_id);
   const conversation = button(panel, uiText.text("coding.subtask.open-result"), () => panel.ports.openConversation(id, group.run_id, child.subagent_id).catch(error => panel.ports.status(errorMessage(error), true)));
   conversation.classList.add("mw-btn--ghost"); conversation.dataset.codingChildConversation = child.subagent_id;
+  conversation.id = "coding-child-result-" + encodeURIComponent(JSON.stringify([id, group.run_id, child.subagent_id]));
   row.append(summary, conversation, assignment(panel, child, opened));
   if (child.state !== "running") row.append(compareToggle(panel, child));
   outcome(panel, row, child);

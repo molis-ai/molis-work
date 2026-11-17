@@ -1,3 +1,4 @@
+import { personalContinuationOpenings } from "./prologue-session-opening.js";
 import { bindBusinessSubagent } from "./prologue-business-child.js";
 import { stopSdkRun } from "./prologue-stop-run.js";
 import type { ReviewDecisionControl } from "../review-decisions.js";
@@ -516,6 +517,7 @@ async function continueSubagentAttempt(
       (attempt.subagent_attempt_sources ??= {})[newRunId] = source;
       if (reason?.trim()) (attempt.subagent_attempt_reasons ??= {})[newRunId] = reason.trim();
       (attempt.subagent_retry_tasks ??= {})[newRunId] = retryText;
+      if (text !== undefined && !queued) (attempt.subagent_person_continuations ??= []).push(newRunId);
     });
     if (childIndex && baseFrozen && (rootRef || baseFrozen.workspace === "business")) {
       await deps.index.update(child.session.id, saved => {
@@ -545,6 +547,8 @@ function nodeSubagentsPort(deps: PortDeps): NonNullable<PrologueRuntimePort["sub
         budgets: attempt.subagent_budgets,
         attempt_sources: attempt.subagent_attempt_sources,
         attempt_reasons: attempt.subagent_attempt_reasons,
+        person_openings: personalContinuationOpenings(attempts),
+        retry_openings: attempts.length === 1 && !attempt.refused ? attempt.subagent_retry_tasks : undefined,
         nodes: attempt.subagent_nodes,
         errors: { ...attempt.subagent_errors, ...deps.state.subagentBridgeErrors.get(run.run_id) },
       };

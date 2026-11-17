@@ -1287,6 +1287,7 @@
     },
     "coding.rework.instruction": "Prepare rework for sub-task {subagent} (parent run {run}), keeping the original result and assessment. Original directory: {path}. Before writing, explicitly choose that separate worktree and the parallel writing mode. Original task: {task}\nReason for rework: {notes}\nCheck the new result independently; a run ending is not the user’s acceptance.",
     "coding.rework.saved-not-added": "The rework reason is saved; the session is still loading, so the task has not been added to the input box yet.",
+    "coding.rework.task-unavailable": "The rework reason is saved; the original task description is unavailable, so no draft was added.",
     "coding.role.builder": "Builder",
     "coding.role.coding-builder": "Independent implementation",
     "coding.role.coding-reader": "Code investigation",
@@ -2197,6 +2198,9 @@
     "coding.subtask.answer-accepted": "Your answer was accepted; the next round has not started.",
     "coding.subtask.approvals": "Approval",
     "coding.subtask.open": "Open conversation",
-    "coding.subtask.open-result": "Open this subtask conversation"
+    "coding.subtask.open-result": "Open this subtask conversation",
+    "coding.subtask.notice.peer-update": "Conversation update received",
+    "coding.subtask.notice.task-unavailable": "Original task description unavailable",
+    "coding.subtask.notice.subagent-input": "A person added input to this subtask"
   }
 }

@@ -71,6 +71,15 @@ export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversatio
   const thread = find("thread"), messages = find("messages"), details = find("details"), latest = find("latest");
   const places = new Map<string, Place>(), surface = root.querySelector<HTMLElement>(".mw-subtask")!;
   let restoreOuter: number | undefined;
+  // A delayed draft may resize this surface, but must not undo navigation made after opening it.
+  const intervene = (event: Event) => {
+    // Leaving before layout finishes preserves the saved place; choosing another reading position cancels it.
+    const key = event instanceof KeyboardEvent ? event.key : undefined;
+    if (key === "Escape" || (event.type === "pointerdown" || key === "Enter" || key === " ")
+      && event.target instanceof Element && event.target.closest("[data-subtask-close],[data-subtask-back],[data-subtask-open]")) return;
+    restoreOuter = undefined;
+  }, inputEvents = ["wheel", "pointerdown", "keydown"];
+  for (const type of inputEvents) root.addEventListener(type, intervene, { capture: true, passive: true });
   let target: string | undefined, expanded = new Map<string, boolean>(), follower: ScrollFollower | undefined, first = true;
   const remember = () => { if (target && !first && !root.hidden) places.set(target, { outerTop: restoreOuter ?? surface.scrollTop, top: thread.scrollTop, following: follower?.state !== "detached", unread: !latest.hidden, expanded }); };
   function show(next: string) {
@@ -136,6 +145,6 @@ export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversatio
     idle() { patch(find("head"), subtaskHeader(undefined, labels())); },
     latest() { latest.hidden = true; follower?.toLatest(); },
     hide() { remember(); first = true; follower?.dispose(); follower = undefined; root.hidden = true; },
-    destroy() { follower?.dispose(); details.removeEventListener("toggle", toggled, true); places.clear(); root.replaceChildren(); },
+    destroy() { follower?.dispose(); details.removeEventListener("toggle", toggled, true); for (const type of inputEvents) root.removeEventListener(type, intervene, true); places.clear(); root.replaceChildren(); },
   };
 }

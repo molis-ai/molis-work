@@ -76,7 +76,7 @@ export function assistantWorkSubtaskSource(api: AssistantSubtaskRequest, storage
         summary: work.delegated_by?.acceptance, status: { state, label: say(phase === "unknown" ? "reconcile" : `phase.${phase}`) }, running, ...(unavailable ? { inputUnavailable: unavailable } : {}),
         messages: rounds.flatMap(round => [
           { id: `${round.run_id}:input`, role: round.written_by === "host" ? "notice" as const : "user" as const, content: { text: round.text } },
-          ...round.turns.filter(turn => turn.kind !== "user" || turn.steer).map(turn => ({ id: `${round.run_id}:${turn.turn_id}`, role: turn.kind === "user" ? "user" as const : turn.kind === "assistant" ? "assistant" as const : "notice" as const, content: { text: turn.steer?.original?.text ?? turn.text }, ...(turn.steer ? { receipt: say(`receipt.${turn.steer.state}`) } : {}) })),
+          ...round.turns.filter(turn => turn.kind !== "user" || turn.steer).map(turn => ({ id: `${round.run_id}:${turn.turn_id}`, role: turn.kind === "user" ? "user" as const : turn.kind === "assistant" ? "assistant" as const : "notice" as const, content: { text: turn.steer?.original?.text ?? (turn.kind === "notice" && !turn.text && turn.notice ? say(`notice.${turn.notice}`) : turn.text) }, ...(turn.steer ? { receipt: say(`receipt.${turn.steer.state}`) } : {}) })),
         ]),
         children: original.delegated?.map(child => ({ target: JSON.stringify(["work", child.work_id]), title: child.title })),
         details: details?.(target, token, original),

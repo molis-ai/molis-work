@@ -4,6 +4,7 @@ import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { el, errorMessage, part } from "./dom.js";
 import type { Child } from "./subagents.js";
 import type { PagePorts, ShowReviews, TimelineApi, Translate } from "./types.js";
+import { subtaskDescription } from "./subtask-words.js";
 
 /** The run whose block the subagent cards sit under. */
 export interface CardsRun { readonly ref: { readonly run_id: string }; readonly phase: string }
@@ -69,8 +70,9 @@ function drawHead(ports: SubagentCardPorts, node: HTMLElement, child: Child) {
     tokens && (tokens.input || tokens.output) ? uiText.text("coding.card.usage", { tokens: format.number((tokens.input || 0) + (tokens.output || 0)) }) : "",
   ].filter(Boolean).join(" · ");
   const task = part(node, ".coding-child-task");
-  task.textContent = (child.task || "").trim().split("\n").find(line => line.trim()) || "";
-  task.title = child.task || "";
+  const description = subtaskDescription(child.task);
+  task.textContent = description.trim().split("\n").find(line => line.trim()) || "";
+  task.title = description;
 }
 
 /** The child's own timeline, drawn like the parent's: live while it runs, folded once it is done. */
@@ -287,6 +289,7 @@ function drawFoot(ports: SubagentCardPorts, node: HTMLElement, run: CardsRun, ch
   };
   const conversation = button(uiText.text("coding.subtask.open"), () => ports.openConversation(session, run.ref.run_id, child.subagent_id).catch(error => ports.status(errorMessage(error), true)));
   conversation.node.dataset.codingChildConversation = child.subagent_id;
+  conversation.node.id = "coding-child-card-" + encodeURIComponent(JSON.stringify([session, run.ref.run_id, child.subagent_id]));
   add(conversation);
   if (child.state === "running") add(stopButton(ports, run, child));
   if (child.state === "completed") add(button(child.integration_available ? uiText.text("coding.card.judge-integrate") : uiText.text("coding.card.judge"), () => ports.openInPanel(child.subagent_id)));

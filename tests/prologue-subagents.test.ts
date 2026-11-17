@@ -227,7 +227,7 @@ for (const indexed of [false, true]) test(`C3 real Node child exact caller survi
     const children = await adapter.subagents!.list(parent.ref); assert.equal(children.length, 1); assert.equal(childCalls, 1);
     const child = children[0]!;
     assert.equal(child.continuation_task?.status, "available");
-    assert.ok(child.continuation_task?.status === "available" && child.continuation_task.text.startsWith("EXACT_NEW_CHILD"));
+    assert.deepEqual(child.continuation_task, { status: "available", text: "EXACT_NEW_CHILD: inspect the source, no changes." });
     const before = requests.length;
     await adapter.close(); queue = new AgentReviewQueue(); adapter = await make();
     assert.deepEqual(await adapter.subagents!.list(parent.ref), children, "the original parent's body-free generation fact restores the exact child task");
@@ -253,9 +253,10 @@ for (const indexed of [false, true]) test(`C3 real Node child exact caller survi
     const proof = original.attempts[0]!.child_openings![0]!;
     assert.deepEqual(Object.keys(proof).sort(), ["format", "parent_run", "run", "session"], "the original parent stores no copied caller body");
     assert.equal(original.attempts[0]!.child_openings!.length, 1);
-    for (const change of ["missing", "duplicate", "foreign-parent", "foreign-session", "foreign-run", "duplicate-parent", "refused-parent", "missing-run", "missing-session", "non-array"] as const) {
+    for (const change of ["old-generation", "missing", "duplicate", "foreign-parent", "foreign-session", "foreign-run", "duplicate-parent", "refused-parent", "missing-run", "missing-session", "non-array"] as const) {
       const saved = structuredClone(original), facts = saved.attempts[0]!.child_openings!;
-      if (change === "missing") saved.attempts[0]!.child_openings = [];
+      if (change === "old-generation") facts[0]!.format = "caller-only-v1";
+      else if (change === "missing") saved.attempts[0]!.child_openings = [];
       else if (change === "duplicate") facts.push(structuredClone(facts[0]!));
       else if (change === "foreign-parent") facts[0]!.parent_run = "foreign-parent";
       else if (change === "foreign-session") facts[0]!.session!.id = "foreign-session";
@@ -270,7 +271,10 @@ for (const indexed of [false, true]) test(`C3 real Node child exact caller survi
       adapter = await make();
       const actual = (await adapter.subagents!.list(parent.ref))[0]!;
       assert.deepEqual(actual.continuation_task, { status: "unavailable" }, change);
-      assert.equal(actual.task, child.task, "unattributed raw history remains readable");
+      assert.equal(actual.task, "", "unattributed task history cannot become a display description");
+      const conversation = await adapter.subagents!.conversation!(parent.ref, child.subagent_id);
+      assert.ok(conversation.messages.some(turn => turn.notice === "task-unavailable" && turn.text === ""), change);
+      assert.ok(conversation.messages.some(turn => turn.kind === "assistant" && turn.text === "CHILD_DONE"), "the child result remains readable");
       if (indexed) {
         host = new AgentHost({ reviews: queue }); host.register(adapter);
         const count = requests.length;

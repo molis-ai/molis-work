@@ -43,7 +43,7 @@ export function pageTaskFloat(options: {
         let projected: TaskFrame | undefined;
         const leave = () => {
           if (!projected || cached !== projected || !projected.scope.alive) return;
-          navigation.close(); if (scope.alive && scope.visible) { frame.focus(); port.postMessage({ type: "task-return-focus" } satisfies FrameDown); }
+          navigation.close(true);
         };
         projected = await options.mount(content, { input: () => latest, close: leave });
         if (!scope.alive || !holder.isConnected) { projected.scope.dispose(); throw new DOMException("Task view closed", "AbortError"); }
@@ -51,7 +51,7 @@ export function pageTaskFloat(options: {
         const mounted = projected;
         return { projected: mounted, destroy() { if (cached === mounted) cached = undefined; mounted.scope.dispose(); content.remove(); } };
       }, {
-        onClose: () => { intent++; },
+        onClose: returnFocus => { intent++; if (scope.alive && scope.visible && returnFocus) { frame.focus(); port.postMessage({ type: "task-return-focus" } satisfies FrameDown); } },
         async prepare(signal) {
           try { html = await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal); }
           catch (error) { current(signal); if (denied(error)) forgetTaskFloatContent(owner); throw error; }

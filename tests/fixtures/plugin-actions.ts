@@ -170,7 +170,7 @@ function completeView(definition: ActionDefinition, value: unknown): unknown {
     case agentHostCapabilities.startRun.capability_id: return isRecord(value) ? { ...value, frozen: { ...FROZEN, ...(isRecord(value.frozen) ? value.frozen : {}) } } : value;
     case agentHostCapabilities.readRunReviews.capability_id: return Array.isArray(value) ? value.map(entry => isRecord(entry) ? { receipt: null, ...entry } : entry) : value;
     case agentHostCapabilities.listSubagents.capability_id:
-      return Array.isArray(value) ? value.map(child => isRecord(child) ? { role_id: "", task: "", state: "running", result: null, workspace_path: null, parent_run: RUN_VIEW.ref, ...child } : child) : value;
+      return Array.isArray(value) ? value.map(child => isRecord(child) ? { role_id: "", role_version: 1, execution: "read-only", task: "", state: "running", result: null, workspace_path: null, parent_run: RUN_VIEW.ref, ...child } : child) : value;
     case agentHostCapabilities.listRuntimes.capability_id: return eachFilled(RUNTIME)(value);
     case agentHostCapabilities.listMcp.capability_id: return eachFilled(MCP_SERVER)(value);
     case agentHostCapabilities.saveMcp.capability_id: return filled(MCP_SERVER)(value);

@@ -34,6 +34,8 @@ interface PrologueSubagentProvenance {
   budgets?: Record<string, { max_attempts: number }>;
   attempt_sources?: Record<string, AgentSubagentRetrySource>;
   attempt_reasons?: Record<string, string>;
+  person_openings?: Record<string, string>;
+  retry_openings?: Record<string, string>;
   nodes?: Record<string, string>;
 }
 
@@ -133,7 +135,7 @@ async function projectSubagentView(
     role_version: role.version,
     execution: role.execution,
     role_name: role.name,
-    task: latestStream.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => turn.text).join("\n\n"),
+    task: task ?? "",
     state: effectiveState,
     result: latestStream.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text).join("\n\n") || null,
     workspace_path: root?.path ?? provenance.path,
@@ -163,14 +165,15 @@ export function createPrologueSubagents(
   const owned = (run: AgentRunRef) => runtime.subagents.list().filter(child => child.parentSession.id === run.session_id && child.parentRun.id === run.run_id);
   const defaultMaxTurns = hooks.defaultMaxTurns ?? 20;
 
-  const list: AgentSubagentsCapability["list"] = async run => {
+  const read = async (run: AgentRunRef) => {
     const provenance = await provenanceOf(run), roles = new Map(provenance.roles);
     const result: AgentSubagentView[] = [];
     for (const child of owned(run)) {
       result.push(await projectSubagentView(runtime, run, child, provenance, roles, defaultMaxTurns));
     }
-    return result;
+    return { children: result, personOpenings: provenance.person_openings, retryOpenings: provenance.retry_openings };
   };
+  const list: AgentSubagentsCapability["list"] = async run => (await read(run)).children;
 
   return {
     list,
@@ -178,7 +181,7 @@ export function createPrologueSubagents(
       const child = owned(run).find(one => one.ref.id === id);
       if (!child) throw agentErrors.collaboration_unknown("子任务不属于这一轮执行");
       return child;
-    }, list, hooks),
+    }, read, hooks),
 
   };
 }

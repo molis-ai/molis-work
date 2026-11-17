@@ -422,7 +422,14 @@ test("B58-01..05: public child conversation, two owners, original receipts and r
     for (const button of ["close", "back"]) {
       await evaluate(`${outer}.scrollTop=${outer}.scrollHeight;probe.handle.close();probe.lateDraft=probe.owner.blockDraft();void probe.handle.open('a')`);
       await wait(`${field}.value===''`);
-      await evaluate(`${control(button)}.focus();${outer}.scrollTop=0;void(probe.scrollFinished=new Promise(resolve=>${outer}.addEventListener('scrollend',resolve,{once:true})))`);
+      // Let the setup scroll finish before listening to the native PageDown animation.
+      await evaluate(`(async () => {
+        const scroller = ${outer};
+        ${control(button)}.focus({ preventScroll: true });
+        scroller.scrollTop = 0;
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        probe.scrollFinished = new Promise(resolve => scroller.addEventListener("scrollend", resolve, { once: true }));
+      })()`);
       await b.command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "PageDown", code: "PageDown", windowsVirtualKeyCode: 34 }, b.sessionId);
       await b.command("Input.dispatchKeyEvent", { type: "keyUp", key: "PageDown", code: "PageDown", windowsVirtualKeyCode: 34 }, b.sessionId);
       await wait(`${outer}.scrollTop>0`); await evaluate("probe.scrollFinished.then(()=>true)");

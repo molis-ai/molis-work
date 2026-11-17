@@ -185,7 +185,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     owner: async id => (await index.read(id).catch(() => undefined))?.owner });
   // Who starts a continuation that may go on by itself: the starter the composition root serves, asked per session owner.
   const starts = createContinuationStarts(async id => (await index.read(id).catch(() => undefined))?.owner);
-  runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, {
+  runtime = await createNodeRuntime(options, effects.host, task => dispatchGuards.exit(() => schedule.run(task)), () => surfaceHost, {
     forRun: runId => state.dispatchChecks.get(runId),
     onAdmitted: async ({ parentRunId, parentSessionId, childSessionId, node }) => {
       await index.update(parentSessionId, saved => {

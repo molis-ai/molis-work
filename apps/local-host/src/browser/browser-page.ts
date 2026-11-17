@@ -478,18 +478,18 @@ export class BrowserPage {
     requireSynchronous(assertCurrent?.());
     const parsed = typeof value === "string" ? JSON.parse(value) as { selection: boolean; text: string; title: string } : { selection: false, text: "", title: "" };
     const text = parsed.text.replace(/\n{3,}/gu, "\n\n").trim();
-    return {
-      url: this.url, origin: originOf(this.url), title: parsed.title || this.title, captured_at: new Date().toISOString(),
-      selection: parsed.selection, text: text.slice(0, MAX_CAPTURE_CHARS), truncated: text.length > MAX_CAPTURE_CHARS,
-    };
+    return { url: this.url, origin: originOf(this.url), title: parsed.title || this.title, captured_at: new Date().toISOString(),
+      selection: parsed.selection, text: text.slice(0, MAX_CAPTURE_CHARS), truncated: text.length > MAX_CAPTURE_CHARS };
   }
 
   /** Evaluate an expression in the shown page; the value must be JSON-serializable. */
   async evaluate(expression: string, assertCurrent?: () => void): Promise<unknown> {
-    const session = await this.session(assertCurrent);
-    const current = () => { requireSynchronous(assertCurrent?.()); session.assertCurrent(); };
-    const result = await session.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }, current) as { result?: { value?: unknown }; exceptionDetails?: unknown };
-    current();
+    const session = assertCurrent ? await this.session(assertCurrent) : undefined;
+    const top = session ? undefined : await this.ensure();
+    const current = session ? () => { requireSynchronous(assertCurrent!()); session.assertCurrent(); } : undefined;
+    const result = (session ? await session.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }, current)
+      : await this.connection!.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }, top!.sessionId)) as { result?: { value?: unknown }; exceptionDetails?: unknown };
+    current?.();
     if (result.exceptionDetails) throw browserErrors.load_failed("页面脚本出错");
     return result.result?.value;
   }

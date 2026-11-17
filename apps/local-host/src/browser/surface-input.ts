@@ -43,7 +43,7 @@ async function pointer(round: BrowserSurfaceRound, session: BrowserSurfaceSessio
       await inputSession.send("Input.dispatchMouseEvent", { type, clickCount, x, y, button: type === "mouseMoved" ? "none" : action.button, buttons: type === "mousePressed" ? 1 : 0 }, () => {
         session.assertCurrent(); target?.assertCurrent();
         round.mark(`在 ${round.page.snapshot().origin || "空白页"} 点击${label ? `「${label}」` : `（${x}, ${y}）`}`, { x, y });
-        dispatched();
+        if (type !== "mouseMoved") dispatched();
         // CDP may receive the press and lose its response. Retain the original session before sending it.
         if (type === "mousePressed") gesture.pressed = target?.session.send ?? session.cleanup;
       });

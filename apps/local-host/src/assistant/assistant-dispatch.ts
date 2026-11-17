@@ -239,7 +239,7 @@ export class AssistantDispatch {
     }
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
-    const assertLifetime = await holdAssistantWorkLifetime(host, work);
+    const assertLifetime = intent?.delivery === "after-run" && intent?.target !== "answer" ? undefined : await holdAssistantWorkLifetime(host, work);
     // The Skills the person chose for this round, by their exact references: the round's named list, so a `manual` one can be read
     // (`skill_round.named`, specs/capability-pack/contract-design.md §2.3). A Skill the page sent without the person choosing it is not one.
     const namedSkills = [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill"

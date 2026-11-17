@@ -386,7 +386,7 @@ export function restoreReviewHistory(deps: ReviewDeps, pendings: ProloguePending
       const index = await deps.index.read(pending.origin.session);
       if (!index || index.owner.project_id !== projectId) continue;
       const attempt = index.attempts.find(item => item.run_id === pending.origin!.run);
-      if (!attempt || deps.state.activeRuns.has(pending.origin.run)) continue;
+      if (!attempt || deps.state.activeRuns.has(pending.origin.run) || deps.state.sessionRuns.has(pending.origin.run)) continue;
       const restored = await pendings.read(pending.ref);
       if (!restored) throw new Error("审查历史的待批引用不可读");
       const reference = await pendings.reference(restored);

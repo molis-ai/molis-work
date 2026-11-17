@@ -353,10 +353,10 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
     const registered = runtime.subagents.list().find(child => child.run.id === observed.run.ref.id && child.session.id === observed.childSession.ref.id)!;
     const role = children.roles.get(exactCharacterKey(registered.character!))!;
     // Every child's run hears what its neighbours on the task graph send it (letters are handed over by the Host).
+    state.sessionRuns.add(observed.run.ref.id); state.liveSessions.set(observed.childSession.ref.id, observed.run.ref.id);
     state.activeRuns.set(observed.run.ref.id, { live: () => ["prepared", "running"].includes(observed.run.state),
       assertAuthority: () => { requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成"); },
       steer: async text => { await observed.control.steer({ text }); } });
-    state.liveSessions.set(observed.childSession.ref.id, observed.run.ref.id);
     observed.run.subscribe(event => {
       if (!isTerminalRunEvent(event.type)) return;
       state.activeRuns.delete(observed.run.ref.id);
@@ -516,7 +516,7 @@ async function afterStart(deps: RunDeps, input: PrologueStartInput, index: Sessi
   catch (error) { at.actionController.abort(); started.control.stop("cancelled"); throw error; }
   if (at.hasActions) state.actionControllers.set(started.run.ref.id, at.actionController);
   // A round is live until it ends: before its first model event it is still "prepared", and it hears a steer then too.
-  state.runSessions.set(started.run.ref.id, session.ref.id); state.runRefs.set(started.run.ref.id, started.run.ref); at.surface.noteRun(started.run.ref.id);
+  state.sessionRuns.add(started.run.ref.id); state.runSessions.set(started.run.ref.id, session.ref.id); state.runRefs.set(started.run.ref.id, started.run.ref); at.surface.noteRun(started.run.ref.id);
   state.activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state), policy: started.policy,
     stop: () => stopSdkRun(started.run), usePolicy: (id, assert) => { at.appliedPolicies.set(id, assert); },
     ...(at.work ? { work: at.work, workSelection: at.work.permission.mode !== "original",
@@ -544,12 +544,12 @@ async function afterStart(deps: RunDeps, input: PrologueStartInput, index: Sessi
 }
 
 /** When the round ends: its actions and step board let go, the page released, its project work ended and its messages settled. */
-function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard: { ref: { id: string } } | undefined, type: TerminalRunEventType, actionController: AbortController, surface: SurfaceAttachment): void {
+function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard: { ref: { id: string } } | undefined, type: TerminalRunEventType, actionController: AbortController, surface: SurfaceAttachment, onAborted: () => void): void {
   const { state } = deps;
   const surfaceHost = deps.surfaces();
   const end = cleanupEnd(type);
-  actionController.abort(); state.actionControllers.delete(started.run.ref.id); state.dispatchChecks.delete(started.run.ref.id);
-  state.activeRuns.delete(started.run.ref.id);
+  if (type === "cancelled" || type === "tripped" || type === "circuit-tripped") onAborted();
+  actionController.abort(); state.actionControllers.delete(started.run.ref.id); state.dispatchChecks.delete(started.run.ref.id); state.activeRuns.delete(started.run.ref.id);
   deps.options.reviewQueue?.permissions.releaseRun(started.run.ref.id);
   if (stepBoard) deps.stepBoards.unfollow(started.run.ref.id);
   deps.workGraphs.ended(started.run.ref, session.ref, end.graph);
@@ -569,7 +569,7 @@ function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard
 /** The run and its controls as the adapter sees them; stopping saves the person's intent before the SDK stops the run. */
 function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
   readonly started: Started; readonly session: Session; readonly attemptIndex: number; readonly actionController: AbortController; readonly surface: SurfaceAttachment;
-  readonly stepBoard: { ref: { id: string } } | undefined; readonly stopping: { current: Promise<void> | undefined };
+  readonly stepBoard: { ref: { id: string } } | undefined; readonly stopping: { current: Promise<void> | undefined }; readonly onAborted: () => void;
   readonly actionReviews: ReturnType<typeof roundGateway>["reviews"];
   readonly work?: PrologueWorkDelegation;
 }): Awaited<ReturnType<PrologueRuntimePort["startAgentRun"]>> {
@@ -580,7 +580,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
   let hostStop: string | undefined;
   const stopForHost = (reason: string) => {
     if (hostStop || ["completed", "failed", "stopped", "cancelled"].includes(control.state)) return;
-    hostStop = reason; void at.surface.release("stopped").catch(() => undefined); control.stop("stopped");
+    hostStop = reason; at.onAborted(); void at.surface.release("stopped").catch(() => undefined); control.stop("stopped");
     void deps.index.update(input.session_id, index => { Object.assign(index.attempts[at.attemptIndex]!, { stop_intent: "stopped", stop_reason: reason }); }).catch(() => undefined);
   };
   return {
@@ -590,11 +590,8 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
       subscribe: (listener: (event: PrologueEvent) => void) =>
         started.run.subscribe(withInteractionRepairLimit(stopForHost, (event) => {
           if (isTerminalRunEvent(event.type)) {
-            if (at.actionReviews.releaseRun(started.run.ref.id) && deps.state.actionReviews.get(at.session.ref.id) === at.actionReviews) {
-              deps.state.actionReviews.delete(at.session.ref.id);
-            }
-            at.work?.release();
-            roundEnded(deps, started, at.session, at.stepBoard, event.type, actionController, at.surface);
+            if (at.actionReviews.releaseRun(started.run.ref.id) && deps.state.actionReviews.get(at.session.ref.id) === at.actionReviews) deps.state.actionReviews.delete(at.session.ref.id);
+            at.work?.release(); roundEnded(deps, started, at.session, at.stepBoard, event.type, actionController, at.surface, at.onAborted);
           }
           if (event.type === "command-receipt") {
             const events = deps.state.commandEvents.get(started.run.ref.id) ?? [];
@@ -606,7 +603,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
             listener({ ...event, receipt });
           } else listener(event);
         })),
-      cancel: () => { actionController.abort(); void at.surface.release("stopped").catch(() => undefined); return started.run.cancel(); },
+      cancel: () => { at.onAborted(); actionController.abort(); void at.surface.release("stopped").catch(() => undefined); return started.run.cancel(); },
     },
     control: {
       get state() {
@@ -669,6 +666,7 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
   const { runtime, state } = deps;
   const ref = state.sessions.get(input.session_id);
   const stopping: { current: Promise<void> | undefined } = { current: undefined };
+  let aborted = false, accepted: Started | undefined; const onAborted = () => { aborted = true; };
   const appliedPolicies = new Map<string, () => void>();
   const exactPermissions = new Map<string, { ref: ExactRef<"effect">; control: ReviewDecisionControl }>();
   const activeExact = () => {
@@ -679,10 +677,9 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
     return exactPermissions.values();
   };
   const mcp = input.mcp_tools?.length || input.mcp_sources?.length ? roundMcp(runtime, deps.mcpLibrary, index.owner, input) : undefined;
-  const { actionController, actionTools, reviews: actionReviews, parameterBranches, codeIntelligence, symbolTool, symbolToolName } = roundGateway(deps, input, mode.none, () => stopping.current !== undefined, work, mcp);
+  const { actionController, actionTools, reviews: actionReviews, parameterBranches, codeIntelligence, symbolTool, symbolToolName } = roundGateway(deps, input, mode.none, () => stopping.current !== undefined || aborted, work, mcp);
   const assertDispatchCurrent = () => {
-    if (stopping.current !== undefined) throw new Error("原轮次正在停止");
-    actionController.signal.throwIfAborted();
+    if (stopping.current !== undefined || aborted) throw new Error("原轮次正在停止");
     for (const check of appliedPolicies.values()) check();
     for (const { control } of activeExact()) control.assertCurrent();
     requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成");
@@ -699,6 +696,10 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
   };
   const dispatchGuard = { assertCurrent: assertDispatchCurrent, mcp: mcp?.dispatch, prepareDispatch,
     beforeEffect: async () => { const fence = await prepareDispatch(); fence(); } };
+  const surfaceControl = { ...dispatchGuard,
+    assertCurrent: () => { if (!accepted) requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成"); assertDispatchCurrent(); },
+    beforeEffect: async () => { if (accepted) return dispatchGuard.beforeEffect(); await input.beforeStart?.(); surfaceControl.assertCurrent(); },
+  };
   ensureStopGuard(runtime, state, input.session_id);
   const afterWrite = await roundChecks(deps, input, index, mode, actionTools?.pack.tools);
   const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id) || !!afterWrite || symbolTool);
@@ -716,8 +717,7 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
   const { childRoots, childRoles, childInstructions } = await childSetup(deps, input, work);
   const plan = input.provenance.frozen.execution_plan;
   const materials = await roundMaterials(deps, input, index, session, mode.none, plan, textResources);
-  const surface = await roundSurface(deps, input, index, session, mode.business, dispatchGuard);
-  let accepted: Started | undefined;
+  const surface = await roundSurface(deps, input, index, session, mode.business, surfaceControl);
   try {
     const binding = await roundBinding(deps, input, index, session, materials.stepBoard);
     const { character, runTools, pinnedMemory } = await roundCharacter(deps, input, index, { mode, methods, childInstructions, childRoles, surface, stepBoard: materials.stepBoard, actionTools,
@@ -740,7 +740,7 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
       deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
         attemptIndex, session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding, referenceKinds,
       }))), input.disposeDispatch).catch(async (error: unknown) => {
-      actionController.abort();
+      onAborted(); actionController.abort();
       // Not accepted by the SDK: refused while the context was still being packed (the runtime creates the run only after
       // that) is a settled refusal; anything else, or a caller no longer current, takes the intent back.
       if (!deps.effects.accepted()) {
@@ -756,11 +756,8 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
       if ((error as { code?: string }).code === "SESSION_HISTORY_UNAVAILABLE") throw agentErrors.capability_unavailable("旧会话开场无法可靠核验，不能继续携带历史，没有发给模型。原记录仍可查看，请新建会话并补充必要背景。");
       throw error;
     });
-    accepted = started;
-    work?.accept(started.run);
-    if (mcp) started.run.subscribe(event => {
-      if (event.type === "tool-result") mcp.release((event as Extract<PrologueEvent, { type: "tool-result" }>).callId);
-    });
+    accepted = started; work?.accept(started.run);
+    if (mcp) started.run.subscribe(event => { if (event.type === "tool-result") mcp.release((event as Extract<PrologueEvent, { type: "tool-result" }>).callId); });
     watchRoundFacts(state, started.run);
     // The language servers this round started belong to it: they go when it ends, however it ends.
     if (codeIntelligence !== undefined) started.run.subscribe(event => { if (isTerminalRunEvent(event.type)) void codeIntelligence.close().catch(() => undefined); });
@@ -768,7 +765,7 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
     state.dispatchChecks.set(started.run.ref.id, prepareDispatch);
     await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, surface, appliedPolicies, exactPermissions, work, mcp,
       hasActions: Boolean(actionTools?.names.length), none: mode.none,
-      project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined });
+      project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined || aborted });
     // Report the files the SDK actually packed and persist only the successful owner update.
     const packed = roundInstructions(input, started.pack);
     const instructions = packed && await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.frozen.instructions = structuredClone(packed); })
@@ -776,11 +773,11 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
     work?.assertCurrent();
     const desktopTargets = [...new Set([...index.attempts.flatMap(item => item.desktop_target ? [item.desktop_target] : []),
       ...(surface.desktop_target ? [surface.desktop_target] : [])])];
-    return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, surface, stepBoard: materials.stepBoard, stopping, actionReviews, work }),
+    return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, surface, stepBoard: materials.stepBoard, stopping, onAborted, actionReviews, work }),
       ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}),
       ...(desktopTargets.length ? { desktop_targets: desktopTargets } : {}), ...(instructions ? { instructions } : {}) };
   } catch (error) {
-    actionController.abort();
+    onAborted(); actionController.abort();
     const failures: unknown[] = [error];
     if (accepted) {
       accepted.control.stop("cancelled");

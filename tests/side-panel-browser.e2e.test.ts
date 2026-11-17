@@ -71,15 +71,15 @@ test("RAC-115: a real input protocol refusal reaches the existing socket, stays 
     let pageSession: string | undefined, refuse = true, inputAttempts = 0;
     const protocolRefusals: unknown[] = [];
     const privateMethod = "Input.RAC115_PRIVATE_PROTOCOL", privateText = "RAC115 PRIVATE INPUT";
-    t.mock.method(running.cdp, "send", (method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs?: number) => {
+    t.mock.method(running.cdp, "send", (method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs?: number, beforeSend?: () => void) => {
       if (method === "Page.navigate" && params.url === `${site.origin}/`) pageSession = sessionId;
       if (method === "Input.insertText") {
         inputAttempts++;
-        if (refuse) return sendCdp(privateMethod, params, sessionId, timeoutMs).catch((error: unknown) => {
+        if (refuse) return sendCdp(privateMethod, params, sessionId, timeoutMs, beforeSend).catch((error: unknown) => {
           protocolRefusals.push(error); throw error;
         });
       }
-      return sendCdp(method, params, sessionId, timeoutMs);
+      return sendCdp(method, params, sessionId, timeoutMs, beforeSend);
     });
     const messages: BrowserServerMessage[] = [];
     socket = new WebSocket(ui.origin.replace(/^http/u, "ws") + BROWSER_SOCKET_PATH, { headers: { Origin: ui.origin } });
@@ -281,11 +281,11 @@ test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through mov
   };
   try {
     const running = await browsers.browser(), send = running.cdp.send.bind(running.cdp);
-    t.mock.method(running.cdp, "send", (method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs?: number) => {
+    t.mock.method(running.cdp, "send", (method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs?: number, beforeSend?: () => void) => {
       if (method === "Input.dispatchMouseEvent") mouseInputs += 1;
       if (method === "Input.dispatchMouseEvent" && params.type === "mousePressed") mousePresses += 1;
       if (method === "Runtime.evaluate" && typeof params.objectGroup === "string") groups.add(params.objectGroup);
-      return send(method, params, sessionId, timeoutMs).then(async result => {
+      return send(method, params, sessionId, timeoutMs, beforeSend).then(async result => {
         if (method === "Input.dispatchMouseEvent") mouseEvents.push({ sessionId, params: { ...params } });
         if (method === "Runtime.releaseObjectGroup") groups.delete(String(params.objectGroup));
         const active = gate;
@@ -326,7 +326,7 @@ test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through mov
         if (interrupt === "replace") await page.evaluate("const original=document.getElementById('target'),replacement=original.cloneNode(true);replacement.dataset.target='raced replacement';original.replaceWith(replacement)");
         else { void release().catch(() => undefined); }
         resume();
-        await assert.rejects(acting, /目标已不可用/u, `${interrupt} during the real CDP wait refuses the remaining action`);
+        await assert.rejects(acting, interrupt === "replace" ? /目标已不可用/u : /目标已不可用|已释放/u, `${interrupt} during the real CDP wait refuses the remaining action`);
         assert.equal(mousePresses, beforePresses, `${interrupt}: no press follows the invalidated object or observation`);
         assert.equal(mouseInputs, beforeInputs + (heldMethod === "Input.dispatchMouseEvent" ? 1 : 0), `${interrupt}: count an already-dispatched move, with no later input`);
         assert.equal(await clicks(), beforeClicks, `${interrupt}: the replacement and fallback point have no click effect`);
@@ -340,7 +340,11 @@ test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through mov
     afterPress = async () => { void release().catch(() => undefined); };
     try {
       await assert.rejects(pointer(downNode), error => {
-        assert.ok(error instanceof Error); assert.match(error.message, /目标已不可用/u); assert.doesNotMatch(error.message, /未能释放/u); return true;
+        assert.ok(error instanceof Error);
+        const detail = `${error.message} ${error.cause instanceof Error ? error.cause.message : ""}`;
+        assert.match(detail, /目标已不可用|已释放/u);
+        assert.doesNotMatch(detail, /未能释放|无法确认原鼠标手势已释放/u);
+        return true;
       });
     } finally { afterPress = null; }
     const cancelled = mouseEvents.slice(downStart);

@@ -249,7 +249,7 @@ export class AssistantService {
       const created = !input.work_id;
       const existing = input.work_id ? this.store.get(this.actorId, input.work_id) : undefined;
       if (existing) originalInput = this.store.permissionTransitions.holdWorkInput(existing.work_id);
-      const assertLifetime = existing && existing.executor.kind === "assistant" && !existing.reply_target
+      const assertLifetime = existing && existing.executor.kind === "assistant" && !existing.reply_target && !(input.delivery === "after-run" && input.target !== "answer")
         ? await holdExistingWorkLifetime(this.ports, existing) : undefined;
       const scope = existing ?? { project_ref: sendScope(input.scope, caller, choice).kind === "project" ? caller.project_ref : undefined };
       materials = await readComposerMaterials(materials, scope, this.ports);

@@ -120,6 +120,8 @@ export interface RoundState {
   readonly activeRuns: Map<string, { live(): boolean; assertAuthority(): void; steer(text: string): Promise<void>;
     usePolicy?(id: string, assertCurrent: () => void): void; useExact?(id: string, control: ReviewDecisionControl): void;
     stop?(): Promise<void>; readonly policy?: PolicySnapshot; readonly work?: PrologueWorkDelegation; readonly workSelection?: boolean; readonly mcp?: RoundMcp }>;
+  /** Run ids started during this adapter process lifetime; historical restore only reads earlier processes. */
+  readonly sessionRuns: Set<string>;
   /** Which session each run belongs to, and the run ref, so "allow in this app this round" binds to that run. */
   readonly runSessions: Map<string, string>;
   readonly runRefs: Map<string, ExactRef<"run">>;
@@ -141,7 +143,7 @@ export function createRoundState(): RoundState {
   return {
     registeredMethods: new Map(), sessions: new Map(), actionToolSessions: new Set(), gatewayRuns: new Map(), gatewayKnown: new Map(), gatewayOffered: new Map(),
     gatewayHooks: new Set(), actionReviews: new Map(), heldLabels: new Map(), memoryRounds: new Map(), changeRounds: new Map(),
-    stopGuards: new Map(), stopHooks: new Set(), roundFacts: new Map(), actionControllers: new Map(), runRoots: new Map(), activeRuns: new Map(), runSessions: new Map(),
+    stopGuards: new Map(), stopHooks: new Set(), roundFacts: new Map(), actionControllers: new Map(), runRoots: new Map(), activeRuns: new Map(), sessionRuns: new Set(), runSessions: new Map(),
     runRefs: new Map(), reviewEffects: new Map(), deadlines: new Map(), commandEvents: new Map(), subagentBridgeErrors: new Map(),
     liveSessions: new Map(), runWork: new Map(), dispatchChecks: new Map(), modelRequests: new Set(),
   };

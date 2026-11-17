@@ -385,6 +385,7 @@ async function continueSubagentAttempt(
   })));
   const newRunId = continued.run.ref.id;
   const childRun = { session_id: child.session.id, run_id: newRunId };
+  state.sessionRuns.add(newRunId);
   state.activeRuns.set(newRunId, {
     live: () => ["prepared", "running"].includes(continued.run.state),
     assertAuthority: () => { parentActive?.assertAuthority(); },

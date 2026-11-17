@@ -17,7 +17,7 @@ export function renderAgentStudio(text: (key: string, values?: Record<string, st
     + '<header class="as-top"><div class="as-top-actions"><label class="as-select"><span class="as-sr">' + mine + '</span><select data-as-builds aria-label="' + mine + '"></select></label>'
     + '<button class="as-icon" type="button" data-as-new aria-label="' + newPlugin + '" title="' + newPlugin + '"><svg aria-hidden="true"><use href="#icon-plus"/></svg></button>'
     + '<label class="as-select as-model"><span>' + text("plugin-builder.agent-studio.model") + '</span><select data-as-model aria-label="' + text("plugin-builder.agent-studio.model-used-building") + '"></select></label>'
-    + renderButton({ variant: "ghost", size: "sm", icon: "sparkles", iconOnly: true,
+    + renderButton({ variant: "ghost", className: "as-icon", icon: "sparkles", iconOnly: true,
       label: text("plugin-builder.agent-studio.automation-suggestions"), attrs: { "data-automation-open": true } })
     + '<a class="as-model-setup" data-as-model-setup href="/settings/models" hidden>' + text("plugin-builder.agent-studio.open-model-settings") + '</a></div></header>'
     + '<aside class="as-left" aria-label="' + text("plugin-builder.agent-studio.collaboration") + '"><div class="as-feed" data-as-feed aria-live="polite"></div>'
@@ -47,7 +47,7 @@ export const AGENT_STUDIO_STYLES = String.raw`
 :where(.as-shell) :is(h1,h2,h3,p){margin:0}.as-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 .as-top{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 24px;border-bottom:1px solid var(--as-line);background:var(--as-panel)}
 .as-top-actions{display:flex;align-items:center;gap:12px}.as-select{display:flex;align-items:center;gap:8px;color:var(--as-muted);font-size:12px}.as-select>span{white-space:nowrap;flex:none}.as-select select{max-width:220px;font:inherit;color:var(--as-ink);border:1px solid var(--as-line);border-radius:8px;background:var(--as-paper);padding:8px 8px}
-.as-icon{color:inherit;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid var(--as-line);border-radius:8px;background:var(--as-paper)}.as-icon:hover{background:var(--as-fill)}
+.as-icon{color:inherit;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;min-height:32px;border:1px solid var(--as-line);border-radius:8px;background:var(--as-paper)}.as-icon:hover{background:var(--as-fill)}
 .as-left{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--as-line);background:var(--as-panel)}
 .as-feed{flex:1;min-height:0;overflow-y:auto;padding:24px 24px 12px;display:flex;flex-direction:column;gap:16px}
 .as-feed h2{font-size:17px;font-weight:600}.as-muted{color:var(--as-muted)}.as-small{font-size:12px}

@@ -1,10 +1,10 @@
 # Molis Work 审查报告与优化策略
 
-状态：进行中。已有六方向代表入口检查和前四批成果保留；搜索取消、Home 完整性、任务操作与切换上下文、Run 时间四条链已补深查及定向验收，审查选项、导入停止与正文可用性已定向验收，Git 编辑恢复继续完成最后交错验收；2026-11-16 按用户原始范围继续深入检查与分批改造，不将原“留后续”当作已获批准的排除。当前同步 main `4a08c41ca`；旧头 `77e2cc0d5` 的 CI 仅覆盖旧批次。负责人 Codex，草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101)。[需求与验收](spec.md) · [逐包覆盖](coverage.md)。
+状态：进行中。已有六方向代表入口检查和前四批成果保留；搜索取消、Home 完整性、任务操作与切换上下文、Run 时间四条链已补深查及定向验收，审查选项、导入停止与正文可用性已定向验收，Git 编辑恢复与交接已完成本地定向验收；共享输入材料正在实施与验收；2026-11-16 按用户原始范围继续深入检查与分批改造，不将原“留后续”当作已获批准的排除。当前同步 main `4a08c41ca`；旧头 `77e2cc0d5` 的 CI 仅覆盖旧批次。负责人 Codex，草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101)。[需求与验收](spec.md) · [逐包覆盖](coverage.md)。
 
 ## 当前判断
 
-2026-11-16 追加同步检查：`origin/main=4a08c41ca`（Sessions #2097）已整合到工作树，74包构建通过，合并提交待本批验收。新增 `horizontal/sessions` 及其 UI/搜索/助理链纳入接续范围，不能继续沿用 73 包作为最新主干总数。BL-177 在该主干已改“部分实现”，保留 35/45/60 批和本人验收，不按新实现标题关闭整项。前批改造保存于 `a31a745e6`。
+2026-11-16 已整合基线：`4a08c41ca`（Sessions #2097）已整合到工作树，74包构建通过，合并提交 fc4e39e38 已保留，后续 Git 批保存于 84987a6c3 与 8ac8b806e。新增 `horizontal/sessions` 及其 UI/搜索/助理链纳入接续范围，不能继续沿用 73 包作为最新主干总数。BL-177 在该主干已改“部分实现”，保留 35/45/60 批和本人验收，不按新实现标题关闭整项。前批改造保存于 `a31a745e6`。最新 fetch 已到 `9ff073d13c`（Sessions 合后复查 #2106）；尚待当前 PF-02 保存后整合，不能把旧构建验收当新增适配器证据。
 
 第九批视觉补验已通过，12 张中英文/三宽/两主题截图生成，人工复核英文390深色与中文1440浅色，Git 固定差异已加载。第十/十一批14文件126项通过，第十二批11文件65项通过，具体边界见下文。英文导入中的旧中文警告另列 QF-15，未宣称语言全通过。
 
@@ -12,7 +12,7 @@
 
 构建通过只支持工程判断，尚不能宣称整个平台内部完整。当前登记表有74个包；初始审查基线的统一 BL 有 527 条，其中 64 条为待本人验收、202 条明确后续做，不能直接当作死账删除。需求族判断与逐项清理决定见下文；不按条数计算完成率。
 
-前四批成果保留；第五至十二批已落实搜索取消、Home 列表完整性、停止/切项目交错、Run 终态、三个审查 UI、导入停止/断连、五插件纯绑定迁移和正文可用性反馈，相关定向验证通过。尚未取得本次最终提交的 CI 证据，不能与旧头 CI 混算；原代表检查也不能冒称全部真实入口均已查深。Sessions 增量已补定向验收，Git 草稿、框架材料来源及其余未查深入口仍在原任务内按优先级推进，不以改动文件数或局部通过结项。
+前四批成果保留；第五至十二批已落实搜索取消、Home 列表完整性、停止/切项目交错、Run 终态、三个审查 UI、导入停止/断连、五插件纯绑定迁移和正文可用性反馈，相关定向验证通过。尚未取得本次最终提交的 CI 证据，不能与旧头 CI 混算；原代表检查也不能冒称全部真实入口均已查深。Sessions 增量已补定向验收，框架材料来源、Git 冲突版式及其余未查深入口仍在原任务内按优先级推进，不以改动文件数或局部通过结项。
 
 ## 发现与处置（是否实施逐项注明）
 
@@ -196,7 +196,7 @@ Host JSON、原件上传原来都没有把断连传给已支持取消的 artifac
 | 候选与当前实现/消费者 | 定制造成的问题 | 事实与规则 owner；处置 | 顺序/成本 |
 | --- | --- | --- | --- |
 | PF-01 对象引用、跨插件呈现：`packages/contracts/src/platform/object-link.ts:12`、`horizontal/surfaces/src/position.ts:20-34`、`apps/local-host/src/surface-slot-http.ts:75,122` 已有受控 plugin-slot；Inbox `plugins/native/inbox/src/browser/client.ts:40`、Risk `plugins/native/risk/src/browser/client.ts:45`、Work Brief `plugins/native/work-brief/src/browser/client.ts:22` 已使用，PPT `plugins/native/ppt/src/plugin.ts:35-45` 经 Pages 公开动作读内容 | 未发现这条 PPT→Pages 路径跨实现直连。组合槽已有 UI contribution 声明、Host 兑现和真实消费者，不能只搜 manifest.ts 就误报未采用，更不应重建底座 | 插件拥有内容/修订；平台拥有位置、身份及授权。保持 surfaceSlot 与 objectLink；新增组合沿相同入口验停用、撤权、对象删除和返回，不开放任意 iframe、不解除 mountDeclared 的 owner 限制 | 保持现有方案 |
-| PF-02 输入的材料来源：`apps/workbench/src/browser/plugin-frame/composer-parent.ts:215` 固定 sources:false；底栏菜单和来源服务已存在 | 现有唯一生产框架 AI 消费者 Coding 也明确 sources:false，虽有自己的材料选择，却缺共同来源菜单；只翻父页开关不会改善真实路径 | 平台父页持本人身份获取选择，只在本人发送时交材料引用；当前 onMaterials 即时回传与 child composer-send 必须一起约束，不能让子页绕过本人发送。Coding 要实际消费 input.materials，并核首次/后续/steer 及失败引用留存；大小约束须与 owner 对齐，复用原菜单。归 [BL-composer-frame-sources](../backlog/BL-composer-frame-sources.md)，不是取消 frame 权限隔离 | P1体验/中 |
+| PF-02 输入的材料来源：旧 parent 固定 sources:false，底栏菜单和来源服务已存在；本批实现见 QF-24 | 原 Coding 明确 sources:false 且未消费 input.materials；已写父页受控交接和 Coding 消费，尚在真实路径验收，不把开关翻转算完成 | 平台父页持本人身份获取选择，只在本人发送时交材料引用；当前 onMaterials 即时回传与 child composer-send 必须一起约束，不能让子页绕过本人发送。Coding 要实际消费 input.materials，并核首次/后续/steer 及失败引用留存；大小约束须与 owner 对齐，复用原菜单。归 [BL-composer-frame-sources](../backlog/BL-composer-frame-sources.md)，不是取消 frame 权限隔离 | P1体验/中 |
 | PF-03 Memory 会话来源：`apps/local-host/src/memory/memory-sources.ts:13`、`apps/local-host/src/memory/memory-session-binding.ts:51-64`、`apps/local-host/src/memory/memory-runtime.ts:20` 点名 Coding/Assistant | 第三个插件有合法 Agent 会话也要改 Host；来源资格和业务状态检查散在宿主 | 平台拥有可信会话身份/授权与记忆策略；插件提供来源可读性/业务状态的声明 reader。随 plugin-equal-standing 收口，迁移 Coding 实际路径再删特判，不能把资格交给输入字符串 | P2/高 |
 | PF-04 后台任务：`apps/local-host/src/home-background-tasks.ts:22` 与 mainline；Coding/Images 已贡献，项目引导整理仍只有后台执行 | 有工作却不在任务入口；汇总失败又看似无工作 | 任务状态仍归业务 owner，平台管发现/完整性/可执行命令。接入既有 background_tasks/reports_to，修 QF-04；引导归 [BL-107](../backlog/BL-107.md) | P1体验/中 |
 | PF-05 设置：`packages/contracts/src/platform/settings.ts:16,30` 有层级/CAS/request_id；`packages/plugin-sdk/src/sandbox-agent-declarations.ts:51` 仍拒绝沙箱 settings_entries；原生插件没有声明消费者 | 有合同不等于作者可用，局部设置仍各做继承、修订、返回 | 设置值/规则归 owner，平台管声明、继承呈现和调用。先完成 Runtime 读写兑现、选一个真实设置迁入再推广；本轮不建立全局配置大仓 | P2/高 |
@@ -251,7 +251,7 @@ PF-03/05/07/13 是采用或职责收口候选，即使目前只有一个实际�
 | [BL-search-query-abort](../backlog/BL-search-query-abort.md) | 第五批已补 HTTP/个人空间/引用 signal，真实取消与共享索引测试通过，见 QF-08 | 已改正文去除“每次查询把所有来源跑完”的错误前提；待最终 CI 后按原流程关闭 |
 | [BL-home-events-endpoint-unused](../backlog/BL-home-events-endpoint-unused.md) | 全仓生产客户端查询无调用；路由与测试仍在。MCP 使用公开动作，不证明包外 HTTP 没人用 | 代码退役候选：核对既有外部公开约定后，路由、只读放行、专属用例一起删；目前不据零命中直接删公共端点 |
 | [BL-plugin-release-module-source](../backlog/BL-plugin-release-module-source.md) | 已有明确待用户决定，涉及库内保留内容及恢复路径 | 保留决定；“现在通常用不到”不等于授权删库/兼容机制 |
-| [BL-composer-frame-sources](../backlog/BL-composer-frame-sources.md) | 旧阻碍“框架不能直接读”已部分被父页底栏接管替代，但 sources:false 仍在 | 保留真实缺口，技术方案转为父页受控材料交接，见 PF-02 |
+| [BL-composer-frame-sources](../backlog/BL-composer-frame-sources.md) | 原固定 sources:false 已改父页受控交接，Coding first/next/steer/wait 与回执路径实施中 | 本批验收与合同检查完成后再关闭；当前保留，见 PF-02/QF-24 |
 | [BL-107](../backlog/BL-107.md) | 引导已经 Host 后台执行，缺后台任务登记 | 收窄为登记/进度/返回入口，复用现有任务贡献，不新做执行引擎；新main已注明45/57批排期，保留该归属 |
 | [BL-177](../backlog/BL-177.md) | Sessions 新实现有在途 PR，当前基线尚不包含其完整目标 | 保留原归属；合入并对照全部三类场景后再拆完成/剩余，不能按 PR 标题销账 |
 | [BL-state-machine-migration](../backlog/BL-state-machine-migration.md) | 144/89/55/32是旧盘点口径；SDK 已有，但所有布尔组合不都是真状态机 | 按实际 owner/合法迁移/取消恢复复核，剔除纯派生与资源句柄；保留逐批迁移，不宣称本轮确认了全部144条 |
@@ -412,3 +412,47 @@ b5e52d390 的 [Verify #8037](https://github.com/molis-ai/molis-work/actions/runs
 - 完整构建通过；`/tmp/quality-audit-git-final-health2.log` 对 `4a08c41ca` 健康门禁通过，50个巨大单元仍为既有登记、翻译/语法/混用构建进程均0问题，未改阈值。版本生成检查通过，删除旧无调用格式的唯一版本项；先前未删源表项造成的生成/构建失败已按原版本流程纠正，没有修改生成脚本。
 - 界面生成1440/1024/390与浅深色6张真实图，已查看1440浅色、1024深色和390深色：当前文件可读、按钮可用、无横向越界。但长正文位于窄目录栏的体验问题另列 QF-23，保留本轮实施，不以截图生成宣布该问题完成。截图目录 `.impeccable/qa/review/quality-audit-git/`。
 - 用户少重写提交/冲突正文，交接失败不必重新生成；开发者从提交快照可追到原 operation_id、owner 实际结果和精确草稿清理。平台统一承担草稿顺序，Git不再维护旧serializer/截短兜底，Coding不再约定Git私有storage键。范围仍为原六方向全仓审查；PF-02 已写第十六批需求，未以本批工程通过结束任务。
+
+## 第十六批进展：共享输入来源（重试交错补验中，必跑回归与最终 CI 待完成）
+
+### QF-24 / P1：材料来源在框架入口断开，补充与等待没有完整消费
+
+当前位置：`apps/workbench/src/browser/plugin-frame/composer-parent.ts:216,225,313`；`plugins/native/coding/src/browser/main/composer-mount.ts:126`；`plugins/native/coding/src/routes-sessions.ts:277,355`；`plugins/native/coding/src/materials.ts:45`。原父页与Coding都关来源，onMaterials会提前交全部引用、child可代按发送；Coding submit不读input.materials，steer合同不接材料，wait分支先创建Runtime Session/改标题/入队再保存材料选择。影响是用户重复进入私有材料选择，或看似选好却未给模型；仅翻sources开关还会越过本人发送边界。
+
+处置已写：复用父页菜单、本人动作目录、现有材料owner读及Coding回执；引用只随本人底栏发送交回，含来源时拒child代发，框架直接来源/搜索HTTP仍403。正常开轮将本次引用与已保存选择按完整ref去重，不污染长期选择；补充三种模式共用owner读取与100000字符总上限，原话保留在原Runtime原件记录，读取失败不得写业务输入。wait入队前读取，真正开轮再读，标题允许平台来源合法1000字符。调用方同批采用现行schema；不另建材料账或读取兼容。
+
+### QF-25 / P1：迟到回执只清正文，材料残留；失败序号可能指错选择
+
+当前位置：`plugins/native/coding/src/browser/input-receipts.ts:133,148`、`browser/main/composer.ts:58`、`browser/main/mount-composer.ts:93`；平台 `packages/design-system/src/browser/composer-send.ts:32,76`。原重试身份未包含Run/材料，bubble确认后只清文本；混合选择的失败序号被当作长期数组序号。新增本次提交成功回调，owner真实Run或queued_inputs确认后由公共组件结算原快照，旧回调/旧HTTP回包不能结算新提交；显式重试签名包含目标/模式/文本/材料。失败按原提交引用映射回来源条或长期选择，删除直接清正文和恢复按钮自动代发；用户移除后由底栏正常发送。
+
+本批真实验收还发现 detail 把已入队且无Run的会话写成idle（`routes-timeline.ts:187`），以及请求failed遮住仍在运行的模式/停止（`packages/plugin-sdk/src/ui/composer.ts:203,227`）。实现已改从原等待事实/独立running事实计算，实际 wait 排队与运行中失败模式切换均已通过；不增加业务状态字段。
+
+已取得的局部证据：父页来源与安全回归20项通过（`/tmp/quality-audit-frame-source-acceptance1.log`）；公共composer原18项、Coding旧回执浏览器1项通过；后端固定版本/after-run、next-boundary、interrupt及拒绝的4项通过（`/tmp/quality-audit-composer-receipts-acceptance1.log`）。同日志新增测试中的菜单丢失、队列idle是产品发现，两个浏览器等待/选择器错误已修正测试；失败日志保留，不能记作全部通过。API快照两项、动作快照仅coding.runs.control@1输入变化。最终测试、资源预算、健康门禁与当前头CI仍待完成。
+
+### QF-26 / P1：同一输入框重挂丢选择、断开提交与草稿身份
+
+位置：`apps/workbench/src/browser/plugin-frame/composer-parent.ts` 的 options/make（原211行）每次 shape 变化新建 draft adapter；`packages/design-system/src/browser/composer-retained.ts:20` 以 adapter 对象为草稿身份。来源、附件或停止能力变化仍属于同一 child id，但材料和 revision 被分到另一份 retained 状态。旧结果与后来编辑不能再通过同一 revision 比较。
+
+正常框架复现：仅等来源登记变化的首个测试曾通过，但尚未证明底栏实际重挂；增加旧 file input 已卸载的断言后，QEA-45 在原实现有效失败，原附件消失（`/tmp/quality-audit-frame-remount-baseline2.log`）。最小修复由 parent 保持当前 child id 的单个 draft adapter，shape 重画继续复用，真正 drop 才释放。第七次构建通过，实际重挂、旧 ack/普通回包和新文字/附件保留已随 frame 5/5通过（`/tmp/quality-audit-composer-receipts-acceptance3.log`），同批其他验收仍在继续。
+
+材料验收纠偏：Coding 当前引用在开新轮时读最新内容是既有明确合同，更新 Todo 后拒绝的初始断言错误，已改为真实知识排除，补断言新轮确实取得更新正文。下一轮队列在活跃Run时按 RC-18/D31 不返回；诊断确认会话 GET 持续成功，未结算并非轮询停止。验收改为结束原轮再观察 owner 队列，不为测试改运行时合同或新增轮询。这些测试假设失败不计为产品缺陷。后端材料5/5、回执客户端8/8已通过；新浏览器混合选择恢复/响应丢失已在 required 日志3/3通过。
+
+### QF-27 / P2：把本地控件当外部正文净化，恢复操作失去绑定
+
+已复现位置：`plugins/native/coding/src/browser/main/composer.ts:91`；净化边界 `packages/plugin-sdk/src/browser.ts:259` 按明确的 inert 合同删除任意 data-coding 属性。真实材料先删除、再恢复健康长期选择、然后排除该长期材料，HTTP 正确返回 failed_materials；界面提示中可见按钮却没有绑定所需的属性，正常点击无路可走。诊断 `/tmp/quality-audit-material-recovery-diagnosis.log` 记录实际请求、失败与 DOM，不是只有静态字符串匹配。该材料恢复调用已改用本页公共 renderer 的逐字段转义输出；不放宽正文净化白名单，真实按钮与恶意格式标题回归已在 required 日志通过，未弱化净化边界。
+
+同语义接续候选仍在本任务内：`browser/main/configuration.ts:116,134` 与 `run-block.ts:94,114` 把本地环境检查/材料控件传给同一净化函数；`browser/subagent-cards.ts:201` 的增加尝试预算按钮标记也会被删除，`subagents.ts:237` 的进度样式亦被消掉。已区分全插件16个调用点：模型回复、报告、外部预览与 diff 正文仍应净化，本地转义过的 UI 则由实际行为的插件安装并绑定，不新增平台特权或通用 HTML 兜底。上述其他调用尚待正常入口动态复现、迁移与验收，不能因材料一处修复关闭整项。
+
+PF-02 新增正常入口证据：`/tmp/quality-audit-composer-required.log` 15文件全部通过，含 Coding 材料3项、安全17项、设计系统与HTML边界回归。Coding 的 `+` 只随当次发送交材料、原 `@` 仍选择工作区文件、下一轮不重复来源；混合长期/临时引用去重、真实 owner 删除/排除后准确移除且不自动重发；实际已受理响应被丢弃后，原轮结束、正常读取 owner 队列结算旧材料，保留后来输入，额外POST与模型调用均0。材料恢复的桌面浅色1440与手机深色390已实看，按钮可操作、无横向越界、HTML格式标题不成为元素。另记录本轮待收敛的重复提示：同次失败在材料卡和底栏重复说明，修复控件可用不代表该体验已简化。generic frame 的系统 `@` 入口与完整5项已通过（`/tmp/quality-audit-composer-frame-final.log`）；清理诊断后的 Coding3项中2项通过，混合材料项在创建会话的测试点击安装监听时耗尽30秒预算，尚未进入本项行为（`coding-materials-final.log`），保留记录并补跑三宽截图；完整包必跑、资源与最终头CI仍待完成。
+
+### QF-28 / P1：重试遭拒不能证明上一次未知发送未受理
+
+位置：`plugins/native/coding/src/browser/input-receipts.ts:109–133,149–151`；真实下游 `routes-sessions.ts:355` 先读取当前材料再交 `agent.inputs.send`，后者明确同 key 异文拒绝。当前材料变化可能使派生文本变化，撤回会在读取处拒绝；原客户端将这些明确拒绝直接清空 lost item，第三次点击便换新 key，已受理的原输入可能再排一条。读取失败只证明本次尝试未完成，不能推翻前次未知结果。
+
+旧构建调用真实客户端工厂的 QEA-45 新用例有效失败：重试拒绝后 lost bubble 消失（期望1、实际undefined），原8项仍通过，日志 `/tmp/quality-audit-lost-retry-baseline.log`。最小修复保留相同意图原 key 与先前未知事实；首次拒绝照常恢复，成功或原 owner 可见后才结算，另给准确的重试提示。实际 current 修改/排除→连续重试→原轮结束→一条队列及固定原件正文正在验收。不新增材料正文缓存或键账；SDK虽有 knownInputKeys 查询，但它不能独自证明材料不同仍是同一请求，本项不为立即回执扩平台。
+
+### QF-29 / P2 候选：环境检查把读取失败投影成不存在或已就绪
+
+代码证据：`plugins/native/coding/src/environment-prep.ts:71–93,118–154,171–197` 的三段宽 catch 分别回退到非Git、无目录内容、无工作树；最终由这些缺省值计算 ready。`routes-sessions.ts:93–98` 又缓存15秒的检查 Promise并把外层异常转null。消费方 `recovery-parts.ts:210–215,247–250` 把缺省解释为“不是仓库”“无依赖”，用户无法区分真实空目录和暂时读不到。边界尾检仍应保留，这里不能据故障推导业务事实。
+
+本项目前为静态确认的失败语义候选，尚未经正常入口注入读取失败，不宣称已复现用户事故。下一步对真实存在依赖/冲突的隔离目录制造公开读取故障，核对整体state可用性、缓存恢复及准确提示；预计让检查负责读取完整性、UI只投影未知/部分可读，避免阻断正常会话列表，不新增检查状态表。补充验收后决定最小改动；不得以本地控件修复关闭本项。

@@ -1,4 +1,4 @@
-import type { ComposerControl, ComposerHandle, ComposerOptions, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import type { ComposerControl, ComposerDraftAdapter, ComposerHandle, ComposerOptions, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { PLUGIN_ICON_NAMES, type MwComposerAiLabels, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { BarReceiver, BridgedOutcome, ComposerCalls, ComposerDown, ComposerOp, ComposerSnapshot, ComposerUp } from "./composer-bridge.js";
 import type { FramePack, FrameScope } from "./types.js";
@@ -177,16 +177,20 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
   let retitle: (() => void) | undefined;
   let sequence = 0, shown = "", text = "", generation = 0;
   const answers = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>();
+  let receipt: { call: number; acknowledge(): void } | undefined;
+  // A shape refresh is still this child's draft: retain selections/revisions until its actual mount is replaced.
+  let draftAdapter: ComposerDraftAdapter | undefined;
   const post = (message: ComposerDown) => port.postMessage(message);
   // The bar's text, as the page last heard it; sent again after anything that may have changed it without an input event.
   const down = () => { if (field && bound && field.value !== text) { text = field.value; post({ type: "composer-text", id, text }); } };
   const typed = (event: Event) => { if (event.target === field) down(); };
   // Each mount's calls go to that mount only: a bar composer let go after the page mounted anew (another session) flushes its last
   // edit into nothing, never into the next mount's draft.
-  const call = <Op extends ComposerOp>(mine: number, op: Op, arg: ComposerCalls[Op][0], signal?: AbortSignal) => new Promise<ComposerCalls[Op][1]>((resolve, reject) => {
+  const call = <Op extends ComposerOp>(mine: number, op: Op, arg: ComposerCalls[Op][0], signal?: AbortSignal, acknowledge?: () => void) => new Promise<ComposerCalls[Op][1]>((resolve, reject) => {
     const number = ++sequence;
     if (mine !== id) { reject(new Error("View closed")); return; }
     if (signal?.aborted) { reject(signal.reason); return; }
+    if (op === "submit") receipt = acknowledge ? { call: number, acknowledge } : undefined;
     answers.set(number, { resolve: value => resolve(value as ComposerCalls[Op][1]), reject });
     signal?.addEventListener("abort", () => { if (answers.delete(number)) { post({ type: "composer-abort", id: mine, call: number }); reject(signal.reason); } }, { once: true });
     post({ type: "composer-call", id: mine, call: number, op, ...(arg === undefined ? {} : { arg }) });
@@ -206,13 +210,12 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     const now = () => (mine === id && snapshot ? (last = snapshot) : last);
     const control = (item: ComposerSnapshot["controls"][number]): ComposerControl => item.kind === "select" ? { ...item, change: (value: string) => act(mine, "control", item.id, value) }
       : item.kind === "toggle" ? { ...item, change: (on: boolean) => act(mine, "control", item.id, on ? "on" : "off") } : { ...item, run: () => act(mine, "control", item.id) };
-    const draft = { read: (signal: AbortSignal) => call(mine, "draft-read", undefined, signal).then(value => typeof value === "string" ? value : ""),
+    const draft = draftAdapter ??= { read: (signal: AbortSignal) => call(mine, "draft-read", undefined, signal).then(value => typeof value === "string" ? value : ""),
       write: (value: string) => call(mine, "draft-write", value), sent: () => call(mine, "draft-sent", undefined) };
     const at = now();
     return {
-      // A framed page lists no sources, in the bar as in its own box (S-composer-source-call item 5): what it asked is kept for the
-      // batch that opens them to pages with their own review.
-      kind: "ai", entry: at.entry, labels: at.labels as MwComposerAiLabels, sources: false, ...(at.voice ? { voice: at.voice } : {}),
+      // Sources run in the person's parent bar. Their choices cross only in submit, never in the page's material notifications.
+      kind: "ai", entry: at.entry, labels: at.labels as MwComposerAiLabels, sources: at.sources, ...(at.voice ? { voice: at.voice } : {}),
       ...(at.submitKeys ? {} : { submitKeys: false as const }), ...(at.draft ? { draft: { adapter: draft } } : {}),
       receiver: () => { const named = now().receiver; return named ? { ...named, icon: named.icon as PluginIconName | undefined, choose: (key: string) => act(mine, "receiver", key) } : null; }, delivery: () => now().delivery ?? { "next-boundary": { available: true }, interrupt: { available: true }, "after-run": { available: true } },
       ...(at.stop ? { stop: (signal: AbortSignal) => call(mine, "stop", undefined, signal) } : {}),
@@ -221,11 +224,11 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       get commands() { return now().commands.map(command => ({ ...command, icon: command.icon as PluginIconName | undefined, run: () => act(mine, "command", command.slash) })); },
       ...(at.mentions ? { mentions: (query: string, signal: AbortSignal) => call(mine, "mentions", query, signal).then(mentionsOf) } : {}),
       ...(at.attachments ? { attachments: { ...at.attachments, upload: (file: File, signal: AbortSignal) => call(mine, "upload", file, signal).then(uploadOf) } } : {}),
-      onMaterials: () => { if (bound && mine === id) post({ type: "composer-materials", id, materials: [...bound.materials()] }); },
+      onMaterials: () => { if (bound && mine === id) post({ type: "composer-materials", id, materials: bound.materials().filter(item => item.kind === "attachment") }); },
       near: () => { const near = now().near; return near ? { ...near, plugin_id: pack.plugin_id } : null; },
       required: () => now().required,
       notice: () => { const line = now().notice; return line ? { text: line.text, tone: line.tone, ...(line.icon ? { icon: line.icon as PluginIconName } : {}), ...(line.action ? { action: { label: line.action.label, run: () => act(mine, "notice", "") } } : {}) } : null; },
-      submit: (input, signal) => call(mine, "submit", input, signal).then(value => outcome(mine, value)),
+      submit: (input, signal, acknowledge) => call(mine, "submit", input, signal, acknowledge).then(value => outcome(mine, value)),
     };
   };
   let named = false, placed = "", width = 0;
@@ -269,6 +272,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     receivers.add(receiver); watch(); named = Boolean(at.receiver); changed();
   };
   const drop = () => {
+    receipt = undefined; draftAdapter = undefined;
     measure.disconnect();
     for (const pending of answers.values()) pending.reject(new Error("View closed"));
     answers.clear();
@@ -290,6 +294,10 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       return;
     }
     if (message.id !== id) return;
+    if (message.type === "composer-acknowledge") {
+      if (receipt?.call === message.call) { const accepted = receipt; receipt = undefined; accepted.acknowledge(); }
+      return;
+    }
     if (message.type === "composer-destroy") { drop(); id = 0; return; }
     if (message.type === "composer-answer") {
       const pending = answers.get(message.call); answers.delete(message.call);
@@ -304,6 +312,10 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     } else if (message.type === "composer-insert" && typeof message.text === "string" && message.text.length <= 1024 * 1024) bound.insert(message.text);
     else if (message.type === "composer-focus") bound.focus();
     else if (message.type === "composer-attach" && Array.isArray(message.files) && message.files.every(file => file instanceof File)) bound.attach(message.files.slice(0, 20));
-    else if (message.type === "composer-send") field.closest(".mw-composer")?.querySelector<HTMLButtonElement>("[data-composer-send]")?.click();
+    else if (message.type === "composer-send") {
+      // A page may submit its own words/files, but cannot make the person disclose another owner's selected reference.
+      if (bound.materials().some(item => item.kind === "material")) { bound.focus(); return; }
+      field.closest(".mw-composer")?.querySelector<HTMLButtonElement>("[data-composer-send]")?.click();
+    }
   };
 }

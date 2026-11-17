@@ -204,8 +204,12 @@ export interface ComposerCommonOptions {
   required?: () => string | null;
   /** A line above the box saying what holds for the next send (a read-only mode, say), with at most one way out; null draws none. Never stops a send: that is `required`. */
   notice?: () => ComposerNotice | null;
-  /** `signal` aborts when the instance is mounted again or let go; late outcomes settle only the original draft and sent selections. */
-  submit(input: ComposerSubmission, signal: AbortSignal): Promise<ComposerOutcome>;
+  /**
+   * `signal` aborts when the instance is mounted again or let go. If the reply was lost but the target later proves receipt,
+   * call `acknowledge`: it settles this invocation's original draft/selections only. A newer submission supersedes it,
+   * even when it reuses request_id. This is a success notification, not permission to resend or an unknown-outcome check.
+   */
+  submit(input: ComposerSubmission, signal: AbortSignal, acknowledge: () => void): Promise<ComposerOutcome>;
 }
 
 /** A draft its owner already keeps (the Assistant per work, Coding per session); the composer keeps no second persistent copy. Reuse the adapter object for the same draft within this document to retain its selected attachments. */
@@ -291,7 +295,7 @@ export interface ComposerHandle {
   hold(reason: string | null): void;
   /** Files the page was handed elsewhere (its own side pane, say) go onto the strip as if dropped on the box, through `attachments`. */
   attach(files: readonly File[]): void;
-  /** What the strip carries now, in its order: the rows that are read (a Send takes these); none until the program is in. */
+  /** Read rows in strip order; none until loaded. A framed receiver sees only its own attachments here: parent source references arrive in submit after the person sends. */
   materials(): readonly ComposerMaterial[];
   destroy(): void;
 }

@@ -1352,6 +1352,7 @@
     "coding.sent.next-boundary": "Delivered; the AI gets it once the current reply or this batch of tools ends.",
     "coding.sent.sending": "Sending…",
     "coding.sent.unconfirmed": "Delivery not confirmed: the connection dropped, or the answer couldn’t be read.",
+    "coding.sent.unconfirmed-retry": "This retry did not complete. Delivery of the earlier attempt is still unconfirmed. Your text and materials are kept and will update when confirmed.",
     "coding.sent.unconfirmed-again": "Delivery not confirmed: press again; the same one isn’t sent twice.",
     "coding.sent.withdrawn": "Withdrawn; the next turn won’t take it.",
     "coding.server.accept-succeeded-only": "Only a step the model reported as succeeded can be accepted; for others, ask for rework",
@@ -1961,7 +1962,7 @@
     "coding.material.delivery.inline": "Full text",
     "coding.material.delivery.on-demand": "Listed; read on demand",
     "coding.material.delivery.truncated": "First 12,000 chars; read more on demand",
-    "coding.material.drop-and-start": "Remove and start",
+    "coding.material.remove-unreadable": "Remove unreadable materials",
     "coding.material.kept-summary": {
       "plural_arg": "kept",
       "forms": {
@@ -1981,7 +1982,6 @@
         "other": "{count} materials in this round"
       }
     },
-    "coding.material.start-without": "Start without materials",
     "coding.material.unreadable-banner": "Unreadable materials: {materials}. Your draft and other materials are kept.",
     "coding.plan.points-field": "Story points (Fibonacci, optional)",
     "coding.plan.points-reason-field": "Estimate reason (optional)",

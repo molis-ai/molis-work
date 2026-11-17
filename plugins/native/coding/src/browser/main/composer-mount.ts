@@ -7,7 +7,7 @@ import { codingCommands } from "./commands.js";
 import { chooseIntent, drawIntents, refreshState, rememberConfiguration } from "./configuration.js";
 import { terminal, unread } from "./composer-state.js";
 import { controls, counts } from "./controls.js";
-import { currentSelection } from "./composer.js";
+import { currentSelection, failedMaterialsOf, selectionMaterialKey } from "./composer.js";
 import type { Page } from "./page.js";
 import { readCurrent } from "./read.js";
 import { retitleMethodControls } from "./methods.js";
@@ -123,24 +123,35 @@ function missing(page: Page): string | null {
  * person said who goes first when other work names the same files. Only a send that went clears the box (the composer's rule);
  * one whose answer was lost fails, and its retry goes under the same key (input-receipts.ts).
  */
-async function submit(page: Page, id: string, input: ComposerSubmission): Promise<ComposerOutcome> {
+async function submit(page: Page, id: string, input: ComposerSubmission, acknowledge: () => void): Promise<ComposerOutcome> {
   const { readText, refs, s } = page;
   if (s.current !== id || s.sending) return { state: "failed", message: readText("coding.composer.busy") };
-  const run = s.lastRun, task = input.text;
-  const selection: RoundSelection = { ...currentSelection(page, id), action_tools: structuredClone(s.actionSelections.get(id) || []), writer_assignments: structuredClone(s.configurations.get(id)?.writer_assignments || []) };
+  const run = s.lastRun, task = input.text, intent = s.intent, model = refs.composerModels.value();
+  const picks = input.materials.flatMap(item => item.kind === "material" ? [{ ref: item.ref, title: item.title }] : []);
+  const saved = currentSelection(page, id), materials = [...saved.materials];
+  const selected = new Set(materials.map(selectionMaterialKey));
+  for (const pick of picks) if (!selected.has(selectionMaterialKey(pick))) { selected.add(selectionMaterialKey(pick)); materials.push(pick); }
+  const selection: RoundSelection = { ...saved, materials, action_tools: structuredClone(s.actionSelections.get(id) || []), writer_assignments: structuredClone(s.configurations.get(id)?.writer_assignments || []) };
   s.sending = true;
   s.composerSending = true;
   controls(page);
   try {
     rememberConfiguration(page);
     await refs.draft.flush();
-    if (run && !terminal(run.phase)) status(page, await refs.inputReceipts.steer(id, run.ref.run_id, task, input.delivery ?? "next-boundary"));
-    else if (!await startFromComposer(page, id, task, selection, s.intent, refs.composerModels.value())) return { state: "failed", message: readText("coding.composer.cancelled") };
+    if (run && !terminal(run.phase)) status(page, await refs.inputReceipts.steer(id, run.ref.run_id, task, input.delivery ?? "next-boundary", picks, acknowledge));
+    else if (!await startFromComposer(page, id, task, selection, intent, model)) return { state: "failed", message: readText("coding.composer.cancelled") };
     surfaceChanged(page, id);
     void refreshState(page).then(() => readCurrent(page)).catch(error => status(page, errorMessage(error), true));
     return { state: "sent" };
   } catch (error) {
-    return { state: "failed", message: errorMessage(error) };
+    const sentMaterials = run && !terminal(run.phase) ? picks : materials;
+    const failures = failedMaterialsOf(error);
+    const unreadable = input.materials.flatMap((item, index) => {
+      if (item.kind !== "material") return [];
+      const key = selectionMaterialKey(item), failed = failures?.find(one => (one.key ?? selectionMaterialKey(sentMaterials[one.index ?? -1])) === key);
+      return failed ? [{ index, reason: failed.reason }] : [];
+    });
+    return { state: "failed", message: errorMessage(error), ...(unreadable.length ? { unreadable } : {}) };
   } finally {
     s.sending = false;
     s.composerSending = false;
@@ -159,7 +170,7 @@ export function mountCodingComposer(page: Page, id: string) {
   s.composerDrawn = "";
   refs.composerLabels = codingComposerLabels(readText, mac());
   refs.composer = window.molisComposer(q("[data-coding-input]"), {
-    kind: "ai", entry: "session", labels: refs.composerLabels, sources: false,
+    kind: "ai", entry: "session", labels: refs.composerLabels, sources: true,
     ...(id ? { draft: { adapter: refs.draft.adapter(id) } } : {}),
     receiver: () => {
       const session = s.current ? s.state.sessions.find(item => item.session_id === s.current) : undefined;
@@ -179,7 +190,7 @@ export function mountCodingComposer(page: Page, id: string) {
     mentions: (query, signal) => refs.mentions(query, signal),
     required: () => missing(page),
     notice: () => readOnlyNotice(page),
-    submit: input => submit(page, id, input),
+    submit: (input, _signal, acknowledge) => submit(page, id, input, acknowledge),
   });
 }
 

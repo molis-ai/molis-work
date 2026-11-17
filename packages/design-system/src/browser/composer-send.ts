@@ -29,24 +29,25 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
   }));
   // What the last Send carried: words and files added while it was on its way are not its, and stay.
   let went = retained.submitted();
-  function settle(outcome: ComposerOutcome) {
+  function settle(outcome: ComposerOutcome, submitted = went) {
+    if (retained.submitted() !== submitted) return;
     const current = retained.current();
     c.phase = ""; c.check = null;
-    if (outcome.state !== "sent" && current && !current.field.value && retained.revision() === went.revision) {
-      current.field.value = went.text; window.molisFit?.(current.field);
+    if (outcome.state !== "sent" && current && !current.field.value && retained.revision() === submitted.revision) {
+      current.field.value = submitted.text; window.molisFit?.(current.field);
     }
     if (outcome.state === "sent") {
-      letGo(c.items.filter((item) => went.items.includes(item)));
-      c.items = c.items.filter((item) => !went.items.includes(item)); c.requestId = ""; c.delivery = "next-boundary";
-      const cleared = drafts.sent(went.revision);
-      if (cleared && current?.field.value === went.text) { current.field.value = ""; window.molisFit?.(current.field); }
+      letGo(c.items.filter((item) => submitted.items.includes(item)));
+      c.items = c.items.filter((item) => !submitted.items.includes(item)); c.requestId = ""; c.delivery = "next-boundary";
+      const cleared = drafts.sent(submitted.revision);
+      if (cleared && current?.field.value === submitted.text) { current.field.value = ""; window.molisFit?.(current.field); }
       const receipt = outcome.receipt, ai = c.ai;
       if (current) current.note = receipt && ai ? receipt.replayed ? { caption: labels.notice, text: ai.labels.replayed }
         : receipt.delivered === "queued" ? { caption: labels.notice, text: ai.labels.queued } : undefined : undefined;
     } else if (outcome.state === "failed") {
       c.phase = "failed"; c.failure = outcome.message;
       for (const { index, reason } of outcome.unreadable ?? []) {
-        const item = went.items[index];
+        const item = submitted.items[index];
         if (item && c.items.includes(item)) Object.assign(item, { state: "failed", reason });
       }
       if (outcome.unreadable?.length) c.phase = "";
@@ -70,20 +71,24 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
       c.requestId ||= crypto.randomUUID();
       const text = field.value, materials = attached(c);
       went = { text, items: c.items.slice(), revision: retained.revision() }; retained.remember(went);
+      const submitted = went;
+      let acknowledged = false;
+      const acknowledge = () => { if (!acknowledged) { acknowledged = true; settle({ state: "sent" }, submitted); } };
       drafts.stop(); // Flush the submitted edit before subsequent edits acquire their own draft generation.
       c.phase = "sending"; c.close(); c.paint();
       let outcome: ComposerOutcome;
-      try { outcome = await options.submit({ text, materials, ...(delivery ? { delivery } : {}), controls: values(), request_id: c.requestId }, signal); }
+      try { outcome = await options.submit({ text, materials, ...(delivery ? { delivery } : {}), controls: values(), request_id: c.requestId }, signal, acknowledge); }
       catch (error) { outcome = { state: "failed", message: error instanceof Error ? error.message : String(error) }; }
       if (key) sentByKey();
-      settle(outcome);
+      if (!acknowledged) { if (outcome.state === "sent") acknowledged = true; settle(outcome, submitted); }
     },
     async confirm() {
       if (!c.check) return;
-      const asked = c.check; c.phase = "sending"; c.paint();
+      const asked = c.check, submitted = went; c.phase = "sending"; c.paint();
       let answer: "sent" | "not-sent" | "unknown";
       try { answer = await asked(); } catch { answer = "unknown"; }
-      if (answer === "sent") settle({ state: "sent" });
+      if (retained.submitted() !== submitted || c.check !== asked) return;
+      if (answer === "sent") settle({ state: "sent" }, submitted);
       else if (answer === "not-sent") { c.phase = ""; c.check = null; c.requestId = ""; const current = retained.current(); if (current) { current.note = { caption: labels.notice, text: labels.notSent }; current.paint(); } }
       else { c.phase = "unknown"; c.check = asked; retained.current()?.paint(); }
     },

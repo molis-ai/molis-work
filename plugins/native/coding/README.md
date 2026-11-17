@@ -143,3 +143,5 @@ subject-state 可向 Kernel 提供当前 owner 的同步 getter：每次读真�
 保存的跨设备会话历史以 SDK 官方导出包的完整事件记录为派生快照；源端在选中上传后通过同一 Prologue Runtime 读取，真实运行未结算时保留队列。目标端只读，不导入批准、执行身份或检查点。`coding.runs.list@1` 的 `history_before` 对保存历史单独分页，`before` 对本机执行分页；两者不能混用，页面仍使用原 GET 路径，旧动作版本明确拒绝。
 
 提交说明交给内嵌 Git 使用已登记 clientUses 的 `offerCommitDraft(workspaceId, message)`，不读写另一插件约定的 storage 键。必须定位本轮原目录，不回退当前目录；等待 Git 实际保存后才报告成功，有手写文本时说明建议已保存供显式采用。交接失败在原处重试同一份生成结果，不重调模型。
+
+共享输入材料（QEA-41～46）：父页来源选择随本次提交进入 Coding，与已保存的下一轮材料按完整引用去重；本次选择不写入长期 materialSelections。运行中补充只携带此次来源，三种交付模式都先经同一 owner 读取，再作为资料附到模型正文；原话仍由受保护 original_input 与原 Runtime 记录保存。等待另一轮结束前先验证引用，真正开始时再读。不可读项按提交快照定位，来源条与已保存选择各自恢复，移除不自动重发。未知回应仍由本人显式同 key 重试；正常读取中的真实 Run/queued_inputs 回执调用公共 composer 成功回调，只结算原提交文字与材料，后写内容保留。

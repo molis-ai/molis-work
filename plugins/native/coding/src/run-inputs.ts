@@ -5,6 +5,7 @@ import { QUESTION_LIMITS, questionAnswer as cardAnswer } from "@molis-ai/molis-w
 import { codingWriterAssignments } from "./writers.js";
 import type { CodingModelChoice } from "./models.js";
 import { codingFailure } from "./words.js";
+import { CODING_MATERIALS_MAX, materialSelection, type CodingMaterial } from "./materials.js";
 
 const identity = {
   session_id: { type: "string", minLength: 1, maxLength: 200 },
@@ -56,7 +57,7 @@ export const codingRunControlInput: ActionSchema = {
       answers: { type: "array", minItems: 1, maxItems: 10, items: answerItem },
     }, ["pending_id", "pending_revision", "answers"]),
     controlBranch("steer", { text: words(100_000), source: { enum: [...AGENT_INPUT_SOURCES] }, key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN },
-      mode: { enum: [...AGENT_STEER_MODES] }, about: words(200) }, ["text"]),
+      mode: { enum: [...AGENT_STEER_MODES] }, about: words(200), materials: { type: "array", maxItems: CODING_MATERIALS_MAX, items: { type: "object" } } }, ["text"]),
     controlBranch("withdraw", { input_id: words(200) }, ["input_id"]),
     controlBranch("stop", {}, []),
     controlBranch("pause", {}, []),
@@ -161,7 +162,7 @@ export function chosenEffort(body: Record<string, unknown>, model: CodingModelCh
 }
 
 /** A supplement goes to the Agent Host's `agent.inputs.send`, taking one back to `agent.inputs.withdraw`; every other control to the round's own control. */
-export type CodingRunControl = AgentRunControl | { kind: "steer"; send: AgentInputSend } | { kind: "withdraw"; input_id: string };
+export type CodingRunControl = AgentRunControl | { kind: "steer"; send: AgentInputSend; materials: CodingMaterial[] } | { kind: "withdraw"; input_id: string };
 
 /**
  * A control the person sends to the round. A switch names only a model the Host offers this plugin; whether the round
@@ -172,7 +173,7 @@ export type CodingRunControl = AgentRunControl | { kind: "steer"; send: AgentInp
  */
 export async function runControl(body: Record<string, unknown>, models: () => Promise<readonly CodingModelChoice[]>): Promise<CodingRunControl> {
   if (body.kind === "answer") return questionAnswer(body);
-  if (body.kind === "steer") return { kind: "steer", send: { text: text(body.text, "coding.field.supplement", 100_000),
+  if (body.kind === "steer") return { kind: "steer", materials: materialSelection(body.materials ?? []), send: { text: text(body.text, "coding.field.supplement", 100_000),
     ...(typeof body.source === "string" ? { source: body.source as AgentInputSource } : {}),
     ...(typeof body.key === "string" ? { key: body.key } : {}), ...(typeof body.mode === "string" ? { mode: body.mode as AgentSteerMode } : {}),
     ...(typeof body.about === "string" ? { about: body.about } : {}) } };

@@ -184,7 +184,7 @@ const ROUTES: RouteMaker[] = [
         const earlier = offset ? await summaries.read(session.session_id, snapshot.runs.slice(0, offset), ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref])) : [];
         const earlierFingerprint = summariesFingerprint(earlier);
         const last = runs.at(-1);
-        const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
+        const state = snapshot.recovery ? "reconcile-required" : queuedView?.waiting_for === "work" ? "queued" : last ? sessionState(last) : "idle";
         const updated = { ...record, state };
         const compactRequested = context.services?.storage?.get(`compact-next:${record.session_id}`) === "1";
         return { saved_history:codingSavedHistoryPage(execution,projectId,record.session_id,undefined,Number(request.query?.window??20)), session: { ...updated, queued: queuedView, queued_inputs: snapshot.queued_inputs, priority, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitles.known(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(a, beforeWrite, record.session_id, session, runs, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts,input_revision, materials, skills, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision, checkpoint_busy: snapshot.checkpoint_busy === true,

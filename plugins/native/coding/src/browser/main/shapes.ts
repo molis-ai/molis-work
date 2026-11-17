@@ -240,7 +240,7 @@ export interface SessionData extends UsageData {
   readonly saved_history?: import("../saved-history.js").SavedHistory;
   readonly session: SessionRecord & {
     readonly runtime_session_id: string;
-    readonly queued_inputs?: readonly unknown[];
+    readonly queued_inputs?: readonly import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[];
     readonly queued?: QueuedRound | null;
     readonly priority?: boolean;
     readonly goal_title?: string;

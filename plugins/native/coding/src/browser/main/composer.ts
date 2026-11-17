@@ -1,5 +1,4 @@
 import { format, renderCodingRoundMaterials, type MwCodingRoundMaterialItem, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { el, errorMessage } from "../dom.js";
 import { refreshState } from "./configuration.js";
 import { terminal } from "./composer-state.js";
@@ -29,7 +28,7 @@ interface FailedMaterialItem {
   readonly failure_kind?: "not_found" | "forbidden" | "unavailable";
 }
 
-function selectionMaterialKey(entry: unknown): string {
+export function selectionMaterialKey(entry: unknown): string {
   if (!entry || typeof entry !== "object") return "";
   if ("ref" in entry && entry.ref && typeof entry.ref === "object") {
     const ref = entry.ref as { subject?: { kind?: string; id?: string }; pin?: unknown; range?: unknown };
@@ -42,7 +41,7 @@ function selectionMaterialKey(entry: unknown): string {
   return "";
 }
 
-function failedMaterialsOf(error: unknown): readonly FailedMaterialItem[] | null {
+export function failedMaterialsOf(error: unknown): readonly FailedMaterialItem[] | null {
   if (!error || typeof error !== "object") return null;
   const code = "code" in error && typeof error.code === "string" ? error.code : "";
   const body = "body" in error && error.body && typeof error.body === "object" ? error.body as Record<string, unknown> : null;
@@ -55,9 +54,13 @@ function failedMaterialsOf(error: unknown): readonly FailedMaterialItem[] | null
   return code === "coding.material_unreadable" && list?.length ? list : null;
 }
 
-function showMaterialRecovery(page: Page, id: string, failed: readonly FailedMaterialItem[] | null) {
+function showMaterialRecovery(page: Page, id: string, failures: readonly FailedMaterialItem[] | null, submitted: readonly unknown[] = []) {
   page.q("[data-coding-composer]").querySelector("[data-coding-material-recovery]")?.remove();
   let bar = page.turns.querySelector<HTMLElement>(":scope > [data-coding-material-recovery]");
+  const allChosen = page.s.materialSelections.get(id) || [];
+  const keys = new Set(allChosen.map(selectionMaterialKey));
+  // Source picks live in the shared composer, not in this saved selection. An error index belongs to the submitted merged list.
+  const failed = failures?.map(item => ({ ...item, key: item.key ?? selectionMaterialKey(submitted[item.index ?? -1]) })).filter(item => keys.has(item.key));
   if (!failed?.length) {
     bar?.remove();
     return;
@@ -67,21 +70,8 @@ function showMaterialRecovery(page: Page, id: string, failed: readonly FailedMat
     bar.dataset.codingMaterialRecovery = "";
     page.turns.append(bar);
   }
-  const allChosen = page.s.materialSelections.get(id) || [];
   const badKeys = new Set(failed.flatMap(item => item.key ? [item.key] : []));
-  const badIndices = new Set(failed.flatMap(item => typeof item.index === "number" ? [item.index] : []));
-  const badArtifactIds = new Set(failed.flatMap(item => item.artifact_id ? [item.artifact_id] : []));
-  const keptSelection = allChosen.filter((entry, idx) => {
-    if (badIndices.has(idx)) return false;
-    const key = selectionMaterialKey(entry);
-    if (key && badKeys.has(key)) return false;
-    if (entry && typeof entry === "object" && "ref" in entry) {
-      const ref = (entry as { ref?: { artifact_id?: string; pin?: { version?: { artifact_id?: string } } } }).ref;
-      const aid = ref?.artifact_id || ref?.pin?.version?.artifact_id;
-      if (aid && badArtifactIds.has(aid)) return false;
-    }
-    return true;
-  });
+  const keptSelection = allChosen.filter(entry => !badKeys.has(selectionMaterialKey(entry)));
   const items: MwCodingRoundMaterialItem[] = failed.map(item => {
     const why = item.failure_kind === "not_found"
       ? uiText.text("coding.material.reason.deleted")
@@ -97,7 +87,8 @@ function showMaterialRecovery(page: Page, id: string, failed: readonly FailedMat
     };
   });
   const names = items.map(item => item.name + (item.how ? " (" + item.how + ")" : "")).join(uiText.text("coding.list.joiner"));
-  setContentHtml(bar, renderCodingRoundMaterials({
+  // Local UI renders and escapes every value; content sanitization would remove its action bindings.
+  bar.innerHTML = renderCodingRoundMaterials({
     title: uiText.text("coding.material.round-title"),
     summaryLabel: uiText.text("coding.material.status.unreadable"),
     summaryTone: "blocked",
@@ -107,11 +98,11 @@ function showMaterialRecovery(page: Page, id: string, failed: readonly FailedMat
       title: uiText.text("coding.material.recovery.title"),
       body: uiText.text("coding.material.unreadable-banner", { materials: names }) + " " + uiText.text("coding.material.kept-summary", { kept: keptSelection.length }),
       actions: [
-        { label: uiText.text("coding.material.drop-and-start"), variant: "primary", attrs: { "data-coding-drop-failed-materials": "" } },
-        { label: keptSelection.length ? uiText.text("coding.material.pick-another") : uiText.text("coding.material.start-without"), variant: "secondary", attrs: { "data-coding-replace-failed-materials": "" } },
+        { label: uiText.text("coding.material.remove-unreadable"), variant: "primary", attrs: { "data-coding-drop-failed-materials": "" } },
+        { label: uiText.text("coding.material.pick-another"), variant: "secondary", attrs: { "data-coding-replace-failed-materials": "" } },
       ],
     },
-  }));
+  });
   const drop = bar.querySelector<HTMLButtonElement>("[data-coding-drop-failed-materials]");
   if (drop) {
     page.lifetime.listen(drop, "click", () => {
@@ -119,23 +110,14 @@ function showMaterialRecovery(page: Page, id: string, failed: readonly FailedMat
       bar?.remove();
       controls(page);
       void page.refs.draft.flush().then(() => {
-        page.q<HTMLButtonElement>("[data-coding-input] [data-composer-send]").click();
+        page.refs.composer.focus();
       }).catch(error => status(page, errorMessage(error), true));
     });
   }
   const alt = bar.querySelector<HTMLButtonElement>("[data-coding-replace-failed-materials]");
   if (alt) {
     page.lifetime.listen(alt, "click", () => {
-      if (keptSelection.length) {
-        void openMaterials(page);
-        return;
-      }
-      page.s.materialSelections.set(id, []);
-      bar?.remove();
-      controls(page);
-      void page.refs.draft.flush().then(() => {
-        page.q<HTMLButtonElement>("[data-coding-input] [data-composer-send]").click();
-      }).catch(error => status(page, errorMessage(error), true));
+      void openMaterials(page);
     });
   }
   page.s.follow.pin();
@@ -158,7 +140,7 @@ export async function startRound(page: Page, id: string, task: string | undefine
       ...(selection.worktree_id ? { worktree_id: selection.worktree_id } : {}),
     });
   } catch (error) {
-    if (id === s.current) showMaterialRecovery(page, id, failedMaterialsOf(error));
+    if (id === s.current) showMaterialRecovery(page, id, failedMaterialsOf(error), selection.materials);
     throw error;
   }
   if (id === s.current) showMaterialRecovery(page, id, null);

@@ -77,6 +77,8 @@ export type ComposerUp =
   | { type: "composer-attach"; id: number; files: File[] }
   /** The page pressed its own send (a way back from settings finishing the send the person began): the bar's send, if it is front. */
   | { type: "composer-send"; id: number }
+  /** The target's late receipt for one earlier submit call; grants no send or access to another selection. */
+  | { type: "composer-acknowledge"; id: number; call: number }
   | { type: "composer-destroy"; id: number }
   | { type: "composer-answer"; id: number; call: number; value?: unknown; error?: string };
 export type ComposerDown =

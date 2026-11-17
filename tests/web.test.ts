@@ -469,16 +469,14 @@ function writeWebTestInstallation(homeDirectory: string, version: string): void 
 function webRuntimeIntegrationFixture(homeDirectory: string) {
   const userHomeDirectory = join(homeDirectory, "test-user-home");
   const release = join(homeDirectory, "releases", "molis-work-web-test");
-  const skill = join(release, "skills", "goal-advance");
   const launcher = join(homeDirectory, "bin", "molis-work-mcp");
   const runtimeBin = join(homeDirectory, "test-runtime-bin");
   mkdirSync(join(homeDirectory, "config"), { recursive: true });
-  mkdirSync(skill, { recursive: true });
+  mkdirSync(release, { recursive: true });
   mkdirSync(join(homeDirectory, "bin"), { recursive: true });
   mkdirSync(runtimeBin, { recursive: true });
   mkdirSync(userHomeDirectory, { recursive: true });
   writeWebTestInstallation(homeDirectory, "web-test");
-  writeFileSync(join(skill, "SKILL.md"), "---\nname: goal-advance\n---\n");
   writeFileSync(launcher, "#!/bin/sh\nexit 0\n");
   const codex = join(runtimeBin, "codex");
   const claude = join(runtimeBin, "claude");
@@ -489,7 +487,6 @@ function webRuntimeIntegrationFixture(homeDirectory: string) {
   [launcher, codex, claude, opencode, pi, grok].forEach((file) => chmodSync(file, 0o755));
   return {
     userHomeDirectory,
-    skill,
     launcher,
     service: new RuntimeIntegrationService({
       homeDirectory,

@@ -42,7 +42,7 @@ test("npm staging packs workspace assets without host binaries or modifying the 
     const files = new Set<string>(packed.files.map((file: { path: string }) => file.path));
     assert.ok(files.has("node_modules/@molis-ai/molis-work-plugin-cli/bin/molis-work-plugin.mjs"));
     assert.ok(files.has("dist/cli/main.js"));
-    assert.ok(files.has("skills/goal-advance/SKILL.md"));
+    assert.equal([...files].some(file => file.startsWith("skills/goal-advance/")), false, "PEQ-14: the goal-advance Skill is not shipped");
     assert.ok(files.has("skills/molis-plugin-dev/SKILL.md"));
     assert.ok(files.has("skills/molis-plugin-dev/elements.md"));
     assert.ok(files.has("skills/molis-plugin-dev/ui.md"));

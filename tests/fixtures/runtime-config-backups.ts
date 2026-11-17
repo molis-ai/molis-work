@@ -14,7 +14,7 @@ export async function runtimeBackupFixture(t: TestContext) {
   const secret = randomBytes(32).toString("hex"), contents = 'model = "original"\n[credentials]\nopaque = ' + JSON.stringify(secret) + '\n';
   const config = join(userHome, ".codex", "config.toml"), launcher = join(home, "bin", "molis-work-mcp");
   await Promise.all([mkdir(join(home, "config"), { recursive: true }), mkdir(join(home, "bin"), { recursive: true }),
-    mkdir(join(release, "skills", "goal-advance"), { recursive: true }), mkdir(join(userHome, ".codex", "skills"), { recursive: true })]);
+    mkdir(release, { recursive: true }), mkdir(join(userHome, ".codex", "skills"), { recursive: true })]);
   await Promise.all([writeFile(launcher, "#!/bin/sh\nexit 0\n", { mode: 0o755 }), writeFile(config, contents, { mode: 0o640 }),
     writeFile(join(home, "config", "installation.json"), JSON.stringify({ schema_version: 1,
       installer: "molis-work-home-install-v1", version: "test", release_path: "releases/molis-work-test",

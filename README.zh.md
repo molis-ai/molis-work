@@ -20,16 +20,15 @@ Molis Work 把这份记录放在本地。Codex、Claude Code、OpenCode 或其�
 
 ### 桌面端
 
-独立的 macOS 窗口：聚焦一条 Goal，再打开始终属于它的终端。Molis Work 还有一个可点击的 **macOS 顶部菜单栏状态图标**。点一下就能看到当前项目、聚焦的 Goal、状态和下一步。
+独立的 macOS 窗口：聚焦一条 Goal，再打开始终属于它的终端。
 
 <p align="center">
   <img src="docs/screenshots/showcase/desktop-focus-zh-dark.jpg" width="32%" alt="Molis Work 桌面端：在 Goal 导航旁聚焦一条 Goal">
   <img src="docs/screenshots/showcase/harness-runtime-zh-dark.jpg" width="32%" alt="Molis Work：绑定到当前 Goal 的终端">
-  <img src="docs/screenshots/showcase/macos-menu-bar-capsule-zh-dark.jpg" width="32%" alt="从 macOS 状态栏图标打开的 Molis Work 工作胶囊">
 </p>
 
 <p align="center">
-  <sub><b>Goal 工作台</b> · 历史 Goal 界面，不是当前事件正文 &nbsp;·&nbsp; <b>Goal 绑定 TUI</b> · 终端属于这条 Goal &nbsp;·&nbsp; <b>工作胶囊</b> · 从 macOS 状态栏快速查看</sub>
+  <sub><b>Goal 工作台</b> · 历史 Goal 界面，不是当前事件正文 &nbsp;·&nbsp; <b>Goal 绑定 TUI</b> · 终端属于这条 Goal</sub>
 </p>
 
 ### Harness 里
@@ -201,7 +200,6 @@ pnpm desktop:start:macos
 - [运行时协议](docs/runtime.md)
 - [MCP 接入](docs/mcp.md)
 - [CLI 与开发](docs/cli-and-development.md)
-- [Runtime Skill](skills/goal-advance/SKILL.md)
 - [Plugin 开发 Skill](skills/molis-plugin-dev/SKILL.md)
 
 当前需求和剩余事项见[规格书索引](specs/README.md)与[统一待办](specs/BACKLOG.md)。[0.1.x Bug 卡台账](docs/molis-work-bug-cards.md)仅作历史记录，其中的工作流程已退役。

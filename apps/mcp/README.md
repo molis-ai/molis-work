@@ -48,7 +48,7 @@ node scripts/run-tests.mjs tests/host-entry-consistency.test.ts
 ## 开发要求
 
 - 负责：MCP 工具 schema、受众划分与能力适配。
-- 不负责：业务规则、直接访问 Store、Runtime Skill 政策。
+- 不负责：业务规则、直接访问 Store。
 - 公开入口：`@molis-ai/molis-work-app-mcp`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：apps → 组合根 → 公开合同（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：

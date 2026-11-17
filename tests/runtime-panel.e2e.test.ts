@@ -74,7 +74,7 @@ test("RES-10 RES-11 the Home's missed notice and 设置 › 运行", { timeout: 
 
   // ---- RES-10: the Home's notice of what was missed, through the Host's routes ----
   await navigate(() => command("Page.navigate", { url: `${origin}/` }, sessionId));
-  await waitFor(`document.querySelector('[data-runtime-panel][data-mode=home]:not([hidden]) [data-runtime-row="m1"]')`);
+  await waitFor(`document.querySelector('[data-runtime-panel]:not([hidden]) [data-runtime-row="m1"]')`);
   assert.equal(await evaluate(`document.querySelector('[data-runtime-panel] .mw-alert--warning strong').textContent`), await text("missed-during-sleep", { count: 1 }));
   assert.equal(await evaluate(`document.querySelector('[data-runtime-row="m1"] [data-runtime-decide="run_now"]').className.includes('mw-btn--primary')`), true);
   assert.equal(await evaluate(`document.querySelector('[data-runtime-row="m1"] [data-runtime-decide="skip"]').className.includes('mw-btn--secondary')`), true, "跳过 is the quiet one");

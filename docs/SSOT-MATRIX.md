@@ -69,7 +69,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 | 目标 package | 负责什么 | 当前来源 | 包成熟度 | 迁移 / 实现 Goal | 归属 |
 | --- | --- | --- | --- | --- | --- |
-| `apps/desktop` | macOS 外壳、生命周期、Native Bridge | Native Bridge、Panel、Capsule 与发布工具；Tauri 配置在 apps/desktop/src-tauri | `production` | AP4/DV4/Cutover；实际平台安装证据见验证报告 | 应用：@yijunw0212 |
+| `apps/desktop` | macOS 外壳、生命周期、Native Bridge | Native Bridge、Panel、菜单栏与发布工具；Tauri 配置在 apps/desktop/src-tauri | `production` | AP4/DV4/Cutover；实际平台安装证据见验证报告 | 应用：@yijunw0212 |
 | `apps/workbench` | 本地产品 UI 与页面组合 | Shell、导航、页面组合与注册 UI contribution、跟随焦点对象的侧栏及系统工作标签；平台文字主人 `workbench` 的语言目录（`resources/locales/`）与各主人的词表（`src/plugin-text.ts`）；Goals 的页面由 Goals 包绘制，这里只交它外壳端口（T-116）；通用呈现边界，不拥有 Goal 完成算法；无数据库实现 | `production` | AP3/FD4/GW5/EX4/AR3/WK3/Cutover | 共享核心：@yijunw0212 |
 | `apps/local-host` | 本地唯一业务 composition root 和 single writer | 唯一项目数据库和业务装配；统一动作服务的宿主侧（能力目录合成、系统动作、逐客户端 MCP 授权、调用记录、跨进程动作网关）；可信身份与 Web/CLI/MCP 装配；各 Native 插件的组合适配（注入存储位置、模型、Artifact 发布等端口）；凭据与本机 IO | `production` | AP2/Cutover；动作服务见 `specs/action-architecture/` | 共享核心：@yijunw0212 |
 | `apps/server` | 无桌面窗口的接续服务命令与生命周期 | 2026-11-09 用户批准改由现有产品 CLI 的 `molis-work server …` 组合公开 `runServer(args, ports)`，替代原独立 Node 路径；授权、动作网关证明与本机资产恢复适配留在 Host owner。移除对 desktop/Host 的反向 import。接续能力仍属实验范围，此次接线不代表完整 Server/Exchange 或 Team 控制面已经交付 | `experimental`（已接入产品 CLI；能力仍实验） | `docs/reviews/daily-quality/2026-11-08-medium-supplement.md`；`specs/archive/daily-quality-medium-20261108/spec.md` | 应用：@yijunw0212 |
@@ -198,7 +198,6 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | workspace / npm | 根 scripts 调用 App-owned 构建与打包工具 | `pnpm workspace:build` 按依赖顺序构建输入或产物已变化的包，跳过构建记录仍有效的包；`pnpm build:clean` 强制整体重建。发布包包含必要内部 JS 和资产，消费者安装原生依赖；不独立发布私有包 |
 | CLI / MCP / Web bins | apps/desktop/launchers/cli/main.ts、apps/desktop/launchers/mcp/server.ts、apps/desktop/launchers/web/server.ts | 只保留启动环境/stdio/资源路径与公开 App 入口；无业务 SQL 或状态机 |
 | Desktop / Tauri | apps/desktop + apps/desktop/src-tauri | App/DMG/zip、bundle、ad-hoc codesign、本地安装/恢复；Developer ID、公证和公开发布不在本期验收承诺内 |
-| Runtime Skill | skills/goal-advance | 仅消费正式公开 Contract 与入口，不读取内部 Store |
 | Plugin 开发 Skill | skills/molis-plugin-dev | 随 npm / Home 发布；不自动挂 Runtime 接入；本仓库 `.cursor/skills` 只是符号链接 |
 | CI / vendor | .github/workflows、vendor；App-owned 发布工具 | `ci.yml` 的 `Verify` 汇总包边界与 workspace 校验、健康门禁、原生与 shell 检查、动作与插件合同、安全不变量、产品子集和密钥扫描；PR 选择、合并队列与 main 复用规则见 [并行开发 §3](system/PARALLEL-DEVELOPMENT.md#3-合并)。产品全量（含浏览器用例）由 `full-suite.yml` 分片运行，macOS 专有用例在本机补，触发与本机执行约束见 [§5.1](system/PARALLEL-DEVELOPMENT.md#51-子代理与并发的-agent)和 [§7](system/PARALLEL-DEVELOPMENT.md#7-集成分支上跑全量)。vendor 的来源、版本、许可证、SBOM 保留；发布包排除 `vendor/prologue-sdk/*.tgz` |
 | 文档 | 本索引与对应 owner 文档 | 当前位置以此表为准；迁移期记录见 [`docs/archive/system-migration-2026-09.md`](archive/system-migration-2026-09.md)，阶段性验收保留历史，不代表未来能力落地 |

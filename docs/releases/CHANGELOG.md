@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 插件同等地位收口（2026-11-17，第 44 批，进行中）
+
+- **删除桌面工作胶囊（PEQ-13）**：菜单栏的工作胶囊只画 Goals 的内容，整个删掉：Tauri 胶囊窗口与权限、宿主 `/desktop/capsule` 与 `/api/capsule` 路由、Goals 的胶囊投影，动作 `goals.capsule.menu.read@1` 出动作目录（`pnpm actions:update`）。菜单栏图标只留「打开／退出」。以后重做见 BL-capsule-redo。
+- **删除 CLI 的 Goals 命令（PEQ-15，D6b）**：CLI 写死的 7 个 Goals 动作与 `init`、`snapshot`、`active-goal`、`goal-tree-*` 命令删除，不改成通用命令、不留旧名；只留平台的 `review-request`／`review-decide`，CLI 不再建库。管理入口（CLI、管理 MCP）的受保护审阅改走登记的 `project.approvals.request.*` 动作。
+- **删除 `goal-advance` Skill 与它的运行时接入（PEQ-14）**：安装不再发 `skills/goal-advance/`，Runtime 接入只写 MCP 条目。合同 `RuntimeIntegrationDetection` 去掉 `skill_path`。接入收据 `runtime-integrations/<runtime>.json` 由 1 升到 2：宿主升级轮次去掉 `skill_path`、`skill_target`，并删掉当初放进 Codex、Claude Code、OpenCode、Pi Agent、Grok Build 技能目录、仍指向原目标的 `goal-advance` 链接；被改过的不动，写进宿主日志。
+- **测试**：只删验证已删代码的用例（胶囊、CLI 的 Goals 表与 `init` 建库、桌面 Skill 读焦点）；其余改用夹具或改断言为「不再存在」，不放宽。
+
 ### Skill 创作与改进完整路径（2026-11-16，第 42 批）
 
 - **草稿先行、采用才生效**：对技能的每次改动（新建、修改、恢复旧版、改一份通用技能）先是一份草稿，边写边存，不影响任何一轮；采用后签名装上成「我的技能」包的下一版，新技能是关着的，改的已有技能下一次用到时用新版。系统动作 `skills.drafts.{list,read,create,update,revise,discard}`、`skills.cases.{put,remove}`、`skills.trials.run`、`skills.versions.list`、`skills.lineage.dismiss`（`system.skills`），采用 `skills.drafts.adopt` 在安装提供方；助理只能起草，并回放、撤回这件工作里自己起的草稿，采用与打开技能只有本人（S-skill-authoring）。

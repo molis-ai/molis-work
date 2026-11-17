@@ -1,12 +1,12 @@
 # 桌面应用装配
 
-把本地 Web 产品接入桌面窗口与 Capsule，并提供 macOS 发布工具。
+把本地 Web 产品接入桌面窗口与菜单栏图标，并提供 macOS 发布工具。
 
 包名：`@molis-ai/molis-work-app-desktop`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
-createDesktopWebHost 向 Local Host 注入桌面能力；项目目录装配由 openMolisWorkProjectCatalog 提供。Capsule 通过 native bridge 与 Tauri 外壳交互，业务数据仍经各 Module 的公开接口访问。Goal 的工作终端由 Goals 经平台的启动终端服务开（S-103），本包不再有面板服务与启动配方（T-148）。
+createDesktopWebHost 向 Local Host 注入桌面能力；项目目录装配由 openMolisWorkProjectCatalog 提供。页面通过 native bridge 与 Tauri 外壳交互，业务数据仍经各 Module 的公开接口访问；菜单栏的工作胶囊已在第 44 批删除。Goal 的工作终端由 Goals 经平台的启动终端服务开（S-103），本包不再有面板服务与启动配方（T-148）。
 
 ## 从哪里读代码
 
@@ -35,7 +35,7 @@ CLI 的正常回答与退出码由原命令分发器负责；入口之外的意�
 
 桌面 Rust 入口为 `adapters/tauri/src/main.rs`，`src-tauri/Cargo.toml` 指向它。仓库根运行 `pnpm desktop` 启动开发版，`pnpm desktop:build:macos` 构建 App/DMG；后者会准备本地 Runtime 资源，但不会自动安装应用。
 
-主窗口将系统文件拖放交给 WebKit 的 HTML5 拖放处理（`dragDropEnabled: false`），由页面现有的 drop 入口接收图片与文件；不得让 Tauri 的原生拖放接管后丢弃事件。胶囊与 Shelf 的原生拖拽路径不变。macOS 截图浮动缩略图、Finder 图片以及保存后重开需要用实际 App 验证，浏览器用例不能替代。
+主窗口将系统文件拖放交给 WebKit 的 HTML5 拖放处理（`dragDropEnabled: false`），由页面现有的 drop 入口接收图片与文件；不得让 Tauri 的原生拖放接管后丢弃事件。Shelf 的原生拖拽路径不变。macOS 截图浮动缩略图、Finder 图片以及保存后重开需要用实际 App 验证，浏览器用例不能替代。
 
 ## 本地开发
 
@@ -68,7 +68,7 @@ node scripts/run-tests.mjs tests/desktop-tui.test.ts
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
   - 启动器只准备环境并转发：MCP stdio 经动作网关转给常驻 Web 宿主，不另起执行器。
-  - 不直接写业务数据库；面板、Capsule、热键等原生适配不承载业务判断。
+  - 不直接写业务数据库；面板、菜单栏、热键等原生适配不承载业务判断。
   - 构建、安装与签名/公证是不同步骤，构建通过不等于已公证或已发布。
 - 改动后必跑：`node scripts/run-tests.mjs tests/desktop-shell-bootstrap.test.ts tests/desktop-tui.test.ts tests/action-mcp-stdio.test.ts`
 - 相关手册：[docs/platform/DESKTOP.md](../../docs/platform/DESKTOP.md)、[docs/platform/LOCAL-HOST.md](../../docs/platform/LOCAL-HOST.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

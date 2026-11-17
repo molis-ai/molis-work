@@ -22,7 +22,7 @@ export function isSupportedRuntimeId(value: string): value is SupportedRuntimeId
 export type RuntimeIntegrationAction = "connect" | "remove";
 
 export interface RuntimeIntegrationChange {
-  kind: "runtime_config" | "skill_link" | "ownership_receipt" | "client_credential";
+  kind: "runtime_config" | "ownership_receipt" | "client_credential";
   target_path: string;
   operation: "add" | "replace" | "remove";
   before: string;
@@ -97,7 +97,6 @@ export interface RuntimeIntegrationServiceOptions {
 
 export interface InstalledArtifacts {
   launcherPath: string;
-  skillSourcePath: string;
 }
 
 export interface DesiredConnection {
@@ -113,13 +112,6 @@ export interface ConfigInspection {
   entryFingerprint: string | null;
 }
 
-export interface SkillSnapshot {
-  state: "absent" | "current" | "managed" | "conflict";
-  signature: string;
-  rawLinkTarget: string | null;
-  resolvedLinkTarget: string | null;
-}
-
 export interface RuntimeSnapshot {
   adapter: RuntimeAdapter;
   executablePath: string | null;
@@ -129,7 +121,6 @@ export interface RuntimeSnapshot {
   configHash: string | null;
   configInspection: ConfigInspection;
   credentialPresent: boolean;
-  skill: SkillSnapshot;
 }
 
 export interface RuntimeAdapter {
@@ -138,7 +129,6 @@ export interface RuntimeAdapter {
   executableNames: readonly string[];
   detectionPaths(userHome: string): readonly string[];
   configPath(userHome: string): string;
-  skillPath(userHome: string): string;
   desiredConnection(artifacts: InstalledArtifacts, molisWorkHome: string): DesiredConnection;
   inspectConfig(contents: string | null, desired: DesiredConnection): ConfigInspection;
   connectConfig(contents: string | null, desired: DesiredConnection): string;
@@ -146,14 +136,14 @@ export interface RuntimeAdapter {
   restartInstructions: readonly string[];
 }
 
+/** What Molis Work wrote into a Runtime's configuration, kept in the Home (`runtime-integrations/<runtime>.json`). Version 2 dropped the
+ *  `goal-advance` skill link (batch 44); `runtime-integration-receipt.ts` holds the file's declaration and its 1 → 2 step. */
 export interface IntegrationReceipt {
-  schema_version: /* @version format.runtime.integration.receipt */ 1;
+  schema_version: /* @version format.runtime.integration.receipt */ 2;
   owner: string;
   runtime_id: SupportedRuntimeId;
   config_path: string;
   config_entry_fingerprint: string;
-  skill_path: string;
-  skill_target: string;
   connected_at: string;
 }
 
@@ -162,7 +152,6 @@ export interface PreparedPlan {
   adapter: RuntimeAdapter;
   beforeConfigText: string | null;
   beforeConfigHash: string | null;
-  beforeSkill: SkillSnapshot;
   nextConfigText: string | null;
   artifacts: InstalledArtifacts | null;
   receipt: IntegrationReceipt | null;

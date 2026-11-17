@@ -114,7 +114,7 @@ W4-08 给记忆、放置、搜索加同类规则时，可以在同一个模块�
 - `.cursor/rules/*.mdc` 的 glob，没有放进行内代码的路径。
 - `owner` 不是目录名的动作 id（如 `schedules.add`）：整串存在时不会失败，写错也不会被发现。
 - 动作 id 的模板匹配只认形状：模板字面量里只要首段之后有固定文字，凡是形状对得上的 id 都算有定义，门禁不知道占位符实际会取哪些值。`` `feed.sources.${suffix}` `` 让任何 `feed.sources.<x>` 通过（`docs/system/CALL-CHAINS.md` 引用的 `feed.sources.sync`、`feed.sources.tick` 只靠它认出来，只查形状：写错最后一段，或者哪天删掉这两个动作，都不会被发现）；`` `feed.items.${suffix}` ``、`` `jelly.material.${code}` `` 同理；`` `${station.id}.content.${role}` `` 让任何 `<插件>.content.<角色>` 通过（`goals.content.receive` 这类不存在的 id 会通过）；`` `${x}.published` ``、`` `${x}.version` ``、`` `${prefix}${id}.resources.read` `` 这类让这些后缀对任何插件都算有定义（`todo.published`、`pages.version`、`goals.resources.read` 会通过）。要收紧得解析占位符的取值范围，需要一个解析器，不值当；引用这类 id 时自己对着源码核对。只固定了插件名的模板不算（见上），那类写错会被发现。
-- MCP 工具名只认 `molis_work_v1_action_<id>__v<N>` 这一种：`molis_work_v1_context_resolve` 这类上下文工具（例如 `skills/goal-advance/references/service-start.md` 里）不读，写错也不会被发现。
+- MCP 工具名只认 `molis_work_v1_action_<id>__v<N>` 这一种：`molis_work_v1_context_resolve` 这类上下文工具不读，写错也不会被发现。
 - BACKLOG 完成行只认单元格被划线、或单元格以 已完成、已实现、已做完、已关闭、完成、done 开头：写成「已修复（#300）」「已合入 main」的行不会失败（「待你验收」一节的行本来就是做完了等试用，写「已合入 main」是正常的，按这类字样判会误报，所以不加进规则）。做完就删行是纪律，不是这条规则能全部兜住的。
 
 ## 报告模式：spec 验收编号（还不是门禁）

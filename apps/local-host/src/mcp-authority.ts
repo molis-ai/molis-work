@@ -66,7 +66,7 @@ export function assertMcpToolAllowed(
   }
   if (!state.runtimeConnection) {
     throw mcpErrors.connection_incomplete(
-      "MCP 尚未连接项目：请先由统一 Molis Work Skill 调用 molis_work_v1_context_resolve，或由宿主提供固定连接",
+      "MCP 尚未连接项目：请先调用 molis_work_v1_context_resolve，或由宿主提供固定连接",
     );
   }
 }

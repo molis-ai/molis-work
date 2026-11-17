@@ -68,9 +68,9 @@ pnpm install:local
 
 When status returns `needs_repair`, run `service install` directly instead of trying `restart` first. Install rewrites only Molis Work-owned plist and receipt files, performs a controlled restart, and rolls back on failure; it still never takes over an unknown LaunchAgent or an external port listener.
 
-Updating Molis Work Core never silently rewrites Runtime configuration or Skill links. Whenever a Release changes MCP behavior or `skills/goal-advance`, open Molis Work's Settings → AI & execution tools page as a separate acceptance step. A Molis Work-managed Runtime that still targets an older Release is shown as `needs_repair`; preview the exact changes and let the user confirm the repair. A Runtime-dependent fix may be called installed only after this page returns to `connected` and the Skill link targets the current Release from the install manifest. Matching Core, App, and Web service versions do not replace this step, and unknown same-name configuration or Skills remain conflicts that must not be overwritten.
+Updating Molis Work Core never silently rewrites Runtime configuration. Whenever a Release changes MCP behavior, open Molis Work's Settings → AI & execution tools page as a separate acceptance step. A Molis Work-managed Runtime that still targets an older Release is shown as `needs_repair`; preview the exact changes and let the user confirm the repair. A Runtime-dependent fix may be called installed only after this page returns to `connected`. Matching Core, App, and Web service versions do not replace this step, and unknown same-name configuration remains a conflict that must not be overwritten. When upgrading from a version that had `goal-advance`, the Host's upgrade round removes the `goal-advance` link Molis Work once placed in the Runtime; a link that was changed since is left alone and named in the Host log.
 
-After updating MCP or the Skill, also open a new Runtime Session, because an already-running Session does not reload tools. To make the built-in demo use the new example content, run `molis-work demo reset --confirm` separately; it clears changes inside the demo but never touches user projects. The command line does not run the Agent service or the search service, so what the demo keeps in memory and in the search index belongs to the running Molis Work: this command cannot clear it and says so in its output. To clear that too, open the demo project's settings in Molis Work and click "Rebuild demo".
+After updating MCP, also open a new Runtime Session, because an already-running Session does not reload tools. To make the built-in demo use the new example content, run `molis-work demo reset --confirm` separately; it clears changes inside the demo but never touches user projects. The command line does not run the Agent service or the search service, so what the demo keeps in memory and in the search index belongs to the running Molis Work: this command cannot clear it and says so in its output. To clear that too, open the demo project's settings in Molis Work and click "Rebuild demo".
 
 ### Final-artifact acceptance after a Release
 
@@ -78,8 +78,8 @@ The full pre-release checklist (version rules, the per-database version table, r
 
 1. The Git tag, Release assets, and checksums come from the same commit; the App-embedded Runtime and the `~/.molis-work` install manifest report the same version.
 2. The persistent service follows the action returned by `status`, reaches `running`, and has one consistent LaunchAgent, listener, and `/health` identity.
-3. Every already-connected Molis Work-managed Runtime is checked in Settings → AI & execution tools. A `needs_repair` integration must be previewed and explicitly confirmed by the current user until it becomes `connected`. This transaction updates both MCP configuration and the Skill link and rolls back on failure.
-4. Close and create a new Runtime Session, then verify that it loaded the current Release's tool declaration and Skill. An old Session is never evidence for a new Release.
+3. Every already-connected Molis Work-managed Runtime is checked in Settings → AI & execution tools. A `needs_repair` integration must be previewed and explicitly confirmed by the current user until it becomes `connected`. This transaction updates the MCP configuration and rolls back on failure.
+4. Close and create a new Runtime Session, then verify that it loaded the current Release's tool declaration. An old Session is never evidence for a new Release.
 5. Finally, use a real project and representative data to inspect the user-visible result. Source, automated tests, package strings, version numbers, and page HTML prove only their own layers; they do not replace the final App's computed styles or end-to-end journey.
 
 If an older Session then reports a catalog schema above its reader's supported range, the running MCP is stale; the database is not damaged. Do not roll back `catalog.db` or bypass writes through SQLite, CLI, or Web. Upgrade Molis Work to a version that can read it. If you already upgraded, restart the host service and open a new Session. Then confirm that messages actually have the new task focus, and perform a read-only Molis Work project resolution before any write. A host navigation success alone does not prove that the next message will land in the new task.
@@ -99,21 +99,7 @@ This project is clearly marked `regenerable_demo` in the catalog, separate from 
 
 ## Starting Web: persistent or temporary
 
-In a Runtime already connected to the Molis Work Skill, you can say:
-
-> Start Molis Work
-
-The Runtime first does a read-only `molis-work service status` check and does not guess the desired lifetime. On macOS, if no persistent service exists and the user only says “start/open Molis Work”, the Runtime presents one choice between temporary foreground use, which ends with the current terminal or Session, and login-persistent use, which installs Molis Work's owned user LaunchAgent, survives terminal closure, and starts after login. It follows the explicit choice without a repeated confirmation; before that choice it starts no Web process and writes no system configuration.
-
-An explicit request for temporary use is already foreground-start authority, so the Runtime explains the lifetime and proceeds. An explicit request to enable login persistence is already first-install authority, so it explains the LaunchAgent effect and proceeds. Repairing an old configuration is a separate mutation: the Runtime still explains which owned configuration will be rewritten and restarted and obtains repair-specific authority. Unknown same-name services and port conflicts are never overwritten, adopted, or stopped. A service command reports success only after the reachable page belongs to the current owned instance. During an upgrade, a managed legacy process whose health payload has no PID is accepted only when its ownership receipt and plist remain valid and the LaunchAgent PID exactly matches the sole listener PID on port 4173; a different or unprovable PID remains a conflict.
-
-“Use Molis Work to continue this project”, “advance this Goal”, and “connect or open a project/Goal” stay in the Runtime Goal flow and do not start Web. Web is never a prerequisite for connecting a project or advancing a Goal. If the user accepts a contextual visualization offer while the service is absent, the Runtime uses the same one choice between temporary and login-persistent use.
-
-For a temporary process tied to the current terminal, say directly:
-
-> Open Molis Work temporarily
-
-This runs the foreground `molis-work-web`; the page stops when the terminal or Runtime Session closes. Non-macOS platforms currently support only this foreground mode and never fake a system-level persistent service with `nohup` or a background shell.
+Molis Work no longer installs a Goal-advancing Skill into Runtimes (batch 44 removed `goal-advance`); a Runtime uses a running Molis Work through MCP. Start Web with the commands below; on macOS you can also run the Desktop installer.
 
 ### Manual startup
 
@@ -155,16 +141,16 @@ Permanently erasing user data is a separate operation and cannot reuse the singl
   --confirm-home "$HOME/.molis-work" --confirm-project-count N
 ```
 
-If a Runtime config, Skill link, LaunchAgent, or launcher was rewritten by the user, uninstall reports the conflict and stops instead of widening the deletion scope. A failure mid-run leaves the completed steps, kept projects, and the error in `~/.molis-work/config/uninstall.json`, so you can fix the conflict, preview again, and continue.
+If a Runtime config, LaunchAgent, or launcher was rewritten by the user, uninstall reports the conflict and stops instead of widening the deletion scope. A failure mid-run leaves the completed steps, kept projects, and the error in `~/.molis-work/config/uninstall.json`, so you can fix the conflict, preview again, and continue.
 
 ## Next steps after install
 
 `molis-work install` only installs the Molis Work program and prints the install location, CLI/MCP/Web launchers, and safety boundaries; automation can use `molis-work install --json`. The install never creates projects, associates Sessions, starts services, or modifies Runtime configuration.
 
-Runtime integration is handled by the same domain service. The current adapters read-only probe Codex, Claude Code, OpenCode, Pi Agent and Grok Build, then generate a preview containing config paths, the Molis Work MCP entry, the Skill link, backup location, and restart instructions; it writes only after the user explicitly confirms the current Runtime and plan. MCP and Skill are validated as one transaction; on failure, the original config bytes and Skill state are restored. Removal only undoes what the Molis Work ownership receipt still records as untouched by the user. Unknown same-name configs or Skills show a conflict and are never overwritten.
+Runtime integration is handled by the same domain service. The current adapters read-only probe Codex, Claude Code, OpenCode, Pi Agent and Grok Build, then generate a preview containing config paths, the Molis Work MCP entry, backup location, and restart instructions; it writes only after the user explicitly confirms the current Runtime and plan. The write is validated as one transaction; on failure, the original config bytes are restored. Removal only undoes what the Molis Work ownership receipt still records as untouched by the user. Unknown same-name configs show a conflict and are never overwritten.
 
-After the integration is confirmed, **you must open a new Codex / Claude Code Session** for it to take effect: Runtimes read MCP and Skill manifests only at Session startup, and the current conversation doesn't dynamically gain just-written tools. In the new Session you can copy "continue with Molis Work" to resume; Molis Work shows projects previously used in the current directory and asks you to confirm; directories keep no default project, so every new Session confirms. The integration preview lists every change and this resume note item by item.
+After the integration is confirmed, **you must open a new Codex / Claude Code Session** for it to take effect: Runtimes read MCP manifests only at Session startup, and the current conversation doesn't dynamically gain just-written tools. In the new Session you can copy "continue with Molis Work" to resume; Molis Work shows projects previously used in the current directory and asks you to confirm; directories keep no default project, so every new Session confirms. The integration preview lists every change and this resume note item by item.
 
-Creating a project and associating the current Session are separate operations: after the user invokes the unified Skill in the current Runtime, the Skill uses `context-list-projects`, `context-bind`, or `context-create-and-bind`, and writes into Molis Work's own data directory only after the user explicitly chooses. Web can create, rename, and open projects, and manage already-confirmed Session and workspace associations; selecting a project in the page never changes the Runtime connection, and a new Session still asks which project to use.
+Creating a project and associating the current Session are separate operations: the Runtime uses MCP's `molis_work_v1_context_list_projects`, `molis_work_v1_context_bind`, or `molis_work_v1_context_create_and_bind`, and writes into Molis Work's own data directory only after the user explicitly chooses. Web can create, rename, and open projects, and manage already-confirmed Session and workspace associations; selecting a project in the page never changes the Runtime connection, and a new Session still asks which project to use.
 
 Web only listens on loopback. The control token is stored in `config/web-control-token` under the Molis Work home and written into the local page; all Web API write requests must also pass same-origin Origin, control token, and one-time operation key checks. Non-local Hosts, blind third-party page submissions, missing credentials, or repeated requests are rejected before reaching the project catalog, Runtime config service, or any plugin action. This browser gate does not replace the confirmation and idempotency rules in each domain flow.

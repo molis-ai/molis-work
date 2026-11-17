@@ -207,7 +207,7 @@
 
 - 定义：能运行 Agent 或与用户对话的 AI 环境。本机有两类：Home 唯一的 Prologue Runtime（内置），以及外部 AI 工具。`horizontal/agent-host` 注册 Runtime 并记录各自的能力矩阵，`horizontal/runtime-host` 启动、恢复外部 Runtime 的进程和终端。产品对 Runtime 保持中立（`PRODUCT.md`）。
 - 另外两个东西也带 Runtime，写的时候必须加限定：**Plugin Runtime**（`packages/plugin-runtime`，插件的安装、授权、隔离和生命周期；「Runtime 插件」指经它装配的插件，对比构建期装配的插件：还没迁到 Plugin Runtime、由宿主构建期手写接线的内置插件，名单冻结在 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`，只许减少；规则见 `AGENTS.md` 硬约束）；**项目运行对象**（`MolisWorkProjectRuntime`，`apps/local-host/src/project-host.ts`，宿主为一个已打开的项目装起来的存储和协调对象）。
-- 裸写「Runtime」只指本条的 AI Runtime（`skills/goal-advance/SKILL.md` 与 `docs/runtime.md` 都是这个用法）。
+- 裸写「Runtime」只指本条的 AI Runtime（`docs/runtime.md` 与 `docs/mcp.md` 都是这个用法）。
 
 **外部工具、产品入口**
 
@@ -238,7 +238,7 @@
 **Skill**
 
 - 定义：一份按需读取的文字做法，有名称、适用说明和正文，可声明它会用到的工具；它不授予任何权限，权限仍来自动作授权。同一种东西有三处载体：
-  1. 仓库的 `skills/<名>/SKILL.md`，给外部编码 Runtime 和插件创作台用（`goal-advance` 随安装发进用户的 Runtime，创作台挂载 `molis-plugin-dev` 的章节，见 `apps/local-host/src/plugin-builder/skill.ts`）。
+  1. 仓库的 `skills/<名>/SKILL.md`，给开发工具和插件创作台用（随安装发布，不挂进用户的 Runtime，第 44 批删除了 `goal-advance`；创作台挂载 `molis-plugin-dev` 的章节，见 `apps/local-host/src/plugin-builder/skill.ts`）。
   2. 插件为 Agent 提供的 Skill：类型 `AgentSkillDeclaration` / `AgentSkillDefinition`（`skill_id`、`version`、`name`、`summary`、`tools`、`body`），Manifest 里有两个位置：`agent.skills` 是插件自己的 Agent 用的，`methods` 是提供给别的 Agent（助理、Character）用的；别的来源（内容包、从本机导入）都进同一个技能目录（`system.skills`）。Coding 旧的项目目录安装（`agent.skills.discover`、`agent.skills.install`）已在第 09 批删掉。起跑时只接受精确的 id 与版本。
   3. Character 里导入的 Skill 快照（`import_snapshot.skills`），每轮选用其中几个。
 - 取舍：Prologue SDK、导入来源和代码类型都叫 Skill；只有界面和少数标识符（Manifest 的 `methods` 键、`assistant.methods.*`）叫「方法」，而「方法」在界面里还指规划方法、研究方法、连接方式。所以文档统一写 Skill，其余三个「方法」必须写全名。

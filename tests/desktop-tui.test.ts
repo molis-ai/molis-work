@@ -375,16 +375,6 @@ async function catalogFixture() {
   }
 }
 
-test("desktop Skill reads MOLIS_WORK_FOCUS_ID and does not auto-claim", () => {
-  const projectConnection = readFileSync(
-    join(process.cwd(), "skills/goal-advance/references/project-connection.md"),
-    "utf8",
-  );
-  assert.match(projectConnection, /MOLIS_WORK_FOCUS_ID \(the Goal the terminal was opened for\) identifies page context/);
-  assert.match(projectConnection, /does not itself authorize doing the work/);
-  assert.match(projectConnection, /never silently retargets the existing terminal/);
-});
-
 test("advance prompt names the Goal and omits the five-chapter contract", () => {
   const prompt = goalAdvancePrompt({ goal_id: "LEAF-1", title: "让安装一次就能用" });
   assert.match(prompt, /让安装一次就能用/);

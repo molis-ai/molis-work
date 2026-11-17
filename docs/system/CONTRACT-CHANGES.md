@@ -32,7 +32,7 @@
 | `packages/plugin-sdk` 的出口 | `packages/plugin-sdk/src` | 同上，快照是 `tooling/gates/api/plugin-sdk/index.txt` |
 | 动作（能力）的身份、输入输出 schema | `packages/contracts/src/platform/actions.ts`；各插件 Manifest 的动作声明；规则见 `specs/action-architecture/spec.md` §3 | 每个能力定义的 `version`；被固定的引用写成 `capability_id@version` 加提供方。形状记在动作合同快照 `tooling/gates/actions/`，`pnpm test:contracts` 对照，有意改用 `pnpm actions:update`（第 3 节第 6 条） |
 | 插件 Manifest 的格式与升级声明 | 类型在 `packages/contracts/src/platform/plugin-manifest.ts`（经 `platform/plugin` 子路径导出），校验与版本比较在 `packages/plugin-sdk/src/manifest.ts`（成果类型的声明检查在同包的 `artifact-declarations.ts`）；用法见 `docs/platform/PLUGIN-DEVELOPMENT.md`「插件版本升级」 | Manifest `version`（SemVer）；`upgrade_compatibility.compatible_from_versions` / `migratable_from_versions`。内置插件的 `version` 跟产品版本，只在发布 PR 里改（`docs/releases/POLICY.md`）：别的 PR 改 Manifest 的形状升的是能力 `version` 或合同里的其他版本字段，不动它 |
-| MCP 工具名与参数 | `apps/mcp`；`docs/mcp.md`；`skills/goal-advance` | 工具名即身份；Skill 与手册随它改 |
+| MCP 工具名与参数 | `apps/mcp`；`docs/mcp.md` | 工具名即身份；手册随它改 |
 | 对外合同 id | 现在没有（Casebook 的 `molis-work.casebook.*` 已于 2026-10-10 删除；以后出现新的对外合同 id，就在这里登记） | 合同 id 里的版本 |
 | Home 里存的数据 | 项目库、目录库等，清单与版本方案见 `docs/system/HOME-DATA.md` | 库的结构版本（`PRAGMA user_version` 或自带的 meta 表），经 `packages/storage/src/sqlite-baseline.ts` 的 `applySqliteBaseline` 建库，版本不符就拒绝 |
 
@@ -94,7 +94,7 @@
 
 第 39-2 批移交（2026-11-14 用户批准在隔离库实现并验证，2026-11-15 批准增加第 41 批的 v4 来源）。平台项目库 3→4 的显式升级事务同时更新 Goals 私有库到 v5，并将 `goal_event_trusted_decisions`、`goal_tree_proposal_decisions` 和 `policy_bindings` 交给平台。分别校验 Goals v1～v4 的旧库，沿原升级保留事件证据和第 17 批的风险引用，完成第 41 批的旧方法表与采用列清理。未知组合、错误发布者、未记账旧表均拒。保留原主键、关系、历史来源和规则语义，旧资料按原证据展示。消费者为 Goals、统一管理、保护决定的 Web／MCP 入口及同步恢复。Goals 同步集合升为 `project_goals@2`，旧游标、待发和冲突只保存在升级备份。同步写方和恢复边界见[移交设计](../../specs/agent-approval/trusted-decisions-design.md#3-存量交接方案)。最早支持的金样已包含平台事实时移除此转换段。
 
-第 44 批存量搬迁（2026-11-17 用户确认 A、B1、C，未实现）。B1 的前提「平台认可补同步集合」在第 3 项开工时定：本批补，或明确接受补上之前第二台设备看不到要求认可；定之前不写 B1 的升级段。
+第 44 批存量搬迁（2026-11-17 用户确认 A、B1、C；C 已实现，A、B1 未实现）。B1 的前提「平台认可补同步集合」在第 3 项开工时定：本批补，或明确接受补上之前第二台设备看不到要求认可；定之前不写 B1 的升级段。
 
 三项的共同规则：
 - 只在持存储主人锁的升级轮里执行；
@@ -147,10 +147,10 @@ PEQ-10 要求旧指导能读，所以不提供「从空开始」的选项。
 
 **C 删 `goal-advance` 的运行时接入**（第 7 项）
 
-推荐做法：收据 `format.runtime.integration.receipt` 1→2，去掉 `skill_path`、`skill_target`。
-- 什么时候升：安装器读收据时升，和 `installation.json` 走同一条路。
-- 删哪些链接：外部运行时目录里的 `goal-advance` 链接只在一种情况下删（用现有的 `removeExpectedSkillLink`）——它仍指向收据里记的目标。目录是 `~/.codex/skills/`、`~/.claude/skills/`、`~/.config/opencode/skills/`、`~/.pi/agent/skills/`。
-- 指向别处或被用户改过的链接不动，在接入状态里报出来。
+已实现（第 44 批第 7 项）：收据 `format.runtime.integration.receipt` 1→2，去掉 `skill_path`、`skill_target`（声明与升级段在 `apps/local-host/src/installer/runtime-integration-receipt.ts`）。实现时与上面确认的方案有三处出入，都在 PR 里写明：
+- 什么时候升：收据是宿主读的，不是安装器读的，所以登记进宿主的升级轮次（`apps/local-host/src/platform-upgrade-stores.ts`，持 Home 的锁），不走 `installation.json` 那条路。
+- 删哪些链接：外部运行时目录里的 `goal-advance` 链接只在一种情况下删——它仍是指向收据里所记目标的符号链接。目录是 `~/.codex/skills/`、`~/.claude/skills/`、`~/.config/opencode/skills/`、`~/.pi/agent/skills/`，以及原方案漏列的 Grok Build 的 `~/.grok/skills/`。
+- 指向别处或被用户改过的链接不动，写进宿主日志（`runtime_skill_link_kept`），不在接入状态里报：接入状态不再有 Skill 一项。
 - 运行时配置条目和客户端凭据不变。
 - 删除条件：最早支持的金样不再含 v1 收据时，删这一段。
 

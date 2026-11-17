@@ -81,8 +81,6 @@ test("the CLI and management MCP call Goals' actions through the management call
   assert.match(changed("dispatcher", source => source.replace(/CliManagementActions/g, "SomethingElse")), /management/);
   assert.match(changed("dispatcher", add("const x = client.withProject(reference);")), /withProject/);
   assert.match(changed("dispatcher", add("const x = coordinator.goals.query;")), /coordinator\.goals/);
-  // The snapshot is read through Goals' own action, not another one and not by hand.
-  assert.match(changed("dispatcher", source => source.replace("GOALS.snapshot", "GOALS.list")), /GOALS\.snapshot/);
   // The Host side builds the caller with the factory, over the project's client (it starts the project's plugins, Goals among them).
   assert.match(changed("project", source => source.replace("bindStandaloneManagementActions(", "somethingElse(")), /cli-project\.ts.*bindStandaloneManagementActions/);
   assert.match(changed("project", source => source.replace("options.signal);\n  };", "otherSignal);\n  };")), /cli-project\.ts.*original signal/);
@@ -231,8 +229,6 @@ test("the CLI boundary rule reads every way into the Goals package and into a Ho
   }
   // A comment or a string that names them is not a caller.
   assert.equal(changed("dispatcher", add('// the CLI never calls host.client(reference) or client.withProject(reference)\nconst note = "coordinator.goals";')), "");
-  // The snapshot is read through the action, not by a look-alike in a comment or a string.
-  assert.match(changed("dispatcher", source => source.replace("GOALS.snapshot", "GOALS.list").concat('\n// GOALS.snapshot\nconst note = "GOALS.snapshot";')), /GOALS\.snapshot/);
 
   // The local fallback keeps its original reference and signal; the dispatcher receives the selected resident/local port.
   const bind = "bindStandaloneManagementActions(localHost ??= createMolisWorkLocalHost(), reference, options.signal)";
@@ -290,16 +286,12 @@ test("RAC-1774: the CLI and MCP name no Goals contract in any file and call Goal
   assert.notEqual(oldCli(transportSources().cli.dispatcher), transportSources().cli.dispatcher);
   assert.notEqual(oldMcp(transportSources().mcp.dispatcher), transportSources().mcp.dispatcher);
   assert.match(changed("dispatcher", oldCli), /command-dispatch\.ts.*imports @molis-ai\/molis-work-contracts\/modules\/goal-actions/);
-  assert.match(changed("dispatcher", oldCli), /command-dispatch\.ts.*GOALS/);
   assert.match(changed("mcp", oldMcp), /tool-dispatch\.ts.*imports @molis-ai\/molis-work-contracts\/modules\/goal-actions/);
   assert.match(changed("mcp", oldMcp), /tool-dispatch\.ts.*MANAGEMENT_GOAL_ACTIONS/);
   // The dispatchers' own module lists carry no Goals contract either.
   assert.match(changed("dispatcher", add('import { x } from "@molis-ai/molis-work-plugin-goals/contract";')), /command-dispatch\.ts.*imports @molis-ai\/molis-work-plugin-goals\/contract/);
   assert.match(changed("mcp", add('import { x } from "@molis-ai/molis-work-plugin-goals/contract";')), /tool-dispatch\.ts.*imports @molis-ai\/molis-work-plugin-goals\/contract/);
   // The table is the dispatcher's own: removing it, importing one, or invoking a Goals action from anywhere else is refused.
-  assert.match(changed("dispatcher", source => source.replace(/const GOALS = \{[\s\S]*?\} as const;\n/u, "")), /command-dispatch\.ts.*GOALS/);
-  assert.match(changed("dispatcher", source => source.replace("actions.invoke(GOALS.snapshot,", "actions.invoke(typed,")), /command-dispatch\.ts.*invoke must name a Goals action/);
-  assert.match(changed("dispatcher", source => source.replace("actions.invoke(GOALS.snapshot,", "actions.invoke(other.snapshot,")), /command-dispatch\.ts.*invoke must name a Goals action/);
   assert.match(changed("mcp", source => source.replace(/export const MANAGEMENT_GOAL_ACTIONS = \{[\s\S]*?\} as const;\n/u, "")), /tool-dispatch\.ts.*MANAGEMENT_GOAL_ACTIONS/);
 });
 
@@ -308,9 +300,8 @@ test("RAC-105-S-08: the CLI fallback requires ownership before Home init and ret
   const source = read("apps/local-host/src/cli-project.ts");
   const account = 'if(!allowLocalFallback&&homeDatabase)throw new ActionError("actions.service_unavailable","当前账号宿主尚未连接，不能回退匿名业务。");';
   const own = "if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home, preflightMemoryHome);";
-  const initialize = 'if (operation === "init" && homeDatabase) prepareLocalProjectStorage(databasePath, "create");';
   const bind = "bindStandaloneManagementActions(localHost ??= createMolisWorkLocalHost(), reference, options.signal)";
-  const guarded = `const fallback = () => {\n    ${account}\n    ${own}\n    ${initialize}\n    return ${bind};\n  };`;
+  const guarded = `const fallback = () => {\n    ${account}\n    ${own}\n    return ${bind};\n  };`;
   assert.ok(source.includes(guarded), "mutations edit the actual canonical fallback");
   for (const [mutation, edit] of [
     ["old unguarded expression", text => text.replace(guarded, `const fallback = () => ${bind};`)],
@@ -324,10 +315,7 @@ test("RAC-105-S-08: the CLI fallback requires ownership before Home init and ret
     ["wrong product admission", text => text.replace(own, own.replace("preflightMemoryHome", "otherPreflight"))],
     ["missing product admission import", text => text.replace('import { preflightMemoryHome } from "./memory/memory-initialization.js";\n', "")],
     ["external fallback takes the selected Home", text => text.replace(bind, bind.replace("createMolisWorkLocalHost()", "createMolisWorkLocalHost({ homeDirectory: home })"))],
-    ["mkdir before ownership", text => text.replace(`${own}\n    ${initialize}`, `${initialize}\n    ${own}`)],
-    ["mkdir on every operation", text => text.replace(initialize, 'prepareLocalProjectStorage(databasePath, "create");')],
     ["wrong Home classification", text => text.replace("const homeDatabase = databaseInHome(home, databasePath);", "const homeDatabase = false;")],
-    ["Home mkdir before ownership", text => text.replace('operation === "init" && !homeDatabase', 'operation === "init"')],
     ["extra directory creation", text => `${text}\nprepareLocalProjectStorage(databasePath, "create");`],
     ["extra business statement", text => text.replace(`return ${bind};`, `writeBusinessData();\n    return ${bind};`)],
     ["early return", text => text.replace(`return ${bind};`, `return otherPort;\n    return ${bind};`)],

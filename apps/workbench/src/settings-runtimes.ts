@@ -13,12 +13,12 @@ function runtimeStatePresentation(state: RuntimeIntegrationDetection["connection
   tone: "neutral" | "success" | "warning" | "danger";
   description: string;
 } {
-  if (state === "connected") return { label: uiText.text("workbench.settings-runtimes.connected"), tone: "success", description: uiText.text("workbench.settings-runtimes.mcp-molis-work-skill-both-point-install") };
+  if (state === "connected") return { label: uiText.text("workbench.settings-runtimes.connected"), tone: "success", description: uiText.text("workbench.settings-runtimes.mcp-points-at-install") };
   if (state === "needs_repair") return { label: uiText.text("workbench.settings-runtimes.needs-repair"), tone: "warning", description: uiText.text("workbench.settings-runtimes.older-incomplete-molis-work-connection-was-found") };
-  if (state === "conflict") return { label: uiText.text("workbench.settings-runtimes.conflict"), tone: "danger", description: uiText.text("workbench.settings-runtimes.same-named-config-skill-not-owned-molis-work") };
+  if (state === "conflict") return { label: uiText.text("workbench.settings-runtimes.conflict"), tone: "danger", description: uiText.text("workbench.settings-runtimes.same-named-config-not-owned") };
   if (state === "molis_work_unavailable") return { label: uiText.text("workbench.settings-runtimes.install-incomplete"), tone: "danger", description: uiText.text("workbench.settings-runtimes.check-diagnostics-repair-molis-work-install-first") };
   if (state === "not_detected") return { label: uiText.text("workbench.settings-runtimes.not-found"), tone: "neutral", description: uiText.text("workbench.settings-runtimes.that-runtime-was-not-found-machine") };
-  return { label: uiText.text("workbench.settings-runtimes.not-connected"), tone: "neutral", description: uiText.text("workbench.settings-runtimes.molis-work-mcp-skill-have-not-been-written") };
+  return { label: uiText.text("workbench.settings-runtimes.not-connected"), tone: "neutral", description: uiText.text("workbench.settings-runtimes.mcp-not-written") };
 }
 
 export function renderRuntimeSettings(view: MolisWorkSettingsView, primitives: RuntimePrimitives): string {
@@ -30,7 +30,7 @@ export function renderRuntimeSettings(view: MolisWorkSettingsView, primitives: R
     const actionLabel = action === "remove" ? uiText.text("workbench.settings-runtimes.preview-removal") : runtime.connection_state === "needs_repair" ? uiText.text("workbench.settings-runtimes.preview-repair") : uiText.text("workbench.settings-runtimes.review-connect");
     return `<article data-runtime-row="${escapeHtml(runtime.runtime_id)}">
       ${settingRow(escapeHtml(runtime.display_name), escapeHtml(state.description), `<span class="settings-state settings-state--${state.tone}">${escapeHtml(state.label)}</span><button class="mw-btn mw-btn--secondary" type="button" data-runtime-plan="${escapeHtml(runtime.runtime_id)}" data-runtime-action="${action}"${unavailable ? " disabled" : ""}>${escapeHtml(actionLabel)}</button>`)}
-      <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${uiText("workbench.settings-runtimes.local-paths")}</strong><span>${uiText("workbench.settings-runtimes.view-executable-config-skill-paths")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>Runtime</dt><dd>${runtime.executable_path ? escapeHtml(runtime.executable_path) : uiText("workbench.settings-runtimes.executable-not-found")}</dd></div><div><dt>${uiText("workbench.settings-runtimes.config")}</dt><dd>${escapeHtml(runtime.config_path)}</dd></div><div><dt>Skill</dt><dd>${escapeHtml(runtime.skill_path)}</dd></div></dl></details>
+      <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${uiText("workbench.settings-runtimes.local-paths")}</strong><span>${uiText("workbench.settings-runtimes.view-executable-config-paths")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>Runtime</dt><dd>${runtime.executable_path ? escapeHtml(runtime.executable_path) : uiText("workbench.settings-runtimes.executable-not-found")}</dd></div><div><dt>${uiText("workbench.settings-runtimes.config")}</dt><dd>${escapeHtml(runtime.config_path)}</dd></div></dl></details>
     </article>`;
   }).join("");
   return `<section class="settings-document" aria-labelledby="settings-title">

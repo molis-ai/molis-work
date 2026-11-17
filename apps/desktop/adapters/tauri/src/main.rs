@@ -224,8 +224,7 @@ fn show_appearance_recovery(app: &tauri::AppHandle) {
     }
 }
 
-/// 点 Dock 图标（或在访达里再打开一次）时，主窗口没在显示就把它拿出来；
-/// 菜单栏的工作胶囊开着不算主窗口在显示。
+/// 点 Dock 图标（或在访达里再打开一次）时，主窗口没在显示就把它拿出来。
 fn should_show_main_on_reopen(main_visible: bool) -> bool {
     !main_visible
 }

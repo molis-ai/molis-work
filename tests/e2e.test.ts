@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { chmod, copyFile, mkdtemp, mkdir, readFile, readdir, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, copyFile, lstat, mkdtemp, mkdir, readFile, readdir, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -241,13 +241,11 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
     assert.match(packedReadme, /docs\/screenshots\/showcase\/desktop-focus-en-dark\.jpg/);
     assert.match(packedReadme, /docs\/screenshots\/showcase\/harness-narrow-en-dark\.jpg/);
     assert.match(packedReadme, /docs\/screenshots\/showcase\/harness-runtime-en-dark\.jpg/);
-    assert.match(packedReadme, /docs\/screenshots\/showcase\/macos-menu-bar-capsule-en-dark\.jpg/);
     assert.match(packedReadme, /docs\/screenshots\/showcase\/web-workspace-en-dark\.jpg/);
     assert.doesNotMatch(packedReadme, /(?:-zh\.jpg|-zh\.png|light\.jpg|codex-internal)/);
     assert.match(packedChineseReadme, /docs\/screenshots\/showcase\/desktop-focus-zh-dark\.jpg/);
     assert.match(packedChineseReadme, /docs\/screenshots\/showcase\/harness-narrow-zh-dark\.jpg/);
     assert.match(packedChineseReadme, /docs\/screenshots\/showcase\/harness-runtime-zh-dark\.jpg/);
-    assert.match(packedChineseReadme, /docs\/screenshots\/showcase\/macos-menu-bar-capsule-zh-dark\.jpg/);
     assert.match(packedChineseReadme, /docs\/screenshots\/showcase\/web-workspace-zh-dark\.jpg/);
     assert.doesNotMatch(packedChineseReadme, /(?:-en\.jpg|-en\.png|light\.jpg|codex-internal)/);
     assert.match(packedReadme, /pnpm install:local/);
@@ -256,7 +254,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
     assert.match(packedReadme, /docs\/installation\.en\.md/);
     assert.match(packedReadme, /docs\/runtime\.en\.md/);
     assert.match(packedReadme, /docs\/mcp\.en\.md/);
-    assert.match(packedReadme, /skills\/goal-advance\/SKILL\.md/);
+    assert.doesNotMatch(packedReadme, /skills\/goal-advance/); // PEQ-14: the Skill is gone with batch 44
     assert.match(packedReadme, /Molis AI Cooperation Source License\*\*, see \[LICENSE\]/); // CSL-03
     assert.doesNotMatch(packedReadme, /postinstall-project|兼容模式|MOLIS_WORK_DATABASE=/);
 
@@ -322,37 +320,8 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
       });
       assert.equal(runtimeConfirm.status, 200, await runtimeConfirm.text());
       assert.match(await readFile(join(userHome, ".codex", "config.toml"), "utf8"), /MOLIS_WORK_RUNTIME_ID = "codex"/);
-      const installedServiceStart = await readFile(
-        join(userHome, ".codex", "skills", "goal-advance", "references", "service-start.md"),
-        "utf8",
-      );
-      assert.match(installedServiceStart, /service status/);
-      assert.match(installedServiceStart, /临时打开 Molis Work/);
-      assert.match(installedServiceStart, /one real choice between temporary foreground use and login-persistent use/);
-      assert.match(installedServiceStart, /do not ask the same decision again/);
-      const installedSkill = await readFile(
-        join(userHome, ".codex", "skills", "goal-advance", "SKILL.md"),
-        "utf8",
-      );
-      assert.match(installedSkill, /Never require a fixed phrase or verbatim repetition/);
-      assert.match(installedSkill, /goals\.work\.resume/);
-      assert.match(installedSkill, /Planning is optional/);
-      const installedExecution = await readFile(
-        join(userHome, ".codex", "skills", "goal-advance", "references", "execution.md"),
-        "utf8",
-      );
-      assert.match(installedExecution, /goals\.note/);
-      assert.match(installedExecution, /goals\.events\.report/);
-      assert.match(installedExecution, /goals\.work\.resume/);
-      const installedPlanning = await readFile(
-        join(userHome, ".codex", "skills", "goal-advance", "references", "planning.md"),
-        "utf8",
-      );
-      assert.match(installedPlanning, /Plan useful outcomes and real dependencies/);
-      assert.match(installedPlanning, /goals\.tree\.submit/);
-      assert.match(installedPlanning, /Only that real consumption justifies consumer depends_on provider/);
-      // Batch 41 (41-2): the planning methods are Skills of the catalog; the installed Skill carries no method library.
-      await assert.rejects(readFile(join(userHome, ".codex", "skills", "goal-advance", "methods", "industries", "industry-education.md"), "utf8"), { code: "ENOENT" });
+      // PEQ-14 (batch 44): connecting a Runtime writes its MCP entry only; no goal-advance Skill is installed into it.
+      await assert.rejects(lstat(join(userHome, ".codex", "skills", "goal-advance")), { code: "ENOENT" });
 
       const claudePlanResponse = await post(origin, token, "/api/settings/runtimes/claude-code/plan", { action: "connect" });
       assert.equal(claudePlanResponse.status, 200);

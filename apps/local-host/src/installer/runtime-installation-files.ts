@@ -1,79 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { promises as fs, constants as fsConstants, type Stats } from "node:fs";
 import path from "node:path";
-import type { SkillSnapshot } from "./runtime-integration-contract.js";
-
-export async function inspectSkillLink(targetPath: string, desiredTarget: string | null, molisWorkHome: string): Promise<SkillSnapshot> {
-  let state: Awaited<ReturnType<typeof fs.lstat>> | null;
-  try {
-    state = await fs.lstat(targetPath);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return { state: "absent", signature: "absent", rawLinkTarget: null, resolvedLinkTarget: null };
-    }
-    throw error;
-  }
-  if (!state.isSymbolicLink()) {
-    return { state: "conflict", signature: `conflict:${state.mode}:${state.size}`, rawLinkTarget: null, resolvedLinkTarget: null };
-  }
-  const rawLinkTarget = await fs.readlink(targetPath);
-  const resolvedLinkTarget = path.resolve(path.dirname(targetPath), rawLinkTarget);
-  const current = desiredTarget != null && resolvedLinkTarget === path.resolve(desiredTarget);
-  const managed = isInside(molisWorkHome, resolvedLinkTarget)
-    && path.basename(resolvedLinkTarget) === "goal-advance"
-    && path.basename(path.dirname(resolvedLinkTarget)) === "skills";
-  return {
-    state: current ? "current" : managed ? "managed" : "conflict",
-    signature: `symlink:${rawLinkTarget}`,
-    rawLinkTarget,
-    resolvedLinkTarget,
-  };
-}
-
-export async function replaceSkillLink(targetPath: string, sourcePath: string, molisWorkHome: string, assertCurrent: () => void = () => {}): Promise<Stats> {
-  assertCurrent();
-  const current = await inspectSkillLink(targetPath, sourcePath, molisWorkHome); assertCurrent();
-  if (current.state === "current") return fs.lstat(targetPath);
-  if (current.state === "conflict") throw new Error(`不会覆盖未知 Skill: ${targetPath}`);
-  assertCurrent();
-  await fs.mkdir(path.dirname(targetPath), { recursive: true }); assertCurrent();
-  const temporaryPath = `${targetPath}.tmp-${randomUUID()}`;
-  assertCurrent();
-  await fs.symlink(sourcePath, temporaryPath, "dir");
-  try {
-    assertCurrent();
-    const identity = await fs.lstat(temporaryPath);
-    if ((await inspectSkillLink(targetPath, sourcePath, molisWorkHome)).signature !== current.signature) {
-      throw new Error(`Skill 已被用户修改，不会覆盖: ${targetPath}`);
-    }
-    assertCurrent();
-    await fs.rename(temporaryPath, targetPath);
-    return identity;
-  } finally {
-    await fs.rm(temporaryPath, { force: true });
-  }
-}
-
-export async function removeExpectedSkillLink(targetPath: string, expectedTarget: string, assertCurrent: () => void = () => {}): Promise<void> {
-  assertCurrent();
-  const snapshot = await inspectSkillLink(targetPath, expectedTarget, path.dirname(path.dirname(expectedTarget)));
-  assertCurrent();
-  if (snapshot.state === "absent") return;
-  if (snapshot.state !== "current") throw new Error(`Skill 已被用户修改，不会删除: ${targetPath}`);
-  assertCurrent();
-  await fs.unlink(targetPath);
-}
-
-export async function restoreSkillSnapshot(targetPath: string, snapshot: SkillSnapshot, expectedTarget: string | null, identity: Stats | null): Promise<boolean> {
-  if (!await skillWriteMatches(targetPath, expectedTarget, identity)) return false;
-  if (identity) await fs.unlink(targetPath);
-  if (snapshot.rawLinkTarget != null) {
-    await fs.mkdir(path.dirname(targetPath), { recursive: true });
-    try { await fs.symlink(snapshot.rawLinkTarget, targetPath, "dir"); }
-    catch (error) { if ((error as NodeJS.ErrnoException).code === "EEXIST") return false; throw error; }
-  }
-  return true;
-}
 
 export async function replaceTextFile(filePath: string, contents: string | null, mode?: number, assertCurrent: () => void = () => {}): Promise<Stats | null> {
   assertCurrent();
@@ -109,12 +36,6 @@ function sameFile(left: Stats, right: Stats): boolean {
 async function entryState(filePath: string): Promise<Stats | null> {
   try { return await fs.lstat(filePath); }
   catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return null; throw error; }
-}
-
-export async function skillWriteMatches(filePath: string, expectedTarget: string | null, identity: Stats | null): Promise<boolean> {
-  const state = await entryState(filePath);
-  if (!identity) return !state;
-  return Boolean(state?.isSymbolicLink() && sameFile(state, identity) && await fs.readlink(filePath) === expectedTarget);
 }
 
 export async function textWriteMatches(filePath: string, contents: string | null, identity: Stats | null): Promise<boolean> {

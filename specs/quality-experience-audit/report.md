@@ -1,5 +1,7 @@
 # Molis Work 审查报告与优化策略
 
+第44批本地结算：`packages/kernel/src/action-execution-context.ts:82` 单目标的反复复核继续逐条匹配，遇第二个不同目标才建原轮内索引；名单可变，不缓存首答。QEA-98经公开同步动作旧版遍历100个无关项、新版0，provider/版本/移除/恢复与原实时授权均验。完整构建、健康、12文件92项通过（`/tmp/quality-audit-allowed-list-acceptance.log`），只读复核无新增Blocker/P1。真实20条采样 allowedAction 自身3.143→0.972秒，但五样本总耗时p50=14127ms，未证端到端改善；QF-51和性能BL继续。用户等待问题尚未宣称解决，代码只减少不必要的全名单索引构建，没有承担第二份授权状态。
+
 当前状态（2026-11-17，负责人 Codex）：**整项仍在进行中**。原六方向、逻辑 Bug、需求实现度与 BL 清理均保留。已整合 main `eafff2b526`，75包、83个 contracts 子路径；合并检查点 `ff0c7ab018` 保留此前成果，第40批保存为 `651a35be6d`。第42批 Goal 片段读取收窄已通过本地定向验收，继续第43批结构扫描成本和第41批旧入口清理；以下各检查点的证据不代替最终提交的 Full CI。
 
 第42批 / QF-51 后续：正常网络探针证明8次 Goal 刷新均来自顶层工作台（`/tmp/quality-audit-inbox-refresh-probe.log`）。`web-goals-read.ts:153` 的片段读取经 `web-request.ts:202` 重读所有显示插件舞台并渲染 Home 内容，放大 Inbox 批次成本。QEA-94 在旧构建真实 HTTP 入口失败：无关 Schedule reader 被调用一次（`/tmp/quality-audit-goal-stage-baseline.log`）。现按声明路由匹配 owner 准备舞台，保留目标正文/关系/策略/成果与创建输入所需目录；移除无生产消费者的 Inbox 摘要转发和 StagePageContext.client_data。完整构建通过、API 快照仅删除该可选字段，定向验收进行中，不预报性能通过。

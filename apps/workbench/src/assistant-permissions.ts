@@ -6,20 +6,14 @@ export function renderAssistantPermissions() {
   return renderDialog({
     labelledBy: "assistant-permission-title", title: text("choose"), closeLabel: uiText.text("common.control.close"),
     className: "assistant-permission-dialog", attrs: { "data-assistant-permission-dialog": true },
-    body: `<p class="settings-muted" data-permission-work></p><div class="authorization-layout">
-      <div>
-        ${renderRadioGroup({ legend: text("mode"), name: "mode", items: ["read-only", "confirm", "automatic"].map(value =>
-          ({ value, label: text(value), checked: value === "confirm" })) })}
-        <p data-permission-mode-note></p>
-      </div>
-      <div class="authorization-detail">
-        <h3>${text("allowed")}</h3><div data-permission-scope></div>
-        ${renderRadioGroup({ legend: text("lifetime"), name: "lifetime", items: [
-          { value: "work", label: text("work"), checked: true }, { value: "ongoing", label: text("ongoing") },
-        ] })}
-        <p data-permission-lifetime-note></p>
-      </div>
-    </div><p role="status" data-permission-status></p><p class="settings-form-error" role="alert" data-permission-error hidden></p>`,
+    body: `<p class="settings-muted" data-permission-work></p><div class="authorization-layout"><div>`
+      + renderRadioGroup({ legend: text("mode"), name: "mode", items: ["read-only", "confirm", "automatic"].map(value =>
+        ({ value, label: text(value), checked: value === "confirm" })) })
+      + `<p data-permission-mode-note></p></div><div class="authorization-detail"><h3>${text("allowed")}</h3><div data-permission-scope></div>`
+      + renderRadioGroup({ legend: text("lifetime"), name: "lifetime", items: [
+        { value: "work", label: text("work"), checked: true }, { value: "ongoing", label: text("ongoing") },
+      ] })
+      + `<p data-permission-lifetime-note></p></div></div><p role="status" data-permission-status></p><p class="settings-form-error" role="alert" data-permission-error hidden></p>`,
     footer: renderButton({ variant: "ghost", label: uiText.text("common.control.cancel"), attrs: { "data-dialog-close": true } })
       + renderButton({ variant: "primary", label: text("save"), type: "submit", attrs: { "data-permission-save": true, disabled: true } }),
   });
@@ -44,15 +38,14 @@ export function renderReviewPermission() {
   return renderDialog({
     labelledBy: "review-permission-title", title: text("choose"), closeLabel: uiText.text("common.control.close"),
     className: "assistant-permission-dialog", attrs: { "data-review-permission-dialog": true },
-    body: `<p class="settings-muted" data-permission-work></p><div class="authorization-layout"><div>
-      ${renderRadioGroup({ legend: text("mode"), name: "mode", items: ["read-only", "confirm", "automatic"].map(value =>
-        ({ value, label: text(value), checked: value === "automatic" })) })}
-      <p data-permission-mode-note></p></div><div class="authorization-detail">
-      <h3>${text("allowed")}</h3><pre data-permission-scope></pre>
-      ${renderRadioGroup({ legend: text("lifetime"), name: "lifetime", items: [
+    body: `<p class="settings-muted" data-permission-work></p><div class="authorization-layout"><div>`
+      + renderRadioGroup({ legend: text("mode"), name: "mode", items: ["read-only", "confirm", "automatic"].map(value =>
+        ({ value, label: text(value), checked: value === "automatic" })) })
+      + `<p data-permission-mode-note></p></div><div class="authorization-detail"><h3>${text("allowed")}</h3><pre data-permission-scope></pre>`
+      + renderRadioGroup({ legend: text("lifetime"), name: "lifetime", items: [
         { value: "work", label: text("work"), checked: true }, { value: "ongoing", label: text("ongoing") },
-      ] })}<p data-permission-lifetime-note></p></div></div>
-      <p role="status" data-permission-status></p><p class="settings-form-error" role="alert" data-permission-error hidden></p>`,
+      ] })
+      + `<p data-permission-lifetime-note></p></div></div><p role="status" data-permission-status></p><p class="settings-form-error" role="alert" data-permission-error hidden></p>`,
     footer: renderButton({ variant: "ghost", label: uiText.text("common.control.cancel"), attrs: { "data-dialog-close": true } })
       + renderButton({ variant: "primary", label: text("save"), type: "submit", attrs: { "data-permission-save": true, disabled: true } }),
   });

@@ -119,8 +119,10 @@ test("the model is offered a target-window picture only when the tree is not eno
   assert.equal(words.some(call => call.op === "input.text"), false);
   assert.equal(words.filter(call => call.op === "input.pointer").length, 1);
 
-  await assert.rejects(() => acted(desk({ picture: shot({ password_fields: 1, masked: 0 }) })), /密码/);
-  await assert.rejects(() => acted(desk({ picture: shot({ included_pids: [4, 8] }) })), /别的应用/);
+  assert.deepEqual(await acted(desk({ truncated: true, picture: shot({ password_fields: 1, masked: 0 }) })), { tree: "操作已完成，请重新观察窗口。" });
+  assert.deepEqual(await acted(desk({ truncated: true, picture: shot({ included_pids: [4, 8] }) })), { tree: "操作已完成，请重新观察窗口。" });
+  await assert.rejects(() => observeSurface(new ComputerDriver(desk({ picture: shot({ password_fields: 1, masked: 0 }) })).surface(), "screenshot", TEST_CONTEXT), /密码/);
+  await assert.rejects(() => observeSurface(new ComputerDriver(desk({ picture: shot({ included_pids: [4, 8] }) })).surface(), "screenshot", TEST_CONTEXT), /别的应用/);
 });
 
 test("switching apps keeps that window's picture when the tree is not enough", async () => {

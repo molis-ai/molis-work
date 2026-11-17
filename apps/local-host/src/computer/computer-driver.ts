@@ -204,7 +204,7 @@ export class ComputerDriver {
         return result;
       }
       catch (error) {
-        if (afterCompleted && bound.acknowledged()) { if (isRefused(error) && /截图会带出|密码框/u.test(error.message)) throw error; return afterCompleted(); }
+        if (afterCompleted && bound.acknowledged()) return afterCompleted();
         if (bound.dispatches() > 0) throw Object.assign(refused(isRefused(error) ? error.refusal : "driver-unavailable", "无法确认原桌面操作是否完整完成，请核对原应用。", true), { cause: error });
         throw error;
       }
@@ -453,7 +453,7 @@ export class ComputerDriver {
     if (!tree) return noView();
     let png: Uint8Array | undefined;
     try { png = await this.screenshot(state); } catch (error) {
-      if (step && windowChanged(error)) return noView(); rememberRefusal(this.ctx, this.appRef(), this.translate(error));
+      if (step && (isRefused(error) || windowChanged(error))) return noView(); rememberRefusal(this.ctx, this.appRef(), this.translate(error));
     }
     rememberSeen(this.ctx, state);
     record(png);

@@ -420,4 +420,6 @@ Prologue 提供无 UI 的公共合同，不包含 Molis Work 文案、组件、W
 
 Work 草稿复用原 Work owner；SDK 子任务草稿与未决操作引用复用平台 `host.drafts`，按稳定逻辑 target 分键。未决数据仅保留原 request/target/binding，不是消息或执行账。发送前先保存引用，结果未知时只查原请求；组件重开、刷新、A→B→A 与子 iframe 卸载均不能重发或清理另一个任务的输入。验收覆盖两种助理来源和 Coding 真实 iframe，尤其主输入独立、关闭与重开、终态继续、失权及原审批/成果入口。
 
-浮窗挂载合同细化：`UiPageView.openTask(input: Readonly<Record<string,string>>): Promise<void>` 只能请求当前已授权 contribution 的同安装投影；输入沿现有有限 stage 参数上限校验，仅作客户端定位，记录可读性和操作权限仍在原 HTTP/Action owner 校验。浮窗实例收到 `view.task`，含当前 `input`、`subscribe(listener)` 与 `close()`；普通页面没有该上下文。壳重用同一源页面的一份隔离浮窗实例，切目标只更新输入并通知控制器，不重新挂载 iframe；关闭隐藏浮窗、保留组件阅读状态，源页面失权/卸载时销毁。源页不能传 HTML、地址、安装或 contribution 身份。每次打开先核原页面有效，投影经现有 `mountFrame` 重新发 grant，使用原页面登记的脚本及授权文档。全局 task-panel 管显示、返回、Escape 与焦点；浮窗内的主输入只绑定组件冻结的子目标。
+浮窗挂载合同细化：`UiPageView.openTask(input: Readonly<Record<string,string>>): Promise<void>` 只能请求当前已授权 contribution 的同安装投影；输入沿现有有限 stage 参数上限校验，仅作客户端定位，记录可读性和操作权限仍在原 HTTP/Action owner 校验。浮窗实例收到 `view.task`，含当前 `input`、`subscribe(listener)` 与 `close()`；普通页面没有该上下文。壳重用同一源页面的一份隔离浮窗实例，切目标只更新输入并通知控制器，不重新挂载 iframe；关闭隐藏浮窗、保留组件阅读状态，源页面失权/卸载时销毁。源页不能传 HTML、地址、安装或 contribution 身份。首次挂载经现有 `mountFrame` 发独立 grant，不能沿用源页 `pack.authorization`；缓存重开核验源页及投影授权，失效销毁重建，使用原页面登记的脚本及授权文档。全局 task-panel 管显示、返回、Escape 与焦点；浮窗内的主输入只绑定组件冻结的子目标。
+
+2026-11-17 只读合同设计合审确认此窄口可行（评审代理 `contract_review`，审阅 `7a82f8649f`）。补充按实际源页 scope 绑定缓存与待打开操作；首次挂载合并，最新打开意图决定 input，迟到 A 不覆盖 B。初始 input 随握手给出，后续冻结快照经原 MessagePort 更新；源 scope 结束取消待打开并销毁投影。task 投影显式 `bar=false`，Coding 客户端优先走 `view.task`，不借 `side=true`，不改变主输入与侧栏消息语义。

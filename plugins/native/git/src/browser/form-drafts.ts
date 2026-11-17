@@ -25,7 +25,7 @@ export function rememberForm(page: GitPage): void {
 }
 
 export function resetEditors(page: GitPage): void {
-  page.formDraft = null; page.conflictDraft = null; page.conflictPath = ""; page.conflictTicket++;
+  page.formDraft = null; page.conflictDraft = null;
   page.lastPrepared = null; page.summary = null; page.scWorkspace = ""; page.sc.hidden = true;
   page.conflictEditor.hidden = true; page.conflictText.value = "";
   drawForm(page, emptyForm());

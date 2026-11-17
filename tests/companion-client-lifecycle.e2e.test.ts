@@ -589,3 +589,35 @@ for (const phase of ["reading", "shown"]) test(`SYS-51: a late Git decision pres
   await page.click("[data-git-index-action]"); await until(() => count("POST /git/prepare-index") === 2);
   assert.deepEqual(await page.evaluate("errors"), []);
 });
+
+test("QEA-78 a known Git review retries its failed presentation without preparing another operation", { timeout: 30_000 }, async t => {
+  const selected = { workspace_id: "ws", path: ["note.md"], side: "worktree", revision: "v1", reference: { artifact_id: "fixed", version: 1 } };
+  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${gitMarkup()}</section>`, `
+    const host={${companionHost("git")}}, show = host.reviews.show;
+    host.reviews.show = async (...args) => { await show(...args); if (window.failReviewPresentation) { window.failReviewPresentation = false; throw Error('review presentation unavailable'); } };
+    window.boot=()=>(${pageFactory("git")})(host);boot();
+  `, path => {
+    if (path.endsWith("/view-revision")) return { revision: "1" };
+    if (path.endsWith("/summary")) return { summary: null, workspace: { workspace_id: "ws" } };
+    if (path.endsWith("/reviews")) return { reviews: [], html: "", omitted: 0 };
+    if (path === "/git/diff") return { result: { outcome: "diff" }, selected };
+    if (path === "/api/host/plugin-page-actions") return { html: '<p class=current-diff>fixed difference</p>' };
+    if (path === "/git/prepare-index") return { review_id: "existing-review" };
+    return { ...state("git"), view: { phase: "ready", head: "current", conflicts: [], staged: [], changes: [{ path: ["note.md"], label: "note.md" }] } };
+  }); if (!f) return;
+  const { page, count } = f;
+  await page.evaluate("parentView.hidden=false");
+  await page.wait("document.querySelector('[data-git-path]') && !document.querySelector('[data-git-refresh]').disabled");
+  await page.click("[data-git-path]");
+  await page.wait("!document.querySelector('[data-git-index-action]').hidden && document.querySelector('[data-git-results]').getAttribute('aria-busy')==='false'");
+  await page.evaluate("failReviewPresentation = true");
+  await page.click("[data-git-index-action]");
+  await page.wait("document.querySelector('[data-git-notice]').textContent.includes('review presentation unavailable') && !document.querySelector('[data-git-index-action]').disabled");
+  assert.equal(count("POST /git/prepare-index"), 1);
+  const reads = count("GET /api/agent/reviews");
+  await page.click("[data-git-index-action]");
+  await page.wait("document.querySelector('[data-git-index-action]').hidden");
+  assert.equal(count("POST /git/prepare-index"), 1, "the retry only reads the known review");
+  assert.ok(count("GET /api/agent/reviews") > reads);
+  assert.deepEqual(await page.evaluate("errors"), []);
+});

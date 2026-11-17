@@ -268,3 +268,9 @@ QF-47本地实现已验证：surface-installation只在非pinned且无精确声�
 2026-11-17最新主干a717e44284（#2105第39批，959文件）已fetch。当前固定29f6d1383e的205文件回归继续；根主线准备整合，审查/授权/SDK及真实入口交集纳入QEA-83。此前“最新主干4aa”及包清单为历史检查点，未将旧头验收挪作新头证据；原六方向目标不变。
 
 QF-47最终健康门禁退出0（`/tmp/quality-audit-surface-health-final.log`），测试内部导入违规已消除，未放宽规则。
+
+2026-11-17回归结算：固定29f6d1383e的205文件结束202过/3失败（旧Feed版本例外影响desktop-tui及verify-release-versions，控件远程对象身份问题影响editor-control-names）；后者在主线040f中修夹具后23项通过。固定e7a1c544d2的Acceptance/Storage/Host必跑90文件结束88过/2失败：同一版本例外与secret-store-keychain-retry，后者同头定向复跑稳定出现3次非预期Keychain访问，正在定位，不按偶发跳过。两轮均不代表最终头全通过。
+
+## Git 主结果区与回执归属深查（QF-23/46，QEA-77/78）
+
+入口覆盖独立 Git 与 Coding 借用的同一客户端；目录选择→公开 diff/prepare-index/operations→Host 审查→真实 Git index/文件→原 operation 结果→确切草稿清理。六向处理：分散显示状态收敛到一份选择；保留真实输出目录/版本/权限围栏；冲突正文离开窄目录，错误重试跟随正文；删旧 ticket/displayed/decisionNotice 等被替换路径；业务写入与 owner 回执继续归 Host/原 drafts，展示归选择；复用既有 clientUses/openResult 合同，没有 Coding 特判或新导航平台。新增晚到成功/失败、同键重试、隐藏重入、历史选择/保存交错和实际写入验证，22/22正常入口通过；三宽两主题覆盖两真实调用方。完整包必跑和最终CI另记，不把代表用例当整仓完成。

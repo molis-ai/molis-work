@@ -1,3 +1,4 @@
+import { clearResultSelection, shownDiff } from "./result-selection.js";
 import { resetEditors } from "./form-drafts.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { open } from "./diff.js";
@@ -54,7 +55,8 @@ function paint(page: GitPage, view: View): void {
       if (name) name.textContent = item.label;
       button.title = `${label} · ${item.label}`;
       button.setAttribute("aria-label", uiText.text("git.group.row-label", { group: label, name: item.label }));
-      const shown = page.displayed && page.displayed.workspace_id === page.workspace && page.displayed.side === side && JSON.stringify(page.displayed.path) === JSON.stringify(item.path);
+      const displayed = shownDiff(page);
+      const shown = displayed && displayed.workspace_id === page.workspace && displayed.side === side && JSON.stringify(displayed.path) === JSON.stringify(item.path);
       button.classList.toggle("is-selected", Boolean(shown || (page.opener === button && result.getAttribute("aria-busy") === "true")));
       if (previous.nextElementSibling !== button) group.insertBefore(button, previous.nextElementSibling);
       previous = button;
@@ -66,11 +68,9 @@ function paint(page: GitPage, view: View): void {
 
 /** Reads the workspace's changes and paints them, then the source-control block. */
 export async function refresh(page: GitPage): Promise<void> {
-  const { list, notice, reopen, history, result } = page;
+  const { list, notice, reopen, history } = page;
   if (!page.lifetime.visible) return;
   const epoch = ++page.generation;
-  page.ticket++;
-  result.setAttribute("aria-busy", "false");
   reading(page, true);
   notice.textContent = uiText.text("git.list.reading");
   reopen.hidden = true;
@@ -81,10 +81,10 @@ export async function refresh(page: GitPage): Promise<void> {
     // The folder the page asked for left the project: it shows the output and follows it from now on.
     if (page.folder && value.workspace.workspace_id !== page.folder) page.folder = "";
     if (page.workspace !== value.workspace.workspace_id) {
+      clearResultSelection(page);
       resetEditors(page);
       list.replaceChildren();
       clearResults(page);
-      if (page.workspace && !result.hidden) { result.hidden = true; page.host.closeResult(); }
     }
     page.workspace = value.workspace.workspace_id;
     page.selected = value.selected ?? null;
@@ -101,13 +101,14 @@ export async function refresh(page: GitPage): Promise<void> {
     history.disabled = false;
   } catch (error) {
     if (active(page, epoch)) {
+      clearResultSelection(page);
+      resetEditors(page);
       list.replaceChildren();
       page.workspace = "";
       page.selected = null;
       clearResults(page);
       history.disabled = true;
       notice.textContent = (messageOf(error));
-      if (!result.hidden) { page.q("[data-git-diff]").replaceChildren(); page.diffNotice.textContent = (messageOf(error)); }
     }
   } finally {
     if (active(page, epoch)) reading(page, false);

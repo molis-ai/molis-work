@@ -33,3 +33,5 @@ The folders come from the [current-project settings protocol](../../../docs/plat
 Git 在 Manifest 订阅宿主事件 `host.review.settled@1`：Git 发起、人批准的操作（`review:git-index`、`review:git-operation`）执行完、结果定下后，宿主只发给 Git 这个安装（S-54）；Git 在 `onEvent` 里发布 v1 `operation-updated` 并刷新自身视图，Files 消费同一通知。Coding 发起的工作树与整合审查只发给 Coding，不经 Git；Git 另外订阅广播的 `host.workspace.changed@1`，本项目里任何插件发起、人批准的工作区操作执行完（不论结果）都重读页面，但不为它发 `operation-updated`（BL-379）。失败/未知不冒充成功，读取历史和恢复出来的审查不产生事件；宿主事件不落库、不重投，停着的安装就收不到。客户端可见时跟随 Host revision 重新读取状态，固定差异保持原版本。
 
 Git 的借用客户端 `clientUses` 返回 `offerCommitDraft(workspaceId, message): Promise<"applied" | "suggested">`。它核对原目录仍存在并等待实际草稿保存；有手写说明时保留原文，把建议留给显式采用。Coding 不再约定 storage 键。编辑内容通过当前安装/项目的 `host.drafts` 保存，按目录及冲突完整相对路径区分，独立 Git 与 Coding 内嵌各使用自己的宿主命名空间。审查的 operation_id 与提交快照随草稿保存，成功清理只认 Host operation 的实际成功和同一内容，未知/拒绝/失败不丢编辑。输入直接交平台排序；不另设 debounce 或私写队列。
+
+差异、冲突编辑、操作审查与历史共用主结果区，由 `browser/result-selection.ts` 的当前选择管理显示。目录刷新不改变选择，迟到读取/回执不覆盖后来目标；隐藏或返回关闭结果，回到目录后可重开原固定差异或草稿。暂存准备区分 ready/waiting/review，未知回执显式重试沿用原 operation_id，已知审查的展示失败只重读。历史保存按原 workspace/reviewId 结算，界面反馈只属于当前选择。真实 Git 与 Coding 入口验收见 `tests/git-edit-drafts.e2e.test.ts`（QEA-77/78）。

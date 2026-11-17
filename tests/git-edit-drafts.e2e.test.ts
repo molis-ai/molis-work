@@ -46,6 +46,13 @@ async function gitEditor(t: TestContext, surface: "git" | "coding", conflicts = 
   return { browser, frame, root, show, git, workspace };
 }
 
+/** Use the visible Back control when the compact result covers the directory. */
+async function chooseConflict(frame: NonNullable<Awaited<ReturnType<typeof gitEditor>>>["frame"], position: number) {
+  const selector = `[data-git-conflict-list] li:nth-child(${position}) button`;
+  if (!await frame.evaluate(`document.querySelector(${JSON.stringify(selector)}).checkVisibility()`)) await frame.click("[data-git-close]");
+  await frame.click(selector);
+}
+
 for (const surface of ["git", "coding"] as const) {
   test(`QEA-33: ${surface} preserves a manually typed commit message after the real page reloads`, { timeout: 120_000 }, async t => {
     const ctx = await gitEditor(t, surface);
@@ -66,17 +73,17 @@ for (const surface of ["git", "coding"] as const) {
     const before = await readFile(join(root, "one.txt"), "utf8"), head = git("rev-parse", "HEAD");
     const manual = "Manually resolved line\n".repeat(300) + "The full final line must survive.\n";
     assert.ok(manual.length > 4096);
-    await frame.click("[data-git-conflict-list] li:nth-child(1) button");
+    await chooseConflict(frame, 1);
     await frame.waitFor("document.querySelector('[data-git-conflict-text]').value.includes('current one.txt')");
     await frame.evaluate(`(() => { const editor = document.querySelector('[data-git-conflict-text]'); editor.value = ${JSON.stringify(manual)}; editor.dispatchEvent(new Event('input', { bubbles: true })); })()`);
-    await frame.click("[data-git-conflict-list] li:nth-child(2) button");
+    await chooseConflict(frame, 2);
     await frame.waitFor("document.querySelector('[data-git-conflict-text]').value.includes('current two.txt')");
-    await frame.click("[data-git-conflict-list] li:nth-child(1) button");
+    await chooseConflict(frame, 1);
     await frame.waitFor("document.querySelector('[data-git-conflict-file]').textContent.includes('one.txt')");
     assert.equal(await frame.evaluate("document.querySelector('[data-git-conflict-text]').value"), manual);
     await frame.waitFor("document.querySelector('[data-git-draft-status]')?.dataset.state === 'ready'");
     await browser.reloadPage(); await show();
-    await frame.click("[data-git-conflict-list] li:nth-child(1) button");
+    await chooseConflict(frame, 1);
     await frame.waitFor("document.querySelector('[data-git-conflict-file]').textContent.includes('one.txt')");
     assert.equal(await frame.evaluate("document.querySelector('[data-git-conflict-text]').value"), manual);
     assert.equal(await readFile(join(root, "one.txt"), "utf8"), before, "editing and restoring a draft does not resolve the file on disk");
@@ -183,10 +190,10 @@ for (const surface of ["git", "coding"] as const) {
   });
 }
 
-test("QEA-34: failed conflict draft read retries that file, and changed disk content requires explicit review", { timeout: 120_000 }, async t => {
-  const ctx = await gitEditor(t, "git", true); if (!ctx) return;
+for (const surface of ["git", "coding"] as const) test(`QEA-34 QEA-77: ${surface} failed conflict draft read retries that file, and changed disk content requires explicit review`, { timeout: 120_000 }, async t => {
+  const ctx = await gitEditor(t, surface, true); if (!ctx) return;
   const { browser, frame, root, show } = ctx;
-  const open = async () => { await frame.click("[data-git-conflict-list] li:nth-child(1) button"); await frame.waitFor("!document.querySelector('[data-git-conflict-text]').disabled"); };
+  const open = async () => { await chooseConflict(frame, 1); await frame.waitFor("!document.querySelector('[data-git-conflict-text]').disabled"); };
   await open(); await edit(ctx, "conflict-text", "My resolution stays intact\n");
   const original = await readFile(join(root, "one.txt"), "utf8");
   await browser.reloadPage(); await show();
@@ -198,7 +205,7 @@ test("QEA-34: failed conflict draft read retries that file, and changed disk con
     };
     window.restoreDraftReads = () => { Cache.prototype.match = match; };
   }`);
-  await frame.click("[data-git-conflict-list] li:nth-child(1) button");
+  await chooseConflict(frame, 1);
   await frame.waitFor("document.querySelector('[data-git-draft-status]').dataset.state === 'failed'");
   assert.equal(await frame.evaluate("document.querySelector('[data-git-conflict-text]').disabled"), true);
   await browser.evaluate("restoreDraftReads()"); await frame.click("[data-git-draft-retry]");
@@ -222,7 +229,7 @@ test("QEA-34: failed conflict draft read retries that file, and changed disk con
     const bounds = await frame.evaluate<{ width: number; right: number; left: number }>("(() => {const box=document.querySelector('[data-git-conflict-disk]').getBoundingClientRect();return {width:innerWidth,right:box.right,left:box.left};})()");
     assert.ok(bounds.left >= 0 && bounds.right <= bounds.width, JSON.stringify(bounds));
     const shot = await browser.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, browser.sessionId);
-    await writeFile(join(screenshots, `current-conflict-${theme}-${width}.png`), Buffer.from(shot.data, "base64"));
+    await writeFile(join(screenshots, `current-conflict-${surface}-${theme}-${width}.png`), Buffer.from(shot.data, "base64"));
   }
   await frame.click("[data-git-conflict-keep-edit]");
   assert.equal(await frame.evaluate("document.querySelector('[data-git-conflict-resolve]').disabled"), false);
@@ -232,6 +239,7 @@ test("QEA-34: failed conflict draft read retries that file, and changed disk con
 test("QEA-34: a conflict read survives same-directory refresh but cannot return after switching files or resolving the merge", { timeout: 120_000 }, async t => {
   const ctx = await gitEditor(t, "git", true); if (!ctx) return;
   const { frame, git } = ctx;
+  await ctx.browser.setViewport(1440, 1000);
   // Hold the actual owner response at the page's request boundary; the Host has read the real file.
   await frame.evaluate(`{
     const request = molisWorkRequest;
@@ -247,7 +255,7 @@ test("QEA-34: a conflict read survives same-directory refresh but cannot return 
   }`);
   const holdFirst = async () => {
     await frame.evaluate("holdNextConflict = true; conflictReadHeld = false");
-    await frame.click("[data-git-conflict-list] li:nth-child(1) button");
+    await chooseConflict(frame, 1);
     await frame.waitFor("window.conflictReadHeld === true");
   };
   const release = () => frame.evaluate("releaseConflictRead(); new Promise(resolve => requestAnimationFrame(() => resolve(true)))");
@@ -255,7 +263,7 @@ test("QEA-34: a conflict read survives same-directory refresh but cannot return 
   await frame.waitFor("!document.querySelector('[data-git-refresh]').disabled"); await release();
   await frame.waitFor("!document.querySelector('[data-git-conflict-text]').disabled");
   assert.match(await frame.evaluate<string>("document.querySelector('[data-git-conflict-text]').value"), /current one.txt/u);
-  await holdFirst(); await frame.click("[data-git-conflict-list] li:nth-child(2) button");
+  await holdFirst(); await chooseConflict(frame, 2);
   await frame.waitFor("document.querySelector('[data-git-conflict-text]').value.includes('current two.txt')"); await release();
   assert.match(await frame.evaluate<string>("document.querySelector('[data-git-conflict-text]').value"), /current two.txt/u);
   await holdFirst(); git("merge", "--abort"); await frame.click("[data-git-refresh]");
@@ -278,12 +286,12 @@ test("QEA-34: making a read-only conflict directory writable reopens current dis
   await frame.evaluate(`document.querySelector('[data-coding-workspace-choice]').value = ${JSON.stringify(workspace.workspace_id)}`);
   await frame.click("[data-coding-workspace-form] [type=submit]");
   await frame.waitFor("!document.querySelector('[data-coding-workspace-dialog]').open"); await ctx.show();
-  await frame.click("[data-git-conflict-list] li:nth-child(1) button");
+  await chooseConflict(frame, 1);
   await frame.waitFor("!document.querySelector('[data-git-conflict-text]').disabled");
   await edit(ctx, "conflict-text", "Resolution against the old file\n");
   const original = await readFile(join(root, "one.txt"), "utf8");
   await frame.click("[data-git-conflict-resolve]");
-  await frame.waitFor("document.querySelector('[data-git-sc-status] .git-set-output')?.checkVisibility()");
+  await frame.waitFor("document.querySelector('[data-git-conflict-state] .git-set-output')?.checkVisibility()");
   assert.equal(await readFile(join(root, "one.txt"), "utf8"), original, "input-only rejection writes no file");
   const associations = await browser.evaluate<number[]>(`(async () => {
     const counts = [], key = new URL('/.molis-draft/' + encodeURIComponent(${JSON.stringify(`git.edit.v1:${workspace.workspace_id}`)}), location.origin).href;
@@ -296,7 +304,7 @@ test("QEA-34: making a read-only conflict directory writable reopens current dis
   assert.deepEqual(associations, [0], "a definitive pre-review refusal leaves no operation association to wait for forever");
   const changed = original.replace("current one.txt", "edited while changing directory permissions");
   await writeFile(join(root, "one.txt"), changed);
-  await frame.click("[data-git-sc-status] .git-set-output");
+  await frame.click("[data-git-conflict-state] .git-set-output");
   await browser.waitFor("document.querySelector('[data-page-dialog=confirm]')?.checkVisibility()");
   await browser.click("[data-page-dialog=confirm] [type=submit]");
   await frame.waitFor("!document.querySelector('[data-git-conflict-changed]').hidden").catch(async error => {
@@ -324,7 +332,7 @@ test("QEA-34: making a read-only conflict directory writable reopens current dis
 test("QEA-34: an edit during a blocked save survives the older resolution; successful cleanup closes its editor before deleting", { timeout: 150_000 }, async t => {
   const ctx = await gitEditor(t, "git", true); if (!ctx) return;
   const { browser, frame, root, show, git } = ctx;
-  const open = async () => { await frame.click("[data-git-conflict-list] li:nth-child(1) button"); await frame.waitFor("!document.querySelector('[data-git-conflict-text]').disabled"); };
+  const open = async () => { await chooseConflict(frame, 1); await frame.waitFor("!document.querySelector('[data-git-conflict-text]').disabled"); };
   await open();
   await browser.evaluate(`{
     const put = Cache.prototype.put;
@@ -368,4 +376,221 @@ test("QEA-34: an edit during a blocked save survives the older resolution; succe
   git("merge", "--abort"); assert.throws(() => git("merge", "incoming"));
   await browser.reloadPage(); await show(); await open();
   assert.match(await frame.evaluate<string>("document.querySelector('[data-git-conflict-text]').value"), /<<<<<<< HEAD/u, "a successfully submitted snapshot does not return as a draft");
+});
+
+for (const surface of ["git", "coding"] as const) for (const reply of ["success", "failure"] as const) test(`QEA-78 ${surface} keeps the later file's diff and action when an earlier staging review ${reply} arrives`,{timeout:120_000},async t=>{
+  const ctx=await gitEditor(t,surface);if(!ctx)return;
+  const {frame,root,git}=ctx;
+  await writeFile(join(root,"one.txt"),"changed one\n");await writeFile(join(root,"two.txt"),"changed two\n");
+  await frame.click('[data-git-refresh]');await ctx.show();
+  const row=(name:string)=>'[data-git-path='+JSON.stringify(JSON.stringify([[name],"worktree"]))+']';
+  await frame.click(row("one.txt"));
+  await frame.waitFor("document.querySelector('[data-git-title]').textContent==='one.txt' && !document.querySelector('[data-git-index-action]').hidden");
+  await frame.evaluate(`{const request=molisWorkRequest;window.molisWorkRequest=Object.assign(async(url,options)=>{const value=await request(url,options);if(String(url).endsWith('/prepare-index')||options?.body?.reference?.capability_id==='git.prepare-index'){window.reviewReplyHeld=true;await new Promise(resolve=>window.releaseReviewReply=resolve);window.reviewReplyDelivered=true;if(${JSON.stringify(reply)}==="failure")throw new Error("qea-old-index-reply");}return value;},request);}`);
+  await frame.click('[data-git-index-action]');await frame.waitFor("window.reviewReplyHeld===true");
+  try {
+    await frame.click("[data-git-close]");
+    await frame.click(row("two.txt"));
+    await frame.waitFor("document.querySelector('[data-git-title]').textContent==='two.txt' && !document.querySelector('[data-git-index-action]').hidden && document.querySelector('[data-git-results]').getAttribute('aria-busy')==='false'");
+    assert.equal(git("diff","--cached","--name-only"),"","preparing a review never stages the file by itself");
+  } finally {await frame.evaluate("releaseReviewReply()");}
+  await frame.waitFor("!document.querySelector('[data-git-index-action]').disabled");
+  await frame.waitFor("window.reviewReplyDelivered===true");
+  assert.deepEqual(await frame.evaluate("[document.querySelector('[data-git-title]').textContent,document.querySelector('[data-git-index-action]').hidden]"),["two.txt",false],"the earlier reply does not take away the later file's action");
+  await decide(ctx, "approve");
+  await frame.waitFor("document.querySelector('[data-git-group=staged]')?.textContent.includes('one.txt')");
+  assert.equal(git("diff", "--cached", "--name-only"), "one.txt", "the accepted old review still writes only its original file");
+  assert.deepEqual(await frame.evaluate("[document.querySelector('[data-git-title]').textContent,document.querySelector('[data-git-index-action]').hidden]"), ["two.txt", false]);
+});
+
+for (const surface of ["git", "coding"] as const) test(`QEA-78 ${surface} retries an unknown staging response with the original operation and writes only once`, { timeout: 120_000 }, async t => {
+  const ctx = await gitEditor(t, surface); if (!ctx) return;
+  const { frame, root, browser, git } = ctx;
+  await writeFile(join(root, "one.txt"), "retry original staging review\n");
+  await frame.click("[data-git-refresh]"); await ctx.show();
+  await frame.click("[data-git-path]");
+  await frame.waitFor("!document.querySelector('[data-git-index-action]').hidden");
+  await frame.evaluate(`{
+    const request = molisWorkRequest; window.preparedOperations = [];
+    window.molisWorkRequest = async (url, options) => {
+      const preparing = String(url).endsWith('/prepare-index') || options?.body?.reference?.capability_id === 'git.prepare-index';
+      if (preparing) preparedOperations.push((options.body.input ?? options.body).operation_id);
+      const value = await request(url, options);
+      if (preparing && preparedOperations.length === 1) throw new Error('qea-staging-reply-lost');
+      return value;
+    };
+  }`);
+  await frame.click("[data-git-index-action]");
+  await frame.waitFor("document.querySelector('[data-git-notice]').textContent.includes('qea-staging-reply-lost') && !document.querySelector('[data-git-index-action]').disabled");
+  await frame.click("[data-git-index-action]");
+  await frame.waitFor("document.querySelector('[data-git-index-action]').hidden");
+  const ids = await frame.evaluate<string[]>("preparedOperations");
+  assert.equal(ids.length, 2); assert.equal(ids[0], ids[1], "an explicit retry uses the original identity");
+  const reviews = await browser.web.get<{ reviews: Array<{ request: { operation?: { kind: string } } }> }>(`/projects/${browser.projectId}/api/agent/reviews?status=pending`);
+  assert.equal(reviews.reviews.filter(row => row.request.operation?.kind === "git-index").length, 1);
+  assert.equal(git("diff", "--cached", "--name-only"), "");
+  await decide(ctx, "approve");
+  await frame.waitFor("document.querySelector('[data-git-group=staged]')?.textContent.includes('one.txt')");
+  assert.equal(git("show", ":one.txt"), "retry original staging review");
+});
+
+for (const surface of ["git", "coding"] as const) test(`QEA-77 QEA-78 ${surface} returns to a usable directory after switching away from a conflict and a fixed diff`, { timeout: 120_000 }, async t => {
+  const ctx = await gitEditor(t, surface, true); if (!ctx) return;
+  const { frame, browser } = ctx;
+  await browser.setViewport(1440, 1000);
+  const roundTrip = async () => {
+    await browser.click('[data-plugin-strip] [data-plugin-id=goals]');
+    await browser.waitFor("document.body.dataset.desktopSurface === 'goals'");
+    await browser.click(`[data-plugin-strip] [data-plugin-id=${surface}]`);
+    await browser.waitFor(`document.body.dataset.desktopSurface === ${JSON.stringify(surface)}`);
+    await ctx.show();
+    assert.equal(await frame.evaluate("document.querySelector('[data-git-results]').hidden"), true, "no abandoned heading or disabled result remains after re-entry");
+    assert.equal(await frame.evaluate("document.querySelector('[data-git-browser]').checkVisibility()"), true);
+  };
+  await chooseConflict(frame, 1); await frame.waitFor("!document.querySelector('[data-git-conflict-text]').disabled");
+  await edit(ctx, "conflict-text", "Draft retained through actual navigation\n");
+  await roundTrip();
+  await chooseConflict(frame, 1); await frame.waitFor("!document.querySelector('[data-git-conflict-text]').disabled");
+  assert.equal(await frame.evaluate("document.querySelector('[data-git-conflict-text]').value"), "Draft retained through actual navigation\n");
+  await frame.click("[data-git-close]");
+  ctx.git("merge", "--abort");
+  await writeFile(join(ctx.root, "one.txt"), "Changed after the merge was aborted\n");
+  await frame.click("[data-git-refresh]"); await ctx.show();
+  await frame.click("[data-git-path]"); await frame.waitFor("!document.querySelector('[data-git-index-action]').hidden");
+  await roundTrip();
+  await frame.click("[data-git-reopen]");
+  await frame.waitFor("!document.querySelector('[data-git-index-action]').hidden");
+  assert.equal(await frame.evaluate("document.querySelector('[data-git-title]').textContent"), "one.txt");
+  assert.equal(ctx.git("diff", "--cached", "--name-only"), "", "navigation and reopening do not stage the file");
+});
+
+test("QEA-78 history refresh and save receipts preserve the chosen result and settle the original stored artifact", { timeout: 150_000 }, async t => {
+  const ctx = await gitEditor(t, "git"); if (!ctx) return;
+  const { frame, browser, root } = ctx;
+  await browser.setViewport(1440, 1000);
+  for (const file of ["one.txt", "two.txt"]) {
+    await writeFile(join(root, file), "history " + file + "\n");
+    await frame.click("[data-git-refresh]"); await ctx.show();
+    await frame.click('[data-git-path=' + JSON.stringify(JSON.stringify([[file], "worktree"])) + ']');
+    await frame.waitFor("!document.querySelector('[data-git-index-action]').hidden");
+    await frame.click("[data-git-index-action]"); await decide(ctx, "approve");
+    await frame.waitFor(`document.querySelector('[data-git-group=staged]')?.textContent.includes(${JSON.stringify(file)}) && !document.querySelector('[data-git-refresh]').disabled`);
+    await frame.click("[data-git-close]");
+  }
+  await frame.click("[data-git-history]");
+  await frame.waitFor("document.querySelector('[data-git-result-choice]').options.length === 2");
+  const ids = await frame.evaluate<string[]>("[...document.querySelector('[data-git-result-choice]').options].map(o => o.value)");
+  const choose = (id: string) => frame.evaluate(`{ const select = document.querySelector('[data-git-result-choice]'); select.value = ${JSON.stringify(id)}; select.dispatchEvent(new Event('change', { bubbles: true })); }`);
+  await choose(ids[0]!);
+  await frame.evaluate(`{
+    const request = molisWorkRequest;
+    window.historyMode = ''; window.historyHeld = false;
+    window.molisWorkRequest = async (url, options) => {
+      const match = String(url).includes('/results') && ((options?.method === 'POST') === (historyMode !== 'read'));
+      if (!historyMode || !match) return request(url, options);
+      const mode = historyMode; historyMode = '';
+      if (mode === 'fail') { await new Promise(resolve => { window.releaseHistory = resolve; historyHeld = true; }); throw new Error('qea-old-save-failure'); }
+      const value = await request(url, options);
+      await new Promise(resolve => { window.releaseHistory = resolve; historyHeld = true; }); return value;
+    };
+  }`);
+  await frame.click("[data-git-close]");
+  await frame.evaluate("historyMode = 'read'; historyHeld = false");
+  await frame.click("[data-git-history]"); await frame.waitFor("historyHeld");
+  await choose(ids[1]!); await frame.evaluate("releaseHistory()");
+  await frame.waitFor("!document.querySelector('[data-git-result-save]').disabled");
+  assert.equal(await frame.evaluate("document.querySelector('[data-git-result-choice]').value"), ids[1]);
+  await frame.evaluate("historyMode = 'save'; historyHeld = false");
+  await frame.click("[data-git-result-save]"); await frame.waitFor("historyHeld && typeof releaseHistory === 'function'");
+  await frame.click("[data-git-refresh]"); await ctx.show();
+  await frame.evaluate("releaseHistory()");
+  await frame.waitFor("document.querySelector('[data-git-result-status]').textContent.includes('已保存')");
+  const readResults = () => browser.web.get<{ results: Array<{ result: { review: { review_id: string } }; saved?: { reference: { artifact_id: string; version: number } } }> }>(`/projects/${browser.projectId}/api/plugins/io.molis.work.git/results?workspace_id=${ctx.workspace.workspace_id}`);
+  const stored = (await readResults()).results.find(row => row.result.review.review_id === ids[1]);
+  assert.ok(stored?.saved?.reference.artifact_id, "the original save produced an actual fixed artifact");
+  await choose(ids[0]!);
+  await frame.evaluate("historyMode = 'fail'; historyHeld = false");
+  await frame.click("[data-git-result-save]"); await frame.waitFor("historyHeld");
+  await choose(ids[1]!); await frame.evaluate("releaseHistory()");
+  await frame.waitFor("document.querySelector('[data-git-result-save]').disabled");
+  assert.doesNotMatch(await frame.evaluate<string>("document.querySelector('[data-git-result-status]').textContent"), /qea-old-save-failure/u);
+  assert.deepEqual((await readResults()).results.find(row => row.result.review.review_id === ids[1])?.saved?.reference, stored.saved.reference);
+  await choose(ids[0]!); await frame.waitFor("!document.querySelector('[data-git-result-save]').disabled");
+  await frame.click("[data-git-result-save]");
+  await frame.waitFor("document.querySelector('[data-git-result-status]').textContent.includes('已保存')");
+  assert.equal((await readResults()).results.filter(row => row.saved).length, 2);
+});
+
+for (const surface of ["git", "coding"] as const) test(`QEA-78 ${surface} returning to the directory does not revive an older commit review response`, { timeout: 120_000 }, async t => {
+  const ctx = await gitEditor(t, surface); if (!ctx) return;
+  const { frame, browser, git, root } = ctx;
+  await browser.setViewport(1440, 1000);
+  await writeFile(join(root, "one.txt"), "ready to commit\n"); git("add", "one.txt");
+  await frame.click("[data-git-refresh]"); await ctx.show();
+  await edit(ctx, "commit-message", "Original reviewed commit");
+  await frame.evaluate(`{const request=molisWorkRequest;window.molisWorkRequest=async(url,options)=>{
+    const value=await request(url,options);
+    if ((String(url).endsWith('/operations') && options?.method === 'POST') || options?.body?.reference?.capability_id === 'git.prepare-operation') {
+      await new Promise(resolve=>{window.releaseCommitReply=resolve;window.commitReplyHeld=true;}); window.commitReplyDelivered=true;
+    }return value;
+  };}`);
+  await frame.click("[data-git-commit]"); await frame.waitFor("window.commitReplyHeld");
+  await frame.click("[data-git-history]"); await frame.waitFor("!document.querySelector('[data-git-saved-results]').hidden");
+  await frame.click("[data-git-close]"); await frame.evaluate("releaseCommitReply()");
+  await frame.waitFor("window.commitReplyDelivered");
+  assert.equal(await frame.evaluate("document.querySelector('[data-git-results]').hidden"), true, "returning to the directory is a new choice, not the old null selection");
+  assert.equal(git("log", "-1", "--format=%s"), "Initial");
+  const pending = await browser.web.get<{ reviews: Array<{ request: { operation?: { kind: string } } }> }>(`/projects/${browser.projectId}/api/agent/reviews?status=pending`);
+  assert.equal(pending.reviews.filter(row => row.request.operation?.kind === "git-operation").length, 1);
+  await frame.click("[data-git-history]"); await decide(ctx, "approve");
+  await frame.waitFor("document.querySelector('[data-git-operations] [data-outcome=succeeded]')");
+  assert.equal(git("log", "-1", "--format=%s"), "Original reviewed commit");
+});
+
+for (const kind of ["index", "conflict"] as const) test(`QEA-78 a late output-directory response cannot reopen or prepare the later ${kind} selection`, { timeout: 150_000 }, async t => {
+  const ctx = await gitEditor(t, "coding", kind === "conflict"); if (!ctx) return;
+  const { browser, frame, root, workspace } = ctx;
+  await browser.setViewport(1440, 1000);
+  if (kind === "index") for (const file of ["one.txt", "two.txt"]) await writeFile(join(root, file), "modified " + file + "\n");
+  await addProjectInputFolder(browser.web, browser.projectId!, root);
+  const other = join(browser.homeDirectory, "output-for-permission"); await mkdir(other);
+  execFileSync("git", ["init", "-q", "-b", "other-output", other]);
+  await setProjectOutputFolder(browser.web, browser.projectId!, other);
+  await browser.reloadPage(); await ctx.show();
+  await frame.click("[data-coding-new]"); await browser.waitFor(CODING_TAKEN);
+  if (await frame.evaluate("document.querySelector('.coding-context').hidden")) await browser.evaluate(codingAdd("context"));
+  await frame.click("[data-coding-workspace-open]");
+  await frame.evaluate(`document.querySelector('[data-coding-workspace-choice]').value = ${JSON.stringify(workspace.workspace_id)}`);
+  await frame.click("[data-coding-workspace-form] [type=submit]");
+  await frame.waitFor("!document.querySelector('[data-coding-workspace-dialog]').open"); await ctx.show();
+  await frame.evaluate(`{const request=molisWorkRequest;window.preparationCalls=0;window.molisWorkRequest=async(url,options)=>{
+    if(['git.prepare-index','git.prepare-operation'].includes(options?.body?.reference?.capability_id)) preparationCalls++;
+    return request(url,options);
+  };}`);
+  const row = (file: string) => '[data-git-path=' + JSON.stringify(JSON.stringify([[file], "worktree"])) + ']';
+  if (kind === "conflict") {
+    await chooseConflict(frame, 1); await frame.waitFor("!document.querySelector('[data-git-conflict-text]').disabled");
+    await edit(ctx, "conflict-text", "Resolve first only\n"); await frame.click("[data-git-conflict-resolve]");
+  } else {
+    await frame.click(row("one.txt")); await frame.waitFor("!document.querySelector('[data-git-index-action]').hidden");
+    await frame.click("[data-git-index-action]");
+  }
+  const refusal = kind === "conflict" ? "[data-git-conflict-state] .git-set-output" : "[data-git-notice] .git-set-output";
+  await frame.waitFor(`document.querySelector(${JSON.stringify(refusal)})?.checkVisibility()`);
+  await browser.evaluate(`{const request=molisWorkRequest;window.molisWorkRequest=async(url,options)=>{
+    const value=await request(url,options);
+    if(String(url).endsWith('/api/host/plugin-page-workspaces')) await new Promise(resolve=>{window.releaseOutputReply=resolve;window.outputReplyHeld=true;});
+    return value;
+  };}`);
+  await frame.click(refusal); await browser.waitFor("document.querySelector('[data-page-dialog=confirm]')?.checkVisibility()");
+  await browser.click("[data-page-dialog=confirm] [type=submit]"); await browser.waitFor("window.outputReplyHeld");
+  await frame.click("[data-git-close]");
+  if (kind === "conflict") { await chooseConflict(frame, 2); await frame.waitFor("document.querySelector('[data-git-conflict-text]').value.includes('current two.txt')"); }
+  else { await frame.click(row("two.txt")); await frame.waitFor("document.querySelector('[data-git-title]').textContent === 'two.txt' && !document.querySelector('[data-git-index-action]').hidden"); }
+  await browser.evaluate("releaseOutputReply()");
+  await frame.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  assert.equal(await frame.evaluate("document.querySelector('[data-git-title]').textContent"), "two.txt");
+  assert.equal(await frame.evaluate("preparationCalls"), 1, "the permission reply cannot submit a different file on the person's behalf");
+  const reviews = await browser.web.get<{ reviews: Array<{ request: { operation?: { kind: string } } }> }>(`/projects/${browser.projectId}/api/agent/reviews?status=pending`);
+  assert.equal(reviews.reviews.filter(row => ["git-index", "git-operation"].includes(row.request.operation?.kind ?? "")).length, 0);
 });

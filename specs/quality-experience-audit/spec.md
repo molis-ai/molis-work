@@ -582,7 +582,7 @@ SDK继续拥有唯一候选、实际期限、版本和决定；Memory拥有最�
 
 ## 第三十三批：Git冲突正文回到共用主结果区域（QF-23）
 
-状态：实际长正文在目录栏的证据已确认；生产改动待前批完成后实施。独立Git与Coding挂载同一GitBrowser，复用现有result区域、返回入口和审查服务。把冲突文件编辑器及磁盘对照移入result，目录只保留文件选择与仓库控制；不新增整页或Coding特判。结果区域目前由diff/history/operation review分别设置hidden、ticket和displayed，冲突另有conflictTicket。合并同一展示区域前，核实并收口当前展示归属；迟到读取和提交回执不得覆盖后来打开的文件、历史或返回列表。源文件、草稿与Host审查仍由现有owner维护，返回不是撤销已提交审查。
+状态：实际长正文在目录栏的证据已确认；生产改造与正常入口验收进行中。独立Git与Coding挂载同一GitBrowser，复用现有result区域、返回入口和审查服务。把冲突文件编辑器及磁盘对照移入result，目录只保留文件选择与仓库控制；不新增整页或Coding特判。结果区域目前由diff/history/operation review分别设置hidden、ticket和displayed，冲突另有conflictTicket。合并同一展示区域前，核实并收口当前展示归属；迟到读取和提交回执不得覆盖后来打开的文件、历史或返回列表。源文件、草稿与Host审查仍由现有owner维护，返回不是撤销已提交审查。
 
 - **QEA-77** 两个正常入口都能在主区域编辑长冲突、查看磁盘变化、保留草稿并按原审查流程解决；返回列表、切文件、差异/历史切换后可继续原稿，真实HEAD/index/文件仅在批准后按原合同改变。三宽两主题提供可操作切片与实看证据，说明文字不代替界面验收。
 - **QEA-78** 持有真实文件读取、固定diff或审查请求回执期间切换结果/返回，释放旧成功和失败不重开旧目标、不替换新标题/正文/动作；明确重开仍可读原审查与结果。检查当前公开动作返回和实际写入，不能以隐藏旧按钮掩盖已受理的审查。
@@ -665,3 +665,30 @@ QEA-84/85：完整构建通过，旧最终 COMMIT 反例转为两库零写；成
 新增体验发现 QF-49/P2：认可栏要求正文、退回/缺口理由和历史均被单行省略，手机无法悬停 title 阅读完整内容；当前截图和 `apps/workbench/src/styles/work-line.ts:291,302` 证实。后续本轮 UI 批让决定所依据的文本直接完整换行，不要求进入编辑模式才能读；保持既有栏位、状态与审批合同。须在隔离 Home 用长要求/退回理由/历史核完整可见、触达和原认可操作，不能仅以无横向溢出证明可读。
 
 第三十七批补强复验：`acceptance-atomic-retry.log` 两文件5项通过，同 key 实际行数均为1，SIGKILL恢复后使用原 reference/key 提交并重放只保留一份两库决定。只读复核未发现新增 Blocker/P1；公共 API/动作/库结构快照无变化，`acceptance-atomic-health.log` 健康退出0。共享核心/Host必跑与最终CI继续，未标整项完成。
+
+第三十三批生命周期补充：隐藏或离开当前 Git 结果时，统一关闭结果并返回目录，避免清空选择后留下空主区；重新进入读当前目录，已输入草稿继续由原 drafts 服务保存，已发出的写入不重送。历史列表在应用回执时保留当时选择，保存按原 workspace/reviewId 结算，错误只属于原选择，按钮由当前实际行重算。已知 index review 的展示失败只重读，未知提交回执以原 operation_id 显式重试。QEA-77/78 增补真实切走返回、同目录刷新中保存、历史选择交错及同一审查重试不重复写入验证。
+
+2026-11-17回归结算：固定29f6d1383e的205文件结束202过/3失败（旧Feed版本例外影响desktop-tui及verify-release-versions，控件远程对象身份问题影响editor-control-names）；后者在主线040f中修夹具后23项通过。固定e7a1c544d2的Acceptance/Storage/Host必跑90文件结束88过/2失败：同一版本例外与secret-store-keychain-retry，后者同头定向复跑稳定出现3次非预期Keychain访问，正在定位，不按偶发跳过。两轮均不代表最终头全通过。
+
+## 第三十八批：认可依据全文可读（QF-49）
+
+状态：已确认，待 Git 批回归结束后实施。目标为内部完整的原认可栏体验：长要求、退回理由和展开后的历史直接换行，用户无需进入编辑或依赖悬停才读全。替换原逐项栏的单行省略约定，保持栏宽、滚动区域、按钮和 owner 决定路径；元信息仍按原密度呈现，不新建详情页、确认或数据状态。改动限 workbench 原样式及既有认可 E2E 中受行为变化影响的断言，必要时去掉重复 title，不变更公开合同或存储。
+
+- **QEA-87** 隔离 Home 用真实 requirements/decide/read 写入并回读长要求、含长路径的退回理由和历史；1440中文、390英文可完整阅读并滚动触达原操作，文本无省略或裁切，要求编辑、认可与退回仍按原版本生效。现有测试关于单行文本的期望更新为全文可读，保留状态、主动作、权限/版本、按钮尺寸及真实写入断言。截图实看，注入机器检查证据只证明界面流程。
+
+验证：pnpm build；node scripts/run-tests.mjs tests/work-line-acceptance.e2e.test.ts 与关联渲染/样式检查；按 workbench README 必跑集复用本任务已覆盖且未受影响的证据，最终头共享核心 full-suite 仍必需。页面资源按真实 Host 增量量测，使用既有审批要求。
+
+## 第三十九批：自动采集不触发无关钥匙串解锁（QF-50）
+
+状态：真实回归失败及调用栈已确认，待当前 Git 验收结束后实施。Functions 本地 list/describe 无须凭据，但新鲜 MCP 进程 close → ObservationWriter.flush → resolveEvidence → observationKeys.digest → createLazyFileSecretStore.createIfAbsent 触发 Keychain；三个独立进程各一次。e7 同头复跑及只记录栈的临时注入证据分别在 `/tmp/quality-audit-keychain-exact-repro.log`、`/tmp/quality-audit-keychain-full-stack.log`，临时测试注入已恢复。影响为被内部工作记录打断本地阅读，且关闭会等待钥匙串；不归咎业务凭据解析或本轮 Acceptance 提交。
+
+复用 Storage 原 Home/backend/cache/keychainFailures 事实源，为自动采集提供不主动交互的密钥访问；可用的原密钥照常用于 HMAC 和加密，不可用时按 observation-collection/contract-design.md §6 记 missing:not_obtained 及 coverage unavailable/evidence_key，保留记录。显式证据解封与实际外部调用仍走原访问。不得创建替代后端、记录普通明文 hash、污染 keychainFailures 或新增自动解锁重试；后续合法调用获得密钥后，采集能够恢复。没有内容摘要的读取不能拿空摘要当同一内容去重，这一相关窗口同时修正。边界在 Storage 非交互能力、Host 注入和 Observation 对未知摘要的处理，不给 Functions 列表设置特殊豁免。
+
+- **QEA-88** 锁定钥匙串的隔离 Home 经正常 Host/HTTP/三个新鲜 MCP 进程读取 Functions 后，含 flush/close 不调用 security；记录仍存在且缺失证据与 coverage 准确。实际 Functions 调用仍明确拒绝且仅尝试原钥匙一次，无替代密钥、无凭据文件变更；后续本地读继续可用。
+- **QEA-89** Storage 的非交互访问按原 backend/缓存处理，未主动访问 Keychain 不等于已发生 Keychain 故障；同进程后续合法解锁可用且采集恢复 HMAC/加密。未知摘要的两条不同输入保留独立记录，已知相同摘要仍按原合同合并；证据解封和跨项目用途边界保持。
+
+按 storage/observation/host README 跑相关必需验证；公开 API 如变化重新生成，不改持久格式或安全拒绝语义。最终准确头的共享核心 full-suite 仍须完成。
+
+QEA-78收尾新增动态反证：持有真实commit审查回执，打开历史再返回，Git/Coding都因null选择复用被旧审查抢回；父页确认设为输出且Host实际写入后持有回执，选择B再释放，index会多发一次B审查，conflict会跳回A（`/tmp/quality-audit-git-final-windows-baseline.log`，4/4按预期失败）。修复由同一选择表示目录（每次返回新身份），不新增ticket；输出设置回调尾部再核原选择/可见生命周期/工作区。原批准仍只改原目录，迟到回执不替用户提交另一个文件。
+
+第三十三批尾部4项真实交错修复回归全过，build5与最终health通过；前次11文件105项保持有效历史证据，保存检查点后在冻结树补跑最终11文件。认可全文与自动采集的后续批次不影响冻结树的Git验收源码。

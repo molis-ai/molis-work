@@ -3,6 +3,7 @@ import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { sayUpstream } from "../say.js";
 import { required } from "./dom.js";
 import type { GitHost, GitLifetime, ListItem, ResultRow, Selected, SourceSummary, Translate, Upstream } from "./types.js";
+import type { ResultSelection } from "./result-selection.js";
 
 const format = globalThis.format;
 const uiText = globalThis.t;
@@ -32,6 +33,7 @@ export interface GitPage {
   readonly sc: HTMLElement;
   readonly message: HTMLTextAreaElement;
   readonly scStatus: HTMLElement;
+  readonly draftStatus: HTMLElement;
   readonly operations: HTMLElement;
   readonly conflicts: HTMLElement;
   readonly conflictEditor: HTMLElement;
@@ -51,10 +53,8 @@ export interface GitPage {
   /** The folder the page that mounts Git asked it to show ("" for the project's output). */
   folder: string;
   generation: number;
-  ticket: number;
   selected: Selected | null;
-  displayed: Selected | null;
-  preparing: boolean;
+  resultSelection: ResultSelection | null;
   resultRows: ResultRow[];
   resultsTicket: number;
   resultSaving: boolean;
@@ -62,9 +62,7 @@ export interface GitPage {
   draft: string;
   scWorkspace: string;
   busy: boolean;
-  lastPrepared: { readonly action: string; readonly reviewId: string; readonly message?: string } | null;
-  conflictTicket: number;
-  conflictPath: string;
+  lastPrepared: { readonly operationId: string; readonly action: string; readonly reviewId: string; readonly message?: string } | null;
   conflictSides: { ours: string; theirs: string };
 }
 
@@ -88,12 +86,12 @@ export function createPage(host: GitHost): GitPage | null {
     refreshButton: required(directory, "[data-git-refresh]"),
     action: q("[data-git-index-action]"), reviews: q("[data-git-reviews]"), diffNotice: q("[data-git-notice]"),
     resultPanel: q("[data-git-saved-results]"), resultChoice: q("[data-git-result-choice]"), resultSave: q("[data-git-result-save]"), resultStatus: q("[data-git-result-status]"),
-    message: s("[data-git-commit-message]"), scStatus: s("[data-git-sc-status]"), operations: s("[data-git-operations]"),
-    conflicts: s("[data-git-conflicts]"), conflictEditor: s("[data-git-conflict-editor]"), conflictText: s("[data-git-conflict-text]"),
-    drafts: null, formDraft: null, conflictDraft: null, viewSignal: undefined, initialRead: true, opener: null, workspace: "", folder: "", generation: 0, ticket: 0, selected: null, displayed: null, preparing: false,
+    message: s("[data-git-commit-message]"), scStatus: s("[data-git-sc-status]"), draftStatus: s("[data-git-draft-status]"), operations: s("[data-git-operations]"),
+    conflicts: s("[data-git-conflicts]"), conflictEditor: q("[data-git-conflict-editor]"), conflictText: q("[data-git-conflict-text]"),
+    drafts: null, formDraft: null, conflictDraft: null, viewSignal: undefined, initialRead: true, opener: null, workspace: "", folder: "", generation: 0, selected: null, resultSelection: null,
     resultRows: [], resultsTicket: 0, resultSaving: false,
     summary: null, draft: "", scWorkspace: "", busy: false, lastPrepared: null,
-    conflictTicket: 0, conflictPath: "", conflictSides: { ours: uiText.text("git.conflict.ours"), theirs: uiText.text("git.conflict.theirs") },
+    conflictSides: { ours: uiText.text("git.conflict.ours"), theirs: uiText.text("git.conflict.theirs") },
   };
 }
 

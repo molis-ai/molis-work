@@ -1,3 +1,4 @@
+import { clearResultSelection } from "./result-selection.js";
 import { drawForm } from "./form-drafts.js";
 import type { ConflictDraft, PreparedEdit } from "./editing.js";
 import type { GitPage } from "./page.js";
@@ -38,8 +39,7 @@ export async function reconcileEdits(page: GitPage, operations: readonly Operati
       if (saved.value?.base === reference.conflict.snapshot.base && saved.value.text === reference.conflict.snapshot.text) {
         if (page.conflictDraft?.entry === saved) {
           // The owner has resolved this exact text. End this editor before deleting its cache so it cannot accept unsaved input.
-          page.conflictDraft = null; page.conflictPath = ""; page.conflictTicket++;
-          page.conflictEditor.hidden = true; page.conflictText.disabled = true;
+          clearResultSelection(page);
         }
         await page.drafts!.write(saved, null);
       }

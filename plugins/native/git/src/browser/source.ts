@@ -1,13 +1,14 @@
+import { currentResult, selectResult } from "./result-selection.js";
 import { rememberOperation, reconcileEdits, forgetUnsentOperation } from "./draft-operations.js";
 import { loadForm, rememberForm, updateDraftButton } from "./form-drafts.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { setOptions } from "./dom.js";
 import { installConflicts, renderConflicts, openConflict } from "./conflicts.js";
 import { refresh } from "./list.js";
-import { active, inFolder, request, reveal, sayRefusal, showReviews } from "./page.js";
+import { active, inFolder, request, sayRefusal, showReviews } from "./page.js";
 import type { GitPage } from "./page.js";
 import { loadResults, outcomeLabel } from "./results.js";
-import type { DecisionOutcome, OperationRecord, PrSupportAnswer, SummaryAnswer, Translate } from "./types.js";
+import type { DecisionOutcome, ResultsAnswer, OperationRecord, PrSupportAnswer, SummaryAnswer, Translate } from "./types.js";
 
 const uiText = globalThis.t;
 
@@ -64,7 +65,7 @@ async function loadOperations(page: GitPage): Promise<boolean> {
     scStatus.textContent = record.outcome === "unknown" ? uiText.text("git.decision.uncertain", { reason }) : record.outcome === "denied" ? uiText.text("git.op.rejected", { op: label })
       : record.outcome === "failed" ? uiText.text("git.op.failed", { op: label, reason }) : done ? uiText.text("git.op.done", { op: label }) : `${label} · ${outcomeLabel(readText, record.outcome)}`;
     if (record.outcome !== "unknown") page.lastPrepared = null;
-    diffNotice.textContent = scStatus.textContent;
+    if (page.resultSelection?.kind === "review" && page.resultSelection.operationId === prepared.operationId) diffNotice.textContent = scStatus.textContent;
     return true;
   } catch {
     if (prepared && current()) scStatus.textContent = uiText.text("git.op.no-receipt", { reason });
@@ -82,7 +83,7 @@ export async function loadSource(page: GitPage): Promise<void> {
     page.summary = summary;
     page.scWorkspace = value.workspace.workspace_id;
     sc.hidden = true;
-    if (!summary) { scStatus.textContent = (value.message || ""); return; }
+    if (!summary) { renderConflicts(page); scStatus.textContent = (value.message || ""); return; }
     sc.hidden = false;
     if (!await loadForm(page, page.scWorkspace, epoch)) return;
     page.draft = value.draft || "";
@@ -131,7 +132,11 @@ export async function loadSource(page: GitPage): Promise<void> {
 export async function prepare(page: GitPage, operation: { action: string } & Record<string, unknown>, label: string, source: HTMLElement, revision = page.summary?.revision): Promise<void> {
   const { scStatus, diffNotice, q } = page;
   if (!page.summary || page.busy || !page.lifetime.visible) return;
-  const epoch = page.generation, workspace = page.scWorkspace, operationId = crypto.randomUUID(), form = page.formDraft;
+  const workspace = page.scWorkspace, operationId = crypto.randomUUID(), form = page.formDraft;
+  let selection = page.resultSelection;
+  const signal = page.viewSignal;
+  const stillShowing = () => page.lifetime.alive && page.lifetime.visible && !signal?.aborted
+    && page.viewSignal === signal && page.workspace === workspace && page.resultSelection === selection;
   page.busy = true;
   scStatus.textContent = uiText.text("git.op.preparing", { op: label });
   let answer: { review_id: string };
@@ -142,12 +147,12 @@ export async function prepare(page: GitPage, operation: { action: string } & Rec
     answer = await request(page, "/operations", "POST", { workspace_id: workspace, operation_id: operationId, revision, operation });
   } catch (error) {
     if (!dispatched || (error as { code?: string } | null)?.code === "projects.directory_input_only") forgetUnsentOperation(page, form, operationId);
-    if (active(page, epoch)) {
+    if (stillShowing()) {
       await loadSource(page);
-      if (active(page, epoch) && operation.action === "resolve" && typeof operation.path === "string") await openConflict(page, operation.path);
+      if (stillShowing() && operation.action === "resolve" && typeof operation.path === "string") selection = await openConflict(page, operation.path);
       // Say the refusal after reload. A conflict must be reread after permission changes, before the person submits it again.
-      if (active(page, epoch)) sayRefusal(page, scStatus, error, workspace, () => {
-        if (page.workspace !== workspace) return;
+      if (stillShowing()) sayRefusal(page, selection?.kind === "conflict" ? page.q("[data-git-conflict-state]") : scStatus, error, workspace, () => {
+        if (!stillShowing()) return;
         if (operation.action === "resolve" && typeof operation.path === "string") void openConflict(page, operation.path);
         else void prepare(page, operation, label, source, revision);
       });
@@ -156,18 +161,14 @@ export async function prepare(page: GitPage, operation: { action: string } & Rec
   } finally {
     page.busy = false;
   }
-  if (!active(page, epoch)) return;
-  const prepared = { action: operation.action, reviewId: answer.review_id,
+  const prepared = { operationId, action: operation.action, reviewId: answer.review_id,
     ...(typeof operation.message === "string" ? { message: operation.message } : {}) };
-  page.lastPrepared = prepared;
-  const current = () => active(page, epoch) && page.lastPrepared === prepared && !page.busy;
+  if (page.workspace === workspace && page.lifetime.alive) page.lastPrepared = prepared;
+  if (!stillShowing()) return;
+  const reviewSelection = selectResult(page, { kind: "review", operationId }, source);
+  const current = () => currentResult(page, reviewSelection) && page.lastPrepared === prepared && !page.busy;
   try {
     scStatus.textContent = uiText.text("git.op.review", { op: label });
-    page.ticket++;
-    page.displayed = null;
-    page.action.hidden = true;
-    page.resultPanel.hidden = true;
-    reveal(page, source);
     q("[data-git-title]").textContent = label;
     q("[data-git-kind]").textContent = uiText.text("git.op.review-kind");
     q("[data-git-scope]").textContent = "";
@@ -180,24 +181,10 @@ export async function prepare(page: GitPage, operation: { action: string } & Rec
   }
 }
 
-/** What a decided review says to the person who decided it, by how it ended. */
-function decisionNotice(_L: Translate, state: string, reason: string): string {
-  switch (state) {
-    case "unavailable": return uiText.text("git.decision.no-receipt", { reason });
-    case "uncertain": return uiText.text("git.decision.uncertain", { reason });
-    case "rejected": return uiText.text("git.decision.rejected", { reason });
-    case "reconciled": return uiText.text("git.decision.reconciled", { reason });
-    case "failed": return uiText.text("git.decision.failed", { reason });
-    case "settled": return uiText.text("git.decision.settled", { reason });
-    default: return uiText.text("git.decision.pending", { reason });
-  }
-}
-
 /** A review of this workspace was decided: say how it ended and read the repository again. */
 export async function afterDecision(page: GitPage, outcome: DecisionOutcome): Promise<void> {
-  const { readText, diffNotice, result, action } = page;
+  const { readText, diffNotice, result } = page;
   if (page.busy || !page.lifetime.visible || !outcome.workspaceId || outcome.workspaceId !== page.workspace) return;
-  const state = outcome.state, reason = uiText.text("git.decision.details");
   // A delayed decision can belong to an earlier index review. Read this operation's own result.
   const prepared = page.lastPrepared;
   if (prepared) {
@@ -206,10 +193,19 @@ export async function afterDecision(page: GitPage, outcome: DecisionOutcome): Pr
     return;
   }
   if (result.getAttribute("aria-busy") === "true") return;
-  if (action.hidden) { page.displayed = null; diffNotice.textContent = `${decisionNotice(readText, state, reason)} ${uiText.text("git.decision.reopen")}`; }
+  const selection = page.resultSelection;
+  if (selection?.kind === "diff" && selection.preparation.phase === "review") {
+    const { reviewId } = selection.preparation;
+    try {
+      const settled = await request<ResultsAnswer>(page, inFolder("/results", page.workspace));
+      if (!currentResult(page, selection)) return;
+      const own = settled.results.find(row => row.result.review.review_id === reviewId);
+      if (own) diffNotice.textContent = `${outcomeLabel(readText, own.result.outcome)} ${uiText.text("git.decision.reopen")}`;
+    } catch (error) { if (currentResult(page, selection)) diffNotice.textContent = messageOf(error); }
+  }
   const signal = page.viewSignal;
   await refresh(page);
-  if (signal && !signal.aborted && !page.resultPanel.hidden) await loadResults(page);
+  if (signal && !signal.aborted && page.resultSelection?.kind === "history") await loadResults(page);
 }
 
 const toggle = (page: GitPage, button: HTMLElement, form: HTMLElement): void => {

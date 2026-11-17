@@ -4,7 +4,6 @@ import { accessSync, constants, statSync } from "node:fs";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
 import { compileActionSchema } from "@molis-ai/molis-work-kernel";
 import {
   EXTERNAL_SESSION_NATIVE_ID_PATTERN,
@@ -46,11 +45,37 @@ import { createHostCodexProtocolsPort } from "./sessions-codex-rpc.js";
 import { createHostSessionFilesPort } from "./sessions-file-roots.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
-const execFileAsync = promisify(execFile);
 const COMMAND_TIMEOUT_MS = 15_000;
 const COMMAND_MAX_BUFFER_BYTES = 8 * 1024 * 1024;
 const VERSION_TIMEOUT_MS = 8_000;
 const VERSION_MAX_BUFFER_BYTES = 256 * 1024;
+
+/**
+ * `execFile` with stdin closed. Without this a tool that reads stdin waits for the timeout; the declared read-only commands are
+ * non-interactive, so an inherited open pipe is never what the caller wants.
+ */
+function execFileWithClosedStdin(
+  binary: string,
+  argv: readonly string[],
+  options: { timeout: number; maxBuffer: number; cwd: string; env: NodeJS.ProcessEnv; signal: AbortSignal; windowsHide: boolean },
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  return new Promise((resolve, reject) => {
+    const child = execFile(binary, [...argv], { ...options, encoding: "utf8" }, (error, stdout, stderr) => {
+      if (!error) {
+        resolve({ stdout, stderr, exitCode: 0 });
+        return;
+      }
+      const code = (error as { code?: unknown }).code;
+      if (typeof code === "number") {
+        resolve({ stdout, stderr, exitCode: code });
+        return;
+      }
+      reject(error);
+    });
+    child.stdin?.on("error", () => { /* the child may exit before reading its closed stdin */ });
+    child.stdin?.end();
+  });
+}
 
 interface CliProtocolRecord extends ConnectorProtocolConfiguration {
   protocol: "cli";
@@ -186,7 +211,7 @@ async function resolveVerifiedToolBinary(
   if (tool.detect?.version_argv && tool.detect.version_pattern) {
     let versionOut = "";
     try {
-      const res = await execFileAsync(realBinary, [...tool.detect.version_argv], {
+      const res = await execFileWithClosedStdin(realBinary, [...tool.detect.version_argv], {
         timeout: VERSION_TIMEOUT_MS, maxBuffer: VERSION_MAX_BUFFER_BYTES, cwd: homeRoot, env: childEnv, signal, windowsHide: true,
       });
       versionOut = `${res.stdout}\n${res.stderr}`;
@@ -214,10 +239,10 @@ async function runExecFileCapture(
 ): Promise<SessionCommandResult> {
   signal.throwIfAborted();
   try {
-    const res = await execFileAsync(binary, [...argv], {
+    const res = await execFileWithClosedStdin(binary, argv, {
       timeout: COMMAND_TIMEOUT_MS, maxBuffer: COMMAND_MAX_BUFFER_BYTES, cwd, env, signal, windowsHide: true,
     });
-    return { stdout: res.stdout, stderr: res.stderr, exit_code: 0 };
+    return { stdout: res.stdout, stderr: res.stderr, exit_code: res.exitCode };
   } catch (error) {
     signal.throwIfAborted();
     const err = error as { code?: string | number; killed?: boolean; stdout?: string; stderr?: string };

@@ -68,7 +68,7 @@ test("QEA-29: real HTTP scope withdrawal during Host model preparation refuses d
 // SRB-01..SRB-16: Workbench HTTP surface for `system.sessions`, readiness projection, 50-row tool_meta grouping,
 // cross-project AI read permits, and Project Settings tool-brought directory distinction & promotion.
 
-test("SRB-01 SRB-05 SRB-07 SRB-10: /api/sessions/scope projects 50-tool groups, readiness transitions empty_scope -> ready, and list/history/attribution/discovery work end-to-end", { timeout: 60_000 }, async (t) => {
+test("SRB-01 SRB-07 SRB-12: /api/sessions/scope projects 50-tool groups, readiness transitions empty_scope -> ready, and list/history/attribution/discovery work end-to-end", { timeout: 60_000 }, async (t) => {
   const rawRoot = await mkdtemp(path.join(os.tmpdir(), "swb-http-"));
   t.after(() => rm(rawRoot, { recursive: true, force: true }));
   const root = await realpath(rawRoot);
@@ -189,7 +189,7 @@ test("SRB-01 SRB-05 SRB-07 SRB-10: /api/sessions/scope projects 50-tool groups, 
   );
 });
 
-test("SRB-09 S-sessions-person-decides: Project Settings distinguishes tool-brought directories and promotes them on person confirmation", { timeout: 60_000 }, async (t) => {
+test("SRB-14 S-sessions-person-decides: Project Settings distinguishes tool-brought directories and promotes them on person confirmation", { timeout: 60_000 }, async (t) => {
   const rawRoot = await mkdtemp(path.join(os.tmpdir(), "swb-dirs-"));
   t.after(() => rm(rawRoot, { recursive: true, force: true }));
   const root = await realpath(rawRoot);

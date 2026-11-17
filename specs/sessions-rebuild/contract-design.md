@@ -89,7 +89,7 @@
 | `antigravity-desktop` | Antigravity 桌面 | 私 | 界 | 私 | 界 | 界 | 界 | 界 | 无（三） | 三 |
 | `copilot-cli` | Copilot CLI | 待（线索：`~/.copilot/session-state/<id>/`，三） | 界 `--resume` 选择器 | 待（线索：`events.jsonl`，格式未公开，三） | 待 | 命 `--resume <id>` | 待 | 待 | 待 | 官（命令） |
 | `copilot-ide` | Copilot IDE 会话 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待（盘点漏了，本稿补） |
-| `copilot-coding-agent` | Copilot 编码 Agent（云端） | 命 `gh agent-task list --json …` | 命 `gh agent-task list --json …` | 命 `gh agent-task view --log` | 待 | 无 | 待 | 待 | 待 | 官，preview；帮 `gh` 2.103.3 核实 `--json` 字段 |
+| `copilot-coding-agent` | Copilot 编码 Agent（云端） | 命 `gh agent-task list --json …` | 命 `gh agent-task list --json …` | 命 `gh agent-task view --log` | 待 | 无 | 待 | 待 | 待 | 官，preview；帮 `gh` 2.96.0 核实 `--json` 字段 |
 | `cursor` | Cursor Agent CLI | 私：`~/.cursor/chats` 是私有库（三） | 界：`agent ls` 不支持无头，官方人员确认过（2026-01 版） | 私 | 待 | 命 `--resume [chatId]` | 待 | 待 | 待 | 官 |
 | `cursor-editor` | Cursor 编辑器 | 私 | 界 | 私 | 界 | 界 | 界 | 界 | 无 | 三 |
 | `cursor-cloud` | Cursor 云端 Agent | 待（线索：`GET /v0/agents`，三） | 待（同左） | 待（线索：`/conversation`，三） | 待 | 待 | 待（线索：followup，三） | 待（线索：stop，三） | 待 | 三；需求 §2 没列，本稿补，官方页要再核 |
@@ -98,7 +98,7 @@
 | `devin-cloud` | Devin 云端 | 账 企业 API | 账 | 账 会话消息接口，要服务账号 | 待 | 界 网页 | 待 | 待 | 待 | 官（接口文档） |
 | `devin-desktop` | Devin Desktop（原 Windsurf，2026-06 改名） | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 官（改名公告）；会话未查到，盘点没写，本稿补 |
 | `windsurf-cascade` | Windsurf／Cascade（旧版） | 私：加密 `.pb` | 界 | 私 | 界 | 界 | 界 | 界 | 无 | 三。Cascade 据报 2026-07-01 停，旧记录仍可能在用户机器上，行不删 |
-| `grok-build` | Grok Build | 待（`grok sessions list` 存在，无 `--json`，输出格式未核） | 待（同左） | 命 `grok export <id>`（Markdown 到标准输出） | 待（`grok sessions search` 存在，无 `--json`，输出格式未核） | 命 `--resume <id>`（工作终端已接；别用标题） | 待 | 待 | 命 `grok export <id>` | 帮 1.0.77（`sessions list`/`search` 只支持 `--limit` 与 `--leader-socket`，无机器读标志；`export` 省去输出路径时写标准输出） |
+| `grok-build` | Grok Build | 待（`grok sessions list` 存在，无 `--json`，输出格式未核） | 待（同左） | 命 `grok export <id>`（Markdown 到标准输出） | 待（`grok sessions search` 存在，无 `--json`，输出格式未核） | 命 `--resume <id>`（工作终端已接；别用标题） | 待 | 待 | 命 `grok export <id>` | 帮 1.0.62（`sessions list`/`search` 只支持 `--limit` 与 `--leader-socket`，无机器读标志；`export` 省去输出路径时写标准输出） |
 | `junie-cli` | Junie CLI | 待（线索：`transcript.md`、`events.jsonl`，根目录未写） | 界 `/history` | 待（同左） | 界 | 界 `/history` | 待 | 待 | 待 | 官 |
 | `junie-ide` | Junie IDE | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待（盘点漏了，本稿补） |
 | `droid` | Droid | 命 `droid search --json` | 界 `/sessions` | 待：`-o json` 是运行输出 | 命 `droid search --json` | 命 `droid resume <id>` | 命 `droid exec -s <id>` | 待 | 待 | 官 |
@@ -1266,4 +1266,4 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 
 第三方（没核对）：[Copilot 会话目录](https://docs.entire.io/integrations/copilot-cli)、[Cursor 云端 Agent 路由](https://docs.litellm.ai/docs/pass_through/cursor.md)、[Cascade 停用日期](https://businesstechnavigator.com/news/windsurf-devin-desktop-cascade-eol-2026)、[Amp 导出字段](https://docs.rs/txcript/0.4.2/txcript/harness/amp/index.html)。
 
-本机 `--help`（只看帮助，没读任何会话）：Codex 0.166.0、Grok Build 1.0.70／1.0.77、Pi 1.5.0、GitHub CLI (`gh`) 2.103.3。
+本机 `--help`（只看帮助，没读任何会话）：Codex 0.166.0、Grok Build 1.0.62（原记录 1.0.70／1.0.77）、Pi 1.5.0、GitHub CLI (`gh`) 2.96.0。

@@ -338,9 +338,11 @@ export class CharacterRoles extends CharacterMembers {
     const project = projectLayerOf(projectId), role = project ? this.memberRole(project, ref.member_id) : null;
     if (!project || !role) throw characterErrors.not_found("本项目里没有这个角色");
     const characterId = role.current.original.character_id;
+    // The current version is read with the original as it is now: a section that follows shows (and an undo back to it keeps) the
+    // original's latest content, not what it said when the member was last saved.
     return this.memberVersions(project, ref.member_id).map(version => {
-      const versionRef: ProjectCharacterVersionRef = { kind: "project", member_id: ref.member_id, member_version: version.member_version,
-        original: { kind: "personal", character_id: characterId, version: version.original_version } };
+      const versionRef: ProjectCharacterVersionRef = version.member_version === role.current.member_version ? role.current : { kind: "project", member_id: ref.member_id,
+        member_version: version.member_version, original: { kind: "personal", character_id: characterId, version: version.original_version } };
       const built = this.content(project, versionRef);
       return { ref: versionRef, saved_at: version.saved_at, content: built.content, current: version.member_version === role.current.member_version,
         sections: { work_style: version.sections.work_style.mode, capabilities: version.sections.capabilities.mode } };

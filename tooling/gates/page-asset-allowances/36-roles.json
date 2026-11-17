@@ -1,7 +1,7 @@
 {
-  "reason": "第 36 批事项 1（角色设置、生效与恢复，方案 C）。characters.js 从草稿列表换成两处角色页（设置 › 角色、项目设置 › 角色）的整页程序：角色抽屉（两节各自跟随原件或只改本项目、版本与恢复、「只本项目 / 我的原件」、保存结果与冲突）约 18.8 KB，页面视图（两层默认与来源阶梯、项目里的角色行、更多菜单、差异对照）约 12.3 KB，从本机导入约 10.8 KB（旧页已有大半），共用的 renderAlert 连带状态环绘制约 5 KB；逐文件量过，没有不删功能就能省的部分。workbench.css 与 settings.css 各 +2.6 KB 是来源阶梯样件（mw-source-ladder）与角色行、抽屉的样式，mw-note 已提进 primitives；workbench.js +1.4 KB 是设置页的角色加载器与设置节；arrival.css +0.5 KB 是 primitives 里的 mw-note；coding.js +0.3 KB 是 Coding 角色选择改成稳定引用。",
-  "review": "组件板样件由第 36 批 D 轨合评审过（批准附修改，三条必改与可选项已改，余项记 specs/backlog/BL-note-onboarding-migrate.md）；页面在 375 / 768 / 1280 宽、中英文、明暗下走查过。对 main efdaa3376 的独立构建实测：characters.js 32543 → 69223（+36680）、workbench.css +2609、settings.css +2609、workbench.js +1441、arrival.css +471、coding.js +293。",
-  "userApproval": "用户在 2026-11-16 的对话里批准 characters.js 增长 +36.7 KB（32.5 → 69.2 KB），用于新的角色页（第 36 批主会话当面询问后回复「Approve +36.7 KB」）。",
+  "reason": "第 36 批事项 1（角色设置、生效与恢复，方案 C）。characters.js 从草稿列表换成两处角色页（设置 › 角色、项目设置 › 角色）的整页程序：角色抽屉（两节各自跟随原件或只改本项目、版本与恢复、「只本项目 / 我的原件」、保存结果与冲突）约 18.8 KB，页面视图（两层默认与来源阶梯、项目里的角色行、更多菜单、差异对照）约 12.3 KB，从本机导入约 10.8 KB（旧页已有大半），共用的 renderAlert 连带状态环绘制约 5 KB；逐文件量过，没有不删功能就能省的部分。workbench.css 与 settings.css 各 +2.6 KB 是来源阶梯样件（mw-source-ladder）与角色行、抽屉的样式，mw-note 已提进 primitives；workbench.js +1.4 KB 是设置页的角色加载器与设置节；arrival.css +0.5 KB 是 primitives 里的 mw-note；coding.js +0.3 KB 是 Coding 角色选择改成稳定引用。首屏：工作台中英文词包加了两处角色页与抽屉的界面文字（同时删掉旧草稿编辑页留下的 68 个不再用的 workbench.characters.* 键），换了内容定址文件名，门禁把它算作新路径；到达页与项目选择页冷启动因词包变大 +4.8～6.3 KB，项目选择页热启动 +1.4 KB 是工作台脚本里的角色加载器；工作台两页反而变小。",
+  "review": "组件板样件由第 36 批 D 轨合评审过（批准附修改，三条必改与可选项已改，余项记 specs/backlog/BL-note-onboarding-migrate.md）；页面在 375 / 768 / 1280 宽、中英文、明暗下走查过。对 main efdaa3376 的独立构建实测：characters.js 32543 → 69223（+36680）、workbench.css +2609、settings.css +2609、workbench.js +1441、arrival.css +471、coding.js +293。首屏对 merge-base 6359987103 的隔离构建实测（node scripts/gates/first-screen.mjs --base origin/main，删掉 68 个旧键之后）：arrival-empty 冷 zh +4903 / en +4829、热 0；chooser 冷 zh +6299 / en +6225、热各 +1396；workbench-default 与 workbench-all-plugins 冷、热均变小。许可按实测向上取整到 100 B。",
+  "userApproval": "用户在 2026-11-16 的对话里批准 characters.js 增长 +36.7 KB（32.5 → 69.2 KB），用于新的角色页（第 36 批主会话当面询问后回复「Approve +36.7 KB」）。首屏：用户于 2026-11-16 在对话里批准（「Approve the first-screen growth」）工作台中英文词包换名，以及到达页、项目选择页的首屏增长。",
   "assets": {
     "/assets/molis-work-plugins/characters.js": 36680,
     "/assets/molis-work-workbench.css": 2609,
@@ -9,5 +9,47 @@
     "/assets/molis-work-workbench.js": 1441,
     "/assets/molis-work-arrival.css": 471,
     "/assets/molis-work-plugins/coding.js": 293
+  },
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 5000,
+      "warm": 0
+    },
+    "arrival-empty/en": {
+      "cold": 4900,
+      "warm": 0
+    },
+    "chooser/zh": {
+      "cold": 6300,
+      "warm": 1400
+    },
+    "chooser/en": {
+      "cold": 6300,
+      "warm": 1400
+    }
   }
 }

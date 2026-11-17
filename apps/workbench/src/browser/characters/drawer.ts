@@ -122,7 +122,9 @@ class RoleDrawerState {
   }
   protected dirty(): boolean { return this.phase === "dirty" || this.phase === "conflict"; }
   protected roleKey(): string | null { const target = this.target; return !target || target.kind === "new" ? null : target.kind + ":" + target.id; }
-  protected currentVersion(): number { const current = this.versions.find(entry => entry.current); return current ? versionOf(current.ref) : 0; }
+  /** The version the role reads as now. */
+  protected now(): CharacterRoleVersionEntry | undefined { return this.versions.find(entry => entry.current); }
+  protected currentVersion(): number { const current = this.now(); return current ? versionOf(current.ref) : 0; }
   /** Keeps this window's unsaved edit of the role, or forgets it once it is saved or dropped. */
   protected keep(): void {
     const key = this.roleKey();
@@ -145,7 +147,7 @@ class RoleDrawerView extends RoleDrawerState {
     // An imported original shows its source; it can be tried in a project's folder when this project uses it as it is
     // (an original from Settings has no folder to run in, and a member that changed a section is not the original any more).
     const entry = this.originalEntry(), member = this.member();
-    const content = this.target.kind === "original" ? this.versions.find(item => item.current)?.content
+    const content = this.target.kind === "original" ? this.now()?.content
       : member && SECTIONS.every(name => member.role.sections[name].mode === "follow") ? this.original ?? undefined : undefined;
     const record: CharacterRecord | null = entry && content?.import_snapshot
       ? { ...content, action_tools: (content.action_tools ?? null) as ActionRef[] | null, character_id: entry.ref.character_id, revision: entry.draft_revision, state: entry.state,
@@ -289,7 +291,7 @@ export class RoleDrawer extends RoleDrawerView {
       const read = await this.host.request<{ versions: CharacterRoleVersionEntry[] }>("POST", "/roles/versions", { role: { kind: "personal", character_id: original.character_id } });
       this.original = read.versions.find(entry => entry.current)?.content ?? null;
     }
-    const current = this.versions.find(entry => entry.current)?.content;
+    const current = this.now()?.content;
     if (current) { this.baseline = current; if (refill) this.fill(current); }
     if (refill) this.editBase = this.currentVersion();
     const kept = restore ? this.drafts.get(this.roleKey() ?? "") : undefined;
@@ -311,18 +313,35 @@ export class RoleDrawer extends RoleDrawerView {
     } finally { this.busy = false; this.controls(); }
   }
 
-  /** Someone changed this role elsewhere: keep what was typed, read theirs, and let the person choose before saving. */
+  /**
+   * Someone changed this role elsewhere: keep what was typed, read theirs (and a member's original, which saving to the original
+   * builds on) as they are now, and let the person choose before saving.
+   */
   private async conflict(): Promise<void> {
     this.phase = "conflict"; this.diffOpen = false;
-    await this.host.reload();
-    const target = this.target;
-    if (target && target.kind !== "new") {
-      const role = target.kind === "original" ? { kind: "personal", character_id: target.id } : { kind: "project", member_id: target.id };
-      const result = await this.host.request<{ versions: CharacterRoleVersionEntry[] }>("POST", "/roles/versions", { role });
-      this.versions = result.versions;
-      this.theirs = result.versions.find(entry => entry.current)?.content ?? null;
-    }
+    // The baseline stays what the edit started from, so 在新内容上保留我的改动 can tell which sections the person changed.
+    const base = this.baseline;
+    await this.fresh();
+    this.baseline = base;
+    this.theirs = this.now()?.content ?? null;
     this.render();
+  }
+
+  /**
+   * 在新内容上保留我的改动: the role is read again as it is now, and only the sections the person changed are laid over it; a
+   * section they did not touch takes the newer content, so saving never puts back what was there before someone else's change.
+   */
+  private async merge(): Promise<void> {
+    const typed = this.values(), touched = this.edited();
+    await this.fresh();
+    const theirs = this.now()?.content ?? this.theirs;
+    if (theirs) {
+      this.baseline = theirs;
+      this.fill({ ...theirs, ...(touched.title ? { title: typed.title } : {}), ...(touched.way ? { instructions: typed.instructions } : {}),
+        ...(touched.tools ? { host_tools: typed.host_tools, action_tools: typed.action_tools } : {}) });
+    }
+    this.diffOpen = false; this.redirty();
+    this.host.note(say("workbench.roles.merged"));
   }
 
   // ---------- acting ----------
@@ -394,7 +413,7 @@ export class RoleDrawer extends RoleDrawerView {
       }
       case "where": this.where = control.dataset.rolesWhere === "mine" ? "mine" : "project"; this.renderFoot(); this.controls(); return;
       case "diff": this.diffOpen = !this.diffOpen; this.renderNotices(); this.controls(); return;
-      case "merge": if (this.theirs) this.baseline = this.theirs; this.editBase = this.currentVersion(); this.phase = "dirty"; this.diffOpen = false; this.keep(); this.render(); this.host.note(say("workbench.roles.merged")); return;
+      case "merge": await this.guard(() => this.merge()); return;
       case "reload": this.phase = "clean"; this.diffOpen = false; this.keep(); await this.guard(() => this.read(true)); this.host.note(say("workbench.roles.reloaded")); return;
       case "save": await this.guard(() => this.save()); return;
       case "undo": { const undo = this.saved?.undo; if (undo) await this.guard(undo); return; }
@@ -426,7 +445,7 @@ export class RoleDrawer extends RoleDrawerView {
   }
 
   private async save(): Promise<void> {
-    const target = this.target!, values = this.values(), before = this.versions.find(entry => entry.current);
+    const target = this.target!, values = this.values(), before = this.now();
     if (target.kind === "new") return this.create(values);
     if (target.kind === "original") {
       const original = this.originalEntry();
@@ -484,12 +503,18 @@ export class RoleDrawer extends RoleDrawerView {
     await this.host.reload(); await this.read(true);
   }
 
+  /** Reads the role again as it is now, keeping what is in the box. */
+  private async fresh(): Promise<void> { await this.host.reload(); await this.read(false); }
+
+  /** What is in the box becomes an unsaved edit on top of the role as it reads now. */
+  private redirty(): void { this.phase = "dirty"; this.editBase = this.currentVersion(); this.keep(); this.render(); }
+
   /** Undo a save: the version before it is saved again as the newest one; what was typed stays in the box, unsaved. */
   private async undo(body: Record<string, unknown>): Promise<void> {
     const typed = this.values();
     await this.host.request("POST", "/roles/restore", body);
-    await this.host.reload(); await this.read(false);
-    this.fill(typed); this.saved = null; this.phase = "dirty"; this.editBase = this.currentVersion(); this.keep(); this.render();
+    await this.fresh();
+    this.fill(typed); this.saved = null; this.redirty();
     this.host.note(say("workbench.roles.undone"));
   }
 

@@ -7775,7 +7775,7 @@ export declare function requireSynchronous<T>(value: T, message?: string): Exclu
 
 export declare function requiredPorts(ports: PluginPortsDeclaration | undefined, selectedGroup: string | undefined): string[];
 
-export declare function resolveActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject): Promise<{
+export declare function resolveActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject, directory?: readonly ActionView[]): Promise<{
     context: ActionSubjectContext;
     reader: ActionReference;
 }>;

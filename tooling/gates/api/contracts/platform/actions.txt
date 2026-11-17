@@ -5268,7 +5268,7 @@ export declare function referencesAction(saved: Pick<ActionReference, "capabilit
 
 export declare function requireSynchronous<T>(value: T, message?: string): Exclude<T, PromiseLike<unknown>>;
 
-export declare function resolveActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject): Promise<{
+export declare function resolveActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject, directory?: readonly ActionView[]): Promise<{
     context: ActionSubjectContext;
     reader: ActionReference;
 }>;

@@ -49,7 +49,7 @@ export const charactersActions = {
       ["title", "instructions", "host_tools"]), object({ draft, version: revision }), []),
   update: define<CharacterUpdateInput, { draft: CharacterDraft; version: number }>("update", /* @version action.characters.update */ 1, "保存角色", "按读取时的修订号保存标题、做事方式与工具范围；内容有变就存成下一版，过期修改被拒绝",
     "command", object({ id, expected_revision: revision, title: text, instructions: text, host_tools: { anyOf: [{ type: "array", items: text }, { type: "null" }] },
-      action_tools: { anyOf: [{ type: "array", items: exact }, { type: "null" }] } }, ["id", "expected_revision"]), object({ draft, version: revision }), []),
+      action_tools: { anyOf: [{ type: "array", items: exact }, { type: "null" }] } }, ["id", "expected_revision", "title", "instructions", "host_tools"]), object({ draft, version: revision }), []),
   state: define<{ id: string; expected_revision: number; state: CharacterState }, { draft: CharacterDraft }>("state", /* @version action.characters.state */ 1, "启用或停用角色",
     "启用、停用或删除角色；启用前核对所选能力仍可用", "command", object({ id, expected_revision: revision, state: { enum: ["active", "disabled", "tombstoned"] } }), object({ draft }), []),
   publish: define<{ id: string; expected_revision: number }, { reference: ArtifactReference; publication: unknown; replayed: boolean }>("publish", /* @version action.characters.publish */ 1, "存进成果库",

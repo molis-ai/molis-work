@@ -159,7 +159,7 @@ test("W5-01-CODING-27 a Goal the directory does not list (archived or discarded)
 });
 
 test("W5-01-CODING-28 Characters are read through characters.roles.list as a plugin caller; why a role cannot be chosen is Characters' own", { timeout: 60_000 }, async t => {
-  const s = await codingSdkRuntime(t), seen: Array<{ capability_id: string; caller: ActionCallContext }> = [];
+  const s = await codingSdkRuntime(t, { ownRoles: true }), seen: Array<{ capability_id: string; caller: ActionCallContext }> = [];
   const original = (character_id: string, title: string, state: "active" | "disabled") => ({ ref: { kind: "personal" as const, character_id }, title, state, draft_revision: 1, version: 1,
     origin: null, use: { projects: 0, changed: 0 }, host_tools: null, availability: state === "active" ? { available: true as const } : { available: false as const, reason: "disabled" as const } });
   const catalog: CharacterRoleCatalog = { in_project: false, originals: [original("c-ok", "可用角色", "active"), original("c-off", "已停用角色", "disabled")], members: [],
@@ -190,10 +190,12 @@ async function consumers() {
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), service = new ActionService(), reached: string[] = [];
   service.registerProvider({ provider: { provider_id: "characters-fixture", title: "角色", kind: "system" },
-    definitions: [characterRoleActions.list, characterRoleActions.resolve, charactersActions.execution],
+    definitions: [characterRoleActions.list, characterRoleActions.resolve, characterRoleActions.versions, characterRoleActions.memberSave, charactersActions.execution],
     handlers: [
       { ...characterRoleActions.list, handle: () => { reached.push("list"); return EMPTY_CATALOG; } },
       { ...characterRoleActions.resolve, handle: () => { reached.push("resolve"); return RESOLVED; } },
+      { ...characterRoleActions.versions, handle: () => { reached.push("versions"); return { versions: [] }; } },
+      { ...characterRoleActions.memberSave, handle: () => { reached.push("member-save"); return { role: null }; } },
       { ...charactersActions.execution, handle: () => { reached.push("execution"); return { executable: "/usr/local/bin/agent", workspaces: [] }; } },
     ] });
   const actions = registration(service);
@@ -227,6 +229,7 @@ test("W5-01-CODING-29 S-15 a plugin that does not list characters.roles.resolve 
     await item.start("lists-one", [characterRoleActions.list.capability_id], ["artifact:read"]);
     await item.start("lists-none", [goalPluginActions.list.capability_id], ["artifact:read"]);
     await item.start("lists-execution", [charactersActions.execution.capability_id], ["artifact:read"]);
+    await item.start("lists-versions", [characterRoleActions.versions.capability_id, characterRoleActions.memberSave.capability_id], ["artifact:read"]);
     // Coding's own Manifest asks for both, so it gets both.
     assert.deepEqual(await item.client("lists-both").invoke(characterRoleActions.resolve, {}), RESOLVED);
     assert.deepEqual(await item.client("lists-both").invoke(characterRoleActions.list, {}), EMPTY_CATALOG);
@@ -239,6 +242,9 @@ test("W5-01-CODING-29 S-15 a plugin that does not list characters.roles.resolve 
     // Listed and granted, but the launch details are the person's: the action is not offered to plugins, so for this plugin what it
     // lists does not exist in the project (it is not told the action is there and refused).
     await assert.rejects(item.client("lists-execution").invoke(charactersActions.execution, { reference }), { code: "actions.dependency_missing" });
+    // So is every version's full text and imported files: listed or not, a plugin reads roles through list and resolve only.
+    await assert.rejects(item.client("lists-versions").invoke(characterRoleActions.versions, { role: { kind: "personal", character_id: "c" } }), { code: "actions.dependency_missing" });
+    await assert.rejects(item.client("lists-versions").invoke(characterRoleActions.memberSave, { member_id: "m", expected_revision: "1", expected_original_version: 1 }), { code: "actions.dependency_missing" });
     assert.deepEqual(item.reached, ["resolve", "list", "list"], "the refused calls never reached Characters");
   } finally { item.close(); }
 });

@@ -345,6 +345,10 @@ test("RAC-2848 Coding owns its settings rules inside its registered settings sec
   assert.doesNotMatch(readFileSync(new URL("../apps/workbench/src/styles/settings.ts", import.meta.url), "utf8"), /\.coding-settings/u);
 });
 
+test("RAC-2850 the quiet note (mw-note) the role drawer draws is in each product sheet, not only the visual foundation", () => {
+  for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkSettingsStylesheet()]) assert.match(sheet, /\.mw-note \{ display: flex;/u);
+});
+
 test("RAC-2850 RAC-2851 Characters carries styles inside each extracted section rather than either shared sheet", () => {
   // Settings › 角色 and 项目设置 › 角色 are the same section drawn for the person or for one project (docs/design/role-scope).
   const personal = renderCharacters({ route_prefix: "/projects/personal", scope: "personal", primitives: { escape: String } });

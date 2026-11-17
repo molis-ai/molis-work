@@ -242,7 +242,7 @@ export async function readWorkLine(caller: ActionCallContext, client: ActionClie
   for (const task of table.tasks) for (const served of task.serves) behind.set(subjectKey(served), [...behind.get(subjectKey(served)) ?? [], task]);
   const issues: MainlineIssue[] = answers.flatMap(answer => !answer.failure || answer.failure.code === "actions.plugin_disabled" ? [] : [{ source: answer.source, title: answer.view.action.title, code: answer.failure.code }]);
   const gathered = answers.flatMap(answer => answer.events ?? []).filter(event => !scope || inScope(scope, event.subject));
-  if (scope) gathered.push(...await heldEvents(reader, client, items!, scope, window, directory, gathered));
+  if (scope) gathered.push(...await heldEvents(reader, client, scope, window, directory, gathered));
   const events = gathered.map((event): WorkLineEvent => {
     const tasks = behind.get(subjectKey(event.subject)) ?? [];
     const waiting = tasks.filter(task => task.waiting).length, running = tasks.filter(task => !task.waiting && UNDER_WAY.has(FAMILY.get(task.state) ?? "")).length;
@@ -286,11 +286,11 @@ function suggestionOf(scope: ItemLineScope, window: WorkEventWindow, events: rea
  * action once per kind. Due → ahead; happened → behind; a state asking a decision or an acceptance → beside now and waiting. Without
  * any of the three it is not on the line, only among the item's things.
  */
-async function heldEvents(reader: ActionCallContext, client: ActionClient, items: MainlineItemPorts, scope: ItemLineScope, window: WorkEventWindow,
+async function heldEvents(reader: ActionCallContext, client: ActionClient, scope: ItemLineScope, window: WorkEventWindow,
   directory: readonly ActionView[], already: readonly GatheredWorkEvent[]): Promise<GatheredWorkEvent[]> {
   const on = new Set(already.map(event => subjectKey(event.subject))), off = scope.held.filter(subject => !on.has(subjectKey(subject)));
   if (!off.length) return [];
-  const declarations = await items.declarations(reader), kinds = [...new Set(off.map(subject => subject.kind))];
+  const declarations = scope.declarations, kinds = [...new Set(off.map(subject => subject.kind))];
   const found = await Promise.all(kinds.map(async kind => {
     const declared = declarations.find(object => object.kind === kind), view = declared && directory.find(candidate => candidate.availability.available
       && candidate.provider.provider_id === declared.provider_id && candidate.action.input_type === PRESENTATION_VALUES_INPUT_TYPE
@@ -360,24 +360,25 @@ function servesOf(output: unknown): ActionSubject[] {
 export async function placeTask(caller: ActionCallContext, client: ActionClient, request: TaskPlaceRequest, items?: MainlineItemPorts): Promise<TaskPlaceResult> {
   if (!request.to && !request.item) throw new ActionError("actions.input_invalid", "安放要说明为哪个事件办，或在哪件事项里");
   if (request.item && !items) throw mainlineErrors.source_unavailable("这里读不到主线的事项");
-  const placed = request.to ? await placeServes(caller, client, { ...request, to: request.to }) : { task: request.task, serves: await currentServes(caller, client, request.task) };
+  // One discovery for the whole placement: the owner's serves parts, and the task table that says the caller sees the task.
+  const directory = await client.discover(caller);
+  const placed = request.to ? await placeServes(caller, client, { ...request, to: request.to }, directory) : { task: request.task, serves: await currentServes(caller, client, request.task, directory) };
   // The second dimension: which work item it is in. Only `holds` changes; the task goes on as it was (WLN-32).
   if (!request.item) return placed;
-  const visible = async () => (await readBackgroundTasks({ ...caller, query_only: true }, client)).tasks.some(task => sameSubject(task.subject, request.task));
+  const visible = async () => (await readBackgroundTasks({ ...caller, query_only: true }, client, directory)).tasks.some(task => sameSubject(task.subject, request.task));
   return { ...placed, items: await placeInItem(caller as ActionExecutionContext, items!, request.task, request.item, visible) };
 }
 
 /** What the task serves now, by its owner's `list` part; none when no owner keeps the relation for its kind. */
-async function currentServes(caller: ActionCallContext, client: ActionClient, task: ActionSubject): Promise<ActionSubject[]> {
-  const reader: ActionCallContext = { ...caller, query_only: true }, directory = await client.discover(reader);
+async function currentServes(caller: ActionCallContext, client: ActionClient, task: ActionSubject, directory: readonly ActionView[]): Promise<ActionSubject[]> {
+  const reader: ActionCallContext = { ...caller, query_only: true };
   const list = directory.find(view => view.availability.available && view.action.placement_relation?.relation === TASK_SERVES_RELATION
     && view.action.placement_relation.role === "list" && view.action.subject_kinds.includes(task.kind));
   return list ? servesOf(await client.invoke(reader, referenceOf(list), { task })) : [];
 }
 
-async function placeServes(caller: ActionCallContext, client: ActionClient, request: TaskPlaceRequest & { to: NonNullable<TaskPlaceRequest["to"]> }): Promise<TaskPlaceResult> {
+async function placeServes(caller: ActionCallContext, client: ActionClient, request: TaskPlaceRequest & { to: NonNullable<TaskPlaceRequest["to"]> }, directory: readonly ActionView[]): Promise<TaskPlaceResult> {
   const { task, to } = request, reader: ActionCallContext = { ...caller, query_only: true };
-  const directory = await client.discover(caller);
   const parts = directory.filter(view => view.availability.available && view.action.placement_relation?.relation === TASK_SERVES_RELATION && view.action.subject_kinds.includes(task.kind));
   const owners = [...new Set(parts.map(view => view.provider.provider_id))];
   if (owners.length > 1) throw mainlineErrors.relation_ambiguous("有不止一个提供方声明保管这类任务与事件的关系，无法安放", { owners });

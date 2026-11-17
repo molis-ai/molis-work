@@ -45,7 +45,8 @@ test("S-mainline-own-line whose mainline it is comes from the call: an owner or 
   const { a, b, as } = await rigged(t), me = as(a);
   await assert.rejects(me.invoke(mainlineItemActions.read, { owner_actor_id: "someone-else" } as never), code("actions.input_invalid"));
   await assert.rejects(me.invoke(mainlineItemActions.create, { name: "x", project_id: b.project_id } as never), code("actions.input_invalid"));
-  await assert.rejects(as(a, { project_id: undefined }).invoke(mainlineItemActions.read, {}), (error: unknown) => error instanceof ActionError, "no project, no mainline");
+  // No project, no mainline: a call without one is refused by the project's gateway before the mainline is opened.
+  await assert.rejects(as(a, { project_id: undefined }).invoke(mainlineItemActions.read, {}), code("actions.scope_mismatch"), "no project, no mainline");
 });
 
 test("S-mainline-own-line an object the caller cannot read does not go into an item or become one; a workflow arranges nothing", { timeout: 60_000 }, async t => {

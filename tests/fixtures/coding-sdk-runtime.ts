@@ -20,7 +20,9 @@ import { seedConfiguredModels } from "./configured-models.js";
 /** The existing Coding effect fixture's real Plugin Runtime, Host and SDK composition, shared by recovery tests. */
 export async function codingSdkRuntime(t: TestContext, options: { modelEndpoint?: string; extraPlugins?: ReadonlyArray<{ definition: PluginDefinition; grants: string[] }>; wrapCoding?: (definition: PluginDefinition) => PluginDefinition;
   /** Stands between Coding and the Host's capability client, to count or refuse a call. */
-  wrapCapabilities?: <Client extends object>(client: Client) => Client } = {}) {
+  wrapCapabilities?: <Client extends object>(client: Client) => Client;
+  /** The test registers its own Characters provider for the role reads, so the fixture adds no stand-in for them. */
+  ownRoles?: true } = {}) {
   installHostUiText();
   const home = await mkdtemp(join(tmpdir(), "coding-sdk-regression-")), file = join(home, "project.db");
   // The model Coding lists comes from the Home's provider catalog through `services.model` (PG-047), as it does in the Host.
@@ -49,7 +51,7 @@ export async function codingSdkRuntime(t: TestContext, options: { modelEndpoint?
       return { subject: asked.subject, ref: null, revision: String(record.version), title: record.artifact_id, layer: "original", text, start: 0, end: text.length, start_line: 1, end_line: 1, total_lines: 1,
         remaining: 0, owner_truncated: false, round_chars_left: null } satisfies KnowledgeReadResponse;
     } }] });
-  withoutRoles({ registry: service });
+  if (!options.ownRoles) withoutRoles({ registry: service });
   const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", db: store.db, artifacts, processItems, ui: new UiHost(), home: { directory: home, completeText: () => undefined, stores: homeStores() },
     actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID }, capabilities: (options.wrapCapabilities ?? (client => client))(local.client(reference)),
     localePacks: definition => registeredBuiltinText(definition.manifest), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });

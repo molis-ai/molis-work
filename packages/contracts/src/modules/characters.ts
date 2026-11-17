@@ -174,10 +174,16 @@ export const CHARACTER_TEMPLATE_ADOPTION_INPUT_SCHEMA = inputSchemaFor<Character
 
 const READERS = ["user", "agent", "workflow", "mcp", "plugin"] as const;
 const WRITERS = ["user", "agent", "mcp"] as const;
+/** Each version's full text and the files it imported: the person's own, not offered to plugins (Coding reads roles through `list` and `resolve`). */
+const VERSION_READERS = ["user", "agent", "workflow", "mcp"] as const;
+/**
+ * A role action. Plugins reach only the ones that name them (`roles.list`, `roles.resolve`): the rest are `plugin: false`, so the
+ * rule that lets plugins reach agent actions does not hand them a person's versions or a way to change their roles (S-15).
+ */
 function roleAction<I, O>(capabilityId: string, version: number, operation: "query" | "command", title: string, description: string,
   audiences: readonly ("user" | "agent" | "workflow" | "mcp" | "plugin")[], schemas: { input: ActionSchema; output: ActionSchema }): ActionDefinition<I, O> {
   return { capability_id: capabilityId, version, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
-    effect: operation === "query" ? "read" : "write", scope: "project", audiences: [...audiences], permissions: [], subject_kinds: ["character"],
+    effect: operation === "query" ? "read" : "write", scope: "project", audiences: [...audiences], ...(audiences.includes("plugin") ? {} : { plugin: false }), permissions: [], subject_kinds: ["character"],
     input_schema: schemas.input, output_schema: schemas.output } };
 }
 
@@ -207,7 +213,7 @@ export const characterRoleActions: {
     "一次读出我的角色（当前版本、几个项目在用）、本项目的角色（跟随或改过哪一节）、两层默认、新任务由谁来做，以及每个角色现在能不能选", READERS, CHARACTER_ROLE_SCHEMAS.list),
   resolve: roleAction("characters.roles.resolve", /* @version action.characters.roles.resolve */ 1, "query", "新任务由哪个角色来做",
     "按「这一次 → 项目默认 → 我的默认 → 助理自己」得出新任务的角色和要存在任务上的稳定选择；这一次另选的角色不能用时拒绝并说原因，不换成别的", READERS, CHARACTER_ROLE_SCHEMAS.resolve),
-  versions: roleAction("characters.versions.read", /* @version action.characters.versions.read */ 1, "query", "角色的版本", "读一个角色保存过的固定版本与各版内容，最新的在前", READERS, CHARACTER_ROLE_SCHEMAS.versions),
+  versions: roleAction("characters.versions.read", /* @version action.characters.versions.read */ 1, "query", "角色的版本", "读一个角色保存过的固定版本与各版内容，最新的在前", VERSION_READERS, CHARACTER_ROLE_SCHEMAS.versions),
   memberAdd: roleAction("characters.members.add", /* @version action.characters.members.add */ 1, "command", "把角色加进本项目", "把我的一个角色加进当前项目，两节都跟随原件", WRITERS, CHARACTER_ROLE_SCHEMAS.memberAdd),
   memberSave: roleAction("characters.members.save", /* @version action.characters.members.save */ 1, "command", "只改本项目的角色",
     "在本项目里改做事方式或能用什么：只改给出的那一节，另一节保持原样；存成新的一版，不改原件与别的项目", WRITERS, CHARACTER_ROLE_SCHEMAS.memberSave),

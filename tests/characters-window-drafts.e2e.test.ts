@@ -80,6 +80,29 @@ test("RAC-1607 RAC-1608: Characters keeps a tab's unsaved edit across a reload, 
   assert.ok(savedNotice.includes("已保存，原件成为 v4"), savedNotice);
 });
 
+test("RAC-1608: a member's edit saved to the original after a conflict keeps what the original's other section says now", { timeout: 180_000 }, async t => {
+  const b = await openGoalBrowser(t, true); if (!b) return;
+  const { click, evaluate, waitFor } = b;
+  const personal = openCharacters(b.homeDirectory, "web-user"); t.after(() => personal.close());
+  const original = personal.service.create({ title: "核对者", instructions: "原来的做法", host_tools: ["read-file"] });
+  const member = personal.service.roles.addMember(b.projectId!, original.character_id);
+  const row = `[data-characters][data-character-scope=project] [data-roles-act="open"][data-roles-arg="member:${member.current.member_id}"]`;
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/settings/characters` }, b.sessionId));
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(row)}))`, 60_000);
+  await click(row); await waitFor(DRAWER_READ);
+  await evaluate(`(()=>{const node=document.querySelector('[data-character-instructions]');node.value='抽屉里的做法';node.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  // Meanwhile the original's tools change elsewhere; this edit goes to the original, so the save meets the newer version.
+  personal.service.update(original.character_id, original.revision, { title: "核对者", instructions: "原来的做法", host_tools: ["read-file", "search"] });
+  await click('[data-roles-drawer=where][data-roles-where=mine]');
+  await click("[data-roles-drawer=save]"); await waitFor(CONFLICT);
+  assert.deepEqual(personal.service.get(original.character_id)?.host_tools, ["read-file", "search"], "the refused save wrote nothing");
+  await click("[data-roles-drawer=merge]"); await waitFor(`!(${CONFLICT}) && document.querySelector('[data-roles-drawer=save]')?.disabled === false`);
+  await click("[data-roles-drawer=save]"); await waitFor("document.querySelector('[data-roles-drawer=save]') === null");
+  const saved = personal.service.get(original.character_id)!;
+  assert.equal(saved.instructions, "抽屉里的做法", "the edited section goes to the original");
+  assert.deepEqual(saved.host_tools, ["read-file", "search"], "the section not edited here keeps what the original says now");
+});
+
 test("RAC-2851 RAC-2852 Characters keeps its own styles on first open, cached reopen and project changes", { timeout: 180_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded"); if (!b) return;
   const personal = openCharacters(b.homeDirectory, "web-user"); t.after(() => personal.close());

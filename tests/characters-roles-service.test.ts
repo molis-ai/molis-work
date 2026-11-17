@@ -203,3 +203,22 @@ test("ROLE-15: the kit catalog reads originals Home-wide with how many projects 
   assert.deepEqual(handlers.usages({ action } as never).usages.map(usage => usage.usage_id), [`original:${mine.character_id}`]);
   handlers.dispose();
 });
+
+test("ROLE-02 ROLE-13: a member's current version reads the original as it is now, and restoring it keeps a following section following", t => {
+  const service = space(t), original = service.create(content), member = service.roles.addMember(PROJECT, original.character_id), id = member.current.member_id;
+  const styled = service.roles.saveMember(PROJECT, id, member.revision, 1, { work_style: { instructions: "本项目先列清单。" } });
+  // The original's tools change after the member was saved: the member's current version is the same, the original's is newer.
+  service.update(original.character_id, original.revision, { ...content, host_tools: ["read-file", "search"] });
+  const [current, earlier] = service.roles.versionEntries(PROJECT, { kind: "project", member_id: id });
+  assert.equal(current!.current, true);
+  assert.equal(current!.ref.kind === "project" && current!.ref.member_version, styled.current.member_version);
+  assert.deepEqual(current!.ref.kind === "project" && current!.ref.original, { kind: "personal", character_id: original.character_id, version: 2 }, "paired with the original's latest version");
+  assert.deepEqual([current!.content.instructions, current!.content.host_tools], ["本项目先列清单。", ["read-file", "search"]], "the followed section shows the original's newer tools");
+  assert.equal(earlier!.current, false);
+  assert.deepEqual(earlier!.ref.kind === "project" && earlier!.ref.original.version, 1, "an earlier version keeps the original it was saved with");
+  // Undo restores the current entry: the section that followed still follows, so the newer tools are kept.
+  const now = service.roles.memberRole(PROJECT, id)!;
+  const restored = service.roles.restoreMember(PROJECT, current!.ref as never, now.revision, 2);
+  assert.deepEqual(restored.sections.capabilities, { mode: "follow" });
+  assert.deepEqual(service.roles.content(PROJECT, restored.current).content.host_tools, ["read-file", "search"]);
+});

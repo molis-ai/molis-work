@@ -4,7 +4,7 @@ import { TOAST_STYLES } from "./toast.js";
 import { SELECT_MENU_STYLES } from "../select-menu-client.js";
 import { SR_ONLY_STYLES } from "./sr-only.js";
 import { STATE_RING_STYLES } from "./state-ring.js";
-
+import { NOTE_STYLES } from "./note.js";
 /** Keyboard focus: a 2px accent stroke just outside the control, the same on every control. */
 import { BUTTON_STYLES, CONTAINED_FOCUS } from "./buttons.js";
 const CONTAINED_FOCUS_DANGER = "outline: 2px solid var(--red); outline-offset: 1px; box-shadow: none";
@@ -12,7 +12,7 @@ const CONTAINED_FOCUS_DANGER = "outline: 2px solid var(--red); outline-offset: 1
 const FIELD_FOCUS = "outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); background-color: var(--popover, var(--paper))";
 
 export const PRIMITIVE_STYLES = `
-  ${STATE_RING_STYLES}
+  ${STATE_RING_STYLES}${NOTE_STYLES}
   :where(a:not([class])) { color: var(--accent); text-underline-offset: 3px; }
   :where(a:not([class])):hover { color: var(--accent-strong, var(--accent)); }
   ${SR_ONLY_STYLES}

@@ -43,8 +43,9 @@ interface ItemSource { kind: string; owner: string; provider_id: string; parts: 
  * The item sources the caller can use: a kind whose owner declares `item`, with a part only when the owner's own action of that shape
  * is in the caller's directory and available. A declaration names its owner's actions only; one naming another provider's is not a part.
  */
-async function itemSources(caller: ActionCallContext, client: ActionClient, ports: MainlineItemPorts, directory?: readonly ActionView[]): Promise<ItemSource[]> {
-  const declared = (await ports.declarations(caller)).filter(object => object.item);
+async function itemSources(caller: ActionCallContext, client: ActionClient, ports: MainlineItemPorts, directory?: readonly ActionView[],
+  declarations?: readonly ItemDeclaration[]): Promise<ItemSource[]> {
+  const declared = (declarations ?? await ports.declarations(caller)).filter(object => object.item);
   if (!declared.length) return [];
   const views = directory ?? await client.discover(caller);
   return declared.map(object => {
@@ -66,9 +67,9 @@ function sourceOf(sources: readonly ItemSource[], kind: string, part?: WorkItemP
 }
 
 /** The object read once as the caller; one the caller cannot read is refused by its kind and never named back. */
-async function readable(caller: ActionCallContext, client: ActionClient, subject: ActionSubject): Promise<ActionSubjectContext> {
+async function readable(caller: ActionCallContext, client: ActionClient, subject: ActionSubject, directory?: readonly ActionView[]): Promise<ActionSubjectContext> {
   if (subject.kind === WORK_ITEM_KIND) throw new ActionError("actions.input_invalid", "事项不能装进事项，也不能再设为事项");
-  try { return (await resolveActionSubject(client, { ...caller, query_only: true }, subject)).context; }
+  try { return (await resolveActionSubject(client, { ...caller, query_only: true }, subject, directory)).context; }
   catch (error) {
     caller.signal?.throwIfAborted();
     throw mainlineErrors.subject_unreadable("读不到这个对象，不能放进事项", { code: codeOf(error) });
@@ -149,8 +150,10 @@ export async function createItem(caller: ActionExecutionContext, client: ActionC
   if (given !== 1) throw new ActionError("actions.input_invalid", "新建事项要且只要给出名字、一个对象，或在来源里新建的种类与名字之一");
   let source: ActionSubject | undefined;
   if (request.from) {
-    sourceOf(await itemSources(caller, client, ports), request.from.kind);
-    source = (await readable(caller, client, request.from)).subject;
+    // One discovery serves both: whether its kind is an item source, and reading the object as the caller.
+    const directory = await client.discover(caller);
+    sourceOf(await itemSources(caller, client, ports, directory), request.from.kind);
+    source = (await readable(caller, client, request.from, directory)).subject;
   } else if (request.create_as) {
     const { kind, name } = request.create_as;
     source = await makeSource(caller, client, sourceOf(await itemSources(caller, client, ports), kind, "create"), name, sourceRequestId(caller, request.request_id, kind, ["name", name]));
@@ -253,6 +256,8 @@ export async function placeInItem(caller: ActionExecutionContext, ports: Mainlin
 /** What a line read for one item keeps: its source, what it holds and the source's own relation; and the next step its source gives. */
 export interface ItemLineScope {
   item: WorkItem;
+  /** The declarations read once for this line, for the item's source and for what it holds. */
+  declarations: readonly ItemDeclaration[];
   subjects: ReadonlySet<string>;
   held: readonly ActionSubject[];
   next?: { source: Required<ActionReference>; step: WorkItemNextStep };
@@ -263,7 +268,8 @@ export async function itemLineScope(caller: ActionCallContext, client: ActionCli
   const [item, held] = await withStore(caller, ports, store => [store.item(itemId), store.item(itemId) ? store.held(itemId) : []] as const);
   if (!item) throw mainlineErrors.item_missing("主线上没有这件事项");
   const subjects = new Set([...held, ...(item.source ? [item.source] : [])].map(subjectKey)), issues: MainlineIssue[] = [];
-  const source = item.source ? (await itemSources(caller, client, ports, directory)).find(candidate => candidate.kind === item.source!.kind) : undefined;
+  const declarations = await ports.declarations(caller);
+  const source = item.source ? (await itemSources(caller, client, ports, directory, declarations)).find(candidate => candidate.kind === item.source!.kind) : undefined;
   const reader: ActionCallContext = { ...caller, query_only: true };
   let next: ItemLineScope["next"];
   if (source?.parts.related) {
@@ -278,5 +284,5 @@ export async function itemLineScope(caller: ActionCallContext, client: ActionCli
       if (answer?.next) next = { source: source.parts.next, step: answer.next };
     } catch (error) { caller.signal?.throwIfAborted(); issues.push({ source: source.parts.next, title: source.parts.next.capability_id, code: codeOf(error) }); }
   }
-  return { item, subjects, held, ...(next ? { next } : {}), issues };
+  return { item, declarations, subjects, held, ...(next ? { next } : {}), issues };
 }

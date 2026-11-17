@@ -659,3 +659,11 @@ C 轨代码前合审补充两条实施边界：Host 重试必须同时有已核�
 窄屏修正 `e6e9dfbbc9` 已通过原 WLN-35/WLN-18 定向断言。静态资源对同一独立构建基点复测 67 项通过。到达页和工作台 CSS 各比前一次少 52 B，Coding 仍净增 35,735 B，共享懒包仍为 96,161 B。两条首屏词包地址沿 §12.19。当前实测到达页中文／英文冷增 6,836／6,859 B，项目选择冷增 12,727／12,750 B，中文与英文热增均为 5,891 B；新项目和全插件工作台冷增 12,456／12,479 B，其他热加载无增长。
 
 窄屏修正后重打实际 Molis npm 包，27,339,218 B，SHA-256 `60eaef6b19f6ddbc9b2515915fca84d87cea02ec4fa78e6a0b224100b33ebcbf`。隔离安装后运行助理 4/4、Coding 3/3、Node 子对话与恢复 6/6、原工作线布局 10/10，共 4 文件、23 项通过。最新候选独立采集后对同一 main 复拍基线严格比较，66/66 图片与 22/22 样式均一致。报告位于 `.impeccable/qa/review/b59-phone-visual/compare/report.html`；前一严格对照和同树复拍原记录保留。
+
+### 12.22 统一回归发现的角色与键盘问题
+
+`agent-definitions.test.ts` 在基点 `dbcf562a67` 为 11/11，在 `e6e9dfbbc9` 为 10/11。助理原 Work 与本批业务 SDK 子任务共用委派角色和原角色提示词。注册读取给同一角色产生了两个相同键，提示词的使用角色也因此重复。设置继续显示原业务角色及其两层提示词各一次。SDK 派发和 Work 的原角色声明、版本、权限及提示词内容照旧冻结。
+
+`subtask-conversation.e2e.test.ts` 首次在关闭按钮聚焦后，PageDown 的稳定位置断言得到 11 与 27。用例在复位滚动的同一轮订阅 `scrollend`，可能先接到复位事件。复测将准备动作与 PageDown 分开，待键盘实际滚动结束后再兑现延迟草稿，保留关闭和返回两个入口的同一位置断言。
+
+本机另有两处旧安装插件回归待核。[BL-installed-plugin-mac-fixtures](../backlog/BL-installed-plugin-mac-fixtures.md) 记录 `installed-plugin-policy` 的主线同样 403 及超时，以及 `installed-plugin-host` 的首次 Feed 回报缺席和两棵树都无法单独进入原调度断言。保留首败，沿正当的原动作权限路径处理测试夹具。

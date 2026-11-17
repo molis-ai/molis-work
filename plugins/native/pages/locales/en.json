@@ -170,6 +170,7 @@
     "pages.editor.resize-width": "Resize width",
     "pages.editor.risks": "Risks",
     "pages.editor.save-as-a-new-page": "Save as a new page",
+    "pages.editor.save-unconfirmed": "The save is not confirmed yet. Retry this content without creating a duplicate.",
     "pages.editor.side-by-side": "Side by side",
     "pages.editor.something-worth-calling-out": "Something worth calling out",
     "pages.editor.status": "Status",

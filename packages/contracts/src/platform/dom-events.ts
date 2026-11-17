@@ -350,7 +350,7 @@ export const DOM_EVENTS = [
   {
     name: "molis-work:select-item", kind: "announcement", owner: "tab-workspace", on: "element",
     detail: "{ itemId?, quiet?, view?, panel?, intent?, invalidate? }",
-    summary: "The workbench projects its current item or finite view selection onto one plugin surface; invalidate asks it to reread its own document without a business payload. quiet: a reopen the person did not ask for (a reload, Back), so an item that is gone is forgotten without a word. Dispatched on the surface root, not bubbling.",
+    summary: "The workbench projects its current item or finite view selection onto one plugin surface; invalidate asks it to reread its own document without a business payload. quiet: a reopen the person did not ask for (a reload, Back), so an item that is gone is forgotten without a word. Dispatched on the surface root, not bubbling. A frame dispatch is cancelable: a plugin that handles the complete selection synchronously calls preventDefault to take responsibility for its reads, saves and navigation, so the frame does not also find and click a row. Claiming the request does not report success or cancel a business operation.",
   },
   {
     name: "molis-work:settings-embed", kind: "announcement", owner: "settings-directory", on: "document",

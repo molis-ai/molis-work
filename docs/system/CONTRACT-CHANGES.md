@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-17 质量审查 QEA-69～72：Pages 编辑器的翻译另存回调携带原 `request_id` 与候选当前性判定，页面采用既有 `pages.create` 幂等合同；创建受理后的列表/导航失败单独反馈，不重新创建，无新动作或持久字段。现有 `molis-work:select-item` 在隔离 frame 中以可取消事件派发，完整处理本次选择的插件同步 preventDefault 接管，框架不再并行找行代点。Pages 等实际 ID 处理方同片迁移，Goals 的 create-dialog 和创作台不处理的 restore 分支不接管；未接管的行驱动页面及 Host 的 Feed source/Characters/Sessions 路径保持。事件 payload 与授权不变，原位更新 API 快照。
+
 2026-11-17 质量审查 QEA-67/68：移除无生产调用的私有 WebQuery 工厂包及 YouTube 根出口 `youtubeIntegrationManifest`/`createYoutubeIntegrationPlugin`，不留兼容空壳。YouTube 原包名、频道工具出口和 Host/npm 依赖保留；现行 web_query/youtube_channel 来源数据及 SourcePull 合同不变。同步删两份安装 Manifest、六个专用版本键和十六个 carrier。用户已批准包边界名单只保留 GitHub/Gmail/RSS，以及删除两条退役签名例外；活跃安装身份检查保留并补拒绝反证，无权限或持久格式变化。
 
 2026-11-17 质量审查 QEA-65/66：SDK `ComposerOutcome.failed`增加可选`feedback: "page"`。仅调用页面已展示完整失败与恢复操作时声明，统一输入框保留未受理草稿/材料并照常标记unreadable，不重复错误及通用重试；普通失败/未知结果/成功受理不变。工作台框桥同片传递，Coding材料卡为真实采用方；无持久字段、权限或历史读取变化，阶段一原位更新API快照。

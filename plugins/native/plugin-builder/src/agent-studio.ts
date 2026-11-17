@@ -196,6 +196,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   const ready=plugin.update(host.view).then(()=>{if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
   lifetime.listen(host.root||root,'molis-work:select-item',event=>{
     const {panel,itemId,intent}=event.detail||{};if(intent!=='open')return;
+    if(typeof panel==='string'||typeof itemId==='string')event.preventDefault();
     const unavailable=()=>{if(lifetime.alive){const note=document.createElement('p');note.dataset.pcOpenFailed='';note.setAttribute('role','alert');note.textContent=globalThis.t.text("plugin-builder.agent-studio.record-or-form-unavailable");root.prepend(note);}};
     void ready.then(async()=>{if(!lifetime.alive)return;root.querySelector('[data-pc-open-failed]')?.remove();
       const opened=typeof panel==='string'?plugin.openInput(panel):typeof itemId==='string'?await plugin.openRecord(itemId):true;

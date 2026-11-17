@@ -8,6 +8,7 @@ import { applyToPagesFrozen, freezePagesFocus, readPagesFocus, releasePagesFroze
 import type { EditorPopup } from "./editor-popup.js";
 import type { PagesCommandPreset, PagesEditorMountOptions } from "./editor-types.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { statusOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { t, actions } from "./editor-view-ui.js";
 
 function replaceSelectionText(view: EditorView, text: string): void {
@@ -35,6 +36,8 @@ export function createEditorAi(popup: EditorPopup, options: PagesEditorMountOpti
   // The candidate goes to the range the person asked about, frozen when they asked; if that text changed while the
   // model was working, nothing is written anywhere (specs/archive/contextual-interaction §3.4, AC-C04/C05).
   const showCandidate = (view: EditorView, command: string, result: { text: string }, token: string | null, mode: "replace" | "insert_after", okLabel?: string) => {
+    const request = state.request, current = () => state.request === request;
+    let saving = false, submission: { input: { title: string; text: string; request_id: string }; uncertain: boolean } | undefined;
     pop.hidden = false;
     pop.replaceChildren();
     const lead = document.createElement("p");
@@ -49,9 +52,31 @@ export function createEditorAi(popup: EditorPopup, options: PagesEditorMountOpti
       lead.className = "pages-pop-error";
     };
     const dismiss = () => { if (token) releasePagesFrozen(view, token); hidePop(); };
-    pop.append(actions(options.translate, () => {
+    const controls = actions(options.translate, async () => {
+      if (!current() || saving) return;
       if (command === "translate_new") {
-        void options.onCreateFromAi?.({ title: t(options.translate, "pages.editor.translation"), text: area.value });
+        if (!options.onCreateFromAi) return;
+        submission ??= { input: { title: t(options.translate, "pages.editor.translation"), text: area.value, request_id: crypto.randomUUID() }, uncertain: false };
+        saving = true; area.readOnly = true; save.disabled = true;
+        lead.className = ""; lead.textContent = t(options.translate, "pages.status.saving");
+        try {
+          await options.onCreateFromAi(submission.input, current);
+          if (current()) hidePop();
+        } catch (error) {
+          if (!current()) return;
+          // A definite input refusal can be edited. Otherwise retry the frozen request: its write may have committed.
+          const status = statusOf(error);
+          if (!submission.uncertain && status !== undefined && [400, 404, 413].includes(status)) submission = undefined;
+          else submission.uncertain = true;
+          lead.className = "pages-pop-error";
+          lead.textContent = submission ? t(options.translate, "pages.editor.save-unconfirmed")
+            : error instanceof Error ? error.message : t(options.translate, "pages.error.save");
+          save.textContent = t(options.translate, "pages.action.retry");
+        } finally {
+          saving = false;
+          if (current()) { save.disabled = false; area.readOnly = Boolean(submission); }
+        }
+        return;
       } else if (!token) {
         replaceSelectionText(view, area.value);
       } else if (command === "proofread") {
@@ -74,7 +99,9 @@ export function createEditorAi(popup: EditorPopup, options: PagesEditorMountOpti
         view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(end), -1)));
       }
       hidePop();
-    }, dismiss, command === "translate_new" ? "pages.editor.save-as-a-new-page" : okLabel));
+    }, dismiss, command === "translate_new" ? "pages.editor.save-as-a-new-page" : okLabel);
+    const save = controls.querySelector<HTMLButtonElement>(".mw-btn--primary")!;
+    pop.append(controls);
     placePop(view.coordsAtPos((token ? resolvePagesFrozen(view, token)?.from : undefined) ?? view.state.selection.from), "below", t(options.translate, "pages.editor.draft"), true);
   };
 

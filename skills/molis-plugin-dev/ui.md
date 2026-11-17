@@ -123,7 +123,7 @@ Feed / Inbox：随迁到 Plugin Runtime（FI-6）后，列表、详情、来源�
 
 要做：打开列表、点一行、主按钮、返回、空态、错误、搜索。只服务端渲 HTML、不写客户端，主路径点不动。
 
-搜索：内容来自系统搜索，插件声明搜索来源即可（见 [search.md](search.md)）。打开到对象时，用 `searchRow: { selector, idDataset }`（例如 `[data-page-id]`）让工作台点那一行；按标签打开（`molis-work:select-item`）的插件在打开舞台的视图上声明 `accepts_objects: true`。当前工作台的搜索、放置与侧栏文件共用构建期插件目录派生的对象标签名单；动态安装插件的运行时 Manifest 尚未接入这份名单（BL-388），不能仅凭声明假定这些入口已支持动态安装后的对象标签。
+搜索：内容来自系统搜索，插件声明搜索来源即可（见 [search.md](search.md)）。打开到对象时，用 `searchRow: { selector, idDataset }`（例如 `[data-page-id]`）让工作台点那一行；按标签打开（`molis-work:select-item`）的插件在打开舞台的视图上声明 `accepts_objects: true`。隔离页面若完整负责本次选择的读取、保存与打开，在处理器首次等待前同步 `event.preventDefault()` 接管；框架的可取消派发因此不再找行代点。只观察事件、仅处理其他分支时不接管；接管不是成功回执，也不表示撤销业务写入。没有完整处理器的行驱动页面继续按 `searchRow` 打开。当前工作台的搜索、放置与侧栏文件共用构建期插件目录派生的对象标签名单；动态安装插件的运行时 Manifest 尚未接入这份名单（BL-388），不能仅凭声明假定这些入口已支持动态安装后的对象标签。
 
 确认用 `dialog.mw-dialog`，不要 `window.confirm` / `alert` / `prompt`。异步失败 `showNote`。
 

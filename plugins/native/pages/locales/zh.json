@@ -170,6 +170,7 @@
     "pages.editor.resize-width": "调整宽度",
     "pages.editor.risks": "风险",
     "pages.editor.save-as-a-new-page": "存为新文档",
+    "pages.editor.save-unconfirmed": "保存结果尚未确认。重试会继续保存这份内容，不会重复新建。",
     "pages.editor.side-by-side": "并排",
     "pages.editor.something-worth-calling-out": "想强调的话",
     "pages.editor.status": "状态",

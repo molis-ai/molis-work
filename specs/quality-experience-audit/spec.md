@@ -4,7 +4,7 @@
 
 ## 目标、范围与完成标准
 
-根据本轮用户要求，独立检查六个方向：隐式状态机、过度防御、用户干扰、冗余实现、职责与调用链、平台化机会；同时检查逻辑缺陷、整体需求实现度和可清理的 BL。检查范围按 `scripts/workspace-packages.mjs`、SSOT 与公开合同确定：初始73包，整合 Sessions 后74包，另覆盖 Rust 同步服务的入口和边界。旧审查报告只作线索，每项判断以本基线源码和实际调用方重新核实。
+根据本轮用户要求，独立检查六个方向：隐式状态机、过度防御、用户干扰、冗余实现、职责与调用链、平台化机会；同时检查逻辑缺陷、整体需求实现度和可清理的 BL。检查范围按 `scripts/workspace-packages.mjs`、SSOT 与公开合同确定：初始73包，整合 Sessions 后74包，本轮退役无调用WebQuery后当前73包，另覆盖 Rust 同步服务的入口和边界。旧审查报告只作线索，每项判断以本基线源码和实际调用方重新核实。
 
 交付目标是审查闭环及纳入本轮改造的内部完整：正常入口的操作、持久化、反馈与相关失败恢复均有证据。工程通过、隔离 Home 实操和本人验收分别记录。包成熟度不代表整份产品需求完成，不将未实现或待本人验收的 BL 当作可删除项。
 
@@ -528,7 +528,7 @@ SDK继续拥有唯一候选、实际期限、版本和决定；Memory拥有最�
 
 ## 第二十九批：Pages 的编辑基线、切换保存与翻译另存（QF-39～41）
 
-状态：QF-39/40已由正常浏览器/真实HTTP与数据库确认，`pages-ownership-baseline2.log`三项有效失败：发布冲突后的再次编辑覆盖另一写入者正文（有/无后来输入），搜索切换期间输入在保存被拒后离开当前页。QF-41仍待动态复现。发布catch把任意GET结果当作本次保存回执，让旧正文获得新版本；对象选择在GET前保存，却在GET后切换并异步补存后来输入，保存失败时原草稿已无入口；翻译另存未等待onCreateFromAi便清空候选。现有后端CAS、模型前后授权、发布联合事务、永久删除/revert/discard合同保留。
+状态：QF-39/40已由正常浏览器/真实HTTP与数据库确认，`pages-ownership-baseline2.log`三项有效失败：发布冲突后的再次编辑覆盖另一写入者正文（有/无后来输入），搜索切换期间输入在保存被拒后离开当前页。QF-41已由真实SQLite拒绝/提交丢回执复现候选被清空；后续创建导航两种交错也已动态确认。发布catch把任意GET结果当作本次保存回执，让旧正文获得新版本；对象选择在GET前保存，却在GET后切换并异步补存后来输入，保存失败时原草稿已无入口；翻译另存未等待onCreateFromAi便清空候选。现有后端CAS、模型前后授权、发布联合事务、永久删除/revert/discard合同保留。
 
 恢复读取与保存回执分开：没有本地编辑时可完整展示owner当前文稿，有本地编辑则保留原正文和版本前提，不能仅借新版本解开冲突。切换真正发生前保存等待期间的新输入，并在每次等待后核对原选择；失败留在原草稿，不以后台补存冒充完成。翻译另存等待确认，失败保留本次候选，明确重试使用既有pages.create.request_id及原冻结内容；成功但回执丢失不重复创建，迟到结果不关闭后来候选。不新增平台草稿库、请求账或自动重试。
 
@@ -537,3 +537,56 @@ SDK继续拥有唯一候选、实际期限、版本和决定；Memory拥有最�
 - **QEA-71** 正常整篇翻译获得模型候选，手动修改后另存；明确失败保留可编辑候选和重试，实际成功丢回执后的本人重试沿同一request_id只保留一篇，不重跑模型、不覆盖后续编辑。等待中重复点击、取消与新候选均无旧结果误关闭；手机/桌面与两主题实操。
 
 验证沿公共HTTP/动作与真实Editor/SQLite；只在传输/owner提交边界持有真实请求或回包，不伪造成功结果。现有draft-race只证明切换前已有保存等待，不能替代GET期间新输入场景。修复范围以动态反例为准，未复现候选不得记作已发生事故。
+
+第二十九批扩展证据：翻译另存的真实SQLite拒绝与实际提交丢回执均先关闭候选（`pages-translation-baseline.log`）。首修完整10项中8项通过，手机缩放后面板仍在旧横坐标、重试按钮不可点击；另返回列表被框架旧行选择重新打开。只读复核又指出创建POST之后的loadList/原稿保存失败被误当创建拒绝，以及进入openDocument后等待保存缺当前候选复核；均须先补动态交错再关闭本批。未知保存保留原冻结内容和请求号；仅从未未知、且创建本身明确输入拒绝才允许改候选。创建已受理后的显示/导航失败单独反馈，不重置创建身份；取消面板不宣称撤销已提交写入。窄屏沿现有placeOverlay重新定位，不另造浮层布局器。
+
+## 第三十批：对象打开请求由实际处理方接管（QF-42）
+
+状态：QEA-70实际返回失败已定位平台原因（`pages-return-diagnosis.log`）：frame/view.ts的pageSelection先发select-item，再并行以MutationObserver找目标行自动click；Pages已读目标并等待保存时本人返回，随后loadList出现旧目标行，兜底又发起打开。当前事实归属是平台投递选择意图、插件执行读取/保存/导航，行驱动页面才需要框架代点；不能用插件名称特判或关闭整个行入口解决。
+
+补现有公开DOM事件的接管语义：框架以cancelable派发，实际完整处理本次选择的插件同步preventDefault，框架不再猜测并代点；没有完整处理器的真实行驱动页面继续原机制。先核所有监听者实际分支，同片迁移已确认完整的处理方，部分只处理取消/外部通知/已有行的不可盲目接管。数据、安装身份、权限与对象选择payload不变；更新事件文档/API快照及插件开发说明，按共享核心验收。
+
+- **QEA-72** 正常搜索/恢复打开Pages且持有真实GET/保存时，返回列表、新选择、真实保存失败不被旧目标行的迟到出现重新打开；完整处理的动作只派一次，之后明确选择同一对象仍工作。迁移后的其他真实处理方与未接管的行驱动消费者都从正常入口验证；接管不等于成功或取消owner写入。框架销毁、后续选择和无目标返回保持原清理，不新增重试、状态账或定时器。
+
+第二十九/三十批定向证据（2026-11-17）：最终构建/API与健康门禁通过；Pages 13/13、PPT未接管与Schedule接管2/2通过（pages-selection-final-targeted.log），原空白文稿28项、草稿队列2项通过。窄屏重试按钮增加实际几何边界断言，6张三宽两主题截图已刷新并实看390深色/1440浅色。先前错写不存在的pages-draft-race.e2e文件名导致一次命令失败，已运行实际pages-draft-race.test.ts；不记作产品失败。Schedule首版测试误要求打开零写入，实际stage.select按既有合同标为已读；现核恰好一次/open，其他业务字段不变，不修改产品语义。后续补强返回后明确重选同一对象的断言，随本次包回归执行。README并集与实际消费者279文件，已有有效3文件不重复，其余276文件正在运行；结果未定。Skill固定答卷回放与隔离Home替身smoke3/3、0修复轮通过，临时Home自动清理，仅证明接线。最终Full CI/资源及全任务验收仍未完成。
+
+## 第三十一批：Feed采用平台的来源计划与拉取合同（PF-07续）
+
+状态：调用链已核实，方案完成，等待第二十九/三十批包回归退出后实施；不在全量回归中改源码。source-sync.ts:31先调用source-request.ts:74构造SEL exact intent并本地计算指纹；唯一生产createRuntime在plugin.ts:129进入runtime-source-pull.ts:43，后者忽略intent，转SourcePullRequest；Host source-pull-intent.ts重新构造同一计划。平台plan已公开且Runtime兑现了权限/调用身份，但真实Feed未用。适配层还把公共蛇形字段转回SEL驼峰、维护available/written集合与no-op shutdown，供Feed再转回持久字段。旧Host runtime注入只有测试夹具，不是另一生产入口。
+
+实施方向：FeedSourcePorts接公开sourcePull.plan/pull/forget；插件只把自身来源配置/游标转成SourcePullRequest，计划、预算、域名策略、指纹唯一归平台。先纯plan，等待后重核原来源/调用，再决定终态重放或写入running；原运行key、终态配置冲突、非终态恢复、lease与CAS保持。pull必须先调用hold，Feed同事务写run引用、再写Home引用账，平台才落正文；取消、撤权、暂停/配置变化后不写结果。直接消费SourcePullResult，删除旧intent生成、私有SEL类型依赖、重复字段转换/可用性集合/空shutdown与废弃工厂端口。来源注册的规范化/去重及用户名称仍归Feed，网络与权限边界不删除。
+
+文件边界：Feed source-request/source-ports/source-sync/source-sync-result/runtime-source-pull/plugin及README/package清单/锁/版本carrier；Host只去过时的两门指纹相同说明，若测试需按包入口取得现有sourcePull owner端口，可从Host根出口导出已有createSourcePullPort及其选项，避免测试再复制计划算法或引入源码私路。不新增平台实现/SDK合同/DB结构/历史兼容。旧Host createSourcePullRuntime保留其AnySearch、存储边界等实际测试职责，不据生产根出口零调用机械删除。测试夹具迁公共请求/回执，原网络与SQLite回滚断言保留；任何变动须明确区分测试迁移与产品行为。
+
+- **QEA-73** 正常注册/手动同步/调度入口采用平台plan与pull的同一request；plan纯读、无抓取/正文/业务写入，实际run保留平台指纹。终态同键重放零追加抓取/Item/流水，配置变更按原合同拒绝；来源游标、304、失败恢复和正文可读性不变。真实Runtime覆盖RSS、custom RSS、YouTube与web query；网络可注入，但不伪造owner回执。
+- **QEA-74** plan等待及pull/hold/最终提交期间取消、撤权、暂停、改配置、删除均拒绝迟到写入；本人重试沿原规则恢复，原运行与Home引用账覆盖所有已写正文。真实SQLite末次提交失败保持原子性，引用账失败/拒绝后同键可恢复，删除/遗忘仍清原记录。覆盖原SourcePull拒绝反证、Feed并发与Runtime、RSS socket/DNS/跳转围栏、AnySearch唯一owner及现有source-sync-authority。
+
+第三十一批新增实证（QF-44，2026-11-17）：正常Runtime同步在Home hold实际写账后等待，另一真实公开enabled动作已暂停来源；释放hold回执后，sync最终正确拒绝且无Item/完成流水，但证据正文已写入。反例日志 `/tmp/quality-audit-feed-hold-baseline.log`，不是手改来源SQL或只数callback。原因是Feed在await holdContent之后未复查自己的来源事实，平台只复查调用身份，不能替代来源owner判断。QEA-74纳入该确证缺陷：hold返回前复查原Feed guard，原run引用和Home账保留，明确重试仍按原身份恢复。当前仅复现，尚未改生产代码。
+
+## 第三十二批：首次引导只在完成准备后展示可操作页面（QF-43）
+
+状态：包回归、单例复跑和DOM写入栈均复现欢迎区被晚到启动重绘替换；诊断日志 `/tmp/quality-audit-onboarding-paint-trace.log`。本批生产改动待正在执行的包回归结束后实施。context-onboarding.ts中restart在创建/保存journey后render；startup随后await restoreUploadFiles再render。快速进入语言问题时，后一次整块写入cx-app替换正在操作的欢迎区、丢掉节点焦点。语言服务本身只更新文字/属性；不能靠延迟测试或取消同节点断言掩盖。该源码与已合入4aa5496基线相同，尚未独立运行基线，不宣称已取得基线运行证据。
+
+方案：restart只维护新journey与URL/持久化，不在准备途中绘制。startup在恢复完材料和连接后绘制；正常new-journey按钮由已有try/finally负责成功/失败后的绘制。状态事实、材料恢复、语言选择与动画规则保留，不增加启动布尔状态或第二套页面缓存。已核全部两个调用；等待期间已有服务端loading，恢复上传不依赖提前绘制。检查首次进入、选择语言/外观、材料到项目闭环和重新选择材料的恢复入口。
+
+- **QEA-75** 隔离Home正常首次进入后，快速进入语言问题、切中英文，欢迎区和焦点不被后台准备重绘替换；材料选择、保存和创建项目实际完成。原FSS-37同节点断言保留；减弱动画和正常进入均验证，不靠增加固定sleep。
+- **QEA-76** 已有需要重选的journey通过正常new-journey入口创建新journey，旧暂存清理和新选择状态按原合同完成；实际保存失败准确显示且可恢复，不留下永久busy，也不提前展示未恢复完的材料。当前修复不重写整个onboarding业务/后台职责。
+
+回归诊断补记：Coding首次读取两项失败源于测试start只等父输入框可用，可能读到旧会话；诊断副本等待frame内创建动作结束，再检查原输入框条件，两项原业务断言均通过（`/tmp/quality-audit-coding-first-read-trace.log`）。生产代码未改；正式夹具修正及无诊断输出复验仍待完成，不把诊断通过计作正式验收。
+
+取舍：复用现有平台合同，平台不接手Feed业务状态或引入自动重试，Alchemist的不同研究计划不强制迁成Feed计划。此片本地验收仍不能替代当前头CI或全仓六方向完成。
+
+第三十一批只读复核补充：删written集合的前提是hold每次都先把引用写入run，失败/中途抛错也不依赖最终materials补账；无Home ledger的测试夹具亦须保留run命名。当前hold在await Home ledger后没有再次核Feed source，Host正文前围栏只核调用身份；新增实际ledger写入后延迟回包、本人暂停/改来源/删除的交错，先证实正文是否仍被写，再决定补原guard尾检。不得据静态可能直接宣称漏洞已复现。
+
+第三十二批恢复实证（QF-45）：QEA-76正常重选创建通过；真实SQLite插入拒绝后返回400、busy已false，但按钮仍disabled且无本次错误（`/tmp/quality-audit-onboarding-reselect-cached-bar.log`）。早两次探针等待按钮恢复超时，不计独立产品缺陷；第三次按真实响应取状态证明。根因是动作临时写b.disabled=true，finally只重画，而paintBar对未变HTML跳过；reselect视图只读journey.error。配对恢复临时按钮disabled再由原render定最终状态；reselect用现有errorLine显示本次失败。不在请求前整页重画，避免抹掉adopt从DOM读取的名称/正文。QEA-76保留真实拒绝、实际写入、按钮可再试和原历史记录不变的断言。
+
+## 第三十三批：Git冲突正文回到共用主结果区域（QF-23）
+
+状态：实际长正文在目录栏的证据已确认；生产改动待前批完成后实施。独立Git与Coding挂载同一GitBrowser，复用现有result区域、返回入口和审查服务。把冲突文件编辑器及磁盘对照移入result，目录只保留文件选择与仓库控制；不新增整页或Coding特判。结果区域目前由diff/history/operation review分别设置hidden、ticket和displayed，冲突另有conflictTicket。合并同一展示区域前，核实并收口当前展示归属；迟到读取和提交回执不得覆盖后来打开的文件、历史或返回列表。源文件、草稿与Host审查仍由现有owner维护，返回不是撤销已提交审查。
+
+- **QEA-77** 两个正常入口都能在主区域编辑长冲突、查看磁盘变化、保留草稿并按原审查流程解决；返回列表、切文件、差异/历史切换后可继续原稿，真实HEAD/index/文件仅在批准后按原合同改变。三宽两主题提供可操作切片与实看证据，说明文字不代替界面验收。
+- **QEA-78** 持有真实文件读取、固定diff或审查请求回执期间切换结果/返回，释放旧成功和失败不重开旧目标、不替换新标题/正文/动作；明确重开仍可读原审查与结果。检查当前公开动作返回和实际写入，不能以隐藏旧按钮掩盖已受理的审查。
+
+平台化决定：复用现有Git共享结果区与宿主openResult/closeResult合同；合并展示行为归Git自身，不引入通用全局导航状态机。此前草稿、权限拒绝、实际审查/撤销和分区写入验证保留。
+
+第三十三批新增实证（QF-46）：正常暂存A，持有Host真实prepare-index回执，返回列表并打开B后释放，两个入口均把B暂存按钮隐藏（`/tmp/quality-audit-git-result-owner-baseline2.log`）。首次探针在800宽隐藏目录点击以及Coding公开动作封装识别失败，只算夹具准备错误；最终版走可见返回按钮并识别真实git.prepare-index动作。问题在diff.ts prepareIndex只核页面generation，不核结果选择ticket；本轮QEA-78按同一请求/展示归属收口，保留后台已受理审查，不自动取消或重送。

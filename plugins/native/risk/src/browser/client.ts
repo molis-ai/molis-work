@@ -295,6 +295,7 @@ function onSubmit(page: RiskPage, event: SubmitEvent): void {
 function onSelectItem(page: RiskPage, event: Event): void {
   const detail = (event as CustomEvent<{ itemId?: unknown; quiet?: unknown } | undefined>).detail;
   if (typeof detail?.itemId !== "string" || !detail.itemId) return;
+  event.preventDefault();
   const itemId = detail.itemId;
   page.run(() => openRecord(page, itemId, { quiet: detail.quiet === true }));
 }

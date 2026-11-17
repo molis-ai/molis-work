@@ -1,6 +1,6 @@
 # Molis Work 审查报告与优化策略
 
-状态：进行中，负责人 Codex。按原始范围继续逐包、逐入口深入六方向检查及分批改造；74包清单与首轮代表路径核对不等于全仓深查完成，局部验收不用于整项结项。现已保留搜索、后台操作、Sessions、Git、共享输入材料、Coding恢复及Memory候选等批次；Memory正式管理/配对查询已完成本地包回归，Workflows四项改造及AI交接恢复变体已完成本地验收。当前已整合main `4aa5496e3f`，Memory批已保存于`67b8ed3193`，Workflows批保存于`7aca76b7c6`；Coding材料反馈收敛已保存于`0c8e14de4b`并完成本地验收。未接入工厂退役已通过本地验收，当前包清单由74减为73；Pages发布冲突覆盖与切换期间草稿丢失已复现，修复继续。2026-11-17再次fetch确认origin/main仍为4aa5496e3f。旧头`77e2cc0d5`的CI只覆盖旧批次。草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) · [需求与验收](spec.md) · [逐包覆盖](coverage.md)。
+状态：进行中，负责人 Codex。按原始范围继续逐包、逐入口深入六方向检查及分批改造；74包清单与首轮代表路径核对不等于全仓深查完成，局部验收不用于整项结项。现已保留搜索、后台操作、Sessions、Git、共享输入材料、Coding恢复及Memory候选等批次；Memory正式管理/配对查询已完成本地包回归，Workflows四项改造及AI交接恢复变体已完成本地验收。当前已整合main `4aa5496e3f`，Memory批已保存于`67b8ed3193`，Workflows批保存于`7aca76b7c6`；Coding材料反馈收敛已保存于`0c8e14de4b`并完成本地验收。未接入工厂退役已保存于ca6b8428c0并通过本地验收，当前包清单由74减为73；Pages四项恢复缺陷及平台重复打开已修复、定向验收通过，受影响包回归继续。2026-11-17再次fetch确认origin/main仍为4aa5496e3f。旧头`77e2cc0d5`的CI只覆盖旧批次。草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) · [需求与验收](spec.md) · [逐包覆盖](coverage.md)。
 
 ## 当前判断
 
@@ -561,3 +561,47 @@ PF-07工厂退役本地完成（2026-11-17）：按用户批准的边界删除We
 构建通过；`retired-integrations-gates.log`129项通过，明确验证三个活跃集成缺Manifest及未声明安装文件均拒绝。`retired-integrations-required.log`12/12文件通过，含Runtime Feed实际YouTube频道登记/Atom拉取/正文留存/同键重放零追加抓取和写入，以及真实npm压缩包解压后通过原包名导入频道工具。公网响应为注入，不宣称真实公网/账号验收。健康门禁首次因未暂存删除、git文件清单仍包含旧Manifest失败；仅暂存删除后复验通过（`retired-integrations-health2.log`），没有第三处门禁变更。该清理让开发者少维护两套未接入安装生命周期、版本和签名；现有用户来源与数据不需操作或迁移。BL-unused-integration-packages实现可结清，最终头CI仍待；PF-07的Feed/Host计划重复另行推进，不随工厂退役关闭。
 
 QF-39/QF-40动态确认：`/tmp/quality-audit-pages-ownership-baseline2.log`三项有效失败。真实发布409→正常GET恢复→本人改标题，另一写入者正文实际被原正文覆盖（有/无等待中输入均发生）；正常全局搜索选择B→真实GET等待期间编辑A→实际CAS保存拒绝，页面已切到B，A草稿不可见。没有伪造业务回执；第三项QF-41翻译另存仍待动态复现。
+
+### QF-39 / P1：发布失败读回不能把旧正文配上新版本
+
+位置：plugins/native/pages/src/browser/document.ts:170（publishPage）及editor.ts:adoptSaved/remember。正常发布等待期间另一窗口写入，真实409后catch把任意GET当成保存回执，只推进版本、不展示对应正文；本人下一次改标题实际覆盖另一窗口正文。pages-ownership-baseline2.log有/无后来输入两种实际SQLite反例。处置已实施：保存回执仍按本次draft采纳，恢复读取仅更新列表；当前原编辑代次且无后来输入才完整重画owner文稿，否则保留本人草稿和原版本。成本低，沿原CAS/owner事实，不加合并缓存或自动重试。QEA-69两种冲突及实际发布提交丢回执均通过。
+
+### QF-40 / P1：目标读取期间的新输入必须先保存，再切换
+
+位置：plugins/native/pages/src/browser/document.ts:206（select-item）、editor.ts:fillEditor、click.ts返回分支。原先GET前保存、GET后先切页，再异步补存A，实际拒绝后A草稿已不可见。现切换前再次等待当前草稿保存，每个等待后核原selectionSeq；返回/明确新选择先撤销旧导航资格。fillEditor不再承担离开文稿的后台补写，打开入口拥有保存与导航顺序。成本低；本人不必找回或重写刚才输入，失败留在原稿。QEA-70正常全局搜索、真实版本拒绝、成功保存、后续选择及返回交错已通过；明确重选补验随包回归。
+
+### QF-41 / P1：翻译另存要保留候选与同一次创建身份
+
+位置：plugins/native/pages/src/editor-ai.ts:39、browser/editor.ts的onCreateFromAi、browser/document.ts:132、editor-popup.ts:26。原候选调用void回调即关闭，真实SQL拒绝和提交成功丢回执均丢掉本人修改。处置：等待创建结果，进行中防重复点击；未知结果保留冻结正文/request_id，本人明确重试不再生成模型；明确未受理的输入错误可编辑后重试。创建POST成功与随后列表/原稿保存失败分开，后者不能释放创建身份；取消在每次导航等待后复核，不抢回页面。两条附加反例已复现旧候选取消后仍打开、同一次翻译生成第三篇文稿（pages-create-navigation-baseline.log），修复后通过。popup复用SDK placeOverlay在resize重新定位，监听随原transient释放，修复390宽重试按钮落在屏幕外。
+
+规则与状态归Pages：候选面板拥有一次提交及导航意愿，owner拥有实际文稿与请求去重，框架不接管业务重试。成本中低，无数据库/动作合同变化。QEA-71覆盖真实拒绝、未知写入、后续4xx不误解锁、明确首次拒绝可编辑、取消/新候选、创建后导航失败、重试后保留其他写入者修改；13条Pages交错验收通过。模型正文是注入的本机回答，实际Host/Editor/SQLite路径运行，不宣称云端模型质量。6张三宽两主题截图已实看390深色和1440浅色，重试与取消均可见。用户少重跑模型、少重写候选、少清理重复文稿。
+
+### QF-42 / P2：对象打开有两个执行者，平台会重新打开用户刚离开的对象
+
+位置：apps/workbench/src/browser/plugin-frame/view.ts:9–34；公开说明packages/contracts/src/platform/dom-events.ts的select-item。frame先通知插件、又观察列表代点目标行；Pages读B/等A保存时本人返回，loadList出现B后平台再次clickB（pages-return-diagnosis.log明确记录实际click）。不是页面随机抖动或测试坐标问题。平台投递意图、插件执行自身保存/读取/导航，应有明确接管合同。
+
+已补现有DOM事件的cancelable/preventDefault语义：完整处理方同步接管，框架不再代点；未接管的行驱动页继续原能力。14个迁移方：Pages、Risk、Issues、Alchemist、Shelf、灵光、Coding、Feed条目、Workflows、Todo（含batch）、Jelly、Schedule、Inbox、创作台installed open分支。各自只在原来能完整处理的分支接管，Goals仅创建对话框监听不迁。成本中，涉及公开文档/API与消费者回归；不用插件名称特判，也不新增跨框确认消息或第二套选择状态。PPT真实openRecord仍代点准确一行；Schedule真实openItem接管且零代点，原有/open标已读恰好一次。
+
+Host侧tab-workspace-plugins.ts的jumpToRecord另有Feed来源、Characters/Sessions实际消费者，不等同当前frame分支，本批保留其职责；不据相似代码删除。既有真实消费者验收选用Risk直达、Shelf全局搜索/链接、Todo来源链、灵光直达编辑、签名插件Home对象、Coding对象标签、Feed条目标签、Workflows搜索/标签、Jelly跨插件打开等。当前279文件包要求/消费者集合的276文件正在回归，3文件同构建已有通过证据；尚不能写成全量通过或将14方均称正常搜索验收。Skill固定回放及隔离Home替身smoke通过，后者只证明接线。最终头Full CI与资源核准仍待完成。
+
+BL复核补正：BL-record-gone-from-framed-plugins仍不能清理。当前context-child.ts:19和context.ts:62已转发的是item-unreadable（让助理不再把不可读对象当上下文）；tab-workspace.ts:141监听的record-gone（标签标已不在及退出入口）是另一份公开合同，框桥确实尚无对应通道。仓内唯一发送方仍是Goals document-client.ts:48；Pages等仅报item-unreadable。已有side-pane-workspace的窗格页转发与S-30拒绝测试证明的是同源工作台窗格，不等同不透明源插件框。原BL关于没有框内采用者的时点说明已过时，但缺口本身仍在；需要按框的可信身份报告，并从真实对象404验证，不可把403/网络故障一律标为删除。本次尚未动态验收，不标已修复。
+
+QEA-72追加消费者：Issues与Alchemist分别通过真实Host创建→正常openPlugin/openItem链接→不透明frame→准确标题/原对象读回，均同步接管且零行代点，打开没有重建或改写对象（selection-direct-consumers.log两项通过）。这补足原有用例只覆盖失效对象/直接派发事件的不足，不冒充两者已覆盖真实全局搜索。
+
+### QF-43 / P2：首次引导的两次启动绘制替换正在操作的欢迎区（已复现，未实施）
+
+正常首次进入→新journey创建/保存（`apps/workbench/src/scripts/context-onboarding.ts:601-607`）→材料恢复→启动最终绘制（`:779-785`）。restart内置render与调用方render共同维护展示顺序，快速进入语言问题后，晚到的第二次绘制替换cx-app内的欢迎区，影响焦点与连续操作。三次有目的验证定位到startup绘制栈；语言替换服务不承担该重绘。处置依据是事实由准备流程维护、可操作页面由入口完整准备后展示；删除restart的内置绘制，由两个真实调用方现有收尾负责。成本低；QEA-75/76待实施与验收，基线独立运行未完成。
+
+### QF-44 / P1：来源已暂停后，等待中的Home持有回执仍放行正文写入（已复现，未实施）
+
+`plugins/native/feed/src/source-sync.ts:76-83`先登记run引用、await Home ledger，却未在等待后复查Feed来源；`apps/local-host/src/plugin-source-pull-service.ts:61-63`随后写正文，平台检查的调用身份仍有效。真实Runtime同步→Home真实写账后持有回执→正常Feed enabled动作暂停→放行：最终sync拒绝、Item与完成流水为0，但正文从不存在变为存在（`/tmp/quality-audit-feed-hold-baseline.log`）。处置：Feed在hold返回前复查原guard，平台继续负责调用身份，保留已登记引用用于恢复/清理。与PF-07合同迁移同批修复，不给平台添加Feed特判；QEA-74覆盖恢复与实际正文状态。
+
+### QF-45 / P2：过期材料重新开始失败后，没有错误且按钮无法再按（已复现，未实施）
+
+`apps/workbench/src/scripts/context-onboarding.ts:745-747`手动禁用按钮，finally只render；`:403-409`缓存HTML相同就跳过绘制，无法恢复手动修改的disabled。`:385`的reselect视图未显示本次error。正常按钮→真实SQLite拒绝→HTTP400后，busy=false、按钮仍禁用、当前错误缺席；用户必须刷新才能再试。正常创建对照通过。拟将临时禁用在原finally配对恢复，再由视图决定最终状态，并以现有errorLine展示失败。属于页面行为与绘制缓存的职责问题，不新增持久状态/重试器。QEA-76最终验收待完成。
+
+### QF-46 / P2：Git前一个文件的迟到审查回执隐藏后来文件的操作（已复现，未实施）
+
+`plugins/native/git/src/browser/diff.ts:74-93`的prepareIndex只核工作区generation；返回/切文件只改变ticket，旧回执仍写共享action.hidden和diffNotice。正常独立Git与Coding嵌入入口：文件A发起暂存审查→持有真实成功回执→返回列表→打开B→释放A，B标题仍正确但暂存按钮被隐藏（`/tmp/quality-audit-git-result-owner-baseline2.log`，两个消费者均复现）。没有批准、index未变。处置：展示反馈绑定原结果选择；后台审查事实仍保留，明确打开原结果可查看。随QF-23统一Git主结果区域归属和迟到读写验收，不在Host按插件特判。成本中，QEA-78待实施。
+
+PF-05再次核对：`packages/contracts/src/platform/settings.ts:58`仍明确无仓内设置声明owner，SDK `sandbox-agent-declarations.ts:51`仍拒绝签名包的未接通设置。`BL-settings-sandbox-execution`记录的是尚缺安装私有库内同步owner事务/持久回执，路线书38-1负责现有配置采用，44-6负责公共设置呈现；它们不是重复或已完成BL，不能因为合同/SDK单测存在而清理。需要先选真实owner设置迁移、保留同事务CAS/回执/回读与撤权，再核签包执行，未用本轮审查替代该产品实现。

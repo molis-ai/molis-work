@@ -283,7 +283,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     // Its tag opens 「发给」; the page's own name and glyph, nothing else of what it said.
     options.receiver = () => { const named = target.options.receiver?.(); return named ? { label: named.label, ...(named.icon ? { icon: named.icon } : {}), open: openSendTo } : null; };
     composer = window.molisComposer(compose, options);
-    target.bind(composer, input, refreshComposerWords);
+    target.bind(composer, input, refreshComposerWords, () => pageInFront() === target);
   };
   const mountComposer = () => {
     island.removeAttribute("data-receiver"); paintAim(false);

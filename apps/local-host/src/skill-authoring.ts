@@ -11,7 +11,8 @@ import { instructed, composeInstructedPrompt, type InstructedPrompt } from '@mol
 import { CONTENT_PACKAGE_FILES, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SKILL_APPLIES_TO, SKILL_LIMITS, type PluginMethodDeclaration, type SkillAppliesTo } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
 import { SKILL_AUTHORED_PLUGIN_IDS, SKILL_DRAFT_INTENT_CHARS, skillErrors, type SkillAuthoredFields, type SkillAuthoredRemoveRequest, type SkillAuthoredRemoveResult,
-  type SkillAuthoredSaveRequest, type SkillAuthoredSaveResult, type SkillScope } from '@molis-ai/molis-work-contracts/services/skills';
+  type SkillAuthoredSaveResult, type SkillDraftAdoptRequest, type SkillDraftAdoptResult, type SkillScope } from '@molis-ai/molis-work-contracts/services/skills';
+import { draftCases, untriedCases, type SkillDraftStore } from './agent-definitions/skill-drafts.js';
 import { contentPackageDraft, type FolderSkill } from '@molis-ai/molis-work-plugin-sdk';
 import { cutHead } from '@molis-ai/molis-work-plugin-sdk/whole-units';
 import { SKILL_DRAFT } from './agent-definitions/system-prompts.js';
@@ -27,6 +28,8 @@ const NAME_CHARS = 80, SUMMARY_CHARS = 300;
 
 type Packaged = NonNullable<InstalledRelease['packaged']>;
 interface Who { project_id: string; actor_id: string }
+/** What a save writes: the fields, in a scope, as a new Skill or the next version of one of the person's own. */
+type SkillSave = SkillAuthoredFields & { scope: SkillScope; skill_id?: string };
 
 export interface SkillAuthoringPorts extends Pick<SkillImportPorts, 'installed' | 'publisherKeyId' | 'readSealedPublisherKeyId' | 'retained' | 'retainedOf' | 'sign' | 'install'> {
   /** Takes the scope's package of own Skills off, as the settings door's uninstall does; the caller has asked that door's entry. */
@@ -117,22 +120,23 @@ export class SkillAuthoringService {
     return this.ports.install.confirm({ preview_id, consent: true, ...(preview.publisher.pinned_label === null ? { pin_label: PIN_LABEL } : {}) }, who, caller);
   }
 
-  /** A new Skill at version 1, or the next version of one of the person's own; every other Skill of the scope stays as it was. */
-  async save(input: SkillAuthoredSaveRequest, who: Who, caller: ActionExecutionContext): Promise<SkillAuthoredSaveResult> {
+  /**
+   * A new Skill at version 1, or the next version of one of the person's own after the version in use now; every other Skill of the
+   * scope stays as it was. Since batch 42 only adopting a draft calls this: the person compared the draft with the version in use, so a
+   * version adopted elsewhere in between is followed by the next one, not refused.
+   */
+  async save(input: SkillSave, who: Who, caller: ActionExecutionContext): Promise<SkillAuthoredSaveResult> {
     const fields = checkedFields(input);
     const installed = await this.ports.installed(SKILL_AUTHORED_PLUGIN_IDS[input.scope], input.scope, who.project_id), held = this.held(installed);
     const others = held.filter(skill => skill.declaration.skill_id !== input.skill_id);
     if (others.some(skill => skill.declaration.name.trim() === fields.name)) throw skillErrors.authored_name_taken(`你已经有一个叫「${fields.name}」的技能，换个名称`, { field: 'name' });
     let declaration: PluginMethodDeclaration;
     if (input.skill_id === undefined) {
-      if (input.expected_version !== undefined) throw skillErrors.authored_invalid('新建技能不带 expected_version', { field: 'expected_version' });
       if (held.length >= SKILL_LIMITS.skillsPerPackage) throw skillErrors.authored_full(`这个范围里自己写的技能已有 ${SKILL_LIMITS.skillsPerPackage} 个，先删掉不用的`);
       declaration = declarationOf(newSkillId(fields.name, new Set(held.map(skill => skill.declaration.skill_id))), 1, fields);
     } else {
       const current = held.find(skill => skill.declaration.skill_id === input.skill_id)?.declaration;
       if (!current) throw skillErrors.authored_unknown('这个范围里没有你写的这个技能');
-      if (input.expected_version === undefined) throw skillErrors.authored_invalid('修改技能要带读到的 expected_version', { field: 'expected_version' });
-      if (current.version !== input.expected_version) throw skillErrors.authored_conflict('这个技能已经有更新的版本，请重新打开再改', { version: current.version });
       declaration = declarationOf(current.skill_id, current.version + 1, fields);
     }
     const result = await this.publish([...others, folderSkill(declaration, fields.body)], input.scope, installed, who, caller);
@@ -150,6 +154,28 @@ export class SkillAuthoringService {
     else { await this.assertOwn(installed, input.scope, who, this.draftOf(held, input.scope, installed), caller); await this.ports.uninstall(input.scope, who, caller); }
     return { skill_id: input.skill_id, remaining: rest.length };
   }
+}
+
+/**
+ * Adopting a draft (batch 42): the draft as read, checked, and — when it has known answers — replayed at this revision, with any
+ * difference accepted by the person; then saved as above. The draft is then closed: its known answers become the Skill's, and a copy
+ * remembers its source and the placeholders it replaced. Only the person's own act reaches this (`skills.drafts.adopt`).
+ */
+export async function adoptDraft(service: SkillAuthoringService, drafts: SkillDraftStore, input: SkillDraftAdoptRequest, who: Who, caller: ActionExecutionContext): Promise<SkillDraftAdoptResult> {
+  const draft = drafts.draft(input.draft_id);
+  if (!draft || draft.discarded_at || (draft.scope_ref !== 'home' && draft.scope_ref !== who.project_id)) throw skillErrors.draft_unknown('这份草稿已经不在了，可能已被采用或放弃');
+  if (draft.revision !== input.expected_revision) throw skillErrors.draft_conflict('草稿在别处改过了，请重新打开再采用', { revision: draft.revision });
+  const cases = drafts.cases(draftCases(draft.draft_id));
+  if (cases.length) {
+    const trials = drafts.trialsOf(draft.draft_id, draft.revision);
+    if (untriedCases(cases, trials).length) throw skillErrors.trial_required('这份草稿有已知答案还没在这一版上回放，先回放再采用');
+    if (trials.some(trial => trial.verdict === 'differs') && !input.accept_differences) throw skillErrors.trial_differs('回放的结果和你认可的结果还有出入：仍然采用，还是回去改');
+  }
+  const scope: SkillScope = draft.scope_ref === 'home' ? 'home' : 'project', target = draft.target;
+  const result = await service.save({ ...draft.fields, scope, ...(target.kind === 'own' ? { skill_id: target.skill_id } : {}) }, who, caller);
+  const source = target.kind === 'custom' ? target.source : target.kind === 'own' ? target.rebase : undefined;
+  drafts.adopted(draft.draft_id, draft.scope_ref, result.skill_id, source && { source, replacements: draft.replacements, seen_version: source.version });
+  return { ...result, ...(target.kind === 'custom' ? { source: target.source } : {}) };
 }
 
 /**

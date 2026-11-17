@@ -19,6 +19,8 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 const mac = { skip: process.platform !== "darwin", timeout: 180_000 };
 const panel = `[data-project-reach="${REACH_PLUGIN_ID}"]`, ownerFrame = `iframe[src*="/plugins/${REACH_PLUGIN_ID}?"]`;
+const projectStage = `[data-work-surface="${REACH_PLUGIN_ID}"][data-plugin-page-source]`;
+const projectFrame = `${projectStage} > iframe[data-plugin-frame="${REACH_PLUGIN_ID}"]`;
 const homeDetails = `[data-plugin-trust-home] details:has(${panel})`;
 
 async function fixture(t: TestContext) {
@@ -30,6 +32,14 @@ async function fixture(t: TestContext) {
   }
   const client = f.host.actionClient(a.reference), preview = await client.invoke(person(a.project_id), ref(pluginInstallActions.preview), { bundle: projectReachPackage(publisher) }) as { preview_id: string };
   await client.invoke(person(a.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Reach publisher" });
+  // QEA-140: give the Home package its own call permission. Project reach is still a separate agreement.
+  const installId = f.host.homePlugins!.installation(REACH_PLUGIN_ID)?.install_id;
+  assert.ok(installId);
+  const granted = await f.request("/api/settings/plugin-permissions/set", {
+    method: "POST", body: { install_id: installId, permission: "capabilities:call", granted: true },
+  });
+  assert.equal(granted.status, 200, await granted.clone().text());
+  assert.equal((await granted.json()).changed, true);
   const ledger = new HomeConsentLedger(f.home);
   const state = (project: typeof a) => f.host.actionClient(project.reference).invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: ["goals:read"] },
     ref(goalPluginActions.state), { goal_id: REACH_GOAL_ID }) as Promise<GoalEventWorkStateView>;
@@ -104,14 +114,21 @@ async function browserFixture(t: TestContext, f: Awaited<ReturnType<typeof fixtu
     await page.click("[data-directory-panel=project-settings] [data-settings-section=plugins]");
     await openReach();
   };
+  const projectFrameReady = async (project = f.a) => {
+    await page.wait(`document.querySelector('${projectFrame}')?.getClientRects().length > 0`, {
+      describe: `document.querySelector('${projectStage}')?.dataset.uiClientState`,
+    });
+    const source = await page.evaluate<string>(`document.querySelector('${projectStage}').dataset.pluginPageSource`);
+    const url = new URL(source, f.origin);
+    assert.equal(url.pathname, `/projects/${project.project_id}/plugins/${REACH_PLUGIN_ID}`);
+    assert.equal(url.searchParams.get("frame"), "workbench");
+    await child.waitFor("!!document.querySelector('[data-field=text]')");
+  };
   const openPackage = async (project = f.a) => {
     await navigate(`/projects/${project.project_id}/`);
     await page.wait("!!document.querySelector('[data-plugin-picker-toggle]')"); await page.click("[data-plugin-picker-toggle]");
-    const surface = f.host.homePlugins!.packageStage(REACH_PLUGIN_ID)!.pluginId;
-    await page.click(`[data-plugin-picker-popover] [data-work-surface-open="${surface}"]`);
-    await page.wait(`document.querySelector('${ownerFrame}')?.getClientRects().length > 0`);
-    assert.ok((await page.evaluate<string>(`document.querySelector('${ownerFrame}').src`)).includes(`/projects/${project.project_id}/plugins/`));
-    await child.waitFor("!!document.querySelector('[data-field=text]')");
+    await page.click(`[data-plugin-picker-popover] [data-work-surface-open="${REACH_PLUGIN_ID}"]`);
+    await projectFrameReady(project);
   };
   const submit = async (text: string) => {
     await child.click("[data-field=text]");
@@ -148,7 +165,7 @@ async function browserFixture(t: TestContext, f: Awaited<ReturnType<typeof fixtu
     await page.wait(`document.querySelector('${homeDetails} > summary')?.innerText.includes(' · ${version}')`);
     await openReach();
   };
-  return { page, child, openSettings, openPackage, submit, decide, upgrade, resize, navigate, reload, close };
+  return { page, child, openSettings, openPackage, projectFrameReady, submit, decide, upgrade, resize, navigate, reload, close };
 }
 
 test("RAC-2644–2649 S-107 actual project settings, signed File upgrade and workbench navigation retain A through page, refresh, withdrawal and project switch", mac, async t => {
@@ -167,8 +184,7 @@ test("RAC-2644–2649 S-107 actual project settings, signed File upgrade and wor
   await ui.openPackage(); await ui.submit("A from the actual workbench");
   await ui.child.waitFor("document.body.innerText.includes('已记录')");
   assert.equal((await f.state(f.a)).progress_summary!.summary, "A from the actual workbench"); assert.deepEqual(await f.state(f.b), b0);
-  await ui.reload(); await ui.child.waitFor("!!document.querySelector('[data-field=text]')");
-  assert.ok((await ui.page.evaluate<string>(`document.querySelector('${ownerFrame}').src`)).includes(`/projects/${f.a.project_id}/plugins/`));
+  await ui.reload(); await ui.projectFrameReady();
   await ui.submit("A after refresh"); await ui.child.waitFor("document.body.innerText.includes('已记录')");
   assert.equal((await f.state(f.a)).progress_summary!.summary, "A after refresh");
   const caller: ActionCallContext = { actor_id: "reach-agent", audience: "agent", project_id: f.a.project_id, permissions: [] }, client = f.host.actionClient(f.a.reference);

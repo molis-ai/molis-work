@@ -44,6 +44,8 @@ test("PG062-05, PG062-06: Coding's routes answer its page with the model's words
     run("talk", "builder", [{ kind: "user", text: digest }, { kind: "user", text: "请看 **这里**" }, { kind: "assistant", text: answer }]),
     run("writers", "writers", [{ kind: "user", text: "分给两个子任务" }, { kind: "assistant", text: "正文里的 [retained assistant] 不算开头。" }]),
   ];
+  runs[0]!.turns.push({ turn_id: "peer", kind: "notice", text: "", notice: "peer-update", at: null },
+    { turn_id: "input", kind: "notice", text: "", notice: "subagent-input", at: null });
   const children = [{ subagent_id: "done", role_id: "writer", role_name: "子任务", state: "completed", task: "写测试", result: "子任务 **写好了**<img src=x onerror=bad()>", workspace_path: home },
     { subagent_id: "quiet", role_id: "writer", role_name: "子任务", state: "running", task: "等着", result: null, workspace_path: home }];
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: home, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
@@ -83,6 +85,13 @@ test("PG062-05, PG062-06: Coding's routes answer its page with the model's words
     const kept = page.runs.find(entry => entry.ref.run_id === "writers")!.turns!.at(-1)!;
     assert.equal(kept.html, renderRichText("正文里的 [retained assistant] 不算开头。"), "a label inside the answer stays");
 
+    // SAI-07: empty notices become readable in the page locale; action facts keep their machine-readable type.
+    for (const [locale, words] of [["zh", ["收到一条会话更新", "有人向这项子任务补充了输入"]], ["en", ["Conversation update received", "A person added input to this subtask"]]] as const) {
+      const notices = (await read<ReadBody>("", locale)).runs.find(entry => entry.ref.run_id === "talk")!.turns!.slice(-2);
+      assert.deepEqual(notices.map(turn => turn.text), words);
+      assert.deepEqual(notices.map(turn => turn.html), words.map(renderRichText));
+    }
+
     // PG062-06: a subagent's result and a round's report are drawn by Coding too.
     const [done, quiet] = page.subagents.find(group => group.run_id === "writers")!.children;
     assert.equal(done!.result_html, renderRichText(children[0]!.result));
@@ -107,6 +116,7 @@ test("PG062-05, PG062-06: Coding's routes answer its page with the model's words
     const plain = direct.runs.find(entry => entry.ref.run_id === "talk")!;
     assert.equal(plain.fingerprint, talk.fingerprint);
     assert.ok(plain.turns!.every(turn => turn.html === undefined));
+    assert.deepEqual(plain.turns!.slice(-2).map(turn => turn.text), ["", ""]);
     assert.ok(direct.subagents.every(group => group.children.every(child => child.result_html === undefined)));
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));

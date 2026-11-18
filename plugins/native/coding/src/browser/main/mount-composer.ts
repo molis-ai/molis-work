@@ -52,6 +52,7 @@ function mountRoundParts(page: Page) {
   refs.integrations = writerIntegration({ lifetime, translate: readText, q, api: s.ports.api, reviews: (box, workspace) => host.showReviews?.(box, [], null, workspace), status: s.ports.status });
   refs.stepReports = stepReports({ ...s.ports, prepareRework: reason => refs.plans.prepareStepRework(reason), receipts: host.receipts });
   refs.subagentCards = subagentCards({
+    openConversation: (session, run, child) => host.view.openTask({ session, run, child }),
     ...s.ports, timeline: refs.timeline, roleName: id => s.ROLE_NAMES[id] || id || "Agent", showReviews: (container, found, sid) => showReviews(page, container, found, sid),
     sessionId: () => s.runtimeSessionId, parentLive: run => !terminal(run.phase), prefill: text => prefill(page, text, true),
     openInPanel: childId => {

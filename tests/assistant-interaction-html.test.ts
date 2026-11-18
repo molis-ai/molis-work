@@ -15,6 +15,19 @@ import { pageText, withPageText } from "./fixtures/page-text.js";
 const optionTag = (html: string, field: string, value: string) => html.slice(html.indexOf(`data-ix-field="${field}"`)).match(new RegExp(`<button[^>]*data-ix-option="${value}"[^>]*>`))?.[0] ?? "";
 const say = pageText("zh");
 
+test("SAI-07: Assistant renders empty peer notices in its page language", () => {
+  for (const [locale, words] of [["zh", ["收到一条会话更新", "有人向这项子任务补充了输入"]], ["en", ["Conversation update received", "A person added input to this subtask"]]] as const) {
+    const shown = view("completed");
+    shown.rounds[0]!.turns = [
+      { turn_id: "peer", kind: "notice", text: "", notice: "peer-update", at: null },
+      { turn_id: "input", kind: "notice", text: "", notice: "subagent-input", at: null },
+      { turn_id: "report", kind: "notice", text: "Original report", at: null },
+    ];
+    drawAssistantReply({ view: shown }, { say: pageText(locale), drafts: () => ({}), card: () => "" });
+    assert.deepEqual(shown.rounds[0]!.turns.map(turn => turn.text), [...words, "Original report"]);
+  }
+});
+
 test("BL-360: Assistant review cards show only decisions the original owner still accepts", () => {
   const blocked = { available: false as const, code: "agent.review_not_permitted", reason: { owner: "workbench", key: "workbench.agent-review.authority-ended" } };
   const review = { review_id: "r", version: "v1", decisions: { approve: blocked, reject: { available: true as const } }, run_id: "run", kind: "change", summary: "保存页面", fields: [], requested_at: "", expires_at: null };

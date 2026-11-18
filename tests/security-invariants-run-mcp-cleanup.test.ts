@@ -92,7 +92,7 @@ test("APR-07/08/11: a real MCP pipe reuses an exact work authorization after res
   const open = async () => {
     const queue = new AgentReviewQueue();
     const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.run-mcp-permission", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), reviewQueue: queue,
-      checks: { holdMcpDirectory: async (project, path) => {
+      checks: { holdWorkspaceDirectory: async (project, path) => {
         assert.deepEqual([project, path], [owner.project_id, root]);
         const identity = directoryGeneration;
         const assertCurrent = () => {

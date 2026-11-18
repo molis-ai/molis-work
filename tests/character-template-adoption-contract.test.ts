@@ -28,7 +28,7 @@ const reuseProject = {
 
 test("SPC-C06: the public write admits only creation and the two observed reuse paths", () => {
   assert.deepEqual([fromTemplate.capability_id, fromTemplate.version, fromTemplate.operation, fromTemplate.action.scope, fromTemplate.action.audiences],
-    ["characters.from_template", 1, "command", "home", ["user"]]);
+    ["characters.from_template", 1, "command", "project", ["user"]]);
   const schema = fromTemplate.action.input_schema;
   for (const input of [create, { ...create, layer: "personal" }, reusePersonal, reuseProject]) assertActionInput(schema, input);
 
@@ -62,7 +62,7 @@ test("SPC-C06: creation reuses template semantics after localization and checks 
 
 test("SPC-C06: batch reads retain the fixed original and the old receipt when its member is detached", () => {
   assert.deepEqual([read.capability_id, read.version, read.operation, read.action.scope, read.action.audiences],
-    ["characters.roles.read", 1, "query", "home", ["user"]]);
+    ["characters.roles.read", 1, "query", "project", ["user"]]);
   const input: CharacterRoleReadInput = {
     queries: [{ by: "role", role: member }, { by: "request", layer: "project", request_id: request.request_id }],
   };

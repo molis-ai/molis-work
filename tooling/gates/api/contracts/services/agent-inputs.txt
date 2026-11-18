@@ -59,6 +59,7 @@ export interface AgentInputSend {
     source?: AgentInputSource;
     key?: string;
     mode?: AgentSteerMode;
+    require_running?: true;
     about?: string;
 }
 
@@ -94,7 +95,11 @@ export interface AgentInputWithdrawal {
 }
 
 export interface AgentInputsPort {
+    notify?(input: AgentSessionNotification, control: AgentSessionNotificationControl): Promise<{
+        notification_id: string;
+    }>;
     read?(ref: AgentInputRef): Promise<AgentInputOriginal | undefined>;
+    findByKey?(sessionId: string, key: string): Promise<AgentInputOriginal | undefined>;
     send(run: AgentRunRef, input: AgentInputSend, beforeQueue?: () => void): Promise<AgentSteerReceipt>;
     withdraw?(run: AgentRunRef, inputId: string, beforeWithdraw?: () => void): Promise<AgentInputWithdrawal>;
 }
@@ -131,6 +136,20 @@ export interface AgentQueuedInput {
 }
 
 export type AgentQueuedInputs = "carry" | "leave" | readonly string[];
+
+export interface AgentSessionNotification {
+    readonly from_session_id: string;
+    readonly to_session_id: string;
+    readonly key: string;
+    readonly text: string;
+}
+
+export interface AgentSessionNotificationControl extends AgentMemoryExecutionControl {
+    readonly actor_id: string;
+    readonly plugin_id: string;
+    readonly install_id: string;
+    readonly project_id: string;
+}
 
 export type AgentSteerMode = "next-boundary" | "interrupt" | "after-run";
 

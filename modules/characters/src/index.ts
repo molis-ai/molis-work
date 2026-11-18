@@ -4,7 +4,8 @@ export { charactersProjectData, purgeCharactersProject } from "./project-data.js
 export { createCharactersActionHandlers } from "./action-handlers.js";
 export { bindCharactersActions, characterCallGuard, type CharacterCallGuard } from "./action-bindings.js";
 export { CHARACTER_ACTION_PERMISSIONS, CHARACTERS_ACTIONS, charactersActions } from "./actions.js";
-export type { CharactersActionHandlers, CharactersActionPorts, CharactersActionRuntime, CharacterLaunchInput, CharacterUpdateInput } from "./action-handlers.js";
+export type { CharactersActionHandlers, CharactersActionPorts, CharactersActionRuntime, CharacterCreateInput, CharacterLaunchInput, CharacterUpdateInput } from "./action-handlers.js";
+export { CharacterRoles, projectLayerOf, stableRefOf } from "./roles.js";
 export type { CharactersAgentCatalog } from "./agent-actions.js";
 export type { CharacterLaunchControl, CharactersImportPorts, CharacterTerminalAttach } from "./imports.js";
 export type { CharacterNativeRun, CharacterRunRecord, CharacterRuns } from "./runs.js";

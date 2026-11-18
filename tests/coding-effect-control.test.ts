@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { LocalHost, LocalProjectDatabase, createPluginPlatform, homeStores, seedDemoBoard, DEMO_PROJECT_ID, hostDependencyCheck } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
-import { projectDirectories } from "./fixtures/plugin-actions.js";
+import { projectDirectories, withoutRoles } from "./fixtures/plugin-actions.js";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -31,6 +31,8 @@ for (const output of ["report", "changeset", "plan"] as const) for (const stop o
     // The plugin's actions and the Agent Host's are one directory, as in the product: the agent actions registered above are what Coding calls.
     const registry = local.actionRegistry(reference), client = { ...local.actionClient(reference), ...local.syncActionClient(reference) };
     local.registerAction(projectDirectoryActions.get, () => projectDirectories(DEMO_PROJECT_ID, [{ workspace_id: "work", canonical_path: home, display_name: "Fixture" }]));
+    // Coding asks Characters which role a new session's first round takes (batch 36); no role here, as before.
+    withoutRoles({ registry });
     const privateStorage = new SqlitePluginPrivateStorage(store.db), artifacts = new ArtifactsModule({ db: store.db, homeOwner: "web-user", appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
     const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
     const target = output === "report" ? "coding.reports.save" : output === "changeset" ? "coding.changesets.save" : "coding.plans.save";

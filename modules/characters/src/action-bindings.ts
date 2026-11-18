@@ -35,15 +35,26 @@ export function bindCharactersActions(actorId: string, handlersFor: (caller: Act
       if (!owner.available) throw new ActionError(owner.code, owner.reason);
       const guard = characterCallGuard(caller);
       if (definition.operation !== "query") await guard.beforeWrite();
-      return handle(handlersFor(caller, guard), input as I, guard);
+      const handlers = handlersFor(caller, guard);
+      try { return await handle(handlers, input as I, guard); } finally { handlers.dispose(); }
     } });
   const a = charactersActions;
   return [bindArtifactPreview(a.artifactPreview, CHARACTER_ARTIFACT_TYPE, characterArtifactMarkdown),
     own(a.searchEntries, (h, input) => h.searchEntries(input)),
     own(a.subject, (h, input) => h.subject(input)),
-    own(a.list, h => h.list()),
+    own(a.rolesList, h => h.rolesList()),
+    own(a.resolve, (h, input) => h.resolve(input)),
+    own(a.versions, (h, input) => h.versions(input)),
+    own(a.rolesRead, (h, input) => h.rolesRead(input)),
+    own(a.memberAdd, (h, input) => h.memberAdd(input)),
+    own(a.memberSave, (h, input) => h.memberSave(input)),
+    own(a.memberSection, (h, input) => h.memberSection(input)),
+    own(a.memberState, (h, input) => h.memberState(input)),
+    own(a.restore, (h, input) => h.restore(input)),
+    own(a.defaults, (h, input) => h.defaults(input)),
+    own(a.fromTemplate, (h, input) => h.fromTemplate(input)),
     own(a.actions, h => h.actions()),
-    own(a.create, h => h.create()),
+    own(a.create, (h, input) => h.create(input)),
     own(a.update, (h, input) => h.update(input)),
     own(a.state, (h, input, guard) => h.state(input, guard.beforeWrite)),
     own(a.publish, (h, input, guard) => h.publish(input, guard.beforeWrite)),
@@ -54,7 +65,6 @@ export function bindCharactersActions(actorId: string, handlersFor: (caller: Act
     own(a.draftFile, (h, input) => h.draftFile(input)),
     own(a.publicationFile, (h, input) => h.publicationFile(input)),
     own(a.execution, (h, input) => h.execution(input)),
-    own(a.runnable, (h, input) => h.runnable(input)),
     own(a.usages, (h, input) => h.usages(input)),
     own(a.kitReport, h => h.kitReport()),
     own(a.launch, (h, input, guard) => h.launch(input, { beforeStart: guard.beforeWrite, assert_current: guard.current })),

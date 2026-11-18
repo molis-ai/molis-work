@@ -1,3 +1,4 @@
+import type { AgentSubagentConversation } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInteractionClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { isTerminalAgentPhase, type AgentRunPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -32,6 +33,10 @@ type RoundsBody = { runs?: Array<CodingFollowUpRun & SkillFacts & { turns?: unkn
  * last, then the round card's own follow-ups; every step presses a control already on screen.
  */
 export async function codingInteractionHtml<T>(body: T, interaction: PluginInteractionClient | undefined, _locale: ActionLocale | undefined): Promise<T> {
+  const child = body as AgentSubagentConversation | undefined;
+  if (interaction && child?.child && Array.isArray(child.questions)) await Promise.all(child.questions.map(async question => {
+    Object.assign(question, { html: await interaction.questionHtml(question) });
+  }));
   const page = body as RoundsBody | undefined;
   if (!interaction || !Array.isArray(page?.runs)) return body;
   const say = codingText;

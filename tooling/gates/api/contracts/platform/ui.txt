@@ -959,6 +959,7 @@ export interface UiPageDialogs {
 export interface UiPageDrafts {
     read(key: string): Promise<string | null>;
     write(key: string, value: string | null): Promise<void>;
+    compareAndSwap(key: string, expected: string | null, value: string | null): Promise<boolean>;
 }
 
 export interface UiPageFiles<Element = unknown> {
@@ -1044,6 +1045,12 @@ export interface UiPageTerminal<Element = unknown> {
 }
 
 export interface UiPageView<Element = unknown> {
+    openTask(input: Readonly<Record<string, string>>): Promise<void>;
+    readonly task?: {
+        readonly input: Readonly<Record<string, string>>;
+        subscribe(listener: (input: Readonly<Record<string, string>>) => void): () => void;
+        close(): void;
+    };
     readDocument(query?: {
         object?: {
             id: string;

@@ -44,7 +44,7 @@ test("FI-6: Feed's Home reference ledger freezes its accepted v1 schema, with no
 for (const [name, baseline] of [...libraries.filter(([name]) => !WITHOUT_REAL_HOME_FIXTURE.includes(name) && name !== "plugin-runtime"), ["alchemist-search", ALCHEMIST_SEARCH_BASELINE] as const]) {
   // B10-R3: the Assistant stays at v1; observation is at v2; the memory ledger is at v3 (Memory P1), and agent-definitions at v3 (batch 42).
   test(`N41-PERSONAL-01 the ${name} store has its declared version and complete frozen schema`, () => {
-    assert.equal(baseline.version, name === "memory" || name === "agent-definitions" ? 3 : name === "observation" || name === "assistant" || name === "work-brief" ? 2 : 1);
+    assert.equal(baseline.version, name === "memory" || name === "agent-definitions" ? 3 : name === "observation" || name === "characters" || name === "assistant" || name === "work-brief" ? 2 : 1);
     const existing = shape(readFileSync(new URL(`./fixtures/home-store-schemas/${name}.sql`, import.meta.url), "utf8")), want = shape(baseline.schema);
     // RAC-2384: the fixture carries the complete current schema; no missing-table allowance remains.
     assert.deepEqual(want, existing, `${name}: complete frozen schema`);
@@ -165,7 +165,7 @@ test("the Characters store refuses tables without a version and a newer version,
   const unversioned = store("unversioned", "CREATE TABLE character_drafts (id TEXT PRIMARY KEY, body TEXT); INSERT INTO character_drafts VALUES ('old', '旧草稿');");
   assert.throws(() => openCharacters(unversioned, "actor"), mismatch);
   assert.deepEqual(state(unversioned), { version: 0, rows: 1 }, "the unversioned store keeps its row and is not stamped");
-  const missingTrigger = store("missing-trigger", CHARACTERS_STORE_BASELINE.schema + "DROP TRIGGER characters_sync_delete; PRAGMA user_version=1;");
+  const missingTrigger = store("missing-trigger", CHARACTERS_STORE_BASELINE.schema + `DROP TRIGGER characters_sync_delete; PRAGMA user_version=${CHARACTERS_STORE_BASELINE.version};`);
   assert.throws(() => openCharacters(missingTrigger,"actor"), {code:"storage.schema_structure_mismatch"});
   const refused = new DatabaseSync(join(missingTrigger,"characters","characters.sqlite"),{ readOnly:true });
   try { assert.equal(refused.prepare("SELECT 1 FROM sqlite_schema WHERE name='characters_sync_delete'").get(),undefined); } finally { refused.close(); }

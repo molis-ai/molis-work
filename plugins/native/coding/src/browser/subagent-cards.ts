@@ -4,6 +4,7 @@ import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { el, errorMessage, part } from "./dom.js";
 import type { Child } from "./subagents.js";
 import type { PagePorts, ShowReviews, TimelineApi, Translate } from "./types.js";
+import { subtaskDescription } from "./subtask-words.js";
 
 /** The run whose block the subagent cards sit under. */
 export interface CardsRun { readonly ref: { readonly run_id: string }; readonly phase: string }
@@ -18,6 +19,7 @@ export interface SubagentCardPorts extends PagePorts {
   readonly sessionId: () => string | null;
   /** Opens the results panel on the subagent. */
   readonly openInPanel: (id: string) => void;
+  readonly openConversation: (session: string, run: string, child: string) => Promise<void>;
   /** Whether the run can still be asked something through the supplemental channel. */
   readonly parentLive: (run: CardsRun) => boolean;
   /** Puts a request in the composer, sent only when the person chooses. */
@@ -68,8 +70,9 @@ function drawHead(ports: SubagentCardPorts, node: HTMLElement, child: Child) {
     tokens && (tokens.input || tokens.output) ? uiText.text("coding.card.usage", { tokens: format.number((tokens.input || 0) + (tokens.output || 0)) }) : "",
   ].filter(Boolean).join(" · ");
   const task = part(node, ".coding-child-task");
-  task.textContent = (child.task || "").trim().split("\n").find(line => line.trim()) || "";
-  task.title = child.task || "";
+  const description = subtaskDescription(child.task);
+  task.textContent = description.trim().split("\n").find(line => line.trim()) || "";
+  task.title = description;
 }
 
 /** The child's own timeline, drawn like the parent's: live while it runs, folded once it is done. */
@@ -146,7 +149,7 @@ function stopButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
     stop.disabled = true;
     const id = current();
     try {
-      await api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "stop" });
+      await api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "stop", request_id: crypto.randomUUID(), child_run: child.child_run });
       status(uiText.text("coding.card.stop-asked"));
     } catch (error) {
       if (!lifetime.alive) return;
@@ -213,7 +216,7 @@ function drawBudget(ports: SubagentCardPorts, node: HTMLElement, run: CardsRun, 
       extendBtn.disabled = true;
       const id = ports.current();
       try {
-        await ports.api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "extend-budget", extend_attempts: 3 });
+        await ports.api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "extend-budget", extend_attempts: 3, request_id: crypto.randomUUID(), child_run: child.child_run });
         ports.status(uiText.text("coding.card.budget-extended"));
       } catch (error) {
         if (!ports.lifetime.alive) return;
@@ -258,7 +261,7 @@ function retryButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
       retry.disabled = true;
       const id = current();
       try {
-        await api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "retry" });
+        await api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "retry", request_id: crypto.randomUUID(), child_run: child.child_run });
         status(uiText.text("coding.card.retry-asked"));
       } catch (error) {
         if (!lifetime.alive) return;
@@ -275,7 +278,8 @@ function retryButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
 
 /** The buttons a child in its state is offered, drawn again only when what they depend on changed. */
 function drawFoot(ports: SubagentCardPorts, node: HTMLElement, run: CardsRun, child: Child, edited: readonly string[]) {
-  const foot = part(node, ".coding-child-foot"), key = JSON.stringify([child.state, child.verdict?.status, child.integration_available, edited.length > 0, child.budget?.attempt, child.budget?.max_attempts, child.budget?.exhausted]);
+  const session = ports.current();
+  const foot = part(node, ".coding-child-foot"), key = JSON.stringify([session, run.ref.run_id, child.state, child.verdict?.status, child.integration_available, edited.length > 0, child.budget?.attempt, child.budget?.max_attempts, child.budget?.exhausted]);
   if (foot.dataset.key === key) return;
   foot.dataset.key = key;
   foot.replaceChildren();
@@ -283,6 +287,10 @@ function drawFoot(ports: SubagentCardPorts, node: HTMLElement, run: CardsRun, ch
     ports.lifetime.listen(made.node, "click", made.action);
     foot.append(made.node);
   };
+  const conversation = button(uiText.text("coding.subtask.open"), () => ports.openConversation(session, run.ref.run_id, child.subagent_id).catch(error => ports.status(errorMessage(error), true)));
+  conversation.node.dataset.codingChildConversation = child.subagent_id;
+  conversation.node.id = "coding-child-card-" + encodeURIComponent(JSON.stringify([session, run.ref.run_id, child.subagent_id]));
+  add(conversation);
   if (child.state === "running") add(stopButton(ports, run, child));
   if (child.state === "completed") add(button(child.integration_available ? uiText.text("coding.card.judge-integrate") : uiText.text("coding.card.judge"), () => ports.openInPanel(child.subagent_id)));
   const ended = ["failed", "cancelled"].includes(child.state);

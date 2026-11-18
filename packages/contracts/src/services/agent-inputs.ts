@@ -1,6 +1,6 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ActionDefinition } from "../platform/actions.js";
-import type { AgentRunRef } from "./agent-host.js";
+import type { AgentRunRef, AgentMemoryExecutionControl } from "./agent-host.js";
 
 /**
  * What a person, or the Host on their behalf, tells a running Agent round, and what the round's runtime says became of
@@ -71,6 +71,8 @@ export interface AgentInputSend {
   key?: string;
   /** `next-boundary` when absent. */
   mode?: AgentSteerMode;
+  /** Refuse an ended Run, including a race at admission; never queue for a later Run. */
+  require_running?: true;
   /**
    * The earlier input of this session this one is about, by its id: a correction, or a new target for it (§4.6). The
    * runtime keeps it on its ledger without reading anything into it; what changes is in the text, the person's own words.
@@ -111,14 +113,32 @@ export interface AgentQueuedInput {
   left_by?: { run_id: string; applied: boolean };
 }
 
+/** Trusted Host report between two of its own Sessions. It is context data, never a person input or permission. */
+export interface AgentSessionNotification {
+  readonly from_session_id: string;
+  readonly to_session_id: string;
+  readonly key: string;
+  readonly text: string;
+}
+export interface AgentSessionNotificationControl extends AgentMemoryExecutionControl {
+  readonly actor_id: string;
+  readonly plugin_id: string;
+  readonly install_id: string;
+  readonly project_id: string;
+}
+
 /**
  * The runtime's side. `beforeQueue` runs right before each handoff: to a live round, and again before keeping it in the
  * session when the round ended. `beforeWithdraw` runs right before the round or session is asked to give one back. The caller checks
  * there that it may still write.
  */
 export interface AgentInputsPort {
+  /** Host only. Persist at the original Session; a live boundary consumes it, or a later explicit Run. Never starts. */
+  notify?(input: AgentSessionNotification, control: AgentSessionNotificationControl): Promise<{ notification_id: string }>;
   /** Exact owner lookup. Current withdrawal wins over any old Run receipt; missing history remains unknown. */
   read?(ref: AgentInputRef): Promise<AgentInputOriginal | undefined>;
+  /** Original input owner lookup by the caller's retained key; never sends or starts. */
+  findByKey?(sessionId: string, key: string): Promise<AgentInputOriginal | undefined>;
   send(run: AgentRunRef, input: AgentInputSend, beforeQueue?: () => void): Promise<AgentSteerReceipt>;
   /** Takes a supplement back before the model saw it; absent where the runtime cannot. */
   withdraw?(run: AgentRunRef, inputId: string, beforeWithdraw?: () => void): Promise<AgentInputWithdrawal>;
@@ -205,7 +225,7 @@ export const agentInputActions = {
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id", "session_id", "run_id", "text"], additionalProperties: false, properties: {
         runtime_id: id, session_id: id, run_id: id, text: { type: "string", minLength: 1, maxLength: 100_000, pattern: "\\S" },
-        source: { enum: [...AGENT_INPUT_SOURCES] }, key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN }, mode: { enum: [...AGENT_STEER_MODES] }, about: id } },
+        source: { enum: [...AGENT_INPUT_SOURCES] }, key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN }, mode: { enum: [...AGENT_STEER_MODES] }, require_running: { const: true }, about: id } },
       output_schema: { type: "object", required: ["input_id", "replayed", "delivered"], additionalProperties: false, properties: {
         input_id: { type: "string" }, replayed: { type: "boolean" }, delivered: { enum: ["run", "queued"] } } } },
   } as ActionDefinition<AgentInputSendRequest, AgentSteerReceipt>,

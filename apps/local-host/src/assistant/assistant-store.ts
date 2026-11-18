@@ -133,6 +133,18 @@ interface StoredUndo extends AssistantUndoable {
 /** A notice as stored: the public facts plus whether the person still has to see it. */
 interface StoredNotice extends Omit<AssistantNotice, "held"> { state: "new" | "seen" | "dismissed" | "resolved" }
 
+/** Reads original notice receipts regardless of whether the person has already handled them. */
+function assistantNoticeReceipts(db: DatabaseSync) {
+  return {
+    has(actorId: string, dedupe: string): boolean {
+      return db.prepare("SELECT 1 FROM assistant_notices WHERE actor_id=? AND dedupe=?").get(actorId, dedupe) !== undefined;
+    },
+    keysOfKind(actorId: string, kind: StoredNotice["kind"]): ReadonlySet<string> {
+      return new Set(db.prepare("SELECT dedupe FROM assistant_notices WHERE actor_id=? AND kind=?").all(actorId, kind).map(row => String(row.dedupe)));
+    },
+  };
+}
+
 export interface StoredRound {
   run_id: string;
   /** Set for a round run in the work's plugin session; the others ran in the Assistant's own session. */
@@ -195,6 +207,7 @@ export class AssistantStore {
   readonly followUps: AssistantFollowUpRecords;
   /** The state the Host last saw each work in. */
   readonly observed: AssistantObservedStates;
+  readonly noticeReceipts: ReturnType<typeof assistantNoticeReceipts>;
 
   /** Who hears that a work's stored facts changed (record, rounds, cards, follow-ups, jobs, undos, usage): the page's wait. */
   readonly #changes = new Set<(workId: string) => void>();
@@ -208,6 +221,7 @@ export class AssistantStore {
     this.usage = new AssistantUsageLedger(db);
     this.followUps = new AssistantFollowUpRecords(db, workId => this.#changed(workId));
     this.observed = new AssistantObservedStates(db);
+    this.noticeReceipts = assistantNoticeReceipts(db);
     this.policies = new AssistantActionPolicies(db, (actorId, key, value) => this.setSetting(actorId, key, value));
   }
 
@@ -242,10 +256,10 @@ export class AssistantStore {
     return work.executor ? work : { ...work, executor: { kind: "assistant" } };
   }
 
-  list(actorId: string, options: { archived?: boolean | "any"; limit?: number } = {}): StoredWork[] {
+  list(actorId: string, options: { archived?: boolean | "any"; limit?: number; root_graph_id?: string } = {}): StoredWork[] {
     const [low, high] = options.archived === "any" ? [0, 1] : options.archived ? [1, 1] : [0, 0];
-    return this.db.prepare("SELECT body FROM assistant_works WHERE actor_id=? AND archived BETWEEN ? AND ? ORDER BY updated_at DESC LIMIT ?")
-      .all(actorId, low, high, options.limit ?? 50).map(row => JSON.parse(String(row.body)) as StoredWork)
+    return this.db.prepare("SELECT body FROM assistant_works WHERE actor_id=? AND archived BETWEEN ? AND ? AND (? IS NULL OR (json_extract(body,'$.graph_id')=? AND json_extract(body,'$.delegated_by') IS NULL)) ORDER BY updated_at DESC LIMIT ?")
+      .all(actorId, low, high, options.root_graph_id ?? null, options.root_graph_id ?? null, options.limit ?? 50).map(row => JSON.parse(String(row.body)) as StoredWork)
       .map(work => work.executor ? work : { ...work, executor: { kind: "assistant" as const } });
   }
 
@@ -326,11 +340,6 @@ export class AssistantStore {
       .run(stored.notice_id, actorId, stored.work_id, stored.kind, stored.state, dedupe, stored.created_at, JSON.stringify(stored)).changes;
     if (changed) attentionChanged(null);
     return changed ? stored : null;
-  }
-
-  /** Whether a notice was raised under `dedupe`, whatever became of it since. */
-  noticeRaised(actorId: string, dedupe: string): boolean {
-    return this.db.prepare("SELECT 1 FROM assistant_notices WHERE actor_id=? AND dedupe=?").get(actorId, dedupe) !== undefined;
   }
 
   openNotices(actorId: string): StoredNotice[] {

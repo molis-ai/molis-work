@@ -23,7 +23,7 @@ export interface ActionCard {
         question: string;
     }>;
     status: ActionCardStatus;
-    outcome?: OwnedTextRef;
+    outcome?: string;
     presentation?: ActionResultPresentation;
     request_id?: string;
     target?: {
@@ -282,6 +282,7 @@ export declare const PAGE_ROUTE_LIMITS: Readonly<{
 }>;
 
 export { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+export { PLACEMENT_RELATION_LIMITS } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare const PLUGIN_ID: RegExp;
 
@@ -318,6 +319,12 @@ export interface PageRouteMatch {
     };
 }
 
+export type { PlacementRelationCandidates } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { PlacementRelationCreateInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { PlacementRelationOptions } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { PlacementRelationResult } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { PlacementRelationSubjectInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { PlacementRelationTargetInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PlacementResult } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PluginActionClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginActionDirectory } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -643,6 +650,13 @@ export type { WorkExecutorRole } from "@molis-ai/molis-work-contracts/platform/a
 export type { WorkExecutorRunControl } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkExecutorSession } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkExecutorState } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkItemCreateInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkItemCreateResult } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkItemNextInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkItemNextResult } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkItemNextStep } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkItemRelatedInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkItemRelatedResult } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function actionCardView(card: ActionCard & {
     readonly run_id?: string | null;
@@ -780,9 +794,13 @@ export { defineFileContentAction } from "@molis-ai/molis-work-contracts/platform
 export { defineFileEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFragmentOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineInstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+export { defineItemCreateAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineItemNextAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineItemRelatedAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineKitReportAction } from "@molis-ai/molis-work-contracts/platform/kit-report";
 export { defineObjectCopyAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineObjectMoveAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { definePlacementRelationAction } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function definePlugin(definition: PluginDefinition): PluginDefinition;
 

@@ -134,7 +134,7 @@ export class AssistantJobs {
   async #ended(at: { graph_id: string; node_id: string }): Promise<void> {
     const work = this.#follower(at.graph_id, at.node_id), told = `job:${at.graph_id}:${at.node_id}`;
     // Heard again at every start: one already told, with no card still waiting on it, needs nothing read.
-    if (!work || this.ports.store.noticeRaised(this.ports.actorId, told) && !this.ports.store.cards(work.work_id).some(card => card.status === "running" && card.job_step?.node_id === at.node_id)) return;
+    if (!work || this.ports.store.noticeReceipts.has(this.ports.actorId, told) && !this.ports.store.cards(work.work_id).some(card => card.status === "running" && card.job_step?.node_id === at.node_id)) return;
     const step = (await this.#steps(at.graph_id)).find(node => node.node_id === at.node_id);
     if (!step?.job.ended) return;
     const text = assistantWords(`workbench.assistant-job.${step.job.ended}`, { title: step.title });

@@ -1,12 +1,13 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 
-const uiText = globalThis.t;
 
 /** The page's one request helper (packages/ui-host request-client): control headers, one origin, plain Errors with `code`. */
 export const pageRequest = (): UiRequest => molisWorkRequest;
 
 export type Method = "GET" | "POST" | "PUT";
+/** A failure the page answers in place: someone changed the role elsewhere since it was read. */
+export const isConflict = (error: unknown): boolean => typeof error === "object" && error !== null && "code" in error && error.code === "characters.conflict";
 /** One Characters request: the page's API prefix is already applied; a failure says `角色请求失败` unless the answer explains itself. */
 export type CharacterRequest = <T>(method: Method, path: string, body?: unknown) => Promise<T>;
 /** `[data-character-<name>]` in the page, or null when the markup lacks it. */
@@ -50,8 +51,6 @@ export interface CharacterContent {
 export interface CharacterRecord extends CharacterContent {
   character_id: string; revision: number; state: CharacterState; import_snapshot?: ImportSnapshot;
 }
-/** An unsaved edit kept in this window's session storage. */
-export interface StoredDraft extends CharacterContent { expected_revision: number }
 
 export interface PublicationPayload extends CharacterContent {
   character_id: string; source: { draft_revision: number }; import_snapshot?: ImportSnapshot;
@@ -87,25 +86,4 @@ export function chevron(): SVGSVGElement {
   use.setAttribute("href", "#icon-chevron-right");
   mark.append(use);
   return mark;
-}
-
-/** The first line of a text that has any characters. */
-export const firstLine = (text: string | null | undefined): string => String(text || "").split("\n").map(line => line.trim()).find(Boolean) || "";
-
-/** The newest active published version of a Character, if it has one. */
-export const latestActive = (publications: CharacterPublication[], characterId: string): CharacterPublication | undefined =>
-  publications.filter(item => item.payload?.character_id === characterId && item.lifecycle_state === "active").sort((a, b) => b.version - a.version)[0];
-
-/** Every published version of a Character, newest first. */
-export const versionsOf = (publications: CharacterPublication[], characterId: string | null): CharacterPublication[] =>
-  publications.filter(record => record.payload?.character_id === characterId).sort((a, b) => b.version - a.version);
-
-/** The fixed text of a Character as the person reads it before and after publishing. */
-export function readableContent(content: CharacterContent, describeActions: (tools: ActionRef[] | null | undefined) => string): Node[] {
-  const tools = content.host_tools === null ? uiText.text("workbench.characters.inherit-caller") : content.host_tools.join(", ") || uiText.text("workbench.characters.no-builtins");
-  const authored = el("span", content.instructions); authored.translate = false;
-  const names = el("span", tools); names.translate = Boolean(!content.host_tools?.length);
-  const actions = el("span", describeActions(content.action_tools)); actions.translate = !content.action_tools?.length;
-  return [authored, document.createTextNode("\n\n"), el("span", uiText.text("workbench.characters.tools-label")), names,
-    document.createTextNode("\n"), el("span", uiText.text("workbench.characters.actions-label")), actions];
 }

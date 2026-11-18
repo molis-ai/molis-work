@@ -15,13 +15,7 @@ const WRITING_TOOLS = new Set(AGENT_TOOLS.filter(tool => tool.writes).map(tool =
 /** Hold the original work selection for one round, with a synchronous invalidation even during start. */
 export async function bindWorkDelegation(store: WorkDelegationStore, input: PrologueStartInput, owner: SessionIndex["owner"]) {
   if (!input.delegation) return undefined;
-  const { subject, session_owner_id: sessionOwner } = input.delegation;
-  const { executor } = subject;
-  if (subject.kind !== "work" || subject.actor_id !== owner.actor_id || sessionOwner !== owner.project_id
-    || subject.project_id !== null && subject.project_id !== sessionOwner
-    || executor.plugin_id !== owner.plugin_id || executor.install_id !== owner.install_id || executor.role_id !== input.character.id) {
-    throw agentErrors.delegation_invalid("工作授权与原会话及角色不一致");
-  }
+  const subject = assertWorkOwner(input.delegation, input.character.id, owner);
   const startControl = {
     beforeEffect: async () => { await input.beforeStart?.(); requireSynchronous(input.assertBeforeStart?.()); },
     assertCurrent: () => { requireSynchronous(input.assertBeforeStart?.()); },
@@ -29,6 +23,26 @@ export async function bindWorkDelegation(store: WorkDelegationStore, input: Prol
   await store.ensureWork(subject, startControl);
   const permission = await store.permission(subject);
   startControl.assertCurrent(); permission.assertCurrent();
+  return createWorkDelegation(store, permission);
+}
+
+function assertWorkOwner(delegation: NonNullable<PrologueStartInput["delegation"]>, roleId: string, owner: SessionIndex["owner"]) {
+  const { subject, session_owner_id: sessionOwner } = delegation;
+  const { executor } = subject;
+  if (subject.kind !== "work" || subject.actor_id !== owner.actor_id || sessionOwner !== owner.project_id
+    || subject.project_id !== null && subject.project_id !== sessionOwner
+    || executor.plugin_id !== owner.plugin_id || executor.install_id !== owner.install_id || executor.role_id !== roleId) {
+    throw agentErrors.delegation_invalid("工作授权与原会话及角色不一致");
+  }
+  return subject;
+}
+
+/** An explicit child continuation takes the current original Work permission; it cannot create or reopen a grant. */
+export async function bindExistingWorkDelegation(store: WorkDelegationStore, delegation: PrologueStartInput["delegation"], roleId: string, owner: SessionIndex["owner"]) {
+  if (!delegation) return undefined;
+  const subject = assertWorkOwner(delegation, roleId, owner);
+  const permission = await store.permission(subject);
+  permission.assertCurrent();
   return createWorkDelegation(store, permission);
 }
 

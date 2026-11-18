@@ -63,6 +63,16 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
   if (!await browser.evaluate("document.querySelector('.assistant-subtask-name').getBoundingClientRect().width > 0")) await browser.click("[data-assistant-side-toggle]");
   await browser.evaluate(`(() => { const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.value='main draft stays';input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
   if (place === "home" && source === "sdk") {
+    // B59-FIX-03: an unchanged Assistant wait does not project the original question and review widgets again.
+    const sdkTasks = current?.sdk_subtasks;
+    assert.ok(sdkTasks && "children" in sdkTasks && sdkTasks.children[0]?.state === "completed");
+    const child = sdkTasks.children[0]!;
+    const waitPath = base + "/works/" + sent.work.work_id + "/sdk-subtasks/" + child.parent_run.run_id + "/" + child.subagent_id + "/wait?timeout=0";
+    const wait = (suffix = "") => browser.evaluate<{ version: string; conversation?: unknown }>(`fetch(${JSON.stringify(waitPath + suffix)}).then(r=>r.json())`);
+    const first = await wait();
+    assert.ok(first.version && first.conversation);
+    assert.deepEqual(await wait("&since=" + encodeURIComponent(first.version)), { version: first.version });
+
     // SAI-04/11: the first load is still pending when its parent is closed; a late error cannot reopen it.
     const held = Promise.withResolvers<{ requestId: string; session: string | undefined }>();
     const off = browser.on("Fetch.requestPaused", (event, session) => held.resolve({ requestId: String(event.requestId), session }));

@@ -55,13 +55,13 @@ export function installAssistantSubtasks(factories: AssistantSubtaskReviewFactor
       type SdkView = { conversation: AgentSubagentConversation; parent_title: string; scope: AssistantScope; has_reviews: boolean };
       const present = (target: string, { conversation, parent_title, scope, has_reviews }: SdkView) => ({
         conversation, parent: { target: "", title: parent_title },
-        details: [...questions.remember(target, JSON.stringify(conversation.child.child_run), conversation.questions), ...reviews.rememberSdk(target, scope, conversation, has_reviews)],
+        get details() { return [...questions.remember(target, JSON.stringify(conversation.child.child_run), conversation.questions), ...reviews.rememberSdk(target, scope, conversation, has_reviews)]; },
       });
       const sdk = createAgentSubtaskSource({ drafts, labels: assistantComposerLabels(t.text, /Mac/i.test(navigator.platform)), text: say,
         read: async (target, signal) => present(target, await api<SdkView>(sdkPath(target), undefined, signal)),
         async wait(target, since, signal) {
-          const result = await api<SdkView & { version: string }>(sdkPath(target) + "/wait?" + new URLSearchParams(since ? { since } : {}), undefined, signal);
-          return { version: result.version, snapshot: present(target, result) };
+          const result = await api<{ version: string } & (SdkView | { conversation?: never })>(sdkPath(target) + "/wait?" + new URLSearchParams(since ? { since } : {}), undefined, signal);
+          return { version: result.version, snapshot: result.conversation ? present(target, result) : undefined };
         },
         command: (target, command, signal) => api<AgentSubagentRequestResult>(sdkPath(target), command, signal),
         check: (target, requestId, signal) => api<AgentSubagentRequestResult>(sdkPath(target) + "/requests/" + encodeURIComponent(requestId), undefined, signal),

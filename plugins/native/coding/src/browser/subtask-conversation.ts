@@ -26,7 +26,7 @@ export function mountCodingSubtask(host: CodingWorkbenchHost): void {
   const questions = createSubtaskQuestions({ drafts: host.drafts, interaction: host.interaction, text: say });
   const present = (target: string, conversation: AgentSubagentConversation) => ({
     conversation, parent: { target: "", title: say("parent") },
-    details: [...questions.remember(target, JSON.stringify(conversation.child.child_run), conversation.questions), ...(conversation.approvals.length ? [{ id: "approvals:" + JSON.stringify(conversation.approvals), title: say("approvals"), content: { text: "" }, expanded: true }] : [])],
+    get details() { return [...questions.remember(target, JSON.stringify(conversation.child.child_run), conversation.questions), ...(conversation.approvals.length ? [{ id: "approvals:" + JSON.stringify(conversation.approvals), title: say("approvals"), content: { text: "" }, expanded: true }] : [])]; },
   });
   const source = createAgentSubtaskSource({
     drafts: host.drafts, labels: codingComposerLabels(t.text, /Mac/i.test(navigator.platform)), text: say,

@@ -33,33 +33,34 @@ export function assistantWorkSubtaskSource(api: AssistantSubtaskRequest, storage
     adapters.set(target, adapter); return adapter;
   };
   const check = async (target: string, requestId: string, signal: AbortSignal): Promise<SubtaskActionOutcome> => {
+    const record = pending(target), local = record.checkUnsent(requestId);
+    if (local) return local;
     const again = () => check(target, requestId, new AbortController().signal);
     try {
       const found = await api<{ state: "applied" | "unknown" }>(pathOf(target) + "/subtask/requests/" + encodeURIComponent(requestId), undefined, signal);
       if (found.state === "unknown") return { state: "unknown", check: again };
-      await pending(target).settle(requestId, true); return { state: "applied" };
+      await record.settle(requestId, true); return { state: "applied" };
     } catch { return { state: "unknown", check: again }; }
   };
   const perform = async (view: MwSubtaskConversationView, requestId: string, kind: "input" | "action", signal: AbortSignal, operation: () => Promise<unknown>, action?: { id: string; ref: string }): Promise<SubtaskActionOutcome> => {
-    try { await pending(view.target).begin(requestId, kind, view.binding, undefined, { action,
+    const record = pending(view.target), cancel = () => record.cancelUnsent(requestId, say("action-failed"));
+    try { await record.begin(requestId, kind, view.binding, undefined, { action, signal,
       alongside: kept => (kept.action?.id === "answer" || kept.action?.id === "resume-answer") && (kept.binding !== view.binding || kept.action.id === "answer" && action?.id === "resume-answer" && kept.action.ref === action.ref),
     }); } catch (error) {
       if (error instanceof Error && error.name === "SubtaskPendingConflict") return { state: "not-applied", reason: say("unknown") };
+      if (signal.aborted) return cancel();
       throw error;
     }
-    if (signal.aborted) {
-      await pending(view.target).settle(requestId, false);
-      return { state: "not-applied", reason: say("action-failed") };
-    }
+    if (signal.aborted) return cancel();
     try { await operation(); }
     catch (error) {
       const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
       if (!code || code === UI_HOST_CLIENT_CODES.outcomeUnknown || code === "assistant.pending_request") return check(view.target, requestId, new AbortController().signal);
-      await pending(view.target).settle(requestId, false);
+      await record.settle(requestId, false);
       const errors = (error as { details?: { errors?: Record<string, string> } })?.details?.errors;
       return { state: "not-applied", reason: error instanceof Error ? error.message : say("action-failed"), ...(errors ? { errors } : {}) };
     }
-    try { await pending(view.target).settle(requestId, true); return { state: "applied" }; }
+    try { await record.settle(requestId, true); return { state: "applied" }; }
     catch { return { state: "unknown", check: () => check(view.target, requestId, new AbortController().signal) }; }
   };
   const source: SubtaskConversationSource & { flush(): Promise<void> } = {

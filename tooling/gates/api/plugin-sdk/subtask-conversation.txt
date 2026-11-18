@@ -14,10 +14,7 @@ export interface AgentSubtaskSourcePorts {
     }>;
     check(target: string, requestId: string, signal: AbortSignal): Promise<AgentSubagentRequestResult>;
     subscribe?: SubtaskConversationSource["subscribe"];
-    wait?(target: string, since: string | null, signal: AbortSignal): Promise<{
-        version: string;
-        snapshot: AgentSubtaskRead;
-    }>;
+    wait?(target: string, since: string | null, signal: AbortSignal): Promise<AgentSubtaskWait>;
     action?: SubtaskConversationSource["act"];
 }
 
@@ -119,8 +116,11 @@ export declare function subtaskDraft(store: UiPageDrafts, target: string): {
     begin(requestId: string, kind: SubtaskPending["kind"], binding: string, text?: string, options?: {
         action?: SubtaskPending["action"];
         alongside?(pending: SubtaskPending): boolean;
+        signal?: AbortSignal;
     }): Promise<void>;
-    settle(requestId: string, accepted: boolean): Promise<void>;
+    settle: (requestId: string, accepted: boolean) => Promise<void>;
+    cancelUnsent: (requestId: string, reason: string) => Promise<SubtaskActionOutcome>;
+    checkUnsent(requestId: string): Promise<SubtaskActionOutcome> | undefined;
 };
 
 // Declarations the exports above refer to, which no entry exports itself:
@@ -130,6 +130,11 @@ type AgentSubtaskRead = {
     parent: MwSubtaskLink;
     children?: MwSubtaskLink[];
     details?: MwSubtaskDetail[];
+};
+
+type AgentSubtaskWait = {
+    version: string;
+    snapshot?: AgentSubtaskRead;
 };
 
 type DrawnQuestion = AgentPendingQuestion & {

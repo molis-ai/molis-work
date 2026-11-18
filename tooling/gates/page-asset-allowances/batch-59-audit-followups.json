@@ -2,7 +2,7 @@
   "reason": "第 59 批合后修复复用已加载的助理子任务和 Coding 脚本，接入加额动作、关窗回执结算和订阅投影。文案沿用现有词包。",
   "review": "specs/subagent-interaction/spec.md §13，B59-FIX-01 至 03 的隔离 Home 回归与实际资源复验。",
   "assets": {
-    "/assets/molis-work-assistant-subtasks.js": 980,
-    "/assets/molis-work-plugins/coding.js": 668
+    "/assets/molis-work-assistant-subtasks.js": 1694,
+    "/assets/molis-work-plugins/coding.js": 1319
   }
 }

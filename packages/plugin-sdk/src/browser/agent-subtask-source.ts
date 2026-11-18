@@ -7,6 +7,8 @@ import { subtaskDraft } from "./subtask-draft.js";
 import { subscribeSubtask } from "./subtask-watch.js";
 
 type AgentSubtaskRead = { conversation: AgentSubagentConversation; parent: MwSubtaskLink; children?: MwSubtaskLink[]; details?: MwSubtaskDetail[] };
+type AgentSubtaskWait = { version: string; snapshot?: AgentSubtaskRead };
+type WatchedSubtask = { target: string; readEpoch: number; snapshot?: AgentSubtaskRead };
 
 export interface AgentSubtaskSourcePorts {
   drafts: UiPageDrafts;
@@ -17,8 +19,8 @@ export interface AgentSubtaskSourcePorts {
   command(target: string, command: AgentSubagentCommand, signal: AbortSignal): Promise<AgentSubagentRequestResult & { details?: { errors?: Record<string, string> } }>;
   check(target: string, requestId: string, signal: AbortSignal): Promise<AgentSubagentRequestResult>;
   subscribe?: SubtaskConversationSource["subscribe"];
-  /** A versioned wait that already returns the projection used by read. The visible subscription consumes it once. */
-  wait?(target: string, since: string | null, signal: AbortSignal): Promise<{ version: string; snapshot: AgentSubtaskRead }>;
+  /** A versioned wait may include the read projection. An unchanged heartbeat can return only its version. */
+  wait?(target: string, since: string | null, signal: AbortSignal): Promise<AgentSubtaskWait>;
   /** Questions, approvals and result tools remain the owner's existing actions. */
   action?: SubtaskConversationSource["act"];
 }
@@ -26,17 +28,37 @@ export interface AgentSubtaskSourcePorts {
 /** Maps the public Host projection to the common UI. Original history, authority and execution admission remain with the Host. */
 export function createAgentSubtaskSource(ports: AgentSubtaskSourcePorts): SubtaskConversationSource & { flush(): Promise<void> } {
   const drafts = new Map<string, ReturnType<typeof subtaskDraft>>(), armed = new Set<string>();
-  const snapshots = new WeakMap<AbortSignal, { target: string; snapshot: AgentSubtaskRead }>();
+  const watches = new WeakMap<AbortSignal, WatchedSubtask>();
   const wait = ports.wait;
   const subscribe: SubtaskConversationSource["subscribe"] = wait ? (target, invalidate, signal) => {
-    const retain = ({ snapshot }: { snapshot: AgentSubtaskRead }) => snapshots.set(signal, { target, snapshot });
-    return subscribeSubtask<{ version: string; snapshot: AgentSubtaskRead }>((since, current) => wait(target, since, current), update => {
-      if (update) retain(update); else snapshots.delete(signal);
+    const watch: WatchedSubtask = { target, readEpoch: 0 };
+    watches.set(signal, watch);
+    const retain = (update?: AgentSubtaskWait & { readEpoch: number }) => {
+      watch.snapshot = update?.readEpoch === watch.readEpoch ? update.snapshot : undefined;
+    };
+    return subscribeSubtask<AgentSubtaskWait & { readEpoch: number }>(async (since, current) => {
+      const readEpoch = watch.readEpoch;
+      return { ...await wait(target, since, current), readEpoch };
+    }, update => {
+      retain(update);
       invalidate();
     }, signal, retain);
   } : ports.subscribe;
+  const readProjection = async (target: string, signal: AbortSignal) => {
+    const watch = watches.get(signal);
+    if (watch?.target !== target) return ports.read(target, signal);
+    const snapshot = watch.snapshot;
+    watch.snapshot = undefined;
+    if (snapshot) return snapshot;
+    // Opaque owner versions do not order a wait against a direct read that overlaps it.
+    watch.readEpoch++;
+    try { return await ports.read(target, signal); }
+    finally { watch.readEpoch++; watch.snapshot = undefined; }
+  };
   const draft = (target: string) => { let one = drafts.get(target); if (!one) { one = subtaskDraft(ports.drafts, target); drafts.set(target, one); } return one; };
   const check = async (target: string, requestId: string, signal: AbortSignal): Promise<SubtaskActionOutcome> => {
+    const local = draft(target).checkUnsent(requestId);
+    if (local) return local;
     let result: AgentSubagentRequestResult;
     try { result = await ports.check(target, requestId, signal); } catch { result = { state: "unknown" }; }
     if (result.state === "unknown") return { state: "unknown", check: () => check(target, requestId, new AbortController().signal) };
@@ -45,23 +67,25 @@ export function createAgentSubtaskSource(ports: AgentSubtaskSourcePorts): Subtas
   };
   const command = async (view: MwSubtaskConversationView, input: AgentSubagentCommand, signal: AbortSignal): Promise<SubtaskActionOutcome> => {
     const answerRef = "pending_id" in input ? JSON.stringify([input.pending_id, input.pending_revision]) : undefined;
+    const saved = draft(view.target);
+    const cancel = () => saved.cancelUnsent(input.request_id, ports.text("action-failed"));
     try {
-      await draft(view.target).begin(input.request_id, input.kind === "send" || input.kind === "continue" ? "input" : "action", view.binding,
+      await saved.begin(input.request_id, input.kind === "send" || input.kind === "continue" ? "input" : "action", view.binding,
         input.kind === "send" || input.kind === "continue" ? input.text : undefined, {
           ...(answerRef ? { action: { id: input.kind, ref: answerRef } } : {}),
           alongside: pending => (pending.action?.id === "answer" || pending.action?.id === "resume-answer") && (pending.binding !== view.binding || pending.action.id === "answer" && input.kind === "resume-answer" && pending.action.ref === answerRef),
+          signal,
         });
     } catch (error) {
       if (error instanceof Error && error.name === "SubtaskPendingConflict") return { state: "not-applied", reason: ports.text("unknown") };
+      if (signal.aborted) return cancel();
       throw error;
     }
+    if (signal.aborted) return cancel();
     let result: Awaited<ReturnType<AgentSubtaskSourcePorts["command"]>>;
-    if (signal.aborted) result = { state: "not-applied", reason: ports.text("action-failed") };
-    else {
-      try { result = await ports.command(view.target, input, signal); } catch { return check(view.target, input.request_id, new AbortController().signal); }
-    }
+    try { result = await ports.command(view.target, input, signal); } catch { return check(view.target, input.request_id, new AbortController().signal); }
     if (result.state === "unknown") return { state: "unknown", check: () => check(view.target, input.request_id, new AbortController().signal) };
-    try { await draft(view.target).settle(input.request_id, result.state === "applied"); } catch { return { state: "unknown", check: () => check(view.target, input.request_id, new AbortController().signal) }; }
+    try { await saved.settle(input.request_id, result.state === "applied"); } catch { return { state: "unknown", check: () => check(view.target, input.request_id, new AbortController().signal) }; }
     if (result.state === "applied" && input.kind === "answer" && result.answer_delivery === "queued" && !signal.aborted) {
       const next = await command(view, { kind: "resume-answer", request_id: crypto.randomUUID(), child_run: input.child_run, pending_id: input.pending_id, pending_revision: input.pending_revision }, signal);
       return next.state === "not-applied" ? { ...next, reason: ports.text("answer-accepted") + " " + next.reason } : next;
@@ -72,10 +96,8 @@ export function createAgentSubtaskSource(ports: AgentSubtaskSourcePorts): Subtas
     async flush() { await Promise.all([...drafts.values()].map(one => one.flush())); },
     ...(subscribe ? { subscribe } : {}), check,
     async read(target, signal) {
-      const received = snapshots.get(signal);
-      snapshots.delete(signal);
       let found: AgentSubtaskRead;
-      try { found = received?.target === target ? received.snapshot : await ports.read(target, signal); }
+      try { found = await readProjection(target, signal); }
       catch (error) {
         if (error && typeof error === "object" && "status" in error && [401, 403, 404].includes(Number(error.status))) return { state: "denied", reason: ports.text("unavailable") };
         throw error;

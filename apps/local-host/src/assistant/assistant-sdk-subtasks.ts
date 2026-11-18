@@ -106,9 +106,9 @@ export class AssistantSdkSubtasks {
   async wait(workId: string, parentRunId: string, childId: string, since: string | null, timeout: number, signal: AbortSignal) {
     const { work, run, port } = await this.original(workId, parentRunId);
     const { version, view } = await waitForSubagentChange(port, run!, childId, since, timeout, signal);
-    const presented = await this.present(work, view);
+    const presented = version === since ? { version } : { version, ...await this.present(work, view) };
     this.current(work);
-    return { version, ...presented };
+    return presented;
   }
   private current(work: StoredWork): void {
     const now = this.store.get(this.actorId, work.work_id);

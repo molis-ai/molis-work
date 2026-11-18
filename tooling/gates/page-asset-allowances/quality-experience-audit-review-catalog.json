@@ -1,0 +1,15 @@
+{
+  "reason": "审查槽在真实内容返回后测量，保留窄窗读的位置。组件板沿自己的通知地址，整合主干后复量现有脚本和首屏。",
+  "review": "specs/quality-experience-audit/report.md#第-104-批资源复量，QEA-173/174。",
+  "assets": {
+    "/assets/molis-work-assistant-subtasks.js": 2,
+    "/assets/molis-work-plugin-frame.js": 123,
+    "/assets/molis-work-workbench.js": 15
+  },
+  "pages": {
+    "arrival-empty/zh": { "cold": 123, "warm": 0 },
+    "arrival-empty/en": { "cold": 123, "warm": 0 },
+    "workbench-all-plugins/zh": { "cold": 138, "warm": 0 },
+    "workbench-all-plugins/en": { "cold": 138, "warm": 0 }
+  }
+}

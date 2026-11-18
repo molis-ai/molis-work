@@ -1320,8 +1320,16 @@ QEA-172 将仅依赖 Goals 的六个原旅程放进同样种了 Goal 数据的�
 
 组件板模拟 Host 同时拥有样本数据和注意力通知，只有其独立前缀下的地址会收到样本流。正常页面复用 Home 流后，组件板也去请求它拒绝的根路径，原铃铛测试在远端及本机均失败。共享客户端接受由页面 owner 注入的通知地址，组件板继续读自己的样本，真实工作台沿第 100 批批准的 Home 流。负例之后，组件板、四窗外观写入和注意力范围隔离 3 文件 9 项均通过。[模拟 Host](../../apps/workbench/src/browser/board/assistant-frame.ts#L126) · [组件板装配](../../apps/workbench/src/assistant-board-frame.ts#L97) · [通知客户端](../../apps/workbench/src/scripts/client/attention.ts#L23)
 
-QF-65 的窄窗回归在 780 × 493 的内容区复现。待审面在打开设置时仍保存 301 px 占位，返回时滚动已经恢复到 146 px。真实审查读取在途时，父页随后发布空容器的 0 px，滚动被截回 0，原拒绝按钮下移到工作面外。工作台按实际绘制内容或确定为空的结果回报尺寸，重复尺寸不再发送。原审批槽的撤销、授权和正式写入仍由原路径处理。Coding 目录切换的第二轮则需要通过 Sessions 的当前行回到会话。保留实际 4 次切换，不通过隐藏元素触发。[审查槽](../../apps/workbench/src/browser/plugin-frame/reviews.ts#L107) · [Git 和 Coding 实操](../../tests/git-edit-drafts.e2e.test.ts#L119)
+QF-65 的窄窗回归在 780 × 493 的内容区复现。待审面在打开设置时仍保存 301 px 占位，返回时滚动已经恢复到 146 px。真实审查读取在途时，父页随后发布空容器的 0 px，滚动被截回 0，原拒绝按钮下移到工作面外。工作台按实际绘制内容或确定为空的结果回报尺寸，重复尺寸不再发送。Coding 目录切换的第二轮则经 Sessions 的当前行回到会话，继续实际操作可见控件。整合候选的四项 QEA-174 通过。四次切换各读回原目录编辑。等待真实 Host 回答时仍在原位置，返回后直接拒绝同一请求，HEAD 保持，重试及后来批准只清理对应草稿快照。两笔获批提交均只写一次。[审查槽](../../apps/workbench/src/browser/plugin-frame/reviews.ts#L107) · [Git 和 Coding 实操](../../tests/git-edit-drafts.e2e.test.ts#L119)
 
 ### 第 104 批主干子任务修复交集
 
 两条实际入口分别从助理工作和 Coding 工作台到 SDK 的同一个对话适配。SDK 复用带版本的等待投影，主动读取与订阅交错时检查代次。草稿比较和原请求的结算绑定编辑器当时持有的版本。子任务历史与预算由 Agent Host 读原运行，Host 和插件分别校验本人及父工作，运行前复核权限，写入后由原回执报结果。主干清理首读重复取历史和无变化时重绘助理问题卡。工作台同时保留本轮停止命令去重及主干按原始点击路径判断浮窗归属的修复。[助理入口](../../apps/workbench/src/browser/assistant-subtasks.ts#L60) · [Coding 入口](../../plugins/native/coding/src/browser/subtask-conversation.ts#L31) · [SDK 适配](../../packages/plugin-sdk/src/browser/agent-subtask-source.ts#L29) · [草稿结算](../../packages/plugin-sdk/src/browser/subtask-draft.ts#L47) · [Agent Host](../../horizontal/agent-host/src/adapters/prologue-subagent-conversation.ts#L91) · [任务面板](../../apps/workbench/src/browser/work-task-panel.ts#L248)
+
+### 第 104 批资源复量
+
+用同一测量器回放本轮候选和独立主干构建的 67 条静态资源、五种页面和两种语言。主干 `565840cce4` 相对构建基准 `2315213aba` 只补子任务 spec 记录。候选与上次推送 `2eef54d545` 相比，中英文共十组首屏的冷加载最多加 124 B，热加载相同或少 8 B。两个词包和实际首屏请求地址与已推送版相同。对最新主干，所有页面最大净增为冷 1,942 B、热 19 B，静态资源最大净增仍为 Git 脚本 8,403 B。
+
+本轮新增许可覆盖既有插件帧 123 B、工作台新的基线差额 15 B、助理子任务脚本组合差额 2 B。到达页按各语言 123 B 登记。全插件页按各语言实际冷差额 130 B，加第 83 批已验证的 Linux 路径差额 8 B。默认项目和选择页仍在已有许可内。原始数据 `quality-audit-b104-{http,assets,main-http,main-assets}.json`。[实测登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+
+实际测量、按已验证 Linux 路径差额复算及静态资源政策比较均为零问题，22 条实际新增首屏要求仍由原批准匹配。完整重建及包边界、111 份 API 快照、动作合同、44 个结构快照和生成版本检查通过。组合的远端结论沿草稿 PR 保存。[草稿 PR #2101](https://github.com/molis-ai/molis-work/pull/2101)

@@ -59,6 +59,10 @@ export interface PageStateOwner {
 
 // The Host frame adapters relay these owners' announcements into an isolated document; they own no second copy of the state.
 export const PAGE_STATE_OWNERS = {
+  "character-picker": {
+    files: ["apps/workbench/src/browser/characters/task-picker.ts"],
+    state: "The task's role picker and its default and editor modes.",
+  },
   "document-language": {
     files: ["apps/workbench/src/browser/language-entry.ts", "apps/workbench/src/browser/plugin-frame/language-child.ts"],
     state: "The displayed words and language of one document.",
@@ -373,6 +377,16 @@ export const DOM_EVENTS = [
   {
     name: "molis-work:system-view-open", kind: "request", owner: "tab-workspace", on: "document", cancelable: true,
     detail: "{ owner, id, title }", summary: "Focus or open one system-owned object in the common tab layout.",
+  },
+  {
+    name: "molis-work:task-role-picked", kind: "announcement", owner: "character-picker", on: "element",
+    detail: "{ target, character?: { ref, title, character_id } | null, reset?: true }; null selects the Assistant, reset returns a new task to its defaults",
+    summary: "A role picker changed the roles or applied a choice to its originating task.",
+  },
+  {
+    name: "molis-work:task-role-picker", kind: "request", owner: "character-picker", on: "document",
+    detail: "{ target, project_id: string | null, selection?: CharacterTaskSelection | null, required?: boolean, new_work?: boolean }",
+    summary: "Open the role picker over the requesting Assistant island in the task's own scope.",
   },
   {
     name: "molis-work:terminal-theme-change", kind: "announcement", owner: "preferences", on: "window",

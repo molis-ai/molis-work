@@ -1,5 +1,5 @@
 import type { CharacterRoleCatalog } from "@molis-ai/molis-work-contracts/modules/characters";
-import { catalogChoice, parseRoleRef, roleKey } from "./assistant-characters.js";
+import { assertStoredCharacter, catalogChoice, parseRoleRef, roleKey } from "./assistant-characters.js";
 import { assistantSessionLifecycleProblem, changeAssistantSessionLifecycle } from "./assistant-session-lifecycle.js";
 import type { MethodHandoff } from "./assistant-signed-materials.js";
 import { sentOriginal } from "./assistant-round-start.js";
@@ -437,8 +437,14 @@ async function defaultCharacter(store: AssistantStore, actorId: string, resolveR
 /** A choice of role checked against the roles the person may choose for this work now; a role that cannot run is refused, never swapped. */
 async function chooseCharacter(store: AssistantStore, actorId: string, characters: AssistantServicePorts["characters"], work: StoredWork,
   choice: AssistantCharacterRef | null | undefined, assertCurrent?: () => void): Promise<StoredWork> {
-  if (choice === undefined) return work;
-  if (choice === null) return work.character ? store.update(actorId, work.work_id, null, { character: undefined }, false) : work;
+  if (choice === undefined) {
+    assertStoredCharacter(work.character);
+    return work;
+  }
+  if (choice === null) {
+    assertCurrent?.();
+    return work.character !== undefined ? store.update(actorId, work.work_id, null, { character: undefined }, false) : work;
+  }
   const ref = parseRoleRef(choice);
   if (!ref) throw assistantErrors.invalid("角色选择无效");
   if (work.executor.kind === "plugin") throw assistantErrors.invalid("这项工作由执行方插件负责，它的角色在插件自己的会话里选择");

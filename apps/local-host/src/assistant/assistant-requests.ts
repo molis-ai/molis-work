@@ -2,6 +2,14 @@ import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 import type { AssistantSendResult } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assistantErrors } from "./assistant-errors.js";
+import { characterSelectionView } from "./assistant-characters.js";
+
+function storedResult(body: string): AssistantSendResult {
+  const result = JSON.parse(body) as AssistantSendResult;
+  if (result.work.character === undefined) return result;
+  const { character, ...work } = result.work;
+  return { ...result, work: { ...work, ...characterSelectionView(character) } };
+}
 
 /** The existing Send ledger: claiming writes; checking never creates or repeats a Send. */
 export class AssistantRequests {
@@ -9,7 +17,7 @@ export class AssistantRequests {
   read(actorId: string, requestId: string): { state: "unknown" | "not-sent" } | { state: "sent"; result: AssistantSendResult } {
     const row = this.db.prepare("SELECT state, result FROM assistant_requests WHERE actor_id=? AND request_id=?").get(actorId, requestId) as { state: string; result: string | null } | undefined;
     if (!row) return { state: "not-sent" };
-    return row.state === "done" && row.result ? { state: "sent", result: JSON.parse(row.result) as AssistantSendResult } : { state: "unknown" };
+    return row.state === "done" && row.result ? { state: "sent", result: storedResult(row.result) } : { state: "unknown" };
   }
   /**
    * Claim one Send. A repeat of a finished Send returns its outcome; a repeat while the first is still in flight is
@@ -22,7 +30,7 @@ export class AssistantRequests {
     if (inserted) return { claimed: true };
     const row = this.db.prepare("SELECT state, result FROM assistant_requests WHERE actor_id=? AND request_id=?").get(actorId, requestId) as { state: string; result: string | null };
     if (row.state !== "done" || !row.result) throw assistantErrors.pending_request("这次发送还在处理，不会重复提交");
-    return { claimed: false, result: { ...(JSON.parse(row.result) as AssistantSendResult), outcome: "repeated" } };
+    return { claimed: false, result: { ...storedResult(row.result), outcome: "repeated" } };
   }
 
   finishRequest(actorId: string, requestId: string, result: AssistantSendResult): void {

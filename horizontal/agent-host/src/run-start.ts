@@ -5,7 +5,8 @@ import { isAgentTool } from "./tool-catalog.js";
 import type { UiLanguageTag } from "@molis-ai/molis-work-contracts/platform/ui";
 import { requireSynchronous, type ActionSkillRound, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
-import { currentCharacterMatches, versionOfChoice } from "./character-import.js";
+import { currentCharacterMatches } from "./character-import.js";
+import { characterVersionMatchesSelection } from "@molis-ai/molis-work-contracts/modules/characters";
 import type {
   AgentManifest,
   AgentPromptText,
@@ -256,9 +257,9 @@ export function selectStartCharacter(role: AgentRoleDeclaration, request: AgentS
     if (typeof id !== "string" || !id.trim() || id.length > 200 || Object.keys(choice).length !== 2) throw agentErrors.capability_unavailable("角色选择无效");
     // The same choice as the session's last round keeps that round's version (the task stays as it started); a new choice is
     // resolved by Characters now, which refuses one turned off. The caller never names a version.
-    const same = previous && versionOfChoice(previous.version, choice);
+    const same = previous && characterVersionMatchesSelection(previous.version, choice);
     character = structuredClone(same ? authority.characterVersion(previous.version, request.actor_id) : authority.resolveCharacter(choice, request.actor_id));
-    if (!versionOfChoice(character.version, choice) || (same && !currentCharacterMatches(previous, character, request.project_id, request.actor_id))
+    if (!characterVersionMatchesSelection(character.version, choice) || (same && !currentCharacterMatches(previous, character, request.project_id, request.actor_id))
       || character.owner_actor_id !== request.actor_id || (character.version.kind === "project" ? character.project_id !== request.project_id : character.project_id !== null)) {
       throw agentErrors.capability_unavailable("角色来源与本轮项目、所有者或选择不一致");
     }

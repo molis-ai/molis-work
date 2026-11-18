@@ -14,6 +14,7 @@ import { isSubjectReader, type ActionSubjectContext, type ActionView, type WorkE
 import { projectAssistantReview } from "./assistant-review-words.js";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import { roundModel, workView } from "./assistant-work-view.js";
+import { storedCharacter } from "./assistant-characters.js";
 import type { AssistantMethod, AssistantPendingReview, AssistantRound, AssistantWork, AssistantWorkState, AssistantWorkView, AssistantRelatedWork, AssistantWorkObject, AssistantDiagnostics, AssistantRoundDiagnostics } from "@molis-ai/molis-work-contracts/services/assistant";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
@@ -313,7 +314,8 @@ export class AssistantWorkReads {
   }
 
   private roundView(round: StoredRound, view: AgentRunView | undefined, titles: CapabilityTitles | undefined): AssistantRound {
-    return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at, ...(round.character ? { character: { ...round.character, ...(view?.frozen.character ? { version: view.frozen.character.version } : {}) } } : {}), ...(round.written_by === "host" ? { written_by: "host" as const } : {}),
+    const character = storedCharacter(round.character);
+    return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at, ...(character ? { character: { ...character, ...(view?.frozen.character ? { version: view.frozen.character.version } : {}) } } : {}), ...(round.written_by === "host" ? { written_by: "host" as const } : {}),
       materials: round.materials.map(({ text: _text, ...rest }) => rest.kind === "image" && rest.image && !this.link.holdsImage(rest.image) ? { ...rest, expired: true } : rest),
       phase: view?.phase ?? "unknown", turns: spokenTurns(view?.turns ?? []), activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
       ...(view?.usage ? { usage: view.usage } : {}), ...roundModel(view), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason, round.work_budget) } : {}),

@@ -101,6 +101,92 @@ test("RAC-1608: a member's edit saved to the original after a conflict keeps wha
   const saved = personal.service.get(original.character_id)!;
   assert.equal(saved.instructions, "抽屉里的做法", "the edited section goes to the original");
   assert.deepEqual(saved.host_tools, ["read-file", "search"], "the section not edited here keeps what the original says now");
+  await click("[data-roles-drawer=undo]");
+  await waitFor("document.querySelector('[data-character-notice]')?.textContent.includes('已撤销')");
+  assert.equal(personal.service.get(original.character_id)?.instructions, "原来的做法", "B36F-05 undo restores the previous original");
+  assert.deepEqual(personal.service.get(original.character_id)?.host_tools, ["read-file", "search"]);
+  assert.deepEqual(personal.service.roles.memberRole(b.projectId!, member.current.member_id)?.sections.work_style, { mode: "follow" });
+  // The member version is unchanged when a followed original changes, so reopen must compare the original version as well.
+  personal.service.update(original.character_id, personal.service.get(original.character_id)!.revision, {
+    title: "核对者", instructions: "原来的做法", host_tools: ["search"],
+  });
+  await b.reloadPage();
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(row)}))`, 60_000);
+  await click(row); await waitFor(DRAWER_READ); await waitFor(CONFLICT);
+  await click("[data-roles-drawer=merge]");
+  await waitFor(`!(${CONFLICT}) && document.querySelector('[data-roles-drawer=save]')?.disabled === false`);
+  assert.equal(await evaluate("document.querySelector('[data-character-instructions]').value"), "抽屉里的做法");
+  assert.equal(await evaluate("document.querySelector('[data-character-tools]').value"), "search");
+
+  const savedMember = personal.service.roles.memberRole(b.projectId!, member.current.member_id)!;
+  personal.service.roles.saveMember(b.projectId!, member.current.member_id, savedMember.revision, savedMember.current.original.version, {
+    work_style: { instructions: "不要显示这节的差异" }, capabilities: { host_tools: ["read-file"], action_tools: [] },
+  });
+  const beforeUpstream = personal.service.get(original.character_id)!;
+  personal.service.update(original.character_id, beforeUpstream.revision, { title: beforeUpstream.title, instructions: beforeUpstream.instructions, host_tools: ["search", "read-file"] });
+  await b.reloadPage();
+  const diff = `[data-roles-act=diff][data-roles-arg="${member.current.member_id}"]`;
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(diff)}))`, 60_000);
+  await click(diff); await waitFor("Boolean(document.querySelector('.roles-diff'))");
+  const comparison = await evaluate<string>("document.querySelector('.roles-diff').textContent");
+  assert.ok(comparison.includes("能用什么") && comparison.includes("read-file") && comparison.includes("search"));
+  assert.ok(!comparison.includes("不要显示这节的差异"), "only the changed upstream section is compared");
+});
+
+test("B36F-04 the task role picker uses the shared editor and sets defaults in place", { timeout: 180_000 }, async t => {
+  const b = await openGoalBrowser(t, true); if (!b) return;
+  const { click, evaluate, waitFor } = b;
+  const characters = openCharacters(b.homeDirectory, "web-user"); t.after(() => characters.close());
+  const good = characters.service.create({ title: "本项目审稿", instructions: "看结构", host_tools: [] });
+  const limited = characters.service.create({ title: "工具不合适", instructions: "需要读文件", host_tools: ["read-file"] });
+  const member = characters.service.roles.addMember(b.projectId!, good.character_id);
+  characters.service.roles.addMember(b.projectId!, limited.character_id);
+  const pick = "[data-task-role-select]", role = "project:" + member.current.member_id;
+  const choose = (value: string) => evaluate(`(() => { const select = document.querySelector("${pick}"); select.value = ${JSON.stringify(value)}; select.dispatchEvent(new Event("change", { bubbles: true })); })()`);
+  const action = (name: string) => click(`[data-task-role-act="${name}"]`);
+  const button = '[data-composer-control="character"]';
+  await b.setViewport(1440, 960);
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/` }, b.sessionId));
+  await click('[data-assistant-composer] .mw-composer__input');
+  await b.command("Input.insertText", { text: "选角前已输入的草稿" }, b.sessionId);
+  const more = "[data-assistant-composer] [data-composer-more]";
+  if (await evaluate(`Boolean(document.querySelector("${more}")?.getClientRects().length)`)) await click(more);
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(button)})?.getClientRects().length)`, 60_000);
+  const open = async () => { await click(button); await waitFor(`document.querySelector("${pick}")?.options.length > 2`, 60_000); };
+  const path = await evaluate("location.pathname");
+  await open();
+  assert.equal(await evaluate(`[...document.querySelector("${pick}").options].find(row => row.textContent.includes("工具不合适"))?.disabled`), true);
+  await choose(role);
+  await action("project"); await action("apply");
+  await waitFor("document.querySelector('[data-task-role-picker]')?.textContent.includes('项目默认')");
+  assert.deepEqual(characters.service.roles.catalog(b.projectId!, characters.service.list()).defaults.project, { kind: "project", member_id: member.current.member_id });
+  await action("personal");
+  assert.equal(await evaluate(`document.querySelector("${pick}").value`), "personal:" + good.character_id, "the personal default mode selects the member's original");
+  await action("apply");
+  await waitFor("document.querySelector('[data-task-role-act=edit]') !== null");
+  assert.deepEqual(characters.service.roles.catalog(null, characters.service.list()).defaults.personal, { kind: "personal", character_id: good.character_id });
+  await choose(role);
+  await action("edit");
+  await waitFor(DRAWER_READ);
+  assert.equal(await evaluate("document.querySelector('[data-character-instructions]').value"), "看结构");
+  await click("[data-roles-drawer=close]");
+  await waitFor("!document.querySelector('[data-character-drawer]')");
+  await action("new");
+  await waitFor("document.querySelector('[data-character-drawer]')?.open === true");
+  await evaluate(`(() => {
+    for (const [field, value] of [["title", "本次新角色"], ["instructions", "先归纳"]]) {
+      const input = document.querySelector("[data-character-" + field + "]"); input.value = value; input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  })()`);
+  await click("[data-roles-drawer=save]");
+  await waitFor("document.querySelector('[data-character-drawer-notices]')?.textContent.includes('已保存')");
+  await click("[data-roles-drawer=close]");
+  await waitFor(`document.querySelector("${pick}")?.selectedOptions[0]?.textContent === "本次新角色"`);
+  await action("apply");
+  assert.equal(await evaluate("location.pathname"), path);
+  await waitFor(`Array.from(document.querySelectorAll(${JSON.stringify(button)})).some(node => node.textContent.includes("本次新角色"))`);
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "选角前已输入的草稿");
+  assert.deepEqual(characters.service.roles.catalog(b.projectId!, characters.service.list()).defaults.project, { kind: "project", member_id: member.current.member_id });
 });
 
 test("RAC-2851 RAC-2852 Characters keeps its own styles on first open, cached reopen and project changes", { timeout: 180_000 }, async t => {

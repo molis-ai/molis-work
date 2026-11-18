@@ -1,6 +1,7 @@
 import { CHARACTER_PLUGIN_ID, characterRoleActions, type CharacterRoleCatalog, type CharacterRoleResolution, type CharacterTaskSelection } from "@molis-ai/molis-work-contracts/modules/characters";
-import type { AssistantCharacter, AssistantCharacterRef } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantCharacter, AssistantCharacterRef, AssistantWork } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { PersonActions } from "./assistant-executor.js";
+import { assistantErrors } from "./assistant-errors.js";
 
 /** One capability of Characters, named the way the person's directory names it. */
 const reference = ({ capability_id, version }: { capability_id: string; version: number }) => ({ capability_id, version, provider_id: CHARACTER_PLUGIN_ID });
@@ -30,6 +31,26 @@ export function parseRoleRef(value: unknown): AssistantCharacterRef | null {
   if (item.kind === "personal" && typeof item.character_id === "string" && item.character_id.trim() && item.character_id.length <= 200) return { kind: "personal", character_id: item.character_id };
   if (item.kind === "project" && typeof item.member_id === "string" && item.member_id.trim() && item.member_id.length <= 200) return { kind: "project", member_id: item.member_id };
   return null;
+}
+
+/** Project only the current stored choice contract, including on historical round views. */
+export function storedCharacter(value: AssistantCharacter | undefined): AssistantCharacter | undefined {
+  const ref = parseRoleRef(value?.ref);
+  if (ref && typeof value?.title === "string" && typeof value.character_id === "string") {
+    return { ref, title: value.title, character_id: value.character_id };
+  }
+}
+
+export function assertStoredCharacter(value: AssistantCharacter | undefined): void {
+  if (value !== undefined && !storedCharacter(value)) {
+    throw assistantErrors.character_unavailable("这项工作保存的角色选择已失效，请重新选择角色，或选助理本身", { action: "重新选择角色" });
+  }
+}
+
+export function characterSelectionView(value: AssistantCharacter | undefined): Pick<AssistantWork, "character" | "character_selection_required"> {
+  const character = storedCharacter(value);
+  if (character) return { character };
+  return value === undefined ? {} : { character_selection_required: true };
 }
 
 /** One role of the catalog the person may choose here, as a work keeps it; its availability says whether it can be chosen now. */

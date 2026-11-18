@@ -40,7 +40,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       if (visible) {
         if (!intent.work) handedOver = true; fresh = false; curId = res.work.work_id; remember(); if (!curEvent) openTab(curId);
         if (pendingChar === intent.character) pendingChar = undefined;
-        if (nextChar === intent.character) nextChar = null;
+        if (nextChar === intent.character) nextChar = undefined;
         await reload();
       }
       const carrier = res.work.executor?.kind === "plugin" ? executorOffer(res.work.executor.plugin_id) : null;
@@ -86,7 +86,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     let recovering = !again && !extra.named && kept.id && kept.work === (curId || null) && kept.target === target && kept.route === route;
     const body = { text, request_id: recovering ? kept.id : submission, submission_id: submission,
       context: pageContext(), materials: [...sendMaterials(), ...(extra.materials || [])], ...(extra.written_by ? { written_by: extra.written_by } : {}) };
-    const character = curId ? pendingChar : nextChar || undefined;
+    const character = curId ? pendingChar : nextChar;
     if (character !== undefined && allowsCharacter()) body.character = character ? character.ref : null;
     if (curId) {
       body.work_id = curId;

@@ -14,17 +14,17 @@ export function renderKnowledgeSettings({ projectId }: { readText(text: string):
       <p class="knowledge-summary" data-knowledge-summary aria-live="polite">${uiText("workbench.settings-knowledge.loading")}</p></header>
     <p class="settings-form-error" data-knowledge-error role="alert" hidden></p>
     <p class="knowledge-model-note" data-knowledge-model hidden>${uiText("workbench.settings-knowledge.no-text-model-available-yet-pieces-can-still")} <a href="/settings/models">${uiText("workbench.settings-knowledge.set-up-model")}</a></p>
-    <section class="settings-section knowledge-quota" aria-labelledby="knowledge-quota-title">
-      <h2 id="knowledge-quota-title">${uiText("workbench.settings-knowledge.today-s-organizing-allowance")}</h2>
+    <section class="settings-section mw-settings-section knowledge-quota" aria-labelledby="knowledge-quota-title">
+      <header class="mw-settings-section__head"><h2 id="knowledge-quota-title">${uiText("workbench.settings-knowledge.today-s-organizing-allowance")}</h2></header><div class="mw-settings-section__rows">
       <div class="knowledge-quota-row">
         <div class="knowledge-quota-copy"><span data-knowledge-quota-text>${uiText("workbench.settings-knowledge.loading")}</span>
           <div class="mw-progress knowledge-quota-bar" data-slot="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="${uiText("workbench.settings-knowledge.organizing-allowance-used-today")}"><span data-knowledge-quota-bar style="width:0%"></span></div></div>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-knowledge-confirm hidden>${uiText("workbench.settings-knowledge.allow-another-day-s-worth")}</button>
       </div>
       <p class="settings-muted" data-knowledge-quota-note hidden>${uiText("workbench.settings-knowledge.today-s-allowance-used-up-so-organizing-has")}</p>
-    </section>
-    <section class="settings-section knowledge-items" aria-labelledby="knowledge-items-title">
-      <div class="knowledge-items-head"><h2 id="knowledge-items-title">${uiText("workbench.settings-knowledge.all-pieces")}</h2>
+    </div></section>
+    <section class="settings-section mw-settings-section knowledge-items" aria-labelledby="knowledge-items-title">
+      <div class="mw-settings-section__head knowledge-items-head"><h2 id="knowledge-items-title">${uiText("workbench.settings-knowledge.all-pieces")}</h2>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-knowledge-organize-all hidden>${uiText("workbench.settings-knowledge.retry-unfinished")}</button></div>
       <div class="knowledge-toolbar" role="group" aria-label="${uiText("workbench.settings-knowledge.filter-pieces")}">
         <select class="mw-select" data-knowledge-filter="state" aria-label="${uiText("workbench.settings-knowledge.organizing-state")}">
@@ -32,7 +32,7 @@ export function renderKnowledgeSettings({ projectId }: { readText(text: string):
         </select>
         <input class="mw-input knowledge-search" type="search" data-knowledge-filter="query" placeholder="${uiText("workbench.settings-knowledge.filter-title-source-keyword")}" aria-label="${uiText("workbench.settings-knowledge.filter-title-source-keyword")}">
       </div>
-      <div class="knowledge-batch" data-knowledge-batch hidden role="group" aria-label="${uiText("workbench.settings-knowledge.bulk-actions")}">
+      <div class="mw-settings-section__rows"><div class="knowledge-batch" data-knowledge-batch hidden role="group" aria-label="${uiText("workbench.settings-knowledge.bulk-actions")}">
         <span data-knowledge-batch-count></span>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-knowledge-batch-action="organize">${uiText("workbench.settings-knowledge.organize-again")}</button>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-knowledge-batch-action="exclude">${uiText("workbench.settings-knowledge.kept-agents")}</button>
@@ -42,11 +42,10 @@ export function renderKnowledgeSettings({ projectId }: { readText(text: string):
       <label class="knowledge-select-all"><input type="checkbox" data-knowledge-select-all>${uiText("workbench.settings-knowledge.select-all-listed-pieces")}</label>
       <ul class="knowledge-list" data-knowledge-list><li class="settings-muted">${uiText("workbench.settings-knowledge.loading")}</li></ul>
       <button class="mw-btn mw-btn--ghost mw-btn--sm knowledge-more" type="button" data-knowledge-more hidden>${uiText("workbench.settings-knowledge.show-more")}</button>
-    </section>
-    <section class="settings-section knowledge-receipts" aria-labelledby="knowledge-receipts-title">
-      <h2 id="knowledge-receipts-title">${uiText("workbench.settings-knowledge.recently-read")}</h2>
-      <p class="settings-muted">${uiText("workbench.settings-knowledge.every-time-agent-read-piece-s-original-text")}</p>
-      <ul class="knowledge-receipt-list" data-knowledge-receipts><li class="settings-muted">${uiText("workbench.settings-knowledge.loading")}</li></ul>
+    </div></section>
+    <section class="settings-section mw-settings-section knowledge-receipts" aria-labelledby="knowledge-receipts-title">
+      <header class="mw-settings-section__head"><h2 id="knowledge-receipts-title">${uiText("workbench.settings-knowledge.recently-read")}</h2></header>
+      <div class="mw-settings-section__rows"><ul class="knowledge-receipt-list" data-knowledge-receipts><li class="settings-muted">${uiText("workbench.settings-knowledge.loading")}</li></ul></div>
     </section>
   </section>`;
 }

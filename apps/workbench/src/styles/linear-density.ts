@@ -57,10 +57,12 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .tree-pane .tree-guide { height: var(--dir-row-h); min-height: var(--dir-row-h); }
   body.immersive-workbench .tree-pane .tree-title-line strong { line-height: 18px; }
   body.immersive-workbench .tree-pane .mw-dir-row--compact { height: var(--dir-row-h); min-height: var(--dir-row-h); }
-  body.immersive-workbench .tree-pane .settings-directory-nav { display: grid; gap: 4px; padding: 4px 8px 16px; }
+  body.immersive-workbench .tree-pane .settings-directory-nav { display: grid; gap: 0; padding: 4px 8px 16px; }
+  body.immersive-workbench .tree-pane .settings-directory-nav .settings-directory-group { margin: 0; padding: 16px 8px 4px; color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); line-height: 1.5; }
+  body.immersive-workbench .tree-pane .settings-directory-nav .settings-directory-group:first-child { padding-top: 4px; }
   body.immersive-workbench .tree-pane .settings-directory-nav .mw-dir-row {
     display: flex; justify-content: flex-start; align-items: center;
-    height: 36px; min-height: 36px; padding: 0 12px; border-radius: 8px; gap: 8px;
+    height: 32px; min-height: 32px; padding: 0 8px; border-radius: 10px; gap: 8px;
     grid-template-columns: none; text-align: left;
   }
   body.immersive-workbench .tree-pane .mw-dir-row.is-selected::before,

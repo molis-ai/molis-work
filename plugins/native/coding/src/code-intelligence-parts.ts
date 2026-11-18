@@ -15,7 +15,7 @@ function languageRow(row: AgentRunCodeIntelligence["languages"][number]): MwEnvC
       status: { label: uiText.text("coding.env.badge.ready"), tone: "done" },
     };
   }
-  // Decision 50: nothing is downloaded before batch 65's network rules; the person installs it, and the next round uses it.
+  // Decision 51: nothing is downloaded before batch 65's network rules; the person installs it, and the next round uses it.
   return {
     state: "blocked",
     label,

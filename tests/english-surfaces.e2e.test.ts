@@ -53,7 +53,7 @@ test("VUX-40: Goals statuses, Jelly's fixed category and the Git, Diff and Text 
     ["jelly", "document.querySelector('[data-jelly-category-filters] [data-jelly-filter=uncategorized]')", "[data-jelly-category-filters]", "未分类"],
     ["git", "document.querySelector('[data-companion=git] [data-git-status]')?.textContent", "[data-companion=git]", "Git 改动"],
     ["diff", "document.querySelector('[data-companion=diff] [data-companion-content] .mw-empty')", "[data-companion=diff]", "打开资料"],
-    ["text-stats", "document.querySelector('[data-companion=text-stats] [data-companion-content] .mw-empty')", "[data-companion=text-stats]", "固定一份文件快照后"],
+    ["text-stats", "document.querySelector('[data-companion=text-stats] [data-companion-content] .mw-empty')", "[data-companion=text-stats]", "固定一份文件版本后"],
   ];
   for (const [plugin, ready, selector, zh] of pages) {
     await open(plugin, ready);
@@ -208,7 +208,7 @@ test("VUX-40: the Coding page, its own script's words and Coding settings speak 
   const coding = `${origin}/projects/${projectId}/?openPlugin=coding`, settings = `${origin}/settings/coding-settings?project=${projectId}`;
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   const zh = await evaluate<{ found: boolean; han: string[] }>(HAN_IN_MARKUP(coding, "[data-coding-workbench]"));
-  assert.ok(zh.found && zh.han.includes("和 Agent 一起写代码"), "Coding in Chinese says 「和 Agent 一起写代码」");
+  assert.ok(zh.found && zh.han.includes("与 Agent 协作编写代码"), "Coding in Chinese says 「与 Agent 协作编写代码」");
   assert.ok((await evaluate<{ han: string[] }>(HAN_IN_MARKUP(settings, "[data-coding-settings]"))).han.includes("内置执行方式"));
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=en&next=%2F` }, sessionId));
   assert.deepEqual(await evaluate(HAN_IN_MARKUP(coding, "[data-coding-workbench]")), { found: true, han: [] }, "Coding in English");

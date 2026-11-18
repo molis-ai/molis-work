@@ -456,7 +456,7 @@ test("T405-GIT-01 a late index decision cannot consume a preparing or pending co
   await until(() => count("GET /git/view-revision") > polls + 1);
   assert.equal(count("GET /git/state"), reads, "neither the old receipt nor revision polling invalidates an operation being prepared");
   pending.get(post)![0]!.end(JSON.stringify({ review_id: "commit-current" }));
-  await page.wait(`shows>${shows} && document.querySelector('[data-git-sc-status]').textContent.includes('宿主审查')`);
+  await page.wait(`shows>${shows} && document.querySelector('[data-git-sc-status]').textContent.includes('操作审查')`);
   await page.evaluate("decide('settled')");
   assert.equal(await page.evaluate("document.querySelector('[data-git-commit-message]').value"), "current draft", "an older success cannot clear the current pending commit draft");
   assert.equal(count("GET /git/state"), reads, "a pending current operation keeps its review visible");
@@ -493,7 +493,7 @@ test("T405-GIT-02 a failed or hidden commit-result read preserves its identity a
   await page.wait("document.querySelector('[data-git-branch]').textContent==='main' && !document.querySelector('[data-git-refresh]').disabled && !document.querySelector('[data-git-commit]').disabled");
   await page.evaluate("document.querySelector('[data-git-commit-message]').value='retained draft'");
   await page.click("[data-git-commit]");
-  await page.wait("document.querySelector('[data-git-sc-status]').textContent.includes('宿主审查')");
+  await page.wait("document.querySelector('[data-git-sc-status]').textContent.includes('操作审查')");
   await until(() => count(read) >= 2);
   fail = true; await page.evaluate("decide('settled')"); fail = false;
   assert.equal(await page.evaluate("document.querySelector('[data-git-commit-message]').value"), "retained draft");

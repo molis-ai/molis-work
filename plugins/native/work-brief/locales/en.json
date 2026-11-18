@@ -46,7 +46,13 @@
     "work-brief.claim.save": "Save",
     "work-brief.conflict.reread": "The brief was just updated elsewhere; it has been read again",
     "work-brief.delta.none": "Nothing changed since the last version; no new version was made.",
-    "work-brief.delta.some": { "plural_arg": "count", "forms": { "one": "{count} change, saved as version {version}; older versions are unchanged.", "other": "{count} changes, saved as version {version}; older versions are unchanged." } },
+    "work-brief.delta.some": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} change, saved as version {version}; older versions are unchanged.",
+        "other": "{count} changes, saved as version {version}; older versions are unchanged."
+      }
+    },
     "work-brief.delta.title": "Refreshed",
     "work-brief.directory.summary": "How the project stands, what needs you and what to do next, every sentence traceable to its source.",
     "work-brief.empty.ask": "Ask the assistant to write it",
@@ -115,9 +121,27 @@
     "work-brief.presentation.empty": "No brief yet",
     "work-brief.presentation.home-title": "Project brief",
     "work-brief.presentation.nothing-waiting": "Nothing needs you",
-    "work-brief.presentation.summary": { "plural_arg": "count", "forms": { "one": "{count} brief", "other": "{count} briefs" } },
-    "work-brief.presentation.summary-waiting": { "plural_arg": "count", "forms": { "one": "{count} needs you", "other": "{count} need you" } },
-    "work-brief.presentation.waiting": { "plural_arg": "count", "forms": { "one": "{count} needs you", "other": "{count} need you" } },
+    "work-brief.presentation.summary": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} brief",
+        "other": "{count} briefs"
+      }
+    },
+    "work-brief.presentation.summary-waiting": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} needs you",
+        "other": "{count} need you"
+      }
+    },
+    "work-brief.presentation.waiting": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} needs you",
+        "other": "{count} need you"
+      }
+    },
     "work-brief.project-deletion.data": "Briefs, their versions and edits",
     "work-brief.proposal.apply": "Merge as chosen",
     "work-brief.proposal.body": "Your edits aren’t overwritten. Pick one for each to go on.",
@@ -131,8 +155,14 @@
     "work-brief.proposal.removed": "(no such sentence)",
     "work-brief.proposal.take": "Use new",
     "work-brief.proposal.theirs": "New draft",
-    "work-brief.proposal.title": { "plural_arg": "count", "forms": { "one": "The new draft differs from your edits in {count} place", "other": "The new draft differs from your edits in {count} places" } },
-    "work-brief.read.none": "No data",
+    "work-brief.proposal.title": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "The new draft differs from your edits in {count} place",
+        "other": "The new draft differs from your edits in {count} places"
+      }
+    },
+    "work-brief.read.none": "No items to summarize yet",
     "work-brief.read.ok": "Fine",
     "work-brief.read.stale": "Out of date",
     "work-brief.read.unauthorized": "No permission",

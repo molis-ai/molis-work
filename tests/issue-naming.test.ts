@@ -99,8 +99,8 @@ test("FSS-36 ISSUE-50 screenshots alone for a model not declared to read images:
     const answer = await issueText(locale, () => drafts.name(draft_id, caller, off.client));
     assert.equal(answer.status, "needs_input");
     const question = answer.question;
-    const clues = locale === "zh" ? ["未声明能看图", "已设为不能看图", "截图没有交给它", "写一句话", "设置 → 模型 → 供应商的模型列表", "能看图并保存"]
-      : ["cannot read screenshots", "Add a sentence", "Settings → Models and save"];
+    const clues = locale === "zh" ? ["未开启看图能力", "截图未发送给模型", "补充文字说明", "设置 › 模型", "开启读图能力并保存"]
+      : ["cannot read screenshots", "Add a text note", "Settings › Models and save"];
     for (const clue of clues) assert.ok(question.includes(clue), clue);
     assert.ok(question.length <= 200 && !/[\r\n]/.test(question));
     if (locale === "en") assert.doesNotMatch(question, /\p{Script=Han}/u);

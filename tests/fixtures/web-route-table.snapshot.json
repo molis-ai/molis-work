@@ -945,7 +945,7 @@
   "GET <project>/archive (page)": {
     "status": 200,
     "type": "text/html",
-    "title": "已归档 Goal · Molis Work"
+    "title": "已归档目标 · Molis Work"
   },
   "GET <project>/goals/no-such-goal (page)": {
     "status": 404,

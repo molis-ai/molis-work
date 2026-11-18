@@ -1,0 +1,106 @@
+/* 「输入框是切换专注的把手」这一页多出来的编排；卡、记号、清单行沿用 dirs.css。不是产品样式。 */
+
+/* 输入框这一组：上沿一条（焦点签、等你 N），下面是卡 */
+.db.fx{align-items:end;padding-bottom:10px}
+.db.fx .dmid>.fu{position:absolute;left:0;right:0;bottom:0}
+.fu{position:relative;display:flex;flex-direction:column}
+.d-tile>.fu{width:640px}
+.fu-top{position:relative;z-index:1;display:flex;align-items:flex-end;height:26px;padding:0 6px 0 16px;white-space:nowrap}
+.fl{position:relative;flex:0 1 auto;min-width:0;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 11px;border-radius:10px 10px 0 0;background:var(--popover);box-shadow:0 0 0 1px var(--line);clip-path:inset(-2px -2px 1px -2px);font-size:12.5px;color:var(--ink)}
+.fl b{flex:none;font-weight:600}
+.fl .nm{font-weight:500}
+.fl svg{color:var(--faint)}.fl svg.sep{margin:0 -2px}
+.fn{flex:none;display:inline-flex;align-items:center;gap:5px;height:22px;margin-bottom:3px;padding:0 5px 0 8px;border-radius:8px;font-size:12px;font-weight:600;color:var(--amber)}
+.fn svg{color:var(--amber);opacity:.7}
+.fu .dc{position:relative}
+
+/* 筛选时的提示键位 */
+.fk{flex:none;padding:0 8px;font-size:11.5px;color:var(--muted);white-space:nowrap}
+.dc-ph.ink{color:var(--ink)}
+
+/* 切换器：清单从输入框向上长，和它一样宽 */
+.fs{margin:0 0 8px;padding:8px;background:var(--popover);border-radius:14px;box-shadow:0 0 0 1px var(--line),var(--lift-3);font-size:12.5px}
+.fs .dl-r.on{background:var(--control-fill)}
+.fs .dl-r svg.xs{color:var(--muted)}
+.fs-foot{display:flex;align-items:center;gap:16px;height:30px;padding:0 8px;font-size:12px;color:var(--ink-soft)}
+.fs-foot span{display:inline-flex;align-items:center;gap:5px}
+.fu:has(.fs) .fu-top{display:none}
+
+/* 纸上写着主区现在是什么 */
+.d-sheet.fx{justify-content:flex-start;padding:54px 0 0 64px;overflow:hidden}
+.d-sheet.fx b{font-size:17px;font-weight:600;color:var(--ink)}
+.d-sheet.fx small{margin:-6px 0 4px;font-size:12px;color:var(--muted)}
+
+.d-sec>p.d-ask{margin:0 0 18px}
+.d-sheet.fx i{flex:none}
+
+/* —— 可点原型 —— */
+#frames{display:contents}
+.sp-win.c.fx{height:700px;grid-template-rows:44px minmax(0,1fr) 88px;transition:width var(--dur-move) var(--ease-quint)}
+.sp-win.c.fx .sp-stage.swap{animation:fx-swap 220ms var(--ease-quint)}
+@keyframes fx-swap{from{opacity:.25;transform:translateY(4px)}to{opacity:1;transform:none}}
+.pb{position:relative;z-index:6;display:grid;grid-template-columns:minmax(0,1fr) var(--mid,640px) minmax(0,1fr);gap:16px;align-items:end;padding:0 14px 10px;box-sizing:border-box}
+.pb *{box-sizing:border-box}
+.pb [hidden]{display:none!important}
+.pb [role=button]{cursor:pointer}
+.pb-w{display:flex;align-items:center;gap:6px;height:44px;min-width:0;white-space:nowrap}
+.pb-w.l{justify-content:flex-end}
+.pb-w .dv:hover{color:var(--ink);background:color-mix(in srgb,var(--ink) 6%,var(--desk))}
+.pb-mid{position:relative;height:70px}
+.pu{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column}
+.pu .fs{animation:fx-up var(--dur-move) var(--ease-quint)}
+@keyframes fx-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.pu .fs .dl-r{cursor:pointer}
+.pu .fs .dl-r .pre{color:var(--muted);font-size:11.5px}
+.pu .fs .dl-r .dr{color:var(--accent);font-size:11px}
+.pu .fs .dl-r small.run,.pu .fs .dl-r small.next,.pu .fs .dl-r small.done{color:var(--muted)}
+.fs-foot [role=button]:hover{color:var(--ink)}
+/* 焦点签的两段：左边事项名（有事件时点它回到事项），右边事件名和箭头（点开切换器） */
+.fl{padding:0 4px 0 5px;gap:0}
+.fl .seg{display:inline-flex;align-items:center;gap:6px;height:22px;min-width:0;padding:0 6px;border-radius:7px}
+.fl .seg:hover{background:var(--control-fill)}
+.fl .seg b{max-width:150px}.fl .seg .nm{max-width:190px}
+.fl .seg.chev{padding:0 4px}
+.fl.open{background:var(--control-fill)}
+.fn{cursor:pointer}.fn:hover{background:var(--amber-soft)}
+.fn.soft{font-weight:500;opacity:.85}
+.fn.pulse{animation:fx-pulse var(--dur-moment) var(--ease-quint)}
+@keyframes fx-pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--amber) 50%,transparent)}100%{box-shadow:0 0 0 9px transparent}}
+/* 卡里的一行：平常 ＋、字、语音、发送；打字时字独占第一行，其余落到最后一行 */
+.pc{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-height:44px;padding:6px}
+.pb .pc textarea{flex:1;min-width:0;height:32px;max-height:132px;padding:6px!important;border:0!important;outline:0!important;border-radius:0;box-shadow:none!important;background:none!important;resize:none;overflow-y:auto;font:inherit;font-size:13.5px;line-height:20px;color:var(--ink)}
+.pc textarea::placeholder{color:var(--faint)}
+.pc .only-open{display:none}
+.dc.open .pc .only-open{display:inline-flex}
+.dc.open .pc span.grow.only-open{display:block;flex:1}
+.pb .dc.open .pc textarea{order:-1;flex:0 0 100%;padding:8px 10px 4px!important;font-size:14px;line-height:22px}
+.pc-chips{align-items:center;gap:6px;min-width:0}
+.pc .dc-k:hover{background:var(--control-fill)}.pc .dc-k.send:not(.dim):hover{background:var(--action-hover)}
+.pc .dc-who:hover{background:var(--control-fill)}
+.dc-act[role=button]:hover{filter:brightness(1.06)}
+.dc.find{box-shadow:0 0 0 1.5px color-mix(in srgb,var(--accent) 55%,transparent),var(--lift-2)}
+.pm{position:absolute;left:0;bottom:calc(100% + 8px);width:230px;padding:6px;background:var(--popover);border-radius:12px;box-shadow:0 0 0 1px var(--line),var(--lift-3);font-size:12.5px;animation:fx-up var(--dur-move) var(--ease-quint)}
+.pm .dl-r{cursor:pointer}.pm .dl-r:hover,.pu .fs .dl-r:hover{background:var(--control-fill)}
+.pm .dl-r svg{color:var(--muted)}
+/* 展开：对话框在卡上面，和卡连成一张 */
+.pd{background:var(--popover);border-radius:16px 16px 0 0;box-shadow:0 0 0 1px var(--line),var(--lift-2);clip-path:inset(-40px -40px 0 -40px);animation:fx-up var(--dur-move) var(--ease-quint)}
+.pd .dd{height:auto;min-height:150px;max-height:340px;overflow-y:auto}
+.pu.dlg .fu-top{display:none}
+.pu.dlg .dc{border-radius:0 0 16px 16px;border-top:1px solid var(--line)}
+/* 主区的假页面 */
+.pp{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:6px;padding:22px 0 0 56px;width:816px;max-width:100%;font-size:13.5px;line-height:1.75;color:var(--ink)}
+.pp h2{margin:0 0 4px;font-size:20px;font-weight:600}
+.pp h3{display:flex;gap:6px;margin:12px 0 2px;font-size:12px;font-weight:500;color:var(--muted)}.pp h3:first-child{margin-top:0}
+.pp h3 em{font-style:normal;color:var(--faint)}
+.pp p{margin:0 0 6px}
+.pp pre{margin:4px 0 8px;padding:10px 14px;border-radius:10px;background:var(--control-fill);font-size:12px;line-height:1.7;color:var(--ink-soft)}
+.pp .sk{flex:none;height:9px;margin:5px 0;border-radius:5px;background:var(--line)}
+.pp-r{display:flex;align-items:center;gap:10px;height:36px;margin-left:-10px;padding:0 10px;border-radius:9px;cursor:pointer}
+.pp-r:hover{background:var(--control-fill)}
+.pp-r svg{color:var(--muted)}
+.pp-r small{font-size:12px;color:var(--muted)}.pp-r small.you{color:var(--amber);font-weight:600}
+.pp-me{align-self:flex-end;max-width:70%;margin-bottom:6px;padding:7px 12px;border-radius:12px;background:var(--control-fill)}
+.pp-steps{display:flex;flex-direction:column;gap:8px;margin:2px 0 12px}
+.pp-steps span{display:flex;align-items:center;gap:10px}
+.pp-card{display:flex;flex-direction:column;gap:2px;align-self:flex-start;min-width:260px;margin:2px 0 10px;padding:12px 16px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line)}
+.pp-card span{font-size:12px;color:var(--muted)}

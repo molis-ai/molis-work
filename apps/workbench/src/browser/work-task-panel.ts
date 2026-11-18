@@ -219,10 +219,13 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     if (!float) return;
     // The column of requirements stands beside the work, where this panel floats: opening it puts the panel away.
     if (target?.closest("[data-work-task-float] [data-acceptance-open]")) { showTasks(false); return; }
-    // A press outside the panel and the dialog puts the panel away. The path is the one the press took: a press that redrew what
-    // it landed on (a tab of the dialog) is still a press inside the dialog.
-    const inDialog = event.composedPath().some(node => node instanceof Element && node.matches("[data-assistant-panel]"));
-    if (target?.closest("[data-task-panel-close]") || !target?.closest("[data-work-task-float]")) { if (!inDialog || target?.closest("[data-task-panel-close]")) showTasks(false); return; }
+    // The original path still includes the panel after a click repaints the button it landed on.
+    const path = event.composedPath();
+    if (target?.closest("[data-task-panel-close]")) { showTasks(false); return; }
+    if (!target || !path.includes(float)) {
+      if (!path.some(node => node instanceof Element && node.matches("[data-assistant-panel]"))) showTasks(false);
+      return;
+    }
     if (target.closest("[data-task-panel-list]")) { carded = ""; placing = false; wanted = ""; paintTasks(); return; }
     const row = target.closest<HTMLElement>("[data-task-open]");
     if (row) { carded = row.dataset.taskOpen ?? ""; placing = false; wanted = ""; paintTasks(); float.querySelector<HTMLElement>("[data-task-panel-list]")?.focus(); return; }

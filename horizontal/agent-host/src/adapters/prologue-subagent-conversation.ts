@@ -2,11 +2,11 @@ import { originalRunEvents } from "./prologue-original-inputs.js";
 import { canonicalCallerOpening } from "./prologue-session-opening.js";
 import { projectPeerNotice } from "./prologue-peer-notices.js";
 import { createHash } from "node:crypto";
-import { projectInputReceipts, type ExactRef, type ModelEvent, type Runtime, type Session, type SubagentHandle } from "@prologue/sdk";
+import { projectInputReceipts, type ModelEvent, type Runtime, type Session, type SubagentHandle } from "@prologue/sdk";
 import type { AgentRunRef, AgentSubagentConversation, AgentSubagentRequestResult, AgentSubagentsCapability } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
 import { applyRunEvent, emptyPrologueStreamState } from "./prologue-stream.js";
-import type { PrologueSubagentHooks } from "./prologue-subagents.js";
+import type { PrologueSubagentHooks, PrologueSubagentProjection } from "./prologue-subagents.js";
 
 /** A read-only projection of retained SDK scope; the SDK rechecks authority itself on send/continue. */
 export function subagentAuthorityProblem(runtime: Runtime, child: SubagentHandle): string | undefined {
@@ -29,10 +29,13 @@ export function subagentAuthorityProblem(runtime: Runtime, child: SubagentHandle
 }
 
 /** The original Session queue proves which answered question is waiting; text equality never proves an answer request. */
-async function queuedAnswer(runtime: Runtime, child: SubagentHandle) {
-  const session = await runtime.sessions.open(child.session);
+type ChildPendings = Awaited<ReturnType<Runtime["effects"]["pendings"]["readByOrigin"]>>;
+const childPendings = (runtime: Runtime, child: SubagentHandle) => runtime.effects.pendings.readByOrigin({ session: child.session.id, run: child.run.id });
+
+async function queuedAnswer(session: Session | undefined, child: SubagentHandle, pendings: ChildPendings) {
+  if (!pendings.some(settledQuestionKey)) return undefined;
   const queued = (await session?.inputQueue())?.queued ?? [];
-  for (const pending of await runtime.effects.pendings.readByOrigin({ session: child.session.id, run: child.run.id })) {
+  for (const pending of pendings) {
     const key = settledQuestionKey(pending);
     if (!key) continue;
     const input = queued.find(input => input.key === key && input.from?.run === child.run.id && !input.from.applied);
@@ -51,8 +54,8 @@ function recoveredAnswerOrigin(event: ModelEvent) {
   }
 }
 
-async function readConversationAttempt(runtime: Runtime, session: Session, attempt: ExactRef<"run">, person: string | undefined, task: string | undefined) {
-  const latest = emptyPrologueStreamState(), events = await originalRunEvents(session, attempt);
+async function readConversationAttempt(runtime: Runtime, session: Session, { ref: attempt, events }: PrologueSubagentProjection["attempts"][number], person: string | undefined, task: string | undefined) {
+  const latest = emptyPrologueStreamState();
   const messages: AgentSubagentConversation["messages"] = [];
   const canonical = canonicalCallerOpening(events);
   const personal = person !== undefined && canonical === person;
@@ -88,40 +91,37 @@ const requestKey = (run: AgentRunRef, id: string, request: string, actor: string
 export function subagentConversation(
   runtime: Runtime,
   owned: (run: AgentRunRef, id: string) => SubagentHandle,
-  read: (run: AgentRunRef) => Promise<{ children: Awaited<ReturnType<AgentSubagentsCapability["list"]>>; personOpenings?: Record<string, string>; retryOpenings?: Record<string, string> }>,
+  project: (run: AgentRunRef, child: SubagentHandle) => Promise<PrologueSubagentProjection>,
   hooks: PrologueSubagentHooks,
 ): Pick<AgentSubagentsCapability, "conversation" | "command" | "checkRequest" | "assertCurrent"> {
-  const list: AgentSubagentsCapability["list"] = async run => (await read(run)).children;
   const conversation: NonNullable<AgentSubagentsCapability["conversation"]> = async (run, id) => {
     let child = owned(run, id);
     if (child.state === "reconcile-required") { await runtime.sessions.inspectRecovery(child.session); child = owned(run, id); }
-    const { children, personOpenings, retryOpenings } = await read(run);
-    const view = children.find(one => one.subagent_id === id);
-    if (!view) throw agentErrors.collaboration_unknown("子任务不属于这一轮执行");
-    const session = await runtime.sessions.open(child.session);
-    if (!session) throw agentErrors.session_unknown("子任务原始会话不可读取");
+    const { session, view, attempts, personOpenings, retryOpenings } = await project(run, child);
     const messages: AgentSubagentConversation["messages"] = [];
     let latest = emptyPrologueStreamState();
-    const attempts = child.attempts ?? [child.run];
     for (const attempt of attempts) {
-      const person = attempt === attempts[0] ? undefined : personOpenings?.[attempt.id];
-      const task = view.continuation_task?.status === "available" ? (attempt === attempts[0] ? view.continuation_task.text : retryOpenings?.[attempt.id]) : undefined;
+      const person = attempt === attempts[0] ? undefined : personOpenings?.[attempt.ref.id];
+      const task = view.continuation_task?.status === "available" ? (attempt === attempts[0] ? view.continuation_task.text : retryOpenings?.[attempt.ref.id]) : undefined;
       const projected = await readConversationAttempt(runtime, session, attempt, person, task);
       latest = projected.latest;
       for (const turn of projected.messages) messages.push(turn);
     }
-    const reason = subagentAuthorityProblem(runtime, child)
-      ?? (view.state === "reconcile-required" ? "这次执行有未核对的结果，请先在原恢复入口核对" : undefined)
-      ?? (view.state !== "running" && view.budget && view.budget.attempt >= view.budget.max_attempts ? "尝试额度已用完，请先增加额度" : undefined);
-    const pendings = (await runtime.effects.pendings.readByOrigin({ session: child.session.id, run: child.run.id })).filter(one => one.state === "open");
-    const pending = new Map(pendings.map(one => [one.ref.id, one.ref.revision]));
-    const questions = hooks.readQuestion ? (await Promise.all(pendings.filter(one => ["text", "questionnaire"].includes(one.kind))
+    const unavailable = subagentAuthorityProblem(runtime, child)
+      ?? (view.state === "reconcile-required" ? "这次执行有未核对的结果，请先在原恢复入口核对" : undefined);
+    const capped = !unavailable && view.state !== "running" && view.budget && view.budget.attempt >= view.budget.max_attempts;
+    const reason = unavailable ?? (capped ? "尝试额度已用完，请先增加额度" : undefined);
+    const pendings = await childPendings(runtime, child);
+    const open = pendings.filter(one => one.state === "open");
+    const pending = new Map(open.map(one => [one.ref.id, one.ref.revision]));
+    const questions = hooks.readQuestion ? (await Promise.all(open.filter(one => ["text", "questionnaire"].includes(one.kind))
       .map(one => hooks.readQuestion!(run, child, one.ref.id, one.ref.revision)))).filter(one => one !== null) : [];
-    const queued = await queuedAnswer(runtime, child);
+    const queued = await queuedAnswer(session, child, pendings);
     return { child: view, messages, phase: latest.phase, questions,
       ...(queued ? { queued_answer: { pending_id: queued.pending_id, pending_revision: queued.pending_revision } } : {}),
       approvals: latest.awaiting_approval.filter(one => pending.has(one.pending_id)).map(({ pending_id }) => ({ pending_id, pending_revision: pending.get(pending_id)! })),
-      ...(reason ? { input_unavailable: reason } : {}) };
+      ...(reason ? { input_unavailable: reason } : {}),
+      ...(capped && hooks.extendBudget ? { extend_budget_available: true } : {}) };
   };
   return {
     conversation,
@@ -191,10 +191,10 @@ export function subagentConversation(
           return { state: "applied", run: input.child_run, input_id: receipt.inputId };
         }
         if (input.kind === "resume-answer" && current.state === "reconcile-required") { await runtime.sessions.inspectRecovery(current.session); current = owned(run, id); }
-        const queued = input.kind === "resume-answer" ? await queuedAnswer(runtime, current) : undefined;
+        const queued = input.kind === "resume-answer" ? await queuedAnswer(await runtime.sessions.open(current.session), current, await childPendings(runtime, current)) : undefined;
         if (input.kind === "resume-answer" && (!queued || queued.pending_id !== input.pending_id || queued.pending_revision !== input.pending_revision)) return { state: "not-applied", reason: "原答案已处理或不属于这次执行" };
-        const view = (await list(run)).find(one => one.subagent_id === id);
-        if (!view || current.state === "running" || current.state === "reconcile-required") return { state: "not-applied", reason: "当前子任务不能开始新尝试" };
+        if (current.state === "running" || current.state === "reconcile-required") return { state: "not-applied", reason: "当前子任务不能开始新尝试" };
+        const { view } = await project(run, current);
         if (!hooks.continueChild || view.continuation_task?.status !== "available") return { state: "not-applied", reason: "原子任务开场不可核验" };
         if (view.budget && view.budget.attempt >= view.budget.max_attempts) return { state: "not-applied", reason: "尝试额度已用完" };
         let next: AgentRunRef;

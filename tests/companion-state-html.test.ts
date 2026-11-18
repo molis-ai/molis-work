@@ -96,8 +96,8 @@ test("PG062-01, PG062-02: a page's diff.state and text-stats.state carry the plu
       assert.equal(stats.html, expectedTextStats(stats.view, locale));
       assert.match(stats.html, /mw-empty[\s\S]*#icon-hash/);
       const diff = await project.invoke<{ view: DiffView; html: string }>(diffState, { locale });
-      assert.equal(diff.view.message, "先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异");
-      const message = locale === "en" ? "Pin a before and an after in the file reader first, and the difference shows here" : diff.view.message;
+      assert.equal(diff.view.message, "先在侧栏「资料」阅读器里分别固定「对比前」和「对比后」，这里就会显示两者的差异");
+      const message = locale === "en" ? "Pin a “Before” and “After” version in the Materials reader first to view their differences here" : diff.view.message;
       assert.equal(diff.html, renderDiff({ labels: DIFF_LABELS, view: { ...diff.view, message }, primitives: diffPrimitives(locale) }));
       assert.match(diff.html, /#icon-git-compare/);
     }
@@ -128,9 +128,9 @@ test("PG062-01, PG062-02: a page's diff.state and text-stats.state carry the plu
     const english = await project.invoke<{ view: DiffView; html: string }>(diffState, { locale: "en" });
     assert.deepEqual(english.view, chinese.view, "the localized HTML does not change the comparison result");
     assert.deepEqual([english.view.mismatch, english.view.rows, english.view.before?.workspace_id, english.view.after?.workspace_id,
-      english.view.message, english.view.recovery], [true, [], "ws", "another-workspace", "这两份快照来自不同的工作目录，没法比", "回到文件阅读区，重新固定对比前和对比后"]);
-    assert.match(chinese.html, /这两份快照来自不同的工作目录，没法比<\/strong><p>回到文件阅读区，重新固定对比前和对比后/);
-    assert.match(english.html, /These two snapshots come from different working folders and can’t be compared<\/strong><p>Go back to the file reader and pin a before and an after again/);
+      english.view.message, english.view.recovery], [true, [], "ws", "another-workspace", "这两个文件版本来自不同的项目文件夹，无法直接对比", "回到文件阅读区，重新固定对比前和对比后"]);
+    assert.match(chinese.html, /这两个文件版本来自不同的项目文件夹，无法直接对比<\/strong><p>回到文件阅读区，重新固定对比前和对比后/);
+    assert.match(english.html, /These two file versions come from different project folders and can’t be compared<\/strong><p>Go back to the file reader and pin a before and an after again/);
   });
 });
 

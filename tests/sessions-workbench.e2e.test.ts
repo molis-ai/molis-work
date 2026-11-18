@@ -223,7 +223,7 @@ test("SRB-11 SRB-14 SRB-15 SRB-16: Unfiled filing, AI permit sheet + overlay ret
   await evaluate("document.querySelector('[data-sessions-view=\"unfiled\"]').click()");
   await waitFor("document.querySelectorAll('[data-unfiled-card]').length === 1");
   const unfiledText = await evaluate<string>("document.querySelector('[data-sessions-body]').textContent || ''");
-  assert.match(unfiledText, /AI 归属建议仅向你已配置的模型发送标题、脱敏目录、开头几句/u);
+  assert.match(unfiledText, /请求 AI 推荐归属时，只会把对话标题、脱敏路径、开头几句/u);
   await evaluate(`(() => {
     const sel = document.querySelector('[data-unfiled-select]');
     sel.value = ${JSON.stringify(beta.project_id)};

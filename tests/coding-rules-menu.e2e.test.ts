@@ -115,7 +115,7 @@ test("BCD-05 BCD-08 BCD-10 BCD-14 the rules menu shows what each round was given
   const menu = await openMenu();
   assert.match(menu, /项目说明.*这个项目没有写项目说明/, "BCD-14: the project's own instructions are a group of their own, not counted in 规则 N");
   assert.match(menu, /仓库说明文件.*1MDAGENTS\.md\d+ 字生效中/, "BCD-08: the file the round recorded, its length, in effect");
-  assert.match(menu, /规则只能约束 Coding/);
+  assert.match(menu, /规则仅约束 Coding 行为/);
   await shot("zh-light-1440-trusted");
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] }, sessionId);
   await shot("zh-dark-1440-trusted");
@@ -142,14 +142,14 @@ test("BCD-05 BCD-08 BCD-10 BCD-14 the rules menu shows what each round was given
   const untrusted = await round("再说一次。", "规则");
   assert.ok(!untrusted.includes("RULES_MARKER"), "BCD-05: reading off, the round is given no instruction file");
   const off = await openMenu();
-  assert.match(off, /仓库说明文件.*没有读取.*你在项目设置里关了读取/, "BCD-08: not loaded, and why");
+  assert.match(off, /仓库说明文件.*没有读取.*项目设置中已关闭说明文件读取/, "BCD-08: not loaded, and why");
   assert.equal(await child.evaluate<string>(`document.querySelector('${DIALOG} [data-coding-rules-not-loaded]')?.dataset.codingRulesNotLoaded ?? ''`), "off");
   await shot("zh-light-1440-not-loaded");
   // 「读取这个文件夹的说明文件」 goes through the Host's own dialog; once the person says yes the menu says it applies from the next round.
   await child.click(`${DIALOG} [data-coding-rules-confirm]`);
   await b.waitFor("document.querySelector('[data-page-dialog=confirm]')?.open === true || Boolean(document.querySelector('[data-page-dialog=confirm]:not([hidden])'))");
   await b.click("[data-page-dialog=confirm] [type=submit]");
-  await child.waitFor(`document.querySelector(${JSON.stringify(DIALOG)}).textContent.includes('下一轮起生效')`, 15_000);
+  await child.waitFor(`document.querySelector(${JSON.stringify(DIALOG)}).textContent.includes('自下一轮生效')`, 15_000);
   await closeMenu();
   const again = await round("第三次。", "规则 1");
   assert.ok(again.includes("RULES_MARKER"), "turned on again, the next round reads it");
@@ -183,7 +183,7 @@ test("BCD-05 BCD-08 BCD-10 BCD-14 the rules menu shows what each round was given
   await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled && Boolean(document.querySelector(${JSON.stringify(RULES)}))`, 20_000);
   assert.equal(await label(), "规则", "an unrecorded round counts nothing");
   const unrecorded = await openMenu();
-  assert.match(unrecorded, /这一轮没有记录规则来源/);
+  assert.match(unrecorded, /本轮未记录规则来源/);
   assert.doesNotMatch(unrecorded, /没加载|没有读取/, "BCD-10: never 「没加载」 for a round that recorded nothing");
   assert.deepEqual(await child.evaluate("(window.codingTestErrors || [])"), []);
 });

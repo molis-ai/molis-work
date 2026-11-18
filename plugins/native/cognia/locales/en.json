@@ -60,7 +60,7 @@
     "cognia.import.guide-limits": "Preserves Markdown, folders and attachments. Database relations, query views, block references and dynamic plugins are not reconstructed. Convert ENEX, JEX, .sy, SQLite and OneNote formats first; skipped files show a reason.",
     "cognia.import.guide-tools": "Obsidian and Logseq file graphs: choose the Markdown folder. Notion: export Markdown and CSV, then unzip. Joplin: export Markdown + Front Matter. SiYuan, Anytype, Bear, Apple Notes and Logseq DB: export Markdown first. LLM Wiki is a knowledge workflow, not a proprietary format.",
     "cognia.import.guides-title": "Import from other knowledge tools",
-    "cognia.import.hint": "One-way snapshots; source folders stay unchanged. Up to 1,000 files / 32 MB per batch, 2 MB per text file and 8 MB per attachment.",
+    "cognia.import.hint": "Copies files as they are now without modifying source folders. Up to 1,000 files / 32 MB per batch (2 MB per text file, 8 MB per attachment).",
     "cognia.import.kind": "Type",
     "cognia.import.new-source": "Create independent source",
     "cognia.import.nothing": "No importable content. Review the skipped files and choose a Markdown export folder.",
@@ -121,6 +121,6 @@
     "cognia.agent-prompt.cognia-answer.title": "Organize knowledge and answer questions",
     "cognia.agent-prompt.cognia-answer.purpose": "Organize or answer using only the selected fixed material versions and cite sources with markers such as [S1]",
     "cognia.agent-prompt.cognia-evidence.title": "Knowledge assistant role",
-    "cognia.agent-prompt.cognia-evidence.purpose": "Role instructions for Cognia’s knowledge organization and question-answering runs"
+    "cognia.agent-prompt.cognia-evidence.purpose": "Role instructions for Cognia’s knowledge organization and question answering"
   }
 }

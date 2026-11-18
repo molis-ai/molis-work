@@ -14,6 +14,8 @@
 
 ## 01～90
 
+2026-11-18 按未开工批次复查调整（[决定 52](reference/decisions.md#decision-52)）：新增 36A 逐屏打磨（排在 37 前）与 63A 记忆 P2（从 64 拆出），72 并入 77，各批的前提、范围与前置按代码更正，见各批次文件「11-18 复查」一节。新增批次带字母，原批号不变。
+
 | 批次 | 批次内内容 |
 | --- | --- |
 | [01](reference/batches/01.md) | [基线、旧成果与在途需求核对](reference/batches/01.md#batch-01-item-1) |
@@ -90,6 +92,13 @@
 |  | [Coding A 期](reference/batches/35.md#batch-35-item-2) |
 | [36](reference/batches/36.md) | [角色设置、生效与恢复](reference/batches/36.md#batch-36-item-1) |
 |  | [主线第一片的合同与服务](reference/batches/36.md#batch-36-item-2) |
+| [36A](reference/batches/36a.md) | [顶部栏：纸上的页签](reference/batches/36a.md#batch-36a-item-1)（2026-11-18 加，[决定 52](reference/decisions.md#decision-52)） |
+|  | [事项线：底栏第四版](reference/batches/36a.md#batch-36a-item-2) |
+|  | [助理对话框、事件卡与收起态](reference/batches/36a.md#batch-36a-item-3) |
+|  | [Coding 逐屏](reference/batches/36a.md#batch-36a-item-4) |
+|  | [设置页：一种写法](reference/batches/36a.md#batch-36a-item-5) |
+|  | [首页：项目的第一页](reference/batches/36a.md#batch-36a-item-6) |
+|  | [动效落地与曲线收口](reference/batches/36a.md#batch-36a-item-7) |
 | [37](reference/batches/37.md) | [生成页面运行、采用与恢复](reference/batches/37.md#batch-37-item-1) |
 |  | [事项切换与工作台状态](reference/batches/37.md#batch-37-item-2) |
 | [38](reference/batches/38.md) | [插件配置采用](reference/batches/38.md#batch-38-item-1) |
@@ -153,6 +162,9 @@
 |  | [项目模型限制与出站边界](reference/batches/62.md#batch-62-item-2) |
 |  | [组合候选目录与引用语义](reference/batches/62.md#batch-62-item-3) |
 | [63](reference/batches/63.md) | [全平台评测扩展](reference/batches/63.md#batch-63-item-1) |
+| [63A](reference/batches/63a.md) | [记忆形成质量（P2-01）](reference/batches/63a.md#batch-63a-item-1)（2026-11-18 从 64 拆出，[决定 52](reference/decisions.md#decision-52)） |
+|  | [记忆整理（Dreaming）、按需原文与用户控制](reference/batches/63a.md#batch-63a-item-2) |
+|  | [常驻层（P2-05）](reference/batches/63a.md#batch-63a-item-3) |
 | [64](reference/batches/64.md) | [主动发现、持续工作与周期报告](reference/batches/64.md#batch-64-item-1) |
 |  | [智能组合第三片](reference/batches/64.md#batch-64-item-2) |
 |  | [主线建议与跨项目个人视图](reference/batches/64.md#batch-64-item-3) |
@@ -160,8 +172,6 @@
 |  | [访谈初始化与工作记忆](reference/batches/64.md#batch-64-item-5) |
 |  | [回执阶段 5](reference/batches/64.md#batch-64-item-6) |
 |  | [安静准备与观察试用](reference/batches/64.md#batch-64-item-7) |
-|  | [记忆形成质量（P2-01）](reference/batches/64.md#batch-64-item-8)（2026-11-14 加，[决定 46](reference/decisions.md#decision-46) 拟定） |
-|  | [记忆整理（Dreaming）、按需原文与用户控制](reference/batches/64.md#batch-64-item-9)（同上） |
 | [65](reference/batches/65.md) | [公共搜索与联网设置](reference/batches/65.md#batch-65-item-1) |
 |  | [受限命令、依赖与 AI 低风险审批](reference/batches/65.md#batch-65-item-2) |
 |  | [Hooks 启用、变更、停用与恢复](reference/batches/65.md#batch-65-item-3) |
@@ -190,9 +200,9 @@
 |  | [规划方法扩行业](reference/batches/70.md#batch-70-item-10) |
 | [71](reference/batches/71.md) | [外观自定义与助理制作 D 段](reference/batches/71.md#batch-71-item-1) |
 |  | [外观与语言整体交付 E 段](reference/batches/71.md#batch-71-item-2) |
-| [72](reference/batches/72.md) | [复杂场景设计定稿](reference/batches/72.md#batch-72-item-1) |
+| [72](reference/batches/72.md) | [复杂场景设计定稿 → 并入 77](reference/batches/72.md#batch-72-item-1)（2026-11-18） |
 | [73](reference/batches/73.md) | [技能包、工作流与生成插件导入导出](reference/batches/73.md#batch-73-item-1) |
-|  | [场景方案与保存操作面导入导出](reference/batches/73.md#batch-73-item-2) |
+|  | [场景包与保存操作面导入导出](reference/batches/73.md#batch-73-item-2) |
 |  | [整份 Home 导出与导入 U7](reference/batches/73.md#batch-73-item-3) |
 |  | [业务数据导出回读](reference/batches/73.md#batch-73-item-4) |
 | [74](reference/batches/74.md) | [个人同步完整交付 → SRV-5](reference/batches/74.md#batch-74-item-1) |

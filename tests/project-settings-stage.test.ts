@@ -265,6 +265,6 @@ test("project guidance keeps runtime notes on the title hint instead of the page
   assert.match(html, /id="guidance-title">项目说明/);
   assert.match(html, /settings-heading-title[\s\S]*id="guidance-title"/);
   assert.match(html, /class="mw-hint"/);
-  assert.match(html, /只发送当前生效版本，放在这一轮的任务和外部内容之前/);
+  assert.match(html, /每次只把当前生效的说明发给 AI/);
   assert.doesNotMatch(html, /class="settings-footnote"/);
 });

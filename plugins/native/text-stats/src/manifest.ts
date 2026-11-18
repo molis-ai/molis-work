@@ -24,13 +24,13 @@ export const textStatsManifest: PluginManifest = {
   plugin_id: TEXT_STATS_PLUGIN_ID,
   version: /* @version product.release */ "0.1.0",
   name: "Text stats",
-  summary: "统计文件快照的字数、字节与行数。", summary_text: { key: "text-stats.directory.summary" },
+  summary: "统计已固定文件版本的字数、字节与行数。", summary_text: { key: "text-stats.directory.summary" },
   developer: true,
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-text-stats-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
-    { permission: "artifact:read", required: true, reason: "读取绑定的文本快照" },
+    { permission: "artifact:read", required: true, reason: "读取已固定的文本版本" },
   ],
   capabilities: { provides: [], consumes: [] },
   actions: TEXT_STATS_ACTIONS,
@@ -54,7 +54,7 @@ export const textStatsManifest: PluginManifest = {
   ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [TEXT_STATS_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "browse", slot: "navigator", title: "Text Stats", contribution_id: TEXT_STATS_UI_CONTRIBUTION_ID, icon: "hash", hue: "brown", order: 66 },
+      { view_id: "browse", slot: "navigator", title: "Text stats", contribution_id: TEXT_STATS_UI_CONTRIBUTION_ID, icon: "hash", hue: "brown", order: 66 },
       {
         view_id: "stats",
         slot: "stage",

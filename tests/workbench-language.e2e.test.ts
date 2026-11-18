@@ -604,7 +604,7 @@ test("FSS-35 FSS-36 the open Diff wait state changes language without replacing 
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(prefix + "/?openPlugin=diff") }, b.sessionId));
   const empty = "document.querySelector('[data-companion=diff] .mw-empty')", refresh = "document.querySelector('[data-companion-refresh]')";
   const message = `${empty}?.querySelector('strong').textContent`;
-  const zh = "先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异", en = "Pin a before and an after in the file reader first, and the difference shows here";
+  const zh = "先在侧栏「资料」阅读器里分别固定「对比前」和「对比后」，这里就会显示两者的差异", en = "Pin a “Before” and “After” version in the Materials reader first to view their differences here";
   await child.waitFor(`${message} === ${JSON.stringify(zh)}`);
   await child.evaluate(`void (()=>{ window.diffOriginal = ${empty}; ${refresh}.focus(); })()`);
   const select = await chooseEnglishInSettings(t, b);
@@ -1125,7 +1125,7 @@ test("FSS-20 FSS-37 the Workbench and its inline Goals share a language change w
   await b.waitFor("typeof t === 'function' && document.querySelector('[data-open-create] span')");
   const projection = await b.evaluate("JSON.parse(document.querySelector('script[data-ui-page-text]')?.textContent || '[]').map(row => [row.slot,row.packs.map(pack => pack.owner)])");
   assert.deepEqual(projection, [["project:goals", ["io.molis.work.goals"]]]);
-  assert.equal(await b.evaluate("t.text('goals.tree-ui.new-goal')"), "新建 Goal");
+  assert.equal(await b.evaluate("t.text('goals.tree-ui.new-goal')"), "新建目标");
   assert.equal(await b.evaluate("t.text('git.commit.plain')"), "这句话暂时显示不了", "an opaque client's words do not enter the shell");
   await b.evaluate("document.querySelector('[data-open-create]').click()");
   await b.waitFor("document.querySelector('dialog[open] input.create-compose-title')");

@@ -413,7 +413,7 @@ test("Feed add-source panel sends GitHub and Gmail to project-scoped Connectors"
       active: true,
     },
   })));
-  assert.match(panel, /打开 Connectors/);
+  assert.match(panel, /打开服务连接/);
   assert.match(panel, /href="\/settings\/connectors\?connector=github&amp;project=project-test"/);
   assert.match(panel, /href="\/settings\/connectors\?connector=gmail&amp;project=project-test"/);
   assert.match(panel, /凭据已保存/);

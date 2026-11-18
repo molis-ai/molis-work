@@ -16,7 +16,7 @@ const optionTag = (html: string, field: string, value: string) => html.slice(htm
 const say = pageText("zh");
 
 test("SAI-07: Assistant renders empty peer notices in its page language", () => {
-  for (const [locale, words] of [["zh", ["收到一条会话更新", "有人向这项子任务补充了输入"]], ["en", ["Conversation update received", "A person added input to this subtask"]]] as const) {
+  for (const [locale, words] of [["zh", ["收到一条会话更新", "有人向这项子任务补充了输入"]], ["en", ["Conversation update received", "A person added input to this sub-task"]]] as const) {
     const shown = view("completed");
     shown.rounds[0]!.turns = [
       { turn_id: "peer", kind: "notice", text: "", notice: "peer-update", at: null },

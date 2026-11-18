@@ -107,7 +107,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await open("text-stats");
   await waitFor("document.querySelector('[data-companion=" + '"text-stats"' + "] [data-phase=ready]')");
   const statsStage = await stage("text-stats");
-  assert.match(statsStage.heading, /Text Stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开资料"]);
+  assert.match(statsStage.heading, /Text stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开资料"]);
   assert.ok(statsStage.inset >= 32 && statsStage.column <= 960 && statsStage.contentLeft >= 32, JSON.stringify(statsStage));
   await capture("stats-desktop");
   await writeFile(join(workspace, "note.txt"), "staged\n中文🙂\n");

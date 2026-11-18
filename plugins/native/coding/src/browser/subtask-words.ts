@@ -3,13 +3,15 @@ import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 const text = t.text;
 
 /** Owner-localized names used by the common child conversation; every word has a literal catalog key. */
-const words: Readonly<Record<string, () => string>> = {
+const words: Readonly<Record<string, (values?: Parameters<typeof text>[1]) => string>> = {
   "action-failed": () => text("coding.subtask.action-failed"),
   "back": () => text("coding.subtask.back"),
   "check": () => text("coding.subtask.check"),
   "children": () => text("coding.subtask.children"),
   "close": () => text("coding.subtask.close"),
   "continue": () => text("coding.subtask.continue"),
+  "extend-budget": () => text("coding.card.extend-budget"),
+  "budget-exhausted": values => text("coding.card.budget.count", values),
   "continue-note": () => text("coding.subtask.continue-note"),
   "latest": () => text("coding.subtask.latest"),
   "loading": () => text("coding.subtask.loading"),
@@ -49,5 +51,5 @@ const words: Readonly<Record<string, () => string>> = {
   "answer-accepted": () => text("coding.subtask.answer-accepted"),
   "approvals": () => text("coding.subtask.approvals"),
 };
-export const subtaskWord = (key: string): string => words[key]!();
+export const subtaskWord: typeof text = (key, values) => words[key]!(values);
 export const subtaskDescription = (task: string | undefined): string => task || text("coding.subtask.notice.task-unavailable");

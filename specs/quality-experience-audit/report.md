@@ -1574,3 +1574,7 @@ Verify 首轮的产品子集第 1 片 66 份通过。Goals 刷新文件触及 24
 主干工作线把上一条收起的回复正文和其指纹作为身份。浏览器重开后，第二条不同 ID 的回复即便是一次新工作，只要文字相同也不会显示在输入栏上方。用浏览器复现，原回复收起及重开断言通过，接着加入不同 ID、相同文字的回复等待显示超时。处置归工作台，以回复已有的工作、轮次与消息 ID 投影到同一 DOM 节点。窗口只保存当前收起的回复 ID，连续写入这条回复保持收起，另一条回复即使同字仍会出现。正文由原助理和原渲染器维护。按 QEA-198 复验两次真实发送、显示和持久化。 [回复身份](../../apps/workbench/src/scripts/client/assistant-conversation.ts#L233) · [窗口回执](../../apps/workbench/src/browser/work-task-panel.ts#L83) · [真实入口与读回](../../tests/work-line-done-card.e2e.test.ts)
 
 隔离 Home 用本地录制模型走两次正常发送。第一条回执经设置盖层收起，第二条同字但不同 ID 正常展示，Host 的原工作读取返回两个真实轮次及各自的回复 ID。现行 Markdown 渲染、原件名称、设置覆盖及窗口重开用例保持。工作线及 Coding 的六组浏览器用例共 86 项通过，另两个页面录制用例沿原模式跳过。Coding 材料服务十项中一项本机连接重置，同源码定向复跑通过，保留后台失败恢复、轮次固定版本和溢出项读回。完整构建、本机健康、包边界、111 份 API、44 个库结构、版本和动作快照一致。日志 `quality-audit-b118-{browser,coding-quick,coding-materials-retry,reply-build,health,contracts}.log`。
+
+QEA-199 原 15 个场景仍由产品子集执行器运行。三个组内复用各自的隔离 Home，共少启动六次。每个场景仍进入实际页面、用自己的对象及原写入断言。一次带组复验暴露了前一场景的界面偏好会恢复成工作区，两个需要 Frame 的场景改用原界面动作进入并确认目标。保留整文件 240 秒上限，最终本机实跑 172.2 秒通过，零重试、跳过和隔离。日志 `quality-audit-b118-goals-strict3.log`。 [真实场景](../../tests/goals-refresh.e2e.test.ts)
+
+主干 `6c88cba611` 同步决定 53、底栏第十三版和第 36A、37 批的需求拆分。这一提交是文档变更，合并预检无冲突。逐屏 P0 已交付的缺陷和后续新底栏、事项首页仍按各自验收。 [决定 53](https://github.com/molis-ai/molis-work/blob/6c88cba611/specs/post-anticorruption-roadmap/reference/decisions.md#decision-53)

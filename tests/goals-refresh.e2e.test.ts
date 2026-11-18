@@ -29,6 +29,13 @@ async function openDocument(b: NonNullable<Awaited<ReturnType<typeof openGoalBro
   await b.waitFor("document.querySelector('[data-document-pane] [data-work-surface=goals]')?.checkVisibility({visibilityProperty:true})");
 }
 
+async function showFrame(b: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>, goalId: string) {
+  const frame = "document.querySelector('[data-goal-frame-surface]')";
+  const visible = `${frame}?.dataset.frameGoal === ${JSON.stringify(goalId)} && ${frame}.checkVisibility({visibilityProperty:true})`;
+  if (!await b.evaluate(visible)) await b.openGoalFrame(`.tree-node[data-select-goal=${JSON.stringify(goalId)}]`);
+  await b.waitFor(visible);
+}
+
 test("background refresh follows external archive and restore without changing the Goal or execution history", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "user");
   if (!browser) return;
@@ -179,9 +186,7 @@ test("QEA-113 QEA-114 QEA-199 collection refresh across Goal surfaces", async t 
     const prefix = `/projects/${b.projectId}`;
     await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
     // Reenter the Frame if the workbench restored the workspace last used in this Home.
-    if (!await b.evaluate("document.querySelector('[data-goal-frame-surface]')?.checkVisibility({visibilityProperty:true})"))
-      await b.openGoalFrame('.tree-node[data-select-goal="V1"]');
-    await b.waitFor("document.querySelector('[data-goal-frame-surface]')?.checkVisibility({visibilityProperty:true})");
+    await showFrame(b, "V1");
     assert.equal(await b.evaluate("document.querySelector('[data-document-pane] [data-work-surface=goals]').checkVisibility({visibilityProperty:true})"), false);
     await b.evaluate(`(() => {
       globalThis.__oldGoalDocument = document.querySelector('[data-goal-event-document]');
@@ -350,7 +355,7 @@ test("QEA-114 QEA-199 collection refresh with competing writes and navigation", 
     await b.setViewport(1440, 1000);
     const prefix = `/projects/${b.projectId}`;
     await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/CORE?desktop=1" }, b.sessionId));
-    await b.waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE'");
+    await showFrame(b, "CORE");
     const navigations: string[] = [];
     const offNavigation = b.on("Page.frameRequestedNavigation", (event, session) => {
       if (session === b.sessionId) navigations.push((event as { url: string }).url);

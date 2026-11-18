@@ -705,13 +705,14 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
 
 /** A new work a plugin carries: who does it and its mode are the composer's controls (K3, UIV-12). */
 const NEW_WORK_KINDS = ["composer control"];
-const BASE = ["work chip clear", "attention chip"];
+const CURRENT_WORK_KINDS = ["work chip clear", "composer control"];
+const WITH_NOTICE = [...CURRENT_WORK_KINDS, "attention chip"];
 /** The windows where a phone's Assistant composer is tight: 320 and 360 are the narrow phones, 390 the common one, and 640, 667 and
  * 740 are phones held sideways (the Dock and residents trays leave the composer 214, 241 and 314px), 852 the one that has room. */
 const LINE_WINDOWS = [[320, 568], [360, 740], [390, 844], [640, 360], [667, 375], [740, 360], [852, 393]] as const;
 const LINE_STATES = [
-  ["a current work", [], ["work chip clear"]],
-  ["a current work with a notice", ["[data-assistant-attention]"], BASE],
+  ["a current work", [], CURRENT_WORK_KINDS],
+  ["a current work with a notice", ["[data-assistant-attention]"], WITH_NOTICE],
 ] as const;
 
 for (const scheme of ["light", "dark"] as const) {
@@ -894,24 +895,21 @@ for (const scheme of ["light", "dark"] as const) {
       assert.deepEqual(body.made.filter(item => /assistant-inline-object/.test(item.cls) && !(item.hit && item.w >= 44)).map(item => `${item.cls} ${item.w}×${item.h}`), [], `panel body · ${width}: an object chip in a sentence answers to a finger 44px above and below it`);
       assert.ok(body.overflow <= 1, `panel body · ${width}: and they do not push the thread sideways (${body.overflow}px)`);
     }
-    const folds: Record<string, boolean> = {};
     for (const [width, height] of LINE_WINDOWS) {
       await w.open(width, height, "", "true");
       for (const [name, chips, kinds] of LINE_STATES) {
         const { fit } = await w.line(`${name} · ${width}`, [...chips], [...kinds], 44);
-        folds[`${width} ${name}`] = fit.folded;
+        // B36F-04: the current work's role picker is the control measured by line(), also when it folds into More.
+        assert.equal(await w.evaluate("!!document.querySelector('[data-assistant-composer] [data-composer-control=character]')"), true);
+        assert.equal(fit.folded, width < 480, `${name} · ${width}: the role picker folds on a narrow phone`);
         await w.typeAndLeave(`${name} · ${width}`, fit);
         assert.deepEqual(await w.shellFindings(), [], `${name} · ${width}: the bar lays out cleanly with 44px targets`);
         assert.ok(fit.input >= (width <= 600 ? 64 : 44), `${name} · ${width}: the input keeps its floor (${fit.input}px)`);
       }
     }
-    // A current work has no scene controls, so nothing is folded at any of these widths; a composer with controls folds them on a box
-    // narrower than 480px, which is checked with the new work above.
-    assert.deepEqual(Object.entries(folds).filter(([, folded]) => folded).map(([key]) => key), [], "a current work's composer folds nothing");
-
     // A tablet's composer, with every part a current work shows.
     await w.open(1024, 768, "", "true");
-    await w.line("a current work with a notice · 1024", ["[data-assistant-attention]"], BASE, 44);
+    await w.line("a current work with a notice · 1024", ["[data-assistant-attention]"], WITH_NOTICE, 44);
     assert.deepEqual(await w.shellFindings(), [], "a current work with a notice · 1024: the bar lays out cleanly");
   });
 
@@ -1005,7 +1003,7 @@ for (const scheme of ["light", "dark"] as const) {
     await w.makeCurrentWork();
     await w.open(1280, 800, "", "true");
     await w.line("a current work · 1280", [], ["work chip clear"], floors.bar);
-    await w.line("a current work with a notice · 1280", ["[data-assistant-attention]"], BASE, floors.bar);
+    await w.line("a current work with a notice · 1280", ["[data-assistant-attention]"], WITH_NOTICE, floors.bar);
     // The opened panel's body is where the touch rules end: with a fine pointer its details and conversation controls keep the denser
     // sizes they have on a desktop (the 22–28px ones are the known gap BL-127), and what is long or wide enough to read is not stretched.
     const panel = await w.panelBody();
@@ -1013,7 +1011,7 @@ for (const scheme of ["light", "dark"] as const) {
     assert.deepEqual(panel.made.filter(item => /assistant-(copy|segment|side-action|code-copy)\b/.test(item.cls) && item.h >= 44).map(item => `${item.cls} ${item.w}×${item.h}`), [], "1280: and so do the conversation's own small buttons");
     assert.ok(panel.real["all works"].filter(item => /assistant-works-new/.test(item.cls)).every(item => item.h < 44), "1280: the list of all works keeps its desktop rows (the one-line row is not 44px)");
     await w.open(1280, 500, "", "true");
-    await w.line("a current work · short window 1280×500", [], ["work chip clear"], floors.bar);
+    await w.line("a current work · short window 1280×500", [], CURRENT_WORK_KINDS, floors.bar);
 
     // A narrow desktop window (700px, where the Assistant's column is 302px): the composer stays inside its box and keeps its input,
     // ＋ and send at their sizes; its scene controls fold behind 更多 by its own sheet, as everywhere.

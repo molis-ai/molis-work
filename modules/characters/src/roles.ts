@@ -188,6 +188,17 @@ class CharacterMembers extends CharacterOriginals {
     return this.memberRole(projectId, memberId)!;
   }
 
+  /** Both changes must be inside the same Characters transaction. Use the original linked by the confirmed member. */
+  saveMemberFollowing(projectId: string, memberId: string, expectedRevision: string, expectedOriginalVersion: number,
+    values: Partial<SectionValue>, saveOriginal: (id: string) => number): Extract<CharacterRole, { layer: "project" }> {
+    const { row } = this.confirmedMember(projectId, memberId, expectedRevision, expectedOriginalVersion);
+    const original = saveOriginal(row.character_id);
+    const sections = { ...row.sections };
+    for (const section of SECTIONS) if (values[section] !== undefined) sections[section] = { mode: "follow" };
+    this.writeMember(row, original, sections);
+    return this.memberRole(projectId, memberId)!;
+  }
+
   /** 「恢复跟随」 saves a version that follows again; 「保持本项目的」 only acknowledges the original's current version. */
   setSection(projectId: string, memberId: string, section: CharacterRoleSection, expectedRevision: string, expectedOriginalVersion: number, to: "follow" | "keep"): Extract<CharacterRole, { layer: "project" }> {
     const { row, original } = this.confirmedMember(projectId, memberId, expectedRevision, expectedOriginalVersion), stored = row.sections[section];
@@ -212,11 +223,18 @@ class CharacterMembers extends CharacterOriginals {
    * A member's past version saved as its next one: an overridden section takes its old value back; a section that followed then is
    * followed again if the original still says what it said in the version given, and otherwise is overridden here with what it said.
    */
-  restoreMember(projectId: string, ref: ProjectCharacterVersionRef, expectedRevision: string, expectedOriginalVersion: number): Extract<CharacterRole, { layer: "project" }> {
-    const { row, original } = this.confirmedMember(projectId, ref.member_id, expectedRevision, expectedOriginalVersion);
+  restoreMember(projectId: string, ref: ProjectCharacterVersionRef, expectedRevision: string, expectedOriginalVersion: number,
+    restoreOriginal?: (ref: PersonalCharacterVersionRef) => number): Extract<CharacterRole, { layer: "project" }> {
+    const { row, original: confirmedOriginal } = this.confirmedMember(projectId, ref.member_id, expectedRevision, expectedOriginalVersion);
     const past = this.memberVersions(projectId, ref.member_id).find(version => version.member_version === ref.member_version);
-    const then = this.version(row.character_id, ref.original.version)?.content, now = this.version(row.character_id, original)!.content;
+    const then = this.version(row.character_id, ref.original.version)?.content;
     if (!past || !then || ref.original.character_id !== row.character_id) throw characterErrors.not_found("找不到这个版本");
+    const original = restoreOriginal ? restoreOriginal(ref.original) : confirmedOriginal;
+    const now = this.version(row.character_id, original)!.content;
+    if (restoreOriginal) {
+      this.writeMember(row, original, past.sections);
+      return this.memberRole(projectId, ref.member_id)!;
+    }
     const sections = Object.fromEntries(SECTIONS.map(section => {
       const stored = past.sections[section];
       if (stored.mode === "override") return [section, { ...stored, acknowledged_original_version: original }];
@@ -395,6 +413,7 @@ export class CharacterRoles extends CharacterMembers {
     } else if (input.layer === "personal") {
       const chosen = input.selection.role as PersonalCharacterVersionRef, current = this.personalRole(chosen.character_id);
       if (!current || !this.version(chosen.character_id, chosen.version)) throw characterErrors.not_found("找不到这个角色版本");
+      if (current.current.version !== chosen.version) throw characterErrors.conflict("个人角色已换版，请核对变化后重新采用");
       role = current;
     } else {
       const selection = input.selection as { role: ProjectCharacterMemberRef; expected_revision: string; expected_original_version: number };

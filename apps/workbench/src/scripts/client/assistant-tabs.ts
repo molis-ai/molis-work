@@ -6,8 +6,8 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
   // Only this place's: the list holds the works of every project, and another project's main conversation is not this one's.
   function mineHere(work) { return project ? work.scope?.kind === "project" && work.scope.project_id === project.id : work.scope?.kind === "personal"; }
   function mains() { return works.filter((work) => work.main && !work.archived && mineHere(work)).sort((a, b) => Number(Boolean(a.character)) - Number(Boolean(b.character))); }
-  function mainId() { return mains().find((work) => nextChar && !fresh ? roleKey(work.character?.ref) === roleKey(nextChar.ref) : !work.character)?.work_id || null; }
-  function startFresh() { fresh = true; if (curId || curEvent) return showWork(null); drawTabs(); render(); }
+  function mainId() { return mains().find((work) => !work.character_selection_required && (nextChar && !fresh ? roleKey(work.character?.ref) === roleKey(nextChar.ref) : !work.character))?.work_id || null; }
+  function startFresh() { fresh = true; nextChar = undefined; talkDraft = ""; if (curId || curEvent) return showWork(null); drawTabs(); render(); }
   // A tab's mark says at a glance which work waits on the person, which runs, and which has news not yet seen.
   const markOf = (work) => !work ? "" : WAITING.has(work.state) || urgentWorks.has(work.work_id) ? "waiting" : work.state === "running" ? "running"
     : unreadWorks.has(work.work_id) ? "unread" : work.state === "failed" ? "failed" : "";
@@ -136,7 +136,7 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
     return works.filter((work) => !work.archived && !work.main && !work.delegated_by && (work.serves || []).some((one) => one.kind === subject.kind && one.id === subject.id))
       .sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")))[0] || null;
   }
-  function showEvent(key) { return showWork(aboutEvent(eventOf(key).subject)?.work_id || null, key); }
+  function showEvent(key) { if (curEvent !== key) nextChar = undefined; return showWork(aboutEvent(eventOf(key).subject)?.work_id || null, key); }
   function openEvent(event) {
     setPanel(true);
     if (event.subject.kind === WORK_KIND) return switchTo(event.subject.id);
@@ -170,6 +170,7 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
   function talkTo(ref) {
     const standing = ref ? mains().find((work) => roleKey(work.character?.ref) === roleKey(ref.ref)) : null;
     fresh = false; nextChar = ref && !standing ? ref : null;
+    talkDraft = roleKey(nextChar?.ref);
     if (nextChar) { nextScope = project ? "project" : "personal"; nextExec = "assistant"; }
     return switchTo(standing ? standing.work_id : null).then(() => { drawTabs(); paintAim(); paintSum(); input.focus(); });
   }

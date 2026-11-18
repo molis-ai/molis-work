@@ -811,6 +811,7 @@ export interface AssistantWork {
     updated_at: string;
     archived: boolean;
     character?: AssistantCharacter;
+    character_selection_required?: true;
     delegated_by?: {
         work_id: string;
         title: string;

@@ -237,20 +237,20 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   // of the view it shows, which opens the list of views (the strip itself, drawn as a list). The way in has neither and keeps its row of glyphs.
   const ear=strip.hasAttribute('data-side-menu')?document.querySelector('[data-side-ear]'):null,switchButton=document.querySelector('[data-side-toggle]');
   const setMenu=(next,focus)=>{
-    if(!ear)return;const on=Boolean(next)&&open;strip.hidden=!on;ear.setAttribute('aria-expanded',String(on));
+    if(!ear)return;const on=Boolean(next)&&open;strip.hidden=!on;ear.setAttribute('aria-expanded',on);
     if(on){strip.style.left=Math.max(8,Math.min(ear.getBoundingClientRect().left-ear.parentElement.getBoundingClientRect().left,innerWidth-strip.offsetWidth-8))+'px';if(focus!==false)(strip.querySelector('[data-side-tab][aria-selected="true"]')??strip.querySelector('[data-side-tab]'))?.focus({preventScroll:true});}
     else if(focus===true)ear.focus({preventScroll:true});
   };
   // Where the focus goes when the side is named: the name on its sheet, or (the way in) the current glyph.
   const focusTab=()=>(ear&&strip.hidden?ear:strip.querySelector('[data-side-tab][aria-selected="true"]:not([data-side-closed])'))?.focus({preventScroll:true});
   const drawEar=()=>{
-    switchButton?.setAttribute('aria-pressed',String(open));
+    switchButton?.setAttribute('aria-pressed',open);
     if(!ear)return;const button=buttons().find(node=>node.getAttribute('aria-selected')==='true');
     ear.hidden=!open||!button;if(ear.hidden){if(!strip.hidden)setMenu(false);return;}
-    const name=button.querySelector('.tab-item-name')?.textContent||'',glyphBox=ear.querySelector('[data-side-ear-glyph]'),icon=button.querySelector('svg');
-    if(ear.dataset.sideEar!==button.dataset.sideTab){ear.dataset.sideEar=button.dataset.sideTab;glyphBox.replaceChildren(...(icon?[icon.cloneNode(true)]:[]));}
+    const name=button.querySelector('.tab-item-name')?.textContent||'',id=button.dataset.sideTab,icon=button.querySelector('svg');
+    if(ear.dataset.sideEar!==id){ear.dataset.sideEar=id;ear.querySelector('[data-side-ear-glyph]').replaceChildren(...(icon?[icon.cloneNode(true)]:[]));}
     const words=ear.querySelector('[data-side-ear-name]');if(words.textContent!==name)words.textContent=name;
-    const label=globalThis.t.text("workbench.side-panel.side-view-name",{name});if(ear.getAttribute('aria-label')!==label){ear.setAttribute('aria-label',label);ear.title=label;}
+    const label=globalThis.t.text("workbench.side-panel.side-view-name",{name});if(ear.title!==label){ear.title=label;ear.setAttribute('aria-label',label);}
   };
   const size=()=>Math.min(Math.max(innerWidth*side().ratio,360),innerWidth*.55);
   const paint=()=>{const width=Math.round(size());document.body.style.setProperty('--side-panel-width',width+'px');divider.setAttribute('aria-valuenow',String(width));divider.setAttribute('aria-valuemin','360');divider.setAttribute('aria-valuemax',String(Math.floor(innerWidth*.55)));};

@@ -110,11 +110,11 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     const gapOf = (el) => Number.parseFloat(getComputedStyle(el).gap) || 0;
     // The room the scroll box keeps at its ends (where a current tab's corners meet the sheet) is not the tabs' to share.
     const scrollBox = getComputedStyle(scroll);
-    let reserved = (Number.parseFloat(scrollBox.paddingLeft) || 0) + (Number.parseFloat(scrollBox.paddingRight) || 0);
+    let reserved = Number.parseFloat(scrollBox.paddingLeft) + Number.parseFloat(scrollBox.paddingRight) || 0;
     // A closing slot and the dragged tab's old place are on their way to nothing; they take no room.
     const gone = (el) => el.hasAttribute?.("data-tab-slot-leaving") || el.classList?.contains("is-tab-drag-source");
     // Nor does a tab or a group that is not drawn: a kept plugin's own page is its glyph in the Dock, and its tab is hidden.
-    const drawn = (el) => !(el.classList.contains("tab-group") || el.classList.contains("tab-item")) || el.getClientRects().length > 0;
+    const drawn = (el) => !el.matches(".tab-group,.tab-item") || el.getClientRects().length > 0;
     const scrollKids = [...scroll.children].filter((child) => !gone(child) && drawn(child));
     reserved += gapOf(scroll) * Math.max(0, scrollKids.length - 1);
     for (const child of scrollKids) {

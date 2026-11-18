@@ -355,7 +355,7 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
   // delivered would be reported as a loop.
   let refitting = false;
   const refit = () => { if (refitting) return; refitting = true; requestAnimationFrame(() => { refitting = false; fit(); }); };
-  if (pins && 'ResizeObserver' in window) { const watcher = new ResizeObserver(refit); for (const node of [dock, dock.querySelector('.titlebar-end'), dock.querySelector('[data-titlebar-tabs]'), dock.querySelector('.plugin-picker'), dock.querySelector('.desktop-titlebar-drag')]) if (node) watcher.observe(node); }
+  if (pins && 'ResizeObserver' in window) { const watcher = new ResizeObserver(refit); for (const node of [dock, ...dock.querySelectorAll('.titlebar-end,[data-titlebar-tabs],.plugin-picker,.desktop-titlebar-drag')]) watcher.observe(node); }
   // The side sheet closing gives the pins their room back, but folded pins do not grow into it and the drag line just takes it,
   // so no size changes for the watcher to see: the side says so itself.
   if (pins) document.addEventListener('molis:side-shown', refit);

@@ -8,12 +8,11 @@ import { SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runti
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { openTestShelfStore } from './shelf-direct-actions.js';
 
-test('Characters still lists the person\'s drafts in a project that keeps the removed Characters plugin\'s install record', { timeout: 60_000 }, async t => {
+test('Characters still lists the person\'s drafts in a project that keeps the removed Characters plugin\'s install record', { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const personal = openCharacters(b.homeDirectory, 'web-user');
   t.after(() => personal.close());
-  const draft = personal.service.create();
-  personal.service.update(draft.character_id, 1, { title: '升级前的角色草稿', instructions: '保留原有做事方式', host_tools: null });
+  const draft = personal.service.create({ title: '升级前的角色草稿', instructions: '保留原有做事方式', host_tools: null });
   // RAC-74: what an install of the Characters plugin left before Characters moved into the Host (CHR-1). Nothing starts or rewrites it;
   // it stays until the maintenance in docs/releases/CHECKLIST.md removes it.
   const left: PluginInstanceRecord = { install_id: 'plugin-install-characters-left', installation_generation: 'generation-1', plugin_id: CHARACTER_PLUGIN_ID,
@@ -26,7 +25,8 @@ test('Characters still lists the person\'s drafts in a project that keeps the re
   // Characters' page is Settings › 角色 (specs/archive/page-interaction-flow), now a section of the Host's own settings.
   await b.click('[data-directory-open="settings"]');
   await b.click('[data-directory-panel=settings] [data-settings-section="characters"]');
-  await b.waitFor("document.querySelector('[data-character-list]')?.textContent.includes('升级前的角色草稿')");
+  // The first read of the person's roles opens the personal space (role actions are project actions): allow for its cold start.
+  await b.waitFor(`document.querySelector('[data-characters] [data-character-id="${draft.character_id}"]')?.textContent.includes('升级前的角色草稿')`, 60_000);
   assert.deepEqual(repository.get(left.install_id), left, 'the left-behind record is neither started nor rewritten');
   assert.equal(personal.service.get(draft.character_id)?.instructions, '保留原有做事方式');
 });

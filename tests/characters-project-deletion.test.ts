@@ -27,7 +27,7 @@ function seed(directory: string) {
   };
   launched("person-a", "doomed", 1); launched("person-b", "doomed", 2); launched("person-a", "kept", 3);
   const drafts = openCharacters(directory, "person-a");
-  try { drafts.service.create(); } finally { drafts.close(); }
+  try { drafts.service.create({ title: "草稿", instructions: "", host_tools: null }); } finally { drafts.close(); }
 }
 
 const rows = (directory: string, sql: string) => {
@@ -47,6 +47,23 @@ test("RAC-254 BL-385: purging a project clears its Character runs for every laun
   assert.equal(rows(directory, "SELECT * FROM character_runs").length, 1, "running it again finds nothing");
 });
 
+test("RAC-254 ROLE-10: purging a project clears its role members, their versions and its default; the originals, their versions and another project's members stay", t => {
+  const directory = home(t), opened = openCharacters(directory, "person-a");
+  try {
+    const original = opened.service.create({ title: "核对者", instructions: "先核对证据。", host_tools: null });
+    const doomed = opened.service.roles.addMember("doomed", original.character_id), kept = opened.service.roles.addMember("kept", original.character_id);
+    opened.service.roles.setDefault("doomed", { layer: "project", selection: { kind: "project", member_id: doomed.current.member_id } });
+    opened.service.roles.setDefault("kept", { layer: "project", selection: { kind: "project", member_id: kept.current.member_id } });
+  } finally { opened.close(); }
+  const versions = rows(directory, "SELECT * FROM character_versions");
+  purgeCharactersProject(directory, "doomed");
+  assert.deepEqual(rows(directory, "SELECT project_id FROM character_members"), [{ project_id: "kept" }]);
+  assert.deepEqual(rows(directory, "SELECT project_id FROM character_defaults"), [{ project_id: "kept" }]);
+  assert.equal(rows(directory, "SELECT * FROM character_member_versions m JOIN character_members c USING (member_id) WHERE c.project_id = 'doomed'").length, 0);
+  assert.equal(rows(directory, "SELECT * FROM character_member_versions").length, 1, "the kept project's member keeps its version");
+  assert.deepEqual(rows(directory, "SELECT * FROM character_versions"), versions, "the original's versions name no project and stay");
+});
+
 test("RAC-255 BL-385: the Host lists Characters among a project's data owners and clears it by the receipt's owner id", async t => {
   const directory = home(t);
   seed(directory);
@@ -64,9 +81,9 @@ test("RAC-255 BL-385: a Home with no Characters library has nothing to clear and
   const old = home(t);
   seed(old);
   const file = join(old, "characters", "characters.sqlite"), db = new DatabaseSync(file);
-  db.exec("PRAGMA user_version = 2"); db.close();
+  db.exec("PRAGMA user_version = 3"); db.close();
   const bytes = readFileSync(file);
-  assert.throws(() => purgeCharactersProject(old, "doomed"), error => error instanceof ActionError && error.code === "storage.store_too_new" && error.details?.found === 2 && error.details?.expected === 1);
+  assert.throws(() => purgeCharactersProject(old, "doomed"), error => error instanceof ActionError && error.code === "storage.store_too_new" && error.details?.found === 3 && error.details?.expected === 2);
   assert.deepEqual(readFileSync(file), bytes, "the refusal writes nothing");
   writeFileSync(file, bytes);
 });

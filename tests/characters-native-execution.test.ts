@@ -129,9 +129,8 @@ for (const invalidation of ["cancel", "revoke", "publication", "provider"] as co
     workspaces: async () => { if (holding) { entered.resolve(); await release.promise; } return [{ workspace_id: "work", canonical_path: home, realpath_verified: true, display_name: "Fixture" }]; },
     spawn: () => { spawns++; return { attached: false, started: true, replay: "" }; },
     output: async () => ({ workspace_id: "work", canonical_path: home, realpath_verified: true, display_name: "Fixture" }) });
-  const actionPorts: CharactersActionPorts = { actorId: "user", drafts: personal,
+  const actionPorts: CharactersActionPorts = { actorId: "user", open: () => ({ service: personal, close: () => {} }),
     references: () => artifacts.query.listArtifacts(DEMO_PROJECT_ID).map(record => ({ artifact_id: record.artifact_id, version: record.version })),
-    publish: (id, revision, publisher) => personal.publish(id, revision, publisher),
     imports: { ...native, discover: () => [], previewFile: () => { throw new Error("not used"); }, import: () => { throw new Error("not used"); } } };
   // The Host's last synchronous check before each effect: a revoked caller is refused there.
   const service = new ActionService(undefined, { assertCurrent: () => { if (!valid) throw new ActionError("actions.forbidden", "original Character caller revoked"); } });

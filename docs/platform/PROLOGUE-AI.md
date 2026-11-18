@@ -29,7 +29,7 @@
 | 场景 | 用什么 | 例子 |
 | --- | --- | --- |
 | 一次有界的文字/结构化/图片/判断调用，没有工具 | 宿主自己的代码：文字用 `hostCompleteText`，需要结构、进度和回执时用同一绑定的 `hostTextGeneration`（`apps/local-host/src/host-complete-text.ts`）；Runtime 插件用 `context.services.model`（第 4 节），构建期插件仍是 Host 注入的端口（见本表下方）；图片、TypeSafe 判断、需要用量时用 `resolvePrologueInference(home)` 的 `generateImages` / `evaluateTypeSafe` / `completeTextResult` | 灵光对话、Pages 写作助手与生成、Form/Dataset 的 AI 拟题拟列、Images、判断函数 |
-| 有工具、工作区、审查的多轮工作 | Manifest `agent` 块声明角色，经 Host 能力 `agent.session.create` / `agent.run.start` / `agent.run.wait` / `agent.run.control`；宿主自己的调用方在进程内直接 `AgentHost.start` | Coding（经 `agent.run.*`）、个人助理（`apps/local-host/src/assistant/assistant-agent.ts` 的角色）、Schedule 到点任务（经 Runtime 的 `services.agents.run`，`plugins/native/schedule/src/runtime-wakeups.ts`；宿主在 `apps/local-host/src/plugin-agent-service.ts` 内调 `AgentHost.start`，不经 `agent.run.*`）。Characters（不是插件，是 `modules/characters` 加宿主提供方）不声明角色：它发布的 Character 由 Coding 或助理的一轮按固定版本带上 |
+| 有工具、工作区、审查的多轮工作 | Manifest `agent` 块声明角色，经 Host 能力 `agent.session.create` / `agent.run.start` / `agent.run.wait` / `agent.run.control`；宿主自己的调用方在进程内直接 `AgentHost.start` | Coding（经 `agent.run.*`）、个人助理（`apps/local-host/src/assistant/assistant-agent.ts` 的角色）、Schedule 到点任务（经 Runtime 的 `services.agents.run`，`plugins/native/schedule/src/runtime-wakeups.ts`；宿主在 `apps/local-host/src/plugin-agent-service.ts` 内调 `AgentHost.start`，不经 `agent.run.*`）。Characters（不是插件，是 `modules/characters` 加宿主提供方）不声明角色：Coding 或助理只交角色的稳定引用，一轮开始时由 Agent 宿主钉住它当时的版本带上 |
 | 需要专门编排边界的新 Agent | 在 `horizontal/agent-host/src/adapters/` 为该场景新建适配器，仍用同一 Home Runtime | 插件创作台代码 Agent（`adapters/plugin-builder.ts`） |
 
 宿主自己运行的 Runtime 插件调模型用 `context.services.model`（第 4 节「Runtime 插件」），不再写宿主绑定文件；构建期插件（只剩用户批过的两个例外 Alchemist、插件创作台，`tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`；词义见 `docs/system/GLOSSARY.md`）的宿主绑定文件，W5-11 的 A 半已收完（2026-10-26 核）：宿主里按插件写的拿模型绑定只剩 `apps/local-host/src/alchemist-prologue.ts` 一处，登记为例外，删除条件是 Alchemist 重做并进 Plugin Runtime（统筹 2026-10-26 定，不再挂在 W5-11 上）；`typesafe-prologue.ts` 是判断服务的 TypeSafe 推理适配，不是文本模型调用，`services.model` 不适用，随判断规则模块留着。选哪条入口：插件自己一轮后台 Agent 用 `services.agents.run`；页面、工作流或 MCP 触发宿主的 Agent 用 `agent.run.*` 动作；宿主自己的调用方在进程内直接 `AgentHost.start`。
@@ -516,13 +516,15 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 ### 13.5 从一次真实过程写出一份 Skill
 
-Molis 没有「录下过程生成 Skill」的功能（2026-10-19 核对），下面是手写的做法。写出的 Skill 落进 13.2 表里的共同技能目录：插件 Manifest 的 `methods`，或者只有声明的插件（内容包，做法见 `skills/molis-plugin-dev/skills-and-kits.md`），不另建目录。
+从第 42 批起这条路在产品里走得通：用户说「存成技能」或者刚做完的过程值得反复用，助理调 `skills.drafts.create@1` 起一份草稿，带上这次的任务、材料和用户认可的结果作为已知答案；用户在「设置 › 能力包」里打开草稿，左边改（也可以一句话让助理改，`skills.drafts.revise@1`），右边回放、比较，采用了才是「我的技能」的新版本，也可以放弃（7 天内可找回）。自己的技能有版本列表，可以对照、恢复成一份草稿；通用技能可以「改一份我的」，把正文里 `~~` 开头的占位符换成自己用的，采用时把原来的关掉。助理只能起草、回放和放弃，采用和打开技能只有本人（[S-skill-authoring](../system/security-invariants/S-skill-authoring.md)）。
+
+写插件或内容包的作者照下面的步骤手写。写出的 Skill 落进 13.2 表里的共同技能目录：插件 Manifest 的 `methods`，或者只有声明的插件（内容包，做法见 `skills/molis-plugin-dev/skills-and-kits.md`），不另建目录。产品里的草稿走的是同样的五步，只是由助理和页面替人做了。
 
 1. **从刚发生过的真实过程出发。** 用户做过的步骤、中途的纠正和拒绝就是规格；没有现成的过程，就请用户讲一次具体的经历，不凭想象写通用流程。
 2. **每一步分成三类。** 固定的（顺序、来源、输出格式、规则）写进正文；可变的（日期、名字、金额、文件、对象）写成从上下文或用户那里取的输入，不写死；判断点（用户犹豫过、纠正过、要拍板的地方）写成停下来问人的点。
 3. **判断点怎样停。** 会发送、花费、发布、删除的步骤由平台兜住：写入动作进审查队列，`suggest-action` 让人点卡确认。正文只写这里要用户决定什么、给他看什么；不在正文里另造确认流程，也不每一步都问。
-4. **用已知答案回放。** 拿一两个用户手工做过、结果已知的真实案例，按 16.3 在隔离 Home 里跑，对照手工结果。不一致先改正文或材料，不让用户接受「差不多」。
-5. **装上但不自动启用。** 技能装上默认关，本人在「设置 › 能力包」里选「自动」（助理按说明自己选用，用到才读正文）或「仅手动」（只在本人点名的那一轮用）。不自动选上、不自动排期，`tools` 只是说明，一轮里取「技能写的 ∩ 角色有的」（13.2「版本与边界」）。之后按 16.6 评测。
+4. **用已知答案回放。** 拿一两个用户手工做过、结果已知的真实案例，按 16.3 在隔离 Home 里跑，对照手工结果。不一致先改正文或材料，不让用户接受「差不多」。产品里的回放（`skills.trials.run@1`）只让文字模型读做法和材料写出结果，不调任何工具，观测来源记 `trial`（默认报告与效果指标不算它，也不算技能的使用次数）；现在在用的版本和草稿各跑一次，再由模型逐条对照已知答案。有已知答案的草稿要先回放这一修订才能采用，有出入要本人说「仍然采用」。
+5. **装上但不自动启用。** 技能装上默认关（产品里新采用的技能也是关着的，改的已有技能保持原来的设置），本人在「设置 › 能力包」里选「自动」（助理按说明自己选用，用到才读正文）或「仅手动」（只在本人点名的那一轮用）。不自动选上、不自动排期，`tools` 只是说明，一轮里取「技能写的 ∩ 角色有的」（13.2「版本与边界」）。之后按 16.6 评测。
 
 **不要这样做。** 把这一次的具体值（某个客户名、某个日期）写进正文；每个判断点都加一道「请确认」；为这个 Skill 在宿主里加一条专属流水线。
 

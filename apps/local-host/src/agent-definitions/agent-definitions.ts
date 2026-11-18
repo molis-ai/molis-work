@@ -5,6 +5,7 @@ import { applySqliteBaseline, openBaselineHomeSqlite, openHomeSqliteDatabase, ty
 import { sandboxPromptId } from "@molis-ai/molis-work-plugin-sdk";
 import { AgentDeclarations, notRunning } from "./agent-declarations.js";
 import { SKILL_TABLES_SQL, SkillSettingsStore } from "./skill-settings.js";
+import { SKILL_WORK_TABLES_SQL, SkillDraftStore } from "./skill-drafts.js";
 import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDeclaration, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { agentBodyIn, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -26,9 +27,11 @@ export const PROMPT_USES_KEPT = 200;
 
 /**
  * The agent definitions store's one current schema (repository-anti-corruption §4.1), with the Skill settings and uses (specs/skill-packs/
- * contract-design.md §7, §8). 1 → 2 only creates those two tables, empty (user 2026-11-06, spec §9 item 6).
+ * contract-design.md §7, §8), and the drafts, known answers, replays and copies' sources of Skills (batch 42, authoring-path-design §3).
+ * 1 → 2 only creates the first two tables, empty (user 2026-11-06, spec §9 item 6); 2 → 3 only creates the other four, empty (user
+ * 2026-11-16, spec §9).
  */
-export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: /* @version database.agent_definitions_baseline */ 2, schema: `
+export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: /* @version database.agent_definitions_baseline */ 3, schema: `
 CREATE TABLE prompt_overrides (
   key TEXT PRIMARY KEY, revision INTEGER NOT NULL, base_version INTEGER NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, actor_id TEXT NOT NULL, default_ref TEXT
 );
@@ -39,8 +42,8 @@ CREATE TABLE prompt_history (
 CREATE TABLE prompt_uses (
   key TEXT NOT NULL, at TEXT NOT NULL, version INTEGER NOT NULL, user_revision INTEGER, caller TEXT NOT NULL, source_ref TEXT
 );
-CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);${SKILL_TABLES_SQL}`,
-  upgrades: [{ from: 1, sql: SKILL_TABLES_SQL }] };
+CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);${SKILL_TABLES_SQL}${SKILL_WORK_TABLES_SQL}`,
+  upgrades: [{ from: 1, sql: SKILL_TABLES_SQL }, { from: 2, sql: SKILL_WORK_TABLES_SQL }] };
 
 const agentDefinitionsErrors = defineErrorCodes("agent_definitions", { not_found: "not_found", invalid: "invalid", conflict: "conflict" });
 
@@ -77,12 +80,15 @@ export class AgentDefinitions {
   private readonly scopes = new Map<string, Map<string, AgentDefinitionRegistration>>();
   /** Each Skill's state in each scope and its uses: the catalog's two tables, in this store. */
   readonly skills: SkillSettingsStore;
+  /** Drafts of Skills, their known answers and replays, and the copies' sources: four tables, in this store. */
+  readonly skillDrafts: SkillDraftStore;
   /** Each prompt's recent uses, kept per key. */
   readonly uses: PromptUses;
 
   constructor(private readonly db: DatabaseSync, private readonly now = () => new Date()) {
     applySqliteBaseline(db, AGENT_DEFINITIONS_STORE, AGENT_DEFINITIONS_BASELINE);
     this.skills = new SkillSettingsStore(db, now);
+    this.skillDrafts = new SkillDraftStore(db, now);
     this.uses = new PromptUses(db);
   }
 
@@ -371,6 +377,12 @@ export function agentRegistration(ownerId: string, source: AgentDefinitionSource
   });
   for (const child of manifest.subagents?.roles ?? []) {
     const execution = child.execution ?? "read-only";
+    // A delegated Work and an SDK child can share the same business role and prompt in Settings.
+    const businessRole = roles.find(role => role.role_id === child.role_id && role.workspace === "business");
+    if (businessRole?.execution === execution && businessRole.prompt_ids.includes(child.role_id)) {
+      businessRole.subagent = true;
+      continue;
+    }
     roles.push({ role_id: child.role_id, version: child.version, name: child.name, purpose: `子任务：${child.name}（${EXECUTION_WORDS[execution]}）`, execution,
       workspace: "required", prompt_ids: texts.some(text => text.prompt_id === child.role_id) ? [child.role_id] : [], subagent: true });
   }

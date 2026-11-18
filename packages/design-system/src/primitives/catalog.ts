@@ -13,6 +13,7 @@ import { directorySection, layoutSection } from "./catalog-layout.js";
 import { COMPOSER_STYLES } from "../composer-styles.js";
 import { COMPOSER_BOARD_STYLES, composerSection, menuDescSection, micSection, type Say } from "./catalog-composer.js";
 import { keepEditsSections, KEEP_EDITS_BOARD_STYLES } from "./catalog-keep-edits.js";
+import { noteSection, sourceLadderSection } from "./catalog-source-ladder.js";
 import { buttonGroupSection, CATALOG_PATTERN_STYLES, dataTableSection, dropZoneSection, rowsSection, statSection, tagInputSection } from "./catalog-patterns.js";
 import { lookSections } from "./catalog-appearance.js";
 import { APPEARANCE_BOARD_STYLES } from "./catalog-appearance-styles.js";
@@ -21,7 +22,7 @@ import { PRESENTATION_FORM_STYLES } from "../styles/presentation.js";
 import { componentText, PLUGIN_COMPONENTS } from "../plugin-components.js";
 import { SKILL_SELECTION_BOARD_STYLES, skillLineSection, skillWhySection } from "./catalog-skill-selection.js";
 import { itemChoiceSection, itemDetailsSection, listDetailSection, SKILL_PACK_BOARD_STYLES, statusLinkSection } from "./catalog-skill-packs.js";
-import { CAPABILITY_PACK_BOARD_STYLES, cellGridSection, detailTrailSection, iconCountsSection, itemGroupSection, leaveBarSection, nowBlockSection, stateRowsSection, stickyDetailSection, textCountSection, usageSection } from "./catalog-capability-packs.js";
+import { CAPABILITY_PACK_BOARD_STYLES, adoptBarSection, askRowSection, cellGridSection, detailTrailSection, iconCountsSection, itemGroupSection, leaveBarSection, nowBlockSection, placeholderListSection, replayGridSection, stateRowsSection, stickyDetailSection, textCountSection, usageSection } from "./catalog-capability-packs.js";
 import { WORK_RECORDS_BOARD_STYLES, categoryBarSection, kindMarkSection } from "./catalog-work-records.js";
 import { LANGUAGE_BOARD_STYLES, languageSection, motionGrammarSpecimens, pairingSection, zonesSection } from "./catalog-language.js";
 import { RECOVERY_BOARD_STYLES, recoverySections } from "./recovery-parts.js";
@@ -278,6 +279,8 @@ export function renderPrimitiveCatalog(options: {
     ${chapter("反馈与浮层")}
     ${feedbackSection()}
     ${keepEditsSections(say)}
+    ${sourceLadderSection(say)}
+    ${noteSection(say)}
     ${overlaySection(say)}
     ${menuSection()}
     ${menuDescSection(say, options.delivery)}
@@ -300,6 +303,10 @@ export function renderPrimitiveCatalog(options: {
     ${stickyDetailSection(say)}
     ${textCountSection(say)}
     ${leaveBarSection(say)}
+    ${adoptBarSection(say)}
+    ${replayGridSection(say)}
+    ${askRowSection(say)}
+    ${placeholderListSection(say)}
     ${kindMarkSection(say)}
     ${categoryBarSection(say)}
     ${dataTableSection()}

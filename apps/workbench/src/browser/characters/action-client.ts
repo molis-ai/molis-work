@@ -67,7 +67,7 @@ export function characterActionClient(host: ActionHost): ActionClient {
   };
   const choiceRow = (row: Choice): HTMLLabelElement => {
     const label = document.createElement("label"), input = document.createElement("input"), copy = document.createElement("span");
-    label.className = "characters-check"; input.type = "checkbox"; input.className = "mw-check";
+    label.className = "mw-check-row"; input.type = "checkbox"; input.className = "mw-check";
     input.checked = refs.some(ref => key(ref) === key(row.ref)); input.dataset.available = String(row.available);
     const identity = el("span", row.title + " · " + row.source + " · v" + row.ref.version); identity.translate = false;
     copy.append(identity, " — ", el("span", row.description));
@@ -82,12 +82,13 @@ export function characterActionClient(host: ActionHost): ActionClient {
     if (!shown.length) container.textContent = globalThis.t.text("workbench.characters.actions-empty");
     controls(busy);
   };
-  const refresh = async (): Promise<void> => {
+  // `announce`: the person pressed 刷新能力目录, so say the catalog was read again; the drawer's own read on opening says nothing once done.
+  const refresh = async (announce = false): Promise<void> => {
     if (reading) return;
     reading = true; controls(busy); status.textContent = globalThis.t.text("workbench.characters.actions-reading");
     try {
       const data = await request<{ actions: ActionRow[] }>("GET", "/actions");
-      rows = data.actions; list(); status.textContent = globalThis.t.text("workbench.characters.actions-updated");
+      rows = data.actions; list(); status.textContent = announce ? globalThis.t.text("workbench.characters.actions-updated") : "";
     } catch (error) {
       const original = el("span", messageOf(error)); original.translate = false;
       status.replaceChildren(el("span", globalThis.t.text("workbench.characters.actions-failed")), original);
@@ -96,7 +97,7 @@ export function characterActionClient(host: ActionHost): ActionClient {
     }
   };
   inherit.onchange = () => { list(); changed(); };
-  refreshButton.onclick = () => void refresh();
+  refreshButton.onclick = () => void refresh(true);
   return {
     controls, refresh,
     value: () => inherit.checked ? null : structuredClone(refs),

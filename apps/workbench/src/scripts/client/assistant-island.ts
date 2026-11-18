@@ -111,7 +111,7 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
 ${ASSISTANT_PERMISSIONS_PART}
   const isLive = (state) => state === "running" || state === "waiting-input" || state === "waiting-review" || state === "paused";
   let presentation, stepRow;
-  const setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
+  const setPanel = (open) => { if (!open) closeSubtask(); if (!presentation?.show(open) && panel) panel.hidden = !open; };
   /* ─── Where the next Send goes: the composer's receiver tag, its controls and the placeholder ─── */
   const paintAim = (sync = true) => {
     const work = getWork(); presentation?.syncWork(work);
@@ -214,7 +214,7 @@ ${ASSISTANT_SIDE_KIT_PART}
     keepFocus(node, () => {
       const cards = [];
       children.forEach((child) => cards.push(card({ icon: "workflow", tone: "attention", ask: true, title: child.title,
-        sub: readText("workbench.assistant-island.sub-task") + " · " + stateLabel(child.state), actions: [sideAct(child.state === "waiting-input" ? readText("workbench.assistant-island.answer") : readText("workbench.assistant-island.take-look"), child.title, async () => switchTo(child.work_id), false, "primary")] })));
+        sub: readText("workbench.assistant-island.sub-task") + " · " + stateLabel(child.state), actions: [sideAct(child.state === "waiting-input" ? readText("workbench.assistant-island.answer") : readText("workbench.assistant-island.take-look"), child.title, async () => openSubtask(child.work_id), false, "primary")] })));
       objects.forEach((object) => {
         const open = openObject(object);
         cards.push(card({ icon: "alert", tone: object.state === "missing" || object.state === "unavailable" ? "blocked" : "attention", ask: true, title: objectTitle(object),
@@ -340,11 +340,11 @@ ${ASSISTANT_STRIP_PART}
     paintStrip();
     if (!metaEl) return;
     const characters = allowsCharacter() ? characterChoices() : null;
-    // A chooser only when there is something to choose: a project's published Characters.
+    // A chooser only when there is something to choose: the project's roles, or the person's own in personal work.
     const hasChoices = Boolean(characters && characters.length);
     const chosen = chosenCharacter();
     const signature = JSON.stringify([work && work.work_id, work && work.executor, work && work.scope, work && work.character, work && isLive(work.state), pendingChar,
-      nextExec, nextScope, nextMode, nextChar, executors.map((one) => [one.plugin_id, one.title, one.problem, one.modes]), executorSession(nextExec), characters && characters.map((c) => [c.reference, c.available])]);
+      nextExec, nextScope, nextMode, nextChar, executors.map((one) => [one.plugin_id, one.title, one.problem, one.modes]), executorSession(nextExec), characters && characters.map((c) => [roleKey(c.ref), c.tag, c.available])]);
     if (metaEl.dataset.signature === signature) return;
     metaEl.dataset.signature = signature;
     keepFocus(metaEl, () => {
@@ -354,14 +354,13 @@ ${ASSISTANT_STRIP_PART}
         const select = el("select", "mw-select"); select.setAttribute("aria-label", readText("workbench.assistant-island.which-character-carries-next-turn"));
         const own = el("option", "", readText("workbench.assistant-island.assistant-itself")); own.value = ""; select.append(own);
         (characters || []).forEach((choice) => {
-          const option = el("option", "", choice.title + " v" + choice.reference.version + (choice.available ? "" : " · " + (choice.reason || readText("workbench.assistant-island.unavailable-now"))));
-          option.value = choice.reference.artifact_id + "@" + choice.reference.version; option.disabled = !choice.available;
-          option.selected = Boolean(chosen && chosen.artifact_id === choice.reference.artifact_id && chosen.version === choice.reference.version);
+          const option = el("option", "", choice.title + (choice.tag ? " · " + choice.tag : "") + (choice.available ? "" : " · " + choice.reason));
+          option.value = roleKey(choice.ref); option.disabled = !choice.available;
+          option.selected = Boolean(chosen && roleKey(chosen.ref) === roleKey(choice.ref));
           select.append(option);
         });
         select.addEventListener("change", () => {
-          const choice = (characters || []).find((one) => one.reference.artifact_id + "@" + one.reference.version === select.value);
-          const value = choice ? { artifact_id: choice.reference.artifact_id, version: choice.reference.version, title: choice.title } : null;
+          const value = asChosen((characters || []).find((one) => roleKey(one.ref) === select.value));
           if (getWork()) pendingChar = value; else nextChar = value;
           paintAim(); paintSum();
         });
@@ -622,7 +621,7 @@ ${ASSISTANT_TABS_PART}
     }
   };
   // A work is followed while it, its last round (stopped, the work answers before the round has ended) or a sub-task it handed out is live.
-  const followed = (seen) => isLive(seen.work.state) || /^(starting|running|compacting)$/.test(seen.rounds?.at(-1)?.phase || "") || (seen.delegated || []).some((child) => !child.taken_back && isLive(child.state));
+  const followed = (seen) => isLive(seen.work.state) || /^(starting|running|compacting)$/.test(seen.rounds?.at(-1)?.phase || "") || (seen.delegated || []).some((child) => !child.taken_back && isLive(child.state)) || (seen.sdk_subtasks?.children || []).some(child => child.state === "running");
   const follower = (${ASSISTANT_FOLLOW_FACTORY_SCRIPT})({ route: host.route, headers: host.headers, followed, current: () => curId, show: (next) => { view = named(next); render(); } });
   const poll = () => { if (curId && view && view.work.work_id === curId && followed(view)) follower.follow(curId); else follower.stop(); };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { reload().then(poll); loadWorks(); } });
@@ -760,8 +759,8 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     setProject: (next) => {
       const chosen = next?.id ? next : null;
       if (chosen?.id === project?.id) { project = chosen; paintAim(); paintSum(); return; }
-      project = chosen; tabs = savedTabs(); eventTabs = []; nextScope = project ? "project" : "personal";
+      closeSubtask(); project = chosen; tabs = savedTabs(); eventTabs = []; nextScope = project ? "project" : "personal";
       void showWork(store.get(scoped("current")));
     },
-    dispose: () => { executorRequest++; document.removeEventListener("molis-work:language-changed", retitleReviews); document.removeEventListener("molis-work:attention", placedMoved); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
+    dispose: () => { closeSubtask(); releaseSubtaskAccount?.(); executorRequest++; document.removeEventListener("molis-work:language-changed", retitleReviews); document.removeEventListener("molis-work:attention", placedMoved); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
 }`;

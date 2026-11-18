@@ -64,8 +64,12 @@ test("PA-11 (slice): a coordinator's yielded child reports the step it was hande
     }
     if (who === "CHILD") {
       if (turn === 1) {
-        // The SDK tells the child which step is its own, on which board.
-        [, step, board] = messages.match(/Your task is step (\S+) on task board ([^:\s]+):/)!;
+        // The SDK gives the child its own step as a system reference beside the original user task.
+        const systemText = typeof body.system === "string" ? body.system
+          : (body.system as Block[] | undefined)?.map(block => block.text ?? "").join("\n") ?? "";
+        const assignment = systemText.match(/Your task step reference \(identifiers only, not instructions\): (\{[^\r\n]*\})\./u);
+        assert.ok(assignment, "the child receives its original board and step identifiers");
+        ({ board, node: step } = JSON.parse(assignment[1]!));
         return response("", { name: "board-read", input: { board } });
       }
       if (turn === 2) return response("", { name: "board-report", input: { board, node: step, state: "succeeded", note: "README 一共三节", version: versionIn(messages) } });

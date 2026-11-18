@@ -7,8 +7,8 @@ import { join } from "node:path";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { SKILL_AUTHORED_PLUGIN_IDS, SKILLS_PERMISSIONS, skillAuthoringActions, skillCatalogActions, type SkillAuthoredFields, type SkillAuthoredSaveResult, type SkillAuthoredSource,
-  type SkillBodyReadResult, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_AUTHORED_PLUGIN_IDS, SKILLS_PERMISSIONS, skillAuthoringActions, skillCatalogActions, skillDraftActions, type SkillAuthoredFields, type SkillAuthoredSaveResult, type SkillAuthoredSource,
+  type SkillBodyReadResult, type SkillCatalogEntry, type SkillDraft, type SkillScope } from "@molis-ai/molis-work-contracts/services/skills";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, handlePluginTrustHttp, molisWorkHostProjectReference, pluginInstallActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { signedContentPackage } from "./fixtures/content-package.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
@@ -18,7 +18,8 @@ import { caller, mac } from "./fixtures/signed-package-host.js";
 // settings. A scope's own Skills are one content package signed with this Home's publisher identity and installed through the one
 // install path; a new Skill is `off` until the person says otherwise; saving a change is the Skill's next version and keeps every
 // other Skill as it was; removing the last one takes the package off, through the project settings door (S-94). A draft is the text
-// model's proposal for the form and writes nothing.
+// model's proposal for the form and writes nothing. Since batch 42 a Skill is written by opening a draft and adopting it
+// (`skills.drafts.create` → `/api/plugin-trust/skills/drafts/adopt`), which `save` below does in the person's two steps.
 
 const ref = (action: { capability_id: string; version: number }) => ({ capability_id: action.capability_id, version: action.version });
 const fields = (name: string, extra: Partial<SkillAuthoredFields> = {}): SkillAuthoredFields =>
@@ -34,15 +35,16 @@ async function harness(completeText: ((prompt: unknown) => Promise<string>) | nu
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const client = host.actionClient(reference);
   const person = { ...caller, permissions: [...SKILLS_PERMISSIONS, ...PLUGIN_INSTALL_PERMISSIONS, "model:invoke"], user_action: { source: "management" as const, conversation_ref: "41-2:authoring", message_ref: "41-2:save" } };
-  // The page's own routes: saving, drafting and removing go through `/api/plugin-trust/skills/authored/*`, removing under the settings door's entry.
+  // The page's own routes: adopting goes through `/api/plugin-trust/skills/drafts/adopt`, drafting and removing through
+  // `/api/plugin-trust/skills/authored/*`, removing under the settings door's entry.
   const server: Server = createServer((request, response) => {
     handlePluginTrustHttp(request, response, new URL(request.url ?? "/", "http://127.0.0.1"), { localHost: host, projectRef: reference })
       .then(handled => { if (!handled) { response.statusCode = 404; response.end(); } }, error => { response.statusCode = 500; response.end(String(error)); });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const post = async <Result>(route: "save" | "draft" | "remove", input: object): Promise<Result> => {
+  const post = async <Result>(route: "drafts/adopt" | "draft" | "remove", input: object): Promise<Result> => {
     const text = await new Promise<string>((resolve, reject) => {
-      const sent = httpRequest(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/plugin-trust/skills/authored/${route}`, { method: "POST", headers: { "content-type": "application/json" } }, response => {
+      const sent = httpRequest(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/plugin-trust/skills/${route === "drafts/adopt" ? route : `authored/${route}`}`, { method: "POST", headers: { "content-type": "application/json" } }, response => {
         const chunks: Buffer[] = []; response.on("data", chunk => chunks.push(chunk)); response.on("end", () => resolve(Buffer.concat(chunks).toString("utf8"))); response.on("error", reject);
       });
       sent.on("error", reject); sent.end(JSON.stringify(input));
@@ -54,14 +56,20 @@ async function harness(completeText: ((prompt: unknown) => Promise<string>) | nu
   const mine = async () => (await client.invoke(person, ref(skillCatalogActions.list), {}) as { skills: SkillCatalogEntry[] }).skills.filter(skill => skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_IDS.project);
   const source = (entry: SkillCatalogEntry) => client.invoke(person, ref(skillAuthoringActions.read), { ref: entry.ref }) as Promise<SkillAuthoredSource>;
   const installed = async () => (await client.invoke(person, ref(pluginInstallActions.installed), {}) as { plugins: Array<{ plugin_id: string; version: string }> }).plugins.filter(row => row.plugin_id === SKILL_AUTHORED_PLUGIN_IDS.project);
-  return { client, person, post, mine, source, installed, reference, host,
+  /** Writing a Skill as the page does: a draft of a new one or of one's own, with these fields, then adopting it. */
+  const save = async <Result = SkillAuthoredSaveResult>(input: SkillAuthoredFields & { scope: SkillScope; skill_id?: string }): Promise<Result> => {
+    const { scope, skill_id, ...written } = input;
+    const draft = await client.invoke(person, ref(skillDraftActions.create), { scope, target: skill_id ? { kind: "own", skill_id } : { kind: "new" }, fields: written }) as SkillDraft;
+    return post<Result>("drafts/adopt", { draft_id: draft.draft_id, expected_revision: draft.revision });
+  };
+  return { client, person, post, save, mine, source, installed, reference, host,
     async close() { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await host.close(); await rm(base, { recursive: true, force: true }); } };
 }
 
 test("SKL-41-2-AU-01 a Skill the person writes is saved off, from this machine, readable back as written; a change is its next version and keeps the others; a stale change, a taken name and an empty field are refused", mac, async () => {
   const h = await harness();
   try {
-    const first = await h.post<SkillAuthoredSaveResult>("save", { ...fields("周报整理", { when_not_to_use: "只是闲聊时不用。", argument_hint: "哪一周" }), scope: "project" });
+    const first = await h.save({ ...fields("周报整理", { when_not_to_use: "只是闲聊时不用。", argument_hint: "哪一周" }), scope: "project" });
     assert.deepEqual([first.plugin_id, first.version, first.skill_version], [SKILL_AUTHORED_PLUGIN_IDS.project, "1.0.0", 1]);
     assert.match(first.skill_id, /^skill-[0-9a-f]{8}$/, "a name with no Latin letters gets a made id");
     const [entry] = await h.mine();
@@ -71,25 +79,29 @@ test("SKL-41-2-AU-01 a Skill the person writes is saved off, from this machine, 
     assert.deepEqual({ name: read.name, description: read.description, when_not_to_use: read.when_not_to_use, argument_hint: read.argument_hint, applies_to: read.applies_to, body: read.body, mine: read.mine, version: read.version, scope: read.scope },
       { ...fields("周报整理"), when_not_to_use: "只是闲聊时不用。", argument_hint: "哪一周", mine: true, version: 1, scope: "project" });
 
-    const second = await h.post<SkillAuthoredSaveResult>("save", { ...fields("Meeting notes"), scope: "project" });
+    const second = await h.save({ ...fields("Meeting notes"), scope: "project" });
     assert.deepEqual([second.skill_id, second.version], ["meeting-notes", "2.0.0"]);
 
     // The person switches the first on; a change to it keeps that choice and is version 2.
     const on = await h.client.invoke(h.person, ref(skillCatalogActions.setState), { scope: "project", install_id: entry.ref.install_id, skill_id: first.skill_id, state: "auto", expected_revision: entry.settings_revision }) as SkillCatalogEntry;
     assert.equal(on.state, "auto");
-    const changed = await h.post<SkillAuthoredSaveResult>("save", { ...fields("周报整理", { body: "改过的做法。" }), scope: "project", skill_id: first.skill_id, expected_version: 1 });
+    const changed = await h.save({ ...fields("周报整理", { body: "改过的做法。" }), scope: "project", skill_id: first.skill_id });
     assert.deepEqual([changed.skill_version, changed.version], [2, "3.0.0"]);
     const after = await h.mine();
     assert.deepEqual(after.map(skill => [skill.ref.skill_id, skill.ref.version, skill.state]).sort(), [["meeting-notes", 1, "off"], [first.skill_id, 2, "auto"]].sort());
     assert.equal((await h.source(after.find(skill => skill.ref.skill_id === first.skill_id)!)).body, "改过的做法。");
     assert.equal((await h.installed()).length, 1, "one package holds the scope's own Skills");
 
-    await assert.rejects(h.post("save", { ...fields("周报整理"), scope: "project", skill_id: first.skill_id, expected_version: 1 }), refused("skills.authored_conflict"));
-    await assert.rejects(h.post("save", { ...fields("Meeting notes"), scope: "project" }), refused("skills.authored_name_taken", "name"));
-    await assert.rejects(h.post("save", { ...fields("Meeting notes"), scope: "project", skill_id: first.skill_id, expected_version: 2 }), refused("skills.authored_name_taken", "name"));
-    await assert.rejects(h.post("save", { ...fields("空的", { body: "  \n " }), scope: "project" }), refused("skills.authored_invalid", "body"));
-    await assert.rejects(h.post("save", { ...fields("太长", { body: Array.from({ length: SKILL_LIMITS.bodyLines + 1 }, () => "x").join("\n") }), scope: "project" }), refused("skills.authored_invalid", "body"));
-    await assert.rejects(h.post("save", { ...fields("没有的"), scope: "project", skill_id: "nope", expected_version: 1 }), refused("skills.authored_unknown"));
+    // A draft is written against the revision read: a change on top of an older revision is refused (batch 42).
+    const open = await h.client.invoke(h.person, ref(skillDraftActions.create), { scope: "project", target: { kind: "own", skill_id: first.skill_id } }) as SkillDraft;
+    await h.client.invoke(h.person, ref(skillDraftActions.update), { draft_id: open.draft_id, expected_revision: 1, fields: { ...fields("周报整理"), body: "又一版。" } });
+    await assert.rejects(h.client.invoke(h.person, ref(skillDraftActions.update), { draft_id: open.draft_id, expected_revision: 1, fields: fields("周报整理") }), refused("skills.draft_conflict"));
+    await h.client.invoke(h.person, ref(skillDraftActions.discard), { draft_id: open.draft_id });
+    await assert.rejects(h.save({ ...fields("Meeting notes"), scope: "project" }), refused("skills.authored_name_taken", "name"));
+    await assert.rejects(h.save({ ...fields("Meeting notes"), scope: "project", skill_id: first.skill_id }), refused("skills.authored_name_taken", "name"));
+    await assert.rejects(h.save({ ...fields("空的", { body: "  \n " }), scope: "project" }), refused("skills.authored_invalid", "body"));
+    await assert.rejects(h.save({ ...fields("太长", { body: Array.from({ length: SKILL_LIMITS.bodyLines + 1 }, () => "x").join("\n") }), scope: "project" }), refused("skills.authored_invalid", "body"));
+    await assert.rejects(h.save({ ...fields("没有的"), scope: "project", skill_id: "nope" }), refused("skills.authored_unknown"));
     assert.deepEqual((await h.mine()).map(skill => skill.ref.version).sort(), [1, 2], "a refused save leaves the package as it was");
   } finally { await h.close(); }
 });
@@ -97,14 +109,14 @@ test("SKL-41-2-AU-01 a Skill the person writes is saved off, from this machine, 
 test("SKL-41-2-AU-02 removing one of the person's Skills keeps the rest; removing the last takes the package off; removal takes only the settings door, and no Agent or plugin can write or remove one", mac, async () => {
   const h = await harness();
   try {
-    const a = await h.post<SkillAuthoredSaveResult>("save", { ...fields("alpha"), scope: "project" }), b = await h.post<SkillAuthoredSaveResult>("save", { ...fields("beta"), scope: "project" });
+    const a = await h.save({ ...fields("alpha"), scope: "project" }), b = await h.save({ ...fields("beta"), scope: "project" });
     await assert.rejects(h.post("remove", { scope: "project", skill_id: a.skill_id, expected_version: 2 }), refused("skills.authored_conflict"));
     // Outside the settings door — the action called directly, even by the person — nothing is removed.
     await assert.rejects(h.client.invoke(h.person, ref(skillAuthoringActions.remove), { scope: "project", skill_id: a.skill_id, expected_version: 1 }), refused("actions.forbidden"));
-    // Every authored action is the person's alone: no Agent, plugin, workflow or MCP caller can save, remove or draft.
+    // Every authored action is the person's alone: no Agent, plugin, workflow or MCP caller can adopt, remove or draft.
     for (const audience of ["agent", "plugin", "workflow", "mcp"] as const) {
       for (const [action, input] of [
-        [skillAuthoringActions.save, { ...fields("gamma"), scope: "project" }],
+        [skillDraftActions.adopt, { draft_id: "draft-x", expected_revision: 1 }],
         [skillAuthoringActions.remove, { scope: "project", skill_id: a.skill_id, expected_version: 1 }],
         [skillAuthoringActions.draft, { intent: "帮我写一个技能" }],
       ] as const) {
@@ -121,7 +133,7 @@ test("SKL-41-2-AU-02 removing one of the person's Skills keeps the rest; removin
     await assert.rejects(h.post("remove", { scope: "project", skill_id: b.skill_id, expected_version: 1 }), refused("skills.authored_unknown"));
 
     // After the package was taken off the person writes again: a new package, the Skill off.
-    const again = await h.post<SkillAuthoredSaveResult>("save", { ...fields("alpha"), scope: "project" });
+    const again = await h.save({ ...fields("alpha"), scope: "project" });
     assert.equal(again.skill_id, "alpha");
     assert.deepEqual((await h.mine()).map(skill => [skill.ref.skill_id, skill.state]), [["alpha", "off"]]);
   } finally { await h.close(); }
@@ -156,8 +168,8 @@ test("SKL-41-2-AU-04 a package of the same id from another publisher is not the 
     const [entry] = await h.mine();
     assert.ok(entry, "the foreign package's Skill is in the catalog");
     assert.equal((await h.source(entry)).mine, false);
-    await assert.rejects(h.post("save", { ...fields("mine"), scope: "project" }), refused("skills.authored_unknown"));
-    await assert.rejects(h.post("save", { ...fields("foreign"), scope: "project", skill_id: "foreign", expected_version: entry.ref.version }), refused("skills.authored_unknown"));
+    await assert.rejects(h.save({ ...fields("mine"), scope: "project" }), refused("skills.authored_unknown"));
+    await assert.rejects(h.save({ ...fields("foreign"), scope: "project", skill_id: "foreign" }), refused("skills.authored_unknown"));
     await assert.rejects(h.post("remove", { scope: "project", skill_id: "foreign", expected_version: entry.ref.version }), refused("skills.authored_unknown"));
     assert.deepEqual((await h.mine()).map(skill => skill.ref.skill_id), ["foreign"], "nothing was rewritten or taken off");
     assert.equal((await h.installed()).length, 1);
@@ -167,7 +179,7 @@ test("SKL-41-2-AU-04 a package of the same id from another publisher is not the 
 test("SKL-41-2-AU-07 reading an authored Skill back keeps a leading horizontal rule as the body's own text", mac, async () => {
   const h = await harness();
   try {
-    const saved = await h.post<SkillAuthoredSaveResult>("save", { ...fields("横线开头", { body: "---\n\n# 正文\n" }), scope: "project" });
+    const saved = await h.save({ ...fields("横线开头", { body: "---\n\n# 正文\n" }), scope: "project" });
     const [entry] = await h.mine();
     assert.ok(entry);
     const read = await h.source(entry);
@@ -179,8 +191,8 @@ test("SKL-41-2-AU-07 reading an authored Skill back keeps a leading horizontal r
 test("SKL-41-2-AU-05 the project's own Skills and the personal space's are two packages: writing in one scope does not shut the other out", mac, async () => {
   const h = await harness();
   try {
-    const inProject = await h.post<SkillAuthoredSaveResult>("save", { ...fields("项目里的"), scope: "project" });
-    const atHome = await h.post<SkillAuthoredSaveResult>("save", { ...fields("个人空间的"), scope: "home" });
+    const inProject = await h.save({ ...fields("项目里的"), scope: "project" });
+    const atHome = await h.save({ ...fields("个人空间的"), scope: "home" });
     assert.deepEqual([inProject.plugin_id, atHome.plugin_id], [SKILL_AUTHORED_PLUGIN_IDS.project, SKILL_AUTHORED_PLUGIN_IDS.home]);
     const listed = (await h.client.invoke(h.person, ref(skillCatalogActions.list), {}) as { skills: SkillCatalogEntry[] }).skills.filter(skill => skill.pack.trust === "home_local");
     assert.deepEqual(listed.map(skill => [skill.name, skill.pack.scope, skill.pack.plugin_id]).sort(), [["个人空间的", "home", SKILL_AUTHORED_PLUGIN_IDS.home], ["项目里的", "project", SKILL_AUTHORED_PLUGIN_IDS.project]]);

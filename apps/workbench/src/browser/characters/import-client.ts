@@ -1,6 +1,6 @@
 import {
   el, messageOf,
-  type ArtifactVersionRef, type CharacterPublication, type CharacterRecord, type CharacterRequest, type ImportSnapshot, type Part,
+  type ArtifactVersionRef, type CharacterRecord, type CharacterRequest, type ImportSnapshot, type Part,
   type PublicationPayload, type SnapshotSkill,
 } from "./common.js";
 import { detail, diff, filePreview, files } from "./import-files.js";
@@ -24,7 +24,8 @@ export interface ImportHost {
 
 export interface ImportClient {
   render(record: CharacterRecord | null): void;
-  renderPublication(record: CharacterPublication, target: HTMLElement): void;
+  /** Opens the import dialog: a new import, or `update` to check the open original's source again. */
+  open(update: boolean): void;
 }
 
 interface Candidate { candidate_id: string; label: string; executable: string | null; snapshot: ImportSnapshot; warnings: string[] }
@@ -36,7 +37,7 @@ interface Published { reference: ArtifactVersionRef; publication: { payload: Pub
 
 function skillChoice(skill: SnapshotSkill): HTMLLabelElement {
   const label = el("label"), check = el("input");
-  label.className = "characters-check"; check.type = "checkbox"; check.className = "mw-check";
+  label.className = "mw-check-row"; check.type = "checkbox"; check.className = "mw-check";
   check.value = skill.id; check.disabled = skill.compatibility !== "portable";
   label.append(check, el("span", check.disabled ? uiText.text("workbench.characters.skill-needs-native", { name: skill.name }) : skill.name));
   return label;
@@ -76,7 +77,6 @@ class ImportView {
 
   private bind(): void {
     const { host, q } = this;
-    q("import-open").onclick = () => this.open(false);
     q("rescan").onclick = () => this.open(true);
     q("scan").onclick = () => void this.scan();
     q("import-close").onclick = () => { if (!this.pending) this.dialog.close(); };
@@ -187,7 +187,7 @@ class ImportView {
     }
   }
 
-  private open(update: boolean): void {
+  open(update: boolean): void {
     const { host, q } = this;
     if (host.dirty()) { host.note(uiText.text("workbench.characters.save-before-rescan")); return; }
     this.editing = update ? (structuredClone(host.current()) ?? null) : null;
@@ -205,7 +205,7 @@ class ImportView {
     try {
       const existing = this.editing ? { existing: { character_id: this.editing.character_id, expected_revision: this.editing.revision } } : {};
       const result = await host.request<{ draft: CharacterRecord; replayed?: boolean }>("POST", "/imports", { candidate_id: candidate.candidate_id, selection: this.selection, ...existing });
-      await host.load(); host.select(result.draft.character_id); this.dialog.close();
+      this.dialog.close(); await host.load(); host.select(result.draft.character_id);
       host.note(result.replayed ? uiText.text("workbench.characters.already-imported") : uiText.text("workbench.characters.character-saved"));
     } catch (error) {
       q("import-notice").textContent = messageOf(error);
@@ -322,15 +322,10 @@ class ImportView {
       this.pending = false; q<HTMLButtonElement>("run-native").disabled = !this.execution?.executable;
     }
   }
-
-  renderPublication(record: CharacterPublication, target: HTMLElement): void {
-    const snapshot = record.payload.import_snapshot;
-    if (snapshot) files(this.host.request, target, snapshot, { reference: { artifact_id: record.artifact_id, version: record.version } });
-  }
 }
 
 /** The import and run dialogs of the Character page: the host lends what the page already has. */
 export function characterImportClient(host: ImportHost): ImportClient {
   const view = new ImportView(host);
-  return { render: record => view.render(record), renderPublication: (record, target) => view.renderPublication(record, target) };
+  return { render: record => view.render(record), open: update => view.open(update) };
 }

@@ -314,7 +314,7 @@ test("a project work finds, reads and — after the person approves the exact in
     await until(() => f.requests[0], "first model request");
     // The model saw only the gateway and root-free tools: no file, command or per-action tools.
     const offered = f.requests[0].tools.map((tool: any) => tool.name).sort();
-    assert.deepEqual(offered, ["acknowledge-inputs", "ask-user", "board-wait", "change-capability", "change-reversible", "context-remaining", "find-capabilities", "read-capability", "suggest-action", "update-todo"]);
+    assert.deepEqual(offered, ["acknowledge-inputs", "ask-user", "await-subagents", "board-wait", "change-capability", "change-reversible", "context-remaining", "dispatch-subagent", "find-capabilities", "read-capability", "steer-subagent", "suggest-action", "update-todo"]);
     assert.ok(JSON.stringify(f.requests[0]).includes("可用能力目录"), "the round carries the capability directory");
     const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     assert.equal(view.work.state, "waiting-review");

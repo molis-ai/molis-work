@@ -27,6 +27,11 @@ export interface HostCapabilityDescriptor {
   readonly action?: import("./actions.js").ActionMetadata;
   /** Injected by the registration owner, not supplied by tool callers. */
   readonly action_provider?: import("./actions.js").ActionProvider;
+  /**
+   * Host-only: the class this system action's own `action.call` record carries (today only a trial). It is copied from the handler
+   * binding of a `system` provider; another provider's value is ignored, so a plugin cannot hide its calls from reports (OCL-17).
+   */
+  readonly observation_source?: "trial";
 }
 
 /** Opaque local storage locator. It is never a Project business identity. */

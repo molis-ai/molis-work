@@ -14,6 +14,8 @@
 
 ## 01～90
 
+2026-11-18 按未开工批次复查调整（[决定 52](reference/decisions.md#decision-52)）：新增 36A 逐屏打磨（排在 37 前）与 63A 记忆 P2（从 64 拆出），72 并入 77，各批的前提、范围与前置按代码更正，见各批次文件「11-18 复查」一节。新增批次带字母，原批号不变。
+
 | 批次 | 批次内内容 |
 | --- | --- |
 | [01](reference/batches/01.md) | [基线、旧成果与在途需求核对](reference/batches/01.md#batch-01-item-1) |
@@ -90,6 +92,13 @@
 |  | [Coding A 期](reference/batches/35.md#batch-35-item-2) |
 | [36](reference/batches/36.md) | [角色设置、生效与恢复](reference/batches/36.md#batch-36-item-1) |
 |  | [主线第一片的合同与服务](reference/batches/36.md#batch-36-item-2) |
+| [36A](reference/batches/36a.md) | [顶部栏：纸上的页签](reference/batches/36a.md#batch-36a-item-1)（2026-11-18 加，[决定 52](reference/decisions.md#decision-52)） |
+|  | [事项线：底栏第四版](reference/batches/36a.md#batch-36a-item-2) |
+|  | [助理对话框、事件卡与收起态](reference/batches/36a.md#batch-36a-item-3) |
+|  | [Coding 逐屏](reference/batches/36a.md#batch-36a-item-4) |
+|  | [设置页：一种写法](reference/batches/36a.md#batch-36a-item-5) |
+|  | [首页：项目的第一页](reference/batches/36a.md#batch-36a-item-6) |
+|  | [动效落地与曲线收口](reference/batches/36a.md#batch-36a-item-7) |
 | [37](reference/batches/37.md) | [生成页面运行、采用与恢复](reference/batches/37.md#batch-37-item-1) |
 |  | [事项切换与工作台状态](reference/batches/37.md#batch-37-item-2) |
 | [38](reference/batches/38.md) | [插件配置采用](reference/batches/38.md#batch-38-item-1) |
@@ -99,7 +108,7 @@
 |  | [全产品文案与按需帮助](reference/batches/40.md#batch-40-item-2) |
 | [41](reference/batches/41.md) | [Skill 选用](reference/batches/41.md#batch-41-item-1) |
 |  | [规划方法变成技能](reference/batches/41.md#batch-41-item-2) |
-| [42](reference/batches/42.md) | [Skill 创作与改进完整路径](reference/batches/42.md#batch-42-item-1) |
+| [42](reference/batches/42.md) | [Skill 创作与改进完整路径](reference/batches/42.md#batch-42-item-1)：已实现并合入 `4cf1c742e6`（[#2107](https://github.com/molis-ai/molis-work/pull/2107)；最终 CI/Full/队列通过）；本人验收保留 |
 | [43](reference/batches/43.md) | [项目助理团执行与交付](reference/batches/43.md#batch-43-item-1) |
 |  | [Dataset 汇总、追加与规模性能](reference/batches/43.md#batch-43-item-2) |
 | [44](reference/batches/44.md) | [合同去插件化](reference/batches/44.md#batch-44-item-1) |
@@ -144,7 +153,7 @@
 |  | [N22 全量迁移与收口](reference/batches/56.md#batch-56-item-3) |
 | [57](reference/batches/57.md) | [个人工作完整路径](reference/batches/57.md#batch-57-item-1)（M1 移到 [REL-5](#release-batch)） |
 | [58](reference/batches/58.md) | [子代理公共交互组件](reference/batches/58.md#batch-58-item-1)：公共视图与交互端口已实现并合入 `6359987103`（[#2108](https://github.com/molis-ai/molis-work/pull/2108)；最终 CI/Full/队列通过）；本人验收保留 |
-| [59](reference/batches/59.md) | [子代理双入口接入](reference/batches/59.md#batch-59-item-1)：消费 58 的公开入口；助理业务子工作路径先核 43-1 实际派发接线 |
+| [59](reference/batches/59.md) | [子代理双入口接入](reference/batches/59.md#batch-59-item-1)：助理与 Coding 消费 58 的公共浮窗，真实历史、输入、问卷、审批、回报及重启接续；原目录接续采用 Prologue #134/#135，43-1 的最小业务 SDK 派发随本批交付，完整助理团归 43-1。工程和隔离实操见 [#2115](https://github.com/molis-ai/molis-work/pull/2115)，本人验收单列 |
 | [60](reference/batches/60.md) | [Sessions 控制与交接](reference/batches/60.md#batch-60-item-1) |
 | [61](reference/batches/61.md) | [服务矩阵、现有连接与统一搜索](reference/batches/61.md#batch-61-item-1) |
 |  | [自动化推荐与采用](reference/batches/61.md#batch-61-item-2) |
@@ -153,6 +162,9 @@
 |  | [项目模型限制与出站边界](reference/batches/62.md#batch-62-item-2) |
 |  | [组合候选目录与引用语义](reference/batches/62.md#batch-62-item-3) |
 | [63](reference/batches/63.md) | [全平台评测扩展](reference/batches/63.md#batch-63-item-1) |
+| [63A](reference/batches/63a.md) | [记忆形成质量（P2-01）](reference/batches/63a.md#batch-63a-item-1)（2026-11-18 从 64 拆出，[决定 52](reference/decisions.md#decision-52)） |
+|  | [记忆整理（Dreaming）、按需原文与用户控制](reference/batches/63a.md#batch-63a-item-2) |
+|  | [常驻层（P2-05）](reference/batches/63a.md#batch-63a-item-3) |
 | [64](reference/batches/64.md) | [主动发现、持续工作与周期报告](reference/batches/64.md#batch-64-item-1) |
 |  | [智能组合第三片](reference/batches/64.md#batch-64-item-2) |
 |  | [主线建议与跨项目个人视图](reference/batches/64.md#batch-64-item-3) |
@@ -160,8 +172,6 @@
 |  | [访谈初始化与工作记忆](reference/batches/64.md#batch-64-item-5) |
 |  | [回执阶段 5](reference/batches/64.md#batch-64-item-6) |
 |  | [安静准备与观察试用](reference/batches/64.md#batch-64-item-7) |
-|  | [记忆形成质量（P2-01）](reference/batches/64.md#batch-64-item-8)（2026-11-14 加，[决定 46](reference/decisions.md#decision-46) 拟定） |
-|  | [记忆整理（Dreaming）、按需原文与用户控制](reference/batches/64.md#batch-64-item-9)（同上） |
 | [65](reference/batches/65.md) | [公共搜索与联网设置](reference/batches/65.md#batch-65-item-1) |
 |  | [受限命令、依赖与 AI 低风险审批](reference/batches/65.md#batch-65-item-2) |
 |  | [Hooks 启用、变更、停用与恢复](reference/batches/65.md#batch-65-item-3) |
@@ -190,9 +200,9 @@
 |  | [规划方法扩行业](reference/batches/70.md#batch-70-item-10) |
 | [71](reference/batches/71.md) | [外观自定义与助理制作 D 段](reference/batches/71.md#batch-71-item-1) |
 |  | [外观与语言整体交付 E 段](reference/batches/71.md#batch-71-item-2) |
-| [72](reference/batches/72.md) | [复杂场景设计定稿](reference/batches/72.md#batch-72-item-1) |
+| [72](reference/batches/72.md) | [复杂场景设计定稿 → 并入 77](reference/batches/72.md#batch-72-item-1)（2026-11-18） |
 | [73](reference/batches/73.md) | [技能包、工作流与生成插件导入导出](reference/batches/73.md#batch-73-item-1) |
-|  | [场景方案与保存操作面导入导出](reference/batches/73.md#batch-73-item-2) |
+|  | [场景包与保存操作面导入导出](reference/batches/73.md#batch-73-item-2) |
 |  | [整份 Home 导出与导入 U7](reference/batches/73.md#batch-73-item-3) |
 |  | [业务数据导出回读](reference/batches/73.md#batch-73-item-4) |
 | [74](reference/batches/74.md) | [个人同步完整交付 → SRV-5](reference/batches/74.md#batch-74-item-1) |

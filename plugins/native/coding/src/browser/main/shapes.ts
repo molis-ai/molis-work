@@ -129,7 +129,7 @@ export interface FrozenSetup {
   readonly action_tools?: readonly { readonly capability_id: string; readonly version: number; readonly provider_id: string }[];
   readonly mcp_tools?: readonly { readonly server: string; readonly server_label?: string; readonly tool: string; readonly version: string; readonly configuration_version: number }[];
   readonly mcp_sources?: readonly { readonly server: string; readonly server_label?: string; readonly configuration_version: number }[];
-  readonly character?: { readonly title: string; readonly reference: { readonly version: number } };
+  readonly character?: { readonly title: string; readonly version: { readonly kind: "personal"; readonly version: number } | { readonly kind: "project"; readonly member_version: number; readonly original: { readonly version: number } } };
   readonly host_tools?: readonly string[];
   readonly text_materials: readonly {
     readonly material_id: string;

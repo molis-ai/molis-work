@@ -169,11 +169,11 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       change: (value) => void applyMode(value) });
     const chosen = chosenCharacter();
     if (allowsCharacter() && chosen) {
-      const key = (ref) => ref.artifact_id + "@" + ref.version, choices = (characterChoices() || []).filter((one) => one.available && key(one.reference) !== key(chosen));
-      list.push({ kind: "select", id: "character", label: readText("workbench.assistant-dock.which-character-carries"), value: key(chosen),
-        options: [{ value: "", label: readText("workbench.assistant-island.assistant-itself") }, { value: key(chosen), label: chosen.title }, ...choices.map((one) => ({ value: key(one.reference), label: one.title }))],
+      const choices = (characterChoices() || []).filter((one) => one.available && roleKey(one.ref) !== roleKey(chosen.ref));
+      list.push({ kind: "select", id: "character", label: readText("workbench.assistant-dock.which-character-carries"), value: roleKey(chosen.ref),
+        options: [{ value: "", label: readText("workbench.assistant-island.assistant-itself") }, { value: roleKey(chosen.ref), label: chosen.title }, ...choices.map((one) => ({ value: roleKey(one.ref), label: one.title + (one.tag ? " · " + one.tag : "") }))],
         change: (value) => {
-          const one = (characterChoices() || []).find((choice) => key(choice.reference) === value), next = value === key(chosen) ? chosen : one ? { artifact_id: one.reference.artifact_id, version: one.reference.version, title: one.title } : null;
+          const one = (characterChoices() || []).find((choice) => roleKey(choice.ref) === value), next = value === roleKey(chosen.ref) ? chosen : asChosen(one);
           if (getWork()) pendingChar = next; else nextChar = next;
           paintAim(); paintSum();
         } });
@@ -395,12 +395,12 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       const leave = () => { if (page) declined = page; };
       const here = getWork(), now = !onPage && !curEvent && !fresh && (!here || here.main), to = now ? chosenCharacter() : null;
       const spoken = mains().filter((work) => work.character).map((work) => work.character);
-      const offered = (characterChoices() || []).filter((one) => one.available && !spoken.some((had) => had.artifact_id === one.reference.artifact_id)).map((one) => ({ artifact_id: one.reference.artifact_id, version: one.reference.version, title: one.title }));
+      const offered = (characterChoices() || []).filter((one) => one.available && !spoken.some((had) => roleKey(had.ref) === roleKey(one.ref))).map(asChosen);
       const talk = (ref) => () => { leave(); void talkTo(ref).then(syncComposer); };
       sendTo.replaceChildren(
         ...(named ? [sendToGroup(readText("workbench.assistant-composer.this-page"), [sendToItem(mark, named.label, named.detail || "", onPage, () => { declined = null; syncComposer(); })])] : []),
         sendToGroup(readText("workbench.work-line.now"), [sendToItem(spark, readText("workbench.common.assistant"), readText("workbench.assistant-tabs.main-conversation"), now && !to, talk(null)),
-          ...[...spoken, ...offered].map((one) => sendToItem(whoMark(one.title), one.title, "", Boolean(now && to && to.artifact_id === one.artifact_id), talk(one)))]),
+          ...[...spoken, ...offered].map((one) => sendToItem(whoMark(one.title), one.title, "", Boolean(now && to && roleKey(to.ref) === roleKey(one.ref)), talk(one)))]),
         ...(line.length ? [sendToGroup(readText("workbench.work-line.events-on-line"), line.map((event) => sendToItem(glyphOf(event.mark), event.title, "",
           !onPage && (curEvent ? curEvent === eventKey(event.subject) : event.subject.kind === WORK_KIND && event.subject.id === curId), () => { leave(); void openEvent(event); syncComposer(); })))] : []),
         ...(named?.others?.length ? [sendToGroup(readText("workbench.assistant-composer.other-sessions"), named.others.map((one) => sendToItem(mark, one.label, one.detail || "", false, () => named.choose?.(one.id))))] : []));

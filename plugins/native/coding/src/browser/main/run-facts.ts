@@ -23,7 +23,8 @@ function factsOf(page: Page, run: RunView): { values: Fact[]; unused: string[] }
   else unused.push("MCP");
   if ((f.mcp_sources || []).length) values.push([uiText.text("coding.facts.mcp-sources"), (f.mcp_sources || []).map(source => (source.server_label || source.server) + " · " + uiText.text("coding.facts.configuration", { version: source.configuration_version })).join(joiner)]);
   else unused.push(uiText.text("coding.facts.mcp-source-kind"));
-  if (f.character) values.push([uiText.text("coding.facts.character"), f.character.title + " · v" + f.character.reference.version], [uiText.text("coding.facts.host-tools"), f.host_tools?.join(joiner) || uiText.text("coding.facts.no-host-tools")]);
+  if (f.character) values.push([uiText.text("coding.facts.character"), f.character.title + " · " + (f.character.version.kind === "personal" ? uiText.text("coding.facts.role-version", { version: f.character.version.version })
+    : uiText.text("coding.facts.member-version", { version: f.character.version.member_version, original: f.character.version.original.version }))], [uiText.text("coding.facts.host-tools"), f.host_tools?.join(joiner) || uiText.text("coding.facts.no-host-tools")]);
   else unused.push("Character");
   // Each piece with the version this round read; a round from before that was kept says so rather than guessing from the file now.
   if (f.text_materials.length) values.push([uiText.text("coding.facts.materials"), f.text_materials.map(material => {

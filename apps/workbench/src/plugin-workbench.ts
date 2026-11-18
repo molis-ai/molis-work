@@ -169,11 +169,10 @@ export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[
 }
 
 /**
- * Surfaces the Host renders itself with their own bundle, served under the plugin pack address (CHR-1 D5: 角色). Characters' native
- * runs show in the platform's terminal, so its bundle is preceded by the terminal bundle (renderer and page terminal; PG-053).
+ * The Host's own surfaces, mounted on first show beside the plugins'. The Host's 角色 pages are settings pages now (Settings › 角色 and
+ * 项目设置 › 角色, docs/design/role-scope), loaded by their own settings loader, so 角色 is not among them.
  */
 const HOST_SURFACE_CLIENTS: readonly Pick<PluginSurfaceClient, "id" | "bundle" | "assets">[] = [
-  { id: "characters", bundle: "characters", assets: ["/desktop/pty-client.js"] },
   { id: "sessions", bundle: "sessions", assets: [] },
 ];
 

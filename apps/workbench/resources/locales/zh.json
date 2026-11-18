@@ -2924,6 +2924,7 @@
     "workbench.characters.builtin-edited": "含你的修改",
     "workbench.characters.builtin-empty": "没有登记的系统或插件角色。",
     "workbench.characters.builtin-failed": "系统与插件角色暂时读不到：",
+    "workbench.characters.builtin-hint": "由系统和插件登记。打开一个，可以改组成它的提示词，从它的下一轮执行开始生效，随时能恢复默认；它能做什么仍由系统决定。",
     "workbench.characters.builtin-prompt-count": {
       "plural_arg": "count",
       "forms": {

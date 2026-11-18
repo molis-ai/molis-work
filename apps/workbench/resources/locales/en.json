@@ -3076,6 +3076,7 @@
     "workbench.characters.builtin-edited": "Includes your edits",
     "workbench.characters.builtin-empty": "No system or plugin roles are registered.",
     "workbench.characters.builtin-failed": "Could not load system and plugin roles: ",
+    "workbench.characters.builtin-hint": "Open a registered character to edit its prompts. Changes apply to its next run; you can restore defaults anytime. Permissions still determine what it can do.",
     "workbench.characters.builtin-prompt-count": {
       "plural_arg": "count",
       "forms": {

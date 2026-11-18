@@ -30,7 +30,8 @@ const act = (name: string, arg = "", extra: Partial<MwButtonOptions> = {}): stri
 } as MwButtonOptions);
 const state = (tone: "neutral" | "warning", text: string): string => `<span class="settings-state settings-state--${tone}">${esc(text)}</span>`;
 const section = (id: string, title: string, body: string, head = ""): string =>
-  `<section class="settings-section" aria-labelledby="${id}"><div class="roles-sec-head"><h2 id="${id}">${esc(title)}</h2>${head}</div>${body}</section>`;
+  // POLISH-29/30: the layout every settings page shares: the title (and its actions) outside, one card of rows under it.
+  `<section class="settings-section mw-settings-section" aria-labelledby="${id}"><header class="mw-settings-section__head roles-sec-head"><h2 id="${id}">${esc(title)}</h2>${head}</header><div class="mw-settings-section__rows">${body}</div></section>`;
 const setRow = (title: string, hint: string, value: string): string =>
   `<section class="settings-setting-row"><div class="setting-copy"><strong>${esc(title)}</strong><span>${esc(hint)}</span></div><div class="setting-value">${value}</div></section>`;
 const inset = (body: string, labelledBy: string, extra = ""): string => `<div class="roles-inset${extra}" role="group" aria-labelledby="${labelledBy}">${body}</div>`;

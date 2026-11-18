@@ -93,7 +93,7 @@
 | [36](reference/batches/36.md) | [角色设置、生效与恢复](reference/batches/36.md#batch-36-item-1) |
 |  | [主线第一片的合同与服务](reference/batches/36.md#batch-36-item-2) |
 | [36A](reference/batches/36a.md) | [顶部栏：纸上的页签](reference/batches/36a.md#batch-36a-item-1)（2026-11-18 加，[决定 52](reference/decisions.md#decision-52)） |
-|  | [事项线：底栏第四版](reference/batches/36a.md#batch-36a-item-2) |
+|  | [底栏：第十三版](reference/batches/36a.md#batch-36a-item-2)（2026-11-17 改，[决定 53](reference/decisions.md#decision-53)） |
 |  | [助理对话框、事件卡与收起态](reference/batches/36a.md#batch-36a-item-3) |
 |  | [Coding 逐屏](reference/batches/36a.md#batch-36a-item-4) |
 |  | [设置页：一种写法](reference/batches/36a.md#batch-36a-item-5) |

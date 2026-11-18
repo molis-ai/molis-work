@@ -3,10 +3,11 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { installTextForTest, parseLocalePack } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderImmersiveHeader, renderPluginRail } from "../apps/workbench/src/immersive-shell.ts";
-import { RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, dockDefaultPins, extendPluginIds, pluginMarketCards } from "../apps/workbench/src/plugin-catalog.ts";
+import { RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, extendPluginIds, pluginMarketCards } from "../apps/workbench/src/plugin-catalog.ts";
 
 // The switcher lists every plugin a project could have, once, as a tile that reads the same in both states, and each tile
-// carries the same two buttons (keep it in the Dock; add it to or remove it from the project) — specs/archive/plugin-picker-dock.
+// carries the same two buttons (open it beside; add it to or remove it from the project) — specs/archive/plugin-picker-dock. The
+// keep pin that once kept a plugin in the Dock is gone: the top strip keeps no plugins of its own (specs/screen-polish §3 方案 C).
 
 // The bar's Assistant says stable keys (`t`) since K3 (unified input): the Workbench's own words, as the Host installs them when it starts.
 const workbenchWords = parseLocalePack(readFileSync(new URL("../apps/workbench/resources/locales/zh.json", import.meta.url), "utf8"));
@@ -29,7 +30,7 @@ const HOST_MARKS: Readonly<Record<string, { always_on?: true; companions?: reado
 const marked = () => builtinPluginDirectory().map(entry => ({ ...entry, ...HOST_MARKS[entry.id] }));
 
 /** One tile, as written: its wrapper's open tag, its entry, and its two buttons. */
-function tileOf(html: string, id: string): { wrapper: string; entry: string; pin: string; toggle: string; all: string } {
+function tileOf(html: string, id: string): { wrapper: string; entry: string; beside: string; toggle: string; all: string } {
   const at = html.indexOf(`data-plugin-tile="${id}"`);
   const opening = html.lastIndexOf('<div class="plugin-rail-tile', at);
   assert.ok(at >= 0 && opening >= 0, `a tile for ${id}`);
@@ -39,7 +40,7 @@ function tileOf(html: string, id: string): { wrapper: string; entry: string; pin
     all,
     wrapper: all.slice(0, all.indexOf(">") + 1),
     entry: all.match(/<(?:button|a)[^>]*class="immersive-plugin-link plugin-rail-item"[\s\S]*?<\/(?:button|a)>/)![0],
-    pin: all.match(/<button[^>]*data-dock-choice="[^"]*"[^>]*>/)?.[0] ?? "",
+    beside: all.match(/<button[^>]*data-rail-beside="[^"]*"[^>]*>/)?.[0] ?? "",
     toggle: all.match(/<button[^>]*data-plugin-toggle="[^"]*"[^>]*>/)?.[0] ?? "",
   };
 }
@@ -50,12 +51,12 @@ test("DOCK-02 a plugin the project has opens and is in colour; one it does not h
   assert.doesNotMatch(have.wrapper, /is-available/);
   assert.match(have.entry, /data-plugin-id="pages"[^>]*data-work-surface-open="pages"/);
   assert.match(lack.wrapper, /is-available/);
-  assert.doesNotMatch(lack.entry, /data-plugin-id=|data-work-surface-open=/, "nothing opens, nothing can be kept");
+  assert.doesNotMatch(lack.entry, /data-plugin-id=|data-work-surface-open=/, "nothing opens");
   assert.match(lack.entry, /aria-disabled="true"[^>]*tabindex="-1"/);
-  // Both read the same: glyph, name, one line, the end mark, and the two buttons — so a state change is attributes only.
+  // Both read the same: glyph, name, one line, the line a removal asks in, and the two buttons — so a state change is attributes only.
   for (const tile of [have, lack]) {
-    assert.match(tile.entry, /<svg[^>]*><\/svg><span>[^<]+<\/span><small class="plugin-rail-hint">[^<]+<\/small><i class="plugin-rail-mark"/);
-    assert.ok(tile.pin && tile.toggle, "two buttons");
+    assert.match(tile.entry, /<svg[^>]*><\/svg><span>[^<]+<\/span><small class="plugin-rail-hint">[^<]+<\/small><small class="plugin-rail-confirm"/);
+    assert.ok(tile.beside && tile.toggle, "two buttons");
     assert.match(tile.all, /<span class="plugin-rail-ops" role="group"/);
   }
 });
@@ -90,82 +91,29 @@ test("DOCK-01 DOCK-13 the market and the plugin studio are two buttons at the he
   assert.doesNotMatch(without, /data-plugin-id="plugin-builder"/);
 });
 
-test("DOCK-04 the pin: grey while not kept, graphite while kept, out of reach until the plugin is in; 灵光's is an ordinary pin and Shelf has no tile", () => {
+test("DOCK-04 方案 C: no tile keeps a plugin in the top strip — no pin, no kept mark — its two buttons are 在旁边打开 and the plus or trash can; Shelf has no tile", () => {
   const html = renderPluginRail(primitives, ["goals", "pages", "shelf", "lingguang"]);
-  const kept = tileOf(html, "goals"), loose = tileOf(html, "pages"), grey = tileOf(html, "schedule");
-  assert.ok(dockDefaultPins().includes("goals") && !dockDefaultPins().includes("pages"));
-  assert.match(kept.pin, /mw-btn--primary/); assert.match(kept.pin, /aria-pressed="true"/); assert.doesNotMatch(kept.pin, / disabled/);
-  assert.match(kept.wrapper, /is-kept/);
-  assert.match(loose.pin, /mw-btn--secondary/); assert.match(loose.pin, /aria-pressed="false"/); assert.doesNotMatch(loose.pin, / disabled/);
-  assert.doesNotMatch(loose.wrapper, /is-kept/);
-  assert.match(grey.pin, / disabled/);
-  // The bar no longer keeps 灵光 as a resident (side-shelf §7: the bar has only the side panel's button), so its pin is like
-  // any other: in the project, not kept unless the person keeps it. Shelf is a 常开插件, a tab of the side panel: no tile.
-  assert.doesNotMatch(html, /data-plugin-id="shelf"/);
-  for (const id of ["lingguang"]) {
-    const plain = tileOf(html, id);
-    assert.doesNotMatch(plain.pin, /data-resident/); assert.doesNotMatch(plain.pin, / disabled/); assert.match(plain.pin, /aria-pressed="false"/);
-    assert.doesNotMatch(plain.wrapper, /is-kept/);
+  assert.doesNotMatch(html, /data-dock-choice|dock-keep|is-kept|plugin-rail-mark/);
+  for (const id of ["goals", "pages", "lingguang"]) {
+    const tile = tileOf(html, id);
+    assert.match(tile.beside, new RegExp(`data-rail-beside="${id}"`)); assert.doesNotMatch(tile.beside, / disabled/);
+    assert.equal(tile.all.match(/<button[^>]*class="[^"]*mw-btn/g)?.length, 2, `${id}: two buttons`);
   }
-});
-
-test("DOCK-05 DOCK-06 one button, two states: a plus while the plugin is not in the project, a trash can once it is; a 常开 plugin (Goals) cannot be removed", () => {
-  const html = renderPluginRail(primitives, ["goals", "pages"], marked());
-  const have = tileOf(html, "pages"), lack = tileOf(html, "schedule"), core = tileOf(html, "goals");
-  assert.match(have.toggle, /data-state="added"/); assert.match(have.toggle, /mw-btn--secondary/); assert.doesNotMatch(have.toggle, / disabled/);
-  assert.match(lack.toggle, /data-state="available"/); assert.match(lack.toggle, /mw-btn--primary/);
-  assert.match(core.toggle, / disabled/); assert.match(core.toggle, /常开插件不能从项目移除/);
-  // Both glyphs are in the button either way, so a change of state is the tile's class only: the stylesheet shows the one that fits.
-  for (const tile of [have, lack, core]) assert.match(tile.all, /<button[^>]*data-plugin-toggle[\s\S]*?<svg class="plugin-toggle-add"[^>]*><use href="#icon-plus"><\/use><\/svg><svg class="plugin-toggle-remove"[^>]*><use href="#icon-trash"><\/use><\/svg>/);
-});
-
-test("DOCK-06 what adding adds along, and what removing takes with it, is written on the tile", () => {
-  // Feed comes with Inbox (the Projects service applies it, and the other way round on removal). Text Stats, which came with Files
-  // until batch 06 retired Files, now reads the platform's materials and brings nothing; it is offered to add only in developer
-  // mode (W2-18 decision 5).
-  const missing = renderPluginRail(primitives, ["goals"], marked(), { developerMode: true });
-  assert.doesNotMatch(tileOf(missing, "text-stats").wrapper, /data-along/);
-  assert.doesNotMatch(tileOf(missing, "text-stats").toggle, /添加会同时添加/);
-  assert.match(tileOf(missing, "feed").wrapper, /data-along="Inbox"/);
-  assert.match(tileOf(missing, "feed").toggle, /添加会同时添加：Inbox/);
-  const all = renderPluginRail(primitives, ["goals", "text-stats", "inbox", "feed"], marked());
-  assert.match(tileOf(all, "inbox").wrapper, /data-dependents="Feed"/, "removing Inbox takes Feed with it");
-  assert.doesNotMatch(tileOf(all, "text-stats").wrapper, /data-dependents|data-along/, "nothing depends on Text Stats, and it is already in");
-});
-
-test("RAC-1315 DOCK-06 an addable plugin says which plugins that depend on it will not come with it", () => {
-  const missing = renderPluginRail(primitives, ["goals"], marked());
-  assert.match(tileOf(missing, "inbox").toggle, /；依赖它的插件不会一并添加：Feed/, "adding Inbox alone does not bring Feed");
-  const withFeed = renderPluginRail(primitives, ["goals", "feed"], marked());
-  assert.doesNotMatch(tileOf(withFeed, "inbox").toggle, /依赖它的插件不会一并添加/, "Feed is already here");
-  const all = renderPluginRail(primitives, ["goals", "text-stats", "inbox", "feed"], marked());
-  assert.match(tileOf(all, "inbox").wrapper, /data-dependents="Feed"/, "the removal path is unchanged");
-});
-
-test("RAC-1316 DOCK-06 a plugin with no companions has no relation text and no empty title", () => {
-  const html = renderPluginRail(primitives, ["goals"], marked());
-  const schedule = tileOf(html, "schedule");
-  assert.doesNotMatch(schedule.toggle, /添加会同时添加|依赖它的插件不会一并添加|移除会同时移除/);
-  assert.match(schedule.toggle, /title="[^"]+"/, "no empty title");
-});
-
-test("DOCK-08 no plugin brings the page back: the list of those that cannot change in place is empty, and the switcher carries it for the client", () => {
-  const html = renderPluginRail(primitives, ["goals"]);
-  assert.match(html, new RegExp(`<div class="plugin-rail-items" data-reload-plugins="${RELOAD_ON_MEMBERSHIP_IDS.join(" ")}">`));
-  // Feed's source directory and Coding's settings row both attach and detach live (specs/archive/plugin-picker-dock); a plugin that
-  // cannot would be named here, and the client would save the page's state and load it again for that one only.
-  assert.deepEqual([...RELOAD_ON_MEMBERSHIP_IDS], []);
+  // A plugin the project does not have cannot be opened beside.
+  assert.match(tileOf(html, "schedule").beside, / disabled/);
+  // Shelf is a 常开插件, a tab of the side panel: no tile.
+  assert.doesNotMatch(html, /data-plugin-id="shelf"/);
 });
 
 /** A plugin that runs in the project without being one of the project's chosen plugins, as the Host reports it. */
 const installed = (id: string, name: string) => ({ id, plugin_id: `io.molis.work.generated.${id}`, name, chosen: false,
   ui: { views: [{ view_id: "app", slot: "stage" as const, title: name }] } });
 
-test("a plugin the project installed at run time can be kept in the Dock, and is not this list's to remove", () => {
+test("a plugin the project installed at run time opens beside like any other, and is not this list's to remove", () => {
   const html = renderPluginRail(primitives, ["goals"], [installed("app-notes", "笔记")]);
   const own = tileOf(html, "app-notes");
   assert.match(own.entry, /data-plugin-id="app-notes"/);
-  assert.match(own.pin, /data-dock-choice="app-notes"/);
+  assert.match(own.beside, /data-rail-beside="app-notes"/);
   assert.equal(own.toggle, "", "taking it out of the project is whoever installed it");
 });
 
@@ -175,7 +123,7 @@ test("names and glyphs come out escaped", () => {
   assert.match(html, /&lt;b>笔记/);
 });
 
-// ---- W5-02 PR-D (PG-074): the rail's backbone, its extend entry and the Dock's default pins are what the views declare ----------
+// ---- W5-02 PR-D (PG-074): the rail's backbone and its extend entry are what the views declare ----------
 
 /** A plugin whose one navigator view says `over`, as a Manifest would. */
 const probe = (id: string, over: Record<string, unknown>, chosen = true) => ({ id, plugin_id: `io.molis.work.probe.${id}`, name: id, chosen,
@@ -183,36 +131,31 @@ const probe = (id: string, over: Record<string, unknown>, chosen = true) => ({ i
 /** The plugins drawn in one zone of the rail, in the order they are drawn (the project home's own entry is not a plugin). */
 const zoneOf = (html: string, zone: string) => [...html.matchAll(new RegExp(`<button data-rail-zone="${zone}"[^>]*data-plugin-id="([^"]+)"`, "g"))].map(match => match[1]!).filter(id => id !== "home");
 
-test("RAC-694 the three tables are gone: the backbone, the extend entry and the default pins come out as before, read from the views", () => {
-  assert.deepEqual(dockDefaultPins(), ["goals", "inbox", "feed"]);
+test("RAC-694 the tables are gone: the backbone and the extend entry come out as before, read from the views", () => {
   assert.deepEqual([...extendPluginIds()], ["plugin-builder"]);
   const html = renderPluginRail(primitives, ["goals", "inbox", "feed", "plugin-builder", "pages"]);
   assert.deepEqual(zoneOf(html, "core"), ["goals", "inbox", "feed"], "the backbone, in the views' order");
   assert.ok(!zoneOf(html, "tool").includes("plugin-builder") && !html.includes('data-plugin-tile="plugin-builder"'), "the studio is not among the tools");
-  for (const id of ["goals", "inbox", "feed"]) assert.match(tileOf(html, id).wrapper, /is-kept/, `${id} is kept by default`);
-  assert.doesNotMatch(tileOf(html, "pages").wrapper, /is-kept/);
 });
 
-test("RAC-695 a new plugin takes a backbone place, an extend place and a default pin by declaring them, and nothing else", () => {
+test("RAC-695 a new plugin takes a backbone place and an extend place by declaring them, and nothing else", () => {
+  // A view's `pinned_default` is still a Manifest field, but the workbench no longer reads it (specs/screen-polish §3 方案 C).
   const directory = [...builtinPluginDirectory(), probe("probe", { rail: "core", pinned_default: true })];
-  assert.deepEqual(dockDefaultPins(directory), ["goals", "probe", "inbox", "feed"], "pinned by its view's order, between Goals (10) and Inbox (30)");
   const html = renderPluginRail(primitives, ["goals", "inbox", "feed", "probe"], directory);
-  assert.deepEqual(zoneOf(html, "core"), ["goals", "probe", "inbox", "feed"]);
-  assert.match(tileOf(html, "probe").wrapper, /is-kept/);
+  assert.deepEqual(zoneOf(html, "core"), ["goals", "probe", "inbox", "feed"], "by its view's order, between Goals (10) and Inbox (30)");
+  assert.doesNotMatch(tileOf(html, "probe").all, /is-kept|data-dock-choice/);
   // An extend entry is offered from the Dock menu and the switcher's head, never listed among the tools or offered to add.
   const extend = [...builtinPluginDirectory(), probe("studio-two", { rail: "extend" })];
   assert.ok(extendPluginIds(extend).has("studio-two"));
   const bare = renderPluginRail(primitives, ["goals", "studio-two"], extend);
   assert.ok(!bare.includes('data-plugin-tile="studio-two"'), "not a tile");
-  assert.deepEqual(dockDefaultPins(extend), ["goals", "inbox", "feed"], "and not pinned: declaring a rail place is not declaring a pin");
   const plain = [...builtinPluginDirectory(), probe("plain", {})];
   assert.ok(tileOf(renderPluginRail(primitives, ["goals", "plain"], plain), "plain").wrapper.includes("plugin-rail-tile"), "an undeclared plugin is an ordinary tool");
   assert.deepEqual(zoneOf(renderPluginRail(primitives, ["goals", "plain"], plain), "core"), ["goals"]);
 });
 
-test("RAC-695 a directory that marks a plugin installed at run time as the backbone, an extend entry or a default pin is not believed", () => {
+test("RAC-695 a directory that marks a plugin installed at run time as the backbone or an extend entry is not believed", () => {
   const rogue = probe("rogue", { rail: "core", pinned_default: true }, false);
-  assert.deepEqual(dockDefaultPins([rogue]), []);
   assert.equal(extendPluginIds([probe("rogue", { rail: "extend" }, false)]).size, 0);
   assert.deepEqual(zoneOf(renderPluginRail(primitives, ["goals"], [rogue]), "core"), [], "no backbone place");
 });

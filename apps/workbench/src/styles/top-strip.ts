@@ -3,8 +3,8 @@
  *
  * The strip holds tabs and nothing else. The current tab is an ear grown on its sheet: paper-coloured, joined to the sheet below
  * with two concave corners, and, while its column has the focus, a 2px accent line on top. Every other tab is words on the desk.
- * 项目首页 and the plugins chosen to stay are glyphs before a hairline (a kept plugin's own page is its glyph, so the strip draws
- * no second tab for it). A cover (settings, the market) is a tab like the others, after them, with its whole name and its close
+ * 项目首页 is the one fixed place, a glyph before a hairline; it is the project home's tab, so the strip draws no second one. Any
+ * other plugin is reached from ＋ or ⌘K, and its own page is a tab. A cover (settings, the market) is a tab like the others, after them, with its whole name and its close
  * (POLISH-06). Over the side sheet stands the name of the view it shows; it opens the list of the side's views. The right end
  * holds three controls: the side's switch, the layout button and the project (POLISH-05). A phone has one row (POLISH-07): the
  * way back, the current tab (the side view's name while the side shows), 全部标签, ＋, the side's switch, the project.
@@ -24,7 +24,7 @@ const HOVER = "var(--dur-hover) var(--ease-quint)";
 const PANE = "html body.immersive-workbench:not([data-pane-embedded]) .tab-workspace[data-split] .tab-workspace-panes>.tab-pane";
 const PANE_TABS = `${PANE}>.tab-strip`;
 /** The ears, each marked `data-ear` by the script that knows it: the current tab of a strip (tab-workspace-strip.ts; none while
- * a cover shows), the kept plugin whose own page shows (navigation-presentation.ts), the side sheet's view (immersive-shell.ts). */
+ * a cover shows), 项目首页 while the project home shows (navigation-presentation.ts), the side sheet's view (immersive-shell.ts). */
 const TOP_EAR = `${TOP} :is(.tab-item,.dock-pin,.side-ear)[data-ear]`;
 const PANE_EAR = `${PANE_TABS} .tab-item[data-ear]`;
 const EARS = `${TOP_EAR},${PANE_EAR}`;
@@ -37,13 +37,13 @@ const sideOpen = (selector: string): string => selector.replace(/^html /, "html:
 const SHEET = `
 @media (min-width:761px){html body.immersive-workbench:not(.arrival-page){--desktop-titlebar-height:44px}}
 ${TOP}{position:relative;gap:2px;padding:0 var(--sheet-inset,14px) 0 8px;--dock-btn:28px;--ear-rest:28px;--ear-rise:36px;--ear-foot:calc((var(--desktop-titlebar-height,44px) - var(--ear-rest))/2)}
-/* The kept plugins are this browser's choice, so the page's script draws them after the first paint: until it has, what they
-   would push along is held unseen, so the strip is not laid out a second way while it loads (VUX-31). Should the script never
+/* 项目首页's glyph is drawn by the page's script after the first paint (it takes its name and glyph from the start page's
+   entry): until it has, what it would push along is held unseen, so the strip is not laid out a second way while it loads (VUX-31). Should the script never
    get there, the strip shows anyway. */
 ${TOP}:not([data-dock-drawn])>:not(.workspace-history){visibility:hidden;animation:top-strip-shown 0s forwards;animation-delay:3s}
 @keyframes top-strip-shown{to{visibility:visible}}
 
-/* 项目首页 and the kept plugins: glyphs, then a hairline. */
+/* 项目首页: a glyph, then a hairline. */
 ${TOP}>.dock-pins{order:1;align-self:stretch;flex:0 1 auto;display:flex;align-items:center;height:auto;margin:0;padding:0 0 0 10px;gap:2px;border-radius:0;background:none;box-shadow:none}
 ${TOP}>.dock-pins::before,${TOP} .dock-pin[aria-current]::after,${TOP}>.plugin-picker::after{content:none}
 ${TOP}>.dock-pins::after{content:"";flex:none;width:1px;height:16px;margin:0 0 0 8px;background:var(--line-strong)}
@@ -52,29 +52,26 @@ ${TOP} .dock-pin:not([data-ear]):hover{transform:none;background:var(--nav-hover
 ${TOP} .dock-pin svg{width:16px;height:16px}
 ${TOP} .dock-pin[aria-current]:not([data-ear]){color:var(--ink)}
 ${TOP} .dock-pin.is-fixed{margin-right:0}
-${TOP} .dock-pin-more{width:auto;min-width:30px;padding:0 6px;font-size:12px}
 .dock-pin-name{display:none}
 
 /* The tabs take what they need and ＋ follows them. What they need is written by the script that shares their widths
    (--tabs-hug: every tab at its own width; --tabs-floor: every tab at its narrowest). Where the strip runs short the tabs narrow
-   first, down to that floor while it leaves the rest of the strip 360px; then the kept plugins fold; then the tabs slide. A strip
+   first, down to that floor while it leaves the rest of the strip 360px; then the tabs slide. A strip
    with no tab in it is not drawn, so ＋ stands at the hairline (POLISH-03); one with a tab is at least 2px wide before the
    script has measured it, since that script measures only a strip that has a width. */
 ${TABS}{order:1;align-self:stretch;flex:0 1000 var(--tabs-hug,0px);min-width:clamp(2px,var(--tabs-floor,2px),100% - 360px);height:auto;margin-right:0;padding:0;gap:2px}
-${TABS}:not(:has(.tab-item:not([data-kept]),.tab-view-chip,.tab-strip-button:not([hidden]),[data-tab-reorder-slot])),${TABS}>.tab-strip-spacer{display:none}
+${TABS}:not(:has(.tab-item,.tab-view-chip,.tab-strip-button:not([hidden]),[data-tab-reorder-slot])),${TABS}>.tab-strip-spacer{display:none}
 ${TABS}>.tab-scroll{align-self:stretch;align-items:center;box-sizing:border-box;height:auto;gap:2px;padding:0 6px 0 10px}
 ${TABS} .tab-item{height:var(--ear-rest);border-radius:8px;background-color:transparent;box-shadow:none;color:var(--ink-soft);font-size:12px}
 ${TABS} .tab-item:not([data-ear]):hover{background-color:var(--nav-hover);color:var(--ink)}
 ${TABS} .tab-item .tab-item-icon{color:currentColor}
-/* A kept plugin's own page is its glyph before the hairline; a group that holds nothing else takes no room. */
-${TABS} .tab-item[data-kept],${TABS} .tab-item[data-kept]+.tab-group-sep,${TABS} .tab-plugin-group:not(:has(.tab-item:not([data-kept]))){display:none}
 /* One plugin's tabs stand together with no ground of their own; a hairline parts them from the tabs before. */
 ${TABS} .tab-group{align-self:stretch;align-items:center;height:auto;min-height:0}
 ${TABS} .tab-group>.tab-group-pages{align-self:stretch;align-items:center;height:auto;min-height:0;gap:2px}
 ${TABS} .tab-plugin-group{padding:0;border-radius:0;background:none;box-shadow:none}
 ${TABS} .tab-plugin-group .tab-group-sep{display:none}
-${TABS} .tab-scroll>:is(.tab-item:not([data-kept]),.tab-group:has(.tab-item:not([data-kept])))~.tab-plugin-group{position:relative;padding-left:11px}
-${TABS} .tab-scroll>:is(.tab-item:not([data-kept]),.tab-group:has(.tab-item:not([data-kept])))~.tab-plugin-group::before{content:"";position:absolute;left:5px;top:50%;width:1px;height:14px;translate:0 -50%;background:var(--line-strong)}
+${TABS} .tab-scroll>:is(.tab-item,.tab-group)~.tab-plugin-group{position:relative;padding-left:11px}
+${TABS} .tab-scroll>:is(.tab-item,.tab-group)~.tab-plugin-group::before{content:"";position:absolute;left:5px;top:50%;width:1px;height:14px;translate:0 -50%;background:var(--line-strong)}
 ${TABS} .tab-plugin-group:has([data-ear])::before,${TABS} .tab-plugin-group:has([data-ear])+.tab-plugin-group::before{opacity:0}
 ${TABS} .tab-group[data-pinned-group]{padding:0;background:none;box-shadow:none}
 /* A cover's tab: after the others, never narrowed, with its whole name and its close (POLISH-06). The page it names is not a
@@ -89,7 +86,7 @@ ${TABS}>.tab-view-chip .tab-view-chip-close svg{width:12px;height:12px}
 ${TABS} .tab-add-button{display:none}
 
 /* An ear: as tall as the strip from its top edge down, paper, joined to the sheet by a concave corner on each side. These
-   follow the rules of a tab and of a kept plugin at rest, which they outweigh or equal. */
+   follow the rules of a tab and of 项目首页 at rest, which they outweigh or equal. */
 ${EARS}{align-self:flex-end;box-sizing:border-box;height:var(--ear-rise);padding-bottom:var(--ear-foot);border-radius:10px 10px 0 0;background-color:var(--paper);box-shadow:none;color:var(--ink);font-weight:500;transform:none;filter:drop-shadow(0 -1px 1.5px color-mix(in srgb,var(--shadow-color) 9%,transparent))}
 ${TOP} :is(.tab-item,.dock-pin)[data-ear],${PANE_EAR}{position:relative}
 ${TOP_EAR}::before,${TOP_EAR}::after,${PANE_EAR}::before,${PANE_EAR}::after{content:"";display:block;position:absolute;bottom:0;width:10px;height:10px;pointer-events:none}
@@ -155,9 +152,9 @@ ${PANE_EAR}{border-radius:9px 9px 0 0}
   ${PANE_TABS}{--ear-rest:36px;--ear-rise:40px;height:44px}
 }
 
-/* A phone: one row (POLISH-07). The way back, the current tab, 全部标签, ＋, the side's switch and the project; 项目首页 and the
-   kept plugins are in the start page (＋) and the other tabs in 全部标签, so a kept glyph is in the row only while its own page is
-   the one showing, as the current tab. While the side shows, its view's name stands where the current tab was. The layout button
+/* A phone: one row (POLISH-07). The way back, the current tab, 全部标签, ＋, the side's switch and the project; 项目首页 is in
+   the start page (＋) and the other tabs in 全部标签, so its glyph is in the row only while the project home shows, as the
+   current tab. While the side shows, its view's name stands where the current tab was. The layout button
    is in the row only while the work area is split (the work area hides the title bar's own strip then, tab-workspace.ts): its
    menu is the way to the other panes. Nothing here is an ear: the sheet
    below is the whole window. */
@@ -203,7 +200,7 @@ ${PANE_EAR}{border-radius:9px 9px 0 0}
   ${TOP}>.titlebar-layout .mw-btn{width:44px;height:44px;min-width:44px}
   ${TOP}>.titlebar-end{margin-left:0;gap:0}
   ${TOP}>.titlebar-end>.workspace-chrome{margin-left:0}
-  ${sideOpen(TABS)},${sideOpen(TOP)} .dock-pin:not(.is-fixed){display:none}
+  ${sideOpen(TABS)}{display:none}
   ${TOP}>.side-ear{order:1;position:relative;left:auto;bottom:auto;flex:0 1 auto;min-width:0;max-width:none;margin-right:auto}
   ${TOP}>.side-ear>.side-ear-name{flex:0 1 auto}
   /* !important over the left the list's script writes under the side's name (side-panel.ts): here it runs the window's width. */

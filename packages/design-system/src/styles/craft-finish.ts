@@ -33,7 +33,7 @@ const CRAFT_BASE_STYLES = CRAFT_BAR_STYLES + BAR_ZONE_STYLES + CRAFT_ASSISTANT_S
 
 /** Under automation (headless review, e2e) the layer holds still so geometry reads settle at once. */
 const STILL_RESET = `
-  html[data-craft-still] :is(.workbench-bar > *, .immersive-plugin-stage, .dock-overflow, .account-global-popover, .assistant-panel, .plugin-picker-popover, .immersive-home :is(.home-focus, .home-erow__slot), .tab-pane-body > [data-work-surface], .tab-workspace-exclusive > *, .home-tl__rows > *, .plugin-market-list > *,
+  html[data-craft-still] :is(.workbench-bar > *, .immersive-plugin-stage, .account-global-popover, .assistant-panel, .plugin-picker-popover, .immersive-home :is(.home-focus, .home-erow__slot), .tab-pane-body > [data-work-surface], .tab-workspace-exclusive > *, .home-tl__rows > *, .plugin-market-list > *,
     dialog[open], ${DROPDOWN}, details[open] > .navigator-project-menu-popover, .toast, .mw-check, .mw-radio, [data-graph-edge] path,
     [data-craft-celebrate] .goal-status--completed, [data-craft-celebrate] .goal-status--completed svg) { animation: none !important; }
   html[data-craft-still] :is(dialog[open], .mw-check:checked, .mw-radio:checked, .plugin-rail-items .immersive-plugin-link[aria-current], [data-craft-new])::after,

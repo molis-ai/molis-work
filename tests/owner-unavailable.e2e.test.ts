@@ -6,7 +6,8 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 /**
  * UPG3-04 (specs/upgrade-continuity/owner-isolation-and-rollback-design.md §8): the plugin whose tables an upgrade left behind is the
- * only one stopped, and the Dock says so — its pin carries the dot and reads 「暂不可用」, not 「没有启动」. Its card carries a diagnostic
+ * only one stopped, and the start page says so — its entry carries the dot and reads 「暂不可用」, not 「没有启动」 (the top strip keeps
+ * no plugins of its own since specs/screen-polish §3 方案 C). Its card carries a diagnostic
  * number that stays the same for this round, so the person can quote it and the log can be searched for it. The number's rules and
  * the log line are tested without a browser (`tests/upgrade-owner-isolation.test.ts`); this is what the person sees.
  *
@@ -15,7 +16,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
  */
 const FEED = "io.molis.work.feed";
 
-test("UPG3-04 the Dock's pin of a plugin an upgrade stopped has the dot and reads 暂不可用; its card's number stays the same", { timeout: 180_000 }, async (t) => {
+test("UPG3-04 the start page's entry of a plugin an upgrade stopped has the dot and reads 暂不可用; its card's number stays the same", { timeout: 180_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
     prepareHome: home => {
       const db = new DatabaseSync(join(home, "projects", "molis-work-v1-demo", "molis-work.db"));
@@ -25,20 +26,19 @@ test("UPG3-04 the Dock's pin of a plugin an upgrade stopped has the dot and read
   if (!browser) return;
   const { evaluate, waitFor, navigate, command, sessionId, origin, projectId } = browser;
   const project = `${origin}/projects/${projectId}/`;
-  const pin = (id: string) => `document.querySelector('[data-dock-pin="${id}"]')`;
+  // The top strip keeps no plugins of its own (specs/screen-polish §3 方案 C): the start page (＋) names every plugin.
+  const entry = (id: string) => `document.querySelector('[data-plugin-picker-popover] .plugin-rail-items [data-plugin-id="${id}"]')`;
   await navigate(() => command("Page.navigate", { url: project }, sessionId));
-  await waitFor(`${pin("feed")} && ${pin("inbox")}`);
+  await waitFor(`${entry("feed")} && ${entry("inbox")} && document.querySelector('.workbench-header[data-dock-drawn]')`);
   const unavailable = await evaluate<string>(`globalThis.t.text("workbench.navigation-presentation.unavailable-for-now")`);
   const didNotStart = await evaluate<string>(`globalThis.t.text("workbench.navigation-presentation.didn-t-start")`);
-  assert.equal(await evaluate(`${pin("feed")}.getAttribute('aria-label')`), `Feed · ${unavailable}`, "read out as unavailable for now");
+  assert.equal(await evaluate(`${entry("feed")}.querySelector(':scope > .nav-warn-dot')?.getAttribute('aria-label')`), unavailable, "marked and read out as unavailable for now");
   assert.notEqual(unavailable, didNotStart);
-  assert.equal(await evaluate(`!!${pin("feed")}.querySelector(':scope > .nav-warn-dot')`), true, "and marked");
-  assert.equal(await evaluate(`${pin("inbox")}.getAttribute('aria-label')`), "Inbox", "the others are as usual");
-  assert.equal(await evaluate(`!!${pin("inbox")}.querySelector(':scope > .nav-warn-dot')`), false);
+  assert.equal(await evaluate(`!!${entry("inbox")}.querySelector(':scope > .nav-warn-dot')`), false, "the others are as usual");
 
   const card = `document.querySelector('[data-work-surface="feed"] [data-owner-unavailable]')`;
   const number = `${card}.querySelector('[data-copy-value]').dataset.copyValue`;
-  await evaluate(`${pin("feed")}.click()`);
+  await evaluate(`${entry("feed")}.click()`);
   await waitFor(`${card} && !${card}.closest('[hidden]')`);
   assert.equal(await evaluate(`${card}.dataset.ownerUnavailable`), "store_too_new", "the newer version is named as such");
   assert.equal(await evaluate(`${card}.getAttribute('role')`), "alert");

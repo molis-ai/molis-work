@@ -94,7 +94,7 @@ const SHELL_CONTROLS = `(() => {
   const roots = [["bar", ".workbench-bar"], ["strip", "nav.tab-strip"], ["strip", ".immersive-titlebar"]];
   for (const [area, root] of roots) {
     for (const el of document.querySelectorAll(root + " :is(button, summary, input, textarea, select, [role=tab])")) {
-      if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || el.closest("[hidden], [inert], .assistant-panel, .assistant-popover, .plugin-picker-popover, [data-dock-overflow], .navigator-project-menu-popover, [data-compose-menu]")) continue;
+      if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || el.closest("[hidden], [inert], .assistant-panel, .assistant-popover, .plugin-picker-popover, .navigator-project-menu-popover, [data-compose-menu]")) continue;
       const box = el.getBoundingClientRect();
       if (box.width < 2 || box.height < 2) continue;
       const kind = Object.entries(kinds).find(([selector]) => el.matches(selector))?.[1];
@@ -129,11 +129,10 @@ const LINE_FIT = `(() => {
  * one another, so the room it needs is an exact sum of them. */
 const ROW_FIT = `(() => {
   const vw = document.documentElement.clientWidth;
-  // The strip's two rows (specs/work-line §6.5): the kept plugins, the layout button and the project on the first; ＋ and the
-  // person's own on the second. The tab strip and the side's glyph row scroll inside their own boxes and are measured by the
+  // The strip's targets (specs/screen-polish §3 方案 C): 项目首页, ＋, the side's switch, the layout button and the project. The tab strip and the side's glyph row scroll inside their own boxes and are measured by the
   // layout audit, so they are left out here.
   const boxes = [...document.querySelectorAll(".workbench-header[data-dock] :is(button, summary, input, textarea, [role=tab], a[href])")]
-    .filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !el.closest("[hidden], [inert], .plugin-picker-popover, [data-dock-overflow], .navigator-project-menu-popover, [data-titlebar-tabs], .side-strip"))
+    .filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !el.closest("[hidden], [inert], .plugin-picker-popover, .navigator-project-menu-popover, [data-titlebar-tabs], .side-strip"))
     .map(el => ({ name: el.getAttribute("aria-label") || el.textContent.trim().slice(0, 12), box: el.getBoundingClientRect() }))
     .filter(item => item.box.width >= 2)
     .sort((a, b) => Math.round(a.box.top / 20) - Math.round(b.box.top / 20) || a.box.left - b.box.left);
@@ -147,28 +146,10 @@ const ROW_FIT = `(() => {
   return { count: boxes.length, vw, overlap: Math.round(overlap * 10) / 10, where, outside: Math.round(outside * 10) / 10, width: boxes.reduce((sum, item) => sum + item.box.width, 0) };
 })()`;
 
-/** What the Dock folded and where it went: into its "+N" button's list while that button has room on the row, otherwise into the switcher,
- * which lists every plugin of the project (the kept ones too). 项目首页 is on the Dock either way; nothing the Dock takes off may be lost. */
-const DOCK_FOLD = `(async () => {
-  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  const pins = [...document.querySelectorAll("[data-dock-pins] [data-dock-pin]")];
-  // Off the row: folded by the Dock (hidden), or not drawn at all (a phone's one row keeps 项目首页 alone, specs/screen-polish §3 方案 C).
-  const hidden = pins.filter(pin => pin.hidden || !pin.getClientRects().length).map(pin => pin.dataset.dockPin).sort();
-  const all = pins.map(pin => pin.dataset.dockPin).sort();
-  const more = document.querySelector("[data-dock-pins] [data-dock-more]");
-  const shown = !!more?.isConnected && more.checkVisibility();
-  let listed = [];
-  if (shown) {
-    more.click(); await wait(200);
-    listed = [...([...document.querySelectorAll("[data-dock-overflow]")].find(list => !list.hidden)?.querySelectorAll("[data-dock-pin]") ?? [])].map(row => row.dataset.dockPin).sort();
-    more.click(); await wait(100);
-  }
-  const toggle = document.querySelector("[data-plugin-picker-toggle]");
-  toggle.click(); await wait(250);
-  const reachable = hidden.filter(id => document.querySelector('[data-plugin-picker-popover] [data-plugin-id="' + id + '"]')).sort();
-  toggle.click(); await wait(100);
-  return { pins: all, hidden, listed, reachable, more: shown, home: pins.some(pin => pin.dataset.dockPin === "home" && !pin.hidden) };
-})()`;
+/** The glyphs fixed at the top's start: 项目首页 alone (specs/screen-polish §3 方案 C; no plugin is kept there since the user's
+ * 2026-11-18「按最新设计为准」), every plugin reached from ＋. */
+const TOP_PINS = `(() => { const pins = [...document.querySelectorAll("[data-dock-pins] [data-dock-pin]")];
+  return { all: pins.map(pin => pin.dataset.dockPin), shown: pins.filter(pin => !pin.hidden && pin.getClientRects().length).map(pin => pin.dataset.dockPin) }; })()`;
 
 /** Every popover the bar opens, with the controls inside it that are shorter or narrower than 44px. The notices are the island's own rows,
  * fed by an answer to its read of them; the strip has a page object to offer. `present` names what must be in the list, so a
@@ -178,13 +159,12 @@ const POPOVER_CONTENTS: Array<[string, string, string, string[]]> = [
   ["the + menu", "[data-assistant-composer] [data-composer-add]", "[data-assistant-composer] .mw-composer__start [data-compose-menu]", ["[data-composer-files]", "[data-composer-command]"]],
   ["the strip", "[data-assistant-composer] .mw-composer__input", "[data-assistant-context-strip]", [".assistant-strip-act[aria-label^='加入']", ".assistant-strip-act[aria-label^='不带上']"]],
   ["the notices", "[data-assistant-attention]", "[data-assistant-notices]", ["[data-notice-action=open]", "[data-notice-action=dismiss]", "summary"]],
-  ["the plugin switcher", "[data-plugin-picker-toggle]", "[data-plugin-picker-popover]", ["[data-dock-choice]", "[data-plugin-toggle]"]],
+  ["the plugin switcher", "[data-plugin-picker-toggle]", "[data-plugin-picker-popover]", ["[data-plugin-toggle]"]],
   ["the project menu", ".navigator-project-selector", ".navigator-project-menu-popover", [".navigator-project-option", ".navigator-project-manage"]],
-  ["the Dock's list", "[data-dock-pins] [data-dock-more]", "[data-dock-overflow]:not([hidden])", [".dock-overflow-item"]],
   ["a suggestion", "", "[data-assistant-next-row]", ["[data-step-offer]"]],
 ];
 /** What a list holds for a touch pointer that a fine pointer shows only under the cursor or on focus. */
-const HOVER_ONLY = ["[data-dock-choice]", "[data-plugin-toggle]"];
+const HOVER_ONLY = ["[data-plugin-toggle]"];
 /** A new work a plugin carries, chosen the way a person chooses it: in the opened panel's 「谁来做」 (a new work's who and mode are
  * chosen there), Coding. The composer then shows who does it and the mode beside ＋; the panel is closed again, so the bar is what
  * is measured. */
@@ -235,7 +215,6 @@ const popoversScript = (floor: number) => `(async () => {
     const controls = shown ? [...pop.querySelectorAll("button, summary, a[href], input, select, textarea, [role=menuitem], [role=option]")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) : [];
     out[name] = {
       shown, missing: present.filter(selector => !controls.some(el => el.matches(selector))),
-      items: controls.filter(el => el.matches(".dock-overflow-item")).map(el => ({ pin: el.dataset.dockPin, h: Math.round(el.getBoundingClientRect().height) })),
       small: controls.map(el => { const box = el.getBoundingClientRect(); return { cls: String(el.className).split(" ")[0] || el.tagName.toLowerCase(), label: (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 16), w: Math.round(box.width), h: Math.round(box.height) }; }).filter(item => Math.min(item.w, item.h) < ${floor}),
     };
     if (!pop.hidden && button) { if (opener.matches("input, textarea")) opener.blur(); else opener.click(); }
@@ -620,7 +599,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
 
   /** The bar's second row against the window, and the Dock's fold against its list: what a window of this width shows must fit and be reachable. */
   const rowFit = () => evaluate<{ count: number; vw: number; overlap: number; where: string; outside: number; width: number }>(ROW_FIT);
-  const dockFold = () => evaluate<{ pins: string[]; hidden: string[]; listed: string[]; reachable: string[]; more: boolean; home: boolean }>(DOCK_FOLD);
+  const topPins = () => evaluate<{ all: string[]; shown: string[] }>(TOP_PINS);
   /** Opens every popover of the bar and the strip (the page has an object on show for it) and reports what is in each and which controls are under 44px. */
   const popovers = async (floor: number) => {
     await evaluate(lookAtPage(true));
@@ -649,7 +628,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
         const itemBox = item.getBoundingClientRect(), opsBox = ops.getBoundingClientRect();
         return { floor: parseFloat(getComputedStyle(popover).getPropertyValue("--control-h")), tileHeight: Math.round(box.height),
           buttons: [...ops.querySelectorAll(":scope > button")].map(button => { const b = button.getBoundingClientRect();
-            return { label: button.hasAttribute("data-dock-choice") ? "pin" : button.hasAttribute("data-rail-beside") ? "open beside" : "add or remove", w: Math.round(b.width), h: Math.round(b.height), shown: parseFloat(getComputedStyle(button).opacity) > 0 && getComputedStyle(button).transform === "none",
+            return { label: button.hasAttribute("data-rail-beside") ? "open beside" : "add or remove", w: Math.round(b.width), h: Math.round(b.height), shown: parseFloat(getComputedStyle(button).opacity) > 0 && getComputedStyle(button).transform === "none",
               inside: b.top >= box.top - 0.5 && b.bottom <= box.bottom + 0.5 && b.right <= box.right + 0.5 }; }),
           textRoom: Math.round((opsBox.left - (itemBox.right - parseFloat(getComputedStyle(item).paddingRight))) * 10) / 10 };
       })()`);
@@ -686,7 +665,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     })`);
   };
 
-  return { start, open, short, settle, shellFindings, rowFit, dockFold, popovers, switcherOps, stripMenus, panelHeader, panelBody, menuRows, line, typeAndLeave, moreLabels, makeCurrentWork, carriedByCoding, escapeReturns, evaluate, waitFor };
+  return { start, open, short, settle, shellFindings, rowFit, topPins, popovers, switcherOps, stripMenus, panelHeader, panelBody, menuRows, line, typeAndLeave, moreLabels, makeCurrentWork, carriedByCoding, escapeReturns, evaluate, waitFor };
 }
 
 /** A new work a plugin carries: who does it and its mode are the composer's controls (K3, UIV-12). */
@@ -715,15 +694,7 @@ for (const scheme of ["light", "dark"] as const) {
     const seen = new Set<string>();
     const HOME = ["home", "", "true"] as const, PLUGIN = ["a plugin's page", "?openPlugin=todo", "!!document.querySelector('[data-tab-kind=\"plugin\"]')"] as const;
     const SETTINGS = ["the project's settings", "settings", "!!document.querySelector('.tab-view-chip-close')"] as const;
-    const moreShown: Record<string, boolean> = {};
-    // SC-4 (#1130) took the Sessions plugin, and the Dock pin it had by default, offline: the default row is one button shorter than the
-    // widths below were written for, and at 390px it holds every pin, so no "+N" button would be drawn and the checks that hold it
-    // next to 项目首页 on the widest row would pass over nothing. The Dock keeps what a person pinned in the page's storage, so the
-    // test pins one more plugin and the row is as long as it was; the assertions below are the ones that were written for it.
-    // Todo is the person's own now, kept in the tray at the bar's right end, not on the Dock, and the bar's side switch has left
-    // the Dock more room (07-1 S4b): the test pins Pages, 灵光 and Workflows instead, so the row at 390px still folds into "+N".
     await w.open(390, 844, HOME[1], HOME[2]);
-    await w.evaluate(`localStorage.setItem('molis-work:dock-pins', JSON.stringify(['goals', 'inbox', 'feed', 'pages', 'lingguang', 'workflows']))`);
     for (const [width, height] of [[390, 844], [375, 667], [360, 740], [350, 640], [320, 568]] as const) {
       for (const [name, path, ready] of [HOME, PLUGIN, SETTINGS]) {
         const controls = await w.open(width, height, path, ready);
@@ -735,46 +706,11 @@ for (const scheme of ["light", "dark"] as const) {
         assert.ok(row.overlap <= 0.5, `${name} · ${width}: no target of the second row sits on its neighbour (${row.overlap}px at ${row.where}; ${JSON.stringify(row)})`);
         assert.equal(row.outside, 0, `${name} · ${width}: and none leaves the window (${JSON.stringify(row)})`);
         assert.deepEqual(await w.shellFindings(), [], `${name} · ${width}: the bar and the strip lay out cleanly with 44px targets`);
-        // 项目首页 never folds, and what the Dock takes off the row is not lost: it is in the "+N" list, or, when that button has no room,
-        // in the switcher.
-        const dock = await w.dockFold();
-        assert.equal(dock.home, true, `${name} · ${width}: 项目首页 stays on the Dock`);
-        if (dock.more) assert.deepEqual(dock.listed, dock.hidden, `${name} · ${width}: every Dock button the row folded is in the "+N" list (${JSON.stringify(dock)})`);
-        else assert.deepEqual(dock.reachable, dock.hidden, `${name} · ${width}: with no "+N" button, every Dock button the row dropped is in the switcher's list (${JSON.stringify(dock)})`);
-        moreShown[`${width} ${name}`] = dock.more;
+        // POLISH-07: the fixed glyph is 项目首页 alone, no plugin is kept at the top, and a phone's one row shows it only while
+        // the project's home is the current page.
+        assert.deepEqual(await w.topPins(), { all: ["home"], shown: name === "home" ? ["home"] : [] }, `${name} · ${width}: 项目首页 is the top's only fixed glyph`);
       }
     }
-    // specs/screen-polish §3 方案 C (POLISH-07): a phone's strip is one row — the way back, 项目首页, the current tab, ＋, the
-    // side's switch, a directory button on a page that has one, and the project. Of the kept plugins it keeps 项目首页 alone, at
-    // home and beside the directory button, and draws no "+N": the check above holds every other one to the switcher's list.
-    for (const width of [390, 375, 360, 350, 320]) {
-      for (const name of ["home", "the project's settings"]) assert.equal(moreShown[`${width} ${name}`], false, `${width}px ${name}: 项目首页 stands alone of the kept plugins, with no "+N" button`);
-    }
-
-    // The Dock's "+N" list is measured where it has to exist. The popovers loops below skip it in a window that holds every pin, which is
-    // right for a wide one but would let the 44px check of its items pass over nothing. Since a phone's row has no "+N" (above), the
-    // narrowest touch window that keeps the button is one just wider than a phone (800px) with enough plugins kept that the row runs
-    // short; it asserts the list itself and cannot reach a skip. The pins are put back afterwards.
-    const KEPT = ["goals", "inbox", "feed", "pages", "lingguang", "workflows"];
-    await w.evaluate(`localStorage.setItem('molis-work:dock-pins', JSON.stringify(${JSON.stringify([...KEPT, "form", "dataset", "ppt", "images", "artifacts", "cognia", "coding"])}))`);
-    await w.open(800, 740, HOME[1], HOME[2]);
-    const folded = await w.dockFold();
-    assert.ok(folded.hidden.length > 0, `800px home: the Dock folds some pins (${JSON.stringify(folded)})`);
-    assert.equal(folded.more, true, `800px home: and draws the "+N" button for them (${JSON.stringify(folded)})`);
-    assert.deepEqual(folded.listed, folded.hidden, `800px home: the "+N" list holds exactly the pins the row folded (${JSON.stringify(folded)})`);
-    assert.deepEqual([...folded.pins.filter(pin => !folded.hidden.includes(pin)), ...folded.listed].sort(), folded.pins,
-      `800px home: the pins on the row plus the pins in the list are the whole set, none lost and none twice (${JSON.stringify(folded)})`);
-    for (const pin of ["home", "goals", "inbox", "feed", "pages"]) assert.ok(folded.pins.includes(pin), `800px home: the Dock drew ${pin} (${JSON.stringify(folded)})`);
-    const dockList = (await w.popovers(44))["the Dock's list"];
-    assert.ok(dockList, "800px home: the \"+N\" button is there to open the Dock's list");
-    assert.equal(dockList.shown, true, "800px home: the Dock's list opens");
-    assert.deepEqual(dockList.missing, [], "800px home: the Dock's list holds its items");
-    assert.ok(dockList.items.length > 0, "800px home: the Dock's report is not empty");
-    assert.deepEqual(dockList.items.map(item => item.pin).sort(), folded.hidden, "800px home: the report's items are the pins the row folded");
-    assert.deepEqual(dockList.items.filter(item => item.h < 44).map(item => `${item.pin} ${item.h}px`), [], "800px home: every item of the Dock's list is a 44px target");
-    assert.deepEqual(dockList.small, [], "800px home: and nothing else in it is smaller");
-    t.diagnostic(`the Dock's "+N" list at 800px held ${dockList.items.length} items (${dockList.items.map(item => `${item.pin} ${item.h}px`).join(", ")}) beside ${folded.pins.length - folded.hidden.length} pins on the row`);
-    await w.evaluate(`localStorage.setItem('molis-work:dock-pins', JSON.stringify(${JSON.stringify(KEPT)}))`);
     // A phone's one row has no layout button (specs/screen-polish §3 方案 C, POLISH-07: one column shows, and the row has no room
     // for it beside a 98px tab); it is measured in the touch windows wider than a phone, below.
     assert.equal(seen.has("layout"), false, "a phone's row draws no layout button");
@@ -796,18 +732,18 @@ for (const scheme of ["light", "dark"] as const) {
           `${name} · ${screen} · ${width}×${height}: every control of the strip and the bar is a 44px target`);
         assert.deepEqual(controls.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name} · ${screen}: every control is a known one`);
         assert.ok(controls.some(control => control.kind === "layout"), `${name} · ${screen}: the layout button is on the strip, so it is among the 44px targets measured`);
+        assert.deepEqual(await w.topPins(), { all: ["home"], shown: ["home"] }, `${name} · ${screen}: POLISH-05 项目首页 is the top's only fixed glyph`);
         assert.deepEqual(await w.shellFindings(), [], `${name} · ${screen} · ${width}×${height}: the bar and the strip lay out cleanly with 44px targets`);
       }
     }
 
     // What the bar opens is a 44px target too: the lists of the Assistant's composer (the "+" menu, the notices with their buttons,
-    // the strip's add and remove buttons), the plugin switcher with its pin and add buttons, the Dock's "+N" list and the project menu.
+    // the strip's add and remove buttons), the plugin switcher with its add buttons and the project menu.
     for (const [name, width, height] of [["a phone", 390, 844], ["a narrow phone", 360, 740], ["a tablet", 1024, 768]] as const) {
       await w.open(width, height, "", "true");
       const lists = await w.popovers(44);
       for (const [list] of POPOVER_CONTENTS) {
         const report = lists[list];
-        if (report === null && list === "the Dock's list") continue; // a window that holds every pin has no "+N"
         assert.ok(report, `${name} · ${width}: ${list} has a button that opens it`);
         assert.equal(report.shown, true, `${name} · ${width}: ${list} opens`);
         assert.deepEqual(report.missing, [], `${name} · ${width}: ${list} holds the controls this test measures`);
@@ -939,22 +875,21 @@ for (const scheme of ["light", "dark"] as const) {
     const lists = await w.popovers(32);
     for (const [list] of POPOVER_CONTENTS) {
       const report = lists[list];
-      if (report === null && list === "the Dock's list") continue; // a window that holds every pin has no "+N"
       assert.ok(report, `1280: ${list} has a button that opens it`);
       assert.equal(report.shown, true, `1280: ${list} opens`);
-      // A fine pointer shows the switcher's pin and add buttons on hover and focus only, so a list at rest does not hold them.
+      // A fine pointer shows the switcher's add buttons on hover and focus only, so a list at rest does not hold them.
       assert.deepEqual(report.missing.filter(selector => !HOVER_ONLY.includes(selector)), [], `1280: ${list} holds the controls this test measures`);
       assert.deepEqual(report.small.map(item => `${item.cls} 「${item.label}」 ${item.w}×${item.h}`), [], `1280: every control in ${list} is at least 32px`);
     }
 
-    // The switcher's pin and add buttons are there only while a tile is looked at, so the lists above did not measure them: put the mouse on a
+    // The switcher's open-beside and add buttons are there only while a tile is looked at, so the lists above did not measure them: put the mouse on a
     // tile. They are the floor's size (--control-h: 32px), fit inside the row, and the row's text leaves them their room.
     await w.open(1280, 800, "", "true");
     const ops = await w.switcherOps();
     for (const [kind, report] of Object.entries(ops)) {
       assert.ok(report, `1280: the switcher lists ${kind}`);
       assert.equal(report.floor, 32, "1280: standard density, whose floor is 32px");
-      assert.equal(report.buttons.length, 3, `1280: ${kind} shows open beside, a pin and an add or remove button`);
+      assert.equal(report.buttons.length, 2, `1280: ${kind} shows open beside and an add or remove button`);
       assert.deepEqual(report.buttons.filter(button => !button.shown).map(button => button.label), [], `1280: ${kind}: both show while the mouse is on its row`);
       assert.deepEqual(report.buttons.filter(button => Math.min(button.w, button.h) < report.floor).map(button => `${button.label} ${button.w}×${button.h}`), [], `1280: ${kind}: each is at least the ${report.floor}px floor`);
       assert.deepEqual(report.buttons.filter(button => !button.inside).map(button => button.label), [], `1280: ${kind}: and sits inside its row (${report.tileHeight}px tall)`);

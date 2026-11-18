@@ -245,6 +245,11 @@ const pages: Record<string, Draw> = {
 // After the review of P1 the side sheet's tab lost `aria-haspopup="true"` (21 characters) and the side's switch's tooltip gained
 // ` ⌘\` (3): on the merge of main e56bd6701a the 16 page-* records stood 613 zh / 633 en over main's records, every one by that
 // constant, and the other 36 matched main's; the 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// The top keeps no plugin (specs/screen-polish §3 方案 C, confirmed by the user 2026-11-18「确认，拿掉」): the start page's
+// entries lost their keep pin and kept mark, the Dock's holder its role and label, and the shell its kept-plugin glyphs. The 16
+// page-* records shrank by 9931 zh / 10430 en characters, every one by that constant, and the other 36 did not change; they then
+// stood 9318 zh / 9797 en under main's records (on main e56bd6701a), every one by that constant, and the 16 were recorded with
+// MOLIS_WORK_GOLDEN_RECORD=1.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

@@ -77,7 +77,7 @@ test("SPC-C08 picker and market save from their own observations, report committ
     await browser.waitFor("document.querySelector('[data-toast]').textContent.includes('插件选择已保存')");
     assert.equal(await browser.evaluate(pickerState("schedule")), "available");
     assert.equal(await browser.evaluate("document.querySelector('[data-plugin-tile=schedule]').classList.contains('is-available')"), true);
-    assert.equal(await browser.evaluate("document.querySelector('[data-plugin-tile=schedule] .dock-keep').disabled"), true);
+    assert.equal(await browser.evaluate("document.querySelector('[data-plugin-tile=schedule] .rail-beside').disabled"), true);
     assert.deepEqual(await writes(browser, projectId), [{ method: "DELETE", body: { plugin_id: "schedule", expected_revision: pageObservation.revision } }]);
     assert.equal((await membership(browser, projectId)).plugins.includes("schedule"), false);
     assert.equal(platform.runtime.get(installation).state, "running", "the real stop still awaits recovery");

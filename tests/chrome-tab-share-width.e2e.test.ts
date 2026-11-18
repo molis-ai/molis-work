@@ -10,10 +10,8 @@ test("titlebar tabs hug short titles and share width when they overflow the stri
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
-  // A plugin kept in the strip has no tab of its own there (its glyph is that tab; specs/screen-polish §3 方案 C), so this
-  // browser keeps none: Goals' own page is then a tab with a short name beside the two Goal tabs.
-  await evaluate("localStorage.setItem('molis-work:dock-pins', '[]')");
-  await navigate(() => command("Page.reload", {}, sessionId));
+  // The top strip keeps no plugins of its own (specs/screen-polish §3 方案 C): Goals' own page is a tab with a short name beside
+  // the two Goal tabs.
   await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.workbench-header[data-dock-drawn] [data-dock-pin=home]') && !document.querySelector('[data-dock-pin=goals]')");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");

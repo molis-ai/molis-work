@@ -14,10 +14,7 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   await command('Emulation.setDeviceMetricsOverride', {width:1440,height:900,deviceScaleFactor:1,mobile:false}, sessionId);
   await navigate(() => command('Page.navigate',{url:`${origin}/projects/${projectId}/`},sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
-  // A plugin kept in the strip has no tab of its own there (its glyph is that tab; specs/screen-polish §3 方案 C), so this
-  // browser keeps none: Goals' own page is then an ordinary tab that can be pinned.
-  await evaluate("localStorage.setItem('molis-work:dock-pins', '[]')");
-  await navigate(() => command('Page.reload',{},sessionId));
+  // The top strip keeps no plugins of its own (specs/screen-polish §3 方案 C): Goals' own page is an ordinary tab that can be pinned.
   await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.workbench-header[data-dock-drawn] [data-dock-pin=home]') && !document.querySelector('[data-dock-pin=goals]')");
   // 07-S2 (口径 3): the project home is the Dock's, not a tab, so the first tab pinned here is Goals' own page, opened from ＋.
   await click('[data-plugin-strip] [data-plugin-id="goals"]');

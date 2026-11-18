@@ -13,8 +13,6 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     button.querySelector("span").textContent = words;
     return button;
   };
-  // The plugins kept in the top strip (the mark the Dock script writes on it): the glyph there is the tab of such a plugin's own page.
-  const keptPlugins = () => (document.querySelector("[data-dock]")?.dataset.kept || "").split(" ");
   const tabLabel = (tab) => tab.kind === "plugin" ? ops.pluginTitle(tab.plugin) : tab.title;
   const retitlePluginTab = (node, label) => {
     const trigger = node.querySelector(".tab-item-trigger"), name = node.querySelector(".tab-item-name");
@@ -37,7 +35,6 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     if (tab.itemId) button.dataset.itemId = tab.itemId;
     button.dataset.tabKind = tab.kind;
     if (tab.pinned) button.dataset.pinned = "true";
-    if (tab.kind === "plugin" && !tab.pinned && keptPlugins().includes(tab.plugin)) button.dataset.kept = "";
     button.style.setProperty("--plugin-color", "var(--ink-soft)");
     button.draggable = true;
     button.title = label;
@@ -113,7 +110,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     let reserved = Number.parseFloat(scrollBox.paddingLeft) + Number.parseFloat(scrollBox.paddingRight) || 0;
     // A closing slot and the dragged tab's old place are on their way to nothing; they take no room.
     const gone = (el) => el.hasAttribute?.("data-tab-slot-leaving") || el.classList?.contains("is-tab-drag-source");
-    // Nor does a tab or a group that is not drawn: a kept plugin's own page is its glyph in the Dock, and its tab is hidden.
+    // Nor does a tab or a group that is not drawn (a narrow window draws only the current tab).
     const drawn = (el) => !el.matches(".tab-group,.tab-item") || el.getClientRects().length > 0;
     const scrollKids = [...scroll.children].filter((child) => !gone(child) && drawn(child));
     reserved += gapOf(scroll) * Math.max(0, scrollKids.length - 1);
@@ -354,7 +351,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     const strips = [titlebarStrip, ...panesEl.querySelectorAll("[data-tab-pane] > [data-tab-strip]")].filter(Boolean);
     strips.forEach((node) => node.toggleAttribute("data-unfocused", column === "side" || (node !== titlebarStrip && node.closest("[data-tab-pane]")?.dataset.tabPane !== state.focusedPaneId)));
     document.querySelectorAll("[data-side-tabs], [data-side-ear]").forEach((node) => node.toggleAttribute("data-unfocused", column !== "side"));
-    // A kept plugin's glyph is its tab (the ear), so the Dock carries the main column's mark as the strip beside it does.
+    // 项目首页's glyph is its tab (the ear), so the Dock carries the main column's mark as the strip beside it does.
     document.querySelector("[data-dock-pins]")?.toggleAttribute("data-unfocused", column === "side");
   };
   const focusActiveTab = () => {

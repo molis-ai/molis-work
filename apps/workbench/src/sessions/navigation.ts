@@ -6,7 +6,6 @@ export const SESSIONS_NAVIGATION = {
   glyph: "history",
   group: "make",
   rail: null,
-  pinned_default: false,
   chosen: false,
   order: 65,
   hue: "indigo",

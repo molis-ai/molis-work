@@ -210,7 +210,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     }
   });
   // The plugin list is one Tab stop: the current plugin is tabbable, arrows move between plugins. Each plugin's two buttons
-  // (keep it in the Dock, add or remove it) are shown while its entry has focus: → reaches them, ← comes back, and ↑ ↓ then
+  // (open it beside, add or remove it) are shown while its entry has focus: → reaches them, ← comes back, and ↑ ↓ then
   // walk the buttons of the same kind down the list.
   const railItems = pluginRail?.querySelector(".plugin-rail-items");
   if (railItems) {
@@ -240,7 +240,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
         next.focus();
         return;
       }
-      const buttons = op ? usable(railItems.querySelectorAll(OPS)).filter((button) => button.className.split(" ").some((name) => ["rail-beside", "dock-keep", "plugin-toggle"].includes(name) && op.classList.contains(name))) : railButtons();
+      const buttons = op ? usable(railItems.querySelectorAll(OPS)).filter((button) => button.className.split(" ").some((name) => ["rail-beside", "plugin-toggle"].includes(name) && op.classList.contains(name))) : railButtons();
       const index = buttons.indexOf(op || entry);
       if (index < 0) return;
       event.preventDefault();

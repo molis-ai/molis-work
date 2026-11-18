@@ -58,18 +58,19 @@ test("the top strip holds tabs only: the current one is an ear on its sheet and 
   assert.equal(tab.homeEar, false, "only one ear in the strip");
   assert.ok(tab.plusGap >= 0 && tab.plusGap <= 12, `POLISH-03: ＋ is within 12px of the last tab (${tab.plusGap}px)`);
 
-  // A kept plugin's own page is its glyph: the glyph is the ear and the strip draws no second tab for it.
-  await click("[data-dock-pin=goals]");
-  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-dock-pin=goals][data-ear]')");
-  const kept = await evaluate<{ tabShown: boolean; ears: number; plusGap: number }>(`(() => {
+  // A plugin's own page is a tab like any other: the strip keeps only 项目首页 (specs/screen-polish §3 方案 C), and Goals' page is
+  // the ear while it shows.
+  await click("[data-plugin-picker-popover] [data-plugin-id=goals]");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=goals][data-ear]')");
+  const page = await evaluate<{ pins: string[]; ears: number; plusGap: number }>(`(() => {
     const { header, shown, box } = ${READ};
     const drawn = [...header.querySelectorAll('[data-titlebar-tabs] .tab-item')].filter(shown);
-    return { tabShown: shown(header.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=goals]')),
+    return { pins: [...header.querySelectorAll('[data-dock-pin]')].map((pin) => pin.dataset.dockPin),
       ears: [...header.querySelectorAll('[data-dock-pin][data-ear], [data-titlebar-tabs] .tab-item[aria-current]')].filter(shown).length,
       plusGap: box(header.querySelector('[data-plugin-picker-toggle]')).left - box(drawn.at(-1)).right };
   })()`);
-  assert.deepEqual({ tabShown: kept.tabShown, ears: kept.ears }, { tabShown: false, ears: 1 });
-  assert.ok(kept.plusGap >= 0 && kept.plusGap <= 12, `POLISH-03: the hidden tab of a kept plugin leaves no room before ＋ (${kept.plusGap}px)`);
+  assert.deepEqual({ pins: page.pins, ears: page.ears }, { pins: ["home"], ears: 1 });
+  assert.ok(page.plusGap >= 0 && page.plusGap <= 12, `POLISH-03: ＋ is within 12px of the last tab (${page.plusGap}px)`);
 
   // Settings is a tab like the others: after them, with its whole name and its close (POLISH-06).
   await evaluate("document.querySelector('[data-directory-open=settings]').click()");

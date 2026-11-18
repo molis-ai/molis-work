@@ -2,7 +2,7 @@ import {renderSyncIndicator} from './sync-indicator.js';
 import { UI_VIEW_GROUPS, type UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
 import { t as uiText, icon as glyph, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
-import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, dockDefaultPins, extendPluginIds, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries, type PluginMarketOptions } from "./plugin-catalog.js";
+import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, extendPluginIds, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries, type PluginMarketOptions } from "./plugin-catalog.js";
 import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 import { renderLineHead, renderWorkLine } from "./work-line-parts.js";
@@ -99,8 +99,8 @@ function dependentPlugins(id: string, members: ReadonlySet<string> | readonly st
  *
  * Every plugin a project could have is listed once, in its group, as one tile. A tile this project has reads in full
  * colour and opens its plugin; one it does not have is grey and opens nothing. Each tile carries the same two small
- * buttons, shown when the tile is looked at (the row yields to them, as DropAgent's directory rows do): keep it in the Dock
- * (the Dock's list is these buttons; there is no second list), and add it to or remove it from this project. The client
+ * buttons, shown when the tile is looked at (the row yields to them, as DropAgent's directory rows do): open it beside what
+ * shows, and add it to or remove it from this project. The client
  * changes a tile's state in place (specs/archive/plugin-picker-dock), so the markup is the same in both states.
  */
 
@@ -124,7 +124,7 @@ export function renderPluginRail(
 ): string {
   const { icon, escapeHtml } = primitives;
   const have = new Set(enabled);
-  const extendIds = extendPluginIds(directory), pinned = new Set(dockDefaultPins(directory));
+  const extendIds = extendPluginIds(directory);
   const cards = pluginMarketCards(options, directory);
   const addable = cards.map(card => card.id).filter(id => !have.has(id) && !extendIds.has(id));
   const everyone = [...enabled, ...addable];
@@ -146,12 +146,6 @@ export function renderPluginRail(
   const alongWith = (id: string): string[] => companionsOf(id).filter(other => other !== id && !have.has(other));
   const dependentsOf = (id: string): string[] => dependentPlugins(id, have, companionsOf);
   const named = (ids: readonly string[]) => ids.map(id => names.get(id) ?? id).join("|");
-  // The pin: kept in the Dock (graphite) or not (grey); out of reach until the plugin is in the project.
-  const pinButton = (plugin: { id: string; label: string }, owned: boolean) => {
-    const kept = owned && pinned.has(plugin.id);
-    return renderButton({ variant: kept ? "primary" : "secondary", size: "sm", icon: "pin", iconOnly: true, className: "dock-keep", disabled: !owned,
-      label: uiText.text("workbench.immersive-shell.keep-dock-name", { name: plugin.label }), attrs: { "data-dock-choice": plugin.id, "aria-pressed": String(kept), title: uiText.text("workbench.immersive-shell.keep-dock") } });
-  };
   // 「在旁边打开」: the pointer's way to what ⌥↵ on the tile does (PFG-23). Every tile has it, so adding or removing a plugin
   // changes no markup; it answers only for a plugin of the project.
   const besideButton = (plugin: { id: string; label: string }, owned: boolean) => renderButton({ variant: "secondary", size: "sm", icon: "columns", iconOnly: true, className: "rail-beside", disabled: !owned,
@@ -171,20 +165,19 @@ export function renderPluginRail(
         title: locked ? uiText.text("workbench.immersive-shell.always-plugin-cannot-be-removed-project") : owned ? uiText.text("workbench.immersive-shell.turn-off-project-its-data-stays-comes-back") : `${uiText.text("workbench.immersive-shell.add-project")}${alongNote}${dependNote}${sites.length ? uiText.text("workbench.immersive-shell.uses-side-panel-browser-sites", { sites: join(sites) }) : ""}` } });
     return button.replace(glyph("plus"), glyph("plus", "plugin-toggle-add") + glyph("trash", "plugin-toggle-remove"));
   };
-  // At rest the end of the tile shows only a small pin when the plugin is kept; looked at, the buttons replace it.
-  const mark = `<i class="plugin-rail-mark" aria-hidden="true">${icon("pin")}</i><small class="plugin-rail-confirm" aria-hidden="true"></small>`;
+  // The second line a removal asks in (navigation-presentation.ts).
+  const mark = `<small class="plugin-rail-confirm" aria-hidden="true"></small>`;
   const tile = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName; chosen?: boolean; group?: string | null }, zone: string) => {
     // A plugin installed at run time is in the project because it runs there; taking it out is whoever installed it, not this list.
     const installed = plugin.chosen === false;
     const owned = installed || have.has(plugin.id);
     const label = escapeHtml(plugin.label);
-    const kept = owned && pinned.has(plugin.id);
     const along = owned ? [] : alongWith(plugin.id), dependents = owned ? dependentsOf(plugin.id) : [];
     const hint = hints[plugin.id] ? `<small class="plugin-rail-hint">${escapeHtml(hints[plugin.id])}</small>` : "";
     const main = owned ? link(plugin, zone, mark)
       : `<button class="immersive-plugin-link plugin-rail-item" type="button" data-rail-zone="${zone}" aria-disabled="true" tabindex="-1" aria-label="${uiText("workbench.immersive-shell.name-not-added", { name: plugin.label })}">${icon(plugin.glyph)}<span>${label}</span>${hint}${mark}</button>`;
-    // The group goes on the tile so the bar can put a kept 个人 plugin in the right tray (07-1 S4b).
-    return `<div class="plugin-rail-tile${owned ? "" : " is-available"}${kept ? " is-kept" : ""}" data-plugin-tile="${plugin.id}"${plugin.group ? ` data-rail-group="${plugin.group}"` : ""}${along.length ? ` data-along="${escapeHtml(named(along))}"` : ""}${dependents.length ? ` data-dependents="${escapeHtml(named(dependents))}"` : ""}>${main}<span class="plugin-rail-ops" role="group" aria-label="${label}">${besideButton(plugin, owned)}${pinButton(plugin, owned)}${installed ? "" : toggleButton(plugin, owned, along)}</span></div>`;
+    // The tile carries its group, the person's own (个人) among them.
+    return `<div class="plugin-rail-tile${owned ? "" : " is-available"}" data-plugin-tile="${plugin.id}"${plugin.group ? ` data-rail-group="${plugin.group}"` : ""}${along.length ? ` data-along="${escapeHtml(named(along))}"` : ""}${dependents.length ? ` data-dependents="${escapeHtml(named(dependents))}"` : ""}>${main}<span class="plugin-rail-ops" role="group" aria-label="${label}">${besideButton(plugin, owned)}${installed ? "" : toggleButton(plugin, owned, along)}</span></div>`;
   };
   const subgroup = (label: string, buttons: string) => buttons ? `<p class="plugin-rail-subgroup" data-rail-zone="more">${label}</p>${buttons}` : "";
   const home = link({ id: "home", surface: "home", label: uiText.text("workbench.immersive-shell.project-home"), glyph: "home", hint: uiText.text(RAIL_HOME_HINT) }, "core");
@@ -272,7 +265,7 @@ export function renderDirectoryPluginSections(
  */
 export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean, sideTabs: readonly SidePanelPluginTab[] = [], nav?: TopStripNavigation): string {
   const { icon } = primitives;
-  const pins = nav ? `<div class="dock-pins" data-dock-pins role="toolbar" aria-label="${uiText("workbench.immersive-shell.pinned-plugins")}"></div>` : "";
+  const pins = nav ? `<div class="dock-pins" data-dock-pins></div>` : "";
   const picker = nav ? `<div class="plugin-picker" data-plugin-picker>
       <button class="plugin-picker-trigger" type="button" data-plugin-picker-toggle aria-expanded="false" aria-haspopup="true" aria-label="${uiText("workbench.immersive-shell.switch-plugin")}" title="${uiText("workbench.immersive-shell.switch-plugin")} ⌘K">${icon("plus")}<span class="plugin-picker-current" data-plugin-picker-current>${icon("home")}<span>${uiText("workbench.immersive-shell.project-home")}</span></span></button>
       <div class="plugin-picker-popover" data-plugin-picker-popover hidden>

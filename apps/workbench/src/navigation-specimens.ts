@@ -191,22 +191,21 @@ function undoChip(_L: Say): string {
   return `<button type="button" class="tab-undo-chip" data-nav-undo data-reopened="${escapeHtml(uiText.text("workbench.navigation-specimens.reopened-plugin", { plugin: "Feed" }))}" style="${hueVars(P.feed.hue)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)} (⌘⇧T)">${icon("undo")}<span>${escapeHtml(label)}</span></button>`;
 }
 
-/** A kept plugin's glyph in the strip, or 项目首页 (navigation-presentation.ts); the one whose own page shows is the ear. */
-function dockPin(_readText: Say, id: PluginId | "home", options: { current?: boolean; warn?: boolean } = {}): string {
-  const name = id === "home" ? uiText.text("workbench.navigation-specimens.project-home") : pluginName(id), glyph = id === "home" ? "home" : P[id].glyph;
-  const label = options.warn ? `${name} · ${uiText.text("workbench.navigation-specimens.didn-t-start")}` : name;
-  return `<button type="button" class="dock-pin${id === "home" ? " is-fixed" : ""}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"${options.current ? ' aria-current="page" data-ear' : ""}>${icon(glyph)}${options.warn ? '<span class="nav-warn-dot" aria-hidden="true"></span>' : ""}</button>`;
+/** 项目首页 in the strip (navigation-presentation.ts), the one fixed place; while the project home shows it is the ear. */
+function dockPin(current = false): string {
+  const name = escapeHtml(uiText.text("workbench.navigation-specimens.project-home"));
+  return `<button type="button" class="dock-pin is-fixed" aria-label="${name}" title="${name}"${current ? ' aria-current="page" data-ear' : ""}>${icon("home")}</button>`;
 }
 
 /**
  * The top strip as the product draws it (immersive-shell.ts renderImmersiveHeader, filled as its scripts fill it): history,
- * 项目首页 and the kept plugins, the tabs with the current one an ear on its sheet, ＋; over the side sheet its own tab; at the
+ * 项目首页, the tabs with the current one an ear on its sheet, ＋; over the side sheet its own tab; at the
  * right end the side's switch, the layout button and the project. Below it a strip of paper stands for the sheets.
  */
 function titlebar(readText: Say, state: "ok" | "wrong"): string {
   const r = sample(readText), wrong = state === "wrong", suffix = wrong ? "wrong" : "ok";
   const history = `<div class="mw-group workspace-history">${renderButton({ label: uiText.text("workbench.navigation-specimens.previous"), icon: "back", variant: "ghost", size: "sm", iconOnly: true, className: "workspace-history-button", attrs: { "data-workspace-history": "back" } })}${renderButton({ label: uiText.text("workbench.navigation-specimens.next"), icon: "arrow", variant: "ghost", size: "sm", iconOnly: true, disabled: true, className: "workspace-history-button", attrs: { "data-workspace-history": "forward" } })}</div>`;
-  const pins = `<div class="dock-pins" role="toolbar" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.pinned-plugins"))}">${dockPin(readText, "home")}${dockPin(readText, "pages")}${dockPin(readText, "feed", { warn: wrong })}</div>`;
+  const pins = `<div class="dock-pins">${dockPin()}</div>`;
   const pinned = tab(readText, { label: r.doc1, glyph: "note", pinned: true, glyphOnly: true });
   const tabs = pinned + mainTabs(readText, state) + (wrong ? tab(readText, { label: uiText.text("workbench.navigation-specimens.receipts"), glyph: "package", head: true, warn: true, readerLabel: `${uiText.text("workbench.navigation-specimens.receipts")} · ${uiText.text("workbench.navigation-specimens.didn-t-start")}` }) : "");
   const undo = wrong ? undoChip(readText) : "";

@@ -38,7 +38,7 @@ import { SESSIONS_NAVIGATION } from "./sessions/navigation.js";
 import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
 
 /**
- * The specimen project's plugins, a fixed sample (a development tool, W5-02 B1): the Dock's default pins and the person's plugins
+ * The specimen project's plugins, a fixed sample (a development tool, W5-02 B1): the backbone and the person's plugins
  * of a fresh project. The bar specimen draws these bright and the rest of the build-time plugin directory (`pluginMarketCards()`,
  * which already leaves developer plugins out) grey "not added". The board runs no Runtime and no Host, so it is drawn from the
  * built-in catalog's directory; a project page is drawn from the one the Host supplies (`plugin_directory`, `shown_plugins`).
@@ -63,9 +63,9 @@ function iconInventoryPlugins(): CatalogPluginIcon[] {
 }
 
 /**
- * The top strip and the bottom line exactly as the workbench composes them, on a strip of desk: the pinned plugins, the tabs'
- * place and the start page's ＋ with the project at the top; the work line with the one input at the bottom. Pins are filled
- * the way the workbench client fills them; the start page opens with the same popover.
+ * The top strip and the bottom line exactly as the workbench composes them, on a strip of desk: 项目首页, the tabs' place and
+ * the start page's ＋ with the project at the top; the work line with the one input at the bottom. 项目首页 is filled the way
+ * the workbench client fills it; the start page opens with the same popover.
  */
 function renderBarSpecimen(): string {
   const primitives = { readText: (text: string) => text, escapeHtml, icon, htmlLang: () => "zh-CN" };
@@ -79,8 +79,8 @@ function renderBarSpecimen(): string {
   });
   const bar = renderWorkbenchBar(primitives, { head: project.display_name });
   const pin = (id: string, glyph: Parameters<typeof icon>[0], label: string, extra = "") => `<button type="button" class="dock-pin${id === "home" ? " is-fixed" : ""}" data-dock-pin="${id}" aria-label="${label}" title="${label}"${extra}>${icon(glyph)}</button>`;
-  const pins = pin("home", "home", "项目首页") + pin("goals", "target", "Goals", ' aria-current="page"') + pin("inbox", "inbox", "Inbox") + pin("feed", "rss", "Feed");
-  return `<div class="mw-catalog-bar-stage" data-catalog-bar>${strip.replace('<div class="dock-pins" data-dock-pins role="toolbar" aria-label="常驻插件"></div>', `<div class="dock-pins" data-dock-pins role="toolbar" aria-label="常驻插件">${pins}</div>`)}${bar}</div>`;
+  const pins = pin("home", "home", "项目首页", ' aria-current="page"');
+  return `<div class="mw-catalog-bar-stage" data-catalog-bar>${strip.replace('<div class="dock-pins" data-dock-pins></div>', `<div class="dock-pins" data-dock-pins>${pins}</div>`)}${bar}</div>`;
 }
 
 /** The board shows the bar in its own workbench context: the page the iframe below loads. */
@@ -121,22 +121,13 @@ const BAR_SPECIMEN_SCRIPT = `
   toggle?.addEventListener("click", () => setPicker(popover.hidden));
   input?.addEventListener("input", () => { if (send) send.disabled = !input.value.trim(); });
   stage.addEventListener("click", (event) => {
-    // The switcher's two buttons answer here the way the workbench's do (the specimen holds no project, so nothing is kept).
-    const keep = event.target.closest("[data-dock-choice]");
-    if (keep && !keep.disabled) {
-      const on = keep.getAttribute("aria-pressed") !== "true";
-      keep.setAttribute("aria-pressed", String(on));
-      keep.classList.toggle("mw-btn--primary", on); keep.classList.toggle("mw-btn--secondary", !on);
-      keep.closest(".plugin-rail-tile")?.classList.toggle("is-kept", on);
-      return;
-    }
+    // The switcher's buttons answer here the way the workbench's do (the specimen holds no project, so nothing is kept).
     const toggle = event.target.closest("[data-plugin-toggle]");
     if (toggle && !toggle.disabled) {
       const tile = toggle.closest(".plugin-rail-tile"); const adding = toggle.dataset.state === "available";
       tile.classList.toggle("is-available", !adding);
       toggle.dataset.state = adding ? "added" : "available";
       toggle.classList.toggle("mw-btn--primary", !adding); toggle.classList.toggle("mw-btn--secondary", adding);
-      const pin = tile.querySelector("[data-dock-choice]"); if (pin) pin.disabled = !adding;
       return;
     }
     const pin = event.target.closest("[data-dock-pin]");

@@ -29,7 +29,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const root = document.querySelector("[data-tab-workspace]");
   const panesEl = document.querySelector("[data-tab-panes]");
   const pool = document.querySelector("[data-surface-pool]");
-  if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, homeOrder: () => [], homeNavigationFrom: () => () => false, adoptHomeLead: () => null, releaseHomeLead() {}, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
+  if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, homeNavigationFrom: () => () => false, adoptHomeLead: () => null, releaseHomeLead() {}, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
     leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, coverPlace() { return ""; }, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
   const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, RECORD_ROWS = ${JSON.stringify(recordRows())};
   // A plugin whose only place is a side view (plugin-place) opens there: the right side is a pane of this workspace, so it is
@@ -297,7 +297,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     }
   });
   // The titlebar strip's own width is what sharing writes (--tabs-hug), so it is not the box watched, which would loop its
-  // observer: the titlebar is (sharing cannot change its width), and so is what arrives in it (kept plugins, the side's glyphs).
+  // observer: the titlebar is (sharing cannot change its width), and so is what arrives in it (the side's glyphs).
   // Either way sharing runs before the frame paints, so a page that loads does not first lay the bar out another way (VUX-31).
   const titlebarWatched = new WeakSet();
   const shareTitlebar = (bar) => { const scroll = bar.querySelector(":scope > [data-titlebar-tabs] [data-tab-scroll]"); if (scroll) shareTabStrip(scroll); };
@@ -727,7 +727,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     apply(); persist();
     if (loadingGoalId === goalId) loadingGoalId = loading;
   });
-  return { apply, readView, writeView, openView, homeOrder, homeNavigationFrom, adoptHomeLead, releaseHomeLead, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
+  return { apply, readView, writeView, openView, homeNavigationFrom, adoptHomeLead, releaseHomeLead, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, startPage, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,
     shownPlugin: () => state.exclusive ? null : ops.shownPlugin(ops.focused(state)),
     // The plugin whose own page the focused pane shows: none while a tab or a cover is what shows.

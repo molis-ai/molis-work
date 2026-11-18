@@ -21,7 +21,7 @@ const LAYOUT_MENU = "[data-workspace-layout]";
 const GOALS_TAB = `${TABS} .tab-item[data-tab-kind=plugin][data-plugin=goals]`;
 const MOVED = "pane:goals:plugin";
 const stored = "JSON.parse(localStorage.getItem('molis-work-tab-workspace:' + document.body.dataset.projectId) || 'null')";
-const GOALS_ENTRY = "[data-plugin-strip] [data-plugin-id=goals], [data-dock-pin=goals]";
+const GOALS_ENTRY = "[data-plugin-strip] [data-plugin-id=goals]";
 // Every toast text shown from now on, so a toast left from the step before cannot pass for this one.
 const WATCH_TOASTS = `(() => { window.__toasts = []; if (window.__toastWatch) return; const toast = document.querySelector('[data-toast]');
   window.__toastWatch = new MutationObserver(() => window.__toasts.push(toast.textContent)); window.__toastWatch.observe(toast, { childList: true, characterData: true, subtree: true, attributes: true }); })()`;
@@ -75,7 +75,7 @@ test("PFG-22 PFG-23 PFG-24 ＋ opens from the directory, recalls what is open, a
   await key("Enter", "Enter");
   await waitFor(`document.body.dataset.desktopSurface === 'goals' && document.querySelector('${GOALS_TAB}[aria-current]')`, 15_000);
 
-  // PFG-24 recall: the open plugin says where it is, and choosing it again (here, or from the Dock) goes there: no second tab.
+  // PFG-24 recall: the open plugin says where it is, and choosing it again (here, or from the switcher) goes there: no second tab.
   await click(PLUS);
   await waitFor(`!document.querySelector('${START}').hidden`);
   assert.equal(await evaluate(`document.querySelector('${TILE("goals")} .plugin-rail-where')?.textContent`), "在这一栏");
@@ -196,7 +196,7 @@ test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests;
   await command("Network.enable", {}, sessionId);
   const since = () => { const start = seen.length; return () => seen.slice(start); };
 
-  await click("[data-plugin-strip] [data-plugin-id=goals], [data-dock-pin=goals]");
+  await click("[data-plugin-strip] [data-plugin-id=goals]");
   await waitFor(`document.body.dataset.desktopSurface === 'goals' && document.querySelector('${GOALS_TAB}[aria-current]')`, 15_000);
 
   // Move to the right: the tab leaves the strip and shows in the side, in the workbench's pane page. One document load.
@@ -230,15 +230,15 @@ test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests;
   assert.deepEqual(otherLoads, [], "switching, collapsing and opening the side load no pane page again");
   assert.equal(await evaluate(`document.querySelector('[data-side-body="${MOVED}"] iframe').contentWindow.__kept`), true, "the moved view stays the same document");
 
-  // PFG-24 口径 8 ③: opening the moved tab again, from the Dock or from ＋, goes to it on the right and says so; nothing opens in
+  // PFG-24 口径 8 ③: opening the moved tab again, from the switcher or from ＋, goes to it on the right and says so; nothing opens in
   // the main area and the view is not loaded again.
   await evaluate(WATCH_TOASTS);
-  for (const route of ["the Dock", "＋"] as const) {
+  for (const route of ["the switcher", "＋"] as const) {
     await click(`[data-side-tabs] [data-side-tab="${other}"]`);
     await waitFor(`document.querySelector('[data-side-tabs] [data-side-tab="${other}"][aria-selected=true]')`);
     mark = since();
     await evaluate("window.__toasts = []");
-    if (route === "the Dock") await click(GOALS_ENTRY);
+    if (route === "the switcher") await click(GOALS_ENTRY);
     else {
       await click(PLUS);
       await waitFor(`!document.querySelector('${START}').hidden`);
@@ -327,7 +327,7 @@ test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests;
   assert.equal(await evaluate(`document.querySelector('[data-side-tabs] [data-side-tab="${other}"]')?.hasAttribute('data-side-closed') ?? true`), true);
 });
 
-test("PFG-24 07-AUDIT 口径 8 ① Goals open in the other column is recalled there from the switcher, the Dock, ＋ and a link: the focus moves, a toast says so, no second copy", { timeout: 150_000 }, async t => {
+test("PFG-24 07-AUDIT 口径 8 ① Goals open in the other column is recalled there from the switcher, ＋ and a link: the focus moves, a toast says so, no second copy", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
@@ -369,20 +369,13 @@ test("PFG-24 07-AUDIT 口径 8 ① Goals open in the other column is recalled th
     assert.deepEqual(after, { goals: 1, second: { tabs: 0, view: null } }, `${route}: no second copy of Goals`);
   };
 
-  // The bar's switcher lists every plugin; choosing one that is open in the other column goes there, as the Dock does.
+  // The bar's switcher lists every plugin; choosing one that is open in the other column goes there (the top keeps no plugin glyph to recall from, specs/screen-polish §3 方案 C).
   await focusColumn(second!);
   await evaluate(WATCH_TOASTS);
   const viaSwitcher = since();
   await click("[data-plugin-picker-popover] [data-plugin-id=goals]");
   await recalled("the switcher");
   assert.deepEqual(viaSwitcher().filter(entry => entry.type === "Document"), [], "recalling from the switcher loads no document");
-
-  await focusColumn(second!);
-  await evaluate("window.__toasts = []");
-  const viaDock = since();
-  await click("[data-dock-pin=goals]");
-  await recalled("the Dock");
-  assert.deepEqual(viaDock().filter(entry => entry.type === "Document"), [], "recalling from the Dock loads no document");
 
   // Split, each column has its own strip and ＋ (the title bar's strip is the one column's only); the second column's.
   await focusColumn(second!);
@@ -451,7 +444,7 @@ test("PFG-23 review shots of ＋ and the layout menu at 1440, 1024 and 390, Chin
     await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=${lang}&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
     await waitFor(`document.querySelector('${PLUS}')`, 15_000);
     if (!(await evaluate<boolean>(`Boolean(document.querySelector('${GOALS_TAB}'))`))) {
-      await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=goals], [data-dock-pin=goals]')?.click()");
+      await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=goals]')?.click()");
       await waitFor(`document.querySelector('${GOALS_TAB}')`, 15_000);
     }
     const name = `${lang}-${theme}-${width}`;

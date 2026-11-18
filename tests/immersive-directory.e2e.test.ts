@@ -52,8 +52,7 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=goals]')?.getAttribute('aria-current') === 'page' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && document.querySelector('[data-goal-stage-chrome] [data-open-create]') && document.querySelector('[data-goal-stage-list] [data-tree-root]')");
   const addLayout = await evaluate<{ ok: boolean; dump: string }>(`(()=>{
     const tabs=[...document.querySelectorAll('[data-titlebar-tabs] .tab-item')].filter((tab)=>tab.getClientRects().length);
-    // Goals is kept in the strip, so its own page is its glyph there and the strip draws no tab for it (specs/screen-polish §3
-    // 方案 C): ＋ then follows the kept plugins.
+    // Goals' own page is a tab like any other (specs/screen-polish §3 方案 C): ＋ follows the last tab, or 项目首页 with none.
     const titlebar=document.querySelector('.immersive-titlebar'), last=tabs.at(-1)??titlebar?.querySelector('[data-dock-pins]'), add=titlebar?.querySelector('[data-plugin-picker-toggle]'), split=titlebar?.querySelector(':scope > .titlebar-layout [data-layout-open]'), strip=titlebar?.querySelector('[data-side-tabs]'), project=titlebar?.querySelector('.titlebar-end .navigator-project-selector');
     if(!last||!add||!split||!titlebar||!project) return {ok:false, dump:'missing'};
     const l=last.getBoundingClientRect(), a=add.getBoundingClientRect(), s=split.getBoundingClientRect(), t=titlebar.getBoundingClientRect(), p=project.getBoundingClientRect();
@@ -309,15 +308,15 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   assert.deepEqual(await evaluate("window.__uiErrors"), []);
 });
 
-test("顶条与事项线：输入框常驻在线上，回答在上方先写问题；插件在顶条切换；常驻插件放不下就收进 +N", { timeout: 60_000 }, async t => {
+test("顶条与事项线：输入框常驻在线上，回答在上方先写问题；插件在顶条切换；顶条只留项目首页", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId, 20_000));
   await waitFor("document.querySelector('[data-work-bar] [data-assistant-composer] .mw-composer__input') && document.querySelector('[data-dock-pins] [data-dock-pin=home]')");
-  // The strip reads the kept plugins · the tabs · ＋ · the side's switch · the layout button · the project (specs/screen-polish §3
-  // 方案 C, POLISH-05), none covering another; a strip with no tab in it is not drawn, so ＋ follows the kept plugins. The foot is the
+  // The strip reads 项目首页 · the tabs · ＋ · the side's switch · the layout button · the project (specs/screen-polish §3 方案 C,
+  // POLISH-05), none covering another; a strip with no tab in it is not drawn, so ＋ follows 项目首页. The foot is the
   // line, and the Assistant's input stands on it between what happened and what comes next (specs/work-line §4.1, §6.5).
   assert.deepEqual(await evaluate(`(()=>{
     const box=(selector)=>document.querySelector(selector).getBoundingClientRect();
@@ -330,7 +329,7 @@ test("顶条与事项线：输入框常驻在线上，回答在上方先写问�
       project: [project.right<=innerWidth, Math.round(project.width)],
       line: past.right<=composer.left+1 && composer.right<=next.left+1 && composer.bottom<=innerHeight,
       foot: document.querySelectorAll('.workbench-bar[data-work-bar] :is([data-dock-pin],[data-plugin-picker-toggle],.navigator-project-selector)').length };
-  })()`), { strip: true, own: false, project: [true, 30], line: true, foot: 0 }, "the strip reads kept plugins · tabs · ＋ · side switch · layout · project; the input stands on the line; the foot holds no plugin entry");
+  })()`), { strip: true, own: false, project: [true, 30], line: true, foot: 0 }, "the strip reads 项目首页 · tabs · ＋ · side switch · layout · project; the input stands on the line; the foot holds no plugin entry");
   // At rest the bar is the input (K3, UIV-12): its receiver names the project and the Assistant, with nothing to reset
   // and no chooser nobody changed; “+” only adds (files, methods, capabilities) — who carries a new work and where it lives
   // are chosen in its tab.
@@ -385,7 +384,7 @@ test("顶条与事项线：输入框常驻在线上，回答在上方先写问�
   // Switching goes through the list at the bar's left; its label follows.
   await click('[data-plugin-picker-popover] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-plugin-picker-popover]').hidden && /Goals/.test(document.querySelector('[data-plugin-picker-current]').textContent)");
-  assert.equal(await evaluate("document.querySelector('[data-dock-pin=goals]').getAttribute('aria-current')"), "page");
+  assert.ok(await evaluate("Boolean(document.querySelector('[data-titlebar-tabs] .tab-item[data-plugin=goals][aria-current]'))"), "Goals' page is the current tab");
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), false, "working elsewhere leaves the answer open");
   await click("[data-assistant-panel-close]");
   await waitFor("document.querySelector('[data-assistant-panel]').hidden");
@@ -397,35 +396,17 @@ test("顶条与事项线：输入框常驻在线上，回答在上方先写问�
   await waitFor("document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]').parentElement.getAttribute('aria-current') === 'page'");
   await click("[data-layout-open]"); await click("[data-layout-action=side]");
   await waitFor("document.body.dataset.sideOpen === 'false'");
-  // Choosing many plugins for the Dock (at the foot of the switcher's list) folds what does not fit instead of running
-  // under the Assistant; ticking them keeps the list open.
-  await click('[data-dock-choice="schedule"]');
-  for (const id of ["workflows", "pages", "form", "dataset", "ppt", "images", "artifacts", "cognia", "coding"]) {
-    await evaluate(`document.querySelector('[data-dock-choice="${id}"]')?.click()`);
-  }
-  // A kept plugin is a glyph alone (specs/screen-polish §3 方案 C), so that many still fit a window of 1024px: keep every
-  // plugin the list offers, and the strip runs short in a window of 820px (wider than a phone, which keeps 项目首页 alone).
-  await evaluate("document.querySelectorAll('[data-dock-choice][aria-pressed=\"false\"]').forEach((button) => button.click())");
-  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  assert.equal(await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden"), false, "ticking plugins keeps the list open");
-  // Ticking that many plugins refits the Dock (a ResizeObserver, a frame or more later); a press that lands while the bar
-  // still moves releases somewhere else and is no click. Wait until the switcher stays put, then close it.
-  await waitFor(`(() => { const node = document.querySelector('[data-plugin-picker-toggle]'), rect = node.getBoundingClientRect(), at = rect.x + ',' + rect.y + ',' + rect.width;
-    const same = window.__pickerToggle === node && window.__pickerToggleAt === at; window.__pickerToggle = node; window.__pickerToggleAt = at;
-    window.__pickerToggleStill = same ? (window.__pickerToggleStill || 0) + 1 : 0; return window.__pickerToggleStill >= 3; })()`);
-  // The Dock looks at the switcher's label again whenever it refits or the work area changes a class, so that can land while the
-  // press is down. Pressing, letting one land, then releasing must still close the list: the label is rebuilt only when it changed.
+  // The top strip keeps no plugins of its own (specs/screen-polish §3 方案 C): the start page's tiles carry no pin, and the Dock
+  // is 项目首页 alone, so nothing folds.
+  assert.equal(await evaluate("document.querySelectorAll('[data-dock-choice], [data-dock-more]').length"), 0);
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-dock-pin]')].map((pin) => pin.dataset.dockPin)"), ["home"]);
+  // The switcher's label is looked at again whenever the work area changes a class, so that can land while the press is down.
+  // Pressing, letting one land, then releasing must still close the list: the label is rebuilt only when it changed.
+  await click("[data-plugin-picker-toggle]");
+  await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden");
   const at = await evaluate<{ x: number; y: number }>("(() => { const rect = document.querySelector('[data-plugin-picker-toggle]').getBoundingClientRect(); return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }; })()");
   await command("Input.dispatchMouseEvent", { type: "mousePressed", ...at, button: "left", clickCount: 1 }, sessionId);
   await evaluate("(() => { const area = document.querySelector('.tab-workspace') || document.body; area.classList.add('is-nudged'); area.classList.remove('is-nudged'); return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); })()");
   await command("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "left", clickCount: 1 }, sessionId);
   await waitFor("document.querySelector('[data-plugin-picker-popover]').hidden");
-  await command("Emulation.setDeviceMetricsOverride", { width: 820, height: 760, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await waitFor("!document.querySelector('[data-dock-more]')?.hidden && document.querySelector('[data-dock-more]')?.isConnected");
-  assert.ok(await evaluate(`(()=>{const pins=document.querySelector('.workbench-header [data-dock-pins]').getBoundingClientRect(),strip=document.querySelector('.workbench-header [data-titlebar-tabs]'),next=(strip.checkVisibility()?strip:document.querySelector('.workbench-header .plugin-picker')).getBoundingClientRect();return pins.right<=next.left;})()`), "the kept plugins end before the tabs (or ＋, when no tab is drawn) start");
-  await click("[data-dock-more]");
-  await waitFor("!document.querySelector('[data-dock-overflow]').hidden && document.querySelectorAll('[data-dock-overflow] [data-dock-pin]').length > 0");
-  const folded = await evaluate<string>("document.querySelector('[data-dock-overflow] [data-dock-pin]').dataset.dockPin");
-  await click(`[data-dock-overflow] [data-dock-pin="${folded}"]`);
-  await waitFor(`document.querySelector('[data-dock-overflow]').hidden && document.querySelector('[data-plugin-picker-popover] [data-plugin-id="${folded}"]')?.getAttribute('aria-current') === 'page'`);
 });

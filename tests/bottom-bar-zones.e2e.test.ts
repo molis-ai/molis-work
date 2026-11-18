@@ -7,29 +7,25 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 // bar's three zones by 07-1 S4b, PFG-22): the plugins kept at hand, the tabs, ＋ (the start page, its glyph alone), the person's
 // own plugins they keep, then the project; the foot is the line with the Assistant's input and nothing else. No side button in
 // the foot, no personal-tool slot in the titlebar. Who is the person's own is one rule (`isPersonalPlugin`) that the start page's
-// 个人 group and the strip's own group both read; a plugin that did not start carries the amber point on its pin and its entry.
+// 个人 group and the strip's own group both read; a plugin that did not start carries the amber point on its entry.
 //
-// specs/screen-polish §3 方案 C「纸上的页签」 (user 2026-11-15) redraws the strip: the kept plugins, the person's own among them,
-// are glyphs before the tabs; the right end is the side's switch, the layout button and the project and nothing else (POLISH-05);
-// a phone has one row (POLISH-07), where the kept plugins other than 项目首页 are in the start page.
+// specs/screen-polish §3 方案 C「纸上的页签」 (user 2026-11-15) redraws the strip: 项目首页 (⌂) is the only fixed glyph before the
+// tabs — no plugin is kept at the top any more (user 2026-11-18「按最新设计为准」), every plugin is reached from ＋; the right end
+// is the side's switch, the layout button and the project and nothing else (POLISH-05); a phone has one row (POLISH-07).
 
-const PINS = ["goals", "pages", "todo", "jelly"];
-
-test("PFG-22 WLN-16 POLISH-05 the strip carries the kept plugins, ＋, the side's switch, the layout button and the project, and the foot is the line with the Assistant's input; one 个人 rule for the start page", { timeout: 120_000 }, async t => {
+test("PFG-22 WLN-16 POLISH-05 the strip carries ⌂ alone before the tabs, ＋, the side's switch, the layout button and the project, and the foot is the line with the Assistant's input; one 个人 rule for the start page", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   // A stand-in for a plugin that did not start: its stage placeholder carries the Host's mark before the page's scripts read it
-  // (a real one is RAC-2623). Jelly is kept in the strip, so the point shows there, in the switcher and in ＋.
+  // (a real one is RAC-2623). The top keeps no plugin, so the point shows on its start-page entry and its ＋ row.
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `new MutationObserver((_, observer) => {
     const stage = document.querySelector('[data-work-surface="jelly"]'); if (!stage) return;
     stage.setAttribute('data-home-plugin-unavailable', 'workbench'); observer.disconnect();
   }).observe(document, { subtree: true, childList: true });` }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await evaluate(`localStorage.setItem('molis-work:dock-pins', ${JSON.stringify(JSON.stringify(PINS))})`);
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-dock-pins] [data-dock-pin=jelly]') && document.querySelector('[data-dock-pins] [data-dock-pin=pages]')", 20_000);
+  await waitFor("document.querySelector('[data-dock-pins] [data-dock-pin=home]') && document.querySelector('.plugin-rail-items [data-plugin-id=jelly] .nav-warn-dot')", 20_000);
 
   // The strip, left to right, none covering another; the foot holds the line and the input, and no plugin entry.
   const zones = await evaluate<Record<string, unknown>>(`(() => {
@@ -48,7 +44,7 @@ test("PFG-22 WLN-16 POLISH-05 the strip carries the kept plugins, ＋, the side'
       overflow: document.documentElement.scrollWidth > innerWidth,
     };
   })()`);
-  assert.deepEqual(zones, { order: true, dock: ["home", "goals", "pages", "todo", "jelly"], own: false, foot: [true, 0], sideButton: true, homeTools: false, glyphOnly: true, overflow: false });
+  assert.deepEqual(zones, { order: true, dock: ["home"], own: false, foot: [true, 0], sideButton: true, homeTools: false, glyphOnly: true, overflow: false });
   // The glyph-only ＋ says where the work area is to a screen reader.
   await waitFor("/^切换插件 · 现在：/.test(document.querySelector('[data-plugin-picker-toggle]').getAttribute('aria-label'))");
 
@@ -61,12 +57,11 @@ test("PFG-22 WLN-16 POLISH-05 the strip carries the kept plugins, ＋, the side'
   for (const id of ["pages", "lingguang"]) assert.ok(!personal.switcher.includes(id) && !personal.plus.includes(id), `${id} is not the person's own`);
   assert.deepEqual(personal.switcher.filter((id) => !personal.plus.includes(id)), [], "every 个人 entry of the switcher is in ＋'s 个人 section");
 
-  // The plugin that did not start: the amber point on its pin (and its name says so), its switcher entry and its ＋ row.
-  assert.deepEqual(await evaluate(`(() => {
-    const pin = document.querySelector('[data-dock-pins] [data-dock-pin=jelly]');
-    return { pin: !!pin.querySelector('.nav-warn-dot'), label: pin.getAttribute('aria-label'), others: document.querySelectorAll('[data-dock-pin]:not([data-dock-pin=jelly]) .nav-warn-dot').length,
-      switcher: !!document.querySelector('.plugin-rail-items [data-plugin-id=jelly] .nav-warn-dot') };
-  })()`), { pin: true, label: "Jelly · 没能启动", others: 0, switcher: true });
+  // The plugin that did not start: the amber point on its start-page entry and its ＋ row; the top has no glyph of it to carry one.
+  assert.deepEqual(await evaluate(`(() => ({
+    top: document.querySelectorAll('.workbench-header [data-dock-pins] .nav-warn-dot').length,
+    switcher: !!document.querySelector('.plugin-rail-items [data-plugin-id=jelly] .nav-warn-dot'),
+  }))()`), { top: 0, switcher: true });
   // ＋ opens the start page from the strip; the tab strip has no ＋ of its own.
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-titlebar-tabs] .tab-add-button') ?? document.body).display === 'none' || !document.querySelector('[data-titlebar-tabs] .tab-add-button')"), true);
   await click("[data-plugin-picker-toggle]");
@@ -77,22 +72,19 @@ test("PFG-22 WLN-16 POLISH-05 the strip carries the kept plugins, ＋, the side'
   })()`), { jelly: "没能启动", todo: false });
 });
 
-test("PFG-22 WLN-18 POLISH-07 on a phone the strip is one row of whole 44px targets; the kept plugins other than 项目首页 are in the start page", { timeout: 90_000 }, async t => {
+test("PFG-22 WLN-18 POLISH-07 on a phone the strip is one row of whole 44px targets and ⌂ is its only fixed glyph", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await evaluate(`localStorage.setItem('molis-work:dock-pins', ${JSON.stringify(JSON.stringify(["goals", "pages", "feed", "inbox", "todo", "jelly", "cognia", "issues"]))})`);
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('.workbench-header[data-dock-drawn] [data-dock-pins] [data-dock-pin=home]') && document.querySelector('[data-dock-pins] [data-dock-pin=jelly]')", 20_000);
+  await waitFor("document.querySelector('.workbench-header[data-dock-drawn] [data-dock-pins] [data-dock-pin=home]')", 20_000);
   await mkdir(new URL("../.impeccable/qa/review/work-line/", import.meta.url), { recursive: true });
   await evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 200))))");
   const row = await evaluate<Record<string, unknown>>(`(() => {
     const strip = document.querySelector('.workbench-header[data-dock]');
     const shown = (tray) => [...document.querySelectorAll(tray + ' [data-dock-pin]:not([hidden])')].filter((pin) => pin.getClientRects().length).map((pin) => pin.dataset.dockPin);
-    const more = (tray) => document.querySelector(tray + ' [data-dock-more]');
-    const targets = [...strip.querySelectorAll('[data-dock-pin]:not([hidden]), [data-dock-more], [data-plugin-picker-toggle], .navigator-project-selector, [data-workspace-history], [data-layout-open], [data-side-toggle]')].filter((node) => node.getClientRects().length);
+    const targets = [...strip.querySelectorAll('[data-dock-pin]:not([hidden]), [data-plugin-picker-toggle], .navigator-project-selector, [data-workspace-history], [data-layout-open], [data-side-toggle]')].filter((node) => node.getClientRects().length);
     const boxes = targets.map((node) => node.getBoundingClientRect());
     return { overflow: document.documentElement.scrollWidth > innerWidth,
       // Every target of the strip is whole, inside the window, and 44px.
@@ -103,10 +95,9 @@ test("PFG-22 WLN-18 POLISH-07 on a phone the strip is one row of whole 44px targ
       // With the dialog closed, the task mark and the button that opens it stand at the end of the line's track: above the input, over nothing of the work.
       rows: new Set(boxes.map((one) => Math.round(one.top))).size, tall: Math.round(strip.getBoundingClientRect().height),
       mini: (() => { const mini = document.querySelector('[data-reply-mini]')?.getBoundingClientRect(), track = document.querySelector('.work-line-track')?.getBoundingClientRect(); return !!mini && !!track && mini.top >= track.top - 4 && mini.bottom <= track.bottom + 4 && mini.right <= innerWidth; })(),
-      dock: shown('[data-dock-pins]'), folds: !!more('[data-dock-pins]')?.isConnected && more('[data-dock-pins]').getClientRects().length > 0,
-      keptInStart: [...document.querySelectorAll('[data-plugin-picker-popover] .plugin-rail-tile.is-kept')].map((tile) => tile.dataset.pluginTile).filter((id) => ['goals', 'pages', 'todo', 'jelly'].includes(id)).sort(),
+      dock: shown('[data-dock-pins]'),
       foot: document.querySelectorAll('.workbench-bar[data-work-bar] [data-dock-pin]').length };
   })()`);
   await writeFile(new URL("../.impeccable/qa/review/work-line/strip-390.png", import.meta.url), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
-  assert.deepEqual(row, { overflow: false, cut: [], small: [], overlap: false, rows: 1, tall: 44, mini: true, dock: ["home"], folds: false, keptInStart: ["goals", "jelly", "pages", "todo"], foot: 0 });
+  assert.deepEqual(row, { overflow: false, cut: [], small: [], overlap: false, rows: 1, tall: 44, mini: true, dock: ["home"], foot: 0 });
 });

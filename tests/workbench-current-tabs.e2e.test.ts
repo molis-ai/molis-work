@@ -107,8 +107,8 @@ test("personal Home uses the bottom navigation while Goals retains its current p
   await browser.waitFor("document.querySelector('[data-create-dialog]')?.open === false");
   await browser.click('[data-plugin-strip] [data-plugin-id="home"]');
   await browser.waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector('[data-titlebar-tabs] [data-plugin=home]')", 15_000);
-  // Goals is kept in the strip: its glyph there is its tab, and the strip draws no second one (specs/screen-polish §3 方案 C).
-  await browser.click('[data-dock-pin="goals"]');
+  // Goals' own page is a tab like any other: the top strip keeps no plugins of its own (specs/screen-polish §3 方案 C).
+  await browser.click('[data-plugin-picker-popover] [data-plugin-id="goals"]');
   await browser.waitFor("document.body.dataset.desktopSurface === 'goals'", 15_000);
   await browser.reloadPage();
   await browser.waitFor("!document.querySelector('[data-titlebar-tabs] [data-plugin=home]') && document.querySelectorAll('[data-titlebar-tabs] .tab-item[data-plugin=goals][data-tab-kind=plugin]').length === 1", 15_000);

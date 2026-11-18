@@ -1956,6 +1956,24 @@
     "coding.card.extend-budget": "Allow 3 more",
     "coding.card.retry-prompt": "Please dispatch the sub-task “{role}” again with its original assignment and a fresh idempotencyKey (reusing the old key returns the stopped result without re-running){reason}. Original assignment:\n{task}",
     "coding.card.retry-reason-suffix": "; why the last attempt stopped: {error}",
+    "coding.code-intel.ready": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Code understanding · {count} language ready",
+        "other": "Code understanding · {count} languages ready"
+      }
+    },
+    "coding.code-intel.not-ready": "Code understanding · {languages} not ready",
+    "coding.code-intel.config-summary": "Code understanding · the language server settings can’t be read",
+    "coding.code-intel.from-machine": "Using {command} on this machine",
+    "coding.code-intel.from-tools": "Using {command} from Molis’s tools folder, checked complete",
+    "coding.code-intel.missing": "{command} isn’t on this machine",
+    "coding.code-intel.not-checked": "Not checked this round",
+    "coding.code-intel.recovery-title": "{language} code understanding isn’t ready",
+    "coding.code-intel.recovery-body": "Everything else continues: search, reading files, changing other parts. This round can’t look up definitions or errors in {language} files, and won’t call that “no errors”. Once {command} is installed on this machine, the next round uses it.",
+    "coding.code-intel.config": "Settings file",
+    "coding.code-intel.config-title": "Code understanding is off this round",
+    "coding.code-intel.config-body": "language-servers.json in the Molis folder can’t be read, so no language is checked for definitions or errors, and nothing is called “no errors”. Once the file is fixed, the next round uses the new settings.",
     "coding.env.deps-none": "No package manifest",
     "coding.field.plan-estimate-reason": "Estimate reason",
     "coding.material.delivery.inline": "Full text",

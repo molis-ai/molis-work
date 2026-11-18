@@ -8,15 +8,14 @@
  * and the tool reports itself unavailable.
  */
 
-import { existsSync } from "node:fs";
 import { readFile, realpath } from "node:fs/promises";
-import { delimiter } from "node:path";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ToolRunner } from "@prologue/sdk";
 import { fileUri, startLanguageServer, type LanguageServerSpec, type LspClient } from "./lsp-client.js";
 import { ensureTool, type ToolInstallSpec } from "./tool-fetcher.js";
 import { checkProposedWrite, type ServerCapabilities } from "./write-check.js";
+import { codeIntelligenceReadiness, localCommand } from "./readiness.js";
 
 export type { LanguageServerSpec } from "./lsp-client.js";
 export { ensureTool } from "./tool-fetcher.js";
@@ -28,6 +27,8 @@ export interface CodeIntelligence {
   readonly symbolIndex: ToolRunner;
   /** Format and check a proposed write before it is reviewed (A4-2); `path` is inside this round's directory, the file may be new. */
   checkWrite(input: { readonly path: string; readonly before: string | undefined; readonly after: string }): ReturnType<typeof checkProposedWrite>;
+  /** Which languages the round's directory uses and whether each one's program is here (A4); starts and downloads nothing. */
+  readiness(): ReturnType<typeof codeIntelligenceReadiness>;
   close(): Promise<void>;
 }
 
@@ -143,19 +144,7 @@ async function insideRootForWrite(rootPath: string, requested: string): Promise<
   return absolute;
 }
 
-/**
- * Q5: an applicable local command is used first; only when it is not there is the tool fetched into the isolated root.
- * `command` is either an absolute path or a name looked up on PATH.
- */
-function localCommand(command: string): string | undefined {
-  if (command.startsWith("/")) return existsSync(command) ? command : undefined;
-  for (const directory of (process.env.PATH ?? "").split(delimiter)) {
-    const candidate = path.join(directory, command);
-    if (candidate.length > directory.length && existsSync(candidate)) return candidate;
-  }
-  return undefined;
-}
-
+/** Q5: an applicable local command is used first; only when it is not there is the tool fetched into the isolated root. */
 async function resolveSpec(
   spec: LanguageServerSpec,
   tools: { readonly root: string; readonly allow: () => boolean | Promise<boolean>; readonly registry?: string } | undefined,
@@ -307,6 +296,8 @@ export function createCodeIntelligence(input: {
 
   return {
     symbolIndex,
+    readiness: () => codeIntelligenceReadiness({ servers: input.servers, rootPath: input.rootPath,
+      ...(input.tools === undefined ? {} : { tools: { root: input.tools.root, ...(input.tools.registry === undefined ? {} : { registry: input.tools.registry }) } }) }),
     checkWrite: async ({ path: requested, before, after }) => checkProposedWrite({ clientFor, forget: (file) => { openWith.get(file)?.closeDocument({ path: file }); texts.delete(file); versions.delete(file); openWith.delete(file); } },
       { absolute: await insideRootForWrite(input.rootPath, requested), before, after }),
     async close() {

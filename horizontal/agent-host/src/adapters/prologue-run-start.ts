@@ -157,6 +157,7 @@ export async function startPrologueRun(context: RunStartContext, request: AgentS
     { frozen, started_at: at }, held), ...(original ? { original_input: original } : {}) }).catch(error => { memoryBinding.close(); images.release(); throw error; });
 
   if (started.instructions) frozen.instructions = structuredClone(started.instructions);
+  if (started.code_intelligence) frozen.code_intelligence = structuredClone(started.code_intelligence);
   const state = runStreamState(model.protocol.startsWith("openai"), started);
   const ref: AgentRunRef = {
     run_id: started.run.ref.id,

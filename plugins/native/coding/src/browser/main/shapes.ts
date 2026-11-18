@@ -2,6 +2,7 @@ import type { KeptImage } from "./images.js";
 import type {
   AgentMaterialChecklistItem,
   AgentMaterialDeliveryMode,
+  AgentRunCodeIntelligence,
   AgentRunInstructions,
   AgentRunUsage,
   AgentMcpServerView as McpServer,
@@ -152,6 +153,8 @@ export interface FrozenSetup {
   readonly prompts?: readonly { readonly prompt_id: string; readonly version: number; readonly layer: string; readonly user_revision?: number }[];
   /** The repository's instruction files the round was given, recorded once it started; absent on a round from before (batch12-design §3.6). */
   readonly instructions?: AgentRunInstructions;
+  /** Which languages the round could understand, checked when it started (A4); absent on a round without code understanding. */
+  readonly code_intelligence?: AgentRunCodeIntelligence;
 }
 
 /** A round as the session read gives it: loaded in full, or a summary of the rounds the page has not opened. */

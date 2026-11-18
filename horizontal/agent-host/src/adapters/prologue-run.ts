@@ -678,6 +678,10 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
   };
   const mcp = input.mcp_tools?.length || input.mcp_sources?.length ? roundMcp(runtime, deps.mcpLibrary, index.owner, input) : undefined;
   const { actionController, actionTools, reviews: actionReviews, parameterBranches, codeIntelligence, symbolTool, symbolToolName } = roundGateway(deps, input, mode.none, () => stopping.current !== undefined || aborted, work, mcp);
+  // Which languages this round can understand (A4), looked up while it starts: a directory listing and PATH, nothing started or fetched.
+  const codeProblem = deps.options.codeIntelligence?.problem;
+  const codeReadiness = codeIntelligence === undefined ? Promise.resolve(undefined) : codeProblem !== undefined ? Promise.resolve({ problem: codeProblem, languages: [] })
+    : codeIntelligence.readiness().catch(() => undefined);
   const assertDispatchCurrent = () => {
     if (stopping.current !== undefined || aborted) throw new Error("原轮次正在停止");
     for (const check of appliedPolicies.values()) check();
@@ -770,12 +774,16 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
     const packed = roundInstructions(input, started.pack);
     const instructions = packed && await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.frozen.instructions = structuredClone(packed); })
       .then(() => packed, () => undefined);
+    // Recorded once with the round (A4).
+    const codeFound = await codeReadiness;
+    const code_intelligence = codeFound && await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.frozen.code_intelligence = structuredClone(codeFound); })
+      .then(() => codeFound, () => undefined);
     work?.assertCurrent();
     const desktopTargets = [...new Set([...index.attempts.flatMap(item => item.desktop_target ? [item.desktop_target] : []),
       ...(surface.desktop_target ? [surface.desktop_target] : [])])];
     return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, surface, stepBoard: materials.stepBoard, stopping, onAborted, actionReviews, work }),
       ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}),
-      ...(desktopTargets.length ? { desktop_targets: desktopTargets } : {}), ...(instructions ? { instructions } : {}) };
+      ...(desktopTargets.length ? { desktop_targets: desktopTargets } : {}), ...(instructions ? { instructions } : {}), ...(code_intelligence ? { code_intelligence } : {}) };
   } catch (error) {
     onAborted(); actionController.abort();
     const failures: unknown[] = [error];

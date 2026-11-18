@@ -332,9 +332,11 @@ export function createPrologueConditionCheckers(deps: { readonly runtime: () => 
     /** A round started: what its waits will be checked against, until it is over and nothing it registered still waits. */
     remember(runId: string, authority: RoundCheckAuthority, events: { subscribe(listener: (event: { type: string }) => void): () => void }) {
       rounds.set(runId, { ...authority, started_at_ms: Date.now() });
-      const off = events.subscribe(event => {
+      // A round that already ended replays its end while subscribing: `off` is read only after the microtask, once it is set.
+      let off: () => void = () => undefined;
+      off = events.subscribe(event => {
         if (!["completed", "failed", "cancelled"].includes(event.type)) return;
-        ended.add(runId); queueMicrotask(off); prune();
+        ended.add(runId); queueMicrotask(() => off()); prune();
       });
     },
     open() {

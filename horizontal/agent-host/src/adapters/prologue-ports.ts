@@ -211,6 +211,8 @@ export interface PrologueRuntimePort {
     control: PrologueControlPort;
     /** The instruction files this round was given, as recorded in its index (`frozen.instructions`); absent when not recorded. */
     instructions?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRunInstructions;
+    /** Which languages the round can understand, as recorded in its index (`frozen.code_intelligence`); absent when it has none. */
+    code_intelligence?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRunCodeIntelligence;
     memory?: import("@prologue/sdk").AgentMemoryControl;
   } & RoundDesk>;
   shutdown(): Promise<unknown>;

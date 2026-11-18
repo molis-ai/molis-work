@@ -165,7 +165,7 @@ export type {
   InferenceTokenCount,
 } from "./agent-host-builder.js";
 
-export type { AgentStartExecution, AgentRunInstructions } from "./agent-host-start.js";
+export type { AgentStartExecution, AgentRunCodeIntelligence, AgentRunInstructions } from "./agent-host-start.js";
 export type { AgentMemoryFormationSlot, AgentMemoryFormationContext, AgentMemoryFormationInput, AgentMemoryExtractionUsage,
   AgentMemoryFormationResult, AgentMemoryExtractionDraft, AgentMemoryExtractionRequest, AgentMemoryExtractor } from "./agent-host-memory-formation.js";
 

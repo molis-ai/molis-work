@@ -234,6 +234,25 @@ export interface AgentRunInstructions {
   files: Array<{ path: string; chars: number; truncated: boolean; sha256: string }>;
 }
 
+/**
+ * What a round found of code understanding for its directory (`frozen.code_intelligence`, Coding A4, CLS-01～03): each language its
+ * directory uses, the program that understands it, and whether that program is here. Checked once when the round starts; nothing is
+ * downloaded for it. A language that is `missing` is not checked this round, which is not the same as having no errors.
+ */
+export interface AgentRunCodeIntelligence {
+  /** The person's language-servers file could not be used; no language was checked. */
+  problem?: string;
+  languages: Array<{
+    /** A language id such as `typescript`, `python`, `rust`, `go`. */
+    language: string;
+    /** The program that understands it, as configured (a bare name or a path). */
+    command: string;
+    state: "ready" | "missing";
+    /** Where a ready one was found: on this machine, or complete in this Home's own tools folder. */
+    source?: "this_machine" | "tools";
+  }>;
+}
+
 interface AgentFrozenStartFields {
   /** Body-free reference to the original text, not the assembled model task. */
   original_input?: import("./agent-inputs.js").AgentOriginalInputRef;
@@ -296,6 +315,8 @@ interface AgentFrozenStartFields {
    * before this was recorded, and when recording failed; a round that read none while trusted has `files: []`.
    */
   instructions?: AgentRunInstructions;
+  /** Code understanding for the round's directory (Coding A4); absent on a round that has none and on rounds from before this was recorded. */
+  code_intelligence?: AgentRunCodeIntelligence;
   mcp_tools: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];
   host_tools: string[];

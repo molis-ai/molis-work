@@ -1784,6 +1784,16 @@ export interface AgentRunBudget {
     context_window_tokens?: number;
 }
 
+export interface AgentRunCodeIntelligence {
+    problem?: string;
+    languages: Array<{
+        language: string;
+        command: string;
+        state: "ready" | "missing";
+        source?: "this_machine" | "tools";
+    }>;
+}
+
 export type AgentRunControl = {
     kind: "pause";
 } | {
@@ -2907,6 +2917,7 @@ interface AgentFrozenStartFields {
     skills: AgentFrozenSkill[];
     reply_locale?: UiLanguageTag;
     instructions?: AgentRunInstructions;
+    code_intelligence?: AgentRunCodeIntelligence;
     mcp_tools: AgentMcpToolRef[];
     mcp_sources?: AgentMcpSourceRef[];
     host_tools: string[];

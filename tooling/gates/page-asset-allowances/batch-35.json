@@ -1,0 +1,75 @@
+{
+  "reason": "第 35 批：Coding 的命令模板与 /init、图片输入、审查卡检查行与代码理解一行，助理改用平台对话附件，引导接入已有会话。Coding 插件脚本 +9552（命令菜单与命令签、图片排与发出的图、代码理解一行；三处「在轮次里放一块」合成一个函数后从 +10340 收到 10 KB 以内）；输入框程序 +4927（图片排、命令签与看大图的对话框；看大图从插件框脚本挪进输入框程序，插件框脚本只留按需取输入框程序的入口与命令签的桥，+2604）；工作台与到达页样式是图片排、命令签与检查行的组件板样式。工作台中英文词包新增 84 条（中文约 7.8 KB、英文约 8.6 KB：助理附件、审查卡检查行、组件板标本、引导的会话一步），换了内容定址文件名，门禁算作新路径。每个资源净增低于 10,000 字节。",
+  "review": "本批 PR 评审；本机对照 merge-base 4cf1c742e 的隔离构建实测（node scripts/gates/page-assets.mjs --base origin/main、node scripts/gates/first-screen.mjs --base origin/main，2026-11-17），许可按实测向上取整到 100 B 作为上限。",
+  "userApproval": "用户于 2026-11-17 弹窗批准（「批准，照现在推」）：工作台中英文词包换名，以及上列各页的首屏增长。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "assets": {
+    "/assets/molis-work-arrival.css": 2100,
+    "/assets/molis-work-composer.js": 5000,
+    "/assets/molis-work-kit.js": 100,
+    "/assets/molis-work-plugin-frame.js": 2700,
+    "/assets/molis-work-settings.css": 500,
+    "/assets/molis-work-workbench.css": 4200,
+    "/assets/molis-work-workbench.js": 600,
+    "/assets/molis-work-plugins/coding.js": 9600,
+    "/assets/molis-work-plugins/risk.js": 100,
+    "/assets/molis-work-plugins/coding.css": 800
+  },
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 18200,
+      "warm": 7300
+    },
+    "arrival-empty/en": {
+      "cold": 18300,
+      "warm": 7300
+    },
+    "chooser/zh": {
+      "cold": 16200,
+      "warm": 300
+    },
+    "chooser/en": {
+      "cold": 16200,
+      "warm": 300
+    },
+    "workbench-default/zh": {
+      "cold": 14400,
+      "warm": 0
+    },
+    "workbench-default/en": {
+      "cold": 14400,
+      "warm": 0
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 14400,
+      "warm": 100
+    },
+    "workbench-all-plugins/en": {
+      "cold": 14500,
+      "warm": 100
+    }
+  }
+}

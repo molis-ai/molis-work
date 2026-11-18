@@ -60,6 +60,10 @@ export class ImagesStore {
     if (Number(result.changes) !== 1) throw imagesErrors.not_found("找不到要删除的生图服务。");
   }
 
+  hasJobs(projectId: string): boolean {
+    return !!this.db.get("SELECT 1 FROM jobs WHERE project_id = ? LIMIT 1", [projectId]);
+  }
+
   listJobs(projectId: string): ImageJob[] {
     return (this.db.all("SELECT * FROM jobs WHERE project_id = ? ORDER BY created_at DESC, rowid DESC", [projectId]) as Row[]).map(jobFromRow);
   }

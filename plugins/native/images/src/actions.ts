@@ -56,7 +56,7 @@ export function createImagesActionHandlers(ports:ImagesActionPorts):ActionHandle
     bind(imagesActions.get,(input,caller)=>({job:ports.service().getJob(project(caller),input.id)})),
     {...bind(imagesActions.start,async (input,caller)=>({job:await ports.service().start(project(caller),input,caller)})), availability:(caller:ActionCallContext):ActionAvailability=> {
       if(caller.audience === "user")return {available:true};
-      return ports.service().listConnections().some(connection=>connection.available) ? {available:true} :
+      return ports.service().canStartOrReplay(caller.project_id) ? {available:true} :
         {available:false,code:"actions.connection_required",reason:"还没有可用的生图服务：请先在图片页添加。"};
     }},
     bind(imagesActions.cancel,async (input,caller)=>({job:await ports.service().cancel(project(caller),input.id,caller)})),

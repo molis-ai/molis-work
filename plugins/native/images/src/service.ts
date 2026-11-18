@@ -6,6 +6,7 @@ import type { PluginDatabase, PluginExecutionControl, PluginOwnerFilesClient, Pl
 import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "./contract.js";
 import { imagesErrors } from "./error.js";
 import { normalizeImageBaseUrl } from "./providers.js";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { ImagesStore, INTERRUPTED, type StoredConnection } from "./store.js";
 import { runImageJob } from "./service-job.js";
@@ -57,6 +58,12 @@ export class ImagesService {
     return this.store.listConnections().map(connection => this.publicConnection(connection));
   }
 
+  canStartOrReplay(projectId: string | null | undefined): boolean {
+    this.assertOpen();
+    return this.store.listConnections().some(connection => !connection.change && this.publicConnection(connection).available)
+      || (!!projectId && this.store.hasJobs(projectId));
+  }
+
   authConnections() { return [...this.options.imageGeneration.connections()]; }
 
   async saveConnection(input: ImageConnectionInput, control: ImagesControl): Promise<ImageConnection> {
@@ -66,7 +73,7 @@ export class ImagesService {
     return this.changeConnection(id, async () => {
       const previous = this.store.getConnection(id);
       if (input.id !== undefined && !previous) throw imagesErrors.not_found("找不到要修改的生图服务。");
-      if (previous?.change?.authId === null) throw imagesErrors.connection_pending("此服务正在删除，请重试删除。");
+      if (previous?.change?.authId === null) throw imagesErrors.connection_pending(uiText.text("images.service.delete-pending"));
       if (input.api_format !== "openai-images" && input.api_format !== "gemini") throw imagesErrors.invalid("请选择受支持的图片 API 协议。");
       const now = new Date().toISOString();
       const connection: StoredConnection = { id, name: textField(input.name, "服务名称", 100), api_format: input.api_format,
@@ -81,20 +88,26 @@ export class ImagesService {
         }
         if (!previous.change) return saved;
       }
-      await this.write(control, store => {
+      const target = { slot_id: id, base_url: connection.base_url };
+      const pendingBinding = await this.write(control, store => {
         store.saveConnection(connection);
-        if (selected) store.planConnectionChange(id, selected);
+        if (!selected) return;
+        if (previous && !previous.change && previous.base_url === connection.base_url && previous.api_format === connection.api_format) {
+          const bound = this.options.imageGeneration.inspect(target);
+          if (bound.available && bound.connection_id === selected) return;
+        }
+        store.planConnectionChange(id, selected);
+        return selected;
       });
-      if (selected) {
+      if (pendingBinding) {
         try {
-          const target = { slot_id: id, base_url: connection.base_url };
-          const actual = this.options.imageGeneration.inspect(target);
-          if (!previous?.change || !actual.available || actual.connection_id !== selected) await this.options.imageGeneration.bind(target, selected);
+          const actual = previous?.change ? this.options.imageGeneration.inspect(target) : undefined;
+          if (!actual?.available || actual.connection_id !== pendingBinding) await this.options.imageGeneration.bind(target, pendingBinding);
           await this.write(control, store => store.finishConnectionChange(id));
         } catch {
           control.signal?.throwIfAborted();
           requireSynchronous(control.assert_authority_current?.());
-          throw imagesErrors.connection_pending("服务配置已保存，连接尚未完成。服务已暂停，请在原服务上重试保存。", { service_id: id });
+          throw imagesErrors.connection_pending(uiText.text("images.service.binding-pending"), { service_id: id });
         }
       }
       return this.publicConnection(connection);
@@ -114,7 +127,7 @@ export class ImagesService {
       } catch {
         control.signal?.throwIfAborted();
         requireSynchronous(control.assert_authority_current?.());
-        throw imagesErrors.connection_pending("删除尚未完成。服务已暂停，可以重试删除。", { service_id: key });
+        throw imagesErrors.connection_pending(uiText.text("images.service.delete-pending"), { service_id: key });
       }
     });
   }
@@ -164,7 +177,7 @@ export class ImagesService {
     if (existing) return this.executionState(existing);
     const connection = this.store.getConnection(normalized.connection_id);
     if (!connection) throw imagesErrors.not_found("找不到所选生图服务，请重新选择。");
-    if (connection.change) throw imagesErrors.connection_pending("生图服务有未完成的连接更改，请先完成服务设置。");
+    if (connection.change) throw imagesErrors.connection_pending(uiText.text("images.service.change-pending"));
     if (connection.api_format === "gemini" && normalized.size || connection.api_format === "openai-images" && normalized.aspect_ratio) {
       throw imagesErrors.invalid("尺寸参数与当前 API 协议不匹配，请重新选择尺寸或宽高比。");
     }
@@ -250,7 +263,7 @@ export class ImagesService {
     const { change, ...settings } = connection;
     if (change) return { ...settings, has_key: false, available: false,
       ...(change.authId ? { auth_connection_id: change.authId } : {}),
-      unavailable_reason: change.authId ? "凭据绑定尚未完成，请重试保存。" : "删除尚未完成，请重试删除。" };
+      unavailable_reason: change.authId ? uiText.text("images.service.binding-pending") : uiText.text("images.service.delete-pending") };
     const state = this.options.imageGeneration.inspect({ slot_id: connection.id, base_url: connection.base_url });
     return { ...settings, has_key: state.has_key, available: state.available,
       ...(!state.available ? { unavailable_reason: state.reason || "所选图像连接不可用" } : {}),

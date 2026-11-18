@@ -80,6 +80,9 @@ export function hostBlueprints(home: string, host: MolisWorkLocalHost, catalog: 
         const install = projectScoped ? state?.get(provider.plugin_install_id) : host.homePlugins?.installation(provider.plugin_install_id);
         const manifest = projectScoped ? state?.manifest(provider.plugin_install_id) : host.homePlugins?.manifest(provider.plugin_id);
         declaration = manifest?.settings_entries;
+        const declaredRead = declaration?.read;
+        const readScope = declaredRead && manifest?.actions?.find(action => action.capability_id === declaredRead.capability_id && action.version === declaredRead.version)?.action.scope;
+        if (declaration && readScope !== (projectScoped ? "project" : "home")) continue;
         if (install?.execution === "host" && install.state === "running" && install.plugin_id === provider.plugin_id && declaration)
           owner = binding(id, projectScoped, declaration, install);
       }

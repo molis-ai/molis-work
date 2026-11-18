@@ -181,6 +181,7 @@ export type BlueprintPreviewPart = PreviewDecision & {
     proposal: BlueprintProposal;
     layer: SettingLayer;
     candidates: BlueprintPreviewCandidate[];
+    device_only?: true;
     consequences: SettingConsequence[];
     affected_step_ids: string[];
 };

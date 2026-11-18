@@ -28,5 +28,6 @@ export interface SettingsPage {
   readonly api: string;
   readonly tables: HotkeyTables;
   settings: Settings | null;
+  readonly preferences: Map<string, import("@molis-ai/molis-work-contracts/platform/settings").EffectiveSetting>;
   recording: Recording | null;
 }

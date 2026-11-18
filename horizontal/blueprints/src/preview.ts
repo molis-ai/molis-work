@@ -56,6 +56,7 @@ async function readCandidates(access: SettingsAccess, wanted: ReadonlySet<string
 
 function currentValue(current: EffectiveSetting | undefined, unavailable?: string): BlueprintCurrentValue {
   if (!current || current.state === "unavailable") return { state: "unavailable", reason: current?.reason ?? unavailable ?? "暂时读不到此设置" };
+  if (current.value_unavailable) return { state: "unavailable", reason: current.value_unavailable };
   return { state: "present", value: current.value, revision: current.revision, origin: null, setting_source: current.source };
 }
 
@@ -93,16 +94,18 @@ export async function previewSettings(store: AdoptionStore, access: SettingsAcce
     const { current, binding, entry } = owner;
     const title = "literal" in entry.title ? entry.title : { ...entry.title, owner: owner.text_owner };
     const summary = entry.summary && ("literal" in entry.summary ? entry.summary : { ...entry.summary, owner: owner.text_owner });
-    const details = { ...result, title, ...(summary && { summary }), candidates: [{ kind: "owner" as const, action: binding.write, subject: { kind: "setting", id: entry.key }, current: currentValue(current, owner.unavailable) }],
+    const details = { ...result, title, ...(entry.device_only && { device_only: entry.device_only }), ...(summary && { summary }), candidates: [{ kind: "owner" as const, action: binding.write, subject: { kind: "setting", id: entry.key }, current: currentValue(current, owner.unavailable) }],
       consequences: entry.consequence ?? [] };
     if (!entry.layers.includes(layer) || input.target.kind === "personal" && layer === "project") return { ...details, decision: "skip", reason: "scope_mismatch" };
     if (!current || current.state === "unavailable") return { ...details, decision: "skip", reason: "owner_unavailable" };
     const previous = previousValue(current, layer);
     if (!previous) return { ...details, decision: "skip", reason: "owner_unavailable" };
     assertSandboxMatches(entry.schema, proposal.value, (_kind, message) => { throw blueprintsErrors.part_unsupported(message); });
+    const reuse = "set" in previous && canonicalJsonText(previous.set) === canonicalJsonText(proposal.value);
+    if (reuse && current.value_unavailable) return { ...details, decision: "skip", reason: "owner_unavailable" };
     plans.set(part_id, { binding, key: entry.key, layer, change: { set: proposal.value }, previous, expected_revision: current.revision,
       ...(current.layer_revisions?.[layer] !== undefined && { original_layer_revision: current.layer_revisions[layer] }) });
-    return { ...details, decision: "set" in previous && canonicalJsonText(previous.set) === canonicalJsonText(proposal.value) ? "reuse" : "update" };
+    return { ...details, decision: reuse ? "reuse" : "update" };
   });
   const preview = { preview_id: randomUUID(), expires_at: new Date(now + lifetime).toISOString(), source: draft.source,
     target: input.target, locale: draft.locale, parts: projected };

@@ -74,6 +74,38 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
   const root=document.documentElement;
   root.style.setProperty("--desktop-window-safe-inline-start","88px");
   const nativeWindow=globalThis.__TAURI__?.window?.getCurrentWindow();
+  if(nativeWindow?.label==="main" && window.top===window){
+    const startShelfPreferences=()=>{
+      const invoke=settings=>globalThis.__TAURI__.core.invoke("shelf_sync_device_preferences",{settings});
+      if(document.body.hasAttribute("data-account-entry")){void invoke(null).catch(()=>{});return;}
+      let revision, timer, epoch=0, stopped=false;
+      const api="/api/plugins/io.molis.work.shelf";
+      const read=async()=>{
+        const run=epoch, request=globalThis.molisWorkRequest;
+        const current=()=>run===epoch&&!stopped&&!globalThis.molisWorkAccountTransition?.preparing;
+        try{
+          if(current()&&request){
+            const info=await request(api+"/view-revision");
+            if(current()&&info.revision!==revision){
+              const {values}=await request(api+"/preferences/read",{method:"POST",body:{keys:["shelf.hotkeys","shelf.drop_wheel"]}});
+              const hotkeys=values.find(item=>item.key==="shelf.hotkeys"&&item.state==="ok");
+              const wheel=values.find(item=>item.key==="shelf.drop_wheel"&&item.state==="ok");
+              if(current()&&hotkeys&&typeof wheel?.value==="boolean"){
+                await invoke({hotkeys:hotkeys.value,drop_wheel_enabled:wheel.value});revision=info.revision;
+              }
+            }
+          }
+        }catch(error){
+          if(current()&&[401,403,404].includes(error.status)){revision=undefined;await invoke(null).catch(()=>{});}
+        }finally{if(!stopped)timer=setTimeout(read,3000);}
+      };
+      const stop=()=>{stopped=true;epoch++;clearTimeout(timer);};
+      addEventListener("pagehide",stop,{once:true});
+      globalThis.molisWorkAccountTransition?.page(document.body,async()=>{epoch++;},async()=>{stop();await invoke(null);},()=>{epoch++;revision=undefined;});
+      void read();
+    };
+    if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",startShelfPreferences,{once:true});else startShelfPreferences();
+  }
   if(nativeWindow){
     const syncFullscreen=async()=>{
       try{

@@ -51,12 +51,20 @@ export function declarationOwnersFor(home: string | null, current: NonNullable<P
   running: (pluginId: string) => PluginManifest | undefined = () => undefined, versions = createSettingsVersionClaims()): DeclarationOwners {
   const shipped = shippedOwners();
   const shippedIds = new Set(shipped.map(owner => owner.plugin_id));
+  const dual = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.runtime?.dual_instance);
+  function ownsSettings(manifest: PluginManifest, scope: InstallScope) {
+    const entry = dual.find(item => item.manifest.plugin_id === manifest.plugin_id);
+    const ref = manifest.settings_entries?.read;
+    if (!ref || !entry || pluginManifestDigest(entry.manifest) !== pluginManifestDigest(manifest)) return true;
+    const action = manifest.actions?.find(item => item.capability_id === ref.capability_id && item.version === ref.version);
+    return action?.action.scope === scope.kind;
+  }
   const projectSettings = current.scope.kind === "project" ? { home: true, projects: new Set([current.scope.project_id]) } : undefined;
   const unreadable = (record: PluginInstanceRecord) => new Error(`读不到已装插件 ${record.plugin_id} 的 Manifest`);
 
   const owners: DeclarationOwners = (manifest, installId, onlySettings) => {
     const artifacts = !onlySettings && !shippedIds.has(manifest.plugin_id) && (manifest.artifacts.produces.length > 0 || !!manifest.artifacts.links?.length);
-    const settings = !!manifest.settings_entries?.entries.length;
+    const settings = !!manifest.settings_entries?.entries.length && ownsSettings(manifest, current.scope);
     const artifactOwner = (record: PluginInstanceRecord) => artifacts && !shippedIds.has(record.plugin_id) && record.plugin_id !== manifest.plugin_id;
     const settingOwner = (record: PluginInstanceRecord, scope: InstallScope) => settings && record.state !== "uninstalled"
       && (scope.kind === "home" || current.scope.kind === "home" || sameInstallScope(scope, current.scope))
@@ -69,7 +77,7 @@ export function declarationOwnersFor(home: string | null, current: NonNullable<P
         if (!readable) throw unreadable(item.record);
         return { plugin_id: item.record.plugin_id,
           ...(artifactOwner(item.record) ? { artifacts: readable.artifacts } : {}),
-          ...(settingOwner(item.record, item.scope) ? { settings: [...settingKeys(readable), ...versions.keysFor(item.scope, item.record)] } : {}),
+          ...(settingOwner(item.record, item.scope) && ownsSettings(readable, item.scope) ? { settings: [...settingKeys(readable), ...versions.keysFor(item.scope, item.record)] } : {}),
         };
       })];
     } catch (error) {

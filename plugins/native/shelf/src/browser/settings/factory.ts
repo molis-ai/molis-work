@@ -13,10 +13,11 @@ import type { HotkeyTables, SettingsPage } from "./types.js";
 declare const SHELF_HOTKEY_TABLES: HotkeyTables;
 declare const SHELF_SETTINGS_API: string;
 
-const page: SettingsPage = { api: (document.body.dataset.routePrefix || "") + SHELF_SETTINGS_API, tables: SHELF_HOTKEY_TABLES, settings: null, recording: null };
+const page: SettingsPage = { api: (document.body.dataset.routePrefix || "") + SHELF_SETTINGS_API, tables: SHELF_HOTKEY_TABLES, settings: null, preferences: new Map(), recording: null };
 
 function bind(root?: ParentNode): void {
   const scope: ParentNode = root && "querySelector" in root ? root : document;
+  if (!(scope instanceof Element && scope.matches("[data-shelf-settings]")) && !scope.querySelector("[data-shelf-settings]")) return;
   const reload = () => reloadPage(page, bind);
   bindPanelKeys(page, scope);
   bindEngine(page, scope);

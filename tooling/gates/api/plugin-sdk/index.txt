@@ -453,6 +453,8 @@ export declare const SANDBOX_VALIDATE_UPGRADE = "validateUpgrade";
 
 export { SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare const SYNC_DOCUMENT_MAX_BYTES = 500000000;
+
 export interface SandboxIntegrationManifestInput {
     pluginId: string;
     version: string;
@@ -508,6 +510,7 @@ export type SettingSnapshot = {
     readonly revision: string;
 } & ({
     readonly state: "ok";
+    readonly value_unavailable?: string;
     readonly layers: SettingLayers;
     readonly layer_revisions?: SettingLayerRevisions;
     readonly effective_value?: SandboxJson;
@@ -525,6 +528,10 @@ export interface SettingsActionsOptions {
     readonly scope: ActionMetadata["scope"];
     readonly read: SettingsActionOptions;
     readonly write: SettingsActionOptions;
+}
+
+export interface SettingsFileOwner extends Omit<SettingsOwner, "transaction"> {
+    withWriteTransaction<R>(scope: SettingsOwnerScope, run: (transaction: SettingsTransaction) => R): Promise<R>;
 }
 
 export interface SettingsOwner {
@@ -722,7 +729,7 @@ export declare function bindPluginActionRoute<Input, Output>(context: PluginStar
 export { bindPresentationValuesHandler } from "@molis-ai/molis-work-contracts/platform/presentation";
 export { bindSearchEntriesHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 
-export declare function bindSettingsHandlers(actions: SettingsActions, declaration: SettingsDeclaration, owner: SettingsOwner): {
+export declare function bindSettingsHandlers(actions: SettingsActions, declaration: SettingsDeclaration, owner: SettingsOwner | SettingsFileOwner): {
     readonly read: ActionHandlerBinding;
     readonly write: ActionHandlerBinding;
 };
@@ -942,6 +949,8 @@ export declare function parseSandboxUi(value: unknown): SandboxUiContribution | 
 
 export declare function parseSyncAggregates(value: unknown): readonly SyncAggregateDeclaration[];
 
+export declare function parseSyncDocumentValue<T>(value: unknown, spaceId: string, validate: (value: unknown) => T): DocumentState<T>;
+
 export declare function parseSyncTracking(value: unknown): readonly SyncTrackedTable[];
 
 export declare function pollingIntegrationBinding({ manifest, provider, presentAccount, now }: {
@@ -1140,6 +1149,43 @@ export declare function zonedParts(timeZone: string | undefined, { seconds, shor
 // Declarations the exports above refer to, which no entry exports itself:
 
 type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'projectDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
+
+interface DocumentConflict {
+    event: SyncEvent;
+    reason: string;
+    waiting: boolean;
+}
+
+interface DocumentRecovery {
+    id: string;
+    key: string;
+    choice: string;
+    local: unknown;
+    remote: unknown;
+}
+
+interface DocumentState<T> {
+    version: 1;
+    spaceId: string;
+    device: string;
+    seq: number;
+    cursor: number;
+    data: T;
+    changes: {
+        key: string;
+        seq: number;
+    }[];
+    heads: {
+        key: string;
+        revision: number;
+    }[];
+    outbox: {
+        through: number;
+        operation: SyncMutation;
+    }[];
+    conflicts: DocumentConflict[];
+    history: DocumentRecovery[];
+}
 
 type LiteralSchemaDefinition<S extends ActionSchema, Output> = Omit<ActionDefinition<unknown, Output>, "action"> & {
     readonly action: Omit<ActionMetadata, "input_schema"> & {

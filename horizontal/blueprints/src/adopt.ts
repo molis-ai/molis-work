@@ -37,10 +37,10 @@ function sameObservedLayer(plan: SettingPlan, fullRevision: string | number, cur
 function verifiedStep(part_id: string, plan: SettingPlan, current?: EffectiveSetting, receipt?: BlueprintOwnerReceipt): BlueprintApplyStep | undefined {
   if (receipt) {
     if (!current) return undefined;
-    const observed = !sameObservedLayer(plan, receipt.revision, current, plan.applied_layer_revision) ? "changed" : current.state === "unavailable" ? "owner_unavailable" : undefined;
+    const observed = !sameObservedLayer(plan, receipt.revision, current, plan.applied_layer_revision) ? "changed" : current.state === "unavailable" || current.value_unavailable ? "owner_unavailable" : undefined;
     return { part_id, state: "applied", outcome: "modified", receipt, ...(observed && { current: observed }) };
   }
-  if (current?.state !== "ok") return { part_id, state: "skipped", reason: "owner_unavailable" };
+  if (current?.state !== "ok" || current.value_unavailable) return { part_id, state: "skipped", reason: "owner_unavailable" };
   if (!sameObservedLayer(plan, plan.expected_revision, current, plan.original_layer_revision)) return { part_id, state: "skipped", reason: "revision_changed" };
   const observed = current.layer_revisions?.[plan.layer];
   if (observed !== undefined) plan.applied_layer_revision = observed;
@@ -160,7 +160,7 @@ export class AdoptionExecution {
       const current = values.get(plan.key);
       const expected = "receipt" in apply ? apply.receipt.revision : plan.expected_revision;
       if (current && !sameObservedLayer(plan, expected, current, plan.applied_layer_revision)) return { ...apply, current: "changed" };
-      if (current?.state !== "ok") return { ...apply, current: "owner_unavailable" };
+      if (current?.state !== "ok" || current.value_unavailable) return { ...apply, current: "owner_unavailable" };
       const { current: _observed, ...original } = apply;
       return original;
     });

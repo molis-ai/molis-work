@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setImmediate } from 'node:timers/promises';
 import { createAtomicFileDocument,ensureStorageSpace,personalStorageSpace } from '@molis-ai/molis-work-storage';
-import {syncDocumentFiles,createPersonalPluginRegistrations} from '@molis-ai/molis-work-app-local-host';
+import {syncDocumentFiles,createPersonalPluginRegistrations,runHomeUpgrade} from '@molis-ai/molis-work-app-local-host';
 import { openShelfStore, SHELF_DOCUMENT_PATH, hashBytes } from '@molis-ai/molis-work-module-shelf';
 import { shelfTestAi,shelfTestReceipt } from './shelf-test-ai.js';
 
@@ -30,6 +30,31 @@ test('opening a local or personal Shelf again preserves an explicitly deleted sa
   assert.ok((await restarted.seedSample()).item_id,'explicit sample creation is still available');
  }
 });
+test('ONB-22/29 Shelf upgrades local and personal v1 catalogs without losing materials, clipboard, settings or replication work', async t => {
+  for (const personal of [false, true]) {
+    const f = fixture(t, personal);
+    const open = personal ? f.open : () => openShelfStore(join(f.home, 'shelf'), openTestShelfFiles(f.home), {disabled:true});
+    const store = open();
+    await store.saveSettings({drop_wheel_enabled:false});
+    await store.addClipboard('local clipboard');
+    const item = await store.admit({filename:'meeting.md', bytes:Buffer.from('the material')});
+    const {preferences, ...legacy} = JSON.parse(readFileSync(f.filename, 'utf8'));
+    assert.ok(preferences);
+    if (personal) assert.ok(store.replica().next());
+    legacy.version = 1;
+    writeFileSync(f.filename, JSON.stringify(legacy));
+    const report = runHomeUpgrade(f.home);
+    const {preferences: upgraded, ...after} = JSON.parse(readFileSync(f.filename, 'utf8'));
+    assert.equal(after.version, 2, JSON.stringify(report));
+    assert.deepEqual(after, {...legacy, version:2});
+    assert.deepEqual(upgraded.layers['shelf.drop_wheel'], {explicit:true, revision:0});
+    assert.deepEqual(upgraded.receipts, {});
+    assert.equal(open().settings().drop_wheel_enabled, false);
+    assert.equal(open().readFile(item.item_id).bytes.toString(), 'the material');
+    assert.equal((await open().snapshot()).clipboard[0]?.body, 'local clipboard');
+    if (personal) assert.ok(open().replica().next());
+  }
+});
 function transfer(source:ReturnType<typeof fixture>,target:ReturnType<typeof fixture>,start=0){
   let revision=start;for(let i=0;i<50;i++){
     const operation=source.open().replica().next();if(!operation)return revision;
@@ -48,7 +73,7 @@ test('S-139 PCSYNC-11/15/22 Shelf transfers full text, binary, nested folders an
   assert.equal(job.job.status,'succeeded');let rev=transfer(a,b);
   assert.deepEqual(target.readFile(text.item_id).bytes,bytes);assert.deepEqual(target.readFile(binary.item_id).bytes,Buffer.from([255,0,254,128]));
   assert.deepEqual(target.readChild(folder.item_id,'nested/a.bin').bytes,Buffer.from([0,255]));assert.ok(job.result);assert.equal(target.readFile(job.result.item_id).bytes.toString(),source.readFile(job.result.item_id).bytes.toString());
-  const received=JSON.parse(readFileSync(b.filename,'utf8'));assert.equal(received.version,1);assert.equal(received.settings.drop_wheel_enabled,true);assert.equal(received.clipboard[0].body,'target clipboard');
+  const received=JSON.parse(readFileSync(b.filename,'utf8'));assert.equal(received.version,2);assert.equal(received.settings.drop_wheel_enabled,true);assert.equal(received.clipboard[0].body,'target clipboard');
   assert.equal(received.jobs[0].runtime,'');assert.equal(received.jobs[0].isolation,'');assert.equal(received.jobs[0].execution,undefined);assert.equal(received.items.find((row:{item_id:string})=>row.item_id===text.item_id).origin_realpath,null);
   assert.equal(target.replica().next(),null);assert.equal((await target.snapshot()).materials.length,3,'receive never adds an example');
   const frozenBytes=source.readFile(text.item_id).bytes;(await source.writeCopy(text.item_id,'new complete body',hashBytes(frozenBytes)));

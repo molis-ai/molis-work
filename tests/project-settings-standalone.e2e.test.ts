@@ -452,7 +452,8 @@ for (const mode of ["A", "B"] as const) test(`RAC-2848 RAC-2849 FSS-35 ${mode}: 
   const reset = '[data-shelf-hotkey-slot="toggle"] [data-shelf-hotkey-reset]';
   await surface.waitFor(`document.querySelector(${JSON.stringify(reset)})?.hidden===false`);
   await surface.click(reset); await surface.waitFor(`document.querySelector(${JSON.stringify(reset)})?.hidden===true`);
-  assert.equal(traffic.posts(shelfApi, surface.frameId).length, 1);
+  assert.equal(traffic.posts(shelfApi.replace(/settings$/, "preferences/write"), surface.frameId).length, 1);
+  assert.equal(traffic.posts(shelfApi, surface.frameId).length, 0, "the settings page used the same owner action as a scene");
   const shelf = await b.web.get<{ hotkeys: { toggle: typeof defaults } }>(shelfApi);
   assert.deepEqual(shelf.hotkeys.toggle, defaults);
   await settingsShot(b, mode + "-shelf");

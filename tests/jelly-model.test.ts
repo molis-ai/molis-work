@@ -336,6 +336,24 @@ test("ONB-22/29/30: a scene chooses only an existing Jelly model, then recovers 
     const saved = JSON.parse(readFileSync(path, "utf8"));
     assert.equal(Object.keys(saved.receipts).length, 1);
     const receipt = Object.values(saved.receipts)[0] as import("@molis-ai/molis-work-plugin-sdk").SettingsWriteReceipt;
+    const sameRequest = { source: draft.source, target: { kind: "personal" as const }, part_ids: ["model"] };
+    const beforeDisconnect = await user.invoke(scenes.preview, sameRequest);
+    assert.equal(beforeDisconnect.parts[0]?.decision, "reuse");
+    withConnectorConnections(home, store => store.setEnabled(connection.connection_id, false));
+    assert.equal((await user.invoke(scenes.read, { adoption_id: first.adoption_id })).apply_steps[0]?.current, "owner_unavailable");
+    const afterDisconnect = await user.invoke(scenes.apply, { ...apply, preview_id: beforeDisconnect.preview_id, request_id: "reuse-disconnected" });
+    assert.deepEqual(afterDisconnect.steps[0], { part_id: "model", state: "skipped", reason: "owner_unavailable" });
+    assert.equal((await user.invoke(scenes.preview, sameRequest)).parts[0]?.decision, "skip");
+    const secondConnection = modelConnection(home, "替代模型", "separate-local-test-secret", "https://replacement.example.com/v1");
+    const replacement = { provider_id: "replacement", model_id: "working" };
+    providerStore(home, store => store.upsert({ credential_ref: secondConnection.credential_ref!, provider_id: replacement.provider_id, display_name: "Replacement",
+      base_url: "https://replacement.example.com/v1", api_format: "openai-chat-completions", models: [{ model_id: replacement.model_id, enabled: true }] }));
+    const repair = await user.invoke(scenes.preview, { ...sameRequest, changes: [{ part_id: "model", proposal: { kind: "setting", key, value: replacement } }] });
+    assert.equal(repair.parts[0]?.decision, "update");
+    const repaired = await user.invoke(scenes.apply, { ...apply, preview_id: repair.preview_id, request_id: "repair" });
+    assert.equal(repaired.steps[0]?.state, "applied");
+    assert.deepEqual(configuration(home).selection(), replacement);
+    withConnectorConnections(home, store => store.setEnabled(connection.connection_id, true));
     configuration(home).save({ provider_id: "shared", model_id: "original" });
     const beforeRetry = readFileSync(path, "utf8");
     const result = await host.homeActionClient().invoke(caller, jellyManifest.settings_entries!.write, receipt.request);

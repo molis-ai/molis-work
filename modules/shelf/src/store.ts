@@ -31,7 +31,8 @@ import { noAi } from "./job-steps.js";
 import { ShelfJobs } from "./jobs.js";
 import { recipeAvailability, SHELF_RECIPES } from "./recipes.js";
 import { detectShelfRuntime, emptyShelfRuntime, type ShelfRuntimeLookup } from "./runtimes.js";
-import { mergeShelfSettings, normalizeShelfSettings } from "./settings.js";
+import { ShelfDevicePreferences, saveDevicePatch } from "./device-preferences.js";
+import { normalizeShelfSettings } from "./settings.js";
 
 export { SHELF_FOLDER_MAX_BYTES } from "./admissions.js";
 export { CLIPBOARD_LIMIT } from "./clipboard-store.js";
@@ -55,6 +56,7 @@ function recipeTable(ai: ShelfAiStatus): readonly ShelfRecipeAvailability[] {
 export class ShelfStore {
   private readonly lookup: ShelfRuntimeLookup;
   private readonly access: ShelfCatalogAccess;
+  readonly preferences: ShelfDevicePreferences;
   private readonly admissions: ShelfAdmissions;
   private readonly copies: ShelfCopies;
   private readonly jobs: ShelfJobs;
@@ -67,6 +69,7 @@ export class ShelfStore {
   constructor(readonly root: string, files: PluginOwnerFilesClient, lookup: ShelfRuntimeLookup = {}, private readonly materials: ShelfMaterialPorts = {}, private readonly ai?: ShelfAiPorts, sync?: ShelfSyncOptions) {
     this.lookup = lookup;
     this.access = new ShelfCatalogAccess(root, files, sync, (catalog, key) => assertSyncIdle(catalog, key, root));
+    this.preferences = new ShelfDevicePreferences(this.access, ai);
     this.admissions = new ShelfAdmissions(this.access, materials);
     this.copies = new ShelfCopies(this.access, materials);
     this.jobs = new ShelfJobs(this.access, materials, ai);
@@ -97,9 +100,7 @@ export class ShelfStore {
   }
 
   async saveSettings(patch: ShelfSettingsPatch): Promise<ShelfDeviceSettings> {
-    await this.access.update((catalog) => {
-      catalog.settings = normalizeShelfSettings(mergeShelfSettings(normalizeShelfSettings(catalog.settings), patch));
-    });
+    await this.access.update(catalog => saveDevicePatch(catalog, patch));
     return this.settings();
   }
 

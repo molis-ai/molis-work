@@ -119,7 +119,7 @@ export function renderSceneReview(page: ReturnType<typeof sceneReviewPage>, stat
     field(details, t("current"), current?.state === "present" ? printable(current.value) : current?.state === "unavailable" ? current.reason : t("unavailable"));
     if (current?.state === "present" && current.setting_source) field(details, t("source"), t(current.setting_source));
     if (part.proposal.kind === "setting") field(details, t("proposed"), printable(part.proposal.value));
-    field(details, t("scope"), t(part.layer));
+    field(details, t("scope"), t(part.device_only ? "device-only" : part.layer));
     for (const consequence of part.consequences) field(details, t("impact"), t(consequence));
     main.append(details);
     if (part.decision === "skip") main.append(node("p", t(part.reason)));

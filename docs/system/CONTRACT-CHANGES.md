@@ -113,6 +113,7 @@
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `shelf/catalog.json` | 1 → 2 | 第 38 批，一骏 2026-11-18 确认；保留本机目录或原个人同步状态，补入设备设置修订与回执 | `modules/shelf/src/catalog-shape.ts#CATALOG_VERSION#1→2` |
 | `jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json` | 1 → 2 | 第 38 批，一骏 2026-11-18 确认；保留每一份已有选择与权限，接续回执由原主人保存 | `apps/local-host/src/model-configuration.ts#MODEL_PREFERENCE_SCHEMA_VERSION#1→2` |
 | `agent-definitions/agent-definitions.db` | 1 → 2 | 第08批 #1984；2026-11-06 已授权新增空表 | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#1→2` |
 | `projects/<project_id>/molis-work.db` | 17 → 1 | 第02批 #1837（`67d04ce981`，接 Personal 后复位） | 保留当前完整结构与同步表。2026-11-07 旧Home完整备份、搬开后新建，统一起点已登记（[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)）；错版和不符所属结构仍拒绝，不就地升级。 |

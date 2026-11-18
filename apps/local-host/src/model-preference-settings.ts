@@ -18,7 +18,8 @@ function configuredSelection(home: string, choice?: PluginModelSelection) {
 export function modelPreferenceOwner(home: string, declaration: ConsumerModelConfigurationDeclaration, key: string, installation: string): SettingsOwner {
   const snapshot = (state: ModelPreferenceFile): SettingSnapshot => {
     const fallback = configuredSelection(home);
-    return { key, state: "ok", revision: JSON.stringify([state.revision, fallback]), layer_revisions: { personal: String(state.revision) },
+    const unavailable = state.selection && !configuredSelection(home, state.selection);
+    return { key, state: "ok", ...(unavailable && { value_unavailable: "所选模型或连接当前不可用" }), revision: JSON.stringify([state.revision, fallback, Boolean(unavailable)]), layer_revisions: { personal: String(state.revision) },
       layers: { provider_default: fallback, ...(state.selection && { personal: { ...state.selection } }) } };
   };
   return {

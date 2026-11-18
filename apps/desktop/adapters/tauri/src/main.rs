@@ -1031,6 +1031,35 @@ fn shelf_apply_hotkeys(
     let toggle = shelf_hotkeys::HotKeyChord::from(toggle);
     let capture = shelf_hotkeys::HotKeyChord::from(capture);
     let files = shelf_hotkeys::HotKeyChord::from(files);
+    apply_shelf_chords(toggle, capture, files)
+}
+
+#[tauri::command]
+fn shelf_sync_device_preferences(
+    settings: Option<shelf_hotkeys::DevicePreferences>,
+) -> Result<(), String> {
+    let (chords, wheel) = match settings {
+        Some(settings) => (settings.hotkeys.chords()?, settings.drop_wheel_enabled),
+        None => (shelf_hotkeys::default_chords(), true),
+    };
+    if chords
+        != (
+            shelf_hotkeys::current_toggle(),
+            shelf_hotkeys::current_capture(),
+            shelf_hotkeys::current_files(),
+        )
+    {
+        apply_shelf_chords(chords.0, chords.1, chords.2)?;
+    }
+    shelf_http::set_drop_wheel_enabled(wheel);
+    Ok(())
+}
+
+fn apply_shelf_chords(
+    toggle: shelf_hotkeys::HotKeyChord,
+    capture: shelf_hotkeys::HotKeyChord,
+    files: shelf_hotkeys::HotKeyChord,
+) -> Result<ShelfHotkeyStatus, String> {
     #[cfg(target_os = "macos")]
     shelf_hotkeys_macos::apply(toggle, capture, files)?;
     #[cfg(not(target_os = "macos"))]
@@ -1208,6 +1237,7 @@ fn main() {
       files_open,
       shelf_setup_status,
       shelf_hotkey_status,
+      shelf_sync_device_preferences,
       shelf_apply_hotkeys
       ];
       handle(invoke)

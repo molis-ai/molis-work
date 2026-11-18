@@ -362,3 +362,5 @@ export interface ShelfJobOutcome {
   readonly result: ShelfItemRecord | null;
   readonly origin_hash: string;
 }
+
+export { SHELF_PREFERENCE_FIELDS, shelfPreferenceKey, type ShelfPreferenceKey } from "./preference-keys.js";

@@ -1,6 +1,8 @@
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { labelOf, panelChordOf, panelLabel, PANEL_DEFAULTS, sameChord, samePanel } from "./keys.js";
+import { SHELF_PREFERENCE_FIELDS, type ShelfPreferenceKey } from "@molis-ai/molis-work-module-shelf/contract";
+import type { SettingsValues } from "@molis-ai/molis-work-contracts/platform/settings";
 import type { Chord, Settings, SettingsPage } from "./types.js";
 import type { ShelfHotKeySlot, ShelfPanelKeySlot, ShelfSettingsPatch } from "@molis-ai/molis-work-module-shelf/contract";
 
@@ -94,7 +96,32 @@ export function stopRecording(page: SettingsPage): void {
 
 /** One save of a patch: paints what came back and hands the new hotkeys to the desktop. */
 export async function savePatch(page: SettingsPage, root: ParentNode, patch: ShelfSettingsPatch): Promise<Settings> {
-  const body = await molisWorkRequest<Settings>(page.api + "/settings", { method: "POST", body: patch, fallback: uiText.text("shelf.settings.save-failed") });
+  if (!page.settings && !await refreshSettings(page, root)) throw new Error(uiText.text("shelf.settings.save-failed"));
+  if (patch.custom_runtimes) {
+    page.settings = await molisWorkRequest<Settings>(page.api + "/settings", { method: "POST", body: patch, fallback: uiText.text("shelf.settings.save-failed") });
+    return page.settings;
+  }
+  const [key] = (Object.keys(SHELF_PREFERENCE_FIELDS) as ShelfPreferenceKey[]).filter(key =>
+    SHELF_PREFERENCE_FIELDS[key].some(field => Object.hasOwn(patch, field)));
+  const before = key && page.preferences.get(key);
+  if (!key || before?.state !== "ok") throw new Error(uiText.text("shelf.settings.save-failed"));
+  const current = page.settings!;
+  const next: Settings = { ...current, ...patch, hotkeys: { ...current.hotkeys, ...patch.hotkeys }, panel_keys: { ...current.panel_keys, ...patch.panel_keys } };
+  const fields = SHELF_PREFERENCE_FIELDS[key];
+  let value: unknown = fields.length === 1 ? next[fields[0]] : Object.fromEntries(fields.map(field => [field, next[field]]));
+  if (key === "shelf.action_bar" && patch.shortcuts) {
+    const ids = next.shortcuts.map(action => "shortcut:" + action.id);
+    const retained = (slot: string) => !slot.startsWith("shortcut:") || ids.includes(slot);
+    value = { shortcuts: next.shortcuts, action_order: [...new Set([...next.action_order.filter(retained), ...ids])], hidden_actions: next.hidden_actions.filter(retained) };
+  }
+  const change = value == null ? { inherit: true } : { set: value };
+  const response = await molisWorkRequest<SettingsValues>(page.api + "/preferences/write", { method: "POST",
+    body: { key, layer: "personal", expected_revision: before.revision, request_id: crypto.randomUUID(), change }, fallback: uiText.text("shelf.settings.save-failed") });
+  const saved = response.values[0];
+  if (saved?.state !== "ok" || saved.key !== key) throw new Error(uiText.text("shelf.settings.save-failed"));
+  page.preferences.set(key, saved);
+  const body = applyValues(page.settings!, { values: [saved] });
+  page.settings = body;
   paintHotkeys(page, root, body.hotkeys);
   if (patch.hotkeys) {
     const status = await invoke("shelf_apply_hotkeys", { toggle: body.hotkeys.toggle, capture: body.hotkeys.capture, files: body.hotkeys.files }).catch(() => null);
@@ -103,9 +130,27 @@ export async function savePatch(page: SettingsPage, root: ParentNode, patch: She
   return body;
 }
 
+function applyValues(settings: Settings, response: SettingsValues): Settings {
+  const values = { ...settings };
+  for (const item of response.values) {
+    if (item.state !== "ok" || !Object.hasOwn(SHELF_PREFERENCE_FIELDS, item.key)) continue;
+    const fields = SHELF_PREFERENCE_FIELDS[item.key as ShelfPreferenceKey];
+    if (fields.length > 1) Object.assign(values, item.value);
+    else {
+      const inheritedModel = item.key === "shelf.model" && !Object.hasOwn(Object(item.value), "provider_id");
+      Object.assign(values, { [fields[0]]: inheritedModel ? null : item.value });
+    }
+  }
+  return values;
+}
+
 export async function refreshSettings(page: SettingsPage, scope: ParentNode): Promise<Settings | null> {
-  const read = await molisWorkRequest<Settings>(page.api + "/settings").catch(() => null);
-  if (read) page.settings = read;
+  const read = await Promise.all([molisWorkRequest<Settings>(page.api + "/settings"),
+    molisWorkRequest<SettingsValues>(page.api + "/preferences/read", { method: "POST", body: { keys: Object.keys(SHELF_PREFERENCE_FIELDS) } })]).catch(() => null);
+  if (read) {
+    for (const item of read[1].values) page.preferences.set(item.key, item);
+    page.settings = applyValues(read[0], read[1]);
+  }
   paintPanes(page, scope);
   return page.settings;
 }

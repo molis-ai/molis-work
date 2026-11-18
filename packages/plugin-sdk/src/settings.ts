@@ -19,7 +19,7 @@ export interface SettingsOwnerScope {
 }
 
 export type SettingSnapshot = { readonly key: string; readonly revision: string } & (
-  | { readonly state: "ok"; readonly layers: SettingLayers; readonly layer_revisions?: SettingLayerRevisions;
+  | { readonly state: "ok"; readonly value_unavailable?: string; readonly layers: SettingLayers; readonly layer_revisions?: SettingLayerRevisions;
       /** The owner's effective value when it merges individual fields across layers. The original layers remain available for undo. */
       readonly effective_value?: SandboxJson }
   | { readonly state: "unavailable"; readonly reason: string }
@@ -50,6 +50,11 @@ export interface SettingsOwner {
   transaction<R>(scope: SettingsOwnerScope, run: (transaction: SettingsTransaction) => R): R;
 }
 
+/** File authority can be acquired asynchronously. The actual read/change/receipt callback runs synchronously under that authority. */
+export interface SettingsFileOwner extends Omit<SettingsOwner, "transaction"> {
+  withWriteTransaction<R>(scope: SettingsOwnerScope, run: (transaction: SettingsTransaction) => R): Promise<R>;
+}
+
 const invalidOutput = (reason: string) => new ActionError("actions.output_invalid", reason);
 const invalidJsonOutput: SandboxSchemaFailure = (_kind, reason) => { throw invalidOutput(reason); };
 const synchronous = "设置事务必须同步完成";
@@ -73,7 +78,8 @@ export function resolveEffectiveSetting(snapshot: SettingSnapshot): EffectiveSet
   const revisions = snapshot.layer_revisions;
   if (revisions && (!isJsonObject(revisions) || Object.entries(revisions).some(([layer, token]) =>
     !(SETTINGS_LAYERS as readonly string[]).includes(layer) || !isText(token)))) throw invalidOutput("设置层的修订无效");
-  const proof = revisions ? { layer_revisions: { ...revisions } } : {};
+  if (snapshot.value_unavailable !== undefined && !isText(snapshot.value_unavailable)) throw invalidOutput("不可用的设置值必须说明原因");
+  const proof = { ...(revisions && { layer_revisions: { ...revisions } }), ...(snapshot.value_unavailable && { value_unavailable: snapshot.value_unavailable }) };
   for (const source of SETTINGS_SOURCES) {
     const value = layers[source];
     if (value !== undefined) {
@@ -86,7 +92,7 @@ export function resolveEffectiveSetting(snapshot: SettingSnapshot): EffectiveSet
 }
 
 /** Bind the fixed actions to the owner's storage ports. The dispatcher validates the input and supplies the caller. */
-export function bindSettingsHandlers(actions: SettingsActions, declaration: SettingsDeclaration, owner: SettingsOwner): {
+export function bindSettingsHandlers(actions: SettingsActions, declaration: SettingsDeclaration, owner: SettingsOwner | SettingsFileOwner): {
   readonly read: ActionHandlerBinding;
   readonly write: ActionHandlerBinding;
 } {
@@ -114,7 +120,7 @@ function assertCurrent(caller: ActionExecutionContext): void {
   caller.signal?.throwIfAborted();
 }
 
-async function readSettings(owner: SettingsOwner, scope: SettingsOwnerScope, caller: ActionExecutionContext,
+async function readSettings(owner: SettingsOwner | SettingsFileOwner, scope: SettingsOwnerScope, caller: ActionExecutionContext,
   entries: ReadonlyMap<string, SettingEntryDeclaration>, requested: readonly string[]): Promise<SettingsValues> {
   const order = [...requested];
   const keys = [...new Set(order)];
@@ -127,7 +133,7 @@ async function readSettings(owner: SettingsOwner, scope: SettingsOwnerScope, cal
   return { values: order.map(key => resolveEffectiveSetting(currentSetting(byKey.get(key), key))) };
 }
 
-async function writeSetting(owner: SettingsOwner, scope: SettingsOwnerScope, caller: ActionExecutionContext,
+async function writeSetting(owner: SettingsOwner | SettingsFileOwner, scope: SettingsOwnerScope, caller: ActionExecutionContext,
   entries: ReadonlyMap<string, SettingEntryDeclaration>, input: SettingsWriteInput): Promise<SettingsValues> {
   if (caller.audience !== "user") throw new ActionError("actions.forbidden", "只有本人能写入设置");
   if (input.layer === "project" && !scope.project_id) throw owner.errors.setting_invalid("写入项目设置需要可信项目上下文");
@@ -138,7 +144,7 @@ async function writeSetting(owner: SettingsOwner, scope: SettingsOwnerScope, cal
   const request: SettingsWriteInput = { key, layer, expected_revision, request_id, change };
   const identity = { key, layer, request_id };
   await caller.beforeEffect();
-  return requireSynchronous(owner.transaction(scope, transaction => {
+  const submit = (transaction: SettingsTransaction) => {
     assertCurrent(caller);
     const saved = requireSynchronous(transaction.readReceipt(identity), synchronous);
     if (saved) {
@@ -155,7 +161,8 @@ async function writeSetting(owner: SettingsOwner, scope: SettingsOwnerScope, cal
     const result = { values: [resolveEffectiveSetting(readback)] };
     requireSynchronous(transaction.saveReceipt(identity, { request, result }), synchronous);
     return result;
-  }), synchronous);
+  };
+  return "withWriteTransaction" in owner ? owner.withWriteTransaction(scope, submit) : requireSynchronous(owner.transaction(scope, submit), synchronous);
 }
 
 function currentSetting(snapshot: SettingSnapshot | undefined, key: string): SettingSnapshot {

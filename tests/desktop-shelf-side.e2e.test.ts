@@ -8,10 +8,30 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 // the shell is told the Shelf tab's box while that tab shows, and nothing otherwise — from the top page only, never a frame.
 
 const SHELF_TAB = "plugin:shelf/side";
-const BRIDGE = `globalThis.__TAURI__ = { core: { invoke: (command, args) => {
+const BRIDGE = `globalThis.__TAURI__ = { window:{getCurrentWindow:()=>({label:"main",isFullscreen:async()=>false,onResized:async()=>()=>{}})}, core: { invoke: (command, args) => {
   (window.top.__invokes ||= []).push({ command, args: JSON.parse(JSON.stringify(args ?? null)), top: window.top === window });
   return Promise.resolve(null);
 } } };`;
+
+test("ONB-22/29 Desktop receives adopted wheel and hotkeys from the active Shelf owner while the settings page is closed", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, evaluate, waitFor } = browser;
+  await command("Page.addScriptToEvaluateOnNewDocument", {source:BRIDGE}, sessionId);
+  await navigate(() => command("Page.navigate", {url:origin + "/projects/" + projectId + "/?desktop=1"}, sessionId));
+  const bridge = "window.__invokes?.filter(event=>event.command==='shelf_sync_device_preferences').at(-1)?.args.settings";
+  await waitFor(bridge + "?.drop_wheel_enabled === true");
+  await evaluate(`(async()=>{
+    const base="/api/plugins/io.molis.work.shelf/preferences/";
+    const keys=["shelf.drop_wheel","shelf.hotkeys"];
+    const {values}=await molisWorkRequest(base+"read",{method:"POST",body:{keys}});
+    for(const {key,revision,value} of values){
+      const set=key==="shelf.drop_wheel"?false:{...value,toggle:{...value.toggle,key_code:14}};
+      await molisWorkRequest(base+"write",{method:"POST",body:{key,expected_revision:revision,layer:"personal",change:{set},request_id:crypto.randomUUID()}});
+    }
+  })()`);
+  await waitFor(bridge + "?.drop_wheel_enabled === false && " + bridge + "?.hotkeys.toggle.key_code === 14");
+});
 
 test("DESK-SHELF-01 DESK-SHELF-02 the hotkey's Shelf opens its side tab, and the shell is told that tab's box only while it shows", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);

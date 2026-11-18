@@ -23,6 +23,7 @@ export interface SettingEntryDeclaration {
   layers: SettingLayer[];
   schema: SandboxSchema;
   consequence?: SettingConsequence[];
+  device_only?: true;
 }
 
 export interface SettingsDeclaration {
@@ -40,7 +41,7 @@ export const SETTINGS_READ_OUTPUT_TYPE = /* @version type.molis.settings.values 
 export interface SettingsReadInput { keys: string[] }
 
 export type EffectiveSetting = { key: string; revision: string } & (
-  | { state: "ok"; value: SandboxJson; source: SettingSource; layers?: SettingLayers; layer_revisions?: SettingLayerRevisions }
+  | { state: "ok"; value_unavailable?: string; value: SandboxJson; source: SettingSource; layers?: SettingLayers; layer_revisions?: SettingLayerRevisions }
   | { state: "unavailable"; reason: string }
 );
 
@@ -76,7 +77,7 @@ export const SETTINGS_WRITE_INPUT_SCHEMA = inputSchemaFor<SettingsWriteEnvelope>
 const observation = { key: SETTING_KEY_SCHEMA, revision: nonblank };
 const layers = closedObjectSchema({ project: json, personal: json, provider_default: json }, []);
 const available = closedObjectSchema({
-  ...observation, state: { const: "ok" }, value: json, source: { type: "string", enum: SETTINGS_SOURCES }, layers,
+  ...observation, state: { const: "ok" }, value_unavailable: nonblank, value: json, source: { type: "string", enum: SETTINGS_SOURCES }, layers,
   layer_revisions: closedObjectSchema({ project: nonblank, personal: nonblank }, []),
 }, ["key", "revision", "state", "value", "source"]);
 const unavailable = closedObjectSchema({ ...observation, state: { const: "unavailable" }, reason: nonblank });

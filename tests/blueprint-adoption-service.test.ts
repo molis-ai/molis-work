@@ -294,3 +294,42 @@ test("ONB-28/30: an unknown runtime leaves the project usable and the other adop
     assert.equal(running.host.assistantStore!().setting(caller.actor_id, "daily_tokens"), "");
   } finally { await running.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+test("ONB-22/29/30: adopting a Shelf device preference from a project and continuing at Home uses one local owner", async t => {
+  const home = await mkdtemp(join(tmpdir(), "device-scene-"));
+  const running = await open(home);
+  t.after(async () => { await running.close(); await rm(home, {recursive:true, force:true}); });
+  const project = await running.web.createProject("Device scene");
+  const caller = await running.host.localPersonContext(project.reference);
+  const client = bindActionClient(running.host.actionClient(project.reference), () => caller);
+  const homeCaller = await running.host.localPersonContext();
+  const local = bindActionClient(running.host.homeActionClient(), () => homeCaller);
+  const { shelfActions, shelfManifest } = await import("@molis-ai/molis-work-plugin-shelf");
+  const key = "shelf.drop_wheel";
+  const proposal = {kind:"setting" as const, key, value:false};
+  const {draft} = await client.invoke(a.draftSave, {expected_revision:null, blueprint:{
+    ...body, parts:[{part_id:"engine", layer:"personal", required:true, proposal}, body.parts[1]!],
+  }});
+  for (const target of [{kind:"current_project" as const}, {kind:"personal" as const}]) {
+    const preview = await client.invoke(a.preview, {source:draft.source,target,part_ids:["engine"]});
+    assert.equal(preview.parts[0]?.decision, "update", JSON.stringify(preview));
+    assert.equal(preview.parts[0]?.device_only,true);
+    const request = {preview_id:preview.preview_id,part_ids:["engine"],request_id:"adopt-wheel-" + target.kind};
+    const runner = target.kind === "personal" ? local : client;
+    const first = await runner.invoke(a.apply, request);
+    assert.equal(first.steps[0]?.state,"applied",JSON.stringify(first.steps));
+    assert.equal((await local.invoke(shelfActions.settings, {})).drop_wheel_enabled,false);
+    const accepted = await runner.invoke(a.apply, request);
+    assert.deepEqual(accepted,first);
+    if (target.kind === "current_project") {
+      const undo = await runner.invoke(a.revert,{adoption_id:first.adoption_id,request_id:"restore-wheel"});
+      assert.equal(undo.undo.steps[0]?.state,"restored",JSON.stringify(undo));
+    } else {
+      await local.invoke(shelfActions.saveSettings,{drop_wheel_enabled:true});
+      const undo = await runner.invoke(a.revert,{adoption_id:first.adoption_id,request_id:"keep-manual"});
+      assert.deepEqual(undo.undo.steps[0],{part_id:"engine",state:"skipped",reason:"revision_changed"});
+    }
+    assert.equal((await local.invoke(shelfActions.settings, {})).drop_wheel_enabled,true);
+  }
+  await assert.rejects(running.host.homeActionClient().invoke({...homeCaller,audience:"agent"},shelfManifest.settings_entries!.read,{keys:[key]}), {code:"actions.forbidden"});
+});

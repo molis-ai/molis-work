@@ -1,32 +1,49 @@
-import type { PluginPrivateStorageDatabase } from "@molis-ai/molis-work-plugin-runtime";
+import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
+import type { SettingsWriteReceipt } from "@molis-ai/molis-work-plugin-sdk";
 
-/** The project's Agent Runtime pick as one current schema, created by the first pick; the project database baseline does not carry it. */
-export const PROJECT_RUNTIME_SETTINGS_SCHEMA_SQL = `
-  CREATE TABLE IF NOT EXISTS project_runtime_settings (
-    project_id TEXT PRIMARY KEY, runtime_id TEXT
+const RUNTIME_SELECTION_COLUMNS = "project_id TEXT PRIMARY KEY, runtime_id TEXT";
+const REVISION_COLUMN = "revision INTEGER NOT NULL DEFAULT 0";
+export const RUNTIME_RECEIPTS_SCHEMA_SQL = `
+  CREATE TABLE project_runtime_setting_receipts (
+    project_id TEXT NOT NULL, actor_id TEXT NOT NULL, request_id TEXT NOT NULL,
+    request_json TEXT NOT NULL, result_json TEXT NOT NULL,
+    PRIMARY KEY (project_id, actor_id, request_id)
   );
 `;
 
-/**
- * Which Runtime a project's Agent sessions run on, as the person picked it (BL-372, PG-054). Host-owned and read or written only
- * here: Coding and Characters get the pick through `projects.settings.runtime.read`, never from this table. No row, or a row
- * without a Runtime, is the Home default; whether the picked Runtime still exists is for the caller to resolve
- * (`resolveProjectRuntime`), so a pick that has gone away stays recorded and the person can see it and reset it. A project that
- * never picked has no table: reads leave its database as it was.
- */
+/** A project with no explicit pick inherits the Home runtime. Reading never creates a selection row. */
+export const PROJECT_RUNTIME_SETTINGS_SCHEMA_SQL = `
+  CREATE TABLE project_runtime_settings (${RUNTIME_SELECTION_COLUMNS}, ${REVISION_COLUMN});
+  ${RUNTIME_RECEIPTS_SCHEMA_SQL}
+`;
+
 export class ProjectRuntimeSettings {
-  constructor(private readonly db: PluginPrivateStorageDatabase) {}
+  constructor(private readonly db: SqliteDatabase) {}
+
+  selection(projectId: string) {
+    return this.db.prepare<[string], { runtime_id: string | null; revision: number }>(
+      "SELECT runtime_id, revision FROM project_runtime_settings WHERE project_id = ?").get(projectId);
+  }
 
   read(projectId: string): string | null {
-    if (!this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'project_runtime_settings'").get()) return null;
-    const row = this.db.prepare("SELECT runtime_id FROM project_runtime_settings WHERE project_id = ?").get(projectId) as { runtime_id: string | null } | undefined;
-    return row?.runtime_id ?? null;
+    return this.selection(projectId)?.runtime_id ?? null;
+  }
+
+  receipt(projectId: string, actor: string, requestId: string): SettingsWriteReceipt | undefined {
+    const found = this.db.prepare<[string, string, string], { request_json: string; result_json: string }>(
+      "SELECT request_json, result_json FROM project_runtime_setting_receipts WHERE project_id = ? AND actor_id = ? AND request_id = ?"
+    ).get(projectId, actor, requestId);
+    return found && { request: JSON.parse(found.request_json), result: JSON.parse(found.result_json) };
+  }
+
+  saveReceipt(projectId: string, actor: string, requestId: string, receipt: SettingsWriteReceipt): void {
+    this.db.prepare("INSERT INTO project_runtime_setting_receipts (project_id, actor_id, request_id, request_json, result_json) VALUES (?, ?, ?, ?, ?)")
+      .run(projectId, actor, requestId, JSON.stringify(receipt.request), JSON.stringify(receipt.result));
   }
 
   select(projectId: string, runtimeId: string | null): string | null {
-    this.db.exec(PROJECT_RUNTIME_SETTINGS_SCHEMA_SQL);
-    this.db.prepare(`INSERT INTO project_runtime_settings (project_id, runtime_id) VALUES (?, ?)
-      ON CONFLICT (project_id) DO UPDATE SET runtime_id = excluded.runtime_id`).run(projectId, runtimeId);
+    this.db.prepare(`INSERT INTO project_runtime_settings (project_id, runtime_id, revision) VALUES (?, ?, 1)
+      ON CONFLICT (project_id) DO UPDATE SET runtime_id = excluded.runtime_id, revision = revision + 1`).run(projectId, runtimeId);
     return runtimeId;
   }
 }

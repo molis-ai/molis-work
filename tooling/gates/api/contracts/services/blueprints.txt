@@ -88,6 +88,7 @@ export type BlueprintCurrentValue = {
     value: SandboxJson;
     origin: BlueprintPartOrigin | null;
     revision?: AdoptionRevision;
+    setting_source?: SettingSource;
 } | {
     state: "missing";
 } | {
@@ -151,15 +152,14 @@ export interface BlueprintPreviewChange<Proposal = BlueprintProposal> {
     action?: ExactActionReference;
 }
 
-export interface BlueprintPreviewPart {
+export type BlueprintPreviewPart = PreviewDecision & {
     part_id: string;
     proposal: BlueprintProposal;
     layer: SettingLayer;
     candidates: BlueprintPreviewCandidate[];
-    decision: (typeof decisions)[number];
     consequences: SettingConsequence[];
     affected_step_ids: string[];
-}
+};
 
 export type BlueprintPreviewSelection = {
     kind: "create";
@@ -269,12 +269,21 @@ type InterruptedStep = ({
     reason: (typeof skipReasons)[number];
 };
 
+type PreviewDecision = {
+    decision: (typeof actionableDecisions)[number];
+} | {
+    decision: "skip";
+    reason: (typeof previewSkipReasons)[number];
+};
+
 type UndoOperation = "revert" | "remove";
+
+declare const actionableDecisions: readonly ["create", "reuse", "update", "needs_choice", "needs_install"];
 
 declare const appliedCurrentStates: readonly ["changed", "owner_unavailable"];
 
-declare const decisions: readonly ["create", "reuse", "update", "needs_choice", "needs_install", "skip"];
-
 declare const dependencyChanges: readonly ["added", "removed", "changed"];
+
+declare const previewSkipReasons: readonly ["unsupported", "scope_mismatch", "owner_unavailable", "dependency_unmet"];
 
 declare const skipReasons: readonly ["not_selected", "dependency_unmet", "unsupported", "scope_mismatch", "owner_unavailable", "revision_changed", "reused", "shared", "no_revert"];

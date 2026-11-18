@@ -422,8 +422,10 @@ projects.directories.set_output	1	system.project-workspaces	command	operation	pr
 projects.directories.unmap_source	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	project.directories	a2a089faf780	94a80960770d	-
 projects.plugins.get	1	system.project-workspaces	query	query	project	read	-	agent,plugin,user	-	project	-	project.plugin_membership	99334726611c	2a702bb14aae	-
 projects.plugins.set	1	system.project-workspaces	command	operation	project	write	concurrent	user	projects:settings	project	-	project.plugin_membership	af72fb37900e	2a702bb14aae	-
+projects.settings.read	1	system.project-runtime	query	query	project	read	-	agent,plugin,user	-	-	molis.settings.read.request.v1	molis.settings.values.v1	169508f33c70	aec621cbbb17	-
 projects.settings.runtime.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	-	project	-	project.runtime.optional	9cecb8ebe607	8c923fd28c9a	-
 projects.settings.runtime.select	1	platform	command	operation	project	write	-	user	projects:settings	project	-	project.runtime.optional	65d08d19afe5	8c923fd28c9a	-
+projects.settings.write	1	system.project-runtime	command	operation	project	write	-	user	projects:settings	-	molis.settings.write.request.v1	molis.settings.values.v1	f62a1dbc1db6	aec621cbbb17	-
 projects.workspace.files.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	workspace:read	workspace	-	-	9a0d0d76ae5b	a2c799262a3c	-
 projects.workspace.git.inspect	1	platform	query	query	project	read	-	agent,mcp,user,workflow	workspace:read	workspace	-	-	5c51a17cf8a5	a2c799262a3c	-
 projects.workspace.git.operation.prepare	1	platform	command	operation	project	write	-	plugin	review:git-operation	workspace	-	-	3994c5ceffab	18a6c013818d	-

@@ -12,6 +12,7 @@ import { informationActions, INFORMATION_PROVIDER_ID } from "./information-actio
 import { ASSISTANT_RULES_PROVIDER, ASSISTANT_RULE_ACTIONS, ASSISTANT_FOLLOW_UP_ACTIONS, ASSISTANT_RUNS_ACTIONS } from "./assistant/assistant-rule-actions.js";
 import { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
 import { FUNCTIONS_PROVIDER_ID, functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
+import { projectRuntimeSettingOwner, runtimeSettingsActions } from "./project-runtime-setting-actions.js";
 import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions, projectPluginActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { MATERIALS_PROVIDER_ID, materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { HOST_PROVIDER_ID } from "./local-host.js";
@@ -78,6 +79,7 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [KIT_MCP_ACCESS_PROVIDER_ID, [KIT_READ_PERMISSION]],
     [INFORMATION_PROVIDER_ID, asks(Object.values(informationActions))],
     [FUNCTIONS_PROVIDER_ID, asks([...Object.values(functionsActions), ...Object.values(functionAuthoringActions), ...Object.values(functionContextActions)])],
+    [projectRuntimeSettingOwner.provider_id, asks(Object.values(runtimeSettingsActions))],
     [PROJECT_WORKSPACE_PROVIDER_ID, asks([...Object.values(projectDirectoryActions), ...Object.values(projectPluginActions), ...Object.values(materialRecentActions), ...Object.values(materialOriginActions)])],
     // The platform's materials service reads the person's own project folders, as Files did for them (Files retirement, BSH-08).
     // Held over this provider only; a route carries it in its cap only when it reads folders (`MATERIALS_OWNER_PERMISSIONS`).

@@ -10,7 +10,7 @@ import {
 import { closedObjectSchema } from "../platform/closed-object-schema.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { SandboxJson } from "../platform/plugin-sandbox.js";
-import { SETTINGS_CONSEQUENCES, SETTINGS_LAYERS, type SettingConsequence, type SettingLayer } from "../platform/settings.js";
+import { SETTINGS_CONSEQUENCES, SETTINGS_LAYERS, SETTINGS_SOURCES, type SettingConsequence, type SettingLayer, type SettingSource } from "../platform/settings.js";
 import { LOCALE_TAG } from "../platform/ui-text.js";
 
 /** The scene service's public contract (specs/scene-and-page-contract/spec.md): the draft, the adoption record and the eight actions declared here. The provider is batch 45's. */
@@ -74,7 +74,7 @@ export interface BlueprintPackSaveInput { source: DraftSource | { kind: "adoptio
 export interface BlueprintPackSaveResult { preview_id: string }
 
 export type BlueprintCurrentValue =
-  | { state: "present"; value: SandboxJson; origin: BlueprintPartOrigin | null; revision?: AdoptionRevision }
+  | { state: "present"; value: SandboxJson; origin: BlueprintPartOrigin | null; revision?: AdoptionRevision; setting_source?: SettingSource }
   | { state: "missing" }
   | { state: "unavailable"; reason: string };
 
@@ -82,16 +82,19 @@ export type BlueprintPreviewCandidate =
   | { kind: "owner"; action: ExactActionReference; subject?: ActionSubject; current: BlueprintCurrentValue }
   | { kind: "bundled"; plugin_id: string; version: string };
 
-const decisions = ["create", "reuse", "update", "needs_choice", "needs_install", "skip"] as const;
-export interface BlueprintPreviewPart {
+const actionableDecisions = ["create", "reuse", "update", "needs_choice", "needs_install"] as const;
+const previewSkipReasons = ["unsupported", "scope_mismatch", "owner_unavailable", "dependency_unmet"] as const;
+type PreviewDecision =
+  | { decision: (typeof actionableDecisions)[number] }
+  | { decision: "skip"; reason: (typeof previewSkipReasons)[number] };
+export type BlueprintPreviewPart = PreviewDecision & {
   part_id: string;
   proposal: BlueprintProposal;
   layer: SettingLayer;
   candidates: BlueprintPreviewCandidate[];
-  decision: (typeof decisions)[number];
   consequences: SettingConsequence[];
   affected_step_ids: string[];
-}
+};
 
 const dependencyChanges = ["added", "removed", "changed"] as const;
 export type BlueprintUpgradePart = {
@@ -219,7 +222,7 @@ const packResult = closedObjectSchema({ preview_id: token });
 const json = { type: ["null", "boolean", "number", "string", "array", "object"] } as const;
 const currentValue = { oneOf: [
   closedObjectSchema({
-    state: { const: "present" }, value: json, origin: { oneOf: [BLUEPRINT_PART_ORIGIN_SCHEMA, nullValue] }, revision: ADOPTION_REVISION_SCHEMA,
+    state: { const: "present" }, value: json, origin: { oneOf: [BLUEPRINT_PART_ORIGIN_SCHEMA, nullValue] }, revision: ADOPTION_REVISION_SCHEMA, setting_source: { enum: SETTINGS_SOURCES },
   }, ["state", "value", "origin"]),
   closedObjectSchema({ state: { const: "missing" } }),
   closedObjectSchema({ state: { const: "unavailable" }, reason: token }),
@@ -228,10 +231,14 @@ const previewCandidate = { oneOf: [
   closedObjectSchema({ kind: { const: "owner" }, action: exactAction, subject: ACTION_SUBJECT_SCHEMA, current: currentValue }, ["kind", "action", "current"]),
   closedObjectSchema({ kind: { const: "bundled" }, plugin_id: token, version: token }),
 ] };
-const previewPart = closedObjectSchema({
+const previewFields = {
   part_id: token, proposal: proposalBody, layer: { enum: SETTINGS_LAYERS }, candidates: items(previewCandidate),
-  decision: { enum: decisions }, consequences: { ...items({ enum: SETTINGS_CONSEQUENCES }), uniqueItems: true }, affected_step_ids: partIds,
-});
+  consequences: { ...items({ enum: SETTINGS_CONSEQUENCES }), uniqueItems: true }, affected_step_ids: partIds,
+} as const;
+const previewPart = { oneOf: [
+  closedObjectSchema({ ...previewFields, decision: { enum: actionableDecisions } }),
+  closedObjectSchema({ ...previewFields, decision: { const: "skip" }, reason: { enum: previewSkipReasons } }),
+] };
 const comparison = {
   part_id: token, current: currentValue, keep_user_changes: boolean,
   dependency_changes: items(closedObjectSchema({ part_id: token, change: { enum: dependencyChanges } })),

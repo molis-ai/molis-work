@@ -27,8 +27,7 @@ import { openProjectSchedulers, closeProjectSchedulers } from "./project-schedul
 import { refreshAfterScheduledAction } from "./plugin-scheduler-owner.js";
 import { precompileActionSchemas, refuseCall, type CallReports } from "@molis-ai/molis-work-kernel";
 import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
-import { projectPluginMembershipActionProvider, projectWorkspaceActionProvider, type ProjectCatalogOwner } from "./project-workspace-actions.js";
-import { announceWorkspaceSettingsChange } from "./workspace-settings-events.js";
+import { projectPluginMembershipActionProvider, openProjectWorkspaceProvider, type ProjectCatalogOwner } from "./project-workspace-actions.js";
 import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import { artifactActionProvider } from "./artifact-actions.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -76,6 +75,7 @@ import { resolveConfiguredHome } from "./product-home.js";
 import { LocalHost, type HostCapabilityHandler, type LocalHostOptions } from "./local-host.js";
 import { openProjectVersionStores, type ProjectVersionStores } from "./project-version-stores.js";
 import { LocalProjectDatabase } from "./project-database.js";
+import { projectRuntimeSettingProvider } from "./project-runtime-setting-actions.js";
 import { registerProjectCapabilities, type PrepareProjectDirectory } from "./project-capabilities.js";
 import { refreshRunningProjectPlugins, releaseProjectPlugins } from "./project-plugins.js";
 import { projectMaterialsProvider } from "./system-materials-actions.js";
@@ -247,13 +247,9 @@ export class MolisWorkLocalHost {
             add(surfaceActionProvider({ store, reference, homeDirectory: options.homeDirectory, readCatalog,
               client: this.host.actionClient(reference),
               home: () => this.homePlugins, placement: () => this.placement, now: clock }));
-            add(projectWorkspaceActionProvider(reference.project_id, catalogOwner,
-              workspaceId => announceWorkspaceSettingsChange(store, reference.project_id, workspaceId), {
-                client: this.actionClient(reference), db: store.db, now: clock,
-                versionKept: pin => (pin.mode === "fixed" ? runtime.artifacts.query : runtime.processItems.query)
-                  .getArtifactVersion(reference.project_id, pin.version)?.availability === "available",
-                imported: version => runtime.artifacts.query.getArtifactVersion(reference.project_id, version)?.origin.kind === "imported",
-              }, options.directoriesFor));
+            add(projectRuntimeSettingProvider(reference.project_id, store.db,
+              () => this.agents?.service.agentHost.descriptors() ?? [], () => this.agents?.service.ready));
+            add(openProjectWorkspaceProvider(runtime, catalogOwner, this.actionClient(reference), clock, options.directoriesFor));
             add(artifactActionProvider(runtime, options, this.actionClient(reference))); add(projectMaterialsProvider(runtime, this.actionClient(reference), options));
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));

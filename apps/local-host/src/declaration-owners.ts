@@ -1,5 +1,6 @@
 import { pluginErrors, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { holdsInstalledEdition, pluginManifestDigest, readPluginReleaseManifest, type DeclarationOwner, type DeclarationOwners } from "@molis-ai/molis-work-plugin-runtime";
+import { projectRuntimeSettingOwner } from "./project-runtime-setting-actions.js";
 import { HOST_ARTIFACT_PRODUCERS } from "./artifact-type-registry.js";
 import { heldInstalls, sameInstallScope, type InstallScope } from "./plugin-holders.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
@@ -36,8 +37,13 @@ const shippedOwners = (): DeclarationOwner[] => [...PLATFORM_PLUGIN_REGISTRATION
   ...HOST_ARTIFACT_PRODUCERS.map(host => ({ plugin_id: host.plugin_id, artifacts: { produces: host.produces, consumes: [] } }))];
 
 /** A development run has only its own installation and the artifact names the build reserves (S-82). */
+const systemSettings = (): DeclarationOwner[] => [{
+  plugin_id: projectRuntimeSettingOwner.provider_id,
+  settings: projectRuntimeSettingOwner.settings_entries.entries.map(entry => entry.key),
+}];
+
 export function developmentDeclarationOwners() {
-  const shipped = shippedOwners();
+  const shipped = [...shippedOwners(), ...systemSettings()];
   return (): readonly DeclarationOwner[] => shipped;
 }
 
@@ -59,7 +65,7 @@ export function declarationOwnersFor(home: string | null, current: NonNullable<P
     try {
       const held = artifacts || settings ? heldInstalls(home, current, artifacts ? undefined : projectSettings,
         (record, scope) => artifactOwner(record) || settingOwner(record, scope)) : [];
-      return [...onlySettings ? [] : shipped, ...held.map(item => {
+      return [...onlySettings ? [] : shipped, ...settings ? systemSettings() : [], ...held.map(item => {
         const readable = item.manifest ?? (sameInstallScope(item.scope, current.scope) ? exactDefinition(running(item.record.plugin_id), item.record) : undefined);
         if (!readable) throw unreadable(item.record);
         return { plugin_id: item.record.plugin_id,

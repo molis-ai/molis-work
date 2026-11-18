@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { PROJECT_RUNTIME_KEY, runtimeSettingsActions } from "./project-runtime-setting-actions.js";
 import { PLUGIN_ID } from "@molis-ai/molis-work-plugin-sdk";
 import { handleSkillSettingsHttp } from "./agent-definitions/skill-settings-http.js";
 import { handleKitSettingsHttp } from "./kit-settings-http.js";
@@ -97,17 +99,30 @@ export const projectRuntimeRoute: WebRoute<ProjectRuntimeContext> = { id: "proje
   if (url.pathname !== "/api/project-settings/runtime" || !options.project || !["GET", "POST"].includes(request.method ?? "")) return false;
   const actions = bindLocalWebActions(localHost, hostReference, ["projects:settings"]);
   try {
-    if (request.method === "POST") {
-      const { runtime_id: runtimeId } = await readBody(request);
-      if (runtimeId !== null && typeof runtimeId !== "string") throw new ActionError("actions.input_invalid", "请选择一个运行时，或恢复为默认运行时");
-      await actions.invoke(projectSettingsCapabilities.selectRuntime, [runtimeId]);
-    }
-    // The directory is the Host's own (`agent.runtimes` is for plugins); the person's pick is the registered project setting.
     await agentReady();
-    const runtimes = agentHost.descriptors(), selected = await actions.invoke(projectSettingsCapabilities.runtime, []);
+    const read = async () => (await actions.invoke(runtimeSettingsActions.read, { keys: [PROJECT_RUNTIME_KEY] })).values[0]!;
+    let setting;
+    if (request.method === "POST") {
+      const { runtime_id: runtimeId, expected_revision, request_id } = await readBody(request);
+      if (runtimeId !== null && typeof runtimeId !== "string") throw new ActionError("actions.input_invalid", "请选择一个运行时，或恢复为默认运行时");
+      // Existing clients submit the selection alone. The settings page submits the revision it displayed.
+      const revision = expected_revision === undefined && request_id === undefined ? (await read()).revision : expected_revision;
+      const requestId = expected_revision === undefined && request_id === undefined ? randomUUID() : request_id;
+      if (typeof revision !== "string" || typeof requestId !== "string") throw new ActionError("actions.input_invalid", "保存需要已查看的版本和请求编号");
+      const result = await actions.invoke(runtimeSettingsActions.write, { key: PROJECT_RUNTIME_KEY, layer: "project",
+        change: runtimeId === null ? { inherit: true } : { set: runtimeId },
+        expected_revision: revision, request_id: requestId });
+      setting = result.values[0]!;
+    } else {
+      setting = await read();
+    }
+    const runtimes = agentHost.descriptors();
+    // Unavailable includes both a missing explicit runtime and a Home with no default. The old raw-pick action distinguishes them.
+    const selected = setting.state === "unavailable" ? await actions.invoke(projectSettingsCapabilities.runtime, [])
+      : typeof setting.layers?.project === "string" ? setting.layers.project : null;
     const resolved = resolveProjectRuntime(runtimes, selected);
     sendJson(response, 200, { runtimes: runtimes.filter(hostsAgentSessions).map(({ runtime_id, display_name }) => ({ runtime_id, display_name })),
-      selected, problem: resolved.picked && !resolved.runtime ? resolved.reason : null });
+      selected, revision: setting.revision, problem: resolved.picked && !resolved.runtime ? resolved.reason : null });
   } catch (error) { const refusal = actionErrorResponse(error); sendJson(response, refusal.status, refusal.body); }
   return true;
 } };

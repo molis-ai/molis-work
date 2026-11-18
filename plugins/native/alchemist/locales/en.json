@@ -257,7 +257,7 @@
     "alchemist.ui.collection-market-pulse": "Market pulse",
     "alchemist.ui.discuss": "Discuss",
     "alchemist.ui.discussion-annotations-item": "Discussion and annotations for this item",
-    "alchemist.ui.every-project-shares-choice-git-hub-source-uses": "Shared across all projects. The GitHub source uses only the selected account without exposing its token; without an account, it searches anonymously with lower rate limits. Manage accounts in Settings › Service connections.",
+    "alchemist.ui.every-project-shares-choice-git-hub-source-uses": "Every project shares this choice. The GitHub source uses only the selected account without exposing its token; without an account, it searches anonymously with lower rate limits. Manage accounts in Settings › Service connections.",
     "alchemist.ui.example-reuse-interview-questions-recheck-pricing-competitor-cha": "For example: reuse the interview questions; recheck pricing and competitor changes.",
     "alchemist.ui.examples-where-applies": "Examples where it applies",
     "alchemist.ui.examples-where-doesn-t-apply": "Examples where it doesn’t apply",

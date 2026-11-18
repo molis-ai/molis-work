@@ -66,7 +66,7 @@ test("SKL-11 SKL-12 SKP-10: the shell's panel says why a Skill was used, changes
   // SKL-11: why, the facts to judge it by, and what can be done — this round, and from now on.
   await open(0);
   const said = await panel();
-  for (const words of ["会议纪要", "AI 按这一轮的任务自己选的。", "做什么", "用户要做会议纪要时使用。", "来自", "现在的设置", "自动", "这一轮", "换一个重做", "这次不用技能，重做", "以后", "改成仅手动", "停用"]) assert.ok(said.includes(words), `the panel says 「${words}」:\n${said}`);
+  for (const words of ["会议纪要", "AI 按本轮任务自动选用。", "做什么", "用户要做会议纪要时使用。", "来自", "现在的设置", "自动", "这一轮", "换一个重做", "这次不用技能，重做", "以后", "改成仅手动", "停用"]) assert.ok(said.includes(words), `the panel says 「${words}」:\n${said}`);
   assert.equal(await page.evaluate("document.activeElement?.getAttribute('role')"), "menuitem", "the keyboard starts on the first action");
   assert.equal(await page.evaluate("document.querySelector('[data-skill-why]').matches(':popover-open') && document.querySelector('[data-skill-why]').getAttribute('role')"), "dialog");
   const box = await page.evaluate<{ left: number; top: number; right: number; bottom: number }>("(({ left, top, right, bottom }) => ({ left, top, right, bottom }))(document.querySelector('[data-skill-why]').getBoundingClientRect())");

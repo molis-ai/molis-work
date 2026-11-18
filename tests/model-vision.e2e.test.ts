@@ -58,12 +58,12 @@ test("SYS-12 ISSUE-54 model settings preserve three image states and Issue uses 
       const [issue] = (await v.list()).items;
       assert.equal((await v.read(issue!.id)).images.length, 1);
     } else {
-      await v.until("$('[data-state=attention]')?.textContent.includes('截图没有交给它')", 20_000);
+      await v.until("$('[data-state=attention]')?.textContent.includes('截图未发送给模型')", 20_000);
       assert.equal(namings.length, 0); assert.equal(requests.length, previousCalls);
       assert.equal((await v.list()).items.length, 0);
       await v.press("[data-state=attention]");
       assert.equal(await v.ask("d.querySelectorAll('[data-issue-edit-shots] img').length"), 1, "the screenshot stays available for correction");
-      assert.match(await v.ask<string>("$('[data-issue-flag]').textContent"), /设置 → 模型 → 供应商的模型列表/);
+      assert.match(await v.ask<string>("$('[data-issue-flag]').textContent"), /设置 › 模型/);
       await v.press("[data-issue-cancel]"); await v.until("$('[data-issue-dialog]').open");
       await v.press("[data-issue-dialog] [value=confirm]"); await v.until("$('[data-issue-detail]').hidden && !$('[data-state]')");
     }

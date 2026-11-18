@@ -72,7 +72,7 @@ const supplement = (steer: Record<string, unknown>): Turn => ({ turn_id: "t1", k
 test("RCPT-311, RC-12: the fact line says only the ledger's state, and the model's claim is a separate line marked as what the AI says", () => {
   const { ui } = receipts();
   const facts = ["received", "applied", "read", "unread", "withdrawn"].map(state => ui.line(here, { ...supplement({ state }), turn_id: state })!.all("mw-receipt__fact")[0]!.text);
-  assert.deepEqual(facts, ["已送达", "AI 已收到，正在等它回应", "AI 已读到", "这一轮结束时 AI 没读到，留给下一轮", "已撤回"]);
+  assert.deepEqual(facts, ["已送达", "AI 已收到，等它回应", "AI 已读到", "这一轮结束时 AI 没读到，留给下一轮", "已撤回"]);
   const root = ui.line(here, supplement({ state: "read", model_claim: claim }))!;
   assert.equal(root.all("mw-receipt__fact")[0]!.text, "AI 已读到", "a claim never moves the fact");
   assert.equal(root.all("mw-receipt__claim")[0]!.text, "AI 说留到后面某一步 · 影响范围、验收条件");

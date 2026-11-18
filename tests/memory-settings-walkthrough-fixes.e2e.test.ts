@@ -38,7 +38,7 @@ test("BL-1076 「明确要求时记住」 says it is not in effect while 允许�
     await open(page, env.origin + "/settings/memory");
     assert.equal(await ask(" [data-memory-pref-ask-value]"), "不生效");
     assert.equal(await ask(""), "true");
-    assert.match(await ask(" [data-memory-pref-ask-copy]"), /说“记住……”也不会记下/);
+    assert.match(await ask(" [data-memory-pref-ask-copy]"), /说「记住……」不会保存记忆/);
   } finally { await browser.close(); await rm(directory, { recursive: true, force: true }); }
 });
 

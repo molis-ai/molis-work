@@ -247,7 +247,7 @@
     "common.input-receipts.correction-sent": "更正已发出",
     "common.input-receipts.corrects": "纠正：针对",
     "common.input-receipts.earlier-one": "更早的一条",
-    "common.input-receipts.fact.applied": "AI 已收到，正在等它回应",
+    "common.input-receipts.fact.applied": "AI 已收到，等它回应",
     "common.input-receipts.fact.read": "AI 已读到",
     "common.input-receipts.fact.received": "已送达",
     "common.input-receipts.fact.unread": "这一轮结束时 AI 没读到，留给下一轮",

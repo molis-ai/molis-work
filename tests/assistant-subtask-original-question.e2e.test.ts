@@ -49,9 +49,38 @@ for (const source of ["work", "sdk"] as const) test(`${source} child ordinary ch
   await b.waitFor("document.querySelector('[data-work-task-float]')?.textContent.includes('Ordinary supplement, not a questionnaire answer')");
   assert.equal(childCalls, 1, "ordinary chat cannot settle the pending question or restart its Run");
   assert.ok(await b.evaluate(`!!document.querySelector(${JSON.stringify(field)})`));
+  const answerButton = '[data-work-task-float] [data-ix-action="answer"]';
+  const requests = new Map<string, { action: string; status?: number }>();
+  if (source === "work") {
+    await b.command("Network.enable", {}, b.sessionId);
+    t.after(b.on("Network.requestWillBeSent", event => {
+      const request = event.request as { method: string; url: string };
+      const match = new URL(request.url).pathname.match(/^\/api\/assistant\/works\/[^/]+\/(question-draft|answer|resume-answer)$/u);
+      if (request.method === "POST" && match) requests.set(String(event.requestId), { action: match[1]! });
+    }));
+    t.after(b.on("Network.responseReceived", event => {
+      const request = requests.get(String(event.requestId));
+      if (request) request.status = (event.response as { status: number }).status;
+    }));
+    await b.evaluate(`(() => {
+      const selector = ${JSON.stringify(answerButton)};
+      const trace = window.__originalAnswerEvents = [];
+      let pressed;
+      for (const type of ['pointerdown', 'pointerup', 'click']) document.addEventListener(type, event => {
+        const button = event.target.closest(selector);
+        if (type === 'pointerdown') pressed = button;
+        trace.push({type, answer: !!button, sameButton: !!pressed && pressed === button});
+      }, {capture: true, once: true});
+    })()`);
+  }
   await b.evaluate(`(()=>{const input=document.querySelector(${JSON.stringify(field)});input.value='45';input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-  await b.click('[data-work-task-float] [data-ix-action="answer"]');
-  await b.waitFor("document.querySelector('[data-work-task-float]')?.textContent.includes('ORIGINAL_ANSWER_45_ACCEPTED')", 20_000);
+  await b.click(answerButton);
+  try { await b.waitFor("document.querySelector('[data-work-task-float]')?.textContent.includes('ORIGINAL_ANSWER_45_ACCEPTED')", 20_000); }
+  catch (error) {
+    const ui = await b.evaluate(`({events: window.__originalAnswerEvents, answerVisible: !!document.querySelector(${JSON.stringify(answerButton)}), note: document.querySelector('[data-work-task-float] [data-ix-note]')?.textContent})`);
+    t.diagnostic(JSON.stringify({ childCalls, requests: [...requests.values()], ui }));
+    throw error;
+  }
   assert.equal(childCalls, 2);
   assert.ok(JSON.stringify(childBodies[1]!.messages).includes("45"));
   assert.ok(JSON.stringify(childBodies[1]!.messages).includes("Ordinary supplement, not a questionnaire answer"));

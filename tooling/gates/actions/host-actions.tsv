@@ -4,11 +4,11 @@
 # Manifest. provider is the id the Host registers them under. Same columns and reading as actions.tsv. When a plugin declares one of them in
 # its Manifest, the row moves to actions.tsv; a row with no Manifest is a contract nothing in the plugin's package carries.
 capability_id	version	provider	operation	kind	scope	effect	scheduling	audiences	permissions	subjects	input_type	output_type	input	output	traits
-acceptance.decide	1	system.acceptance	command	operation	project	write	concurrent	user	acceptance:decide	acceptance_check,acceptance_requirement,acceptance_subject	-	-	06fef9219267	09c0bb81fb00	976055ad574b
-acceptance.deliveries.record	1	system.acceptance	command	operation	project	write	concurrent	agent,user,workflow	acceptance:report	-	-	-	9e0a5488b919	09c0bb81fb00	-
-acceptance.read	1	system.acceptance	query	query	project	read	concurrent	agent,user,workflow	acceptance:read	-	-	-	52fee4b74cc1	4f631085c601	-
-acceptance.reports.submit	1	system.acceptance	command	operation	project	write	concurrent	agent,workflow	acceptance:report	-	-	-	7fefdb6244a1	09c0bb81fb00	-
-acceptance.requirements.set	1	system.acceptance	command	operation	project	write	concurrent	agent,user,workflow	acceptance:report	-	-	-	4c232c4c5c32	09c0bb81fb00	-
+acceptance.decide	1	system.acceptance	command	operation	project	write	concurrent	user	acceptance:decide	acceptance_check,acceptance_requirement,acceptance_subject	-	-	06fef9219267	384b87fb0423	976055ad574b
+acceptance.deliveries.record	1	system.acceptance	command	operation	project	write	concurrent	agent,user,workflow	acceptance:report	-	-	-	9e0a5488b919	384b87fb0423	-
+acceptance.read	1	system.acceptance	query	query	project	read	concurrent	agent,user,workflow	acceptance:read	-	-	-	52fee4b74cc1	846232c4ba5a	-
+acceptance.reports.submit	1	system.acceptance	command	operation	project	write	concurrent	agent,workflow	acceptance:report	-	-	-	7fefdb6244a1	384b87fb0423	-
+acceptance.requirements.set	1	system.acceptance	command	operation	project	write	concurrent	agent,user,workflow	acceptance:report	-	-	-	4c232c4c5c32	384b87fb0423	-
 acceptance.review	1	system.acceptance	query	query	project	read	concurrent	user	acceptance:read	acceptance_check,acceptance_requirement,acceptance_subject	-	-	72f0db8bc372	a2c799262a3c	-
 account.entitlements.check	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	4f580efa7d71	fed40eaf2d30	-
 account.features.list	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	a5a61327c9d4	6204f82b0cd6	-
@@ -113,10 +113,10 @@ agent.session.recovery	1	platform	query	query	project	read	-	plugin	-	-	-	-	39ce
 agent.session.unarchive	1	platform	command	operation	project	write	-	plugin	-	-	-	-	39ce5b1e5db9	4e73391f1121	-
 agent.sessions.status	1	platform	query	query	project	read	-	plugin	-	-	-	-	b1def1398a94	d41ff5436dd7	-
 agent.subagents.command	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	d641c98b5b5d	fd39317e4722	-
-agent.subagents.conversation	1	platform	query	query	project	read	-	plugin	-	-	-	-	a6e720313ceb	ae78fe550bd0	-
+agent.subagents.conversation	1	platform	query	query	project	read	-	plugin	-	-	-	-	a6e720313ceb	09a6c57fc09a	-
 agent.subagents.list	1	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060871	3a246608b069	-
 agent.subagents.request	1	platform	query	query	project	read	-	plugin	-	-	-	-	0b4d42c12d48	fd39317e4722	-
-agent.subagents.wait	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	6fa1756fd794	870735418f81	046efc93b6ac
+agent.subagents.wait	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	6fa1756fd794	208b25271bb7	046efc93b6ac
 agent.task_grants.clear	1	system.task-grants	command	operation	project	write	-	plugin,user	-	-	-	-	2f8424427527	939c976f491f	-
 agent.task_grants.list	1	system.task-grants	query	query	project	read	-	plugin,user	-	-	-	-	90f264064219	e5f995eece15	-
 agent.task_grants.set	1	system.task-grants	command	operation	project	write	-	user	projects:settings	project	-	-	65c4dcc42cc6	84610c1025f6	-
@@ -175,7 +175,7 @@ automation.recommendations.report.save	1	system.automation-recommendations	comma
 automation.recommendations.scan	1	system.automation-recommendations	query	query	project	read	concurrent	user	-	-	-	-	d746974fa9af	a2c799262a3c	-
 background.tasks.command	1	system.mainline	command	operation	project	write	concurrent	user	mainline:control	-	-	-	b72eab443ba0	5eeca3761a19	-
 background.tasks.decide	1	system.mainline	command	operation	project	write	concurrent	user	mainline:control	-	-	-	8d4343f573d8	92203e6141bb	-
-background.tasks.read	1	system.mainline	query	query	project	read	concurrent	user	mainline:read	-	-	-	99334726611c	23055dde9058	-
+background.tasks.read	1	system.mainline	query	query	project	read	concurrent	user	mainline:read	-	-	-	99334726611c	b9c9586aef93	-
 characters.actions.catalog	1	io.molis.work.characters	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	character	-	-	d746974fa9af	42fe29f1a110	-
 characters.artifacts.preview	1	io.molis.work.characters	query	query	project	read	concurrent	user,workflow	artifact:read	artifact	molis.artifacts.preview.request.v1	molis.artifacts.preview.v1	b5dd5a809ad7	3197f1792222	5e0374458cf9
 characters.create	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user,workflow	-	character	-	-	5628c4ab377d	5479a296af31	-
@@ -301,7 +301,7 @@ mainline.items.create	1	system.mainline	command	operation	project	write	concurre
 mainline.items.move	1	system.mainline	command	operation	project	write	concurrent	agent,mcp,user	mainline:arrange	-	-	-	f504273218f3	93d87603519b	-
 mainline.items.remove	1	system.mainline	command	operation	project	write	concurrent	agent,mcp,user	mainline:arrange	-	-	-	4d0d60726172	93d87603519b	-
 mainline.items.rename	1	system.mainline	command	operation	project	write	concurrent	agent,mcp,user	mainline:arrange	-	-	-	5d3d5bdd8f5e	93d87603519b	-
-mainline.line.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	b52cab3beee0	943f5e933f5a	-
+mainline.line.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	b52cab3beee0	2dfe24191e1f	-
 mainline.place	1	system.mainline	command	operation	project	write	concurrent	agent,mcp,user	mainline:place	-	-	-	ba18f726ac6a	aef3a8191520	-
 mainline.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	6fa80a88b0fe	2364515194bb	-
 mainline.subject.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	mainline:read	work_item	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	07aea27d3e00	-

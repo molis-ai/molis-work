@@ -185,10 +185,11 @@ export function renderCodingDirectory(model: CodingUiModel): string {
  */
 export function renderCodingSessionRow(entry: CodingSessionEntry, p: CodingUiPrimitives): string {
   const mark = CODING_SESSION_MARKS[entry.state], id = p.escape(entry.session_id), shown = entry.title === DEFAULT_SESSION_TITLE ? uiText.text("coding.session.new-title") : entry.title;
+  const state = p.escape(uiText.text(mark.label));
   return `<a class="mw-dir-row mw-dir-row--meta coding-session-row" href="#session-${p.escape(encodeURIComponent(entry.session_id))}" data-coding-session="${id}" aria-current="false">`
     + `<span class="mw-dir-row__icon">${p.icon(CODING_DIRECTORY_FACES[0].icon)}</span><span class="mw-dir-row__copy"><span class="mw-dir-row__headline">`
     + `<strong class="coding-session-title" title="${p.escape(shown)}">${p.escape(shown)}</strong><time class="mw-dir-row__count coding-session-time" datetime="${p.escape(entry.updated_at)}">${p.escape(p.formatDate(entry.updated_at))}</time></span>`
-    + `<small class="coding-session-state" data-state="${p.escape(entry.state)}" data-mw-state="${mark.ring}">${p.escape(uiText.text(mark.label))}</small></span></a>`;
+    + `<small class="coding-session-state" data-state="${p.escape(entry.state)}" data-mw-state="${mark.ring}" title="${state}">${state}</small></span></a>`;
 }
 
 /** A Goal's sessions under its heading (or the real group of sessions with no Goal). */
@@ -495,7 +496,6 @@ export function renderCodingSettings(model: CodingSettingsModel): string {
     <style>${CODING_SETTINGS_STYLES}</style>
     <header class="settings-heading"><div class="settings-heading-title"><h1>${p.escape("Coding")}</h1></div>
       <p>${p.escape(uiText.text("coding.settings.lede"))}</p>
-      <p><a href="/settings/models">${p.escape(uiText.text("coding.settings.models"))}</a>${model.project_href ? ` · <a data-settings-return-workbench href="${p.escape(model.project_href)}?returnToWorkbench=1">${p.escape(uiText.text("coding.settings.back"))}</a>` : ""}</p>
     </header>
     <section class="settings-section" aria-label="${p.escape(uiText.text("coding.attach.character"))}">
       <h2>${p.escape(uiText.text("coding.settings.roles"))}</h2>

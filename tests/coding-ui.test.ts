@@ -4,6 +4,7 @@ import { pageText, withPageText } from "./fixtures/page-text.js";
 
 import {
   renderCodingDirectory as drawCodingDirectory,
+  renderCodingSettings,
   renderCodingWorkbench as drawCodingWorkbench,
   toolAvailability,
   type CodingSessionEntry,
@@ -107,6 +108,17 @@ test("会话按 Goal 分组渲染，未关联目标是一个真实分组", () =>
   // The group with no Goal is named as the page's live list names it (VUX-39: the first paint read 未关联目标, untranslated).
   assert.match(html, /<h2 class="mw-dir__heading" data-slot="directory-heading">未关联目标<\/h2>/);
   // Each row carries its state in words and its state ring, as the live list draws it (VUX-39: the first paint had no ring).
-  assert.match(html, /<small class="coding-session-state" data-state="running" data-mw-state="running">执行中<\/small>/);
-  assert.match(html, /<small class="coding-session-state" data-state="done" data-mw-state="idle">/);
+  // The word is the chip's title too: in a narrow column a state that asks nothing shows only its ring (screen-polish P0).
+  assert.match(html, /<small class="coding-session-state" data-state="running" data-mw-state="running" title="执行中">执行中<\/small>/);
+  assert.match(html, /<small class="coding-session-state" data-state="done" data-mw-state="idle" title="[^"]+">/);
+});
+
+// screen-polish P0: the settings page drew 「配置模型与凭据 · 返回工作台」 under its lede; both are the settings shell's own (its
+// directory lists 模型设置, its tab closes), so the page carries neither.
+test("Coding 设置页不带设置外壳已有的两个旧链接", () => {
+  const html = withPageText("zh", ["coding"], () => renderCodingSettings({ roles: [], runtimes: [], project_href: "/projects/p1/", project_name: "项目一", primitives }));
+  assert.match(html, /data-coding-settings/);
+  assert.doesNotMatch(html, /href="\/settings\/models"/);
+  assert.doesNotMatch(html, /data-settings-return-workbench/);
+  assert.doesNotMatch(html, /返回工作台|配置模型与凭据/);
 });

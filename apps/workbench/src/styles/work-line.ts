@@ -147,7 +147,9 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 .work-line-latest{position:absolute;right:0;padding:0 6px}
 /* An event: one thing on the line, registered by a plugin or the Assistant. Its state is a word as well as a look; the tasks behind it show as a ring and a count. */
 .work-event{gap:7px;height:32px;max-width:300px;padding:0 10px 0 6px;border:0;border-radius:999px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink);font-size:12px;font-weight:500}
-.work-line-wing[data-wing="past"] .work-event{max-width:min(300px,calc(100% - 4px))}
+.work-line-wing .work-event{max-width:min(300px,calc(100% - 4px))}
+/* An event brought into the next wing (focus, a press on it) lands inside the run's own 2px, whole, as the wing counts it. */
+.work-line-wing[data-wing="next"] .work-line-run{scroll-padding-inline:2px}
 .work-event[data-cut]{opacity:0;pointer-events:none}
 .work-event[aria-current]{box-shadow:inset 0 0 0 1.5px var(--ink)}
 .work-event[data-fresh]{animation:craft-rise-from-bar var(--dur-move) var(--ease-spring,var(--ease-quint))}
@@ -321,6 +323,12 @@ html body.immersive-workbench[data-acceptance-open=true] [data-plugin-stage]{mar
 .work-reply-peek-head{display:flex;align-items:center;gap:6px;min-width:0;color:var(--muted);font-size:11px;white-space:nowrap}
 .work-reply-peek-fill{flex:1 1 auto}
 .work-reply-peek p{margin:0}
+/* The reply's own blocks, read as running text: three lines have no room for a heading's size or a block's margins. The
+   dialog spaces the same blocks under the workbench's body (.assistant-rich), so these are written under it too. */
+${SHELL} .work-reply-peek-body :is(p,h1,h2,h3,h4,h5,h6,ul,ol,li,blockquote,pre,figure,table){margin:0}
+${SHELL} .work-reply-peek-body :is(h1,h2,h3,h4,h5,h6){font:inherit;font-weight:600;line-height:inherit}
+${SHELL} .work-reply-peek-body :is(ul,ol){padding-inline-start:1.4em}
+.work-reply-peek-body hr{display:none}
 [data-assistant-island]>.work-reply-peek{position:absolute;z-index:49;right:0;bottom:calc(100% + 8px + var(--next-row,0px) + var(--context-row,0px));left:0}
 .work-reply-peek-body{max-height:4.95em;overflow:hidden;overflow-wrap:anywhere}
 /* Folded, the dialog's row is the line's own right end (user decision 2026-11-15): on the line, over nothing of the work, and the next wing stops before it. */
@@ -362,7 +370,7 @@ html[data-craft-still] ${ANIMATED}{animation:none}
   .work-line-now{flex:none}
   .work-line-row .work-line-wing .work-line-head{height:44px;min-width:44px;justify-content:center}
   .work-line-head-name,.work-event-note{display:none}
-  .work-event,.work-line-wing[data-wing="past"] .work-event{height:44px;max-width:min(240px,var(--cap-max,240px))}
+  .work-event,.work-line-wing .work-event{height:44px;max-width:min(240px,var(--cap-max,240px))}
   .work-line-wing[data-wing="past"] .work-line-run>:last-child{max-width:min(240px,var(--near-max,240px))}
   /* The closed dialog's row is above the input here too: it is the end of the track, over nothing of the work, and the events stop before it. */
   .work-line-row>.work-reply-mini{height:48px;padding:0 0 0 4px;background:var(--desk);box-shadow:-6px 0 6px -2px var(--desk);animation:none}

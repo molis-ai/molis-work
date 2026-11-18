@@ -9391,6 +9391,7 @@
     "workbench.settings-web-search.by-agent": "助理或 Agent",
     "workbench.settings-web-search.by-client": "外部客户端",
     "workbench.settings-web-search.switched": "以后的搜索用 {name}；正在跑的那次照旧。",
-    "workbench.settings-web-search.connect-more": "连接一个能搜索的服务"
+    "workbench.settings-web-search.connect-more": "连接一个能搜索的服务",
+    "workbench.settings-plugins.integration-id-taken": "它声明的服务或集成 ID 已被另一个插件占用（多半是 Molis Work 更新后自带了同一个服务），重试也起不来；可以卸载它，或等发布者换一个 ID"
   }
 }

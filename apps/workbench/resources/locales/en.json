@@ -10160,6 +10160,7 @@
     "workbench.settings-web-search.by-agent": "The assistant or an agent",
     "workbench.settings-web-search.by-client": "An external client",
     "workbench.settings-web-search.switched": "Later searches use {name}; one under way keeps its source.",
-    "workbench.settings-web-search.connect-more": "Connect a search service"
+    "workbench.settings-web-search.connect-more": "Connect a search service",
+    "workbench.settings-plugins.integration-id-taken": "A service or integration ID it declares is now held by another plugin (most often one Molis Work added in an update), so retrying won’t start it. Uninstall it, or wait for its publisher to change the ID"
   }
 }

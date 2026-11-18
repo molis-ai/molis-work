@@ -124,7 +124,7 @@ test("WLN-35: the reply above the input reads as the dialog draws it, folds on a
   assert.equal(await evaluate(`${BODY}.querySelector('button')`), null, "the reply's buttons stay in the dialog");
   assert.equal(await evaluate(`${BODY}.querySelectorAll('li')[1].textContent`), "没有按版本分节，已把发布说明放进项目", "a named object keeps its words in the sentence");
   // WLN-35 / VUX-33: a syntax pass changes nodes in the dialog, while a genuine revision changes the preview.
-  const message = "document.querySelector('[data-assistant-thread] .assistant-msg--assistant:last-child')";
+  const message = "document.querySelector('[data-reply-id=\"work:run:report\"]')";
   await evaluate(`const figure = document.createElement('figure'); figure.className = 'assistant-code';
     figure.innerHTML = '<pre><code>const x = 1</code></pre>'; ${message}.append(figure);`);
   await waitFor(`${BODY}.querySelector('pre code')?.textContent === 'const x = 1'`);
@@ -142,11 +142,11 @@ test("WLN-35: the reply above the input reads as the dialog draws it, folds on a
   await evaluate(`${message}.dataset.text = ${JSON.stringify(SOURCE)}; ${message}.querySelector('h2').textContent = '现状'`);
   await waitFor(`${BODY}.querySelector('h2')?.textContent === '现状'`);
 
-  // HTML highlighting puts the CR after the tag name and the LF inside the following attribute span.
+  // QEA-203: HTML highlighting can split CRLF across two tokens. Update the same reply, then restore its original rendering.
   const htmlCode = '<a\r\nhref="x">\r\nthird\r\nfourth', fenced = "```html\n" + htmlCode + "\n```";
-  await evaluate(reply(fenced, assistantTextHtml(fenced, [], key => key)));
+  await evaluate(`${message}.dataset.text = ${JSON.stringify(fenced)}; ${message}.innerHTML = ${JSON.stringify(assistantTextHtml(fenced, [], key => key))}`);
   await waitFor(`${BODY}.querySelector('pre code')?.textContent === ${JSON.stringify(htmlCode.slice(0, htmlCode.lastIndexOf("\r\n")))}`);
-  await evaluate(reply(SOURCE, RENDERED));
+  await evaluate(`${message}.dataset.text = ${JSON.stringify(SOURCE)}; ${message}.innerHTML = ${JSON.stringify(RENDERED)}`);
   await waitFor(`${BODY}.querySelector('h2')?.textContent === '现状'`);
 
   // A plugin's page tells the shell of a press inside it (molis:surface-interaction, plugin-frame/parent.ts): the row folds.

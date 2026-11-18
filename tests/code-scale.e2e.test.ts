@@ -282,7 +282,7 @@ test("VUX-33 QEA-176: the Assistant's large block streams in place, reopens as t
   assert.ok(firstColour >= 1 && firstColour <= 2, `plain text appears first, then colouring starts within two frames (first coloured sample: ${firstColour})`);
   assert.ok(painting.every(([, , spans], index) => index <= firstColour || spans > painting[index - 1]![2]), "after colouring starts each frame colours more of it");
   const gaps = painting.slice(1).map(([at], index) => at - painting[index]![0]), longest = Math.max(0, ...gaps);
-  t.diagnostic(`QEA-176 reopened ${code.length} characters, ${firstColour} plain frames, longest frame ${longest.toFixed(1)} ms`);
+  t.diagnostic(`QEA-176 reopened ${code.length} characters, ${firstColour} plain frames, longest frame ${longest.toFixed(1)} ms (intervals: ${gaps.map(gap => gap.toFixed(1)).join(", ")} ms)`);
   assert.ok(longest < 100, `the longest frame while it is coloured: ${longest.toFixed(1)} ms`);
   assert.equal(await evaluate<string>(`${figure}.querySelector('code').innerHTML`), expected.html, "reopened colouring matches the whole colouring");
   const preview = await evaluate<{ text: string; hasSource: boolean; hasPaint: boolean }>(`(() => {

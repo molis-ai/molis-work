@@ -1,6 +1,6 @@
 # Molis Work 代码质量与实际体验审查
 
-状态：进行中。负责人 Codex。按 2026-11-16 确认的原始范围验收本轮改造。初始基线 `efdaa3376`。候选 `9c4087e1e9` 相对主干 `651432a3ba` 已通过 Verify 与 Full。第 117 批整合任务回焦、角色合同和事项归属，第 118 批同步主干 `afaeabdd4a` 的逐屏界面修复。分支 `codex/quality-experience-audit`，远端记录见草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101)。
+状态：进行中。负责人 Codex。按 2026-11-16 确认的原始范围验收本轮改造。初始基线 `efdaa3376`。候选 `97a60acd51` 已通过 Verify 与 48 片 Full。第 122 批组合主干 `f1e875d11e` 的前三行预览和本轮的原回复身份，完成本机实操与资源对照后进行准确组合的远端验收。分支 `codex/quality-experience-audit`。 [草稿 PR #2101](https://github.com/molis-ai/molis-work/pull/2101)
 
 ## 目标、范围与完成标准
 

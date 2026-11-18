@@ -1,5 +1,5 @@
-import { escapeHtml as esc, icon, renderAlert, renderBadge, renderCard, renderEmpty, renderFrame, renderPopover, renderPreviewCard, renderTextarea, say } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { act, actOptions, choices, nextMark, plainMark, section, slot, sourceMark, text, when } from "./parts.js";
+import { escapeHtml as esc, icon, renderAlert, renderBadge, renderCard, renderEmpty, renderFrame, renderPopover, renderPreviewCard, renderTextarea } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { act, actOptions, choices, nextMark, plainMark, section, said, slot, sourceMark, text, when } from "./parts.js";
 import type { BriefChange, BriefPage, BriefProposal, BriefVersion, BriefView, Cite, Claim, NextMark, NextOption } from "./types.js";
 
 /**
@@ -9,7 +9,7 @@ import type { BriefChange, BriefPage, BriefProposal, BriefVersion, BriefView, Ci
  */
 
 /** A source's name was kept as a reference, so it reads in the language shown now. */
-const ownerNames = (version: BriefVersion | null) => new Map(version?.sources.map(row => [row.plugin_id, say.text(row.name)]));
+const ownerNames = (version: BriefVersion | null) => new Map(version?.sources.map(row => [row.plugin_id, said.text(row.name)]));
 const modeToggle = (page: BriefPage) => choices(text("mode.label"), "mode", [{ value: "project", label: text("mode.project") }, { value: "personal", label: text("mode.personal") }], page.state.mode);
 
 /** The version shown: an older one the person opened, else the current one. */
@@ -50,7 +50,7 @@ function banner(page: BriefPage, view: BriefView): string {
 
 function sources(version: BriefVersion): string {
   if (!version.sources.length) return `<p class="wb-muted">${esc(text("sources.none"))}</p>`;
-  return `<ul class="wb-pulse">${version.sources.map(row => `<li><span class="wb-plug">${esc(say.text(row.name))}</span>${sourceMark(row)}${
+  return `<ul class="wb-pulse">${version.sources.map(row => `<li><span class="wb-plug">${esc(said.text(row.name))}</span>${sourceMark(row)}${
     row.read === "stale" && row.read_at ? `<small class="wb-muted">${esc(text("sources.read-at", { time: when(row.read_at) }))}</small>` : ""}</li>`).join("")}</ul>`;
 }
 
@@ -120,7 +120,7 @@ function claims(page: BriefPage, view: BriefView): string {
   const list = version.claims.length ? `<ol class="wb-claims">${version.claims.map((claim, index) => claimHtml(page, claim, index + 1, names)).join("")}</ol>`
     : `<p class="wb-muted">${esc(text("claim.none"))}</p>`;
   const read = version.sources.filter(row => row.read === "ok" || row.read === "none").length;
-  const missing = version.sources.filter(row => row.read !== "ok" && row.read !== "none").map(row => say.text(row.name) + say.text({ owner: "workbench", key: "common.punctuation.in-parens", args: [{ name: "value", kind: "text", text: text(`read.${row.read}`) }] }));
+  const missing = version.sources.filter(row => row.read !== "ok" && row.read !== "none").map(row => said.text(row.name) + globalThis.t.text("common.punctuation.in-parens", { value: text(`read.${row.read}`) }));
   const basis = `<p class="wb-basis">${icon("info")}<span>${esc(text("basis.line", { count: read, time: when(version.as_of) }) + (missing.length ? " · " + text("basis.missing", { names: missing.join(text("basis.joiner")) }) : ""))}</span></p>`;
   if (old) return list + basis;
   const proposal = view.proposal ? proposalFoot(page, view.proposal, version) : "";
@@ -140,7 +140,7 @@ function changeRow(change: BriefChange, version: BriefVersion): string {
   if (change.kind === "source") {
     const parts = [change.subjects_added ? text("change.added", { count: change.subjects_added }) : "", change.subjects_removed ? text("change.removed", { count: change.subjects_removed }) : "",
       change.from !== change.to && change.to ? text(`read.${change.to}`) : "", !change.to ? text("change.source-gone") : ""].filter(Boolean);
-    return `<li class="mw-item">${plainMark("refresh")}<span><strong>${esc(say.text(change.name))}</strong><small>${esc(parts.join(" · ") || text("change.summary"))}</small></span></li>`;
+    return `<li class="mw-item">${plainMark("refresh")}<span><strong>${esc(said.text(change.name))}</strong><small>${esc(parts.join(" · ") || text("change.summary"))}</small></span></li>`;
   }
   if (change.kind === "claim") return `<li class="mw-item">${plainMark(change.change === "added" ? "plus" : change.change === "removed" ? "x" : "edit")}<span><strong>${esc(text(`change.claim.${change.change}`))}</strong><small>${
     esc(sentence(change.claim_id))}</small></span></li>`;
@@ -162,7 +162,7 @@ function nextCard(page: BriefPage, option: NextOption, mark: NextMark | undefine
   const state = mark?.state;
   const kicker = option.act.kind === "card" ? text("next.kicker", { provider: option.act.card.provider }) : text("next.kicker-assistant");
   const target = card?.target ? `<p class="wb-step__target">${esc(`${text("next.on")} ${card.target.title}`)}</p>` : "";
-  const outcome = state === "stale" ? text("next.stale-note") : state === "unknown" ? text("next.unknown-note") : (state === "done" || state === "failed") && card?.outcome ? say.text(card.outcome) : "";
+  const outcome = state === "stale" ? text("next.stale-note") : state === "unknown" ? text("next.unknown-note") : (state === "done" || state === "failed") && card?.outcome ? said.text(card.outcome) : "";
   const body = `<p class="wb-step__why">${esc(option.why)}</p>${target}${option.subject && !card?.target ? slot("next", option.subject) : ""}${outcome ? `<p class="wb-muted">${esc(outcome)}</p>` : ""}`;
   const run = option.act.kind === "card" ? act(text(state === "failed" ? "next.retry" : "next.do"), "run-next", { variant: primary ? "primary" : "secondary", value: option.option_id, disabled: busy, icon: state === "failed" ? "refresh" : undefined })
     : act(text("next.hand"), "hand-next", { variant: primary ? "primary" : "secondary", icon: "sparkles", value: option.option_id, disabled: busy });
@@ -206,7 +206,7 @@ export function renderPersonal(page: BriefPage): string {
   if (!view.items.length) return frame(partial + renderEmpty({ icon: "check", title: text("personal.none"), body: text("personal.none-body") }));
   const rows = view.items.map(item => {
     const label = renderBadge({ label: text(`personal.label.${item.label}`), tone: item.label === "project" ? "info" : "neutral" });
-    const where = item.label !== "project" || !item.project_id ? (item.owner_name ? `<small>${esc(say.text(item.owner_name))}</small>` : "")
+    const where = item.label !== "project" || !item.project_id ? (item.owner_name ? `<small>${esc(said.text(item.owner_name))}</small>` : "")
       : item.project_id === here ? `<small>${esc(text("personal.here"))}</small>`
       : `<a class="mw-btn mw-btn--ghost mw-btn--sm" href="/projects/${encodeURIComponent(item.project_id)}/">${esc(text("personal.open-project"))}</a>`;
     const mark = item.kind === "attention" ? sourceMark({ read: "ok", turn: item.blocked ? "blocked" : "waiting" }) : "";

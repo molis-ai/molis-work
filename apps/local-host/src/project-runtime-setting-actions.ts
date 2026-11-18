@@ -28,13 +28,13 @@ export const projectRuntimeSettingOwner = {
 };
 
 export function runtimeSettingSnapshot(key: string, pick: ReturnType<ProjectRuntimeSettings["selection"]>, runtimes: readonly AgentRuntimeDescriptor[]): SettingSnapshot {
-    const fallback = defaultAgentRuntime(runtimes)?.runtime_id;
-    const selected = pick?.runtime_id ?? null, current = resolveProjectRuntime(runtimes, selected);
-    const revision = JSON.stringify([pick?.revision ?? 0, fallback ?? null, current.runtime?.runtime_id ?? null]);
-    if (!current.runtime) return { key, revision, state: "unavailable", reason: current.reason };
-    return { key, revision, state: "ok", layers: {
-      ...(selected === null ? {} : { project: selected }), ...(fallback ? { provider_default: fallback } : {}),
-    } };
+  const fallback = defaultAgentRuntime(runtimes)?.runtime_id;
+  const selected = pick?.runtime_id ?? null, current = resolveProjectRuntime(runtimes, selected);
+  const revision = JSON.stringify([pick?.revision ?? 0, fallback ?? null, current.runtime?.runtime_id ?? null]);
+  if (!current.runtime && selected === null) return { key, revision, state: "unavailable", reason: current.reason };
+  return { key, revision, state: "ok", ...(!current.runtime && { value_unavailable: current.reason }), layers: {
+    ...(selected === null ? {} : { project: selected }), ...(fallback ? { provider_default: fallback } : {}),
+  } };
 }
 
 export function projectRuntimeSettingProvider(projectId: string, db: SqliteDatabase,

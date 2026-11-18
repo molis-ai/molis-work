@@ -188,6 +188,9 @@ test("project directories are project settings: they refuse folders of other pro
     const gone = await picked({ runtime_id: "gone-engine" });
     assert.equal(gone.selected, "gone-engine");
     assert.match(gone.problem ?? "", /gone-engine.*项目设置/);
+    assert.equal((await picked()).selected, "gone-engine");
+    // A revised picker can replace the stored offline runtime using the version it actually displayed.
+    assert.equal((await picked({ ...choice, expected_revision: gone.revision, request_id: "replace-offline" })).selected, choice.runtime_id);
     assert.equal((await call("/api/project-settings/runtime", "POST", { runtime_id: 5 })).status, 400);
     assert.deepEqual([(await picked({ runtime_id: null })).selected, (await picked()).problem], [null, null]);
     // The capability library lists them for the person who may run them, like any other action.

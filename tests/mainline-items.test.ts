@@ -15,6 +15,7 @@ import { mainlineRig, notesPlugin } from "./fixtures/mainline-items-plugin.js";
  * project. The page, the Assistant and MCP call the same actions; a source is any plugin that declares `item` on a kind, here an
  * installed-style notes plugin the Host has never heard of.
  * QEA-148 checks the current public actions and the same store used by the merged Host.
+ * QEA-194 covers default and explicit groups in create, convert, and complete/reopen.
  */
 
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;

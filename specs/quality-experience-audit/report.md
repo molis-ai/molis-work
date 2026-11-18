@@ -276,7 +276,7 @@ Host JSON、原件上传原来都没有把断连传给已支持取消的 artifac
 | PF-04 后台任务：`apps/local-host/src/home-background-tasks.ts:22` 与 mainline；Coding/Images 已贡献，项目引导整理仍只有后台执行 | 有工作却不在任务入口；汇总失败又看似无工作 | 任务状态仍归业务 owner，平台管发现/完整性/可执行命令。接入既有 background_tasks/reports_to，修 QF-04；引导归 [BL-107](../backlog/BL-107.md) | P1体验/中 |
 | PF-05 设置：`packages/contracts/src/platform/settings.ts:16,30` 有层级/CAS/request_id；SDK现行拒绝沙箱settings_entries | 有合同不等于作者可用；用户2026-11-08已将沙箱设置兑现明确后置，当前拒绝是边界，不是应删除的过度防御。BL38-1与BL44-6不可混作同一完成项 | 设置业务规则归owner，平台管声明、继承呈现和调用。按原路线补Runtime并迁一个真实消费者后再推广；本轮已检查并保持拒绝，不建全局配置仓，不声称底座已全面采用 | 按用户已定后续条件保留；P2/高 |
 | PF-06 草稿/返回：Git已采用公共frame drafts，旧无生产读写工具已删除；QF-03/21/23/46 | 修复刷新/返回丢编辑、同键旧写覆盖、迟到回执干扰当前文件；独立Git及Coding内嵌的11文件109项通过，最终组合CI待完成 | 草稿文本归编辑器，平台提供按 Home/项目/安装/入口隔离与返回。Git 按工作区/文件修订接入，冲突正文不套输入框 4KB 限额；成功后才清草稿 | P1体验/中 |
-| PF-07 来源拉取：Feed已沿公开SourcePull plan消费；Alchemist研究走Host Search Runtime、市场脉搏用插件来源适配器；旧WebQuery/YouTube工厂已退役，YouTube频道工具保留 | 已删除Feed重复intent/计划与两项SEL依赖，复用平台预算/来源可用性；真实Runtime与RSS安全消费者通过。退役Feed版本例外仍待已提出的审批，最终组合CI待完成 | 集成拥有 URL/cursor/格式规则，平台管受控网络/凭据/证据。优先复用已有 presentation 登记；迁移剩余专属调用方时评估声明式输入是否足够，再废弃旧词汇/工厂。先核包外导出，保留 channel 工具；RSS 固定 IP 与 OAuth 刷新不硬并成普通 fetch | P2/中高 |
+| PF-07 来源拉取：Feed已沿公开SourcePull plan消费；Alchemist研究走Host Search Runtime、市场脉搏用插件来源适配器；旧WebQuery/YouTube工厂已退役，YouTube频道工具保留 | 已删除Feed重复intent/计划与两项SEL依赖，复用平台预算/来源可用性。真实 Runtime 与 RSS 消费者通过，失效 Feed 版本例外已获准删除，版本检查通过 | 集成拥有 URL/cursor/格式规则，平台管受控网络/凭据/证据。优先复用已有 presentation 登记；迁移剩余专属调用方时评估声明式输入是否足够，再废弃旧词汇/工厂。先核包外导出，保留 channel 工具；RSS 固定 IP 与 OAuth 刷新保持各自的安全边界 | P2/中高 |
 | PF-08 等待/调度/取消：`packages/plugin-sdk/src/execution-lifetime.ts`、`packages/plugin-runtime/src/activation-jobs.ts`、`horizontal/scheduler/src/index.ts:252,274,392` 租约、Workflow/Alchemist 自有进程记录 | 散落的计时器容易泄漏；但不同业务终态强并会破坏恢复 | 复用资源生命期工具；业务流程状态及租约回执留原 owner。Feed QF-02 已修；不再造通用万能 Job 表 | P2/低到中 |
 | PF-09 调用追踪：`packages/kernel/src/action-settlement.ts:107,152,175`、`horizontal/observation/src/records.ts:164` 已有 call_id/invocation_id/parent_invocation_id；本轮 request-failure-call-id 浏览器回归覆盖故障详情 | 这部分已有跨层身份，不是应重新建设的缺口；本轮未证明所有插件业务写入均已完整关联 | Kernel 管调用身份，owner 管 subject/revision/事务结果，Workbench 管可见反馈。保留现有观测/查询；后续按具体未关联写入补证，不把泛化风险登记成已复现缺陷，不建立第二套日志身份 | 保持现有方案 |
 | PF-10 HTTP 中止：Search 入口未透传、composer 已透传 | 调用方取消了，后台继续做；重复请求叠加 | Host 负责 transport→Action signal，SDK/Runtime 负责停止和写入 fence；修 QF-08，不为每插件造 AbortController 框架 | P2/低到中 |
@@ -1522,3 +1522,21 @@ QEA-189 在原位置实现上接收相同修订的真实 HTTP 回答后，复现
 角色入口共用 Characters 目录与编辑抽屉。助理从可信动作读取稳定选择，Coding 续办读取原轮固定版，Agent Host 核实际版本、范围和授权，角色原件与跟随事务由 Characters 写入。保留本轮的助理资料推荐降级及滚动处理。 [工作台选角](../../apps/workbench/src/browser/characters/task-picker.ts#L159) · [助理角色合同](../../apps/local-host/src/assistant/assistant-characters.ts#L19) · [Coding 续办](../../plugins/native/coding/src/start-round.ts#L159) · [执行固定版](../../horizontal/agent-host/src/run-start.ts#L246) · [角色事实](../../modules/characters/src/service.ts#L70)
 
 事项安放从公开动作进入。主线在一次本地事务切换任务归属，任务主人仍写事件关系。工作台任务面板只发送事件去处。公开动作允许同时提交两个字段，事件写入在事项事务前。第 37 批接入两种去处时应明确两个服务各自的结算反馈和重试，避免把失败回执当作都未写入。保留主线服务的过期转换预检及来源请求键，快照重生成保留助理角色字段、资料建议的失败值，以及导入和 Sessions 合同。 [工作台入口](../../apps/workbench/src/browser/work-task-panel.ts#L265) · [公开声明与顺序](../../horizontal/mainline/src/index.ts#L379) · [事务](../../horizontal/mainline/src/store.ts#L297) · [转换预检](../../horizontal/mainline/src/items.ts#L169)
+
+本地完整构建与重生成通过，111 份公开 API 快照、640 项 Manifest 动作、617 项额外宿主动作、44 个库结构、版本与包边界一致。真实事项动作 14/14 与归属不变量 5/5 通过，保存和撤销的角色服务 11/11，通过原 Coding HTTP 验证固定版实际生效。隔离 Home 的 3 条回执用例全部通过，两种现行 Skill 草稿打开后记录不变。Git 只读目录的用例在本机四倍限速与构建争用期间到原单项时限，正常速度同一用例 28.1 秒通过，失效审查无写入及最终磁盘结果保持。角色抽屉同文件的三条用例通过，窗口草稿用例在首次点设置前的页面加载命令超时，已安排同条件单独复验。日志 `quality-audit-b117-{regenerate,contract-gates,action-checks,browser-entries,git-context,git-context-normal}.log`。
+
+两次独立构建各测到 67 条静态资源，路径相同。相对新主干，最大静态净增仍为 Git 脚本的 8,403 B，工作台脚本实际净增 5,152 B，比上一额度多 2 B，按任务资源登记记录差额。 [资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+
+两个构建均完成十组首屏实测。下表相对新主干 `8c844c5bb6`。22 条相对主干需要许可的请求均匹配既有授权，相对上一已批准组合无新增请求路径或词包地址。按上一候选实际 Linux 工作台的冷热净额各多 8 B 复算，默认和全插件工作台的四个冷量比原预留各多 2 B，已据此登记。热量额度和共享门禁口径沿用。工作台项目摘要首次采样及另一次 Host 健康等待分别在共同构建期间超时，顺序重测的实际结果列在表内。源数据 `quality-audit-b117-{main,candidate}-{assets,http}.json`。 [资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+
+| 页面 | 中文冷 / 热，B | 英文冷 / 热，B |
+| --- | ---: | ---: |
+| 到达页 | +2,055 / +20 | +1,948 / +20 |
+| 项目选择 | +2,070 / −248 | +1,958 / −253 |
+| 默认工作台 | +502 / −8,461 | +408 / −8,448 |
+| 全插件工作台 | +1,750 / −7,213 | +1,667 / −7,189 |
+| 示例工作台 | −266,765 / −275,728 | −268,179 / −277,035 |
+
+组合后的 `MainlineStore` 触及现行 25 方法上限。分组放置只读写传来的排列，提为原模块的 `placeInGroup`。创建方式和完成后恢复沿相同事务调用容量、分组和次序规则，没有新增公开方法、状态或库写入。QEA-194 沿原事项用例复验。 [分组规则](../../horizontal/mainline/src/store.ts#L49) · [真实公开动作](../../tests/mainline-items.test.ts)
+
+角色抽屉跨窗口草稿保持、版本冲突和覆盖前重试单独复验通过，61.0 秒。初次服务验收合计 9/9 文件通过。Coding 的卡片、结果两类入口已通过回焦与维持原输入的用例。任务板入口首轮在新建会话前遇浏览器调试超时，单独复验以及最终组合另记。 [角色草稿和选角](../../tests/characters-window-drafts.e2e.test.ts) · [三个真实子任务入口](../../tests/coding-subtask-real-entry.e2e.test.ts)

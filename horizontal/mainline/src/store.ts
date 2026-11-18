@@ -47,6 +47,14 @@ const fresh = (): Arrangement => ({ groups: DEFAULT_GROUPS.map(name => ({ group_
 const conflict = (current: Mainline) => mainlineErrors.conflict("主线在别处刚改过，请看当前的排列后再试", { current });
 const missing = () => mainlineErrors.item_missing("主线上没有这件事项");
 
+function placeInGroup(arrangement: Arrangement, itemId: string, groupId?: string): void {
+  const open = arrangement.groups.reduce((total, group) => total + group.items.length, 0);
+  if (open >= MAINLINE_LIMITS.open_items) throw mainlineErrors.limit(`一条主线最多 ${MAINLINE_LIMITS.open_items} 件未完成的事项`);
+  const group = groupId === undefined ? arrangement.groups[0] : arrangement.groups.find(candidate => candidate.group_id === groupId);
+  if (!group) throw mainlineErrors.item_missing("主线上没有这一组");
+  group.items.push({ item_id: itemId, pinned: false });
+}
+
 interface ItemRow extends Record<string, SQLOutputValue> { item_id: string; name: string | null; source_kind: string | null; source_id: string | null; created_at: string }
 const itemOf = (row: ItemRow): WorkItem => ({ item_id: row.item_id, ...(row.name !== null ? { name: row.name } : {}),
   ...(row.source_kind !== null ? { source: { kind: row.source_kind, id: row.source_id! } } : {}), created_at: row.created_at });
@@ -141,14 +149,6 @@ export class MainlineStore {
     });
   }
 
-  private place(arrangement: Arrangement, itemId: string, groupId?: string): void {
-    const open = arrangement.groups.reduce((total, group) => total + group.items.length, 0);
-    if (open >= MAINLINE_LIMITS.open_items) throw mainlineErrors.limit(`一条主线最多 ${MAINLINE_LIMITS.open_items} 件未完成的事项`);
-    const group = groupId === undefined ? arrangement.groups[0] : arrangement.groups.find(candidate => candidate.group_id === groupId);
-    if (!group) throw mainlineErrors.item_missing("主线上没有这一组");
-    group.items.push({ item_id: itemId, pinned: false });
-  }
-
   private insert(item: WorkItem): void {
     this.db.prepare("INSERT INTO mainline_items (owner_actor_id, project_id, item_id, name, source_kind, source_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
       .run(this.actorId, this.projectId, item.item_id, item.name ?? null, item.source?.kind ?? null, item.source?.id ?? null, item.created_at);
@@ -157,7 +157,7 @@ export class MainlineStore {
   /** A light item named so, at the end of the group (the first by default). */
   createLight(name: string, groupId?: string): WorkItem {
     const item: WorkItem = { item_id: randomUUID(), name: checkedName(name), created_at: this.now() };
-    return this.write(undefined, arrangement => { this.place(arrangement, item.item_id, groupId); this.insert(item); return item; });
+    return this.write(undefined, arrangement => { placeInGroup(arrangement, item.item_id, groupId); this.insert(item); return item; });
   }
 
   /** An object made into an item; one it already became is given back, wherever it is. */
@@ -168,7 +168,7 @@ export class MainlineStore {
     const item: WorkItem = { item_id: randomUUID(), source: { kind: source.kind, id: source.id }, created_at: this.now() };
     return this.write(undefined, arrangement => {
       if (this.itemOf(source)) return { item: this.itemOf(source)!, created: false };
-      this.place(arrangement, item.item_id, groupId); this.insert(item);
+      placeInGroup(arrangement, item.item_id, groupId); this.insert(item);
       return { item, created: true };
     });
   }
@@ -222,7 +222,7 @@ export class MainlineStore {
       } else {
         if (done < 0) return;
         const [entry] = arrangement.completed.splice(done, 1);
-        this.place(arrangement, itemId, arrangement.groups.some(candidate => candidate.group_id === entry!.from) ? entry!.from : undefined);
+        placeInGroup(arrangement, itemId, arrangement.groups.some(candidate => candidate.group_id === entry!.from) ? entry!.from : undefined);
       }
     });
   }

@@ -1223,6 +1223,8 @@ QEA-79 在真实隔离 Home 新导入及固定版本预览验证中、英文，�
 
 修复构建的原实操 3/3 通过，其中两项检查独立建议和关联已有 Goal 的建议。旧候选的直接建议重载探针可稳定复现合上。旧候选同份长链路的两项另在有效建议链接处超时，不能作为尾部断言的反证。工作台已在两种入口验证保留另一份展开的建议与未提交的意见，已批准的目标、关系和建议持久记录逐项相等。证据 `quality-audit-b88-{acceptance,actual-baseline,disclosure-stored}.log`。
 
+原 Goal 刷新、分窗和后台投影另 3 文件 17 项通过，含可见/隐藏投影的失败恢复、当前数据、刷新时窗格的变化。正式首屏和静态资源规则 2 文件 31 项通过。本批追加共 5 文件 48 项，证据 `quality-audit-b88-related.log`。
+
 现有工作台脚本相对以下第 89 批测量再增 35 B，实际工作台冷加载同增 35 B，热加载、目录发现和请求路径相同。最大静态净增的既有批准范围不变。此小额资源与 QF-15 两个新词包分开登记。[资源记录](../../tooling/gates/page-asset-allowances/quality-experience-audit-goal-disclosures.json)
 
 ### 第 89 批主干整合与首屏复量
@@ -1239,6 +1241,8 @@ QEA-79 在真实隔离 Home 新导入及固定版本预览验证中、英文，�
 这次实际增加的静态文件为 `/assets/molis-work-knowledge.js` +38 B，工作台脚本减少 19 B。以最新 main 合并基点计算，最大冷增 2,100 B，最大热增 19 B。正式量法还需到达与项目选择的中英文冷额度 663／624 B，全插件工作台中英文冷额度 693／654 B。按第 83 批验证过的路径长度，再计全插件 Linux 冷额度各 8 B。新增词包为 `/assets/locale/workbench.zh.edfbad487ed13f33cb345453.js`、`/assets/locale/workbench.en.d2cfe764e8fa4c8bc25d0542.js`。用户于 2026-11-17 批准这两个内容地址和所列增量。原实报 `quality-audit-b89-{main,candidate}-{http,assets}.json`，对比 `quality-audit-b89-gate-comparison.json`。[批准记录](../../tooling/gates/page-asset-allowances/quality-experience-audit-import-warnings.json)
 
 加入第 88 批后，将 67 条实际静态资源及各页面的冷、热读回交给现行检查，两个检查均通过本机对照，已知 Linux 目录差额的对照也通过。组合相对上一推送最大首屏冷增 937 B、热增 0 B。新资源仅为已批准的两个词包地址。证据 `quality-audit-b90-resource-gates.log`。
+
+首次组合提交 `e944553a63` 的本机健康检查拒绝了本轮改写的 spec 状态行。已恢复仓库要求的格式，组合源码及资源与原实测相同。组合验收以此后更正的提交为准。
 
 ### QF-83 / P3 英文资料侧栏仍显示中文的来源分组（PF-15）
 

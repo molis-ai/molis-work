@@ -242,8 +242,8 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     // Retain the latest requested read while one projection is in flight; it is not an acknowledgement.
     let pendingRefresh, refreshJob, observedBoardCursor;
     const refreshBoard = (force = false, signal = boardVisibleSignal, cursor) => {
-      if (typeof cursor === "number") observedBoardCursor = Math.max(observedBoardCursor ?? cursor, cursor);
-      pendingRefresh = { force: force || pendingRefresh?.force || false, signal, cursor: typeof cursor === "number" ? observedBoardCursor : pendingRefresh?.cursor };
+      const pendingCursor = pendingRefresh?.cursor;
+      pendingRefresh = { force: force || pendingRefresh?.force || false, signal, cursor: cursor === undefined ? pendingCursor : Math.max(pendingCursor ?? cursor, cursor) };
       if (!refreshJob) refreshJob = (async () => {
         try {
           let result;

@@ -445,7 +445,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       updateRelationPreviews();
       updateAllRelationFormPreviews();
     }
-    // Off the Goal stage the board cursor comes with the attention read (W4-10).
+    // Off the Goal stage, fold attention hints into the next board poll (W4-10).
     // Goals' snapshot cursor belongs to another journal; neither projection has acknowledged a platform cursor yet.
     boardLifetime.poll(async signal => {
       boardVisibleSignal = signal;
@@ -453,9 +453,11 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       if (goalStageVisible()) await refreshBoard(false, signal);
       else if (observedBoardCursor !== undefined && observedBoardCursor !== goalData.boardCursor) await refreshBoard(false, signal, observedBoardCursor);
     }, 4000);
-    document.addEventListener("molis-work:attention", event => {
+    boardLifetime.listen(document, "molis-work:attention", event => {
       const cursor = event.detail?.board_cursor;
-      if (goalData && typeof cursor === "number") void refreshBoard(false, boardVisibleSignal, cursor);
+      if (!goalData || typeof cursor !== "number") return;
+      observedBoardCursor = Math.max(observedBoardCursor ?? cursor, cursor);
+      if (goalStageVisible()) void refreshBoard(false, boardVisibleSignal, observedBoardCursor);
     });
     const refreshVisibleGoal = () => { if (goalData && goalStageVisible()) void refreshBoard(); };
     boardLifetime.listen(document, "molis-work:place-changed", () => requestAnimationFrame(refreshVisibleGoal));

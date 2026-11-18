@@ -62,8 +62,8 @@ test("BFP-01 BL-131: updating 20 Inbox suggestions reads the page once and says 
   // What the page asks the Host for while a sample runs: the judgment POST and every HTML document read (the stage it re-renders).
   const requests: { id: string; url: string; method: string; at: number }[] = [], html = new Map<string, number>();
   const offRequest = browser.on("Network.requestWillBeSent", (event, session) => {
-    const sent = event as { requestId: string; request: { url: string; method: string } };
-    if (session === sessionId) requests.push({ id: sent.requestId, url: sent.request.url, method: sent.request.method, at: Date.now() });
+    const sent = event as { requestId: string; timestamp: number; request: { url: string; method: string } };
+    if (session === sessionId) requests.push({ id: sent.requestId, url: sent.request.url, method: sent.request.method, at: sent.timestamp * 1000 });
   });
   const offResponse = browser.on("Network.responseReceived", (event, session) => {
     const received = event as { requestId: string; response: { mimeType: string; encodedDataLength: number } };
@@ -98,13 +98,17 @@ test("BFP-01 BL-131: updating 20 Inbox suggestions reads the page once and says 
     const seen = requests.slice(before);
     const post = seen.findIndex(request => request.method === "POST" && request.url.includes("/judgment/evaluate"));
     assert.ok(post >= 0, "the judgment ran");
-    const documents = seen.slice(post + 1).filter(request => html.has(request.id));
+    const afterPost = seen.slice(post + 1);
+    const documents = afterPost.filter(request => html.has(request.id));
     // QEA-115: this real Inbox consumer still refreshes the background Goal collection, without requesting its hidden document.
-    const goalRefreshes = documents.filter(request => new URL(request.url).pathname.endsWith("/api/board/refresh"));
+    const goalRefreshes = afterPost.filter(request => new URL(request.url).pathname.endsWith("/api/board/refresh"));
     assert.ok(goalRefreshes.every(request => new URL(request.url).searchParams.get("projection") === "collection"), "Inbox must not refresh a hidden Goal document");
     // The Inbox page itself; another view's own refresh (the Goals board) is reported above, not counted here.
     const reads = documents.filter(request => new URL(request.url).pathname === `/projects/${projectId}/`).length;
-    t.diagnostic(`BFP sample ${sample + 1} document reads ${JSON.stringify(documents.map(request => ({ path: new URL(request.url).pathname + new URL(request.url).search, ms: request.at - seen[post]!.at, bytes: html.get(request.id) })))}`);
+    t.diagnostic(`BFP sample ${sample + 1} document reads ${JSON.stringify(documents.map(request => ({ path: new URL(request.url).pathname + new URL(request.url).search, ms: Math.round(request.at - seen[post]!.at), bytes: html.get(request.id) })))}`);
+    // QEA-150: use the browser clock, since delivery of CDP messages can pause while this process is busy.
+    const intervals = goalRefreshes.slice(1).map((request, index) => Math.round(request.at - goalRefreshes[index]!.at));
+    assert.ok(intervals.every(interval => interval >= 3900), `hidden Goals follow the existing four-second poll: ${intervals.join(", ")} ms`);
     samples.push({ notice: result.notice - start, shown: result.shown - start, reads, suggestionsAtNotice: result.at });
   }
   const p50 = { notice: Math.round(median(samples.map(item => item.notice))), shown: Math.round(median(samples.map(item => item.shown))) };

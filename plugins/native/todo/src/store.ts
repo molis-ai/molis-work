@@ -6,7 +6,7 @@ import { todoErrors } from "./error.js";
 import { TODO_DATABASE } from "./database.js";
 export { TODO_DATABASE };
 import { TodoStoreWrites } from "./store-writes.js";
-import { changeFromRow, changeRows, invalid, restore } from "./store-support.js";
+import { assertRevision, changeFromRow, changeRows, invalid, restore } from "./store-support.js";
 import type { TodoAccess, TodoBatchChange, TodoFields } from "./store-types.js";
 
 export { todoRequestKey } from "./store-types.js";
@@ -32,9 +32,7 @@ export class TodoStore extends TodoStoreWrites {
    */
   dueReminders(access: TodoAccess, now: Date = this.now(), staleHours = 48): { item: TodoItem; late: boolean }[] {
     const at = now.getTime();
-    return this.list(access)
-      .filter(item => item.remind_at && item.reminder_acknowledged_at === null && item.archived_at === null
-        && ["open", "doing", "waiting"].includes(item.status))
+    return this.pendingReminders(access)
       .map(item => ({ item, time: Date.parse(item.remind_at!) }))
       .filter(entry => entry.time <= at && entry.time >= at - staleHours * 3_600_000)
       .sort((a, b) => a.time - b.time)
@@ -42,38 +40,44 @@ export class TodoStore extends TodoStoreWrites {
   }
 
   /** “知道了”: this reminder stops showing. Not a change to the todo itself, so its revision stays. */
-  acknowledgeReminder(id: string, access: TodoAccess): TodoItem {
+  acknowledgeReminder(id: string, observedAt: string, access: TodoAccess): TodoItem {
     const current = this.get(id, access);
-    if (!current.remind_at) throw todoErrors.invalid("这件待办没有提醒");
+    if (current.remind_at !== observedAt) throw todoErrors.conflict("提醒时间已经改变，请刷新后再确认");
     if (current.reminder_acknowledged_at) return current;
     const at = this.now().toISOString();
-    this.db.run("UPDATE todo_items SET reminder_acknowledged_at = ? WHERE id = ? AND revision = ?", [at, id, current.revision]);
+    const written = this.db.run("UPDATE todo_items SET reminder_acknowledged_at = ? WHERE id = ? AND remind_at = ? AND revision = ? AND reminder_acknowledged_at IS NULL", [at, id, observedAt, current.revision]);
+    if (Number(written.changes) !== 1) throw todoErrors.conflict("提醒已经改变，请刷新后再确认");
     return { ...current, reminder_acknowledged_at: at };
   }
 
   /** One change applied to several todos, all or nothing; undone together through its batch id. */
-  batch(ids: readonly string[], change: TodoBatchChange, expected: Readonly<Record<string, number>> | undefined, access: TodoAccess): { items: TodoItem[]; batch_id: string } {
+  batch(ids: readonly string[], change: TodoBatchChange, expected: Readonly<Record<string, number>> | undefined, access: TodoAccess): { items: TodoItem[]; changed_count: number; batch_id: string | null } {
     const unique = [...new Set(ids)];
     if (!unique.length) throw invalid("先选中要处理的待办");
     if (unique.length > MAX_BATCH) throw invalid(`一次最多处理 ${MAX_BATCH} 件`);
     const batchId = crypto.randomUUID();
     const items: TodoItem[] = [];
+    let changed = 0;
+    const collect = (result: { item: TodoItem; change_id: string | null }) => {
+      items.push(result.item);
+      if (result.change_id) changed++;
+    };
     this.transaction(() => {
       for (const id of unique) {
         const revision = expected?.[id];
-        if ("status" in change) items.push(this.applyStatus(id, change.status, revision, access, batchId).item);
-        else if ("archive" in change) items.push(this.applyArchive(id, change.archive, revision, access, batchId).item);
+        if ("status" in change) collect(this.applyStatus(id, change.status, revision, access, batchId));
+        else if ("archive" in change) collect(this.applyArchive(id, change.archive, revision, access, batchId));
         else if ("shift_days" in change) {
           if (!Number.isInteger(change.shift_days) || Math.abs(change.shift_days) > 366) throw invalid("推后的天数无效");
           const current = this.get(id, access);
           const from = current.planned_date ?? current.due_date;
-          if (!from) { items.push(current); continue; }
+          if (!from) { assertRevision(current, revision); items.push(current); continue; }
           const patch: TodoFields = current.planned_date ? { planned_date: addDays(current.planned_date, change.shift_days) } : { due_date: addDays(from, change.shift_days) };
-          items.push(this.applyUpdate(id, patch, revision, access, batchId).item);
-        } else items.push(this.applyUpdate(id, change, revision, access, batchId).item);
+          collect(this.applyUpdate(id, patch, revision, access, batchId));
+        } else collect(this.applyUpdate(id, change, revision, access, batchId));
       }
     });
-    return { items, batch_id: batchId };
+    return { items, changed_count: changed, batch_id: changed ? batchId : null };
   }
 
   /**

@@ -16,6 +16,8 @@
 
 ## 在做的
 
+- [项目删除、待办与生图一致性](architecture-review-fixes/spec.md)：独立分支已实现，工程验证见该需求书。
+
 刚合入、等真实 Home 采用或本人验收的项也留在这里，状态写在条目上。
 
 - [batch-36-audit-fixes](batch-36-audit-fixes/spec.md)：第 36 批合后核查确认的角色、主线与记录修复；ROLE-14 仍待本人看实物。

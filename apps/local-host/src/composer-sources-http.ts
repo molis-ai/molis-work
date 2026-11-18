@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, isSubjectReader, type ActionSubject, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { COMPOSER_PICK_INPUT_TYPE, COMPOSER_PICK_OUTPUT_TYPE, composerErrors, type ComposerPickInput, type ComposerPickOutput } from "@molis-ai/molis-work-contracts/platform/composer";
-import { composerDraftInner, parseComposerDraftKey } from "@molis-ai/molis-work-design-system";
+import { COMPOSER_SWEEP_LIMIT, composerDraftInner, parseComposerDraftKey } from "@molis-ai/molis-work-design-system";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
@@ -55,8 +55,7 @@ export async function handleComposerSourcesHttp(request: IncomingMessage, respon
   return true;
 }
 
-/** The most keys one sweep judges: a machine with more drafts than this sweeps the rest on a later start. */
-const SWEEP_KEYS = 500;
+
 
 /**
  * The composer's start-up sweep (§3.4, UIC-10): the Workbench document sends its draft keys (no text), and gets back those whose
@@ -71,7 +70,7 @@ export async function handleComposerDraftsHttp(request: IncomingMessage, respons
   try {
     const body = await readBody(request), listed = new Set(home.projects()), judges = new Map<string, (plugin: string) => boolean | undefined>();
     const remove: string[] = [];
-    for (const key of (Array.isArray(body.keys) ? body.keys : []).slice(0, SWEEP_KEYS)) {
+    for (const key of (Array.isArray(body.keys) ? body.keys : []).slice(0, COMPOSER_SWEEP_LIMIT)) {
       const place = typeof key === "string" ? parseComposerDraftKey(composerDraftInner(key) ?? "") : null;
       if (!place || place.project === "home") continue;
       if (!listed.has(place.project)) { remove.push(key as string); continue; }

@@ -108,6 +108,7 @@
     "todo.note.archived": "Archived",
     "todo.note.assistant-changed": "The Assistant just changed this todo. You have unsaved input; saving will report the conflict instead of overwriting.",
     "todo.note.batch-archive": "Archived {count}",
+    "todo.note.batch-unchanged": "No selected tasks changed.",
     "todo.note.batch-done": "Completed {count}",
     "todo.note.batch-moved-to": "Moved {count} to ",
     "todo.note.batch-shift": "Pushed {count} back a day",

@@ -15,15 +15,27 @@ export abstract class TodoStoreBase {
 
   /** Every todo this caller may see; views and search filter from here. */
   list(access: TodoAccess): TodoItem[] {
-    const rows = itemRows(this.db.all("SELECT * FROM todo_items ORDER BY created_at"));
-    return rows.map(fromRow).filter(item => visible(item, access));
+    return this.visibleRows(access, false);
+  }
+
+  pendingReminders(access: TodoAccess): TodoItem[] {
+    return this.visibleRows(access, true);
+  }
+
+  private visibleRows(access: TodoAccess, remindersOnly: boolean): TodoItem[] {
+    const projects = access.projectId ? [...access.projectIds, access.projectId] : access.projectIds;
+    const reminders = remindersOnly
+      ? "AND remind_at IS NOT NULL AND reminder_acknowledged_at IS NULL AND archived_at IS NULL AND status IN ('open','doing','waiting')"
+      : "";
+    return itemRows(this.db.all(`SELECT * FROM todo_items
+      WHERE (project_id IS NULL OR project_id IN (SELECT value FROM json_each(?))) ${reminders}
+      ORDER BY created_at`, [JSON.stringify(projects)])).map(fromRow);
   }
 
   get(id: string, access: TodoAccess): TodoItem {
     const row = this.db.get("SELECT * FROM todo_items WHERE id = ?", [id]) as ItemRow | undefined;
-    const item = row ? fromRow(row) : null;
-    if (!item || !visible(item, access)) throw todoErrors.not_found("找不到这件待办，可能已被删除");
-    return item;
+    if (!row || !visible(row, access)) throw todoErrors.not_found("找不到这件待办，可能已被删除");
+    return fromRow(row);
   }
 
   /** Other todos whose links point at this one, so the relation reads from both ends. */

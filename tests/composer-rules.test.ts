@@ -115,3 +115,22 @@ test("UIC-11: a storage that refuses reads or writes says so and never throws; t
   assert.equal(refused.write("字还在"), false);
   assert.equal(composerDraft(() => { throw new Error("localStorage disabled"); }, "k").write("x"), false, "even reaching storage may throw");
 });
+
+test("ARF-6 the Workbench sweeps past 500 live drafts, including framed drafts", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const { readFileSync } = await import("node:fs");
+  const bundle = readFileSync(new URL("../packages/design-system/dist/composer-sweep-client.js", import.meta.url), "utf8");
+  const keys = Array.from({ length: 500 }, (_, i) => composerDraftKey({ project: "kept", install: "todo", entry: "main", conversation: String(i) }));
+  const gone = "molis-plugin-page:h:todo:gone:" + composerDraftKey({ project: "gone", install: "todo", entry: "main", conversation: "last" });
+  keys.push(gone);
+  const calls: number[] = [], removed: string[] = [], page = {};
+  const swept = Promise.withResolvers<void>();
+  runInNewContext(bundle, { self: page, top: page, document: { readyState: "complete", addEventListener() {} },
+    localStorage: { length: keys.length + 1, key: (i: number) => keys[i] ?? null, removeItem(key: string) { removed.push(key); swept.resolve(); } },
+    molisWorkRequest: async (_url: string, { body }: { body: { keys: string[] } }) => {
+      calls.push(body.keys.length); return { remove: body.keys.slice(0, 500).filter(key => key === gone) };
+    } });
+  await swept.promise;
+  assert.deepEqual(calls, [500, 1]);
+  assert.deepEqual(removed, [gone]);
+});

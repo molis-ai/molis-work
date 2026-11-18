@@ -124,6 +124,36 @@ function installDecisionKeys(close: () => boolean): void {
   });
 }
 
+/** One page-local attempt for all views of a task. The task's owner still decides its state and available commands. */
+function installTaskStops(host: WorkBarHost, { request, again }: Pick<TaskPanelLine, "request" | "again">, repaint: () => void, failed: (error: unknown) => void) {
+  const attempts = new Map<string, { state: "pending" } | { state: "succeeded"; after: number; source: BackgroundTaskRow["source"] }>();
+  return {
+    busy: (id: string) => attempts.has(id),
+    observe(issues: BackgroundTasksReadResult["issues"], started: number): boolean {
+      let changed = false;
+      for (const [id, attempt] of attempts) {
+        if (attempt.state !== "succeeded" || !(started > attempt.after)) continue;
+        const { provider_id, capability_id, version } = attempt.source;
+        if (issues.some(({ source }) => source.provider_id === provider_id && source.capability_id === capability_id && source.version === version)) continue;
+        attempts.delete(id);
+        changed = true;
+      }
+      return changed;
+    },
+    stop(task: BackgroundTaskRow): void {
+      const command = task.commands.find(one => one.role === "stop");
+      if (!command || attempts.has(task.id)) return;
+      attempts.set(task.id, { state: "pending" });
+      repaint();
+      // Mainline confirms that the task's owner still offers this exact command (WLN-39).
+      void request(host.route("/api/mainline/tasks/command"), { body: { source: task.source, subject: task.subject, command } })
+        .then(() => { attempts.set(task.id, { state: "succeeded", after: performance.now(), source: task.source }); })
+        .catch(error => { attempts.delete(task.id); failed(error); })
+        .finally(() => { repaint(); again(); });
+    },
+  };
+}
+
 export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult, started: number): void; offline(since: string | null): void; place(subject: ActionSubject): void; rows(subject: ActionSubject): string; decisions(subject: ActionSubject): string; subjects(subject: ActionSubject): { provider_id: string; subject: ActionSubject }[]; waiting(): { key: string; provider: string; title: string; event: WorkLineEvent }[]; unreadable(): ReadonlySet<string> } {
   const { keyOf, press, hue, again, request } = line, events = { values: () => [...line.events()], get: (id: string) => [...line.events()].find(one => one.id === id) };
   const PANEL = "work-task-panel";
@@ -137,8 +167,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     back() { paintTasks(); shell.cards?.querySelector<HTMLElement>("[data-task-panel-list], [data-task-panel-close]")?.focus(); },
   });
   let accepting: { update(): void; destroy(): void } | undefined;
-  // One page-local attempt, shared by the list, task card and event cards. Task state remains the owner's.
-  const stopping = new Map<string, { state: "pending" } | { state: "succeeded"; after: number; source: BackgroundTaskRow["source"] }>();
+  const stops = installTaskStops(host, line, () => repaint(), error => failed(error));
   const answers = installDecisionAnswers(host, request, { task: id => tasks.find(one => one.id === id), repaint: () => repaint(), again, failed: error => failed(error), go: task => go(task) });
   /** The decisions of these tasks in order, the first carrying the primary button; `named`: say which task asks, where the card is not its own. */
   const decisionsOf = (list: readonly BackgroundTaskRow[], named: (task: BackgroundTaskRow) => boolean) => list.flatMap(task => task.decisions.map(decision => ({ task, decision })))
@@ -149,7 +178,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
   const row = (task: BackgroundTaskRow): TaskRowView => {
     const event = task.serves.map(subject => [...events.values()].find(one => one.subject.kind === subject.kind && one.subject.id === subject.id)?.title).find(Boolean);
     return { id: task.id, title: task.title, ring: task.state, step: [task.step?.text, task.executor.label].filter(Boolean).join(" · "), serves: event ?? null,
-      ...(task.commands.some(command => command.role === "stop") ? { control: "stop" as const, busy: stopping.has(task.id) } : {}) };
+      ...(task.commands.some(command => command.role === "stop") ? { control: "stop" as const, busy: stops.busy(task.id) } : {}) };
   };
   const servedBy = (task: BackgroundTaskRow) => task.serves.map(subject => [...events.values()].find(one => keyOf(one.subject) === keyOf(subject))).find(Boolean);
   const card = (task: BackgroundTaskRow): string => {
@@ -158,7 +187,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     const actions = placing
       ? renderPlaceMenu({ task: task.id, own, none: task.serves.length === 0,
           events: [...events.values()].filter(one => keyOf(one.subject) !== keyOf(task.subject)).map(one => ({ id: one.id, title: one.title, current: one === event && !own })) })
-      : (task.commands.some(command => command.role === "stop") ? button(uiText.text("workbench.work-line.stop"), { "data-task-control": "stop", "data-task": task.id, ...(stopping.has(task.id) ? { disabled: "" } : {}) }) : "")
+      : (task.commands.some(command => command.role === "stop") ? button(uiText.text("workbench.work-line.stop"), { "data-task-control": "stop", "data-task": task.id, ...(stops.busy(task.id) ? { disabled: "" } : {}) }) : "")
         + (event ? button(uiText.text("workbench.work-line.go-to-event"), { "data-task-event": task.id }) : "") + (task.open ? button(task.open.label, { "data-task-go": task.id }) : "");
     return renderTaskCard({ id: task.id, panel: PANEL, decisions: decisionsOf([task], () => false), title: task.title, ring: task.state, state: [task.step?.text, ...task.details.map(line => line.text)].filter(Boolean).join(" · "),
       owner: { name: task.origin.title, glyph: task.origin.icon as PluginIconName, hue: hue.get(task.origin.surface) ?? "" }, who: task.executor.label,
@@ -187,11 +216,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
   let unread: ReadonlySet<string> = new Set();
   const takeTasks = (result: BackgroundTasksReadResult, started: number) => {
     unread = new Set(result.issues.map(issue => issue.source.provider_id));
-    let commandChanged = false;
-    for (const [id, attempt] of stopping) if (attempt.state === "succeeded" && started > attempt.after
-      && !result.issues.some(({ source }) => source.provider_id === attempt.source.provider_id && source.capability_id === attempt.source.capability_id && source.version === attempt.source.version)) {
-      stopping.delete(id); commandChanged = true;
-    }
+    const commandChanged = stops.observe(result.issues, started);
     // Same command count need not mean the same command, details or navigation target.
     const next = JSON.stringify(result.tasks);
     if (next === tasksShown && !commandChanged) return;
@@ -201,16 +226,6 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
   const backToCard = () => shell.back();
   installDialogRow(PANEL, () => paintTasks());
   const failed = (error: unknown) => request.toast?.(document.querySelector("[data-toast]") as never, error);
-  // The stop is the command the row carries; the mainline service checks it with the owner again (WLN-39).
-  const stopTask = (task: BackgroundTaskRow) => {
-    const command = task.commands.find(one => one.role === "stop");
-    if (!command || stopping.has(task.id)) return;
-    stopping.set(task.id, { state: "pending" }); repaint();
-    void request(host.route("/api/mainline/tasks/command"), { body: { source: task.source, subject: task.subject, command } })
-      .then(() => { stopping.set(task.id, { state: "succeeded", after: performance.now(), source: task.source }); })
-      .catch(error => { stopping.delete(task.id); failed(error); })
-      .finally(() => { repaint(); again(); });
-  };
   const repaint = () => { paintTasks(); line.repaint(); };
   const go = (task: BackgroundTaskRow) => { if (!task.open) return; if (task.open.kind === "surface" || !task.open.id) host.openSurface(task.open.surface); else host.openItem(task.open.surface, task.open.id, task.open.title); };
   document.addEventListener("click", event => {
@@ -225,7 +240,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
       const control = target.closest<HTMLElement>("[data-task-control]"), opened = target.closest<HTMLElement>("[data-task-open]");
       const on = tasks.find(one => one.id === (control?.dataset.task ?? opened?.dataset.taskOpen));
       if (!on) return;
-      if (control?.dataset.taskControl === "stop") stopTask(on); else if (control) go(on);
+      if (control?.dataset.taskControl === "stop") stops.stop(on); else if (control) go(on);
       else { wanted = ""; showTasks(true); backToCard(); carded = on.id; placing = false; paintTasks(); }
       return;
     }
@@ -242,7 +257,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     const stop = target.closest<HTMLElement>('[data-task-control="stop"]'), task = tasks.find(one => one.id === (stop?.dataset.task ?? carded));
     if (!task) return;
     const to = target.closest<HTMLElement>("[data-place-to]"), served = servedBy(task);
-    if (stop) stopTask(task);
+    if (stop) stops.stop(task);
     else if (target.closest("[data-place-change]")) { placing = !placing; paintTasks(); }
     else if (to) {
       // Where it goes is the owner's record, changed through the mainline service; what is under way goes on (WLN-36).

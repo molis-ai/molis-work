@@ -62,12 +62,12 @@ export const functionContextActions = {
   configure: define<{ id: string; scene_id: string; scene_version: number; provider_id: string; binding_id: string; expected_revision: string | null; enabled: boolean }, { ok: true }>("configure", /* @version action.functions.authoring.configure */ 1, "配置判断使用位置", "在消费方提供的位置启用、替换或停用当前规则；按原修订号写入，过期页面不能覆盖新配置。", objectSchema({
     id, scene_id: id, scene_version: { type: "integer", minimum: 1 }, provider_id: id, binding_id: id, expected_revision: nullableText, enabled: { type: "boolean" },
   }, ["id", "scene_id", "scene_version", "provider_id", "binding_id", "expected_revision", "enabled"]), { type: "object", properties: { ok: { const: true } }, required: ["ok"] }, true),
-  catalog: define<Record<string, never>, { catalog: JudgmentRuleAuthoringCatalog }>("catalog", /* @version action.functions.authoring.catalog */ 1, "判断规则可用场景", "读取当前调用者范围内的消费场景、对象与结果选项；不可用项带原因，目录不授予执行权限。", objectSchema({}, []), {
+  catalog: define<Record<string, never>, { catalog: JudgmentRuleAuthoringCatalog }>("catalog", /* @version action.functions.authoring.catalog */ 1, "判断规则可用场景", "读取当前调用者范围内的用途、对象与结果选项；不可用项带原因，目录不授予执行权限。", objectSchema({}, []), {
     type: "object", properties: { catalog: { type: "object", properties: {
       subjects: { type: "array", items: { type: "object" } }, destinations: { type: "array", items: { type: "object" } }, options: { type: "array", items: { type: "object" } },
     }, required: ["subjects", "destinations", "options"] } }, required: ["catalog"],
   }),
-  usages: define<{ id: string }, { usages: ActionSceneUsage[] }>("usages", /* @version action.functions.authoring.usages */ 1, "判断规则实际使用位置", "读取当前范围由消费场景保存的真实绑定与可用状态；草稿没有生效绑定。", objectSchema({ id }, ["id"]), {
+  usages: define<{ id: string }, { usages: ActionSceneUsage[] }>("usages", /* @version action.functions.authoring.usages */ 1, "判断规则实际使用位置", "读取当前范围由各用途保存的真实绑定与可用状态；草稿没有生效绑定。", objectSchema({ id }, ["id"]), {
     type: "object", properties: { usages: { type: "array", items: { type: "object", properties: { scene_id: id }, required: ["scene_id"] } } }, required: ["usages"],
   }),
 } as const;

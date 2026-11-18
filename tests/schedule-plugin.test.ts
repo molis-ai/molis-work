@@ -132,7 +132,7 @@ test("Workbench registers the Schedule UI Contribution through the generic UI Ho
   });
   assert.match(empty, /还没有定时任务/);
   assert.match(empty, /新建定时任务/);
-  assert.match(empty, /到点会在它自己的对话里跑一轮只读 Agent/);
+  assert.match(empty, /设定时间后，AI 到点会自动帮你查看并在这里汇报/);
   // New tasks are written in the detail pane, not a dialog (batch 18 P2, decided 2026-11-04).
   assert.match(empty, /<section[^>]*data-schedule-create-pane[^>]*hidden>/);
   assert.doesNotMatch(empty, /data-schedule-create-dialog/);

@@ -75,7 +75,7 @@ export function snapshotHostUserAction(action: ActionUserAction): ActionUserActi
 export function assertPluginConsentSettingsEntry(caller: ActionCallContext): void {
   if (caller.audience !== "user" || caller.actor_id !== LOCAL_PERSON_ACTOR_ID || caller.project_id !== null
     || caller.host_plugin || caller.delegated_by || !caller.user_action || !entries.has(caller.user_action)) {
-    throw new ActionError("actions.forbidden", "插件同意只接受本人在宿主设置里的操作");
+    throw new ActionError("actions.forbidden", "插件授权仅接受本人在「设置」中操作");
   }
 }
 
@@ -83,7 +83,7 @@ export function assertPluginConsentSettingsEntry(caller: ActionCallContext): voi
 export function assertPluginPermissionSettingsEntry(caller: ActionCallContext): void {
   if (caller.audience !== "user" || caller.actor_id !== LOCAL_PERSON_ACTOR_ID || !caller.project_id
     || caller.host_plugin || caller.delegated_by || !caller.user_action || !permissionEntries.has(caller.user_action)) {
-    throw new ActionError("actions.forbidden", "改插件的授权只接受本人在项目设置里的操作");
+    throw new ActionError("actions.forbidden", "插件权限变更仅接受本人在「项目设置」中操作");
   }
 }
 
@@ -91,6 +91,6 @@ export function assertPluginPermissionSettingsEntry(caller: ActionCallContext): 
 export function assertHomePluginPermissionSettingsEntry(caller: ActionCallContext): void {
   if (caller.audience !== "user" || caller.actor_id !== LOCAL_PERSON_ACTOR_ID || caller.project_id !== null
     || caller.host_plugin || caller.delegated_by || !caller.user_action || !homePermissionEntries.has(caller.user_action)) {
-    throw new ActionError("actions.forbidden", "改个人空间里插件的授权只接受本人在宿主设置里的操作");
+    throw new ActionError("actions.forbidden", "个人空间插件权限变更仅接受本人在「设置」中操作");
   }
 }

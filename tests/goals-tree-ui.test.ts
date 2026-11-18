@@ -25,11 +25,11 @@ test("Goals root directory contribution keeps its count, selection and navigatio
   assert.match(active, /class="desktop-module-item is-current"/);
   assert.match(active, /data-work-surface-open="goals" aria-current="page"/);
   assert.doesNotMatch(active, /data-directory-open/);
-  assert.match(active, /<strong>Goals<\/strong><small>3 个 Goal<\/small>/);
+  assert.match(active, /<strong>Goals<\/strong><small>3 个目标<\/small>/);
   const inactive = renderer.renderGoalRootEntry(0, false);
   assert.doesNotMatch(inactive, /is-current|aria-current|data-directory-open/);
   assert.match(inactive, /data-work-surface-open="goals"/);
-  assert.match(inactive, /<small>0 个 Goal<\/small>/);
+  assert.match(inactive, /<small>0 个目标<\/small>/);
 });
 
 test("collection selection preserves requested/active precedence without defaulting the current list to the first Goal", () => {
@@ -61,7 +61,7 @@ test("collection selection preserves requested/active precedence without default
   const stage = renderer.renderGoalStageList(model, current);
   const chrome = renderer.renderTreeChrome(model);
   assert.equal(full, "");
-  assert.match(chrome, /tree-create[^>]*>[\s\S]*新建 Goal/);
+  assert.match(chrome, /tree-create[^>]*>[\s\S]*新建目标/);
   assert.match(chrome, /class="[^"]*tree-filter-trigger"[^>]*data-tree-filter-trigger/);
   assert.match(stage, /data-goal-stage-list/);
   assert.match(stage, /data-goal-list-view/);
@@ -170,7 +170,7 @@ test("tree chrome keeps status counts, localized copy, and empty states", () => 
   assert.doesNotMatch(html, /value="archived" data-status-filter|value="trashed" data-status-filter/);
   assert.doesNotMatch(html, /data-global-search|tree-search|data-archive-link|data-trash-link|data-navigator-view/);
   assert.match(html, /class="[^"]*tree-filter-trigger"[^>]*data-tree-filter-trigger/);
-  assert.match(html, /tree-create[^>]*>[\s\S]*新建 Goal/);
+  assert.match(html, /tree-create[^>]*>[\s\S]*新建目标/);
   assert.match(html, /data-open-create/);
   assert.doesNotMatch(html, /data-collapse-all|折叠全部|Collapse all/);
   const english = withGoalLocale("en", () => renderer.renderTreeChrome(model));
@@ -182,7 +182,7 @@ test("tree chrome keeps status counts, localized copy, and empty states", () => 
   assert.match(GOALS_TREE_CLIENT_FACTORY_SCRIPT, /syncGoalCollectionFolds/);
   assert.doesNotMatch(GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT, /visibleGoals\(\)\[0\]|getActiveGoalId\(\)/);
   assert.doesNotMatch(GOALS_REFRESH_CLIENT_FACTORY_SCRIPT, /currentGoals\[0\]/);
-  assert.match(renderer.renderTreeChrome(view([])), /当前没有可筛选的 Goal/);
+  assert.match(renderer.renderTreeChrome(view([])), /当前还没有可筛选的目标/);
   assert.equal(renderer.renderGoalTree(view([]), ""), '<ul class="goal-tree" data-tree-root></ul>');
 });
 
@@ -195,10 +195,10 @@ test("stage list keeps current, archive and trash collection folds", () => {
   const empty = renderer.renderGoalStageList(view([]), emptyCollection);
   assert.doesNotMatch(emptyDirectory, /data-goal-collection-fold|data-select-goal|data-tree-root/);
   assert.match(empty, /data-goal-collection-fold="current"[^>]*\sopen/);
-  assert.match(empty, /还没有 Goal/);
+  assert.match(empty, /还没有目标/);
   assert.match(empty, /data-goal-collection-fold="archive"/);
   assert.match(empty, /data-goal-collection-fold="trash"/);
-  assert.match(empty, /没有已归档的 Goal/);
+  assert.match(empty, /还没有已归档的目标/);
   assert.match(empty, /回收站是空的/);
   assert.doesNotMatch(empty, /data-goal-collection-fold="archive"[^>]*\sopen/);
   assert.doesNotMatch(empty, /data-goal-collection-fold="trash"[^>]*\sopen/);

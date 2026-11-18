@@ -648,7 +648,7 @@ test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs reada
     const detailsEnd = requirements.indexOf("</details>");
     assert.ok(detailsStart >= 0 && detailsEnd > detailsStart, "original criteria must be inside an expandable details");
     const details = requirements.slice(detailsStart, detailsEnd + "</details>".length);
-    assert.match(details, /<summary>原 Goal 标准<\/summary>/);
+    assert.match(details, /<summary>初始完成标准<\/summary>/);
     assert.match(details, /legacy-read-criterion/);
     assert.match(details, /inspection/);
     assert.match(details, /\{&quot;value&quot;:90,&quot;unit&quot;:&quot;分&quot;,&quot;baseline&quot;:&quot;release-gate&quot;\}/);
@@ -1217,7 +1217,7 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
     const page = await (await fetchProject(`${origin}/goals/${encodeURIComponent(child.goal.goal_id)}`)).text();
-    assert.match(page, /退回理由已按下方问题预填，可以直接提交，也可以改写/);
+    assert.match(page, /已帮你填好退回原因，可直接发送或补充修改意见/);
     assert.match(page, /已按下方问题预填，可以直接采用，也可以改写/);
     assert.doesNotMatch(page, /Molis Work 会自动附上上方问题/);
     const decisionForm = page.match(/<form\b[^>]*data-goal-tree-decision-form[^>]*>[\s\S]*?<\/form>/)?.[0];

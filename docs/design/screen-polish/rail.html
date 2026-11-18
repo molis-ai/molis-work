@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>底栏第十一版 · 事项的推进线 · Molis Work 原型</title>
+  <link rel="stylesheet" href="../kit/kit.css">
+  <link rel="stylesheet" href="screens.css">
+  <link rel="stylesheet" href="line.css">
+  <link rel="stylesheet" href="dirs.css">
+  <link rel="stylesheet" href="focus.css">
+  <link rel="stylesheet" href="lip.css">
+  <link rel="stylesheet" href="rail.css">
+</head>
+<body class="sp-body">
+  <div id="icons" hidden></div>
+  <header class="sp-proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b>底栏第十一版</b>
+    <span class="ln-ctrls" id="ctrls">
+      <button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" data-go="story"><span data-slot="button-label">演示一遍</span></button>
+      <span class="ln-vr"></span>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="ask"><span data-slot="button-label">助理问你</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="step"><span data-slot="button-label">做完一步</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="back"><span data-slot="button-label">从设置回来</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="fail"><span data-slot="button-label">没发出去</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="reset"><span data-slot="button-label">重置</span></button>
+    </span>
+    <span class="grow"></span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="标出固定区域" id="marks">
+      <button type="button" class="mw-toggle" aria-pressed="true" value="off">不标</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="on">标出固定区域</button>
+    </span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="窗口宽度" id="width">
+      <button type="button" class="mw-toggle" aria-pressed="true" value="1440">1440</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="1180">1180</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="1024">1024</button>
+    </span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="主题" id="theme">
+      <button type="button" class="mw-toggle" aria-pressed="true" value="light">浅色</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="dark">深色</button>
+    </span>
+  </header>
+  <main id="dirs">
+    <section class="d-sec" id="proto">
+      <h2>32 · 底栏第十一版：底部是这件事项的一条推进线</h2>
+      <p>可以直接点：线上的任何一站、最左的事项和它旁边的箭头、对话顶部的标签、输入框下面那一行、主区里的行。上面的按钮让它发生一件事，「演示一遍」按顺序走完。顶部的页签是静态的，没有跟着换。</p>
+      <div class="sp-fit"><div class="sp-win c lp rz" id="win"></div></div>
+      <div class="ln-say" aria-live="polite"><b id="step">平常</b><span id="say">底部是事项「发布 v2.3」的一条线：最左是事项，线上依次是办完的、输入框、该你的、在办的、接下来的。</span></div>
+      <div class="ln-rules">
+        <div><b>一条线，起点是事项</b><span>底部这一条和主内容区分开。最左一枚白色的是事项（环、名字、办完几件），从它出发一条线一直到最右；后面的站都挂在这条线上，所以看得出它们都是这件事项里的。换事项，整条线一起换。</span></div>
+        <div><b>线上的站，位置永远不变</b><span>办完，然后是输入框，再往右是该你、在办、接下来。一件事从最右往左走：排着 → 在办 → 该你 → 办完。实线是走过的，点线是还没到的。它在哪一站只看办到哪了，不因为被点过而多出一枚或挪地方。</span></div>
+        <div><b>站是两行小字，不是卡片</b><span>上面一行是这一站叫什么、有几件，下面一行点名一件。平常压在桌面上，没有底；你专注的那一站才浮起来成一枚白片。事情再多，底部也只有这几处。</span></div>
+        <div><b>对话顶部一排标签</b><span>第一枚是事项，后面是你所在这一站里的几件。在「该你」这一站，标签就是等你的那几件，一件一件点过去就办完了。标签只跟着站走，不因为点过而留下。</span></div>
+      </div>
+      <h3 class="ln-h3">包含关系：事项 › 站 › 件</h3>
+      <table class="ln-count map">
+        <thead><tr><th>哪一层</th><th>在哪</th><th>点它</th></tr></thead>
+        <tbody>
+          <tr><td>事项</td><td>线的起点（最左的白片）；对话顶部第一枚标签</td><td>对整件事项说；点 ⌄ 换一件事项</td></tr>
+          <tr><td>站（办完、该你、在办、接下来）</td><td>挂在线上，输入框两边</td><td>专注到这一站点名的那一件，对话向上长</td></tr>
+          <tr><td>件</td><td>站的第二行点名一件；这一站的全部在对话顶部的标签里</td><td>换成这一件</td></tr>
+        </tbody>
+      </table>
+      <h3 class="ln-h3">每样东西的固定位置</h3>
+      <table class="ln-count map">
+        <thead><tr><th>东西</th><th>固定在哪</th><th>什么时候看得见</th></tr></thead>
+        <tbody>
+          <tr><td>1 · 在哪件事项里、换事项</td><td>最左的白片：环、「事项 · 办完 3 / 9」、名字、⌄</td><td>一直</td></tr>
+          <tr><td>2 · 办完的</td><td>输入框左边一站：件数、最近办完的一件</td><td>一直</td></tr>
+          <tr><td>3 · 字</td><td>输入框上面一行，整行都是它的。提示语写着这句话是对谁说的</td><td>一直</td></tr>
+          <tr><td>4 · 正在看、附件、材料</td><td>输入框下面一行的左半边</td><td>一直</td></tr>
+          <tr><td>5 · 发给谁、怎么送达</td><td>输入框下面一行的右半边；再往右是语音、发送</td><td>一直；送达方式只在它在办时</td></tr>
+          <tr><td>6 · 该你的、在办的、接下来的</td><td>输入框右边三站，按这个顺序。在办的带一段进度</td><td>一直；没有时位置留着</td></tr>
+          <tr><td>7 · 任务反馈的智能卡片</td><td>对话最上面一段，钉住不滚：状态、步骤；在事项的对话里是从这里交办出去的那几件</td><td>对话开着时</td></tr>
+          <tr><td>8 · 说过的话</td><td>对话中间一段，可以滚</td><td>对话开着时</td></tr>
+          <tr><td>9 · 选择项、接续（接着做下一步、下一件该你的、从设置回来接着做）、发送中和没发出</td><td>对话最下面一段，紧挨输入框。一次只有一组，第一项实心</td><td>对话开着、而且有下一步时</td></tr>
+          <tr><td>10 · 标签</td><td>对话顶部：事项，和这一站里的几件（最多四件，多的在「+N」里）</td><td>对话开着时</td></tr>
+        </tbody>
+      </table>
+      <h3 class="ln-h3">我先按这些做了，你可以改</h3>
+      <table class="ln-count map">
+        <thead><tr><th>细则</th><th>这一稿的做法</th><th>别的做法</th></tr></thead>
+        <tbody>
+          <tr><td>长相</td><td>照第五版（line.html）：两边是压在线上的字，输入框是一张白卡，对话顶部一排标签</td><td>—</td></tr>
+          <tr><td>底部高度</td><td>94：上面空 12，输入框 70，底边 12。站高 39</td><td>—</td></tr>
+          <tr><td>输入框宽度</td><td>1440 宽时 660，1180 时 560，1024 时 470</td><td>—</td></tr>
+          <tr><td>标签放什么</td><td>事项，加你所在这一站里的几件</td><td>事项，加所有在办的和等你的（第五版的做法）</td></tr>
+          <tr><td>对话没开时有没有标签</td><td>没有。底部只有线、站和输入框</td><td>事项那一枚一直挂在输入框上沿</td></tr>
+          <tr><td>点线上的一站</td><td>对话长出来，主区换成它那一页（顶部切到它的页签）</td><td>主区不动，只开对话</td></tr>
+          <tr><td>没有的那一站</td><td>位置留着，写「没有等你的」</td><td>没有就不显示</td></tr>
+          <tr><td>「正在看」默认带不带</td><td>不带（虚线），点一下带上，发出去回到不带</td><td>默认带上</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+  <script src="../kit/kit.js"></script>
+  <script src="screens.js"></script>
+  <script src="rail.js"></script>
+</body>
+</html>

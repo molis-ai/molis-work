@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>底栏第八版 · 一行三格，一排标签，一张纸 · Molis Work 原型</title>
+  <link rel="stylesheet" href="../kit/kit.css">
+  <link rel="stylesheet" href="screens.css">
+  <link rel="stylesheet" href="line.css">
+  <link rel="stylesheet" href="dirs.css">
+  <link rel="stylesheet" href="focus.css">
+  <link rel="stylesheet" href="bar.css">
+  <link rel="stylesheet" href="dock.css">
+</head>
+<body class="sp-body">
+  <div id="icons" hidden></div>
+  <header class="sp-proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b>底栏第八版</b>
+    <span class="ln-ctrls" id="ctrls">
+      <button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" data-go="story"><span data-slot="button-label">演示一遍</span></button>
+      <span class="ln-vr"></span>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="ask"><span data-slot="button-label">助理问你</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="step"><span data-slot="button-label">做完一步</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="back"><span data-slot="button-label">从设置回来</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="fail"><span data-slot="button-label">没发出去</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="reset"><span data-slot="button-label">重置</span></button>
+    </span>
+    <span class="grow"></span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="标出固定区域" id="marks">
+      <button type="button" class="mw-toggle" aria-pressed="true" value="off">不标</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="on">标出七个区域</button>
+    </span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="窗口宽度" id="width">
+      <button type="button" class="mw-toggle" aria-pressed="true" value="1440">1440</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="1180">1180</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="1024">1024</button>
+    </span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="主题" id="theme">
+      <button type="button" class="mw-toggle" aria-pressed="true" value="light">浅色</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="dark">深色</button>
+    </span>
+  </header>
+  <main id="dirs">
+    <section class="d-sec" id="proto">
+      <h2>29 · 底栏第八版：一行三格，一排标签，一张纸</h2>
+      <p>可以直接点：标签里的事项和事、左边的 ＋ 和「正在看」、右边的「给」、主区里的行、输入框。上面的按钮让它发生一件事，「演示一遍」按顺序走完。底部一行始终是 68 高；输入框上面只有一排标签；点输入框、打字都不挪位置。顶部的页签是静态的，没有跟着换。</p>
+      <div class="sp-fit"><div class="sp-win c bx dk" id="win"></div></div>
+      <div class="ln-say" aria-live="polite"><b id="step">平常</b><span id="say">输入框这一行分三格：左边是带着什么，中间只有字，右边是给谁。上面一排标签：亮着的是事项「发布 v2.3」，后面排着它里面的事，该你了的在最前。</span></div>
+      <div class="ln-rules">
+        <div><b>一行三格：带着、字、给</b><span>一句话发出去有三样：带着什么、说什么、给谁。它们排在同一行，从左到右就是这个顺序。左边一格是 ＋、「正在看」、附件；中间是输入框，里面只有字、语音、发送；右边一格是「给 助理」，它在办的时候旁边多一个「补充」。三格各占各的位置，谁也不进输入框。</span></div>
+        <div><b>一排标签：事项，和它里面的事</b><span>输入框上面只有这一排。亮着的那一枚是你在的事项，和输入框是同一张纸；事项名后面排着它里面的事，该你了的在最前，然后是在办的、接下来的，放不下的收成「+N」。别的事项收成一枚名字，有等你的带一个数字。点事项名换事项，点一件事就专注到它。</span></div>
+        <div><b>一张纸：向上长，分三段</b><span>点一件事、或者你发了一句话，纸从输入框向上长出来，用曲线和输入框接成一张。纸里从上到下固定三段：任务卡（这件事现在怎样）、说过的话、该你做的（选择项、接续）。点主区或按 Esc 收回去。别处来的事不会让它自己长出来。</span></div>
+        <div><b>输入框不动</b><span>点进去不变，打字不变，带上东西不变，换了给谁也不变。只有字多到换行，它才向上长，最后一行字的位置还在原处。</span></div>
+      </div>
+      <h3 class="ln-h3">每样东西的固定位置</h3>
+      <table class="ln-count map">
+        <thead><tr><th>东西</th><th>固定在哪</th><th>什么时候看得见</th></tr></thead>
+        <tbody>
+          <tr><td>1 · 在哪件事项里、专注在哪件事上</td><td>标签。亮着的一组：事项名，后面是它里面的事；专注的那一件有底色</td><td>一直</td></tr>
+          <tr><td>2 · 正在看、附件、材料</td><td>输入框左边一格。紧挨输入框的是 ＋，然后是「正在看：这一页」，再往左是带上的附件，放不下的收成一枚回形针加数字，点开能看、能拿掉。「正在看」一直在：虚线是这次不带，点一下点亮就是带上</td><td>一直</td></tr>
+          <tr><td>3 · 发给谁、怎么送达</td><td>输入框右边一格。「给 助理 ⌄」一直在；它正在办时右边多一个「补充 ⌄」（可改成打断、下一轮）</td><td>一直；送达方式只在它在办时</td></tr>
+          <tr><td>4 · 任务反馈的智能卡片</td><td>纸的最上面一段，钉住不随对话滚走。专注一件事时是它自己的卡；在事项的主对话里是从这里交办出去的那几件</td><td>纸开着、而且有任务时</td></tr>
+          <tr><td>5 · 说过的话</td><td>纸的中间一段，可以滚</td><td>纸开着时</td></tr>
+          <tr><td>6 · 选择项、接续（接着做下一步、下一件该你的、从设置回来接着做）、发送中和没发出</td><td>纸的最下面一段，紧挨输入框。一次只有一组，第一项是实心的</td><td>纸开着、而且有下一步时</td></tr>
+          <tr><td>7 · 字</td><td>输入框，里面只有字、语音、发送</td><td>一直</td></tr>
+        </tbody>
+      </table>
+      <h3 class="ln-h3">怎么用它干活</h3>
+      <div class="ln-rules">
+        <div><b>处理该你了的</b><span>标签里最前面的就是该你了的。点第一件：主区换成它，纸里是它问的话和选择项。选完，纸的最下面给出「下一件该你的」，点一下或按 ⌘] 过去。一件接一件，手不用离开底部。</span></div>
+        <div><b>交办一件新的事</b><span>在事项里说一句。它变成标签里的一件事（闪一下），任务卡钉在纸的最上面，带着状态和进度。办完或要你定时，它在标签里走到最前面。</span></div>
+        <div><b>给正在办的事补一句</b><span>点标签里那件在办的。说一句就是补充；要打断或排到下一轮，改右边那一格。没打字时发送键是停下。</span></div>
+        <div><b>换一件事项</b><span>点别的事项名。标签里换成它里面的事，主区是它的第一页。没放上来的事项在 ⌄ 里，按现在、接下来分。</span></div>
+      </div>
+      <h3 class="ln-h3">和上一稿（第七版）差在哪</h3>
+      <table class="ln-count map">
+        <thead><tr><th>东西</th><th>第七版</th><th>这一稿</th></tr></thead>
+        <tbody>
+          <tr><td>输入框两边</td><td>事件：左边该你了，右边在办的和接下来的</td><td>这句话的另外两样：左边带着什么，右边给谁</td></tr>
+          <tr><td>事件</td><td>在输入框两边</td><td>在标签里，跟在亮着的事项名后面</td></tr>
+          <tr><td>正在看、附件</td><td>从 ＋ 进，带了以后是输入框里字上面的一排片</td><td>输入框左边一格，一直在，不进输入框</td></tr>
+          <tr><td>发给谁</td><td>默认不显示，从 ＋ 进</td><td>输入框右边一格，一直在</td></tr>
+          <tr><td>输入框里面</td><td>＋、字、语音、发送；带了东西多一排</td><td>字、语音、发送；不会多出别的</td></tr>
+          <tr><td>任务卡</td><td>夹在对话里，会滚走</td><td>钉在纸的最上面</td></tr>
+        </tbody>
+      </table>
+      <h3 class="ln-h3">我先按这些做了，你可以改</h3>
+      <table class="ln-count map">
+        <thead><tr><th>细则</th><th>这一稿的做法</th><th>别的做法</th></tr></thead>
+        <tbody>
+          <tr><td>底部高度</td><td>68 不变：标签 24、输入框 38、底边 6</td><td>—</td></tr>
+          <tr><td>输入框宽度</td><td>1440 宽时 680，1180 时 600，1024 时 540。比第七版宽，标签才排得下事</td><td>保持 560，标签里只点名两件事</td></tr>
+          <tr><td>标签里点名几件事</td><td>放得下几件点名几件，最多五件；放不下先收事（至少留两件），再把别的事项收进 ⌄</td><td>只点名该你了的，在办的和接下来的只给数字</td></tr>
+          <tr><td>事的排法</td><td>该你了、在办、接下来；办完的不上标签</td><td>按时间</td></tr>
+          <tr><td>「正在看」默认带不带</td><td>不带（虚线），点一下带上，发出去回到不带</td><td>默认带上</td></tr>
+          <tr><td>换了给谁</td><td>只管这一句，发出去回到默认</td><td>一直保持到你改回来</td></tr>
+          <tr><td>别处来了要你定的事</td><td>在标签里走到最前、闪一下；别的事项的只在那枚标签上加数字。纸不动</td><td>纸自己长出来</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+  <script src="../kit/kit.js"></script>
+  <script src="screens.js"></script>
+  <script src="dock.js"></script>
+</body>
+</html>

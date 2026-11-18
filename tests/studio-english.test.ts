@@ -24,13 +24,13 @@ test("the studio stage in English has no Chinese label, aria-label or title, and
     'aria-label="My plugins"', 'aria-label="New plugin" title="New plugin"', "<span>Model</span>", 'aria-label="Model used for building"', ">Open model settings</a>",
     'aria-label="Collaboration"', "<span>Apply changes to</span>", '<option value="message">Features and interface</option>', '<option value="visual">Interface only</option>',
     'aria-label="Describe or change"', 'aria-label="Send" title="Send"', "<h1 data-as-title>New plugin</h1>", 'aria-label="Canvas mode"', ">Build</button>", ">Try</button>",
-    "<span>Code Agent</span>", 'aria-label="All components in the UI catalog"', 'aria-label="Spec board: components in the UI catalog"',
+    "<span>Feature build</span>", 'aria-label="All components in the UI catalog"', 'aria-label="Component library: available UI controls"',
   ]) assert.ok(html.includes(fragment), `English stage has ${fragment}`);
   const zh = studio("zh", () => renderAgentStudio());
   for (const fragment of [
     'aria-label="我的插件"', 'aria-label="新建插件" title="新建插件"', "<span>模型</span>", 'aria-label="构建使用的模型"', ">打开模型设置</a>", 'aria-label="协作"', "<span>修改范围</span>",
     '<option value="message">功能与界面</option>', '<option value="visual">只调整界面</option>', 'aria-label="描述或修改"', 'aria-label="发送" title="发送"', "<h1 data-as-title>新插件</h1>",
-    'aria-label="画布模式"', ">构建</button>", ">试用</button>", "<span>代码 Agent</span>", 'aria-label="UI 目录全部组件"', 'aria-label="规格板：UI 目录里的组件"',
+    'aria-label="画布模式"', ">构建</button>", ">试用</button>", "<span>功能实现</span>", 'aria-label="UI 目录全部组件"', 'aria-label="组件库：界面可用组件"',
   ]) assert.ok(zh.includes(fragment), `Chinese stage has ${fragment}`);
 });
 

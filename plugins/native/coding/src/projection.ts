@@ -145,7 +145,7 @@ export function toolAvailability(input: CodingToolInput): CodingToolAvailability
       : { page: "browser", available: false, reason: "这个版本没有内嵌浏览器，桌面版才有" },
     receiptsReadable
       ? { page: "terminal", available: true }
-      : { page: "terminal", available: false, reason: "这个运行时不提供命令回执" },
+      : { page: "terminal", available: false, reason: "当前环境不提供命令记录" },
     { page: "canvas", available: true },
   ];
 }

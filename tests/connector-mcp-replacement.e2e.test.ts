@@ -143,7 +143,7 @@ async function returnWith(browser: NonNullable<Awaited<ReturnType<typeof openCon
   assert.match(await text(page, `document.querySelector('[data-connector-detail="notion"] [data-connector-feedback]')`), /下面可以把用到原来那条的地方换到新连接/);
   assert.equal(await page.evaluate(`document.activeElement === ${resultOf(NEW)}`), true, "the offer takes the focus, so it is seen and read");
   assert.match(await text(page, resultOf(NEW)), /这条是替「旧 Notion」重新登录的。.*Coding 的 MCP 设置这里还查不到；如果那里选了「旧 Notion」，请到那里改选这条/s);
-  assert.equal(await page.evaluate(`${resultOf(NEW)}.querySelector('a[href^="/settings/coding-settings"]')?.textContent`), "设置 Agent 工具");
+  assert.equal(await page.evaluate(`${resultOf(NEW)}.querySelector('a[href^="/settings/coding-settings"]')?.textContent`), "配置外部工具权限");
 }
 const buttonIn = (id: string, label: string) => `[...${resultOf(id)}.querySelectorAll('button')].find(button => button.textContent === ${JSON.stringify(label)})`;
 

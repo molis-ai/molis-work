@@ -50,6 +50,7 @@
 - [技能选用：选用解释、改选与停用的可点定样（路线书第 41 批）](skill-selection/README.md)
 - [写自己的技能：新建、修改和「改一份我的」的可点定样（路线书第 41 批第 2 项，已定 B）](skill-authoring/README.md)
 - [改进技能：生成、试用、比较、采用与恢复的可点定样（路线书第 42 批，已定 B 左边改、右边试）](skill-improvement/README.md)
+- [逐屏打磨第一轮：高保真样稿](screen-polish/README.md)
 - [Molis Work 高保真交互原型](soft-workbench/README.md)
 - [子任务对话定样（第 58 批）](subagent-interaction-58/README.md)
 - [Coding 子任务入口补充定样（第 59 批）](subagent-entry-59/README.md)

@@ -122,7 +122,7 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [35-1](batches/35.md#batch-35-item-1) | 引导接入已有 Sessions | F | 是 | C3 |
 | [35-2](batches/35.md#batch-35-item-2) | Coding A 期 | B | 是 | — |
 | [36A-1](batches/36a.md#batch-36a-item-1) | 顶部栏：纸上的页签 | D | 是 | — |
-| [36A-2](batches/36a.md#batch-36a-item-2) | 事项线：底栏第四版 | D | 是 | A |
+| [36A-2](batches/36a.md#batch-36a-item-2) | 底栏：第十三版 | D | 是 | A |
 | [36A-3](batches/36a.md#batch-36a-item-3) | 助理对话框、事件卡与收起态 | D | 是 | A |
 | [36A-4](batches/36a.md#batch-36a-item-4) | Coding 逐屏 | B | 是 | D |
 | [36A-5](batches/36a.md#batch-36a-item-5) | 设置页：一种写法 | D | 是 | — |

@@ -1402,3 +1402,9 @@ main `43a3c3fa2f` 与候选独立构建并实测了 67 个静态资源和十组�
 助理跳到引用的旧回复前调用 `release`，子任务重开通过 `restore` 复原读点，Coding 历史也调用共享滚动组件。原实现通过 700 ms 输入窗口归属滚动，页面接管时仍留着上一个人的滚轮时间。晚到的页面滚动可让跟随恢复，用户刚选中的阅读位置再次交给自动跟尾。QEA-181 固定滚轮、恢复或放开与页面滚动的顺序，旧实现两个结果都是 `following`。独立主干原测试偶发通过与该竞态相符。[助理跳转](../../apps/workbench/src/scripts/client/assistant-strip.ts#L27) · [子任务读点](../../packages/plugin-sdk/src/browser/subtask-dom.ts#L126) · [Coding 历史](../../plugins/native/coding/src/browser/main/read.ts#L143) · [反证](../../tests/scroll-follow.e2e.test.ts#L138)
 
 共享滚动组件在恢复页面位置时清除上一手势，在放开跟随时沿原离开尾部的转换截停未结束的自动回尾。新一笔真实手势继续经原监听器识别。处理在取得归属的同一个组件内，所有已接入界面共同受益，无存储迁移。旧反证日志 `quality-audit-b110-scroll-before.log`。[滚动转换](../../packages/design-system/src/browser/scroll-follow.ts#L99)
+
+### 第 109–110 批资源复量
+
+主干基点为独立构建的 `e56bd6701a`。67 条静态资源及十组页面冷、热回放完成，22 项待核对的首屏内容地址及动态请求仍由原许可匹配。两条工作台词包继续使用上节的内容地址。相对含主干滚动中断的第 109 批，插件帧加 2 B、工作台脚本加 1 B，单页冷加载加 3 B，热加载最多加 1 B。当前基点上页面净增最多冷 2,096 B、热 20 B，最大静态净增仍是 Git 脚本 8,403 B。
+
+相对上次推送 `704773fe8e`，四类入门页面中最大冷增 759 B、热增 266 B，另外测量的示例项目最大冷增 1,069 B、热增 261 B。静态只有原工作台和插件帧脚本各净增 315 B、156 B，这包含第 108 批在内的改动和主干滚动中断。首次测量项目选择页的资料摘要超时，原量法重跑已完整收集。基线实报 `quality-audit-b109-main-{http,assets}.json`、候选实报 `quality-audit-b110-candidate-{http,assets}.json`、逐页比较 `quality-audit-b110-resources-verified.json`。[登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)

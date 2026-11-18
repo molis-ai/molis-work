@@ -1,0 +1,18 @@
+{
+  "reason": "B58-02 向上阅读时让共享滚动控制器停止在途的「回到最新」，并清除该次手势的跟随判定。工作台与插件框架各加载这份控制器。",
+  "review": "VUX-26 与 B58-02。对 eaa6b47492 的隔离构建实测插件框架脚本增加 61 B，工作台脚本增加 63 B。到达页和选择页增加 120 B 冷启动、59 B 热启动，两种工作台增加 124 B 冷启动。",
+  "assets": {
+    "/assets/molis-work-plugin-frame.js": 61,
+    "/assets/molis-work-workbench.js": 63
+  },
+  "pages": {
+    "arrival-empty/zh": { "cold": 120, "warm": 59 },
+    "arrival-empty/en": { "cold": 120, "warm": 59 },
+    "chooser/zh": { "cold": 120, "warm": 59 },
+    "chooser/en": { "cold": 120, "warm": 59 },
+    "workbench-default/zh": { "cold": 124, "warm": 0 },
+    "workbench-default/en": { "cold": 124, "warm": 0 },
+    "workbench-all-plugins/zh": { "cold": 124, "warm": 0 },
+    "workbench-all-plugins/en": { "cold": 124, "warm": 0 }
+  }
+}

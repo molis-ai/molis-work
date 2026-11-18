@@ -36,7 +36,13 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
     options.onChange?.(next);
   };
   const input = () => { lastInput = performance.now(); };
-  const leave = () => { input(); set(DETACHED); };
+  const leave = () => {
+    // Input towards older content detaches immediately. A queued event from
+    // the trip back must no longer count as a gesture returning to the end.
+    lastInput = -Infinity;
+    if (state === FOLLOWING) scroller.scrollTo({ top: scroller.scrollTop, behavior: "instant" });
+    set(DETACHED);
+  };
   const listening = new AbortController(), signal = listening.signal, passive = { passive: true, signal };
 
   scroller.addEventListener("wheel", (event) => { if (event.deltaY < 0) leave(); else input(); }, passive);

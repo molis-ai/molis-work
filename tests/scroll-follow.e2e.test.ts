@@ -107,6 +107,22 @@ test("VUX-26 scroll ownership: only the person detaches, pins wait out a gesture
   await sleep(150);
   assert.deepEqual(await page.evaluate<string[]>(`window.changes`), ["following"], "scrolling down on the way back keeps following");
 
+  // B58-02: a pending scroll event can arrive after the upward wheel while still within the follow distance.
+  const interruptedAt = await page.evaluate<number>(`(() => {
+    const thread = document.getElementById("thread");
+    window.follow.restore(thread.scrollHeight - thread.clientHeight - 32);
+    window.changes.length = 0;
+    window.follow.toLatest();
+    thread.dispatchEvent(new WheelEvent("wheel", { deltaY: -120 }));
+    thread.dispatchEvent(new Event("scroll"));
+    return thread.scrollTop;
+  })()`);
+  assert.deepEqual(await page.evaluate<string[]>(`window.changes`), ["detached"], "a queued event from our smooth scroll cannot resume following");
+  await frames(); await frames();
+  assert.equal(await page.evaluate<number>(`document.getElementById("thread").scrollTop`), interruptedAt, "the interrupted trip cannot pull the reader to the end");
+  await wheel(120);
+  await page.wait(`document.getElementById("thread").dataset.follow === "following"`);
+
   // The page's own words: restore(top) judges the restored place, resume() follows a fresh conversation, release() steps aside.
   await page.evaluate(`window.follow.restore(100)`);
   assert.equal(await state(), "detached", "a saved place away from the end is read as reading");

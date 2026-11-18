@@ -103,7 +103,7 @@ Molis 的扩展面很多：hooks、技能包、MCP/连接器、子代理/角色�
 ### 第 61 批实现
 
 - **卡由 Host 放、以本人身份跑。** 主动推荐不另开路：助理的操作卡加了两样通用能力——`choices`（字段只能在给出的选项里选，数组字段是多选）和 Host 放给本人的卡（`placeForPerson`，`runs_as: "person"`，按本人在该工作范围里的动作运行，结果按动作声明的 `undo` 记进工作，可在工作里撤销）。页面放的卡、Agent 轮次的建议仍按助理能用的能力核对，不能以本人身份运行（[S-automation-adoption](../../docs/system/security-invariants/S-automation-adoption.md)）。
-- **开启动作。** `automation.adoption.adopt@1`／`automation.adoption.undo@1` 只给本人（`audiences: ["user"]`），只认本项目最近一张卡列出的建议；技能按本人选的「自动／只在点名时」开，已经开着的不动也不记撤销；连接经 `connectors.setup.prepare` 准备，结果带 `pending_connection`，在卡里完成（第 13 批的原处连接卡），不建立账户；「以后别再提」写进 AUT-07 的项目偏好。撤销只关这次开的、仍停在这次留下的版本的技能，之后被改过的保留并说明。
+- **开启动作。** `automation.adoption.adopt@1`／`automation.adoption.undo@1` 只给本人（`audiences: ["user"]`），只认本项目最近一张卡列出的建议；技能按本人选的「自动／只在点名时」开，已经开着的不动也不记撤销；连接经 `connectors.setup.prepare` 准备，结果带 `pending_connection`，在卡里完成（第 13 批的原处连接卡），不建立账户；「以后别再提」写进 AUT-07 的项目偏好。要么全成、要么不留：开了技能之后的一步失败（连接此刻被拒、技能刚被改、偏好写不进）就先把已开的关回去再报错（调用已被取消的，关回也会被拒，技能可能留着，见 S-automation-adoption）。只有开了技能才带 `adoption_id`、才出撤销；撤销只关这次开的、仍停在这次留下的版本的技能，之后被改过的保留并说明。
 - **什么时候说。** 项目页打开约 1.5 秒后问一次 `automation.recommendations.offer@1`；十分钟内不重看；只有出现以前没说过的技能或连接才放卡，按「新的在前、证据强的在前」最多 3 项、连接最多 1 项；放卡时 Dock 亮一次。记录在 `config/automation-offers.json`（`format.automation.offers` v1，按人、项目与项目身份分行，只存建议号、标题与开启所需的引用），删项目时一并删。
 - **连接候选。** 服务在声明里写 `project_hints`（`git_hosts`、`files`、`dependencies`，`@scope/*` 匹配一个作用域、末尾 `/` 表示目录）；扫描只对上根目录文件名、`package.json` 依赖、`pyproject.toml`／`requirements.txt` 文本和 `.git/config` 里远端的主机名，证据只留对上的线索，不留文件内容。扫描不为此新建连接目录（AUT-01 只读）。
 - **证据。** `tests/automation-adoption.test.ts`（AUT-03、AUT-06～08：声明线索、卡只说一次、本人开启与撤销、连接只准备）、`tests/security-invariants-automation-adoption.test.ts`（拒绝路径）。卡里字段名暂取动作合同里的中文 `title`，英文界面下字段名仍是中文，记入第 62 批缺口。

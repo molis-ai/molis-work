@@ -96,7 +96,7 @@
 | <a id="g-04"></a>G-04 | 撞 id 的集成没写出被哪个插件占用（BL-692 余项） | 平台：启动登记只记恢复错误，不记占用方 | 登记冲突时把占用方的插件 id 与标题写进恢复错误，插件页显示 |
 | <a id="g-05"></a>G-05 | 外部集成一轮拉取的用量与超时没实测（BL-693） | 平台：照 `DEFAULT_SANDBOX_LIMITS` 与一次 200 条 | 接 Home 沙箱实例后用真实来源实测，不够再按集成定 `SandboxCallControl.limits` |
 | <a id="g-06"></a>G-06 | 逐服务真实账号验收（ASC-50）：连接、断线、撤权、恢复 | 外部资格：API OAuth 要产品在各服务注册应用；只有 MCP 登录与贴密钥在新 Home 里可走 | 按上表逐行走真实账号；缺产品应用的服务只挡它自己那一行 |
-| <a id="g-07"></a>G-07 | Brave Search、DeepSeek Search、Tavily 只用假服务测过 | 外部资格：真实密钥（Brave 要绑卡，DeepSeek 按次收费） | 用户方便时在隔离 Home 里各贴一次真实密钥查一次，核对出处与计费提示 |
+| <a id="g-07"></a>G-07 | Brave Search、DeepSeek Search、Tavily 只用假服务测过；DeepSeek 的搜索地址 `https://api.deepseek.com/v1/tools/search` 在公开文档里没核到，是按发布说明写的 | 外部资格：真实密钥（Brave 要绑卡，DeepSeek 按次收费） | 用户方便时在隔离 Home 里各贴一次真实密钥查一次，核对出处与计费提示；DeepSeek 地址对不上就改或先从目录拿掉 |
 | <a id="g-08"></a>G-08 | 没有官方连接器的工具的接入路径（ASC-41～44） | 平台策略：受管连接、定时导出的落点要 Tool／MCP 策略先定 | 四策略定下后实现四级判断、窄范围接入、批准写入与真实工具走查 |
 | <a id="g-09"></a>G-09 | 项目自动化建议里 Hooks、命令两组只有缺口说明 | SDK：没有可装的 Hook／命令来源声明 | 与第 65 批 Coding 的权限／Hooks 设计一起定声明，建议器按声明出建议并进采用卡 |
 | <a id="g-10"></a>G-10 | 角色不能从助理的采用卡里开 | 平台：角色没有项目级开／关状态 | 角色有了开关后并进 `automation.adoption.adopt@1` |

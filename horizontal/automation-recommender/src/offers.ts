@@ -35,7 +35,7 @@ const unavailable = () => new ActionError("actions.service_unavailable", "项目
 const same = (a: Subject, b: Subject) => a.actor === b.actor && a.project === b.project && a.incarnation === b.incarnation;
 const ID = /^[a-f0-9]{64}$/, UUID = /^[0-9a-f-]{36}$/, NAME = /^[A-Za-z0-9._:-]{1,200}$/;
 const text = (value: unknown, max: number): value is string => typeof value === "string" && value.length > 0 && value.length <= max;
-export const EMPTY_OFFER_RECORD: OfferRecord = { told: [], offered: [], looked_at: null, adoptions: [] };
+const EMPTY_OFFER_RECORD: OfferRecord = { told: [], offered: [], looked_at: null, adoptions: [] };
 
 function item(value: unknown): OfferedItem {
   if (!isRecord(value) || !text(value.id, 64) || !ID.test(value.id) || !text(value.title, 200)) throw unavailable();

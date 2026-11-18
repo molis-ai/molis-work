@@ -7,7 +7,7 @@ import { matchProjectAutomation, type AutomationCandidate } from "./match.js";
 import { changeAutomationPreference, readAutomationPreferences } from "./preferences.js";
 import { reportDocument } from "./report-document.js";
 
-export { AUTOMATION_PREFERENCES_FILE, AUTOMATION_PREFERENCES_PATH, forgetAutomationPreferences, hideAutomationSuggestions, readAutomationPreferences } from "./preferences.js";
+export { AUTOMATION_PREFERENCES_FILE, AUTOMATION_PREFERENCES_PATH, forgetAutomationPreferences, hideAutomationSuggestions } from "./preferences.js";
 export { AUTOMATION_OFFERS_FILE, AUTOMATION_OFFERS_PATH, changeOfferRecord, forgetAutomationOffers, offersQuiet, readOfferRecord, setOffersQuiet, type Adoption, type AdoptedSkill, type OfferRecord, type OfferedItem } from "./offers.js";
 export type { AutomationCandidate } from "./match.js";
 export type { ScanServiceHints } from "./scan.js";

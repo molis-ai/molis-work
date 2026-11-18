@@ -136,7 +136,7 @@ export class AssistantOffers {
     const client = await (await this.ports.authority(work)).actions?.(RUNTIME);
     if (!client) throw this.ports.fail("assistant.unsupported", "这里没有助理能用的能力");
     const { offer_id } = await this.recordOffer(work, { title: card.title, summary: card.summary, reference: card.reference, input: card.input,
-      ...(card.editable ? { editable: card.editable } : {}), ...(card.missing ? { missing: card.missing } : {}) }, await client.discover(),
+      ...(card.editable ? { editable: card.editable } : {}), ...(card.missing ? { missing: card.missing } : {}), ...(card.choices ? { choices: card.choices } : {}) }, await client.discover(),
       { from: source, ...(card.source_object ? { source_object: card.source_object } : {}), ...(card.materials ? { materials: card.materials } : {}) });
     if (card.source_object) {
       const version = card.source_object.version;

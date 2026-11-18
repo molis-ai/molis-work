@@ -5,13 +5,13 @@ import type { SkillState } from "./skills.js";
 export const AUTOMATION_CATEGORIES = ["hooks", "skills", "connections", "roles", "commands"] as const;
 export type AutomationCategory = typeof AUTOMATION_CATEGORIES[number];
 export type AutomationSignal = "javascript" | "python" | "rust" | "go" | "frontend" | "tests" | "format" | "ci" | "configured";
+/** What in a project matched a service's declared hint: a Git remote host, a file or folder at the root, or a declared dependency. */
+export const AUTOMATION_HINT_KINDS = ["git_host", "file", "dependency"] as const;
+export type AutomationHintKind = (typeof AUTOMATION_HINT_KINDS)[number];
 /**
  * A service's declared `project_hints` entry that this file matched (§7): the service, which kind of hint, and the hint exactly as the
  * service declared it — a Git host, a project path, a package name. Never a remote address, a version or other text from the file.
  */
-/** What in a project matched a service's declared hint: a Git remote host, a file or folder at the root, or a declared dependency. */
-export const AUTOMATION_HINT_KINDS = ["git_host", "file", "dependency"] as const;
-export type AutomationHintKind = (typeof AUTOMATION_HINT_KINDS)[number];
 export interface AutomationHint {
   readonly service_id: string;
   readonly kind: AutomationHintKind;
@@ -100,10 +100,10 @@ export const automationRecommendationActions = {
   setOffers: action<AutomationOffersSetting, AutomationOffersSetting>("automation.recommendations.offers.set", /* @version action.automation.recommendations.offers.set */ 1,
     "设置助理是否主动说项目建议", "command", closed({ enabled: { type: "boolean" } })),
 };
-/** What a look found: a card placed in a work, or why nothing was said. */
 /** Why the Assistant said nothing this time: switched off, looked recently, no folder, nothing it has not said, or no Assistant here. */
 export const AUTOMATION_QUIET_REASONS = ["off", "recent", "no-workspace", "nothing-new", "no-assistant"] as const;
 export type AutomationQuietReason = (typeof AUTOMATION_QUIET_REASONS)[number];
+/** What a look found: a card placed in a work, or why nothing was said. */
 export type AutomationOfferResult =
   | { readonly offered: true; readonly work_id: string; readonly count: number }
   | { readonly offered: false; readonly reason: AutomationQuietReason };
@@ -128,7 +128,8 @@ export interface AutomationAdoptInput {
   readonly skill_state: Exclude<SkillState, "off">;
 }
 export interface AutomationAdoptResult {
-  readonly adoption_id: string;
+  /** Only when this call turned skills on: what undo takes back. Hiding or preparing a connection alone leaves nothing to undo. */
+  readonly adoption_id?: string;
   /** What is now on, as the person reads it. */
   readonly summary: string;
   readonly enabled: readonly { readonly id: string; readonly title: string }[];
@@ -159,7 +160,7 @@ export const automationAdoptionActions = {
       skill_state: { title: "技能怎么用", oneOf: [{ const: "auto", title: "适用时自动用" }, { const: "manual", title: "只在点名时用" }] },
     }, required: ["adopt", "never", "skill_state"], additionalProperties: false },
     { type: "object", properties: { adoption_id: { type: "string", format: "uuid" }, summary: { type: "string" }, enabled: named, hidden: named,
-      authorization_id: { type: "string", format: "uuid" } }, required: ["adoption_id", "summary", "enabled", "hidden"], additionalProperties: false },
+      authorization_id: { type: "string", format: "uuid" } }, required: ["summary", "enabled", "hidden"], additionalProperties: false },
     { undo: { capability_id: "automation.adoption.undo", version: /* @version action.automation.adoption.undo */ 1, input: { adoption_id: "adoption_id" } },
       result_view: { summary: "已开启所选", text_pointer: "/summary", pending_connection: { authorization_pointer: "/authorization_id" } } }) as ActionDefinition<AutomationAdoptInput, AutomationAdoptResult>,
   undo: adoption("automation.adoption.undo", /* @version action.automation.adoption.undo */ 1, "撤销开启的建议",

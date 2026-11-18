@@ -170,7 +170,7 @@ assistant.panel.works.subtask.review	1	system.assistant-panel	command	operation	
 assistant.panel.works.take_back	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.undo	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	77f500e02234	a2c799262a3c	3cfff55e5308
 attention.waiting.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	88db02166b7c	6c35b8e1ec1c	-
-automation.adoption.adopt	1	system.automation-adoption	command	operation	project	write	concurrent	user	-	-	-	-	5a8d8727efee	40667da27072	4fc9a7114184
+automation.adoption.adopt	1	system.automation-adoption	command	operation	project	write	concurrent	user	-	-	-	-	5a8d8727efee	4ff86caad4d1	4fc9a7114184
 automation.adoption.undo	1	system.automation-adoption	command	operation	project	write	concurrent	user	-	-	-	-	9823c6092f57	cf0995398edb	-
 automation.recommendations.offer	1	system.automation-recommendations	command	operation	project	write	concurrent	user	-	-	-	-	d746974fa9af	a2c799262a3c	-
 automation.recommendations.offers.get	1	system.automation-recommendations	query	query	project	read	concurrent	user	-	-	-	-	d746974fa9af	a2c799262a3c	-

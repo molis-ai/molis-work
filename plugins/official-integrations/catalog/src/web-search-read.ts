@@ -1,9 +1,7 @@
 import { createCatalogHttp, CatalogLiveError, tokenContext } from "./http.js";
 import { getCatalogSpec } from "./catalog.js";
 import type { CatalogFetch, CatalogWebResult } from "./types.js";
-
-/** The most results one search asks a service for. */
-export const CATALOG_WEB_SEARCH_MAX_RESULTS = 10;
+import { WEB_SEARCH_MAX_RESULTS } from "@molis-ai/molis-work-contracts/services/web-search";
 
 /**
  * One web search through a connected search service with the person's key: one request to the service's own API, its answer read into
@@ -22,7 +20,7 @@ export async function searchCatalogWeb(connectorId: string, input: {
   if (!search) throw new CatalogLiveError("provider", undefined, "这个服务不做网页搜索");
   const fetchImpl = input.fetch ?? globalThis.fetch.bind(globalThis);
   const http = createCatalogHttp(fetchImpl, input.now ?? (() => new Date()));
-  const count = Math.max(1, Math.min(CATALOG_WEB_SEARCH_MAX_RESULTS, Math.trunc(input.count)));
+  const count = Math.max(1, Math.min(WEB_SEARCH_MAX_RESULTS, Math.trunc(input.count)));
   const request = search.request(tokenContext(input.token), { q: input.query, count });
   await input.beforeDispatch?.();
   const result = await http.json(request);

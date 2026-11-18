@@ -21,7 +21,7 @@ export interface AutomationAdoptInput {
 }
 
 export interface AutomationAdoptResult {
-    readonly adoption_id: string;
+    readonly adoption_id?: string;
     readonly summary: string;
     readonly enabled: readonly {
         readonly id: string;

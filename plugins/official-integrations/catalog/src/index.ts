@@ -138,6 +138,6 @@ export { CatalogLiveError } from "./http.js";
 export { catalogCloudOrigin } from "./targets.js";
 export type { CatalogFetch } from "./types.js";
 export { readExternalDocument, externalDocumentErrors } from "./document-import.js";
-export { searchCatalogWeb, CATALOG_WEB_SEARCH_MAX_RESULTS } from "./web-search-read.js";
+export { searchCatalogWeb } from "./web-search-read.js";
 export type { CatalogWebResult } from "./types.js";
 export type { ExternalDocument, ExternalDocumentSource, ExternalDocumentImportErrorCode } from "./document-import.js";

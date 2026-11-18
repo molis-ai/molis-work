@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -81,4 +81,13 @@ test("S-automation-adoption: only the person's Host card turns suggestions on �
   const after = await fixture.web.get<AssistantWorkView>(`${base(project)}/api/assistant/works/${offered.work_id}`);
   assert.equal(after.cards.filter(row => row.capability_id === adoptRef.capability_id).length, 1, "only the Host's card is there");
   assert.deepEqual(await skills(), ["off", "off"]);
+
+  // A step that fails after a skill was turned on (here the project's preferences cannot be written for 「以后别再提」) turns it back off:
+  // the failed adoption leaves nothing on and no record to undo.
+  const preferences = join(fixture.home, "config", "automation-recommendations.json");
+  await rm(preferences, { force: true });
+  await mkdir(preferences);
+  await assert.rejects(client.invoke(person, adoptRef, { adopt: [ids[0]], never: [ids[1]], skill_state: "auto" }), "the adoption fails as a whole");
+  assert.deepEqual(await skills(), ["off", "off"], "the skill turned on before the failure is off again");
+  await rm(preferences, { recursive: true });
 });

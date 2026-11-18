@@ -106,7 +106,8 @@ async function connectedSearch(home: string, source: WebSearchSourceView, query:
     try {
       return await searchCatalogWeb(serviceId, { token: access.token, query, count, fetch: controlledConnectorFetch(access.fetchImpl ?? globalThis.fetch, { ...control, signal }) });
     } catch (error) {
-      current();
+      // A call stopped or no longer allowed fails inside the service's request too, which reads it as a network failure: say it as it is.
+      current(); await call.beforeEffect();
       if (!(error instanceof CatalogLiveError)) throw webSearchErrors.network(`没连上 ${source.title}，稍后再试`);
       if (error.kind === "needs_auth") throw webSearchErrors.needs_auth(`${source.title} 拒绝了这把密钥（${error.status ?? ""}），请在服务连接里换一把`);
       if (error.kind === "rate_limited") throw webSearchErrors.rate_limited(`${source.title} 说查得太快了${error.retryAfterAt ? `，${error.retryAfterAt} 之后再试` : "，稍后再试"}`);

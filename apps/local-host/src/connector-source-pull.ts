@@ -88,7 +88,9 @@ export function createConnectorSourcePort(options: ConnectorSourcePortOptions): 
     },
     async accounts(service_ids) {
       const [registry, titles] = await Promise.all([options.registry(), options.titles?.() ?? Promise.resolve(new Map<string, string>())]);
-      const pullable = new Set(registry.listIntegrations("source").map(entry => entry.declaration.service_id));
+      // Pullable as the account source pulls it: the source integration whose id is the service's (the slot), not merely one for that service.
+      const pullable = new Set(registry.listIntegrations("source").filter(entry => entry.declaration.integration_id === entry.declaration.service_id)
+        .map(entry => entry.declaration.service_id));
       const bound = existsSync(homeSqlitePath(home, "connectors"))
         ? withConnectorConnections(home, store => new Set(service_ids.filter(id => store.list(id).some(row => row.enabled && !row.disconnected_at))), true) ?? new Set<string>()
         : new Set<string>();

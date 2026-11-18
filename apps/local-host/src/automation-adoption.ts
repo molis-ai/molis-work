@@ -77,29 +77,43 @@ async function adopt(ports: AutomationAdoptionPorts, input: AutomationAdoptInput
   if (service && !method) throw new ActionError("actions.conflict", `「${service.title}」现在不能在这里接入，请到服务连接页接入`);
 
   await caller.beforeEffect();
+  // All of it or none of it: a step that fails after skills were turned on (a connection the Host refuses now, a skill changed meanwhile,
+  // preferences that cannot be written) turns those skills back off before the failure is reported, so a failed card has left nothing on.
   const adopted: AdoptedSkill[] = [];
-  for (const { item, row } of current) {
-    if (row.state !== "off") continue; // Already on (the person did it meanwhile): nothing of ours to undo.
-    const after = await client.invoke(caller, setStateRef, { scope: "project", install_id: item.install_id, skill_id: item.skill_id,
-      state: input.skill_state, expected_revision: row.settings_revision }) as SkillCatalogEntry;
-    adopted.push({ install_id: item.install_id, skill_id: item.skill_id, title: item.title, revision: after.settings_revision });
+  let authorization_id: string | undefined, adoption_id: string | undefined;
+  try {
+    for (const { item, row } of current) {
+      if (row.state !== "off") continue; // Already on (the person did it meanwhile): nothing of ours to undo.
+      const after = await client.invoke(caller, setStateRef, { scope: "project", install_id: item.install_id, skill_id: item.skill_id,
+        state: input.skill_state, expected_revision: row.settings_revision }) as SkillCatalogEntry;
+      adopted.push({ install_id: item.install_id, skill_id: item.skill_id, title: item.title, revision: after.settings_revision });
+    }
+    if (service && method) {
+      const prepared = await client.invoke(caller, setupRef, { service_id: service.service_id, method: method.kind, display_name: service.title, expected_revision: null }) as { authorization_id: string };
+      authorization_id = prepared.authorization_id;
+    }
+    if (never.length) hideAutomationSuggestions(ports.home, subject, never.map(item => ({ id: item.id, title: item.title })));
+    // Recorded only when skills were turned on: that is all undo takes back.
+    if (adopted.length) {
+      const id = randomUUID();
+      changeOfferRecord(ports.home, subject, record => ({ result: undefined,
+        next: { ...record, adoptions: [...record.adoptions, { adoption_id: id, at: new Date().toISOString(), skills: adopted, undone: false }] } }));
+      adoption_id = id;
+    }
+  } catch (error) {
+    for (const skill of adopted.reverse()) {
+      await client.invoke(caller, setStateRef, { scope: "project", install_id: skill.install_id, skill_id: skill.skill_id, state: "off", expected_revision: skill.revision })
+        .catch(() => undefined); // Changed again since: the person's state, left as it is.
+    }
+    throw error;
   }
-  let authorization_id: string | undefined;
-  if (service && method) {
-    const prepared = await client.invoke(caller, setupRef, { service_id: service.service_id, method: method.kind, display_name: service.title, expected_revision: null }) as { authorization_id: string };
-    authorization_id = prepared.authorization_id;
-  }
-  if (never.length) hideAutomationSuggestions(ports.home, subject, never.map(item => ({ id: item.id, title: item.title })));
-  const adoption_id = randomUUID();
-  changeOfferRecord(ports.home, subject, record => ({ result: undefined,
-    next: { ...record, adoptions: [...record.adoptions, { adoption_id, at: new Date().toISOString(), skills: adopted, undone: false }] } }));
   const enabled = adopting.map(item => ({ id: item.id, title: item.title }));
   const parts = [
     ...(skills.length ? [uiText.text(input.skill_state === "auto" ? "workbench.automation-adoption.skills-auto" : "workbench.automation-adoption.skills-manual", { names: listOf(skills.map(item => item.title)) })] : []),
     ...(service ? [uiText.text("workbench.automation-adoption.connect-next", { name: service.title })] : []),
     ...(never.length ? [uiText.text("workbench.automation-adoption.never-again", { names: listOf(never.map(item => item.title)) })] : []),
   ];
-  return { adoption_id, summary: parts.join(" "), enabled, hidden: never.map(item => ({ id: item.id, title: item.title })), ...(authorization_id ? { authorization_id } : {}) };
+  return { ...(adoption_id ? { adoption_id } : {}), summary: parts.join(" "), enabled, hidden: never.map(item => ({ id: item.id, title: item.title })), ...(authorization_id ? { authorization_id } : {}) };
 }
 
 async function undo(ports: AutomationAdoptionPorts, input: { adoption_id: string }, caller: ActionExecutionContext): Promise<AutomationUndoResult> {

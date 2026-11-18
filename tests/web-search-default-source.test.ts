@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { homeConnectorDirectory, runWebSearch, setWebSearchDefault, webSearchSettings, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { WEB_SEARCH_BUILTIN_SOURCE } from "@molis-ai/molis-work-contracts/services/web-search";
 
 /**
@@ -72,6 +73,13 @@ test("ASC-54: a connected Tavily account made the default answers the search, wh
     assert.equal(after.last_use?.audience, "agent");
     // Reloading reads the same default: it is the Home's, not a page's.
     assert.equal((await webSearchSettings(home)).default_source, id);
+    // A search cancelled or no longer allowed by the time the answer comes writes nothing: the last use stays the earlier one.
+    const asked = seen.length;
+    const stopped = { ...call("user"), beforeEffect: async () => { if (seen.length > asked) throw new ActionError("actions.cancelled", "cancelled"); } };
+    await assert.rejects(runWebSearch(home, { query: "molis again" }, stopped), { code: "actions.cancelled" }, "said as stopped, not as a network failure");
+    const kept = (await webSearchSettings(home)).last_use;
+    assert.equal(seen.length, asked + 1, "the service answered before the call was stopped");
+    assert.deepEqual([kept?.used_at, kept?.audience], [after.last_use?.used_at, "agent"], "a cancelled search leaves no record");
   });
 });
 

@@ -1,6 +1,6 @@
 # Molis Work 代码质量与实际体验审查
 
-状态：进行中（2026-11-16 用户明确要求按原始范围继续深入检查和改造）。负责人 Codex。初始基线 `efdaa3376`，已合入 main `6b0e8a4f83` 的子任务双入口。第 52 批冻结包回归 104/105，剩余 Feed 版本例外待决定。第 75–77 批通过角色、主线、签名入口和 Coding 的定向验收。第 79 批通过隐藏 Goal 集合按周期读取和失败恢复。新主干交集、资源和组合头 Full CI 待结算。分支 `codex/quality-experience-audit`，草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101)。已通过的 `77e2cc0d5` CI 保留为该提交证据。
+状态：进行中（2026-11-16 用户明确要求按原始范围继续深入检查和改造）。负责人 Codex。初始基线 `efdaa3376`，审查分支已同步 main `6b0e8a4f83`。第 75–81 批通过角色、主线、签名入口、Coding、隐藏 Goal 刷新和子任务的定向验收。第 82 批按批准更新首屏登记、资源及 Feed 门禁。分支 `codex/quality-experience-audit`，准确组合 Verify 和 Full 以草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) 为准。
 
 ## 目标、范围与完成标准
 
@@ -1177,3 +1177,5 @@ QEA-150 在该构建复验五轮，各两个后台集合请求，间隔 4.196–
 
 - **QEA-154** 只删 `tooling/gates/version-exceptions.json` 内指向已退役 `plugins/native/feed/src/source-request.ts#materials_v1` 的登记。原发布版本验证从 34/35 复验到 35/35，现行 SourcePull 与 Host 同名有效取值按既有回归执行。
 - **QEA-155** 登记已经实测的首屏请求和精确批准范围。按 `6b0e8a4f83` 既有基准清单和新登记取实际 HTTP 回放，静态资源按各自 Host 实测比较，中文及英文新内容地址沿本次批准，记录逐入口上限及来源。准确候选头运行工作流的 Verify 和 Full。
+
+QEA-154 实际验证 4 文件 52 项通过。QEA-155 的独立报告回放与已批准政策比较零差异错误，门禁及报告规则 3 文件 42 项通过。准确组合提交及远端结论沿 PR。

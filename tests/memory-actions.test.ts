@@ -136,7 +136,7 @@ test("memory is one system.memory provider in the shared directory: the person m
   await asPerson.invoke(memoryActions.savePrefs, { scope: "personal", prefs: { consumers: { ...personalPrefs.prefs.consumers, agent: false } } });
   const off = await asAgent.invoke(memoryActions.recall, { query: "总结一下" });
   assert.equal(off.state, "off");
-  assert.match(off.reason ?? "", /Agent 工作/);
+  assert.match(off.reason ?? "", /AI 任务执行/);
   // Management is the person's own: an agent cannot reach it at all.
   await assert.rejects(client.invoke(currentAgent, memoryActions.change, { memory_id: kept.memory!.memory_id, expected_version: kept.memory!.version, action: "remove" }));
   // Undo and history by the person.

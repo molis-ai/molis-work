@@ -78,5 +78,5 @@ test("FSS-18 changing the mono role remeasures the attached terminal without sta
   await b.waitFor(`${rows}.textContent.includes('AFTER_MONO_SWITCH')`);
   assert.equal(await b.evaluate(`${rows}.textContent.match(/ISOLATED_TERMINAL_READY/g)?.length`), 1);
   await b.click("[data-character-terminal-stop]");
-  await b.waitFor("document.querySelector('[data-character-terminal-status]').textContent.includes('进程已结束')");
+  await b.waitFor("document.querySelector('[data-character-terminal-status]').textContent.includes('运行已结束')");
 });

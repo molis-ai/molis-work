@@ -46,7 +46,7 @@ test("W5-01-CODING-03 a fixed change set is answered as each file's reviewed tex
   assert.deepEqual(await ask(platform, CHANGESET_REFERENCE), { reference: CHANGESET_REFERENCE, title: "这一轮的固定变更", saved_at: "2026-10-20T08:30:00.000Z", markdown: CHANGE_SET_MARKDOWN });
   const empty = changeSetRecord({ payload: { scope: "run-frozen", run_id: "run-1", applied: false, coverage: "text-reviews", files: [], origin: { session_id: "session-a", runtime_session_id: "r", workspace_id: "w", workspace_name: "n" } } });
   const none = await ask(fakePlatform({ processItems: [empty] }, CODING_TYPES), CHANGESET_REFERENCE) as { markdown: string };
-  assert.equal(none.markdown, "这一轮没有可读取的文本审查；命令及外部操作请查看原回执。");
+  assert.equal(none.markdown, "这一轮没有可读取的文本改动审查；命令及外部操作请查看下方执行记录。");
 });
 
 test("W5-01-CODING-04 archived, other-project, other-kind, forged and unavailable versions are refused in Coding's own code", async () => {

@@ -121,7 +121,7 @@ test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in
   assert.deepEqual(said(localized), {
     a4: ["The round ended", "1 step with you"], a9: ["The round ended"], a8: ["Queued"],
     a7: ["Waiting for your answer", "3 unclaimed steps"], a6: ["Paused"], a3: ["Waiting for your review"],
-    a1: ["In progress", "2 steps with subtasks"], b4: ["In progress"], b1: ["This did not finish before the service restarted. Open it to check."], b2: ["Needs checking"],
+    a1: ["In progress", "2 steps with sub-tasks"], b4: ["In progress"], b1: ["This did not finish before the service restarted. Open it to check."], b2: ["Needs checking"],
   });
   assert.equal(localized[0]!.open?.label, "Open session");
 });

@@ -35,6 +35,6 @@ test("the per-turn change UI typechecks as its own module and draws a row", () =
   const run = { ref: { run_id: "run-1" }, phase: "completed", activity: [] };
   const node = withPageText("zh", ["coding"], () => createCodingTurnChanges(pageText("zh", "coding")).place(block, changes, run, true));
   assert.match(node.innerHTML, /src\/app\.ts/);
-  assert.match(node.innerHTML, /按写入回执记下的实际修改/);
+  assert.match(node.innerHTML, /按实际写入记录统计的文件改动/);
   assert.equal(node.dataset.codingTurnChanges, "run-1:2");
 });

@@ -48,7 +48,7 @@ export function actionUsagesProvider(clientFor: (caller: ActionCallContext) => A
     const input = value as ActionUsagesInput;
     const saved = (await readMcpToolPreference(homeDirectory)).action_grants;
     return { usages: saved.filter(grant => grant.project_id === caller.project_id && referencesAction(grant, input.action)).map(grant => ({
-      usage_id: JSON.stringify([grant.client_id, grant.project_id]), title: grant.client_id === "agent:prologue" ? "内置 Agent（Prologue）" : `MCP 客户端「${grant.client_id}」`,
+      usage_id: JSON.stringify([grant.client_id, grant.project_id]), title: grant.client_id === "agent:prologue" ? "内置 AI（Prologue）" : `MCP 客户端「${grant.client_id}」`,
       detail: grant.enabled ? "已授权按这个版本调用" : "授权已关闭", enabled: grant.enabled,
       href: `/capabilities/access?${new URLSearchParams({ client: grant.client_id, ...(grant.project_id ? { project: grant.project_id } : {}) })}` })) };
   } });

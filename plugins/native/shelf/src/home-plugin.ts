@@ -105,7 +105,7 @@ export function createHomeShelfPlugin(): PluginDefinition {
       { ...shelfActions.terminal, async handle(caller) {
         await caller.beforeEffect();
         const runtime = (await store().snapshot()).runtime;
-        if (!runtime.executable || !context.services?.terminal) throw new ActionError("actions.unavailable", "未发现终端 Agent。");
+        if (!runtime.executable || !context.services?.terminal) throw new ActionError("actions.unavailable", "电脑上未检测到外部 AI 工具。");
         const terminal = context.services.terminal, command = runtime.executable;
         const open = () => terminal.open({ key: "conversation", program: { command }, title: runtime.title, directory: { root: "owner_files" } });
         // The conversation keeps the Agent it was started with; after the person picked another one, the ended conversation is closed and started anew.

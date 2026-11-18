@@ -40,7 +40,7 @@
     "form.export.csv-button": "导出 CSV",
     "form.export.csv-format": "{count} 份答卷 · Excel、Numbers 可以打开",
     "form.export.fill-file": "填写页文件（发给别人填）",
-    "form.export.fill-file-format": "填写页 · 发给对方在自己的浏览器里填，填完得到答卷文件发回，在“结果”里导入",
+    "form.export.fill-file-format": "填写页 · 发给对方在浏览器中填写，填完生成答卷文件发回，在「结果」中导入",
     "form.export.menu": "导出",
     "form.field.description": "说明",
     "form.field.optional": "可选",

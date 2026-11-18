@@ -30,7 +30,7 @@ export const feedItemActions = {
   offers: defineSubjectOffersAction("feed.items.offers", /* @version action.feed.items.offers */ 1, ["feed_item"], "Feed 可用动作", ["feed:read"], [
     { offer_id: "feed.inbox", title: "加入 Inbox", action: { capability_id: "feed.items.inbox", version: /* @version action.feed.items.inbox */ 1 } },
     { offer_id: "feed.save", title: "保存为资料", action: { capability_id: "feed.items.disposition", version: /* @version action.feed.items.disposition */ 1 } },
-    { offer_id: "feed.promote", title: "升格为 Goal", action: { capability_id: "feed.items.promote", version: /* @version action.feed.items.promote */ 1 } },
+    { offer_id: "feed.promote", title: "转为目标", action: { capability_id: "feed.items.promote", version: /* @version action.feed.items.promote */ 1 } },
     { offer_id: "feed.archive", title: "忽略", action: { capability_id: "feed.items.disposition", version: /* @version action.feed.items.disposition */ 1 } },
     { offer_id: "feed.restore", title: "恢复到 Feed", action: { capability_id: "feed.items.restore", version: /* @version action.feed.items.restore */ 1 } },
   ]),
@@ -41,7 +41,7 @@ export const feedItemActions = {
     closed({ item_id: id, disposition: { enum: ["saved", "archived"] }, expected_revision: revision }, ["item_id", "disposition", "expected_revision"]), itemResult, ["feed:read", "feed:write"]),
   restore: define<{ item_id: string; expected_revision: number }, FeedItemResult>("restore", /* @version action.feed.items.restore */ 1, "恢复到 Feed", "把已忽略或已处理的消息放回 Feed",
     closed({ item_id: id, expected_revision: revision }, ["item_id", "expected_revision"]), itemResult, ["feed:read", "feed:write"]),
-  promote: define<{ item_id: string; expected_revision: number }, FeedPromoteResult>("promote", /* @version action.feed.items.promote */ 1, "升格为 Goal", "为这条消息新建 Goal 并把它记为这个 Goal 的输入（用户升格记为已确认，助理、Agent、工作流和外部工具升格只记为待确认，等用户认可）；已关联且仍有效的 Goal 会直接复用。以调用者自己的权限调用 Goals 的 goals.directory.read、goals.create、goals.inputs.confirm，持精确动作授权的客户端要同时授权这三个动作；Goal 记在 Runtime 会话名下，经 MCP 调用须有稳定 Session",
+  promote: define<{ item_id: string; expected_revision: number }, FeedPromoteResult>("promote", /* @version action.feed.items.promote */ 1, "转为目标", "用这条消息新建一个目标并作为它的参考输入（由你本人操作时直接确认，由助理、AI、自动流程或外部工具操作时记为待你确认）；若已有有效关联目标则直接复用",
     closed({ item_id: id, expected_revision: revision }, ["item_id", "expected_revision"]),
     { type: "object", properties: { item, goal_id: { type: "string" }, created: { type: "boolean" } }, required: ["item", "goal_id", "created"] },
     ["feed:read", "feed:write", "goals:read", "goals:write"], { required_actions: GOALS_ACTIONS_FOR_PROMOTION, authorship: "session" }),
@@ -80,7 +80,7 @@ export function createFeedItemHandlers(feed: FeedApplication, board: string, por
       if (!ports.inboxActive(current.item_id)) offers.push({ offer_id: "feed.inbox", title: "加入 Inbox", action: ref(feedItemActions.inbox), input: at });
       if (current.disposition !== "saved") offers.push({ offer_id: "feed.save", title: "保存为资料", action: ref(feedItemActions.disposition), input: { ...at, disposition: "saved" } });
       // The entry follows the action behind it: where Goals cannot be written through for this caller, promotion is not offered.
-      if (!current.linked_goal_id && ports.promote && await ports.promoteAvailable?.(caller) !== false) offers.push({ offer_id: "feed.promote", title: "升格为 Goal", action: ref(feedItemActions.promote), input: at });
+      if (!current.linked_goal_id && ports.promote && await ports.promoteAvailable?.(caller) !== false) offers.push({ offer_id: "feed.promote", title: "转为目标", action: ref(feedItemActions.promote), input: at });
       offers.push({ offer_id: "feed.archive", title: "忽略", action: ref(feedItemActions.disposition), input: { ...at, disposition: "archived" } });
       return { offers };
     }),

@@ -48,7 +48,7 @@ test("kanban keeps all visible-status columns, empty columns, and current-tree c
   assert.match(columnBody(html, "waiting"), /data-goal-id="ROOT"/);
   assert.match(columnBody(html, "waiting_user"), /<details data-kanban-group>/);
   assert.match(columnBody(html, "waiting_user"), /class="goal-kanban-count">0</);
-  assert.match(columnBody(html, "waiting_user"), /class="goal-kanban-empty">暂无 Goal</);
+  assert.match(columnBody(html, "waiting_user"), /class="goal-kanban-empty">此栏为空</);
   assert.match(columnBody(html, "in_progress"), /class="goal-kanban-count">1</);
   assert.match(columnBody(html, "in_progress"), /<details open data-kanban-group>/);
   assert.doesNotMatch(columnBody(html, "in_progress"), /goal-kanban-empty/);

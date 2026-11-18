@@ -64,7 +64,7 @@ test("SYS-15-U9 S-47 Coding links a folder and makes one the output only through
   await browser.waitFor(`document.querySelector('[data-page-dialog=confirm]')?.textContent.includes(${JSON.stringify(workspace.display_name)})`);
   // The dialog says what happens to the output now: no longer written, its files stay, and, being only the output, it leaves the project.
   const asked = String(await browser.evaluate("document.querySelector('[data-page-dialog=confirm]').textContent"));
-  assert.ok(asked.includes(`现在的输出目录「${output.display_name}」不再写入`) && asked.includes("它会从项目里移出"), asked);
+  assert.ok(asked.includes(`原默认目录「${output.display_name}」将移出项目`) && asked.includes("已有文件保留"), asked);
   await browser.click("[data-page-dialog=confirm] [type=button]");
   assert.equal(await child.evaluate("window.setOutputResult"), "已取消");
   assert.deepEqual(await state(), linked, "cancelling keeps the output where it was");

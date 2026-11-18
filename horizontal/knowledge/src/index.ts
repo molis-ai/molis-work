@@ -435,7 +435,7 @@ class KnowledgeSourceReader {
   async assertActive(access: KnowledgeAccess, subject: ActionSubject): Promise<void> {
     if (subject.kind === WORKSPACE_FILE_SUBJECT_KIND) return;
     const card = this.stored(this.project(access), subject);
-    if (card?.excluded) throw knowledgeErrors.excluded("这份资料被设为不给 Agent 用；要用它，请在项目资料里取消这个设置");
+    if (card?.excluded) throw knowledgeErrors.excluded("这份资料被设为不让 AI 读取；要用它，请在项目资料里取消这个设置");
     if (!this.options.sourceState) return;
     const state = await this.options.sourceState(access, subject, card ? knowledgeCardSource(card) : undefined);
     if (state !== undefined && state !== "active") throw knowledgeErrors.unreadable("这份资料当前不供任务读取；来源已归档、不可用或状态尚未确认");
@@ -456,7 +456,7 @@ class KnowledgeSourceReader {
     const project = this.project(access);
     if (subject.kind === WORKSPACE_FILE_SUBJECT_KIND) return this.workspace.file(access, subject, origin);
     const known = this.stored(project, subject);
-    if (known?.excluded) throw knowledgeErrors.excluded("这份资料被设为不给 Agent 用；要用它，请在项目资料里取消这个设置");
+    if (known?.excluded) throw knowledgeErrors.excluded("这份资料被设为不让 AI 读取；要用它，请在项目资料里取消这个设置");
     await this.assertActive(access, subject);
     const caller = retainActionAuthority(knowledgeReader(access), { capability_id: origin.capability_id, version: origin.version, provider_id: KNOWLEDGE_PROVIDER_ID });
     try {

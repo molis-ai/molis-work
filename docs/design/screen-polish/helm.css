@@ -1,0 +1,279 @@
+/* 底栏第十三版多出来的编排，叠在 pane.css 上面（卡叠、对话分栏、清单的行沿用 pane.css）。颜色都引用 ../kit/kit.css 的变量。不是产品样式。 */
+
+/* —— 顶部：左上角一格换项目和事项，后面是这件事项里开着的页；右上角只有侧边栏和分屏 —— */
+.hm .sp-top [role=button]{cursor:pointer}
+.hm .sp-top .sp-ib[role=button]:hover{background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink)}
+.hm .sp-ear[role=button]:not(.cur):hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
+.hm .sp-ear .x{place-items:center;width:16px;height:16px;border-radius:5px}
+.hm .sp-ear .x:hover{background:color-mix(in srgb,var(--ink) 10%,transparent);color:var(--ink)}
+.hm .sp-ear.sw{position:relative;flex:0 1 auto;max-width:340px;gap:7px;padding:0 7px 0 9px}
+.hm .sp-ear.sw.cur{padding-bottom:4px}
+.hm .sw:not(.cur){background:color-mix(in srgb,var(--ink) 5%,transparent)}
+.hm .sw.open:not(.cur){background:color-mix(in srgb,var(--ink) 10%,transparent)}
+.sw .mini{flex:none;display:grid}
+.sp-win .sw .mini svg.rg{width:15px;height:15px}
+.sw .mini .rg circle{stroke-width:5.5}
+.sw small{flex:0 3 auto;font-size:12px;color:var(--muted)}
+.sw b{flex:0 1 auto;font-weight:600;color:var(--ink)}
+.hm .sw>svg.sep,.hm .sw.cur.focus>svg.sep{margin:0 -4px;color:var(--faint)}
+.hm .sw>svg.cv,.hm .sw.cur.focus>svg.cv{margin-left:-1px;color:var(--muted)}
+.sw em{flex:none;display:inline-grid;place-items:center;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:var(--amber-soft);color:var(--amber);font-size:10.5px;font-weight:600;font-style:normal}
+/* 点开：左列项目，右列这个项目的主页和事项 */
+.swp{position:absolute;left:14px;top:43px;z-index:20;display:grid;grid-template-columns:196px minmax(0,1fr);width:528px;max-width:calc(100% - 28px);min-height:292px;background:var(--popover);border-radius:14px;box-shadow:0 0 0 1px var(--line),var(--lift-3);font-size:12.5px;animation:fx-swap var(--dur-move) var(--ease-quint)}
+.swp *{box-sizing:border-box}
+.swp[hidden]{display:none}
+.swp>div{display:flex;flex-direction:column;min-width:0;padding:8px}
+.swp-p{border-radius:14px 0 0 14px;background:color-mix(in srgb,var(--ink) 3.5%,var(--popover));box-shadow:inset -1px 0 0 var(--line)}
+.swp-h{display:flex;align-items:baseline;gap:10px;height:26px;padding:0 8px;font-size:13px;white-space:nowrap}
+.swp-h b{font-weight:600}
+.swp-h small{font-size:11.5px;color:var(--faint)}
+.swp .dl-r{cursor:pointer;white-space:nowrap}
+.swp .dl-r:hover,.swp .dl-r.on{background:var(--control-fill)}
+.swp .dl-r.on .nm{font-weight:600}
+.swp .dl-r>svg{color:var(--muted)}
+.swp .dl-r .nm{flex:1;min-width:0}
+.swp .mini{flex:none;display:grid}
+.sp-win .swp .mini svg.rg{width:18px;height:18px}
+.swp .mini .rg circle{stroke-width:4.5}
+.swp .fs-foot{margin-top:6px;color:var(--muted);box-shadow:inset 0 1px 0 var(--line);padding-top:2px}
+.swp .fs-foot [role=button]{cursor:pointer}
+
+/* —— 左下：头像和设置 —— */
+.hm .lb-s.l{justify-content:flex-start;align-items:flex-end;gap:2px;padding:0 0 3px}
+.me{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;cursor:pointer;transition:background var(--dur-hover)}
+.me:hover,.me.on{background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.me .sp-mono,.um-h .sp-mono{margin:0}
+.me.sm{width:26px;height:26px;margin:0 0 2px;justify-self:start}
+.me.sm .sp-mono{width:22px;height:22px;font-size:10.5px}
+.hm .lb-s.l .sp-ib{width:36px;height:36px;margin-bottom:2px;border-radius:10px;color:var(--muted);cursor:pointer}
+.hm .lb-s.l .sp-ib:hover{background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink)}
+.um{position:absolute;left:20px;bottom:60px;z-index:9;width:216px;padding:6px;background:var(--popover);border-radius:14px;box-shadow:0 0 0 1px var(--line),var(--lift-3);font-size:12.5px;animation:fx-up var(--dur-move) var(--ease-quint)}
+.um .dl-r{cursor:pointer}
+.um .dl-r:hover{background:var(--control-fill)}
+.um .dl-r>svg{color:var(--muted)}
+.um-h{display:flex;align-items:center;gap:10px;padding:6px 8px 4px}
+.um-h>span:last-child{display:flex;flex-direction:column}
+.um-h b{font-size:13px;font-weight:600;color:var(--ink)}
+.um-h small{font-size:11.5px;color:var(--muted)}
+
+/* —— 右边：一叠该你的卡 —— */
+.hm .lb-s.r{justify-content:flex-start;align-items:flex-end;padding:0 0 0 14px;max-width:none}
+
+/* —— 输入框上沿：居中只写当前的事项 › 事件，右端三个图标 —— */
+.hm .lx{display:grid;grid-template-columns:minmax(var(--tcw,118px),1fr) minmax(0,auto) minmax(var(--tcw,118px),1fr);align-items:end;gap:0;padding:0 8px 0 12px}
+.hm .lx>.tg{grid-column:2;max-width:100%;box-shadow:none}
+.hm .tg-h,.hm .tg-e,.hm .tg>svg.sep{margin-top:0}
+.hm .tg-h{flex:0 1 auto;min-width:44px;max-width:210px}
+.hm .tg-e,.hm .tg-e:not(.on),.hm .tg-e:not(.on):hover{max-width:200px;padding:0 9px}
+.hm .tg-e:not(.on):hover{background:var(--control-fill)}
+.tg-h.ico{min-width:0;padding:0 5px}
+.tg-h.ico .cut{display:none}
+.tcs{position:relative;grid-column:3;justify-self:end;display:inline-flex;align-items:flex-end}
+.hm .tc{margin:0 0 3px 1px;padding:0 7px;font-variant-numeric:tabular-nums}
+.tc.none{color:var(--faint);font-weight:500}
+.hm .tc.on{background:var(--popover);color:var(--ink);box-shadow:0 0 0 1px var(--line),var(--lift-1)}
+.hm .tc.you.on{background:var(--amber-soft);color:var(--amber);box-shadow:none}
+.tc.pulse{animation:fx-pulse var(--dur-moment) var(--ease-quint)}
+
+/* —— 对话框里换成一张清单 —— */
+.pz .lv-b.lst{padding:0;gap:0;font-size:12.5px;line-height:1.5;color:var(--ink-soft)}
+.pz .lv-b.lst>:first-child{margin-top:0}
+.lv-b.lst .rp-h{height:48px;padding:0 106px 0 20px}
+.lv-b.lst .rp-h b{font-size:13.5px}
+.lv-b.lst .rp-l{flex:1;padding:8px 12px}
+.lv-b.lst .rp-r{min-height:46px}
+.lv-b.lst .rp-f{display:flex;align-items:center;gap:12px;padding:9px 20px 11px}
+.rp-k{flex:none;margin-left:auto;padding:1px 6px;border-radius:6px;color:var(--accent);cursor:pointer}
+.rp-k:hover{background:var(--accent-soft)}
+.lv-b .rp-st{font-size:12px}
+.zs .lv-k.on{background:var(--control-fill)}
+.zs .lv-k b{min-width:0}
+
+/* —— 窄屏 —— */
+.hm .lb.nar{--tcw:104px}
+.hm .lb.nar .tg-h{max-width:128px}
+.hm .lb.nar .tg-e{max-width:150px}
+.hm .lb.two{--tcw:176px}
+.hm .lb.two .lx{padding:0 10px 0 12px}
+.hm .lb.two .tg-h{max-width:200px}
+.hm .lb.one .lx,.hm .lb.one.dlg .lx{grid-template-columns:auto minmax(0,1fr) auto;padding:0 6px 0 8px}
+.hm .lb.one.dlg .lx{padding-right:34px}
+.hm .lb.one .lx>.tg{justify-self:start;margin-left:10px}
+.hm .lb.one .tg-h{max-width:150px}
+.hm .lb.one .tg-e{max-width:124px}
+.hm .lb.one .tc{padding:0 5px}
+.lb.two .um{left:12px;bottom:calc(100% + 2px)}
+.lb.two.dlg .um{bottom:auto;top:-400px}
+.lb.one.dlg .um{top:calc(40px - var(--mxh,440px))}
+.hm.w1 .sp-top{padding:0 8px}
+.hm.w1 .sw small,.hm.w1 .sw>svg.sep{display:none}
+.hm.w1 .swp{left:8px;right:8px;width:auto;max-width:none;grid-template-columns:minmax(0,1fr);min-height:0}
+.hm.w1 .swp-p{border-radius:14px 14px 0 0;box-shadow:inset 0 -1px 0 var(--line)}
+.hm.w1 .swp-p .fs-foot{display:none}
+
+/* 标出固定区域时要能定位 */
+.hm.marks .tg,.hm.marks .tcs,.hm.marks .sw{outline:1.5px dashed color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:1px}
+.lv-b.lst .rp-r.sub{min-height:32px}
+
+/* —— 信息栏跟着卡叠到对话右边（用户 2026-11-17 定）：在卡叠正上方，和卡叠一样宽 —— */
+.hm.pz .lv{border-radius:18px 0 0 0}
+.hm.pz .lv::before{left:auto;right:-12px;background:radial-gradient(circle at 100% 100%,transparent 11.5px,var(--popover) 12px)}
+.hm .lz{right:auto;left:100%;border-radius:0 18px 18px 0;box-shadow:inset 1px 0 0 var(--line)}
+.hm .lb.two:not(.one) .lv{grid-template-columns:minmax(0,1fr) 232px;border-radius:18px 18px 0 0}
+.hm .lb.two:not(.one) .lz{grid-column:2;border-radius:0 18px 0 0}
+.hm .lb.two:not(.one) .lv-b{grid-column:1}
+.hm .lb.two:not(.one) .lv-x{right:240px}
+.hm .lb.one .lz{position:static;left:auto;border-radius:18px 18px 0 0;box-shadow:inset 0 -1px 0 var(--line)}
+.hm .lb.one .lv{border-radius:18px 18px 0 0}
+.hm .lb.two .lv::before{display:none}
+
+/* —— 三稿（用户 2026-11-17）：对话框顶部没有标签；左下是一条账户条；三个图标点开的清单在信息栏里 —— */
+.hm .lb-s.l{align-items:center;padding:0 14px 0 0}
+.ac{display:flex;align-items:center;gap:6px;width:100%;max-width:292px;height:52px;padding:0 8px 0 6px;border-radius:26px;background:color-mix(in srgb,var(--popover) 66%,var(--desk));box-shadow:0 0 0 1px var(--line)}
+.ac-u{flex:1;min-width:0;display:flex;align-items:center;gap:10px;height:40px;padding:0 10px 0 2px;border-radius:20px;cursor:pointer;transition:background var(--dur-hover)}
+.ac-u:hover,.ac-u.on{background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.ac-u .sp-mono,.me .sp-mono,.um-h .sp-mono{margin:0;background:var(--control-fill);color:var(--ink-soft);box-shadow:inset 0 0 0 1px var(--line)}
+.ac-u .sp-mono{width:36px;height:36px}
+.ac-u b{font-size:13.5px;font-weight:600;color:var(--ink)}
+.ac-k{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:var(--control-fill);color:var(--ink-soft);cursor:pointer;transition:background var(--dur-hover),color var(--dur-hover)}
+.ac-k:hover{background:color-mix(in srgb,var(--ink) 12%,transparent);color:var(--ink)}
+.hm .um{bottom:74px}
+.hm .lb.two .um{bottom:calc(100% + 2px)}
+.hm .lb.two.dlg .um{bottom:auto}
+.zq{flex:none;display:flex;flex-direction:column;border-radius:12px;background:var(--popover);box-shadow:0 0 0 1px var(--line);font-size:12.5px;color:var(--ink-soft)}
+.zq-h{display:flex;align-items:center;gap:7px;height:40px;padding:0 8px 0 12px;box-shadow:inset 0 -1px 0 var(--line);white-space:nowrap}
+.zq-h b{font-weight:600;color:var(--ink)}
+.zq-h em{margin-left:-2px;font-style:normal;color:var(--faint)}
+.zq-h .zc-p{margin-left:0}
+.zq-l{display:flex;flex-direction:column;gap:1px;padding:6px}
+.zq .rp-r{min-height:42px;padding:3px 8px}
+.zq .rp-r.sub{min-height:30px;padding:0 8px 0 12px}
+.zq-f{padding:8px 12px 10px;box-shadow:inset 0 1px 0 var(--line);font-size:11.5px;line-height:1.5;color:var(--faint)}
+.lz .zq-b{flex:none;height:30px;padding:0 8px;font-size:12.5px;color:var(--muted);cursor:pointer}
+.zq-b b{font-weight:500}
+.lz .zq-b>svg{color:var(--muted)}
+.hm .tc.ex{position:relative;padding:0 6px}
+.tc.ex .nw{position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.lv-b .rp-st{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.lv-b .rp-st b{font-weight:600;color:var(--ink)}
+.lv-b .rp-st .rp-b{margin:0 2px 0 -6px}
+.lb.two .zq-h .zc-p{display:none}
+.lb.two .zq-h{padding:0 6px 0 10px}
+
+/* —— 对话栏顶上一行小标题：这是哪件事项、哪件事（用户 2026-11-17） —— */
+.lv-t{position:relative;flex:none;display:flex;align-items:center;gap:7px;height:44px;padding:0 108px 0 20px;box-shadow:inset 0 -1px 0 var(--line);font-size:12.5px;white-space:nowrap;color:var(--ink-soft)}
+.lv-t b{flex:0 1 auto;min-width:0;font-weight:600;color:var(--ink)}
+.lv-t small{flex:0 2 auto;min-width:0;font-size:11.5px;color:var(--muted)}
+.lv-t .mini{flex:none;display:grid}
+.lb .lv-t .mini svg.rg{width:15px;height:15px}
+.lv-t .mini .rg circle{stroke-width:5.5}
+.lv-t>svg{flex:none;color:var(--muted)}
+.lv-t .rp-b{margin:0 2px 0 -6px;max-width:170px}
+.hm.pz .lv-b{padding-top:16px}
+.hm .lb.two:not(.one) .lv{grid-template-rows:auto minmax(0,1fr)}
+.hm .lb.two:not(.one) .lv-t{grid-column:1;grid-row:1}
+.hm .lb.two:not(.one) .lv-b{grid-column:1;grid-row:2}
+.hm .lb.two:not(.one) .lz{grid-row:1 / 3}
+.hm .lb.one .lv-t{order:-1;padding-right:20px}
+
+/* —— 对话打开后，三个图标收进信息栏顶上，成了它的标签：信息、办完、在办、接下来（用户 2026-11-17） —— */
+.zt{position:sticky;top:-12px;z-index:2;flex:none;display:flex;gap:2px;margin:-12px -12px -2px;padding:10px 12px 8px;background:var(--sidebg);white-space:nowrap}
+.zt-i{flex:1 1 auto;min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:5px;height:28px;padding:0 6px;border-radius:8px;font-size:12px;font-weight:500;color:var(--muted);cursor:pointer;transition:background var(--dur-hover),color var(--dur-hover)}
+.zt-i:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
+.zt-i.on{background:var(--popover);color:var(--ink);font-weight:600;box-shadow:0 0 0 1px var(--line),var(--lift-1)}
+.zt-i em{font-style:normal;font-weight:500;font-variant-numeric:tabular-nums;color:var(--faint)}
+.zt-i.on em{color:var(--muted)}
+.zt-i.pulse{animation:fx-pulse var(--dur-moment) var(--ease-quint)}
+.zq-h small{font-size:11.5px;color:var(--muted)}
+.zq-h{padding:0 8px 0 8px}
+.lb.one .lz .zt{position:static}
+
+/* —— 底栏排整齐（用户 2026-11-17）：三块一样高、一样的圆角、一样的间距，外沿和主区的纸对齐；三个图标是输入框右上角长出来的一枚小耳 —— */
+.hm.pz .lb,.hm.pz .lb.nar{column-gap:12px;padding:32px 14px 10px}
+.hm.pz .lb.two,.hm.pz .lb.two.nar{column-gap:0;padding:32px 0 10px}
+.hm .lb-s.l{align-items:flex-end;justify-content:flex-end;padding:0}
+.hm .lb-s.r{padding:0}
+.hm .dk,.hm .dk0{max-width:400px}
+.hm .dk-c{border-radius:20px}
+.hm .dk0{border-radius:20px;padding:0 16px;box-shadow:inset 0 0 0 1px var(--line)}
+.hm .ac{max-width:400px;height:74px;gap:8px;padding:0 14px 0 10px;border-radius:20px;background:color-mix(in srgb,var(--popover) 62%,var(--desk));box-shadow:0 0 0 1px var(--line)}
+.hm .ac-u{height:54px;gap:11px;padding:0 12px 0 6px;border-radius:14px}
+.hm .ac-u .sp-mono{width:40px;height:40px;font-size:13px}
+.ac-n{min-width:0;display:flex;flex-direction:column;gap:1px}
+.ac-n b{line-height:19px}
+.ac-n small{font-size:11.5px;line-height:16px;color:var(--muted)}
+.hm .ac-k{width:38px;height:38px}
+.hm .um{left:14px;bottom:90px}
+.hm .lz{padding:12px 12px 12px 12px}
+.tcs.ear{align-items:center;height:27px;margin-right:12px;padding:0 3px 1px 5px;border-radius:11px 11px 0 0;background:var(--popover)}
+.tcs.ear::before,.tcs.ear::after{content:"";position:absolute;bottom:0;width:9px;height:9px;pointer-events:none}
+.tcs.ear::before{left:-9px;background:radial-gradient(circle at 0 0,transparent 8.5px,var(--popover) 9px)}
+.tcs.ear::after{right:-9px;background:radial-gradient(circle at 100% 0,transparent 8.5px,var(--popover) 9px)}
+.hm .tcs.ear .tc{height:22px;margin:0;padding:0 7px;border-radius:7px}
+.hm .tcs.ear .tc.ex{margin-left:3px;padding:0 5px;color:var(--muted)}
+.tcs.ear .tc.ex::before{content:"";position:absolute;left:-2px;top:5px;bottom:5px;width:1px;background:var(--line-strong)}
+.hm .lb.two .lx,.hm .lb.one .lx{padding-right:8px}
+
+/* —— 五稿（用户 2026-11-17）：输入框上方那一条不要了；三个图标收进输入框里面的右上角；底栏变矮 —— */
+.sp-win.c.lp.rz.pz.hm{grid-template-rows:44px minmax(0,1fr) 102px}
+.hm.pz .lb,.hm.pz .lb.nar{padding:16px 14px 12px}
+.hm.pz .lb.two,.hm.pz .lb.two.nar{padding:16px 0 12px}
+.hm .lx{display:none}
+.st{position:absolute;top:8px;right:10px;z-index:1;display:inline-flex;align-items:center;height:24px}
+.st:empty{display:none}
+.hm .st .tc{height:24px;margin:0;padding:0 6px;border-radius:7px}
+.hm .st .tc.ex{position:relative;margin-left:5px;padding:0 5px;color:var(--muted)}
+.st .tc.ex::before{content:"";position:absolute;left:-3px;top:6px;bottom:6px;width:1px;background:var(--line-strong)}
+.st .tc.ex:first-child{margin-left:0}
+.st .tc.ex:first-child::before{display:none}
+.hm .lt textarea{padding:0 var(--stw,10px) 0 10px!important}
+.hm .dk-p{top:-5px}
+.hm .dk-p.p2{top:-9px}
+.hm .um{bottom:92px}
+/* 窄屏：头像回到顶部右端（底栏只有输入框一块）；该你 N 和三个图标都在输入框里面 */
+.hm .sp-top .me.sm{margin:0 0 1px 4px}
+.hm .lb.two .um,.hm .lb.two.dlg .um,.hm .lb.one.dlg .um{left:auto;right:12px;bottom:auto;top:calc(2px - var(--mxh,440px))}
+.hm .lb.two .dkp,.hm.pz .lb.two.dlg .dkp,.hm.pz .lb.one.dlg .dkp{top:auto;bottom:calc(100% - 8px)}
+.hm .lb.one .lv-x{top:8px;right:6px;bottom:auto;display:flex}
+.hm .lb.one .lv-t{padding-right:44px}
+.hm .lb.one .st .tc{padding:0 4px}
+
+/* —— 子任务浮窗（第 58 批的右侧浮窗，放在信息栏的位置）：自带输入框；对话栏和底部输入框不动 —— */
+.sf{flex:1;min-height:0;display:flex;flex-direction:column;border-radius:12px;background:var(--popover);box-shadow:0 0 0 1px var(--line),var(--shadow-raised);font-size:12.5px;color:var(--ink-soft);overflow:hidden}
+.sf-h{flex:none;display:flex;align-items:center;gap:6px;min-height:44px;padding:0 8px 0 6px;border-bottom:1px solid var(--line)}
+.sf-h .rp-b{margin:0}
+.sf-n{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.sf-n b{font-size:13px;color:var(--ink)}
+.sf-n small{font-size:11.5px;color:var(--muted)}
+.sf-b{flex:1;min-height:60px;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:10px 12px}
+.sf-b .dd-me{align-self:flex-end;max-width:88%}
+.sf-i{flex:none;display:flex;align-items:center;gap:6px;margin:0 8px 8px;padding:4px 4px 4px 10px;border-radius:10px;background:var(--surface);box-shadow:0 0 0 1px var(--line-strong)}
+.sf-i textarea{flex:1;min-width:0;border:0;outline:0;resize:none;background:transparent;font:inherit;color:var(--ink);height:22px;line-height:22px;padding:0}
+.sf-s{flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:var(--muted);cursor:pointer}
+.sf-s:hover{background:var(--line);color:var(--ink)}
+
+/* —— 定稿后补的（2026-11-17）：切换清单照主线已定的内容；账户条的通知和同步；主对话的菜单；页面自己接话；在：事项名；不属于事件的任务 —— */
+.swp-s{height:30px;margin:0 2px 6px;padding:0 10px;display:flex;align-items:center;border-radius:9px;background:var(--control-fill);color:var(--faint);font-size:12.5px}
+.swp .dl-g.fold{display:flex;align-items:center;gap:5px;cursor:pointer}
+.swp .dl-g.fold em{font-style:normal;color:var(--faint);font-weight:500}
+.swp .dl-g.fold em.you{color:var(--amber)}
+.swp .dl-g.fold svg{color:var(--faint)}
+.sp-mono{position:relative}
+.sy{position:absolute;right:-1px;bottom:-1px;width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 2px var(--paper)}
+.um-s{display:flex;align-items:center;gap:8px;padding:2px 10px 6px;font-size:11.5px;color:var(--muted)}
+.um-s .sy{position:static;box-shadow:none}
+.lv-x .lk.on{background:var(--control-fill)}
+.mm{position:absolute;right:0;top:34px;z-index:6;width:230px;padding:6px;background:var(--popover);border-radius:12px;box-shadow:0 0 0 1px var(--line),var(--lift-3);font-size:12.5px}
+.mm .dl-r{cursor:pointer}
+.mm .dl-r:hover{background:var(--control-fill)}
+.mm .dl-r>svg{color:var(--muted)}
+.dd-own{margin:auto 0 4px;display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:12px;background:var(--surface-soft);box-shadow:inset 0 0 0 1px var(--line);font-size:12.5px;color:var(--ink-soft)}
+.dd-own>svg{flex:none;margin-top:2px;color:var(--muted)}
+.dd-own p{flex:1;margin:0;line-height:1.5}
+.dd-own p b{display:block;color:var(--ink);font-weight:600}
+.dd-own .dc-act{flex:none;align-self:center}
+.k-in{flex:none;min-width:0;display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 4px 0 9px;border-radius:12px;background:var(--control-fill);font-size:12px;color:var(--ink-soft);max-width:220px}
+.k-in i{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;cursor:pointer;color:var(--muted)}
+.k-in i:hover{background:var(--line);color:var(--ink)}
+.zq-g{margin:6px 0 2px;padding:6px 8px 0;box-shadow:inset 0 1px 0 var(--line);font-size:11.5px;color:var(--faint)}
+.rp-m{flex:none;color:var(--accent);cursor:pointer}

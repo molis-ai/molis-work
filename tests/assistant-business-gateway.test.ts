@@ -814,7 +814,7 @@ test("a round that reaches its step limit stops there, keeps what it did, says s
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     await f.service.outcomes.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, version: held.reviews[0]!.version, decision: "approve" });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["completed", "failed", "stopped"].includes(v.work.state) ? v : undefined; }, "limit");
-    assert.match(done.rounds[0]!.stop_reason ?? "", /步数上限（60 步）.*已完成的修改都保留/);
+    assert.match(done.rounds[0]!.stop_reason ?? "", /步数上限（60 步）.*已完成修改均已保留/);
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1, "what it did before the limit stays");
     assert.ok(done.objects.length === 0 || done.objects.every(object => object.relation !== "result" || object.state !== "missing"));
     const again = await f.service.send({ work_id: sent.work.work_id, text: "继续", request_id: "req-00000027" }, {});

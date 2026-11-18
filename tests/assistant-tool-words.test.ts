@@ -146,7 +146,7 @@ const STEP_WORDS = [
   ["command", ["运行命令", "正在运行命令", "已运行命令"], ["run", "Running", "Ran"]],
   ["command-output", ["查看命令输出", "正在查看命令输出", "已查看命令输出"], ["check output of", "Checking output of", "Checked output of"]],
   ["auto-continue", ["自动续做", "正在自动续做", "已自动续做"], ["continue automatically", "Continuing automatically", "Continued automatically"]],
-  ["compact", ["整理上下文", "正在整理上下文", "已整理上下文"], ["compact the context", "Compacting the context", "Compacted the context"]],
+  ["compact", ["浓缩早期对话", "对话较长，正在浓缩早期记录…", "已浓缩早期对话记录"], ["summarize earlier messages", "Summarizing earlier messages…", "Summarized earlier messages"]],
   ["browser-list", ["找到侧栏浏览器", "正在找到侧栏浏览器", "已找到侧栏浏览器"], ["find the side browser", "Finding the side browser", "Found the side browser"]],
   ["browser-look", ["查看网页", "正在查看网页", "已查看网页"], ["look at the page", "Looking at the page", "Looked at the page"]],
   ["browser-act", ["操作网页", "正在操作网页", "已操作网页"], ["act on the page", "Acting on the page", "Acted on the page"]],

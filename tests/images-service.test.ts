@@ -245,3 +245,25 @@ test("RAC-2119 the action schema stays the outer gate: one character past its ma
   await assert.rejects(client.invoke(actions.start, { ...input, request_id: WIDE.repeat(129) }), { code: "actions.input_invalid" });
   assert.deepEqual((await client.invoke(actions.list, {})).jobs, []); assert.equal(f.calls.length, 0);
 });
+
+test("ARF-3 settled generations stop consuming Home capacity and disappear from active background tasks", async t => {
+  const f = await imageRuntimeFixture(t, { respond: (_input, response) => {
+    if (f.calls.length > 2) imageReply(response);
+  } });
+  const config = f.client(null), a = f.client("project-a"), b = f.client("project-b");
+  const { connection } = await f.connection();
+  const input = (key: string) => ({ connection_id: connection.id, request_id: key, prompt: key });
+  const first = (await a.invoke(actions.start, input("one"))).job;
+  await a.invoke(actions.start, input("two"));
+  await imageUntil(() => f.calls.length === 2);
+  await assert.rejects(b.invoke(actions.start, input("three")), { code: "images.busy" });
+  await config.invoke(actions.saveConnection, { ...f.input, id: connection.id, model: "new-model" });
+  await imageUntil(async () => (await a.invoke(actions.list, {})).jobs.every(job => job.status === "interrupted"));
+  assert.equal((await a.invoke(actions.start, input("one"))).job.status, "interrupted");
+  assert.ok(!(await a.invoke(actions.backgroundTasks, {})).tasks.some(task => task.state === "generating"));
+  const third = (await b.invoke(actions.start, input("three"))).job;
+  assert.equal((await imageTerminal(b, third.id)).status, "succeeded");
+  await a.invoke(actions.delete, { id: first.id });
+  assert.equal((await a.invoke(actions.list, {})).jobs.length, 1);
+  assert.equal(f.calls.length, 3);
+});

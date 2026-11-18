@@ -7,7 +7,7 @@ import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenera
 import { imagesErrors } from "./error.js";
 import { normalizeImageBaseUrl } from "./providers.js";
 import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
-import { ImagesStore, type StoredConnection } from "./store.js";
+import { ImagesStore, INTERRUPTED, type StoredConnection } from "./store.js";
 import { runImageJob } from "./service-job.js";
 import { IMAGES_ASSETS } from "./owner-files.js";
 
@@ -25,6 +25,7 @@ export interface ImagesServiceOptions {
 export class ImagesService {
   private readonly store: ImagesStore;
   private readonly active = new Map<string, AbortController>();
+  private readonly changingConnections = new Set<string>();
   private closed = false;
 
   constructor(private readonly options: ImagesServiceOptions) {
@@ -59,32 +60,83 @@ export class ImagesService {
 
   async saveConnection(input: ImageConnectionInput, control: ImagesControl): Promise<ImageConnection> {
     this.assertOpen();
-    const id = input.id === undefined ? randomUUID() : textField(input.id, "服务 ID", 128);
-    const previous = this.store.getConnection(id);
-    if (input.id !== undefined && !previous) throw imagesErrors.not_found("找不到要修改的生图服务。");
-    if (input.api_format !== "openai-images" && input.api_format !== "gemini") throw imagesErrors.invalid("请选择受支持的图片 API 协议。");
-    const now = new Date().toISOString();
-    const connection: StoredConnection = { id, name: textField(input.name, "服务名称", 100), api_format: input.api_format,
-      base_url: normalizeImageBaseUrl(textField(input.base_url, "API 基址", 2048)), model: textField(input.model, "模型名称", 200),
-      created_at: previous?.created_at ?? now, updated_at: now };
-    const selected = input.auth_connection_id?.trim();
-    if (selected) await this.options.imageGeneration.bind({ slot_id: id, base_url: connection.base_url }, selected);
-    await this.write(control, store => store.saveConnection(connection));
-    return this.publicConnection(connection);
+    if (input.id && input.create_id) throw imagesErrors.invalid("请选择新建或编辑服务");
+    const id = textField(input.id ?? input.create_id ?? randomUUID(), "服务 ID", 128);
+    return this.changeConnection(id, async () => {
+      const previous = this.store.getConnection(id);
+      if (input.id !== undefined && !previous) throw imagesErrors.not_found("找不到要修改的生图服务。");
+      if (previous?.change?.authId === null) throw imagesErrors.connection_pending("此服务正在删除，请重试删除。");
+      if (input.api_format !== "openai-images" && input.api_format !== "gemini") throw imagesErrors.invalid("请选择受支持的图片 API 协议。");
+      const now = new Date().toISOString();
+      const connection: StoredConnection = { id, name: textField(input.name, "服务名称", 100), api_format: input.api_format,
+        base_url: normalizeImageBaseUrl(textField(input.base_url, "API 基址", 2048)), model: textField(input.model, "模型名称", 200),
+        created_at: previous?.created_at ?? now, updated_at: now };
+      const selected = input.auth_connection_id?.trim() || previous?.change?.authId;
+      if (input.create_id && previous) {
+        const saved = this.publicConnection(previous);
+        if (previous.name !== connection.name || previous.model !== connection.model || previous.base_url !== connection.base_url
+          || previous.api_format !== connection.api_format || (selected || undefined) !== saved.auth_connection_id) {
+          throw imagesErrors.request_conflict("同一个新建请求已用于其他服务设置。");
+        }
+        if (!previous.change) return saved;
+      }
+      await this.write(control, store => {
+        store.saveConnection(connection);
+        if (selected) store.planConnectionChange(id, selected);
+      });
+      if (selected) {
+        try {
+          const target = { slot_id: id, base_url: connection.base_url };
+          const actual = this.options.imageGeneration.inspect(target);
+          if (!previous?.change || !actual.available || actual.connection_id !== selected) await this.options.imageGeneration.bind(target, selected);
+          await this.write(control, store => store.finishConnectionChange(id));
+        } catch {
+          control.signal?.throwIfAborted();
+          requireSynchronous(control.assert_authority_current?.());
+          throw imagesErrors.connection_pending("服务配置已保存，连接尚未完成。服务已暂停，请在原服务上重试保存。", { service_id: id });
+        }
+      }
+      return this.publicConnection(connection);
+    });
   }
 
   async deleteConnection(id: string, control: ImagesControl): Promise<void> {
     const key = textField(id, "服务 ID", 128);
-    if (!this.store.getConnection(key)) throw imagesErrors.not_found("找不到要删除的生图服务。");
-    await this.options.imageGeneration.unbind(key);
-    await this.write(control, store => store.deleteConnection(key));
+    return this.changeConnection(key, async () => {
+      const existing = this.store.getConnection(key);
+      if (!existing) throw imagesErrors.not_found("找不到要删除的生图服务。");
+      await this.write(control, store => store.planConnectionChange(key, null));
+      try {
+        const bound = this.options.imageGeneration.inspect({ slot_id: key, base_url: existing.base_url });
+        if (bound.connection_id) await this.options.imageGeneration.unbind(key);
+        await this.write(control, store => { store.finishConnectionChange(key); store.deleteConnection(key); });
+      } catch {
+        control.signal?.throwIfAborted();
+        requireSynchronous(control.assert_authority_current?.());
+        throw imagesErrors.connection_pending("删除尚未完成。服务已暂停，可以重试删除。", { service_id: key });
+      }
+    });
   }
 
-  listJobs(projectId: string): ImageJob[] { this.assertOpen(); return this.store.listJobs(project(projectId)); }
-  getJob(projectId: string, id: string): ImageJob { this.assertOpen(); return this.store.getJob(project(projectId), textField(id, "任务 ID", 128)); }
+  private async changeConnection<T>(id: string, change: () => Promise<T>): Promise<T> {
+    if (this.changingConnections.has(id)) throw imagesErrors.connection_changed("另一项服务更改正在进行，请稍后重试。");
+    this.changingConnections.add(id);
+    try { return await change(); } finally { this.changingConnections.delete(id); }
+  }
+
+  private executionState(job: ImageJob): ImageJob {
+    return job.status === "running" && !this.active.has(job.id) ? { ...job, status: "interrupted", error: INTERRUPTED } : job;
+  }
+
+  listJobs(projectId: string): ImageJob[] { this.assertOpen(); return this.store.listJobs(project(projectId)).map(job => this.executionState(job)); }
+  getJob(projectId: string, id: string): ImageJob { this.assertOpen(); return this.executionState(this.store.getJob(project(projectId), textField(id, "任务 ID", 128))); }
 
   async deleteJob(projectId: string, id: string, control: ImagesControl): Promise<void> {
-    const snapshot=this.store.getJob(project(projectId),textField(id,"任务 ID",128)),sync=this.options.sync;
+    const stored = this.store.getJob(project(projectId), textField(id, "任务 ID", 128));
+    if (stored.status === "running" && !this.active.has(stored.id)) {
+      await this.write(control, store => store.recoverProject(stored.project_id, [...this.active.keys()]));
+    }
+    const snapshot=this.getJob(projectId,id),sync=this.options.sync;
     const retained=sync?{spaceId:sync.spaceId,job:snapshot,authorize:()=>sync.assertActive(),images:snapshot.images.map(image=>{
       const bytes=this.options.files.read(`${IMAGES_ASSETS}/${image.filename}`);if(!bytes||bytes.byteLength!==image.byte_length)throw imagesErrors.invalid("原图片缺失，删除未执行。");
       const portable={id:image.id,mime_type:image.mime_type,byte_length:image.byte_length,data_base64:Buffer.from(bytes).toString('base64')};validatePortableImage(portable);return portable;
@@ -107,9 +159,10 @@ export class ImagesService {
       size: optionalText(input.size, "尺寸", 64), aspect_ratio: optionalText(input.aspect_ratio, "宽高比", 32) };
     const inputHash = createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
     const existing = this.store.findRequest(projectIdValue, requestId, inputHash);
-    if (existing) return existing;
+    if (existing) return this.executionState(existing);
     const connection = this.store.getConnection(normalized.connection_id);
     if (!connection) throw imagesErrors.not_found("找不到所选生图服务，请重新选择。");
+    if (connection.change) throw imagesErrors.connection_pending("生图服务有未完成的连接更改，请先完成服务设置。");
     if (connection.api_format === "gemini" && normalized.size || connection.api_format === "openai-images" && normalized.aspect_ratio) {
       throw imagesErrors.invalid("尺寸参数与当前 API 协议不匹配，请重新选择尺寸或宽高比。");
     }
@@ -126,7 +179,7 @@ export class ImagesService {
     const current = () => {
       controller.signal.throwIfAborted(); this.assertOpen();
       const latest = this.store.getConnection(connection.id);
-      if (!latest || latest.base_url !== connection.base_url || latest.api_format !== connection.api_format || latest.model !== connection.model) {
+      if (!latest || latest.change || latest.base_url !== connection.base_url || latest.api_format !== connection.api_format || latest.model !== connection.model) {
         throw imagesErrors.connection_changed("图像连接已改变，本次结果未保存。");
       }
     };
@@ -140,9 +193,11 @@ export class ImagesService {
       const duplicate = await this.write(control, store => { current();
         const latest = this.options.imageGeneration.inspect({ slot_id: connection.id, base_url: connection.base_url });
         if (!latest.available || latest.revision !== state.revision) throw imagesErrors.connection_changed("图像连接已改变，请重新生成。");
-        return store.insertJob(job, inputHash); });
+        const live = [...this.active.keys()];
+        store.recoverProject(projectIdValue, live);
+        return store.insertJob(job, inputHash, live); });
       admit(!duplicate);
-      if (duplicate) { execution.cancel(); return duplicate; }
+      if (duplicate) { execution.cancel(); return this.executionState(duplicate); }
       return job;
     } catch (error) {
       admit(false); controller.abort(); this.active.delete(job.id); throw error;
@@ -176,8 +231,12 @@ export class ImagesService {
   }
 
   private publicConnection(connection: StoredConnection): ImageConnection {
+    const { change, ...settings } = connection;
+    if (change) return { ...settings, has_key: false, available: false,
+      ...(change.authId ? { auth_connection_id: change.authId } : {}),
+      unavailable_reason: change.authId ? "凭据绑定尚未完成，请重试保存。" : "删除尚未完成，请重试删除。" };
     const state = this.options.imageGeneration.inspect({ slot_id: connection.id, base_url: connection.base_url });
-    return { ...connection, has_key: state.has_key, available: state.available,
+    return { ...settings, has_key: state.has_key, available: state.available,
       ...(!state.available ? { unavailable_reason: state.reason || "所选图像连接不可用" } : {}),
       ...(state.connection_id ? { auth_connection_id: state.connection_id } : {}) };
   }

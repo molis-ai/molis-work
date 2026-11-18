@@ -105,7 +105,7 @@
     "images.status.cancelling": "正在停止…",
     "images.status.failed": "生成失败",
     "images.status.interrupted": "已中断",
-    "images.status.interrupted-help": "上次生成因本机服务重启而中断。没有自动重新调用厂商。",
+    "images.status.interrupted-help": "本机已停止等待这次生成。重试前请先检查厂商用量。",
     "images.status.retry-help": "可复用这段画面描述，调整服务设置后重新生成（重新生成会发起一次新请求）。",
     "images.status.running": "生成中",
     "images.status.succeeded": "已生成",

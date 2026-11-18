@@ -3,9 +3,11 @@ import test from "node:test";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { pluginSyncDatabaseDeclaration, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
-import { imagesActions as actions } from "@molis-ai/molis-work-plugin-images";
+import { DatabaseSync } from "node:sqlite";
+import { runSqliteUpgrade } from "@molis-ai/molis-work-storage";
+import { IMAGES_DATABASE, imagesManifest, imagesActions as actions } from "@molis-ai/molis-work-plugin-images";
 import { imageRuntimeFixture, imageTerminal } from "./fixtures/images-runtime.js";
 
 // W5-01-IMGPORT-01: the actual Host adapter supplies metadata and a revision; credentials remain outside the plugin.
@@ -176,4 +178,59 @@ test("RAC-2002 the port keeps blank refused, counts padding (nothing is trimmed 
   await assert.rejects(service.generate(request({ model: "a".repeat(400_000) })), refused);
   await assert.rejects(service.generate(request({ model: `${WIDE.repeat(199)}a` })), passes);
   await assert.rejects(service.generate(request({ model: `${WIDE.repeat(200)}a` })), refused);
+});
+
+test("ARF-4 an unfinished account switch or deletion survives restart and refuses dispatch until retried", async t => {
+  const previous = process.env.MOLIS_WORK_SECRET_BACKEND;
+  process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();
+  t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous; resetSecretStoreCache(); });
+  let failWrite = 0;
+  const f = await imageRuntimeFixture(t, { context(context) {
+    const db = context.services!.database!;
+    return { ...context, services: { ...context.services!, database: { ...db, transaction(check, apply) {
+      if (failWrite > 0 && --failWrite === 0) throw new Error("injected database failure");
+      return db.transaction(check, apply);
+    } } } };
+  } });
+  const account = (name: string) => withConnectorConnections(f.home, store => store.createToken({ serviceId: "image-api", displayName: name, token: name + "-test-token" }).connection_id);
+  const a = account("a"), b = account("b"), client = f.client(null);
+  const create = { ...f.input, auth_connection_id: a, create_id: crypto.randomUUID() };
+  const { connection } = await client.invoke(actions.saveConnection, create);
+  const id = connection.id, update = { ...f.input, id, model: "updated", auth_connection_id: b };
+  const bound = () => withConnectorConnections(f.home, store => store.binding("home", "images", id)?.connection_id);
+  assert.deepEqual(await client.invoke(actions.saveConnection, create), { connection });
+  failWrite = 1;
+  await assert.rejects(client.invoke(actions.saveConnection, update));
+  assert.equal(bound(), a);
+  assert.equal((await client.invoke(actions.connections, {})).connections[0]?.model, f.input.model);
+  failWrite = 2;
+  await assert.rejects(client.invoke(actions.saveConnection, update), { code: "images.connection_pending" });
+  assert.equal(bound(), b);
+  await f.platform.supervisor.restart(imagesManifest.plugin_id);
+  assert.equal((await client.invoke(actions.connections, {})).connections[0]?.available, false);
+  await assert.rejects(f.client().invoke(actions.start, { connection_id: id, request_id: "pending", prompt: "pending" }), { code: "images.connection_pending" });
+  assert.equal((await client.invoke(actions.saveConnection, update)).connection.available, true);
+  failWrite = 2;
+  await assert.rejects(client.invoke(actions.deleteConnection, { id }), { code: "images.connection_pending" });
+  assert.equal(bound(), undefined);
+  await f.platform.supervisor.restart(imagesManifest.plugin_id);
+  assert.equal((await client.invoke(actions.connections, {})).connections[0]?.available, false);
+  await client.invoke(actions.deleteConnection, { id });
+  assert.deepEqual((await client.invoke(actions.connections, {})).connections, []);
+  assert.equal(f.calls.length, 0);
+});
+
+test("ARF-4 Images v1 golden database upgrades in isolation, preserving service, job and existing references", () => {
+  const db = new DatabaseSync(":memory:");
+  try {
+    db.exec(readFileSync(new URL("./fixtures/golden-homes/0.1.1-dev.3/stores/images/images.db.sql", import.meta.url), "utf8"));
+    db.prepare("INSERT INTO connections VALUES (?,?,?,?,?,?,?)").run("saved", "Saved", "gemini", "https://example.test", "chosen", "t0", "t1");
+    db.prepare("INSERT INTO jobs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run("historic", "project", "request", "hash", "saved", "Saved", "gemini", "chosen", "kept", "", "", "failed", "[]", "failure", "t0", "t1", null);
+    const rows = () => [db.prepare("SELECT * FROM connections ORDER BY id").all(), db.prepare("SELECT * FROM jobs ORDER BY id").all()];
+    const before = rows(), baseline = pluginSyncDatabaseDeclaration(imagesManifest, IMAGES_DATABASE);
+    assert.deepEqual(runSqliteUpgrade(db, "images.db", baseline), { from: 1, to: 2 });
+    assert.deepEqual(rows(), before);
+    assert.deepEqual(db.prepare("SELECT * FROM connection_changes").all(), []);
+    assert.deepEqual(runSqliteUpgrade(db, "images.db", baseline), { from: 2, to: 2 });
+  } finally { db.close(); }
 });

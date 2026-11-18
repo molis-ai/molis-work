@@ -16,6 +16,8 @@
 
 ## 在做的
 
+- [项目删除、待办与生图一致性](architecture-review-fixes/spec.md)：独立分支已实现，工程验证见该需求书。
+
 刚合入、等真实 Home 采用或本人验收的项也留在这里，状态写在条目上。
 
 - [batch-06-shared-tools](batch-06-shared-tools/spec.md)：第 06 批成果固定、平台资料产生者与 SDK 公用工具；已随 #2009 合入 `a720834a09`（2026-11-13），剩余真实 Home 采用与本人验收。

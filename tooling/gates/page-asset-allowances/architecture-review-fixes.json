@@ -1,0 +1,9 @@
+{
+  "reason": "工作台分批清理草稿；生图设置用同一服务重试；待办确认传递观察时间并显示真实批量回执。",
+  "review": "specs/architecture-review-fixes/spec.md「页面资源审阅」，比较基线 651432a3ba。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 570,
+    "/assets/molis-work-plugins/images.js": 214,
+    "/assets/molis-work-plugins/todo.js": 95
+  }
+}

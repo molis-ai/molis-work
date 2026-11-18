@@ -13,7 +13,7 @@ export interface ChangeRow {
   before_json: string | null; after_json: string; revision_after: number; reverted_by: string | null;
 }
 
-export function visible(item: TodoItem, access: TodoAccess): boolean {
+export function visible(item: Pick<TodoItem, "project_id">, access: TodoAccess): boolean {
   return item.project_id === null || item.project_id === access.projectId || access.projectIds.includes(item.project_id);
 }
 

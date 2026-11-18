@@ -13,7 +13,7 @@ import {
   type EvaluationRunComparison,
   type EvaluationMetricsSummary,
 } from "@molis-ai/molis-work-contracts/services/evaluation";
-import { observationActions } from "@molis-ai/molis-work-contracts/services/observation";
+import { observationActions, type ObservationQueryOutput } from "@molis-ai/molis-work-contracts/services/observation";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { installHostUiText, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { TODO_ACTION_PERMISSIONS, todoActions } from "@molis-ai/molis-work-plugin-todo";
@@ -1197,6 +1197,17 @@ test("PWA-52 OCL-17: scoring cannot use reasoning or borrowed aliases to establi
   sink.record({ fact: "agent.model_request", outcome: "succeeded", work: { work_ref: "alias-case" },
     evidence: [{ role: "request", ref: { kind: "content", media_type: "text/plain", text: "量化指标" } }] });
   fx.layer.flush();
+  const requestFilter = { project_id: "p1", fact: "agent.model_request", work_ref: "alias-case" };
+  const requestRule = { ...ownerCriterion, rule: { check: "evidence_text", evidence_role: "request", contains_all: ["量化指标"] } };
+  await assert.rejects(fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "mixed-request",
+    work_mode: "mixed", query: requestFilter, expectations: [requestRule] }), /agent.reply/);
+  const { records } = await fx.service.invoke(person(), observationActions.recordsQuery, requestFilter) as ObservationQueryOutput;
+  assert.equal(records.length, 1);
+  await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "pinned-request", work_mode: "mixed",
+    pinned_record_ids: [records[0]!.record_id], expectations: [requestRule] });
+  const pinned = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "pinned-request" }) as EvaluationRunView;
+  assert.equal(pinned.effective_verdict, "unknown");
+  assert.deepEqual(pinned.expectation_results[0]?.evidence_refs, []);
   await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "old-input", expectations: [
     { ...ownerCriterion, stage: "execution", rule: { check: "evidence_text", fact: "agent.model_request", evidence_role: "request", contains_all: ["量化指标"] } },
   ] });

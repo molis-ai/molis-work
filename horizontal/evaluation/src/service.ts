@@ -92,8 +92,8 @@ function validateDeliverySources(input: EvaluationSampleInput): void {
       role = exp.rule.evidence_role;
       requiresReply = facts.includes("agent.reply") || (!facts.length && (input.work_mode === "assistant" || input.query.fact === "agent.reply"));
     } else continue;
-    const judgesReply = requiresReply || facts.some(fact => fact.startsWith("agent.")
-      || (input.work_mode === "assistant" && platformPrefixes.some(prefix => fact.startsWith(prefix + "."))));
+    if (!facts.length && input.query.fact) facts = [input.query.fact];
+    const judgesReply = requiresReply || facts.some(fact => platformPrefixes.some(prefix => fact.startsWith(prefix + ".")));
     if (judgesReply && ((role !== undefined && role !== "reply") || facts.some(fact => fact !== "agent.reply"))) {
       throw evaluationErrors.invalid("评判模型交付须使用 agent.reply 的 reply 正文。已冻结的样本请用新版本登记正确来源。");
     }

@@ -242,16 +242,14 @@ function evalDeterministic(rule: EvaluationDeterministicRule, stage: EvaluationE
     case "distinct_owner_versions":
       return evalDistinctVersions(rule, matched, ctx);
     case "evidence_text": {
+      if (stage !== "delivery") return evalEvidenceText(rule, matched, ctx);
+      if (!ctx.records.length) return absentVerdict(ctx, "交付正文");
       const requested = rule.facts ?? (rule.fact ? [rule.fact] : []);
-      const judgesReply = requested.includes("agent.reply") || (!requested.length && (ctx.workMode === "assistant"
-        || matched.some(record => record.fact === "agent.reply")));
-      if (stage === "delivery" && judgesReply) {
-        if (!ctx.records.length) return absentVerdict(ctx, "模型回复");
-        return evaluateRubricText({ rubric: "核对模型回复正文", evidence_source: { fact: "agent.reply", role: "reply" },
-          required_evidence_terms: rule.contains_all, forbidden_evidence_terms: rule.forbids_any },
-          stage, { ...ctx, records: matched, sampleAllowedVariations: [] }, []);
-      }
-      return evalEvidenceText(rule, matched, ctx);
+      const fact = requested.length === 1 ? requested[0] : undefined;
+      const source = fact ? { fact, role: rule.evidence_role ?? (fact === "agent.reply" ? "reply" : "output") } : undefined;
+      return evaluateRubricText({ rubric: "核对交付正文", evidence_source: source,
+        required_evidence_terms: rule.contains_all, forbidden_evidence_terms: rule.forbids_any },
+        stage, { ...ctx, records: matched, sampleAllowedVariations: [] }, [], rule.evidence_role);
     }
     case "evidence_absent": {
       if (ctx.records.length === 0 || matched.length === 0) {
@@ -374,7 +372,7 @@ function inferObservedPosture(records: readonly ObservationQueriedRecord[]): Eva
 type TextRubric = Pick<EvaluationEvaluatorRule, "rubric" | "evidence_source" | "required_facts" | "required_evidence_terms" | "forbidden_evidence_terms" | "allowed_variations">;
 
 /** Material and policy rubrics can inspect their selected inputs. Delivery rubrics need an identifiable output. */
-function rubricTextEvidence(rule: TextRubric, stage: EvaluationExpectation["stage"], ctx: RuleEvaluationContext) {
+function rubricTextEvidence(rule: TextRubric, stage: EvaluationExpectation["stage"], ctx: RuleEvaluationContext, selectedRole?: string) {
   const reply = { fact: "agent.reply", role: "reply" };
   const expectsReply = rule.required_facts?.includes(reply.fact)
     || stage === "delivery" && (ctx.workMode === "assistant" || ctx.records.some(record => record.fact === reply.fact));
@@ -386,10 +384,15 @@ function rubricTextEvidence(rule: TextRubric, stage: EvaluationExpectation["stag
   let replyRecords = 0;
   for (const record of records) {
     const evidence = ctx.evidenceByRecord.get(record.record_id) ?? [];
-    // Without an explicit selector, an Agent's delivered text is its reply, and a plugin can attest its own output.
-    const role = source?.role ?? (stage !== "delivery" ? undefined
-      : record.fact === reply.fact ? reply.role : record.owner.kind === "plugin" ? "output" : null);
-    if (role === null) continue;
+    // A query or a pinned ID can narrow the records, but only the producing owner can attest delivery.
+    let role = source?.role ?? selectedRole;
+    if (stage === "delivery") {
+      if (record.owner.kind === "plugin") role ??= "output";
+      else if (record.owner.kind === "service" && record.owner.id === "agent" && record.fact === reply.fact) {
+        if (role !== undefined && role !== reply.role) continue;
+        role = reply.role;
+      } else continue;
+    }
     const selected = evidence.filter(item => role === undefined || item.role === role);
     if (!selected.length) {
       // A reasoning-only frame is not a missing reply fragment. A record with no evidence at all is unresolved.
@@ -405,8 +408,8 @@ function rubricTextEvidence(rule: TextRubric, stage: EvaluationExpectation["stag
 }
 
 function evaluateRubricText(rule: TextRubric, stage: EvaluationExpectation["stage"], ctx: RuleEvaluationContext,
-  variations: readonly string[]): RawVerdict {
-  const { texts, pointers, incomplete, ambiguousReply } = rubricTextEvidence(rule, stage, ctx);
+  variations: readonly string[], selectedRole?: string): RawVerdict {
+  const { texts, pointers, incomplete, ambiguousReply } = rubricTextEvidence(rule, stage, ctx, selectedRole);
   if (ambiguousReply) {
     return { verdict: "unknown", unknownReasons: ["evidence_missing"], pointers,
       rationale: "样本命中多份回复正文，需固定待评回复的记录才能归因" };

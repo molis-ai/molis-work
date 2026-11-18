@@ -54,7 +54,7 @@ function source(value: unknown): boolean {
 
 function reference(value: unknown): value is ReviewReference {
   return object(value) && text(value.id) && text(value.version) && object(value.owner)
-    && ["agent-review", "goal-acceptance"].includes(String(value.owner.kind))
+    && value.owner.kind === "agent-review"
     && [value.owner.project_id, value.owner.plugin_id, value.owner.install_id].every(text);
 }
 

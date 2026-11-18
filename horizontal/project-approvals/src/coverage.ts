@@ -31,7 +31,7 @@ function reference(value: unknown, projectId: string): ReviewDecisionReference {
     decision_id: value.decision_id, reference: { owner: { ...base, kind: "trusted-decision", scope: "project",
       installation_generation: owner.installation_generation }, id, version },
   };
-  if (owner.kind !== "agent-review" && owner.kind !== "goal-acceptance") throw invalid();
+  if (owner.kind !== "agent-review") throw invalid();
   return { decision_id: value.decision_id, reference: { owner: { ...base, kind: owner.kind }, id, version } };
 }
 

@@ -100,7 +100,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 ## 界面文字与语言文件
 
-插件的界面文字写在自己的语言文件里，每种语言一个 `locales/<语言>.json`，在 Manifest 的 `ui.locales` 声明（`{ "default": "en", "available": ["en", "zh"] }`）；代码里用 SDK `/ui` 的 `t("<plugin_id 最后一段>.<位置>.<元素>", 参数)` 和 `format`，语言由平台给。文件形状、键和参数的规则、`t` 与 `t.text` 的区别、颜色和字体变量，以及界面文案、Manifest 权限理由与动作 `title`/`description` 的写作准则（准·短·稳·引、黑话禁用、符号与英文 Sentence case）统一见 [文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md)。`create` 生成的样例已经带两种语言。
+插件的界面文字写在自己的语言文件里，每种语言一个 `locales/<语言>.json`，在 Manifest 的 `ui.locales` 声明（`{ "default": "en", "available": ["en", "zh"] }`）；代码里用 SDK `/ui` 的 `t("<plugin_id 最后一段>.<位置>.<元素>", 参数)` 和 `format`，语言由平台给。文件形状、键和参数的规则、`t` 与 `t.text` 的区别、颜色和字体变量，以及界面文案、Manifest 权限理由与动作 `title`/`description` 的写作准则（面向零 AI 基础用户的白话精准表达、黑话禁用、符号与英文 Sentence case）统一见 [文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md)。`create` 生成的样例已经带两种语言。
 
 **开发和安装。** `molis-work plugin dev --locale <语言>` 选择预览语言；不传用 Manifest 的 `default`。请求的语言不在 `available`，或插件未声明 `ui.locales`，会报 `actions.input_invalid`。开发预览只在渲染时提供文字上下文。正式的内置、签名安装和沙箱插件沿同一声明路径；打包自动带上声明的语言文件，签名覆盖这些文件。安装会拒绝不一致、缺文件或夹带未声明语言文件的包。
 

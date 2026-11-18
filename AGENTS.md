@@ -42,7 +42,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 - **删除项目只有一份 Host 服务**（`apps/local-host/src/project-deletion-service.ts`），操作者由入口给。
 - **项目的文件夹只在目录库里记：** 一个输出目录，其余是只读输入；插件经 `projects.directories.get@1` 读。
 - **页面里跨模块说话用登记过的 DOM `CustomEvent`**（`packages/contracts/src/platform/dom-events.ts`），新增事件跑 `pnpm api:update`。
-- **界面文字与外观：** 界面短句写 `t("<主人>.<位置>.<元素>", 参数)`，日期数字写 `format`；存下来以后才显示的存键和参数，不存译文，也不拿译文做判断；颜色、字体等值只在 `packages/design-system/resources/` 的基线里，样式只写语义变量；给模型的回复语言由平台一处给。插件每种语言一个 `locales/<语言>.json`，在 Manifest 的 `ui.locales` 声明；后台工作存 `TextRef`。文案须精准简练、有明确下一步指引、不露架构黑话，术语对齐 `docs/system/GLOSSARY.md`；写作准则与 SDK 写法见 `skills/molis-plugin-dev/text-and-appearance.md`，界面翻译门禁见 `apps/workbench/README.md`「界面文字」。
+- **界面文字与外观：** 界面短句写 `t("<主人>.<位置>.<元素>", 参数)`，日期数字写 `format`；存下来以后才显示的存键和参数，不存译文，也不拿译文做判断；颜色、字体等值只在 `packages/design-system/resources/` 的基线里，样式只写语义变量；给模型的回复语言由平台一处给。插件每种语言一个 `locales/<语言>.json`，在 Manifest 的 `ui.locales` 声明；后台工作存 `TextRef`。面向用户的文案默认假定用户没有 AI 与编程基础：用直白人话写清影响与下一步，不露架构与 AI 工程黑话，术语对齐 `docs/system/GLOSSARY.md`；写作准则与 SDK 写法见 `skills/molis-plugin-dev/text-and-appearance.md`，界面翻译门禁见 `apps/workbench/README.md`「界面文字」。
 - **`vendor/prologue-sdk/` 只放当前使用的 Prologue 包**，每个包带 `.sha256` 与 `.provenance.json`（见该目录 README）。
 - **一张表只由建它的包读写**；有意共写的表登记在 `tooling/gates/table-owners.json`。
 - **本机安全边界逐条登记在 `docs/system/SECURITY-INVARIANTS.md`**，每条有断言拒绝本身的测试。改边界同步改表和测试；找不到拒绝就是安全缺陷。「是不是本机地址」在 TypeScript 里只有 `@molis-ai/molis-work-contracts/platform/loopback` 一份。

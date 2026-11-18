@@ -87,7 +87,7 @@ description: How to add or change an AI capability in Molis Work — anything th
 
 ## 交互：问人、建议一步、引用对象
 
-AI 要人补信息、确认一步或挑一个对象时，用下面四条共用的路（`specs/ai-interaction-experience`）。不在回复正文里列选项让人照着打字，不自己画卡，也不另存一份等待状态：等待归 Runtime，卡归宿主，规则在插件 SDK。面向用户的卡面文字（`why`、`note`、操作卡标题及工具失败说明）遵循 [文字与外观](../molis-plugin-dev/text-and-appearance.md#怎么写界面文案)：一句话说清要决定什么与回答后的影响，不暴露内部字段名、错误枚举或「宿主 / 投影 / 回执」等机制词。
+AI 要人补信息、确认一步或挑一个对象时，用下面四条共用的路（`specs/ai-interaction-experience`）。不在回复正文里列选项让人照着打字，不自己画卡，也不另存一份等待状态：等待归 Runtime，卡归宿主，规则在插件 SDK。面向用户的卡面文字（`why`、`note`、操作卡标题及工具失败说明）遵循 [文字与外观](../molis-plugin-dev/text-and-appearance.md#怎么写界面文案)：假定用户无 AI 背景，一句话用人话说清要决定什么与回答后的影响，不暴露内部字段名、错误枚举或「宿主 / 投影 / 回执 / 上下文 / Runtime」等机制词。
 
 - **Agent 中途问人（问卷）**：角色的 `host_tools` 带 `ask-user`。模型能用的题型是 `hostQuestionTypes()`（选择、文字、数字、日期、日期时间、对象引用，即每个画问题的界面都画得出的那几种），一张卡可以混着问。Run 停在 `awaiting_input`；宿主用 `agentQuestionHtml`（`apps/local-host/src/agent-question-card.ts`）把每个等待中的问题画成同一张卡，作为 `html` 放进助理与 Coding 的视图。页面插入它，由共享客户端读回字段，插件 SDK 的 `questionAnswer` 把字段变成回答，经 Run 的控制动作交回（Coding 是 `coding.runs.control`，版本以动作目录里的为准）。Runtime 按它保存的题逐题检查：有一题不合格就整份退回 `agent.answer_invalid`，`problems` 经 `questionErrors` 变成各字段旁的一行（带界限与单位），问题保持打开，模型什么都没听到；改对再交，原 Run 接着做。
 - **对象引用**：一类对象能被问到，要它先能被搜到：插件为这个种类写对象读取器，并在条目列出动作（`defineSearchEntriesAction`）里列出这个种类和给人看的名字，写法见 [`molis-plugin-dev` 的 search.md](../molis-plugin-dev/search.md)。两样都在同一个 Manifest 里，这个种类就是能问的。宿主由此算出 `hostReferenceKinds()`，经 Prologue 的 `askUserReferenceKinds` 交给模型；模型问清单外的种类，给人看之前就被退回。卡上不列候选，人打字时才按这一题的种类调 `search.references`。交给 Run 之前，宿主以会话主人的身份向对象的主人重读每个选中的对象，用主人此刻的标题，页面写的标题不用；读不到的那一题退回 `reference-unavailable`（安全不变量 S-26）。现在只算内置插件的种类（BL-152）。

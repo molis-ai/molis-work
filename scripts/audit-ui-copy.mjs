@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Read-only UI microcopy style & terminology audit against skills/molis-plugin-dev/text-and-appearance.md and docs/system/GLOSSARY.md.
+// Read-only UI microcopy style, beginner-comprehension & terminology audit against skills/molis-plugin-dev/text-and-appearance.md and docs/system/GLOSSARY.md.
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -8,9 +8,19 @@ import { isMainScript } from "./script-paths.mjs";
 
 const CATALOG_SPECIMEN_KEY = /(?:^workbench\.env\.|\b(?:catalog|specimens?|board-frame|style-probe)\b)/u;
 
+// Developer-focused surfaces (Tier B in text-and-appearance.md): retain standard developer nouns (Git, MCP, CLI, API Key) while banning internal/retired jargon.
+const TIER_B_FILE = /^(?:plugins\/native\/(?:coding|git|diff|text-stats)\/|plugins\/official-integrations\/|plugins\/content\/)/u;
+const TIER_B_KEY = /^(?:common\.connector\.|workbench\.(?:mcp-access|settings-agent-diagnostics|settings-call-diagnostics|settings-work-records|settings-connector|connector-|connection-service|call-row|agent-[a-z-]+-prompt|settings-prompts)\.)/u;
+
 const ZH_RULES = [
   { id: "zh.arch-jargon", label: "内部架构黑话外露", pattern: /宿主|权威(?:状态|记录|事件|存储)|视图投影|幂等运行|事件游标|已落盘|终端通道|对象挂载位|异步上下文/u },
-  { id: "zh.retired-term", label: "退役或禁用界面术语", pattern: /\bFunctions\b|判断函数|动作库|共同目录|消费场景|\bBoard\b|原生\s*Agent|本地\s*Agent|本机\s*Agent|终端\s*Agent|Agent\s*CLI|\bConnectors\b/u },
+  { id: "zh.retired-term", label: "退役或禁用界面术语", pattern: /\bFunctions\b|判断函数|动作库|共同目录|消费场景|\bBoard\b|原生\s*Agent|本地\s*Agent|本机\s*Agent|终端\s*Agent|Agent\s*CLI|\bConnectors\b|原子任务|子代理|\bCharacters\b|(?:执行|停止|命令|写入|原)回执/u },
+  {
+    id: "zh.beginner-jargon",
+    label: "日常界面暴露 AI / 计算机高门槛术语",
+    tierAOnly: true,
+    pattern: /(?<!Pi\s)\bRuntime\b|(?<!插件)运行时|(?<!Pi\s)\bAgent\b(?!S?\.md)|\bPrompt\b|上下文窗口|放进上下文|整理上下文|调用方|调用者|规格校验|规格板|不是副本沙箱|不开放任意\s*Shell|(?:新建|创建|恢复|升格为|推进这个|给这个|条|个)\s*Goal\b|(?:这条|使用)\s*Item\b/u,
+  },
   { id: "zh.colloquial-or-filler", label: "口语俚语或冗余套话", pattern: /连看都不看|你够不到它|还没有叫醒过|AI\s*自己说的(?!，Molis\s*没有核对)|您可以在|你可以通?过|请点击|点击此处|当前尚未|暂无任何|正在为您|本页面用于/u },
   { id: "zh.bare-empty", label: "空洞的空状态文案", pattern: /^(?:暂无(?:数据|内容|记录)?。?|无数据。?|列表为空。?)$/u },
   { id: "zh.bent-quotes", label: "中文界面混用弯引号（应统一用「…」）", pattern: /(?<!\\|\[)[“”](?!\])/u },
@@ -20,7 +30,7 @@ const ZH_RULES = [
 const EN_PROPER_NOUNS = new Set([
   "Molis", "Work", "Goal", "Goals", "Frame", "Inbox", "Feed", "Schedule", "Coding", "Git", "Diff",
   "Cognia", "Jelly", "Shelf", "Pages", "Forms", "Dataset", "PPT", "PowerPoint", "Issue", "Brief",
-  "Alchemist", "Studio", "Prologue", "Runtime", "Agent", "Agents", "Skill", "Skills", "Character", "Characters",
+  "Alchemist", "Studio", "Prologue", "AI", "Runtime", "Agent", "Agents", "Skill", "Skills", "Character", "Characters",
   "TypeSafe", "MCP", "OAuth", "API", "CLI", "TUI", "SSH", "HTTP", "HTTPS", "JSON", "CSV", "PDF", "Markdown", "Word", "ID",
   "GitHub", "GitLab", "Bitbucket", "Gmail", "Google", "Drive", "Calendar", "Microsoft", "Outlook", "OneDrive", "SharePoint", "Teams",
   "Slack", "Discord", "Notion", "Linear", "Jira", "Confluence", "Asana", "Monday", "ClickUp", "Trello", "Atlassian", "X",
@@ -32,7 +42,8 @@ const EN_PROPER_NOUNS = new Set([
 
 const EN_RULES = [
   { id: "en.arch-jargon", label: "English internal architecture jargon", pattern: /\b(?:host execution bounds|idempotent run ledger|canonical state)\b/iu },
-  { id: "en.retired-term", label: "English retired or drifted term", pattern: /\b(?:Functions|subtasks?|native agent|local agent|terminal agent|Agent CLI)\b/u },
+  { id: "en.retired-term", label: "English retired or drifted term", pattern: /\b(?:Functions|subtasks?|native agent|local agent|terminal agent|Agent CLI|atomic tasks?)\b/u },
+  { id: "en.beginner-jargon", label: "Everyday surface exposes technical AI jargon", tierAOnly: true, pattern: /\b(?:local runtime|terminal runtime|Runtime Prompt|context window)\b/iu },
   { id: "en.round-drift", label: "Use 'turn' instead of 'round' for AI turns", pattern: /\b(?:this|next|previous|last|each|every)\s+round\b|\bby\s+round\b/iu },
 ];
 
@@ -57,15 +68,18 @@ export function auditRepositoryCopy(root, options = {}) {
   for (const file of files.sort()) {
     if (ownerFilter && !file.includes(ownerFilter)) continue;
     const isZh = file.endsWith("/zh.json");
+    const fileIsTierB = TIER_B_FILE.test(file);
     const parsed = JSON.parse(fs.readFileSync(path.join(root, file), "utf8"));
     const messages = parsed.messages ?? {};
     for (const [key, entry] of Object.entries(messages)) {
       if (!includeCatalog && CATALOG_SPECIMEN_KEY.test(key)) continue;
+      const isTierB = fileIsTierB || TIER_B_KEY.test(key);
       const texts = typeof entry === "string" ? [entry] : Object.values(entry?.forms ?? {});
       for (const text of texts) {
         if (typeof text !== "string") continue;
         const rules = isZh ? ZH_RULES : EN_RULES;
         for (const rule of rules) {
+          if (rule.tierAOnly && isTierB) continue;
           if (categoryFilter && rule.id !== categoryFilter) continue;
           if (rule.pattern.test(text)) findings.push({ file, key, rule: rule.id, label: rule.label, text });
         }

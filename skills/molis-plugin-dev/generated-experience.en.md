@@ -26,7 +26,7 @@ Before freeze, the experience stage may reorganize draft parts and give `scenari
 
 ## Copy and responsive layout
 
-- Headings name content, buttons start with specific verbs (never vague “OK / Submit”), and labels use familiar words in Sentence case. Command results concisely state what actually happened without filler (“you can…”, “click here to…”) or internal terms (`host`, `projection`, `idempotent`, raw field names or status codes). Empty states pair “No <items> yet” with one line of guidance and a real next step (never bare “No data”). Show explanations only when they aid a decision.
+- Write plain everyday language for people with no AI or coding background: headings name content, buttons start with specific verbs (never vague “OK / Submit”), and labels use familiar words in Sentence case. Command results concisely state what actually happened without filler (“you can…”, “click here to…”) or internal and AI jargon (`host`, `projection`, `idempotent`, `receipt`, `snapshot`, `caller`, `runtime`, `agent`, `prompt`, `context window`, raw field names or status codes). Empty states pair “No <items> yet” with one plain line of guidance and a real next step (never bare “No data”). Show explanations only when they aid a decision.
 - Narrow layout changes task order: keep core content and action first, secondary information after. Connect directory and body with the existing return path. Consider a narrow embedded Workbench pane, not only full-window width. Do not shrink text to fit the desktop layout.
 - Long names and bodies, multiple rows and narrow actions stay readable and reachable. Reflow preserves filter, selection and return context. Use actual browser interaction for behavior not visible in a screenshot.
 

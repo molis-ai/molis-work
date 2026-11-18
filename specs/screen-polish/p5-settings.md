@@ -79,7 +79,7 @@
 | 小修 | 结果 |
 | --- | --- |
 | 「更多筛选」弹层按 Esc、点外面要能关上 | 不用改代码：弹层是绝对定位的 `<details>` 内容，平台已有的浮层关闭程序（`packages/design-system/src/browser/floating-details.ts`）管所有这样的 `<details>`，设置页的三个外壳都带着它。真实界面里按 Esc 会关上并把焦点还给按钮，点外面也会关上；加了一条浏览器用例钉住（`tests/memory-settings-walkthrough-fixes.e2e.test.ts`，POLISH-29） |
-| 「今天的用量」一行的名字和下面那句说明重复 | 说明不再以「今天助理用了」开头，只写数；多出来的那条词删了 |
+| 「今天的用量」一行的名字和下面那句说明重复 | 说明不再以「今天助理用了」开头，只写数。多出来的那条词（`workbench.settings-assistant.assistant-used-today`）留在词包里没删：删它会让工作台中英文词包换名，首屏门禁把换名的词包记成新增资源、要用户批准，为一条没人用的词不值得；等词包因别的原因换名时一并删 |
 | 加完「不提醒」规则后，焦点落到新加的那条规则上 | 加完以后焦点落在新规则那一行的开关上 |
 | 英文走查用例里钉住演示项目名的正则，换成按结构找那一行 | `tests/english-surfaces.e2e.test.ts`：按 `data-coding-project-line` 找到那一行单独核对，其余标记里不许有汉字（VUX-40），没有放宽 |
 | `SETTINGS_DOCUMENT_STYLES` 的下发位置 | 条件没触发，不挪（见上） |
@@ -100,7 +100,11 @@
 
 ### 页面体积
 
-对照第一段的版本（4aae9decfa）在同一台机器上量的下发字节：设置样式 −358、工作台样式 −454、工作台脚本 −42、Shelf 样式 −80、会话页脚本 −18；角色页脚本 +893、工作记录脚本 +410。两处增长是这两页在浏览器里画行，原来手拼的标记换成 SDK 的函数后，函数本身进了它们的脚本。都远低于 10 KB，没有新增资源；许可在 `tooling/gates/page-asset-allowances/screen-polish-p5-rows.json`，数字以合入前对照 main 的实测为准。
+对照 main e5e565411b（#2127 的合并提交）的隔离构建量的下发字节（`node scripts/gates/page-assets.mjs --base origin/main`、`node scripts/gates/first-screen.mjs --base origin/main`，2026-11-18）：
+
+- 资源：设置样式 −358、工作台样式 −454、工作台脚本 −42、Shelf 样式 −80、会话页脚本 −18；角色页脚本 +893、工作记录脚本 +410。两处增长是这两页在浏览器里画行，原来手拼的标记换成 SDK 的函数后，函数本身进了它们的脚本。
+- 首屏：工作台默认与全部插件，中英文都是冷 +109、热 +605；到达页与项目选择页冷 −454、热不变。工作台多出来的 605 字节在页面本身：它带着界面与语言的四行和项目常规页的两行，SDK 的行比原来手写的多一层包裹和读得出来的名字；冷启动里被变小的样式和脚本抵掉大半。
+- 都远低于 10 KB，没有新增资源，词包没有换名。许可在 `tooling/gates/page-asset-allowances/screen-polish-p5-rows.json`。
 
 铺开后的截图在 `.impeccable/qa/review/screen-polish/p5/rollout/`（不入库）。已删的旧样式：`.settings-record*`（只留写后检查还在用的 `.settings-record-title`）和 `.settings-paths`。
 

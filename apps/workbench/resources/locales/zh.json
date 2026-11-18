@@ -5929,6 +5929,7 @@
     "workbench.settings-assistant.ask-me-before-each-run-can-be-undone": "每次执行前都请我确认（它可以撤销，默认在你明确要求时直接执行）",
     "workbench.settings-assistant.assistant": "助理",
     "workbench.settings-assistant.assistant-tokens-per-day-input-plus-output-empty": "每日 AI 用量上限（按收发字数折算为 tokens，留空表示不限）",
+    "workbench.settings-assistant.assistant-used-today": "今天助理用了",
     "workbench.settings-assistant.attention-rules": "提醒规则",
     "workbench.settings-assistant.cached-reads": "缓存读取",
     "workbench.settings-assistant.cap": "上限",

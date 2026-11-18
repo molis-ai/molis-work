@@ -6308,6 +6308,7 @@
     "workbench.settings-assistant.ask-me-before-each-run-can-be-undone": "Ask me before each run (it can be undone; by default it runs directly when you ask for it)",
     "workbench.settings-assistant.assistant": "Assistant",
     "workbench.settings-assistant.assistant-tokens-per-day-input-plus-output-empty": "Daily AI usage limit (in tokens, input plus output; leave blank for no limit)",
+    "workbench.settings-assistant.assistant-used-today": "Assistant used today",
     "workbench.settings-assistant.attention-rules": "Attention rules",
     "workbench.settings-assistant.cached-reads": "cached reads",
     "workbench.settings-assistant.cap": "cap",

@@ -142,7 +142,7 @@ export function createGithubProvider(opts?: {
           status: "mock",
           message:
             "Fixture mode — bind token in Settings or set MOLIS_WORK_GITHUB_TOKEN",
-          action: "Settings → Connectors · PAT / Device Flow",
+          action: "Settings › Service connections · PAT / Device Flow",
         };
       }
       if (!fetchImpl) {

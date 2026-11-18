@@ -7,7 +7,7 @@
     "hubspot.connection.inbound": "Feed 读取联系人",
     "hubspot.connection.summary": "CRM 与营销。",
     "hubspot.connection.token-label": "HubSpot Service Key / 既有 Private App Token",
-    "hubspot.guide.cli-link": "HubSpot Agent CLI",
+    "hubspot.guide.cli-link": "查看 HubSpot CLI",
     "hubspot.guide.mcp-link": "查看 HubSpot 官方 MCP",
     "hubspot.guide.oauth-link": "查看 HubSpot OAuth",
     "hubspot.guide.token-note": "在 Settings → Integrations → Service Keys 创建只读 Service Key；既有 Private App Token 仍可使用。",

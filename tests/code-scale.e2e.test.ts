@@ -256,16 +256,26 @@ test("VUX-33 QEA-176: the Assistant's large block streams in place, reopens as t
   assert.equal(written.code, code, "copy gives the code as written");
   await waitFor(`fetch(${JSON.stringify(`/projects/${projectId}/api/assistant/works`)}).then(r=>r.json()).then(b=>b.works[0]?.state==='completed')`, 30_000);
   const expected = await evaluate<{ html: string; spans: number }>(`({ html: want, spans: ${figure}.querySelectorAll('code [class^="tok-"]').length })`);
+  if (!await evaluate("document.querySelector('[data-assistant-panel]').hidden")) await click("[data-assistant-panel-close]");
+  await waitFor("document.querySelector('[data-reply-peek] .work-reply-peek-body')?.firstChild");
 
-  // Reuse the whole-colouring comparison and let the sampler tell us when to read it.
+  // QEA-200 also observes the visible receipt while the original code's colouring progresses.
   const { identifier } = await command<{ identifier: string }>("Page.addScriptToEvaluateOnNewDocument", { source: `window.samples = []; const tick = () => {
     const code = document.querySelector('.assistant-msg--assistant .assistant-code code');
-    if (code) samples.push([performance.now(), code.textContent.length, code.querySelectorAll('[class^="tok-"]').length]);
+    if (code) {
+      const preview = document.querySelector('[data-reply-peek] .work-reply-peek-body')?.firstChild;
+      if (preview) {
+        window.originalPreview ??= preview;
+        window.previewRebuilt ||= preview !== window.originalPreview;
+      }
+      samples.push([performance.now(), code.textContent.length, code.querySelectorAll('[class^="tok-"]').length]);
+    }
     if (samples.length < 3000) requestAnimationFrame(tick); }; requestAnimationFrame(tick);` }, sessionId);
   await navigate(() => command("Page.reload", {}, sessionId));
   await waitFor(`samples.at(-1)?.[2] === ${expected.spans}`, 30_000);
   await command("Page.removeScriptToEvaluateOnNewDocument", { identifier }, sessionId);
   const samples = await evaluate<Array<[number, number, number]>>("samples.slice()");
+  assert.equal(await evaluate("Boolean(window.originalPreview) && !window.previewRebuilt"), true, "QEA-200 code colouring does not rebuild the visible peek");
   assert.equal(await evaluate<string>(`${figure}.querySelector('code').innerHTML`), expected.html, "reopened colouring matches the whole colouring");
   const painting = samples.filter(([, , spans]) => spans < expected.spans);
   assert.ok(painting.length >= 3, `coloured over ${painting.length} frames`);

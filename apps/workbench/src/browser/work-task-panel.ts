@@ -91,19 +91,19 @@ function installDialogRow(panel: string, paint: () => void): void {
   const latest = () => {
     const replies = thread?.querySelectorAll<HTMLElement>(":scope > [data-round] > .assistant-msg--assistant[data-reply-id]");
     const node = replies?.[replies.length - 1];
-    const id = node?.dataset.replyId, words = node?.dataset.text?.trim();
-    return node && id && words ? { node, id, words } : null;
+    const id = node?.dataset.replyId, words = node?.dataset.text;
+    return node && id && words?.trim() ? { node, id, words } : null;
   };
   // The reply reads as the dialog draws it: the bubble's own blocks (the Host's rendered reply), not its Markdown source. Its
   // buttons stay in the dialog; the row has one way in. A named object is a button there whose words are part of the sentence,
   // so it stays here as those words. A reply with nothing drawn yet shows its words as they are.
-  const draw = (body: HTMLElement, { node, words }: NonNullable<ReturnType<typeof latest>>) => {
-    const now = words + "\u0000" + node.innerHTML;
-    if (now === drawn && body.hasChildNodes()) return;
+  const draw = (body: HTMLElement, { id, node, words }: NonNullable<ReturnType<typeof latest>>) => {
+    // Code colouring changes the rendered nodes without changing what the person reads in the peek.
+    if (shown === id && drawn === words && body.hasChildNodes()) return;
     const copy = node.cloneNode(true) as HTMLElement;
     copy.querySelectorAll("button").forEach(button => button.matches(".assistant-inline-object") ? button.replaceWith(button.textContent ?? "") : button.remove());
-    drawn = now;
-    if (copy.hasChildNodes()) body.replaceChildren(...copy.childNodes); else body.textContent = words;
+    drawn = words;
+    if (copy.hasChildNodes()) body.replaceChildren(...copy.childNodes); else body.textContent = words.trim();
   };
   const fold = () => { if (!shown) return; folded = shown; try { sessionStorage.setItem(KEPT, folded); } catch { /* The fold then lasts this page. */ } row(); };
   // Whose words they are: the Character whose conversation is in front, else the Assistant.

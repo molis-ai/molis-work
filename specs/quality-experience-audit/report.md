@@ -1,6 +1,6 @@
 # Molis Work 审查报告与优化策略
 
-整项进行中，负责人 Codex。候选 `9c4087e1e9` 已在主干 `651432a3ba` 上通过 Verify 和 Full。第 118 批复验包含主干 `afaeabdd4a` 的组合。登记范围覆盖候选中的 75 个包、84 个 contracts 子路径及根入口，另复核本轮从主干移除的 WebQuery 包。报告有 96 项编号发现和 16 项平台候选，列明处置和实测结果。[逐包覆盖](coverage.md)、[六方向结论](#六个方向的独立结论)、[平台候选及处置](#平台化与通用化检查及处置)、[需求实现度](#需求整体实现度)、[BL 清理与保留事项](#bl-与事项清理建议)和[验收编号](spec.md)均可按入口查阅。
+整项进行中，负责人 Codex。第 118 批 `cea504b68d` 已在主干 `6c88cba611` 上通过 Verify，第 119 批补上 Full 发现的长回复停顿。登记范围覆盖候选中的 75 个包、84 个 contracts 子路径及根入口，另复核本轮从主干移除的 WebQuery 包。报告有 97 项编号发现和 16 项平台候选，列明处置和实测结果。[逐包覆盖](coverage.md) · [六方向结论](#六个方向的独立结论) · [平台候选及处置](#平台化与通用化检查及处置) · [需求实现度](#需求整体实现度) · [BL 清理与保留事项](#bl-与事项清理建议) · [验收编号](spec.md)
 
 第 53–55 批 8 文件 78 项定向通过。第 56–59 批 8 文件 144 项及长材料 2 项通过，验证改写、回放、起草、引导、信息方案和真实采用。固定 `4c54241e96` 的受影响包级复验 55/55 文件、463/463 项通过。第 60 批 Git、Coding 与工作台 77 文件、521 项通过，含真实提交、拒绝、暂存和编辑恢复。第 62 批 Placement 与工作台 22 文件、194 项通过。第 52 批冻结头的 104/105 个包回归文件通过，唯一失败定位到 Feed 已失效的发布版本例外。
 
@@ -1578,3 +1578,17 @@ Verify 首轮的产品子集第 1 片 66 份通过。Goals 刷新文件触及 24
 QEA-199 原 15 个场景仍由产品子集执行器运行。三个组内复用各自的隔离 Home，共少启动六次。每个场景仍进入实际页面、用自己的对象及原写入断言。一次带组复验暴露了前一场景的界面偏好会恢复成工作区，两个需要 Frame 的场景改用原界面动作进入并确认目标。保留整文件 240 秒上限，最终本机实跑 172.2 秒通过，零重试、跳过和隔离。日志 `quality-audit-b118-goals-strict3.log`。 [真实场景](../../tests/goals-refresh.e2e.test.ts)
 
 主干 `6c88cba611` 同步决定 53、底栏第十三版和第 36A、37 批的需求拆分。这一提交是文档变更，合并预检无冲突。逐屏 P0 已交付的缺陷和后续新底栏、事项首页仍按各自验收。 [决定 53](https://github.com/molis-ai/molis-work/blob/6c88cba611/specs/post-anticorruption-roadmap/reference/decisions.md#decision-53)
+
+当前候选 `cea504b68d` 相对实测基点 `afaeabdd4a` 改动 569 个文件，其中生产源码 277 个，测试与夹具 184 个。Full 直接运行候选代码树 `982f89bfad7e`，Verify checkout 为 GitHub 使用主干 `6c88cba611` 和该候选生成的合并树 `1cb8694d2819`，与本机预检一致。 [Verify](https://github.com/molis-ai/molis-work/actions/runs/44353379926) · [Full](https://github.com/molis-ai/molis-work/actions/runs/44353367194)
+
+`cea504b68d` 的 Verify 已通过。此前超时的 Linux Goals 用例 190.6 秒通过，同片 67/67。包边界在最新主干 `6c88cba611` 构建比较，67 条静态资源及首屏通过。中文项目选择冷增 2,166 B，默认中英文冷增 526／432 B，热减 8,453／8,440 B。 [Verify](https://github.com/molis-ai/molis-work/actions/runs/44353379926/job/134990219925) · [Goals](https://github.com/molis-ai/molis-work/actions/runs/44353379926/job/134975172548) · [资源](https://github.com/molis-ai/molis-work/actions/runs/44353379926/job/134975172045)
+
+### 第 119 批 QF-97 / P2 长回复重开时回执反复重绘
+
+`cea504b68d` 的 Full 第 23 片两次失败同一文件。首次 QEA-176 完整原文和色标通过，最长帧 242.8 ms。本机同源码重开也得 106.3 ms，原断言要求低于 100 ms。实际诊断的 10 个样本均见会话收起而回执可见，后几帧随着两份 DOM 变大出现 176～350 ms 间隔。浏览器采样记录了回执观察器的复制和替换，以及全页状态圆环的可见性检查。日志 `quality-audit-b118-long-code{,-trace}.log`。 [Linux 首轮第 23 片](https://github.com/molis-ai/molis-work/actions/runs/44353367194/job/134974784887)
+
+回执归 Workbench，按原回复 ID 和完整源文字更新。同一条回复的空格、换行与正文增量仍能更新预览。代码节点由原着色器推进，彩色标记的变化省掉整份回执的序列化及重建。迁移成本低，集中在同一个维护预览的函数。通过 QEA-200 在着色期间检查同一个实物回执节点，原全文、复制、色标准确性及 100 ms 断言保持。本机正常及三倍 CPU 限速各通过，最长帧 20.1／45.6 ms，均先出现两帧完整原文。补核源文字后，准确构建的长代码文件 10 项通过。日志 `quality-audit-b119-code-{normal,stress}.log`、`quality-audit-b119-exact-consumers.log`。 [状态读取与预览](../../apps/workbench/src/browser/work-task-panel.ts#L91) · [真实入口](../../tests/code-scale.e2e.test.ts#L231)
+
+以 `afaeabdd4a` 独立构建为基准，准确构建的 67 条静态资源、十组首屏、22 条许可匹配均通过。相对上一批，工作台脚本与六组工作台冷加载各减 6 B，各页热加载总量相同，中文项目选择冷增仍为 2,166 B。最大单项净增仍是原 Git 脚本的 8,403 B。源数据 `quality-audit-b119-exact-resource-proof.json`。
+
+准确构建的长代码、工作线回执、共享输入栏与助理正文四文件全部通过，共 23 项。实际恢复的同字新回复仍会显示，打开设置后能回原收件人及输入，原代码全文和最终颜色一致。日志 `quality-audit-b119-exact-consumers.log`。

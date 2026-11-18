@@ -1,6 +1,6 @@
 {
   "reason": "保留窄窗审查位置和组件板通知。重开助理先读原文，输入栏随实际窗格位置重排。整合主干文案后复量既有脚本和首屏。",
-  "review": "specs/quality-experience-audit/report.md#第-109110-批资源复量，QEA-173/174/176/178/179/181。",
+  "review": "specs/quality-experience-audit/report.md#第-111-批资源复量，QEA-173/174/176/178/179/181/182。",
   "assets": {
     "/assets/molis-work-assistant-subtasks.js": 2,
     "/assets/molis-work-plugin-frame.js": 124,
@@ -8,9 +8,9 @@
   },
   "pages": {
     "arrival-empty/zh": { "cold": 254, "warm": 1 },
-    "arrival-empty/en": { "cold": 172, "warm": 1 },
+    "arrival-empty/en": { "cold": 177, "warm": 1 },
     "workbench-default/zh": { "cold": 89, "warm": 0 },
     "workbench-all-plugins/zh": { "cold": 383, "warm": 0 },
-    "workbench-all-plugins/en": { "cold": 352, "warm": 0 }
+    "workbench-all-plugins/en": { "cold": 357, "warm": 0 }
   }
 }

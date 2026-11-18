@@ -1416,3 +1416,11 @@ main `43a3c3fa2f` 与候选独立构建并实测了 67 个静态资源和十组�
 主干 `#2118` 将卡片结果的常见反馈转为 SDK 生成的键和参数，由原卡片持久化并随 Workbench 语言显示。Assistant 自有库从 1 到 2 对历史内容转为原文引用。项目库从 4 到 5 沿 Runtime 的私值转换，只迁移 Coding 正式安装声明的值。Work Brief 自有库从 1 到 2，保留已写历史原文，新来源取 Manifest 的名称引用。该版本已审批的转换与本轮资料导入固定版本是不同事实，结构与回读分别验收。[卡片结果](../../packages/plugin-sdk/src/action-cards.ts#L124) · [项目升级](../../apps/local-host/src/project-database-schema.ts#L67) · [简报升级](../../plugins/native/work-brief/src/database.ts#L43) · [原批准 PR](https://github.com/molis-ai/molis-work/pull/2118)
 
 PF-15 复核。合并后的资料侧栏入口仍按原动作 `title` 展示成果和置物架来源，现行 Work Brief 已提供真实的 Manifest `name_text` 读取场景。后续资料来源合同可复用现有 TextRef 和实际语言读取，需先统一两个页面消费的同一个来源描述。[资料来源](../../apps/local-host/src/side-files-http.ts#L48) · [置物架声明](../../plugins/native/shelf/src/search.ts#L45)
+
+候选完整构建及本地 7 文件 168 项通过。三条连续升级、实际项目打开、Assistant 网关与卡片结果、导入历史及现行版本、隔离浏览器切换前后的警告和发布版本均已验证。包边界核对 75 包、4,398 个源文件和 24,022 条 import，公开合同及源码健康均通过。动作、44 个数据库结构、版本和 111 份 API 快照匹配源码。日志 `quality-audit-b111-{stored-words,boundary,health,regenerate}.log`。[存储与显示验收](../../tests/stored-text-refs.test.ts#L59) · [实际导入界面](../../tests/artifact-import-warning.e2e.test.ts#L10)
+
+### 第 111 批资源复量
+
+独立构建 main `feffe94db0` 与候选，同样采集 67 条静态资源及十组首屏实报。合并主干后静态变化仅为主干批准的 Work Brief 脚本 116 B。主干新词包与本轮既有获准词条重新生成为 `/assets/locale/workbench.zh.aae6b6b26daff45c74ef27f1.js` 和 `/assets/locale/workbench.en.be9e464f384a6edb7b4da725.js`，22 条首屏要求仍匹配原许可。相对第 110 批，中文首屏每页冷增 378 B、英文 423 B，热量相同。相对 `704773fe8e`，四类页面最大冷增 1,137 B、热增 266 B，其余报告样本中示例项目最大冷增 1,447 B、热增 261 B。
+
+相对独立主干，冷加载最大净增 2,084 B、热加载 20 B，静态最大净增仍为 Git 脚本 8,403 B。英文到达及全插件页另各登记现测 5 B，后者含既有 Linux 路径差额。并发检查期间的两次本机测量分别在 chooser 的简报和到达页 Issues 入口超时，随后沿同一时限、原 HTTP 采样器和完整清单逐页回放通过。实际脚本体积、首屏策略及已验证 Linux 差额复算通过。原数据 `quality-audit-b111-{main,candidate}-{http,assets}.json` 与 `quality-audit-b111-resource-proof.json`。[登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)

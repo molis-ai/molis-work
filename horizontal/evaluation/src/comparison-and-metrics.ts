@@ -66,6 +66,11 @@ export function compareEvaluationRuns(baseline: EvaluationRunView, candidate: Ev
     differences.push(`样本预期版本不同：v${baseline.sample_version} vs v${candidate.sample_version}`);
   }
 
+  if (baseline.funnel.execution_basis !== candidate.funnel.execution_basis) {
+    comparable = false;
+    differences.push("执行与完成的统计单位发生变化，历史记录条数与业务工作数无法直接比较");
+  }
+
   if (baseline.sample_purpose === candidate.sample_purpose) {
     shared.push(`purpose=${baseline.sample_purpose}`);
   } else {
@@ -151,6 +156,7 @@ export function summarizeEvaluationMetrics(
   const verdictCounts: Record<EvaluationVerdict, number> = { passed: 0, failed: 0, unknown: 0 };
   const unknownReasonCounts: Partial<Record<EvaluationUnknownReason, number>> = {};
   const workOutcomeCounts: Partial<Record<ObservationOutcome, number>> = {};
+  let excludedExecutionRuns = 0;
   let funnelTotals: EvaluationFunnelCounts = {
     presented: 0,
     viewed: 0,
@@ -173,12 +179,14 @@ export function summarizeEvaluationMetrics(
         workOutcomeCounts[key] = (workOutcomeCounts[key] ?? 0) + count;
       }
     }
+    const ownerCounts = view.funnel.execution_basis === "owner_work";
+    if (!ownerCounts) excludedExecutionRuns += 1;
     funnelTotals = {
       presented: funnelTotals.presented + view.funnel.presented,
       viewed: funnelTotals.viewed + view.funnel.viewed,
       selected: funnelTotals.selected + view.funnel.selected,
-      executed: funnelTotals.executed + view.funnel.executed,
-      completed: funnelTotals.completed + view.funnel.completed,
+      executed: funnelTotals.executed + (ownerCounts ? view.funnel.executed : 0),
+      completed: funnelTotals.completed + (ownerCounts ? view.funnel.completed : 0),
       adopted: funnelTotals.adopted + view.funnel.adopted,
       modified_after_adoption: funnelTotals.modified_after_adoption + view.funnel.modified_after_adoption,
       undone_or_reworked: funnelTotals.undone_or_reworked + view.funnel.undone_or_reworked,
@@ -219,7 +227,7 @@ export function summarizeEvaluationMetrics(
     verdict_counts: verdictCounts,
     unknown_reason_counts: unknownReasonCounts,
     work_outcome_counts: workOutcomeCounts,
-    funnel_totals: funnelTotals,
+    funnel_totals: { ...funnelTotals, execution_basis: "owner_work", excluded_execution_runs: excludedExecutionRuns },
     by_work_mode: byWorkMode,
   };
 }

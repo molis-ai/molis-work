@@ -2,6 +2,7 @@ import { ActionError, findSubjectReader, type ActionReference, type ActionSubjec
 import { actionErrorKind, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { isPresentationOverviewReader } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import { WORK_BRIEF_PLUGIN_ID } from "./identity.js";
 import { BRIEF_LIMITS, briefSubjectKey, type SourceRow } from "./model.js";
 
@@ -79,7 +80,7 @@ export async function readBriefSources(directory: BriefDirectory, views: readonl
   const known = new Map(before.map(row => [row.plugin_id, row]));
   const readers = [...overviewReaders(views)].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).slice(0, BRIEF_LIMITS.sources);
   return mapLimited(readers, async ([pluginId, matches]): Promise<SourceRow> => {
-    const view = matches[0]!, name = view.provider.title, old = known.get(pluginId);
+    const view = matches[0]!, name: OwnedTextRef = view.provider.title_text ?? { literal: view.provider.title }, old = known.get(pluginId);
     const failed = (read: "unreadable" | "unauthorized"): SourceRow => read === "unreadable" && old && (old.read === "ok" || old.read === "stale") && old.read_at
       ? { ...old, name, read: "stale", turn: "idle" } : { plugin_id: pluginId, name, read, subjects: [], turn: "idle" };
     if (matches.length !== 1) return failed("unreadable");

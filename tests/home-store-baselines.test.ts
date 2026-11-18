@@ -44,7 +44,7 @@ test("FI-6: Feed's Home reference ledger freezes its accepted v1 schema, with no
 for (const [name, baseline] of [...libraries.filter(([name]) => !WITHOUT_REAL_HOME_FIXTURE.includes(name) && name !== "plugin-runtime"), ["alchemist-search", ALCHEMIST_SEARCH_BASELINE] as const]) {
   // B10-R3: the Assistant stays at v1; observation is at v2; the memory ledger is at v3 (Memory P1), and agent-definitions at v3 (batch 42).
   test(`N41-PERSONAL-01 the ${name} store has its declared version and complete frozen schema`, () => {
-    assert.equal(baseline.version, name === "memory" || name === "agent-definitions" ? 3 : name === "observation" || name === "characters" ? 2 : 1);
+    assert.equal(baseline.version, name === "memory" || name === "agent-definitions" ? 3 : name === "observation" || name === "characters" || name === "assistant" || name === "work-brief" ? 2 : 1);
     const existing = shape(readFileSync(new URL(`./fixtures/home-store-schemas/${name}.sql`, import.meta.url), "utf8")), want = shape(baseline.schema);
     // RAC-2384: the fixture carries the complete current schema; no missing-table allowance remains.
     assert.deepEqual(want, existing, `${name}: complete frozen schema`);

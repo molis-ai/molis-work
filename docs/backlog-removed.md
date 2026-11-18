@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-action-card-outcome-text、BL-work-brief-source-name-text | 已完成并删除 | 2026-11-17：动作卡片结果与 Work Brief 来源名改存文字引用（`OwnedTextRef`），助理库 1→2、项目库 4→5、Work Brief 库 1→2 把旧句子转成 `{ literal }`（见 `docs/system/CONTRACT-CHANGES.md`「存下的句子改成文字引用」） |
 | BL-359、BL-360 | 已完成并删除 | 第 39 批（2026-11-16）：`AgentReviewQueue` 在拒绝、取消、到期与结算后释放执行闭包与宿主签发 caller（`horizontal/agent-host/src/reviews.ts`、`apps/local-host/src/plugin-callers.ts`、`tests/agent-review-lifecycle.test.ts`、`tests/prologue-git.test.ts`）；待审投影携带 `AgentReviewDecisions` 可决定性，恢复或撤权后不再提供无效批准按钮且保留草稿与焦点（`tests/agent-review-decisions.test.ts`、`tests/agent-review-http.test.ts`、`tests/agent-review-presenters.e2e.test.ts`）；见 [39.md](../specs/post-anticorruption-roadmap/reference/batches/39.md) |
 | BL-328 | 已完成并删除 | 第 30 批「最小真实评测路径」补齐隔离 Home 可复现评测命令 `pnpm eval:run`（`scripts/run-evaluation.mts`），严拒 `~/.molis-work`、默认 stand-in 可复现校验并支持 Gemini 在线模式内联读取密钥跑完删 Home；见 [30.md](../specs/post-anticorruption-roadmap/reference/batches/30.md) |
 | BL-051、BL-182、BL-222、BL-540 | 已完成并删除 | 第 33 批（2026-11-14）：子任务尝试预算与「再给 3 次」、子任务重试带 `source: "host"`、命令未知结局与四节收尾报告及步骤进度扣除、Coding 经宿主公开启动时刻判断中断（不再调 `process.uptime()`）；实物走查集中收成 [BL-batch33-acceptance](../specs/backlog/BL-batch33-acceptance.md) |

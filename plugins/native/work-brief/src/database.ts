@@ -18,12 +18,41 @@ const WORK_BRIEF_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "w
   ] };
 
 /**
+ * A stored sentence as the words it was: `{ "literal": … }`. A reference holds at most 2000 UTF-16 units, never more than a text's UTF-8 bytes,
+ * so a longer one is cut to 999 characters and an ellipsis (each at most two units).
+ */
+const literal = (text: string) => `json_object('literal', CASE WHEN length(CAST(${text} AS BLOB)) <= 2000 THEN ${text} ELSE substr(${text}, 1, 999) || '…' END)`;
+/** A source's name kept as words; an empty one, which no reference holds, as the plugin's id. */
+const nameAsText = (row: string) => `json_set(${row}, '$.name', ${literal(`CASE WHEN json_extract(${row}, '$.name') = '' THEN json_extract(${row}, '$.plugin_id') ELSE json_extract(${row}, '$.name') END`)})`;
+/** A card's outcome kept as words; an empty one is no outcome. */
+const outcomeAsText = (doc: string, path: string) => `CASE WHEN json_extract(${doc}, '${path}') = '' THEN json_remove(${doc}, '${path}') ELSE json_set(${doc}, '${path}', ${literal(`json_extract(${doc}, '${path}')`)}) END`;
+/** Every element of the array at `array` in `table.column` that `needs` it, changed by `change`; the others and the order as they were. */
+const eachElement = (table: string, column: string, array: string, needs: (element: string) => string, change: (element: string) => string) =>
+  `UPDATE ${table} SET ${column} = json_set(${column}, '${array}', json((SELECT json_group_array(json(CASE WHEN ${needs("e.value")} THEN ${change("e.value")} ELSE e.value END) ORDER BY e.key) FROM json_each(${column}, '${array}') e)))
+    WHERE EXISTS (SELECT 1 FROM json_each(${column}, '${array}') e WHERE ${needs("e.value")});`;
+const namesAt = (table: string, column: string, body: string) => eachElement(table, column, `${body}.sources`, row => `json_type(${row}, '$.name') = 'text'`, nameAsText);
+const outcomesAt = (table: string, column: string, body: string) => eachElement(table, column, `${body}.next`, option => `json_type(${option}, '$.act.card.outcome') = 'text'`,
+  option => outcomeAsText(option, "$.act.card.outcome"));
+
+/**
+ * 1 → 2 (BL-work-brief-source-name-text, BL-action-card-outcome-text; user 2026-11-17): a source's name and a card's outcome were kept as display
+ * text in the language of the day they were written, and are now references that read in the language shown. Text already written cannot be
+ * taken back to its key, so it stays the words it was, as a `literal`: in versions, proposals, the answers kept for repeated requests, and the
+ * cards of next-step marks. A fixed version in the 成果库 is the platform's record and stays as it was fixed.
+ */
+const WORK_BRIEF_STORED_TEXT_SQL = [
+  ...[["brief_versions", "body_json", "$"], ["brief_proposals", "body_json", "$"], ["brief_requests", "result_json", "$.version"], ["brief_requests", "result_json", "$.proposal.body"]]
+    .flatMap(([table, column, body]) => [namesAt(table!, column!, body!), outcomesAt(table!, column!, body!)]),
+  `UPDATE brief_next_marks SET card_json = ${outcomeAsText("card_json", "$.outcome")} WHERE json_type(card_json, '$.outcome') = 'text';`,
+].join("\n");
+
+/**
  * Work Brief's one library in the Home, shared by its two halves: each project's half reads and writes its project's rows, the Home
  * half the person's own brief and, with the person's reach, the open items of their projects' briefs. Only this plugin reads and
  * writes these tables. Versions are append-only; a brief's `version` is its row revision (the artifact join's compare-and-set).
  */
 export const WORK_BRIEF_DATABASE: HomePluginDatabaseDeclaration = { project_rows: WORK_BRIEF_PROJECT_ROWS, store_name: "work-brief",
-  version: /* @version database.work_brief_database */ 1, read_permission: "work-brief:read", write_permission: "work-brief:write", schema: `
+  version: /* @version database.work_brief_database */ 2, upgrades: [{ from: 1, sql: WORK_BRIEF_STORED_TEXT_SQL }], read_permission: "work-brief:read", write_permission: "work-brief:write", schema: `
   CREATE TABLE briefs (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL DEFAULT '',

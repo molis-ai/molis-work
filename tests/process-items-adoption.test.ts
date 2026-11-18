@@ -94,7 +94,7 @@ test("BSH-14-F an original library is adopted once: lines, outputs and default b
   assert.ok((originalJournal.changes as unknown[]).length >= 4, "the original journal recorded the Files-era writes");
   db.close();
   // An ordinary open refuses the old layout (version 2 before this build's 4, batch 39); it never repairs it in place.
-  assert.throws(() => new LocalProjectDatabase(h.path), /的结构版本是 2，这个版本的 Molis Work 用 4，升级完成之前不能打开/u);
+  assert.throws(() => new LocalProjectDatabase(h.path), /的结构版本是 2，这个版本的 Molis Work 用 5，升级完成之前不能打开/u);
   const unsent = /process item change\(s\) not yet uploaded from the original journal/u;
   const inspected = inspectProjectAdoption(h.path);
   assert.deepEqual({ ...inspected, refused: [], unsettled: [] }, { layout: "original", items: 3, versions: 4, outputs: 2, bindings: 1, private_values: 0, positions: 0, installs: 0, cursors: 0, carried: 0, refused: [], unsettled: [] });
@@ -138,8 +138,8 @@ test("BSH-14-F an original library is adopted once: lines, outputs and default b
   assert.deepEqual(journal(db, "process_items"), originalJournal, "the original journal is kept as it was, as recovery evidence");
   const adopted = journal(db, "process_items_adopted");
   assert.deepEqual([adopted.changes, adopted.heads, adopted.outbox, adopted.conflicts], [[], [], [], []], "the adopted journal starts empty: the move is no new business write");
-  // Adoption also takes the project upgrade's later steps (upgradeAdoptedOriginal), so the library ends current: 4 since batch 39.
-  assert.equal((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 4);
+  // Adoption also takes the project upgrade's later steps (upgradeAdoptedOriginal), so the library ends current: 5 since the stored card outcomes became text references.
+  assert.equal((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 5);
   // Later writes mark the adopted journal only.
   db.prepare("UPDATE process_item_versions SET lifecycle_state='archived', archived_at='2026-11-03T00:00:00Z', archived_by='user' WHERE artifact_id='files-selection'").run();
   assert.deepEqual(rows(db, "SELECT key FROM process_items_adopted_replica_changes"), [{ key: JSON.stringify([h.projectId, "process_item", "files-selection"]) }]);

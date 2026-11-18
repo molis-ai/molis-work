@@ -5,6 +5,8 @@ const uiText = globalThis.t;
 
 /** Small shared pieces of the brief page: words, buttons that carry an action, the marks of a source and of a next step. */
 export const text = (key: string, values?: Record<string, string | number>) => uiText.text(`work-brief.${key}`, values);
+/** A stored text reference (a source's name, a card's outcome) in the language shown: the page's own reader, so the page bundles none of its own. */
+export const said = globalThis.say;
 export const when = (iso: string | null | undefined) => (iso ? globalThis.format.date(iso, "datetime") : "");
 
 /** A button that names what it does in `data-wb-act` (and `data-wb-value`). */

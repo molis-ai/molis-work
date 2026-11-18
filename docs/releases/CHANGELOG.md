@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+### 角色设置、生效与恢复（第 36 批第 1 项）
+
+- **方案 C**：设置 › 角色管本人的原件与个人默认；项目设置 › 角色管这个项目的角色与项目默认。新建即保存第 1 版，之后每次保存一版；版本可查看、恢复。项目里的角色两节各自「跟随原件／只改本项目」，原件更新时项目里能看到差别再决定。
+- **生效顺序**：任务自己选的 → 项目默认 → 个人默认 → 助理。Coding、助理只交稳定引用，Host 起跑时钉住版本；同一会话沿用上一轮的版本；停用不打断进行中的一轮，版本被移出或删除才在下一步前停下（S-character-role-scope）。
+- **合同与库**：`agent.run.start@1` 的 `character` 改为任务选择；`characters.create@1` 必填正文并返回版本；新增 11 个角色动作，删除 `characters.list@1`、`characters.runnable@1`；`characters/characters.sqlite` 升到第 2 版（只建表）。详见 `docs/system/CONTRACT-CHANGES.md` 第 8 节。
+
+### 主线第一片的合同与服务（第 36 批第 2 项）
+
+- **事项容器**：每人每项目一条主线，三组默认分组（现在、接下来、等着），事项可起名字、由对象变成或在来源里「建成」；移动、固定、改组、完成、切换当前事项，排列带修订号，旧的写被拒并带回当前主线。
+- **事项来源**：任何插件在呈现声明写 `item` 就是来源（Goals 的目标、Coding 的会话、装上的第三方插件同一条路）；来源给「下一步」，按事项读线时放在「接下来」最前；装进的对象按时间角色上线。
+- **「装进」关联**：`mainline.holds.*` 五步，只改关联，不删对象；任务安放可放进另一件事项或不归事项，任务照常跑。
+- **合同与库**：新 `platform/work-items`、呈现声明 `item`、通用关联定义器 `definePlacementRelationAction`、十六个主线动作与 `mainline:arrange`；新 Home 库 `mainline/mainline.db` 第 1 版。安全不变量 `S-mainline-own-line`。
+- **未完成/待验收**：切换器、列表菜单与按事项的工作台状态在第 37 批。
+
 ### Skill 创作与改进完整路径（2026-11-16，第 42 批）
 
 - **草稿先行、采用才生效**：对技能的每次改动（新建、修改、恢复旧版、改一份通用技能）先是一份草稿，边写边存，不影响任何一轮；采用后签名装上成「我的技能」包的下一版，新技能是关着的，改的已有技能下一次用到时用新版。系统动作 `skills.drafts.{list,read,create,update,revise,discard}`、`skills.cases.{put,remove}`、`skills.trials.run`、`skills.versions.list`、`skills.lineage.dismiss`（`system.skills`），采用 `skills.drafts.adopt` 在安装提供方；助理只能起草，并回放、撤回这件工作里自己起的草稿，采用与打开技能只有本人（S-skill-authoring）。
@@ -13,13 +27,14 @@
 - **界面**：设置 › 能力包的草稿工作区（左边改、右边试用与比较，采用条在下；窄时三个页签）；组件板新增采用条、回放结果表、问一句改、占位符替换四件（D 轨合审过）；助理回执「打开草稿」直达。提示词 `skills.trial`、`skills.trial-judge`、`skills.revise` 新增，`skills.draft` 补授权写法。
 - **未完成/待验收**：本人验收（`BL-b42-acceptance`）；随系统自带的技能还没有 `~~` 占位符，定制流程用测试里的占位符验过。
 
-### 授权、人审、可信决定回平台与项目自动化建议（2026-11-16，第 39 批）
+### 授权、人审、可信决定回平台与项目自动化建议（2026-11-17 合入，第 39 批）
 
 - **有限委托与统一管理页（Layout B）**：助理与 Coding 的授权按工作或持续委托跨轮、等待与重启复用；设置新增「授权与审批」（`/settings/authorizations`，列表加详情栏、窄屏上下排），一处查看、收窄、撤销全部授权，展示「审批来源」（本人决定、沿用授权、自动策略、AI 代批）与「项目规则」。
 - **显式人审、原目标绑定与生命周期（BL-359、BL-360）**：`agent.reviews.decide@1` 绑定审查版本；待审投影携带 `AgentReviewDecisions` 可决定性，恢复或撤权后不再显示点不成的批准按钮并保留草稿与焦点；队列在终态与结算后释放执行闭包与宿主 caller；浏览器与 macOS 原生助手贯穿原观察目标与最终派发检查；GitHub PR 真人批准检查支持 N 票写权限真人、`/approve <sha>`、推新头后旧票失效与合并队列原头证明。
 - **可信决定回平台（39-2）与逐项认可合流（APR-15／16）**：新增 `horizontal/project-approvals` 持有平台可信决定记录与项目审批规则；任何插件或系统提供方声明 `requires_trusted_decision` 的动作（含 Goals 事件／目标树决定与 `modules/acceptance` 的 `acceptance.decide@1`）统一走 Web、CLI `review-decide` 与管理 MCP `molis_work_v1_review_request`／`molis_work_v1_review_decide` 受保护入口；任务决定卡、概况与要求栏共享同一 `ReviewReference`；项目库 `3 → 4` 与 Goals 私有库 `1～4 → 5` 升级移交旧决定与规则。
 - **项目自动化建议（只读闭环）**：新增 `horizontal/automation-recommender`，在项目到达页、助理新对话区与插件创作台只读扫描已授权目录与已注册能力，给出证据、风险与前置条件，支持忽略偏好与保存为 Pages 报告文稿。
 - **Prologue**：合入上游 [molis-prologue#127](https://github.com/molis-ai/molis-prologue/pull/127)（`e7582079`）并更换正式包，旧包记入 `patch-history.json`。
+- **合后审计修正（2026-11-17）**：认可结果与平台决定跨两个库，验收事务在 `<Home>/acceptance/commit-intents/` 保留原子提交意向，项目库最终提交失败时由 Host 幂等恢复；CEX-08～10 的执行器归第 65-2 批（不是 64）。
 
 ### 事项线第一片、明确交办与逐项认可（2026-11-16，#2093）
 
@@ -126,6 +141,7 @@
 
 ### 升级须知（需要动手）
 
+- **第 36 批：角色的版本、项目成员与默认（阶段一不留兼容）**：固定引用 `characters.list@1`、`characters.runnable@1` 的工作流或插件改用 `characters.roles.list@1`／`characters.roles.resolve@1`；向 `agent.run.start@1` 传成果引用作 `character` 的调用改传 `{kind:"personal",character_id}` 或 `{kind:"project",member_id}`。升级后已有的角色草稿在设置 › 角色里显示「还没保存过」，打开保存一次即成第 1 版，才能被选。
 - **第 39 批把项目审批移到平台。** 调用管理 MCP `molis_work_v1_event_decide`、`molis_work_v1_goal_tree_decide` 或 CLI `goal-tree-decide` 的脚本，先用 `molis_work_v1_review_request` 或 `review-request` 读取原请求，再用 `molis_work_v1_review_decide` 或 `review-decide` 提交当前审查引用、选项与本次请求键；`acceptance.decide@1` 同样改为经 `acceptance.review@1` 与通用可信决定入口兑现。读取或修改原 `goals.policy.history@1`、`goals.policy.save@1` 的调用改用 `project.approvals.rules.read@1`、`project.approvals.rules.change@1`。调用 `agent.reviews.decide@1` 时带上原审查的 `reference.version` 作为 `version`。页面从「授权与审批」查看原决定和修改规则。正常升级把项目库从 v3 升到 v4，把 Goals 私有库从 v1～v4 升到 v5，保留原记录和归属。使用同步的项目按已确认的交接窗口升级。[管理 CLI](../cli-and-development.md) · [项目审批移交](../../specs/agent-approval/trusted-decisions-design.md)
 
 - **第 31 批：记忆适用情境 `applies.goal_ids` 改为 `applies.objects`，导出包拒绝旧 `goal_ids`（阶段一不留兼容）**（#2081 及复查修复，2026-11-15）：`memory.write@1`、`memory.change@1`、`memory.recall@1`、`memory.list@1`、`memory.page@1`、`memory.candidates.list@1`、`memory.candidates.accept@1`、`memory.candidates.discard@1`、`memory.history@1` 的适用条件删掉 `goal_ids`，改为通用关联对象 `objects: [{ plugin_id, kind, id }]`；固定构造旧字段的调用方与工作流绑定要改用 `objects`，带 `applies.goal_ids` 的旧导出包在导入预检即整包拒绝。`memory/memory.db` 由升级链自动走 `2 → 3` 清洗重复历史正文，无需手工操作。

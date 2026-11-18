@@ -10,7 +10,7 @@ export type ReviewDecisionAvailability = { readonly available: true } | {
 };
 
 type AgentReviewOwner = {
-  readonly kind: "agent-review" | "goal-acceptance";
+  readonly kind: "agent-review";
   readonly project_id: string;
   readonly plugin_id: string;
   readonly install_id: string;
@@ -28,7 +28,7 @@ export type ReviewOwner = AgentReviewOwner | ({
 const reviewIdField = { type: "string", minLength: 1, maxLength: 240, pattern: "\\S" } as const;
 export const REVIEW_OWNER_SCHEMA = {
   oneOf: [
-    { type: "object", properties: { kind: { enum: ["agent-review", "goal-acceptance"] }, project_id: reviewIdField, plugin_id: reviewIdField, install_id: reviewIdField },
+    { type: "object", properties: { kind: { const: "agent-review" }, project_id: reviewIdField, plugin_id: reviewIdField, install_id: reviewIdField },
       required: ["kind", "project_id", "plugin_id", "install_id"], additionalProperties: false },
     { type: "object", properties: { kind: { const: "trusted-decision" }, project_id: reviewIdField, scope: { enum: ["home", "project"] }, plugin_id: reviewIdField, install_id: reviewIdField, installation_generation: reviewIdField },
       required: ["kind", "project_id", "scope", "plugin_id", "install_id", "installation_generation"], additionalProperties: false },

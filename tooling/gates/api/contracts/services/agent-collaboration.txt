@@ -142,7 +142,7 @@ export interface AgentWorkGraphPort {
         wait_reason?: string;
     }): Promise<void>;
     read(graph_id: string): Promise<AgentWorkNode[]>;
-    watch(graph_id: string, listener: () => void): () => void;
+    watch(graph_id: string, listener: (nodes?: readonly AgentWorkNode[]) => void): () => void;
     end(input: {
         graph_id: string;
         node_id: string;

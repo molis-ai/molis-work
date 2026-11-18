@@ -38,6 +38,7 @@ export * from "./file-sources.js";
 export * from "./artifact-pins.js";
 export * from "./local-person.js";
 export * from "./placement.js";
+export * from "./work-items.js";
 export * from "./work-executors.js";
 
 export type { ActionSchema } from "./action-schema.js";
@@ -390,7 +391,7 @@ export interface ActionMetadata {
  * Stable, transport-neutral action identity with its metadata. The optional type member is compile-time only; JSON transports
  * use the public descriptor fields.
  */
-export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDescriptor {
+export interface ActionDefinition<Input = unknown, Output = unknown> extends Omit<HostCapabilityDescriptor, "observation_source"> {
   readonly __types__?: { input: Input; output: Output };
   /** An action is a query or a command; following a live round is a query declared `scheduling: "concurrent"`. */
   readonly operation: "query" | "command";
@@ -465,6 +466,12 @@ export interface ActionHandlerBinding {
   readonly version: number;
   /** Trusted provider promises that this handler completes without yielding. */
   readonly execution?: "sync";
+  /**
+   * Host-only: the class the kernel gives this action's own `action.call` record, when its provider is `system`. A replay runs its
+   * model calls under `withObservationSource("trial")`, but the call's exit happens after the handler, so the class has to be carried
+   * by the registration; a plugin provider's value is ignored.
+   */
+  readonly observation_source?: "trial";
   handle(context: ActionExecutionContext, input: unknown): unknown | Promise<unknown>;
   availability?(context: ActionCallContext): ActionAvailability;
 }

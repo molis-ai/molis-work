@@ -240,7 +240,7 @@ async function loadOffer(host: MolisWorkLocalHost, project: LocalHostProjectRefe
     { request_id: lookup.request_id, ...(lookup.draft ? { draft: lookup.draft } : {}) });
   held.assertCurrent();
   if (rules.read(false).revision !== rulesRevision) throw stale();
-  const { request, target, commands, whole_choices, round_id } = reviewOffer(candidate, held.definition.action.subject_kinds, held.targetOwner, decisions.findCommitted);
+  const { request, target, commands, whole_choices, round_id } = reviewOffer(candidate, held.definition.action.subject_kinds, held.targetOwner, decisions.findCommitted, held.caller.actor_id);
   for (const command of Object.values(commands)) assertActionInput(held.definition.action.input_schema, command);
   const version = createHash("sha256").update(canonicalJsonText([held.owner, lookup.action, lookup.request_id, lookup.draft, rulesRevision, target, request.requirements,
     request.summary, request.approver, request.choices.map(({ id, label, accepts, returns }) => [id, label, accepts, returns]),
@@ -272,14 +272,14 @@ function assertReviewJson(value: unknown): void {
 }
 
 function reviewOffer(value: unknown, kinds: readonly string[], owner: Parameters<typeof projectReviewPresentation>[1],
-  read: (id: string) => ProjectTrustedDecision | null): TrustedReviewOffer {
+  read: (id: string) => ProjectTrustedDecision | null, actorId?: string): TrustedReviewOffer {
   assertReviewJson(value);
   if (!isRecord(value) || !isRecord(value.target) || !isRecord(value.commands)) throw missing();
   const t = value.target;
   if (!isRecord(t.subject) || typeof t.subject.kind !== "string" || !kinds.includes(t.subject.kind)
     || typeof t.subject.id !== "string" || !t.subject.id.trim() || typeof t.version !== "string" || !t.version.trim()
     || (canonicalJsonText(value)?.length ?? 100_001) > 100_000) throw missing();
-  const request = projectReviewPresentation(value.request, owner, read);
+  const request = projectReviewPresentation(value.request, owner, read, actorId);
   const ids = new Set(request.choices.map(choice => choice.id));
   if (Object.keys(value.commands).some(id => !ids.has(id))) throw missing();
   const whole = value.whole_choices;

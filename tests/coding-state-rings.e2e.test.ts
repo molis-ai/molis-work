@@ -85,6 +85,43 @@ test("RING-07 Coding plan and cooperation render actual rings and preserve recei
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
+// SAI-03/10/15: a missing attested task is display-only; feedback still saves, but cannot seed a model draft.
+test("Coding keeps old subtask results and saves rework without prefilling an unavailable task", { timeout: 30_000 }, async t => {
+  const directory = mkdtempSync(join(tmpdir(), "coding-unavailable-task-"));
+  const browser = await openStudioChrome(directory);
+  if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("Chrome is required"); return; }
+  try {
+    const page = await browser.page();
+    for (const locale of ["en", "zh"] as const) {
+      await page.evaluate(`(()=>{${pageTextScript(locale, "coding")}})()`);
+      const result = await page.evaluate<{ task: string; card: string; requests: Array<{ action: string; notes: string }>; prefills: number; status: string }>(`(async () => {
+        document.body.innerHTML=${JSON.stringify(codingFixtureHtml(locale))};
+        const root=document.querySelector('[data-coding-workbench]');root.hidden=false;
+        const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root), q=selector=>root.querySelector(selector);
+        const requests=[];let prefills=0,status='',finished;const saved=new Promise(resolve=>{finished=resolve;});
+        const ports={lifetime,translate:globalThis.t.text,q,current:()=>'s',status:value=>{status=value;},refresh:async()=>{finished();},roleName:id=>id};
+        const child={subagent_id:'old',role_id:'reader',role_name:'Reader',state:'completed',task:'',result:'Retained old result'};
+        const run={ref:{run_id:'r'},phase:'completed'}, group={run_id:'r',children:[child]};
+        const cards=(${embeddedFactory("subagentCards")})({...ports,api:async()=>({}),timeline:{update(){},remove(){}},showReviews(){},sessionId:()=>'s',openInPanel(){},parentLive:()=>false,prefill(){}});
+        const card=cards.render(run,group);root.append(card);
+        const panel=(${embeddedFactory("subagents")})({...ports,api:async(path,method,body)=>{requests.push(body);return {};},usageSummary:()=>'',prepareRework:async()=>{prefills++;},openIntegration(){}});
+        panel.update('s',[group]);
+        const input=q('[data-feedback]');input.value='Keep the result; check one more case';
+        const button=[...q('[data-coding-subagents]').querySelectorAll('button')].find(node=>node.textContent===globalThis.t.text('coding.sub.rework'));
+        button.click();await saved;
+        return {task:q('[data-coding-subagents]').textContent,card:card.textContent,requests,prefills,status};
+      })()`);
+      const description = locale === "en" ? "Original task description unavailable" : "原任务说明不可用";
+      assert.ok(result.task.includes(description)); assert.ok(result.card.includes(description));
+      assert.match(result.task, /Retained old result/);
+      assert.equal(result.requests.length, 1); assert.equal(result.requests[0]!.action, "needs-work");
+      assert.equal(result.requests[0]!.notes, "Keep the result; check one more case");
+      assert.equal(result.prefills, 0);
+      assert.equal(result.status, locale === "en" ? "The rework reason is saved; the original task description is unavailable, so no draft was added." : "返工原因已保存；原任务说明不可用，未预填返工草稿。");
+    }
+  } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
 // VUX-40: Coding's cooperation panel, the subagent cards in the conversation, the subagent results and the usage meter draw
 // no Chinese of their own through the English translator (the data below is English, as a person's would be).
 test("VUX-40: cooperation, subagents and the usage meter speak English in English", { timeout: 30_000 }, async t => {
@@ -102,7 +139,7 @@ test("VUX-40: cooperation, subagents and the usage meter speak English in Englis
       const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root),errors=[],q=selector=>root.querySelector(selector);
       // The page names a role from its id and falls back to the id (client.ts ROLE_NAMES); the cards and results take that port.
       const roleName=id=>({builder:'Builder',reader:'Reader',reviewer:'Reviewer',coordinator:'Coordination'})[id]||id||'Agent';
-      const ports={lifetime,translate:globalThis.t.text,q,api:async()=>({}),current:()=>'session',status:message=>errors.push(message),refresh:async()=>{},openStep:()=>{},roleName};
+      const ports={lifetime,translate:globalThis.t.text,q,api:async()=>({}),current:()=>'session',status:message=>errors.push(message),refresh:async()=>{},openStep:()=>{},openConversation:async()=>{},roleName};
       const {timeline}=(${codingTranscriptBundle()})({readText:globalThis.t.text,lifetime,turns:root});
       const children=[{subagent_id:'c1',role_id:'builder',role_name:'Builder',state:'running',task:'Write the parser',usage:{tokens:{input:1200,output:300}}},
         {subagent_id:'c2',role_id:'reader',role_name:'Reader',state:'failed',task:'Read the docs',error:'MODEL_NETWORK_FAILED: fetch failed',integration_available:true,workspace_path:'/tmp/w/c2',
@@ -287,7 +324,8 @@ test("VUX-40: the model note, a turn's changes, the palette and the character an
       const palette=q('[data-coding-palette-list]').textContent;q('[data-coding-palette]').close();
       const characters=new Map(),skills=new Map(),titles=new Map();
       const character=(${embeddedFactoryHolding("data-coding-character-dialog")})({lifetime,translate:globalThis.t.text,refresh:async()=>{},q,current:()=>'s',selections:characters,titles,skillSelections:skills,save:async()=>{},controls:()=>{},status,
-        api:async()=>({runtime_id:'other',characters:[{reference:{artifact_id:'c',version:1},title:'Reviewer',available:true,instructions:'Review.',host_tools:[],imported_skills:[{id:'k',name:'Lint',compatibility:'native'}]}]})});
+        api:async()=>({characters:[{ref:{kind:'personal',character_id:'c'},title:'Reviewer',available:true,host_tools:[],imported_skills:[{id:'k',name:'Lint',compatibility:'native'}]}],
+          limits_verified:false,defaults:{personal:{kind:'personal',character_id:'c'},project:null}})});
       character.open();await settle();
       root.querySelectorAll('[data-coding-character-dialog] details').forEach(node=>{node.open=true;});
       const charactersText=q('[data-coding-character-dialog]').textContent.replace(/\\s+/g,' ');q('[data-coding-character-dialog]').close();
@@ -306,7 +344,8 @@ test("VUX-40: the model note, a turn's changes, the palette and the character an
     assert.equal(result.note, "This turn: m1 · Thinking effort Thorough · Thinking on · Asked to switch to m2, from the next model call");
     assert.match(result.changes, /Files written this turn: 4.*a\.ts · b\.ts · c\.ts · 4 in all.*10 bytes.*Preview rewind.*What the write receipts recorded.*See this turn’s changes/);
     assert.equal(result.palette, "No matching commands or sessions");
-    assert.match(result.characters, /No character.*Reviewer · v1.*The current runtime doesn’t support character limits yet/);
+    // A role is listed by its title and where it stands (here the person's default), never by a version: the Host pins that at the round.
+    assert.match(result.characters, /No character.*Reviewer · My default.*The current runtime doesn’t support character limits yet/);
     assert.match(result.characters, /Built-in tools: none\. MCP is still chosen.*Lint · needs a native Agent/);
     assert.match(result.actions, /Add a todo · v2.*Todo · The current way of running only allows queries.*gone\.action · v1.*The original capability, version or authorization isn’t available/);
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }

@@ -14,7 +14,7 @@ const dirty = (w: Workshop) => !same(sentFields(w.fields), w.draft.fields) || JS
 export type DraftEditing = ReturnType<typeof draftEditing>;
 
 export function draftEditing(c: WritingContext) {
-  const { root, project, view } = c;
+  const { root, project, view, say } = c;
   let timer: ReturnType<typeof setTimeout> | undefined, saving: Promise<void> | undefined;
 
   function opened(draft: SkillDraft, side?: "compare"): void {
@@ -60,8 +60,17 @@ export function draftEditing(c: WritingContext) {
           untried: w.draft.cases.map(item => item.case_id), trial_needed: w.draft.cases.length > 0 };
         w.savedAt = result.updated_at; w.save = dirty(w) ? "saving" : "saved"; w.saveFailure = undefined;
       } catch (cause) {
+        if (failureOf(cause).code === "skills.draft_conflict") {
+          // The other writer's revision is the current one: load it and say so instead of saving the old revision again.
+          const current = await readDraft(project, w.draft.draft_id).catch(() => undefined);
+          if (current) {
+            w.draft = current; w.fields = fieldsOf(current.fields); w.replacements = { ...current.replacements }; w.savedAt = current.updated_at;
+            w.save = "saved"; w.saveFailure = undefined;
+            say(improve("save-conflict"), "danger");
+            return;
+          }
+        }
         w.save = "failed"; w.saveFailure = messageOf(cause);
-        if (failureOf(cause).code === "skills.draft_conflict") w.saveFailure = improve("save-conflict");
       }
     })();
     await saving; saving = undefined;

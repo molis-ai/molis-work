@@ -1,8 +1,10 @@
 # 子代理查看、直接对话与父子任务动线
 
-状态：第 58 批公共交互组件已实现并完成本机验证及独立评审（2026-11-16），负责人 Codex（本机）58 主会话；交付 [PR #2108](https://github.com/molis-ai/molis-work/pull/2108)，最终头 `f4a8390533` 的三方合审、常规 CI、Full 与队列通过后，已于 2026-11-17 合入 main `6359987103`（详见 §11.7 与批次交付记录）。用户已确认第四版右侧浮窗方案，正式部件本人验收另记。第 31 批已交 SAI-03（子 Run 转话记成人）与 SDK 侧 SAI-05/08，第 33 批另已接通 Coding 子任务重试与尝试预算；这不等于完整直接对话。助理业务会话子代理接线仍归 43-1，双入口接入与完整产品验收归第 59 批；本需求整体仍以内部完整为目标。已有统一协作、输入回执及交互线负责人保持原归属。
+状态：第 58 批公共交互组件已实现并完成本机验证及独立评审（2026-11-16），负责人 Codex（本机）58 主会话；交付 [PR #2108](https://github.com/molis-ai/molis-work/pull/2108)，最终头 `f4a8390533` 的三方合审、常规 CI、Full 与队列通过后，已于 2026-11-17 合入 main `6359987103`（详见 §11.7 与批次交付记录）。用户已确认第四版右侧浮窗方案，正式部件本人验收另记。第 59 批由 Codex（本机）主会话完成真实双入口的实现和隔离实操，采用上游最小窗口的官方包，交付 [PR #2115](https://github.com/molis-ai/molis-work/pull/2115)。SAI-12／13 的最终本人体验单列验收。第 31 批已交 SAI-03（子 Run 转话记成人）与 SDK 侧 SAI-05/08，第 33 批另已接通 Coding 子任务重试与尝试预算；这不等于完整直接对话。用户于 2026-11-16 将助理业务会话的最小 SDK 派发接线从 43-1 移入 59（§12），完整助理团仍归 43-1；双入口接入与完整产品验收归第 59 批，本需求整体仍以内部完整为目标。已有统一协作、输入回执及交互线负责人保持原归属。
 
 ## 1. 目标与现状
+
+第 59 批已由 [#2115](https://github.com/molis-ai/molis-work/pull/2115) 合入 `6b0e8a4f83`。双入口、原目录接续和 43-1 的最小业务派发证据见 [§12](#12-第-59-批真实接线开工2026-11-16)，合后审计修复见 [§13](#13-第-59-批合后审计修复)。SAI-12／13 的本人体验结果见 [验收单](../backlog/BL-b59-subtask-acceptance.md)。
 
 个人助理与 Coding 内都有位置稳定、容易找到的子代理组件。用户能看到谁在做什么、查看过程与结果、进入指定子代理的独立对话，直接提问和补充要求，再顺畅回到父任务。子代理继续受原工作范围、权限和协作关系约束；父任务能获知影响整体工作的变化，不需要用户在几个对话间手动传话。
 
@@ -302,3 +304,439 @@ Prologue 提供无 UI 的公共合同，不包含 Molis Work 文案、组件、W
 **Full 回归的测试输入补正（B58-07，2026-11-16）：** `e1381c13fe` 的 Full `43932975080` 第 10 分片中，`project-arrival.e2e.test.ts` 首次为 17/18，快速切换用例预期一次读取、实际两次；文件重试仍失败，但日志未给第二次断言详情。干净 `4a08c41ca7` 在 macOS/Linux 三倍 CPU 节流下的该用例均通过，不能据此断定 CI 失败原因。独立评审核实旧测试逐次等待三次 CDP 按键，不能保证输入发生在生产 160 ms 防抖窗口内；现改为同一浏览器任务内向每次当前焦点分发三次合成方向键，并同步采集选择与即时加载状态，仍严格断言最终内容、一次请求及正确项目。相邻原生 CDP 键盘导航保持原样，生产逻辑、请求数、重试与时钟均未放宽。修正后定向受压 1/1、整文件受压 18/18 通过；许可补正头 `eaa99e627b` 的常规 CI `43935136681` 已全绿，后续同步主线及最终 Full 已在实际提交头 `f4a8390533` 结算通过。
 
 **最终主线同步（B58-07，2026-11-16）：** 主线 #2106 改到词包与合同文档，已无冲突同步 `9ff073d13c`，没有额外冲突解法或生成项待恢复。本批生产实现与公共合同不变；同步后的整体构建、健康门禁（50/392/90）、组件板 1/1、文档门禁 85/85、翻译检查 10/10 通过，快速切换测试另在 Linux 三倍 CPU 节流下 1/1 通过。相对新基点的隔离资源构建通过，66 项静态资源增量不变；首屏中文与热加载增量不变，英文到达页/选择页/两种工作台冷增量分别为 +10,347/+10,839/+6,981 B，比原批准各少 8 B，许可已按实测收紧。最终头三方合审、[常规 CI](https://github.com/molis-ai/molis-work/actions/runs/43940615922)、[Full](https://github.com/molis-ai/molis-work/actions/runs/43941378299) 与[队列](https://github.com/molis-ai/molis-work/actions/runs/44002108088) 均通过，合入 `6359987103`；记录见[第 58 批交付记录](../post-anticorruption-roadmap/reference/batches/58.md#交付记录)。
+
+## 12. 第 59 批真实接线开工（2026-11-16）
+
+负责人：Codex（本机）59 主会话 `01a1e773-702e-73c3-81a4-64c95613c46d`。基点为 `635998710323d54983d91fc7336b90b1073a50f9`，原工作树 `/Users/yijunwang/code/goalboard-b59`，集成分支 `batch/59`、交付子分支 `batch/59-dual-entry`。本节保留开工核查和各轮验证。最终合入、评审和安装包入口见[第 59 批交付记录](../post-anticorruption-roadmap/reference/batches/59.md#交付记录)，合后修复与复验见 §13。
+
+### 12.1 前置与真实缺口
+
+- 第 58 批 #2108 已于本地日期 2026-11-16 合入；沿用已确认的右侧任务浮窗、SDK `/ui` 与 `/subtask-conversation`，不重新定视觉方向。SAI-01～15 与内部完整目标保持不变。
+- 当前安装 SDK 来源为上游 `02a11ac5a566eab4afe15e5562240fdd11f5c9a4`，以 `vendor/prologue-sdk/README.md` 和包内公开声明为依据；不按上游工作区当前 HEAD 推断安装能力。
+- 该精确上游提交的 `docs/product/requirements/engines/orchestration/subagent.md`「App 看得见这几个孩子」仍明确规定“给看、给掐，不给发话”。包内 `Runtime.subagents` 只有 list/get/cancel/continue；`SubagentStartedObserver` 虽交出控制对象，其合同用途是观察和审批。§5 已要求协调修订 App 代表用户输入的合同，不能因观察口有 control 就绕过缺口。
+- 历史可以复用 SDK 的 `Session.replay`、`readRunProgress`、`conversation` 与输入账。Molis 当前 `projectSubagentView` 聚合了 task/result，并未暴露有序对话；主工作区只读子任务没有独立 Host SessionIndex，普通 `agent.run.read` / `agent.inputs.send` 不是通用子任务入口。
+- 33 的 `continueSubagentAttempt` 已复用 `runtime.subagents.continue`，但每次用随机请求键，不接浏览器原请求号；完成后查询不能只看 child.state。SDK 当前 continue 的注释明确新尝试不绑定原任务图步骤；原步骤已交回时必须重新核对权威归属，不能把“仍有旧子 Session”当成持有工作范围。
+- 只读评审进一步核实：安装包 `runtime.d.ts` 本身也保留“给看、给掐，不给发话”；精确上游 `docs/slices/subagent-workspaces.md` 明确观察回调“不添加 App steer”。该提交 `subagent-continuation-safety.test.ts` 还明确测试同一 continue 幂等键再次调用会创建不同 Run。因此不能只把 Molis 的随机键换成浏览器请求号；需组合 SDK 既有 `idempotent`、输入账及原请求查询，并对无完成回执的占用保留 reconcile。`findAgentStart` 只证明冻结解析，不能单独证明执行、绑定或回报完成。
+- 助理现有 Work 委派确有生产路径：`AssistantDelegations.start → ports.dispatch → AssistantDispatcher`，按 Work/Session/任务图保存，不能把它说成未实现。43-1 尚待认领的是业务会话的 SDK 子代理 Host 派发接线；该路径独立受阻，已有 Work 委派与 Coding 的核查和方案继续。
+
+### 12.2 开工前检查
+
+| # | 本批回答 |
+| --- | --- |
+| 1 事实主人 | Prologue 拥有子身份、执行尝试、历史、输入与任务图；助理拥有 Work、委派和请求记录；Coding 拥有业务会话与成果评价。公共组件只持有阅读和输入状态；Host 投影不复制消息账。 |
+| 2 插件同等待遇 | Coding 经已登记平台 Action 与 SDK 消费；新增子任务公共能力由 Agent Host 提供，第三方用同一合同。助理 Work 仍走原 owner，不能将它伪装成 SDK 子会话。 |
+| 3 能力注册 | 在 Agent Host 的公开 Action 定义注册读取、可信输入、精确控制和请求查询，消费者只转发。actor/project/install 来自 invocation；执行类动作保持 concurrent，并在实际生效前再次核对原调用。具体合同先评审。 |
+| 4 合同 | 预计增补子对话读取、精确执行绑定及原请求回执；原版本按阶段一规则变更并更新 API/Action 快照。SDK 的 App 发话合同按用户已授权的最小上游窗口修改，不能在 Molis 私造同义控制口绕过。 |
+| 5 包边界 | 公共 SDK 组件复用；SDK 访问只在 horizontal/agent-host；助理/Coding 各有薄 owner 适配器。无新服务包、插件或宿主按插件名的分支。 |
+| 6 存储 | 优先复用 Session 输入账、原请求账与执行引用。输入正文不另存一份；若控制原请求持久化需要改现行索引结构，先列具体格式与升级方案，不默加字段或迁移。 |
+| 7 兼容与迁移 | 当前不提出兼容读取或升级链变更；用户已授权本批最小上游补口及官方包采用，vendor 只采用评审合入后的官方产物。 |
+| 8 安全 | 新增边界是父/子精确归属、用户原件、当前执行与权限的联合核对。测试须断言跨用户/项目/安装、旧运行、收回、撤权在落账和派发前被拒；问题/审批保持原独立入口。 |
+| 9 调用次数 | 仅打开的子对话读历史并订阅一次；父列表批量取子任务，不能为每张卡另读一遍全部历史。一次发送一个 owner 请求；未知结果查询原请求，不重投、不额外调模型汇总。 |
+| 10 升级与数据 | 保留既有 Run、Session、父子身份和每次结果；打开或刷新不执行。接续需要新尝试，重启后未知副作用仍需核对。完整安装与升级证据按最终格式影响选择。 |
+| 11 成果与过程 | 聊天与输入为过程事实；现有 Coding 审批、评价、对比、整合各归原 owner。继续聊天不接受或发布成果，不增加 artifact 类型。 |
+| 12 外壳与文字 | 复用 58 右侧浮窗和本地 composer；主输入不重绑。文案用原 owner 词包和语义令牌；若出现已定之外的交互先定样。资源增量须实测，58 的许可不自动覆盖 59。 |
+| 13 错误 | 沿用结构化 Action 错误；新码统一声明。明确区分读取失败、失权、确认未受理与结果未知；未知不能显示“失败请重新发送”。 |
+| 14 冲突面 | 预计涉及 contracts/services/agent-host*、agent-inputs、Agent Host 适配/动作，Coding 路由/子任务浏览器、助理服务/任务浮窗。精确合同设计后认领对应快照；不改别批文件或在途成果。 |
+| 15 全局最优 | 插件：同一个公共子任务动作和视图。平台：保留原输入与执行主人。助理：Work 与 SDK 两来源并存、分别适配。平台能力：复用统一输入、授权、问题、观测、成果，不增加通信队列。本批接入原属 43-1 的最小业务 SDK 派发；43-1 保留完整助理团产品，65 接质量保证；59 不增加新管理页。 |
+
+平台能力检查：第二个确定消费者是助理，第三方插件也需要相同子任务能力，因此公共历史和输入准入应在 Agent Host 一处完成。可发现和可调用的部分进入原 Action 目录；浏览器不是唯一控制入口。选择“SDK 原事实 → 平台薄投影 → 两个 owner 适配器 → 58 公共视图”，拒绝复制 Coding UI、伪造父消息和给只读子任务补造业务会话。
+
+### 12.3 最小补口方案（待合同评审，未冻结方法名）
+
+| 层 | 输入与行为 | 输出及拒绝 |
+| --- | --- | --- |
+| SDK 可信子输入 | 受信 App 交精确 child、预期 child Run、原请求键和用户正文/原件；只通过 SDK 原输入 owner 写入。当前运行处理运行中补充；终态不因普通 send 偷开新 Run。 | 返回原 InputRef、实际执行与原回执；按原请求只读查询。父模型的 steer-subagent 仍为 peer，不能伪装 user。旧尝试、归属失效和同键异内容拒绝。 |
+| SDK 接续 | 复用 continue 和 Session 历史，补原请求重试/查询的明确语义；原 child 不变，新 Run 单次启动。复核原上限与当前任务图归属，已交回或换手不能绕过任务图重开。 | 返回新尝试的精确引用；崩溃窗口无法证明结果时返回 unknown/reconcile，不自动再起。停止、失败、中断需明确 continue；不复活旧 Run。 |
+| 父子通知 | 输入与新结果记录来源及引用；复用原任务图与回报投递。父运行中或等待按既有边界通知，终态只保留可见更新。 | 去重，不额外调模型汇总，不因子聊天重启已停止/结束的父任务。SDK 需用行为测试证明 continuation 的回报语义。 |
+| Agent Host | 经原父 Session/Run 证明 child 归属，公开原消息及稳定身份、真实状态/问题/审批引用、精确 binding、可用动作及原请求查询。输入和控制保持当前授权。 | 支持有/无独立 Host 子索引；不为界面读取私有账。失权明确 denied；临时失败不清空已读内容。 |
+| 业务消费者 | 助理 Work 复用原 send/request/delegation owner；Coding 用公共子任务 Action。适配器将真实 owner 结果交给 SDK /subtask-conversation。 | 草稿按逻辑对象保存，写请求冻结精确尝试；监听就绪后读，未知结果只 check；原成果和审批入口保持可达。 |
+
+实施顺序：上游公共合同与行为验证 → 上游评审合入及官方包采用 → Agent Host 与两个 owner 适配器 → 产品与恢复验证。2026-11-16 用户已授权上游最小窗口，并将 43-1 最小业务 SDK 派发接线并入本批；授权不等于实现完成。
+
+### 12.4 所需决定与验收安排
+
+2026-11-16 用户明确选择「授权最小上游窗口」及「并入最小前置接线」。据此：
+
+- 上游窗口只包括 §12.3 的可信用户输入、原请求查询/接续去重、父子归属及按执行尝试回报，以及公开合同、行为验证、评审合入和官方包采用；不扩到其他模型、工具、Memory、CI 或真实 Home。Molis Work 仍只有一个整批 PR，上游在自己的仓库按规则交付。
+- 原属 43-1 的业务 SDK 子代理最小 Host 派发接线移入 59，包含既有助理角色准入、权限、无目录运行时和子任务投影。不包含完整助理团产品；已有 Work 委派继续复用。新交互仍按 58 定样边界处理。
+- 独立合同评审确认：原 continue 即使用相同 agent key 也会新起；续跑只更新 registry，原回报去重仅按 child id。必须复用原输入/幂等/投递主人，把回报身份绑定具体 Run，覆盖父运行、等待、终态，不能用 findAgentStart 或 registry.reportOf 单独证明完成。
+
+上游实施中的具体合同：可信 `subagents.send` 带精确父子与预期 Run；`continue.expected` 在准备及模型最终派出时核 SDK 签发的任务代次，原步骤保持历史，不重开已结束步骤或新建 Work。授权快照只由派发及自然交回的实际提交签发，人工收回/换手不刷新，并核祖先归属。`inspectIdempotent` 只读原命令账，消费方用原 `idempotent` 包住接续并保存稳定 Run 引用。每次结果和用户补充通知由原 Delivery 原子接收后立即交原 Session 注入区，当前父 Run 在模型边界将消费与进度同批提交；父终态只保留，原始父 Run 只作归属，不限制后续同 Session 的合法读取。恢复沿原输入、Run 与信封，不用会截断的提醒器或 registry 最新结果代替消息主人。上游工作树 `/Users/yijunwang/code/molis-prologue-b59`、分支 `feature/b59-subagent-user-input`；当前实现已通过定向及干净包验证，待评审合入与正式换包，尚未完成 Molis 产品验收。
+
+| 验收 | 本批必须补的证据 |
+| --- | --- |
+| SAI-01/02/15 | 真实助理 Work、助理相关 SDK 子任务、Coding 原生子任务消费同一组件；干净公共包与隔离安装包同一主路径；不得用组件夹具关闭。 |
+| SAI-03/04/08 | 子上下文逐字消费用户补充；制造读/发/切换/终态交错；同请求不重复、旧绑定和越权零输入/零启动；失败保留草稿。 |
+| SAI-05/09/10 | 同逻辑子任务的新尝试、停止/失败/中断显式继续、取消子树及兄弟隔离、未知副作用拒绝；真实进程重启和回执丢失。 |
+| SAI-06/07/14 | 原问题、审批与聊天分流；父运行/等待/终态三类回报，不重复、不自启；评价、对比和整合回归。 |
+| SAI-11/12/13 | 两入口实际浮窗主路径，主子输入及阅读互不干扰；键盘、IME、中英/深浅/三宽度、减少动态效果及长历史并发流式；工程实操与本人验收分记。 |
+
+验证按最终 diff 运行：整体 pnpm build；affected-tests 全量选择与包 README 必跑；所有本机用例通过机器槽、--jobs 1；SDK/Host 用本机协议服务驱动真实 SDK，不 mock 整个子任务 owner。API/Action 快照、健康/边界、资源预算、隔离 Home 实操、最终头独立评审与 CI Full 分别结算。当前只有源码与包声明核查、工作树创建及离线安装成功，未运行产品回归、模型或用户 Home，以上 SAI 均未因此关闭。
+
+### 12.5 Molis Host 接线合同（2026-11-16）
+
+上游 #128 已合入 `f279024aba6faffb76ce79f2ffa3e808aa6c8db0`，正式包由两份独立干净源码重建且逐字节相同。以下按现行版本一次改完消费者，不设兼容层：
+
+- 在既有 `AgentSubagentsCapability` 增加对话读取、按原请求查询及指定执行操作。查询由已授权的父 `AgentSessionRef` / `AgentRunRef` 和 `subagent_id` 定位；写入另带看到的 `child_run` 与 `request_id`。读回原各次 Run 的稳定消息、输入回执、活动、问题和审批引用，以及当前可写性；消息身份由 Run id 与原 turn id 组成。没有独立 Host 子索引时直接读 SDK 公开 Session/Run，不造 Host 会话。临时失败抛原错误，不显示空历史；失权明确拒绝。
+- 写命令区分 `send`、显式 `continue`、`stop` 和尝试预算扩展。运行中 send 只交可信 SDK 子输入；正常终态的对话提交与失败/停止后的显式 continue 均创建同 child Session 新尝试。沿原 retry/budget 实现复核角色、模型、目录/业务范围、预算和 Host 最终派出授权，去掉随机重试身份；原请求在 SDK `idempotent` 中只执行一次，回执保存稳定引用。原命令查询不调用回调，pending 或不能证明未执行时返回 unknown；不按当前状态推断原请求成功。
+- 公共动作放在原 `agent.subagents.*` 目录，一处注册；可信用户、项目、插件安装来自调用上下文，写前 `beforeEffect` 与现有执行 guard 复核。原问题回答、审批、成果评价/对比/整合继续走各自 owner，普通聊天不代理这些操作。子停止冻结预期 Run，不能因旧页停掉新的尝试。查看、刷新、订阅重连均零启动。
+- 助理 Work 来源仍由原 Work/AssistantRequests/派发服务处理，页面适配器冻结 work、原 session/run 与委派关系，旧关系/收回拒绝。修复请求已进入原执行主人后仍删除 pending claim 的恢复缺口，未知结果保留原 claim 并只查原请求。SDK 来源使用同一公共子任务端口，助理只负责自身 Work 到父 Run 的授权映射；Coding 继续用原插件动作授权。草稿与未决操作沿既有统一输入存储，组件只持阅读状态，不存任务或消息账。
+- 最小业务派发只开放显式声明子角色的 business 父角色；继续禁止目录、文件/命令、MCP 及独立子工作区。沿既有助理角色/提示词与冻结权限装配，子角色工具不得超出父角色，业务动作仍经原授权/确认入口。不给所有 business 角色自动增加派发工具，不实现完整助理团设置或管理页。
+- 两个产品均挂载 58 的 `createSubtaskConversation`；助理 Work 与 SDK 子任务各适配原事实。沿右侧现有任务浮窗打开、返回和兄弟切换，主聊天和主输入不重绑。更新监听先就绪再读，事件只触发局部读取，重连重读；操作冻结原 view，回执到达不切换当前对象。原问题/审批及 Coding 成果操作作为原入口保持可达，不新增页面或控件样式。
+
+独立评审后的具体接缝约定：
+
+- Work 的冻结 Session/Run、执行者和委派关系进入原 owner 准入，在输入 hold、linkSent 或启动前核验；普通发送不自动复活失败、停止或中断的任务。是否保留用户原件按可信输入来源判断，不再因 Work 带 delegated_by/reply_target 就丢弃。未知接收结果保留原请求 claim。
+- 业务子角色在 SDK `admitDispatch` 的 `onAdmitted` 中按冻结角色及真实 child Session 装配 gateway，早于首跑冻结；`onStarted` 仅观察，不能在那里补首跑工具。父权限与子 execution 求交，不继承父 Work 的委派/记忆/交付闭包。业务操作子任务复用原 SessionIndex 和审批桥；重启继续由当前 `AgentStartAuthority` 重建工具及派出 guard，绑定原 child Session，目录/MCP fallback 不代替业务授权。
+- Work 用户补充的父通知沿原父 `AgentInputsPort.send(source: host)`，稳定键关联 child Work 与原 InputRef/请求。当前父 Run 在原边界消费，终态只留原输入队列、不调用 dispatcher；恢复从原输入和请求重建，不添通知账。SDK 通知证据不代替 Work 来源的验证。
+
+验证补充：公共动作越项目/安装/人、旧 child Run 与收回零效果；无 Host 子索引的只读子任务、有索引的写入子任务及无目录业务子任务分别实测；输入与终态、取消、撤权、响应丢失及宿主重启制造真实交错；Work 与 SDK 两类来源都走产品入口。最终合同快照随本批 PR，请 C 轨在最终头合审。
+
+当前证据更新：上文 §12.1 的安装包与 §12.4 的待合入描述是开工时的核查。上游 #128 已经评审合入，正式包采用已完成，Molis 整仓构建通过。上游 CI 因账户额度未启动，基线也同样未启动；不记作 CI 通过。Molis 产品接线、SAI 验证、最终评审及合入仍待完成。
+
+### 12.6 实施记录（未完成）
+
+主会话已提交授权范围 `70118eaa74` 和官方包采用 `099d707cb0`。随后正在实现 Agent Host 公共对话读取、原请求查询与精确命令，及声明了子角色的业务父角色首跑装配。写命令统一为 `agent.subagents.command`：发送、继续、显式重试、停止、加预算；旧 `agent.subagents.cancel/retry` 动作和对应宽松写端口同版撤下，现有消费者必须迁移，不保留绕过冻结 Run/任务图授权的别名。重试保留原任务与来源，人的新文字走可信输入，不把生成的重试说明当成人的原话。
+
+首轮预审指出并修正了输入键格式、SDK 任务步骤工具误拒、同子会话接续重绑竞争；继续补齐当前权限与原范围联合检查、SDK 接受到 Host 索引/审批绑定的生命周期，以及回执丢失后的原输入查询。修正后的整仓构建已通过，真实 HTTP/SDK 定向回归正在验证；尚未形成最终评审结论。
+
+助理 Work 的服务端冻结、请求恢复与父通知，两个实际界面的共同组件接入，旧控制消费者/用例迁移、公开快照、安全表、全部 SAI、最终评审/CI Full/入队和收尾仍待完成。本节不把 Host 切片算作整批交付。
+
+### 12.7 Work 来源接缝（代码前只读评审后）
+
+子 Work 的输入与停止带原 Work、父 Work、委派 graph/node、执行者、Session/Run 的冻结绑定。原 owner 在 input hold、材料链接之前读取核对，实际输入/启动/停止前再次检查；收回先撤销原 Work 的可操作资格，再等待停止。当前 executor、归属或 Run 改变时拒绝，不改投最新运行。运行中输入沿 `AgentInputsPort.send` 增加可选 `require_running: true`：已结束及结束竞态均拒绝，与 `after-run` 不可组合，不把它排给未来执行。显式继续沿原 dispatcher/placeOn 创建同 Work/Session 的 `.rN` 节点，保留原上下文和审批，不新建业务 Work。
+
+原请求仍只由 `assistant_requests` 保存，不改表列、不另造请求或消息账。子任务 claim 时填写已有 `work_id` 列，重放核对原 Work；结果沿既有 `outcome` 增加 `stopped`，Send 的现行分支保持不变，跨操作不能借同一键重放。进入执行 owner 后异常保留 pending；原停止回执缺失保持 unknown，不用当前状态猜成功。发送恢复只读原 `original_input → accepted_run` 或 `send.<request_id>` 输入回执，查询不执行、不补通知。
+
+委派 brief 与 Host 通知仍是 Host 内容；人通过可信入口发来的原件不再因 Work 是 delegated 而被剥除。用户干预及用户新轮次的结果通过原 Session 输入/通知 owner 交给父任务，稳定键引用原输入或 Run；结束父任务只排队，不调用 dispatcher。原图等待只纳入此前明确等待的节点和本次明确委派节点，不把用户聊天的 `.rN` 顺带加成父任务自动接续理由。恢复在原委派 attach 与原终态观察完成，不增加旁路队列。
+
+验证沿原 assistant-original-inputs、assistant-send-delivery、assistant-delegation、assistant-delegation-handback 与输入回执用例补旧 Run、收回交错、丢停止回执和 `.rN` 不自启父任务；同时实测 SDK 子任务更新在父轮结束后仍可观察。测试环境须使用仓库声明的 Node 24.15.x；24.14 的 SQLite 3.51.2 不满足现行插件 SQL 核查的 3.51.3，相关入口拒绝不能记作产品通过。
+
+### 12.8 Work 回报与双入口挂载补充（2026-11-16）
+
+普通 Work 回报使用原 `AgentInputsPort` 的可信 Host 通知口，`from/to/key/text` 与可信 actor/plugin/install/project、最终授权检查分离；两端必须属于同一受信 owner。Node 复用 SDK `receiveInjection → flush → acceptInjection → flush`，存储提交仍经 `PrologueEffects.call`，无活动 Run 时只保存。上游 #129 将已接受通知统一接入当前 Run 模型边界，合入 `ce40e40a` 与独立评审 `128aca37` 的树一致；不新增 SDK 写口或通知账。初始委派和模型 follow-up 沿原图回报；人工续跑的结果由原个人启动回执定位精确 Run，运行中补充只通知干预，不再为其初始 Run 重复生成完成通知。恢复从原 requests/work_id、启动原件、输入回执核对，unknown 不按显示状态推断。通知失败不改写发送结果，查询端不补投。转交插件后通知来源仍为该 Work 在委派图的原 Assistant Session，正文引用执行方原记录，不放宽跨安装注入。
+
+两处 UI 继续使用 58 的公共组件及已定右侧浮窗。工作台 task-panel 是浮窗唯一 owner，列表刷新不替换活跃子对话根节点；助理 child 点击改为浮窗意图，主 Work、主输入与材料不切换。Coding 通过通用 `UiPageView` 任务浮窗挂载口请求本安装已登记 contribution/view 的子对话投影，由现有隔离 frame 授权、挂载和回收流程承载；插件不获得父文档权限，不自报 Host URL 或其他安装。投影内使用同一公共组件与 Coding 原端口，原评价、审批和成果整合保持可达。此挂载只承载已定组件，不增加用户可见交互；如实现发现超出 58 的布局或动线，仍先定样确认。
+
+Work 草稿复用原 Work owner；SDK 子任务草稿与未决操作引用复用平台 `host.drafts`，按稳定逻辑 target 分键。未决数据仅保留原 request/target/binding，不是消息或执行账。发送前先保存引用，结果未知时只查原请求；组件重开、刷新、A→B→A 与子 iframe 卸载均不能重发或清理另一个任务的输入。验收覆盖两种助理来源和 Coding 真实 iframe，尤其主输入独立、关闭与重开、终态继续、失权及原审批/成果入口。
+
+浮窗挂载合同细化：`UiPageView.openTask(input: Readonly<Record<string,string>>): Promise<void>` 只能请求当前已授权 contribution 的同安装投影；输入沿现有有限 stage 参数上限校验，仅作客户端定位，记录可读性和操作权限仍在原 HTTP/Action owner 校验。浮窗实例收到 `view.task`，含当前 `input`、`subscribe(listener)` 与 `close()`；普通页面没有该上下文。壳重用同一源页面的一份隔离浮窗实例，切目标只更新输入并通知控制器，不重新挂载 iframe；关闭隐藏浮窗、保留组件阅读状态，源页面失权/卸载时销毁。源页不能传 HTML、地址、安装或 contribution 身份。首次挂载经现有 `mountFrame` 发独立 grant，不能沿用源页 `pack.authorization`；缓存重开核验源页及投影授权，失效销毁重建，使用原页面登记的脚本及授权文档。共用壳浮窗管显示、返回、Escape 与焦点，项目 task-panel 在它内提供原任务卡；浮窗内的主输入只绑定组件冻结的子目标。
+
+2026-11-17 只读合同设计合审确认此窄口可行（评审代理 `contract_review`，审阅 `7a82f8649f`）。补充按实际源页 scope 绑定缓存与待打开操作；首次挂载合并，最新打开意图决定 input，迟到 A 不覆盖 B。初始 input 随握手给出，后续冻结快照经原 MessagePort 更新；源 scope 结束取消待打开并销毁投影。task 投影显式 `bar=false`，Coding 客户端优先走 `view.task`，不借 `side=true`，不改变主输入与侧栏消息语义。
+
+浮窗与发送恢复的实现复核（2026-11-17）：任务面板在开始读取授权前登记待打开操作；关闭、返回、切走或卸载取消该次打开，迟到完成不能重开或销毁后来选中的浮窗。源页明确失权销毁投影；只有投影缓存过期时，在同次打开里重新授权挂载。挂载及最后源页核验完成、冻结目标送达后才揭示内容。WorkBar 与 iframe 桥是独立构建的程序，借已登记 `molis-work:task-float` 请求事件交接可信壳挂载回调；隔离页面只发 `view.openTask`，不转发这个壳事件。
+
+同安装的多个隔离页面可打开同一逻辑子任务，因此浏览器草稿不能仅靠单实例 Promise 串行链。沿现有 `UiPageDrafts` owner 补 `compareAndSwap(key, expected, value): Promise<boolean>`：与普通写入共用同键 Web Lock，在原 Cache 内比较原字符串并写入，不建任务、消息或请求事实表。公共子对话适配器仅保存草稿与待核对原请求引用；接纳、原输入、执行代次、历史和回报仍查原 owner。迟到接纳只清除自己提交的草稿代次；不同页面的 pending 冲突拒绝第二次发送，须先查原请求。Work 草稿仍由原 Work 服务持久化，这个浏览器 CAS 不替代它的 `draft_revision`。
+
+### 12.9 原问题恢复接线（2026-11-17，实施中）
+
+SAI-06 的子问题使用原 `AgentPendingQuestion`、冻结表单和 `answerPending` owner；回答命令冻结 child Run、pending/revision 与请求键，与普通聊天及审批分开。没有独立子 SessionIndex 时，按原父子关系取可信父 owner，并用真实 child Session 查询原问题；不新建 Host 子会话。引用按原 owner 重读，最后提交前核当前角色、Work/父子归属及调用授权。原请求不明时仅查询，不凭问题已结束推定该请求成功。
+
+上游官方 `ce40e40a` 的恢复仅在 `recoverRun` 刷新子任务投影，`answerInterrupted` 与 inspect 补交付缺失。已授权的最小上游窗口内补同一恢复链，评审合入后采用官方包；答案已收下、执行尚未启动必须分开显示，不重复回答或自动启动父任务。Coding 子角色开放原 `ask-user` 工具，并同步原角色声明、提示词版本和旧拒问测试。问题/审批在浮窗内复用现有问题与审查部件，不新设普通聊天回答协议。
+
+恢复补口已于 2026-11-17 经独立评审合入上游 [#130](https://github.com/molis-ai/molis-prologue/pull/130)，官方 main `71662135799fedf7bca4ab6875cefbe6cc6c7d72` 与评审头 `542eb0c7` 整棵树相同；本批采用提交 `a128e43b43`。新增真实 Node 用例进一步覆盖正常停放、原答案交付/投影失败、恢复锁、父前台等待关机及停放写失败；7 文件 56/56、构建/types/API/ratchet/docs/干净安装消费者通过。CI 因账户付款/额度未启动，不记通过。两次独立官方构建产物一致，来源与回滚 blob 见 vendor 记录。
+
+当前产品进度仍为实施中：项目工作台的 Work 委派与业务 SDK 子代理均已通过真实浏览器点击、原上下文追问和主输入草稿隔离的本机 HTTP 模型用例；不是实际 Provider 或本人验收。原问题/审批接线、主页浮窗挂载、Coding 完整入口、SAI 剩余恢复/布局验收、最终 C/D 合审、CI Full 与整批合入尚未完成。主页没有项目 WorkBar，须使用同一壳浮窗挂载，不得以项目入口通过替代主页能力。
+
+主页接线复核（2026-11-17）：项目与主页共用同一壳浮窗生命周期和原定位规则；项目 TaskPanel 提供卡片返回，主页顶层返回关闭浮窗并回到父对话。原浮窗 CSS 小段供 arrival 与工作台共用，窄屏避让主页原主输入。native consumer 从 WorkBar 移到助理首开懒加载，点击时同步冻结原 API base、目标、opener 与父对话；加载后切项目、切父对话、关闭或账号准备切换均不得迟到打开。每个 document 明确装配一个 host，不通过试开广播补装。账号切换复用 accountTransition.page：先关闭组件输入使延迟草稿写入排队，再等原草稿写入完成，随后销毁缓存/订阅/布局观察器；恢复只恢复读。无新增外观、控件或用户动线。
+
+### 12.10 重启后 Coding 原目录接续（2026-11-17）
+
+真实 Node Host 回归已经区分两个阶段：无独立 child SessionIndex 的 live 问卷回答通过；正常停机后原问题仍可答，答案也已准确进入原 child Session 队列，但 `resume-answer` 在新的 Node Host 上被 SDK `ROOT_NOT_FOUND` 拒绝。当前 `NodeWorkspace.authorize()` 每次签发新的随机 RootRef，旧根只存在旧进程内；`Runtime.subagents.continue` 固定使用原 `handle.root`。公开 `workspace.adopt` 要求同一 Host 仍能用该 grant 执行 `listDir`，不能恢复已失效的旧根。证据为 `tests/prologue-subagent-conversation.test.ts` 的正常停机用例及本机日志 `/tmp/molis-b59-original-questions-tests.log`。这是当前安全合同边界，不能假造 RootRef、给旧根做别名或私改 vendor 包绕过。
+
+最小上游合同：App 可在 `Runtime.subagents.continue` 的精确父子与原 Run 条件下提供 `renewedRoot: { previous, current }`。SDK 检查原根已不可用、新根在当前 Runtime 登记且有当前 Host 授权、工作目录和信任仍为新授权默认值，并按原包络和新根中较窄者执行。原同根派发须记录其沙箱上限；旧记录无该上限时，新根最多只读。沿原继续占用与原 Run 检查拒绝并发、陈旧与未核对尝试，接受时成对更新最新 Run 和根，显式分配的工作区来源与历史尝试保持原样。路径仍由 Host 管理，App 负责证明是同一原目录。
+
+Molis 只允许原冻结 owner 的同一 canonical directory：从原父/子执行记录读取路径，核对当前项目目录授权、角色权限与 actor/install。在 Node Host 解析并签发新根时核实际 canonical path 等于冻结路径，避免前后两次路径解析间发生替换。页面不能传新目录或根。接续仍使用原 child Session 和原已接受答案，不转为新的逻辑任务，不扩大到完整目录迁移或持久化旧授权。须验证同目录重启接续一次、换目录/越权/失效 grant/旧 Run/并发请求拒绝、旧审批及旧文件观察不被重用、结果仍回原父任务。上游独立评审合入并重新生成可复现官方包后才采用。
+
+在已经明确列出本节的最小窗口和阻塞后，用户回复“继续”。本批据此推进本节限定的目录重授权契约，经独立评审合入上游后再采用官方包。先在原失败回归中证明撤销授权时不消费答案、恢复同一路径权限后接续一次，再完成 SAI-01～15 的整批验证。
+
+Molis 采用 #134 后的原问卷回归进一步发现，SDK 准入还要求额外 caller 文本。精确选择原已接受答案就是本次接续的新输入，由原 Session 消费。重授权复用原项目输出或工作树的授权证明。存储完成原有异步授权准备后，Node Host 在写 Run 准备记录与消费答案前同步检查；拒绝保留原答案，原清理路径移除未接受的准备记录。派发时继续复核同一证明。会话保留旧 Run、原问题与答案，子聊天过滤有原 Pending 和精确队列引用证明的模型恢复指令。验收覆盖存储准备期间撤权及授权恢复后同目录接续一次。
+
+原角色登记也随旧进程退出。Molis 以原父 Run 冻结的角色和 SDK 留存的精确 Character 引用恢复同一版本，沿首次派发的角色发布路径组装。共享目录、指定工作树与业务子任务均覆盖真实 Node 重启。接续仍核对现行 Manifest、父子关系、工具上限及工作树归属；不用页面输入寻找替代角色。
+
+Prologue [#134](https://github.com/molis-ai/molis-prologue/pull/134) 已合入 `e4f1c01e`，[#135](https://github.com/molis-ai/molis-prologue/pull/135) 已合入 `64e5aaf4`。最终采用的官方包在两份独立干净 archive 中构建一致，1,488,998 B；上游本地 quality 为 268 文件、3,453 项通过。GitHub Quality 作业因账户付款或额度未启动，由作业注解确认。Molis 采用后的完整构建、原 MCP 撤权 3/3、vendor 来源 79/79，以及补原角色恢复后的重启与来源回归 6/6 通过。共享目录和独立工作树均实际读取各自的标记文件，异步存储准备中撤权保留原答案，重新放行后只开一次新 Run，父 Run 保持原终态。
+
+### 12.11 回答后接续的未确认引用与原部件挂载
+
+复用原问题表单、审批和浮窗详情，不增加新页面或新的回答/审批入口。公共浮窗只提供可信 owner 的详情挂载及销毁边界；原 renderer 生成表单，原 interaction client 绑定输入，模型 HTML 仍经过内容过滤，不能借内容挂载控件。切目标、精确执行改变、失权和关闭均销毁原挂载，保存已有 owner 的草稿；普通输入与问题回答分别调用原入口。
+
+原答案已接受但外层请求回执丢失时，`PendingSettlement` 没有请求键，不能推断该请求成功。原 `UiPageDrafts` 因而保留多份未确认引用（requestId、操作引用、冻结 binding），不存答案或执行结果；同键 CAS 新增/结算只影响对应引用。源仅在原 Host 返回精确 `queued_answer` 时放行单独的 `resume-answer`，旧回答仍是 unknown、仍可查询，新接续另用原请求键。新 Run 出现后，旧问题范围的 unknown 只作为未确认提示，不再锁新 Run。普通输入或无精确排队答案时仍锁住有冲突的操作。组件按 requestId 保留并发查询结果，迟到旧查询不能覆盖新操作。
+
+只读合同复核（contract_review，2026-11-17）确认以上为既有缓存、原问题/队列 owner 的最小接线，不是新请求事实表。须验证两个页面 CAS 交错、接续未知再重开、旧查询迟到、队列消费/Run 变化/撤权后零额外启动。回答接受与接续启动分两次原 SDK idempotent 记录；回答失败不启动，接续失败不重答，不自动起父 Run。
+
+### 12.12 Work 委派的原问题与两阶段接续
+
+Work 原 `/answer` 接受冻结的子任务 binding、request_id、pending_id/revision 及原表单答案，复用 `assistant_requests`。已完成回答回执保留 `answered`，附原执行、问题、binding 与输入指纹；普通发送、停止、回答、接续的请求键不能互借，同键异输入拒绝。待确认行保持原有语义，不新建表、不为历史 Send 补推回答元数据。只在原执行 owner 确认接受后写回执；交给执行者后失败且无回执时保持 unknown，查询不重答、不按问题消失或文本推断成功。
+
+提交前和原副作用边界核 Work revision、归档/收回、执行者、最新 Run、图节点归属与当前调用授权；原图监听在读取前安装，变更使本次提交失效，退出即释放。业务 Work 用原 adapter.withEffect；插件托管 Work 经原 WorkExecutor.control，增加明确的 `continue_after_answer:false`，使原 Coding 回答入口只接受答案，保留普通问题入口原有行为。
+
+接续由另一请求启动，精确引用原 Session 队列的 input_id、pending_id 与 left_by.run_id，经原 dispatcher/执行者启动同一子 Work。窄 `resume_answer` 沿 WorkExecutor→Coding→AgentHost 透传；在原 Session 的启动锁内核对最新 Run 和该队列项，再固定 `queued:[input_id]`，由 SDK 原消费事务拒绝已被消费的答案。旧 Run/queue 条件只用于启动准入，不能误拒执行者接受后的原记录写入；Work/图/调用授权一直守到请求结束，图 placement 也在原 effect control 内。执行方返回 `accepted:false` 是明确拒绝，不写 answered。读取、刷新、原请求查询均不启动。
+
+两条来源都复用原队列投影、表单/审批部件和草稿，普通输入不充当问卷。Work 问题草稿沿原 `question_drafts`；迟到回答只清与这次提交一致且未再改变的草稿。公共详情挂载原表单客户端，原字段错误仍在对应字段显示并聚焦；目标切换销毁挂载，未交给 owner 的旧提交不能迟到发送。验收包含 live/parked、同键及跨操作重放、最后提交前收回/归档/图换手/Run 替换、回答接受后回执失败、接续失败/丢响应及迟到回执保留新草稿。
+
+**2026-11-17 检查点（未交付）：** 本节 owner/合同增量经独立只读评审，无剩余已确认 P1；完整构建通过。Work 委派回归 21/21、Coding 执行方 4/4、执行方协议 4/4、其他执行方 19/19 通过；追加的原回答 live/parked 与最终 Work revision 拒绝 2/2 通过。公共组件 13/13、数据源 5/5、原问题字段浏览器用例 1/1、既有停驻问题与安全用例 12/12 通过。这些是隔离测试及脚本模型证据，不是实际 Provider/Home 或本人验收。其余撤权交错与丢回执、Native 审批、Home 资源接通和全量验收仍待补齐；§12.10 的目录重启失败仍待授权窗口，不因本检查点通过而关闭。
+
+
+**2026-11-17 后续检查点（仍未交付）：** Work-origin 子任务的原读取、请求核对、停止、回答及接续收拢到 `AssistantWorkSubtasks`，服务保留主调度时序，Work 详情组装归 `assistant-work-view.ts`。未增加事实库或重复停止栅栏。完整构建及上述五组关键回归再次通过。新增 `assistant-coding-subtask-question.test.ts` 经过真实 HTTP、项目目录、Host、Coding 执行方协议和已安装 SDK：子 Work 转交 Coding 后旧执行引用被拒；非法值不结算原问题，有效答案进入原子 Run，重复答案不再调用模型，已结束的父任务不重启。模型回复仍是脚本控制，不记作实际 Provider 验收。
+
+审批接线核查：原 `/api/agent/reviews` 的 Run 与 Session 筛选为并集，子任务浮窗只传精确 Run，避免混入整个 Session 的历史；项目审批 route 来自原 Work scope。Native 复用原审批 client 和原 lifecycle，不能复用会改主对话状态的 `assistant-island` 闭包；Work 的 `next-step` 仍由原 Work.step_gate/decide 负责，不能换成 Runtime queue。关闭、切目标或账号准备切换须 dispose 审批 lifetime，不能只取消 GET。此处是待完成接线约束，不是审批验收证据。
+
+
+插件承载 Work 的重启问答回归发现一个提交期重入：SDK `answerInterrupted` 已在原 Session 事务中时，Host 的 `beforeEffect` 再经 executor.read/inspectRecovery 读取该 Session，会等待自己的事务。子任务 scope 初始化读取精确 Run/原答案队列；进入原 owner 后，提交回调继续核对 Work revision、图归属观察和 caller 当前授权，不重入同一 Session。原问题的 pending/origin/Run/version 仍由 question owner 与 SDK 事务校验，原答案接续的 Run/queue 仍在 PrologueAdapter 的 Session 锁内校验。此修复保留停驻回归，禁止用跳过或超时放宽换绿。
+
+### 12.13 子任务审批沿原 owner 的提交边界
+
+Native Work/插件承载 Work 保留原 Work reviews/Outcomes.decide 与 `next-step` 的 step_gate；公共挂载只抽出原卡片 DOM 和点击绑定，结果只刷新浮窗，不改主对话。SDK 子 Run 使用原 Agent review renderer/client，通过父 Work 与精确 child Run 的 scoped owner 调用同一 ReviewQueue/ApprovalBridge。不得新增审批账、借普通消息批准，或把 Host 的下一步确认替换成 Runtime pending。
+
+generic reviews HTTP 与 Work.decide 的原校验不能单独证明 Work 归档、收回、换手后的拒绝。提交携带冻结 binding 和调用 execution，复用原 Work/SDK 子任务归属检查；原审批 owner 在异步读取 pending 后、生成决定前执行同步 current fence。已接受的决定及送达未知状态沿原回执，不猜结果或重放。需要原挂载点击到实际决定的归档/收回/换手/旧 Run 交错及兄弟隔离测试。本节尚未全部实现，不能把局部回归结算为整批完成。
+
+
+重入修复验证：完整构建通过；`assistant-delegation` 21/21、`coding-work-executor` 4/4、`assistant-coding-subtask-question` live/parked 2/2 通过。后者真正关闭并重新打开 Host、保留隔离 Home 的原目录与数据库，回答只接受到原队列，显式接续与重放共新增一轮，模型请求带原答案。它证明的是插件承载 Work 的原启动路径；不等同 §12.10 仍失败的 SDK child 根恢复。职责清理后的 `health:check` 通过（merge-base `4aa5496e3f`），未改门禁阈值或 exception 基线；最终 PR 仍须对同步后的 main 与最终头验证。
+
+审批接线增量（2026-11-17）：Work 与 SDK 子任务已有 scoped review owner，下一步确认仍走原 step_gate。`AgentSubagentsCapability.assertCurrent` 同步读取 SDK 原 registry，核对精确当前 child Run 及祖先范围；不从 attempts 历史推断当前轮。此 fence 同时进入 ReviewQueue 决定前与 SDK pending 接纳前。已接受决定后的可选 app 授权失败不更改原回执，送达未知或提交后撤权不建立 session standing rule。只读评审确认两处最终 fence 修复无剩余 P1；构建和审批回归 51/51、SDK 原始会话选定 3 项通过。原操作 recovery 只核对并收口既有 effect，保留原 HTTP owner；按原 Work.scope 与精确 review/Run 路由，不因 child 已续跑而阻止查验历史。
+
+Native 审批挂载候选复用原 Work mount/retitle 与 Agent review factory，Work 的主对话刷新和子浮层刷新分别由调用方提供。每个详情持有固定 binding、route 与独立 lifetime；内层 renderer 在单独 content 节点挂载并随外层销毁。新浏览器交错回归 2/2 已通过，覆盖确认期间关闭、A→B→A 迟到决定、原 scope/run、remember 透传及关闭后仅重读。原 Assistant 脚本结构检查发现已有主脚本 771 行超过 770 行上限，子任务打开意图已归入 conversation 职责；当时审批上下文与自动规则执行暂归入 `review-decision-scope.ts`，该临时层已在后续同步 main 时删除并接回原决定 owner；没有保留两套执行入口。两项整理后的完整构建通过；Assistant 原窄屏/语言切换 2/2、脚本结构 13/13、standing rule 5/5、审批桥接 21/21 通过。新浏览器夹具改为编译实际 Host 程序并注入，不为测试增加包出口；对应 2/2 复验通过。`health:check` 对 `4aa5496e3f` 通过，门禁未放宽。
+
+资源申请更新：包含原问卷、审批与生命周期 factory 的共享懒加载包候选实测 96,472 B（gzip 32,665 B）。2026-11-17 已向用户申请新增 `/assets/molis-work-assistant-subtasks.js`，最大 100,000 B、仅首次打开子任务时加载、Home 与项目共用；替代先前 70,000 B 申请。用户于 2026-11-17 批准最多 100,000 B 的共享懒包；随后接入构建、资源路由与首次打开加载，并按最终产物复测。源码挂载候选与浏览器 fixture 不是产品真实入口验收；§12.10 的上游目录重授权窗口也仍待用户裁定。
+
+同步 main 前补充：恢复 Coding 时间线“评价并整合/查看成果”按钮到原成果面板；已有 TaskBoard child 行按精确 session/parent Run/child 打开已定浮窗，在切主会话之前返回。真实浏览器点原 TaskBoard 行回归 1/1 通过，主会话、看板和主草稿保持；原卡片/结果的状态渲染回归 6/6 通过。子角色提示中“总是阻塞回报父任务”已改为获准 ask-user 时使用原问卷，SDK live 问答回归通过。
+
+2026-11-17 fetch 后 main 为 `eafff2b526`，新增 #2105（39 批审批/权限 owner）与 #2104（统一登录 P1），与本批多处枢纽相交，须同步。只读合同复核指出应采用 main 唯一原决定持久化及 ReviewDecisionControl，把本批 SAI scope/最终权限检查接入它，移除已被覆盖的临时 ReviewDecisionScope 层；保留用户所见 review version、本人/原页面边界、permission owner 与原恢复控制。上述 pre-sync 测试不能替代同步后的合约验证。main 的官方 #127 SDK（e7582079）已核为本批 #130（71662135）的祖先，包合并保留后继官方 #130，并合并 #127 的采用记录。
+
+
+主线审批合同整合与资源接入（2026-11-17，尚未完成整批）：采用 main `eafff2b526` 的原决定持久化、用户所见版本与权限 lifecycle，移除临时 ReviewDecisionScope。Work/SDK 输入在首次异步读取前持有原输入代次；exact stop 只结束指定 child Work，并保留原 Run 核对到收尾。接续新 Run 独立派发与 policy/exact 校验，SDK #130 未回报其原 policy 的只读合同遗漏已独立核实，纳入既有“父子归属及回报”上游窗口。修正经独立评审合入 [Prologue #131](https://github.com/molis-ai/molis-prologue/pull/131)，采用官方 main `0afbe2c3f868565e6af85965a585ad889c044c43` 的两次相同构建产物，SHA-256 `1895a23683664565db37579cb68d467ab53ee7ed9c7c9bbaf277495fe029b39b`；没有扩大尚待批的目录重授权。上游 11/11、构建/type/API/ratchet/docs/干净消费者通过；CI 受账户付款/额度限制未启动，不记通过。
+
+用户已批准的共享懒包已接构建与原入口，当前浏览器构建实测 95,351 B（gzip 34,047 B）。首次打开固定原路由、原任务、焦点与页面生命周期；关闭/换项目/账号失效取消迟到打开。浮层沿原审批及权限面板，提交所见版本。以上为中途构建证据，真实双入口、最终体积与最终头验证仍须完成。
+
+
+同步后验证（检查点 `f55371ada1` 及后续职责拆分，2026-11-17）：首轮 child 的实际启动回调已透传原 Work；继续执行独立持有 DispatchControl、真实 policy 及原 exact effect 的最后授权检查。只读增量评审未发现剩余 Blocker/P1，后续拆分将业务 child 绑定与接续持续授权分开，未增加控制入口。完整构建通过；`health:check --base origin/main` 对 `eafff2b526` 通过，巨型单元降为 63，未提高阈值。
+
+当前工程证据：`assistant-subtasks.e2e` 的 Home/项目 × Work/SDK 四条真实 HTTP、正式安装 SDK 和浏览器路径 4/4 通过，包含首次加载失败、父窗口关闭后迟到错误不重开，以及再次打开成功；主草稿与子上下文保持独立。原 Coding 命令审查 1/1、子 Run 转话 1/1、Work 权限 20/20、插件承载 Work 的 live/重启问答 2/2、原审批 bridge 21/21、standing rule 5/5、公共原问题浏览器 1/1、Coding TaskBoard 入口 1/1 通过。SDK 原始会话与业务子代理、live 问答 3/4 通过；保留的第 4 项在重启后以 `ROOT_NOT_FOUND` 失败，属于 §12.10 待决合同。上述测试使用本机脚本模型；真实 Provider、最终全部 SAI、最终 C/D/CI Full 与整批合入仍未完成。
+
+
+同步后资源实测（`eafff2b526` 独立基线构建）：新共享懒包 95,351 B，未超已批 100,000 B。Coding 原程序 359,809 → 391,731 B（+31,922 B），包含隔离插件页面消费同一 SDK 子对话、原问题与原审批的接线；没有另写子对话实现。该项超过单资源 10,000 B 门槛，用户于 2026-11-17 已单独批准最多 +33,000 B，已登记本批独立许可；它不重复消费 native 懒包批准。其余必要增量为 arrival CSS +1,185 B、plugin-frame JS +4,696 B、workbench CSS +537 B、workbench JS +6,515 B，许可按实际作用逐项供评审，不改门禁规则。
+
+
+最终资源许可本轮复验：补充获批的 Coding +33,000 B 及四项实际壳资源增量后，`page-assets:check` 对 `eafff2b526` 独立基线构建通过，共 67 资源（`/tmp/molis-b59-approved-resources.log`）；只读资源评审确认许可与实际变更一致、无必须删除的重复打包。Native 浏览器补验覆盖项目 1440、中/英文与深浅主题，Home 390 中文浅色、1024 英文深色及 reduced motion；窄屏经原侧栏按钮找到子任务，首次加载失败/关闭/重开沿原动线。布局范围、主题语言及上下文追问通过（`/tmp/molis-b59-native-layout-tests-2.log` 中 3 项及 `/tmp/molis-b59-home-sdk-narrow.log` 的末项复验）。
+
+真实 Provider 实操（2026-11-17）：隔离 Home、独立测试浏览器、正式 vendor #131，使用 MiniMax-M3 的平台既定 `anthropic-messages` 接口，Home 的 SDK 与 Work 两来源 2/2 通过。模型真实派出原 child，回复 39+7=46；浮窗输入追问“上次数字减5”得到41，子任务新尝试保留原上下文，父任务仍仅一轮，主输入草稿保留。证据 `/tmp/molis-b59-real-declared-child.log`；这不代表 Coding 真实 Provider、人工最终产品验收或完整 SAI 已通过。先前两轮未通过记录保留：第一轮“记住”被模型理解为长期记忆，第二轮 SDK 省略显式 child Character 被 Host 拒绝，Work 浏览器夹具漏点折叠侧栏；第三轮使用明确已登记子角色及纯计算任务，并按原响应式动线操作。没有为模型行为改产品提示词、放宽角色或记忆权限。
+
+### 12.14 Coding 原卡片与成果面板的直接入口（B 已选）
+
+2026-11-17，按实际源码复核：原 TaskBoard 行已有同一浮窗入口，但时间线子任务卡和原成果面板只有评价/成果操作。58 已选的是浮窗内步骤→对话，并未选定 Coding 这两个新点击位置。因此先按批次手册第五节补 [Coding 入口样稿](../../docs/design/subagent-entry-59/README.md)，没有在未选择前改产品入口。
+
+两案均复用实际 Coding 卡片/结果 renderer、公共子对话与统一输入；A 点击角色名称，B 独立“打开对话”按钮；原成果面板另有直接进入此子任务对话的按钮。主对话、主输入、原评价/比较/整合保留。使用已有部件，无新增组件类型；只读评审确认这一点，不替代最终 D 合审。24 语言/主题/宽度组合、读取失败与收回、原操作重绘和停止态的样稿走查通过，详见样稿说明。用户于 2026-11-17 明确选择 B“明示对话按钮”，确认基于样稿 `00cdc28efa` 的既有按钮编排；入口更容易发现，A 的角色名称链接不再推进。卡片与原成果面板按 B 实施，既有 TaskBoard 入口保留；用户选样不等于最终 SAI 产品验收。
+
+嵌套能力核对：当前 Molis Work 委派及已登记 SDK child 角色均不授予再次派发，不能因上游 SDK 支持嵌套就捏造真实嵌套来源。SAI-01/11 仍验证当前获准的父子与兄弟关系；公共组件的嵌套夹具证据与真实来源分记，后续开放子角色再派发仍由原权限 owner 决定。
+
+### 12.15 原生兄弟切换的阅读位置（SAI-11）
+
+2026-11-17，真实 Home/SDK 双子任务浏览器回归复现：A 滚到历史开头，切 B 再回 A，草稿仍在但滚动跳末尾。公共组件在 suspend 时已保存位置；外壳重新显示旧 holder 后，下一次 open 的 remember 又以已销毁的 follower 把同一旧目标标为跟随，覆盖原保存。修正只在有效阅读生命周期内记录位置；关闭后的重复隐藏/再显示不重新采样。沿同一公共 owner 修复，不改变界面或任务事实。配套原生兄弟回归同时制造 A 接续等待/B 阅读/A 迟到回复，验证输入与接收者隔离。Work 来源的初轮判定须只读原开场，避免把父任务的子结果通知误认成子任务；该测试夹具已修正，最终结果见下文。
+
+同一实操进一步发现 Home 原生浮窗的鼠标发送问题：统一输入点击后会即时重绘发送按钮，冒泡到外部点击监听时旧按钮已脱离 DOM；用 contains(event.target) 误判为窗外点击，关闭浮窗并取消尚未派出的发送。键盘发送不触发此分支，因此此前单入口键盘用例没覆盖。修正按本次事件固定的 composedPath 判断起点是否属于浮窗/助理，保留真正窗外点击关闭；真实兄弟用例继续使用鼠标发送，不改成键盘绕开。组件滚动测试先显式回到最新再滚动，防止正确保留前一子场景的位置后仍假设默认在底部。
+
+修正后证据：整仓构建通过（`/tmp/molis-b59-native-click-build.log`）；公共组件 14/14 通过（`/tmp/molis-b59-native-sibling-navigation-4.log` 的第二个文件）；实际 Home/项目 Work/SDK 四入口 4/4 与新兄弟交错 2/2 通过（`/tmp/molis-b59-native-final-regression.log`）。新回归明确使用鼠标发送，验证 A/B 草稿、A 阅读位置、B 焦点选区、A 迟到回复、原请求仅接续一次，以及真正窗外点击关闭。SDK 两次尝试后按原预算禁输，也逐字对照原 Host 返回的原因；未为测试增加额度。只读评审未发现此两处修正的剩余 Blocker/P1。没有用本次工程证据关闭 Coding 全链路、重启目录待决或本人验收。
+
+### 12.16 Coding 完整生产入口的合同核对
+
+用户选定 B 后，真实隔离 Host/SDK/浏览器从 Coding 主输入派出子任务，经宿主原审批及确认执行成功，随后的列表动作却以 `additionalProperties` 拒绝结果。原因是本批 `AgentSubagentView` 与实际投影新增的冻结 `role_version`、`execution` 没有同步登记到 `subagentOutput`；原 Host 直测和空列表夹具不经过非空动作返回校验，未暴露该遗漏。补齐同一公开返回 schema 的必填字段、整数版本与现行 execution 枚举，并更新动作快照；保持 `additionalProperties: false`，不截掉冻结权限事实或绕过校验。真实 Coding 浏览器用例贯穿原审批、TaskBoard/卡片/成果三个入口、子上下文继续、主输入及原成果返回，作为本缺陷的生产调用路径回归。
+
+同一路径继续暴露首次挂载空白：Coding 将公共对话直接挂在其生命周期观察根；组件初始隐藏该节点，而 `whenVisible` 又等它可见才调用 open，形成互等。改为在原生命周期根内挂独立的对话容器，父级只反映 Host 页面可见性，组件自行隐藏/显示内容。关窗、重开及切对象仍沿原 page/task lifetime，未增加页面或新事实状态。真实三个入口用例保留首次非空对话与重开断言。
+
+实际鼠标发送验证了另一处必要接线：子对话正文原先仅作为业务命令传递，缺少既有受保护 `original_input` 信封，Host 因缺少本人原件明确拒绝且没有派发。Coding 发送/接续现沿原补充输入通道携带同一 request_id、逐字正文及 supplement 用途；Host 仍剥离信封、绑定当前安装和本人，不信任业务 DTO。普通插件直接调用缺原件的 send/continue 均拒绝且不进入子执行，补入原动作边界回归；未改权限或放宽本人原件要求。
+
+本节修复后，真实 Coding 浏览器完整路径 1/1 通过（`/tmp/molis-b59-coding-real-entry-b-8.log` 第一个文件）：经原审批与确认真实派发，TaskBoard/卡片/成果三个入口进入同一 SDK child，鼠标追问只新增一次 child 尝试并带原上下文，回原成果区，父 Run 仍一轮、主草稿及 DOM 保持。原动作边界在新增拒绝断言后 14/14 通过（`/tmp/molis-b59-child-input-authority.log`）；前一日志的动作测试失败是新增读取后旧断言仍取最后一项，已恢复为紧接原操作断言，不改变业务期待。这里使用本机 HTTP 脚本模型，真实 Provider 和最终 SAI 仍分记。
+
+### 12.17 验收复核的剩余项（保持内部完整目标）
+
+独立只读验收复核指出，结束父任务的人工子任务续跑结果虽已送入原 Session，现入口仍只显示当前完成状态，不能辨认新进展；需复用原 Assistant notices/已读 owner 给出可追踪的结果提示，不新造消息账或自动重启父任务。配套补齐实际浮窗问卷/审批到原 owner 的联合路径、活父/等待父消费人工干预、Work 停放答案丢回执与竞争接续，以及干净 contracts/plugin-sdk 消费者的本批 source/原请求查询验证。现有真实兄弟切换、迟到回复、公共组件 IME 证据继续有效，不重复追加通用矩阵。§12.10 SDK 重启目录窗口仍待用户决定，不能用其他路径关闭。
+
+结果提示沿既有通知 owner：Work 在原回报投递成功且归属复查后落同键 result notice；SDK 在已有全局通知读取中扫描原 Session/child 终态，以原父/子 Run 稳定键入同一 notice 表。扫描不受页面最近 50 项限制，不新建逐子任务轮询、订阅器或消息账。通知时间表示首次观察并创建通知的时刻，不伪造 SDK 未提供的结束时间；首次发现的未读结果可提示一次，已读/略过记录跨重启继续去重，既有通知 TTL 按通知创建时间计算。所有通知只读原执行，不派出或重启父任务。
+
+真实 Provider 的 Coding 三入口及子上下文接续 1/1 已过（`/tmp/molis-b59-coding-real-provider-2.log`）；第一次验收指令自行拼写了未登记角色，模型拒绝派发，已按系统登记角色引用修正验收指令，不改产品提示词或权限。Work result notice/已读后重启及原回报回归 25/25、Work→Coding 原问卷含丢回执后 Host 重开与两个请求竞争同一停放答案 2/2 已过（`/tmp/molis-b59-result-and-parked.log`）。随后四条实际 Home/项目 Work/SDK 入口闭窗提示 4/4、SDK 超过 50 项的旧父/两次尝试/持久已读/归档交错 1/1、父旧成果结算 6/6 已过（`/tmp/molis-b59-sdk-result-tests.log`）。当前与历史尝试均按原 Run 去重，并发通知读取合并一次扫描；原父成果被改过不自动消费子进展通知。只读 scoped 复核无剩余 Blocker/P1，整仓构建与 health 通过，最终全 PR 与 C/D 合审仍未完成。
+
+实际浮窗原问卷：Work 路径已验证普通补充不回答原问卷、表单答案与补充均进入同一 Run；SDK 路径在 800×600 的短窗口发现原浮窗高度 243px 时固定头部与输入区挤空正文，滚动区域只剩 32px padding，鼠标提交被 context 遮住。保持已定浮窗几何、主输入位置与控件尺寸，正文保留可容纳完整触控目标的最小可读高度；容器不足时允许既有浮窗整体滚动，使头部、反馈、原问卷与输入均可到达，不以缩小按钮或隐藏内容换取适配。此修正须通过短窗真实鼠标回归、常规高度回归与最终 D 轨审阅。干净离线 contracts/plugin-sdk 安装后的本批 source 导入、原请求未知后查询、CAS 新草稿保留及原问题引用验证已过（`/tmp/molis-b59-original-question-consumer.log` 的 plugin-sample 1/1）。
+
+短窗增量最终局部验证（2026-11-17）：保留头部和输入控件尺寸，正文 `min-height:96px`、外层不足时滚动。外层位置加入同一 `Place`，切换/关闭先记位置再销毁输入；沿原 composer 的 ready/loaded 等异步长草稿布局完成，仅当前挂载恢复一次，不新增 observer。延迟 12 行草稿、外层到底、兄弟切换与关闭重开均有断言；公共组件 16/16 通过（`/tmp/molis-b59-scroll-regression.log`），独立只读复核关闭该 P1。旧原生 wheel 用例的 scrollend 可能先于目标位移，现等待实际 scrollTop 减小再保留原断言；没有减少验收。
+
+原浮窗到原 owner 的联合验证：Work/SDK 问卷 2/2、审批 POST 被保留后收回原 Work，再提交原版本审批被拒且 Todo 零写入 1/1 通过。审批测试初次漏拦截是 URL 编码匹配错误，修正测试后走真实浏览器请求和 Host 拒绝。运行中/等待中的父 Work 获得原输入引用及子结果一次，父仍同一 Run；委派套件 27/27 通过（`/tmp/molis-b59-parent-siblings.log` 第一文件）。原 SDK 并行子任务 A 停止、B 仍运行并消费本人补充通过；`prologue-subagent-conversation` 当前 4/5，唯一失败仍为 §12.10 正常停机后的 `ROOT_NOT_FOUND`（`/tmp/molis-b59-recovery-final.log`）。不能称全绿或全批完成。
+
+真实产品实操：隔离 Home 启动 dev Auth（8787）及本批已构建 Work（4207），测试账号登录后实际 MiniMax 派发 SDK child；从原路径打开右侧浮窗，39+7 得 46，同一上下文追问减 5 得 41，主输入草稿保留，父 Run 仍一轮。日志 `/tmp/molis-b59-dev-subtask-5.log`，实物图 `.impeccable/qa/review/b59-dev-sdk-before.png`、`b59-dev-sdk-after.png`；不是用户本人验收。最新资源候选共享懒包 95,579 B、Coding 392,680 B（gzip 34,383/131,526 B），最终许可仍须对最新 main 独立基线复量。全批必跑、视觉对照、C/D 最终头合审、CI Full、收尾和合入均继续保留。
+
+### 12.18 D 轨实物复核：来源、焦点与迟到恢复
+
+2026-11-17，D 轨对 `e4cf943edd` 的增量审阅仍有三项 P1，前述短窗 scoped 通过不代表完整体验通过。第一，SDK 把任务板协议拼到原 caller 开场，适配器又把 peer 回报当用户话显示；本批沿已授权的可信输入/父子回报窗口修正来源分隔及投影，不按字符串猜测或篡改历史。任务原文、SDK 执行材料和真实本人补充分开，模型仍收到必要协议，父回报继续沿原 Session 只投递一次。上游改动须独立审查、合入后再采用官方包，不混入 §12.10 待决目录授权。
+
+第二，原入口被正常流式/状态刷新重建后，关窗须按原任务与入口位置找回当前按钮；不能仅记旧 DOM 或改把当前任意焦点当返回点。第三，异步草稿完成后的初始阅读位置恢复必须让用户后续鼠标、触控和键盘操作优先；关闭前记录用户实际位置，旧挂载的迟到结果不影响另一子任务。两项沿原生命周期和既有浮窗实现，不新增页面、控件、消息账或恢复服务。
+
+验证 SAI-03/04/07/11/14：原消息来源和模型实际上下文；助理与 Coding 原入口刷新后的真实键盘关窗与逻辑焦点；延迟草稿期间真实滚轮操作、加载前关闭及兄弟切换。复量已批资源，定向回归后交 D 轨复核；最终工程、产品实操和本人验收仍分别记录。
+
+2026-11-17 增量进度：上游来源分隔修复经独立审查合入 [Prologue #132](https://github.com/molis-ai/molis-prologue/pull/132)，官方 main `46d8920badfcc18ce24482639251b6f63ff5ff65` 与审过的 `3ff1be2e` 同树。两份独立 archive 构建包逐字节相同，1,486,210 B，SHA-256 `5469736d20b346462d812f9a3c0049c36a7e379b522bf3121e0d2fd7d8436ece`，本批已采用并整仓构建通过。上游 5 文件 25 项与 build/types/API/ratchet/docs/clean-consumer 通过；CI run 44124086839 的官方 annotation 为付款/额度未启动，不记 CI 通过。没有目录重授权改动。
+
+D2/D3 定向证据：Coding TaskBoard/卡片/成果三种真实入口，在实际执行状态重绘后用键盘关窗，3/3 通过；公共组件含真实滚轮取消迟到恢复、加载中关闭及兄弟切换，17/17 通过；frame 1/1。README 必跑首轮 228 文件中 220 通过、8 失败；逐项修正挂载检查、字面量文案、合同夹具/断言及版本登记后，本轮 13 文件中 12 通过，助理回归正在用受控的第二次回复重验真正的执行中重绘与闭窗后未读结果。未将旧证据或中途组合称为最终通过，D1 父回报与重试开场的完整来源仍待 C/D 复核。
+
+资源申请（待用户决定）：对 main `b63321c273` 独立基线，当前 Coding 原脚本 359,809 → 395,439 B（净增 35,630 B，gzip 132,055 B）。比已批 +33,000 B 超 2,630 B，来自保留 Coding 原字面量文案约定的映射及真实入口焦点恢复，未改门禁、翻译检查或构建压缩口径。申请将该单项上限调整为 +36,000 B；批准前仍按原 +33,000 B 登记，不能据此通过资源门禁。共享懒包当前 95,796 B（gzip 34,483 B），仍低于已批 100,000 B。两项许可互不挪用。
+
+用户于 2026-11-17 明确批准 Coding 单项增量上限调整为 **36,000 B**；原 +33,000 B 被这项新许可替代，共享懒包 100,000 B 独立不变。许可已同步，最终同步 main 后仍须按实际产物复量。
+
+C 轨增量复核确认重试身份 P1：SDK `role:user` 和 `user-requested` 只证明模型调用开场/操作来源，不能证明正文由本人写。最小修正是在原父尝试索引的同次写入中保存精确新 Run 的本人 continue 标记，复用已有 `subagent_retry_tasks` 原文；投影只据此认定本人继续，SDK 的原补充/答案继续据其原回执。首轮委派、Host 拼接的有/无理由重试及缺来源历史均作为 notice 保留可读，不凭文本相似或 source 推断本人，不新建消息账或兼容迁移。验证同为 user-requested 的本人继续与无理由重试，并重开 Host 对照投影。
+
+D 补审剩余两项交错一并修正：关窗回焦只在关闭时焦点仍由浮窗持有才执行，点主输入等窗外控件时尊重已选接收者；关闭/返回/切子项及 Escape 属导航，不清除尚未完成布局的已存阅读位置。补实际窗外点击后输入、加载中未滚动直接点关闭再重开的回归。父 peer 改成 notice 仍带内部 ID 的问题继续保留，需按结构化原始来源给出可读摘要，不能仅换灰色样式或按字符串裁剪。
+
+D1 父通知显示合同增量（代码前合审）：原 `AgentTurnView` 拟加可选 `notice: "peer-update" | "subagent-input"`，仅是无正文通知的显示种类，`kind` 仍为 notice。已验证的原结果摘要直接放 `text`；本人补充通知只标 `subagent-input`，不抄本人正文；旧附件缺失或不完整则 `peer-update`，`text` 为空，由消费者已有词表显示通用通知。原模型事件及协议正文不改、不存第二账。一个纯投影根据 prompt 的原 injection 查原 Envelope，核 from/to、唯一 child/parent-run/attempt 附件与 SDK 原归属；当前父 Session 的后来 Run 可消费旧父 Run 的结果，绝不拿 child 的最新 report 顶替旧摘要。普通 peer 只显示原 Envelope body，不冒认子结果；没有原信封证明时显示通用通知。live、restored 与子对话复用同一投影，助理主对话、Coding 主对话及共用子对话补齐本地化显示。验证精确双 attempt、迟到父 Run、重开、普通 peer、伪归属和旧缺元数据，并继续保留模型实际协议。
+
+最新 D2/D3 证据 `/tmp/molis-b59-focus-intent-tests.log`：助理 4/4、Coding 3/3、公共组件 17/17、插件浮窗 1/1；关闭按钮和键盘、重绘回焦、窗外输入、迟到草稿两种阅读意图均通过。来源证明 `/tmp/molis-b59-person-proof-tests.log` 第一条含拒绝父、重复父/marker、错误 marker 形状、多 caller 负例通过；该文件唯一失败仍为 §12.10 的 ROOT_NOT_FOUND，未记整批通过。
+
+C 轨 2026-11-17 代码前合审通过上述 D1 显示合同：notice 仅在 kind 为 notice 且 text 为空时生效；原父 Session 的后续 Run 可以消费旧父回报；子回报附件缺失、冲突或归属不符时不得退回协议正文。实现须同时修正 peer 先于 caller 到达时的首开场去重，并覆盖所有消费者的空正文通知。D2 已复核关闭；D3 补上 close/back 按钮获焦的真实 PageDown 后，完整公共组件 17/17 通过，待 D 轨最终复核。
+
+本轮 C/D 只读复核已关闭本人开场来源、D2 和 D3，另指出两个 D1 漏口：SDK 父 Session 给自己的等待注入没有子回报附件，旧 SDK 的 caller 开场又混有任务板指令。自注入按精确 from/to 归属投影为通用通知；子任务正文和摘要只取父索引证明的原委派/原重试原文，无法证明的开场投影为空 notice（新增显示种类 `task-unavailable`，由现有消费者本地化为“原任务说明不可用”），摘要同样不回退原混合 prompt。原消息账、模型输入、回复及本人补充均保留，不按文本内容切割、不迁移历史、不增加权限或入口。补旧历史、模糊来源与自注入的真实 Node 回归和已有浮窗浏览器证据；这不包含 §12.10 待决目录授权。
+
+C 轨代码前合审补充两条实施边界：Host 重试必须同时有已核验的原委派和本次 Run 的原重试文本，不能只凭 `subagent_retry_tasks` 展示旧 v1 混合说明；公开 `AgentSubagentView.task` 明确为“已核验的原任务说明，缺证据时为空”。缺原任务时 Coding 仍保存原评价，但不预填返工草稿，并在现有状态位置说明原因。D 轨已确认中英文占位及已有入口的展示范围。
+
+本轮已采用 [Prologue #133](https://github.com/molis-ai/molis-prologue/pull/133) 的官方 main `97ee66172c356366e6032c69264c1b393b1dc74d`，与独立审过的 `98429521b8123cd1749fdd67028e784d3fc1bbfe` 同树。两份独立 archive 构建的包逐字节相同，1,486,978 B，SHA-256 `df27da3fd1f7a8a1f358991730f5d0f83f1324f9ba962b53607b0ce8d50a0a6a`。上游 build/types/API/ratchet/docs/clean-consumer 及相关边界回归通过；CI run 44133072297 因付款/额度未启动，不记 CI 通过。包只补原信封显示摘要与精确 attempt 归属，不包含待决目录重授权。
+
+同步 main `dbcf562a67` 后构建与快照重生成通过（合并头 `a45da4ad5b`）。资源门禁独立基线通过：Coding 359,809→395,544 B（+35,735 B，gzip 132,196 B），共享懒包 96,161 B（gzip 34,618 B）；两项在已批 36,000/100,000 B 内。字面量翻译改用 SDK 同一函数的 const 引用，保持每次读取当前语言及原门禁追踪，不改压缩口径或门禁。
+
+本轮验证：`/tmp/molis-b59-unavailable-browser-tests.log` 中子任务 8/8、source 6/6、Coding rich HTML 2/2、Coding 状态/原成果/中英文返工 7/7 通过；会话 4/5，唯一失败仍是 §12.10 的 `ROOT_NOT_FOUND`。首条 Node 回归包含真实 Session 的旧 v1 首开场及旧重试，验证显示占位、原 SDK 历史仍可读取、本人补充和结果保留；父 Session 自通知仍进入实际模型但不进界面正文。共用浮窗中英文实物 `/tmp/molis-b59-unavailable-locales-final.log` 1/1 通过，截图在已忽略的 `.impeccable/qa/review/b59-unavailable/`；此浏览器用已投影的 owner fixture 验公共 source 和组件，不能代替 SDK 端到端或本人验收。C/D 轨已关闭本轮 P1（D 已查看中英文截图），当前 health 门禁通过且无翻译问题；完整统一验证、全 PR 评审、CI Full、收尾五问与合入尚未完成。
+
+同步后的消费者复验：Coding 三入口 3/3、助理四条路径 4/4、原 TaskBoard HTTP 1/1、助理 SDK 通知 1/1、原子轮次 1/1 通过（`/tmp/molis-b59-dbcf-consumers.log`）。换包测试暴露四处旧版本固定预期与漏记的新审计提交，已按官方 #133 更新，旧包记录及哈希检查保留；实际核过本批换下六份包的 Git blob、大小、SHA-256 及源码祖先关系，来源回归 79/79 通过（`/tmp/molis-b59-vendor-final.log`）。本轮测试、Auth/Work 与定样预览服务已清理本会话临时进程；独立 dev Home、浏览器资料及 #133 双打包目录已移除，截图和脱敏通过摘要保留。批次分支/工作树继续保留以完成 §12.10 后续，未声称完成整批清理或五问。
+
+### 12.19 第 59 批验收索引
+
+本机产品验证使用隔离 Home、专用测试浏览器和当前构建。实际 Provider 实操见 §12.17，角色及原问卷的停机恢复见 §12.10。正式体验由一骏按 [BL-b59-subtask-acceptance](../backlog/BL-b59-subtask-acceptance.md) 试用。
+
+| 编号 | 验证路径和可观察结果 |
+| --- | --- |
+| SAI-01 | `assistant-subtasks.e2e` 从 Home、项目分别打开真实 Work 与 SDK 子任务。`coding-subtask-real-entry.e2e` 从任务面板、时间线卡片、原成果面板进入同一子对话，核对角色、状态及原父任务。 |
+| SAI-02 | §12.17 的真实 Provider Coding 追问与 dev Auth 登录后的助理 SDK 追问，均沿原子 Session 保留上下文。Work 对话沿原委派执行端验证。 |
+| SAI-03 | `prologue-subagent-conversation`、`agent-input-delivery` 核对原本人输入、接收及消费回执。模型实际读取该输入，界面只把有本人原件的消息标为本人。 |
+| SAI-04 | `subtask-conversation.e2e`、`subtask-source` 与 `assistant-coding-subtask-question` 制造切换、原回执未知、两次请求竞争和草稿更新的交错，查询原请求无重复投递或派出。 |
+| SAI-05 | `prologue-subagent-conversation` 保留旧结果和逻辑子任务，明确继续只开一个 Run。同键重放与竞争启动沿原 Session，旧 Run 请求被拒。 |
+| SAI-06 | `assistant-subtask-original-question.e2e`、`assistant-subtask-original-review.e2e`、`prologue-subagent-conversation` 走原问卷和审批。普通补充不结算问题；重启后答题与明确继续各有独立原回执。 |
+| SAI-07 | `assistant-delegation`、`assistant-sdk-subtask-notices`、`prologue-subagents` 检查活跃、等待和终态父任务，原输入或结果关联原父 Run，终态父任务只收到新进展提示。 |
+| SAI-08 | `coding-subagents-http`、`prologue-subagents`、`prologue-subagent-conversation` 覆盖错 owner、安装、项目、旧 Run、失权及目录更换，拒绝后子模型零调用，原答案仍在原队列。 |
+| SAI-09 | `assistant-delegation`、`prologue-subagent-conversation` 与原审批收回回归覆盖兄弟停止隔离及迟到审批，撤权后的请求不替其他执行者派出或写入。 |
+| SAI-10 | §12.10 的真实 Node 重启分别覆盖共享目录、指定独立工作树和业务角色；检查原历史、同逻辑子任务、只消费一次、父 Run 保持终态及已知不可核对状态。 |
+| SAI-11 | `subtask-conversation.e2e`、`assistant-subtask-navigation.e2e`、`coding-subtask-real-entry.e2e` 检查焦点、选区、草稿、滚动、兄弟切换和输入法，兼顾原入口被重绘后的关闭回焦。 |
+| SAI-12 | 两入口实操和用户选定的 B 样稿见 §12.14、§12.17，最终本人试用记录留在 BL-b59-subtask-acceptance。 |
+| SAI-13 | 定样中英／深浅／三宽度和减少动态效果，真实短窗、键盘及长草稿浏览器回归见 §12.17～18；最终本人试用留在同一验收单。 |
+| SAI-14 | `coding-subtask-entry.e2e`、`coding-state-rings.e2e`、`assistant-subtask-original-review.e2e`、`prologue-writer-authority` 走原审批、停止、评价及成果面板。继续对话保持原成果的确认入口。 |
+| SAI-15 | `plugin-sample.e2e` 离线安装公开 contracts/SDK 后验证子任务 source、原请求及草稿；`vendor-provenance` 校验实际 SDK 产物和来源。Work 的真实入口沿 §12.17 实操。 |
+
+首屏实测（`479378f043` 对 `dbcf562a67`，2026-11-17）：第 59 批文案更新产生中英文启动词包的新内容地址。静态资源门禁已在独立基线对比通过，Coding +35,735 B，共用懒包 96,161 B。首屏门禁另按真实 HTTP 计量，报告以下实际净增。两个词包路径替代各自的旧版本。下表是用户批准时的测量；当前构建的较低上限见 §12.21 和[本批首屏许可](../../tooling/gates/page-asset-allowances/batch-59-first-screen.json)。
+
+| 页面 | 中文冷／热 | 英文冷／热 |
+| --- | ---: | ---: |
+| 到达页 | +6,940 / 0 B | +6,963 / 0 B |
+| 项目选择 | +12,831 / +5,891 B | +12,854 / +5,891 B |
+| 新项目工作台 | +12,508 / 0 B | +12,531 / 0 B |
+| 全插件工作台 | +12,508 / 0 B | +12,531 / 0 B |
+
+首屏词包路径为 `/assets/locale/workbench.zh.82b88c379da6da1b63726292.js` 与 `/assets/locale/workbench.en.2504d1a20d07d42216a73edd.js`。详见本机日志 `/tmp/molis-b59-479-first-screen.log`。第 36 批同步后现行地址和逐页实测见 §12.26。
+
+### 12.20 父结果通知的最小查询
+
+本批全 PR 预审发现，助理每次读取全局通知都重放所有 Work 的父 Run 和子尝试历史。结果仍须覆盖超过列表 50 项的旧父任务、原子任务的多次尝试和重启后的已读状态。
+
+扩充仅供可信 Host 消费的 `AgentSubagentsCapability.resultCandidates(parents)`。输入来自助理原 Work，限已选择的父 Session。Prologue 从现有子代理登记返回原父 Run、原子任务和可能已结束的尝试引用。早于当前的尝试已由原接续合同收口，当前只列登记处于终态的尝试。助理一次读取原通知表各状态的去重键，只对尚未通知的引用按父 Run 合并读取，经现有 owner 核归属、终态和原角色。写入仍使用原通知表，同键保持原已读状态。父任务在等待期间归档或撤回时不通知。
+
+检验顺序与并发读取、超出列表窗口的旧 Work、旧尝试、多尝试、已读后重开、归档交错；顺序读取与重开对已有回执均为零次历史重放。没有新增表、计时轮询或通知缓存，页面行为沿既有浮窗与提示。合同先做只读设计复核，再写代码、刷 API 快照，由 C 轨在最终 PR 合审。
+
+### 12.21 实际安装包与最终视觉对照
+
+对生产源码 `b99499391d7f313b2bf9f1df0b3a81386ebd804e` 构建和生成本地 npm 归档。实际归档为 27,339,228 B，SHA-256 `d3d22dcff1006edb16dde50b6f62cd770c790a703c96d944c74858935efc0669`。在隔离目录安装后，确认 Desktop、Local Host、Agent Host、Coding 及 Prologue SDK 均从安装归档解析。相同产品浏览器用例经包装后的真实 Runtime、HTTP 与专用浏览器运行，助理 Home／项目 × Work／SDK 为 4/4，Coding 三入口 3/3，真实 Node 子对话与重启 6/6。模型在这些用例中使用本机受控 HTTP，实际 Provider 路径见 §12.17。
+
+全批预审指出原 Coding 控制误报成功、两个 README 仍列旧控制动作，以及助理每次刷新通知重读全历史。原卡片与成果面板现在分别报告原动作拒绝和未知状态，复用既有文案与浏览器错误路径。README 已改用现行动作。§12.20 的通知查询保留已处理回执、旧父结果与归档后的拒绝。定向业务、原任务报告、Node 执行、Coding HTTP 与通知共 5 文件、96 项通过，独立源码增量复核已关闭三项。
+
+以最新 main `dbcf562a67` 逐像素比较 1440／1024／390、深浅色，严格对照为 65/66 张一致，22/22 份样式一致。差异仅文件侧栏 1024 浅色的 20 个圆角像素。此前对照的 base 与本次候选逐像素一致，此前候选与本次 base 也逐像素一致。正式严格结果保留，本次复拍的诊断另记。原报告位于 `.impeccable/qa/review/b59-final-visual/report.html`。
+
+同一 `dbcf562a67` 构建复拍，原与复拍图在同样坐标出现同样 20 个像素差异，复拍图与本批候选逐像素一致。严格结果仍为 65/66、样式 22/22，复拍只说明采集波动。独立主线构建的静态资源门禁 67 项通过（`/tmp/molis-b59-b994-assets.log`）。
+
+统一验证保留 `workbench-current-tabs.e2e` 首败。本批与干净 `dbcf562a67` 均在同一个 RAC-2687 跨进程恢复断言失败，首个浏览器退出时本机启动器删除了测试要跨进程使用的资料目录。改由该用例负责专用浏览器资料的生命周期，本批整文件 3/3 通过，仍执行原断言（`/tmp/molis-b59-current-tabs-baseline.log`、`/tmp/molis-b59-current-tabs-managed.log`）。
+
+窄屏检查发现，`work-line-layout.e2e` 的 WLN-35/WLN-18 在主线通过、在本批 390px 失败。共享浮窗样式把子对话的固定高度用到了原任务列表。恢复原手机列表的内容撑高和两侧定位，仅在已打开子对话时使用子对话尺寸。沿原浏览器断言复测任务面板、窄窗原问卷和浮窗控制。
+
+窄屏修正 `e6e9dfbbc9` 已通过原 WLN-35/WLN-18 定向断言。静态资源对同一独立构建基点复测 67 项通过。到达页和工作台 CSS 各比前一次少 52 B，Coding 仍净增 35,735 B，共享懒包仍为 96,161 B。两条首屏词包地址沿 §12.19。当前实测到达页中文／英文冷增 6,836／6,859 B，项目选择冷增 12,727／12,750 B，中文与英文热增均为 5,891 B；新项目和全插件工作台冷增 12,456／12,479 B，其他热加载无增长。
+
+窄屏修正后重打实际 Molis npm 包，27,339,218 B，SHA-256 `60eaef6b19f6ddbc9b2515915fca84d87cea02ec4fa78e6a0b224100b33ebcbf`。隔离安装后运行助理 4/4、Coding 3/3、Node 子对话与恢复 6/6、原工作线布局 10/10，共 4 文件、23 项通过。最新候选独立采集后对同一 main 复拍基线严格比较，66/66 图片与 22/22 样式均一致。报告位于 `.impeccable/qa/review/b59-phone-visual/compare/report.html`；前一严格对照和同树复拍原记录保留。
+
+### 12.22 统一回归发现的角色与键盘问题
+
+`agent-definitions.test.ts` 在基点 `dbcf562a67` 为 11/11，在 `e6e9dfbbc9` 为 10/11。助理原 Work 与本批业务 SDK 子任务共用委派角色和原角色提示词。注册读取给同一角色产生了两个相同键，提示词的使用角色也因此重复。设置只显示一次原业务角色及其两层提示词，沿既有标记显示该角色可作为子任务。SDK 派发和 Work 的原角色声明、版本、权限及提示词内容照旧冻结。
+
+`subtask-conversation.e2e.test.ts` 首次在关闭按钮聚焦后，PageDown 的稳定位置断言得到 11 与 27。用例在复位滚动的同一轮订阅 `scrollend`，可能先接到复位事件。复测将准备动作与 PageDown 分开，待键盘实际滚动结束后再兑现延迟草稿，保留关闭和返回两个入口的同一位置断言。
+
+本机另有两处既有安装插件回归。[BL-installed-plugin-mac-fixtures](../backlog/BL-installed-plugin-mac-fixtures.md) 记录用 Node 24.15 在干净 `dbcf562a67` 原样复现的 `installed-plugin-policy` 403 与超时（0/11），及 `installed-plugin-host` 同一个 Feed 重启断言（39/40）。两处沿原权限断言和夹具保留首败。
+
+候选 `e6e9dfbbc9` 的统一回归首轮跑完 380 文件，376 个文件通过。修正 `aa243ba6f8` 用仓库规定的 Node 24.15 重建，六个受影响套件共 144 项通过。角色套件 11/11，子对话浏览器套件 17/17，PageDown 另一次整文件复跑 17/17。其余四个套件核对 SDK 业务授权、中英文设置、提示词登记和能力包实物。加上先前通过且不受窄屏或本次修正影响的 18 文件，本批范围为 398 文件。其中两文件按上段保留主线同样失败，另有一个需主动开启的独立实网测试按默认跳过。清单、首败与复验留在 `/tmp/molis-b59-e6-validation-files.txt`、`/tmp/molis-b59-e6-reused-list.txt`、统一日志及 `/tmp/molis-b59-role-keyboard-targets.log`、`/tmp/molis-b59-role-keyboard-second.log`。
+
+最终源码的本机 npm 包为 27,339,425 B，SHA-256 `c53feb014192a1b88fa91072e3abd004f83cdc667cc832accd508b3f70aa817d`。确认 Host、Desktop、Coding 和 SDK 解析自隔离安装的包，复走 4 文件、23/23，包括助理四条来源、Coding 三入口、同目录重启和旧工作线布局。静态资源复查 67 项通过，首屏两条词包路径和四类页面冷热数字与 §12.21 相同。用户于 2026-11-17 选择「批准新词包地址和逐页实测上限（推荐）」。首屏许可登记为复测后的逐页数值，最大冷增 12,750 B，热增仅项目选择页 5,891 B。
+
+本机临时基线工作树已核实际提交、干净状态与占用后移除。安装、基线和首败的日志保留，现有页面截图对照沿 §12.21。
+
+### 12.23 CI 的问卷与页面授权回归
+
+[普通 CI 首败](https://github.com/molis-ai/molis-work/actions/runs/44205816632/job/134471710946) 在 `agent-reference-questions.test.ts` 的 BL-152 旧断言在两次尝试中均失败。用例沿用了子任务一律不能持有 `ask-user` 的旧前提，本批已在 §12.9 开放显式声明与冻结的问卷权限。本机复现同一断言失败。
+
+用现行 Coding Manifest 实际启动父子 Run，分别断言获准子角色的问卷只继承同一项目的精确引用类型，以及去掉子角色声明时即使派发请求点名 `ask-user` 也不暴露该工具。测试实际经过父轮、派发与原问卷工具的注册。定向用例与真实 Node 子对话、重启共 20/20 通过，旧断言首败留在 CI 与本机日志。
+
+[安全不变量 CI 首败](https://github.com/molis-ai/molis-work/actions/runs/44205816632/job/134471711092) 中，`S-page-entry-actions` 的通用测试夹具把新增子任务操作的 `body.anyOf` 生成成字符串，校验在鉴权前返回输入无效。夹具现在识别一组选项、常量及数值下限，生成该已注册动作的合法输入。权限用例仍要求原始 `actions.forbidden`，同时核对其他来源、另一扇门和已撤销请求的拒绝。两处 CI 修正连同原 Node 子对话，在 macOS 与 Linux 容器分别通过 24/24。
+
+### 12.24 任务板子步骤的 Full 回归
+
+[Full 第 10 片首败](https://github.com/molis-ai/molis-work/actions/runs/44208478681/job/134480452235) 由 PA-11 的脚本模型解析旧步骤提示导致。已采用的 Prologue 把原任务板和步骤标识放在系统内容的独立 JSON 引用中，用户消息保留原任务。用例读取 SDK 的现行引用，仍实际执行子步骤回报、父任务等待结算，以及跨项目、跨会话和终态回报拒绝。任务板和原子对话的本机定向回归 8/8；任务板 Linux 复测 2/2。
+
+[安全分片的 Git 审批走查](https://github.com/molis-ai/molis-work/actions/runs/44208117643/job/134479652774) 在从覆盖页回到 Git 后等待可见审批槽超时。同一生产树的[前一普通 CI 安全分片](https://github.com/molis-ai/molis-work/actions/runs/44205816632/job/134471711092) 中该文件 2/2。首次尝试 Linux 基线时，容器取提交失败并继续跑了缓存检出，撤回该次基线结论。用同一镜像与三倍 CPU 节流重新检出并核对实际提交，干净主线 `dbcf562a67` 与候选 `270739c0eb` 各通过 2/2，候选 macOS 的节流复测也是 2/2。原负向审批断言、两个布局时序和 CI 首败均保留。[BL-linux-repro-source-head](../backlog/BL-linux-repro-source-head.md) 记录容器工具的检出核对缺口。
+
+### 12.25 原入口与组件板的 Full 回归
+
+[第 36 片首败](https://github.com/molis-ai/molis-work/actions/runs/44208478681/job/134480454807) 的 BL-051、BL-182 仍按旧接口重试。用例改用原子 Run 与独立请求键，读取新回执与真实子状态，继续检查冻结模型、原尝试来源、额度耗尽、增加三次额度、未知子任务拒绝。修正后与 PA-11 一起在 macOS 通过 12/12。
+
+[第 31 片首败](https://github.com/molis-ai/molis-work/actions/runs/44208478681/job/134480452243) 的 VUX-39 助理标本仍期待切换主对话，标本也缺少原子任务查询。已有标本接上共享浮窗和原委托的只读样例，打开后验证原父任务标题、验收原文、主对话保留及返回。外壳和账号生命周期沿用现有实现。组件板专用内联脚本从 16,670 B 到 26,038 B（+9,368 B）。组件板助理 3/3、子对话实物 1/1、真实助理两入口 4/4；该片项目设置用例首轮超时，CI 内重试通过，本机全文件 8/8。
+
+[第 43 片首败与重试](https://github.com/molis-ai/molis-work/actions/runs/44208478681/job/134480455209) 的 RISK-06 在 390px 提交备注时丢字。候选 `270739c0eb` 在 Linux 同一位置失败，干净主线 `dbcf562a67` 定向 1/1。受控延迟真实复查回包，修前原输入连同焦点被整条记录重绘移除。打开记录和改状态时只刷新复查段，窄屏回归检查原输入、焦点和提交后记录，三种宽度全文件 3/3。风险页原脚本 49,362 → 49,513 B（+151 B）。
+
+[D 轨复核](https://github.com/molis-ai/molis-work/pull/2115#issuecomment-6966363930) 找到复查读取失败后的重试还有整条记录重绘。旧产物受控复现在点击重试后清空原备注。重试发起与回包均用同一个复查段渲染入口，测试在失败回包、发起重试和成功回包三个时点核对备注保留，再实际提交并读回。两份风险套件共 10/10；风险资源按 `dbcf562a67` 测得 49,362 → 49,531 B（+169 B）。
+
+### 12.26 同步第 36 批的角色合同
+
+[第 36 批 #2111](https://github.com/molis-ai/molis-work/pull/2111) 在本批合入前更新了项目及个人角色合同。本批在 `bdfcc36454` 上保留助理业务 SDK 子角色登记，父任务按第 36 批原版本和项目归属重新核权。接续读取父任务已经冻结的角色版本；停用限制新选择，移出项目或删除版本会拦下原角色的执行。
+
+合并父头为 `f1daf2db36` 与 `bdfcc36454`。再生公开 API、动作和版本快照后统一构建。加入父角色的接续验证，实际检查所读版本、正确项目和成员移出后的拒绝。角色宿主文件定向复跑 14/14，原首轮夹具缺少子任务能力的失败保留。健康门禁以新基点通过，助理服务 350 → 342 行，助理委派 331 → 314 行。
+
+独立构建实测 Coding 360,052 → 395,787 B（+35,735 B），助理共用懒包 96,161 B，风险原脚本 +169 B，工作台原脚本 +6,770 B。新基点角色文案合并后，两个启动词包的内容地址为 `/assets/locale/workbench.zh.c869ba678dd1e9cd9e6fcd87.js` 和 `/assets/locale/workbench.en.5844dcd1f5e783507bc7fd9d.js`。批准按中英文词包的内容寻址入口登记，四类页面仍逐项落在 §12.19 用户已批上限内。
+
+| 页面 | 中文冷／热净增 | 英文冷／热净增 |
+| --- | ---: | ---: |
+| 到达页 | 6,872 / 0 B | 6,824 / 0 B |
+| 项目选择 | 12,763 / 5,891 B | 12,715 / 5,891 B |
+| 新项目工作台 | 12,508 / 0 B | 12,460 / 0 B |
+| 全插件工作台 | 12,508 / 0 B | 12,460 / 0 B |
+
+前一远端头 `01069adc03` 的 [P1 登录作业](https://github.com/molis-ai/molis-work/actions/runs/44216395751/job/134507191009) 在模拟 GitHub 回调后发生 Chrome 调试目标导航关闭，之前的 [`270739c0eb` 普通 CI](https://github.com/molis-ai/molis-work/actions/runs/44212123536) 全绿。保留首败，在同步后的候选重新结算登录门禁。
+
+## 13. 第 59 批合后审计修复
+
+2026-11-17，从 #2115 合入提交 `6b0e8a4f837f2ee28d11f1220f5443a8294e75fb` 修复；同步 main 的审批 owner 合同 `eaa6b47492f06a795f4b3903cb656dd3c020f17f` 后，在本地提交 `a03d441267944d702bcb49141407159b4fc42e25` 完成工程与隔离 Home 复验。独立审计发现成功满额缺少加额入口、未发出的请求被保留为待核对、单子任务对话重复回读并混用执行引用，以及交付文档的最终证据入口过时。本次修复沿用原「内部完整」目标及第 58 批浮窗，权限、默认尝试额度和持久化沿各自 owner 的合同。
+
+| 验收编号 | 行为与证据 |
+| --- | --- |
+| B59-FIX-01（SAI-02、05） | 助理及 Coding 的 SDK 子任务成功用尽两次尝试后，在同一浮窗使用既有「再给 3 次」按钮。Host 明确投影是否可以加额，命令仍核对原执行及当前权限。加额只改额度，下一次明确发送才启动同一子会话的新尝试，旧结果与主输入保留。 |
+| B59-FIX-02（SAI-04、09、10） | 助理 Work 和 SDK 子输入都以当前编辑器实际读到或保存的版本结算，较旧的提交不覆盖另一页较新的草稿。助理 Work 草稿写入失败后保留文字，重试沿原输入恢复保存和继续；按钮重绘时浮窗仍保持打开。登记冲突重试时重新检查浮窗生命信号。确认未提交而本地清理失败时，在原待定记录标记未发，重开后可继续在本地清理。交给传输层后结果不清楚，继续查原回执。 |
+| B59-FIX-03（SAI-01、10、11、13） | Agent Host 以原父 Run／子引用定位单一 SDK 子任务，同次请求的执行引用、状态、历史及原问题来自同一次子任务读取。对话与继续只读目标子任务的原历史。订阅视图用于首绘与更新，与主动重读交错的订阅响应只触发当前读取，避免回到旧执行或恢复已拒绝的视图。助理未变的等待版本只回执版本。Coding 子任务结束后的 TaskBoard 刷新保留刚回到原逻辑入口的焦点。 |
+| B59-FIX-04（SAI-15） | 更新本需求和路线书第 59 批的现行摘要，链接最终合入、最终签署、安装包、SDK 来源、工程复验与本人验收记录。按时间阅读的旧检查点仍可追溯。 |
+
+Agent Host 从 Prologue 读取原子任务执行与事件，以公开对话合同提供加额资格和订阅视图。助理与 Coding 沿现有路由把投影交给插件 SDK。SDK 管浮窗生命周期和草稿，动作由原回执结算，额度与接续由 Host 按原 Run 及当前权限提交。Work 来源仍由助理原委派入口提交和查回执。
+
+### 最终复验
+
+- 修复 PR #2122 的最终头 `4a28fa9a82653d85bf4a8c25634e2a33e2873334` 已于 2026-11-18 经队列合入 main，合入提交 `2315213aba5fbadaf0fff77f8956226b69d566f9` 的代码树与最终头一致。[PR #2122](https://github.com/molis-ai/molis-work/pull/2122) · [合入提交](https://github.com/molis-ai/molis-work/commit/2315213aba5fbadaf0fff77f8956226b69d566f9) · [CI Verify](https://github.com/molis-ai/molis-work/actions/runs/44258849724/job/134653785494) · [Full 48/48](https://github.com/molis-ai/molis-work/actions/runs/44259247359) · [队列 Verify](https://github.com/molis-ai/molis-work/actions/runs/44267271598/job/134686312491)
+- Full 保留同头第一次的 40 个通过分片，补跑 8 个失败或取消的分片。设置页 1024×400 用例第一次两次触及 60 秒限制，主线基线和最终头的 Linux 定向均通过，同头补跑设置页文件首跑 4/4。[首次设置页分片](https://github.com/molis-ai/molis-work/actions/runs/44259247359/job/134648306434) · [补跑设置页分片](https://github.com/molis-ai/molis-work/actions/runs/44259247359/job/134663003344)
+- 最终头隔离浏览器 13/13。Linux 容器三倍 CPU 节流下，Coding 三个入口 3/3，原问卷 2/2。GitHub 的原问卷文件在 Full 首次和补跑均首跑 2/2，先前本机超时未再现。[Coding 分片](https://github.com/molis-ai/molis-work/actions/runs/44259247359/job/134648306902) · [原问卷分片](https://github.com/molis-ai/molis-work/actions/runs/44259247359/job/134663003599)
+- 初次本机复验使用 Node 24.15.0。整仓构建、API／动作快照、包边界与健康门禁通过，23 个定向文件共 313 项通过，其中专用浏览器 8 文件、31 项，文档与词包 2 文件、106 项。当时并行跑测的助理 Work 原问卷等待结果超时一次。同一提交单独复跑原文件三次，每次 2/2 通过，原因未确定。
+- 实际 Node SDK 的 `prologue-subagent-conversation` 在 A 的原 Session 读取处注入错误，在 B 的旧读取中启动新尝试。B 的旧响应保留原 Run、终态与历史，下一次读取返回新 Run 与新输入。该文件同时回归原问卷、原回执、停机接续与原目录授权。`subtask-source` 验证未提交回退、原回执丢失和订阅响应直用。
+- PR 评审补验在旧提交复现迟到投影覆盖新视图、跨页草稿被旧登记覆盖、未发出的请求误查远端、助理 Work 草稿保存失败后无法重试。回归覆盖另一页在登记前或登记中保存、重建来源后本地清理、助理未变的等待回执及原重试按钮。对照 `eaa6b47492`，助理浮窗与 Coding 的原脚本实测分别增加 2,329 B、1,840 B。[本次资源许可](../../tooling/gates/page-asset-allowances/batch-59-audit-followups.json)
+- `491cbea548` 的首轮 Full 在 Coding 的 TaskBoard 回焦用例两次失败，原问卷所在分片随之取消。受控模型让子任务在关窗回焦后完成，复现了重绘移除原按钮时焦点掉到页面的情况。TaskBoard 只在自己的原焦点被移除时恢复到同一任务的按钮。[首轮失败分片](https://github.com/molis-ai/molis-work/actions/runs/44255153651/job/134634960624)
+- `a03d441267` 的 Work 0.1.0 本机验证归档为 27,446,716 B，SHA-256 `bf49217b9238e261f83581f07cc90b7c7973796dea150f8ffa429ab03a6b9947`。归档的构建源指纹与该提交的生产输入一致，实际采用 Prologue SDK 0.0.0-rc.1（上游 `64e5aaf444629aa597f028e63cf4090456830637`）。[SDK 来源](../../vendor/prologue-sdk/README.md)
+- 以本地 dev Auth 登录，用专用浏览器和受控 HTTP 模型操作实际安装包。助理 Home 和 Coding 消息卡片都在满额时关窗，抓到零次命令 POST。重开后各一次加额 POST，原子会话各开始一次第三尝试，模型读到前次结果，主输入草稿保留。Coding 原成果面板和 TaskBoard 也读到第三次结果。
+- 本次修复的外部模型 Provider 和一骏本人 SAI-12／13 仍待验证。[原 #2115 交付记录](../post-anticorruption-roadmap/reference/batches/59.md#交付记录) · [本人验收单](../backlog/BL-b59-subtask-acceptance.md)

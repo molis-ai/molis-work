@@ -377,6 +377,12 @@ export function agentRegistration(ownerId: string, source: AgentDefinitionSource
   });
   for (const child of manifest.subagents?.roles ?? []) {
     const execution = child.execution ?? "read-only";
+    // A delegated Work and an SDK child can share the same business role and prompt in Settings.
+    const businessRole = roles.find(role => role.role_id === child.role_id && role.workspace === "business");
+    if (businessRole?.execution === execution && businessRole.prompt_ids.includes(child.role_id)) {
+      businessRole.subagent = true;
+      continue;
+    }
     roles.push({ role_id: child.role_id, version: child.version, name: child.name, purpose: `子任务：${child.name}（${EXECUTION_WORDS[execution]}）`, execution,
       workspace: "required", prompt_ids: texts.some(text => text.prompt_id === child.role_id) ? [child.role_id] : [], subagent: true });
   }

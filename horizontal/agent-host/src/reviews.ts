@@ -117,6 +117,17 @@ function deciderRow(row: ReviewRow | undefined, hasDecider: boolean): ReviewRow 
  * the one-time authority. A rejected, expired or already-consumed review can
  * never be turned into permission by asking a second way.
  */
+function projectDecisionReceipt(row: ReviewRow, record: ReviewDecisionRecord): void {
+    row.decision = { reference: structuredClone(record.reference), decision_id: record.reference.id };
+    row.receipt = {
+      ...row.receipt,
+      status: record.decision === "approve" ? "approved" : "rejected",
+      decided_by: record.actor_id, decided_at: record.decided_at, note: record.note, source: structuredClone(record.source),
+      ...(record.source.kind === "policy" && record.source.owner === "agent.session-rule" ? { standing_rule: { set_by: record.source.set_by, set_at: record.source.set_at } } : {}),
+    };
+    delete row.receipt.decision_save_error;
+}
+
 export class AgentReviewQueue implements AgentReviewQueueApi {
   readonly permissions = new ReviewPermissionRules();
   readonly #claims = new Map<string, DecisionClaim>();
@@ -371,6 +382,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     let committed = false;
     const assertCurrent = () => {
       requireSynchronous(boundary?.assertCurrent?.(request));
+      if (!claim.responding) throw agentErrors.pending_not_open("原决定提交已结束");
       if (claim.cancelled) throw agentErrors.pending_not_open("原操作在决定保存期间被取消，决定不会送达");
       if (this.#closed || request.expires_at !== null && Date.parse(request.expires_at) <= this.#now().getTime()) throw agentErrors.review_expired("原审查已经结束或过期");
       if (input.decision === "approve") requireSynchronous(handler.assertApprovalCurrent?.());
@@ -406,8 +418,11 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     }, write) });
     try {
       const receipt = await handler.respond(input, commit);
-      if (key && committed && !receipt.delivery_error && !receipt.effect_error) this.permissions.rememberCommand(key, request, input.actor_id, row.receipt.decided_at!);
-      return receipt;
+      if (key && committed && !receipt.delivery_error && !receipt.effect_error) {
+        try { assertCurrent(); this.permissions.rememberCommand(key, request, input.actor_id, row.receipt.decided_at!); }
+        catch { this.rememberFailed(input.review_id, "原操作已决定，后续授权范围已变化，请重新设置"); }
+      }
+      return this.receipt(input.review_id)!;
     } catch (error) {
       if (committed) this.#consumed.add(input.review_id);
       throw error;
@@ -495,14 +510,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   #projectDecision(record: ReviewDecisionRecord): void {
     const row = this.#rows.get(record.reference.id);
     if (!row || !isDeepStrictEqual(row.request.reference, record.reference)) throw agentErrors.review_version_changed("已保存的决定属于另一份提案，不能用于本次执行");
-    row.decision = { reference: structuredClone(record.reference), decision_id: record.reference.id };
-    row.receipt = {
-      ...row.receipt,
-      status: record.decision === "approve" ? "approved" : "rejected",
-      decided_by: record.actor_id, decided_at: record.decided_at, note: record.note, source: structuredClone(record.source),
-      ...(record.source.kind === "policy" && record.source.owner === "agent.session-rule" ? { standing_rule: { set_by: record.source.set_by, set_at: record.source.set_at } } : {}),
-    };
-    delete row.receipt.decision_save_error;
+    projectDecisionReceipt(row, record);
     this.#release(record.reference.id, record.decision === "approve");
   }
 

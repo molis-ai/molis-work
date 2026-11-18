@@ -47,6 +47,8 @@ export interface WorkExecutorSession {
   runs: AgentRunView[];
   /** The Agent Host session its rounds run in, where their confirmations wait; null before the first round. */
   runtime_session_id: string | null;
+  /** Original runtime queue, including the Run which left an accepted answer for continuation. */
+  queued_inputs?: import("../services/agent-inputs.js").AgentQueuedInput[];
   /** An interrupted operation the person checks on the executor's own page before anything else is sent. */
   recovery: { message: string } | null;
   workspace_id?: string | null;
@@ -57,6 +59,7 @@ export interface WorkExecutorSessionUpdate { session_id: string; mode: string }
 export interface WorkExecutorRunStart {
   session_id: string;
   task: string;
+  resume_answer?: import("../services/agent-host-start.js").AgentStartRequest["resume_answer"];
   /**
    * Skills the delegating round hands this one, as exact references from the shared catalog (`skills.catalog.list@1`). What to load,
    * not who named them: a `manual` Skill here is read only if the Host bound it in `ActionCallContext.named_skills` for this call. At
@@ -67,7 +70,7 @@ export interface WorkExecutorRunStart {
 }
 export interface WorkExecutorRunStarted { run_id: string }
 type RoundRef = { session_id: string; run_id: string };
-export type WorkExecutorRunControl = RoundRef & ({ kind: "stop" | "pause" | "resume" } | (AgentAnswerControl & { pending_revision: number })
+export type WorkExecutorRunControl = RoundRef & ({ kind: "stop" | "pause" | "resume" } | (AgentAnswerControl & { pending_revision: number; continue_after_answer?: false })
   | ({ kind: "steer" } & AgentInputSend) | { kind: "withdraw"; input_id: string });
 export interface WorkExecutorRunControlResult { accepted: boolean; receipt?: AgentSteerReceipt }
 
@@ -124,16 +127,18 @@ export const WORK_EXECUTOR_PROTOCOL: Readonly<Record<WorkExecutorRole, WorkExecu
   "session.read": role("session.read", "query", inputSchemaFor<WorkExecutorSessionReadInput>()(closed({ session_id: id, window: { type: "integer", minimum: 1, maximum: 50 } }, ["session_id"])),
     closed({ session_id: id, title: { type: "string", maxLength: 200 }, mode: nullable(MODE), runs: list({ type: "object", required: ["ref", "phase", "turns"] }, 50),
       runtime_session_id: nullable(id), recovery: nullable(closed({ message: words(2000) })), workspace_id: nullable(id),
+      queued_inputs: list({ type: "object", required: ["input_id", "text", "source"] }),
       mcp_tools: list({ type: "object", required: ["server", "tool", "version", "configuration_version"] }) }, ["session_id", "title", "mode", "runs", "runtime_session_id", "recovery"])),
   "session.update": role("session.update", "command", inputSchemaFor<WorkExecutorSessionUpdate>()(closed({ session_id: id, mode: MODE })), closed({ session_id: id, mode: MODE })),
   "run.start": role("run.start", "command", inputSchemaFor<WorkExecutorRunStart>()(closed({ session_id: id, task: words(100_000),
+    resume_answer: closed({ run_id: id, pending_id: id, queued_input_id: id }),
     skills: { type: "array", maxItems: SKILL_REFS_MAX, items: skillRefSchema } }, ["session_id", "task"])), closed({ run_id: id })),
   // A questionnaire answer's items are the Agent Host's answer shape; the executor checks them against the question it asked.
   // So its input is not held to `WorkExecutorRunControl` yet: the interface says more than `{ type: "object" }` does (N22 S0, specs/action-input-contracts §5.1).
   "run.control": role("run.control", "command", { oneOf: [
-    control("answer", { ...answer, text: words(100_000) }), control("answer", { ...answer, answers: { type: "array", minItems: 1, maxItems: 10, items: { type: "object" } } }),
+    control("answer", { ...answer, text: words(100_000), continue_after_answer: { const: false } }, [...Object.keys(answer), "text"]), control("answer", { ...answer, answers: { type: "array", minItems: 1, maxItems: 10, items: { type: "object" } }, continue_after_answer: { const: false } }, [...Object.keys(answer), "answers"]),
     control("steer", { text: words(100_000), source: { enum: [...AGENT_INPUT_SOURCES] }, key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN },
-      mode: { enum: [...AGENT_STEER_MODES] }, about: words(200) }, ["text"]),
+      mode: { enum: [...AGENT_STEER_MODES] }, require_running: { const: true }, about: words(200) }, ["text"]),
     control("withdraw", { input_id: words(200) }), control("stop"), control("pause"), control("resume"),
   ] }, closed({ accepted: { type: "boolean" }, receipt: closed({ input_id: id, replayed: { type: "boolean" }, delivered: { enum: ["run", "queued"] } }) }, ["accepted"])),
 };

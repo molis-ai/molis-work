@@ -58,7 +58,7 @@ test("ASC-34: an earlier Send failing after a newer accepted input cannot replac
   const work = store.create({ actor_id: "user", title: "Waiting work", scope: { kind: "project", project_id: "project" },
     project_ref: { project_id: "project", storage_key: "memory:project" }, origin: null });
   try {
-    const earlier = assert.rejects(service.send({ work_id: work.work_id, request_id: "earlier-input", text: "Old request", character: { artifact_id: "character", version: 1 } }, {}));
+    const earlier = assert.rejects(service.send({ work_id: work.work_id, request_id: "earlier-input", text: "Old request", character: { kind: "project", member_id: "character" } }, {}));
     await entered.promise;
     const later = service.continuations.begin(store.get("user", work.work_id), "New draft");
     later.accept(); later.end();

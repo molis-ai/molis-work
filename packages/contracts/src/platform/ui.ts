@@ -25,6 +25,15 @@ type AgentStepState = AgentStepBoard["nodes"][number]["state"];
 /** The current contribution only; the Host chooses its address and rechecks its installation. */
 /** Refreshing the shell always uses its current address; plugins cannot select a host URL. */
 export interface UiPageView<Element = unknown> {
+  /** Open this same authorized contribution in the existing task float. Input only locates content; it grants no access.
+   * Closing restores the opening control's focus. Give that control a stable DOM id if rendering may replace it. */
+  openTask(input: Readonly<Record<string, string>>): Promise<void>;
+  /** Present only in a shell-created task projection. Its composer stays separate from the main input. */
+  readonly task?: {
+    readonly input: Readonly<Record<string, string>>;
+    subscribe(listener: (input: Readonly<Record<string, string>>) => void): () => void;
+    close(): void;
+  };
   /** An object's HTML uses this same owner and one declared main surface; the Host chooses its address. */
   readDocument(query?: { object?: { id: string; surface: string }; input?: Readonly<Record<string, string>>; signal?: AbortSignal }): Promise<string>;
   /** Replace the current own-action cleanup; null cancels it. The Host runs it before revoking this page. */

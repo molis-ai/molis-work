@@ -3,7 +3,7 @@ import { DraftReferences } from "./contextual/draft-references.js";
 import { skillCatalogProviderFor } from "./agent-definitions/skill-catalog-host.js";
 import type { ProjectPluginHost } from "./project-plugin-ports.js";
 import { kitProviders } from "./kit-actions.js";
-import { mainlineProvider } from "./mainline-actions.js";
+import { mainlineHost, mainlineProvider } from "./mainline-actions.js";
 import { acceptanceProvider } from "./acceptance-actions.js";
 import { resolveHostProjectReference } from "./acceptance-http.js";
 import { withConnectorsKitReport } from "./kit-mcp-reports.js";
@@ -304,7 +304,7 @@ export class MolisWorkLocalHost {
     const platform: ActionProviderRegistration[] = [
       accountActionProvider(() => accountSessionForHost(this)), ...(this.observation ? [this.observation.provider] : []), ...(this.sessions ? [this.sessions.provider] : []),
       actionUsagesProvider(callerClient, options.homeDirectory), contextOnboardingProvider(), agentReviewProvider(), assistantPanelProvider(), authorizationManagementProvider(), projectApprovalsProvider(), // the pages' writes, behind their doors (B9)
-      mainlineProvider(callerClient), ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
+      mainlineProvider(callerClient, options.homeDirectory ? mainlineHost(options.homeDirectory, this.plugins) : undefined), ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
       ...(this.assistantStore ? [assistantDelegationProvider({ host: this, works: this.assistantStore, permissions: async () => {
         const service = this.agents?.service;
         if (service) await service.ready;

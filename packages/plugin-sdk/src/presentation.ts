@@ -9,7 +9,7 @@ import { PLATFORM_TEXT_OWNER } from "./ui/text-keys.js";
 import { say } from "./ui/text.js";
 import { tryOwnedTextRef } from "./ui/text-ref.js";
 
-export { isPresentationOverviewReader, isPresentationValuesReader, presentationCatalog, validatePresentationDeclaration, type PresentationCatalog,
+export { isItemPart, isPresentationOverviewReader, isPresentationValuesReader, presentationCatalog, validatePresentationDeclaration, type PresentationCatalog,
   type PresentationCatalogAnswer } from "./presentation-declaration.js";
 export { assertSurfaceDescription, type CheckedSurfaceDescription, type SurfaceDrop } from "./surface-description.js";
 export { sandboxReadProtocolAction } from "./sandbox-read-protocol.js";

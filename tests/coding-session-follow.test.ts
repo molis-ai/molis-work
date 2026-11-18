@@ -33,12 +33,21 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
   const seenStates: string[] = [];
   let waits = 0;
   let waitSignal: AbortSignal | undefined, releaseWait: (() => void) | undefined;
+  // Coding's own observation job reads every session's standing 5 s after it starts and, as this fake leaves that read unanswered,
+  // records the session as unreadable under its own authority. On a slow machine that tick can land inside the refused call below.
+  // For the refused callers the job's status read is held until the case ends, so the states checked are the caller's and the
+  // follower's and nothing else; it is answered as before (unanswered) once released.
+  const observationHeld = Promise.withResolvers<void>();
+  if (!interruptedReceipt) observationHeld.resolve();
   const view = (phase: string) => ({ ref: { session_id: "sdk", run_id: "r1" }, phase, frozen: { role_id: "builder", text_materials: [] }, turns: [], activity: [], awaiting_input: [] });
   const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, args: Input, options?: { signal?: AbortSignal }): Promise<Output> {
     if (definition.capability_id === projectDirectoryActions.get.capability_id) return [{ workspace_id: "work", canonical_path: root, display_name: "work" }] as Output;
     if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
     if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
     if (definition.capability_id === agent.readSession.capability_id) return { runs: [] } as Output;
+    if (definition.capability_id === agent.readSessionStatuses.capability_id) {
+      await Promise.race([observationHeld.promise, new Promise((_, reject) => options?.signal?.addEventListener("abort", () => reject(options.signal!.reason), { once: true }))]);
+    }
     if (definition.capability_id === agent.startRun.capability_id) {
       if (mode === "cancel-receipt") controller.abort(new ActionError("actions.cancelled", "original call cancelled after Run acceptance"));
       return { ref: { session_id: "sdk", run_id: "r1" }, frozen: {} } as Output;
@@ -115,7 +124,7 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
     assert.equal(events.length, 1);
     assert.deepEqual(events[0]!.payload, { workspace_id: "work", session_id: "sdk", run_id: "r1", phase: "completed" });
     assert.equal(learningAdmissions, interruptedReceipt ? 0 : 1, "MEM-V0-C2 a Run accepted without its original request receipt never admits derived learning");
-  } finally { stopLearning(); await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { observationHeld.resolve(); stopLearning(); await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
 /**

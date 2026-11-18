@@ -363,16 +363,20 @@ test("memory switches hold the same when a Character carries the round; turning 
   const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
-  const editor = { character_id: "editor", title: "严格的编辑", instructions: "你是严格的编辑：每次回答先列出三处可改进的地方。", host_tools: null,
-    source: { owner_actor_id: LOCAL_PERSON_ACTOR_ID, draft_revision: 2 }, reference: { artifact_id: "character:project-a:editor", version: 2 }, project_id: "project-a",
-    content_digest: "digest-2", producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.4.0", binding_signature: "sig" }, published_at: "2026-09-28T00:00:00.000Z" };
+  // The role this project added: chosen by its stable member id, frozen at the member's saved version when the round starts.
+  const editorRef = { kind: "project" as const, member_id: "editor" };
+  const editor = { version: { kind: "project", member_id: "editor", member_version: 2, original: { kind: "personal", character_id: "editor", version: 1 } },
+    character_id: "editor", title: "严格的编辑", instructions: "你是严格的编辑：每次回答先列出三处可改进的地方。", host_tools: null,
+    project_id: "project-a", owner_actor_id: LOCAL_PERSON_ACTOR_ID, saved_at: "2026-09-28T00:00:00.000Z" };
+  const catalog = { in_project: true, originals: [], defaults: { personal: null, project: null }, effective: { kind: "assistant", source: "assistant" },
+    members: [{ title: editor.title, availability: { available: true }, role: { current: editor.version } }] };
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memory.memoryTools(work)),
-      memory: (task: string) => service.memory.memoryForRound(work, task), resolveCharacter: () => structuredClone(editor) as never }),
-    characters: async () => [{ reference: { ...editor.reference }, title: editor.title, available: true }],
+      memory: (task: string) => service.memory.memoryForRound(work, task), resolveCharacter: () => structuredClone(editor) as never, characterVersion: () => structuredClone(editor) as never }),
+    characters: async () => structuredClone(catalog) as never,
     projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: memoryForCall, memorySources: memoryPolicy.sources }, LOCAL_PERSON_ACTOR_ID);
   const tools = (body: any) => (body.tools as Array<{ name: string }>).map(tool => tool.name);
-  const round = async (input: { text: string; request_id: string; work_id?: string; character?: { artifact_id: string; version: number } }, rounds: number) => {
+  const round = async (input: { text: string; request_id: string; work_id?: string; character?: typeof editorRef }, rounds: number) => {
     const before = requests.length;
     const sent = await sendAsPerson(service, input, input.work_id ? {} : { project_ref: project });
     await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === rounds && view.work.state === "completed" && requests.length > before ? view : undefined; }, input.request_id);
@@ -384,7 +388,7 @@ test("memory switches hold the same when a Character carries the round; turning 
     assert.deepEqual((await service.memory.memories("project-a")).map(item => item.text), ["回答用要点列表"]);
 
     // With a Character: while the switches allow it, the same memory and tools reach its round.
-    const on = await round({ text: "用要点列表看看这段说明", request_id: "req-mc-2", character: { artifact_id: editor.reference.artifact_id, version: 2 } }, 1);
+    const on = await round({ text: "用要点列表看看这段说明", request_id: "req-mc-2", character: editorRef }, 1);
     assert.match(JSON.stringify(on.first), /每次回答先列出三处可改进的地方/, "the Character carries the round");
     assert.ok(tools(on.first).includes("remember"));
     assert.match(JSON.stringify(on.first.messages), /回答用要点列表/);
@@ -394,7 +398,7 @@ test("memory switches hold the same when a Character carries the round; turning 
     await round({ text: "先列问题再给改法", request_id: "req-mc-2b", work_id: on.work.work_id }, 2);
     const own = (await service.memory.memories("project-a")).find(item => item.scope === "character");
     assert.equal(own?.text, "先列问题再给改法");
-    const withIt = await round({ text: "用要点列表再看看这段问题说明", request_id: "req-mc-2c", character: { artifact_id: editor.reference.artifact_id, version: 2 } }, 1);
+    const withIt = await round({ text: "用要点列表再看看这段问题说明", request_id: "req-mc-2c", character: editorRef }, 1);
     assert.match(JSON.stringify(withIt.first.messages), /先列问题再给改法/, "a new work carried by the same Character recalls it");
     const without = await round({ text: "用要点列表再看看这段问题说明", request_id: "req-mc-2d" }, 1);
     assert.doesNotMatch(JSON.stringify(without.first.messages), /先列问题再给改法/, "work no Character carries never gets it");

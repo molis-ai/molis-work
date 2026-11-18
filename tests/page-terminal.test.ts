@@ -150,6 +150,8 @@ test("RAC-902 a surface's terminal client rides in that surface's own bundle and
   const characters = readFileSync(join(ROOT, "apps/workbench/src/browser/characters/terminal.ts"), "utf8");
   assert.doesNotMatch(characters, /from "(?:\.\.\/)+terminal\//u, "Characters does not reuse the work terminal's modules");
   assert.match(characters, /molisPageTerminal/u);
-  assert.match(readFileSync(join(ROOT, "apps/workbench/src/plugin-workbench.ts"), "utf8"), /id: "characters", bundle: "characters", assets: \["\/desktop\/pty-client\.js"\]/u,
+  // 角色 is a settings page now (batch 36): its settings loader puts the terminal bundle in first and only then the role program.
+  const loader = readFileSync(join(ROOT, "apps/workbench/src/browser/characters/loader.ts"), "utf8");
+  assert.match(loader, /terminal\.src = "\/desktop\/pty-client\.js";\s*terminal\.addEventListener\("load", \(\) => document\.head\.append\(script\)/u,
     "the Characters bundle is preceded by the terminal bundle");
 });

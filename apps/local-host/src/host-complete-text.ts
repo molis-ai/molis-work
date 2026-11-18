@@ -14,7 +14,7 @@ export interface HostTextRequestOptions {
   signal?: AbortSignal;
   beforeDispatch?(): void | Promise<void>;
   system?: string;
-  /** Trusted Host sources, accepted only by a configured model declaring vision. */
+  /** Trusted Host sources; refused only for a configured model marked as not seeing images (decision 51 ③). */
   images?: readonly PrologueInputImage[];
   structured?: PrologueStructuredRequest;
   onProgress?(event: PrologueTextProgress): void;

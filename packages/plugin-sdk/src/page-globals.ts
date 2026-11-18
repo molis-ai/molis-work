@@ -261,8 +261,10 @@ export interface ComposerCommand { slash: string; label: string; hint?: string; 
 /** The `/` menu's groups and closing line (`commandMenu`). */
 export interface ComposerCommandMenu { groups?: readonly { label: string; empty?: string }[]; note?: string }
 
-/** The command chip at the start of the box (`chip`): its `/name`, where it is from, how to take it off, and the prompt it makes. */
-/** `name` without its slash; `source` where it is from, in the reader's words; `remove.label` names the command (「去掉 /补测试」). */
+/**
+ * The command chip at the start of the box (`chip`): its `/name`, where it is from, how to take it off, and the prompt it makes.
+ * `name` is without its slash; `source` is where it is from, in the reader's words; `remove.label` names the command (「去掉 /补测试」).
+ */
 export interface ComposerChip { name: string; source: string; remove: { label: string; run(): void }; prompt?: { label: string; text: string } }
 
 /** One thing `@` names (`mentions`): its name, a line saying where it is, and the text put in place of the `@words`. */

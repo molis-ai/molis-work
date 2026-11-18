@@ -15,7 +15,7 @@ export interface AssistantAttachmentPort {
   attach(upload: MaterialUpload, options?: { signal?: AbortSignal; beforeEffect?: () => void | Promise<void> }): Promise<ConversationAttachment>;
   read(ref: MaterialRef, request: ConversationAttachmentRequest): Promise<ConversationAttachmentContent>;
   /** Whether the bytes are still kept: an attachment the person can see and send again. */
-  holds(ref: MaterialRef | undefined): boolean;
+  holds(ref: MaterialRef): boolean;
   /** Drops attachments nothing names any more. */
   forget(refs: readonly MaterialRef[]): Promise<void>;
 }

@@ -348,7 +348,7 @@ export class AssistantRoundMaterials {
     return { media_type: read.image.media_type, data: Buffer.from(read.image.bytes).toString("base64") };
   }
 
-  /** Whether a picture's bytes are still kept; a record from before attachments were kept names none. */
+  /** Whether a picture's bytes are still kept for the Assistant. */
   holdsImage(image: NonNullable<AssistantMaterial["image"]>): boolean {
     return !!this.ports.attachments?.holds(image.attachment);
   }

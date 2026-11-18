@@ -135,7 +135,7 @@ export async function attachConversationFile(home: string, owner: AttachmentOwne
 
 /** One of this owner's attachments read back. Another owner's, an unknown one, and a reference that is not an attachment are all `not_found`. */
 /** The digest a well-formed attachment reference names, or null. */
-function digestOf(ref: MaterialRef | undefined): string | null {
+function digestOf(ref: MaterialRef): string | null {
   const sha256 = ref?.subject?.kind === CONVERSATION_ATTACHMENT_SUBJECT_KIND && typeof ref.subject.id === "string" ? ref.subject.id.slice(3) : "";
   return SHA256.test(sha256) && ref!.subject.id === subjectId(sha256) && ref!.pin?.mode === "current" && ref!.pin.read_revision === sha256 ? sha256 : null;
 }
@@ -147,7 +147,7 @@ function ownedRow(home: string, owner: AttachmentOwner, sha256: string): Attachm
 }
 
 /** Whether this owner still has the attachment, bytes included: what a page asks before it offers to show or send it again. */
-export function holdsConversationAttachment(home: string, owner: AttachmentOwner, ref: MaterialRef | undefined): boolean {
+export function holdsConversationAttachment(home: string, owner: AttachmentOwner, ref: MaterialRef): boolean {
   const sha256 = digestOf(ref);
   return !!sha256 && !!ownedRow(home, owner, sha256) && existsSync(path.join(blobsOf(home), sha256));
 }

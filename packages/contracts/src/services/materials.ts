@@ -129,7 +129,7 @@ export function codeRootFile(path: string): boolean {
 /**
  * A file the person brings into a conversation (the assistant, Coding, a subagent's input; platform capability audit 2026-11-14 §6):
  * kept by the platform's material service as a material of its own, so it is read once, can be looked at again, and is still there
- * after a restart. The bytes never change: the subject id is their sha256, and so is the pin's `read_revision`. It belongs to the
+ * after a restart. The bytes never change: the subject id is `ca_` and their lowercase sha256, and the pin's `read_revision` is that sha256. It belongs to the
  * caller that attached it (its installation, and its project or the Home) and only that caller reads it back; the platform reads it
  * for that caller when a round shows it to the model. Nothing here is a 成果: an attachment never enters the 成果库.
  */
@@ -148,7 +148,7 @@ export const CONVERSATION_ATTACHMENT_LIMITS = {
   title_chars: 200,
 } as const;
 
-/** One attachment as the platform keeps it. `ref.subject.kind` is `CONVERSATION_ATTACHMENT_SUBJECT_KIND`; `ref.pin` is `current`. */
+/** One attachment as the platform keeps it. `ref.subject.kind` is `CONVERSATION_ATTACHMENT_SUBJECT_KIND`; `ref.pin.mode` is `current`. */
 export interface ConversationAttachment {
   ref: MaterialRef;
   title: string;

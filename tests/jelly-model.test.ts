@@ -92,12 +92,15 @@ test("Jelly custom model selects a Connector credential and keeps preferences fr
   assert.equal(secrets.get(connection.credential_ref!), "jelly-test-plaintext-key");
 });
 
-test("Jelly existing-provider selection changes no shared record or key, and scoped home credentials remain isolated", async t => {
+test("QEA-185: Jelly existing-provider selection changes no shared record or key, and scoped home credentials remain isolated", async t => {
   const home = homeFor(t); const shared = modelConnection(home, "已有供应商", "shared-test-key", "https://shared.example.com/v1");
   providerStore(home, store => { store.upsert({ credential_ref: shared.credential_ref!, provider_id: "shared", display_name: "已有供应商", base_url: "https://shared.example.com/v1", api_format: "openai-chat-completions", models: [{ model_id: "existing-model", enabled: true }] }); });
   assert.equal(configuration(home).read().source, "provider"); let before = ""; providerStore(home, store => { before = JSON.stringify(store.get("shared")); });
   configuration(home).save({ provider_id: "shared", model_id: "existing-model" }); providerStore(home, store => assert.equal(JSON.stringify(store.get("shared")), before));
-  assert.throws(() => configuration(home).save({ provider_id: "shared", model_id: "existing-model", api_key: "replacement" } as never), /Connectors/);
+  assert.throws(() => configuration(home).save({ provider_id: "shared", model_id: "existing-model", api_key: "replacement" } as never), {
+    code: "host.model_configuration_invalid",
+    message: "模型设置包含不支持的字段；请在「设置 › 服务连接」中管理模型 API Key",
+  });
   const seen = inferenceAt(t, home, "完成");
   const complete = completion(home); assert.ok(complete); assert.equal(await complete("用户明确请求的一次摘要"), "完成");
   assert.deepEqual(seen, [{ protocol: "openai-compatible", endpoint: "https://shared.example.com/v1/chat/completions", model: "existing-model", key: "shared-test-key" }]);

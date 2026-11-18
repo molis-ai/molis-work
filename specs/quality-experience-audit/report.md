@@ -1,6 +1,6 @@
 # Molis Work 审查报告与优化策略
 
-整项进行中，负责人 Codex。本轮验收以 main `feffe94db0` 为合并基点。登记范围覆盖候选中的 75 个包、84 个 contracts 子路径及根入口，另复核本轮从主干移除的 WebQuery 包。报告有 92 项编号发现和 15 项平台候选，列明处置和实测结果。[逐包覆盖](coverage.md)、[六方向结论](#六个方向的独立结论)、[平台候选及处置](#平台化与通用化检查及处置)、[需求实现度](#需求整体实现度)、[BL 清理与保留事项](#bl-与事项清理建议)和[验收编号](spec.md)均可按入口查阅。
+整项进行中，负责人 Codex。本轮验收以 main `feffe94db0` 为合并基点。登记范围覆盖候选中的 75 个包、84 个 contracts 子路径及根入口，另复核本轮从主干移除的 WebQuery 包。报告有 94 项编号发现和 16 项平台候选，列明处置和实测结果。[逐包覆盖](coverage.md)、[六方向结论](#六个方向的独立结论)、[平台候选及处置](#平台化与通用化检查及处置)、[需求实现度](#需求整体实现度)、[BL 清理与保留事项](#bl-与事项清理建议)和[验收编号](spec.md)均可按入口查阅。
 
 第 53–55 批 8 文件 78 项定向通过。第 56–59 批 8 文件 144 项及长材料 2 项通过，验证改写、回放、起草、引导、信息方案和真实采用。固定 `4c54241e96` 的受影响包级复验 55/55 文件、463/463 项通过。第 60 批 Git、Coding 与工作台 77 文件、521 项通过，含真实提交、拒绝、暂存和编辑恢复。第 62 批 Placement 与工作台 22 文件、194 项通过。第 52 批冻结头的 104/105 个包回归文件通过，唯一失败定位到 Feed 已失效的发布版本例外。
 
@@ -1424,3 +1424,27 @@ PF-15 复核。合并后的资料侧栏入口仍按原动作 `title` 展示成�
 独立构建 main `feffe94db0` 与候选，同样采集 67 条静态资源及十组首屏实报。合并主干后静态变化仅为主干批准的 Work Brief 脚本 116 B。主干新词包与本轮既有获准词条重新生成为 `/assets/locale/workbench.zh.aae6b6b26daff45c74ef27f1.js` 和 `/assets/locale/workbench.en.be9e464f384a6edb7b4da725.js`，22 条首屏要求仍匹配原许可。相对第 110 批，中文首屏每页冷增 378 B、英文 423 B，热量相同。相对 `704773fe8e`，四类页面最大冷增 1,137 B、热增 266 B，其余报告样本中示例项目最大冷增 1,447 B、热增 261 B。
 
 相对独立主干，冷加载最大净增 2,084 B、热加载 20 B，静态最大净增仍为 Git 脚本 8,403 B。英文到达及全插件页另各登记现测 5 B，后者含既有 Linux 路径差额。并发检查期间的两次本机测量分别在 chooser 的简报和到达页 Issues 入口超时，随后沿同一时限、原 HTTP 采样器和完整清单逐页回放通过。实际脚本体积、首屏策略及已验证 Linux 差额复算通过。原数据 `quality-audit-b111-{main,candidate}-{http,assets}.json` 与 `quality-audit-b111-resource-proof.json`。[登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+
+### 第 111 批准确提交的实操与远端结果
+
+`9ce951d49b` 同时推到草稿与集成分支。其实际 Git 与 Coding 目录恢复、分隔条、输入栏和长回复 4 文件 5 项通过。90,038 字符重开有两个完整原文帧，着色期最长 19.7 ms。Goals 存档 56 项、四窗外观、首页后台入口及 Inbox 批量路径也通过。Inbox 批量更新期间，另一个 `/health` 在批处理完成前返回。整段性能和更多负载条件仍见 QF-51。组件板的单个词汇不一致仍有失败，下文补验。日志 `quality-audit-b111-{final-frame-and-git,final-consumers}.log`。
+
+真实浏览器记录五个页面 × 中英文 × 冷热共 20 次。Home 共用通知在项目选择及三种工作台的 16 次观测每次请求一次。到达页没有发该请求。第 60 批以来，未登记 API 的路径与查询字段没有新增组合，仍有当前四类动态组合及缺少完整账号条件的采样项。证据 `/tmp/quality-audit-b111-browser-first-screen/{audit,browser}.json`。
+
+Verify 首轮只有固定 Auth 浏览器子项失败，之前的 Work 认证与安装隔离步骤已通过。Auth `82341ae269` 的 v2 用例在 :541 未找到安全编辑框中的电话输入，对应第 91 批同一触发点。Molis Work 分支与当前基点的 Auth 固定值和工作流相同。全量仍在收集各片结果。保留同提交的 Auth 单项复跑。[Verify](https://github.com/molis-ai/molis-work/actions/runs/44300285782) · [Auth 首轮](https://github.com/molis-ai/molis-work/actions/runs/44300285782/job/134787933009) · [Full](https://github.com/molis-ai/molis-work/actions/runs/44300274321)
+
+### QF-93 / P2 助理的参考内容标题在资料到达后被旧称覆盖
+
+首绘给同一个材料组写 `workbench.assistant-dock.context`，收到资料后填标题的代码另取 `workbench.assistant-side-context.context`。更新后从「参考内容」回到「上下文」。独立主干和候选在 VUX-39 同一位置失败。首绘和更新统一用已批准的「参考内容」与 “Reference”，另一组词条经全仓入口核对只有此处使用，予以移除。材料读写、已用与待发送判定、原点击反馈继续由已有组件处理。[初绘](../../apps/workbench/src/assistant-dock.ts#L58) · [更新](../../apps/workbench/src/scripts/client/assistant-side-context.ts#L77)
+
+独立工作树方式先运行原组件板与实际助理资料路径。会话工作视图、历史引用、材料状态、中英文标题和组件板任务通知均通过，待整合头复验。日志 `quality-audit-b112-main-board.log`、`quality-audit-b113-repro-fixed.log`。[实际资料组](../../tests/assistant-side-groups.e2e.test.ts#L137) · [VUX-39](../../tests/board-assistant.e2e.test.ts#L15)
+
+### QF-94 / P3 原件关系卡的目标类型名未随中文界面切换（PF-16）
+
+灵光转目标后，Workbench 的确认回执显示「已转为目标」，Placement 读回的关系卡显示「已建成 Goal」。实际关系来自同一转化，关系类型名则由公开 `placement_relation.target.noun` 的当前 Goals 声明提供。Full 第 24 片已收到指向项目内 Pages 与目标的两条关系。QEA-184 保留两处原状的严格文字断言，增加通过公开读取核对实际目标与原件的完整链。[回执](../../apps/workbench/src/scripts/client/placement.ts#L194) · [关系描述](../../horizontal/placement/src/index.ts#L418) · [提供方声明](../../plugins/native/goals/src/contract/goal-action-definition.ts#L18) · [第 24 片](https://github.com/molis-ai/molis-work/actions/runs/44300274321/job/134787904428)
+
+PF-16 的现行消费者是 Placement 描述、灵光和其他关联原件的界面，目前一个实际提供方声明该目标类。编号、关系和公开读取继续由原服务维护。后续给提供方的类型名复用 TextRef，并由平台按显示语言取词，再一起迁移所有实际读取端。公开合同和外部提供方需要同批验证，当前按显示影响列后续。
+
+### 第 113 批现行服务连接与项目目录验收
+
+第 10 片真实模型配置拒绝了直接传入密钥，旧测试仍匹配退役页名 Connectors。QEA-185 对当前 Host 错误码和「设置 › 服务连接」精确匹配，保留原有供应商、密钥与实际推理读回。第 20 片的 Coding 已列出真实目录内容，`coding.files.working` 已显示「项目目录」。QEA-186 保留真文件、固定快照、Diff 和 Git 的原验收，匹配现行标签。Cognia 同片的首轮超时按原 25 秒用例重试通过。[模型设置](../../apps/local-host/src/model-configuration.ts#L59) · [第 10 片](https://github.com/molis-ai/molis-work/actions/runs/44300274321/job/134787904192) · [第 20 片](https://github.com/molis-ai/molis-work/actions/runs/44300274321/job/134787904551)

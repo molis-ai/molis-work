@@ -10,7 +10,7 @@ import { CODING_BOX, CODING_COMPOSER, CODING_TAKEN, codingAdd } from "./fixtures
 // W5-02-REG-06: real generated-catalog startup, materials snapshots, Diff and Git readers, and Coding's files face (WMD-05: a file
 // opened there shows in the side panel's reader, whose 固定快照 menu hands Diff its versions before and after). WMD-01: with Files
 // retired, Coding's own face and the side-panel materials reader still browse, preview and reference the same project folder.
-test("Coding tools open real stages, preserve session tabs and read fixed workspace content", { timeout: 90000 }, async t => {
+test("QEA-186: Coding tools open real stages, preserve session tabs and read fixed workspace content", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, "seeded"); if (!b) return;
   const { command, sessionId } = b;
   const views = Object.fromEntries(await Promise.all(["git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, b, id)])));
@@ -67,8 +67,8 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   const showCodingFiles = async () => {
     await open("coding");
     await click(`${coding} [data-coding-face="files"]`);
-    await waitFor(`document.querySelector('${codingTree} [title="note.txt"]') && document.querySelector('${coding} [data-coding-files-role]').textContent === '工作目录'`).catch(async error => {
-      throw new Error(JSON.stringify(await evaluate(`({status:document.querySelector('[data-coding-files-status]')?.textContent,tree:document.querySelector('[data-coding-files-tree]')?.outerHTML,root:document.querySelector('[data-coding-workbench]')?.dataset})`)), { cause: error });
+    await waitFor(`document.querySelector('${codingTree} [title="note.txt"]') && document.querySelector('${coding} [data-coding-files-role]').textContent === '项目目录'`).catch(async error => {
+      throw new Error(JSON.stringify(await evaluate(`({status:document.querySelector('[data-coding-files-status]')?.textContent,role:document.querySelector('[data-coding-files-role]')?.textContent,tree:document.querySelector('[data-coding-files-tree]')?.outerHTML,root:document.querySelector('[data-coding-workbench]')?.dataset})`)), { cause: error });
     });
   };
   const fixFromCoding = async (port: "before" | "after", text: string) => {

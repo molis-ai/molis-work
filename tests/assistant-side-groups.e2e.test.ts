@@ -132,7 +132,7 @@ test("VUX-08: 产出 keeps a fixed 成果库 version apart from the working obje
 // view the page reads, in the contract's shape; the pending one is put in as a page hands one over. The Host records an
 // object's relation before the round starts (the Send links it, then dispatches), and a second use keeps the first record,
 // so an object is placed by the rounds whose materials name it, not by its time.
-test("VUX-08 VUX-09: 上下文 keeps what waits to be sent, what this round used and what earlier rounds used apart", { timeout: 120_000 }, async t => {
+test("VUX-08 VUX-09 QEA-183: 参考内容 keeps what waits to be sent, what this round used and what earlier rounds used apart", { timeout: 120_000 }, async t => {
   const browser = await sendBrowser(t); if (!browser) return;
   const { evaluate, waitFor } = browser;
   const id = await seedWork(browser, "整理本周数据");

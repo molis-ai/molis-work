@@ -12,7 +12,7 @@ import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js
 const CJK = /[㐀-鿿]/;
 type Block = [title: string, badge: string, attention: boolean];
 
-test("VUX-39 the board's Assistant section drives the shipped island through several works, six groups, steps, draft and scope, partial attachment failure, in-place progress, language and width", { timeout: 180_000 }, async (t) => {
+test("VUX-39 QEA-183 the board's Assistant section drives the shipped island through several works, six groups, steps, draft and scope, partial attachment failure, in-place progress, language and width", { timeout: 180_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, navigate, waitFor, origin } = browser;
@@ -146,7 +146,7 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
   await choose("lang", "en", "board-plan");
   const english = await blocks();
   assert.deepEqual([english.materials, english.tools, english.changes, english.background].map(([title, badge]) => title + " | " + badge),
-    ["Context | 2 changed", "Connections and tools | 1 to handle", "Changes | 1 failed", "Background tasks | 1 did not finish"]);
+    ["Reference | 2 changed", "Connections and tools | 1 to handle", "Changes | 1 failed", "Background tasks | 1 did not finish"]);
   assert.equal(Object.values(english).some(([title, badge]) => CJK.test(title + badge)), false);
   assert.equal(await inFrame<string>("return d.documentElement.lang;"), "en");
 

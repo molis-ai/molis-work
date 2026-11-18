@@ -1943,7 +1943,6 @@
     "workbench.assistant-side-context.connections": "你的连接",
     "workbench.assistant-side-context.connections-can-t-be-read-right-now": "连接暂时读不到",
     "workbench.assistant-side-context.connections-tools": "连接与工具",
-    "workbench.assistant-side-context.context": "上下文",
     "workbench.assistant-side-context.context-window": "对话容量",
     "workbench.assistant-side-context.cost": "费用",
     "workbench.assistant-side-context.detached-head": "分离的 HEAD",

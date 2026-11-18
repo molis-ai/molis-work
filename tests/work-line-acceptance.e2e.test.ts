@@ -120,7 +120,20 @@ test("QEA-87 PWA-144 PWA-145 PWA-146: the event's card sums up its requirements 
   if (layout.stage) assert.ok(layout.stage.left >= layout.column.right, `the work gives way to the column (${layout.stage.left} < ${layout.column.right})`);
   assert.deepEqual(layout.wrapped, []); assert.deepEqual(layout.unnamed, []);
   assert.match(String(await evaluate(`${card("r1")}.textContent`)), /机器核过/u);
-  assert.match(String(await evaluate(`${card("r2")}.textContent`)), /只有自述.*只有执行者自己的说明，不算通过/su, "a self-report is shown as one, with what the person can do");
+  // QEA-188: the evidence gap explains the current choices without changing the recorded result.
+  const selfReport = await evaluate<{ badge: string; reason: string; actions: string[] }>(`(() => {
+    const item = ${card("r2")};
+    return {
+      badge: item.querySelector('.work-req-meta .mw-badge').textContent,
+      reason: item.querySelector('.work-req-why span').textContent,
+      actions: [...item.querySelectorAll('[data-acceptance-accept], [data-acceptance-return]')].map(button => button.textContent),
+    };
+  })()`);
+  assert.deepEqual(selfReport, {
+    badge: "只有自述",
+    reason: "仅有执行者自述、无核验记录，未通过：可直接认可，或退回补充证据",
+    actions: ["认可", "退回"],
+  });
   assert.match(String(await evaluate(`${card("r3")}.textContent`)), /要你认可/u, "machine-checked, and still the person's to accept");
   assert.match(String(await evaluate(`${card("r4")}.textContent`)), /没有证据/u);
   assert.equal(await evaluate(`${card("r1")}.querySelector('[data-acceptance-accept]') === null`), true, "what needs no one's word offers no accept");

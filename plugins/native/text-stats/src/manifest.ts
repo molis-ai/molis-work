@@ -54,7 +54,7 @@ export const textStatsManifest: PluginManifest = {
   ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [TEXT_STATS_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "browse", slot: "navigator", title: "Text Stats", contribution_id: TEXT_STATS_UI_CONTRIBUTION_ID, icon: "hash", hue: "brown", order: 66 },
+      { view_id: "browse", slot: "navigator", title: "Text stats", contribution_id: TEXT_STATS_UI_CONTRIBUTION_ID, icon: "hash", hue: "brown", order: 66 },
       {
         view_id: "stats",
         slot: "stage",

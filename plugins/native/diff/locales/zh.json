@@ -5,7 +5,7 @@
   "messages": {
     "diff.directory.summary": "比较固定版本，逐项阅读差异。",
     "diff.board.files": "一轮的文件行 · 增删行数与长路径",
-    "diff.error.unreadable": "无法读取文件工作区",
+    "diff.error.unreadable": "无法读取项目目录",
     "diff.fold.reveal": "展开 {count} 行未改变",
     "diff.line.comment-after": "评论修改后第 {number} 行",
     "diff.line.comment-before": "评论修改前第 {number} 行",
@@ -38,11 +38,11 @@
     "diff.stage.reading": "正在读取固定内容…",
     "diff.stage.refresh": "刷新",
     "diff.stage.refresh-for-language": "请刷新对比以显示当前语言。",
-    "diff.stage.retry": "。请点击刷新重试。",
+    "diff.stage.retry": "。选择「刷新」重试。",
     "diff.waiting.change-set": "Coding 准备好一轮变更后，这里会显示",
     "diff.waiting.choose-input": "先选一组输入：两份快照、Coding 准备的变更，或 Git 的工作区改动",
     "diff.waiting.choose-snapshots": "请选择两份文件快照进行对比",
     "diff.waiting.git-change-set": "在 Git 里选一处改动，这里就会显示",
-    "diff.waiting.snapshots": "先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异"
+    "diff.waiting.snapshots": "先在文件阅读区固定「对比前」和「对比后」，这里会显示两份快照的差异"
   }
 }

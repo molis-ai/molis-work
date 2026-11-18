@@ -287,7 +287,7 @@ test("VUX-33 行的几何共用一份：行号列按最长的行号定宽；并�
 test("没有可比的内容时是共用的空态块：标记、说了什么、下一步，而不是一行小字", () => {
   const primitives = { escape: (value: unknown) => String(value), text: diffPageText("zh"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
   const waiting = renderDiff({ labels: DIFF_LABELS, view: emptyDiff("snapshots"), primitives });
-  assert.match(waiting, /^<div class="mw-empty" data-phase="waiting" data-group="snapshots"><span class="mw-empty__mark"><svg data-icon="git-compare"><\/svg><\/span><strong>先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异<\/strong><\/div>/);
+  assert.match(waiting, /^<div class="mw-empty" data-phase="waiting" data-group="snapshots"><span class="mw-empty__mark"><svg data-icon="git-compare"><\/svg><\/span><strong>先在文件阅读区固定「对比前」和「对比后」，这里会显示两份快照的差异<\/strong><\/div>/);
   const gone = renderDiff({ labels: DIFF_LABELS, view: emptyDiff("snapshots", "读不了这两份快照", "unavailable", recoveryMessage("snapshots")), primitives });
   assert.match(gone, /<strong>读不了这两份快照<\/strong><p>回到文件阅读区，重新固定对比前和对比后<\/p>/);
   assert.match(gone, /data-phase="unavailable"/);

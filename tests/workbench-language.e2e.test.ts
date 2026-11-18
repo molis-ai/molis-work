@@ -604,7 +604,7 @@ test("FSS-35 FSS-36 the open Diff wait state changes language without replacing 
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(prefix + "/?openPlugin=diff") }, b.sessionId));
   const empty = "document.querySelector('[data-companion=diff] .mw-empty')", refresh = "document.querySelector('[data-companion-refresh]')";
   const message = `${empty}?.querySelector('strong').textContent`;
-  const zh = "先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异", en = "Pin a before and an after in the file reader first, and the difference shows here";
+  const zh = "先在文件阅读区固定「对比前」和「对比后」，这里会显示两份快照的差异", en = "Pin a before and an after in the file reader first, and the difference shows here";
   await child.waitFor(`${message} === ${JSON.stringify(zh)}`);
   await child.evaluate(`void (()=>{ window.diffOriginal = ${empty}; ${refresh}.focus(); })()`);
   const select = await chooseEnglishInSettings(t, b);

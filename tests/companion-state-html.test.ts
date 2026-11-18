@@ -96,7 +96,7 @@ test("PG062-01, PG062-02: a page's diff.state and text-stats.state carry the plu
       assert.equal(stats.html, expectedTextStats(stats.view, locale));
       assert.match(stats.html, /mw-empty[\s\S]*#icon-hash/);
       const diff = await project.invoke<{ view: DiffView; html: string }>(diffState, { locale });
-      assert.equal(diff.view.message, "先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异");
+      assert.equal(diff.view.message, "先在文件阅读区固定「对比前」和「对比后」，这里会显示两份快照的差异");
       const message = locale === "en" ? "Pin a before and an after in the file reader first, and the difference shows here" : diff.view.message;
       assert.equal(diff.html, renderDiff({ labels: DIFF_LABELS, view: { ...diff.view, message }, primitives: diffPrimitives(locale) }));
       assert.match(diff.html, /#icon-git-compare/);

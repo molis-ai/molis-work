@@ -307,7 +307,7 @@ test("VUX-40: the model note, a turn's changes, the palette and the character an
     assert.match(result.changes, /Files written this turn: 4.*a\.ts · b\.ts · c\.ts · 4 in all.*10 bytes.*Preview rewind.*What the write receipts recorded.*See this turn’s changes/);
     assert.equal(result.palette, "No matching commands or sessions");
     assert.match(result.characters, /No character.*Reviewer · v1.*The current runtime doesn’t support character limits yet/);
-    assert.match(result.characters, /Built-in tools: none\. MCP is still chosen.*Lint · needs a native Agent/);
+    assert.match(result.characters, /Built-in tools: none\. MCP is still chosen.*Lint · runs in an external Runtime/);
     assert.match(result.actions, /Add a todo · v2.*Todo · The current way of running only allows queries.*gone\.action · v1.*The original capability, version or authorization isn’t available/);
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });

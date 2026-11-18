@@ -337,7 +337,7 @@ const reviewedEnglish: Readonly<Record<string, string>> = {
   "goals.capsule-items.current-project": "current project",
   "goals.capsule-items.running": "Running",
   "goals.guidance-document.project-s-stable-way-working": "The project’s stable way of working",
-  "goals.guidance-document.only-active-revisions-sent-placed-before-round-s": "Only active revisions are sent, placed before this round’s task and external content. Edits and deactivations take effect in the next prompt.",
+  "goals.guidance-document.only-active-revisions-sent-placed-before-round-s": "Only active revisions are sent, placed before this turn’s task and external content. Edits and deactivations take effect in the next prompt.",
   "goals.inputs.couldn-t-remove": "Couldn’t remove it",
   "goals.inputs.couldn-t-accept": "Couldn’t accept it",
   "goals.inputs.version-can-t-be-found": "This version can’t be found",

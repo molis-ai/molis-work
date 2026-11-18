@@ -6,22 +6,22 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { isMainScript } from "./script-paths.mjs";
 
-const CATALOG_SPECIMEN_KEY = /\b(?:catalog|specimens?|board-frame|style-probe|env)\b/u;
+const CATALOG_SPECIMEN_KEY = /(?:^workbench\.env\.|\b(?:catalog|specimens?|board-frame|style-probe)\b)/u;
 
 const ZH_RULES = [
   { id: "zh.arch-jargon", label: "内部架构黑话外露", pattern: /宿主|权威(?:状态|记录|事件|存储)|视图投影|幂等运行|事件游标|已落盘|终端通道|对象挂载位|异步上下文/u },
   { id: "zh.retired-term", label: "退役或禁用界面术语", pattern: /\bFunctions\b|判断函数|动作库|共同目录|消费场景|\bBoard\b|原生\s*Agent|本地\s*Agent|本机\s*Agent|终端\s*Agent|Agent\s*CLI|\bConnectors\b/u },
   { id: "zh.colloquial-or-filler", label: "口语俚语或冗余套话", pattern: /连看都不看|你够不到它|还没有叫醒过|AI\s*自己说的(?!，Molis\s*没有核对)|您可以在|你可以通?过|请点击|点击此处|当前尚未|暂无任何|正在为您|本页面用于/u },
   { id: "zh.bare-empty", label: "空洞的空状态文案", pattern: /^(?:暂无(?:数据|内容|记录)?。?|无数据。?|列表为空。?)$/u },
-  { id: "zh.bent-quotes", label: "中文界面混用弯引号（应统一用「…」）", pattern: /(?<!\\)[“”]/u },
+  { id: "zh.bent-quotes", label: "中文界面混用弯引号（应统一用「…」）", pattern: /(?<!\\|\[)[“”](?!\])/u },
   { id: "zh.arrow-path", label: "菜单或设置路径使用箭头（应统一用 › ）", pattern: /(?:设置|个人|项目|偏好|模型|记忆|能力|插件|工作台|目录|入口)\s*(?:->|→)\s*/u },
 ];
 
 const EN_PROPER_NOUNS = new Set([
-  "Molis", "Work", "Goal", "Goals", "Inbox", "Feed", "Schedule", "Coding", "Git", "Diff",
+  "Molis", "Work", "Goal", "Goals", "Frame", "Inbox", "Feed", "Schedule", "Coding", "Git", "Diff",
   "Cognia", "Jelly", "Shelf", "Pages", "Forms", "Dataset", "PPT", "PowerPoint", "Issue", "Brief",
   "Alchemist", "Studio", "Prologue", "Runtime", "Agent", "Agents", "Skill", "Skills", "Character", "Characters",
-  "TypeSafe", "MCP", "OAuth", "API", "CLI", "TUI", "SSH", "HTTP", "HTTPS", "JSON", "CSV", "PDF", "Markdown", "Word",
+  "TypeSafe", "MCP", "OAuth", "API", "CLI", "TUI", "SSH", "HTTP", "HTTPS", "JSON", "CSV", "PDF", "Markdown", "Word", "ID",
   "GitHub", "GitLab", "Bitbucket", "Gmail", "Google", "Drive", "Calendar", "Microsoft", "Outlook", "OneDrive", "SharePoint", "Teams",
   "Slack", "Discord", "Notion", "Linear", "Jira", "Confluence", "Asana", "Monday", "ClickUp", "Trello", "Atlassian", "X",
   "Figma", "Canva", "Adobe", "Loom", "Dropbox", "Box", "Airtable", "Supabase", "Vercel", "Cloudflare", "Stripe", "Sentry",

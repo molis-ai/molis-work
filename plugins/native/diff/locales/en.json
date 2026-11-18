@@ -5,7 +5,7 @@
   "messages": {
     "diff.directory.summary": "Compare fixed versions and read each change.",
     "diff.board.files": "A turn’s file rows · lines added and removed, long paths",
-    "diff.error.unreadable": "Couldn’t read the file workspace",
+    "diff.error.unreadable": "Couldn’t read the project folder",
     "diff.fold.reveal": "Show {count} unchanged lines",
     "diff.line.comment-after": "Comment on line {number} after the change",
     "diff.line.comment-before": "Comment on line {number} before the change",

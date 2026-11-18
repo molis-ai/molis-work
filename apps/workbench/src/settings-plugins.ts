@@ -171,8 +171,10 @@ const describe = (id) => {
 const item = reachCapabilities.get(id);
 return row(item ? item.title : id, item ? item.description : "", item?.available ? "" : readText("workbench.settings-plugins.unavailable-now"));
 };
-if (view.capability_ids.length) box.append(group(readText("workbench.settings-plugins.declared-actions"), "", view.capability_ids.map(describe)));
-if (view.added_capability_ids.length) box.append(group(readText("workbench.settings-plugins.newly-declared-actions"), "", view.added_capability_ids.map(describe)));
+const added = view.added_capability_ids;
+const remaining = view.capability_ids.filter(id => !added.includes(id));
+if (added.length) box.append(group(readText("workbench.settings-plugins.newly-declared-actions"), "", added.map(describe)));
+if (remaining.length) box.append(group(readText("workbench.settings-plugins.declared-actions"), "", remaining.map(describe)));
 const actions = el("div", "plugin-trust-actions"); actions.style.flexWrap = "wrap";
 const add = (name, label, title, detail) => {
 const node = button(readText(label), name === "grant" ? "mw-btn--primary" : "mw-btn--ghost"); node.dataset.projectReachAction = name;

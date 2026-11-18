@@ -168,14 +168,21 @@ async function browserFixture(t: TestContext, f: Awaited<ReturnType<typeof fixtu
   return { page, child, openSettings, openPackage, projectFrameReady, submit, decide, upgrade, resize, navigate, reload, close };
 }
 
-test("RAC-2644–2649 S-107 actual project settings, signed File upgrade and workbench navigation retain A through page, refresh, withdrawal and project switch", mac, async t => {
+test("QEA-145 RAC-2644–2649 S-107 actual project settings show each action once and retain A through signed File upgrade and withdrawal", mac, async t => {
   const f = await fixture(t), ui = await browserFixture(t, f);
   try {
+  const declarations = () => ui.page.evaluate<{ heading: string; actions: string[] }[]>(`[...document.querySelectorAll('${panel} .plugin-trust-rows')].map(list => ({
+    heading: list.previousElementSibling.textContent,
+    actions: [...list.children].map(row => row.firstElementChild.textContent).sort(),
+  }))`);
+  const existingActions = [goalPluginActions.state.action.title, goalPluginActions.progress.action.title].sort();
+  const existingGroups = [{ heading: "它声明的动作", actions: existingActions }];
   const b0 = await f.state(f.b), a0 = await f.state(f.a);
   await ui.openPackage(); await ui.submit("unapproved page must not write");
   await ui.child.waitFor("document.body.innerText.includes('同意')"); assert.deepEqual(await f.state(f.a), a0);
   await ui.openSettings();
   assert.match(await ui.page.evaluate<string>(`document.querySelector('${panel}').innerText`), /未同意/u);
+  assert.deepEqual(await declarations(), existingGroups);
   const initial = f.ledger.consents(REACH_PLUGIN_ID); await ui.decide("grant", false);
   assert.deepEqual(f.ledger.consents(REACH_PLUGIN_ID), initial, "cancel sends no agreement mutation");
   await ui.decide("grant", true);
@@ -192,6 +199,7 @@ test("RAC-2644–2649 S-107 actual project settings, signed File upgrade and wor
   assert.equal((await f.state(f.a)).progress_summary!.summary, "A agent using the same agreement");
   await ui.openSettings(); await ui.upgrade("1.1.0");
   assert.deepEqual(f.ledger.consent(original.consent_id), original); assert.notEqual(f.host.homePlugins!.installation(REACH_PLUGIN_ID)!.manifest_digest, original.manifest_digest);
+  assert.deepEqual(await declarations(), existingGroups);
   await ui.openPackage(); await ui.submit("A after the same-declaration File upgrade"); await ui.child.waitFor("document.body.innerText.includes('已记录')");
   assert.equal((await f.state(f.a)).progress_summary!.summary, "A after the same-declaration File upgrade");
   await ui.openSettings();
@@ -201,6 +209,7 @@ test("RAC-2644–2649 S-107 actual project settings, signed File upgrade and wor
   await ui.child.waitFor("document.body.innerText.includes('声明的动作增加')"); assert.deepEqual(await f.state(f.a), blocked);
   await ui.openSettings();
   const expanded = f.ledger.consents(REACH_PLUGIN_ID); await ui.decide("grant", false); assert.deepEqual(f.ledger.consents(REACH_PLUGIN_ID), expanded);
+  assert.deepEqual(await declarations(), [{ heading: "新增声明的动作", actions: ["调用模型"] }, ...existingGroups]);
   const agreement = await ui.page.evaluate<string>(`document.querySelector('${panel}').innerText`);
   for (const title of ["写作项目 A", goalPluginActions.state.action.title, goalPluginActions.progress.action.title, "费用计入你的模型服务"]) assert.ok(agreement.includes(title), title);
   for (const internal of [f.a.project_id, original.subject, "goals.progress.record", "model.generate"]) assert.ok(!agreement.includes(internal), "the approval explains actions without internal identity: " + internal);
@@ -213,6 +222,7 @@ test("RAC-2644–2649 S-107 actual project settings, signed File upgrade and wor
     await ui.page.screenshot(join(screenshots, `approval-expanded-${width}.png`));
   }
   await ui.resize(); await ui.decide("grant", true);
+  assert.deepEqual(await declarations(), [{ heading: "它声明的动作", actions: [...existingActions, "调用模型"].sort() }]);
   const current = f.ledger.consents(REACH_PLUGIN_ID).find(row => row.kind === "project_reach" && !row.revoked_at)!;
   assert.notEqual(current.consent_id, original.consent_id); assert.ok(current.approved_capability_ids!.includes("model.generate"));
   assert.equal(current.manifest_digest, f.host.homePlugins!.installation(REACH_PLUGIN_ID)!.manifest_digest);

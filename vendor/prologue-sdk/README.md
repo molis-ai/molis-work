@@ -1,10 +1,82 @@
 # Prologue SDK 构建来源
 
+## 当前包：official main 64e5aaf4（2026-11-17，第 59 批）
+
+运行包为 `prologue-sdk-0.0.0-rc.1.tgz`，**1,488,998 字节**，SHA-256 `4628595426c2a33a285640b245485634ed8f34224320838d8927b5736b741c85`。[Prologue #135](https://github.com/molis-ai/molis-prologue/pull/135) 的官方 main `64e5aaf444629aa597f028e63cf4090456830637` 与独立评审头 `88926b6c5cfa54e07ad2c070941dcd9aad383ffb` 同树。
+
+原 Session 以精确队列 ID 消费已接受的原问卷答案。Node Host 在异步准备完成后核对当前授权，再写新 Run 或消费原答案。拒绝保留原队列。无 vendor 补丁。
+
+两份独立官方 archive 使用 Node 24.14.0 与 pnpm 11.9.0 离线构建，产物逐字节一致。本地完整 `pnpm quality` 的 268 个文件和 3,453 项测试通过，含干净安装消费者、真实 Node 存储交错与 Rust fmt/clippy。[上游 GitHub 作业](https://github.com/molis-ai/molis-prologue/actions/runs/44153463667/job/134287749075)因账户付款或额度未启动步骤。上一份官方 `e4f1c01e` 包可按 `patch-history.json` 的 Git blob 找回。
+
+## 上一份：official main e4f1c01e（2026-11-17，第 59 批）
+
+唯一运行包为 `prologue-sdk-0.0.0-rc.1.tgz`，**1,488,556 字节**，SHA-256 `f58a9148bad0b7d1dc7f5704828e19a06c2d1b5c142374d3964db3efcb242838`。[Prologue #134](https://github.com/molis-ai/molis-prologue/pull/134) 的官方 main `e4f1c01e1e77e376db207b56942da580385fe3ad` 与独立评审头 `4eb279b4193fd8d46ac735f4d793565dc87411c3` 同树。
+
+这份包为已终止的子任务提供可信 App 的同目录新授予根接续。Node Host 在授予时核 canonical path，SDK 以原父子关系、执行引用及权限上限核对新根。原审批、文件观察与原始历史保留在各自来源。无 vendor 补丁。
+
+两份独立官方 archive 使用 Node 24.14.0 / pnpm 11.9.0 离线安装、构建和打包，产物逐字节相同。本地完整 `pnpm quality` 的 268 个文件和 3,453 项测试通过，含干净包消费者和 Rust fmt/clippy，另有 Node 精确目录签发实测。GitHub 作业 134271084797 因账户付款或额度未启动步骤。上一份官方 97ee6617 包可按 `patch-history.json` 的 Git blob 找回。
+
+## 上一份：official main 97ee6617（2026-11-17，第 59 批）
+
+唯一运行包 `prologue-sdk-0.0.0-rc.1.tgz` 为 **1,486,978 字节**，SHA-256 `df27da3fd1f7a8a1f358991730f5d0f83f1324f9ba962b53607b0ce8d50a0a6a`。来自 [PR #133](https://github.com/molis-ai/molis-prologue/pull/133) 的官方 main `97ee66172c356366e6032c69264c1b393b1dc74d`，树与独立评审提交 `98429521b8123cd1749fdd67028e784d3fc1bbfe` 相同。
+
+原信封保留精确 child/attempt 的显示摘要及本人补充通知种类；即时回报与等待接续共用同一附件与原幂等键。摘要拒绝不改变回执状态；旧摘要与原键重放不受新发送额度影响。下一轮开场保留原注入引用和原接受正文，模型协议包装不变，无 vendor 补丁；待决目录重授权不在此包中。
+
+两份独立官方 archive 离线安装、构建与打包逐字节相同（Node 24.14.0 / pnpm 11.9.0）。上游 build/types/API/ratchet/docs/clean-consumer 通过，3 文件 34 项及注入/队列边界 4 文件 14 项通过，最后旧字段顺序回归 5/5。CI run 44133072297 在合入时仍排队，随后官方 annotation 确认账户付款/额度原因使作业未启动任何步骤；不称 CI 通过。换下的 46d8920b 包由 patch-history.json 记录；Molis 最终采用与产品验收另记。
+
+## 上一份：official main 46d8920b（2026-11-17，第 59 批）
+
+唯一运行包 `prologue-sdk-0.0.0-rc.1.tgz` 为 **1,486,210 字节**，SHA-256 `5469736d20b346462d812f9a3c0049c36a7e379b522bf3121e0d2fd7d8436ece`。来自 [PR #132](https://github.com/molis-ai/molis-prologue/pull/132) 的官方 main `46d8920badfcc18ce24482639251b6f63ff5ff65`，树与独立评审提交 `3ff1be2e7e142d6f7a0686953d6a4b971116d173` 相同。
+
+子任务 caller 开场保留逐字任务正文；SDK 任务板执行协议另作 system 材料，模型提供的标题不混入更高优先级指令。原开场、hook 改写后的原文和后续上下文沿原事件保存，不依靠字符串裁剪。不改变权限、目录授权或父回报语义，无 vendor 补丁；§12.10 待裁定的目录重授权不在此包中。
+
+两次独立官方 archive、离线安装、构建与打包逐字节相同（Node 24.14.0 / pnpm 11.9.0）。上游 build/types/API/ratchet/docs/clean-consumer 与定向 5 文件 25 项通过。CI run 44124086839 的官方 annotation 明确因账户付款/额度未启动任何步骤，不称 CI 通过。消费方采用与最终验收另记；换下的 0afbe2c3 包由 patch-history.json 记录。
+
+## 上一份：official main 0afbe2c3（2026-11-17，第 59 批）
+
+唯一运行包 `prologue-sdk-0.0.0-rc.1.tgz` 为 **1,486,171 字节**，SHA-256 `1895a23683664565db37579cb68d467ab53ee7ed9c7c9bbaf277495fe029b39b`。来自 [PR #131](https://github.com/molis-ai/molis-prologue/pull/131) 的官方 main `0afbe2c3f868565e6af85965a585ad889c044c43`，树与独立评审提交 `bf814ff2937364c3703ce288d4f6e2338b6f6e0a` 相同。
+
+子任务接续直接回报该次 `started.policy`，供原审批 owner 标明来源；相同规则和 posture 共用内容指纹，冻结时间仍属于该次 Run。不重算策略、不借父快照，不改变权限、目录或执行语义，无 vendor 补丁。待裁定的目录重授权不在此包中。
+
+两次独立官方 archive、离线安装、构建与打包逐字节相同（Node 24.14.0 / pnpm 11.9.0）。上游 build/types/API/ratchet/docs/clean-consumer 与定向 11/11 通过。CI run 44085869806 因账户付款/额度未启动任何步骤，不称 CI 通过。消费方最终双入口、真实 Provider 与本人验收仍须完成；换下的 71662135 包由 patch-history.json 记录。
+
+## 上一份：official main 71662135（2026-11-17，第 59 批）
+
+唯一运行包 `prologue-sdk-0.0.0-rc.1.tgz` 为 **1,486,129 字节**，SHA-256 `61ffb434c6568c2d31e4677f49076251bc52e3041b25ad695a5b13f4a40494bc`。来自上游 [PR #130](https://github.com/molis-ai/molis-prologue/pull/130) 的 main 合并提交 `71662135799fedf7bca4ab6875cefbe6cc6c7d72`，整棵树与独立评审通过的 `542eb0c7` 相同，无 vendor 补丁。
+
+合法的持久子问题可在正常关机时停放；回答与恢复补交付在原 Session 串行区内刷新确证终态，显式继续可消费原答案队列。只在父已取消且子已封口时结束前台等待，停放写失败也不会卡关机；普通取消保留未知副作用判断。恢复不覆盖新执行、当前权限或已有回报，不自动起父 Run，不改变存储格式。公开增量为原 continue 的 queued 选择与原低层 registry 的精确终态恢复方法。
+
+从官方提交两次独立 archive、离线安装、构建与打包，两份产物逐字节相同（Node 24.14.0 / pnpm 11.9.0）。上游 build/types/API/ratchet/docs/clean-consumer 与 7 文件 56 项定向回归通过。CI run 44048729451 因账户付款/额度未启动任何步骤，不称 CI 通过。Molis 双入口、问题/审批及完整产品验收仍属本批未完部分。换下的 ce40e40a 包可由 patch-history.json 的 Git blob 取回。
+
+## 上一份：official main ce40e40a（2026-11-16，第 59 批）
+
+当前唯一运行包为 `prologue-sdk-0.0.0-rc.1.tgz`，**1,484,597 字节**，SHA-256 `2c320919c799bd33614775df2924465037622811a8be3414f75e0af669667f91`。来自上游 [PR #129](https://github.com/molis-ai/molis-prologue/pull/129) 的 main 合并提交 `ce40e40a5112d0dfb3a44b5e38003576ed0cab99`，与独立评审通过的 `128aca37` 整棵树相同，没有 vendor 补丁。
+
+在 #128 的可信子输入和父回报基础上，普通 Work 通知由原 Session 接受后，也进入活动 Run 的下个模型边界；Delivery 完成补记失败不妨碍已接受通知消费。没有活动 Run 时只保存，后续显式启动才消费，不自动起跑。消费与 Run 进度仍同事务，未增加公开写口、存储格式或模型权限。
+
+从官方提交两次独立 `git archive`，分别离线安装、构建、打包，产物逐字节相同（Node 24.14.0、pnpm 11.9.0）。构建、类型、API、ratchet、文档、干净安装消费者通过，新增 6 项边界/真实 Node HTTP 跨进程测试及原 48 项回归通过。上游 CI 因账户付款/额度未启动步骤，不称 CI 通过；Molis 双入口的产品验证另归第 59 批。具体范围见 PR 和 provenance。
+
+换下的 `f279024a` 包可由 `patch-history.json` 的 Git blob 取回。以下是历史采用记录。
+
+## 上一份：official main f279024a（2026-11-16，第 59 批）
+
+当前唯一运行包是 `prologue-sdk-0.0.0-rc.1.tgz`，**1,484,512 字节**，SHA-256 `c7a33b56f36b114a70d2c84ced3fd2d8dbc83ee794041a7de03040f2812279f3`。来自上游 [PR #128](https://github.com/molis-ai/molis-prologue/pull/128) 的 main 合并提交 `f279024aba6faffb76ce79f2ffa3e808aa6c8db0`，与独立评审通过的 `b6f46901` 整棵树相同，没有 vendor 补丁。用户授权窗口及 Molis 的交付边界见[子代理交互 §12](../../specs/subagent-interaction/spec.md#12-第-59-批真实接线开工2026-11-16)。
+
+新增可信子输入、原请求只读查询和精确父子/Run/任务图授权；接续仍由消费方用原幂等账包住，pending 不重做。每次子 Run 结果及用户干预分别回到原父 Session，模型边界消费和 Run 进度同批落盘，父终态不因聊天开跑。此前 main 的 #127 同时包含 surface detach/target cancellation、stdio 逐请求校验和效果对账持久化；这是采用官方 main 带入的现行能力，不另打消费方补丁。
+
+重建：从该提交两次 `git archive` 得到独立干净目录，各自 `pnpm install --frozen-lockfile --offline --ignore-scripts`、`pnpm build`、`pnpm -C packages/sdk pack --pack-destination <外部目录>`；两份包逐字节相同。工具链 Node 24.14.0、pnpm 11.9.0。上游 build/typecheck/API/ratchet/docs/clean-consumer、相关回归及最终 24 项输入/真实 Node HTTP 跨进程/干净包验证通过，具体范围见 PR。上游 CI 因账户付款/额度未启动步骤，main 同样失败，不称 CI 通过。Molis 产品验证由第 59 批另记。
+
+被替换的官方 `02a11ac5` 包通过 `patch-history.json` 的 Git blob 可取回。以下保留当时采用记录，不代表当前包。
+
+本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当时唯一运行依赖为 `prologue-sdk-0.0.0-rc.1.tgz`（第 32 批于 2026-11-15 换到上游 main 的官方构建 `02a11ac5a566eab4afe15e5562240fdd11f5c9a4`，PR #124 结果回流、#125 评审跟进与 #126 占用放回）；第 31 批收口时换上的官方构建（`3825662d`，main #2087）、#2081 短暂采用的 Memory P1 分支构建（`4a4d1d3c`）、第 28 批换上的官方构建（`c764d970`）、更早的官方构建（`5cbf2601`）与被它换下的 `window31` 自定义包、main 在 #2020 采用的 `memory-p0` 第二版（1,428,464 字节，上游 #113）与更早的 `memory-p0` 第一版、`final103-bridge` 已从本目录删除，记录与重建来源见 `patch-history.json` 与 Git 历史。
+
+## 上一份：official main 02a11ac5（2026-11-15，第 32 批换）
+
 本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一运行依赖为 `prologue-sdk-0.0.0-rc.1.tgz`（第 39 批于 2026-11-16 换到上游 main 的官方构建 `e75820791e862c2605c2ff169720b6189ed9a109`，PR #127 Surface 卸载、原目标取消校验、stdio 请求级活跃核对与持久化对账收口）；第 32 批换上的官方构建（`02a11ac5`，main #2093）、第 31 批收口时换上的官方构建（`3825662d`，main #2087）、#2081 短暂采用的 Memory P1 分支构建（`4a4d1d3c`）、第 28 批换上的官方构建（`c764d970`）、更早的官方构建（`5cbf2601`）与被它换下的 `window31` 自定义包、main 在 #2020 采用的 `memory-p0` 第二版（1,428,464 字节，上游 #113）与更早的 `memory-p0` 第一版、`final103-bridge` 已从本目录删除，记录与重建来源见 `patch-history.json` 与 Git 历史。
 
-## 当前包：official main e7582079（2026-11-16，第 39 批换）
+## 主线第 39 批曾采用：official main e7582079（2026-11-16，第 39 批换）
 
-当前包为 **1,477,940 字节**，SHA-256 `5701942422e9e5732967580cf502463ab21cc5e44b88bbb6848c841c08e40c47`。来源为上游 `molis-ai/molis-prologue` 的 **main 合并提交 `e75820791e862c2605c2ff169720b6189ed9a109`**（PR [#127](https://github.com/molis-ai/molis-prologue/pull/127)，在 `02a11ac5a566eab4afe15e5562240fdd11f5c9a4`、PR [#126](https://github.com/molis-ai/molis-prologue/pull/126) 之上），没有 vendor 补丁、没有脏文件。上一份是第 32 批换上的官方构建 `02a11ac5`（PR #124～#126，main #2093）；这一份比它多第 39 批获批合入上游 main 的四项修复：
+当时的包为 **1,477,940 字节**，SHA-256 `5701942422e9e5732967580cf502463ab21cc5e44b88bbb6848c841c08e40c47`。来源为上游 `molis-ai/molis-prologue` 的 **main 合并提交 `e75820791e862c2605c2ff169720b6189ed9a109`**（PR [#127](https://github.com/molis-ai/molis-prologue/pull/127)，在 `02a11ac5a566eab4afe15e5562240fdd11f5c9a4`、PR [#126](https://github.com/molis-ai/molis-prologue/pull/126) 之上），没有 vendor 补丁、没有脏文件。上一份是第 32 批换上的官方构建 `02a11ac5`（PR #124～#126，main #2093）；这一份比它多第 39 批获批合入上游 main 的四项修复：
 
 - `ui-control` 与 `composition`：`surfaces.detach(ref)` 立即摘除目标、共用 `closeDriver` 回收并取消未派出效果（保留已派出效果对账），`UiExpectedTarget`／`reviewTarget`／`surfaceCancellation` 将原观察目标与单次取消贯穿观察、审批与最终执行，`runtimeShutdown` 在 `resources.settle()` 与 `store.close()` 之前排空卸载。
 - `effect-policy`：`reconcile` 先经单写链落盘再更新内存状态（写失败保持 `reconcile-required`，重试按宿主回执幂等收口），`beforeCommit` 紧邻 `storage.commitBatch` 同步核对 `assertCurrent` 并对落盘结果未知的故障标记 `UNCERTAIN_COMMIT`。
@@ -475,7 +547,7 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
 - `packagesWithoutPatch`：41 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption、2026-11-12 换下的 memory-p0 第一版（记录名 `prologue-sdk-0.0.0-rc.1-memory-p0-107.tgz`）与第二版（main #2020 采用的同名包，1,428,464 字节，上游 #113 `770a2e27`）、final103-bridge，以及 2026-11-13 由官方 main 包换下的 window31、同日第 28 批由 `c764d970` 官方包换下的 `5cbf2601` 官方包（记录名 `prologue-sdk-0.0.0-rc.1-main-5cbf2601.tgz`）、2026-11-14 第 31 批换下的 `c764d970` 官方包（记录名 `prologue-sdk-0.0.0-rc.1-main-c764d970.tgz`），2026-11-15 由 `3825662d` 官方包换下的 `4a4d1d3c` 分支包（记录名 `prologue-sdk-0.0.0-rc.1-b31-4a4d1d3c.tgz`），同日第 32 批换下的 `3825662d` 官方包（记录名 `prologue-sdk-0.0.0-rc.1-main-3825662d.tgz`），与 2026-11-16 第 39 批换下的 `02a11ac5` 官方包（记录名 `prologue-sdk-0.0.0-rc.1-main-02a11ac5.tgz`）；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
-- `upstream`：60 个 Prologue 提交的审计（2026-10-25 对当时的 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 复核 42 个；2026-11-12/13 补入 `1cc80b05`、`4537a570`、主线合并提交 `1c0654b7`、写后检查身份修复 `5cbf2601`、测试补充 `bdf80c6f` 与第二版 memory-p0 的来源 `770a2e27`；第 28 批补入 `14e13911`（#117）与 `c764d970`（#119）；第 31 批补入 `7e2de40b`（#120）、`018947ae`、`4493a5eb`（#121）、`4a4d1d3c`、`188d9f6c`（#122）与第 31 批收口时的包来源 `3825662d16e04f8f1163bb840f2ce1eefc3d6d43`（#123）；第 32 批补入 `e0625b62`（#124）、`0a0dfdfa`（#125）与 `02a11ac5a566eab4afe15e5562240fdd11f5c9a4`（#126）；第 39 批再补入当前包来源 `e75820791e862c2605c2ff169720b6189ed9a109`（#127）；`checkedOn` 为 2026-11-16，`mainHead` 为 `e75820791e862c2605c2ff169720b6189ed9a109`）：历史 `08b84296`、`923e5a40`、`4007a93c`、`ba75c9f8` 与分支构建 `4a4d1d3c` 五个过渡源不是 main 祖先，其余主线提交均为祖先；ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
+- `upstream`：68 个 Prologue 提交的审计（2026-10-25 对当时的 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 复核 42 个；2026-11-12/13 补入 `1cc80b05`、`4537a570`、主线合并提交 `1c0654b7`、写后检查身份修复 `5cbf2601`、测试补充 `bdf80c6f` 与第二版 memory-p0 的来源 `770a2e27`；第 28 批补入 `14e13911`（#117）与 `c764d970`（#119）；第 31 批补入 `7e2de40b`（#120）、`018947ae`、`4493a5eb`（#121）、`4a4d1d3c`、`188d9f6c`（#122）与第 31 批收口时的包来源 `3825662d16e04f8f1163bb840f2ce1eefc3d6d43`（#123）；第 32 批补入 `e0625b62`（#124）、`0a0dfdfa`（#125）与 `02a11ac5a566eab4afe15e5562240fdd11f5c9a4`（#126）；第 39 批再补入当时包来源 `e75820791e862c2605c2ff169720b6189ed9a109`（#127）；第 59 批补入 #128～#135 的八个官方合入来源；`checkedOn` 为 2026-11-17，`mainHead` 为 `64e5aaf444629aa597f028e63cf4090456830637`）：历史 `08b84296`、`923e5a40`、`4007a93c`、`ba75c9f8` 与分支构建 `4a4d1d3c` 五个过渡源不是 main 祖先，其余主线提交均为祖先；ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
 
 怎么取回并核对：
 

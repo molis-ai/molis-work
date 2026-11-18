@@ -30,7 +30,7 @@ const executorErrors = defineErrorCodes("coding", { executor_mode_unknown: "inva
 type Settings = ReturnType<typeof nextConfiguration>;
 /** What `coding.read-session` answers that the protocol's session takes. */
 interface SessionRead {
-  session: { session_id: string; title: string; runtime_session_id?: string | null };
+  session: { session_id: string; title: string; runtime_session_id?: string | null; queued_inputs?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[] };
   runs: AgentRunView[];
   configuration: Settings | null;
   mcp_tools?: AgentMcpToolRef[];
@@ -110,6 +110,7 @@ export function codingExecutor(a: CodingActivation): void {
     const read = await call.routed("coding.read-session", { method: "GET", params: { sessionId: input.session_id }, query: { window: String(input.window ?? READ_WINDOW) }, body: {} }) as SessionRead;
     return { session_id: read.session.session_id, title: read.session.title, mode: read.configuration?.intent ?? null, runs: read.runs,
       runtime_session_id: read.session.runtime_session_id ?? null,
+      ...(read.session.queued_inputs ? { queued_inputs: read.session.queued_inputs } : {}),
       recovery: read.recovery_required ? { message: (read.error || "这个会话的执行记录要先在 Coding 页面核对").slice(0, 2000) } : null,
       workspace_id: read.configuration?.workspace_id ?? null, mcp_tools: read.mcp_tools ?? [] };
   });
@@ -121,7 +122,7 @@ export function codingExecutor(a: CodingActivation): void {
   action(codingExecutorActions["run.start"], async (input, call) => {
     const own = kept(a, input.session_id), chosen = await settings(call, own);
     const started = await call.routed("coding.start-run", { method: "POST", params: { sessionId: input.session_id }, query: {},
-      body: roundOf(a, input.session_id, chosen, input.task, input.skills ?? []) }) as { run: { ref: { run_id: string } } };
+      body: { ...roundOf(a, input.session_id, chosen, input.task, input.skills ?? []), ...(input.resume_answer ? { resume_answer: input.resume_answer } : {}) } }) as { run: { ref: { run_id: string } } };
     // Kept once the round runs, so a refused start leaves the session as it was; settings the person chose meanwhile stay theirs.
     if (!own) {
       await call.beforeWrite();

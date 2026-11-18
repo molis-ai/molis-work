@@ -16,7 +16,9 @@ import { AssistantThreads } from "./assistant-threads.js";
 import { assistantThreadActions, assistantThreadRegistration } from "./assistant-thread-actions.js";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
 import { randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { agentSubagentCommandSchema, type AgentSubagentCommand } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ASSISTANT_INSTALL_ID, type AssistantControl, type AssistantHandover, type AssistantPageCardInput, type AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -28,7 +30,7 @@ import { bindLocalWebActions, localWebActionContext } from "../local-web-actions
 import { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import type { MolisWorkLocalHost } from "../project-host.js";
-import { ActionError, bindActionClient, requireSynchronous, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema, type ActionView, type BoundActionClient, type InferActionInput, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema, type ActionView, type BoundActionClient, type InferActionInput, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_WRITE_PERMISSION, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { responseAbortSignal, webEntryDoor, webEntryProvider, type WebEntryCall } from "../web-entry-actions.js";
 import { assistantCandidate } from "./assistant-memory-tools.js";
@@ -337,6 +339,7 @@ export async function assistantNotices(ports: AssistantHttpPorts, surface: strin
   const { service } = assistantServiceFor(ports);
   // Reading the works is what notices a change of state, so a closed panel still hears that a round finished.
   await service.list();
+  await service.sdkSubtasks.noticeResults();
   // What the person already acted on in its plugin is not news any more.
   await service.notices.settleHandledNotices().catch(error => { hostLog.warn("assistant", "handled_notices_settlement_failed", error); return 0; });
   return service.notices.notices(surface);
@@ -351,8 +354,10 @@ const pageId = { type: "string", minLength: 1, maxLength: 200 } as const, body =
 const ofPanel = { type: "object", properties: { body }, required: ["body"], additionalProperties: false } as const;
 const ofWork = { type: "object", properties: { work_id: pageId, body }, required: ["work_id", "body"], additionalProperties: false } as const;
 const ofItem = { type: "object", properties: { work_id: pageId, item: pageId, body }, required: ["work_id", "item", "body"], additionalProperties: false } as const;
+const ofSdkSubtask = { type: "object", properties: { work_id: pageId, parent_run_id: pageId, child_id: pageId, body: agentSubagentCommandSchema }, required: ["work_id", "parent_run_id", "child_id", "body"], additionalProperties: false } as const;
+const ofSdkReview = { ...ofSdkSubtask, properties: { ...ofSdkSubtask.properties, item: pageId, body }, required: [...ofSdkSubtask.required, "item"] } as const;
 const ofReview = { ...ofItem, properties: { ...ofItem.properties, body: { type: "object", properties: {
-  decision: { enum: ["approve", "reject"] }, version: { type: "string", minLength: 1, maxLength: 200 }, note: { type: "string", maxLength: 2000 },
+  decision: { enum: ["approve", "reject"] }, version: { type: "string", minLength: 1, maxLength: 200 }, note: { type: "string", maxLength: 2000 }, subtask: body,
 }, required: ["decision", "version"], additionalProperties: false } } } as const;
 const scoped = (entry: AssistantPageEntry) => entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {};
 const panel = <const S extends ActionSchema, Output>(name: string, version: number, title: string, input_schema: S,
@@ -372,6 +377,25 @@ export const assistantPanelActions = {
         input_id: body.request_id, text: body.text, written_by: "person" as const, occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID,
       } } : {}) }, undefined, () => { caller.signal?.throwIfAborted(); return true; });
   }, true),
+  subtaskCommand: panel("works.subtask.command", /* @version action.assistant.panel.works.subtask.command */ 1, "操作指定子任务", ofSdkSubtask, async (entry, input, caller) => {
+    const command = input.body as AgentSubagentCommand;
+    const original = command.kind === "send" || command.kind === "continue" ? {
+      input_id: command.request_id, text: command.text, written_by: "person" as const, occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID,
+    } : undefined;
+    const source = of(entry).service.sdkSubtasks;
+    const result = await source.command(input.work_id, input.parent_run_id, input.child_id, command, {
+      original, ...assistantPermissionCaller(caller, entry.page), beforeEffect: async () => { await assistantPermissionCaller(caller, entry.page).beforeEffect(); },
+    });
+    if (result.state !== "not-applied" || !result.problems || command.kind !== "answer") return result;
+    const asked = await source.read(input.work_id, input.parent_run_id, input.child_id).then(value => value.conversation.questions.find(question => question.pending_id === command.pending_id)?.questions).catch(() => undefined);
+    return { ...result, details: { errors: questionErrors(result.problems, readText, asked) } };
+  }, true),
+  subtaskReview: panel("works.subtask.review", /* @version action.assistant.panel.works.subtask.review */ 1, "决定指定子任务的原审批", ofSdkReview, async (entry, input, caller) => ({
+    receipt: await of(entry).service.sdkSubtasks.review(input.work_id, input.parent_run_id, input.child_id,
+      { ...pageBody<Omit<import("@molis-ai/molis-work-contracts/services/assistant").AssistantSdkSubtaskReview, "review_id">>(input.body), review_id: input.item }, {
+        beforeEffect: async () => { await assistantPermissionCaller(caller, entry.page).beforeEffect(); }, assertCurrent: review => { assistantPermissionCaller(caller, entry.page).assertCurrent(); assertHumanReview(computerHolderFor(entry.ports.localHost)?.(), review.run?.session_id); },
+      }),
+  })),
   cards: panel("cards", /* @version action.assistant.panel.cards */ 1, "放下页面准备的操作卡", ofPanel, (entry, { body }) => of(entry).service.offers.offerFromPage(pageBody<AssistantPageCardInput>(body), scoped(entry))),
   attachments: panel("attachments", /* @version action.assistant.panel.attachments */ 1, "读出带来的文档", ofPanel,
     async (entry, { body }) => ({ material: await of(entry).service.materials.readAttachment({ name: String(body.name ?? ""), data: String(body.data ?? "") }) })),
@@ -402,15 +426,22 @@ export const assistantPanelActions = {
   // A closed request aborts this action's signal; archive checks it around its own remaining writes, as send/answer/redo do.
   archive: panel("works.archive", /* @version action.assistant.panel.works.archive */ 1, "归档或恢复工作", ofWork,
     async (entry, input, caller) => ({ work: await of(entry).service.archive(input.work_id, input.body.archived !== false, assistantPermissionCaller(caller, entry.page)) })),
-  review: panel("works.review", /* @version action.assistant.panel.works.review */ 1, "批准或拒绝工作里的待审操作", ofReview, (entry, input, caller) => of(entry).service.outcomes.decide(input.work_id,
-    { review_id: input.item, version: input.body.version, decision: input.body.decision, ...(typeof input.body.note === "string" ? { note: input.body.note } : {}) }, {
-      beforeEffect: async () => { await caller.beforeEffect(); await entry.page?.beforeEffect(); },
-      assertCurrent: review => {
-        caller.signal?.throwIfAborted(); requireSynchronous(caller.assert_authority_current?.()); entry.page?.assertCurrent();
-        assertHumanReview(computerHolderFor(entry.ports.localHost)?.(), review.run?.session_id);
-      },
-    })),
+  review: panel("works.review", /* @version action.assistant.panel.works.review */ 1, "批准或拒绝工作里的待审操作", ofReview, (entry, input, caller) => {
+    const control = assistantPermissionCaller(caller, entry.page);
+    const decision = { review_id: input.item, version: input.body.version, decision: input.body.decision, ...(typeof input.body.note === "string" ? { note: input.body.note } : {}) };
+    const assertReview = (review: import("@molis-ai/molis-work-contracts/services/agent-host").AgentReviewRequest) => {
+      control.assertCurrent(); assertHumanReview(computerHolderFor(entry.ports.localHost)?.(), review.run?.session_id);
+    };
+    return input.body.subtask === undefined ? of(entry).service.outcomes.decide(input.work_id, decision, { beforeEffect: async () => { await control.beforeEffect(); }, assertCurrent: assertReview })
+      : of(entry).service.workSubtasks.review(input.work_id, { ...decision, subtask: pageBody<Pick<import("@molis-ai/molis-work-contracts/services/assistant").AssistantSubtaskReview, "subtask">>(input.body).subtask }, {
+        beforeStart: async () => { await control.beforeEffect(); }, assertBeforeStart: control.assertCurrent, assertReview,
+      });
+  }),
   answer: panel("works.answer", /* @version action.assistant.panel.works.answer */ 1, "回答待答的问题", ofWork, (entry, input, caller) => answerQuestion(entry, input.work_id, input.body, assistantPermissionCaller(caller, entry.page)), true),
+  resumeAnswer: panel("works.resume_answer", /* @version action.assistant.panel.works.resume_answer */ 1, "接续已接受答案的子任务", ofWork, (entry, input, caller) => of(entry).service.workSubtasks.resume(input.work_id,
+    pageBody<import("@molis-ai/molis-work-contracts/services/assistant").AssistantSubtaskResumeAnswer>(input.body), {
+      ...entry.language(), beforeStart: async () => { await assistantPermissionCaller(caller, entry.page).beforeEffect(); }, assertBeforeStart: assistantPermissionCaller(caller, entry.page).assertCurrent,
+    })),
   questionDraft: panel("works.question_draft", /* @version action.assistant.panel.works.question_draft */ 1, "保存问题的草稿", ofWork, (entry, input) => ({ ok: true,
     ...questionDrafts(of(entry).store).save(input.work_id, String(input.body.pending_id ?? ""), input.body.values, input.body.draft_revision) }), false, true),
   runCard: panel("works.cards.run", /* @version action.assistant.panel.works.cards.run */ 1, "执行一张操作卡", ofItem,
@@ -445,9 +476,11 @@ async function panelWrite(parts: readonly string[], body: Readonly<Record<string
   const work_id = parts[1];
   if (parts.length === 3) {
     const own = named<Panel<typeof ofWork>>({ control: a.control, draft: a.draft, rename: a.rename, mode: a.mode, "take-back": a.takeBack, budget: a.budget, "ask-each-step": a.askEachStep,
-      results: a.results, handover: a.handover, recovery: a.recovery, archive: a.archive, answer: a.answer, "question-draft": a.questionDraft }, parts[2]);
+      results: a.results, handover: a.handover, recovery: a.recovery, archive: a.archive, answer: a.answer, "resume-answer": a.resumeAnswer, "question-draft": a.questionDraft }, parts[2]);
     return own && run(own.definition, { work_id, body });
   }
+  if (parts.length === 7 && parts[2] === "sdk-subtasks" && parts[5] === "reviews") return run(a.subtaskReview.definition, { work_id, parent_run_id: parts[3]!, child_id: parts[4]!, item: parts[6]!, body });
+  if (parts.length === 5 && parts[2] === "sdk-subtasks") return run(a.subtaskCommand.definition, { work_id, parent_run_id: parts[3]!, child_id: parts[4]!, body });
   const item = parts[3]!;
   if (parts.length === 4) { const one = named<Panel<typeof ofItem>>({ undo: a.undo, reviews: a.review }, parts[2]); return one && run(one.definition, { work_id, item, body }); }
   if (parts.length === 5 && parts[2] === "cards") {
@@ -553,6 +586,21 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
       if (parts[0] !== "works" || !parts[1]) return null;
       const workId = parts[1];
       if (method === "GET" && parts.length === 2) return { status: 200, body: await service.read(workId) };
+      if (method === "GET" && parts.length === 3 && parts[2] === "sdk-subtasks") return { status: 200, body: { children: await service.sdkSubtasks.list(workId) } };
+      if (method === "GET" && parts.length >= 5 && parts[2] === "sdk-subtasks") {
+        const parentRun = parts[3]!, child = parts[4]!;
+        if (parts.length === 5) return { status: 200, body: await service.sdkSubtasks.read(workId, parentRun, child) };
+        if (parts.length === 7 && parts[5] === "requests") return { status: 200, body: await service.sdkSubtasks.check(workId, parentRun, child, parts[6]!) };
+        if (parts.length === 6 && parts[5] === "wait") {
+          const ended = new AbortController(), stop = () => ended.abort(); response.once("close", stop);
+          try { return { status: 200, body: await service.sdkSubtasks.wait(workId, parentRun, child, url.searchParams.get("since"), Number(url.searchParams.get("timeout") ?? 25_000), ended.signal) }; }
+          finally { response.off("close", stop); }
+        }
+      }
+      if (method === "GET" && parts.length === 3 && parts[2] === "subtask") return { status: 200, body: await service.readSubtask(workId) };
+      if (method === "GET" && parts.length === 5 && parts[2] === "subtask" && parts[3] === "requests") {
+        return { status: 200, body: await service.checkSubtaskRequest(workId, parts[4]!) };
+      }
       // The page follows a live work by waiting for its view to change (closing the request ends the wait).
       if (method === "GET" && parts.length === 3 && parts[2] === "wait") {
         const ended = new AbortController(), stop = () => ended.abort();
@@ -621,11 +669,17 @@ async function answerQuestion(entry: AssistantPageEntry, workId: string, body: R
   const { service, store } = assistantServiceFor(entry.ports);
   const answer = body.values === undefined ? {} : questionAnswer(body.values);
   if (!answer) throw assistantErrors.invalid("请先回答再提交");
-  const view = await service.outcomes.answer(workId, { run_id: String(body.run_id ?? ""), pending_id: String(body.pending_id ?? ""),
+  const input = { run_id: String(body.run_id ?? ""), pending_id: String(body.pending_id ?? ""),
     ...(body.pending_revision !== undefined ? { pending_revision: Number(body.pending_revision) } : {}), ...(typeof body.text === "string" ? { text: body.text } : {}),
-    ...(Array.isArray(body.answers) ? { answers: pageBody<Pick<Parameters<typeof service.outcomes.answer>[1], "answers">>(body).answers } : {}), ...answer },
-    { ...entry.language(), ...(entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {}),
-      beforeStart: async () => { await control.beforeEffect(); }, assertBeforeStart: control.assertCurrent }).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
+    ...(Array.isArray(body.answers) ? { answers: pageBody<Pick<Parameters<typeof service.outcomes.answer>[1], "answers">>(body).answers } : {}), ...answer };
+  const authority = { ...entry.language(), ...(entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {}),
+    beforeStart: async () => { await control.beforeEffect(); }, assertBeforeStart: control.assertCurrent };
+  const draft = questionDrafts(store).read(workId)[input.pending_id];
+  const submittedDraft = draft && isDeepStrictEqual(questionAnswer(draft), { ...(input.text === undefined ? {} : { text: input.text }), ...(input.answers === undefined ? {} : { answers: input.answers }) }) ? draft : undefined;
+  const view = await (body.subtask === undefined ? service.outcomes.answer(workId, input, authority) : service.workSubtasks.answer(workId, {
+    ...input, pending_revision: Number(body.pending_revision), request_id: String(body.request_id ?? ""),
+    subtask: pageBody<import("@molis-ai/molis-work-contracts/services/assistant").AssistantSubtaskAnswer>(body).subtask,
+  }, authority)).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
     // A questionnaire answer the Runtime refused: each question's reason goes beside its own field.
     if (error?.code !== "agent.answer_invalid") throw error;
     // Read back with the questions it answered, so each line can name the limit it crossed.
@@ -636,7 +690,8 @@ async function answerQuestion(entry: AssistantPageEntry, workId: string, body: R
     throw assistantErrors.invalid(String(error.message), Array.isArray(error.problems) ? { errors: questionErrors(error.problems, readText, asked) } : undefined);
   });
   await control.beforeEffect(); control.assertCurrent();
-  questionDrafts(store).drop(workId, String(body.pending_id ?? ""));
+  if (body.subtask === undefined) questionDrafts(store).drop(workId, String(body.pending_id ?? ""));
+  else if (submittedDraft) questionDrafts(store).drop(workId, input.pending_id, submittedDraft);
   return view;
 }
 

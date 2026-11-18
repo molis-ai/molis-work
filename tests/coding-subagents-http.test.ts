@@ -18,7 +18,12 @@ test('Coding child controls bind original run, keep acceptance separate, reject 
       if(input[0]?.session_id!=='sdk'||input[1]?.run_id!=='parent')throw new Error('not original parent');
       if(definition.capability_id===agent.listSubagents.capability_id)return [{subagent_id:'child',parent_run:input[1],role_id:'coding-reader',task:'read',state,result:'candidate',workspace_path:home}] as O;
       // Who stops it is the caller the host knows, never a field of the input (R8 rule 4).
-      if(definition.capability_id===agent.cancelSubagent.capability_id){assert.equal(input[2],'child');assert.equal(input.length,3);cancels++;return undefined as O;}
+      if(definition.capability_id===agent.commandSubagent.capability_id){
+        assert.equal(input[2],'child');assert.equal(input.length,4);
+        if(input[3].child_run.run_id==='old-child-run')return {state:'not-applied',reason:'The original run changed'} as O;
+        if(input[3].request_id==='unknown-stop')return {state:'unknown'} as O;
+        assert.deepEqual(input[3],{kind:'stop',request_id:'stop-child',child_run:{session_id:'child-session',run_id:'child-run'}});cancels++;return {state:'applied',run:input[3].child_run} as O;
+      }
       throw new Error('Unexpected capability');
     }};
   const host=()=>withFakeAgentHost({store,...openProjectVersionStores(store),homeDirectory:home,projectId:DEMO_PROJECT_ID,actions:pluginActions(store,DEMO_PROJECT_ID),actorId:'web-user',escapeHtml:(v:unknown)=>String(v),translate:(v:string)=>v,
@@ -28,8 +33,17 @@ test('Coding child controls bind original run, keep acceptance separate, reject 
   const post=async(body:any,child='child',run='parent')=>{const res=await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions/app/runs/${run}/subagents/${child}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});return {status:res.status,body:await res.json()};};
   try{
     assert.equal((await post({action:'accepted',expected_revision:0})).status,400);
-    assert.equal((await post({action:'stop'},'foreign')).status,400);assert.equal((await post({action:'stop'},'child','other')).status,400);assert.equal(cancels,0);
-    assert.equal((await post({action:'stop'})).status,200);assert.equal(cancels,1);
+    assert.equal((await post({action:'stop',request_id:'stop-child',child_run:{session_id:'child-session',run_id:'child-run'}},'foreign')).status,400);assert.equal((await post({action:'stop',request_id:'stop-child',child_run:{session_id:'child-session',run_id:'child-run'}},'child','other')).status,400);assert.equal(cancels,0);
+    assert.equal((await post({action:'stop',request_id:'stop-child',child_run:{session_id:'child-session',run_id:'child-run'}})).status,200);assert.equal(cancels,1);
+    // SAI-08/14: the existing timeline and result controls use HTTP success to show "requested".
+    for(const action of ['stop','retry','extend-budget']){
+      const refused=await post({action,request_id:'stale-'+action,child_run:{session_id:'child-session',run_id:'old-child-run'}});
+      assert.equal(refused.status,400,'the original control reports refusal before the browser shows success');
+    }
+    const unknown=await post({action:'stop',request_id:'unknown-stop',child_run:{session_id:'child-session',run_id:'child-run'}});
+    assert.equal(unknown.status,400);
+    assert.notDeepEqual(unknown.body,(await post({action:'stop',request_id:'stale-stop',child_run:{session_id:'child-session',run_id:'old-child-run'}})).body);
+    assert.equal(cancels,1);
     state='completed';assert.equal((await post({action:'needs-work',expected_revision:0,notes:''})).status,400);
     assert.equal((await post({action:'needs-work',expected_revision:0,notes:'缺少文件依据'})).status,200);
     assert.equal((await post({action:'accepted',expected_revision:0})).status,400);

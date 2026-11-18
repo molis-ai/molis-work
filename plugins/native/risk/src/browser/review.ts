@@ -75,22 +75,26 @@ function controls(page: RiskPage, review: RiskReview | null, risk: RiskRecord): 
   return `${schedule}${toggle}${review.state === "done" ? "" : act(text("review.cancel"), "review-cancel", { variant: "ghost", icon: "x", ...busy })}`;
 }
 
-export function renderReview(page: RiskPage, risk: RiskRecord): string {
+function reviewBody(page: RiskPage, risk: RiskRecord): string {
   const { review: answer, reviewError } = page.state;
   if (reviewError) {
-    return section(text("review.title"), renderAlert({ tone: "danger", title: text("review.read-failed"), body: reviewError,
-      actions: [{ label: text("action.retry"), icon: "refresh", attrs: { "data-rk-act": "reload-review" } }] }));
+    return renderAlert({ tone: "danger", title: text("review.read-failed"), body: reviewError,
+      actions: [{ label: text("action.retry"), icon: "refresh", attrs: { "data-rk-act": "reload-review" } }] });
   }
-  if (!answer) return section(text("review.title"), `<p class="rk-muted" aria-busy="true">${esc(text("overview.loading"))}</p>`);
-  if (answer.state === "unavailable") return section(text("review.title"), renderAlert({ tone: "info", title: text("review.unavailable"), body: text("review.unavailable-body") }));
+  if (!answer) return `<p class="rk-muted" aria-busy="true">${esc(text("overview.loading"))}</p>`;
+  if (answer.state === "unavailable") return renderAlert({ tone: "info", title: text("review.unavailable"), body: text("review.unavailable-body") });
   const review = answer.review;
   if (!review) {
     const none = risk.status === "closed" ? text("review.none-closed") : text("review.none");
-    return section(text("review.title"), `<p class="rk-muted">${esc(none)}</p><div class="rk-actions">${controls(page, null, risk)}</div>`);
+    return `<p class="rk-muted">${esc(none)}</p><div class="rk-actions">${controls(page, null, risk)}</div>`;
   }
   const mark = renderStatusMark({ label: text(`review.${review.state}`), ...REVIEW_MARK[review.state] });
   const at = review.at ? `<span class="rk-review-at">${esc(when(review.at))}</span>` : "";
   const focus = review.focus.trim() ? `<p class="rk-review-focus"><span class="rk-label">${esc(text("review.focus"))}</span>${esc(review.focus)}</p>` : "";
-  return section(text("review.title"), `<div class="rk-review"><div class="rk-review__line">${mark}${at}</div>${focus}${outcome(review)}${reads(page, review)}
-    <div class="rk-actions">${controls(page, review, risk)}</div></div>`);
+  return `<div class="rk-review"><div class="rk-review__line">${mark}${at}</div>${focus}${outcome(review)}${reads(page, review)}
+    <div class="rk-actions">${controls(page, review, risk)}</div></div>`;
+}
+
+export function renderReview(page: RiskPage, risk: RiskRecord): string {
+  return section(text("review.title"), reviewBody(page, risk), "", "review");
 }

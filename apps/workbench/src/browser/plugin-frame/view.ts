@@ -1,3 +1,4 @@
+import { childTaskView } from "./task-child.js";
 import { childEmbeds } from "./embed.js";
 import { childSurfaceSlots } from "./surface-slot-child.js";
 import type { UiPageView } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -51,7 +52,7 @@ export function collapsePage(root: HTMLElement): void {
   root.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: null } }));
 }
 
-export function childView(port: MessagePort, scope: FrameScope): UiPageView<HTMLElement> {
+export function childView(port: MessagePort, scope: FrameScope, task?: Readonly<Record<string, string>>): UiPageView<HTMLElement> {
   let sequence = 0, languageRevision = 0;
   const pending = new Map<number, { finish(html?: string, error?: Error): void; cancel(): void }>();
   const cancel = () => { for (const entry of [...pending.values()]) entry.cancel(); };
@@ -62,7 +63,7 @@ export function childView(port: MessagePort, scope: FrameScope): UiPageView<HTML
     const entry = pending.get(event.data.id); if (!entry) return;
     entry.finish(event.data.html ?? "", event.data.error ? new Error(event.data.error) : undefined);
   });
-  return { onClosing(action) { if (scope.alive) port.postMessage({ type: "on-closing", action } satisfies FrameUp); },
+  return { ...childTaskView(port, scope, task), onClosing(action) { if (scope.alive) port.postMessage({ type: "on-closing", action } satisfies FrameUp); },
     embed: childEmbeds(port, scope), surfaceSlot: childSurfaceSlots(port, scope), refreshShell() { if (scope.alive) port.postMessage({ type: "refresh-shell" } satisfies FrameUp); }, readDocument: query => new Promise<string>((resolve, reject) => {
     if (!scope.alive) { reject(new Error("View closed")); return; }
     query?.signal?.throwIfAborted();
@@ -94,7 +95,7 @@ export async function readOwnPageDocument(root: HTMLElement, route: (path: strin
     return html;
 }
 
-function validStageInput(input: unknown): input is Readonly<Record<string, string>> {
+export function validStageInput(input: unknown): input is Readonly<Record<string, string>> {
   return Boolean(input && typeof input === "object" && !Array.isArray(input) && Object.keys(input).length <= 20
     && Object.entries(input).every(([key, value]) => /^[a-z][a-z0-9_]*$/.test(key) && key.length <= 80 && typeof value === "string" && value.length <= 2000));
 }

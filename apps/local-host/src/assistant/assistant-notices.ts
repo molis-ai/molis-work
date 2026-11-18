@@ -15,6 +15,8 @@ import type { AssistantWorkReads } from "./assistant-work-reads.js";
 import { assistantWords } from "./assistant-saved-text.js";
 import { filledNotice } from "./assistant-work-title.js";
 
+const SUBTASK_RESULT = "workbench.assistant-notice.subtask-result";
+
 /** The rule that holds a notice of this kind on this surface now, if any. Rules apply exactly as written. */
 export function holdingRule(rules: readonly AssistantRule[], kind: AssistantNoticeKind, surface: string | null): AssistantRule | undefined {
   return rules.find(rule => !rule.except.includes(kind) && (rule.kind === "pause" || !rule.surfaces.length || (surface !== null && rule.surfaces.includes(surface))));
@@ -29,6 +31,12 @@ export type AssistantNoticesLinks = Pick<AssistantWorkReads, "assistantPart" | "
  */
 export class AssistantNotices {
   constructor(private readonly store: Pick<AssistantStore, "activeSince" | "get" | "list" | "observed" | "openNotices" | "raiseNotice" | "relations" | "rounds" | "rules" | "setSetting" | "setting" | "settleNotices">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly link: AssistantNoticesLinks) {}
+
+  /** Original child executions identify news; reading or restarting must not raise it again. */
+  subtaskResult(parent: StoredWork, title: string, key: string): void {
+    this.store.raiseNotice(this.actorId, { kind: "result", work_id: parent.work_id, work_title: parent.title,
+      text: assistantWords(SUBTASK_RESULT, { title }) }, key);
+  }
 
   /**
    * A change of a work's state is what raises a notice — failed, waiting on the person, done — once per round and kind.
@@ -156,7 +164,9 @@ export class AssistantNotices {
    * news: they already acted on it. Only works with such open notices are read, a few at a time.
    */
   async settleHandledNotices(): Promise<number> {
-    const open = this.store.openNotices(this.actorId).filter(notice => notice.kind === "completed" || notice.kind === "result");
+    const open = this.store.openNotices(this.actorId).filter(notice => (notice.kind === "completed" || notice.kind === "result")
+      // Acting on a parent's earlier artifact does not read a child's later execution result.
+      && !("key" in notice.text && notice.text.owner === "workbench" && notice.text.key === SUBTASK_RESULT));
     let settled = 0;
     for (const workId of [...new Set(open.map(notice => notice.work_id))].slice(0, 5)) {
       // A work that is gone leaves its notices as they are; one that cannot be read is written once and passed over, so the others still settle.

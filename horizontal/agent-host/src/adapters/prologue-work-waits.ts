@@ -91,18 +91,21 @@ export function createWorkWaits(runtime: Runtime, root: string, isWorkGraph: (gr
      * cannot be armed after the step was added, the step is taken back (`part.remove`) and the work waits again for what
      * it waited for before, so no step is left that nothing waits for and no round stands on.
      */
-    handOut: (graph: string, part: { add: () => Promise<void>; remove?: () => Promise<void> }, reason: string) => serially(graph, async () => {
+    handOut: (graph: string, part: { node: string; add: () => Promise<void>; remove?: () => Promise<void> }, reason: string) => serially(graph, async () => {
       const step = rootOf(graph);
       if (!step || step.assignee?.kind !== "session") throw agentErrors.collaboration_unknown("工作的任务图上没有根");
       // The SDK hands the last wait's result to the round at its next model boundary; arming another before that would drop it.
       if (step.continuation?.state === "claimed") throw agentErrors.collaboration_conflict(TAKING_UP);
       if (open(graph).some(wait => wait.by !== "app")) throw agentErrors.collaboration_conflict("这项工作正在等它自己登记的事；等那件事有了结果，再交出新的子任务");
       if (step.state !== "running") throw agentErrors.collaboration_conflict("这项工作现在没有在做的一轮，不能等它的子任务");
+      const previous = open(graph).filter(one => one.by === "app").flatMap(partsOf);
+      const inherited = step.continuation && runtime.waits.get(step.continuation.wait.ref.id);
+      if (inherited?.by === "app") previous.push(...partsOf(inherited));
       await part.add();
       const at = { session: step.assignee, generation: step.generation };
-      try { await waitForParts(graph, at, reason); } catch (error) {
+      try { await waitForParts(graph, at, reason, [...previous, part.node]); } catch (error) {
         await part.remove?.().catch(() => undefined);
-        await waitForParts(graph, at, reason).catch(() => undefined);
+        await waitForParts(graph, at, reason, previous).catch(() => undefined);
         throw error;
       }
     }),

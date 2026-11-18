@@ -22,7 +22,7 @@ import { AgentDefinitions, agentDefinitionsFor, agentRegistration, openedAgentDe
 import { builtinAgents, builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-agents.js";
 import { handleContextualHttp, judgmentWording, judgmentWordingRevision } from "../apps/local-host/dist/contextual/contextual-http.js";
 import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
-import { ASSISTANT_PROMPTS } from "../apps/local-host/dist/assistant/assistant-agent.js";
+import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_PROMPTS } from "../apps/local-host/dist/assistant/assistant-agent.js";
 
 const BASE_VERSION = ASSISTANT_PROMPTS.find(prompt => prompt.prompt_id === "assistant-base")!.version;
 
@@ -57,6 +57,13 @@ test("every built-in Agent is registered: its prompts named for the roles that u
   assert.ok(coding.some(prompt => prompt.prompt_id === "coding-base" && prompt.title === "基础约束"));
   assert.ok(coding.some(prompt => prompt.title === "上下文整理"));
   const roles = definitions.roles();
+  const delegated = roles.filter(role => role.owner_id === ASSISTANT_PLUGIN_ID && role.role_id === ASSISTANT_DELEGATED_ROLE_ID);
+  assert.equal(delegated.length, 1, "SAI-01: Work and SDK share one delegated role in Settings");
+  assert.equal(delegated[0]!.workspace, "business");
+  assert.equal(delegated[0]!.subagent, true);
+  assert.deepEqual(delegated[0]!.prompt_keys, [
+    `${ASSISTANT_PLUGIN_ID}/assistant-base`, `${ASSISTANT_PLUGIN_ID}/assistant-delegated`,
+  ]);
   assert.ok(roles.some(role => role.owner_id === "io.molis.work.coding" && role.subagent), "child roles are listed");
   // Every role's prompts are registered, so nothing a role runs with escapes the settings.
   const keys = new Set(prompts.map(prompt => prompt.key));

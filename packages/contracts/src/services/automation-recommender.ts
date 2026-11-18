@@ -1,5 +1,6 @@
 import type { ActionDefinition, ActionSchema } from "../platform/actions.js";
 import type { SkillRef } from "./agent-definitions.js";
+import type { SkillState } from "./skills.js";
 
 export const AUTOMATION_CATEGORIES = ["hooks", "skills", "connections", "roles", "commands"] as const;
 export type AutomationCategory = typeof AUTOMATION_CATEGORIES[number];
@@ -8,9 +9,12 @@ export type AutomationSignal = "javascript" | "python" | "rust" | "go" | "fronte
  * A service's declared `project_hints` entry that this file matched (§7): the service, which kind of hint, and the hint exactly as the
  * service declared it — a Git host, a project path, a package name. Never a remote address, a version or other text from the file.
  */
+/** What in a project matched a service's declared hint: a Git remote host, a file or folder at the root, or a declared dependency. */
+export const AUTOMATION_HINT_KINDS = ["git_host", "file", "dependency"] as const;
+export type AutomationHintKind = (typeof AUTOMATION_HINT_KINDS)[number];
 export interface AutomationHint {
   readonly service_id: string;
-  readonly kind: "git_host" | "file" | "dependency";
+  readonly kind: AutomationHintKind;
   readonly hint: string;
 }
 export interface AutomationEvidence {
@@ -97,9 +101,12 @@ export const automationRecommendationActions = {
     "设置助理是否主动说项目建议", "command", closed({ enabled: { type: "boolean" } })),
 };
 /** What a look found: a card placed in a work, or why nothing was said. */
+/** Why the Assistant said nothing this time: switched off, looked recently, no folder, nothing it has not said, or no Assistant here. */
+export const AUTOMATION_QUIET_REASONS = ["off", "recent", "no-workspace", "nothing-new", "no-assistant"] as const;
+export type AutomationQuietReason = (typeof AUTOMATION_QUIET_REASONS)[number];
 export type AutomationOfferResult =
   | { readonly offered: true; readonly work_id: string; readonly count: number }
-  | { readonly offered: false; readonly reason: "off" | "recent" | "no-workspace" | "nothing-new" | "no-assistant" };
+  | { readonly offered: false; readonly reason: AutomationQuietReason };
 /** Whether the Assistant brings up new project suggestions by itself, for this person in every project. */
 export interface AutomationOffersSetting { readonly enabled: boolean }
 
@@ -118,7 +125,7 @@ export interface AutomationAdoptInput {
   /** Suggestions not to bring up again in this project (AUT-07 「以后别再提」). */
   readonly never: readonly string[];
   /** How a skill turned on here is used (第 41 批): picked by the Assistant when it applies, or only when named. */
-  readonly skill_state: "auto" | "manual";
+  readonly skill_state: Exclude<SkillState, "off">;
 }
 export interface AutomationAdoptResult {
   readonly adoption_id: string;

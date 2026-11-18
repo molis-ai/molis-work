@@ -305,12 +305,7 @@ export class MolisWorkLocalHost {
     const callerClient = (caller: ActionCallContext) => callerOwnClient(this, caller);
     const platform: ActionProviderRegistration[] = [
       accountActionProvider(() => accountSessionForHost(this)), ...(this.observation ? [this.observation.provider] : []), ...(this.sessions ? [this.sessions.provider] : []),
-      actionUsagesProvider(callerClient, options.homeDirectory), contextOnboardingProvider(),
-      ...(options.homeDirectory && this.recommendations ? [automationAdoptionProvider({ home: options.homeDirectory, clientFor: callerClient, incarnation: async caller => {
-        const reference = this.host.projects().find(row => row.project_id === caller.project_id);
-        if (!reference) throw new ActionError("actions.scope_mismatch", "缺少当前项目运行环境");
-        return (await this.automationRecommendationEntry(reference, false)).incarnation;
-      } })] : []), agentReviewProvider(), assistantPanelProvider(), authorizationManagementProvider(), projectApprovalsProvider(), // the pages' writes, behind their doors (B9)
+      actionUsagesProvider(callerClient, options.homeDirectory), contextOnboardingProvider(), ...(options.homeDirectory && this.recommendations ? [adoptionProvider(this, options.homeDirectory, callerClient)] : []), agentReviewProvider(), assistantPanelProvider(), authorizationManagementProvider(), projectApprovalsProvider(), // the pages' writes, behind their doors (B9)
       mainlineProvider(callerClient, options.homeDirectory ? mainlineHost(options.homeDirectory, this.plugins) : undefined), ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
       ...(this.assistantStore ? [assistantDelegationProvider({ host: this, works: this.assistantStore, permissions: async () => {
         const service = this.agents?.service;
@@ -690,4 +685,13 @@ function callerOwnClient(host: MolisWorkLocalHost, caller: ActionCallContext): A
   const project = caller.project_id ? host.projects().find(row => row.project_id === caller.project_id) : undefined;
   if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "缺少当前项目运行环境");
   return project ? host.actionClient(project) : host.homeActionClient();
+}
+
+/** Turning on the Assistant's automation card (specs/automation-recommender §7), keyed by the project's incarnation as the recommender sees it. */
+function adoptionProvider(local: MolisWorkLocalHost, home: string, clientFor: (caller: ActionCallContext) => ActionClient): ActionProviderRegistration {
+  return automationAdoptionProvider({ home, clientFor, incarnation: async caller => {
+    const reference = local.projects().find(row => row.project_id === caller.project_id);
+    if (!reference) throw new ActionError("actions.scope_mismatch", "缺少当前项目运行环境");
+    return (await local.automationRecommendationEntry(reference, false)).incarnation;
+  } });
 }

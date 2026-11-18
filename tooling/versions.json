@@ -1671,6 +1671,7 @@
     "action.work-brief.artifacts.preview": 1,
     "database.work_brief_database": 2,
     "database.web_search_baseline": 1,
+    "database.web_search_run_baseline": 1,
     "artifact.io.molis.work.work-brief.brief": 1,
     "method.planning-methods.domain-ai-data-product": 1,
     "method.planning-methods.domain-app-product": 1,

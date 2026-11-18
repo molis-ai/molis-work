@@ -5,7 +5,8 @@ import {
 } from "@molis-ai/molis-work-contracts/services/web-search";
 import { CatalogLiveError, isCatalogConnectorId, searchCatalogWeb } from "@molis-ai/molis-work-integration-catalog";
 import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
-import { LOCAL_OPAQUE_BLOB_SCHEMA_SQL, openSqliteConnection, runWithMolisWorkHome, type EvidenceContentStore } from "@molis-ai/molis-work-storage";
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
+import { applySqliteBaseline, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, openSqliteConnection, runWithMolisWorkHome, type EvidenceContentStore, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { homeConnectorDirectory } from "./connector-directory.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
@@ -20,7 +21,7 @@ import { readWebSearchDefault, readWebSearchLastUse, writeWebSearchDefault, writ
  * default, and a search through it. The sources come only from declarations (integrations of kind `web_search`) plus the built-in
  * AnySearch; nothing names a service here. A default that cannot be used stops the search with its reason and is never swapped.
  */
-export const webSearchErrors = defineErrorCodes("web_search", {
+export const webSearchErrors = defineErrorCodes("connector.web_search", {
   source_unknown: "invalid",
   source_unusable: "unavailable",
   needs_auth: "unavailable",
@@ -32,6 +33,8 @@ export const webSearchErrors = defineErrorCodes("web_search", {
 });
 
 const BUILTIN_TITLE = "AnySearch";
+/** The one search's in-memory evidence tables (the same opaque-blob tables research keeps); nothing is written to the Home. */
+const SEARCH_RUN_BASELINE: SqliteBaseline = { version: /* @version database.web_search_run_baseline */ 1, schema: LOCAL_OPAQUE_BLOB_SCHEMA_SQL };
 
 /** The services that declare a web search, with their titles as the directory gives them in the reader's language. */
 async function searchServices(home: string): Promise<Map<string, string>> {
@@ -129,7 +132,7 @@ function memoryContent(): EvidenceContentStore {
 /** The built-in source: one AnySearch query through the same SEL route Feed and research use, in a runtime that lives for this search. */
 async function anySearch(home: string, query: string, count: number, call: { signal: AbortSignal; beforeEffect(): Promise<void> }): Promise<WebSearchResult[]> {
   const db = openSqliteConnection(":memory:");
-  db.exec(LOCAL_OPAQUE_BLOB_SCHEMA_SQL);
+  applySqliteBaseline(db, ":memory:", SEARCH_RUN_BASELINE);
   const content = memoryContent();
   const runtime = runWithMolisWorkHome(home, () => createSearchEvidenceRuntime({ db, content, assertCurrent: () => call.signal.throwIfAborted(),
     beforeDispatch: async () => { await call.beforeEffect(); call.signal.throwIfAborted(); } }));
@@ -164,5 +167,5 @@ function snippetOf(markdown: string, query: string): string {
   const paragraphs = text.split(/\n\s*\n/gu).map((body, index) => ({ body: body.replace(/\s+/gu, " ").trim(), index })).filter(item => item.body.length >= 40);
   const best = paragraphs.map(item => ({ ...item, score: [...terms].filter(term => item.body.toLowerCase().includes(term)).length }))
     .sort((a, b) => b.score - a.score || a.index - b.index)[0]?.body ?? text.replace(/\s+/gu, " ").trim();
-  return best.length > 300 ? `${best.slice(0, 299)}…` : best;
+  return cutWithEllipsis(best, 300);
 }

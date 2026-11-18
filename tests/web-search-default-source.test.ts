@@ -3,10 +3,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { homeConnectorDirectory, runWebSearch, setWebSearchDefault, webSearchSettings, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { WEB_SEARCH_BUILTIN_SOURCE } from "@molis-ai/molis-work-contracts/services/web-search";
-import { runWebSearch, setWebSearchDefault, webSearchSettings } from "../apps/local-host/dist/web-search-service.js";
-import { homeConnectorDirectory } from "../apps/local-host/dist/connector-directory.js";
 
 /**
  * The default web search source (specs/assistant-service-connections §13.7; ASC-54, ASC-55). The three search services are reached
@@ -49,7 +47,7 @@ test("ASC-54: the search sources come from declarations, and the built-in source
     assert.equal(settings.default_source, WEB_SEARCH_BUILTIN_SOURCE);
     assert.equal(settings.default_unusable, false);
     assert.deepEqual(settings.sources.filter(source => source.kind === "service").map(source => source.state), ["not_connected", "not_connected", "not_connected"]);
-    await assert.rejects(setWebSearchDefault(home, "service:tavily", async () => {}), { code: "web_search.source_unknown" }, "a service with no account cannot be the default");
+    await assert.rejects(setWebSearchDefault(home, "service:tavily", async () => {}), { code: "connector.web_search.source_unknown" }, "a service with no account cannot be the default");
   });
 });
 
@@ -107,12 +105,12 @@ test("ASC-55: a default that cannot be used stops the search with its reason; no
     const settings = await webSearchSettings(home);
     assert.equal(settings.default_source, id);
     assert.equal(settings.default_unusable, true);
-    await assert.rejects(runWebSearch(home, { query: "molis" }, call()), { code: "web_search.source_unusable" });
+    await assert.rejects(runWebSearch(home, { query: "molis" }, call()), { code: "connector.web_search.source_unusable" });
     assert.equal(seen.length, 0, "no request leaves for a disabled default, and no other source is asked");
-    await assert.rejects(setWebSearchDefault(home, id, async () => {}), { code: "web_search.source_unusable" }, "a disabled account cannot be made the default");
+    await assert.rejects(setWebSearchDefault(home, id, async () => {}), { code: "connector.web_search.source_unusable" }, "a disabled account cannot be made the default");
     withConnectorConnections(home, store => store.remove(id));
     assert.equal((await webSearchSettings(home)).default_source, id, "a removed default stays named, and searches keep stopping");
-    await assert.rejects(runWebSearch(home, { query: "molis" }, call()), { code: "web_search.source_unusable" });
+    await assert.rejects(runWebSearch(home, { query: "molis" }, call()), { code: "connector.web_search.source_unusable" });
     assert.equal((await setWebSearchDefault(home, WEB_SEARCH_BUILTIN_SOURCE, async () => {})).default_unusable, false, "picking another source repairs it");
   });
 });
@@ -122,9 +120,9 @@ test("ASC-55: the service's refusals are told apart, and a search under way keep
     const id = connect(home, "tavily", "tvly-test-key");
     await setWebSearchDefault(home, id, async () => {});
     answer(() => new Response("{}", { status: 401 }));
-    await assert.rejects(runWebSearch(home, { query: "molis" }, call()), { code: "web_search.needs_auth" });
+    await assert.rejects(runWebSearch(home, { query: "molis" }, call()), { code: "connector.web_search.needs_auth" });
     answer(() => new Response("{}", { status: 429, headers: { "retry-after": "30" } }));
-    await assert.rejects(runWebSearch(home, { query: "molis" }, call()), { code: "web_search.rate_limited" });
+    await assert.rejects(runWebSearch(home, { query: "molis" }, call()), { code: "connector.web_search.rate_limited" });
     answer(() => new Response("{}", { status: 402 }));
     await assert.rejects(runWebSearch(home, { query: "molis" }, call()), /余额不足/u);
     let release!: () => void;
@@ -148,6 +146,6 @@ test("ASC-55: an account changed while its search is out is not reported as the 
       withConnectorConnections(home, store => store.replaceToken(id, "tvly-other-key"));
       return Response.json({ results: [{ title: "T", url: "https://t.example/", content: "t" }] });
     });
-    await assert.rejects(runWebSearch(home, { query: "molis" }, call()), { code: "web_search.changed" });
+    await assert.rejects(runWebSearch(home, { query: "molis" }, call()), { code: "connector.web_search.changed" });
   });
 });

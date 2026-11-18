@@ -9,8 +9,8 @@ import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry } from 
 import { newPublisher } from "./fixtures/sandbox-package.js";
 import { attachAutomationWorkspace } from "./fixtures/automation-workspace.js";
 import { signedContentPackage } from "./fixtures/content-package.js";
+import { homeConnectorDirectory } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome, type TestProject } from "./fixtures/test-home.js";
-import { homeConnectorDirectory } from "../apps/local-host/dist/connector-directory.js";
 
 /**
  * S-automation-adoption (specs/automation-recommender §7, AUT-06/AUT-08): turning a project's suggestions on runs only as the person, from

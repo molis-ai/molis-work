@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { homeConnectorDirectory, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { AUTOMATION_ADOPTION_PROVIDER_ID, automationAdoptionActions, type AutomationOfferResult, type AutomationReport } from "@molis-ai/molis-work-contracts/services/automation-recommender";
 import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
@@ -11,7 +11,6 @@ import { newPublisher } from "./fixtures/sandbox-package.js";
 import { attachAutomationWorkspace } from "./fixtures/automation-workspace.js";
 import { signedContentPackage } from "./fixtures/content-package.js";
 import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
-import { homeConnectorDirectory } from "../apps/local-host/dist/connector-directory.js";
 
 /**
  * The Assistant bringing up a project's automation and turning it on (specs/automation-recommender §7; AUT-03, AUT-06, AUT-07, AUT-08):

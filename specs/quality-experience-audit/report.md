@@ -1,6 +1,14 @@
 # Molis Work 审查报告与优化策略
 
-整项进行中，负责人 Codex。第 121 批候选 `97a60acd51` 已通过 Verify 和 48 片 Full。最新主干 `f1e875d11e` 的长回复修复与本轮有直接交集，第 122 批组合复验。登记范围覆盖候选中的 75 个包、84 个 contracts 子路径及根入口，另复核本轮从主干移除的 WebQuery 包。报告有 98 项编号发现和 16 项平台候选，列明处置和实测结果。 [逐包覆盖](coverage.md) · [六方向结论](#六个方向的独立结论) · [平台候选及处置](#平台化与通用化检查及处置) · [需求实现度](#需求整体实现度) · [BL 清理与保留事项](#bl-与事项清理建议) · [验收编号](spec.md)
+本轮六方向审查与纳入改造已完成工程和隔离 Home 验收。负责人 Codex。草稿候选 `94d9c58ede` 的 Verify 与 48 片 Full 均通过。相对该次实测主干 `f1e875d11e`，涉及 570 个文件，其中生产源码 277 个、测试与夹具 185 个。登记覆盖 Host、Workbench、Runtime、SDK 和各插件，共 75 个现行包、84 个 contracts 子路径及根入口，另复核退役的 WebQuery。报告列出 98 项编号发现与 16 项平台候选的证据和处置。 [草稿 PR #2101](https://github.com/molis-ai/molis-work/pull/2101) · [最终验收](#最终候选与实际验收) · [逐包覆盖](coverage.md) · [六方向结论](#六个方向的独立结论) · [平台候选及处置](#平台化与通用化检查及处置) · [需求实现度](#需求整体实现度) · [BL 清理与保留事项](#bl-与事项清理建议) · [验收编号](spec.md)
+
+批量导入保留未处理的文件，用户选择一次便可分批继续，重试只处理未成功项。Git 刷新或切文件可以接着用已写的提交说明与冲突草稿，独立 Git 和 Coding 内嵌都走同一交接。Inbox 的二十条固定规则建议在隔离 Home 实测，完成时间中位数从上一候选的 8.24 秒降至 2.44 秒，批次中宿主已能响应其他请求。 导入与 Git 的具体证据见 QF-01 和 QF-03。 [Inbox QF-98](#第-120-批-qf-98--p2-连续写入放大被动通知读取)
+
+导入选择由工作台维护，写成的固定成果由 Artifacts 记录。Git 通过公共草稿通道保存编辑，Host 以操作回执结算实际仓库写入。Feed 复用公开来源拉取计划。工作台合并被动通知，Inbox 的判断与持久化仍由原服务完成。清理了无生产消费者的旧转发、草稿工具和集成工厂。 [从入口到写入与反馈](#从一次操作追到事实与反馈)
+
+## 早期验收摘要
+
+以下各段记录当时的候选和观察，最终结果见 QEA-01～04 和末节。
 
 第 53–55 批 8 文件 78 项定向通过。第 56–59 批 8 文件 144 项及长材料 2 项通过，验证改写、回放、起草、引导、信息方案和真实采用。固定 `4c54241e96` 的受影响包级复验 55/55 文件、463/463 项通过。第 60 批 Git、Coding 与工作台 77 文件、521 项通过，含真实提交、拒绝、暂存和编辑恢复。第 62 批 Placement 与工作台 22 文件、194 项通过。第 52 批冻结头的 104/105 个包回归文件通过，唯一失败定位到 Feed 已失效的发布版本例外。
 
@@ -202,7 +210,7 @@ QEA-29～32 的最新界面验收 `/tmp/quality-audit-sessions-browser-final.log
 | --- | --- | --- |
 | 隐式状态 | 对照持久事实、执行句柄和 DOM。导入队列、Feed 等待、Run 终态、Git/Pages 输入、Skill 草稿/案例/采用、Settings 缓存及 Goals 刷新都追到 owner | 集合与正文各自应用已读游标，安装尝试按现生命周期回退，草稿冲突按实际修订收尾。业务状态声明按原路线兑现，跨进程安装崩溃边界见 QF-58 |
 | 过度防御 | 从HTTP/动作schema到写点核校验。查Home/Memory读取故障降为空、Coding环境异常降为ready、Feed重复plan、Goals隐藏正文fallback及项目同意清理的批准明细依赖 | 已实施对应修复。Search等待后的权限、SQLite严格结构、RSS实际网络地址和清理的主体归属校验有真实边界依据。第50批collection失败保留旧结果并由原poll恢复 |
-| 用户干扰 | 沿正常导入、停止、重试，Git 独立及 Coding 内嵌，材料交付，Pages，引导，Skill 创作/设置，Goals 后台、分栏及签名插件换版走查 | 实际写入及浏览器已验证减少重选、重写、重开建议及项目重审中的重复操作。Home 助理结果可回到原草稿。资源已核准，组合 CI 和原本人验收待结算 |
+| 用户干扰 | 沿正常导入、停止、重试，Git 独立及 Coding 内嵌，材料交付，Pages，引导，Skill 创作/设置，Goals 后台、分栏及签名插件换版走查 | 实际写入及浏览器已验证减少重选、重写、重开建议及项目重审中的重复操作。Home 助理结果可回到原草稿。资源及组合 CI 已验，原本人验收归各自事项 |
 | 冗余代码 | 注册与实际调用方逐条核对，区分私有重复、公开合同和未完成能力 | 已退役 Git 旧草稿工具、WebQuery/YouTube 旧工厂、Events 无人调用 HTTP 转发、Feed 重复拉取计划及多插件绑定副本。YouTube 频道工具保留。旧 Feed 版本例外已按原批准删除并复验 |
 | 边界与调用链 | 75 包及 84 个 contracts 子路径另加根入口。从 UI/HTTP、Agent、后台、CLI/MCP 沿公开动作追事务和反馈 | 已修 HTTP 取消、共享输入/草稿、模型结果校验和跨库提交断点。main `eaa6b47492` 的审查引用变化已整合，真实路径与静态核对的限制见覆盖记录 |
 | 平台化 | 从平台能力下追消费者，从插件、页面和后台特判上查归属，纳入单调用方已属平台的行为 | 下表与 Skill/Goal 交集分别判定现有能力复用、补合同、共用工具和原业务规则。已迁移的能力以真实消费者取证，后续见原 BL |
@@ -271,16 +279,16 @@ Host JSON、原件上传原来都没有把断连传给已支持取消的 artifac
 | 候选与当前实现/消费者 | 定制造成的问题 | 事实与规则 owner；处置 | 顺序/成本 |
 | --- | --- | --- | --- |
 | PF-01 对象引用、跨插件呈现：`packages/contracts/src/platform/object-link.ts:12`、`horizontal/surfaces/src/position.ts:20-34`、`apps/local-host/src/surface-slot-http.ts:75,122` 已有受控 plugin-slot；Inbox `plugins/native/inbox/src/browser/client.ts:40`、Risk `plugins/native/risk/src/browser/client.ts:45`、Work Brief `plugins/native/work-brief/src/browser/client.ts:22` 已使用，PPT `plugins/native/ppt/src/plugin.ts:35-45` 经 Pages 公开动作读内容 | 未发现这条 PPT→Pages 路径跨实现直连。组合槽已有 UI contribution 声明、Host 兑现和真实消费者，不能只搜 manifest.ts 就误报未采用，更不应重建底座 | 插件拥有内容/修订；平台拥有位置、身份及授权。保持 surfaceSlot 与 objectLink；新增组合沿相同入口验停用、撤权、对象删除和返回，不开放任意 iframe、不解除 mountDeclared 的 owner 限制 | 保持现有方案 |
-| PF-02 输入的材料来源：旧 parent 固定 sources:false，底栏菜单和来源服务已存在；实施见 QF-24～29 | 已采用父页受控交接和 Coding 消费；首次/后续/steer、未知回执、来源撤回、混合材料失败与同child重挂已有真实验收，最终组合CI待完成 | 平台父页持本人身份获取选择，只在本人发送时交材料引用；当前 onMaterials 即时回传与 child composer-send 必须一起约束，不能让子页绕过本人发送。Coding 要实际消费 input.materials，并核首次/后续/steer 及失败引用留存；大小约束须与 owner 对齐，复用原菜单。归 [BL-composer-frame-sources](../backlog/BL-composer-frame-sources.md)，不是取消 frame 权限隔离 | P1体验/中 |
+| PF-02 输入的材料来源：旧 parent 固定 sources:false，底栏菜单和来源服务已存在；实施见 QF-24～29 | 已采用父页受控交接和 Coding 消费。首次、后续补充、steer、未知回执、来源撤回、混合材料失败和重挂均有真实路径验收，最终组合 CI 通过 | 平台父页持本人身份获取选择，只在本人发送时交材料引用。回传材料与子页发送使用同一受控入口。Coding 消费 `input.materials` 并保留失败待处理项，复用原菜单及 owner 的大小约束。清理依据见 [BL-composer-frame-sources](../backlog/BL-composer-frame-sources.md) | P1 体验／中 |
 | PF-03 Memory 会话来源：`apps/local-host/src/memory/memory-sources.ts:13`、`apps/local-host/src/memory/memory-session-binding.ts:51-64`、`apps/local-host/src/memory/memory-runtime.ts:20` 点名 Coding/Assistant | 未来第三调用方须改Host；当前未找到必须提前迁移的第三消费者。用户2026-11-12已批准两消费者例外，详见BL-memory-session-kinds | 平台拥有可信会话身份/授权，插件提供来源可读性/业务状态。按原批准在第三真实消费者出现时一并迁移公开binding、Host mapping和session-clear-plan持久结构；不能只扩字符串或将资格交输入。不记“已平台化” | 按用户已定后续条件保留；P2/高 |
 | PF-04 后台任务：`apps/local-host/src/home-background-tasks.ts:22` 与 mainline；Coding/Images 已贡献，项目引导整理仍只有后台执行 | 有工作却不在任务入口；汇总失败又看似无工作 | 任务状态仍归业务 owner，平台管发现/完整性/可执行命令。接入既有 background_tasks/reports_to，修 QF-04；引导归 [BL-107](../backlog/BL-107.md) | P1体验/中 |
 | PF-05 设置：`packages/contracts/src/platform/settings.ts:16,30` 有层级/CAS/request_id；SDK现行拒绝沙箱settings_entries | 有合同不等于作者可用；用户2026-11-08已将沙箱设置兑现明确后置，当前拒绝是边界，不是应删除的过度防御。BL38-1与BL44-6不可混作同一完成项 | 设置业务规则归owner，平台管声明、继承呈现和调用。按原路线补Runtime并迁一个真实消费者后再推广；本轮已检查并保持拒绝，不建全局配置仓，不声称底座已全面采用 | 按用户已定后续条件保留；P2/高 |
-| PF-06 草稿/返回：Git已采用公共frame drafts，旧无生产读写工具已删除；QF-03/21/23/46 | 修复刷新/返回丢编辑、同键旧写覆盖、迟到回执干扰当前文件；独立Git及Coding内嵌的11文件109项通过，最终组合CI待完成 | 草稿文本归编辑器，平台提供按 Home/项目/安装/入口隔离与返回。Git 按工作区/文件修订接入，冲突正文不套输入框 4KB 限额；成功后才清草稿 | P1体验/中 |
+| PF-06 草稿/返回：Git已采用公共frame drafts，旧无生产读写工具已删除；QF-03/21/23/46 | 修复刷新/返回丢编辑、同键旧写覆盖、迟到回执干扰当前文件。独立 Git 及 Coding 内嵌的 11 文件 109 项通过，最终组合 CI 通过 | 草稿文本归编辑器，平台提供按 Home、项目、安装和入口隔离与返回。Git 按工作区及文件修订接入，冲突正文按编辑器自身的合同处理，成功后结算对应草稿 | P1 体验／中 |
 | PF-07 来源拉取：Feed已沿公开SourcePull plan消费；Alchemist研究走Host Search Runtime、市场脉搏用插件来源适配器；旧WebQuery/YouTube工厂已退役，YouTube频道工具保留 | 已删除Feed重复intent/计划与两项SEL依赖，复用平台预算/来源可用性。真实 Runtime 与 RSS 消费者通过，失效 Feed 版本例外已获准删除，版本检查通过 | 集成拥有 URL/cursor/格式规则，平台管受控网络/凭据/证据。优先复用已有 presentation 登记；迁移剩余专属调用方时评估声明式输入是否足够，再废弃旧词汇/工厂。先核包外导出，保留 channel 工具；RSS 固定 IP 与 OAuth 刷新保持各自的安全边界 | P2/中高 |
 | PF-08 等待/调度/取消：`packages/plugin-sdk/src/execution-lifetime.ts`、`packages/plugin-runtime/src/activation-jobs.ts`、`horizontal/scheduler/src/index.ts:252,274,392` 租约、Workflow/Alchemist 自有进程记录 | 散落的计时器容易泄漏；但不同业务终态强并会破坏恢复 | 复用资源生命期工具；业务流程状态及租约回执留原 owner。Feed QF-02 已修；不再造通用万能 Job 表 | P2/低到中 |
 | PF-09 调用追踪：`packages/kernel/src/action-settlement.ts:107,152,175`、`horizontal/observation/src/records.ts:164` 已有 call_id/invocation_id/parent_invocation_id；本轮 request-failure-call-id 浏览器回归覆盖故障详情 | 这部分已有跨层身份，不是应重新建设的缺口；本轮未证明所有插件业务写入均已完整关联 | Kernel 管调用身份，owner 管 subject/revision/事务结果，Workbench 管可见反馈。保留现有观测/查询；后续按具体未关联写入补证，不把泛化风险登记成已复现缺陷，不建立第二套日志身份 | 保持现有方案 |
 | PF-10 HTTP 中止：Search 入口未透传、composer 已透传 | 调用方取消了，后台继续做；重复请求叠加 | Host 负责 transport→Action signal，SDK/Runtime 负责停止和写入 fence；修 QF-08，不为每插件造 AbortController 框架 | P2/低到中 |
-| PF-11 动作绑定：公共 bindActionHandler 与多插件本地副本 | 纯换参/类型断言重复、元数据接入容易漂移 | 公共合同管绑定，插件保留业务上下文。Feed query/inbox/rule 三处已验；另五插件已迁移，9 处 availability 因实际业务职责保留；QEA-26消费者定向通过，最终组合CI待完成 | 本轮已做/低 |
+| PF-11 动作绑定：公共 bindActionHandler 与多插件本地副本 | 纯换参/类型断言重复、元数据接入容易漂移 | 公共合同管绑定，插件提供业务上下文。Feed 三组动作与另外五个插件已迁移，9 处 availability 由实际业务提供方维护。QEA-26 真实消费者与最终组合 CI 通过 | 本轮已做／低 |
 | PF-12 固定成果与过程项：`plugins/native/dataset/src/promote.ts`、`plugins/native/ppt/src/promote.ts` 已用 owner 事务与 artifacts 联合提交；成果导入走同一服务 | 局部再存一份最终正文或把过程项当成果，会产生两个版本主人 | 业务编辑稿归插件；固定可引用成果归 artifacts，过程项走声明。复用已有联合提交，不统一各插件的编辑状态 | 保持并检查采用/中 |
 | PF-13 批量证据读取：`horizontal/evaluation/src/observation-bridge.ts:71-85` 的fetchObservationEvidenceMap对每条记录调用 `observation.evidence.get@1`；当前消费者为评测执行器 | 新main已修复500条静默截断，完整大样本随后产生N次解封动作；正确性保持，但调用成本随证据数线性增加 | 观测层拥有证据解封、用途及跨项目授权；评测拥有样本选择和unknown判定。归现有[BL-evaluation-read-cost](../backlog/BL-evaluation-read-cost.md)，补观测批量公开动作并迁移实际评测消费者；保留逐项拒绝/不可读原因，不跨读私有表、不让评测复制授权规则 | P3/中 |
 | [PF-14](#pf-14--p3复用能力包的导航控件) 能力包导航控件 | 工作坊页签、比较分段和创作页范围分段重复写样式及无障碍标记 | 页面拥有动作与当前选择，复用 Design System 导航控件 | 本轮实施 |
@@ -291,9 +299,9 @@ PF-03/05/07/13 是采用或职责收口候选，即使目前只有一个实际�
 
 ## 需求整体实现度
 
-判断：平台骨架、核心插件的大量功能已经真实实现，但整套 Molis Work 仍不能标为“内部完整”或“可发布”。这不是按代码量或 BL 数量算百分比：需求条目粒度不同，包的 production 登记也不等于整份产品需求验收。
+平台基础和主要插件已有正常入口、持久写入与回归证据。本轮改造达到 spec 的内部完整目标。整套 Molis Work 达到内部完整及可发布还需要各需求的原验收，逐项依据如下。
 
-当前索引 57 份活跃 spec 均指向现行文件，包括[第 36 批合后修复](../batch-36-audit-fixes/spec.md)与新登记的[对话与执行流式体验](../conversation-execution-ui/spec.md)。本轮复核状态与目标，按下表核对代表实现与 BL。原产品验收以各自编号和证据判断。[逐屏打磨](../screen-polish/spec.md) 的十项 P0 缺陷已随 #2110 合入，第 36A 批等任务沿自己的排期。
+最终候选索引的 57 份活跃 spec 均指向现行文件，包括第 36 批合后修复与对话和执行的流式体验。收尾拉取的 `517a4d78fa` 增加项目删除、待办与生图一致性 spec，合并预检索引共 58 份。原产品验收以各自编号和证据判断。逐屏打磨的十项 P0 缺陷已随 #2110 合入，第 36A 批沿原排期。 [第 36 批合后修复](../batch-36-audit-fixes/spec.md) · [对话与执行流式体验](../conversation-execution-ui/spec.md) · [主干新增 spec](https://github.com/molis-ai/molis-work/blob/517a4d78fa0f9abb4f673ac606932c003c4f2147/specs/architecture-review-fixes/spec.md) · [逐屏打磨](../screen-polish/spec.md)
 
 | 需求族 | 当前实现与证据层级 | 剩余实际结果 |
 | --- | --- | --- |
@@ -304,11 +312,11 @@ PF-03/05/07/13 是采用或职责收口候选，即使目前只有一个实际�
 | 助理与 Coding 子任务（#2115、#2122） | 正式助理与 Coding 消费同一 SDK 浮窗。Work 与 Prologue 拥有各自的原问卷、审批和回执。主干的合后修复已接通浮窗加额、关闭期间的回执和目标读取。原 SAI 与 QEA-151/152、175 核对其整合路径 | 本人体验沿 [BL-b59-subtask-acceptance](../backlog/BL-b59-subtask-acceptance.md)，助理团完整实现仍属原第 43 批 |
 | 对话与执行流式体验（决定 54） | 已有助理分片着色、Coding 流式正文与共享子任务浮窗。现行长代码回执复验见 QEA-200／203。新第 91 批已登记需求与依赖 | 平台增量订阅及助理、Coding 的迁移待按 CUI 验收。SDK 换版窗口、控件样稿及本人实物验收保留原决定项 |
 | Coding 与首次引导 | 新基线第33批及#2099已交上下文/完成报告、环境准备、轮次材料、ONB-35～46材料与恢复；本轮复核改动边界，沿用原批工程证据 | BL-batch33-acceptance仍待本人验收；BL-106/107已排45/57批，不因第33批完成而关闭 |
-| 输入、语音、草稿和返回 | 第10/11批及 draft-and-return R0～R4 已做。候选头新增真实 Coding 框架材料、Git 草稿持久恢复、设置回程与 Skill 冲突恢复验证 | 旧 Home 草稿版本与 DRT-21 原验收仍须逐条对照；组合 Full 及本人体验待验证 |
+| 输入、语音、草稿和返回 | 第10/11批及 draft-and-return R0～R4 已做。候选头新增真实 Coding 框架材料、Git 草稿持久恢复、设置回程与 Skill 冲突恢复验证，组合 Full 已通过 | 旧 Home 草稿版本、DRT-21 和本人体验沿原验收 |
 | Account/安装/发行 | V2 登录和 Home 统一已合入；最新#2094对齐账号密码、短信/邮箱验证码合同，认证句柄与中央令牌仍归Host协调 | unified-account 仍列最终候选 Full/存量迁移/外部服务；0.3.0 候选不等于公开可发布 |
 | 插件同等待遇 | 注册装配与公开服务已成主路；规划方法片已交 | Goals 平台特判、Memory 会话点名等按第44批迁移，不能宣称同等化已完成 |
 | 观测/评测/Memory | 第28/29批与Memory P0/P1已有具体代码；第30批最小真实评测路径及#2100整改已随新main带入 | 已知局限、部分真实输入验证/产品入口仍在原 BL；不能用本轮静态检查替代真实模型质量 |
-| 资料导入、Feed、Inbox、常用编辑插件 | 核心路径工作，本轮修复导入/后台资源并有隔离实操 | Inbox 主线程性能、通用恢复一致性、各插件独立体验验收仍需跟进 |
+| 资料导入、Feed、Inbox、常用编辑插件 | 核心路径工作，本轮修复导入和后台读写。固定规则更新已在隔离 Home 完成性能与写入复验 | 真实模型和实际部署多项目负载、各插件独立体验沿原验收 |
 | 创作台/Alchemist/智能呈现 | 有沙箱、job/replay、组合首片 | 完整创作→修订→安装→长期使用闭环尚未完成；Jev 质量/延迟及后续生成页面不是“只有文档”的问题，也不是已验成品 |
 | Sessions | 第 34 批已合入会话目录、10 个来源适配、历史、搜索、归属及界面。候选头的真实分页、旧命中直达、连续换账号保存与撤回范围路径见 QF-16–19 | 按 [BL-177](../backlog/BL-177.md) 保留冷启动引导接入、后续观察、直接控制与未接入来源；第 34 批本人验收独立 |
 | 团队协作/团队记忆、主动建议、Agent 显式人审 | 团队两项仍是需求；主动助理与人审已有合入的若干实施片，第 39 批将可信决定接入工程入口 | 尚未交付的场景沿原 spec；真实云、多人协作和本人体验以相应验证为准 |
@@ -327,24 +335,24 @@ PF-03/05/07/13 是采用或职责收口候选，即使目前只有一个实际�
 | [BL-observation-b28-known-limits](../backlog/BL-observation-b28-known-limits.md) | 正文已记录第29批补齐①②③、后续修⑥ | 完成子项移到来源 spec 的证据段，BL 只留④⑤等当前残余；不因列表里有已做项删整条 |
 | [BL-115](../backlog/BL-115.md) | 正文记录离线备份/恢复/续接已在 main，真实 Home 2026-11-07 已做 | 将已完实施转为来源说明；只保留登记覆盖核对与 C 端在线定时备份，避免再次立离线备份实现 |
 | [BL-117](../backlog/BL-117.md) | 策略、版本检查与0.3.0候选已有；公开发布资格仍在发布记录 | 与发行检查单保持一个剩余清单入口，不删除 Developer ID/公证/公开发布待办 |
-| [BL-943](../backlog/BL-943.md) | 现行双 Goal 窗格探针 main 为 47/48，候选为 35/36，低于原预算 60/58。候选逐次授权及拒绝后的实际读写已复验 | 列为组合验收后可清理项。继续用同一个门禁检验，删除目录代次作为本事项的假定依赖。Inbox 的实际等待另见 QF-51 |
-| [BL-inbox-update-blocks-host](../backlog/BL-inbox-update-blocks-host.md) | 第 120 批隔离 Home 复验。独立请求在写至第 3～4 条时返回，二十条固定结果中位 2,438 ms，Inbox 重读一次。取消保留第一条已提交记录，剩余重试各写一次 | 同一候选全量通过后，可结算原固定规则与连续阻塞缺陷。真实模型、真实部署多项目负载按原性能验收继续 |
+| [BL-943](../backlog/BL-943.md) | 双 Goal 窗格探针 main 为 47/48，候选为 35/36，低于原预算 60/58。候选逐次授权及拒绝后的实际读写已复验 | 工程验收已通过，合入后按原流程清理。持续使用原预算检验，移除「必须先实施目录代次」的假定依赖 |
+| [BL-inbox-update-blocks-host](../backlog/BL-inbox-update-blocks-host.md) | 第 120 批隔离 Home 复验。独立请求在写至第 3～4 条时返回，二十条固定结果中位 2,438 ms，Inbox 重读一次。取消保留第一条已提交记录，剩余重试各写一次 | 同一候选 Full 已通过，固定规则与宿主持续阻塞的工程部分可在合入后结算。真实模型、实际部署多项目负载按原性能验收继续 |
 | BL-360（main 第39批已归档） | 最新主干已实现 owner 的 `decisions/readMany`、版本与持久决定；本轮旧投影被覆盖 | 接受主干删除，迁移并保留 QEA-21/22 的撤权、重启及三个界面反证；合并交集复验中，不复活重复待办 |
-| [BL-search-query-abort](../backlog/BL-search-query-abort.md) | 第五批已补 HTTP/个人空间/引用 signal，真实取消与共享索引测试通过，见 QF-08 | 已改正文去除“每次查询把所有来源跑完”的错误前提；待最终 CI 后按原流程关闭 |
-| [BL-home-events-endpoint-unused](../backlog/BL-home-events-endpoint-unused.md) | 第 41 批已查公开约定，删两条无生产调用的旧 POST 转发及只读放行。隔离 Home 验旧地址 404 且触发零读取/写入，MCP 继续使用现行动作 | 候选头有 8 文件 50 项定向证据。最终组合通过后可按原流程关闭工程遗留 |
-| [BL-first-screen-duplicate-requests](../backlog/BL-first-screen-duplicate-requests.md) | 两个构建的真实首屏均见 Placement 读取两次。第 62 批修复后，窄宽两条正常流只读取一次，再打开及移动同一个原件。两边均未观察到旧 Home Events POST | 待首屏样本及最终组合验收结算，具备关闭两项原工程缺口的依据。隐藏侧栏文档的加载另归原 BL |
+| [BL-search-query-abort](../backlog/BL-search-query-abort.md) | 第五批已补 HTTP/个人空间/引用 signal，真实取消与共享索引测试通过，见 QF-08 | 已纠正原正文的索引前提，最终 CI 通过，可在合入后按原流程结算 |
+| [BL-home-events-endpoint-unused](../backlog/BL-home-events-endpoint-unused.md) | 第 41 批删两条无生产调用的旧 POST 转发及只读放行。隔离 Home 验旧地址 404 且触发零读取和零写入，MCP 正常使用现行动作 | 8 文件 50 项定向及最终组合通过，可在合入后结算工程遗留 |
+| [BL-first-screen-duplicate-requests](../backlog/BL-first-screen-duplicate-requests.md) | 第 62 批修复后，窄宽两条正常流只读取一次 Placement，再打开及移动同一个原件。真实首屏的旧 Home Events POST 为零 | 首屏样本及最终组合通过，两项工程部分可在合入后结算。隐藏侧栏文档的加载归原 BL |
 | [BL-plugin-release-module-source](../backlog/BL-plugin-release-module-source.md) | 已有明确待用户决定，涉及库内保留内容及恢复路径 | 保留决定；“现在通常用不到”不等于授权删库/兼容机制 |
-| [BL-composer-frame-sources](../backlog/BL-composer-frame-sources.md) | 父页受控交接及 Coding 的首次、后续、steer、未知回执、撤回与重新挂载已有实际验收 | 最终组合通过后收口，见 PF-02/QF-24，保持父页身份与共享组件职责 |
+| [BL-composer-frame-sources](../backlog/BL-composer-frame-sources.md) | 父页受控交接及 Coding 的首次、后续、steer、未知回执、撤回与重新挂载已有实际验收 | 最终组合通过，可在合入后收口。父页身份与共享组件职责见 PF-02 和 QF-24 |
 | [BL-107](../backlog/BL-107.md) | 引导已经 Host 后台执行，缺后台任务登记 | 收窄为登记/进度/返回入口，复用现有任务贡献，不新做执行引擎；新main已注明45/57批排期，保留该归属 |
 | [BL-177](../backlog/BL-177.md) | 第 34 批已合入，原 BL 已标部分实现。索引中的「尚未实现」已按现行 spec 更新 | 保留已安排的场景与来源缺口，实际整合随后续，原本人验收继续 |
-| [BL-b42-followups](../backlog/BL-b42-followups.md) | ③ 地址消费与 Home 草稿回执，④ 共用导航控件，已本地验证。① 本轮修复了文字调用的结果有效性 | ③④待最终头验收后归档子项。① 用量采集仍归 Observation，②、⑤–⑧沿原事项保留 |
+| [BL-b42-followups](../backlog/BL-b42-followups.md) | ③ 地址消费与 Home 草稿回执以及 ④ 共用导航控件均有本地实操和最终候选验收。① 本轮修复了文字调用的结果有效性 | ③④可在合入后归档子项。① 用量采集归 Observation，②、⑤–⑧沿原事项 |
 | [第 36 批角色与主线遗留](../backlog/BL-b36-review-followups.md) | 主干已补角色过期选择恢复、撤销及事项归属事务。本轮核对主线与任务的写入仍归不同服务，现有任务面板只提交事件去处 | 保留 [ROLE-14 本人体验](../backlog/BL-b36-roles-acceptance.md)、[角色细节](../backlog/BL-b36-review-followups-roles.md) 和第 37 批项。事项页面若同时提交两种去处，应明确分别结算的结果；另跟进独立的事项修订与两份下一步 schema |
 | [BL-state-machine-migration](../backlog/BL-state-machine-migration.md) | 144/89/55/32是旧盘点口径；SDK 已有，但所有布尔组合不都是真状态机 | 按实际 owner/合法迁移/取消恢复复核，剔除纯派生与资源句柄；保留逐批迁移，不宣称本轮确认了全部144条 |
 | [BL-acceptance-first-slice-limits](../backlog/BL-acceptance-first-slice-limits.md) | modules/acceptance 已有项目范围事实；个人范围及可信决定接线未齐 | 保留对39/44批的依赖，别再开第二套“要求—证据—认可”存储 |
 | [BL-1064](../backlog/BL-1064.md) | 锁定 Node 已有；本轮也发现默认24.14与要求24.15不符，切换后相关初始化恢复 | 保留 Homebrew 动态库/发行入口的未验证部分；开发环境切对 Node 不能证明所有安装用户问题已解决 |
 | 待本人验收 69 条及第 32 批验收缺口 | 工程证据与本人认可分别记录，部分真实模型与多事项场景仍待验 | 合并重复的验收入口时保留原编号与负责人 |
 
-BL-1039/1040 可在保留第 27 批本人验收和墓碑映射后清理工程待办。其他清理按表中证据执行，已完成子项可回原 spec，重叠事项沿同一实施路径，等待最终验收的保留编号。Git 草稿、执行终态、导入停止的实际结果分别见 QF-03/06/10。
+BL-1039 和 BL-1040 的工程记录可以清理，保留第 27 批本人验收和墓碑映射。随本轮改造结算的条目按表中范围在合入后处理。已完成子项归入原 spec，重叠事项沿同一实施路径。Git 草稿、执行终态、导入停止的实际结果分别见 QF-03、QF-06、QF-10。
 
 PF-03 当前复核补正（6359987103）：Coding业务映射已通过 `coding.sessions.binding.read` 读取，Host没有直接读Coding表。剩余第三插件采用缺口在 `memory-sources.ts:57`、`memory-runtime.ts:17`、`memory-learning-owner.ts:93`、`memory-learning.ts:107` 与公开 `services/memory-session.ts:6` 的封闭绑定类型；不可只删白名单，把安装身份和业务授权交给输入。平台负责真实安装/generation、canonical Session、原件作者/版本、权限与SDK生命周期；Coding的归档/映射、Assistant的work/delegation/hold仍归各自业务owner。正常召回的common场景已经可用，与自动形成/Session管理的采用缺口分开。来源形成前后复核、SDK提交观察和原队列补账有实际边界依据，保留；第三插件采用需要补公开owner声明并迁移真实调用方，仍在原任务范围内。
 
@@ -367,6 +375,7 @@ PF-03 当前复核补正（6359987103）：Coding业务映射已通过 `coding.s
 | 项目设置重审签名插件 | 签名包文件升级 → Host 项目同意视图 → Workbench 项目设置 | Host 同意服务写 Runtime 的同意记录。实际目标进展归 Goals，只在获准调用后写 | 版本扩充时看见独立新增条目和费用。取消、重审、撤回后的真实写入取证见 QEA-145 |
 | 删除项目或卸载个人空间插件 | Host 项目删除服务或个人空间卸载入口 → HomeConsentLedger → Runtime 账本 | Runtime 核项目或安装主体，在一个事务写原行的撤回时间 | 正常入口返回实际清理状态。历史和周边项目实读，以及失败后重试见 QEA-146 |
 | 回看 Inbox 里的已处理事项 | `inbox.stage.read@1` → Inbox 建议查询 → Attention 状态与 Feed 的公开原文读取 | Attention 保有事项状态，Feed 管原文，已保存判断由判断账保留。读工作区没有业务写入 | 并列看到事项和当前建议。已忽略条目不再因读取正文失败拖住列表，见 QEA-147 |
+| Inbox 更新建议 | 按钮 → Inbox 判断场景 → 逐条提交 → Host 通知 → 工作台等你和位置读取 | Inbox 判断账保存已完成的条目，Host 发失效信号，Workbench 合并同一地址的被动读取 | 先看到建议，再看到完成反馈。取消后可从原入口补写剩余项。实际记录和请求见 QEA-91、QEA-201 |
 
 所有结论都以本基线为准。真实模型、外部账号、线上云同步、用户真实 Home 和本人认可没有在本轮被代替验证。
 
@@ -400,14 +409,14 @@ PF-03 当前复核补正（6359987103）：Coding业务映射已通过 `coding.s
 | --- | --- |
 | QEA-01 | 已核 75 个现行包、退役 WebQuery、84 个 contracts 子路径及根入口。六方向分别沿真实页面、后台、动作、CLI/MCP 及共享能力调用查证，见覆盖表各行与后续补查。 |
 | QEA-02 | 98 项发现与 16 项平台候选附源码位置、触发、影响、归属与处置。已实施、保留现状、后续及已纠正旧判断按各编号的最后证据判定。 |
-| QEA-03 | 定向实操、实际持久化及 `97a60acd51` 的 Verify、48 片 Full 已通过。正在复验主干新增回执预览和原回复身份的组合。 |
-| QEA-04 | 已把 57 份活跃 spec 与 547 条现行 BL 对回源码和已有验收。可清理的工程事项、可合并条目及仍待本人或外部条件的事项见 BL 表。 |
+| QEA-03 | 纳入批次的正常入口、实际写入和相关失败、取消、重试均有逐项证据。`94d9c58ede` 通过 Verify、48 片 Full、隔离 Home 定向实操和资源门禁。主干进展的额外核对见末节。 |
+| QEA-04 | 已把 57 份候选活跃 spec 与 547 条现行 BL 对回源码和已有验收，另核对收尾主干新增的第 58 份 spec。工程清理项、可合并事项和需本人或外部条件的事项见 BL 表。 |
 | QEA-05 | 通过：201份真实文本文件分200+1导入，逐份核对title、正文和唯一成果id；第二批无须重选；200份超限文件整批失败后，下次点击仍保存后面的正常文件及准确正文，已先复现阻塞再验修复。 |
 | QEA-06 | 通过：处理中追加、切换类型、关闭/重开、部分失败重试；已成功项不重复写，结果行对准文件。中英文1440/1024/390、浅深色均无横向溢出；截图复核含英文动作按钮。关闭不等于取消，剩余见QF-10。 |
 | QEA-07 | 通过：真实拖入401文件的目录，依赖目录不进入选择，下一批显示200且总选择完整。 |
 | QEA-08 | 通过：生产等待器连续12轮唤醒、预先/合并通知、取消均清理监听；原后台失败恢复、停止/重启用例也通过。 |
 | QEA-09 | 通过：查询、入箱和规则迁移后的真实Runtime、权限拒绝、撤权、实际保存/重开、来源可用性与界面消费；有独立业务职责的包装未删除。 |
-| QEA-10 | 定向回归先失败后通过；完整侧栏9项、几何783个控件状态及组件板通过，最终Full待完成。 |
+| QEA-10 | 定向回归先失败后通过。完整侧栏 9 项、几何 783 个控件状态及组件板通过，最终候选 Full 通过。 |
 
 可复核位置：`tests/knowledge-import-queue.e2e.test.ts`、`tests/feed-content-ledger.test.ts`、Feed动作/Runtime/授权及Inbox消费用例；截图位于已忽略的 `.impeccable/qa/review/quality-experience-audit/`。终端日志位于 `/tmp/molis-quality-*.log`，不作为持久事实源；报告保留实际结果与复现入口。没有真实模型、线上同步、安装升级、系统WebKit或本人认可的本轮证据，不签整个平台内部完整/可发布。
 
@@ -1631,3 +1640,16 @@ Workbench 在每次同地址读取完成后的半秒归并被动提示。期间�
 当前构建的长代码文件 10/10。新整合的评测和定时执行三份文件 32/32，核对回复判定、业务交付计数、证据及任务拒绝分类。包边界、111 份公开 API、640 项插件动作及 617 项宿主动作、44 个库结构和生成版本均符合源码。日志 `quality-audit-b122-main-services.log`、`quality-audit-b122-reply-consumers.log`。
 
 合并后的旧用例两处还在调用已被替换的回复夹具，第一次实跑报 `reply is not defined`。改用同一真实格式回复节点，保持 CRLF 内容变化、恢复原图文、收起及重开断言，工作线 5/5。包括长代码、设置返回、助理正文及 Goals 已存 52 份快照的五份文件，合计 79 项有通过记录，两个原录制用例按默认模式跳过。健康门禁对 `f1e875d11e` 通过。三倍 CPU 首试最长帧 165.9 ms，原断言报错。相同构建的专门复验最大 71.8 ms，原来的两帧全文、最终着色、前三行和原预览节点均通过。日志 `quality-audit-b122-{reply-consumers,work-line-exact,reply-stress,reply-stress-exact,health}.log`。
+
+## 最终候选与实际验收
+
+2026-11-18，草稿候选 `94d9c58edeabd96ac730b1c6f15bf06ed31af2ac` 的工程和隔离 Home 验收完成。Verify 实际检出由 `f1e875d11e` 和候选组成的 `69df08a3fb`，树 `858594a013f48e6638424a56778bfa6b12ed3b9f` 与直接执行 Full 的候选一致。
+
+- Verify 全部必需作业通过，含登录、动作与插件合同、安全不变量、六个产品子集及签名 Home 回放。产品子集第一片 67/67，保留原时限。 [Verify 汇总](https://github.com/molis-ai/molis-work/actions/runs/44381132107/job/135085675103) · [产品子集第一片](https://github.com/molis-ai/molis-work/actions/runs/44381132107/job/135073705457)
+- Full 共 48 片全部通过，汇总通过。第 23 片长代码 10/10，第 25 片实际 Inbox 批量入口通过，第 29 片的自动化建议、签名 Skill 与 Pages 持久文稿用例通过。 [Full 汇总](https://github.com/molis-ai/molis-work/actions/runs/44381114388/job/135100960825) · [第 23 片](https://github.com/molis-ai/molis-work/actions/runs/44381114388/job/135073298604) · [第 25 片](https://github.com/molis-ai/molis-work/actions/runs/44381114388/job/135073298687) · [第 29 片](https://github.com/molis-ai/molis-work/actions/runs/44381114388/job/135073299036)
+- Linux 正式门禁对照 `f1e875d11e`，67 条静态资源与十组首屏通过。默认工作台中英文冷加载分别增 622、528 B，热加载分别减 8,453、8,440 B。全插件中英文冷加载增 1,870、1,787 B，热加载减 7,205、7,181 B。项目选择中英文冷增 2,265、2,153 B，热减 53、58 B。示例两组列入报告口径。 [包边界及资源作业](https://github.com/molis-ai/molis-work/actions/runs/44381132107/job/135073704999)
+- 本地从正常入口验了各批的状态、实际持久化、失败、取消和恢复。第 122 批隔离 Home 浏览器 79 项通过，新并入评测及排程的服务检查 32 项通过。长代码三倍 CPU 加压的一次 165.9 ms 峰值与原样复验的 71.8 ms 均保留。真实模型质量、线上同步、生产 Home 和本人验收按原事项结算。
+
+收尾拉取时主干已新增 `517a4d78fa` 的项目删除恢复、待办回执、生图一致性及输入草稿清理。将它和通过全量的候选组成隔离树 `fa606593c9aaa7c3627dfe4108b4a6c30fb0865d`，合并预检无冲突。Images 的共享动作绑定和主干新增事务可共同运行。项目删除沿原回执重启并清理所属数据，Todo 拒绝过期提醒确认并按实际变更反馈，生图撤权后呈现中断且原业务记录无追加，库 1→2 实际升级通过。输入草稿分批清理末项与 Coding 的原位继续交付都通过。14 个定向文件共 203 项，含真实浏览器入口 29 项。组合构建、健康、75 包边界、公开 API、动作、44 个库结构及版本通过。两项远端 CI 链接对应上文的草稿候选。日志 `quality-audit-final-latest-{build,gates,entrypoints}.log`。 [主干 #2130](https://github.com/molis-ai/molis-work/pull/2130) · [最新交集入口](coverage.md#收尾主干交集)
+
+确认草稿与临时集成分支均指向 `94d9c58ede` 后，已按批准删除临时集成分支。远端草稿仍指向通过 Verify 和 Full 的提交。最终验收、主干交集和 BL 处置记入本地报告及草稿说明。 [草稿 PR #2101](https://github.com/molis-ai/molis-work/pull/2101)

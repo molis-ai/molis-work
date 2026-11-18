@@ -4,6 +4,7 @@ import type { AssistantNotice, AssistantScope, AssistantSendResult, AssistantWor
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { recordingTextModel, type ModelWire } from "./fixtures/recording-text-model.js";
 import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
+import { holdSubtaskDraft } from "./fixtures/subtask-draft-barrier.js";
 
 const userTexts = (body: ModelWire) => body.messages.filter(message => message.role === "user").map(message => typeof message.content === "string" ? message.content : JSON.stringify(message.content));
 
@@ -133,4 +134,42 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
   assert.equal((await read()).rounds.length, source === "work" ? 2 : 1, "result observation never restarts the parent");
   await browser.evaluate(`fetch(${JSON.stringify(base + "/notices")},{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({notice_id:${JSON.stringify(updates[0]!.notice_id)},state:'seen'})}).then(r=>r.json())`);
   assert.equal((await notices()).notices.filter(one => one.work_id === sent.work.work_id && one.kind === "result").length, 0, "original result replay preserves the read state");
+  if (place === "home" && source === "sdk") {
+    // B59-FIX-01/02: a close before the first budget POST leaves the same action usable on the actual Home float.
+    await browser.evaluate("document.dispatchEvent(new CustomEvent('molis:assistant-open',{detail:{work_id:" + JSON.stringify(sent.work.work_id) + "}}))");
+    await browser.waitFor("document.querySelector('.assistant-subtask-name')");
+    if (!await browser.evaluate("document.querySelector('.assistant-subtask-name').getBoundingClientRect().width > 0")) await browser.click("[data-assistant-side-toggle]");
+    const extend = "[data-work-task-float] [data-subtask-action=extend-budget]";
+    await browser.click(".assistant-subtask-name");
+    await browser.waitFor("document.querySelector(" + JSON.stringify(extend) + ") && " + childInput + ".disabled");
+    const held = await holdSubtaskDraft(browser, "extend-budget");
+    try {
+      await browser.click(extend);
+      await held.wait();
+      await browser.click("[data-work-task-float] [data-subtask-close]");
+      await browser.waitFor("!document.querySelector('[data-work-task-float]')");
+    } finally { await held.release(); }
+    await browser.click(".assistant-subtask-name");
+    await browser.waitFor("document.querySelector(" + JSON.stringify(extend + ":not(:disabled)") + ")");
+    assert.equal(held.posts(), 0, "closing during draft CAS prevents the intercepted request");
+    assert.equal(childCalls, 2);
+    await browser.click(extend);
+    await browser.waitFor(childInput + " && !" + childInput + ".disabled");
+    assert.equal(held.posts(), 1);
+    held.dispose();
+    assert.equal(childCalls, 2, "extending the original budget does not dispatch a run");
+    const beforeRetry = (await read()).sdk_subtasks;
+    assert.ok(beforeRetry && "children" in beforeRetry && beforeRetry.children[0]?.budget?.max_attempts === 5);
+    await browser.evaluate("(() => { const input=" + childInput + ";input.value='SAI_THIRD_ASSISTANT';input.dispatchEvent(new Event('input',{bubbles:true})); })()");
+    await browser.click("[data-work-task-float] [data-composer-send]");
+    await browser.waitFor("document.querySelector('[data-work-task-float]')?.textContent.includes('Child answer 3')");
+    assert.equal(childCalls, 3);
+    assert.ok(bodies.some(body => userTexts(body).join("\n").includes("SAI_THIRD_ASSISTANT") && JSON.stringify(body.messages).includes("Child answer 2")));
+    const afterRetry = await read(), children = afterRetry.sdk_subtasks;
+    assert.ok(children && "children" in children);
+    assert.equal(children.children[0]?.subagent_id, beforeRetry.children[0]!.subagent_id);
+    assert.equal(children.children[0]?.child_run?.session_id, beforeRetry.children[0]!.child_run!.session_id);
+    assert.notEqual(children.children[0]?.child_run?.run_id, beforeRetry.children[0]!.child_run!.run_id);
+    assert.equal(afterRetry.rounds.length, 1);
+  }
 });

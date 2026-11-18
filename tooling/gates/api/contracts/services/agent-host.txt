@@ -2355,6 +2355,7 @@ export interface AgentSubagentConversation {
         pending_revision?: number;
     }>;
     input_unavailable?: string;
+    extend_budget_available?: true;
 }
 
 export type AgentSubagentRequestResult = {

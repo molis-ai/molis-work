@@ -33,7 +33,8 @@ type RoundsBody = { runs?: Array<CodingFollowUpRun & SkillFacts & { turns?: unkn
  * last, then the round card's own follow-ups; every step presses a control already on screen.
  */
 export async function codingInteractionHtml<T>(body: T, interaction: PluginInteractionClient | undefined, _locale: ActionLocale | undefined): Promise<T> {
-  const child = body as AgentSubagentConversation | undefined;
+  const waited = (body as { version?: string; view?: AgentSubagentConversation } | undefined);
+  const child = waited?.version && waited.view ? waited.view : body as AgentSubagentConversation | undefined;
   if (interaction && child?.child && Array.isArray(child.questions)) await Promise.all(child.questions.map(async question => {
     Object.assign(question, { html: await interaction.questionHtml(question) });
   }));

@@ -88,8 +88,8 @@ for (const source of ["work", "sdk"] as const) test(`Assistant ${source} sibling
     const original = current.sdk_subtasks.children.find(child => child.task.includes("SAI11_CHILD_A")); assert.ok(original);
     const path = `/api/assistant/works/${workId}/sdk-subtasks/${original.parent_run.run_id}/${original.subagent_id}`;
     const result = await b.evaluate<{ conversation: AgentSubagentConversation }>(`fetch(${JSON.stringify(path)}).then(r=>r.json())`);
-    assert.ok(result.conversation.input_unavailable, "the original attempt budget is exhausted after the continuation");
-    assert.ok(await b.evaluate(`document.querySelector('[data-subtask-composer]').textContent.includes(${JSON.stringify(result.conversation.input_unavailable)})`));
+    assert.equal(result.conversation.extend_budget_available, true, "the original attempt budget is exhausted after the continuation");
+    assert.match(await b.evaluate<string>("document.querySelector('[data-subtask-composer]').textContent"), /第 2 \/ 2 次尝试 · 预算已用 100%|Attempt 2 of 2 · 100% of budget used/);
     assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(input)}).disabled`), true);
   }
   await b.waitFor(`document.querySelector(${JSON.stringify(input)}).value===''`);

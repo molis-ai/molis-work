@@ -40,12 +40,16 @@ export function assistantWorkSubtaskSource(api: AssistantSubtaskRequest, storage
       await pending(target).settle(requestId, true); return { state: "applied" };
     } catch { return { state: "unknown", check: again }; }
   };
-  const perform = async (view: MwSubtaskConversationView, requestId: string, kind: "input" | "action", operation: () => Promise<unknown>, action?: { id: string; ref: string }): Promise<SubtaskActionOutcome> => {
+  const perform = async (view: MwSubtaskConversationView, requestId: string, kind: "input" | "action", signal: AbortSignal, operation: () => Promise<unknown>, action?: { id: string; ref: string }): Promise<SubtaskActionOutcome> => {
     try { await pending(view.target).begin(requestId, kind, view.binding, undefined, { action,
       alongside: kept => (kept.action?.id === "answer" || kept.action?.id === "resume-answer") && (kept.binding !== view.binding || kept.action.id === "answer" && action?.id === "resume-answer" && kept.action.ref === action.ref),
     }); } catch (error) {
       if (error instanceof Error && error.name === "SubtaskPendingConflict") return { state: "not-applied", reason: say("unknown") };
       throw error;
+    }
+    if (signal.aborted) {
+      await pending(view.target).settle(requestId, false);
+      return { state: "not-applied", reason: say("action-failed") };
     }
     try { await operation(); }
     catch (error) {
@@ -89,8 +93,11 @@ export function assistantWorkSubtaskSource(api: AssistantSubtaskRequest, storage
       delivery: () => ({ "next-boundary": { available: true }, interrupt: { available: false, reason: say("not-available") }, "after-run": { available: false, reason: say("not-available") } }),
       async submit(input, signal) {
         const binding = JSON.parse(view.binding) as AssistantSubtaskBinding;
-        const outcome = await perform(view, input.request_id, "input", async () => api("/send", { work_id: binding.work_id, text: input.text, request_id: input.request_id, submission_id: input.request_id,
-          draft_revision: await draft(view.target).prepare(input.text), target: "steer", subtask: { binding, operation: view.running ? "send" : "continue" } }, signal));
+        let revision: number;
+        try { revision = await draft(view.target).prepare(input.text); }
+        catch (error) { return { state: "failed", message: error instanceof Error ? error.message : say("draft-unsaved") }; }
+        const outcome = await perform(view, input.request_id, "input", signal, () => api("/send", { work_id: binding.work_id, text: input.text, request_id: input.request_id, submission_id: input.request_id,
+          draft_revision: revision, target: "steer", subtask: { binding, operation: view.running ? "send" : "continue" } }, signal));
         return outcome.state === "applied" ? { state: "sent" } : outcome.state === "not-applied" ? { state: "failed", message: outcome.reason }
           : { state: "unknown", check: async () => { const found = await outcome.check(); return found.state === "applied" ? "sent" : found.state === "not-applied" ? "not-sent" : "unknown"; } };
       },
@@ -101,14 +108,14 @@ export function assistantWorkSubtaskSource(api: AssistantSubtaskRequest, storage
       if (action.id === "answer" || action.id === "resume-answer") {
         const binding = JSON.parse(view.binding) as AssistantSubtaskBinding, answer = JSON.parse(action.ref) as { pending_id: string; pending_revision?: number; queued_input_id?: string };
         let accepted: AssistantWorkView | undefined;
-        const outcome = await perform(view, requestId, "action", async () => { accepted = await api<AssistantWorkView>(pathOf(view.target) + "/" + action.id,
+        const outcome = await perform(view, requestId, "action", signal, async () => { accepted = await api<AssistantWorkView>(pathOf(view.target) + "/" + action.id,
           { ...answer, run_id: binding.run.run_id, subtask: binding, request_id: requestId }, signal); }, { id: action.id, ref: answer.pending_id });
         const queued = outcome.state === "applied" && action.id === "answer" && accepted?.queued_inputs?.find(input => input.key === `answer.${answer.pending_id}` && input.left_by?.run_id === binding.run.run_id && !input.left_by.applied);
         if (!queued || signal.aborted) return outcome;
         const next = await source.act(view, { id: "resume-answer", ref: JSON.stringify({ pending_id: answer.pending_id, queued_input_id: queued.input_id }), label: say("continue") }, crypto.randomUUID(), signal);
         return next.state === "not-applied" ? { ...next, reason: say("answer-accepted") + " " + next.reason } : next;
       }
-      if (action.id === "stop") return perform(view, requestId, "action", () => api(pathOf(view.target) + "/control", { kind: "stop", subtask: JSON.parse(view.binding), request_id: requestId }, signal));
+      if (action.id === "stop") return perform(view, requestId, "action", signal, () => api(pathOf(view.target) + "/control", { kind: "stop", subtask: JSON.parse(view.binding), request_id: requestId }, signal));
       return { state: "not-applied", reason: say("not-available") };
     },
   };

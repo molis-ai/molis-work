@@ -1,6 +1,6 @@
 import { assistantWorkPermission, holdAssistantWorkLifetime } from "./assistant-work-permissions.js";
 import { requireSynchronous, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AgentRunRef, AgentSubagentCommand, AgentSubagentView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRunRef, AgentSubagentCommand, AgentSubagentConversation, AgentSubagentView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID, type AssistantSdkSubtaskReview } from "@molis-ai/molis-work-contracts/services/assistant";
 import { subagentExecution, waitForSubagentChange } from "@molis-ai/molis-work-service-agent-host";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -86,7 +86,14 @@ export class AssistantSdkSubtasks {
     const { work, run, port } = await this.original(workId, parentRunId);
     if (!port.conversation) throw assistantErrors.unsupported("当前运行时不能读取子任务对话");
     const conversation = await port.conversation(run!, childId);
-    try { this.current(work); } catch (error) { conversation.input_unavailable = error instanceof Error ? error.message : "原工作不可操作"; }
+    const view = await this.present(work, conversation);
+    try { this.current(work); } catch (error) {
+      delete view.conversation.extend_budget_available;
+      view.conversation.input_unavailable = error instanceof Error ? error.message : "原工作不可操作";
+    }
+    return view;
+  }
+  private async present(work: StoredWork, conversation: AgentSubagentConversation) {
     const childRun = conversation.child.child_run;
     const has_reviews = Boolean(childRun && (await this.ports.host()).reviews.list(ownerOf(work)).some(review => review.run?.session_id === childRun.session_id && review.run.run_id === childRun.run_id));
     return { work_id: work.work_id, scope: work.scope, parent_title: work.title, conversation, has_reviews };
@@ -98,9 +105,10 @@ export class AssistantSdkSubtasks {
   }
   async wait(workId: string, parentRunId: string, childId: string, since: string | null, timeout: number, signal: AbortSignal) {
     const { work, run, port } = await this.original(workId, parentRunId);
-    const answer = await waitForSubagentChange(port, run!, childId, since, timeout, signal);
+    const { version, view } = await waitForSubagentChange(port, run!, childId, since, timeout, signal);
+    const presented = await this.present(work, view);
     this.current(work);
-    return answer;
+    return { version, ...presented };
   }
   private current(work: StoredWork): void {
     const now = this.store.get(this.actorId, work.work_id);

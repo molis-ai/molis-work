@@ -1,19 +1,24 @@
 import type { AgentSubagentCommand, AgentSubagentConversation, AgentSubagentRequestResult } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { UiPageDrafts } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiPageDrafts, UiTextTool } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { MwComposerAiLabels } from "../ui/composer.js";
 import type { MwSubtaskConversationView, MwSubtaskDetail, MwSubtaskLink, StateRingState } from "../ui.js";
 import type { SubtaskActionOutcome, SubtaskConversationSource } from "./subtask-contract.js";
 import { subtaskDraft } from "./subtask-draft.js";
+import { subscribeSubtask } from "./subtask-watch.js";
+
+type AgentSubtaskRead = { conversation: AgentSubagentConversation; parent: MwSubtaskLink; children?: MwSubtaskLink[]; details?: MwSubtaskDetail[] };
 
 export interface AgentSubtaskSourcePorts {
   drafts: UiPageDrafts;
   labels: MwComposerAiLabels;
   /** Owner-localized words. Phase, receipt and empty notice names use `phase.<value>` / `receipt.<value>` / `notice.<value>`. */
-  text(key: string): string;
-  read(target: string, signal: AbortSignal): Promise<{ conversation: AgentSubagentConversation; parent: MwSubtaskLink; children?: MwSubtaskLink[]; details?: MwSubtaskDetail[] }>;
+  text: UiTextTool["text"];
+  read(target: string, signal: AbortSignal): Promise<AgentSubtaskRead>;
   command(target: string, command: AgentSubagentCommand, signal: AbortSignal): Promise<AgentSubagentRequestResult & { details?: { errors?: Record<string, string> } }>;
   check(target: string, requestId: string, signal: AbortSignal): Promise<AgentSubagentRequestResult>;
   subscribe?: SubtaskConversationSource["subscribe"];
+  /** A versioned wait that already returns the projection used by read. The visible subscription consumes it once. */
+  wait?(target: string, since: string | null, signal: AbortSignal): Promise<{ version: string; snapshot: AgentSubtaskRead }>;
   /** Questions, approvals and result tools remain the owner's existing actions. */
   action?: SubtaskConversationSource["act"];
 }
@@ -21,6 +26,15 @@ export interface AgentSubtaskSourcePorts {
 /** Maps the public Host projection to the common UI. Original history, authority and execution admission remain with the Host. */
 export function createAgentSubtaskSource(ports: AgentSubtaskSourcePorts): SubtaskConversationSource & { flush(): Promise<void> } {
   const drafts = new Map<string, ReturnType<typeof subtaskDraft>>(), armed = new Set<string>();
+  const snapshots = new WeakMap<AbortSignal, { target: string; snapshot: AgentSubtaskRead }>();
+  const wait = ports.wait;
+  const subscribe: SubtaskConversationSource["subscribe"] = wait ? (target, invalidate, signal) => {
+    const retain = ({ snapshot }: { snapshot: AgentSubtaskRead }) => snapshots.set(signal, { target, snapshot });
+    return subscribeSubtask<{ version: string; snapshot: AgentSubtaskRead }>((since, current) => wait(target, since, current), update => {
+      if (update) retain(update); else snapshots.delete(signal);
+      invalidate();
+    }, signal, retain);
+  } : ports.subscribe;
   const draft = (target: string) => { let one = drafts.get(target); if (!one) { one = subtaskDraft(ports.drafts, target); drafts.set(target, one); } return one; };
   const check = async (target: string, requestId: string, signal: AbortSignal): Promise<SubtaskActionOutcome> => {
     let result: AgentSubagentRequestResult;
@@ -42,10 +56,13 @@ export function createAgentSubtaskSource(ports: AgentSubtaskSourcePorts): Subtas
       throw error;
     }
     let result: Awaited<ReturnType<AgentSubtaskSourcePorts["command"]>>;
-    try { result = await ports.command(view.target, input, signal); } catch { return check(view.target, input.request_id, new AbortController().signal); }
+    if (signal.aborted) result = { state: "not-applied", reason: ports.text("action-failed") };
+    else {
+      try { result = await ports.command(view.target, input, signal); } catch { return check(view.target, input.request_id, new AbortController().signal); }
+    }
     if (result.state === "unknown") return { state: "unknown", check: () => check(view.target, input.request_id, new AbortController().signal) };
     try { await draft(view.target).settle(input.request_id, result.state === "applied"); } catch { return { state: "unknown", check: () => check(view.target, input.request_id, new AbortController().signal) }; }
-    if (result.state === "applied" && input.kind === "answer" && result.answer_delivery === "queued") {
+    if (result.state === "applied" && input.kind === "answer" && result.answer_delivery === "queued" && !signal.aborted) {
       const next = await command(view, { kind: "resume-answer", request_id: crypto.randomUUID(), child_run: input.child_run, pending_id: input.pending_id, pending_revision: input.pending_revision }, signal);
       return next.state === "not-applied" ? { ...next, reason: ports.text("answer-accepted") + " " + next.reason } : next;
     }
@@ -53,10 +70,12 @@ export function createAgentSubtaskSource(ports: AgentSubtaskSourcePorts): Subtas
   };
   const source: SubtaskConversationSource & { flush(): Promise<void> } = {
     async flush() { await Promise.all([...drafts.values()].map(one => one.flush())); },
-    ...(ports.subscribe ? { subscribe: ports.subscribe } : {}), check,
+    ...(subscribe ? { subscribe } : {}), check,
     async read(target, signal) {
-      let found: Awaited<ReturnType<AgentSubtaskSourcePorts["read"]>>;
-      try { found = await ports.read(target, signal); }
+      const received = snapshots.get(signal);
+      snapshots.delete(signal);
+      let found: AgentSubtaskRead;
+      try { found = received?.target === target ? received.snapshot : await ports.read(target, signal); }
       catch (error) {
         if (error && typeof error === "object" && "status" in error && [401, 403, 404].includes(Number(error.status))) return { state: "denied", reason: ports.text("unavailable") };
         throw error;
@@ -64,7 +83,9 @@ export function createAgentSubtaskSource(ports: AgentSubtaskSourcePorts): Subtas
       const { conversation: data, parent, children, details } = found, child = data.child;
       const binding = JSON.stringify(child.child_run ?? null), running = ["starting", "running", "compacting", "awaiting-input", "awaiting-review", "pausing", "paused"].includes(data.phase);
       const held = ["failed", "stopped", "cancelled"].includes(data.phase) && !armed.has(target + binding);
-      const unavailable = data.input_unavailable ?? (!child.child_run ? ports.text("unavailable") : data.phase === "reconcile-required" ? ports.text("reconcile") : held ? ports.text("continue-note") : undefined);
+      const cappedBudget = child.child_run && data.extend_budget_available ? child.budget : undefined;
+      const unavailable = cappedBudget ? ports.text("budget-exhausted", { attempt: cappedBudget.attempt, max: cappedBudget.max_attempts, pct: 100 })
+        : data.input_unavailable ?? (!child.child_run ? ports.text("unavailable") : data.phase === "reconcile-required" ? ports.text("reconcile") : held ? ports.text("continue-note") : undefined);
       const state: StateRingState = data.phase === "completed" ? "round-ended" : data.phase === "awaiting-input" ? "answer" : data.phase === "awaiting-review" ? "approval" : data.phase === "reconcile-required" ? "interrupted" : data.phase === "failed" ? "failed" : data.phase === "stopped" || data.phase === "cancelled" ? "stopped" : "running";
       const pending = await draft(target).pending();
       return { state: "available", view: {
@@ -73,7 +94,8 @@ export function createAgentSubtaskSource(ports: AgentSubtaskSourcePorts): Subtas
         messages: data.messages.map(message => ({ id: `${message.run.run_id}:${message.turn_id}`, role: message.kind === "user" ? "user" : message.kind === "assistant" ? "assistant" : "notice", content: { text: message.kind === "notice" && !message.text && message.notice ? ports.text(`notice.${message.notice}`) : message.text },
           ...(message.steer ? { receipt: ports.text(`receipt.${message.steer.state}`) } : {}) })),
         details: [...(child.activity?.length ? [{ id: "process", title: ports.text("process"), content: { text: child.activity.map(activity => [activity.name, activity.target, activity.summary, activity.output].filter(Boolean).join("\n")).join("\n\n") } }] : []), ...(details ?? [])], children,
-        actions: !child.child_run || data.input_unavailable || data.phase === "reconcile-required" ? [] : data.queued_answer ? [{ id: "resume-answer", ref: JSON.stringify(data.queued_answer), label: ports.text("continue"), pendingSafe: true }] : running ? [{ id: "stop", ref: binding, label: ports.text("stop") }]
+        actions: cappedBudget ? [{ id: "extend-budget", ref: binding, label: ports.text("extend-budget") }]
+          : !child.child_run || data.input_unavailable || data.phase === "reconcile-required" ? [] : data.queued_answer ? [{ id: "resume-answer", ref: JSON.stringify(data.queued_answer), label: ports.text("continue"), pendingSafe: true }] : running ? [{ id: "stop", ref: binding, label: ports.text("stop") }]
           : [{ id: "continue", ref: binding, label: ports.text("continue"), title: ports.text("continue-note") }],
         ...(pending ? { pending: { blocking: !((pending.action?.id === "answer" || pending.action?.id === "resume-answer") && pending.binding !== binding), kind: pending.kind, requestId: pending.requestId, message: ports.text("unknown"), check: { id: "pending.check", ref: pending.requestId, label: ports.text("check") } } } : {}),
       } };
@@ -98,6 +120,7 @@ export function createAgentSubtaskSource(ports: AgentSubtaskSourcePorts): Subtas
         return command(view, { ...answer, kind: action.id, request_id: requestId, child_run: JSON.parse(view.binding) }, signal);
       }
       if (action.id === "continue") { armed.add(view.target + view.binding); return { state: "applied" }; }
+      if (action.id === "extend-budget") return command(view, { kind: "extend-budget", attempts: 3, request_id: requestId, child_run: JSON.parse(view.binding) }, signal);
       if (action.id === "stop") return command(view, { kind: "stop", request_id: requestId, child_run: JSON.parse(view.binding) }, signal);
       if (ports.action) return ports.action(view, action, requestId, signal);
       return { state: "not-applied", reason: ports.text("unavailable") };

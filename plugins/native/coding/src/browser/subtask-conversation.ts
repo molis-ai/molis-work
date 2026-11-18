@@ -1,5 +1,5 @@
 import type { AgentSubagentConversation, AgentSubagentRequestResult } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { createAgentSubtaskSource, createSubtaskConversation, createSubtaskQuestions, subscribeSubtask } from "@molis-ai/molis-work-plugin-sdk/subtask-conversation";
+import { createAgentSubtaskSource, createSubtaskConversation, createSubtaskQuestions } from "@molis-ai/molis-work-plugin-sdk/subtask-conversation";
 import { t, type MwSubtaskConversationLabels } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingComposerLabels } from "../composer-labels.js";
 import { hostRequest } from "./main/request.js";
@@ -24,17 +24,21 @@ export function mountCodingSubtask(host: CodingWorkbenchHost): void {
   const content = root.ownerDocument.createElement("div"); content.style.height = "100%";
   root.replaceChildren(content); root.style.cssText = "height:100%;min-height:0";
   const questions = createSubtaskQuestions({ drafts: host.drafts, interaction: host.interaction, text: say });
+  const present = (target: string, conversation: AgentSubagentConversation) => ({
+    conversation, parent: { target: "", title: say("parent") },
+    details: [...questions.remember(target, JSON.stringify(conversation.child.child_run), conversation.questions), ...(conversation.approvals.length ? [{ id: "approvals:" + JSON.stringify(conversation.approvals), title: say("approvals"), content: { text: "" }, expanded: true }] : [])],
+  });
   const source = createAgentSubtaskSource({
     drafts: host.drafts, labels: codingComposerLabels(t.text, /Mac/i.test(navigator.platform)), text: say,
-    async read(target, signal) {
-      const conversation = await hostRequest<AgentSubagentConversation>(host, lifetime, pathOf(target), { signal });
-      return { conversation, details: [...questions.remember(target, JSON.stringify(conversation.child.child_run), conversation.questions), ...(conversation.approvals.length ? [{ id: "approvals:" + JSON.stringify(conversation.approvals), title: say("approvals"), content: { text: "" }, expanded: true }] : [])], parent: { target: "", title: say("parent") } };
+    read: async (target, signal) => present(target, await hostRequest<AgentSubagentConversation>(host, lifetime, pathOf(target), { signal })),
+    async wait(target, since, signal) {
+      const { version, view } = await hostRequest<{ version: string; view: AgentSubagentConversation }>(host, lifetime,
+        pathOf(target) + "/live?" + new URLSearchParams(since ? { since } : {}), { signal });
+      return { version, snapshot: present(target, view) };
     },
     command: (target, command, signal) => hostRequest<AgentSubagentRequestResult>(host, lifetime, pathOf(target), { method: "POST", signal,
       body: command.kind === "send" || command.kind === "continue" ? { ...command, original_input: { input_id: command.request_id, text: command.text, use: "supplement" } } : command }),
     check: (target, requestId, signal) => hostRequest<AgentSubagentRequestResult>(host, lifetime, pathOf(target) + "/request?request_id=" + encodeURIComponent(requestId), { signal }),
-    subscribe: (target, invalidate, signal) => subscribeSubtask((version, signal) => hostRequest<{ version: string }>(host, lifetime,
-      pathOf(target) + "/live?" + new URLSearchParams(version ? { since: version } : {}), { signal }), invalidate, signal),
   });
   const handle = createSubtaskConversation(content, { get labels() { return labels(); }, source, mountDetail: (element, view, detail, submit) => {
     if (!detail.id.startsWith("approvals:")) return questions.mount(element, view, detail, submit);

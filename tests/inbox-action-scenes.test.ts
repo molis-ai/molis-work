@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { inboxActions, inboxContentActions, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS, type InboxJudgmentState } from "@molis-ai/molis-work-plugin-inbox";
-import { feedContentActions, feedItemActions, type FeedJudgmentCatalog } from "@molis-ai/molis-work-plugin-feed";
+import { feedContentActions, feedInboxActions, feedItemActions, type FeedJudgmentCatalog } from "@molis-ai/molis-work-plugin-feed";
 import { createFunctionsService, publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
 import type { ActionCallContext, ActionDefinition, ActionSceneBinding, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -108,7 +108,7 @@ test("FI-1 RAC-482 binding a published rule goes through the plugin's own scene 
   }
 });
 
-test("Inbox consumes a registered judgment, retains the original binding and history across restart, and rejects stale results", async () => {
+test("QEA-147 Inbox consumes a registered judgment, retains the original binding and history across restart, and rejects stale results", async () => {
   const home = await mkdtemp(join(tmpdir(), "inbox-action-scene-"));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
@@ -122,8 +122,10 @@ test("Inbox consumes a registered judgment, retains the original binding and his
       return { primitive: "choice", choice: "inbox.done", probabilities: { "inbox.done": 1 }, confidence: null,
         model: record.model, noul: null, score: null, legend: null };
     } } };
-  let disabled = false;
+  let disabled = false, bodyUnavailable = false;
   const makeHost = () => new MolisWorkLocalHost({ homeDirectory: home, functions: options,
+    actionAvailability: (_caller, view) => bodyUnavailable && view.capability_id === feedInboxActions.content.capability_id
+      ? { available: false, code: "actions.execution_failed", reason: "Feed body read is unavailable" } : { available: true },
     sceneAvailability: () => disabled ? { available: false, code: "actions.plugin_disabled", reason: "disabled fixture" } : { available: true } });
   let host = makeHost();
   const history = () => withFunctionsService(home, service => service.listJudgments(), options);
@@ -236,10 +238,18 @@ test("Inbox consumes a registered judgment, retains the original binding and his
     await assert.rejects(actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }), { code: "actions.subject_changed" });
     assert.equal(history().length, count);
     assert.deepEqual(await recommendations(), [], "an edited entry invalidates previously saved advice");
+    bodyUnavailable = true;
+    await assert.rejects(recommendations(), { code: "actions.execution_failed" });
     const current = feed.getInboxEntry(reference.project_id, entry.entry_id);
-    feed.setInboxEntryStatus(reference.project_id, entry.entry_id, "dismissed", current.revision);
-    await assert.rejects(actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }), { code: "actions.subject_unavailable" });
+    await actions.invoke(caller, inboxActions.setStatus, { entry_id: entry.entry_id, status: "dismissed", expected_revision: current.revision });
+    assert.deepEqual(await recommendations(), [], "a dismissed subject cannot depend on unavailable content for advice");
+    const stage = await actions.invoke(caller, inboxActions.stage, {}) as { entries: Array<{ entry_id: string; status: string }>; judgments: JudgmentRecord[] };
+    assert.equal(stage.entries.find(item => item.entry_id === entry.entry_id)?.status, "dismissed");
+    assert.deepEqual(stage.judgments, []);
     assert.equal(history().length, count);
+    bodyUnavailable = false;
+    await assert.rejects(actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }), { code: "actions.subject_unavailable" });
+    assert.deepEqual(await recommendations(), [], "recovering the content read cannot reactivate dismissed advice");
     stop();
     assert.deepEqual(await recommendations(), []);
     assert.equal((await actions.invoke(caller, inboxActions.readJudgment, {}) as InboxJudgmentState).summary?.available, false);

@@ -5,8 +5,11 @@ import type { FrameDown, FrameScope, FrameUp } from "./types.js";
 export function childTaskView(port: MessagePort, scope: FrameScope, initial?: Readonly<Record<string, string>>): Pick<UiPageView, "openTask" | "task"> {
   let sequence = 0, input = initial ? Object.freeze({ ...initial }) : undefined;
   let returnFocus: HTMLElement | null = null;
+  let waitingForFocus: (() => void) | undefined;
   const pending = new Map<number, { resolve(): void; reject(error: Error): void }>(), listeners = new Set<(input: Readonly<Record<string, string>>) => void>();
   const close = () => { if (scope.alive && input) port.postMessage({ type: "task-close" } satisfies FrameUp); };
+  const stopWaiting = () => { waitingForFocus?.(); waitingForFocus = undefined; };
+  scope.whenVisible(() => stopWaiting);
   scope.own(() => { for (const one of pending.values()) one.reject(new Error("View closed")); pending.clear(); listeners.clear(); });
   port.addEventListener("message", (event: MessageEvent<FrameDown>) => {
     const message = event.data;
@@ -16,8 +19,20 @@ export function childTaskView(port: MessagePort, scope: FrameScope, initial?: Re
     } else if (message.type === "task-input" && input) {
       input = Object.freeze({ ...message.input }); for (const listener of listeners) listener(input);
     } else if (message.type === "task-return-focus") {
-      (returnFocus?.isConnected ? returnFocus : document.getElementById(returnFocus?.id ?? ""))?.focus({ preventScroll: true });
+      const entry = returnFocus, opened = sequence;
       returnFocus = null;
+      stopWaiting();
+      if (!entry || !scope.visible) return;
+      // The port message can arrive before Chromium transfers focus to this frame.
+      const restore = () => {
+        stopWaiting();
+        scope.frame(() => {
+          if (sequence !== opened || !scope.visible || !document.hasFocus() || document.activeElement !== document.body) return;
+          (entry.isConnected ? entry : document.getElementById(entry.id))?.focus({ preventScroll: true });
+        });
+      };
+      if (document.hasFocus()) restore();
+      else waitingForFocus = scope.listen(window, "focus", restore);
     }
   });
   if (initial) scope.listen(document, "keydown", event => {
@@ -27,6 +42,7 @@ export function childTaskView(port: MessagePort, scope: FrameScope, initial?: Re
   return {
     openTask: value => new Promise<void>((resolve, reject) => {
       scope.assertCurrent(); const id = ++sequence; pending.set(id, { resolve, reject });
+      stopWaiting();
       returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       port.postMessage({ type: "task-open", id, input: { ...value } } satisfies FrameUp);
     }),

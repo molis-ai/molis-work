@@ -231,7 +231,7 @@ test("the open page never saves over what it cannot show or has not seen: change
   await waitFor(namesItself("别处会改的文档", changed.version));
   // A body the editor cannot show opens read-only with a note, and nothing is saved over it.
   await open(unreadable.id);
-  await waitFor("/显示不了/.test(document.querySelector('[data-pages=workbench]').textContent) && document.querySelector('[data-pages-editor] .ProseMirror').getAttribute('contenteditable') === 'false'");
+  await waitFor("/暂无法在编辑器中显示/.test(document.querySelector('[data-pages=workbench]').textContent) && document.querySelector('[data-pages-editor] .ProseMirror').getAttribute('contenteditable') === 'false'");
   await new Promise(resolve => setTimeout(resolve, 1200));
   const after = openPagesStore(homeDirectory);
   try {

@@ -27,22 +27,23 @@ export const projectRuntimeSettingOwner = {
   provider_id: ownerId, settings_entries: projectRuntimeDeclaration,
 };
 
-export function projectRuntimeSettingProvider(projectId: string, db: SqliteDatabase,
-  directory: () => readonly AgentRuntimeDescriptor[], ready: () => Promise<unknown> | undefined): ActionProviderRegistration {
-  const store = new ProjectRuntimeSettings(db);
-  const checkScope = (scope: SettingsOwnerScope) => {
-    if (scope.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "运行时设置属于另一个项目");
-  };
-  const snapshot = (key: string): SettingSnapshot => {
-    const pick = store.selection(projectId);
-    const runtimes = directory(), fallback = defaultAgentRuntime(runtimes)?.runtime_id;
+export function runtimeSettingSnapshot(key: string, pick: ReturnType<ProjectRuntimeSettings["selection"]>, runtimes: readonly AgentRuntimeDescriptor[]): SettingSnapshot {
+    const fallback = defaultAgentRuntime(runtimes)?.runtime_id;
     const selected = pick?.runtime_id ?? null, current = resolveProjectRuntime(runtimes, selected);
     const revision = JSON.stringify([pick?.revision ?? 0, fallback ?? null, current.runtime?.runtime_id ?? null]);
     if (!current.runtime) return { key, revision, state: "unavailable", reason: current.reason };
     return { key, revision, state: "ok", layers: {
       ...(selected === null ? {} : { project: selected }), ...(fallback ? { provider_default: fallback } : {}),
     } };
+}
+
+export function projectRuntimeSettingProvider(projectId: string, db: SqliteDatabase,
+  directory: () => readonly AgentRuntimeDescriptor[], ready: () => Promise<unknown> | undefined): ActionProviderRegistration {
+  const store = new ProjectRuntimeSettings(db);
+  const checkScope = (scope: SettingsOwnerScope) => {
+    if (scope.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "运行时设置属于另一个项目");
   };
+  const snapshot = (key: string) => runtimeSettingSnapshot(key, store.selection(projectId), directory());
   const owner: SettingsOwner = {
     owner_id: ownerId, errors: hostErrors,
     read(scope, keys) { checkScope(scope); return keys.map(snapshot); },

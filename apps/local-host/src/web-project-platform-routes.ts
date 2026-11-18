@@ -54,6 +54,7 @@ import { contextualPorts, projectRoutePrefix, type ProjectRequestContext, type P
 import type { WebRoute } from "./web-route-table.js";
 import { handleObservationShellHttp } from "./observation-shell-entry.js";
 import { handleObservationHttp } from "./observation-http.js";
+import { handleBlueprintHttp } from "./blueprint-http.js";
 
 // The project's own platform routes (specs/archive/repository-anti-corruption W5-07). None names a plugin package; the plugin
 // surfaces' entries, and the order of the whole table, are in web-request.ts.
@@ -305,6 +306,8 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 
 /** This project's memories (and the person's own), the Assistant scoped to this project, and what needs the person's attention. */
 export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
+  { id: "blueprints", handle: ({ request, response, url, hostReference, localHost, controlToken, composition, serverOptions }) =>
+    handleBlueprintHttp(request, response, url, localHost, controlToken, composition, hostReference, serverOptions.assertAccountCurrent) },
   { id: "memory", handle: async context => {
     const { request, response, url, serverOptions, localHost, hostReference } = context, assistant = projectAssistant(context);
     return Boolean(serverOptions.homeDirectory) && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url,

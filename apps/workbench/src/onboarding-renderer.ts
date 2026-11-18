@@ -4,6 +4,7 @@ import { ARRIVAL_MOTION_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION
 import { ONBOARDING_DISMISS_CLIENT_SCRIPT } from "./browser-assets.js";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { renderContextOnboarding } from "./context-onboarding-renderer.js";
+import { renderSceneOnboarding } from "./scene-onboarding-renderer.js";
 import { createArrivalShell } from "./arrival/shell.js";
 import type { WorkbenchAppearancePorts } from "./appearance-document.js";
 
@@ -22,7 +23,8 @@ export interface OnboardingRenderPrimitives {
 }
 
 export interface MolisWorkOnboardingRenderOptions {
-  mode: "first_run" | "new_project" | "update";
+  mode: "first_run" | "new_project" | "update" | "scene";
+  projectId?: string;
   currentVersion: string | null;
   controlToken?: string;
   desktopShell?: boolean;
@@ -38,6 +40,7 @@ function miniWorkbench(icon: (name: OnboardingIcon) => string): string {
 export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPrimitives) {
   const { escapeHtml, withDesktopQuery } = primitives;
   return function renderMolisWorkOnboarding(options: MolisWorkOnboardingRenderOptions): string {
+  if (options.mode === "scene") return renderSceneOnboarding(options, primitives);
   const desktopShell = Boolean(options.desktopShell);
   const href = (target: string) => desktopShell ? withDesktopQuery(target) : target;
   if (options.mode === "update") {

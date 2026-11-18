@@ -35,6 +35,12 @@ export interface ProjectPluginHost {
   homePlugins(): HomePluginHost | undefined;
 }
 
+export async function readyAgentHost(source: Pick<ProjectPluginHost, "agents">) {
+  const service = source.agents();
+  await service?.ready;
+  return service?.agentHost;
+}
+
 /** Reuse the complete production composition, without restoring external MCP or executing an Agent. */
 export async function withPreparedProject<Result>(source: ProjectPluginHost, reference: LocalHostProjectReference,
   operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>, activatePlugins = false): Promise<Result> {

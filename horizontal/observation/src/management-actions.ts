@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   ObservationCleanupPreview,
   ObservationCleanupResult,
@@ -28,7 +28,7 @@ export interface ManagementActionDeps {
   readonly writer: ObservationWriter;
 }
 
-function openForManagement(writer: ObservationWriter): DatabaseSync {
+export function openForManagement(writer: ObservationWriter): DatabaseSync {
   writer.flush();
   const opened = writer.database();
   if (!opened) throw observationErrors.store_unavailable("工作记录库当前不可用");
@@ -45,11 +45,14 @@ export async function handleSettingsGet(deps: ManagementActionDeps, caller: Acti
 
 export async function handleSettingsSet(
   deps: ManagementActionDeps,
-  caller: ActionCallContext,
+  caller: ActionExecutionContext,
   input: ObservationSettingsUpdateInput,
 ): Promise<ObservationSettingsView> {
   assertPersonCaller(caller);
   const readable = await resolveLiveReadableProjects(deps.env);
+  await caller.beforeEffect();
+  caller.assert_authority_current?.();
+  caller.signal?.throwIfAborted();
   // Flush queued records BEFORE applying a pause so everything that occurred prior to pausing is preserved.
   const db = openForManagement(deps.writer);
   const now = deps.env.now();
@@ -76,12 +79,13 @@ export async function handleSettingsSet(
 
   db.exec("BEGIN IMMEDIATE");
   try {
-    writeStoredSettings(db, next);
+    writeStoredSettings(db, next, input.retention_mode === undefined ? undefined : true);
     if (previous.paused && !nextPaused) {
       db.prepare(
         "INSERT INTO coverage_gaps (owner, fact, entry, project_id, state, started_at, ended_at, count, reason) VALUES ('observation', '*', 'workbench', '', 'by_rule', ?, ?, 0, 'recording_paused')",
       ).run(previous.paused_at ?? nowIso, nowIso);
     }
+    if (input.retention_mode !== undefined && retentionDaysOf(next.retention_mode) !== null) sweepExpiredRecords(db, now);
     db.exec("COMMIT");
   } catch (error) {
     try { db.exec("ROLLBACK"); } catch { /* already closed */ }
@@ -89,11 +93,6 @@ export async function handleSettingsSet(
   }
 
   deps.writer.setPaused(nextPaused);
-
-  // When a bounded automatic retention period is saved, apply the cutoff immediately without silently extending it (OCL-12).
-  if (input.retention_mode !== undefined && retentionDaysOf(next.retention_mode) !== null) {
-    sweepExpiredRecords(db, now);
-  }
 
   return settingsViewOf(db, readStoredSettings(db), computeEvaluationHoldsSummary(db, nowIso, readable));
 }

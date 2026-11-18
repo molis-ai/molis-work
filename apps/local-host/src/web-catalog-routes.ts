@@ -40,6 +40,7 @@ import { UI_LANGUAGE_PREVIEW_HEADER } from "./web-ui-preference.js";
 import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 import { dispatchWebRoutes, type WebRoute } from "./web-route-table.js";
 import { handlePluginSettingsPage, handleSettingsPage } from "./web-catalog-settings.js";
+import { handleBlueprintHttp } from "./blueprint-http.js";
 import type { SetProjectPluginFromWeb } from "./web-project-settings.js";
 
 /** What every catalog request carries: the request, and the Host's parts a page of the catalog (no project open) is built from. */
@@ -113,6 +114,8 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   { id: "functions", handle: async ({ request, response, url, serverOptions, localHost }) => Boolean(serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
     actions: bindLocalWebActions(localHost, undefined, ["functions:invoke", "functions:manage"]),
   })) },
+  { id: "blueprints", handle: ({ request, response, url, serverOptions, localHost, controlToken, composition }) =>
+    handleBlueprintHttp(request, response, url, localHost, controlToken, composition, undefined, serverOptions.assertAccountCurrent) },
   { id: "onboarding", handle: ({ request, response, url, serverOptions, projects, localHost, controlToken, composition }) => composition.handleOnboarding(request, response, url, serverOptions.homeDirectory, projects.length, localHost, controlToken) },
   { id: "desktop-capsule", handle: ({ request, response, url, projects, composition }) => {
     if (!(request.method === "GET" && url.pathname === "/desktop/capsule")) return false;

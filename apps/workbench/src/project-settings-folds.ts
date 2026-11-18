@@ -124,6 +124,7 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
         <div class="settings-setting-row"><label class="setting-copy" for="project-runtime"><strong>${uiText("workbench.project-settings-folds.agent-runtime")}</strong><span>${uiText("workbench.project-settings-folds.which-runtime-project-s-new-sessions-run-default")}</span></label>
           <div class="setting-value"><select id="project-runtime"></select></div><p class="settings-form-error" role="alert" hidden></p></div>
       </section>
+      <section class="settings-section"><a class="mw-btn mw-btn--ghost" href="${escapeHtml(desktopShell ? primitives.withDesktopQuery("/projects/" + encodeURIComponent(project.project_id) + "/onboarding?scene") : "/projects/" + encodeURIComponent(project.project_id) + "/onboarding?scene")}">${uiText("workbench.scene.title")}</a></section>
       <section class="settings-section settings-project-maintenance"><h2>${uiText("workbench.project-settings-folds.project-management")}</h2>${renderDanger(project)}</section>
       ${renderProjectDeleteDialog(project, desktopShell, primitives)}
     </section>`;

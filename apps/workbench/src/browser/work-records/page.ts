@@ -8,6 +8,7 @@ import type {
   ObservationSettingsView,
   ObservationSpaceView,
 } from "@molis-ai/molis-work-contracts/services/observation";
+import type { SettingsValues, SettingsWriteInput } from "@molis-ai/molis-work-contracts/platform/settings";
 import {
   alertHtml,
   btnHtml,
@@ -250,15 +251,18 @@ export function mountWorkRecords(root: HTMLElement): () => void {
     });
   };
 
+  let retentionRevision: string | undefined, pendingRetention: SettingsWriteInput | undefined;
   const loadAll = async () => {
     showError(null);
     try {
-      const [settings, space] = await Promise.all([
+      const [settings, space, retention] = await Promise.all([
         postObservation<ObservationSettingsView>("settings"),
         postObservation<ObservationSpaceView>("space"),
+        postObservation<SettingsValues>("preferences/read", { keys: ["observation.retention"] }),
         fetchCoverage(),
       ]);
       if (!root.isConnected) return;
+      retentionRevision = retention.values[0]?.revision;
       S.settings = settings;
       S.space = space;
       render();
@@ -271,7 +275,17 @@ export function mountWorkRecords(root: HTMLElement): () => void {
     if (S.busy) return;
     S.busy = true; showError(null); render();
     try {
-      S.settings = await postObservation<ObservationSettingsView>("settings/set", patch, "workbench.settings-work-records.save-failed");
+      if (patch.retention_mode !== undefined) {
+        if (retentionRevision === undefined) { await loadAll(); return; }
+        if (!pendingRetention || pendingRetention.expected_revision !== retentionRevision
+          || !("set" in pendingRetention.change) || pendingRetention.change.set !== patch.retention_mode) {
+          pendingRetention = { key: "observation.retention", layer: "personal", change: { set: patch.retention_mode },
+            expected_revision: retentionRevision, request_id: crypto.randomUUID() };
+        }
+        const saved = await postObservation<SettingsValues>("preferences/write", pendingRetention, "workbench.settings-work-records.save-failed");
+        retentionRevision = saved.values[0]?.revision; pendingRetention = undefined;
+        S.settings = await postObservation<ObservationSettingsView>("settings");
+      } else S.settings = await postObservation<ObservationSettingsView>("settings/set", patch, "workbench.settings-work-records.save-failed");
       const [space] = await Promise.all([postObservation<ObservationSpaceView>("space"), fetchCoverage()]);
       S.space = space;
       S.draftPeriod = null;

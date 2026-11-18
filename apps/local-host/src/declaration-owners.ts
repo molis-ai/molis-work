@@ -1,6 +1,6 @@
 import { pluginErrors, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { holdsInstalledEdition, pluginManifestDigest, readPluginReleaseManifest, type DeclarationOwner, type DeclarationOwners } from "@molis-ai/molis-work-plugin-runtime";
-import { projectRuntimeSettingOwner } from "./project-runtime-setting-actions.js";
+import { systemSettingOwners } from "./system-setting-owners.js";
 import { HOST_ARTIFACT_PRODUCERS } from "./artifact-type-registry.js";
 import { heldInstalls, sameInstallScope, type InstallScope } from "./plugin-holders.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
@@ -37,10 +37,9 @@ const shippedOwners = (): DeclarationOwner[] => [...PLATFORM_PLUGIN_REGISTRATION
   ...HOST_ARTIFACT_PRODUCERS.map(host => ({ plugin_id: host.plugin_id, artifacts: { produces: host.produces, consumes: [] } }))];
 
 /** A development run has only its own installation and the artifact names the build reserves (S-82). */
-const systemSettings = (): DeclarationOwner[] => [{
-  plugin_id: projectRuntimeSettingOwner.provider_id,
-  settings: projectRuntimeSettingOwner.settings_entries.entries.map(entry => entry.key),
-}];
+const systemSettings = (): DeclarationOwner[] => systemSettingOwners.map(owner => ({
+  plugin_id: owner.provider_id, settings: owner.settings_entries.entries.map(entry => entry.key),
+}));
 
 export function developmentDeclarationOwners() {
   const shipped = [...shippedOwners(), ...systemSettings()];

@@ -11,18 +11,18 @@ import { closedObjectSchema } from "../platform/closed-object-schema.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { SandboxJson } from "../platform/plugin-sandbox.js";
 import { SETTINGS_CONSEQUENCES, SETTINGS_LAYERS, SETTINGS_SOURCES, type SettingConsequence, type SettingLayer, type SettingSource } from "../platform/settings.js";
-import { LOCALE_TAG } from "../platform/ui-text.js";
+import { LOCALE_TAG, OWNED_TEXT_REF_SCHEMA, TEXT_REF_SCHEMA, type OwnedTextRef, type TextRef } from "../platform/ui-text.js";
 
-/** The scene service's public contract (specs/scene-and-page-contract/spec.md): the draft, the adoption record and the eight actions declared here. The provider is batch 45's. */
+/** Public drafts and adoption records. Signed scene packages and three-way upgrades belong to batch 45. */
 export const servicesBlueprintsContract = {
   contractId: /* @version contract.io.molis.work.service.blueprints "io.molis.work.service.blueprints.v{version}" */ "io.molis.work.service.blueprints.v1",
   kind: "service",
   schemaVersion: /* @version contract.io.molis.work.service.blueprints */ 1,
-  maturity: "contract-only",
+  maturity: "partial",
   ssot: "specs/scene-and-page-contract/spec.md",
 } as const satisfies ContractDescriptor;
 
-/** The provider id the future `system.blueprints` service (batch 45) registers the eight actions under; declared here, not registered yet. */
+/** Shared provider of public scene actions. */
 export const BLUEPRINTS_PROVIDER_ID = "system.blueprints";
 
 /**
@@ -89,6 +89,8 @@ type PreviewDecision =
   | { decision: "skip"; reason: (typeof previewSkipReasons)[number] };
 export type BlueprintPreviewPart = PreviewDecision & {
   part_id: string;
+  title?: OwnedTextRef;
+  summary?: OwnedTextRef;
   proposal: BlueprintProposal;
   layer: SettingLayer;
   candidates: BlueprintPreviewCandidate[];
@@ -161,6 +163,13 @@ export interface BlueprintAdoptionApplyResult extends BlueprintAdoptionIdentity 
 export interface BlueprintAdoptionReadResult extends BlueprintAdoptionIdentity { apply_steps: BlueprintApplyStep[]; latest_undo: UndoResult | null }
 export interface BlueprintAdoptionUndoResult<Operation extends UndoOperation = UndoOperation> { adoption_id: string; undo: UndoResult<Operation> }
 
+export interface BlueprintLibraryResult {
+  drafts: { source: DraftSource; title: TextRef }[];
+  adoptions: { adoption_id: string; title: TextRef; target: BlueprintAdoptedTarget; request: BlueprintAdoptionApplyInput }[];
+  preview?: BlueprintAdoptionPreviewResult;
+}
+export type BlueprintLibraryInput = { adoption_id?: never; preview_id?: never } | BlueprintAdoptionReadInput | { preview_id: string };
+
 const token = { type: "string", pattern: "\\S" } as const;
 const locale = { type: "string", pattern: LOCALE_TAG.source } as const;
 const timestamp = { type: "string", format: "date-time" } as const;
@@ -232,12 +241,12 @@ const previewCandidate = { oneOf: [
   closedObjectSchema({ kind: { const: "bundled" }, plugin_id: token, version: token }),
 ] };
 const previewFields = {
-  part_id: token, proposal: proposalBody, layer: { enum: SETTINGS_LAYERS }, candidates: items(previewCandidate),
+  part_id: token, title: OWNED_TEXT_REF_SCHEMA, summary: OWNED_TEXT_REF_SCHEMA, proposal: proposalBody, layer: { enum: SETTINGS_LAYERS }, candidates: items(previewCandidate),
   consequences: { ...items({ enum: SETTINGS_CONSEQUENCES }), uniqueItems: true }, affected_step_ids: partIds,
 } as const;
 const previewPart = { oneOf: [
-  closedObjectSchema({ ...previewFields, decision: { enum: actionableDecisions } }),
-  closedObjectSchema({ ...previewFields, decision: { const: "skip" }, reason: { enum: previewSkipReasons } }),
+  closedObjectSchema({ ...previewFields, decision: { enum: actionableDecisions } }, ["part_id", "proposal", "layer", "candidates", "consequences", "affected_step_ids", "decision"]),
+  closedObjectSchema({ ...previewFields, decision: { const: "skip" }, reason: { enum: previewSkipReasons } }, ["part_id", "proposal", "layer", "candidates", "consequences", "affected_step_ids", "decision", "reason"]),
 ] };
 const comparison = {
   part_id: token, current: currentValue, keep_user_changes: boolean,
@@ -286,9 +295,18 @@ const undoOutput = (operation: UndoOperation) => closedObjectSchema({
 
 const person = ["user"] as const;
 const drafting = ["user", "agent"] as const;
+const libraryInput = inputSchemaFor<BlueprintLibraryInput>()({ oneOf: [
+  closedObjectSchema({}), closedObjectSchema({ adoption_id: token }), closedObjectSchema({ preview_id: token }),
+] });
+const libraryOutput = closedObjectSchema({
+  drafts: items(closedObjectSchema({ source: blueprintDraftSourceSchema, title: TEXT_REF_SCHEMA }), 50),
+  adoptions: items(closedObjectSchema({ adoption_id: token, title: TEXT_REF_SCHEMA, target: adoptedTarget, request: applyInput }), 50),
+  preview: previewResult,
+}, ["drafts", "adoptions"]);
 
 /** Public declarations; the scene owner will bind them under system.blueprints. */
 export const blueprintActions: {
+  library: ActionDefinition<BlueprintLibraryInput, BlueprintLibraryResult>;
   draftSave: ActionDefinition<BlueprintDraftSaveInput, BlueprintDraftResult>;
   draftRead: ActionDefinition<BlueprintDraftReadInput, BlueprintDraftResult>;
   preview: ActionDefinition<BlueprintAdoptionPreviewInput, BlueprintAdoptionPreviewResult>;
@@ -298,6 +316,7 @@ export const blueprintActions: {
   remove: ActionDefinition<BlueprintAdoptionUndoInput, BlueprintAdoptionUndoResult<"remove">>;
   packSave: ActionDefinition<BlueprintPackSaveInput, BlueprintPackSaveResult>;
 } = {
+  library: blueprintAction("blueprints.library.read", /* @version action.blueprints.library.read */ 1, "查看场景草稿和采用记录", "在当前范围继续本人之前的场景采用", "query", person, libraryInput, libraryOutput, false),
   draftSave: blueprintAction("blueprints.drafts.save", /* @version action.blueprints.drafts.save */ 1, "保存场景草稿", "保存场景正文的新稿或按修订保存现有草稿", "command", drafting, saveDraftInput, draftResult, false),
   draftRead: blueprintAction("blueprints.drafts.read", /* @version action.blueprints.drafts.read */ 1, "读取场景草稿", "读取草稿正文和固定的当前修订", "query", drafting, draftReadInput, draftResult, false),
   preview: blueprintAction("blueprints.adoption.preview", /* @version action.blueprints.adoption.preview */ 1, "预览场景采用", "核对选中部分和各主人，返回短期预览及影响", "command", person, previewInput, previewResult),

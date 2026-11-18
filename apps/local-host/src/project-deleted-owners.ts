@@ -9,6 +9,7 @@ import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { memoryErrors, purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
 import { clearObservationProjectFile } from "@molis-ai/molis-work-service-observation";
+import { AdoptionStore } from "@molis-ai/molis-work-service-blueprints";
 import { clearEvaluationProjectFile } from "@molis-ai/molis-work-service-evaluation";
 import { MAINLINE_HOME_STORE, openMainlineDatabase, purgeMainlineProject } from "@molis-ai/molis-work-service-mainline";
 import { clearExternalSessionsProjectFile, sessionsProjectData } from "@molis-ai/molis-work-service-sessions";
@@ -156,6 +157,7 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     { id: "task-grants", label: null, clear: async projectId => { await forgetTaskGrantSubjects(home, subject => subject.project_id === projectId, "project_deleted"); } },
     { id: "automation-recommendations", label: null, clear: projectId => forgetAutomationPreferences(home, projectId) },
     { ...OBSERVATION_OWNER, clear: projectId => { clearObservationProjectFile(home, projectId); } },
+    { id: "blueprints", label: null, clear: projectId => new AdoptionStore(home).clearProject(projectId) },
     { ...EVALUATION_OWNER, clear: projectId => { clearEvaluationProjectFile(home, projectId); } },
     { ...EXTERNAL_SESSIONS_OWNER, clear: projectId => { clearExternalSessionsProjectFile(home, projectId); } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).

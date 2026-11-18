@@ -9,6 +9,7 @@ agent-definitions/agent-definitions.db	apps/local-host	3	abe1e1d1ffb9dfb9	1,2
 alchemist/projects/*/search.sqlite	apps/local-host	1	d7365cb6761c89e8	-
 alchemist/projects/*/studio.sqlite	apps/local-host	1	d7686ca8b5832e96	-
 assistant/assistant.db	apps/local-host	2	5fe9a8806f24bf58	1
+blueprints/blueprints.db	horizontal/blueprints	1	e6dcb24a55372e66	-
 characters/characters.sqlite	modules/characters	2	c93cce5f71eea87a	1
 cognia/cognia.db	io.molis.work.cognia	1	63a6689796b99342	-
 connectors/connectors.db	apps/local-host	1	5c3dd2df5eeb56d8	-

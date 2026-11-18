@@ -12,6 +12,7 @@ import {
   observationKeys,
   readCoverageGaps,
   readRecords,
+  RETENTION_KEY, retentionActions,
   withObservationSource,
   type ExitAction,
   type ExitObservation,
@@ -118,6 +119,32 @@ const exitDone = (startedAt: number, endedAt: number, input: unknown, result: un
   outcome: { ok: true },
   aborted: false,
   ...extra,
+});
+
+test("ONB-22/30 OCL-12: adopting retention commits cleanup and receipt together, and undo preserves the actual remaining records", async t => {
+  const f = createFixture(t);
+  const read = async () => (await f.service.invoke(person(), retentionActions.read, { keys: [RETENTION_KEY] })).values[0]!;
+  await f.service.invoke(person(), observationActions.settingsSet, { space_reminder_bytes: 1000 });
+  const initial = await read();
+  assert.ok(initial.state === "ok" && initial.source === "provider_default");
+  await f.service.invoke(pluginCaller("notes", "notes-install"), observationActions.report, {
+    facts: [{ fact: "notes.older", outcome: "succeeded", occurred_at: "2026-10-01T12:00:00.000Z" }],
+  });
+  f.layer.flush();
+  const write = { key: RETENTION_KEY, layer: "personal" as const, expected_revision: initial.revision, request_id: "scene-retention", change: { set: "30" } };
+  f.db().exec("CREATE TRIGGER refuse_retention_receipt BEFORE INSERT ON writer_state WHEN NEW.key LIKE 'settings.receipt:%' BEGIN SELECT RAISE(ABORT,'simulated storage failure'); END");
+  await assert.rejects(f.service.invoke(person(), retentionActions.write, write));
+  assert.deepEqual(await read(), initial);
+  assert.ok(readRecords(f.db()).some(r => r.fact === "notes.older"), "cleanup rolled back with the unsuccessful receipt");
+  f.db().exec("DROP TRIGGER refuse_retention_receipt");
+  const saved = await f.service.invoke(person(), retentionActions.write, write);
+  assert.equal(readRecords(f.db()).some(r => r.fact === "notes.older"), false);
+  f.reopen();
+  assert.deepEqual(await f.service.invoke(person({ project_id: null }), retentionActions.write, write), saved);
+  const restored = (await f.service.invoke(person(), retentionActions.write, { ...write, request_id: "undo-retention",
+    expected_revision: saved.values[0]!.revision, change: { inherit: true } })).values[0]!;
+  assert.ok(restored.state === "ok" && restored.source === "provider_default" && restored.value === "keep");
+  assert.equal(readRecords(f.db()).some(r => r.fact === "notes.older"), false);
 });
 
 test("OCL-01 OCL-02 OCL-04 OCL-06 OCL-14: records.query filters by work, subject+version, platform_version, kinds and window, paginates cleanly and marks late, coalesced and clock_adjusted", async t => {

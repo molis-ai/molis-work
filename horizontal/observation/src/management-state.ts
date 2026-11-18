@@ -67,7 +67,17 @@ export function readStoredSettings(db: DatabaseSync): StoredObservationSettings 
   };
 }
 
-export function writeStoredSettings(db: DatabaseSync, settings: StoredObservationSettings): void {
+export function retentionLayer(db: DatabaseSync): { explicit: boolean; revision: number } {
+  const meta = db.prepare("SELECT value FROM writer_state WHERE key='settings.retention-layer'").get();
+  if (meta) return JSON.parse(String(meta.value));
+  return { explicit: Boolean(db.prepare("SELECT 1 FROM writer_state WHERE key=?").get(SETTINGS_STATE_KEY)), revision: 0 };
+}
+
+export function writeStoredSettings(db: DatabaseSync, settings: StoredObservationSettings, retentionExplicit?: boolean): void {
+  const layer = retentionLayer(db);
+  if (retentionExplicit !== undefined || !layer.explicit && layer.revision === 0)
+    db.prepare("INSERT INTO writer_state (key,value) VALUES ('settings.retention-layer',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+      .run(JSON.stringify(retentionExplicit === undefined ? layer : { explicit: retentionExplicit, revision: layer.revision + 1 }));
   db.prepare("INSERT INTO writer_state (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value")
     .run(SETTINGS_STATE_KEY, JSON.stringify(settings));
 }

@@ -1540,3 +1540,21 @@ QEA-189 在原位置实现上接收相同修订的真实 HTTP 回答后，复现
 组合后的 `MainlineStore` 触及现行 25 方法上限。分组放置只读写传来的排列，提为原模块的 `placeInGroup`。创建方式和完成后恢复沿相同事务调用容量、分组和次序规则，没有新增公开方法、状态或库写入。QEA-194 沿原事项用例复验。 [分组规则](../../horizontal/mainline/src/store.ts#L49) · [真实公开动作](../../tests/mainline-items.test.ts)
 
 角色抽屉跨窗口草稿保持、版本冲突和覆盖前重试单独复验通过，61.0 秒。初次服务验收合计 9/9 文件通过。Coding 的卡片、结果两类入口已通过回焦与维持原输入的用例。任务板入口首轮在新建会话前遇浏览器调试超时，单独复验以及最终组合另记。 [角色草稿和选角](../../tests/characters-window-drafts.e2e.test.ts) · [三个真实子任务入口](../../tests/coding-subtask-real-entry.e2e.test.ts)
+
+Coding 任务板同源码单独复验，92.5 秒通过，涵盖 Escape 回焦、任务完成刷新后定位同一入口和重开后再次回焦。合计六组浏览器文件中 21 项有通过证据，两项浏览器调试超时用例分别按原断言复验。事项线 6/6、触控目标 4/4、共享浮窗 1/1。准确候选的健康检查与密钥检查通过，`MainlineStore` 未增加门禁例外。日志 `quality-audit-b117-{browser-entries,role-draft,coding-focus,final-health}.log`。
+
+`811e28f368` 已同提交推送至草稿与集成分支。两者使用的代码树为 `7584e19308b9`，PR 合并树等同。 [Verify](https://github.com/molis-ai/molis-work/actions/runs/44337310588) · [Full](https://github.com/molis-ai/molis-work/actions/runs/44337291824)
+
+准确提交再次完整构建。67 条实际静态资源、十组首屏总量和 22 条审批匹配，与双独立构建的已记录结果逐项相同。主线事项、安放及不变量三文件共 21 项通过，包含 QEA-149、191、194。报告源数据 `quality-audit-b117-final-{build,mainline}.log` 及 `quality-audit-b117-final-resource-proof.json`。
+
+`811e28f368` 的 Linux 包边界作业通过。两项资源门禁均过。默认工作台中英文冷增 510／416 B、热减 8,453／8,440 B，全插件工作台中英文冷增 1,758／1,675 B、热减 7,205／7,181 B，四组冷热净量均和先前确定的平台差额相符。 [Linux 包边界与资源](https://github.com/molis-ai/molis-work/actions/runs/44337310588/job/134918005025)
+
+Verify 首轮的产品子集第 1 片 66 份通过。Goals 刷新文件触及 240 秒时限，报告记录已完成的 14 项均通过，最后的真实关系图刷新未结算。远端会沿同一提交与原时限复跑失败分片。 [首轮作业](https://github.com/molis-ai/molis-work/actions/runs/44337310588/job/134918005277) · [用例](../../tests/goals-refresh.e2e.test.ts#L528)
+
+准确构建在本机隔离 Home 直跑得到 15/15，包括实际关系图刷新。单文件直跑沿用用例时限，总用时 276.2 秒。CI 产品子集自己的整文件上限是 240 秒，单文件结果只证明行为。日志 `quality-audit-b117-goals-240.log`。
+
+当前提交启动原失败分片的同提交复跑，首轮其余 Verify 作业均已返回。 [Verify 复跑](https://github.com/molis-ai/molis-work/actions/runs/44337310588/attempts/2)
+
+### 第 118 批主干逐屏修复组合
+
+主干 `afaeabdd4a` 合入十项现行界面修复。与本轮有 14 个文件交集，模拟合并时有两处冲突，均在验收文件。共同修改的工作台和 Coding 源码按真实入参及调用顺序复核。已有结果随原提交留存，重新构建和对账目标页面记录。 [主干修复](https://github.com/molis-ai/molis-work/pull/2110) · [验收 QEA-195～197](spec.md#第-118-批整合主干的逐屏-p0-修复)

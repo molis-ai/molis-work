@@ -161,7 +161,7 @@ export async function inspectApiConnection(home: string, id: string, preview = f
     if (!preview) return verified;
     return { ...verified, ...await previewRead(home, service, access, fetchImpl, control, signal, beforeRead) };
   }
-  if (!["github", "gmail"].includes(service)) throw new Error("请在使用此连接的模型、Images、Functions 或 Coding 设置中运行对应功能，验证目标服务");
+  if (!["github", "gmail"].includes(service)) throw new Error("请在使用此连接的模型、图片、判断规则或 Coding 设置中运行对应功能，验证目标服务");
   const provider = runWithMolisWorkHome(home, () => service === "github" ? createGithubConnector({ token: access.token, fetchImpl, allowFixture: false }) : createGmailConnector({ accessToken: access.token, fetchImpl, allowFixture: false }));
   const health = await provider.health(control);
   if (!health.ok) throw connectorReadFailure(health);

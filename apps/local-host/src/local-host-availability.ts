@@ -49,7 +49,7 @@ export class HostAvailability {
   async resolve(caller: ActionCallContext, view: ActionView, ancestors: ReadonlySet<string> = new Set(), policy: ActionAvailabilityPolicy | undefined = this.options.actionAvailability, pass?: DiscoveryPass): Promise<ActionAvailability> {
     if (!view.availability.available) return view.availability;
     const key = JSON.stringify([view.capability_id, view.version, view.provider.provider_id]);
-    if (ancestors.has(key)) return { available: false, code: "actions.dependency_cycle", reason: "能力或消费场景存在循环依赖，请修正配置" };
+    if (ancestors.has(key)) return { available: false, code: "actions.dependency_cycle", reason: "能力或用途存在循环依赖，请修正配置" };
     const path = new Set(ancestors).add(key);
     const state = await policy?.(caller, view) ?? view.availability;
     if (!state.available) return state;
@@ -68,7 +68,7 @@ export class HostAvailability {
     if (!view.action.required_scene) return state;
     const required = view.action.required_scene;
     const scene = dependencies.scene(required);
-    if (!scene) return { available: false, code: "actions.scene_missing", reason: "消费场景不存在或不可访问" };
+    if (!scene) return { available: false, code: "actions.scene_missing", reason: "所选用途不存在或不可访问" };
     const sceneState = scene.availability.available ? await this.options.sceneAvailability?.(caller, scene) ?? scene.availability : scene.availability;
     if (!sceneState.available) return sceneState;
     const bindings = await dependencies.bindings(required);

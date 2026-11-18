@@ -13,6 +13,6 @@
     "bitbucket.guide.oauth-link": "View Bitbucket OAuth 2.0",
     "bitbucket.guide.token-note": "Bitbucket app passwords have been retired. Use an API token or an OAuth user access token.",
     "bitbucket.oauth.note": "Configure account, repository and pullrequest read permissions in the consumer.",
-    "bitbucket.setup.create-atlassian-api-token": "Create Atlassian API Token"
+    "bitbucket.setup.create-atlassian-api-token": "Create Atlassian API token"
   }
 }

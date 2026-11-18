@@ -108,8 +108,8 @@ async function gather(answers: Record<string, KitReport>): Promise<KitCatalog> {
   const all: Record<string, KitReport> = { "plugin-install": { entries: [], packs: [{ source: PLUGIN_SOURCE, description: "", status: "enabled" }] }, ...answers };
   const client = { discover: async () => Object.keys(all).map(view), invoke: async (_caller: ActionCallContext, ref: { provider_id?: string }) => all[ref.provider_id!] } as never;
   return gatherKit({ actor_id: "web-user", project_id: "p", audience: "user", permissions: [] }, client, {
-    "system:builtin": { name: "Molis Work 自带", description: "个人助理、平台的提示词与全部 Agent 工具、对外接入的 MCP。" },
-    "system:characters": { name: "你的角色", description: "你写的角色，各带自己声明的工具。" },
+    "system:builtin": { name: "Molis Work 自带", description: "个人助理、系统自带的 AI 指令说明、内置工具以及对外开放的接入项。" },
+    "system:characters": { name: "你的角色", description: "你自己创建的角色，以及为它选配的可用工具。" },
   });
 }
 

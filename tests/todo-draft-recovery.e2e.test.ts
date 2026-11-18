@@ -293,7 +293,7 @@ test("QA-034: two tabs refuse a stale Todo edit, then reload and save without a 
           const draftNotes = "Copy this unsaved draft before reloading.";
           await waitForSaveRefusal(409, () => editFields(primary, { title: draftTitle, notes: draftNotes }));
           const conflict = await primary.evaluate<string>(`document.querySelector('${detailNote}').textContent`);
-          assert.match(conflict, locale === "en" ? /changed elsewhere.*Your input is kept/ : /已在别处修改.*你的输入还在/);
+          assert.match(conflict, locale === "en" ? /changed elsewhere.*Your input is kept/ : /已在别处更新.*你的输入仍保留/);
           assert.deepEqual(read(), winning);
           // At phone width the open detail takes the list's place, so Back is the available attempt to leave.
           const abandon = width === 390 ? "[data-todo-back]" : `[data-todo-id="${neighbourId}"]`;

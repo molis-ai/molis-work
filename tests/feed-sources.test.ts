@@ -683,8 +683,8 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     assert.match(page, /id="feed-source-dialog-title">添加来源/);
     assert.match(page, /<select data-source-config-field="scope">[\s\S]*value="in:inbox is:unread" selected[\s\S]*value="is:starred"/);
     assert.match(ownerDocument(hostPage, "data-source-workbench"), /首次同步和增量同步都会执行同一范围；不做完整邮箱回填。/);
-    assert.match(page, /打开 Connectors/);
-    assert.match(page, /在 Connectors 授权 Gmail 后创建来源，再在来源设置里为它选邮箱账号。/);
+    assert.match(page, /打开服务连接/);
+    assert.match(page, /在「设置 › 服务连接」授权 Gmail 后创建来源，再在来源设置里为它选邮箱账号。/);
     // RAC-2667 (T-121): an account source's settings name the plugin, the slot and the record, never an account or an installation; the
     // page script reads and binds through the Host's record-slot path, and an account already chosen is changed by disconnecting first.
     assert.match(page, /data-plugin-record-slot="\{&quot;plugin_id&quot;:&quot;io\.molis\.work\.feed&quot;,&quot;slot_id&quot;:&quot;gmail&quot;,&quot;service_id&quot;:&quot;gmail&quot;,&quot;record_key&quot;:&quot;[^&]+&quot;\}"/);

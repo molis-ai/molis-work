@@ -12,6 +12,6 @@
     "asana.guide.mcp-note": "Asana MCP authorization is separate from standard REST API authorization. Molis Work has not integrated it.",
     "asana.guide.oauth-link": "View Asana OAuth app",
     "asana.oauth.note": "Enable the needed user, workspace and task read permissions in the app.",
-    "asana.setup.create-asana-personal-access-token": "Create Asana Personal Access Token"
+    "asana.setup.create-asana-personal-access-token": "Create Asana personal access token"
   }
 }

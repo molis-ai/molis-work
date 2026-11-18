@@ -26,7 +26,7 @@ export async function handleFunctionsHttp(
         if (input.body.clear === true) unbindTypeSafeConnection(homeDirectory);
         else if (typeof input.body.connection_id === "string" && input.body.connection_id.trim()) {
           bindTypeSafeConnection(homeDirectory, input.body.connection_id);
-        } else throw functionsErrors.invalid("请在 Connectors 中选择 TypeSafe 连接");
+        } else throw functionsErrors.invalid("请在「设置 › 服务连接」中选择 TypeSafe 连接");
         return { status: 200, body: functionsConnectionStatus(homeDirectory) };
       }
       return new FunctionsHttpRouteTable(createFunctionsRouteHandlers({ actions: options.actions })).handle(input);

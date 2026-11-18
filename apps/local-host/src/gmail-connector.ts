@@ -36,7 +36,7 @@ export function createGmailConnector(opts?: {
       catch (error) {
         await control.beforeEffect(); control.current();
         return error instanceof ApiOAuthError
-          ? { ok: false, status: "needs_auth", message: "请重新授权所选 Gmail 连接", action: "在 Connectors 中重新授权" }
+          ? { ok: false, status: "needs_auth", message: "请重新授权所选 Gmail 连接", action: "在「设置 › 服务连接」中重新授权" }
           : { ok: false, status: "none" };
       }
     },

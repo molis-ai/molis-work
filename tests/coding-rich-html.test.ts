@@ -86,7 +86,7 @@ test("PG062-05, PG062-06: Coding's routes answer its page with the model's words
     assert.equal(kept.html, renderRichText("正文里的 [retained assistant] 不算开头。"), "a label inside the answer stays");
 
     // SAI-07: empty notices become readable in the page locale; action facts keep their machine-readable type.
-    for (const [locale, words] of [["zh", ["收到一条会话更新", "有人向这项子任务补充了输入"]], ["en", ["Conversation update received", "A person added input to this subtask"]]] as const) {
+    for (const [locale, words] of [["zh", ["收到一条会话更新", "有人向这项子任务补充了输入"]], ["en", ["Conversation update received", "A person added input to this sub-task"]]] as const) {
       const notices = (await read<ReadBody>("", locale)).runs.find(entry => entry.ref.run_id === "talk")!.turns!.slice(-2);
       assert.deepEqual(notices.map(turn => turn.text), words);
       assert.deepEqual(notices.map(turn => turn.html), words.map(renderRichText));

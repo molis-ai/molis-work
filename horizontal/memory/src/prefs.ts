@@ -69,7 +69,7 @@ export function formationAllowed(personal: MemoryPrefs, own: MemoryPrefs): boole
 }
 
 export const CONSUMER_LABELS: Record<MemoryConsumer, string> = {
-  assistant: "助理", agent: "Agent 工作", ui: "界面推荐", plugin: "插件", mcp: "外部 AI 客户端",
+  assistant: "助理", agent: "AI 任务执行", ui: "界面推荐", plugin: "插件", mcp: "外部 AI 客户端",
 };
 
 /** A person's chosen recipe changes only its four controls, preserving finer permissions and learning choices. */

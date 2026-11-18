@@ -33,7 +33,7 @@ test("Schedule's new-task form (in the detail pane) says what a due task still n
     "nothing is claimed before the Host has answered");
   await schedule.click("[data-schedule-new]");
   await schedule.waitFor(shown("model"), 20_000);
-  assert.match(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').textContent"), /还没有配置文字模型/);
+  assert.match(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').textContent"), /还没有设置可用的 AI 模型/);
   // Every project has an output (batch 05, SSC-17: the default one is made on the first run), so the Host reports a folder; the
   // folder hint is checked below with an answer that has none.
   assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=workspace]').hidden"), true, "the project's output counts as its folder");
@@ -56,7 +56,7 @@ test("Schedule's new-task form (in the detail pane) says what a due task still n
   await schedule.click("[data-schedule-new]");
   await schedule.waitFor(shown("workspace"), 20_000);
   assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').hidden"), true, "the model is there now");
-  assert.match(await schedule.evaluate("document.querySelector('[data-schedule-hint=workspace]').textContent"), /还没有绑定工作区/);
+  assert.match(await schedule.evaluate("document.querySelector('[data-schedule-hint=workspace]').textContent"), /还没有添加文件夹/);
   await schedule.click("[data-schedule-create-form] footer [data-schedule-create-close]");
   // A readiness read that fails says nothing, and the form still works.
   await evaluate("window.readinessAnswer = null");

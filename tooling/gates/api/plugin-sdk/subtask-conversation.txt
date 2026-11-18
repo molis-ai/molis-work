@@ -120,7 +120,7 @@ export declare function subtaskDraft(store: UiPageDrafts, target: string): {
     }): Promise<void>;
     settle: (requestId: string, accepted: boolean) => Promise<void>;
     cancelUnsent: (requestId: string, reason: string) => Promise<SubtaskActionOutcome>;
-    checkUnsent(requestId: string): Promise<SubtaskActionOutcome> | undefined;
+    checkUnsent(requestId: string, reason: string): Promise<SubtaskActionOutcome | undefined>;
 };
 
 // Declarations the exports above refer to, which no entry exports itself:

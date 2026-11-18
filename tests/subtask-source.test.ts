@@ -217,7 +217,25 @@ test("B59-FIX-02: closing during a stale input CAS preserves the other page's dr
   assert.deepEqual({ posts: f.posts(), checks }, { posts: 0, checks: 0 });
 });
 
-test("B59-FIX-02: an unsent action with a failed local cleanup checks only its draft", async () => {
+test("B59-FIX-02: submitting a restored draft preserves another page's edit saved before registration", async () => {
+  const f = fixture(), other = createAgentSubtaskSource(f.ports);
+  const latest = other.composer(await f.view(other, "A"));
+  await latest.draft.adapter.write("restored input");
+  const source = createAgentSubtaskSource(f.ports), first = source.composer(await f.view(source, "A"));
+  assert.equal(await first.draft.adapter.read(signal()), "restored input");
+  await latest.draft.adapter.write("the other page's input");
+  const sent: string[] = [];
+  f.ports.command = async (_target, input) => {
+    assert.equal(input.kind, "continue"); sent.push(input.text);
+    return { state: "applied", run: input.child_run };
+  };
+  assert.equal((await first.submit({ text: "restored input", materials: [], controls: {}, request_id: "restored-input" }, signal())).state, "sent");
+  assert.deepEqual(sent, ["restored input"]);
+  assert.equal(await latest.draft.adapter.read(signal()), "the other page's input");
+  assert.equal((await f.view(other, "A")).pending, undefined);
+});
+
+test("B59-FIX-02: reopening after a failed cleanup of an unsent action checks only the draft", async () => {
   const f = fixture(), life = new AbortController();
   f.phase("running");
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
@@ -234,10 +252,12 @@ test("B59-FIX-02: an unsent action with a failed local cleanup checks only its d
   await entered.promise;
   life.abort(); release.resolve();
   assert.equal((await stop).state, "unknown");
-  assert.equal((await f.view(source, "A")).pending?.requestId, "unsent-local");
+  const reopened = createAgentSubtaskSource(f.ports);
+  const restored = await f.view(reopened, "A");
+  assert.equal(restored.pending?.requestId, "unsent-local");
   broken = false;
-  assert.equal((await source.check("A", "unsent-local", signal())).state, "not-applied");
-  assert.equal((await f.view(source, "A")).pending, undefined);
+  assert.equal((await reopened.act(restored, restored.pending!.check, "ui-recovery", signal())).state, "not-applied");
+  assert.equal((await f.view(reopened, "A")).pending, undefined);
   assert.deepEqual({ posts: f.posts(), checks }, { posts: 0, checks: 0 });
 });
 

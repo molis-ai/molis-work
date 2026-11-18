@@ -388,7 +388,7 @@ FI-C-02：轮询集成的 `health(control)` 与 `sync(input, control)` 必须透
 
 输入和控制的未确认结果必须沿原请求查询，不能因取消等待而认定未受理。必需的 `source.check(target, requestId, signal)` 按当前读取权限查询原持久回执，即使 pending 已移除或执行已换代；它不重试业务效果。页面恢复时 owner 返回 `pending`，查询已受理或确认未受理后移除此笔 pending，前者只结算原草稿版本；新草稿保留。恢复的输入查到终态后仍保持锁定，等已结算草稿读回再同步显示并解锁，不重挂输入。视图省略或替换 pending 不代表终态，原请求仍可继续查询；unknown.check 的后续查询闭包也会保留。同页输入仍走统一输入框保留的原 check，组件不再加第二个查询入口。没有历史或原回执能力时应给出不可用原因，不以当前运行状态推断发送成功。默认消息正文用 `{ text }`；`{ html }` 只接可信 owner 已清洗的富文本，浏览器还会过滤正文动作钩子。
 
-`createAgentSubtaskSource` 可以消费 `wait(target, since, signal)` 返回的 `{ version, snapshot? }`。首读和版本变化可复用订阅已返回的投影。主动重读与订阅重叠时以原 owner 的当前读取为准，未变的等待版本可以只返回 `version`。投影中的 `extend_budget_available` 让同一个浮窗显示原尝试额度的加额操作，授权和修改仍由原 owner 处理。命令交给传输层前若信号已取消，结算本次未提交并保留草稿。
+`createAgentSubtaskSource` 可以消费 `wait(target, since, signal)` 返回的 `{ version, snapshot? }`。首读和版本变化可复用订阅已返回的投影。主动重读与订阅重叠时以原 owner 的当前读取为准，未变的等待版本可以只返回 `version`。投影中的 `extend_budget_available` 让同一个浮窗显示原尝试额度的加额操作，授权和修改仍由原 owner 处理。输入回执只结算编辑器读到或保存的草稿版本。命令交给传输层前若信号已取消，在本地结算并保留草稿。
 
 公共回归见 `tests/subtask-source.test.ts`、`tests/subtask-conversation.e2e.test.ts` 和 `tests/subtask-conversation-board.e2e.test.ts`。助理与 Coding 的真实接线及合后复验见[子代理需求 §12–13](../../specs/subagent-interaction/spec.md#12-第-59-批真实接线开工2026-11-16)。
 

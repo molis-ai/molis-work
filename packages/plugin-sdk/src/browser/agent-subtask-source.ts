@@ -57,12 +57,15 @@ export function createAgentSubtaskSource(ports: AgentSubtaskSourcePorts): Subtas
   };
   const draft = (target: string) => { let one = drafts.get(target); if (!one) { one = subtaskDraft(ports.drafts, target); drafts.set(target, one); } return one; };
   const check = async (target: string, requestId: string, signal: AbortSignal): Promise<SubtaskActionOutcome> => {
-    const local = draft(target).checkUnsent(requestId);
-    if (local) return local;
+    const saved = draft(target), again = () => check(target, requestId, new AbortController().signal);
     let result: AgentSubagentRequestResult;
-    try { result = await ports.check(target, requestId, signal); } catch { result = { state: "unknown" }; }
-    if (result.state === "unknown") return { state: "unknown", check: () => check(target, requestId, new AbortController().signal) };
-    try { await draft(target).settle(requestId, result.state === "applied"); } catch { return { state: "unknown", check: () => check(target, requestId, new AbortController().signal) }; }
+    try {
+      const local = await saved.checkUnsent(requestId, ports.text("action-failed"));
+      if (local) return local;
+      result = await ports.check(target, requestId, signal);
+      if (result.state === "unknown") return { state: "unknown", check: again };
+      await saved.settle(requestId, result.state === "applied");
+    } catch { return { state: "unknown", check: again }; }
     return result.state === "applied" ? { state: "applied" } : { state: "not-applied", reason: result.reason };
   };
   const command = async (view: MwSubtaskConversationView, input: AgentSubagentCommand, signal: AbortSignal): Promise<SubtaskActionOutcome> => {

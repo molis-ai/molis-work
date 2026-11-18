@@ -89,6 +89,10 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
     if (!await browser.evaluate("document.querySelector('.assistant-subtask-name')?.getBoundingClientRect().width > 0")) await browser.click("[data-assistant-side-toggle]");
     await browser.waitFor("document.querySelector('.assistant-subtask-name')?.getBoundingClientRect().width > 0");
   }
+  const draftPath = place === "home" && source === "work" ? base + "/works/" + current!.delegated![0]!.work_id : undefined;
+  const followUpText = `FOLLOW_UP_${source}_59`;
+  const writeDraft = (draft: string) => browser.evaluate<boolean>(`fetch(${JSON.stringify(draftPath + "/draft")},{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({draft:${JSON.stringify(draft)}})}).then(response=>response.ok)`);
+  if (draftPath) assert.equal(await writeDraft(followUpText), true);
   await browser.evaluate("window.__subtaskEntry=document.querySelector('.assistant-subtask-name')");
   await browser.click(".assistant-subtask-name");
   try { await browser.waitFor("document.querySelector('[data-work-task-float] .mw-subtask__composer .mw-composer__input')", 15_000); }
@@ -104,7 +108,14 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
   assert.ok(layout.left >= 0 && layout.right <= layout.viewport + 1 && layout.top >= 0 && layout.bottom <= layout.height + 1, JSON.stringify(layout));
   assert.equal(layout.theme, theme); assert.ok(layout.locale.startsWith(locale));
   const before = childCalls;
-  await browser.evaluate(`(() => { const input=${childInput};input.value='FOLLOW_UP_${source}_59';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus(); })()`);
+  if (draftPath) {
+    // B59-FIX-02: Work restored the first revision. A later owner write must survive sending the visible text.
+    await browser.waitFor(`${childInput}.value === ${JSON.stringify(followUpText)}`);
+    assert.equal(await writeDraft("a newer draft from another page"), true);
+    await browser.evaluate(`${childInput}.focus()`);
+  } else {
+    await browser.evaluate(`(() => { const input=${childInput};input.value=${JSON.stringify(followUpText)};input.dispatchEvent(new Event('input',{bubbles:true}));input.focus(); })()`);
+  }
   await browser.command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, browser.sessionId);
   await browser.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, browser.sessionId);
   try { await browser.waitFor(`document.querySelector('[data-work-task-float]')?.textContent.includes('FOLLOW_UP_${source}_59')`, 20_000); }
@@ -112,6 +123,7 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
   for (const end = Date.now() + 20_000; childCalls === before && Date.now() < end;) await new Promise(resolve => setTimeout(resolve, 50));
   assert.equal(childCalls, before + 1);
   assert.ok(bodies.some(body => userTexts(body).some(text => text.includes(`FOLLOW_UP_${source}_59`))));
+  if (draftPath) assert.equal((await browser.evaluate<AssistantWorkView>(`fetch(${JSON.stringify(draftPath)}).then(response=>response.json())`)).work.draft, "a newer draft from another page");
   assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "main draft stays");
   await browser.evaluate("window.dispatchEvent(new Event('focus'))");
   try { await browser.waitFor("!window.__subtaskEntry.isConnected", 15_000); }

@@ -24,19 +24,31 @@ export function assistantWorkSubtaskSource(api: AssistantSubtaskRequest, storage
   const draft = (target: string) => {
     let adapter = adapters.get(target); if (adapter) return adapter;
     let writing: Promise<unknown> = Promise.resolve();
+    let editor: { text: string; revision: Promise<number> } | undefined;
     const write = (text: string) => {
       const saved = writing.catch(() => {}).then(() => api<{ work: AssistantWork }>(pathOf(target) + "/draft", { draft: text })).then(result => result.work.draft_revision);
-      writing = saved; return saved;
+      editor = { text, revision: saved }; writing = saved; return saved;
     };
-    adapter = { prepare: write, flush: () => writing, write: async text => { await write(text); }, sent: async () => {},
-      read: async signal => { await writing; return (await api<AssistantWorkView>(pathOf(target), undefined, signal)).work.draft; } };
+    adapter = { async prepare(text) {
+      // The composer has already queued its latest edit. A restored draft still owns only the version it read.
+      if (editor?.text !== text) throw new Error(say("draft-unsaved"));
+      return editor.revision;
+    }, flush: () => writing, write: async text => { await write(text); }, sent: async () => {},
+    async read(signal) {
+      const previous = writing;
+      await previous;
+      const { work } = await api<AssistantWorkView>(pathOf(target), undefined, signal);
+      if (!signal.aborted && writing === previous) editor = { text: work.draft, revision: Promise.resolve(work.draft_revision) };
+      return work.draft;
+    } };
     adapters.set(target, adapter); return adapter;
   };
   const check = async (target: string, requestId: string, signal: AbortSignal): Promise<SubtaskActionOutcome> => {
-    const record = pending(target), local = record.checkUnsent(requestId);
-    if (local) return local;
+    const record = pending(target);
     const again = () => check(target, requestId, new AbortController().signal);
     try {
+      const local = await record.checkUnsent(requestId, say("action-failed"));
+      if (local) return local;
       const found = await api<{ state: "applied" | "unknown" }>(pathOf(target) + "/subtask/requests/" + encodeURIComponent(requestId), undefined, signal);
       if (found.state === "unknown") return { state: "unknown", check: again };
       await record.settle(requestId, true); return { state: "applied" };

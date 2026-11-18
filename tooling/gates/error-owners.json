@@ -103,7 +103,7 @@
       "paths": [
         "packages/contracts/src/services/blueprints.ts"
       ],
-      "reason": "The scene service contract declares blueprints.* once (part_unsupported, step_conflict, dependency_unmet, preview_expired), so the future system.blueprints provider, the interface and callers can tell the refusals apart; horizontal/blueprints/ joins when batch 45 creates the service."
+      "reason": "The scene service contract declares blueprints.* once (part_unsupported, step_conflict, dependency_unmet, preview_expired), so the system.blueprints provider in horizontal/blueprints, the interface and other callers use the same refusals."
     },
     "browser": {
       "paths": [

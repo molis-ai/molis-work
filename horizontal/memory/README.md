@@ -206,7 +206,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 - 不负责：记忆正文的存储、版本号、墓碑与作用域隔离（Prologue Memory）；模型调用与提炼（Agent Host）；交互规则（助理规则引擎）；项目说明（Goals）；设置页面（Workbench）。
 - 公开入口：`@molis-ai/molis-work-service-memory`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/memory`。
 - 拒绝由公开 `memoryErrors` 声明并返回共同 `ActionError`：权限与范围是 `forbidden`，不存在是 `not_found`，待处理建议上限与预览后变动是 `conflict`，输入与开关是 `invalid`。Host 和助理保留 `memory.*` 码、消息、kind 与 details；HTTP 经 SDK 分别回答 403、404、409、400，不另把它改成助理码。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts` 和 `@molis-ai/molis-work-plugin-sdk`。SDK 提供与其他设置主人相同的修订核对和回执写入，记忆后端仍经本包适配端口访问；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 正式记忆缺少依据、批准者或原时间时投影为 `null`；未知证据类别和原引用保持原值，状态编辑和恢复不补造事实。新写与候选的依据、证据输入保持严格。导出不含证据正文；未知依据往返，导入缺少原批准事实仍未知。缺时间不获新近权重、不能据此执行 90 天自动停用。见当前 Memory 策略 spec §9.4。
   - 前台控制按调用贯穿 SDK 的异步准备、实际 storage 提交和同步 owner 账本；后台维护使用自身授权。被拒绝的后续写入不反抹已经提交的 SDK 事实，部分失败明确报出并可重开核对。

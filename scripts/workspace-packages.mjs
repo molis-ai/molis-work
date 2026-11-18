@@ -490,6 +490,7 @@ export const WORKSPACE_PACKAGES = [
     ]
   }),
   entry("horizontal/memory", "@molis-ai/molis-work-contracts/services/memory", {
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"],
     maturity: "production",
     capabilities: [
       "memory.recall.v1",

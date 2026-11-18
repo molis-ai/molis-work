@@ -28,7 +28,7 @@ export const BLUEPRINTS_PROVIDER_ID = "system.blueprints";
 /**
  * The scene owner's refusals (specs/scene-and-page-contract/spec.md, the error-model paragraph of section 13): a part whose owner does
  * not declare it, a step whose owner revision moved, a dependency that is not installed, and a preview that expired before it was used.
- * Declared once, so callers of the future `system.blueprints` provider (a workflow, a Skill, the interface) can tell them apart.
+ * Declared once, so callers of the `system.blueprints` provider (a workflow, a Skill, the interface) can tell them apart.
  */
 export const blueprintsErrors = /* @__PURE__ */ defineErrorCodes("blueprints", {
   part_unsupported: "invalid",

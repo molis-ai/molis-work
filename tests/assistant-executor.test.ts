@@ -293,15 +293,17 @@ test("a new plugin work can continue the session the person started on the plugi
   await assert.rejects(service.send({ work_id: sent.work.work_id, executor_session_id: "other", text: "换会话", request_id: randomUUID() }, caller), /只有交给执行方插件的新工作/);
 });
 
-test("an Assistant work handed to a plugin stays one work: the first round is told the work so far, and handing back keeps the plugin's rounds", async () => {
+test("B36F-02 an Assistant work handed to a plugin stays one work and needs an Assistant role again only after handback", async () => {
   const { exec, store, service, plugin } = fixture();
   const project_ref = PROJECT_REF;
   const work = store.create({ actor_id: "web-user", title: "加法函数", scope: { kind: "project", project_id: "project" }, origin: null, project_ref });
   store.addRound(work.work_id, { run_id: "assistant-1", text: "写一个加法函数，放在 calc.js", materials: [], context: null, started_at: "2026-09-28T00:00:00.000Z" });
+  store.update("web-user", work.work_id, null, { character: { artifact_id: "retired-role", version: 1, title: "旧角色" } as never }, false);
 
   const handed = await service.dispatcher.handover(work.work_id, { to: plugin, mode: "execute" });
   const sessionId = (handed.work.executor as { session_id: string }).session_id;
   assert.equal(handed.work.executor.kind, "plugin");
+  assert.equal(handed.work.character_selection_required, undefined);
   assert.ok(!("handover_brief" in handed.work), "the note is not part of the work as shown");
   assert.deepEqual(handed.objects.map(object => [object.relation, object.subject.kind, object.subject.id]), [["session", KIND, sessionId]]);
   assert.equal(exec.sessions.get(sessionId)!.mode, "execute");
@@ -321,6 +323,9 @@ test("an Assistant work handed to a plugin stays one work: the first round is to
   // Back to the Assistant: the plugin's rounds still belong to the work.
   view = await service.dispatcher.handover(work.work_id, { to: { kind: "assistant" } });
   assert.equal(view.work.executor.kind, "assistant");
+  assert.equal(view.work.character_selection_required, true);
+  await assert.rejects(service.send({ work_id: work.work_id, text: "交回后要检查角色", request_id: randomUUID() }, { project_ref }), { code: "assistant.character_unavailable" });
+  assert.equal((await service.read(work.work_id)).work.draft, "交回后要检查角色");
   assert.deepEqual(view.rounds.map(round => round.executor), ["plugin", "plugin"]);
   // And to the plugin again: the same session, not a new one.
   const opens = exec.calls.filter(call => call.role === "session.open").length;

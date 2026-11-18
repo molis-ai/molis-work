@@ -17,6 +17,7 @@ import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
 import { reportOnlyAuthority } from "./assistant-task-reports.js";
 import { assistantErrors } from "./assistant-errors.js";
+import { assertStoredCharacter } from "./assistant-characters.js";
 import { randomUUID } from "node:crypto";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { WorkExecutor, executorProviders, offerExecutors, type ExecutorControl } from "./assistant-executor.js";
@@ -234,11 +235,11 @@ export class AssistantDispatch {
       const execute = () => this.executorDispatch(work, text, materials, context, mode, writtenBy, stillCurrent, intent, beforeStart, assertBeforeStart, handoff);
       return replyLocale ? runBackgroundWork(replyLocale, execute) : execute();
     }
+    assertStoredCharacter(work.character);
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     const assertLifetime = intent?.delivery === "after-run" && intent?.target !== "answer" ? undefined : await holdAssistantWorkLifetime(host, work);
-    // The Skills the person chose for this round, by their exact references: the round's named list, so a `manual` one can be read
-    // (`skill_round.named`, specs/capability-pack/contract-design.md §2.3). A Skill the page sent without the person choosing it is not one.
+    // Only Skills the person picked by exact reference are named for this round (capability-pack §2.3).
     const namedSkills = [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill"
       ? [[JSON.stringify(item.method.ref), item.method.ref] as const] : [])).values()];
     const autoSkills = intent?.auto_skills !== false;

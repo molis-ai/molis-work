@@ -67,7 +67,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   const showCodingFiles = async () => {
     await open("coding");
     await click(`${coding} [data-coding-face="files"]`);
-    await waitFor(`document.querySelector('${codingTree} [title="note.txt"]') && document.querySelector('${coding} [data-coding-files-role]').textContent === '工作目录'`).catch(async error => {
+    await waitFor(`document.querySelector('${codingTree} [title="note.txt"]') && document.querySelector('${coding} [data-coding-files-role]').textContent === '项目目录'`).catch(async error => {
       throw new Error(JSON.stringify(await evaluate(`({status:document.querySelector('[data-coding-files-status]')?.textContent,tree:document.querySelector('[data-coding-files-tree]')?.outerHTML,root:document.querySelector('[data-coding-workbench]')?.dataset})`)), { cause: error });
     });
   };

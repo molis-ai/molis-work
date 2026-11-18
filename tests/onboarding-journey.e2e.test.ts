@@ -149,7 +149,7 @@ test("FSS-37 a new person's first run: the opening, two questions, materials, a 
   assert.match(await evaluate<string>("document.querySelector('.ob-right .ob-scene-note').textContent"), /材料会按来源排在这里/);
   // ONB-INT-02: the 200 / 50 MB / 20 MB line was the old cap (2026-10-22). The sources step says there is no cap.
   assert.doesNotMatch(await evaluate<string>("document.querySelector('.ob-left').textContent"), /200 份|50 MB|20 MB/);
-  assert.match(await evaluate<string>("document.querySelector('.ob-left').textContent"), /不限份数与大小/);
+  assert.match(await evaluate<string>("document.querySelector('.ob-left').textContent"), /不限份数和大小/);
   await assertLayoutClean(evaluate, "sources, empty");
 
   // A folder: its files are listed by name and size at once, and a pasted page adds a group beside it.
@@ -258,7 +258,7 @@ test("ONB-INT-01 a large folder shows how far the count has come before the list
   assert.match(progress.text, /已查看 \d+ \/ 3000 项 · 收录 \d+ 份/);
   await evaluate("const resume = window.__holdCount; window.__restoreTimeout(); resume();");
   await waitFor("document.querySelector('[data-open=folder] .ob-source__act.is-added')?.textContent === '已添加 3000'", 20_000);
-  assert.match(await evaluate<string>("document.querySelector('.ob-left').textContent"), /不限份数与大小/);
+  assert.match(await evaluate<string>("document.querySelector('.ob-left').textContent"), /不限份数和大小/);
   assert.doesNotMatch(await evaluate<string>("document.querySelector('.ob-left').textContent"), /200 份|50 MB|20 MB/);
 });
 

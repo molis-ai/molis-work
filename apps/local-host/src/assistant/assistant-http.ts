@@ -36,6 +36,8 @@ import { responseAbortSignal, webEntryDoor, webEntryProvider, type WebEntryCall 
 import { assistantCandidate } from "./assistant-memory-tools.js";
 import { assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { registerWorkAuthority } from "../agent-work-authority.js";
+import { assistantSettingActions, assistantSettingOwner } from "./assistant-settings-actions.js";
+import type { SettingsValues } from "@molis-ai/molis-work-contracts/platform/settings";
 import { AssistantService, type AssistantServicePorts } from "./assistant-service.js";
 import { RUNTIME, type SignedBinding } from "./assistant-service-shared.js";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
@@ -512,6 +514,12 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
       if (parts.length === 3 && parts[0] === "works" && parts[2] === "permission") {
         return workPermissionHttp(parts[1]!, method, method === "GET" ? url.searchParams : body, ports, store, policyControl);
       }
+      if (parts.length === 1 && parts[0] === "preferences") {
+        policyControl.assertCurrent();
+        const client = bindLocalWebActions(ports.localHost, ports.projectRef, [], { assertCurrent: policyControl.assertCurrent, signal: responseAbortSignal(response) });
+        if (method === "GET") return { status: 200, body: await client.invoke({ ...assistantSettingActions.read, provider_id: assistantSettingOwner.provider_id }, { keys: assistantSettingOwner.settings_entries.entries.map(entry => entry.key) }) };
+        if (method === "POST") return { status: 200, body: await client.invoke<unknown, SettingsValues>({ ...assistantSettingActions.write, provider_id: assistantSettingOwner.provider_id }, body) };
+      }
       const thread = await handleThreadHttp(parts, method, url, body, ports);
       if (thread) return thread;
       if (method === "GET" && parts.length === 1 && parts[0] === "works") return { status: 200, body: { works: await service.list() } };
@@ -563,7 +571,7 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
       if (method === "GET" && parts.length === 1 && parts[0] === "surface-kinds") return { status: 200, body: { kinds: await service.reads.surfaceKinds(ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
       // What the Assistant's own rounds used today, and the person's daily cap.
       if (method === "GET" && parts.length === 1 && parts[0] === "usage") return { status: 200, body: await service.budget.usage() };
-      if (method === "POST" && parts.length === 1 && parts[0] === "budget") { service.budget.saveBudget(body.daily_tokens); return { status: 200, body: await service.budget.usage() }; }
+      if (method === "POST" && parts.length === 1 && parts[0] === "budget") { policyControl.assertCurrent(); service.budget.saveBudget(body.daily_tokens); return { status: 200, body: await service.budget.usage() }; }
       // What the person asked the Assistant to keep: personal, and this project's when on a project's page.
       if (method === "GET" && parts.length === 1 && parts[0] === "memories") {
         return { status: 200, body: { memories: await service.memory.memories(ports.projectRef?.project_id ?? null), prefs: service.memory.memoryPrefs() } };

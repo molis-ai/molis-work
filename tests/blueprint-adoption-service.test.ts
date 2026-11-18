@@ -9,6 +9,8 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { Blueprint } from "@molis-ai/molis-work-contracts/platform/blueprints";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { SettingsValues, SettingsWriteInput } from "@molis-ai/molis-work-contracts/platform/settings";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { blueprintActions as a } from "@molis-ai/molis-work-contracts/services/blueprints";
 import { serveTestHost } from "./fixtures/test-home.js";
 
@@ -189,5 +191,36 @@ test("SPC-05/ONB-29: cancel after the owner commits, reopen, and reconcile the o
       assert.equal(step.receipt.revision, JSON.parse(String(receipts[0]!.result_json)).values[0].revision);
     } finally { dbAfter.close(); }
     assert.equal(await resumed.invoke(projectSettingsCapabilities.runtime, []), "another");
+  } finally { await running.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("ONB-28/SPC-04: the Assistant keeps the setting and original receipt together through rollback and a Home restart", async () => {
+  const home = await mkdtemp(join(tmpdir(), "blueprint-assistant-"));
+  let running = await open(home);
+  try {
+    const key = "assistant.lookback", provider_id = "system.assistant-settings";
+    async function invoke(action: "read" | "write", input: SettingsWriteInput | { keys: string[] }) {
+      const who = await running.host.localPersonContext();
+      return await running.host.homeActionClient().invoke(who, { capability_id: "assistant.preferences." + action, version: 1, provider_id }, input) as SettingsValues;
+    }
+    const original = (await invoke("read", { keys: [key] })).values[0]!;
+    const request: SettingsWriteInput = { key, layer: "personal", request_id: "resume-assistant", expected_revision: original.revision, change: { set: { count: 3, unit: "days" } } };
+    const db = new DatabaseSync(homeSqlitePath(home, "assistant"));
+    try {
+      db.exec("CREATE TRIGGER interrupt_receipt BEFORE INSERT ON assistant_settings WHEN NEW.key LIKE 'preferences/receipt/%' BEGIN SELECT RAISE(ABORT,'interrupted'); END");
+      await assert.rejects(invoke("write", request));
+      assert.deepEqual((await invoke("read", { keys: [key] })).values[0], original);
+      assert.equal(db.prepare("SELECT count(*) AS n FROM assistant_settings WHERE key LIKE 'preferences/receipt/%'").get()!.n, 0);
+      db.exec("DROP TRIGGER interrupt_receipt");
+    } finally { db.close(); }
+    const accepted = await invoke("write", request);
+    await invoke("write", { ...request, expected_revision: accepted.values[0]!.revision, request_id: "shorter",
+      change: { set: { count: 4, unit: "hours" } } });
+    await running.close(); running = await open(home);
+    const later = (await invoke("read", { keys: [key] })).values[0]!;
+    assert.deepEqual(later.state === "ok" && later.value, { count: 4, unit: "hours" });
+    assert.deepEqual(await invoke("write", request), accepted);
+    assert.deepEqual((await invoke("read", { keys: [key] })).values[0], later);
+    await assert.rejects(invoke("write", { ...request, change: { inherit: true } }), { code: "assistant.setting_conflict" });
   } finally { await running.close(); await rm(home, { recursive: true, force: true }); }
 });

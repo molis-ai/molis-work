@@ -20,6 +20,8 @@
 Home Runtime 渲染工作台页面时，同时交回每个已画 stage 的 contribution ID（打开 stage 的那个视图指的贡献：`stage` 视图，否则目录入口，`stageContributionId`）；项目装配将它们与项目 stage ID 合并，工作台按 Manifest 画 stage 时只画尚未提供的。插件停用或启动失败时，不可用占位也占据同一个 stage，不能再由静态补位生成可用页面。单一页面与停用后恢复的回归见 `tests/workbench-deferred-clients.e2e.test.ts`、`tests/home-plugin-private-store.test.ts`。项目级 Runtime 实例同样（W5-06 第 3 片）：`project-plugin-stages.ts` 用运行中实例的视图画它们的 stage，模型取渲染器的 `declaredStageModel`；没在运行的画 `data-project-plugin-unavailable` 占位并报同一个 ID。项目平台在启动前就记下自己该跑的插件（`ProjectPluginState.plugins`），整个平台没起来也照样画占位。项目与 Home 的不可用状态经 `unavailable_plugin_stages` 结构化字段交给工作台，和插件 HTML 分开；占位不申请 page grant、不启动客户端，插件不能用 HTML 标记选择宿主渲染。回归见 `tests/runtime-plugin-http-discovery.test.ts` 的 S-47、RAC-79。
 `plugin_stage_ids` 只在真实页面渲染的读取回调中提供，用于内部补位去重；通用读取与 `/api/board` 保持原返回合同，路由快照不包含该字段。
 
+助理设置页与场景采用都经 `assistant.preferences.read/write@1` 读写个人回看范围和每日用量上限。助理原表 `assistant_settings` 在同一事务里保存选值、修订和请求回执。材料扫描按当前窗口向来源读取，用量检查继续使用原有的 `daily_tokens`。更改窗口不清理材料，也不改变已有提醒的到期时间。
+
 助理接续监听归 Local Host：关闭借用 Web 传输不终止共享助理，Host 关闭开始时释放监听，持久等待留待重启恢复。手动构造 `AssistantService` 的嵌入者需在关闭运行时及数据库前调用 `service.continuations.close()`；回归见 `tests/assistant-continuation-control.test.ts`、`tests/assistant-connector-continuation.test.ts`。
 
 助理本人初始输入由受保护发送入口交给可信 caller，再经 AgentHost 固定在现 Session attempt；业务正文不能声明作者。人工记住与完成学习只读 Runtime 的原件及未撤回补充，初始原件跨接续按原引用去重，不从展示轮次或 `starting` 推断。无来源的旧调用仍可运行，但不补作本人；页面、重新提问、Host 与委托输入保持派生。范围及后续 SDK 补充时间依赖见 [记忆策略 §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)。`tests/assistant-http-logging.test.ts` 的学习入队故障夹具同样保存 Runtime 本人原件，并核对队列携带其精确引用；不靠 task 或展示行绕过来源边界。

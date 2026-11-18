@@ -31,6 +31,20 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
       </form>
       <p class="settings-form-error" data-assistant-rules-error role="alert" hidden></p>
     </section>
+    <section class="settings-section" aria-labelledby="assistant-lookback-title">
+      <h2 id="assistant-lookback-title">${uiText("workbench.settings-assistant.lookback")}</h2>
+      <form class="assistant-rule-form" data-assistant-lookback>
+        <label class="settings-field"><span>${uiText("workbench.settings-assistant.lookback-window")}</span>
+          <input class="mw-input" type="number" min="1" step="1" required data-lookback-count></label>
+        <select class="mw-input" data-lookback-unit aria-label="${uiText("workbench.settings-assistant.lookback-unit")}">
+          <option value="hours">${uiText("workbench.settings-assistant.hours")}</option><option value="days">${uiText("workbench.settings-assistant.days")}</option><option value="weeks">${uiText("workbench.settings-assistant.weeks")}</option>
+        </select>
+        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit" disabled>${uiText("common.control.save")}</button>
+        <button class="mw-btn mw-btn--ghost mw-btn--sm" data-inherit type="button" hidden>${uiText("workbench.settings-assistant.use-default")}</button>
+      </form>
+      <p class="settings-muted" data-lookback-source></p>
+      <p class="settings-form-error" data-lookback-error role="alert" hidden></p>
+    </section>
     <section class="settings-section assistant-usage" aria-labelledby="assistant-usage-title" data-assistant-usage>
       <h2 id="assistant-usage-title">${uiText("workbench.settings-assistant.usage-cap")}</h2>
       <p class="settings-muted" data-assistant-usage-today>${uiText("workbench.settings-assistant.loading")}</p>
@@ -39,6 +53,8 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
           <input class="mw-input" type="number" min="1000" step="1000" inputmode="numeric" data-assistant-budget-input aria-label="${uiText("workbench.settings-assistant.daily-cap")}"></label>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${uiText("common.control.save")}</button>
       </form>
+      <p class="settings-muted" data-budget-source></p>
+      <button class="mw-btn mw-btn--ghost mw-btn--sm" data-budget-inherit type="button" hidden>${uiText("workbench.settings-assistant.use-default")}</button>
       <p class="settings-muted">${uiText("workbench.settings-assistant.cap-no-new-turn-starts-what-ran-stays")}</p>
       <p class="settings-form-error" data-assistant-budget-error role="alert" hidden></p>
     </section>
@@ -279,12 +295,48 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     usageLine.textContent = globalThis.t.text("workbench.settings-assistant.assistant-used-today") + " " + used.toLocaleString() + " tokens" + globalThis.t.text("common.punctuation.in-parens", { value: globalThis.t.text("workbench.settings-assistant.inputs") + " " + usage.today.input.toLocaleString() + globalThis.t.text("common.punctuation.clause-separator") + globalThis.t.text("workbench.settings-assistant.output") + " " + usage.today.output.toLocaleString()
       + (usage.today.cached_input ? globalThis.t.text("common.punctuation.clause-separator") + globalThis.t.text("workbench.settings-assistant.cached-reads") + " " + usage.today.cached_input.toLocaleString() : "") + globalThis.t.text("common.punctuation.clause-separator") + usage.today.rounds + " " + globalThis.t.text("workbench.settings-assistant.turns") })
       + (usage.daily_tokens ? " · " + globalThis.t.text("workbench.settings-assistant.cap") + " " + usage.daily_tokens.toLocaleString() : " · " + globalThis.t.text("workbench.settings-assistant.no-cap"));
-    if (document.activeElement !== budgetInput) budgetInput.value = usage.daily_tokens ? String(usage.daily_tokens) : "";
   };
-  const usageApi = (payload) => molisWorkRequest("/api/assistant" + (payload ? "/budget" : "/usage"), { body: payload });
-  const runUsage = async (work) => { budgetError.hidden = true; try { paintUsage(await work()); } catch (failure) { molisWorkRequest.show(budgetError, failure); budgetError.hidden = false; } };
-  budgetForm.addEventListener("submit", (event) => { event.preventDefault(); const raw = String(budgetInput.value || "").trim(); runUsage(() => usageApi({ daily_tokens: raw ? Number(raw) : null })); });
-  runUsage(() => usageApi());
+  async function refreshUsage() {
+    try { paintUsage(await rulesApi("/usage")); } catch (failure) { molisWorkRequest.show(budgetError, failure); budgetError.hidden = false; }
+  }
+  const rangeForm = root.querySelector("[data-assistant-lookback]"), count = rangeForm.querySelector("[data-lookback-count]"), unit = rangeForm.querySelector("[data-lookback-unit]");
+  const rangeError = root.querySelector("[data-lookback-error]");
+  const fields = new Map();
+  function preference(key, form, reset, source, error, value, paint) {
+    const save = form.querySelector("button[type=submit]");
+    let latest, pending;
+    save.disabled = true;
+    const render = item => {
+      latest = item;
+      if (item.state !== "ok") { save.disabled = true; reset.hidden = true; error.hidden = false; error.textContent = item.reason; return; }
+      paint(item.value); save.disabled = false; reset.hidden = item.source === "provider_default";
+      source.textContent = globalThis.t.text(item.source === "provider_default" ? "workbench.settings-assistant.provider-default" : "workbench.settings-assistant.my-preference");
+    };
+    fields.set(key, render);
+    const write = async change => {
+      if (!latest || latest.state !== "ok" || save.disabled) return;
+      const request = { key, layer: "personal", expected_revision: latest.revision, change };
+      if (!pending || JSON.stringify(pending.change) !== JSON.stringify(change) || pending.expected_revision !== latest.revision)
+        pending = { ...request, request_id: crypto.randomUUID() };
+      save.disabled = true; reset.disabled = true; error.hidden = true;
+      try { const result = await rulesApi("/preferences", pending); pending = undefined; render(result.values[0]); if (key === "assistant.daily_tokens") await refreshUsage(); }
+      catch (failure) {
+        molisWorkRequest.show(error, failure); error.hidden = false;
+        if (failure.code === "assistant.setting_conflict") { pending = undefined; await loadPreferences(); }
+      } finally { save.disabled = latest?.state !== "ok"; reset.disabled = false; }
+    };
+    form.addEventListener("submit", event => { event.preventDefault(); void write({ set: value() }); });
+    reset.addEventListener("click", () => void write({ inherit: true }));
+  }
+  preference("assistant.lookback", rangeForm, rangeForm.querySelector("[data-inherit]"), root.querySelector("[data-lookback-source]"), rangeError,
+    () => ({ count: Number(count.value), unit: unit.value }), value => { count.value = String(value.count); unit.value = value.unit; });
+  preference("assistant.daily_tokens", budgetForm, root.querySelector("[data-budget-inherit]"), root.querySelector("[data-budget-source]"), budgetError,
+    () => Number(budgetInput.value || 0), value => { budgetInput.value = value ? String(value) : ""; });
+  async function loadPreferences() {
+    try { for (const item of (await rulesApi("/preferences")).values) fields.get(item.key)?.(item); }
+    catch (failure) { for (const error of [budgetError, rangeError]) { molisWorkRequest.show(error, failure); error.hidden = false; } }
+  }
+  void loadPreferences(); void refreshUsage();
   if (location.hash === "#contributions") { contributions.open = true; loadContributions(); }
   load();
 

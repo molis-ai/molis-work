@@ -1,0 +1,80 @@
+import { rollbackPreservingError, type openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import type { SettingSnapshot, SettingsOwnerScope, SettingsRequestIdentity, SettingsTransaction, SettingsWriteReceipt } from "@molis-ai/molis-work-plugin-sdk";
+import type { SandboxJson } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import { assistantErrors } from "./assistant-errors.js";
+import { DAILY_CAP_KEY, LOOKBACK_DEFAULT, LOOKBACK_KEY, dailyTokenLimit, lookbackHours } from "./assistant-setting-values.js";
+
+const names = new Map([[LOOKBACK_KEY, "lookback"], [DAILY_CAP_KEY, "daily_tokens"]]);
+
+export const assistantReceiptPrefix = (projectId: string | null) => "preferences/receipt/" + JSON.stringify(projectId) + "/";
+
+/** The active preferences, their revisions and accepted requests share the Assistant's original SQLite table. */
+export class AssistantSettingRecords {
+  constructor(private readonly db: ReturnType<typeof openHomeSqliteDatabase>) {}
+
+  private row(actorId: string, key: string) {
+    return this.db.prepare("SELECT value, revision FROM assistant_settings WHERE actor_id=? AND key=?").get(actorId, key);
+  }
+
+  get(actorId: string, key: string): string | null {
+    const row = this.row(actorId, key);
+    return row ? String(row.value) : null;
+  }
+
+  set(actorId: string, key: string, value: string) {
+    this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, ?, 1, ?)
+      ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, key, value);
+  }
+
+  private atomic<T>(write: boolean, run: () => T): T {
+    this.db.exec(write ? "BEGIN IMMEDIATE" : "BEGIN");
+    try { const result = run(); this.db.exec("COMMIT"); return result; }
+    catch (error) { rollbackPreservingError(error, () => this.db.exec("ROLLBACK")); throw error; }
+  }
+
+  read(actor: string, keys: readonly string[]) {
+    return this.atomic(false, () => keys.map(key => this.snapshot(actor, key)));
+  }
+
+  private snapshot(actor: string, key: string): SettingSnapshot {
+    const name = names.get(key);
+    if (!name) throw assistantErrors.setting_invalid("助理没有声明这项偏好");
+    const row = this.row(actor, name), revision = String(row?.revision ?? 0);
+    const fallback = key === LOOKBACK_KEY ? LOOKBACK_DEFAULT : 0;
+    if (!row || this.get(actor, "inherited/" + name) === revision) return { key, revision, state: "ok", layers: { provider_default: fallback } };
+    try {
+      const value: SandboxJson = key === LOOKBACK_KEY ? JSON.parse(String(row.value)) : dailyTokenLimit(row.value) ?? 0;
+      if (key === LOOKBACK_KEY) lookbackHours(value);
+      return { key, revision, state: "ok", layers: { provider_default: fallback, personal: value } };
+    } catch { return { key, revision, state: "unavailable", reason: "助理保存的偏好无法读取" }; }
+  }
+
+  transaction<R>(scope: SettingsOwnerScope, run: (tx: SettingsTransaction) => R): R {
+    const actor = scope.actor_id;
+    const receiptKey = ({ key, layer, request_id }: SettingsRequestIdentity) => assistantReceiptPrefix(scope.project_id) + JSON.stringify([key, layer, request_id]);
+    return this.atomic(true, () => run({
+      readCurrent: key => {
+        const current = this.snapshot(actor, key);
+        if (current.state === "unavailable") throw assistantErrors.state(current.reason);
+        return current;
+      },
+      readReceipt: identity => { const raw = this.get(actor, receiptKey(identity)); return raw ? JSON.parse(raw) as SettingsWriteReceipt : undefined; },
+      writeChange: ({ key, change }) => {
+        const name = names.get(key);
+        if (!name) throw assistantErrors.setting_invalid("助理没有声明这项偏好");
+        const value = "set" in change ? change.set : null;
+        let encoded: string;
+        if (key === LOOKBACK_KEY) {
+          if ("set" in change) lookbackHours(value);
+          encoded = JSON.stringify(value ?? LOOKBACK_DEFAULT);
+        } else {
+          if ("set" in change && typeof value !== "number") throw assistantErrors.setting_invalid("每日用量上限需要整数");
+          encoded = String(dailyTokenLimit(value === 0 ? null : value) ?? "");
+        }
+        this.set(actor, name, encoded);
+        if ("inherit" in change) this.set(actor, "inherited/" + name, String(this.row(actor, name)!.revision));
+      },
+      saveReceipt: (identity, receipt) => this.set(actor, receiptKey(identity), JSON.stringify(receipt)),
+    }));
+  }
+}

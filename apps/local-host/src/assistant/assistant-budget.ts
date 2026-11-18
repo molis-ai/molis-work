@@ -1,3 +1,4 @@
+import { dailyTokenLimit } from "./assistant-setting-values.js";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import type { AssistantUsage, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -72,8 +73,7 @@ export class AssistantBudget {
 
   /** The person's daily cap on the Assistant's own rounds (input plus output tokens), or none. */
   saveBudget(dailyTokens: unknown): AssistantUsage["daily_tokens"] {
-    const value = dailyTokens === null || dailyTokens === "" || dailyTokens === undefined ? null : Number(dailyTokens);
-    if (value !== null && (!Number.isSafeInteger(value) || value < 1000)) throw assistantErrors.invalid("每日上限至少 1000 tokens，或留空表示不限");
+    const value = dailyTokenLimit(dailyTokens);
     this.store.setSetting(this.actorId, "daily_tokens", value === null ? "" : String(value));
     return value;
   }

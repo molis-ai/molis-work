@@ -245,6 +245,8 @@
     "action.assistant.panel.works.review": 1,
     "action.assistant.panel.works.take_back": 1,
     "action.assistant.panel.works.undo": 1,
+    "action.assistant.preferences.read": 1,
+    "action.assistant.preferences.write": 1,
     "action.assistant.runs.decide": 1,
     "action.assistant.runs.overview": 1,
     "action.assistant.rules.add": 1,

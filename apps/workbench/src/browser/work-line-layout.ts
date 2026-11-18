@@ -144,7 +144,10 @@ function installPastWing(run: HTMLElement): void {
  * its end. A phone's track shows its own (the sheet draws a cut capsule there), so nothing is marked where the run does not scroll.
  */
 function installNextWing(run: HTMLElement): void {
+  // The count stands in its own element after the label's words, as the past wing's does: a number, not a second sentence.
   const label = run.parentElement?.querySelector<HTMLElement>(".work-line-label");
+  const count = label ? label.querySelector<HTMLElement>("[data-count]") ?? label.appendChild(document.createElement("span")) : null;
+  count?.setAttribute("data-count", "");
   const report = () => {
     const style = getComputedStyle(run), scrolls = style.overflowX !== "visible", box = run.getBoundingClientRect();
     const from = box.left, to = box.right - (parseFloat(style.paddingRight) || 0), all = [...run.children] as HTMLElement[];
@@ -155,8 +158,8 @@ function installNextWing(run: HTMLElement): void {
       item.toggleAttribute("data-cut", after || scrolls && boxes[index]!.left < from - 1);
       if (after) more += 1;
     });
-    const say = more ? globalThis.t.text("workbench.work-line.next-n", { n: String(more) }) : globalThis.t.text("workbench.work-line.next");
-    if (label && label.textContent !== say) label.textContent = say;
+    const say = more ? ` +${more}` : "";
+    if (count && count.textContent !== say) count.textContent = say;
   };
   const settle = () => { fitEvents(run); report(); };
   settle(); new ResizeObserver(settle).observe(run);

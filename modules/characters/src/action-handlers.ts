@@ -222,7 +222,7 @@ export function createCharactersActionHandlers(ports: CharactersActionPorts, run
   const store = ports.open(), drafts = store.service;
   const scope: CharacterPublicationScope = { actorId: ports.actorId, projectId: runtime.projectId, references: ports.references,
     read: reference => runtime.artifacts.read(reference), drafts };
-  const imports = (): CharactersImportPorts => { if (!ports.imports) throw new Error("本地 Runtime 导入服务尚未接通"); return ports.imports; };
+  const imports = (): CharactersImportPorts => { if (!ports.imports) throw new Error("外部 AI 工具导入服务尚未就绪"); return ports.imports; };
   const validate: Validate = refs => validateDraftActions(runtime.agent, refs);
   return { artifactPreview: characterArtifactMarkdown, dispose: () => store.close(),
     ...recordHandlers(drafts), ...draftHandlers(drafts, validate, beforeWrite), ...roleHandlers(drafts, runtime.projectId, validate, beforeWrite),

@@ -44,7 +44,7 @@ export const shelfManifest: PluginManifest = {
     { permission: "projects:exist", required: true, reason: "副本来自的项目被删除后，在副本上标出「项目已删除」" },
     { permission: "actions:invoke", required: true, reason: "调用已授权的成果与资料能力" },
     { permission: "model:read", required: true, reason: "读取当前可用模型" },
-    { permission: PLUGIN_LOCAL_TOOLS_PERMISSION, required: true, reason: "查找这台电脑上已安装的本地 Runtime" },
+    { permission: PLUGIN_LOCAL_TOOLS_PERMISSION, required: true, reason: "查找这台电脑上已安装的外部 AI 工具" },
   ],
   // The text of a Coding result comes from Coding itself (the plugin audience only); Shelf adds its own heading and source.
   capabilities: { provides: [], consumes: [CODING_RESULT_DOCUMENT_ID] },

@@ -80,7 +80,7 @@ test("BSH-08 the side panel reads a project-folder file in place: quote, choose 
   assert.equal(await held(), "", "closing the menu fixes nothing");
   await click('[data-side-materials="pin"]');
   await click('[data-side-materials-menu] [data-port="before"]');
-  await waitFor("(document.querySelector('[data-side-materials-held]:not([hidden]) span')?.textContent ?? '').includes('固定快照 · 对比前')", 10_000);
+  await waitFor("(document.querySelector('[data-side-materials-held]:not([hidden]) span')?.textContent ?? '').includes('固定当前版本 · 对比前')", 10_000);
   await click('[data-side-materials="drop"]');
 
   // The whole file as it is now; a file changed since it was shown is refused, and nothing is held.

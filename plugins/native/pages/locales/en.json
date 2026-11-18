@@ -287,7 +287,7 @@
     "pages.list.unreadable": "The list could not be read",
     "pages.note.assistant-changed": "The assistant just changed this document. You have unsaved edits; saving will report the conflict instead of overwriting.",
     "pages.note.changed-elsewhere": "This document just changed elsewhere. You have unsaved edits; saving will report a conflict instead of overwriting.",
-    "pages.note.publication-pending": "The previous save is unfinished. Resume it to save that snapshot; your current edits can be saved as another version afterwards.",
+    "pages.note.publication-pending": "The previous version save didn’t finish. Resume to save how it looked then; your newer edits can be saved as another version afterwards.",
     "pages.note.unshowable": "This document’s structure can’t be shown in the editor. Editing and autosave are paused to protect its content; ask the Assistant to rewrite it or undo that change from the Assistant’s work panel.",
     "pages.note.unsupported-op": "This document structure does not support this operation yet. The original content is preserved.",
     "pages.project-deletion.data": "Pages documents and folders",

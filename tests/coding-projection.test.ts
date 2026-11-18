@@ -42,7 +42,7 @@ test("运行时不提供命令回执时，终端页真实不可用并给出理�
   const pages = toolAvailability({ capabilities: emptyCapabilityMatrix(), embedded_browser: true });
   const terminal = pages.find((page) => page.page === "terminal");
   assert.equal(terminal?.available, false);
-  assert.match(terminal?.reason ?? "", /命令回执/);
+  assert.match(terminal?.reason ?? "", /命令记录/);
   // 结果页与 Canvas 不依赖运行时能力，始终可用
   assert.equal(pages.find((page) => page.page === "result")?.available, true);
   assert.equal(pages.find((page) => page.page === "canvas")?.available, true);

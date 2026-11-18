@@ -50,7 +50,7 @@ export function createCharacterDiscovery(options: CharacterDiscoveryOptions) {
   };
   return {
     executable(runtime: CharacterImportRuntimeId): string | null {
-      if (!CHARACTER_IMPORT_RUNTIMES.includes(runtime)) throw characterErrors.invalid("不支持的 Runtime 来源");
+      if (!CHARACTER_IMPORT_RUNTIMES.includes(runtime)) throw characterErrors.invalid("不支持的外部 AI 工具来源");
       return executable(runtime);
     },
     get(candidateId: string): CharacterImportSnapshot | null {

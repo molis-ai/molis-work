@@ -6,7 +6,7 @@ import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/a
 import { openCharacterRuns, type CharactersImportPorts, type CharacterRunRecord } from "@molis-ai/molis-work-module-characters";
 import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
 
-const CHARACTER_NATIVE_NOTICE = "外部 Agent 使用自己的登录、模型与权限，并读取本机实时规则、插件与 MCP。Molis Work 提供本次固定角色包与补充指令；请在终端中处理授权和提问。内置工具限制仅适用于 Molis 内置引擎。";
+const CHARACTER_NATIVE_NOTICE = "外部 AI 工具使用它自己的账号、模型与权限，并读取电脑上的规则、插件和扩展连接。Molis Work 会传入本次角色配置与补充要求；请在下方终端中确认权限与回答提问（内置工具限制仅对 Molis Work 内置 AI 生效）。";
 
 /** Interactive invocations deliberately preserve the original trust and permission prompts. */
 export function characterNativeArgs(runtime: CharacterImportRuntimeId, cwd: string, prompt: string): string[] {
@@ -75,7 +75,7 @@ export function characterNativeExecution(options: { home: string; actorId: strin
       workspaces: (await options.workspaces()).map(({ workspace_id, canonical_path }) => ({ workspace_id, canonical_path })), notice: CHARACTER_NATIVE_NOTICE }),
     runs: async characterId => runs(store => store.list(characterId)),
     async launch(content, reference, input, control) {
-      if (!content.import_snapshot) throw characterErrors.invalid("此角色没有本地 Runtime 来源");
+      if (!content.import_snapshot) throw characterErrors.invalid("此角色不是从外部 AI 工具导入的");
       const snapshot = content.import_snapshot;
       const incomplete = snapshot.skills.filter(skill => skill.reason?.startsWith("部分资源未读取"));
       if (incomplete.length) throw characterErrors.invalid(`以下技能资源未完整导入：${incomplete.map(skill => skill.name).join("、")}。请检查来源更新、修复读取问题或取消选择后重新导入；系统不会使用不完整的包启动任务。`);
@@ -85,7 +85,7 @@ export function characterNativeExecution(options: { home: string; actorId: strin
       if (!workspace) throw characterErrors.invalid("请选择当前项目已添加的目录");
       if ((await options.output())?.workspace_id !== workspace.workspace_id) throw directoryInputOnly(workspace.workspace_id);
       const executable = options.executable(snapshot.runtime_id);
-      if (!executable) throw characterErrors.invalid("未发现对应 Runtime 命令行工具，请安装后重新检查；系统不会自动替换为其他引擎");
+      if (!executable) throw characterErrors.invalid("电脑上未检测到对应的外部 AI 工具命令行程序，请先安装后再试；不会自动替换为其他工具");
       await control?.beforeStart();
       // The caller still may: a default output directory not made yet is made for the run (§3 「碰磁盘的调用方」), then read where it is.
       await options.prepare?.(workspace.workspace_id);

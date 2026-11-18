@@ -32,8 +32,8 @@ function expandedPath(path: ExternalToolPath, home: string, env: NodeJS.ProcessE
 }
 
 export function discoveryRoots(home: string, env: NodeJS.ProcessEnv, input: CharacterDiscoveryInput): DiscoveryRoots {
-  if (input.runtime_id !== undefined && !CHARACTER_IMPORT_RUNTIMES.includes(input.runtime_id)) throw characterErrors.invalid("不支持的 Agent 来源");
-  if (input.config_root !== undefined && !input.runtime_id) throw characterErrors.invalid("手动目录必须指定对应 Agent");
+  if (input.runtime_id !== undefined && !CHARACTER_IMPORT_RUNTIMES.includes(input.runtime_id)) throw characterErrors.invalid("不支持的外部 AI 工具来源");
+  if (input.config_root !== undefined && !input.runtime_id) throw characterErrors.invalid("指定设置文件夹时请先选择对应的 AI 工具");
   const manualRoot = input.config_root === undefined ? undefined : confirmedDirectory(input.config_root, "配置目录");
   const projectRoot = input.project_root === undefined ? undefined : confirmedDirectory(input.project_root, "项目目录");
   const roots = Object.fromEntries(CHARACTER_IMPORT_RUNTIMES.map(id => [id, expandedPath(externalTool(id).character_import.config_root, home, env)])) as Record<CharacterImportRuntimeId, string>;

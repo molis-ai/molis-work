@@ -467,7 +467,7 @@ test("APR-11: an empty target needs a label from its own provider before it can 
   const english = await f.person.invoke(agentDelegationActions.prepare, pages);
   const chinese = await runWithLocale("zh", () => f.person.invoke(agentDelegationActions.prepare, pages));
   assert.deepEqual(labels(english), ["Root folder", "No Goal"]);
-  assert.deepEqual(labels(chinese), ["根目录", "不关联 Goal"]);
+  assert.deepEqual(labels(chinese), ["根目录", "不关联目标"]);
   assert.equal(english.candidate_digest, chinese.candidate_digest);
 }));
 

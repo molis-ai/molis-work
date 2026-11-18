@@ -128,9 +128,9 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   await waitFor("!document.querySelector('[data-shelf-hide-act=extract_text]') && document.querySelector('[data-shelf-act=extract]')");
   await click('[data-shelf-act="talk"]');
   await waitFor("document.querySelector('[data-shelf-stage]')?.classList.contains('is-talk')");
-  await waitFor("document.querySelector('[data-shelf-tty-actor]')?.textContent.includes('未发现本地 Runtime')");
+  await waitFor("document.querySelector('[data-shelf-tty-actor]')?.textContent.includes('电脑上未检测到外部 AI 工具')");
   assert.equal(await evaluate("document.querySelector('[data-shelf-tty-screen] .xterm')"), null, "no terminal view attaches without an available agent");
-  assert.match(await evaluate<string>("document.querySelector('[data-shelf-tty-actor]')?.textContent || ''"), /未发现本地 Runtime|发给终端不是副本沙箱/);
+  assert.match(await evaluate<string>("document.querySelector('[data-shelf-tty-actor]')?.textContent || ''"), /电脑上未检测到外部 AI 工具|在终端中运行会直接读写原文件/);
   await click('[data-shelf-act="extract"]');
   await waitFor("document.querySelector('[data-shelf-stage]')?.classList.contains('is-confirm')");
   assert.match(await evaluate<string>("document.querySelector('[data-shelf-confirm-title]')?.textContent || ''"), /提取 PDF 文字/);

@@ -51,10 +51,10 @@ interface DiffWords { message?: DiffWord; recovery?: DiffWord; metadata?: readon
 // The action still returns the exact comparison. Only the in-process drawing reads these words.
 const displayWords = new WeakMap<DiffView, DiffWords>();
 const waiting = {
-  none: ["先选一组输入：两份快照、Coding 准备的变更，或 Git 的工作区改动", "diff.waiting.choose-input"],
+  none: ["先选一组对比内容：两个已固定的文件版本、Coding 准备的改动，或 Git 未提交改动", "diff.waiting.choose-input"],
   "git-change-set": ["在 Git 里选一处改动，这里就会显示", "diff.waiting.git-change-set"],
   "change-set": ["Coding 准备好一轮变更后，这里会显示", "diff.waiting.change-set"],
-  snapshots: ["先在文件阅读区固定「对比前」和「对比后」，这里会显示两份快照的差异", "diff.waiting.snapshots"],
+  snapshots: ["先在侧栏「资料」阅读器里分别固定「对比前」和「对比后」，这里就会显示两者的差异", "diff.waiting.snapshots"],
 } satisfies Record<DiffInputGroup | "none", DiffWord>;
 const recovery = {
   none: ["在 Sources 里选一组输入", "diff.recovery.choose-input"],
@@ -96,7 +96,7 @@ export function emptyDiff(
 }
 
 export function chooseSnapshots(): DiffView {
-  const message: DiffWord = ["请选择两份文件快照进行对比", "diff.waiting.choose-snapshots"];
+  const message: DiffWord = ["请先选择两个已固定的文件版本进行对比", "diff.waiting.choose-snapshots"];
   return withDisplay(emptyDiffView("snapshots", message[0]), { message });
 }
 
@@ -115,14 +115,14 @@ export function compareSnapshots(inputs: readonly DiffInputSnapshot[]): DiffView
     first = parseFileSnapshot(inputs[0]!.content);
     second = parseFileSnapshot(inputs[1]!.content);
   } catch {
-    return diffWithoutRows(group, ["读不了这两份快照", "diff.msg.snapshots-unreadable"], "unavailable");
+    return diffWithoutRows(group, ["无法读取这两个已保存的文件版本", "diff.msg.snapshots-unreadable"], "unavailable");
   }
   const before = sideOf(first, inputs[0]!);
   const after = sideOf(second, inputs[1]!);
   if (before.workspace_id !== after.workspace_id) {
     // Refused rather than rendered: a line-by-line comparison across two
     // workspaces looks like a change somebody made, and nobody made it.
-    const message: DiffWord = ["这两份快照来自不同的工作目录，没法比", "diff.msg.snapshots-different-workspaces"], hint = recovery[group];
+    const message: DiffWord = ["这两个文件版本来自不同的项目文件夹，无法直接对比", "diff.msg.snapshots-different-workspaces"], hint = recovery[group];
     return withDisplay({
       ...emptyDiffView(group, waitingMessage(group)),
       phase: "ready",
@@ -192,7 +192,7 @@ export function compareRunChangeSet(
     removed_lines: file.removed_lines,
   }));
   if (files.length === 0) {
-    return diffWithoutRows(group, ["这一轮没有可读取的文本审查；命令及外部操作请查看原回执", "diff.msg.no-readable-review"], "ready");
+    return diffWithoutRows(group, ["这一轮没有可读取的文本改动审查；命令及外部操作请查看执行记录", "diff.msg.no-readable-review"], "ready");
   }
   const chosen = changeIndex !== undefined ? change.files[changeIndex] : path === undefined
     ? change.files[0]!

@@ -60,7 +60,7 @@
     "cognia.import.guide-limits": "保留 Markdown 原文、目录与附件；不还原数据库关系、查询视图、块引用或动态插件。ENEX、JEX、.sy、SQLite、OneNote 等原生格式需先转换，跳过项会显示原因。",
     "cognia.import.guide-tools": "Obsidian、Logseq 文件图：选择 Markdown 目录。Notion：导出 Markdown and CSV 并解压。Joplin：导出 Markdown + Front Matter。思源、Anytype、Bear、Apple Notes、Logseq DB：先导出 Markdown，再选导出目录。LLM Wiki 是资料整理方法，不是专有格式。",
     "cognia.import.guides-title": "从其他知识工具导入",
-    "cognia.import.hint": "单向复制快照，源目录不会修改。每批最多 1000 个文件、32 MB；文本 2 MB、附件 8 MB。",
+    "cognia.import.hint": "只单向复制导入当时的文件内容，绝不改动原文件夹。每批最多 1000 个文件（共 32 MB，单份文本 2 MB、附件 8 MB）。",
     "cognia.import.kind": "类型",
     "cognia.import.new-source": "新建独立来源",
     "cognia.import.nothing": "没有可导入的内容，请查看跳过原因并选择 Markdown 导出目录。",
@@ -121,6 +121,6 @@
     "cognia.agent-prompt.cognia-answer.title": "知识整理与问答",
     "cognia.agent-prompt.cognia-answer.purpose": "只依据选中的固定版本资料整理或回答，并用 [S1] 这样的标记引用来源",
     "cognia.agent-prompt.cognia-evidence.title": "知识助手角色",
-    "cognia.agent-prompt.cognia-evidence.purpose": "Cognia 整理与问答运行时的角色说明"
+    "cognia.agent-prompt.cognia-evidence.purpose": "Cognia 整理资料与回答提问时的角色说明"
   }
 }

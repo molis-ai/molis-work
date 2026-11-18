@@ -81,7 +81,7 @@
     "alchemist.client-flows.new-direction": "New direction",
     "alchemist.client-flows.next": "Next: ",
     "alchemist.client-flows.next-step-revisit-condition": "Next step or revisit condition",
-    "alchemist.client-flows.one-search-including-up-3-page-extractions-one": "One search (up to 3 page extractions) or one model request counts as 1 call. If budget allows, invalid output is retried once before stopping; fees are billed by your provider.",
+    "alchemist.client-flows.one-search-including-up-3-page-extractions-one": "Each web search (reading up to 3 pages) or AI analysis counts as 1 call; invalid output retries once if quota allows, and usage fees are billed by your AI provider.",
     "alchemist.client-flows.open": "Open",
     "alchemist.client-flows.original-budget-exhausted-no-further-calls-can-run": "The original budget is exhausted. No further calls can run.",
     "alchemist.client-flows.personal-preferences": "Personal preferences",

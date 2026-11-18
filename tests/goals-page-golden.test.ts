@@ -338,11 +338,26 @@ test("RAC-2680 exact dictionary comparison checks assignment boundaries and reta
 // Capsule labels in their present context change; the Chinese copy, argument values and complete sentences still come from B.
 const keys = JSON.parse(readFileSync(new URL("stable-keys.json", GOLDEN), "utf8")) as Record<"words" | "capsule_words" | "interpolation", string[]>;
 
+const reviewedChinese: Readonly<Record<string, string>> = {
+  "goals.chrome.goal-view": "目标视图",
+  "goals.capsule-items.open-goal-see-latest-progress-next-step": "打开这个目标，查看最新进展和下一步。",
+  "goals.guidance-document.long-term-guidance-shared-all-work-project-assistant": "这是整个项目共享的长期做事说明：项目里的个人助理、各插件 AI 和你连接的外部 AI 工具都会参考它。这里只展示当前生效的内容，可随时修改并查看历史版本。",
+  "goals.guidance-document.write-complete-instruction-future-runtime-can-understand-follow": "写清楚背景和要求，方便 AI 不用猜就能直接照着做",
+  "goals.guidance-document.how-runtime-uses": "AI 会怎么参考这份说明",
+  "goals.guidance-document.only-active-revisions-sent-placed-before-round-s": "每次只把当前生效的说明发给 AI（放在具体任务之前）；修改或停用后，从下一次对话起生效。",
+  "goals.chrome.goal-info-timeline": "目标信息与时间线",
+  "goals.inputs.create-goal": "或为这个目标新建",
+  "goals.workbench-stage.goal-workspace": "目标工作区",
+};
+
 const reviewedEnglish: Readonly<Record<string, string>> = {
   "goals.capsule-items.current-project": "current project",
   "goals.capsule-items.running": "Running",
   "goals.guidance-document.project-s-stable-way-working": "The project’s stable way of working",
-  "goals.guidance-document.only-active-revisions-sent-placed-before-round-s": "Only active revisions are sent, placed before this turn’s task and external content. Edits and deactivations take effect in the next prompt.",
+  "goals.guidance-document.long-term-guidance-shared-all-work-project-assistant": "Long-term instructions shared across all work in this project — used by the assistant, plugin AI features and connected external AI tools. Edit anytime and view full revision history.",
+  "goals.guidance-document.write-complete-instruction-future-runtime-can-understand-follow": "Write clear background and rules that AI can follow directly without guessing",
+  "goals.guidance-document.how-runtime-uses": "How AI uses this guidance",
+  "goals.guidance-document.only-active-revisions-sent-placed-before-round-s": "Only active entries are sent to AI ahead of each turn’s task; edits or pauses take effect on the next turn.",
   "goals.inputs.couldn-t-remove": "Couldn’t remove it",
   "goals.inputs.couldn-t-accept": "Couldn’t accept it",
   "goals.inputs.version-can-t-be-found": "This version can’t be found",
@@ -351,8 +366,8 @@ const reviewedEnglish: Readonly<Record<string, string>> = {
 
 function examples(locale: "zh" | "en") {
   const text = (key: string, zh: string, en: string) => {
-    const expected = reviewedEnglish[key] ?? en;
-    return { key, expected: locale === "zh" ? zh : expected, args: undefined };
+    const expected = locale === "zh" ? (reviewedChinese[key] ?? zh) : (reviewedEnglish[key] ?? en);
+    return { key, expected, args: undefined };
   };
   const result = (["words", "capsule_words"] as const).flatMap(section => {
     assert.equal(keys[section].length, Object.keys(moved[section]).length);

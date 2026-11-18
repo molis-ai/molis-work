@@ -703,7 +703,7 @@ export interface InteractionNextStep { id: string; label: string; source: string
  * (handed to the page program with it) and Coding's report (BL-158). Each set is the contract's closed set, read as it is.
  */
 export const RECEIPT_WORDS = {
-  FACT: { received: "已送达", applied: "已放进上下文，等 AI 回应", read: "AI 已读到", unread: "这一轮结束时 AI 没读到，留给下一轮", withdrawn: "已撤回" },
+  FACT: { received: "已送达", applied: "AI 已收到，正在等它回应", read: "AI 已读到", unread: "这一轮结束时 AI 没读到，留给下一轮", withdrawn: "已撤回" },
   TREATMENT: { "apply-now": "立即影响当前这一步", "later-step": "留到后面某一步", "new-task": "作为新任务", "needs-clarification": "需要你澄清", "not-adopted": "暂不采纳", answered: "已在回复里回答", noted: "记下，不改变执行", merged: "与另一条一起处理" },
   KIND: { supplement: "补充", correction: "纠正", constraint: "约束", request: "新需求", question: "提问" },
   IMPACT: { objective: "目标", scope: "范围", priority: "优先级", approach: "实现方案", acceptance: "验收条件", outputs: "已有成果", constraint: "约束" },

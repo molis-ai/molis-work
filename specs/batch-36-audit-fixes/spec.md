@@ -1,6 +1,6 @@
 # 第 36 批合后修复
 
-状态：合后修复见 [#2121](https://github.com/molis-ai/molis-work/pull/2121)。依据 [第 36 批原需求与合入记录](../post-anticorruption-roadmap/reference/batches/36.md)、[角色服务](../onboarding-coverage/role-service-design.md) 与 [主线合同](../work-mainline/contract-design.md)。原合并提交 `bdfcc36454`，修复从 `8d9f1fb01e` 开始，整合同步至 `6b0e8a4f83`。验证使用隔离 Home。
+状态：合后修复见 [#2121](https://github.com/molis-ai/molis-work/pull/2121)。依据 [第 36 批原需求与合入记录](../post-anticorruption-roadmap/reference/batches/36.md)、[角色服务](../onboarding-coverage/role-service-design.md) 与 [主线合同](../work-mainline/contract-design.md)。原合并提交 `bdfcc36454`，修复从 `8d9f1fb01e` 开始，当前基点为 `eaa6b47492`。验证使用隔离 Home。
 
 | 编号 | 场景与验收 |
 | --- | --- |
@@ -39,7 +39,7 @@ Characters 负责角色写入与恢复，Agent Host 负责运行准入。工作�
 | 11 成果与过程项 | 成果发布和过程项接口不涉及本修复。 |
 | 12 页面与文字 | 沿用组件和词条，角色选择事件已登记，资源按同步后的基点实测。 |
 | 13 错误 | 沿用角色、助理、主线与动作的现有错误码。 |
-| 14 冲突面 | 同步第 59 批时合并助理收据、服务导入、项目切换、DOM 事件四处，重新生成 API 和动作快照。 |
+| 14 冲突面 | 同步第 59 批时合并助理收据、服务导入、项目切换、DOM 事件四处。再同步 [#2119](https://github.com/molis-ai/molis-work/pull/2119)，对账主线、合同记录和动作快照，保留主线安放权限检查。 |
 | 15 全局 | 插件与助理复用同一角色来源，平台服务各写自己的记录，37／20／53／64 沿原合同与分工接续。 |
 
 第 4.1 节采用现有能力。助理、Coding 和第 20 批都涉及角色选择，复用 `characters.roles.*`、编辑动作与 Host 固定版本。主线和任务主人之间沿 placement 声明协作，使用同一套发现与授权。页面发起本人的设置操作，Agent 续用已有角色选择与执行准入。
@@ -54,7 +54,7 @@ Characters 负责角色写入与恢复，Agent Host 负责运行准入。工作�
 ## 收尾检查
 
 1. 本次验证对照 B36F-01～07。ROLE-14 由一骏验收，按原待办跟踪。
-2. 同步第 59 批后，工作回执、助理服务、项目切换与 DOM 事件共同验证，API 与动作快照重新生成。
+2. 同步第 59 批后，工作回执、助理服务、项目切换与 DOM 事件共同验证。同步 #2119 后重新生成和核对 API 与动作快照。
 3. 独立评审退回的安放撤权、角色续跑、选角来源与回焦、差异比较均在修复范围内。第 36 批未排入本修复的事项按原待办和后续批次接续。[评审记录](https://github.com/molis-ai/molis-work/pull/2121#issuecomment-6968569923)
 4. 角色选择器和设置复用同一抽屉与角色动作，主线经通用 placement 关系调用任务主人。
 5. 角色事实归 Characters，运行固定版由 Host 准备，主线存自己的事项及归属。库结构沿用现行版本。

@@ -136,6 +136,7 @@ export interface BlueprintLibraryResult {
         request: BlueprintAdoptionApplyInput;
     }[];
     preview?: BlueprintAdoptionPreviewResult;
+    target_created?: boolean;
 }
 
 export interface BlueprintOwnerReceipt {

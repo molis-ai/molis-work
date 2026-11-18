@@ -19,8 +19,8 @@ export function sameBinding(left: SettingBinding, right: SettingBinding): boolea
 
 function previousValue(current: Extract<EffectiveSetting, { state: "ok" }>, layer: BlueprintPart["layer"]): SettingsWriteInput["change"] | undefined {
   if (current.layers) return Object.hasOwn(current.layers, layer) ? { set: current.layers[layer]! } : { inherit: true };
-  if (current.source === layer) return { set: current.value };
-  if (current.source === "provider_default" || layer === "project") return { inherit: true };
+  // With no individual layers a merged effective value cannot restore the original override.
+  if (current.source === "provider_default" || layer === "project" && current.source === "personal") return { inherit: true };
   return undefined;
 }
 
@@ -100,7 +100,8 @@ export async function previewSettings(store: AdoptionStore, access: SettingsAcce
     const previous = previousValue(current, layer);
     if (!previous) return { ...details, decision: "skip", reason: "owner_unavailable" };
     assertSandboxMatches(entry.schema, proposal.value, (_kind, message) => { throw blueprintsErrors.part_unsupported(message); });
-    plans.set(part_id, { binding, key: entry.key, layer, change: { set: proposal.value }, previous, expected_revision: current.revision });
+    plans.set(part_id, { binding, key: entry.key, layer, change: { set: proposal.value }, previous, expected_revision: current.revision,
+      ...(current.layer_revisions?.[layer] !== undefined && { original_layer_revision: current.layer_revisions[layer] }) });
     return { ...details, decision: "set" in previous && canonicalJsonText(previous.set) === canonicalJsonText(proposal.value) ? "reuse" : "update" };
   });
   const preview = { preview_id: randomUUID(), expires_at: new Date(now + lifetime).toISOString(), source: draft.source,

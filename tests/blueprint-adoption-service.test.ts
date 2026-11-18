@@ -8,7 +8,7 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { Blueprint } from "@molis-ai/molis-work-contracts/platform/blueprints";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { type ProjectDeletionResult, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { SettingsValues, SettingsWriteInput } from "@molis-ai/molis-work-contracts/platform/settings";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { blueprintActions as a } from "@molis-ai/molis-work-contracts/services/blueprints";
@@ -97,7 +97,9 @@ test("ONB-22/29: a new project starts with inherited settings and resumes using 
   const home = await mkdtemp(join(tmpdir(), "blueprint-new-project-"));
   const running = await open(home);
   try {
-    const origin = await running.web.createProject("Existing");
+    const existing = await running.host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: home },
+      catalog => catalog.createProject({ project_id: "project-onboarding-06289a80-a1c6-41df-9124-3963bc2e3289", display_name: "Existing", actor_id: "web-user" }));
+    const origin = { ...existing, reference: molisWorkHostProjectReference({ projectId: existing.project_id, databasePath: existing.database_path }) };
     const person = await running.host.localPersonContext(origin.reference);
     const from = bindActionClient(running.host.actionClient(origin.reference), () => person);
     await from.invoke(projectSettingsCapabilities.selectRuntime, ["unavailable-in-existing-project"]);
@@ -120,6 +122,16 @@ test("ONB-22/29: a new project starts with inherited settings and resumes using 
     assert.equal((await inside.invoke(a.apply, request)).steps[0]?.state, "applied");
     assert.equal(await inside.invoke(projectSettingsCapabilities.runtime, []), "prologue");
     assert.equal(await from.invoke(projectSettingsCapabilities.runtime, []), "unavailable-in-existing-project");
+    const deletion = await running.web.web.post<ProjectDeletionResult>("/api/settings/projects/" + origin.project_id + "/delete",
+      { delete_confirmed: true, idempotency_key: "delete-scene-origin", output_files: "keep" });
+    assert.equal(deletion.deletion.cleanup_state, "complete");
+    await running.host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: home }, catalog =>
+      catalog.createProject({ project_id: origin.project_id, display_name: "Restored origin", actor_id: person.actor_id }));
+    const recreatedCaller = await running.host.localPersonContext(origin.reference);
+    const recreated = bindActionClient(running.host.actionClient(origin.reference), () => recreatedCaller);
+    assert.deepEqual((await recreated.invoke(a.library, {})).adoptions, []);
+    await assert.rejects(recreated.invoke(a.library, { adoption_id: first.adoption_id }), { code: "actions.missing" });
+    assert.equal((await inside.invoke(a.library, { adoption_id: first.adoption_id })).adoptions[0]?.adoption_id, first.adoption_id);
   } finally { await running.close(); await rm(home, { recursive: true, force: true }); }
 });
 
@@ -145,6 +157,18 @@ test("ONB-30: removing the original scene retains a setting that a second scene 
     assert.equal(detached.undo.steps[0]?.state, "detached", "a scene which only reused a value cannot claim the original write");
     assert.deepEqual((await user.invoke(a.remove, { adoption_id: first.adoption_id, request_id: "remove-writing" })).undo, removed.undo);
     assert.equal(await user.invoke(projectSettingsCapabilities.runtime, []), "prologue");
+
+    await user.invoke(projectSettingsCapabilities.selectRuntime, [null]);
+    assert.equal((await adopt("Previously modified")).steps[0]?.state, "applied");
+    const earlierReuse = await adopt("Previously reused");
+    assert.deepEqual(earlierReuse.steps[0], { part_id: "engine", state: "applied", outcome: "reused" });
+    await user.invoke(projectSettingsCapabilities.selectRuntime, [null]);
+    assert.deepEqual((await user.invoke(a.read, { adoption_id: earlierReuse.adoption_id })).apply_steps[0],
+      { part_id: "engine", state: "applied", outcome: "reused", current: "changed" });
+    const latest = await adopt("New writing");
+    const undone = await user.invoke(a.revert, { adoption_id: latest.adoption_id, request_id: "undo-new-writing" });
+    assert.equal(undone.undo.steps[0]?.state, "restored", "older revisions of the same value have no claim on the new adoption");
+    assert.equal(await user.invoke(projectSettingsCapabilities.runtime, []), null, "restores the person’s choice to inherit");
   } finally { await running.close(); await rm(home, { recursive: true, force: true }); }
 });
 
@@ -222,5 +246,31 @@ test("ONB-28/SPC-04: the Assistant keeps the setting and original receipt togeth
     assert.deepEqual(await invoke("write", request), accepted);
     assert.deepEqual((await invoke("read", { keys: [key] })).values[0], later);
     await assert.rejects(invoke("write", { ...request, change: { inherit: true } }), { code: "assistant.setting_conflict" });
+  } finally { await running.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("ONB-28/30: an unknown runtime leaves the project usable and the other adopted settings can be undone", async () => {
+  const home = await mkdtemp(join(tmpdir(), "blueprint-missing-runtime-"));
+  const running = await open(home);
+  try {
+    const project = await running.web.createProject("Editing");
+    const caller = await running.host.localPersonContext(project.reference);
+    const person = bindActionClient(running.host.actionClient(project.reference), () => caller);
+    const { draft } = await person.invoke(a.draftSave, { expected_revision: null, blueprint: { ...body, parts: [
+      { part_id: "engine", layer: "project", required: true, proposal: { kind: "setting", key: "projects.runtime", value: "missing-runtime" } },
+      { part_id: "cap", layer: "personal", required: true, proposal: { kind: "setting", key: "assistant.daily_tokens", value: 3000 } }, body.parts[1]!,
+    ] } });
+    const part_ids = ["engine", "cap"];
+    const preview = await person.invoke(a.preview, { source: draft.source, target: { kind: "current_project" }, part_ids });
+    const accepted = await person.invoke(a.apply, { preview_id: preview.preview_id, part_ids, request_id: "new-project-engine" });
+    const engine = accepted.steps.find(step => step.part_id === "engine");
+    assert.ok(engine?.state === "failed" && engine.error.code.endsWith(".setting_invalid"));
+    assert.equal(accepted.steps.find(step => step.part_id === "cap")?.state, "applied");
+    assert.equal(await person.invoke(projectSettingsCapabilities.runtime, []), null);
+    const db = new DatabaseSync(project.database_path, { readOnly: true });
+    try { assert.equal(db.prepare("SELECT count(*) AS n FROM project_runtime_setting_receipts").get()!.n, 0); } finally { db.close(); }
+    const reverted = await person.invoke(a.revert, { adoption_id: accepted.adoption_id, request_id: "restore-cap" });
+    assert.equal(reverted.undo.steps.find(step => step.part_id === "cap")?.state, "restored");
+    assert.equal(running.host.assistantStore!().setting(caller.actor_id, "daily_tokens"), "");
   } finally { await running.close(); await rm(home, { recursive: true, force: true }); }
 });

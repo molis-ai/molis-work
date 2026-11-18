@@ -55,6 +55,10 @@ export function projectRuntimeSettingProvider(projectId: string, db: SqliteDatab
         writeChange({ change }) {
           const value = "set" in change ? change.set : null;
           if (value !== null && typeof value !== "string") throw hostErrors.setting_invalid("运行时标识必须是字符串");
+          if (value !== null) {
+            const choice = resolveProjectRuntime(directory(), value);
+            if (!choice.runtime) throw hostErrors.setting_invalid(choice.reason);
+          }
           store.select(projectId, value);
         },
         saveReceipt: (identity, receipt) => store.saveReceipt(projectId, scope.actor_id, identity.request_id, receipt),

@@ -13,6 +13,8 @@ export type SettingSource = (typeof SETTINGS_SOURCES)[number];
 export type SettingConsequence = (typeof SETTINGS_CONSEQUENCES)[number];
 export type SettingLayers = Partial<Record<SettingSource, SandboxJson>>;
 
+export type SettingLayerRevisions = Partial<Record<SettingLayer, string>>;
+
 export interface SettingEntryDeclaration {
   /** A stable name. The declaring installation or system provider owns it. */
   key: string;
@@ -36,7 +38,7 @@ export const SETTINGS_READ_OUTPUT_TYPE = /* @version type.molis.settings.values 
 export interface SettingsReadInput { keys: string[] }
 
 export type EffectiveSetting = { key: string; revision: string } & (
-  | { state: "ok"; value: SandboxJson; source: SettingSource; layers?: SettingLayers }
+  | { state: "ok"; value: SandboxJson; source: SettingSource; layers?: SettingLayers; layer_revisions?: SettingLayerRevisions }
   | { state: "unavailable"; reason: string }
 );
 
@@ -73,6 +75,7 @@ const observation = { key: SETTING_KEY_SCHEMA, revision: nonblank };
 const layers = closedObjectSchema({ project: json, personal: json, provider_default: json }, []);
 const available = closedObjectSchema({
   ...observation, state: { const: "ok" }, value: json, source: { type: "string", enum: SETTINGS_SOURCES }, layers,
+  layer_revisions: closedObjectSchema({ project: nonblank, personal: nonblank }, []),
 }, ["key", "revision", "state", "value", "source"]);
 const unavailable = closedObjectSchema({ ...observation, state: { const: "unavailable" }, reason: nonblank });
 

@@ -167,6 +167,8 @@ export interface BlueprintLibraryResult {
   drafts: { source: DraftSource; title: TextRef }[];
   adoptions: { adoption_id: string; title: TextRef; target: BlueprintAdoptedTarget; request: BlueprintAdoptionApplyInput }[];
   preview?: BlueprintAdoptionPreviewResult;
+  /** For a selected new-project adoption, the destination already exists in the catalog. */
+  target_created?: boolean;
 }
 export type BlueprintLibraryInput = { adoption_id?: never; preview_id?: never } | BlueprintAdoptionReadInput | { preview_id: string };
 
@@ -301,7 +303,7 @@ const libraryInput = inputSchemaFor<BlueprintLibraryInput>()({ oneOf: [
 const libraryOutput = closedObjectSchema({
   drafts: items(closedObjectSchema({ source: blueprintDraftSourceSchema, title: TEXT_REF_SCHEMA }), 50),
   adoptions: items(closedObjectSchema({ adoption_id: token, title: TEXT_REF_SCHEMA, target: adoptedTarget, request: applyInput }), 50),
-  preview: previewResult,
+  preview: previewResult, target_created: boolean,
 }, ["drafts", "adoptions"]);
 
 /** Public declarations; the scene owner will bind them under system.blueprints. */

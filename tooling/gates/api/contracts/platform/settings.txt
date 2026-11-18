@@ -10,6 +10,7 @@ export type EffectiveSetting = {
     value: SandboxJson;
     source: SettingSource;
     layers?: SettingLayers;
+    layer_revisions?: SettingLayerRevisions;
 } | {
     state: "unavailable";
     reason: string;
@@ -53,6 +54,21 @@ export declare const SETTINGS_READ_OUTPUT_SCHEMA: {
                                 };
                                 readonly provider_default: {
                                     readonly type: readonly ["null", "boolean", "number", "string", "array", "object"];
+                                };
+                            };
+                            readonly required: readonly [];
+                            readonly additionalProperties: false;
+                        };
+                        readonly layer_revisions: {
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly project: {
+                                    readonly type: "string";
+                                    readonly pattern: "\\S";
+                                };
+                                readonly personal: {
+                                    readonly type: "string";
+                                    readonly pattern: "\\S";
                                 };
                             };
                             readonly required: readonly [];
@@ -123,6 +139,8 @@ export interface SettingEntryDeclaration {
 }
 
 export type SettingLayer = (typeof SETTINGS_LAYERS)[number];
+
+export type SettingLayerRevisions = Partial<Record<SettingLayer, string>>;
 
 export type SettingLayers = Partial<Record<SettingSource, SandboxJson>>;
 

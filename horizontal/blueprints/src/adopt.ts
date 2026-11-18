@@ -10,7 +10,7 @@ type Operation = UndoResult["operation"];
 type RecordView = ReturnType<AdoptionStore["load"]>;
 type Guard = ActionExecutionContext;
 export type AdoptionProgress = { preview_id: string; adoption_id: string; project_id: string | null } & (
-  { kind: "accepted" } | { kind: "apply"; step: BlueprintApplyStep } | { kind: "undo"; undo: Pick<UndoResult, "request_id" | "operation">; step: UndoStep }
+  { kind: "accepted" | "target_created" } | { kind: "apply"; step: BlueprintApplyStep } | { kind: "undo"; undo: Pick<UndoResult, "request_id" | "operation">; step: UndoStep }
 );
 
 export function assertCurrent(caller: Guard): void {
@@ -30,13 +30,20 @@ function identity({ row, preview }: RecordView): Omit<BlueprintAdoptionApplyResu
 function ownerReceipt(plan: SettingPlan, value: EffectiveSetting): BlueprintOwnerReceipt {
   return { action: plan.binding.write, subject: { kind: "setting", id: plan.key }, revision: value.revision };
 }
-function verifiedStep(part_id: string, expected: string, current?: EffectiveSetting, receipt?: BlueprintOwnerReceipt): BlueprintApplyStep | undefined {
+function sameObservedLayer(plan: SettingPlan, fullRevision: string | number, current: EffectiveSetting, layerRevision?: string): boolean {
+  const now = current.state === "ok" ? current.layer_revisions?.[plan.layer] : undefined;
+  return now !== undefined && layerRevision !== undefined ? now === layerRevision : current.revision === fullRevision;
+}
+function verifiedStep(part_id: string, plan: SettingPlan, current?: EffectiveSetting, receipt?: BlueprintOwnerReceipt): BlueprintApplyStep | undefined {
   if (receipt) {
-    if (!current || current.state === "unavailable" && current.revision === receipt.revision) return undefined;
-    return { part_id, state: "applied", outcome: "modified", receipt, ...(current.revision !== receipt.revision && { current: "changed" }) };
+    if (!current) return undefined;
+    const observed = !sameObservedLayer(plan, receipt.revision, current, plan.applied_layer_revision) ? "changed" : current.state === "unavailable" ? "owner_unavailable" : undefined;
+    return { part_id, state: "applied", outcome: "modified", receipt, ...(observed && { current: observed }) };
   }
   if (current?.state !== "ok") return { part_id, state: "skipped", reason: "owner_unavailable" };
-  if (current.revision !== expected) return { part_id, state: "skipped", reason: "revision_changed" };
+  if (!sameObservedLayer(plan, plan.expected_revision, current, plan.original_layer_revision)) return { part_id, state: "skipped", reason: "revision_changed" };
+  const observed = current.layer_revisions?.[plan.layer];
+  if (observed !== undefined) plan.applied_layer_revision = observed;
   return { part_id, state: "applied", outcome: "reused" };
 }
 function knownFailure(error: unknown) {
@@ -70,6 +77,8 @@ export class AdoptionExecution {
       await beforeWrite(caller);
       if (caller.project_id !== record.row.project_id) {
         await ensureProject(record.row.project_id!, preview.target.display_name);
+        assertCurrent(caller);
+        this.notify(caller.actor_id, { kind: "target_created", preview_id: input.preview_id, project_id: record.row.project_id, adoption_id: adoptionId });
         // The workbench resumes in the new project with its own user grants.
         return { ...identity(record), steps: record.steps.map(step => step.apply) };
       }
@@ -80,9 +89,16 @@ export class AdoptionExecution {
     const recovery = await readOwnerValues(access, record.steps.flatMap(step =>
       step.apply.state === "pending_verification" && step.plan && available(step.plan) ? [step.plan] : []), caller);
     const toVerify: { step: StepRecord; plan: SettingPlan; receipt?: BlueprintOwnerReceipt }[] = [];
+    const previousWrites = new Map<string, { plan: SettingPlan; revision: string }>();
     for (const step of record.steps) {
       assertCurrent(caller);
-      if (step.apply.state === "applied" || step.apply.state === "skipped" && step.apply.reason !== "owner_unavailable") continue;
+      if (step.apply.state === "applied") {
+        if (step.plan && "receipt" in step.apply) {
+          previousWrites.set(step.plan.key, { plan: step.plan, revision: String(step.apply.receipt.revision) });
+        }
+        continue;
+      }
+      if (step.apply.state === "skipped" && step.apply.reason !== "owner_unavailable") continue;
       const part = preview.parts.find(item => item.part_id === step.part_id)!;
       const base = { part_id: step.part_id }, plan = step.plan;
       let result: BlueprintApplyStep;
@@ -100,11 +116,19 @@ export class AdoptionExecution {
         let writing = step.apply.state === "pending_verification";
         try {
           if (writing && !recovery.has(plan.key)) continue;
-          if (!writing) await this.change(caller, record, step, pending, "apply");
+          if (!writing) {
+            const previous = previousWrites.get(plan.key);
+            plan.apply_expected_revision = previous && previous.plan.layer !== plan.layer && sameBinding(previous.plan.binding, plan.binding)
+              && previous.plan.expected_revision === plan.expected_revision ? previous.revision : plan.expected_revision;
+            await this.change(caller, record, step, pending, "apply");
+          }
           writing = true;
           const accepted = await access.write(plan.binding, { key: plan.key, layer: plan.layer, change: plan.change,
-            expected_revision: plan.expected_revision, request_id: requestId });
-          if (accepted.key !== plan.key || accepted.state !== "ok") continue;
+            expected_revision: plan.apply_expected_revision ?? plan.expected_revision, request_id: requestId });
+          if (accepted.key !== plan.key) continue;
+          const observed = accepted.state === "ok" ? accepted.layer_revisions?.[plan.layer] : undefined;
+          if (observed !== undefined) plan.applied_layer_revision = observed;
+          previousWrites.set(plan.key, { plan, revision: accepted.revision });
           toVerify.push({ step, plan, receipt: ownerReceipt(plan, accepted) });
           continue;
         } catch (error) {
@@ -118,7 +142,7 @@ export class AdoptionExecution {
     }
     const readback = await readOwnerValues(access, toVerify.map(item => item.plan), caller);
     for (const { step, plan, receipt } of toVerify) {
-      const result = verifiedStep(step.part_id, plan.expected_revision, readback.get(plan.key), receipt);
+      const result = verifiedStep(step.part_id, plan, readback.get(plan.key), receipt);
       if (result) await this.change(caller, record, step, result, "apply");
     }
     const finished = this.store.load(caller, "adoption_id", adoptionId);
@@ -129,12 +153,13 @@ export class AdoptionExecution {
     const record = this.store.load(caller, "adoption_id", id);
     const access = await accessFor(record.row.project_id);
     const owners = await access.discover();
-    const values = await readOwnerValues(access, record.steps.flatMap(({ plan, apply }) => plan && apply.state === "applied" && "receipt" in apply
+    const values = await readOwnerValues(access, record.steps.flatMap(({ plan, apply }) => plan && apply.state === "applied"
       && owners.some(owner => !owner.unavailable && owner.entry.key === plan.key && sameBinding(owner.binding, plan.binding)) ? [plan] : []), caller);
     const applied = record.steps.map(({ plan, apply }): BlueprintApplyStep => {
-      if (!plan || apply.state !== "applied" || !("receipt" in apply)) return apply;
+      if (!plan || apply.state !== "applied") return apply;
       const current = values.get(plan.key);
-      if (current && current.revision !== apply.receipt.revision) return { ...apply, current: "changed" };
+      const expected = "receipt" in apply ? apply.receipt.revision : plan.expected_revision;
+      if (current && !sameObservedLayer(plan, expected, current, plan.applied_layer_revision)) return { ...apply, current: "changed" };
       if (current?.state !== "ok") return { ...apply, current: "owner_unavailable" };
       const { current: _observed, ...original } = apply;
       return original;
@@ -173,16 +198,19 @@ export class AdoptionExecution {
           const current = (await access.read(plan.binding, [plan.key]))[0];
           assertCurrent(caller);
           if (!current || current.key !== plan.key) throw new ActionError("actions.output_invalid", "设置读回缺失");
-          if (!writing && current.revision !== apply.receipt.revision) result = { part_id, state: "skipped", reason: "revision_changed" };
+          if (!writing && !sameObservedLayer(plan, apply.receipt.revision, current, plan.applied_layer_revision)) result = { part_id, state: "skipped", reason: "revision_changed" };
           else if (!writing && current.state !== "ok") result = { part_id, state: "skipped", reason: "owner_unavailable" };
-          else if (!writing && this.store.sharedSetting(caller.actor_id, record.row.project_id, record.row.preview_id, plan))
+          else if (!writing && this.store.sharedSetting(caller.actor_id, record.row.project_id, record.row.preview_id, plan, current.revision))
             result = { part_id, state: "skipped", reason: "shared" };
           else {
-            if (!writing) await this.change(caller, record, step, pending, "undo");
+            if (!writing) {
+              plan.undo_expected_revision = current.revision;
+              await this.change(caller, record, step, pending, "undo");
+            }
             writing = true;
             const saved = await access.write(plan.binding, { key: plan.key, layer: plan.layer, change: plan.previous,
-              expected_revision: String(apply.receipt.revision), request_id: requestId });
-            if (saved.key !== plan.key || saved.state !== "ok") throw new ActionError("actions.output_invalid", "主人没有回执这项设置");
+              expected_revision: plan.undo_expected_revision ?? String(apply.receipt.revision), request_id: requestId });
+            if (saved.key !== plan.key) throw new ActionError("actions.output_invalid", "主人没有回执这项设置");
             result = { part_id, state: "restored", receipt: ownerReceipt(plan, saved) };
           }
         } catch (error) {

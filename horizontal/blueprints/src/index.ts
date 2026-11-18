@@ -14,6 +14,7 @@ export interface BlueprintHostPorts {
   readonly locale: () => string;
   readonly now: () => Date;
   readonly access: (caller: ActionExecutionContext, projectId: string | null, preview?: BlueprintAdoptionTarget) => Promise<SettingsAccess>;
+  readonly projectExists: (projectId: string) => Promise<boolean>;
   readonly ensureProject: (caller: ActionExecutionContext, id: string, displayName: string) => Promise<void>;
   readonly notify: (actor: string, progress: AdoptionProgress) => void;
 }
@@ -53,7 +54,15 @@ export function blueprintProvider(host: BlueprintHostPorts): ActionProviderRegis
   const undo = <Op extends "remove" | "revert">(op: Op, caller: ActionExecutionContext, input: { adoption_id: string; request_id: string }) =>
     serialized("adoption_id", input.adoption_id, caller, () => service.undo(caller, input, op, project => host.access(caller, project)));
   const handlers = [
-    bindActionHandler(a.library, (input, caller) => { assertAdopter(caller); return store.library(caller, input); }),
+    bindActionHandler(a.library, async (input, caller) => {
+      assertAdopter(caller);
+      const library = store.library(caller, input), target = library.adoptions[0]?.target;
+      if (library.preview?.target.kind === "new_project" && target?.kind === "project") {
+        library.target_created = await host.projectExists(target.project_id);
+        assertAdopter(caller);
+      }
+      return library;
+    }),
     bindActionHandler(a.draftSave, async (input, caller) => {
       await caller.beforeEffect(); assertCurrent(caller);
       return store.saveDraft(caller, input, caller.locale ?? host.locale());

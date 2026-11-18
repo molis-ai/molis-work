@@ -11,6 +11,7 @@ import { restrictLocalCallerToHome } from "./local-web-actions.js";
 import { systemSettingOwners } from "./system-setting-owners.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
+import { projectOrNull } from "./catalog-lookup.js";
 import { appearanceLocale } from "./web-locale.js";
 
 const changes = new WeakMap<MolisWorkLocalHost, EventEmitter>();
@@ -111,6 +112,11 @@ export function hostBlueprints(home: string, host: MolisWorkLocalHost, catalog: 
   }
   return blueprintProvider({ home, now: clock, locale: () => appearanceLocale().tag, access,
     notify: (actor, progress) => { events.emit(JSON.stringify([actor, progress.preview_id]), progress); },
+    projectExists: async id => {
+      const run = catalog();
+      if (!run) throw blueprintsErrors.dependency_unmet("项目目录暂不可用");
+      return run({ homeDirectory: home }, db => projectOrNull(db, id) !== null);
+    },
     ensureProject: async (caller, id, displayName) => {
       const run = catalog();
       if (!run) throw blueprintsErrors.dependency_unmet("项目目录暂不可用");

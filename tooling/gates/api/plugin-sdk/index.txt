@@ -509,6 +509,7 @@ export type SettingSnapshot = {
 } & ({
     readonly state: "ok";
     readonly layers: SettingLayers;
+    readonly layer_revisions?: SettingLayerRevisions;
     readonly effective_value?: SandboxJson;
 } | {
     readonly state: "unavailable";

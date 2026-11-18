@@ -49,7 +49,7 @@ function snapshot(ledger: MemoryLedgerPort, scope: SettingsOwnerScope, key: stri
   if (!isCompletePrefs(base) || own !== null && !isCompletePrefs(own) || ownLayer && ownLayer.explicit !== (own !== null)) {
     return { key, revision, state: "unavailable", reason: "缺少完整的现行记忆偏好" };
   }
-  return { key, state: "ok", revision, layers: {
+  return { key, state: "ok", revision, layer_revisions: { personal: String(baseLayer.revision), ...(ownLayer && { project: String(ownLayer.revision) }) }, layers: {
     provider_default: encodePreferenceSetting(defaultPrefs(target, "reviewed")),
     ...(baseLayer.explicit && { personal: encodePreferenceSetting(base) }),
     ...(own && { project: encodePreferenceSetting(own) }),

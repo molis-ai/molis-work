@@ -22,6 +22,10 @@ export interface SettingPlan {
   key: string;
   layer: BlueprintPart["layer"];
   expected_revision: string;
+  original_layer_revision?: string;
+  applied_layer_revision?: string;
+  apply_expected_revision?: string;
+  undo_expected_revision?: string;
   previous: SettingsWriteInput["change"];
   change: SettingsWriteInput["change"];
 }
@@ -50,7 +54,7 @@ type StoredAdoption = {
 };
 type StoredStep = { part_id: string; plan_json: string; apply_json: string; undo_json: string | null; revision: number };
 // A personal adoption follows its actor. A newly created project may resume the specific adoption that created it.
-const visible = "actor_id=? AND (origin_project IS ? OR (adoption_id IS NOT NULL AND project_id=?) OR json_extract(preview_json,'$.target.kind')='personal')";
+const visible = "actor_id=? AND ((origin_project IS ? AND origin_detached=0) OR (adoption_id IS NOT NULL AND project_id=?) OR json_extract(preview_json,'$.target.kind')='personal')";
 const scopeArgs = (scope: Scope) => [scope.actor_id, scope.project_id, scope.project_id] as const;
 const missing = () => new ActionError("actions.missing", "在当前范围找不到这份场景记录");
 const conflict = (message: string) => blueprintsErrors.step_conflict(message);
@@ -154,7 +158,7 @@ export class AdoptionStore {
         return current.adoption_id;
       }
       if (Date.parse(preview.expires_at) <= now) throw blueprintsErrors.preview_expired("预览已过期，请重新查看");
-      if (db.prepare("SELECT 1 FROM adoptions WHERE actor_id=? AND origin_project IS ? AND apply_request=?").get(scope.actor_id, current.origin_project, request))
+      if (db.prepare("SELECT 1 FROM adoptions WHERE actor_id=? AND origin_project IS ? AND origin_detached=0 AND apply_request=?").get(scope.actor_id, current.origin_project, request))
         throw conflict("这次请求已用于其他预览");
       const adoptionId = randomUUID();
       const project = preview.target.kind === "new_project" ? "project-onboarding-" + randomUUID()
@@ -166,15 +170,16 @@ export class AdoptionStore {
   }
 
   writeStep(previewId: string, step: StepRecord, outcome: BlueprintApplyStep | UndoStep, operation: "apply" | "undo"): boolean {
-    return this.access(db => Boolean(db.prepare(`UPDATE adoption_steps SET ${operation === "apply" ? "apply_json" : "undo_json"}=?, revision=revision+1
-      WHERE preview_id=? AND part_id=? AND revision=?`).run(JSON.stringify(outcome), previewId, step.part_id, step.revision).changes));
+    return this.access(db => Boolean(db.prepare(`UPDATE adoption_steps SET ${operation === "apply" ? "apply_json" : "undo_json"}=?, plan_json=?, revision=revision+1
+      WHERE preview_id=? AND part_id=? AND revision=?`).run(JSON.stringify(outcome), JSON.stringify(step.plan), previewId, step.part_id, step.revision).changes));
   }
 
   /** A second scene may have adopted the same explicit layer without writing a new owner revision. */
-  sharedSetting(actor: string, project: string | null, previewId: string, plan: SettingPlan): boolean {
+  sharedSetting(actor: string, project: string | null, previewId: string, plan: SettingPlan, revision: string): boolean {
     const scoped = plan.layer === "project" || plan.binding.project_scoped;
     return this.access(db => {
-      const rows = db.prepare(`SELECT s.plan_json FROM adoption_steps s JOIN adoptions a USING (preview_id)
+      const rows = db.prepare(`SELECT s.plan_json, a.project_id,
+        COALESCE(json_extract(s.apply_json,'$.receipt.revision'),json_extract(s.plan_json,'$.expected_revision')) AS observed_revision FROM adoption_steps s JOIN adoptions a USING (preview_id)
         WHERE a.actor_id=? AND a.preview_id<>? AND a.adoption_id IS NOT NULL AND (?=0 OR a.project_id IS ?)
         AND json_extract(s.plan_json,'$.key')=? AND json_extract(s.plan_json,'$.layer')=?
         AND json_extract(s.apply_json,'$.state')='applied'
@@ -182,6 +187,9 @@ export class AdoptionStore {
           OR json_extract(s.undo_json,'$.reason')='owner_unavailable')`).all(actor, previewId, Number(scoped), project, plan.key, plan.layer);
       return rows.some(row => {
         const other = JSON.parse(String(row.plan_json)) as SettingPlan;
+        if (plan.applied_layer_revision !== undefined && other.applied_layer_revision !== undefined) {
+          if (plan.applied_layer_revision !== other.applied_layer_revision) return false;
+        } else if (project === row.project_id && revision !== row.observed_revision) return false;
         return canonicalJsonText(other.binding) === canonicalJsonText(plan.binding) && canonicalJsonText(other.change) === canonicalJsonText(plan.change);
       });
     });
@@ -201,6 +209,7 @@ export class AdoptionStore {
     if (!existsSync(homeSqlitePath(this.home, BLUEPRINTS_STORE))) return;
     this.transaction(db => {
       db.prepare("DELETE FROM adoptions WHERE project_id=? OR (adoption_id IS NULL AND origin_project=?)").run(projectId, projectId);
+      db.prepare("UPDATE adoptions SET origin_detached=1 WHERE origin_project=?").run(projectId);
       db.prepare("DELETE FROM blueprint_drafts WHERE project_id=?").run(projectId);
     });
   }

@@ -26,7 +26,7 @@ export const observationSettingOwner = { provider_id: OBSERVATION_PROVIDER_ID, s
 
 function snapshot(db: DatabaseSync): SettingSnapshot {
   const layer = retentionLayer(db);
-  return { key: RETENTION_KEY, state: "ok", revision: String(layer.revision), layers: {
+  return { key: RETENTION_KEY, state: "ok", revision: String(layer.revision), layer_revisions: { personal: String(layer.revision) }, layers: {
     provider_default: "keep", ...(layer.explicit && { personal: readStoredSettings(db).retention_mode }),
   } };
 }

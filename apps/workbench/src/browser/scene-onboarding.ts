@@ -12,7 +12,7 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
   const { frame, project, error, t, button, pageUrl, sceneContext } = page;
   const api = (project ? "/projects/" + encodeURIComponent(project) : "") + "/api/blueprints/";
   const params = new URLSearchParams(location.search);
-  let busy = false, cursor = 0, all = false, stream: AbortController | undefined, adopted = "", viewingResult = false;
+  let busy = false, cursor = 0, all = false, stream: AbortController | undefined, adopted = "", viewingResult = false, targetCreated = false;
   let draft: BlueprintDraftResult["draft"] | undefined, preview: BlueprintAdoptionPreviewResult | undefined;
   let target: BlueprintAdoptionTarget, selection = new Set<string>(), changes: BlueprintPreviewChange[] = [];
   let original: BlueprintAdoptionApplyInput | undefined, targetProject: string | undefined;
@@ -34,7 +34,7 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
   function draw(): void {
     if (!preview) return;
     renderReview(page, { parts: preview.parts, cursor, selection, editing: Boolean(draft && !original),
-      accepted: Boolean(original), adopted, destination: targetProject, undo: undo?.operation, applied, undone, all, results: viewingResult }, {
+      accepted: Boolean(original), adopted, destination: targetProject, targetCreated, undo: undo?.operation, applied, undone, all, results: viewingResult }, {
       select(id, checked) {
         if (busy) return;
         if (checked) selection.add(id); else selection.delete(id);
@@ -68,9 +68,11 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
           if (connection.signal.aborted || preview?.preview_id !== id) return;
           const data = JSON.parse(raw);
           if (event === "snapshot" && data.record) {
+            if (data.target_created !== undefined) targetCreated = data.target_created;
             original = data.record.request; remember(data.record.adoption_id, data.record.target.project_id);
             if (data.status) setStatus(data.status);
           } else if (event === "target" || event === "progress") {
+            if (data.target_created) targetCreated = true;
             remember(data.adoption_id, data.project_id);
             if (data.kind === "apply") applied.set(data.step.part_id, data.step);
             if (data.kind === "undo") { undo = data.undo; undone.set(data.step.part_id, data.step); }
@@ -90,6 +92,7 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
     rememberReview();
     draw();
     const done = await request<BlueprintAdoptionApplyResult>(api + "apply", { body: original });
+    if (preview.target.kind === "new_project") targetCreated = true;
     remember(done.adoption_id, done.target.kind === "project" ? done.target.project_id : undefined);
     for (const step of done.steps) applied.set(step.part_id, step);
   }
@@ -119,6 +122,7 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
     const records = await request<BlueprintLibraryResult>(api + "library" + query);
     if (records.preview && records.adoptions[0]) {
       preview = records.preview; original = records.adoptions[0].request; const record = records.adoptions[0];
+      targetCreated = records.target_created ?? false;
       sceneContext(record.title);
       remember(record.adoption_id, record.target.kind === "project" ? record.target.project_id : undefined);
       watch(preview.preview_id); draw(); return;

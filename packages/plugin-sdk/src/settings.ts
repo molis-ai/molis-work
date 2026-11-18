@@ -3,7 +3,7 @@ import {
   type ActionHandlerBinding, type ActionMetadata, type ErrorCodeRaisers,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
-  SETTINGS_SOURCES, type EffectiveSetting, type SettingEntryDeclaration, type SettingLayers,
+  SETTINGS_LAYERS, SETTINGS_SOURCES, type SettingLayerRevisions, type EffectiveSetting, type SettingEntryDeclaration, type SettingLayers,
   type SettingsDeclaration, type SettingsValues, type SettingsWriteInput,
 } from "@molis-ai/molis-work-contracts/platform/settings";
 import { isText } from "./action-declarations.js";
@@ -19,7 +19,7 @@ export interface SettingsOwnerScope {
 }
 
 export type SettingSnapshot = { readonly key: string; readonly revision: string } & (
-  | { readonly state: "ok"; readonly layers: SettingLayers;
+  | { readonly state: "ok"; readonly layers: SettingLayers; readonly layer_revisions?: SettingLayerRevisions;
       /** The owner's effective value when it merges individual fields across layers. The original layers remain available for undo. */
       readonly effective_value?: SandboxJson }
   | { readonly state: "unavailable"; readonly reason: string }
@@ -70,12 +70,16 @@ export function resolveEffectiveSetting(snapshot: SettingSnapshot): EffectiveSet
     assertJson(value, invalidJsonOutput);
     layers[source] = value;
   }
+  const revisions = snapshot.layer_revisions;
+  if (revisions && (!isJsonObject(revisions) || Object.entries(revisions).some(([layer, token]) =>
+    !(SETTINGS_LAYERS as readonly string[]).includes(layer) || !isText(token)))) throw invalidOutput("设置层的修订无效");
+  const proof = revisions ? { layer_revisions: { ...revisions } } : {};
   for (const source of SETTINGS_SOURCES) {
     const value = layers[source];
     if (value !== undefined) {
-      if (snapshot.effective_value === undefined) return { key, revision, state: "ok", value, source, layers };
+      if (snapshot.effective_value === undefined) return { key, revision, state: "ok", value, source, layers, ...proof };
       assertJson(snapshot.effective_value, invalidJsonOutput);
-      return { key, revision, state: "ok", value: snapshot.effective_value, source, layers };
+      return { key, revision, state: "ok", value: snapshot.effective_value, source, layers, ...proof };
     }
   }
   return { key, revision, state: "unavailable", reason: "当前没有有效设置值" };

@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { DatabaseSync } from "node:sqlite";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { blueprintActions } from "@molis-ai/molis-work-contracts/services/blueprints";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
@@ -86,4 +88,44 @@ test("ONB-21/22/28/30: review actual setting values one by one, resume from the 
   await click("[data-scene-aside] button");
   await waitFor("document.querySelector('[data-scene-main]').textContent.match(/已恢复原设置|Previous setting restored/)");
   assert.equal(await user.invoke(projectSettingsCapabilities.runtime, []), null);
+});
+
+test("ONB-29: reopening a new-project adoption interrupted before project creation continues from its origin", async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null);
+  if (!b) return;
+  const { localHost, homeDirectory, navigate, command, origin, sessionId, waitFor, click } = b;
+  assert.ok(localHost);
+  const caller = await localHost.localPersonContext(), client = localHost.homeActionClient(), user = bindActionClient(client, () => caller);
+  const title = { literal: "Recovered project" };
+  const { draft } = await user.invoke(blueprintActions.draftSave, { expected_revision: null, blueprint: {
+    title, purpose: { audience: title, work: title, inputs: title, outputs: title, first_result: title },
+    parts: [{ part_id: "engine", layer: "project", required: true, proposal: { kind: "setting", key: "projects.runtime", value: "prologue" } },
+      { part_id: "outline", layer: "project", required: false, proposal: { kind: "content", type: "notes.outline.v1", body: {} } }],
+    steps: [{ step_id: "prepare", title, part_ids: ["engine", "outline"] }],
+    example_task: { title, input: title, step_ids: ["prepare"], result: { part_id: "outline", location: title } },
+  } });
+  const part_ids = ["engine"];
+  const { preview_id } = await user.invoke(blueprintActions.preview, { source: draft.source, target: { kind: "new_project", display_name: "Recovered project" }, part_ids });
+  const db = new DatabaseSync(homeSqlitePath(homeDirectory, "blueprints"), { readOnly: true });
+  try {
+    const committed = db.prepare("SELECT adoption_id FROM adoptions WHERE preview_id=?");
+    const interrupted = bindActionClient(client, () => ({ ...caller, assert_authority_current(ref, permissions) {
+      caller.assert_authority_current?.(ref, permissions);
+      if (committed.get(preview_id)?.adoption_id) throw new ActionError("actions.cancelled", "Interrupted after acceptance");
+    } }));
+    await assert.rejects(interrupted.invoke(blueprintActions.apply, { preview_id, part_ids, request_id: "create-recovered" }), { code: "actions.cancelled" });
+  } finally { db.close(); }
+  const record = await user.invoke(blueprintActions.library, { preview_id });
+  assert.equal(record.target_created, false);
+  const accepted = record.adoptions[0]!;
+  assert.ok(accepted.target.kind === "project");
+  await navigate(() => command("Page.navigate", { url: origin + "/onboarding?scene&adoption=" + accepted.adoption_id }, sessionId));
+  await waitFor("document.querySelector('.arrival-bar .bar-end button.mw-btn--primary')");
+  await click(".arrival-bar .bar-end button.mw-btn--primary");
+  await waitFor("document.querySelector('.arrival-bar .bar-end a[href*=adoption]')");
+  assert.equal((await user.invoke(blueprintActions.library, { preview_id })).target_created, true);
+  await navigate(() => click(".arrival-bar .bar-end a[href*=adoption]"));
+  await waitFor("location.pathname.includes(" + JSON.stringify(accepted.target.project_id) + ") && document.querySelector('.arrival-bar .bar-end button.mw-btn--primary')");
+  await click(".arrival-bar .bar-end button.mw-btn--primary");
+  await waitFor("document.querySelector('[data-scene-main] details:not([open])') && !document.querySelector('.arrival-bar .bar-end .mw-btn--primary')");
 });

@@ -86,6 +86,7 @@ interface Review {
   accepted: boolean;
   adopted: string;
   destination?: string;
+  targetCreated: boolean;
   undo?: "revert" | "remove";
   applied: ReadonlyMap<string, BlueprintApplyStep>;
   undone: ReadonlyMap<string, UndoStep>;
@@ -162,7 +163,9 @@ export function renderSceneReview(page: ReturnType<typeof sceneReviewPage>, stat
       main.append(row);
     }
     if (targetProject && project !== targetProject && adopted) {
-      bar.append(link(t("open-target"), pageUrl(targetProject, { adoption: adopted }))); return;
+      bar.append(state.targetCreated ? link(t("open-target"), pageUrl(targetProject, { adoption: adopted }))
+        : button(t("continue"), controls.submit, true));
+      return;
     }
     if (retry && state.accepted) bar.append(button(t("continue"), () => undo ? controls.reverse(undo) : controls.submit(), true));
     if (adopted && !hasUndo) {

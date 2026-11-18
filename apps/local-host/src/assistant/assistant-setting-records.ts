@@ -41,13 +41,14 @@ export class AssistantSettingRecords {
     const name = names.get(key);
     if (!name) throw assistantErrors.setting_invalid("助理没有声明这项偏好");
     const row = this.row(actor, name), revision = String(row?.revision ?? 0);
+    const observed = { key, revision, layer_revisions: { personal: revision } };
     const fallback = key === REPORT_SCHEDULE_KEY ? defaultReportSchedule() : key === LOOKBACK_KEY ? LOOKBACK_DEFAULT : 0;
-    if (!row || this.get(actor, "inherited/" + name) === revision) return { key, revision, state: "ok", layers: { provider_default: fallback } };
+    if (!row || this.get(actor, "inherited/" + name) === revision) return { ...observed, state: "ok", layers: { provider_default: fallback } };
     try {
       const value: SandboxJson = key === DAILY_CAP_KEY ? dailyTokenLimit(row.value) ?? 0 : JSON.parse(String(row.value));
       if (key === LOOKBACK_KEY) lookbackHours(value);
       if (key === REPORT_SCHEDULE_KEY) validateReportSchedule(value);
-      return { key, revision, state: "ok", layers: { provider_default: fallback, personal: value } };
+      return { ...observed, state: "ok", layers: { provider_default: fallback, personal: value } };
     } catch { return { key, revision, state: "unavailable", reason: "助理保存的偏好无法读取" }; }
   }
 

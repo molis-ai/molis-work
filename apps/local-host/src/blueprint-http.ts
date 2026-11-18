@@ -24,7 +24,7 @@ async function progress(host: MolisWorkLocalHost, client: BoundActionClient, res
   const stop = onBlueprintProgress(host, LOCAL_PERSON_ACTOR_ID, previewId, event => {
     if (!ready) { changed = true; return; }
     if (event.project_id && event.project_id !== project) {
-      send("target", { adoption_id: event.adoption_id, project_id: event.project_id });
+      send("target", { adoption_id: event.adoption_id, project_id: event.project_id, target_created: event.kind !== "accepted" });
     } else send("progress", event);
   });
   response.once("close", stop);
@@ -40,7 +40,7 @@ async function progress(host: MolisWorkLocalHost, client: BoundActionClient, res
       assertCurrent();
       response.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", "x-accel-buffering": "no" });
       response.flushHeaders();
-      send("snapshot", { record: record ?? null, status });
+      send("snapshot", { record: record ?? null, target_created: library.target_created, status });
       ready = true;
     } while (!ready);
   } catch (error) {

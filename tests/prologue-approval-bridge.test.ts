@@ -342,3 +342,53 @@ test("a repeated decision on an ended pending never redelivers prior approval or
     }
   }
 });
+
+// SAI-06/08/09: permission changes after the pending read must fail at the original decision owner.
+test("SAI-08/09: a scoped review refuses revocation after canAnswer without recording approval", async () => {
+  const ledger = pendingLedger(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let current = true;
+  ledger.port.canAnswer = async () => { entered.resolve(); await release.promise; return true; };
+  const { queue, bridge } = bridgeFor(ledger.port);
+  const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document, reference: REFERENCE, approval: APPROVAL });
+  const deciding = queue.respond({ review_id: request.review_id, version: request.reference.version, actor_id: "person", decision: "approve" }, {
+    async beforeEffect() {}, assertCurrent() { if (!current) throw new Error("Work taken back"); },
+  });
+  await entered.promise; current = false; release.resolve();
+  await assert.rejects(deciding, /Work taken back/);
+  assert.equal(queue.receipt(request.review_id)!.status, "pending");
+  assert.deepEqual(ledger.answers, []);
+});
+
+test("SAI-08: an original decision commit cannot escape to detached asynchronous writes", async () => {
+  const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date("2026-09-19T00:00:00.000Z") });
+  for (const review_id of ["own", "sibling"]) queue.request({ review_id, reference: { ...REFERENCE, id: review_id }, project_id: BOARD, plugin_id: PLUGIN, kind: "text-edit", document, run: RUN, requested_at: "2026-09-19T00:00:00.000Z", expires_at: null });
+  const release = Promise.withResolvers<void>(); let escaped!: Promise<unknown>, effects = 0;
+  queue.registerDecisionHandler("own", async (_input, commit) => {
+    const receipt = await commit();
+    escaped = release.promise.then(() => commit.effect(async () => { effects++; }));
+    return receipt;
+  });
+  await queue.respond({ review_id: "own", version: REFERENCE.version, actor_id: "person", decision: "approve" }, { async beforeEffect() {}, assertCurrent() {} });
+  release.resolve(); await assert.rejects(escaped, { code: "agent.pending_not_open" });
+  assert.equal(effects, 0); assert.equal(queue.receipt("own")!.status, "approved"); assert.equal(queue.receipt("sibling")!.status, "pending");
+});
+
+test("SAI-06/08: an app allowance requires the original pending's accepted delivery", async () => {
+  for (const failure of ["uncertain", "refused", "accepted"]) {
+    const ledger = pendingLedger(failure === "uncertain" ? { throwOnAnswer: "Delivery lost" } : { authorized: failure === "accepted" });
+    const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date("2026-09-19T00:00:00.000Z") });
+    let allowed = 0;
+    const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port, now: () => new Date("2026-09-19T00:00:00.000Z"), allowAppForRound: () => { allowed++; } });
+    const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "tool-operation", document: { kind: "tool-operation", tool: "surface-act", summary: "Click original app", fields: [], round_allow: { app: "fixture", label: "Fixture" } }, reference: REFERENCE, approval: APPROVAL });
+    await queue.respond({ review_id: request.review_id, version: request.reference.version, actor_id: "person", decision: "approve", remember: "app-this-round" });
+    assert.equal(allowed, Number(failure === "accepted"));
+  }
+});
+
+test("SAI-06/08: a refused wider app allowance preserves the already accepted decision", async () => {
+  const ledger = pendingLedger(), queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date("2026-09-19T00:00:00.000Z") });
+  const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port, now: () => new Date("2026-09-19T00:00:00.000Z"), allowAppForRound: () => { throw new Error("Work taken back after acceptance"); } });
+  const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "tool-operation", document: { kind: "tool-operation", tool: "surface-act", summary: "Click original app", fields: [], round_allow: { app: "fixture", label: "Fixture" } }, reference: REFERENCE, approval: APPROVAL });
+  const receipt = await queue.respond({ review_id: request.review_id, version: request.reference.version, actor_id: "person", decision: "approve", remember: "app-this-round" });
+  assert.deepEqual(ledger.answers, ["allow"]); assert.equal(receipt.status, "approved"); assert.ok(!receipt.delivery_error);
+});

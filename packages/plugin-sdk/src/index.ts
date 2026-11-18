@@ -72,6 +72,9 @@ export { PAGE_ROUTE_LIMITS, matchDeclaredPageRoute, matchPageRoute, pageRoutePro
 export { ActionError, defineErrorCodes, type ActionErrorKind, type ActionErrorOptions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { actionErrorKind, actionHttpStatus, actionErrorBody, actionErrorResponse, actionErrorFromResponse, isCodedFailure, type ActionErrorBody, type ActionErrorBodyOptions } from "./errors.js";
 export { defineSubjectContextAction, subjectContext, resolveActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+// A kind that can become a work item on the mainline names up to three of its own actions in its presentation declaration (`item`).
+export { defineItemCreateAction, defineItemNextAction, defineItemRelatedAction, type WorkItemCreateInput, type WorkItemCreateResult, type WorkItemNextInput,
+  type WorkItemNextResult, type WorkItemNextStep, type WorkItemRelatedInput, type WorkItemRelatedResult } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineActionUsagesAction, referencesAction, type ActionUsage, type ActionUsagesInput } from "@molis-ai/molis-work-contracts/platform/actions";
 /** Reporting what your plugin's pack holds on the AI kit page (能力包): its prompts, roles and MCP, found by type, stamped as yours by the Host. */
@@ -85,6 +88,8 @@ export type { ActionIntake, ActionAttach, ItemAttachPosition } from "@molis-ai/m
 export { defineWorkEventsAction, withinWorkEventWindow, assertWorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 /** The Home title bar's background tasks: a read-only project query the Home asks in every open project (`home_aggregate`). */
 export { defineBackgroundTasksAction, defineTaskServesAction, TASK_SERVES_RELATION } from "@molis-ai/molis-work-contracts/platform/actions";
+export { definePlacementRelationAction, PLACEMENT_RELATION_LIMITS, type PlacementRelationCandidates, type PlacementRelationCreateInput, type PlacementRelationOptions,
+  type PlacementRelationResult, type PlacementRelationSubjectInput, type PlacementRelationTargetInput } from "@molis-ai/molis-work-contracts/platform/actions";
 /** System search: list what your plugin can find (by version) and read it through your subject reader. */
 export { defineSearchEntriesAction, bindSearchEntriesHandler, searchEntriesPage, searchText, searchRevisionOf, SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFileEntriesAction, defineFileContentAction, bindFileEntriesHandler, fileEntriesPage, fileContentOf, FILE_SOURCE_AUDIENCES, FILE_CONTENT_MAX_BYTES } from "@molis-ai/molis-work-contracts/platform/actions";

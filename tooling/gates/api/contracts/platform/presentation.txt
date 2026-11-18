@@ -199,6 +199,12 @@ export interface PresentationField {
 
 export type PresentationHeldIn = "project" | "personal";
 
+export interface PresentationItemSource {
+    readonly create?: string;
+    readonly related?: string;
+    readonly next?: string;
+}
+
 export interface PresentationJudgment {
     readonly label: TextRef;
     readonly reason?: TextRef;
@@ -218,6 +224,7 @@ export interface PresentationObject {
     readonly text?: {
         readonly lines: readonly string[];
     };
+    readonly item?: PresentationItemSource;
 }
 
 export interface PresentationObjectAction {

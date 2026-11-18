@@ -1,5 +1,5 @@
 import { agentErrors } from "../errors.js";
-import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { BUSINESS_HOST_TOOLS, BUSINESS_SUBAGENT_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isTerminalAgentPhase, parseAgentRunBudget } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
@@ -110,7 +110,15 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
   readonly collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
   readonly background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
-  readonly inputs = {
+  readonly inputs: NonNullable<AgentRuntimeAdapter["inputs"]> = {
+    notify: (input, control) => {
+      if (!this.#runtime.sessions.notify) throw agentErrors.capability_unavailable("当前运行时未接通会话通知");
+      return this.#runtime.sessions.notify(input, control);
+    },
+    findByKey: async (sessionId, key) => {
+      const id = await this.#runtime.sessions.inputIdByKey?.(sessionId, key);
+      return id ? this.inputs.read!({ session_id: sessionId, input_id: id }) : undefined;
+    },
     ...inputsPort(async run => { await this.read(run); const record = this.#store.requireRun(run.run_id); return { ended: isEnded(record.view.phase), control: record.control, turns: record.view.turns }; }, () => this.#runtime.queue, runId => this.#store.publish(runId)),
     read: (ref: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentInputRef) => readSupplementaryInput(ref, {
       locate: async input => this.#runtime.sessions.locateInput?.(input.session_id, input.input_id),
@@ -146,7 +154,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     if (runtime.background) this.background = runtime.background;
     if (runtime.schedule) this.schedule = runtime.schedule;
     if (runtime.memory) this.memory = runtime.memory;
-    if (runtime.subagents) this.subagents = guardedSubagents(runtime.subagents, run => this.read(run));
+    if (runtime.subagents) this.subagents = guardedSubagents(runtime.subagents, run => this.read(run), this.#store);
     if (runtime.recovery) this.recovery = guardedRecovery(this.#store, runtime, runtime.recovery);
     if (runtime.checkpoints) this.checkpoints = guardedCheckpoints(this.#store, runtime.checkpoints);
     this.mcpLibrary = runtime.mcpLibrary;
@@ -231,6 +239,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   async start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle> {
     request = { ...request, budget: parseAgentRunBudget(request.budget),
       ...(request.original_input ? { original_input: structuredClone(request.original_input) } : {}),
+      ...(request.resume_answer ? { resume_answer: structuredClone(request.resume_answer) } : {}),
       ...(request.continued_from ? { continued_from: structuredClone(request.continued_from) } : {}) };
     request = { ...request, execution_plan: freezeExecutionPlan(request), text_materials: structuredClone(request.text_materials ?? []) };
     const session = await this.#store.loadSession(request.session.session_id);
@@ -245,8 +254,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     }
     // Business work: no directory, the Host's frozen actions and root-free tools only; nothing file- or child-shaped.
     if (request.workspace === "business" && (!this.descriptor.supports_workspace_business || request.role?.workspace !== "business" || request.directory !== undefined
-      || !["read-only", "operate"].includes(request.role.execution) || request.role.host_tools.some(tool => !(BUSINESS_HOST_TOOLS as readonly string[]).includes(tool))
-      || request.role.subagents?.length || request.role.subagent_workspaces?.length || request.mcp_tools?.length || request.mcp_sources?.length
+      || !["read-only", "operate"].includes(request.role.execution) || request.role.host_tools.some(tool => !([...BUSINESS_HOST_TOOLS, ...(request.role?.subagents?.length ? BUSINESS_SUBAGENT_HOST_TOOLS : [])] as readonly string[]).includes(tool))
+      || request.role.subagent_workspaces?.length || request.mcp_tools?.length || request.mcp_sources?.length
       || request.execution_plan || request.subagent_workspaces?.length)) {
       throw agentErrors.capability_unavailable("业务会话只能使用宿主冻结的业务动作与不碰目录的工具");
     }
@@ -256,6 +265,14 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       throw agentErrors.session_busy("这个会话仍在执行或保存上一轮；可以补充要求，结束后再开新一轮");
     }
     return this.#store.withSessionHeld(request.session.session_id, async () => {
+      if (request.resume_answer) {
+        const expected = request.resume_answer, current = await this.readSession(request.session);
+        if (!expected.run_id || !expected.pending_id || !expected.queued_input_id || current.latest_run?.ref.run_id !== expected.run_id
+          || !isTerminalAgentPhase(current.latest_run.phase) || current.latest_run.phase === "reconcile-required"
+          || !current.queued_inputs?.some(input => input.input_id === expected.queued_input_id && input.key === `answer.${expected.pending_id}`
+            && input.left_by?.run_id === expected.run_id && !input.left_by.applied)) throw agentErrors.input_not_queued("原问题的已接受答案已不在这次执行的队列中");
+        request = { ...request, queued: [expected.queued_input_id] };
+      }
       try { return await startPrologueRun({ runtime: this.#runtime, ports: this.#ports, descriptor: this.descriptor, store: this.#store, read: run => this.read(run) }, request, session, execution); }
       catch (error) {
         // A durable start intent may exist even when no handle was returned.

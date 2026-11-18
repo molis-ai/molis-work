@@ -24,6 +24,8 @@ export type AgentRoleExecution = "read-only" | "text-edit" | "workspace-write" |
  * each under the effect policy, while `read-only` limits it to queries.
  */
 export const BUSINESS_HOST_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"] as const;
+/** Only a business role that explicitly declares children may hold these root-free orchestration tools. */
+export const BUSINESS_SUBAGENT_HOST_TOOLS = ["dispatch-subagent", "await-subagents", "steer-subagent"] as const;
 
 /**
  * Tools a method for business work may name: the capability gateway and the tools that touch no directory. A method a
@@ -276,7 +278,7 @@ export interface AgentManifest {
   ending_review?: AgentEndingReviewDeclaration;
   skills?: AgentSkillDeclaration[];
   mcp?: boolean;
-  /** Absent means Character input is not accepted. Selection always names a fixed Artifact. */
-  characters?: { selection: "optional-exact-artifact"; scope: "project-owner"; role_ids: string[] };
+  /** Absent means a role is not accepted. The caller names a stable choice; the Host pins the version (the person's own roles only). */
+  characters?: { selection: "optional-role"; scope: "owner"; role_ids: string[] };
   subagents?: AgentSubagentsDeclaration;
 }

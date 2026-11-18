@@ -68,10 +68,49 @@ for (const width of [1440, 1024, 390]) test(`RISK-04 RISK-05 RISK-06 risk page $
   const riskId = await evaluate<string>("[...document.querySelectorAll('[data-risk-row]')].find(row => row.textContent.includes('供应商延期')).dataset.riskId");
   await click(`[data-risk-id="${riskId}"]`);
   await waitFor("document.querySelector('[data-rk-act=pop][data-rk-value=status]')");
+  // On a narrow page, let the review read fail and its retry arrive while the person is still writing the note.
+  if (width === 390) await browser.evaluate(`(() => {
+    const original = window.molisWorkUiTransport;
+    let statusChanged = false, read = 0;
+    const hold = () => {
+      let release;
+      const wait = new Promise(resolve => { release = resolve; });
+      return { ready: false, release, wait };
+    };
+    const review = window.heldRiskReview = { failed: hold(), retry: hold() };
+    window.molisWorkUiTransport = (url, init) => {
+      const body = typeof init.body === 'string' && new URL(url).pathname.endsWith('/api/host/plugin-page-actions') ? JSON.parse(init.body) : null;
+      if (body?.reference?.capability_id === 'risk.status.set') statusChanged = true;
+      if (statusChanged && body?.reference?.capability_id === 'risk.review.get') {
+        const first = read++ === 0, result = first ? review.failed : review.retry;
+        if (!first) window.molisWorkUiTransport = original;
+        return Promise.resolve(original?.(url, init) ?? fetch(url, init)).then(async response => {
+          result.ready = true;
+          await result.wait;
+          return first ? new Response(JSON.stringify({ error: 'Review read interrupted' }), { status: 502, headers: { 'content-type': 'application/json' } }) : response;
+        });
+      }
+      return original?.(url, init);
+    };
+  })()`);
   await click('[data-rk-act=pop][data-rk-value=status]');
   await click('[data-rk-act=set-status][data-rk-value=mitigating]');
   await waitFor("document.querySelector('.rk-log')?.textContent.includes('处置中')");
-  await set('form[data-rk-form=note] input[name=note]', "已联系备选供应商");
+  const note = 'form[data-rk-form=note] input[name=note]';
+  if (width === 390) await browser.waitFor("window.heldRiskReview.failed.ready");
+  await set(note, "已联系备选供应商");
+  if (width === 390) {
+    await browser.evaluate("window.heldRiskReview.failed.release()");
+    await waitFor("document.querySelector('[data-rk-act=reload-review]')");
+    assert.equal(await evaluate("document.activeElement?.value"), "已联系备选供应商", "the refusal keeps the note and its focus");
+    await click("[data-rk-act=reload-review]");
+    await browser.waitFor("window.heldRiskReview.retry.ready");
+    assert.equal(await evaluate(`document.querySelector(${JSON.stringify(note)}).value`), "已联系备选供应商", "retrying the review keeps the unsubmitted note");
+    await evaluate(`document.querySelector(${JSON.stringify(note)}).focus(); globalThis.previousReviewSection = document.querySelector('.rk-side > .rk-sec:last-child'); true`);
+    await browser.evaluate("window.heldRiskReview.retry.release()");
+    await waitFor("document.querySelector('.rk-side > .rk-sec:last-child') !== globalThis.previousReviewSection");
+    assert.equal(await evaluate("document.activeElement?.value"), "已联系备选供应商", "the successful retry keeps the note and its focus");
+  }
   await click('form[data-rk-form=note] button[type=submit]');
   await waitFor("document.querySelector('.rk-log')?.textContent.includes('已联系备选供应商')");
   await waitFor("document.querySelector('[data-rk-act=pop][data-rk-value=review], .rk-review, .rk-sec .mw-alert')");

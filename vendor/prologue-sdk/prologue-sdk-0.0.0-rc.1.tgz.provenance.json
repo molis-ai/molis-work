@@ -9,31 +9,31 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "e75820791e862c2605c2ff169720b6189ed9a109",
+    "commit": "64e5aaf444629aa597f028e63cf4090456830637",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
-    "note": "Official main merge commit e75820791e862c2605c2ff169720b6189ed9a109 (PR #127: UI surface detach, original-target/per-call cancellation, per-request stdio response validation and durable effect reconciliation), on top of 02a11ac5a566eab4afe15e5562240fdd11f5c9a4 (PR #126: a continuation claim is given back when the session changes while the App is asked), 0a0dfdfa507f463efdce14611dcbfbf1506ac5d2 (PR #125, review follow-ups to result return), e0625b62e349f49b31d70adcd631e885683c9724 (PR #124, result return), 3825662d16e04f8f1163bb840f2ce1eefc3d6d43 (PR #123 memory import retry and per-scope list cache) and 188d9f6ce33b26905494fc57508d10b8015af857 (PR #122, whose packages/sdk tree equals the previous source 4a4d1d3c); no vendor patch and no dirty files."
+    "note": "Official main PR #135, same tree as independently reviewed 88926b6c. Exact queued child answer and guarded local acceptance. No vendor patch."
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1.tgz",
-    "bytes": 1477940,
-    "sha256": "5701942422e9e5732967580cf502463ab21cc5e44b88bbb6848c841c08e40c47",
-    "integrity": "sha512-84AMh3wHTm2KQTzouAcCiv641XB57ZiAr93l3Ir7bEM6/QGMAWD7SDthQ9K41HMeGSY2CYE8w3SAxubSj607lA=="
+    "bytes": 1488998,
+    "sha256": "4628595426c2a33a285640b245485634ed8f34224320838d8927b5736b741c85",
+    "integrity": "sha512-tAJX2+3+JE/CPSXWVeYCHrV5CbN+uIYv4wqHpeX53LBAKiaKPPkn6xTBYE7QlRGXtut8nsOFCMrtThx8vlteuA=="
   },
   "build": {
-    "node": "24.15.0",
+    "node": "24.14.0",
     "pnpm": "11.9.0",
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Check out main merge commit e75820791e862c2605c2ff169720b6189ed9a109 in two independent directories.",
-      "In each: pnpm install --frozen-lockfile --offline --ignore-scripts (existing store); pnpm build; pnpm -C packages/sdk pack --pack-destination <isolated-directory>.",
-      "The two archives are byte-identical; this file is one of them.",
-      "On the PR head 9b0130a5 (same tree as the merge): tsc -p tsconfig.typecheck.json, node scripts/public-api.mjs, node scripts/quality-ratchet.mjs, node scripts/check-doc-links.mjs, node --test scripts/quality-gates.test.mjs and node scripts/clean-consumer.mjs pass; every non-live SDK test plus the stable live selection and surface detach/target live suites (265+ files) pass. Upstream CI did not run its steps (main fails the same way), so it is not claimed green.",
-      "Molis Work installs this archive through horizontal/agent-host's file: dependency; the lockfile records the same integrity."
+      "Extract git archive 64e5aaf444629aa597f028e63cf4090456830637 into two independent clean directories.",
+      "In each: pnpm install --frozen-lockfile --offline --ignore-scripts; pnpm build; pnpm -C packages/sdk pack --pack-destination <external-directory>.",
+      "Both archives are byte-identical.",
+      "Exact reviewed tree passed local pnpm quality: 268 files, 3453 tests, types/build/API/source ratchet, docs, clean consumer and Rust fmt/clippy.",
+      "Upstream CI run 44153463667 / job 134287749075 did not start steps because of account payment or spending limit."
     ],
-    "packedOn": "2026-11-16",
-    "note": "Built for Batch 39 (user-approved upstream PR #127 merged to molis-prologue main). It replaces the Batch 32 official main build 02a11ac5, recorded in patch-history.json."
+    "packedOn": "2026-11-17",
+    "note": "Batch 59 continues a child with its exact original queued answer and rechecks the directory at actual guarded Node acceptance."
   }
 }

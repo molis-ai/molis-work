@@ -1,3 +1,6 @@
+import type { AssistantSubtaskBinding } from "./assistant-subtasks.js";
+export type { AssistantSubtaskBinding, AssistantSubtaskAnswer, AssistantSubtaskResumeAnswer, AssistantSubtaskReview, AssistantSdkSubtaskReview, AssistantRequestResult } from "./assistant-subtasks.js";
+import type { CharacterRoleVersionRef, PersonalCharacterRef, ProjectCharacterMemberRef } from "../modules/characters.js";
 import type { MaterialRef } from "../platform/project-materials.js";
 import type { SignedAgentReference, SignedAgentInstallation, SkillRef } from "./agent-definitions.js";
 import type { SkillCatalogEntry, SkillPick } from "./skills.js";
@@ -289,8 +292,8 @@ export interface AssistantWork {
   created_at: string;
   updated_at: string;
   archived: boolean;
-  /** The Character the person chose to carry this work's rounds: an exact published version, in force from the next round on.
-   * Absent means the Assistant itself. Only project work can have one (Characters are published per project). */
+  /** The role the person (or a default) chose to carry this work's rounds, as a stable choice in force from the next round on; the Host
+   * pins the version each round runs with. Absent means the Assistant itself. Personal work can have one too (an original). */
   character?: AssistantCharacter;
   /** Set on a work another work delegated: which one, what it was asked to deliver, and (`taken_back_at`) when the person took this part back into it (it stopped; what it made stays). */
   delegated_by?: { work_id: string; title: string; acceptance: string; taken_back_at?: string };
@@ -301,20 +304,18 @@ export interface AssistantWork {
   serves?: Array<{ kind: string; id: string }>; line_event?: true; // On a background task: the events on the work line it is done for (the `serves` relation), and whether it is an event in its own right.
 }
 
-/** An exact published Character version, as the person chose it. */
-export interface AssistantCharacterRef { artifact_id: string; version: number }
-export interface AssistantCharacter extends AssistantCharacterRef { title: string }
-
-/** A Character the person may choose for project work, and whether it can run now (never swapped for another). */
-export interface AssistantCharacterChoice { reference: AssistantCharacterRef; title: string; available: boolean; reason?: string }
+/** A role as the person chose it: one of their originals, or a member of this project. Never a version. */
+export type AssistantCharacterRef = PersonalCharacterRef | ProjectCharacterMemberRef;
+/** The chosen role with its title, and the original it is (a member's original): its memories are keyed by it, per project. */
+export interface AssistantCharacter { ref: AssistantCharacterRef; title: string; character_id: string }
 
 /** One round the person started, with the run's own facts. */
 export interface AssistantRound {
   run_id: string;
   /** Who ran it: the Assistant, or the plugin's Agent the work was handed to. */
   executor?: "assistant" | "plugin";
-  /** The Character that really carried this round, frozen at its start; absent when the Assistant itself did. */
-  character?: AssistantCharacter;
+  /** The role that really carried this round, with the version frozen at its start when the runtime still has the run; absent when the Assistant itself did. */
+  character?: AssistantCharacter & { version?: CharacterRoleVersionRef };
   /** What the person sent this round. */
   text: string;
   /** Set when the Host wrote `text`, not the person: a timed round, or the round a work goes on in when its sub-tasks came back. */
@@ -442,6 +443,8 @@ export interface AssistantRelatedWork {
 }
 
 export interface AssistantWorkView {
+  /** Original SDK dispatches, separate from delegated Works; read failure is never an empty child list. */
+  sdk_subtasks?: { children: import("./agent-host.js").AgentSubagentView[] } | { error: string };
   work: AssistantWork;
   rounds: AssistantRound[];
   reviews: AssistantPendingReview[];
@@ -480,6 +483,8 @@ export interface AssistantWorkView {
 export type { AssistantRecovery } from "./assistant-recovery.js";
 
 export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
+  /** The child conversation never silently redirects to a newer execution or starts from a plain supplement. */
+  subtask?: { binding: AssistantSubtaskBinding; operation: "send" | "continue" };
   /** Omitted starts a new work. */
   work_id?: string;
   main?: true; for_event?: { kind: string; id: string }; // `main`, without `work_id`: the main conversation of this scope with this counterpart (`character`, or the Assistant), opened on first use. `for_event`, for a new work said in an event's tab: the event on the person's work line it is done for (the Host reads the line as the person).
@@ -489,7 +494,7 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   mode?: string;
   /** For a new work carried by a plugin: continue this existing session (the one open on the plugin's page) instead of a new one. */
   executor_session_id?: string;
-  /** The Character to carry this and later rounds (null: the Assistant itself); omitted keeps the work's choice. */
+  /** The role to carry this and later rounds (null: the Assistant itself); omitted keeps the work's choice (a new work takes the effective default). */
   character?: AssistantCharacterRef | null;
   /** Required for a new work; ignored for an existing one, whose scope never changes. */
   scope?: AssistantScope;
@@ -527,6 +532,8 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
 
 /** What one Send did: started a round, reached a running one, waits for the next (its round had just ended), or answered its question. */
 export interface AssistantSendResult {
+  /** An explicit original-question request; absent on historical Send outcomes, including Send's own `answered`. */
+  question_request?: { operation: "answer" | "resume-answer"; binding: AssistantSubtaskBinding; pending_id: string; fingerprint: string };
   /** The content attempt that won request_id, when the caller supplied one; replays and read-only checks preserve it. */
   submission_id?: string;
   work: AssistantWork;
@@ -545,11 +552,11 @@ export interface AssistantHandover {
 }
 
 /** What the page asks of a work's latest round: pause, resume or stop it, or take back a supplement no model has seen (§4.3). */
-export type AssistantControl =
+export type AssistantControl = (
   | { kind: "pause" }
   | { kind: "resume" }
   | { kind: "stop"; keep_connections?: boolean }
-  | { kind: "withdraw"; run_id: string; input_id: string };
+  | { kind: "withdraw"; run_id: string; input_id: string }) & { subtask?: AssistantSubtaskBinding; request_id?: string };
 
 /** What one provider contributes for the Assistant (read from the action directory), and the gaps that limit it. */
 export interface AssistantContribution {
@@ -744,7 +751,7 @@ export interface AssistantRoundDiagnostics {
     model_id: string;
     role: { id: string; version: number };
     execution: string;
-    character: { artifact_id: string; version: number; title: string } | null;
+    character: { version: CharacterRoleVersionRef; title: string } | null;
     prompts: Array<{ prompt_id: string; version: number; layer: string; user_revision?: number }>;
     history?: "digest";
     thinking?: "adaptive";

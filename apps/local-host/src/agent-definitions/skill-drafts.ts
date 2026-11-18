@@ -53,9 +53,6 @@ export interface SkillLineage {
   seen_version: number;
 }
 
-/** Replays kept per draft: the latest is what adopting checks; a few before it are kept for nothing else, so they go. */
-const TRIALS_KEPT = 5;
-/** Whose known answers these are: a draft's, or an adopted Skill's (kept with it for the next draft of it). */
 /** The known answers with no replay on this revision: adopting waits for each (S-skill-authoring). */
 export const untriedCases = (cases: readonly { case_id: string }[], trials: readonly { case_id: string }[]) =>
   cases.filter(item => !trials.some(trial => trial.case_id === item.case_id)).map(item => item.case_id);
@@ -84,11 +81,13 @@ export class SkillDraftStore {
     return row && draftOf(row);
   }
 
-  /** The open drafts of these scopes, newest change first. */
-  drafts(scopeRefs: readonly string[]): StoredSkillDraft[] {
+  /** The open drafts of these scopes, newest change first; `includeDiscarded` adds those still inside the 7-day keeping window. */
+  drafts(scopeRefs: readonly string[], includeDiscarded = false): StoredSkillDraft[] {
     if (!scopeRefs.length) return [];
-    return (this.db.prepare(`SELECT * FROM skill_drafts WHERE discarded_at IS NULL AND scope_ref IN (${scopeRefs.map(() => "?").join(",")}) ORDER BY updated_at DESC`)
-      .all(...scopeRefs) as Row[]).map(draftOf);
+    const where = includeDiscarded ? "(discarded_at IS NULL OR discarded_at >= ?)" : "discarded_at IS NULL";
+    const args = includeDiscarded ? [this.keptSince(), ...scopeRefs] : [...scopeRefs];
+    return (this.db.prepare(`SELECT * FROM skill_drafts WHERE ${where} AND scope_ref IN (${scopeRefs.map(() => "?").join(",")}) ORDER BY updated_at DESC`)
+      .all(...args) as Row[]).map(draftOf);
   }
 
   /** A new draft at revision 1, with its known answers (copied from an adopted Skill's, or the one given). */
@@ -191,11 +190,13 @@ export class SkillDraftStore {
       if (!current || current.discarded_at) return "missing";
       if (current.revision !== trial.draft_revision) return "conflict";
       if (!this.cases(draftCases(draftId)).some(item => item.case_id === trial.case_id)) return "missing";
+      // One replay per known answer on the current revision: a re-run replaces the answer's earlier result, and a revision that
+      // moved on leaves nothing for the adoption gate to mistake for its own. Keeping only a fixed count could push another
+      // answer's replay out and make it `untried` again.
+      this.db.prepare("DELETE FROM skill_trials WHERE draft_id = ? AND (draft_revision <> ? OR case_id = ?)").run(draftId, trial.draft_revision, trial.case_id);
       const trialId = `trial-${randomUUID()}`;
       this.db.prepare("INSERT INTO skill_trials(trial_id,draft_id,draft_revision,case_id,cells,verdict,ran_at,actor_id) VALUES (?,?,?,?,?,?,?,?)")
         .run(trialId, draftId, trial.draft_revision, trial.case_id, JSON.stringify(trial.cells), trial.verdict, trial.ran_at, actorId);
-      this.db.prepare("DELETE FROM skill_trials WHERE draft_id = ? AND trial_id NOT IN (SELECT trial_id FROM skill_trials WHERE draft_id = ? ORDER BY ran_at DESC, rowid DESC LIMIT ?)")
-        .run(draftId, draftId, TRIALS_KEPT);
       return { trial_id: trialId, ...trial };
     });
   }

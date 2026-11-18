@@ -3,6 +3,7 @@ import { agentBodyIn } from "@molis-ai/molis-work-contracts/platform/model-promp
 export {readSavedAgentHistory,savedAgentHistoryView,type PrologueSavedHistoryPort,type SavedHistoryOwner} from './adapters/prologue-saved-history.js';
 import { trustedOriginalInput } from "./original-inputs.js";
 import { attachedImages } from "./run-images.js";
+import { subagentExecution } from "./subagent-authority.js";
 import { agentErrors } from "./errors.js";
 import { parseAgentRunBudget } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { parseExactActionReferences, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -28,7 +29,7 @@ import type {
   AgentSkillOwner,
   AgentFrozenCharacter,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { CharacterRoleVersionRef, PersonalCharacterRef, ProjectCharacterMemberRef } from "@molis-ai/molis-work-contracts/modules/characters";
 
 import { AgentReviewQueue } from "./reviews.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "./execution-plan.js";
@@ -69,6 +70,8 @@ export {
 } from "./model-configuration.js";
 export { fetchModelList, listProviderModels, modelListErrors, modelListRequest, readModelList, type ListedModel, type ModelListSend } from "./model-list.js";
 export { registerAgentHostCapabilities } from "./capability-registration.js";
+export { subagentExecution } from "./subagent-authority.js";
+export { waitForSubagentChange } from "./subagent-wait.js";
 export { runViewVersion } from "./run-wait.js";
 export { actionDigest } from "./action-digest.js";
 export { ReviewDecisionStore, reviewProposalVersion, reviewDecisionKey, type ReviewDecisionControl, type ReviewDecisionStorage, type ReviewDecisionSave, type StoredReviewDecision } from "./review-decisions.js";
@@ -193,8 +196,10 @@ export interface AgentStartAuthority {
    */
   actions?(runtimeId: string, validate?: () => void | Promise<void>, session?: AgentSessionRef, skillRound?: ActionSkillRound,
     memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory | null): Promise<AgentActionClient>;
-  /** Host-bound source resolver; browser/plugin-supplied bodies are never authority. */
-  resolveCharacter?(reference: ArtifactReference, actorId: string): AgentFrozenCharacter;
+  /** Host-bound: the role a new choice gets now (Characters refuses one turned off); browser/plugin-supplied bodies are never authority. */
+  resolveCharacter?(choice: PersonalCharacterRef | ProjectCharacterMemberRef, actorId: string): AgentFrozenCharacter;
+  /** Host-bound: a fixed version as it was saved, or a throw when it can no longer be read (member removed, original deleted). */
+  characterVersion?(version: CharacterRoleVersionRef, actorId: string): AgentFrozenCharacter;
   /** The Plugin's own Agent block. A role outside it can never start. */
   manifest: AgentManifest;
   /**
@@ -250,7 +255,7 @@ export interface AgentStartAuthority {
    * The platform memory for this run, recalled by the Host for this consumer (the switches and scopes are the Host's).
    * Absent or null: the run is given no memory.
    */
-  memory?(task: string, context?: { character?: { artifact_id: string; title: string } }): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory | null>;
+  memory?(task: string, context?: { character?: { character_id: string; title: string } }): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory | null>;
 }
 
 /**
@@ -395,7 +400,7 @@ export class AgentHost implements AgentHostApi {
     checkStartSession(session, request, runtimeId, workspace);
     const delegation = authority.delegation ?? (workspace === "required" && authority.sessionInstallation && this.workDelegations(runtimeId)
       ? sessionDelegation(session.owner, session.session, role.role_id, authority.sessionInstallation.generation) : undefined);
-    const { character, hostTools } = selectStartCharacter(role, request, authority);
+    const { character, hostTools } = selectStartCharacter(role, request, authority, session.latest_run?.frozen.character);
     const { validateCharacter, assertBeforeStart, beforeStart, beforeDispatch, assertBeforeDispatch } = startGuards(authority, character, request);
     if (request.execution_plan && STEP_TOOLS.some(tool => !hostTools.includes(tool))) {
       throw agentErrors.role_execution_exceeded("当前角色未开放计划回报工具，请调整角色或取消角色选择后执行计划");
@@ -412,7 +417,7 @@ export class AgentHost implements AgentHostApi {
     const actionRefs = parseExactActionReferences(request.action_tools ?? []);
     if (request.action_gateway && actionRefs.length) throw agentErrors.capability_unavailable("能力网关与逐项能力不能同时使用");
     assertMaySuggest(hostTools, execution);
-    const memory = authority.memory ? await authority.memory(request.task, character ? { character: { artifact_id: character.reference.artifact_id, title: character.title } } : {}).catch(() => null) : null;
+    const memory = authority.memory ? await authority.memory(request.task, character ? { character: { character_id: character.character_id, title: character.title } } : {}).catch(() => null) : null;
     // What the round's own tool calls to `system.skills` read as: the frozen consumer and named list (§2.3). Only the Host's calls carry it,
     // and only where the composition asks for `system.skills`; a tool call into any other plugin's action never does (§2.6, S-skill-delegation).
     const skillRound: ActionSkillRound = { consumer: workspace === "required" ? "coding" : "agent", named: structuredClone(authority.skillCatalog?.named ?? []),
@@ -459,8 +464,11 @@ export class AgentHost implements AgentHostApi {
         ...(compaction ? { compaction } : {}), ...(endingReview ? { ending_review: { prompt: endingReview } } : {}),
         host_tools: hostTools,
       },
-    }, { beforeStart, assertBeforeStart, beforeDispatch, assertBeforeDispatch, disposeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}), ...(images.length ? { images } : {}),
-      ...(delegation ? { delegation: structuredClone(delegation) } : {}) });
+    }, { beforeStart, assertBeforeStart, beforeDispatch, assertBeforeDispatch, disposeDispatch,
+      ...(workspace === "business" && subagents?.length ? { subagentGateway: subagentExecution(authority, runtimeId,
+        { role_id: role.role_id, role_version: role.version, execution, host_tools: hostTools, character }, request).subagentGateway } : {}),
+      ...(delegation ? { delegation: structuredClone(delegation) } : {}),
+      ...(authority.call_id ? { call_id: authority.call_id } : {}), ...(images.length ? { images } : {}) });
     if (widensFrozen(handle, { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills, replyLocale: authority.reply_language?.locale })) {
       await adapter.control(handle.ref, { kind: "cancel" });
       throw agentErrors.role_execution_exceeded(`Runtime 返回的角色权限与 Manifest 冻结的不一致，已取消该 Run`);

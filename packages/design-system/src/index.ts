@@ -43,6 +43,7 @@ export { NUMBER_STYLES } from "./styles/numbers.js";
 export { COPY_FEEDBACK_STYLES } from "./styles/copy-feedback.js";
 export { SR_ONLY_STYLES } from "./styles/sr-only.js";
 export { KEEP_EDITS_STYLES } from "./styles/keep-edits.js";
+export { SOURCE_LADDER_STYLES } from "./styles/source-ladder.js";
 export { SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES } from "./select-menu-client.js";
 export { renderFilePreviewHtml, FILE_PREVIEW_STYLES, FILE_PREVIEW_CLIENT_SCRIPT, type FilePreviewContent } from "./file-preview.js";
 export { ARRIVAL_MOTION_CLIENT_SCRIPT } from "./arrival-motion-client.js";

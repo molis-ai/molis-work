@@ -14,6 +14,15 @@ import {
 
 const AT = "2026-09-19T00:00:00.000Z";
 
+test("SAI-03/07: peer results remain notices while person input remains a user message", () => {
+  const state = emptyPrologueStreamState();
+  apply(state, { type: "prompt", role: "user", source: "peer", text: "Child result and original reference." },
+    { type: "prompt", role: "user", source: "person", text: "My supplement.", steerId: "person-input" });
+  assert.deepEqual(state.turns.map(turn => [turn.kind, turn.text]), [["notice", "Child result and original reference."], ["user", "My supplement."]]);
+  apply(state, { type: "prompt", role: "user", source: "peer", text: "", notice: "subagent-input" });
+  assert.deepEqual([state.turns.at(-1)?.kind, state.turns.at(-1)?.text, state.turns.at(-1)?.notice], ["notice", "", "subagent-input"]);
+});
+
 test("supplements retain user wording and distinguish receipt, context inclusion and the end of the round before a read", () => {
   const state = emptyPrologueStreamState();
   apply(state, { type: "prompt", role: "user", text: "保留测试", steerId: "steer-1" },

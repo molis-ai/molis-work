@@ -32,6 +32,7 @@ function scan(fixture: TestHome, project: TestProject): Promise<AutomationReport
   });
 }
 
+// AUT-03, AUT-04 and AUT-05 are proven by the gap, de-duplication and availability cases in this file.
 test("AUT-01–05: cold project uses its authorized folder, a bounded parser and a read-only action", { timeout: 40_000 }, async t => {
   const fixture = await openTestHome(t);
   const project = await fixture.createProject("Report project");
@@ -112,6 +113,8 @@ test("AUT-01/05: a directory removed during its original read cannot produce or 
   assert.deepEqual(persisted.documents, []);
 });
 
+// AUT-02 through AUT-07 are cited individually in this file; the range in the name is only a summary.
+// AUT-02, AUT-03, AUT-04, AUT-05, AUT-06 and AUT-07 are cited individually here; the range is a summary.
 test("AUT-02–07: only actual Skill matches, setting state stays with the Skill owner, and Pages saves once", { timeout: 70_000 }, async t => {
   const fixture = await openTestHome(t);
   const project = await fixture.createProject("Recommendations with a signed Skill", ["pages"]);

@@ -14,7 +14,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 import { CODING_COMPOSER, CODING_OPEN, codingAdd, codingType } from "./fixtures/coding-composer.js";
 
-test("Character and Coding discover authorized unknown actions, preserve exact selections and explain withdrawn providers", { timeout: 120_000 }, async t => {
+test("Character and Coding discover authorized unknown actions, preserve exact selections and explain withdrawn providers", { timeout: 180_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
   const { localHost, projectId, homeDirectory, command, sessionId } = b;
   const child = await pluginFrameBrowser(t,b,"coding");
@@ -48,8 +48,13 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   // Characters' page is Settings › 角色 (specs/archive/page-interaction-flow); other plugins open from the switcher.
   const open = async (id: string) => {
     active = b;
-    if (id === "characters") { await click('[data-directory-open="settings"]'); await click('[data-directory-panel=settings] [data-settings-section="characters"]'); }
-    else await click(`[data-plugin-id="${id}"][data-work-surface-open]`);
+    if (id === "characters") {
+      // Settings › 角色 is a settings panel, not a work surface: it is open once the panel shows.
+      await click('[data-directory-open="settings"]'); await click('[data-directory-panel=settings] [data-settings-section="characters"]');
+      await waitFor("Boolean(document.querySelector('[data-work-surface=settings] [data-settings-panel=characters]')?.getClientRects().length)");
+      return;
+    }
+    await click(`[data-plugin-id="${id}"][data-work-surface-open]`);
     await waitFor(`!document.querySelector('[data-work-surface="${id}"]').hidden`);
     if (id === "coding") active = child;
   };
@@ -58,19 +63,26 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${projectId}/` }, sessionId));
   // The list buttons are enabled once the page script has read the list; a click before that would do nothing.
-  await open("characters"); await waitFor("!document.querySelector('[data-character-new]').disabled"); await click('[data-character-new]');
-  await waitFor("!document.querySelector('[data-character-workspace]').hidden && !document.querySelector('[data-character-title]').disabled");
+  // Plan C: a new role is written in the drawer and saved as its first version; there is no separate publish step. Written from
+  // 项目设置 › 角色 it also joins this project, and the actions it can be limited to are this project's (where the plugin runs).
+  const drawerOpen = "document.querySelector('[data-character-drawer]')?.open && !document.querySelector('[data-character-title]').disabled";
+  const savedNow = "document.querySelector('[data-character-drawer]')?.open && !document.querySelector('[data-roles-drawer=save]')";
+  const projectRoles = "[data-characters][data-character-scope=project]";
+  await b.navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${projectId}/settings/characters` }, sessionId));
+  await waitFor(`Boolean(document.querySelector('${projectRoles} [data-roles-act="add"]'))`, 60_000);
+  await click(`${projectRoles} [data-roles-act="add"]`); await click(`${projectRoles} [data-roles-act="open"][data-roles-arg="new"]`); await waitFor(drawerOpen);
   await fill('[data-character-title]', "仅查询笔记"); await fill('[data-character-instructions]', "只依据实际读取结果回答。");
   await click('[data-character-actions-inherit]');
   await waitFor("document.querySelector('[data-character-actions-list]').textContent.includes('读取校验笔记')");
-  await choose('[data-character-actions-list] label', "读取校验笔记"); await click('[data-character-save]');
-  await waitFor("document.querySelector('[data-character-notice]').textContent.includes('草稿已保存')");
+  await choose('[data-character-actions-list] label', "读取校验笔记");
+  await evaluate("document.querySelector('[data-character-actions-field]').scrollIntoView({block:'center'})"); await capture("character-desktop");
+  await click('[data-roles-drawer="save"]'); await waitFor(savedNow);
   const personal = openCharacters(homeDirectory, "web-user"); t.after(() => personal.close());
   let draft = personal.service.list().find(row => row.title === "仅查询笔记")!; assert.ok(draft); assert.deepEqual(draft.action_tools, [ref]);
-  await click('[data-character-preview]'); await waitFor("document.querySelector('[data-character-dialog]').open");
-  assert.ok(await evaluate("document.querySelector('[data-character-dialog-content]').textContent.includes('读取校验笔记')"));
-  await click('[data-character-confirm]'); await waitFor("document.querySelector('[data-character-notice]').textContent.includes('已发布')");
-  await evaluate("document.querySelector('[data-character-actions-field]').scrollIntoView({block:'center'})"); await capture("character-desktop");
+  assert.equal(personal.service.roles.latestVersion(draft.character_id)?.version, 1);
+  assert.equal(await evaluate(`document.querySelectorAll('${projectRoles} [data-roles-act="open"][data-roles-arg^="member:"]').length`), 1, "saved here, the role joined this project");
+  await click('[data-roles-drawer="close"]');
+  // Coding offers this project's roles, so the role just written here is one of its choices.
   await open("coding"); await click('[data-coding-workbench] [data-coding-new]');
   // The box is the workbench bar's (one input), taken by the session on show.
   await b.waitFor(`${CODING_OPEN}`); await b.evaluate(codingType("保留这段任务草稿"));
@@ -99,15 +111,15 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   assert.deepEqual((await evaluate<any>(`fetch(${JSON.stringify(sessionPath)}).then(response=>response.json())`)).action_tools, [ref]);
   // At phone width the rail folds away; the rest of the check is on the desktop layout again.
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  // The original is edited where originals live, Settings › 角色. Its first read opens the personal space: allow for its cold start.
   await open("characters");
-  // Characters reads its records once its page opens (#150 loads the client then), so the list fills in a moment later.
-  await waitFor(`Boolean(document.querySelector('[data-character-id="${draft.character_id}"]'))`, 10_000);
-  await click(`[data-character-id="${draft.character_id}"]`);
-  await waitFor("!document.querySelector('[data-character-workspace]').hidden");
-  await fill('[data-character-title]', "保留失效能力的角色"); await click('[data-character-save]');
-  await waitFor("document.querySelector('[data-character-notice]').textContent.includes('草稿已保存')");
-  draft = personal.service.get(draft.character_id)!; assert.deepEqual(draft.action_tools, [ref]);
-  await click('[data-character-preview]'); await waitFor("document.querySelector('[data-character-dialog]').open"); await click('[data-character-confirm]');
-  await waitFor("document.querySelector('[data-character-notice]').textContent.includes('不可用')");
-  assert.equal(await evaluate("document.querySelector('[data-character-dialog]').open"), true, "failed publication keeps its exact preview and draft");
+  const adjust = `[data-characters] [data-roles-act="open"][data-roles-arg="original:${draft.character_id}"]`;
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(adjust)}))`, 60_000);
+  await click(adjust); await waitFor(drawerOpen);
+  // Saving is a new version that runs: with its chosen action withdrawn, the save is refused and the person's edit stays in the drawer.
+  await fill('[data-character-title]', "保留失效能力的角色"); await click('[data-roles-drawer="save"]');
+  await waitFor("[...document.querySelectorAll('[data-character-drawer-notices], [data-character-notice]')].some(node => node.textContent.includes('不可用'))");
+  assert.equal(await evaluate("document.querySelector('[data-character-title]').value"), "保留失效能力的角色", "a refused save keeps the edit");
+  draft = personal.service.get(draft.character_id)!; assert.deepEqual([draft.title, draft.action_tools], ["仅查询笔记", [ref]]);
+  assert.equal(personal.service.roles.latestVersion(draft.character_id)?.version, 1, "no version is saved over a withdrawn action");
 });

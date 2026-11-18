@@ -123,12 +123,12 @@ export class WorkExecutor {
    * A new round with the session's own settings, or the executor's defaults: it refuses in its own words when it cannot. The Skills go
    * by their exact references; whether a `manual` one was named is what the Host bound to this call, not this input (§2.3).
    */
-  async start(sessionId: string, task: string, skills: readonly SkillRef[] = []): Promise<string> {
-    return (await this.call("run.start", { session_id: sessionId, task, ...(skills.length ? { skills: [...skills] } : {}) })).run_id;
+  async start(sessionId: string, task: string, skills: readonly SkillRef[] = [], resumeAnswer?: WorkExecutorCalls["run.start"]["input"]["resume_answer"]): Promise<string> {
+    return (await this.call("run.start", { session_id: sessionId, task, ...(skills.length ? { skills: [...skills] } : {}), ...(resumeAnswer ? { resume_answer: resumeAnswer } : {}) })).run_id;
   }
 
-  async control(sessionId: string, runId: string, control: ExecutorRunControl): Promise<void> {
-    await this.call("run.control", { session_id: sessionId, run_id: runId, ...control } as WorkExecutorRunControl);
+  async control(sessionId: string, runId: string, control: ExecutorRunControl): Promise<WorkExecutorCalls["run.control"]["output"]> {
+    return this.call("run.control", { session_id: sessionId, run_id: runId, ...control } as WorkExecutorRunControl);
   }
 
   /** A supplement through the executor's own control; its receipt says whether the round took it or it waits for the next one. */

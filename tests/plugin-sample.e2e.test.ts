@@ -95,14 +95,48 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     `], { cwd: project, encoding: "utf8" });
     assert.equal(childView.status, 0, childView.stderr);
     assert.deepEqual(JSON.parse(childView.stdout), { controller: "function", escaped: true, raw: false });
+    // SAI-04/06/10/15: the actual packed source retains original requests and CAS drafts across a clean consumer remount.
+    const childSource = spawnSync(process.execPath, ["--input-type=module", "-e", `
+      import assert from "node:assert/strict";
+      import { createAgentSubtaskSource } from "@molis-ai/molis-work-plugin-sdk/subtask-conversation";
+      const storage=new Map(), signal=new AbortController().signal;
+      const original={session_id:"child-session",run_id:"child-run"};
+      let sent=0, accepted=false, last;
+      const ports={labels:{},text:key=>key,drafts:{
+        read:async key=>storage.get(key)??null,write:async(key,value)=>value===null?storage.delete(key):storage.set(key,value),
+        compareAndSwap:async(key,expected,value)=>{if((storage.get(key)??null)!==expected)return false;if(value===null)storage.delete(key);else storage.set(key,value);return true;}
+      },read:async target=>({parent:{target:"parent",title:"Parent"},conversation:{child:{subagent_id:target,parent_run:{session_id:"parent",run_id:"parent-run"},child_run:original,role_id:"reader",role_version:1,execution:"read-only",task:"Read",state:"completed",result:"Original result",workspace_path:null},phase:"completed",messages:[],questions:[],approvals:[]}}),
+      command:async(target,input)=>{sent++;last=input;throw new Error("transport lost");},
+      check:async(target,id)=>accepted&&id===last.request_id?{state:"applied",run:original}:{state:"unknown"}};
+      const view=async source=>{const result=await source.read("child",signal);assert.equal(result.state,"available");return result.view;};
+      const source=createAgentSubtaskSource(ports), first=await view(source), composer=source.composer(first);
+      await composer.draft.adapter.write("original personal words");
+      await composer.submit({text:"original personal words",materials:[],controls:{},request_id:"request-one"},signal);
+      assert.deepEqual(last.child_run,original);assert.equal(last.text,"original personal words");
+      const restored=createAgentSubtaskSource(ports), pending=await view(restored);
+      assert.equal(pending.pending.requestId,"request-one");
+      await restored.composer(pending).draft.adapter.write("new draft in another page");
+      accepted=true;assert.equal((await restored.check("child","request-one",signal)).state,"applied");
+      const after=await view(createAgentSubtaskSource(ports));assert.equal(after.pending,undefined);
+      assert.equal(await restored.composer(after).draft.adapter.read(signal),"new draft in another page");
+      assert.equal(sent,1);
+      const answer=await restored.act(after,{id:"answer",label:"Answer",ref:JSON.stringify({pending_id:"original-question",pending_revision:3,answers:[{question:0,value:45}]})},"answer-one",signal);
+      assert.equal(answer.state,"applied");assert.equal(last.pending_id,"original-question");assert.equal(last.pending_revision,3);
+      assert.deepEqual(last.child_run,original);assert.equal(sent,2);
+      console.log("packed child source recovered original requests and kept the newer draft");
+    `], { cwd: project, encoding: "utf8" });
+    assert.equal(childSource.status, 0, childSource.stdout + childSource.stderr);
     // B58-01: a typed author's import must resolve the packed declaration, not workspace source or an untyped JS fallback.
     const authorTypes = join(project, "author-types.mts");
     writeFileSync(authorTypes, `
-      import { createSubtaskConversation, type SubtaskConversationSource, type SubtaskConversationHandle } from "@molis-ai/molis-work-plugin-sdk/subtask-conversation";
+      import { createAgentSubtaskSource, createSubtaskConversation, type AgentSubtaskSourcePorts, type SubtaskConversationSource, type SubtaskConversationHandle } from "@molis-ai/molis-work-plugin-sdk/subtask-conversation";
       import type { MwSubtaskConversationLabels } from "@molis-ai/molis-work-plugin-sdk/ui";
       declare const root: HTMLElement, source: SubtaskConversationSource, labels: MwSubtaskConversationLabels;
       const conversation: SubtaskConversationHandle = createSubtaskConversation(root, { source, labels, onBack() {}, onClose() {} });
       void conversation.open("child");
+      declare const ports: AgentSubtaskSourcePorts;
+      const original: SubtaskConversationSource = createAgentSubtaskSource(ports);
+      void original.read("child", new AbortController().signal);
     `);
     const typedAuthor = spawnSync(process.execPath, [fileURLToPath(import.meta.resolve("typescript/lib/tsc.js")), "--noEmit", "--strict", "--skipLibCheck", "--module", "NodeNext", "--target", "ES2022", authorTypes], { cwd: project, encoding: "utf8" });
     assert.equal(typedAuthor.status, 0, typedAuthor.stdout + typedAuthor.stderr);

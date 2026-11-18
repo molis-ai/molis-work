@@ -12,6 +12,7 @@ export * from "./ui/state-ring.js";
 export * from "./ui/plugin-stage-shell.js";
 export * from "./ui/button.js";
 export * from "./ui/feedback.js";
+export * from "./ui/source-ladder.js";
 export { renderMenu, renderMenuItem, renderPopover, renderPreviewCard, renderSheet } from "./ui/overlay.js";
 export { presentationOwnerHue, renderPresentationForm, type PresentationFormValues } from "./ui/presentation-form.js";
 export * from "./ui/return-trip.js";

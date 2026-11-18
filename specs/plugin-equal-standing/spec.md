@@ -1,6 +1,6 @@
 # 插件同等地位收口：Goals 减负与去特权（Plugin Equal Standing）
 
-状态：需求已整理，用户 2026-11-13 已就第 6 节 D1～D10 与 D6b 全部拍板（D9 取代 D4）；排期定为独立一批（D10）：即路线书[第 44 批](../post-anticorruption-roadmap/reference/batches/44.md)，原 44～89 已顺延为 45～90；片 3 并进第 39 批、片 4 并进第 41 批；片 4 已随第 41 批 #2078 完成（规划方法变技能、Goals 去 Home 半实例），其余片尚未实现（2026-11-13）。本文盘点取自 main `6f6ac8d060`，行号以该提交为准。
+状态：需求已整理，用户 2026-11-13 已就第 6 节 D1～D10 与 D6b 全部拍板（D9 取代 D4）；排期定为独立一批（D10）：即路线书[第 44 批](../post-anticorruption-roadmap/reference/batches/44.md)，原 44～89 已顺延为 45～90；片 3 并进第 39 批、片 4 并进第 41 批；片 3 已随第 39 批 #2105 完成（平台可信决定与项目审批规则、受保护通用入口、Goals 改消费方），片 4 已随第 41 批 #2078 完成（规划方法变技能、Goals 去 Home 半实例）；其余片（1、2、5～10）仍按第 44 批推进。本文盘点取自 main `6f6ac8d060`，行号以该提交为准；9a.5 节的补充取自 main `dbcf562a67`。
 
 需求维护：Claude（本会话）；实现：待分配。类型：底层与架构（主）、横向能力、产品线（Goals、Feed、Coding、Inbox、Todo、Pages、灵光、Images）。决策标记：**直接做**（D1～D10、D6b 已定，见第 6 节）。
 
@@ -70,7 +70,7 @@
 | # | 事实 | 现在在哪 | 谁依赖它 |
 | --- | --- | --- | --- |
 | G1 | **项目指导**：每次 Agent Run、助理回合的项目层提示词 | Goals 的 guidance 动作；宿主 `goal-callers.ts` 的 `readProjectGuidance` 经 `goals.guidance.read` 读 | `agent-host-composition.ts:388`、`assistant/assistant-authority.ts:167`、`mcp-context-tools.ts:15`；项目没有 Goals 就没有项目指导 |
-| G2 | **可信用户决定、项目审批规则、策略绑定**（原 Governance Module，S9-3 并入） | `plugins/native/goals/src/governance/`、`contract/governance-collaboration.ts` | MCP 只为 Goals 开受保护的管理入口 `initialize`、`event_decide`、`goal_tree_decide`（`apps/mcp/src/tool-dispatch.ts:5`、`goal-tools.ts`）；设置页 rules 节；页面视图的 `policy_bindings`（`apps/workbench/src/page-view.ts:53`） |
+| G2 | **可信用户决定、项目审批规则、策略绑定**（原 Governance Module，S9-3 并入） | `plugins/native/goals/src/governance/`、`contract/governance-collaboration.ts` | MCP 的管理入口是 `initialize` 与平台通用的 `review_request`／`review_decide`；旧的 Goals 专用 `event_decide`／`goal_tree_decide` 已在第 39 批删除。设置页 rules 节；页面视图的 `policy_bindings` 读取平台规则投影（第 39 批后不再有 Goals 私有表） |
 | G3 | **规划方法库**：37 个方法、个人副本、项目>个人>内置的取用顺序 | `plugins/native/goals/methods/`；Goals 的 Home 半实例 `home-plugin.ts`（`dual_instance`） | 设置页 planning 节、规划页（`web-planning.ts`）。**第 41 批已删**（2026-11-14）：方法是随系统自带的技能包，Goals 不读、不存、不采用，Home 半实例与规划页都没有了 |
 | G4 | **逐项依据与验收**：要求的认可、完成批准、证据档位 | Goals（第 24-3 批、[决定 25、35](../post-anticorruption-roadmap/reference/decisions.md)） | 第 66-3 批「Goals 依据三档与同一验收卡」、第 27-4 批 Goals 余项还要继续加；第 32-2 批助理后台任务的逐项认可原本也要用它 |
 | G5 | **工作终端与推进提示**：按 Goal 开、列、关工作终端，生成「推进这个 Goal」的提示 | Goals 的 `terminal-actions.ts`、路由 `/goals/:goalId/terminals`（`plugins/native/goals/src/manifest.ts:54-56`、`http/terminals.ts`）；工作台 `apps/workbench/src/terminal/client-prompt.ts` | 平台的启动终端服务（S-103）已在，但「对一个对象开工作终端」只有 Goals 能做 |
@@ -86,6 +86,7 @@
 | C5 | `packages/contracts/src/platform/dom-events.ts:118,242-254` | 外壳持有 `goal-selection` 状态，监听 `goal-changed`、`goal-document-loaded`、`goal-panel-presence` |
 | C6 | `packages/contracts/src/modules/context-ledger.ts:25` | 账本的 `module` 枚举写死 `"goals"`、`"feed"` |
 | C7 | `apps/mcp/src/resume-view.ts` | MCP 项目连接工具里内置「Goals 接续摘要」 |
+| C9 | `packages/contracts/src/platform/reviews.ts:13,31`；`horizontal/agent-host/src/review-decisions.ts:57`、`horizontal/mainline/src/index.ts:48`、`horizontal/project-approvals/src/coverage.ts:34` | 审查引用的 owner 类型写死 `goal-acceptance`（#2069、第 39 批加入），三个平台服务按它判断；全仓没有产生方。**已删**（2026-11-17 合后复查，见 9a.5） |
 
 ### 4.3 宿主、工作台、端点按名字给 Goals 开的私路
 
@@ -149,6 +150,7 @@
 - 账本 `module` 枚举（C6）：改为插件 id 或声明的来源。
 - MCP 接续摘要（C7）：改成任何插件可声明的「接续摘要」贡献，项目连接工具汇总已装插件的贡献。
 - 等你（C8，2026-11-13 复查补）：`packages/contracts/src/modules/attention-resumption.ts` 的类型与原因写死 `goal_decision`，`horizontal/surfaces/src/objects.ts` 按它排序；改为按呈现声明的状态映射（要你决定／要你验收／失败）排，决定类条目来自 39-2 的通用决定入口。
+- 审查 owner（C9，2026-11-17 复查补）：`goal-acceptance` 没有产生方，已直接删除；第 39 批起的审查与决定引用只认 `agent-review` 与 `trusted-decision`。
 - 前移的两处（用户 2026-11-13 定）：记忆 `applies` 的通用对象引用（C3 的记忆部分）随 31-2 先落；「插件声明可承接上手材料」以最小形式随 12-2 先落（Coding 第一个声明），片 1 与片 7 只做其余消费者与 Todo、Pages 迁移。
 
 ### 5.3 宿主与工作台去私路（H1～H9）
@@ -306,12 +308,25 @@
 - 编号已顺延（2026-11-13）：按 `maintenance.md` 不另起补充编号，原 44～89 改为 45～90，路线书、各需求书、代码注释与认领板 #1743 同步改；在途 PR 若引用 44～89，合入前按新号改。
 - 不受影响、照常推进：12、19、26（除 Skill 一项）、31、33、36、37 等在做的批次。
 
+### 9a.5 合后复查补（2026-11-17）
+
+依据：main `dbcf562a67`，对照 2026-11-11 复审的基点 `2630160877`。第 4 节与 9a.1 的盘点之后，第 31、39 批与 Memory V0 收口（#2027）又在平台里加了下面这些按名字认插件的地方；平台代码里点名插件 id 的字面量净增 7 处，其中 C9 已在本次删掉，其余归入第 44 批对应的片：
+
+| 来自 | 位置 | 新增的特例 | 改法（归片） |
+| --- | --- | --- | --- |
+| #2069、第 39 批 | C9（见 4.2） | 平台审查合同的 owner 类型写死 `goal-acceptance`，没有产生方 | 已删：类型与 schema 只剩 `agent-review`，三个服务的判断同步收窄；没有存量（无产生方），不需要升级段 |
+| 第 31 批（Memory P1） | `apps/local-host/src/assistant/assistant-memory-bridge.ts:112`、`apps/local-host/src/contextual/contextual-http.ts:85` | 记忆 `applies` 已是通用对象引用，但使用方见到 `kind === "goal"` 或情境里的 `focus.goal` 就填 `io.molis.work.goals` | 关联对象的插件与类型由调用上下文或声明给（C3、C4 的其余消费者，片 1） |
+| 第 31 批（Memory P1） | `apps/local-host/src/memory/memory-host.ts:389`、`apps/workbench/src/settings-memory.ts:218-219` | 记忆管理页只给 Goals 的对象取标题，其余对象另列 | 按对象的主人插件逐个取名字（同 `artifacts.links` 的 link_subjects 做法），不认 Goals（片 1） |
+| Memory V0 收口（#2027） | `apps/local-host/src/memory/memory-learning.ts:109`、`apps/local-host/src/memory/memory-session-binding.ts:55,64` | 记忆的「形成来源会话」只认助理和 Coding，Coding 按 `io.molis.work.coding` 钉死提供方 | 并入 4.5 Coding 记忆一行：来源会话由声明了会话绑定读取的插件提供，按角色发现（片 7） |
+| 第 39 批 | `apps/local-host/src/automation-project.ts:11`（`registeredPagesCreate`，`automation-recommendations.ts:53` 调用） | 自动化建议保存报告时按项目键找 `"pages"`、钉死 `pages.create@1` | 改用 44-1 收成的「能接收什么」声明，候选取声明了可接收文稿的插件（片 1 做声明、片 7 迁 Pages） |
+| 第 39 批 | `apps/local-host/src/project-approval-sync-links.ts:17,23`、`project-approval-upgrade.ts:17,25`、`platform-upgrade-stores.ts:124` | 宿主按 `builtinPluginByProjectKey("goals")` 认 Goals 库 | 不改：这是已登记的可信决定交接转换段（`docs/system/CONTRACT-CHANGES.md`「当前保留机制」第 39-2 批移交），按那里的删除条件连段删 |
+
 ## 10. 验收标准
 
 1. **PEQ-01** 一个项目移除 Goals 后：项目能打开，Agent Run、助理回合、MCP 连接、项目设置、项目简介都正常；项目指导仍生效。
 2. **PEQ-02** 移除后重新添加 Goals，原有 Goal、关系、历史、要求认可都在。
 3. **PEQ-03** 平台目录（`apps/local-host`、`apps/workbench` 外壳、`apps/mcp`、`apps/cli`、`apps/desktop`、`packages/contracts`、`packages/kernel`、`packages/design-system`、`horizontal/*`）不 import 任何插件包（生成的登记表与第 3 节白名单除外），由门禁检查（与现有 `boundary:check` 合并）。
-4. **PEQ-04** 合同里没有 `goal_ids`、`goal` 关联类型、【当前目标】、`goal-*` 外壳事件、`"goals"`/`"feed"` 枚举值、`"coding"` 调用方枚举。
+4. **PEQ-04** 合同里没有 `goal_ids`、`goal` 关联类型、【当前目标】、`goal-*` 外壳事件、`"goals"`/`"feed"` 枚举值、`"coding"` 调用方枚举、`goal-acceptance` 审查 owner 类型。
 5. **PEQ-05** 一个示例第三方插件（`examples/plugin-sample/`）能声明设置节、接续摘要、需要可信决定的动作，并在工作台与 MCP 里生效。
 6. **PEQ-06** 双实例对签名第三方插件开放，授权与沙箱规则与内置相同。
 7. **PEQ-07** 工作台首屏不再默认 Goals：无历史时取首个已装插件，有历史时回到上次的面。

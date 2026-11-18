@@ -29,7 +29,9 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
   const current=(state,control)=>state.lifetime.alive && control.lifetime.alive && control.lifetime.visible && !control.signal?.aborted && state.control.lifetime===control.lifetime && state.control.signal===control.signal;
   const read=async(path,body,control) => {
     const {lifetime,signal}=control;
-    const data=await molisWorkRequest(host.route(path),{body,headers:host.headers?.(),scope:control.requestLifetime,signal:body?lifetime.signal:signal,fallback:globalThis.t.text("workbench.agent-review.unavailable")});
+    const data=path==='/api/agent/reviews/decide' && body && host.decide
+      ? await host.decide(body,lifetime.signal)
+      : await molisWorkRequest(host.route(path),{body,headers:host.headers?.(),scope:control.requestLifetime,signal:body?lifetime.signal:signal,fallback:globalThis.t.text("workbench.agent-review.unavailable")});
     lifetime.assertCurrent(body?undefined:signal);return data;
   };
   // scope.runSession lists every run of one runtime session; scope.limit keeps open items plus that much settled history.

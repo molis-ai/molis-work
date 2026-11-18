@@ -47,7 +47,7 @@ async function memoryInvocation(input: AssistantMemoryToolsInput, call: ToolCont
     if (current.archived || ["paused", "stopped"].includes(current.continuation_hold ?? "") || current.session_id !== work.session_id
       || current.continuation_hold === "input" && !input.currentInput()
       || !isDeepStrictEqual(current.delegated_by, input.work.delegated_by) || (current.project_ref?.project_id ?? null) !== input.projectId
-      || current.character?.artifact_id !== work.character?.artifact_id || current.character?.version !== work.character?.version)
+      || current.character?.character_id !== work.character?.character_id || JSON.stringify(current.character?.ref ?? null) !== JSON.stringify(work.character?.ref ?? null))
       throw memoryErrors.forbidden("原工作已停止或权限已变化，停止记忆写入");
     if (scope) {
       const permitted = (target: "personal" | "project") => {

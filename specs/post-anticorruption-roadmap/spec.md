@@ -99,7 +99,7 @@
 |  | [全产品文案与按需帮助](reference/batches/40.md#batch-40-item-2) |
 | [41](reference/batches/41.md) | [Skill 选用](reference/batches/41.md#batch-41-item-1) |
 |  | [规划方法变成技能](reference/batches/41.md#batch-41-item-2) |
-| [42](reference/batches/42.md) | [Skill 创作与改进完整路径](reference/batches/42.md#batch-42-item-1) |
+| [42](reference/batches/42.md) | [Skill 创作与改进完整路径](reference/batches/42.md#batch-42-item-1)：已实现并合入 `4cf1c742e6`（[#2107](https://github.com/molis-ai/molis-work/pull/2107)；最终 CI/Full/队列通过）；本人验收保留 |
 | [43](reference/batches/43.md) | [项目助理团执行与交付](reference/batches/43.md#batch-43-item-1) |
 |  | [Dataset 汇总、追加与规模性能](reference/batches/43.md#batch-43-item-2) |
 | [44](reference/batches/44.md) | [合同去插件化](reference/batches/44.md#batch-44-item-1) |
@@ -144,7 +144,7 @@
 |  | [N22 全量迁移与收口](reference/batches/56.md#batch-56-item-3) |
 | [57](reference/batches/57.md) | [个人工作完整路径](reference/batches/57.md#batch-57-item-1)（M1 移到 [REL-5](#release-batch)） |
 | [58](reference/batches/58.md) | [子代理公共交互组件](reference/batches/58.md#batch-58-item-1)：公共视图与交互端口已实现并合入 `6359987103`（[#2108](https://github.com/molis-ai/molis-work/pull/2108)；最终 CI/Full/队列通过）；本人验收保留 |
-| [59](reference/batches/59.md) | [子代理双入口接入](reference/batches/59.md#batch-59-item-1)：消费 58 的公开入口；助理业务子工作路径先核 43-1 实际派发接线 |
+| [59](reference/batches/59.md) | [子代理双入口接入](reference/batches/59.md#batch-59-item-1)：助理与 Coding 消费 58 的公共浮窗，真实历史、输入、问卷、审批、回报及重启接续；原目录接续采用 Prologue #134/#135，43-1 的最小业务 SDK 派发随本批交付，完整助理团归 43-1。工程和隔离实操见 [#2115](https://github.com/molis-ai/molis-work/pull/2115)，本人验收单列 |
 | [60](reference/batches/60.md) | [Sessions 控制与交接](reference/batches/60.md#batch-60-item-1) |
 | [61](reference/batches/61.md) | [服务矩阵、现有连接与统一搜索](reference/batches/61.md#batch-61-item-1) |
 |  | [自动化推荐与采用](reference/batches/61.md#batch-61-item-2) |

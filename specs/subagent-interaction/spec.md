@@ -730,10 +730,13 @@ Agent Host 从 Prologue 读取原子任务执行与事件，以公开对话合�
 
 ### 最终复验
 
+- 修复 PR #2122 的最终头 `4a28fa9a82653d85bf4a8c25634e2a33e2873334` 已于 2026-11-18 经队列合入 main，合入提交 `2315213aba5fbadaf0fff77f8956226b69d566f9` 的代码树与最终头一致。[PR #2122](https://github.com/molis-ai/molis-work/pull/2122) · [合入提交](https://github.com/molis-ai/molis-work/commit/2315213aba5fbadaf0fff77f8956226b69d566f9) · [CI Verify](https://github.com/molis-ai/molis-work/actions/runs/44258849724/job/134653785494) · [Full 48/48](https://github.com/molis-ai/molis-work/actions/runs/44259247359) · [队列 Verify](https://github.com/molis-ai/molis-work/actions/runs/44267271598/job/134686312491)
+- Full 保留同头第一次的 40 个通过分片，补跑 8 个失败或取消的分片。设置页 1024×400 用例第一次两次触及 60 秒限制，主线基线和最终头的 Linux 定向均通过，同头补跑设置页文件首跑 4/4。[首次设置页分片](https://github.com/molis-ai/molis-work/actions/runs/44259247359/job/134648306434) · [补跑设置页分片](https://github.com/molis-ai/molis-work/actions/runs/44259247359/job/134663003344)
+- 最终头隔离浏览器 13/13。Linux 容器三倍 CPU 节流下，Coding 三个入口 3/3，原问卷 2/2。GitHub 的原问卷文件在 Full 首次和补跑均首跑 2/2，先前本机超时未再现。[Coding 分片](https://github.com/molis-ai/molis-work/actions/runs/44259247359/job/134648306902) · [原问卷分片](https://github.com/molis-ai/molis-work/actions/runs/44259247359/job/134663003599)
 - 初次本机复验使用 Node 24.15.0。整仓构建、API／动作快照、包边界与健康门禁通过，23 个定向文件共 313 项通过，其中专用浏览器 8 文件、31 项，文档与词包 2 文件、106 项。当时并行跑测的助理 Work 原问卷等待结果超时一次。同一提交单独复跑原文件三次，每次 2/2 通过，原因未确定。
 - 实际 Node SDK 的 `prologue-subagent-conversation` 在 A 的原 Session 读取处注入错误，在 B 的旧读取中启动新尝试。B 的旧响应保留原 Run、终态与历史，下一次读取返回新 Run 与新输入。该文件同时回归原问卷、原回执、停机接续与原目录授权。`subtask-source` 验证未提交回退、原回执丢失和订阅响应直用。
 - PR 评审补验在旧提交复现迟到投影覆盖新视图、跨页草稿被旧登记覆盖、未发出的请求误查远端、助理 Work 草稿保存失败后无法重试。回归覆盖另一页在登记前或登记中保存、重建来源后本地清理、助理未变的等待回执及原重试按钮。对照 `eaa6b47492`，助理浮窗与 Coding 的原脚本实测分别增加 2,329 B、1,840 B。[本次资源许可](../../tooling/gates/page-asset-allowances/batch-59-audit-followups.json)
 - `491cbea548` 的首轮 Full 在 Coding 的 TaskBoard 回焦用例两次失败，原问卷所在分片随之取消。受控模型让子任务在关窗回焦后完成，复现了重绘移除原按钮时焦点掉到页面的情况。TaskBoard 只在自己的原焦点被移除时恢复到同一任务的按钮。[首轮失败分片](https://github.com/molis-ai/molis-work/actions/runs/44255153651/job/134634960624)
 - `a03d441267` 的 Work 0.1.0 本机验证归档为 27,446,716 B，SHA-256 `bf49217b9238e261f83581f07cc90b7c7973796dea150f8ffa429ab03a6b9947`。归档的构建源指纹与该提交的生产输入一致，实际采用 Prologue SDK 0.0.0-rc.1（上游 `64e5aaf444629aa597f028e63cf4090456830637`）。[SDK 来源](../../vendor/prologue-sdk/README.md)
 - 以本地 dev Auth 登录，用专用浏览器和受控 HTTP 模型操作实际安装包。助理 Home 和 Coding 消息卡片都在满额时关窗，抓到零次命令 POST。重开后各一次加额 POST，原子会话各开始一次第三尝试，模型读到前次结果，主输入草稿保留。Coding 原成果面板和 TaskBoard 也读到第三次结果。
-- 合后修复的 GitHub CI／Full、外部模型 Provider 以及一骏本人 SAI-12／13 待验证。[原 #2115 交付记录](../post-anticorruption-roadmap/reference/batches/59.md#交付记录) · [本人验收单](../backlog/BL-b59-subtask-acceptance.md)
+- 本次修复的外部模型 Provider 和一骏本人 SAI-12／13 仍待验证。[原 #2115 交付记录](../post-anticorruption-roadmap/reference/batches/59.md#交付记录) · [本人验收单](../backlog/BL-b59-subtask-acceptance.md)

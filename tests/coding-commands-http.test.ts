@@ -5,11 +5,10 @@ import { lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, s
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores, personalPromptCommands } from "@molis-ai/molis-work-app-local-host";
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { workspaceReadActions, type WorkspaceFileQuery } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { personalPromptCommandsCapability } from "@molis-ai/molis-work-contracts/services/prompt-commands";
-import { personalPromptCommands } from "../apps/local-host/dist/prompt-commands.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 // Coding A2 (specs/coding-plugin/next-requirements.md, docs/design/coding-daily-basics scheme A): Coding lists the project's commands

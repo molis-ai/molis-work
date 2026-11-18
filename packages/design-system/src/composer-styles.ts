@@ -82,6 +82,11 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}${COMPOSER_PICTURES_ST
   .mw-composer__query { padding: 4px 4px 6px; }
   .mw-composer__query > .mw-input { width: 100%; }
   .mw-composer__line { margin: 0; padding: 6px 10px; color: var(--muted); font-size: 12px; line-height: 18px; }
+  /* A short state beside the name (「读不了」): before the shortcut, in its own column when the item has a description. */
+  .mw-menu__item > .mw-badge { flex: none; margin-left: 8px; }
+  .mw-menu__item--described:has(> .mw-badge) { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+  .mw-menu__item--described > .mw-badge { grid-area: 1 / 3; align-self: center; margin-left: 0; }
+  .mw-menu__item--described:has(> .mw-badge) .mw-menu__shortcut { grid-area: 1 / 4; }
   /* The / menu's closing line (Coding A2): a plain note under the groups, kept apart by a hairline. */
   .mw-composer__menu-note { margin: 4px 0 0; padding: 8px 10px 4px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 18px; text-wrap: pretty; }
   /* The board's command chip (CODING_BASICS_STYLES) above the words, as wide as it says; its prompt folded under them, both on the box's gutter. */

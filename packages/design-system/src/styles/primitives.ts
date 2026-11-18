@@ -362,11 +362,6 @@ ${BUTTON_STYLES}
   .mw-menu__item--described > [data-slot="menu-item-label"] { display: contents; overflow: visible; }
   .mw-menu__item--described > [data-slot="menu-item-label"] > span { grid-area: 1 / 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mw-menu__item--described .mw-menu__shortcut { grid-area: 1 / 3; }
-  /* A short state beside the name (「读不了」): before the shortcut, in its own column when the item has a description. */
-  .mw-menu__item > .mw-badge { flex: none; margin-left: 8px; }
-  .mw-menu__item--described:has(> .mw-badge) { grid-template-columns: auto minmax(0, 1fr) auto auto; }
-  .mw-menu__item--described > .mw-badge { grid-area: 1 / 3; align-self: center; margin-left: 0; }
-  .mw-menu__item--described:has(> .mw-badge) .mw-menu__shortcut { grid-area: 1 / 4; }
   .mw-menu__desc { grid-column: 2 / -1; color: var(--muted); font-size: 12px; font-weight: var(--weight-body, 400); line-height: 18px; text-wrap: pretty; overflow-wrap: anywhere; }
   .mw-menu__label { padding: 4px 12px 2px; color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); line-height: 20px; }
   .mw-menu__group + .mw-menu__group::before { content: ""; display: block; margin: 4px 8px; border-top: 1px solid var(--line); }

@@ -3,12 +3,10 @@ import test from "node:test";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { issuePluginCaller, LocalHost, personalPromptCommands, registerProjectCapabilities } from "@molis-ai/molis-work-app-local-host";
+import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { personalPromptCommandsCapability, PROMPT_COMMANDS_READ_PERMISSION, type PromptCommandFile } from "@molis-ai/molis-work-contracts/services/prompt-commands";
-import { personalPromptCommands } from "../apps/local-host/dist/prompt-commands.js";
-import { registerProjectCapabilities } from "../apps/local-host/dist/project-capabilities.js";
-import { issuePluginCaller } from "../apps/local-host/dist/plugin-callers.js";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 // S-prompt-commands (docs/system/security-invariants/S-prompt-commands.md): the person's own commands are only the plain `.md`
@@ -67,7 +65,8 @@ test("S-prompt-commands: a plugin without commands:read, a person and an agent a
   const client = host.actionClient({ project_id: "project-a", storage_key: join(root, "project.db") });
   // A plugin the Host issued an identity holding these permissions, as every plugin call carries (S-15).
   const plugin = (permissions: string[]): ActionCallContext => {
-    const host_plugin = { plugin_id: "io.molis.work.coding", install_id: `install-${permissions.length}`, actor_id: "owner", project_id: "project-a", assertActive: () => undefined } as unknown as HostPluginCaller;
+    const host_plugin: HostPluginCaller = { plugin_id: "io.molis.work.coding", install_id: `install-${permissions.length}`, actor_id: "owner", project_id: "project-a",
+      declaration: { manifest: codingManifest }, assertActive: () => undefined };
     t.after(issuePluginCaller(host_plugin, permissions));
     return { actor_id: "owner", project_id: "project-a", audience: "plugin", permissions: [PROMPT_COMMANDS_READ_PERMISSION], plugin_install_id: host_plugin.install_id, host_plugin };
   };

@@ -25,11 +25,6 @@ export function sessionKeyOf(path: string): string | null {
   return match ? match[1]! : null;
 }
 
-/** Why the round could not read the sessions, said to the person; the round's other sources still go on. */
-export class OnboardingSessionsRefusal extends Error {
-  constructor(message: string, readonly code: string) { super(message); }
-}
-
 const ROLE: Record<ExternalSessionEntry["role"], string> = { you: "你", tool: "工具", tool_step: "工具步骤", note: "说明" };
 
 function entryText(entry: ExternalSessionEntry): string {
@@ -56,16 +51,19 @@ function sessionMarkdown(row: ExternalSessionRow | ExternalSessionRowSummary, en
   return lines.filter(line => line !== "").join("\n") + "\n\n" + entries.map(entryText).join("\n\n") + "\n";
 }
 
-function refusal(error: unknown): never {
-  if (error instanceof ActionError) {
-    if (error.code === "sessions.project_ai_read_off") throw new OnboardingSessionsRefusal("这个项目的 AI 还不能读外部会话：许可没打开。只有你能打开它；没打开，这一步不整理会话。", error.code);
-    if (error.code === "actions.dependency_missing" || error.code === "actions.forbidden") throw new OnboardingSessionsRefusal("这里读不了外部会话，请先在「外部会话」里允许读取这些工具。", error.code);
-  }
-  throw error;
+/** Why the round cannot read the sessions, said to the person; undefined for a failure that is not a refusal. */
+function refusalOf(error: unknown): string | undefined {
+  if (!(error instanceof ActionError)) return undefined;
+  if (error.code === "sessions.project_ai_read_off") return "这个项目的 AI 还不能读外部会话：许可没打开。只有你能打开它；没打开，这一步不整理会话。";
+  if (error.code === "actions.dependency_missing" || error.code === "actions.forbidden") return "这里读不了外部会话，请先在「外部会话」里允许读取这些工具。";
+  return undefined;
 }
 
-/** The project's sessions as this round's files, newest first; one that cannot be read is skipped with its reason. */
-export async function readOnboardingSessions(client: BoundActionClient, signal?: AbortSignal): Promise<{ name: string; locator: string; files: ImportFile[]; titles: Record<string, string> }> {
+/**
+ * The project's sessions as this round's files, newest first; one that cannot be read is skipped with its reason. When none can be read
+ * (the permit is off, nothing is filed to the project) the answer is why, for the round to say; the round's other sources still go on.
+ */
+export async function readOnboardingSessions(client: BoundActionClient, signal?: AbortSignal): Promise<{ name: string; locator: string; files: ImportFile[]; titles: Record<string, string> } | { refused: string }> {
   const rows: (ExternalSessionRow | ExternalSessionRowSummary)[] = [];
   let cursor: string | null = null;
   try {
@@ -75,8 +73,8 @@ export async function readOnboardingSessions(client: BoundActionClient, signal?:
       rows.push(...page.sessions);
       cursor = page.next_cursor;
     } while (cursor && rows.length < ONBOARDING_SESSIONS_LIMITS.sessions);
-  } catch (error) { refusal(error); }
-  if (!rows.length) throw new OnboardingSessionsRefusal("这个项目还没有 AI 能读的外部会话：先在「外部会话」里把会话归到这个项目。", "sessions.none");
+  } catch (error) { const refused = refusalOf(error); if (refused) return { refused }; throw error; }
+  if (!rows.length) return { refused: "这个项目还没有 AI 能读的外部会话：先在「外部会话」里把会话归到这个项目。" };
   const files: ImportFile[] = [], titles: Record<string, string> = {};
   for (const row of rows.slice(0, ONBOARDING_SESSIONS_LIMITS.sessions)) {
     signal?.throwIfAborted();
@@ -96,7 +94,7 @@ export async function readOnboardingSessions(client: BoundActionClient, signal?:
       if (!entries.length) { files.push({ path, reason: "这个会话没有读到内容" }); continue; }
       files.push({ path, bytes: Buffer.from(sessionMarkdown(row, entries.slice(-ONBOARDING_SESSIONS_LIMITS.entries), partial, older)) });
     } catch (error) {
-      if (error instanceof ActionError && error.code === "sessions.project_ai_read_off") refusal(error);
+      if (error instanceof ActionError && error.code === "sessions.project_ai_read_off") return { refused: refusalOf(error)! };
       if (signal?.aborted) throw error;
       files.push({ path, reason: error instanceof Error ? `读不了：${error.message}` : "读不了这个会话" });
     }

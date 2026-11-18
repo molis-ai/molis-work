@@ -11,12 +11,11 @@ import { test } from "node:test";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { modelPromptText, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { SESSIONS_HISTORY_PERMISSION, SESSIONS_READ_PERMISSION, sessionsActions, sessionsErrors, type ExternalSessionEntry } from "@molis-ai/molis-work-contracts/services/sessions";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import {
+  adoptContextJourney, bindLocalWebActions, bindLocalWebProjectAiActions, MolisWorkLocalHost, molisWorkHostProjectReference, readContextJourney, readOnboardingSessions,
+  selectContextSources, sessionKeyOf, startContextJourney, updateContextDraft, waitContextJourney, withContextJourneys,
+} from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
-import { adoptContextJourney, readContextJourney, selectContextSources, startContextJourney, updateContextDraft, waitContextJourney } from "../apps/local-host/dist/context-onboarding-service.js";
-import { OnboardingSessionsRefusal, readOnboardingSessions, sessionKeyOf } from "../apps/local-host/dist/context-onboarding-sessions.js";
-import { bindLocalWebActions, bindLocalWebProjectAiActions } from "../apps/local-host/dist/local-web-actions.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 type Session = { key: string; title: string; entries: ExternalSessionEntry[]; partial?: boolean };
@@ -70,6 +69,7 @@ function existingRound(dir: string, projectId = "project-existing") {
 
 test("SRB-09 each filed session is one material: the person's words, the tool's replies and its receipts in order, with when they happened", async () => {
   const read = await readOnboardingSessions(sessionsClient([DB_SESSION, { ...DB_SESSION, key: "sess-partial", title: "Half read", entries: DB_SESSION.entries.slice(0, 1), partial: true }]));
+  assert.ok(!("refused" in read), "both sessions are read");
   assert.deepEqual(read.files.map(file => file.path), ["sessions/sess-db.md", "sessions/sess-partial.md"]);
   assert.equal(sessionKeyOf(read.files[0]!.path), "sess-db");
   assert.equal(read.titles["sessions/sess-db.md"], "Pick the database");
@@ -85,7 +85,8 @@ test("SRB-09 each filed session is one material: the person's words, the tool's 
 test("SRB-09 with the project's AI read permit off, the sessions are not read, the organizing does not run, and the round says why", async t => {
   const dir = await home(t), id = existingRound(dir);
   let modelCalls = 0;
-  await assert.rejects(readOnboardingSessions(sessionsClient([DB_SESSION], { off: true })), (error: unknown) => error instanceof OnboardingSessionsRefusal && /许可没打开/.test(error.message));
+  const refused = await readOnboardingSessions(sessionsClient([DB_SESSION], { off: true }));
+  assert.ok("refused" in refused && /许可没打开/.test(refused.refused), "the reader answers why, and reads nothing");
   startContextJourney(dir, id, { withCatalog: withMolisWorkProjectCatalog, sessions: async () => sessionsClient([DB_SESSION], { off: true }),
     model: async () => ({ completeText: async () => { modelCalls++; return "# x\ny [S1]"; } }) });
   const failed = await waitContextJourney(dir, id);

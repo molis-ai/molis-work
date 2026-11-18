@@ -1,5 +1,5 @@
 import { codeRootFile, contextFileSkip, contextSkipRuleName } from "@molis-ai/molis-work-contracts/services/materials"; import { objectLinkAt } from "@molis-ai/molis-work-contracts/platform/object-link";
-import { CONTEXT_ONBOARDING_BLANK_NAME_PART } from "./context-onboarding-blank-name.js"; import { CONTEXT_ONBOARDING_RECOVERY_PART } from "./context-onboarding-recovery.js"; import { CONTEXT_ONBOARDING_TAKE_PART } from "./context-onboarding-take.js";
+import { CONTEXT_ONBOARDING_BLANK_NAME_PART } from "./context-onboarding-blank-name.js"; import { CONTEXT_ONBOARDING_RECOVERY_PART } from "./context-onboarding-recovery.js"; import { CONTEXT_ONBOARDING_TAKE_PART } from "./context-onboarding-take.js"; import { CONTEXT_ONBOARDING_SESSIONS_PART } from "./context-onboarding-sessions.js";
 // The arrival frame draws the existing Home journey: sources, scope, reading and naming.
 // Providers own authorization; the Host owns the ids and phases under /api/onboarding/context.
 export const CONTEXT_ONBOARDING_CLIENT = String.raw`
@@ -36,12 +36,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const endpoint = suffix => '/api/onboarding/context/' + journey.id + (suffix ? '/' + suffix : '');
   const source = kind => journey.sources.find(s => s.kind === kind);
   const connected = () => (config.connections || []).filter(c => c.state === 'connected');
-  // Sessions in AI tools (batch 35 item 1, SRB-09): a round for an existing project reads those filed to it, as the project's AI, once the
-  // person allows that project's AI to read them; a new project has none and no permit yet, so they are read in the step after it is made.
-  const existing = () => Boolean(journey?.existing);
-  const sessionsLater = () => !existing() && Boolean(source('sessions')?.selected);
-  let sessionsState = null;
-  const picked = () => journey.sources.filter(s => s.selected && (s.kind !== 'sessions' || existing()));
+${CONTEXT_ONBOARDING_SESSIONS_PART}
   const stagedReady = s => included(s).length > 0 && included(s).every(f => Boolean(s.staged_digests?.[f.path]));
   const ready = s => s.references?.length || s.held_secrets?.length ? true : directory(s) ? native && grants[s.kind]?.state==='ready' : s.kind==='sessions' ? Boolean(existing() && sessionsState?.allowed && sessionsState.readable > 0) : s.kind==='gmail' ? Boolean(s.connection_id && connected().some(c=>c.connection_id===s.connection_id)) : s.kind==='browser' ? Boolean(s.text?.trim()) : Boolean(s.files?.length||uploads.has(s.kind)||stagedReady(s));
   const readable = () => picked().filter(ready);
@@ -153,24 +148,6 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const first = rows[0] ? (rows[0].days ?? 30) : 30;
     return rows.every(s => (s.days ?? 30) === first) ? first : null;
   };
-  // The permit is the person's alone (sessions-rebuild contract design §7.4): this page is theirs, so it may turn it on, and says what that means.
-  function sessionsWhy() {
-    if (!sessionsState) return readText("workbench.context-onboarding.sessions-checking");
-    if (sessionsState.error) return failureText(sessionsState.error);
-    if (!sessionsState.allowed) return readText("workbench.context-onboarding.sessions-permit-off");
-    return sessionsState.readable ? globalThis.t.text("workbench.context-onboarding.sessions-readable", {n:sessionsState.readable}) : readText("workbench.context-onboarding.sessions-none");
-  }
-  const permitButton = () => btn({variant:'secondary', size:'sm', icon:'shield', label:readText("workbench.context-onboarding.sessions-permit-allow"), attrs:{'data-action':'sessions-permit'}});
-  function sessionsConfig() {
-    const s = source('sessions');
-    if (!existing()) return '<div class="ob-cfg-block"><div class="ob-picks" role="group">' + choice({label:readText("workbench.context-onboarding.sessions-choose-later"), selected:Boolean(s?.selected), attrs:{'data-sessions-pick':'1'}}) + '</div></div>' + note(readText("workbench.context-onboarding.sessions-new-note"), 'info');
-    const off = sessionsState && !sessionsState.error && !sessionsState.allowed;
-    const more = sessionsState?.allowed ? [sessionsState.reported ? globalThis.t.text("workbench.context-onboarding.sessions-reported", {n:sessionsState.reported}) : '', sessionsState.blocked ? globalThis.t.text("workbench.context-onboarding.sessions-blocked", {n:sessionsState.blocked}) : ''].filter(Boolean) : [];
-    return note(sessionsWhy(), off ? 'alert' : sessionsState?.allowed && sessionsState.readable ? 'check' : 'info', off ? 'is-warn' : '')
-      + (off ? '<div class="ob-cfg-actions">' + permitButton() + '</div>' + note(readText("workbench.context-onboarding.sessions-permit-note"), 'shield') : '')
-      + more.map(text => note(text, 'info')).join('')
-      + (ready(s) ? '<div class="ob-cfg-block"><div class="ob-picks" role="group">' + choice({label:readText("workbench.context-onboarding.sessions-use"), note:globalThis.t.text("workbench.context-onboarding.sessions-n", {n:sessionsState.readable}), selected:Boolean(s?.selected), attrs:{'data-sessions-pick':'1'}}) + '</div></div>' : '');
-  }
   function rowConfig(row) {
     if (row.id === 'sessions') return sessionsConfig();
     if (row.id === 'folder') {
@@ -230,8 +207,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   }
   function materialsPane() {
     const groups = picked().filter(ready), later = sessionsLater() ? note(readText("workbench.context-onboarding.sessions-new-note"), 'history') : '';
-    if (!groups.length && later) return later;
-    if (!groups.length) return '<div class="ob-mini" aria-hidden="true"><div class="ob-mini-surface"><b class="ob-mini-title"></b>' + miniRow('folder',58,40) + miniRow('file',66,34) + miniRow('globe',44,52) + '</div></div><p class="ob-scene-note">' + globalThis.t.text("workbench.context-onboarding.pick-source-its-materials-line-up-here") + '</p>';
+    if (!groups.length) return later || '<div class="ob-mini" aria-hidden="true"><div class="ob-mini-surface"><b class="ob-mini-title"></b>' + miniRow('folder',58,40) + miniRow('file',66,34) + miniRow('globe',44,52) + '</div></div><p class="ob-scene-note">' + globalThis.t.text("workbench.context-onboarding.pick-source-its-materials-line-up-here") + '</p>';
     const total = selectionTotal();
     return stageHead(globalThis.t.text("workbench.context-onboarding.bringing"), globalThis.t.text("workbench.context-onboarding.files-count-groups-groups-size-text-not-read", {count:total.count, groups:groups.length, size:size(total.bytes)})) + groups.map(groupFor).join('') + later;
   }
@@ -448,8 +424,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     const model = view(), moved = lastView !== null && model.view !== lastView, index = stepIndex(model.step), wasOpening = lastView === 'opening';
     frame.dataset.screen = model.kind;
     if (model.view === 'opening' && wasOpening) { paintBar(model.bar, false); return; }
-    // A welcome question already on screen is not drawn again (start-up can finish after the person answered it): its words follow
-    // the language in place and its choices mark themselves, so redrawing would only take the person's place and focus away.
+    // A welcome question on screen is not drawn again (start-up can end after it was answered): redrawing would take the person's place and focus.
     if (model.kind === 'welcome' && model.view === lastView && !focus && !part) { paintBar(model.bar, false); return; }
     const forward = index >= lastIndex;
     const paint = () => {
@@ -634,8 +609,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     const oldId=journey?.id, previous=journey?.sources || [];
     if(oldId)await clearJourneyUploads(oldId);
     uploads.clear();pausedScan=null;
-    const forProject=new URL(location.href).searchParams.get('project');
-    journey=await api('/api/onboarding/context',{id:crypto.randomUUID(),...(forProject?{project_id:forProject}:{})});
+    const forProject=new URL(location.href).searchParams.get('project');journey=await api('/api/onboarding/context',{id:crypto.randomUUID(),...(forProject?{project_id:forProject}:{})});
     if(journey.existing)journey=await api(endpoint());
     journey.sources=kinds.map(kind=>{const old=previous.find(s=>s.kind===kind);return {kind,selected:false,days:30,...(kind==='gmail'&&old?.connection_id?{connection_id:old.connection_id}:{})};});
     const url=new URL(location.href);url.searchParams.set('journey',journey.id);url.searchParams.delete('oauth');history.replaceState(null,'',url);blank=false;error='';todoPicked=null;await save();render();
@@ -654,28 +628,10 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     journey=await api(endpoint('adopt'),{title:name,body:accepted?.body ?? (isBlank?'':journey.summary.body),blank:isBlank&&!materialsOnly,materials_only:materialsOnly,todo_selected:!isBlank&&todoPicked?[...todoPicked]:[],...(!isBlank&&!accepted&&takePicked&&codeFolder()?{take:takePicked}:{})});
     blank=false;
     if(journey.phase==='complete'){await clearJourneyUploads(journey.id);if(journey.take_result?.not_taken){takeNotice=journey.take_result.not_taken;render();}
-      // The project exists now: the sessions the person chose are read in the next step, in it, once they allow its AI to read them.
-      else if(!journey.existing&&journey.sources.some(s=>s.kind==='sessions'&&s.selected))location.assign(route('/onboarding?project='+encodeURIComponent(journey.project_id)+'&sessions=1'));
+      else if(sessionsNext())location.assign(route('/onboarding?project='+encodeURIComponent(journey.project_id)+'&sessions=1'));
       else location.assign(projectLocation());}else{error=journey.error||globalThis.t.text("workbench.context-onboarding.saving-didn-t-finish-try-again");render();}
   }
   /** A source taken out of the list: nothing about it stays selected, read or remembered. */
-  /** The project's AI read permit and what it reaches, read fresh: only the person's page reads the scope (the Sessions scope action). */
-  async function refreshSessions() {
-    if (!existing()) { sessionsState = null; return; }
-    try {
-      const scope = await api('/projects/' + encodeURIComponent(journey.project_id) + '/api/sessions/scope?counts=1');
-      const row = (scope.project_ai_reads || []).find(r => r.current) || null, counts = row?.counts || null;
-      sessionsState = {allowed:Boolean(row?.allowed), revision:row?.revision ?? 0, readable:counts?.ai_readable || 0, reported:counts?.reported || 0, blocked:(counts?.blocked || []).reduce((n, b) => n + b.count, 0)};
-    } catch (err) { sessionsState = {error:keepFailure(err), allowed:false, revision:0, readable:0, reported:0, blocked:0}; }
-  }
-  async function allowSessions() {
-    busy=true;error='';render();
-    try {
-      await api('/projects/' + encodeURIComponent(journey.project_id) + '/api/sessions/project-ai-read', {allowed:true, expected_revision:sessionsState?.revision ?? 0});
-      await refreshSessions();
-      const s=source('sessions');if(s&&ready(s)&&!s.selected){s.selected=true;await save();}
-    } catch (err) { error=keepFailure(err); } finally { busy=false; render(); }
-  }
   async function removeSource(kind) {
     const s=source(kind);invalidateSource(s);delete s.metadata;delete s.text;delete s.url;s.excluded=[];s.selected=false;uploads.delete(kind);await dropUploadFiles(kind);
     await save();
@@ -734,8 +690,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if(b.id==='cx-theme'){const theme=document.documentElement.dataset.resolvedTheme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;document.documentElement.dataset.resolvedTheme=theme;try{localStorage.setItem('molis-work:theme',theme);}catch{}render();return;}
     if(b.dataset.open&&pickerOf(b.dataset.open)){document.getElementById('cx-upload-'+pickerOf(b.dataset.open))?.click();return;}
     if(b.dataset.open){expanded=expanded===b.dataset.open?null:b.dataset.open;render();const cfg=app.querySelector('.ob-source__cfg');arrival.arrive(cfg,[{opacity:0,transform:'translateY(-4px)'},{opacity:1,transform:'none'}],{duration:250});app.querySelector('#cx-browser-text')?.focus({preventScroll:true});return;}
-    if(b.dataset.sessionsPick){const s=source('sessions');if(s&&(s.selected||!existing()||ready(s))){s.selected=!s.selected;await save();}render();return;}
-    if(b.dataset.action==='sessions-permit'){await allowSessions();return;}
+    if(await sessionsAct(b))return;
     if(b.dataset.pick){
       const kind=b.dataset.pick, s=source(kind);
       busy=true; error=''; render();
@@ -834,8 +789,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     const url=new URL(location.href), id=url.searchParams.get('journey');
     if(id)journey=await api('/api/onboarding/context/'+encodeURIComponent(id));else await restart();
     if(journey.phase==='selecting'){journey.sources=kinds.map(kind=>journey.sources.find(s=>s.kind===kind)||({kind,selected:false,days:30}));await restoreUploadFiles();}
-    await refreshSessions();
-    if(journey.phase==='selecting'&&journey.existing&&url.searchParams.get('sessions')==='1'){expanded='sessions';const s=source('sessions');if(s&&ready(s)&&!s.selected){s.selected=true;await save();}}
+    await refreshSessions();if(journey.phase==='selecting'&&journey.existing&&url.searchParams.get('sessions')==='1'){expanded='sessions';await useSessions();}
     if(journey.phase==='selecting'){const gmail=source('gmail');if(gmail&&!gmail.connection_id&&connected().length===1)gmail.connection_id=connected()[0].connection_id;}
     if(url.searchParams.get('start')==='blank'||url.searchParams.get('name')){blank=true;blankName=(url.searchParams.get('name')||'').trim();}
     const oauth=url.searchParams.get('oauth');if(oauth==='failed'||oauth==='cancelled'||journey.oauth_status==='failed'){error=journey.error||globalThis.t.text("workbench.context-onboarding.google-isn-t-connected-yet-reconnect-untick-gmail");expanded='gmail';}

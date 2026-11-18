@@ -228,8 +228,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       focus: () => send({ type: "composer-focus", id }),
       insert: (text) => send({ type: "composer-insert", id, text }),
       attach: (given, replacing = []) => send({ type: "composer-attach", id, files: [...given], ...(replacing.length ? { replacing: replacing.map(({ name, size, type, lastModified }) => ({ name, size, type, lastModified })) } : {}) }),
-      materials: () => materials,
-      files: () => files,
+      materials: () => materials, files: () => files,
       destroy,
     };
     return handle;

@@ -254,6 +254,8 @@ const pages: Record<string, Draw> = {
 // page-* records shrank by 9931 zh / 10430 en characters, every one by that constant, and the other 36 did not change; they then
 // stood 9318 zh / 9797 en under main's records (on main e56bd6701a), every one by that constant, and the 16 were recorded with
 // MOLIS_WORK_GOLDEN_RECORD=1.
+// On the merge of main f1e875d11e (P0's records above) the 16 stood 9318 zh / 9797 en under main's records, every one by that
+// constant, and the other 36 matched main's; the 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

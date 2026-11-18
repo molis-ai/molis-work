@@ -7,6 +7,7 @@ import { retainComposer } from "./composer-retained.js";
 import { composerMenus, type ComposerMenus } from "./composer-menus.js";
 import { composerSender, type ComposerSender } from "./composer-send.js";
 import "./composer-program.js";
+import { molisPicture } from "./picture.js";
 import { attached, composerBasics, composerState, itemKey, letGo, mac, type Composer, type Item } from "./composer-state.js";
 import { firstScreen, paint } from "./composer-view.js";
 
@@ -201,11 +202,12 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
 }
 
 globalThis.molisComposerProgram ??= mount;
+globalThis.molisPictureProgram ??= molisPicture;
 
 /**
  * A picture on the strip, at its own size, in the board's dialog: named by its file, the picture's alt is that name, and closing it
  * (Esc, ×, or a press outside) gives the focus back to the preview that opened it.
  */
 function openPicture(item: Item, opener: HTMLElement, closeLabel = "") {
-  window.molisPicture?.(opener, { src: item.thumb!, title: item.title, ...(closeLabel ? { close: closeLabel } : {}) });
+  molisPicture(opener, { src: item.thumb!, title: item.title, ...(closeLabel ? { close: closeLabel } : {}) });
 }

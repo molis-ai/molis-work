@@ -79,6 +79,10 @@ export async function importAdoptedMaterialsAndSummary(options: {
   if (!journey.summary) refs.forEach((ref, index) => { ref.label = "S" + (index + 1); });
   journey.artifact_references = refs.flatMap(ref => ref.artifact ? [ref.artifact] : []);
   for (const ref of refs) {
+    // A material from an external session is that session's in the project, whichever round read it: the same text comes back as the
+    // same material (Artifacts reuses an unchanged version) and the same source page, so importing again records nothing new (SRB-09).
+    const session = ref.session_key ? createHash("sha256").update(JSON.stringify([ref.session_key, ref.original.sha256])).digest("hex") : null;
+    const sourceId = ref.session_key ? "sessions:" + ref.session_key : "onboarding:" + id + ":" + ref.source_id;
     if (!ref.artifact) {
       const content = await readStagedText(home, id, ref.text);
       const registered = ref.secret_mode === "strip"
@@ -86,14 +90,14 @@ export async function importAdoptedMaterialsAndSummary(options: {
             source: "file",
             filename: "material.md",
             title: ref.title,
-            source_id: "onboarding:" + id + ":" + ref.source_id,
+            source_id: sourceId,
             content,
           })
         : await (await actions.forOriginal(await stagedFilePath(home, id, ref.original.sha256))).invoke(artifactsActions.importFile, {
             source: "file",
             filename: "material.md",
             title: ref.title,
-            source_id: "onboarding:" + id + ":" + ref.source_id,
+            source_id: sourceId,
             content,
             original_file: { filename: ref.original.filename, mime: ref.original.mime },
           });
@@ -106,8 +110,8 @@ export async function importAdoptedMaterialsAndSummary(options: {
       for await (const body of pageParts(pageBody, `原标题：${ref.title}\n\n来源：${ref.path} · 版本 ${ref.version}\n\n${await readStagedText(home, id, ref.text)}`)) parts.push(body);
       for (const [index, body] of parts.entries()) {
         documents.push((await actions.invoke(importDocuments, {
-          request_id: id + ":sources:" + ref.label + (parts.length > 1 ? ":" + (index + 1) : ""),
-          request_hash: id,
+          request_id: (session ? "sessions:" + session : id + ":sources:" + ref.label) + (parts.length > 1 ? ":" + (index + 1) : ""),
+          request_hash: session ?? id,
           documents: [{ title: formatPartTitle(`[${ref.label}] ${ref.title}`, index + 1, parts.length, 80), body }],
         })).documents[0]!.id);
       }

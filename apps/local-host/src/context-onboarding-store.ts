@@ -17,7 +17,8 @@ export interface OnboardingTodoCandidate {
   readonly decision: null | { readonly item_id: string | null };
 }
 
-export type ContextSourceKind = "files" | "directory" | "downloads" | "documents" | "desktop" | "custom" | "browser" | "gmail" | "chat";
+/** `sessions`: the external AI sessions filed to the round's project, read as that project's AI (batch 35 item 1, SRB-09). */
+export type ContextSourceKind = "files" | "directory" | "downloads" | "documents" | "desktop" | "custom" | "browser" | "gmail" | "chat" | "sessions";
 export type SecretSendDecision = "strip" | "raw" | "exclude";
 export type ContextModelFailureKind = "connection" | "auth" | "rate_limit" | "timeout" | "context_limit" | "invalid_output" | "unknown";
 
@@ -61,6 +62,8 @@ export interface ContextReference {
   adopted?: boolean;
   /** Path of an earlier selected material with identical content digest (ONB-35). */
   duplicate_of?: string;
+  /** The external session this material was read from: adoption keeps one material per session in the project, so a re-import is not a new one. */
+  session_key?: string;
   /** How a secret-like file was explicitly approved by the person (C2, S-onboarding-secret-hold). */
   secret_mode?: "strip" | "raw";
 }
@@ -101,6 +104,8 @@ export interface ContextJourney {
   sources: ContextSource[]; model: string | null; error: string | null;
   summary: { title: string; body: string; references: ContextReference[] } | null;
   project_id: string; document_id: string | null; updated_at: string;
+  /** The round adds to a project that already exists (batch 35 item 1): adoption makes no project and writes into this one. */
+  existing?: true;
   /** Monotonic generation incremented when starting or reopening so late responses from older passes never overwrite newer scope (ONB-45, C11). */
   epoch?: number;
   /** Classified model/service failure kind for clear recovery guidance while preserving exact `error` text (ONB-41, C9). */
@@ -187,11 +192,12 @@ class ContextJourneyStore {
     const j = JSON.parse(row.body) as ContextJourney;
     return { id: j.id, phase: j.phase, updated_at: j.updated_at, title: j.adoption?.title ?? j.summary?.title ?? null };
   }
-  create(id: string): ContextJourney {
+  /** A new round; with `projectId`, one that adds to that existing project (the caller checked it exists). */
+  create(id: string, projectId?: string): ContextJourney {
     contextJourneyId(id);
     this.db.prepare("INSERT OR IGNORE INTO journeys VALUES (?,?,?)").run(id, JSON.stringify({
       id, phase: "selecting", sources: [], model: null, error: null, summary: null,
-      project_id: `project-onboarding-${id}`, document_id: null, updated_at: new Date().toISOString(),
+      project_id: projectId ?? `project-onboarding-${id}`, ...(projectId ? { existing: true as const } : {}), document_id: null, updated_at: new Date().toISOString(),
     } satisfies ContextJourney), new Date().toISOString());
     return this.get(id);
   }

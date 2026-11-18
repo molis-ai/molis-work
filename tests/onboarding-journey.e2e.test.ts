@@ -142,7 +142,9 @@ test("FSS-37 a new person's first run: the opening, two questions, materials, a 
   await waitFor(obView("sources"));
   assert.equal(await evaluate("document.querySelector('#ob-title').textContent"), "带入已有的材料");
   // The sources are a list on the Welcome steps' sheet; the bar is theirs too (the way back, then skip and go on), and the empty card says what goes there.
-  assert.equal(await evaluate("document.querySelectorAll('.welcome.onboard .ob-sources .ob-source').length"), 5);
+  // SRB-09: the sixth row is the person's AI tool sessions; a new project reads them once it exists, so the row says when.
+  assert.equal(await evaluate("document.querySelectorAll('.welcome.onboard .ob-sources .ob-source').length"), 6);
+  assert.match(await evaluate<string>("document.querySelector('.ob-source[data-src=sessions]').textContent"), /项目建好后接着读归到它的会话/);
   assert.equal(await evaluate("document.querySelector('[data-open=files] .ob-source__act.mw-btn').textContent"), "添加", "a row says what pressing it does, drawn as a button");
   assert.equal(await evaluate("document.querySelector('[data-action=prepare]').disabled"), true, "nothing to confirm yet");
   assert.equal(await evaluate("document.querySelector('.arrival-bar .mw-bar-status')"), null);

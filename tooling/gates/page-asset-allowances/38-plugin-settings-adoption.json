@@ -1,10 +1,10 @@
 {
   "reason": "引导逐项显示实际设置、范围与采用进度。Jelly、工作记录和置物架的原页面复用带版本的设置读写，桌面跟随当前设备设置。",
-  "review": "62022d06a3 对 f1e875d11e 的逐项实测已由批 38 只读评审确认。五个既有资源共用该 PR 的页面资源审阅记录，见批次收尾检查。",
+  "review": "批 38 只读评审核对了 e3fba06249 对 517a4d78fa 的隔离构建实测。五项既有资源的增量见本表，工作台脚本较初次测量多 3 字节。",
   "assets": {
     "/assets/molis-work-arrival.css": 1362,
     "/assets/molis-work-work-records.js": 726,
-    "/assets/molis-work-workbench.js": 6933,
+    "/assets/molis-work-workbench.js": 6936,
     "/assets/molis-work-plugins/jelly.js": 450,
     "/assets/molis-work-plugins/shelf.js": 3449
   }

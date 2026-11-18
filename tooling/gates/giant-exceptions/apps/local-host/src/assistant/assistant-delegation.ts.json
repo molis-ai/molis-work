@@ -4,7 +4,7 @@
       "kind": "cohesive-unit",
       "reason": "同一父工作的子任务图、交办启动、跟进、停止收回与自动交回续轮共享 #continuing／#refused 互斥账本和同一工作生命期门闩（holdAssistantWorkLifetime / assistantWorkEnding）。要求挂接与交付回执已拆在 assistant-delegated-delivery.ts，继续按行数切开类方法会把停止收回与交回续轮的竞态屏障分散到两个状态持有人。",
       "size": {
-        "lines": 339,
+        "lines": 331,
         "methods": 19
       }
     }

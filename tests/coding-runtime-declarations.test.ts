@@ -1,4 +1,4 @@
-import { PROJECT_SETTINGS_READS, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
+import { PROJECT_SETTINGS_READS, pluginActions, servesRoles, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
@@ -7,12 +7,11 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { charactersActions, openCharacters, type CharactersAgentCatalog } from "@molis-ai/molis-work-module-characters";
-import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE } from "@molis-ai/molis-work-contracts/modules/characters";
+import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, charactersProvider, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { AGENT_RUNTIME_CAPABILITIES, agentHostCapabilities as agent, defaultAgentRuntime, type AgentRuntimeDescriptor, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectDirectoryActions, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
@@ -32,24 +31,20 @@ test("RAC-450 the Home default Runtime is the first in the directory's order tha
   assert.equal(defaultAgentRuntime([]), null);
 });
 
-/** One project with a published Character, Characters' provider over it (with `catalog` as the built-in Agent's engines) and Coding's routes over a Runtime directory. */
+/** One project with a role (a member of the person's original), Characters' provider over it (with `catalog` as the built-in Agent's engines) and Coding's routes over a Runtime directory. */
 async function environment(runtimes: AgentRuntimeDescriptor[], catalog?: CharactersAgentCatalog) {
   const home = mkdtempSync(join(tmpdir(), "coding-runtime-declarations-")), dbPath = join(home, "board.db");
   await seedConfiguredModels(home); seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
-  const personal = openCharacters(home, "web-user"), draft = personal.service.create();
-  personal.service.update(draft.character_id, 1, { title: "角色", instructions: "固定要求", host_tools: null });
+  const personal = openCharacters(home, "web-user"), draft = personal.service.create({ title: "角色", instructions: "固定要求", host_tools: null });
+  const member = personal.service.roles.addMember(DEMO_PROJECT_ID, draft.character_id);
   const ports = { db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event), eventCursor: (projectId: string) => store.eventCursor(projectId) };
   const library = new ArtifactsModule(ports);
-  personal.service.publish(draft.character_id, 2, content => library.commands.registerVersion({ ...pinnedArtifact(content.title, { kind: "character", id: content.character_id }),
-    project_id: DEMO_PROJECT_ID, actor_id: "web-user", artifact_id: `character:${DEMO_PROJECT_ID}:${draft.character_id}`, version: 1, artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1,
-    producer: { plugin_id: CHARACTER_PLUGIN_ID, plugin_version: "1.0.0", binding_signature: CHARACTER_PUBLISHER_SIGNATURE },
-    content: { kind: "inline", payload: content as never } }));
   const sessions = codingSessions(store);
   for (const runtime of runtimes) await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: runtime.runtime_id, title: runtime.runtime_id, runtime_id: runtime.runtime_id, at: new Date().toISOString() });
   const starts: AgentStartRequest[] = []; let created = 0, picked: string | null = null;
-  const project = pluginActions(store, DEMO_PROJECT_ID);
+  const project = pluginActions(store, DEMO_PROJECT_ID);servesRoles(project);
   project.registry.registerProvider(charactersProvider({ project_id: DEMO_PROJECT_ID, artifacts: library, processItems: new ProcessItemsModule(ports) }, {
-    actorId: "web-user", drafts: personal.service, publish: (id, revision, publisher) => personal.service.publish(id, revision, publisher),
+    actorId: "web-user", open: () => ({ service: personal.service, close: () => {} }),
     references: () => library.query.listArtifacts(DEMO_PROJECT_ID, { artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1 }).map(({ artifact_id, version }) => ({ artifact_id, version })) }, catalog));
   const host = { store, ...openProjectVersionStores(store), homeDirectory: home, projectId: DEMO_PROJECT_ID, actions: project, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
@@ -76,7 +71,7 @@ async function environment(runtimes: AgentRuntimeDescriptor[], catalog?: Charact
     post: (path: string, body: unknown) => fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
       .then(async result => ({ status: result.status, body: await result.json() })),
     newSession: () => fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "新会话" }) })
-      .then(async result => ({ status: result.status, body: await result.json() })), ref: { artifact_id: `character:${DEMO_PROJECT_ID}:${draft.character_id}`, version: 1 },
+      .then(async result => ({ status: result.status, body: await result.json() })), ref: { kind: "project", member_id: member.current.member_id },
     start: (id: string, character: unknown) => request(id, "/runs", "POST", { task: "做点什么", intent: "discuss", workspace_id: "work", provider_id: "p", model_id: "m", character }),
     close: async () => { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); personal.close(); store.close(); rmSync(home, { recursive: true, force: true }); } };
 }

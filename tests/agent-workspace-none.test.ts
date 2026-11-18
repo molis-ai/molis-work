@@ -48,16 +48,19 @@ test("an explicitly declared inference role runs and restores its original sessi
 });
 
 function deferred() { let resolve = () => {}; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
+/**
+ * One of the person's originals at a fixed version, as Characters pins it (role-service-design §5). `remove` takes the version away:
+ * a new choice is refused, and a round already running with it stops at its next check.
+ */
 function characterAuthority() {
-  let active = true;
-  const character: AgentFrozenCharacter = { reference: { artifact_id: "character:original", version: 2 }, character_id: "original", title: "Analyst",
-    instructions: "Use only the supplied evidence.", host_tools: [], project_id: owner.project_id, content_digest: "original-content",
-    source: { owner_actor_id: owner.actor_id, draft_revision: 3 }, published_at: "2026-09-26T00:00:00Z",
-    producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "original-binding" } };
+  let present = true;
+  const character: AgentFrozenCharacter = { version: { kind: "personal", character_id: "original", version: 2 }, character_id: "original", title: "Analyst",
+    instructions: "Use only the supplied evidence.", host_tools: [], project_id: null, owner_actor_id: owner.actor_id, saved_at: "2026-09-26T00:00:00Z" };
   const granted: AgentStartAuthority = { ...authority, manifest: { ...authority.manifest,
-    characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["analyst", "reader"] } },
-    resolveCharacter() { if (!active) throw new Error("Character disabled"); return character; } };
-  return { granted, character, activate(value: boolean) { active = value; } };
+    characters: { selection: "optional-role", scope: "owner", role_ids: ["analyst", "reader"] } },
+    resolveCharacter() { if (!present) throw new Error("Character removed"); return structuredClone(character); },
+    characterVersion() { if (!present) throw new Error("Character version removed"); return structuredClone(character); } };
+  return { granted, character, choice: { kind: "personal" as const, character_id: "original" }, remove(value: boolean) { present = !value; } };
 }
 
 for (const workspace of ["none", "required"] as const) test(`${workspace} Character revoked during model selection cannot dispatch without action tools`, async () => {
@@ -65,14 +68,14 @@ for (const workspace of ["none", "required"] as const) test(`${workspace} Charac
   const f = fixture(true, async () => { entered.resolve(); await release.promise; });
   const scope = workspace === "none" ? { workspace, role_id: "analyst" } : { directory, role_id: "reader" };
   const session = await f.host.createSession("prologue", { ...owner, ...scope, title: "Analysis" }, c.granted);
-  const request: AgentStartRequest = { ...owner, ...scope, session, task: "Analyze", character: c.character.reference };
+  const request: AgentStartRequest = { ...owner, ...scope, session, task: "Analyze", character: c.choice };
   const pending = f.host.start("prologue", request, c.granted);
-  const rejected = assert.rejects(pending, /Character disabled/);
-  await entered.promise; c.activate(false); release.resolve(); await rejected;
+  const rejected = assert.rejects(pending, /这一轮所用的角色版本已移出或删除/);
+  await entered.promise; c.remove(true); release.resolve(); await rejected;
   assert.equal(f.starts.length, 0);
   assert.deepEqual((await f.adapter.readSession(session)).runs, []);
-  c.activate(true); await f.host.start("prologue", request, c.granted);
-  assert.equal(f.starts.length, 1, "the original Character can run after explicit reactivation");
+  c.remove(false); await f.host.start("prologue", request, c.granted);
+  assert.equal(f.starts.length, 1, "the Character can run once its version is there again");
 });
 
 test("none Character remains guarded after startup and is rechecked after awaited dispatch authority", async () => {
@@ -81,21 +84,20 @@ test("none Character remains guarded after startup and is rechecked after awaite
   c.granted.beforeStart = () => { assert.ok(starting, "startup authority must not be reused for later dispatch"); };
   c.granted.beforeDispatch = async () => { if (delay) { entered.resolve(); await release.promise; } };
   const session = await f.host.createSession("prologue", { ...owner, workspace: "none", role_id: "analyst", title: "Analysis" }, c.granted);
-  await f.host.start("prologue", { ...owner, workspace: "none", role_id: "analyst", session, task: "Analyze", character: c.character.reference }, c.granted);
+  await f.host.start("prologue", { ...owner, workspace: "none", role_id: "analyst", session, task: "Analyze", character: c.choice }, c.granted);
   starting = false; delay = true;
   const dispatch = f.starts[0]!.beforeDispatch!;
-  const rejected = assert.rejects(async () => dispatch(), /Character disabled/);
-  await entered.promise; c.activate(false); release.resolve(); await rejected;
-  c.activate(true); await dispatch();
+  const rejected = assert.rejects(async () => dispatch(), /这一轮所用的角色版本已移出或删除/);
+  await entered.promise; c.remove(true); release.resolve(); await rejected;
+  c.remove(false); await dispatch();
   const original = structuredClone(c.character);
   for (const change of [
-    () => { c.character.reference.artifact_id = "replacement"; },
-    () => { c.character.reference.version = 3; },
-    () => { c.character.content_digest = "changed"; },
+    () => { c.character.character_id = "replacement"; },
+    () => { c.character.version = { kind: "personal", character_id: "original", version: 3 }; },
     () => { c.character.project_id = "another-board"; },
-    () => { c.character.source.owner_actor_id = "another-owner"; },
+    () => { c.character.owner_actor_id = "another-owner"; },
   ]) {
-    change(); await assert.rejects(async () => dispatch(), /原 Character 版本已变化/);
+    change(); await assert.rejects(async () => dispatch(), /角色版本与本轮固定的不一致/);
     Object.assign(c.character, structuredClone(original));
   }
   await dispatch();

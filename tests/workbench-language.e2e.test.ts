@@ -1740,9 +1740,12 @@ test("FSS-35 catalog Agent display retains a real role and prompt draft through 
     await select(locale); await b.waitFor(`document.documentElement.lang === '${locale === "zh" ? "zh-CN" : "en"}'`);
     assert.deepEqual(await b.evaluate(words), locale === "en" ? english
       : ["评论中的个人助理", "评论中的个人助理", "评论中的个人助理", "基础约束", "组成角色：评论中的个人助理", "编辑：基础约束"]);
-    assert.deepEqual(await b.evaluate(`(() => { const { body, row, area, history, banner } = catalogEditor; return [body === document.body, row === document.querySelector(${JSON.stringify(row)}),
+    // Since batch 36 Settings › 角色 is a settings document: while the prompts page shows, it waits in the Settings cache (the roots
+    // a language change retitles in place), not in the document; the same row nodes must still be the ones that cache holds.
+    assert.deepEqual(await b.evaluate(`(() => { const { body, row, area, history, banner } = catalogEditor;
+      const cached = selector => (globalThis.molisWorkSettingsLanguageRoots?.() ?? []).map(root => root.querySelector(selector)).find(Boolean) ?? null; return [body === document.body, row === document.querySelector(${JSON.stringify(row)}),
       row.querySelector('textarea') === area, row.querySelector('.prompt-history') === history, banner === document.querySelector('.prompt-role-focus-copy strong'),
-      catalogRole === document.querySelector(${JSON.stringify(link)}), catalogRawRole === document.querySelector(${JSON.stringify(raw)}),
+      cached(${JSON.stringify(link)}) === catalogRole, cached(${JSON.stringify(raw)}) === catalogRawRole,
       history.open, document.activeElement === area, area.value, area.selectionStart, area.selectionEnd, area.selectionDirection]; })()`),
     [true, true, true, true, true, true, true, true, true, "未保存草稿 <raw> English", 2, 9, "backward"]);
   }

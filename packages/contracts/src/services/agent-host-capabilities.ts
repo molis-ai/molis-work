@@ -1,5 +1,6 @@
 import type { ActionDefinition, ActionView } from "../platform/actions.js";
 import { MATERIAL_REF_SCHEMA } from "../platform/project-materials.js";
+import { CHARACTER_TASK_SELECTION_SCHEMA } from "../modules/character-role-scope.js";
 import { memoryClassRestrictionsSchema } from "./memory.js";
 import type { AgentDraftTextRequest, AgentDraftTextResult } from "./agent-host.js";
 import type { AgentMcpServerInput, AgentMcpServerView, AgentCheckpoint, AgentRecoveryReport, AgentSubagentRetrySource, AgentSubagentView } from "./agent-host-ports.js";
@@ -213,7 +214,7 @@ const startInput = { type: "object", required: ["session", "task", "role_id"], a
   continue_step_board_of: entryId, queued_work_id: entryId, queued: { anyOf: [{ enum: ["carry", "leave"] }, ids(500)] }, session_title: text(2000), browser: { const: false },
   history: { enum: ["session", "digest"] },
   subagent_workspaces: { type: "array", maxItems: 50, items: { type: "object", required: ["worktree_id", "directory"], additionalProperties: false, properties: { worktree_id: entryId, directory: directoryInput } } },
-  character: { anyOf: [artifactInput, { type: "null" }] }, session: sessionRef, task: { type: "string", minLength: 1, maxLength: 1_000_000 }, role_id: entryId,
+  character: { anyOf: [CHARACTER_TASK_SELECTION_SCHEMA, { type: "null" }] }, session: sessionRef, task: { type: "string", minLength: 1, maxLength: 1_000_000 }, role_id: entryId,
   model_selection: { type: "object", required: ["provider_id", "model_id"], additionalProperties: false, properties: { provider_id: entryId, model_id: entryId } },
   reasoning_effort: { enum: ["low", "medium", "high"] },
   text_materials: { type: "array", maxItems: 200, items: { anyOf: [

@@ -2,6 +2,7 @@ import { PRESENTATION_ATTENTION_STATES, PRESENTATION_FIELD_ROLES, PRESENTATION_F
   PRESENTATION_OVERVIEW_OUTPUT_SCHEMA, PRESENTATION_OVERVIEW_OUTPUT_TYPE, PRESENTATION_VALUES_INPUT_SCHEMA, PRESENTATION_VALUES_INPUT_TYPE,
   PRESENTATION_VALUES_OUTPUT_SCHEMA, PRESENTATION_VALUES_OUTPUT_TYPE, SURFACE_SLOT_KINDS } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { STATE_RING_FAMILIES, type TextRef } from "@molis-ai/molis-work-contracts/platform/ui";
+import { WORK_ITEM_PARTS, isItemPartAction, parseItemPartReference, type WorkItemPart } from "@molis-ai/molis-work-contracts/platform/actions";
 import { canonicalJsonText, isRecord } from "./json-value.js";
 import { textRefProblems, tryOwnedTextRef } from "./ui/text-ref.js";
 
@@ -53,6 +54,7 @@ interface ObjectContext {
   readonly valued: ReadonlySet<string>;
   readonly seen: Set<string>;
   readonly catalog: PresentationCatalog;
+  readonly actions: readonly Record<string, unknown>[];
 }
 
 /**
@@ -69,7 +71,7 @@ export function validatePresentationDeclaration(manifest: { readonly presentatio
   if (!Array.isArray(declaration.objects) || declaration.objects.length > PRESENTATION_LIMITS.objects) {
     problems.push(`presentation.objects 必须是数组，至多 ${PRESENTATION_LIMITS.objects} 个对象`);
   } else {
-    const context: ObjectContext = { kinds: declaredKinds(actions), valued: valuedKinds(actions), seen: new Set(), catalog };
+    const context: ObjectContext = { kinds: declaredKinds(actions), valued: valuedKinds(actions), seen: new Set(), catalog, actions };
     declaration.objects.forEach((object, index) => problems.push(...objectProblems(object, `presentation.objects[${index}]`, context)));
   }
   if (declaration.overview !== undefined) problems.push(...overviewProblems(declaration.overview, actions, manifest.ui));
@@ -151,7 +153,7 @@ function valuesActionProblems(actions: readonly Record<string, unknown>[]): stri
 
 function objectProblems(object: unknown, at: string, context: ObjectContext): string[] {
   if (!isRecord(object)) return [`${at} 必须是对象`];
-  const problems = extraKeys(object, ["kind", "fields", "status", "forms", "actions", "text"], at);
+  const problems = extraKeys(object, ["kind", "fields", "status", "forms", "actions", "text", "item"], at);
   const kind = object.kind;
   if (!member(context.kinds, kind)) problems.push(`${at}.kind 要是本插件的搜索来源或动作已经声明的对象种类`);
   else if (context.seen.has(kind)) problems.push(`${at}.kind ${kind} 重复声明`);
@@ -166,7 +168,31 @@ function objectProblems(object: unknown, at: string, context: ObjectContext): st
     if (!isRecord(object.text)) problems.push(`${at}.text 必须是对象`);
     else problems.push(...extraKeys(object.text, ["lines"], `${at}.text`), ...keyListProblems(object.text.lines, `${at}.text.lines`, fields, PRESENTATION_LIMITS.text_lines));
   }
+  if (object.item !== undefined) problems.push(...itemSourceProblems(object.item, `${at}.item`, typeof kind === "string" ? kind : "", context.actions));
   return problems;
+}
+
+/**
+ * An item source (specs/work-mainline/contract-design.md §4): each part names one of this Manifest's own actions, for this kind, with
+ * exactly the shape `platform/work-items` gives it, so the mainline service can call any source alike and none offers another's kind.
+ */
+function itemSourceProblems(value: unknown, at: string, kind: string, actions: readonly Record<string, unknown>[]): string[] {
+  if (!isRecord(value)) return [`${at} 必须是对象`];
+  const problems = extraKeys(value, Object.keys(WORK_ITEM_PARTS), at);
+  for (const part of Object.keys(WORK_ITEM_PARTS) as WorkItemPart[]) {
+    if (value[part] === undefined) continue;
+    const ref = parseItemPartReference(value[part]), path = `${at}.${part}`;
+    const action = ref && actions.find(candidate => candidate.capability_id === ref.capability_id && candidate.version === ref.version);
+    if (!ref) problems.push(`${path} 要写成 capability_id@version`);
+    else if (!action) problems.push(`${path} 要是本插件自己声明的动作`);
+    else if (!isItemPart(action, part, kind)) problems.push(`${path} 要用 platform/work-items 的定义器定义（${part}），并以 ${kind} 为对象种类`);
+  }
+  return problems;
+}
+
+/** The part's operation and schemas, exactly as the platform gives them, for this kind (the same check the mainline service runs). */
+export function isItemPart(action: unknown, part: WorkItemPart, kind: string): boolean {
+  return isRecord(action) && isItemPartAction({ operation: action.operation, action: metadataOf(action) as never }, part, kind);
 }
 
 /** The declared fields by key, with their role. A field whose key is wrong is reported and left out, so it is not reported again where it is used. */

@@ -38,6 +38,7 @@ export * from "./file-sources.js";
 export * from "./artifact-pins.js";
 export * from "./local-person.js";
 export * from "./placement.js";
+export * from "./work-items.js";
 export * from "./work-executors.js";
 
 export type { ActionSchema } from "./action-schema.js";

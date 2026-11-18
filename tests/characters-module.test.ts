@@ -9,6 +9,8 @@ import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { parseCharacterContent, parseCharacterTools } from "@molis-ai/molis-work-contracts/modules/characters";
 
 const patch = { title: "核对者", instructions: "先核对证据，再给结论。\n保留未验证项。", host_tools: ["read-file", "search"] };
+/** A role created with a name and nothing written yet: it is saved as v1 when created (role-service-design §3). */
+const blank = { title: "未定", instructions: "", host_tools: null };
 function home(t: { after(callback: () => void): void }) {
   const directory = mkdtempSync(join(tmpdir(), "molis-characters-"));
   const handles: ReturnType<typeof openCharacters>[] = [];
@@ -19,7 +21,7 @@ const code = (expected: string) => (error: unknown) => error instanceof ActionEr
 
 test("personal Character drafts survive reopening, isolate actors and do not expose mutable stored objects", t => {
   const fixture = home(t), first = fixture.open(), other = fixture.open("actor-b");
-  const created = first.create();
+  const created = first.create(blank);
   assert.equal(created.revision, 1);
   assert.equal(created.host_tools, null);
   const edited = first.update(created.character_id, created.revision, patch);
@@ -44,7 +46,7 @@ test("personal Character drafts survive reopening, isolate actors and do not exp
 
 test("stale windows cannot overwrite, disable or publish a newer Character draft", t => {
   const fixture = home(t), first = fixture.open(), second = fixture.open();
-  const created = first.create();
+  const created = first.create(blank);
   const edited = second.update(created.character_id, 1, patch);
   let published = false;
   assert.throws(() => first.update(created.character_id, 1, { ...patch, title: "过期窗口" }), code("characters.conflict"));
@@ -55,7 +57,7 @@ test("stale windows cannot overwrite, disable or publish a newer Character draft
 });
 
 test("Character writes require a confirmed positive revision even from an untyped caller", t => {
-  const service = home(t).open(), created = service.create();
+  const service = home(t).open(), created = service.create(blank);
   for (const revision of [undefined, null, 0, -1, NaN, 1.5, "1"]) {
     assert.throws(() => service.update(created.character_id, revision as number, patch), code("characters.invalid"));
     assert.throws(() => service.setState(created.character_id, revision as number, "disabled"), code("characters.invalid"));
@@ -64,8 +66,9 @@ test("Character writes require a confirmed positive revision even from an untype
   assert.deepEqual(service.get(created.character_id), created);
 });
 
-test("empty Character drafts cannot publish; publisher failure releases the transaction for a later edit", t => {
-  const service = home(t).open(), created = service.create();
+test("a role without a name is not created; empty Character drafts cannot publish; publisher failure releases the transaction for a later edit", t => {
+  const service = home(t).open(), created = service.create(blank);
+  assert.throws(() => service.create({ ...blank, title: " " }), code("characters.invalid"));
   let calls = 0;
   assert.throws(() => service.publish(created.character_id, 1, () => { calls++; return "unexpected"; }), code("characters.invalid"));
   assert.equal(calls, 0);
@@ -77,7 +80,7 @@ test("empty Character drafts cannot publish; publisher failure releases the tran
 });
 
 test("published Character body is a fixed draft snapshot, and disabling or deleting blocks new publication", t => {
-  const service = home(t).open(), created = service.create();
+  const service = home(t).open(), created = service.create(blank);
   let current = service.update(created.character_id, 1, patch);
   const frozen = service.publish(current.character_id, current.revision, content => content);
   assert.deepEqual(frozen, { character_id: current.character_id, ...patch, source: { owner_actor_id: "actor-a", draft_revision: 2 } });
@@ -94,7 +97,7 @@ test("published Character body is a fixed draft snapshot, and disabling or delet
   assert.throws(() => service.setState(current.character_id, current.revision, "active"), code("characters.deleted"));
   assert.throws(() => service.update(current.character_id, current.revision, patch), code("characters.deleted"));
   assert.throws(() => service.publish(current.character_id, current.revision, content => content), code("characters.deleted"));
-  assert.notEqual(service.create().character_id, current.character_id);
+  assert.notEqual(service.create(blank).character_id, current.character_id);
   assert.equal(frozen.instructions, patch.instructions);
 });
 

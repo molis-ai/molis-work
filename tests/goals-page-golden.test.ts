@@ -237,6 +237,9 @@ const pages: Record<string, Draw> = {
 // The 16 whole pages therefore change by -6 characters (-22 +16), and the 8 full refresh fragments by -22;
 // the other 28 records are unchanged. Expectations were derived after this exact reverse check, without RECORD mode.
 // QEA-112's collection projection has separate actual owner-read/HTTP assertions; the original full-page checks remain exact.
+// QEA-148: all 52 normalized shapes from independently built main 8d9f1fb01e matched its accepted hashes. Applying the
+// accepted import text and button, Sessions length and retired inbox_judgment changes to those reference draws matched
+// the merged draws exactly. This updates 24 expectations; the other 28 hashes and the comparison rules stay intact.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

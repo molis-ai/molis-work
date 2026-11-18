@@ -1,7 +1,7 @@
 import {codingSavedHistoryPage} from './saved-history-view.js';
 import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runsWithCards } from "./action-cards.js";
-import { characterTitle, savedCharacter, savedCharacterSkills } from "./characters.js";
+import { savedCharacter, savedCharacterSkills } from "./characters.js";
 import { codingContinuation } from "./continuation.js";
 import { nextHistoryMode } from "./history-digest.js";
 import { savedMaterials } from "./materials.js";
@@ -153,7 +153,8 @@ const ROUTES: RouteMaker[] = [
       const record = selected(a, request, execution);
       // The Goal's title as Goals has it now (the page shows it in the session header); read through Goals' action, kept for the directory.
       if (record.goal_id) await execution.goalTitles.read([record.goal_id], beforeWrite);
-      const character = savedCharacter(context, record.session_id), character_title = characterTitle(context, character);
+      const saved = savedCharacter(context, record.session_id), character = saved && saved !== "unreadable" ? saved.ref : null;
+      const character_title = saved === "unreadable" ? codingText("coding.server.character-gone") : saved ? saved.title : null;
       const plan = execution.sessions.plan(projectId, record.session_id);
       const plan_revision=execution.sessions.planRevision(projectId,record.session_id);
       const savedInputs=execution.sessions.inputs.read(projectId,record.session_id),draft=savedInputs.draft,input_revision=savedInputs.revision;

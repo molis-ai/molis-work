@@ -134,6 +134,18 @@ export interface PluginRegistration {
     convert(key: string, value: string): string | null;
   };
   /**
+   * This built-in plugin's conversion of its private values that a step of the project library's upgrade carries: `project_from` names the
+   * step by the version it upgrades from. Plugin Runtime applies it in that step's transaction, as `private_value_adoption` is applied: to the
+   * values of this plugin's exact official install whose key starts with one of `prefixes`, each by its whole old value; `convert` returns
+   * the value in the current shape, or null when it already is, and throws to leave the library at its old version. Deterministic and pure.
+   * Trusted: the Host reads it from this registration only, never from an installed package.
+   */
+  readonly private_value_upgrades?: readonly {
+    readonly project_from: number;
+    readonly prefixes: readonly string[];
+    convert(key: string, value: string): string | null;
+  }[];
+  /**
    * How the Host gets the code of a plugin that runs in the Home. Where a plugin runs is its Manifest's `runtime.scope` (PG-011),
    * which this entry has exactly when that says `"home"` (`catalogProblems`). Explicit Runtime activation;
    * personal visibility alone never migrates an existing plugin. Trusted: the Host reads it from this registration only, never from a

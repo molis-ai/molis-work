@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, textRefProblems } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInteractionClient, PluginInteractionNextSteps, PluginInteractionStep } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { AGENT_QUESTION_TYPES, type AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
@@ -33,6 +33,12 @@ const presentationOf = (value: unknown) => { const item = fieldsOf(value); if (!
 const originOf = (value: unknown) => { if (value === undefined) return true; const item = fieldsOf(value); return !!item && text(item.surface) && (item.title === undefined || text(item.title)); };
 const sourceObjectOf = (value: unknown) => { if (value === undefined) return true; const item = fieldsOf(value); return !!item && text(item.kind) && text(item.id)
   && (item.version === undefined || item.version === null || text(item.version) || number(item.version)) && (item.title === undefined || text(item.title)); };
+/**
+ * A card's outcome as a plugin hands it over: its own words as they came, or one of the platform's shared words the SDK's card rules
+ * write (`common.*`). Never another owner's key: a plugin does not show its words as another's.
+ */
+const outcomeOf = (value: unknown) => { if (value === undefined) return true; const item = fieldsOf(value); return !!item && textRefProblems(item, { owned: true }).length === 0
+  && (item.literal !== undefined || item.owner === "workbench" && text(item.key) && (item.key as string).startsWith("common.")); };
 const questionDefaultOf = (value: unknown) => value === undefined || text(value) || number(value) || Array.isArray(value) && value.every(number);
 const agentOptionOf = (value: unknown) => { const item = fieldsOf(value); return !!item && number(item.index) && text(item.label)
   && (item.description === undefined || text(item.description)) && (item.recommended === undefined || typeof item.recommended === "boolean"); };
@@ -62,7 +68,7 @@ function card(value: unknown): AssistantCard {
   if (!given || !text(given.card_id) || !text(given.title) || !text(given.summary) || !text(given.provider) || !text(given.capability_title)
     || !CARD_STATUSES.has(given.status) || !EFFECTS.has(given.effect) || !Array.isArray(given.fields) || !given.fields.every(cardFieldOf)
     || !Array.isArray(given.missing) || !given.missing.every(missingOf) || (given.presentation !== undefined && !presentationOf(given.presentation))
-    || !originOf(given.from) || !sourceObjectOf(given.source_object) || !optionalText(given, ["outcome"]))
+    || !originOf(given.from) || !sourceObjectOf(given.source_object) || !outcomeOf(given.outcome))
     throw interactionErrors.plugin_interaction_invalid("操作卡需要 card_id、title、summary、provider、capability_title、声明过的 status 与 effect、fields、missing，嵌套字段也要是对的形状");
   return value as AssistantCard;
 }

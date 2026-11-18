@@ -11,5 +11,5 @@ export function recordAssistantResultCard(store: Pick<AssistantStore, "addCard" 
     revision: 1, status: "done", title: view.action.title, summary: presentation.summary, provider: view.provider.title,
     capability_title: view.action.title, effect: actionEffect(view.action, view.capability_id),
     reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id },
-    input: {}, input_schema: {}, editable: [], missing: [], outcome: presentation.summary, presentation, created_at: at, updated_at: at });
+    input: {}, input_schema: {}, editable: [], missing: [], outcome: { literal: presentation.summary }, presentation, created_at: at, updated_at: at });
 }

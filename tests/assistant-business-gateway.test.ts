@@ -1,4 +1,5 @@
-import { pageText } from "./fixtures/page-text.js";
+import { pagePack, pageText } from "./fixtures/page-text.js";
+import { createTextReader } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { inAssistantPage, noticeText } from "./fixtures/assistant-saved-text.js";
 import { startProjectPlugins } from "./fixtures/plugin-callers.js";
 import { ensureProjectRoot } from "./fixtures/goals-board.js";
@@ -9,6 +10,9 @@ import test from "node:test";
 // The Assistant words every round's materials in the language it runs in (`format.date`): the process needs the
 // Host's text context installed, as a running Host has it.
 installHostUiText();
+// A card's outcome is a key with its raw values: read it in the language the person reads.
+const chinese = createTextReader({ locale: "zh", packs: [pagePack("workbench", "zh")] }).text;
+const outcomeOf = (card: { outcome?: Parameters<typeof chinese>[0] }) => card.outcome ? chinese(card.outcome) : undefined;
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -923,11 +927,12 @@ test("W2-18-JOB-01: background work a round or a card starts is followed on the 
     await f.service.send({ work_id: sent.work.work_id, text: "给我一个再研究一次的按钮", request_id: "req-00000036" }, {});
     const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.rounds.length === 3 && v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
     const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
-    assert.deepEqual([ran.status, ran.outcome], ["running", "已开始，后台进行中"]);
+    assert.deepEqual([ran.status, outcomeOf(ran)], ["running", "已开始，后台进行中"]);
     assert.equal((await f.service.read(sent.work.work_id)).jobs!.find(job => job.job_id === "job-2")?.card_id, ran.card_id);
     state.value = "failed";
     const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
-    assert.deepEqual([after.status, after.outcome], ["failed", "后台没有完成"]);
+    assert.equal(after.status, "failed");
+    assert.match(outcomeOf(after) ?? "", /」在后台没有完成$/, "the card says how the job ended, as the notice does");
     assert.equal(f.service.notices.notices(null).filter(notice => /后台/.test(noticeText(notice))).length, 2, "one notice for each job's end");
   } finally { await f.close(); }
 });
@@ -946,14 +951,15 @@ test("W2-18-JOB-02: running a card whose action starts a background job follows 
     const sent = await f.service.send({ text: "给我一个研究按钮", request_id: "req-00000037" }, { project_ref: f.project });
     const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
     const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
-    assert.deepEqual([ran.status, ran.outcome, jobs.started()], ["running", "已开始，后台进行中", 1]);
+    assert.deepEqual([ran.status, outcomeOf(ran), jobs.started()], ["running", "已开始，后台进行中", 1]);
     // One start, one followed job: the change's own report and the card name it at once, and it is the card's.
     const graph = await f.host.adapter("prologue").collaboration!.works!.read(f.store.get("web-user", sent.work.work_id).graph_id!);
     assert.equal(graph.filter(node => node.job).length, 1);
     assert.deepEqual((await f.service.read(sent.work.work_id)).jobs!.map(job => [job.job_id, job.card_id ?? null]), [["job-1", ran.card_id]]);
     state.value = "completed";
     const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
-    assert.deepEqual([after.status, after.outcome], ["done", "后台已完成"]);
+    assert.equal(after.status, "done");
+    assert.match(outcomeOf(after) ?? "", /」在后台完成了$/, "the card says how the job ended, as the notice does");
     await until(() => f.service.notices.notices(null).some(notice => /后台完成了/.test(noticeText(notice))), "the person is told");
     // The Assistant built again on the same Home (as after a restart) hears every job that has ended at once: still one notice.
     const again = new AssistantService(f.store, f.ports, "web-user");
@@ -984,7 +990,8 @@ test("W2-18-JOB-04: a work that 500 newer works have passed still answers for th
     assert.equal(f.store.list("web-user", { archived: "any", limit: 500 }).some(work => work.work_id === sent.work.work_id), false, "the work is not among the latest 500");
     state.value = "completed";
     const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
-    assert.deepEqual([after.status, after.outcome], ["done", "后台已完成"], "looked at with the work's authority, not refused as gone");
+    assert.equal(after.status, "done", "looked at with the work's authority, not refused as gone");
+    assert.match(outcomeOf(after) ?? "", /」在后台完成了$/);
     await until(() => f.service.notices.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(noticeText(notice))), "the person is told");
   } finally { await f.close(); }
 });
@@ -1083,13 +1090,13 @@ test("a suggestion whose moment has passed, or that counted days from another da
     clock = Date.parse("2026-10-01T11:00:00+08:00");
     let view = await f.service.read(sent.work.work_id);
     assert.equal(view.cards[0]!.status, "stale");
-    assert.match(view.cards[0]!.outcome ?? "", /已经过去/);
+    assert.match(outcomeOf(view.cards[0]!) ?? "", /已经过去/);
     assert.equal(view.cards[1]!.status, "ready");
     // The next day, “明天” meant another day: that card is not run as it stands either.
     clock = Date.parse("2026-10-02T09:00:00+08:00");
     view = await f.service.read(sent.work.work_id);
     assert.equal(view.cards[1]!.status, "stale");
-    assert.match(view.cards[1]!.outcome ?? "", /2026-10-01 准备的/);
+    assert.match(outcomeOf(view.cards[1]!) ?? "", /2026年10月1日准备的/);
     const clicked = await f.service.offers.runCard(sent.work.work_id, view.cards[1]!.card_id, { revision: view.cards[1]!.revision });
     assert.equal(clicked.status, "stale");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "neither ran");

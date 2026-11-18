@@ -1,5 +1,6 @@
 import { bindActionHandler, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runActionCard, type ActionCard, type CardStore } from "@molis-ai/molis-work-plugin-sdk";
+import { say } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { workBriefActions } from "./actions.js";
 import type { BriefPorts } from "./briefs.js";
 import { workBriefErrors } from "./error.js";
@@ -72,7 +73,7 @@ export function createNextHandlers(ports: BriefPorts): ActionHandlerBinding[] {
       // reads as `unknown` once this run ends; the person clears it after checking at the owner's. Writing it would violate
       // the library's state check and would invent a result the action never confirmed.
       if (result.state !== "unknown") await write(caller, store => store.mark(brief_id, result));
-      if (card.status === "stale") throw workBriefErrors.option_stale(card.outcome ?? "它针对的对象已经变了，这条下一步不再执行", { option_id });
+      if (card.status === "stale") throw workBriefErrors.option_stale(card.outcome ? say.text(card.outcome) : "它针对的对象已经变了，这条下一步不再执行", { option_id });
       return { mark: result };
       } finally { flying(ports).delete(key); }
     }),

@@ -41,7 +41,7 @@
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |
 | --- | --- | --- | --- | --- | --- |
 | 安装与发行清单 | `config/installation.json、releases/molis-work-<version>/release.json` | 1 | `schema_version` | `apps/local-host/src/installer/home-contract.ts#SCHEMA_VERSION` | 低版本由安装器升级；高版本在修改前拒绝，保留文件 |
-| 项目库 | `projects/<project_id>/molis-work.db` | 4 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 3→4 在项目库同一事务中接收可信决定、规则和原审批记录；低版本升级，高版本拒绝 |
+| 项目库 | `projects/<project_id>/molis-work.db` | 5 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 3→4 在项目库同一事务中接收可信决定、规则和原审批记录；4→5 把 Coding 卡片里存成句子的结果改成 `{ literal }` 文字引用；低版本升级，高版本拒绝 |
 | 项目库里 Coding 的表 | `projects/<project_id>/molis-work.db#coding` | 1 | `plugin_project_databases.version` | `plugins/native/coding/src/database.ts#CODING_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Coding） |
 | 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 2 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Feed） |
 | 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 5 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 随项目库 3→4 交接旧决定和规则并更换同步集合，保留原业务事实 |
@@ -51,7 +51,7 @@
 | 项目库里 Schedule 的表 | `projects/<project_id>/molis-work.db#schedule` | 3 | `plugin_project_databases.version` | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Schedule） |
 | 目录库 | `projects/catalog.db` | 4 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 低版本升级，高版本拒绝 |
 | Functions | `functions/functions.db` | 1 | `user_version` | `modules/judgment-rules/src/store-schema.ts#FUNCTIONS_STORE_BASELINE` | 低版本升级，高版本拒绝 |
-| 助理 | `assistant/assistant.db` | 1 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 低版本升级，高版本拒绝 |
+| 助理 | `assistant/assistant.db` | 2 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 低版本升级（1 → 2 把卡片里存成句子的结果改成 `{ literal }` 文字引用），高版本拒绝 |
 | 个人同步队列 | `spaces/<spaceId>/sync/sync.db` | 1 | `user_version` | `modules/sync-replication/src/database.ts#SYNC_STORE_BASELINE` | 低版本升级，高版本拒绝 |
 | Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 1 | `user_version` | `apps/local-host/src/home-plugin-store.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 低版本升级，高版本拒绝 |
 | 装进来的插件的 Home 库账本 | `plugin-libraries/plugin-libraries.db` | 1 | `user_version` | `apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE` | 低版本升级，高版本拒绝 |
@@ -79,7 +79,7 @@
 | Pages | `pages/pages.db` | 1 | `user_version` | `plugins/native/pages/src/database.ts#PAGES_DATABASE` | 低版本升级，高版本拒绝 |
 | PPT | `ppt/ppt.db` | 1 | `user_version` | `plugins/native/ppt/src/database.ts#PPT_DATABASE` | 低版本升级，高版本拒绝 |
 | Todo | `todo/todo.db` | 1 | `user_version` | `plugins/native/todo/src/database.ts#TODO_DATABASE` | 低版本升级，高版本拒绝 |
-| Work Brief | `work-brief/work-brief.db` | 1 | `user_version` | `plugins/native/work-brief/src/database.ts#WORK_BRIEF_DATABASE` | 低版本升级，高版本拒绝 |
+| Work Brief | `work-brief/work-brief.db` | 2 | `user_version` | `plugins/native/work-brief/src/database.ts#WORK_BRIEF_DATABASE` | 低版本升级（1 → 2 把简报版本、提议与请求里的来源名和下一步结果改成 `{ literal }` 文字引用），高版本拒绝 |
 | Workflows | `workflows/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/database.ts#WORKFLOWS_DATABASE` | 低版本升级，高版本拒绝 |
 | 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 拒绝。不进升级链（统筹按 `search.sqlite` 的同一理由并入：这个插件要重做，`specs/backlog/BL-377.md`） |
 | server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝旧结构/旧版本（当前 v1 含 `im_messages.subjects_json`；旧 v1 结构在可写打开前拒绝，不转换，见 [CONTRACT-CHANGES](../system/CONTRACT-CHANGES.md#当前保留机制)） |

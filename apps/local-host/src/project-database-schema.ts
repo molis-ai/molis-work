@@ -1,6 +1,8 @@
 import { ADOPTED_PROCESS_ITEMS_JOURNAL_SQL, ADOPTED_PROCESS_ITEMS_TRIGGERS_SQL, PROJECT_REPLICATION_SCHEMA_SQL } from './project-replication-schema.js';
 import { STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
-import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
+import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline, type SqliteBaselineDatabase, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
+import { applyPrivateValueAdoption, planPrivateValueAdoption } from "@molis-ai/molis-work-plugin-runtime";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.generated.js";
 import { MATERIAL_RECENT_USES_SCHEMA_SQL, PROJECT_ROOT_SCHEMA_SQL } from "@molis-ai/molis-work-module-projects";
 import { ARTIFACTS_SCHEMA_SQL, PROCESS_ITEMS_SCHEMA_SQL } from "@molis-ai/molis-work-module-artifacts";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
@@ -61,6 +63,21 @@ export const PROJECT_DATABASE_VERSION_2_SCHEMA = [
 
 export const PROJECT_DATABASE_VERSION_3_SCHEMA = `${PROJECT_DATABASE_VERSION_2_SCHEMA}\n${SURFACE_CORRECTIONS_SCHEMA_SQL}`;
 
+/**
+ * The built-in plugins' own conversions of their private values that the step from `from` carries (`private_value_upgrades` in their
+ * registrations): Plugin Runtime owns the private values and the install records, so each goes through its plan and write, on the exact
+ * official install's values only, each written only over the value it was read as. A value a plugin cannot read fails the step, and the
+ * library stays at its old version.
+ */
+const pluginPrivateValueUpgrades = (from: number) => (db: SqliteBaselineDatabase): void => {
+  for (const registration of PLATFORM_PLUGIN_REGISTRATIONS) for (const step of registration.private_value_upgrades ?? []) {
+    if (step.project_from !== from) continue;
+    const plan = planPrivateValueAdoption(db, { manifest: registration.manifest, private_value_adoption: { prefixes: step.prefixes, convert: step.convert } });
+    if (plan.refused.length) throw new Error(plan.refused.join("; "));
+    applyPrivateValueAdoption(db, plan);
+  }
+};
+
 const PROJECT_DATABASE_UPGRADES = [
     // 1 → 2 (specs/shared-sources-and-surfaces §2.1, §3): where a project was browsed is no setting any more, and 「最近用过」 starts empty.
     // The step also lands on the adopted process-items journal (user 2026-11-12, specs/batch-06-shared-tools/current-version-adoption.md):
@@ -71,12 +88,15 @@ const PROJECT_DATABASE_UPGRADES = [
     { from: 2, sql: SURFACE_CORRECTIONS_SCHEMA_SQL },
     { from: 3, sql: PROJECT_APPROVALS_SCHEMA_SQL, run: transferProjectApprovals,
       get reduces_rows() { return projectApprovalUpgradeReductions(); } },
+    // 4 → 5: what the built-in plugins keep in this library's private values in the old shape (a card's outcome as a sentence, user
+    // 2026-11-17), each converted by its own declared step.
+    { from: 4, run: pluginPrivateValueUpgrades(4) },
 ] satisfies readonly SqliteUpgradeStep[];
 
 export const projectApprovalUpgrade: SqliteUpgradeStep = PROJECT_DATABASE_UPGRADES[2]!;
 
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: /* @version database.project_database_baseline */ 4,
+  version: /* @version database.project_database_baseline */ 5,
   schema: `${PROJECT_DATABASE_VERSION_3_SCHEMA}\n${PROJECT_APPROVALS_SCHEMA_SQL}`,
   upgrades: PROJECT_DATABASE_UPGRADES,
 };

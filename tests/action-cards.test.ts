@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorFromResponse, dismissActionCard, draftActionCard, runActionCard, sweepActionCard, type ActionCard, type ActionCardPorts, type CardAuthority } from "@molis-ai/molis-work-plugin-sdk";
+import { createTextReader } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { pagePack } from "./fixtures/page-text.js";
+
+/** A stored outcome as the Chinese page reads it. */
+const chinese = createTextReader({ locale: "zh", packs: [pagePack("workbench", "zh")] }).text;
 
 // specs/ai-interaction-experience D26: the action card rules live once, in the plugin SDK, behind two ports; any keeper of
 // cards (the Assistant now, Coding next) runs by them. These pin the rules with a keeper of nothing but memory.
@@ -20,7 +25,7 @@ test("ASC-08 ASC-24 ASC-36: successful cards keep only the declared bounded resu
   const card = await k.draft({ title: "准备接入" });
   const done = await runActionCard(card, { revision: 1, values: {} }, { ...k.ports, projectId: "trusted-project" });
   assert.equal(done.status, "done");
-  assert.equal(done.outcome, "接入方案已准备");
+  assert.deepEqual(done.outcome, { literal: "接入方案已准备" }, "the declared summary is the owner's words");
   assert.equal(done.presentation?.title, "本次连接");
   assert.equal(done.presentation?.text?.length, 4000);
   assert.equal(done.presentation?.text_truncated, true);
@@ -91,7 +96,7 @@ test("D26 / D27: a card runs once, exactly as shown at its revision, with only t
   await assert.rejects(runActionCard(card, { revision: 1, values: { title: "别的" } }, k.ports), refused("invalid"), "a field it does not let change is refused");
   const ran = await runActionCard(card, { revision: 1, values: { due: "2026-10-17" } }, k.ports);
   assert.equal(ran.status, "done");
-  assert.equal(ran.outcome, "「写周报」");
+  assert.equal(chinese(ran.outcome!), "「写周报」");
   assert.deepEqual(k.invoked, [{ todo_item_id: "t1", title: "写周报", due: "2026-10-17" }]);
   assert.equal(await runActionCard(ran, { revision: ran.revision, values: {} }, k.ports), ran, "a card that ran does not run again");
   await assert.rejects(runActionCard(card, { revision: 1, values: {} }, k.ports), /conflict/, "nor does a second click on the card as it was: the claim is taken");
@@ -107,12 +112,12 @@ test("D27: a card whose object moved on, whose moment passed, or whose action is
   const late = keeper("2026-10-20T09:00:00Z");
   const due = await late.draft({ todo_item_id: "t1", title: "写周报", due: "2026-10-18" });
   due.created_at = "2026-10-15T09:00:00Z";
-  assert.match((await runActionCard(due, { revision: 1, values: {} }, late.ports)).outcome ?? "", /已经过去/);
+  assert.match(chinese((await runActionCard(due, { revision: 1, values: {} }, late.ports)).outcome!), /已经过去/);
   const off = keeper();
   const offered = await off.draft({ todo_item_id: "t1", title: "写周报" });
   off.view = view({ availability: { available: false, reason: "已对助理关闭" } } as Partial<ActionView>);
   const stale = await runActionCard(offered, { revision: 1, values: {} }, off.ports);
-  assert.deepEqual([stale.status, stale.outcome], ["stale", "已对助理关闭"]);
+  assert.deepEqual([stale.status, stale.outcome], ["stale", { literal: "已对助理关闭" }]);
   for (const k of [moved, changedSince, late, off]) assert.equal(k.invoked.length, 0, "nothing ran");
 });
 

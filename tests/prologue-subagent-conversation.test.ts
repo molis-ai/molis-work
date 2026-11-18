@@ -444,16 +444,23 @@ for (const scenario of ["live", "shared", "worktree"] as const) test(`child orig
   } finally { await f.close(); }
 });
 
-// SAI-09: stopping one exact child Run must not abort its sibling's model or input queue.
-test("stopping one SDK child leaves its sibling running and able to consume personal input", { timeout: 60_000 }, async () => {
+// SAI-09 and B59-FIX-03: stop, read and continue one sibling through the public Agent Host adapter.
+test("stopping or failing to read one SDK child leaves its sibling able to receive input and continue", { timeout: 60_000 }, async t => {
   const releaseA=Promise.withResolvers<void>(),releaseB=Promise.withResolvers<void>();
+  const releaseRead = Promise.withResolvers<void>(), releaseContinuation = Promise.withResolvers<void>();
   let parentCalls=0,aCalls=0,bCalls=0;
   const supplement="SAI_SIBLING_B_PERSON_INPUT";
+  const continuationText = "Continue B with its earlier evidence.";
   const f=await fixture(async body=>{
     const first=userTexts(body)[0]??"";
     if(first.startsWith("SAI_SIBLING_A")){aCalls++;await releaseA.promise;return reply(undefined,"A late result");}
     if(first.startsWith("SAI_SIBLING_B")){
       if(++bCalls===1){await releaseB.promise;return reply({name:"context-remaining",input:{}});}
+      if (bCalls === 3) {
+        assert.ok(userTexts(body).includes(continuationText));
+        await releaseContinuation.promise;
+        return reply(undefined, "B continued its original task.");
+      }
       assert.ok(userTexts(body).some(text=>text.includes(supplement)));return reply(undefined,"B finished with its own supplement");
     }
     if(++parentCalls<=2){
@@ -483,5 +490,56 @@ test("stopping one SDK child leaves its sibling running and able to consume pers
     const original=await port.conversation!(parent.ref,b.subagent_id);
     assert.equal(original.messages.filter(one=>one.text===supplement).length,1);
     assert.equal(bCalls,2);assert.equal(aCalls,1);assert.equal(parentCalls,3);
-  }finally{releaseA.resolve();releaseB.resolve();await f.close();}
+    await f.until(async () => (await f.adapter.read(parent.ref)).phase === "completed");
+
+    const probe = createNodeHost({ storageRoot: join(f.root, "fault-probe") });
+    const readStorage = probe.storage.get;
+    const prototype: Pick<typeof probe.storage, "get"> = Object.getPrototypeOf(probe.storage);
+    const aSession = a.child_run.session_id, bSession = b.child_run.session_id;
+    let holdNext = false, blocked = false;
+    const fault = t.mock.method(prototype, "get", async function (this: typeof probe.storage, ref: Parameters<typeof readStorage>[0]) {
+      if (ref.kind.endsWith("~sessions")) {
+        if (ref.id === aSession) throw new Error("A's original session cannot be read");
+        if (ref.id === bSession && holdNext) {
+          holdNext = false;
+          blocked = true;
+          await releaseRead.promise;
+        }
+      }
+      return readStorage.call(this, ref);
+    });
+    try {
+      await assert.rejects(port.conversation!(parent.ref, a.subagent_id), /A's original session cannot be read/);
+      holdNext = true;
+      const reading = port.conversation!(parent.ref, b.subagent_id);
+      try {
+        await f.until(() => blocked);
+        const continued = await port.command!(parent.ref, b.subagent_id, { kind: "continue", child_run: b.child_run, request_id: "continue-only-B", text: continuationText }, { ...control, original_text: continuationText });
+        assert.equal(continued.state, "applied");
+        await f.until(() => bCalls === 3);
+        releaseRead.resolve();
+        const old = await reading;
+        assert.deepEqual(old.child.child_run, b.child_run);
+        assert.equal(old.child.state, "completed");
+        assert.equal(old.phase, "completed");
+        assert.deepEqual(old.messages, original.messages);
+        const next = await port.conversation!(parent.ref, b.subagent_id);
+        assert.deepEqual(next.child.child_run, continued.run);
+        assert.equal(next.child.state, "running");
+        assert.ok(["starting", "running"].includes(next.phase));
+        assert.ok(next.messages.some(turn => turn.run.run_id === continued.run.run_id && turn.text === continuationText));
+        releaseContinuation.resolve();
+        await f.until(async () => (await port.conversation!(parent.ref, b.subagent_id)).phase === "completed");
+      } finally {
+        releaseRead.resolve();
+        await reading.catch(() => {});
+      }
+    } finally {
+      fault.mock.restore();
+      await probe.closeStorage();
+    }
+  } finally {
+    releaseA.resolve(); releaseB.resolve(); releaseContinuation.resolve();
+    await f.close();
+  }
 });

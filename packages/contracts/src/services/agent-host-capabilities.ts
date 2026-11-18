@@ -258,7 +258,8 @@ export const agentSubagentCommandSchema = { anyOf: [
 const subagentConversationOutput = shape(["child", "messages", "phase", "questions", "approvals"], {
         child: subagentOutput, messages: list({ ...turnOutput, required: [...turnOutput.required, "run"], properties: { ...turnOutput.properties, run: runRefOutput } }),
         phase: { enum: RUN_PHASES }, questions: list(questionOutput), queued_answer: shape(["pending_id", "pending_revision"], { pending_id: string, pending_revision: number }),
-        approvals: list(shape(["pending_id"], { pending_id: string, pending_revision: number })), input_unavailable: string });
+        approvals: list(shape(["pending_id"], { pending_id: string, pending_revision: number })), input_unavailable: string,
+        extend_budget_available: { const: true } });
 
 export const agentHostCapabilities = {
   readSubagentConversation: {

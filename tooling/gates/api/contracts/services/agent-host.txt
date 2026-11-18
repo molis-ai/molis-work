@@ -421,6 +421,44 @@ export interface AgentDeliveryReport {
     }>;
 }
 
+export interface AgentDocumentCapability {
+    parse(input: {
+        bytes: Uint8Array;
+        name: string;
+    }): Promise<{
+        text: string;
+        truncated: boolean;
+        pages?: number;
+    }>;
+    intakeImage?(input: {
+        bytes: Uint8Array;
+        name: string;
+    }): Promise<{
+        resource: {
+            id: string;
+            revision: number;
+        };
+        media_type: string;
+        byte_length: number;
+    }>;
+    readImage?(resource: {
+        id: string;
+        revision: number;
+    }): Promise<Uint8Array | null>;
+}
+
+export interface AgentDocumentParser {
+    mediaTypes: readonly string[];
+    parse(input: {
+        bytes: Uint8Array;
+        mediaType: string;
+        maxChars: number;
+    }): Promise<{
+        text: string;
+        pages?: number;
+    }>;
+}
+
 export interface AgentDraftTextRequest {
     purpose: string;
     prompt: string;
@@ -605,7 +643,10 @@ export type AgentHostErrorCode = "agent.runtime_unknown" | "agent.runtime_duplic
 export interface AgentImageMaterial {
     material_id: string;
     title: string;
-    attachment: MaterialRef;
+    resource: {
+        id: string;
+        revision: number;
+    };
     media_type: string;
 }
 
@@ -1778,16 +1819,6 @@ export interface AgentRunBudget {
     context_window_tokens?: number;
 }
 
-export interface AgentRunCodeIntelligence {
-    problem?: string;
-    languages: Array<{
-        language: string;
-        command: string;
-        state: "ready" | "missing";
-        source?: "this_machine" | "tools";
-    }>;
-}
-
 export type AgentRunControl = {
     kind: "pause";
 } | {
@@ -1888,6 +1919,7 @@ export interface AgentRuntimeAdapter {
     readonly recovery?: AgentRecoveryCapability;
     readonly schedule?: AgentScheduleCapability;
     readonly memory?: AgentMemoryCapability;
+    readonly documents?: AgentDocumentCapability;
     readonly descriptor: AgentRuntimeDescriptor;
     health(): Promise<AgentRuntimeHealth>;
     createSession(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<AgentSessionRef>;
@@ -2135,10 +2167,6 @@ export interface AgentStartExecution extends ActionCallOrigin {
     subagentGateway?(role: AgentFrozenSubagentRole, session: AgentSessionRef): Promise<NonNullable<AgentFrozenRole["action_gateway"]>>;
     assertSubagent?(role: Pick<AgentFrozenSubagentRole, "role_id" | "version" | "execution" | "host_tools">): void;
     assertBeforeDispatch?(): void;
-    images?: ReadonlyArray<{
-        material_id: string;
-        bytes: Uint8Array;
-    }>;
     delegation?: {
         readonly subject: Extract<AgentDelegationSubject, {
             kind: "work";
@@ -2327,6 +2355,7 @@ export interface AgentSubagentConversation {
         pending_revision?: number;
     }>;
     input_unavailable?: string;
+    extend_budget_available?: true;
 }
 
 export type AgentSubagentRequestResult = {
@@ -2406,7 +2435,6 @@ export interface AgentTextReviewDocument {
     before_text: string | null;
     after_text: string;
     concurrent?: string[];
-    checks?: AgentWriteChecks;
 }
 
 export interface AgentTodoItem {
@@ -2494,14 +2522,6 @@ export type AgentWorkspace = {
     directory?: never;
 };
 
-export type AgentWriteCheckCause = "no-server" | "missing" | "failed" | "silent";
-
-export interface AgentWriteCheckError {
-    readonly code: string;
-    readonly line: number;
-    readonly text: string;
-}
-
 export interface AgentWriteCheckNote {
     checker_id: string;
     display_name: string;
@@ -2534,39 +2554,6 @@ export interface AgentWriteCheckerSave {
 export interface AgentWriteCheckerStore {
     read(projectId: string, workspaceId: string): Promise<AgentWriteCheckerList>;
     save(projectId: string, workspaceId: string, expectedVersion: number, checkers: Array<Required<AgentWriteChecker>>): Promise<AgentWriteCheckerList>;
-}
-
-export interface AgentWriteChecks {
-    readonly diagnostics: {
-        readonly state: "clean";
-        readonly source: string;
-    } | {
-        readonly state: "errors";
-        readonly source: string;
-        readonly errors: readonly AgentWriteCheckError[];
-        readonly more: number;
-    } | {
-        readonly state: "unchecked";
-        readonly cause: AgentWriteCheckCause;
-        readonly reason: string;
-    };
-    readonly formatting: {
-        readonly state: "formatted";
-        readonly source: string;
-        readonly lines: number;
-        readonly as_written: string;
-    } | {
-        readonly state: "unchanged";
-        readonly source: string;
-    } | {
-        readonly state: "failed";
-        readonly source: string;
-        readonly reason: string;
-    } | {
-        readonly state: "unavailable";
-        readonly cause: AgentWriteCheckCause | "unsupported";
-        readonly reason: string;
-    };
 }
 
 export type AuthorizationChange = AuthorizationKey & {
@@ -3261,7 +3248,6 @@ interface AgentFrozenStartFields {
     skills: AgentFrozenSkill[];
     reply_locale?: UiLanguageTag;
     instructions?: AgentRunInstructions;
-    code_intelligence?: AgentRunCodeIntelligence;
     mcp_tools: AgentMcpToolRef[];
     mcp_sources?: AgentMcpSourceRef[];
     host_tools: string[];
@@ -3273,7 +3259,6 @@ interface AgentFrozenStartFields {
         material_id: string;
         title: string;
         media_type: string;
-        attachment: MaterialRef;
     }>;
     budget: AgentRunBudget | null;
 }

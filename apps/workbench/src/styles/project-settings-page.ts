@@ -29,9 +29,9 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
   :is(.project-preferences-page, .settings-stage) .settings-section > :last-child { border-bottom: 0; }
   :is(.project-preferences-page, .settings-stage) .settings-section > [data-runtime-row] { display: contents; }
   :is(.project-preferences-page, .settings-stage) .settings-section > [data-runtime-row]:last-child > :last-child { border-bottom: 0; }
-  :is(.project-preferences-page, .settings-stage) .settings-section .settings-empty { display: grid; gap: 4px; padding: 12px 0 16px; }
-  :is(.project-preferences-page, .settings-stage) .settings-section .settings-empty strong { font-size: 15px; color: var(--ink); }
-  :is(.project-preferences-page, .settings-stage) .settings-section .settings-empty span { color: var(--muted); font-size: 13px; line-height: 1.5; }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-section, .mcp-access) .settings-empty { display: grid; gap: 4px; padding: 12px 0 16px; }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-section, .mcp-access) .settings-empty strong { font-size: 15px; color: var(--ink); }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-section, .mcp-access) .settings-empty span { color: var(--muted); font-size: 13px; line-height: 1.5; }
   .setting-copy { display: grid; gap: 4px; min-width: 0; color: var(--ink); }
   .setting-copy > strong { font-size: 15px; font-weight: var(--weight-control, 500); line-height: 1.4; }
   .setting-copy > span { color: var(--muted); font-size: 13px; line-height: 1.5; }

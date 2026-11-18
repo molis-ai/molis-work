@@ -23,15 +23,15 @@ test("UPG-01 the committed snapshot is what the built product creates; `pnpm sch
 
 test("UPG-01 the snapshot holds the catalog, the project database, every Home library, each built-in plugin's project tables and the old Alchemist's stores", () => {
   const stores = rows.map(row => row.store);
-  for (const store of ["projects/catalog.db", "projects/*/molis-work.db", "memory/memory.db", "sync/sync.db", "server/server.sqlite", "todo/todo.db",
+  for (const store of ["projects/catalog.db", "projects/*/molis-work.db", "blueprints/blueprints.db", "memory/memory.db", "sync/sync.db", "server/server.sqlite", "todo/todo.db",
     "alchemist/projects/*/studio.sqlite", "alchemist/projects/*/search.sqlite", "projects/*/molis-work.db#io.molis.work.goals"]) assert.ok(stores.includes(store), store);
   assert.deepEqual(stores, [...stores].sort(), "sorted, so a new library lands in one place");
 });
 
-test("APR-19 the built snapshot records Goals 4→5 and the project's actual 3→4 transaction, then its 4→5 card outcomes", () => {
+test("APR-19 / ONB-28 the snapshot keeps the Goals 4→5 upgrade and every project upgrade through the v6 runtime settings receipts", () => {
   const project = rows.find(row => row.store === "projects/*/molis-work.db");
   const goals = rows.find(row => row.store === "projects/*/molis-work.db#io.molis.work.goals");
-  assert.deepEqual([project?.version, project?.froms], [5, [1, 2, 3, 4]]);
+  assert.deepEqual([project?.version, project?.froms], [6, [1, 2, 3, 4, 5]]);
   assert.deepEqual([goals?.version, goals?.froms], [5, [4]]);
 });
 

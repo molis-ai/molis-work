@@ -12,7 +12,7 @@ export const JELLY_MODEL_CONFIGURATION = {
 
 export const jellyPreferenceActions = defineSettingsActions({ scope: "home",
   read: { capability_id: "jelly.preferences.read", version: /* @version action.jelly.preferences.read */ 1,
-    title: "查看 Jelly 拆解模型", description: "读取当前选择的模型及来源", permissions: ["jelly:settings"] },
+    title: "查看 Jelly 拆解模型", description: "查看 Jelly 拆解任务时使用的模型，以及是否沿用默认设置", permissions: ["jelly:settings"] },
   write: { capability_id: "jelly.preferences.write", version: /* @version action.jelly.preferences.write */ 1,
     title: "选择 Jelly 拆解模型", description: "选择已启用的模型或恢复继承", permissions: ["jelly:settings"] },
 });

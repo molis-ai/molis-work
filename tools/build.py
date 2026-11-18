@@ -1,11 +1,11 @@
 import json,os,re,sys,collections
 sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
-from data import FINAL,MAP
+from data import FINAL,MAP,MOVED
 DATA,BATCHES,TPL,OUT=sys.argv[1:5]
 d=json.load(open(DATA));N={n['id']:n for n in d['nodes']};T=d['batches']
 prog=json.load(open(sys.argv[5]))
-bid=lambda x:re.match(r'((?:SRV|REL)-\d+|\d+)',x).group(1)
-B=sorted({bid(u) for u in N},key=lambda x:(2 if x.startswith('SRV') else 1 if x.startswith('REL') else 0,int(re.sub(r'\D','',x))))
+bid=lambda x:re.match(r'((?:SRV|REL)-\d+|\d+[A-Z]?)',x).group(1)
+B=sorted({bid(u) for u in N},key=lambda x:(2 if x.startswith('SRV') else 1 if x.startswith('REL') else 0,int(re.sub(r'\D','',x)),re.sub(r'[\d-]','',x)))
 def clean(s):
     s=re.sub(r'<a id="[^"]*"></a>','',s);s=re.sub(r'\[([^\]]+)\]\([^)]*\)',r'\1',s);s=re.sub(r'\[([^\]]+)\]\[[^\]]*\]',r'\1',s);return s.replace('**','').strip()
 par=collections.defaultdict(set);soft=collections.defaultdict(dict);prereq=collections.defaultdict(set);ext=collections.defaultdict(list);decs=collections.defaultdict(dict);stage={}
@@ -34,7 +34,7 @@ def anc(u):
 edges=[[p,u] for u in B for p in sorted(par[u],key=B.index) if not any(p in anc(q) for q in par[u] if q!=p)]
 out=[]
 for b in B:
-    fn=b.lower() if b.startswith(('SRV','REL')) else b
+    fn=b.lower()
     t=open(f'{BATCHES}/{fn}.md').read()
     items=[{'t':clean(a),'d':clean(x)} for _,a,x in sorted(re.findall(r'^\| <a id="[^"]+-item-(\d+)"></a>(.*?) \| (.*) \| .*?\s*\|$',t,re.M),key=lambda r:int(r[0]))]
     cond=list(ext[b])+[f"决定 {k}（待定）：{v}" for k,v in sorted(decs[b].items(),key=lambda kv:int(kv[0]))]
@@ -48,7 +48,7 @@ for x in out:x['nodes']=[]
 for u,n in N.items():
     b=bid(u)
     idx=[i-1 for i in MAP[u]] if u in MAP else [int(u.split('.')[1])-1] if '.' in u else list(range(len(by[b]['items'])))
-    by[b]['nodes'].append(dict(id=u,items=idx,hard=[t for t,k,_ in n['deps'] if k=='h'],partial=[t for t,k,_ in n['deps'] if k=='p']))
+    by[b]['nodes'].append(dict(id=u,items=idx,hard=[t for t,k,_ in n['deps'] if k=='h'],partial=[t for t,k,_ in n['deps'] if k=='p'],**({'moved':1} if u in MOVED else {})))
 # 轨道：推导的对照表，见 tracks.json；路线书增删交付项后要补
 TR=json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)),'tracks.json')))
 for x in out:

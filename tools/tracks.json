@@ -773,7 +773,7 @@
 "basis": "tracks.md 整批表"
 },
 "32-1": {
-"title": "主对话持续接单与后台任务控制",
+"title": "主对话持续接单、后台任务控制与结果回流",
 "main": "A",
 "also": [
 "C"
@@ -796,7 +796,7 @@
 "basis": "两路一致"
 },
 "32-3": {
-"title": "事项线第一片：外壳、线、节点卡与后台任务列表",
+"title": "事项线第一片：外壳、线、事件登记、事件卡与后台任务面板",
 "main": "D",
 "also": [
 "A",
@@ -1917,15 +1917,13 @@
 "basis": "两路一致"
 },
 "72-1": {
-"title": "复杂场景设计定稿",
-"main": "C1",
-"also": [
-"E"
-],
-"kind": "定样设计",
+"title": "复杂场景设计定稿 → 77、82",
+"main": "",
+"also": [],
+"kind": "并入",
 "occupy": false,
 "status": "定",
-"basis": "裁定：记录明确"
+"basis": "tracks.md（2026-11-18 决定 52）"
 },
 "73-1": {
 "title": "技能包、工作流与生成插件导入导出",
@@ -1940,7 +1938,7 @@
 "basis": "裁定：记录明确 3·C"
 },
 "73-2": {
-"title": "场景方案与保存操作面导入导出",
+"title": "场景包与保存操作面导入导出",
 "main": "C",
 "also": [],
 "kind": "实现",
@@ -2538,8 +2536,173 @@
 "main": "F",
 "also": [],
 "kind": "验收",
-"occupy": false,
+"occupy": true,
 "status": "定",
 "basis": "tracks.md（2026-11-14 发行批）"
+},
+"41-3": {
+"title": "在设置里写自己的技能",
+"main": "C2",
+"also": [
+"D"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "batches/41.md"
+},
+"36A-1": {
+"title": "顶部栏：纸上的页签",
+"main": "D",
+"also": [],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md（2026-11-18）"
+},
+"36A-2": {
+"title": "底栏：第十三版",
+"main": "D",
+"also": [
+"A"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md（2026-11-18）"
+},
+"36A-3": {
+"title": "助理对话框、事件卡与收起态",
+"main": "D",
+"also": [
+"A"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md（2026-11-18）"
+},
+"36A-4": {
+"title": "Coding 逐屏",
+"main": "B",
+"also": [
+"D"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md（2026-11-18）"
+},
+"36A-5": {
+"title": "设置页：一种写法",
+"main": "D",
+"also": [],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md（2026-11-18）"
+},
+"36A-6": {
+"title": "首页：项目的第一页",
+"main": "D",
+"also": [
+"C3",
+"E"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md（2026-11-18）"
+},
+"36A-7": {
+"title": "动效落地与曲线收口",
+"main": "D",
+"also": [],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md（2026-11-18）"
+},
+"63A-1": {
+"title": "记忆形成质量（P2-01，原 64-8）",
+"main": "C2",
+"also": [
+"A",
+"B"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md（2026-11-18）"
+},
+"63A-2": {
+"title": "记忆整理（Dreaming）、按需原文与用户控制（原 64-9）",
+"main": "C2",
+"also": [
+"A",
+"B",
+"C1"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md（2026-11-18）"
+},
+"63A-3": {
+"title": "常驻层（P2-05，原 64-5 的热缓存）",
+"main": "C2",
+"also": [
+"A"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md（2026-11-18）"
+},
+"91-1": {
+"title": "Design System 流式、状态环与滚动原语",
+"main": "D",
+"also": [
+"C1"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表"
+},
+"91-2": {
+"title": "平台运行流合同、Prologue 与 Agent Host 热路径减负",
+"main": "C2",
+"also": [
+"C1",
+"D"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表"
+},
+"91-3": {
+"title": "个人助理 SSE 增量流与对话流精修",
+"main": "A",
+"also": [
+"D"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表"
+},
+"91-4": {
+"title": "Coding SSE 增量流、回滚稳态与过程精修",
+"main": "B",
+"also": [
+"C1",
+"D"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表"
 }
 }

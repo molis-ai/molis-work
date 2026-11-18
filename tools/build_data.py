@@ -2,7 +2,7 @@ import re,json,sys,collections,os
 G,R,OUT=sys.argv[1:4]
 sys.path.insert(0,G)
 from data import N,L,M1_HARD,M1_PART,FINAL,M1,MAP,MOVED
-SHA='838dfea76c8f7d963591d5b3bc999ecf82fc851a'
+SHA=sys.argv[4] if len(sys.argv)>4 else '838dfea76c8f7d963591d5b3bc999ecf82fc851a'
 rows=[(n[0],n[1],n[2],list(n[3]),n[4]) for n in N]
 ids={r[0] for r in rows}
 def parse(s):
@@ -22,13 +22,11 @@ def clean(s):
 batch={}
 def load(b):
     if b in batch:return batch[b]
-    fn=b.lower() if b.startswith(('SRV','REL')) else b
+    fn=b.lower()
     t=open(f'{B}/{fn}.md').read()
     head=t.split('\n')[0]
     title=clean(head.split('·',1)[1])
-    nav=t.split('\n')[2]
-    m=re.search(r'阶段 (\d)',nav); stage=m.group(1) if m else 'S'
-    if '～' in nav.split('·')[1] : pass
+    m=re.search(r'阶段 (\d)',t[:400]); stage=m.group(1) if m else 'S'
     intro=re.search(r'^## 给人讲清楚\n(.*?)^## ',t,re.S|re.M).group(1).strip().replace('\n',' ')
     ask=''
     if '需要你做的' in intro:
@@ -38,7 +36,7 @@ def load(b):
     batch[b]=dict(title=title,stage=stage,intro=clean(intro),ask=clean(ask),items=items,
         url=f'https://github.com/molis-ai/molis-work/blob/{SHA}/specs/post-anticorruption-roadmap/reference/batches/{fn}.md')
     return batch[b]
-def bid(x):return re.match(r'((?:SRV|REL)-\d+|\d+)',x).group(1)
+def bid(x):return re.match(r'((?:SRV|REL)-\d+|\d+[A-Z]?)',x).group(1)
 dec={}
 for m in re.finditer(r'^\| <a id="decision-(\d+)"></a>\1 \| (.*?) \|',open(f'{R}/decisions.md').read(),re.M):
     dec[m.group(1)]=clean(m.group(2))
@@ -69,7 +67,7 @@ for r in rows:
     else: its=b['items']
     goal=[{'t':a,'d':d} for a,d in its]
     if len(goal)==1: goal=[{'t':'','d':goal[0]['d']}]
-    dset=sorted(set(re.findall(r'决定 (\d+)',r[4])))
+    dset=[n for n in sorted(set(re.findall(r'决定 (\d+)',r[4]))) if n in dec]
     nodes.append(dict(id=u,b=bid(u),name=r[1],lane=r[2],stage=b['stage'],ext=r[4],decs=[{'n':n,'t':dec.get(n,'')} for n in dset],
         goal=goal,deps=deps[u],wave=wave(u),nd=len(clo(u,kids)-{FINAL})))
 # 传递约简（去 56／89 的汇入，静态底图用）

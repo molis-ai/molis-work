@@ -136,3 +136,17 @@ test('RAR-04 batch 12 remains unfinished until its added return capability is de
 test('RAR-05 generated page uses the tested template algorithm', () => {
   assert.equal(generated.slice(generated.indexOf('const STAGES='), generated.indexOf('// 上次读到的进展')), algorithm);
 });
+
+test('moved redirect batches stay non-claimable and batch 91 dependencies and conditions stay well-formed', () => {
+  const D = apply(snapshot);
+  assert.notEqual(D.state['72'], 'open');
+  const nodes = Object.fromEntries(snapshot.batches.flatMap(b => b.nodes.map(n => [n.id, n])));
+  assert.deepEqual(nodes['91.1'].hard, ['36A.7']);
+  assert.deepEqual(nodes['91.2'].hard, ['31.1']);
+  assert.deepEqual(nodes['91.3'].hard, ['91.1', '91.2', '36A.1', '36A.2', '36A.3', '37.2']);
+  assert.deepEqual(nodes['91.4'].hard, ['91.1', '91.2', '35.2', '36A.4']);
+  for (const id of ['91.1', '91.2', '91.3', '91.4']) assert.ok(nodes['90'].hard.includes(id));
+  for (const b of snapshot.batches) {
+    for (const c of b.cond) assert.ok(!/决定 \d+（待定）：\s*$/.test(c), `empty pending decision in ${b.id}: ${c}`);
+  }
+});

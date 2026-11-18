@@ -160,7 +160,7 @@ export class PrologueRunStore {
     let initialPromptPending = true;
     const unsubscribeEvents = run.subscribe((event) => {
       // The Host already displays the submitted task before SDK replay starts.
-      if (event.type === "prompt" && event.role === "user" && initialPromptPending) {
+      if (event.type === "prompt" && event.role === "user" && event.source === undefined && event.steerId === undefined && event.carried === undefined && event.injection === undefined && initialPromptPending) {
         initialPromptPending = false;
         if (event.text === start.task) return;
       }

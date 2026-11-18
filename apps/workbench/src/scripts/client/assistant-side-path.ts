@@ -13,7 +13,7 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 还等你处理: everyth
     keepFocus(node, () => {
       const cards = [];
       children.forEach((child) => cards.push(card({ icon: "workflow", tone: "attention", ask: true, title: child.title,
-        sub: readText("workbench.assistant-island.sub-task") + " · " + stateLabel(child.state), actions: [sideAct(child.state === "waiting-input" ? readText("workbench.assistant-island.answer") : readText("workbench.assistant-island.take-look"), child.title, async () => switchTo(child.work_id), false, "primary")] })));
+        sub: readText("workbench.assistant-island.sub-task") + " · " + stateLabel(child.state), actions: [sideAct(child.state === "waiting-input" ? readText("workbench.assistant-island.answer") : readText("workbench.assistant-island.take-look"), child.title, async () => openSubtask(child.work_id), false, "primary")] })));
       objects.forEach((object) => {
         const open = openObject(object);
         cards.push(card({ icon: "alert", tone: object.state === "missing" || object.state === "unavailable" ? "blocked" : "attention", ask: true, title: objectTitle(object),
@@ -39,8 +39,9 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 还等你处理: everyth
     const objects = work && view.objects ? view.objects : [];
     const parent = work && work.delegated_by ? work.delegated_by : null;
     const children = work && view.delegated ? view.delegated : [];
+    const sdk = work && view.sdk_subtasks;
     const scheduled = work && view.scheduled ? view.scheduled : [];
-    const signature = JSON.stringify([work && work.work_id, work && work.executor, work && work.origin, parent, children,
+    const signature = JSON.stringify([work && work.work_id, work && work.executor, work && work.origin, parent, children, sdk,
       objects.filter((o) => o.relation === "origin" || o.relation === "session").map((o) => [o.relation, o.subject.id, o.state, o.title, o.current_revision]),
       scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last]), work && view.schedule_survives_close, latestSteps(work), waitsOn(work), work && work.ask_each_step]);
     if (node.dataset.signature === signature) return;
@@ -92,7 +93,8 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 还等你处理: everyth
           const mark = el("span", "assistant-subtask-mark" + (tone ? " is-" + tone : ""));
           mark.append(spinner(ringState(child.state)));
           const name = el("button", "assistant-subtask-name", child.title); name.type = "button"; name.setAttribute("aria-label", globalThis.t.text("workbench.assistant-side-path.open-named", { title: child.title }));
-          name.addEventListener("click", () => switchTo(child.work_id));
+          name.id = subtaskEntryId(child.work_id);
+          name.addEventListener("click", event => { event.stopPropagation(); openSubtask(child.work_id); });
           row.append(mark, name, el("span", "assistant-subtask-state", (child.taken_back ? globalThis.t.text("workbench.assistant-side-path.taken-back") : stateLabel(child.state)) + (child.follow_ups ? " · " + globalThis.t.text("workbench.assistant-side-path.follow-ups") + " " + child.follow_ups : "")));
           /* Stop one sub-task from here, without opening it; what it already did stays. */
           if (!child.taken_back && isLive(child.state)) row.append(sideAct(globalThis.t.text("workbench.assistant-side-path.stop"), child.title, async () => { await api("/works/" + encodeURIComponent(child.work_id) + "/control", "POST", { kind: "stop" }); await reload(); }, true));
@@ -105,6 +107,21 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 还等你处理: everyth
           return row;
         });
         step(done + "/" + children.length, waiting ? "attention" : done === children.length ? "done" : "", globalThis.t.text("workbench.assistant-side-path.sub-tasks-handed-out"), meter, ...rows);
+      }
+      if (sdk?.error) step("workflow", "attention", globalThis.t.text("workbench.assistant-side-path.sub-tasks-handed-out"),
+        card({ title: globalThis.t.text("workbench.subtask-conversation.read-failed"), sub: sdk.error, actions: [sideAct(globalThis.t.text("workbench.subtask-conversation.retry"), "", async () => { await reload(); poll(); })] }));
+      else if (sdk?.children.length) {
+        const rows = sdk.children.map(child => {
+          const row = el("div", "assistant-subtask"), mark = el("span", "assistant-subtask-mark");
+          const phase = child.state === "reconcile-required" ? "reconcile-required" : child.state === "cancelled" ? "stopped" : child.state;
+          mark.append(spinner(child.state === "completed" ? "round-ended" : child.state === "reconcile-required" ? "verify" : child.state));
+          const name = el("button", "assistant-subtask-name", child.role_name || child.role_id); name.type = "button"; name.title = child.task;
+          name.id = subtaskEntryId(work.work_id, child.parent_run.run_id, child.subagent_id);
+          name.addEventListener("click", event => { event.stopPropagation(); openSubtask(work.work_id, child.parent_run.run_id, child.subagent_id); });
+          row.append(mark, name, el("span", "assistant-subtask-state", globalThis.t.text("workbench.subtask-conversation.phase." + phase)));
+          return row;
+        });
+        step("workflow", sdk.children.some(child => child.state === "running") ? "attention" : "", globalThis.t.text("workbench.assistant-side-path.sub-tasks-handed-out"), ...rows);
       }
       if (scheduled.length) step("clock", "later", globalThis.t.text("workbench.assistant-followup.later"), ...scheduled.map((followUp) => {
         const at = (value) => ({ kind: "date", style: "datetime", at: value, time_zone: followUp.time_zone });

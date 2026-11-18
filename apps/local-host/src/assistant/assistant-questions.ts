@@ -1,5 +1,6 @@
 import type { InteractionValues } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type { AssistantStore } from "./assistant-store.js";
+import { isDeepStrictEqual } from "node:util";
 
 /** At most this many half-written answers per work: a round rarely waits on more than one question at a time. */
 const KEPT = 4;
@@ -27,9 +28,10 @@ export class AssistantQuestionDrafts {
     return { draft: saved.draft, draft_revision: saved.draft_revision };
   }
 
-  drop(workId: string, pendingId: string): void {
+  drop(workId: string, pendingId: string, expected?: InteractionValues): void {
     const drafts = this.read(workId);
     if (!(pendingId in drafts)) return;
+    if (expected !== undefined && !isDeepStrictEqual(drafts[pendingId], expected)) return;
     const { [pendingId]: _answered, ...rest } = drafts;
     this.ports.store.update(this.ports.actorId, workId, null, { question_drafts: rest }, false);
   }

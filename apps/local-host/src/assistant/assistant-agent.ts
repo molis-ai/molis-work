@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { readLocalizedMarkdown } from "@molis-ai/molis-work-plugin-sdk";
-import { BUSINESS_HOST_TOOLS, type AgentManifest, type AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { BUSINESS_HOST_TOOLS, BUSINESS_SUBAGENT_HOST_TOOLS, type AgentManifest, type AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
 const setupChecker = /* @version checker.molis.connector-setup "molis.connector-setup@{version}" */ "molis.connector-setup@1";
 const readyChecker = /* @version checker.molis.connection-ready "molis.connection-ready@{version}" */ "molis.connection-ready@1";
@@ -80,12 +80,12 @@ export const ASSISTANT_AGENT: AgentManifest = {
   // A round freezes the current role and tools together; the unified origin starts their current declarations at version 1.
   roles: [{ role_id: "thread-reply", version: /* @version role.thread-reply */ 1, name: "评论中的个人助理", workspace: "business", execution: "read-only", prompts: ["assistant-thread"], host_tools: [] }, {
     role_id: ASSISTANT_ROLE_ID, version: /* @version role.assistant */ 1, name: "个人工作助理", workspace: "business", execution: "operate",
-    prompts: ["assistant-base", "assistant-work"], host_tools: [...BUSINESS_HOST_TOOLS],
+    prompts: ["assistant-base", "assistant-work"], host_tools: [...BUSINESS_HOST_TOOLS, ...BUSINESS_SUBAGENT_HOST_TOOLS],
   }, {
     // The standing conversation of a scope (specs/work-line §3.2): the same role, with how a main conversation answers first,
     // puts long work in the background, says where it went and takes results back. Which work is one is the Host's record.
     role_id: ASSISTANT_MAIN_ROLE_ID, version: /* @version role.assistant-main */ 1, name: "主对话里的个人助理", workspace: "business", execution: "operate",
-    prompts: ["assistant-base", "assistant-work", "assistant-main"], host_tools: [...BUSINESS_HOST_TOOLS],
+    prompts: ["assistant-base", "assistant-work", "assistant-main"], host_tools: [...BUSINESS_HOST_TOOLS, ...BUSINESS_SUBAGENT_HOST_TOOLS],
   }, {
     // A report of a task no conversation started (specs/work-line contract-design §9): the main conversation's words, read-only
     // execution (queries only, a browser only looked at), and no host tools — it waits on nothing, asks nothing, plans nothing.
@@ -97,6 +97,9 @@ export const ASSISTANT_AGENT: AgentManifest = {
     role_id: ASSISTANT_DELEGATED_ROLE_ID, version: /* @version role.assistant-delegated */ 1, name: "委派的子任务", workspace: "business", execution: "operate",
     prompts: ["assistant-base", "assistant-delegated"], host_tools: [...BUSINESS_HOST_TOOLS],
   }],
-  // A Character the person published in the work's project may carry a round: exact version, their own, this project only.
+  subagents: { parent_role_ids: [ASSISTANT_ROLE_ID, ASSISTANT_MAIN_ROLE_ID], roles: [
+    { role_id: ASSISTANT_DELEGATED_ROLE_ID, version: /* @version prompt.assistant-delegated */ 2, name: "委派的子任务", execution: "operate", host_tools: [...BUSINESS_HOST_TOOLS] },
+  ] },
+  // The Host freezes the chosen Character version in the work's own scope.
   characters: { selection: "optional-role", scope: "owner", role_ids: [ASSISTANT_ROLE_ID, ASSISTANT_MAIN_ROLE_ID, ASSISTANT_DELEGATED_ROLE_ID] },
 };

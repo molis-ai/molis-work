@@ -5189,6 +5189,7 @@ export type WorkExecutorRunControl = RoundRef & ({
     kind: "stop" | "pause" | "resume";
 } | (AgentAnswerControl & {
     pending_revision: number;
+    continue_after_answer?: false;
 }) | ({
     kind: "steer";
 } & AgentInputSend) | {
@@ -5204,6 +5205,7 @@ export interface WorkExecutorRunControlResult {
 export interface WorkExecutorRunStart {
     session_id: string;
     task: string;
+    resume_answer?: import("services/agent-host-start").AgentStartRequest["resume_answer"];
     skills?: SkillRef[];
 }
 
@@ -5217,6 +5219,7 @@ export interface WorkExecutorSession {
     mode: string | null;
     runs: AgentRunView[];
     runtime_session_id: string | null;
+    queued_inputs?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[];
     recovery: {
         message: string;
     } | null;

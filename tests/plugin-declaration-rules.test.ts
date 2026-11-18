@@ -385,7 +385,7 @@ for (const { rule, manifest, expected } of MANIFEST_RULES) {
 
 const reader = { role_id: "reader", version: 1, name: "Reader" };
 const readerPrompt = { prompt_id: "reader", version: 1 };
-const BUSINESS_TOOLS = "ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs";
+const BUSINESS_ROLE_ERROR = "业务角色 reader 只能只读或经审查操作，工具限于无目录业务工具；派发须显式声明子角色";
 const TASK_DELEGATE = { role_id: "child", version: 1, name: "Child" };
 
 /** An Agent block that satisfies every rule, with `over` laid over it. */
@@ -412,9 +412,10 @@ const AGENT_RULES: ReadonlyArray<{ rule: string; agent: Part; ports?: Part; expe
   { rule: "a role with a bad id", agent: agentOf({ roles: [reader, { role_id: "Bad", version: 1, name: "Bad" }] }), expected: "Agent 角色声明不合法" },
   { rule: "a role twice", agent: agentOf({ roles: [reader, reader] }), expected: "Agent 角色重复：reader" },
   { rule: "a role with an unknown workspace", agent: roleOf({ workspace: "elsewhere" }), expected: "Agent 角色 reader 的工作区声明无效" },
-  { rule: "a business role that writes", agent: roleOf({ workspace: "business", execution: "workspace-write" }), expected: `业务角色 reader 只能只读或经审查操作，工具限于 ${BUSINESS_TOOLS}，不能分派子任务` },
-  { rule: "a business role with a tool outside the business set", agent: roleOf({ workspace: "business", host_tools: ["write"] }), expected: `业务角色 reader 只能只读或经审查操作，工具限于 ${BUSINESS_TOOLS}，不能分派子任务` },
-  { rule: "a business role that dispatches sub-tasks", agent: withChild({}, { roles: [{ ...reader, workspace: "business" }] }), expected: `业务角色 reader 只能只读或经审查操作，工具限于 ${BUSINESS_TOOLS}，不能分派子任务` },
+  { rule: "a business role that writes", agent: roleOf({ workspace: "business", execution: "workspace-write" }), expected: BUSINESS_ROLE_ERROR },
+  { rule: "a business role with a tool outside the business set", agent: roleOf({ workspace: "business", host_tools: ["write"] }), expected: BUSINESS_ROLE_ERROR },
+  { rule: "SAI-01: a business role with declared child roles can dispatch", agent: withChild({}, { roles: [{ ...reader, workspace: "business", host_tools: ["dispatch-subagent"] }] }), expected: "" },
+  { rule: "SAI-08: a business role cannot dispatch without declared children", agent: roleOf({ workspace: "business", host_tools: ["dispatch-subagent"] }), expected: BUSINESS_ROLE_ERROR },
   { rule: "a conforming operating business role", agent: roleOf({ workspace: "business", execution: "operate", host_tools: ["ask-user"] }), expected: "" },
   { rule: "ASC-19: a business role can declare persistent waiting", agent: roleOf({ workspace: "business", execution: "operate", host_tools: ["board-wait"] }), expected: "" },
   { rule: "operate outside a business role", agent: roleOf({ execution: "operate" }), expected: "Agent 角色 reader 的 operate 执行方式只用于业务角色" },

@@ -1,4 +1,5 @@
 import { originalInputOf } from "./prologue-original-inputs.js";
+import { projectPeerNotice } from "./prologue-peer-notices.js";
 import type { QueuedInput, Runtime } from "@prologue/sdk";
 import type { AgentRecoveryReport, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentQueuedInput } from "@molis-ai/molis-work-contracts/services/agent-inputs";
@@ -134,7 +135,8 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
         ...(ref ? { terminal: true } : {}),
         ...(uncertainRuns.has(attempt.run_id) ? { uncertain_effect: true as const } : {}),
         ...(!ref ? { original_questions: pendingQuestions.filter(pending => pending.origin?.run === attempt.run_id).map(pending => ({ pending_id: pending.ref.id, pending_revision: pending.ref.revision, kind: pending.kind, why: pending.why })) } : {}),
-        events: ref ? await session.replay(ref) : await session.readRunProgress({ kind: "run", id: attempt.run_id, revision: 1 }) });
+        events: (ref ? await session.replay(ref) : await session.readRunProgress({ kind: "run", id: attempt.run_id, revision: 1 }))
+          .map(event => projectPeerNotice(runtime, session.ref, event)) });
     }
     deps.state.sessions.set(id, index.ref);
     return { title: index.title, owner: index.owner, workspace: index.workspace ?? "required", runs,

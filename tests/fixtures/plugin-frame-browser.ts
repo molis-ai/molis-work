@@ -61,7 +61,7 @@ export async function pluginFrameInitScript(t: TestContext, browser: Browser & {
 }
 
 /** Operate the real child execution context through DevTools; never pierce it through the owner's DOM. */
-export async function pluginFrameBrowser(t: TestContext, browser: Browser, surface?: string, ownerFrame?: string) {
+export async function pluginFrameBrowser(t: TestContext, browser: Browser, surface?: string, ownerFrame?: string, frameSelector?: string) {
   const contexts = new Map<string, { id: number; session: string }>();
   t.after(browser.on("Runtime.executionContextCreated", (params, session) => {
     const context = params.context as Context;
@@ -73,7 +73,7 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
   }));
   await browser.command("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }, browser.sessionId);
   await browser.command("Runtime.enable", {}, browser.sessionId);
-  const selector = surface ? `iframe[data-plugin-frame=${JSON.stringify(surface)}]` : "iframe[data-plugin-frame]";
+  const selector = frameSelector ?? (surface ? `iframe[data-plugin-frame=${JSON.stringify(surface)}]` : "iframe[data-plugin-frame]");
   // A side view or split pane has a trusted owner document around its opaque plugin frame. Only that owner is
   // reached through the parent's DOM; all plugin inspection still runs in its own DevTools execution context.
   const owner = `const owner = ${ownerFrame ? `document.querySelector(${JSON.stringify(ownerFrame)})` : "null"};

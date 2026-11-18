@@ -1,4 +1,5 @@
 import type { UiPageReviews, UiPageReviewQuery, UiPageReviewOutcome } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { AgentReviewDecisionInput, AgentReviewReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { childPlaces } from "./over-frame.js";
 import type { FrameDown, FrameScope, FrameUp } from "./types.js";
 
@@ -53,6 +54,8 @@ export function childReviews(port: MessagePort, scope: FrameScope): UiPageReview
 
 export interface HostReviewFactory {
   (host: { mountPluginClient(root: HTMLElement): FrameScope | null; route(path: string): string; headers(): Record<string, string>;
+    /** Host-only routing to an original owner; never included in the plugin page bridge. */
+    decide?(input: Omit<AgentReviewDecisionInput, "actor_id">, signal: AbortSignal): Promise<{ receipt: AgentReviewReceipt }>;
     permission?(trigger: HTMLElement, id: string, version: string): Promise<boolean>;
     confirm(message: string): Promise<boolean>; onDecision(result: {error?: string | null; receipt?: {status?: string; effect_uncertain?: string; effect_error?: string; reconciliation?: unknown; effect_settled?: boolean} | null}): void }):
     (container: HTMLElement, refs: {run_id: string}[], session: string | null, workspace: string | null,

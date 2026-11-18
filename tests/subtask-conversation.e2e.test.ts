@@ -83,7 +83,7 @@ test("B58-01..05: public child conversation, two owners, original receipts and r
 
   await t.test("B58-02: user scroll, unread update and reopen retain reading position and process expansion", async () => {
     await evaluate("probe.owner.record('a').messages = Array.from({length:80},(_,i)=>({id:'long-'+i,role:'assistant',content:{text:'Paragraph '+i+' with enough words to read.'}})); probe.handle.refresh()");
-    await evaluate(`${root}.querySelector('details').open = true`);
+    await evaluate(`${root}.querySelector('details').open = true; ${control("follow")}.click()`);
     // The follower pins new content on the next animation frame. Observe its actual landing before measuring a user's upward scroll.
     await wait(`${control("thread")}.scrollTop > 0 && ${control("thread")}.scrollHeight - ${control("thread")}.scrollTop - ${control("thread")}.clientHeight <= 2`);
     const point = await evaluate<{ x: number; y: number; top: number }>(`(() => { const box=${control("thread")}.getBoundingClientRect(); return {x:box.x+box.width/2,y:box.y+box.height/2,top:${control("thread")}.scrollTop}; })()`);
@@ -91,6 +91,7 @@ test("B58-01..05: public child conversation, two owners, original receipts and r
     await evaluate(`void (probe.scrollFinished = new Promise(resolve => ${control("thread")}.addEventListener('wheel', () => ${control("thread")}.addEventListener('scrollend', resolve, {once:true}), {once:true})))`);
     await b.command("Input.dispatchMouseEvent", {type:"mouseWheel",x:point.x,y:point.y,deltaX:0,deltaY:-3000}, b.sessionId);
     await evaluate("probe.scrollFinished.then(() => true)");
+    await wait(`${control("thread")}.scrollTop < ${point.top}`);
     const afterWheel = await evaluate<number>(`${control("thread")}.scrollTop`);
     assert.ok(afterWheel < point.top, `the native wheel actually moved the reading position before it is saved (${point.top} → ${afterWheel})`);
     await wait(`${control("thread")}.dataset.follow === 'detached'`);
@@ -103,6 +104,26 @@ test("B58-01..05: public child conversation, two owners, original receipts and r
     assert.equal(await evaluate(`${control("latest")}.hidden`), false);
     await evaluate(`${control("follow")}.click()`);
     await wait(`${control("thread")}.dataset.follow==='following'`);
+  });
+
+  await t.test("SAI-11: shell reveal after close and an unfinished read cannot overwrite saved expansion without a scroll follower", async () => {
+    await evaluate("probe.handle.close(); probe.follow = window.molisFollow; window.molisFollow = undefined");
+    try {
+      await evaluate(`${root}.hidden=false; probe.handle.open('b')`);
+      await evaluate(`${root}.querySelector('details').open = true`);
+      await evaluate("new Promise(resolve => setTimeout(resolve, 0))");
+      await evaluate("probe.handle.close()");
+      await evaluate(`${root}.hidden=false; probe.handle.open('a')`);
+      await evaluate("probe.handle.close()");
+      await evaluate(`${root}.hidden=false; probe.handle.open('b')`);
+      assert.equal(await evaluate(`${root}.querySelector('details').open`), true);
+      await evaluate("probe.unfinished = probe.owner.blockRead(); void probe.handle.open('a')");
+      await evaluate("probe.handle.close()");
+      await evaluate(`${root}.hidden=false; probe.handle.open('b')`);
+      assert.equal(await evaluate(`${root}.querySelector('details').open`), true);
+      await evaluate("probe.unfinished.resolve({state:'available',view:probe.owner.view('a')})");
+      assert.equal(await evaluate(`${control("head")}.querySelector('strong').textContent`), "b");
+    } finally { await evaluate("probe.handle.close(); window.molisFollow = probe.follow; probe.handle.open('a')"); }
   });
 
   await t.test("B58-01/04: content cannot create actions; control binding survives navigation and rejects a stale execution", async () => {
@@ -334,6 +355,117 @@ test("B58-01..05: public child conversation, two owners, original receipts and r
     await evaluate("probe.acks[1]()");
     await wait(`${field}.value === '' && !${root}.querySelector('[data-composer-status-action="check"]')`);
     assert.equal(await evaluate("probe.owner.sends.length"), 2);
+  });
+
+  await t.test("SAI-11/13: short floats keep feedback, latest, message controls and input reachable by mouse", async () => {
+    for (const height of [243, 160]) {
+      await evaluate(`probe.handle.destroy(); probe.root.remove(); probe=SubtaskProbe.mountProbe(); probe.root.style.height='${height}px';
+        probe.owner.record('a').messages=Array.from({length:50},(_,i)=>({id:'short-'+i,role:'assistant',content:{text:'Paragraph '+i}}));probe.handle.open('a')`);
+      await wait(`${field}?.value==='a draft'`);
+      const point = await evaluate<{ x: number; y: number }>(`(()=>{const thread=${control("thread")};thread.scrollIntoView({block:'center'});const r=thread.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+      await b.command("Input.dispatchMouseEvent", { type: "mouseWheel", ...point, deltaX: 0, deltaY: -500 }, b.sessionId);
+      await wait(`${control("thread")}.dataset.follow==='detached'`);
+      await evaluate("probe.owner.record('a').messages.push({id:'new-short',role:'assistant',content:{text:'New result'}});probe.handle.refresh()");
+      await wait(`!${control("latest")}.hidden`);
+      await evaluate("probe.owner.failRead();probe.handle.refresh()");
+      await wait(`${control("feedback")}.textContent.includes('Cannot read')`);
+      const contentHeight = await evaluate<number>(`(()=>{const thread=${control("thread")},s=getComputedStyle(thread);return thread.clientHeight-parseFloat(s.paddingTop)-parseFloat(s.paddingBottom);})()`);
+      assert.ok(contentHeight >= 44, `a complete touch target remains visible at ${height}px: ${contentHeight}`);
+      await b.click("#subtask-probe [data-subtask-retry]");
+      await wait(`!${control("feedback")}.textContent`);
+      await b.click("#subtask-probe [data-subtask-follow]");
+      await wait(`${control("thread")}.dataset.follow==='following'`);
+      await b.click("#subtask-probe textarea");
+      assert.equal(await evaluate(`document.activeElement===${field}`), true);
+      await b.click("#subtask-probe [data-subtask-back]");
+      assert.equal(await evaluate("probe.backs.at(-1)"), "parent");
+    }
+  });
+  await t.test("SAI-11: short-float outer and thread reading positions belong to each child and survive close", async () => {
+    await evaluate(`probe.handle.destroy();probe.root.remove();probe=SubtaskProbe.mountProbe();probe.root.style.height='160px';
+      for(const key of ['a','b'])probe.owner.record(key).messages=Array.from({length:50},(_,i)=>({id:key+i,role:'assistant',content:{text:key+' paragraph '+i}}));probe.owner.record('a').draft=Array.from({length:12},(_,i)=>'Long draft line '+i).join('\\n');probe.handle.open('a')`);
+    await wait(`${field}?.value.includes('Long draft line 11')`);
+    const outer = `${root}.querySelector('.mw-subtask')`;
+    const position = `[${outer}.scrollTop,${control("thread")}.scrollTop]`;
+    const detach = async () => {
+      const point = await evaluate<{ x: number; y: number }>(`(()=>{const thread=${control("thread")};thread.scrollIntoView({block:'center'});const r=thread.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+      await b.command("Input.dispatchMouseEvent", { type: "mouseWheel", ...point, deltaX: 0, deltaY: -300 }, b.sessionId);
+      await wait(`${control("thread")}.dataset.follow==='detached'`);
+      await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+    };
+    await detach();
+    await evaluate(`${control("thread")}.scrollTop=200;${outer}.scrollTop=${outer}.scrollHeight`);
+    const a = await evaluate<number[]>(position); assert.ok(a[0]!>150,"long draft makes a larger outer scroll range"); assert.equal(a[1],200);
+    await evaluate("probe.handle.open('b')");await wait(`${field}.value==='b draft'`);
+    assert.equal(await evaluate(`${outer}.scrollTop`),0,"new child opens at its own head");
+    await detach();
+    await evaluate(`${control("thread")}.scrollTop=400;${outer}.scrollTop=20`);
+    const bPlace=await evaluate<number[]>(position);
+    await evaluate("probe.lateDraft=probe.owner.blockDraft();void probe.handle.open('a')");
+    await wait(`${control("head")}.querySelector('strong').textContent==='a'&&${field}.value===''`);
+    await evaluate("probe.lateDraft.resolve(probe.owner.record('a').draft)");await wait(`${field}.value.includes('Long draft line 11')`);
+    assert.deepEqual(await evaluate(position),a);
+    // SAI-11: an actual close click during draft loading is navigation, not a choice to discard the saved position.
+    await evaluate("probe.handle.open('b')"); await wait(`${field}.value==='b draft'`);
+    await evaluate("probe.lateDraft=probe.owner.blockDraft();void probe.handle.open('a')"); await wait(`${field}.value===''`);
+    await b.click("#subtask-probe [data-subtask-close]"); await wait(`${root}.hidden`);
+    await evaluate("probe.handle.open('b')"); await wait(`${field}.value==='b draft'`);
+    await evaluate("probe.lateDraft.resolve(probe.owner.record('a').draft)");
+    await evaluate("probe.handle.open('a')"); await wait(`${field}.value.includes('Long draft line 11')`);
+    assert.deepEqual(await evaluate(position),a,"closing before the long draft arrives retains the original reading position");
+    await evaluate("probe.handle.close();probe.handle.open('b')");await wait(`${field}.value==='b draft'`);
+    assert.deepEqual(await evaluate(position),bPlace);
+    await evaluate("probe.handle.close();probe.lateDraft=probe.owner.blockDraft();void probe.handle.open('a')");
+    await wait(`${field}.value===''`);await evaluate("probe.lateDraft.resolve(probe.owner.record('a').draft)");
+    await wait(`${field}.value.includes('Long draft line 11')`);
+    assert.deepEqual(await evaluate(position),a);
+  });
+  await t.test("SAI-11: user scrolling while a draft loads wins over saved restoration, including close and late completion", async () => {
+    await evaluate(`probe.handle.destroy();probe.root.remove();probe=SubtaskProbe.mountProbe();probe.root.style.height='160px';
+      probe.owner.record('a').draft=Array.from({length:12},(_,i)=>'Delayed draft line '+i).join('\\n');probe.handle.open('a')`);
+    await wait(`${field}?.value.includes('Delayed draft line 11')`);
+    const outer = `${root}.querySelector('.mw-subtask')`;
+    await evaluate(`${outer}.scrollTop=${outer}.scrollHeight`);
+    const saved = await evaluate<number>(`${outer}.scrollTop`); assert.ok(saved > 150);
+    const scrollDuringLoad = async () => {
+      await evaluate("probe.handle.close();probe.lateDraft=probe.owner.blockDraft();void probe.handle.open('a')");
+      await wait(`${field}.value===''`);
+      const point = await evaluate<{ x: number; y: number }>(`(()=>{${outer}.scrollTop=0;const r=${control("head")}.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+      await b.command("Input.dispatchMouseEvent", { type: "mouseWheel", ...point, deltaX: 0, deltaY: 40 }, b.sessionId);
+      await wait(`${outer}.scrollTop>0`);
+      await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+      const chosen = await evaluate<number>(`${outer}.scrollTop`); assert.ok(chosen < saved);
+      return chosen;
+    };
+    const chosen = await scrollDuringLoad();
+    await evaluate("probe.lateDraft.resolve(probe.owner.record('a').draft)");
+    await wait(`${field}.value.includes('Delayed draft line 11')`);
+    assert.equal(await evaluate(`${outer}.scrollTop`), chosen, "draft layout does not restore the pre-interaction position");
+    await evaluate(`${outer}.scrollTop=${outer}.scrollHeight`);
+    const closedAt = await scrollDuringLoad();
+    await evaluate("probe.handle.close();probe.handle.open('b')"); await wait(`${field}.value==='b draft'`);
+    await evaluate("probe.lateDraft.resolve(probe.owner.record('a').draft)");
+    assert.equal(await evaluate(`${outer}.scrollTop`), 0, "late A draft cannot move B");
+    await evaluate("probe.handle.open('a')"); await wait(`${field}.value.includes('Delayed draft line 11')`);
+    assert.equal(await evaluate(`${outer}.scrollTop`), closedAt, "closing during load remembers the person's actual position");
+    for (const button of ["close", "back"]) {
+      await evaluate(`${outer}.scrollTop=${outer}.scrollHeight;probe.handle.close();probe.lateDraft=probe.owner.blockDraft();void probe.handle.open('a')`);
+      await wait(`${field}.value===''`);
+      // Let the setup scroll finish before listening to the native PageDown animation.
+      await evaluate(`(async () => {
+        const scroller = ${outer};
+        ${control(button)}.focus({ preventScroll: true });
+        scroller.scrollTop = 0;
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        probe.scrollFinished = new Promise(resolve => scroller.addEventListener("scrollend", resolve, { once: true }));
+      })()`);
+      await b.command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "PageDown", code: "PageDown", windowsVirtualKeyCode: 34 }, b.sessionId);
+      await b.command("Input.dispatchKeyEvent", { type: "keyUp", key: "PageDown", code: "PageDown", windowsVirtualKeyCode: 34 }, b.sessionId);
+      await wait(`${outer}.scrollTop>0`); await evaluate("probe.scrollFinished.then(()=>true)");
+      const keyboardAt = await evaluate<number>(`${outer}.scrollTop`); assert.ok(keyboardAt < saved);
+      await evaluate("probe.lateDraft.resolve(probe.owner.record('a').draft)"); await wait(`${field}.value.includes('Delayed draft line 11')`);
+      assert.equal(await evaluate(`${outer}.scrollTop`), keyboardAt, `${button} focus does not hide PageDown reading intent`);
+    }
   });
   await evaluate("probe.handle.destroy()");
   assert.equal(await evaluate("probe.owner.listeners.filter(x=>!x.closed).length"), 0);

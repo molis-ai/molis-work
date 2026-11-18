@@ -1,6 +1,7 @@
 import type { CharacterRoleCatalog } from "@molis-ai/molis-work-contracts/modules/characters";
 import { roleKey } from "./assistant-characters.js";
 import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
+import { takeBackAssistantWork } from "./assistant-work-control.js";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { eventBehind } from "./assistant-line-actions.js";
@@ -15,7 +16,7 @@ import type { AssistantCharacter, AssistantCharacterRef, AssistantMaterial, Assi
 import { assistantWords } from "./assistant-saved-text.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { identity } from "./assistant-relations.js";
-import { assertAssistantSessionSettled, assistantEndControl, assistantWorkEnding, holdAssistantWorkLifetime, inAssistantWorkEffect, stopOriginalRun } from "./assistant-work-permissions.js";
+import { assistantEndControl, holdAssistantWorkLifetime, inAssistantWorkEffect, stopOriginalRun } from "./assistant-work-permissions.js";
 import { promptTitle } from "./assistant-work-title.js";
 import type { AssistantStepGate } from "./assistant-step-gate.js";
 
@@ -61,6 +62,7 @@ interface DelegationPorts {
   read(workId: string): Promise<AssistantWorkView>;
   /** Tell the person, once per key. */
   notify(work: StoredWork, text: AssistantSavedText, key: string): void;
+  subtaskReports?: { kick(workId: string): void; attach(): void };
 }
 
 /**
@@ -245,7 +247,7 @@ export class AssistantDelegations {
   /** The work that delegated `work` (the one whose graph its step is on), if it still exists. */
   parentOf(work: StoredWork): StoredWork | undefined {
     const graph = work.delegated_by?.graph_id;
-    return graph ? this.ports.store.list(this.ports.actorId, { archived: "any", limit: 500 }).find(item => item.graph_id === graph && !item.delegated_by) : undefined;
+    return graph ? this.ports.store.list(this.ports.actorId, { archived: "any", root_graph_id: graph, limit: 1 })[0] : undefined;
   }
 
   /** A delegated work's `delegated_by` as it is shown: which work asked, found from its graph. */
@@ -298,27 +300,8 @@ export class AssistantDelegations {
    * delegating work's session, whose rounds stand on its own root (§6.0k).
    */
   async takeBack(childId: string, caller?: AgentActionReviewControl): Promise<AssistantWorkView> {
-    const { store, actorId } = this.ports;
-    const child = store.get(actorId, childId), parent = this.parentOf(child);
-    if (!child.delegated_by || !parent) throw assistantErrors.invalid("这不是一个子任务");
-    const release = store.permissionTransitions.holdWorkPermissions([child.work_id]);
-    try {
-      const host = await this.ports.host(), ending = assistantWorkEnding(host, child), control = assistantEndControl(store, child, caller);
-      assertAssistantSessionSettled(host, child);
-      if (child.delegated_by.taken_back_at && (await ending?.read())?.lifecycle !== "ending") throw assistantErrors.invalid("这个子任务已经收回了");
-      const finish = await ending?.begin("taken-back", control);
-      await this.#endOpen(child, TAKEN_BACK_NOTE, control);
-      const latest = await this.ports.latestRun(host, child);
-      if (latest && !isTerminalAgentPhase(latest.phase)) {
-        if (ending) await stopOriginalRun(host.adapter(RUNTIME), latest.ref, control);
-        else await inAssistantWorkEffect(host.adapter(RUNTIME), control, () => host.adapter(RUNTIME).control(latest.ref, { kind: "stop" }));
-        host.reviews.cancelPending(latest.ref.run_id, "用户把这个子任务收回了");
-      }
-      await control.beforeEffect(); control.assertCurrent();
-      store.update(actorId, child.work_id, null, { delegated_by: { ...child.delegated_by, taken_back_at: child.delegated_by.taken_back_at ?? new Date().toISOString() } }, false);
-      await finish?.();
-      return this.ports.read(parent.work_id);
-    } finally { release(); }
+    const child = this.ports.store.get(this.ports.actorId, childId);
+    return takeBackAssistantWork(child, this.parentOf(child), { ...this.ports, endOpen: (work, control) => this.#endOpen(work, TAKEN_BACK_NOTE, control) }, caller);
   }
 
   /** The person closed an interrupted round of a part: what of it was not done ends as theirs, and its delegating work may go on. */
@@ -344,7 +327,8 @@ export class AssistantDelegations {
    * The graph says once more which roots may go on; only this work's is acted on.
    */
   async roundEnded(work: StoredWork): Promise<void> {
-    if (work.delegated_by || !work.graph_id) return;
+    if (work.delegated_by) { this.ports.subtaskReports?.kick(work.work_id); return; }
+    if (!work.graph_id) return;
     const graphs = await this.#graphs();
     graphs.onReady(ready => { if (ready.graph_id === work.graph_id) void this.#continue(ready).catch(() => undefined); })();
   }
@@ -364,7 +348,7 @@ export class AssistantDelegations {
   }
 
   /** The Host started: works whose parts all came back while it was away go on now (the SDK kept their continuations). */
-  async attach(): Promise<void> { this.#listen(await this.#graphs()); }
+  async attach(): Promise<void> { this.#listen(await this.#graphs()); this.ports.subtaskReports?.attach(); }
 
   #listen(graphs: AgentWorkGraphPort): void {
     this.#listening ??= graphs.onReady(ready => void this.#continue(ready).catch(() => undefined));
@@ -386,8 +370,8 @@ export class AssistantDelegations {
   /** Its parts are all back and its root may go on: the work goes on by itself in one round the Host writes, when it should. */
   async #continue(ready: { graph_id: string; request_key: string }): Promise<void> {
     const { store, actorId } = this.ports;
-    const parent = store.list(actorId, { limit: 500 }).find(work => work.graph_id === ready.graph_id && !work.delegated_by);
-    if (!parent || parent.executor.kind === "plugin" || this.#continuing.has(parent.work_id) || this.#refused.has(ready.request_key)) return;
+    const parent = store.list(actorId, { archived: "any", root_graph_id: ready.graph_id, limit: 1 })[0];
+    if (!parent || parent.archived || parent.executor.kind === "plugin" || this.#continuing.has(parent.work_id) || this.#refused.has(ready.request_key)) return;
     const preparing = { withdrawn: false };
     this.#continuing.set(parent.work_id, preparing);
     try {
@@ -405,6 +389,7 @@ export class AssistantDelegations {
       const rounds = store.rounds(parent.work_id);
       let auto = 0;
       while (auto < rounds.length && rounds[rounds.length - 1 - auto]!.written_by === "host") auto++;
+      if (!stillCurrent()) return;
       if (auto >= DELEGATION_LIMITS.autoRounds) {
         this.#refused.add(ready.request_key);
         this.ports.notify(parent, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: parent.title }), original: `已经连续自己接着做了 ${DELEGATION_LIMITS.autoRounds} 轮，先停下来等你看一眼；你再说一句，它就接着做` }, key);

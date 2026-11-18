@@ -1,15 +1,15 @@
+import { bindBusinessSubagent } from "./prologue-business-child.js";
+import { childSetup } from "./prologue-child-setup.js";
 import { sessionOpeningReader, canonicalCallerOpening } from "./prologue-session-opening.js";
 import { recordOriginalInput } from "./prologue-original-inputs.js";
-import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { ExactRef, PackTool, Runtime } from "@prologue/sdk";
-import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { AGENT_TOOLS } from "../tool-catalog.js";
+import { BUSINESS_HOST_TOOLS, BUSINESS_SUBAGENT_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
-import { assertChildRoleTools } from "../child-role-tools.js";
+import { projectPeerNotice } from "./prologue-peer-notices.js";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
 import { FIND_SYMBOL_HOST_TOOL } from "../code-intelligence/coding-tools.js";
@@ -112,8 +112,8 @@ function assertWorkspace(input: PrologueStartInput, index: SessionIndex | undefi
     || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
     || state.actionToolSessions.has(input.session_id))) throw new Error("无目录会话不能获得工具或工作区授权");
   if (business && (input.root_path !== undefined || input.provenance.frozen.directory !== undefined || input.mcp_tools?.length || input.mcp_sources?.length
-    || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
-    || input.character.tools.some(tool => !(BUSINESS_HOST_TOOLS as readonly string[]).includes(tool)))) throw new Error("业务会话只能使用宿主冻结的动作与不碰目录的工具");
+    || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
+    || input.character.tools.some(tool => !([...BUSINESS_HOST_TOOLS, ...(input.subagents?.length ? BUSINESS_SUBAGENT_HOST_TOOLS : [])] as readonly string[]).includes(tool)))) throw new Error("业务会话只能使用宿主冻结的动作与不碰目录的工具");
   if (!none && !business && !input.root_path) throw new Error("执行缺少已授权工作区");
 }
 
@@ -148,46 +148,7 @@ async function roundChecks(deps: RunDeps, input: PrologueStartInput, index: Sess
     }) });
 }
 
-/** What a parent that hands its children their own directories may hold: reading, dispatching, asking the person, the board,
- * the project's sessions and saying how it handles a supplement (receipts 3e-0b); no tool that writes or runs anything.
- * The names are read from the Agent Host's one tool set (`AGENT_TOOLS`), so this can never name a tool the set no longer has. */
-const WORKSPACE_PARENT_TOOL_NAMES: readonly string[] = ["read-file", "list", "search", "find-symbol", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user", "acknowledge-inputs", "board-read", "board-report", "session-send"];
-const WORKSPACE_PARENT_TOOLS: readonly string[] = WORKSPACE_PARENT_TOOL_NAMES.map(name => {
-  const entry = AGENT_TOOLS.find(tool => tool.name === name);
-  if (!entry) throw new Error(`workspace parent tool ${name} is not in AGENT_TOOLS`);
-  return entry.name;
-});
-
-/** The round's child directories and fixed child roles, each a published Character, and what the round is told of them. */
-async function childSetup(deps: RunDeps, input: PrologueStartInput, work?: PrologueWorkDelegation) {
-  const { runtime } = deps;
-  const childRoots: PrologueSubagentRoot[] = [];
-  if (input.subagent_workspaces?.length && input.character.tools.some(tool => !WORKSPACE_PARENT_TOOLS.includes(tool))) throw agentErrors.role_execution_exceeded("独立目录协调者只能读取和分派，不能持有其他执行工具");
-  for (const grant of input.subagent_workspaces ?? []) {
-    const overlaps = (a: string, b: string) => { const relative = path.relative(a, b); return !relative || !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative); };
-    if ([input.root_path!, ...childRoots.map(root => root.path)].some(other => overlaps(other, grant.directory.canonical_path) || overlaps(grant.directory.canonical_path, other))) throw new Error("子任务目录必须与主目录及其他子目录互不包含");
-    const authorized = await runtime.workspace.authorize({ path: grant.directory.canonical_path });
-    childRoots.push({ id: grant.worktree_id, rootRef: authorized.ref, path: grant.directory.canonical_path });
-  }
-  const childRoles = new Map<string, ChildRole>();
-  for (const role of input.subagents ?? []) {
-    if (work && work.permission.mode !== "original" && (role.execution !== "read-only" || role.host_tools.some(tool => AGENT_TOOLS.some(entry => entry.name === tool && entry.writes)))) continue;
-    assertChildRoleTools(role.execution, role.host_tools, childRoots.length > 0, input.character.tools);
-    const ref = await stageInstructions(runtime, role.prompts.map(prompt => prompt.body).join("\n\n"));
-    const draft = runtime.characters.create({ id: `molis-child-${randomUUID()}`, version: role.version, name: role.name, role: role.role_id,
-      ...(ref ? { instructionsRef: ref } : {}), tools: role.host_tools.map(prologueToolName) });
-    const published = runtime.characters.publish(draft.ref);
-    childRoles.set(exactCharacterKey(published.ref), role);
-  }
-  const childScope = childRoots.length
-    ? "每个子任务必须选择一个不同的 workspace 标识：" + JSON.stringify(childRoots.map(root => ({ id: root.id, path: root.path }))) + "。主任务只读，不能直接修改主工作区。子任务只在自己的目录里执行，修改仍经过宿主审查。"
-      + "核对子任务成果时，可以给 read、list、search 加 workspace 参数（上面的标识）只读查看对应目录；不加就是主工作区。你的查看不代替子任务自己的先读后改，也不能在这些目录里写入或运行命令。"
-    : "本轮没有分配独立子目录，不得填写 workspace 参数；所有子任务沿用当前授权目录，都不能修改文件；开放了运行命令的子角色可以运行检查命令，每条都经用户审查。";
-  // Facts only: a named role brings the tools it declares, whatever `tools` says; runTools below always holds them all.
-  const childInstructions = childRoles.size ? childScope + "可分派的固定子角色（character 用这里的引用，别的会被拒绝）：\n" + [...childRoles].map(([ref, role]) => `${ref}: ${role.name}; tools=${JSON.stringify(role.host_tools.map(prologueToolName))}`).join("\n") + "\nidempotencyKey 必须以字母或数字开头，只含字母、数字、点、下划线、冒号或连字符（最长 128 字符）。给子任务写清任务、必要上下文、依据路径与完成条件；不继承父聊天或材料。子任务不能再次分派。需要用户信息时作为阻塞返回给父任务。" : "";
-  return { childRoots, childRoles, childInstructions };
-}
-
+/** Called at admission (before first-run freezing), and again under current authority for an explicit continuation. */
 /** The project's work board, where every session of the project has its block (the user's B, 2026-10-14). */
 const projectBoardOf = async (deps: RunDeps, index: SessionIndex) => ({ kind: "task-board", id: await deps.projectWork.projectId(index.owner.project_id), revision: 1 }) as ExactRef<"task-board">;
 
@@ -346,17 +307,20 @@ async function recordAttempt(deps: RunDeps, input: PrologueStartInput, attempt: 
  * A child the round dispatched, as the runtime starts it: checked against the round's fixed roles and directories, and
  * when it has operations to review, recorded under its own index and bridged to the Host's review queue.
  */
-function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, attemptIndex: number, children: { readonly roles: Map<string, ChildRole>; readonly roots: PrologueSubagentRoot[]; readonly root: { ref: ExactRef<"authorized-root"> } | undefined }) {
+function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, attemptIndex: number, children: { readonly work?: PrologueWorkDelegation; readonly roles: Map<string, ChildRole>; readonly roots: PrologueSubagentRoot[]; readonly root: { ref: ExactRef<"authorized-root"> } | undefined }) {
   const { runtime, state } = deps;
   return async (observed: Parameters<NonNullable<NonNullable<Parameters<Runtime["startAgentRun"]>[0]["subagents"]>["onStarted"]>>[0]) => {
     verifySubagentStart(runtime, children.roles, children.roots)(observed);
+    observed.run.subscribe(() => { for (const changed of state.subagentListeners) changed(observed.parentRun.id); });
     const registered = runtime.subagents.list().find(child => child.run.id === observed.run.ref.id && child.session.id === observed.childSession.ref.id)!;
     const role = children.roles.get(exactCharacterKey(registered.character!))!;
     // Every child's run hears what its neighbours on the task graph send it (letters are handed over by the Host).
     state.sessionRuns.add(observed.run.ref.id); state.liveSessions.set(observed.childSession.ref.id, observed.run.ref.id);
-    state.activeRuns.set(observed.run.ref.id, { live: () => ["prepared", "running"].includes(observed.run.state),
+    const parentWork = children.work;
+    state.activeRuns.set(observed.run.ref.id, { live: () => ["prepared", "running"].includes(observed.run.state), policy: observed.policy,
+      ...(parentWork ? { work: parentWork, workSelection: parentWork.permission.mode !== "original" } : {}),
       assertAuthority: () => { requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成"); },
-      steer: async text => { await observed.control.steer({ text }); } });
+      steer: async text => { await observed.control.steer({ text, source: "app" }); } });
     observed.run.subscribe(event => {
       if (!isTerminalRunEvent(event.type)) return;
       state.activeRuns.delete(observed.run.ref.id);
@@ -370,11 +334,20 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
     stopOpening();
     const caller = canonicalCallerOpening(opening);
     if (caller === undefined) throw new Error("新子任务没有唯一 caller 开场，未开始子任务模型请求");
+    const childController = state.childActionControllers.get(observed.childSession.ref.id);
+    if (childController) {
+      state.childActionControllers.delete(observed.childSession.ref.id);
+      state.actionControllers.set(observed.run.ref.id, childController);
+      const guard = state.stopGuards.get(observed.childSession.ref.id);
+      if (guard) guard.task = caller;
+      watchRoundFacts(state, observed.run);
+      observed.run.subscribe(event => { if (isTerminalRunEvent(event.type)) { childController.abort(); state.actionControllers.delete(observed.run.ref.id); } });
+    }
     await deps.index.update(observed.parentSession.id, saved => {
       const attempt = saved.attempts[attemptIndex];
       if (saved.ref.id !== index.ref.id || observed.parentSession.id !== index.ref.id || !attempt || attempt.refused
         || attempt.task !== input.task || attempt.run_id && attempt.run_id !== observed.parentRun.id) throw new Error("子任务原启动身份不一致");
-      const fact = { parent_run: observed.parentRun.id, session: { ...observed.childSession.ref }, run: { ...observed.run.ref }, format: "caller-only-v1" as const };
+      const fact = { parent_run: observed.parentRun.id, session: { ...observed.childSession.ref }, run: { ...observed.run.ref }, format: "caller-only-v2" as const };
       const held = attempt.child_openings ??= [];
       if (held.some(item => item.session.id === fact.session.id || item.run.id === fact.run.id)) throw new Error("子任务生成事实已存在，不能重标旧记录");
       held.push(fact);
@@ -382,17 +355,21 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
     // A child with operations to review is tracked by the Host: one in its own directory, or one in the main
     // workspace that may run commands. A read-only child in the main workspace has nothing to review.
     // Without its own directory or a main workspace (workspace:none) there is nothing the Host could review.
-    if (!children.roots.length && (role.execution !== "workspace-write" || !children.root || !input.root_path)) return;
-    const granted = children.roots.length ? children.roots.find(root => root.id === observed.workspace!.id)! : { rootRef: children.root!.ref, path: input.root_path! };
+    const business = input.workspace === "business";
+    if (!business && !children.roots.length && (role.execution !== "workspace-write" || !children.root || !input.root_path)) return;
+    const granted = business ? undefined : children.roots.length ? children.roots.find(root => root.id === observed.workspace!.id)! : { rootRef: children.root!.ref, path: input.root_path! };
     const childRun = { session_id: observed.childSession.ref.id, run_id: observed.run.ref.id };
     await deps.index.save({ schema: SESSION_INDEX_SCHEMA, ref: observed.childSession.ref, title: role.name, owner: index.owner,
+      ...(business ? { workspace: "business" as const } : {}),
       parent_run: { session_id: observed.parentSession.id, run_id: observed.parentRun.id },
-      attempts: [{ started_at: new Date().toISOString(), task: caller, run_id: childRun.run_id, root_ref: granted.rootRef,
+      attempts: [{ started_at: new Date().toISOString(), task: caller, run_id: childRun.run_id, ...(granted ? { root_ref: granted.rootRef } : {}),
         frozen: { ...input.provenance.frozen, role_id: role.role_id, role_version: role.version, execution: role.execution,
-          subagent_workspaces: undefined, character: undefined, compaction: undefined, execution_plan: undefined, workspace: "required", directory: { canonical_path: granted.path, realpath_verified: true },
+          subagent_workspaces: undefined, character: undefined, compaction: undefined, execution_plan: undefined,
+          ...(granted ? { workspace: "required" as const, directory: { canonical_path: granted.path, realpath_verified: true } } : { workspace: "business" as const, directory: undefined }),
           host_tools: [...role.host_tools], text_materials: [], skills: [], mcp_tools: [], mcp_sources: [], budget: null,
           prompts: role.prompts.map(prompt => ({ prompt_id: prompt.prompt_id, version: prompt.version, layer: prompt.layer ?? "role" })) } }] });
-    state.runRoots.set(childRun.run_id, granted.rootRef);
+    state.runSessions.set(childRun.run_id, childRun.session_id); state.runRefs.set(childRun.run_id, observed.run.ref);
+    if (granted) state.runRoots.set(childRun.run_id, granted.rootRef);
     const bridgeFailed = async () => {
       const reason = "子任务的宿主审查或归属记录失败，已停止执行；请核对原工具结果后继续";
       const errors = state.subagentBridgeErrors.get(observed.parentRun.id) ?? {};
@@ -420,7 +397,7 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
 
 /** What the SDK is asked to start: the session, workspace, history, children, context, compaction, model and agent. */
 function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, parts: {
-  readonly attemptIndex: number; readonly session: Session; readonly root: { ref: ExactRef<"authorized-root"> } | undefined; readonly business: boolean; readonly credentialRef: ExactRef<"credential">;
+  readonly work?: PrologueWorkDelegation; readonly attemptIndex: number; readonly session: Session; readonly root: { ref: ExactRef<"authorized-root"> } | undefined; readonly business: boolean; readonly credentialRef: ExactRef<"credential">;
   readonly childRoles: Map<string, ChildRole>; readonly childRoots: PrologueSubagentRoot[]; readonly runTools: string[];
   readonly character: { ref: ExactRef<"character"> }; readonly textResources: Array<{ ref: ExactRef<"resource">; as: "original" }>;
   readonly pinnedMemory: Awaited<ReturnType<typeof roundCharacter>>["pinnedMemory"];
@@ -441,7 +418,7 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
     ...(childRoles.size ? { subagents: {
       // The user's decision: a parent that split work across directories may read (never write) exactly those.
       ...(childRoots.length ? { workspaces: childRoots.map(({ id, rootRef }) => ({ id, rootRef })), requireWorkspace: true, parentReads: true } : {}),
-      onStarted: watchChild(deps, input, index, parts.attemptIndex, { roles: childRoles, roots: childRoots, root }),
+      onStarted: watchChild(deps, input, index, parts.attemptIndex, { roles: childRoles, roots: childRoots, root, work: parts.work }),
     } } : {}),
     // Packed against the model's own window when it states a smaller one than the runtime default.
     ...(input.compaction || input.provenance.frozen.model_context || input.project_trusted ? { context: {
@@ -551,6 +528,7 @@ function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard
   if (type === "cancelled" || type === "tripped" || type === "circuit-tripped") onAborted();
   actionController.abort(); state.actionControllers.delete(started.run.ref.id); state.dispatchChecks.delete(started.run.ref.id); state.activeRuns.delete(started.run.ref.id);
   deps.options.reviewQueue?.permissions.releaseRun(started.run.ref.id);
+  state.childAdmissions.delete(started.run.ref.id);
   if (stepBoard) deps.stepBoards.unfollow(started.run.ref.id);
   deps.workGraphs.ended(started.run.ref, session.ref, end.graph);
   if (state.liveSessions.get(session.ref.id) === started.run.ref.id) state.liveSessions.delete(session.ref.id);
@@ -601,7 +579,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
           if (event.type === "usage" || event.type === "usage-recorded") {
             const receipt: PrologueUsageReceipt = event.receipt;
             listener({ ...event, receipt });
-          } else listener(event);
+          } else listener(projectPeerNotice(deps.runtime, at.session.ref, event));
         })),
       cancel: () => { at.onAborted(); actionController.abort(); void at.surface.release("stopped").catch(() => undefined); return started.run.cancel(); },
     },
@@ -714,7 +692,7 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
     hostSystemTools(input).filter(tool => tool !== FIND_SYMBOL_HOST_TOOL || symbolToolName !== undefined), resolveHostTool);
   const textResources: Array<{ ref: ExactRef<"resource">; as: "original" }> = [];
   for (const material of input.text_materials ?? []) textResources.push({ ref: await stageTextResource(runtime, agentTextMaterialContent(material), "coding-material"), as: "original" });
-  const { childRoots, childRoles, childInstructions } = await childSetup(deps, input, work);
+  const { childRoots, childRoles, childInstructions } = await childSetup(deps, input, actionTools?.names ?? [], work);
   const plan = input.provenance.frozen.execution_plan;
   const materials = await roundMaterials(deps, input, index, session, mode.none, plan, textResources);
   const surface = await roundSurface(deps, input, index, session, mode.business, surfaceControl);
@@ -738,7 +716,7 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
     // A new Run owns its dispatch scope. A callback from a completed Run may have asked for this start.
     const started = await deps.memoryAuthority.forAttempt(input.session_id, attemptIndex, () =>
       deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
-        attemptIndex, session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding, referenceKinds,
+        attemptIndex, session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, work, textResources: materials.textResources, pinnedMemory, binding, referenceKinds,
       }))), input.disposeDispatch).catch(async (error: unknown) => {
       onAborted(); actionController.abort();
       // Not accepted by the SDK: refused while the context was still being packed (the runtime creates the run only after
@@ -763,6 +741,16 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
     if (codeIntelligence !== undefined) started.run.subscribe(event => { if (isTerminalRunEvent(event.type)) void codeIntelligence.close().catch(() => undefined); });
     // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).
     state.dispatchChecks.set(started.run.ref.id, prepareDispatch);
+    if (mode.business && childRoles.size) state.childAdmissions.set(started.run.ref.id, async request => {
+      const role = request.character && childRoles.get(exactCharacterKey(request.character));
+      if (!role || !input.subagentGateway) throw agentErrors.role_not_declared("没有可用的业务子角色授权");
+      const ref = { kind: "session", id: request.childSessionId, revision: 1 } as const;
+      const gateway = await input.subagentGateway(role, { runtime_id: "prologue", session_id: ref.id });
+      await bindBusinessSubagent(deps, ref, role, gateway, request.tools, {
+        assertCurrent: assertDispatchCurrent, stopping: () => stopping.current !== undefined || aborted, work,
+      });
+    });
+
     await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, surface, appliedPolicies, exactPermissions, work, mcp,
       hasActions: Boolean(actionTools?.names.length), none: mode.none,
       project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined || aborted });

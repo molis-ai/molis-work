@@ -1,3 +1,4 @@
+import type { AgentAnswerControl, AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { agentErrors } from "../errors.js";
 import { childCallerTask } from "./prologue-session-opening.js";
 import type { ChildOpeningFact } from "./prologue-session-index.js";
@@ -9,8 +10,11 @@ import type {
   AgentSubagentRetrySource,
   AgentSubagentsCapability,
   AgentSubagentView,
+  AgentStartExecution,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { applyRunEvent, emptyPrologueStreamState } from "./prologue-stream.js";
+import { subagentConversation } from "./prologue-subagent-conversation.js";
+import { originalRunEvents } from "./prologue-original-inputs.js";
 
 export const SUBAGENT_DEFAULT_MAX_ATTEMPTS = 2;
 
@@ -21,7 +25,7 @@ export interface PrologueSubagentRoot {
 }
 
 interface PrologueSubagentProvenance {
-  path: string;
+  path: string | null;
   roles: Array<[string, AgentFrozenSubagentRole]>;
   roots?: PrologueSubagentRoot[];
   errors?: Record<string, string>;
@@ -30,11 +34,15 @@ interface PrologueSubagentProvenance {
   budgets?: Record<string, { max_attempts: number }>;
   attempt_sources?: Record<string, AgentSubagentRetrySource>;
   attempt_reasons?: Record<string, string>;
+  person_openings?: Record<string, string>;
+  retry_openings?: Record<string, string>;
   nodes?: Record<string, string>;
 }
 
 export interface PrologueSubagentHooks {
   defaultMaxTurns?: number;
+  readQuestion?(parent: AgentRunRef, child: SubagentHandle, id: string, revision: number): Promise<AgentPendingQuestion | null>;
+  answerQuestion?(parent: AgentRunRef, child: SubagentHandle, answer: AgentAnswerControl): Promise<"delivered" | "queued">;
   extendBudget?(run: AgentRunRef, subagentId: string, addAttempts: number): Promise<void>;
   continueChild?(input: {
     parentRun: AgentRunRef;
@@ -44,7 +52,11 @@ export interface PrologueSubagentHooks {
     source: AgentSubagentRetrySource;
     actorId: string;
     attemptNumber: number;
-  }): Promise<void>;
+    requestKey: string;
+    text?: string;
+    queued?: string[];
+    execution?: AgentStartExecution;
+  }): Promise<AgentRunRef>;
 }
 
 const sameRoot = (a: ExactRef<"authorized-root">, b: ExactRef<"authorized-root">) => a.id === b.id && a.revision === b.revision;
@@ -59,25 +71,13 @@ async function projectSubagentView(
 ): Promise<AgentSubagentView> {
   const session = await runtime.sessions.open(child.session);
   if (!session) throw new Error("子任务原始会话不可读取，不能当作空结果");
-  const terminals = await session.terminalRuns();
   const attemptRefs = child.attempts?.length ? child.attempts : [child.run];
   const attemptSummaries: AgentSubagentAttemptSummary[] = [];
   let firstAttemptEvents: Awaited<ReturnType<typeof session.replay>> | undefined;
   let latestStream = emptyPrologueStreamState();
 
   for (const [idx, attemptRef] of attemptRefs.entries()) {
-    const terminal = terminals.find(ref => ref.id === attemptRef.id);
-    let events: Awaited<ReturnType<typeof session.replay>>;
-    if (terminal) {
-      events = await session.replay(terminal);
-    } else {
-      try {
-        events = await session.readRunProgress(attemptRef);
-      } catch (err) {
-        if ((err as { code?: string } | null)?.code !== "RUN_NOT_REPLAYABLE") throw err;
-        events = await session.replay(attemptRef);
-      }
-    }
+    const events = await originalRunEvents(session, attemptRef);
     if (idx === 0) firstAttemptEvents = events;
     const stream = emptyPrologueStreamState();
     for (const event of events) applyRunEvent(stream, event, null);
@@ -132,8 +132,10 @@ async function projectSubagentView(
     child_run: { session_id: child.session.id, run_id: child.run.id },
     ...(nodeId ? { node_id: nodeId } : {}),
     role_id: role.role_id,
+    role_version: role.version,
+    execution: role.execution,
     role_name: role.name,
-    task: latestStream.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => turn.text).join("\n\n"),
+    task: task ?? "",
     state: effectiveState,
     result: latestStream.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text).join("\n\n") || null,
     workspace_path: root?.path ?? provenance.path,
@@ -163,70 +165,31 @@ export function createPrologueSubagents(
   const owned = (run: AgentRunRef) => runtime.subagents.list().filter(child => child.parentSession.id === run.session_id && child.parentRun.id === run.run_id);
   const defaultMaxTurns = hooks.defaultMaxTurns ?? 20;
 
-  const list: AgentSubagentsCapability["list"] = async run => {
+  const read = async (run: AgentRunRef) => {
     const provenance = await provenanceOf(run), roles = new Map(provenance.roles);
     const result: AgentSubagentView[] = [];
     for (const child of owned(run)) {
       result.push(await projectSubagentView(runtime, run, child, provenance, roles, defaultMaxTurns));
     }
-    return result;
+    return { children: result, personOpenings: provenance.person_openings, retryOpenings: provenance.retry_openings };
   };
+  const list: AgentSubagentsCapability["list"] = async run => (await read(run)).children;
 
   return {
     list,
-    async cancel(run, id, _actor) {
-      const child = owned(run).find(child => child.ref.id === id);
+    resultCandidates: parentSessionIds => runtime.subagents.list().flatMap(child => {
+      if (!parentSessionIds.has(child.parentSession.id)) return [];
+      const parent_run = { session_id: child.parentSession.id, run_id: child.parentRun.id };
+      const settled = ["completed", "failed", "cancelled"].includes(child.state);
+      return (child.attempts ?? [child.run]).filter(attempt => settled || attempt.id !== child.run.id)
+        .map(attempt => ({ parent_run, subagent_id: child.ref.id, attempt_run_id: attempt.id }));
+    }),
+    ...subagentConversation(runtime, (run, id) => {
+      const child = owned(run).find(one => one.ref.id === id);
       if (!child) throw agentErrors.collaboration_unknown("子任务不属于这一轮执行");
-      await runtime.subagents.cancel(child.ref);
-    },
-    ...(hooks.extendBudget ? {
-      async extendBudget(run, id, addAttempts, _actor) {
-        const child = owned(run).find(entry => entry.ref.id === id);
-        if (!child) throw agentErrors.collaboration_unknown("子任务不属于这一轮执行");
-        if (!Number.isSafeInteger(addAttempts) || addAttempts < 1 || addAttempts > 10) {
-          throw agentErrors.collaboration_unknown("每次增加的尝试预算需为 1–10 次整数");
-        }
-        await hooks.extendBudget!(run, child.ref.id, addAttempts);
-        const updated = (await list(run)).find(entry => entry.subagent_id === id);
-        if (!updated) throw agentErrors.control_failed("子任务状态读取失败");
-        return updated;
-      },
-    } : {}),
-    ...(hooks.continueChild ? {
-      async retry(run, id, input) {
-        const child = owned(run).find(entry => entry.ref.id === id);
-        if (!child) throw agentErrors.collaboration_unknown("子任务不属于这一轮执行");
-        if (child.state === "running") {
-          throw agentErrors.session_busy("这个子任务仍在执行中；请等它结束或先终止后再重试");
-        }
-        if (input.extend_attempts !== undefined && input.extend_attempts > 0) {
-          if (!hooks.extendBudget) throw agentErrors.capability_unavailable("当前运行时不支持扩展子任务预算");
-          await hooks.extendBudget(run, child.ref.id, input.extend_attempts);
-        }
-        const current = (await list(run)).find(entry => entry.subagent_id === id);
-        if (!current) throw agentErrors.control_failed("子任务状态读取失败");
-        if (current.budget && current.budget.attempt >= current.budget.max_attempts) {
-          throw agentErrors.capability_unavailable(
-            `这个子任务已用完 ${current.budget.attempt}/${current.budget.max_attempts} 次尝试预算；如需继续，请先点「再给 3 次」或直接终止`,
-          );
-        }
-        if (current.continuation_task?.status !== "available") {
-          throw agentErrors.capability_unavailable("子任务原开场任务不可核验，不能自动发起新尝试");
-        }
-        await hooks.continueChild!({
-          parentRun: run,
-          child,
-          baseTask: current.continuation_task.text,
-          reason: input.reason,
-          source: input.source,
-          actorId: input.actor_id,
-          attemptNumber: (current.budget?.attempt ?? 1) + 1,
-        });
-        const refreshed = (await list(run)).find(entry => entry.subagent_id === id);
-        if (!refreshed) throw agentErrors.control_failed("重试后读取子任务状态失败");
-        return refreshed;
-      },
-    } : {}),
+      return child;
+    }, read, hooks),
+
   };
 }
 

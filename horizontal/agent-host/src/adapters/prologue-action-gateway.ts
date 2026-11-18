@@ -11,6 +11,11 @@ import type { PrologueActionReviews } from "./prologue-action-reviews.js";
 import { actionReads, CAPABILITY_PARAMETERS, declaredCapabilities, SUGGEST_PARAMETERS } from "./prologue-gateway-declared.js";
 
 export const GATEWAY_TOOLS = { find: "find-capabilities", read: "read-capability", change: "change-capability", suggest: "suggest-action", direct: "change-reversible" } as const;
+/** SDK children get ordinary capabilities under their own execution, never Work/delegation/memory closures. */
+export function businessChildTools(parentNames: readonly string[], execution: string): string[] {
+  const allowed: readonly string[] = execution === "operate" ? Object.values(GATEWAY_TOOLS) : [GATEWAY_TOOLS.find, GATEWAY_TOOLS.read];
+  return parentNames.filter(name => allowed.includes(name));
+}
 /** Tools for handing sub-tasks to separate works, present only where the caller offers delegation. */
 export const DELEGATION_TOOLS = { start: "delegate-work", check: "check-delegated-work", follow: "follow-up-delegated-work", stop: "stop-delegated-work" } as const;
 /** A delegated work's report of what it delivers against its requirements, present only where it was handed some. */

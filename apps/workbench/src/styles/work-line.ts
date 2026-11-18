@@ -1,3 +1,4 @@
+import { TASK_FLOAT_STYLES } from "./task-float.js";
 /**
  * The work line's parts as the first slice settled them (docs/design/work-line-32, scheme E, user 2026-11-14; specs/work-line
  * §4, §10, §12), drawn on the component board first (`/__ui/catalog/navigation?sheet=work-line`) so the slices that move the
@@ -181,12 +182,7 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 .work-task-mark[data-needs-you]{border-color:var(--amber);background:var(--amber-soft)}
 .work-task-mark[data-failed]{border-color:var(--red)}
 .work-task-mark[data-offline]{border-style:dashed;color:var(--amber)}
-/* Where the task panel floats: beside its dialog with their top edges level, or over the dialog's right side under the tab bar
-   where there is no room beside it (work-line-layout.ts measures and says which). It never moves the work surface. */
-.work-task-float{position:fixed;z-index:60;top:var(--dialog-top,auto);left:calc(var(--dialog-right,0px) + 12px);display:flex;max-width:calc(100% - 20px)}
-.work-task-float[data-place="over"]{top:calc(var(--dialog-top,0px) + 52px);left:auto;right:var(--dialog-inset,18px)}
-.work-task-float[data-place="closed"]{top:auto;left:auto;right:calc(var(--dialog-inset,18px) - 8px);bottom:calc(var(--line-clear,0px) + 52px)}
-.work-task-float[data-place="over"] .work-task-panel{max-height:min(56vh,480px,var(--dialog-room,480px))}
+${TASK_FLOAT_STYLES}
 /* The task panel: a list, or one task's card with a way back. */
 .work-task-panel{display:flex;flex-direction:column;width:340px;max-width:100%;max-height:min(56vh,480px);overflow:hidden;border-radius:var(--r-card,12px);background:var(--popover);box-shadow:var(--lift-3);animation:craft-rise ${MOVE}}
 .work-task-panel-head{flex:none;display:flex;align-items:center;gap:8px;min-height:44px;min-width:0;padding:0 8px 0 12px;border-bottom:1px solid var(--line)}
@@ -379,7 +375,6 @@ html[data-craft-still] ${ANIMATED}{animation:none}
   ${W} .assistant-tabs[data-work-tabs] .assistant-tab:not([data-current]){display:flex}
   ${W} .assistant-tabs[data-work-tabs] .assistant-tab{min-width:72px;max-width:132px}
   ${W} .assistant-tabs[data-work-tabs] .assistant-tab[data-current]{max-width:220px}
-  .work-task-float,.work-task-float[data-place="over"]{top:auto;right:10px;bottom:calc(var(--line-clear,0px) + 10px);left:10px;max-width:none}
   .work-task-panel{flex:1 1 auto;width:auto;max-height:62vh}
   .work-task-row>.mw-btn{display:none}
 }

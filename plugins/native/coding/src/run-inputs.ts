@@ -57,7 +57,8 @@ export const codingRunControlInput: ActionSchema = {
       answers: { type: "array", minItems: 1, maxItems: 10, items: answerItem },
     }, ["pending_id", "pending_revision", "answers"]),
     controlBranch("steer", { text: words(100_000), source: { enum: [...AGENT_INPUT_SOURCES] }, key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN },
-      mode: { enum: [...AGENT_STEER_MODES] }, about: words(200), materials: { type: "array", maxItems: CODING_MATERIALS_MAX, items: { type: "object" } } }, ["text"]),
+      mode: { enum: [...AGENT_STEER_MODES] }, require_running: { const: true }, about: words(200),
+      materials: { type: "array", maxItems: CODING_MATERIALS_MAX, items: { type: "object" } } }, ["text"]),
     controlBranch("withdraw", { input_id: words(200) }, ["input_id"]),
     controlBranch("stop", {}, []),
     controlBranch("pause", {}, []),
@@ -176,6 +177,7 @@ export async function runControl(body: Record<string, unknown>, models: () => Pr
   if (body.kind === "steer") return { kind: "steer", materials: materialSelection(body.materials ?? []), send: { text: text(body.text, "coding.field.supplement", 100_000),
     ...(typeof body.source === "string" ? { source: body.source as AgentInputSource } : {}),
     ...(typeof body.key === "string" ? { key: body.key } : {}), ...(typeof body.mode === "string" ? { mode: body.mode as AgentSteerMode } : {}),
+    ...(body.require_running === true ? { require_running: true as const } : {}),
     ...(typeof body.about === "string" ? { about: body.about } : {}) } };
   if (body.kind === "withdraw") return { kind: "withdraw", input_id: text(body.input_id, "coding.field.supplement-ref") };
   if (body.kind === "stop" || body.kind === "pause" || body.kind === "resume") return { kind: body.kind };

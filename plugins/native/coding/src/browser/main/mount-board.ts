@@ -46,6 +46,10 @@ function boardNode(page: Page, target: BoardTarget): HTMLElement | undefined {
 async function navigate(page: Page, id: string, target: BoardTarget) {
   const { host, refs, root, s, turns } = page, record = s.state.sessions.find(item => item.session_id === id);
   if (!record) throw new Error(uiText.text("coding.error.session-unreadable"));
+  if (target.kind === "child") {
+    await host.view.openTask({ session: id, run: target.run_id, child: target.child_id });
+    return;
+  }
   host.openItem("coding", id, record.title);
   await openCodingItem(page, id);
   if (s.current !== id) return;
@@ -53,10 +57,9 @@ async function navigate(page: Page, id: string, target: BoardTarget) {
   if (target.kind === "step") { await refs.stepReports.open(id, target.run_id, target.step_id); return; }
   // Everything else lives in the conversation or the results panel: leave the board and show it there.
   showBoard(page, false);
-  if (["plan", "child", "recovery", "reviews"].includes(target.kind)) root.dataset.codingResults = "true";
+  if (["plan", "recovery", "reviews"].includes(target.kind)) root.dataset.codingResults = "true";
   const node = boardNode(page, target);
   if (!node || node.hidden) throw new Error(uiText.text("coding.error.content-unreadable"));
-  if (target.kind === "child" && node instanceof HTMLDetailsElement) node.open = true;
   if (turns.contains(node)) s.follow.release();
   node.scrollIntoView({ block: "nearest" });
   node.tabIndex = -1;
@@ -86,6 +89,7 @@ export function mountBoard(page: Page) {
   });
   refs.planProgress = planProgress({ ...s.ports, roleLabel: id => s.ROLE_NAMES[id], openStep: (runId, stepId) => refs.stepReports.open(s.current, runId, stepId), from: node => refs.inputReceipts.from(node), word: state => host.receipts.step(state) });
   refs.subagents = subagentGroups({
+    openConversation: (session, run, child) => host.view.openTask({ session, run, child }),
     ...s.ports, roleName: id => s.ROLE_NAMES[id] || id || "Agent", openIntegration: refs.integrations.open, usageSummary: usage => codingUsageSummary(usage, readText),
     prepareRework: async (id, runId, child, notes) => {
       if (s.current !== id) return;

@@ -1,4 +1,4 @@
-import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginOnDemandStylesheet, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkSessionsClientScript, renderMolisWorkKnowledgeClientScript, renderMolisWorkKitClientScript, renderMolisWorkWorkRecordsClientScript, renderMolisWorkChooserSearchClientScript } from "@molis-ai/molis-work-app-workbench";
+import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginOnDemandStylesheet, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkSessionsClientScript, renderMolisWorkKnowledgeClientScript, renderMolisWorkKitClientScript, renderMolisWorkWorkRecordsClientScript, renderMolisWorkAssistantSubtasksClientScript, renderMolisWorkChooserSearchClientScript } from "@molis-ai/molis-work-app-workbench";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -144,6 +144,8 @@ export function createLocalWebAssets(ports: {
         : pathname === "/assets/molis-work-kit.js"
         ? { body: renderMolisWorkKitClientScript(), contentType: "text/javascript; charset=utf-8" }
         // Work Records settings program, fetched only by a page that shows it (settings-work-records.ts).
+        : pathname === "/assets/molis-work-assistant-subtasks.js"
+        ? { body: renderMolisWorkAssistantSubtasksClientScript(), contentType: "text/javascript; charset=utf-8" }
         : pathname === "/assets/molis-work-work-records.js"
         ? { body: renderMolisWorkWorkRecordsClientScript(), contentType: "text/javascript; charset=utf-8" }
         // The project list's personal search (BL-041), fetched on the first press of its button.

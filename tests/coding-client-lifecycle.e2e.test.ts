@@ -203,7 +203,7 @@ test("Coding stops hidden polling and releases every client listener before the 
     const pluginId='io.molis.work.coding';
     window.remountCoding=()=>(${CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT})({root:codingRoot,mountPluginClient:mount,translate:globalThis.t.text,pluginId,pluginRoute:path=>codingRoot.dataset.codingPrefix+'/api/plugins/'+pluginId+path,
       confirm:async()=>true,interaction:()=>{throw new Error('no card is drawn in this test');},receipts:{},workspaces:{add:async()=>({workspace_id:'none'}),select:async()=>{}},clients:{},reviews:{show:async()=>{}},openItem:()=>{},
-      returns:{arrived:async()=>null,go:async()=>{throw new Error('no settings are opened in this test');}}});
+      view:{openTask:async()=>{throw new Error('no task is opened in this test');}},returns:{arrived:async()=>null,go:async()=>{throw new Error('no settings are opened in this test');}}});
     remountCoding();remountCoding();
   })()`);
   await waitFor(`codingRequests.length > ${detachedReads}`);

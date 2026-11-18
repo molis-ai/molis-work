@@ -10,6 +10,8 @@
 export interface UiPageDrafts {
   read(key: string): Promise<string | null>;
   write(key: string, value: string | null): Promise<void>;
+  /** Atomically replace only the exact previous value, across this installation’s pages. False leaves the current value untouched. */
+  compareAndSwap(key: string, expected: string | null, value: string | null): Promise<boolean>;
 }
 
 /** What the settings have to make true. The first version has a text model only; a connection is asked in place (`connectionNeed`). */

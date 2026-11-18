@@ -90,6 +90,18 @@
     "reason": "不可变来源引用自身的修订号：这种来源写定后不再改，永远是第 1 版，不是产品声明的版本。"
   },
   {
+    "file": "apps/local-host/src/assistant/assistant-subtask-reports.ts",
+    "name": "version",
+    "values": { "1": 1 },
+    "reason": "查询既有不可变本人原件的首份修订号，与 AgentOriginalInputRef 合同一致，不是新增格式或自有版本声明。"
+  },
+  {
+    "file": "apps/local-host/src/assistant/assistant-work-subtasks.ts",
+    "name": "version",
+    "values": { "1": 1 },
+    "reason": "查询既有不可变本人原件的首份修订号，与 AgentOriginalInputRef 合同一致，不是新增格式或自有版本声明。"
+  },
+  {
     "file": "horizontal/agent-host/src/adapters/prologue-original-inputs.ts",
     "name": "version",
     "values": { "1": 4 },
@@ -1118,19 +1130,19 @@
   {
     "file": "horizontal/agent-host/src/adapters/prologue-run.ts",
     "name": "format",
-    "values": { "caller-only-v1": 1 },
+    "values": { "caller-only-v2": 1 },
     "reason": "Prologue SDK 子会话开场观察事实的 format 判别值，由上游定义；我们只原样核对，不是自有版本。"
   },
   {
     "file": "horizontal/agent-host/src/adapters/prologue-session-index.ts",
     "name": "format",
-    "values": { "caller-only-v1": 1 },
+    "values": { "caller-only-v2": 1 },
     "reason": "Prologue SDK 子会话开场观察事实的 format 判别值，由上游定义；我们只原样核对，不是自有版本。"
   },
   {
     "file": "horizontal/agent-host/src/adapters/prologue-session-opening.ts",
     "name": "format",
-    "values": { "caller-only-v1": 2 },
+    "values": { "caller-only-v2": 2 },
     "reason": "Prologue SDK 子会话开场观察事实的 format 判别值，由上游定义；我们只原样核对，不是自有版本。"
   },
   {

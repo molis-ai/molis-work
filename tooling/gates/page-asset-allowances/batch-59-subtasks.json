@@ -1,0 +1,8 @@
+{
+  "reason": "第 59 批复用公共子任务对话、原问卷与审批，Home 与项目共用首次打开时才加载的脚本。",
+  "review": "specs/subagent-interaction/spec.md §12；最终体积以合入前资源验证为准。",
+  "userApproval": "用户 2026-11-17 明确批准新增 /assets/molis-work-assistant-subtasks.js，最多 100,000 B，替代原 70,000 B 申请；不增加页面或交互。",
+  "assets": {
+    "/assets/molis-work-assistant-subtasks.js": 100000
+  }
+}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AgentHost, emptyCapabilityMatrix, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
+import { AgentHost, emptyCapabilityMatrix, subagentExecution, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentFrozenCharacter, AgentStartRequest, AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -204,5 +204,29 @@ test("ROLE-07 ROLE-16: the same choice in a session keeps the version its last r
   // Another choice than the last round's resolves the current one.
   f.previous({ ...structuredClone(pinned), version: { kind: "personal", character_id: "other", version: 1 }, character_id: "other" });
   assert.deepEqual((await f.host.start("probe", f.request, f.authority)).frozen.character!.version, newer.version);
+});
+
+test("SAI-08 SAI-10 ROLE-08: child continuation checks the original parent's frozen project role", async () => {
+  const f = fixture();
+  f.request.character = { kind: "project", member_id: "board-member" };
+  f.character.version = { kind: "project", member_id: "board-member", member_version: 1,
+    original: { kind: "personal", character_id: "profile", version: 2 } };
+  f.character.project_id = f.request.project_id;
+  const child = { role_id: "child", version: 1, name: "Child", execution: "read-only" as const, host_tools: [] };
+  const { frozen } = await f.host.start("probe", f.request, f.authority);
+
+  f.authority.manifest.subagents = { parent_role_ids: ["reader"], roles: [child] };
+  f.authority.resolveCharacter = () => { throw new Error("Stopped offering this role for new choices"); };
+  const reads: Array<{ version: AgentFrozenCharacter["version"]; actor: string }> = [];
+  let current = structuredClone(f.character);
+  f.authority.characterVersion = (version, actor) => { reads.push({ version, actor }); return current; };
+  const execution = subagentExecution(f.authority, "probe", frozen, { actor_id: f.request.actor_id, project_id: f.request.project_id });
+  execution.assertSubagent!(child);
+  assert.deepEqual(reads, [{ version: f.character.version, actor: f.request.actor_id }]);
+
+  current = { ...current, project_id: "another-project" };
+  assert.throws(() => execution.assertSubagent!(child), /原角色已不可用/);
+  f.authority.characterVersion = () => { throw new Error("The original project member was removed"); };
+  await assert.rejects(execution.beforeStart!(), /original project member was removed/);
 });
 

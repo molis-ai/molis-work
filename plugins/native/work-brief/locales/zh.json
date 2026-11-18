@@ -132,7 +132,7 @@
     "work-brief.proposal.take": "用新的",
     "work-brief.proposal.theirs": "新写的",
     "work-brief.proposal.title": "新的草稿有 {count} 处和你的修改不一样",
-    "work-brief.read.none": "无数据",
+    "work-brief.read.none": "当前没有可汇总的事项",
     "work-brief.read.ok": "正常",
     "work-brief.read.stale": "过期",
     "work-brief.read.unauthorized": "未授权",

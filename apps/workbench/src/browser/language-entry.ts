@@ -90,12 +90,10 @@ async function prepareSettings(render: ReadSettings, prior: string, target: stri
 function prepareAgentDisplayModels(preparedPage: ParentNode, regions: readonly { root: ParentNode; next: ParentNode }[]) {
   type Model = Record<string, { source: unknown; roles: Record<string, Record<string, unknown>>; prompts: Record<string, Record<string, unknown>> }>;
   const models = [{ root: document, next: preparedPage }, ...regions].map(({ root, next }) => {
-    // A mounted Characters view lives in the document, but the Host's preview still has its exact deferred template.
-    const characters = next.querySelector<HTMLTemplateElement>('[data-work-surface="characters"] > template[data-deferred-content]')?.content;
     const slots = new Map<string, { words: string; model: Model }>();
     for (const kind of ["roles", "prompts"] as const) {
       const selector = `script[data-agent-display-model="${kind}"]`;
-      const selected = next.querySelector(selector) ?? (kind === "roles" ? characters?.querySelector(selector) : null);
+      const selected = next.querySelector(selector);
       if (selected) { const words = selected.textContent ?? "{}"; slots.set(kind, { words, model: JSON.parse(words) }); }
     }
     return { root, slots };

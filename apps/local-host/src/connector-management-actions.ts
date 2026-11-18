@@ -32,7 +32,7 @@ export const connectorManagementActions = {
     title: "查看服务连接", description: "列出本人已有服务连接和账号标签。记录中的 connected 表示保存的授权状态；是否此刻连通须调用检查连接，不能把保存配置当成调用成功。插件和模型的实际使用位置由 connectors.usages.read 读取。",
     kind: "query", effect: "read", permissions: [CONNECTOR_MANAGEMENT_READ], input_schema: serviceFilter, output_schema: output } } as ActionDefinition<{ service_id?: string }, { connections: ManagedConnectorView[] }>,
   check: { capability_id: "connectors.connection.check", version: /* @version action.connectors.connection.check */ 1, operation: "query", action: { ...metadata,
-    title: "检查服务连接", description: "检查所选连接的真实账号或 MCP 握手与能力；刷新共同目录。只作连接与身份检查，不执行服务业务工具或业务写入。失败保留原任务和连接，不换账号。",
+    title: "检查服务连接", description: "检查所选连接的真实账号或 MCP 握手与能力；刷新能力库。只作连接与身份检查，不执行服务业务工具或业务写入。失败保留原任务和连接，不换账号。",
     kind: "query", effect: "read", scheduling: "concurrent", permissions: [CONNECTOR_MANAGEMENT_READ],
     input_schema: { type: "object", properties: { connection_id: { type: "string", pattern: "^[a-z0-9-]{1,100}$" } }, required: ["connection_id"], additionalProperties: false }, output_schema: output } } as ActionDefinition,
   control: { capability_id: "connectors.connection.control", version: /* @version action.connectors.connection.control */ 1, operation: "command", action: { ...metadata,

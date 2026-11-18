@@ -1,7 +1,7 @@
 import { bindCharactersActions, CHARACTERS_ACTIONS, createCharactersActionHandlers, openCharacters, type CharacterCallGuard, type CharactersActionPorts, type CharactersActionRuntime, type CharactersAgentCatalog, type CharactersService } from "@molis-ai/molis-work-module-characters";
 import { ProjectRuntimeSettings } from "./project-runtime-settings.js";
-import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, characterErrors, parseCharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
-import type { ArtifactsQueryApi, ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, characterErrors, type CharacterRoleVersionRef, type PersonalCharacterRef, type ProjectCharacterMemberRef } from "@molis-ai/molis-work-contracts/modules/characters";
+import type { ArtifactsQueryApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { resolveConfiguredHome } from "./product-home.js";
@@ -42,7 +42,7 @@ export function charactersProvider(project: CharactersProject, actionPorts: Char
     provider: { provider_id: CHARACTER_PLUGIN_ID, plugin_id: CHARACTER_PLUGIN_ID, title: "Characters", kind: "plugin", project_id: project.project_id },
     definitions: CHARACTERS_ACTIONS,
     handlers: bindCharactersActions(actionPorts.actorId, (caller, guard) => createCharactersActionHandlers(actionPorts,
-      { projectId: project.project_id, artifacts: characterArtifacts(project, caller, guard), ...(agent ? { agent } : {}) })),
+      { projectId: project.project_id, artifacts: characterArtifacts(project, caller, guard), ...(agent ? { agent } : {}) }, guard.beforeWrite)),
   };
 }
 
@@ -88,40 +88,35 @@ function characterActionPorts(options: CharactersHostOptions, actorId: string, p
       discover: input => discovery.discover(input),
       import: (candidateId, selection, existing) => {
         const snapshot = discovery.get(candidateId);
-        if (!snapshot) throw characterErrors.invalid("预览已过期，请重新扫描本地 Agent");
+        if (!snapshot) throw characterErrors.invalid("扫描预览已过期，请重新扫描电脑上的 AI 工具");
         return use(service => service.import(snapshot, selection, existing));
       },
       ...characterNativeExecution({ home, actorId, projectId, workspaces, spawn, executable: runtime => discovery.executable(runtime),
         output: async () => options.workspaceFor ? await options.workspaceFor(projectId) : null,
         prepare: async workspaceId => { await options.prepareDirectory?.(projectId, workspaceId, "write"); } }),
     },
-    drafts: {
-      list: () => use(service => service.list()), get: id => use(service => service.get(id)),
-      create: () => use(service => service.create()), update: (id, revision, patch) => use(service => service.update(id, revision, patch)),
-      setState: (id, revision, state) => use(service => service.setState(id, revision, state)),
-    },
+    open: () => openCharacters(home, actorId),
     references: () => artifacts.listArtifacts(projectId, { artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: /* @version type.character.definition */ 1 })
       .map(({ artifact_id, version }) => ({ artifact_id, version })),
-    publish: (id, revision, publisher) => use(service => service.publish(id, revision, publisher)),
   };
 }
 
-/** Resolve the exact publication for a new Run; history uses its frozen body and never calls this. */
-export function freezeProjectCharacter(homeDirectory: string | undefined, actorId: string, projectId: string,
-  artifacts: ArtifactsQueryApi, reference: ArtifactReference): AgentFrozenCharacter {
-  const record = artifacts.getArtifactVersion(projectId, reference);
-  if (!record || record.project_id !== projectId || record.owner_actor_id !== actorId
-    || record.producer_plugin_id !== CHARACTER_PLUGIN_ID || record.producer_binding_signature !== CHARACTER_PUBLISHER_SIGNATURE
-    || record.artifact_type_id !== CHARACTER_ARTIFACT_TYPE || record.schema_version !== /* @version type.character.definition */ 1 || record.content_kind !== "inline"
-    || record.lifecycle_state !== "active" || record.availability !== "available") throw new Error("所选 Character 版本不可用，请明确选择其他版本或移除角色后再执行");
-  const content = parseCharacterContent(record.payload);
-  if (content.source.owner_actor_id !== actorId || record.artifact_id !== `character:${projectId}:${content.character_id}`) throw new Error("Character 版本的来源或身份不一致");
+/**
+ * The role a new choice gets for a round in this project (role-service-design §5): Characters resolves it now, so one turned off,
+ * never saved or not in this project is refused here, and the round freezes what that version says. Never read for history.
+ */
+export function resolveRoleCharacter(homeDirectory: string | undefined, actorId: string, projectId: string,
+  choice: PersonalCharacterRef | ProjectCharacterMemberRef): AgentFrozenCharacter {
   const handle = openCharacters(resolveConfiguredHome(homeDirectory), actorId);
   try {
-    const profile = handle.service.requireActive(content.character_id);
-    if (content.source.draft_revision > profile.revision) throw new Error("Character 发布来源不是已有草稿修订");
+    const resolved = handle.service.roles.effective(projectId, choice);
+    if (resolved.kind !== "role") throw characterErrors.invalid("没有选角色");
+    return handle.service.roles.snapshot(projectId, resolved.version);
   } finally { handle.close(); }
-  return { ...content, reference: { artifact_id: record.artifact_id, version: record.version }, project_id: projectId,
-    content_digest: record.content_digest, published_at: record.created_at,
-    producer: { plugin_id: record.producer_plugin_id, plugin_version: record.producer_plugin_version, binding_signature: record.producer_binding_signature } };
+}
+
+/** A fixed version as it was saved, for a session's next round and each round's checks; a removed or deleted one throws. */
+export function readRoleVersion(homeDirectory: string | undefined, actorId: string, projectId: string, version: CharacterRoleVersionRef): AgentFrozenCharacter {
+  const handle = openCharacters(resolveConfiguredHome(homeDirectory), actorId);
+  try { return handle.service.roles.snapshot(projectId, version); } finally { handle.close(); }
 }

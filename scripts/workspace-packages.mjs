@@ -529,10 +529,12 @@ export const WORKSPACE_PACKAGES = [
   entry("horizontal/mainline", "@molis-ai/molis-work-contracts/services/mainline", {
     maturity: "slice",
     capabilities: [
-      "background.tasks.v1"
+      "background.tasks.v1",
+      "mainline.items.v1"
     ],
     extraWorkspaceDependencies: [
-      "@molis-ai/molis-work-plugin-sdk"
+      "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-storage"
     ]
   }),
   entry("horizontal/placement", "@molis-ai/molis-work-contracts/services/placement", {

@@ -117,6 +117,7 @@ test("APR-11: a never-run draft ends its stored grant across restart and ordinar
   assert.equal(next.store.get(person, work.work_id).session_id, null);
 }));
 
+// ASC-52 is proven by the restart and revoke interleavings here.
 test("APR-07/08/11/12/13 ASC-51/52: the selected Pages scope survives rounds and restart, with durable sources and actual refusal after revoke", { timeout: 90_000 }, async t => runWithLocale("en", async () => {
   const f = await fixture(t);
   const { document } = await f.person.invoke(pagesActions.create, { title: "Minutes", markdown: "Original content" });
@@ -466,7 +467,7 @@ test("APR-11: an empty target needs a label from its own provider before it can 
   const english = await f.person.invoke(agentDelegationActions.prepare, pages);
   const chinese = await runWithLocale("zh", () => f.person.invoke(agentDelegationActions.prepare, pages));
   assert.deepEqual(labels(english), ["Root folder", "No Goal"]);
-  assert.deepEqual(labels(chinese), ["根目录", "不关联 Goal"]);
+  assert.deepEqual(labels(chinese), ["根目录", "不关联目标"]);
   assert.equal(english.candidate_digest, chinese.candidate_digest);
 }));
 

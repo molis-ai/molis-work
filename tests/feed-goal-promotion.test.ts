@@ -94,12 +94,12 @@ test("a project without Goals cannot promote: the action is unavailable, refuses
     assert.equal((await promote()).availability.available, true);
     // What Feed offers follows the action it points at: the person is shown promotion only while it can run.
     const offered = async () => (await f.person.invoke(feedItemActions.offers, { subject: { kind: "feed_item", id: item!.item_id }, request_id: "offers" })).offers.map(offer => offer.title);
-    assert.ok((await offered()).includes("升格为 Goal"));
+    assert.ok((await offered()).includes("转为目标"));
 
     removed = true;
     const unavailable = (await promote()).availability;
     assert.deepEqual([unavailable.available, !unavailable.available && unavailable.code], [false, "actions.plugin_disabled"]);
-    assert.ok(!(await offered()).includes("升格为 Goal"), "the offer follows the action behind it: with Goals gone Feed does not offer promotion");
+    assert.ok(!(await offered()).includes("转为目标"), "the offer follows the action behind it: with Goals gone Feed does not offer promotion");
     assert.ok((await offered()).includes("保存为资料"), "the other entries stay");
     await assert.rejects(f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: item!.revision }), { code: "actions.plugin_disabled" });
     const untouched = (await f.person.invoke(feedQueryActions.item, { item_id: item!.item_id })).item;
@@ -107,7 +107,7 @@ test("a project without Goals cannot promote: the action is unavailable, refuses
     assert.equal(untouched.revision, item!.revision);
 
     removed = false;
-    assert.ok((await offered()).includes("升格为 Goal"), "offered again once Goals is back");
+    assert.ok((await offered()).includes("转为目标"), "offered again once Goals is back");
     assert.deepEqual((await f.person.invoke(goalsActions.list, { limit: 100 })).goals.filter(goal => goal.title.startsWith("处理 Feed Item")), [], "the refused call made no Goal");
     const promoted = await f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: item!.revision });
     assert.equal(promoted.created, true);

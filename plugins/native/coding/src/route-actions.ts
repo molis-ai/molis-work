@@ -45,8 +45,21 @@ export const codingCreateSessionAction = { ...createSession, action: { ...create
   intake: { intake_id: "session", item_kind: "coding_session", title: "编码会话", verb: "新建编码会话", describe: "一个新的编码会话：在本机代码文件夹里分几轮完成编码任务",
     accepts: [], examples: [], start: { title: "新建编码会话", hint: "新建一个编码会话；第一轮任务开始前不会调用模型" } } } };
 
+const childIdentity = { ...round, child_id: id };
+const childParams = (input: Record<string, unknown>) => ({ ...params(input), childId: String(input.child_id) });
+const childInput = (request: PluginRouteRequest, keys: readonly string[] = []) => ({ ...fromRequest(request, keys), child_id: request.params.childId });
+
 /** Coding's business surface: the Runtime instance redeems these, and the matching routes only forward to them. */
 export const codingRouteActions: Readonly<Record<string, { definition: ActionDefinition<Record<string, unknown>, unknown> } & Translate>> = {
+  "coding.read-subtask-conversation": { definition: define("subtasks.conversation", /* @version action.coding.subtasks.conversation */ 1, "Read child conversation", "Read the original child history and exact execution binding", "query", closed(childIdentity), ["artifact:read"], LOCAL),
+    toInput: request => childInput(request), toRequest: input => ({ method: "GET", params: childParams(input), query: {}, body: {} }) },
+  "coding.wait-subtask-conversation": { definition: define("subtasks.wait", /* @version action.coding.subtasks.wait */ 1, "Wait for child progress", "Read after an event, including after the parent ended", "query",
+      closed({ ...childIdentity, since: { type: "string", maxLength: 200 }, timeout: { type: "string", pattern: "^[0-9]{1,5}$" } }, Object.keys(childIdentity)), ["artifact:read"], LOCAL, { timeout_ms: 30_000 }, "concurrent"),
+    toInput: request => childInput(request, ["since", "timeout"]), toRequest: input => ({ method: "GET", params: childParams(input), query: query(input, ["since", "timeout"]), body: {} }) },
+  "coding.check-subtask-request": { definition: define("subtasks.request", /* @version action.coding.subtasks.request */ 1, "Check original child request", "Query without repeating input or execution", "query", closed({ ...childIdentity, request_id: id }), ["artifact:read"], LOCAL),
+    toInput: request => childInput(request, ["request_id"]), toRequest: input => ({ method: "GET", params: childParams(input), query: query(input, ["request_id"]), body: {} }) },
+  "coding.command-subtask": { definition: define("subtasks.command", /* @version action.coding.subtasks.command */ 1, "Speak to or control a child", "Use the trusted person entry and the frozen child execution", "command", closed({ ...childIdentity, command: { type: "object" } }), ["artifact:read", "storage:private"], LOCAL, undefined, "concurrent"),
+    toInput: request => ({ ...childInput(request), command: body(request) }), toRequest: input => ({ method: "POST", params: childParams(input), query: {}, body: input.command }) },
   "coding.session-binding": { definition: { ...define("sessions.binding.read", /* @version action.coding.sessions.binding.read */ 1, "读取会话的执行绑定", "本人只读当前业务会话的原执行引用与归档状态，不读取正文或创建执行", "query", closed(session), ["artifact:read"], LOCAL),
       action: { ...define("sessions.binding.read", /* @version action.coding.sessions.binding.read */ 1, "读取会话的执行绑定", "本人只读当前业务会话的原执行引用与归档状态，不读取正文或创建执行", "query", closed(session), ["artifact:read"], LOCAL).action,
         output_schema: closed({ session_id: id, project_id: id, archived: { type: "boolean" }, runtime: { anyOf: [{ type: "null" },

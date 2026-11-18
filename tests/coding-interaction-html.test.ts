@@ -107,7 +107,7 @@ test("PG062-11, PG062-12: Coding's routes answer its page with its questions, ca
       assert.deepEqual(carried.map(pick => [pick.ref, pick.picked]), [[skillRef("notes"), "named"], [skillRef("weekly"), "auto"]], "the line carries the exact references the panel opens with");
       const plain = page.runs.find(entry => entry.ref.run_id === "plain")!;
       assert.deepEqual(lineNames(plain.skills_html!), [["", locale === "zh" ? "选一个" : "Choose one"]], "an ended round that used none offers to choose one");
-      assert.match(plain.skills_html!, locale === "zh" ? /这一轮没用技能/ : /No skill was used this round/);
+      assert.match(plain.skills_html!, locale === "zh" ? /这一轮没用技能/ : /No skill was used this turn/);
       for (const live of [ask, fixed]) assert.equal(live.skills_html, undefined, "a round that is not over and has read none says nothing yet");
       // PG062-12: each round's row: the waiting round's question and card, the ended round's own follow-ups in Coding's words.
       assert.equal(card!.card_id, "card-offer-1");

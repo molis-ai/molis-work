@@ -87,7 +87,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     const body = { text, request_id: recovering ? kept.id : submission, submission_id: submission,
       context: pageContext(), materials: [...sendMaterials(), ...(extra.materials || [])], ...(extra.written_by ? { written_by: extra.written_by } : {}) };
     const character = curId ? pendingChar : nextChar || undefined;
-    if (character !== undefined && allowsCharacter()) body.character = character ? { artifact_id: character.artifact_id, version: character.version } : null;
+    if (character !== undefined && allowsCharacter()) body.character = character ? character.ref : null;
     if (curId) {
       body.work_id = curId;
       body.draft_revision = getWork()?.draft_revision;

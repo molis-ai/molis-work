@@ -70,7 +70,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 平台短句在 [`resources/locales/`](resources/locales/)；每个插件自己声明 `ui.locales`，拥有自己的 `locales/<语言>.json`。键用 `<主人>.<位置>.<元素>`，不要以显示文字或对象 ID 拼键；一组状态值可以用一张固定的键表。确需让各插件读取的词用平台的 `common.*`。宿主代画插件交来的内容时，从对象所属的实际运行或发布来源选读表。详细写法见 [作者指南](../../skills/molis-plugin-dev/text-and-appearance.md) 和 [UI Platform](../../docs/platform/UI-PLATFORM.md#5-界面文字语言与外观)。
 
-`node scripts/gates/translations.mjs --missing` 找声明、默认语言和英文缺漏、重复键、参数名不一致及私有词越界；同一规则随 `pnpm health:check` 运行。检查按源码和同程序内转交文字的调用扫描（包括模板中的浏览器脚本）；计算出来的键和后端动态投影还需运行核对。`--dead` 只报告未找到字面量的键，不据此删除动态使用的词。`--calls` 列可静态解析的调用。改语言入口同时跑 `tests/workbench-language.e2e.test.ts`，核对切换不丢焦点、选区、草稿，也不接受旧响应覆盖。
+`node scripts/gates/translations.mjs --missing` 找声明、默认语言和英文缺漏、重复键、参数名不一致及私有词越界；同一规则随 `pnpm health:check` 运行。检查按源码和同程序内转交文字的调用扫描（包括模板中的浏览器脚本）；计算出来的键和后端动态投影还需运行核对。`--dead` 只报告未找到字面量的键，删除前须排除动态拼接前缀。`--calls` 列可静态解析的调用。`node scripts/audit-ui-copy.mjs` 按文案规范只读巡检词包中的内部黑话、退役术语、标点引号与英文大小写。改语言入口同时跑 `tests/workbench-language.e2e.test.ts`，核对切换不丢焦点、选区、草稿，也不接受旧响应覆盖。
 
 ## 开发要求
 

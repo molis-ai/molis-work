@@ -163,7 +163,7 @@ revision 由插件自己推动：服务端在改了页面显示的内容以后�
 
 ## 5. 界面文字、语言与外观
 
-插件作者的写法见 [界面文字、语言与外观](../../skills/molis-plugin-dev/text-and-appearance.md)；[字体、皮肤与语言设计稿](../../specs/font-and-skin-system/a-section-contract.md)第 5、8 节说明合同。
+插件与平台界面的文案写作准则（假定用户无 AI 背景、懂·准·短·引四标尺、AI 与架构词白话转译表、九类控件公式、符号与英文 Sentence case 规范）及 SDK 写法统一见 [界面文字、语言与外观](../../skills/molis-plugin-dev/text-and-appearance.md)，术语以 [GLOSSARY](../system/GLOSSARY.md) 为准；[字体、皮肤与语言设计稿](../../specs/font-and-skin-system/a-section-contract.md)第 5、8 节说明合同。
 
 **文字属于生产者。** 工作台的语言目录随资源登记发现，内置插件、开发插件与签名安装各从自己的 `ui.locales` 和实际包文件取词。SDK `t` 读当前作用域，`say` 读生产者的明确引用；宿主渲染时按准确的 Home、项目、激活或获准安装选择读表。失效或找不到键时显示规定的后备，不尝试同名的另一个安装。公共词由平台投影为 `common.*`。
 

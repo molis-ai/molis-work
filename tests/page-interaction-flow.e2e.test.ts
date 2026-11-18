@@ -69,14 +69,16 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-directory-panel=settings] [data-settings-section]')].map(row => row.dataset.settingsSection).slice(0, 17)"),
     ["appearance", "directories", "memory", "work-records", "sync", "models", "assistant", "characters", "kit", "runtimes", "library", "connections", "access", "authorizations", "history", "update", "diagnostics"]);
   await click('[data-directory-panel=settings] [data-settings-section="characters"]');
-  await waitFor("!document.querySelector('[data-settings-page=characters]').hidden && document.querySelector('[data-settings-page=characters]').closest('[data-work-surface=settings]')");
+  // 设置 › 角色 is the Host's settings page for the person's own roles (plan C), drawn inside the settings cover.
+  const rolesShown = "(() => { const page = document.querySelector('[data-work-surface=settings] [data-settings-panel=characters]'); return Boolean(page?.getClientRects().length); })()";
+  await waitFor(rolesShown);
   await waitFor("!!document.querySelector('[data-character-builtin-list] a.characters-row')");
   assert.equal(await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=characters]')"), null, "角色 is not a plugin in the switcher");
   await evaluate("document.querySelector('[data-character-builtin-list] a.characters-row').click()");
   await waitFor("!!document.querySelector('[data-work-surface=settings] .prompt-role-focus') && location.pathname === '/projects/" + projectId + "/'");
   assert.equal(await evaluate("document.querySelector('[data-directory-panel=settings] [aria-current]')?.dataset.settingsSection"), "kit", "a role's prompts open under 能力包 (09)");
   await click("[data-workspace-history=back]");
-  await waitFor("!document.querySelector('[data-settings-page=characters]').hidden && document.querySelector('[data-directory-panel=settings] [aria-current]')?.dataset.settingsSection === 'characters'");
+  await waitFor(rolesShown + " && document.querySelector('[data-directory-panel=settings] [aria-current]')?.dataset.settingsSection === 'characters'");
   await click("[data-cover-close]");
   await waitFor(`${exclusive} === ''`);
 

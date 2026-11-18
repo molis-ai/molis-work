@@ -9,8 +9,9 @@ import { BACKGROUND_TASK_DONE_STATES, type ActionSubject } from "@molis-ai/molis
 import type { StateRingState, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTaskRow, BackgroundTasksReadResult, WorkLineEvent } from "@molis-ai/molis-work-contracts/services/mainline";
 import { escapeHtml, renderButton, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderPlaceMenu, renderTaskCard, renderReplyMini, renderReplyPeek, renderTaskDecision, renderTaskFloat, renderTaskMark, renderTaskPanel, renderTaskRow, type TaskRowView } from "../work-line-parts.js";
+import { renderPlaceMenu, renderTaskCard, renderReplyMini, renderReplyPeek, renderTaskDecision, renderTaskMark, renderTaskPanel, renderTaskRow, type TaskRowView } from "../work-line-parts.js";
 import type { LineEventPress, WorkBarHost } from "./work-bar.js";
+import { installTaskFloatShell } from "./task-float-shell.js";
 import { installWorkLineLayout } from "./work-line-layout.js";
 
 export const ASKS: ReadonlySet<StateRingState> = new Set(["answer", "approval", "reauth"]);
@@ -116,8 +117,11 @@ function installDecisionKeys(close: () => boolean): void {
     if (note && part && !event.isComposing && (event.key === "Escape" || event.key === "Enter" && !event.shiftKey)) {
       event.preventDefault(); event.stopPropagation();
       part.querySelector<HTMLElement>(event.key === "Escape" ? "[data-decision-cancel]" : "[data-decision-send]")?.click();
-    } else if (event.key === "Escape" && close()) event.stopPropagation();
+    }
   }, true);
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !event.isComposing && !event.defaultPrevented && close()) { event.preventDefault(); event.stopPropagation(); }
+  });
 }
 
 export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult): void; offline(since: string | null): void; place(subject: ActionSubject): void; rows(subject: ActionSubject): string; decisions(subject: ActionSubject): string; subjects(subject: ActionSubject): { provider_id: string; subject: ActionSubject }[]; waiting(): { key: string; provider: string; title: string; event: WorkLineEvent }[]; unreadable(): ReadonlySet<string> } {
@@ -126,6 +130,12 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
   // `carded`: the task whose card stands in the panel's place (WLN-36); `placing`: its 「改」 menu is open.
   // `wanted`: the task asked for from outside the panel (「改」 under a reply), shown as soon as the table has it.
   let tasks: BackgroundTaskRow[] = [], float: HTMLElement | null = null, tasksShown = "", carded = "", placing = false, wanted = "", offlineSince: string | null = null;
+  const shell = installTaskFloatShell({ dialog: "assistant-panel",
+    shown() { float = shell.root; again(); paintTasks(); },
+    hidden(content) { accepting?.destroy(); accepting = undefined; float = null; carded = ""; placing = false; wanted = ""; paintTasks();
+      if (!content) [...document.querySelectorAll<HTMLElement>("[data-task-mark]")].find(mark => mark.getClientRects().length)?.focus(); },
+    back() { paintTasks(); shell.cards?.querySelector<HTMLElement>("[data-task-panel-list], [data-task-panel-close]")?.focus(); },
+  });
   let accepting: { update(): void; destroy(): void } | undefined;
   const answers = installDecisionAnswers(host, request, { task: id => tasks.find(one => one.id === id), repaint: () => repaint(), again, failed: error => failed(error), go: task => go(task) });
   /** The decisions of these tasks in order, the first carrying the primary button; `named`: say which task asks, where the card is not its own. */
@@ -166,10 +176,10 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     if (asked) { carded = asked.id; placing = true; wanted = ""; }
     const shown = tasks.find(task => task.id === carded);
     if (!shown) { carded = ""; placing = false; }
-    if (float) { const on = float; keepNote(on, () => { on.innerHTML = shown ? card(shown) : renderTaskPanel({ id: PANEL, live: live.map(row), returned: returned.map(row), counts, ...(offlineSince === null ? {} : { offlineSince }) }); }); installWorkLineLayout(document); }
+    if (float && shell.cards && !shell.content) { const on = shell.cards; keepNote(on, () => { on.innerHTML = shown ? card(shown) : renderTaskPanel({ id: PANEL, live: live.map(row), returned: returned.map(row), counts, ...(offlineSince === null ? {} : { offlineSince }) }); }); installWorkLineLayout(document); }
     // A task's card sums up the requirements hung on the task itself: a task done for no event has no event card to say it.
     accepting?.destroy(); accepting = undefined;
-    const slot = shown ? float?.querySelector<HTMLElement>("[data-task-acceptance]") : null;
+    const slot = shown && !shell.content ? float?.querySelector<HTMLElement>("[data-task-acceptance]") : null;
     if (shown && slot) { accepting = line.acceptance(slot, { provider_id: shown.source.provider_id, subject: shown.subject }); accepting.update(); }
   };
   let unread: ReadonlySet<string> = new Set();
@@ -179,13 +189,8 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     if (next === tasksShown) return;
     tasksShown = next; tasks = result.tasks; paintTasks();
   };
-  const showTasks = (open: boolean) => {
-    if (open === Boolean(float)) return;
-    if (open) { document.body.insertAdjacentHTML("beforeend", renderTaskFloat("assistant-panel", "")); float = document.body.lastElementChild as HTMLElement; again(); }
-    else { accepting?.destroy(); accepting = undefined; float?.remove(); float = null; carded = ""; placing = false; wanted = ""; }
-    paintTasks();
-    if (!open) [...document.querySelectorAll<HTMLElement>("[data-task-mark]")].find(mark => mark.getClientRects().length)?.focus();
-  };
+  const showTasks = (open: boolean) => open ? shell.show() : shell.hide();
+  const backToCard = () => shell.back();
   installDialogRow(PANEL, () => paintTasks());
   const failed = (error: unknown) => request.toast?.(document.querySelector("[data-toast]") as never, error);
   // The stop is the command the row carries; the mainline service checks it with the owner again (WLN-39).
@@ -208,16 +213,19 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
       const on = tasks.find(one => one.id === (control?.dataset.task ?? opened?.dataset.taskOpen));
       if (!on) return;
       if (control?.dataset.taskControl === "stop") stopTask(on); else if (control) go(on);
-      else { wanted = ""; showTasks(true); carded = on.id; placing = false; paintTasks(); }
+      else { wanted = ""; showTasks(true); backToCard(); carded = on.id; placing = false; paintTasks(); }
       return;
     }
     if (!float) return;
     // The column of requirements stands beside the work, where this panel floats: opening it puts the panel away.
     if (target?.closest("[data-work-task-float] [data-acceptance-open]")) { showTasks(false); return; }
-    // A press outside the panel and the dialog puts the panel away. The path is the one the press took: a press that redrew what
-    // it landed on (a tab of the dialog) is still a press inside the dialog.
-    const inDialog = event.composedPath().some(node => node instanceof Element && node.matches("[data-assistant-panel]"));
-    if (target?.closest("[data-task-panel-close]") || !target?.closest("[data-work-task-float]")) { if (!inDialog || target?.closest("[data-task-panel-close]")) showTasks(false); return; }
+    // The original path still includes the panel after a click repaints the button it landed on.
+    const path = event.composedPath();
+    if (target?.closest("[data-task-panel-close]")) { showTasks(false); return; }
+    if (!target || !path.includes(float)) {
+      if (!path.some(node => node instanceof Element && node.matches("[data-assistant-panel]"))) showTasks(false);
+      return;
+    }
     if (target.closest("[data-task-panel-list]")) { carded = ""; placing = false; wanted = ""; paintTasks(); return; }
     const row = target.closest<HTMLElement>("[data-task-open]");
     if (row) { carded = row.dataset.taskOpen ?? ""; placing = false; wanted = ""; paintTasks(); float.querySelector<HTMLElement>("[data-task-panel-list]")?.focus(); return; }
@@ -254,6 +262,6 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     subjects: subject => [...tasks].filter(task => task.serves.some(one => keyOf(one) === keyOf(subject))).map(task => ({ provider_id: task.source.provider_id, subject: task.subject })),
     // 「改」 under a reply (WLN-32): the panel opens on that task's card with where it can go — at once when the table has the
     // task, else when the read this asks for brings it. A task that has ended is not in the table: the panel shows its list.
-    place(subject) { wanted = keyOf(subject); if (float) again(); else showTasks(true); paintTasks(); },
+    place(subject) { backToCard(); wanted = keyOf(subject); if (float) again(); else showTasks(true); paintTasks(); },
   };
 }

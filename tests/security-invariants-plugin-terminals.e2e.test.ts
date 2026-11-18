@@ -23,6 +23,8 @@ test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard inpu
   const { draft } = characters.service.import({ runtime_id: "codex", config_root: config, captured_at: new Date().toISOString(),
     rules: [{ path: join(config, "AGENTS.md"), scope: "global", content: "Use only this isolated fixture." }], skills: [] },
     { rule_paths: [join(config, "AGENTS.md")], skill_ids: [] });
+  // Plan C: the imported role is a member of this project; its native runs show in the member's drawer under 项目设置 › 角色.
+  const member = characters.service.roles.addMember(browser.projectId, draft.character_id).current.member_id;
   characters.close();
   const api = `/projects/${browser.projectId}/api/plugins/io.molis.work.characters`;
   const published = await browser.web.post<{ reference: { artifact_id: string; version: number } }>(api + `/drafts/${draft.character_id}/publish`, { expected_revision: draft.revision });
@@ -44,10 +46,10 @@ test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard inpu
       data: typeof message.data === "string" ? message.data.slice(0,200) : undefined });
   }));
   const open = async (running = true) => {
-    await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?settings=characters` }, browser.sessionId));
-    await browser.surfaceReady("characters");
-    await child.waitFor("document.querySelector('[data-character-id]')");
-    await child.click('[data-character-id]'); await child.waitFor("document.querySelector('[data-character-native-runs] button')");
+    await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/settings/characters` }, browser.sessionId));
+    const adjust = `[data-roles-act="open"][data-roles-arg="member:${member}"]`;
+    await child.waitFor(`document.querySelector(${JSON.stringify(adjust)})`);
+    await child.click(adjust); await child.waitFor("document.querySelector('[data-character-native-runs] button')");
     await child.click('[data-character-native-runs] button');
     // xterm pauses its renderer outside the viewport. Read and type in the visible terminal, as a person does.
     await child.evaluate("document.querySelector('[data-character-terminal]').scrollIntoView({block:'center',behavior:'instant'})");
@@ -57,7 +59,7 @@ test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard inpu
     }
   };
   await open();
-  assert.equal(await browser.evaluate("document.querySelector('[data-work-surface=characters] iframe') === null"), true, "Characters retains the Host surface from CHR-1");
+  assert.equal(await browser.evaluate("Boolean(document.querySelector('[data-settings-panel=characters]')) && document.querySelector('[data-settings-panel=characters] iframe') === null"), true, "Characters retains the Host page from CHR-1, now in project settings");
   // RAC-2852: both viewports still size the actual attached xterm, using only this file's isolated CLI.
   const evidence = join(REVIEW_EVIDENCE, "pg070-current"); await mkdir(evidence, { recursive: true });
   for (const [width, height, terminalHeight] of [[1440, 1000, "420px"], [390, 844, "350px"]] as const) {
@@ -86,9 +88,9 @@ test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard inpu
   const replay = await browser.web.post<{ run: { run_id: string } }>(api + "/execution/native", input);
   assert.equal(replay.run.run_id, launched.run.run_id);
   await child.click('[data-character-terminal-stop]');
-  await child.waitFor("document.querySelector('[data-character-terminal-status]').textContent.includes('进程已结束')");
+  await child.waitFor("document.querySelector('[data-character-terminal-status]').textContent.includes('运行已结束')");
   await open(false);
-  await child.waitFor("document.querySelector('[data-character-terminal-status]').textContent.includes('进程未运行')");
+  await child.waitFor("document.querySelector('[data-character-terminal-status]').textContent.includes('当前未在运行')");
   // SC-2 (D3): the terminal's output is not kept; the run itself stays listed.
   assert.equal(await child.evaluate<boolean>("document.querySelector('[data-character-run-output]') === null"), true);
   assert.equal(await child.evaluate<boolean>("document.querySelector('[data-characters]').textContent.includes('TYPED_THROUGH_RESTRICTED_CHANNEL')"), false);

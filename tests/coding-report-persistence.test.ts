@@ -84,15 +84,16 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
     assert.doesNotMatch(preview.body.html, /<script>|<img src=x/);
     assert.equal(preview.body.report.frozen.directory, undefined);
     assert.match(preview.body.report.body_markdown, /未使用 Character/);
-    run.frozen.character = { character_id: "profile", title: "旧角色 <script>bad()</script>", instructions: "原要求\n```\n不可变", host_tools: [],
-      source: { owner_actor_id: "web-user", draft_revision: 2 }, reference: { artifact_id: "original-character", version: 1 }, project_id: DEMO_PROJECT_ID,
-      content_digest: "sha256:original", published_at: "2026-09-21T00:00:00Z", producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "official-characters-binding" } };
+    // The role as the Host pinned it for the round: a member of this project at its own version, built on the original's.
+    run.frozen.character = { version: { kind: "project", member_id: "profile", member_version: 2, original: { kind: "personal", character_id: "profile", version: 1 } },
+      character_id: "profile", title: "旧角色 <script>bad()</script>", instructions: "原要求\n```\n不可变", host_tools: [],
+      project_id: DEMO_PROJECT_ID, owner_actor_id: "web-user", saved_at: "2026-09-21T00:00:00Z" };
     const saves = await Promise.all([request("app", "failed", "POST"), request("app", "failed", "POST")]);
     assert.equal(saves[0].status, 200); assert.deepEqual(saves[0], saves[1]);
     const saved = saves[0].body;
     assert.equal(saved.reference.version, 1);
     assert.deepEqual(saved.report.frozen.character, run.frozen.character);
-    assert.match(saved.report.body_markdown, /original-character/);assert.match(saved.report.body_markdown, /sha256:original/);
+    assert.match(saved.report.body_markdown, /本项目第 2 版 · 原件第 1 版/);assert.match(saved.report.body_markdown, /保存时间：2026-09-21T00:00:00Z/);
     assert.doesNotMatch(saved.html, /<script>/);
     run.frozen.character.instructions = "来源改变后的新要求";
 
@@ -180,7 +181,7 @@ test("RCPT-341–343: the report's 补充要求 keeps the ledger's fact, the AI'
     assert.deepEqual(ownLines(section).filter(line => /^(补充 \d|这是|后来|AI|为它)/u.test(line)), [
       "补充 1：AI 已读到", "后来由补充 3更正", "AI 说：作为新任务；会改变范围、验收条件（第 2 次说明）", "AI 的说明",
       "补充 2：AI 已读到", "AI 读到了，没说怎么处理", "为它问的问题有 1 个还没回答",
-      "补充 3：已放进上下文，等 AI 回应", "这是一条更正，针对补充 1",
+      "补充 3：AI 已收到，等它回应", "这是一条更正，针对补充 1",
       "补充 4：这一轮结束时 AI 没读到，留给下一轮", "这是一条更正，针对更早的一条",
       "补充 5：已撤回",
     ]);

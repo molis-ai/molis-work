@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import test from "node:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -296,8 +297,8 @@ for (const stage of ["configuration", "credential", "sdk-acceptance"] as const) 
   });
 
 // PA-24 (§5.6a gap 3): a switch the round has accepted is still only a request; the next model call is checked again before it
-// leaves. When the plugin instance stops or the round's Character is disabled in between, nothing reaches the new endpoint.
-for (const invalidation of ["plugin-stopped", "character-disabled"] as const)
+// leaves. When the plugin instance stops or the round's Character version is removed in between, nothing reaches the new endpoint.
+for (const invalidation of ["plugin-stopped", "character-removed"] as const)
   test(`PA-24: ${invalidation} after a switch is accepted stops the next model call before it reaches the new endpoint`, { timeout: 60_000 }, async t => {
     const home = await mkdtemp(join(tmpdir(), "switch-then-revoke-")); await writeFile(join(home, "note.txt"), "A real bounded read before finishing.");
     const network = Promise.withResolvers<void>(), response = Promise.withResolvers<void>();
@@ -309,17 +310,15 @@ for (const invalidation of ["plugin-stopped", "character-disabled"] as const)
         : { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "START", credential_ref: "START" },
       resolveCredential: async () => "fixture-only" });
     const directory = { canonical_path: home, realpath_verified: true };
-    const character = { reference: { artifact_id: "character:project:verifier", version: 1 }, character_id: "verifier", title: "Verifier", instructions: "Verify before answering.",
-      host_tools: null, source: { owner_actor_id: "person", draft_revision: 1 }, project_id: "project", content_digest: "verifier-digest",
-      producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "fixture" }, published_at: "2026-10-15T00:00:00Z" };
-    const resolveCharacter = () => {
-      if (!characterAvailable) throw new Error("所选 Character 版本不可用，请明确选择其他版本或移除角色后再执行");
-      return structuredClone(character);
-    };
+    // The person's original at a fixed version, as Characters pins it (role-service-design §5).
+    const character: AgentFrozenCharacter = { version: { kind: "personal", character_id: "verifier", version: 1 }, character_id: "verifier", title: "Verifier",
+      instructions: "Verify before answering.", host_tools: null, project_id: null, owner_actor_id: "person", saved_at: "2026-10-15T00:00:00Z" };
+    const resolveCharacter = () => { if (!characterAvailable) throw new Error("Character removed"); return structuredClone(character); };
+    const characterVersion = () => { if (!characterAvailable) throw new Error("Character version removed"); return structuredClone(character); };
     const host = new AgentHost(); host.register(adapter);
     const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } });
     registerAgentHostCapabilities<null>({ register: (definition, handler) => local.registerAction(definition, handler) }, { agentHost: () => host, projectId: () => "project",
-      authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home], resolveCharacter }) });
+      authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home], resolveCharacter, characterVersion }) });
     const reference = { project_id: "project", storage_key: join(home, "project.db") }, client = local.actionClient(reference);
     // The plugin instance that starts the round, started by the Host for the person: its calls present the caller the Host issued
     // its session (S-15), and that caller refuses once the instance stops (apps/local-host/src/plugin-host-services.ts).
@@ -335,7 +334,7 @@ for (const invalidation of ["plugin-stopped", "character-disabled"] as const)
     t.after(async () => { response.resolve(); await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
     const session = await client.invoke(as(plugin_caller), agent.createSession, ["prologue", { directory, title: "Switch then revoke" }]);
     const handle = await client.invoke(as(plugin_caller), agent.startRun, ["prologue", { session, directory, role_id: "reader", task: "Read note.txt, then answer.",
-      ...(invalidation === "character-disabled" ? { character: character.reference } : {}) }]);
+      ...(invalidation === "character-removed" ? { character: { kind: "personal", character_id: "verifier" } } : {}) }]);
     await network.promise;
     await client.invoke(as(plugin_caller), agent.controlRun, [session, handle.ref, { kind: "switch-model", provider_id: "fixture", model_id: "peer" }]);
     assert.equal((await adapter.read(handle.ref)).model_switch?.requested, "B", "the SDK accepted the switch for the next model call");
@@ -346,7 +345,7 @@ for (const invalidation of ["plugin-stopped", "character-disabled"] as const)
     for (;;) { view = await adapter.read(handle.ref); if (["completed", "failed", "stopped", "cancelled"].includes(view.phase)) break;
       assert.ok(Date.now() < deadline, "the round did not end"); await new Promise(resolve => setTimeout(resolve, 10)); }
     assert.deepEqual(requests, [{ endpoint: "https://1.1.1.1/v1/messages", model: "START" }], "the new endpoint received nothing");
-    const reason = invalidation === "plugin-stopped" ? "此插件实例已停止，请重新打开" : "所选 Character 版本不可用，请明确选择其他版本或移除角色后再执行";
+    const reason = invalidation === "plugin-stopped" ? "此插件实例已停止，请重新打开" : "这一轮所用的角色版本已移出或删除，请另选角色后继续";
     assert.equal(view.phase, "failed");
     assert.equal(view.stop_reason, `EFFECT_NOT_AUTHORIZED: The App refused this network dispatch before sending: ${reason}`, "the round says why it ended");
     // The switch took effect at that call boundary (the SDK's model-switched), and the call it took effect for was refused before

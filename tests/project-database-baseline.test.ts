@@ -73,19 +73,20 @@ const ROOTED = ["coding_sessions", "events", "feed_items", "feed_materials", "fe
 
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of the platform's and the Modules'
 // creation statements; the plugins' own tables, Goals' among them (S8), are theirs (PG-020) and come with their declarations.
-// Version 3 adds the surface composition service's corrections (surface-composition §3, §14.1).
-test("RAC-2360 APR-19 the project database baseline is version 5 and includes the platform's approvals", () => {
-  // Batch 44 added the 4→5 step (the ledger's references to Goals and Feed as plugin objects, Goals' library v6); the platform's tables are unchanged.
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 5);
+// Version 3 adds the surface composition service's corrections (surface-composition §3, §14.1). Version 5 changes no table: it keeps
+// Coding's stored card outcomes as references (BL-action-card-outcome-text). Version 6 (batch 44 D1, D3) rewrites the ledger's references
+// to Goals and Feed as plugin objects and takes the Inbox's two CHECKs off; Goals' library goes to v6.
+test("RAC-2360 APR-19 the project database baseline is version 6 and includes the platform's approvals", () => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 6);
   assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql") + fixture("project-approval-schema.sql")));
 });
 
-test("RAC-2360 an existing empty file initializes the complete current library at 5", () => {
+test("RAC-2360 an existing empty file initializes the complete current library at 6", () => {
   const directory = mkdtempSync(join(tmpdir(), "project-empty-file-")), file = join(directory, "project.db");
   try {
     writeFileSync(file, "");
     const current = new LocalProjectDatabase(file);
-    try { assert.equal(current.db.pragma("user_version", { simple: true }), 5); } finally { current.close(); }
+    try { assert.equal(current.db.pragma("user_version", { simple: true }), 6); } finally { current.close(); }
     assert.deepEqual(shapeOf(file), opened);
     assert.deepEqual(ledgerOf(file).map(row => [row.plugin_id, row.version]), declaring.map(manifest => [manifest.plugin_id, manifest.databases!.project!.version]).sort());
   } finally { rmSync(directory, { recursive: true, force: true }); }
@@ -100,8 +101,8 @@ test("RAC-2360 the 1→5 upgrade preserves the adopted journal and includes the 
     const db = new DatabaseSync(file);
     db.exec(v1); db.exec("PRAGMA user_version = 1");
     const result = runSqliteUpgrade(db, file, PROJECT_DATABASE_BASELINE);
-    assert.deepEqual(result, { from: 1, to: 5 });
-    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 5);
+    assert.deepEqual(result, { from: 1, to: 6 });
+    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 6);
     assert.equal(db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='project_browsing_settings'").get(), undefined,
       "the old browsing setting is gone");
     assert.ok(db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='material_recent_uses'").get(), "the recent-use table is created");

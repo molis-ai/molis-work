@@ -6,7 +6,9 @@ import type { AssistantThreadRound } from "./assistant-thread-types.js";
 import { randomUUID } from "node:crypto";
 import { assistantErrors } from "./assistant-errors.js";
 import { AssistantFollowUpRecords } from "./assistant-followups.js";
-import { applySqliteBaseline, openBaselineHomeSqlite, type openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, openBaselineHomeSqlite, type openHomeSqliteDatabase, type SqliteBaseline, type SqliteBaselineDatabase, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
+import { storedSentenceAsText } from "../stored-sentences.js";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
@@ -30,7 +32,20 @@ export const ASSISTANT_STORE_NAME = "assistant";
  * The current schema retains the table and its stored work shape.
  * The current executor is `{ kind: "plugin", plugin_id, ... }`; other stored versions are refused, never translated on read.
  */
-export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: /* @version database.assistant_store_baseline */ 1, schema: `
+/**
+ * 1 → 2 (BL-action-card-outcome-text, user 2026-11-17): a card's outcome was a sentence in the language of the day it was written, and is
+ * now a key with its values. A sentence already written cannot be taken back to its key, so it stays the words it was, as a `literal`.
+ */
+function cardOutcomesAsText(db: SqliteBaselineDatabase): void {
+  const write = db.prepare("UPDATE assistant_cards SET body = ? WHERE card_id = ?");
+  for (const row of db.prepare("SELECT card_id, body FROM assistant_cards WHERE json_type(body, '$.outcome') = 'text'").all() as Array<{ card_id: string; body: string }>) {
+    const { outcome, ...body } = JSON.parse(row.body) as { outcome: string };
+    const text = storedSentenceAsText(outcome);
+    write.run(JSON.stringify(text ? { ...body, outcome: text } : body), row.card_id);
+  }
+}
+
+export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: /* @version database.assistant_store_baseline */ 2, upgrades: [{ from: 1, run: cardOutcomesAsText }], schema: `
 CREATE TABLE assistant_works (
   work_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL,
   archived INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
@@ -118,6 +133,18 @@ interface StoredUndo extends AssistantUndoable {
 /** A notice as stored: the public facts plus whether the person still has to see it. */
 interface StoredNotice extends Omit<AssistantNotice, "held"> { state: "new" | "seen" | "dismissed" | "resolved" }
 
+/** Reads original notice receipts regardless of whether the person has already handled them. */
+function assistantNoticeReceipts(db: DatabaseSync) {
+  return {
+    has(actorId: string, dedupe: string): boolean {
+      return db.prepare("SELECT 1 FROM assistant_notices WHERE actor_id=? AND dedupe=?").get(actorId, dedupe) !== undefined;
+    },
+    keysOfKind(actorId: string, kind: StoredNotice["kind"]): ReadonlySet<string> {
+      return new Set(db.prepare("SELECT dedupe FROM assistant_notices WHERE actor_id=? AND kind=?").all(actorId, kind).map(row => String(row.dedupe)));
+    },
+  };
+}
+
 export interface StoredRound {
   run_id: string;
   /** Set for a round run in the work's plugin session; the others ran in the Assistant's own session. */
@@ -154,7 +181,7 @@ export interface StoredCard {
   editable: string[];
   missing: Array<{ field: string; question: string }>;
   status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
-  outcome?: string;
+  outcome?: OwnedTextRef;
   presentation?: ActionResultPresentation;
   /** Set when the person clicked; the one execution this card may have. */
   request_id?: string;
@@ -180,6 +207,7 @@ export class AssistantStore {
   readonly followUps: AssistantFollowUpRecords;
   /** The state the Host last saw each work in. */
   readonly observed: AssistantObservedStates;
+  readonly noticeReceipts: ReturnType<typeof assistantNoticeReceipts>;
 
   /** Who hears that a work's stored facts changed (record, rounds, cards, follow-ups, jobs, undos, usage): the page's wait. */
   readonly #changes = new Set<(workId: string) => void>();
@@ -193,6 +221,7 @@ export class AssistantStore {
     this.usage = new AssistantUsageLedger(db);
     this.followUps = new AssistantFollowUpRecords(db, workId => this.#changed(workId));
     this.observed = new AssistantObservedStates(db);
+    this.noticeReceipts = assistantNoticeReceipts(db);
     this.policies = new AssistantActionPolicies(db, (actorId, key, value) => this.setSetting(actorId, key, value));
   }
 
@@ -227,10 +256,10 @@ export class AssistantStore {
     return work.executor ? work : { ...work, executor: { kind: "assistant" } };
   }
 
-  list(actorId: string, options: { archived?: boolean | "any"; limit?: number } = {}): StoredWork[] {
+  list(actorId: string, options: { archived?: boolean | "any"; limit?: number; root_graph_id?: string } = {}): StoredWork[] {
     const [low, high] = options.archived === "any" ? [0, 1] : options.archived ? [1, 1] : [0, 0];
-    return this.db.prepare("SELECT body FROM assistant_works WHERE actor_id=? AND archived BETWEEN ? AND ? ORDER BY updated_at DESC LIMIT ?")
-      .all(actorId, low, high, options.limit ?? 50).map(row => JSON.parse(String(row.body)) as StoredWork)
+    return this.db.prepare("SELECT body FROM assistant_works WHERE actor_id=? AND archived BETWEEN ? AND ? AND (? IS NULL OR (json_extract(body,'$.graph_id')=? AND json_extract(body,'$.delegated_by') IS NULL)) ORDER BY updated_at DESC LIMIT ?")
+      .all(actorId, low, high, options.root_graph_id ?? null, options.root_graph_id ?? null, options.limit ?? 50).map(row => JSON.parse(String(row.body)) as StoredWork)
       .map(work => work.executor ? work : { ...work, executor: { kind: "assistant" as const } });
   }
 
@@ -311,11 +340,6 @@ export class AssistantStore {
       .run(stored.notice_id, actorId, stored.work_id, stored.kind, stored.state, dedupe, stored.created_at, JSON.stringify(stored)).changes;
     if (changed) attentionChanged(null);
     return changed ? stored : null;
-  }
-
-  /** Whether a notice was raised under `dedupe`, whatever became of it since. */
-  noticeRaised(actorId: string, dedupe: string): boolean {
-    return this.db.prepare("SELECT 1 FROM assistant_notices WHERE actor_id=? AND dedupe=?").get(actorId, dedupe) !== undefined;
   }
 
   openNotices(actorId: string): StoredNotice[] {

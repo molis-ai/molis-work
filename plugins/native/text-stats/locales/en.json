@@ -3,18 +3,18 @@
   "owner": "io.molis.work.text-stats",
   "locale": "en",
   "messages": {
-    "text-stats.directory.summary": "Count words, bytes, and lines in a saved file version.",
+    "text-stats.directory.summary": "Count words, bytes, and lines in a pinned file version.",
     "text-stats.count.bytes": "UTF-8 bytes",
     "text-stats.count.characters": "Characters",
     "text-stats.count.lines": "Lines",
-    "text-stats.empty.waiting-detail": "Counts the text snapshot pinned as before in Files. Pin again to update; changes on disk don’t rewrite what was saved.",
-    "text-stats.error.unreadable": "Couldn’t read the file workspace",
+    "text-stats.empty.waiting-detail": "Counts the text version pinned as “Before” in Materials. Pin again to refresh; disk edits don’t overwrite a pinned version.",
+    "text-stats.error.unreadable": "Couldn’t read the project folder",
     "text-stats.stage.open-materials": "Open materials",
     "text-stats.stage.reading": "Reading the pinned versions…",
     "text-stats.stage.refresh": "Refresh",
     "text-stats.stage.retry": ". Select Refresh to try again.",
-    "text-stats.empty.waiting": "Pin a file snapshot to see text statistics for that version",
-    "text-stats.empty.unavailable": "The captured snapshot is no longer available",
+    "text-stats.empty.waiting": "Pin a file version to see its word, byte, and line counts",
+    "text-stats.empty.unavailable": "The pinned file version is no longer available",
     "text-stats.empty.recapture": "Capture it again or choose another input in Sources"
   }
 }

@@ -3,6 +3,7 @@ import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/a
 import type { AgentCallPorts, Call, Register } from "./capability-ports.js";
 import { projectWorkScope } from "./project-work-scope.js";
 import { waitForRunChange } from "./run-wait.js";
+import { registerSubagentActions } from "./subagent-actions.js";
 
 /**
  * Following, waiting on and controlling the caller's own rounds, their subtasks, and the project's queued work as far as it
@@ -12,6 +13,7 @@ import { waitForRunChange } from "./run-wait.js";
 export function registerRunActions<C extends Call>(register: Register<C>, ports: AgentCallPorts<C>): Array<() => void> {
   const { pluginFor, denied, readScopedSession, requireRun, waits } = ports;
   return [
+    ...registerSubagentActions(register, ports),
     register(agentHostCapabilities.readRun, async (context, [session, run]) => {
       await requireRun(context, session, run);
       return ports.agentHost(context).adapter(session.runtime_id).read(run);
@@ -34,33 +36,6 @@ export function registerRunActions<C extends Call>(register: Register<C>, ports:
       const port = ports.agentHost(context).adapter(session.runtime_id).subagents;
       if (!port) throw agentErrors.capability_unavailable("当前运行时未接通子代理");
       return port.list(run);
-    }),
-    // Who stops it is the caller, never an input: requireRun has already held the session to the caller's own.
-    register(agentHostCapabilities.cancelSubagent, async (context, [session, run, childId]) => {
-      await requireRun(context, session, run);
-      const caller = pluginFor(context), port = ports.agentHost(context).adapter(session.runtime_id).subagents;
-      if (!caller) throw denied();
-      if (!port) throw agentErrors.capability_unavailable("当前运行时未接通子代理");
-      await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-      await port.cancel(run, childId, caller.actor_id);
-    }),
-    register(agentHostCapabilities.retrySubagent, async (context, [session, run, childId, options]) => {
-      await requireRun(context, session, run);
-      const caller = pluginFor(context), port = ports.agentHost(context).adapter(session.runtime_id).subagents;
-      if (!caller) throw denied();
-      if (options?.only_extend === true) {
-        if (!port?.extendBudget) throw agentErrors.capability_unavailable("当前运行时未接通子任务预算扩展");
-        await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-        return port.extendBudget(run, childId, options.extend_attempts ?? 1, caller.actor_id);
-      }
-      if (!port?.retry) throw agentErrors.capability_unavailable("当前运行时未接通子任务重试");
-      await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-      return port.retry(run, childId, {
-        ...(options?.reason ? { reason: options.reason } : {}),
-        ...(options?.extend_attempts ? { extend_attempts: options.extend_attempts } : {}),
-        source: options?.source ?? "user-requested",
-        actor_id: caller.actor_id,
-      });
     }),
     // The project's work and its release, as far as it is the caller's own (project-work-scope.ts); no one else's.
     register(agentHostCapabilities.readProjectWork, async (context, [runtimeId, probe]) => {

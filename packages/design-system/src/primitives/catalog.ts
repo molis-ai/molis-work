@@ -13,6 +13,7 @@ import { directorySection, layoutSection } from "./catalog-layout.js";
 import { COMPOSER_STYLES } from "../composer-styles.js";
 import { COMPOSER_BOARD_STYLES, composerSection, menuDescSection, micSection, type Say } from "./catalog-composer.js";
 import { keepEditsSections, KEEP_EDITS_BOARD_STYLES } from "./catalog-keep-edits.js";
+import { noteSection, sourceLadderSection } from "./catalog-source-ladder.js";
 import { buttonGroupSection, CATALOG_PATTERN_STYLES, dataTableSection, dropZoneSection, rowsSection, statSection, tagInputSection } from "./catalog-patterns.js";
 import { lookSections } from "./catalog-appearance.js";
 import { APPEARANCE_BOARD_STYLES } from "./catalog-appearance-styles.js";
@@ -278,6 +279,8 @@ export function renderPrimitiveCatalog(options: {
     ${chapter("反馈与浮层")}
     ${feedbackSection()}
     ${keepEditsSections(say)}
+    ${sourceLadderSection(say)}
+    ${noteSection(say)}
     ${overlaySection(say)}
     ${menuSection()}
     ${menuDescSection(say, options.delivery)}

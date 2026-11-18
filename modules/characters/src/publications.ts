@@ -33,7 +33,7 @@ export function ownedPublications(scope: CharacterPublicationScope): ArtifactVer
 
 /**
  * A publication is runnable while its draft is active and the revision it was made from exists. A publication made from a draft
- * revision that does not exist is not one to run (the check `characters.runnable` answers a plugin running a Character with, PG-086).
+ * revision that does not exist is not one to run.
  */
 function assertRunnableDraft(draft: ReturnType<CharactersQuery["get"]>, content: CharacterContent): void {
   if (!draft || draft.state !== "active") throw characterErrors.invalid("该角色已停用或删除");
@@ -51,15 +51,6 @@ export function selectPublication(scope: CharacterPublicationScope, input: Recor
   const content = parseCharacterContent(record.payload), draft = scope.drafts.get(content.character_id);
   if (requireActive) assertRunnableDraft(draft, content);
   return { content, reference: { artifact_id: record.artifact_id, version: record.version } };
-}
-
-/**
- * `characters.runnable` answers with the same check as a launch, as data: a version that cannot run is an answer carrying Characters'
- * reason, not a failed call.
- */
-export function runnableAnswer(check: () => unknown): { available: true } | { available: false; reason: string } {
-  try { check(); return { available: true }; }
-  catch (error) { return { available: false, reason: error instanceof Error && error.message ? error.message : "请选择当前项目已发布的角色版本" }; }
 }
 
 /** A published character is a pinned revision of its draft (artifact-positioning A1). */

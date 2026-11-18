@@ -89,7 +89,7 @@ export { createProjectApprovalSyncRegistration } from './personal-project-approv
 export { projectApprovalSyncSelection } from './platform-sync-catalog.js';
 export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
 export { PROJECT_DATABASE_BASELINE, PROJECT_DATABASE_VERSION_3_SCHEMA } from "./project-database-schema.js";
-export { projectApprovalUpgrade, projectLibraryV5Step } from "./project-database-schema.js";
+export { projectApprovalUpgrade, projectLibraryV6Step } from "./project-database-schema.js";
 
 export { openProjectVersionStores, restoreArtifactVersions, assertRestorableArtifactVersions, WORK_ASSET_RESTORE_ACTOR_ID, type RestoredArtifactVersion, type ProjectVersionStores } from "./project-version-stores.js";
 
@@ -454,3 +454,5 @@ export type { GrantChangedBy } from "./observation-grants.js";
 export { observationShellDoor } from "./observation-shell-entry.js";
 export { contextOnboardingActions, contextOnboardingProvider } from "./context-onboarding-actions.js";
 export { assertReadOnlyToolArgv, createHostSessionsPorts, type HostSessionsOptions } from "./sessions-ports.js";
+
+export { recoverAcceptanceCommits } from "./acceptance-recovery.js";

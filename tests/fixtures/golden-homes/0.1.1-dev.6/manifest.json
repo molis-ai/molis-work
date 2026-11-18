@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "golden_version": "0.1.1-dev.6",
-  "commit": "4cf1c742e6bd1e856ad52a5b1d44eda5fbbcb559",
+  "commit": "be0cdac2aaf260b20ac0cd6e09f91c71a0e93f42",
   "node": "v24.15.0",
   "third_party": "generated-list",
   "home_library": "golden-home-library",
@@ -83,10 +83,6 @@
     {
       "path": "alchemist/projects/<project>/search.sqlite",
       "reason": "行来自联网搜索，金样不联网；由主人的搜索入口建空库"
-    },
-    {
-      "path": "runtime-integrations/codex.json",
-      "reason": "接入收据只有装过的 Home 才有（接入要用安装的启动器），收据记本机的用户目录和对含 Home 路径的配置条目的指纹，两次生成不会一样；按这份代码的版本写一份固定值的样本，不含真实路径"
     },
     {
       "path": "observation/observation.db",
@@ -333,10 +329,6 @@
     {
       "path": "projects/project-c3d068af-be20-4cb1-987b-3015105830de",
       "mode": 493
-    },
-    {
-      "path": "runtime-integrations",
-      "mode": 448
     },
     {
       "path": "sbxdb-7cca75c1b8e5c4f45a135088b2538bae",
@@ -857,7 +849,7 @@
         "context_edges": 0,
         "molis_storage_space": 1
       },
-      "sha256": "d54ee36b166d1a8e34790dd485343d6b14eb7a70d22e1a51663fa2cedcefb4f6"
+      "sha256": "ac5d5edc035086edcb78839bdc91b7f227ccb146f376451c4af5ab8e6545eb47"
     },
     {
       "path": "characters/characters.sqlite",
@@ -934,7 +926,7 @@
         "journeys": 1,
         "molis_storage_space": 1
       },
-      "sha256": "b5fbfcc9fb926577715c39c65561ff8d921326af07d1f08f45b0f20abd748200"
+      "sha256": "9395fa27f075a4471c5a0c7b8679cea5be45493dac46e1cbfd25a613c21d3879"
     },
     {
       "path": "dataset/dataset.db",
@@ -1142,7 +1134,7 @@
       "tables": {
         "memory_candidates": 0,
         "memory_changes": 2,
-        "memory_markers": 8,
+        "memory_markers": 7,
         "memory_owners": 0,
         "memory_pairs": 0,
         "memory_prefs": 2,
@@ -1151,7 +1143,7 @@
         "memory_uses": 1,
         "molis_storage_space": 1
       },
-      "sha256": "eada4be8017c4708984ce31d5593b427f8c02839e464727a18b62f972be20782"
+      "sha256": "ef9319dfb0b39cbaea0a7a8e9a8b75bfd9134c8f7140cbd79c3ea4e277f5ce35"
     },
     {
       "path": "observation/observation.db",
@@ -1521,8 +1513,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "b36584916cbd9c7e827418d3ce548b1fc35a444079f5b00740e34f3597e7d8e3",
-      "expanded_sha256": "e05ae7bcfadf15ebae10f4d16ed952f4f3b4f965f02a5815db90fa6386996a6d"
+      "sha256": "83cc29e3dd4d9bb11e68ce9bba7b78d7b88427f27e4280be464e17cacea7ee81",
+      "expanded_sha256": "c0607569283929792ca11d8d0c71e8c968596b0615fba69967dc0957abf5150c"
     },
     {
       "path": "projects/molis-work-v1-demo/molis-work.db",
@@ -1715,8 +1707,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "f35ac0b6e869c7cda2019ee1f9db3b58aec2fae1ef99b5b48011064eff5e84dc",
-      "expanded_sha256": "bf61e9cdadf793cf0dd08289c7730f63bc12f969e602449c432d84916635c453"
+      "sha256": "391a35bcf6100e66918ffe8f8723689e9552e03afb2692003b79f009c2787cb5",
+      "expanded_sha256": "cc1533e195c62731d7cb881a81663a69e9dcc547e136fffd121c2bd84d41b3b6"
     },
     {
       "path": "projects/personal/molis-work.db",
@@ -1909,8 +1901,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "5dfb24195c655badd0a52bd2f422066e06f319d15fa78c0e88fd2bc45d689654",
-      "expanded_sha256": "d91dc289872e69784fd8b9efff4d61ea0715b50618648c9cb682cb9b44e240eb"
+      "sha256": "615e7833f82ef48f74b12bba6c69a8c4584930bb660ad1b12c79f3d68b5454a3",
+      "expanded_sha256": "357500d9698adaf3510ca653164560b7f1778149e7f51322d98a271dc8ddc40a"
     },
     {
       "path": "projects/project-c3d068af-be20-4cb1-987b-3015105830de/molis-work.db",
@@ -2103,8 +2095,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "71c038a92921adbca65bb6a49d0080f6a460199cef3f78a925336001d3f72034",
-      "expanded_sha256": "4bd634f55418515650e4a65113ede54b852ca0424b1dca409bd39437877213bd"
+      "sha256": "f3908e72958dd89b6e21cf3299b7e2149856bdcf5aeb6f0516a0a31bf27d545e",
+      "expanded_sha256": "dc048642e5731e3b7b0639a8758d20e659020d8e9b6e03b5d62297cb9733a363"
     },
     {
       "path": "sbxdb-7cca75c1b8e5c4f45a135088b2538bae/sbxdb-7cca75c1b8e5c4f45a135088b2538bae.db",
@@ -2142,7 +2134,7 @@
         "mw_sessions": 1,
         "sqlite_sequence": 2
       },
-      "sha256": "244e3f1763dbf8dfcc32771d81f7d12be70a325efaaef55ed8d56b6227dd1ed3"
+      "sha256": "e824d4684767c4a06781c4a175a16c676fe862a56acf95af349b486278b810de"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-declarations/agent-declarations.db",
@@ -2959,8 +2951,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "3e91998f7a826f1db1b5fb50db171f815910766e3e1b7eca891ae72020e4c7c7",
-      "expanded_sha256": "506e2a49dd90737aa763937d712bfeb6924c60ae6640732b0ebd97deac341c8a"
+      "sha256": "d6fb61db9e4038bb70d6adedaf7b8368842598c4c1fd4c531382b3888a6da48d",
+      "expanded_sha256": "726f7660e8dc031c03a98e57511efddbd3e14ec55446f90a21070e8b6357a320"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-2923a3bc-99e2-43aa-9af7-24761ce642de/molis-work.db",
@@ -3153,8 +3145,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "bebe0464ec149dac2c4e1dd1eb281b8b89d1051d07bfb01522194321265c406a",
-      "expanded_sha256": "317e520bc034cae4089bd4e76dd73751770806cfa09f32402623382c34384f5f"
+      "sha256": "32cd901ac60646a35ca2eb44866d0e68f90c5793f9328183703dbddb5f428ee5",
+      "expanded_sha256": "054f24b60d8e2b22d06d5ddb4bf7f8847ae61984d0f58db54f574600fa1d1e74"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db",
@@ -3408,7 +3400,7 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~queued-tasks/global.2-4fdju.v1.json",
       "size": 485,
-      "sha256": "866d68cdc595a8ba4340d81e38412c1b51624edb9675a8661c2d5ae22a809bfa"
+      "sha256": "8574b3c37d418256bd61f5b52a659ed60a3802ef9caa35b36ed831800488c0b3"
     },
     {
       "path": "agent-runtime/records/io.molis.work~runs/3-1sw7k.b-17zrk.json",
@@ -3456,7 +3448,7 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/3-1sw7k.json",
       "size": 3302,
-      "sha256": "6423a6d065d974fe2de779f983ed7c98cd11b6086a30209a6de2e6322d51c117"
+      "sha256": "5005145b10975b999323a4fe70e442a8995f724c5578c5acd5de2ed0b8000903"
     },
     {
       "path": "agent-runtime/records/molis-work-delegation-022e733141b0e17b8feffad3/dbc4d5e93c9cbc6331f879909ddce5d7d64564c5c514ba3f947c12edd19e5aaf.json",
@@ -3586,14 +3578,6 @@
       "payload": "files/plugin-packages/c861427de0348ce0d342472ce862c484/plugin.mjs.data",
       "size": 658,
       "sha256": "704edde5820a1eb52d8e600940b816019048d483182d1419884ae981c5ab1c98"
-    },
-    {
-      "path": "runtime-integrations/codex.json",
-      "owner": "apps/local-host/src/installer",
-      "mode": 384,
-      "payload": "files/runtime-integrations/codex.json",
-      "size": 436,
-      "sha256": "2ba30af03fc41bd251a1d5cd53025b035bccb0e1babddf45edd339f4387b3336"
     },
     {
       "path": "shelf/catalog.json",
@@ -3808,9 +3792,9 @@
       "bytes": 170342
     },
     {
-      "digest": "5e95750730d73db527cbc0041533e5525d478057167f278e83ca55ddd3af3932",
-      "payload": "files/module-sources/5e95750730d73db527cbc0041533e5525d478057167f278e83ca55ddd3af3932.br",
-      "bytes": 1389093
+      "digest": "6cf7d09d53c90bede18bb719d14a225a904e6f342270462fcebb4b51fd5d053c",
+      "payload": "files/module-sources/6cf7d09d53c90bede18bb719d14a225a904e6f342270462fcebb4b51fd5d053c.br",
+      "bytes": 2142685
     },
     {
       "digest": "703a88a9e56eec92ae64590274a058fa7d74d072f3d7e0e9614e5ea532396764",
@@ -3838,9 +3822,9 @@
       "bytes": 231153
     },
     {
-      "digest": "85bf4058041730194067d79e31a1e1e6737b647ceb87dd943c9c266ff293a66a",
-      "payload": "files/module-sources/85bf4058041730194067d79e31a1e1e6737b647ceb87dd943c9c266ff293a66a.br",
-      "bytes": 2142431
+      "digest": "9d353ce1e622b16fd40b06728be7ece26b25157640b9fe7c825f5d8ce5d503e2",
+      "payload": "files/module-sources/9d353ce1e622b16fd40b06728be7ece26b25157640b9fe7c825f5d8ce5d503e2.br",
+      "bytes": 1388897
     },
     {
       "digest": "a0e1363eed6b0a5d6f0ba100ccf0f4bf4cc98b9dfd7b00b553b718b0f3677d21",
@@ -4079,11 +4063,6 @@
     {
       "entry": "format.project.arrival",
       "path": "config/project-arrival.json",
-      "version": 1
-    },
-    {
-      "entry": "format.runtime.integration.receipt",
-      "path": "runtime-integrations/codex.json",
       "version": 1
     },
     {

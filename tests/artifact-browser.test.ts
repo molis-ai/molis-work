@@ -164,7 +164,7 @@ test("Artifact HTTP keeps unknown and cross-project versions missing and rejects
     const page = await surface(path);
     assert.equal(page.status, 404);
     const html = await page.text();
-    assert.match(html, /不会自动替换成最新版本/);
+    assert.match(html, /系统不会自动替换为最新版/);
     assert.doesNotMatch(html, /<h1 translate="no">Original report<\/h1>/);
     const exported = await get(`/api${path}/export`);
     assert.equal(exported.status, 404);
@@ -254,7 +254,7 @@ test("Artifact navigation and export retain the selected catalog Project", async
   const otherVersion = await fetch(origin + betaPrefix + exactPath(1), { headers: { "x-molis-work-fragment": "artifact-workbench" } });
   assert.equal(otherVersion.status, 404, "the exact Alpha version is still absent from Beta");
   const otherHtml = await otherVersion.text();
-  assert.match(otherHtml, /不会自动替换成最新版本/);
+  assert.match(otherHtml, /系统不会自动替换为最新版/);
   assert.doesNotMatch(otherHtml, /Original report|Alpha results/);
   const otherExport = await fetch(origin + betaPrefix + `/api${exactPath(1)}/export`);
   assert.equal(otherExport.status, 404);
@@ -409,7 +409,7 @@ test("Artifact browser distinguishes no results, unselected versions and missing
   assert.match(unselected,/<h1>选择一个结果版本<\/h1>/);
   const missing=await (await surface(exactPath(99))).text();
   assert.match(missing,/找不到这个成果版本/);
-  assert.match(missing,/不会自动替换成最新版本/);
+  assert.match(missing,/系统不会自动替换为最新版/);
 });
 
 

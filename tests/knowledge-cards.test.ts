@@ -227,7 +227,7 @@ test("PMAT-08 a piece kept back from agents is neither found nor read, and the r
   }
   for (const call of [() => f.knowledge.read(f.access(agent()), { subject: { kind: "page", id: "p1" } }),
     () => f.knowledge.outline(f.access(agent()), { subject: { kind: "page", id: "p1" } })]) {
-    await assert.rejects(call, (error: unknown) => error instanceof ActionError && error.code === "knowledge.excluded" && error.message.includes("不给 Agent 用"));
+    await assert.rejects(call, (error: unknown) => error instanceof ActionError && error.code === "knowledge.excluded" && error.message.includes("不让 AI 读取"));
   }
   const grep = await f.knowledge.grep(f.access(agent()), { pattern: "试用", subjects: [{ kind: "page", id: "p1" }] });
   assert.deepEqual(grep.unread.map(item => item.subject.id), ["p1"]);

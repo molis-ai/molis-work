@@ -257,6 +257,7 @@ async function squashFixture(cleanup: (fn: () => Promise<void>) => void) {
   };
 }
 
+// APR-02 and APR-04 are proven here as well.
 test("APR-01/02/04: counts current write permissions and two distinct accounts, including the PR author", async () => {
   const { state, requests, inspect } = fixture();
   state.reviews = [review(1, author, "APPROVED", 1), review(2, reviewer, "APPROVED", 2), review(3, agent, "APPROVED", 2),
@@ -270,6 +271,7 @@ test("APR-01/02/04: counts current write permissions and two distinct accounts, 
   assert.equal(requests.has("collaborators/agent/permission"), false);
 });
 
+// APR-05 is proven here as well.
 test("APR-03/05: rejects old, ambiguous, edited and withdrawn approvals and ignores PR prose", async () => {
   const { state, inspect } = fixture();
   state.reviews = [review(1, author, "APPROVED", 1, old), review(2, reviewer, "APPROVED", 2),
@@ -314,6 +316,7 @@ test("APR-09 reads current branch policy even when GitHub's PR comparison has a 
   assert.equal(requests.has("git/commits/" + earlierBase), false);
 });
 
+// APR-02 is proven here as well.
 test("APR-01/02: exact PR association and current facts are required through the final read", async () => {
   const { state, inspect } = fixture();
   state.commits[0] = { ...state.commits[0]!, author };

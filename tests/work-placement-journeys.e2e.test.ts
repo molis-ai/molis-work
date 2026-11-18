@@ -183,7 +183,7 @@ test("placement journey: one document used by two projects and a Goal — edit, 
   await waitFor(`document.querySelector('dialog.placement-dialog input[name="goal"][value="${projectId}|goal|CORE"]')`, 12_000);
   await click(`dialog.placement-dialog input[name="goal"][value="${projectId}|goal|CORE"]`);
   await click("dialog.placement-dialog [data-placement-confirm]");
-  await card("已关联到 Goal「");
+  await card("已关联到目标「");
 
   // One edit, seen from both projects: it is the same document, not two copies.
   await title("竞品调研（含定价）");

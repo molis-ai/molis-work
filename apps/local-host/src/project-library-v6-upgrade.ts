@@ -12,7 +12,7 @@ import { builtinPluginByProjectKey } from "./plugin-registry.js";
 import { projectPluginPlatformExtension, projectPluginSchemaInspector } from "./project-plugin-databases.js";
 
 /*
- * The project library's 4→5 step (batch 44, `docs/system/CONTRACT-CHANGES.md` 「第 44 批存量搬迁」 D1, D3; user 2026-11-17): what the
+ * The project library's 5→6 step (batch 44, `docs/system/CONTRACT-CHANGES.md` 「第 44 批存量搬迁」 D1, D3; user 2026-11-17): what the
  * platform's contracts stopped naming leaves the stored rows in the same transaction.
  * - D3: an Inbox entry's subject type and reason are its owner's declared words, so `inbox_entries` loses the two CHECKs that listed
  *   them. The rows, their indexes and the triggers on the table are kept as they were.
@@ -20,16 +20,16 @@ import { projectPluginPlatformExtension, projectPluginSchemaInspector } from "./
  *   Goals' sync collection carries those relations as the generic `relation-edges` (`project_goals@3`, Goals' library v6). The old
  *   collection's transport (cursor, outbox, conflicts) stays only in the pre-upgrade snapshot; the business rows are the first snapshot
  *   of the new stream, as in batch 39's step.
- * Delete with the project library's version-4 golden support.
+ * Delete with the project library's version-5 golden support.
  */
 
-const path = "项目库 4→5";
-const refusal = () => new ActionError("actions.input_invalid", "项目库与第 4 版的登记不符，项目库已保留");
+const path = "项目库 5→6";
+const refusal = () => new ActionError("actions.input_invalid", "项目库与第 5 版的登记不符，项目库已保留");
 const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"';
 const COLLECTION = "project_goals";
 const TRANSPORT_TABLES = ["replica_state", "replica_changes", "replica_heads", "replica_outbox", "replica_conflicts", "replica_resolutions",
   "aggregate_editor_versions", "context"];
-/** Every module a version-4 relation could name. */
+/** Every module a version-5 relation could name. */
 const VERSION_4_MODULES = new Set(["goals", "artifacts", "feed", "private-work-context", "projects", "assistant", "plugins", "agent-host"]);
 
 const goalsTemplate = () => builtinPluginByProjectKey("goals")!.manifest;
@@ -110,8 +110,8 @@ function upgrade(db: SqliteBaselineDatabase): void {
   rebuildGoals?.();
 }
 
-/** The 4→5 step's run: one transaction with the library's version mark; foreign keys are off for the Inbox table's rebuild. */
-export const projectLibraryV5Upgrade: Pick<SqliteUpgradeStep, "run" | "rebuilds_tables" | "reduces_rows"> = {
+/** The 5→6 step's run: one transaction with the library's version mark; foreign keys are off for the Inbox table's rebuild. */
+export const projectLibraryV6Upgrade: Pick<SqliteUpgradeStep, "run" | "rebuilds_tables" | "reduces_rows"> = {
   run: upgrade,
   rebuilds_tables: true,
   get reduces_rows() { return oldTransportTables(); },

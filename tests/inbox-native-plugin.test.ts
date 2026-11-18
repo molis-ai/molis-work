@@ -119,7 +119,7 @@ test("Inbox directory lists Attention reason, related object, and next step with
     subject_type: "goal_decision",
     subject_id: "goal-1",
     reason: "goal_decision",
-    kind_label: "Inbox · Goal 决定",
+    kind_label: "Inbox · 目标决定",
     source_label: "Molis Work",
     title: "确认高保真边界",
     reason_label: "Molis Work 等待决定",
@@ -415,10 +415,10 @@ test("RAC-2511 RAC-2514 Inbox stage retains missing subjects and filters their r
     route_prefix: "/projects/owner-stage", shown_plugins: ["inbox"], data: value, primitives,
   } });
   const html = render(data);
-  assert.match(html, /Readable owner item/); assert.match(html, /原 Feed Item 已不可用/); assert.match(html, /原来源已不可用/); assert.match(html, /原 Goal 已不可用/);
+  assert.match(html, /Readable owner item/); assert.match(html, /原消息内容已不可用/); assert.match(html, /原来源已不可用/); assert.match(html, /原目标已不可用/);
   for (const entry of records) assert.ok(html.includes(`data-inbox-entry-id="${entry.entry_id}"`));
   allMissing = true;
-  assert.match(render(await service.invoke(caller, inboxActions.stage, {})), /原 Feed Item 已不可用/);
+  assert.match(render(await service.invoke(caller, inboxActions.stage, {})), /原消息内容已不可用/);
   assert.equal(reached?.size, 0);
   failure = new Error("The subject owner failed while reading");
   await assert.rejects(service.invoke(caller, inboxActions.stage, {}), error => error === failure);

@@ -40,7 +40,7 @@ test("Feed item commands are directory actions: Home prepares and runs them, sta
   try {
     // Goals confirms the promoted input through the ledger; a caller missing that permission cannot start a partial promotion.
     const withoutLedger = { ...caller, permissions: caller.permissions.filter(permission => permission !== "context-ledger:write") };
-    assert.ok(!(await prepare(third.item_id, withoutLedger)).offers.some(offer => offer.title === "升格为 Goal"));
+    assert.ok(!(await prepare(third.item_id, withoutLedger)).offers.some(offer => offer.title === "转为目标"));
     // Feed links the item to its Goal through the platform's ledger, so promotion declares `context-ledger:write` itself: the directory
     // does not list it to a caller without that permission, and a direct call is refused below.
     const declared = (await client.discover(caller)).find(view => view.capability_id === feedItemActions.promote.capability_id)!;
@@ -58,7 +58,7 @@ test("Feed item commands are directory actions: Home prepares and runs them, sta
 
     // The offers come from Feed's own declaration, named for what they do, each with the exact revision it read.
     const offered = await prepare(first.item_id);
-    assert.deepEqual(offered.offers.map(offer => offer.title), ["加入 Inbox", "保存为资料", "升格为 Goal", "忽略"]);
+    assert.deepEqual(offered.offers.map(offer => offer.title), ["加入 Inbox", "保存为资料", "转为目标", "忽略"]);
     assert.ok(offered.offers.every(offer => offer.availability.available && offer.recommendation_key), JSON.stringify(offered));
     assert.ok(offered.offers.every(offer => (offer.input as { expected_revision: number }).expected_revision === first.revision));
 
@@ -66,7 +66,7 @@ test("Feed item commands are directory actions: Home prepares and runs them, sta
     assert.equal(saved.title, "保存为资料");
     assert.equal(saved.result.item.disposition, "saved");
     const after = await prepare(first.item_id);
-    assert.deepEqual(after.offers.map(offer => offer.title), ["加入 Inbox", "升格为 Goal", "忽略"]);
+    assert.deepEqual(after.offers.map(offer => offer.title), ["加入 Inbox", "转为目标", "忽略"]);
 
     // An offer prepared before the change is not replayed against the newer item.
     await assert.rejects(run(first.item_id, offered.offers.find(offer => offer.title === "忽略")!), { code: "actions.offer_changed" });
@@ -77,10 +77,10 @@ test("Feed item commands are directory actions: Home prepares and runs them, sta
     assert.ok(entries.some(entry => entry.subject_type === "feed_item" && entry.subject_id === first.item_id && entry.status === "open"));
     assert.ok(!(await prepare(first.item_id)).offers.some(offer => offer.title === "加入 Inbox"));
 
-    const promoted = await run(second.item_id, (await prepare(second.item_id)).offers.find(offer => offer.title === "升格为 Goal")!) as { result: { goal_id: string; created: boolean; item: { linked_goal_id: string | null } } };
+    const promoted = await run(second.item_id, (await prepare(second.item_id)).offers.find(offer => offer.title === "转为目标")!) as { result: { goal_id: string; created: boolean; item: { linked_goal_id: string | null } } };
     assert.equal(promoted.result.created, true);
     assert.equal(promoted.result.item.linked_goal_id, promoted.result.goal_id);
-    assert.ok(!(await prepare(second.item_id)).offers.some(offer => offer.title === "升格为 Goal"));
+    assert.ok(!(await prepare(second.item_id)).offers.some(offer => offer.title === "转为目标"));
 
     // Without Feed write permission the same offers are listed but cannot run.
     const reader = { ...caller, permissions: caller.permissions.filter(permission => permission !== "feed:write") };

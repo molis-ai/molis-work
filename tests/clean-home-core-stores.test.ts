@@ -8,17 +8,21 @@ import { describeSqliteSchema, openBaselineHomeSqlite, STORAGE_SPACE_SCHEMA_SQL 
 import { AssistantStore, ASSISTANT_STORE_BASELINE } from "@molis-ai/molis-work-app-local-host";
 import { createFunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
+import { openMainlineDatabase } from "@molis-ai/molis-work-service-mainline";
 
 const cases = [
   { name: "functions", version: 1, file: "functions/functions.db", table: "function_scene_bindings",
     seed: "INSERT INTO function_scene_bindings VALUES ('scene', 'project', '{}', 'revision', 'time')",
     open: (home: string) => { const service = createFunctionsService({ home, credential: () => null }); return () => service.close(); } },
-  { name: "assistant", version: 1, file: "assistant/assistant.db", table: "assistant_settings",
+  { name: "assistant", version: 2, file: "assistant/assistant.db", table: "assistant_settings",
     seed: "INSERT INTO assistant_settings VALUES ('owner', 'setting', 1, 'retained')",
     open: (home: string) => { const db = openBaselineHomeSqlite(home, "assistant", ASSISTANT_STORE_BASELINE); try { new AssistantStore(db); return () => db.close(); } catch (error) { db.close(); throw error; } } },
-  { name: "characters", version: 1, file: "characters/characters.sqlite", table: "character_drafts",
+  { name: "characters", version: 2, file: "characters/characters.sqlite", table: "character_drafts",
     seed: "INSERT INTO character_drafts VALUES ('draft', 'owner', 1, 'time', '{}')",
     open: (home: string) => { const store = openCharacters(home, "owner"); return () => store.close(); } },
+  { name: "mainline", version: 1, file: "mainline/mainline.db", table: "mainline_items",
+    seed: "INSERT INTO mainline_items VALUES ('owner', 'project', 'item', 'name', NULL, NULL, 'time')",
+    open: (home: string) => { const db = openMainlineDatabase(home); return () => db.close(); } },
 ];
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
 for (const item of cases) {

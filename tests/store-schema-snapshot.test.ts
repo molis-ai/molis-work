@@ -28,11 +28,11 @@ test("UPG-01 the snapshot holds the catalog, the project database, every Home li
   assert.deepEqual(stores, [...stores].sort(), "sorted, so a new library lands in one place");
 });
 
-test("APR-19 PEQ-03 the built snapshot records Goals 4→5 and 5→6 with the project's actual 3→4 and 4→5 transactions", () => {
+test("APR-19 PEQ-03 the built snapshot records Goals 4→5 and 5→6 with the project's actual 3→4 and 5→6 transactions, after its 4→5 card outcomes", () => {
   const project = rows.find(row => row.store === "projects/*/molis-work.db");
   const goals = rows.find(row => row.store === "projects/*/molis-work.db#io.molis.work.goals");
-  assert.deepEqual([project?.version, project?.froms], [5, [1, 2, 3, 4]]);
-  // Goals declares no step of its own: each from is the project step that moves it (3→4 the approvals, batch 44 D1 4→5 the relations).
+  assert.deepEqual([project?.version, project?.froms], [6, [1, 2, 3, 4, 5]]);
+  // Goals declares no step of its own: each from is the project step that moves it (3→4 the approvals, batch 44 D1 5→6 the relations).
   assert.deepEqual([goals?.version, goals?.froms], [6, [4, 5]]);
 });
 

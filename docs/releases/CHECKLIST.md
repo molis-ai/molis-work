@@ -41,18 +41,18 @@
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |
 | --- | --- | --- | --- | --- | --- |
 | 安装与发行清单 | `config/installation.json、releases/molis-work-<version>/release.json` | 1 | `schema_version` | `apps/local-host/src/installer/home-contract.ts#SCHEMA_VERSION` | 低版本由安装器升级；高版本在修改前拒绝，保留文件 |
-| 项目库 | `projects/<project_id>/molis-work.db` | 5 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 3→4 在项目库同一事务中接收可信决定、规则和原审批记录；4→5 去掉 Inbox 列举主题类型与原因的约束，把写着 Goals、Feed 模块的关系改写成插件对象并更换 Goals 同步集合；低版本升级，高版本拒绝 |
+| 项目库 | `projects/<project_id>/molis-work.db` | 6 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 3→4 在项目库同一事务中接收可信决定、规则和原审批记录；4→5 把 Coding 卡片里存成句子的结果改成 `{ literal }` 文字引用；5→6 去掉 Inbox 列举主题类型与原因的约束，把写着 Goals、Feed 模块的关系改写成插件对象并更换 Goals 同步集合；低版本升级，高版本拒绝 |
 | 项目库里 Coding 的表 | `projects/<project_id>/molis-work.db#coding` | 1 | `plugin_project_databases.version` | `plugins/native/coding/src/database.ts#CODING_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Coding） |
 | 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 2 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Feed） |
-| 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 6 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 随项目库 3→4 交接旧决定和规则并更换同步集合；随项目库 4→5 把同步集合换成 `project_goals@3`；保留原业务事实 |
+| 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 6 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 随项目库 3→4 交接旧决定和规则并更换同步集合；随项目库 5→6 把同步集合换成 `project_goals@3`；保留原业务事实 |
 | Goals 审批移交的历史源 | `projects/<project_id>/molis-work.db#goals@4` | 4 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE_V4` | v1～v3 先执行原升级段，v4 校验后交接，正常启动只读 v5 |
-| Goals 第 44 批搬迁的历史源 | `projects/<project_id>/molis-work.db#goals@5` | 5 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE_V5` | 项目库 4→5 读第 5 版、换同步集合后写第 6 版，正常启动只读 v6 |
+| Goals 第 44 批搬迁的历史源 | `projects/<project_id>/molis-work.db#goals@5` | 5 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE_V5` | 项目库 5→6 读第 5 版（项目库第 4、5 版都装着它）、换同步集合后写第 6 版，正常启动只读 v6 |
 | 项目库里 Inbox 的表 | `projects/<project_id>/molis-work.db#inbox` | 1 | `plugin_project_databases.version` | `plugins/native/inbox/src/database.ts#INBOX_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Inbox） |
 | 项目库里风险的表 | `projects/<project_id>/molis-work.db#risk` | 1 | `plugin_project_databases.version` | `plugins/native/risk/src/database.ts#RISK_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停风险） |
 | 项目库里 Schedule 的表 | `projects/<project_id>/molis-work.db#schedule` | 3 | `plugin_project_databases.version` | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Schedule） |
 | 目录库 | `projects/catalog.db` | 4 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 低版本升级，高版本拒绝 |
 | Functions | `functions/functions.db` | 1 | `user_version` | `modules/judgment-rules/src/store-schema.ts#FUNCTIONS_STORE_BASELINE` | 低版本升级，高版本拒绝 |
-| 助理 | `assistant/assistant.db` | 1 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 低版本升级，高版本拒绝 |
+| 助理 | `assistant/assistant.db` | 2 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 低版本升级（1 → 2 把卡片里存成句子的结果改成 `{ literal }` 文字引用），高版本拒绝 |
 | 个人同步队列 | `spaces/<spaceId>/sync/sync.db` | 1 | `user_version` | `modules/sync-replication/src/database.ts#SYNC_STORE_BASELINE` | 低版本升级，高版本拒绝 |
 | Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 1 | `user_version` | `apps/local-host/src/home-plugin-store.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 低版本升级，高版本拒绝 |
 | 装进来的插件的 Home 库账本 | `plugin-libraries/plugin-libraries.db` | 1 | `user_version` | `apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE` | 低版本升级，高版本拒绝 |
@@ -80,11 +80,12 @@
 | Pages | `pages/pages.db` | 1 | `user_version` | `plugins/native/pages/src/database.ts#PAGES_DATABASE` | 低版本升级，高版本拒绝 |
 | PPT | `ppt/ppt.db` | 1 | `user_version` | `plugins/native/ppt/src/database.ts#PPT_DATABASE` | 低版本升级，高版本拒绝 |
 | Todo | `todo/todo.db` | 1 | `user_version` | `plugins/native/todo/src/database.ts#TODO_DATABASE` | 低版本升级，高版本拒绝 |
-| Work Brief | `work-brief/work-brief.db` | 1 | `user_version` | `plugins/native/work-brief/src/database.ts#WORK_BRIEF_DATABASE` | 低版本升级，高版本拒绝 |
+| Work Brief | `work-brief/work-brief.db` | 2 | `user_version` | `plugins/native/work-brief/src/database.ts#WORK_BRIEF_DATABASE` | 低版本升级（1 → 2 把简报版本、提议与请求里的来源名和下一步结果改成 `{ literal }` 文字引用），高版本拒绝 |
 | Workflows | `workflows/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/database.ts#WORKFLOWS_DATABASE` | 低版本升级，高版本拒绝 |
 | 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 拒绝。不进升级链（统筹按 `search.sqlite` 的同一理由并入：这个插件要重做，`specs/backlog/BL-377.md`） |
 | server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝旧结构/旧版本（当前 v1 含 `im_messages.subjects_json`；旧 v1 结构在可写打开前拒绝，不转换，见 [CONTRACT-CHANGES](../system/CONTRACT-CHANGES.md#当前保留机制)） |
-| 角色 | `characters/characters.sqlite` | 1 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 低版本升级，高版本拒绝 |
+| 角色 | `characters/characters.sqlite` | 2 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 低版本升级（1 → 2 只建角色版本、来源、项目成员及其版本、默认与采用回执六张新表，既有草稿、运行与导入不动；已有原件下次保存时存第 1 版），高版本拒绝 |
+| 主线 | `mainline/mainline.db` | 1 | `user_version` | `horizontal/mainline/src/store.ts#MAINLINE_BASELINE` | 新库从 1 开始；高版本拒绝 |
 | 搜索索引（可重建的派生库） | `search/search.db` | 1 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
 | 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 1 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取高版本（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出；账号登录、设备授权、OAuth 与 MCP 的换令牌和刷新在发出请求之前就被拒（`assertSecretStoreWritable`，有别的条目坏了也一样），授权码不被用掉；低版本升级 |
 | MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 1 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 拒绝读取高版本并报告配置错误，保留原文件，明确修复后恢复；低版本升级 |

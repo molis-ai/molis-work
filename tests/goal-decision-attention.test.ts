@@ -167,7 +167,7 @@ test("Goal pending decisions appear in Inbox and on the Goal document, not in Fe
     assert.match(home, /data-inbox-workbench/);
     assert.match(inbox[0]!, /data-inbox-subject-type="goal_decision"/);
     assert.match(inbox[0]!, /data-inbox-subject-id="root"/);
-    assert.match(inbox[0]!, /打开 Goal/);
+    assert.match(inbox[0]!, /打开目标/);
     assert.doesNotMatch(documents.join("\n"), /data-feed-entry-id="decision:/);
     assert.doesNotMatch(documents.join("\n"), /data-feed-detail="decision:/);
     assert.match(goalPage, /data-goal-decision-panel/);

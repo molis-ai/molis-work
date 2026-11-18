@@ -135,7 +135,7 @@ export function entryDetail(kit: Kit, entry: KitEntry, pack: KitPack): string {
 
 const ENTRY_WORD = { assistant: "workbench.common.assistant", coding: "workbench.settings-skills.coding", agent: "workbench.settings-skills.agent" } as const;
 
-/** Of a Skill's kept uses in this scope, how many each entry made: after adopting a version, whether the Assistant and Coding really use it (batch 42). */
+/** Of a Skill's kept uses in this scope, how many each entry made, across the versions kept (batch 42); not a per-version proof. */
 function usesByEntry(entry: KitEntry): string {
   const uses = entry.kind === "skill" ? entry.skill.recent_uses : undefined;
   const rows = uses ? (Object.keys(ENTRY_WORD) as Array<keyof typeof ENTRY_WORD>).filter(caller => uses[caller]) : [];

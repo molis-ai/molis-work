@@ -47,7 +47,7 @@ function transfer(db: SqliteBaselineDatabase) {
   const projectId = roots[0]!.project_id;
   const context = db.prepare(`SELECT project_id FROM ${oldNamespace}_context WHERE id = 1`).get() as { project_id: string | null } | undefined;
   if (!context || (context.project_id != null && context.project_id !== projectId)) throw integrityRefusal();
-  // The library's version 4 holds Goals' v5 (batch 39); the 4→5 step takes it on from there (project-library-v5-upgrade.ts).
+  // Versions 4 and 5 of the library hold Goals' v5 (batch 39); the 5→6 step takes it on from there (project-library-v6-upgrade.ts).
   const target = goalsApprovalTransferManifest(template, GOALS_V5_LIBRARY);
   const updated = { path, ...goalsHistoryPlatformExtension(target) };
   if (!updated.platformSchema) throw integrityRefusal();

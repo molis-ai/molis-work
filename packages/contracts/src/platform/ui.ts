@@ -25,6 +25,15 @@ type AgentStepState = AgentStepBoard["nodes"][number]["state"];
 /** The current contribution only; the Host chooses its address and rechecks its installation. */
 /** Refreshing the shell always uses its current address; plugins cannot select a host URL. */
 export interface UiPageView<Element = unknown> {
+  /** Open this same authorized contribution in the existing task float. Input only locates content; it grants no access.
+   * Closing restores the opening control's focus. Give that control a stable DOM id if rendering may replace it. */
+  openTask(input: Readonly<Record<string, string>>): Promise<void>;
+  /** Present only in a shell-created task projection. Its composer stays separate from the main input. */
+  readonly task?: {
+    readonly input: Readonly<Record<string, string>>;
+    subscribe(listener: (input: Readonly<Record<string, string>>) => void): () => void;
+    close(): void;
+  };
   /** An object's HTML uses this same owner and one declared main surface; the Host chooses its address. */
   readDocument(query?: { object?: { id: string; surface: string }; input?: Readonly<Record<string, string>>; signal?: AbortSignal }): Promise<string>;
   /** Replace the current own-action cleanup; null cancels it. The Host runs it before revoking this page. */
@@ -694,7 +703,7 @@ export interface InteractionNextStep { id: string; label: string; source: string
  * (handed to the page program with it) and Coding's report (BL-158). Each set is the contract's closed set, read as it is.
  */
 export const RECEIPT_WORDS = {
-  FACT: { received: "已送达", applied: "已放进上下文，等 AI 回应", read: "AI 已读到", unread: "这一轮结束时 AI 没读到，留给下一轮", withdrawn: "已撤回" },
+  FACT: { received: "已送达", applied: "AI 已收到，等它回应", read: "AI 已读到", unread: "这一轮结束时 AI 没读到，留给下一轮", withdrawn: "已撤回" },
   TREATMENT: { "apply-now": "立即影响当前这一步", "later-step": "留到后面某一步", "new-task": "作为新任务", "needs-clarification": "需要你澄清", "not-adopted": "暂不采纳", answered: "已在回复里回答", noted: "记下，不改变执行", merged: "与另一条一起处理" },
   KIND: { supplement: "补充", correction: "纠正", constraint: "约束", request: "新需求", question: "提问" },
   IMPACT: { objective: "目标", scope: "范围", priority: "优先级", approach: "实现方案", acceptance: "验收条件", outputs: "已有成果", constraint: "约束" },

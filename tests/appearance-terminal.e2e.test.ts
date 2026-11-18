@@ -24,6 +24,8 @@ test("FSS-18 changing the mono role remeasures the attached terminal without sta
   const rule = join(config, "AGENTS.md");
   const { draft } = characters.service.import({ runtime_id: "codex", config_root: config, captured_at: new Date().toISOString(),
     rules: [{ path: rule, scope: "global", content: "Use only this isolated terminal fixture." }], skills: [] }, { rule_paths: [rule], skill_ids: [] });
+  // Plan C: the imported role is a member of this project, and its native runs show in the member's drawer under 项目设置 › 角色.
+  const member = characters.service.roles.addMember(b.projectId, draft.character_id).current.member_id;
   characters.close();
   const api = `/projects/${b.projectId}/api/plugins/io.molis.work.characters`;
   const { reference } = await b.web.post<{ reference: { artifact_id: string; version: number } }>(api + `/drafts/${draft.character_id}/publish`, { expected_revision: draft.revision });
@@ -47,10 +49,10 @@ test("FSS-18 changing the mono role remeasures the attached terminal without sta
     if (armed && frame.type === "resize") resized.resolve();
   }));
   await b.setViewport(1440, 1000);
-  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?settings=characters` }, b.sessionId));
-  await b.surfaceReady("characters");
-  await b.waitFor("document.querySelector('[data-character-id]')");
-  await b.click("[data-character-id]");
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/settings/characters` }, b.sessionId));
+  const open = `[data-roles-act="open"][data-roles-arg="member:${member}"]`;
+  await b.waitFor(`document.querySelector(${JSON.stringify(open)})`);
+  await b.click(open);
   await b.waitFor("document.querySelector('[data-character-native-runs] button')");
   await b.click("[data-character-native-runs] button");
   await b.evaluate("document.querySelector('[data-character-terminal]').scrollIntoView({block:'center',behavior:'instant'})");
@@ -76,5 +78,5 @@ test("FSS-18 changing the mono role remeasures the attached terminal without sta
   await b.waitFor(`${rows}.textContent.includes('AFTER_MONO_SWITCH')`);
   assert.equal(await b.evaluate(`${rows}.textContent.match(/ISOLATED_TERMINAL_READY/g)?.length`), 1);
   await b.click("[data-character-terminal-stop]");
-  await b.waitFor("document.querySelector('[data-character-terminal-status]').textContent.includes('进程已结束')");
+  await b.waitFor("document.querySelector('[data-character-terminal-status]').textContent.includes('运行已结束')");
 });

@@ -604,7 +604,7 @@ test("FSS-35 FSS-36 the open Diff wait state changes language without replacing 
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(prefix + "/?openPlugin=diff") }, b.sessionId));
   const empty = "document.querySelector('[data-companion=diff] .mw-empty')", refresh = "document.querySelector('[data-companion-refresh]')";
   const message = `${empty}?.querySelector('strong').textContent`;
-  const zh = "先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异", en = "Pin a before and an after in the file reader first, and the difference shows here";
+  const zh = "先在侧栏「资料」阅读器里分别固定「对比前」和「对比后」，这里就会显示两者的差异", en = "Pin a “Before” and “After” version in the Materials reader first to view their differences here";
   await child.waitFor(`${message} === ${JSON.stringify(zh)}`);
   await child.evaluate(`void (()=>{ window.diffOriginal = ${empty}; ${refresh}.focus(); })()`);
   const select = await chooseEnglishInSettings(t, b);
@@ -1125,7 +1125,7 @@ test("FSS-20 FSS-37 the Workbench and its inline Goals share a language change w
   await b.waitFor("typeof t === 'function' && document.querySelector('[data-open-create] span')");
   const projection = await b.evaluate("JSON.parse(document.querySelector('script[data-ui-page-text]')?.textContent || '[]').map(row => [row.slot,row.packs.map(pack => pack.owner)])");
   assert.deepEqual(projection, [["project:goals", ["io.molis.work.goals"]]]);
-  assert.equal(await b.evaluate("t.text('goals.tree-ui.new-goal')"), "新建 Goal");
+  assert.equal(await b.evaluate("t.text('goals.tree-ui.new-goal')"), "新建目标");
   assert.equal(await b.evaluate("t.text('git.commit.plain')"), "这句话暂时显示不了", "an opaque client's words do not enter the shell");
   await b.evaluate("document.querySelector('[data-open-create]').click()");
   await b.waitFor("document.querySelector('dialog[open] input.create-compose-title')");
@@ -1727,9 +1727,12 @@ test("FSS-35 catalog Agent display retains a real role and prompt draft through 
     await select(locale); await b.waitFor(`document.documentElement.lang === '${locale === "zh" ? "zh-CN" : "en"}'`);
     assert.deepEqual(await b.evaluate(words), locale === "en" ? english
       : ["评论中的个人助理", "评论中的个人助理", "评论中的个人助理", "基础约束", "组成角色：评论中的个人助理", "编辑：基础约束"]);
-    assert.deepEqual(await b.evaluate(`(() => { const { body, row, area, history, banner } = catalogEditor; return [body === document.body, row === document.querySelector(${JSON.stringify(row)}),
+    // Since batch 36 Settings › 角色 is a settings document: while the prompts page shows, it waits in the Settings cache (the roots
+    // a language change retitles in place), not in the document; the same row nodes must still be the ones that cache holds.
+    assert.deepEqual(await b.evaluate(`(() => { const { body, row, area, history, banner } = catalogEditor;
+      const cached = selector => (globalThis.molisWorkSettingsLanguageRoots?.() ?? []).map(root => root.querySelector(selector)).find(Boolean) ?? null; return [body === document.body, row === document.querySelector(${JSON.stringify(row)}),
       row.querySelector('textarea') === area, row.querySelector('.prompt-history') === history, banner === document.querySelector('.prompt-role-focus-copy strong'),
-      catalogRole === document.querySelector(${JSON.stringify(link)}), catalogRawRole === document.querySelector(${JSON.stringify(raw)}),
+      cached(${JSON.stringify(link)}) === catalogRole, cached(${JSON.stringify(raw)}) === catalogRawRole,
       history.open, document.activeElement === area, area.value, area.selectionStart, area.selectionEnd, area.selectionDirection]; })()`),
     [true, true, true, true, true, true, true, true, true, "未保存草稿 <raw> English", 2, 9, "backward"]);
   }

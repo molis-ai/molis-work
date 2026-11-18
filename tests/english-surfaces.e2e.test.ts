@@ -53,7 +53,7 @@ test("VUX-40: Goals statuses, Jelly's fixed category and the Git, Diff and Text 
     ["jelly", "document.querySelector('[data-jelly-category-filters] [data-jelly-filter=uncategorized]')", "[data-jelly-category-filters]", "未分类"],
     ["git", "document.querySelector('[data-companion=git] [data-git-status]')?.textContent", "[data-companion=git]", "Git 改动"],
     ["diff", "document.querySelector('[data-companion=diff] [data-companion-content] .mw-empty')", "[data-companion=diff]", "打开资料"],
-    ["text-stats", "document.querySelector('[data-companion=text-stats] [data-companion-content] .mw-empty')", "[data-companion=text-stats]", "固定一份文件快照后"],
+    ["text-stats", "document.querySelector('[data-companion=text-stats] [data-companion-content] .mw-empty')", "[data-companion=text-stats]", "固定一份文件版本后"],
   ];
   for (const [plugin, ready, selector, zh] of pages) {
     await open(plugin, ready);

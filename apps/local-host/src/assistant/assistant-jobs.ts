@@ -134,7 +134,7 @@ export class AssistantJobs {
   async #ended(at: { graph_id: string; node_id: string }): Promise<void> {
     const work = this.#follower(at.graph_id, at.node_id), told = `job:${at.graph_id}:${at.node_id}`;
     // Heard again at every start: one already told, with no card still waiting on it, needs nothing read.
-    if (!work || this.ports.store.noticeRaised(this.ports.actorId, told) && !this.ports.store.cards(work.work_id).some(card => card.status === "running" && card.job_step?.node_id === at.node_id)) return;
+    if (!work || this.ports.store.noticeReceipts.has(this.ports.actorId, told) && !this.ports.store.cards(work.work_id).some(card => card.status === "running" && card.job_step?.node_id === at.node_id)) return;
     const step = (await this.#steps(at.graph_id)).find(node => node.node_id === at.node_id);
     if (!step?.job.ended) return;
     const text = assistantWords(`workbench.assistant-job.${step.job.ended}`, { title: step.title });
@@ -142,12 +142,13 @@ export class AssistantJobs {
     this.#settleCards(work.work_id, step);
   }
 
-  /** The running cards that started the job on `step` say how it ended. */
+  /** The running cards that started the job on `step` say how it ended, in the notice's own words. */
   #settleCards(workId: string, step: JobStep): void {
+    const text = assistantWords(`workbench.assistant-job.${step.job.ended}`, { title: step.title });
     for (const card of this.ports.store.cards(workId).filter(one => one.status === "running" && one.job_step?.node_id === step.node_id)) {
       try {
-        this.ports.store.updateCard(card, card.revision, step.job.ended === "done" ? { status: "done", outcome: "后台已完成" }
-          : step.job.ended === "failed" ? { status: "failed", outcome: "后台没有完成" } : { status: "unknown", outcome: step.job.ended === "expired" ? "过了 6 小时仍没有结束，请到原处查看" : "不能再查看它的状态，请到原处查看" });
+        this.ports.store.updateCard(card, card.revision, step.job.ended === "done" ? { status: "done", outcome: text }
+          : step.job.ended === "failed" ? { status: "failed", outcome: text } : { status: "unknown", outcome: text });
       } catch (error) { if (!(error instanceof ActionError && error.code === "assistant.conflict")) hostLog.warn("assistant", "job_card_unsettled", error); } // Changed meanwhile is expected (the notice still says how the job ended); anything else is written.
     }
   }

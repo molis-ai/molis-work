@@ -19,6 +19,7 @@ export interface HostCapabilityDescriptor {
     operation: HostCapabilityOperation;
     readonly action?: import("@molis-ai/molis-work-contracts/platform/actions").ActionMetadata;
     readonly action_provider?: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider;
+    readonly observation_source?: "trial";
 }
 
 export interface HostCapabilityInvocation extends ActionCallOrigin {
@@ -80,7 +81,7 @@ export interface MolisWorkRuntimeContextHost {
     molisWorkSessionId?: string | null;
     nativeRuntimeSessionId?: string | null;
     hostWorkContextId?: string | null;
-    focus?: ActionSubject | null;
+    focusId?: string | null;
     projectSuggestionClues?: readonly RuntimeProjectSuggestionClue[];
     panelId?: string | null;
 }
@@ -110,6 +111,7 @@ export interface RuntimeIntegrationDetection {
     display_name: string;
     executable_path: string | null;
     config_path: string;
+    skill_path: string;
     connection_state: RuntimeConnectionState;
     message: string;
 }

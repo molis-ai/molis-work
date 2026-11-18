@@ -72,6 +72,19 @@ export interface PresentationObject {
   readonly actions?: readonly PresentationObjectAction[];
   /** The text form for external Agents, terminals and notifications (IUI §4.5): one line per field key, from the same facts as the drawn forms. */
   readonly text?: { readonly lines: readonly string[] };
+  /**
+   * This kind can become a work item on the mainline (specs/work-mainline/contract-design.md §4). Its title, state and whether it is done
+   * are read from this same declaration (a state on the `done` ring family is done), never written twice. Each part is optional and is
+   * `capability_id@version` of this Manifest's own action with the shape `platform/work-items` gives it.
+   */
+  readonly item?: PresentationItemSource;
+}
+
+/** The three optional parts of an item source: 「建成 xx」, the owner's own relation, and the next step. */
+export interface PresentationItemSource {
+  readonly create?: string;
+  readonly related?: string;
+  readonly next?: string;
 }
 
 /** An object's declaration as the platform holds it: with the owning plugin it filled in from its trusted catalog. A declaration never names one. */

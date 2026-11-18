@@ -7,7 +7,7 @@
     "hubspot.connection.inbound": "Feed reads contacts",
     "hubspot.connection.summary": "CRM and marketing.",
     "hubspot.connection.token-label": "HubSpot Service Key / existing Private App Token",
-    "hubspot.guide.cli-link": "HubSpot Agent CLI",
+    "hubspot.guide.cli-link": "View HubSpot CLI",
     "hubspot.guide.mcp-link": "View the official HubSpot MCP",
     "hubspot.guide.oauth-link": "View HubSpot OAuth",
     "hubspot.guide.token-note": "Create a read-only Service Key under Settings → Integrations → Service Keys. Existing Private App Tokens still work.",

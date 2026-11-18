@@ -43,7 +43,8 @@ export interface PrologueCheckPorts {
   workspaceAt?(projectId: string, path: string): Promise<string | undefined>;
   /** Hold the original writable directory by owner, canonical path and filesystem identity through the actual command. */
   holdCommandWorkspace?(projectId: string, workspaceId: string, directory: string, worktreeId?: string): Promise<(import("../review-decisions.js").ReviewDecisionControl & { identity?: string }) | undefined>;
-  holdMcpDirectory?(projectId: string, directory: string): Promise<(import("../review-decisions.js").ReviewDecisionControl & { identity: string }) | undefined>;
+  /** Same project output or named owned worktree, held through the accepting write or actual dispatch. */
+  holdWorkspaceDirectory?(projectId: string, directory: string, worktreeId?: string): Promise<(import("../review-decisions.js").ReviewDecisionControl & { identity: string }) | undefined>;
   /** Narrow, read-only owner checks whose current grants can be proven from durable domain facts. */
   owned?: readonly OwnedConditionChecker[];
   /**

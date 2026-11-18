@@ -179,8 +179,8 @@ test("RAC-2687 the real cross-project placement card opens the associated Goal's
   await waitFor(`Boolean(document.querySelector('dialog.placement-dialog input[name=goal][value="${target.project_id}|goal|CORE"]'))`);
   await click(`dialog.placement-dialog input[name=goal][value="${target.project_id}|goal|CORE"]`);
   await click('dialog.placement-dialog [data-placement-confirm]');
-  await waitFor("[...document.querySelectorAll('.placement-toast button')].some(b=>b.textContent==='打开 Goal')");
-  await navigate(() => evaluate("[...document.querySelectorAll('.placement-toast button')].find(b=>b.textContent==='打开 Goal').click()"));
+  await waitFor("[...document.querySelectorAll('.placement-toast button')].some(b=>b.textContent==='打开目标')");
+  await navigate(() => evaluate("[...document.querySelectorAll('.placement-toast button')].find(b=>b.textContent==='打开目标').click()"));
   await waitFor(`document.body.dataset.projectId===${JSON.stringify(target.project_id)} && document.querySelector('[data-goal-node-workspace]')?.hidden===false`);
   const saved = await evaluate<string>(`localStorage.getItem('molis-work-tab-workspace:'+${JSON.stringify(target.project_id)})`);
   assert.ok(JSON.parse(saved).panes.some((pane: { tabs: Array<{ itemId?: string; view?: string }> }) => pane.tabs.some(tab => tab.itemId === "CORE" && tab.view === "work")));

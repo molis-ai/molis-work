@@ -30,7 +30,7 @@ test("native preparation saves exact files and provenance in Characters' own run
     output: async () => ({ workspace_id: "ws", canonical_path: home, realpath_verified: true, display_name: "Test" }) };
   const ports = characterNativeExecution(options), ref = { artifact_id: "character:board:c", version: 1 };
   const input = { task: "Use my verifier", workspace_id: "ws", request_id: "b9a2b3d4-4333-4222-b555-987654321012" };
-  await assert.rejects(ports.launch(content, ref, { ...input, workspace_id: "unknown" }), /已绑定/);
+  await assert.rejects(ports.launch(content, ref, { ...input, workspace_id: "unknown" }), /已添加的目录/);
   assert.deepEqual(await ports.runs("c"), []);
   const first = await ports.launch(content, ref, input);
   assert.equal(spawned[0].command, "/known/codex"); assert.equal(spawned[0].sessionId, undefined, "the process is not tied to a recorded session");
@@ -53,7 +53,7 @@ test("native preparation saves exact files and provenance in Characters' own run
   await assert.rejects(characterNativeExecution({ ...options, actorId: "other" }).launch(content, ref, input), /其他任务/, "another person cannot take over a panel");
   assert.deepEqual(await characterNativeExecution({ ...options, actorId: "other" }).runs("c"), []);
   assert.deepEqual(await characterNativeExecution({ ...options, projectId: "elsewhere" }).runs("c"), []);
-  await assert.rejects(characterNativeExecution({ ...options, executable: () => null }).launch(content, ref, input), /未发现对应/);
+  await assert.rejects(characterNativeExecution({ ...options, executable: () => null }).launch(content, ref, input), /未检测到对应的外部 AI 工具/);
   // A terminal that refuses the process leaves the run marked failed; the person starts a new request.
   const failing = characterNativeExecution({ ...options, spawn: () => { throw new Error("pty refused"); } });
   const refused = { ...input, request_id: "c1a2b3d4-4333-4222-b555-987654321013" };
@@ -129,9 +129,8 @@ for (const invalidation of ["cancel", "revoke", "publication", "provider"] as co
     workspaces: async () => { if (holding) { entered.resolve(); await release.promise; } return [{ workspace_id: "work", canonical_path: home, realpath_verified: true, display_name: "Fixture" }]; },
     spawn: () => { spawns++; return { attached: false, started: true, replay: "" }; },
     output: async () => ({ workspace_id: "work", canonical_path: home, realpath_verified: true, display_name: "Fixture" }) });
-  const actionPorts: CharactersActionPorts = { actorId: "user", drafts: personal,
+  const actionPorts: CharactersActionPorts = { actorId: "user", open: () => ({ service: personal, close: () => {} }),
     references: () => artifacts.query.listArtifacts(DEMO_PROJECT_ID).map(record => ({ artifact_id: record.artifact_id, version: record.version })),
-    publish: (id, revision, publisher) => personal.publish(id, revision, publisher),
     imports: { ...native, discover: () => [], previewFile: () => { throw new Error("not used"); }, import: () => { throw new Error("not used"); } } };
   // The Host's last synchronous check before each effect: a revoked caller is refused there.
   const service = new ActionService(undefined, { assertCurrent: () => { if (!valid) throw new ActionError("actions.forbidden", "original Character caller revoked"); } });

@@ -105,7 +105,7 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   await press('[data-goal-view="CORE"] [data-goal-materials-entry]');
   await press('[data-placement-goal-materials][data-goal-id="CORE"] [data-placement-create="ppt"]');
   await card("已新建演示稿《");
-  assert.match(await evaluate<string>("[...document.querySelectorAll('.placement-toast')].map(node => node.innerText).join('\\n')"), new RegExp(`存到 项目「${projectTitle}」 · 已关联到这个 Goal`, "u"));
+  assert.match(await evaluate<string>("[...document.querySelectorAll('.placement-toast')].map(node => node.innerText).join('\\n')"), new RegExp(`存到 项目「${projectTitle}」 · 已关联到这个目标`, "u"));
   await waitFor(`Boolean(${visible('[data-placement-material][data-placement-kind="presentation"]')}) && ${visible('[data-placement-material][data-placement-kind="presentation"]')}.innerText.includes(${text(`放在 项目「${projectTitle}」`)})`, 15_000);
   await screenshot("goal-material");
   const deckId = await evaluate<string>(`${visible('[data-placement-material][data-placement-kind="presentation"]')}.dataset.placementId`);
@@ -157,11 +157,12 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   await openPlugin("lingguang", projectId!);
   await press(`[data-lingguang-id="${spark!.id}"]`);
   await press("[data-lingguang-to-goal]");
-  await card("已建成 Goal《展台改成开放式》");
+  await card("已转为目标《展台改成开放式》");
   const kept = await describe({ kind: "lingguang_spark", id: spark!.id, project_id: projectId });
   assert.equal(kept.state, "ok", "the spark stays");
   const labels = kept.associations.map(link => link.label).join(" | ");
   assert.match(labels, /已转成《展台改成开放式》/u);
+  // The association names the relation's declared target type.
   assert.match(labels, /已建成 Goal《展台改成开放式》/u);
   await screenshot("lingguang-converted");
 

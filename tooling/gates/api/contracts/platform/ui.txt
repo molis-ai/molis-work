@@ -959,6 +959,7 @@ export interface UiPageDialogs {
 export interface UiPageDrafts {
     read(key: string): Promise<string | null>;
     write(key: string, value: string | null): Promise<void>;
+    compareAndSwap(key: string, expected: string | null, value: string | null): Promise<boolean>;
 }
 
 export interface UiPageFiles<Element = unknown> {
@@ -1044,6 +1045,12 @@ export interface UiPageTerminal<Element = unknown> {
 }
 
 export interface UiPageView<Element = unknown> {
+    openTask(input: Readonly<Record<string, string>>): Promise<void>;
+    readonly task?: {
+        readonly input: Readonly<Record<string, string>>;
+        subscribe(listener: (input: Readonly<Record<string, string>>) => void): () => void;
+        close(): void;
+    };
     readDocument(query?: {
         object?: {
             id: string;
@@ -1448,7 +1455,7 @@ export type UiTokenValue = string | {
 export interface UiViewCreateEntry {
     readonly station: string;
     readonly title: string;
-    readonly label?: string;
+    readonly title_text?: TextRef;
 }
 
 export interface UiViewDeclaration {
@@ -1472,16 +1479,13 @@ export interface UiViewDeclaration {
     readonly settings_address?: UiSettingsAddressParamsDeclaration;
     readonly stage_data?: UiStageDataDeclaration;
     readonly stage_surfaces?: readonly string[];
+    readonly creates?: UiViewCreateEntry;
+    readonly start?: UiViewStartEntry;
 }
 
 export type UiViewGroup = (typeof UI_VIEW_GROUPS)[number];
 
 export type UiViewHue = (typeof UI_VIEW_HUES)[number];
-
-export interface UiViewIntakeEntries {
-    readonly creates?: UiViewCreateEntry;
-    readonly start?: UiViewStartEntry;
-}
 
 export type UiViewRail = (typeof UI_VIEW_RAILS)[number];
 
@@ -1496,7 +1500,9 @@ export type UiViewSlot = (typeof UI_VIEW_SLOTS)[number];
 
 export interface UiViewStartEntry {
     readonly title: string;
+    readonly title_text?: TextRef;
     readonly hint: string;
+    readonly hint_text?: TextRef;
     readonly icon?: string;
 }
 
@@ -1531,7 +1537,7 @@ export declare const platformUiContract: {
 // Declarations the exports above refer to, which no entry exports itself:
 
 type AgentReviewOwner = {
-    readonly kind: "agent-review" | "goal-acceptance";
+    readonly kind: "agent-review";
     readonly project_id: string;
     readonly plugin_id: string;
     readonly install_id: string;

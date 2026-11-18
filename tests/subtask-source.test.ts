@@ -1,0 +1,291 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { createAgentSubtaskSource, type AgentSubtaskSourcePorts } from "@molis-ai/molis-work-plugin-sdk/subtask-conversation";
+import type { AgentSubagentConversation } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { MwSubtaskConversationView } from "@molis-ai/molis-work-plugin-sdk/ui";
+
+const signal = () => new AbortController().signal;
+
+test("SAI-03/07: public child source localizes empty notices without replacing original text", async () => {
+  const f = fixture(), conversation = data("A");
+  conversation.messages = [
+    { kind: "notice", text: "", notice: "peer-update" },
+    { kind: "notice", text: "", notice: "subagent-input" },
+    { kind: "notice", text: "", notice: "task-unavailable" },
+    { kind: "notice", text: "Exact original report", notice: "peer-update" },
+    { kind: "user", text: "Person words", notice: "peer-update" },
+  ].map((turn, i) => ({ ...turn, turn_id: String(i), at: null, run: conversation.child.child_run! })) as AgentSubagentConversation["messages"];
+  f.ports.read = async () => ({ conversation, parent: { target: "parent", title: "Parent" } });
+  f.ports.text = key => `Translated ${key}`;
+  conversation.child.task = "";
+  conversation.child.continuation_task = { status: "unavailable" };
+  const shown = await f.view(createAgentSubtaskSource(f.ports), "A");
+  assert.deepEqual(shown.messages.map(one => [one.role, one.content]), [
+    ["notice", { text: "Translated notice.peer-update" }], ["notice", { text: "Translated notice.subagent-input" }],
+    ["notice", { text: "Translated notice.task-unavailable" }],
+    ["notice", { text: "Exact original report" }], ["user", { text: "Person words" }],
+  ]);
+  assert.equal(shown.summary, "Translated notice.task-unavailable");
+});
+const data = (target: string, phase: AgentSubagentConversation["phase"] = "completed"): AgentSubagentConversation => ({
+  child: { subagent_id: target, parent_run: { session_id: "parent", run_id: "parent-run" }, child_run: { session_id: target, run_id: `${target}-r1` }, role_id: "writer", task: target, state: "completed", result: "kept", workspace_path: null },
+  phase, messages: [], questions: [], approvals: [],
+});
+function fixture() {
+  const storage = new Map<string, string>(), accepted = new Map<string, string>();
+  let posts = 0, readPhase: AgentSubagentConversation["phase"] = "completed", settle: (() => void) | undefined;
+  const ports: AgentSubtaskSourcePorts = {
+    drafts: { compareAndSwap: async (key, expected, value) => { if ((storage.get(key) ?? null) !== expected) return false; if (value === null) storage.delete(key); else storage.set(key, value); return true; }, read: async key => storage.get(key) ?? null, write: async (key, value) => { if (value === null) storage.delete(key); else storage.set(key, value); } }, labels: {} as AgentSubtaskSourcePorts["labels"], text: key => key,
+    read: async target => ({ conversation: data(target, readPhase), parent: { target: "parent", title: "parent" } }),
+    command: async (target, command) => { posts++; await new Promise<void>(resolve => { settle = resolve; }); accepted.set(command.request_id, target); throw new Error("response lost after acceptance"); },
+    check: async (target, id) => accepted.get(id) === target ? { state: "applied", run: data(target).child.child_run! } : { state: "unknown" },
+  };
+  const view = async (source: ReturnType<typeof createAgentSubtaskSource>, target: string): Promise<MwSubtaskConversationView> => { const result = await source.read(target, signal()); assert.equal(result.state, "available"); return (result as { view: MwSubtaskConversationView }).view; };
+  return { ports, view, phase: (phase: typeof readPhase) => { readPhase = phase; }, release: () => settle?.(), posts: () => posts };
+}
+
+test("SAI-04/10/11: an accepted late A settles only A's submitted draft; remount queries its original request without sending again", async () => {
+  const f = fixture(), source = createAgentSubtaskSource(f.ports), a = await f.view(source, "A"), b = await f.view(source, "B");
+  const inputA = source.composer(a), inputB = source.composer(b);
+  await inputA.draft.adapter.write("sent A"); await inputB.draft.adapter.write("kept B");
+  const send = inputA.submit({ text: "sent A", materials: [], controls: {}, request_id: "request-a" }, signal());
+  // Wait for the transport, after the original request was durably retained.
+  while (!f.posts()) await new Promise(resolve => setTimeout(resolve, 1));
+  await inputA.draft.adapter.write("new A after send");
+  const restored = createAgentSubtaskSource(f.ports), pending = await f.view(restored, "A");
+  assert.equal(pending.pending?.requestId, "request-a"); assert.equal((await restored.act(pending, pending.pending!.check, "ui-query-key", signal())).state, "unknown");
+  f.release(); assert.equal((await send).state, "sent");
+  assert.equal(await inputA.draft.adapter.read(signal()), "new A after send");
+  assert.equal(await inputB.draft.adapter.read(signal()), "kept B");
+  assert.equal((await restored.act(pending, pending.pending!.check, "ui-query-key", signal())).state, "applied"); assert.equal(f.posts(), 1);
+  const reopened = createAgentSubtaskSource(f.ports);
+  assert.equal((await f.view(reopened, "A")).pending, undefined);
+  assert.equal(await reopened.composer(await f.view(reopened, "A")).draft.adapter.read(signal()), "new A after send");
+});
+
+test("SAI-05: explicit continue only enables this stopped execution; opening or stale consent never starts a run", async () => {
+  const f = fixture(); f.phase("stopped"); const source = createAgentSubtaskSource(f.ports), view = await f.view(source, "A");
+  assert.equal(view.inputUnavailable, "continue-note"); assert.equal(f.posts(), 0);
+  assert.equal((await source.act(view, view.actions![0]!, "enable-a", signal())).state, "applied");
+  assert.equal((await f.view(source, "A")).inputUnavailable, undefined); assert.equal(f.posts(), 0);
+  assert.equal((await f.view(source, "B")).inputUnavailable, "continue-note");
+  assert.equal((await f.view(createAgentSubtaskSource(f.ports), "A")).inputUnavailable, "continue-note");
+});
+
+
+test("SAI-08: a permission refusal is explicit denial, not a transient failure that retains an accessible view", async () => {
+  const f = fixture(), source = createAgentSubtaskSource({ ...f.ports, read: async () => { throw Object.assign(new Error("no longer permitted"), { status: 403 }); } });
+  assert.deepEqual(await source.read("A", signal()), { state: "denied", reason: "unavailable" });
+});
+
+
+test("SAI-04/11: a late receipt loses its CAS to a newer draft in another page and preserves that draft", async () => {
+  const f = fixture(), compare = f.ports.drafts.compareAndSwap;
+  let held = false, release!: () => void;
+  const source = createAgentSubtaskSource({ ...f.ports, drafts: { ...f.ports.drafts, compareAndSwap: async (key, expected, value) => {
+    if (!held && expected?.includes('"pending"') && !value?.includes('"pending"')) { held = true; await new Promise<void>(resolve => { release = resolve; }); }
+    return compare(key, expected, value);
+  } } });
+  const view = await f.view(source, "A"), input = source.composer(view);
+  const sending = input.submit({ text: "first", controls: {}, materials: [], request_id: "late" }, signal());
+  while (!f.posts()) await new Promise(resolve => setTimeout(resolve, 1)); f.release();
+  while (!held) await new Promise(resolve => setTimeout(resolve, 1));
+  const other = createAgentSubtaskSource(f.ports), otherInput = other.composer(await f.view(other, "A"));
+  await otherInput.draft.adapter.write("written in the other page"); release();
+  assert.equal((await sending).state, "sent");
+  assert.equal(await otherInput.draft.adapter.read(signal()), "written in the other page");
+  assert.equal((await f.view(other, "A")).pending, undefined);
+});
+
+test("B59-FIX-02: closing before transport clears the original stop without a lookup or a POST", async () => {
+  const f = fixture(); f.phase("running");
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const compare = f.ports.drafts.compareAndSwap;
+  let posts = 0, checks = 0;
+  f.ports.drafts.compareAndSwap = async (key, expected, value) => {
+    if (value?.includes('"requestId":"closed-before-stop"')) { entered.resolve(); await release.promise; }
+    return compare(key, expected, value);
+  };
+  f.ports.command = async (_target, input) => { posts++; return { state: "applied", run: input.child_run }; };
+  f.ports.check = async () => { checks++; return { state: "unknown" }; };
+  const source = createAgentSubtaskSource(f.ports), view = await f.view(source, "A"), life = new AbortController();
+  await source.composer(view).draft.adapter.write("keep this draft");
+  const stopping = source.act(view, view.actions![0]!, "closed-before-stop", life.signal);
+  await entered.promise;
+  life.abort(); release.resolve();
+  assert.equal((await stopping).state, "not-applied");
+  assert.deepEqual({ posts, checks }, { posts: 0, checks: 0 });
+  const reopened = createAgentSubtaskSource(f.ports), restored = await f.view(reopened, "A");
+  assert.equal(restored.pending, undefined);
+  assert.equal(await reopened.composer(restored).draft.adapter.read(signal()), "keep this draft");
+  assert.equal((await reopened.act(restored, restored.actions![0]!, "stop-after-reopening", signal())).state, "applied");
+  assert.equal(posts, 1);
+});
+
+test("B59-FIX-03: first and changed wait snapshots answer the reader without an extra history request", async () => {
+  const f = fixture(), life = new AbortController();
+  const parent = { target: "parent", title: "Parent" };
+  const next = Promise.withResolvers<{ version: string; snapshot: { conversation: AgentSubagentConversation; parent: typeof parent } }>();
+  const invalidated = Promise.withResolvers<void>();
+  const initial = data("A", "running");
+  let reads = 0;
+  f.ports.read = async () => { reads++; return { conversation: data("A"), parent }; };
+  f.ports.wait = async (_target, version, current) => {
+    if (!version) return { version: "first", snapshot: { conversation: initial, parent } };
+    if (version === "first") return next.promise;
+    return new Promise((_, reject) => current.addEventListener("abort", () => reject(current.reason), { once: true }));
+  };
+  const source = createAgentSubtaskSource(f.ports);
+  const unsubscribe = await source.subscribe!("A", () => invalidated.resolve(), life.signal);
+  try {
+    const first = await source.read("A", life.signal);
+    assert.equal(first.state === "available" && first.view.running, true);
+    const second = data("A");
+    second.child.child_run = { session_id: "A", run_id: "A-r2" };
+    next.resolve({ version: "second", snapshot: { conversation: second, parent } });
+    await invalidated.promise;
+    const update = await source.read("A", life.signal);
+    assert.equal(update.state === "available" && update.view.binding, JSON.stringify(second.child.child_run));
+    assert.equal(reads, 0);
+    await source.read("A", life.signal);
+    assert.equal(reads, 1, "an explicit read still checks the owner");
+  } finally { unsubscribe(); }
+});
+
+test("B59-FIX-03: a delayed wait cannot replace a newer or denied owner read", async () => {
+  const life = new AbortController(), f = fixture(), parent = { target: "parent", title: "parent" };
+  type Snapshot = { version: string; snapshot: { conversation: AgentSubagentConversation; parent: typeof parent } };
+  const old = Promise.withResolvers<Snapshot>(), older = Promise.withResolvers<Snapshot>();
+  const delays = new Map([["first", old], ["older", older]]);
+  let invalidated = Promise.withResolvers<void>(), reads = 0, denied = false;
+  const initial = data("A", "running"), continued = data("A");
+  continued.child.child_run = { session_id: "A", run_id: "A-r2" };
+  f.ports.wait = async (_target, since, signal) => {
+    if (!since) return { version: "first", snapshot: { conversation: initial, parent } };
+    return delays.get(since)?.promise ?? new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }));
+  };
+  f.ports.read = async () => {
+    reads++;
+    if (denied) throw Object.assign(new Error("access withdrawn"), { status: 403 });
+    return { conversation: continued, parent };
+  };
+  const source = createAgentSubtaskSource(f.ports);
+  const unsubscribe = await source.subscribe!("A", () => invalidated.resolve(), life.signal);
+  const read = () => source.read("A", life.signal);
+  try {
+    await read();
+    const current = await read();
+    assert.equal(current.state === "available" && current.view.binding, JSON.stringify(continued.child.child_run));
+    old.resolve({ version: "older", snapshot: { conversation: initial, parent } });
+    await invalidated.promise;
+    assert.deepEqual(await read(), current);
+    assert.equal(reads, 2);
+
+    denied = true;
+    invalidated = Promise.withResolvers<void>();
+    const refused = await read();
+    assert.deepEqual(refused, { state: "denied", reason: "unavailable" });
+    older.resolve({ version: "oldest", snapshot: { conversation: initial, parent } });
+    await invalidated.promise;
+    assert.deepEqual(await read(), refused);
+    assert.equal(reads, 4);
+  } finally { unsubscribe(); }
+});
+
+test("B59-FIX-02: closing during a stale input CAS preserves the other page's draft", async () => {
+  const f = fixture(), life = new AbortController();
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const compare = f.ports.drafts.compareAndSwap;
+  let waiting = false, checks = 0;
+  f.ports.drafts.compareAndSwap = async (key, expected, value) => {
+    if (!waiting && value?.includes('"requestId":"closed-input"')) {
+      waiting = true; entered.resolve(); await release.promise;
+    }
+    return compare(key, expected, value);
+  };
+  f.ports.check = async () => { checks++; return { state: "unknown" }; };
+  const source = createAgentSubtaskSource(f.ports), first = source.composer(await f.view(source, "A"));
+  const other = createAgentSubtaskSource(f.ports), latest = other.composer(await f.view(other, "A"));
+  await first.draft.adapter.write("old input");
+  const sending = first.submit({ text: "old input", materials: [], controls: {}, request_id: "closed-input" }, life.signal);
+  await entered.promise;
+  try { await latest.draft.adapter.write("the other page's input"); }
+  finally { life.abort(); release.resolve(); }
+  assert.equal((await sending).state, "failed");
+  assert.equal(await latest.draft.adapter.read(signal()), "the other page's input");
+  assert.equal((await f.view(other, "A")).pending, undefined);
+  assert.deepEqual({ posts: f.posts(), checks }, { posts: 0, checks: 0 });
+});
+
+test("B59-FIX-02: submitting a restored draft preserves another page's edit saved before registration", async () => {
+  const f = fixture(), other = createAgentSubtaskSource(f.ports);
+  const latest = other.composer(await f.view(other, "A"));
+  await latest.draft.adapter.write("restored input");
+  const source = createAgentSubtaskSource(f.ports), first = source.composer(await f.view(source, "A"));
+  assert.equal(await first.draft.adapter.read(signal()), "restored input");
+  await latest.draft.adapter.write("the other page's input");
+  const sent: string[] = [];
+  f.ports.command = async (_target, input) => {
+    assert.equal(input.kind, "continue"); sent.push(input.text);
+    return { state: "applied", run: input.child_run };
+  };
+  assert.equal((await first.submit({ text: "restored input", materials: [], controls: {}, request_id: "restored-input" }, signal())).state, "sent");
+  assert.deepEqual(sent, ["restored input"]);
+  assert.equal(await latest.draft.adapter.read(signal()), "the other page's input");
+  assert.equal((await f.view(other, "A")).pending, undefined);
+});
+
+test("B59-FIX-02: reopening after a failed cleanup of an unsent action checks only the draft", async () => {
+  const f = fixture(), life = new AbortController();
+  f.phase("running");
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const compare = f.ports.drafts.compareAndSwap;
+  let broken = true, checks = 0;
+  f.ports.drafts.compareAndSwap = async (key, expected, value) => {
+    if (value?.includes('"requestId":"unsent-local"')) { entered.resolve(); await release.promise; }
+    if (broken && expected?.includes('"requestId":"unsent-local"') && !value?.includes('"pending"')) throw new Error("draft cleanup unavailable");
+    return compare(key, expected, value);
+  };
+  f.ports.check = async () => { checks++; return { state: "unknown" }; };
+  const source = createAgentSubtaskSource(f.ports), initial = await f.view(source, "A");
+  const stop = source.act(initial, initial.actions![0]!, "unsent-local", life.signal);
+  await entered.promise;
+  life.abort(); release.resolve();
+  assert.equal((await stop).state, "unknown");
+  const reopened = createAgentSubtaskSource(f.ports);
+  const restored = await f.view(reopened, "A");
+  assert.equal(restored.pending?.requestId, "unsent-local");
+  broken = false;
+  assert.equal((await reopened.act(restored, restored.pending!.check, "ui-recovery", signal())).state, "not-applied");
+  assert.equal((await f.view(reopened, "A")).pending, undefined);
+  assert.deepEqual({ posts: f.posts(), checks }, { posts: 0, checks: 0 });
+});
+
+test("SAI-04/06: an unknown accepted answer retains its original reference while a distinct queued resume proceeds once across pages", async () => {
+  const f = fixture(); let current = data("A", "awaiting-input"), resumes = 0;
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  f.ports.read = async () => ({ conversation: current, parent: { target: "parent", title: "parent" } });
+  f.ports.check = async () => ({ state: "unknown" });
+  f.ports.command = async (_target, input) => {
+    if (input.kind === "answer") {
+      current = { ...current, phase: "failed", queued_answer: { pending_id: input.pending_id, pending_revision: input.pending_revision } };
+      return { state: "unknown" };
+    }
+    assert.equal(input.kind, "resume-answer"); resumes++; entered.resolve(); await release.promise;
+    current = { ...current, phase: "completed", child: { ...current.child, child_run: { session_id: "A", run_id: "A-r2" } } }; delete current.queued_answer;
+    return { state: "applied", run: current.child.child_run! };
+  };
+  const first = createAgentSubtaskSource(f.ports), initial = await f.view(first, "A");
+  const answer = await first.act(initial, { id: "answer", ref: JSON.stringify({ pending_id: "q", pending_revision: 1, answers: [{ question: 0, value: 45 }] }), label: "Answer" }, "unknown-answer", signal());
+  assert.equal(answer.state, "unknown");
+  const second = createAgentSubtaskSource(f.ports), before = await f.view(second, "A");
+  assert.equal(before.pending?.requestId, "unknown-answer"); assert.equal(before.pending?.blocking, true);
+  const resume = before.actions!.find(action => action.id === "resume-answer")!; assert.equal(resume.pendingSafe, true);
+  const continuing = second.act(before, resume, "resume-original-answer", signal()); await entered.promise;
+  const competing = await first.act(before, resume, "competing-resume", signal()); assert.equal(competing.state, "not-applied"); assert.equal(resumes, 1);
+  release.resolve(); assert.equal((await continuing).state, "applied");
+  const reopened = createAgentSubtaskSource(f.ports), after = await f.view(reopened, "A");
+  assert.equal(after.pending?.requestId, "unknown-answer", "the old receipt is neither discarded nor guessed successful");
+  assert.equal(after.pending?.blocking, false, "an old exact-question scope cannot lock the new Run");
+  assert.equal((await reopened.check("A", "unknown-answer", signal())).state, "unknown"); assert.equal(resumes, 1, "querying never resumes again");
+});

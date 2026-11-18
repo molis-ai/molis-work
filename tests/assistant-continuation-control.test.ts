@@ -58,7 +58,7 @@ test("ASC-34: an earlier Send failing after a newer accepted input cannot replac
   const work = store.create({ actor_id: "user", title: "Waiting work", scope: { kind: "project", project_id: "project" },
     project_ref: { project_id: "project", storage_key: "memory:project" }, origin: null });
   try {
-    const earlier = assert.rejects(service.send({ work_id: work.work_id, request_id: "earlier-input", text: "Old request", character: { artifact_id: "character", version: 1 } }, {}));
+    const earlier = assert.rejects(service.send({ work_id: work.work_id, request_id: "earlier-input", text: "Old request", character: { kind: "project", member_id: "character" } }, {}));
     await entered.promise;
     const later = service.continuations.begin(store.get("user", work.work_id), "New draft");
     later.accept(); later.end();
@@ -240,7 +240,7 @@ test("B10-R3: draft generations distinguish same-text rewrites from unrelated wo
   } finally { db.close(); }
 });
 
-test("B10-R3: current v1 works and saved send receipts survive a real database reopen without writes", async () => {
+test("B10-R3: the current version works and saved send receipts survive a real database reopen without writes", async () => {
   const directory = await mkdtemp(join(tmpdir(), "assistant-v1-reopen-")), file = join(directory, "assistant.db");
   let db = new DatabaseSync(file);
   const store = new AssistantStore(db), host = new AgentHost({ reviews: new AgentReviewQueue() });
@@ -259,8 +259,9 @@ test("B10-R3: current v1 works and saved send receipts survive a real database r
     service.continuations.close(); db.close();
     const bytes = await readFile(file);
     db = new DatabaseSync(file);
-    assert.equal(ASSISTANT_STORE_BASELINE.version, 1);
-    assert.equal(ASSISTANT_STORE_BASELINE.upgrades, undefined, "the user requested the current first version without a migration");
+    // 1 → 2 (user 2026-11-17) only turns stored outcome sentences into literal text references; a current store is not touched again.
+    assert.equal(ASSISTANT_STORE_BASELINE.version, 2);
+    assert.deepEqual(ASSISTANT_STORE_BASELINE.upgrades?.map(step => step.from), [1]);
     const changes = db.prepare("SELECT total_changes() AS count").get()!.count;
     const reopened = new AssistantStore(db);
     assert.deepEqual(reopened.get("user", work.work_id), saved);
@@ -268,7 +269,7 @@ test("B10-R3: current v1 works and saved send receipts survive a real database r
     assert.equal(reopened.get("user", work.work_id).draft_revision, 4);
     assert.deepEqual(reopened.requests.read("user", "v1-reopen-request"), { state: "sent", result: receipt });
     assert.equal(db.prepare("SELECT total_changes() AS count").get()!.count, changes, "opening and reading do not rewrite stored facts");
-    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 1);
-    assert.deepEqual(await readFile(file), bytes, "reopening current v1 does not rewrite its bytes");
+    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 2);
+    assert.deepEqual(await readFile(file), bytes, "reopening the current version does not rewrite its bytes");
   } finally { service.continuations.close(); db.close(); await rm(directory, { recursive: true, force: true }); }
 });

@@ -6,7 +6,7 @@ import nodeTest from "node:test";
 import { createLocalWebAssets, htmlLang, readText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import {
   parseConditionFrame, pluginOnDemandStylesheet, pluginSettingsStyleLinks, pluginSurfaceClients,
-  renderCharacters, renderCharactersSettingsEntry, renderPluginSettingsContribution,
+  renderCharacters, renderPluginSettingsContribution,
   pluginWorkbenchPacks, pluginWorkbenchStyles, renderMolisWorkConditionsSpecimen, renderPluginFrameSurface, selectorNames,
   splitPluginStylesheet, SETTINGS_DIRECTORY_FACTORY_SCRIPT, type BuiltinPluginWorkbenchPack, type MolisWorkSettingsView,
 } from "@molis-ai/molis-work-app-workbench";
@@ -345,17 +345,22 @@ test("RAC-2848 Coding owns its settings rules inside its registered settings sec
   assert.doesNotMatch(readFileSync(new URL("../apps/workbench/src/styles/settings.ts", import.meta.url), "utf8"), /\.coding-settings/u);
 });
 
+test("RAC-2850 the quiet note (mw-note) the role drawer draws is in each product sheet, not only the visual foundation", () => {
+  for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkSettingsStylesheet()]) assert.match(sheet, /\.mw-note \{ display: flex;/u);
+});
+
 test("RAC-2850 RAC-2851 Characters carries styles inside each extracted section rather than either shared sheet", () => {
-  const entry = renderCharactersSettingsEntry({ projects: [], primitives: { escape: String } });
-  const project = renderCharacters({ route_prefix: "/projects/example", primitives: { escape: String } });
-  assert.match(entry, /<section[^>]+characters-settings-entry[^>]*>\s*<style>/u);
-  assert.match(entry, /\.characters-settings-entry \.characters-project-link/u);
-  assert.match(entry, /\.characters-hint/u);
-  assert.doesNotMatch(entry, /\.characters-(?:terminal|editor|dialog)/u);
-  assert.match(project, /<section[^>]+characters-page[^>]*>\s*<style>/u);
-  assert.match(project, /\.characters-terminal \{ height: 420px/u);
-  assert.match(project, /\.characters-terminal \{ height: 350px/u);
+  // Settings › 角色 and 项目设置 › 角色 are the same section drawn for the person or for one project (docs/design/role-scope).
+  const personal = renderCharacters({ route_prefix: "/projects/personal", scope: "personal", primitives: { escape: String } });
+  const project = renderCharacters({ route_prefix: "/projects/example", scope: "project", primitives: { escape: String } });
+  for (const page of [personal, project]) {
+    assert.match(page, /<section[^>]+roles-page[^>]*>\s*<style>/u);
+    assert.match(page, /\.roles-drawer/u);
+    assert.match(page, /\.characters-terminal \{ height: 420px/u);
+    assert.match(page, /\.characters-terminal \{ height: 350px/u);
+  }
   for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkSettingsStylesheet()]) {
-    assert.doesNotMatch(sheet, /\.characters-(?:terminal|project-link|page|dialog|steps)/u);
+    assert.doesNotMatch(sheet, /\.characters-(?:terminal|project-link|page|dialog|steps)|\.roles-(?:page|drawer|row)/u);
   }
 });
+

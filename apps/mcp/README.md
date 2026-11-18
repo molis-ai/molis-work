@@ -15,9 +15,9 @@
 | 文件 | 用途 |
 | --- | --- |
 | [src/protocol.ts](src/protocol.ts) | handleMcpMessage：协议处理 |
-| [src/tool-catalog.ts](src/tool-catalog.ts) | 平台工具目录：7 个连接工具（`RUNTIME_MCP_TOOLS`），以及 `platformMcpTools(read)`——把受信管理入口的 initialize、event_decide、goal_tree_decide 三个工具接在 Host 从动作目录读出的 Goals 动作描述与业务字段上（Host 的 `MCP_TOOLS`）。插件与 Goals 能力都是动作工具，不在这里写死 |
-| [src/goal-tools.ts](src/goal-tools.ts) | 三个管理工具的 wire：传输自己的项目、数据库与出处字段，业务字段取自传进来的动作描述 |
-| [src/tool-dispatch.ts](src/tool-dispatch.ts) | 三个管理工具的 wire 适配；只接 Host 构造的管理动作端口或 null；`MANAGEMENT_GOAL_ACTIONS` 是它调用的三个 Goals 动作的 id 与版本（不 import 任何 Goals 合同，PG-111，门禁 `checkGoalTransportCallers`） |
+| [src/tool-catalog.ts](src/tool-catalog.ts) | 平台工具目录：7 个连接工具（`RUNTIME_MCP_TOOLS`），以及 `platformMcpTools(read)`——把受信管理入口的 `initialize`、`review_request`、`review_decide` 三个工具接在 Host 的 `MCP_TOOLS` 上。`initialize` 读 Goals 的初始化动作；两个 review 工具读平台的 `project-approvals` 合同，不依赖 Goals。插件与 Goals 能力都是动作工具，不在这里写死 |
+| [src/goal-tools.ts](src/goal-tools.ts) | `initialize` 的 wire：传输自己的项目、数据库与出处字段，业务字段取自传进来的动作描述 |
+| [src/tool-dispatch.ts](src/tool-dispatch.ts) | 三个管理工具的 wire 适配；只接 Host 构造的管理动作端口或 null；`MANAGEMENT_GOAL_ACTIONS` 只列 `initialize` 的 Goals 动作，`MANAGEMENT_REVIEW_TOOL_NAMES` 列平台 `trustedReviewActions` 的 read/decide；不 import 任何 Goals 合同（PG-111，门禁 `checkGoalTransportCallers`） |
 | [src/launcher-validation.ts](src/launcher-validation.ts) | 启动器验证 |
 
 可对照现有调用方 [apps/local-host/src/mcp-server.ts](../local-host/src/mcp-server.ts) 阅读装配方式。
@@ -53,8 +53,8 @@ node scripts/run-tests.mjs tests/host-entry-consistency.test.ts
 - 依赖：`@molis-ai/molis-work-contracts`。方向：apps → 组合根 → 公开合同（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - Runtime 与 Session 身份由 Host 写入，工具参数不能自填用户、批准或身份。连接工具（绑定、解绑、拒绝建议、新建并绑定、删项目）也不收 `actor_id`：操作者是 Host 记下的 MCP 客户端与 Runtime 会话（`ports.actorFor`），参数里带身份字段被 `mcp.unexpected_field` 拒绝，什么也不写；删项目交给 Host 的删除服务（`ports.deleteProject`），本包不自己开项目目录删。
-  - 三个管理工具各调用一个 Goals 动作：`initialize` → `goals.board.initialize`（S8：只收 `project_id` 与 `idempotency_key`，不再收 `title`），`event_decide` → `goals.decisions.record`，`goal_tree_decide` → `goals.tree.decide`。Host 私有的 `bindGoalsManagementActions` 复用命令行的本人身份、management 出处、动作自己的权限和单一授权；本包没有 Host 客户端、typed Goals 描述符或第二份工厂，Runtime 只得到 null 端口。
-  - `goal_tree_decide` 不收身份：schema 里没有 `actor_id`、`actor_kind`、`audit_actor_id`、`runtime_actor_id`，`authority` 只指向对话出处，带 `actor_id`、`actor_kind`、`authority_source` 被宿主拒绝；决定记本机这个人，没有 Runtime 转交。`event_decide` 只取当前 schema 的业务字段，额外身份或 `authority` 仍以 `mcp.unexpected_field` 拒绝；Host 为它生成管理入口默认的对话出处。`initialize` 仍手选并转字符串，额外身份字段忽略。
+  - 三个管理工具不再各绑一个 Goals 决定动作：`initialize` → `goals.board.initialize`（S8：只收 `project_id` 与 `idempotency_key`，不再收 `title`）；`review_request`／`review_decide` → 平台的 `project.approvals.request.read`／`project.approvals.request.decide`，由 Host 的受保护决定服务 `decideProjectReview` 读取/提交原请求。Host 私有的管理端口复用命令行的本人身份、management 出处、动作自己的权限和单一授权；本包没有 Host 客户端、typed Goals 描述符或第二份工厂，Runtime 只得到 null 端口。
+  - 两个 review 工具不收身份：输入 schema 只有原动作引用、待审对象、选项、操作键和备注（`TRUSTED_REVIEW_READ_SCHEMA`／`TRUSTED_REVIEW_COMMAND_SCHEMA`），没有 `actor_id`、`actor_kind`、`authority`；身份、项目、安装和出处由 Host 从当前管理入口注入。`initialize` 仍手选并转字符串，额外身份字段忽略。旧 `molis_work_v1_event_decide`／`molis_work_v1_goal_tree_decide` 已删除，调用方按 [第 39 批升级须知](../../docs/releases/CHANGELOG.md) 改用上面两个工具。
   - 项目路径仍由 Host 解析，参数 `database_path` 优先于 `MOLIS_WORK_DATABASE`，没有默认路径。生产管理 MCP 先校验 wire 与身份/出处，经同一按需启动服务就绪后只向 Home 转发；不在 MCP 里准备目录、打开 Catalog/项目库或调用本地管理动作，项目归属由常驻 Host 再核。显式嵌入式管理入口保留原独立数据库路径及空预打开；前置身份、authority 或未知字段拒绝可无动作行、无编号。真正进入动作的调用只结算一次，结果或错误里的编号能查到这一行，客户端自带的 `_meta` 编号不读。
   - 精确授权但暂不可用的动作保留调用条目，`tools/list`隐藏；按原名字调用进入同一动作服务并保留原因、code与实际已记录的编号，未授权或provider/version不匹配仍拒绝。
   - 平台工具只有连接工具与受信管理入口的工具；其余能力都是动作工具，不进本包的静态目录，也不按名称写 `if`。

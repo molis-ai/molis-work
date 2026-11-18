@@ -42,6 +42,10 @@
       "reason": "安装器写的收据，生成在构建好的工作区上跑，没有运行安装器；快照也排除它"
     },
     {
+      "path": "mainline/mainline.db",
+      "reason": "第 36 批新增的主线 Home 库；现有金样（0.1.1-dev.4）生成于第 36 批之前。回放时由 tests/golden-writes/mainline.ts 建一件事项、移到别的分组并读回；下次重铸金样后纳入快照。"
+    },
+    {
       "path": "feed/evidence/blobs/**",
       "reason": "Feed 抓到外部内容才写，金样不联网（UPG2-06）"
     },
@@ -76,6 +80,10 @@
     {
       "path": "evaluation/evaluation.db",
       "reason": "第 30 批新增的端到端评测 Home 库（按需懒打开，普通使用不产生空文件）；现有历史金样生成时未跑评测样本，由 tests/evaluation-service.test.ts、tests/home-store-baselines.test.ts 与库结构快照覆盖建库、读写、离线快照和删项目。"
+    },
+    {
+      "path": "acceptance/commit-intents/<decision_id>.json",
+      "reason": "短命两阶段回执：只有 acceptance 已提交而项目库最终提交失败/崩溃后才存在；正常金样没有待恢复决定，恢复成功后立即删除。原子写入、按项目幂等恢复、无待办不创建 acceptance 库由 tests/security-invariants-acceptance.test.ts 覆盖；删除项目由 purgeAcceptanceProject 清理。"
     }
   ],
   "writes": {
@@ -129,6 +137,11 @@
     "external-sessions/external-sessions.db": {
       "cases": [
         "external-sessions.ts"
+      ]
+    },
+    "mainline/mainline.db": {
+      "cases": [
+        "mainline.ts"
       ]
     },
     "plugin-originals/plugin-originals.db": {

@@ -1,9 +1,12 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { accountTransition } from "../account-transition.js";
+import { installTaskFloatShell } from "../task-float-shell.js";
+import type { AssistantBoardSamples } from "../../assistant-board-samples.js";
 /**
  * The component board's Assistant frame (apps/workbench/src/assistant-board-frame.ts, specs/visual-ui-experience VUX-39): a
  * stand-in for the Host that answers the shipped island from fixed works, and the frame's two simulated actions.
  *
- * - Reads under `route()` are answered from the samples the Host drew: the list, a work, its surroundings, the long wait that
+ * - Reads under `route()` are answered from the samples the Host drew: the list, a work, a delegated conversation, its surroundings, the long wait that
  *   follows a running work (it answers when 「推进一步」 moves the work on, or after 20 s with the same view, as the Host does).
  * - Writes are refused with one plain reason, so a confirmation, a Send or an image the Host would read all fail where the
  *   island shows a failure. In memory it keeps a work's unsent text, takes the answer to the sample question (the round goes
@@ -20,11 +23,9 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
  *   and a picture the stand-in Host refuses, so the strip shows the parts that failed beside the one that went in.
  */
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { AssistantExecutorOffer } from "@molis-ai/molis-work-contracts/services/assistant";
-type Json = Record<string, unknown>;
-type View = { work: Json & { work_id: string }; [key: string]: unknown };
-type Samples = { project: { id: string; title: string }; works: Array<Json & { work_id: string; delegated_by?: unknown }>; views: Record<string, View>; surroundings: Record<string, Json>; executors: AssistantExecutorOffer[];
-  next: Record<string, View[]>; answered: Record<string, View>; closed: Record<string, View>; recovery: Record<string, Json>; notices: Array<Json & { notice_id: string; work_id: string }>;
+import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+type View = AssistantWorkView;
+type Samples = AssistantBoardSamples & {
   /** The lines beside each field for a questionnaire answer the Runtime refuses, by question, as the Host drew them. */
   refused: Record<string, Record<string, string>> };
 type Page = Window & { readText?: (text: string, values?: Record<string, string | number>) => string; molisWorkRequest?: Pick<UiRequest, "toast"> };
@@ -33,7 +34,8 @@ const page = window as Page;
 const one = <T extends Element = HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 const data = JSON.parse(one("#mw-asst-data").textContent ?? "{}") as { samples: Samples; current: string | null; answer: "ok" | "refused" };
 const S = data.samples;
-const PREFIX = "/__ui/catalog/assistant/sample";
+const PREFIX = "/projects/" + encodeURIComponent(S.project.id);
+const simulated = () => uiText.text("workbench.assistant-frame.sample-does-not-carry-out-simulated");
 
 // The island's own memory, in memory: the open work and the tabs of every sample work, so the list and the tabs start full.
 // A sub-task opens from the work that handed it on, so only the works the person started have tabs.
@@ -56,7 +58,7 @@ HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOption
 const versions = new Map<string, number>(S.works.map((work) => [work.work_id, 1]));
 const waiting = new Map<string, Array<() => void>>();
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-const refuse = () => json({ error: uiText.text("workbench.assistant-frame.sample-does-not-carry-out-simulated"), code: "workbench.board_sample" }, 409);
+const refuse = () => json({ error: simulated(), code: "workbench.board_sample" }, 409);
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const answerWait = (id: string, since: string | null, signal?: AbortSignal | null) => new Promise<Response>((resolve, reject) => {
   const done = () => { clearTimeout(timer); resolve(json({ version: String(versions.get(id)), view: copy(S.views[id]) })); };
@@ -99,6 +101,9 @@ function answer(url: URL, method: string, body: string | null, signal?: AbortSig
   const id = parts[0] === "works" ? parts[1] ?? "" : "", view = S.views[id];
   if (method === "GET" && parts.length === 1 && READS[parts[0]!]) return json(READS[parts[0]!]!());
   if (method === "GET" && view && parts.length === 2) return json(copy(view));
+  if (method === "GET" && parts.length === 3 && parts[2] === "subtask" && view?.work.delegated_by) {
+    return json({ view: copy(view), binding: null, parent_subtask: false, input_unavailable: simulated() });
+  }
   if (method === "GET" && view && parts[2] === "wait") return answerWait(id, url.searchParams.get("since"), signal);
   if (method === "GET" && view && parts[2] === "surroundings" && S.surroundings[id]) return json(copy(S.surroundings[id]));
   if (method === "GET" && view && parts[2] === "recovery") return json(copy(S.recovery[id] ?? { blockers: [], rounds: [] }));
@@ -135,6 +140,10 @@ window.molisWorkUiTransport = (input, init) => {
   if (url.origin === location.origin && url.pathname.startsWith(PREFIX + "/api/assistant/")) return Promise.resolve(answer(url, method, typeof init?.body === "string" ? init.body : null, init?.signal));
   return Promise.resolve(refuse());
 };
+
+// The same float and lazy conversation used in the project, with the sample transport already installed.
+accountTransition({ scope: null });
+const taskFloat = installTaskFloatShell({ dialog: "assistant-panel", back: () => taskFloat.hide() });
 
 const toastNode = one("[data-toast]"), status = one("[data-asst-state]");
 const toast = (message: unknown) => page.molisWorkRequest?.toast(toastNode, typeof message === "string" ? undefined : message, typeof message === "string" ? message : undefined, { ms: 2200 });

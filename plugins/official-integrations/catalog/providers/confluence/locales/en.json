@@ -10,7 +10,7 @@
     "confluence.guide.mcp-link": "View Atlassian Rovo MCP",
     "confluence.guide.oauth-link": "View Atlassian OAuth 2.0",
     "confluence.oauth.site-url": "Atlassian site",
-    "confluence.setup.create-atlassian-api-token": "Create Atlassian API Token",
+    "confluence.setup.create-atlassian-api-token": "Create Atlassian API token",
     "confluence.setup.view-confluence-authentication-guide": "View Confluence authentication guide"
   }
 }

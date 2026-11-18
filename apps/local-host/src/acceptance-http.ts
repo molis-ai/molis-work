@@ -12,6 +12,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
+import { recoverAcceptanceCommits } from "./acceptance-recovery.js";
 import { decideProjectReview, readProjectReview, type ProtectedReviewEntry } from "./project-review-commands.js";
 import { projectReviewPerson } from "./project-review-entry.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -78,8 +79,10 @@ async function submitAcceptanceDecision(host: MolisWorkLocalHost, project: Local
 }
 
 /** The workbench's own doors to requirements and acceptance in one project, as the person (S-acceptance-person-decides, S-work-line-person-doors). */
-export async function handleAcceptanceHttp(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost, project: LocalHostProjectReference): Promise<boolean> {
+export async function handleAcceptanceHttp(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost,
+  project: LocalHostProjectReference, homeDirectory?: string): Promise<boolean> {
   if (!url.pathname.startsWith("/api/acceptance/")) return false;
+  if (homeDirectory) await recoverAcceptanceCommits(host, homeDirectory, async id => id === project.project_id ? project : null, project.project_id).catch(() => undefined);
   const controller = new AbortController(), cancel = () => controller.abort(new ActionError("actions.cancelled", "请求已经结束"));
   const disconnected = () => { if (!response.writableEnded) cancel(); };
   request.once("aborted", cancel); response.once("close", disconnected);

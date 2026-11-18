@@ -113,6 +113,18 @@ test("APR-11: stopping races a first grant before the final CAS and persists a t
   assert.equal((await f.restart().permission(subject)).automatic?.selection.id, reopened.selection_id);
 });
 
+test("APR-11: a held work lifetime survives a selection revoke but ends with the work and stays ended across restart", async () => {
+  const f = fixture(), saved = await f.store.grant(subject, grant(), control);
+  const held = await f.store.holdWorkLifetime(subject);
+  const revoked = await f.store.revoke(subject, change(saved), control);
+  held();
+  assert.equal((await f.store.permission(subject)).mode, "confirm");
+  const ending = await f.store.beginEnd(subject, revoked.epoch, "stopped", control);
+  await f.store.finishEnd(subject, ending.epoch, control);
+  assert.throws(held, { code: "agent.delegation_ended" });
+  await assert.rejects(f.restart().holdWorkLifetime(subject), { code: "agent.delegation_ended" });
+});
+
 test("APR-11: revoke invalidates synchronously and waits for original cancellation acknowledgement", async () => {
   const f = fixture(), saved = await f.store.grant(subject, grant(), control), cancelled = deferred(), entered = deferred();
   f.store.subscribe(() => { entered.resolve(); return { settle: () => cancelled.promise }; });

@@ -99,7 +99,7 @@ export class AssistantTaskReports {
 }
 
 interface ReportRoundPorts {
-  store: Pick<AssistantStore, "list" | "noticeRaised" | "raiseNotice">;
+  store: Pick<AssistantStore, "list" | "noticeReceipts" | "raiseNotice">;
   actorId: string;
   /** The main conversation's session: a round going, or a recovery, means it is busy. */
   session(work: StoredWork): Promise<{ recovery?: unknown; latest_run: { phase: AgentRunView["phase"] } | null }>;
@@ -132,7 +132,7 @@ export class AssistantReportRounds {
     const main = this.#main(report.project_id), { row, end } = report, failed = end === "failed";
     if (!main || Date.parse(row.updated_at) < Date.parse(main.created_at)) return "none";
     const key = `task-report-${createHash("sha256").update(JSON.stringify([report.project_id, row.id, end, row.updated_at])).digest("base64url").slice(0, 32)}`;
-    if (this.ports.store.noticeRaised(this.ports.actorId, key)) return "none";
+    if (this.ports.store.noticeReceipts.has(this.ports.actorId, key)) return "none";
     // A job a conversation started and follows returns to it (assistant-jobs.ts): its provider may not know who started it.
     if (await this.ports.follows(report.project_id, row.subject.id)) return "none";
     if (main.session_id) {

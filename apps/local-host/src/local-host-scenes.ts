@@ -91,9 +91,9 @@ export function createSceneClient(host: SceneHost, reference?: LocalHostProjectR
           ?? { available: false as const, code: "actions.forbidden", reason: "当前调用者未获此场景操作的授权" };
         const disable = managed(management?.disable), enable = managed(management?.enable);
         const configurationAvailability = !target.configuration_availability.available ? target.configuration_availability
-          : !source ? { available: false as const, code: "actions.scene_missing", reason: "消费场景已不存在" } : !source.configuration_availability.available ? source.configuration_availability : disable;
+          : !source ? { available: false as const, code: "actions.scene_missing", reason: "此用途已不存在" } : !source.configuration_availability.available ? source.configuration_availability : disable;
         return { ...target, configuration_availability: configurationAvailability, availability: !target.availability.available ? target.availability
-          : !source ? { available: false as const, code: "actions.scene_missing", reason: "消费场景已不存在" }
+          : !source ? { available: false as const, code: "actions.scene_missing", reason: "此用途已不存在" }
             : !source.availability.available ? source.availability : !source.compatible ? { available: false as const, code: "actions.scene_incompatible", reason: source.reason ?? "判断与场景不兼容" }
               : !enable.available ? enable : judgment ? fn?.availability ?? { available: false as const, code: "actions.forbidden", reason: "判断能力不可访问" } : target.availability };
       });

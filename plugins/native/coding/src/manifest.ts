@@ -1,6 +1,6 @@
 import { memoryLearningActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { searchActions, SEARCH_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/search";
-import { CHARACTER_ARTIFACT_TYPE, characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
+import { characterRoleActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { HOST_AGENT_CONTINUATION_READY_EVENT, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities, agentOfferActions } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -58,7 +58,7 @@ export const codingManifest: PluginManifest = {
   version: /* @version product.release */ "0.1.0",
   name: "Coding",
   sync: codingSync,
-  summary: "和 Agent 一起写代码，留每轮记录。", summary_text: { key: "coding.directory.summary" },
+  summary: "与 Agent 协作编写代码，完整记录每一轮。", summary_text: { key: "coding.directory.summary" },
   kind: "app",
   publisher: { publisher_id: "molis", signature: CODING_PUBLISHER_BINDING },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -68,14 +68,14 @@ export const codingManifest: PluginManifest = {
     { permission: "goals:write", required: true, reason: "按用户确认把固定执行报告记录为原目标的进展" },
     { permission: "artifact:read", required: true, reason: "读取本项目已保存的执行报告、计划与变更集" },
     { permission: KNOWLEDGE_READ_PERMISSION, required: true, reason: "读取用户为下一轮选定的项目资料" },
-    { permission: SKILLS_READ_PERMISSION, required: true, reason: "列出共同目录里给 Coding 用的技能，并按这一轮选定的技能读取正文" },
+    { permission: SKILLS_READ_PERMISSION, required: true, reason: "列出能力库里给 Coding 用的技能，并按这一轮选定的技能读取正文" },
     { permission: "storage:private", required: true, reason: "保存编码会话的未发送草稿" },
     {
       permission: "artifact:write",
       required: true,
       reason: "把变更集、报告与图作为成果发布，带来源与版本",
     },
-    { permission: "workspace:read", required: true, reason: "读取已关联工作目录里的目录与文本，用于任务里 @ 提到的文件与目录" },
+    { permission: "workspace:read", required: true, reason: "读取已关联项目目录里的目录与文本，用于任务里 @ 提到的文件与目录" },
     { permission: "model:read", required: true, reason: "读取全局模型设置里可用的模型，供每一轮选用；不发起模型请求" },
     // The round's model call is the Agent runtime's; `model:invoke` covers only Coding's two explicit drafts (`agent.draft-text`):
     // the commit message and the digest of earlier rounds. Turned off, only those two stop (PG-035).
@@ -97,8 +97,9 @@ export const codingManifest: PluginManifest = {
       ...Object.values(agentInputActions).map((entry) => entry.capability_id),
       ...Object.values(agentOfferActions).map((entry) => entry.capability_id),
       ...Object.values(GOALS_ACTIONS).map(entry => entry.capability_id),
-      // The person's published Characters, and whether a version can run now (PG-086).
-      ...Object.values(characterPluginActions).map(entry => entry.capability_id),
+      // The person's roles (one catalog read) and the role a session with no choice of its own gets (role-service-design §5).
+      characterRoleActions.list.capability_id,
+      characterRoleActions.resolve.capability_id,
       knowledgeActions.read.capability_id,
       knowledgeActions.list.capability_id,
       // A folder file, a quote or a snapshot chosen as a round's material is read through the platform's materials service.
@@ -118,7 +119,7 @@ export const codingManifest: PluginManifest = {
   // The run report is the version people keep; plans, goal context, change sets and diagrams are exchange data.
   artifacts: {
     produces: [{ artifact_type_id: CODING_REPORT_TYPE, schema_version: /* @version type.coding.report */ 1, title: "Coding 执行报告", title_text: { key: "coding.artifacts.type-title" }, preview: { capability_id: "coding.artifacts.preview", version: /* @version action.coding.artifacts.preview */ 1 } }],
-    consumes: [CHARACTER_ARTIFACT_TYPE, CODING_REPORT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: artifact_type_id === CHARACTER_ARTIFACT_TYPE ? /* @version type.character.definition */ 1 : CODING_ARTIFACT_SCHEMA_VERSIONS[artifact_type_id]! })),
+    consumes: [CODING_REPORT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: CODING_ARTIFACT_SCHEMA_VERSIONS[artifact_type_id]! })),
   },
   process_items: {
     produces: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE, CODING_DIAGRAM_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: CODING_ARTIFACT_SCHEMA_VERSIONS[artifact_type_id]! })),
@@ -160,6 +161,10 @@ export const codingManifest: PluginManifest = {
   // 可承接上手材料 (batch12-design §7): onboarding hands Coding the person's code folder through this action, never by name.
   actions: [memoryLearningActions.run, ...CODING_ACTIONS, ...codingPresentationActions, ...Object.values(codingExecutorActions), codingOnboardingTake, codingArtifactPreview, codingResultDocument, codingBackgroundTasks, codingWorkEventsAction],
   routes: [
+    { route_id: "coding.read-subtask-conversation", method: "GET", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/conversation" },
+    { route_id: "coding.wait-subtask-conversation", method: "GET", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/conversation/live" },
+    { route_id: "coding.check-subtask-request", method: "GET", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/conversation/request" },
+    { route_id: "coding.command-subtask", method: "POST", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/conversation" },
     { route_id: "coding.evaluate-step", method: "POST", path: "/sessions/:sessionId/runs/:runId/steps/:stepId" },
     { route_id: "coding.writer-directories", method: "GET", path: "/workspaces/:workspaceId/writers" },
     { route_id: "coding.prepare-writer-directory", method: "POST", path: "/workspaces/:workspaceId/writers" },

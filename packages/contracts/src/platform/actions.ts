@@ -10,7 +10,7 @@ export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
 import type { ActionDelegationDeclaration } from "./action-delegation.js";
 import type { ActionDelegationSource, ActionPersonEntry } from "./action-source.js";
-import type { UiLanguageTag } from "./ui-text.js";
+import type { OwnedTextRef, UiLanguageTag } from "./ui-text.js";
 import type { ActionResultView } from "./action-result.js";
 import type { SubjectOfferChoice } from "./action-offers.js";
 export * from "./background-tasks.js";
@@ -39,6 +39,7 @@ export * from "./file-sources.js";
 export * from "./artifact-pins.js";
 export * from "./local-person.js";
 export * from "./placement.js";
+export * from "./work-items.js";
 export * from "./work-executors.js";
 
 export type { ActionSchema } from "./action-schema.js";
@@ -391,7 +392,7 @@ export interface ActionMetadata {
  * Stable, transport-neutral action identity with its metadata. The optional type member is compile-time only; JSON transports
  * use the public descriptor fields.
  */
-export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDescriptor {
+export interface ActionDefinition<Input = unknown, Output = unknown> extends Omit<HostCapabilityDescriptor, "observation_source"> {
   readonly __types__?: { input: Input; output: Output };
   /** An action is a query or a command; following a live round is a query declared `scheduling: "concurrent"`. */
   readonly operation: "query" | "command";
@@ -402,6 +403,11 @@ export interface ActionDefinition<Input = unknown, Output = unknown> extends Hos
 export interface ActionProvider {
   readonly provider_id: string;
   readonly title: string;
+  /**
+   * Set only by the Plugin Runtime's registration, from the Manifest's `name_text` bound to the plugin: the name to keep where it is
+   * shown later, so it reads in the language shown then. `title` is the Manifest's `name` as written.
+   */
+  readonly title_text?: OwnedTextRef;
   readonly kind: "system" | "plugin" | "mcp";
   /** A project activation cannot accidentally service another project's calls. */
   readonly project_id?: string;
@@ -466,6 +472,12 @@ export interface ActionHandlerBinding {
   readonly version: number;
   /** Trusted provider promises that this handler completes without yielding. */
   readonly execution?: "sync";
+  /**
+   * Host-only: the class the kernel gives this action's own `action.call` record, when its provider is `system`. A replay runs its
+   * model calls under `withObservationSource("trial")`, but the call's exit happens after the handler, so the class has to be carried
+   * by the registration; a plugin provider's value is ignored.
+   */
+  readonly observation_source?: "trial";
   handle(context: ActionExecutionContext, input: unknown): unknown | Promise<unknown>;
   availability?(context: ActionCallContext): ActionAvailability;
 }

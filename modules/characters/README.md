@@ -1,10 +1,10 @@
 # Characters
 
-个人 Character 草稿与启用状态的唯一写入方。草稿跨项目复用，按本人隔离；修改与状态变更使用修订检查，删除保留墓碑。
+个人角色（Character）的唯一写入方：原件与它的版本、项目里的角色（成员）与它的版本、个人与项目两层默认、模板采用回执（第 36 批，[role-service-design](../../specs/onboarding-coverage/role-service-design.md)）。原件跨项目复用，按本人隔离；新建即存第 1 版，之后每次内容有变就存下一版；修改与状态变更使用修订检查，删除保留墓碑。选角色只给稳定引用，版本由 Host 起跑时经 `roles.snapshot` 钉住并读回。
 
-个人空间本机同步可选传输草稿、状态和导入快照；导入快照超出 512 KiB 时留在本机并报限额。发布后的固定版本仍由 Artifacts 同步，不复制安装授权或执行状态。
+个人空间本机同步可选传输草稿、状态和导入快照（角色版本、成员与默认的新表暂不同步，见 `BL-character-roles-sync`）；导入快照超出 512 KiB 时留在本机并报限额。发布后的固定版本仍由 Artifacts 同步，不复制安装授权或执行状态。
 
-公开入口提供查询、草稿命令和同步发布回调，并提供角色的全部动作：声明（`CHARACTERS_ACTIONS` / `charactersActions`，`src/actions.ts`）、处理器 `createCharactersActionHandlers(ports, runtime)`（列表、草稿、发布、固定版本的复用与替换、导入与预览、可运行判断、执行与启动的核对、用法登记、成果预览）和归属绑定 `bindCharactersActions`（`src/action-bindings.ts`）。Characters 不是插件（CHR-1，2026-10-22）：Host 用自己的端口（本人身份、草稿服务、发布者、本机导入）建出处理器，并为每个项目注册这些动作的提供方（`apps/local-host/src/characters-host.ts`），页面的地址由 Host 的 `apps/local-host/src/characters-http.ts` 接。Artifact 的固定正文、版本、来源仍由原 Artifacts Module 拥有；本模块只在确认草稿仍有效时，将固定内容交给 Host 注入的发布者，不直接依赖或写入另一个业务模块。
+公开入口提供查询、草稿命令和同步发布回调，并提供角色的全部动作：声明（`CHARACTERS_ACTIONS` / `charactersActions`，`src/actions.ts`）、处理器 `createCharactersActionHandlers(ports, runtime)`（角色目录与解析、版本与恢复、项目成员、默认、模板采用、草稿、发布、导入与预览、执行与启动的核对、用法登记、成果预览）和归属绑定 `bindCharactersActions`（`src/action-bindings.ts`）。Characters 不是插件（CHR-1，2026-10-22）：Host 用自己的端口（本人身份、草稿服务、发布者、本机导入）建出处理器，并为每个项目注册这些动作的提供方（`apps/local-host/src/characters-host.ts`），页面的地址由 Host 的 `apps/local-host/src/characters-http.ts` 接。Artifact 的固定正文、版本、来源仍由原 Artifacts Module 拥有；本模块只在确认草稿仍有效时，将固定内容交给 Host 注入的发布者，不直接依赖或写入另一个业务模块。
 
 允许依赖 Characters Contract、storage 的库基线、Node SQLite/文件系统；禁止依赖插件、App Shell、Agent Runtime 或另一个 Module 的实现。仓库实现不从公开入口导出。当前无遗留角色数据迁移，不创建默认人格。
 
@@ -14,8 +14,8 @@
 
 ## 开发要求
 
-- 负责：个人 Character 草稿与启用状态；原生执行的记录（`src/runs.ts`，表 `character_runs`：谁、哪个项目、哪个版本、任务、目录、是否派发成功；不存终端输出）；项目被删除时清掉该项目的执行记录（`src/project-data.ts` 的 `charactersProjectData`：确认框里的标签与 `purgeCharactersProject`；Characters 不是插件，由宿主在 `apps/local-host/src/project-deleted-owners.ts` 里按名登记，草稿不属于任何项目、不清）；角色动作的声明（`src/actions.ts`）、处理器（`src/action-handlers.ts`，按记录、草稿、发布、导入分组）、归属绑定（`src/action-bindings.ts`）、发布的来源与身份核对（`src/publications.ts`）、本机导入与预览的非界面逻辑（`src/imports.ts`、`src/import-preview.ts`）、Agent 可用动作的登记与草稿校验（`src/agent-actions.ts`）、用法登记（`src/usages.ts`）、成果预览的 Markdown（`src/artifact-preview.ts`）。
-- 不负责：已发布正文（在 Artifact）、执行（写角色包、起进程由 Host 的 `apps/local-host/src/character-native-execution.ts` 做，记录经 `openCharacterRuns` 写这里）、终端输出、权限、界面；注册动作提供方、接页面的地址、给端口（Host：`apps/local-host/src/characters-host.ts`、`apps/local-host/src/characters-http.ts`）；「设置 › 角色」的界面（`apps/workbench/src/characters/`）。
+- 负责：个人 Character 草稿与启用状态；角色的版本、项目成员、默认与采用回执（`src/roles.ts`，表 `character_versions`、`character_origins`、`character_members`、`character_member_versions`、`character_defaults`、`character_adoptions`）；原生执行的记录（`src/runs.ts`，表 `character_runs`：谁、哪个项目、哪个版本、任务、目录、是否派发成功；不存终端输出）；项目被删除时清掉该项目的执行记录、成员及其版本、项目默认与采用回执（`src/project-data.ts` 的 `charactersProjectData`：确认框里的标签与 `purgeCharactersProject`；Characters 不是插件，由宿主在 `apps/local-host/src/project-deleted-owners.ts` 里按名登记，原件与它的版本不属于任何项目、不清）；角色动作的声明（`src/actions.ts`）、处理器（`src/action-handlers.ts`，按记录、草稿、发布、导入分组）、归属绑定（`src/action-bindings.ts`）、发布的来源与身份核对（`src/publications.ts`）、本机导入与预览的非界面逻辑（`src/imports.ts`、`src/import-preview.ts`）、Agent 可用动作的登记与草稿校验（`src/agent-actions.ts`）、用法登记（`src/usages.ts`）、成果预览的 Markdown（`src/artifact-preview.ts`）。
+- 不负责：已发布正文（在 Artifact）、执行（写角色包、起进程由 Host 的 `apps/local-host/src/character-native-execution.ts` 做，记录经 `openCharacterRuns` 写这里）、终端输出、权限、界面；注册动作提供方、接页面的地址、给端口（Host：`apps/local-host/src/characters-host.ts`、`apps/local-host/src/characters-http.ts`）；「设置 › 角色」与「项目设置 › 角色」的界面（`apps/workbench/src/characters/`、`apps/workbench/src/browser/characters/`）。
 - 公开入口：`@molis-ai/molis-work-module-characters`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/characters`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（动作声明与输入结构）、`@molis-ai/molis-work-storage`（库的结构基线 `applySqliteBaseline`）。业务合同取自 contracts/modules 和 contracts/services，不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
@@ -23,8 +23,9 @@
   - 草稿与状态的唯一写入方，按本人隔离、跨项目复用；修改与状态变更做修订检查，删除保留墓碑。
   - 只在确认草稿仍有效时，把固定内容交给 Host 注入的发布者。
   - 不依赖插件、App、Agent Runtime 或其他 Module 的实现；仓库实现不从公开入口导出。
-  - 仅空的版本0库初始化为现行结构1（草稿与原生执行记录）；已有表的无版本库、其他版本都拒绝，保留结构、数据、版本及文件权限，不就地升级。既有检查记录的旧版本1没有 `character_runs`，同号不同结构不在本次检查范围；重建前不要用新构建打开旧Home。
-- 改动后必跑：`node scripts/run-tests.mjs tests/characters-module.test.ts tests/characters-actions.test.ts tests/characters-action-handlers.test.ts tests/characters-import.test.ts tests/characters-schema.test.ts tests/characters-project-deletion.test.ts`；动了声明、绑定或处理器再跑 `tests/characters-native-execution.test.ts tests/characters-publication-http.test.ts tests/security-invariants-plugin-original-caller.test.ts`
+  - 空的版本 0 库初始化为现行结构 2；版本 1 的库经升级段 `1 → 2` 只建角色的六张新表、不改既有行（宿主升级轮执行，直接打开得 `storage.upgrade_pending`）；已有表的无版本库与更高版本都拒绝，保留结构、数据、版本及文件权限。没有版本的原件在目录里标「还没保存过」，保存一次即成第 1 版，不做数据迁移。
+  - 一个角色只按调用上下文的人与项目解析：别人的、别的项目的成员、停用或删除的不能新选；成员与原件对不上、没存过或已移出删除的版本读不到（`S-character-role-scope`）。
+- 改动后必跑：`node scripts/run-tests.mjs tests/characters-module.test.ts tests/characters-actions.test.ts tests/characters-action-handlers.test.ts tests/characters-import.test.ts tests/characters-schema.test.ts tests/characters-project-deletion.test.ts tests/security-invariants-character-role-scope.test.ts`；动了声明、绑定或处理器再跑 `tests/characters-native-execution.test.ts tests/characters-publication-http.test.ts tests/security-invariants-plugin-original-caller.test.ts`
 - 相关手册：[docs/system/PACKAGE-BOUNDARIES.md](../../docs/system/PACKAGE-BOUNDARIES.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 项目回收检查：本 owner 的个人 Home 内容跨项目独立保存，不因某项目被回收而删除。同步适配器明确返回无该项目所属的未结算内容；材料或成果来源引用不改变所有权。检查仍执行账号与格式校验。

@@ -43,7 +43,7 @@ export const textStatsUiContribution: UiContribution<TextStatsUiModel | Companio
 
 /** Text Stats' stage in the project page: a refresh, a way to the materials, and the counts the page's client fills. */
 export function renderTextStatsStage(_model: CompanionStageModel): string {
-  return renderCompanionListStage({ surface: "text-stats", label: "Text Stats", refresh: uiText.text("text-stats.stage.refresh"),
+  return renderCompanionListStage({ surface: "text-stats", label: "Text stats", refresh: uiText.text("text-stats.stage.refresh"),
     materials: uiText.text("text-stats.stage.open-materials") });
 }
 

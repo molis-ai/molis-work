@@ -49,26 +49,26 @@ export interface ShelfRuntimeLookup {
 export function isolationFact(grade: ShelfIsolationGrade): string {
   switch (grade) {
     case "workspace":
-      return "Workspace Sandbox：Agent 只能写任务工作区";
+      return "独立副本目录：AI 只在临时副本目录里写入";
     case "unknown":
-      return "未确认工作区限制，仍在副本目录跑";
+      return "未确认目录隔离范围，仍在临时副本目录里运行";
     case "tui":
-      return "在终端执行，不是副本沙箱";
+      return "在终端中运行，会直接读写原文件";
     default:
-      return "未发现 Agent";
+      return "未检测到外部 AI 工具";
   }
 }
 
-export const NO_AGENT_REASON = "未发现终端 Agent。";
+export const NO_AGENT_REASON = "电脑上未检测到外部 AI 工具。";
 
 export function missingJobReason(title: string): string {
-  return `${title} 没有无界面执行入口，动作不能跑。`;
+  return `${title} 不支持后台自动处理，无法直接运行此动作。`;
 }
 
 export function emptyShelfRuntime(): ShelfRuntimeStatus {
   return {
     runtime_key: "",
-    title: "Agent",
+    title: "外部 AI 工具",
     executable: "",
     kind: "tui",
     isolation: "none",

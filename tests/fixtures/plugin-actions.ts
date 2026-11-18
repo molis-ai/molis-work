@@ -6,6 +6,7 @@ import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectDirectoryActions, projectSettingsCapabilities, type ProjectDirectories, type ProjectDirectory, type ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { characterRoleActions, type CharacterRoleResolution } from "@molis-ai/molis-work-contracts/modules/characters";
 
 /**
  * Standalone owner fixtures explicitly share one Kernel, just as the application Host does. `settled` hears every call once it is over, as
@@ -103,8 +104,25 @@ export function withFakeAgentHost<H extends { actions: ReturnType<typeof pluginA
   settings: readonly ActionDefinition[] = PROJECT_FOLDER_READS): Omit<H, "agentHost"> & ProjectFolderPorts {
   const { agentHost, ...rest } = host;
   fakeAgentHostActions(host.actions, (definition, input, options) => agentHost.invoke(definition, input as never, options), served);
+  withoutRoles(host.actions);
   return { ...rest, ...fakeProjectSettings(host.actions, definition => agentHost.invoke(definition, [] as never), settings) };
 }
+
+/**
+ * A project where the person has added no roles, for a plugin test without Characters (the Host registers Characters in every project,
+ * project-host.ts; its own refusals are tested in tests/characters-*.test.ts): a new task gets no role, so the Assistant runs as itself.
+ * A test that registers the real Characters provider says so with `servesRoles` first, and this stand-in stays out of its project.
+ */
+export function withoutRoles(actions: { registry: Pick<ActionService, "registerProvider"> }): void {
+  if (rolesServed.has(actions.registry)) return;
+  rolesServed.add(actions.registry);
+  const none: CharacterRoleResolution = { effective: { kind: "assistant", source: "assistant" }, selection: { kind: "assistant" } };
+  actions.registry.registerProvider({ provider: { provider_id: "characters-fixture", title: "角色", kind: "system" }, definitions: [characterRoleActions.resolve],
+    handlers: [{ ...characterRoleActions.resolve, handle: () => structuredClone(none) }] });
+}
+/** Marks a project's actions as serving the real Characters provider, so `withFakeAgentHost` adds no stand-in for its roles. */
+export function servesRoles(actions: { registry: object }): void { rolesServed.add(actions.registry); }
+const rolesServed = new WeakSet<object>();
 
 /**
  * The read that says which folders a plugin may work in: the project's inputs and its one output (`projects.directories.get@1`).
@@ -169,7 +187,7 @@ function completeView(definition: ActionDefinition, value: unknown): unknown {
     case agentHostCapabilities.startRun.capability_id: return isRecord(value) ? { ...value, frozen: { ...FROZEN, ...(isRecord(value.frozen) ? value.frozen : {}) } } : value;
     case agentHostCapabilities.readRunReviews.capability_id: return Array.isArray(value) ? value.map(entry => isRecord(entry) ? { receipt: null, ...entry } : entry) : value;
     case agentHostCapabilities.listSubagents.capability_id:
-      return Array.isArray(value) ? value.map(child => isRecord(child) ? { role_id: "", task: "", state: "running", result: null, workspace_path: null, parent_run: RUN_VIEW.ref, ...child } : child) : value;
+      return Array.isArray(value) ? value.map(child => isRecord(child) ? { role_id: "", role_version: 1, execution: "read-only", task: "", state: "running", result: null, workspace_path: null, parent_run: RUN_VIEW.ref, ...child } : child) : value;
     case agentHostCapabilities.listRuntimes.capability_id: return eachFilled(RUNTIME)(value);
     case agentHostCapabilities.listMcp.capability_id: return eachFilled(MCP_SERVER)(value);
     case agentHostCapabilities.saveMcp.capability_id: return filled(MCP_SERVER)(value);

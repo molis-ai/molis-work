@@ -7,6 +7,7 @@ import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
 import type { KnowledgeSearchResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
+import type { ArtifactImportResult } from "@molis-ai/molis-work-module-artifacts";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
@@ -46,12 +47,14 @@ test("PMAT-41 PMAT-44 an import reaches the catalog with nobody searching; a sea
     await until(() => titles().includes("试用说明"), "the imported piece has a card without a search");
 
     // PMAT-44: a CSV's text is read; a binary file is kept with its name only, said so, and listed without going to a model.
-    const csv = await post<{ warnings?: string[] }>("/api/artifacts/import", { source: "file", filename: "价目.csv",
+    const csv = await post<ArtifactImportResult>("/api/artifacts/import", { source: "file", filename: "价目.csv",
       original_file: { filename: "价目.csv", mime: "text/csv", data_base64: Buffer.from("型号,价格\nTP-2,1299\n").toString("base64") } });
-    assert.deepEqual(csv.warnings ?? [], []);
-    const binary = await post<{ warnings?: string[] }>("/api/artifacts/import", { source: "file", filename: "图像.bin",
+    assert.equal(csv.text_available, true);
+    assert.deepEqual(csv.warnings, []);
+    const binary = await post<ArtifactImportResult>("/api/artifacts/import", { source: "file", filename: "图像.bin",
       original_file: { filename: "图像.bin", mime: "application/octet-stream", data_base64: Buffer.from([0, 1, 2, 255, 254]).toString("base64") } });
-    assert.match(binary.warnings?.[0] ?? "", /读不出这个文件的正文.*Agent 只能看到它的名字/u);
+    assert.equal(binary.text_available, false);
+    assert.deepEqual(binary.warnings, [{ owner: "workbench", key: "workbench.import.warning-unreadable" }]);
 
     // PMAT-41: a search right after an import, before the background pass, hands back refs whose cards are there when it answers.
     await post("/api/artifacts/import", { source: "file", filename: "退货政策.md", content: "# 退货政策\n\n签收后 30 天内可无理由退货。" });

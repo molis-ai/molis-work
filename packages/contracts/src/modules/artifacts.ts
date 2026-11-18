@@ -38,7 +38,9 @@ export const ARTIFACT_FILE_IMPORT_ACTION = { capability_id: "artifacts.import.fi
  */
 export const IMPORTED_DOCUMENT_TYPE = "io.molis.work.document";
 export const IMPORTED_DOCUMENT_SCHEMA_VERSION = /* @version artifact.io.molis.work.document */ 2;
-export const IMPORTED_DOCUMENT_READ_TYPES = [1, IMPORTED_DOCUMENT_SCHEMA_VERSION].map(schema_version => ({ artifact_type_id: IMPORTED_DOCUMENT_TYPE, schema_version }));
+/** Old fixed imports carry literal warnings. New imports store a TextRef. */
+export const IMPORTED_DOCUMENT_WARNING_SCHEMAS = { literal: 1, textRef: IMPORTED_DOCUMENT_SCHEMA_VERSION } as const;
+export const IMPORTED_DOCUMENT_READ_TYPES = Object.values(IMPORTED_DOCUMENT_WARNING_SCHEMAS).map(schema_version => ({ artifact_type_id: IMPORTED_DOCUMENT_TYPE, schema_version }));
 export type ImportedDocumentWarning = Extract<TextRef, { readonly key: string }>;
 
 export function isImportedDocumentVersion(artifact: Pick<FixedVersionRecord, "artifact_type_id" | "schema_version">): boolean {

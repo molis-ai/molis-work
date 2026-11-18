@@ -1,4 +1,4 @@
-import { isImportedDocumentVersion, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { IMPORTED_DOCUMENT_WARNING_SCHEMAS, isImportedDocumentVersion, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import { CHARACTER_ARTIFACT_PRODUCER } from "@molis-ai/molis-work-contracts/modules/characters";
 import { ARTIFACT_PRODUCER, ARTIFACTS_HOST_PRODUCER } from "@molis-ai/molis-work-module-artifacts";
@@ -27,7 +27,7 @@ function hostImportedVersion(version: Identity): boolean {
 export function importedDocumentWarnings(version: ArtifactVersionRecord): OwnedTextRef[] {
   const payload = version.payload;
   if (!hostImportedVersion(version) || !payload || typeof payload !== "object" || Array.isArray(payload) || !Array.isArray(payload.warnings)) return [];
-  if (version.schema_version === 1) return payload.warnings.flatMap(warning => typeof warning === "string" ? [{ literal: warning }] : []);
+  if (version.schema_version === IMPORTED_DOCUMENT_WARNING_SCHEMAS.literal) return payload.warnings.flatMap(warning => typeof warning === "string" ? [{ literal: warning }] : []);
   return payload.warnings.flatMap(warning => {
     const ref = tryOwnedTextRef(warning, "workbench");
     return ref && "key" in ref ? [ref] : [];

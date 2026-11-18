@@ -144,7 +144,7 @@ function installPastWing(run: HTMLElement): void {
  * its end. A phone's track shows its own (the sheet draws a cut capsule there), so nothing is marked where the run does not scroll.
  */
 function installNextWing(run: HTMLElement): void {
-  const label = run.parentElement?.querySelector<HTMLElement>(".work-line-label"), words = label?.textContent ?? "";
+  const label = run.parentElement?.querySelector<HTMLElement>(".work-line-label");
   const report = () => {
     const style = getComputedStyle(run), scrolls = style.overflowX !== "visible", box = run.getBoundingClientRect();
     const from = box.left, to = box.right - (parseFloat(style.paddingRight) || 0), all = [...run.children] as HTMLElement[];
@@ -155,7 +155,7 @@ function installNextWing(run: HTMLElement): void {
       item.toggleAttribute("data-cut", after || scrolls && boxes[index]!.left < from - 1);
       if (after) more += 1;
     });
-    const say = more ? `${words} +${more}` : words;
+    const say = more ? globalThis.t.text("workbench.work-line.next-n", { n: String(more) }) : globalThis.t.text("workbench.work-line.next");
     if (label && label.textContent !== say) label.textContent = say;
   };
   const settle = () => { fitEvents(run); report(); };

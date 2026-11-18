@@ -92,11 +92,13 @@ function installDialogRow(panel: string, paint: () => void): void {
   const last = () => { const said = thread?.querySelectorAll<HTMLElement>(".assistant-msg--assistant"); return said?.length ? said[said.length - 1]! : null; };
   const latest = () => last()?.dataset.text?.trim() ?? "";
   // The reply reads as the dialog draws it: the bubble's own blocks (the Host's rendered reply), not its Markdown source. Its
-  // buttons stay in the dialog; the row has one way in. A reply with nothing drawn yet shows its words as they are.
+  // buttons stay in the dialog; the row has one way in. A named object is a button there whose words are part of the sentence,
+  // so it stays here as those words. A reply with nothing drawn yet shows its words as they are.
   const draw = (body: HTMLElement) => {
     const from = last(), words = latest(), now = words + "\u0000" + (from?.innerHTML ?? "");
     if (now === drawn && body.hasChildNodes()) return;
-    const copy = from?.cloneNode(true) as HTMLElement | undefined; copy?.querySelectorAll("button").forEach(node => node.remove());
+    const copy = from?.cloneNode(true) as HTMLElement | undefined;
+    copy?.querySelectorAll("button").forEach(node => node.matches(".assistant-inline-object") ? node.replaceWith(node.textContent ?? "") : node.remove());
     drawn = now;
     if (copy?.hasChildNodes()) body.replaceChildren(...copy.childNodes); else body.textContent = words;
   };

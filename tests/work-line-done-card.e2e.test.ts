@@ -87,6 +87,7 @@ test("WLN-35: with the dialog closed the latest reply stays above the input besi
 // 1. it showed the reply's Markdown source (`## 现状 - …`) where the dialog shows the rendered reply;
 // 2. a press inside a plugin's page (its own document) did not fold it;
 // 3. folded, it came back over the next page the person opened (settings), though no new reply had come.
+// Review of #2110: a named object is a button in the dialog whose words belong to the sentence; the row keeps those words.
 test("WLN-35: the reply above the input reads as the dialog draws it, folds on a press inside a plugin's page, and stays folded when the page loads again", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
@@ -99,8 +100,8 @@ test("WLN-35: the reply above the input reads as the dialog draws it, folds on a
   };
   await load();
   // A reply as the conversation draws one: its Markdown source in data-text, the Host's rendered blocks inside, its copy button.
-  const SOURCE = "## 现状\n\n- 发布说明写进 `CHANGELOG.md`\n- **没有**按版本分节";
-  const RENDERED = "<h2>现状</h2><ul><li>发布说明写进 <code>CHANGELOG.md</code></li><li><strong>没有</strong>按版本分节</li></ul><button type=\"button\" class=\"assistant-copy\">复制</button>";
+  const SOURCE = "## 现状\n\n- 发布说明写进 `CHANGELOG.md`\n- **没有**按版本分节，已把「发布说明」放进项目";
+  const RENDERED = "<h2>现状</h2><ul><li>发布说明写进 <code>CHANGELOG.md</code></li><li><strong>没有</strong>按版本分节，已把<button class=\"assistant-inline-object\" type=\"button\" data-assistant-object=\"0\">发布说明</button>放进项目</li></ul><button type=\"button\" class=\"assistant-copy\">复制</button>";
   const reply = (source: string, rendered: string) => `(() => { const bubble = document.createElement('div'); bubble.className = 'assistant-msg assistant-msg--assistant'; bubble.dataset.text = ${JSON.stringify(source)}; bubble.innerHTML = ${JSON.stringify(rendered)}; document.querySelector('[data-assistant-thread]').append(bubble); })()`;
   const BODY = "document.querySelector('[data-reply-peek] .work-reply-peek-body')";
   await evaluate(reply(SOURCE, RENDERED));
@@ -109,6 +110,7 @@ test("WLN-35: the reply above the input reads as the dialog draws it, folds on a
     ["现状", 2, "没有", "CHANGELOG.md"], "the reply's own blocks are drawn");
   assert.equal(await evaluate(`/[#*\`]|^- /m.test(${BODY}.textContent)`), false, "no Markdown marks are shown");
   assert.equal(await evaluate(`${BODY}.querySelector('button')`), null, "the reply's buttons stay in the dialog");
+  assert.equal(await evaluate(`${BODY}.querySelectorAll('li')[1].textContent`), "没有按版本分节，已把发布说明放进项目", "a named object keeps its words in the sentence");
   // Three lines: a heading stands at the words' own size, and nothing of the reply runs out of the row.
   assert.deepEqual(await evaluate(`(() => { const body = ${BODY}, h = body.querySelector('h2'); return [getComputedStyle(h).fontSize === getComputedStyle(body).fontSize, body.getBoundingClientRect().height <= parseFloat(getComputedStyle(body).fontSize) * 4.95 + 1]; })()`), [true, true]);
   await mkdir(shots, { recursive: true });

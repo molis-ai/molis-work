@@ -9855,6 +9855,7 @@
     },
     "workbench.work-line.n-working": "{n} in progress",
     "workbench.work-line.next": "Next",
+    "workbench.work-line.next-n": "Next +{n}",
     "workbench.work-line.no-event": "No event",
     "workbench.work-line.nothing-running-background-tasks-show-here": "Nothing is running. Tasks sent to the background show here.",
     "workbench.work-line.now": "Now",

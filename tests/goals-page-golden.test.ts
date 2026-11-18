@@ -224,6 +224,11 @@ const pages: Record<string, Draw> = {
 // `<section data-work-surface="sessions">` stage, the Read Scope `<dialog data-sessions-scope-sheet>` overlay, and the `"sessions"` entry
 // in the shell's plugin title map. Every whole-page state grew by the exact same constant in each language; no Goals markup or JSON
 // changed, and the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// Copywriting polish (2026-11-17, on main 8d9f1fb0): 30 of the 52 records changed solely from the reviewed zh/en microcopy edits
+// (`workbench.project-settings-folds.*`, `workbench.side-panel-files.*`, `workbench.pane.*`, `workbench.immersive-shell.*`,
+// `goals.dialogs-ui.means-part-that-goal-only-decides-tree-placement`, `goals.guidance-document.only-active-revisions-sent-placed-before-round-s`,
+// `coding.directory.summary`, `git.directory.summary`, and `Text Stats` → `Text stats`). Reversing only those string edits on all 30
+// candidate draws reproduces every main 8d9f1fb0 SHA-256 and byte length exactly; the other 22 records did not change.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

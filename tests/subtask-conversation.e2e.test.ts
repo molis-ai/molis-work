@@ -81,11 +81,17 @@ test("B58-01..05: public child conversation, two owners, original receipts and r
     await wait(`${field} && !${field}.disabled`);
   });
 
-  await t.test("B58-02: user scroll, unread update and reopen retain reading position and process expansion", async () => {
+  await t.test("B58-02 QEA-180: user scroll, unread update and reopen retain reading position and process expansion", async () => {
+    const thread = control("thread");
+    const tailDistance = `${thread}.scrollHeight - ${thread}.clientHeight - ${thread}.scrollTop`;
+    await evaluate(`(() => {
+      const detail = ${root}.querySelector('details');
+      if (detail.open) return;
+      return new Promise(resolve => { detail.addEventListener('toggle', () => resolve(true), {once:true}); detail.open = true; });
+    })()`);
     await evaluate("probe.owner.record('a').messages = Array.from({length:80},(_,i)=>({id:'long-'+i,role:'assistant',content:{text:'Paragraph '+i+' with enough words to read.'}})); probe.handle.refresh()");
-    await evaluate(`${root}.querySelector('details').open = true; ${control("follow")}.click()`);
-    // The follower pins new content on the next animation frame. Observe its actual landing before measuring a user's upward scroll.
-    await wait(`${control("thread")}.scrollTop > 0 && ${control("thread")}.scrollHeight - ${control("thread")}.scrollTop - ${control("thread")}.clientHeight <= 2`);
+    // Use the automatic pin for new content and wait for its actual landing before the person's upward scroll.
+    await wait(`${thread}.scrollTop > 0 && ${tailDistance} <= 1`);
     const point = await evaluate<{ x: number; y: number; top: number }>(`(() => { const box=${control("thread")}.getBoundingClientRect(); return {x:box.x+box.width/2,y:box.y+box.height/2,top:${control("thread")}.scrollTop}; })()`);
     // Detached is reported on wheel input, before the browser finishes its asynchronous scroll.
     await evaluate(`void (probe.scrollFinished = new Promise(resolve => ${control("thread")}.addEventListener('wheel', () => ${control("thread")}.addEventListener('scrollend', resolve, {once:true}), {once:true})))`);
@@ -102,8 +108,8 @@ test("B58-01..05: public child conversation, two owners, original receipts and r
     assert.equal(await evaluate(`${control("thread")}.scrollTop`), 200);
     assert.equal(await evaluate(`${root}.querySelector('details').open`), true);
     assert.equal(await evaluate(`${control("latest")}.hidden`), false);
-    await evaluate(`${control("follow")}.click()`);
-    await wait(`${control("thread")}.dataset.follow==='following'`);
+    await b.click("#subtask-probe [data-subtask-follow]");
+    await wait(`${thread}.dataset.follow === 'following' && ${tailDistance} <= 1`);
   });
 
   await t.test("SAI-11: shell reveal after close and an unfinished read cannot overwrite saved expansion without a scroll follower", async () => {

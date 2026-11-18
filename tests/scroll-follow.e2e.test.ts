@@ -10,7 +10,7 @@ import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 // driven by real wheel and key input and by the calls a conversation makes (pin, toLatest, release).
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-test("VUX-26 scroll ownership: only the person detaches, pins wait out a gesture, back to latest is one trip, anchoring only while detached", { timeout: 60_000 }, async t => {
+test("VUX-26 QEA-181: only the person detaches, pins wait out a gesture, back to latest is one trip, anchoring only while detached", { timeout: 60_000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), "scroll-follow-"));
   const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
@@ -53,6 +53,7 @@ test("VUX-26 scroll ownership: only the person detaches, pins wait out a gesture
   await wheel(-120);
   await page.wait(`document.getElementById("thread").dataset.follow === "detached"`);
   await sleep(200);
+  assert.ok(await distance() > 1, "the first upward wheel moves the native scroller");
   const reading = await page.evaluate<number>(`document.getElementById("thread").scrollTop`);
   await page.evaluate(`window.grow()`); await frames();
   assert.equal(await page.evaluate<number>(`document.getElementById("thread").scrollTop`), reading, "detached, new content does not move the reader");
@@ -107,13 +108,45 @@ test("VUX-26 scroll ownership: only the person detaches, pins wait out a gesture
   await sleep(150);
   assert.deepEqual(await page.evaluate<string[]>(`window.changes`), ["following"], "scrolling down on the way back keeps following");
 
+  // B58-02: leave during a near-end pin and during a smooth return from a saved reading position.
+  for (const { fromEnd, changes } of [
+    { fromEnd: 32, changes: ["detached"] },
+    { fromEnd: 300, changes: ["following", "detached"] },
+  ]) {
+    const interruptedAt = await page.evaluate<number>(`(() => {
+      const thread = document.getElementById("thread");
+      window.follow.restore(thread.scrollHeight - thread.clientHeight - ${fromEnd});
+      window.changes.length = 0;
+      window.follow.toLatest();
+      thread.dispatchEvent(new WheelEvent("wheel", { deltaY: -120 }));
+      thread.dispatchEvent(new Event("scroll"));
+      return thread.scrollTop;
+    })()`);
+    assert.deepEqual(await page.evaluate<string[]>(`window.changes`), changes, "a queued event from the return cannot resume following");
+    await frames(); await frames();
+    assert.equal(await page.evaluate<number>(`document.getElementById("thread").scrollTop`), interruptedAt, "the interrupted trip leaves the reader in place");
+    await page.evaluate(`(() => { const t = document.getElementById("thread"); window.follow.restore(t.scrollHeight - t.clientHeight - 60); })()`);
+    await wheel(120);
+    await page.wait(`document.getElementById("thread").dataset.follow === "following"`);
+  }
+
   // The page's own words: restore(top) judges the restored place, resume() follows a fresh conversation, release() steps aside.
   await page.evaluate(`window.follow.restore(100)`);
   assert.equal(await state(), "detached", "a saved place away from the end is read as reading");
   await page.evaluate(`window.follow.restore(document.getElementById("thread").scrollHeight)`);
   assert.equal(await state(), "following", "a saved place at the end follows");
-  await page.evaluate(`window.follow.release()`);
-  assert.equal(await state(), "detached", "release() detaches before the page scrolls to a card");
+  const afterPageScroll = await page.evaluate<string[]>(`(() => {
+    const thread = document.getElementById("thread");
+    const wheelBefore = () => thread.dispatchEvent(new WheelEvent("wheel", { deltaY: 120 }));
+    const pageScroll = () => thread.dispatchEvent(new Event("scroll"));
+    wheelBefore(); window.follow.restore(100);
+    thread.scrollTop = thread.scrollHeight; pageScroll();
+    const restored = thread.dataset.follow;
+    window.follow.restore(thread.scrollHeight);
+    wheelBefore(); window.follow.release(); pageScroll();
+    return [restored, thread.dataset.follow];
+  })()`);
+  assert.deepEqual(afterPageScroll, ["detached", "detached"], "a queued page scroll cannot inherit the wheel before restore or release");
   await page.evaluate(`window.follow.resume(); window.grow()`); await frames();
   assert.equal(await state(), "following"); assert.ok(await distance() <= 1, "resume() lets the next pin land");
 

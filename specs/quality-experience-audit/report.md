@@ -1,6 +1,6 @@
 # Molis Work 审查报告与优化策略
 
-整项进行中，负责人 Codex。审查基准为 main `43a3c3fa2f`。登记范围覆盖候选中的 75 个包、84 个 contracts 子路径及根入口，另复核本轮从主干移除的 WebQuery 包。报告有 91 项编号发现和 15 项平台候选，列明处置和实测结果。[逐包覆盖](coverage.md)、[六方向结论](#六个方向的独立结论)、[平台候选及处置](#平台化与通用化检查及处置)、[需求实现度](#需求整体实现度)、[BL 清理与保留事项](#bl-与事项清理建议)和[验收编号](spec.md)均可按入口查阅。
+整项进行中，负责人 Codex。审查基准为 main `e56bd6701a`。登记范围覆盖候选中的 75 个包、84 个 contracts 子路径及根入口，另复核本轮从主干移除的 WebQuery 包。报告有 92 项编号发现和 15 项平台候选，列明处置和实测结果。[逐包覆盖](coverage.md)、[六方向结论](#六个方向的独立结论)、[平台候选及处置](#平台化与通用化检查及处置)、[需求实现度](#需求整体实现度)、[BL 清理与保留事项](#bl-与事项清理建议)和[验收编号](spec.md)均可按入口查阅。
 
 第 53–55 批 8 文件 78 项定向通过。第 56–59 批 8 文件 144 项及长材料 2 项通过，验证改写、回放、起草、引导、信息方案和真实采用。固定 `4c54241e96` 的受影响包级复验 55/55 文件、463/463 项通过。第 60 批 Git、Coding 与工作台 77 文件、521 项通过，含真实提交、拒绝、暂存和编辑恢复。第 62 批 Placement 与工作台 22 文件、194 项通过。第 52 批冻结头的 104/105 个包回归文件通过，唯一失败定位到 Feed 已失效的发布版本例外。
 
@@ -1388,3 +1388,17 @@ main `43a3c3fa2f` 与候选独立构建并实测了 67 个静态资源和十组�
 | 示例项目 / 英文 | −268,420、−277,035 | −1,612、−1,527 |
 
 主线已批准的文案与本轮批准的词条在构建中按原规则生成 `/assets/locale/workbench.zh.fbd9103995793c87f7326dbc.js` 和 `/assets/locale/workbench.en.3025abfe45e9518b994c95d7.js`。第 105–108 批未添加工作台词条，22 条需批准的动态或内容地址由原许可匹配。相对上次推送，既有工作台脚本增 119 B，其余静态资源相同。对主干最大静态净增仍为 Git 脚本 8,403 B。本机既有资源与页面许可按实测登记，全插件页原已验证 Linux 差额另计 8 B。原始 `quality-audit-b107-main-{http,assets}.json` 与 `quality-audit-b108-candidate-{http,assets}.json`。[资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+
+### 第 109 批主干的滚动中断交集
+
+读取方向的事实仍由共享设计系统滚动组件维护。主干补入本人的反向滚轮主动中断平滑回尾，脱离后等待用户回到末尾或点击「新消息」。助理与子任务复用同一读取行为；运行、回执和草稿仍由各自原服务维护。合并后的子任务用例等浏览器真实滚到底，收到滚轮与 `scrollend` 后验证读点；保留本轮的迟到回执和后来编辑保护。[滚动主人](../../packages/design-system/src/browser/scroll-follow.ts#L25) · [子任务实操](../../tests/subtask-conversation.e2e.test.ts#L84)
+
+第 108 批的标准浏览器 QEA-176 通过。本机并行检查期间另做一次三倍 CPU 限速，完整原文、两个原文帧及最终着色仍成立，最长帧 251.2 ms。保留该压力样本和窄窗重复重排已经移除的反证，继续以准确组合的实际浏览器结果结算 100 ms 约束。压力和长工作区的尾延迟留在 QF-91 性能跟踪。日志 `quality-audit-b108-code-scale-stress.log`。
+
+合并后的实际长回复 QEA-176 最长帧 52.8 ms，有两个纯原文帧，原完整着色和复制原文均通过。助理脱离、子任务持久化位置和组件板两项消费者共 4 文件 21 项通过。第 5 个文件的共享滚动状态失败，独立主干同一原测试通过，按明确的交错反证继续定位。日志 `quality-audit-b109-{assistant-frame,scroll-consumers,main-scroll-test}.log`。
+
+### QF-92 / P2 打开旧回复时，先前滚轮会让页面又跟随尾部
+
+助理跳到引用的旧回复前调用 `release`，子任务重开通过 `restore` 复原读点，Coding 历史也调用共享滚动组件。原实现通过 700 ms 输入窗口归属滚动，页面接管时仍留着上一个人的滚轮时间。晚到的页面滚动可让跟随恢复，用户刚选中的阅读位置再次交给自动跟尾。QEA-181 固定滚轮、恢复或放开与页面滚动的顺序，旧实现两个结果都是 `following`。独立主干原测试偶发通过与该竞态相符。[助理跳转](../../apps/workbench/src/scripts/client/assistant-strip.ts#L27) · [子任务读点](../../packages/plugin-sdk/src/browser/subtask-dom.ts#L126) · [Coding 历史](../../plugins/native/coding/src/browser/main/read.ts#L143) · [反证](../../tests/scroll-follow.e2e.test.ts#L138)
+
+共享滚动组件在恢复页面位置时清除上一手势，在放开跟随时沿原离开尾部的转换截停未结束的自动回尾。新一笔真实手势继续经原监听器识别。处理在取得归属的同一个组件内，所有已接入界面共同受益，无存储迁移。旧反证日志 `quality-audit-b110-scroll-before.log`。[滚动转换](../../packages/design-system/src/browser/scroll-follow.ts#L99)

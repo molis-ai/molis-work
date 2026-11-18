@@ -2,6 +2,11 @@ import type { LingguangPage, SaveState, Spark } from "./types.js";
 
 const uiText = globalThis.t;
 
+function revealEditor({ workbench, workspace }: LingguangPage["el"]): void {
+  workbench.setAttribute("data-expanded", "true");
+  workspace.hidden = false;
+}
+
 /**
  * The editor: the open spark, its autosave and the blank-spark discard.
  *
@@ -100,14 +105,9 @@ export function installEditor(page: LingguangPage): void {
     if (el.workbench.getAttribute("data-expanded") === "false") void page.leaveBlank().catch(() => {});
   });
 
-  const revealEditor = () => {
-    el.workbench.setAttribute("data-expanded", "true");
-    el.workspace.hidden = false;
-  };
-
   page.resumeEditor = (id) => {
     if (!el.workspace.hidden) return;
-    revealEditor();
+    revealEditor(el);
     page.markSelected(id);
     page.publishContext(el.saveStatus.dataset.mwState !== "saved");
   };
@@ -117,7 +117,7 @@ export function installEditor(page: LingguangPage): void {
     s.selected = record;
     s.editorBase = { record };
     s.conversation = null;
-    revealEditor();
+    revealEditor(el);
     page.showChat(false);
     el.titleEl.textContent = record.title;
     page.showSave("saved");

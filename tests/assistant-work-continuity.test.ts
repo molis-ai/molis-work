@@ -202,9 +202,12 @@ test("what the person does in the plugin settles what it made redundant: a sugge
     assert.ok(f.service.notices.notices(null).some(notice => notice.work_id === sent.work.work_id && notice.kind === "completed"));
     assert.equal(await f.service.notices.settleHandledNotices(), 0, "not yet acted on");
     const made = [...f.notes.entries()].find(([, value]) => value.text === "made by the assistant")![0];
+    // SAI-07: a new child result remains unread even when the parent's older artifact was handled.
+    f.service.notices.subtaskResult(f.store.get("web-user", sent.work.work_id), "child update", "sai-child-result");
     f.notes.set(made, { text: "made, then edited by hand", version: 2 });
     assert.equal(await f.service.notices.settleHandledNotices(), 1);
     assert.equal(f.service.notices.notices(null).filter(notice => notice.work_id === sent.work.work_id && notice.kind === "completed").length, 0);
+    assert.equal(f.service.notices.notices(null).filter(notice => notice.work_id === sent.work.work_id && notice.kind === "result").length, 1);
   } finally { await f.close(); }
 });
 

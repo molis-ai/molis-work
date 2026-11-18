@@ -1,4 +1,5 @@
 import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AgentTurnView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderRichText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
 import { codingChangeHtml } from "./change-html.js";
@@ -30,7 +31,7 @@ function richHtml(text: string): string {
 }
 
 type PageBody = {
-  runs?: Array<{ turns?: Array<{ text: string; kind: string }>; awaiting_input?: unknown }>;
+  runs?: Array<{ turns?: Array<{ text: string; kind: string; notice?: AgentTurnView["notice"] }>; awaiting_input?: unknown }>;
   subagents?: Array<{ children: Array<{ result: string | null }> }>;
   report?: { title: string; body_markdown: string; run_id: string };
 };
@@ -48,8 +49,11 @@ export function codingPageHtml<T>(body: T, request: { route_id: string; query: R
     // Recovery reports also list runs, but carry receipt facts rather than turns.
     if (!Array.isArray(run.turns) || !Array.isArray(run.awaiting_input)) continue;
     // A digest round's opening is drawn by the page from its text; rendering it as well would double what travels.
-    for (const turn of run.turns) if (!(turn.kind === "user" && turn.text.startsWith(HISTORY_DIGEST_MARKER))) Object.assign(turn, {
-      html: richHtml(turn.kind === "assistant" ? turn.text.replace(COMPACTION_LABELS, "") : turn.text) });
+    for (const turn of run.turns) {
+      if (turn.kind === "notice" && !turn.text && turn.notice) turn.text = codingText(`coding.subtask.notice.${turn.notice}`);
+      if (!(turn.kind === "user" && turn.text.startsWith(HISTORY_DIGEST_MARKER))) Object.assign(turn, {
+        html: richHtml(turn.kind === "assistant" ? turn.text.replace(COMPACTION_LABELS, "") : turn.text) });
+    }
   }
   if (Array.isArray(page?.subagents)) for (const group of page.subagents) for (const child of group.children) {
     if (child.result) Object.assign(child, { result_html: richHtml(child.result) });

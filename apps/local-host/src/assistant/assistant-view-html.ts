@@ -1,3 +1,4 @@
+import type { AgentSubagentConversation } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { InteractionNextStep } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { InteractionValues } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { renderInteractionNextSteps } from "@molis-ai/molis-work-design-system";
@@ -58,6 +59,8 @@ const isView = (value: unknown): value is AssistantWorkView => Boolean(value) &&
  * Read by the Assistant's own page; the records themselves are unchanged.
  */
 export function drawAssistantReply(body: unknown, ports: { say: (text: string, values?: Record<string, string | number>) => string; drafts(workId: string): Record<string, InteractionValues>; card(card: AssistantCard): string }): void {
+  const child = (body as { conversation?: AgentSubagentConversation } | null)?.conversation;
+  if (child) for (const question of child.questions) Object.assign(question, { html: agentQuestionHtml(question, ports.say) });
   const drawCard = (card: AssistantCard) => Object.assign(card, { html: ports.card(card) });
   for (const candidate of [body, (body as { view?: unknown } | null)?.view]) {
     if (isView(candidate)) {
@@ -76,6 +79,7 @@ export function drawAssistantReply(body: unknown, ports: { say: (text: string, v
           none: ports.say("workbench.skill-picks.none"), choose: ports.say("workbench.skill-picks.choose") } }) });
       }
       for (const round of candidate.rounds) for (const turn of round.turns) {
+        if (turn.kind === "notice" && !turn.text && turn.notice) turn.text = ports.say(`workbench.subtask-conversation.notice.${turn.notice}`);
         if (turn.kind === "assistant") Object.assign(turn, { html: assistantTextHtml(turn.text, candidate.objects, ports.say) });
       }
       for (const review of candidate.reviews) Object.assign(review, { html: assistantReviewHtml(review, ports.say, assistantReviewDisplay(review)) });

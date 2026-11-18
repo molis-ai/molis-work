@@ -347,6 +347,7 @@ export interface MwSubtaskAction {
     readonly label: string;
     readonly title?: string;
     readonly disabled?: string;
+    readonly pendingSafe?: boolean;
 }
 
 export type MwSubtaskContent = {
@@ -388,6 +389,7 @@ export interface MwSubtaskConversationView {
     readonly running: boolean;
     readonly inputUnavailable?: string;
     readonly pending?: {
+        readonly blocking?: boolean;
         readonly kind: "input" | "action";
         readonly requestId: string;
         readonly message: string;

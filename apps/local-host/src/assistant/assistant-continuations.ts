@@ -46,6 +46,7 @@ export class AssistantContinuations {
     this.stepGate = new AssistantStepGate({ store: ports.store, actorId: ports.actorId, now: () => new Date(),
       goOn: async (work, gate) => { if (gate.path === "hand-back") await ports.changed(work, () => !this.stopped.signal.aborted); else await this.takeUp(work); } });
   }
+  get signal(): AbortSignal { return this.stopped.signal; }
   close(): void { this.stopped.abort(); this.withdraw_?.(); for (const off of this.observers) off(); this.observers.clear(); }
   private works() { return this.ports.store.list(this.ports.actorId, { limit: Number.MAX_SAFE_INTEGER }).filter(work => work.executor.kind === "assistant" && work.session_id && !work.reply_target); }
   /** The existing observed-state projection makes an interrupted or waiting work start the runtime on Host restart. */

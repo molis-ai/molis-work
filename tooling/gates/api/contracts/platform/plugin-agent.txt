@@ -106,6 +106,8 @@ export interface AgentTextSourceDeclaration {
 
 export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
+export declare const BUSINESS_SUBAGENT_HOST_TOOLS: readonly ["dispatch-subagent", "await-subagents", "steer-subagent"];
+
 export declare const MAX_SKILL_BODY_CHARS = 20000;
 
 export interface PluginMethodDeclaration extends AgentSkillDeclaration {

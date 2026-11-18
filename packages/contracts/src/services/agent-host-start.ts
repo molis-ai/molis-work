@@ -21,6 +21,10 @@ export interface AgentStartExecution extends ActionCallOrigin {
   beforeDispatch?(): void | (() => void) | Promise<void | (() => void)>;
   /** Release Host-only selected material controls at rejection or actual Run termination. */
   disposeDispatch?(): void;
+  /** Bind the real business child before its first Run freezes tools; re-resolve on an explicit continuation. */
+  subagentGateway?(role: AgentFrozenSubagentRole, session: AgentSessionRef): Promise<NonNullable<AgentFrozenRole["action_gateway"]>>;
+  /** Current declaration and execution ceiling, checked again at the child's actual dispatch. */
+  assertSubagent?(role: Pick<AgentFrozenSubagentRole, "role_id" | "version" | "execution" | "host_tools">): void;
   /** Same owner check at the final write/answer boundary; must outlive the start invocation. */
   assertBeforeDispatch?(): void;
   /** The work owner's exact subject for this Run, supplied only by the trusted Host. */
@@ -502,6 +506,8 @@ export interface AgentFrozenRole {
 }
 
 interface AgentStartInputFields {
+  /** Start only from this ended Run and consume this exact original queued answer under the Session's admission lock. */
+  resume_answer?: { run_id: string; pending_id: string; queued_input_id: string };
   /** Host-proven original text before assembly. Mutually exclusive with continued_from; person requires Host authority. */
   original_input?: import("./agent-inputs.js").AgentOriginalInputDraft;
   /** Reuse the original input of this exact Run in the same Session, without creating a new personal statement. */

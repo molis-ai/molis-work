@@ -279,13 +279,17 @@ test("VUX-39 the board's Assistant shows delegated sub-tasks, the bell's notices
   const inside = (expression: string) => `(() => { const d = ${frame}.contentDocument; if (!d || d.readyState !== 'complete') return false; return ${expression}; })()`;
   await waitFor(inside("!!d.querySelector('[data-assistant-panel]:not([hidden]) .assistant-subtask')"), 20_000);
 
-  // Sub-tasks: the plan names both, how far they are, and one opens its work, which says whom it reports to.
+  // Sub-tasks: the plan names both and their progress. Its original child opens beside the same work.
   const subtasks = await inFrame<string[]>("return [...d.querySelectorAll('.assistant-subtask')].filter((n) => n.querySelector('button.assistant-subtask-name')).map((n) => n.querySelector('.assistant-subtask-name').textContent + ' | ' + n.querySelector('.assistant-subtask-state').textContent);");
   assert.deepEqual(subtasks, ["汇总试用访谈 | 进行中 · 补改 1", "整理问卷里的首次导入问题 | 已完成"]);
   assert.match(await inFrame<string>("return [...d.querySelectorAll('.assistant-step-label')].find((n) => n.textContent === '分出去的子任务').parentElement.textContent;"), /1\/2/);
   await inFrame("[...d.querySelectorAll('button.assistant-subtask-name')][0].click();");
-  await waitFor(inside("[...d.querySelectorAll('.assistant-step-label')].some((n) => n.textContent === '受托于')"), 10_000);
-  assert.match(await inFrame<string>("return [...d.querySelectorAll('.assistant-step-label')].find((n) => n.textContent === '受托于').parentElement.textContent;"), /安排试用复盘.*验收：列出首次导入卡住最久的三处/);
+  await waitFor(inside("d.querySelector('[data-work-task-float] [data-subtask-head] strong')?.textContent === '汇总试用访谈'"), 10_000);
+  assert.equal(await inFrame<string>("return d.querySelector('[data-subtask-context] [data-subtask-back]').textContent;"), "安排试用复盘");
+  assert.match(await inFrame<string>("return d.querySelector('[data-subtask-intro]').textContent;"), /列出首次导入卡住最久的三处/);
+  assert.equal(await inFrame<string>("return d.querySelector('.assistant-tab[data-current]').dataset.tab;"), "board-plan");
+  await inFrame("d.querySelector('[data-subtask-context] [data-subtask-back]').click();");
+  await waitFor(inside("!d.querySelector('[data-work-task-float]')"), 10_000);
   t.diagnostic("delegated: " + subtasks.join("; "));
 
   // The bell: the decision on the open work counts as seen; a failure and a reminder wait; news and a held one fold below.

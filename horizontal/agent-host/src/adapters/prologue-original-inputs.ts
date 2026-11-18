@@ -1,3 +1,6 @@
+import type { PrologueEffects } from "./prologue-effects.js";
+import { AGENT_INPUT_KEY_PATTERN, type AgentInputsPort } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import { projectInputReceipts, type Session, type ExactRef, type Runtime } from "@prologue/sdk";
 import type { AgentOriginalInput, AgentOriginalInputDraft, AgentOriginalInputRef, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputOriginal, AgentInputRef } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -102,4 +105,52 @@ export function recordOriginalInput(index: SessionIndex, attempt: SessionIndex["
   if (held && (held.text !== input.text || held.written_by !== input.written_by || held.occurred_at !== input.occurred_at)) throw invalid();
   if (held) attempt.original_input_ref = structuredClone(held.ref);
   else attempt.original_input = structuredClone(input);
+}
+
+/** Input lookup and opened conversations read the SDK ledger, including a live attempt's committed progress. */
+export async function originalRunEvents(session: Session, run: ExactRef<"run">) {
+  if ((await session.terminalRuns()).some(one => one.id === run.id)) return session.replay(run);
+  try { return await session.readRunProgress(run); }
+  catch (error) {
+    if ((error as { code?: string })?.code !== "RUN_NOT_REPLAYABLE") throw error;
+    return session.replay(run);
+  }
+}
+
+/** The Session input book owns settled keys; a live Run's durable receipt has not reached that book yet. */
+export async function originalInputIdByKey(index: SessionIndex, session: Session, key: string): Promise<string | undefined> {
+  const known = (await session.knownInputKeys()).get(key)?.inputId;
+  if (known) return known;
+  for (const attempt of [...index.attempts].reverse()) {
+    if (!attempt.run_id || attempt.refused) continue;
+    const events = await originalRunEvents(session, { kind: "run", id: attempt.run_id, revision: 1 });
+    const receipt = projectInputReceipts(events).find(one => one.key === key);
+    if (receipt) return receipt.steerId;
+  }
+  return undefined;
+}
+
+/** No new queue: the existing Delivery envelope and receiving Session own this accepted Host notification. */
+export function sessionNotifier(runtime: Runtime, index: SessionIndexStore, effects: PrologueEffects): NonNullable<AgentInputsPort["notify"]> {
+  return (submitted, control) => {
+    const input = structuredClone(submitted), owner = { actor_id: control.actor_id, plugin_id: control.plugin_id, install_id: control.install_id, project_id: control.project_id };
+    if (!new RegExp(AGENT_INPUT_KEY_PATTERN).test(input.key) || !input.text?.trim() || input.text.length > 24_000) throw agentErrors.input_not_origin("会话通知的键或正文无效");
+    return effects.call(control, async () => {
+      await effects.beforeEffect(); effects.assertCurrent();
+      const [from, to] = await Promise.all([index.read(input.from_session_id), index.read(input.to_session_id)]);
+      for (const saved of [from, to]) {
+        if (!saved || Object.entries(owner).some(([key, value]) => saved.owner[key as keyof typeof owner] !== value)) throw agentErrors.input_not_origin("通知两端不属于当前调用者的同一安装与项目");
+      }
+      const [source, target] = await Promise.all([runtime.sessions.open(from!.ref), runtime.sessions.open(to!.ref)]);
+      if (source?.state !== "active" || target?.state !== "active") throw agentErrors.input_not_origin("通知的原会话已不可用");
+      const now = (await runtime.readClock()).wallTimeMs;
+      await effects.beforeEffect(); effects.assertCurrent();
+      const envelope = runtime.delivery.receiveInjection({ from: from!.ref, to: to!.ref, body: input.text, idempotencyKey: input.key }, now);
+      await runtime.delivery.flush();
+      await effects.beforeEffect(); effects.assertCurrent();
+      await runtime.acceptInjection({ envelope: envelope.ref, accepted: true });
+      await runtime.delivery.flush();
+      return { notification_id: envelope.ref.id };
+    });
+  };
 }

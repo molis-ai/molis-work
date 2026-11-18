@@ -237,23 +237,25 @@ function installTabs(tabs: HTMLElement): void {
  * side under the tab bar. The sheet places it from these properties; on a phone the sheet makes it a layer that stands clear
  * of the line (`--line-clear`) and ignores the others. It stops watching once the panel is gone from the page.
  */
-function installFloat(float: HTMLElement): void {
+export function installTaskFloatLayout(float: HTMLElement): () => void {
+  if (installed.has(float)) return () => {};
   const dialog = document.getElementById(float.dataset.workTaskFloat ?? "");
-  if (!dialog) return;
+  if (!dialog) return () => {};
+  installed.add(float);
   // A fixed box is placed in the viewport, or in the nearest ancestor that says it frames it (the component board's stage).
   const frame = float.closest<HTMLElement>("[data-work-float-frame]");
   // The line may be drawn after the dialog: it is looked up at each placing, and watched once found.
   let line: HTMLElement | null = null;
   const watch = new ResizeObserver(() => place());
-  const stop = () => { watch.disconnect(); window.removeEventListener("resize", place); };
+  const stop = () => { watch.disconnect(); changed.disconnect(); window.removeEventListener("resize", place); installed.delete(float); };
   const place = (): void => {
     if (!float.isConnected || !dialog.isConnected) { stop(); return; }
-    const found = (frame ?? document).querySelector<HTMLElement>(".work-line[data-work-line]");
+    const found = (frame ?? document).querySelector<HTMLElement>(".work-line[data-work-line], .arrival-bar[data-dock]");
     if (found !== line) { if (line) watch.unobserve(line); line = found; if (line) watch.observe(line); }
     const within = frame?.getBoundingClientRect() ?? new DOMRect(0, 0, document.documentElement.clientWidth, document.documentElement.clientHeight);
-    const shut = dialog.hidden, box = (shut ? dialog.parentElement ?? dialog : dialog).getBoundingClientRect(), panel = float.firstElementChild?.getBoundingClientRect();
+    const shut = dialog.hidden, box = (shut ? dialog.parentElement ?? dialog : dialog).getBoundingClientRect(), panel = float.getBoundingClientRect();
     // With the dialog closed the panel stands above the input, its right edge on the composer's (WLN-35).
-    float.dataset.place = shut ? "closed" : within.right - box.right >= (panel?.width ?? 340) + 12 ? "beside" : "over";
+    float.dataset.place = shut ? "closed" : within.right - box.right >= (panel.width || 340) + 12 ? "beside" : "over";
     float.style.setProperty("--dialog-top", `${box.top - within.top}px`);
     float.style.setProperty("--dialog-right", `${box.right - within.left}px`);
     float.style.setProperty("--dialog-inset", `${within.right - box.right + 8}px`);
@@ -262,11 +264,13 @@ function installFloat(float: HTMLElement): void {
     // On a phone the panel is a layer above the line: it never lies over the track or the composer (WLN-18).
     float.style.setProperty("--line-clear", `${line ? Math.max(0, within.bottom - line.getBoundingClientRect().top) : 0}px`);
   };
+  const changed = new MutationObserver(place);
   place();
-  watch.observe(dialog); watch.observe(frame ?? document.documentElement);
-  new MutationObserver(place).observe(dialog, { attributes: true, attributeFilter: ["hidden"] });
+  watch.observe(dialog); watch.observe(float); watch.observe(frame ?? document.documentElement);
+  changed.observe(dialog, { attributes: true, attributeFilter: ["hidden"] });
   // The viewport growing taller or shorter moves a dialog fixed to its bottom without resizing anything watched.
   window.addEventListener("resize", place, { passive: true });
+  return stop;
 }
 
 /** The work surface and the side: what stands above the line in the shell. */
@@ -359,6 +363,6 @@ export function installWorkLineLayout(root: ParentNode = document): void {
   each(NEXT_RUN, installNextWing);
   each("[data-work-line-track]", installTrack);
   each(".assistant-tabs[data-work-tabs]", installTabs);
-  each("[data-work-task-float]", installFloat);
+  for (const node of root.querySelectorAll<HTMLElement>("[data-work-task-float]")) installTaskFloatLayout(node);
   each(".work-line-slot", (slot) => { installRise(slot); installPlace(slot); });
 }

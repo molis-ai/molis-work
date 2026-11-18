@@ -1,11 +1,24 @@
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import type { WorkExecutor } from "./assistant-executor.js";
+import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { promptTitle } from "./assistant-work-title.js";
 
 /** The store as these steps use it: a work, its relations, and its executor once the session is known. */
 type SessionStore = Pick<AssistantStore, "get" | "update" | "relations">;
+
+/** A mode belongs to the original executor session; choosing it before the first round opens that same session. */
+export async function setExecutorMode(store: SessionStore, actorId: string, workId: string, mode: string, ports: {
+  executor(work: StoredWork): Promise<WorkExecutor>; read(workId: string): Promise<AssistantWorkView>;
+}): Promise<AssistantWorkView> {
+  const work = store.get(actorId, workId);
+  if (work.executor.kind !== "plugin") throw assistantErrors.invalid("这项工作不由执行方插件承担");
+  const executor = await ports.executor(work);
+  if (!work.executor.session_id) await openSession(store, actorId, work, executor, mode);
+  else await executor.setMode(work.executor.session_id, mode);
+  return ports.read(workId);
+}
 
 /** A work carried by a plugin whose session is known: the executor's own session the work is related to. */
 export type SessionWork = StoredWork & { executor: { kind: "plugin"; session_id: string } };

@@ -681,3 +681,9 @@ C 轨代码前合审补充两条实施边界：Host 重试必须同时有已核�
 用现行 Coding Manifest 实际启动父子 Run，分别断言获准子角色的问卷只继承同一项目的精确引用类型，以及去掉子角色声明时即使派发请求点名 `ask-user` 也不暴露该工具。测试实际经过父轮、派发与原问卷工具的注册。定向用例与真实 Node 子对话、重启共 20/20 通过，旧断言首败留在 CI 与本机日志。
 
 [安全不变量 CI 首败](https://github.com/molis-ai/molis-work/actions/runs/44205816632/job/134471711092) 中，`S-page-entry-actions` 的通用测试夹具把新增子任务操作的 `body.anyOf` 生成成字符串，校验在鉴权前返回输入无效。夹具现在识别一组选项、常量及数值下限，生成该已注册动作的合法输入。权限用例仍要求原始 `actions.forbidden`，同时核对其他来源、另一扇门和已撤销请求的拒绝。两处 CI 修正连同原 Node 子对话，在 macOS 与 Linux 容器分别通过 24/24。
+
+### 12.24 任务板子步骤的 Full 回归
+
+[Full 第 10 片首败](https://github.com/molis-ai/molis-work/actions/runs/44208478681/job/134480452235) 由 PA-11 的脚本模型解析旧步骤提示导致。已采用的 Prologue 把原任务板和步骤标识放在系统内容的独立 JSON 引用中，用户消息保留原任务。用例读取 SDK 的现行引用，仍实际执行子步骤回报、父任务等待结算，以及跨项目、跨会话和终态回报拒绝。任务板和原子对话的本机定向回归 8/8；任务板 Linux 复测 2/2。
+
+[安全分片的 Git 审批走查](https://github.com/molis-ai/molis-work/actions/runs/44208117643/job/134479652774) 在从覆盖页回到 Git 后等待可见审批槽超时。同一生产树的[前一普通 CI 安全分片](https://github.com/molis-ai/molis-work/actions/runs/44205816632/job/134471711092) 中该文件 2/2。对照 `dbcf562a67` 和候选的 Linux 容器均为 2/2，候选 macOS 的 CPU 节流复测亦为 2/2。保留原负向审批断言、两个布局时序和 CI 首败，最终状态以当前 PR 的安全分片和 Full 为准。

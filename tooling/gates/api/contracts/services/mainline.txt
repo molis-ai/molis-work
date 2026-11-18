@@ -1151,7 +1151,7 @@ export declare const mainlineItemActions: {
     switch: ActionDefinition<MainlineSwitchRequest, MainlineResult>;
     contents: ActionDefinition<MainlineContentsRequest, MainlineContentsResult>;
     holdsList: ActionDefinition<import("platform/placement").PlacementRelationSubjectInput, import("platform/placement").PlacementRelationResult>;
-    holdsBind: ActionDefinition<import("platform/placement").PlacementRelationTargetInput, import("platform/placement").PlacementRelationResult>;
+    holdsBind: ActionDefinition<import("platform/placement").PlacementRelationBindInput, import("platform/placement").PlacementRelationResult>;
     holdsRelease: ActionDefinition<import("platform/placement").PlacementRelationTargetInput, import("platform/placement").PlacementRelationResult>;
     holdsCandidates: ActionDefinition<import("platform/placement").PlacementRelationSubjectInput, import("platform/placement").PlacementRelationCandidates>;
     holdsCreate: ActionDefinition<import("platform/placement").PlacementRelationCreateInput, import("platform/placement").PlacementRelationResult>;

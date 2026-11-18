@@ -42,10 +42,6 @@
       "reason": "安装器写的收据，生成在构建好的工作区上跑，没有运行安装器；快照也排除它"
     },
     {
-      "path": "mainline/mainline.db",
-      "reason": "第 36 批新增的主线 Home 库；现有金样（0.1.1-dev.4）生成于第 36 批之前。回放时由 tests/golden-writes/mainline.ts 建一件事项、移到别的分组并读回；下次重铸金样后纳入快照。"
-    },
-    {
       "path": "feed/evidence/blobs/**",
       "reason": "Feed 抓到外部内容才写，金样不联网（UPG2-06）"
     },

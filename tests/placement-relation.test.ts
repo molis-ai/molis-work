@@ -4,8 +4,8 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
 import {
-  ActionError, SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, defineAttachRelationAction, subjectContext,
-  type ActionAvailability, type ActionCallContext, type ActionClient, type ActionMetadata, type ActionReference, type ActionSubject, type ActionView, type PlacementAttachPart,
+  ActionError, SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, definePlacementRelationAction, subjectContext,
+  type ActionAvailability, type ActionCallContext, type ActionClient, type ActionMetadata, type ActionReference, type ActionSubject, type ActionView, type PlacementRelationRole,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
 import { PLACEMENT_LEDGER_ACCESS, PlacementService, type PlacementPorts } from "@molis-ai/molis-work-service-placement";
@@ -13,15 +13,15 @@ import { pageText } from "./fixtures/page-text.js";
 
 /**
  * PG-032, batch 44 C1: placement keeps the person's relation between an object and a target its owner keeps (a document's Goal) without
- * knowing which plugin owns it. The owner's attaching action declares the relation (`attach.relation`) and names its other parts; placement
- * finds it in the directory by that. These tests run the real service over a hand-made directory, with a relation that is not Goals' (onto
- * `topic`), so what they prove is that no plugin is named.
+ * knowing which plugin owns it. Each part of the owner's relation declares its role (`placement_relation`) in the platform's shape
+ * (`definePlacementRelationAction`); placement finds them in the directory by that. These tests run the real service over a hand-made
+ * directory, with a relation that is not Goals' (onto `topic`), so what they prove is that no plugin is named.
  */
 
 const NOTE = { kind: "note", id: "n1", project_id: "q4" };
 const caller: ActionCallContext = { actor_id: "web-user", project_id: "q4", audience: "user", permissions: [] };
-const PART_ACTION: Record<PlacementAttachPart, string> = { list: "attached", bind: "attach", release: "detach", candidates: "pick", create: "make" };
-const keyOf = (target: string, binding: string) => JSON.stringify(["attached", "q4", "topic", target, binding]);
+const PART_ACTION: Record<PlacementRelationRole, string> = { list: "attached", bind: "attach", release: "detach", candidates: "pick", create: "make" };
+const keyOf = (target: string) => JSON.stringify(["attached", "q4", "topic", target, "note", "n1"]);
 
 const view = (provider: string, title: string, capability: string, operation: "query" | "command", action: ActionMetadata, availability: ActionAvailability = { available: true }): ActionView =>
   ({ capability_id: capability, version: 1, provider_id: provider, operation, action, provider: { provider_id: provider, plugin_id: provider, title, kind: "plugin" }, availability });
@@ -32,36 +32,34 @@ function reader(provider: string, kind: string, title = "笔记"): ActionView {
 }
 
 /**
- * A plugin that keeps a 「挂到…」 relation onto `kind`: its attaching action declares it, naming the `parts` it offers (with `unavailable` ones
- * present but refused). With no `bind` among the parts it declares no relation at all. Calls land in `calls` by capability id.
+ * A plugin that keeps a relation onto `kind` (named `relation`, the kind by default): each part it offers declares its role, with
+ * `unavailable` ones present but refused. Calls land in `calls` by capability id, and their inputs in `inputs`.
  */
-function owner(provider: string, kind: string, parts: readonly PlacementAttachPart[], unavailable: readonly PlacementAttachPart[] = []): ActionView[] {
-  const others = parts.filter(part => part !== "bind").map(part => [part, defineAttachRelationAction(part, `${provider}.${PART_ACTION[part]}`, 1, [kind], PART_ACTION[part], [])] as const);
-  const named = (part: PlacementAttachPart) => others.find(([one]) => one === part)?.[1];
-  const ref = (part: PlacementAttachPart) => { const found = named(part); return found ? { capability_id: found.capability_id, version: found.version } : undefined; };
-  const bind = parts.includes("bind") ? [["bind", defineAttachRelationAction("bind", `${provider}.attach`, 1, [kind], "attach", [], { attach_id: kind, item_kind: kind, title: "话题",
-    verb: "挂到话题", describe: "把这个对象挂到一个话题上。", relation: { noun: "话题", list: ref("list") ?? { capability_id: `${provider}.attached`, version: 1 },
-      release: ref("release") ?? { capability_id: `${provider}.detach`, version: 1 }, ...(ref("candidates") ? { candidates: ref("candidates")! } : {}),
-      ...(ref("create") ? { create: ref("create")! } : {}) } })] as const] : [];
-  return [...others, ...bind].map(([part, definition]) => view(provider, "话题", definition.capability_id, definition.operation, definition.action,
-    unavailable.includes(part) ? { available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" } : { available: true }));
+function owner(provider: string, kind: string, parts: readonly PlacementRelationRole[], unavailable: readonly PlacementRelationRole[] = [], relation = kind): ActionView[] {
+  return parts.map(role => {
+    const definition = definePlacementRelationAction(relation, role, `${provider}.${PART_ACTION[role]}`, 1, { kinds: [], title: PART_ACTION[role], description: PART_ACTION[role],
+      permissions: [], audiences: ["user"], ...(role === "list" ? { target: { kind, noun: "话题" } } : {}) });
+    return view(provider, "话题", definition.capability_id, definition.operation, definition.action,
+      unavailable.includes(role) ? { available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" } : { available: true });
+  });
 }
 
-function directory(views: readonly ActionView[], calls: string[], notes: { attached_to?: ActionSubject[] } = {}): ActionClient {
+function directory(views: readonly ActionView[], calls: string[], notes: { attached_to?: ActionSubject[] } = {}, inputs: Map<string, unknown> = new Map()): ActionClient {
+  const t1 = { kind: "topic", id: "t1" };
   const reply = (reference: ActionReference, input: unknown): unknown => {
     const id = reference.capability_id;
-    if (id.endsWith(".attached")) return { bindings: [{ binding_id: "b1", target_id: "t1", created_at: "2026-10-25T00:00:00.000Z" }] };
-    if (id.endsWith(".attach")) return { binding: { binding_id: "b2" } };
-    if (id.endsWith(".detach")) return { released: true };
-    if (id.endsWith(".pick")) return { targets: [{ id: "t1", title: "第一个话题" }], next_cursor: null };
-    if (id.endsWith(".make")) return { target: { id: "t9" } };
+    if (id.endsWith(".attached")) return { targets: [t1] };
+    if (id.endsWith(".attach")) return { targets: [t1, (input as { target: ActionSubject }).target] };
+    if (id.endsWith(".detach")) return { targets: [] };
+    if (id.endsWith(".pick")) return { targets: [{ subject: t1, current: true }] };
+    if (id.endsWith(".make")) return { targets: [{ kind: "topic", id: "t9" }, t1] };
     const subject = (input as { subject_id: string }).subject_id;
     if (id.endsWith(".read.topic")) return subjectContext({ subject: { kind: "topic", id: subject }, revision: "1", title: "第一个话题", content: "" });
-    return subjectContext({ subject: { kind: "note", id: subject }, revision: "1", title: "一份笔记", content: "正文", ...(notes.attached_to ? { attached_to: notes.attached_to } : {}) });
+    return subjectContext({ subject: { kind: "note", id: subject }, revision: "r7", title: "一份笔记", content: "正文", ...(notes.attached_to ? { attached_to: notes.attached_to } : {}) });
   };
   return {
     discover: async () => views,
-    invoke: async (_context, reference, input) => { calls.push(reference.capability_id); return reply(reference, input); },
+    invoke: async (_context, reference, input) => { calls.push(reference.capability_id); inputs.set(reference.capability_id, input); return reply(reference, input); },
   };
 }
 
@@ -88,7 +86,7 @@ function serviceOver(t: { after(fn: () => void): void }, client: ActionClient): 
   return new PlacementService(ports);
 }
 
-const FIVE: readonly PlacementAttachPart[] = ["list", "bind", "release", "candidates", "create"];
+const FIVE: readonly PlacementRelationRole[] = ["list", "bind", "release", "candidates", "create"];
 const TOPIC = { kind: "topic", id: "t1" };
 const makeTopic = (request_id: string) => ({ source: NOTE, to: { attach_kind: "topic" }, to_project_id: "q4", request_id, payload: { title: "一个话题", body: "内容" } });
 
@@ -100,26 +98,33 @@ test("RAC-630 placement's source names no Goals capability id", () => {
 });
 
 test("RAC-631 a relation another plugin keeps is listed, attached, released, offered and created by the same code, and the provider is whoever declares it", async t => {
-  const calls: string[] = [];
+  const calls: string[] = [], inputs = new Map<string, unknown>();
   const first = [...owner("io.example.topics", "topic", FIVE), reader("io.example.notes", "note"), reader("io.example.topics", "topic", "话题")];
-  const service = serviceOver(t, directory(first, calls));
+  const service = serviceOver(t, directory(first, calls, {}, inputs));
 
   const described = await service.describe(NOTE);
   const attached = described.associations.find(item => item.type === "attached");
-  assert.deepEqual([attached?.label, attached?.removable, attached?.key], ["话题「第一个话题」", true, keyOf("t1", "b1")]);
+  assert.deepEqual([attached?.label, attached?.removable, attached?.key], ["话题「第一个话题」", true, keyOf("t1")]);
   assert.deepEqual(attached?.target, { kind: "attached", project_id: "q4", object: TOPIC, noun: "话题", title: "第一个话题" });
-  assert.deepEqual(await service.attachTargets("q4"), [{ kind: "topic", noun: "话题", targets: [{ id: "t1", title: "第一个话题" }] }]);
-  assert.deepEqual(await service.attach(NOTE, "q4", TOPIC), { key: keyOf("t1", "b2") });
-  assert.deepEqual(await service.unlink(keyOf("t1", "b2")), { removed: true });
+  assert.deepEqual(await service.attachTargets("q4", NOTE), [{ kind: "topic", noun: "话题", targets: [{ id: "t1", title: "第一个话题", current: true }] }]);
+  assert.deepEqual(inputs.get("io.example.topics.pick"), { subject: { kind: "note", id: "n1" } }, "the candidates are asked for the object in hand");
+  const other = { kind: "topic", id: "t2" };
+  assert.deepEqual(await service.attach(NOTE, "q4", other, "r7"), { key: keyOf("t2") });
+  assert.deepEqual(inputs.get("io.example.topics.attach"), { subject: { kind: "note", id: "n1" }, target: other, read: { title: "一份笔记", revision: "r7" } },
+    "what the person read goes with it, so the owner can name it and tell later whether it changed");
+  assert.deepEqual(await service.unlink(keyOf("t2")), { removed: true });
+  assert.deepEqual(inputs.get("io.example.topics.detach"), { subject: { kind: "note", id: "n1" }, target: other });
   const made = await service.convert(makeTopic("r1"));
-  assert.deepEqual([made.object.kind, made.object.id, made.noun], ["topic", "t9", "话题"], "what is made is of the kind the declaration names, with its noun");
+  assert.deepEqual([made.object.kind, made.object.id, made.noun], ["topic", "t9", "话题"], "what is made is the target the owner names first, of the kind the declaration names, with its noun");
+  assert.deepEqual(inputs.get("io.example.topics.make"), { subject: { kind: "note", id: "n1" }, name: "一个话题", request_id: "placement:r1",
+    read: { title: "一份笔记", revision: "r7", excerpt: "内容" } });
   assert.ok(["attached", "attach", "detach", "pick", "make"].every(action => calls.includes(`io.example.topics.${action}`)), calls.join());
 
   // Another plugin takes the relation over: the old provider is no longer asked anything.
   const after: string[] = [];
   const second = [...owner("io.example.themes", "topic", FIVE), reader("io.example.notes", "note"), reader("io.example.themes", "topic", "主题")];
   const replaced = serviceOver(t, directory(second, after));
-  await replaced.describe(NOTE); await replaced.attachTargets("q4"); await replaced.attach(NOTE, "q4", TOPIC);
+  await replaced.describe(NOTE); await replaced.attachTargets("q4", NOTE); await replaced.attach(NOTE, "q4", TOPIC);
   assert.ok(after.some(id => id.startsWith("io.example.themes.")) && !after.some(id => id.startsWith("io.example.topics.")), after.join());
 });
 
@@ -128,18 +133,30 @@ test("RAC-632 a relation whose provider lacks a part, or has it refused, answers
   // Releasing is refused here and nothing is offered for creating: attaching still works, the other two do not.
   const views = [...owner("io.example.topics", "topic", ["list", "bind", "candidates", "release"], ["release"]), reader("io.example.notes", "note")];
   const service = serviceOver(t, directory(views, calls));
-  await assert.rejects(service.unlink(keyOf("t1", "b1")), { code: "placement.target_unavailable" });
+  await assert.rejects(service.unlink(keyOf("t1")), { code: "placement.target_unavailable" });
   await assert.rejects(service.convert(makeTopic("r2")), { code: "placement.target_unavailable" });
   assert.deepEqual(calls.filter(id => /\.(detach|make)$/.test(id)), [], "the parts that were refused or not offered were never called");
-  assert.deepEqual(await service.attach(NOTE, "q4", TOPIC), { key: keyOf("t1", "b2") });
-  // The attaching action itself is refused: there is no relation, so every part of it is unavailable.
+  assert.deepEqual(await service.attach(NOTE, "q4", TOPIC), { key: keyOf("t1") });
+  // Attaching itself is refused: nothing can be attached or offered, while what is attached can still be taken off.
   const refusedBind = serviceOver(t, directory([...owner("io.example.topics", "topic", FIVE, ["bind"]), reader("io.example.notes", "note")], calls));
-  for (const operation of [refusedBind.attach(NOTE, "q4", TOPIC), refusedBind.unlink(keyOf("t1", "b1")), refusedBind.convert(makeTopic("r2b"))]) {
+  await assert.rejects(refusedBind.attach(NOTE, "q4", TOPIC), { code: "placement.target_unavailable" });
+  assert.deepEqual(await refusedBind.attachTargets("q4", NOTE), [], "with no attaching part there is nothing to choose");
+  assert.deepEqual(await refusedBind.unlink(keyOf("t1")), { removed: true });
+  // Its list part is refused: the relation says neither what it ends on nor what is attached, so every part of it is unavailable.
+  const refusedList = serviceOver(t, directory([...owner("io.example.topics", "topic", FIVE, ["list"]), reader("io.example.notes", "note")], calls));
+  for (const operation of [refusedList.attach(NOTE, "q4", TOPIC), refusedList.unlink(keyOf("t1")), refusedList.convert(makeTopic("r2b"))]) {
     await assert.rejects(operation, { code: "placement.target_unavailable" });
   }
+  // A relation kept in another shape (a background task's `serves`, which the mainline service calls itself) is not placement's to offer.
+  const otherShape = owner("io.example.topics", "topic", FIVE).map(entry => ({ ...entry, action: { ...entry.action, input_type: undefined, output_type: undefined } }));
+  const foreign: string[] = [];
+  const unshaped = serviceOver(t, directory([...otherShape, reader("io.example.notes", "note")], foreign));
+  assert.deepEqual(await unshaped.attachTargets("q4", NOTE), []);
+  await assert.rejects(unshaped.attach(NOTE, "q4", TOPIC), { code: "placement.target_unavailable" });
+  assert.deepEqual(foreign.filter(id => id.startsWith("io.example.topics.")), []);
   // Nobody declares the relation at all: nothing is listed, nothing is offered.
   const none = serviceOver(t, directory([reader("io.example.notes", "note")], []));
-  assert.deepEqual(await none.attachTargets("q4"), []);
+  assert.deepEqual(await none.attachTargets("q4", NOTE), []);
   assert.deepEqual((await none.describe(NOTE)).associations.filter(item => item.type === "attached"), []);
 });
 
@@ -173,18 +190,23 @@ test("RAC-639 two providers declaring a relation onto the same kind in one direc
     const service = serviceOver(t, directory(views, calls));
     const refused = { code: "placement.relation_ambiguous", kind: "conflict" };
     await assert.rejects(service.describe(NOTE), refused);
-    await assert.rejects(service.attachTargets("q4"), refused);
+    await assert.rejects(service.attachTargets("q4", NOTE), refused);
     await assert.rejects(service.attach(NOTE, "q4", TOPIC), refused);
-    await assert.rejects(service.unlink(keyOf("t1", "b1")), refused);
+    await assert.rejects(service.unlink(keyOf("t1")), refused);
     await assert.rejects(service.convert(makeTopic("r-ambiguous")), refused);
   }
   assert.deepEqual(calls.filter(id => /^io\.example\.(topics|themes)\./.test(id)), [], "neither provider was asked anything");
   // The refusal names the two, so the person knows which to turn off.
-  await assert.rejects(serviceOver(t, directory(both, calls)).attachTargets("q4"), (error: ActionError) => error.message.includes("io.example.topics") && error.message.includes("io.example.themes") && error.details?.relation === "topic");
+  await assert.rejects(serviceOver(t, directory(both, calls)).attachTargets("q4", NOTE), (error: ActionError) => error.message.includes("io.example.topics") && error.message.includes("io.example.themes") && error.details?.relation === "topic");
   // A second provider that is not enabled here is not a competitor: the enabled one keeps the relation alone.
-  const disabled = [...owner("io.example.topics", "topic", FIVE), ...owner("io.example.themes", "topic", FIVE, FIVE), reader("io.example.notes", "note")];
-  assert.deepEqual(await serviceOver(t, directory(disabled, calls)).attachTargets("q4"), [{ kind: "topic", noun: "话题", targets: [{ id: "t1", title: "第一个话题" }] }]);
+  const disabled = [...owner("io.example.topics", "topic", FIVE), ...owner("io.example.themes", "topic", FIVE, FIVE), reader("io.example.notes", "note"), reader("io.example.topics", "topic", "话题")];
+  assert.deepEqual(await serviceOver(t, directory(disabled, calls)).attachTargets("q4", NOTE), [{ kind: "topic", noun: "话题", targets: [{ id: "t1", title: "第一个话题", current: true }] }]);
   assert.ok(calls.includes("io.example.topics.pick") && !calls.some(id => id.startsWith("io.example.themes.")), calls.join());
+  // Two relations, of two names, ending on the same kind: which keeps a binding would be a guess, so that is refused too.
+  const twoNames: string[] = [];
+  const named = [...owner("io.example.topics", "topic", FIVE), ...owner("io.example.themes", "topic", FIVE, [], "theme"), reader("io.example.notes", "note")];
+  await assert.rejects(serviceOver(t, directory(named, twoNames)).attachTargets("q4", NOTE), { code: "placement.relation_ambiguous" });
+  assert.deepEqual(twoNames.filter(id => /^io\.example\.(topics|themes)\./.test(id)), []);
 });
 
 test("RAC-638 what a conversion made says which plugin keeps it, from the owner's reader; with no reader to say, it says nothing and names no kind", async t => {

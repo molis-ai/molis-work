@@ -96,7 +96,7 @@ interface GoalsAsked { created: string[]; confirmed: Array<{ goal_id: string; so
  */
 function goalsStandIn(known: readonly string[], asked: GoalsAsked): PluginDefinition {
   // The real outputs are the whole Goal and the whole receipt; these answer only what Feed reads them for. Placement's 「挂到 Goal」 is declared
-  // on `goals.attach.*`, which the stand-in does not offer, so it plays no part in it.
+  // on the `placement_relation` parts (`goals.attach.*`), which the stand-in does not offer, so it plays no part in it.
   // Nor does it offer Goals' starting points: `goals.create`'s intake words are the real Goals' language pack, which the stand-in does not carry.
   const answering = (definition: ActionDefinition, output: object): ActionDefinition => {
     const { intake: _intake, ...action } = definition.action;

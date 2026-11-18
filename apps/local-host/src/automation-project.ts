@@ -4,13 +4,17 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import { assertPassiveProjectAvailable } from "./passive-sync-execution.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
+import { onboardingTakers, type OnboardingTaker } from "./onboarding-takers.js";
+import { shownProjectPlugins } from "./plugin-registry.js";
 
-/** Pin the save to the exact action declared by the document owner. */
-export function registeredPagesCreate() {
-  const manifest = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "pages")?.manifest;
-  const action = manifest?.actions?.find(action => action.capability_id === "pages.create" && action.version === /* @version action.pages.create */ 1);
-  return manifest && action ? { ...action, provider_id: manifest.plugin_id } : undefined;
+/**
+ * The plugins the project shows (enabled there, or a personal one it does not hide) that keep a text the platform hands them as a document (the `documents` material,
+ * contract-design §2.5), by their own declaration: the report is saved by whichever one it is, and no plugin is named here.
+ */
+export function projectDocumentTakers(membership: ProjectPluginMembership): OnboardingTaker[] {
+  const here = new Set(shownProjectPlugins(membership.plugins, membership.hidden));
+  return onboardingTakers("documents").filter(taker => here.has(taker.project_plugin_id));
 }
 
 export function automationProjectSnapshot(home: string, catalog: MolisWorkProjectCatalog, reference: LocalHostProjectReference, scan: boolean) {

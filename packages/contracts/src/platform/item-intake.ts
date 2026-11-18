@@ -93,15 +93,14 @@ export interface DeliveredIntake {
 
 export type ActionIntake = PersonIntake | DeliveredIntake;
 
-/** What a person hands over: the selected text, another object (only 「挂到…」), or a 成果 version (「从这一版继续」). */
+/** What a person hands over: the selected text, or a 成果 version (「从这一版继续」). */
 export type PersonMaterial =
   | { readonly kind: "text" }
-  | { readonly kind: "object"; readonly item_kinds?: readonly string[] }
   | { readonly kind: "artifact"; readonly artifact_types: readonly { readonly artifact_type_id: string; readonly schema_version: number }[]; readonly file?: ArtifactFileDeclaration };
 
 /**
  * What the platform delivers. `handoff`: a workflow's content (a station's `receive`); `notification`: the platform's notifications;
- * `code_root`, `documents`, `drafts`: onboarding's (§2.5). `drafts` names its `get` and `keep` actions of the same Manifest.
+ * `code_root`, `documents`, `drafts`: onboarding's (§2.5); `documents` also takes a project's automation report. `drafts` names its `get` and `keep` actions of the same Manifest.
  */
 export type DeliveredMaterial =
   | { readonly kind: "handoff" } | { readonly kind: "notification" } | { readonly kind: "code_root" } | { readonly kind: "documents" }
@@ -132,26 +131,6 @@ export function takesSelectedText(intake: ActionIntake): intake is PersonIntake 
   return !isDeliveredIntake(intake) && intakeAccepts(intake).some(material => material.kind === "text");
 }
 
-/**
- * 「挂到…」 (batch 44 C1): the attach is a relation its owner keeps between another object and one of its own Items (a document hung
- * on a Goal). The action that declares it attaches; the parts named here list, release, offer and make targets. Every part is an
- * action of the same Manifest, in the platform's shape for that part (`PLACEMENT_ATTACH_SCHEMAS`); placement finds the relation by
- * this declaration and names no plugin.
- */
-export interface ItemAttachRelation {
-  /** The noun a person reads the other end by, and the original if the plugin's words lack `noun_text`: 「Goal」. */
-  readonly noun: string;
-  readonly noun_text?: TextRef;
-  /** The targets one object is attached to now. */
-  readonly list: Pick<ActionReference, "capability_id" | "version">;
-  /** Take one attachment off. */
-  readonly release: Pick<ActionReference, "capability_id" | "version">;
-  /** The targets it can be attached to here, by page. */
-  readonly candidates?: Pick<ActionReference, "capability_id" | "version">;
-  /** 「建成…」: make a new target from content. */
-  readonly create?: Pick<ActionReference, "capability_id" | "version">;
-}
-
 /** This action puts material into an existing Item of the provider's own kind. */
 export interface ActionAttach extends DestinationDeclaration {
   /** Stable and unique among this provider's attaches; same alphabet and length as an intake id. */
@@ -160,7 +139,4 @@ export interface ActionAttach extends DestinationDeclaration {
   readonly item_kind: string;
   /** Cursor and selection need an `expected_version` in the input, so a write to a document that changed is refused. */
   readonly positions?: readonly ItemAttachPosition[];
-  /** What it takes; omitted, the selected text. A `relation` takes `[{ kind: "object" }]` and nothing else. */
-  readonly accepts?: readonly ({ readonly kind: "text" } | { readonly kind: "object"; readonly item_kinds?: readonly string[] })[];
-  readonly relation?: ItemAttachRelation;
 }

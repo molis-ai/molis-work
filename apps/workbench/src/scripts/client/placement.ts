@@ -474,7 +474,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     };
     const found = [];
     for (const projectId of places) {
-      try { for (const kind of (await api("attach-targets?project_id=" + encodeURIComponent(projectId))).kinds || []) for (const target of kind.targets) found.push({ kind: kind.kind, goal_id: target.id, title: target.title, project_id: projectId }); }
+      try { for (const kind of (await api("attach-targets", { project_id: projectId, object: view.object })).kinds || []) for (const target of kind.targets) found.push({ kind: kind.kind, goal_id: target.id, title: target.title, project_id: projectId }); }
       catch (error) { if (projectId === home) { card(globalThis.t.text("workbench.placement.couldn-t-read-goals"), error, [], "error"); return; } }
     }
     if (!found.length) { card(globalThis.t.text("workbench.placement.no-goals-here-yet"), globalThis.t.text("workbench.placement.create-goal-goals-first-then-link-material"), [], "error"); return; }
@@ -525,7 +525,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
         const remove = ghost(view.state === "ok" ? globalThis.t.text("workbench.placement.remove-link") : globalThis.t.text("workbench.placement.clean-up"));
         remove.onclick = async () => {
           try {
-            await api("unlink", { key: JSON.stringify(["attached", here(), row.dataset.placementTargetKind, row.dataset.placementTargetId, row.dataset.placementBinding]) });
+            await api("unlink", { key: JSON.stringify(["attached", here(), row.dataset.placementTargetKind, row.dataset.placementTargetId, row.dataset.placementKind, row.dataset.placementId]) });
             row.remove(); invalidate();
             card(globalThis.t.text("workbench.placement.link-removed"), globalThis.t.text("workbench.placement.only-entry-goal-was-removed-material-itself-unchanged"), [], "done");
           } catch (error) { card(globalThis.t.text("workbench.placement.couldn-t-remove-link"), error, [], "error"); }
@@ -579,7 +579,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
         const parts = JSON.parse(result.attached_key);
         const row = node("article", undefined, "placement-goal-material");
         row.dataset.placementMaterial = ""; row.dataset.placementKind = result.object.kind; row.dataset.placementId = result.object.id;
-        row.dataset.placementTargetKind = parts[2]; row.dataset.placementTargetId = parts[3]; row.dataset.placementBinding = parts[4];
+        row.dataset.placementTargetKind = parts[2]; row.dataset.placementTargetId = parts[3];
         const text = node("div"); text.append(node("strong", result.title)); const state = node("small", globalThis.t.text("workbench.placement.loading")); state.dataset.placementMaterialState = ""; text.append(state);
         row.append(text, node("span", undefined, "placement-goal-material-actions"));
         let list = section.querySelector(".bound-list");

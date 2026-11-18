@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { intakeMaterial, isAttachRelationPart, isResumeSummaryAction, LOCAL_PERSON_ACTOR_ID, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { intakeMaterial, isPlacementRelationPart, isResumeSummaryAction, LOCAL_PERSON_ACTOR_ID, PLACEMENT_RELATION_ROLES, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { openTestHome } from "./fixtures/test-home.js";
 
@@ -22,7 +22,8 @@ test("PEQ-05: the sample imports only contracts and the plugin SDK, and its Mani
   assert.ok(manifest.settings_entries?.entries.some(entry => entry.key === "greeting"), "a settings section");
   assert.ok(isResumeSummaryAction(action("resume.summary")), "a resume summary");
   assert.equal(action("notes.clear").requires_trusted_decision, true, "a write the person confirms in the platform's decision");
-  assert.equal(action("attach.bind").attach?.relation?.noun, "Sample note", "「挂到…」 not only for Goals");
+  assert.deepEqual(action("attach.list").placement_relation, { relation: "note", role: "list", target: { kind: "sample_note", noun: "Sample note", noun_text: { key: "notes.attach.noun" } } },
+    "「挂到…」 not only for Goals");
   const blank = action("notes.create").intake;
   assert.ok(blank && "start" in blank && blank.start && blank.accepts?.length === 0, "a blank starting point");
 });
@@ -40,16 +41,16 @@ test("PEQ-05: in a project the sample's declarations are the person's to use, an
   // Workbench: what the person can start from nothing, and where 「挂到…」 can hang a thing, come from the sample's own declarations.
   const starts = own.filter(item => { const intake = item.action.intake; return intake && "start" in intake && intake.start && intakeMaterial(intake, "text") === undefined; });
   assert.deepEqual(starts.map(item => item.capability_id), [id("notes.create")]);
-  const relation = own.find(item => item.action.attach?.relation && isAttachRelationPart(item.action, "bind"))?.action.attach?.relation;
-  assert.ok(relation);
-  for (const part of ["list", "release", "candidates", "create"] as const) {
-    assert.ok(own.some(item => item.capability_id === relation[part]!.capability_id && isAttachRelationPart(item.action, part)), part);
+  for (const role of PLACEMENT_RELATION_ROLES) {
+    assert.ok(own.some(item => item.action.placement_relation?.relation === "note" && item.action.placement_relation.role === role && isPlacementRelationPart(item.action, role)), role);
   }
   const made = await call<{ note: { id: string } }>("notes.create", {});
-  const bound = await call<{ binding: { binding_id: string } }>("attach.bind", { target_id: made.note.id, subject: { kind: "page", id: "doc-1" }, title: "A document" });
-  assert.deepEqual(await call("attach.list", { subject: { kind: "page", id: "doc-1" } }),
-    { bindings: [{ binding_id: bound.binding.binding_id, target_id: made.note.id, created_at: (await call<{ bindings: { created_at: string }[] }>("attach.list", { subject: { kind: "page", id: "doc-1" } })).bindings[0]!.created_at }] });
-  assert.deepEqual(await call("attach.bind", { target_id: made.note.id, subject: { kind: "page", id: "doc-1" }, title: "A document" }), bound, "a repeated attach returns its record");
+  const doc = { kind: "page", id: "doc-1" }, note = { kind: "sample_note", id: made.note.id };
+  const bound = await call("attach.bind", { subject: doc, target: note, read: { title: "A document" } });
+  assert.deepEqual(bound, { targets: [note] });
+  assert.deepEqual(await call("attach.list", { subject: doc }), { targets: [note] });
+  assert.deepEqual(await call("attach.bind", { subject: doc, target: note, read: { title: "A document" } }), bound, "a repeated attach adds none");
+  assert.deepEqual(await call("attach.candidates", { subject: doc }), { targets: [{ subject: note, current: true }] });
   const settings = await call<{ values: { key: string; value: unknown; source: string }[] }>("settings.read", { keys: ["greeting"] });
   assert.deepEqual(settings.values.map(({ key, value, source }) => ({ key, value, source })), [{ key: "greeting", value: "Hello", source: "provider_default" }]);
   // The write behind a trusted decision is refused when the person's own call carries no decision.

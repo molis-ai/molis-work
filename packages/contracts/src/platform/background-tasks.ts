@@ -122,15 +122,13 @@ export function defineBackgroundTasksAction(capabilityId: string, version: numbe
 
 /**
  * Which event a task is done for (specs/work-line §5) is kept by the task's owner. The owner declares these parts on its own
- * actions with `task_serves`, for the task kinds it names; the mainline service finds them by
+ * actions with `placement_relation` (the relation is `serves`), for the task kinds it names; the mainline service finds them by
  * the declaration, never by a capability id, and calls them as the caller. `list` says what the task serves now and is where the
  * owner refuses a task the caller may not read; `bind` makes it serve exactly the given event; `release` makes it serve nothing;
  * `create` registers the task as an event of its own. An owner that offers no part cannot have its tasks moved.
  */
+export const TASK_SERVES_RELATION = "serves";
 export type TaskServesRole = "list" | "bind" | "release" | "create";
-export const TASK_SERVES_ROLES: readonly TaskServesRole[] = ["list", "bind", "release", "create"];
-/** The part an action plays (`ActionMetadata.task_serves`); the other end is always an event on the work line. */
-export interface TaskServesDeclaration { readonly role: TaskServesRole }
 export interface TaskServesInput { task: ActionSubject }
 export interface TaskServesBindInput { task: ActionSubject; event: ActionSubject }
 export interface TaskServesResult { serves: ActionSubject[] }
@@ -147,6 +145,6 @@ export function defineTaskServesAction<R extends TaskServesRole>(role: R, capabi
     : inputSchemaFor<TaskServesInput>()({ type: "object", properties: { task: ACTION_SUBJECT_SCHEMA }, required: ["task"], additionalProperties: false } as const);
   return { capability_id: capabilityId, version, operation: reads ? "query" : "command", action: { title, description: SERVES_WORDS[role], kind: reads ? "query" : "operation", scope: "project",
     effect: reads ? "read" : "write", audiences: ["user", "agent"], permissions, subject_kinds: kinds,
-    task_serves: { role },
+    placement_relation: { relation: TASK_SERVES_RELATION, role, ...(role === "list" ? { target: { kind: "work_event", noun: "事件" } } : {}) },
     input_schema: input, output_schema: servesResult } } as ActionDefinition<R extends "bind" ? TaskServesBindInput : TaskServesInput, TaskServesResult>;
 }

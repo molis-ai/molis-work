@@ -118,7 +118,7 @@ function personIntakeProblems(key: string, operation: unknown, action: Record<st
   if (!writes(key, operation, action)) problems.push(`能力 ${key} 的创建入口必须声明在写入动作（command）上，且不能是不可撤回的`);
   if (typeof value.material_field === "string" && !(value.material_field in inputFields(action))) problems.push(`能力 ${key} 的创建入口的 material_field 必须是输入里的顶层字段`);
   if (new Set(kinds).size !== kinds.length || accepts.some(material => !(isText(material) || isArtifactMaterial(material)))) {
-    problems.push(`能力 ${key} 的创建入口只能收选中的文字或成果（accepts 省略、[]、[{ kind: "text" }] 或 [{ kind: "artifact", artifact_types, file? }]）；收对象的只有「挂到…」关系`);
+    problems.push(`能力 ${key} 的创建入口只能收选中的文字或成果（accepts 省略、[]、[{ kind: "text" }] 或 [{ kind: "artifact", artifact_types, file? }]）；把对象挂到别的对象上走放置关联（placement_relation）`);
   }
   if (kinds.includes("artifact")) {
     if (kinds.length !== 1) problems.push(`能力 ${key} 的从成果继续的创建入口只收成果`);
@@ -166,37 +166,10 @@ function attachProblems(key: string, operation: unknown, action: Record<string, 
   if (positionsValid && Array.isArray(positions) && (positions.includes("cursor") || positions.includes("selection")) && !("expected_version" in inputFields(action))) {
     problems.push(`能力 ${key} 的追加到光标或选区必须在输入里带 expected_version，文档变了就拒绝写入`);
   }
-  if (isRecord(attach)) problems.push(...attachMaterialProblems(key, value));
   return problems;
 }
 
 const isText = (material: unknown) => isRecord(material) && material.kind === "text" && Object.keys(material).length === 1;
-const isObjectMaterial = (material: unknown) => isRecord(material) && material.kind === "object" && Object.keys(material).every(field => field === "kind" || field === "item_kinds")
-  && (material.item_kinds === undefined || (Array.isArray(material.item_kinds) && material.item_kinds.length > 0 && material.item_kinds.length <= 20
-    && material.item_kinds.every(kind => words(kind, 80)) && new Set(material.item_kinds).size === material.item_kinds.length));
-
-/**
- * What an attach takes, and 「挂到…」 (`relation`, contract-design §2.2): a relation takes another object and nothing else, so it has no
- * text field, no position, no `prepare` and no places of its own; it names its list and release parts (candidates and create optional).
- * An attach without a relation takes the selected text, as before.
- */
-function attachMaterialProblems(key: string, value: Record<string, unknown>): string[] {
-  const accepts = value.accepts, relation = value.relation;
-  if (relation === undefined) {
-    return accepts === undefined || (Array.isArray(accepts) && accepts.length === 1 && isText(accepts[0])) ? [] : [`能力 ${key} 的追加只能收选中的文字（accepts 省略或 [{ kind: "text" }]）；收对象的只有「挂到…」关系`];
-  }
-  const problems: string[] = [];
-  if (!Array.isArray(accepts) || accepts.length !== 1 || !isObjectMaterial(accepts[0])) problems.push(`能力 ${key} 的「挂到…」关系必须 accepts: [{ kind: "object" }]（可带 item_kinds）`);
-  if (["material_field", "positions", "prepare", "places"].some(field => value[field] !== undefined)) problems.push(`能力 ${key} 的「挂到…」关系不写 material_field、positions、prepare、places`);
-  const noun = isRecord(relation) ? relation.noun_text : undefined;
-  if (!isRecord(relation) || !words(relation.noun, LIMITS.title) || (noun !== undefined && !(isRecord(noun) && words(noun.key, 200)))
-    || !reference(relation.list) || !reference(relation.release) || (relation.candidates !== undefined && !reference(relation.candidates))
-    || (relation.create !== undefined && !reference(relation.create))
-    || Object.keys(relation).some(field => !["noun", "noun_text", "list", "release", "candidates", "create"].includes(field))) {
-    problems.push(`能力 ${key} 的「挂到…」关系无效：需要对方的名词（可带语言键）、list 与 release 两部分，candidates、create 可选，都写能力与版本`);
-  }
-  return problems;
-}
 
 /** The places an offer's choices apply in. */
 function choicePlaceProblems(key: string, action: Record<string, unknown>): string[] {

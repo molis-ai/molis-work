@@ -560,13 +560,7 @@ export interface ActionHandlerBinding {
     availability?(context: ActionCallContext): ActionAvailability;
 }
 
-export interface ActionIntake extends DestinationDeclaration {
-    readonly intake_id: string;
-    readonly item_kind: string;
-    readonly examples: readonly string[];
-    readonly effect?: "creates" | "proposes";
-    readonly multiple?: boolean;
-}
+export type ActionIntake = PersonIntake | DeliveredIntake;
 
 export interface ActionInvokeTransport {
     readonly on_progress?: (event: ActionProgressEvent) => void;
@@ -868,7 +862,7 @@ export interface ActionSubjectContext {
     title: string;
     content: string;
     truncated: boolean;
-    goal_ids?: string[];
+    attached_to?: ActionSubject[];
     open?: {
         surface: string;
         id: string;
@@ -926,6 +920,15 @@ export interface ArtifactCompareResult {
 }
 
 export type ArtifactCompareState = "same" | "changed" | "moved" | "missing";
+
+export interface ArtifactContinueFrom {
+    readonly item_kind: string;
+    readonly artifact_types: readonly {
+        readonly artifact_type_id: string;
+        readonly schema_version: number;
+    }[];
+    readonly file?: ArtifactFileDeclaration;
+}
 
 export interface ArtifactContinueInput {
     artifact: ArtifactVersionRecord;
@@ -2089,6 +2092,8 @@ export interface BoundActionClient {
     invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only" | "assert_memory_sources_current">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
+export declare const DELIVERED_MATERIAL_KINDS: readonly DeliveredMaterialKind[];
+
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
 
 export declare const DUE_REMINDERS_OUTPUT_TYPE = "molis.reminders.due.v1";
@@ -2275,6 +2280,28 @@ export declare const DUE_REMINDER_WINDOW_SCHEMA: {
     readonly required: readonly ["from", "to"];
     readonly additionalProperties: false;
 };
+
+export interface DeliveredIntake {
+    readonly intake_id: string;
+    readonly item_kind: string;
+    readonly accepts: readonly [DeliveredMaterial];
+}
+
+export type DeliveredMaterial = {
+    readonly kind: "handoff";
+} | {
+    readonly kind: "notification";
+} | {
+    readonly kind: "code_root";
+} | {
+    readonly kind: "documents";
+} | {
+    readonly kind: "drafts";
+    readonly get: Pick<ActionReference, "capability_id" | "version">;
+    readonly keep: Pick<ActionReference, "capability_id" | "version">;
+};
+
+export type DeliveredMaterialKind = DeliveredMaterial["kind"];
 
 export interface DueReminder {
     reminder_id: string;
@@ -2701,10 +2728,21 @@ export declare const FRAGMENT_OFFERS_INPUT_SCHEMA: {
                         readonly maxLength: 200;
                     };
                 };
-                readonly goal: {
+                readonly belongs_to: {
                     readonly type: "object";
                     readonly properties: {
+                        readonly plugin_id: {
+                            readonly maxLength: 120;
+                            readonly type: "string";
+                            readonly minLength: 1;
+                        };
+                        readonly kind: {
+                            readonly maxLength: 120;
+                            readonly type: "string";
+                            readonly minLength: 1;
+                        };
                         readonly id: {
+                            readonly maxLength: 200;
                             readonly type: "string";
                             readonly minLength: 1;
                         };
@@ -2713,7 +2751,7 @@ export declare const FRAGMENT_OFFERS_INPUT_SCHEMA: {
                             readonly maxLength: 200;
                         };
                     };
-                    readonly required: readonly ["id", "title"];
+                    readonly required: readonly ["plugin_id", "kind", "id", "title"];
                     readonly additionalProperties: false;
                 };
             };
@@ -2896,7 +2934,7 @@ export interface FragmentOfferChoice {
     readonly action: Pick<ActionReference, "capability_id" | "version">;
     readonly granularities?: readonly FragmentGranularity[];
     readonly roles?: readonly FragmentRole[];
-    readonly requires?: readonly "goal"[];
+    readonly belongs_to?: readonly string[];
     readonly places?: readonly SurfacePlace[];
 }
 
@@ -2911,7 +2949,9 @@ export interface FragmentOffersInput {
         readonly granularity: FragmentGranularity;
         readonly targets: readonly FragmentTarget[];
         readonly heading_path?: readonly string[];
-        readonly goal?: {
+        readonly belongs_to?: {
+            readonly plugin_id: string;
+            readonly kind: string;
             readonly id: string;
             readonly title: string;
         };
@@ -2959,12 +2999,14 @@ export interface HostOfferedOriginalInput {
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];
 
 export declare const ITEM_DECLARATION_LIMITS: {
-    readonly id: 40;
+    readonly id: 50;
     readonly title: 40;
     readonly verb: 40;
     readonly describe: 240;
     readonly example: 120;
     readonly examples: 3;
+    readonly start_title: 80;
+    readonly hint: 200;
 };
 
 export type InferActionInput<S> = S extends {
@@ -3009,7 +3051,18 @@ export type InferActionInput<S> = S extends {
     readonly type: infer T;
 } ? (string extends T ? unknown : Simple<T>) : unknown;
 
+export interface IntakeStart {
+    readonly title: string;
+    readonly title_text?: TextRef;
+    readonly hint: string;
+    readonly hint_text?: TextRef;
+    readonly icon?: string;
+    readonly open?: PresentationStartForm;
+}
+
 export type ItemAttachPosition = (typeof ITEM_ATTACH_POSITIONS)[number];
+
+export type ItemMaterial = PersonMaterial | DeliveredMaterial;
 
 export declare const LOCAL_PERSON_ACTOR_ID = "web-user";
 
@@ -3217,9 +3270,15 @@ export declare const PLACEMENT_MOVE_OUTPUT_TYPE = "molis.placement.move.output.v
 export declare const PLACEMENT_RELATION_LIMITS: {
     readonly targets: 500;
     readonly name: 120;
+    readonly title: 200;
+    readonly revision: 200;
+    readonly excerpt: 2000;
+    readonly request_id: 200;
 };
 
 export declare const PLACEMENT_RELATION_ROLES: readonly ["list", "bind", "release", "candidates", "create"];
+
+export declare const PLACEMENT_RELATION_TYPE = "molis.placement.relation.v1";
 
 export declare const PLACEMENT_RESULT_SCHEMA: {
     type: string;
@@ -3255,6 +3314,28 @@ export declare const PLACEMENT_RESULT_SCHEMA: {
     additionalProperties: boolean;
 };
 
+export interface PersonIntake extends DestinationDeclaration {
+    readonly intake_id: string;
+    readonly title_text?: TextRef;
+    readonly item_kind: string;
+    readonly examples: readonly string[];
+    readonly effect?: "creates" | "proposes";
+    readonly multiple?: boolean;
+    readonly accepts?: readonly PersonMaterial[];
+    readonly start?: IntakeStart;
+}
+
+export type PersonMaterial = {
+    readonly kind: "text";
+} | {
+    readonly kind: "artifact";
+    readonly artifact_types: readonly {
+        readonly artifact_type_id: string;
+        readonly schema_version: number;
+    }[];
+    readonly file?: ArtifactFileDeclaration;
+};
+
 export interface PlacementCopyInput {
     subject: ActionSubject;
     to_project_id: string;
@@ -3264,6 +3345,10 @@ export interface PlacementCopyInput {
 export interface PlacementMoveInput {
     subject: ActionSubject;
     to_project_id: string;
+}
+
+export interface PlacementRelationBindInput extends PlacementRelationTargetInput {
+    read?: PlacementRelationRead;
 }
 
 export interface PlacementRelationCandidates {
@@ -3276,15 +3361,14 @@ export interface PlacementRelationCandidates {
 export interface PlacementRelationCreateInput {
     subject: ActionSubject;
     name: string;
+    request_id?: string;
+    read?: PlacementRelationRead;
 }
 
 export interface PlacementRelationDeclaration {
     readonly relation: string;
     readonly role: PlacementRelationRole;
-    readonly target?: {
-        readonly kind: string;
-        readonly noun: string;
-    };
+    readonly target?: PlacementRelationTarget;
 }
 
 export interface PlacementRelationOptions {
@@ -3292,11 +3376,14 @@ export interface PlacementRelationOptions {
     title: string;
     description: string;
     permissions: readonly string[];
-    target?: {
-        kind: string;
-        noun: string;
-    };
+    target?: PlacementRelationTarget;
     audiences?: readonly ("user" | "agent" | "workflow" | "mcp")[];
+}
+
+export interface PlacementRelationRead {
+    title: string;
+    revision?: string;
+    excerpt?: string;
 }
 
 export interface PlacementRelationResult {
@@ -3309,6 +3396,12 @@ export interface PlacementRelationSubjectInput {
     subject: ActionSubject;
 }
 
+export interface PlacementRelationTarget {
+    readonly kind: string;
+    readonly noun: string;
+    readonly noun_text?: TextRef;
+}
+
 export interface PlacementRelationTargetInput {
     subject: ActionSubject;
     target: ActionSubject;
@@ -3319,6 +3412,136 @@ export interface PlacementResult {
     project_id: string;
     revision: string;
 }
+
+export declare const RESUME_SUMMARY_INPUT_TYPE = "molis.resume-summary.query.v1";
+
+export declare const RESUME_SUMMARY_OUTPUT_TYPE = "molis.resume-summary.view.v1";
+
+export declare const RESUME_SUMMARY_SCHEMAS: {
+    readonly input: Readonly<Record<string, unknown>>;
+    readonly output: {
+        readonly type: "object";
+        readonly properties: {
+            readonly title: {
+                readonly maxLength: 120;
+                readonly type: "string";
+                readonly minLength: 1;
+            };
+            readonly focus: {
+                readonly anyOf: readonly [{
+                    readonly type: "null";
+                }, {
+                    readonly type: "object";
+                    readonly properties: {
+                        readonly subject: {
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly kind: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                };
+                                readonly id: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                };
+                            };
+                            readonly required: readonly ["kind", "id"];
+                            readonly additionalProperties: false;
+                        };
+                        readonly title: {
+                            readonly maxLength: 500;
+                            readonly type: "string";
+                        };
+                        readonly next_hint: {
+                            readonly type: "string";
+                            readonly maxLength: 2000;
+                        };
+                        readonly status_label: {
+                            readonly type: "string";
+                            readonly maxLength: 80;
+                        };
+                        readonly open: {
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly surface: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                    readonly maxLength: 200;
+                                };
+                                readonly id: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                    readonly maxLength: 200;
+                                };
+                            };
+                            readonly required: readonly ["surface", "id"];
+                            readonly additionalProperties: false;
+                        };
+                    };
+                    readonly required: readonly ["subject", "title", "next_hint", "status_label", "open"];
+                    readonly additionalProperties: false;
+                }];
+            };
+            readonly next: {
+                readonly type: "array";
+                readonly maxItems: 5;
+                readonly items: {
+                    readonly type: "object";
+                    readonly properties: {
+                        readonly subject: {
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly kind: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                };
+                                readonly id: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                };
+                            };
+                            readonly required: readonly ["kind", "id"];
+                            readonly additionalProperties: false;
+                        };
+                        readonly title: {
+                            readonly maxLength: 500;
+                            readonly type: "string";
+                        };
+                        readonly next_hint: {
+                            readonly type: "string";
+                            readonly maxLength: 2000;
+                        };
+                        readonly status_label: {
+                            readonly type: "string";
+                            readonly maxLength: 80;
+                        };
+                        readonly open: {
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly surface: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                    readonly maxLength: 200;
+                                };
+                                readonly id: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                    readonly maxLength: 200;
+                                };
+                            };
+                            readonly required: readonly ["surface", "id"];
+                            readonly additionalProperties: false;
+                        };
+                    };
+                    readonly required: readonly ["subject", "title", "next_hint", "status_label", "open"];
+                    readonly additionalProperties: false;
+                };
+            };
+        };
+        readonly required: readonly ["title", "focus", "next"];
+        readonly additionalProperties: false;
+    };
+};
 
 export declare const RUNS_MISSED_LIMIT = 50;
 
@@ -3523,6 +3746,27 @@ export declare const RUN_DECISION_SCHEMA: {
 };
 
 export declare const RUN_MISSED_GRACE_MS: number;
+
+export interface ResumeItem {
+    subject: ActionSubject;
+    title: string;
+    next_hint: string;
+    status_label: string;
+    open: {
+        surface: string;
+        id: string;
+    };
+}
+
+export interface ResumeSummary {
+    title: string;
+    focus: ResumeItem | null;
+    next: ResumeItem[];
+}
+
+export interface ResumeSummaryInput {
+    focus?: ActionSubject;
+}
 
 export interface RetainedActionAuthority {
     (): Promise<void>;
@@ -3852,13 +4096,24 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
             type: string[];
             maxLength: number;
         };
-        goal_ids: {
+        attached_to: {
             type: string;
+            maxItems: number;
             items: {
-                readonly type: "string";
-                readonly minLength: 1;
+                readonly type: "object";
+                readonly properties: {
+                    readonly kind: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                    readonly id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                };
+                readonly required: readonly ["kind", "id"];
+                readonly additionalProperties: false;
             };
-            uniqueItems: boolean;
         };
         subject: {
             readonly type: "object";
@@ -3898,13 +4153,24 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
 export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN: {
     type: string;
     properties: {
-        goal_ids: {
+        attached_to: {
             type: string;
+            maxItems: number;
             items: {
-                readonly type: "string";
-                readonly minLength: 1;
+                readonly type: "object";
+                readonly properties: {
+                    readonly kind: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                    readonly id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                };
+                readonly required: readonly ["kind", "id"];
+                readonly additionalProperties: false;
             };
-            uniqueItems: boolean;
         };
         subject: {
             readonly type: "object";
@@ -3960,13 +4226,24 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
             required: string[];
             additionalProperties: boolean;
         };
-        goal_ids: {
+        attached_to: {
             type: string;
+            maxItems: number;
             items: {
-                readonly type: "string";
-                readonly minLength: 1;
+                readonly type: "object";
+                readonly properties: {
+                    readonly kind: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                    readonly id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                };
+                readonly required: readonly ["kind", "id"];
+                readonly additionalProperties: false;
             };
-            uniqueItems: boolean;
         };
         subject: {
             readonly type: "object";
@@ -5339,8 +5616,7 @@ export interface WorkflowContentStation {
 }
 
 export interface WorkflowItemRef {
-    readonly plugin: string;
-    readonly item_id: string;
+    readonly subject: ActionSubject;
     readonly title: string;
 }
 
@@ -5349,7 +5625,7 @@ export interface WorkflowPayload {
     readonly body: string;
     readonly url?: string | null;
     readonly source?: string | null;
-    readonly feed_item_id?: string | null;
+    readonly source_ref?: ActionSubject;
 }
 
 export interface WorkflowReceiveInput extends WorkflowPayload {
@@ -5364,6 +5640,11 @@ export interface WorkflowStartItem {
     readonly caption: string;
     readonly at: string | null;
 }
+
+export type WorkflowStationCreate = boolean | {
+    readonly title: string;
+    readonly title_text?: TextRef;
+};
 
 export declare function actionEffect(action: Pick<ActionMetadata, "kind" | "effect">, capabilityId: string): "read" | "write" | "irreversible";
 
@@ -5452,7 +5733,7 @@ export declare function defineActionUsagesAction(capabilityId: string, version: 
 
 export declare function defineArtifactCompareAction(capabilityId: string, version: number, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactCompareInput, ArtifactCompareResult>;
 
-export declare function defineArtifactContinueAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactContinueInput, ArtifactContinueResult>;
+export declare function defineArtifactContinueAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[], from: ArtifactContinueFrom): ActionDefinition<ArtifactContinueInput, ArtifactContinueResult>;
 
 export declare function defineArtifactLinkSubjectsAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactLinkSubjectsInput, ArtifactLinkSubjectsResult>;
 
@@ -5487,6 +5768,8 @@ export declare function defineObjectCopyAction(capabilityId: string, version: nu
 export declare function defineObjectMoveAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[], scope?: "project" | "home"): ActionDefinition<PlacementMoveInput, PlacementResult>;
 
 export declare function definePlacementRelationAction<R extends PlacementRelationRole>(relation: string, role: R, capabilityId: string, version: number, options: PlacementRelationOptions): ActionDefinition<RelationInput<R>, RelationOutput<R>>;
+
+export declare function defineResumeSummaryAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<ResumeSummaryInput, ResumeSummary>;
 
 export declare function defineRunDecisionAction(capabilityId: string, version: number, title: string, permissions: string[], scope: RunsOwnerScope): ActionDefinition<RunDecision, RunDecided>;
 
@@ -5533,6 +5816,12 @@ export declare function findSubjectReader(views: readonly ActionView[], kind: st
 
 export declare const inputSchemaFor: <I>() => <const S extends ActionSchema>(schema: S & InputMatches<I, S>) => ActionSchema;
 
+export declare function intakeAccepts(intake: Pick<ActionIntake, "accepts">): readonly ItemMaterial[];
+
+export declare function intakeMaterial<K extends ItemMaterial["kind"]>(intake: Pick<ActionIntake, "accepts"> | undefined, kind: K): Extract<ItemMaterial, {
+    kind: K;
+}> | undefined;
+
 export declare function isActionErrorKind(value: unknown): value is ActionErrorKind;
 
 export declare function isArtifactCompareAction(action: {
@@ -5564,6 +5853,8 @@ export declare function isArtifactReferrersAction(action: {
     input_type?: string;
     output_type?: string;
 }): boolean;
+
+export declare function isDeliveredIntake(intake: ActionIntake): intake is DeliveredIntake;
 
 export declare function isFileContentSource(action: {
     input_type?: string;
@@ -5597,6 +5888,16 @@ export declare function isObjectMover(action: {
 export declare function isPlacementRelation(action: {
     placement_relation?: PlacementRelationDeclaration;
 }, relation: string, role: PlacementRelationRole): boolean;
+
+export declare function isPlacementRelationPart(action: {
+    input_type?: string;
+    output_type?: string;
+}, role: PlacementRelationRole): boolean;
+
+export declare const isResumeSummaryAction: (action: {
+    input_type?: string;
+    output_type?: string;
+}) => boolean;
 
 export declare function isSearchEntriesSource(action: {
     input_type?: string;
@@ -5633,6 +5934,8 @@ export declare function parseItemPartReference(value: unknown): {
 export declare function pinActionSubject(client: ActionClient, caller: ActionExecutionContext, subject: ActionSubject): Promise<ArtifactPinResult>;
 
 export declare function pinnableSubjectKinds(client: ActionClient, caller: ActionCallContext): Promise<string[]>;
+
+export declare const placementRelationType: (role: PlacementRelationRole, side: "input" | "output") => string;
 
 export declare function placementSourceProject(caller: ActionCallContext, to: string): string;
 
@@ -5680,6 +5983,8 @@ export declare function searchText(value: unknown, max?: number): string;
 export declare function subjectContext(input: Omit<ActionSubjectContext, "truncated" | "offset" | "length"> & {
     truncated?: boolean;
 }, request?: Pick<SubjectContextRequest, "offset">): ActionSubjectContext;
+
+export declare function takesSelectedText(intake: ActionIntake): intake is PersonIntake;
 
 export declare function validActionExecutionPolicy(value: unknown): value is ActionExecutionPolicy;
 
@@ -5751,7 +6056,7 @@ type Prop<P, R extends readonly string[]> = Expand<{
     readonly [K in Exclude<keyof P, R[number]>]?: InferActionInput<P[K]>;
 }>;
 
-type RelationInput<R extends PlacementRelationRole> = R extends "bind" | "release" ? PlacementRelationTargetInput : R extends "create" ? PlacementRelationCreateInput : PlacementRelationSubjectInput;
+type RelationInput<R extends PlacementRelationRole> = R extends "bind" ? PlacementRelationBindInput : R extends "release" ? PlacementRelationTargetInput : R extends "create" ? PlacementRelationCreateInput : PlacementRelationSubjectInput;
 
 type RelationOutput<R extends PlacementRelationRole> = R extends "candidates" ? PlacementRelationCandidates : PlacementRelationResult;
 
@@ -5784,7 +6089,7 @@ interface WorkflowStationSpec {
     id: string;
     title: string;
     icon: string;
-    create?: boolean;
+    create?: WorkflowStationCreate;
     subject_kind: string;
     read_permissions: readonly string[];
     write_permissions: readonly string[];

@@ -25,7 +25,7 @@ export * from "./action-subjects.js";
 import type { HostCapabilityDescriptor } from "./app-host.js";
 export * from "./action-named-skills.js";
 import type { WorkflowContentStation } from "./workflow-content.js";
-import type { TaskServesDeclaration } from "./background-tasks.js";
+import type { PlacementRelationDeclaration } from "./placement.js";
 export * from "./workflow-content.js";
 import type { SearchSourceDeclaration } from "./search-sources.js";
 export * from "./search-sources.js";
@@ -337,10 +337,11 @@ export interface ActionMetadata {
    */
   readonly project_reach?: "person";
   /**
-   * The part this action plays in a background task's 「为哪个事件办」 relation (specs/work-line §5): the mainline service finds the task
-   * owner's parts by this, never by name. Written only by `defineTaskServesAction`.
+   * The part this action plays in a relation placement keeps for the person (PG-032): it lists what an object is attached to, attaches,
+   * releases, lists what can be attached to, or makes a target and attaches to it. Placement finds the relation's actions by this, never by
+   * name; a background task's 「为哪个事件办」 (`serves`) is one such relation, written by `defineTaskServesAction`.
    */
-  readonly task_serves?: TaskServesDeclaration;
+  readonly placement_relation?: PlacementRelationDeclaration;
   /** Optional rule choices owned by this subject-offer query; each target is declared in the same registration, in the same scope, and handles the option's subject kinds. */
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
   /** Finite choices of a fragment-offer query (specs/archive/contextual-interaction §5.1); each target is declared in the same registration and scope. */

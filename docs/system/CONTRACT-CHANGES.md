@@ -166,7 +166,7 @@ PEQ-10 要求旧指导能读，所以不提供「从空开始」的选项。
 - **D1 关联边的对象引用**（C6）。项目库 `context_edges` 的 `source_json`／`target_json` 里有 `module: "goals"`、`"feed"`；同步集合 `goal_context` 按 `module='goals'` 选边。
   - 推荐：随项目库升级（实现时为 5→6）同一事务改写成通用形状 `{ module: "plugins", object_type: "goal" | "feed_item", project_id }`，`id`、版本不动；`goal_context` 换成通用的「关联边」集合，凡一端是声明了同步集合的插件对象的边都同步（今天只有 Goals，选中的边与现在相同）；旧游标、待发、冲突只留在升级备份里。
   - 另一个做法：不改存量，`module` 改成插件在 Manifest 申报的来源名（Goals 申报 `goals`）。没有搬迁，但插件对象从此有两种写法。
-- **D2 放置关联**（C1）。Home 的放置库 `placement/…` 里有关系类型 `placement.goal_in` 的边；线上的 `placement.goals`、`placement.goal.bind`、关联类型 `goal`、转交目标 `{ goal: true }` 换成通用的「挂到…」，候选取声明了「挂到…」关系的插件对象（实现时落为 `item-intake` 的 `attach.relation`，见合同设计稿 2.2 节）。
+- **D2 放置关联**（C1）。Home 的放置库 `placement/…` 里有关系类型 `placement.goal_in` 的边；线上的 `placement.goals`、`placement.goal.bind`、关联类型 `goal`、转交目标 `{ goal: true }` 换成通用的「挂到…」，候选取声明了「挂到…」关系的插件对象（实现时落为各部分动作上的 `placement_relation`，即 main 第 36 批已有的关联声明与 `definePlacementRelationAction` 的形状，见合同设计稿 2.2 节）。
   - 推荐：放置库 1→2 改写关系类型为 `placement.attached_in`，边上记目标插件与对象类型；金样补带挂接边的放置库。
   - 另一个做法：存量关系名是放置服务自己的内部字符串，不改；只改线上合同。
 - **D3 等你**（C8）。项目库 `inbox_entries` 的 `subject_type`、`reason` 有 CHECK，取值含 `goal_decision`、`feed_item`、`source_fault`、`source_rule`。
@@ -185,6 +185,7 @@ PEQ-10 要求旧指导能读，所以不提供「从空开始」的选项。
 - D1、D3 同在项目库 5→6 一步（`apps/local-host/src/project-library-v6-upgrade.ts`，一个事务；main 的 #2118 先占了 4→5，本批顺延一号，内容不变）：先重建 `inbox_entries` 去掉两个 CHECK（表上原有的触发器原样重建），再拆 Goals 的 `project_goals@2` 集合，再改写关联边，最后建 Goals 库 v6 与 `project_goals@3`。Goals 库内容不变、只升版本号（v6），因为同步集合换了声明；v5 库与 `project_goals@2` 的声明冻结在 Goals 包里（`GOALS_PROJECT_DATABASE_V5`、`goalsV5Sync()`），旧 `module='goals'` 触发器的原文冻结在 `apps/local-host/src/goal-context-history.ts`，只供升级前核对。
 - D1 账本的对象引用加了 `plugin_id`（原方案只写了 `object_type`）：同一种 `object_type` 可能有两个插件，主人要能认出自己的边。账本列表按 `plugin_id`、`object_type` 也做精确匹配。关联边里遇到第 4 版没有的 `module`、或已经带 `plugin_id` 的引用，拒绝升级、项目库保留。
 - D2 放置库 1→2（`apps/local-host/src/placement-library-v2-upgrade.ts`）：`placement.goal_in` 的每个版本改成 `placement.attached_in`，键从 `["goal_in", 种类, id, 项目]` 改成 `["attached_in", 目标插件, 目标种类, 种类, id, 项目]`，目标插件与种类记在键里（边的 target 是项目，不是目标对象）；第 1 版的挂接全是 Goals 的 `goal`。金样 `0.1.1-dev.6` 在分叉点上重新生成，放置写入多做一次「挂到 Goal」，回放走这一步。
+- D2 的线上合同（用户 2026-11-18 定：只留一套关联机制）：本批先写的 `attach.relation`／`defineAttachRelationAction` 与后台任务的 `task_serves` 在合并 main 后撤掉，「挂到…」改用 main 第 36 批的 `placement_relation` 与 `definePlacementRelationAction`（两端都是 `ActionSubject`，每一步回调用后的目标）。放置库的边与键不受影响（`attached_in` 的键本来就记目标插件与种类）。平台形状加了两样可选输入：`bind`／`create` 的 `read: { title, revision?, excerpt? }`（放置服务以本人身份读到的，Goals 用来给输入命名、记摘要、写目标的结果描述）、`create` 的 `request_id`；`create` 的结果把新建的目标放在第一个（主线的 `mainline.holds.create` 随之调整）；各部分带类型名 `molis.placement.relation.v1.<角色>`，放置服务只认这个形状，所以后台任务的 `serves`（任务与事件的形状）不会被当成「挂到…」。
 - D3 的「排序只按呈现声明的状态映射」落成 Manifest `attention.subjects[].reasons[].attention`（`needs_decision`／`needs_acceptance`／`failed`），工作台按它排；条目的 `subject_type` 与 `reason` 只核对是否为主人申报过的词。
 - 删除条件：最早支持的金样不再含项目库 v5、放置库 v1 时，删这两段升级与冻结的 v5 声明。
 

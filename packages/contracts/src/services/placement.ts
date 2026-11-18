@@ -154,18 +154,21 @@ export const placementActions = {
     output_schema: object({ object: PLACED_OBJECT_SCHEMA, title: { type: "string" }, location, open, noun: { type: "string" } }, ["object", "title", "location", "open"]) } } as ActionDefinition<PlacementConvertRequest, PlacementConvertResponse>,
 };
 
-/** The targets of one 「挂到…」 relation in a location: their subject kind, the noun their owner gives it, and the ones open now. */
-export interface PlacementAttachKindView { kind: string; noun: string; targets: { id: string; title: string }[] }
+/**
+ * The targets of one 「挂到…」 relation in a location for one object: their subject kind, the noun their owner gives it, and the ones it
+ * offers (the ones the object is attached to now are `current`).
+ */
+export interface PlacementAttachKindView { kind: string; noun: string; targets: { id: string; title: string; current: boolean }[] }
 export interface PlacementCreateRequest { station: string; project_id: string; title?: string; attach_to?: { kind: string; id: string } | null; request_id: string }
 
 /** 「挂到…」 and creating straight onto a target: the target's owner keeps the binding; this service only asks it. */
 export const placementAttachActions = {
   targets: { capability_id: "placement.attach.targets", version: /* @version action.placement.attach.targets */ 1, operation: "query", action: { ...read,
-    title: "可以挂到哪里", description: "列出一个位置里可以把资料挂上去的对象（如还在进行的目标），按种类分组，供选择。",
-    input_schema: object({ project_id: projectRef }), output_schema: object({ kinds: { type: "array", items: object({ kind: { type: "string" }, noun: { type: "string" },
-      targets: { type: "array", items: object({ id: { type: "string" }, title: { type: "string" } }) } }) } }) } } as ActionDefinition<{ project_id: string }, { kinds: PlacementAttachKindView[] }>,
+    title: "可以挂到哪里", description: "列出一个位置里可以把这个对象挂上去的对象（如还在进行的目标），按种类分组，已挂上的标明，供选择。",
+    input_schema: object({ project_id: projectRef, object: PLACED_OBJECT_SCHEMA }), output_schema: object({ kinds: { type: "array", items: object({ kind: { type: "string" }, noun: { type: "string" },
+      targets: { type: "array", items: object({ id: { type: "string" }, title: { type: "string" }, current: { type: "boolean" } }) } }) } }) } } as ActionDefinition<{ project_id: string; object: PlacedObject }, { kinds: PlacementAttachKindView[] }>,
   attach: { capability_id: "placement.attach", version: /* @version action.placement.attach */ 1, operation: "command", action: { ...write,
-    title: "挂到…", description: "把对象挂到另一个对象上（由对方的主人记录）；不复制、不移动。对象在别处时，同时用于对方所在的项目。给了读到的版本（read_revision）时，对方的主人记下内容摘要，以后能看出原文改没改。",
+    title: "挂到…", description: "把对象挂到另一个对象上（由对方的主人记录）；不复制、不移动。对象在别处时，同时用于对方所在的项目。给了读到的版本（read_revision）时，对方的主人可以记下它，以后能看出原文改没改。",
     input_schema: object({ object: PLACED_OBJECT_SCHEMA, project_id: projectRef, target: object({ kind: kindSchema, id }), read_revision: { type: "string", minLength: 1, maxLength: 200 } }, ["object", "project_id", "target"]),
     output_schema: object({ key: { type: "string" } }) } } as ActionDefinition<{ object: PlacedObject; project_id: string; target: { kind: string; id: string }; read_revision?: string }, { key: string }>,
   create: { capability_id: "placement.create", version: /* @version action.placement.create */ 1, operation: "command", action: { ...write,

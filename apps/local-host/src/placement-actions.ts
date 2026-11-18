@@ -92,7 +92,7 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
     { ...placementActions.move, handle: (caller, input) => { const value = input as { object: PlacedObject; to_project_id: string }; return forCall(caller).move(value.object, value.to_project_id); } },
     { ...placementActions.copy, handle: (caller, input) => { const value = input as { object: PlacedObject; to_project_id: string; request_id: string }; return forCall(caller).copy(value.object, value.to_project_id, value.request_id); } },
     { ...placementActions.convert, handle: (caller, input) => forCall(caller).convert(input as PlacementConvertRequest) },
-    { ...placementAttachActions.targets, handle: async (caller, input) => ({ kinds: await forCall(caller).attachTargets((input as { project_id: string }).project_id) }) },
+    { ...placementAttachActions.targets, handle: async (caller, input) => { const value = input as { project_id: string; object: PlacedObject }; return { kinds: await forCall(caller).attachTargets(value.project_id, value.object) }; } },
     { ...placementAttachActions.attach, handle: (caller, input) => { const value = input as { object: PlacedObject; project_id: string; target: { kind: string; id: string }; read_revision?: string }; return forCall(caller).attach(value.object, value.project_id, value.target, value.read_revision); } },
     { ...placementAttachActions.create, handle: (caller, input) => forCall(caller).create(input as PlacementCreateRequest) },
   ];

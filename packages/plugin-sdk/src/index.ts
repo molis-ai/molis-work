@@ -281,7 +281,7 @@ export {
   defineObjectMoveAction, defineObjectCopyAction, bindObjectMoveHandler, bindHomeObjectMoveHandler, bindObjectCopyHandler, PERSONAL_SPACE_PROJECT_ID, type PlacementResult,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 /** 「挂到…」 for any plugin's objects, and the summary MCP reads when a project resumes (contract-design §2.2, §5): what Goals declares, any author may. */
-export { defineAttachRelationAction, defineResumeSummaryAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineResumeSummaryAction } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
  * Reminders the person set in your plugin (a time on a to-do): the Host asks, about once a minute, which fall due in a window

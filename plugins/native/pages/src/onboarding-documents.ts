@@ -11,13 +11,13 @@ import { PAGES_SUBJECT_KIND } from "./presentation.js";
 import type { PagesBody } from "./contract.js";
 
 /**
- * Pages keeps onboarding's materials and its summary as documents (specs/plugin-equal-standing/contract-design.md §2.5): the platform hands
- * each one over by the `documents` intake and names no plugin. A long material is cut into parts here, as the Host cut it before: 400,000
+ * Pages keeps a text the platform hands over as documents (specs/plugin-equal-standing/contract-design.md §2.5): onboarding's
+ * materials and its summary, a project's automation report. The platform hands each one over by the `documents` intake and names no plugin. A long material is cut into parts here, as the Host cut it before: 400,000
  * units a part, a part whose body is too large halved until it fits. Part k of n is imported as `<request_id>:k` (one part keeps the id
  * itself) with the hash as given, so a retry finds the same documents and a document imported before this move is found again.
  */
 export const pagesOnboardingDocuments = createActionDefinition<InferActionInput<typeof ONBOARDING_DOCUMENTS_INPUT_SCHEMA>, OnboardingDocumentsResult>("pages.onboarding.documents", "command", {
-  title: "保存上手材料", description: "上手时把一份材料或工作摘要存成文档；材料太长时分成几篇，重试返回同样的文档",
+  title: "保存文档", description: "把平台交来的一份文字（上手时的材料与工作摘要、项目自动化建议的报告）存成文档；太长时分成几篇，重试返回同样的文档",
   audiences: ["user"], permissions: ["pages:write"], subject_kinds: [PAGES_SUBJECT_KIND],
   input_schema: ONBOARDING_DOCUMENTS_INPUT_SCHEMA, output_schema: ONBOARDING_DOCUMENTS_RESULT_SCHEMA,
   intake: { intake_id: "onboarding.documents", item_kind: PAGES_SUBJECT_KIND, accepts: [{ kind: "documents" }] },

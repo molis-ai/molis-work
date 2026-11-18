@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { WorkspaceFileQuery, WorkspaceFileResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AutomationGap, AutomationPreferenceInput, AutomationReport } from "@molis-ai/molis-work-contracts/services/automation-recommender";
+import type { AutomationGap, AutomationPreferenceInput, AutomationReport, AutomationSavedReport } from "@molis-ai/molis-work-contracts/services/automation-recommender";
 import { scanProjectAutomation, type ScanDirectory } from "./scan.js";
 import { matchProjectAutomation, type AutomationCandidate } from "./match.js";
 import { changeAutomationPreference, readAutomationPreferences } from "./preferences.js";
@@ -65,7 +65,7 @@ export class AutomationRecommender {
     });
   }
 
-  async save(subject: Project, token: string, control: Control, create: (input: SavedReport["input"], control: Control) => Promise<{ document_id: string }>) {
+  async save(subject: Project, token: string, control: Control, create: (input: SavedReport["input"], control: Control) => Promise<AutomationSavedReport>) {
     const held = this.#held(subject, token);
     const assertCurrent = () => {
       this.#held(subject, token);

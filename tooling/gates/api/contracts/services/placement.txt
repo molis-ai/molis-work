@@ -70,6 +70,7 @@ export interface PlacementAttachKindView {
     targets: {
         id: string;
         title: string;
+        current: boolean;
     }[];
 }
 
@@ -260,6 +261,7 @@ export declare const placementActions: {
 export declare const placementAttachActions: {
     targets: ActionDefinition<{
         project_id: string;
+        object: PlacedObject;
     }, {
         kinds: PlacementAttachKindView[];
     }>;

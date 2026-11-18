@@ -28,7 +28,7 @@
 
 ## 2. 「能接收什么」与「能新建什么」只声明一处（审查第 1、9 项，C1）
 
-`packages/contracts/src/platform/item-intake.ts` 是唯一的落点声明，挂在提供方自己的动作上：`intake` 建新对象，`attach` 放进已有对象。本项给它补「收什么」（材料种类）、「挂到…」（`attach.relation`）和「起步」（`intake.start`），再把散在各处的近义声明收进来。
+`packages/contracts/src/platform/item-intake.ts` 是唯一的落点声明，挂在提供方自己的动作上：`intake` 建新对象，`attach` 放进已有对象。本项给它补「收什么」（材料种类）和「起步」（`intake.start`），再把散在各处的近义声明收进来。「挂到…」不在这里声明，用放置的关联声明 `placement_relation`（2.2 节）。
 
 ### 2.1 材料种类，分两类
 
@@ -37,7 +37,6 @@
 | 类 | 种类 | 谁送来 | 输入输出 | 出入口 |
 | --- | --- | --- | --- | --- |
 | 手里的 | `text` | 人选中的文字 | 提供方自定，`material_field`／`prepare` 照旧 | 浮条、「✦」 |
-| 手里的 | `object { item_kinds? }` | 人选中的别的对象（按引用） | 由平台固定（2.2 节） | 只经「挂到…」 |
 | 手里的 | `artifact { artifact_types: [{ artifact_type_id, schema_version }], file?: ArtifactFileDeclaration }` | 人在成果库点「从这一版继续」 | 由平台固定（`defineArtifactContinueAction`，不变） | 成果库的「继续」 |
 | 平台送的 | `handoff` | 工作流把内容交过来 | 由平台固定（内容站 `receive` 的输入输出） | 无 |
 | 平台送的 | `notification` | 平台的通知服务 | 由平台固定（`PluginNotificationDelivery` → `…DeliveryReceipt`） | 无 |
@@ -50,8 +49,8 @@
 SDK 在登记时检查（`plugin-sdk/src/source-declarations.ts`）：
 
 - 一份声明的 `accepts` 只含一类；「平台送的」一份只收一种。
-- 「平台送的」声明不得写 `title`、`verb`、`describe`、`examples`、`start`、`material_field`、`prepare`、`places`（它不产生给人点的入口；选择承接方时显示插件名），动作的输入输出必须与该种类的平台形状逐字一致（与挂接部分同一个比对函数）。
-- `object`、`artifact` 不得写 `material_field`、`prepare`；`artifact` 的动作必须是 `defineArtifactContinueAction` 的形状。
+- 「平台送的」声明不得写 `title`、`verb`、`describe`、`examples`、`start`、`material_field`、`prepare`、`places`（它不产生给人点的入口；选择承接方时显示插件名），动作的输入输出必须与该种类的平台形状逐字一致。
+- `artifact` 不得写 `material_field`、`prepare`；`artifact` 的动作必须是 `defineArtifactContinueAction` 的形状。
 - `accepts: []` 时 `examples` 可以为空；`accepts` 含 `text` 时 `examples` 至少一句（今天的规则）。
 - `drafts` 的三个动作必须是 Home 级（`scope: "home"`），项目里可达（今天 Todo 的整理动作就是这样，`todo/src/organize-actions.ts:49`）：起草在项目建成之前就经 Home 动作跑。`documents` 的动作必须是项目级。
 
@@ -61,38 +60,29 @@ kernel 的情境候选（`kernel/src/contextual/destinations.ts`）只取收 `te
 
 **不收进来的两种，理由：** `artifacts.links` 是插件自己写的关联种类（「被谁引用」的边），平台不往插件里送东西，不是落点；`process_items.consumes` 是插件自己去读别人记的过程项，同样没有平台送达。两者留在 Manifest 原处。
 
-### 2.2 挂到…（C1）：`attach.relation`
+### 2.2 挂到…（C1）：`placement_relation`
 
-「挂到…」就是收 `object` 材料、由目标的主人记成一条关系的 `attach`。声明它的动作本身是「挂上」；`attach` 增加：
+（2026-11-18 改：合并 main 后发现第 36 批已把主线的 `holds` 与后台任务的 `serves` 写在 `placement_relation`／`definePlacementRelationAction` 上；用户定只留一套，「挂到…」改用它。本稿原先的 `attach.relation`、`task_serves` 不再用。）
 
-```ts
-relation?: {
-  readonly noun: string;                  // 人读的对方名词，也是语言文件没有这句时的原文：「Goal」
-  readonly noun_text?: TextRef;           // 对方名词的语言键
-  readonly list: ActionReference;         // 一个对象此刻挂在哪些目标上
-  readonly release: ActionReference;      // 取下一条
-  readonly candidates?: ActionReference;  // 这里可以挂的目标，分页
-  readonly create?: ActionReference;      // 「建成…」：用一段内容新建一个目标
-}
-```
+「挂到…」是一条由目标的主人记下的关联：别人的对象挂到它保存的目标上。主人用 `definePlacementRelationAction(关联, 角色, 能力, 版本, 选项)` 写五个动作，每个在动作上带 `placement_relation: { relation, role }`，`list` 角色另写 `target: { kind, noun, noun_text? }`（目标种类、人读的名词与它的语言键）。两端都是 `ActionSubject`，每一步都回调用后这个对象挂在哪些目标上：
 
-形状沿用已实现代码的名字（`target_*`、类型 `molis.placement.attach.v1.<part>.input|output`），第 1 版稿里的 `item_*` 不用：
-
-| 部分 | 输入 | 输出 |
+| 角色 | 输入 | 输出 |
 | --- | --- | --- |
-| 挂上（声明 `attach` 的动作） | `{ target_id, subject, title, read_revision? }` | `{ binding: { binding_id } }` |
-| `list` | `{ subject }` | `{ bindings: [{ binding_id, target_id, created_at }] }` |
-| `release` | `{ target_id, binding_id }` | `{ released }` |
-| `candidates` | `{ limit?, after_cursor? }` | `{ targets: [{ id, title }], next_cursor }` |
-| `create` | `{ title, body, source, idempotency_key }` | `{ target: { id } }` |
+| `list` | `{ subject }` | `{ targets: ActionSubject[] }` |
+| `bind` | `{ subject, target, read?: { title, revision?, excerpt? } }` | `{ targets }` |
+| `release` | `{ subject, target }` | `{ targets }` |
+| `candidates` | `{ subject }` | `{ targets: [{ subject, current }] }`，已挂上的在前 |
+| `create` | `{ subject, name, request_id?, read? }` | `{ targets }`，新建的目标在第一个 |
 
-SDK 检查：带 `relation` 的 `attach` 必须 `accepts: [{ kind: "object" }]`（可带 `item_kinds`），不得写 `material_field`、`positions`、`prepare`、`places`；`relation` 引用的每个部分都必须是**同一份 Manifest** 里的动作，输入输出与上表的平台形状逐字一致。`item_kind` 必须是本插件有读取器的种类（今天的规则）。
+`read` 是放置服务以本人身份读到的标题、版本和开头一段（`excerpt` 只给 `create`）：主人可以拿它给挂上的对象命名、记下版本以后看原文改没改、写新目标的说明；自己读得到对象的主人（主线）不用它。`request_id` 让重试建同一个目标。各部分带类型名 `molis.placement.relation.v1.<角色>.input|output`（`isPlacementRelationPart`），放置服务只认这个形状，所以形状不同的 `serves`（任务与事件）不会被当成「挂到…」。
 
-放置服务（`horizontal/placement`）只读这份声明：可挂的种类 = 声明了 `relation` 的 `attach.item_kind`；同一项目里一个种类只能有一个主人。线上合同（版本都留 1）：`placement.goals`、`placement.goal.bind` 删，换成 `placement.attach.targets@1`（按种类分组列可挂目标）、`placement.attach@1`（`target: { kind, id }`）；`placement.create@1` 的 `goal_id` 换成 `attach_to?: { kind, id }`、`goal_key` 换成 `attached_key`；`placement.convert@1` 的 `{ goal: true }` 换成 `{ attach_kind }`，结果带 `noun`；`placement.describe@1` 的关联类型 `goal` 换成 `attached`，对端是 `{ kind: "attached", project_id, object: { kind, id }, noun, title }`。工作台「关联到 Goal…」改「挂到…」，DOM 事件 `molis:placement-convert` 的 `goal` 换成 `attach_kind`。「建成…」只读 `relation.create`，2.4 节的新建入口不读它，所以不是两份声明。
+SDK 检查（`plugin-sdk/src/source-declarations.ts`）：关联名是小写词；角色是五个之一，查询与命令与角色一致；项目范围、对本人开放；同一关联同一角色只有一个动作；每个关联都有写了 `target` 的 `list`，`target` 只写在 `list` 上，只有 `kind`、`noun`、`noun_text`。
 
-`placement_relation` 这个 Action 字段删掉。它的另一个用户是后台任务的 `serves` 关系，那不是「挂到…」：改名 `task_serves: { role, target? }`，只由 `defineTaskServesAction` 写；读它的地方一并改：`horizontal/mainline/src/index.ts:309-312`、`apps/local-host/src/assistant/assistant-line-actions.ts:47-50` 与测试夹具 `tests/fixtures/home-background-plugin.ts`。另两处读挂接部分的消费者改读 `attach.relation`：`apps/local-host/src/assistant/assistant-material-scan.ts:72`、`plugin-sdk/src/source-declarations.ts:163-203`。
+放置服务（`horizontal/placement`）只读这份声明：可挂的种类 = `list` 的 `target.kind`；没有可用的 `list` 就没有这个关联，缺别的角色那个操作就是 `placement.target_unavailable`；一个项目里一个关联只能有一个提供方、一个目标种类只能属于一个关联，否则每个操作都是 `placement.relation_ambiguous`。线上合同（版本都留 1）：`placement.goals`、`placement.goal.bind` 删，换成 `placement.attach.targets@1`（`{ project_id, object }`，按种类分组列这个对象可挂的目标，带 `current`）、`placement.attach@1`（`target: { kind, id }`）；`placement.create@1` 的 `goal_id` 换成 `attach_to?: { kind, id }`、`goal_key` 换成 `attached_key`；`placement.convert@1` 的 `{ goal: true }` 换成 `{ attach_kind }`（调那个关联的 `create`，结果带 `noun`）；`placement.describe@1` 的关联类型 `goal` 换成 `attached`，对端是 `{ kind: "attached", project_id, object: { kind, id }, noun, title }`，取下用的键是 `["attached", 项目, 目标种类, 目标 id, 对象种类, 对象 id]`。工作台「关联到 Goal…」改「挂到…」，DOM 事件 `molis:placement-convert` 的 `goal` 换成 `attach_kind`。
 
-Goals 的「挂到 Goal」：`goals.attach.bind@1` 声明 `attach { attach_id: "goal", item_kind: "goal", title, verb, describe, accepts: [{ kind: "object" }], relation: { noun: "Goal", noun_text, list, release, candidates, create } }`；五个部分按平台形状写，内部转给 Goals 原有的输入绑定、目录与创建处理（已实现，`plugins/native/goals/src/attach-actions.ts`），Goals 自己的 `goals.inputs.*`、`goals.list`、`goals.create` 不变。
+读挂接部分的另一处消费者，助理的新材料扫描（`apps/local-host/src/assistant/assistant-material-scan.ts`），按 `list` 的 `target.kind` 认「这件工作关于什么」，不再写死 `goal`。
+
+Goals 的「挂到 Goal」：关联 `goal` 的五个动作 `goals.attach.{list,bind,release,candidates,create}@1`（`plugins/native/goals/src/attach-actions.ts`），能挂任何本人读得到的对象（`kinds: []`），只对本人开放；各自转给 Goals 原有的输入绑定、目录与创建处理，每个处理在 Goals 为它开的窗口里跑，部分本身不开窗口，所以能先后问几个处理。`bind` 用 `read.title` 给输入命名、`read.revision` 记摘要；`release` 取下这个对象在这个 Goal 上跟着原文的绑定（固定版本在 Goal 页上取下）；`create` 用 `read.excerpt` 写结果描述、`read.title` 写来处，再把对象挂上去。Goals 自己的 `goals.inputs.*`、`goals.list`、`goals.create` 不变。
 
 ### 2.3 其余几种并过来
 
@@ -232,11 +222,11 @@ start?: {
 
 ## 5. 示例第三方插件（PEQ-05）
 
-`examples/plugin-sample/` 只用 contracts 与 plugin-sdk，声明：一个设置节（`settings_entries`）、一个接续摘要（3 节）、一个需要可信决定的动作（39-2）、一个带 `relation` 的 `attach`（2.2 节，证明「挂到…」不只给 Goals）、一个带 `start` 的空白 intake（2.4 节）。测试在工作台与 MCP 里各验一次。
+`examples/plugin-sample/` 只用 contracts 与 plugin-sdk，声明：一个设置节（`settings_entries`）、一个接续摘要（3 节）、一个需要可信决定的动作（39-2）、一个「挂到…」关联的五个部分（2.2 节，`placement_relation`，证明「挂到…」不只给 Goals）、一个带 `start` 的空白 intake（2.4 节）。测试在工作台与 MCP 里各验一次。
 
 ## 6. 顺序
 
-1. 已实现（未提交）：C2、C4、C6/D1、C8/D3，项目库 4→5 与 Goals 库 v6，D2 放置库 1→2，C1 的放置部分（过渡写法 `placement_relation` + 类型）。本稿评审后改成 2.2 节的 `attach.relation`、`task_serves` 改名、`noun_text`，金样 0.1.1-dev.6 补挂接边。
+1. 已实现（未提交）：C2、C4、C6/D1、C8/D3，项目库 4→5 与 Goals 库 v6，D2 放置库 1→2，C1 的放置部分（过渡写法 `placement_relation` + 类型）。本稿评审后一度改成 `attach.relation`、`task_serves` 改名；合并 main 后按用户 2026-11-18 的决定回到 `placement_relation`（main 第 36 批的 `definePlacementRelationAction` 形状，2.2 节），保留 `noun_text`。项目库升级因 main 先占 4→5 顺延为 5→6。
 2. 1 节内容站引用与 `feed_item_id`；2.1、2.3 的材料种类与收拢；2.4 起步与新建；2.5 上手承接（含引导页单选组与 30 份提示）。
 3. 3、4 节；5 节示例插件；批次文件按 3 节两处改写。
 4. 每一步：受影响的测试、`api:update`／`actions:update`／`schemas:update`／`versions:generate`、门禁；最后整批共享核心全量。

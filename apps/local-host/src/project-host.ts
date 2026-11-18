@@ -46,7 +46,7 @@ import { assistantDelegationProvider } from "./assistant/assistant-delegation-ac
 import { authorizationManagementProvider } from "./authorization-management.js";
 import { AutomationRecommender } from "@molis-ai/molis-work-service-automation-recommender";
 import { automationRecommendationProvider, type RecommendationEntry } from "./automation-recommendations.js";
-import { assertAutomationProject, automationProjectSnapshot } from "./automation-project.js";
+import { assertAutomationProject, automationProjectSnapshot, projectDocumentTakers } from "./automation-project.js";
 import { automationCandidates } from "./automation-candidates.js";
 import { ActionCallLog } from "./action-call-log.js";
 import { createHostObservation, hostObservationPorts, type HostObservation } from "./observation-host.js";
@@ -454,9 +454,9 @@ export class MolisWorkLocalHost {
       runtime?.throwIfAborted();
       assertAutomationProject(seen, catalog.access.read(snapshot));
     };
-    return { service, host: this, project: reference, incarnation: seen.incarnation,
-      source: { directories: seen.folders, assertCurrent }, files: this.projectCatalogActions.passiveClient(reference),
-      candidates: caller => automationCandidates(catalog.home, this.plugins, reference, caller, allows) };
+    return { service, host: this, project: reference, incarnation: seen.incarnation, source: { directories: seen.folders, assertCurrent },
+      files: this.projectCatalogActions.passiveClient(reference), candidates: caller => automationCandidates(catalog.home, this.plugins, reference, caller, allows),
+      documentTakers: () => catalog.access.withCatalog({ homeDirectory: catalog.home }, current => projectDocumentTakers(current.projectPluginMembership(reference.project_id))) };
   }
 
   /** Keeps an original project incarnation and any current Runtime lease across a management write. */

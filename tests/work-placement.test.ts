@@ -26,31 +26,15 @@ import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
 import { lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
 import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { createGoalsInputActionHandlers, goalsInputActions } from "../plugins/native/goals/dist/input-actions.js";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { createGoalsAttachActionHandlers, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 
 /**
- * Goals' 「挂到…」 parts, by their public definitions, over its input handlers: the parts' inputs and outputs in the platform's shape.
- * Goals' own adapter runs in the Host in tests/placement-attach-goals.test.ts; its directory and creation are not reached here.
+ * Goals' 「挂到…」 parts over its input handlers, as Goals builds them over its own; Goals' directory and creation are not reached here (the
+ * whole of Goals runs in the Host in tests/placement-attach-goals.test.ts).
  */
-const goalsAttachActions = { list: goalsActions.attachList, bind: goalsActions.attachBind, release: goalsActions.attachRelease,
-  candidates: goalsActions.attachCandidates, create: goalsActions.attachCreate };
+const goalsAttachActions = [goalsActions.attachList, goalsActions.attachBind, goalsActions.attachRelease, goalsActions.attachCandidates, goalsActions.attachCreate];
 function goalsAttachHandlers(inputs: ReturnType<typeof createGoalsInputActionHandlers>) {
-  const of = (definition: { capability_id: string }) => inputs.find(handler => handler.capability_id === definition.capability_id)!.handle;
-  const [list, bind, release] = [of(goalsInputActions.list), of(goalsInputActions.bind), of(goalsInputActions.release)];
-  const unreached = (definition: { capability_id: string; version: number }) => ({ ...definition, handle: () => { throw new Error(`${definition.capability_id} is not reached here`); } });
-  type Bound = { binding_id: string; goal_id: string; created_at: string };
-  return [...inputs,
-    { ...goalsAttachActions.list, handle: async (caller: ActionCallContext, input: unknown) => ({ bindings: ((await list(caller as never, input)) as { bindings: Bound[] }).bindings
-      .map(binding => ({ binding_id: binding.binding_id, target_id: binding.goal_id, created_at: binding.created_at })) }) },
-    { ...goalsAttachActions.bind, handle: async (caller: ActionCallContext, input: unknown) => {
-      const { target_id, ...rest } = input as { target_id: string };
-      return { binding: { binding_id: ((await bind(caller as never, { goal_id: target_id, ...rest })) as { binding: Bound }).binding.binding_id } };
-    } },
-    { ...goalsAttachActions.release, handle: (caller: ActionCallContext, input: unknown) => {
-      const { target_id, binding_id } = input as { target_id: string; binding_id: string };
-      return release(caller as never, { goal_id: target_id, binding_id });
-    } },
-    unreached(goalsAttachActions.candidates), unreached(goalsAttachActions.create)];
+  return [...inputs, ...createGoalsAttachActionHandlers(inputs)];
 }
 import { SearchService } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
@@ -384,7 +368,7 @@ test("an object keeps showing the Goals it serves after it moves out of their pr
     const inputs = { list: () => rows, register: (record: typeof rows[number]) => { rows.push(record); },
       deactivate: (_board: string, id: string) => { const row = rows.find(item => item.binding_id === id); if (!row || row.state === "inactive") return false; (row as { state: string }).state = "inactive"; return true; } };
     f.actions.registerProvider({ provider: { provider_id: "goals", plugin_id: "goals", title: "Goals", kind: "plugin", project_id: project },
-      definitions: [...Object.values(goalsInputActions), ...Object.values(goalsAttachActions), goalReader],
+      definitions: [...Object.values(goalsInputActions), ...goalsAttachActions, goalReader],
       handlers: [...goalsAttachHandlers(createGoalsInputActionHandlers(project, inputs, id => id === project + "-goal", windows)),
         { ...goalReader, handle: (_caller, input) => { const id = (input as { subject_id: string }).subject_id;
           if (id !== project + "-goal") throw new ActionError("goals.not_found", "目标不存在");

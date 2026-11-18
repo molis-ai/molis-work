@@ -261,7 +261,6 @@ export interface PresentationOverviewDeclaration {
     readonly start?: readonly {
         readonly capability_id: string;
         readonly version: number;
-        readonly open?: PresentationStartForm;
     }[];
     readonly lead?: {
         readonly view_id: string;

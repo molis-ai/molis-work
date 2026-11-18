@@ -154,6 +154,8 @@ export interface DeclaredPageRouteMatch extends PageRouteMatch {
     readonly plugin_id: string;
 }
 
+export type { DeliveredIntake } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { DeliveredMaterial } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { DueReminder } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { DueReminderCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { DueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -240,7 +242,9 @@ export interface GitUpstream {
 export type { InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+export type { IntakeStart } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ItemAttachPosition } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ItemMaterial } from "@molis-ai/molis-work-contracts/platform/actions";
 export { KIT_KINDS } from "@molis-ai/molis-work-contracts/platform/kit-report";
 export { KIT_TOOL_ORIGINS } from "@molis-ai/molis-work-contracts/platform/kit-report";
 export type { KitAvailability } from "@molis-ai/molis-work-contracts/platform/kit-report";
@@ -288,6 +292,8 @@ export declare const PLUGIN_ID: RegExp;
 
 export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { PLUGIN_NOTIFICATION_DELIVERY_INPUT_SCHEMA } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { PLUGIN_NOTIFICATION_DELIVERY_RECEIPT_SCHEMA } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export declare const PLUGIN_ROUTE_STREAM_LIMITS: Readonly<{
     line_bytes: 65536;
@@ -319,6 +325,8 @@ export interface PageRouteMatch {
     };
 }
 
+export type { PersonIntake } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { PersonMaterial } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PlacementRelationCandidates } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PlacementRelationCreateInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PlacementRelationOptions } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -361,7 +369,6 @@ export type { PluginNotificationDelivery } from "@molis-ai/molis-work-contracts/
 export type { PluginNotificationDeliveryReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginNotificationInput } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginNotificationReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
-export type { PluginNotificationReceiverDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginOriginalContent } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginOriginalRangeContent } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginOriginalRangeRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -814,6 +821,7 @@ export declare function definePollingIntegrationPlugin(input: {
 
 export { definePresentationOverviewAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 export { definePresentationValuesAction } from "@molis-ai/molis-work-contracts/platform/presentation";
+export { defineResumeSummaryAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineRunDecisionAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineRunsOverviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -1051,6 +1059,8 @@ export declare function sandboxRoleIdentity(pluginId: string, name: string): {
     entry_id: string;
     prompt_id: string;
 };
+
+export declare function sandboxStartProblems(contract: SandboxPluginContract): string[];
 
 export declare const sandboxUiContribution: (pluginId: string) => string;
 

@@ -2155,7 +2155,7 @@ export declare const goalEntryActions: {
             };
             home_aggregate?: true;
             project_reach?: "person";
-            task_serves?: import("@molis-ai/molis-work-contracts/platform/actions").TaskServesDeclaration;
+            placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
             subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
             fragment_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").FragmentOfferChoice[];
             intake?: ActionIntake;
@@ -2233,7 +2233,7 @@ export declare const goalEntryActions: {
             };
             home_aggregate?: true;
             project_reach?: "person";
-            task_serves?: import("@molis-ai/molis-work-contracts/platform/actions").TaskServesDeclaration;
+            placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
             subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
             fragment_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").FragmentOfferChoice[];
             intake?: ActionIntake;
@@ -2327,7 +2327,7 @@ export declare const goalEntryActions: {
             };
             home_aggregate?: true;
             project_reach?: "person";
-            task_serves?: import("@molis-ai/molis-work-contracts/platform/actions").TaskServesDeclaration;
+            placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
             subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
             fragment_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").FragmentOfferChoice[];
             intake?: ActionIntake;
@@ -2405,7 +2405,7 @@ export declare const goalEntryActions: {
             };
             home_aggregate?: true;
             project_reach?: "person";
-            task_serves?: import("@molis-ai/molis-work-contracts/platform/actions").TaskServesDeclaration;
+            placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
             subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
             fragment_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").FragmentOfferChoice[];
             intake?: ActionIntake;

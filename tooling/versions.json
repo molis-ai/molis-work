@@ -1218,7 +1218,7 @@
     "database.pages_database": 1,
     "database.placement_baseline": 2,
     "database.ppt_database": 1,
-    "database.project_database_baseline": 5,
+    "database.project_database_baseline": 6,
     "database.risk_project_database": 1,
     "database.schedule_project_database": 3,
     "database.search.text-index": 1,
@@ -1711,7 +1711,7 @@
     "method.planning-methods.work-operate-process": 1,
     "plugin.content-planning-methods": "1.0.0",
     "action.assistant.panel.works.resume_answer": 1,
-    "type.molis.placement.attach": 1,
+    "type.molis.placement.relation": 1,
     "type.molis.resume-summary.query": 1,
     "type.molis.resume-summary.view": 1
   },

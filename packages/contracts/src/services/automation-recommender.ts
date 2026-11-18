@@ -65,12 +65,17 @@ function action<I, O>(name: string, version: number, title: string, operation: "
     action: { title, description: title, scope: "project", kind: operation === "query" ? "query" : "operation", effect: operation === "query" ? "read" : "write",
       scheduling: "concurrent", audiences: ["user"], permissions: [], subject_kinds: [], input_schema, output_schema: { type: "object" } } };
 }
+/** Where a saved report went: the document the keeping plugin made, and where it opens (that plugin's own `open`). */
+export interface AutomationSavedReport {
+  readonly document_id: string;
+  readonly open: { readonly surface: string; readonly id: string; readonly title: string };
+}
 export const automationRecommendationActions = {
   scan: action<Record<string, never>, AutomationReport>("automation.recommendations.scan", /* @version action.automation.recommendations.scan */ 1,
     "查看项目自动化建议", "query", closed({})),
   preference: action<AutomationPreferenceInput, AutomationPreferences>("automation.recommendations.preferences.set", /* @version action.automation.recommendations.preferences.set */ 1,
     "保存项目建议偏好", "command", closed({ save_token: token, expected_revision: revision, suggestion_id: { type: "string", pattern: "^[a-f0-9]{64}$" },
       choice: { enum: ["ignored", "already-have", "hidden", "show"] } })),
-  save: action<{ save_token: string }, { document_id: string }>("automation.recommendations.report.save", /* @version action.automation.recommendations.report.save */ 1,
+  save: action<{ save_token: string }, AutomationSavedReport>("automation.recommendations.report.save", /* @version action.automation.recommendations.report.save */ 1,
     "将项目建议保存为文稿", "command", closed({ save_token: token })),
 };

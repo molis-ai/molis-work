@@ -100,6 +100,7 @@ function sampleNotes(storage, pluginId) {
   };
   const item = note => ({ subject: { kind: NOTE, id: note.id }, title: note.title, next_hint: "", status_label: note.bindings.length ? "attached" : "blank",
     open: { surface: pluginId, id: note.id } });
+  const attachedTo = (state, key) => ({ targets: state.notes.filter(note => note.bindings.some(binding => binding.key === key)).map(note => ({ kind: NOTE, id: note.id })) });
   const setting = layer => storage.get("setting:greeting:" + layer);
   const values = () => {
     const project = setting("project"), personal = setting("personal"), revision = JSON.stringify([project, personal]);
@@ -116,37 +117,34 @@ function sampleNotes(storage, pluginId) {
       state.notes.push(note); write(state);
       return { note: { id: note.id, title: note.title } };
     },
-    // 「挂到…」: another object hung on one of the sample's notes. Nothing of that object is copied; a bind repeated returns its record.
+    // 「挂到…」: another object hung on one of the sample's notes, in the platform's relation shape (`definePlacementRelationAction`):
+    // both ends are subjects, and each part answers what the object is attached to after the call. Nothing of that object is copied.
     "attach.bind": (_context, input) => {
-      const state = read(), note = find(state, input.target_id), key = input.subject.kind + ":" + input.subject.id;
-      const found = note.bindings.find(binding => binding.key === key);
-      if (found) return { binding: { binding_id: found.binding_id } };
-      const binding = { binding_id: note.id + ":" + (state.revision + 1), key, created_at: new Date().toISOString() };
-      note.bindings.push(binding); write(state);
-      return { binding: { binding_id: binding.binding_id } };
+      const state = read(), note = find(state, input.target.id), key = input.subject.kind + ":" + input.subject.id;
+      if (!note.bindings.some(binding => binding.key === key)) { note.bindings.push({ key, title: input.read?.title ?? "" }); write(state); }
+      return attachedTo(read(), key);
     },
-    "attach.list": (_context, input) => {
-      const key = input.subject.kind + ":" + input.subject.id;
-      return { bindings: read().notes.flatMap(note => note.bindings.filter(binding => binding.key === key)
-        .map(binding => ({ binding_id: binding.binding_id, target_id: note.id, created_at: binding.created_at }))) };
-    },
+    "attach.list": (_context, input) => attachedTo(read(), input.subject.kind + ":" + input.subject.id),
     "attach.release": (_context, input) => {
-      const state = read(), note = find(state, input.target_id), before = note.bindings.length;
-      note.bindings = note.bindings.filter(binding => binding.binding_id !== input.binding_id);
-      if (note.bindings.length === before) return { released: false };
-      write(state); return { released: true };
+      const state = read(), note = find(state, input.target.id), key = input.subject.kind + ":" + input.subject.id, before = note.bindings.length;
+      note.bindings = note.bindings.filter(binding => binding.key !== key);
+      if (note.bindings.length !== before) write(state);
+      return attachedTo(read(), key);
     },
     "attach.candidates": (_context, input) => {
-      const all = read().notes, start = input.after_cursor ? Number(input.after_cursor) : 0, limit = input.limit ?? 20;
-      const page = all.slice(start, start + limit);
-      return { targets: page.map(note => ({ id: note.id, title: note.title })), next_cursor: start + limit < all.length ? String(start + limit) : null };
+      const key = input.subject.kind + ":" + input.subject.id, notes = read().notes, on = note => note.bindings.some(binding => binding.key === key);
+      return { targets: [...notes.filter(on), ...notes.filter(note => !on(note))].map(note => ({ subject: { kind: NOTE, id: note.id }, current: on(note) })) };
     },
+    // A new note named so, with the object on it; the same request makes the same note. The new one is named first.
     "attach.create": (_context, input) => {
-      const state = read(), existing = state.notes.find(note => note.source_key === input.idempotency_key);
-      if (existing) return { target: { id: existing.id } };
-      const note = { id: "note-" + (state.revision + 1), title: input.title, source_key: input.idempotency_key, bindings: [] };
-      state.notes.push(note); write(state);
-      return { target: { id: note.id } };
+      const state = read(), key = input.subject.kind + ":" + input.subject.id, request = input.request_id ?? key + ":" + input.name;
+      let note = state.notes.find(item => item.source_key === request);
+      if (!note) {
+        note = { id: "note-" + (state.revision + 1), title: input.name, source_key: request, bindings: [{ key, title: input.read?.title ?? "" }] };
+        state.notes.push(note); write(state);
+      }
+      const after = attachedTo(read(), key).targets.filter(target => target.id !== note.id);
+      return { targets: [{ kind: NOTE, id: note.id }, ...after] };
     },
     "resume.summary": (_context, input) => {
       const all = read().notes, focused = input.focus?.kind === NOTE ? all.find(note => note.id === input.focus.id) : undefined, first = focused ?? all[0];

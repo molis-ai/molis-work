@@ -1,5 +1,5 @@
 import { assistantWords } from "./assistant-saved-text.js";
-import { isAttachRelationPart, isSubjectReader, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, type ActionSubjectContext, type ActionView, type WorkEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isSubjectReader, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, type ActionSubjectContext, type ActionView, type WorkEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PersonActions } from "./assistant-executor.js";
 import type { WorkIdentity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -67,9 +67,9 @@ export async function scanNewMaterialOnce(env: ScanEnvironment): Promise<number>
       try { return await withinTime(actions!.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: subject.id })) as ActionSubjectContext; }
       catch { return null; }
     };
-    // What each live work is about: the objects other objects attach to (a Goal: any kind a plugin declares as the other end of a
-    // 「挂到…」 relation) among the objects it relates to, and the ones their owners attach them to.
-    const targets = new Set(views.flatMap(({ action }) => action.attach?.relation && isAttachRelationPart(action, "bind") ? [action.attach.item_kind] : []));
+    // What each live work is about: the objects other objects attach to (a Goal: any kind an owner declares as the other end of a
+    // relation placement keeps, `placement_relation`) among the objects it relates to, and the ones their owners attach them to.
+    const targets = new Set(views.flatMap(({ action }) => action.placement_relation?.role === "list" && action.placement_relation.target ? [action.placement_relation.target.kind] : []));
     const subjectKey = (subject: { kind: string; id: string }) => JSON.stringify([subject.kind, subject.id]);
     const aboutOf = (subject: { kind: string; id: string }, context: ActionSubjectContext | null) =>
       [...(targets.has(subject.kind) ? [subjectKey(subject)] : []), ...(context?.attached_to ?? []).map(subjectKey)];

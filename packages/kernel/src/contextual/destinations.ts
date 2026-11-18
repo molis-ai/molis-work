@@ -11,7 +11,6 @@ import type { ContextualCandidate, SurfaceFocus, SurfaceLanding, SurfacePlace } 
 /** How many destinations go to the judgment; the rest of the budget is for the actions on the thing itself. */
 export const MAX_JUDGED_DESTINATIONS = 8;
 
-const takesText = (accepts?: readonly { kind: string }[]) => accepts === undefined || accepts.some(material => material.kind === "text");
 export const isDestination = (candidate: Pick<ContextualCandidate, "origin">): boolean => candidate.origin === "intake" || candidate.origin === "attach";
 
 /** Fixed identity that fits Jev's 64-character option key; the words and the landing are not identity. */
@@ -46,8 +45,7 @@ export function destinationCandidates(directory: readonly ActionView[], focus: S
     const found: ContextualCandidate[] = [];
     const own = ownerOf(view) === focus.plugin_id;
     if (intake && takesSelectedText(intake) && here(intake.places)) found.push(candidateOf("intake", view, intake, intake.intake_id, own));
-    // Only declarations that take the text in hand are candidates here; a 「挂到…」 relation takes another object (contract-design §2.1).
-    if (attach && takesText(attach.accepts) && place !== "main" && landing && landing.object.kind === attach.item_kind && landing.plugin_id === ownerOf(view) && here(attach.places)
+    if (attach && place !== "main" && landing && landing.object.kind === attach.item_kind && landing.plugin_id === ownerOf(view) && here(attach.places)
       && (attach.positions ? landing.position !== "object" && attach.positions.includes(landing.position) : landing.position === "object")) {
       found.push(candidateOf("attach", view, attach, attach.attach_id, false, landing.position));
     }

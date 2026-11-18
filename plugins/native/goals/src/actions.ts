@@ -29,7 +29,7 @@ import type { GoalContractView } from "./goal-entry-contract.js";
 
 import { goalsBoardActions, createGoalsBoardActionHandlers } from "./library-actions.js";
 import { goalsInputActions, createGoalsInputActionHandlers, type GoalsInputPorts } from "./input-actions.js";
-import { goalsAttachActions, createGoalsAttachActionHandlers } from "./attach-actions.js";
+import { goalsAttachActions } from "./attach-actions.js";
 import { goalsResumeSummary, goalsResumeSummaryAction } from "./resume-summary.js";
 import { goalsDeliverableActions, goalsArtifactInputActions, createGoalsDeliverableActionHandlers, type GoalDeliverablePorts } from "./deliverable-actions.js";
 import { boundGoalObjects } from "./input-actions.js";
@@ -221,6 +221,5 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
     { ...goalsActions.note, handle: (caller, input) => events.recordNote({ ...(input as GoalNoteActionInput), project_id: projectId,
       ...goalActor(caller) }) },
   ];
-  // 「挂到…」 (batch 44 C1): the platform-shaped parts over the actions above.
-  return [...handlers, ...createGoalsAttachActionHandlers(handlers)];
+  return handlers;
 }

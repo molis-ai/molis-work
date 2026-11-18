@@ -10,6 +10,7 @@ export * from "./proposal-ui.js";
 export * from "./proposal-ui-model.js";
 export { hostEventDecisionAuthority } from "./goal-event-application.js";
 export { createGoalsPlugin } from "./plugin.js";
+export { createGoalsAttachActionHandlers, GOALS_ATTACH_RELATION } from "./attach-actions.js";
 export { goalsResumeSummary } from "./resume-summary.js";
 export { assessGoalReport, type GoalEvidenceArtifact, type GoalEvidencePorts, type GoalEvidenceRunCheck } from "./evidence-check.js";
 export { goalAdvancePrompt, goalsTerminalActions } from "./terminal-actions.js";

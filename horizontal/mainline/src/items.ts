@@ -231,7 +231,12 @@ export const holdsCandidates = (caller: ActionExecutionContext, ports: MainlineI
 export async function holdsCreate(caller: ActionExecutionContext, client: ActionClient, ports: MainlineItemPorts, input: PlacementRelationCreateInput): Promise<PlacementRelationResult> {
   const subject = (await readable(caller, client, input.subject)).subject;
   await caller.beforeEffect();
-  return withStore(caller, ports, store => { const item = store.createLight(input.name); store.hold(item.item_id, subject); return targetsOf(store, subject); });
+  // What the subject is in after the call, the item just made first (platform/placement.ts: a relation's `create` names its new target first).
+  return withStore(caller, ports, store => {
+    const item = store.createLight(input.name); store.hold(item.item_id, subject);
+    const made = asTarget(item.item_id), rest = targetsOf(store, subject).targets.filter(target => target.id !== made.id);
+    return { targets: [made, ...rest] };
+  });
 }
 
 /**

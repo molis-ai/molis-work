@@ -1,6 +1,7 @@
 import {
-  ActionError, defineErrorCodes, isAttachRelationPart, isObjectCopier, isObjectMover, PERSONAL_SPACE_PROJECT_ID,
-  type ActionCallContext, type ActionClient, type ActionReference, type ActionView, type PlacementAttachBinding, type PlacementAttachPart, type PlacementResult,
+  ActionError, defineErrorCodes, isObjectCopier, isObjectMover, isPlacementRelationPart, PERSONAL_SPACE_PROJECT_ID, PLACEMENT_RELATION_LIMITS,
+  type ActionCallContext, type ActionClient, type ActionReference, type ActionSubject, type ActionView, type PlacementRelationCandidates, type PlacementRelationResult,
+  type PlacementRelationRole, type PlacementResult,
   type WorkflowItemRef,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CONTEXT_RELATION_TYPES, type ContextAccess, type ContextEdge, type ContextLedgerApi, type ContextLedgerRelationReader, type ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
@@ -52,8 +53,8 @@ const key = (...parts: string[]) => JSON.stringify(parts);
 const sameObject = (ref: ObjectRef, kind: string, id: string) => ref.module === "plugins" && ref.object_type === kind && ref.id === id;
 /** Placement's own record that it attached an object in a project, onto one plugin's kind (D2: the target's plugin and kind are on the edge). */
 const attachedInKey = (pluginId: string, targetKind: string, object: AttachedObject, projectId: string) => key("attached_in", pluginId, targetKind, object.kind, object.id, projectId);
-/** One binding, as the person removes it: the target's owner releases it. */
-const attachedKey = (projectId: string, targetKind: string, targetId: string, bindingId: string) => key("attached", projectId, targetKind, targetId, bindingId);
+/** One relation of an object to a target, as the person removes it: the target's owner releases it. */
+const attachedKey = (projectId: string, target: ActionSubject, object: ActionSubject) => key("attached", projectId, target.kind, target.id, object.kind, object.id);
 
 type Read = PlacementRead;
 
@@ -117,12 +118,14 @@ export class PlacementService {
   async unlink(linkKey: string): Promise<{ removed: boolean }> {
     let parts: unknown;
     try { parts = JSON.parse(linkKey); } catch { parts = null; }
-    if (Array.isArray(parts) && parts[0] === "attached" && parts.length === 5 && parts.every(part => typeof part === "string")) {
-      const [, projectId, targetKind, targetId, bindingId] = parts as string[];
+    if (Array.isArray(parts) && parts[0] === "attached" && parts.length === 6 && parts.every(part => typeof part === "string")) {
+      const [, projectId, targetKind, targetId, kind, id] = parts as string[];
       const scope = await this.ports.scope(projectId!);
       const release = (await attachRelationsOf(this.ports, scope)).of(targetKind!)?.release;
       if (!release) throw new ActionError("placement.target_unavailable", placementText(this.ports, "workbench.index.attach-owner-unavailable"));
-      return { removed: (await scope.client.invoke(scope.caller, release, { target_id: targetId, binding_id: bindingId }) as { released: boolean }).released };
+      const subject = { kind: kind!, id: id! }, target = { kind: targetKind!, id: targetId! };
+      const after = await scope.client.invoke(scope.caller, release, { subject, target }) as PlacementRelationResult;
+      return { removed: !after.targets.some(one => one.kind === target.kind && one.id === target.id) };
     }
     if (!Array.isArray(parts) || parts[0] !== "used_in") throw new ActionError("placement.not_removable", placementText(this.ports, "workbench.index.link-managed-plugin-change-there"));
     await this.ports.beforeEffect?.();
@@ -131,8 +134,8 @@ export class PlacementService {
   }
 
   /** What can be attached to in one location (Goals still open, any plugin's targets), by kind, for choosing one. */
-  attachTargets(projectId: string): Promise<PlacementAttachKindView[]> {
-    return placementAttachTargets(this.ports, projectId);
+  attachTargets(projectId: string, input: PlacedObject): Promise<PlacementAttachKindView[]> {
+    return placementAttachTargets(this.ports, this.access(), projectId, this.locate(input).object);
   }
 
   /**
@@ -146,9 +149,12 @@ export class PlacementService {
     const scope = await this.ports.scope(projectId);
     const relation = (await attachRelationsOf(this.ports, scope)).of(target.kind);
     if (!relation?.bind) throw new ActionError("placement.target_unavailable", placementText(this.ports, "workbench.index.attach-target-unavailable"));
-    // What the person saw when they took it goes with it: the owner keeps its digest so it can say later whether the original changed.
-    const result = await scope.client.invoke(scope.caller, relation.bind, { target_id: target.id, subject: { kind: object.kind, id: object.id },
-      title: read.context!.title || placementText(this.ports, "workbench.index.untitled"), ...(readRevision ? { read_revision: readRevision } : {}) }) as { binding: { binding_id: string } };
+    // What the person saw when they took it goes with it: the owner may keep its revision so it can say later whether the original changed.
+    const title = (read.context!.title || placementText(this.ports, "workbench.index.untitled")).slice(0, PLACEMENT_RELATION_LIMITS.title);
+    const subject = { kind: object.kind, id: object.id };
+    const after = await scope.client.invoke(scope.caller, relation.bind, { subject, target: { kind: target.kind, id: target.id },
+      read: { title, ...(readRevision ? { revision: readRevision.slice(0, PLACEMENT_RELATION_LIMITS.revision) } : {}) } }) as PlacementRelationResult;
+    if (!after.targets.some(one => one.kind === target.kind && one.id === target.id)) throw new ActionError("placement.result_mismatch", placementText(this.ports, "workbench.index.plugin-returned-copy-that-doesn-t-match-request"));
     await this.ports.beforeEffect?.();
     this.remember(object);
     this.ports.ledger.commands.put(ACCESS, { key: attachedInKey(relation.plugin_id, target.kind, object, projectId), type: TYPES.attached,
@@ -161,7 +167,7 @@ export class PlacementService {
           target: projectRef(projectId), cause: "placement.attach" });
       }
     }
-    return { key: attachedKey(projectId, target.kind, target.id, result.binding.binding_id) };
+    return { key: attachedKey(projectId, target, subject) };
   }
 
   /** Something new made in one place (from a target's page or the placement panel); attached to that target when asked. */
@@ -397,29 +403,29 @@ async function describePlacement(ports: PlacementPorts, self: PlacementInstanceA
     const cached = relations.get(projectId ?? HOME);
     return cached ?? relations.set(projectId ?? HOME, attachRelations(ports, projectId)).get(projectId ?? HOME)!;
   };
-  const bound: { project_id: string; binding_id: string; target_id: string; created_at: string; noun: string; target_kind: string }[] = [];
+  const bound: { project_id: string; target: ActionSubject; noun: string }[] = [];
+  const subject = { kind: object.kind, id: object.id };
   for (const projectId of attachedIn) {
     for (const relation of (await relationsIn(projectId)).all) {
-      for (const binding of await attachBindings(ports, projectId, relation, { kind: object.kind, id: object.id })) {
-        bound.push({ ...binding, project_id: projectId, noun: relation.noun, target_kind: relation.target_kind });
-      }
+      if (!relation.relates(object.kind)) continue;
+      for (const target of await attachTargetsOf(ports, projectId, relation, subject)) bound.push({ project_id: projectId, target, noun: relation.noun });
     }
   }
   for (const binding of bound) {
-    const target = await self.targetTitle(binding.project_id, binding.target_kind, binding.target_id);
+    const target = await self.targetTitle(binding.project_id, binding.target.kind, binding.target.id);
     const name = target ?? placementText(ports, "workbench.index.title-unavailable");
-    associations.push({ key: attachedKey(binding.project_id, binding.target_kind, binding.target_id, binding.binding_id), type: "attached",
+    associations.push({ key: attachedKey(binding.project_id, binding.target, subject), type: "attached",
       label: binding.project_id === object.project_id ? placementText(ports, "workbench.placement.attached-to", { noun: binding.noun, name })
         : placementText(ports, "workbench.placement.attached-to-with-place", { noun: binding.noun, name, place: placementLocation(ports, binding.project_id, spaces).title }),
-      target: { kind: "attached", project_id: binding.project_id, object: { kind: binding.target_kind, id: binding.target_id }, noun: binding.noun, title: target ?? "" },
-      since: binding.created_at, removable: true });
+      target: { kind: "attached", project_id: binding.project_id, object: { kind: binding.target.kind, id: binding.target.id }, noun: binding.noun, title: target ?? "" },
+      since: null, removable: true });
   }
   // Kept by the object's own plugin (a Feed item's Goal, a document's 「挂到…」 there): changed there, not here.
   const kept = read.context?.attached_to ?? [];
   const keptRelations = kept.length ? await relationsIn(object.project_id) : null;
   for (const subject of kept) {
     if (subject.kind === object.kind && subject.id === object.id) continue;
-    if (bound.some(binding => binding.target_kind === subject.kind && binding.target_id === subject.id && binding.project_id === object.project_id)) continue;
+    if (bound.some(binding => binding.target.kind === subject.kind && binding.target.id === subject.id && binding.project_id === object.project_id)) continue;
     const noun = keptRelations!.noun(subject.kind) ?? placementText(ports, "workbench.index.attached-unknown-noun");
     const target = object.project_id === null ? null : await self.targetTitle(object.project_id, subject.kind, subject.id);
     associations.push({ key: null, type: "attached", label: placementText(ports, "workbench.index.noun-name-linked-plugin", { noun, name: target ?? placementText(ports, "workbench.index.title-unavailable"), plugin: read.plugin?.title ?? "" }),
@@ -512,17 +518,20 @@ async function placementTools(ports: PlacementPorts, object: PlacedObject, opera
 }
 
 /**
- * One owner's 「挂到…」 relation in one partition: the attach that declares it (`attach.relation`, specs/plugin-equal-standing/
- * contract-design.md §2.2) and the parts it names, found by that declaration, never by a capability id placement knows. A part the
- * owner does not offer here (not declared, not registered, or unavailable now) is null.
+ * One owner's relation in one partition (「挂到…」, PG-032; specs/plugin-equal-standing/contract-design.md §2.2): the parts it declares
+ * with `placement_relation`, in the platform's shape for each (`definePlacementRelationAction`), found by that declaration, never by a
+ * capability id placement knows. A part the owner does not offer here (not declared, not registered, or unavailable now) is null. A
+ * relation whose parts are in another shape (a background task's `serves`, kept by the mainline service) is not placement's to offer.
  */
 interface AttachRelation {
-  /** The declaring attach's id. */
+  /** The declared relation name. */
   relation: string;
   /** The owner: the plugin whose objects of `target_kind` others attach to. */
   plugin_id: string;
   noun: string;
   target_kind: string;
+  /** Whether it relates objects of this kind (its `list` part's subject kinds; none: any object). */
+  relates(kind: string): boolean;
   list: ActionReference | null;
   bind: ActionReference | null;
   release: ActionReference | null;
@@ -542,31 +551,38 @@ const NO_RELATIONS: AttachRelations = { all: [], of: () => null, noun: () => nul
 const placementErrors = defineErrorCodes("placement", { relation_ambiguous: "conflict" });
 
 /**
- * Every 「挂到…」 relation in a partition. One kind of target is one relation's, kept by one owner: two declarations for the same kind
- * (two plugins, or one plugin twice) would make "who keeps this binding" a guess, so that is refused, naming the providers, and none of
- * their actions is called.
+ * Every relation in a partition. One relation has one owner, and one kind of target is one relation's: two providers declaring the same
+ * relation, or two relations ending on the same kind, would make "who keeps this binding" a guess, so that is refused, naming the
+ * providers, and none of their actions is called.
  */
 async function attachRelationsOf(ports: PlacementPorts, scope: PlacementScope): Promise<AttachRelations> {
-  const views = await scope.client.discover(scope.caller);
-  const declared = views.filter(view => view.availability.available && view.action.attach?.relation !== undefined && isAttachRelationPart(view.action, "bind"));
-  const byKind = new Map<string, ActionView[]>();
-  for (const view of declared) byKind.set(view.action.attach!.item_kind, [...byKind.get(view.action.attach!.item_kind) ?? [], view]);
+  const views = (await scope.client.discover(scope.caller)).filter(view => view.availability.available && view.action.placement_relation !== undefined
+    && isPlacementRelationPart(view.action, view.action.placement_relation.role));
+  const byName = new Map<string, ActionView[]>();
+  for (const view of views) byName.set(view.action.placement_relation!.relation, [...byName.get(view.action.placement_relation!.relation) ?? [], view]);
+  const ambiguous = (relation: string, same: readonly ActionView[]) => {
+    const providers = [...new Set(same.map(view => view.provider.provider_id))];
+    return placementErrors.relation_ambiguous(placementText(ports, "workbench.index.more-than-one-plugin-keeps-relation-link-providers", { relation, providers: providers.join("、") }), { relation, providers });
+  };
   const all: AttachRelation[] = [];
-  for (const [kind, same] of byKind) {
-    if (same.length > 1) {
-      const providers = [...new Set(same.map(view => view.provider.provider_id))];
-      throw placementErrors.relation_ambiguous(placementText(ports, "workbench.index.more-than-one-plugin-keeps-relation-link-providers", { relation: kind, providers: providers.join("、") }), { relation: kind, providers });
-    }
-    const bind = same[0]!, attach = bind.action.attach!, relation = attach.relation!;
-    // A part is the owner's own action, in the platform's shape for it; anything else is not offered.
-    const part = (target: { capability_id: string; version: number } | undefined, role: Exclude<PlacementAttachPart, "bind">) => {
-      const view = target && views.find(entry => entry.provider.provider_id === bind.provider.provider_id && entry.capability_id === target.capability_id
-        && entry.version === target.version && entry.availability.available && isAttachRelationPart(entry.action, role));
-      return view ? ref(view) : null;
+  for (const [name, parts] of byName) {
+    if (new Set(parts.map(view => view.provider.provider_id)).size > 1) throw ambiguous(name, parts);
+    const play = (role: PlacementRelationRole) => {
+      const found = parts.filter(view => view.action.placement_relation!.role === role);
+      if (found.length > 1) throw ambiguous(name, found);
+      return found[0] ? ref(found[0]) : null;
     };
-    all.push({ relation: attach.attach_id, plugin_id: bind.provider.plugin_id ?? bind.provider.provider_id, noun: relation.noun,
-      target_kind: kind, bind: ref(bind), list: part(relation.list, "list"), release: part(relation.release, "release"),
-      candidates: part(relation.candidates, "candidates"), create: part(relation.create, "create") });
+    const list = parts.find(view => view.action.placement_relation!.role === "list"), target = list?.action.placement_relation!.target;
+    // Without its list part a relation says neither what it ends on nor what an object is attached to: there is nothing to offer.
+    if (!list || !target) continue;
+    const kinds = list.action.subject_kinds;
+    all.push({ relation: name, plugin_id: list.provider.plugin_id ?? list.provider.provider_id, noun: target.noun, target_kind: target.kind,
+      relates: kind => kinds.length === 0 || kinds.includes(kind),
+      list: play("list"), bind: play("bind"), release: play("release"), candidates: play("candidates"), create: play("create") });
+  }
+  for (const relation of all) {
+    const same = all.filter(other => other.target_kind === relation.target_kind);
+    if (same.length > 1) throw ambiguous(relation.target_kind, views.filter(view => same.some(one => one.relation === view.action.placement_relation!.relation)));
   }
   const of = (kind: string) => all.find(relation => relation.target_kind === kind) ?? null;
   return { all, of, noun: kind => of(kind)?.noun ?? null };
@@ -581,11 +597,13 @@ async function attachRelations(ports: PlacementPorts, projectId: string | null):
   }
 }
 
-async function attachBindings(ports: PlacementPorts, projectId: string, relation: AttachRelation, subject: { kind: string; id: string }): Promise<PlacementAttachBinding[]> {
+/** What one object is attached to through one relation, as its owner says; nothing when the owner cannot answer now. */
+async function attachTargetsOf(ports: PlacementPorts, projectId: string, relation: AttachRelation, subject: ActionSubject): Promise<ActionSubject[]> {
   try {
     if (!relation.list) return [];
     const scope = await ports.scope(projectId);
-    return (await scope.client.invoke(scope.caller, relation.list, { subject }) as { bindings: PlacementAttachBinding[] }).bindings;
+    const result = await scope.client.invoke(scope.caller, relation.list, { subject }) as PlacementRelationResult;
+    return result.targets.filter(target => target.kind === relation.target_kind);
   } catch { return []; }
 }
 
@@ -594,21 +612,19 @@ function placementOpenProject(object: PlacedObject, read: Read): string | null {
   return object.project_id ?? placementBelongsOf(read);
 }
 
-/** What can be attached to in one location, by kind: each relation that offers its candidates, read page by page. */
-async function placementAttachTargets(ports: PlacementPorts, projectId: string): Promise<PlacementAttachKindView[]> {
+/**
+ * What can be attached to in one location, by kind: each relation that offers its candidates. Its owner names them by reference only;
+ * their titles are read from them like any object's.
+ */
+async function placementAttachTargets(ports: PlacementPorts, access: PlacementInstanceAccess, projectId: string, object: PlacedObject): Promise<PlacementAttachKindView[]> {
   const scope = await ports.scope(projectId);
   const kinds: PlacementAttachKindView[] = [];
   for (const relation of (await attachRelationsOf(ports, scope)).all) {
-    if (!relation.candidates) continue;
-    const targets: { id: string; title: string }[] = [];
-    let after: string | undefined;
-    for (let page = 0; page < 10; page += 1) {
-      const result = await scope.client.invoke(scope.caller, relation.candidates, { limit: 100, ...(after ? { after_cursor: after } : {}) }) as { targets: { id: string; title: string }[]; next_cursor: string | null };
-      targets.push(...result.targets.map(target => ({ id: target.id, title: target.title })));
-      if (!result.next_cursor) break;
-      after = result.next_cursor;
-    }
-    kinds.push({ kind: relation.target_kind, noun: relation.noun, targets });
+    if (!relation.candidates || !relation.bind || !relation.relates(object.kind)) continue;
+    const result = await scope.client.invoke(scope.caller, relation.candidates, { subject: { kind: object.kind, id: object.id } }) as PlacementRelationCandidates;
+    const offered = result.targets.filter(target => target.subject.kind === relation.target_kind);
+    const titles = await Promise.all(offered.map(target => access.targetTitle(projectId, target.subject.kind, target.subject.id)));
+    kinds.push({ kind: relation.target_kind, noun: relation.noun, targets: offered.map((target, index) => ({ id: target.subject.id, title: titles[index] ?? "", current: target.current })) });
   }
   return kinds;
 }
@@ -651,9 +667,14 @@ async function convertPlacement(ports: PlacementPorts, access: PlacementInstance
   if ("attach_kind" in request.to) {
     const relation = (await attachRelationsOf(ports, scope)).of(request.to.attach_kind);
     if (!relation?.create) throw new ActionError("placement.target_unavailable", placementText(ports, "workbench.index.attach-create-unavailable"));
-    const result = await scope.client.invoke(scope.caller, relation.create, { title: title.slice(0, 200), body: body.slice(0, 400000), source: from.slice(0, 400),
-      idempotency_key: `placement:${request.request_id}` }) as { target: { id: string } };
-    created = { kind: relation.target_kind, id: result.target.id, project_id: request.to_project_id };
+    // The owner makes a target named so and attaches the source to it; it returns what the source is attached to, the new one first.
+    const result = await scope.client.invoke(scope.caller, relation.create, { subject: { kind: source.kind, id: source.id }, name: [...title].slice(0, PLACEMENT_RELATION_LIMITS.name).join(""),
+      request_id: `placement:${request.request_id}`.slice(0, PLACEMENT_RELATION_LIMITS.request_id),
+      read: { title: [...sourceTitle].slice(0, PLACEMENT_RELATION_LIMITS.title).join(""), ...(read.context?.revision ? { revision: read.context.revision.slice(0, PLACEMENT_RELATION_LIMITS.revision) } : {}),
+        excerpt: [...body].slice(0, PLACEMENT_RELATION_LIMITS.excerpt).join("") } }) as PlacementRelationResult;
+    const made = result.targets[0];
+    if (!made || made.kind !== relation.target_kind) throw new ActionError("placement.result_mismatch", placementText(ports, "workbench.index.plugin-returned-copy-that-doesn-t-match-request"));
+    created = { kind: made.kind, id: made.id, project_id: request.to_project_id };
     noun = relation.noun;
   } else {
     const station = request.to.station;

@@ -601,9 +601,10 @@
       "operation": "command",
       "action": {
         "title": "Attach to a sample note",
-        "description": "把一个对象挂到这里的一个对象上；不复制、不移动原对象，重复挂接返回原记录。",
+        "description": "把一个对象挂到一条样例笔记上；不复制、不移动原对象，重复挂接不另加一条。",
         "kind": "operation",
         "scope": "project",
+        "scheduling": "concurrent",
         "effect": "write",
         "audiences": [
           "user"
@@ -611,53 +612,16 @@
         "permissions": [
           "storage:private"
         ],
-        "subject_kinds": [
-          "sample_note"
-        ],
-        "attach": {
-          "attach_id": "note",
-          "item_kind": "sample_note",
-          "title": "Sample note",
-          "verb": "Attach to a sample note",
-          "describe": "Hangs the open thing on one of this sample's notes; nothing is copied or moved.",
-          "accepts": [
-            {
-              "kind": "object"
-            }
-          ],
-          "relation": {
-            "noun": "Sample note",
-            "noun_text": {
-              "key": "notes.attach.noun"
-            },
-            "list": {
-              "capability_id": "io.molis.work.example.notes.attach.list",
-              "version": 1
-            },
-            "release": {
-              "capability_id": "io.molis.work.example.notes.attach.release",
-              "version": 1
-            },
-            "candidates": {
-              "capability_id": "io.molis.work.example.notes.attach.candidates",
-              "version": 1
-            },
-            "create": {
-              "capability_id": "io.molis.work.example.notes.attach.create",
-              "version": 1
-            }
-          }
+        "subject_kinds": [],
+        "placement_relation": {
+          "relation": "note",
+          "role": "bind"
         },
-        "input_type": "molis.placement.attach.v1.bind.input",
-        "output_type": "molis.placement.attach.v1.bind.output",
+        "input_type": "molis.placement.relation.v1.bind.input",
+        "output_type": "molis.placement.relation.v1.bind.output",
         "input_schema": {
           "type": "object",
           "properties": {
-            "target_id": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            },
             "subject": {
               "type": "object",
               "properties": {
@@ -676,44 +640,81 @@
               ],
               "additionalProperties": false
             },
-            "title": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+            "target": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false
             },
-            "read_revision": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+            "read": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "revision": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "excerpt": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
-            "target_id",
             "subject",
-            "title"
+            "target"
           ],
           "additionalProperties": false
         },
         "output_schema": {
           "type": "object",
           "properties": {
-            "binding": {
-              "type": "object",
-              "properties": {
-                "binding_id": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                }
-              },
-              "required": [
-                "binding_id"
-              ],
-              "additionalProperties": false
+            "targets": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              }
             }
           },
           "required": [
-            "binding"
+            "targets"
           ],
           "additionalProperties": false
         }
@@ -725,9 +726,10 @@
       "operation": "query",
       "action": {
         "title": "Read what a thing is attached to",
-        "description": "读取一个对象此刻挂在哪些对象上；只读。",
+        "description": "读取一个对象此刻挂在哪些样例笔记上；只读。",
         "kind": "query",
         "scope": "project",
+        "scheduling": "concurrent",
         "effect": "read",
         "audiences": [
           "user"
@@ -735,11 +737,20 @@
         "permissions": [
           "storage:private"
         ],
-        "subject_kinds": [
-          "sample_note"
-        ],
-        "input_type": "molis.placement.attach.v1.list.input",
-        "output_type": "molis.placement.attach.v1.list.output",
+        "subject_kinds": [],
+        "placement_relation": {
+          "relation": "note",
+          "role": "list",
+          "target": {
+            "kind": "sample_note",
+            "noun": "Sample note",
+            "noun_text": {
+              "key": "notes.attach.noun"
+            }
+          }
+        },
+        "input_type": "molis.placement.relation.v1.list.input",
+        "output_type": "molis.placement.relation.v1.list.output",
         "input_schema": {
           "type": "object",
           "properties": {
@@ -770,39 +781,31 @@
         "output_schema": {
           "type": "object",
           "properties": {
-            "bindings": {
+            "targets": {
               "type": "array",
               "maxItems": 500,
               "items": {
                 "type": "object",
                 "properties": {
-                  "binding_id": {
+                  "kind": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
+                    "minLength": 1
                   },
-                  "target_id": {
+                  "id": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  },
-                  "created_at": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 40
+                    "minLength": 1
                   }
                 },
                 "required": [
-                  "binding_id",
-                  "target_id",
-                  "created_at"
+                  "kind",
+                  "id"
                 ],
                 "additionalProperties": false
               }
             }
           },
           "required": [
-            "bindings"
+            "targets"
           ],
           "additionalProperties": false
         }
@@ -814,9 +817,10 @@
       "operation": "command",
       "action": {
         "title": "Take an attachment off",
-        "description": "取下一条挂接；原对象不变。",
+        "description": "把一个对象从一条样例笔记上取下；原对象不变。",
         "kind": "operation",
         "scope": "project",
+        "scheduling": "concurrent",
         "effect": "write",
         "audiences": [
           "user"
@@ -824,40 +828,87 @@
         "permissions": [
           "storage:private"
         ],
-        "subject_kinds": [
-          "sample_note"
-        ],
-        "input_type": "molis.placement.attach.v1.release.input",
-        "output_type": "molis.placement.attach.v1.release.output",
+        "subject_kinds": [],
+        "placement_relation": {
+          "relation": "note",
+          "role": "release"
+        },
+        "input_type": "molis.placement.relation.v1.release.input",
+        "output_type": "molis.placement.relation.v1.release.output",
         "input_schema": {
           "type": "object",
           "properties": {
-            "target_id": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+            "subject": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false
             },
-            "binding_id": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+            "target": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
-            "target_id",
-            "binding_id"
+            "subject",
+            "target"
           ],
           "additionalProperties": false
         },
         "output_schema": {
           "type": "object",
           "properties": {
-            "released": {
-              "type": "boolean"
+            "targets": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              }
             }
           },
           "required": [
-            "released"
+            "targets"
           ],
           "additionalProperties": false
         }
@@ -869,9 +920,10 @@
       "operation": "query",
       "action": {
         "title": "List sample notes to attach to",
-        "description": "列出这里可以挂接的对象，按页读取。",
+        "description": "列出这里可以挂上去的样例笔记，已挂上的在前；只读。",
         "kind": "query",
         "scope": "project",
+        "scheduling": "concurrent",
         "effect": "read",
         "audiences": [
           "user"
@@ -879,26 +931,38 @@
         "permissions": [
           "storage:private"
         ],
-        "subject_kinds": [
-          "sample_note"
-        ],
-        "input_type": "molis.placement.attach.v1.candidates.input",
-        "output_type": "molis.placement.attach.v1.candidates.output",
+        "subject_kinds": [],
+        "placement_relation": {
+          "relation": "note",
+          "role": "candidates"
+        },
+        "input_type": "molis.placement.relation.v1.candidates.input",
+        "output_type": "molis.placement.relation.v1.candidates.output",
         "input_schema": {
           "type": "object",
           "properties": {
-            "limit": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100
-            },
-            "after_cursor": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 400
+            "subject": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false
             }
           },
-          "required": [],
+          "required": [
+            "subject"
+          ],
           "additionalProperties": false
         },
         "output_schema": {
@@ -906,38 +970,42 @@
           "properties": {
             "targets": {
               "type": "array",
-              "maxItems": 100,
+              "maxItems": 500,
               "items": {
                 "type": "object",
                 "properties": {
-                  "id": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
+                  "subject": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id"
+                    ],
+                    "additionalProperties": false
                   },
-                  "title": {
-                    "type": "string",
-                    "maxLength": 1000
+                  "current": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
-                  "id",
-                  "title"
+                  "subject",
+                  "current"
                 ],
                 "additionalProperties": false
               }
-            },
-            "next_cursor": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "maxLength": 400
             }
           },
           "required": [
-            "targets",
-            "next_cursor"
+            "targets"
           ],
           "additionalProperties": false
         }
@@ -949,9 +1017,10 @@
       "operation": "command",
       "action": {
         "title": "Make a sample note to attach to",
-        "description": "用一段内容新建一个可挂接的对象，并记下内容的来处。",
+        "description": "新建一条样例笔记并把这个对象挂上去。",
         "kind": "operation",
         "scope": "project",
+        "scheduling": "concurrent",
         "effect": "write",
         "audiences": [
           "user"
@@ -959,61 +1028,101 @@
         "permissions": [
           "storage:private"
         ],
-        "subject_kinds": [
-          "sample_note"
-        ],
-        "input_type": "molis.placement.attach.v1.create.input",
-        "output_type": "molis.placement.attach.v1.create.output",
+        "subject_kinds": [],
+        "placement_relation": {
+          "relation": "note",
+          "role": "create"
+        },
+        "input_type": "molis.placement.relation.v1.create.input",
+        "output_type": "molis.placement.relation.v1.create.output",
         "input_schema": {
           "type": "object",
           "properties": {
-            "title": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "request_id": {
               "type": "string",
               "minLength": 1,
               "maxLength": 200
             },
-            "body": {
-              "type": "string",
-              "maxLength": 400000
-            },
-            "source": {
-              "type": "string",
-              "maxLength": 400
-            },
-            "idempotency_key": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+            "read": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "revision": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "excerpt": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
-            "title",
-            "body",
-            "source",
-            "idempotency_key"
+            "subject",
+            "name"
           ],
           "additionalProperties": false
         },
         "output_schema": {
           "type": "object",
           "properties": {
-            "target": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                }
-              },
-              "required": [
-                "id"
-              ],
-              "additionalProperties": false
+            "targets": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              }
             }
           },
           "required": [
-            "target"
+            "targets"
           ],
           "additionalProperties": false
         }

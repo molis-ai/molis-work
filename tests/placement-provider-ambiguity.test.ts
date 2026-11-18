@@ -3,19 +3,19 @@ import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import {
   ActionError, bindHomeObjectMoveHandler, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction,
-  defineAttachRelationAction, defineSubjectContextAction, subjectContext, type ActionCallContext, type ActionDefinition, type ActionReference, type PlacementAttachPart,
+  definePlacementRelationAction, defineSubjectContextAction, subjectContext, type ActionCallContext, type ActionDefinition, type ActionReference, type ActionSubject, type PlacementRelationRole,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
 import { PLACEMENT_LEDGER_ACCESS, PlacementService } from "@molis-ai/molis-work-service-placement";
 
 const NOTE = { kind: "note", id: "n1", project_id: "q4" };
-const FIVE: readonly PlacementAttachPart[] = ["list", "bind", "release", "candidates", "create"];
-const ATTACHED = JSON.stringify(["attached", "q4", "topic", "t1", "b1"]);
+const FIVE: readonly PlacementRelationRole[] = ["list", "bind", "release", "candidates", "create"];
+const ATTACHED = JSON.stringify(["attached", "q4", "topic", "t1", "note", "n1"]);
 const TOPIC = { kind: "topic", id: "t1" };
 const READ = defineSubjectContextAction("notes.subject.read", 1, "note", "笔记", ["notes:read"]);
-/** A plugin keeping a 「挂到…」 relation onto `topic`; `parts` always hold the three a relation must name (list, bind, release). */
-interface RelationOwner { provider: string; prefix: string; parts?: readonly PlacementAttachPart[]; unavailable?: readonly PlacementAttachPart[]; disabled?: boolean; project?: string }
+/** A plugin keeping the relation `topic` onto `topic`, with the parts it offers (`unavailable` ones present but refused). */
+interface RelationOwner { provider: string; prefix: string; parts?: readonly PlacementRelationRole[]; unavailable?: readonly PlacementRelationRole[]; disabled?: boolean; project?: string }
 interface ToolOwner { provider: string; prefix: string; kind: "move" | "copy"; disabled?: boolean; home?: boolean; project?: string }
 interface Note { title: string; body: string; project: string }
 
@@ -29,14 +29,9 @@ function database(db: DatabaseSync): ContextLedgerDatabase {
     transaction: <T>(operation: () => T) => Object.assign(() => run(operation), { immediate: () => run(operation) }) };
 }
 
-function relationDefinitions(owner: RelationOwner): (ActionDefinition & { part: PlacementAttachPart })[] {
-  const parts = owner.parts ?? FIVE, permission = (part: PlacementAttachPart) => [part === "list" || part === "candidates" ? "topics:read" : "topics:write"];
-  const others = parts.filter(part => part !== "bind").map(part => ({ ...defineAttachRelationAction(part, `${owner.prefix}.${part}`, 1, ["topic"], "话题", permission(part)), part }));
-  const ref = (part: PlacementAttachPart) => { const found = others.find(one => one.part === part); return found ? { capability_id: found.capability_id, version: found.version } : undefined; };
-  const bind = defineAttachRelationAction("bind", `${owner.prefix}.bind`, 1, ["topic"], "话题", permission("bind"), { attach_id: "topic", item_kind: "topic", title: "话题",
-    verb: "挂到话题", describe: "管理对象和话题的关联", relation: { noun: "话题", list: ref("list")!, release: ref("release")!,
-      ...(ref("candidates") ? { candidates: ref("candidates")! } : {}), ...(ref("create") ? { create: ref("create")! } : {}) } });
-  return [...others, { ...bind, part: "bind" as const }];
+function relationDefinitions(owner: RelationOwner): (ActionDefinition & { part: PlacementRelationRole })[] {
+  return (owner.parts ?? FIVE).map(part => ({ ...definePlacementRelationAction("topic", part, `${owner.prefix}.${part}`, 1, { kinds: [], title: "话题", description: "管理对象和话题的关联",
+    permissions: [part === "list" || part === "candidates" ? "topics:read" : "topics:write"], audiences: ["user"], ...(part === "list" ? { target: { kind: "topic", noun: "话题" } } : {}) }), part }));
 }
 
 function fixture(t: TestContext, options: { relations?: RelationOwner[]; tools?: ToolOwner[]; readDisabled?: boolean; createFailure?: ActionError; beforeEffect?: () => void } = {}) {
@@ -62,14 +57,14 @@ function fixture(t: TestContext, options: { relations?: RelationOwner[]; tools?:
       handlers: parts.map(({ part, ...definition }) => ({ ...definition,
         availability: () => owner.unavailable?.includes(part)
           ? { available: false, code: "actions.plugin_disabled", reason: "部分未启用" } : { available: true },
-        handle: () => {
+        handle: (_context: unknown, input: unknown) => {
           effects.push(`${owner.provider}:${part}`);
-          if (part === "list") return { bindings: [{ binding_id: "b1", target_id: "t1", created_at: "2026-10-25T00:00:00.000Z" }] };
-          if (part === "bind") return { binding: { binding_id: "b2" } };
-          if (part === "release") return { released: true };
-          if (part === "candidates") return { targets: [{ id: "t1", title: "话题一" }], next_cursor: null };
+          if (part === "list") return { targets: [TOPIC] };
+          if (part === "bind") return { targets: [TOPIC, (input as { target: ActionSubject }).target] };
+          if (part === "release") return { targets: [] };
+          if (part === "candidates") return { targets: [{ subject: TOPIC, current: true }] };
           if (options.createFailure) throw options.createFailure;
-          return { target: { id: "t2" } };
+          return { targets: [{ kind: "topic", id: "t2" }, TOPIC] };
         },
       })),
     });
@@ -110,7 +105,7 @@ function fixture(t: TestContext, options: { relations?: RelationOwner[]; tools?:
 
 const RELATION_OPERATIONS = [
   { name: "describe", reads: 1, run: (service: PlacementService) => service.describe(NOTE) },
-  { name: "attachTargets", reads: 0, run: (service: PlacementService) => service.attachTargets("q4") },
+  { name: "attachTargets", reads: 0, run: (service: PlacementService) => service.attachTargets("q4", NOTE) },
   { name: "attach", reads: 1, run: (service: PlacementService) => service.attach(NOTE, "q4", TOPIC) },
   { name: "unlink", reads: 0, run: (service: PlacementService) => service.unlink(ATTACHED) },
   { name: "convert", reads: 1, run: (service: PlacementService) => service.convert({ source: NOTE, to: { attach_kind: "topic" }, to_project_id: "q4", request_id: "conversion" }) },
@@ -267,7 +262,7 @@ test("RAC-642 directory failure keeps the existing unavailable description and a
   assert.equal(described.state, "unavailable");
   assert.equal(described.reason, failure.message);
   assert.deepEqual(described.can, { move: false, copy: false, use_in_project: false });
-  await assert.rejects(f.service.attachTargets("q4"), error => error === failure);
+  await assert.rejects(f.service.attachTargets("q4", NOTE), error => error === failure);
   await assert.rejects(f.service.move(NOTE, "interview"), { code: "placement.not_movable" });
   await assert.rejects(f.service.copy(NOTE, "interview", "unavailable"), { code: "placement.not_copyable" });
   assert.deepEqual(f.calls, []);
@@ -279,20 +274,21 @@ test("RAC-645 a missing or unavailable part is not borrowed from a disabled owne
   const f = fixture(t, { relations: [{ provider: "disabled", prefix: "a", disabled: true }, { provider: "one", prefix: "z", parts: ["list", "bind", "release", "candidates"], unavailable: ["release"] }] });
   await assert.rejects(f.service.unlink(ATTACHED), { code: "placement.target_unavailable" });
   await assert.rejects(f.service.convert({ source: NOTE, to: { attach_kind: "topic" }, to_project_id: "q4", request_id: "missing" }), { code: "placement.target_unavailable" });
-  assert.deepEqual(await f.service.attachTargets("q4"), [{ kind: "topic", noun: "话题", targets: [{ id: "t1", title: "话题一" }] }]);
+  // The owner names its candidates by reference; with no reader for topics here, their titles cannot be read.
+  assert.deepEqual(await f.service.attachTargets("q4", NOTE), [{ kind: "topic", noun: "话题", targets: [{ id: "t1", title: "", current: true }] }]);
   assert.deepEqual(f.effects, ["one:candidates"]);
   assert.equal(f.writes(), 0);
-  // The attaching part itself refused: there is no relation here, and the disabled owner's is not taken instead.
+  // The attaching part itself refused: nothing can be attached here, and the disabled owner's is not taken instead.
   const g = fixture(t, { relations: [{ provider: "disabled", prefix: "a", disabled: true }, { provider: "one", prefix: "z", unavailable: ["bind"] }] });
   await assert.rejects(g.service.attach(NOTE, "q4", TOPIC), { code: "placement.target_unavailable" });
-  assert.deepEqual(await g.service.attachTargets("q4"), []);
+  assert.deepEqual(await g.service.attachTargets("q4", NOTE), []);
   assert.deepEqual(g.effects, []);
   assert.equal(g.writes(), 0);
 });
 
 test("RAC-645 absent read parts still list no candidates or bindings", async t => {
   const f = fixture(t, { relations: [{ provider: "one", prefix: "z", parts: ["list", "bind", "release"], unavailable: ["list"] }] });
-  assert.deepEqual(await f.service.attachTargets("q4"), []);
+  assert.deepEqual(await f.service.attachTargets("q4", NOTE), []);
   assert.deepEqual((await f.service.describe(NOTE)).associations, []);
   assert.deepEqual(f.effects, []);
   assert.equal(f.writes(), 0);

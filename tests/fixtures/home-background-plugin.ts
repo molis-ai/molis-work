@@ -62,7 +62,7 @@ export function backgroundPlugin(answer: (projectId: string) => unknown) {
       state.eventCalls.push({ project: caller.project_id ?? null, query_only: caller.query_only === true });
       return await state.events(caller.project_id ?? "") as never;
     } }, ...relation.map(part => ({ ...part, async handle(caller: ActionExecutionContext, input: unknown) {
-      const role = part.action.task_serves!.role, { task, event } = input as { task: ActionSubject; event?: ActionSubject };
+      const role = part.action.placement_relation!.role, { task, event } = input as { task: ActionSubject; event?: ActionSubject };
       state.servesCalls.push({ role, task: task.id, ...(event ? { event: event.id } : {}), audience: caller.audience });
       if (!state.serves.has(task.id)) throw new ActionError("homebg.task_missing", "没有这个任务", { kind: "not_found" });
       if (role === "bind") state.serves.set(task.id, [event!]);

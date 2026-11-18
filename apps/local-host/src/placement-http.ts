@@ -11,13 +11,12 @@ export async function handlePlacementHttp(request: IncomingMessage, response: Se
   const match = url.pathname.match(/^\/api\/placement\/(describe|spaces|related|attach-targets|link|unlink|move|copy|convert|attach|create)$/u);
   if (!match) return false;
   const route = match[1]!;
-  const read = route === "spaces" || route === "related" || route === "attach-targets";
+  const read = route === "spaces" || route === "related";
   if (request.method !== (read ? "GET" : "POST")) { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
   try {
     const client = actions();
     if (route === "spaces") sendJson(response, 200, await client.invoke(placementActions.spaces, {}));
     else if (route === "related") sendJson(response, 200, await client.invoke(placementActions.related, { project_id: url.searchParams.get("project_id") ?? "" }));
-    else if (route === "attach-targets") sendJson(response, 200, await client.invoke(placementAttachActions.targets, { project_id: url.searchParams.get("project_id") ?? "" }));
     else {
       const body = await readBody(request) as Record<string, unknown>;
       const page = pluginPageRequest(request);
@@ -25,6 +24,7 @@ export async function handlePlacementHttp(request: IncomingMessage, response: Se
       const result = route === "describe" ? await client.invoke(placementActions.describe, { object: page ? page.ownedObject(body.object as PlacedObject) : body.object as PlacedObject }, control)
         : route === "link" ? await client.invoke(placementActions.link, { object: body.object as PlacedObject, project_id: String(body.project_id ?? "") })
         : route === "unlink" ? await client.invoke(placementActions.unlink, { key: String(body.key ?? "") })
+        : route === "attach-targets" ? await client.invoke(placementAttachActions.targets, { project_id: String(body.project_id ?? ""), object: body.object as PlacedObject })
         : route === "move" ? await client.invoke(placementActions.move, { object: body.object as PlacedObject, to_project_id: String(body.to_project_id ?? "") })
         : route === "copy" ? await client.invoke(placementActions.copy, { object: body.object as PlacedObject, to_project_id: String(body.to_project_id ?? ""), request_id: String(body.request_id ?? "") })
         : route === "attach" ? await client.invoke(placementAttachActions.attach, { object: body.object as PlacedObject, project_id: String(body.project_id ?? ""),

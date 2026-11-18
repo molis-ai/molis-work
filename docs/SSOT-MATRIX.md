@@ -232,7 +232,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | --- | --- | --- |
 | 事项线怎样读：按类型发现项目里的事件登记方、逐个现问，事件在哪一翼、排第几、线上显示什么状态 | `horizontal/mainline` | 不存任何东西，每次由 `mainline.line.read@1` 现读；事件的事实在各登记方，名字与状态词不留存 |
 | 一件工作的各项要求、每次交付的版本、逐项核对的结果与层级、用户本人的认可与退回（平台能力；Goals 自己的要求与认可到 44-3 才搬过来） | `modules/acceptance` | Home 库 `acceptance/acceptance.db`，按项目隔离，除对象表外只追加；每项此刻的状态由 `acceptance.read@1` 从记录现算，不另存；对象归它的插件，证据正文归成果库与 Agent Host，这里只存引用 |
-| 任务为哪个事件办 | 任务的主人（用 `task_serves` 声明自己的部分） | 主人自己的记录；`mainline.place@1` 只按声明找到主人并让它记下，自己不记 |
+| 任务为哪个事件办 | 任务的主人（用 `defineTaskServesAction` 写的部分，`placement_relation` 关联 `serves`） | 主人自己的记录；`mainline.place@1` 只按声明找到主人并让它记下，自己不记 |
 | 后台任务总表怎样读：按类型发现项目里的任务提供方、逐个现问、核对每一行；命令执行前重读提供方、只认它仍给出的那一条 | `horizontal/mainline` | 不存任何东西，每次由 `background.tasks.read@1` 现读；任务的事实在各提供方 |
 | 能力包怎样拼：三种包（插件安装、Molis Work 自带、你的角色）、给条目盖来源与所属的包、算包的状态 | `horizontal/kit` | 不存任何东西，每次由 `kit.catalog.list@1` 现算；不建注册表 |
 | 技能、提示词、插件角色条目 | apps/local-host 的 Agent definitions | 上报动作读同一份 Agent 定义登记 |

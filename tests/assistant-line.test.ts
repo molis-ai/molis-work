@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ASSISTANT_LINE_ACTIONS, ASSISTANT_TASK_TABLE_ACTION, ASSISTANT_WORK_KIND, assistantLineRegistration, installHostUiText, runWithLocale, type AssistantLineSource } from "@molis-ai/molis-work-app-local-host";
-import { BACKGROUND_TASKS_OUTPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, type ActionCallContext, type BackgroundTaskCollection, type TaskServesResult, type WorkEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+import { BACKGROUND_TASKS_OUTPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, TASK_SERVES_RELATION, type ActionCallContext, type BackgroundTaskCollection, type TaskServesResult, type WorkEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isWorkEventSource } from "@molis-ai/molis-work-service-mainline";
 
 // specs/work-line §5, §6 (WLN-37, WLN-38, WLN-39): the Assistant reports its works on the line like any registrant and any
@@ -88,7 +88,8 @@ test("WLN-37: the Assistant registers its events and tasks by the same typed act
   assert.equal(A.tasks.action.output_type, BACKGROUND_TASKS_OUTPUT_TYPE);
   assert.equal(A.tasks.action.home_aggregate, true);
   assert.deepEqual(A.tasks.action.audiences, ["user"], "S-49: a task table answers the person only");
-  assert.deepEqual([A.servesList, A.servesBind, A.servesRelease, A.servesCreate].map(one => one.action.task_serves), [{ role: "list" }, { role: "bind" }, { role: "release" }, { role: "create" }]);
+  assert.deepEqual([A.servesList, A.servesBind, A.servesRelease, A.servesCreate].map(one => [one.action.placement_relation?.relation, one.action.placement_relation?.role]),
+    [[TASK_SERVES_RELATION, "list"], [TASK_SERVES_RELATION, "bind"], [TASK_SERVES_RELATION, "release"], [TASK_SERVES_RELATION, "create"]]);
   for (const one of Object.values(A)) assert.deepEqual(one.action.subject_kinds, [ASSISTANT_WORK_KIND]);
   assert.equal(harness().registration.definitions.length, Object.keys(A).length + 1, "and the reading copy of the task table for its own Agent");
 });

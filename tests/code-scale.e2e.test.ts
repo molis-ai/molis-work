@@ -259,7 +259,7 @@ test("VUX-33 QEA-176: the Assistant's large block streams in place, reopens as t
   if (!await evaluate("document.querySelector('[data-assistant-panel]').hidden")) await click("[data-assistant-panel-close]");
   await waitFor("document.querySelector('[data-reply-peek] .work-reply-peek-body')?.firstChild");
 
-  // QEA-200 also observes the visible receipt while the original code's colouring progresses.
+  // QEA-200 and QEA-203 observe the visible receipt through the final colouring frame.
   const { identifier } = await command<{ identifier: string }>("Page.addScriptToEvaluateOnNewDocument", { source: `window.samples = []; const tick = () => {
     const code = document.querySelector('.assistant-msg--assistant .assistant-code code');
     if (code) {
@@ -270,15 +270,13 @@ test("VUX-33 QEA-176: the Assistant's large block streams in place, reopens as t
       }
       samples.push([performance.now(), code.textContent.length, code.querySelectorAll('[class^="tok-"]').length]);
     }
-    if (samples.length < 3000) requestAnimationFrame(tick); }; requestAnimationFrame(tick);` }, sessionId);
+    if (samples.at(-1)?.[2] !== ${expected.spans}) requestAnimationFrame(tick); }; requestAnimationFrame(tick);` }, sessionId);
   await navigate(() => command("Page.reload", {}, sessionId));
   await waitFor(`samples.at(-1)?.[2] === ${expected.spans}`, 30_000);
+  const painting = await evaluate<Array<[number, number, number]>>("samples.slice()");
   await command("Page.removeScriptToEvaluateOnNewDocument", { identifier }, sessionId);
-  const samples = await evaluate<Array<[number, number, number]>>("samples.slice()");
   assert.equal(await evaluate("Boolean(window.originalPreview) && !window.previewRebuilt"), true, "QEA-200 code colouring does not rebuild the visible peek");
-  assert.equal(await evaluate<string>(`${figure}.querySelector('code').innerHTML`), expected.html, "reopened colouring matches the whole colouring");
-  const painting = samples.filter(([, , spans]) => spans < expected.spans);
-  assert.ok(painting.length >= 3, `coloured over ${painting.length} frames`);
+  assert.ok(painting.length >= 4, `coloured over ${painting.length - 1} intervals`);
   assert.ok(painting.every(([, length]) => length === code.length), "every frame while it is coloured reads the whole code");
   const firstColour = painting.findIndex(([, , spans]) => spans > 0);
   assert.ok(firstColour >= 1 && firstColour <= 2, `plain text appears first, then colouring starts within two frames (first coloured sample: ${firstColour})`);
@@ -286,6 +284,16 @@ test("VUX-33 QEA-176: the Assistant's large block streams in place, reopens as t
   const gaps = painting.slice(1).map(([at], index) => at - painting[index]![0]), longest = Math.max(0, ...gaps);
   t.diagnostic(`QEA-176 reopened ${code.length} characters, ${firstColour} plain frames, longest frame ${longest.toFixed(1)} ms`);
   assert.ok(longest < 100, `the longest frame while it is coloured: ${longest.toFixed(1)} ms`);
+  assert.equal(await evaluate<string>(`${figure}.querySelector('code').innerHTML`), expected.html, "reopened colouring matches the whole colouring");
+  const preview = await evaluate<{ text: string; hasSource: boolean; hasPaint: boolean }>(`(() => {
+    const block = document.querySelector('[data-reply-peek] .assistant-code');
+    return { text: block.querySelector('pre code').textContent, hasSource: block.hasAttribute('data-code'), hasPaint: block.hasAttribute('data-paint') };
+  })()`);
+  assert.deepEqual(preview, { text: code.split("\n").slice(0, 3).join("\n"), hasSource: false, hasPaint: false },
+    "QEA-203 the receipt renders the three original lines with only the visible content");
+  await click("[data-reply-peek] [data-dialog-open]");
+  await waitFor(`${figure}.getBoundingClientRect().height > 0`);
+  assert.equal(await evaluate<string>(`${figure}.querySelector('code').innerHTML`), expected.html, "the reopened dialog shows the complete colouring");
   const evidence = reviewEvidenceUrl("visual-ui-experience/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL("assistant-code-scale.json", evidence), JSON.stringify({ characters: code.length, frames: painting.length, longest: Math.round(longest) }, null, 2));
 });

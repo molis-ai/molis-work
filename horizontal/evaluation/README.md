@@ -23,6 +23,8 @@
 
 设计与取舍见 [specs/observation-collection/evaluation-path-design.md](../../specs/observation-collection/evaluation-path-design.md)。
 
+交付判定可以用 `evidence_source` 固定事实及正文角色。模型回复只在 `agent.reply` 的 `reply` 正文里核对词语。运行的执行和完成数按项目、安装、事实主人和工作引用去重。定时会话的工作引用来自 Schedule 保存的结果轮次。单次运行保留原计数，汇总的 `excluded_execution_runs` 给出沿用旧计数口径的运行数。这两列按运行加总，同一工作出现在多个评测样本中会在各样本分别计入。
+
 ## 当前限制
 
 - 证据快照目前逐条调用 `observation.evidence.get@1`；一个有 N 条证据记录的大样本会产生 N 次动作调用（记录查询本身已分页，且默认读完整个样本，不再停在 500 条）。批量解封需要 observation 提供新的公开读取动作，记 [BL-evaluation-read-cost](../../specs/backlog/BL-evaluation-read-cost.md)。

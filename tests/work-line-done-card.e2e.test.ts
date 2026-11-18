@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assistantTextHtml } from "@molis-ai/molis-work-app-workbench";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -122,10 +123,31 @@ test("WLN-35: the reply above the input reads as the dialog draws it, folds on a
   assert.equal(await evaluate(`/[#*\`]|^- /m.test(${BODY}.textContent)`), false, "no Markdown marks are shown");
   assert.equal(await evaluate(`${BODY}.querySelector('button')`), null, "the reply's buttons stay in the dialog");
   assert.equal(await evaluate(`${BODY}.querySelectorAll('li')[1].textContent`), "没有按版本分节，已把发布说明放进项目", "a named object keeps its words in the sentence");
+  // WLN-35 / VUX-33: a syntax pass changes nodes in the dialog, while a genuine revision changes the preview.
+  const message = "document.querySelector('[data-assistant-thread] .assistant-msg--assistant:last-child')";
+  await evaluate(`const figure = document.createElement('figure'); figure.className = 'assistant-code';
+    figure.innerHTML = '<pre><code>const x = 1</code></pre>'; ${message}.append(figure);`);
+  await waitFor(`${BODY}.querySelector('pre code')?.textContent === 'const x = 1'`);
+  await evaluate(`window.previewHeading = ${BODY}.querySelector('h2');
+    const code = ${message}.querySelector('pre code'), token = document.createElement('span');
+    token.className = 'tok-keyword'; token.textContent = 'const'; code.replaceChildren(token, ' x = 1');`);
+  assert.equal(await evaluate(`${BODY}.querySelector('h2') === window.previewHeading`), true, "new syntax nodes leave the preview and its live region in place");
   // Three lines: a heading stands at the words' own size, and nothing of the reply runs out of the row.
   assert.deepEqual(await evaluate(`(() => { const body = ${BODY}, h = body.querySelector('h2'); return [getComputedStyle(h).fontSize === getComputedStyle(body).fontSize, body.getBoundingClientRect().height <= parseFloat(getComputedStyle(body).fontSize) * 4.95 + 1]; })()`), [true, true]);
   await mkdir(shots, { recursive: true });
   await writeFile(new URL("reply-peek-rendered-1440.png", shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+
+  await evaluate(`${message}.dataset.text += '!'; ${message}.querySelector('h2').textContent = '最新进展'`);
+  await waitFor(`${BODY}.querySelector('h2')?.textContent === '最新进展'`);
+  await evaluate(`${message}.dataset.text = ${JSON.stringify(SOURCE)}; ${message}.querySelector('h2').textContent = '现状'`);
+  await waitFor(`${BODY}.querySelector('h2')?.textContent === '现状'`);
+
+  // HTML highlighting puts the CR after the tag name and the LF inside the following attribute span.
+  const htmlCode = '<a\r\nhref="x">\r\nthird\r\nfourth', fenced = "```html\n" + htmlCode + "\n```";
+  await evaluate(reply(fenced, assistantTextHtml(fenced, [], key => key)));
+  await waitFor(`${BODY}.querySelector('pre code')?.textContent === ${JSON.stringify(htmlCode.slice(0, htmlCode.lastIndexOf("\r\n")))}`);
+  await evaluate(reply(SOURCE, RENDERED));
+  await waitFor(`${BODY}.querySelector('h2')?.textContent === '现状'`);
 
   // A plugin's page tells the shell of a press inside it (molis:surface-interaction, plugin-frame/parent.ts): the row folds.
   await evaluate("window.dispatchEvent(new CustomEvent('molis:surface-interaction'))");

@@ -43,7 +43,7 @@ export type PrologueControlState =
 
 /** The event shapes this projection reads. Anything else is left alone. */
 export type PrologueEvent =
-  | { type: "prompt"; role: "system" | "user"; text: string; steerId?: string; source?: "person" | "app" | "peer"; acceptedAtMs?: number }
+  | { type: "prompt"; role: "system" | "user"; text: string; steerId?: string; source?: "person" | "app" | "peer"; acceptedAtMs?: number; injection?: import("@prologue/sdk").ExactRef<"envelope">; carried?: Extract<ModelEvent, { type: "prompt" }>["carried"]; notice?: AgentTurnView["notice"] }
   | { type: "text-delta"; text: string }
   | { type: "reasoning-delta"; text: string }
   | { type: "tool-call"; call: { id: string; name: string; input?: Record<string, unknown> } }
@@ -503,12 +503,13 @@ type Handler = (state: PrologueStreamState, event: PrologueEvent, at: string | n
 
 function applyPrompt(state: PrologueStreamState, event: PrologueEvent, at: string | null): boolean {
   const prompt = event as Extract<PrologueEvent, { type: "prompt" }>;
-  if (prompt.text === "") return false;
+  if (prompt.text === "" && !(prompt.source === "peer" && prompt.notice)) return false;
   closeStreaming(state);
   state.turns.push({
     turn_id: `${prompt.role}-${state.turns.length + 1}`,
-    kind: prompt.role === "system" ? "system" : prompt.source === "app" ? "notice" : "user",
+    kind: prompt.role === "system" ? "system" : prompt.source === "app" || prompt.source === "peer" ? "notice" : "user",
     text: prompt.text,
+    ...(prompt.source === "peer" && !prompt.text && prompt.notice ? { notice: prompt.notice } : {}),
     at,
     sequence: state.next_sequence++,
     ...steerOf(prompt.role, prompt.steerId),

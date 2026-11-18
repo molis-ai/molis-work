@@ -1,6 +1,6 @@
 /** D-reviewed B58 float body; its owner supplies width and height. Shared by hosted plugin pages and the workbench. */
 export const SUBTASK_CONVERSATION_STYLES = `
-  .mw-subtask { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; overflow: hidden; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-card); box-shadow: var(--lift-2); }
+  .mw-subtask { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; overflow: auto; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-card); box-shadow: var(--lift-2); }
   .mw-subtask[hidden] { display: none; }
   .mw-subtask__head { display: flex; align-items: center; gap: 6px; padding: 8px; border-bottom: 1px solid var(--line); flex: none; }
   .mw-subtask__head > strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: var(--weight-title); }
@@ -11,7 +11,8 @@ export const SUBTASK_CONVERSATION_STYLES = `
   .mw-subtask__parent > .mw-btn { max-width: 100%; color: var(--muted); }
   .mw-subtask__parent [data-slot="button-label"] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mw-subtask__controls { display: flex; gap: 6px; flex: none; }
-  .mw-subtask__thread { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  /* Keep a complete touch target reachable; very short floats scroll their outer content instead of clipping it. */
+  .mw-subtask__thread { flex: 1; min-height: 96px; overflow: auto; overscroll-behavior: contain; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
   .mw-subtask__thread > * { flex: none; min-width: 0; }
   .mw-subtask__intro h3 { font-size: 15px; line-height: 1.6; margin: 0 0 4px; font-weight: var(--weight-title); }
   .mw-subtask__intro > p { font-size: 12px; line-height: 1.6; color: var(--muted); margin: 0 0 9px; }

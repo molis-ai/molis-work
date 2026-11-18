@@ -1,10 +1,10 @@
 import type { ComposerDraftAdapter, ComposerOptions } from "../page-globals.js";
-import type { MwSubtaskAction, MwSubtaskConversationLabels, MwSubtaskConversationView, MwSubtaskLink } from "../ui/subtask-conversation.js";
+import type { MwSubtaskAction, MwSubtaskConversationLabels, MwSubtaskConversationView, MwSubtaskDetail, MwSubtaskLink } from "../ui/subtask-conversation.js";
 
 export type SubtaskConversationRead = { readonly state: "available"; readonly view: MwSubtaskConversationView }
   | { readonly state: "denied"; readonly reason: string };
 export type SubtaskActionOutcome = { readonly state: "applied" }
-  | { readonly state: "not-applied"; readonly reason: string }
+  | { readonly state: "not-applied"; readonly reason: string; readonly errors?: Readonly<Record<string, string>> }
   | { readonly state: "unknown"; readonly check: () => Promise<SubtaskActionOutcome> };
 export type SubtaskComposerOptions = Omit<Extract<ComposerOptions, { kind: "ai" }>, "draft" | "placement" | "stop" | "pause">
   & { readonly draft: { readonly adapter: ComposerDraftAdapter } };
@@ -33,6 +33,11 @@ export interface SubtaskConversationOptions {
   /** Already translated. A getter can return the page's current language; call refresh after its language changes. */
   readonly labels: MwSubtaskConversationLabels;
   readonly source: SubtaskConversationSource;
+  /** The owner mounts its existing question/review widget. Model HTML never becomes a form or an action handler. */
+  mountDetail?(root: HTMLElement, view: MwSubtaskConversationView, detail: MwSubtaskDetail, submit: (action: MwSubtaskAction) => Promise<SubtaskActionOutcome | undefined>): {
+    update?(view: MwSubtaskConversationView, detail: MwSubtaskDetail): void;
+    destroy(): void;
+  } | undefined;
   /** The shell owns the existing task card / parent float. This component never touches the main conversation or its input. */
   onBack(parent: MwSubtaskLink | undefined): void;
   onClose(): void;

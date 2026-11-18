@@ -12,7 +12,7 @@ import type {
   AgentRoleDeclaration,
   AgentRoleExecution,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { BUSINESS_HOST_TOOLS, orderPromptsByLayer } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { BUSINESS_HOST_TOOLS, BUSINESS_SUBAGENT_HOST_TOOLS, orderPromptsByLayer } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type {
   AgentActionClient,
   AgentActionOffer,
@@ -132,11 +132,11 @@ export function assertInferenceRole(role: AgentRoleDeclaration, manifest: AgentM
   }
 }
 
-/** A business role: no directory, root-free host tools only, no children of its own (yet). */
+/** A business role: root-free tools, with dispatch only for explicitly declared child roles. */
 export function assertBusinessRole(role: AgentRoleDeclaration, manifest: AgentManifest): void {
+  const tools: readonly string[] = [...BUSINESS_HOST_TOOLS, ...(manifest.subagents?.parent_role_ids.includes(role.role_id) ? BUSINESS_SUBAGENT_HOST_TOOLS : [])];
   if (role.workspace !== "business" || !["read-only", "operate"].includes(roleExecution(role))
-    || role.host_tools?.some(tool => !(BUSINESS_HOST_TOOLS as readonly string[]).includes(tool))
-    || role.subagent_workspaces || manifest.subagents?.parent_role_ids.includes(role.role_id)) {
+    || role.host_tools?.some(tool => !tools.includes(tool)) || role.subagent_workspaces) {
     throw agentErrors.role_execution_exceeded("此角色没有声明无目录的业务执行方式");
   }
 }
@@ -434,7 +434,8 @@ export function frozenSubagents(adapter: AgentRuntimeAdapter, role: AgentRoleDec
     subagents = declaration.roles.filter(child => !child.parent_role_ids || child.parent_role_ids.includes(role.role_id)).map(child => {
       const tools = child.host_tools ?? [];
       const childExecution = child.execution ?? "read-only";
-      assertChildRoleTools(childExecution, tools, Boolean(childWorkspaces), hostTools);
+      assertChildRoleTools(childExecution, tools, Boolean(childWorkspaces), hostTools, role.workspace === "business");
+      if (role.workspace === "business" && execution === "read-only" && childExecution !== "read-only") throw agentErrors.role_execution_exceeded("只读父角色不能派出业务操作子角色");
       if (EXECUTION_CAPABILITIES[childExecution].some(capability => adapter.descriptor.capabilities[capability] === "unsupported")) throw agentErrors.capability_unavailable("运行时不能执行声明的子角色操作");
       const prompt = authority.prompts?.find(prompt => prompt.prompt_id === child.role_id && prompt.version === child.version);
       if (!prompt) throw agentErrors.role_not_declared("子角色缺少声明版本的正文");

@@ -2136,6 +2136,8 @@ export declare const BACKGROUND_TASK_SCHEMA: {
 
 export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
+export declare const BUSINESS_SUBAGENT_HOST_TOOLS: readonly ["dispatch-subagent", "await-subagents", "steer-subagent"];
+
 export interface BackgroundTask {
     subject: ActionSubject;
     title: string;
@@ -7585,6 +7587,7 @@ export type WorkExecutorRunControl = RoundRef & ({
     kind: "stop" | "pause" | "resume";
 } | (AgentAnswerControl & {
     pending_revision: number;
+    continue_after_answer?: false;
 }) | ({
     kind: "steer";
 } & AgentInputSend) | {
@@ -7600,6 +7603,7 @@ export interface WorkExecutorRunControlResult {
 export interface WorkExecutorRunStart {
     session_id: string;
     task: string;
+    resume_answer?: import("services/agent-host-start").AgentStartRequest["resume_answer"];
     skills?: SkillRef[];
 }
 
@@ -7613,6 +7617,7 @@ export interface WorkExecutorSession {
     mode: string | null;
     runs: AgentRunView[];
     runtime_session_id: string | null;
+    queued_inputs?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[];
     recovery: {
         message: string;
     } | null;

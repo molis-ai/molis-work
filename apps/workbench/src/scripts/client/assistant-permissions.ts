@@ -1,10 +1,12 @@
 export const ASSISTANT_PERMISSIONS_PART = String.raw`
+  let openSubtaskPermission = async () => false;
   const permissionDialog = island.querySelector("[data-assistant-permission-dialog]");
   const permissionText = (key, args) => readText("workbench.authorization." + key, args);
   if (permissionDialog) {
     const form = permissionDialog.querySelector("form"), scope = form.querySelector("[data-permission-scope]");
     const save = form.querySelector("[data-permission-save]"), error = form.querySelector("[data-permission-error]");
     const status = form.querySelector("[data-permission-status]");
+    let permissionResult, permissionAbort, permissionChanged = false;
     let openPermission, snapshot, readVersion = 0, busy = false, selection = null;
     const mode = () => form.elements.mode.value, lifetime = () => form.elements.lifetime.value;
     const choice = () => snapshot?.automatic?.candidates?.[0];
@@ -88,7 +90,7 @@ export const ASSISTANT_PERMISSIONS_PART = String.raw`
       busy = true; canSave(); status.textContent = permissionText("saving"); error.hidden = true;
       try {
         await molisWorkRequest(route(at), { method: "POST", body: payload });
-        window.dispatchEvent(new CustomEvent("molis:authorization-changed"));
+        permissionChanged = true; window.dispatchEvent(new CustomEvent("molis:authorization-changed"));
         if (at === openPermission) { status.textContent = permissionText("saved"); save.disabled = true; }
         if (getWork()?.work_id === at.work.work_id) await reload().catch(() => undefined);
       } catch (failure) {
@@ -99,7 +101,19 @@ export const ASSISTANT_PERMISSIONS_PART = String.raw`
       }
     });
     permissionDialog.addEventListener("click", event => { if (event.target.closest("[data-dialog-close]")) permissionDialog.close(); });
-    permissionDialog.addEventListener("close", () => { openPermission = null; ++readVersion; snapshot = null; });
+    permissionDialog.addEventListener("close", () => { openPermission = null; ++readVersion; snapshot = null; permissionAbort?.(); permissionResult?.(permissionChanged); permissionResult = undefined; });
+    openSubtaskPermission = (trigger, work, review, signal) => {
+      if (permissionDialog.open || signal?.aborted || work.executor.kind !== "assistant" || work.archived || work.reply_target) return Promise.resolve(false);
+      openPermission = { work, review }; permissionChanged = false;
+      busy = false; snapshot = null; selection = null; form.reset();
+      if (review) form.querySelector("[name=mode][value=automatic]").checked = true;
+      const close = () => permissionDialog.close();
+      signal?.addEventListener('abort', close, { once: true });
+      permissionAbort = () => { signal?.removeEventListener('abort', close); if (trigger?.isConnected && !signal?.aborted) trigger.focus({ preventScroll: true }); };
+      const result = new Promise(resolve => { permissionResult = resolve; });
+      renderScope(); permissionDialog.showModal(); void load();
+      return result;
+    };
     island.addEventListener("click", event => {
       const button = event.target.closest("[data-assistant-permission-open]");
       if (!button) return;
@@ -108,10 +122,7 @@ export const ASSISTANT_PERMISSIONS_PART = String.raw`
       const reviewId = button.dataset.assistantPermissionOpen;
       const review = reviewId ? view?.reviews?.find(row => row.review_id === reviewId) : undefined;
       if (reviewId && !review) return;
-      openPermission = { work, review };
-      busy = false; snapshot = null; selection = null; form.reset();
-      if (review) form.querySelector("[name=mode][value=automatic]").checked = true;
-      renderScope(); permissionDialog.showModal(); void load();
+      void openSubtaskPermission(button, work, review);
     });
   }
   const paintPermissionSummary = work => {

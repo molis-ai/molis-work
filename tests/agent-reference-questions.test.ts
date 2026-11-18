@@ -134,10 +134,7 @@ test("BL-152: without the Host's port, or with nothing from it, the round keeps 
   }
 });
 
-// The SDK hands a round's own kinds to the subagents it dispatches (Prologue's surfaces.js, "子任务…同一份"). A Molis child role
-// cannot hold ask-user at all (childSetup in prologue-run.ts allows reads, writes and commands only), so no question in the
-// round can name a kind outside the round's list; this pins both halves.
-test("BL-152: the round's kinds are the only ones a question in it may name; a subagent it dispatches cannot ask the person", { timeout: 60_000 }, async t => {
+async function dispatchQuestionChild(t: TestContext, manifest: typeof codingAgentManifest) {
   const root = await mkdtemp(join(tmpdir(), "reference-kinds-child-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const bodies: Body[] = [];
@@ -166,7 +163,7 @@ test("BL-152: the round's kinds are the only ones a question in it may name; a s
   const coding = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
   const session = await adapter.createSession({ ...coding, directory, title: "Parent" });
   const handle = await host.start("prologue", { ...coding, session, directory, role_id: "coordinator", task: "Delegate one question." },
-    { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [root] });
+    { manifest, prompts: codingPrompts, authorizedDirectories: [root] });
   const decided = new Set<string>();
   for (const deadline = Date.now() + 40_000; !bodies.length && !["completed", "failed", "cancelled"].includes((await adapter.read(handle.ref)).phase);) {
     assert.ok(Date.now() < deadline, "the child was not called");
@@ -174,6 +171,20 @@ test("BL-152: the round's kinds are the only ones a question in it may name; a s
     await new Promise(resolve => setTimeout(resolve, 10));
   }
   assert.ok(bodies.length, "the child reached the model");
-  assert.deepEqual(parentKinds, ["x_note"], "the dispatching round asks with its project's kinds");
-  assert.ok(!bodies[0]!.tools?.some(tool => tool.name === "ask-user"), "the child holds no ask-user, though the dispatch asked for it");
+  return { parentKinds, child: bodies[0]! };
+}
+
+test("BL-152 / SAI-06: a declared child question offers only the same project kinds", { timeout: 60_000 }, async t => {
+  await t.test("the declared Coding child gets the project's exact reference schema", async t => {
+    const { parentKinds, child } = await dispatchQuestionChild(t, codingAgentManifest);
+    assert.deepEqual(parentKinds, ["x_note"], "the parent asks with its project's kinds");
+    assert.deepEqual(enumOf(child), ["x_note"], "the child inherits exactly the same project kinds");
+  });
+  await t.test("a dispatch request cannot add ask-user to an undeclared child role", async t => {
+    const subagents = codingAgentManifest.subagents!;
+    const roles = subagents.roles.map(role => ({ ...role, host_tools: role.host_tools?.filter(tool => tool !== "ask-user") }));
+    const { parentKinds, child } = await dispatchQuestionChild(t, { ...codingAgentManifest, subagents: { ...subagents, roles } });
+    assert.deepEqual(parentKinds, ["x_note"], "removing the child tool leaves the parent schema in place");
+    assert.ok(!child.tools?.some(tool => tool.name === "ask-user"), "the dispatch asks for the tool but the child does not get it");
+  });
 });

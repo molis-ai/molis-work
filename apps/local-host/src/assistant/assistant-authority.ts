@@ -23,6 +23,14 @@ function publishResult(publish: () => void, assertCurrent: () => void, capabilit
   try { publish(); } catch (error) { hostLog.warn("assistant", "relation_unrecorded", error, { step: "command", capability_id: capabilityId }); }
 }
 
+function observeUnsettledCommand(view: ActionView | undefined, call: Promise<unknown>, signal: AbortSignal | undefined,
+  unsettled: ((view: Omit<ActionView, "availability">, call: Promise<unknown>) => void) | undefined): void {
+  if (!view || view.operation !== "command" || !unsettled || !signal || signal.aborted) return;
+  const left = () => unsettled(view, call);
+  signal.addEventListener("abort", left, { once: true });
+  call.then(() => signal.removeEventListener("abort", left), () => signal.removeEventListener("abort", left));
+}
+
 export const actionKey = (ref: Pick<ActionReference, "capability_id" | "version" | "provider_id">) => JSON.stringify([ref.capability_id, ref.version, ref.provider_id ?? ""]);
 
 export const actionReference = (view: Pick<ActionView, "capability_id" | "version" | "provider">) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
@@ -91,15 +99,15 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   // This round's number: the request that sent the message when there is one, else a new one. The tools run later, in the Runtime's loop,
   // outside any scope, so the number goes into every call's context.
   const callId = currentCallId() ?? newCallId();
-  const base = (signal?: AbortSignal): ActionCallContext => ({ ...assistantActionContext(work, { call_id: callId, locale, signal }), page_context: pageContext?.(),
+  const base = (sessionId = work.session_id ?? undefined, signal?: AbortSignal): ActionCallContext => ({ ...assistantActionContext(work, { call_id: callId, locale, signal }), runtime_session_id: sessionId, page_context: pageContext?.(),
     // This round's Skill reads are the Assistant's (`skill_round`, specs/capability-pack/contract-design.md §2.3): the catalog lets
     // through the Skills `applies_to: assistant` and those the person named, and refuses the rest. Host-written, never from input.
     // The round's number lets the catalog count Skills the round reads of its own choice (SKL-02).
     skill_round: { consumer: "assistant", named: roundSkills, round: callId, ...(autoSkills ? {} : { auto: false as const }) } });
   const accepted = <View extends Omit<ActionView, "availability">>(catalog: readonly View[], caller: ActionCallContext) => assistantActionRows(catalog, caller, disabled());
   let offered: readonly ActionView[] = [];
-  const context = async (validate?: () => void | Promise<void>, signal?: AbortSignal): Promise<ActionCallContext> => {
-    const caller = base(signal);
+  const context = async (validate?: () => void | Promise<void>, signal?: AbortSignal, sessionId = work.session_id ?? undefined): Promise<ActionCallContext> => {
+    const caller = base(sessionId, signal);
     const allowed = accepted(await localHost.inspectActions(caller, reference), caller);
     offered = allowed;
     return { ...assistantActionScope(caller, allowed),
@@ -116,17 +124,20 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   const service = () => reference ? localHost.actionClient(reference) : localHost.homeActionClient();
   // What this round was last shown, with availability: a change runs directly only if its undo is available now.
   let discovered: readonly ActionView[] = [];
-  const discover = async (validate?: () => void | Promise<void>) => { discovered = await service().discover(await context(validate)); return discovered; };
+  const discover = async (validate?: () => void | Promise<void>, sessionId?: string) => { discovered = await service().discover(await context(validate, undefined, sessionId)); return discovered; };
   return {
     call_id: callId,
     manifest: ASSISTANT_AGENT,
     prompts: ASSISTANT_PROMPTS,
     authorizedDirectories: [],
-    actions: async (_runtimeId, validate) => ({
-      discover: () => discover(validate),
+    actions: async (_runtimeId, validate, session) => {
+      const sessionId = session?.session_id ?? work.session_id ?? undefined;
+      const currentContext = (signal?: AbortSignal) => context(validate, signal, sessionId);
+      return {
+      discover: () => discover(validate, sessionId),
       prepareReview: async (view, input, automaticPolicy) => {
         await validate?.();
-        const caller = base(), action = actionReference(view);
+        const caller = base(sessionId), action = actionReference(view);
         const undo = automaticPolicy && view.action.undo;
         const related = undo && discovered.find(row => row.capability_id === undo.capability_id && row.version === undo.version && row.provider.provider_id === action.provider_id);
         const policy = holdActionPolicy?.(actionKey(action), automaticPolicy === "reversible");
@@ -156,7 +167,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
               { subjects: [{ kind, id }], fields: [] }, reference).assertCurrent) } : {}),
         };
       },
-      ...(offer ? { offer: async (proposal: AgentActionOffer) => offer(proposal, await service().discover(await context(validate))) } : {}),
+      ...(offer ? { offer: async (proposal: AgentActionOffer) => offer(proposal, await service().discover(await currentContext())) } : {}),
       ...(delegation ? { delegate: delegation } : {}),
       ...(delivery ? { deliver: delivery } : {}),
       ...(memory ? { memory } : {}),
@@ -166,9 +177,9 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       direct: view => directEligible(view, discovered, confirmAlways?.() ?? new Set()),
       // Exactly the validation dispatch performs, so a bad input is refused before the person is asked.
       check: async (action, input) => {
-        const view = (await service().discover(await context(validate))).find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
+        const view = (await service().discover(await currentContext())).find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
         if (!view) throw assistantErrors.action_revoked("这项能力已对助理关闭或不再可用");
-        assertActionCommandInput(view, base(), input);
+        assertActionCommandInput(view, base(sessionId), input);
       },
       invoke: async (action, input, signal, memorySelection, review) => {
         memorySelection?.assert_current();
@@ -179,13 +190,13 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
           return refused;
         };
         let caller: ActionCallContext;
-        try { caller = await context(validate, signal); }
+        try { caller = await currentContext(signal); }
         catch (error) {
           if (!signal?.aborted) throw error;
           const cached = offered.find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
           if (cached?.operation === "command") return await stoppedBeforeDispatch(cached);
           // Naming a cancelled operation needs only registered metadata; it must not start a plugin or Runtime.
-          const metadataCaller = base();
+          const metadataCaller = base(sessionId);
           let rows: readonly Omit<ActionView, "availability">[];
           try { rows = accepted(localHost.inspectActionMetadata(metadataCaller, reference), metadataCaller); }
           catch { throw error; /* An unavailable diagnostic name does not replace the original cancellation. */ }
@@ -206,17 +217,14 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
         };
         const call = service().invoke({ ...caller, ...(memorySelection ? { memory_context_selection: memorySelection } : {}), assert_authority_current: assertCurrent }, action, input);
         // The round may stop while the owner is still changing things: the call goes on, and how it ends is kept for the work.
-        if (view && view.operation === "command" && unsettled && signal && !signal.aborted) {
-          const left = () => unsettled(view, call);
-          signal.addEventListener("abort", left, { once: true });
-          call.then(() => signal.removeEventListener("abort", left), () => signal.removeEventListener("abort", left));
-        }
+        observeUnsettledCommand(view, call, signal, unsettled);
         const output = await call;
         if (view?.operation === "command" && changed && !signal?.aborted) publishResult(() => changed(view, input, output),
           () => requireSynchronous(assertCurrent(action, view.action.permissions)), view.capability_id);
         return output;
       },
-    }),
+      };
+    },
   };
 }
 

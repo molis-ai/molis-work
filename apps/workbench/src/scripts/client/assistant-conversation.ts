@@ -1,7 +1,10 @@
+import { ASSISTANT_SUBTASK_ENTRY_PART } from "./assistant-subtask-entry.js";
+import { ASSISTANT_REVIEW_PART } from "./assistant-review.js";
 import { ASSISTANT_REPLY_KIND } from "@molis-ai/molis-work-contracts/services/contextual";
 
 /** The conversation: opening a thing, copying, questions, confirmations, operation cards, material chips, drawing each round and following the scroll. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place. */
-export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a thing: the side panel previews it when it is there, otherwise it opens where it lives ─── */
+export const ASSISTANT_CONVERSATION_PART = String.raw`${ASSISTANT_SUBTASK_ENTRY_PART}
+  /* ─── Showing a thing: the side panel previews it when it is there, otherwise it opens where it lives ─── */
   // The side panel claims the request (preventDefault); unclaimed, the object opens in its own surface as before.
   const sidePanelHere = () => document.body.hasAttribute("data-side-open");
   const sidePreview = (target) => !document.dispatchEvent(new CustomEvent("molis:side-open", { detail: { tab: "files", target, focus: false }, cancelable: true }));
@@ -16,12 +19,15 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
   /* The Host draws text and code from raw words; only reading interactions live here. A copy answers on its button through
      the design system's one copy feedback; a refusal also says how to copy by hand. */
   const copyFrom = (button, text) => window.molisCopy?.(button, text, { done: globalThis.t.text("workbench.assistant-conversation.copied"), failed: globalThis.t.text("workbench.assistant-conversation.could-not-copy") }).then((copied) => { if (!copied) host.showToast?.(globalThis.t.text("workbench.assistant-conversation.could-not-copy-select-text-instead")); });
-  const bindText = (root) => {
+  const bindReviewCode = (root) => {
     root.querySelectorAll(".assistant-code:not([data-bound])").forEach((figure) => {
       figure.dataset.bound = ""; const copy = figure.querySelector(".assistant-code-copy");
       copy.addEventListener("click", () => copyFrom(copy, () => figure.dataset.code));
       bindMore(figure); if (figure.dataset.paint) paintCode(figure);
     });
+  };
+  const bindText = (root) => {
+    bindReviewCode(root);
     root.querySelectorAll("[data-assistant-object]:not([data-bound])").forEach((button) => {
       button.dataset.bound = ""; const object = view.objects[Number(button.dataset.assistantObject)];
       if (!object || !host.openItem) { button.replaceWith(document.createTextNode(globalThis.t.text("workbench.assistant-conversation.quoted", { text: button.textContent }))); return; }
@@ -70,64 +76,18 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
     if (card.contains(document.activeElement) && input.getClientRects().length && !input.closest("[inert]")) input.focus({ preventScroll: true });
     card.remove();
   };
-  const setReviewWord = (node, words) => {
-    if (!node || node.textContent === words) return;
-    const text = node.firstChild;
-    if (text?.nodeType === Node.TEXT_NODE && !text.nextSibling) text.data = words;
-    else node.textContent = words;
-  };
-  const retitleReviewText = (card) => {
-    for (const node of card.querySelectorAll('[data-assistant-review-copy]')) setReviewWord(node, globalThis.say.text(JSON.parse(node.dataset.assistantReviewCopy)));
-    for (const figure of card.querySelectorAll('.assistant-code')) {
-      const n = Number(figure.dataset.lines), copy = figure.querySelector('.assistant-code-copy');
-      setReviewWord(figure.querySelector('.assistant-code-lines'), globalThis.t.text('workbench.assistant-code-grow.lines', { n }));
-      setReviewWord(figure.querySelector('.assistant-code-more'), figure.hasAttribute('data-folded')
-        ? globalThis.t.text('workbench.assistant-code-grow.show-all-n-n', { n }) : globalThis.t.text('workbench.assistant-code-grow.collapse'));
-      setReviewWord(copy?.querySelector('[data-copy-face=idle]') || copy, globalThis.t.text('common.control.copy'));
-      for (const [state, key] of [['done', 'workbench.assistant-conversation.copied'], ['failed', 'workbench.assistant-conversation.could-not-copy']]) {
-        const face = copy?.querySelector('[data-copy-face=' + state + ']');
-        if (face) { face.dataset.label = globalThis.t.text(key); setReviewWord(face, face.dataset.label); }
-      }
-    }
-  };
+${ASSISTANT_REVIEW_PART}
+  const mountedReviews = new WeakMap();
   const renderReview = (card, work, review) => {
-    const decisions=JSON.stringify([review.decisions, review.permission_available]);
-    const sameVersion=card.dataset.reviewVersion===review.version;
-    if(card.dataset.painted&&sameVersion&&card.dataset.reviewDecisions===decisions)return;
-    card.dataset.reviewDecisions=decisions;
-    card.dataset.reviewVersion=review.version;
-    if(card.dataset.painted&&sameVersion){
-      const row=card.querySelector('.assistant-card-actions'),active=row.contains(document.activeElement)?document.activeElement:null;
-      const focused=active?.dataset.assistantDecision, permissionFocused=active?.hasAttribute('data-assistant-permission-open');
-      const updated=document.createElement('template');updated.innerHTML=review.html;
-      row.innerHTML=updated.content.querySelector('.assistant-card-actions').innerHTML;
-      card.querySelector('.assistant-card-hint').replaceWith(updated.content.querySelector('.assistant-card-hint'));
-      if(row.ariaBusy==='true')row.querySelectorAll('[data-assistant-decision]').forEach(button=>{button.ariaDisabled='true';});
-      retitleReviewText(card);
-      if(active){let next=permissionFocused?row.querySelector('[data-assistant-permission-open]'):focused?row.querySelector('[data-assistant-decision="'+focused+'"]'):null;if(!next){next=card.querySelector('.assistant-card-title');next.tabIndex=-1;}next.focus({preventScroll:true});}
-      return;
-    }
-    card.dataset.painted='1';
-    card.innerHTML = review.html;
-    card.querySelectorAll("[data-assistant-review-glyph]").forEach((node) => node.replaceWith(glyph(node.dataset.assistantReviewGlyph)));
-    retitleReviewText(card);
-    bindText(card);
-    const row = card.querySelector(".assistant-card-actions");
-    const buttons = () => row.querySelectorAll("[data-assistant-decision]");
-    const decide = async (decision) => {
-      if (row.ariaBusy === "true") return;
-      row.ariaBusy = "true";
-      buttons().forEach((button) => { button.ariaDisabled = "true"; });
-      try {
-        const next = await api("/works/" + encodeURIComponent(work.work_id) + "/reviews/" + encodeURIComponent(review.review_id), "POST", { decision, version: review.version });
-        if (card.isConnected) { view = next; render(); poll(); }
-      } catch (error) {
-        row.removeAttribute("aria-busy");
-        buttons().forEach((button) => button.removeAttribute("aria-disabled"));
-        if (card.isConnected) showError(error);
-      }
-    };
-    row.addEventListener("click", event => { const button=event.target.closest('[data-assistant-decision]');if(button)void decide(button.dataset.assistantDecision); });
+    let mounted = mountedReviews.get(card);
+    if (!mounted) {
+      mounted = mountWorkReview(card, review, {
+        current: () => card.isConnected,
+        decide: (decision, version) => api("/works/" + encodeURIComponent(work.work_id) + "/reviews/" + encodeURIComponent(review.review_id), "POST", { decision, version }),
+        refresh: next => { view = next; render(); poll(); }, error: showError,
+      });
+      mountedReviews.set(card, mounted);
+    } else mounted.update(review);
   };
   const renderCard = (node, work, card) => {
     node.dataset.status = card.status;

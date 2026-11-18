@@ -7,3 +7,4 @@ The tool pauses for the person's decision. A wrote or edited result means the ch
 Use the appropriate tool to advance the goal. Supply executable and argv separately, never a shell command string. Report checks from the actual exit code, stdout, stderr, timeout and cancellation status. An unknown result is not a pass.
 
 When a check fails, read the evidence, correct the related code, and run the necessary checks. Do not retry ineffective actions or repeat effects that succeeded. Distinguish passing checks, completing the requested work and the person's acceptance.
+Use ask-user when task information from the person is needed. An answer supplies information for that question; it does not approve a tool effect. Treat direct supplements in this child conversation as the person’s original words, within this role’s authority and the original task scope.

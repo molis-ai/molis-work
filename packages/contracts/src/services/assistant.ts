@@ -1,3 +1,5 @@
+import type { AssistantSubtaskBinding } from "./assistant-subtasks.js";
+export type { AssistantSubtaskBinding, AssistantSubtaskAnswer, AssistantSubtaskResumeAnswer, AssistantSubtaskReview, AssistantSdkSubtaskReview, AssistantRequestResult } from "./assistant-subtasks.js";
 import type { CharacterRoleVersionRef, PersonalCharacterRef, ProjectCharacterMemberRef } from "../modules/characters.js";
 import type { MaterialRef } from "../platform/project-materials.js";
 import type { SignedAgentReference, SignedAgentInstallation, SkillRef } from "./agent-definitions.js";
@@ -441,6 +443,8 @@ export interface AssistantRelatedWork {
 }
 
 export interface AssistantWorkView {
+  /** Original SDK dispatches, separate from delegated Works; read failure is never an empty child list. */
+  sdk_subtasks?: { children: import("./agent-host.js").AgentSubagentView[] } | { error: string };
   work: AssistantWork;
   rounds: AssistantRound[];
   reviews: AssistantPendingReview[];
@@ -479,6 +483,8 @@ export interface AssistantWorkView {
 export type { AssistantRecovery } from "./assistant-recovery.js";
 
 export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
+  /** The child conversation never silently redirects to a newer execution or starts from a plain supplement. */
+  subtask?: { binding: AssistantSubtaskBinding; operation: "send" | "continue" };
   /** Omitted starts a new work. */
   work_id?: string;
   main?: true; for_event?: { kind: string; id: string }; // `main`, without `work_id`: the main conversation of this scope with this counterpart (`character`, or the Assistant), opened on first use. `for_event`, for a new work said in an event's tab: the event on the person's work line it is done for (the Host reads the line as the person).
@@ -526,6 +532,8 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
 
 /** What one Send did: started a round, reached a running one, waits for the next (its round had just ended), or answered its question. */
 export interface AssistantSendResult {
+  /** An explicit original-question request; absent on historical Send outcomes, including Send's own `answered`. */
+  question_request?: { operation: "answer" | "resume-answer"; binding: AssistantSubtaskBinding; pending_id: string; fingerprint: string };
   /** The content attempt that won request_id, when the caller supplied one; replays and read-only checks preserve it. */
   submission_id?: string;
   work: AssistantWork;
@@ -544,11 +552,11 @@ export interface AssistantHandover {
 }
 
 /** What the page asks of a work's latest round: pause, resume or stop it, or take back a supplement no model has seen (§4.3). */
-export type AssistantControl =
+export type AssistantControl = (
   | { kind: "pause" }
   | { kind: "resume" }
   | { kind: "stop"; keep_connections?: boolean }
-  | { kind: "withdraw"; run_id: string; input_id: string };
+  | { kind: "withdraw"; run_id: string; input_id: string }) & { subtask?: AssistantSubtaskBinding; request_id?: string };
 
 /** What one provider contributes for the Assistant (read from the action directory), and the gaps that limit it. */
 export interface AssistantContribution {

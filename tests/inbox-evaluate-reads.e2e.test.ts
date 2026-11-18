@@ -60,18 +60,22 @@ test("BFP-01 BL-131: updating 20 Inbox suggestions reads the page once and says 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Network.enable", {}, sessionId);
   // What the page asks the Host for while a sample runs: the judgment POST and every HTML document read (the stage it re-renders).
-  const requests: { id: string; url: string; method: string; at: number }[] = [], html = new Map<string, number>();
+  const requests: { id: string; url: string; method: string; at: number }[] = [];
+  const responses = new Map<string, { at: number; htmlBytes?: number }>();
   const offRequest = browser.on("Network.requestWillBeSent", (event, session) => {
     const sent = event as { requestId: string; timestamp: number; request: { url: string; method: string } };
     if (session === sessionId) requests.push({ id: sent.requestId, url: sent.request.url, method: sent.request.method, at: sent.timestamp * 1000 });
   });
   const offResponse = browser.on("Network.responseReceived", (event, session) => {
-    const received = event as { requestId: string; response: { mimeType: string; encodedDataLength: number } };
-    if (session === sessionId && received.response.mimeType === "text/html") html.set(received.requestId, received.response.encodedDataLength);
+    const received = event as { requestId: string; timestamp: number; response: { mimeType: string; encodedDataLength: number } };
+    if (session !== sessionId) return;
+    const { mimeType, encodedDataLength } = received.response;
+    responses.set(received.requestId, { at: received.timestamp * 1000, ...(mimeType === "text/html" && { htmlBytes: encodedDataLength }) });
   });
   t.after(() => { offRequest(); offResponse(); });
 
   const samples: { notice: number; shown: number; reads: number; suggestionsAtNotice: number }[] = [];
+  let passivePairs = 0;
   for (let sample = 0; sample < SAMPLES; sample++) {
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=inbox` }, sessionId));
     await browser.waitFor("document.body.dataset.desktopSurface === 'inbox'");
@@ -99,19 +103,34 @@ test("BFP-01 BL-131: updating 20 Inbox suggestions reads the page once and says 
     const post = seen.findIndex(request => request.method === "POST" && request.url.includes("/judgment/evaluate"));
     assert.ok(post >= 0, "the judgment ran");
     const afterPost = seen.slice(post + 1);
-    const documents = afterPost.filter(request => html.has(request.id));
+    const documents = afterPost.filter(request => responses.get(request.id)?.htmlBytes !== undefined);
     // QEA-115: this real Inbox consumer still refreshes the background Goal collection, without requesting its hidden document.
     const goalRefreshes = afterPost.filter(request => new URL(request.url).pathname.endsWith("/api/board/refresh"));
     assert.ok(goalRefreshes.every(request => new URL(request.url).searchParams.get("projection") === "collection"), "Inbox must not refresh a hidden Goal document");
     // The Inbox page itself; another view's own refresh (the Goals board) is reported above, not counted here.
     const reads = documents.filter(request => new URL(request.url).pathname === `/projects/${projectId}/`).length;
-    t.diagnostic(`BFP sample ${sample + 1} document reads ${JSON.stringify(documents.map(request => ({ path: new URL(request.url).pathname + new URL(request.url).search, ms: Math.round(request.at - seen[post]!.at), bytes: html.get(request.id) })))}`);
+    t.diagnostic(`BFP sample ${sample + 1} document reads ${JSON.stringify(documents.map(request => ({ path: new URL(request.url).pathname + new URL(request.url).search, ms: Math.round(request.at - seen[post]!.at), bytes: responses.get(request.id)?.htmlBytes })))}`);
     // QEA-150: use the browser clock, since delivery of CDP messages can pause while this process is busy.
     const intervals = goalRefreshes.slice(1).map((request, index) => Math.round(request.at - goalRefreshes[index]!.at));
     assert.ok(intervals.every(interval => interval >= 3900), `hidden Goals follow the existing four-second poll: ${intervals.join(", ")} ms`);
+    // QEA-201: measure only automatic reads while the judgment is pending, before its UI requests a fresh view.
+    const judgmentAnswered = responses.get(seen[post]!.id)?.at;
+    assert.ok(judgmentAnswered, "the real judgment response was received");
+    const whileUpdating = afterPost.filter(request => request.at < judgmentAnswered);
+    const attention = whileUpdating.filter(request => new URL(request.url).pathname === `/projects/${projectId}/api/attention`);
+    const badgeReads = whileUpdating.filter(request => new URL(request.url).pathname === `/projects/${projectId}/api/host/surface-attention`).length;
+    const gaps = attention.slice(1).map((request, index) => {
+      const previous = responses.get(attention[index]!.id);
+      assert.ok(previous, "the previous attention read answered");
+      return Math.round(request.at - previous.at);
+    });
+    passivePairs += gaps.length;
+    t.diagnostic(`QEA-201 sample ${sample + 1}: ${attention.length} attention reads, ${badgeReads} badge reads; gaps ${gaps.join(", ")} ms`);
+    assert.ok(gaps.every(gap => gap >= 470), `automatic attention reads coalesce for 500 ms after each reply: ${gaps.join(", ")} ms`);
     samples.push({ notice: result.notice - start, shown: result.shown - start, reads, suggestionsAtNotice: result.at });
   }
   const p50 = { notice: Math.round(median(samples.map(item => item.notice))), shown: Math.round(median(samples.map(item => item.shown))) };
+  assert.ok(passivePairs > 0, "the workload exercised a later automatic attention read in the same batch");
   t.diagnostic(`BFP inbox update samples ${JSON.stringify(samples.map(item => ({ ...item, notice: Math.round(item.notice), shown: Math.round(item.shown) })))} p50 ${JSON.stringify(p50)}`);
   for (const item of samples) {
     assert.equal(item.reads, 1, `one document read after the judgment: ${JSON.stringify(samples)}`);

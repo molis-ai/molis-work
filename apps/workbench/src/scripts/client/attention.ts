@@ -26,7 +26,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   const tab = document.querySelector('[data-side-tab="tasks"]');
   const count = tab?.parentElement?.querySelector("[data-background-tasks-count]");
   const list = document.querySelector("[data-background-tasks-list]");
-  let background = { tasks: [], incomplete: true }, key = "", reading = null, scheduled = 0, again = false, readSequence = 0;
+  let background = { tasks: [], incomplete: true }, key = "", reading = null, scheduled = null, again = false, readSequence = 0;
   // These are this page's command attempts, not the provider's task states. A refreshed row keeps the same in-flight attempt.
   const commands = new Map();
   const commandKey = (task, command) => JSON.stringify([task.project_id, task.id, command.role, command.action, command.input]);
@@ -49,7 +49,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     if (incomplete) {
       const problem = node("div", undefined, "mw-alert"); problem.dataset.backgroundTasksProblem = ""; problem.setAttribute("role", "status");
       const retry = node("button", globalThis.t.text("common.control.retry"), "mw-btn mw-btn--ghost"); retry.type = "button"; retry.dataset.backgroundTasksRetry = "";
-      retry.addEventListener("click", async () => { retry.disabled = true; try { await read(); } finally { retry.disabled = false; } });
+      retry.addEventListener("click", async () => { retry.disabled = true; try { await read(true); } finally { retry.disabled = false; } });
       problem.append(node("p", globalThis.t.text("workbench.attention.tasks-incomplete")), retry); list.append(problem);
     }
     for (const task of tasks) {
@@ -82,7 +82,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
           stop.disabled = true; feedback.replaceChildren();
           try {
             await molisWorkRequest("/projects/" + encodeURIComponent(task.project_id) + "/api/mainline/tasks/command", { body: { source: task.source, subject: task.subject, command } });
-            commands.set(id, { state: "succeeded", after: readSequence }); key = ""; void read();
+            commands.set(id, { state: "succeeded", after: readSequence }); key = ""; void read(true);
           } catch (error) { commands.set(id, { state: "failed", error }); }
           finally { render(); }
         });
@@ -119,12 +119,13 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   const readAddress = () => route("/api/attention?surface=" + encodeURIComponent(surface()));
   const discardRead = () => {
     const previous = reading; reading = null; previous?.controller.abort();
-    clearTimeout(scheduled); scheduled = 0; again = false;
+    clearTimeout(scheduled?.timer); scheduled = null; again = false;
   };
-  const read = async () => {
+  const read = async (immediate = false) => {
     if (document.hidden || gone.has(route("/api/attention"))) return;
     const address = readAddress();
-    if (reading && reading.address !== address) discardRead();
+    if ((reading && reading.address !== address) || (scheduled && scheduled.address !== address)) discardRead();
+    if (immediate && scheduled) { clearTimeout(scheduled.timer); scheduled = null; }
     if (reading || scheduled) { again = true; return; }
     const current = { address, controller: new AbortController() };
     reading = current; again = false;
@@ -141,12 +142,11 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       if (error && error.status === 404) { gone.add(route("/api/attention")); close(); }
       else { showTasks(null); document.dispatchEvent(new CustomEvent("molis-work:attention-unreachable", { detail: { since: heard } })); }
     }
-    // Words that came while reading are one more read, half a second after this one began at the soonest: a round that writes
-    // all the time is read at most twice a second, never back to back.
+    // Let the Host do other work between passive reads. Changes during the read or the next half second share one follow-up.
     finally {
       if (reading === current) {
         reading = null;
-        if (again) scheduled = setTimeout(() => { scheduled = 0; void read(); }, Math.max(0, 500 - (performance.now() - started)));
+        scheduled = { address, timer: setTimeout(() => { scheduled = null; if (again) void read(); }, 500) };
       }
     }
   };
@@ -194,7 +194,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   };
   const listen = () => {
     if (document.hidden || gone.has(route("/api/attention"))) { discardRead(); close(); return; }
-    if (listening) { void read(); return; }
+    if (listening) { void read(true); return; }
     heard = null; listening = true;
     if (!shared) { void connect(); return; }
     const name = "molis-work-attention:" + eventsPath, held = new AbortController(), channel = new BroadcastChannel(name);
@@ -215,7 +215,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       navigator.locks.request(name, { signal: held.signal }, lead).catch(() => {});
     }).catch(() => {});
   };
-  document.addEventListener("molis-work:attention-refresh", read);
+  document.addEventListener("molis-work:attention-refresh", () => void read(true));
   // A hidden page hears nothing (N54); coming back it connects again, and the stream's first word reads. A page told it is shown
   // while its stream is still open reads once: what changed outside the Host's word (a store a crash left) shows when it is looked at.
   document.addEventListener("visibilitychange", listen);

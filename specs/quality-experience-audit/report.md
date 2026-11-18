@@ -1,6 +1,6 @@
 # Molis Work 审查报告与优化策略
 
-整项进行中，负责人 Codex。第 118 批 `cea504b68d` 已在主干 `6c88cba611` 上通过 Verify，第 119 批补上 Full 发现的长回复停顿。登记范围覆盖候选中的 75 个包、84 个 contracts 子路径及根入口，另复核本轮从主干移除的 WebQuery 包。报告有 97 项编号发现和 16 项平台候选，列明处置和实测结果。[逐包覆盖](coverage.md) · [六方向结论](#六个方向的独立结论) · [平台候选及处置](#平台化与通用化检查及处置) · [需求实现度](#需求整体实现度) · [BL 清理与保留事项](#bl-与事项清理建议) · [验收编号](spec.md)
+整项进行中，负责人 Codex。第 119 批 `65a24fb547` 已在主干 `6c88cba611` 上通过 Verify，第 120 批补上 Inbox 批量更新时的通知重复读取。登记范围覆盖候选中的 75 个包、84 个 contracts 子路径及根入口，另复核本轮从主干移除的 WebQuery 包。报告有 98 项编号发现和 16 项平台候选，列明处置和实测结果。[逐包覆盖](coverage.md) · [六方向结论](#六个方向的独立结论) · [平台候选及处置](#平台化与通用化检查及处置) · [需求实现度](#需求整体实现度) · [BL 清理与保留事项](#bl-与事项清理建议) · [验收编号](spec.md)
 
 第 53–55 批 8 文件 78 项定向通过。第 56–59 批 8 文件 144 项及长材料 2 项通过，验证改写、回放、起草、引导、信息方案和真实采用。固定 `4c54241e96` 的受影响包级复验 55/55 文件、463/463 项通过。第 60 批 Git、Coding 与工作台 77 文件、521 项通过，含真实提交、拒绝、暂存和编辑恢复。第 62 批 Placement 与工作台 22 文件、194 项通过。第 52 批冻结头的 104/105 个包回归文件通过，唯一失败定位到 Feed 已失效的发布版本例外。
 
@@ -327,7 +327,7 @@ PF-03/05/07/13 是采用或职责收口候选，即使目前只有一个实际�
 | [BL-115](../backlog/BL-115.md) | 正文记录离线备份/恢复/续接已在 main，真实 Home 2026-11-07 已做 | 将已完实施转为来源说明；只保留登记覆盖核对与 C 端在线定时备份，避免再次立离线备份实现 |
 | [BL-117](../backlog/BL-117.md) | 策略、版本检查与0.3.0候选已有；公开发布资格仍在发布记录 | 与发行检查单保持一个剩余清单入口，不删除 Developer ID/公证/公开发布待办 |
 | [BL-943](../backlog/BL-943.md) | 现行双 Goal 窗格探针 main 为 47/48，候选为 35/36，低于原预算 60/58。候选逐次授权及拒绝后的实际读写已复验 | 列为组合验收后可清理项。继续用同一个门禁检验，删除目录代次作为本事项的假定依赖。Inbox 的实际等待另见 QF-51 |
-| [BL-inbox-update-blocks-host](../backlog/BL-inbox-update-blocks-host.md) | 候选的批次中独立 HTTP 正常返回，取消后剩余逐条重试，隐藏 Goal 请求已按周期合并。固定规则背景见第 78–79 批 | 保留高优先和现行测试时限。累计等待、同宿主负载及准确组合的 Full 仍依实际结果结算 |
+| [BL-inbox-update-blocks-host](../backlog/BL-inbox-update-blocks-host.md) | 第 120 批隔离 Home 复验。独立请求在写至第 3～4 条时返回，二十条固定结果中位 2,438 ms，Inbox 重读一次。取消保留第一条已提交记录，剩余重试各写一次 | 同一候选全量通过后，可结算原固定规则与连续阻塞缺陷。真实模型、真实部署多项目负载按原性能验收继续 |
 | BL-360（main 第39批已归档） | 最新主干已实现 owner 的 `decisions/readMany`、版本与持久决定；本轮旧投影被覆盖 | 接受主干删除，迁移并保留 QEA-21/22 的撤权、重启及三个界面反证；合并交集复验中，不复活重复待办 |
 | [BL-search-query-abort](../backlog/BL-search-query-abort.md) | 第五批已补 HTTP/个人空间/引用 signal，真实取消与共享索引测试通过，见 QF-08 | 已改正文去除“每次查询把所有来源跑完”的错误前提；待最终 CI 后按原流程关闭 |
 | [BL-home-events-endpoint-unused](../backlog/BL-home-events-endpoint-unused.md) | 第 41 批已查公开约定，删两条无生产调用的旧 POST 转发及只读放行。隔离 Home 验旧地址 404 且触发零读取/写入，MCP 继续使用现行动作 | 候选头有 8 文件 50 项定向证据。最终组合通过后可按原流程关闭工程遗留 |
@@ -1592,3 +1592,15 @@ QEA-199 原 15 个场景仍由产品子集执行器运行。三个组内复用�
 以 `afaeabdd4a` 独立构建为基准，准确构建的 67 条静态资源、十组首屏、22 条许可匹配均通过。相对上一批，工作台脚本与六组工作台冷加载各减 6 B，各页热加载总量相同，中文项目选择冷增仍为 2,166 B。最大单项净增仍是原 Git 脚本的 8,403 B。源数据 `quality-audit-b119-exact-resource-proof.json`。
 
 准确构建的长代码、工作线回执、共享输入栏与助理正文四文件全部通过，共 23 项。实际恢复的同字新回复仍会显示，打开设置后能回原收件人及输入，原代码全文和最终颜色一致。日志 `quality-audit-b119-exact-consumers.log`。
+
+准确源文字版三倍 CPU 复验为 47.2 ms，健康通过。候选 `65a24fb547` 的 Verify 在主干 `6c88cba611` 与候选组成的树 `2c48b8234265` 上通过。Full 直接使用候选树 `f623fb7734fa`。此前两次失败的 Linux 第 23 片现为 48/48 文件通过，其中长代码文件 10/10，沿用原断言。 [Verify](https://github.com/molis-ai/molis-work/actions/runs/44360273302/job/135010661201) · [第 23 片](https://github.com/molis-ai/molis-work/actions/runs/44360638381/job/135000725872)
+
+### 第 120 批 QF-98 / P2 连续写入放大被动通知读取
+
+正常 Inbox 的每条判断写入唤醒 Host 的注意力流，Workbench 重读等你，再按该次游标读位置角标。已有的 500 ms 合并只覆盖在途通知，前次回答刚回到页面时，新的自动通知会立刻发第二次请求。相同诊断在主干 `afaeabdd4a` 和候选 `65a24fb547` 实测，每批分别出现 1 次与 15～16 次等你读取、1 次与 14～15 次位置角标读取。主干的健康请求等到第 20 条返回，候选第 3～4 条已返回。准确五轮正常入口的中位数为主干 5,509 ms、候选 8,243 ms。原候选的 QEA-201 反证在第一轮得到九次回答到再发请求的间隔均小于 200 ms，最短 2 ms。日志 `quality-audit-b119-{main,candidate}-timing.log`、`quality-audit-b119-{main,exact}-inbox.log`、`quality-audit-b120-attention-before.log`。 [原通知读取](../../apps/workbench/src/scripts/client/attention.ts#L119) · [原位置角标](../../apps/workbench/src/scripts/client/assistant-notices.ts#L149) · [每笔变更的 Host 入口](../../apps/local-host/src/attention-changes.ts#L32)
+
+Workbench 在每次同地址读取完成后的半秒归并被动提示。期间的最后一个提示仍触发后续读取。切换项目或界面走新地址，本人刷新可越过合并等待。业务写入、位置权限、Home 跨窗口与错误反馈由现有服务提供。迁移成本低，集中在正常页面的读取协调。新构建五轮的等你和角标请求每轮各 2 次，间隔 502～504 ms；第 3～4 条判断时可读健康，最大事件循环延迟 346～379 ms。二十条建议先显示，每轮 Inbox 只重读一次，中位完成 2,438 ms。原动作回归保存第一条已提交判断，取消后重试仅补写剩余项。此数据来自固定规则，用于确认界面与 Host 本身的等待。日志 `quality-audit-b120-attention-{after,server}.log`。 [真实按钮与时间](../../tests/inbox-evaluate-reads.e2e.test.ts#L119) · [取消和重试写入](../../tests/inbox-action-scenes.test.ts#L19)
+
+准确构建复量 67 条静态资源和十组首屏。相对上一候选，既有工作台脚本及六组工作台冷加载各增 75 B，项目选择中英文冷、热均增 99 B，热量相对主干仍减少 53／58 B。现有 22 条已批准请求继续命中，登记差额后本机两项策略通过。源数据 `quality-audit-b120-resource-proof.json`。 [资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+
+隔离 Home 九份通知消费者文件共 31 项通过，包含多窗口、切项目、不可见窗格、无新数据时保持安静、404 与断线退避、真实位置菜单与批准后的读回、Home 停止失败和显式重试。另有五份服务与边界文件 35 项通过，核实际撤权和取消后的业务写入。完整生产构建、健康与 Goals 52 份记录逐项相符。后者整文件 56 项通过，两个原录制入口默认跳过。日志 `quality-audit-b120-attention-{build,consumers,server}.log`、`quality-audit-b120-{health,goals-golden-browser}.log`。

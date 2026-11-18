@@ -67,10 +67,15 @@ async function openRecord(page: RiskPage, riskId: string, options: { quiet?: boo
     return;
   }
   page.render();
-  await loadReview(page, "review");
+  await loadReview(page);
 }
 
-async function loadReview(page: RiskPage, region: "record" | "review" = "record"): Promise<void> {
+function updateReviewSection(page: RiskPage): void {
+  const section = page.body.querySelector("[data-rk-section=review]"), record = page.state.record;
+  if (section && record) section.outerHTML = renderReview(page, record.risk);
+}
+
+async function loadReview(page: RiskPage, region: "review" | "record" = "review"): Promise<void> {
   const { state } = page;
   const riskId = state.record?.risk.risk_id;
   if (!riskId) return;
@@ -85,11 +90,7 @@ async function loadReview(page: RiskPage, region: "record" | "review" = "record"
     state.reviewError = error instanceof Error ? error.message : text("error.failed");
   }
   if (region === "record") page.render();
-  else {
-    // This read may finish while the person is typing in another section of the same record.
-    const section = page.body.querySelector("[data-rk-section=review]");
-    if (section) section.outerHTML = renderReview(page, state.record.risk);
-  }
+  else updateReviewSection(page);
 }
 
 /** A write refused for who-may-write reasons turns the record read-only and says so once; anything else is a toast. */
@@ -162,7 +163,7 @@ async function setStatus(page: RiskPage, status: RiskStatus): Promise<void> {
   // Closing archives the review; when Schedule could not be reached, the task is left and the person is told.
   // `task_id: null` means the archive could not even read the review; the person still needs to look in Schedule.
   if (answer.review_left) page.toast(text("review.left"), true);
-  await loadReview(page, "review");
+  await loadReview(page);
 }
 
 async function schedule(page: RiskPage, form: HTMLFormElement, submitter: HTMLElement | null): Promise<void> {
@@ -186,7 +187,7 @@ async function reviewCommand(page: RiskPage, capability: "risk.review.enabled" |
   const answer = await write<{ review?: RiskReview; cancelled?: boolean }>(page, capability, { risk_id: risk.risk_id, ...input });
   if (!answer) { page.render(); return; }
   if (capability === "risk.review.cancel") page.toast(text("review.cancelled"));
-  await loadReview(page);
+  await loadReview(page, "record");
 }
 
 function searchLinks(page: RiskPage, query: string): void {
@@ -269,7 +270,7 @@ async function onAct(page: RiskPage, action: string, value: string, element: HTM
     case "expand": if (risk) page.host.openItem("risk", risk.risk_id, risk.title); return;
     // A record that could not be read is tried again by its id; only with none to try does the page go back to the overview.
     case "reload-record": if (risk ?? state.recordId) await openRecord(page, risk?.risk_id ?? state.recordId); else { state.view = "overview"; await loadOverview(page); } return;
-    case "reload-review": state.reviewError = ""; page.render(); await loadReview(page); return;
+    case "reload-review": state.reviewError = ""; updateReviewSection(page); await loadReview(page); return;
     case "review-enabled": await reviewCommand(page, "risk.review.enabled", { enabled: value === "true" }); return;
     case "review-cancel": await reviewCommand(page, "risk.review.cancel", {}); return;
     // The task's reads are granted on Schedule's own page, by the person: the review opens that task there.

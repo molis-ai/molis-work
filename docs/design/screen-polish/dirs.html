@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>底栏和输入框 · 三个方向 · Molis Work 原型</title>
+  <link rel="stylesheet" href="../kit/kit.css">
+  <link rel="stylesheet" href="screens.css">
+  <link rel="stylesheet" href="line.css">
+  <link rel="stylesheet" href="dirs.css">
+</head>
+<body class="sp-body">
+  <div id="icons" hidden></div>
+  <header class="sp-proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b>底栏和输入框 · 三个方向</b>
+    <nav><a href="#top">共同的四条</a><a href="#now">现在挤在哪</a><a href="#cap">输入框</a><a href="#b">乙（推荐）</a><a href="#a">甲</a><a href="#c">丙</a><a href="#list">清单</a><a href="#pick">放在一起</a></nav>
+    <span class="grow"></span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="主题" id="theme">
+      <button type="button" class="mw-toggle" aria-pressed="true" value="light">浅色</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="dark">深色</button>
+    </span>
+  </header>
+  <main id="dirs"></main>
+  <script src="../kit/kit.js"></script>
+  <script src="dirs.js"></script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
+import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
@@ -267,8 +268,8 @@ test("WLN-32: the reply that handed a task out says where it went; 「改」 ope
   assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "no sideways scroll");
 });
 
-// WLN-03, WLN-40: 「发给」 on a project lists who can be spoken to at now and the line's own events. The Characters the project
-// offers are the Host's answer; this project has published none, so the page's read of them is given one (nothing else is).
+// WLN-03, WLN-40, B36F-04: 「发给」 lists the project's real Characters and the line's events. The chosen member has its own draft
+// and is sent as a stable reference to start its main conversation.
 test("WLN-03 WLN-40: 「发给」 lists the Assistant, the Characters and the line's events; a Character chosen there has its own tab and draft, and the next Send is its main conversation's", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
@@ -276,15 +277,14 @@ test("WLN-03 WLN-40: 「发给」 lists the Assistant, the Characters and the li
   const store = openTodoStore(homeDirectory);
   const item = store.create({ title: "给王总回电话", placement: "project", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
   store.close();
-  // The page reads the roles as a catalog (roles.list) and sends the chosen member's stable ref, not a pinned version.
-  const editor = { kind: "project", member_id: "editor" };
-  const catalog = { in_project: true, originals: [], defaults: { personal: null, project: null }, effective: { kind: "assistant", source: "assistant" },
-    members: [{ title: "严格的编辑", availability: { available: true },
-      role: { current: { kind: "project", member_id: "editor", member_version: 2, original: { kind: "personal", character_id: "editor", version: 1 } } } }] };
+  const characters = openCharacters(homeDirectory, "web-user");
+  t.after(() => characters.close());
+  const original = characters.service.create({ title: "严格的编辑", instructions: "先核对文章结构", host_tools: [] });
+  const member = characters.service.roles.addMember(projectId!, original.character_id);
+  const editor = { kind: "project", member_id: member.current.member_id };
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `window.__sent = []; (() => { const real = window.fetch; window.fetch = async function (input, init) {
     const url = new URL(typeof input === 'string' ? input : input.url, location.href);
     if (/\\/api\\/assistant\\/send$/.test(url.pathname) && init && typeof init.body === 'string') window.__sent.push(JSON.parse(init.body));
-    if (/\\/api\\/assistant\\/characters$/.test(url.pathname)) return new Response(JSON.stringify({ catalog: ${JSON.stringify(catalog)} }), { status: 200, headers: { "content-type": "application/json" } });
     return real.apply(this, arguments); }; })();` }, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);

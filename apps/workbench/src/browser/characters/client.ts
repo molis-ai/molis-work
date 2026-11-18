@@ -5,7 +5,7 @@ import { messageOf, pageRequest, partsOf, type CharacterRecord, type Method, typ
 import { RoleDrawer } from "./drawer.js";
 import { characterImportClient, type ImportClient } from "./import-client.js";
 import { startCharacterTerminal } from "./terminal.js";
-import { memberKey, personalBody, projectBody, type PageUi } from "./view.js";
+import { memberKey, originalChanged, personalBody, projectBody, type PageUi } from "./view.js";
 
 const uiText = globalThis.t;
 const say = (key: string, values?: Record<string, string | number>): string => uiText.text(key, values);
@@ -140,6 +140,7 @@ class RolesPage {
       case "member-add": void this.act(() => this.addMember(arg)); return;
       case "default-inherit": void this.act(() => this.setDefault("project", "inherit"), `[data-roles-default="project"]`); return;
       case "refollow": void this.act(() => this.refollow(arg), `#roles-row-member-${CSS.escape(arg)}`); return;
+      case "refollow-changed": void this.act(() => this.refollow(arg, true), `#roles-row-member-${CSS.escape(arg)}`); return;
       case "keep-own": void this.act(() => this.keepOwn(arg)); return;
       case "diff": void this.act(() => this.toggleDiff(arg), `[data-roles-act="diff"][data-roles-arg="${CSS.escape(arg)}"]`); return;
       case "copy": ui.menu = null; void this.act(() => this.copy(id, control)); return;
@@ -178,10 +179,12 @@ class RolesPage {
   }
 
   /** Every section this project changed follows the original again; its own versions stay, to restore. */
-  private async refollow(id: string): Promise<void> {
-    let role = this.member(id)?.role;
-    if (!role) return;
-    for (const section of ["work_style", "capabilities"] as const) {
+  private async refollow(id: string, changedOnly = false): Promise<void> {
+    const member = this.member(id);
+    if (!member) return;
+    let role = member.role;
+    const sections = changedOnly ? originalChanged(member) : ["work_style", "capabilities"] as const;
+    for (const section of sections) {
       if (role.sections[section].mode !== "override") continue;
       role = (await this.request<{ role: typeof role }>("POST", "/members/" + encodeURIComponent(id) + "/section",
         { section, to: "follow", expected_revision: role.revision, expected_original_version: role.current.original.version })).role;
@@ -215,10 +218,8 @@ class RolesPage {
     const member = this.member(id);
     if (!member) return;
     const [ours, theirs] = await Promise.all([this.current({ kind: "project", member_id: id }), this.current({ kind: "personal", character_id: member.role.current.original.character_id })]);
-    const way = member.role.sections.work_style.mode === "override";
-    const text = (entry: CharacterRoleVersionEntry | undefined) => !entry ? "" : way ? entry.content.instructions
-      : (entry.content.host_tools === null ? say("workbench.characters.inherit-caller") : entry.content.host_tools.join(", ") || say("workbench.characters.no-builtins"));
-    this.ui.diff = id; this.ui.diffText = { ours: text(ours), theirs: text(theirs), version: theirs ? (theirs.ref.kind === "personal" ? theirs.ref.version : 0) : 0 };
+    if (!ours || theirs?.ref.kind !== "personal") return;
+    this.ui.diff = id; this.ui.diffText = { ours: ours.content, theirs: theirs.content, version: theirs.ref.version };
   }
 
   private async copy(id: string, control: HTMLElement): Promise<void> {

@@ -137,7 +137,7 @@ ${ASSISTANT_PERMISSIONS_PART}
   const WORK_KIND = "assistant_work";
   let eventTabs = [], curEvent = null;
   // Words not yet sent with no work in front are kept per place: the event's tab, or a new work (WLN-13).
-  const newDraftKey = () => scoped(curEvent ? "event-draft:" + curEvent : nextChar && !fresh ? "talk-draft:" + nextChar.artifact_id : "new-draft");
+  const newDraftKey = () => scoped(curEvent ? "event-draft:" + curEvent : talkDraft ? "talk-draft:" + talkDraft : "new-draft");
   // A tab keeps its place; when there are too many, the one looked at longest ago (never the current one) closes.
   const openTab = (id) => {
     if (!id) return;
@@ -339,32 +339,17 @@ ${ASSISTANT_STRIP_PART}
     controls("stop").forEach((btnEl) => { btnEl.hidden = btnEl.hasAttribute("data-keep-connections") ? state !== "waiting-input" || work.executor.kind !== "assistant" : !isLive(state) && !liveChildren; });
     paintStrip();
     if (!metaEl) return;
-    const characters = allowsCharacter() ? characterChoices() : null;
-    // A chooser only when there is something to choose: the project's roles, or the person's own in personal work.
-    const hasChoices = Boolean(characters && characters.length);
-    const chosen = chosenCharacter();
-    const signature = JSON.stringify([work && work.work_id, work && work.executor, work && work.scope, work && work.character, work && isLive(work.state), pendingChar,
-      nextExec, nextScope, nextMode, nextChar, executors.map((one) => [one.plugin_id, one.title, one.problem, one.modes]), executorSession(nextExec), characters && characters.map((c) => [roleKey(c.ref), c.tag, c.available])]);
+    const signature = JSON.stringify([work?.work_id, work?.executor, work?.scope, work && isLive(work.state), roleButtonLabel(),
+      nextExec, nextScope, nextMode, executors, executorSession(nextExec)]);
     if (metaEl.dataset.signature === signature) return;
     metaEl.dataset.signature = signature;
     keepFocus(metaEl, () => {
       const rows = [];
       const characterPicker = () => {
-        // The design system's own select: it becomes the shared picker, sized down for the side pane.
-        const select = el("select", "mw-select"); select.setAttribute("aria-label", readText("workbench.assistant-island.which-character-carries-next-turn"));
-        const own = el("option", "", readText("workbench.assistant-island.assistant-itself")); own.value = ""; select.append(own);
-        (characters || []).forEach((choice) => {
-          const option = el("option", "", choice.title + (choice.tag ? " · " + choice.tag : "") + (choice.available ? "" : " · " + choice.reason));
-          option.value = roleKey(choice.ref); option.disabled = !choice.available;
-          option.selected = Boolean(chosen && roleKey(chosen.ref) === roleKey(choice.ref));
-          select.append(option);
-        });
-        select.addEventListener("change", () => {
-          const value = asChosen((characters || []).find((one) => roleKey(one.ref) === select.value));
-          if (getWork()) pendingChar = value; else nextChar = value;
-          paintAim(); paintSum();
-        });
-        return select;
+        const button = el("button", "mw-btn mw-btn--secondary mw-btn--sm", roleButtonLabel());
+        button.type = "button"; button.addEventListener("click", openRolePicker);
+        button.setAttribute("aria-haspopup", "dialog"); button.dataset.assistantRolePicker = "";
+        return button;
       };
       if (work) {
         rows.push(...metaRow(readText("workbench.assistant-island.part"), document.createTextNode(scopeLabel(work.scope, work.scope_title))));
@@ -372,9 +357,9 @@ ${ASSISTANT_STRIP_PART}
           const offer = modeOffer();
           rows.push(...metaRow(readText("workbench.assistant-island.who-will-do"), document.createTextNode(work.executor.title)));
           if (offer && offer.modes.length) rows.push(...metaRow(readText("workbench.assistant-island.mode"), segmented(readText("workbench.assistant-island.mode-next-turn-same-setting-plugin-s-own"), modeRows(offer), work.executor.mode || offer.default_mode, (id) => void applyMode(id))));
-        } else if (allowsCharacter() && hasChoices) {
+        } else {
           rows.push(...metaRow(readText("workbench.assistant-island.who-will-do"), characterPicker()));
-        } else rows.push(...metaRow(readText("workbench.assistant-island.who-will-do"), document.createTextNode(chosen ? readText("workbench.assistant-island.role-named", { title: chosen.title }) : readText("workbench.assistant-island.assistant"))));
+        }
         // The same work can change hands between rounds: to a plugin in its project, and back to the Assistant.
         const toPlugins = work.executor.kind === "assistant" && work.scope.kind === "project" ? executors.filter((one) => !one.problem) : [];
         if (!isLive(work.state) && (toPlugins.length || work.executor.kind === "plugin")) {
@@ -390,8 +375,8 @@ ${ASSISTANT_STRIP_PART}
       } else {
         // A new work: who carries it and where it lives are chosen here, before its first message.
         const who = executorChoices().map((one) => ({ id: one.id, label: one.label, hint: one.hint }));
-        rows.push(...metaRow(readText("workbench.assistant-island.who-will-do"), segmented(readText("workbench.assistant-island.who-does"), who, nextExec, (id) => { nextExec = id; if (id !== "assistant") nextChar = null; paintAim(); paintSum(); })));
-        if (nextExec === "assistant" && allowsCharacter() && hasChoices) rows.push(...metaRow(readText("workbench.assistant-island.role"), characterPicker()));
+        rows.push(...metaRow(readText("workbench.assistant-island.who-will-do"), segmented(readText("workbench.assistant-island.who-does"), who, nextExec, (id) => { nextExec = id; if (id !== "assistant") nextChar = undefined; paintAim(); paintSum(); })));
+        if (allowsCharacter()) rows.push(...metaRow(readText("workbench.assistant-island.role"), characterPicker()));
         if (nextExec !== "assistant" && modeOffer()) {
           const offer = modeOffer();
           if (executorSession(nextExec)) rows.push(...metaRow(readText("workbench.assistant-island.mode"), document.createTextNode(readText("workbench.assistant-island.continues-session-that-open"))));
@@ -399,7 +384,7 @@ ${ASSISTANT_STRIP_PART}
         }
         if (nextExec === "assistant" && project) {
           rows.push(...metaRow(readText("workbench.assistant-island.put"), segmented(readText("workbench.assistant-island.new-work-goes"), [{ id: "project", label: project.title || readText("workbench.assistant-island.project") }, { id: "personal", label: readText("workbench.assistant-island.personal") }], nextScope,
-            (id) => { nextScope = id; paintAim(); paintSum(); })));
+            (id) => { if (id !== nextScope) nextChar = undefined; nextScope = id; paintAim(); paintSum(); })));
         }
       }
       metaEl.replaceChildren(...rows);
@@ -759,7 +744,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     setProject: (next) => {
       const chosen = next?.id ? next : null;
       if (chosen?.id === project?.id) { project = chosen; paintAim(); paintSum(); return; }
-      closeSubtask(); project = chosen; tabs = savedTabs(); eventTabs = []; nextScope = project ? "project" : "personal";
+      closeSubtask(); project = chosen; tabs = savedTabs(); eventTabs = []; nextChar = undefined; talkDraft = ""; nextScope = project ? "project" : "personal";
       void showWork(store.get(scoped("current")));
     },
     dispose: () => { closeSubtask(); releaseSubtaskAccount?.(); executorRequest++; document.removeEventListener("molis-work:language-changed", retitleReviews); document.removeEventListener("molis-work:attention", placedMoved); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };

@@ -161,23 +161,14 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     if (island.hasAttribute("data-side-shown")) return list;
     if (!work && executorsHere() && nextExec !== "assistant") list.push({ kind: "select", id: "executor", label: readText("workbench.assistant-dock.who-does"),
       options: executorChoices().map((one) => ({ value: one.id, label: one.label + (one.id === nextExec && executorSession(one.id) ? " · " + readText("workbench.assistant-island.session") : "") })), value: nextExec,
-      change: (value) => { nextExec = value; nextMode = ""; if (value !== "assistant") nextChar = null; paintAim(); paintSum(); } });
+      change: (value) => { nextExec = value; nextMode = ""; if (value !== "assistant") nextChar = undefined; paintAim(); paintSum(); } });
     // A new work that continues a session open on the page runs in that session's own mode, shown once it is the work's.
     const offer = modeOffer();
     if (offer && offer.modes.length && (work || !executorSession(nextExec))) list.push({ kind: "select", id: "mode", label: readText(work ? "workbench.assistant-dock.mode-next-turn" : "workbench.assistant-island.mode-first-turn"),
       options: modeRows(offer).map((mode) => ({ value: mode.id, label: mode.label })), value: work ? work.executor.mode || offer.default_mode : nextMode || offer.default_mode,
       change: (value) => void applyMode(value) });
-    const chosen = chosenCharacter();
-    if (allowsCharacter() && chosen) {
-      const choices = (characterChoices() || []).filter((one) => one.available && roleKey(one.ref) !== roleKey(chosen.ref));
-      list.push({ kind: "select", id: "character", label: readText("workbench.assistant-dock.which-character-carries"), value: roleKey(chosen.ref),
-        options: [{ value: "", label: readText("workbench.assistant-island.assistant-itself") }, { value: roleKey(chosen.ref), label: chosen.title }, ...choices.map((one) => ({ value: roleKey(one.ref), label: one.title + (one.tag ? " · " + one.tag : "") }))],
-        change: (value) => {
-          const one = (characterChoices() || []).find((choice) => roleKey(choice.ref) === value), next = value === roleKey(chosen.ref) ? chosen : asChosen(one);
-          if (getWork()) pendingChar = next; else nextChar = next;
-          paintAim(); paintSum();
-        } });
-    }
+    if (allowsCharacter()) list.push({ kind: "button", id: "character", label: roleButtonLabel(),
+      title: readText("workbench.assistant-dock.which-character-carries"), run: openRolePicker });
     return list;
   };
   const deliveryNow = () => {
@@ -264,7 +255,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       setTimeout(syncComposer, 0);
     }
   };
-  const shown = () => json([receiverNow().label, Boolean(getWork()), deliveryNow(), controlsNow().map((one) => [one.id, one.value, one.options])]);
+  const shown = () => json([receiverNow().label, Boolean(getWork()), deliveryNow(), controlsNow().map((one) => [one.id, one.label, one.value, one.options])]);
   const assistantInputName = () => attr(input, "aria-label", words.input);
   let refreshComposerWords = assistantInputName;
   const mountPage = (target) => {

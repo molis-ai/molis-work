@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>底栏第五版 · 可点原型 · Molis Work 原型</title>
+  <link rel="stylesheet" href="../kit/kit.css">
+  <link rel="stylesheet" href="screens.css">
+  <link rel="stylesheet" href="line.css">
+</head>
+<body class="sp-body">
+  <div id="icons" hidden></div>
+  <header class="sp-proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b>底栏第五版 · 可点原型</b>
+    <span class="ln-ctrls" id="ctrls">
+      <button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" data-go="story"><span data-slot="button-label">演示一遍</span></button>
+      <span class="ln-vr"></span>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="ask"><span data-slot="button-label">助理问你</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="back"><span data-slot="button-label">办完交回</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="due"><span data-slot="button-label">到 15:00</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="fail"><span data-slot="button-label">一件没跑通</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="reset"><span data-slot="button-label">重置</span></button>
+    </span>
+    <span class="grow"></span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="事项放在哪" id="headpos">
+      <button type="button" class="mw-toggle" aria-pressed="true" value="mid">事项在输入框上</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="left">事项在最左</button>
+    </span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="窗口宽度" id="width">
+      <button type="button" class="mw-toggle" aria-pressed="true" value="1440">1440</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="1180">1180</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="1024">1024</button>
+    </span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="主题" id="theme">
+      <button type="button" class="mw-toggle" aria-pressed="true" value="light">浅色</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="dark">深色</button>
+    </span>
+  </header>
+  <main id="proto">
+    <section class="sp-shot" id="shot">
+      <h2>25 · 底栏第五版：左边办完的，中间现在，右边接下来；输入框只问一句话</h2>
+      <p>可以直接点。点两边的任何一件、点输入框上面的页签、点事项名、点 ＋、在输入框里打字回车（输入 @ 或 / 试试），或者用上面的按钮让它发生一件事。「演示一遍」按顺序走完一件事的一生。</p>
+      <div class="sp-fit"><div class="sp-win c v5" id="win"></div></div>
+      <div class="ln-say" aria-live="polite"><b id="step">现在</b><span id="say">静止的样子。中间是事项「发布 v2.3」和输入框；左边是这件事里办完的，右边是接下来的。</span></div>
+      <div class="ln-rules">
+        <div><b>位置就是状态</b><span>左边是办完的，输入框上面是现在（在办的、该你的），右边是接下来的。一件事只按「右 → 中 → 左」走，不因为着急或被点了而出现在第三个地方。</span></div>
+        <div><b>长相只有三种</b><span>两翼是字：图形、名字、时间。中间是页签：图形、名字、状态词。输入框是唯一的盒子。颜色只出现在中间那一排。</span></div>
+        <div><b>动法只有两种</b><span>事件沿着线走；中间这一列向上长（一行，再到对话框）。没有悬停小卡、没有留在原地的空位、没有另起的凸起。</span></div>
+        <div><b>事项和事件</b><span>事项是第一个页签，后面的页签是它正在进行的事件，两翼是它的过去和将来。换事项，整条线一起换。</span></div>
+      </div>
+      <h3 class="ln-h3">输入框：只问一句话</h3>
+      <div class="ln-rules">
+        <div><b>收起时只有三样</b><span>＋、一句话、发送。对谁说、关于什么，看输入框上面亮着的页签，框里不再放「发给」的片。</span></div>
+        <div><b>只有一扇门</b><span>要带上东西、换个对象、换种方式，都从 ＋ 进；打字时输入 @ 或 / 是同一个面板，直接到那一段。</span></div>
+        <div><b>选了才出现</b><span>选过的东西是这句话上面的一排小片，一样的长相，都能点 × 拿掉。它还在办的时候再说一句，才多出一枚「怎么送达」。</span></div>
+        <div><b>一条动线</b><span>说一句 → 上面长出一行回应 → 要细看就展开成对话框 → Esc 收回。反馈、报错、它的提问都在这一行，不另起别的行。</span></div>
+      </div>
+      <table class="ln-count">
+        <thead><tr><th>默认看得见的</th><th>现在</th><th>这一版</th></tr></thead>
+        <tbody>
+          <tr><td>收起的输入框里</td><td>4–5 个：＋、「发给」的片（带 ×）、输入、发送；有改动时再加「更多」</td><td>3 个：＋、输入、发送</td></tr>
+          <tr><td>输入框外面</td><td>上面四行（这次带上的、下一步、提醒、状态），旁边一个铃</td><td>上面一行，没事时不出现</td></tr>
+          <tr><td>发送键</td><td>发送；跑着的时候是「补充」加一个 ▾（三种送达方式），旁边另有暂停、停止</td><td>发送；它在办而你没打字时是停止；打了字才多出一枚「怎么送达」</td></tr>
+          <tr><td>对话框头部</td><td>六种页签，6 个图标键</td><td>两种页签（事项、事件），1 个「⋯」；后台任务和收起在线尾</td></tr>
+          <tr><td>对话框左栏</td><td>默认开着：概况卡、谁来做、方式、角色、放在，加十来个分块</td><td>默认关，在「⋯ › 详情」里；谁来做和方式进了 ＋，放在哪由助理安放、一点能改</td></tr>
+          <tr><td>每一轮回复</td><td>时间、谁执行、带的材料、技能一行、回复、回执、复制、记忆、状态</td><td>回复；有不寻常的事才多一行依据；能直接点的下一句；复制在悬停时出现</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+  <script src="../kit/kit.js"></script>
+  <script src="screens.js"></script>
+  <script src="line.js"></script>
+</body>
+</html>

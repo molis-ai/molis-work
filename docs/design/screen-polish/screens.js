@@ -528,6 +528,9 @@
       html: F_MENU, notes: ["顶上是最近切过的 3 件，每行：进度环、名字、最近一次动作、等你的件数。当前这件打勾。", "下面是折叠的分组，组头带件数和等你的件数；有搜索。", "底下三项：新建事项、整理主线、不选事项（看整个项目的线）。", "别的事项有事等你时，线头的数字包含它们（这里是 2），列表里看得出是哪一件。", "列表的内容和规则照主线现行写法（最近 3 件加折叠分组），这里只定它在线头上的长相。"] },
   ];
 
+  // 可点原型（line.html）借用的窗口部件；那一页没有 #app，到这里为止
+  window.spParts = { top: oneC(true, TABS(-1)), home: homeBrief };
+  if (!document.getElementById("app")) return;
   const only = new URLSearchParams(location.search).get("only");
   document.getElementById("app").innerHTML = SHOTS.filter((s) => !only || s.id === only).map((s) => `<section class="sp-shot" id="${s.id}"><h2>${s.title}</h2><p>${s.lead}</p>${s.html}<ol class="sp-notes">${s.notes.map((n, i) => `<li><b>${i + 1}</b><span>${n}</span></li>`).join("")}</ol></section>`).join("");
   document.getElementById("jump").innerHTML = SHOTS.map((s) => `<a href="#${s.id}">${s.title.replace(/^\d+ · /, "").replace("方案 B：", "B·")}</a>`).join("");

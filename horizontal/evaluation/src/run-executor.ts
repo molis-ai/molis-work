@@ -151,11 +151,14 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
   const runCoverageUnknowns: readonly EvaluationUnknownReason[] = missingPinnedCount > 0 && !hasCoverageGapReason
     ? Array.from(new Set<EvaluationUnknownReason>([...baseCoverage.unknownReasons, "evidence_missing"]))
     : baseCoverage.unknownReasons;
-  const limitations: readonly string[] = missingPinnedCount > 0
+  const limitations = missingPinnedCount > 0
     ? [...baseCoverage.limitations, `样本固定的 ${missingPinnedCount} 条工作记录在采集层已缺失`]
-    : baseCoverage.limitations;
+    : [...baseCoverage.limitations];
 
   const funnel = computeFunnelCounts(records);
+  if (records.length && !funnel.completed) {
+    limitations.push("本次未读到业务主人确认完成的工作。完成数只计有据可查的交付。");
+  }
   const observedConditions = extractObservedConditions(records);
   const outcomeCounts = countWorkOutcomes(records);
 

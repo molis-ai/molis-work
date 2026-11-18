@@ -3,11 +3,15 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   EVALUATION_PROVIDER_ID,
   evaluationActions,
   type EvaluationSampleInput,
+  type EvaluationRunView,
+  type EvaluationRunComparison,
+  type EvaluationMetricsSummary,
 } from "@molis-ai/molis-work-contracts/services/evaluation";
 import { observationActions } from "@molis-ai/molis-work-contracts/services/observation";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -1109,4 +1113,86 @@ test("PWA-53 OCL-13: a simulated run excludes real records by default", async (t
   assert.deepEqual(run.observed_conditions.source_classes, ["trial"]);
   assert.equal(run.observed_conditions.record_count, 1);
   assert.equal(run.effective_verdict, "passed");
+});
+
+test("PWA-52 OCL-04: delivery rubrics use the reply body and keep missing evidence unknown", async t => {
+  const fx = createEvaluationFixture(t);
+  const sink = fx.layer.sink("agent").bind({ kind: "background", actor_id: "agent:assistant", project_id: "p1", entry: "agent", call_id: "reply-test" });
+  const content = (role: string, text: string) => ({ role, ref: { kind: "content" as const, media_type: "text/plain", text } });
+  for (const [id, answer, expected] of [
+    ["wrong", "蓝色杯子放在桌上。", "failed"], ["right", "留存豁免与隔离回放", "passed"], ["half", "留存豁免", "failed"],
+    ["reasoning-only", "", "unknown"], ["truncated", "", "unknown"], ["two-replies", "隔离回放", "unknown"], ["forbidden", "留存豁免与隔离回放，已经发布", "failed"],
+  ] as const) {
+    const work = { work_ref: id };
+    sink.record({ fact: "agent.model_request", outcome: "succeeded", work, evidence: [content("request", "留存豁免、隔离回放、已经发布")] });
+    sink.record({ fact: "agent.reply", outcome: "succeeded", work, evidence: [
+      content("reasoning", "留存豁免与隔离回放，已经发布"),
+      ...(answer ? [content("reply", answer)] : []),
+      ...(id === "truncated" ? [{ role: "reply", ref: { kind: "missing" as const, reason: "truncated" as const } }] : []),
+    ] });
+    if (id === "two-replies") {
+      sink.record({ fact: "agent.reply", outcome: "succeeded", work, evidence: [content("reply", "留存豁免")] });
+    }
+    fx.layer.flush();
+    await fx.service.invoke(person(), evaluationActions.samplesPut, {
+      sample_id: id, version: 1, title: "独立核对回复正文", purpose: "validation", work_mode: "assistant", project_id: "p1",
+      initial_intent: "核对留存豁免和隔离回放两个要点", query: { project_id: "p1", work_ref: id },
+      expectations: ["explicit", "legacy", "forbidden-only"].map(mode => ({
+        expectation_id: mode, stage: "delivery", source: "evaluator", description: "检查实际回复",
+        rule: { evaluator_id: "reply", evaluator_version: "1", rubric: "逐项核对正文", required_facts: ["agent.reply"],
+          ...(mode === "explicit" ? { evidence_source: { fact: "agent.reply", role: "reply" } } : {}),
+          ...(mode !== "forbidden-only" ? { required_evidence_terms: ["留存豁免", "隔离回放"], allowed_variations: ["豁免"] } : {}),
+          forbidden_evidence_terms: ["已经发布"] },
+      })),
+    });
+    const run = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: id }) as EvaluationRunView;
+    for (const result of run.expectation_results) {
+      assert.equal(result.effective_verdict,
+        result.expectation_id === "forbidden-only" && answer && expected !== "unknown" && id !== "forbidden" ? "passed" : expected, id + "/" + result.expectation_id);
+      assert.ok(result.evidence_refs.every(ref => ref.fact === "agent.reply" && ref.role === "reply"));
+      if (answer) assert.ok(result.evidence_refs.some(ref => ref.snapshot));
+      if (expected === "unknown") assert.ok(result.unknown_reasons.includes("evidence_missing"));
+    }
+  }
+});
+
+test("PWA-54 PWA-55 OCL-17: count confirmed owner work once, preserve legacy runs and disclose their exclusion from work totals", async t => {
+  const fx = createEvaluationFixture(t);
+  const work = { work_ref: "work-unit-1" };
+  await fx.service.invoke(pluginCaller("pages"), observationActions.report, { facts: [
+    { fact: "pages.save", outcome: "succeeded", stage: "executed", work },
+    { fact: "pages.save", outcome: "succeeded", stage: "completed", work },
+    { fact: "pages.save", outcome: "succeeded", stage: "completed", work },
+    { fact: "pages.save", outcome: "refused", stage: "executed", work: { work_ref: "never-started" } },
+    { fact: "pages.save", outcome: "succeeded", stage: "completed" },
+  ] });
+  const agent = fx.layer.sink("agent").bind({ kind: "background", actor_id: "agent:assistant", project_id: "p1", entry: "agent", call_id: "model-unit" });
+  agent.record({ fact: "agent.run", stage: "completed", outcome: "succeeded", work: { work_ref: "agent-technical" } });
+  fx.layer.flush();
+  await fx.service.invoke(person(), evaluationActions.samplesPut, {
+    sample_id: "work-units", title: "按业务记录归集", version: 1, purpose: "validation", work_mode: "manual_plugin",
+    project_id: "p1", initial_intent: "核对主人保存的操作", query: { project_id: "p1" },
+    expectations: [{ expectation_id: "save", source: "deterministic", stage: "execution", description: "已保存",
+      rule: { check: "record_count", fact: "pages.save", min_count: 1 } }],
+  });
+  const execute = () => fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "work-units" }) as Promise<EvaluationRunView>;
+  const legacy = await execute();
+  // Model the actual persisted pre-upgrade JSON; exercise both public history reads and aggregation.
+  const { execution_basis: ignored, ...oldFunnel } = legacy.funnel;
+  assert.equal(ignored, "owner_work");
+  const db = new DatabaseSync(join(fx.home, "evaluation", "evaluation.db"));
+  try {
+    db.prepare("UPDATE evaluation_runs SET run_json = ? WHERE run_id = ?").run(JSON.stringify({
+      ...legacy, funnel: { ...oldFunnel, executed: 9, completed: 9 },
+    }), legacy.run_id);
+  } finally { db.close(); }
+  const current = await execute();
+  assert.deepEqual([current.funnel.executed, current.funnel.completed], [1, 1]);
+  const history = await fx.service.invoke(person(), evaluationActions.runsGet, { run_id: legacy.run_id }) as EvaluationRunView;
+  assert.equal(history.funnel.completed, 9);
+  const metrics = await fx.service.invoke(person(), evaluationActions.metricsSummarize, { purpose: "validation", project_id: "p1" }) as EvaluationMetricsSummary;
+  assert.equal(metrics.denominator, 2);
+  assert.deepEqual([metrics.funnel_totals.executed, metrics.funnel_totals.completed, metrics.funnel_totals.excluded_execution_runs], [1, 1, 1]);
+  const comparison = await fx.service.invoke(person(), evaluationActions.runsCompare, { baseline_run_id: legacy.run_id, candidate_run_id: current.run_id }) as EvaluationRunComparison;
+  assert.equal(comparison.comparable, false);
 });

@@ -1,17 +1,18 @@
 {
   "reason": "保留窄窗审查位置、组件板通知和刷新的位置确认。重开助理先读原文，输入栏随实际窗格位置重排。删除重复词条后复量既有脚本和首屏。",
-  "review": "specs/quality-experience-audit/report.md#第-117-批主干组合，QEA-183/189/190/193。整合现行主干后，工作台脚本和页首屏的既有资源差额各增加 2 B。",
+  "review": "specs/quality-experience-audit/report.md#第-118-批主干逐屏修复组合，QEA-183/189/190/193/197/198。第 118 批复量既有工作台脚本差额增加 16 B，四组工作台冷量各增加 16 B，项目选择中文冷量补登记 66 B。",
   "assets": {
     "/assets/molis-work-assistant-subtasks.js": 2,
     "/assets/molis-work-plugin-frame.js": 124,
-    "/assets/molis-work-workbench.js": 395
+    "/assets/molis-work-workbench.js": 411
   },
   "pages": {
     "arrival-empty/zh": { "cold": 254, "warm": 1 },
     "arrival-empty/en": { "cold": 177, "warm": 1 },
-    "workbench-default/zh": { "cold": 339, "warm": 0 },
-    "workbench-default/en": { "cold": 206, "warm": 0 },
-    "workbench-all-plugins/zh": { "cold": 625, "warm": 0 },
-    "workbench-all-plugins/en": { "cold": 591, "warm": 0 }
+    "chooser/zh": { "cold": 66, "warm": 0 },
+    "workbench-default/zh": { "cold": 355, "warm": 0 },
+    "workbench-default/en": { "cold": 222, "warm": 0 },
+    "workbench-all-plugins/zh": { "cold": 641, "warm": 0 },
+    "workbench-all-plugins/en": { "cold": 607, "warm": 0 }
   }
 }

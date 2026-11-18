@@ -30,7 +30,7 @@ async function openDocument(b: NonNullable<Awaited<ReturnType<typeof openGoalBro
 }
 
 test("background refresh follows external archive and restore without changing the Goal or execution history", { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t, true);
+  const browser = await openGoalBrowser(t, "user");
   if (!browser) return;
   const { store, origin, projectId, sessionId, command, evaluate, waitFor, navigate } = browser;
   // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
@@ -38,17 +38,17 @@ test("background refresh follows external archive and restore without changing t
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/CORE" }, sessionId));
   for (const archived of [true, false]) {
     await post(origin, prefix + "/api/plugins/io.molis.work.goals/goals/CORE/archive", { archived, reason: "Another user's archive action" }, "refresh-archive-" + archived);
-    const afterExternalWrite = boardSnapshot(store, DEMO_PROJECT_ID);
+    const afterExternalWrite = boardSnapshot(store, projectId!);
     await navigate(() => evaluate("document.dispatchEvent(new Event('visibilitychange'))"));
     const path = prefix + (archived ? "/archive/goals/CORE" : "/goals/CORE");
     assert.equal(await evaluate("location.pathname"), path);
     await waitFor("document.querySelector('[data-goal-view]')?.dataset.goalView === 'CORE'");
     assert.match(await evaluate<string>("document.querySelector('[data-toast]').textContent"), archived ? /已归档/ : /已恢复/);
-    assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID), afterExternalWrite, "Refresh is read-only, including history and active Goal");
+    assert.deepEqual(boardSnapshot(store, projectId!), afterExternalWrite, "Refresh is read-only, including history and active Goal");
   }
 });
 
-// QEA-172: Goal-only scenarios use the same seed in a normal project; archive/restore and the Feed fallback keep the demo.
+// QEA-172, QEA-199: Goal-only scenarios use the same seed in a normal project; the Feed fallback keeps the demo.
 test("a completed refresh response cannot overwrite a Goal selected while it was in flight", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "user");
   if (!browser) return;
@@ -178,6 +178,9 @@ test("QEA-113 QEA-114 QEA-199 collection refresh across Goal surfaces", async t 
   await t.test("QEA-113 a visible Goal Frame refreshes its collection without reading the hidden workspace document", { timeout: 60_000 }, async t => {
     const prefix = `/projects/${b.projectId}`;
     await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
+    // Reenter the Frame if the workbench restored the workspace last used in this Home.
+    if (!await b.evaluate("document.querySelector('[data-goal-frame-surface]')?.checkVisibility({visibilityProperty:true})"))
+      await b.openGoalFrame('.tree-node[data-select-goal="V1"]');
     await b.waitFor("document.querySelector('[data-goal-frame-surface]')?.checkVisibility({visibilityProperty:true})");
     assert.equal(await b.evaluate("document.querySelector('[data-document-pane] [data-work-surface=goals]').checkVisibility({visibilityProperty:true})"), false);
     await b.evaluate(`(() => {

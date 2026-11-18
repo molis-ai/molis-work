@@ -1557,12 +1557,20 @@ Verify 首轮的产品子集第 1 片 66 份通过。Goals 刷新文件触及 24
 
 复跑仍在 Goals 文件的 240 秒上限结束，其余 66 份通过。第 118 批用实测核对重复启动成本，保留各原场景、原浏览器请求及写入断言。 [同提交失败分片](https://github.com/molis-ai/molis-work/actions/runs/44337310588/job/134946772301)
 
+`811e28f368` 的 Full 首轮完成，48 片全部通过。Verify 的两次 Goals 整文件超时单独保留。 [Full 汇总](https://github.com/molis-ai/molis-work/actions/runs/44337291824/job/134959528054)
+
 ### 第 118 批主干逐屏修复组合
 
 主干 `afaeabdd4a` 合入十项现行界面修复。与本轮有 14 个文件交集，模拟合并时有两处冲突，均在验收文件。共同修改的工作台和 Coding 源码按真实入参及调用顺序复核。已有结果随原提交留存，重新构建和对账目标页面记录。 [主干修复](https://github.com/molis-ai/molis-work/pull/2110) · [验收 QEA-195～197](spec.md#第-118-批整合主干的逐屏-p0-修复)
 
 验收文件保留双方入口。新盖层用例也读回关闭设置后的原输入。Goals 页面按正规化后的实物对照，给右侧工作线放回唯一的 `data-overflow-fade` 后，52 条先前已验记录的哈希和字符数逐项吻合。16 份整页各减少 19 字符，36 份片段原样匹配。录制开关未启用。 [输入栏用例](../../tests/composer-bar-receiver.e2e.test.ts) · [页面记录对账](../../tests/goals-page-golden.test.ts#L250)
 
+相对 `afaeabdd4a`，实际 67 条静态资源中最大净增仍是 Git 的 8,403 B，工作台脚本净增 5,168 B，比上一组合多 16 B。原消息和词包的 22 条首屏许可继续命中。中文项目选择文档的实测增加 96 B，页面净增 2,166 B，扣除已有额度后登记 66 B。默认及全插件工作台的四组既有冷量各增 16 B，按上一组合实测的 Linux 平台差额复算通过。源数据 `quality-audit-b118-resource-proof.json`。 [资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+
+后续 main `73e8349007` 修正评估结果、业务交付计数及 Schedule 的拒绝分类。比较差异有两处共同改动，分别是 Observation 的 README 和动作快照。合并模拟通过，生产源码与本轮修改没有文本冲突。新界面组合的实测基点仍为 `afaeabdd4a`。 [后续主干修复](https://github.com/molis-ai/molis-work/pull/2131)
+
 ### QF-96 / P2 相同文字的新回执会被当作已经收起
 
 主干工作线把上一条收起的回复正文和其指纹作为身份。浏览器重开后，第二条不同 ID 的回复即便是一次新工作，只要文字相同也不会显示在输入栏上方。用浏览器复现，原回复收起及重开断言通过，接着加入不同 ID、相同文字的回复等待显示超时。处置归工作台，以回复已有的工作、轮次与消息 ID 投影到同一 DOM 节点。窗口只保存当前收起的回复 ID，连续写入这条回复保持收起，另一条回复即使同字仍会出现。正文由原助理和原渲染器维护。按 QEA-198 复验两次真实发送、显示和持久化。 [回复身份](../../apps/workbench/src/scripts/client/assistant-conversation.ts#L233) · [窗口回执](../../apps/workbench/src/browser/work-task-panel.ts#L83) · [真实入口与读回](../../tests/work-line-done-card.e2e.test.ts)
+
+隔离 Home 用本地录制模型走两次正常发送。第一条回执经设置盖层收起，第二条同字但不同 ID 正常展示，Host 的原工作读取返回两个真实轮次及各自的回复 ID。现行 Markdown 渲染、原件名称、设置覆盖及窗口重开用例保持。工作线及 Coding 的六组浏览器用例共 86 项通过，另两个页面录制用例沿原模式跳过。Coding 材料服务十项中一项本机连接重置，同源码定向复跑通过，保留后台失败恢复、轮次固定版本和溢出项读回。完整构建、本机健康、包边界、111 份 API、44 个库结构、版本和动作快照一致。日志 `quality-audit-b118-{browser,coding-quick,coding-materials-retry,reply-build,health,contracts}.log`。

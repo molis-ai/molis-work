@@ -206,16 +206,16 @@ test("ROLE-07 ROLE-16: the same choice in a session keeps the version its last r
   assert.deepEqual((await f.host.start("probe", f.request, f.authority)).frozen.character!.version, newer.version);
 });
 
-test("SAI-07 SAI-10 ROLE-08: child continuation checks the original parent's frozen project role", async () => {
+test("SAI-08 SAI-10 ROLE-08: child continuation checks the original parent's frozen project role", async () => {
   const f = fixture();
   f.request.character = { kind: "project", member_id: "board-member" };
   f.character.version = { kind: "project", member_id: "board-member", member_version: 1,
     original: { kind: "personal", character_id: "profile", version: 2 } };
   f.character.project_id = f.request.project_id;
   const child = { role_id: "child", version: 1, name: "Child", execution: "read-only" as const, host_tools: [] };
-  f.authority.manifest.subagents = { parent_role_ids: ["reader"], roles: [child] };
   const { frozen } = await f.host.start("probe", f.request, f.authority);
 
+  f.authority.manifest.subagents = { parent_role_ids: ["reader"], roles: [child] };
   f.authority.resolveCharacter = () => { throw new Error("Stopped offering this role for new choices"); };
   const reads: Array<{ version: AgentFrozenCharacter["version"]; actor: string }> = [];
   let current = structuredClone(f.character);

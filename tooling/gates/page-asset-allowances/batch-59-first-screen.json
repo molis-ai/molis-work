@@ -1,6 +1,6 @@
 {
   "reason": "第 59 批复用公共子任务对话，助理与 Coding 接入真实历史、问卷及控制。工作台中英文启动词包更新内容地址，现有页面增加少量外壳接线。",
-  "review": "以 aa243ba6f8 的真实 HTTP 复测对照 dbcf562a67，按四类页面的中英文冷、热实测取上限。仅项目选择页热加载净增 5,891 B。",
+  "review": "specs/subagent-interaction/spec.md §12.26。d5245aec40 对 bdfcc36454 的真实 HTTP 复测，四类页面分别按中英文冷、热实测记账。",
   "entryApprovals": [
     {
       "pages": [
@@ -27,37 +27,37 @@
   ],
   "pages": {
     "arrival-empty/zh": {
-      "cold": 6836,
+      "cold": 6872,
       "warm": 0
     },
     "arrival-empty/en": {
-      "cold": 6859,
+      "cold": 6824,
       "warm": 0
     },
     "chooser/zh": {
-      "cold": 12727,
+      "cold": 12763,
       "warm": 5891
     },
     "chooser/en": {
-      "cold": 12750,
+      "cold": 12715,
       "warm": 5891
     },
     "workbench-default/zh": {
-      "cold": 12456,
+      "cold": 12508,
       "warm": 0
     },
     "workbench-default/en": {
-      "cold": 12479,
+      "cold": 12460,
       "warm": 0
     },
     "workbench-all-plugins/zh": {
-      "cold": 12456,
+      "cold": 12508,
       "warm": 0
     },
     "workbench-all-plugins/en": {
-      "cold": 12479,
+      "cold": 12460,
       "warm": 0
     }
   },
-  "userApproval": "用户于 2026-11-17 在第 59 批主会话弹窗明确选择「批准新词包地址和逐页实测上限（推荐）」。申请覆盖中英文的两个实际地址以及四类页面的冷、热实测，最高冷增 12,854 B、热增 5,891 B。窄屏修正后的逐页实测低于或等于获批上限，按本文件数值执行。"
+  "userApproval": "用户于 2026-11-17 在第 59 批主会话弹窗明确选择「批准新词包地址和逐页实测上限（推荐）」。§12.19 记录当时的两种启动词包和各页面冷、热上限。第 36 批同步后，同一中英文启动词包重新计算内容地址，各页实测在原批准范围内，见 §12.26。"
 }

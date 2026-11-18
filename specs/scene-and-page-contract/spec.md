@@ -493,7 +493,7 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 
 - **安装只由本人确认。** `plugins.install.preview`／`confirm` 只接受本人的操作。`apply` 碰到要装的部分（缺的插件、草稿里新 Skill 打的内容包），把那一步标 `needs_install` 并返回 `plugins.install.preview` 的 `preview_id`；界面走普通的安装确认；装好后本人再调一次 `apply`（同一个 `request_id`），从那一步接着做。`apply` 自己从不调 `plugins.install.confirm`。
 - **嵌套调用带着本人的上下文。** `apply`、`revert`、`remove` 调主人的动作（`projects.plugins.set@1`、`skills.settings.set@1`、`characters.from_template@1`、各主人的设置写与采用动作）时：操作者、项目取自本人这次调用的上下文；子调用的授权按本人核，不按 `system.blueprints` 核；动作网关在调用记录里记下上一层（`blueprints.adoption.apply@1` 与它的调用 id）。`system.blueprints` 自己没有替人写主人数据的授权。
-- **新的安全不变量 S-blueprint-consent-context「采用不转交本人的同意」**（待真实接入后登记）：P-3c 在第 20 批给出合同，实际接入的边界当批登记并验证真实拒绝。完整采用服务归第 45 批，其处理器实现时必须验证两种真实拒绝：`apply` 直接调 `plugins.install.confirm` 被拒；`apply` 用系统身份而非本人上下文写设置被拒。尚无 `apply` 处理器时这两项保持待验证，不以 schema 测试宣称 S-blueprint-consent-context 完成。首页批准的 S-home-page-approval 归第 37 批真实验收（第 6.4 节）。
+- **采用不转交本人的同意**见 [S-blueprint-consent-context](../../docs/system/security-invariants/S-blueprint-consent-context.md)。按路线书决定 52，第 38 批在真实设置调用上验证两种拒绝：采用携带的子调用无法确认安装，系统身份无法写项目运行时设置。签名包与三方升级的验收归第 45 批。首页批准的 S-home-page-approval 归第 37 批。
 
 **规则**：
 

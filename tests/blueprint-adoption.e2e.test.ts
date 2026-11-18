@@ -10,6 +10,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("ONB-21/22/28/30: review actual setting values one by one, resume from the project and undo", { timeout: 95_000 }, async t => {
   const b = await openGoalBrowser(t, "user", undefined, null);
+  if (!b) return;
   const { projectId, databasePath, localHost, origin, sessionId, command, evaluate, waitFor, click, navigate } = b;
   assert.ok(projectId && localHost);
   const reference = molisWorkHostProjectReference({ projectId, databasePath });

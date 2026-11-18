@@ -1,4 +1,4 @@
-import { ActionError, type ActionHandlerBinding, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionHandlerBinding, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SettingsDeclaration } from "@molis-ai/molis-work-contracts/platform/settings";
 import { defaultAgentRuntime, resolveProjectRuntime, type AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { bindSettingsHandlers, defineSettingsActions, type SettingsOwner, type SettingsOwnerScope, type SettingSnapshot } from "@molis-ai/molis-work-plugin-sdk";
@@ -64,6 +64,10 @@ export function projectRuntimeSettingProvider(projectId: string, db: SqliteDatab
   const handlers = bindSettingsHandlers(runtimeSettingsActions, projectRuntimeDeclaration, owner);
   const afterDirectoryReady = (binding: ActionHandlerBinding): ActionHandlerBinding => ({ ...binding,
     async handle(caller, input) {
+      if (binding === handlers.write && (caller.actor_id !== LOCAL_PERSON_ACTOR_ID || caller.audience !== "user" ||
+        caller.actor_kind === "runtime" || caller.host_plugin || caller.delegated_by)) {
+        throw new ActionError("actions.forbidden", "只有本人能采用项目运行时设置");
+      }
       await ready();
       return binding.handle(caller, input);
     },

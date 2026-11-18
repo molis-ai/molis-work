@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { blueprintActions } from "@molis-ai/molis-work-contracts/services/blueprints";
 import type { SettingsValues } from "@molis-ai/molis-work-contracts/platform/settings";
@@ -7,6 +11,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("ONB-22/23/28, PWA-36: the scene, settings page and Assistant share lookback and budget through retries and later edits", async t => {
   const b = await openGoalBrowser(t, "user", undefined, null);
+  if (!b) return;
   const { localHost, origin, command, sessionId, navigate, evaluate, waitFor, click } = b;
   assert.ok(localHost);
   const caller = await localHost.localPersonContext(), raw = localHost.homeActionClient(), person = bindActionClient(raw, () => caller);
@@ -61,4 +66,49 @@ test("ONB-22/23/28, PWA-36: the scene, settings page and Assistant share lookbac
   assert.equal(updated?.state === "ok" && updated.source, "provider_default");
   assert.equal(store.setting(actor, "daily_tokens"), "");
   await assert.rejects(raw.invoke({ ...caller, actor_kind: "runtime" }, write, change), { code: "assistant.scope" });
+});
+
+test("ONB-28/29: after a partial adoption the reopened page retries only the unconfirmed setting", async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null);
+  if (!b) return;
+  const { localHost, origin, command, sessionId, navigate, evaluate, waitFor, click } = b;
+  assert.ok(localHost);
+  const caller = await localHost.localPersonContext(), person = bindActionClient(localHost.homeActionClient(), () => caller);
+  const title = { literal: "A week of editing" };
+  const { draft } = await person.invoke(blueprintActions.draftSave, { expected_revision: null, blueprint: {
+    title, purpose: { audience: title, work: title, inputs: title, outputs: title, first_result: title },
+    parts: [{ part_id: "range", layer: "personal", required: true, proposal: { kind: "setting", key: "assistant.lookback", value: { count: 1, unit: "weeks" } } },
+      { part_id: "cap", layer: "personal", required: true, proposal: { kind: "setting", key: "assistant.daily_tokens", value: 5000 } },
+      { part_id: "note", layer: "project", required: false, proposal: { kind: "content", type: "notes.outline.v1", body: {} } }],
+    steps: [{ step_id: "prepare", title, part_ids: ["range", "cap", "note"] }],
+    example_task: { title, input: title, step_ids: ["prepare"], result: { part_id: "note", location: title } },
+  } });
+  const db = new DatabaseSync(homeSqlitePath(b.homeDirectory, "assistant"));
+  try {
+    db.exec("CREATE TRIGGER budget_unavailable BEFORE INSERT ON assistant_settings WHEN NEW.key='daily_tokens' BEGIN SELECT RAISE(ABORT,'budget unavailable'); END");
+    const address = origin + "/onboarding?scene&draft=" + encodeURIComponent(draft.source.draft_id);
+    await navigate(() => command("Page.navigate", { url: address }, sessionId));
+    await waitFor("document.querySelector('[data-scene-main] select')");
+    await evaluate("document.querySelector('[data-scene-main] select').value='personal'; document.querySelector('[data-scene-main] select').dispatchEvent(new Event('change'))");
+    await click(".arrival-bar .bar-end .mw-btn--primary");
+    await waitFor("document.querySelector('[data-scene-main] input[type=checkbox]')?.checked");
+    await click(".arrival-bar .bar-end .mw-btn--primary");
+    const partial = "document.querySelector('[data-scene-main]')?.textContent.match(/待核对|Awaiting verification/i) && document.querySelector('.arrival-bar .bar-end .mw-btn--primary')";
+    await waitFor(partial);
+    const review = join(process.cwd(), ".impeccable", "qa", "review", "batch-38");
+    await mkdir(review, { recursive: true });
+    const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
+    await writeFile(join(review, "partial-adoption.png"), Buffer.from(shot.data, "base64"));
+    const appliedRange = db.prepare("SELECT value, revision FROM assistant_settings WHERE actor_id=? AND key='lookback'").get(caller.actor_id);
+    assert.ok(appliedRange);
+    assert.deepEqual(JSON.parse(String(appliedRange.value)), { count: 1, unit: "weeks" });
+    assert.equal(db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key='daily_tokens'").get(caller.actor_id), undefined);
+    db.exec("DROP TRIGGER budget_unavailable");
+    await b.reloadPage(); await waitFor(partial);
+    await click(".arrival-bar .bar-end .mw-btn--primary");
+    await waitFor("document.querySelectorAll('[data-scene-main] details').length === 3 && !document.querySelector('.arrival-bar .bar-end .mw-btn--primary') && document.querySelector('[data-scene-aside] button')");
+    assert.deepEqual(db.prepare("SELECT value, revision FROM assistant_settings WHERE actor_id=? AND key='lookback'").get(caller.actor_id), appliedRange);
+    assert.equal(db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key='daily_tokens'").get(caller.actor_id)!.value, "5000");
+    assert.equal(db.prepare("SELECT count(*) AS n FROM assistant_settings WHERE key LIKE 'preferences/receipt/%' AND actor_id=?").get(caller.actor_id)!.n, 2);
+  } finally { db.close(); }
 });

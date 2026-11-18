@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { observationActions } from "@molis-ai/molis-work-contracts/services/observation";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { todoActions } from "@molis-ai/molis-work-plugin-todo";
@@ -123,7 +123,8 @@ const exitDone = (startedAt: number, endedAt: number, input: unknown, result: un
 
 test("ONB-22/30 OCL-12: adopting retention commits cleanup and receipt together, and undo preserves the actual remaining records", async t => {
   const f = createFixture(t);
-  const read = async () => (await f.service.invoke(person(), retentionActions.read, { keys: [RETENTION_KEY] })).values[0]!;
+  const user = () => bindActionClient(f.service, person);
+  const read = async () => (await user().invoke(retentionActions.read, { keys: [RETENTION_KEY] })).values[0]!;
   await f.service.invoke(person(), observationActions.settingsSet, { space_reminder_bytes: 1000 });
   const initial = await read();
   assert.ok(initial.state === "ok" && initial.source === "provider_default");
@@ -133,15 +134,15 @@ test("ONB-22/30 OCL-12: adopting retention commits cleanup and receipt together,
   f.layer.flush();
   const write = { key: RETENTION_KEY, layer: "personal" as const, expected_revision: initial.revision, request_id: "scene-retention", change: { set: "30" } };
   f.db().exec("CREATE TRIGGER refuse_retention_receipt BEFORE INSERT ON writer_state WHEN NEW.key LIKE 'settings.receipt:%' BEGIN SELECT RAISE(ABORT,'simulated storage failure'); END");
-  await assert.rejects(f.service.invoke(person(), retentionActions.write, write));
+  await assert.rejects(user().invoke(retentionActions.write, write));
   assert.deepEqual(await read(), initial);
   assert.ok(readRecords(f.db()).some(r => r.fact === "notes.older"), "cleanup rolled back with the unsuccessful receipt");
   f.db().exec("DROP TRIGGER refuse_retention_receipt");
-  const saved = await f.service.invoke(person(), retentionActions.write, write);
+  const saved = await user().invoke(retentionActions.write, write);
   assert.equal(readRecords(f.db()).some(r => r.fact === "notes.older"), false);
   f.reopen();
   assert.deepEqual(await f.service.invoke(person({ project_id: null }), retentionActions.write, write), saved);
-  const restored = (await f.service.invoke(person(), retentionActions.write, { ...write, request_id: "undo-retention",
+  const restored = (await user().invoke(retentionActions.write, { ...write, request_id: "undo-retention",
     expected_revision: saved.values[0]!.revision, change: { inherit: true } })).values[0]!;
   assert.ok(restored.state === "ok" && restored.source === "provider_default" && restored.value === "keep");
   assert.equal(readRecords(f.db()).some(r => r.fact === "notes.older"), false);

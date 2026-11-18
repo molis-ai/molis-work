@@ -1,5 +1,5 @@
 {
-  "reason": "本轮工作台、插件与共享能力改造的实际资源增量。首屏采用隔离 Home 实测的运行概况与 Attention 请求，Goal 后台读取沿现有周期验收。静态增量扣除本分支此前资料导入已登记的字节，首屏上限按现行门禁基线的实测补足。",
+  "reason": "本轮工作台、插件与共享能力改造的实际资源增量。首屏采用隔离 Home 实测的运行概况与 Attention 请求，Goal 后台读取沿现有周期验收。静态增量扣除本分支此前资料导入已登记的字节，首屏上限按现行门禁基线的实测补足。Linux CI 的旧 Goal 片段记录的临时目录比 macOS 短 52 B，两组全插件冷加载据实际对照计入这 52 B。",
   "review": "specs/quality-experience-audit/report.md#第-81-批首屏验收与待确认事项",
   "assets": {
     "/assets/molis-work-assistant-subtasks.js": 117,
@@ -9,7 +9,7 @@
     "/assets/molis-work-pages-editor.js": 885,
     "/assets/molis-work-plugin-frame.js": 544,
     "/assets/molis-work-plugins/alchemist.js": 19,
-    "/assets/molis-work-plugins/coding.js": 773,
+    "/assets/molis-work-plugins/coding.js": 844,
     "/assets/molis-work-plugins/feed.js": 19,
     "/assets/molis-work-plugins/git.css": 50,
     "/assets/molis-work-plugins/git.js": 8403,
@@ -46,11 +46,11 @@
       "warm": 12
     },
     "workbench-all-plugins/zh": {
-      "cold": 115,
+      "cold": 167,
       "warm": 0
     },
     "workbench-all-plugins/en": {
-      "cold": 66,
+      "cold": 118,
       "warm": 0
     }
   },

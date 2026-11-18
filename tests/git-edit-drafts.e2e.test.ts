@@ -175,8 +175,6 @@ for (const surface of ["git", "coding"] as const) {
       await browser.setViewport(780, 493);
       await show();
     }
-    git("config", "user.name", "Fixture"); git("config", "user.email", "fixture@example.test");
-    git("config", "commit.gpgsign", "false"); git("config", "core.hooksPath", "/dev/null");
     await writeFile(join(root, "one.txt"), "changed\n"); git("add", "one.txt");
     await frame.click("[data-git-refresh]"); await show();
     const originalHead = git("rev-parse", "HEAD");

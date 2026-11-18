@@ -16,7 +16,11 @@ import type { AssistantScope } from "@molis-ai/molis-work-contracts/services/ass
 interface AssistantTaskOpen { interaction(root: HTMLElement, host: InteractionClientHost): InteractionClient; reviews: AssistantWorkReviewMount; base: string; signal: AbortSignal; focus: HTMLElement | null; work_id: string; parent_run_id?: string; child_id?: string }
 const sdkPath = (target: string) => { const [, work, run, child] = JSON.parse(target) as string[]; return `/works/${encodeURIComponent(work!)}/sdk-subtasks/${encodeURIComponent(run!)}/${encodeURIComponent(child!)}`; };
 const kind = (target: string) => (JSON.parse(target) as string[])[0];
-const say = (key: string) => t.text(`workbench.subtask-conversation.${key === "unavailable" ? "not-available" : key}`);
+const say: typeof t.text = (key, values) => {
+  if (key === "extend-budget") return t.text("workbench.catalog-recovery.attempt-extend-action");
+  if (key === "budget-exhausted") return t.text("workbench.catalog-recovery.attempt-header", values);
+  return t.text(`workbench.subtask-conversation.${key === "unavailable" ? "not-available" : key}`);
+};
 
 /** The native Assistant borrows the task panel's same float; it never changes the main conversation or main input receiver. */
 export function installAssistantSubtasks(factories: AssistantSubtaskReviewFactories): void {
@@ -47,10 +51,17 @@ export function installAssistantSubtasks(factories: AssistantSubtaskReviewFactor
         const found = await molisWorkRequest<{ candidates: Array<{ kind: string; id: string; label: string; plugin_title: string }> }>(base.replace(/\/assistant$/, "/search/references"), { body: { kinds: source.split(","), query, limit: 8 } });
         return { items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) };
       }, ...options }) });
-      const work = assistantWorkSubtaskSource(api, drafts, (target, binding, original) => [...questions.remember(target, binding, original.rounds.flatMap(round => round.awaiting_input)), ...reviews.rememberWork(target, binding, original)]), sdk = createAgentSubtaskSource({ drafts, labels: assistantComposerLabels(t.text, /Mac/i.test(navigator.platform)), text: say,
-        async read(target, signal) {
-          const result = await api<{ conversation: AgentSubagentConversation; parent_title: string; scope: AssistantScope; has_reviews: boolean }>(sdkPath(target), undefined, signal);
-          return { conversation: result.conversation, details: [...questions.remember(target, JSON.stringify(result.conversation.child.child_run), result.conversation.questions), ...reviews.rememberSdk(target, result.scope, result.conversation, result.has_reviews)], parent: { target: "", title: result.parent_title } };
+      const work = assistantWorkSubtaskSource(api, drafts, (target, binding, original) => [...questions.remember(target, binding, original.rounds.flatMap(round => round.awaiting_input)), ...reviews.rememberWork(target, binding, original)]);
+      type SdkView = { conversation: AgentSubagentConversation; parent_title: string; scope: AssistantScope; has_reviews: boolean };
+      const present = (target: string, { conversation, parent_title, scope, has_reviews }: SdkView) => ({
+        conversation, parent: { target: "", title: parent_title },
+        get details() { return [...questions.remember(target, JSON.stringify(conversation.child.child_run), conversation.questions), ...reviews.rememberSdk(target, scope, conversation, has_reviews)]; },
+      });
+      const sdk = createAgentSubtaskSource({ drafts, labels: assistantComposerLabels(t.text, /Mac/i.test(navigator.platform)), text: say,
+        read: async (target, signal) => present(target, await api<SdkView>(sdkPath(target), undefined, signal)),
+        async wait(target, since, signal) {
+          const result = await api<{ version: string } & (SdkView | { conversation?: never })>(sdkPath(target) + "/wait?" + new URLSearchParams(since ? { since } : {}), undefined, signal);
+          return { version: result.version, snapshot: result.conversation ? present(target, result) : undefined };
         },
         command: (target, command, signal) => api<AgentSubagentRequestResult>(sdkPath(target), command, signal),
         check: (target, requestId, signal) => api<AgentSubagentRequestResult>(sdkPath(target) + "/requests/" + encodeURIComponent(requestId), undefined, signal),
@@ -60,8 +71,8 @@ export function installAssistantSubtasks(factories: AssistantSubtaskReviewFactor
         read: (target, signal) => sourceOf(target).read(target, signal), composer: view => sourceOf(view.target).composer(view),
         check: (target, requestId, signal) => sourceOf(target).check(target, requestId, signal),
         act: (view, action, requestId, signal) => sourceOf(view.target).act(view, action, requestId, signal),
-        subscribe: (target, invalidate, signal) => subscribeSubtask((version, signal) => api<{ version: string }>(
-          (kind(target) === "sdk" ? sdkPath(target) : "/works/" + encodeURIComponent(JSON.parse(target)[1])) + "/wait?" + new URLSearchParams(version ? { since: version } : {}), undefined, signal), invalidate, signal),
+        subscribe: (target, invalidate, signal) => kind(target) === "sdk" ? sdk.subscribe!(target, invalidate, signal) : subscribeSubtask((since, signal) => api<{ version: string }>(
+          "/works/" + encodeURIComponent(JSON.parse(target)[1]) + "/wait?" + new URLSearchParams(since ? { since } : {}), undefined, signal), invalidate, signal),
       };
       const leave = () => navigation.close(true);
       const handle = createSubtaskConversation(root, { get labels() { return subtaskConversationLabels(); }, source, mountDetail: (...args) => questions.mount(...args) ?? reviews.mount(...args),

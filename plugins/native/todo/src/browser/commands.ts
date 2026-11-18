@@ -98,7 +98,7 @@ const reminderControls: Command = async (page, button) => {
   const reminder = state.reminders.find((entry) => [data.todoReminderDone, data.todoReminderAck, data.todoReminderClose, data.todoReminderLater].includes(entry.item.id));
   if (!reminder) return false;
   const item = reminder.item;
-  if (data.todoReminderAck) { await page.request("POST", `/items/${encodeURIComponent(item.id)}/acknowledge`, {}); await page.loadReminders(); return true; }
+  if (data.todoReminderAck) { await page.request("POST", `/items/${encodeURIComponent(item.id)}/acknowledge`, { remind_at: item.remind_at }).finally(() => page.loadReminders()); return true; }
   if (data.todoReminderDone) { await page.setStatus(item.id, "done", item.revision); return true; }
   const remindAt = data.todoReminderLater ? data.todoReminderAt ?? null : null;
   if (data.todoReminderLater) closeMenu(button);

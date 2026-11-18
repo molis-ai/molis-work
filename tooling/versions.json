@@ -1208,7 +1208,7 @@
     "database.goals_project_database_v4": 4,
     "database.home.catalog": 4,
     "database.home_plugin_runtime_baseline": 1,
-    "database.images_database": 1,
+    "database.images_database": 2,
     "database.inbox_project_database": 1,
     "database.issues_database": 1,
     "database.jelly_database": 1,

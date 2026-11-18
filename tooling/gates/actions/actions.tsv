@@ -335,7 +335,7 @@ images.background.tasks	1	io.molis.work.images	io.molis.work.images	query	query	
 images.connection.usages	1	io.molis.work.images	io.molis.work.images	query	query	home	read	-	agent,mcp,user	images:connections:read	connector	molis.connector-usages.input.v1	molis.connector-usages.output.v1	a343ab264882	6bcb6c85f884	-
 images.connections.delete	1	io.molis.work.images	io.molis.work.images	command	operation	home	irreversible	-	agent,mcp,user,workflow	images:connections:write	image	-	-	61f64d4ce922	07a9ad95ba37	-
 images.connections.list	1	io.molis.work.images	io.molis.work.images	query	query	home	read	-	agent,mcp,user,workflow	images:connections:read	image	-	-	d746974fa9af	4fae8819083d	-
-images.connections.save	1	io.molis.work.images	io.molis.work.images	command	operation	home	write	-	agent,mcp,user,workflow	images:connections:write	image	-	-	8756692d9699	107b2acf64bf	-
+images.connections.save	1	io.molis.work.images	io.molis.work.images	command	operation	home	write	-	agent,mcp,user,workflow	images:connections:write	image	-	-	2ff0a9067ce8	107b2acf64bf	-
 images.files.content	1	io.molis.work.images	io.molis.work.images	query	query	project	read	concurrent	user	images:read	generated_image	molis.files.content.request.v1	molis.files.content.v1	99b557e4a48f	3197f1792222	a1d9a472a44c
 images.files.entries	1	io.molis.work.images	io.molis.work.images	query	query	project	read	concurrent	user	images:read	generated_image	molis.files.entries.window.v1	molis.files.entries.page.v1	09d161bb4729	fef9b910b93e	23b2fbd33d62
 images.images.read	1	io.molis.work.images	io.molis.work.images	query	query	project	read	-	agent,mcp,user,workflow	images:read	image	-	-	4a55804354b2	299db85913b8	-
@@ -410,8 +410,6 @@ jelly.note.update	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	ho
 jelly.plan.apply	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	715bc0a079f5	19c72840481e	-
 jelly.plan.generate	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	concurrent	agent,mcp,user,workflow	jelly:read,model:invoke	jelly_workspace	-	-	e4a35bfb9764	05e76ff7d41d	613063238287
 jelly.plan.manual	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	-	agent,mcp,user,workflow	jelly:read	jelly_workspace	-	-	e4a35bfb9764	05e76ff7d41d	-
-jelly.preferences.read	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	-	agent,plugin,user	jelly:settings	-	molis.settings.read.request.v1	molis.settings.values.v1	169508f33c70	e1302800e8b3	-
-jelly.preferences.write	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	user	jelly:settings	-	molis.settings.write.request.v1	molis.settings.values.v1	c737fddc8897	e1302800e8b3	-
 jelly.redo	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	0e2fb341a6b4	19c72840481e	-
 jelly.relation.attach	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	82fbd0256868	19c72840481e	-
 jelly.relation.detach	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	82fbd0256868	19c72840481e	-
@@ -581,8 +579,6 @@ shelf.jobs.extract	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	h
 shelf.jobs.generate	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	home	write	concurrent	agent,mcp,user,workflow	materials:original,materials:read,model:invoke,shelf:read,shelf:write	shelf_item	-	-	1eb8e14f7046	540915ccfba3	5e9da1767ea7
 shelf.material.preview	1	io.molis.work.shelf	io.molis.work.shelf	query	query	project	read	concurrent	user	shelf:read	shelf_item	-	-	e7b581b16414	e93fc94fd3d3	-
 shelf.material.save	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	project	write	concurrent	user	actions:invoke,artifacts:read,artifacts:write,shelf:read	shelf_item	-	-	33cc121c357d	758e75828c89	-
-shelf.preferences.read	1	io.molis.work.shelf	io.molis.work.shelf	query	query	home	read	-	agent,plugin,user	shelf:read	-	molis.settings.read.request.v1	molis.settings.values.v1	169508f33c70	e1302800e8b3	-
-shelf.preferences.write	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	home	write	-	user	shelf:read,shelf:write	-	molis.settings.write.request.v1	molis.settings.values.v1	c737fddc8897	e1302800e8b3	-
 shelf.results.copy	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	home	write	concurrent	plugin	shelf:read,shelf:write	artifact,shelf_item	-	-	f7fcc997d7cb	5ff76b3a9785	-
 shelf.results.list	1	io.molis.work.shelf	io.molis.work.shelf	query	query	project	read	concurrent	agent,mcp,user,workflow	artifact:read	artifact,shelf_item	-	-	d746974fa9af	e0efe01ef0ab	-
 shelf.results.preview	1	io.molis.work.shelf	io.molis.work.shelf	query	query	project	read	concurrent	agent,mcp,user,workflow	artifact:read	artifact,shelf_item	-	-	c8e7ccee276b	f7fcc997d7cb	-
@@ -603,7 +599,7 @@ todo.events	1	io.molis.work.todo	io.molis.work.todo	query	query	project	read	con
 todo.fragment.offers	1	io.molis.work.todo	io.molis.work.todo	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	todo:read	molis.any-object	molis.fragment-offers.input.v1	molis.fragment-offers.output.v1	0dbe645dfc7a	1e3af5170ce2	-
 todo.item.subject.read	1	io.molis.work.todo	io.molis.work.todo	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	todo:read	todo_item	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	07aea27d3e00	e83758a277c2
 todo.items.archive	1	io.molis.work.todo	io.molis.work.todo	command	operation	home	write	-	agent,mcp,user,workflow	todo:read,todo:write	todo_item	-	-	c239beb8a284	4bd0690dc719	19d413f01786
-todo.items.batch	1	io.molis.work.todo	io.molis.work.todo	command	operation	home	write	-	agent,mcp,user,workflow	todo:read,todo:write	todo_item	-	-	495b884c6b53	e8593bff5a73	230cc6f1077d
+todo.items.batch	1	io.molis.work.todo	io.molis.work.todo	command	operation	home	write	-	agent,mcp,user,workflow	todo:read,todo:write	todo_item	-	-	495b884c6b53	d89bcc11be73	230cc6f1077d
 todo.items.create	1	io.molis.work.todo	io.molis.work.todo	command	operation	home	write	-	agent,mcp,user,workflow	todo:read,todo:write	todo_item	-	-	412d4814afef	386e7b2a4361	936309ea4e11
 todo.items.delete	1	io.molis.work.todo	io.molis.work.todo	command	operation	home	irreversible	-	agent,mcp,user,workflow	todo:read,todo:write	todo_item	-	-	5d2933c6808a	e71b9f2f705e	2c79f91d429d
 todo.items.get	1	io.molis.work.todo	io.molis.work.todo	query	query	home	read	-	agent,mcp,user,workflow	todo:read	todo_item	-	-	de2f7e460673	cf4625fb1124	2c79f91d429d
@@ -617,7 +613,7 @@ todo.organize.extract	1	io.molis.work.todo	io.molis.work.todo	command	operation	
 todo.organize.get	1	io.molis.work.todo	io.molis.work.todo	query	query	home	read	-	agent,mcp,user,workflow	todo:read	todo_batch	-	-	de2f7e460673	8a53b8df2b10	2c79f91d429d
 todo.organize.list	1	io.molis.work.todo	io.molis.work.todo	query	query	home	read	-	agent,mcp,user,workflow	todo:read	todo_batch	-	-	c5b256688466	3023f198be9a	2c79f91d429d
 todo.placement.move	1	io.molis.work.todo	io.molis.work.todo	command	operation	home	write	-	user	todo:read,todo:write	todo_item	molis.placement.move.input.v1	molis.placement.move.output.v1	6a51bce6c13b	e47dd61b84de	2c79f91d429d
-todo.reminders.acknowledge	1	io.molis.work.todo	io.molis.work.todo	command	operation	home	write	-	agent,mcp,user,workflow	todo:read,todo:write	todo_item	-	-	de2f7e460673	b6673aa936fe	318a471a23bc
+todo.reminders.acknowledge	1	io.molis.work.todo	io.molis.work.todo	command	operation	home	write	-	agent,mcp,user,workflow	todo:read,todo:write	todo_item	-	-	38cc1ed1d222	b6673aa936fe	318a471a23bc
 todo.reminders.due	1	io.molis.work.todo	io.molis.work.todo	query	query	home	read	-	agent,mcp,user,workflow	todo:read	todo_item	-	-	d746974fa9af	1b4c104f6e0b	2c79f91d429d
 todo.reminders.window	1	io.molis.work.todo	io.molis.work.todo	query	query	home	read	concurrent	user	todo:read	todo_item	molis.reminders.window.v1	molis.reminders.due.v1	d62eaf2932ef	908b335f11ae	2c79f91d429d
 todo.search.entries	1	io.molis.work.todo	io.molis.work.todo	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	todo:read	todo_item	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	89c3108de595

@@ -61,8 +61,14 @@ test("Home Todo batch placement menu: menuitems, one tab stop, arrow keys and En
   assert.equal(await evaluate("document.activeElement?.dataset.todoBatchPlacement"), "personal");
   assert.deepEqual(await evaluate<number[]>("[...document.querySelectorAll('.todo-batch-more [role=menuitem]')].map(item => item.tabIndex)"), [0, -1, -1]);
 
-  // Enter 触发当前菜单项的移动动作：「个人空间」。
+  // ARF-5: the new Home todo is already personal. The keyboard command runs, but has nothing to undo.
   await press("Enter", "Enter", 13, "\r");
-  await waitFor("!document.querySelector('[data-todo-note]').hidden && document.querySelector('[data-todo-note-text]').textContent === '已把 1 件移到个人空间'");
+  await waitFor("!document.querySelector('[data-todo-note]').hidden && document.querySelector('[data-todo-note-text]').textContent === '选中的待办均没有变化。'");
+  assert.equal(await evaluate("document.querySelector('[data-todo-undo]').hidden"), true);
   assert.equal(await evaluate("document.querySelector('.todo-batch-more')?.open"), false);
+  await click("[data-todo-row] [data-todo-pick]");
+  await click(".todo-batch-more > summary");
+  await click("[data-todo-batch-placement=unassigned]");
+  await waitFor("document.querySelector('[data-todo-undo]').hidden === false");
+  assert.match(await evaluate<string>("document.querySelector('[data-todo-note-text]').textContent"), /1 件.*暂未归类/);
 });

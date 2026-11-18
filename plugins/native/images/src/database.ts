@@ -11,17 +11,22 @@ const IMAGES_PROJECT_ROWS: PluginProjectRowsDeclaration = {
   files: [{ table: "jobs", column: "images_json", key: "filename", directory: IMAGES_ASSETS }],
 };
 
-/** Private data only: credentials are owned by the Host secret store. */
+// One pending binding per service. NULL requests removal of the binding and service.
+const CONNECTION_CHANGES = `CREATE TABLE connection_changes (
+  service_id TEXT PRIMARY KEY REFERENCES connections(id) ON DELETE CASCADE,
+  auth_connection_id TEXT
+);`;
 /**
  * The images store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version.
  */
-export const IMAGES_DATABASE: HomePluginDatabaseDeclaration = { project_rows: IMAGES_PROJECT_ROWS, store_name: "images", version: /* @version database.images_database */ 1, read_permission: "storage:private", write_permission: "storage:private", schema: `
+export const IMAGES_DATABASE: HomePluginDatabaseDeclaration = { project_rows: IMAGES_PROJECT_ROWS, store_name: "images", version: /* @version database.images_database */ 2, upgrades: [{ from: 1, sql: CONNECTION_CHANGES }], read_permission: "storage:private", write_permission: "storage:private", schema: `
   CREATE TABLE connections (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, api_format TEXT NOT NULL,
     base_url TEXT NOT NULL, model TEXT NOT NULL,
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   );
+  ${CONNECTION_CHANGES}
   CREATE TABLE jobs (
     id TEXT PRIMARY KEY, project_id TEXT NOT NULL, request_id TEXT NOT NULL,
     input_hash TEXT NOT NULL, connection_id TEXT NOT NULL, connection_name TEXT NOT NULL,

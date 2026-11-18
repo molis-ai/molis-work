@@ -5,6 +5,10 @@
     base_url TEXT NOT NULL, model TEXT NOT NULL,
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   );
+  CREATE TABLE connection_changes (
+    service_id TEXT PRIMARY KEY REFERENCES connections(id) ON DELETE CASCADE,
+    auth_connection_id TEXT
+  );
   CREATE TABLE jobs (
     id TEXT PRIMARY KEY, project_id TEXT NOT NULL, request_id TEXT NOT NULL,
     input_hash TEXT NOT NULL, connection_id TEXT NOT NULL, connection_name TEXT NOT NULL,

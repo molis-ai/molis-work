@@ -1,4 +1,4 @@
-import type { ItemPayload, TodoPage } from "./types.js";
+import type { TodoPage } from "./types.js";
 
 const uiText = globalThis.t;
 
@@ -14,10 +14,11 @@ export function installBatch(page: TodoPage): void {
   page.runBatch = async (change, doneText) => {
     const ids = [...state.picked];
     const expected = Object.fromEntries(state.items.filter((item) => state.picked.has(item.id)).map((item) => [item.id, item.revision]));
-    const payload = await page.request<ItemPayload & { batch_id: string }>("POST", "/batch", { ids, change, expected_revisions: expected });
+    const payload = await page.request<{ changed_count: number; batch_id: string | null }>("POST", "/batch", { ids, change, expected_revisions: expected });
     state.picked.clear();
     await page.load();
     if (state.selected && ids.includes(state.selected.id)) await page.openDetail(state.selected.id, true);
-    page.showNote(doneText(ids.length), { undo: { batch_id: payload.batch_id } });
+    if (payload.batch_id) page.showNote(doneText(payload.changed_count), { undo: { batch_id: payload.batch_id } });
+    else page.showNote(uiText.text("todo.note.batch-unchanged"));
   };
 }

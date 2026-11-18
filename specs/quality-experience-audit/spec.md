@@ -1,6 +1,6 @@
 # Molis Work 代码质量与实际体验审查
 
-状态进行中。负责人 Codex。按 2026-11-16 确认的原始范围继续检查和改造。初始基线 `efdaa3376`，审查分支已同步 main `eaa6b47492`。第 82 批按批准登记资源并处理 Feed 版本例外。第 84–86 批通过常规 Verify。第 87 批已实施并本地验收获准的导入警告合同，资源与准确组合 Full 待结算。分支 `codex/quality-experience-audit`，远端记录见草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101)。
+状态：进行中。负责人 Codex。按 2026-11-16 确认的原始范围继续检查和改造。初始基线 `efdaa3376`，审查分支已同步 main `eaa6b47492`。第 82 批按批准登记资源并处理 Feed 版本例外。第 84–86 批通过常规 Verify。第 87–88 批已实施导入警告和建议展开修复。资源核准与本地对照已完成，组合 Verify 与 Full 待结算。分支 `codex/quality-experience-audit`，远端记录见草稿 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101)。
 
 ## 目标、范围与完成标准
 

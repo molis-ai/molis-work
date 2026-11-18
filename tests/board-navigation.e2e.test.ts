@@ -5,12 +5,13 @@ import test from "node:test";
 import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
-// 07-1 S0 (docs/design/workbench-navigation, 组件板新增 1–3, 6–10, 12–16): the component board's 工作台导航 frame draws every
-// new part and the titlebar and three-zone bar composed from them, with the names a screen reader needs (tab strips are
-// tablist/tab, menus menu/menuitem), in Chinese and English, and nothing runs past the window at 1440, 1024 or 390.
+// 07-1 S0 (docs/design/workbench-navigation, 组件板新增), redrawn for specs/screen-polish §3 方案 C (POLISH-03, 05, 07): the component
+// board's 工作台导航 frame draws the strip's parts, the side sheet's tab with its list of views, the side's switch and the layout
+// button, and the top strip composed from them on the product's own header, with the names a screen reader needs (tab strips
+// are tablist/tab, menus menu/menuitem), in Chinese and English, and nothing runs past the window at 1440, 1024 or 390.
 // MOLIS_WORK_BOARD_SHOTS=1 also writes full-page shots (both themes) into the ignored review folder.
 
-const SPECIMENS = ["tiers", "unfocused", "all-tabs", "undo", "solo", "plus", "marks", "pane-switch", "grow", "badge", "sheets", "layout", "titlebar", "bar"];
+const SPECIMENS = ["tiers", "unfocused", "all-tabs", "undo", "solo", "plus", "marks", "side", "grow", "badge", "sheets", "layout", "titlebar"];
 const WIDTHS = [1440, 1024, 390] as const;
 const CJK = /[㐀-鿿]/;
 // T01-NAV-FADE-01: both sheets resolve the shared name fade; the project sheet also carries pinned tabs.
@@ -57,7 +58,7 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
   for (const lang of ["zh", "en"] as const) for (const width of WIDTHS) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog/navigation?lang=${lang}` }, sessionId));
-    await waitFor("document.readyState === 'complete' && !!document.querySelector('[data-nav-specimen=bar]')", 15_000);
+    await waitFor("document.readyState === 'complete' && !!document.querySelector('[data-nav-specimen=titlebar]')", 15_000);
     const seen = await evaluate<{ specimens: string[]; tablists: number; emptyLists: number; unnamedTabs: number; menus: number; emptyMenus: number; unnamedItems: number; unnamedButtons: number; toggles: number; words: string }>(NAMES);
     assert.deepEqual(seen.specimens, SPECIMENS, "every new part has its specimen, in order");
     assert.ok(seen.tablists >= 14 && seen.menus >= 6, `tab strips and menus are drawn (${seen.tablists} tablists, ${seen.menus} menus)`);
@@ -67,44 +68,41 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
     else assert.ok(CJK.test(seen.words));
     assert.equal(await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), true, `${lang} ${width}px: the page does not scroll sideways`);
     for (const spill of await evaluate<string[]>(SPILL)) spills.push(`${lang} ${width}px ${spill}`);
-    // The pane switch shows on a phone only (and in its own narrow specimen), and there each half is a 44px target.
-    assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-nav-titlebar=ok] .tab-pane-switch')).display !== 'none'"), width <= 760);
-    const switchHeights = await evaluate<number[]>(`[...document.querySelectorAll('${width <= 760 ? "[data-nav-titlebar=ok], " : ""}[data-nav-specimen=pane-switch]')].flatMap((at) => [...at.querySelectorAll('.tab-pane-switch > .mw-toggle')].map((t) => Math.round(t.getBoundingClientRect().height)))`);
-    assert.ok(switchHeights.length && switchHeights.every((h) => h >= 44), `${lang} ${width}px: the pane switch's halves are 44px targets (${switchHeights})`);
-    // On a phone the titlebar's strip is one row (07-1 S3, the 定样's 52px row): the current tab takes the rest of it, at least 98px,
-    // and a title longer than that ends in an ellipsis, the whole of it in the tab's title and name; 全部标签 shows its whole count,
-    // and no tab is squeezed to nothing (the others are reached from 全部标签), in both states.
+    // The strip has no Main | Right switch any more (方案 C): the side opens from its switch at the right end, here as in the product.
+    assert.equal(await evaluate("document.querySelectorAll('.tab-pane-switch').length"), 0, "no pane switch is drawn");
+    assert.equal(await evaluate("document.querySelectorAll('[data-nav-titlebar=ok] [data-nav-side-switch]').length"), 1, "the strip has the side's switch");
+    // On a phone the strip is one row (POLISH-07): the current tab is at least 98px, and a title longer than that ends in an
+    // ellipsis, the whole of it in the tab's title and name; 全部标签 shows its whole count, and no other tab is drawn (the others
+    // are reached from 全部标签), in both states.
     if (width <= 760) for (const state of ["ok", "wrong"]) {
-      const phone = await evaluate<{ title: { width: number; fills: boolean; fits: boolean; ellipsis: boolean; whole: boolean }; count: boolean; squeezed: number; shown: number }>(`(() => {
+      const phone = await evaluate<{ title: { width: number; row: number; fits: boolean; ellipsis: boolean; whole: boolean }; count: boolean; squeezed: number; shown: number }>(`(() => {
         const bar = document.querySelector('[data-nav-titlebar=${state}]'), strip = bar.querySelector('[data-titlebar-tabs]'), edge = strip.getBoundingClientRect();
         const name = strip.querySelector('.tab-item[aria-current] .tab-item-name'), button = strip.querySelector('.tab-all-button'), count = button.querySelector('.tab-all-count');
         const inside = (el, box) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.left >= box.left - 0.5 && b.right <= box.right + 0.5; };
         const shown = [...strip.querySelectorAll('.tab-item')].filter((tab) => getComputedStyle(tab).display !== 'none');
-        const tab = name.closest('.tab-item'), style = getComputedStyle(name), last = [...strip.children].filter((child) => getComputedStyle(child).display !== 'none').at(-1);
-        const title = { width: Math.round(tab.getBoundingClientRect().width), fills: last.getBoundingClientRect().right >= edge.right - parseFloat(getComputedStyle(strip).paddingRight) - 1,
+        const tab = name.closest('.tab-item'), style = getComputedStyle(name);
+        const title = { width: Math.round(tab.getBoundingClientRect().width), row: Math.round(bar.getBoundingClientRect().height),
           fits: name.scrollWidth <= name.clientWidth, ellipsis: style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap' && style.overflow === 'hidden',
           whole: tab.title === name.textContent && tab.querySelector('[role=tab]').getAttribute('aria-label') === name.textContent };
         return { title, count: inside(count, button.getBoundingClientRect()) && inside(button, edge) && count.scrollWidth <= count.clientWidth,
           squeezed: shown.filter((tab) => tab.getBoundingClientRect().width < 44).length, shown: shown.length }; })()`);
-      assert.ok(phone.title.width >= 98 && phone.title.fills, `${lang} ${state}: the current tab takes the rest of the row, at least 98px (${JSON.stringify(phone.title)})`);
+      assert.ok(phone.title.width >= 98, `${lang} ${state}: the current tab is at least 98px (${JSON.stringify(phone.title)})`);
+      assert.equal(phone.title.row, 44, `${lang} ${state}: the strip is one 44px row`);
       assert.ok((phone.title.fits || phone.title.ellipsis) && phone.title.whole, `${lang} ${state}: the current tab's title reads in full or ends in an ellipsis, whole in its title and name (${JSON.stringify(phone.title)})`);
       assert.ok(phone.count, `${lang} ${state}: 全部标签 shows its whole count`);
       assert.deepEqual([phone.shown, phone.squeezed], [1, 0], `${lang} ${state}: only the current tab shows, at full width`);
-      const small = await evaluate<string[]>(`[...document.querySelectorAll('[data-nav-titlebar=${state}] :is(.tab-add-button, .tab-all-button, .titlebar-layout > .mw-btn, .tab-undo-chip)')].flatMap((b) => {
+      const small = await evaluate<string[]>(`[...document.querySelectorAll('[data-nav-titlebar=${state}] :is(.tab-add-button, .tab-all-button, [data-nav-side-switch], .tab-undo-chip)')].flatMap((b) => {
         const box = b.getBoundingClientRect(); return box.width >= 44 && box.height >= 44 ? [] : [String(b.className).split(' ').pop() + ' ' + Math.round(box.width) + '×' + Math.round(box.height)]; })`);
-      assert.deepEqual(small, [], `${lang} ${state}: ＋, 全部标签, 布局 and the undo chip are 44 × 44 targets`);
+      assert.deepEqual(small, [], `${lang} ${state}: ＋, 全部标签, the side's switch and the undo chip are 44 × 44 targets`);
+      // A phone's row has no layout button while the work area is one pane (the specimen is not split).
+      assert.equal(await evaluate(`document.querySelector('[data-nav-titlebar=${state}] [data-nav-layout]').getClientRects().length`), 0, `${lang} ${state}: no layout button on a phone's row`);
     }
     // Each of the titlebar's menus opens inside the window (the page hides what runs past it sideways).
     const outside = await evaluate<string[]>(`[...document.querySelectorAll('[data-nav-titlebar] [data-nav-menu-for]')].filter((b) => b.getBoundingClientRect().width).flatMap((b) => {
       b.click(); const menu = document.getElementById(b.getAttribute('aria-controls')), box = menu.getBoundingClientRect(), edge = document.documentElement.clientWidth;
       const seen = !menu.hidden && box.width > 0 && box.left >= 0 && box.right <= edge ? [] : [b.closest('[data-nav-titlebar]').dataset.navTitlebar + ' ' + menu.id + ' ' + Math.round(box.left) + '→' + Math.round(box.right) + ' of ' + edge];
       b.click(); return seen; })`);
-    assert.deepEqual(outside, [], `${lang} ${width}px: the titlebar's ＋, 全部标签 and 布局 menus open inside the window`);
-    if (width <= 760) {
-      // The bar's composer is the platform's since K3 (unified input): its send button is the one marked data-composer-send.
-      const send = await evaluate<[number, number]>("(() => { const box = document.querySelector('[data-nav-bar] .assistant-composer [data-composer-send]').getBoundingClientRect(); return [Math.round(box.width), Math.round(box.height)]; })()");
-      assert.ok(send[0] >= 44 && send[1] >= 44, `${lang}: the composer's send button is a 44 × 44 target on a phone (${send})`);
-    }
+    assert.deepEqual(outside, [], `${lang} ${width}px: the titlebar's ＋, 全部标签, side list and 布局 menus open inside the window`);
     // Nothing in the titlebar covers ＋ or 全部标签: the glyph row keeps its width and the strip gives way.
     const covered = await evaluate<string[]>(`[...document.querySelectorAll('[data-nav-titlebar] :is(.tab-add-button, .tab-all-button)')].filter((b) => b.getBoundingClientRect().width).flatMap((b) => {
       b.scrollIntoView({ block: 'center' }); const box = b.getBoundingClientRect(), hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
@@ -157,7 +155,7 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
 
   // A menu button opens its menu; Esc closes it and gives the focus back to the button.
   const menu = await evaluate<{ opened: boolean; focusInside: boolean; closed: boolean; back: boolean }>(`(async () => {
-    const button = document.querySelector('[data-nav-titlebar=ok] .titlebar-layout > .mw-btn'), menu = document.getElementById(button.getAttribute('aria-controls'));
+    const button = document.querySelector('[data-nav-titlebar=ok] [data-nav-layout]'), menu = document.getElementById(button.getAttribute('aria-controls'));
     const idle = getComputedStyle(button).backgroundColor, probe = document.createElement('i');
     probe.style.background = 'var(--nav-hover)'; document.body.append(probe); const hover = getComputedStyle(probe).backgroundColor; probe.remove();
     button.click(); const opened = !menu.hidden && button.getAttribute('aria-expanded') === 'true', focusInside = menu.contains(document.activeElement);

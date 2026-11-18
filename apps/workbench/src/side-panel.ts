@@ -105,12 +105,9 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
 // layout script marks it on the root (data-side-shared, assistant-layout.ts), so no rule here re-checks the whole page (VUX-36).
 const SHARED_BROWSER = "html body.immersive-workbench[data-side-shared]";
 
-/* 760 and under (--side-sheet-h below) the sheet stands over the lower half of the work. In a short window, with the title bar's
- * two rows above and the line below, half the window would leave the work no height at all (700×420), so the sheet takes the
+/* 760 and under (--side-sheet-h below) the sheet stands over the lower half of the work. In a short window, with the title bar
+ * above and the line below, half the window would leave the work no height at all (700×420), so the sheet takes the
  * smaller of 52dvh and what is left over 160px for the work, but never less than half of the room between the title bar and the line. */
-/* On a phone the layout button ends the title bar's first row, after the right side's glyphs, and the main tabs take the whole
- * second row (linear-density.ts gives them the row's width; workbench-navigation.ts places the button). The zero-width drag line
- * is left out there, so the bar keeps two rows. */
 export const SIDE_PANEL_STYLES = String.raw`
 html body.immersive-workbench{--side-gap:8px}
 html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:calc(var(--side-panel-width,35vw) + var(--side-gap) + var(--sheet-inset,14px))}
@@ -151,8 +148,6 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  html body.immersive-workbench .side-panel{inset:auto 8px calc(var(--dock-h,48px) + 8px) 8px;width:auto;height:var(--side-sheet-h);transform:translateY(12px)}
  body[data-side-open=true] .side-strip{min-width:0}
  .side-strip{max-width:100%;padding-block:2px;overflow-x:auto;justify-content:safe flex-end}
- .immersive-titlebar>.side-strip{flex:1 0 100%}
- .immersive-titlebar:has(>.titlebar-layout)>.side-strip{flex-basis:calc(100% - 80px)}
  .arrival-page .side-strip{flex:0 1 auto}
  .side-panel-divider{display:none!important}
 }
@@ -160,15 +155,14 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
    person keeps at the top right (ISSUE-30, decided 10-12); the arrow keys walk the glyphs in the order they are drawn. The
    workbench's strip has no such row: its views are the list that opens from the side's name (styles/top-strip.ts). */
 @media(max-width:600px){
- html body.immersive-workbench:not(.arrival-page) .immersive-titlebar:has(>.titlebar-layout)>.desktop-titlebar-drag{display:none}
  .side-strip.tab-glyph-row>.tab-item:has(>[data-side-keys]){order:-1}
 }
-/* Between 601 and 760 the strip is the title bar's second row, so the bar's grid row grows with it (over craft-finish's fixed
-   titlebar row, which names the directory states) and the work and the side sheet start below it. The sheet's 28px is the
-   strip row's 8px gap and 4px block padding above the strip, the 8px the sheet keeps over the Dock and 8px of air under the strip. */
+/* Between 601 and 760 the title bar's row takes the height of its one 44px row (over craft-finish's fixed titlebar row, which
+   names the directory states), and the work and the side sheet start below it. The sheet keeps 28px clear: 8px over the foot,
+   and the rest as air under the title bar. */
 @media(min-width:601px) and (max-width:760px){
  html body.immersive-workbench:not([data-pane-embedded]) .immersive-workspace:is(*,.is-plugin-directory-empty){grid-template-rows:auto minmax(0,1fr) minmax(var(--dock-min),auto)}
- html body.immersive-workbench .immersive-titlebar{height:auto;flex-wrap:wrap}
+ html body.immersive-workbench .immersive-titlebar{height:auto}
  html body.immersive-workbench .side-panel{max-height:calc(100dvh - var(--desktop-titlebar-height) - var(--tab-strip-h) - var(--dock-h,48px) - 28px)}
  ${SHARED_BROWSER}{
    --assistant-float-width:calc((100% - 24px)*.44);
@@ -351,6 +345,8 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
       document.body.dataset.sideOpen='false';panel.inert=true;
       closing=setTimeout(()=>{if(!open)panel.hidden=true;},matchMedia('(prefers-reduced-motion:reduce)').matches?0:420);
       if(panel.contains(document.activeElement)){const back=trigger?.isConnected&&trigger.getClientRects().length?trigger:switchButton??strip.querySelector('[data-side-tab][aria-selected="true"]');back?.focus({preventScroll:true});if(panel.contains(document.activeElement))document.activeElement.blur();}
+      // The side's name and its list go with it: a focus there goes to the switch that opens it again.
+      else if(ear&&[ear,strip].some(node=>node.contains(document.activeElement)))switchButton?.focus({preventScroll:true});
       imVisible();document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:current(),target:null,open:false}}));
     }
     expanded();
@@ -421,7 +417,8 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     if(event.key==='Delete'){event.preventDefault();close(list[at]);return;}
     if(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10'){event.preventDefault();menuFor(list[at]);return;}
     const next=event.key==='ArrowRight'||ear&&event.key==='ArrowDown'?list[(at+1)%list.length]:event.key==='ArrowLeft'||ear&&event.key==='ArrowUp'?list[(at-1+list.length)%list.length]:event.key==='Home'?list[0]:event.key==='End'?list.at(-1):null;
-    if(!next)return;event.preventDefault();next.focus();if(open){select(next.dataset.sideTab);save();}
+    // In the list the keys only move the focus; Enter, Space or a click chooses (a view that loads a page is not opened on the way past).
+    if(!next)return;event.preventDefault();next.focus();if(open&&!ear){select(next.dataset.sideTab);save();}
   });
   let growTimer=0;
   // A tab widens in place (VUX-07): where the strip runs short, by as little as a fraction of a pixel (which already turns its

@@ -74,7 +74,6 @@ export const CRAFT_BAR_STYLES = `
   ${WORKBENCH} .tab-strip:has(.tab-view-chip.is-exclusive) .tab-item:is([aria-current], :has([aria-selected="true"])) { background: transparent; box-shadow: none; color: var(--muted); }
   ${WORKBENCH} .tab-strip:has(.tab-view-chip.is-exclusive) .tab-item:is([aria-current], :has([aria-selected="true"])):hover { background: var(--nav-hover); color: var(--ink-soft); }
   ${PAGES} .tab-view-chip:active:not([aria-current="page"]) { transform: scale(.97); }
-  ${PAGES} .tab-view-chip + .tab-view-divider { flex: none; width: 1px; height: 14px; margin: 0 4px 0 4px; background: var(--line-strong); align-self: center; }
   ${WORKBENCH} .tab-pane > .tab-strip .tab-view-chip { height: 24px; }
   @media (max-width: 760px), (pointer: coarse) { ${WORKBENCH} :is(.tab-strip, .tab-pane > .tab-strip) .tab-view-chip { height: 44px; } }
 

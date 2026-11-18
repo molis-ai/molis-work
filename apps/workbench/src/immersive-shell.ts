@@ -284,8 +284,8 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
       </div>
     </div>` : "";
   // The side sheet's own tab: the view it shows, by name. The script fills it (side-panel.ts); it is there only while the side is open.
-  const sideEar = `<button class="side-ear" type="button" data-side-ear data-ear aria-haspopup="true" aria-expanded="false" aria-controls="side-views" hidden><span class="side-ear-glyph" data-side-ear-glyph aria-hidden="true"></span><span class="side-ear-name" data-side-ear-name></span>${icon("chevron-down")}</button>`;
-  const sideToggle = renderButton({ label: uiText.text("workbench.immersive-shell.side-toggle"), icon: "panel", variant: "ghost", size: "sm", iconOnly: true, attrs: { "data-side-toggle": true, "aria-pressed": "false", "aria-controls": "side-panel", "aria-keyshortcuts": "Meta+\\", title: uiText.text("workbench.immersive-shell.side-toggle") } });
+  const sideEar = `<button class="side-ear" type="button" data-side-ear data-ear aria-expanded="false" aria-controls="side-views" hidden><span class="side-ear-glyph" data-side-ear-glyph aria-hidden="true"></span><span class="side-ear-name" data-side-ear-name></span>${icon("chevron-down")}</button>`;
+  const sideToggle = renderButton({ label: uiText.text("workbench.immersive-shell.side-toggle"), icon: "panel", variant: "ghost", size: "sm", iconOnly: true, attrs: { "data-side-toggle": true, "aria-pressed": "false", "aria-controls": "side-panel", "aria-keyshortcuts": "Meta+\\", title: `${uiText.text("workbench.immersive-shell.side-toggle")} ⌘\\` } });
   return `<header class="workbench-header immersive-titlebar"${nav ? " data-dock" : ""}${desktop ? ' data-tauri-drag-region="deep"' : ""}>
     <div class="mw-group workspace-history">
       <button class="mw-btn mw-btn--ghost mw-btn--icon-only workspace-history-button" type="button" data-workspace-history="back" aria-label="${uiText("workbench.immersive-shell.previous")}" title="${uiText("workbench.immersive-shell.previous")}" disabled>${icon("back")}</button>

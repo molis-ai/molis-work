@@ -7,7 +7,7 @@
  * no second tab for it). A cover (settings, the market) is a tab like the others, after them, with its whole name and its close
  * (POLISH-06). Over the side sheet stands the name of the view it shows; it opens the list of the side's views. The right end
  * holds three controls: the side's switch, the layout button and the project (POLISH-05). A phone has one row (POLISH-07): the
- * way back, 项目首页, the current tab (the side view's name while the side shows), 全部标签, ＋, the side's switch, the project.
+ * way back, the current tab (the side view's name while the side shows), 全部标签, ＋, the side's switch, the project.
  *
  * These rules follow the work line's in the page (page-assets.ts), so they are the last word on the strip. Written without spaces
  * after `:` and `;`, since the host only strips comments and indentation.
@@ -15,7 +15,8 @@
 /** The shell outside a pane and the component board's real-bar specimen, as the design system's own rules name it. */
 const SHELL = "html :is(body.immersive-workbench:not([data-pane-embedded]),.mw-catalog-bar-stage)";
 /** The strip. Its mark is written three times so that these rules weigh what the strip's earlier rules weigh (0,4,2), in half
- * the bytes of the shell's long name: this selector opens nearly every rule below, and the sheet is paid for on every page. */
+ * the bytes of the shell's long name: this selector opens nearly every rule below, and the sheet is paid for on every page. An
+ * embedded pane's page needs no `:not([data-pane-embedded])` here: it does not draw the title bar at all (tab-workspace.ts). */
 const TOP = "html body .workbench-header[data-dock][data-dock][data-dock]";
 const TABS = `${TOP}>.tab-strip`;
 const HOVER = "var(--dur-hover) var(--ease-quint)";
@@ -88,7 +89,7 @@ ${TOP} .tab-add-button{display:none}
 
 /* An ear: as tall as the strip from its top edge down, paper, joined to the sheet by a concave corner on each side. These
    follow the rules of a tab and of a kept plugin at rest, which they outweigh or equal. */
-${EARS}{align-self:flex-end;box-sizing:border-box;height:var(--ear-rise);padding-bottom:var(--ear-foot);border-radius:10px 10px 0 0;background-color:var(--paper);box-shadow:none;color:var(--ink);font-weight:500;transform:none;filter:drop-shadow(0 -1px 1.5px color-mix(in srgb,var(--shadow-color,#1c2a3a) 9%,transparent))}
+${EARS}{align-self:flex-end;box-sizing:border-box;height:var(--ear-rise);padding-bottom:var(--ear-foot);border-radius:10px 10px 0 0;background-color:var(--paper);box-shadow:none;color:var(--ink);font-weight:500;transform:none;filter:drop-shadow(0 -1px 1.5px color-mix(in srgb,var(--shadow-color) 9%,transparent))}
 ${TOP} :is(.tab-item,.dock-pin)[data-ear],${PANE_EAR}{position:relative}
 ${TOP_EAR}::before,${TOP_EAR}::after,${PANE_EAR}::before,${PANE_EAR}::after{content:"";display:block;position:absolute;bottom:0;width:10px;height:10px;pointer-events:none}
 ${TOP_EAR}::before,${PANE_EAR}::before{right:100%;background:radial-gradient(circle at 0 0,transparent 9.5px,var(--paper) 10px)}
@@ -153,9 +154,12 @@ ${PANE_EAR}{border-radius:9px 9px 0 0}
   ${PANE_TABS}{--ear-rest:36px;--ear-rise:40px;height:44px}
 }
 
-/* A phone: one row (POLISH-07). The way back, 项目首页, the current tab, 全部标签, ＋, the side's switch and the project; the other
-   kept plugins and the other tabs are in the start page and in 全部标签. While the side shows, its view's name stands where the
-   current tab was. Nothing here is an ear: the sheet below is the whole window. */
+/* A phone: one row (POLISH-07). The way back, the current tab, 全部标签, ＋, the side's switch and the project; 项目首页 and the
+   kept plugins are in the start page (＋) and the other tabs in 全部标签, so a kept glyph is in the row only while its own page is
+   the one showing, as the current tab. While the side shows, its view's name stands where the current tab was. The layout button
+   is in the row only while the work area is split (the work area hides the title bar's own strip then, tab-workspace.ts): its
+   menu is the way to the other panes. Nothing here is an ear: the sheet
+   below is the whole window. */
 @media (max-width:760px){
   /* The strip's second row is gone, so nothing outside the work area leaves room for one; a pane's own strip keeps its height. */
   html body.immersive-workbench:not(.arrival-page):not([data-pane-embedded]){--tab-strip-h:0px}
@@ -166,7 +170,7 @@ ${PANE_EAR}{border-radius:9px 9px 0 0}
   ${TOP}>.dock-pins{flex:none;padding:0;overflow:visible}
   ${TOP}>.dock-pins::after{margin:0 4px}
   ${TOP} .dock-pin{width:44px;height:44px}
-  ${TOP} .dock-pin:not(.is-fixed):not([data-ear]){display:none}
+  ${TOP}>.dock-pins:not(:has([data-ear])),${TOP} .dock-pin:not([data-ear]){display:none}
   /* The current piece is a 36px chip drawn inside a 44px target. */
   ${TOP_EAR}{position:relative;isolation:isolate;height:44px;padding-bottom:0;border-radius:0;background-color:transparent;filter:none}
   ${TOP_FOCUSED}{background-image:none}
@@ -174,11 +178,14 @@ ${PANE_EAR}{border-radius:9px 9px 0 0}
   ${TOP_EAR}::after{content:none}
   /* A row that cannot hold it all scrolls rather than clips; the current tab keeps 98px (07-1 S3). */
   ${TABS}{flex:1 1 0;min-width:0;min-height:44px;margin-right:0;overflow:auto hidden}
+  /* !important over the width the strip's script writes on the scroll box (tab-workspace-strip.ts shares the room on a desk). */
   ${TABS}>.tab-scroll{flex:0 1 auto;min-width:auto;width:auto!important;padding:0;overflow:visible;mask-image:none}
   ${TABS} .tab-group:not(:has([data-ear])){display:none}
   ${TABS} .tab-group,${TABS} .tab-group>.tab-group-pages{flex:0 1 auto;min-width:auto}
   ${TABS} .tab-item{height:36px}
   ${TABS} .tab-item:not([data-ear]),${TABS}:has(>.tab-view-chip.is-exclusive) .tab-scroll,${TABS}:has(>.tab-view-chip.is-exclusive) .tab-all-button,${TABS} .tab-plugin-group::before{display:none}
+  /* Only the current tab is drawn, so no group needs the room before its hairline; !important over the desk's rule, which reads
+     what comes before the group and so outweighs any plain selector here. */
   ${TABS} .tab-plugin-group{padding-left:0!important}
   /* A pinned tab stays its glyph, 44px. */
   ${TABS} .tab-item[data-ear]:not([data-pinned]){flex:0 1 auto;min-width:98px;max-width:100%}
@@ -189,7 +196,7 @@ ${PANE_EAR}{border-radius:9px 9px 0 0}
   ${TABS}>.tab-view-chip .tab-view-chip-close{width:44px;height:44px;margin-block:-4px}
   ${TABS}>.tab-all-button{flex:none;min-width:44px;min-height:44px}
   ${TOP} .plugin-picker-trigger{width:44px;height:44px}
-  ${TOP}>.desktop-titlebar-drag,${TOP} [data-layout-open]{display:none}
+  ${TOP}>.desktop-titlebar-drag,${TOP}>[data-titlebar-tabs]:not([hidden])~.titlebar-layout [data-layout-open]{display:none}
   ${TOP}>.titlebar-layout{gap:0;margin-left:auto}
   ${TOP}>.titlebar-layout .mw-btn{width:44px;height:44px;min-width:44px}
   ${TOP}>.titlebar-end{margin-left:0;gap:0}
@@ -197,19 +204,22 @@ ${PANE_EAR}{border-radius:9px 9px 0 0}
   ${sideOpen(TABS)},${sideOpen(TOP)} .dock-pin:not(.is-fixed){display:none}
   ${TOP}>.side-ear{order:1;position:relative;left:auto;bottom:auto;flex:0 1 auto;min-width:0;max-width:none;margin-right:auto}
   ${TOP}>.side-ear>.side-ear-name{flex:0 1 auto}
+  /* !important over the left the list's script writes under the side's name (side-panel.ts): here it runs the window's width. */
   ${TOP}>.side-views{left:8px!important;right:8px;max-width:none}
   ${TOP}>.side-views>.tab-item{height:44px}
 }
-/* Under 340px the row gives up its side margins and its hairline and the current tab is its 98px, no wider: five 44px targets
-   and the tab are the whole 320 (07-1 S3). */
+/* Under 340px the row gives up its side margins and its hairline and the current tab is its 98px, no wider: the 44px targets,
+   the tab and 全部标签 are the whole 320 (07-1 S3). */
 @media (max-width:340px){
   ${TOP}{padding:0}
   ${TOP}>.dock-pins::after{content:none}
   ${TABS} .tab-item[data-ear]:not([data-pinned]){flex:none;width:98px}
   ${TABS}>.tab-view-chip.is-exclusive>svg{display:none}
 }
-/* A page with a directory gets its drawer's button before the project, as the foot had it. */
+/* A page with a directory gets its drawer's button before the project, as the foot had it. That is one 44px target more, so
+   there the current tab gives up its 98px and narrows to its glyph and the first of its name: 全部标签 stays in the row. */
 @media (max-width:600px){
+  html body .immersive-workspace:not(.is-plugin-directory-empty) .workbench-header[data-dock][data-dock][data-dock]>.tab-strip .tab-item[data-ear]:not([data-pinned]){flex:0 1 auto;width:auto;min-width:52px}
   ${SHELL} .immersive-workspace:not(.is-plugin-directory-empty) .workbench-header .titlebar-end .immersive-show-directory,
   /* The design system hides the strip's directory buttons with !important (craft-finish-assistant.ts): only !important shows one again. */
   ${SHELL} .is-directory-drawer-open .workbench-header .titlebar-end .navigator-directory-toggle{display:inline-grid!important;place-items:center;order:-1;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border:0;background:transparent;box-shadow:none;color:var(--ink-soft)}

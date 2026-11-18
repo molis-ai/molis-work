@@ -412,11 +412,12 @@ type HomeToolPhone = {
   right: boolean;
   sideways: boolean;
   inList: boolean;
+  stayed: boolean;
 };
 
 /**
- * ISSUE-30 / 07-AUDIT: a declared Home tool (Issue, a side view with a chord) can be reached and pressed without scrolling
- * anything to it. Until specs/screen-polish §3 方案 C it was a glyph in the row at the right end of the titlebar (07-1 S4b), the
+ * ISSUE-30 / 07-AUDIT: a declared Home tool (Issue, a side view with a chord) can be reached and pressed: once the list is open
+ * it is inside the window (the list itself scrolls down to it when it holds more views than fit, as any list does). Until specs/screen-polish §3 方案 C it was a glyph in the row at the right end of the titlebar (07-1 S4b), the
  * always-there entry of 10-12. 方案 C leaves three controls there (POLISH-05: the side's switch, layout, project) and puts every
  * side view, the Home tool among them, in the list that opens from the side sheet's own tab; its chord still opens it from
  * anywhere. So this opens the side and that list, and requires the Home tool to be inside the window and to take the press at
@@ -424,7 +425,9 @@ type HomeToolPhone = {
  *
  * BL-phone-home-tools-stay-visible was about a phone's glyph row scrolling the Home tool out of sight. There is no such row any
  * more: on a phone the list runs the window's width and must not scroll sideways, the Home tool is inside it, and the arrow keys
- * walk the views in the order they are drawn. The side is put back as it was (closed) before the shell is measured.
+ * walk the views in the order they are drawn, moving the focus only: the view that shows stays until one is chosen (Enter, Space
+ * or a press), so passing over a view that loads a page does not open it. The side is put back as it was (closed) before the
+ * shell is measured.
  */
 async function assertHomeToolsReachable(browser: Browser, width: number): Promise<void> {
   const report = await browser.evaluate<{ count: number; blocked: string[]; phone: HomeToolPhone | null; restored: boolean }>(`(async () => {
@@ -466,10 +469,10 @@ async function assertHomeToolsReachable(browser: Browser, width: number): Promis
         button.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
         right = document.activeElement === from;
       }
-      phone = { count: ordered.length, left, right, sideways: strip.scrollWidth > strip.clientWidth + 1,
+      phone = { count: ordered.length, left, right, sideways: strip.scrollWidth > strip.clientWidth + 1, stayed: !shown || shown.getAttribute('aria-selected') === 'true',
         inList: box.left >= listBox.left - 0.5 && box.right <= listBox.right + 0.5 && listBox.left >= 0 && listBox.right <= innerWidth };
     }
-    // Back as it was: the view that showed (the arrows chose others), the list closed, the side closed, nothing focused in the
+    // Back as it was: the view that showed, the list closed, the side closed, nothing focused in the
     // strip; then a moment for the strip to fit itself again (the Dock folds after its ResizeObserver).
     if (shown && shown.getAttribute('aria-selected') !== 'true') shown.click();
     if (!strip.hidden) ear.click();
@@ -489,6 +492,7 @@ async function assertHomeToolsReachable(browser: Browser, width: number): Promis
   if (phone.count > 1) {
     assert.equal(phone.left, true, `ISSUE-30 07-AUDIT: ↑ from the view drawn after the Home tool reaches it (${width}px)`);
     assert.equal(phone.right, true, `ISSUE-30 07-AUDIT: ↓ from the Home tool goes to the view drawn after it (${width}px)`);
+    assert.equal(phone.stayed, true, `POLISH-05: the arrow keys in the list move the focus only; the side still shows the view it showed (${width}px)`);
   }
 }
 

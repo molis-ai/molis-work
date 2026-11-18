@@ -198,6 +198,34 @@ for (const lang of ["zh", "en"]) test(`work-line §4.9 (${lang}): in two rows th
   await pageBack(page, 1, `${lang} 800`);
 });
 
+// screen-polish P0: the next wing faded its last capsule in half where the past wing shows whole ones (§4.9: one rule for both).
+const NEXT = `((line) => { const wing = line.querySelector('.work-line-wing[data-wing="next"]'), run = wing.querySelector('.work-line-run'), box = run.getBoundingClientRect();
+  const to = box.right - parseFloat(getComputedStyle(run).paddingRight), all = [...run.children], shown = all.filter((item) => !item.hasAttribute('data-cut'));
+  return { all: all.length, shown: shown.length, first: all.length ? !all[0].hasAttribute('data-cut') : null, mask: getComputedStyle(run).maskImage,
+    partial: shown.filter((item) => { const at = item.getBoundingClientRect(); return at.left < box.left - 1 || at.right > to + 1; }).length,
+    seen: all.filter((item) => item.hasAttribute('data-cut') && getComputedStyle(item).opacity !== '0').length,
+    label: wing.querySelector('.work-line-label')?.textContent ?? '' }; })`;
+type Next = { all: number; shown: number; first: boolean | null; mask: string; partial: number; seen: number; label: string };
+
+test("work-line §4.9: the next wing shows whole events only, the one next to now among them, and its label counts the ones past its end", { timeout: 120_000 }, async (t) => {
+  const page = await open(t, 1340); if (!page) return;
+  const { evaluate, size, settle } = page;
+  let counted = 0;
+  for (const width of [1440, 1340, 1120, 800]) {
+    await size(width); await settle(); await settle();
+    const count = await evaluate<number>(`${LINES}.length`);
+    for (let index = 0; index < count; index += 1) {
+      const next = await evaluate<Next>(`${NEXT}(${LINES}[${index}])`), note = `${width}px, line ${index}`;
+      if (!next.all) continue;
+      assert.deepEqual([next.partial, next.seen, next.first, next.mask], [0, 0, true, "none"], `${note}: no event is cut by the wing's edge or faded, and the one next to now shows`);
+      const past = next.all - next.shown;
+      if (past) { counted += 1; assert.match(next.label, new RegExp(`\\+${past}$`), `${note}: the label counts the ${past} out of sight`); }
+      else assert.doesNotMatch(next.label, /\+\d/, `${note}: nothing is out of sight, so the label counts nothing`);
+    }
+  }
+  assert.ok(counted > 0, "some line had more next events than its wing holds, so the count was seen");
+});
+
 // The line as a track: a phone (a line of 540px or less).
 const TRACKS = `${LINES}.map((line) => { const track = line.querySelector('[data-work-line-track]'), frame = track.getBoundingClientRect();
   const parts = [...line.querySelectorAll('.work-line-wing[data-wing="past"] .work-line-run > *, .work-line-now, .work-line-wing[data-wing="next"] .work-line-run > *')].map((part) => ({ name: part.dataset.workEvent || part.className, box: part.getBoundingClientRect() }));

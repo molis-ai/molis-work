@@ -261,8 +261,7 @@ export interface AssistantMaterial {
         user_revision?: number | null;
     };
     image?: {
-        resource_id: string;
-        revision: number;
+        attachment: MaterialRef;
         media_type: string;
         byte_length: number;
     };

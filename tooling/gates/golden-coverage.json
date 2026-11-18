@@ -43,11 +43,11 @@
     },
     {
       "path": "conversation-attachments/blobs/",
-      "reason": "第 35 批新建的库（从版本 1 起），现有金样 0.1.1-dev.5 生成时还没有；回放时由 tests/golden-writes/conversation-attachments.ts 写入并读回，下次重铸金样后纳入快照"
+      "reason": "第 35 批新建的库（从版本 1 起），现有金样 0.1.1-dev.6 生成时还没有；回放时由 tests/golden-writes/conversation-attachments.ts 写入并读回，下次重铸金样后纳入快照"
     },
     {
       "path": "conversation-attachments/conversation-attachments.db",
-      "reason": "第 35 批新建的库（从版本 1 起），现有金样 0.1.1-dev.5 生成时还没有；回放时由 tests/golden-writes/conversation-attachments.ts 写入并读回，下次重铸金样后纳入快照"
+      "reason": "第 35 批新建的库（从版本 1 起），现有金样 0.1.1-dev.6 生成时还没有；回放时由 tests/golden-writes/conversation-attachments.ts 写入并读回，下次重铸金样后纳入快照"
     },
     {
       "path": "mainline/mainline.db",

@@ -65,5 +65,6 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // the exit's record under the same call. An action result over 20,000 characters is kept by the run as its size only.
   { owner: "plugin:io.molis.work.native.workflows", fact: "io.molis.work.native.workflows.step", entries: ["plugin"], state: "complete" },
   { owner: "plugin:io.molis.work.native.workflows", fact: "io.molis.work.native.workflows.step.action_result", entries: ["plugin"], state: "by_rule", reason: "large_action_result_size_only" },
+  { owner: "plugin:io.molis.work.schedule", fact: "io.molis.work.schedule.task_turn", entries: ["plugin"], state: "complete" },
   { owner: "observation", fact: "observation.report", entries: ["workbench", "plugin"], state: "not_applicable", reason: "report_channel_itself" },
 ];

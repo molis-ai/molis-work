@@ -256,24 +256,29 @@ test("VUX-33: the Assistant's large block streams in place, reopens as text at o
   assert.equal(written.code, code, "copy gives the code as written");
   await waitFor(`fetch(${JSON.stringify(`/projects/${projectId}/api/assistant/works`)}).then(r=>r.json()).then(b=>b.works[0]?.state==='completed')`, 30_000);
 
+  const expected = await evaluate<string>("window.want");
+  const tokenCount = await evaluate<number>(`${figure}.querySelectorAll('code [class^="tok-"]').length`);
+
   // Reopened: each frame, before the page's own work, notes how much of the block reads and how much is coloured.
   const { identifier } = await command<{ identifier: string }>("Page.addScriptToEvaluateOnNewDocument", { source: `window.samples = []; const tick = () => {
     const code = document.querySelector('.assistant-msg--assistant .assistant-code code');
     if (code) samples.push([performance.now(), code.textContent.length, code.querySelectorAll('[class^="tok-"]').length]);
-    if (samples.length < 3000) requestAnimationFrame(tick); }; requestAnimationFrame(tick);` }, sessionId);
+    if (samples.at(-1)?.[2] !== ${tokenCount}) requestAnimationFrame(tick); }; requestAnimationFrame(tick);` }, sessionId);
   await navigate(() => command("Page.reload", {}, sessionId));
-  await waitFor(`${figure}?.querySelector('code')`, 30_000);
-  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.want = (${WHOLE})(${JSON.stringify(code)}) + "<br>"`);
-  await waitFor(`${figure}.querySelector('code').innerHTML === want`, 30_000);
+  await waitFor(`window.samples?.at(-1)?.[2] === ${tokenCount}`, 30_000);
+  const painting = await evaluate<Array<[number, number, number]>>("samples.slice()");
   await command("Page.removeScriptToEvaluateOnNewDocument", { identifier }, sessionId);
-  const samples = await evaluate<Array<[number, number, number]>>("samples.slice()");
-  const total = await evaluate<number>(`${figure}.querySelectorAll('code [class^="tok-"]').length`);
-  const painting = samples.filter(([, , spans]) => spans < total);
-  assert.ok(painting.length >= 3, `coloured over ${painting.length} frames`);
+  assert.ok(painting.length >= 4, `coloured over ${painting.length - 1} intervals`);
   assert.ok(painting.every(([, length]) => length === code.length), "every frame while it is coloured reads the whole code");
   assert.ok(painting.every(([, , spans], index) => !index || spans > painting[index - 1]![2]), "each frame colours more of it");
   const gaps = painting.slice(1).map(([at], index) => at - painting[index]![0]), longest = Math.max(0, ...gaps);
   assert.ok(longest < 100, `the longest frame while it is coloured: ${longest.toFixed(1)} ms`);
+  assert.equal(await evaluate<string>(`${figure}.querySelector('code').innerHTML`), expected);
+  const preview = await evaluate<string>("document.querySelector('[data-reply-peek] pre code').textContent");
+  assert.equal(preview, code.split("\n").slice(0, 3).join("\n"), "the three-line preview has the original opening lines");
+  await click("[data-reply-peek] [data-dialog-open]");
+  await waitFor(`${figure}.getBoundingClientRect().height > 0`);
+  assert.equal(await evaluate<string>(`${figure}.querySelector('code').innerHTML`), expected);
   const evidence = reviewEvidenceUrl("visual-ui-experience/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL("assistant-code-scale.json", evidence), JSON.stringify({ characters: code.length, frames: painting.length, longest: Math.round(longest) }, null, 2));
 });

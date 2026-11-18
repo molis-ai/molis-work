@@ -121,6 +121,7 @@ const EVALUATOR_RULE_SCHEMA = closedObjectSchema({
   evaluator_id: token,
   evaluator_version: token,
   rubric: shortText,
+  evidence_source: closedObjectSchema({ fact: token, role: token }, ["fact", "role"]),
   expected_posture: { enum: EVALUATION_OPPORTUNITY_POSTURES },
   required_facts: { type: "array", maxItems: 32, items: token },
   required_skill_ids: { type: "array", maxItems: 16, items: token },

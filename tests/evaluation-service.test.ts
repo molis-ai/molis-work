@@ -3,13 +3,17 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   EVALUATION_PROVIDER_ID,
   evaluationActions,
   type EvaluationSampleInput,
+  type EvaluationRunView,
+  type EvaluationRunComparison,
+  type EvaluationMetricsSummary,
 } from "@molis-ai/molis-work-contracts/services/evaluation";
-import { observationActions } from "@molis-ai/molis-work-contracts/services/observation";
+import { observationActions, type ObservationQueryOutput } from "@molis-ai/molis-work-contracts/services/observation";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { installHostUiText, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { TODO_ACTION_PERMISSIONS, todoActions } from "@molis-ai/molis-work-plugin-todo";
@@ -558,7 +562,6 @@ test("EC-16 OCL-12 OCL-14 PWA-54 PWA-55: sample holds survive cleanup while unhe
     project_id: "p2",
     initial_intent: "产出带量化指标与下一步负责人的总结",
     query: { project_id: "p2", fact: "pages.summary_saved" },
-    allowed_variations: ["下一步责任人"],
     expectations: [
       {
         expectation_id: "exp-skill-loaded",
@@ -568,10 +571,15 @@ test("EC-16 OCL-12 OCL-14 PWA-54 PWA-55: sample holds survive cleanup while unhe
         rule: {
           evaluator_id: "summary.quality",
           evaluator_version: "initial",
-          rubric: "必须加载总结 Skill 并包含量化指标与下一步负责人",
+          rubric: "必须加载总结 Skill 并包含量化指标",
           required_skill_ids: ["skill.summary"],
-          required_evidence_terms: ["量化指标", "下一步负责人"],
+          required_evidence_terms: ["量化指标"],
         },
+      },
+      {
+        expectation_id: "exp-responsible-person", stage: "skill", source: "evaluator", description: "说明下一步负责人",
+        rule: { evaluator_id: "summary.owner", evaluator_version: "1", rubric: "说明下一步负责人",
+          required_evidence_terms: ["下一步负责人"], allowed_variations: ["下一步责任人"] },
       },
     ],
   });
@@ -1109,4 +1117,186 @@ test("PWA-53 OCL-13: a simulated run excludes real records by default", async (t
   assert.deepEqual(run.observed_conditions.source_classes, ["trial"]);
   assert.equal(run.observed_conditions.record_count, 1);
   assert.equal(run.effective_verdict, "passed");
+});
+
+test("PWA-52 OCL-04: delivery rubrics use the reply body and keep missing evidence unknown", async t => {
+  const fx = createEvaluationFixture(t);
+  const sink = fx.layer.sink("agent").bind({ kind: "background", actor_id: "agent:assistant", project_id: "p1", entry: "agent", call_id: "reply-test" });
+  const content = (role: string, text: string) => ({ role, ref: { kind: "content" as const, media_type: "text/plain", text } });
+  for (const [id, answer, expected] of [
+    ["wrong", "蓝色杯子放在桌上。", "failed"], ["right", "留存豁免与隔离回放", "passed"], ["half", "留存豁免", "failed"],
+    ["reasoning-only", "", "unknown"], ["truncated", "", "unknown"], ["two-replies", "隔离回放", "unknown"], ["forbidden", "留存豁免与隔离回放，已经发布", "failed"],
+  ] as const) {
+    const work = { work_ref: id };
+    sink.record({ fact: "agent.model_request", outcome: "succeeded", work, evidence: [content("request", "留存豁免、隔离回放、已经发布")] });
+    sink.record({ fact: "agent.reply", outcome: "succeeded", work, evidence: [
+      content("reasoning", "留存豁免与隔离回放，已经发布"),
+      ...(answer ? [content("reply", answer)] : []),
+      ...(id === "truncated" ? [{ role: "reply", ref: { kind: "missing" as const, reason: "truncated" as const } }] : []),
+    ] });
+    if (id === "two-replies") {
+      sink.record({ fact: "agent.reply", outcome: "succeeded", work, evidence: [content("reply", "留存豁免")] });
+    }
+    fx.layer.flush();
+    await fx.service.invoke(person(), evaluationActions.samplesPut, {
+      sample_id: id, version: 1, title: "独立核对回复正文", purpose: "validation", work_mode: "assistant", project_id: "p1",
+      initial_intent: "核对留存豁免和隔离回放两个要点", query: { project_id: "p1", work_ref: id },
+      expectations: ["explicit", "legacy", "forbidden-only"].map(mode => ({
+        expectation_id: mode, stage: "delivery", source: "evaluator", description: "检查实际回复",
+        rule: { evaluator_id: "reply", evaluator_version: "1", rubric: "逐项核对正文", required_facts: ["agent.reply"],
+          ...(mode === "explicit" ? { evidence_source: { fact: "agent.reply", role: "reply" } } : {}),
+          ...(mode !== "forbidden-only" ? { required_evidence_terms: ["留存豁免", "隔离回放"], allowed_variations: ["豁免"] } : {}),
+          forbidden_evidence_terms: ["已经发布"] },
+      })),
+    });
+    const run = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: id }) as EvaluationRunView;
+    for (const result of run.expectation_results) {
+      assert.equal(result.effective_verdict,
+        result.expectation_id === "forbidden-only" && answer && expected !== "unknown" && id !== "forbidden" ? "passed" : expected, id + "/" + result.expectation_id);
+      assert.ok(result.evidence_refs.every(ref => ref.fact === "agent.reply" && ref.role === "reply"));
+      if (answer) assert.ok(result.evidence_refs.some(ref => ref.snapshot));
+      if (expected === "unknown") assert.ok(result.unknown_reasons.includes("evidence_missing"));
+    }
+  }
+});
+
+test("PWA-52 OCL-17: scoring cannot use reasoning or borrowed aliases to establish delivery", async t => {
+  const fx = createEvaluationFixture(t);
+  const sink = fx.layer.sink("agent").bind({ kind: "background", actor_id: "agent:assistant", project_id: "p1", entry: "agent", call_id: "alias-case" });
+  sink.record({ fact: "agent.reply", outcome: "succeeded", work: { work_ref: "alias-case" }, evidence: [
+    { role: "reasoning", ref: { kind: "content", media_type: "text/plain", text: "量化指标" } },
+    { role: "reply", ref: { kind: "content", media_type: "text/plain", text: "下一步负责人即下一步责任人" } },
+  ] });
+  fx.layer.flush();
+  const sample: EvaluationSampleInput = {
+    sample_id: "aliases", version: 1, title: "量化与跟进", purpose: "validation", work_mode: "assistant",
+    project_id: "p1", initial_intent: "同时说明两个要点", query: { project_id: "p1", work_ref: "alias-case" },
+    expectations: [],
+  };
+  const base = { evaluator_id: "quality", evaluator_version: "1", rubric: "核对正文", required_facts: ["agent.reply"] };
+  const expectation = { expectation_id: "answer", stage: "delivery" as const, source: "evaluator" as const, description: "核对正文" };
+  for (const source of [{ fact: "agent.reply", role: "reasoning" }, { fact: "agent.model_request", role: "request" }, { fact: "action.call", role: "input" }]) {
+    await assert.rejects(fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample,
+      expectations: [{ ...expectation, rule: { ...base, required_facts: [], evidence_source: source, required_evidence_terms: ["量化指标"] } }] }),
+      /agent.reply.*reply/);
+  }
+  await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, expectations: [
+    { ...expectation, rule: { ...base, required_evidence_terms: ["量化指标", "下一步负责人"], allowed_variations: ["下一步责任人"] } },
+    { ...expectation, expectation_id: "metric", rule: { ...base, required_evidence_terms: ["量化指标"] } },
+  ] });
+  const run = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: sample.sample_id }) as EvaluationRunView;
+  const ownerCriterion = { expectation_id: "owner", stage: "delivery", source: "deterministic", description: "核对跟进人",
+    rule: { check: "evidence_text", fact: "agent.reply", contains_all: ["下一步负责人"] } } as const;
+  await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "mixed-criteria",
+    allowed_variations: ["下一步责任人"], expectations: [ownerCriterion,
+      { ...expectation, rule: { ...base, required_evidence_terms: ["量化指标"] } }] });
+  const criteria = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "mixed-criteria" }) as EvaluationRunView;
+  assert.deepEqual(criteria.expectation_results.map(result => result.automated_verdict), ["passed", "unknown"]);
+
+  // Create the historical rule in its previously accepted shape. A new execution must validate it before reading or holding records.
+  sink.record({ fact: "agent.model_request", outcome: "succeeded", work: { work_ref: "alias-case" },
+    evidence: [{ role: "request", ref: { kind: "content", media_type: "text/plain", text: "量化指标" } }] });
+  fx.layer.flush();
+  const requestFilter = { project_id: "p1", fact: "agent.model_request", work_ref: "alias-case" };
+  const requestRule = { ...ownerCriterion, rule: { check: "evidence_text", evidence_role: "request", contains_all: ["量化指标"] } };
+  await assert.rejects(fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "mixed-request",
+    work_mode: "mixed", query: requestFilter, expectations: [requestRule] }), /agent.reply/);
+  const { records } = await fx.service.invoke(person(), observationActions.recordsQuery, requestFilter) as ObservationQueryOutput;
+  assert.equal(records.length, 1);
+  await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "pinned-request", work_mode: "mixed",
+    pinned_record_ids: [records[0]!.record_id], expectations: [requestRule] });
+  const pinned = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "pinned-request" }) as EvaluationRunView;
+  assert.equal(pinned.effective_verdict, "unknown");
+  assert.deepEqual(pinned.expectation_results[0]?.evidence_refs, []);
+  await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "old-input", expectations: [
+    { ...ownerCriterion, stage: "execution", rule: { check: "evidence_text", fact: "agent.model_request", evidence_role: "request", contains_all: ["量化指标"] } },
+  ] });
+  const old = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "old-input" }) as EvaluationRunView;
+  const db = new DatabaseSync(join(fx.home, "evaluation", "evaluation.db"));
+  try {
+    db.prepare("UPDATE evaluation_samples SET spec_json = json_set(spec_json, '$.expectations[0].stage', 'delivery') WHERE sample_id = ?")
+      .run("old-input");
+  } finally { db.close(); }
+  await assert.rejects(fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "old-input" }), /用新版本/);
+  const original = await fx.service.invoke(person(), evaluationActions.runsGet, { run_id: old.run_id }) as EvaluationRunView;
+  assert.equal(original.effective_verdict, "passed");
+
+  await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "det-reply", expectations: [
+    { expectation_id: "metric", stage: "delivery", source: "deterministic", description: "核对正文", rule: {
+      check: "evidence_text", fact: "agent.reply", contains_all: ["量化指标"] } },
+  ] });
+  await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "mixed-reply", work_mode: "mixed",
+    query: { ...sample.query, fact: "agent.reply" }, expectations: [
+      { expectation_id: "metric", stage: "delivery", source: "deterministic", description: "核对正文", rule: {
+        check: "evidence_text", contains_all: ["量化指标"] } },
+    ] });
+  const mixed = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "mixed-reply" }) as EvaluationRunView;
+  assert.equal(mixed.effective_verdict, "failed");
+  assert.ok(mixed.expectation_results[0]?.evidence_refs.every(ref => ref.role === "reply"));
+  const det = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "det-reply" }) as EvaluationRunView;
+  assert.equal(det.effective_verdict, "failed");
+  assert.ok(det.expectation_results[0]?.evidence_refs.every(ref => ref.role === "reply"));
+  assert.equal(run.expectation_results[0]?.automated_verdict, "unknown");
+  assert.deepEqual(run.expectation_results[0]?.unknown_reasons, ["awaiting_human_review"]);
+  assert.equal(run.expectation_results[1]?.automated_verdict, "failed");
+
+  await fx.service.invoke(pluginCaller("pages"), observationActions.report, { facts: [{ fact: "pages.summary",
+    outcome: "succeeded", work: { work_ref: "missing-reply" },
+    evidence: [{ role: "output", ref: { kind: "content", media_type: "text/plain", text: "量化指标" } }] }] });
+  fx.layer.flush();
+  await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "missing-reply",
+    query: { project_id: "p1", work_ref: "missing-reply" },
+    expectations: [
+      { ...expectation, rule: { ...base, required_facts: [], required_evidence_terms: ["量化指标"] } },
+      { expectation_id: "metric", stage: "delivery", source: "deterministic", description: "核对正文", rule: {
+        check: "evidence_text", fact: "agent.reply", contains_all: ["量化指标"] } },
+    ] });
+  const absent = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "missing-reply" }) as EvaluationRunView;
+  assert.equal(absent.effective_verdict, "unknown");
+  for (const result of absent.expectation_results) {
+    assert.equal(result.automated_verdict, "unknown");
+    assert.deepEqual(result.evidence_refs, []);
+    assert.ok(result.unknown_reasons.includes("evidence_missing"));
+  }
+});
+
+test("PWA-54 PWA-55 OCL-17: count confirmed owner work once, preserve legacy runs and disclose their exclusion from work totals", async t => {
+  const fx = createEvaluationFixture(t);
+  const work = { work_ref: "work-unit-1" };
+  await fx.service.invoke(pluginCaller("pages"), observationActions.report, { facts: [
+    { fact: "pages.save", outcome: "succeeded", stage: "executed", work },
+    { fact: "pages.save", outcome: "succeeded", stage: "completed", work },
+    { fact: "pages.save", outcome: "succeeded", stage: "completed", work },
+    { fact: "pages.save", outcome: "refused", stage: "executed", work: { work_ref: "never-started" } },
+    { fact: "pages.save", outcome: "succeeded", stage: "completed" },
+  ] });
+  const agent = fx.layer.sink("agent").bind({ kind: "background", actor_id: "agent:assistant", project_id: "p1", entry: "agent", call_id: "model-unit" });
+  agent.record({ fact: "agent.run", stage: "completed", outcome: "succeeded", work: { work_ref: "agent-technical" } });
+  fx.layer.flush();
+  await fx.service.invoke(person(), evaluationActions.samplesPut, {
+    sample_id: "work-units", title: "按业务记录归集", version: 1, purpose: "validation", work_mode: "manual_plugin",
+    project_id: "p1", initial_intent: "核对主人保存的操作", query: { project_id: "p1" },
+    expectations: [{ expectation_id: "save", source: "deterministic", stage: "execution", description: "已保存",
+      rule: { check: "record_count", fact: "pages.save", min_count: 1 } }],
+  });
+  const execute = () => fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "work-units" }) as Promise<EvaluationRunView>;
+  const legacy = await execute();
+  // Model the actual persisted pre-upgrade JSON; exercise both public history reads and aggregation.
+  const { execution_basis: ignored, ...oldFunnel } = legacy.funnel;
+  assert.equal(ignored, "owner_work");
+  const db = new DatabaseSync(join(fx.home, "evaluation", "evaluation.db"));
+  try {
+    db.prepare("UPDATE evaluation_runs SET run_json = ? WHERE run_id = ?").run(JSON.stringify({
+      ...legacy, funnel: { ...oldFunnel, executed: 9, completed: 9 },
+    }), legacy.run_id);
+  } finally { db.close(); }
+  const current = await execute();
+  assert.deepEqual([current.funnel.executed, current.funnel.completed], [1, 1]);
+  const history = await fx.service.invoke(person(), evaluationActions.runsGet, { run_id: legacy.run_id }) as EvaluationRunView;
+  assert.equal(history.funnel.completed, 9);
+  const metrics = await fx.service.invoke(person(), evaluationActions.metricsSummarize, { purpose: "validation", project_id: "p1" }) as EvaluationMetricsSummary;
+  assert.equal(metrics.denominator, 2);
+  assert.deepEqual([metrics.funnel_totals.executed, metrics.funnel_totals.completed, metrics.funnel_totals.excluded_execution_runs], [1, 1, 1]);
+  const comparison = await fx.service.invoke(person(), evaluationActions.runsCompare, { baseline_run_id: legacy.run_id, candidate_run_id: current.run_id }) as EvaluationRunComparison;
+  assert.equal(comparison.comparable, false);
 });

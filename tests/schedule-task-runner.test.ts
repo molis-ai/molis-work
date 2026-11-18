@@ -7,6 +7,8 @@ import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import { scheduleActions, SCHEDULE_ACTION_PERMISSIONS, SCHEDULE_PLUGIN_ID, getScheduleConversationTask } from "@molis-ai/molis-work-plugin-schedule";
+import { evaluationActions, type EvaluationRunView } from "@molis-ai/molis-work-contracts/services/evaluation";
+import { observationActions, type ObservationQueryOutput } from "@molis-ai/molis-work-contracts/services/observation";
 import { readRecords } from "@molis-ai/molis-work-service-observation";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { MEMORY_PERMISSIONS, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
@@ -53,6 +55,26 @@ async function scheduledAgent(t: TestContext, options: { hold?: boolean; workspa
   };
 }
 
+async function taskRecords(f: Awaited<ReturnType<typeof scheduledAgent>>) {
+  const caller = await f.host.localPersonContext(f.project.reference);
+  const result = await f.client.invoke(caller, observationActions.recordsQuery, {
+    project_id: f.project.project_id, fact: "io.molis.work.schedule.task_turn", use: "evaluation",
+  }) as ObservationQueryOutput;
+  return result.records;
+}
+
+async function evaluateTask(f: Awaited<ReturnType<typeof scheduledAgent>>, sampleId: string, callId?: string) {
+  const caller = await f.host.localPersonContext(f.project.reference);
+  await f.client.invoke(caller, evaluationActions.samplesPut, {
+    sample_id: sampleId, version: 1, title: "定时会话交付", purpose: "validation", work_mode: "schedule",
+    project_id: f.project.project_id, initial_intent: "按本次任务实际保存的轮次核对交付数量",
+    query: { project_id: f.project.project_id, ...(callId ? { call_id: callId } : {}) },
+    expectations: [{ expectation_id: "turn", stage: "execution", source: "deterministic", description: "定时回合已留业务依据",
+      rule: { check: "record_count", fact: "io.molis.work.schedule.task_turn", min_count: 1 } }],
+  });
+  return f.client.invoke(caller, evaluationActions.runsExecute, { sample_id: sampleId }) as Promise<EvaluationRunView>;
+}
+
 // Batch 28 (contract-design §13, user 2026-11-13): each wakeup is an operation of its own, so the round it starts carries the wakeup's own call id,
 // not the tick's; two jobs due in one tick are two operations.
 test("SYS-15-A1/S4: the real Schedule wakeup runs the Home Prologue reader with history, memory and its own wakeup's call id", { timeout: 60_000 }, async t => {
@@ -78,8 +100,18 @@ test("SYS-15-A1/S4: the real Schedule wakeup runs the Home Prologue reader with 
   const layer = f.host.observation!.layer; layer.flush();
   const wakeups = readRecords(layer.writer.database()!.db, { fact: "scheduler.wakeup" });
   assert.equal(wakeups.at(-1)!.work.call_id, first.arguments[2].call_id);
+  // PWA-55 / OCL-17: one saved turn in a real wakeup with multiple Agent/gateway receipts is one delivery.
+  const firstRun = await evaluateTask(f, "one-turn", first.arguments[2].call_id!);
+  assert.ok(firstRun.observed_conditions.record_count > 1);
+  assert.equal(firstRun.effective_verdict, "passed");
+  assert.deepEqual([firstRun.funnel.executed, firstRun.funnel.completed], [1, 1]);
   assert.match(f.prompts[0]!, /汇总本周进展/); assert.match(f.prompts[0]!, /汇总工作进展时先列需要处理的工作/);
   await f.resume(); await f.tick();
+  const both = await evaluateTask(f, "two-turns");
+  assert.deepEqual([both.funnel.executed, both.funnel.completed], [2, 2]);
+  const records = await taskRecords(f);
+  assert.deepEqual(records.map(r => r.work.work_ref).sort(), f.task().turns.filter(t => t.kind === "assistant").map(t => t.turn_id).sort());
+  assert.ok(records.every(r => r.subjects.some(s => s.id === f.task().task_id)));
   assert.equal(f.task().turns.length, 3); assert.match(f.prompts[1]!, /assistant: 有三项工作需要处理/);
   assert.ok(f.starts.mock.calls[1]!.arguments[2].call_id); assert.notEqual(f.starts.mock.calls[1]!.arguments[2].call_id, callId);
   assert.notEqual(f.starts.mock.calls[1]!.arguments[2].call_id, first.arguments[2].call_id, "each wakeup is its own operation");
@@ -89,6 +121,10 @@ for (const missing of ["workspace", "model"] as const) test(`Schedule persists a
   const f = await scheduledAgent(t, { [missing]: false });
   assert.equal((await f.tick()).failed, 1);
   assert.equal(f.prompts.length, 0); assert.equal(f.task().turns.at(-1)?.kind, "system");
+  const [failure] = await taskRecords(f);
+  assert.equal(failure?.work.work_ref, f.task().turns.at(-1)?.turn_id);
+  const run = await evaluateTask(f, "failed-turn");
+  assert.deepEqual([run.funnel.executed, run.funnel.completed], [1, 0]);
   // A missing folder is the output deleted from disk: the agent runtime refuses to start in it and says so (its own sentence).
   assert.match(f.task().last_error ?? "", missing === "workspace" ? /folder does not exist/i : /还没有配置可用的模型/);
 });
@@ -100,5 +136,6 @@ test("SYS-15-S7/A3: disabling Schedule during the actual model request cancels i
   await f.web.delete(`/api/settings/projects/${encodeURIComponent(f.project.project_id)}/plugins`, { plugin_id: "schedule", expected_revision: await projectPluginRevision(f.web, f.project.project_id) });
   await f.disconnected; f.release(); await ticking;
   assert.deepEqual(f.task().turns, before);
+  assert.deepEqual(await taskRecords(f), []);
   assert.equal(createLocalFeedApplication(f.store.db).snapshot(f.project.project_id).feed_items.length, 0);
 });

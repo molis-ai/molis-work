@@ -71,18 +71,31 @@ test("B58-06: subtask board states, local input, recovery, IME and touch targets
   await b.click(`${ROOT} [data-subtask-action="continue"]`);
   await waitFor(`!${first}.querySelector('textarea').disabled`);
   await b.click('[data-subtask-demo="history"]');
-  assert.ok(await evaluate(`${first}.querySelector('[data-subtask-thread]').scrollHeight > 3000`));
+  const readingThread = `${first}.querySelector('[data-subtask-thread]')`;
+  assert.ok(await evaluate(`${readingThread}.scrollHeight > 3000`));
   await evaluate(`${first}.scrollIntoView({block:"center"})`);
-  const scrollAt = await evaluate<{ x: number; y: number }>(`(() => { const box = ${first}.querySelector('[data-subtask-thread]').getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 }; })()`);
-  await command("Input.dispatchMouseEvent", { type: "mouseWheel", ...scrollAt, deltaX: 0, deltaY: -8000 }, sessionId);
-  await waitFor(`${first}.querySelector('[data-subtask-thread]').dataset.follow === 'detached'`);
-  await evaluate(`${first}.querySelector('[data-subtask-thread]').scrollTop = 200`);
+  await waitFor(`${readingThread}.scrollTop > 0 && ${readingThread}.scrollHeight - ${readingThread}.clientHeight - ${readingThread}.scrollTop <= 1`);
+  const scrollAt = await evaluate<{ x: number; y: number; top: number }>(`(() => { const thread = ${readingThread}, box = thread.getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.y + box.height / 2, top: thread.scrollTop }; })()`);
+  // Detachment precedes the browser's scroll. Let the wheel land before writing the test's anchor.
+  await evaluate(`void (window.boardWheelSettled = new Promise(resolve => {
+    const thread = ${readingThread};
+    const landed = () => {
+      if (thread.scrollTop >= ${scrollAt.top}) return;
+      thread.removeEventListener('scrollend', landed);
+      resolve(true);
+    };
+    thread.addEventListener('wheel', () => thread.addEventListener('scrollend', landed), {once:true});
+  }))`);
+  await command("Input.dispatchMouseEvent", { type: "mouseWheel", x: scrollAt.x, y: scrollAt.y, deltaX: 0, deltaY: -8000 }, sessionId);
+  await evaluate("window.boardWheelSettled");
+  await waitFor(`${readingThread}.dataset.follow === 'detached'`);
+  await evaluate(`${readingThread}.scrollTop = 200`);
   await b.click('[data-subtask-demo="read-error"]');
   assert.equal(await evaluate(`${first}.querySelector('[data-subtask-messages]').children.length`), 83);
   await b.click(`${ROOT} [data-subtask-retry]`);
   await waitFor(`!${first}.querySelector('[data-subtask-feedback]').textContent`);
   assert.equal(await evaluate(`${first}.querySelector('[data-subtask-messages]').children.length`), 83, "rereading retains already read history");
-  assert.equal(await evaluate(`${first}.querySelector('[data-subtask-thread]').scrollTop`), 200);
+  assert.equal(await evaluate(`${readingThread}.scrollTop`), 200);
   // Start in Chinese, copy a translated specimen verbatim, then switch once. A text-equality translator must not rewrite the user's send.
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/__ui/catalog?lang=zh&scenario=translation#subtask-conversation` }, sessionId));
   await waitFor(`globalThis.molisComposerProgram && ${first}.querySelector('textarea')`);

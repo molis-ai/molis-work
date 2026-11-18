@@ -818,7 +818,7 @@ BL-b42-followups③只处理了项目/独立页的地址消费与缓存恢复；
 
 性能证据：`quality-audit-collection-inbox-performance.log` 五样本5416、5404、4649、9144、8746ms，p50=5416ms；每次20条固定规则建议显示后才完成提示，Inbox只重读1次，7–14次Goal后台请求均为collection。health在3–4/20条返回，最大事件循环延迟407–759ms。此为隔离Home真实HTTP/Chrome与固定规则结果，不证明真实模型质量/延迟。最终增加请求投影断言后的性能复核、57文件、健康、资源和准确提交Full CI待结算。
 
-新增体验候选：双栏设置遮罩不显示单窗格标题栏的关闭按钮，现有Escape可正常退出并恢复；需结合实际界面检查鼠标/触屏退出路径，暂不把“缺少这个按钮”直接认定为缺陷或增加第二入口。
+分栏设置覆盖层的鼠标与触控出口已进入第 69 批，根因和实际退出见 [QF-71](#qf-71--p2-分栏设置覆盖层缺少可点的关闭入口)。
 
 第50批结算：57文件初轮56通过，唯一Goals golden未反映已退役的`inbox_judgment:null`（-22字符）和Sessions SSR maxlength（全页+16字符）。固定b63亦失败；仅逆转这两处变更，52份原hash/长度全部复现，据此更新24份期望，其余28不变，完整补验56项通过、2个生成模式按默认跳过。组合57文件607项通过；未改断言、归一化或开候选RECORD模式。证据 `quality-audit-collection-required-final.log`、`quality-audit-collection-golden-proof.json`、`quality-audit-collection-golden-final.log`。
 
@@ -1010,3 +1010,13 @@ BL-943 引用的 66 次目录读取、64 次开库来自第 06 批。用现行 H
 主干和候选的 15 个探针场景逐项都在现行预算内。候选也按原门禁模式跑过完整预算，合计 5 文件 43 项通过。正常启用变化及时生效。原 MCP 调用者撤权后下一次 native、沙箱或流水账读取无结果，拒绝的写入没有开启事务、没有新记录，另一获准调用者继续读取。回归在 `tests/security-invariants-plugin-read-original-caller.test.ts` 和 `tests/security-invariants-plugin-project-database.test.ts`。
 
 已有目录、读协作和授权合同足以满足双窗格目标。目录提交代次从本事项的依赖移除。候选相对当前主干在两项各少 12 次调用，用户照常打开两个 Goal。计数反映宿主工作量，实际等待通过各自的端到端体验用例衡量。日志 `quality-audit-b68-{main-call-budget,current-call-budget,budget-acceptance}.log`。原 BL 保留至组合验收结算。
+
+### QF-71 / P2 分栏设置覆盖层缺少可点的关闭入口
+
+`apps/workbench/src/scripts/client/tab-workspace-panes.ts:120` 打开覆盖层时隐藏实际窗格，同时以窗格数决定是否隐藏标题栏标签条。覆盖层按钮由 `tab-workspace-strip.ts:272` 产生，分栏时用户只能另走历史、菜单或键盘。实际两个窗格保留 Goals 与 Inbox，从个人菜单打开设置，旧构建立即在「可见且有名称的关闭按钮」断言失败。依据是现行 [DESIGN](../../DESIGN.md) 的工作台触控规格和[原导航约定](../archive/page-interaction-flow/spec.md)。
+
+覆盖层由外层工作台绘制现行标题栏芯片。 `tab-workspace-places.ts:146` 的关闭与历史恢复继续接管恢复原窗格。正常分栏各用自己的标签条。用户点覆盖层旁的关闭按钮即可回到原来的两个窗格。代码少维护一个按窗格数量同时决定覆盖层出口的条件，隐藏窗格也无需绘制覆盖层芯片。
+
+QEA-142 在隔离 Home 用真实布局菜单切分、开设置并以 1440 像素鼠标及 390 像素触控退出，两个窗格的内容、布局和焦点读回一致，触控命中区达到 44×44。原历史、重复菜单入口和 Esc 层优先级通过，项目设置真实保存和 Cognia 的嵌入设置入口也通过。首轮关联批次 87 项通过，灵光历史前进 1 项失败。修复前后构建单独复测均在同一步失败，纳入后续修复。证据 `quality-audit-b69-{split-cover-baseline,focused,lingguang-baseline,lingguang-candidate}.log`。
+
+完整构建与健康门禁通过。66 条静态资源路径全部读回，工作台脚本实际响应少 82 B。两种语言下 5 种页面的同源 HTTP 采样，6 个项目样本的冷加载同减 82 B，热加载、动态请求及页面字节相同。原资源申请范围继续适用。浏览器视觉对照及组合 Full CI 另有验收。

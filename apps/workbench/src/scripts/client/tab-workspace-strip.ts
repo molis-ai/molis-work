@@ -269,7 +269,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
       appendTab(scrollArea, pane, tab);
       index += 1;
     }
-    if (state.exclusive && !embedded && (strip.hasAttribute("data-titlebar-tabs") || pane.id === state.focusedPaneId)) {
+    if (state.exclusive && strip === titlebarStrip) {
       // Market and settings cover the panes; say so where the tabs are, with the way out beside the name.
       const cover = document.createElement("span");
       cover.className = "tab-view-chip is-exclusive"; cover.setAttribute("aria-current", "page");

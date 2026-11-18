@@ -234,7 +234,7 @@ test("S-plugin-connection-card ASC-68 C3-4 C3-8 C3-9 ASC-67 a press counts only 
   assert.equal(await p.bound(), null, "C3-8 nothing is on the source");
 });
 
-test("ASC-70 S-plugin-connection-card a source the person adds without an account gets the card in its row and is pulled once; the picker with no account shows the card, not a dialog", { timeout: 150_000 }, async t => {
+test("ASC-70 BL-917 S-plugin-connection-card a source the person adds without an account gets the card in its row and is pulled once; the picker with no account shows the card, not a dialog", { timeout: 150_000 }, async t => {
   const p = await open(t); if (!p) return;
   const { browser, child } = p;
   const config = (id: string) => `[data-feed-task-config="${id}"]`;
@@ -275,6 +275,21 @@ test("ASC-70 S-plugin-connection-card a source the person adds without an accoun
   const pulls = (await p.sent()).filter(item => item.url.endsWith("/sync"));
   assert.equal(pulls.length, 1, "connected, the new source is pulled once: " + JSON.stringify(pulls));
   assert.equal((await p.writes()).filter(item => item.body?.operation === "bind").length, 1);
+
+  // BL-917: another service's account — the same add flow lists every service that can be read by account; picking one names the
+  // source after it (until the person types a name) and points the settings link at it; adding makes that service's source.
+  const other = await child.evaluate<{ services: string[]; name: string; link: string }>(`(() => { const form = document.querySelector('form[data-feed-add-account=""]');
+    const select = form.querySelector("[data-feed-account-service]"); const services = [...select.options].map(option => option.value);
+    select.value = "linear"; select.dispatchEvent(new Event("change", { bubbles: true }));
+    return { services, name: form.querySelector("[data-feed-account-name]").value, link: form.closest("[data-feed-setup-kind]").querySelector("[data-feed-account-settings]").getAttribute("href") }; })()`);
+  assert.ok(other.services.includes("linear") && !other.services.includes("github") && !other.services.includes("gmail"), JSON.stringify(other.services));
+  assert.equal(other.name, "Linear", "the name follows the picked service");
+  assert.match(other.link, /[?&]connector=linear(&|$)/u, "the settings link goes to the picked service");
+  await child.evaluate(`document.querySelector('form[data-feed-add-account=""]').requestSubmit()`);
+  await child.waitFor(`(() => { const id = document.querySelector('[data-feed-workbench]').dataset.selectedSource; return id && id !== ${JSON.stringify(added)} && id !== ${JSON.stringify(p.source)}; })()`, 15_000);
+  const linear = await child.evaluate<string>("document.querySelector('[data-feed-workbench]').dataset.selectedSource");
+  assert.equal((await p.bound()), null, "the older source is still untouched");
+  assert.notEqual(linear, added);
 });
 
 test("DRT-13 S-plugin-connection-card 还不能一键连接 opens the connections page as the page's return trip; back on the page the card reads its target once more and goes on", { timeout: 150_000 }, async t => {

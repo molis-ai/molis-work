@@ -66,7 +66,7 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await click('[data-directory-open="settings"]');
   await waitFor(`${exclusive} === 'settings'`);
   // 能力 is four of the categories (specs/artifact-positioning S6b); 工作记录 sits under 个人 after 记忆 (specs/observation-collection/spec.md §2.4).
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-directory-panel=settings] [data-settings-section]')].map(row => row.dataset.settingsSection).slice(0, 17)"),
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-directory-panel=settings] [data-settings-section]')].map(row => row.dataset.settingsSection).slice(0, 18)"),
     ["appearance", "directories", "memory", "work-records", "sync", "models", "assistant", "characters", "kit", "runtimes", "library", "connections", "web-search", "access", "authorizations", "history", "update", "diagnostics"]);
   await click('[data-directory-panel=settings] [data-settings-section="characters"]');
   // 设置 › 角色 is the Host's settings page for the person's own roles (plan C), drawn inside the settings cover.

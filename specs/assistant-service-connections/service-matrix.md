@@ -80,7 +80,7 @@
 | BL-692 | 部分交：插件页上撞 id 起不来的集成写明「ID 被别的插件占用」与能怎么办，不再叫人重试；还没写出是被哪个插件占用 | `tests/security-invariants-plugin-permissions-http.test.ts`；[缺口 G-04](#g-04) |
 | BL-693 | 未交：一轮拉取的用量与超时要接 Home 沙箱实例后用真实来源实测 | [缺口 G-05](#g-05) |
 | BL-694 | 未交：沙箱集成包的 `document_import` 等 W5-11 把文档读取变成插件操作 | [缺口 G-03](#g-03) |
-| BL-917 | 部分交：`feed.sources.add_account@1` 收 Feed 每个按来源绑定账号的服务（上表「Feed 来源」一列），GitHub、Gmail 仍是自己的种类，其余建成该服务的 connector 来源 | `tests/feed-runtime-plugin.test.ts`；[缺口 G-02](#g-02) |
+| BL-917 | 已交：`feed.sources.add_account@1` 收 Feed 每个按来源绑定账号的服务（上表「Feed 来源」一列），GitHub、Gmail 仍是自己的种类，其余建成该服务的 connector 来源；平台 `services.sourcePull.accounts()` 答已连接、能否拉取与服务名，Feed 新建来源的「其他服务的账号」按它列出 Home 能拉取的服务 | `tests/feed-runtime-plugin.test.ts`、`tests/feed-native-plugin.test.ts`、`tests/security-invariants-connection-card.e2e.test.ts`「ASC-70 BL-917」 |
 
 <a id="gaps-for-62"></a>
 
@@ -91,7 +91,7 @@
 | 编号 | 缺口 | 卡在哪 | 第 62 批要做的 |
 | --- | --- | --- | --- |
 | <a id="g-01"></a>G-01 | Feed 网页查询和炼金术研究仍固定走 SEL 的 AnySearch，不跟设置里的默认网页搜索 | 上游：SEL 没有 Brave、DeepSeek、Tavily 的 Provider（vendored 包，本批不改） | 向上游要三家 Provider，或让 SEL 接受 Host 给的查询端口；换包后 Feed、炼金术改读 `connectors.web_search.query@1` 的默认 |
-| <a id="g-02"></a>G-02 | Feed 记录槽页面上，目录连接器来源的槽标题与「能不能按来源拉取」由 Feed 自己推断 | SDK：集成声明里没有给插件读的槽标题与可拉取性投影 | 在集成声明投影里加槽标题与 `pullable`，Feed 改读投影，接 T-121 记录槽页面 |
+| <a id="g-02"></a>G-02 | 已在本批解决：Feed 不再自己推断服务名与能否拉取，改读平台 `services.sourcePull.accounts()` 答的 `title`、`pullable`；来源行的账号卡由 Host 按槽画 | — | 不交 62 |
 | <a id="g-03"></a>G-03 | 沙箱集成包不能声明 `document_import`、`web_search`（BL-694） | SDK：沙箱集成第一版只收 `source`；文档读取还在宿主的提供方里 | W5-11 把文档读取变成插件操作后，沙箱集成包加 `document_import` 与 `web_search` 的平台操作和拒绝测试 |
 | <a id="g-04"></a>G-04 | 撞 id 的集成没写出被哪个插件占用（BL-692 余项） | 平台：启动登记只记恢复错误，不记占用方 | 登记冲突时把占用方的插件 id 与标题写进恢复错误，插件页显示 |
 | <a id="g-05"></a>G-05 | 外部集成一轮拉取的用量与超时没实测（BL-693） | 平台：照 `DEFAULT_SANDBOX_LIMITS` 与一次 200 条 | 接 Home 沙箱实例后用真实来源实测，不够再按集成定 `SandboxCallControl.limits` |

@@ -327,6 +327,23 @@ test("Feed capture rules belong to a task, not the directory", () => {
   assert.doesNotMatch(panelB, /A launch|Global/);
 });
 
+test("BL-917: another service's account source is offered for every service the Home can pull, by its name, and not at all when there is none", () => {
+  const host = new UiHost();
+  host.register(feedUiContribution);
+  const draw = (others?: FeedUiModel["connector_auth"]["others"]) => drawFeed(host, { contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "workbench",
+    model: model({ connector_auth: { github: { bound: false }, gmail: { bound: false }, ...(others ? { others } : {}) } }) });
+  const offered = draw([{ service_id: "linear", title: "Linear", bound: true }, { service_id: "notion", title: "Notion", bound: false }]);
+  assert.match(offered, /data-feed-choose-kind="account"/);
+  assert.match(offered, /<option value="linear" data-feed-account-title="Linear">Linear · 已连接<\/option><option value="notion" data-feed-account-title="Notion">Notion · 未连接<\/option>/);
+  assert.match(offered, /<form class="feed-account-source" data-feed-add-account="">/);
+  assert.match(offered, /value="Linear"/, "the source is named after the first service until the person names it");
+  assert.match(offered, /connector=linear/);
+  for (const html of [draw(), draw([])]) {
+    assert.doesNotMatch(html, /data-feed-choose-kind="account"|data-feed-account-service/);
+    assert.match(html, /data-feed-add-account="github"/);
+  }
+});
+
 test("Feed capture rule selector loads the shared directory instead of embedding a function list", () => {
   const host = new UiHost();
   host.register(feedUiContribution);

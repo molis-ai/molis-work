@@ -686,8 +686,14 @@ test("RAC-1024 an account source nobody bound an account to needs the person: th
 
 test("RAC-1025 the Home's account status says only whether there is an account, and an item's material is read while its source's account still works", async t => {
   const f = await connecting(t);
-  const status = () => f.client.invoke(caller([...READ, "sources:pull_connector"]).context, feedQueryActions.connections, {}) as Promise<unknown>;
+  type Status = { github: unknown; gmail: unknown; others?: { service_id: string; title: string; bound: boolean }[] };
+  const full = () => f.client.invoke(caller([...READ, "sources:pull_connector"]).context, feedQueryActions.connections, {}) as Promise<Status>;
+  const status = async () => { const { github, gmail } = await full(); return { github, gmail }; };
   assert.deepEqual(await status(), { github: { bound: false }, gmail: { bound: false } });
+  // BL-917: every other service the Home can pull by account, by the name the person reads, and nothing of any account.
+  const others = (await full()).others ?? [];
+  assert.ok(others.some(row => row.service_id === "linear" && row.title === "Linear" && row.bound === false), JSON.stringify(others.slice(0, 3)));
+  assert.ok(others.every(row => Object.keys(row).sort().join() === "bound,service_id,title" && row.service_id !== "github" && row.service_id !== "gmail"));
   const account = f.connect();
   f.bind(account.connection_id);
   assert.deepEqual(await status(), { github: { bound: true }, gmail: { bound: false } });

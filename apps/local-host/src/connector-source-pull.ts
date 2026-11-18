@@ -27,6 +27,8 @@ export const connectorSourcePullErrors = defineErrorCodes("connector.source_pull
 export interface ConnectorSourcePortOptions {
   readonly home: string;
   readonly registry: () => Promise<IntegrationRegistry>;
+  /** Each service's name as the person reads it (the service directory's titles); a service without one is named by its id. */
+  readonly titles?: () => Promise<ReadonlyMap<string, string>>;
 }
 
 /** What the registry is asked with when no account is involved: the adapter and the integration's identity do not depend on one. */
@@ -84,9 +86,13 @@ export function createConnectorSourcePort(options: ConnectorSourcePortOptions): 
       const adapter = (await registry.bind(integration_id, "source", noAccount(target.record_key!))).signal_adapter;
       return adapter.toSignalDraft(event, { project_id: target.project_id!, source_id: target.record_key! });
     },
-    accounts(service_ids) {
-      if (!existsSync(homeSqlitePath(home, "connectors"))) return Object.fromEntries(service_ids.map(id => [id, { bound: false }]));
-      return withConnectorConnections(home, store => Object.fromEntries(service_ids.map(id => [id, { bound: store.list(id).some(row => row.enabled && !row.disconnected_at) }])), true) ?? Object.fromEntries(service_ids.map(id => [id, { bound: false }]));
+    async accounts(service_ids) {
+      const [registry, titles] = await Promise.all([options.registry(), options.titles?.() ?? Promise.resolve(new Map<string, string>())]);
+      const pullable = new Set(registry.listIntegrations("source").map(entry => entry.declaration.service_id));
+      const bound = existsSync(homeSqlitePath(home, "connectors"))
+        ? withConnectorConnections(home, store => new Set(service_ids.filter(id => store.list(id).some(row => row.enabled && !row.disconnected_at))), true) ?? new Set<string>()
+        : new Set<string>();
+      return Object.fromEntries(service_ids.map(id => [id, { bound: bound.has(id), pullable: pullable.has(id), title: titles.get(id) ?? id }]));
     },
   };
 }

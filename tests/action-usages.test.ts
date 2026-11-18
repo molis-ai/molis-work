@@ -38,7 +38,9 @@ test("where a capability is used comes from each owner of saved references: work
     const { workflow } = await actions.invoke(w.create, { title: "完成事项", chain: { stations: [{ plugin: "feed" },
       { plugin: "action", action: { ref: step.ref, title: step.title, group: step.group, mapping: { entry_id: { from: "title" }, status: { value: "done" }, expected_revision: { value: 1 } } } }],
       links: [{ kind: "function", title_template: "", body_template: "{正文}", instructions: "" }] } });
-    const { draft } = await actions.invoke(c.create, {});
+    // Saving a role is a version that runs, so the action it is limited to must be granted to the built-in Agent first (as the access page grants it).
+    await served.grant("agent:prologue", project.project_id, [status]);
+    const { draft } = await actions.invoke(c.create, { title: "收尾员", instructions: "只做收尾", host_tools: null });
     await actions.invoke(c.update, { id: draft.character_id, expected_revision: draft.revision, title: "收尾员", instructions: "只做收尾", host_tools: null, action_tools: [target] });
     await served.grant("client-x", project.project_id, [status]);
 
@@ -52,6 +54,7 @@ test("where a capability is used comes from each owner of saved references: work
     const grant = usages.find(usage => usage.title === "MCP 客户端「client-x」")!;
     assert.equal(grant.enabled, true);
     assert.equal(grant.href, `/capabilities/access?client=client-x&project=${project.project_id}`);
+    assert.ok(usages.some(usage => usage.title === "内置 Agent（Prologue）" && usage.enabled), "the built-in Agent's grant is a saved reference too");
     assert.ok(usages.every(usage => usage.source.provider_id && usage.usage_id));
 
     // Another version or capability is not the same saved reference.
@@ -66,7 +69,7 @@ test("where a capability is used comes from each owner of saved references: work
 
     // Deleting the workflow removes its usage; the others stay.
     await actions.invoke(w.delete, { id: workflow.workflow_id });
-    assert.deepEqual((await usagesOf()).usages.map(usage => usage.reporter).sort(), [byReporter["Characters"]!.reporter, grant.reporter].sort());
+    assert.deepEqual((await usagesOf()).usages.map(usage => usage.title).sort(), ["MCP 客户端「client-x」", "内置 Agent（Prologue）", "角色「收尾员」"].sort());
   } finally {
     await served.close();
     await host.close();

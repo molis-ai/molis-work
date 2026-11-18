@@ -1,9 +1,10 @@
 import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { CharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
+import type { CharacterRoleContent, CharacterRoleVersionRef, CharacterTaskSelection } from "@molis-ai/molis-work-contracts/modules/characters";
+import { isDeepStrictEqual } from "node:util";
 import { isAbsolute, relative } from "node:path";
 
-/** Only the frozen publication is read. Original files never change an admitted Run. */
-export function importedCharacterInstructions(character: CharacterContent, directory: string | undefined, selectedIds?: string[]): string {
+/** Only the frozen version is read. Original files never change an admitted Run. */
+export function importedCharacterInstructions(character: CharacterRoleContent, directory: string | undefined, selectedIds?: string[]): string {
   const snapshot = character.import_snapshot;
   if (!snapshot) return character.instructions;
   if (snapshot.project_root) {
@@ -22,8 +23,17 @@ export function importedCharacterInstructions(character: CharacterContent, direc
   return result;
 }
 
-/** A publication's identity, content and owner must still match the run's frozen choice. */
+/** Whether a fixed version belongs to this choice: the original it is a version of, or the member it is a version of. */
+export function versionOfChoice(version: CharacterRoleVersionRef, choice: CharacterTaskSelection): boolean {
+  return version.kind === "personal" ? choice.kind === "personal" && choice.character_id === version.character_id
+    : choice.kind === "project" && choice.member_id === version.member_id;
+}
+
+/**
+ * The version read now is still the run's frozen one, the person's own and (for a member) this project's. A fixed version never
+ * changes, so its content is not compared again; one that cannot be read any more (removed, deleted) never reaches here.
+ */
 export function currentCharacterMatches(frozen: AgentFrozenCharacter, current: AgentFrozenCharacter, projectId: string, actorId: string): boolean {
-  return current.reference.artifact_id === frozen.reference.artifact_id && current.reference.version === frozen.reference.version
-    && current.content_digest === frozen.content_digest && current.project_id === projectId && current.source.owner_actor_id === actorId;
+  return isDeepStrictEqual(current.version, frozen.version) && current.owner_actor_id === actorId && current.character_id === frozen.character_id
+    && (current.version.kind === "personal" ? current.project_id === null : current.project_id === projectId);
 }

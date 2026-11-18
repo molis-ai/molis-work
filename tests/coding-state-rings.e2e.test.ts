@@ -287,7 +287,8 @@ test("VUX-40: the model note, a turn's changes, the palette and the character an
       const palette=q('[data-coding-palette-list]').textContent;q('[data-coding-palette]').close();
       const characters=new Map(),skills=new Map(),titles=new Map();
       const character=(${embeddedFactoryHolding("data-coding-character-dialog")})({lifetime,translate:globalThis.t.text,refresh:async()=>{},q,current:()=>'s',selections:characters,titles,skillSelections:skills,save:async()=>{},controls:()=>{},status,
-        api:async()=>({runtime_id:'other',characters:[{reference:{artifact_id:'c',version:1},title:'Reviewer',available:true,instructions:'Review.',host_tools:[],imported_skills:[{id:'k',name:'Lint',compatibility:'native'}]}]})});
+        api:async()=>({characters:[{ref:{kind:'personal',character_id:'c'},title:'Reviewer',available:true,host_tools:[],imported_skills:[{id:'k',name:'Lint',compatibility:'native'}]}],
+          limits_verified:false,defaults:{personal:{kind:'personal',character_id:'c'},project:null}})});
       character.open();await settle();
       root.querySelectorAll('[data-coding-character-dialog] details').forEach(node=>{node.open=true;});
       const charactersText=q('[data-coding-character-dialog]').textContent.replace(/\\s+/g,' ');q('[data-coding-character-dialog]').close();
@@ -306,7 +307,8 @@ test("VUX-40: the model note, a turn's changes, the palette and the character an
     assert.equal(result.note, "This turn: m1 · Thinking effort Thorough · Thinking on · Asked to switch to m2, from the next model call");
     assert.match(result.changes, /Files written this turn: 4.*a\.ts · b\.ts · c\.ts · 4 in all.*10 bytes.*Preview rewind.*What the write receipts recorded.*See this turn’s changes/);
     assert.equal(result.palette, "No matching commands or sessions");
-    assert.match(result.characters, /No character.*Reviewer · v1.*The current runtime doesn’t support character limits yet/);
+    // A role is listed by its title and where it stands (here the person's default), never by a version: the Host pins that at the round.
+    assert.match(result.characters, /No character.*Reviewer · My default.*The current runtime doesn’t support character limits yet/);
     assert.match(result.characters, /Built-in tools: none\. MCP is still chosen.*Lint · runs in an external Runtime/);
     assert.match(result.actions, /Add a todo · v2.*Todo · The current way of running only allows queries.*gone\.action · v1.*The original capability, version or authorization isn’t available/);
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }

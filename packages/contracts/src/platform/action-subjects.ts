@@ -144,9 +144,12 @@ export function findSubjectReader(views: readonly ActionView[], kind: string): S
   if (available[0]) return { found: "one", view: available[0] };
   return matches[0] ? { found: "unavailable", view: matches[0] } : { found: "none" };
 }
-/** Protocol discovery confers no authority; invocation keeps the original caller and exact provider. */
-export async function resolveActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject): Promise<{ context: ActionSubjectContext; reader: ActionReference }> {
-  const lookup = findSubjectReader(await client.discover(caller), subject.kind);
+/**
+ * Protocol discovery confers no authority; invocation keeps the original caller and exact provider. A caller that already discovered
+ * its directory in this request passes it, so the reader is found without discovering again.
+ */
+export async function resolveActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject, directory?: readonly ActionView[]): Promise<{ context: ActionSubjectContext; reader: ActionReference }> {
+  const lookup = findSubjectReader(directory ?? await client.discover(caller), subject.kind);
   if (lookup.found === "ambiguous") throw new ActionError("actions.subject_ambiguous", "有多个能力提供此对象上下文，不能任意选择提供方");
   if (lookup.found !== "one") {
     const state = lookup.found === "unavailable" ? lookup.view.availability : undefined;

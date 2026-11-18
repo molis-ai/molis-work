@@ -53,11 +53,11 @@ test("RAC-770 RAC-771 RAC-2342 raw deletion descriptions and action titles keep 
     assert.equal(ownerLabel({ label: DATA }), DATA);
     for (const entry of [base, { ...base, plugin_id: ACME }, { ...base, plugin_id: OTHER }]) {
       const html = rows(entry);
-      assert.match(html, /<h3>整理笔记<\/h3><p>把散落的笔记按主题归到一起<\/p>/u);
+      assert.match(html, /<strong>整理笔记<\/strong><span>把散落的笔记按主题归到一起<\/span>/u);
       assert.match(html, /Authorize/u, "the platform’s authorization control still follows the request");
       assert.doesNotMatch(html, /Tidy notes|Another tidy-up/u);
     }
-    assert.match(rows({ ...base, provider_id: "io.molis.work.artifacts", title: "复制引用" }), /<h3>复制引用<\/h3>/u);
+    assert.match(rows({ ...base, provider_id: "io.molis.work.artifacts", title: "复制引用" }), /<strong>复制引用<\/strong>/u);
   });
 }));
 

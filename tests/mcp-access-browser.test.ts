@@ -109,7 +109,7 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
     handlers: [{ capability_id: id, version: 1, handle: () => 1, availability: () => online ? { available: true } : { available: false, code: "fixture.offline", reason: "服务未连接" } }] });
   let stop = install(["fixture:write"]); t.after(() => stop());
   await search(id); assert.equal(await status(id), "ungranted");
-  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(row(id))}).querySelector('h3 script')`), null);
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(row(id))}).querySelector('script')`), null);
   online = false; await grant(id, true);
   assert.match(await evaluate<string>("document.querySelector('[data-mcp-access-feedback]').textContent"), /服务未连接/);
   assert.equal(await status(id), "ungranted");
@@ -117,6 +117,8 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
   stop(); stop = install(["fixture:write", "fixture:network"]);
   await search(id); assert.equal(await status(id), "stale");
   await click(`${row(id)} summary`);
+  // The row folds open on the shared clock; what it holds is read once it is shown.
+  await waitFor(`document.querySelector(${JSON.stringify(row(id))}).querySelector('.mw-object-row__body').checkVisibility()`);
   assert.match(await evaluate<string>(`document.querySelector(${JSON.stringify(row(id))}).innerText`), /fixture:network/);
   await grant(id, true); assert.equal(await status(id), "enabled");
   online = false; await search(id); assert.equal(await status(id), "unavailable");

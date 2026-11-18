@@ -3,7 +3,7 @@ export const IMAGES_STYLES = `
   .images-workspace-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 12px 24px 32px; }
   .images-compose, .images-result { width: 100%; max-width: 760px; margin: 0 auto; }
   .images-compose { display: flex; flex-direction: column; gap: 24px; padding-top: 16px; }
-  .images-intro h2 { font-size: 24px; font-weight: var(--weight-title, 600); letter-spacing: -.025em; margin: 0 0 8px; color: var(--ink); }
+  .images-intro h2 { font-size: 24px; font-weight: var(--weight-title); letter-spacing: -.025em; margin: 0 0 8px; color: var(--ink); }
   .images-intro p, .images-help { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
   .images-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; font-size: 12px; color: var(--ink-soft); }
   .images-field-label { display: block; margin-bottom: 8px; color: var(--ink-soft); font-size: 12px; }
@@ -37,7 +37,7 @@ export const IMAGES_STYLES = `
   .images-service-option:hover, .images-service-option[aria-pressed=true] { background: var(--nav-hover); }
   .images-service-option small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
   .images-result-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; }
-  .images-result-heading h2 { margin: 0; font-size: 15px; font-weight: var(--weight-title, 600); }
+  .images-result-heading h2 { margin: 0; font-size: 15px; font-weight: var(--weight-title); }
   .images-result-meta { margin: 0 0 16px; font-size: 12px; color: var(--muted); line-height: 1.7; overflow-wrap: anywhere; }
   .images-result-prompt { margin: 16px 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.7; color: var(--ink-soft); }
   .images-result-image { display: block; max-width: 100%; max-height: 62vh; margin: 0 auto; object-fit: contain; border-radius: 6px; background: var(--rail); }
@@ -54,7 +54,7 @@ export const IMAGES_STYLES = `
   dialog.mw-dialog.images-connections-dialog { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); padding: 0; }
   .images-connections-dialog > form { display: flex; flex-direction: column; max-height: calc(100dvh - 32px); }
   .images-dialog-header { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--line); }
-  .images-dialog-header h2 { margin: 0; font-size: 15px; font-weight: var(--weight-title, 600); }
+  .images-dialog-header h2 { margin: 0; font-size: 15px; font-weight: var(--weight-title); }
   .images-dialog-body { overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: 16px; padding: 16px 24px; }
   .images-connection-fields { display: flex; flex-direction: column; gap: 16px; margin: 0; padding: 0; border: 0; min-width: 0; }
   .images-connection-fields legend { margin-bottom: 12px; padding: 0; font-size: 13px; color: var(--ink-soft); }

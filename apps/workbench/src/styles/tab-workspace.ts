@@ -18,8 +18,8 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .settings-stage { min-width: 0; min-height: 0; background: var(--page); }
   body.immersive-workbench .settings-stage > .settings-content { flex: 1; min-height: 0; }
   /* The return bar (specs/draft-and-return U4) is the top of the settings' own column, on their ground, and scrolls with them. */
-  .settings-stage .settings-content > [data-settings-return-bar] { flex: none; box-sizing: border-box; width: 100%; max-width: 760px; margin: 0 auto 24px; }
-  body.immersive-workbench .settings-stage :is(.settings-document, .guidance-document, .project-settings-page) { width: 100%; max-width: 760px; margin-inline: auto; padding: 0; }
+  .settings-stage .settings-content > [data-settings-return-bar] { flex: none; box-sizing: border-box; width: 100%; max-width: 760px; margin: 0 0 24px; }
+  body.immersive-workbench .settings-stage :is(.settings-document, .guidance-document, .project-settings-page) { width: 100%; max-width: 760px; margin-inline: 0; padding: 0; }
   body.immersive-workbench .tab-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; background: var(--paper); }
   body.immersive-workbench .tab-strip { flex: 1; min-width: 0; display: flex; align-items: center; height: 32px; min-height: 32px; padding: 4px; gap: 8px; overflow-x: auto; overflow-y: hidden; background: transparent; border: 0; scroll-padding-inline: 12px; }
   body.immersive-workbench .tab-pane > .tab-strip { flex: none; padding: 4px 32px 4px 8px; background: var(--surface-soft); border-bottom: 1px solid var(--line); }

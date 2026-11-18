@@ -120,9 +120,9 @@ export const todoActions = {
     object({ id, ...expected, archived: { type: "boolean" } }, ["id", "archived"]), changed, { result_subject: resultSubject, undo: undoChange }),
   remove: withActionEffect(define<Identity, { deleted: true; id: string }>("items.delete", /* @version action.todo.items.delete */ 1, "删除待办", "永久删除一件待办及其修改记录，不能撤销", "command",
     object({ id, ...expected }, ["id"]), object({ deleted: { const: true }, id })), "irreversible"),
-  batch: define<{ ids: string[]; change: TodoBatchChange; expected_revisions?: Record<string, number> }, { items: TodoItem[]; batch_id: string }>("items.batch", /* @version action.todo.items.batch */ 1, "批量处理待办", "对选中的几件待办做同一处理（改状态、改计划或截止日期、推后几天、改归属、归档），全部成功或全部不改；可凭 batch_id 一起撤销", "command",
+  batch: define<{ ids: string[]; change: TodoBatchChange; expected_revisions?: Record<string, number> }, { items: TodoItem[]; changed_count: number; batch_id: string | null }>("items.batch", /* @version action.todo.items.batch */ 1, "批量处理待办", "对选中的几件待办做同一处理（改状态、改计划或截止日期、推后几天、改归属、归档），全部成功或全部不改；只统计实际改动，有改动才返回可一起撤销的 batch_id", "command",
     object({ ids: { ...array(id), minItems: 1, maxItems: 200, uniqueItems: true }, change: batchChange, expected_revisions: { type: "object", additionalProperties: revision } }, ["ids", "change"]),
-    object({ items: array(item), batch_id: id }), { undo: { capability_id: "todo.changes.revert", version: /* @version action.todo.changes.revert */ 1, input: { batch_id: "batch_id" } } }),
+    object({ items: array(item), changed_count: { type: "integer", minimum: 0 }, batch_id: nullable(id) }), { undo: { capability_id: "todo.changes.revert", version: /* @version action.todo.changes.revert */ 1, input: { batch_id: "batch_id" } } }),
   revert: define<{ change_id?: string; batch_id?: string }, { items: TodoItem[]; removed_ids: string[] }>("changes.revert", /* @version action.todo.changes.revert */ 1, "撤销待办修改", "撤销一次修改或一整批修改；之后又被改过就拒绝。撤销新建会去掉那件待办", "command",
     { ...object({ change_id: id, batch_id: id }, []), oneOf: [{ required: ["change_id"] }, { required: ["batch_id"] }] }, object({ items: array(item), removed_ids: array(id) })),
   link: define<Identity & { add?: TodoLinkInput; remove_link_id?: string }, { item: TodoItem; change_id: string }>("items.link", /* @version action.todo.items.link */ 1, "关联到待办", "给待办加上或去掉一项关联：Goal、材料、另一件待办（依赖、拆分、合并、相关）、成果（草稿或已完成的动作）、助理工作", "command",
@@ -130,8 +130,8 @@ export const todoActions = {
     { result_subject: resultSubject, undo: undoChange }),
   dueReminders: define<Record<string, never>, { reminders: { item: TodoItem; late: boolean }[] }>("reminders.due", /* @version action.todo.reminders.due */ 1, "到了时间的提醒", "列出已到提醒时间、还没点“知道了”、事情还没做完的待办；超过 48 小时的不再补发。late 表示是在没人看时错过的", "query",
     object({}), object({ reminders: array(object({ item, late: { type: "boolean" } })) })),
-  acknowledgeReminder: define<{ id: string }, { item: TodoItem }>("reminders.acknowledge", /* @version action.todo.reminders.acknowledge */ 1, "知道了", "这次提醒不再显示；不改变待办本身，也不改提醒时间", "command",
-    object({ id }), object({ item }), { result_subject: resultSubject }),
+  acknowledgeReminder: define<{ id: string; remind_at: string }, { item: TodoItem }>("reminders.acknowledge", /* @version action.todo.reminders.acknowledge */ 1, "知道了", "这次提醒不再显示；不改变待办本身，也不改提醒时间", "command",
+    object({ id, remind_at: { ...instant, format: "date-time" } }), object({ item }), { result_subject: resultSubject }),
   // The Assistant asks about once a minute which of the person's own reminders fall due, and tells each one once under
   // their rules. Todo keeps no timer and marks nothing; its own page still shows due reminders for looking back.
   dueWindow: withProjectReach(defineDueRemindersAction("todo.reminders.window", /* @version action.todo.reminders.window */ 1, [TODO_SUBJECT_KIND], "到期提醒", [...TODO_READ])),
@@ -234,14 +234,13 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
     bind(todoActions.link, (input, caller) => write(caller, store => store.link(input.id, { add: input.add, remove_link_id: input.remove_link_id }, input.expected_revision, todoAccess(caller, "listed")))),
     bind(todoActions.dueReminders, (_input, caller) => read(store => ({
       reminders: store.dueReminders(todoAccess(caller, "listed"), ports.now?.()) }))),
-    bind(todoActions.acknowledgeReminder, (input, caller) => write(caller, store => ({ item: store.acknowledgeReminder(input.id, todoAccess(caller, "listed")) }))),
+    bind(todoActions.acknowledgeReminder, (input, caller) => write(caller, store => ({ item: store.acknowledgeReminder(input.id, input.remind_at, todoAccess(caller, "listed")) }))),
     bind(todoActions.dueWindow, (input, caller) => {
       assertDueReminderWindow(input);
       // The person's own reminders from every project and the personal space: reminders are for them, wherever the todo sits.
       return read(store => ({ source: { surface: TODO_PROJECT_PLUGIN_ID, title: "待办" },
-        reminders: store.list(todoAccess(caller, "required"))
-          .filter(item => item.remind_at && item.reminder_acknowledged_at === null && item.archived_at === null
-            && ["open", "doing", "waiting"].includes(item.status) && withinDueReminderWindow(item.remind_at, input))
+        reminders: store.pendingReminders(todoAccess(caller, "required"))
+          .filter(item => withinDueReminderWindow(item.remind_at!, input))
           .sort((a, b) => Date.parse(a.remind_at!) - Date.parse(b.remind_at!)).slice(0, 100)
           .map(item => ({ reminder_id: `${item.id}@${item.remind_at}`, due_at: item.remind_at!, title: [...item.title].slice(0, 300).join(""),
             subject: { kind: TODO_SUBJECT_KIND, id: item.id }, project_id: item.placement === "project" ? item.project_id : null,

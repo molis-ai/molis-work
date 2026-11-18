@@ -5,8 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PERSONAL_SPACE_PROJECT_ID, actionEffect, actionFieldOptions, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { TODO_ACTIONS as TODO_ALL_ACTIONS, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, parseTodoQuickText, todoActions as actions, todoManifest, todoSearchActions, type TodoListResult, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
+import { TODO_DATABASE, TODO_ACTIONS as TODO_ALL_ACTIONS, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, parseTodoQuickText, todoActions as actions, todoManifest, todoSearchActions, type TodoListResult, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 
 const TODAY = "2026-09-28";
@@ -129,17 +130,17 @@ test("batches apply all or nothing and undo together; an undo never discards a l
   const c = (await f.me.invoke(actions.create, { title: "丙" })).item;
   const shifted = await f.me.invoke(actions.batch, { ids: [a.id, b.id, c.id], change: { shift_days: 1 } });
   assert.deepEqual(shifted.items.map(item => [item.planned_date, item.due_date]), [["2026-09-29", null], [null, "2026-09-29"], [null, null]]);
-  await f.me.invoke(actions.revert, { batch_id: shifted.batch_id });
+  await f.me.invoke(actions.revert, { batch_id: shifted.batch_id! });
   const back = await f.me.invoke(actions.list, { view: "all" });
   assert.deepEqual(back.items.map(item => [item.title, item.planned_date, item.due_date]).sort(), [["丙", null, null], ["乙", null, TODAY], ["甲", TODAY, null]]);
-  await assert.rejects(f.me.invoke(actions.revert, { batch_id: shifted.batch_id }), { code: "todo.conflict" });
+  await assert.rejects(f.me.invoke(actions.revert, { batch_id: shifted.batch_id! }), { code: "todo.conflict" });
 
   await assert.rejects(f.me.invoke(actions.batch, { ids: [a.id, b.id], change: { archive: true } }), { code: "todo.invalid" });
   assert.equal((await f.me.invoke(actions.get, { id: a.id })).item.archived_at, null);
 
   const completed = await f.me.invoke(actions.batch, { ids: [a.id, b.id], change: { status: "done" } });
   await f.me.invoke(actions.update, { id: a.id, notes: "完成后又补了说明" });
-  await assert.rejects(f.me.invoke(actions.revert, { batch_id: completed.batch_id }), { code: "todo.conflict" });
+  await assert.rejects(f.me.invoke(actions.revert, { batch_id: completed.batch_id! }), { code: "todo.conflict" });
   assert.equal((await f.me.invoke(actions.get, { id: b.id })).item.status, "done", "a refused batch undo changes nothing");
 
   const status = await f.me.invoke(actions.status, { id: c.id, status: "done" });
@@ -249,6 +250,18 @@ test("views answer their questions with the pinned day, and flags do not change 
   assert.deepEqual(titles(await f.me.invoke(actions.list, { view: "all", query: "小李" })), ["等小李"]);
 });
 
+test("ARF-6: another project's corrupt row stays invisible, and its reader surfaces the decoding failure", async t => {
+  const f = fixture(t);
+  const { item } = await f.inB.invoke(actions.create, { title: "项目 B 的事", placement: "project" });
+  const db = openSqliteConnection(homeSqlitePath(f.home, TODO_DATABASE.store_name), { fileMustExist: true });
+  try {
+    db.prepare("UPDATE todo_items SET sources_json = ? WHERE id = ?").run("{broken", item.id);
+  } finally { db.close(); }
+  assert.deepEqual(titles(await f.agentA.invoke(actions.list, { view: "all" })), []);
+  await assert.rejects(f.agentA.invoke(todoSearchActions.subject, { subject_id: item.id }), { code: "todo.not_found" });
+  await assert.rejects(f.inB.invoke(todoSearchActions.subject, { subject_id: item.id }), SyntaxError);
+});
+
 test("search entries and the object reader follow the caller's scope", async t => {
   const f = fixture(t);
   const mine = (await f.me.invoke(actions.create, { title: "个人的事", notes: "带说明" })).item;
@@ -321,7 +334,7 @@ test("reminders: due once, late when missed, not delivered after 48 hours, gone 
   await f.me.invoke(actions.create, { title: "还没到", remind_at: "2026-09-28T18:00:00+08:00" });
   const due = await f.me.invoke(actions.dueReminders, {});
   assert.deepEqual(due.reminders.map(entry => [entry.item.title, entry.late]), [["给妈妈打电话", true], ["交报销单", false]]);
-  const acked = await f.me.invoke(actions.acknowledgeReminder, { id: soon.id });
+  const acked = await f.me.invoke(actions.acknowledgeReminder, { id: soon.id, remind_at: soon.remind_at! });
   assert.ok(acked.item.reminder_acknowledged_at);
   assert.equal(acked.item.revision, soon.revision, "知道了不改待办本身");
   await f.me.invoke(actions.status, { id: missed.id, status: "done" });
@@ -415,7 +428,7 @@ test("the Assistant's reminder query lists the person's own reminders due in the
   const inA = (await f.inA.invoke(actions.create, { title: "A：给王总回电话", placement: "project", remind_at: at(2, 30) })).item;
   const later = (await f.me.invoke(actions.create, { title: "窗口之后", remind_at: at(5) })).item;
   const seen = (await f.me.invoke(actions.create, { title: "已经知道了", remind_at: at(2, 10) })).item;
-  await f.me.invoke(actions.acknowledgeReminder, { id: seen.id });
+  await f.me.invoke(actions.acknowledgeReminder, { id: seen.id, remind_at: seen.remind_at! });
   const done = (await f.me.invoke(actions.create, { title: "做完了", remind_at: at(2, 20) })).item;
   await f.me.invoke(actions.status, { id: done.id, status: "done", expected_revision: done.revision });
   const window = { from: at(1), to: at(3) };
@@ -487,4 +500,38 @@ test("RAC-1679: the Assistant's reminder query names a reminder by its whole tit
   await f.me.invoke(actions.create, { title, remind_at: at(2) });
   const { reminders } = await f.me.invoke(actions.dueWindow, { from: at(1), to: at(3) });
   assert.deepEqual(reminders.map(reminder => reminder.title), [title], "a 200-character title is named whole");
+});
+
+test("ARF-2 old dismissal cannot acknowledge a rescheduled reminder; title edits preserve the occurrence", async t => {
+  const f = fixture(t, () => new Date("2026-09-28T12:00:00Z"));
+  const first = "2026-09-28T09:00:00.000Z", next = "2026-09-28T11:00:00.000Z";
+  const { item } = await f.me.invoke(actions.create, { title: "Pay invoice", remind_at: first });
+  await f.me.invoke(actions.update, { id: item.id, remind_at: next });
+  await assert.rejects(f.me.invoke(actions.acknowledgeReminder, { id: item.id, remind_at: first }), { code: "todo.conflict" });
+  assert.deepEqual((await f.me.invoke(actions.dueReminders, {})).reminders.map(row => row.item.remind_at), [next]);
+  await f.me.invoke(actions.update, { id: item.id, title: "Pay revised invoice" });
+  const current = { id: item.id, remind_at: next };
+  const acknowledged = await f.me.invoke(actions.acknowledgeReminder, current);
+  assert.deepEqual(await f.me.invoke(actions.acknowledgeReminder, current), acknowledged);
+  assert.deepEqual((await f.me.invoke(actions.dueReminders, {})).reminders, []);
+});
+
+test("ARF-5 mixed and empty batches count only recorded changes and stale observations roll back", async t => {
+  const f = fixture(t);
+  const { item: undated } = await f.me.invoke(actions.create, { title: "Unscheduled" });
+  const { item: dated } = await f.me.invoke(actions.create, { title: "Scheduled", planned_date: TODAY });
+  const shift = { shift_days: 1 };
+  const empty = await f.me.invoke(actions.batch, { ids: [undated.id], change: shift });
+  assert.equal(empty.batch_id, null);
+  assert.equal(empty.changed_count, 0);
+  const unchanged = await f.me.invoke(actions.batch, { ids: [dated.id, undated.id], change: { status: "open" } });
+  assert.equal(unchanged.batch_id, null);
+  await f.me.invoke(actions.update, { id: undated.id, title: "Later edit" });
+  await assert.rejects(f.me.invoke(actions.batch, { ids: [dated.id, undated.id], change: shift,
+    expected_revisions: { [undated.id]: undated.revision } }), { code: "todo.conflict" });
+  assert.equal((await f.me.invoke(actions.get, { id: dated.id })).item.planned_date, TODAY);
+  const mixed = await f.me.invoke(actions.batch, { ids: [dated.id, undated.id], change: shift });
+  assert.equal(mixed.changed_count, 1);
+  assert.ok(mixed.batch_id);
+  assert.deepEqual((await f.me.invoke(actions.revert, { batch_id: mixed.batch_id })).items.map(item => item.id), [dated.id]);
 });

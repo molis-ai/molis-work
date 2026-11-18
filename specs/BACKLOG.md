@@ -18,6 +18,8 @@
 
 ## 1. 待你验收
 
+第 38 批场景设置的采用范围、部分成功后继续和撤销见 [BL-b38-settings-adoption-acceptance](backlog/BL-b38-settings-adoption-acceptance.md)。
+
 按[第 01 批本人试用单](post-anticorruption-roadmap/reference/acceptance-01.md)逐项试：已有实现与前置条件分别写明。BL-010／013 尚待对应实现，BL-929 的真实 Home 已重建、待你试；BL-001 已委托，BL-017 已接受已有验证、个人账号路径未实测。第 16 批外观/首屏/组件板本人验收见 [BL-b16-appearance-acceptance](backlog/BL-b16-appearance-acceptance.md)；第 19 批 Work Brief 本人验收见 [BL-b19-work-brief-acceptance](backlog/BL-b19-work-brief-acceptance.md)；第 41 批 Skill 选用与自写技能见 [BL-b41-acceptance](backlog/BL-b41-acceptance.md)；第 42 批 Skill 创作与改进的实物验收见 [BL-b42-acceptance](backlog/BL-b42-acceptance.md)；第 33 批 Coding 与材料恢复闭环本人验收见 [BL-batch33-acceptance](backlog/BL-batch33-acceptance.md)；第 32 批事项线、交办与结果回流、逐项认可见 [BL-b32-acceptance](backlog/BL-b32-acceptance.md)；第 34 批 Sessions 历史实现本人验收见 [BL-b34-sessions-acceptance](backlog/BL-b34-sessions-acceptance.md)。第 58 批子代理公共对话部件见 [BL-b58-subtask-acceptance](backlog/BL-b58-subtask-acceptance.md)。第 59 批助理与 Coding 的真实入口与恢复体验见 [BL-b59-subtask-acceptance](backlog/BL-b59-subtask-acceptance.md)。不要把本节整体当作可立即验收或已获认可。
 
 第 39 批验收见[授权、人审与统一管理页的验收表](agent-approval/spec.md#batch-39-kickoff)和[项目建议的 Skill 使用与撤销](automation-recommender/spec.md#第-39-批证据)：本机 `4207` 真实界面的四条验收动线（授权收窄撤销与审批来源、Coding 内联审查、签名 Skill 建议启用与撤销、逐项认可 APR-15／16）于 2026-11-16 由用户委托主会话实测通过并视作验收通过（未由用户逐项手点）。GitHub 试验 PR `#1` 的两轮 `/approve` 由用户账号发出，GitHub 记录分不清本人手点与会话代发；macOS `Helper.app` 系统授权只有用户自述，未留独立授权记录；合成合并队列仓已按计划删除，缺票拦截/原头证明无法再独立复核。**待你确认 macOS 系统授权或补记录后，本行才能移出「待你验收」。**

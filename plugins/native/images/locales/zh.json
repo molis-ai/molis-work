@@ -5,14 +5,14 @@
   "messages": {
     "images.account.anonymous": "本机无鉴权服务",
     "images.account.keep": "保留当前连接",
-    "images.account.key-help": "密钥在 Connectors 中管理。",
-    "images.account.key-management": "API Key 在 Connectors 统一管理。",
+    "images.account.key-help": "密钥在「设置 › 服务连接」中管理。",
+    "images.account.key-management": "API Key 在「设置 › 服务连接」统一管理。",
     "images.account.label": "账号连接",
     "images.account.missing": "所选连接已失效",
-    "images.account.open-connectors": "在 Connectors 管理图像 API Key",
+    "images.account.open-connectors": "在「服务连接」管理图像 API Key",
     "images.account.reconnect": "所选连接已失效，请重新连接或选择其他账号。",
     "images.account.reselect": "修改 API 基址或协议后，请重新选择账号连接。",
-    "images.account.saved": "账号连接已保存；密钥在 Connectors 中管理。",
+    "images.account.saved": "账号连接已保存；密钥在「设置 › 服务连接」中管理。",
     "images.account.unavailable": "连接不可用",
     "images.background.generating": "正在用 {model} 生成",
     "images.background.done": {

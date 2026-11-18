@@ -59,7 +59,7 @@ export function isolationFact(grade: ShelfIsolationGrade): string {
   }
 }
 
-export const NO_AGENT_REASON = "未发现终端 Agent。";
+export const NO_AGENT_REASON = "未发现本地 Runtime。";
 
 export function missingJobReason(title: string): string {
   return `${title} 没有无界面执行入口，动作不能跑。`;

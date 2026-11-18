@@ -5,14 +5,14 @@
   "messages": {
     "images.account.anonymous": "Local service without authentication",
     "images.account.keep": "Keep the current connection",
-    "images.account.key-help": "The key is managed in Connectors.",
-    "images.account.key-management": "API keys are managed in Connectors.",
+    "images.account.key-help": "Keys are managed in Settings › Service connections.",
+    "images.account.key-management": "API keys are managed in Settings › Service connections.",
     "images.account.label": "Account connection",
     "images.account.missing": "The selected connection is unavailable",
-    "images.account.open-connectors": "Manage image API keys in Connectors",
+    "images.account.open-connectors": "Manage image API keys in Service connections",
     "images.account.reconnect": "Reconnect the selected account or choose another account.",
     "images.account.reselect": "After changing the API base URL or format, choose the account connection again.",
-    "images.account.saved": "Account connection saved; the key is managed in Connectors.",
+    "images.account.saved": "Account connection saved; keys are managed in Settings › Service connections.",
     "images.account.unavailable": "Connection unavailable",
     "images.background.generating": "Generating with {model}",
     "images.background.done": {
@@ -23,7 +23,7 @@
       }
     },
     "images.background.failed": "Not generated",
-    "images.background.open": "Open Images",
+    "images.background.open": "Open images",
     "images.background.stop-summary": "Stop waiting on this computer; the vendor may still generate or charge",
     "images.capability-library.images-jobs-start-v1.title": "Generate image",
     "images.compose.cost": "Generating an image calls the selected provider, which may charge for usage.",

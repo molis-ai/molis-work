@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderSettingsSection, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   SettingsPageModel,
   UiContribution,
@@ -26,7 +26,6 @@ import {
   panelKeysEqual,
   shortcutIdFromSlot,
 } from "@molis-ai/molis-work-module-shelf";
-import { SHELF_GLYPH } from "./glyphs.js";
 import { shelfRecipeText } from "./recipe-text.js";
 import type { ShelfUiPrimitives } from "./ui.js";
 
@@ -66,12 +65,12 @@ export const shelfSettingsUiContribution: UiContribution<SettingsPageModel<Shelf
 
 /** DropAgent's settings sections: by purpose, not by data shape. */
 const SECTIONS = [
-  { id: "setup", title: "shelf.settings-ui.section-setup", tone: "slate", glyph: SHELF_GLYPH.shield, detail: "shelf.settings-ui.section-setup-detail" },
-  { id: "actions", title: "shelf.settings-ui.section-actions", tone: "ochre", glyph: SHELF_GLYPH.bolt, detail: "shelf.settings-ui.section-actions-detail" },
-  { id: "shortcuts", title: "shelf.settings-ui.section-shortcuts", tone: "ochre", glyph: SHELF_GLYPH.keyboard, detail: "shelf.settings-ui.section-shortcuts-detail" },
-  { id: "guide", title: "shelf.settings-ui.section-guide", tone: "slate", glyph: SHELF_GLYPH.book, detail: "shelf.settings-ui.section-guide-detail" },
-  { id: "machine", title: "shelf.settings-ui.section-machine", tone: "blue", glyph: SHELF_GLYPH.terminal, detail: "shelf.settings-ui.section-machine-detail" },
-  { id: "appearance", title: "shelf.settings-ui.section-appearance", tone: "plum", glyph: SHELF_GLYPH.sun, detail: "shelf.settings-ui.section-appearance-detail" },
+  { id: "setup", title: "shelf.settings-ui.section-setup" },
+  { id: "actions", title: "shelf.settings-ui.section-actions" },
+  { id: "shortcuts", title: "shelf.settings-ui.section-shortcuts" },
+  { id: "guide", title: "shelf.settings-ui.section-guide" },
+  { id: "machine", title: "shelf.settings-ui.section-machine" },
+  { id: "appearance", title: "shelf.settings-ui.section-appearance" },
 ] as const;
 
 const KIND_LABELS: readonly { kind: ShelfItemKind; label: string }[] = [
@@ -94,11 +93,11 @@ export function renderShelfSettings(model: ShelfSettingsUiModel): string {
       <p>${uiText("shelf.settings-ui.these-settings-only-change-how-shelf-works-device")}</p>
     </header>
     <div class="shelf-settings-body">
-      ${SECTIONS.map((section) => `<section class="settings-section" data-shelf-settings-pane="${section.id}" aria-labelledby="shelf-settings-${section.id}">
-          <h2 id="shelf-settings-${section.id}"><span class="shelf-glyph tone-${section.tone}" aria-hidden="true">${section.glyph}</span>${uiText(section.title)}</h2>
-          <p class="shelf-settings-detail">${uiText(section.detail)}</p>
-          ${paneBody(section.id, model)}
-        </section>`).join("")}
+      ${SECTIONS.map((section) => renderSettingsSection({
+        // POLISH-29/30: the same layout as every settings page: the title outside, one card under it, no paragraph between them.
+        title: uiText.text(section.title), id: `shelf-settings-${section.id}`, attrs: { "data-shelf-settings-pane": section.id },
+        body: paneBody(section.id, model),
+      })).join("")}
     </div>
   </section>`;
 }

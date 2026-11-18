@@ -212,9 +212,10 @@ test("VUX-40: the Coding page, its own script's words and Coding settings speak 
   assert.ok((await evaluate<{ han: string[] }>(HAN_IN_MARKUP(settings, "[data-coding-settings]"))).han.includes("内置执行方式"));
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=en&next=%2F` }, sessionId));
   assert.deepEqual(await evaluate(HAN_IN_MARKUP(coding, "[data-coding-workbench]")), { found: true, han: [] }, "Coding in English");
-  // The project's name is the person's own; the line around it is English.
+  // The project's name is the person's own; the line around it is English. POLISH-30: the line is a row's name now, and
+  // "Switch project" is that row's button, so no " ·" follows the name.
   const inSettings = await evaluate<{ found: boolean; han: string[] }>(HAN_IN_MARKUP(settings, "[data-coding-settings]"));
-  assert.deepEqual(inSettings.han.filter((line) => !/^Current project: .+ ·$/.test(line)), [], "Coding settings in English");
+  assert.deepEqual(inSettings.han.filter((line) => !/^Current project: .+$/.test(line)), [], "Coding settings in English");
   assert.equal(inSettings.han.length, 1, "the current project line is there, in English");
   // Coding's own script fills the page in English too: the session list, the composer's controls and the results column.
   await navigate(() => command("Page.navigate", { url: coding }, sessionId));

@@ -279,6 +279,8 @@ export interface MwMaterialsTrackOptions {
     readonly title?: string;
 }
 
+export type MwObjectRowTone = "ok" | "quiet" | "attention" | "bad";
+
 export interface MwRoundReportCardOptions {
     readonly statusLabel: string;
     readonly statusTone: MwStatusTone;
@@ -875,6 +877,19 @@ export declare function renderLabel(options: {
     className?: string;
 }): string;
 
+export declare function renderListToolbar(options: {
+    label: string;
+    search: string;
+    filters?: string;
+    more?: {
+        label: string;
+        body: string;
+    };
+    end?: string;
+    className?: string;
+    attrs?: Record<string, AttrValue>;
+}): string;
+
 export declare function renderMaterialIssueRow(options: MwMaterialIssueRowOptions): string;
 
 export declare function renderMaterialsFunnel(counts: ReadonlyArray<{
@@ -920,6 +935,23 @@ export declare function renderNumberField(options: {
     attrs?: Record<string, AttrValue>;
 }): string;
 
+export declare function renderObjectRow(options: {
+    name: string;
+    hint?: string;
+    icon?: PluginIconName;
+    mark?: string;
+    state?: {
+        label: string;
+        tone?: MwObjectRowTone;
+        attrs?: Record<string, AttrValue>;
+    };
+    action?: string;
+    body?: string;
+    open?: boolean;
+    className?: string;
+    attrs?: Record<string, AttrValue>;
+}): string;
+
 export declare function renderOtpField(options?: {
     length?: number;
     name?: string;
@@ -953,6 +985,16 @@ export declare function renderProgress(options: {
     value: number;
     max?: number;
     label?: string;
+    className?: string;
+}): string;
+
+export declare function renderQuestionList(options: {
+    rows: ReadonlyArray<{
+        question: string;
+        answer: string;
+        action?: string;
+        attrs?: Record<string, AttrValue>;
+    }>;
     className?: string;
 }): string;
 
@@ -1009,6 +1051,27 @@ export declare function renderSelect(options?: MwInputOptions & {
 
 export declare function renderSeparator(options?: {
     className?: string;
+}): string;
+
+export declare function renderSettingRow(options: {
+    name: string;
+    hint?: string;
+    control: string;
+    label?: boolean;
+    className?: string;
+    attrs?: Record<string, AttrValue>;
+    nameAttrs?: Record<string, AttrValue>;
+    hintAttrs?: Record<string, AttrValue>;
+}): string;
+
+export declare function renderSettingsSection(options: {
+    title?: string;
+    body: string;
+    id?: string;
+    action?: string;
+    lead?: string;
+    className?: string;
+    attrs?: Record<string, AttrValue>;
 }): string;
 
 export declare function renderSeverityGrid(options: {

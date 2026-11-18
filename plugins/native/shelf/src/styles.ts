@@ -125,11 +125,6 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-search input:focus { outline: none !important; box-shadow: none !important; }
   [data-shelf] .shelf-search input::placeholder { color: var(--da-faint); }
   [data-shelf="settings"] .settings-heading h1 { margin: 0; }
-  [data-shelf="settings"] .settings-section > h2 {
-    display: flex; align-items: center; gap: 8px;
-    margin: 12px 0 4px; font-size: 13px; font-weight: var(--weight-title, 600); color: var(--da-text);
-  }
-  [data-shelf="settings"] .settings-section > h2 .shelf-glyph { width: 16px; height: 16px; flex: none; }
   [data-shelf="settings"] .settings-setting-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--da-line); }
   [data-shelf="settings"] .shelf-hotkey-lead { margin: 0 0 12px; font-size: 11px; color: var(--da-faint); }
   [data-shelf="settings"] .shelf-hotkey-row {
@@ -544,13 +539,14 @@ export const SHELF_STYLES = `
     outline: 2px solid var(--da-accent); outline-offset: -2px;
   }
   [data-shelf] .shelf-settings-body { display: flex; flex-direction: column; gap: 0; min-width: 0; }
-  [data-shelf] .shelf-settings-detail { margin: 0 0 12px; font-size: 13px; color: var(--da-muted); line-height: 1.55; }
-  [data-shelf] .shelf-settings-block { margin: 0 0 16px; }
-  [data-shelf] .shelf-settings-block:last-child { margin-bottom: 8px; }
-  [data-shelf] .shelf-settings-block h3 { margin: 12px 0 8px; font-size: 12px; font-weight: var(--weight-title, 600); color: var(--da-muted); }
+  /* POLISH-29: the first section sits as close under the heading as on every other settings page. */
+  [data-shelf] .shelf-settings-body > .mw-settings-section:first-child { margin-top: 0; }
+  /* POLISH-30: a block is one stretch of a section's card, parted from the next by a line. */
+  [data-shelf] .shelf-settings-block { margin: 0; padding: 12px 0; border-bottom: 1px solid var(--da-line); }
+  [data-shelf] .shelf-settings-block h3 { margin: 0 0 8px; font-size: 12px; font-weight: var(--weight-title, 600); color: var(--da-muted); }
   [data-shelf] .shelf-settings-line { margin: 0 0 8px; font-size: 13px; color: var(--da-text); line-height: 1.55; }
   [data-shelf="settings"] .settings-hint { margin: 8px 0 12px; font-size: 12px; color: var(--da-muted); line-height: 1.55; }
-  [data-shelf="settings"] .shelf-settings-fact { align-items: flex-start; }
+  [data-shelf="settings"] .shelf-settings-fact { align-items: center; }
   [data-shelf] .shelf-runtime-list, [data-shelf] .shelf-runtime-custom, [data-shelf] .shelf-action-list {
     margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px;
   }

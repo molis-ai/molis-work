@@ -82,6 +82,11 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}${COMPOSER_PICTURES_ST
   .mw-composer__query { padding: 4px 4px 6px; }
   .mw-composer__query > .mw-input { width: 100%; }
   .mw-composer__line { margin: 0; padding: 6px 10px; color: var(--muted); font-size: 12px; line-height: 18px; }
+  /* The / menu's closing line (Coding A2): a plain note under the groups, kept apart by a hairline. */
+  .mw-composer__menu-note { margin: 4px 0 0; padding: 8px 10px 4px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 18px; text-wrap: pretty; }
+  /* The board's command chip (CODING_BASICS_STYLES) above the words, as wide as it says; its prompt folded under them, both on the box's gutter. */
+  .mw-composer__box > .mw-cmdchip { justify-self: start; max-width: calc(100% - 24px); margin: 10px 12px 0; }
+  .mw-composer__box > .mw-cmdprompt { margin: 0 12px; }
   /* The page's line above the box (\`notice\`): what holds for the next send. Read-only takes the box's outline too, focused or not; a failure's outline comes first. */
   .mw-composer__notice { display: flex; align-items: center; gap: 8px; margin: 0 2px 6px; color: var(--muted); font-size: 12px; line-height: 18px; animation: craft-rise var(--dur-move, 250ms) var(--ease-quint); }
   .mw-composer__notice > svg { flex: none; width: 14px; height: 14px; }

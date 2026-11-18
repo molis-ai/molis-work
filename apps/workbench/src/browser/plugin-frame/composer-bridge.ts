@@ -19,7 +19,7 @@ export type BridgedControl =
   | { kind: "select"; id: string; label: string; options: { value: string; label: string; disabled?: boolean }[]; value: string; disabled?: boolean }
   | { kind: "toggle"; id: string; label: string; on: boolean; disabled?: boolean }
   | { kind: "button"; id: string; label: string; title?: string; disabled?: boolean };
-export interface BridgedCommand { slash: string; label: string; hint?: string; keywords?: string[]; icon?: string; add?: false }
+export interface BridgedCommand { slash: string; label: string; hint?: string; keywords?: string[]; icon?: string; add?: false; group?: string; warning?: string }
 
 export interface ComposerSnapshot {
   entry: string;
@@ -33,6 +33,10 @@ export interface ComposerSnapshot {
   stop: boolean;
   controls: BridgedControl[];
   commands: BridgedCommand[];
+  /** How the `/` menu groups them, and its closing line. */
+  commandMenu: { groups: { label: string; empty?: string }[]; note?: string } | null;
+  /** The command chip, without its function: its × comes back as `composer-act` `chip`. */
+  chip: { name: string; source: string; remove: { label: string }; prompt?: { label: string; text: string } } | null;
   mentions: boolean;
   attachments: { accept?: string; pictures?: { label: string; open: string; close: string } } | null;
   sources: boolean;
@@ -84,8 +88,8 @@ export type ComposerDown =
   | { type: "composer-ready"; id: number; call: number; ready: boolean }
   | { type: "composer-call"; id: number; call: number; op: ComposerOp; arg?: unknown }
   | { type: "composer-abort"; id: number; call: number }
-  /** A control changed, a command chosen, (`receiver`) another of the page's receivers picked in 「发给」 by the id the page gave, or (`notice`) the button of the line above the box. */
-  | { type: "composer-act"; id: number; act: "control" | "command" | "receiver" | "notice"; key: string; value?: string }
+  /** A control changed, a command chosen, (`receiver`) another of the page's receivers picked in 「发给」 by the id the page gave, (`notice`) the button of the line above the box, or (`chip`) the command chip's ×. */
+  | { type: "composer-act"; id: number; act: "control" | "command" | "receiver" | "notice" | "chip"; key: string; value?: string }
   | { type: "composer-text"; id: number; text: string }
   | { type: "composer-materials"; id: number; materials: ComposerMaterial[]; files?: ComposerFileFact[] }
   /** How wide the bar's input stands over the page, so its conversation column can stand as wide (`--mw-bar-column` on the page). */

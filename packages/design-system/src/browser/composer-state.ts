@@ -78,4 +78,5 @@ export function composerState(basics: ComposerBasics, root: HTMLElement, signal:
 export const attached = (c: Composer) => c.items.filter((item) => item.state === "attached" && item.material).map((item) => item.material!);
 export const blocked = (c: Composer) => c.items.some((item) => item.state !== "attached");
 export const busy = (c: Composer) => c.phase === "sending" || c.phase === "unknown";
-export const sendable = (c: Composer) => !c.held && !busy(c) && !blocked(c) && (c.field.value.trim() !== "" || attached(c).length > 0);
+/** Words, a read attachment, or a command chip (its prompt is the task, even with nothing typed after it). */
+export const sendable = (c: Composer) => !c.held && !busy(c) && !blocked(c) && (c.field.value.trim() !== "" || attached(c).length > 0 || Boolean(c.options.chip?.()));

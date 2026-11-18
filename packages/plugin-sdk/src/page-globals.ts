@@ -185,6 +185,16 @@ export interface ComposerCommonOptions {
   /** This page's own `/` commands. */
   commands?: readonly ComposerCommand[];
   /**
+   * How the `/` menu groups them (Coding A2): `groups` in order, each command under the one its `group` names, the page's commands with
+   * none first; a group with no command says its `empty` line while nothing is typed after `/`. `note` closes the menu.
+   */
+  commandMenu?: ComposerCommandMenu;
+  /**
+   * The command the next send is made from (Coding A2), drawn as a chip at the start of the box: what is typed after it is its argument.
+   * `prompt` is the whole prompt that will be sent, drawn folded under the box; `remove` takes the command off. Null draws none.
+   */
+  chip?: () => ComposerChip | null;
+  /**
    * What `@` names in this page's own text (Coding: a workspace's files and their definitions), in place of the system search: the
    * words after `@` (no space, at most 200 characters) are looked up after a pause, and choosing one puts its `insert` in their place.
    * A rejection's message is said in the menu. The page's own references: no other plugin reaches them.
@@ -241,7 +251,19 @@ export type ComposerControl =
  * is for what goes with the next send: it is offered under `/` only (switching the way of working, opening a panel). `icon` leads its
  * row, as a source's does.
  */
-export interface ComposerCommand { slash: string; label: string; hint?: string; keywords?: readonly string[]; icon?: PluginIconName; add?: false; run(): void }
+export interface ComposerCommand { slash: string; label: string; hint?: string; keywords?: readonly string[]; icon?: PluginIconName; add?: false;
+  /** The `commandMenu` group it is listed under. */
+  group?: string;
+  /** A short warning beside it (「读不了」); its `hint` says why. It is still listed, and choosing it still runs. */
+  warning?: string;
+  run(): void }
+
+/** The `/` menu's groups and closing line (`commandMenu`). */
+export interface ComposerCommandMenu { groups?: readonly { label: string; empty?: string }[]; note?: string }
+
+/** The command chip at the start of the box (`chip`): its `/name`, where it is from, how to take it off, and the prompt it makes. */
+/** `name` without its slash; `source` where it is from, in the reader's words; `remove.label` names the command (「去掉 /补测试」). */
+export interface ComposerChip { name: string; source: string; remove: { label: string; run(): void }; prompt?: { label: string; text: string } }
 
 /** One thing `@` names (`mentions`): its name, a line saying where it is, and the text put in place of the `@words`. */
 export interface ComposerMention { title: string; hint?: string; insert: string }
@@ -295,7 +317,13 @@ export type ComposerFileFact = Pick<File, "name" | "size" | "type" | "lastModifi
 export interface ComposerHandle {
   /** Wait for this input program to mount. A load failure rejects; another call retries. Closed or inactive mounts reject. Draft reads settle separately. */
   ready(): Promise<void>;
-  setRunning(running: boolean): void; refresh(): void; focus(): void; insert(text: string): void;
+  setRunning(running: boolean): void; focus(): void; insert(text: string): void;
+  /**
+   * Draws the page's options again. By default the bar's start too (its controls and commands; a `/` menu being typed in is drawn
+   * again with it); `"lines"` only the lines read on every draw — the notice, the status line and the command chip with its prompt —
+   * so a menu that is open stays as it is (the chip's prompt following what is typed).
+   */
+  refresh(what?: "lines"): void;
   /**
    * The page cannot take words now (Coding until a session's first read is in, or while it starts a round by another button): the
    * text, ＋, the controls and send wait, and the status line says `reason`; null lets go. A send already on its way is the composer's

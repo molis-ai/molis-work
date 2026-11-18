@@ -11,6 +11,7 @@ import { GOALS_ACTIONS } from "./goals-actions.js";
 import { KNOWLEDGE_READ_PERMISSION, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { SKILLS_READ_PERMISSION, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
+import { PROMPT_COMMANDS_READ_PERMISSION, personalPromptCommandsCapability } from "@molis-ai/molis-work-contracts/services/prompt-commands";
 import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
 import {
   CODING_CHANGESET_TYPE,
@@ -68,6 +69,7 @@ export const codingManifest: PluginManifest = {
     { permission: "goals:write", required: true, reason: "按用户确认把固定执行报告记录为原目标的进展" },
     { permission: "artifact:read", required: true, reason: "读取本项目已保存的执行报告、计划与变更集" },
     { permission: KNOWLEDGE_READ_PERMISSION, required: true, reason: "读取用户为下一轮选定的项目资料" },
+    { permission: PROMPT_COMMANDS_READ_PERMISSION, required: false, reason: "列出你自己在家目录 .molis/commands、.claude/commands 里写的命令；命令只是一段提示文字，不带任何权限" },
     { permission: SKILLS_READ_PERMISSION, required: true, reason: "列出共同目录里给 Coding 用的技能，并按这一轮选定的技能读取正文" },
     { permission: "storage:private", required: true, reason: "保存编码会话的未发送草稿" },
     {
@@ -109,6 +111,7 @@ export const codingManifest: PluginManifest = {
       skillCatalogActions.list.capability_id,
       skillCatalogActions.readBodies.capability_id,
       projectDirectoryActions.get.capability_id,
+      personalPromptCommandsCapability.capability_id,
       workspaceReadActions.file.capability_id,
       workspaceReadActions.git.capability_id,
       projectSettingsCapabilities.runtime.capability_id,
@@ -224,6 +227,7 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.start-run", method: "POST", path: "/sessions/:sessionId/runs" },
     // One picture of at most 5 MB, as base64 in JSON (routes-images.ts).
     { route_id: "coding.attachments", method: "POST", path: "/sessions/:sessionId/attachments", max_body_bytes: 7_100_000 },
+    { route_id: "coding.commands", method: "GET", path: "/commands" },
     { route_id: "coding.round-image", method: "GET", path: "/sessions/:sessionId/runs/:runId/images/:materialId" },
     { route_id: "coding.scope-check", method: "POST", path: "/sessions/:sessionId/scope-check" },
     { route_id: "coding.queued-round", method: "POST", path: "/sessions/:sessionId/queued" },

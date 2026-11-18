@@ -311,6 +311,7 @@
     "action.coding.reports.read": 1,
     "action.coding.images.keep": 1,
     "action.coding.images.read": 1,
+    "action.commands.personal.list": 1,
     "action.coding.reports.save": 1,
     "action.coding.results.document": 1,
     "action.coding.runs.control": 1,

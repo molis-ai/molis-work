@@ -32,12 +32,16 @@ export function renderComposerDeliveryMenu(id: string, labels: MwComposerAiLabel
 /** One group of the ＋ menu: a registered source (its plugin's name and its own), this page's commands, or the files. */
 export interface ComposerMenuSource { readonly provider: string; readonly title: string }
 /** A `/` command; `at` is its place in the page's own list when the menu shows only some of them. */
-export interface ComposerMenuCommand { readonly slash: string; readonly label: string; readonly hint?: string; readonly keywords?: readonly string[]; readonly icon?: Parameters<typeof icon>[0]; readonly add?: false; readonly at?: number }
+export interface ComposerMenuCommand { readonly slash: string; readonly label: string; readonly hint?: string; readonly keywords?: readonly string[]; readonly icon?: Parameters<typeof icon>[0]; readonly add?: false; readonly at?: number;
+  /** The `/` menu group it is listed under; `warning` a short state beside it (「读不了」). */
+  readonly group?: string; readonly warning?: string }
+/** The `/` menu's groups in order, each with what it says while it has no command, and the menu's closing line (Coding A2). */
+export interface ComposerMenuGroups { readonly groups?: readonly { readonly label: string; readonly empty?: string }[]; readonly note?: string }
 
-/** One command as a menu row: its name first, what it does under it, and the `/word` that finds it where a shortcut stands. */
+/** One command as a menu row: its name first, what it does under it, a warning beside it, and the `/word` that finds it where a shortcut stands. */
 function commandItem(command: ComposerMenuCommand, at: number): string {
-  return renderMenuItem({ label: command.label, ...(command.icon ? { iconName: command.icon } : {}), ...(command.hint ? { description: command.hint, id: `mw-composer-command-${at}` } : {}), shortcut: `/${command.slash}`,
-    attrs: { "data-composer-command": String(at) } });
+  return renderMenuItem({ label: command.label, ...(command.icon ? { iconName: command.icon } : {}), ...(command.hint ? { description: command.hint, id: `mw-composer-command-${at}` } : {}),
+    ...(command.warning ? { badge: { label: command.warning, tone: "warning" as const } } : {}), shortcut: `/${command.slash}`, attrs: { "data-composer-command": String(at) } });
 }
 
 /**
@@ -57,9 +61,21 @@ export function renderComposerAddMenu(labels: MwComposerLabels, parts: { files: 
   return renderMenu({ items: files + sources + commands });
 }
 
-/** The `/` menu: every command the typed `/words` name, in one scrolling list (none says so). */
-export function renderComposerCommands(labels: MwComposerLabels, commands: readonly (ComposerMenuCommand & { at: number })[]): string {
-  return renderMenu({ items: commands.length ? renderMenuGroup({ label: labels.commands, items: commands.map((command) => commandItem(command, command.at)).join("") }) : line(labels.nothing) });
+/**
+ * The `/` menu: every command the typed `/words` name, in one scrolling list (none says so). With `menu`, the page's commands with no
+ * group come first under its own heading, then each group in its order; a group with none says its `empty` line, only while nothing
+ * is typed after `/` (`all`). The page's `note` closes the menu.
+ */
+export function renderComposerCommands(labels: MwComposerLabels, commands: readonly (ComposerMenuCommand & { at: number })[], menu: ComposerMenuGroups = {}, all = false): string {
+  const rows = (list: readonly (ComposerMenuCommand & { at: number })[]) => list.map((command) => commandItem(command, command.at)).join("");
+  const named = new Set((menu.groups ?? []).map((group) => group.label));
+  const own = commands.filter((command) => !command.group || !named.has(command.group));
+  const groups = (menu.groups ?? []).flatMap((group) => {
+    const under = commands.filter((command) => command.group === group.label);
+    return under.length ? [renderMenuGroup({ label: group.label, items: rows(under) })] : all && group.empty ? [renderMenuGroup({ label: group.label, items: line(group.empty, false) })] : [];
+  });
+  const items = (own.length ? renderMenuGroup({ label: labels.commands, items: rows(own) }) : "") + groups.join("");
+  return renderMenu({ items: (items || line(labels.nothing)) + (menu.note ? `<p class="mw-composer__menu-note">${escapeHtml(menu.note)}</p>` : "") });
 }
 
 /** The commands a typed `/words` names: each whose name, words, hint or keywords hold them, in the page's order (an empty `/` lists all). */
@@ -88,7 +104,7 @@ export function renderComposerMention(labels: MwComposerLabels, found: readonly 
   return renderMenu({ items: renderMenuGroup({ items: rows }) });
 }
 
-const line = (text: string) => `<p class="mw-composer__line" role="status">${escapeHtml(text)}</p>`;
+const line = (text: string, live = true) => `<p class="mw-composer__line"${live ? ` role="status"` : ""}>${escapeHtml(text)}</p>`;
 
 export { renderComposerStrip, type ComposerStripItem, type ComposerFill as Fill } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ComposerFill as Fill } from "@molis-ai/molis-work-plugin-sdk/ui";

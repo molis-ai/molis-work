@@ -12,6 +12,7 @@ import { delegationsRoutes } from "./routes-delegations.js";
 import { codingExecutor } from "./executor.js";
 import { codingOnboarding } from "./onboarding-take.js";
 import { goalsRoutes } from "./routes-goals.js";
+import { commandRoutes } from "./routes-commands.js";
 import { imageRoutes } from "./routes-images.js";
 import { sessionsRoutes } from "./routes-sessions.js";
 import { setupRoutes } from "./routes-setup.js";
@@ -71,7 +72,7 @@ export function codingSurface(context: PluginStartContext, sessions: CodingSessi
   const actions: ActionHandlerBinding[] = [];
   const execution: CodingExecution = { sessions, models: codingModels(context), goalTitles, characters: codingCharacters(context), savedHistoryView: context.services?.savedHistory?.view };
   const activation = startCodingActivation(context, execution, actions, failure);
-  const routes = [writersRoutes, changesetsRoutes, goalsRoutes, setupRoutes, sessionsRoutes, timelineRoutes, delegationsRoutes, cardsRoutes, imageRoutes].flatMap(group => group(activation));
+  const routes = [writersRoutes, changesetsRoutes, goalsRoutes, setupRoutes, sessionsRoutes, timelineRoutes, delegationsRoutes, cardsRoutes, imageRoutes, commandRoutes].flatMap(group => group(activation));
   // The work-executor roles have no route: they answer through the handlers just made.
   codingExecutor(activation);
   codingOnboarding(activation);

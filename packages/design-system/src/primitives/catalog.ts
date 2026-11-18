@@ -11,7 +11,7 @@ import { choiceSection, composeSection } from "./catalog-compose.js";
 import { advancedFieldSection, badgeSection, buttonSection, severityGridSection, calendarSection, feedbackSection, fieldSection, formSection, groupsSection, menuSection, overlaySection, separatorSection, tabsSection } from "./catalog-controls.js";
 import { directorySection, layoutSection } from "./catalog-layout.js";
 import { COMPOSER_STYLES } from "../composer-styles.js";
-import { COMPOSER_BOARD_STYLES, composerSection, menuDescSection, micSection, type Say } from "./catalog-composer.js";
+import { COMPOSER_BOARD_STYLES, commandsSection, composerSection, menuDescSection, micSection, type Say } from "./catalog-composer.js";
 import { keepEditsSections, KEEP_EDITS_BOARD_STYLES } from "./catalog-keep-edits.js";
 import { buttonGroupSection, CATALOG_PATTERN_STYLES, dataTableSection, dropZoneSection, rowsSection, statSection, tagInputSection } from "./catalog-patterns.js";
 import { lookSections } from "./catalog-appearance.js";
@@ -273,6 +273,7 @@ export function renderPrimitiveCatalog(options: {
     ${formSection(say)}
     ${dropZoneSection()}
     ${composerSection(say, options.delivery)}
+    ${commandsSection(say, options.delivery)}
     ${calendarSection()}
     ${tabsSection(say)}
     ${separatorSection()}

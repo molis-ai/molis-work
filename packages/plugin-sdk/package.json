@@ -54,6 +54,10 @@
       "types": "./dist/page-globals.d.ts",
       "import": "./dist/page-globals.js"
     },
+    "./prompt-commands": {
+      "types": "./dist/prompt-commands.d.ts",
+      "import": "./dist/prompt-commands.js"
+    },
     "./whole-units": {
       "types": "./dist/whole-units.d.ts",
       "import": "./dist/whole-units.js"

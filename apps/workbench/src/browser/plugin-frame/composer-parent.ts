@@ -81,7 +81,23 @@ function commandOf(raw: unknown): ComposerSnapshot["commands"][number] {
   const item = record(raw);
   want(item.add === undefined || item.add === false);
   return { slash: text(item.slash, 80), label: text(item.label, 200), ...optional("hint", maybe(item.hint, 400)),
-    ...(item.keywords === undefined ? {} : { keywords: list(item.keywords, 20).map(word => text(word, 80)) }), ...icon(item.icon), ...(item.add === false ? { add: false as const } : {}) };
+    ...(item.keywords === undefined ? {} : { keywords: list(item.keywords, 20).map(word => text(word, 80)) }), ...icon(item.icon), ...(item.add === false ? { add: false as const } : {}),
+    ...optional("group", maybe(item.group, 200)), ...optional("warning", maybe(item.warning, 40)) };
+}
+
+/** The `/` menu's groups and closing line as the page sent them, bounded. */
+function commandMenuOf(raw: unknown): ComposerSnapshot["commandMenu"] {
+  if (raw === null || raw === undefined) return null;
+  const menu = record(raw);
+  return { groups: list(menu.groups, 12).map(one => { const group = record(one); return { label: text(group.label, 200), ...optional("empty", maybe(group.empty, 400)) }; }), ...optional("note", maybe(menu.note, 400)) };
+}
+
+/** The command chip as the page sent it: its words, bounded; the prompt it makes up to 64 KB. */
+function chipOf(raw: unknown): ComposerSnapshot["chip"] {
+  if (raw === null || raw === undefined) return null;
+  const chip = record(raw), prompt = chip.prompt === undefined ? null : record(chip.prompt);
+  return { name: text(chip.name, 200), source: text(chip.source, 100), remove: { label: text(record(chip.remove).label, 100) },
+    ...(prompt ? { prompt: { label: text(prompt.label, 100), text: text(prompt.text, 64 * 1024) } } : {}) };
 }
 
 function deliveryOf(raw: unknown): ComposerSnapshot["delivery"] {
@@ -121,7 +137,7 @@ function bounded(snapshot: ComposerSnapshot): ComposerSnapshot | null {
       receiver: receiverOf(raw.receiver), delivery: deliveryOf(raw.delivery),
       pause: pause ? { label: text(pause.label, 100), title: text(pause.title, 200), ...(flag(pause.busy) ? { busy: true } : {}) } : null,
       stop: raw.stop as boolean, mentions: raw.mentions as boolean, sources: raw.sources as boolean, submitKeys: raw.submitKeys as boolean, draft: raw.draft as boolean,
-      controls: list(raw.controls, 12).map(controlOf), commands: list(raw.commands, 200).map(commandOf),
+      controls: list(raw.controls, 12).map(controlOf), commands: list(raw.commands, 200).map(commandOf), commandMenu: commandMenuOf(raw.commandMenu), chip: chipOf(raw.chip),
       attachments: attachments ? { ...optional("accept", maybe(attachments.accept, 400)), ...picturesOf(attachments.pictures) } : null,
       ...optional("voice", maybe(raw.voice, 80)),
       column: column && Number.isFinite(column.left) && Number.isFinite(column.width) && (column.width as number) > 0 ? { left: column.left as number, width: column.width as number } : null,
@@ -189,7 +205,7 @@ const shape = (snapshot: ComposerSnapshot) => JSON.stringify([snapshot.entry, sn
 export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLElement, frame: HTMLIFrameElement, pack: FramePack, visible: () => boolean) {
   let id = 0, snapshot: ComposerSnapshot | null = null, receiver: BarReceiver | null = null, bound: ComposerHandle | null = null, field: HTMLTextAreaElement | null = null;
   let retitle: (() => void) | undefined, selected: (() => boolean) | undefined;
-  let sequence = 0, shown = "", text = "", generation = 0;
+  let sequence = 0, shown = "", lit = "", text = "", generation = 0;
   const answers = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>();
   const post = (message: ComposerDown) => port.postMessage(message);
   const readiness = parentComposerReadiness(post, () => ({ id, handle: bound, visible: Boolean(selected?.()), alive: scope.alive }));
@@ -213,7 +229,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       .filter(one => one && Number.isInteger(one.index) && typeof one.reason === "string").map(one => ({ index: one.index, reason: short(one.reason, 400) })) } : {}) }
     : value.state === "sent" ? { state: "sent", ...(value.receipt && typeof value.receipt === "object" ? { receipt: value.receipt as never } : {}) }
     : { state: "failed", message: "" };
-  const act = (mine: number, kind: "control" | "command" | "receiver" | "notice", key: string, value?: string) => { if (mine === id) post({ type: "composer-act", id, act: kind, key, ...(value === undefined ? {} : { value }) }); };
+  const act = (mine: number, kind: "control" | "command" | "receiver" | "notice" | "chip", key: string, value?: string) => { if (mine === id) post({ type: "composer-act", id, act: kind, key, ...(value === undefined ? {} : { value }) }); };
   const options = (): ComposerOptions => {
     // A mount let go keeps drawing what it last showed (the bar may read it once more while it unmounts); its calls are refused.
     const mine = id;
@@ -238,6 +254,8 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       ...(at.attachments ? { attachments: { ...at.attachments, upload: (file: File, signal: AbortSignal) => call(mine, "upload", file, signal).then(uploadOf) } } : {}),
       onMaterials: () => { if (bound && mine === id) post({ type: "composer-materials", id, materials: [...bound.materials()], files: bound.files().map(({ name, size, type, lastModified }) => ({ name, size, type, lastModified })) }); },
       near: () => { const near = now().near; return near ? { ...near, plugin_id: pack.plugin_id } : null; },
+      get commandMenu() { return now().commandMenu ?? undefined; },
+      chip: () => { const chip = now().chip; return chip ? { ...chip, remove: { label: chip.remove.label, run: () => act(mine, "chip", "") } } : null; },
       required: () => now().required,
       notice: () => { const line = now().notice; return line ? { text: line.text, tone: line.tone, ...(line.icon ? { icon: line.icon as PluginIconName } : {}), ...(line.action ? { action: { label: line.action.label, run: () => act(mine, "notice", "") } } : {}), ...(line.action && line.also ? { also: { label: line.also.label, run: () => act(mine, "notice", "also") } } : {}) } : null; },
       submit: (input, signal) => call(mine, "submit", input, signal).then(value => outcome(mine, value)),
@@ -259,9 +277,12 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     if (!bound) return;
     bound.setRunning(snapshot.running); bound.hold(snapshot.hold);
     if (field && field.placeholder !== snapshot.placeholder) field.placeholder = snapshot.placeholder;
-    // The line above the box and what holds the send are drawn too: a page's note can change with nothing else (a picture refused).
-    const drawn = JSON.stringify([snapshot.labels, snapshot.receiver, snapshot.delivery, snapshot.pause, snapshot.controls, snapshot.commands, snapshot.notice, snapshot.required]);
-    if (drawn !== shown) { shown = drawn; retitle?.(); bound.refresh(); }
+    const drawn = JSON.stringify([snapshot.labels, snapshot.receiver, snapshot.delivery, snapshot.pause, snapshot.controls, snapshot.commands, snapshot.commandMenu]);
+    // The lines read on every draw can change with nothing else (a picture refused, the chip's prompt as words are typed): drawn
+    // again without the bar's start, so a menu that is open stays.
+    const lines = JSON.stringify([snapshot.notice, snapshot.required, snapshot.chip]);
+    if (drawn !== shown) { shown = drawn; lit = lines; retitle?.(); bound.refresh(); }
+    else if (lines !== lit) { lit = lines; bound.refresh("lines"); }
   };
   const make = () => {
     const at = snapshot!, key = pack.plugin_id + ":" + id + ":" + ++generation;
@@ -275,7 +296,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       bind(handle: ComposerHandle | null, box?: HTMLTextAreaElement, updateWords?: () => void, owns?: () => boolean) {
         if (bound !== handle) readiness.discard();
         if (bound && box !== field) field?.removeEventListener("input", typed);
-        bound = handle; field = handle ? box ?? null : null; retitle = updateWords; selected = owns; shown = ""; width = 0; measure.disconnect();
+        bound = handle; field = handle ? box ?? null : null; retitle = updateWords; selected = owns; shown = ""; lit = ""; width = 0; measure.disconnect();
         if (!handle) return;
         field?.addEventListener("input", typed);
         const input = field?.closest<HTMLElement>(".mw-composer");

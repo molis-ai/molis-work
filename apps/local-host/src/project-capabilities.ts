@@ -1,4 +1,6 @@
 import { ProjectRuntimeSettings } from "./project-runtime-settings.js";
+import { personalPromptCommandsCapability } from "@molis-ai/molis-work-contracts/services/prompt-commands";
+import { personalPromptCommands } from "./prompt-commands.js";
 import { ActionError, bindActionHandler, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -92,6 +94,8 @@ export function registerProjectCapabilities(
     caller.assert_authority_current?.();
     return readWorkspaceFile(query, selected);
   });
+  // The person's own commands (Coding A2): read from their home directory, whatever the project; only plain `.md` files.
+  host.registerAction(personalPromptCommandsCapability, async () => ({ commands: await personalPromptCommands() }));
   // The Runtime pick does not depend on where the project's folders are kept: it is registered with the other current-project settings.
   host.registerAction(projectSettingsCapabilities.runtime, runtime => new ProjectRuntimeSettings(runtime.store.db).read(runtime.project_id));
   host.registerAction(projectSettingsCapabilities.selectRuntime, async (runtime, [runtimeId], invocation) => {

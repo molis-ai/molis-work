@@ -2199,6 +2199,32 @@
         "other": "The {n} images this round carried"
       }
     },
-    "coding.images.unreadable": "{name} can’t be read"
+    "coding.images.unreadable": "{name} can’t be read",
+    "coding.commands.builtin": "Built-in",
+    "coding.commands.project": "This project · .molis/commands",
+    "coding.commands.mine": "Mine · every project",
+    "coding.commands.from-project": "Project",
+    "coding.commands.from-builtin": "Built-in",
+    "coding.commands.init": "Draft an AGENTS.md",
+    "coding.commands.init-hint": "Drafted from the repository; you review it before it is written",
+    "coding.commands.init-no-write": "This session’s runtime can’t write files, so it can’t draft one",
+    "coding.commands.init-prompt": "Read this repository and draft an AGENTS.md at the root of the workspace, for coding assistants that work here later.\n\nLook first at: the package manifest and lock file, the README, the build and test configuration, the folder layout, and any existing instructions such as AGENTS.md, CLAUDE.md or .cursor/rules.\n\nWrite down: how to install dependencies, build, run all the tests and a single test, and start it; where code goes and what each folder holds; the naming and style conventions you found; files and practices not to touch.\n\nOnly facts you can see in the repository, no guesses; at most 80 lines. If an AGENTS.md exists, improve it and keep what people wrote. Write it with the file-writing tool: it is shown to the person for review before it goes into the repository.",
+    "coding.commands.from-mine": "Mine",
+    "coding.commands.project-empty": "None yet. Put a .md in .molis/commands/ saying what Coding should do; $ARGUMENTS is what you type after it.",
+    "coding.commands.note": "A command is only prompt text and carries no permission. On a name clash the project’s wins.",
+    "coding.commands.takes": "Takes an argument: {hint}",
+    "coding.commands.argument": "argument",
+    "coding.commands.also-claude": "also read from .claude/commands",
+    "coding.commands.joiner": " · ",
+    "coding.commands.unreadable": "Unreadable",
+    "coding.commands.why-front-matter": "Can’t read: the header is malformed (missing the closing ---)",
+    "coding.commands.why-too-large": "Can’t read: over 64 KB",
+    "coding.commands.why-not-text": "Can’t read: not text",
+    "coding.commands.why-link": "Can’t read: it is a link, which is not followed",
+    "coding.commands.why-unreadable": "Can’t read: not a plain file",
+    "coding.commands.why-built-in": "Can’t use: it has the name of the built-in /{name}; rename the file",
+    "coding.commands.unreadable-status": "Command file {path}: {why}. The other commands still work.",
+    "coding.commands.remove": "Remove /{name}",
+    "coding.commands.prompt": "The prompt that will be sent"
   }
 }

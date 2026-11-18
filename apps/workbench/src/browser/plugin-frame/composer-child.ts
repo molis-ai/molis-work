@@ -1,5 +1,5 @@
 import type { ComposerMaterial } from "@molis-ai/molis-work-contracts/platform/composer";
-import type { ComposerCommand, ComposerControl, ComposerFileFact, ComposerHandle, ComposerNotice, ComposerOptions, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import type { ComposerChip, ComposerCommand, ComposerControl, ComposerFileFact, ComposerHandle, ComposerNotice, ComposerOptions, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type { BridgedCommand, BridgedControl, ComposerCalls, ComposerDown, ComposerSnapshot, ComposerUp } from "./composer-bridge.js";
 import { childComposerReadiness } from "./composer-readiness.js";
 import type { FrameScope } from "./types.js";
@@ -17,9 +17,13 @@ function bridgedNotice(notice: ComposerNotice | null): ComposerSnapshot["notice"
   return notice ? { text: notice.text, tone: notice.tone, ...(notice.icon ? { icon: notice.icon } : {}), action: notice.action ? { label: notice.action.label } : null,
     ...(notice.action && notice.also ? { also: { label: notice.also.label } } : {}) } : null;
 }
+/** The command chip as it crosses: words only; its × comes back as `composer-act` `chip`. */
+function bridgedChip(chip: ComposerChip | null): ComposerSnapshot["chip"] {
+  return chip ? { name: chip.name, source: chip.source, remove: { label: chip.remove.label }, ...(chip.prompt ? { prompt: { label: chip.prompt.label, text: chip.prompt.text } } : {}) } : null;
+}
 function command(item: ComposerCommand): BridgedCommand {
   return { slash: item.slash, label: item.label, ...(item.hint ? { hint: item.hint } : {}), ...(item.keywords ? { keywords: [...item.keywords] } : {}),
-    ...(item.icon ? { icon: item.icon } : {}), ...(item.add === false ? { add: false as const } : {}) };
+    ...(item.icon ? { icon: item.icon } : {}), ...(item.add === false ? { add: false as const } : {}), ...(item.group ? { group: item.group } : {}), ...(item.warning ? { warning: item.warning } : {}) };
 }
 
 function childSnapshot(ai: Extract<ComposerOptions, { kind: "ai" }>, root: HTMLElement, field: HTMLTextAreaElement | null, running: boolean, hold: string | null): ComposerSnapshot {
@@ -33,6 +37,8 @@ function childSnapshot(ai: Extract<ComposerOptions, { kind: "ai" }>, root: HTMLE
       ...(receiver.others ? { others: receiver.others.map(one => ({ id: one.id, label: one.label, ...(one.detail ? { detail: one.detail } : {}) })) } : {}) } : null,
     delivery: ai.delivery?.() ?? null, pause: pause ? { label: pause.label, title: pause.title, ...(pause.busy ? { busy: true } : {}) } : null,
     stop: Boolean(ai.stop), controls: (ai.controls ?? []).map(control), commands: (ai.commands ?? []).map(command),
+    commandMenu: ai.commandMenu ? { groups: (ai.commandMenu.groups ?? []).map(group => ({ label: group.label, ...(group.empty ? { empty: group.empty } : {}) })), ...(ai.commandMenu.note ? { note: ai.commandMenu.note } : {}) } : null,
+    chip: bridgedChip(ai.chip?.() ?? null),
     mentions: Boolean(ai.mentions), attachments: ai.attachments ? { ...(ai.attachments.accept ? { accept: ai.attachments.accept } : {}), ...(ai.attachments.pictures ? { pictures: { ...ai.attachments.pictures } } : {}) } : null,
     sources: ai.sources ?? true, near: ai.near?.() ?? null, ...(ai.voice ? { voice: ai.voice } : {}), required: ai.required?.() ?? null,
     notice: bridgedNotice(ai.notice?.() ?? null), submitKeys: ai.submitKeys !== false, draft: Boolean(ai.draft), column, running, hold,
@@ -183,6 +189,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       if (message.type === "composer-act") {
         if (message.act === "command") ai.commands?.find(item => item.slash === message.key)?.run();
         else if (message.act === "notice") { const line = ai.notice?.(); (message.key === "also" ? line?.also : line?.action)?.run(); }
+        else if (message.act === "chip") ai.chip?.()?.remove.run();
         else if (message.act === "receiver") {
           // Only one the page itself listed.
           const named = ai.receiver?.();

@@ -22,7 +22,8 @@ export interface ShelfModelSelection { readonly provider_id: string; readonly mo
 export interface ShelfAiStatus {
   readonly available: boolean; readonly reason: string | null;
   readonly selected: ShelfModelSelection | null;
-  readonly choices: readonly (ShelfModelSelection & { readonly label: string; readonly vision: boolean })[];
+  /** `vision` is the model's own mark: true it reads pictures, false it does not, absent when the model says nothing (decision 50). */
+  readonly choices: readonly (ShelfModelSelection & { readonly label: string; readonly vision?: boolean })[];
 }
 /**
  * Sources are the job's frozen copies, built by the store and never accepted from an Action input: `root` is their folder in

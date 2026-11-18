@@ -77,7 +77,8 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
   return {
     ready: () => c.signal.aborted ? Promise.reject(c.signal.reason) : Promise.resolve(),
     setRunning(next) { if (c.running !== next) { c.running = next; if (!next) c.note = undefined; c.paint(); } },
-    refresh() { c.paint(true); },
+    // The bar's start is drawn again; a / menu the person is typing in is drawn again with it, from the page's commands now.
+    refresh(what) { if (what === "lines") return c.paint(); const typing = Boolean(c.typed && c.open); c.paint(true); if (typing && c.typed) menus.openAdd(false); },
     focus() { c.field.focus(); },
     insert(text) {
       c.field.setRangeText(text, c.field.selectionStart, c.field.selectionEnd, "end"); window.molisFit?.(c.field); drafts.save(); c.paint();
@@ -145,7 +146,9 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
         material: { kind: "material", ref: { subject: hit.subject, pin: { mode: "current", read_revision: hit.revision } }, title: hit.title, source: hit.source, search: { hit_id: hit.hit_id, snippet: hit.snippet, plugin_id: hit.plugin_id, plugin_title: hit.plugin_title } } }];
       c.requestId = ""; drafts.save(); field.focus(); return c.paint();
     }
-    if (data.composerCommand) { const command = options.commands?.[Number(data.composerCommand)]; menus.untype(); c.close(); field.focus(); return command?.run(); }
+    // A command may put its chip on the box (Coding A2): drawn at once.
+    if (data.composerCommand) { const command = options.commands?.[Number(data.composerCommand)]; menus.untype(); c.close(); field.focus(); command?.run(); return c.paint(); }
+    if (data.commandRemove !== undefined && target.closest("[data-composer-chip]")) { options.chip?.()?.remove.run(); c.paint(); return field.focus({ preventScroll: true }); }
     if (data.composerMore !== undefined) return void target.setAttribute("aria-expanded", String(target.getAttribute("aria-expanded") !== "true"));
     if (data.composerControl) {
       const control = options.controls?.find((one) => one.id === data.composerControl);
@@ -167,6 +170,8 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
     const plain = !composing(event) && !event.metaKey && !event.ctrlKey && !event.altKey;
     if (plain && (event.key === "ArrowDown" || event.key === "ArrowUp") && menus.step(event.key === "ArrowDown" ? 1 : -1)) return event.preventDefault();
     if (plain && !event.shiftKey && (event.key === "Enter" || event.key === "Tab") && menus.take()) return event.preventDefault();
+    // ⌫ in an empty box takes the command chip off, as × does.
+    if (plain && event.key === "Backspace" && !field.value) { const chip = options.chip?.(); if (chip) { event.preventDefault(); chip.remove.run(); return c.paint(); } }
     const key = composerKey(event, options.submitKeys !== false);
     if (key) { event.preventDefault(); return void sender.send(key === "after-run" ? "after-run" : undefined, true); }
     if (options.submitKeys !== false && !composing(event) && !enterHint.shown() && wantsEnterHint(event, field.value, field.selectionStart)) {

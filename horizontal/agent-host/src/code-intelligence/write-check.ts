@@ -46,10 +46,11 @@ export async function checkProposedWrite(deps: WriteCheckDeps, input: { readonly
   }
   const { client, languageId, name, capabilities } = server;
   const uri = fileUri(input.absolute);
-  let version = 1;
+  // The LSP document's revision: opened at 1, each later text a change one higher.
+  let revision = 1;
   const show = (text: string) => {
-    if (version === 1) client.openDocument({ path: input.absolute, text, languageId }); else client.changeDocument({ path: input.absolute, text, version });
-    version += 1;
+    if (revision === 1) client.openDocument({ path: input.absolute, text, languageId }); else client.changeDocument({ path: input.absolute, text, version: revision });
+    revision += 1;
   };
   try {
     // What the server already finds wrong in the file as it is, so only what the change brings is reported.

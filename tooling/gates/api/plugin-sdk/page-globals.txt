@@ -12,6 +12,19 @@ export type ComposerAttachmentState = {
     reason: string;
 };
 
+export interface ComposerChip {
+    name: string;
+    source: string;
+    remove: {
+        label: string;
+        run(): void;
+    };
+    prompt?: {
+        label: string;
+        text: string;
+    };
+}
+
 export interface ComposerCommand {
     slash: string;
     label: string;
@@ -19,7 +32,17 @@ export interface ComposerCommand {
     keywords?: readonly string[];
     icon?: PluginIconName;
     add?: false;
+    group?: string;
+    warning?: string;
     run(): void;
+}
+
+export interface ComposerCommandMenu {
+    groups?: readonly {
+        label: string;
+        empty?: string;
+    }[];
+    note?: string;
 }
 
 export interface ComposerCommonOptions {
@@ -33,6 +56,8 @@ export interface ComposerCommonOptions {
     submitKeys?: false;
     controls?: readonly ComposerControl[];
     commands?: readonly ComposerCommand[];
+    commandMenu?: ComposerCommandMenu;
+    chip?: () => ComposerChip | null;
     mentions?: (query: string, signal: AbortSignal) => Promise<readonly ComposerMention[]>;
     attachments?: {
         accept?: string;
@@ -102,9 +127,9 @@ export type ComposerFileFact = Pick<File, "name" | "size" | "type" | "lastModifi
 export interface ComposerHandle {
     ready(): Promise<void>;
     setRunning(running: boolean): void;
-    refresh(): void;
     focus(): void;
     insert(text: string): void;
+    refresh(what?: "lines"): void;
     hold(reason: string | null): void;
     attach(files: readonly File[], replacing?: readonly ComposerFileFact[]): void;
     materials(): readonly ComposerMaterial[];

@@ -155,6 +155,8 @@ export interface Refs {
   composer: ComposerHandle;
   /** The composer's pictures for the session on show (A3), or null when no session is. */
   images: CodingImages | null;
+  /** Prompt commands (A2): the project's and the person's own, and the one chosen for the next send. */
+  prompts?: import("./prompt-commands.js").PromptCommands;
   composerLabels?: ReturnType<typeof codingComposerLabels>;
   composerModels: ComposerModels;
   cooperationUi: CooperationClient;

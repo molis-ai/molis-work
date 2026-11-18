@@ -91,7 +91,8 @@ function sceneControls(page: Page): ComposerControl[] {
 function composerCommands(page: Page): ComposerCommand[] {
   return codingCommands(page).filter(command => command.enabled !== false).map(command => ({
     slash: command.slash, label: command.label, ...(command.hint ? { hint: command.hint } : {}), ...(command.keywords ? { keywords: command.keywords } : {}),
-    ...(command.adds ? { icon: command.adds } : { add: false as const }), run: () => void page.refs.commandsUi.run(command),
+    ...(command.adds ? { icon: command.adds } : { add: false as const }), ...(command.group ? { group: command.group } : {}), ...(command.warning ? { warning: command.warning } : {}),
+    run: () => void page.refs.commandsUi.run(command),
   }));
 }
 
@@ -129,7 +130,8 @@ function missing(page: Page): string | null {
 async function submit(page: Page, id: string, input: ComposerSubmission): Promise<ComposerOutcome> {
   const { readText, refs, s } = page;
   if (s.current !== id || s.sending) return { state: "failed", message: readText("coding.composer.busy") };
-  const run = s.lastRun, task = input.text;
+  // A chosen prompt command (A2) makes the task: its text with what was typed as the argument.
+  const run = s.lastRun, task = refs.prompts?.task(input.text) ?? input.text;
   // Pictures go with the task of a new round; words sent into a round under way carry none (the round's own were fixed when it began).
   const images = refs.images?.take(input.materials) ?? [];
   if (run && !terminal(run.phase) && images.length) return { state: "failed", message: readText("coding.images.next-round") };
@@ -142,6 +144,7 @@ async function submit(page: Page, id: string, input: ComposerSubmission): Promis
     await refs.draft.flush();
     if (run && !terminal(run.phase)) status(page, await refs.inputReceipts.steer(id, run.ref.run_id, task, input.delivery ?? "next-boundary"));
     else if (!await startFromComposer(page, id, task, selection, s.intent, refs.composerModels.value())) return { state: "failed", message: readText("coding.composer.cancelled") };
+    refs.prompts?.sent();
     surfaceChanged(page, id);
     void refreshState(page).then(() => readCurrent(page)).catch(error => status(page, errorMessage(error), true));
     return { state: "sent" };
@@ -188,6 +191,9 @@ export function mountCodingComposer(page: Page, id: string) {
     pause: () => pauseOf(page),
     get controls() { return sceneControls(page); },
     get commands() { return composerCommands(page); },
+    // Prompt commands (A2): grouped by where they are from; a chosen one sits at the start of the box as a chip.
+    get commandMenu() { return refs.prompts?.menu(); },
+    chip: () => refs.prompts?.chip() ?? null,
     mentions: (query, signal) => refs.mentions(query, signal),
     // Pictures pasted, dropped or picked (A3): the platform keeps each; the strip shows them as thumbnails that open larger.
     ...(images ? { attachments: { accept: images.accept, upload: (file: File, signal: AbortSignal) => images.upload(file, signal),

@@ -8,7 +8,7 @@
 // board, the SDK and the client cannot drift (UIC-13).
 import { escapeHtml, icon, renderButton, renderComposer, renderProgress, type MwComposerAiLabels, type MwComposerStatus } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderMenu, renderMenuGroup, renderMenuItem } from "./overlay.js";
-import { renderComposerDeliveryMenu, renderComposerNotice } from "../composer-parts.js";
+import { renderComposerCommands, renderComposerDeliveryMenu, renderComposerNotice } from "../composer-parts.js";
 import { section, specimen } from "./catalog-parts.js";
 import { composerRestRules, composerRestTouch } from "../composer-styles.js";
 
@@ -168,6 +168,27 @@ export function composerSection(say: Say, add = say("workbench.composer.next-bou
     ${specimen(escapeHtml(say("workbench.catalog-composer.pending-confirmation")), shell(say, add, { state: "unknown", text: task, status: { caption: say("workbench.catalog-composer.pending-confirmation"), text: say("workbench.catalog-composer.could-not-confirm-it-arrived-checking-now-don"), action: say("workbench.settings-sync-history.details") } }))}
     ${notices(say, add)}
     ${specimen(escapeHtml(say("workbench.context-bar.unavailable")), shell(say, add, { state: "disabled", placeholder: say("workbench.catalog-composer.this-session-has-ended"), status: { caption: say("workbench.context-bar.unavailable"), text: say("workbench.catalog-composer.the-session-has-ended-and-takes-no") } }))}
+  </div>`);
+}
+
+/**
+ * Prompt commands in the `/` menu (Coding A2, docs/design/coding-daily-basics scheme A): grouped by where they are from, one that
+ * cannot be read still listed and marked, and a group with none teaching how to add one. The chip a chosen command leaves in the box
+ * is the board's command chip (`#coding-basics`).
+ */
+export function commandsSection(say: Say, add = say("workbench.composer.next-boundary")): string {
+  const labels = composerLabelsIn(say, "Coding", add);
+  const groups = [{ label: say("workbench.catalog-composer.cmd-builtin") }, { label: say("workbench.catalog-composer.cmd-project"), empty: say("workbench.catalog-composer.cmd-project-empty") }, { label: say("workbench.catalog-composer.cmd-mine") }];
+  const note = say("workbench.catalog-composer.cmd-note");
+  const builtin = { slash: "init", label: say("workbench.catalog-composer.cmd-init"), group: groups[0]!.label };
+  const project = [{ slash: say("workbench.catalog-composer.cmd-tests-slash"), label: say("workbench.catalog-composer.cmd-tests"), hint: say("workbench.catalog-composer.cmd-tests-hint"), group: groups[1]!.label },
+    { slash: say("workbench.catalog-composer.cmd-release-slash"), label: say("workbench.catalog-composer.cmd-release"), hint: say("workbench.catalog-composer.cmd-unreadable-hint"), warning: say("workbench.catalog-composer.cmd-unreadable"), group: groups[1]!.label }];
+  const mine = { slash: "review-ui", label: say("workbench.catalog-composer.cmd-review"), hint: say("workbench.catalog-composer.cmd-review-hint"), group: groups[2]!.label };
+  // Each specimen numbers its rows from its own start, so the two menus on the board never share a described row's id.
+  const menu = (list: readonly { slash: string; label: string; hint?: string; warning?: string; group: string }[], from = 0) => `<div class="mw-catalog__menu-room">${renderComposerCommands(labels, list.map((one, at) => ({ ...one, at: from + at })), { groups, note }, true)}</div>`;
+  return section("commands", escapeHtml(say("workbench.catalog-composer.cmd-section")), `<p class="mw-catalog__hint">${escapeHtml(say("workbench.catalog-composer.cmd-section-hint"))}</p><div class="mw-catalog__specimens">
+    ${specimen(escapeHtml(say("workbench.catalog-composer.cmd-grouped")), menu([builtin, ...project, mine]))}
+    ${specimen(escapeHtml(say("workbench.catalog-composer.cmd-none")), menu([builtin, mine], 10))}
   </div>`);
 }
 

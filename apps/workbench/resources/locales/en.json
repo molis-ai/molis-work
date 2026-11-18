@@ -10115,6 +10115,21 @@
     "workbench.subtask-conversation.approvals": "Approval",
     "workbench.subtask-conversation.notice.peer-update": "Conversation update received",
     "workbench.subtask-conversation.notice.task-unavailable": "Original task description unavailable",
-    "workbench.subtask-conversation.notice.subagent-input": "A person added input to this sub-task"
+    "workbench.subtask-conversation.notice.subagent-input": "A person added input to this sub-task",
+    "workbench.service-connection-parts.use-ready": "Works",
+    "workbench.service-connection-parts.use-connect-first": "Connect first",
+    "workbench.service-connection-parts.use-none": "No",
+    "workbench.service-connection-parts.use-service": "Service",
+    "workbench.service-connection-parts.use-no-service": "No service does this yet",
+    "workbench.connection-uses.feed-source": "Feed source",
+    "workbench.connection-uses.document-import": "Import documents",
+    "workbench.connection-uses.assistant-read": "Assistant can read",
+    "workbench.connection-uses.web-search": "Web search",
+    "workbench.connection-uses.category": "Skill categories",
+    "workbench.connection-uses.by-use": "By use",
+    "workbench.connection-uses.by-service": "By service",
+    "workbench.connection-uses.view": "View",
+    "workbench.connection-uses.lead": "“Works” works now; “Connect first” works once connected; blank means the service can’t.",
+    "workbench.service-connection-specimens.uses-matrix": "Use matrix: a row per service, a column per use; at 720px and under, one list per use"
   }
 }

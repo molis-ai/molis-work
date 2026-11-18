@@ -9346,6 +9346,21 @@
     "workbench.subtask-conversation.approvals": "审批",
     "workbench.subtask-conversation.notice.peer-update": "收到一条会话更新",
     "workbench.subtask-conversation.notice.task-unavailable": "原任务说明不可用",
-    "workbench.subtask-conversation.notice.subagent-input": "有人向这项子任务补充了输入"
+    "workbench.subtask-conversation.notice.subagent-input": "有人向这项子任务补充了输入",
+    "workbench.service-connection-parts.use-ready": "能用",
+    "workbench.service-connection-parts.use-connect-first": "要先连",
+    "workbench.service-connection-parts.use-none": "不能",
+    "workbench.service-connection-parts.use-service": "服务",
+    "workbench.service-connection-parts.use-no-service": "还没有能做这件事的服务",
+    "workbench.connection-uses.feed-source": "Feed 来源",
+    "workbench.connection-uses.document-import": "导入文档",
+    "workbench.connection-uses.assistant-read": "助理可读",
+    "workbench.connection-uses.web-search": "网页搜索",
+    "workbench.connection-uses.category": "技能里的类别",
+    "workbench.connection-uses.by-use": "按用途",
+    "workbench.connection-uses.by-service": "按服务",
+    "workbench.connection-uses.view": "怎么看",
+    "workbench.connection-uses.lead": "「能用」是现在就能用；「要先连」是连上就能用；空着是这个服务做不到。",
+    "workbench.service-connection-specimens.uses-matrix": "按用途的对照表：一行一个服务、一列一种用途；窄到 720px 以下改成按用途分组的列表"
   }
 }

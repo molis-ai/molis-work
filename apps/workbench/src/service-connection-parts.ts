@@ -12,6 +12,48 @@ import { renderSteps } from "@molis-ai/molis-work-design-system";
  */
 type Say = (text: string, values?: Record<string, string | number>) => string;
 
+/** What one service does for one use: works now with a connected account, works once connected, or not at all. */
+export type ConnectionUseCell = "ready" | "connect" | "none";
+
+export interface ConnectionUseMatrixView {
+  /** The table's name for assistive technology, such as 「按用途」. */
+  readonly label: string;
+  /** The uses, in column order; each id is the key of a row's `cells`. */
+  readonly uses: readonly { readonly id: string; readonly label: string }[];
+  readonly rows: readonly { readonly id: string; readonly mark: string; readonly name: string; readonly cells: Readonly<Record<string, ConnectionUseCell>> }[];
+  /** Where a 「要先连」 mark leads: the service's row on the same page. Absent leaves the mark as text. */
+  readonly connectHref?: (rowId: string) => string;
+}
+
+const USE_CELL_WORD = {
+  ready: "workbench.service-connection-parts.use-ready",
+  connect: "workbench.service-connection-parts.use-connect-first",
+  none: "workbench.service-connection-parts.use-none",
+} as const;
+
+/**
+ * The use matrix (§13.7 ①B): a row per service, a column per use, each cell saying whether it works now, works once connected, or not.
+ * At the page's own narrow width (<=720px) the same facts read as one short list per use, without the services that cannot do it; the
+ * table and the lists are both drawn and CSS shows one, so nothing is read twice.
+ */
+export function renderConnectionUseMatrix(view: ConnectionUseMatrixView): string {
+  const mark = (state: ConnectionUseCell, rowId: string) => {
+    if (state === "none") return `<span class="mw-sr-only">${escapeHtml(uiText.text(USE_CELL_WORD.none))}</span><span class="connection-uses__none" aria-hidden="true">·</span>`;
+    const drawn = renderStatusMark({ label: uiText.text(USE_CELL_WORD[state]), tone: state === "ready" ? "done" : "quiet", icon: state === "ready" ? "check" : "link", plain: state !== "ready" });
+    return state === "connect" && view.connectHref ? `<a class="connection-uses__go" href="${escapeHtml(view.connectHref(rowId))}">${drawn}</a>` : drawn;
+  };
+  const head = view.uses.map((use) => `<th scope="col">${escapeHtml(use.label)}</th>`).join("");
+  const body = view.rows.map((row) => `<tr data-connection-use-row="${escapeHtml(row.id)}"><th scope="row"><span class="connection-uses__service">${row.mark}<span>${escapeHtml(row.name)}</span></span></th>${view.uses.map((use) => `<td data-use="${escapeHtml(use.id)}" data-state="${row.cells[use.id] ?? "none"}">${mark(row.cells[use.id] ?? "none", row.id)}</td>`).join("")}</tr>`).join("");
+  const table = `<div class="connection-uses__table mw-table-wrap" role="region" aria-label="${escapeHtml(view.label)}" tabindex="0"><table class="mw-table"><thead><tr><th scope="col"><span class="mw-sr-only">${escapeHtml(uiText.text("workbench.service-connection-parts.use-service"))}</span></th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  const lists = view.uses.map((use) => {
+    const rows = view.rows.filter((row) => (row.cells[use.id] ?? "none") !== "none");
+    const items = rows.length ? rows.map((row) => `<li class="connection-uses__item">${row.mark}<strong>${escapeHtml(row.name)}</strong><span class="connection-uses__end">${mark(row.cells[use.id]!, row.id)}</span></li>`).join("")
+      : `<li class="connection-uses__empty">${escapeHtml(uiText.text("workbench.service-connection-parts.use-no-service"))}</li>`;
+    return `<section class="connection-uses__group" aria-label="${escapeHtml(use.label)}"><h3>${escapeHtml(use.label)}</h3><ul>${items}</ul></section>`;
+  }).join("");
+  return `<div class="connection-uses" data-connection-uses>${table}<div class="connection-uses__lists">${lists}</div></div>`;
+}
+
 /** Where a connection's steps stand: under way, waiting on the service, refused, given up by the person, or all done. */
 export type ConnectionProgressState = "running" | "hold" | "failed" | "cancelled" | "done";
 
@@ -188,5 +230,21 @@ export const SERVICE_CONNECTION_CARD_STYLES = ""
   + `.connection-card .mw-card__footer{padding-top:16px}.connection-need[data-state=running] .connection-card .mw-card__footer{display:none}`
   + `@media (prefers-reduced-motion:reduce){:is(.connection-need__fold,.connection-need__done,.connection-card__fold){transition:none}}`;
 
+/** The use matrix: the shared `mw-table-wrap` frame (it scrolls sideways inside itself); at 720px and under, one list per use. */
+export const SERVICE_CONNECTION_USES_STYLES = ""
+  + `.connection-uses__table:focus-visible{outline:var(--focus-stroke);outline-offset:1px}`
+  + `.connection-uses .mw-table{min-width:100%}.connection-uses .mw-table :is(th,td){white-space:nowrap}`
+  + `.connection-uses .mw-table tbody th{font-weight:500;color:var(--ink)}`
+  + `.connection-uses__service{display:inline-flex;align-items:center;gap:10px}.connection-uses__service>.settings-connector-mark,.connection-uses__item>.settings-connector-mark{flex:none;width:28px;height:28px;padding:5px;border-radius:7px}`
+  + `.connection-uses__none{color:var(--faint)}`
+  + `.connection-uses__go{color:inherit;text-decoration:none;border-radius:var(--r-row)}.connection-uses__go:hover .mw-status{color:var(--ink)}.connection-uses__go:focus-visible{outline:var(--focus-stroke);outline-offset:1px}`
+  + `.connection-uses__lists{display:none}`
+  + `.connection-uses__group+.connection-uses__group{margin-top:24px}.connection-uses__group h3{margin:0 0 8px;font-size:13px;font-weight:600;color:var(--ink)}`
+  + `.connection-uses__group ul{margin:0;padding:0;list-style:none;border:1px solid var(--line);border-radius:var(--r-card);background:var(--paper)}`
+  + `.connection-uses__item{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:10px;min-height:44px;padding:8px 12px}`
+  + `.connection-uses__item+.connection-uses__item{border-top:1px solid var(--line)}.connection-uses__item strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}`
+  + `.connection-uses__empty{padding:12px;color:var(--muted)}`
+  + `@media (max-width:720px){.connection-uses__table{display:none}.connection-uses__lists{display:block}}`;
+
 /** Every part: what the component board shows. */
-export const SERVICE_CONNECTION_PART_STYLES = SERVICE_CONNECTION_PROGRESS_STYLES + SERVICE_CONNECTION_ITEM_STYLES + SERVICE_CONNECTION_CARD_STYLES;
+export const SERVICE_CONNECTION_PART_STYLES = SERVICE_CONNECTION_PROGRESS_STYLES + SERVICE_CONNECTION_ITEM_STYLES + SERVICE_CONNECTION_CARD_STYLES + SERVICE_CONNECTION_USES_STYLES;

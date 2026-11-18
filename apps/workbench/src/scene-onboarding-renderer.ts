@@ -1,9 +1,10 @@
 import { THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
-import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderRadioGroup, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { createArrivalShell } from "./arrival/shell.js";
 import { readEventStream } from "./browser/event-stream.js";
 import { sceneReviewPage, renderSceneReview } from "./browser/scene-review-view.js";
+import { sceneSettingValues } from "./browser/scene-setting-values.js";
 import { sceneOnboarding } from "./browser/scene-onboarding.js";
 import type { MolisWorkOnboardingRenderOptions, OnboardingRenderPrimitives } from "./onboarding-renderer.js";
 import { CONTROL_CLIENT_SCRIPT } from "./scripts/control.js";
@@ -30,6 +31,7 @@ export function renderSceneOnboarding(options: MolisWorkOnboardingRenderOptions,
   const stage = `<main class="arrival-stage" data-scene-workspace data-project="${p.escapeHtml(project ?? "")}">
     <div class="stage-single"><div class="stage-sheet scene-sheet" data-scroll><div class="scene-columns">
     <header><p data-scene-context hidden></p><h1>${p.escapeHtml(title)}</h1><p data-scene-purpose hidden></p></header>
+    <template data-scene-options>${renderRadioGroup({ name: "scene-option", legend: "", items: [{ value: "", label: "" }] })}</template>
     <section class="scene-review"><div data-scene-main></div>
     <p class="cx-error ob-error" data-scene-error role="alert" hidden></p>
     <aside data-scene-aside aria-label="${t("workbench.scene.all")}"></aside></section></div></div></div></main>`;
@@ -37,5 +39,6 @@ export function renderSceneOnboarding(options: MolisWorkOnboardingRenderOptions,
   return shell.document({ ownerText: sceneSettingText(p.catalogTextPacks), title: title + " · Molis Work", screen: "onboard", desktopShell: desktop, controlToken: options.controlToken ?? "",
     titlebar: shell.titlebar(desktop, {}), stage, bar: shell.bar({ kind: "onboard", start }),
     scripts: CONTROL_CLIENT_SCRIPT + ";(" + sceneOnboarding.toString() + ")(globalThis.molisWorkRequest," + readEventStream.toString() +
-      ",(key,args)=>globalThis.t.text(key,args),ref=>globalThis.say.text(ref)," + sceneReviewPage.toString() + "," + renderSceneReview.toString() + ");" });
+      ",(key,args)=>globalThis.t.text(key,args),ref=>globalThis.say.text(ref)," + sceneReviewPage.toString() + "," + renderSceneReview.toString() + "," +
+      sceneSettingValues.toString() + ");" });
 }

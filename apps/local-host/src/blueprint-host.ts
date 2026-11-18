@@ -63,7 +63,8 @@ export function hostBlueprints(home: string, host: MolisWorkLocalHost, catalog: 
     };
     const discovered: DiscoveredSetting[] = [];
     const add = (owner: SettingBinding, declaration: SettingsDeclaration, text_owner: string, unavailable?: string) => {
-      for (const entry of declaration.entries) discovered.push({ entry, binding: owner, text_owner, ...(unavailable && { unavailable }) });
+      for (const entry of declaration.entries) discovered.push({ entry, binding: owner, text_owner,
+        ...(declaration.model_configuration?.key === entry.key && { model_selection: true }), ...(unavailable && { unavailable }) });
     };
     const listed = new Set<string>();
     for (const view of directory) {

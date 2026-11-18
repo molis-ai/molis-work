@@ -4,11 +4,13 @@ import type { BlueprintAdoptionApplyInput, BlueprintAdoptionApplyResult, Bluepri
 import type { OwnedTextRef, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { readEventStream } from "./event-stream.js";
 
+import type { sceneSettingValues } from "./scene-setting-values.js";
 import type { sceneReviewPage, renderSceneReview } from "./scene-review-view.js";
 
 export function sceneOnboarding(request: UiRequest, readStream: typeof readEventStream,
-  words: (key: string, args?: Record<string, string | number>) => string, say: (ref: OwnedTextRef) => string, makePage: typeof sceneReviewPage, renderReview: typeof renderSceneReview) {
-  const page = makePage(words, say, action);
+  words: (key: string, args?: Record<string, string | number>) => string, say: (ref: OwnedTextRef) => string, makePage: typeof sceneReviewPage, renderReview: typeof renderSceneReview,
+  settingValues: typeof sceneSettingValues) {
+  const page = makePage(words, say, action, settingValues(words, request));
   const { frame, project, error, t, button, pageUrl, sceneContext } = page;
   const api = (project ? "/projects/" + encodeURIComponent(project) : "") + "/api/blueprints/";
   const params = new URLSearchParams(location.search);

@@ -1,9 +1,10 @@
+import type { sceneSettingValues } from "./scene-setting-values.js";
 import type { BlueprintAdoptionTarget, BlueprintApplyStep, BlueprintDraftResult, BlueprintLibraryResult, BlueprintPreviewChange, BlueprintPreviewPart, UndoStep } from "@molis-ai/molis-work-contracts/services/blueprints";
 import type { OwnedTextRef, TextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 
 type Words = (key: string, args?: Record<string, string | number>) => string;
 
-export function sceneReviewPage(words: Words, say: (ref: OwnedTextRef) => string, action: (run: () => Promise<void> | void) => Promise<void>) {
+export function sceneReviewPage(words: Words, say: (ref: OwnedTextRef) => string, action: (run: () => Promise<void> | void) => Promise<void>, values: ReturnType<typeof sceneSettingValues>) {
   const frame = document.querySelector<HTMLElement>("[data-scene-workspace]")!;
   const project = frame.dataset.project || "";
   const params = new URLSearchParams(location.search);
@@ -40,18 +41,19 @@ export function sceneReviewPage(words: Words, say: (ref: OwnedTextRef) => string
   function field(parent: HTMLElement, label: string, value: string) { const dt = node("dt", label), dd = node("dd", value); parent.append(dt, dd); }
   function chooseTarget(current: BlueprintDraftResult["draft"], show: (dest: BlueprintAdoptionTarget) => Promise<void>) {
     empty(); sceneContext(current.blueprint.title, current.blueprint.purpose.work); heading(main, t("scope"));
-    const label = node("label", t("scope")), select = node("select"); label.append(select); main.append(label);
     const title = node("input"); title.value = name(current.blueprint.title); title.className = "mw-input"; title.maxLength = 160;
     title.setAttribute("aria-label", t("project-name"));
     const targets = project ? ["current_project", "personal", "new_project"] : ["personal", "new_project"];
-    for (const kind of targets) { const option = node("option", t(kind)); option.value = kind; select.append(option); }
-    if (!project && current.blueprint.parts.some(p => p.layer === "project")) select.value = "new_project";
-    const changed = () => { title.hidden = select.value !== "new_project"; }; select.addEventListener("change", changed); changed();
-    main.append(title);
+    const initial = !project && current.blueprint.parts.some(p => p.layer === "project") ? "new_project" : targets[0]!;
+    const scope = values.options(t("scope"), "scene-target", targets.map(value => ({ value, label: t(value) })), initial);
+    const changed = () => { title.hidden = scope.value() !== "new_project"; };
+    scope.field.addEventListener("change", changed); changed();
+    main.append(scope.field, title);
     bar.append(button(t("preview"), async () => {
-      if (select.value === "new_project" && !title.value.trim()) { title.focus(); return; }
-      const dest: BlueprintAdoptionTarget = select.value === "new_project" ? { kind: "new_project", display_name: title.value.trim() }
-        : { kind: select.value === "current_project" ? "current_project" : "personal" };
+      const target = scope.value();
+      if (target === "new_project" && !title.value.trim()) { title.focus(); return; }
+      const dest: BlueprintAdoptionTarget = target === "new_project" ? { kind: "new_project", display_name: title.value.trim() }
+        : { kind: target === "current_project" ? "current_project" : "personal" };
       await show(dest);
     }, true));
   }
@@ -75,7 +77,7 @@ export function sceneReviewPage(words: Words, say: (ref: OwnedTextRef) => string
       (oldHeading === heading?.textContent ? same ?? heading : heading)?.focus();
     }
   }
-  return { frame, project, error, main, aside, bar, t, name, node, pageUrl, button, link, printable, titleOf, sceneContext, heading, field, chooseTarget, library, redraw };
+  return { values, frame, project, error, main, aside, bar, t, name, node, pageUrl, button, link, printable, titleOf, sceneContext, heading, field, chooseTarget, library, redraw };
 }
 
 interface Review {
@@ -116,9 +118,10 @@ export function renderSceneReview(page: ReturnType<typeof sceneReviewPage>, stat
     heading(main, titleOf(part));
     if (part.summary) main.append(node("p", name(part.summary)));
     const current = part.candidates.find(c => c.kind === "owner")?.current, details = node("dl");
-    field(details, t("current"), current?.state === "present" ? printable(current.value) : current?.state === "unavailable" ? current.reason : t("unavailable"));
+    const key = part.proposal.kind === "setting" ? part.proposal.key : "";
+    field(details, t("current"), current?.state === "present" ? page.values.describe(key, current.value, part.model_selection) : current?.state === "unavailable" ? current.reason : t("unavailable"));
     if (current?.state === "present" && current.setting_source) field(details, t("source"), t(current.setting_source));
-    if (part.proposal.kind === "setting") field(details, t("proposed"), printable(part.proposal.value));
+    if (part.proposal.kind === "setting") field(details, t("proposed"), page.values.describe(part.proposal.key, part.proposal.value, part.model_selection));
     field(details, t("scope"), t(part.device_only ? "device-only" : part.layer));
     for (const consequence of part.consequences) field(details, t("impact"), t(consequence));
     main.append(details);
@@ -126,19 +129,26 @@ export function renderSceneReview(page: ReturnType<typeof sceneReviewPage>, stat
     else main.append(check(part, t("include")));
     if (state.editing && part.proposal.kind === "setting" && (part.decision !== "skip" || part.reason === "value_unavailable")) {
       const proposal = part.proposal, edit = node("details");
-      const value = typeof proposal.value === "boolean" ? node("select") : node("textarea");
-      if (value instanceof HTMLSelectElement) {
-        for (const enabled of [true, false]) {
-          const option = node("option", printable(enabled)); option.value = String(enabled); value.append(option);
-        }
+      edit.append(node("summary", t("edit")));
+      if (part.model_selection) {
+        const save = button(t("refresh"), () => controls.edit({ part_id: part.part_id, proposal: { ...proposal, value: selected() } }));
+        const selected = page.values.modelEditor(edit, proposal.value, save);
+      } else if (typeof proposal.value === "boolean") {
+        const choice = page.values.options(t("proposed"), "scene-boolean",
+          [true, false].map(value => ({ value: String(value), label: printable(value) })), String(proposal.value));
+        const save = button(t("refresh"), () => controls.edit({ part_id: part.part_id, proposal: { ...proposal, value: choice.value() === "true" } }));
+        edit.append(choice.field, save);
+      } else {
+        const value = node("textarea");
+        value.className = "mw-input"; value.setAttribute("aria-label", t("proposed"));
+        value.value = printable(proposal.value);
+        const save = button(t("refresh"), async () => {
+          const v = typeof proposal.value === "string" ? value.value : JSON.parse(value.value);
+          await controls.edit({ part_id: part.part_id, proposal: { ...proposal, value: v } });
+        });
+        edit.append(value, save);
       }
-      value.className = "mw-input"; value.setAttribute("aria-label", t("proposed"));
-      value.value = typeof proposal.value === "boolean" ? String(proposal.value) : printable(proposal.value);
-      const save = button(t("refresh"), async () => {
-        const v = typeof proposal.value === "string" ? value.value : JSON.parse(value.value);
-        await controls.edit({ part_id: part.part_id, proposal: { ...proposal, value: v } });
-      });
-      edit.append(node("summary", t("edit")), value, save); main.append(edit);
+      main.append(edit);
     }
     const prev = button(t("previous"), () => controls.move(cursor - 1)), next = button(t("next"), () => controls.move(cursor + 1));
     prev.disabled ||= cursor === 0; next.disabled ||= cursor === parts.length - 1;
@@ -164,7 +174,7 @@ export function renderSceneReview(page: ReturnType<typeof sceneReviewPage>, stat
       row.append(node("summary", titleOf(part) + " · " + t(state)));
       if (step?.state === "failed") row.append(node("p", step.error.message));
       if (step?.state === "skipped") row.append(node("p", t(step.reason)));
-      if (part.proposal.kind === "setting") row.append(node("p", t("proposed") + " · " + printable(part.proposal.value)));
+      if (part.proposal.kind === "setting") row.append(node("p", t("proposed") + " · " + page.values.describe(part.proposal.key, part.proposal.value, part.model_selection)));
       main.append(row);
     }
     if (targetProject && project !== targetProject && adopted) {

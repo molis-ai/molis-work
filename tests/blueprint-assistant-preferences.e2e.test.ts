@@ -88,10 +88,11 @@ test("ONB-28/29: after a partial adoption the reopened page retries only the unc
     db.exec("CREATE TRIGGER budget_unavailable BEFORE INSERT ON assistant_settings WHEN NEW.key='daily_tokens' BEGIN SELECT RAISE(ABORT,'budget unavailable'); END");
     const address = origin + "/onboarding?scene&draft=" + encodeURIComponent(draft.source.draft_id);
     await navigate(() => command("Page.navigate", { url: address }, sessionId));
-    await waitFor("document.querySelector('[data-scene-main] select')");
-    await evaluate("document.querySelector('[data-scene-main] select').value='personal'; document.querySelector('[data-scene-main] select').dispatchEvent(new Event('change'))");
+    await waitFor("document.querySelector('[name=scene-target]')");
+    await click("[name=scene-target][value=personal]");
     await click(".arrival-bar .bar-end .mw-btn--primary");
     await waitFor("document.querySelector('[data-scene-main] input[type=checkbox]')?.checked");
+    assert.match(await evaluate<string>("document.querySelector('[data-scene-main] dl').innerText"), /1\s*(周|week)/i);
     await click(".arrival-bar .bar-end .mw-btn--primary");
     const partial = "document.querySelector('[data-scene-main]')?.textContent.match(/待核对|Awaiting verification/i) && document.querySelector('.arrival-bar .bar-end .mw-btn--primary')";
     await waitFor(partial);
@@ -140,6 +141,12 @@ test("ONB-23/34: the Assistant's report preference follows the scene, then the p
   } });
   const preview = await person.invoke(blueprintActions.preview, { source: draft.source, target: { kind: "personal" }, part_ids: ["calendar"] });
   assert.deepEqual(preview.parts[0]?.consequences, ["schedule"]);
+  await navigate(() => command("Page.navigate", { url: origin + "/onboarding?scene&preview=" + preview.preview_id }, sessionId));
+  await waitFor("document.querySelector('[data-scene-main] dl')");
+  const summary = await evaluate<string>("document.querySelector('[data-scene-main] dl').innerText");
+  assert.match(summary, /星期五|Friday/i);
+  assert.match(summary, /17:30.*Asia\/Shanghai/);
+  assert.doesNotMatch(summary, /time_zone|month_day/);
   const request = { preview_id: preview.preview_id, part_ids: ["calendar"], request_id: "prepare-fridays" };
   const result = await person.invoke(blueprintActions.apply, request);
   assert.equal(result.steps[0]?.state, "applied");

@@ -243,6 +243,8 @@ interface SettingsWriteInput {
 - **谁先改到这个形状**：现有的设置都要按 N35 原地改成这个形状，按消费方需要的先后排，不在本批做。名单写在这里，实现时逐项开片：模型设置（`model_configuration` 并进 `settings_entries`）、项目运行时（`projects.settings.runtime.*`）、记忆（现在的三层 `personal`、`project-default`、`project:<id>` 落成两项：个人记忆偏好只有 `personal` 层；项目记忆偏好的 `project` 层是 `project:<id>`，`personal` 层是 `project-default`，即你给所有项目的默认）、助理的主动回看范围与报告周期（主动助理 §3.1、§9.1）、工作记录的清理期限、各插件设置页里真正可配的项。插件设置页的 `settings_data` 仍然是「页面要显示什么」，与这里不冲突；页面上能改的值改走这对动作。
 - 引导里每项「什么时候问」（复用、本次询问、首次使用时引导、高级入口）是第 46 批的准备声明，不在这里。
 
+采用预览按实际设置主人的 `settings_entries.model_configuration.key` 标出 `model_selection?: true`。逐项页面据此打开已有模型选择器，只读当前可用目录，保存与撤销仍走原设置动作。
+
 设置写入可带 `recovery`。场景采用时将已看到的原层作为 `previous`，SDK 在同一写事务核对它与当时的原层一致。撤销时将原写请求的编号作为 `undo_of`，SDK 找回同一主人、本人、设置和层的回执，核对要恢复的值、原写后的层修订与撤销请求的完整修订。主人可据此保存一个曾经选过、现在已离线的标识；实际运行仍须满足运行时、连接及本机工具原有的可用条件。回执仍只含原请求和原结果。普通设置页可以沿用原输入。
 
 **P-1 的原子写接口（合同建议，不新增存储）。** SDK 不依赖 storage，也不持有 Map 幂等缓存；主人给 `transaction(run)`，在同一个持久化写事务里向同步回调提供 `readReceipt`、`readCurrent`、`writeChange`、`saveReceipt` 四项存取。receipt 保存原请求与原返回值；作用域由已绑定的 owner／actor／项目加 key、layer、request_id 组成，可信身份不进动作输入。SDK 的顺序固定：找到相同请求的 receipt 就返回原结果；同键不同内容拒绝；否则读当前 revision，核对 expected_revision 与主人硬限制，写值并回读，最后同事务写 receipt，任一失败全部回滚。有效 revision 必须覆盖会影响当前有效值的各层变化，不能只核被写层。成功重放不被原请求的旧 revision 拦住；取消或撤权先经 `beforeEffect()` 拒绝，不能补 receipt。

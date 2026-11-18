@@ -32,7 +32,7 @@ test("ONB-21/22/28/30: review actual setting values one by one, resume from the 
   assert.ok(await evaluate<boolean>('Boolean(document.querySelector(' + JSON.stringify(draftLink) + '))'),
     await evaluate<string>("document.querySelector('[data-scene-workspace]').innerText"));
   await navigate(() => click(draftLink));
-  await waitFor("document.querySelector('[data-scene-main] select')?.value === 'current_project'");
+  await waitFor("document.querySelector('[name=scene-target]:checked')?.value === 'current_project'");
   await click(".arrival-bar .bar-end .mw-btn--primary");
   await waitFor("document.querySelector('[data-scene-main] dd') && document.querySelector('[data-scene-main] input[type=checkbox]')?.checked");
   assert.match(await evaluate<string>("document.querySelector('[data-scene-main]').textContent"), /prologue/);
@@ -182,8 +182,8 @@ test("ONB-22/30: change an unavailable Jelly model in the review and read the re
     example_task: { title, input: title, step_ids: ["prepare"], result: { part_id: "note", location: title } },
   } });
   await navigate(() => command("Page.navigate", { url: origin + "/onboarding?scene&draft=" + draft.source.draft_id }, sessionId));
-  await waitFor("document.querySelector('[data-scene-main] select')");
-  await evaluate("document.querySelector('[data-scene-main] select').value='personal'");
+  await waitFor("document.querySelector('[name=scene-target]')");
+  await click("[name=scene-target][value=personal]");
   await click(".arrival-bar .bar-end .mw-btn--primary");
   await waitFor("document.querySelector('[data-scene-main] details summary')");
   assert.equal(await evaluate("document.querySelector('[data-scene-main] input[type=checkbox]')===null"), true);
@@ -193,11 +193,16 @@ test("ONB-22/30: change an unavailable Jelly model in the review and read the re
   assert.match(await evaluate<string>("document.querySelector('[data-scene-main] dl').innerText"), /开启|\bOn\b/i);
   assert.match(await evaluate<string>("document.querySelector('[data-scene-main] dl').innerText"), /关闭|\bOff\b/i);
   await click("[data-scene-main] details summary");
-  assert.equal(await evaluate("document.querySelector('[data-scene-main] select').value"), "false");
+  assert.equal(await evaluate("document.querySelector('[name=scene-boolean]:checked').value"), "false");
   await click("[data-scene-aside] button");
+  const choicesRead = "performance.getEntriesByType('resource').filter(r => r.name.endsWith('/api/settings/models?choices=1')).length";
+  assert.equal(await evaluate(choicesRead), 0);
   await click("[data-scene-main] details summary");
-  await evaluate("document.querySelector('[data-scene-main] textarea').value=" + JSON.stringify(JSON.stringify(after)));
-  await click("[data-scene-main] details button");
+  await waitFor("document.querySelector('[name=scene-model]')");
+  assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('[name=scene-model]'), input => input.closest('label').innerText)"), ["after · after"]);
+  assert.equal(await evaluate(choicesRead), 1);
+  await click("[name=scene-model]");
+  await click("[data-scene-main] details button[data-focus]");
   const checkbox = "[data-scene-main] input[type=checkbox]";
   await waitFor("document.querySelector('[data-scene-main] input[type=checkbox]') && !document.querySelector('[data-scene-main] input[type=checkbox]').checked");
   await click(checkbox);

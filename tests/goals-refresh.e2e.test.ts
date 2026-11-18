@@ -99,9 +99,9 @@ test("a completed refresh response cannot overwrite a Goal selected while it was
   assert.deepEqual(boardSnapshot(store, projectId!), afterExternalWrite);
 });
 
-for (const destination of ["home", "settings"] as const) {
-  test(`PG094-TITLE-01 a real completed Goal refresh preserves the focused ${destination} title`, { timeout: 60_000 }, async t => {
-    const browser = await openGoalBrowser(t, "user"); if (!browser) return;
+test("PG094-TITLE-01 QEA-199 Goal refresh preserves the title of both focused surfaces", async t => {
+  const browser = await openGoalBrowser(t, "user"); if (!browser) return;
+  for (const destination of ["home", "settings"] as const) await t.test(`PG094-TITLE-01 a real completed Goal refresh preserves the focused ${destination} title`, { timeout: 60_000 }, async () => {
     const { store, origin, projectId, command, sessionId, evaluate, waitFor, navigate, click } = browser;
     // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
     const prefix = `/projects/${projectId}`;
@@ -142,245 +142,247 @@ for (const destination of ["home", "settings"] as const) {
     assert.deepEqual(boardSnapshot(store, projectId!), afterExternalWrite, "refresh made no writes beyond the one actual external Goal creation");
     assert.equal(await evaluate("document.title"), title, "the background response applied without taking the focused surface's title");
   });
-}
+});
 
 // QEA-161: these projection cases use a normal new project with Goals and the Workbench.
-test("QEA-113 a hidden Goal keeps its document while the background collection receives an external write", { timeout: 60_000 }, async t => {
+test("QEA-113 QEA-114 QEA-199 collection refresh across Goal surfaces", async t => {
   const b = await openGoalBrowser(t, "user"); if (!b) return;
-  const prefix = `/projects/${b.projectId}`;
-  await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
-  await openDocument(b);
-  await b.click('[data-dock-pin="home"]');
-  await b.waitFor("document.body.dataset.desktopSurface === 'home'");
-  await b.evaluate(`(() => {
-    globalThis.__oldGoalDocument = document.querySelector('[data-goal-event-document]');
-    globalThis.__collectionRequests = [];
-    const original = fetch.bind(globalThis);
-    globalThis.fetch = (input, options) => {
-      const url = new URL(String(input), location.href);
-      if (url.pathname.endsWith('/api/board/refresh')) globalThis.__collectionRequests.push(url.search);
-      return original(input, options);
-    };
-  })()`);
-  await addGoal(b.origin, prefix, "HIDDEN-COLLECTION");
-  const after = boardSnapshot(b.store, b.projectId!);
-  await b.waitFor("document.querySelector('.tree-node[data-select-goal=HIDDEN-COLLECTION]')", 15_000);
-  assert.equal(await b.evaluate("document.querySelector('[data-goal-event-document]') === globalThis.__oldGoalDocument"), true, "the hidden document was not replaced");
-  const paths = await b.evaluate<string[]>("globalThis.__collectionRequests");
-  assert.ok(paths.length > 0);
-  assert.ok(paths.every(path => new URLSearchParams(path).get("projection") === "collection" && !new URLSearchParams(path).has("goal_id")), JSON.stringify(paths));
-  assert.equal(await b.evaluate("document.body.dataset.desktopSurface"), "home");
-  assert.deepEqual(boardSnapshot(b.store, b.projectId!), after);
-});
 
-test("QEA-113 a visible Goal Frame refreshes its collection without reading the hidden workspace document", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, "user"); if (!b) return;
-  const prefix = `/projects/${b.projectId}`;
-  await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
-  await b.waitFor("document.querySelector('[data-goal-frame-surface]')?.checkVisibility({visibilityProperty:true})");
-  assert.equal(await b.evaluate("document.querySelector('[data-document-pane] [data-work-surface=goals]').checkVisibility({visibilityProperty:true})"), false);
-  await b.evaluate(`(() => {
-    globalThis.__oldGoalDocument = document.querySelector('[data-goal-event-document]');
-    globalThis.__frameRefreshes = [];
-    const original = fetch.bind(globalThis);
-    globalThis.fetch = (input, options) => {
-      const url = new URL(String(input), location.href);
-      if (url.pathname.endsWith('/api/board/refresh')) globalThis.__frameRefreshes.push(url.search);
-      return original(input, options);
-    };
-  })()`);
-  await addGoal(b.origin, prefix, "FRAME-COLLECTION");
-  const after = boardSnapshot(b.store, b.projectId!);
-  await b.waitFor("document.querySelector('.tree-node[data-select-goal=FRAME-COLLECTION]')", 12_000);
-  assert.equal(await b.evaluate("document.querySelector('[data-goal-event-document]') === globalThis.__oldGoalDocument"), true);
-  const reads = await b.evaluate<string[]>("globalThis.__frameRefreshes");
-  assert.ok(reads.length > 0 && reads.every(path => new URLSearchParams(path).get('projection') === 'collection'), JSON.stringify(reads));
-  await openDocument(b);
-  await b.waitFor("globalThis.__frameRefreshes.some(path => !new URLSearchParams(path).has('projection'))", 12_000);
-  await b.waitFor("document.querySelector('[data-goal-event-document]') !== globalThis.__oldGoalDocument");
-  assert.deepEqual(boardSnapshot(b.store, b.projectId!), after);
-});
+  await t.test("QEA-113 a hidden Goal keeps its document while the background collection receives an external write", { timeout: 60_000 }, async t => {
+    const prefix = `/projects/${b.projectId}`;
+    await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
+    await openDocument(b);
+    await b.click('[data-dock-pin="home"]');
+    await b.waitFor("document.body.dataset.desktopSurface === 'home'");
+    await b.evaluate(`(() => {
+      globalThis.__oldGoalDocument = document.querySelector('[data-goal-event-document]');
+      globalThis.__collectionRequests = [];
+      const original = fetch.bind(globalThis);
+      globalThis.fetch = (input, options) => {
+        const url = new URL(String(input), location.href);
+        if (url.pathname.endsWith('/api/board/refresh')) globalThis.__collectionRequests.push(url.search);
+        return original(input, options);
+      };
+    })()`);
+    await addGoal(b.origin, prefix, "HIDDEN-COLLECTION");
+    const after = boardSnapshot(b.store, b.projectId!);
+    await b.waitFor("document.querySelector('.tree-node[data-select-goal=HIDDEN-COLLECTION]')", 15_000);
+    assert.equal(await b.evaluate("document.querySelector('[data-goal-event-document]') === globalThis.__oldGoalDocument"), true, "the hidden document was not replaced");
+    const paths = await b.evaluate<string[]>("globalThis.__collectionRequests");
+    assert.ok(paths.length > 0);
+    assert.ok(paths.every(path => new URLSearchParams(path).get("projection") === "collection" && !new URLSearchParams(path).has("goal_id")), JSON.stringify(paths));
+    assert.equal(await b.evaluate("document.body.dataset.desktopSurface"), "home");
+    assert.deepEqual(boardSnapshot(b.store, b.projectId!), after);
+  });
 
-test("QEA-113 hidden handwritten Goal input survives a collection refresh without blocking new directory facts", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, "user"); if (!b) return;
-  const prefix = `/projects/${b.projectId}`, goal = "DIRTY-COLLECTION";
-  await addGoal(b.origin, prefix, goal);
-  await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/" + goal + "?desktop=1" }, b.sessionId));
-  await openDocument(b);
-  await b.click('[data-record-menu] > summary');
-  await b.click('[data-record-menu] [data-event-form-open=concern]');
-  await b.waitFor("!document.querySelector('[data-event-form=concern]').hidden");
-  await b.evaluate(`(() => { const input = document.querySelector('[data-event-form=concern] [name=statement]');
-    input.value = 'Unsubmitted concern stays with its author'; input.dispatchEvent(new Event('input', { bubbles: true })); globalThis.__dirtyConcern = input; })()`);
-  await b.click('[data-dock-pin="home"]');
-  await b.waitFor("document.body.dataset.desktopSurface === 'home'");
-  await addGoal(b.origin, prefix, "AFTER-DIRTY");
-  const after = boardSnapshot(b.store, b.projectId!);
-  await b.waitFor("document.querySelector('.tree-node[data-select-goal=AFTER-DIRTY]')", 12_000);
-  assert.equal(await b.evaluate("document.querySelector('[data-event-form=concern] [name=statement]') === globalThis.__dirtyConcern"), true);
-  assert.equal(await b.evaluate("globalThis.__dirtyConcern.value"), "Unsubmitted concern stays with its author");
-  assert.equal(await b.evaluate("globalThis.__dirtyConcern.closest('form').dataset.liveDirty"), "true");
-  assert.deepEqual(boardSnapshot(b.store, b.projectId!), after);
-});
+  await t.test("QEA-113 a visible Goal Frame refreshes its collection without reading the hidden workspace document", { timeout: 60_000 }, async t => {
+    const prefix = `/projects/${b.projectId}`;
+    await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
+    await b.waitFor("document.querySelector('[data-goal-frame-surface]')?.checkVisibility({visibilityProperty:true})");
+    assert.equal(await b.evaluate("document.querySelector('[data-document-pane] [data-work-surface=goals]').checkVisibility({visibilityProperty:true})"), false);
+    await b.evaluate(`(() => {
+      globalThis.__oldGoalDocument = document.querySelector('[data-goal-event-document]');
+      globalThis.__frameRefreshes = [];
+      const original = fetch.bind(globalThis);
+      globalThis.fetch = (input, options) => {
+        const url = new URL(String(input), location.href);
+        if (url.pathname.endsWith('/api/board/refresh')) globalThis.__frameRefreshes.push(url.search);
+        return original(input, options);
+      };
+    })()`);
+    await addGoal(b.origin, prefix, "FRAME-COLLECTION");
+    const after = boardSnapshot(b.store, b.projectId!);
+    await b.waitFor("document.querySelector('.tree-node[data-select-goal=FRAME-COLLECTION]')", 12_000);
+    assert.equal(await b.evaluate("document.querySelector('[data-goal-event-document]') === globalThis.__oldGoalDocument"), true);
+    const reads = await b.evaluate<string[]>("globalThis.__frameRefreshes");
+    assert.ok(reads.length > 0 && reads.every(path => new URLSearchParams(path).get('projection') === 'collection'), JSON.stringify(reads));
+    await openDocument(b);
+    await b.waitFor("globalThis.__frameRefreshes.some(path => !new URLSearchParams(path).has('projection'))", 12_000);
+    await b.waitFor("document.querySelector('[data-goal-event-document]') !== globalThis.__oldGoalDocument");
+    assert.deepEqual(boardSnapshot(b.store, b.projectId!), after);
+  });
 
-test("QEA-114 the last hidden collection failure recovers on the normal poll without replacing the document or falling back to a full page", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, "user"); if (!b) return;
-  const prefix = `/projects/${b.projectId}`;
-  await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
-  await openDocument(b);
-  await b.click('[data-dock-pin="home"]');
-  await b.waitFor("document.body.dataset.desktopSurface === 'home'");
-  const before = await (await fetch(b.origin + prefix + "/api/board/cursor")).json() as { observed_event_cursor: number };
-  await b.waitFor(`document.querySelector('#molis-work-data').boardCursor >= ${before.observed_event_cursor}`);
-  await b.evaluate(`(() => {
-    globalThis.__oldGoalDocument = document.querySelector('[data-goal-event-document]');
-    globalThis.__failCollection = true; globalThis.__collectionFailed = false; globalThis.__pageFallbacks = [];
-    const original = fetch.bind(globalThis);
-    globalThis.fetch = async (input, options) => {
-      const url = new URL(String(input), location.href), response = await original(input, options);
-      if (url.pathname.endsWith('/api/board/refresh') && globalThis.__failCollection) {
-        await response.text(); globalThis.__collectionFailed = true;
-        return new Response('Collection unavailable', { status: 503 });
-      }
-      if (!url.pathname.includes('/api/') && url.pathname.startsWith(document.body.dataset.routePrefix)) globalThis.__pageFallbacks.push(url.pathname);
-      return response;
-    };
-  })()`);
-  await addGoal(b.origin, prefix, "COLLECTION-RECOVERY");
-  const after = boardSnapshot(b.store, b.projectId!);
-  await b.waitFor("globalThis.__collectionFailed");
-  assert.equal(await b.evaluate("Boolean(document.querySelector('.tree-node[data-select-goal=COLLECTION-RECOVERY]'))"), false);
-  assert.equal(await b.evaluate("document.querySelector('#molis-work-data').boardCursor"), before.observed_event_cursor, "a failed projection never acknowledges its hint");
-  await b.evaluate("globalThis.__failCollection = false");
-  // No second write or synthetic notification: the existing poll must recover the final unapplied hint.
-  await b.waitFor("document.querySelector('.tree-node[data-select-goal=COLLECTION-RECOVERY]')", 12_000);
-  assert.deepEqual(await b.evaluate("globalThis.__pageFallbacks"), []);
-  assert.equal(await b.evaluate("document.querySelector('[data-goal-event-document]') === globalThis.__oldGoalDocument"), true);
-  assert.deepEqual(boardSnapshot(b.store, b.projectId!), after);
-});
+  await t.test("QEA-113 hidden handwritten Goal input survives a collection refresh without blocking new directory facts", { timeout: 60_000 }, async t => {
+    const prefix = `/projects/${b.projectId}`, goal = "DIRTY-COLLECTION";
+    await addGoal(b.origin, prefix, goal);
+    await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/" + goal + "?desktop=1" }, b.sessionId));
+    await openDocument(b);
+    await b.click('[data-record-menu] > summary');
+    await b.click('[data-record-menu] [data-event-form-open=concern]');
+    await b.waitFor("!document.querySelector('[data-event-form=concern]').hidden");
+    await b.evaluate(`(() => { const input = document.querySelector('[data-event-form=concern] [name=statement]');
+      input.value = 'Unsubmitted concern stays with its author'; input.dispatchEvent(new Event('input', { bubbles: true })); globalThis.__dirtyConcern = input; })()`);
+    await b.click('[data-dock-pin="home"]');
+    await b.waitFor("document.body.dataset.desktopSurface === 'home'");
+    await addGoal(b.origin, prefix, "AFTER-DIRTY");
+    const after = boardSnapshot(b.store, b.projectId!);
+    await b.waitFor("document.querySelector('.tree-node[data-select-goal=AFTER-DIRTY]')", 12_000);
+    assert.equal(await b.evaluate("document.querySelector('[data-event-form=concern] [name=statement]') === globalThis.__dirtyConcern"), true);
+    assert.equal(await b.evaluate("globalThis.__dirtyConcern.value"), "Unsubmitted concern stays with its author");
+    assert.equal(await b.evaluate("globalThis.__dirtyConcern.closest('form').dataset.liveDirty"), "true");
+    assert.deepEqual(boardSnapshot(b.store, b.projectId!), after);
+  });
 
-test("QEA-114 an attention hint received during a held collection read remains pending until its own projection applies", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, "user"); if (!b) return;
-  const prefix = `/projects/${b.projectId}`;
-  await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
-  await openDocument(b);
-  await b.click('[data-dock-pin="home"]');
-  await b.waitFor("document.body.dataset.desktopSurface === 'home'");
-  const cursor = async () => (await (await fetch(b.origin + prefix + "/api/board/cursor")).json() as { observed_event_cursor: number }).observed_event_cursor;
-  await b.waitFor(`document.querySelector('#molis-work-data').boardCursor >= ${await cursor()}`);
-  await b.evaluate(`(() => {
-    globalThis.__holds = 0; globalThis.__held = []; globalThis.__release = [];
-    globalThis.__oldGoalDocument = document.querySelector('[data-goal-event-document]');
-    document.addEventListener('molis-work:attention', event => globalThis.__attentionCursor = event.detail.board_cursor);
-    const original = fetch.bind(globalThis);
-    globalThis.fetch = async (input, options) => {
-      const response = await original(input, options);
-      if (new URL(String(input), location.href).pathname.endsWith('/api/board/refresh') && globalThis.__holds < 2) {
-        const at = globalThis.__holds++, body = await response.text(); globalThis.__held[at] = true;
-        await new Promise(resolve => globalThis.__release[at] = resolve);
-        return new Response(body, { status: response.status, headers: response.headers });
-      }
-      return response;
-    };
-  })()`);
-  try {
-    await addGoal(b.origin, prefix, "COLLECTION-FIRST");
-    await b.waitFor("globalThis.__held[0]");
-    await addGoal(b.origin, prefix, "COLLECTION-LAST");
-    const latest = await cursor(), after = boardSnapshot(b.store, b.projectId!);
-    await b.waitFor(`globalThis.__attentionCursor >= ${latest}`, 12_000);
-    await b.evaluate("globalThis.__release[0]()");
-    await b.waitFor("globalThis.__held[1]");
-    await b.waitFor("document.querySelector('.tree-node[data-select-goal=COLLECTION-FIRST]')");
-    assert.equal(await b.evaluate("Boolean(document.querySelector('.tree-node[data-select-goal=COLLECTION-LAST]'))"), false);
-    assert.ok(await b.evaluate<number>("document.querySelector('#molis-work-data').boardCursor") < latest);
-    await b.evaluate("globalThis.__release[1]()");
-    await b.waitFor(`document.querySelector('.tree-node[data-select-goal=COLLECTION-LAST]') && document.querySelector('#molis-work-data').boardCursor >= ${latest}`);
+  await t.test("QEA-114 the last hidden collection failure recovers on the normal poll without replacing the document or falling back to a full page", { timeout: 60_000 }, async t => {
+    const prefix = `/projects/${b.projectId}`;
+    await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
+    await openDocument(b);
+    await b.click('[data-dock-pin="home"]');
+    await b.waitFor("document.body.dataset.desktopSurface === 'home'");
+    const before = await (await fetch(b.origin + prefix + "/api/board/cursor")).json() as { observed_event_cursor: number };
+    await b.waitFor(`document.querySelector('#molis-work-data').boardCursor >= ${before.observed_event_cursor}`);
+    await b.evaluate(`(() => {
+      globalThis.__oldGoalDocument = document.querySelector('[data-goal-event-document]');
+      globalThis.__failCollection = true; globalThis.__collectionFailed = false; globalThis.__pageFallbacks = [];
+      const original = fetch.bind(globalThis);
+      globalThis.fetch = async (input, options) => {
+        const url = new URL(String(input), location.href), response = await original(input, options);
+        if (url.pathname.endsWith('/api/board/refresh') && globalThis.__failCollection) {
+          await response.text(); globalThis.__collectionFailed = true;
+          return new Response('Collection unavailable', { status: 503 });
+        }
+        if (!url.pathname.includes('/api/') && url.pathname.startsWith(document.body.dataset.routePrefix)) globalThis.__pageFallbacks.push(url.pathname);
+        return response;
+      };
+    })()`);
+    await addGoal(b.origin, prefix, "COLLECTION-RECOVERY");
+    const after = boardSnapshot(b.store, b.projectId!);
+    await b.waitFor("globalThis.__collectionFailed");
+    assert.equal(await b.evaluate("Boolean(document.querySelector('.tree-node[data-select-goal=COLLECTION-RECOVERY]'))"), false);
+    assert.equal(await b.evaluate("document.querySelector('#molis-work-data').boardCursor"), before.observed_event_cursor, "a failed projection never acknowledges its hint");
+    await b.evaluate("globalThis.__failCollection = false");
+    // No second write or synthetic notification: the existing poll must recover the final unapplied hint.
+    await b.waitFor("document.querySelector('.tree-node[data-select-goal=COLLECTION-RECOVERY]')", 12_000);
+    assert.deepEqual(await b.evaluate("globalThis.__pageFallbacks"), []);
     assert.equal(await b.evaluate("document.querySelector('[data-goal-event-document]') === globalThis.__oldGoalDocument"), true);
     assert.deepEqual(boardSnapshot(b.store, b.projectId!), after);
-  } finally { await b.evaluate("globalThis.__release.forEach(release => release?.())").catch(() => {}); }
-});
-
-test("QEA-114 a late collection response cannot navigate back to an archived Frame after the person selects another Goal", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, "user"); if (!b) return;
-  await b.setViewport(1440, 1000);
-  const prefix = `/projects/${b.projectId}`;
-  await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/CORE?desktop=1" }, b.sessionId));
-  await b.waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE'");
-  const navigations: string[] = [];
-  const offNavigation = b.on("Page.frameRequestedNavigation", (event, session) => {
-    if (session === b.sessionId) navigations.push((event as { url: string }).url);
   });
-  await b.evaluate(`(() => {
-    const original = fetch.bind(globalThis); globalThis.__held = false;
-    globalThis.fetch = async (input, options) => {
-      const url = new URL(String(input), location.href), response = await original(input, options);
-      if (url.pathname.endsWith('/api/board/refresh') && !globalThis.__held) {
-        const body = await response.text(); globalThis.__held = true; globalThis.__heldProjection = url.searchParams.get('projection');
-        await new Promise(resolve => globalThis.__release = resolve);
-        globalThis.__delivered = true;
-        return new Response(body, { status: response.status, headers: response.headers });
-      }
-      return response;
-    };
-  })()`);
-  try {
-    await b.web.post(prefix + "/api/plugins/io.molis.work.goals/goals/CORE/archive", { archived: true, reason: "Archive while the Frame response is in flight" });
-    await b.waitFor("globalThis.__held", 12_000);
-    assert.equal(await b.evaluate("globalThis.__heldProjection"), "collection");
-    await b.openGoalFrame('.tree-node[data-select-goal="RELEASE"]');
-    await b.waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'RELEASE'");
-    const address = await b.evaluate<string>("location.href"), saved = boardSnapshot(b.store, b.projectId!);
-    await b.evaluate("globalThis.__release()");
-    await b.waitFor(`JSON.parse(document.querySelector('#molis-work-data').textContent).snapshot.cursor === ${saved.cursor}`);
-    assert.equal(await b.evaluate("document.querySelector('[data-goal-frame-surface]').dataset.frameGoal"), "RELEASE");
-    assert.equal(await b.evaluate("location.href"), address);
-    assert.equal(await b.evaluate("globalThis.__delivered"), true);
-    assert.deepEqual(boardSnapshot(b.store, b.projectId!), saved);
-  } finally {
-    offNavigation(); t.diagnostic(`QEA-114 requested navigations ${JSON.stringify(navigations)}`);
-    await b.evaluate("globalThis.__release?.()").catch(() => {});
-  }
 });
 
-test("QEA-114 a relation save queues its forced refresh behind an earlier response and settles the actual write once", { timeout: 60_000 }, async t => {
+test("QEA-114 QEA-199 collection refresh with competing writes and navigation", async t => {
   const b = await openGoalBrowser(t, "user"); if (!b) return;
-  await b.setViewport(1440, 1000);
-  const prefix = `/projects/${b.projectId}`, reason = "Forced refresh retains the confirmed direction";
-  await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/CORE?desktop=1" }, b.sessionId));
-  await openDocument(b);
-  await b.evaluate(`(() => {
-    const original = fetch.bind(globalThis); globalThis.__held = false; globalThis.__relationWrites = 0;
-    globalThis.fetch = async (input, options) => {
-      const url = new URL(String(input), location.href), response = await original(input, options);
-      if (url.pathname.endsWith('/api/board/refresh') && !globalThis.__held) {
-        const body = await response.text(); globalThis.__held = true;
-        await new Promise(resolve => globalThis.__release = resolve);
-        return new Response(body, { status: response.status, headers: response.headers });
-      }
-      if (url.pathname.endsWith('/relations') && options?.method === 'POST') { globalThis.__relationWrites++; globalThis.__relationResult = await response.clone().json(); }
-      return response;
-    };
-  })()`);
-  try {
-    await addGoal(b.origin, prefix, "FORCE-PROJECTION");
-    await b.waitFor("globalThis.__held", 12_000);
-    if (await b.evaluate("!document.querySelector('[data-goal-info]').open")) await b.click('[data-goal-info] > summary');
-    await b.click('[data-event-reader=description]');
-    await b.click('#goal-factor-tab-relations-CORE');
-    await b.click('[data-relation-editor] > summary');
-    await b.evaluate(`(() => { const form = document.querySelector('[data-relation-form]'); form.elements.target_goal_id.value = 'PLATFORM';
-      form.elements.relation_intent.value = 'enables'; form.elements.relation_intent.dispatchEvent(new Event('change', { bubbles:true })); form.elements.reason.value = ${JSON.stringify(reason)}; })()`);
-    await b.click('[data-relation-form] button[type=submit]');
-    await b.waitFor("globalThis.__relationResult && document.querySelector('[data-relation-form]').getAttribute('aria-busy') === 'true'");
-    assert.equal(await b.evaluate("Boolean(globalThis.__relationResult.error)"), false);
-    const saved = boardSnapshot(b.store, b.projectId!);
-    assert.equal(saved.relations.filter(row => row.reason === reason).length, 1);
-    await b.evaluate("globalThis.__release()");
-    await b.waitFor(`[...document.querySelectorAll('.relation-record')].some(node => node.textContent.includes(${JSON.stringify(reason)}))`, 12_000);
-    assert.equal(await b.evaluate("globalThis.__relationWrites"), 1);
-    assert.deepEqual(boardSnapshot(b.store, b.projectId!), saved);
-  } finally { await b.evaluate("globalThis.__release?.()").catch(() => {}); }
+
+  await t.test("QEA-114 an attention hint received during a held collection read remains pending until its own projection applies", { timeout: 60_000 }, async t => {
+    const prefix = `/projects/${b.projectId}`;
+    await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
+    await openDocument(b);
+    await b.click('[data-dock-pin="home"]');
+    await b.waitFor("document.body.dataset.desktopSurface === 'home'");
+    const cursor = async () => (await (await fetch(b.origin + prefix + "/api/board/cursor")).json() as { observed_event_cursor: number }).observed_event_cursor;
+    await b.waitFor(`document.querySelector('#molis-work-data').boardCursor >= ${await cursor()}`);
+    await b.evaluate(`(() => {
+      globalThis.__holds = 0; globalThis.__held = []; globalThis.__release = [];
+      globalThis.__oldGoalDocument = document.querySelector('[data-goal-event-document]');
+      document.addEventListener('molis-work:attention', event => globalThis.__attentionCursor = event.detail.board_cursor);
+      const original = fetch.bind(globalThis);
+      globalThis.fetch = async (input, options) => {
+        const response = await original(input, options);
+        if (new URL(String(input), location.href).pathname.endsWith('/api/board/refresh') && globalThis.__holds < 2) {
+          const at = globalThis.__holds++, body = await response.text(); globalThis.__held[at] = true;
+          await new Promise(resolve => globalThis.__release[at] = resolve);
+          return new Response(body, { status: response.status, headers: response.headers });
+        }
+        return response;
+      };
+    })()`);
+    try {
+      await addGoal(b.origin, prefix, "COLLECTION-FIRST");
+      await b.waitFor("globalThis.__held[0]");
+      await addGoal(b.origin, prefix, "COLLECTION-LAST");
+      const latest = await cursor(), after = boardSnapshot(b.store, b.projectId!);
+      await b.waitFor(`globalThis.__attentionCursor >= ${latest}`, 12_000);
+      await b.evaluate("globalThis.__release[0]()");
+      await b.waitFor("globalThis.__held[1]");
+      await b.waitFor("document.querySelector('.tree-node[data-select-goal=COLLECTION-FIRST]')");
+      assert.equal(await b.evaluate("Boolean(document.querySelector('.tree-node[data-select-goal=COLLECTION-LAST]'))"), false);
+      assert.ok(await b.evaluate<number>("document.querySelector('#molis-work-data').boardCursor") < latest);
+      await b.evaluate("globalThis.__release[1]()");
+      await b.waitFor(`document.querySelector('.tree-node[data-select-goal=COLLECTION-LAST]') && document.querySelector('#molis-work-data').boardCursor >= ${latest}`);
+      assert.equal(await b.evaluate("document.querySelector('[data-goal-event-document]') === globalThis.__oldGoalDocument"), true);
+      assert.deepEqual(boardSnapshot(b.store, b.projectId!), after);
+    } finally { await b.evaluate("globalThis.__release.forEach(release => release?.())").catch(() => {}); }
+  });
+
+  await t.test("QEA-114 a relation save queues its forced refresh behind an earlier response and settles the actual write once", { timeout: 60_000 }, async t => {
+    await b.setViewport(1440, 1000);
+    const prefix = `/projects/${b.projectId}`, reason = "Forced refresh retains the confirmed direction";
+    await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/CORE?desktop=1" }, b.sessionId));
+    await openDocument(b);
+    await b.evaluate(`(() => {
+      const original = fetch.bind(globalThis); globalThis.__held = false; globalThis.__relationWrites = 0;
+      globalThis.fetch = async (input, options) => {
+        const url = new URL(String(input), location.href), response = await original(input, options);
+        if (url.pathname.endsWith('/api/board/refresh') && !globalThis.__held) {
+          const body = await response.text(); globalThis.__held = true;
+          await new Promise(resolve => globalThis.__release = resolve);
+          return new Response(body, { status: response.status, headers: response.headers });
+        }
+        if (url.pathname.endsWith('/relations') && options?.method === 'POST') { globalThis.__relationWrites++; globalThis.__relationResult = await response.clone().json(); }
+        return response;
+      };
+    })()`);
+    try {
+      await addGoal(b.origin, prefix, "FORCE-PROJECTION");
+      await b.waitFor("globalThis.__held", 12_000);
+      if (await b.evaluate("!document.querySelector('[data-goal-info]').open")) await b.click('[data-goal-info] > summary');
+      await b.click('[data-event-reader=description]');
+      await b.click('#goal-factor-tab-relations-CORE');
+      await b.click('[data-relation-editor] > summary');
+      await b.evaluate(`(() => { const form = document.querySelector('[data-relation-form]'); form.elements.target_goal_id.value = 'PLATFORM';
+        form.elements.relation_intent.value = 'enables'; form.elements.relation_intent.dispatchEvent(new Event('change', { bubbles:true })); form.elements.reason.value = ${JSON.stringify(reason)}; })()`);
+      await b.click('[data-relation-form] button[type=submit]');
+      await b.waitFor("globalThis.__relationResult && document.querySelector('[data-relation-form]').getAttribute('aria-busy') === 'true'");
+      assert.equal(await b.evaluate("Boolean(globalThis.__relationResult.error)"), false);
+      const saved = boardSnapshot(b.store, b.projectId!);
+      assert.equal(saved.relations.filter(row => row.reason === reason).length, 1);
+      await b.evaluate("globalThis.__release()");
+      await b.waitFor(`[...document.querySelectorAll('.relation-record')].some(node => node.textContent.includes(${JSON.stringify(reason)}))`, 12_000);
+      assert.equal(await b.evaluate("globalThis.__relationWrites"), 1);
+      assert.deepEqual(boardSnapshot(b.store, b.projectId!), saved);
+    } finally { await b.evaluate("globalThis.__release?.()").catch(() => {}); }
+  });
+
+  // Archiving CORE changes the shared project. Exercise that after the relation write.
+  await t.test("QEA-114 a late collection response cannot navigate back to an archived Frame after the person selects another Goal", { timeout: 60_000 }, async t => {
+    await b.setViewport(1440, 1000);
+    const prefix = `/projects/${b.projectId}`;
+    await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/CORE?desktop=1" }, b.sessionId));
+    await b.waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE'");
+    const navigations: string[] = [];
+    const offNavigation = b.on("Page.frameRequestedNavigation", (event, session) => {
+      if (session === b.sessionId) navigations.push((event as { url: string }).url);
+    });
+    await b.evaluate(`(() => {
+      const original = fetch.bind(globalThis); globalThis.__held = false;
+      globalThis.fetch = async (input, options) => {
+        const url = new URL(String(input), location.href), response = await original(input, options);
+        if (url.pathname.endsWith('/api/board/refresh') && !globalThis.__held) {
+          const body = await response.text(); globalThis.__held = true; globalThis.__heldProjection = url.searchParams.get('projection');
+          await new Promise(resolve => globalThis.__release = resolve);
+          globalThis.__delivered = true;
+          return new Response(body, { status: response.status, headers: response.headers });
+        }
+        return response;
+      };
+    })()`);
+    try {
+      await b.web.post(prefix + "/api/plugins/io.molis.work.goals/goals/CORE/archive", { archived: true, reason: "Archive while the Frame response is in flight" });
+      await b.waitFor("globalThis.__held", 12_000);
+      assert.equal(await b.evaluate("globalThis.__heldProjection"), "collection");
+      await b.openGoalFrame('.tree-node[data-select-goal="RELEASE"]');
+      await b.waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'RELEASE'");
+      const address = await b.evaluate<string>("location.href"), saved = boardSnapshot(b.store, b.projectId!);
+      await b.evaluate("globalThis.__release()");
+      await b.waitFor(`JSON.parse(document.querySelector('#molis-work-data').textContent).snapshot.cursor === ${saved.cursor}`);
+      assert.equal(await b.evaluate("document.querySelector('[data-goal-frame-surface]').dataset.frameGoal"), "RELEASE");
+      assert.equal(await b.evaluate("location.href"), address);
+      assert.equal(await b.evaluate("globalThis.__delivered"), true);
+      assert.deepEqual(boardSnapshot(b.store, b.projectId!), saved);
+    } finally {
+      offNavigation(); t.diagnostic(`QEA-114 requested navigations ${JSON.stringify(navigations)}`);
+      await b.evaluate("globalThis.__release?.()").catch(() => {});
+    }
+  });
 });
 
 test("failed compact refresh falls back to the full Goal page and keeps other work surfaces intact", { timeout: 60_000 }, async t => {

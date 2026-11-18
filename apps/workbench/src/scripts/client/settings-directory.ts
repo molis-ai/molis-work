@@ -494,7 +494,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       return;
     }
     if (!inSettingsShell) return;
-    if ((link.hasAttribute("data-settings-return-workbench") || link.matches(".settings-nav-back")) && url.pathname === projectPrefix + "/") {
+    if (link.matches(".settings-nav-back") && url.pathname === projectPrefix + "/") {
       event.preventDefault();
       if (!host.closeCover?.()) { setDirectory?.("root", true, false); setExclusive?.(null); }
       return;

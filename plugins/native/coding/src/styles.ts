@@ -621,14 +621,22 @@ ${CODING_FOOTNOTE_STYLES}
 .mw-dir-row.coding-session-row { height:44px; min-height:44px; align-items:center; padding-block:0; }
 @media (hover:hover) and (pointer:fine) { .mw-dir-row.coding-session-row { height:32px; min-height:32px; } }
 .mw-dir-row.coding-session-row .mw-dir-row__icon { margin-top:0; }
-.mw-dir-row.coding-session-row .mw-dir-row__copy { grid-template-columns:minmax(0,1fr) auto auto; grid-template-rows:none; align-items:center; column-gap:8px; }
+.mw-dir-row.coding-session-row .mw-dir-row__copy { grid-template-columns:minmax(min(4em,40%),1fr) minmax(0,auto) auto; grid-template-rows:none; align-items:center; column-gap:8px; }
 .mw-dir-row.coding-session-row .mw-dir-row__headline { display:contents; }
-.mw-dir-row.coding-session-row .coding-session-state { order:1; height:20px; padding:0 7px 0 5px; border-radius:6px; background:color-mix(in srgb,currentColor 10%,transparent); color:var(--muted); font-size:11px; line-height:20px; }
+.mw-dir-row.coding-session-row .coding-session-state { order:1; display:block; min-width:0; height:20px; padding:0 7px 0 5px; overflow:hidden; border-radius:6px; background:color-mix(in srgb,currentColor 10%,transparent); color:var(--muted); font-size:11px; line-height:20px; text-overflow:ellipsis; white-space:nowrap; }
 .mw-dir-row.coding-session-row .coding-session-time { order:2; }
 .mw-dir-row.coding-session-row .coding-session-state[data-state=running] { color:var(--blue); }
 .mw-dir-row.coding-session-row .coding-session-state:is([data-state=paused],[data-state=waiting-answer],[data-state=waiting-approval]) { color:var(--amber); }
 .mw-dir-row.coding-session-row .coding-session-state:is([data-state=failed],[data-state=reconcile-required]) { color:var(--red); }
 .mw-dir-row.coding-session-row .coding-session-state[data-state=done] { color:var(--green); }
+/* The name comes first: it keeps four letters' room and the state gives way before it does. In a column too narrow for the
+   name beside the state in words, a state that asks nothing of the person keeps only its ring (the word stays in the row for a
+   reader, and is the chip's title); one that needs the person keeps its word, cut at its end when even that has no room. */
+.coding-session-group { container:coding-sessions/inline-size; }
+@container coding-sessions (max-width:320px) {
+  .mw-dir-row.coding-session-row .coding-session-state[data-mw-state]:not([data-state=paused],[data-state=waiting-answer],[data-state=waiting-approval],[data-state=failed],[data-state=reconcile-required]) { --ring-size:13px; gap:0; padding:0 3px; font-size:0; }
+  .mw-dir-row.coding-session-row .coding-session-state[data-mw-state]:not([data-state=paused],[data-state=waiting-answer],[data-state=waiting-approval],[data-state=failed],[data-state=reconcile-required]) > .mw-state-ring { margin:0; }
+}
 
 /* Streaming caret: sits after the last line the model has written so far. */
 .coding-turn.is-writing > :last-child::after,.coding-turn.is-writing:not(:has(> *))::after { content:""; display:inline-block; width:.45em; height:1.05em; margin-left:4px; vertical-align:-.15em; border-radius:1px; background:var(--ink); opacity:.55; }

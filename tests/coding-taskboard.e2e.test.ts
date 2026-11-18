@@ -47,7 +47,7 @@ test("TaskBoard：像 Goal 列表一样分层；接续的轮次合成一行；�
       board.querySelector('[data-board-key="run-r2"] .coding-board-toggle').click();
       const skip=[...board.querySelectorAll('[data-board-key="step-r2-step-3"] .coding-board-tools button')].find(button=>button.title==='跳过');skip.click();
       const form=board.querySelector('.coding-board-form');form.querySelector('input').value='先不跑';form.requestSubmit();await new Promise(r=>setTimeout(r,50));
-      return {rows,groups,went,afterCollapse,amended,meta:board.querySelector('[data-coding-board-meta]').textContent};
+      return {rows,groups,went,afterCollapse,amended,meta:board.querySelector('[data-coding-board-meta]').textContent,heading:board.querySelector('[data-coding-board-title]').textContent};
     })()`);
     assert.deepEqual(result.groups.map((text: string) => text.replace(/\s+/g, "")), ["当前计划修订3", "执行1轮"], "an unexecuted revision is its own group; two rounds of one graph are one task");
     const [plan, ...planSteps] = result.rows.slice(0, 4);
@@ -65,6 +65,8 @@ test("TaskBoard：像 Goal 列表一样分层；接续的轮次合成一行；�
     assert.equal(result.afterCollapse, 4 + 1, "collapsing a round hides its steps and subagents");
     assert.deepEqual(result.amended, [{ runId: "r2", version: 5, amendment: { kind: "skip", node: "step-3", reason: "先不跑" } }]);
     assert.match(result.meta, /计划修订 3 · 已确认 · 1\/3 步完成/);
+    // Before: the board's heading was the literal "TaskBoard" in every language (screen-polish P0).
+    assert.equal(result.heading, "任务板", "the board's heading is the page's own words for it");
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 

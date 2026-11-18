@@ -215,7 +215,7 @@ function gitReadinessRow(readiness: CodingEnvironmentFacts): MwEnvCheckRowOption
       state: "partial",
       label,
       value: uiText.text("coding.env.git.dirty", { branch, count: readiness.dirty_count }),
-      badge: { label: uiText.text("coding.env.badge.pre-existing"), tone: "warning" },
+      badge: { label: uiText.text("coding.env.badge.pre-existing"), tone: "neutral" },
     };
   }
   return {

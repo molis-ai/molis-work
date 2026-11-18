@@ -98,7 +98,7 @@ export function renderWorkLine(line: {
     + `<div class="work-line-row"><div class="work-line-track" data-work-line-track><div class="work-line-wing" data-wing="past"><div class="work-line-lead">${line.head}${(line.unreadable ?? []).map(renderLineUnreadable).join("")}</div>${earlier}`
     + `<div class="work-line-run" role="group" aria-label="${uiText("workbench.work-line.done-and-in-progress")}">${run(line.past)}${run(line.active)}</div>${latest}</div>`
     + `<span class="work-line-now" aria-hidden="true">${uiText("workbench.work-line.now")}</span>`
-    + `<div class="work-line-wing" data-wing="next"><div class="work-line-run" data-overflow-fade role="group" aria-label="${uiText("workbench.work-line.next")}">${run(line.next)}</div><span class="work-line-label" aria-hidden="true">${uiText("workbench.work-line.next")}</span></div></div>`
+    + `<div class="work-line-wing" data-wing="next"><div class="work-line-run" role="group" aria-label="${uiText("workbench.work-line.next")}">${run(line.next)}</div><span class="work-line-label" aria-hidden="true">${uiText("workbench.work-line.next")}</span></div></div>`
     + `<div class="work-line-slot" data-work-line-slot>${line.slot}</div>${line.mini ?? ""}</div></div>`;
 }
 
@@ -348,10 +348,13 @@ export function renderCardProcess(rows: string): string {
   return `<details class="work-card-section work-card-process"><summary>${uiText("workbench.work-line.process")}</summary>${rows}</details>`;
 }
 
-/** With the dialog closed: the latest reply above the composer, with the task mark and the way to open the dialog. Only the reply itself is announced. */
-export function renderReplyPeek(peek: { readonly who: { readonly name: string; readonly character?: boolean }; readonly returned?: string; readonly body: string; readonly mark: string }): string {
+/**
+ * With the dialog closed: the latest reply above the composer, with the task mark and the way to open the dialog. Only the reply
+ * itself is announced. `body` is rendered reply HTML; the page leaves it out and puts the reply's own blocks in (work-task-panel.ts).
+ */
+export function renderReplyPeek(peek: { readonly who: { readonly name: string; readonly character?: boolean }; readonly returned?: string; readonly body?: string; readonly mark: string }): string {
   return `<div class="work-reply-peek" data-reply-peek><div class="work-reply-peek-head">${renderReplyWho(peek.who)}<span>${escapeHtml(peek.who.name)}</span>${peek.returned ? renderReplyReturned(peek.returned) : ""}<span class="work-reply-peek-fill"></span>${peek.mark}`
-    + `${iconButton("chevron-up", uiText.text("workbench.work-line.open-conversation"), { "data-dialog-open": "" })}</div><div class="work-reply-peek-body" role="status">${peek.body}</div></div>`;
+    + `${iconButton("chevron-up", uiText.text("workbench.work-line.open-conversation"), { "data-dialog-open": "" })}</div><div class="work-reply-peek-body" role="status">${peek.body ?? ""}</div></div>`;
 }
 
 /** Once the person has clicked the work surface the reply folds away: only the task mark and the way to open the dialog stay, at the line's own right end (user decision 2026-11-15: on the line, never over the work). */

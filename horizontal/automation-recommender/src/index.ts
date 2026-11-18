@@ -2,13 +2,15 @@ import { randomUUID } from "node:crypto";
 import type { WorkspaceFileQuery, WorkspaceFileResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AutomationGap, AutomationPreferenceInput, AutomationReport } from "@molis-ai/molis-work-contracts/services/automation-recommender";
-import { scanProjectAutomation, type ScanDirectory } from "./scan.js";
+import { scanProjectAutomation, type ScanDirectory, type ScanServiceHints } from "./scan.js";
 import { matchProjectAutomation, type AutomationCandidate } from "./match.js";
 import { changeAutomationPreference, readAutomationPreferences } from "./preferences.js";
 import { reportDocument } from "./report-document.js";
 
-export { AUTOMATION_PREFERENCES_FILE, AUTOMATION_PREFERENCES_PATH, forgetAutomationPreferences } from "./preferences.js";
+export { AUTOMATION_PREFERENCES_FILE, AUTOMATION_PREFERENCES_PATH, forgetAutomationPreferences, hideAutomationSuggestions, readAutomationPreferences } from "./preferences.js";
+export { AUTOMATION_OFFERS_FILE, AUTOMATION_OFFERS_PATH, changeOfferRecord, forgetAutomationOffers, offersQuiet, readOfferRecord, setOffersQuiet, type Adoption, type AdoptedSkill, type OfferRecord, type OfferedItem } from "./offers.js";
 export type { AutomationCandidate } from "./match.js";
+export type { ScanServiceHints } from "./scan.js";
 
 type Project = { readonly actor: string; readonly project: string; readonly incarnation: string };
 type Control = { beforeEffect(): void | Promise<void>; assertCurrent(): void };
@@ -16,7 +18,8 @@ export interface AutomationScanPorts {
   readonly directories: readonly ScanDirectory[];
   readonly locale?: string;
   read(query: WorkspaceFileQuery): Promise<WorkspaceFileResult>;
-  candidates(): Promise<{ rows: readonly AutomationCandidate[]; gaps: readonly AutomationGap[]; assertCurrent(): void }>;
+  /** What can be suggested, and the services' declared project hints the scan looks for. */
+  candidates(): Promise<{ rows: readonly AutomationCandidate[]; gaps: readonly AutomationGap[]; hints?: readonly ScanServiceHints[]; assertCurrent(): void }>;
   assertCurrent(): void;
 }
 type SavedReport = {
@@ -38,7 +41,9 @@ export class AutomationRecommender {
 
   async scan(subject: Project, ports: AutomationScanPorts, control: Control): Promise<AutomationReport> {
     const assertCurrent = () => { requireSynchronous(control.assertCurrent()); requireSynchronous(ports.assertCurrent()); };
-    const [files, directory] = await Promise.all([scanProjectAutomation(ports.directories, ports.read, control.assertCurrent), ports.candidates()]);
+    // The candidates first: the services among them say which files, dependencies and Git hosts point at them.
+    const directory = await ports.candidates();
+    const files = await scanProjectAutomation(ports.directories, ports.read, control.assertCurrent, directory.hints ?? []);
     const gaps = [...files.gaps, ...directory.gaps];
     let preferences: AutomationReport["preferences"];
     try { preferences = readAutomationPreferences(this.home, subject); }

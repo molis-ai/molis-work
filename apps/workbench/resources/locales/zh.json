@@ -9392,6 +9392,24 @@
     "workbench.settings-web-search.by-client": "外部客户端",
     "workbench.settings-web-search.switched": "以后的搜索用 {name}；正在跑的那次照旧。",
     "workbench.settings-web-search.connect-more": "连接一个能搜索的服务",
-    "workbench.settings-plugins.integration-id-taken": "它声明的服务或集成 ID 已被另一个插件占用（多半是 Molis Work 更新后自带了同一个服务），重试也起不来；可以卸载它，或等发布者换一个 ID"
+    "workbench.settings-plugins.integration-id-taken": "它声明的服务或集成 ID 已被另一个插件占用（多半是 Molis Work 更新后自带了同一个服务），重试也起不来；可以卸载它，或等发布者换一个 ID",
+    "workbench.automation-adoption.turn-on": "开启所选",
+    "workbench.automation-adoption.card-summary": "我看了这个项目的文件，这 {count} 样现在可以加上。勾掉不想要的；确认后才生效，开启后能撤销。",
+    "workbench.automation-adoption.work-title": "这个项目可以加的",
+    "workbench.automation-adoption.source": "项目建议",
+    "workbench.assistant-notice.automation-found": "这个项目有 {count} 样可以加的",
+    "workbench.automation-adoption.connection-why": "连接 · 项目里有 {where}",
+    "workbench.automation-adoption.skill-detail": "技能 · {source} · {why}",
+    "workbench.automation-adoption.skills-auto": "已开启 {names}，适用时自动用。",
+    "workbench.automation-adoption.skills-manual": "已开启 {names}，只在点名时用。",
+    "workbench.automation-adoption.connect-next": "在下面接上 {name}。",
+    "workbench.automation-adoption.never-again": "这个项目不再提 {names}。",
+    "workbench.automation-adoption.undone": "已关回 {names}。",
+    "workbench.automation-adoption.nothing-undone": "没有要关回的。",
+    "workbench.automation-adoption.kept": "{name} 保持现状：{reason}。",
+    "workbench.automation-adoption.changed-since": "之后有人改过它",
+    "workbench.settings-assistant.project-suggestions": "项目建议",
+    "workbench.settings-assistant.offer-project-suggestions": "发现项目里可以加的技能或连接时，在项目对话里告诉我",
+    "workbench.settings-assistant.project-suggestions-note": "同一样只说一次；某一样不想再看到，在那张卡里勾「以后别再提」。"
   }
 }

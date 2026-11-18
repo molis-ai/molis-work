@@ -10161,6 +10161,24 @@
     "workbench.settings-web-search.by-client": "An external client",
     "workbench.settings-web-search.switched": "Later searches use {name}; one under way keeps its source.",
     "workbench.settings-web-search.connect-more": "Connect a search service",
-    "workbench.settings-plugins.integration-id-taken": "A service or integration ID it declares is now held by another plugin (most often one Molis Work added in an update), so retrying won’t start it. Uninstall it, or wait for its publisher to change the ID"
+    "workbench.settings-plugins.integration-id-taken": "A service or integration ID it declares is now held by another plugin (most often one Molis Work added in an update), so retrying won’t start it. Uninstall it, or wait for its publisher to change the ID",
+    "workbench.automation-adoption.turn-on": "Turn on selected",
+    "workbench.automation-adoption.card-summary": "I looked at this project’s files, and these ({count}) can be added now. Untick what you don’t want; nothing changes until you confirm, and you can undo it.",
+    "workbench.automation-adoption.work-title": "What this project could add",
+    "workbench.automation-adoption.source": "Project suggestions",
+    "workbench.assistant-notice.automation-found": "This project could add a few things ({count})",
+    "workbench.automation-adoption.connection-why": "Connection · the project has {where}",
+    "workbench.automation-adoption.skill-detail": "Skill · {source} · {why}",
+    "workbench.automation-adoption.skills-auto": "Turned on {names}; used automatically when they apply.",
+    "workbench.automation-adoption.skills-manual": "Turned on {names}; used only when you name them.",
+    "workbench.automation-adoption.connect-next": "Finish connecting {name} below.",
+    "workbench.automation-adoption.never-again": "Won’t bring up {names} in this project again.",
+    "workbench.automation-adoption.undone": "Turned off again: {names}.",
+    "workbench.automation-adoption.nothing-undone": "Nothing to turn off.",
+    "workbench.automation-adoption.kept": "{name} left as it is: {reason}.",
+    "workbench.automation-adoption.changed-since": "it was changed since",
+    "workbench.settings-assistant.project-suggestions": "Project suggestions",
+    "workbench.settings-assistant.offer-project-suggestions": "Tell me in the project conversation when the project could add skills or connections",
+    "workbench.settings-assistant.project-suggestions-note": "Each is mentioned once, and you can stop one coming up for a project from its card."
   }
 }

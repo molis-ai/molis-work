@@ -2,7 +2,7 @@ import { cutWithEllipsis } from "./whole-units.js";
 import { actionEffect, actionFieldInput, actionFieldLabel, actionFieldOptions, actionFieldValue, type ActionSubjectContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { presentActionResult, type ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantCard, AssistantCardChoice } from "@molis-ai/molis-work-contracts/services/assistant";
 import { TEXT_REF_LIMITS, type OwnedTextRef, type TextArg, type TextDateStyle } from "@molis-ai/molis-work-contracts/platform/ui";
 import { actionErrorKind } from "./errors.js";
 import { PLATFORM_TEXT_OWNER } from "./ui/text-keys.js";
@@ -36,6 +36,8 @@ export interface ActionCard {
   request_id?: string;
   /** The object the card would change, as it was when suggested; a card whose object moved on is no longer offered. */
   target?: { kind: string; id: string; revision: string; title: string };
+  /** Choices its preparer gave editable top-level fields: only these values can run (`AssistantPreparedCard.choices`). */
+  choices?: Record<string, AssistantCardChoice[]>;
   created_at: string;
   updated_at: string;
 }
@@ -96,21 +98,56 @@ export function cardSubject(view: Pick<ActionView, "action" | "operation">, inpu
   return null;
 }
 
+const MAX_CHOICE_FIELDS = 8, MAX_CHOICES = 12;
+const isArrayField = (declared: Schema | undefined) => declared?.type === "array";
+
+/**
+ * The values a prepared field holds, as the list its choices are checked against: an array field's items, any other's one value.
+ * Anything that is not a string list, or a string, is not a choice.
+ */
+function picked(declared: Schema | undefined, value: unknown): string[] | null {
+  if (isArrayField(declared)) return Array.isArray(value) && value.every(item => typeof item === "string") ? value as string[] : null;
+  return typeof value === "string" ? [value] : null;
+}
+
+/**
+ * A preparer's choices, checked before anything is kept: only for top-level fields it lets the person change, bounded, each value
+ * and label a short string, and what the field holds now among them.
+ */
+function checkedChoices(offer: { input: unknown; editable?: readonly string[]; choices?: Record<string, AssistantCardChoice[]> }, schema: Schema, refuse: ActionCardPorts["refuse"]): Record<string, AssistantCardChoice[]> {
+  const entries = Object.entries(offer.choices ?? {});
+  const text = (value: unknown, max: number) => typeof value === "string" && value.trim() !== "" && value.length <= max;
+  if (entries.length > MAX_CHOICE_FIELDS) throw refuse("invalid", "可选的字段太多");
+  const out: Record<string, AssistantCardChoice[]> = {};
+  for (const [key, list] of entries) {
+    if (key.includes(".") || !offer.editable?.includes(key) || !Array.isArray(list) || !list.length || list.length > MAX_CHOICES
+      || list.some(choice => !choice || !text(choice.value, 200) || !text(choice.label, 120) || choice.description !== undefined && !text(choice.description, 300))
+      || new Set(list.map(choice => choice.value)).size !== list.length) throw refuse("invalid", `字段「${key}」的选项写法不对`);
+    const values = new Set(list.map(choice => choice.value));
+    const held = plainObject(offer.input) ? offer.input[key] : undefined;
+    const now = held === undefined ? [] : picked(schema.properties?.[key], held);
+    if (!now || now.some(value => !values.has(value))) throw refuse("invalid", `字段「${key}」准备的值不在它的选项里`);
+    out[key] = list.map(choice => ({ value: choice.value, label: choice.label.trim(), ...(choice.description ? { description: choice.description.trim() } : {}) }));
+  }
+  return out;
+}
+
 /**
  * A suggestion checked against the actions offered now and made a card: the exact capability it names, its input valid
  * unless fields are still missing, and the object it would change as that object reads now. Nothing runs.
  */
-export async function draftActionCard(cardId: string, offer: AgentActionOffer, views: readonly ActionView[],
+export async function draftActionCard(cardId: string, offer: AgentActionOffer & { readonly choices?: Record<string, AssistantCardChoice[]> }, views: readonly ActionView[],
   ports: Pick<ActionCardPorts, "readSubject" | "now" | "refuse"> & Pick<CardAuthority, "check">): Promise<ActionCard> {
   const view = views.find(row => sameAction(row, offer.reference));
   if (!view || !view.availability.available) throw ports.refuse("revoked", "That capability is not available here; nothing was suggested.");
   const missing = (offer.missing ?? []).filter(item => item.field && item.question);
+  const choices = offer.choices === undefined ? undefined : checkedChoices(offer, view.action.input_schema as Schema, ports.refuse);
   if (!missing.length) await ports.check(view, offer.input);
   const at = ports.now().toISOString();
   const card: ActionCard = { card_id: cardId, revision: 1, title: offer.title, summary: offer.summary, provider: view.provider.title, capability_title: view.action.title,
     effect: actionEffect(view.action, view.capability_id), reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id },
     input: structuredClone(offer.input), input_schema: view.action.input_schema as Record<string, unknown>, editable: [...new Set(offer.editable ?? [])], missing,
-    status: missing.length ? "needs-input" : "ready", created_at: at, updated_at: at };
+    status: missing.length ? "needs-input" : "ready", ...(choices ? { choices } : {}), created_at: at, updated_at: at };
   const subject = cardSubject(view, offer.input);
   const read = subject ? await ports.readSubject(subject) : null;
   if (subject && read && read !== "missing") card.target = { ...subject, revision: read.revision, title: read.title || subject.id };
@@ -182,6 +219,16 @@ function preparedInput(card: ActionCard, values: Record<string, string>, refuse:
     const properties = (card.input_schema as Schema).properties;
     const schema = child ? properties?.[head]?.properties?.[child] : properties?.[head];
     let value: unknown = raw;
+    const listed = !child ? card.choices?.[head] : undefined;
+    // A field with prepared choices takes only them: an array field the picked ones (none picked is an empty list), any other one.
+    if (listed) {
+      let parsed: unknown = raw;
+      if (isArrayField(schema)) { try { parsed = raw === "" ? [] : raw.startsWith("[") ? JSON.parse(raw) : [raw]; } catch { parsed = null; } }
+      const values = picked(schema, parsed);
+      if (!values || values.some(item => !listed.some(choice => choice.value === item)) || new Set(values).size !== values.length) throw refuse("invalid", `字段「${key}」只能从给出的选项里选`);
+      prepared[key] = parsed;
+      continue;
+    }
     // A day or a moment the person cleared, on a field that may be empty, is "none".
     if (raw === "" && actionFieldInput(schema) && allowsNull(schema)) value = null;
     else if (schema?.type !== "string") { try { value = JSON.parse(raw); } catch { value = raw; } }
@@ -293,6 +340,14 @@ export function actionCardView(card: ActionCard & { readonly run_id?: string | n
           fields.push({ key: `${key}.${child}`, label: labelOf(properties[key]?.properties, child), value: actionFieldValue(child, inner, properties[key]?.properties?.[child]), editable: editable || card.editable.includes(`${key}.${child}`),
             ...choices(properties[key]?.properties?.[child], inner) });
         }
+        continue;
+      }
+      const listed = card.choices?.[key];
+      if (listed) {
+        const declared = properties[key] as Schema | undefined, now = picked(declared, value) ?? [];
+        const labels = now.map(item => listed.find(choice => choice.value === item)?.label ?? item);
+        fields.push({ key, label: labelOf(properties, key), value: labels.join("、"), editable, options: listed.map(choice => ({ ...choice })),
+          ...(isArrayField(declared) ? { multiple: true, raw: JSON.stringify(now) } : now[0] !== undefined ? { raw: now[0] } : {}) });
         continue;
       }
       // The object it acts on reads by its title, not by its identifier.

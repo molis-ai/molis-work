@@ -53,9 +53,12 @@ const fields = {
   ],
 };
 
+export const sameRoleCapabilities = (left: CharacterRoleContent, right: CharacterRoleContent): boolean =>
+  JSON.stringify([left.host_tools, left.action_tools ?? null]) === JSON.stringify([right.host_tools, right.action_tools ?? null]);
+
 export function renderRoleDiff(left: CharacterRoleContent, right: CharacterRoleContent, labels: [string, string], sections?: CharacterRoleSection[]): string {
-  const contentKeys = sections ?? (["title", ...SECTIONS] as const).filter(section =>
-    JSON.stringify(fields[section](left)) !== JSON.stringify(fields[section](right)));
+  const changed = { title: left.title !== right.title, work_style: left.instructions !== right.instructions, capabilities: !sameRoleCapabilities(left, right) };
+  const contentKeys = sections ?? (["title", ...SECTIONS] as const).filter(section => changed[section]);
   const render = (value: CharacterRoleContent, heading: string) => `<section><h4>${esc(heading)}</h4>${contentKeys.map(section => {
     const label = section === "work_style" ? "workbench.roles.way" : section === "capabilities" ? "workbench.roles.tools" : "workbench.characters.name";
     return `<p><strong>${esc(say(label))}</strong><br><span translate="no">${fields[section](value).map(esc).join("<br>")}</span></p>`;

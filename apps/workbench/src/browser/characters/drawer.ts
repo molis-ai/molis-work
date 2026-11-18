@@ -6,7 +6,7 @@ import { escapeHtml as esc, icon, renderAlert, renderAvatar, renderButton, type 
 import type { ActionClient } from "./action-client.js";
 import { isConflict, messageOf, type ActionRef, type CharacterRecord, type CharacterRequest, type Part } from "./common.js";
 import { WindowDrafts, type StoredDraft } from "./drafts.js";
-import { memberKey, originalOf, renderRoleDiff } from "./view.js";
+import { memberKey, originalOf, renderRoleDiff, sameRoleCapabilities } from "./view.js";
 
 const uiText = globalThis.t;
 const say = (key: string, values?: Record<string, unknown>): string => uiText.text(key, values as Record<string, string | number>);
@@ -37,7 +37,6 @@ export interface DrawerHost {
 }
 
 const SECTIONS: readonly CharacterRoleSection[] = ["work_style", "capabilities"];
-const same = (a: unknown, b: unknown): boolean => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 const versionOf = (ref: CharacterRoleVersionRef): number => ref.kind === "personal" ? ref.version : ref.member_version;
 const button = (options: MwButtonOptions): string => renderButton({ size: "sm", variant: "secondary", ...options });
 const state = (tone: "neutral" | "warning", text: string): string => `<span class="settings-state settings-state--${tone}">${esc(text)}</span>`;
@@ -118,7 +117,7 @@ class RoleDrawerState {
   protected edited(): { way: boolean; tools: boolean; title: boolean } {
     const now = this.values(), base = this.baseline;
     return { way: now.instructions !== base.instructions, title: now.title !== base.title,
-      tools: !same(now.host_tools, base.host_tools) || !same(now.action_tools ?? null, base.action_tools ?? null) };
+      tools: !sameRoleCapabilities(now, base) };
   }
   protected dirty(): boolean { return this.phase === "dirty" || this.phase === "conflict"; }
   protected roleKey(): string | null { const target = this.target; return !target || target.kind === "new" ? null : target.kind + ":" + target.id; }

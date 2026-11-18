@@ -13,6 +13,7 @@ type PickerRequest = { target: string; project_id: string | null; selection?: Re
 type Mode = "task" | "project" | "personal";
 const say = (key: string, values?: Record<string, string>): string => globalThis.t.text(key, values);
 const label = (key: string): string => say("workbench.assistant-choosers." + key);
+const roleText = (key: string, values?: Record<string, string>): string => say("workbench.roles." + key, values);
 const keyOf = (ref: Ref): string => ref.kind === "personal" ? "personal:" + ref.character_id : "project:" + ref.member_id;
 const toolSet: ReadonlySet<string> = new Set(BUSINESS_HOST_TOOLS);
 function reason(row: Row): string {
@@ -27,10 +28,9 @@ function rowsOf(catalog: CharacterRoleCatalog, layer: "project" | "personal"): R
   })) : catalog.originals.map(({ ref, title, availability, host_tools }) => ({ ref, character_id: ref.character_id, title, availability, host_tools }));
 }
 
-function roleRequest(projectId: string | null): CharacterRequest {
-  const prefix = "/projects/" + encodeURIComponent(projectId ?? PERSONAL_SPACE_PROJECT_ID) + "/api/plugins/io.molis.work.characters";
-  return (method, path, body) => pageRequest()(prefix + path, { method, body, fallback: say("workbench.characters.request-failed") });
-}
+const roleRoute = (projectId: string | null): string => "/projects/" + encodeURIComponent(projectId ?? PERSONAL_SPACE_PROJECT_ID) + "/api/plugins/io.molis.work.characters";
+const roleRequest = (projectId: string | null): CharacterRequest => (method, path, body) =>
+  pageRequest()(roleRoute(projectId) + path, { method, body, fallback: say("workbench.characters.request-failed") });
 
 function storedDefault(catalog: CharacterRoleCatalog, mode: "project" | "personal"): string {
   const choice = catalog.defaults[mode];
@@ -51,13 +51,17 @@ class TaskRolePicker {
   constructor(private readonly island: HTMLElement, private readonly input: PickerRequest) {
     this.scope = input.project_id ? "project" : "personal";
     this.request = roleRequest(input.project_id);
-    this.taskValue = input.required ? "" : input.selection ? keyOf(input.selection) : input.selection === null ? "assistant" : "inherit";
+    this.taskValue = input.required ? "" : input.selection ? keyOf(input.selection) : input.new_work && input.selection === undefined ? "inherit" : "assistant";
     this.dialog.className = "mw-dialog mw-dialog--form";
     this.dialog.dataset.taskRolePicker = "";
     this.dialog.setAttribute("aria-labelledby", "task-role-picker-title");
     this.dialog.addEventListener("close", () => {
       this.dialog.remove();
-      if (this.opener instanceof HTMLElement && this.opener.isConnected) this.opener.focus();
+      if (this.opener instanceof HTMLElement) {
+        const selector = this.opener.hasAttribute("data-assistant-role-picker") ? "[data-assistant-role-picker]" : '[data-composer-control="character"]';
+        const target = this.opener.getClientRects().length ? this.opener : this.island.querySelector<HTMLElement>(selector);
+        (target?.getClientRects().length ? target : this.island.querySelector<HTMLElement>("[data-composer-more]"))?.focus();
+      }
     });
     this.dialog.addEventListener("click", event => {
       const control = (event.target as Element | null)?.closest<HTMLButtonElement>("[data-task-role-act]");
@@ -85,15 +89,18 @@ class TaskRolePicker {
     return rows;
   }
 
-  private source(): string {
+  private paintSource(hint: Element, value: string, selected?: Row): void {
+    const assistant = roleText("assistant");
+    hint.textContent = selected ? roleText("layer-task") + " · " + selected.title : value === "assistant" ? assistant : "";
+    if (value !== "inherit") return;
     const catalog = this.catalog!;
     const resolved = catalog.effective;
     const stopped = resolved.kind === "assistant" && resolved.source === "assistant" && resolved.stopped_project_default;
     const ended = stopped && catalog.members.find(member => member.role.current.member_id === stopped.member_id);
-    if (ended) return renderAlert({ tone: "warning", title: say("workbench.roles.default-off-title", { name: ended.title }) });
+    if (ended) { hint.innerHTML = renderAlert({ tone: "warning", title: roleText("default-off-title", { name: ended.title }) }); return; }
     const row = resolved.kind === "role" ? rowsOf(catalog, resolved.version.kind).find(entry => keyOf(entry.ref) === keyOf(resolved.version)) : undefined;
-    const source = resolved.source === "project" ? label("project-default") : resolved.source === "personal" ? label("my-default") : say("workbench.roles.assistant");
-    return `<p class="roles-hint">${esc(source + (row ? " · " + row.title + (reason(row) ? " · " + reason(row) : "") : resolved.source === "project" ? " · " + say("workbench.roles.assistant") : ""))}</p>`;
+    const source = resolved.source === "project" ? label("project-default") : resolved.source === "personal" ? label("my-default") : assistant;
+    hint.textContent = [source, row?.title ?? (resolved.source === "project" ? assistant : ""), row && reason(row)].filter(Boolean).join(" · ");
   }
 
   private render(value?: string): void {
@@ -109,26 +116,28 @@ class TaskRolePicker {
       return option(id, [row.title, tag, why].filter(Boolean).join(" · "), Boolean(why));
     }).join("");
     const missing = !current || current.includes(":") && !rows.some(row => keyOf(row.ref) === current);
-    const inherit = task ? say("workbench.roles.default-new") : this.mode === "project" ? say("workbench.roles.use-mine-again") : say("workbench.roles.assistant");
+    const inherit = roleText(task ? "default-new" : this.mode === "project" ? "use-mine-again" : "assistant");
     this.dialog.innerHTML = `<div class="mw-form mw-dialog__shell">
       <header class="mw-form__header"><h2 id="task-role-picker-title">${esc(title)}</h2></header>
       <div class="mw-form__body">
-        ${!catalog ? `<p class="mw-loading">${esc(say("workbench.characters.loading"))}</p>` : `${task ? this.source() : ""}
+        ${!catalog ? `<p class="mw-loading">${esc(say("workbench.characters.loading"))}</p>` : `${task ? '<div class="roles-hint" data-task-role-source></div>' : `<p class="roles-hint">${esc(roleText(this.mode === "project" ? "default-new" : "my-default-hint"))}</p>`}
           <select class="mw-select" aria-labelledby="task-role-picker-title" data-task-role-select>
             ${missing ? option(current, say("workbench.assistant-dock.which-character-carries"), true) : ""}
             ${!task || this.input.new_work ? option("inherit", inherit) : ""}
-            ${task || this.mode === "project" ? option("assistant", say("workbench.roles.assistant")) : ""}${options}</select>
-          ${task ? `<div class="roles-inline">${button("edit", say("workbench.roles.adjust"))}${button("new", say("workbench.roles.new-role"))}
+            ${task || this.mode === "project" ? option("assistant", roleText("assistant")) : ""}${options}</select>
+          ${task ? `<div class="roles-inline">${button("edit", roleText("adjust"))}${button("new", roleText("new-role"))}
             ${this.scope === "project" ? button("project", label("project-default")) : ""}${button("personal", label("my-default"))}</div>` : ""}
         `}<p class="roles-hint" data-task-role-notice role="status"></p>
       </div>
       <footer class="mw-form__footer">${button(task ? "close" : "back", say(task ? "common.control.close" : "common.control.back"))}
-        ${catalog ? button("apply", task ? say("workbench.roles.layer-task-only") : say("common.control.save"), true) : ""}</footer>
+        ${catalog ? button("apply", task ? roleText("layer-task-only") : say("common.control.save"), true) : ""}</footer>
     </div>`;
     const update = () => {
       const select = this.select(), row = rows.find(one => keyOf(one.ref) === select?.value);
+      const source = this.dialog.querySelector("[data-task-role-source]");
       const apply = this.dialog.querySelector<HTMLButtonElement>('[data-task-role-act="apply"]');
       const edit = this.dialog.querySelector<HTMLButtonElement>('[data-task-role-act="edit"]');
+      if (select && source) this.paintSource(source, select.value, row);
       if (apply) apply.disabled = !select?.value || Boolean(select.selectedOptions[0]?.disabled);
       if (edit) edit.disabled = !row;
     };
@@ -175,7 +184,8 @@ class TaskRolePicker {
             : { layer: "project", selection: row?.ref.kind === "project" ? row.ref : value === "assistant" ? { kind: "assistant" } : null };
           const saved = await this.request<Pick<CharacterRoleCatalog, "defaults" | "effective">>("POST", "/roles/defaults", selection);
           this.catalog = { ...this.catalog, ...saved };
-          this.emit(); this.mode = "task"; this.render(); this.select()?.focus();
+          const notice = this.mode === "personal" ? "my-default-changed" : value === "inherit" ? "project-inherits" : "project-default-changed";
+          this.emit(); this.mode = "task"; this.render(); this.note(roleText(notice)); this.select()?.focus();
         }
       }
     } catch (error) { this.note(messageOf(error)); }
@@ -201,9 +211,8 @@ class TaskRolePicker {
     status.className = "roles-hint"; status.setAttribute("role", "status");
     q("drawer-notices").before(status);
     const actions = characterActionClient({ q: find, request, changed: () => drawer.changed() });
-    const scopeKey = "/projects/" + encodeURIComponent(projectId ?? PERSONAL_SPACE_PROJECT_ID);
     const drawer = new RoleDrawer({
-      q, scope: projectId ? "project" : "personal", request, actions, catalog: () => this.catalog, storage: "molis.characters.drafts:" + scopeKey + "/api/plugins/io.molis.work.characters",
+      q, scope: projectId ? "project" : "personal", request, actions, catalog: () => this.catalog, storage: "molis.characters.drafts:" + roleRoute(projectId),
       reload: async () => { this.catalog = await this.request("GET", "/roles"); this.emit(); },
       landed: key => { this.taskValue = key.replace(/^original:/u, "personal:").replace(/^member:/u, "project:"); },
       note: message => { status.textContent = message; }, imported: () => {},

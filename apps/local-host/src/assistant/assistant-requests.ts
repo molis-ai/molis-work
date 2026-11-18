@@ -8,7 +8,7 @@ function storedResult(body: string): AssistantRequestResult {
   const result = JSON.parse(body) as AssistantRequestResult;
   if (result.work.character === undefined) return result;
   const { character, ...work } = result.work;
-  return { ...result, work: { ...work, ...characterSelectionView(character) } };
+  return { ...result, work: { ...work, ...characterSelectionView(character, work.executor) } };
 }
 
 /** The existing Send ledger: claiming writes; checking never creates or repeats a Send. */

@@ -240,7 +240,6 @@ export async function holdsCreate(caller: ActionExecutionContext, client: Action
  */
 export async function placeInItem(caller: ActionExecutionContext, ports: MainlineItemPorts, subject: ActionSubject,
   item: { kind: "item" | "none"; item_id?: string }, visible: () => Promise<boolean>): Promise<ActionSubject[]> {
-  if ((item.kind === "item") !== (item.item_id !== undefined)) throw new ActionError("actions.input_invalid", "放进事项要说明哪一件；不归事项时不带事项");
   if (!await visible()) throw mainlineErrors.subject_unreadable("读不到这个任务，不能放进事项");
   const required = [MAINLINE_ARRANGE_PERMISSION];
   await caller.validate_permissions?.(required);

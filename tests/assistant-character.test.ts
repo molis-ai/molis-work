@@ -122,7 +122,19 @@ test("B36F-02 a persisted artifact selection refuses sending and keeps the draft
     const resumed = await f.service.send({ work_id: id, request_id: "legacy-cleared", text: "下一轮原话", character: null }, {});
     assert.equal(resumed.work.work_id, id);
     assert.equal(resumed.work.character_selection_required, undefined);
-    await until(async () => (await f.service.read(id)).rounds.length === 2, "resumed round");
+    await until(async () => { const view = await f.service.read(id); return view.rounds.length === 2 && view.work.state === "completed"; }, "resumed round");
+
+    const incomplete = JSON.stringify({ ref: editorRef, title: editorChoice.title });
+    f.db.prepare("UPDATE assistant_works SET body = json_set(body, '$.character', json(?)) WHERE work_id = ?").run(incomplete, id);
+    assert.equal((await f.service.read(id)).work.character_selection_required, true);
+    const corrected = await f.service.send({ work_id: id, request_id: "legacy-reselected", text: "还是请原来的编辑", character: editorRef }, {});
+    assert.deepEqual(corrected.work.character, editorChoice);
+    const last = await until(async () => {
+      const view = await f.service.read(id);
+      return view.rounds.length === 3 && view.work.state === "completed" ? view : undefined;
+    }, "the same role resumed");
+    assert.deepEqual(last.rounds.map(round => round.text), ["保留这一轮", "下一轮原话", "还是请原来的编辑"]);
+    assert.deepEqual(last.rounds[2]?.character, { ...editorChoice, version: EDITOR_VERSION });
   } finally { await f.close(); }
 });
 

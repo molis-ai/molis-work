@@ -6,7 +6,7 @@ import { assertSubtaskWork } from "./assistant-subtask-binding.js";
 import { subtaskInputSessions } from "./assistant-subtask-inputs.js";
 import { changeAssistantSessionLifecycle } from "./assistant-session-lifecycle.js";
 import type { CharacterRoleCatalog } from "@molis-ai/molis-work-contracts/modules/characters";
-import { assertStoredCharacter, catalogChoice, parseRoleRef, roleKey } from "./assistant-characters.js";
+import { assertStoredCharacter, catalogChoice, parseRoleRef, roleKey, storedCharacter } from "./assistant-characters.js";
 import type { MethodHandoff } from "./assistant-signed-materials.js";
 import { sentOriginal } from "./assistant-round-start.js";
 import { memoryInputSource } from "../memory/memory-source-identity.js";
@@ -434,7 +434,7 @@ async function defaultCharacter(store: AssistantStore, actorId: string, resolveR
 async function chooseCharacter(store: AssistantStore, actorId: string, characters: AssistantServicePorts["characters"], work: StoredWork,
   choice: AssistantCharacterRef | null | undefined, assertCurrent?: () => void): Promise<StoredWork> {
   if (choice === undefined) {
-    assertStoredCharacter(work.character);
+    if (work.executor.kind === "assistant") assertStoredCharacter(work.character);
     return work;
   }
   if (choice === null) {
@@ -448,7 +448,8 @@ async function chooseCharacter(store: AssistantStore, actorId: string, character
   const catalog = await characters(work.project_ref ?? null), found = catalog ? catalogChoice(catalog, ref) : null;
   if (!found) throw assistantErrors.invalid(work.project_ref ? "这个项目里没有这个角色" : "没有这个角色");
   if (!found.available) throw assistantErrors.character_unavailable("所选角色已停用或还没保存成版本，请另选一个，或不指定角色", { action: "重新选择角色" });
-  if (roleKey(work.character?.ref) === roleKey(ref) && work.character?.title === found.character.title) return work;
+  const held = storedCharacter(work.character);
+  if (held && roleKey(held.ref) === roleKey(ref) && held.title === found.character.title && held.character_id === found.character.character_id) return work;
   assertCurrent?.();
   return store.update(actorId, work.work_id, null, { character: found.character }, false);
 }

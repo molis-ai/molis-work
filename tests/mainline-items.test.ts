@@ -281,6 +281,17 @@ test("B36F-06 S-mainline-own-line: failed or unauthorized task placement retains
     if (permissions.includes(MAINLINE_ARRANGE_PERMISSION)) throw new ActionError("actions.forbidden", "withdrawn");
   } }));
   await assert.rejects(withdrawn.invoke(mainlineActions.place, { task: T1, item: { kind: "none" } }), code("actions.forbidden"));
+  const combined = { task: T1, to: { kind: "none" }, item: { kind: "none" } } as const;
+  await assert.rejects(withdrawn.invoke(mainlineActions.place, combined), code("actions.forbidden"));
+  const withdrawnAtOwner = as(person(projectId, { assert_authority_current: (ref, permissions) => {
+    if (ref?.capability_id === "homebg.serves.release" && permissions?.includes(MAINLINE_ARRANGE_PERMISSION)) {
+      throw new ActionError("actions.forbidden", "withdrawn at owner");
+    }
+  } }));
+  await assert.rejects(withdrawnAtOwner.invoke(mainlineActions.place, combined), code("actions.forbidden"));
+  await assert.rejects(me.invoke(mainlineActions.place, { ...combined, item: { kind: "item" } }), code("actions.input_invalid"));
+  assert.ok(background.state.servesCalls.every(call => call.role === "list"), "the owner never handles a denied write");
+  assert.deepEqual(background.state.serves.get(T1.id), [N1], "the original event is kept");
   assert.deepEqual(await me.invoke(mainlineItemActions.holdsList, { subject: T1 }), { targets: [{ kind: WORK_ITEM_KIND, id: from.item_id }] });
   assert.deepEqual(await onlyEvent.invoke(mainlineActions.place, { task: T1, to: { kind: "none" } }), { task: T1, serves: [] });
 });

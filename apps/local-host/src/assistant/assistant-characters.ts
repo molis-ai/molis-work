@@ -47,10 +47,10 @@ export function assertStoredCharacter(value: AssistantCharacter | undefined): vo
   }
 }
 
-export function characterSelectionView(value: AssistantCharacter | undefined): Pick<AssistantWork, "character" | "character_selection_required"> {
+export function characterSelectionView(value: AssistantCharacter | undefined, executor: AssistantWork["executor"]): Pick<AssistantWork, "character" | "character_selection_required"> {
   const character = storedCharacter(value);
   if (character) return { character };
-  return value === undefined ? {} : { character_selection_required: true };
+  return value !== undefined && executor.kind === "assistant" ? { character_selection_required: true } : {};
 }
 
 /** One role of the catalog the person may choose here, as a work keeps it; its availability says whether it can be chosen now. */

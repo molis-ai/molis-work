@@ -26,7 +26,8 @@ export const ASSISTANT_CHOOSERS_PART = String.raw`  let executors = [];
   const roleKey = (ref) => !ref ? "" : ref.kind === "personal" ? "personal:" + ref.character_id : "project:" + ref.member_id;
   const chosenCharacter = () => { const work = getWork(); return work ? (pendingChar !== undefined ? pendingChar : work.character || null) : nextChar; };
   const allowsCharacter = () => { const work = getWork(); return work ? work.executor.kind !== "plugin" : nextExec === "assistant"; };
-  const roleProject = () => { const scope = getWork()?.scope; return scope ? scope.project_id || null : nextScope === "project" ? project?.id || null : null; };
+  const startsMain = () => !fresh && !curEvent;
+  const roleProject = () => { const scope = getWork()?.scope; return scope ? scope.project_id || null : curEvent || nextScope === "project" ? project?.id || null : null; };
   const roleTarget = () => JSON.stringify([curId, roleProject(), curEvent, fresh, nextExec]);
   const roleButtonLabel = () => getWork()?.character_selection_required && pendingChar === undefined ? readText("workbench.assistant-dock.which-character-carries")
     : chosenCharacter()?.title || readText("workbench.assistant-island.role");
@@ -36,7 +37,7 @@ export const ASSISTANT_CHOOSERS_PART = String.raw`  let executors = [];
       if (!island.isConnected || !allowsCharacter() || at !== roleTarget()) return;
       const work = getWork(), required = work?.character_selection_required && pendingChar === undefined;
       island.dispatchEvent(new CustomEvent("molis-work:task-role-picker", { bubbles: true, detail: {
-        target: at, project_id: roleProject(), required, new_work: !work,
+        target: at, project_id: roleProject(), required, new_work: !work && !startsMain(),
         selection: required ? undefined : chosenCharacter()?.ref ?? (work ? null : nextChar),
       } }));
     };

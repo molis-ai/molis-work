@@ -102,7 +102,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     } else {
       body.scope = nextScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" };
       // Said with no work in front: the main conversation with this counterpart (specs/work-line §3.2), unless ＋ began a separate work.
-      if (!fresh && !extra.named && !curEvent) body.main = true;
+      if (startsMain() && !extra.named) body.main = true;
     }
     // Said in an event's tab with no conversation yet: a new work in this project, done for that event (WLN-12).
     if (!curId && curEvent && project) { body.scope = { kind: "project", project_id: project.id }; body.for_event = eventOf().subject; }

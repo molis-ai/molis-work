@@ -1,14 +1,14 @@
 {
   "reason": "第 36 批合后修复补齐任务内选角、默认和共用编辑抽屉，以及抽屉的版本冲突恢复。选择器随 Characters 的既有延后入口加载，使用现有词条。",
-  "review": "复核 specs/batch-36-audit-fixes/spec.md 的 B36F-04、B36F-05 与 tests/characters-window-drafts.e2e.test.ts。同步第 59 批后对 6b0e8a4f83 的隔离构建实测 characters.js 69216 → 78630，workbench.js 1350265 → 1350311。两种工作台冷启动各增 46 B，热启动和到达页持平，项目选择页冷、热各减 167 B。",
+  "review": "复核 specs/batch-36-audit-fixes/spec.md 的 B36F-04、B36F-05 与 tests/characters-window-drafts.e2e.test.ts。对基点 6b0e8a4f83 的隔离构建实测 characters.js 69216 → 79158，workbench.js 1350265 → 1350394。两种工作台冷启动各增 129 B，热启动和到达页持平，项目选择页冷、热各减 99 B。",
   "assets": {
-    "/assets/molis-work-plugins/characters.js": 9414,
-    "/assets/molis-work-workbench.js": 46
+    "/assets/molis-work-plugins/characters.js": 9942,
+    "/assets/molis-work-workbench.js": 129
   },
   "pages": {
-    "workbench-default/zh": { "cold": 46, "warm": 0 },
-    "workbench-default/en": { "cold": 46, "warm": 0 },
-    "workbench-all-plugins/zh": { "cold": 46, "warm": 0 },
-    "workbench-all-plugins/en": { "cold": 46, "warm": 0 }
+    "workbench-default/zh": { "cold": 129, "warm": 0 },
+    "workbench-default/en": { "cold": 129, "warm": 0 },
+    "workbench-all-plugins/zh": { "cold": 129, "warm": 0 },
+    "workbench-all-plugins/en": { "cold": 129, "warm": 0 }
   }
 }

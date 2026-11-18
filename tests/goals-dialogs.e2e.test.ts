@@ -7,7 +7,7 @@ import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
-test("refreshing create choices preserves the unsaved draft, selected relations and text cursor without creating a Goal", { timeout: 60_000 }, async t => {
+test("QEA-167 refreshing create choices preserves the unsaved draft, selected relations and text cursor without creating a Goal", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, showGoalStageList, projectId } = browser;
@@ -26,7 +26,7 @@ test("refreshing create choices preserves the unsaved draft, selected relations 
     form.elements.parent_goal_id.value = 'V1';
     form.querySelector('[name=dependency_goal_ids][value=INTERFACES]').checked = true;
     form.elements.parent_goal_id.dispatchEvent(new Event('change', {bubbles:true}));
-    form.elements.title.focus(); form.elements.title.setSelectionRange(2, 7);
+    form.elements.title.focus(); form.elements.title.setSelectionRange(2, 7, 'backward');
   })()`);
   const response = await fetch(origin + prefix + "/api/plugins/io.molis.work.goals/goals", {
     method: "POST", headers: { "content-type": "application/json", origin,
@@ -46,9 +46,10 @@ test("refreshing create choices preserves the unsaved draft, selected relations 
     return {open: document.querySelector('[data-create-dialog]').open, title: form.elements.title.value,
       outcome: form.elements.outcome.value, parent: form.elements.parent_goal_id.value,
       dependencies: [...form.querySelectorAll('[name=dependency_goal_ids]:checked')].map(input=>input.value),
-      focus: document.activeElement.name, start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd};
+      focus: document.activeElement.name, start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd,
+      direction: document.activeElement.selectionDirection};
   })()`), { open: true, title: "Unsaved draft", outcome: "Keep my input", parent: "V1",
-    dependencies: ["INTERFACES"], focus: "title", start: 2, end: 7 });
+    dependencies: ["INTERFACES"], focus: "title", start: 2, end: 7, direction: "backward" });
   await click('[data-create-dialog] [data-close-create]');
   const after = boardSnapshot(store, DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, baseline.goals);

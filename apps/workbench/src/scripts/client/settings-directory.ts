@@ -83,7 +83,9 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       // embed selects the response layout, not a different place in this settings category.
       target.searchParams.delete("embed"); base.searchParams.delete("embed");
       const nested = target.href !== base.href;
-      if (nested) root.dataset.settingsAddress = path; else delete root.dataset.settingsAddress;
+      // A panel opened from the directory keeps its cached form when it changes its own address.
+      if (!nested) delete root.dataset.settingsAddress;
+      else if (root.dataset.settingsAddress) root.dataset.settingsAddress = path;
       if (root.isConnected && root.closest("[data-work-surface]")?.dataset.workSurface === options.kind) {
         host.noteCover?.(options.kind, root.dataset.settingsPanel + (nested ? " " + path : ""), change?.history === "replace");
       }

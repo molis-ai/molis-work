@@ -73,7 +73,8 @@ test("QEA-48 · real exhausted subagents extend only their own budget from both 
   const ref = session.runs.at(-1)!.ref;
   const adapter = ensureSystemAgentService(b.localHost, b.homeDirectory).agentHost.adapter("prologue"), port = adapter.subagents!;
   const failed = await untilSetup(async () => { const rows = await port.list(ref); return rows.length === 2 && rows.every(row => row.state === "failed") ? rows : undefined; }, "both real children fail");
-  assert.deepEqual(childCalls[0]!.tools?.map(tool => tool.name), ["list", "search", "read", "board-read", "board-report"]);
+  const readerTools = ["list", "search", "read", "ask-user"];
+  assert.deepEqual(childCalls[0]!.tools?.map(tool => tool.name), [...readerTools, "board-read", "board-report"]);
   await untilSetup(async () => (await adapter.read(ref)).phase === "completed" ? true : undefined, "parent has actually ended before child retry");
   await b.reloadPage(); await b.waitFor(CODING_OPEN);
   const ids = failed.map(row => row.subagent_id);
@@ -93,9 +94,13 @@ test("QEA-48 · real exhausted subagents extend only their own budget from both 
   const callsBeforeExtension = childCalls.length;
   // Fail at the real owner boundary before a budget write. The same UI control must recover.
   let failExtension = true, extensionCalls = 0;
-  const extend = port.extendBudget!.bind(port);
-  t.mock.method(port, "extendBudget", async (...args: Parameters<typeof extend>) => {
-    extensionCalls++; if (failExtension) throw new Error("Fixture budget write unavailable"); return extend(...args);
+  const command = port.command!.bind(port);
+  t.mock.method(port, "command", async (...args: Parameters<typeof command>) => {
+    if (args[2].kind === "extend-budget") {
+      extensionCalls++;
+      if (failExtension) throw new Error("Fixture budget write unavailable");
+    }
+    return command(...args);
   });
   await clickText(card(ids[0]!), "再给 3 次");
   await untilSetup(async () => extensionCalls === 1 ? true : undefined, "extension reaches actual owner");
@@ -126,8 +131,8 @@ test("QEA-48 · real exhausted subagents extend only their own budget from both 
   assert.equal(running.budget?.prior_attempts?.length, 2);
   assert.equal(childCalls.at(-1)!.model, "fixture-model"); assert.deepEqual(running.host_tools, failed[0]!.host_tools);
   // SDK continue is deliberately unbound from the dispatch's returned task-board step (runtime.d.ts).
-  // The original read-only grant remains; board tools require a new dispatch or handover.
-  assert.deepEqual(childCalls.at(-1)!.tools?.map(tool => tool.name), ["list", "search", "read"]);
+  // The original reader can ask the person. Board tools require a new dispatch or handover.
+  assert.deepEqual(childCalls.at(-1)!.tools?.map(tool => tool.name), readerTools);
   await frame.waitFor(`document.querySelector(${JSON.stringify(card(ids[0]!) + " .coding-child-mark")})?.dataset.mwState === 'running'`);
   assert.equal(await frame.evaluate(`Boolean(document.querySelector(${JSON.stringify(card(ids[0]!) + " [data-coding-extend-budget]")}))`), false);
   release.resolve();

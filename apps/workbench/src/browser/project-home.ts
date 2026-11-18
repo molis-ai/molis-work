@@ -223,7 +223,7 @@ export function mountHome(host: HomeHost) {
     if (invalidate) cancel(true);
     reading?.abort(); placement.close(false);
     const request = reading = new AbortController();
-    caption(display ? "refreshing" : "loading");
+    if (!display) caption("loading");
     try {
       const result = await host.read<SurfaceHomeDisplay>("", { home_order: host.order() }, request.signal);
       if (request.signal.aborted || reading !== request || !visible()) { releaseText(result); return; }
@@ -256,7 +256,11 @@ export function mountHome(host: HomeHost) {
 
   async function act(key: string, focus: HTMLElement) {
     if (!visible() || clicking) return;
-    if (key === "refresh") { await sync(); return; }
+    if (key === "refresh") {
+      if (display) caption("refreshing");
+      await sync();
+      return;
+    }
     if (key === "market") { host.market(); return; }
     if (key === "lead-toggle") { lead.toggle(display); return; }
     const control = key === "open-result" ? receipt : controls.get(key) ?? peekControls.get(key);

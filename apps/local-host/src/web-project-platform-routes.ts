@@ -310,7 +310,7 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
       notices: surface => assistantNotices(assistant!, surface),
       ...(home ? { backgroundTasks: () => homeBackgroundTasks(homeAggregatePorts(localHost), options.projects) }
         : { boardCursor: () => store.eventCursor(options.projectId), mainline: mainlineAttention(request, localHost, hostReference) }),
-      changes: listener => onAttentionChange(home ? null : options.projectId, listener),
+      changes: listener => onAttentionChange(options.projectId, listener),
       ...(options.project ? { pluginEventsPending: () => pluginEventsPending(pluginPorts) } : {}) });
   } },
 ];

@@ -86,8 +86,9 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
 
     const liveUiInteractionActive = (collectionOnly = false) => {
       const active = document.activeElement;
-      if (collectionOnly) return Boolean(active?.closest?.('[data-tree-scroll], [data-tree-filter], [data-create-dialog]')
+      if (collectionOnly) return Boolean(active?.closest?.('[data-tree-scroll], [data-tree-filter]')
         && active.matches('input, textarea, select, [contenteditable="true"]')
+        || dialog?.contains(active) && active.matches('[name=parent_goal_id], [name=dependency_goal_ids]')
         || treeScroll?.querySelector('[data-record-menu][open], .goal-more[open], [aria-busy=true]:is([data-live-form],[data-event-form])'));
       // Open menus and saving forms stay intact even after focus is lost.
       if (active?.closest?.("[data-live-form], [data-event-form]") || document.querySelector("[data-record-menu][open],.goal-more[open],[aria-busy=true]:is([data-live-form],[data-event-form])")) return true;

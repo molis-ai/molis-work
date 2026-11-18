@@ -1329,7 +1329,7 @@ test("FSS-20 FSS-74 the Studio canvas switches the current and previous design's
 });
 
 
-test("FSS-35 FSS-36 connection guides translate with the same OAuth form and keep a hidden settings draft", { timeout: 120_000 }, async t => {
+test("FSS-35 FSS-36 QEA-168 connection guides translate with the same OAuth form and keep a hidden settings draft", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b?.projectId) return;
   const { command, sessionId, origin, waitFor, evaluate } = b;
 

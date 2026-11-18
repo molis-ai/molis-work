@@ -12,7 +12,7 @@ import { scriptedModelServer } from "./fixtures/connector-assistant-model.js";
 import { CODING_BOX, CODING_OPEN, CODING_SEND, codingControl, codingType } from "./fixtures/coding-composer.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
-test("QEA-47 · real Coding environment controls preserve the draft and require the person to send from a new or ended session", { timeout: 150_000 }, async t => {
+test("QEA-47 QEA-166 · real Coding environment controls preserve the draft, open Files, and require the person to send", { timeout: 150_000 }, async t => {
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   t.after(() => { if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); });
   const model = await scriptedModelServer(t, () => "只读完环境说明，没有运行命令。");
@@ -34,8 +34,16 @@ test("QEA-47 · real Coding environment controls preserve the draft and require 
   await setProjectOutputFolder(b.web, b.projectId!, directory);
   const child = await pluginFrameBrowser(t, b, "coding");
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?openPlugin=coding` }, b.sessionId));
+  const visible = (selector: string) => `document.querySelector(${JSON.stringify(selector)})?.checkVisibility()`;
+  const back = "[data-coding-directory-back]";
+  const directoryClick = async (selector: string) => {
+    await child.waitFor(`${visible(selector)} || ${visible(back)}`);
+    if (!await child.evaluate(visible(selector))) await child.click(back);
+    await child.click(selector);
+  };
   await child.click("[data-coding-new]"); await b.waitFor(CODING_OPEN);
   const sid = await child.evaluate<string>("document.querySelector('[data-coding-session].is-selected').dataset.codingSession");
+  const session = `[data-coding-session="${sid}"]`, sessions = "[data-coding-face=sessions]", files = "[data-coding-face=files]";
   for (const [id, value] of [["model", JSON.stringify(["fixture", "fixture-model"])], ["intent", "discuss"]]) {
     await b.evaluate(`{ const node = document.querySelector(${JSON.stringify(codingControl(id!))}); node.value = ${JSON.stringify(value)}; node.dispatchEvent(new Event('change', { bubbles: true })); }`);
   }
@@ -64,9 +72,15 @@ test("QEA-47 · real Coding environment controls preserve the draft and require 
   await child.waitFor("document.querySelector('[data-coding-workspace-dialog]').open");
   await child.click("[data-coding-workspace-close]");
   await child.waitFor("!document.querySelector('[data-coding-workspace-dialog]').open");
+  await b.setViewport(390, 900);
+  await child.waitFor(`${visible(back)} && !${visible(files)}`);
   await child.click("[data-coding-env-action='open-files']");
-  await child.waitFor("document.querySelector('[data-coding-face=files]')?.getAttribute('aria-pressed') === 'true'");
+  await child.waitFor(`${visible(files)} && document.querySelector('${files}').getAttribute('aria-pressed') === 'true'`, 4_000);
+  assert.equal(await child.evaluate(`document.activeElement === document.querySelector('${files}')`), true);
   assert.equal(await readDraft(), draft); assert.equal(model.requests.length, priorCalls);
+  await directoryClick(sessions);
+  await directoryClick(session);
+  await b.waitFor(CODING_OPEN);
   // The person explicitly sends in discussion mode; the fixture model never requests a command.
   await b.evaluate(`{ const node = document.querySelector(${JSON.stringify(codingControl("intent"))}); node.value = 'discuss'; node.dispatchEvent(new Event('change', { bubbles: true })); }`);
   await b.click(CODING_SEND);
@@ -79,10 +93,10 @@ test("QEA-47 · real Coding environment controls preserve the draft and require 
   await b.waitFor(`document.querySelector(${JSON.stringify(CODING_BOX)}).value.includes('基线测试（pnpm test）')`);
   assert.match(await readDraft(), /^下一轮草稿\n/); assert.equal(model.requests.length, afterRun);
   const endedDraft = await readDraft();
-  await child.click("[data-coding-face=sessions]");
+  await directoryClick(sessions);
   await child.click("[data-coding-new]"); await b.waitFor(CODING_OPEN);
   await b.waitFor(`document.querySelector(${JSON.stringify(CODING_BOX)}).value === ''`);
-  await child.click(`[data-coding-session="${sid}"]`);
+  await directoryClick(session);
   await b.waitFor(`document.querySelector(${JSON.stringify(CODING_BOX)}).value === ${JSON.stringify(endedDraft)}`);
   await b.reloadPage(); await b.waitFor(CODING_OPEN);
   await child.waitFor(`document.querySelector('[data-coding-session="${sid}"]')?.classList.contains('is-selected')`);

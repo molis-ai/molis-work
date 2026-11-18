@@ -10,8 +10,8 @@ import { startProjectPlugins } from "./fixtures/plugin-callers.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 
-test("QEA-15/16 Home keeps partial background work visible and retries only the read, in both languages and themes", { timeout: 180_000 }, async t => {
-  let mode: "failed" | "partial" | "complete" | "empty" = "failed", healthyProject = "";
+test("QEA-15/16 QEA-169 Home keeps partial background work visible and retries only the read, in both languages and themes", { timeout: 180_000 }, async t => {
+  let mode: "failed" | "partial" | "complete" | "empty" = "failed", healthyProject = "", otherProject = "";
   const plugin = backgroundPlugin(project => {
     if (mode === "failed" || mode === "partial" && project !== healthyProject) throw new ActionError("example.read_failed", "private-provider-diagnostic");
     return { source: { surface: "example", title: "Example", icon: "list" }, tasks: mode === "empty" ? [] : [{
@@ -24,7 +24,8 @@ test("QEA-15/16 Home keeps partial background work visible and retries only the 
   assert.ok(b.localHost);
   for (const name of ["Alpha", "Beta"]) {
     const project = await createProject(b.web, name);
-    if (!healthyProject) healthyProject = project.project_id;
+    if (name === "Alpha") healthyProject = project.project_id;
+    else otherProject = project.project_id;
     await startProjectPlugins(b.localHost, molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }));
   }
   const go = (path: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, b.sessionId));
@@ -33,6 +34,8 @@ test("QEA-15/16 Home keeps partial background work visible and retries only the 
   const waitRows = (count: number, incomplete: boolean) => b.waitFor(`${list}?.querySelectorAll('.background-task').length === ${count} && Boolean(${list}?.querySelector('${problem}')) === ${incomplete}`, 15_000);
   const refresh = () => b.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await go("/");
+  await b.click(`.chooser-list [data-id="${healthyProject}"]`);
+  await b.waitFor(`document.body.dataset.projectId === ${JSON.stringify(healthyProject)}`);
   await b.waitFor(`document.querySelector('${retry}')`);
   await b.click('[data-side-tab="tasks"]');
   await b.waitFor("document.body.dataset.sideOpen === 'true'");
@@ -50,7 +53,10 @@ test("QEA-15/16 Home keeps partial background work visible and retries only the 
   assert.match(await b.evaluate<string>(`${list}.textContent`), /Alpha/);
   assert.equal(await b.evaluate("document.querySelector('[data-side-tab=tasks]').parentElement.querySelector('[data-background-tasks-count]').textContent"), "1+");
   mode = "complete";
-  await b.click(retry); await waitRows(2, false);
+  await b.web.post(`/projects/${otherProject}/api/plugins/io.molis.work.goals/goals`,
+    { title: "Another project updates Home", idempotency_key: "QEA-169-home-invalidation" });
+  await waitRows(2, false);
+  assert.match(await b.evaluate<string>(`${list}.textContent`), /Beta/);
   assert.equal(await b.evaluate("document.querySelector('[data-side-tab=tasks]').parentElement.querySelector('[data-background-tasks-count]').textContent"), "2");
   mode = "failed"; await refresh(); await waitRows(0, true);
   mode = "empty"; await b.click(retry); await waitRows(0, false);

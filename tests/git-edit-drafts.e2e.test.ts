@@ -16,9 +16,10 @@ async function gitEditor(t: TestContext, surface: "git" | "coding", conflicts = 
   await mkdir(root);
   const options = { cwd: root, encoding: "utf8" as const,
     env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", GIT_TERMINAL_PROMPT: "0" } };
-  const args = ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null"];
-  const git = (...command: string[]) => execFileSync("git", [...args, ...command], options).trim();
+  const git = (...command: string[]) => execFileSync("git", command, options).trim();
   git("init", "-q", "-b", "main");
+  for (const [name, value] of [["user.name", "Fixture"], ["user.email", "fixture@example.test"],
+    ["commit.gpgsign", "false"], ["core.hooksPath", "/dev/null"]]) git("config", "--local", name, value);
   for (const file of ["one.txt", "two.txt"]) await writeFile(join(root, file), `base ${file}\n`);
   git("add", "."); git("commit", "-qm", "Initial");
   if (conflicts) {
@@ -28,22 +29,31 @@ async function gitEditor(t: TestContext, surface: "git" | "coding", conflicts = 
     git("checkout", "-q", "main");
     for (const file of ["one.txt", "two.txt"]) await writeFile(join(root, file), `current ${file}\n`);
     git("commit", "-qam", "Current changes");
-    const merge = spawnSync("git", [...args, "merge", "incoming"], options);
+    const merge = spawnSync("git", ["merge", "incoming"], options);
     assert.equal(merge.status, 1, merge.stderr);
     assert.equal(git("diff", "--name-only", "--diff-filter=U").split("\n").length, 2);
   }
   const workspace = await setProjectOutputFolder(browser.web, browser.projectId, root);
   const frame = await pluginFrameBrowser(t, browser, surface);
+  const visible = (selector: string) => `document.querySelector(${JSON.stringify(selector)})?.checkVisibility()`;
+  const codingFace = async (face: "files" | "sessions") => {
+    const control = `[data-coding-face=${face}]`, back = "[data-coding-directory-back]";
+    await frame.waitFor(`${visible(control)} || ${visible(back)}`);
+    if (!await frame.evaluate(visible(control))) await frame.click(back);
+    await frame.click(control);
+  };
+  const startCodingSession = async () => {
+    await codingFace("sessions");
+    await frame.click("[data-coding-new]");
+    await browser.waitFor(CODING_TAKEN);
+  };
   const show = async () => {
-    if (surface === "coding") {
-      await frame.waitFor("Boolean(document.querySelector('[data-coding-face=files]'))");
-      await frame.click("[data-coding-face=files]");
-    }
+    if (surface === "coding") await codingFace("files");
     await frame.waitFor("document.querySelector('[data-git-sc]')?.checkVisibility() && !document.querySelector('[data-git-refresh]').disabled");
   };
   await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=${surface}` }, browser.sessionId));
   await show();
-  return { browser, frame, root, show, git, workspace };
+  return { browser, frame, root, show, git, workspace, startCodingSession };
 }
 
 /** Use the visible Back control when the compact result covers the directory. */
@@ -100,7 +110,9 @@ async function decide(ctx: NonNullable<Awaited<ReturnType<typeof gitEditor>>>, d
   const selector = `[data-host-review-slot] [data-agent-review-${decision}]`;
   await ctx.browser.waitFor(`document.querySelector(${JSON.stringify(selector)})?.checkVisibility()`);
   await ctx.browser.click(selector);
-  await ctx.browser.click("[data-page-dialog=confirm] [type=submit]");
+  const confirm = "[data-page-dialog=confirm][open] [type=submit]";
+  await ctx.browser.waitFor(`document.querySelector(${JSON.stringify(confirm)})?.checkVisibility()`);
+  await ctx.browser.click(confirm);
 }
 
 for (const surface of ["git", "coding"] as const) {
@@ -113,9 +125,7 @@ for (const surface of ["git", "coding"] as const) {
     await addProjectInputFolder(browser.web, browser.projectId!, root);
     const other = await addProjectInputFolder(browser.web, browser.projectId!, otherRoot);
     await browser.reloadPage(); await ctx.show();
-    if (surface === "coding") {
-      await frame.click("[data-coding-new]"); await browser.waitFor(CODING_TAKEN);
-    }
+    if (surface === "coding") await ctx.startCodingSession();
     const select = async (id: string, path: string, branch: string) => {
       if (surface === "git") {
         await setProjectOutputFolder(browser.web, browser.projectId!, path);
@@ -301,7 +311,7 @@ test("QEA-34: making a read-only conflict directory writable reopens current dis
   execFileSync("git", ["init", "-q", "-b", "other-output", other]);
   await setProjectOutputFolder(browser.web, browser.projectId!, other);
   await browser.reloadPage(); await ctx.show();
-  await frame.click("[data-coding-new]"); await browser.waitFor(CODING_TAKEN);
+  await ctx.startCodingSession();
   if (await frame.evaluate("document.querySelector('.coding-context').hidden")) await browser.evaluate(codingAdd("context"));
   await frame.click("[data-coding-workspace-open]");
   await frame.evaluate(`document.querySelector('[data-coding-workspace-choice]').value = ${JSON.stringify(workspace.workspace_id)}`);
@@ -542,7 +552,7 @@ test("QEA-78 history refresh and save receipts preserve the chosen result and se
   assert.equal((await readResults()).results.filter(row => row.saved).length, 2);
 });
 
-for (const surface of ["git", "coding"] as const) test(`QEA-78 ${surface} returning to the directory does not revive an older commit review response`, { timeout: 120_000 }, async t => {
+for (const surface of ["git", "coding"] as const) test(`QEA-78 QEA-170 ${surface} returning to the directory does not revive an older commit review response`, { timeout: 120_000 }, async t => {
   const ctx = await gitEditor(t, surface); if (!ctx) return;
   const { frame, browser, git, root } = ctx;
   await browser.setViewport(1440, 1000);
@@ -578,7 +588,7 @@ for (const kind of ["index", "conflict"] as const) test(`QEA-78 a late output-di
   execFileSync("git", ["init", "-q", "-b", "other-output", other]);
   await setProjectOutputFolder(browser.web, browser.projectId!, other);
   await browser.reloadPage(); await ctx.show();
-  await frame.click("[data-coding-new]"); await browser.waitFor(CODING_TAKEN);
+  await ctx.startCodingSession();
   if (await frame.evaluate("document.querySelector('.coding-context').hidden")) await browser.evaluate(codingAdd("context"));
   await frame.click("[data-coding-workspace-open]");
   await frame.evaluate(`document.querySelector('[data-coding-workspace-choice]').value = ${JSON.stringify(workspace.workspace_id)}`);

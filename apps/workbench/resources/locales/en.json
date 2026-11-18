@@ -9983,7 +9983,13 @@
     "workbench.import.stop-remaining": "Stop remaining",
     "workbench.import.stopping": "Waiting for the current file’s result. No other files will start.",
     "workbench.import.stopped": "Stopped: {done} saved, {failed} failed, {remaining} waiting to import.",
-    "workbench.import.transcription-remaining": "{count} files still need transcription. You can continue.",
+    "workbench.import.transcription-remaining": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} file still needs transcription. You can continue.",
+        "other": "{count} files still need transcription. You can continue."
+      }
+    },
     "workbench.import.continue-transcribing": "Continue transcribing",
     "workbench.import.transcription-stopped": "Stopped: {done} transcribed, {remaining} still to transcribe.",
     "workbench.import.hide": "Hide",

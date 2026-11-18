@@ -151,14 +151,24 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
   const runCoverageUnknowns: readonly EvaluationUnknownReason[] = missingPinnedCount > 0 && !hasCoverageGapReason
     ? Array.from(new Set<EvaluationUnknownReason>([...baseCoverage.unknownReasons, "evidence_missing"]))
     : baseCoverage.unknownReasons;
-  const limitations: readonly string[] = missingPinnedCount > 0
+  const limitations = missingPinnedCount > 0
     ? [...baseCoverage.limitations, `样本固定的 ${missingPinnedCount} 条工作记录在采集层已缺失`]
-    : baseCoverage.limitations;
+    : [...baseCoverage.limitations];
 
   const funnel = computeFunnelCounts(records);
+  if (records.length && !funnel.completed) {
+    limitations.push("本次未读到业务主人确认完成的工作。完成数只计有据可查的交付。");
+  }
   const observedConditions = extractObservedConditions(records);
   const outcomeCounts = countWorkOutcomes(records);
 
+  const sampleTextTermCount = sample.expectations.reduce((count, exp) => {
+    if (exp.source === "evaluator") return count + (exp.rule.required_evidence_terms?.length ?? 0) + (exp.rule.forbidden_evidence_terms?.length ?? 0);
+    if (exp.source === "deterministic" && (exp.rule.check === "evidence_text" || exp.rule.check === "evidence_absent")) {
+      return count + (exp.rule.contains_all?.length ?? 0) + (exp.rule.forbids_any?.length ?? 0);
+    }
+    return count;
+  }, 0);
   const expectationResults = sample.expectations.map((expectation) =>
     evaluateExpectation(expectation, {
       records,
@@ -166,6 +176,8 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
       funnel,
       runCoverageUnknowns,
       sampleAllowedVariations: sample.allowed_variations ?? [],
+      sampleTextTermCount,
+      workMode: sample.work_mode,
     }),
   );
 

@@ -80,13 +80,15 @@ function replyExcerpt(from: HTMLElement): DocumentFragment {
   range.selectNodeContents(from);
   const figure = [...from.querySelectorAll<HTMLElement>(".assistant-code")].find(block => Number(block.dataset.lines) > 3);
   const code = figure?.querySelector("pre > code");
-  if (code) {
+  const source = figure?.dataset.code;
+  if (code && source !== undefined) {
+    // Count three lines and their two separators in the source. A CRLF can straddle two syntax tokens.
+    let offset = source.split(/(\r\n?|\n)/, 5).join("").length;
     const text = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
-    let lines = 3;
     for (let node = text.nextNode(); node; node = text.nextNode()) {
-      for (const newline of (node.nodeValue ?? "").matchAll(/\r\n?|\n/g)) {
-        if (--lines === 0) { range.setEnd(node, newline.index); return range.cloneContents(); }
-      }
+      const length = (node as Text).length;
+      if (offset <= length) { range.setEnd(node, offset); break; }
+      offset -= length;
     }
   }
   return range.cloneContents();

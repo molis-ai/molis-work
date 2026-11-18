@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assistantTextHtml } from "@molis-ai/molis-work-app-workbench";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -128,6 +129,13 @@ test("WLN-35: the reply above the input reads as the dialog draws it, folds on a
   await evaluate(`${message}.dataset.text += '!'; ${message}.querySelector('h2').textContent = '最新进展'`);
   await waitFor(`${BODY}.querySelector('h2')?.textContent === '最新进展'`);
   await evaluate(`${message}.dataset.text = ${JSON.stringify(SOURCE)}; ${message}.querySelector('h2').textContent = '现状'`);
+  await waitFor(`${BODY}.querySelector('h2')?.textContent === '现状'`);
+
+  // HTML highlighting puts the CR after the tag name and the LF inside the following attribute span.
+  const htmlCode = '<a\r\nhref="x">\r\nthird\r\nfourth', fenced = "```html\n" + htmlCode + "\n```";
+  await evaluate(reply(fenced, assistantTextHtml(fenced, [], key => key)));
+  await waitFor(`${BODY}.querySelector('pre code')?.textContent === ${JSON.stringify(htmlCode.slice(0, htmlCode.lastIndexOf("\r\n")))}`);
+  await evaluate(reply(SOURCE, RENDERED));
   await waitFor(`${BODY}.querySelector('h2')?.textContent === '现状'`);
 
   // A plugin's page tells the shell of a press inside it (molis:surface-interaction, plugin-frame/parent.ts): the row folds.

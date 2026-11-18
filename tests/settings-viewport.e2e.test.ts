@@ -264,7 +264,7 @@ test("B27-AC01: Assistant rule scopes and the name and state of a capability swi
   const page = quiet + " [data-assistant-rule-surfaces] [data-assistant-rule-surface]";
   const surface = await evaluate<string>(`document.querySelector('${page}').dataset.assistantRuleSurface`);
   await click(page);
-  assert.equal(await evaluate(`document.querySelector('${page}').getAttribute('aria-pressed') + document.querySelector('${quiet} [data-setting-open-label]').textContent`), "true1 place", "the row says how many places are chosen");
+  assert.equal(await evaluate(`document.querySelector('${page}').getAttribute('aria-pressed') + document.querySelector('${quiet} [data-assistant-places-label]').textContent`), "true1 place", "the row says how many places are chosen");
   await click(quiet + " " + failure);
   await click(quiet + " [type=submit]");
   await waitFor(`document.querySelectorAll('[data-assistant-rules-list] li').length === ${previousIds.size + 1}`);

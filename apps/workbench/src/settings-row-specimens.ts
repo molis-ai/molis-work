@@ -23,7 +23,7 @@ function settingRows(): string {
 function openRow(): string {
   const places = ["Coding", "Pages", "Inbox", "Goals", "Feed", "Shelf", "Issue"];
   return renderSettingsSection({ body: renderSettingRow({ name: text("workbench.settings-assistant.quiet-places"), hint: text("workbench.settings-assistant.quiet-places-hint"),
-    open: { label: text("workbench.settings-assistant.places-count", { count: 3 }), opened: true,
+    fold: { label: text("workbench.settings-assistant.places-count", { count: 3 }), open: true,
       body: `<div class="mw-choice-group" role="group" aria-label="${uiText("workbench.settings-assistant.quiet-places")}">${places.map((label, index) => renderChoice({ label, selected: index < 3 })).join("")}</div>` } }) });
 }
 

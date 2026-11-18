@@ -27,12 +27,12 @@ test("the three rows: names and states are escaped, controls and answers are the
   assert.doesNotMatch(bare, /mw-setting-row__control/, "a row that only says something has no empty place for a control");
   // A row that opens in place is a <details>: no script, so a plugin's page opens as the workbench's does. Its summary
   // holds what is chosen and a chevron, and nothing that could itself be pressed.
-  const fold = renderSettingRow({ name: "不提醒的地方", hint: "h", open: { label: "选择地方", body: "<p>choices</p>", labelAttrs: { "data-chosen": true } } });
+  const fold = renderSettingRow({ name: "不提醒的地方", hint: "h", fold: { label: "选择地方", body: "<p>choices</p>", labelAttrs: { "data-chosen": true } } });
   assert.match(fold, /^<details class="mw-setting-fold" data-slot="setting-fold"><summary class="mw-setting-row">/);
   assert.match(fold, /<span data-chosen>选择地方<\/span><svg[^>]*><use href="#icon-chevron-down">/);
   assert.match(fold, /<\/summary><div class="mw-setting-open"><p>choices<\/p><\/div><\/details>$/);
   assert.doesNotMatch(fold, /<button|<a /);
-  assert.match(renderSettingRow({ name: "n", open: { label: "l", body: "", opened: true } }), /^<details class="mw-setting-fold" data-slot="setting-fold" open>/);
+  assert.match(renderSettingRow({ name: "n", fold: { label: "l", body: "", open: true } }), /^<details class="mw-setting-fold" data-slot="setting-fold" open>/);
 
   const plain = renderObjectRow({ name: "Tool", hint: "h", icon: "terminal", state: { label: "已接入", tone: "success" } });
   assert.match(plain, /^<div class="mw-object-row"/);

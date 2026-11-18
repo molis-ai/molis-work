@@ -6,7 +6,7 @@ import { icon, type PluginIconName } from "./icon.js";
  * The rows a settings page is written in (specs/screen-polish/p5-settings.md): a page is titled sections, each one card of
  * rows, and every line in a card is one of three rows with one control at its end.
  *
- * - 设置行 `renderSettingRow`: a name and one sentence on the left, one control on the right; with `open` it opens in place.
+ * - 设置行 `renderSettingRow`: a name and one sentence on the left, one control on the right; with `fold` it opens in place.
  * - 对象行 `renderObjectRow`: a mark, a name, a state; it opens in place onto 问句行 (`renderQuestionList`).
  * - 列表行 `renderListToolbar` over the page's own table rows: search first, at most two filters, the rest behind 更多筛选.
  *
@@ -49,27 +49,28 @@ export function renderSettingsSection(options: {
  * `label`, the whole row is the control's label, so pressing anywhere on it toggles a switch; leave it off when the control is
  * a button or carries its own label.
  *
- * With `open` the row needs more than one choice and opens in place under itself: the row is the summary of a `<details>`,
- * its control is `open.label` (what is chosen so far) with a chevron, and `open.body` is what it opens onto. `open.labelAttrs`
- * go on the label, for a script that rewrites it as choices are made; `attrs` go on the `<details>`.
+ * With `fold` the row needs more than one choice and opens in place under itself: the row is the summary of a `<details>`,
+ * its control is `fold.label` (what is chosen so far) with a chevron, and `fold.body` is what it opens onto; `fold.open`
+ * draws it already open, as `open` does on an object row. `fold.labelAttrs` go on the label, for a script that rewrites it
+ * as choices are made; `attrs` go on the `<details>`. A row is one or the other: a folding row takes no `control` or `label`.
  */
 export function renderSettingRow(options: {
   name: string;
   hint?: string;
-  control?: string;
-  label?: boolean;
-  open?: { label: string; body: string; opened?: boolean; labelAttrs?: Record<string, AttrValue> };
   className?: string;
   attrs?: Record<string, AttrValue>;
   nameAttrs?: Record<string, AttrValue>;
   hintAttrs?: Record<string, AttrValue>;
-}): string {
+} & (
+  | { control?: string; label?: boolean; fold?: undefined }
+  | { fold: { label: string; body: string; open?: boolean; labelAttrs?: Record<string, AttrValue> }; control?: undefined; label?: undefined }
+)): string {
   const copy = `<span class="mw-setting-row__copy"><strong${renderAttrs(options.nameAttrs)}>${escapeHtml(options.name)}</strong>${
     options.hint !== undefined ? `<span${renderAttrs(options.hintAttrs)}>${escapeHtml(options.hint)}</span>` : ""
   }</span>`;
-  const { open } = options;
-  if (open) {
-    return `<details class="${cx("mw-setting-fold", options.className)}" data-slot="setting-fold"${open.opened ? " open" : ""}${renderAttrs(options.attrs)}><summary class="mw-setting-row">${copy}<span class="mw-setting-row__control"><span class="mw-setting-fold__label mw-btn mw-btn--secondary mw-btn--sm"><span${renderAttrs(open.labelAttrs)}>${escapeHtml(open.label)}</span>${icon("chevron-down")}</span></span></summary><div class="mw-setting-open">${open.body}</div></details>`;
+  const { fold } = options;
+  if (fold) {
+    return `<details class="${cx("mw-setting-fold", options.className)}" data-slot="setting-fold"${fold.open ? " open" : ""}${renderAttrs(options.attrs)}><summary class="mw-setting-row">${copy}<span class="mw-setting-row__control"><span class="mw-setting-fold__label mw-btn mw-btn--secondary mw-btn--sm"><span${renderAttrs(fold.labelAttrs)}>${escapeHtml(fold.label)}</span>${icon("chevron-down")}</span></span></summary><div class="mw-setting-open">${fold.body}</div></details>`;
   }
   const tag = options.label ? "label" : "div";
   return `<${tag} class="${cx("mw-setting-row", options.className)}" data-slot="setting-row"${renderAttrs(options.attrs)}>${copy}${

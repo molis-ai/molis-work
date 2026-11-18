@@ -1072,19 +1072,24 @@ export declare function renderSeparator(options?: {
 export declare function renderSettingRow(options: {
     name: string;
     hint?: string;
-    control?: string;
-    label?: boolean;
-    open?: {
-        label: string;
-        body: string;
-        opened?: boolean;
-        labelAttrs?: Record<string, AttrValue>;
-    };
     className?: string;
     attrs?: Record<string, AttrValue>;
     nameAttrs?: Record<string, AttrValue>;
     hintAttrs?: Record<string, AttrValue>;
-}): string;
+} & ({
+    control?: string;
+    label?: boolean;
+    fold?: undefined;
+} | {
+    fold: {
+        label: string;
+        body: string;
+        open?: boolean;
+        labelAttrs?: Record<string, AttrValue>;
+    };
+    control?: undefined;
+    label?: undefined;
+})): string;
 
 export declare function renderSettingsSection(options: {
     title?: string;

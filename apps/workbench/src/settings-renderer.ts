@@ -122,7 +122,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
         : view.section === "kit" ? renderKitSettings({ projectId: null })
         : view.section === "prompts" ? renderPromptSettings({ readText, displayModel: view.agent_display_model })
         : view.section === "memory"
-          ? renderMemorySettings({ readText, scope: "personal", projectId: null, projects: view.projects })
+          ? renderMemorySettings({ scope: "personal", projectId: null, projects: view.projects })
         : view.section === "work-records"
           ? renderWorkRecordsSettings({ projects: view.projects })
         : view.section === "directories" ? renderLocalDirectorySettings({ readText })

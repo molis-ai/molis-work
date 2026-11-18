@@ -61,6 +61,18 @@
 | 客户端脚本里照着拼的行 | 助理页脚本的 `settingRow`（规则、能力、禁用应用的行是读回来以后画的）、本机目录脚本 | 行的模板由服务端用 SDK 函数画进 `<template>`，脚本只克隆和填字 |
 | 设计系统更早的 `SETTING_ROW_STYLES`（`.mw-settings` / `.mw-setting`） | 工作记录、会话来源 | 两处换成 SDK 的行，删掉这个常量 |
 
+收齐的标准：`apps/workbench/src/settings-row.ts` 删掉；全仓搜不到 `SETTING_ROW_STYLES`、`.settings-setting-row`、`.mw-setting `（旧的那套）；设置页的模板和脚本里没有手写的 `class="mw-setting-row`、`class="mw-settings-section`、`class="mw-object-row`（只有 SDK 的 `settings-rows.ts` 写这些标记，`tests/settings-document-rows.test.ts` 加一条钉住）。
+
+评审留给第二个 PR 的小修：
+
+| 小修 | 在哪 |
+| --- | --- |
+| 「更多筛选」弹层按 Esc、点外面要能关上 | `renderListToolbar` 的 `more`（`packages/plugin-sdk/src/ui/settings-rows.ts`）；平台已有的弹层关闭写法优先 |
+| 「今天的用量」一行的名字和下面那句说明重复 | `apps/workbench/src/settings-assistant.ts`，词在 `workbench.settings-assistant.*` |
+| 加完「不提醒」规则后，焦点落到新加的那条规则上 | `apps/workbench/src/settings-assistant.ts` 的 `add` |
+| 英文走查用例里钉住演示项目名的正则，换成按结构找那一行 | `tests/english-surfaces.e2e.test.ts`（VUX-40） |
+| `SETTINGS_DOCUMENT_STYLES` 现在随工作台的 `PROJECT_SETTINGS_PAGE_STYLES` 下发；对象行有设置页以外的使用者时，挪到设计系统组件样式（`.mw-switch` 那一处）一起下发 | `apps/workbench/src/styles/project-settings-page.ts`、`packages/design-system/src/styles/settings-rows.ts` |
+
 本 PR 里已经换掉的：诊断页的行、记忆页的偏好开关行、Coding 的「添加 MCP 服务」一节、助理页的三处就地展开。
 
 铺开后的截图（9 页，浅深色，1440、1024、390，共 54 张，均无横向溢出）在 `.impeccable/qa/review/screen-polish/p5/rollout/`（不入库）。已删的旧样式：`.settings-record*`（只留写后检查还在用的 `.settings-record-title`）和 `.settings-paths`。
@@ -73,6 +85,7 @@
 2. 设置行最小高 60px，方案写 44px。名字（13px）加一句说明（12px）两行，上下各 12px，正好 60px；只有名字的行也用这个高度，一张卡里的行才一样高，和用户给的参照（Claude、Codex 的设置页）一致。展开以后里面的小行（`mw-setting-row--sub`）是 36px。手机上能点的选择块是 44px。
 3. 展开的动效：设置行照方案的动效表，展开的内容上浮淡入、不做高度动画（平台已有的 `craft-rise`，250ms quint）。对象行方案没有写，接在平台已有的折叠上（`DISCLOSURE_STYLES` 的 `CHEVRON_FOLDS`）：浏览器支持时内容按自然高度展开，和箭头同一个时钟，不支持时直接展开。减少动态效果时两种都直接切换。
 4. 「可能重复或冲突」：方案写「没有重复就不显示」，实现是常驻一行、右边一个「查看」按钮。有没有重复要调一次整理接口才知道，方案同时要求不增加请求（开工前检查第 9 项），所以不在打开页面时去查，改成一行加一个按钮，按了才查；它不再是一张会空着的卡（POLISH-30）。
+5. 对象行的排版靠什么：按钮不能放进 `<summary>`，又要和它同一行、排在箭头前面，所以那一行是一张三列的网格（说了什么、能做什么、箭头），`<summary>` 用 `subgrid` 跨三列、把中间一列空给按钮。`<details>` 本身写成 `display: contents`、不出盒子，这样不要求浏览器能把 `<details>` 排成网格——桌面壳是系统的 WebKit（最低 macOS 13，对应 Safari 16），它到 18.4 才支持 `::details-content` 和把 `<details>` 当网格容器。用到的两样（`subgrid`、`display: contents`）Safari 16 起都有；`<summary>` 当网格容器在 Goals 等页已经在用。**查看结果：** Chrome 里浅深色、1440/1024/390 看过；本机只有 macOS 26 的 WebKit，旧 WebKit（macOS 13～15.3 的桌面壳）没有实机看过，是按引擎行为推断的。
 
 ## 验收
 
@@ -85,7 +98,7 @@
 | 1 | 事实主人 | 不涉及。没有新事实；各页读写的仍是原来的接口。 |
 | 2 | 插件同等待遇 | 三种行的渲染函数放 `packages/plugin-sdk` 的 `ui`，样式放设计系统的公共样式。内置和第三方插件的设置页用同一套，不在宿主里为某个插件写分支。 |
 | 3 | 能力注册 | 不涉及。不加动作。 |
-| 4 | 合同 | SDK 的 `ui` 出口新增五个渲染函数（`renderSettingsSection`、`renderSettingRow`、`renderObjectRow`、`renderQuestionList`、`renderListToolbar`，只增不改），跑 `pnpm api:update`；不改动作合同、Manifest、库结构。对象行的状态用平台已有的 `MwTone`（去掉 `info`），不另造状态词；对象行能做的事（按钮）在 `<summary>` 外面；设置行的 `open` 选项就是就地展开。 |
+| 4 | 合同 | SDK 的 `ui` 出口新增五个渲染函数（`renderSettingsSection`、`renderSettingRow`、`renderObjectRow`、`renderQuestionList`、`renderListToolbar`，只增不改），跑 `pnpm api:update`；不改动作合同、Manifest、库结构。对象行的状态用平台已有的 `MwTone`（去掉 `info`），不另造状态词；对象行能做的事（按钮）在 `<summary>` 外面；设置行的 `fold` 选项就是就地展开（和 `control`、`label` 互斥，类型上挡住）。 |
 | 5 | 放在哪个包 | 渲染函数：`packages/plugin-sdk/src/ui/`（和 `renderSwitch`、`renderChoice` 同处）。样式：`packages/design-system/src/styles/`。各页的拼装留在 `apps/workbench/src/settings-*.ts`。 |
 | 6 | 表与存储 | 不涉及。 |
 | 7 | 兼容与迁移 | 不涉及。 |
@@ -98,7 +111,7 @@
 | 14 | 冲突面 | `styles/project-settings-page.ts` 的 `.settings-empty` 和 Coding 设置页由 P0 分支在改：样板轮不碰 Coding 设置页；`.settings-empty` 的三行选择器和 P0 分支改成一模一样（多认 `.mcp-access`），合并时不冲突。顶部栏、事项线、助理对话框的文件不动。类目列在工作台里是共用的可拖宽目录栏，不在这一批改它的宽度。 |
 | 15 | 全局最优 | 比较过两种放法：零件留在工作台（`settings-row.ts`，各插件照抄类名）或进 SDK。Coding 和 Shelf 的设置页已经在手写同一组类名，是现成的第二个使用者，所以进 SDK；多付的是一次公开出口变更。后续：铺开那一轮把 Coding、Shelf 的设置页换成同一组函数，再加一页只是拼装。当时漏看了设计系统里更早的一套设置行（`SETTING_ROW_STYLES`，`.mw-settings` / `.mw-setting`，工作记录和会话来源在用）：留下的是这一片的这一套（`SETTINGS_DOCUMENT_STYLES` 加 SDK 的函数），旧的两套什么时候收齐见「铺开」里「还没换到 SDK 函数的地方」。 |
 
-平台能力检查（第 4.1 节）：设置页的行别的插件也要用（Coding、Shelf 已有设置页）；平台里现成的是工作台私有的 `settingRow`、一组手写类名，和设计系统里更早的 `SETTING_ROW_STYLES`（`.mw-setting`，没有函数、没有对象行和展开），缺的补进 SDK；第三方插件用同样的函数，就地展开是 `renderSettingRow` 的 `open` 选项（不带脚本），卡里不是行的一段用 `mw-settings-section__block`，都不用抄工作台的私有脚本或样式；助理和 Agent 不经界面改设置，不涉及。结论：现在收进平台（SDK 的 `ui` 加设计系统样式）。
+平台能力检查（第 4.1 节）：设置页的行别的插件也要用（Coding、Shelf 已有设置页）；平台里现成的是工作台私有的 `settingRow`、一组手写类名，和设计系统里更早的 `SETTING_ROW_STYLES`（`.mw-setting`，没有函数、没有对象行和展开），缺的补进 SDK；第三方插件用同样的函数，就地展开是 `renderSettingRow` 的 `fold` 选项（不带脚本），卡里不是行的一段用 `mw-settings-section__block`，都不用抄工作台的私有脚本或样式；助理和 Agent 不经界面改设置，不涉及。结论：现在收进平台（SDK 的 `ui` 加设计系统样式）。
 
 ## 要用户定的事
 

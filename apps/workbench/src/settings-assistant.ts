@@ -24,7 +24,7 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
       body: `<div data-assistant-rules-list><p class="mw-settings-section__note">${uiText("workbench.settings-assistant.loading")}</p></div>
       <form data-assistant-rule-quiet>
         ${renderSettingRow({ name: text("workbench.settings-assistant.quiet-places"), hint: text("workbench.settings-assistant.quiet-places-hint"),
-          open: { label: text("workbench.settings-assistant.choose-places"), labelAttrs: { "data-setting-open-label": true }, body: `<div class="mw-choice-group" role="group" aria-label="${uiText("workbench.settings-assistant.quiet-places")}" data-assistant-rule-surfaces></div>
+          fold: { label: text("workbench.settings-assistant.choose-places"), labelAttrs: { "data-assistant-places-label": true }, body: `<div class="mw-choice-group" role="group" aria-label="${uiText("workbench.settings-assistant.quiet-places")}" data-assistant-rule-surfaces></div>
           ${exceptRow("failed", "workbench.settings-assistant.still-notify-failed-here", true)}
           ${exceptRow("needs-decision", "workbench.settings-assistant.still-tell-me-when-i-need-decide", false)}
           ${exceptRow("reminder", "workbench.settings-assistant.still-tell-me-when-reminder-i-set-comes", true)}
@@ -33,7 +33,7 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
       </form>
       <form data-assistant-rule-pause>
         ${renderSettingRow({ name: text("workbench.settings-assistant.pause-notices"), hint: text("workbench.settings-assistant.pause-notices-hint"),
-          open: { label: text("workbench.settings-assistant.pause"), body: `${renderSettingRow({ name: text("workbench.settings-assistant.how-long"), className: "mw-setting-row--sub",
+          fold: { label: text("workbench.settings-assistant.pause"), body: `${renderSettingRow({ name: text("workbench.settings-assistant.how-long"), className: "mw-setting-row--sub",
             control: `<select class="mw-input" data-assistant-rule-duration aria-label="${uiText("workbench.settings-assistant.how-long")}">
             <option value="30">${uiText("workbench.settings-assistant.value-30-minutes")}</option><option value="60" selected>${uiText("workbench.settings-assistant.value-1-hour")}</option><option value="day">${uiText("workbench.settings-assistant.until-end-today")}</option>
           </select>` })}
@@ -54,7 +54,7 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
       title: text("workbench.settings-assistant.capabilities"), id: "assistant-capabilities-title",
       body: renderSettingRow({ name: text("workbench.settings-assistant.capabilities-in-use"), hint: text("workbench.settings-assistant.reads-used-directly-each-change-asks-confirm-its"),
         attrs: { "data-assistant-capabilities-fold": true },
-        open: { label: text("workbench.settings-assistant.manage-capabilities"), body: `${renderListToolbar({ label: text("workbench.settings-assistant.search-capabilities"),
+        fold: { label: text("workbench.settings-assistant.manage-capabilities"), body: `${renderListToolbar({ label: text("workbench.settings-assistant.search-capabilities"),
           search: `<input class="mw-input" type="search" data-assistant-capability-search placeholder="${uiText("workbench.settings-assistant.search-capabilities-plugins")}" aria-label="${uiText("workbench.settings-assistant.search-capabilities")}">`,
           end: `<div class="mw-toggle-group settings-segmented" role="group" aria-label="${uiText("workbench.settings-assistant.scope")}" data-assistant-scope-group>
             <button class="mw-toggle" type="button" data-assistant-scope="project" aria-pressed="true">${uiText("workbench.settings-assistant.current-project")}</button>
@@ -211,7 +211,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const rulesList = root.querySelector("[data-assistant-rules-list]");
   const rulesError = root.querySelector("[data-assistant-rules-error]");
   const surfacesBox = root.querySelector("[data-assistant-rule-surfaces]");
-  const quietForm = root.querySelector("[data-assistant-rule-quiet]"), quietLabel = quietForm.querySelector("[data-setting-open-label]");
+  const quietForm = root.querySelector("[data-assistant-rule-quiet]"), quietLabel = quietForm.querySelector("[data-assistant-places-label]");
   const chosen = () => [...surfacesBox.querySelectorAll('[aria-pressed="true"]')].map((chip) => chip.dataset.assistantRuleSurface);
   const paintChosen = () => { const count = chosen().length; quietLabel.textContent = count ? globalThis.t.text("workbench.settings-assistant.places-count", { count }) : globalThis.t.text("workbench.settings-assistant.choose-places"); };
   const paintPages = (pages) => {

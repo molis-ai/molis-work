@@ -60,9 +60,12 @@ export const SETTINGS_DOCUMENT_STYLES = `
   .mw-setting-open .mw-choice__check { order: -1; }
 
   /* The row is a grid of what it says, what can be done, and the chevron. The part that opens it (the summary) runs under
-     all three and leaves the middle one empty: the action sits there, beside the summary and never inside it. */
+     all three and leaves the middle one empty: the action sits there, beside the summary and never inside it. The
+     <details> itself draws no box, so its summary and what it opens are the row's own cells: an engine that will not lay a
+     <details> out as a grid (the desktop shell's WebKit before 18.4) has nothing to refuse. Where what it opens is wrapped
+     (::details-content), the wrapper takes the cell instead. */
   .mw-object-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-rows: auto auto auto; min-width: 0; border-bottom: 1px solid var(--line); }
-  .mw-object-row__fold { grid-area: 1 / 1 / 4 / -1; display: grid; grid-template-columns: subgrid; grid-template-rows: subgrid; min-width: 0; }
+  .mw-object-row__fold { display: contents; }
   .mw-object-row__fold::details-content { grid-area: 3 / 1 / 4 / -1; }
   .mw-object-row__head { grid-area: 1 / 1 / 2 / 2; display: flex; align-items: center; min-width: 0; min-height: 60px; padding: 12px 0; box-sizing: border-box; list-style: none; }
   summary.mw-object-row__head { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; cursor: pointer; border-radius: 8px; }
@@ -87,7 +90,7 @@ export const SETTINGS_DOCUMENT_STYLES = `
   summary.mw-object-row__head:hover .mw-object-row__chevron { color: var(--ink-soft); }
   .mw-object-row__fold[open] > summary .mw-object-row__chevron { transform: rotate(90deg); color: var(--ink-soft); }
   .mw-object-row__body { grid-area: 3 / 1 / 4 / -1; min-width: 0; margin: 0 0 0 44px; padding: 0 0 12px; }
-  .mw-object-row--plain > .mw-object-row__body { margin-left: 0; }
+  .mw-object-row--plain .mw-object-row__body { margin-left: 0; }
   .mw-object-row--alert .mw-object-row__tile { color: var(--red); }
 
   .mw-question-list { margin: 0; display: grid; }

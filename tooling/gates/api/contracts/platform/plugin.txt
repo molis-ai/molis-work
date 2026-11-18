@@ -4527,7 +4527,6 @@ export interface PluginManifest {
     databases?: import("platform/plugin-database").PluginManifestDatabases;
     state_machines?: readonly import("platform/plugin-state-machines").StateMachineDeclaration[];
     owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
-    model_configuration?: import("platform/plugin-model-configuration").PluginModelConfigurationDeclaration;
     image_generation?: import("platform/plugin-image-generation").PluginImageGenerationDeclaration;
     runtime?: PluginRuntimeDeclaration;
     local_tools?: import("platform/plugin-local-tools").PluginLocalToolsDeclaration;
@@ -4608,6 +4607,10 @@ export interface PluginModelClient {
 
 export interface PluginModelConfigurationClient {
     selection(): PluginModelSelection | undefined;
+    readonly preferences?: {
+        read(input: import("@molis-ai/molis-work-contracts/platform/settings").SettingsReadInput): Promise<import("@molis-ai/molis-work-contracts/platform/settings").SettingsValues>;
+        write(input: import("@molis-ai/molis-work-contracts/platform/settings").SettingsWriteInput): Promise<import("@molis-ai/molis-work-contracts/platform/settings").SettingsValues>;
+    };
     read(): Promise<PluginModelConfigurationView>;
     save(input: PluginModelConfigurationInput): Promise<PluginModelConfigurationView>;
 }

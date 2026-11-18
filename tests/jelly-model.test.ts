@@ -171,7 +171,7 @@ test("W5-01-JMC-01 real Jelly Runtime keeps all actions, isolated selection and 
   const platform = await host.homePlugins!.ready(), installation = host.homePlugins!.installation(JELLY_PLUGIN_ID)!;
   const directory = await host.homeActionClient().discover(person(["jelly:read", "jelly:write", "jelly:settings", "model:invoke"]));
   const jelly = directory.filter(action => action.provider.plugin_id === JELLY_PLUGIN_ID);
-  assert.equal(jelly.length, JELLY_ACTIONS.length); assert.equal(jelly.length, 53);
+  assert.equal(jelly.length, JELLY_ACTIONS.length); assert.equal(jelly.length, 55);
   assert.ok(jelly.every(action => action.provider.plugin_install_id === installation.install_id));
   await platform.runtime.stop(installation.install_id);
   platform.runtime.grant(installation.install_id, installation.grants.filter(grant => grant !== "model:invoke"));
@@ -229,12 +229,13 @@ async function trustedJelly(t: test.TestContext) {
   const { HomePluginHost } = await import("@molis-ai/molis-work-app-local-host");
   const { ActionService } = await import("@molis-ai/molis-work-kernel");
   const { createJellyPlugin, jellyManifest } = await import("@molis-ai/molis-work-plugin-jelly");
-  const home = homeFor(t), service = new ActionService();
+  const home = homeFor(t, false), service = new ActionService();
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
   const definitions: import("@molis-ai/molis-work-contracts/platform/plugin").PluginDefinition[] = [];
   const contexts: import("@molis-ai/molis-work-contracts/platform/plugin").PluginStartContext[] = [];
   const registrations: import("@molis-ai/molis-work-contracts/platform/actions").ActionProviderRegistration[] = [];
   // The plugin's own Manifest carries the declaration; this copy is the one the startup caller keeps hold of.
-  const declaration = structuredClone(JELLY_MODEL_CONFIGURATION), manifest = { ...jellyManifest, model_configuration: declaration };
+  const declaration = structuredClone(JELLY_MODEL_CONFIGURATION), manifest = { ...jellyManifest, settings_entries: { ...jellyManifest.settings_entries!, model_configuration: declaration } };
   const host = new HomePluginHost({ home, actorId: "person", client: service, registry: {
     registerProvider(registration) { registrations.push(registration); return service.registerProvider(registration); },
   }, entries: [{ scope: "home", manifest, create() {
@@ -301,4 +302,48 @@ test("W5-01-JMC-02 a property stuck on a definition declares nothing, and the Ma
     assert.equal(existsSync(join(f.home, "not-jelly")), false);
     assert.equal(existsSync(join(f.home, "jelly", "preferences.json")), true);
   } finally { await f.host.close(); }
+});
+
+test("ONB-22/29/30: a scene chooses only an existing Jelly model, then recovers its file receipt across a later manual selection", async t => {
+  const { MolisWorkLocalHost } = await import("@molis-ai/molis-work-app-local-host");
+  const { bindActionClient } = await import("@molis-ai/molis-work-contracts/platform/actions");
+  const { blueprintActions: scenes } = await import("@molis-ai/molis-work-contracts/services/blueprints");
+  const { jellyManifest } = await import("@molis-ai/molis-work-plugin-jelly");
+  const home = homeFor(t, false);
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
+  const connection = modelConnection(home, "已有模型", "local-test-secret", "https://shared.example.com/v1");
+  providerStore(home, store => store.upsert({ credential_ref: connection.credential_ref!, provider_id: "shared", display_name: "Models",
+    base_url: "https://shared.example.com/v1", api_format: "openai-chat-completions", models: ["original", "selected"].map(model_id => ({ model_id, enabled: true })) }));
+  const key = JELLY_MODEL_CONFIGURATION.key, choice = { provider_id: "shared", model_id: "selected" };
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  try {
+    const caller = await host.localPersonContext();
+    const user = bindActionClient(host.homeActionClient(), () => caller);
+    const title = { literal: "Meetings" };
+    const { draft } = await user.invoke(scenes.draftSave, { expected_revision: null, blueprint: {
+      title, purpose: { audience: title, work: title, inputs: title, outputs: title, first_result: title },
+      parts: [{ part_id: "model", layer: "personal", required: true, proposal: { kind: "setting", key, value: choice } },
+        { part_id: "note", layer: "project", required: false, proposal: { kind: "content", type: "notes.outline.v1", body: {} } }],
+      steps: [{ step_id: "prepare", title, part_ids: ["model", "note"] }], example_task: { title, input: title, step_ids: ["prepare"], result: { part_id: "note", location: title } },
+    } });
+    const { preview_id, parts } = await user.invoke(scenes.preview, { source: draft.source, target: { kind: "personal" }, part_ids: ["model"] });
+    assert.notEqual(parts[0]?.decision, "skip", JSON.stringify(parts));
+    const apply = { preview_id, part_ids: ["model"], request_id: "select-model" };
+    const first = await user.invoke(scenes.apply, apply);
+    assert.equal(first.steps[0]?.state, "applied", JSON.stringify(first.steps));
+    assert.deepEqual(configuration(home).selection(), choice);
+    const path = join(home, "jelly", "preferences.json");
+    const saved = JSON.parse(readFileSync(path, "utf8"));
+    assert.equal(Object.keys(saved.receipts).length, 1);
+    const receipt = Object.values(saved.receipts)[0] as import("@molis-ai/molis-work-plugin-sdk").SettingsWriteReceipt;
+    configuration(home).save({ provider_id: "shared", model_id: "original" });
+    const beforeRetry = readFileSync(path, "utf8");
+    const result = await host.homeActionClient().invoke(caller, jellyManifest.settings_entries!.write, receipt.request);
+    assert.deepEqual(result, receipt.result);
+    const undo = await user.invoke(scenes.revert, { adoption_id: first.adoption_id, request_id: "undo" });
+    assert.deepEqual(undo.undo.steps[0], { part_id: "model", state: "skipped", reason: "revision_changed" });
+    assert.equal(readFileSync(path, "utf8"), beforeRetry);
+    assert.deepEqual(configuration(home).selection(), { provider_id: "shared", model_id: "original" });
+    assert.doesNotMatch(beforeRetry, /local-test-secret|example\.com/);
+  } finally { await host.close(); }
 });

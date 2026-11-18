@@ -1,3 +1,4 @@
+import type { SettingsWriteInput } from "@molis-ai/molis-work-contracts/platform/settings";
 import { openGeneric } from "./dialog.js";
 import { flushEditor } from "./notes.js";
 import { run, showNote } from "./page.js";
@@ -20,7 +21,7 @@ type ApiFormat = "openai-chat-completions" | "anthropic-messages";
 const keyOf = (provider: ModelProvider): string => provider.provider_id || provider.id || "";
 
 /** What the person has picked so far in the open dialog. */
-interface Pick { providerId: string; modelId: string; custom: boolean; apiFormat: ApiFormat }
+interface Pick { pending?: SettingsWriteInput; providerId: string; modelId: string; custom: boolean; apiFormat: ApiFormat }
 
 function formHtml(page: JellyPage, settings: ModelSettings): string {
   const { tx } = page;
@@ -60,7 +61,7 @@ function paint(page: JellyPage, settings: ModelSettings, providers: ModelProvide
   status.append(link);
 }
 
-async function save(page: JellyPage, pick: Pick): Promise<void> {
+async function save(page: JellyPage, pick: Pick, revision: string): Promise<void> {
   const { $ } = page;
   let body: Record<string, string>;
   if (pick.custom) {
@@ -72,7 +73,13 @@ async function save(page: JellyPage, pick: Pick): Promise<void> {
     if (!pick.providerId || !pick.modelId) throw new Error(uiText.text("jelly.model.pick-required"));
     body = { provider_id: pick.providerId, model_id: pick.modelId };
   }
-  await page.request("POST", `${API}/model-settings`, body);
+  if (pick.custom) await page.request("POST", `${API}/model-settings`, body);
+  else {
+    const change = { set: body };
+    if (!pick.pending || JSON.stringify(pick.pending.change) !== JSON.stringify(change))
+      pick.pending = { key: "jelly.model_selection", layer: "personal", expected_revision: revision, request_id: crypto.randomUUID(), change };
+    await page.request("POST", `${API}/preferences/write`, pick.pending);
+  }
   showNote(page, uiText.text("jelly.model.saved"));
 }
 
@@ -80,16 +87,21 @@ async function save(page: JellyPage, pick: Pick): Promise<void> {
 export async function openModelSettings(page: JellyPage): Promise<void> {
   page.leftForSettings = false;
   await flushEditor(page);
-  const payload = await page.request<{ settings?: ModelSettings } & ModelSettings>("GET", `${API}/model-settings`);
+  const [payload, preferences] = await Promise.all([
+    page.request<{ settings?: ModelSettings } & ModelSettings>("GET", `${API}/model-settings`),
+    page.request<{ values: { revision: string; value?: ModelSettings["selection"] }[] }>("POST", `${API}/preferences/read`, { keys: ["jelly.model_selection"] }),
+  ]);
+  const choice = preferences.values[0];
+  if (!choice) throw new Error(uiText.text("jelly.model.unavailable"));
   const settings = payload.settings || payload;
   const providers = (settings.providers || []).filter((provider) => provider.enabled !== false);
   const pick: Pick = {
-    providerId: settings.selection?.provider_id || settings.effective_selection?.provider_id || providers[0] && keyOf(providers[0]) || "",
-    modelId: settings.selection?.model_id || settings.effective_selection?.model_id || "", custom: false, apiFormat: "openai-chat-completions",
+    providerId: choice.value?.provider_id || settings.effective_selection?.provider_id || providers[0] && keyOf(providers[0]) || "",
+    modelId: choice.value?.model_id || settings.effective_selection?.model_id || "", custom: false, apiFormat: "openai-chat-completions",
   };
   const firstModel = (): string => providers.find((entry) => keyOf(entry) === pick.providerId)?.models?.find((model) => model.enabled !== false)?.model_id || "";
   if (!pick.modelId) pick.modelId = firstModel();
-  openGeneric(page, "jelly.model.title", formHtml(page, settings), "jelly.model.save", () => save(page, pick));
+  openGeneric(page, "jelly.model.title", formHtml(page, settings), "jelly.model.save", () => save(page, pick, choice.revision));
   const body = page.$("[data-jelly-dialog-body]");
   body.onclick = (event) => {
     const target = (event.target as Element).closest("button");

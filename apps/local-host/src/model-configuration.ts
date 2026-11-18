@@ -12,7 +12,7 @@ import { openConfiguredModels as openProviders, selectConfiguredTextModel, model
 import { hostCompleteText } from "./host-complete-text.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
-import { assertVersionedFileWritable, type VersionedFile, type VersionedFileStep } from "@molis-ai/molis-work-storage";
+import { atomicWriteFileSync, assertVersionedFileWritable, type VersionedFile, type VersionedFileStep } from "@molis-ai/molis-work-storage";
 
 const errors = defineErrorCodes("host", { model_configuration_invalid: "invalid" });
 /** What the settings need of a declaration: where the choice is kept and the id of the consumer's own provider (a Home package's settings are derived without actions, BL-491). */
@@ -42,12 +42,30 @@ export function readModelPreference(home: string, declaration: ConsumerModelConf
 }
 /** The host upgrade process applies this same owner definition to every existing model preference. */
 export const MODEL_PREFERENCE_FILE: VersionedFile<ModelPreferenceFile> = { version: MODEL_PREFERENCE_SCHEMA_VERSION, field: "schema_version", upgrades: MODEL_PREFERENCE_UPGRADES, parse: parsePreference };
+function isModelReceipt(receipt: unknown): receipt is SettingsWriteReceipt {
+  if (!isRecord(receipt) || !isRecord(receipt.request) || !isRecord(receipt.result)) return false;
+  const { key, layer, request_id, expected_revision, change } = receipt.request;
+  const values = receipt.result.values;
+  if (typeof key !== "string" || layer !== "personal" || typeof request_id !== "string" || typeof expected_revision !== "string" ||
+      !isRecord(change) || !(change.inherit === true || isSelection(change.set)) || !Array.isArray(values) || values.length !== 1) return false;
+  const saved = values[0];
+  return isRecord(saved) && saved.key === key && saved.state === "ok" && typeof saved.revision === "string" &&
+    (saved.source === "personal" || saved.source === "provider_default") && (saved.value === null || isSelection(saved.value));
+}
 function parsePreference(value: unknown): ModelPreferenceFile {
-  if (!isRecord(value) || value.schema_version !== MODEL_PREFERENCE_SCHEMA_VERSION || !(value.selection === null || isSelection(value.selection))
-    || !Number.isSafeInteger(value.revision) || Number(value.revision) < 0 || !isRecord(value.receipts)
-    || Object.values(value.receipts).some(receipt => !isRecord(receipt) || !isRecord(receipt.request) || !isRecord(receipt.result) || !Array.isArray(receipt.result.values)))
-    throw invalidFile();
-  return value as unknown as ModelPreferenceFile;
+  if (!isRecord(value) || value.schema_version !== MODEL_PREFERENCE_SCHEMA_VERSION || !(value.selection === null || isSelection(value.selection) && Object.keys(value.selection).length === 2)
+    || typeof value.revision !== "number" || !Number.isSafeInteger(value.revision) || value.revision < 0 || !isRecord(value.receipts)) throw invalidFile();
+  const receipts: ModelPreferenceFile["receipts"] = Object.create(null);
+  for (const [id, receipt] of Object.entries(value.receipts)) {
+    if (!isModelReceipt(receipt)) throw invalidFile();
+    receipts[id] = receipt;
+  }
+  return { schema_version: MODEL_PREFERENCE_SCHEMA_VERSION, selection: value.selection, revision: value.revision, receipts };
+}
+export function commitModelPreference(home: string, declaration: ConsumerModelConfigurationDeclaration, state: ModelPreferenceFile): void {
+  const path = preferencePath(home, declaration);
+  assertVersionedFileWritable(MODEL_PREFERENCE_FILE, path, home);
+  atomicWriteFileSync(path, JSON.stringify(state) + "\n", { durable: true });
 }
 function atomicWrite(path: string, body: string): void {
   const temporary = `${path}.${randomUUID()}.tmp`;

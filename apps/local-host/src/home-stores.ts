@@ -52,7 +52,7 @@ import {SYNC_HOME_STORE} from '@molis-ai/molis-work-module-sync-replication';
  */
 /** Where the plugins this build ships keep their model choice (`model_configuration.preference`), for the upgrade process. */
 export const platformModelPreferences = (): readonly { readonly owner: string; readonly path: string }[] => PLATFORM_PLUGIN_REGISTRATIONS.flatMap(({ manifest }) => {
-  const preference = manifest.model_configuration?.preference;
+  const preference = manifest.settings_entries?.model_configuration?.preference;
   return preference ? [{ owner: manifest.plugin_id, path: join(preference.store_name, preference.file_name) }] : [];
 });
 

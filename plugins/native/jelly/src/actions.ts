@@ -1,3 +1,4 @@
+import { jellyPreferenceActions } from "./model-configuration.js";
 import { bindActionHandler, withActionEffect, type ActionAvailability, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JellyItem, JellySeries, JellyWorkspace } from "./contract.js";
 import { runJellyAi, type JellyAiInput, type JellyAiPorts } from "./ai.js";
@@ -42,7 +43,7 @@ export const jellyActions = {
   itemSubject: jellySearchActions.item,
   noteSubject: jellySearchActions.note,
 };
-export const JELLY_ACTIONS: readonly ActionDefinition[] = [...Object.values(jellyCommandActions), ...Object.values(jellyActions), ...Object.values(jellyServiceActions), ...Object.values(jellyContentActions)];
+export const JELLY_ACTIONS: readonly ActionDefinition[] = [...Object.values(jellyCommandActions), ...Object.values(jellyActions), ...Object.values(jellyServiceActions), ...Object.values(jellyPreferenceActions), ...Object.values(jellyContentActions)];
 export const JELLY_ACTION_PERMISSIONS = [...new Set(JELLY_ACTIONS.flatMap(definition => definition.action.permissions))];
 export interface JellyActionPorts extends JellyStores {
   modelAvailability(): ActionAvailability;

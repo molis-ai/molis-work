@@ -705,6 +705,8 @@
     "action.jelly.relation.attach": 1,
     "action.jelly.relation.detach": 1,
     "action.jelly.relation.reset": 1,
+    "action.jelly.preferences.read": 1,
+    "action.jelly.preferences.write": 1,
     "action.jelly.search": 1,
     "action.jelly.search.entries": 1,
     "action.jelly.series.complete": 1,

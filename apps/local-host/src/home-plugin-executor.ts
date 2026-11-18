@@ -156,7 +156,7 @@ export class HomePluginExecutor implements PluginExecutor {
       });
       const authorized = { ...context, requireGrant: authorize };
       // A sandboxed package has no `model_configuration` or `image_generation` block: its settings and image connections are derived from its contract's effects (BL-491).
-      const model = withSandboxModelSettings(pluginModelFor(home, definition, authorized, assertActive, givenService(definition, manifest.model_configuration, this.options.modelConfiguration(definition), "模型设置")), home, definition, authorized, assertActive);
+      const model = withSandboxModelSettings(pluginModelFor(home, definition, authorized, assertActive, givenService(definition, manifest.settings_entries?.model_configuration, this.options.modelConfiguration(definition), "模型设置")), home, definition, authorized, assertActive);
       const imageGeneration = sandboxImageGenerationFor(home, definition, authorized, assertActive)
         ?? pluginImageGenerationFor(home, definition, authorized, givenService(definition, manifest.image_generation, this.options.imageGeneration(definition), "图片生成"), assertActive);
       const localTools = pluginLocalToolsFor(definition, authorized, assertActive);

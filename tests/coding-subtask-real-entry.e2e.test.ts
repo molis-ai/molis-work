@@ -7,15 +7,22 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { CODING_BOX, CODING_COMPOSER, CODING_SEND, CODING_TAKEN, codingType } from "./fixtures/coding-composer.js";
 import { recordingTextModel, type ModelWire } from "./fixtures/recording-text-model.js";
 import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
+import { holdSubtaskDraft } from "./fixtures/subtask-draft-barrier.js";
 
 // SAI-01/02/03/05/11/14/15: installed Coding contribution and SDK, original TaskBoard, isolated grant and local HTTP model.
 // The selected B entries and original TaskBoard resolve the same child; this local HTTP model is separate from real-provider acceptance.
 for (const entry of ["board", "card", "results"] as const) test(`Coding's ${entry} returns focus after real child refresh and preserves its main input`, { timeout: 150_000 }, async t => {
   let parentCalls = 0, childCalls = 0; const childBodies: ModelWire[] = [];
+  const boardReply = entry === "board" ? { started: Promise.withResolvers<void>(), finish: Promise.withResolvers<void>() } : undefined;
+  t.after(() => boardReply?.finish.resolve());
   const b = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, { prepareHome: async home => {
-    await recordingTextModel(t, home, body => {
+    await recordingTextModel(t, home, async body => {
       const first = JSON.stringify(body.messages.find(message => message.role === "user")?.content);
-      if (first.includes("SAI_CODING_CHILD")) { childCalls++; childBodies.push(body); return reply(undefined, childCalls === 1 ? "CODING_ORIGINAL_CHILD_RESULT" : "CODING_CONTINUED_CHILD_RESULT"); }
+      if (first.includes("SAI_CODING_CHILD")) {
+        const attempt = ++childCalls; childBodies.push(body);
+        if (attempt === 2 && boardReply) { boardReply.started.resolve(); await boardReply.finish.promise; }
+        return reply(undefined, attempt === 1 ? "CODING_ORIGINAL_CHILD_RESULT" : attempt === 2 ? "CODING_CONTINUED_CHILD_RESULT" : "CODING_THIRD_CHILD_RESULT");
+      }
       if (first.includes("SAI_CODING_PARENT") && ++parentCalls === 1) {
         const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@\d+/u)?.[0]; assert.ok(character);
         return reply({ name: "dispatch-subagent", input: { instruction: "SAI_CODING_CHILD: inspect this task without changing files.", tools: [], character, idempotencyKey: "coding-ui-child", maxTurns: 3 } });
@@ -71,7 +78,13 @@ for (const entry of ["board", "card", "results"] as const) test(`Coding's ${entr
   assert.deepEqual(await b.evaluate(`{const field=document.querySelector(${JSON.stringify(CODING_BOX)});[field===window.__codingMainInput,field.value,${CODING_TAKEN}]}`), [true, "CODING_MAIN_DRAFT_STAYS", true]);
   await child.evaluate("const field=document.querySelector('.mw-subtask textarea');field.value='CODING_CHILD_FOLLOW_UP';field.dispatchEvent(new Event('input',{bubbles:true}));field.focus()");
   await child.click("[data-composer-send]");
-  try { await child.waitFor("document.body.textContent.includes('CODING_CONTINUED_CHILD_RESULT')", 20_000); }
+  try {
+    if (boardReply) {
+      await boardReply.started.promise;
+      await main.waitFor("document.querySelector('.coding-child[data-state=running]')", 20_000);
+    }
+    else await child.waitFor("document.body.textContent.includes('CODING_CONTINUED_CHILD_RESULT')", 20_000);
+  }
   catch (error) { t.diagnostic(JSON.stringify({ childCalls, child: await child.evaluate("document.body.innerText.slice(-6000)"), shell: await b.evaluate("document.body.innerText.slice(-3500)") })); throw error; }
   assert.equal(childCalls, 2); assert.ok(JSON.stringify(childBodies[1]!.messages).includes("CODING_CHILD_FOLLOW_UP"));
   assert.ok(JSON.stringify(childBodies[1]!.messages).includes("CODING_ORIGINAL_CHILD_RESULT"), "continued model consumes its original child history");
@@ -82,8 +95,16 @@ for (const entry of ["board", "card", "results"] as const) test(`Coding's ${entr
   await b.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, b.sessionId);
   await b.waitFor("!document.querySelector('[data-work-task-float]')");
   await main.waitFor("document.activeElement===document.getElementById(window.__taskEntry.id)");
+  if (boardReply) {
+    // B59-FIX-03 / SAI-13: let the real completion update replace the board row after focus has returned to it.
+    await main.evaluate("window.__focusedBoardEntry=document.activeElement");
+    boardReply.finish.resolve();
+    await main.waitFor("!window.__focusedBoardEntry.isConnected && document.querySelector('.coding-child[data-state=completed]')", 20_000);
+    assert.equal(await main.evaluate("document.activeElement===document.getElementById(window.__taskEntry.id)"), true, "the late TaskBoard redraw keeps focus on the same task");
+  }
   assert.equal(await main.evaluate("document.activeElement===window.__taskEntry"), false, "the real state refresh rebuilt this entry");
   await main.click(entrySelector); await child.waitFor("document.querySelector('[data-subtask-close]')");
+  if (boardReply) await child.waitFor("document.body.textContent.includes('CODING_CONTINUED_CHILD_RESULT')", 20_000);
   await child.click("[data-subtask-close]"); await b.waitFor("!document.querySelector('[data-work-task-float]')");
   await main.waitFor("document.activeElement===document.getElementById(window.__taskEntry.id)");
   if (entry !== "board") {
@@ -96,6 +117,35 @@ for (const entry of ["board", "card", "results"] as const) test(`Coding's ${entr
     assert.equal(await b.evaluate(`document.activeElement===document.querySelector(${JSON.stringify(CODING_BOX)})`), true, "clicking the main input closes the float without stealing focus back to the plugin");
     await b.command("Input.insertText", { text: "x" }, b.sessionId);
     assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(CODING_BOX)}).value`), "CODING_MAIN_DRAFT_STAYSx");
+    if (entry === "card") {
+      // B59-FIX-01/02: the same frame can reopen after a close during draft CAS, retry the budget command and continue.
+      const extend = "[data-subtask-action=extend-budget]";
+      await main.click(entrySelector);
+      await child.waitFor("document.querySelector(" + JSON.stringify(extend) + ") && document.querySelector('.mw-subtask textarea').disabled");
+      const held = await holdSubtaskDraft(b, "extend-budget");
+      try {
+        await child.click(extend);
+        await held.wait();
+        await child.click("[data-subtask-close]");
+        await b.waitFor("!document.querySelector('[data-work-task-float]')");
+      } finally { await held.release(); }
+      await main.click(entrySelector);
+      await child.waitFor("document.querySelector(" + JSON.stringify(extend + ":not(:disabled)") + ")");
+      assert.equal(held.posts(), 0);
+      await child.click(extend);
+      await child.waitFor("document.querySelector('.mw-subtask textarea:not(:disabled)')");
+      assert.equal(held.posts(), 1);
+      held.dispose();
+      assert.equal(childCalls, 2, "budget extension is not an execution");
+      await child.evaluate("(()=>{const field=document.querySelector('.mw-subtask textarea');field.value='SAI_THIRD_CODING';field.dispatchEvent(new Event('input',{bubbles:true}));field.focus()})()");
+      await child.click("[data-composer-send]");
+      await child.waitFor("document.body.textContent.includes('CODING_THIRD_CHILD_RESULT')", 20_000);
+      assert.equal(childCalls, 3);
+      assert.match(JSON.stringify(childBodies[2]!.messages), /CODING_CONTINUED_CHILD_RESULT/);
+      assert.match(JSON.stringify(childBodies[2]!.messages), /SAI_THIRD_CODING/);
+      assert.equal(await main.evaluate("document.querySelectorAll('[data-coding-turns] [data-run]').length"), 1);
+      assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(CODING_BOX)}).value`), "CODING_MAIN_DRAFT_STAYSx");
+    }
     return;
   }
   assert.equal(await main.evaluate("document.querySelector('[data-coding-board]').hidden"), false);

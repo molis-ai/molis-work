@@ -157,7 +157,9 @@ export interface PrologueRuntimePort {
   /** The window the runtime packs against when a model states none; a configured window is capped by it. */
   defaultContextWindowTokens?: number;
   readStepBoard?(run: AgentRunRef): Promise<AgentRunView["step_board"]>;
-  subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
+  subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability & {
+    sessionOf(run: AgentRunRef, subagentId: string): string;
+  };
   projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
   collaboration?: import("./prologue-plan-steps.js").PlanCollaborationPort;

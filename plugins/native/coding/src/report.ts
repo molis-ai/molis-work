@@ -161,11 +161,16 @@ export function createCodingExecutionReport(input: {
       `## 模型答复\n以下是模型的表述；检查证据另列，不自动据此判定通过。\n\n${modelAnswer || "没有已保存的模型答复。"}`,
       `## 命令与检查证据\n${commandEvidence || (run.command_outputs === undefined ? "运行时未提供命令索引，不能推断未执行。" : "本轮没有已记录的命令回执；这不等于检查通过。")}`,
       `## 工具活动\n${activity ? literal(activity) : "没有已记录的工具活动。"}`,
-      `## 本轮 Character\n${frozen.character ? literal(`${frozen.character.title} · v${frozen.character.reference.version}\n固定来源：${frozen.character.reference.artifact_id}\n发布者：${frozen.character.producer.plugin_id} · ${frozen.character.producer.plugin_version}\n内容摘要：${frozen.character.content_digest}\n发布时间：${frozen.character.published_at}\n内置工具：${frozen.host_tools?.join("、") || "不使用内置工具"}\n\n${frozen.character.instructions}`) : "未使用 Character；沿用调用方角色。"}`,
+      `## 本轮 Character\n${frozen.character ? literal(`${frozen.character.title} · ${roleVersionLabel(frozen.character.version)}\n保存时间：${frozen.character.saved_at}\n内置工具：${frozen.host_tools?.join("、") || "不使用内置工具"}\n\n${frozen.character.instructions}`) : "未使用 Character；沿用调用方角色。"}`,
       ...(frozen.subagent_workspaces?.length ? [`## 本轮独立目录\n${literal(frozen.subagent_workspaces.map(item => item.directory.canonical_path).join("\n"))}\n目录按本轮授权固定；子任务结果须在原子任务记录中核对，不代表已经整合到主工作区。`] : []),
       `## 本轮配置\n${literal(`模型：${frozen.model_id}\n角色：${frozen.role_id} · v${frozen.role_version}\n提示：${frozen.prompts.map(p => `${p.layer}: ${p.prompt_id} v${p.version}`).join("、")}\n方法：${frozen.skills.map(s => `${s.name} v${s.ref.version}`).join("、") || "未选择"}\nMCP：${frozen.mcp_tools.map(t => `${t.server}/${t.tool} ${t.version} 配置 ${t.configuration_version}`).join("、") || "未选择"}\nMCP 资料：${(frozen.mcp_sources ?? []).map(s => `${s.server} 配置 ${s.configuration_version}`).join("、") || "未选择"}\n材料：${frozen.text_materials.map(m => m.source_artifact_id === undefined ? m.title || m.material_id : `${m.title ?? m.source_artifact_id} v${m.source_version} (${m.source_artifact_id})`).join("、") || "未选择"}`)}`,
       `## 用量\n${usage}${!run.usage.compaction && run.activity.some(item => item.name === "上下文整理") ? "\n仅包含主执行请求；上下文整理的额外用量尚未计入。" : ""}`,
       "## 保存边界\n报告记录这一轮已有证据，不包含工作区当前差异的固定版本，不撤销先前操作，也不替代 Goal 验收。",
     ].join("\n\n"),
   };
+}
+
+/** A fixed role version as people read it: an original's 「第 n 版」, a member's own version and the original's it builds on. */
+function roleVersionLabel(version: import("@molis-ai/molis-work-contracts/modules/characters").CharacterRoleVersionRef): string {
+  return version.kind === "personal" ? `第 ${version.version} 版` : `本项目第 ${version.member_version} 版 · 原件第 ${version.original.version} 版`;
 }

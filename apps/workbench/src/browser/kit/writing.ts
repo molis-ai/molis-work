@@ -1,163 +1,125 @@
-import type { KitEntry } from "@molis-ai/molis-work-contracts/platform/kit-report";
-import type { SkillAuthoredSource, SkillCatalogEntry, SkillScope } from "@molis-ai/molis-work-contracts/services/skills";
-import type { AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { authoringMarkup, check, draft, fieldsOfSource, fromSource, isDirty, newSkill, readSource, removeSkill, save, saveFields, setState, typed, type SkillWritingLimits } from "./authoring.js";
-import { act, readText, type Kit } from "./common.js";
-import type { View } from "./view.js";
+import type { SkillScope } from "@molis-ai/molis-work-contracts/services/skills";
+import { askingMarkup, draftFromSentence } from "./authoring.js";
+import { draftEditing, type DraftEditing } from "./draft-editing.js";
+import { draftTurns, type DraftTurns } from "./draft-turns.js";
+import { listDrafts, messageOf } from "./drafts.js";
+import { skillActions } from "./skill-actions.js";
+import { writingContext, type WritingContext, type WritingPage } from "./writing-context.js";
+import { draftsStrip, workshopMarkup } from "./workshop.js";
 
-// What the person does while writing a Skill of their own on the 「能力包」 page (batch 41): the page (page.ts) keeps the view and
-// draws; this keeps the form's turns — opening it, drafting, saving, leaving unsaved work, deleting and taking a deletion back.
+export type { WritingFocus } from "./writing-context.js";
 
-export type WritingFocus = "au" | "au-leave" | "au-error" | "au-failure" | "au-applies" | "au-scope";
-type SkillEntry = Extract<KitEntry, { kind: "skill" }>;
+// What the person does with a Skill's drafts on the 「能力包」 page (batch 42, scheme B): open one (a new Skill, a change, a copy, a
+// restored version, a source's newer version), write in it (saved as they type), ask the assistant to change it, keep known answers
+// and replay them, compare, adopt or discard it. The page (page.ts) keeps the view and draws; this routes the page's actions and
+// events to the parts that keep the draft's turns (draft-editing.ts, draft-turns.ts, skill-actions.ts).
 
-export interface WritingPage {
-  root: HTMLElement;
-  project: string;
-  view: View;
-  kit(): Kit | undefined;
-  load(): Promise<void>;
-  draw(focus?: "detail" | WritingFocus): void;
-  say(text: string, tone?: "success" | "danger", next?: { label: string; attrs: Record<string, AttrValue> }): void;
-  /** Opens this entry in its pack, with every filter cleared so it is in the list. */
-  show(entry: KitEntry): void;
+const FOCUS: Record<string, string> = {
+  "au-error": '[aria-invalid="true"]', "au-failure": ".au-failure", "sk-title": "#sk-title", "sk-ask": "[data-sk-ask-input]", "sk-replay": "[data-sk-replay] .mw-replay-grid",
+  "sk-confirm": "[data-slot='leave-bar']", "sk-case": "[data-sk-case-form] [aria-invalid='true'], [data-sk-case-form] input", "sk-side": ".sk-side-tabs .is-active", "sk-tab": ".sk-narrow-tabs .is-active",
+};
+/** Where the focus goes after a draw the drafts asked for. */
+function focusIn(body: HTMLElement, where?: string): void {
+  if (!where?.startsWith("au") && !where?.startsWith("sk-")) return;
+  const target = FOCUS[where] ?? (where === "au-applies" || where === "au-scope" ? `[data-kit-act="${where}"][aria-pressed="true"]` : "[data-au-field]");
+  const found = body.querySelector<HTMLElement>(target);
+  if (where === "sk-replay") found?.setAttribute("tabindex", "-1");
+  (found ?? body.querySelector<HTMLElement>("#sk-title, #au-title"))?.focus();
+}
+
+/** Typing, choices and forms inside the sentence before a new Skill and inside an open draft. */
+function listen(c: WritingContext, edit: DraftEditing, turns: DraftTurns): void {
+  const { root, view, say } = c;
+  root.addEventListener("input", event => {
+    const target = event.target as HTMLInputElement | HTMLTextAreaElement, w = view.workshop;
+    if (view.asking && target.dataset?.auField === "intent") {
+      view.asking.intent = target.value;
+      const go = root.querySelector<HTMLButtonElement>('[data-kit-act="au-draft"]');
+      if (go) go.disabled = !view.asking.intent.trim();
+      return;
+    }
+    if (!w) return;
+    if (target.dataset?.auField) edit.typedField(w, target);
+    else if (target.dataset?.skPlaceholder) edit.typedPlaceholder(w, target as HTMLInputElement);
+    else if (target.dataset?.skAskInput !== undefined) w.ask = target.value;
+    else if (target.dataset?.skCase && w.caseForm) w.caseForm[target.dataset.skCase as "title"] = target.value;
+  });
+  root.addEventListener("change", event => {
+    const target = event.target as HTMLInputElement;
+    if (view.workshop && target.dataset?.skTurnOff !== undefined) view.workshop.turnOffSource = target.checked;
+  });
+  root.addEventListener("submit", event => {
+    const form = event.target as HTMLElement;
+    if (!form.matches("[data-au], [data-sk-ask], [data-sk-case-form]")) return;
+    event.preventDefault();
+    const w = view.workshop;
+    if (!w) return;
+    if (form.matches("[data-sk-ask]") && !form.hasAttribute("data-busy")) { root.querySelector<HTMLElement>("[data-sk-ask-input]")?.focus(); void turns.ask(w).catch(cause => say(messageOf(cause), "danger")); }
+    if (form.matches("[data-sk-case-form]")) void turns.saveCase(w).catch(cause => say(messageOf(cause), "danger"));
+  });
+  // Escape on the in-place question is 「回去改」.
+  root.addEventListener("keydown", event => {
+    if (event.key !== "Escape" || !view.workshop?.confirm || !(event.target as Element).closest?.("[data-slot='leave-bar']")) return;
+    event.preventDefault(); event.stopPropagation();
+    void turns.run(view.workshop, "sk-confirm-back", undefined);
+  });
+  // Typed words are saved within a moment; a save still waiting, or one that failed, holds the window until it is dealt with.
+  addEventListener("beforeunload", event => { if (root.isConnected && view.workshop && (edit.pending() || view.workshop.save === "failed")) event.preventDefault(); });
 }
 
 export function skillWriting(page: WritingPage) {
-  const { root, project, view, draw, load, say } = page;
-  const limits = JSON.parse(root.dataset.skillLimits ?? "{}") as SkillWritingLimits, ownPacks = new Set((root.dataset.skillMine ?? "").split(" ")), pageScope: SkillScope = project ? "project" : "home";
-  const written = (key: string, values?: Record<string, string | number>) => readText(`workbench.skill-authoring.${key}`, values);
-  const isMine = (skill: SkillCatalogEntry) => ownPacks.has(skill.pack.plugin_id) && skill.pack.trust === "home_local";
-  const skillOf = (key?: string): SkillEntry | undefined => { const entry = key ? page.kit()?.byKey.get(key) : undefined; return entry?.kind === "skill" ? entry : undefined; };
-  const ownSkills = (scope: SkillScope) => (page.kit()?.catalog.entries ?? []).flatMap(entry => entry.kind === "skill" && isMine(entry.skill) && entry.skill.pack.scope === scope ? [entry] : []);
-  /** What the person leaves unsaved work for, kept until they answer the bar; and the Skill just deleted, for 撤销. */
-  let pending: (() => void) | undefined, removed: { source: SkillAuthoredSource; state: SkillCatalogEntry["state"] } | undefined;
+  const c = writingContext(page), { root, project, view, draw, say } = c;
+  const edit = draftEditing(c), turns = draftTurns(c, edit), skill = skillActions(c, edit);
+  listen(c, edit, turns);
 
-  function showOwn(scope: SkillScope, skillId: string): SkillEntry | undefined {
-    const entry = ownSkills(scope).find(candidate => candidate.skill.ref.skill_id === skillId);
-    if (entry) page.show(entry);
-    return entry;
+  /** The sentence before a new Skill: draft from it, write it oneself, or leave it. */
+  async function fromSentence(name: string, value: string | undefined): Promise<void> {
+    const asking = view.asking!;
+    if (name === "au-drop") { view.asking = undefined; return draw("detail"); }
+    if (name === "au-scope") { asking.scope = value as SkillScope; return draw("au-scope"); }
+    if (name === "au-self") return edit.create(asking.scope, { kind: "new" });
+    if (name !== "au-draft") return;
+    asking.busy = true; asking.failure = undefined; draw();
+    try { const fields = await draftFromSentence(project, asking.intent); if (view.asking === asking) await edit.create(asking.scope, { kind: "new" }, fields); }
+    catch (cause) { asking.busy = false; asking.failure = messageOf(cause); if (view.asking === asking) draw("au-failure"); }
   }
 
-  async function commit(): Promise<boolean> {
-    const writing = view.authoring!;
-    writing.leave = false;
-    if (!check(writing, limits, new Set(ownSkills(writing.scope).filter(entry => entry.skill.ref.skill_id !== writing.skill_id).map(entry => entry.skill.name.trim())))) { draw("au-error"); return false; }
-    writing.busy = "save"; draw();
-    const result = await save(writing, project);
-    writing.busy = undefined;
-    if (view.authoring !== writing) return false;
-    if (!result) { draw(writing.failure ? "au-failure" : "au-error"); return false; }
-    view.authoring = undefined;
-    await load();
-    const entry = showOwn(writing.scope, result.skill_id), name = writing.fields.name.trim();
-    draw("detail");
-    if (writing.origin !== "edit" && entry) say(written("saved-new", { n: name }), "success", { label: written("turn-auto"), attrs: act("au-auto", entry.key) });
-    else say(written("saved-version", { n: name, v: result.skill_version }));
-    return true;
-  }
-
-  /** Opening the form, deleting, and the notices' own next steps. */
-  async function start(name: string, value: string | undefined, origin: HTMLElement): Promise<boolean> {
-    if (name === "skill-new") { view.authoring = newSkill(pageScope); view.detail = true; draw("au"); return true; }
-    if (name === "au-undelete") {
-      if (!removed) return true;
-      const { source, state } = removed;
-      // Kept until it is back: a restore that fails leaves 撤销 in the notice to try again, and the deleted text is not lost.
-      let result: Awaited<ReturnType<typeof saveFields>>;
-      try { result = await saveFields(project, source.scope, fieldsOfSource(source)); }
-      catch (cause) { say(written("restore-failed", { n: source.name, m: (cause as Error)?.message || String(cause) }), "danger", { label: readText("common.control.retry"), attrs: act("au-undelete") }); return true; }
-      removed = undefined;
-      await load();
-      const entry = showOwn(source.scope, result.skill_id);
-      if (entry && state !== "off") { await setState(project, entry.skill, state); await load(); showOwn(source.scope, result.skill_id); }
-      draw("detail");
-      say(written("restored", { n: source.name }));
-      return true;
-    }
-    if (name !== "skill-edit" && name !== "skill-copy" && name !== "skill-delete" && name !== "au-auto") return false;
-    const entry = skillOf(value);
-    if (!entry) return true;
-    (origin as HTMLButtonElement).disabled = true;
-    try { return await open(name, entry); } catch (cause) { (origin as HTMLButtonElement).disabled = false; throw cause; }
-  }
-  async function open(name: string, entry: SkillEntry): Promise<true> {
-    if (name === "au-auto") { await setState(project, entry.skill, "auto"); await load(); say(written("now-auto", { n: entry.name })); return true; }
-    const source = await readSource(project, entry.skill);
-    if (name === "skill-delete") {
-      await removeSkill(project, entry.skill);
-      removed = { source, state: entry.skill.state };
-      view.item = undefined;
-      await load();
-      draw("detail");
-      say(written("deleted", { n: source.name }), "success", { label: readText("workbench.context-bus.undo"), attrs: act("au-undelete") });
-      return true;
-    }
-    view.authoring = fromSource(source, name === "skill-edit" ? "edit" : "copy", pageScope);
-    view.detail = true;
-    draw("au");
-    return true;
-  }
-
-  /** One of the page's actions that is the form's; others are left to the page. */
+  /** One of the page's actions that is the drafts'; others are left to the page. */
   async function run(name: string, value: string | undefined, origin: HTMLElement): Promise<void> {
-    if (await start(name, value, origin)) return;
-    const writing = view.authoring;
-    if (!writing || !name.startsWith("au-")) return;
-    if (name === "au-self") { writing.step = "form"; writing.failure = undefined; return draw("au"); }
-    if (name === "au-redraft") { writing.step = "ask"; writing.failure = undefined; return draw("au"); }
-    if (name === "au-draft") {
-      writing.busy = "draft"; draw();
-      await draft(writing, project);
-      writing.busy = undefined;
-      if (view.authoring === writing) draw(writing.failure ? "au-failure" : "au");
-      return;
-    }
-    if (name === "au-applies") { writing.fields.applies_to = value as typeof writing.fields.applies_to; return draw("au-applies"); }
-    if (name === "au-scope") { writing.scope = value as SkillScope; return draw("au-scope"); }
-    if (name === "au-save") { await commit(); return; }
-    if (name === "au-drop") { view.authoring = undefined; pending = undefined; return draw("detail"); }
-    if (name === "au-leave-stay") { writing.leave = false; pending = undefined; return draw("au"); }
-    if (name === "au-leave-drop") { const go = pending; view.authoring = undefined; pending = undefined; draw(); return go?.(); }
-    if (name === "au-leave-save") { const go = pending; if (await commit()) { pending = undefined; go?.(); } }
+    if (await skill.start(name, value, origin) || await skill.inDetail(name, value)) return;
+    if (view.asking && name.startsWith("au-")) return fromSentence(name, value);
+    if (view.workshop) return turns.run(view.workshop, name, value);
   }
 
   /**
-   * Before any other action of the page while the form is open: unsaved work holds it (the bar above the form asks once, and what
-   * the person was going to do waits for the answer); a form with nothing unsaved is simply left.
+   * Before any other action of the page: the sentence before a new Skill is simply left; an open draft is saved first (it is kept
+   * as written, so leaving it loses nothing) and then left.
    */
   function holds(name: string, go: () => void): boolean {
-    const writing = view.authoring;
-    if (!writing || name.startsWith("au-")) return false;
-    if (writing.busy === "save") return true;
-    if (isDirty(writing)) { pending = go; writing.leave = true; draw("au-leave"); return true; }
-    view.authoring = undefined;
-    return false;
+    if (name.startsWith("au-") || name.startsWith("sk-") || name.startsWith("skill-")) return false;
+    if (view.asking && !view.asking.busy) view.asking = undefined;
+    if (!view.workshop) return false;
+    void edit.flush().then(ok => { if (!ok) return; view.workshop = undefined; go(); });
+    return true;
   }
 
-  function focus(body: HTMLElement, where?: string): void {
-    if (!where?.startsWith("au")) return;
-    const form = body.querySelector<HTMLElement>("[data-au]");
-    (form?.querySelector<HTMLElement>(where === "au-leave" ? "[data-au-leave]" : where === "au-error" ? '[aria-invalid="true"]' : where === "au-failure" ? ".au-failure"
-      : where === "au-applies" || where === "au-scope" ? `[data-kit-act="${where}"][aria-pressed="true"]` : "[data-au-field]") ?? form?.querySelector<HTMLElement>("#au-title"))?.focus();
+  /** A draft named in the address (a receipt's 「打开草稿」 link) opens once the page has read the kit. */
+  async function fromAddress(): Promise<void> {
+    c.drafts = await listDrafts(project, true).catch(() => []);
+    // Inside the workbench's settings the page's own address is kept on the panel it was loaded into, not in the location.
+    const holder = root.closest<HTMLElement>("[data-settings-search]"), asked = new URLSearchParams(holder ? holder.dataset.settingsSearch : location.search);
+    const named = asked.get("draft");
+    if (!named) return draw();
+    asked.delete("draft");
+    if (holder) holder.dataset.settingsSearch = asked.size ? `?${asked}` : "";
+    else { const url = new URL(location.href); url.searchParams.delete("draft"); history.replaceState(history.state, "", url); }
+    await edit.openDraft(named).catch(cause => { draw(); say(messageOf(cause), "danger"); });
   }
 
-  root.addEventListener("input", event => {
-    const target = event.target as HTMLInputElement | HTMLTextAreaElement;
-    if (view.authoring && target.dataset?.auField) typed(view.authoring, target, root, limits);
-  });
-  root.addEventListener("submit", event => { if ((event.target as Element).matches("[data-au]")) event.preventDefault(); });
-  // Escape on the leave bar is 「接着写」.
-  root.addEventListener("keydown", event => {
-    if (event.key !== "Escape" || !view.authoring?.leave || !(event.target as Element).closest?.("[data-au-leave]")) return;
-    event.preventDefault(); event.stopPropagation();
-    void run("au-leave-stay", undefined, root);
-  });
-  const beforeUnload = (event: BeforeUnloadEvent) => {
-    // The settings keep a section's page while another is shown, with the form as it was; only the page on screen holds the window.
-    if (root.isConnected && view.authoring && isDirty(view.authoring)) event.preventDefault();
+  return {
+    run, holds, focus: focusIn, decorate: skill.decorate, fromAddress,
+    strip: () => draftsStrip(c.drafts),
+    asking: () => view.asking && askingMarkup(view.asking, c.limits, Boolean(project)),
+    workshop: () => view.workshop && workshopMarkup(view.workshop, c.limits),
   };
-  addEventListener("beforeunload", beforeUnload);
-
-  return { isMine, run, holds, focus, markup: () => view.authoring && authoringMarkup(view.authoring, limits, Boolean(project)) };
 }

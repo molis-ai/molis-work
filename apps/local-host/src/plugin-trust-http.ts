@@ -1,4 +1,4 @@
-import { skillAuthoringActions, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
+import { skillAuthoringActions, skillDraftActions, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -64,16 +64,16 @@ export async function handlePluginTrustHttp(request: IncomingMessage, response: 
         if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人导入技能");
         return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, route.endsWith("/preview") ? skillImportActions.preview : skillImportActions.confirm, body) };
       }
-      // Writing a Skill of one's own (batch 41): the person's page alone, as importing is. Removing asks the settings door's entry, since
+      // Writing a Skill of one's own (batch 41) and adopting a draft of one (batch 42): the person's page alone, as importing is. Removing asks the settings door's entry, since
       // taking the last one away takes the package off (S-94).
-      if (route === "skills/authored/save" || route === "skills/authored/draft" || route === "skills/authored/remove") {
+      if (route === "skills/drafts/adopt" || route === "skills/authored/draft" || route === "skills/authored/remove") {
         if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人写或删技能");
         if (route.endsWith("/remove")) {
           const { capability_id, version } = skillAuthoringActions.remove, entered = await personContext();
           return { status: 200, body: await withPluginPermissionSettingsEntry(entered, entry =>
             client.invoke(entry, { capability_id, version, provider_id: PLUGIN_INSTALL_PROVIDER_ID }, body)) as object };
         }
-        return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, route.endsWith("/save") ? skillAuthoringActions.save : skillAuthoringActions.draft, body) };
+        return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, route.endsWith("/adopt") ? skillDraftActions.adopt : skillAuthoringActions.draft, body) };
       }
       if (route === "bundled/list") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.bundled, {}) };
       if (route === "install/preview") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.preview, body) };

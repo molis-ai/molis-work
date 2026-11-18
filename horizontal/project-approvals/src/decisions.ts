@@ -108,7 +108,7 @@ export function projectReviewDecisions(db: SqliteDatabase, projectId: string) {
     },
     sameRequest,
     commit(input: TrustedReviewCommand, person: Person, frozenChoice: unknown, review: Pick<ProjectTrustedDecision, "publisher_signature" | "review" | "presentation">,
-      at: string, assertCurrent: () => void, originalId: string = randomUUID()) {
+      at: string, assertCurrent: () => void, originalId: string = randomUUID(), onPrepared?: (record: ProjectTrustedDecision) => void) {
       if (!db.inTransaction || person.source.kind !== "person" || person.actor_id !== person.source.actor_id
         || !person.actor_id.trim() || !person.source.entry.conversation_ref.trim() || !person.source.entry.message_ref.trim()
         || !["web", "management"].includes(person.source.entry.source)) {
@@ -126,10 +126,36 @@ export function projectReviewDecisions(db: SqliteDatabase, projectId: string) {
         choice_fingerprint: fingerprint(input, person.actor_id, frozenChoice), publisher_signature: review.publisher_signature, review: review.review,
         ...(review.presentation ? { presentation: review.presentation } : {}),
       };
+      onPrepared?.(record);
       db.prepare(`INSERT INTO project_review_decisions
         (decision_id, project_id, request_id, request_key, record_json, recorded_at) VALUES (?, ?, ?, ?, ?, ?)
       `).run(record.decision_id, projectId, input.reference.id, input.request_key, canonicalJsonText(record, "null"), at);
       requireSynchronous(assertCurrent());
+      return { record, replayed: false };
+    },
+    /** A durable recovery applies the exact record the acceptance side committed, without re-running the business action. */
+    restore(record: ProjectTrustedDecision) {
+      if (!db.inTransaction || record.reference.owner.project_id !== projectId || !record.reference.id.trim() || !record.decision_id.trim() || !record.request_key.trim()
+        || !record.actor_id.trim() || !record.decided_at.trim() || record.source.kind !== "person" || record.source.actor_id !== record.actor_id
+        || !record.source.entry.conversation_ref.trim() || !record.source.entry.message_ref.trim()
+        || !["web", "management"].includes(record.source.entry.source) || !record.publisher_signature.trim()) {
+        throw new ActionError("actions.forbidden", "恢复的项目决定缺少原项目、本人或入口凭据");
+      }
+      const coverage = assertProjectReviewCoverage(record.review, record.reference.owner);
+      assertFrozenProjectReview(record.presentation, coverage, record.decision, record.actor_id);
+      const body = canonicalJsonText(record, "null");
+      const byId = db.prepare<[string, string], DecisionRow>("SELECT record_json FROM project_review_decisions WHERE project_id = ? AND decision_id = ?")
+        .get(projectId, record.decision_id);
+      if (byId) {
+        if (byId.record_json !== body) throw new ActionError("actions.conflict", "原决定编号已有不同内容");
+        return { record: JSON.parse(byId.record_json) as ProjectTrustedDecision, replayed: true };
+      }
+      const byRequest = db.prepare<[string, string, string], DecisionRow>(`SELECT record_json FROM project_review_decisions
+        WHERE project_id = ? AND (request_id = ? OR request_key = ?)`).all(projectId, record.reference.id, record.request_key);
+      if (byRequest.length) throw new ActionError("actions.conflict", "原决定请求已经有另一条记录");
+      db.prepare(`INSERT INTO project_review_decisions
+        (decision_id, project_id, request_id, request_key, record_json, recorded_at) VALUES (?, ?, ?, ?, ?, ?)
+      `).run(record.decision_id, projectId, record.reference.id, record.request_key, body, record.decided_at);
       return { record, replayed: false };
     },
   };

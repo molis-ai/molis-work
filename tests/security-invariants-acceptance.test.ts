@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { HomeConsentLedger, LocalMcpServer } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, LocalMcpServer, recoverAcceptanceCommits } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { ACCEPTANCE_DECIDE_PERMISSION, ACCEPTANCE_PROVIDER_ID, ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_REPORT_PERMISSION, acceptanceActions, acceptanceRequestId, type AcceptanceReadResult, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
+import { openAcceptance } from "@molis-ai/molis-work-module-acceptance";
 import { projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
 import { backgroundPlugin, backgroundRig } from "./fixtures/home-background-plugin.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
@@ -34,6 +37,13 @@ async function rig(t: Parameters<typeof backgroundRig>[0]) {
   const read = async () => (await call<AcceptanceReadResult>(person(a.project_id), acceptanceActions.read, { subjects: [SUBJECT] })).views[0]!;
   return { ...built, served, a, b, client, call, read };
 }
+
+test("APR-16: recovery with no pending intent does not create the acceptance library", { timeout: 60_000 }, async t => {
+  const { home, a, host } = await rig(t);
+  assert.equal(existsSync(join(home, "acceptance", "acceptance.db")), false, "the fixture has not used acceptance yet");
+  await recoverAcceptanceCommits(host, home, async id => id === a.project_id ? a : null, a.project_id);
+  assert.equal(existsSync(join(home, "acceptance", "acceptance.db")), false, "recovery must not create a library when there is nothing to recover");
+});
 
 test("S-acceptance-person-decides APR-15: only the person's own page call accepts or returns a requirement; an Agent, a workflow, an MCP client, a plugin and a call a plugin handed on are refused even holding the permission, and nothing is recorded", { timeout: 60_000 }, async t => {
   const { home, catalog, served, a, b, host, call, read } = await rig(t);
@@ -74,6 +84,9 @@ test("S-acceptance-person-decides APR-15: only the person's own page call accept
   ]);
   const storedDecision = await host.withProject(a, ({ store }) => projectReviewDecisions(store.db, a.project_id).findCommitted(committed.record.decision_id));
   assert.equal(storedDecision?.actor_id, LOCAL_PERSON_ACTOR_ID);
+  const noPendingIntent = openAcceptance(home);
+  try { assert.equal(noPendingIntent.service.pendingCommitIntents(a.project_id).length, 0, "a successful acceptance commit removes its durable intent"); }
+  finally { noPendingIntent.close(); }
   assert.equal(storedDecision?.source.entry.source, "management");
   // After a delivery only the person changes what is asked.
   await assert.rejects(call(agent(a.project_id), acceptanceActions.set, { subject: SUBJECT, requirements: [{ ...REQUIREMENTS[0]!, statement: "随便" }, REQUIREMENTS[1]!] }), code("acceptance.requirements_fixed"));
@@ -272,4 +285,36 @@ test("S-acceptance-person-decides APR-15 APR-16: same ReviewReference across Ass
   assert.equal(historyRes.status, 200);
   const historyRows = ((await historyRes.json()) as { rows: Array<{ id: string; person: string }> }).rows;
   assert.ok(historyRows.some(row => row.id === v1Committed.record.decision_id && row.person === LOCAL_PERSON_ACTOR_ID));
+});
+
+test("APR-15: an acceptance decision whose project commit did not land is recovered once from its durable commit intent", { timeout: 60_000 }, async t => {
+  const { home, a, host, call } = await rig(t);
+  await call(agent(a.project_id), acceptanceActions.set, { subject: SUBJECT, requirements: REQUIREMENTS });
+  await call(agent(a.project_id), acceptanceActions.deliver, { subject: SUBJECT, version: "v1" });
+  const owner = { kind: "system" as const, scope: "project" as const, project_id: a.project_id, provider_id: ACCEPTANCE_PROVIDER_ID };
+  const record: ProjectTrustedDecision = {
+    decision_id: "recovery-decision",
+    reference: { owner: { ...owner, kind: "trusted-decision" as const }, id: "recovery-request", version: "v1" },
+    decision: "accept:r1", note: null, decided_at: "2026-11-17T00:00:00.000Z", actor_id: LOCAL_PERSON_ACTOR_ID,
+    source: { kind: "person", actor_id: LOCAL_PERSON_ACTOR_ID, entry: { source: "web", conversation_ref: "web:recovery", message_ref: "web:recovery" } },
+    request_key: "recovery-key", choice_fingerprint: "a".repeat(64), publisher_signature: `system:${ACCEPTANCE_PROVIDER_ID}`,
+    review: { target: { owner, subject: { kind: "acceptance_subject", id: "recovery" }, version: "v1" }, requirements: [] },
+  };
+  const opened = openAcceptance(home);
+  try {
+    opened.service.decide({ project_id: a.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, person: true, session: null },
+      { subject: SUBJECT, version: "v1", accepts: [{ id: "r1", version: 1 }], returns: [] }, record.decision_id,
+      (_view, recordIntent) => recordIntent(record));
+    assert.equal(opened.service.pendingCommitIntents(a.project_id).length, 1, "the acceptance transaction keeps the platform record as an intent");
+  } finally { opened.close(); }
+  assert.equal(await host.withProject(a, ({ store }) => projectReviewDecisions(store.db, a.project_id).findCommitted(record.decision_id)), null,
+    "the simulated project commit failure leaves the platform record missing");
+  await recoverAcceptanceCommits(host, home, async id => id === a.project_id ? a : null, a.project_id);
+  const restored = await host.withProject(a, ({ store }) => projectReviewDecisions(store.db, a.project_id).findCommitted(record.decision_id));
+  assert.equal(restored?.decision_id, record.decision_id);
+  const after = openAcceptance(home);
+  try { assert.equal(after.service.pendingCommitIntents(a.project_id).length, 0, "the intent is removed after the idempotent restore"); }
+  finally { after.close(); }
+  await recoverAcceptanceCommits(host, home, async id => id === a.project_id ? a : null, a.project_id);
+  assert.equal(await host.withProject(a, ({ store }) => projectReviewDecisions(store.db, a.project_id).count()), 1, "a second recovery does not duplicate the decision");
 });

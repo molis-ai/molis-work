@@ -41,8 +41,8 @@ function choiceCommands(page: Page): CommandItem[] {
   const { readText, q, refs, s } = page, open = !shut(page), held = counts(page), context = q("[data-coding-context]");
   return [
     { slash: "materials", label: counted(readText("coding.attach.material"), held.materials), hint: readText("coding.palette.materials-hint"), keywords: ["引用", "材料", "资料", "reference"], adds: "paperclip", enabled: open, run: () => openMaterials(page) },
-    { slash: "character", label: held.character ? readText("coding.attach.character") + " · v" + held.character.version : readText("coding.attach.character"),
-      hint: held.character ? readText("coding.character.next", { title: s.characterTitles.get(s.current) || held.character.artifact_id, version: held.character.version }) : readText("coding.character.none-next"),
+    { slash: "character", label: held.character ? readText("coding.attach.character") + " · " + (s.characterTitles.get(s.current) || "") : readText("coding.attach.character"),
+      hint: held.character ? readText("coding.character.next", { title: s.characterTitles.get(s.current) || "" }) : readText("coding.character.none-next"),
       keywords: ["character", "角色"], adds: "user", enabled: open, run: () => refs.openCharacter() },
     { slash: "methods", label: counted(readText("coding.attach.method"), held.methods), hint: readText("coding.palette.methods-hint"), keywords: ["skill", "技能"], adds: "list", enabled: open, run: () => openMethods(page) },
     { slash: "actions", label: counted(readText("coding.attach.actions"), held.actions), hint: readText("coding.actions.label"), keywords: ["action", "动作", "能力"], adds: "workflow", enabled: open, run: () => refs.openActions() },

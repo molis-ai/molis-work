@@ -142,13 +142,117 @@ export declare const CHARACTER_PLUGIN_ID = "io.molis.work.characters";
 
 export declare const CHARACTER_PUBLISHER_SIGNATURE = "official-characters-binding";
 
+export declare const CHARACTER_ROLE_CATALOG_SCHEMA: ActionSchema;
+
+export declare const CHARACTER_ROLE_CONTENT_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly title: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 120;
+        };
+        readonly instructions: {
+            readonly type: "string";
+            readonly maxLength: 20000;
+        };
+        readonly host_tools: {
+            readonly anyOf: readonly [{
+                readonly type: "array";
+                readonly maxItems: 100;
+                readonly items: {
+                    readonly type: "string";
+                    readonly pattern: "^[a-z][a-z0-9-]{0,79}$";
+                };
+            }, {
+                readonly type: "null";
+            }];
+        };
+        readonly action_tools: {
+            readonly anyOf: readonly [{
+                readonly type: "array";
+                readonly maxItems: 100;
+                readonly items: {
+                    readonly required: readonly ["capability_id", "version", "provider_id"];
+                    readonly type: "object";
+                    readonly properties: {
+                        readonly capability_id: {
+                            readonly type: "string";
+                            readonly minLength: 1;
+                        };
+                        readonly version: {
+                            readonly type: "integer";
+                            readonly minimum: 1;
+                        };
+                        readonly provider_id: {
+                            readonly type: "string";
+                            readonly minLength: 1;
+                        };
+                    };
+                    readonly additionalProperties: false;
+                };
+            }, {
+                readonly type: "null";
+            }];
+        };
+        readonly import_snapshot: {
+            readonly type: "object";
+        };
+    };
+    readonly required: readonly ["title", "instructions", "host_tools"];
+    readonly additionalProperties: false;
+};
+
 export declare const CHARACTER_ROLE_READ_INPUT_SCHEMA: Readonly<Record<string, unknown>>;
 
 export declare const CHARACTER_ROLE_READ_OUTPUT_SCHEMA: ActionSchema;
 
 export declare const CHARACTER_ROLE_READ_RESULT_SCHEMA: ActionSchema;
 
+export declare const CHARACTER_ROLE_SCHEMAS: {
+    readonly list: {
+        readonly input: Readonly<Record<string, unknown>>;
+        readonly output: Readonly<Record<string, unknown>>;
+    };
+    readonly versions: {
+        readonly input: Readonly<Record<string, unknown>>;
+        readonly output: ActionSchema;
+    };
+    readonly memberAdd: {
+        readonly input: Readonly<Record<string, unknown>>;
+        readonly output: ActionSchema;
+    };
+    readonly memberSave: {
+        readonly input: Readonly<Record<string, unknown>>;
+        readonly output: ActionSchema;
+    };
+    readonly memberSection: {
+        readonly input: Readonly<Record<string, unknown>>;
+        readonly output: ActionSchema;
+    };
+    readonly memberState: {
+        readonly input: Readonly<Record<string, unknown>>;
+        readonly output: ActionSchema;
+    };
+    readonly restore: {
+        readonly input: Readonly<Record<string, unknown>>;
+        readonly output: ActionSchema;
+    };
+    readonly defaults: {
+        readonly input: Readonly<Record<string, unknown>>;
+        readonly output: ActionSchema;
+    };
+    readonly resolve: {
+        readonly input: Readonly<Record<string, unknown>>;
+        readonly output: ActionSchema;
+    };
+};
+
+export declare const CHARACTER_ROLE_SNAPSHOT_SCHEMA: ActionSchema;
+
 export declare const CHARACTER_ROLE_VERSION_REF_SCHEMA: ActionSchema;
+
+export declare const CHARACTER_TASK_SELECTION_SCHEMA: ActionSchema;
 
 export declare const CHARACTER_TEMPLATE_ADOPTION_INPUT_SCHEMA: Readonly<Record<string, unknown>>;
 
@@ -173,6 +277,13 @@ export type CharacterDefaultSelection = {
 } | {
     layer: "project";
     selection: ProjectCharacterMemberRef | {
+        kind: "assistant";
+    } | null;
+};
+
+export type CharacterDefaults = {
+    personal: PersonalCharacterRef | null;
+    project: ProjectCharacterMemberRef | {
         kind: "assistant";
     } | null;
 };
@@ -245,6 +356,76 @@ export interface CharacterImportSnapshot {
     skills: CharacterImportSkill[];
 }
 
+export type CharacterImportedSkillEntry = {
+    id: string;
+    name: string;
+    compatibility: "portable" | "native-only";
+    reason?: string;
+};
+
+export type CharacterMemberAddInput = {
+    character_id: string;
+};
+
+export type CharacterMemberEntry = CharacterRoleTools & {
+    role: Extract<CharacterRole, {
+        layer: "project";
+    }>;
+    title: string;
+    availability: CharacterRoleAvailability;
+};
+
+export type CharacterMemberResult = {
+    role: ProjectRole;
+};
+
+export type CharacterMemberSaveInput = {
+    member_id: string;
+    expected_revision: string;
+    expected_original_version: number;
+    work_style?: {
+        instructions: string;
+    };
+    capabilities?: Pick<CharacterRoleContent, "host_tools" | "action_tools">;
+};
+
+export type CharacterMemberSectionInput = {
+    member_id: string;
+    section: CharacterRoleSection;
+    expected_revision: string;
+    expected_original_version: number;
+    to: "follow" | "keep";
+};
+
+export type CharacterMemberStateInput = {
+    member_id: string;
+    expected_revision: string;
+    state: "active" | "disabled" | "removed";
+};
+
+export type CharacterOriginalEntry = CharacterRoleTools & {
+    ref: PersonalCharacterRef;
+    title: string;
+    state: "active" | "disabled";
+    draft_revision: number;
+    version: number | null;
+    origin: BlueprintPartOrigin | null;
+    use: {
+        projects: number;
+        changed: number;
+    };
+    availability: CharacterRoleAvailability;
+};
+
+export type CharacterRestoreInput = {
+    version: PersonalCharacterVersionRef;
+    expected_revision: number;
+} | {
+    version: ProjectCharacterVersionRef;
+    expected_revision: string;
+    expected_original_version: number;
+};
+
 export type CharacterRole = {
     layer: "personal";
     state: "active" | "disabled";
@@ -259,6 +440,31 @@ export type CharacterRole = {
     origin: BlueprintPartOrigin | null;
     sections: Record<CharacterRoleSection, CharacterSectionStatus>;
 };
+
+export type CharacterRoleAvailability = {
+    available: true;
+} | {
+    available: false;
+    reason: CharacterRoleUnavailable;
+};
+
+export interface CharacterRoleCatalog {
+    in_project: boolean;
+    originals: CharacterOriginalEntry[];
+    members: CharacterMemberEntry[];
+    defaults: CharacterDefaults;
+    effective: EffectiveCharacterSelection;
+}
+
+export interface CharacterRoleContent {
+    title: string;
+    instructions: string;
+    host_tools: string[] | null;
+    action_tools?: ExactActionReference[] | null;
+    import_snapshot?: CharacterImportSnapshot;
+}
+
+export type CharacterRoleListInput = Record<string, never>;
 
 export type CharacterRoleReadInput = {
     queries: CharacterRoleReadQuery[];
@@ -288,7 +494,35 @@ export type CharacterRoleReadResult = {
     current: CharacterRole | null;
 };
 
+export type CharacterRoleResolution = {
+    effective: EffectiveCharacterSelection;
+    selection: CharacterTaskSelection;
+    title?: string;
+};
+
+export type CharacterRoleResolveInput = {
+    selection?: CharacterTaskSelection;
+};
+
 export type CharacterRoleSection = "work_style" | "capabilities";
+
+export type CharacterRoleSnapshot = CharacterRoleContent & {
+    version: CharacterRoleVersionRef;
+    character_id: string;
+    project_id: string | null;
+    owner_actor_id: string;
+    saved_at: string;
+};
+
+export type CharacterRoleUnavailable = "disabled" | "original_disabled" | "unsaved";
+
+export type CharacterRoleVersionEntry = {
+    ref: CharacterRoleVersionRef;
+    saved_at: string;
+    content: CharacterRoleContent;
+    current: boolean;
+    sections?: Record<CharacterRoleSection, "follow" | "override">;
+};
 
 export type CharacterRoleVersionRef = PersonalCharacterVersionRef | ProjectCharacterVersionRef;
 
@@ -314,8 +548,12 @@ export type CharacterTemplateAdoptionResult = {
     role: CharacterRole;
 };
 
+export type CharacterVersionsReadInput = {
+    role: PersonalCharacterRef | ProjectCharacterMemberRef;
+};
+
 export interface CharactersCommand {
-    create(): CharacterDraft;
+    create(patch: CharacterDraftPatch): CharacterDraft;
     update(characterId: string, expectedRevision: number, patch: CharacterDraftPatch): CharacterDraft;
     setState(characterId: string, expectedRevision: number, state: CharacterState): CharacterDraft;
 }
@@ -461,24 +699,27 @@ export declare const characterErrors: import("platform/action-errors").ErrorCode
     readonly invalid: "invalid";
 }>;
 
-export declare const characterPluginActions: {
-    readonly list: ActionDefinition<Record<string, never>, {
-        drafts: unknown[];
-        publications: unknown[];
-    }>;
-    readonly runnable: ActionDefinition<{
-        reference: ArtifactReference;
-    }, {
-        available: true;
-    } | {
-        available: false;
-        reason: string;
-    }>;
-};
-
 export declare const characterRoleActions: {
     fromTemplate: ActionDefinition<CharacterTemplateAdoptionInput, CharacterTemplateAdoptionResult>;
     read: ActionDefinition<CharacterRoleReadInput, CharacterRoleReadOutput>;
+    list: ActionDefinition<CharacterRoleListInput, CharacterRoleCatalog>;
+    resolve: ActionDefinition<CharacterRoleResolveInput, CharacterRoleResolution>;
+    versions: ActionDefinition<CharacterVersionsReadInput, {
+        versions: CharacterRoleVersionEntry[];
+    }>;
+    memberAdd: ActionDefinition<CharacterMemberAddInput, CharacterMemberResult>;
+    memberSave: ActionDefinition<CharacterMemberSaveInput, CharacterMemberResult>;
+    memberSection: ActionDefinition<CharacterMemberSectionInput, CharacterMemberResult>;
+    memberState: ActionDefinition<CharacterMemberStateInput, {
+        role: CharacterMemberResult["role"] | null;
+    }>;
+    restore: ActionDefinition<CharacterRestoreInput, {
+        role: CharacterRole;
+    }>;
+    defaults: ActionDefinition<CharacterDefaultSelection, {
+        defaults: CharacterDefaults;
+        effective: EffectiveCharacterSelection;
+    }>;
 };
 
 export declare const modulesCharactersContract: {
@@ -498,6 +739,10 @@ export declare function parseCharacterTools(value: unknown): string[] | null;
 export declare function selectCharacterImportSnapshot(value: unknown, selection: CharacterImportSelection): CharacterImportSnapshot;
 
 // Declarations the exports above refer to, which no entry exports itself:
+
+type CharacterRoleTools = Pick<CharacterRoleContent, "host_tools" | "action_tools"> & {
+    imported_skills?: CharacterImportedSkillEntry[];
+};
 
 type CharacterTemplateRequest = {
     origin: BlueprintPartOrigin;
@@ -525,3 +770,7 @@ type CharacterTemplateSelection<Template> = {
         expected_original_version: number;
     };
 };
+
+type ProjectRole = Extract<CharacterRole, {
+    layer: "project";
+}>;

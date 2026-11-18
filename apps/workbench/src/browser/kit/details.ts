@@ -133,7 +133,16 @@ export function entryDetail(kit: Kit, entry: KitEntry, pack: KitPack): string {
   return "";
 }
 
-/** What the kit keeps of a Skill beside 08's block: its usage counted, where it applies, its version. */
+const ENTRY_WORD = { assistant: "workbench.common.assistant", coding: "workbench.settings-skills.coding", agent: "workbench.settings-skills.agent" } as const;
+
+/** Of a Skill's kept uses in this scope, how many each entry made, across the versions kept (batch 42); not a per-version proof. */
+function usesByEntry(entry: KitEntry): string {
+  const uses = entry.kind === "skill" ? entry.skill.recent_uses : undefined;
+  const rows = uses ? (Object.keys(ENTRY_WORD) as Array<keyof typeof ENTRY_WORD>).filter(caller => uses[caller]) : [];
+  return rows.length ? note(rows.map(caller => `${readText(ENTRY_WORD[caller])} · ${readText("workbench.kit.recent-uses", { n: uses![caller]! })}`).join("　")) : "";
+}
+
+/** What the kit keeps of a Skill beside 08's block: its usage counted (and by which entry), where it applies, its version. */
 export function skillOuter(entry: KitEntry): string {
-  return `<section class="kit-outer" aria-label="${esc(readText("workbench.kit.extras"))}"><h4>${esc(readText("workbench.kit.extras"))}</h4>${usageBlock(entry, false)}${entry.where.length ? whereBlock(entry) : ""}${versionBlock(entry)}</section>`;
+  return `<section class="kit-outer" aria-label="${esc(readText("workbench.kit.extras"))}"><h4>${esc(readText("workbench.kit.extras"))}</h4>${usageBlock(entry, false)}${usesByEntry(entry)}${entry.where.length ? whereBlock(entry) : ""}${versionBlock(entry)}</section>`;
 }

@@ -20,6 +20,8 @@ export declare function assertMaterialRef(value: unknown): asserts value is Mate
 
 export declare function assertSurfaceDescription(value: unknown, candidates: SurfaceDescription): CheckedSurfaceDescription;
 
+export declare function isItemPart(action: unknown, part: WorkItemPart, kind: string): boolean;
+
 export declare function isPresentationOverviewReader(action: unknown): boolean;
 
 export declare function isPresentationValuesReader(action: unknown): boolean;

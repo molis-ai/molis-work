@@ -16,6 +16,7 @@ import type { AgentMemoryCaller, AgentMemorySourceRef } from "@molis-ai/molis-wo
 import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { charactersActions } from "@molis-ai/molis-work-module-characters";
+import { characterRoleActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { openTestHome, serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 import { connectorAssistantModel, untilSetup } from "./fixtures/connector-assistant-model.js";
 
@@ -71,10 +72,9 @@ test(`MEM-A3: ${scenario} public project deletion stays forgotten after restorin
     let characterMemory: MemoryItem | undefined, characterCandidate: string | undefined;
     let characterSources: AgentMemorySourceRef[] = [];
     if (scenario === "physical-pending") {
-      const draft = (await actions().invoke(charactersActions.create, {})).draft;
-      const edited = (await actions().invoke(charactersActions.update, { id: draft.character_id, expected_revision: draft.revision,
-        title: "审稿角色", instructions: "审稿时先核对证据。", host_tools: null, action_tools: null })).draft;
-      const published = await actions().invoke(charactersActions.publish, { id: edited.character_id, expected_revision: edited.revision });
+      // The person's role, saved as its first version and added to this project (role-service-design §2).
+      const draft = (await actions().invoke(charactersActions.create, { title: "审稿角色", instructions: "审稿时先核对证据。", host_tools: null, action_tools: null })).draft;
+      const member = (await actions().invoke(characterRoleActions.memberAdd, { character_id: draft.character_id })).role.current;
       const characterText = "审稿时先核对引文，再列出风险";
       const write = MemoryService.prototype.write;
       t.mock.method(MemoryService.prototype, "write", async function(this: MemoryService, ...args: Parameters<MemoryService["write"]>) {
@@ -95,9 +95,9 @@ test(`MEM-A3: ${scenario} public project deletion stays forgotten after restorin
         return "已经记下。";
       }, undefined, host!.configurePersonalPlanning(env.home, withMolisWorkProjectCatalog));
       const sent = await web!.web.post<AssistantSendResult>(`/projects/${project.project_id}/api/assistant/send`, {
-        text: characterText, request_id: randomUUID(), character: published.reference });
+        text: characterText, request_id: randomUUID(), character: { kind: "project", member_id: member.member_id } });
       await untilSetup(async () => (await web!.web.get<AssistantWorkView>(`/projects/${project.project_id}/api/assistant/works/${sent.work.work_id}`)).work.state === "completed" ? true : undefined,
-        "the published Character's actual Assistant remember Run completes");
+        "the project role's actual Assistant remember Run completes");
       assert.ok(characterMemory?.memory_id); assert.ok(characterCandidate); assert.equal(characterSources.length, 1);
       assert.equal((await actions().invoke(memoryActions.list, { scope: "character" })).items.some(one => one.memory_id === characterMemory!.memory_id), true);
       assert.equal((await actions().invoke(memoryActions.candidates, { scope: "all" })).candidates.some(one => one.candidate_id === characterCandidate), true);

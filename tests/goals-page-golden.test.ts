@@ -227,7 +227,7 @@ const pages: Record<string, Draw> = {
 // Screen polish P0 (the next wing shows whole events only): the shell's work line no longer marks its next run ` data-overflow-fade`
 // (−19 characters, once, in each of the 16 page-* records). Each of the 16 drawn pages, with only that attribute put back, has its old
 // hash and length exactly; the other 36 records did not change. Checked again on the merges of main 6359987103 (batch 34's records)
-// and a717e44284 (batch 39's), and the 16 recorded there with MOLIS_WORK_GOLDEN_RECORD=1.
+// and of a717e44284 and bdfcc36454 after it, and the 16 recorded there with MOLIS_WORK_GOLDEN_RECORD=1.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

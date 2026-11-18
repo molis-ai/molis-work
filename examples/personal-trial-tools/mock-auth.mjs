@@ -16,6 +16,11 @@ export function createTrialAuthPeer({configuration,user=()=> 'local-personal-tri
  const fetcher=async(input,init={})=>{
   const url=new URL(String(input)),config=configuration(),headers=new Headers(init.headers),body=init.body?JSON.parse(String(init.body)):{};
   const path=url.pathname,method=init.method??'GET',credential=headers.get('authorization')?.replace(/^Bearer /,''),active=tokens.get(credential);
+  if(path==='/api/v2/auth/capabilities'){
+   if(method!=='GET')return json('METHOD_NOT_ALLOWED',405);
+   if(url.searchParams.get('clientId')!==config.clientId)return json('INVALID_CLIENT',400);
+   return json({methods:['ACCOUNT_PASSWORD']});
+  }
   if(path==='/api/v2/auth/transactions'||path==='/api/v2/users/me/reauthentications'){
    if(body.clientId!==config.clientId||body.redirectUri!==config.redirectAllowlist[0])return json('INVALID_CLIENT',400);
    if(path.includes('/users/me/')&&!active)return json('SESSION_EXPIRED',401);

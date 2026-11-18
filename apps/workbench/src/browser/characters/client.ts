@@ -1,250 +1,237 @@
+import type { CharacterRoleCatalog, CharacterRoleVersionEntry } from "@molis-ai/molis-work-contracts/modules/characters";
 import { characterActionClient, type ActionClient } from "./action-client.js";
 import { renderBuiltinRoles } from "./builtin.js";
-import {
-  el, latestActive, messageOf, pageRequest, partsOf, readableContent,
-  type CharacterContent, type CharacterPublication, type CharacterRecord, type FindPart, type Method, type Part, type StoredDraft,
-} from "./common.js";
-import { readStoredDrafts, writeStoredDrafts } from "./drafts.js";
+import { messageOf, pageRequest, partsOf, type CharacterRecord, type Method, type Part } from "./common.js";
+import { RoleDrawer } from "./drawer.js";
 import { characterImportClient, type ImportClient } from "./import-client.js";
-import { renderList, renderVersions } from "./list.js";
 import { startCharacterTerminal } from "./terminal.js";
+import { memberKey, personalBody, projectBody, type PageUi } from "./view.js";
 
 const uiText = globalThis.t;
+const say = (key: string, values?: Record<string, string | number>): string => uiText.text(key, values);
 
-const EDIT_FIELDS = "[data-character-title], [data-character-instructions], [data-character-inherit], [data-character-tools]";
-const IMPORT_DIALOGS = "[data-character-import-dialog], [data-character-run-dialog]";
-type Control = HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement;
-
-/** Where the Character stands: its state, what is published, and whether the draft moved on since. */
-function statusOf(record: CharacterRecord, published: CharacterPublication | undefined): string {
-  if (record.state === "disabled") return uiText.text("workbench.characters.disabled");
-  if (record.state === "tombstoned") return uiText.text("workbench.characters.deleted");
-  if (!published) return uiText.text("workbench.characters.draft");
-  return uiText.text(published.payload.source?.draft_revision === record.revision ? "workbench.characters.published" : "workbench.characters.published-newer-draft", { version: published.version });
-}
-
-function draftNoteOf(record: CharacterRecord, local: StoredDraft | undefined): string {
-  if (!local) return uiText.text("workbench.characters.saved-publish-hint");
-  return record.revision !== local.expected_revision ? uiText.text("workbench.characters.updated-elsewhere") : uiText.text("workbench.characters.draft-restored");
-}
-
-/** Personal editing and exact project publication. No polling replaces an active editor. */
-class CharactersPage {
+/**
+ * The role page (plan C): project settings › 角色 and Settings › 角色 from one catalog read. Choosing defaults, adding, following
+ * again, turning off and every edit happen where they start: insets open under what opened them, the editor is a drawer over the page.
+ */
+class RolesPage {
   private readonly q: Part;
-  private readonly find: FindPart;
   private readonly api: string;
-  private readonly storageKey: string;
-  private readonly list: HTMLElement;
-  private readonly form: HTMLFormElement;
-  private readonly dialog: HTMLDialogElement;
-  private readonly imports: ImportClient;
+  private readonly scope: "project" | "personal";
+  private readonly body: HTMLElement;
   private readonly actions: ActionClient;
-  private records: CharacterRecord[] = [];
-  private publications: CharacterPublication[] = [];
-  private selected: string | null = null;
-  private revision = 0;
+  private readonly drawer: RoleDrawer;
+  private readonly imports: ImportClient;
+  private catalog: CharacterRoleCatalog | null = null;
+  private ui: PageUi = { add: false, menu: null, stopAsk: null, diff: null, flash: null };
   private busy = false;
-  private confirmation: (() => Promise<void>) | null = null;
-  private drafts: Record<string, StoredDraft>;
+  private importing: CharacterRecord | null = null;
 
-  constructor(private readonly root: HTMLElement) {
+  constructor(root: HTMLElement) {
     const { find, q } = partsOf(root);
-    this.find = find; this.q = q;
+    this.q = q;
     this.api = root.dataset.characterApi ?? "";
-    this.storageKey = "molis.characters.drafts:" + this.api;
-    this.list = q("list"); this.form = q<HTMLFormElement>("editor"); this.dialog = q<HTMLDialogElement>("dialog");
-    this.drafts = readStoredDrafts(this.storageKey);
-    this.imports = characterImportClient({ q, runtimeNames: JSON.parse(root.dataset.characterRuntimeNames ?? "{}") as Record<string, string>, request: this.request, current: () => this.current(), load: () => this.load(),
-      select: (id, focus) => this.select(id, focus), act: action => this.act(action), save: () => this.save(), dirty: () => this.dirty(), note: text => this.note(text) });
-    this.actions = characterActionClient({ q: find, request: this.request, changed: () => this.remember() });
+    this.scope = root.dataset.characterScope === "personal" ? "personal" : "project";
+    this.body = q("body");
+    this.actions = characterActionClient({ q: find, request: this.request, changed: () => this.drawer.changed() });
+    this.drawer = new RoleDrawer({ q, scope: this.scope, storage: "molis.characters.drafts:" + this.api, request: this.request, actions: this.actions, catalog: () => this.catalog,
+      reload: () => this.load(), note: text => this.note(text), landed: key => this.flash(key),
+      imported: (record, runnable) => { this.importing = record; this.imports.render(record); q("use-section").hidden = !runnable; } });
+    this.imports = characterImportClient({ q, runtimeNames: JSON.parse(root.dataset.characterRuntimeNames ?? "{}") as Record<string, string>, request: this.request,
+      current: () => this.importing ?? undefined, load: () => this.load(),
+      select: id => { if (id) void this.drawer.open({ kind: "original", id }, null); }, act: action => this.act(action),
+      save: async () => { await this.drawer.saveNow(); return this.importing!; }, dirty: () => this.drawer.isDirty(), note: text => this.note(text) });
   }
 
-  /** Listens, reads the system's roles and the actions catalog, and loads the drafts. */
   start(): void {
     this.bind();
-    void renderBuiltinRoles(this.q);
+    if (this.scope === "personal") void renderBuiltinRoles(this.q);
     void this.actions.refresh();
-    // The page renders 新建 and 导入 disabled; the first load's controls() enables them, so a click never lands before anything listens.
     void this.act(() => this.load());
   }
 
-  private request = <T>(method: Method, path: string, body?: unknown): Promise<T> => {
-    const send = pageRequest();
-    return send<T>(this.api + path, { method, body, fallback: uiText.text("workbench.characters.request-failed") });
-  };
+  private request = <T>(method: Method, path: string, body?: unknown): Promise<T> =>
+    pageRequest()<T>(this.api + path, { method, body, fallback: uiText.text("workbench.characters.request-failed") });
 
   private note(text: string): void { this.q("notice").textContent = text; }
-  private current(): CharacterRecord | undefined { return this.records.find(item => item.character_id === this.selected); }
-  private dirty(): boolean { return Boolean(this.selected && this.drafts[this.selected]); }
-
-  private values(): CharacterContent {
-    const { q } = this;
-    return { title: q<HTMLInputElement>("title").value, instructions: q<HTMLTextAreaElement>("instructions").value,
-      host_tools: q<HTMLInputElement>("inherit").checked ? null : q<HTMLInputElement>("tools").value.split(",").map(tool => tool.trim()).filter(Boolean),
-      action_tools: this.actions.value() };
-  }
-
-  // Session storage that cannot be written leaves the person to save before leaving.
-  private persist(): void {
-    if (!writeStoredDrafts(this.storageKey, this.drafts)) this.note(uiText.text("workbench.characters.draft-cache-unavailable"));
-  }
-
-  private remember(): void {
-    const { q } = this;
-    if (!this.selected || this.busy) return;
-    this.drafts[this.selected] = { ...this.values(), expected_revision: this.revision };
-    this.persist(); q("draft-note").textContent = uiText.text("workbench.characters.unsaved-local");
-    q("tools-field").hidden = q<HTMLInputElement>("inherit").checked;
-  }
-
-  private renderList(): void {
-    renderList({ list: this.list, empty: this.q("empty"), records: this.records, publications: this.publications, drafts: this.drafts,
-      selected: this.selected, open: id => { if (!this.busy) this.select(id); } });
-  }
-
-  private renderEditor(): void {
-    const { q } = this;
-    const record = this.current();
-    q("workspace").hidden = !record; this.root.dataset.expanded = record ? "true" : "false";
-    if (!record) { this.imports.render(null); return; }
-    const local = this.drafts[record.character_id], value: CharacterContent = local || record;
-    this.revision = local ? local.expected_revision : record.revision;
-    q<HTMLInputElement>("title").value = value.title; q<HTMLTextAreaElement>("instructions").value = value.instructions;
-    q<HTMLInputElement>("inherit").checked = value.host_tools === null; q<HTMLInputElement>("tools").value = (value.host_tools || []).join(", ");
-    q("tools-field").hidden = q<HTMLInputElement>("inherit").checked;
-    this.actions.render(value.action_tools);
-    q("heading").textContent = record.title;
-    q("status").textContent = statusOf(record, latestActive(this.publications, record.character_id));
-    q("toggle").textContent = record.state === "disabled" ? uiText.text("workbench.characters.enable") : uiText.text("workbench.characters.disable");
-    q("draft-note").textContent = draftNoteOf(record, local);
-    renderVersions(q("publications"), this.publications, this.selected, tools => this.actions.describe(tools), (publication, details) => this.imports.renderPublication(publication, details));
-    this.imports.render(record); this.controls();
-  }
-
-  private controls(): void {
-    const record = this.current();
-    this.root.querySelectorAll<Control>("button, input, textarea").forEach(element => { if (!element.closest(IMPORT_DIALOGS)) element.disabled = this.busy; });
-    if (record?.state === "tombstoned") this.form.querySelectorAll<Control>("button, input, textarea").forEach(element => { element.disabled = true; });
-    if (record?.state !== "active") this.q<HTMLButtonElement>("preview").disabled = true;
-    this.actions.controls(this.busy || record?.state === "tombstoned");
-  }
-
-  private select(id: string | null, focus = true): void {
-    const previous = this.selected;
-    this.selected = id; this.note(""); this.renderList(); this.renderEditor();
-    if (!focus) return;
-    // Opening a Character lands on its heading; going back lands on the row it came from.
-    requestAnimationFrame(() => {
-      if (id) this.find("heading")?.focus({ preventScroll: false });
-      else if (previous) this.list.querySelector<HTMLElement>('[data-character-id="' + CSS.escape(previous) + '"]')?.focus();
-      this.root.scrollIntoView?.({ block: "start" });
-    });
-  }
 
   private async load(): Promise<void> {
-    const result = await this.request<{ drafts: CharacterRecord[]; publications: CharacterPublication[] }>("GET", "/drafts");
-    this.records = result.drafts; this.publications = result.publications; this.renderList(); this.renderEditor();
+    this.catalog = await this.request<CharacterRoleCatalog>("GET", "/roles");
+    this.render();
   }
 
-  private async act(action: () => Promise<unknown>): Promise<void> {
+  /** Redraws the page body; the control that was used keeps focus (or `focus` names where it goes). */
+  private render(focus?: string): void {
+    if (!this.catalog) return;
+    const active = document.activeElement instanceof HTMLElement && this.body.contains(document.activeElement) ? document.activeElement : null;
+    const key = active?.dataset.rolesAct ? `[data-roles-act="${active.dataset.rolesAct}"][data-roles-arg="${CSS.escape(active.dataset.rolesArg ?? "")}"]`
+      : active?.dataset.rolesDefault ? `[data-roles-default="${active.dataset.rolesDefault}"]` : null;
+    this.body.innerHTML = this.scope === "project" ? projectBody(this.catalog, this.ui) : personalBody(this.catalog, this.ui);
+    this.body.removeAttribute("aria-busy");
+    const target = focus ?? key;
+    if (target) this.body.querySelector<HTMLElement>(target)?.focus({ preventScroll: true });
+    this.body.querySelectorAll<HTMLButtonElement | HTMLSelectElement>("button, select").forEach(control => { control.disabled = this.busy; });
+  }
+
+  private flash(key: string): void {
+    this.ui.flash = key;
+    setTimeout(() => { if (this.ui.flash === key) { this.ui.flash = null; this.body.querySelector(".roles-row.is-flash")?.classList.remove("is-flash"); } }, 900);
+  }
+
+  private async act(action: () => Promise<unknown>, focus?: string): Promise<void> {
     if (this.busy) return;
-    this.busy = true; this.controls();
-    try {
-      await action();
-    } catch (error) {
-      this.note(messageOf(error) || uiText.text("workbench.characters.failure-kept"));
-    } finally {
-      this.busy = false; this.controls();
+    this.busy = true; this.render();
+    // Controls are disabled while a change is in hand; one that takes a moment says so (not the first read, which shows its own line).
+    const pending = say("workbench.roles.working"), slow = this.catalog ? setTimeout(() => this.note(pending), 400) : undefined;
+    try { await action(); } catch (error) { this.note(messageOf(error) || say("workbench.characters.failure-kept")); }
+    finally {
+      clearTimeout(slow);
+      if (this.q("notice").textContent === pending) this.note("");
+      this.busy = false; this.render(focus);
     }
   }
 
-  private async save(): Promise<CharacterRecord> {
-    const id = this.selected;
-    if (id === null) throw new Error(uiText.text("workbench.characters.request-failed"));
-    const result = await this.request<{ draft: CharacterRecord }>("PUT", "/drafts/" + encodeURIComponent(id), { ...this.values(), expected_revision: this.revision });
-    delete this.drafts[id]; this.persist(); this.records = this.records.map(record => record.character_id === id ? result.draft : record); this.revision = result.draft.revision;
-    this.renderList(); this.renderEditor(); this.note(uiText.text("workbench.characters.draft-saved"));
-    return result.draft;
-  }
-
-  private confirm(title: string, description: string, content: string | Node[], label: string, action: () => Promise<void>): void {
-    const { q } = this;
-    this.confirmation = action; q("dialog-title").textContent = title; q("dialog-description").textContent = description;
-    const literal = typeof content === "string" ? el("span", content) : null;
-    if (literal) literal.translate = false;
-    q("dialog-content").replaceChildren(...(literal ? [literal] : typeof content === "string" ? [] : content)); q("confirm").textContent = label; this.dialog.showModal();
-  }
+  private member(id: string) { return this.catalog?.members.find(entry => memberKey(entry) === id); }
+  private original(id: string) { return this.catalog?.originals.find(entry => entry.ref.character_id === id); }
 
   private bind(): void {
-    const { q, form } = this;
-    const editable = (event: Event): void => { if (event.target instanceof Element && event.target.matches(EDIT_FIELDS)) this.remember(); };
-    form.addEventListener("input", editable);
-    form.addEventListener("change", editable);
-    form.addEventListener("submit", event => { event.preventDefault(); void this.act(() => this.save()); });
-    q("new").addEventListener("click", () => void this.act(() => this.createCharacter()));
-    q("back").addEventListener("click", () => { if (!this.busy) this.select(null); });
-    q("preview").addEventListener("click", () => void this.act(() => this.confirmPublish()));
-    q("toggle").addEventListener("click", () => this.confirmToggle());
-    q("delete").addEventListener("click", () => this.confirmDelete());
-    q("reload").addEventListener("click", () => this.confirmReload());
-    q("confirm").addEventListener("click", () => void this.act(async () => { if (this.confirmation) await this.confirmation(); }));
-    this.dialog.addEventListener("close", () => { this.confirmation = null; });
-  }
-
-  private async createCharacter(): Promise<void> {
-    const result = await this.request<{ draft: CharacterRecord }>("POST", "/drafts", {});
-    await this.load(); this.select(result.draft.character_id, false);
-    requestAnimationFrame(() => { const title = this.q<HTMLInputElement>("title"); title.focus(); title.select(); });
-  }
-
-  private async confirmPublish(): Promise<void> {
-    const record = this.dirty() ? await this.save() : this.current();
-    if (!record?.instructions.trim()) throw new Error(uiText.text("workbench.characters.need-instructions"));
-    const frozenId = record.character_id, frozenRevision = record.revision;
-    this.confirm(uiText.text("workbench.characters.publish-named", { name: record.title }), uiText.text("workbench.characters.publish-revision", { revision: frozenRevision }),
-      readableContent(record, tools => this.actions.describe(tools)), uiText.text("workbench.characters.publish-project"), async () => {
-        const result = await this.request<{ replayed?: boolean; reference: { version: number } }>("POST", "/drafts/" + encodeURIComponent(frozenId) + "/publish", { expected_revision: frozenRevision });
-        this.dialog.close(); await this.load();
-        this.note(uiText.text(result.replayed ? "workbench.characters.reused-published" : "workbench.characters.published-frozen", { version: result.reference.version }));
-      });
-  }
-
-  private confirmToggle(): void {
-    const record = this.current();
-    if (!record) return;
-    const id = record.character_id, expected = this.revision, enable = record.state === "disabled", state = enable ? "active" : "disabled";
-    this.confirm(enable ? uiText.text("workbench.characters.enable-role") : uiText.text("workbench.characters.disable-role"), enable ? uiText.text("workbench.characters.enable-explained") : uiText.text("workbench.characters.disable-explained"),
-      record.title, enable ? uiText.text("workbench.characters.enable") : uiText.text("workbench.characters.disable"), async () => {
-        await this.request("POST", "/drafts/" + encodeURIComponent(id) + "/state", { expected_revision: expected, state });
-        // Keep unsubmitted text; state transitions advance the revision without changing that text.
-        if (this.drafts[id]) { this.drafts[id].expected_revision = expected + 1; this.persist(); }
-        this.dialog.close(); await this.load(); this.note(enable ? uiText.text("workbench.characters.role-enabled") : uiText.text("workbench.characters.role-disabled"));
-      });
-  }
-
-  private confirmDelete(): void {
-    const record = this.current();
-    if (!record) return;
-    const id = record.character_id, expected = this.revision;
-    this.confirm(uiText.text("workbench.characters.delete"), uiText.text("workbench.characters.delete-explained"), record.title, uiText.text("workbench.characters.delete"), async () => {
-      await this.request("POST", "/drafts/" + encodeURIComponent(id) + "/state", { expected_revision: expected, state: "tombstoned" });
-      delete this.drafts[id]; this.persist(); this.selected = null; this.dialog.close(); await this.load(); this.note(uiText.text("workbench.characters.deleted-history"));
+    this.body.addEventListener("change", event => {
+      const select = event.target instanceof HTMLSelectElement ? event.target : null;
+      if (!select?.dataset.rolesDefault) return;
+      void this.act(() => this.setDefault(select.dataset.rolesDefault === "personal" ? "personal" : "project", select.value), `[data-roles-default="${select.dataset.rolesDefault}"]`);
+    });
+    this.body.addEventListener("click", event => {
+      const control = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-roles-act]") : null;
+      if (!control || (control as HTMLButtonElement).disabled) return;
+      this.click(control.dataset.rolesAct ?? "", control.dataset.rolesArg ?? "", control);
+    });
+    // The open menu: arrows move, Esc closes it back to its button, a press elsewhere closes it.
+    this.body.addEventListener("keydown", event => {
+      if (!this.ui.menu) return;
+      const items = [...this.body.querySelectorAll<HTMLElement>(".roles-more [role=menuitem]")];
+      if (event.key === "Escape") { event.preventDefault(); const id = this.ui.menu; this.ui.menu = null; this.render(`[data-roles-act="more"][data-roles-arg="${CSS.escape(id)}"]`); }
+      else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const index = items.indexOf(document.activeElement as HTMLElement);
+        items[(index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+      } else if (event.key === "Tab") { this.ui.menu = null; this.render(); }
+    });
+    document.addEventListener("pointerdown", event => {
+      if (this.ui.menu && !(event.target instanceof Element && event.target.closest(".roles-more"))) { this.ui.menu = null; this.render(); }
     });
   }
 
-  private confirmReload(): void {
-    const id = this.selected;
-    if (id === null) return;
-    this.confirm(uiText.text("workbench.characters.reload-draft"), uiText.text("workbench.characters.reload-explained"), "", uiText.text("workbench.characters.reload"), async () => {
-      delete this.drafts[id]; this.persist(); this.dialog.close(); await this.load(); this.note(uiText.text("workbench.characters.draft-reloaded"));
-    });
+  private click(name: string, arg: string, control: HTMLElement): void {
+    const ui = this.ui, kind = arg.split(":")[0], id = arg.slice(kind.length + 1);
+    switch (name) {
+      case "open":
+        if (arg === "new") void this.drawer.open({ kind: "new" }, control);
+        else void this.drawer.open({ kind: kind === "member" ? "member" : "original", id }, control);
+        return;
+      case "import": this.imports.open(false); return;
+      case "add": ui.add = !ui.add; this.render(`[data-roles-act="add"]`); return;
+      case "more": ui.menu = ui.menu === arg ? null : arg; this.render(ui.menu ? `#roles-menu-${CSS.escape(arg)} [role=menuitem]` : undefined); return;
+      case "stop-ask": ui.menu = null; ui.stopAsk = arg; this.render(`#roles-stop-${CSS.escape(arg)}`); return;
+      case "stop-cancel": ui.stopAsk = null; this.render(`[data-roles-act="more"][data-roles-arg="${CSS.escape(arg)}"]`); return;
+      case "stop-do": ui.stopAsk = null; void this.act(() => kind === "member" ? this.memberState(id, "disabled") : this.originalState(id, "disabled"), `#roles-row-${kind}-${CSS.escape(id)}`); return;
+      case "member-on": void this.act(() => this.memberState(arg, "active"), `[data-roles-act="more"][data-roles-arg="member:${CSS.escape(arg)}"]`); return;
+      case "original-on": void this.act(() => this.originalState(arg, "active"), `[data-roles-act="more"][data-roles-arg="original:${CSS.escape(arg)}"]`); return;
+      case "member-remove": ui.menu = null; void this.act(() => this.memberState(id, "removed")); return;
+      case "member-add": void this.act(() => this.addMember(arg)); return;
+      case "default-inherit": void this.act(() => this.setDefault("project", "inherit"), `[data-roles-default="project"]`); return;
+      case "refollow": void this.act(() => this.refollow(arg), `#roles-row-member-${CSS.escape(arg)}`); return;
+      case "keep-own": void this.act(() => this.keepOwn(arg)); return;
+      case "diff": void this.act(() => this.toggleDiff(arg), `[data-roles-act="diff"][data-roles-arg="${CSS.escape(arg)}"]`); return;
+      case "copy": ui.menu = null; void this.act(() => this.copy(id, control)); return;
+    }
+  }
+
+  private async setDefault(layer: "personal" | "project", value: string): Promise<void> {
+    const selection = layer === "personal" ? (value ? { kind: "personal", character_id: value } : null)
+      : value === "inherit" ? null : value === "assistant" ? { kind: "assistant" } : { kind: "project", member_id: value.slice("project:".length) };
+    await this.request("POST", "/roles/defaults", { layer, selection });
+    await this.load();
+    this.note(say(layer === "personal" ? "workbench.roles.my-default-changed" : value === "inherit" ? "workbench.roles.project-inherits" : "workbench.roles.project-default-changed"));
+  }
+
+  private async memberState(id: string, state: "active" | "disabled" | "removed"): Promise<void> {
+    const member = this.member(id);
+    if (!member) return;
+    await this.request("POST", "/members/" + encodeURIComponent(id) + "/state", { expected_revision: member.role.revision, state });
+    await this.load();
+    this.note(say(state === "active" ? "workbench.roles.turned-on" : state === "removed" ? "workbench.roles.removed" : "workbench.roles.turned-off-done", { name: member.title }));
+  }
+
+  private async originalState(id: string, state: "active" | "disabled"): Promise<void> {
+    const original = this.original(id);
+    if (!original) return;
+    await this.request("POST", "/drafts/" + encodeURIComponent(id) + "/state", { expected_revision: original.draft_revision, state });
+    await this.load();
+    this.note(say(state === "active" ? "workbench.roles.turned-on" : "workbench.roles.turned-off-done", { name: original.title }));
+  }
+
+  private async addMember(characterId: string): Promise<void> {
+    const result = await this.request<{ role: { current: { member_id: string } } }>("POST", "/members", { character_id: characterId });
+    this.ui.add = false; this.flash("member:" + result.role.current.member_id);
+    await this.load();
+    this.note(say("workbench.roles.joined", { name: this.original(characterId)?.title ?? "" }));
+  }
+
+  /** Every section this project changed follows the original again; its own versions stay, to restore. */
+  private async refollow(id: string): Promise<void> {
+    let role = this.member(id)?.role;
+    if (!role) return;
+    for (const section of ["work_style", "capabilities"] as const) {
+      if (role.sections[section].mode !== "override") continue;
+      role = (await this.request<{ role: typeof role }>("POST", "/members/" + encodeURIComponent(id) + "/section",
+        { section, to: "follow", expected_revision: role.revision, expected_original_version: role.current.original.version })).role;
+    }
+    this.ui.diff = null; this.flash("member:" + id);
+    await this.load();
+    this.note(say("workbench.roles.followed"));
+  }
+
+  /** Keep this project's sections although the original changed them too; the next change of the original asks again. */
+  private async keepOwn(id: string): Promise<void> {
+    let role = this.member(id)?.role;
+    if (!role) return;
+    for (const section of ["work_style", "capabilities"] as const) {
+      const status = role.sections[section];
+      if (status.mode !== "override" || !status.original_changed) continue;
+      role = (await this.request<{ role: typeof role }>("POST", "/members/" + encodeURIComponent(id) + "/section",
+        { section, to: "keep", expected_revision: role.revision, expected_original_version: role.current.original.version })).role;
+    }
+    this.ui.diff = null;
+    await this.load();
+    this.note(say("workbench.roles.kept-own"));
+  }
+
+  private async current(role: { kind: "personal"; character_id: string } | { kind: "project"; member_id: string }): Promise<CharacterRoleVersionEntry | undefined> {
+    return (await this.request<{ versions: CharacterRoleVersionEntry[] }>("POST", "/roles/versions", { role })).versions.find(entry => entry.current);
+  }
+
+  private async toggleDiff(id: string): Promise<void> {
+    if (this.ui.diff === id) { this.ui.diff = null; delete this.ui.diffText; return; }
+    const member = this.member(id);
+    if (!member) return;
+    const [ours, theirs] = await Promise.all([this.current({ kind: "project", member_id: id }), this.current({ kind: "personal", character_id: member.role.current.original.character_id })]);
+    const way = member.role.sections.work_style.mode === "override";
+    const text = (entry: CharacterRoleVersionEntry | undefined) => !entry ? "" : way ? entry.content.instructions
+      : (entry.content.host_tools === null ? say("workbench.characters.inherit-caller") : entry.content.host_tools.join(", ") || say("workbench.characters.no-builtins"));
+    this.ui.diff = id; this.ui.diffText = { ours: text(ours), theirs: text(theirs), version: theirs ? (theirs.ref.kind === "personal" ? theirs.ref.version : 0) : 0 };
+  }
+
+  private async copy(id: string, control: HTMLElement): Promise<void> {
+    const entry = await this.current({ kind: "personal", character_id: id });
+    if (entry) await this.drawer.open({ kind: "new", from: entry.content }, control.closest(".roles-row")?.querySelector<HTMLElement>("[data-roles-act=more]") ?? null);
   }
 }
 
-/** Finds the page and brings it to life; nothing happens on a page without it. */
+/** Brings every role page in the document to life once; the settings cover may place one after the page loaded. */
 export function mountCharacters(): void {
-  const root = document.querySelector<HTMLElement>("[data-characters]");
-  if (!root) return;
-  new CharactersPage(root).start();
+  for (const root of document.querySelectorAll<HTMLElement>("[data-characters]:not([data-characters-mounted])")) {
+    root.dataset.charactersMounted = "";
+    new RolesPage(root).start();
+  }
   startCharacterTerminal();
 }

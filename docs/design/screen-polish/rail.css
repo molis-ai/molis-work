@@ -1,0 +1,97 @@
+/* 底栏第十一版多出来的编排，叠在 lip.css 上面（输入框两行、对话的三段沿用那一份）。长相照第五版（line.html）：两边是压在一条线上的字，输入框是一张白卡，对话顶部一排标签。颜色都引用 ../kit/kit.css 的变量。不是产品样式。 */
+.sp-win.c.lp.rz{height:752px;grid-template-rows:44px minmax(0,1fr) 94px}
+.sp-win.c.rz .sp-stage.turn{transform-origin:50% 100%;animation:rz-turn 440ms var(--ease-quint)}
+@keyframes rz-turn{from{opacity:0;transform:translateY(20px) scale(.984)}to{opacity:1;transform:none}}
+
+/* 底部一条：94 = 上空 12 + 输入框 70 + 底边 12。两边压在桌面上，不另起一块底 */
+.rz .lb{align-self:end;gap:0;padding:12px 22px}
+
+/* 中间：输入框是一张白卡，一直两行 */
+.rz .lu{position:relative}
+.rz .lt{min-height:70px;margin-top:0;padding:0 8px 2px;border-radius:20px;background:var(--popover);box-shadow:0 0 0 1px var(--line),var(--lift-2)}
+.rz .lt::before,.rz .lt::after{display:none}
+.rz .lt.tall{border-radius:20px;box-shadow:0 0 0 1px var(--line),var(--lift-2)}
+.rz .lt textarea{margin:9px 0 3px}
+.rz .lg{top:4px}
+.rz .lu.open .lt,.rz .lu.open .lt.tall{border-radius:0 0 20px 20px;box-shadow:inset 0 1px 0 var(--line)}
+
+/* 对话：从输入框向上长，和输入框一样宽，和它是同一张 */
+.rz .lv{position:absolute;left:0;right:0;bottom:100%;margin:0;border-radius:18px 18px 0 0;--pad:20px}
+.rz .lv-h{height:40px;padding-right:10px;gap:8px}
+.rz .lv-h small{font-size:12.5px}
+.rz .la{padding-bottom:18px}
+
+/* 对话顶部的标签：第一枚是事项，后面是这一站里的几件 */
+.lx{position:absolute;left:0;right:0;bottom:100%;display:flex;align-items:flex-end;gap:3px;height:32px;padding:0 20px;white-space:nowrap}
+.lx-t{position:relative;flex:0 1 auto;min-width:36px;max-width:200px;display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 11px;border-radius:10px 10px 0 0;background:color-mix(in srgb,var(--popover) 72%,var(--desk));font-size:12.5px;color:var(--ink-soft);transition:color var(--dur-hover),background var(--dur-hover)}
+.lx-t:hover{color:var(--ink)}
+.lx-t.you{background:var(--amber-soft)}
+.lx-t.run{background:var(--accent-soft)}
+.lx-t.on{flex-shrink:0;z-index:1;height:31px;padding:0 13px 1px;background:var(--popover);color:var(--ink);font-weight:600}
+.lx-t.on::before,.lx-t.on::after{content:"";position:absolute;bottom:0;width:9px;height:9px;pointer-events:none}
+.lx-t.on::before{left:-9px;background:radial-gradient(circle at 0 0,transparent 8.5px,var(--popover) 9px)}
+.lx-t.on::after{right:-9px;background:radial-gradient(circle at 100% 0,transparent 8.5px,var(--popover) 9px)}
+.lx-t.top{font-weight:600}
+.lx-t svg{flex:none;color:var(--muted)}
+.lx-t .mini{flex:none;display:grid}
+.rz .lx-t .mini svg.rg{width:15px;height:15px}
+.lx-t .mini .rg circle{stroke-width:5.5}
+.lx-s{flex:none;width:1px;height:14px;margin:0 5px 6px;background:var(--line-strong)}
+.lx-m{flex:none;display:inline-grid;place-items:center;height:24px;margin-bottom:1px;padding:0 8px;border-radius:8px;background:color-mix(in srgb,var(--popover) 72%,var(--desk));font-size:11.5px;color:var(--muted)}
+.lx-m:hover{color:var(--ink)}
+
+/* 两边：一条线。事项是起点，后面的站挂在线上；实线是走过的，点线是还没到的 */
+.rz .lb-s{align-self:end;align-items:center;gap:0;height:70px;padding:0;white-space:nowrap}
+.rz .lb-s.r{justify-content:flex-start}
+.rl{flex:1 1000 16px;min-width:8px;height:0;border-top:1.5px solid color-mix(in srgb,var(--accent) 46%,var(--line-strong))}
+.rl.f{flex:0 0 14px}
+.rl.d{border-top:2px dotted var(--line-strong)}
+.rl.t{flex:1 1000 20px;-webkit-mask:linear-gradient(90deg,#000 30%,transparent);mask:linear-gradient(90deg,#000 30%,transparent)}
+.rh{flex:0 1 auto;min-width:0;max-width:230px;display:flex;align-items:center;gap:9px;height:46px;padding:0 6px 0 10px;border-radius:23px;background:var(--popover);box-shadow:0 0 0 1px var(--line),var(--lift-1);transition:box-shadow var(--dur-hover)}
+.rh.on{box-shadow:0 0 0 1.5px color-mix(in srgb,var(--accent) 60%,transparent),var(--lift-1)}
+.rz .rh svg.rg{flex:none;width:26px;height:26px}
+.rh .rg circle{stroke-width:3.6}
+.rh>svg:not(.rg){flex:none;color:var(--muted)}
+.rh .tx{display:flex;flex-direction:column;min-width:0}
+.rh small{height:15px;font-size:11px;line-height:15px;color:var(--muted)}
+.rh b{height:19px;font-size:13.5px;font-weight:650;line-height:19px;color:var(--ink)}
+.rh-v{flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;color:var(--muted)}
+.rh-v:hover{background:var(--control-fill);color:var(--ink)}
+.rc{flex:0 1 auto;min-width:0;max-width:176px;display:flex;flex-direction:column;margin:0 3px;padding:4px 11px 4px 10px;border-radius:12px;transition:background var(--dur-hover),box-shadow var(--dur-hover)}
+.rc .cp{display:flex;align-items:center;gap:6px;height:15px;font-size:11.5px;font-weight:600;line-height:15px;color:var(--muted)}
+.rc .cp em{margin-left:-2px;font-style:normal;font-weight:500;color:var(--faint)}
+.rc .tx{display:flex;align-items:baseline;gap:7px;min-width:0;height:20px}
+.rc .nm{font-size:13px;font-weight:500;line-height:20px;color:var(--ink)}
+.rc .tx small{flex:none;font-size:11.5px;color:var(--muted)}
+.rc[role=button]:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.rc.you .cp{color:var(--amber)}
+.rc.you .cp em{color:var(--amber);opacity:.8}
+.rc.you .nm{font-weight:600}
+.rc.done .nm,.rc.next .nm{color:var(--ink-soft)}
+.rc.none .cp{font-weight:500;color:var(--faint)}
+.rc.none .cp>*:first-child{opacity:.5}
+.rc.none .nm{font-weight:400;color:var(--faint)}
+.rc.on,.rc.on[role=button]:hover{background:var(--popover);box-shadow:0 0 0 1px var(--line),var(--lift-1)}
+.rc.on .nm{color:var(--ink);font-weight:600}
+.rc.pulse{animation:fx-pulse var(--dur-moment) var(--ease-quint)}
+.lb-s.r .rc .tx small,.lb.nar .rc .tx small{display:none}
+.kbar{flex:none;display:inline-flex;align-items:center;gap:2px;margin-left:2px}
+.kbar i{width:7px;height:3px;border-radius:2px;background:var(--line-strong)}
+.kbar i.on{background:var(--accent)}
+.kbar i.now{background:color-mix(in srgb,var(--accent) 40%,transparent);animation:rz-now 1.5s ease-in-out infinite}
+@keyframes rz-now{50%{background:var(--accent)}}
+.kbar.long{width:32px;height:3px;border-radius:2px;background:var(--line-strong);overflow:hidden}
+.kbar.long i{display:block;width:auto;height:3px;border-radius:0;background:var(--accent)}
+
+/* 清单：换事项、办完的（左），还没办完的（右） */
+.rz .lm{left:22px;bottom:calc(100% - 6px)}
+.rz .lm.r{left:auto;right:22px}
+
+/* 交办出去的一件事飞到输入框右边 */
+.kfly{position:fixed;left:0;top:0;z-index:99;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent);pointer-events:none}
+.lb.nar{padding:12px 16px}
+.lb.nar .rh{max-width:150px}
+.lb.nar .rh small{display:none}
+.lb.nar .rc{margin:0 1px;padding:4px 8px}
+.rc.on{flex-shrink:0}
+.lb.nar .kbar{display:none}

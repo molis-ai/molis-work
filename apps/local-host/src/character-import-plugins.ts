@@ -88,6 +88,6 @@ export function installedPluginSkillRoots(source: PluginSources): string[] {
       if (versions.length !== 1) { warn(`${id}：安装索引未唯一确定缓存版本（${versions.length} 个），未自动选取技能`); continue; }
       add(join(parent, versions[0]!), ".codex-plugin/plugin.json");
     }
-  } else if (existsSync(join(root, "plugins"))) warn("此 Agent 的插件启用索引尚未支持；未扫描插件缓存，仅导入所列独立 Skills。");
+  } else if (existsSync(join(root, "plugins"))) warn("暂不支持读取该 AI 工具的插件索引，仅导入独立技能文件。");
   return [...result];
 }

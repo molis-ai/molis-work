@@ -39,7 +39,7 @@ export function createSyncActionClient<Runtime>(host: SyncClientHost<Runtime>, r
       if (ancestors.has(key)) throw new ActionError("actions.dependency_cycle", "能力存在循环依赖");
       const state = requireSynchronous(host.options.actionAvailability?.(bound, action), "Host 可用性检查需要异步调用");
       if (state && !state.available) throw new ActionError(state.code, state.reason);
-      if (action.action.required_scene) throw new ActionError("actions.async_required", "消费场景绑定需要异步检查");
+      if (action.action.required_scene) throw new ActionError("actions.async_required", "用途绑定需要异步检查");
       for (const dependency of action.action.required_actions ?? []) check(dependency, new Set(ancestors).add(key));
     };
     return host.actionService.invokeSync(bound, capability, input, () => check(capability));

@@ -160,7 +160,7 @@ test("onboarding prefers ready account login and keeps developer configuration o
   const gmail = { ...gmailEntry, method_options: gmailEntry.method_options?.map(m => m.kind === "oauth" ? { ...m, login_ready: false } : m) };
   const main = connect(gmail);
   // ASC-47 ASC-75: a service with no one-click login says so, why, and the ways that work now; no button that cannot work.
-  assert.match(main, /还不能一键连接：Molis Work 还没开通 Gmail 的一键登录/);
+  assert.match(main, /暂未开通 Gmail 一键登录；无需自行注册开发者应用。/);
   assert.match(main, /现在能走的路：用你自己的 Google 应用登录/);
   assert.match(main, /data-connector-advanced-open/);
   assert.doesNotMatch(main, /<input|data-protocol-start/);

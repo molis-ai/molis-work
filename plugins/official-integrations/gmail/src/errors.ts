@@ -9,7 +9,7 @@ export type GmailForbiddenDisposition =
   | "insufficient_scope"
   | "provider";
 
-const REAUTH_ACTION = "Settings -> Connectors · Restart Gmail authorization";
+const REAUTH_ACTION = "Settings › Service connections · Restart Gmail authorization";
 const ENABLE_GMAIL_API_ACTION =
   "Enable Gmail API in Google Cloud Console, then retry sync";
 

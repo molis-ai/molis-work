@@ -467,7 +467,7 @@ export const knowledgeManageActions = {
       brief: { type: "string", maxLength: KNOWLEDGE_BRIEF_MAX_CHARS }, keywords, adopt: editable }, required: ["subject"], additionalProperties: false },
     output_schema: cardRecord } } as ActionDefinition<KnowledgeEditRequest, KnowledgeCardRecord>,
   exclude: { capability_id: "knowledge.card.exclude", version: /* @version action.knowledge.card.exclude */ 1, operation: "command", action: { ...manage,
-    title: "设置资料是否给 Agent 用", description: "不给 Agent 用的资料仍在资料列表里，但查找不会返回它，读取会被拒绝。",
+    title: "设置是否允许 AI 读取资料", description: "设为不让 AI 读取的资料仍保留在列表里，但搜索不会返回它，AI 读取请求会被拒绝。",
     input_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, excluded: { type: "boolean" } }, required: ["subject", "excluded"], additionalProperties: false },
     output_schema: cardRecord } } as ActionDefinition<KnowledgeExcludeRequest, KnowledgeCardRecord>,
   organize: { capability_id: "knowledge.organize", version: /* @version action.knowledge.organize */ 1, operation: "command", action: { ...manage,

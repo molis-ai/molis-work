@@ -83,7 +83,7 @@ test("complete history discloses a short-to-long decision, cancels without writi
   const url = env.origin + `/projects/${project.project_id}/settings/memory`;
   await navigate(f.page, url); await history(f.page, saved.memory_id, saved.version);
   const selector = revision(saved.memory_id, saved.version), displayed = await f.page.evaluate<string>(`document.querySelector('${selector}').innerText`);
-  for (const text of [saved.text, "通用", "长期", "无固定期限", "完整历史快照"]) assert.ok(displayed.includes(text), text);
+  for (const text of [saved.text, "通用", "长期", "无固定期限", "完整历史记录"]) assert.ok(displayed.includes(text), text);
   await f.page.click(selector + " button"); await f.page.wait("document.querySelector('[data-memory-confirm-yes]')");
   const decision = await f.page.evaluate<string>("document.querySelector('.memory-confirm').innerText");
   for (const text of [saved.text, changed.text, "Coding", "短期", "通用", "长期", "无固定期限", "→", "来源", "状态保持不变"]) assert.ok(decision.includes(text), text);

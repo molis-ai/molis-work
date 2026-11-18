@@ -21,17 +21,17 @@ const alchemist = (locale: "zh" | "en") => withPageText(locale, ["alchemist"], (
 test("the plugin studio discloses the npm registry connection in both languages", () => {
   const zh = studioText("zh", () => renderAgentStudio());
   assert.match(zh, /registry\.npmjs\.org/u);
-  assert.match(zh, /包名和版本/u);
-  assert.match(zh, /不发送你的内容/u);
+  assert.match(zh, /公开组件包/u);
+  assert.match(zh, /不会上传你的任何内容/u);
   assert.match(studioText("en", () => renderStudioStage()),
-    /data-as-network-note>The build check’s packaging step.*names and versions.*npm registry \(registry\.npmjs\.org\).*None of your content is sent/u);
+    /data-as-network-note>Packaging check.*names and versions.*registry\.npmjs\.org.*none of your content is sent/u);
 });
 
 test("the studio contribution uses its active language for the npm sentence", () => {
   const request = (surface: "workbench" | "directory") =>
     builderUiContribution.render({ contribution_id: builderUiContribution.descriptor.contribution_id, surface, model: null });
-  assert.match(studioText("en", () => request("workbench")), /data-as-network-note>The build check’s packaging step.*registry\.npmjs\.org/u);
-  assert.match(studioText("zh", () => request("workbench")), /data-as-network-note>构建检查的「打包」一步/u);
+  assert.match(studioText("en", () => request("workbench")), /data-as-network-note>Packaging check.*registry\.npmjs\.org/u);
+  assert.match(studioText("zh", () => request("workbench")), /data-as-network-note>打包检查说明/u);
   assert.equal(studioText("en", () => request("directory")), "", "the directory surface stays empty");
 });
 
@@ -51,8 +51,8 @@ test("the GitHub account picker comes with the page in both languages; its accou
   const zh = template(alchemist("zh")), en = template(alchemist("en"));
   assert.match(zh, /<select class="mw-select" name="githubAccount"><option value="">匿名访问<\/option><\/select>/u);
   assert.match(en, /<select class="mw-select" name="githubAccount"><option value="">Anonymous<\/option><\/select>/u);
-  assert.match(zh, /所有项目共用.*令牌留在宿主里/u);
-  assert.match(en, /Every project shares this choice.*token stays in the host.*anonymously/u);
+  assert.match(zh, /所有项目共用.*插件不可见令牌/u);
+  assert.match(en, /Every project shares this choice.*without exposing its token.*anonymously/u);
   assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /api\('\/pulse\/github'\)/u, "the accounts are read through the action");
   assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /api\('\/pulse\/github',\{connectionId:account\},'PUT'\)/u, "and the choice is saved through the action, null meaning anonymous");
 });

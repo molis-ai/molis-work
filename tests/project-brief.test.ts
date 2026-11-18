@@ -131,7 +131,7 @@ test("the brief reads title, description, the goal in play and what is next, and
   // BCC-09: the old brief link carries its plugin and item; opening it after that owner is removed is exercised by
   // tests/goals-absent-project.e2e.test.ts (no dialog, no Goal data, no page error).
   assert.match(html, /href="\/projects\/p1\/\?openPlugin=inbox&amp;openItem=m\+1&amp;openTitle=%E9%82%AE%E4%BB%B6"/);
-  assert.match(html, /工作目录 ~\/code\/a/);
+  assert.match(html, /项目目录 ~\/code\/a/);
   // The recorded progress outranks the hint when the host read one.
   const detailed = renderer.renderProjectBrief(composeProjectBrief(input({ goals, current_detail: "已完成两项，剩发布说明。" })));
   assert.match(detailed, /已完成两项，剩发布说明。/);
@@ -146,7 +146,7 @@ test("a project with no description or goals says what is missing instead of inv
   assert.doesNotMatch(html, /未设目标|目标进行中|目标已完成/, "a project with no goals claims no state of its own");
   assert.match(html, /各插件有要推进或等你确认的事时，会出现在这里。/);
   assert.match(html, /还没有动静。/);
-  assert.doesNotMatch(html, /工作目录/);
+  assert.doesNotMatch(html, /项目目录/);
 }));
 
 test("a brief that could not read says which part, and the rest of the sheet still stands", () => inChinese(() => {

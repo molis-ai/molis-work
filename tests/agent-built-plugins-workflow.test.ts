@@ -156,7 +156,7 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
       const key = url.searchParams.get('acceptance');
       if (key && !trialKeys.includes(key)) {
         trialKeys.push(key);
-        if (setup.probeTrials) trialProbes.push(assert.rejects(send('/builds/' + crypto.randomUUID() + '/call', { acceptance: key, componentId: 'notes', binding: 'read', payload: {} }), /这轮界面验收已结束/).catch(error => { trialProbeErrors.push(error); }));
+        if (setup.probeTrials) trialProbes.push(assert.rejects(send('/builds/' + crypto.randomUUID() + '/call', { acceptance: key, componentId: 'notes', binding: 'read', payload: {} }), /本轮界面验收已结束/).catch(error => { trialProbeErrors.push(error); }));
       }
       return pluginPagesFor(f.home).bind(request, url).then(async release => {
         if (release) response.once('close', release);
@@ -1689,7 +1689,7 @@ test('RAC-2935 RAC-2936 RAC-2937 real Host negative trials use native refusal, o
   assert.deepEqual(await f.send('/builds/' + f.current.id + '/call', { componentId: 'notes', binding: 'read', payload: {} }), { value: { items: [] } });
   await assert.rejects(f.send('/builds/' + f.current.id + '/call', { componentId: 'notes', binding: 'faultRead', payload: {} }), /未知的组件操作/);
   assert.ok(f.trialKeys.length > 0);
-  for (const key of f.trialKeys) await assert.rejects(f.send('/builds/' + f.current.id + '/call', { acceptance: key, componentId: 'notes', binding: 'read', payload: {} }), /这轮界面验收已结束/);
+  for (const key of f.trialKeys) await assert.rejects(f.send('/builds/' + f.current.id + '/call', { acceptance: key, componentId: 'notes', binding: 'read', payload: {} }), /本轮界面验收已结束/);
 });
 
 test('RAC-2934 batch repair receives all actual failures once and isolation failure never requests a repair', async () => {

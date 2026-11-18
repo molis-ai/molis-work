@@ -88,9 +88,9 @@ test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard inpu
   const replay = await browser.web.post<{ run: { run_id: string } }>(api + "/execution/native", input);
   assert.equal(replay.run.run_id, launched.run.run_id);
   await child.click('[data-character-terminal-stop]');
-  await child.waitFor("document.querySelector('[data-character-terminal-status]').textContent.includes('进程已结束')");
+  await child.waitFor("document.querySelector('[data-character-terminal-status]').textContent.includes('运行已结束')");
   await open(false);
-  await child.waitFor("document.querySelector('[data-character-terminal-status]').textContent.includes('进程未运行')");
+  await child.waitFor("document.querySelector('[data-character-terminal-status]').textContent.includes('当前未在运行')");
   // SC-2 (D3): the terminal's output is not kept; the run itself stays listed.
   assert.equal(await child.evaluate<boolean>("document.querySelector('[data-character-run-output]') === null"), true);
   assert.equal(await child.evaluate<boolean>("document.querySelector('[data-characters]').textContent.includes('TYPED_THROUGH_RESTRICTED_CHANNEL')"), false);

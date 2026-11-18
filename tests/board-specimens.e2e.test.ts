@@ -145,7 +145,7 @@ test("VUX-39 the board's Assistant shows its usage detail running, reported and 
   const reported = await usage();
   t.diagnostic("reported: " + JSON.stringify(reported));
   assert.equal(reported.summary, "用量 · 18,200 tokens");
-  assert.deepEqual(reported.parts["上下文窗口"], ["已用41,000 / 200,000 · 21%"]);
+  assert.deepEqual(reported.parts["对话容量"], ["已用41,000 / 200,000 · 21%"]);
   assert.deepEqual(reported.parts["本轮"], ["输入9,200", "输出640", "缓存读取6,000", "费用暂不可用"]);
   assert.deepEqual(reported.parts["账户额度"], ["额度与重置暂不可用"]);
   assert.equal(reported.bar, true, "a share is drawn when both the use and the window are known");
@@ -153,12 +153,12 @@ test("VUX-39 the board's Assistant shows its usage detail running, reported and 
   // Running: the round has its model and no report yet, so it says 进行中 and draws no share.
   await open("board-coding");
   const running = await usage();
-  assert.deepEqual([running.parts["上下文窗口"], running.parts["本轮"], running.bar], [["已用进行中"], ["输入进行中", "输出进行中"], false]);
+  assert.deepEqual([running.parts["对话容量"], running.parts["本轮"], running.bar], [["已用进行中"], ["输入进行中", "输出进行中"], false]);
 
   // Unavailable: the round ended with no report, so every number reads 暂不可用, never 0.
   await open("board-digest");
   const unavailable = await usage();
-  assert.deepEqual([unavailable.parts["上下文窗口"], unavailable.parts["本轮"], unavailable.bar], [["已用暂不可用"], ["输入暂不可用", "输出暂不可用"], false]);
+  assert.deepEqual([unavailable.parts["对话容量"], unavailable.parts["本轮"], unavailable.bar], [["已用暂不可用"], ["输入暂不可用", "输出暂不可用"], false]);
   // A refused step (user 2026-10-23 ⑤): the reason and the field in plain words; the runtime's own text, hook name and all, one fold down and closed.
   const refused = await inFrame<{ head: string; rows: string[]; raw: string; open: boolean }>(`const step = d.querySelector('[data-entry="a:c-d3"]'), fold = step.querySelector('.assistant-activity-raw');
     return { head: step.querySelector('summary').textContent, rows: [...step.querySelectorAll('.assistant-activity-detail > p')].map((p) => p.textContent),

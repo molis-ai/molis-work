@@ -4,7 +4,9 @@
   "plugin_id": "io.molis.work.example.notes",
   "version": "2.0.0",
   "name": "Local Plugin Sample",
-  "name_text": { "key": "notes.main.title" },
+  "name_text": {
+    "key": "notes.main.title"
+  },
   "kind": "integration",
   "publisher": {
     "publisher_id": "local-developer",
@@ -42,7 +44,10 @@
     {
       "machine_id": "io.molis.work.example.notes.result",
       "version": 1,
-      "states": { "empty": "idle", "saved": "done" },
+      "states": {
+        "empty": "idle",
+        "saved": "done"
+      },
       "initial": "empty",
       "terminal": []
     }
@@ -371,6 +376,1332 @@
           "additionalProperties": false
         }
       }
+    },
+    {
+      "capability_id": "io.molis.work.example.notes.notes.read",
+      "version": 1,
+      "operation": "query",
+      "action": {
+        "title": "读取 Read a sample note 的正文与关联",
+        "description": "读取Read a sample note的当前正文、版本及真实关联，供调用者明确引用。",
+        "kind": "query",
+        "scope": "project",
+        "scheduling": "concurrent",
+        "audiences": [
+          "user",
+          "agent",
+          "workflow",
+          "mcp",
+          "plugin"
+        ],
+        "permissions": [
+          "storage:private"
+        ],
+        "subject_kinds": [
+          "sample_note"
+        ],
+        "input_type": "molis.subject-reference.v1",
+        "output_type": "molis.subject-context.v1",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "subject_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "subject_id"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "revision": {
+              "type": "string",
+              "minLength": 1
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "content": {
+              "type": "string",
+              "maxLength": 32000
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "attached_to": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "open": {
+              "type": "object",
+              "properties": {
+                "surface": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-zA-Z0-9_-]+$"
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "surface",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "project_id": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 120
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "length": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "subject",
+            "revision",
+            "title",
+            "content",
+            "truncated"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "capability_id": "io.molis.work.example.notes.notes.create",
+      "version": 1,
+      "operation": "command",
+      "action": {
+        "title": "New sample note",
+        "description": "Makes a blank sample note.",
+        "audiences": [
+          "user"
+        ],
+        "permissions": [
+          "storage:private"
+        ],
+        "subject_kinds": [
+          "sample_note"
+        ],
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "note": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "note"
+          ],
+          "additionalProperties": false
+        },
+        "intake": {
+          "intake_id": "note",
+          "item_kind": "sample_note",
+          "title": "Sample note",
+          "title_text": {
+            "key": "notes.start.noun"
+          },
+          "verb": "New",
+          "describe": "A blank sample note.",
+          "accepts": [],
+          "examples": [],
+          "start": {
+            "title": "New sample note",
+            "title_text": {
+              "key": "notes.start.title"
+            },
+            "hint": "Start a blank note in the sample",
+            "hint_text": {
+              "key": "notes.start.hint"
+            }
+          }
+        },
+        "scope": "project",
+        "kind": "operation"
+      }
+    },
+    {
+      "capability_id": "io.molis.work.example.notes.attach.bind",
+      "version": 1,
+      "operation": "command",
+      "action": {
+        "title": "Attach to a sample note",
+        "description": "把一个对象挂到这里的一个对象上；不复制、不移动原对象，重复挂接返回原记录。",
+        "kind": "operation",
+        "scope": "project",
+        "effect": "write",
+        "audiences": [
+          "user"
+        ],
+        "permissions": [
+          "storage:private"
+        ],
+        "subject_kinds": [
+          "sample_note"
+        ],
+        "attach": {
+          "attach_id": "note",
+          "item_kind": "sample_note",
+          "title": "Sample note",
+          "verb": "Attach to a sample note",
+          "describe": "Hangs the open thing on one of this sample's notes; nothing is copied or moved.",
+          "accepts": [
+            {
+              "kind": "object"
+            }
+          ],
+          "relation": {
+            "noun": "Sample note",
+            "noun_text": {
+              "key": "notes.attach.noun"
+            },
+            "list": {
+              "capability_id": "io.molis.work.example.notes.attach.list",
+              "version": 1
+            },
+            "release": {
+              "capability_id": "io.molis.work.example.notes.attach.release",
+              "version": 1
+            },
+            "candidates": {
+              "capability_id": "io.molis.work.example.notes.attach.candidates",
+              "version": 1
+            },
+            "create": {
+              "capability_id": "io.molis.work.example.notes.attach.create",
+              "version": 1
+            }
+          }
+        },
+        "input_type": "molis.placement.attach.v1.bind.input",
+        "output_type": "molis.placement.attach.v1.bind.output",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "target_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "subject": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "read_revision": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "target_id",
+            "subject",
+            "title"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "binding": {
+              "type": "object",
+              "properties": {
+                "binding_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "binding_id"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "binding"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "capability_id": "io.molis.work.example.notes.attach.list",
+      "version": 1,
+      "operation": "query",
+      "action": {
+        "title": "Read what a thing is attached to",
+        "description": "读取一个对象此刻挂在哪些对象上；只读。",
+        "kind": "query",
+        "scope": "project",
+        "effect": "read",
+        "audiences": [
+          "user"
+        ],
+        "permissions": [
+          "storage:private"
+        ],
+        "subject_kinds": [
+          "sample_note"
+        ],
+        "input_type": "molis.placement.attach.v1.list.input",
+        "output_type": "molis.placement.attach.v1.list.output",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "subject"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "bindings": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "binding_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "target_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "created_at": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                },
+                "required": [
+                  "binding_id",
+                  "target_id",
+                  "created_at"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "bindings"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "capability_id": "io.molis.work.example.notes.attach.release",
+      "version": 1,
+      "operation": "command",
+      "action": {
+        "title": "Take an attachment off",
+        "description": "取下一条挂接；原对象不变。",
+        "kind": "operation",
+        "scope": "project",
+        "effect": "write",
+        "audiences": [
+          "user"
+        ],
+        "permissions": [
+          "storage:private"
+        ],
+        "subject_kinds": [
+          "sample_note"
+        ],
+        "input_type": "molis.placement.attach.v1.release.input",
+        "output_type": "molis.placement.attach.v1.release.output",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "target_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "binding_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "target_id",
+            "binding_id"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "released": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "released"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "capability_id": "io.molis.work.example.notes.attach.candidates",
+      "version": 1,
+      "operation": "query",
+      "action": {
+        "title": "List sample notes to attach to",
+        "description": "列出这里可以挂接的对象，按页读取。",
+        "kind": "query",
+        "scope": "project",
+        "effect": "read",
+        "audiences": [
+          "user"
+        ],
+        "permissions": [
+          "storage:private"
+        ],
+        "subject_kinds": [
+          "sample_note"
+        ],
+        "input_type": "molis.placement.attach.v1.candidates.input",
+        "output_type": "molis.placement.attach.v1.candidates.output",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "after_cursor": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "targets": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "next_cursor": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 400
+            }
+          },
+          "required": [
+            "targets",
+            "next_cursor"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "capability_id": "io.molis.work.example.notes.attach.create",
+      "version": 1,
+      "operation": "command",
+      "action": {
+        "title": "Make a sample note to attach to",
+        "description": "用一段内容新建一个可挂接的对象，并记下内容的来处。",
+        "kind": "operation",
+        "scope": "project",
+        "effect": "write",
+        "audiences": [
+          "user"
+        ],
+        "permissions": [
+          "storage:private"
+        ],
+        "subject_kinds": [
+          "sample_note"
+        ],
+        "input_type": "molis.placement.attach.v1.create.input",
+        "output_type": "molis.placement.attach.v1.create.output",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "body": {
+              "type": "string",
+              "maxLength": 400000
+            },
+            "source": {
+              "type": "string",
+              "maxLength": 400
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "title",
+            "body",
+            "source",
+            "idempotency_key"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "target"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "capability_id": "io.molis.work.example.notes.resume.summary",
+      "version": 1,
+      "operation": "query",
+      "action": {
+        "title": "Sample notes: where things stand",
+        "description": "读取本插件里的工作停在哪里、接着先看哪一项，给外部 Agent 接续会话用；只读，不推断新的状态。",
+        "kind": "query",
+        "scope": "project",
+        "audiences": [
+          "user",
+          "agent",
+          "mcp"
+        ],
+        "permissions": [
+          "storage:private"
+        ],
+        "subject_kinds": [
+          "sample_note"
+        ],
+        "input_type": "molis.resume-summary.query.v1",
+        "output_type": "molis.resume-summary.view.v1",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "focus": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "focus": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "subject": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 500
+                    },
+                    "next_hint": {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "status_label": {
+                      "type": "string",
+                      "maxLength": 80
+                    },
+                    "open": {
+                      "type": "object",
+                      "properties": {
+                        "surface": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        }
+                      },
+                      "required": [
+                        "surface",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "subject",
+                    "title",
+                    "next_hint",
+                    "status_label",
+                    "open"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "next": {
+              "type": "array",
+              "maxItems": 5,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "subject": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "next_hint": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "status_label": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "open": {
+                    "type": "object",
+                    "properties": {
+                      "surface": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      }
+                    },
+                    "required": [
+                      "surface",
+                      "id"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "subject",
+                  "title",
+                  "next_hint",
+                  "status_label",
+                  "open"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "title",
+            "focus",
+            "next"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "capability_id": "io.molis.work.example.notes.notes.clear.review",
+      "version": 1,
+      "operation": "query",
+      "action": {
+        "title": "Read the notes to clear",
+        "description": "Reads the notes a clear would remove, for the person to confirm.",
+        "audiences": [
+          "user"
+        ],
+        "permissions": [
+          "storage:private"
+        ],
+        "subject_kinds": [
+          "sample_note"
+        ],
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "request_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 240
+            }
+          },
+          "required": [
+            "request_id"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "scope": "project",
+        "kind": "query"
+      }
+    },
+    {
+      "capability_id": "io.molis.work.example.notes.notes.clear",
+      "version": 1,
+      "operation": "command",
+      "action": {
+        "title": "Clear sample notes",
+        "description": "Removes every sample note and its attachments; the person confirms it in the platform's decision.",
+        "audiences": [
+          "user"
+        ],
+        "permissions": [
+          "storage:private"
+        ],
+        "subject_kinds": [
+          "sample_note"
+        ],
+        "requires_trusted_decision": true,
+        "trusted_decision_request": {
+          "capability_id": "io.molis.work.example.notes.notes.clear.review",
+          "version": 1
+        },
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "cleared": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "cleared"
+          ],
+          "additionalProperties": false
+        },
+        "scope": "project",
+        "kind": "operation"
+      }
+    },
+    {
+      "capability_id": "io.molis.work.example.notes.settings.read",
+      "version": 1,
+      "operation": "query",
+      "action": {
+        "kind": "query",
+        "effect": "read",
+        "audiences": [
+          "user",
+          "plugin",
+          "agent"
+        ],
+        "input_type": "molis.settings.read.request.v1",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "keys": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "\\S"
+              }
+            }
+          },
+          "required": [
+            "keys"
+          ],
+          "additionalProperties": false
+        },
+        "scope": "project",
+        "title": "Read sample settings",
+        "description": "Reads the sample's settings.",
+        "permissions": [
+          "storage:private"
+        ],
+        "subject_kinds": [],
+        "output_type": "molis.settings.values.v1",
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "values": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "pattern": "\\S"
+                      },
+                      "revision": {
+                        "type": "string",
+                        "pattern": "\\S"
+                      },
+                      "state": {
+                        "const": "ok"
+                      },
+                      "value": {
+                        "type": [
+                          "null",
+                          "boolean",
+                          "number",
+                          "string",
+                          "array",
+                          "object"
+                        ]
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "project",
+                          "personal",
+                          "provider_default"
+                        ]
+                      },
+                      "layers": {
+                        "type": "object",
+                        "properties": {
+                          "project": {
+                            "type": [
+                              "null",
+                              "boolean",
+                              "number",
+                              "string",
+                              "array",
+                              "object"
+                            ]
+                          },
+                          "personal": {
+                            "type": [
+                              "null",
+                              "boolean",
+                              "number",
+                              "string",
+                              "array",
+                              "object"
+                            ]
+                          },
+                          "provider_default": {
+                            "type": [
+                              "null",
+                              "boolean",
+                              "number",
+                              "string",
+                              "array",
+                              "object"
+                            ]
+                          }
+                        },
+                        "required": [],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "revision",
+                      "state",
+                      "value",
+                      "source"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "pattern": "\\S"
+                      },
+                      "revision": {
+                        "type": "string",
+                        "pattern": "\\S"
+                      },
+                      "state": {
+                        "const": "unavailable"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "pattern": "\\S"
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "revision",
+                      "state",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "values"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "capability_id": "io.molis.work.example.notes.settings.write",
+      "version": 1,
+      "operation": "command",
+      "action": {
+        "kind": "operation",
+        "effect": "write",
+        "audiences": [
+          "user"
+        ],
+        "input_type": "molis.settings.write.request.v1",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "layer": {
+              "type": "string",
+              "enum": [
+                "project",
+                "personal"
+              ]
+            },
+            "change": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "set": {
+                      "type": [
+                        "null",
+                        "boolean",
+                        "number",
+                        "string",
+                        "array",
+                        "object"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "set"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "inherit": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "inherit"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "expected_revision": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "request_id": {
+              "type": "string",
+              "pattern": "\\S"
+            }
+          },
+          "required": [
+            "key",
+            "layer",
+            "change",
+            "expected_revision",
+            "request_id"
+          ],
+          "additionalProperties": false
+        },
+        "scope": "project",
+        "title": "Change a sample setting",
+        "description": "Changes one of the sample's settings.",
+        "permissions": [
+          "storage:private"
+        ],
+        "subject_kinds": [],
+        "output_type": "molis.settings.values.v1",
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "values": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "pattern": "\\S"
+                      },
+                      "revision": {
+                        "type": "string",
+                        "pattern": "\\S"
+                      },
+                      "state": {
+                        "const": "ok"
+                      },
+                      "value": {
+                        "type": [
+                          "null",
+                          "boolean",
+                          "number",
+                          "string",
+                          "array",
+                          "object"
+                        ]
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "project",
+                          "personal",
+                          "provider_default"
+                        ]
+                      },
+                      "layers": {
+                        "type": "object",
+                        "properties": {
+                          "project": {
+                            "type": [
+                              "null",
+                              "boolean",
+                              "number",
+                              "string",
+                              "array",
+                              "object"
+                            ]
+                          },
+                          "personal": {
+                            "type": [
+                              "null",
+                              "boolean",
+                              "number",
+                              "string",
+                              "array",
+                              "object"
+                            ]
+                          },
+                          "provider_default": {
+                            "type": [
+                              "null",
+                              "boolean",
+                              "number",
+                              "string",
+                              "array",
+                              "object"
+                            ]
+                          }
+                        },
+                        "required": [],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "revision",
+                      "state",
+                      "value",
+                      "source"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "pattern": "\\S"
+                      },
+                      "revision": {
+                        "type": "string",
+                        "pattern": "\\S"
+                      },
+                      "state": {
+                        "const": "unavailable"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "pattern": "\\S"
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "revision",
+                      "state",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "values"
+          ],
+          "additionalProperties": false
+        }
+      }
     }
-  ]
+  ],
+  "settings_entries": {
+    "entries": [
+      {
+        "key": "greeting",
+        "title": {
+          "key": "notes.settings.greeting"
+        },
+        "summary": {
+          "key": "notes.settings.greeting-summary"
+        },
+        "layers": [
+          "project",
+          "personal"
+        ],
+        "schema": {
+          "type": "string",
+          "maxLength": 80
+        }
+      }
+    ],
+    "read": {
+      "capability_id": "io.molis.work.example.notes.settings.read",
+      "version": 1
+    },
+    "write": {
+      "capability_id": "io.molis.work.example.notes.settings.write",
+      "version": 1
+    }
+  }
 }

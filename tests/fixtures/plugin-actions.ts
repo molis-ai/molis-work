@@ -42,12 +42,11 @@ const readers = new WeakSet<object>();
 /**
  * Goals' public directory as `goals.list` answers it, for a plugin test without the Goals plugin (the real one is tested with the
  * Goals suites). `titles` maps a Goal id to its title; the answer lists them in that order, `pageSize` to a page.
- * This read-only stand-in owns no placement relation, so it does not claim the real directory's candidates role (RAC-634-MIG-02).
+ * This read-only stand-in offers none of `goals.attach.*`, so it claims no 「挂到…」 relation (RAC-634-MIG-02).
  */
 export function fakeGoalDirectory(actions: ReturnType<typeof pluginActions>, titles: () => Readonly<Record<string, string>>, pageSize = 100, seen?: ActionCallContext[]) {
   if (directories.has(actions.registry)) return actions;
-  const list = { ...goalPluginActions.list, action: { ...goalPluginActions.list.action } };
-  delete list.action.placement_relation;
+  const list = goalPluginActions.list;
   actions.registry.registerProvider({ provider: { provider_id: "goals-fixture", title: "目标", kind: "system" }, definitions: [list],
     handlers: [{ ...list, handle: (caller, input) => {
       seen?.push(caller);

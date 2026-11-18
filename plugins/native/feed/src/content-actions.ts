@@ -24,7 +24,7 @@ export function createFeedContentHandlers(feed: FeedApplication, board: string, 
     read: async ({ item_id }): Promise<WorkflowPayload> => {
       const item = await hydrate(feed.getFeedItem(board, item_id));
       const body = item.body || item.materials.map(material => material.content || material.preview).filter(Boolean).join("\n\n") || item.summary || "";
-      return { title: item.title, body, url: item.url ?? null, source: item.source_label || item.source_kind || "Feed", feed_item_id: item.item_id };
+      return { title: item.title, body, url: item.url ?? null, source: item.source_label || item.source_kind || "Feed", source_ref: { kind: "feed_item", id: item.item_id } };
     },
     // Not `async`: the source and the item are written before the first wait, and a failure there is thrown, so a Runtime commits both or neither.
     receive: (input, caller) => {
@@ -35,7 +35,7 @@ export function createFeedContentHandlers(feed: FeedApplication, board: string, 
       return feed.ingestItemJudged({ source, externalId: input.request_id, title: input.title,
         summary: input.body.replace(/\s+/g, " ").trim().slice(0, 240), body: input.body, url: input.url ?? null,
         occurredAt: now, attention: false }, retainActionAuthority(caller, feedContentActions.receive))
-        .then(({ item }) => ({ plugin: "feed", item_id: item.item_id, title: item.title }));
+        .then(({ item }) => ({ subject: { kind: "feed_item", id: item.item_id }, title: item.title }));
     },
   }), bindSearchEntriesHandler(feedSearchEntriesAction, () => {
 
@@ -53,12 +53,12 @@ export function createFeedContentHandlers(feed: FeedApplication, board: string, 
     if (item.disposition === "archived") throw new ActionError("actions.subject_unavailable", "材料已归档，请回到原记录查看");
     return subjectContext({ subject: { kind: "feed_item", id: item.item_id }, revision: String(item.revision), title: item.title,
       content: item.body || item.materials.map(material => material.content || material.preview).filter(Boolean).join("\n\n") || item.summary || "",
-      goal_ids: item.linked_goal_id ? [item.linked_goal_id] : [], open: { surface: "feed", id: item.item_id } }, input as { offset?: number });
+      ...(item.linked_goal_id ? { attached_to: [{ kind: "goal", id: item.linked_goal_id }] } : {}), open: { surface: "feed", id: item.item_id } }, input as { offset?: number });
   } }, { ...feedSourceSubjectAction, handle: (_caller: unknown, input: unknown) => {
     const source = feed.sources.list(board).find(source => source.source_id === (input as { subject_id: string }).subject_id);
     if (!source) throw new ActionError("actions.subject_unavailable", "来源已不存在");
     return subjectContext({ subject: { kind: "source", id: source.source_id }, revision: source.updated_at,
-      title: source.name, content: [source.description, `状态：${source.status}`, source.last_error_code].filter(Boolean).join("\n"), goal_ids: [],
+      title: source.name, content: [source.description, `状态：${source.status}`, source.last_error_code].filter(Boolean).join("\n"),
       open: { surface: "source-workbench", id: source.source_id } });
   } }];
 }

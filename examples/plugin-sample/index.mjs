@@ -1,4 +1,4 @@
-import { definePlugin, defineAction, definePollingIntegrationPlugin, bindOwnerPluginAction, bindArtifactPreview } from "@molis-ai/molis-work-plugin-sdk";
+import { definePlugin, defineAction, definePollingIntegrationPlugin, bindActionHandler, bindOwnerPluginAction, bindArtifactPreview } from "@molis-ai/molis-work-plugin-sdk";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { defineStateMachine } from "@molis-ai/molis-work-plugin-sdk/state-machine";
 import manifest from "./manifest.json" with { type: "json" };
@@ -69,6 +69,9 @@ export default definePlugin({
         }] };
       },
     };
+    // The declarations every plugin can make, the same as the built-in ones (batch 44 PEQ-05): a blank starting point, 「挂到…」 on its own
+    // notes, a resume summary for outside Agents, a write the person confirms in the platform's decision, and a settings section.
+    const notes = sampleNotes(storage, manifest.plugin_id);
     const polling = definePollingIntegrationPlugin({ manifest, createProvider: () => provider });
     return { ...await polling.start(context), actions: [
       defineAction(healthAction, () => provider.health()).handler,
@@ -78,6 +81,99 @@ export default definePlugin({
       bindArtifactPreview(previewAction, "io.molis.work.example.note", artifact => ({
         media_type: "text/markdown", text: "# " + artifact.payload.title + "\n\nResult " + artifact.payload.sequence + "\n",
       })),
+      // The Manifest was checked whole when the plugin was parsed: the 「挂到…」 parts name each other, so each is bound as declared.
+      ...Object.entries(notes).map(([name, handle]) => bindActionHandler(definition(name), (input, context) => handle(context, input))),
     ] };
   },
 });
+
+const NOTE = "sample_note";
+
+/** The sample's notes, kept in its private storage: a list of `{ id, title, bindings }`, with a revision that moves on every write. */
+function sampleNotes(storage, pluginId) {
+  const read = () => JSON.parse(storage.get("notes") ?? '{"revision":0,"notes":[]}');
+  const write = state => { state.revision += 1; storage.set("notes", JSON.stringify(state)); return state; };
+  const find = (state, id) => {
+    const note = state.notes.find(item => item.id === id);
+    if (!note) throw Object.assign(new Error("No such sample note"), { code: "actions.not_found" });
+    return note;
+  };
+  const item = note => ({ subject: { kind: NOTE, id: note.id }, title: note.title, next_hint: "", status_label: note.bindings.length ? "attached" : "blank",
+    open: { surface: pluginId, id: note.id } });
+  const setting = layer => storage.get("setting:greeting:" + layer);
+  const values = () => {
+    const project = setting("project"), personal = setting("personal"), revision = JSON.stringify([project, personal]);
+    const value = personal ?? project ?? "Hello", source = personal !== null ? "personal" : project !== null ? "project" : "provider_default";
+    return { values: [{ key: "greeting", revision, state: "ok", value, source, layers: { provider_default: "Hello", ...(project !== null ? { project } : {}), ...(personal !== null ? { personal } : {}) } }] };
+  };
+  return {
+    "notes.read": (_context, input) => {
+      const state = read(), note = find(state, input.subject_id);
+      return { subject: { kind: NOTE, id: note.id }, revision: String(state.revision), title: note.title, content: "", truncated: false, open: { surface: pluginId, id: note.id } };
+    },
+    "notes.create": () => {
+      const state = read(), note = { id: "note-" + (state.revision + 1), title: "Sample note " + (state.notes.length + 1), bindings: [] };
+      state.notes.push(note); write(state);
+      return { note: { id: note.id, title: note.title } };
+    },
+    // 「挂到…」: another object hung on one of the sample's notes. Nothing of that object is copied; a bind repeated returns its record.
+    "attach.bind": (_context, input) => {
+      const state = read(), note = find(state, input.target_id), key = input.subject.kind + ":" + input.subject.id;
+      const found = note.bindings.find(binding => binding.key === key);
+      if (found) return { binding: { binding_id: found.binding_id } };
+      const binding = { binding_id: note.id + ":" + (state.revision + 1), key, created_at: new Date().toISOString() };
+      note.bindings.push(binding); write(state);
+      return { binding: { binding_id: binding.binding_id } };
+    },
+    "attach.list": (_context, input) => {
+      const key = input.subject.kind + ":" + input.subject.id;
+      return { bindings: read().notes.flatMap(note => note.bindings.filter(binding => binding.key === key)
+        .map(binding => ({ binding_id: binding.binding_id, target_id: note.id, created_at: binding.created_at }))) };
+    },
+    "attach.release": (_context, input) => {
+      const state = read(), note = find(state, input.target_id), before = note.bindings.length;
+      note.bindings = note.bindings.filter(binding => binding.binding_id !== input.binding_id);
+      if (note.bindings.length === before) return { released: false };
+      write(state); return { released: true };
+    },
+    "attach.candidates": (_context, input) => {
+      const all = read().notes, start = input.after_cursor ? Number(input.after_cursor) : 0, limit = input.limit ?? 20;
+      const page = all.slice(start, start + limit);
+      return { targets: page.map(note => ({ id: note.id, title: note.title })), next_cursor: start + limit < all.length ? String(start + limit) : null };
+    },
+    "attach.create": (_context, input) => {
+      const state = read(), existing = state.notes.find(note => note.source_key === input.idempotency_key);
+      if (existing) return { target: { id: existing.id } };
+      const note = { id: "note-" + (state.revision + 1), title: input.title, source_key: input.idempotency_key, bindings: [] };
+      state.notes.push(note); write(state);
+      return { target: { id: note.id } };
+    },
+    "resume.summary": (_context, input) => {
+      const all = read().notes, focused = input.focus?.kind === NOTE ? all.find(note => note.id === input.focus.id) : undefined, first = focused ?? all[0];
+      return { title: "Sample notes", focus: first ? item(first) : null, next: all.filter(note => note !== first).slice(0, 5).map(item) };
+    },
+    // What the person confirms before a clear: every note it removes, at the revision they saw. The platform holds the decision.
+    "notes.clear.review": () => {
+      const state = read();
+      return { request: { summary: "Clear " + state.notes.length + " sample notes", requirements: [], approver: { kind: "person" }, expires_at: null,
+        choices: [{ id: "clear", label: { owner: pluginId, key: "notes.clear.choice" }, availability: { available: true }, accepts: [], returns: [] }] },
+        target: { subject: { kind: NOTE, id: "all" }, version: String(state.revision) }, commands: { clear: {} } };
+    },
+    "notes.clear": async context => {
+      const state = read(), cleared = state.notes.length;
+      await context.beforeEffect?.();
+      state.notes = []; write(state);
+      return { cleared };
+    },
+    "settings.read": () => values(),
+    "settings.write": (_context, input) => {
+      if (input.key !== "greeting") throw Object.assign(new Error("No such setting"), { code: "actions.input_invalid" });
+      if (input.expected_revision !== values().values[0].revision) throw Object.assign(new Error("The setting changed meanwhile"), { code: "actions.conflict" });
+      if ("set" in input.change) {
+        if (typeof input.change.set !== "string" || input.change.set.length > 80) throw Object.assign(new Error("A greeting is text of at most 80"), { code: "actions.input_invalid" });
+        storage.set("setting:greeting:" + input.layer, input.change.set);
+      } else storage.delete("setting:greeting:" + input.layer);
+      return values();
+    },
+  };
+}

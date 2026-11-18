@@ -2,6 +2,8 @@ import { createActionDefinition, nullableSchema as nullable, objectSchema as obj
 import { ActionError, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { TODO_PROJECT_PLUGIN_ID, type TodoBatch } from "./contract.js";
+import { TODO_BATCH_SUBJECT_KIND } from "./batch-kind.js";
+import { keepDecisions, onboardingDraftBatch, todoOnboardingActions } from "./onboarding-drafts.js";
 import { localDate } from "./dates.js";
 import { todoErrors } from "./error.js";
 import { TODO_ORGANIZE_DATA_MAX_CHARS, organizeParts, organizePrompt, parseOrganizeOutput, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
@@ -10,7 +12,7 @@ import { TODO_ORGANIZE_BASIC, TODO_ORGANIZE_ORGANIZER } from "./prompts.js";
 import type { TodoAccess, TodoStores } from "./store.js";
 import { withProjectReach } from "./reach.js";
 
-export const TODO_BATCH_SUBJECT_KIND = "todo_batch";
+export { TODO_BATCH_SUBJECT_KIND };
 
 const text = { type: "string" };
 const id = { ...text, minLength: 1, maxLength: 200 };
@@ -102,8 +104,8 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const reading = <T>(run: (value: TodoOrganizer) => T) => ports.read(store => run(new TodoOrganizer(store)));
   const writing = <T>(caller: ActionExecutionContext, run: (value: TodoOrganizer) => T) => ports.write(caller, store => run(new TodoOrganizer(store)));
-  return [
-    bind(todoOrganizeActions.extract, async (input, caller) => {
+  type ExtractInput = typeof todoOrganizeActions.extract extends ActionDefinition<infer I, unknown> ? I : never;
+  const extract = async (input: ExtractInput, caller: ActionExecutionContext): Promise<{ batch: TodoBatch; replayed: boolean }> => {
       const access = ports.access(caller);
       const replay = input.request_id ? reading(value => value.byRequest(input.request_id!, access)) : null;
       if (replay) return { batch: replay, replayed: true };
@@ -140,7 +142,19 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
       }
       return writing(caller, value => value.create({ title: input.title ?? "", origin: input.origin === "onboarding" ? "onboarding" : caller.audience === "agent" ? "assistant" : "manual", method: method.prompt_id,
         materials: input.materials, candidates: drafts, reference_only: reference, unverified, request_id: input.request_id }, access));
-    }, () => ports.modelAvailability()),
+  };
+  return [
+    bind(todoOrganizeActions.extract, extract, () => ports.modelAvailability()),
+    // Onboarding's drafts (contract-design §2.5): the same organizer and request key, in the platform's shape.
+    bind(todoOnboardingActions.draft, async (input, caller) => ({ batch: onboardingDraftBatch((await extract({ origin: "onboarding", title: input.title, request_id: input.request_id,
+      materials: input.materials.map(material => ({ title: material.title, text: material.text })) }, caller)).batch) }), () => ports.modelAvailability()),
+    bind(todoOnboardingActions.get, (input, caller) => reading(value => ({ batches: input.ids.map(id => onboardingDraftBatch(value.get(id, ports.access(caller, "listed")))) }))),
+    bind(todoOnboardingActions.keep, (input, caller) => writing(caller, value => {
+      const access = ports.access(caller, "listed"), batch = value.get(input.id, access);
+      if (batch.revision !== input.expected_revision) throw todoErrors.conflict("这份整理结果已在别处处理过，请重新打开");
+      const decisions = keepDecisions(batch, input.keep);
+      return { batch: onboardingDraftBatch(decisions.length ? value.apply(input.id, decisions, input.expected_revision, access).batch : batch) };
+    })),
     bind(todoOrganizeActions.list, (input, caller) => reading(value => ({ batches: value.list(ports.access(caller, "listed"), input.status ?? "open") }))),
     bind(todoOrganizeActions.get, (input, caller) => reading(value => ({ batch: value.get(input.id, ports.access(caller, "listed")) }))),
     bind(todoOrganizeActions.apply, (input, caller) => writing(caller, value => {

@@ -69,7 +69,10 @@ test("RAC-807 the Inbox is the unassigned entries and the owned ones whose owner
   }
 });
 
-const manifestOf = (pluginId: string, attention: PluginManifest["attention"]): PluginManifest => ({ ...goalsManifest, plugin_id: pluginId, attention }) as PluginManifest;
+/** A type in the owner's own words (batch 44 C8): the kind of object it refers to and the reason it gives. */
+const declaredSubject = (type: string) => ({ type, object_kind: type === "goal_decision" ? "goal" : "source", reasons: [{ id: type }] });
+const manifestOf = (pluginId: string, attention: { subjects: readonly string[]; inbox?: readonly string[] }): PluginManifest =>
+  ({ ...goalsManifest, plugin_id: pluginId, attention: { ...attention, subjects: attention.subjects.map(declaredSubject) } }) as PluginManifest;
 
 // RAC-808 runs against the Inbox as it runs: the Inbox plugin started by the Plugin Runtime, reading the platform's projection
 // (`services.attention.listInbox`/`getInbox`) of the installations recorded in the project. Each read asks the installations again, so an
@@ -138,7 +141,7 @@ test("RAC-808 the Runtime Inbox follows the Manifests of the running installatio
   const swapped = manifestOf("io.molis.work.swapped", { subjects: ["goal_decision"] });
   inbox.install(swapped);
   new SqlitePluginRuntimeReleaseArtifactRepository(inbox.store.db).save(createPluginRuntimeReleaseArtifact(
-    { ...swapped, name: "Another build", attention: { subjects: ["goal_decision"], inbox: ["goal_decision"] } } as PluginManifest, "export default {};"));
+    { ...swapped, name: "Another build", attention: { subjects: [declaredSubject("goal_decision")], inbox: ["goal_decision"] } } as PluginManifest, "export default {};"));
   const swappedRow = inbox.entry("goal_decision", "goal-1", swapped.plugin_id);
   assert.deepEqual(await inbox.listed(), idsOf([unassigned]));
   for (const row of [stranger, swappedRow]) await hidden(row);
@@ -185,7 +188,7 @@ test("RAC-808 an owner stopped after the Runtime Inbox admitted a call is gone f
 
 test("RAC-809 a Manifest's attention.inbox lists some of its attention.subjects, each once", () => {
   const manifest = (attention: unknown) => ({ ...goalsManifest, attention });
-  const subjects = ["goal_decision", "source_fault"];
+  const subjects = ["goal_decision", "source_fault"].map(declaredSubject);
   parsePluginManifest(manifest({ subjects, inbox: ["source_fault"] }));
   parsePluginManifest(manifest({ subjects }));
   for (const inbox of [[], ["feed_item"], ["goal_decision", "goal_decision"], "goal_decision", [1]]) {

@@ -7,6 +7,7 @@ import ts from "typescript";
 import { MCP_TOOLS } from "@molis-ai/molis-work-app-local-host";
 import { MANAGEMENT_GOAL_ACTIONS } from "@molis-ai/molis-work-app-mcp";
 import * as contract from "@molis-ai/molis-work-plugin-goals/contract";
+import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { GoalEventFacts } from "@molis-ai/molis-work-plugin-goals/module";
 
 // PG-111 for Goals and BL-781 (T-112): Goals' contracts belong to Goals, and the event facts API no longer carries the
@@ -71,10 +72,10 @@ const CONTRACT_RUNTIME_EXPORTS = ["GOALS_TREE_INTAKE", "GOALS_TREE_SUBMIT_RESULT
   "goalEventSemanticFamilies", "goalEventSystemOperations", "goalEventTrustedAuthoritySources", "goalEventTypeSourceKinds", "goalEventUserConclusionVerdicts",
   "goalEventWorkStatuses", "goalHistoryItemSchema", "goalHistoryPageSchema", "goalIntentSourceKinds", "goalMaterialSnapshotRef", "goalPluginActions", "goalPluginObjectRef", "goalPolicyBindingSchema",
   "goalPolicySchema", "goalProgressResultSchema", "goalRecordSchema", "goalRelationEndpoints", "goalRelationSchema", "goalRelationTypes", "goalReportEventSchema",
-  "goalStateSchema", "goalTimelineSchema", "goalTrashResultSchema", "guidanceCommonSchema", "guidanceKindSchema", "identifier", "inGoalRelation", "judgment", "judgmentInput",
+  "goalStateSchema", "goalTimelineSchema", "goalTrashResultSchema", "guidanceCommonSchema", "guidanceKindSchema", "identifier", "judgment", "judgmentInput",
   "nullable", "object", "option", "parseGoalMaterialSnapshotRef", "parseGoalPluginObjectRef", "planningGraphIssueSchema", "planningImpactSchema",
   "progress", "projectGuidanceEntrySchema", "projectGuidanceRevisionSchema",
-  "readGoalResumeFacts", "reason", "recordedDecisionMethod", "recordedReviewStatus", "scope", "text", "treeCheckInputSchema", "treeCheckResultSchema",
+  "reason", "recordedDecisionMethod", "recordedReviewStatus", "scope", "text", "treeCheckInputSchema", "treeCheckResultSchema",
   "treeDecideInputSchema", "treeDecisionResultSchema", "treeItemDecisionSchema", "treeItemInputSchema", "treeNarrativeSchema", "treeProposalSchema",
   "treeReadInputSchema", "treeReadResultSchema", "treeSubmitInputSchema", "treeSubmitResultSchema"];
 const PLUGIN_ACTIONS = { list: ["goals.list", 1, "query"], contract: ["goals.contract.read", 1, "query"], state: ["goals.state.read", 1, "query"],
@@ -188,4 +189,14 @@ test("RAC-1773 PEQ-15: the MCP, Feed and Coding tables hold the ids, versions an
     assert.deepEqual(Object.keys(wire.inputSchema.properties as object).sort(), [...keys].sort(), name);
     assert.deepEqual(wire.inputSchema.required, [...required], name);
   }
+});
+
+test("CD-03 PEQ-04: Goals opens to other plugins only the actions another plugin or the platform calls (contract-design §4)", () => {
+  // Coding: list, contract, state, progress; Feed and Inbox: contract; the platform's shapes: object reader, search entries, presentation
+  // values, fragment offers. Everything else keeps its user, agent, workflow and MCP audiences and drops `plugin`.
+  const open = (goalsManifest.actions ?? []).filter(action => action.action.audiences?.includes("plugin")).map(action => action.capability_id).sort();
+  assert.deepEqual(open, ["goals.contract.read", "goals.fragment.offers", "goals.list", "goals.presentation.values", "goals.progress.receipt",
+    "goals.progress.record", "goals.search.entries", "goals.state.read", "goals.subject.read"]);
+  const note = goalsManifest.actions?.find(action => action.capability_id === "goals.note");
+  assert.deepEqual(note?.action.audiences, ["user", "agent", "workflow", "mcp"]);
 });

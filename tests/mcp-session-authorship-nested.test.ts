@@ -43,7 +43,7 @@ async function fixture() {
       definitions, handlers: [
         { ...station.list, handle: () => [] },
         { ...station.read, handle: () => ({ title: "笔记", body: "正文" }) },
-        { ...create, handle: (caller, input) => { authors.push(caller.audit_actor_id ?? caller.actor_id); return { plugin: "authored-notes", item_id: `note-${authors.length}`, title: (input as { title: string }).title }; } },
+        { ...create, handle: (caller, input) => { authors.push(caller.audit_actor_id ?? caller.actor_id); return { subject: { kind: "authored_note", id: `note-${authors.length}` }, title: (input as { title: string }).title }; } },
         { ...sink, handle: () => ({ ok: true }) },
       ] });
   });

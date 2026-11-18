@@ -1,5 +1,5 @@
 import type {
-  AttentionEntryRecord, AttentionEvent, AttentionReason, AttentionStatus, AttentionSubjectType,
+  AttentionCategory, AttentionEntryRecord, AttentionEvent, AttentionReason, AttentionStatus, AttentionSubjectType,
 } from "../modules/attention-resumption.js";
 import type { ContextEdge, ContextEdgeInput, ContextEdgeQuery } from "../modules/context-ledger.js";
 import type { PluginDatabaseTransaction } from "./plugin-database.js";
@@ -16,16 +16,30 @@ export const PLUGIN_CONTEXT_LEDGER_READ_PERMISSION = "context-ledger:read";
 export const PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION = "context-ledger:write";
 
 /**
- * Which kinds of subject a plugin's own objects are, for Attention (`attention` in the Manifest). Only a plugin that declares a
- * kind may add or delete its own objects of it; different plugins may declare the same kind. The owner is recorded separately.
+ * Which kinds of subject a plugin's own objects are, for Attention (`attention` in the Manifest), in the plugin's own words. Only a
+ * plugin that declares a type may add or delete its own entries of it, with one of the reasons it declared for it; different plugins
+ * may declare the same type. The owner is recorded separately.
  */
 export interface PluginAttentionDeclaration {
-  readonly subjects: readonly AttentionSubjectType[];
+  readonly subjects: readonly PluginAttentionSubjectDeclaration[];
   /**
    * Which of `subjects` are the person's Inbox: the entries the plugin writes about them show in the Inbox beside the unassigned ones.
    * A kind left out stays the plugin's own (read through `services.attention`); declaring a kind never shows another plugin's entries.
    */
   readonly inbox?: readonly AttentionSubjectType[];
+}
+
+/** One type of subject: the object kind its entries refer to (the kind the owner's actions use for it), and why one may need the person. */
+export interface PluginAttentionSubjectDeclaration {
+  readonly type: AttentionSubjectType;
+  readonly object_kind: string;
+  readonly reasons: readonly PluginAttentionReasonDeclaration[];
+}
+
+/** A reason, and what it asks of the person when it asks one thing: a waiting list puts decisions first, then acceptance, then failures. */
+export interface PluginAttentionReasonDeclaration {
+  readonly id: AttentionReason;
+  readonly attention?: AttentionCategory;
 }
 
 /** A subject to address. A write checks this target against the installation's trusted Manifest, never treating it as caller identity. */

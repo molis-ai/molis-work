@@ -1448,7 +1448,7 @@ export type UiTokenValue = string | {
 export interface UiViewCreateEntry {
     readonly station: string;
     readonly title: string;
-    readonly title_text?: TextRef;
+    readonly label?: string;
 }
 
 export interface UiViewDeclaration {
@@ -1472,13 +1472,16 @@ export interface UiViewDeclaration {
     readonly settings_address?: UiSettingsAddressParamsDeclaration;
     readonly stage_data?: UiStageDataDeclaration;
     readonly stage_surfaces?: readonly string[];
-    readonly creates?: UiViewCreateEntry;
-    readonly start?: UiViewStartEntry;
 }
 
 export type UiViewGroup = (typeof UI_VIEW_GROUPS)[number];
 
 export type UiViewHue = (typeof UI_VIEW_HUES)[number];
+
+export interface UiViewIntakeEntries {
+    readonly creates?: UiViewCreateEntry;
+    readonly start?: UiViewStartEntry;
+}
 
 export type UiViewRail = (typeof UI_VIEW_RAILS)[number];
 
@@ -1493,9 +1496,7 @@ export type UiViewSlot = (typeof UI_VIEW_SLOTS)[number];
 
 export interface UiViewStartEntry {
     readonly title: string;
-    readonly title_text?: TextRef;
     readonly hint: string;
-    readonly hint_text?: TextRef;
     readonly icon?: string;
 }
 

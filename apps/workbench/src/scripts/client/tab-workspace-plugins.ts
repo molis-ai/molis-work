@@ -58,7 +58,8 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     const title = goalId ? titleForItem("goals", goalId, fallback) : "";
     document.querySelectorAll("[data-goal-frame-surface], [data-document-pane]").forEach((node) => {
       if (goalId) node.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: "io.molis.work.goals", surface_title: "Goals",
-        object: { kind: "goal", id: goalId, ...(title ? { title } : {}) }, goal: { id: goalId, title: title || "" } }));
+        object: { kind: "goal", id: goalId, ...(title ? { title } : {}) },
+        belongs_to: { plugin_id: "io.molis.work.goals", kind: "goal", id: goalId, title: title || "" } }));
       else node.removeAttribute("data-assistant-context");
     });
   };

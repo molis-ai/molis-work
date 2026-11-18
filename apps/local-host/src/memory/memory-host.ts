@@ -29,7 +29,7 @@ import type { MolisWorkLocalHost } from "../project-host.js";
 import { pluginMemoryLearning } from "./memory-learning-owner.js";
 import { learnFromQueuedWork } from "./memory-learning.js";
 import { assistantMemorySources, assistantMemorySourceWork, type AssistantMemoryLearningRequest } from "../assistant/assistant-memory-sources.js";
-import { runUpkeep, subjectTitles } from "./memory-upkeep.js";
+import { objectTitles, runUpkeep } from "./memory-upkeep.js";
 import { controlledMemoryService, memoryCallService, memoryCaller, memoryCommandBody } from "./memory-effect.js";
 import { bindMemorySession, type AssistantMemoryBindingReader } from "./memory-session-binding.js";
 import { memorySources } from "./memory-sources.js";
@@ -385,8 +385,8 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       const call = async (definition: { capability_id: string; version: number }, input: unknown) =>
         client.invoke(await context(), { capability_id: definition.capability_id, version: definition.version, provider_id: MEMORY_PROVIDER_ID }, input);
       const scope = (value: unknown): MemoryScope | undefined => value === "project" || value === "personal" ? value : undefined;
-      const pageLabels = async (page: MemoryPageResponse) => ({ goals: await subjectTitles(ports.localHost, ports.projectRef, "goal",
-        page.items.flatMap(item => (item.applies.objects ?? []).filter(obj => obj.plugin_id === "io.molis.work.goals" && obj.kind === "goal").map(obj => obj.id)), await context()).catch(() => ({})) });
+      const pageLabels = async (page: MemoryPageResponse) => ({ objects: await objectTitles(ports.localHost, ports.projectRef,
+        page.items.flatMap(item => item.applies.objects ?? []), await context()).catch(() => ({})) });
       if (method === "GET" && parts.length === 1 && parts[0] === "operations") {
         if (session && url.searchParams.has("scope")) throw memoryErrors.invalid("会话操作查询不能另选范围");
         const query = { ...(url.searchParams.has("scope") ? { scope: url.searchParams.get("scope")! } : {}),

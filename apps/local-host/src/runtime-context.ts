@@ -22,11 +22,14 @@ export function runtimeContextHostFromEnvironment(
     molisWorkSessionId: signals.molis_work_session_id,
     nativeRuntimeSessionId: signals.native_runtime_session_id,
     hostWorkContextId: readProductEnv("WORK_CONTEXT_ID", environment) || null,
-    focusId: signals.focus_id,
+    focus: signals.focus,
     panelId: signals.surface_id,
     projectSuggestionClues: signals.project_suggestion_clues,
   };
 }
+
+/** Both halves of the focus or none: an id alone does not say whose object it is. */
+const readFocus = (kind: string | undefined, id: string | undefined) => kind?.trim() && id?.trim() ? { kind: kind.trim(), id: id.trim() } : null;
 
 export function runtimeSessionHostSignalsFromEnvironment(
   environment: NodeJS.ProcessEnv = process.env,
@@ -49,7 +52,7 @@ export function runtimeSessionHostSignalsFromEnvironment(
     molis_work_session_id: molisWorkSessionId,
     native_runtime_session_id: nativeRuntimeSessionId,
     surface_id: readProductEnv("PANEL_ID", environment) || null,
-    focus_id: readProductEnv("FOCUS_ID", environment) || null,
+    focus: readFocus(readProductEnv("FOCUS_KIND", environment), readProductEnv("FOCUS_ID", environment)),
     runtime_context: {
       runtime_id: runtimeId,
       // A work entry the host declared routes the Session by its own id; otherwise the native runtime session does.

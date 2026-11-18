@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { LocalProjectDatabase, pluginSyncDatabaseDeclaration, pluginSyncNamespace, PROJECT_DATABASE_BASELINE, PROJECT_DATABASE_VERSION_3_SCHEMA } from "@molis-ai/molis-work-app-local-host";
+import { goalsHistoryPlatformExtension, LocalProjectDatabase, pluginSyncNamespace, PROJECT_DATABASE_BASELINE, PROJECT_DATABASE_VERSION_3_SCHEMA } from "@molis-ai/molis-work-app-local-host";
 import { describeSqliteSchema, runSqliteUpgrade, sqliteBaselineTriggers } from "@molis-ai/molis-work-storage";
 import { assessGoalReport, goalsApprovalTransferManifest, GOALS_PROJECT_DATABASE, goalsManifest, hostEventDecisionAuthority, type GoalEvidencePorts } from "@molis-ai/molis-work-plugin-goals";
 import { goalEventAssessmentKey, type GoalEventJudgmentAssessment, type GoalEventJudgmentBasisInput } from "@molis-ai/molis-work-plugin-goals/contract";
@@ -384,7 +384,8 @@ test("EVD-20: a library at Goals' version 1 is taken to the current version with
       .all(ns + "_*").map(row => String(row.name));
     assert.ok(version4Triggers.length > 0);
     for (const name of version4Triggers) before.exec(`DROP TRIGGER "${name}"`);
-    const version1Triggers = sqliteBaselineTriggers(pluginSyncDatabaseDeclaration(original, original.databases!.project!).schema, PROJECT_DATABASE_VERSION_3_SCHEMA);
+    // Goals' version 1 as it was written, with the `goal-context` triggers today's compiler no longer makes (batch 44 C6).
+    const version1Triggers = sqliteBaselineTriggers(original.databases!.project!.schema + goalsHistoryPlatformExtension(original).platformSchema, PROJECT_DATABASE_VERSION_3_SCHEMA);
     for (const sql of version1Triggers.values()) before.exec(sql);
     const priorLedger = before.prepare("SELECT version, tables_json FROM plugin_project_databases WHERE plugin_id=?").get(goalsManifest.plugin_id);
     assert.equal(priorLedger?.version, 4);

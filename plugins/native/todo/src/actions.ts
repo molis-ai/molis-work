@@ -10,6 +10,7 @@ import { selectView, todoFlags, viewCounts, type TodoFlag } from "./views.js";
 import { createTodoSearchHandlers, todoSearchActions } from "./search.js";
 import { createTodoHomeEventsHandler, todoWorkEventsAction } from "./work-events.js";
 import { createTodoOrganizeHandlers, todoOrganizeActions } from "./organize-actions.js";
+import { todoOnboardingActions } from "./onboarding-drafts.js";
 import type { ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 
@@ -144,7 +145,7 @@ export const todoActions = {
   composerPick: todoSearchActions.pick,
   fragmentOffers: defineFragmentOffersAction("todo.fragment.offers", /* @version action.todo.fragment.offers */ 1, [FRAGMENT_ANY_OBJECT], "选中的内容可以记成待办", [...TODO_READ], [], "home"),
 };
-export const TODO_ACTIONS: readonly ActionDefinition[] = [...Object.values(todoActions), ...Object.values(todoOrganizeActions)];
+export const TODO_ACTIONS: readonly ActionDefinition[] = [...Object.values(todoActions), ...Object.values(todoOrganizeActions), ...Object.values(todoOnboardingActions)];
 
 /**
  * The complete `todo.items.create` input for a fragment of anything (specs/archive/contextual-interaction §10 P2); pure over the fragment and the caller's project. The

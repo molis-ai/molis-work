@@ -101,9 +101,11 @@ export function pluginAttentionFor(manifest: PluginManifest, context: PluginStar
   } });
   const reading = () => { gate.read(PLUGIN_ATTENTION_READ_PERMISSION); };
   const inboxLibrary = connection as AttentionSqliteDatabase & PluginRuntimeDatabase & PluginRuntimeReleaseArtifactDatabase;
-  const owns = (subject: PluginAttentionSubjectReference) => {
+  const owns = (subject: PluginAttentionSubjectReference, reason?: string) => {
     if (subject.owner_plugin_id !== owner) throw new ActionError("actions.forbidden", "插件只能添加或删除自己的对象");
-    if (!(subjects as readonly string[]).includes(subject.subject_type)) throw new ActionError("actions.forbidden", "插件没有在 Manifest 里声明这种对象");
+    const declaredType = subjects.find(item => item.type === subject.subject_type);
+    if (!declaredType) throw new ActionError("actions.forbidden", "插件没有在 Manifest 里声明这种对象");
+    if (reason !== undefined && !declaredType.reasons.some(item => item.id === reason)) throw new ActionError("actions.forbidden", "插件没有为这种对象声明这个原因");
   };
   return Object.freeze<PluginAttentionClient>({
     list: () => { reading(); return attentionModule.query.list(projectId).filter(hasAttentionOwner); },
@@ -121,7 +123,7 @@ export function pluginAttentionFor(manifest: PluginManifest, context: PluginStar
       permit();
       return write(Object.freeze<PluginAttentionWriter>({
         create: input => {
-          permit(); owns(input); assertEntryIdAvailable(attentionModule, projectId, owner, input);
+          permit(); owns(input, input.reason); assertEntryIdAvailable(attentionModule, projectId, owner, input);
           const result = attentionModule.commands.create({ ...input, owner_plugin_id: owner, project_id: projectId });
           return { ...result, entry: assignedEntry(result.entry) };
         },

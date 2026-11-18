@@ -315,20 +315,27 @@ function leadProblems(value: unknown, at: string, ui: unknown): string[] {
     : [`${at}.view_id 要是本 Manifest 自己的主区视图（ui.views 里 slot 为 navigator 或 stage 的那一个）`];
 }
 
-/** Where the person may start from: at most 3, each one of this Manifest's own actions, listed once (SSC-18, install half). */
+/**
+ * Where the person may start from: at most 3, each one of this Manifest's own actions with an `intake.start`, listed once (SSC-18, install
+ * half; contract-design §2.4). A form to open is the intake's `start.open`, checked here against this Manifest's stage views.
+ */
 function startProblems(value: unknown, at: string, actions: readonly Record<string, unknown>[], ui: unknown): string[] {
   if (value === undefined) return [];
   if (!Array.isArray(value) || value.length === 0 || value.length > PRESENTATION_LIMITS.overview_start) return [`${at} 要列 1 到 ${PRESENTATION_LIMITS.overview_start} 个入口`];
   const seen = new Set<string>();
   return value.flatMap((entry, index) => {
     const path = `${at}[${index}]`;
-    if (!isRecord(entry) || extraKeys(entry, ["capability_id", "version", "open"], path).length > 0 || !ownAction(actions, entry.capability_id, entry.version)) {
+    if (!isRecord(entry) || extraKeys(entry, ["capability_id", "version"], path).length > 0 || !ownAction(actions, entry.capability_id, entry.version)) {
       return [`${path} 要是本 Manifest 自己的一个动作（capability_id 和 version 都要对上）`];
     }
     const key = `${String(entry.capability_id)}@${String(entry.version)}`;
     if (seen.has(key)) return [`${path} 重复`];
     seen.add(key);
-    return entry.open === undefined ? [] : startFormProblems(entry.open, `${path}.open`, ui);
+    const target = actions.find(action => action.capability_id === entry.capability_id && action.version === entry.version);
+    const body = target && isRecord(target.action) ? target.action : undefined;
+    const start = body && isRecord(body.intake) && isRecord(body.intake.start) ? body.intake.start : undefined;
+    if (!start) return [`${path} 指向的动作要有创建入口的起点（intake.start）`];
+    return start.open === undefined ? [] : startFormProblems(start.open, `${path} 的 intake.start.open`, ui);
   });
 }
 

@@ -43,6 +43,482 @@ export declare const ONBOARDING_CODE_ROOT_TAKE_INPUT_SCHEMA: {
     readonly additionalProperties: false;
 };
 
+export declare const ONBOARDING_DOCUMENTS_INPUT_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly request_id: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 300;
+        };
+        readonly request_hash: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+        readonly title: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 1000;
+        };
+        readonly markdown: {
+            readonly type: "string";
+            readonly maxLength: 536870888;
+        };
+    };
+    readonly required: readonly ("title" | "request_id" | "markdown" | "request_hash")[];
+    readonly additionalProperties: false;
+};
+
+export declare const ONBOARDING_DOCUMENTS_RESULT_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly parts: {
+            readonly type: "array";
+            readonly minItems: 1;
+            readonly maxItems: 10000;
+            readonly items: {
+                readonly type: "object";
+                readonly properties: {
+                    readonly subject: {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly kind: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                            };
+                            readonly id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                            };
+                        };
+                        readonly required: readonly ["kind", "id"];
+                        readonly additionalProperties: false;
+                    };
+                    readonly open: {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly surface: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly maxLength: 200;
+                            };
+                            readonly id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly maxLength: 500;
+                            };
+                            readonly title: {
+                                readonly type: "string";
+                                readonly maxLength: 1000;
+                            };
+                        };
+                        readonly required: readonly ("id" | "surface" | "title")[];
+                        readonly additionalProperties: false;
+                    };
+                };
+                readonly required: readonly ("subject" | "open")[];
+                readonly additionalProperties: false;
+            };
+        };
+    };
+    readonly required: readonly "parts"[];
+    readonly additionalProperties: false;
+};
+
+export declare const ONBOARDING_DOCUMENT_TEXT_MAX = 536870888;
+
+export declare const ONBOARDING_DRAFT_GET_INPUT_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly ids: {
+            readonly type: "array";
+            readonly minItems: 1;
+            readonly maxItems: 50;
+            readonly items: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 200;
+            };
+        };
+    };
+    readonly required: readonly "ids"[];
+    readonly additionalProperties: false;
+};
+
+export declare const ONBOARDING_DRAFT_GET_MAX = 50;
+
+export declare const ONBOARDING_DRAFT_GET_RESULT_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly batches: {
+            readonly type: "array";
+            readonly maxItems: 50;
+            readonly items: {
+                readonly type: "object";
+                readonly properties: {
+                    readonly batch_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 200;
+                    };
+                    readonly revision: {
+                        readonly type: "integer";
+                        readonly minimum: 0;
+                    };
+                    readonly notes: {
+                        readonly type: "array";
+                        readonly maxItems: 50;
+                        readonly items: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+                    };
+                    readonly reference_only: {
+                        readonly type: "integer";
+                        readonly minimum: 0;
+                    };
+                    readonly candidates: {
+                        readonly type: "array";
+                        readonly maxItems: 2000;
+                        readonly items: {
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly candidate_id: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                    readonly maxLength: 200;
+                                };
+                                readonly title: {
+                                    readonly type: "string";
+                                    readonly maxLength: 500;
+                                };
+                                readonly selected: {
+                                    readonly type: "boolean";
+                                };
+                                readonly label: {
+                                    readonly type: "object";
+                                    readonly properties: {
+                                        readonly text: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+                                        readonly state: {
+                                            readonly type: "string";
+                                            readonly enum: ("partial" | "idle" | "connected" | "running" | "done" | "waiting" | "answer" | "paused" | "blocked" | "syncing" | "retrying" | "failed" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "unread" | "read" | "archived" | "trashed")[];
+                                        };
+                                    };
+                                    readonly required: readonly ("state" | "text")[];
+                                    readonly additionalProperties: false;
+                                };
+                                readonly meta: {
+                                    readonly type: "array";
+                                    readonly maxItems: 4;
+                                    readonly items: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+                                };
+                                readonly evidence: {
+                                    readonly type: "string";
+                                    readonly maxLength: 500;
+                                };
+                                readonly decision: {
+                                    readonly anyOf: readonly [{
+                                        readonly type: "object";
+                                        readonly properties: {
+                                            readonly item_id: {
+                                                readonly anyOf: readonly [{
+                                                    readonly type: "string";
+                                                    readonly minLength: 1;
+                                                    readonly maxLength: 200;
+                                                }, {
+                                                    readonly type: "null";
+                                                }];
+                                            };
+                                        };
+                                        readonly required: readonly "item_id"[];
+                                        readonly additionalProperties: false;
+                                    }, {
+                                        readonly type: "null";
+                                    }];
+                                };
+                            };
+                            readonly required: readonly ["candidate_id", "title", "selected", "label", "meta", "decision"];
+                            readonly additionalProperties: false;
+                        };
+                    };
+                };
+                readonly required: readonly ("revision" | "notes" | "candidates" | "reference_only" | "batch_id")[];
+                readonly additionalProperties: false;
+            };
+        };
+    };
+    readonly required: readonly "batches"[];
+    readonly additionalProperties: false;
+};
+
+export declare const ONBOARDING_DRAFT_INPUT_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly origin: {
+            readonly type: "string";
+            readonly enum: readonly ["onboarding"];
+        };
+        readonly title: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+        readonly request_id: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 300;
+        };
+        readonly materials: {
+            readonly type: "array";
+            readonly minItems: 1;
+            readonly maxItems: 50;
+            readonly items: {
+                readonly type: "object";
+                readonly properties: {
+                    readonly title: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 200;
+                    };
+                    readonly text: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: number;
+                    };
+                };
+                readonly required: readonly ("title" | "text")[];
+                readonly additionalProperties: false;
+            };
+        };
+    };
+    readonly required: readonly ("title" | "request_id" | "origin" | "materials")[];
+    readonly additionalProperties: false;
+};
+
+export declare const ONBOARDING_DRAFT_KEEP_INPUT_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly id: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+        readonly expected_revision: {
+            readonly type: "integer";
+            readonly minimum: 0;
+        };
+        readonly keep: {
+            readonly type: "array";
+            readonly maxItems: 80;
+            readonly items: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 200;
+            };
+        };
+    };
+    readonly required: readonly ("id" | "expected_revision" | "keep")[];
+    readonly additionalProperties: false;
+};
+
+export declare const ONBOARDING_DRAFT_KEEP_MAX = 80;
+
+export declare const ONBOARDING_DRAFT_KEEP_RESULT_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly batch: {
+            readonly type: "object";
+            readonly properties: {
+                readonly batch_id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                    readonly maxLength: 200;
+                };
+                readonly revision: {
+                    readonly type: "integer";
+                    readonly minimum: 0;
+                };
+                readonly notes: {
+                    readonly type: "array";
+                    readonly maxItems: 50;
+                    readonly items: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+                };
+                readonly reference_only: {
+                    readonly type: "integer";
+                    readonly minimum: 0;
+                };
+                readonly candidates: {
+                    readonly type: "array";
+                    readonly maxItems: 2000;
+                    readonly items: {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly candidate_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly maxLength: 200;
+                            };
+                            readonly title: {
+                                readonly type: "string";
+                                readonly maxLength: 500;
+                            };
+                            readonly selected: {
+                                readonly type: "boolean";
+                            };
+                            readonly label: {
+                                readonly type: "object";
+                                readonly properties: {
+                                    readonly text: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+                                    readonly state: {
+                                        readonly type: "string";
+                                        readonly enum: ("partial" | "idle" | "connected" | "running" | "done" | "waiting" | "answer" | "paused" | "blocked" | "syncing" | "retrying" | "failed" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "unread" | "read" | "archived" | "trashed")[];
+                                    };
+                                };
+                                readonly required: readonly ("state" | "text")[];
+                                readonly additionalProperties: false;
+                            };
+                            readonly meta: {
+                                readonly type: "array";
+                                readonly maxItems: 4;
+                                readonly items: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+                            };
+                            readonly evidence: {
+                                readonly type: "string";
+                                readonly maxLength: 500;
+                            };
+                            readonly decision: {
+                                readonly anyOf: readonly [{
+                                    readonly type: "object";
+                                    readonly properties: {
+                                        readonly item_id: {
+                                            readonly anyOf: readonly [{
+                                                readonly type: "string";
+                                                readonly minLength: 1;
+                                                readonly maxLength: 200;
+                                            }, {
+                                                readonly type: "null";
+                                            }];
+                                        };
+                                    };
+                                    readonly required: readonly "item_id"[];
+                                    readonly additionalProperties: false;
+                                }, {
+                                    readonly type: "null";
+                                }];
+                            };
+                        };
+                        readonly required: readonly ["candidate_id", "title", "selected", "label", "meta", "decision"];
+                        readonly additionalProperties: false;
+                    };
+                };
+            };
+            readonly required: readonly ("revision" | "notes" | "candidates" | "reference_only" | "batch_id")[];
+            readonly additionalProperties: false;
+        };
+    };
+    readonly required: readonly "batch"[];
+    readonly additionalProperties: false;
+};
+
+export declare const ONBOARDING_DRAFT_MATERIALS_MAX = 50;
+
+export declare const ONBOARDING_DRAFT_PART_CHARS = 60000;
+
+export declare const ONBOARDING_DRAFT_RESULT_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly batch: {
+            readonly type: "object";
+            readonly properties: {
+                readonly batch_id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                    readonly maxLength: 200;
+                };
+                readonly revision: {
+                    readonly type: "integer";
+                    readonly minimum: 0;
+                };
+                readonly notes: {
+                    readonly type: "array";
+                    readonly maxItems: 50;
+                    readonly items: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+                };
+                readonly reference_only: {
+                    readonly type: "integer";
+                    readonly minimum: 0;
+                };
+                readonly candidates: {
+                    readonly type: "array";
+                    readonly maxItems: 2000;
+                    readonly items: {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly candidate_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly maxLength: 200;
+                            };
+                            readonly title: {
+                                readonly type: "string";
+                                readonly maxLength: 500;
+                            };
+                            readonly selected: {
+                                readonly type: "boolean";
+                            };
+                            readonly label: {
+                                readonly type: "object";
+                                readonly properties: {
+                                    readonly text: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+                                    readonly state: {
+                                        readonly type: "string";
+                                        readonly enum: ("partial" | "idle" | "connected" | "running" | "done" | "waiting" | "answer" | "paused" | "blocked" | "syncing" | "retrying" | "failed" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "unread" | "read" | "archived" | "trashed")[];
+                                    };
+                                };
+                                readonly required: readonly ("state" | "text")[];
+                                readonly additionalProperties: false;
+                            };
+                            readonly meta: {
+                                readonly type: "array";
+                                readonly maxItems: 4;
+                                readonly items: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+                            };
+                            readonly evidence: {
+                                readonly type: "string";
+                                readonly maxLength: 500;
+                            };
+                            readonly decision: {
+                                readonly anyOf: readonly [{
+                                    readonly type: "object";
+                                    readonly properties: {
+                                        readonly item_id: {
+                                            readonly anyOf: readonly [{
+                                                readonly type: "string";
+                                                readonly minLength: 1;
+                                                readonly maxLength: 200;
+                                            }, {
+                                                readonly type: "null";
+                                            }];
+                                        };
+                                    };
+                                    readonly required: readonly "item_id"[];
+                                    readonly additionalProperties: false;
+                                }, {
+                                    readonly type: "null";
+                                }];
+                            };
+                        };
+                        readonly required: readonly ["candidate_id", "title", "selected", "label", "meta", "decision"];
+                        readonly additionalProperties: false;
+                    };
+                };
+            };
+            readonly required: readonly ("revision" | "notes" | "candidates" | "reference_only" | "batch_id")[];
+            readonly additionalProperties: false;
+        };
+    };
+    readonly required: readonly "batch"[];
+    readonly additionalProperties: false;
+};
+
 export declare const ONBOARDING_TAKE_MATERIALS_MAX = 30;
 
 export declare const ONBOARDING_TAKE_RESULT_SCHEMA: ActionSchema;
@@ -58,17 +534,70 @@ export interface OnboardingCodeRootTake {
     }>;
 }
 
+export interface OnboardingDocumentsInput {
+    readonly request_id: string;
+    readonly request_hash: string;
+    readonly title: string;
+    readonly markdown: string;
+}
+
+export interface OnboardingDocumentsResult {
+    readonly parts: ReadonlyArray<{
+        readonly subject: ActionSubject;
+        readonly open: {
+            readonly surface: string;
+            readonly id: string;
+            readonly title: string;
+        };
+    }>;
+}
+
+export interface OnboardingDraftBatch {
+    readonly batch_id: string;
+    readonly revision: number;
+    readonly notes: readonly TextRef[];
+    readonly reference_only: number;
+    readonly candidates: readonly OnboardingDraftCandidate[];
+}
+
+export interface OnboardingDraftCandidate {
+    readonly candidate_id: string;
+    readonly title: string;
+    readonly selected: boolean;
+    readonly label: {
+        readonly text: TextRef;
+        readonly state: StateRingFamily;
+    };
+    readonly meta: readonly TextRef[];
+    readonly evidence?: string;
+    readonly decision: {
+        readonly item_id: string | null;
+    } | null;
+}
+
+export interface OnboardingDraftGetInput {
+    readonly ids: readonly string[];
+}
+
+export interface OnboardingDraftInput {
+    readonly origin: "onboarding";
+    readonly title: string;
+    readonly request_id: string;
+    readonly materials: ReadonlyArray<{
+        readonly title: string;
+        readonly text: string;
+    }>;
+}
+
+export interface OnboardingDraftKeepInput {
+    readonly id: string;
+    readonly expected_revision: number;
+    readonly keep: readonly string[];
+}
+
 export interface OnboardingTakeResult {
     readonly open: {
         readonly item_id: string;
         readonly title: string;
     } | null;
-}
-
-export interface PluginOnboardingDeclaration {
-    readonly takes: ReadonlyArray<{
-        readonly kind: "code_root";
-        readonly capability_id: string;
-        readonly version: number;
-    }>;
 }

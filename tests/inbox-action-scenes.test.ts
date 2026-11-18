@@ -256,7 +256,7 @@ test("admission actions wait for the Inbox next-step judgment beside the project
     // the nested Feed call kept the audience: the material is filed under the hand-in source, not under 「工作流程」.
     await host.withProject(reference, runtime => {
       const feed = createLocalFeedApplication(runtime.store.db);
-      const entry = feed.getInboxEntry(reference.project_id, handed.item_id);
+      const entry = feed.getInboxEntry(reference.project_id, handed.subject.id);
       assert.equal(entry.detail?.added_by, "web_user");
       const item = feed.getFeedItem(reference.project_id, entry.subject_id);
       assert.equal(item.source_label, "放进来的内容");

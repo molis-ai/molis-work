@@ -34,7 +34,7 @@ export function installCommands(page: LingguangPage): void {
     const goal = Boolean(target.closest("[data-lingguang-to-goal]")), jelly = Boolean(target.closest("[data-lingguang-to-jelly]"));
     s.fates.delete(open.id);
     window.dispatchEvent(new CustomEvent("molis:placement-convert", { detail: { source: { kind: "lingguang_spark", id: open.id },
-      ...(goal ? { goal: true } : { station: jelly ? "jelly" : "pages" }),
+      ...(goal ? { attach_kind: "goal" } : { station: jelly ? "jelly" : "pages" }),
       note: goal ? uiText.text("lingguang.convert.goal-note") : jelly ? uiText.text("lingguang.convert.jelly-note") : uiText.text("lingguang.convert.doc-note") } }));
   };
   const readLink = async () => {

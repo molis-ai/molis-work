@@ -6,8 +6,9 @@ import type {ObjectRef,ContextEdge} from '@molis-ai/molis-work-contracts/modules
 
 const scope={kind:'personal',id:'private-work-context'} as const;
 const source=(id='session'):ObjectRef=>({module:'private-work-context',id,version:null,scope});
-const target=(id:string):ObjectRef=>({module:'goals',id,project_id:'project',version:null,scope});
-const relations={'work.goal':{targetModule:'goals'}} as const;
+// PEQ-04: a Goal is a plugin's object like any other (`plugins`, named by its owner and kind), not a module of the platform's.
+const target=(id:string):ObjectRef=>({module:'plugins',plugin_id:'io.molis.work.goals',object_type:'goal',id,project_id:'project',version:null,scope});
+const relations={'work.goal':{targetModule:'plugins',targetType:'goal'}} as const;
 function fixture(){
   const db=openTestSqlite(':memory:'),ledger=createContextLedger(db,{authorize:()=>true});
   const ports=(authorize=()=>{})=>createContextHistoryReplication(db,{scope,sourceModule:'private-work-context',relations,authorize});

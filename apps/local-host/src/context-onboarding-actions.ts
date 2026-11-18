@@ -51,7 +51,7 @@ export const contextOnboardingActions = {
     input_schema: { type: "object", properties: { journey, body }, required: ["journey", "body"], additionalProperties: false } },
   (entry, input) => updateContextDraft(entry.home, input.journey, { ...input.body })),
   adopt: door.define({ capability_id: "onboarding.context.adopt", version: /* @version action.onboarding.context.adopt */ 1, scope,
-    title: "采用整理结果", description: "首次引导：固定确认的内容，建项目并把内容存进 Pages、成果库与 Todo。",
+    title: "采用整理结果", description: "首次引导：固定确认的内容，建项目，把材料和摘要交给保存文档的插件、选中的草稿交给起草它们的插件，并存进成果库。",
     input_schema: { type: "object", properties: { journey, body }, required: ["journey", "body"], additionalProperties: false } },
   (entry, input) => adoptContextJourney(entry.home, input.journey, { ...input.body }, entry.ports)),
   secret: door.define({ capability_id: "onboarding.context.secret", version: /* @version action.onboarding.context.secret */ 1, scope,

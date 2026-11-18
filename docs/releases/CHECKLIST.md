@@ -36,16 +36,17 @@
 
 `scripts/verify-release-versions.mjs` 对照代码核对这张表，下面几种情况 CI 会失败：某行的版本和定义处的代码不一致；定义处不存在；包的 `src/` 里有一个 `SqliteBaseline` 常量（`const X: SqliteBaseline = {…}`、`const X = {…} satisfies SqliteBaseline`、`… as SqliteBaseline` 三种写法都算）没有列进表，或者它的版本不是对象里写成数字的 `version: N`（引用别的常量，脚本读不出来）；`applySqliteBaseline`、`openBaselineHomeSqlite`、`openOwnerCopyStore`、`openAggregateCopyOwner` 收到的不是一个已声明的常量（内联对象不行）；`runSqliteUpgrade` 收到的既不是已声明的常量，也不是属性（它转交描述符带的基线，`store.baseline` 这样的属性可以）；「版本」不是整数（写「无」也不行）或定义处不是 `路径#名字`。JSON 文件没有常量可指时，定义处写字段名（`路径#schema_version`、`路径#version`）。脚本按语法读这个文件里叫这个名字的属性，键带不带引号都算：对象里写的数字、类型里写的单个数字，以及字符串和模板里写的 `名字: 数字`，都要是同一个数，并和表相同；有一处的值不是数字（常量名、表达式、`{ version }` 这种简写），就以「定义处写字面量」失败。注释不读；类型写成 `number` 的不算；在别处拼出来的版本（展开另一个对象、算出来的键）读不到。它找不到的是完全不经 `applySqliteBaseline` 的新库（比如又一个只靠 `CREATE TABLE IF NOT EXISTS` 的库）和表以外的 JSON 文件，这类只能靠 HOME-DATA.md 的清单和评审发现。
 
-插件自有库的 `PluginDatabaseDeclaration` 也按同一规则检查，必须具名、写出数字版本并列入下表。可信 Host 的连接服务转发插件的现行声明，版本检查识别这一个类型化转发调用。Goals 的 `#goals@4` 行记录同一个库的历史维护声明，只在项目库升级事务中使用。
+插件自有库的 `PluginDatabaseDeclaration` 也按同一规则检查，必须具名、写出数字版本并列入下表。可信 Host 的连接服务转发插件的现行声明，版本检查识别这一个类型化转发调用。Goals 的 `#goals@4`、`#goals@5` 行记录同一个库的历史维护声明，只在项目库升级事务中使用。
 
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |
 | --- | --- | --- | --- | --- | --- |
 | 安装与发行清单 | `config/installation.json、releases/molis-work-<version>/release.json` | 1 | `schema_version` | `apps/local-host/src/installer/home-contract.ts#SCHEMA_VERSION` | 低版本由安装器升级；高版本在修改前拒绝，保留文件 |
-| 项目库 | `projects/<project_id>/molis-work.db` | 4 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 3→4 在项目库同一事务中接收可信决定、规则和原审批记录；低版本升级，高版本拒绝 |
+| 项目库 | `projects/<project_id>/molis-work.db` | 5 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 3→4 在项目库同一事务中接收可信决定、规则和原审批记录；4→5 去掉 Inbox 列举主题类型与原因的约束，把写着 Goals、Feed 模块的关系改写成插件对象并更换 Goals 同步集合；低版本升级，高版本拒绝 |
 | 项目库里 Coding 的表 | `projects/<project_id>/molis-work.db#coding` | 1 | `plugin_project_databases.version` | `plugins/native/coding/src/database.ts#CODING_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Coding） |
 | 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 2 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Feed） |
-| 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 5 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 随项目库 3→4 交接旧决定和规则并更换同步集合，保留原业务事实 |
+| 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 6 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 随项目库 3→4 交接旧决定和规则并更换同步集合；随项目库 4→5 把同步集合换成 `project_goals@3`；保留原业务事实 |
 | Goals 审批移交的历史源 | `projects/<project_id>/molis-work.db#goals@4` | 4 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE_V4` | v1～v3 先执行原升级段，v4 校验后交接，正常启动只读 v5 |
+| Goals 第 44 批搬迁的历史源 | `projects/<project_id>/molis-work.db#goals@5` | 5 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE_V5` | 项目库 4→5 读第 5 版、换同步集合后写第 6 版，正常启动只读 v6 |
 | 项目库里 Inbox 的表 | `projects/<project_id>/molis-work.db#inbox` | 1 | `plugin_project_databases.version` | `plugins/native/inbox/src/database.ts#INBOX_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Inbox） |
 | 项目库里风险的表 | `projects/<project_id>/molis-work.db#risk` | 1 | `plugin_project_databases.version` | `plugins/native/risk/src/database.ts#RISK_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停风险） |
 | 项目库里 Schedule 的表 | `projects/<project_id>/molis-work.db#schedule` | 3 | `plugin_project_databases.version` | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Schedule） |
@@ -66,11 +67,11 @@
 | 端到端评测 | `evaluation/evaluation.db` | 1 | `user_version` | `horizontal/evaluation/src/schema.ts#EVALUATION_BASELINE` | 低版本升级，高版本拒绝（只停工作记录／评测设置面，不挡 Home） |
 | 外部会话 | `external-sessions/external-sessions.db` | 1 | `user_version` | `horizontal/sessions/src/schema.ts#EXTERNAL_SESSIONS_BASELINE` | 低版本升级，高版本拒绝（第 34 批新建，从版本 1 起） |
 | Form | `form/form.db` | 1 | `user_version` | `plugins/native/form/src/database.ts#FORM_DATABASE` | 低版本升级，高版本拒绝 |
-| 放置 | `placement/placement.db` | 1 | `user_version` | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE` | 低版本升级，高版本拒绝 |
+| 放置 | `placement/placement.db` | 2 | `user_version` | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE` | 1→2 把挂到目标的边改成通用的挂接边；低版本升级，高版本拒绝 |
 | Agent 定义 | `agent-definitions/agent-definitions.db` | 3 | `user_version` | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE` | 低版本升级（2 → 3 新增技能草稿、已知答案、回放、来源四张空表，已有的技能设置与用量不动），高版本拒绝 |
 | 插件的 Agent 声明 | `agent-declarations/agent-declarations.db` | 1 | `user_version` | `apps/local-host/src/agent-definitions/agent-declarations.ts#AGENT_DECLARATIONS_BASELINE` | 低版本升级，高版本拒绝 |
 | 连接 | `connectors/connectors.db` | 1 | `user_version` | `apps/local-host/src/connectors-store.ts#CONNECTORS_BASELINE` | 低版本升级，高版本拒绝 |
-| 引导 | `context-onboarding/context-onboarding.db` | 1 | `user_version` | `apps/local-host/src/context-onboarding-store.ts#CONTEXT_ONBOARDING_BASELINE` | 低版本升级，高版本拒绝 |
+| 引导 | `context-onboarding/context-onboarding.db` | 2 | `user_version` | `apps/local-host/src/context-onboarding-store.ts#CONTEXT_ONBOARDING_BASELINE` | 低版本升级（1 → 2 把旅程里 Todo 批次的原样换成平台形状的草稿批次，快照置空、留批次 id；`todo_selected` 改名 `keep` 原样保留；Pages 的文档 id 补成对象地址；见不该有的形状拒绝升级、库保留），高版本拒绝 |
 | Cognia | `cognia/cognia.db` | 1 | `user_version` | `plugins/native/cognia/src/database.ts#COGNIA_DATABASE` | 低版本升级，高版本拒绝 |
 | Dataset | `dataset/dataset.db` | 1 | `user_version` | `plugins/native/dataset/src/database.ts#DATASET_DATABASE` | 低版本升级，高版本拒绝 |
 | Images | `images/images.db` | 1 | `user_version` | `plugins/native/images/src/database.ts#IMAGES_DATABASE` | 低版本升级，高版本拒绝 |

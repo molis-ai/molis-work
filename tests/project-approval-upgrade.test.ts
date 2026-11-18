@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { goalsApprovalTransferManifest, GOALS_PROJECT_DATABASE, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { MolisWorkLocalHost, PROJECT_DATABASE_BASELINE, PROJECT_DATABASE_VERSION_3_SCHEMA, molisWorkHostProjectReference,
-  pluginSyncDatabaseDeclaration, pluginSyncNamespace, projectApprovalUpgrade, runHomeUpgrade } from "@molis-ai/molis-work-app-local-host";
+  goalsHistoryPlatformExtension, pluginSyncDatabaseDeclaration, pluginSyncNamespace, projectApprovalUpgrade, runHomeUpgrade } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
@@ -36,8 +36,8 @@ function library(t: TestContext, version?: 1 | 2 | 3 | 4, location?: { path: str
   const manifest = goalsApprovalTransferManifest(goalsManifest, version), declaration = manifest.databases!.project!;
   const old = pluginSyncNamespace(manifest, "project_goals");
   openPluginProjectDatabase(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, inspector,
-    { path, platformSchema: pluginSyncDatabaseDeclaration(manifest, declaration).schema.slice(declaration.schema.length),
-      platformPrelude: PROJECT_DATABASE_VERSION_3_SCHEMA });
+    // The library as that Goals version left it, with the `goal-context` triggers today's compiler no longer makes (batch 44 C6).
+    { path, platformSchema: goalsHistoryPlatformExtension(manifest).platformSchema, platformPrelude: PROJECT_DATABASE_VERSION_3_SCHEMA });
   db.prepare("INSERT INTO boards(project_id,created_at,updated_at) VALUES (?,?,?)").run(project,time,time);
   db.prepare(`INSERT INTO goals(goal_id,project_id,title,outcome,why,business_logic,definition_state,decomposition_state,validity_state,fulfillment_state,created_at,updated_at)
     VALUES ('goal',?,'Launch','Published','Reason','Logic','accepted','closed_leaf','valid','unmet',?,?)`).run(project,time,time);
@@ -125,7 +125,7 @@ test("APR-19 and APR-17 the normal Home upgrade reopens a v3 project with v4 Goa
     assert.equal(event.record.review.requirements[0]?.disposition, "accepted");
     assert.equal((await web.web.post<ReviewRequest>(endpoint + "/request", { reference: prepared.reference })).decision?.decision_id, event.record.decision_id);
     await host.withProject(reference, ({ store }) => {
-      assert.equal(store.db.pragma("user_version", { simple: true }), 4);
+      assert.equal(store.db.pragma("user_version", { simple: true }), baseline.version);
       assert.equal(store.db.prepare<[], { approval_id: string }>("SELECT approval_id FROM goal_tree_item_effects WHERE item_id='item-new'").get()?.approval_id, result.record.decision_id);
       assert.ok(store.db.prepare("SELECT goal_id FROM goals WHERE goal_id='goal-new'").get());
       assert.equal(store.db.prepare<[], { count: number }>("SELECT count(*) AS count FROM project_review_decisions").get()?.count, 4);
@@ -141,8 +141,8 @@ test("APR-19 moves v1–v4 approvals to Goals v5 in the project upgrade transact
     const source = db.prepare("SELECT * FROM goal_event_trusted_decisions").get();
     const backup = path + ".before";
     await db.backup(backup);
-    assert.deepEqual(runSqliteUpgrade(db, path, baseline), { from: 3, to: 4 });
-    assert.equal(db.prepare<[string], { version: number }>("SELECT version FROM plugin_project_databases WHERE plugin_id=?").get(goalsManifest.plugin_id)?.version, 5);
+    assert.deepEqual(runSqliteUpgrade(db, path, baseline), { from: 3, to: baseline.version });
+    assert.equal(db.prepare<[string], { version: number }>("SELECT version FROM plugin_project_databases WHERE plugin_id=?").get(goalsManifest.plugin_id)?.version, GOALS_PROJECT_DATABASE.version);
     assert.equal(tables(db).some(name => name.startsWith(old! + "_")), false);
     assert.equal(tables(db).some(name => ["goal_event_trusted_decisions","goal_tree_proposal_decisions","policy_bindings","planning_method_packs"].includes(name)), false);
     assert.equal(db.prepare("SELECT name FROM pragma_table_info('goal_event_config_versions') WHERE name = 'adopted_planning_json'").get(), undefined);
@@ -173,7 +173,7 @@ test("APR-19 moves v1–v4 approvals to Goals v5 in the project upgrade transact
       platformTriggers: sqliteBaselineTriggers(baseline.schema),
       platformExtension: () => ({ platformSchema: pluginSyncDatabaseDeclaration(selected, decl).schema.slice(decl.schema.length),
         platformPrelude: PROJECT_DATABASE_BASELINE.schema }) };
-    assert.equal(inspectPluginProjectDatabaseSet(db, audit, inspector, path)[0]?.version, 5);
+    assert.equal(inspectPluginProjectDatabaseSet(db, audit, inspector, path)[0]?.version, GOALS_PROJECT_DATABASE.version);
     storage.close();
     const restored = new LocalSqliteStorage(path, { readonly: true }), original = new LocalSqliteStorage(backup, { readonly: true });
     try {
@@ -218,7 +218,7 @@ test("APR-19 keeps the complete old owner and schema on late failure, wrong publ
 
 test("APR-19 establishes the current project tables in a library that never had Goals", t => {
   const { db, path } = library(t);
-  assert.deepEqual(runSqliteUpgrade(db, path, baseline), { from: 3, to: 4 });
+  assert.deepEqual(runSqliteUpgrade(db, path, baseline), { from: 3, to: baseline.version });
   assert.deepEqual(db.prepare("SELECT plugin_id FROM plugin_project_databases").all(), []);
   assert.deepEqual(projectApprovalRules(db, project).read().rules, []);
 });

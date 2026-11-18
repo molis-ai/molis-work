@@ -71,10 +71,13 @@ export async function productRows() {
     ...host.PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.databases?.project).map(({ manifest }) => {
       const result = row(`projects/*/molis-work.db#${manifest.plugin_id}`, manifest.plugin_id, manifest.databases.project);
       const transfer = GOALS_APPROVAL_TRANSFER;
-      if (manifest.plugin_id === transfer.pluginId && result.version === transfer.goalsTo
-        && host.PROJECT_DATABASE_BASELINE.version === transfer.to && host.projectApprovalUpgrade?.from === transfer.from && host.projectApprovalUpgrade.run
-        && host.PROJECT_DATABASE_BASELINE.upgrades?.includes(host.projectApprovalUpgrade)) {
-        result.froms = [...new Set([...result.froms, transfer.goalsFrom])].sort((a, b) => a - b);
+      // A Goals version a project-library step moves is an origin of Goals' library too, once the Host's chain holds that very step.
+      for (const step of transfer.steps) {
+        const installed = host[step.hostStep];
+        if (manifest.plugin_id === transfer.pluginId && result.version >= step.goalsTo && host.PROJECT_DATABASE_BASELINE.version >= step.to
+          && installed?.from === step.from && installed.run && host.PROJECT_DATABASE_BASELINE.upgrades?.includes(installed)) {
+          result.froms = [...new Set([...result.froms, step.goalsFrom])].sort((a, b) => a - b);
+        }
       }
       return result;
     }),

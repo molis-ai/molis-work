@@ -4,6 +4,8 @@
 
 示例的 Manifest 注册四项动作：`health` 提供公开健康查询；`results.read` 读取本地用户的私人计数与最新个人 Artifact；`results.publish` 保存下一个版本；`results.preview` 把一个已保存的版本转成可读的文字，是产出的成果类型必须有的预览。处理器直接使用 Manifest 中的同一份合同，调用前后经过共同服务和安装权限校验。
 
+它还声明内置插件能声明的那几样，用的是同一套 SDK 与合同（第 44 批 PEQ-05）：`notes.create` 是一个不收材料、带起点（`start`）的空白新建；`attach.*` 五个动作是平台形状的「挂到…」关系，别的对象可以挂到示例便笺上；`resume.summary` 给外部 Agent 接续会话时读；`notes.clear` 要本人在平台的可信决定里确认才执行，`notes.clear.review` 给出确认时看的原对象；`settings_entries` 声明一个设置节，读写走 `settings.read`、`settings.write`。「挂到…」的几部分互相引用，Manifest 在解析时整体检查，处理器用 `bindActionHandler` 按声明绑定。`tests/plugin-sample-equal-standing.test.ts` 在测试 Home 的项目里跑这个样例，核对本人能用到这些声明，并经 MCP 读它的接续摘要。
+
 保存的版本是成果库里的成果，所以 Manifest 的 `artifacts.produces` 给这个类型写了显示名（`title`）和指向 `results.preview` 的 `preview`（[成果类型声明](../../docs/platform/PLUGIN-DEVELOPMENT.md#成果类型声明)）；解析 Manifest 时检查，缺了任何一项，`validate`、安装和本地开发运行都会拒绝。
 
 每次 poll 调用同一个注册的 `results.publish`，按 type/schema 读回具体版本并保存原私人计数。UI 从 Manifest 的 `ui.locales` 读取独立的中英文词包，用 `t` 按稳定键显示已保存数量。打包时带上整个 `locales/`，由 `molis-work plugin validate` 检查。崩溃后恢复原计数；卸载撤回动作和 UI，已交换的 Artifact 不删除。

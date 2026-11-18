@@ -49,7 +49,8 @@ interface JourneyStateView {
   failure_kind?: string | null;
   epoch?: number;
   project_id: string;
-  document_id: string | null;
+  /** Where the summary document opens, in the plugin that keeps documents (contract-design §2.5); before batch 44 a Pages document id. */
+  summary_open: { surface: string; id: string } | null;
   sources: JourneySourceView[];
   summary: { title: string; body: string; references: JourneyRefView[] } | null;
   stale_summary?: { title: string; body: string } | null;
@@ -345,7 +346,7 @@ test("ONB-43, ONB-44, ONB-45, ONB-46, C10: end-to-end code folder adoption, Codi
   });
   assert.equal(adopted.phase, "complete");
   assert.ok(adopted.project_id);
-  assert.ok(adopted.document_id);
+  assert.ok(adopted.summary_open?.id);
 
   // ONB-45, C10: repeating adopt (lost receipt / duplicate submit) reconciles existing project & documents without creating duplicates!
   const replayed = await served.web.post<JourneyStateView>(`/api/onboarding/context/${id}/adopt`, {
@@ -354,7 +355,7 @@ test("ONB-43, ONB-44, ONB-45, ONB-46, C10: end-to-end code folder adoption, Codi
     take: "io.molis.work.coding",
   });
   assert.equal(replayed.project_id, adopted.project_id);
-  assert.equal(replayed.document_id, adopted.document_id);
+  assert.deepEqual(replayed.summary_open, adopted.summary_open);
 
   const store = openPagesStore(dir);
   try {

@@ -2,8 +2,8 @@
   {
     "file": "plugins/native/goals/src/approval-transfer-sync.ts",
     "name": "schema_version",
-    "values": { "1": 1 },
-    "reason": "APR-19 显式项目库移交识别旧 Goals 的 project_goals@1，用原集合键验证触发器与同步账本；现行集合仍由 Manifest 标记管理。"
+    "values": { "1": 1, "2": 1 },
+    "reason": "APR-19 显式项目库移交识别旧 Goals 的 project_goals@1，用原集合键验证触发器与同步账本；第 44 批项目库 4→5（D1）从冻结的 project_goals@2 起步；现行集合仍由 Manifest 标记管理。"
   },
   {
     "file": "plugins/native/goals/src/project-database.ts",

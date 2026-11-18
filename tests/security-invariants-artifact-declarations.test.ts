@@ -238,7 +238,7 @@ test("RAC-415 the registry follows an installed Plugin's Manifest through enable
   assert.deepEqual(report.failed, []);
   assert.equal(types().includes("example.note"), true, "installed and in effect: its type is declared");
   assert.equal(artifactTypeDeclarations().get("example.note")?.plugin_id, PRODUCER);
-  assert.equal(artifactLinkKinds().get("example.note.ref")?.module, PRODUCER, "its link kind is read from its Manifest");
+  assert.equal(artifactLinkKinds().get("example.note.ref")?.plugin_id, PRODUCER, "its link kind is read from its Manifest");
 
   p.supervisor.revoke(PRODUCER);
   assert.equal(types().includes("example.note"), false, "disabled: nothing it declares is read");

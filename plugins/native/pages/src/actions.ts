@@ -8,7 +8,7 @@ import { createPagesLandingHandlers, definePagesLandingActions } from "./landing
 import { MAX_BODY_CHARS, parsePagesBody } from "./document.js";
 import { blocksFromMarkdown } from "./paste-markdown.js";
 import { pagesErrors } from "./error.js";
-import { PAGES_ARTIFACT_TYPE_ID, PAGES_PLUGIN_ID, type PagesBody, type PagesFolder, type PagesRecord, type PagesInputSnapshot, type PagesGenerationRecord } from "./contract.js";
+import { PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION, PAGES_PLUGIN_ID, type PagesBody, type PagesFolder, type PagesRecord, type PagesInputSnapshot, type PagesGenerationRecord } from "./contract.js";
 import { PAGES_AI_COMMANDS, type PagesAiRequest, type PagesAiResult } from "./ai.js";
 import { runPagesAi } from "./ai-run.js";
 import type { PagesImportFile, PreparedPagesImport } from "./import-files.js";
@@ -18,6 +18,7 @@ import type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/
 import { generatePagesFromMaterials } from "./generate.js";
 import { pagesTemplateSummaries } from "./templates.js";
 import { convertImportContent } from "./import-content.js";
+import { importOnboardingDocuments, pagesOnboardingDocuments } from "./onboarding-documents.js";
 import { pagesSchema, nodeFromUnknown } from "./schema.js";
 import { nodesToMarkdown } from "./to-markdown.js";
 import { PAGES_FRAGMENT_CHOICES, preparePagesFragmentOffers } from "./fragment-offers.js";
@@ -93,7 +94,9 @@ const readOnly = <I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I,
  */
 const PAGES_INTAKE = { intake_id: PAGES_DOCUMENT_INTAKE, item_kind: PAGES_SUBJECT_KIND, title: "文档", verb: "存为文档", material_field: "markdown",
   describe: "能独立成篇、以后还要改的内容：一段完整的说明、方案或纪要；一句话的事、要跟进的事、一闪而过的想法不放这里",
-  examples: ["把这段整理成一篇文档", "把这份会议纪要存成文档", "这个方案单独写成一篇"], prepare: { capability_id: "pages.intake.offers", version: /* @version action.pages.intake.offers */ 1 } } as const;
+  examples: ["把这段整理成一篇文档", "把这份会议纪要存成文档", "这个方案单独写成一篇"], prepare: { capability_id: "pages.intake.offers", version: /* @version action.pages.intake.offers */ 1 },
+  // The project home's starting point (contract-design §2.4), on the same entry.
+  start: { title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", icon: "file", title_text: { key: "pages.directory.start-title" }, hint_text: { key: "pages.directory.start-hint" } } } as const;
 export const pagesActions = {
   presentation: pagesPresentationValues,
   /** One document's current text, version and links, by the shared subject protocol (the Assistant, Home, references). */
@@ -116,7 +119,10 @@ export const pagesActions = {
   artifactCompare: defineArtifactCompareAction("pages.artifacts.compare", /* @version action.pages.artifacts.compare */ 1, "文档", [...read]),
   /** 「从这一版继续」 (A4b): a new document from a version of a document, or from an imported text file Pages can read. */
   // Continuing from an imported file parses it, which is a material read inside the action itself.
-  artifactContinue: withAction(defineArtifactContinueAction("pages.artifacts.continue", /* @version action.pages.artifacts.continue */ 1, "文档", [...read, ...write, MATERIALS_READ]), { scheduling: "concurrent" }),
+  artifactContinue: withAction(defineArtifactContinueAction("pages.artifacts.continue", /* @version action.pages.artifacts.continue */ 1, "文档", [...read, ...write, MATERIALS_READ], { item_kind: PAGES_SUBJECT_KIND,
+    // Its own documents, and the imported files it can read (artifact-positioning A3, A4b; PG-079).
+    artifact_types: [{ artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION }, { artifact_type_id: IMPORTED_DOCUMENT_TYPE, schema_version: /* @version artifact.io.molis.work.document */ 1 }],
+    file: { extensions: PAGES_READABLE_EXTENSIONS, stored_text: true } }), { scheduling: "concurrent" }),
   /** 「被谁引用」 (artifact-positioning 五.1): documents whose text links to a version in the 成果库. */
   artifactReferrers: defineArtifactReferrersAction("pages.artifacts.referrers", /* @version action.pages.artifacts.referrers */ 1, "文档", read),
   /** Where a document lives (specs/archive/work-placement): moving keeps its id; copying makes an independent document. */
@@ -172,7 +178,7 @@ function bodyFromMarkdown(markdown: string): PagesBody {
   if (JSON.stringify(body).length > MAX_BODY_CHARS) throw pagesErrors.body_too_large("转换后的正文超过一篇文档能存的大小");
   return body;
 }
-export const PAGES_ACTIONS: readonly ActionDefinition[] = [...Object.values(pagesCommentActions), ...Object.values(pagesLandingActions), ...Object.values(pagesActions)];
+export const PAGES_ACTIONS: readonly ActionDefinition[] = [...Object.values(pagesCommentActions), ...Object.values(pagesLandingActions), ...Object.values(pagesActions), pagesOnboardingDocuments];
 export const PAGES_ACTION_PERMISSIONS = [...new Set(PAGES_ACTIONS.flatMap(definition => definition.action.permissions))];
 export interface PagesActionPorts extends PagesStores {
   /** The full result, so the synchronous `validateResult()` can run inside the write transaction. */
@@ -224,7 +230,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
       try { document = store.get(input.subject_id, project(caller)); }
       catch (error) { throw (error as { code?: string }).code === "pages.not_found" ? pagesErrors.not_found("文档不存在或已删除") : error; }
       return subjectContext({ subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档",
-        content: actionFieldValue("body", document.body), goal_ids: document.goal_id ? [document.goal_id] : [], open: { surface: "pages", id: document.id } }, input);
+        content: actionFieldValue("body", document.body), attached_to: document.goal_id ? [{ kind: "goal", id: document.goal_id }] : [], open: { surface: "pages", id: document.id } }, input);
     })),
     bindSearchEntriesHandler(pagesActions.searchEntries, caller => ports.read(store => store.list(project(caller)).map(document => ({
       subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档", summary: "",
@@ -308,6 +314,8 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
       .map(document => ({ subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, title: document.title || "未命名文档", open: { surface: "pages", id: document.id } })) }))),
     bind(pagesActions.bodyFromMarkdown, ({ markdown }) => ({ body: bodyFromMarkdown(markdown) })),
     bind(pagesActions.importDocuments, (input, caller) => ports.write(caller, store => ({ documents: store.importDocuments({ ...input, project_id: project(caller) }) }))),
+    bind(pagesOnboardingDocuments, (input, caller) => importOnboardingDocuments(input, { convert: bodyFromMarkdown,
+      importPart: async (request_id, request_hash, document) => (await ports.write(caller, store => store.importDocuments({ project_id: project(caller), request_id, request_hash, documents: [document] })))[0]! })),
     bind(pagesActions.generations, (_, caller) => ports.read(store => ({ records: store.generations(project(caller)) }))),
     bind(pagesActions.generation, (input, caller) => ports.read(store => ({ record: store.generation(project(caller), input.request_id) }))),
     bind(pagesActions.generate, (input, caller) => {

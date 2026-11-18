@@ -1,18 +1,28 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test as nodeTest, type TestContext } from "node:test";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ONBOARDING_DRAFT_PART_CHARS } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
 import { TODO_ORGANIZE_MATERIAL_CHARS, TODO_PLUGIN_ID } from "@molis-ai/molis-work-plugin-todo/contract";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openPagesStore, openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, installHostUiText, molisWorkHostProjectReference, onboardingTakers, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
-import { TODO_PART_CHARS, adoptContextJourney, reopenContextJourney, selectContextSources, stageContextFile, startContextJourney, waitContextJourney } from "../apps/local-host/dist/context-onboarding-service.js";
+import { adoptContextJourney, reopenContextJourney, selectContextSources, stageContextFile, startContextJourney, waitContextJourney } from "../apps/local-host/dist/context-onboarding-service.js";
 import { modelPromptText, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+
+// A journey runs in the language of the request that started it, in the Host's text context, as the Host's onboarding routes do: the batches'
+// titles are its words. (Before batch 44 the Host's discovery of Todo's organizer happened to install the context first.)
+installHostUiText();
+type Body = (t: TestContext) => unknown;
+function test(name: string, options: { timeout?: number } | Body, body?: Body) {
+  const [settings, run] = typeof options === "function" ? [{}, options] : [options, body!];
+  return nodeTest(name, settings, t => runWithLocale("zh", () => run(t)));
+}
 
 const MAIL = "小王你好，请周五前发新版方案，预算等小李确认。另外，下周的团建改到周四，大家知悉。";
 const TODOS = JSON.stringify({
@@ -27,7 +37,7 @@ const TODOS = JSON.stringify({
   reference_only: [{ summary: "团建改到周四（通知）", material: 1 }],
 });
 
-async function fixture(t: Parameters<Parameters<typeof test>[1]>[0], todoModel: ((input: ModelPromptInput) => Promise<string>) | null) {
+async function fixture(t: TestContext, todoModel: ((input: ModelPromptInput) => Promise<string>) | null) {
   const dir = await mkdtemp(join(tmpdir(), "molis-context-todo-"));
   const host = new MolisWorkLocalHost({ homeDirectory: dir, completeText: todoModel });
   t.after(async () => { await host.close(); await rm(dir, { recursive: true, force: true }); });
@@ -40,7 +50,17 @@ async function fixture(t: Parameters<Parameters<typeof test>[1]>[0], todoModel: 
       const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
       return bindActionClient(host.actionClient(reference), () => ({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: ["pages:read", "pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"], ...original_file ? { original_file } : {} }));
     },
-    homeActions: (_home: string, signal: AbortSignal) => bindActionClient(host.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: ["todo:read", "todo:write", "model:invoke"], signal })),
+    // Onboarding's drafts go to the plugin that declares it takes them (contract-design §2.5), each action called with its own permissions.
+    takers: onboardingTakers,
+    takeAtHome: (definition: ActionDefinition, signal: AbortSignal) => bindActionClient(host.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: [...definition.action.permissions], signal })),
+    take: async (_home: string, projectId: string, definition: ActionDefinition) => {
+      const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
+      const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+      return bindActionClient(host.actionClient(reference), () => ({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: [...definition.action.permissions] }));
+    },
+    /** Todo's own batches at Home, as its page reads them. */
+    todoBatches: async () => (await bindActionClient(host.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: ["todo:read"] }))
+      .invoke(todoOrganizeActions.list, {})).batches,
   };
   const id = randomUUID();
   withContextJourneys(dir, store => store.create(id));
@@ -55,14 +75,14 @@ test("onboarding gives an overview and todo drafts; the kept drafts become the n
   startContextJourney(dir, id, ports);
   const ready = await waitContextJourney(dir, id);
   assert.equal(ready.phase, "review", ready.error ?? "");
-  assert.equal(ready.todo?.status, "ready");
-  const candidates = ready.todo!.batches[0]!.candidates;
+  assert.deepEqual([ready.drafts?.status, ready.drafts?.plugin_id], ["ready", TODO_PLUGIN_ID], "Todo, the one plugin that declares it drafts, drafts");
+  const candidates = ready.drafts!.batches[0]!.snapshot!.candidates;
   assert.deepEqual(candidates.map(candidate => [candidate.title, candidate.selected]), [["发送新版方案", true], ["等待小李确认预算", true], ["今天催小李确认预算", false]]);
-  assert.equal(ready.todo!.batches[0]!.origin, "onboarding");
+  assert.deepEqual((await ports.todoBatches()).map(batch => [batch.batch_id, batch.origin]), [[ready.drafts!.batches[0]!.batch_id, "onboarding"]], "Todo keeps the batch as one from onboarding");
   const kept = candidates.filter(candidate => candidate.selected).map(candidate => candidate.candidate_id);
-  const adopted = await adoptContextJourney(dir, id, { title: "新版方案", body: ready.summary!.body, todo_selected: kept }, ports);
+  const adopted = await adoptContextJourney(dir, id, { title: "新版方案", body: ready.summary!.body, keep: kept }, ports);
   assert.equal(adopted.phase, "complete", adopted.error ?? "");
-  assert.equal(adopted.todo?.added?.length, 2);
+  assert.equal(adopted.drafts?.added?.length, 2);
   const store = openTodoStore(dir);
   try {
     const items = store.list({ projectId: adopted.project_id, projectIds: [], actor: "user", actorId: "test" });
@@ -86,32 +106,33 @@ test("when the drafts cannot be made, the overview still comes and the project i
   startContextJourney(dir, id, ports);
   const ready = await waitContextJourney(dir, id);
   assert.equal(ready.phase, "review");
-  assert.equal(ready.todo?.status, "failed");
-  assert.match(ready.todo!.error!, /文字模型/);
-  const adopted = await adoptContextJourney(dir, id, { title: "新版方案", body: ready.summary!.body, todo_selected: [] }, ports);
+  assert.equal(ready.drafts?.status, "failed");
+  assert.match(ready.drafts!.error!, /文字模型/);
+  const adopted = await adoptContextJourney(dir, id, { title: "新版方案", body: ready.summary!.body, keep: [] }, ports);
   assert.equal(adopted.phase, "complete", adopted.error ?? "");
 });
 
+// The kernel refuses an action it has not registered; the platform no longer discovers first, so the refusal is the kernel's own words.
+const MISSING_DRAFTER = /能力未注册或版本已失效/u;
 for (const mode of ["missing", "cancelled"] as const) {
-  test(`PG031-F01 ${mode} Todo extraction stays visible beside the overview and writes no drafts or items`, async t => {
+  test(`PG031-F01 ${mode} Todo drafting stays visible beside the overview and writes no drafts or items`, async t => {
     let calls = 0;
     const { dir, id, ports } = await fixture(t, async () => { calls++; return TODOS; });
     const cancelled = new AbortController();
-    startContextJourney(dir, id, { ...ports, homeActions: (home, signal): BoundActionClient => {
-      const client = ports.homeActions(home, AbortSignal.any([signal, cancelled.signal]));
-      return {
-        discover: async () => (await client.discover()).filter(view => mode !== "missing" || view.capability_id !== "todo.organize.extract"),
-        invoke: (definition, input, control) => { cancelled.abort(); return client.invoke(definition, input, control); },
-      };
+    // missing: the drafting action a taker declares is not one the Home has registered (contract-design §2.5: the platform calls what is declared).
+    const takers = (kind: Parameters<typeof onboardingTakers>[0]) => onboardingTakers(kind).map(taker => mode === "missing" && kind === "drafts"
+      ? { ...taker, take: { ...taker.take, capability_id: "todo.onboarding.unregistered" } } : taker);
+    startContextJourney(dir, id, { ...ports, takers, takeAtHome: (definition, signal): BoundActionClient => {
+      const client = ports.takeAtHome(definition, AbortSignal.any([signal, cancelled.signal]));
+      return { discover: () => client.discover(), invoke: (action, input, control) => { if (mode === "cancelled") cancelled.abort(); return client.invoke(action, input, control); } };
     } });
     const ready = await waitContextJourney(dir, id);
     assert.equal(ready.phase, "review", ready.error ?? "");
-    assert.equal(ready.todo?.status, "failed");
-    assert.match(ready.todo!.error!, mode === "missing" ? /todo\.organize\.extract@1 未在当前项目登记或未获授权/ : /取消|abort/iu);
+    assert.equal(ready.drafts?.status, "failed");
+    assert.match(ready.drafts!.error!, mode === "missing" ? MISSING_DRAFTER : /取消|abort/iu);
     assert.equal(calls, 0, "the rejected action never invokes the model");
-    assert.equal(ready.todo!.batches.length, 0);
-    const { batches } = await ports.homeActions(dir, AbortSignal.timeout(10_000)).invoke(todoOrganizeActions.list, {});
-    assert.equal(batches.length, 0);
+    assert.equal(ready.drafts!.batches.length, 0);
+    assert.equal((await ports.todoBatches()).length, 0);
     const store = openTodoStore(dir);
     try {
       const access = { projectId: null, everything: true, actor: "user" as const, actorId: "test" };
@@ -120,23 +141,23 @@ for (const mode of ["missing", "cancelled"] as const) {
   });
 }
 
-test("PG031-F01 a retry with every Todo batch checkpointed needs no discovery or new cancellation window", async t => {
+test("PG031-F01 a retry with every Todo batch checkpointed needs no action client or new cancellation window", async t => {
   let calls = 0;
   const { dir, id, ports } = await fixture(t, async () => { calls++; return TODOS; });
   startContextJourney(dir, id, ports);
   const first = await waitContextJourney(dir, id);
-  assert.equal(first.todo?.status, "ready", first.todo?.error ?? "");
+  assert.equal(first.drafts?.status, "ready", first.drafts?.error ?? "");
   withContextJourneys(dir, store => {
     const journey = store.get(id);
-    journey.phase = "failed"; journey.todo!.status = "pending";
+    journey.phase = "failed"; journey.drafts!.status = "pending";
     store.save(journey);
   });
   let bindings = 0;
-  startContextJourney(dir, id, { ...ports, homeActions: () => { bindings++; throw new Error("No new batch needs an action client"); } });
+  startContextJourney(dir, id, { ...ports, takeAtHome: () => { bindings++; throw new Error("No new batch needs an action client"); } });
   const resumed = await waitContextJourney(dir, id);
   assert.equal(resumed.phase, "review", resumed.error ?? "");
-  assert.equal(resumed.todo?.status, "ready", resumed.todo?.error ?? "");
-  assert.deepEqual(resumed.todo!.batches, first.todo!.batches);
+  assert.equal(resumed.drafts?.status, "ready", resumed.drafts?.error ?? "");
+  assert.deepEqual(resumed.drafts!.batches, first.drafts!.batches);
   assert.equal(bindings, 0); assert.equal(calls, 1);
 });
 
@@ -149,35 +170,38 @@ test("ONB-LIM-05 todo drafts come in batches of 50 materials, a long one in part
   for (let i = 0; i < 99; i++) files.push(await stageContextFile(dir, id, `m-${i}.md`, Buffer.from(`# 邮件 ${i}\n\n${MAIL}`)));
   selectContextSources(dir, id, { sources: [{ kind: "files", selected: true, files: files.map(file => ({ path: file.path, staged: file.staged })) }] });
   const summarize = async (input: ModelPromptInput) => `# 新版方案\n要点 [${/"labels":\["(S\d+)"/u.exec(modelPromptText(input))?.[1] ?? "S1"}]`;
-  let discoveries = 0;
-  const signals: AbortSignal[] = [];
-  const run = { ...ports, model: async () => ({ completeText: summarize }), homeActions: (home: string, signal: AbortSignal): BoundActionClient => {
+  const signals: AbortSignal[] = [], titles: string[] = [];
+  const run = { ...ports, model: async () => ({ completeText: summarize }), takeAtHome: (definition: ActionDefinition, signal: AbortSignal): BoundActionClient => {
     signals.push(signal);
-    const client = ports.homeActions(home, signal);
+    const client = ports.takeAtHome(definition, signal);
     return {
-      discover: () => { discoveries++; return client.discover(); },
-      invoke: (definition, input, control) => {
-        assert.deepEqual([definition.capability_id, definition.version, definition.provider_id], ["todo.organize.extract", 1, TODO_PLUGIN_ID]);
-        return client.invoke(definition, input, control);
+      discover: () => client.discover(),
+      invoke: (action, input, control) => {
+        assert.deepEqual([action.capability_id, action.version, action.provider_id], ["todo.onboarding.draft", 1, TODO_PLUGIN_ID]);
+        titles.push((input as { title: string }).title);
+        return client.invoke(action, input, control);
       },
     };
   } };
   startContextJourney(dir, id, run);
   const ready = await waitContextJourney(dir, id);
   assert.equal(ready.phase, "review", ready.error ?? "");
-  assert.equal(ready.todo?.status, "ready", ready.todo?.error ?? "");
-  assert.equal(ready.todo!.total, 3); assert.equal(ready.todo!.batches.length, 3);
-  // PG031-F01: one pinned discovery, with the original independent timeout/cancellation window for each real batch.
-  assert.equal(discoveries, 1); assert.equal(signals.length, 3); assert.equal(new Set(signals).size, 3);
-  assert.equal(ready.todo!.timing.calls, 3, "ONB-LIM-10 each todo batch's call is timed, so the page can say how long the rest may take");
+  assert.equal(ready.drafts?.status, "ready", ready.drafts?.error ?? "");
+  assert.equal(ready.drafts!.total, 3); assert.equal(ready.drafts!.batches.length, 3);
+  // PG031-F01: the original independent timeout/cancellation window for each real batch. (Before batch 44 the Host also discovered Todo's
+  // organizer once; the platform now calls the action the taker declares, so there is no discovery to count.)
+  assert.equal(signals.length, 3); assert.equal(new Set(signals).size, 3);
+  assert.equal(ready.drafts!.timing.calls, 3, "ONB-LIM-10 each todo batch's call is timed, so the page can say how long the rest may take");
   assert.ok(prompts.some(prompt => prompt.includes("Long · 第 3 / 3 部分")), "the long material goes in parts Todo reads whole");
-  assert.deepEqual(ready.todo!.batches.map(batch => batch.title), [1, 2, 3].map(k => `开始使用时整理的待办（第 ${k} / 3 批）`));
-  const kept = ready.todo!.batches.flatMap(batch => batch.candidates.filter(candidate => candidate.selected).map(candidate => candidate.candidate_id));
-  assert.ok(ready.todo!.batches.every(batch => batch.candidates.some(candidate => candidate.selected)), "every batch has drafts to keep");
-  const adopted = await adoptContextJourney(dir, id, { title: "新版方案", body: ready.summary!.body, todo_selected: [...kept, "not-a-draft"] }, run);
+  assert.deepEqual(titles, [1, 2, 3].map(k => `开始使用时整理的待办（第 ${k} / 3 批）`));
+  assert.deepEqual((await ports.todoBatches()).map(batch => batch.title).sort(), [...titles].sort(), "Todo keeps each batch under the title it was given");
+  const snapshots = ready.drafts!.batches.map(batch => batch.snapshot!);
+  const kept = snapshots.flatMap(batch => batch.candidates.filter(candidate => candidate.selected).map(candidate => candidate.candidate_id));
+  assert.ok(snapshots.every(batch => batch.candidates.some(candidate => candidate.selected)), "every batch has drafts to keep");
+  const adopted = await adoptContextJourney(dir, id, { title: "新版方案", body: ready.summary!.body, keep: [...kept, "not-a-draft"] }, run);
   assert.equal(adopted.phase, "complete", adopted.error ?? "");
-  assert.equal(adopted.todo?.added?.length, kept.length, "the kept drafts of every batch are added");
-  assert.deepEqual(adopted.adoption!.todo_selected, kept, "only this round's drafts can be kept");
+  assert.equal(adopted.drafts?.added?.length, kept.length, "the kept drafts of every batch are added");
+  assert.deepEqual(adopted.adoption!.keep, kept, "only this round's drafts can be kept");
 });
 
 // Drafts belong to the materials they came from (review 2026-10-22): after the person goes back and chooses other materials, the
@@ -187,20 +211,20 @@ test("ONB-LIM-06 after the person chooses other materials, the todo drafts are m
   const { dir, id, ports } = await fixture(t, async input => { prompts.push(modelPromptText(input)); return TODOS; });
   startContextJourney(dir, id, ports);
   const first = await waitContextJourney(dir, id);
-  assert.equal(first.todo?.status, "ready", first.todo?.error ?? "");
+  assert.equal(first.drafts?.status, "ready", first.drafts?.error ?? "");
   reopenContextJourney(dir, id);
   selectContextSources(dir, id, { sources: [{ kind: "browser", selected: true, text: "第二封：请周一前交预算表。" }] });
   startContextJourney(dir, id, ports);
   const second = await waitContextJourney(dir, id);
-  assert.equal(second.todo?.status, "ready", second.todo?.error ?? "");
+  assert.equal(second.drafts?.status, "ready", second.drafts?.error ?? "");
   assert.equal(prompts.length, 2, "the new materials are organized");
   assert.ok(prompts[1]!.includes("请周一前交预算表"), "from the materials chosen now");
-  assert.equal(second.todo!.batches.length, 1);
-  assert.notEqual(second.todo!.batches[0]!.batch_id, first.todo!.batches[0]!.batch_id, "not the first choice's drafts");
+  assert.equal(second.drafts!.batches.length, 1);
+  assert.notEqual(second.drafts!.batches[0]!.batch_id, first.drafts!.batches[0]!.batch_id, "not the first choice's drafts");
 });
 
-test("RAC-822 the journey sends Todo's organizer parts of the size the organizer reads", () => {
-  assert.equal(TODO_PART_CHARS, TODO_ORGANIZE_MATERIAL_CHARS);
+test("RAC-822 the journey sends the drafts taker parts of the size Todo's organizer reads", () => {
+  assert.equal(ONBOARDING_DRAFT_PART_CHARS, TODO_ORGANIZE_MATERIAL_CHARS);
 });
 
 // The text of each part as runs ("🟢×60000 \n×1 x×39999"), so a part of 60,000 characters is read at a glance and a cut inside a 🟢 shows as a run of its own.
@@ -211,20 +235,20 @@ const runs = (text: string) => [...text].reduce<[string, number][]>((all, charac
 const described = (sent: { title: string; text: string }[]) => sent.map(material => `${material.title}: ${runs(material.text)}`);
 
 // A journey over files named and filled as given: the parts the Host sends Todo's organizer, and the finished journey.
-async function journeyOver(t: Parameters<Parameters<typeof test>[1]>[0], files: [name: string, text: string][]) {
+async function journeyOver(t: TestContext, files: [name: string, text: string][]) {
   const { dir, id, ports } = await fixture(t, async () => TODOS);
   const staged: { path: string; staged: string }[] = [];
   for (const [name, text] of files) { const file = await stageContextFile(dir, id, name, Buffer.from(text)); staged.push({ path: file.path, staged: file.staged }); }
   selectContextSources(dir, id, { sources: [{ kind: "files", selected: true, files: staged }] });
   const sent: { title: string; text: string }[] = [];
   const summarize = async (input: ModelPromptInput) => `# 新版方案\n要点 [${/"labels":\["(S\d+)"/u.exec(modelPromptText(input))?.[1] ?? "S1"}]`;
-  const run = { ...ports, model: async () => ({ completeText: summarize }), homeActions: (home: string, signal: AbortSignal): BoundActionClient => {
-    const client = ports.homeActions(home, signal);
+  const run = { ...ports, model: async () => ({ completeText: summarize }), takeAtHome: (definition: ActionDefinition, signal: AbortSignal): BoundActionClient => {
+    const client = ports.takeAtHome(definition, signal);
     return {
       discover: () => client.discover(),
-      invoke: (definition, input, control) => {
-        if (definition.capability_id === "todo.organize.extract") sent.push(...(input as { materials: { title: string; text: string }[] }).materials);
-        return client.invoke(definition, input, control);
+      invoke: (action, input, control) => {
+        if (action.capability_id === "todo.onboarding.draft") sent.push(...(input as { materials: { title: string; text: string }[] }).materials);
+        return client.invoke(action, input, control);
       },
     };
   } };
@@ -270,11 +294,11 @@ test("RAC-1855 pages parts stay counted in UTF-16 units and back off a pair the 
   // 版本 1, and their blank lines) and 250,000 🟢: 500,029 units, 250,014 characters. Unit 400,000 is half of a 🟢, so the first part ends one unit before it.
   // Counted in characters it would be one part of 500,029 units.
   const { dir, id, run, ready } = await journeyOver(t, [["long.md", "🟢".repeat(250_000)]]);
-  const adopted = await adoptContextJourney(dir, id, { title: "Pages parts", body: ready.summary!.body, todo_selected: [] }, run);
+  const adopted = await adoptContextJourney(dir, id, { title: "Pages parts", body: ready.summary!.body, keep: [] }, run);
   assert.equal(adopted.phase, "complete", adopted.error ?? "");
   const pages = openPagesStore(dir);
   try {
-    const parts = pages.list(adopted.project_id).filter(document => document.id !== adopted.document_id).sort((a, b) => a.title.localeCompare(b.title, "en", { numeric: true }));
+    const parts = pages.list(adopted.project_id).filter(document => document.id !== adopted.summary_open!.id).sort((a, b) => a.title.localeCompare(b.title, "en", { numeric: true }));
     assert.deepEqual(parts.map(part => part.title.replace(/^\[S\d+\] /u, "")), ["long · 第 1 / 2 部分", "long · 第 2 / 2 部分"]);
     const body = parts.map(part => JSON.stringify(pages.get(part.id).body)).join("");
     assert.equal(body.split("🟢").length - 1, 250_000, "no 🟢 is split between the parts");
@@ -292,7 +316,7 @@ const TODO_TITLES = [
 
 test("RAC-2105 a single-part material's title for Todo is counted and cut in whole characters, 200 at most", async t => {
   const { ready, sent } = await journeyOver(t, TODO_TITLES.map((c, index) => [`t-${index + 1}.md`, `# ${c.heading}\n\n预算等小李确认。`] as [string, string]));
-  assert.equal(ready.todo?.status, "ready", ready.todo?.error ?? "");
+  assert.equal(ready.drafts?.status, "ready", ready.drafts?.error ?? "");
   assert.equal(sent.length, TODO_TITLES.length);
   for (const [index, c] of TODO_TITLES.entries()) await t.test(c.name, () => assert.equal(sent[index]!.title, c.title));
 });
@@ -304,7 +328,7 @@ test("RAC-2106 the parts of a long material keep their number: the title is cut 
   // A heading and 61,000 more characters are over the 60,000 a part holds, whatever the characters are: two parts each.
   const body = "x".repeat(61_000);
   const { ready, sent } = await journeyOver(t, [["fit.md", `# ${"😀".repeat(187)}\n\n${body}`], ["cut.md", `# ${"😀".repeat(188)}\n\n${body}`]]);
-  assert.equal(ready.todo?.status, "ready", ready.todo?.error ?? "");
+  assert.equal(ready.drafts?.status, "ready", ready.drafts?.error ?? "");
   const cases = [
     { name: "187 😀 and the number are exactly 200 characters: part 1 kept whole", title: "😀".repeat(187) + partOf2(1) },
     { name: "187 😀 and the number are exactly 200 characters: part 2 kept whole", title: "😀".repeat(187) + partOf2(2) },
@@ -331,16 +355,16 @@ const DRAFT_FITS = [
 ];
 
 // A round whose Todo drafts fail where the organizer is called, with `thrown`: the Todo part of the journey as the Host kept it. The overview still comes.
-async function draftsFailing(t: Parameters<Parameters<typeof test>[1]>[0], thrown: unknown) {
+async function draftsFailing(t: TestContext, thrown: unknown) {
   const { dir, id, ports } = await fixture(t, async () => TODOS);
-  startContextJourney(dir, id, { ...ports, homeActions: (home: string, signal: AbortSignal): BoundActionClient => {
-    const client = ports.homeActions(home, signal);
+  startContextJourney(dir, id, { ...ports, takeAtHome: (definition: ActionDefinition, signal: AbortSignal): BoundActionClient => {
+    const client = ports.takeAtHome(definition, signal);
     return { discover: () => client.discover(), invoke: async () => { throw thrown; } };
   } });
   const ready = await waitContextJourney(dir, id);
   assert.equal(ready.phase, "review", ready.error ?? "");
-  assert.equal(ready.todo?.status, "failed");
-  return ready.todo!;
+  assert.equal(ready.drafts?.status, "failed");
+  return ready.drafts!;
 }
 
 for (const c of DRAFT_CUTS) test(`RAC-2122 a failed Todo draft keeps the first 300 whole characters of the error: ${c.name}`, async t => {

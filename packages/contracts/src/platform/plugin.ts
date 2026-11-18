@@ -376,5 +376,5 @@ export type { PluginTaskSubjectsDeclaration } from "./plugin-task-subjects.js";
 
 export type { PluginInstallationClient, PluginInstallationProjects, PluginInstallationView } from "./plugin-installations.js";
 
-export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt, PluginNotificationReceiverDeclaration } from "./plugin-notifications.js";
-export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "./plugin-notifications.js";
+export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt } from "./plugin-notifications.js";
+export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR, PLUGIN_NOTIFICATION_DELIVERY_INPUT_SCHEMA, PLUGIN_NOTIFICATION_DELIVERY_RECEIPT_SCHEMA } from "./plugin-notifications.js";

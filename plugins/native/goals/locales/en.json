@@ -626,6 +626,8 @@
     "goals.guidance-document.why-make-change": "Why make this change",
     "goals.guidance-document.workflow": "Workflow",
     "goals.guidance-document.write-complete-instruction-future-runtime-can-understand-follow": "Write a complete instruction a future Runtime can understand and follow directly",
+    "goals.attach.noun": "Goal",
+    "goals.attach.source": "From {source}",
     "goals.inputs.accept-input": "Accept this input",
     "goals.inputs.add-input": "Add input…",
     "goals.inputs.confirmed": "Confirmed",

@@ -9,6 +9,7 @@ import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import { SURFACE_CORRECTIONS_SCHEMA_SQL } from "@molis-ai/molis-work-service-surfaces";
 import { PROJECT_APPROVALS_SCHEMA_SQL } from "@molis-ai/molis-work-service-project-approvals";
 import { projectApprovalUpgradeReductions, transferProjectApprovals } from "./project-approval-upgrade.js";
+import { projectLibraryV5Upgrade } from "./project-library-v5-upgrade.js";
 import {
   PLUGIN_EVENTS_SCHEMA_SQL,
   PLUGIN_NOTIFICATIONS_SCHEMA_SQL,
@@ -31,6 +32,15 @@ import {
  * Goals' and Governance's tables are not here either: Goals declares them (S8), and Feed declares the Feed items, Sources, Signals and
  * Listener Host tables along with its out rules.
  */
+/**
+ * The Inbox tables as versions 1 to 4 made them: subject types and reasons checked against a closed list. Version 5 (batch 44, D3) drops
+ * the two CHECKs; the earlier versions' layouts below keep them, so an upgrade from any of them starts from what that version really made.
+ */
+const ATTENTION_SCHEMA_SQL_V4 = ATTENTION_SCHEMA_SQL
+  .replace("      subject_type TEXT NOT NULL,\n", "      subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),\n")
+  .replace("      reason TEXT NOT NULL,\n", "      reason TEXT NOT NULL CHECK (reason IN ('manual', 'source_rule', 'goal_decision', 'source_fault', 'artifact_out_failed')),\n");
+if (ATTENTION_SCHEMA_SQL_V4 === ATTENTION_SCHEMA_SQL) throw new Error("the Inbox schema no longer has the columns its version-4 layout checked");
+
 /** The six process-item journal triggers, by the names both journals give them. */
 export const PROCESS_ITEMS_TRIGGER_NAMES: readonly string[] = ["identity", "version"].flatMap(row => ["insert", "update", "delete"].map(operation => `process_items_sync_${row}_${operation}`));
 
@@ -45,7 +55,7 @@ export const PROJECT_DATABASE_VERSION_2_SCHEMA = [
   PROCESS_ITEMS_SCHEMA_SQL,
   LOCAL_JOURNAL_SCHEMA_SQL,
   CONTEXT_LEDGER_SCHEMA,
-  ATTENTION_SCHEMA_SQL,
+  ATTENTION_SCHEMA_SQL_V4,
   LOCAL_OPAQUE_BLOB_SCHEMA_SQL,
   PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL,
   PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL,
@@ -71,12 +81,16 @@ const PROJECT_DATABASE_UPGRADES = [
     { from: 2, sql: SURFACE_CORRECTIONS_SCHEMA_SQL },
     { from: 3, sql: PROJECT_APPROVALS_SCHEMA_SQL, run: transferProjectApprovals,
       get reduces_rows() { return projectApprovalUpgradeReductions(); } },
+    // 4 → 5 (batch 44, CONTRACT-CHANGES 「第 44 批存量搬迁」 D1, D3): the Inbox's declared words, and relations naming plugin objects.
+    { from: 4, ...projectLibraryV5Upgrade },
 ] satisfies readonly SqliteUpgradeStep[];
 
 export const projectApprovalUpgrade: SqliteUpgradeStep = PROJECT_DATABASE_UPGRADES[2]!;
+/** The 4→5 step (batch 44 D1, D3), which also moves Goals' library 5→6: the store snapshot checks the Host installs this very step. */
+export const projectLibraryV5Step: SqliteUpgradeStep = PROJECT_DATABASE_UPGRADES[3]!;
 
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: /* @version database.project_database_baseline */ 4,
-  schema: `${PROJECT_DATABASE_VERSION_3_SCHEMA}\n${PROJECT_APPROVALS_SCHEMA_SQL}`,
+  version: /* @version database.project_database_baseline */ 5,
+  schema: `${PROJECT_DATABASE_VERSION_3_SCHEMA.replace(ATTENTION_SCHEMA_SQL_V4, ATTENTION_SCHEMA_SQL)}\n${PROJECT_APPROVALS_SCHEMA_SQL}`,
   upgrades: PROJECT_DATABASE_UPGRADES,
 };

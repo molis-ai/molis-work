@@ -158,7 +158,6 @@ export const codingManifest: PluginManifest = {
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
   presentation: codingPresentation,
   // 可承接上手材料 (batch12-design §7): onboarding hands Coding the person's code folder through this action, never by name.
-  onboarding: { takes: [{ kind: "code_root", capability_id: codingOnboardingTake.capability_id, version: codingOnboardingTake.version }] },
   actions: [memoryLearningActions.run, ...CODING_ACTIONS, ...codingPresentationActions, ...Object.values(codingExecutorActions), codingOnboardingTake, codingArtifactPreview, codingResultDocument, codingBackgroundTasks, codingWorkEventsAction],
   routes: [
     { route_id: "coding.evaluate-step", method: "POST", path: "/sessions/:sessionId/runs/:runId/steps/:stepId" },

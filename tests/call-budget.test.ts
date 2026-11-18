@@ -194,11 +194,11 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
       const { content } = await home.web.get<{ content: { data: string } }>(previewPath + previewQuery);
       assert.ok(content.data.includes(markdown));
     },
-    // N42: one person context serves the whole overview, the Goals titles it shows included (they read through the same caller).
+    // N42: one person context serves the whole overview, the object titles it shows included (they read through the same caller).
     memoryOverview: async () => {
-      const result = await home.web.get<{ scope: string; labels: { goals: Record<string, string> } }>(prefix + "/api/memory/overview");
+      const result = await home.web.get<{ scope: string; labels: { objects: Record<string, unknown> } }>(prefix + "/api/memory/overview");
       assert.equal(result.scope, "project");
-      assert.deepEqual(result.labels.goals, {});
+      assert.deepEqual(result.labels.objects, {});
     },
     ...refusedBeforeContext,
     goalPanes: async () => {

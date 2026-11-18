@@ -109,7 +109,10 @@ const command = (capabilityId: string, kinds: string[]) => ({ capability_id: cap
   description: "改一篇笔记", kind: "operation", scope: "project", effect: "write", permissions: [], subject_kinds: kinds, audiences: ["user"], input_schema: { type: "object" } } });
 const ownValues = definePresentationValuesAction("notes.presentation.values", 1, ["note"], "笔记的显示字段", []);
 const ownOverview = definePresentationOverviewAction("notes.presentation.overview", 1, "笔记概况", []);
-const ownActions: unknown[] = [search, ownValues, ownOverview, command("notes.publish", ["note"]), command("notes.create", [])];
+// An overview's start names one of this Manifest's actions with a starting point on its intake (contract-design §2.4): a blank note here.
+const startable = { ...command("notes.create", []), action: { ...command("notes.create", []).action, intake: { intake_id: "notes.create", item_kind: "note", title: "笔记",
+  verb: "新建", describe: "新建一篇空白笔记", accepts: [], examples: [], start: { title: "写一条笔记", hint: "先写下来。" } } } };
+const ownActions: unknown[] = [search, ownValues, ownOverview, command("notes.publish", ["note"]), startable];
 const noteObject = {
   kind: "note",
   fields: [{ key: "title", role: "title", label: { key: "declaration-rules.note.title" } }, { key: "state", role: "status" }, { key: "summary", role: "summary" }],
@@ -201,6 +204,8 @@ test("SSC-18 (install half): the overview names one of this Manifest's own actio
   assert.equal(presenting(withOverview({ start: [{ capability_id: "goals.create", version: 1 }] })), notOwn);
   assert.equal(presenting(withOverview({ start: [{ ...ownStart, provider_id: "notes" }] })), notOwn);
   assert.equal(presenting(withOverview({ start: [ownStart, ownStart] })), "presentation.overview.start[1] 重复");
+  assert.equal(presenting(withOverview({ start: [{ capability_id: "notes.publish", version: 1 }] })), "presentation.overview.start[0] 指向的动作要有创建入口的起点（intake.start）",
+    "an own action with no starting point on its intake is not a start (contract-design §2.4)");
   assert.equal(presenting(withOverview({ start: Array.from({ length: 4 }, () => ownStart) })), "presentation.overview.start 要列 1 到 3 个入口");
   const changedValues = { ...ownValues, action: { ...ownValues.action, output_schema: { type: "object" } } };
   assert.equal(presenting(declaration, ownActions.map(action => action === ownValues ? changedValues : action)),

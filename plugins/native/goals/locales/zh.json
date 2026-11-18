@@ -614,6 +614,8 @@
     "goals.guidance-document.why-make-change": "为什么要做这次变更",
     "goals.guidance-document.workflow": "工作方式",
     "goals.guidance-document.write-complete-instruction-future-runtime-can-understand-follow": "写成未来 Runtime 可以直接理解和遵守的完整说明",
+    "goals.attach.noun": "Goal",
+    "goals.attach.source": "来自 {source}",
     "goals.inputs.accept-input": "认可这条输入",
     "goals.inputs.add-input": "加输入…",
     "goals.inputs.confirmed": "已确认",

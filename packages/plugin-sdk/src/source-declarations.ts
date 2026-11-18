@@ -7,8 +7,8 @@ import {
   PLACEMENT_COPY_INPUT_TYPE, PLACEMENT_COPY_INPUT_SCHEMA, PLACEMENT_COPY_OUTPUT_TYPE, PLACEMENT_MOVE_INPUT_SCHEMA,
   PLACEMENT_MOVE_INPUT_TYPE, PLACEMENT_MOVE_OUTPUT_TYPE, PLACEMENT_RESULT_SCHEMA,
   SEARCH_ENTRIES_INPUT_SCHEMA, SEARCH_ENTRIES_INPUT_TYPE, SEARCH_ENTRIES_OUTPUT_SCHEMA, SEARCH_ENTRIES_OUTPUT_TYPE,
-  PLACEMENT_RELATION_ROLES, actionEffect, isFileContentSource, isFileEntriesSource, isObjectCopier, isObjectMover, isSearchEntriesSource,
-  type ActionMetadata, type FileSourceKind, type FragmentOfferChoice, type PlacementRelationRole, type SearchSourceKind,
+  PLACEMENT_ATTACH_OPERATION, PLACEMENT_ATTACH_PARTS, PLACEMENT_ATTACH_SCHEMAS, PLACEMENT_ATTACH_TYPE, TASK_SERVES_ROLES, actionEffect, isAttachRelationPart, isFileContentSource, isFileEntriesSource, isObjectCopier, isObjectMover, isSearchEntriesSource,
+  type ActionMetadata, type FileSourceKind, type FragmentOfferChoice, type PlacementAttachPart, type SearchSourceKind, type TaskServesRole,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { COMPOSER_PICK_INPUT_SCHEMA, COMPOSER_PICK_INPUT_TYPE, COMPOSER_PICK_OUTPUT_SCHEMA, COMPOSER_PICK_OUTPUT_TYPE } from "@molis-ai/molis-work-contracts/platform/composer";
 
@@ -100,7 +100,8 @@ export function fragmentOfferDeclarationProblems(key: string, action: Record<str
     && Number.isInteger(choice.action.version) && choice.action.version >= 1 && (choice.action as { provider_id?: unknown }).provider_id === undefined
     && (choice.granularities === undefined || (Array.isArray(choice.granularities) && choice.granularities.length > 0 && choice.granularities.every(item => (FRAGMENT_GRANULARITIES as readonly string[]).includes(item))))
     && (choice.roles === undefined || (Array.isArray(choice.roles) && choice.roles.length > 0 && choice.roles.every(item => (FRAGMENT_ROLES as readonly string[]).includes(item))))
-    && (choice.requires === undefined || (Array.isArray(choice.requires) && choice.requires.length > 0 && choice.requires.every(item => item === "goal")));
+    && (choice.belongs_to === undefined || (Array.isArray(choice.belongs_to) && choice.belongs_to.length > 0
+      && choice.belongs_to.every(item => typeof item === "string" && /^[a-z][a-z0-9_]{0,63}$/.test(item))));
   // No choices: the query only prepares a creation entry's input (its `prepare`), checked against the Manifest in context-declarations.ts.
   if (!Array.isArray(choices) || choices.some(choice => !valid(choice)) || new Set(choices.map(choice => choice.offer_id)).size !== choices.length) {
     problems.push(`能力 ${key} 的片段动作选项必须有唯一标识、名称、意图、说明及本提供方的目标动作版本`);
@@ -151,42 +152,71 @@ export function placementDeclarationProblems(key: string, action: Record<string,
   return [];
 }
 
-// ---- the relations placement keeps for the person (PG-032) -------------------------------------------------------------------
+// ---- 「挂到…」 parts (batch 44 C1) and a background task's 「为哪个事件办」 parts --------------------------------------------------
 
-const RELATION_NAME = /^[a-z][a-z0-9_]{1,30}$/;
-/** What each part of a relation does to the world: reading parts are queries, the others commands. */
-const RELATION_OPERATION: Record<PlacementRelationRole, "query" | "command"> = { list: "query", candidates: "query", bind: "command", release: "command", create: "command" };
-const hasText = (value: unknown): boolean => typeof value === "string" && value.trim().length > 0 && value.length <= 120;
-
-export function placementRelationProblems(key: string, action: Record<string, unknown>, operation: unknown): string[] {
-  const declared = action.placement_relation;
-  if (declared === undefined) return [];
-  const role = isRecord(declared) ? declared.role : undefined;
-  const known = (PLACEMENT_RELATION_ROLES as readonly unknown[]).includes(role);
-  const target = isRecord(declared) ? declared.target : undefined;
-  const targetOk = role === "list" ? isRecord(target) && hasText(target.kind) && hasText(target.noun) && Object.keys(target).length === 2 : target === undefined;
-  const audiences = Array.isArray(action.audiences) ? action.audiences as unknown[] : [];
-  if (!isRecord(declared) || !RELATION_NAME.test(String(declared.relation)) || !known || !targetOk
-    || Object.keys(declared).some(field => !["relation", "role", "target"].includes(field))
-    || operation !== RELATION_OPERATION[role as PlacementRelationRole] || action.scope !== "project" || !audiences.includes("user")) {
-    return [`能力 ${key} 的放置关联声明无效：需要小写的关联名、角色（${PLACEMENT_RELATION_ROLES.join("、")}）、项目范围、对本机用户开放、与角色一致的查询/命令；只有 list 角色写 target（对方的对象种类和显示名词）`];
-  }
-  return [];
+const ATTACH_PREFIX = `${PLACEMENT_ATTACH_TYPE}.`;
+/** The part an action's types claim, when they claim one of 「挂到…」's. */
+function claimedAttachPart(action: Record<string, unknown>): PlacementAttachPart | "unknown" | null {
+  const type = action.input_type;
+  if (typeof type !== "string" || !type.startsWith(ATTACH_PREFIX)) return typeof action.output_type === "string" && action.output_type.startsWith(ATTACH_PREFIX) ? "unknown" : null;
+  const part = type.slice(ATTACH_PREFIX.length).split(".")[0];
+  return (PLACEMENT_ATTACH_PARTS as readonly string[]).includes(part ?? "") ? part as PlacementAttachPart : "unknown";
 }
 
-/** Across one Manifest: a relation's part is played by one action, and every relation has its `list` part, which names what the other end is. */
-export function placementRelationListProblems(definitions: readonly unknown[]): string[] {
-  const parts = new Map<string, Set<string>>();
+/**
+ * A 「挂到…」 part takes and returns exactly the platform's shapes for it, with its operation, in the project, for the person; the
+ * `bind` part is the attach that declares the relation (`attach.relation`), and a declared relation is on a `bind` part.
+ */
+export function attachRelationPartProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[] {
+  const part = claimedAttachPart(action), attach = isRecord(action.attach) ? action.attach : undefined;
+  const declares = attach !== undefined && attach.relation !== undefined;
+  if (part === null) return declares ? [`能力 ${key} 声明了「挂到…」关系，但不是平台给挂上这一部分的形状（defineAttachRelationAction("bind", …)）`] : [];
+  if (part === "unknown" || !isAttachRelationPart(action as { input_type?: string; output_type?: string }, part)) return [`能力 ${key} 的「挂到…」输入输出类型不是平台给的任何一部分`];
+  const schemas = PLACEMENT_ATTACH_SCHEMAS[part];
+  const audiences = Array.isArray(action.audiences) ? action.audiences as unknown[] : [];
   const problems: string[] = [];
+  if (canonical(action.input_schema) !== canonical(schemas.input) || canonical(action.output_schema) !== canonical(schemas.output)) problems.push(`能力 ${key} 的「挂到…」${part} 部分没有用平台给这一部分的输入输出结构`);
+  if (operation !== PLACEMENT_ATTACH_OPERATION[part] || action.scope !== "project" || !audiences.includes("user")) problems.push(`能力 ${key} 的「挂到…」${part} 部分需要项目范围、对本机用户开放、与这一部分一致的查询/命令`);
+  if (part === "bind" && !declares) problems.push(`能力 ${key} 是「挂到…」的挂上部分，需要在 attach.relation 里声明这个关系`);
+  if (part !== "bind" && declares) problems.push(`能力 ${key} 的「挂到…」关系只能声明在挂上部分（bind）`);
+  return problems;
+}
+
+/**
+ * Across one Manifest: every part a declared relation names is an action of the same Manifest, in the platform's shape for that part,
+ * and one kind is the target of one relation (placement would find two and refuse every operation on it).
+ */
+export function attachRelationListProblems(definitions: readonly unknown[]): string[] {
+  const problems: string[] = [], kinds = new Set<unknown>();
+  const find = (target: unknown) => isRecord(target) ? definitions.find(definition => isRecord(definition) && definition.capability_id === target.capability_id
+    && definition.version === target.version) as Record<string, unknown> | undefined : undefined;
   for (const definition of definitions) {
     const action = isRecord(definition) && isRecord(definition.action) ? definition.action : undefined;
-    const declared = action?.placement_relation;
-    if (!isRecord(declared) || !RELATION_NAME.test(String(declared.relation)) || !(PLACEMENT_RELATION_ROLES as readonly unknown[]).includes(declared.role)) continue;
-    const roles = parts.get(String(declared.relation)) ?? new Set<string>();
-    if (roles.has(String(declared.role))) problems.push(`放置关联 ${String(declared.relation)} 的 ${String(declared.role)} 角色被两个能力声明`);
-    roles.add(String(declared.role));
-    parts.set(String(declared.relation), roles);
+    const relation = action && isRecord(action.attach) && isRecord(action.attach.relation) ? action.attach.relation : undefined;
+    if (!relation) continue;
+    const kind = (action!.attach as Record<string, unknown>).item_kind;
+    if (kinds.has(kind)) problems.push(`「挂到…」${String(kind)} 在本插件里声明了不止一次`);
+    kinds.add(kind);
+    for (const part of ["list", "release", "candidates", "create"] as const) {
+      if (relation[part] === undefined) continue;
+      const named = find(relation[part]);
+      if (!named || !isRecord(named.action) || !isAttachRelationPart(named.action as { input_type?: string; output_type?: string }, part)) {
+        problems.push(`「挂到…」关系 ${String(isRecord(action!.attach) ? action!.attach.attach_id : "")} 的 ${part} 不是本插件里平台给这一部分形状的能力`);
+      }
+    }
   }
-  for (const [relation, roles] of parts) if (!roles.has("list")) problems.push(`放置关联 ${relation} 缺少 list 角色：它写明对方是什么对象`);
   return problems;
+}
+
+const TASK_SERVES_OPERATION: Record<TaskServesRole, "query" | "command"> = { list: "query", bind: "command", release: "command", create: "command" };
+/** A background task's 「为哪个事件办」 part: one of its four roles, with that role's operation, in the project. */
+export function taskServesProblems(key: string, action: Record<string, unknown>, operation: unknown): string[] {
+  const declared = action.task_serves;
+  if (declared === undefined) return [];
+  const role = isRecord(declared) ? declared.role : undefined;
+  if (!isRecord(declared) || !(TASK_SERVES_ROLES as readonly unknown[]).includes(role) || Object.keys(declared).length !== 1
+    || operation !== TASK_SERVES_OPERATION[role as TaskServesRole] || action.scope !== "project") {
+    return [`能力 ${key} 的任务归属声明无效：需要角色（${TASK_SERVES_ROLES.join("、")}）、项目范围、与角色一致的查询/命令（用 defineTaskServesAction）`];
+  }
+  return [];
 }

@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
 import { NATIVE_SESSION_HEADER } from "@molis-ai/molis-work-app-local-host";
+import { objectLink } from "@molis-ai/molis-work-contracts/platform/actions";
 import { installedAccountAuth } from "./fixtures/installed-account.js";
 
 const execFileAsync = promisify(execFile);
@@ -408,7 +409,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         }) as { connection: { project_id: string } };
         assert.equal(bound.connection.project_id, created.project.project_id);
         assert.equal("board_id" in bound.connection, false, "a connection names the project once");
-        for (const capability_id of ["goals.create", "goals.note", "goals.list", "goals.state.read", "goals.events.list", "goals.events.read", "goals.events.configure", "goals.events.report", "goals.progress.record", "goals.concerns.apply", "goals.decisions.request", "goals.decisions.cite", "goals.agreement.set", "goals.closure.submit", "goals.work.resume"]) {
+        for (const capability_id of ["goals.create", "goals.note", "goals.list", "goals.resume.summary", "goals.state.read", "goals.events.list", "goals.events.read", "goals.events.configure", "goals.events.report", "goals.progress.record", "goals.concerns.apply", "goals.decisions.request", "goals.decisions.cite", "goals.agreement.set", "goals.closure.submit", "goals.work.resume"]) {
           const granted = await post(origin, token, "/api/settings/mcp/actions", {
             client_id: "runtime:codex", project_id: created.project.project_id, capability_id,
             provider_id: "io.molis.work.goals", version: 1, enabled: true, expected: { expected_absent: true },
@@ -435,12 +436,14 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
           goal_id: started.goal.goal_id,
         }) as { work_status: string };
         assert.equal(state.work_status, "open");
-        // Action results carry IDs; the Goal's page comes from the bound context's template.
-        const context = await firstMcp.call("molis_work_v1_context_resolve", {}) as { connection: { goal_url_template: string } };
-        assert.equal(
-          context.connection.goal_url_template.replace("{goal_id}", encodeURIComponent(started.goal.goal_id)),
-          `${origin}/projects/${encodeURIComponent(created.project.project_id)}/goals/${encodeURIComponent(started.goal.goal_id)}`,
-        );
+        // Action results carry IDs; the Goal's address comes with it in the resume summary (batch 44 C7), written by `objectLink`.
+        const context = await firstMcp.call("molis_work_v1_context_resolve", {}) as { connection: Record<string, unknown>;
+          resume: { sections: Array<{ plugin_id: string; focus: { subject: { id: string }; title: string; url: string } | null; next: Array<{ subject: { id: string }; title: string; url: string }> }> } | null };
+        assert.equal(Object.hasOwn(context.connection, "goal_url_template"), false);
+        const goals = context.resume?.sections.find(section => section.plugin_id === "io.molis.work.goals");
+        const listed = [goals?.focus, ...(goals?.next ?? [])].find(item => item?.subject.id === started.goal.goal_id);
+        assert.ok(listed, "the new Goal is in Goals' resume summary");
+        assert.equal(listed.url, new URL(objectLink(created.project.project_id, { surface: "goals", id: started.goal.goal_id, title: listed.title }), origin).toString());
         return { goalId: started.goal.goal_id, noteId: note.event_id };
       });
 

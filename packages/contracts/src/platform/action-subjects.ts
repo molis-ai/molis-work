@@ -34,8 +34,11 @@ export interface ActionSubjectContext {
   title: string;
   content: string;
   truncated: boolean;
-  /** Goals the owner itself attaches the object to (a document's “挂到 Goal”). Left out when it keeps no such relation; placement lists these as kept elsewhere. */
-  goal_ids?: string[];
+  /**
+   * Other objects the owner itself attaches this one to (a document's 「挂到…」 a Goal, any plugin's object), each by the kind its reader
+   * declares. Left out when it keeps no such relation; placement lists these as kept elsewhere.
+   */
+  attached_to?: ActionSubject[];
   /** Where the person opens it: the workbench surface and item. Absent when the object has no page of its own. */
   open?: { surface: string; id: string };
   /**
@@ -59,7 +62,7 @@ export const ACTION_SUBJECT_SCHEMA = { type: "object", properties: { kind: id, i
 export const SUBJECT_CONTEXT_INPUT_SCHEMA = { type: "object", properties: { subject_id: id, offset: position }, required: ["subject_id"], additionalProperties: false } as const;
 const required = { subject: ACTION_SUBJECT_SCHEMA, revision: id, title: { type: "string", maxLength: 1000 }, content: { type: "string", maxLength: SUBJECT_CONTEXT_PAGE_CHARS },
   truncated: { type: "boolean" } };
-const properties = { ...required, goal_ids: { type: "array", items: id, uniqueItems: true } };
+const properties = { ...required, attached_to: { type: "array", maxItems: 100, items: ACTION_SUBJECT_SCHEMA } };
 const paging = { offset: position, length: position };
 const open = { type: "object", properties: { surface: { ...id, pattern: "^[a-zA-Z0-9_-]+$" }, id }, required: ["surface", "id"], additionalProperties: false };
 const belongsTo = { type: ["string", "null"], maxLength: 120 };
@@ -70,7 +73,7 @@ export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT = { type: "object", p
 export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN = { type: "object", properties, required: Object.keys(required), additionalProperties: false };
 /**
  * A reader of one object kind's context. `scope` is where its objects live: a project's (the default), or the
- * person's own Home (a calendar, personal notes), so personal work can read them back too. An object that belongs to no Goal can omit `goal_ids`.
+ * person's own Home (a calendar, personal notes), so personal work can read them back too. An object attached to nothing can omit `attached_to`.
  */
 export function defineSubjectContextAction(capabilityId: string, version: number, kind: string, title: string, permissions: string[], scope: "project" | "home" = "project"): ActionDefinition<SubjectContextRequest, ActionSubjectContext> {
   return { capability_id: capabilityId, version: version, operation: "query", action: { title: `读取${/^[A-Za-z]/.test(title) ? " " : ""}${title}${/[A-Za-z]$/.test(title) ? " " : ""}的正文与关联`, description: `读取${title}的当前正文、版本及真实关联，供调用者明确引用。`,
@@ -89,8 +92,17 @@ export function subjectContext(input: Omit<ActionSubjectContext, "truncated" | "
     length++;
   }
   const offset = Math.min(requested, length);
-  return { ...input, title: [...input.title].slice(0, 1000).join(""), content, truncated: input.truncated === true || offset + [...content].length < length,
-    ...(input.goal_ids?.length ? { goal_ids: [...new Set(input.goal_ids)] } : {}), ...(request ? { offset, length } : {}) };
+  // An object attached to nothing has no `attached_to`, not an empty one.
+  const { attached_to: attached, ...rest } = input;
+  return { ...rest, title: [...input.title].slice(0, 1000).join(""), content, truncated: input.truncated === true || offset + [...content].length < length,
+    ...(attached?.length ? { attached_to: uniqueSubjects(attached) } : {}), ...(request ? { offset, length } : {}) };
+}
+
+/** Each object once, in the order first named. */
+function uniqueSubjects(subjects: readonly ActionSubject[]): ActionSubject[] {
+  const seen = new Set<string>();
+  return subjects.filter(subject => { const key = JSON.stringify([subject.kind, subject.id]); if (seen.has(key)) return false; seen.add(key); return true; })
+    .map(({ kind, id }) => ({ kind, id }));
 }
 
 /**

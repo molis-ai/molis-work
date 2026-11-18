@@ -164,12 +164,16 @@ export function registeredUpgradeChains({ files = [], read }) {
     chains.set(definition, { ...chain, replay_passed: chain.version > 1 && unheld.length === 0, unheld });
   }
   if (hasGoalsApprovalTransfer(read)) {
-    // project_goals@1 has its own namespace. The project upgrade verifies its objects and rebuilds @2 from the owner facts.
-    // Replay restores both original versions before it opens the project, so merely listing either version is insufficient.
-    const holds = goldenHolds(`${goalsSync.projectStore}#${goalsSync.pluginId}`, goalsSync.from);
-    const replay_passed = goldenManifests({ files, read }).some(({ manifest }) => Array.isArray(manifest?.stores)
-      && manifest.stores.some(store => store.schema_version === goalsSync.from && holds(store)));
-    chains.set(goalsSyncDefinition, { version: 2, froms: [1], replay_passed, unheld: replay_passed ? [] : [1] });
+    // project_goals@1 has its own namespace. The project upgrade verifies its objects and rebuilds @2 from the owner facts; project 4→5
+    // (batch 44 D1) rebuilds @3. Each step is the collection's chain only where the project library has it, and the replay starts
+    // that step only from a golden holding the project at the step's `from` with its Goals tables, so listing either version is insufficient.
+    const manifests = goldenManifests({ files, read });
+    const steps = goalsSync.steps.filter(step => hasGoalsApprovalTransfer(read, step));
+    const unheld = steps.filter(step => {
+      const holds = goldenHolds(`${goalsSync.projectStore}#${goalsSync.pluginId}`, step.sync.goals);
+      return !manifests.some(({ manifest }) => Array.isArray(manifest?.stores) && manifest.stores.some(store => store.schema_version === step.from && holds(store)));
+    }).map(step => step.sync.from);
+    chains.set(goalsSyncDefinition, { version: steps.at(-1).sync.to, froms: steps.map(step => step.sync.from), replay_passed: unheld.length === 0, unheld });
   }
   return chains;
 }

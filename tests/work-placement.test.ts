@@ -26,6 +26,32 @@ import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
 import { lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
 import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { createGoalsInputActionHandlers, goalsInputActions } from "../plugins/native/goals/dist/input-actions.js";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+
+/**
+ * Goals' 「挂到…」 parts, by their public definitions, over its input handlers: the parts' inputs and outputs in the platform's shape.
+ * Goals' own adapter runs in the Host in tests/placement-attach-goals.test.ts; its directory and creation are not reached here.
+ */
+const goalsAttachActions = { list: goalsActions.attachList, bind: goalsActions.attachBind, release: goalsActions.attachRelease,
+  candidates: goalsActions.attachCandidates, create: goalsActions.attachCreate };
+function goalsAttachHandlers(inputs: ReturnType<typeof createGoalsInputActionHandlers>) {
+  const of = (definition: { capability_id: string }) => inputs.find(handler => handler.capability_id === definition.capability_id)!.handle;
+  const [list, bind, release] = [of(goalsInputActions.list), of(goalsInputActions.bind), of(goalsInputActions.release)];
+  const unreached = (definition: { capability_id: string; version: number }) => ({ ...definition, handle: () => { throw new Error(`${definition.capability_id} is not reached here`); } });
+  type Bound = { binding_id: string; goal_id: string; created_at: string };
+  return [...inputs,
+    { ...goalsAttachActions.list, handle: async (caller: ActionCallContext, input: unknown) => ({ bindings: ((await list(caller as never, input)) as { bindings: Bound[] }).bindings
+      .map(binding => ({ binding_id: binding.binding_id, target_id: binding.goal_id, created_at: binding.created_at })) }) },
+    { ...goalsAttachActions.bind, handle: async (caller: ActionCallContext, input: unknown) => {
+      const { target_id, ...rest } = input as { target_id: string };
+      return { binding: { binding_id: ((await bind(caller as never, { goal_id: target_id, ...rest })) as { binding: Bound }).binding.binding_id } };
+    } },
+    { ...goalsAttachActions.release, handle: (caller: ActionCallContext, input: unknown) => {
+      const { target_id, binding_id } = input as { target_id: string; binding_id: string };
+      return release(caller as never, { goal_id: target_id, binding_id });
+    } },
+    unreached(goalsAttachActions.candidates), unreached(goalsAttachActions.create)];
+}
 import { SearchService } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { bindSearchEntriesHandler, defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -73,7 +99,7 @@ function notesPlugin(actions: ActionService, notes: Map<string, Note>, projects:
       definitions: [reader, mover, copier, ...Object.values(station)],
       handlers: [
         { ...reader, handle: (caller, input) => { const note = get((input as { subject_id: string }).subject_id, caller.project_id);
-          return subjectContext({ subject: { kind: "note", id: note.id }, revision: String(note.version), title: note.title, content: note.body, goal_ids: [], open: { surface: "notes", id: note.id } }); } },
+          return subjectContext({ subject: { kind: "note", id: note.id }, revision: String(note.version), title: note.title, content: note.body, open: { surface: "notes", id: note.id } }); } },
         bindObjectMoveHandler(mover, input => { const note = get(input.subject.id, input.from_project_id); note.project = input.to_project_id; note.version += 1;
           return { subject: input.subject, project_id: note.project, revision: String(note.version) }; }),
         bindObjectCopyHandler(copier, input => {
@@ -87,8 +113,8 @@ function notesPlugin(actions: ActionService, notes: Map<string, Note>, projects:
           list: caller => [...notes.values()].filter(note => note.project === caller.project_id).map(note => ({ item_id: note.id, title: note.title, caption: "", at: null })),
           read: ({ item_id }, caller) => { const note = get(item_id, caller.project_id); return { title: note.title, body: note.body }; },
           receive: ({ title, body, request_id }, caller) => { const id = "received-" + request_id; if (!notes.has(id)) notes.set(id, { id, project: caller.project_id!, title, body, version: 1, by: caller.audience });
-            return { plugin: "notes", item_id: id, title }; },
-          create: ({ title }, caller) => { const id = "new-" + (notes.size + 1); notes.set(id, { id, project: caller.project_id!, title, body: "", version: 1 }); return { plugin: "notes", item_id: id, title }; },
+            return { subject: { kind: "note", id }, title }; },
+          create: ({ title }, caller) => { const id = "new-" + (notes.size + 1); notes.set(id, { id, project: caller.project_id!, title, body: "", version: 1 }); return { subject: { kind: "note", id }, title }; },
         }),
       ] });
   }
@@ -123,7 +149,7 @@ function fixture(projects = ["personal", "q4", "interview"], hooks?: {
   let clips = new Map<string, string>([["clip-1", "竞品定价表"]]);
   actions.registerProvider({ provider: { provider_id: "clips", plugin_id: "clips", title: "剪藏", kind: "plugin" }, definitions: [homeReader],
     handlers: [{ ...homeReader, handle: (_caller, input) => { const id = (input as { subject_id: string }).subject_id; const title = clips.get(id);
-      if (!title) throw new ActionError("clips.not_found", "已删除"); return subjectContext({ subject: { kind: "clip", id }, revision: "1", title, content: title, goal_ids: [], open: { surface: "clips", id } }); } }] });
+      if (!title) throw new ActionError("clips.not_found", "已删除"); return subjectContext({ subject: { kind: "clip", id }, revision: "1", title, content: title, open: { surface: "clips", id } }); } }] });
   const db = new DatabaseSync(":memory:");
   const ledger = createContextLedger(ledgerDatabase(db), { authorize: access => access.actor_id === PLACEMENT_LEDGER_ACCESS.actor_id });
   if (hooks?.failPut) {
@@ -271,7 +297,7 @@ test("LOGIC-06 a cancelled move of a Home-kept object is undone by the Home move
   f.actions.registerProvider({ provider: { provider_id: "todos", plugin_id: "todos", title: "待办", kind: "plugin" }, definitions: [todoReader, homeMover],
     handlers: [{ ...todoReader, handle: (_caller, input) => { const id = (input as { subject_id: string }).subject_id; const todo = todos.get(id);
       if (!todo) throw new ActionError("todos.not_found", "待办不存在");
-      return subjectContext({ subject: { kind: "todo_item", id }, revision: todo.belongs, title: "回访", content: "", goal_ids: [], open: { surface: "todo", id },
+      return subjectContext({ subject: { kind: "todo_item", id }, revision: todo.belongs, title: "回访", content: "", open: { surface: "todo", id },
         project_id: todo.belongs === "personal" ? null : todo.belongs }); } },
       // The person's own Home call can move a todo wherever it belongs, as Todo's handler does.
       bindHomeObjectMoveHandler(homeMover, input => { const found = todos.get(input.subject.id)!; found.belongs = input.to_project_id;
@@ -318,7 +344,7 @@ test("RAC-129-PLACEMENT: copying makes an independent object that remembers its 
   // A conversion names what the other end is, so a document and a Goal made from one note read apart.
   assert.ok(into.associations.some(link => link.type === "derived_into" && link.label === "已转成《访谈要点》 · 笔记 · 项目「Q4 新版发布」"));
   const made = await f.service.create({ station: "notes", project_id: "personal", title: "空白笔记", request_id: "r" });
-  assert.deepEqual([made.object.project_id, made.location.title, made.goal_key], ["personal", "个人空间", null]);
+  assert.deepEqual([made.object.project_id, made.location.title, made.attached_key], ["personal", "个人空间", null]);
 
   // SCS-17: the composition read follows the same relation and current placement facts written by these real operations.
   assert.deepEqual(placementRelationsFor(f.ledger, "q4", [source, copy.object, converted.object]).map(edge =>
@@ -358,32 +384,32 @@ test("an object keeps showing the Goals it serves after it moves out of their pr
     const inputs = { list: () => rows, register: (record: typeof rows[number]) => { rows.push(record); },
       deactivate: (_board: string, id: string) => { const row = rows.find(item => item.binding_id === id); if (!row || row.state === "inactive") return false; (row as { state: string }).state = "inactive"; return true; } };
     f.actions.registerProvider({ provider: { provider_id: "goals", plugin_id: "goals", title: "Goals", kind: "plugin", project_id: project },
-      definitions: [...Object.values(goalsInputActions), goalReader],
-      handlers: [...createGoalsInputActionHandlers(project, inputs, id => id === project + "-goal", windows),
+      definitions: [...Object.values(goalsInputActions), ...Object.values(goalsAttachActions), goalReader],
+      handlers: [...goalsAttachHandlers(createGoalsInputActionHandlers(project, inputs, id => id === project + "-goal", windows)),
         { ...goalReader, handle: (_caller, input) => { const id = (input as { subject_id: string }).subject_id;
           if (id !== project + "-goal") throw new ActionError("goals.not_found", "目标不存在");
-          return subjectContext({ subject: { kind: "goal", id }, revision: "1", title: project === "q4" ? "Q4 发布评审" : "整理访谈", content: "", goal_ids: [id], open: { surface: "goals", id } }); } }] });
+          return subjectContext({ subject: { kind: "goal", id }, revision: "1", title: project === "q4" ? "Q4 发布评审" : "整理访谈", content: "", attached_to: [{ kind: "goal", id }], open: { surface: "goals", id } }); } }] });
   }
   f.notes.set("n1", { id: "n1", project: "q4", title: "发布说明", body: "", version: 1 });
-  await f.service.bindGoal({ kind: "note", id: "n1", project_id: "q4" }, "q4", "q4-goal");
-  await f.service.bindGoal({ kind: "note", id: "n1", project_id: "q4" }, "personal", "personal-goal");
+  await f.service.attach({ kind: "note", id: "n1", project_id: "q4" }, "q4", { kind: "goal", id: "q4-goal" });
+  await f.service.attach({ kind: "note", id: "n1", project_id: "q4" }, "personal", { kind: "goal", id: "personal-goal" });
   await f.service.move({ kind: "note", id: "n1", project_id: "q4" }, "personal");
   const moved = await f.service.describe({ kind: "note", id: "n1", project_id: "q4" });
-  const goals = moved.associations.filter(item => item.type === "goal");
+  const goals = moved.associations.filter(item => item.type === "attached");
   assert.deepEqual(goals.map(item => item.label).sort(), ["Goal「Q4 发布评审」 · 项目「Q4 新版发布」", "Goal「整理访谈」"]);
   assert.ok(goals.every(item => item.removable));
   // A Home item (like a Shelf file) is never in a project, yet the Goal it serves is still shown on it.
-  await f.service.bindGoal({ kind: "clip", id: "clip-1", project_id: null }, "q4", "q4-goal");
+  await f.service.attach({ kind: "clip", id: "clip-1", project_id: null }, "q4", { kind: "goal", id: "q4-goal" });
   const clip = await f.service.describe({ kind: "clip", id: "clip-1", project_id: null });
-  assert.deepEqual(clip.associations.map(item => item.type).sort(), ["goal", "used_in"]);
+  assert.deepEqual(clip.associations.map(item => item.type).sort(), ["attached", "used_in"]);
   // Releasing from the object side releases in the Goal's own project.
   const q4 = goals.find(item => item.label.includes("Q4"))!;
   assert.deepEqual(await f.service.unlink(q4.key!), { removed: true });
   const after = await f.service.describe({ kind: "note", id: "n1", project_id: "personal" });
-  assert.deepEqual(after.associations.filter(item => item.type === "goal").map(item => item.label), ["Goal「整理访谈」"]);
+  assert.deepEqual(after.associations.filter(item => item.type === "attached").map(item => item.label), ["Goal「整理访谈」"]);
   // A Goal is not a Goal's material of itself.
   const goal = await f.service.describe({ kind: "goal", id: "q4-goal", project_id: "q4" });
-  assert.deepEqual([goal.state, goal.associations.filter(item => item.type === "goal").length, goal.open?.surface], ["ok", 0, "goals"]);
+  assert.deepEqual([goal.state, goal.associations.filter(item => item.type === "attached").length, goal.open?.surface], ["ok", 0, "goals"]);
 });
 
 test("the Goals page shows a newly bound material without waiting for the next journal event", async () => {
@@ -466,7 +492,7 @@ test("a plugin that keeps its objects at Home moves them through its own Home-sc
     // Like Todo: a project's todos are not visible from outside that project.
     handlers: [{ ...todoReader, handle: (caller, input) => { const id = (input as { subject_id: string }).subject_id; const todo = todos.get(id);
       if (!todo || todo.belongs !== "personal" && caller.project_id !== todo.belongs) throw new ActionError("todos.not_found", "待办不存在");
-      return subjectContext({ subject: { kind: "todo_item", id }, revision: todo.belongs, title: todo.title, content: "", goal_ids: [], open: { surface: "todo", id },
+      return subjectContext({ subject: { kind: "todo_item", id }, revision: todo.belongs, title: todo.title, content: "", open: { surface: "todo", id },
         project_id: todo.belongs === "personal" ? null : todo.belongs }); } },
       bindHomeObjectMoveHandler(homeMover, (input, caller) => { const found = todos.get(input.subject.id)!;
         if (found.belongs !== "personal" && caller.project_id !== found.belongs) throw new ActionError("todos.not_found", "待办不存在");
@@ -506,7 +532,7 @@ test("the person finds what is in their personal space from any project; a proje
         title: note.title, summary: "", updated_at: null, content: "context" as const, open: { surface: "notes", id } }))),
         { ...reader, handle: (_caller, input) => { const id = (input as { subject_id: string }).subject_id; const note = notes.get(id);
           if (!note || note.project !== project) throw new ActionError("notes.not_found", "笔记不存在");
-          return subjectContext({ subject: { kind: "note", id }, revision: "1", title: note.title, content: note.body, goal_ids: [], open: { surface: "notes", id } }); } }] });
+          return subjectContext({ subject: { kind: "note", id }, revision: "1", title: note.title, content: note.body, open: { surface: "notes", id } }); } }] });
   }
   const search = new SearchService({ index, budgetMs: 5_000, personalSpace: "personal", indexer: async project_id => ({ client: actions, caller: owner(project_id) }) });
   t.after(async () => { await search.close(); index.close(); await rm(home, { recursive: true, force: true }); });

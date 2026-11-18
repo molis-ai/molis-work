@@ -80,7 +80,7 @@ export interface MolisWorkRuntimeContextHost {
     molisWorkSessionId?: string | null;
     nativeRuntimeSessionId?: string | null;
     hostWorkContextId?: string | null;
-    focusId?: string | null;
+    focus?: ActionSubject | null;
     projectSuggestionClues?: readonly RuntimeProjectSuggestionClue[];
     panelId?: string | null;
 }

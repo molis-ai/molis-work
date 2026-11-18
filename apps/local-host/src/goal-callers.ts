@@ -60,8 +60,7 @@ export const goalsHostActions = {
   initialize: goalsActions.initialize, create: goalsActions.create, guidanceRead: goalsActions.guidanceRead,
   directoryItem: goalsActions.directoryItem, list: goalsActions.list, state: goalsActions.state,
 } as const;
-export { readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals/contract";
-export { GOALS_APPROVAL_OUTCOMES_SQL, GOALS_APPROVAL_TRANSFER_SOURCE, GOALS_APPROVAL_TRANSFER_TABLES, goalsApprovalTransferManifest, isGoalsApprovalSource, readGoalsApprovalTransfer } from "@molis-ai/molis-work-plugin-goals";
+export { GOALS_APPROVAL_OUTCOMES_SQL, GOALS_APPROVAL_TRANSFER_SOURCE, GOALS_V5_LIBRARY, GOALS_APPROVAL_TRANSFER_TABLES, goalsApprovalTransferManifest, isGoalsApprovalSource, readGoalsApprovalTransfer } from "@molis-ai/molis-work-plugin-goals";
 export { verifyTreeItemDecisionHistory } from "@molis-ai/molis-work-plugin-goals";
 export { assertGoalApprovalHistory, goalApprovalOutcomes, readGoalApprovalOutcome } from "@molis-ai/molis-work-plugin-goals";
 

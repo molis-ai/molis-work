@@ -276,6 +276,15 @@
     "todo.capability-library.todo-reminders-due-v1.title": "到了时间的提醒",
     "todo.capability-library.todo-reminders-window-v1.title": "到期提醒",
     "todo.read-group.todo.description": "待办事项、它们的日期与到期提醒",
-    "todo.read-group.todo.title": "待办"
+    "todo.read-group.todo.title": "待办",
+    "todo.onboarding.kind-request": "要你处理",
+    "todo.onboarding.kind-commitment": "你的承诺",
+    "todo.onboarding.kind-waiting": "在等别人",
+    "todo.onboarding.kind-suggestion": "建议",
+    "todo.onboarding.due": "截止 {date}",
+    "todo.onboarding.due-written": "截止 {date}（原文“{phrase}”）",
+    "todo.onboarding.waiting-who": "在等 {who}",
+    "todo.onboarding.owner-unclear": "负责人不确定",
+    "todo.onboarding.related-existing": "和已有待办有关"
   }
 }

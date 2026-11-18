@@ -1,13 +1,18 @@
 import type { ContextScope, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type { FeedLedgerPort } from "./types.js";
+import { FEED_PLUGIN_ID } from "../../identity.js";
 
 /** A local Project partition is not a Team. Host/API authentication remains outside this owner. */
 function scope(projectId: string): ContextScope {
   return { kind: "personal", id: projectId };
 }
 
-function ref(projectId: string, module: "feed" | "goals", id: string): ObjectRef {
-  return { module, id, version: null, scope: scope(projectId) };
+/** The plugin whose Goals an item is linked to (`feed.goal`), through its public contract. */
+const GOALS_OWNER = "io.molis.work.goals";
+
+/** One of Feed's items, or a Goal it is linked to: each an object of the plugin that owns it (batch 44 C6). */
+function ref(projectId: string, kind: "feed_item" | "goal", id: string): ObjectRef {
+  return { module: "plugins", plugin_id: kind === "feed_item" ? FEED_PLUGIN_ID : GOALS_OWNER, object_type: kind, id, version: null, scope: scope(projectId) };
 }
 
 export class FeedGoalLinks {
@@ -24,14 +29,14 @@ export class FeedGoalLinks {
 
   find(projectId: string, goalId: string): string[] {
     return this.ledger.list(projectId, {
-      type: "feed.goal", target: ref(projectId, "goals", goalId),
+      type: "feed.goal", target: ref(projectId, "goal", goalId),
     }).map((edge) => edge.source.id);
   }
 
   set(projectId: string, itemId: string, goalId: string, at: string): void {
     this.ledger.put(projectId, {
-      key: this.key(itemId), type: "feed.goal", source: ref(projectId, "feed", itemId),
-      target: ref(projectId, "goals", goalId), cause: "feed.link_goal", recorded_at: at,
+      key: this.key(itemId), type: "feed.goal", source: ref(projectId, "feed_item", itemId),
+      target: ref(projectId, "goal", goalId), cause: "feed.link_goal", recorded_at: at,
     });
   }
 

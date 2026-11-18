@@ -35,12 +35,23 @@ const GOALS_PROJECT_DATABASE_V1 = {
   read_permission: "storage:private", write_permission: "storage:private",
 };
 
-/** Private library after the project baseline has moved approvals to the platform. */
+/**
+ * Private library after the project baseline has moved approvals to the platform. Version 6 (batch 44) keeps v5's tables; what changed is
+ * the sync collection around them (`project_goals@3`, the relations touching a Goal as the platform's generic `relation-edges`). The
+ * project library's 4→5 step moves a v5 library here (`apps/local-host/src/project-library-v5-upgrade.ts`); Goals declares no step of its own.
+ */
 export const GOALS_PROJECT_DATABASE: PluginDatabaseDeclaration = {
-  store_name: "goals", version: /* @version database.goals_project_database */ 5,
+  store_name: "goals", version: /* @version database.goals_project_database */ 6,
   schema: businessSchema(GOALS_EVENT_STATE_SQL) + GOALS_TREE_EFFECTS_SQL,
   read_permission: "storage:private", write_permission: "storage:private",
 };
+
+/** Batch 39's v5, as the project library's version 4 holds it: the source of its 4→5 step and the target of its 3→4 step. */
+export const GOALS_PROJECT_DATABASE_V5 = {
+  store_name: "goals", version: /* @version database.goals_project_database_v5 */ 5 as const,
+  schema: businessSchema(GOALS_EVENT_STATE_SQL) + GOALS_TREE_EFFECTS_SQL,
+  read_permission: "storage:private", write_permission: "storage:private",
+} satisfies PluginDatabaseDeclaration;
 
 /** Batch 41's v4, with the original approvals and without the former planning tables or config adoption. */
 const GOALS_PROJECT_DATABASE_V4 = {
@@ -77,6 +88,8 @@ const GOALS_PROJECT_DATABASE_V4 = {
 } satisfies PluginDatabaseDeclaration;
 
 export const GOALS_APPROVAL_TRANSFER_SOURCE = GOALS_PROJECT_DATABASE_V4.version;
+/** The Goals library version the project library's version 4 holds. */
+export const GOALS_V5_LIBRARY = GOALS_PROJECT_DATABASE_V5.version;
 
 /** Each source shape has its own verified ledger, including the corresponding sync tracking. */
 const GOALS_PROJECT_DATABASE_V2 = {

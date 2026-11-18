@@ -325,6 +325,7 @@
     "pages.capability-library.pages-import-v1.title": "导入文档",
     "pages.capability-library.pages-import-preview-v1.title": "预览导入",
     "pages.capability-library.pages-placement-copy-v1.title": "文档",
-    "pages.capability-library.pages-placement-move-v1.title": "文档"
+    "pages.capability-library.pages-placement-move-v1.title": "文档",
+    "pages.onboarding.part-k-n": " · 第 {k} / {n} 部分"
   }
 }

@@ -41,14 +41,16 @@
 
 - `icon`：图标名，限平台图标集（SDK `/ui` 的 `PLUGIN_ICON_NAMES`，设计系统逐个画）；写了集合外的名字、不是字符串或是空白，`parsePluginManifest` 当场拒绝，不回退。`settings` 视图的 `icon` 是设置目录里这一页的图标；没写就用 `settings`。
 - `hue`（任何槽的视图都可以写，插件取它第一个写了 `hue` 的视图）：这个插件在标签条上那一组的颜色，取设计系统的颜色名之一（`gray`、`brown`、`orange`、`yellow`、`green`、`mint`、`cyan`、`blue`、`indigo`、`purple`、`pink`、`red`、`steel`、`slate`；清单在 `UI_VIEW_HUES`）。只有标签条的分组用它，其余各处插件都是同一个中性色；不写，宿主按插件 id 在备用色里挑一个，同一个插件总是同一个。随宿主发布的插件和运行时装进项目的插件**待遇一样**，宿主不留插件名单。
-- Manifest 的 `name_text`、`summary_text`，视图的 `title_text`、动作 `composer_source` 的 `title_text`，以及 `creates.title_text`、`start.title_text`、`start.hint_text`，都可引用自己的语言文件，例如 `{ "key": "notes.directory.name" }`。保留同字段的原文：缺词时显示它。导航与岛视图用自己的标题，只有舞台的入口用 Manifest 名；两个来源不互相补。目录短句写成一行，不接参数、复数或另一份后备文字；原样显示的品牌名可不写引用。旧 `name_en` 和 `title_en` 被拒。
+- Manifest 的 `name_text`、`summary_text`，视图的 `title_text`、动作 `composer_source` 的 `title_text`，以及创建入口的 `intake.title_text`、`intake.start.title_text`、`intake.start.hint_text`，都可引用自己的语言文件，例如 `{ "key": "notes.directory.name" }`。保留同字段的原文：缺词时显示它。导航与岛视图用自己的标题，只有舞台的入口用 Manifest 名；两个来源不互相补。目录短句写成一行，不接参数、复数或另一份后备文字；原样显示的品牌名可不写引用。旧 `name_en` 和 `title_en` 被拒。
 - `group`（只用于 `navigator`、`island`）：插件切换列表里归哪一组，取 `advance`（推进）、`make`（写与做）、`personal`（个人）、`research`（研究）、`code`（编码）之一。组名和组的顺序归宿主；组内先是 `island` 视图，再按视图的 `order`、同 `order` 按插件 id 排。不写就在「更多」里。
-- `creates`（只用于 `navigator`、`island`）：`{ station, title }`，在目标的「材料」里给一个「新建」入口。`station` 必须是本 Manifest 里一个能新建的工作流内容站（`defineWorkflowContentActions({ …, create: true })` 的 `id`）；新建出来的默认标题是「未命名」加 `title`（如「未命名文档」）。不写就没有新建入口。
-- `start`（只用于 `navigator`、`island`）：`{ title, hint, icon? }`，项目首页当天没有事件时给的一个起点，点了打开这个插件；`icon` 不写就用视图的 `icon`。不写就不出现在首页。
+- 视图不再写 `creates`、`start`（写了 `parsePluginManifest` 拒绝）。「从目标新建…」与项目首页的起点都读动作上的创建入口（`specs/plugin-equal-standing/contract-design.md` §2.3、§2.4）：
+  - 内容站 `defineWorkflowContentActions({ …, create: { title, title_text? } })` 的空白入口（`<站>.content.create`，`accepts: []`）就是目标「材料」里「新建」的一种；新建出来的默认标题是「未命名」加 `title`（如「未命名文档」）。
+  - 创建入口带 `start: { title, hint, title_text?, hint_text?, icon?, open? }` 的，是项目首页当天没有事件时给的一个起点，放在这个插件的第一个 `navigator` 或 `island` 视图上；`icon` 不写就用视图的 `icon`；`open: { view_id, panel }` 写了就在本插件的舞台上打开那张表单，不写就直接调用这个动作。概况的 `presentation.overview.start` 只写 `{ capability_id, version }`，指向带 `start` 的动作。
+  - 签名 app 包与创作台的包在 `contract.json` 的命令操作上写 `start: { item_kind, title, hint, title_text?, hint_text?, icon?, open? }`：SDK 把它投影成这条命令的空白创建入口，`intake_id` 是操作 id（小写字母、数字、`_ . -`，最多 50），`title` 同时是入口名称和按钮文字（最多 40 字），`hint` 是说明。只有命令能写；查询、固定读取协议上写了合同当场拒绝。
 
-写错的（不认识的组、`creates` 指向本 Manifest 没有的站或不能新建的站、缺 `title` 或 `hint`、用在别的槽上）`parsePluginManifest` 当场拒绝（`molis-work-plugin validate` 同一套检查），每一种都有拒绝用例（`tests/view-placement-declarations.test.ts`）。工作台读这些声明的函数在 `apps/workbench/src/plugin-catalog.ts`。
+写错的（不认识的组、视图上写 `creates` 或 `start`、起点缺 `title` 或 `hint`、`open` 不是两项）`parsePluginManifest` 当场拒绝（`molis-work-plugin validate` 同一套检查），每一种都有拒绝用例（`tests/view-placement-declarations.test.ts`）。工作台读这些声明的函数在 `apps/workbench/src/plugin-catalog.ts`。
 
-这些声明对运行时装进项目的插件和随宿主发布的插件**同样生效**：宿主每次读页面时，从项目 Runtime（与 Home 级插件）里运行中的 Manifest 现取 `ui.views` 的 `slot`、`group`、`icon`、`order`、`creates`、`start`、`accepts_objects`，写进页面的插件目录（`plugin_directory`），外壳（插件切换列表、目标里的「新建」、项目首页的起点、按对象开标签）都读它。停用、卸载或撤回同意的插件下一次读页面就没有入口。插件的名称和这些视图文字是你写的文字：页面一律当文本转义显示，名称和标题只取一行（名称、标题 80 字，`creates.title` 40 字，`start.hint` 200 字），视图的 `icon` 在 Manifest 读取时就限平台图标集（集合外整份清单被拒），所以这里读到的总是集合内的名字；`start.icon` 只认设计系统里登记的名字，URL、SVG 或别的写法都用默认图标；不是由项目的插件选择决定的插件（运行时装的），列在它 `group` 的位置或「更多」，只有「常驻 Dock」，没有添加或移除按钮。
+这些声明对运行时装进项目的插件和随宿主发布的插件**同样生效**：宿主每次读页面时，从项目 Runtime（与 Home 级插件）里运行中的 Manifest 现取 `ui.views` 的 `slot`、`group`、`icon`、`order`、`accepts_objects`，连同动作上的空白创建入口与起点，写进页面的插件目录（`plugin_directory`），外壳（插件切换列表、目标里的「新建」、项目首页的起点、按对象开标签）都读它。停用、卸载或撤回同意的插件下一次读页面就没有入口。插件的名称和这些视图文字是你写的文字：页面一律当文本转义显示，名称和标题只取一行（名称、标题与起点名称 80 字，创建入口名称 40 字，起点提示 200 字），视图的 `icon` 在 Manifest 读取时就限平台图标集（集合外整份清单被拒），所以这里读到的总是集合内的名字；`start.icon` 只认设计系统里登记的名字，URL、SVG 或别的写法都用默认图标；不是由项目的插件选择决定的插件（运行时装的），列在它 `group` 的位置或「更多」，只有「常驻 Dock」，没有添加或移除按钮。
 
 全局只有一处导航与对话入口：底部常驻栏（左侧 Dock 菜单与常驻插件，中间插件切换 + Assistant 输入，右侧 Shelf、灵光、侧栏按钮与项目）。侧栏在工作右边打开，放讨论、浏览器、文件和插件声明的 `side` 标签。插件不要再做全局侧栏、第二个对话入口或自己的顶栏导航；插件内部的目录、树、列表与详情可以分栏。
 

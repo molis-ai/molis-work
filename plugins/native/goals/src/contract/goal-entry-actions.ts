@@ -6,7 +6,7 @@ import type { BoardSnapshot, CreateGoalIntentInput, CreateGoalIntentResult, Goal
 import type { GoalTreeProposalCheckInput, GoalTreeProposalCheckResult, GoalTreeProposalDecideInput, GoalTreeProposalDecisionResult,
   GoalTreeProposalListQuery, GoalTreeProposalListResult, GoalTreeProposalRecord, GoalTreeProposalSubmitInput } from "./governance-collaboration.js";
 import { goalIntentSourceKinds } from "./goal-events.js";
-import { goalAction, inGoalRelation } from "./goal-action-definition.js";
+import { goalAction } from "./goal-action-definition.js";
 import { text, identifier, count, boolean, object, array, nullable, enumeration, scope, change, effect, decision, goalDirectoryItemSchema } from "./goal-event-action-schemas.js";
 import { boardSnapshotSchema } from "./goal-snapshot-action-schemas.js";
 import { projectGuidanceEntrySchema, projectGuidanceRevisionSchema } from "./goal-guidance-action-schemas.js";
@@ -46,6 +46,16 @@ export const GOALS_TREE_INTAKE: ActionIntake = {
   describe: "一段计划或一串步骤：拆成可以跟踪、验收的目标步骤，只是提议，要在 Goals 里确认才生效；不是随手记一件事，也不是已经定下的目标",
   examples: ["把这周的发布计划拆成目标步骤", "把这几条拆成可以推进的目标", "这段方案变成可以验收的步骤"],
   prepare: { capability_id: "goals.fragment.offers", version: /* @version action.goals.fragment.offers */ 1 },
+};
+
+/**
+ * Where a person starts a Goal from nothing (contract-design §2.4): the project home's starting point and the overview's 「从哪开始」 read
+ * this one declaration. It takes no material, so no bar offers it; choosing it opens the create form on Goals' stage.
+ */
+const GOALS_START_INTAKE: ActionIntake = {
+  intake_id: "goal", item_kind: "goal", title: "目标", verb: "新建目标", describe: "明确要做成什么的一件事，可以跟踪、验收", accepts: [], examples: [],
+  start: { title: "推进一个目标", hint: "明确要做成什么，接着往下走。", title_text: { key: "goals.directory.start-title" }, hint_text: { key: "goals.directory.start-hint" },
+    open: { view_id: "stage", panel: "create-dialog" } },
 };
 
 /** What the card says once the proposal is filed: it is not in force yet, and the way on is Goals. */
@@ -118,13 +128,13 @@ export const goalEntryActions = {
   guidanceRead: goalAction<Record<string, never>, ProjectGuidanceView>("goals.guidance.read", /* @version action.goals.guidance.read */ 1, "读取项目长期说明", "读取已确认的长期说明、停用项、完整修订和当前 Runtime Prompt 前缀", "query",
     object({}), object({ entries: array(projectGuidanceEntrySchema), inactive_entries: array(projectGuidanceEntrySchema), revisions: array(projectGuidanceRevisionSchema),
       virtual_document: text, runtime_prompt_prefix: text })),
-  create: inGoalRelation(goalAction<GoalCreateActionInput, CreateGoalIntentResult>("goals.create", /* @version action.goals.create */ 1, "创建目标", "保存目标原始意图、要求及关系；创建本身不会完成目标。重试须保留相同 idempotency_key", "command",
+  create: goalAction<GoalCreateActionInput, CreateGoalIntentResult>("goals.create", /* @version action.goals.create */ 1, "创建目标", "保存目标原始意图、要求及关系；创建本身不会完成目标。重试须保留相同 idempotency_key", "command",
     object({ title: identifier, outcome: text, why: text, business_logic: text, priority: { type: "number", minimum: 0, maximum: 100 },
       goal_id: text, parent_goal_id: text, dependency_goal_ids: { type: "array", items: text },
       requirements: { type: "array", items: object({ requirement_id: text, statement: identifier, human_decision_required: boolean }, ["statement"]) },
       source_kind: { enum: [...goalIntentSourceKinds] }, idempotency_key: identifier }, ["title", "idempotency_key"]),
     object({ goal: object({ goal_id: text, project_id: text, title: text, outcome: text }), replayed: boolean, observed_event_cursor: count,
-      recorded: { const: true }, completion_effect: { const: false } })), "create"),
+      recorded: { const: true }, completion_effect: { const: false } }), false, GOALS_START_INTAKE),
   directoryItem: goalAction<{ goal_id: string }, GoalEventDirectoryItem | null>("goals.directory.read", /* @version action.goals.directory.read */ 1, "读取目标目录项", "按目标 ID 读取目录摘要；不存在、已归档或已丢弃时返回 null", "query",
     object({ goal_id: identifier }), nullable(goalDirectoryItemSchema)),
   inputsConfirm: goalAction<{ goal_id: string; source: { kind: "feed_item"; id: string }; name: string; snapshot_digest: string; reason: string }, { binding: GoalConfirmedInput; replayed: boolean }>("goals.inputs.confirm", /* @version action.goals.inputs.confirm */ 1,

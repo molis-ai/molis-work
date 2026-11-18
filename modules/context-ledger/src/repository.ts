@@ -12,6 +12,37 @@ export interface ContextLedgerDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
+/** One stored revision of an edge, as a library's upgrade step reads it. */
+export interface StoredContextEdge {
+  readonly scope_kind: string;
+  readonly scope_id: string;
+  readonly edge_key: string;
+  readonly relation_type: string;
+  readonly source_json: string;
+  readonly target_json: string;
+}
+export type StoredContextEdgeChange = Partial<Pick<StoredContextEdge, "edge_key" | "relation_type" | "source_json" | "target_json">>;
+
+/**
+ * For a library's upgrade step (batch 44 D1, D2): every stored revision of every edge, or of the edges of `relationType`, in the order
+ * they were written, goes to `rewrite`, which returns what changes or null. Every revision is rewritten alike, in place, in the caller's
+ * transaction; the table's key refuses a rewritten key that would meet another edge's. Delete with the last step that calls it.
+ */
+export function rewriteStoredContextEdges(db: Pick<ContextLedgerDatabase, "prepare">, rewrite: (edge: StoredContextEdge) => StoredContextEdgeChange | null,
+  relationType?: string): void {
+  const columns = "rowid AS row, scope_kind, scope_id, edge_key, relation_type, source_json, target_json";
+  const rows = (relationType === undefined
+    ? db.prepare(`SELECT ${columns} FROM context_edges ORDER BY rowid`).all()
+    : db.prepare(`SELECT ${columns} FROM context_edges WHERE relation_type = ? ORDER BY rowid`).all(relationType)) as Array<StoredContextEdge & { row: number }>;
+  const update = db.prepare("UPDATE context_edges SET edge_key = ?, relation_type = ?, source_json = ?, target_json = ? WHERE rowid = ?");
+  for (const { row, ...edge } of rows) {
+    const change = rewrite(edge);
+    if (!change) continue;
+    const next = { ...edge, ...change };
+    update.run(next.edge_key, next.relation_type, next.source_json, next.target_json, row);
+  }
+}
+
 /** The context ledger's tables, for a database's baseline to include (repository-anti-corruption §4.1). */
 export const CONTEXT_LEDGER_SCHEMA = `
   CREATE TABLE context_edges (
@@ -72,6 +103,9 @@ export class ContextLedgerRepository {
       if (!ref) continue;
       conditions.push(`json_extract(${column}, '$.module') = ? AND json_extract(${column}, '$.id') = ?`);
       values.push(ref.module, ref.id);
+      // A plugin's object is one kind of one plugin's: ids of two kinds, or of two plugins, may be the same.
+      if (ref.object_type !== undefined) { conditions.push(`json_extract(${column}, '$.object_type') = ?`); values.push(ref.object_type); }
+      if (ref.plugin_id !== undefined) { conditions.push(`json_extract(${column}, '$.plugin_id') = ?`); values.push(ref.plugin_id); }
     }
     return this.selectLatest(scope, conditions, values, query.include_removed === true);
   }

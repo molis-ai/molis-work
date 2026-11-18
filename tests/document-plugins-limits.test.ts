@@ -34,7 +34,7 @@ async function fixture(t: test.TestContext) {
   const as = (audience: ActionAudience) => bindActionClient(client, () => ({ ...caller, audience }));
   return { home, host, ref, caller, client, bound: as("user"), as };
 }
-const payload = (title: string, body: string) => ({ title, body, url: null, source: null, feed_item_id: null });
+const payload = (title: string, body: string) => ({ title, body, url: null, source: null });
 
 test("a workflow hand-off past a receiver's limits is cut to fit instead of being refused on every retry (W4-6-02, W4-6-03)", async t => {
   const f = await fixture(t);

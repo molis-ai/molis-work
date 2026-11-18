@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, cachedMolisWorkWebView, registeredBuiltinText, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
-import { goalPluginActions, readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals/contract";
+import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { bindActionClient, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { materializeGoalEventHistory, goalEventHistoryKinds } from "./goal-event-history-fixture.js";
 import { readTestGoalCollection } from "./fixtures/web-view.js";
@@ -71,8 +71,9 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     const directory = await actions.invoke(goalsActions.directoryItem, { goal_id });
     assert.equal(directory?.title, state.intent.title);
     assert.equal(await actions.invoke(goalsActions.directoryItem, { goal_id: "MISSING" }), null);
-    const resumed = await readGoalResumeFacts(actions, [goal_id]);
-    assert.deepEqual(resumed.goals, [directory]);
+    // The resume facts are Goals' own summary now (batch 44 C7): the focused Goal, as the directory names it.
+    const resumed = await actions.invoke(goalsActions.resumeSummary, { focus: { kind: "goal", id: goal_id } });
+    assert.deepEqual([resumed.focus?.subject, resumed.focus?.title], [{ kind: "goal", id: goal_id }, directory!.title]);
     const ascending: string[] = [];
     let after_cursor: number | undefined;
     do {
@@ -114,8 +115,8 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     denied = goalsActions.state.capability_id;
     await assert.rejects(actions.invoke(goalsActions.state, { goal_id }), { code: "actions.plugin_disabled" });
     await assert.rejects(actions.invoke(goalPluginActions.state, { goal_id }), { code: "actions.plugin_disabled" });
-    denied = goalsActions.list.capability_id;
-    await assert.rejects(readGoalResumeFacts(actions, [goal_id]), { code: "actions.plugin_disabled" });
+    denied = goalsActions.resumeSummary.capability_id;
+    await assert.rejects(actions.invoke(goalsActions.resumeSummary, { focus: { kind: "goal", id: goal_id } }), { code: "actions.plugin_disabled" });
     denied = goalsActions.document.capability_id;
     await assert.rejects(actions.invoke(goalsActions.document, { goal_id }), { code: "actions.plugin_disabled" });
     denied = goalsActions.snapshot.capability_id;

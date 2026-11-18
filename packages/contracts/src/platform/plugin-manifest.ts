@@ -187,14 +187,12 @@ export interface PluginManifest {
    * `title_text` may select a fixed line in this Plugin's language files for display. `title` stays the declaration's original.
    * A type pinned from a work object names its compare action (`defineArtifactCompareAction`): whether the version still
    * matches the object, for 「原文已改」 (A4b).
-   * A plugin that can start new work from a version declares `continue` (`defineArtifactContinueAction`) on that type,
-   * whether it produces it or only consumes it (「从这一版继续」, A4b).
-   * A consumed type that is an imported file says which files it can read (`file`), so the 成果库 lists the plugin for the files it can
-   * continue from and no others (ac-artifacts A3, PG-079).
+   * 「从这一版继续」 (A4b) and the files a plugin reads of an imported one (PG-079) are not here: they are an intake that accepts
+   * `[{ kind: "artifact", artifact_types, file? }]` on the plugin's `defineArtifactContinueAction` (contract-design §2.3).
    */
   artifacts: {
-    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; title_text?: { key: string }; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number }; continue?: { capability_id: string; version: number } }>;
-    consumes: Array<{ artifact_type_id: string; schema_version: number; continue?: { capability_id: string; version: number }; file?: ArtifactFileDeclaration }>;
+    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; title_text?: { key: string }; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number } }>;
+    consumes: Array<{ artifact_type_id: string; schema_version: number }>;
     /** The kinds of link this Plugin writes between its own objects and exact 成果 versions; one Plugin owns a kind. */
     links?: ArtifactLinkDeclaration[];
   };
@@ -252,8 +250,6 @@ export interface PluginManifest {
   runtime?: PluginRuntimeDeclaration;
   /** The command-line tools this plugin looks for on this machine (`services.localTools`, PG-112): names and directories declared here, found by the platform, never run by it. */
   local_tools?: import("./plugin-local-tools.js").PluginLocalToolsDeclaration;
-  /** 可承接上手材料 (decision 43②): what this plugin takes from onboarding and its own action that takes it; the platform calls takers by this, naming none. */
-  onboarding?: import("./plugin-onboarding.js").PluginOnboardingDeclaration;
   /** the kinds of subject its objects are for Attention, with `attention:write` (`services.attention`, PG-087). */
   attention?: import("./plugin-attention.js").PluginAttentionDeclaration;
   /** places where the plugin may use an account the person binds, with `connections:use` (`services.connections`, S-57). */
@@ -266,8 +262,6 @@ export interface PluginManifest {
   source_presentations?: readonly string[];
   /** kept jobs and commands the platform may wake for this installation. */
   background?: { jobs: readonly import("./plugin-background.js").PluginJobDeclaration[]; wakeups?: readonly import("./plugin-scheduler.js").PluginWakeupDeclaration[] };
-  /** the plugin takes the platform's notifications (`services.notifications` of the plugins that send them), by one of its own actions (D6-2). */
-  notifications?: import("./plugin-notifications.js").PluginNotificationReceiverDeclaration;
   /** Stable setting entries and the declaring owner’s read and write actions. */
   settings_entries?: import("./settings.js").SettingsDeclaration;
   /** A content pack's Blueprint files. The default is blueprint.json; this lists the translated editions. */

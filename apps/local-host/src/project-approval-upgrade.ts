@@ -3,10 +3,11 @@ import { listProjectRoots } from "@molis-ai/molis-work-module-projects";
 import { inspectPluginProjectDatabase, listPluginProjectDatabases, transferPluginProjectDatabase } from "@molis-ai/molis-work-plugin-runtime";
 import { transferGoalsApprovalRecords } from "@molis-ai/molis-work-service-project-approvals";
 import { sqliteBaselineTriggers, type SqliteBaselineDatabase, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
-import { GOALS_APPROVAL_OUTCOMES_SQL, GOALS_APPROVAL_TRANSFER_SOURCE, GOALS_APPROVAL_TRANSFER_TABLES, goalsApprovalTransferManifest, isGoalsApprovalSource, readGoalsApprovalTransfer } from "./goal-callers.js";
+import { GOALS_APPROVAL_OUTCOMES_SQL, GOALS_APPROVAL_TRANSFER_SOURCE, GOALS_V5_LIBRARY, GOALS_APPROVAL_TRANSFER_TABLES, goalsApprovalTransferManifest, isGoalsApprovalSource, readGoalsApprovalTransfer } from "./goal-callers.js";
 import { pluginSyncNamespace } from "./plugin-sync-database.js";
 import { builtinPluginByProjectKey } from "./plugin-registry.js";
-import { projectPluginPlatformExtension, projectPluginSchemaInspector } from "./project-plugin-databases.js";
+import { projectPluginSchemaInspector } from "./project-plugin-databases.js";
+import { goalsHistoryPlatformExtension } from "./goal-context-history.js";
 
 const path = "项目审批移交";
 const integrityRefusal = () => new ActionError("actions.input_invalid", "原项目库与已审核的 Goals 库声明不符，项目库已保留");
@@ -37,7 +38,7 @@ function transfer(db: SqliteBaselineDatabase) {
   const manifest = original.version === GOALS_APPROVAL_TRANSFER_SOURCE ? lastSource : goalsApprovalTransferManifest(template, original.version);
   const declaration = manifest.databases!.project!;
   const owner = { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration };
-  const extension = projectPluginPlatformExtension(manifest);
+  const extension = goalsHistoryPlatformExtension(manifest);
   const previous = inspectPluginProjectDatabase(db, owner, projectPluginSchemaInspector, path, extension);
   const triggers = sqliteBaselineTriggers(declaration.schema + extension.platformSchema, extension.platformPrelude);
   assertTransferObjects(db, previous.objects, triggers, oldNamespace, ledger.filter(row => row !== original).flatMap(row => row.objects));
@@ -46,8 +47,9 @@ function transfer(db: SqliteBaselineDatabase) {
   const projectId = roots[0]!.project_id;
   const context = db.prepare(`SELECT project_id FROM ${oldNamespace}_context WHERE id = 1`).get() as { project_id: string | null } | undefined;
   if (!context || (context.project_id != null && context.project_id !== projectId)) throw integrityRefusal();
-  const target = goalsApprovalTransferManifest(template, template.databases!.project!.version);
-  const updated = { path, ...projectPluginPlatformExtension(target) };
+  // The library's version 4 holds Goals' v5 (batch 39); the 4→5 step takes it on from there (project-library-v5-upgrade.ts).
+  const target = goalsApprovalTransferManifest(template, GOALS_V5_LIBRARY);
+  const updated = { path, ...goalsHistoryPlatformExtension(target) };
   if (!updated.platformSchema) throw integrityRefusal();
   const targetOwner = { kind: "plugin", plugin_id: owner.plugin_id, publisher_signature: owner.publisher_signature } as const;
   // Preserve the transport ledger verbatim in the pre-upgrade project snapshot, including its cursor, outbox and conflicts.

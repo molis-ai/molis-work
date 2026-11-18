@@ -300,9 +300,13 @@ Home 级插件要在本人自己的页面里看到各个项目的内容（Todo �
 
 插件调自己的动作（`services.actions.invoke`）沿用外层调用的受众（S-73）：Agent 的调用经过插件的代码不会变成本人的；`start` 和定时器里没有外层调用，自调用按 `plugin` 受众，目标动作的 `audiences` 不放行 `plugin` 的就被拒。
 
-### 放置里的关联：`placement_relation`
+### 「挂到…」：`attach.relation`
 
-插件要让放置面板（对象放在哪、关联到什么）列出、挂上、取消它自己保存的“对象挂在某个目标上”这种关系（Goals 的“挂到 Goal”），在同一个关联的五个动作上各写 `placement_relation: { relation, role }`：`list`（这个对象挂在哪些目标上，同时写 `target: { kind, noun }`：目标的对象种类和人读的名词）、`bind`、`release`、`candidates`（能选的目标）、`create`（把内容建成一个目标）。放置服务在目录里按这项声明找动作，不按能力 id，也不点插件的名字；缺哪个角色就是那个操作 `placement.target_unavailable`。一个项目里同一个关联只能有一个提供方在管：两个可用的插件声明同一个 `relation`，放置服务的每个操作都 `placement.relation_ambiguous`，不挑一个、也不混着取。`relation` 是小写词（今天线上只有 `goal`），同一个关联同一个角色只能有一个动作，SDK 的声明检查拦下写错的。不写这项声明的动作，放置服务不会碰。Goals 自己的动作用的是它包里的 `inGoalRelation(定义, 角色)`（`plugins/native/goals/src/contract/goal-action-definition.ts`），别的插件直接写这项声明。
+插件要让别人的对象挂到它保存的目标上（Goals 的「挂到 Goal」：把一份文档挂成某个 Goal 的输入，不复制、不移动原对象），在「挂上」那个动作的 `attach` 上声明关系：用 `defineAttachRelationAction("bind", 能力, 版本, 种类, 标题, 权限, { attach_id, item_kind, title, verb, describe, relation })` 写，它给出平台定的输入输出与 `accepts: [{ kind: "object" }]`。`relation` 是 `{ noun, noun_text?, list, release, candidates?, create? }`：`noun` 是人读的对方名词（也是语言文件没有这句时的原文），`noun_text` 是它的语言键；`list`（一个对象此刻挂在哪些目标上）、`release`（取下一条）必写，`candidates`（这里可以挂的目标，分页）、`create`（「建成…」：用一段内容新建一个目标）可选，每个都写同一份 Manifest 里另一个动作的能力与版本，那些动作也用 `defineAttachRelationAction(部分, …)` 写，形状逐字是平台的（`molis.placement.attach.v1.<部分>`）。
+
+放置服务（`horizontal/placement`）只读这份声明：可挂的种类是声明了关系的 `attach.item_kind`，不按能力 id、不点插件名；缺哪个部分（没写或不可用）那个操作就是 `placement.target_unavailable`，挂上的动作本身不可用就等于没有这个关系。一个项目里一个种类只能有一个主人：两个可用的插件为同一种类声明关系，放置服务的每个操作都 `placement.relation_ambiguous`，不挑一个、也不混着取。SDK 的声明检查拦下：关系不收对象或写了 `material_field`、`positions`、`prepare`、`places`；缺名词、`list` 或 `release`；点到的部分不在本 Manifest 里或形状不对；关系写在挂上以外的部分；一个插件为同一种类声明两次。例子：`plugins/native/goals/src/attach-actions.ts`。
+
+后台任务「为哪个事件办」不是「挂到…」，用 `defineTaskServesAction(角色, …)` 写，动作上是 `task_serves: { role }`（`list`、`bind`、`release`、`create`），工作线（`mainline.place@1`）按它找任务的主人。
 
 ### UI 贡献里没有 `plugin_id`
 

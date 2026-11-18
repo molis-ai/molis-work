@@ -3,6 +3,7 @@ import { artifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-
 import type { ContextAccess, ContextEdge, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { ARTIFACTS_READ_PERMISSION, CONTEXT_LEDGER_WRITE_PERMISSION, goalAction, goalActor, usingServices } from "./action-contract.js";
 import { text, identifier, boolean, array, object, nullable } from "./contract/goal-actions.js";
+import { goalRef, isGoalRef } from "./ledger-refs.js";
 
 /**
  * A version in the 成果库 a Goal hands in (specs/artifact-positioning A5), as callers see it. `proposed`: an assistant,
@@ -61,8 +62,9 @@ export const goalsDeliverableActions = {
 
 /** The versions the person confirmed as the Goal's deliverables (never proposals). Synchronous: read inside a window. */
 export function confirmedGoalDeliverables(ledger: ContextLedgerApi, projectId: string, goalId: string): ArtifactReference[] {
-  return ledger.query.list({ actor_id: "", scope: { kind: "personal", id: projectId } }, { type: OUTPUT_ROLE.type, source: { module: "goals", id: goalId, version: null, scope: { kind: "personal", id: projectId } } })
-    .filter(edge => edge.state === "active" && edge.source.module === "goals" && edge.source.id === goalId && edge.target.module === "artifacts" && edge.target.version != null)
+  const scope = { kind: "personal" as const, id: projectId };
+  return ledger.query.list({ actor_id: "", scope }, { type: OUTPUT_ROLE.type, source: goalRef(goalId, scope) })
+    .filter(edge => edge.state === "active" && isGoalRef(edge.source, goalId) && edge.target.module === "artifacts" && edge.target.version != null)
     .map(edge => ({ artifact_id: edge.target.id, version: edge.target.version! }));
 }
 
@@ -114,7 +116,7 @@ export function createGoalsDeliverableActionHandlers(ports: GoalDeliverablePorts
   const links = (role: LinkRole) => {
     const keyOf = (goalId: string, ref: ArtifactReference, type = role.type) => `${type}:${goalId}:${artifactSubjectId(ref)}`;
     const refOf = (edge: ContextEdge): ArtifactReference => ({ artifact_id: edge.target.id, version: edge.target.version! });
-    const shown = (edge: ContextEdge) => (edge.type === role.type || edge.type === role.proposal) && edge.source.module === "goals" && edge.target.module === "artifacts" && edge.target.version != null;
+    const shown = (edge: ContextEdge) => (edge.type === role.type || edge.type === role.proposal) && isGoalRef(edge.source) && edge.target.module === "artifacts" && edge.target.version != null;
     const view = (edge: ContextEdge, headers: Headers): GoalDeliverable | null => {
       if (!shown(edge)) return null;
       const ref = refOf(edge), artifact = headers.get(artifactSubjectId(ref)) ?? null, proposed = edge.type === role.proposal;
@@ -131,7 +133,7 @@ export function createGoalsDeliverableActionHandlers(ports: GoalDeliverablePorts
       const type = caller.audience === "user" ? role.type : role.proposal, proposal = active(at, keyOf(goalId, ref, role.proposal));
       if (type === role.proposal && proposal) return { [role.item]: view(proposal, headers)!, replayed: true };
       const edge = ports.ledger.commands.put(at, { key: keyOf(goalId, ref, type), type, cause: type === role.type ? role.code : reason?.trim() || `${role.code}_proposed`,
-        source: { module: "goals", id: goalId, version: null, scope: at.scope },
+        source: goalRef(goalId, at.scope),
         target: { module: "artifacts", id: ref.artifact_id, version: ref.version, scope: at.scope } });
       if (type === role.type && proposal) ports.ledger.commands.remove(at, proposal.key, `${role.code}_confirmed`);
       return { [role.item]: view(edge, headers)!, replayed: false };
@@ -145,7 +147,7 @@ export function createGoalsDeliverableActionHandlers(ports: GoalDeliverablePorts
       return { removed: removed.some(Boolean) };
     };
     const edges = (caller: ActionCallContext, goalId: string) => [role.type, role.proposal].flatMap(type => ports.ledger.query.list(access(caller), { type }))
-      .filter(edge => edge.state === "active" && edge.source.module === "goals" && edge.source.id === goalId && shown(edge));
+      .filter(edge => edge.state === "active" && isGoalRef(edge.source, goalId) && shown(edge));
     /** The listing's versions are only known once the edges are read, so their headers are asked after, outside the read. */
     const list = async (caller: ActionExecutionContext, goalId: string) => {
       const found = ports.read(() => { requireGoal(goalId); return edges(caller, goalId); });

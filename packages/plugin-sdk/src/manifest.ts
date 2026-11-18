@@ -16,8 +16,6 @@ import { isRecord } from "./json-value.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
 import { demoSeedDeclarationProblems } from "./demo-seed-declarations.js";
-import { onboardingDeclarationProblems } from "./onboarding-declarations.js";
-import { notificationDeclarationProblems } from "./notification-declarations.js";
 import { attentionDeclarationProblems } from "./attention-declarations.js";
 import { readGroupDeclarationProblems } from "./read-group-declarations.js";
 import { taskSubjectDeclarationProblems } from "./task-subject-declarations.js";
@@ -32,7 +30,7 @@ import { localeDeclarationProblems } from "./locale-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 import { pageRouteProblems } from "./page-routes.js";
 import { subjectContextProblems } from "./subject-context.js";
-import { createStations, settingsReadActions, stageDataPlacementProblems, viewPlacementProblems } from "./view-placement-declarations.js";
+import { settingsReadActions, stageDataPlacementProblems, viewPlacementProblems } from "./view-placement-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
 import { inspectStateMachineDeclarations } from "./state-machine-declaration.js";
 
@@ -288,9 +286,8 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
   problems.push(...artifactDeclarationProblems(parsed));
   problems.push(...inspectContextDeclarations(parsed));
   problems.push(...backgroundDeclarationProblems(parsed.background, declaredPermissions, parsed.actions));
-  problems.push(...notificationDeclarationProblems(parsed.notifications, parsed.actions));
+  problems.push(...retiredDeclarationProblems(parsed));
   problems.push(...demoSeedDeclarationProblems(parsed.demo_seed, parsed.actions));
-  problems.push(...onboardingDeclarationProblems(parsed.onboarding, parsed.actions));
   problems.push(...connectionDeclarationProblems(parsed.connections, declaredPermissions));
   problems.push(...integrationDeclarationProblems(parsed));
   problems.push(...attentionDeclarationProblems(parsed.attention, declaredPermissions));
@@ -306,7 +303,7 @@ function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unkn
   if (!Array.isArray(ui.views)) return ["ui.views 必须为数组"];
   const problems: string[] = [];
   const contributions = new Set(parsed.ui.contributions);
-  const stations = createStations(parsed), readables = settingsReadActions(parsed);
+  const readables = settingsReadActions(parsed);
   const seen = new Set<string>();
   for (const view of views) {
     if (!text(view.view_id)) {
@@ -329,7 +326,7 @@ function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unkn
     if (!contributions.has(contributionId)) {
       problems.push(`视图 ${view.view_id} 的 contribution ${contributionId} 未在 ui.contributions 声明`);
     }
-    problems.push(...viewPlacementProblems(view, stations, readables));
+    problems.push(...viewPlacementProblems(view, readables));
   }
   problems.push(...stageDataPlacementProblems(views));
   for (const view of views) {
@@ -481,4 +478,15 @@ function strings(value: unknown, label: string): void {
 
 function invalid(message: string): never {
   throw pluginErrors.manifest_invalid(message);
+}
+
+/**
+ * Declarations that became intakes (contract-design §2.3): a Manifest that still writes one would otherwise be read as declaring nothing,
+ * and its plugin would silently stop taking onboarding's folder or the platform's notifications.
+ */
+function retiredDeclarationProblems(manifest: object): string[] {
+  return [
+    ...(Reflect.get(manifest, "onboarding") === undefined ? [] : ["onboarding 不再在 Manifest 声明：承接动作上写 intake { accepts: [{ kind: \"code_root\" }] }（或 documents、drafts）"]),
+    ...(Reflect.get(manifest, "notifications") === undefined ? [] : ["notifications 不再在 Manifest 声明：接收动作上写 intake { accepts: [{ kind: \"notification\" }] }"]),
+  ];
 }

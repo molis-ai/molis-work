@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { installHostUiText, ownerLabel, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
 import { renderMcpAccessRows, type McpAccessEntry } from "@molis-ai/molis-work-app-workbench";
@@ -70,19 +71,21 @@ test("RAC-773 RAC-774 projected browser words stay with their owner; Host and ot
   assert.equal(browser("en", "goals").text("workbench.shell.settings"), "Settings");
 });
 
-test("RAC-777 the Host’s onboarding names the draft kinds in both languages without a plugin projection", () => {
+// RAC-777, moved with the drafts (contract-design §2.5): the platform no longer names a plugin's draft kinds. The plugin that drafts names
+// them in its own words, in both languages, and the onboarding page shows them by the keys the drafts carry, granted from that plugin.
+test("RAC-777 the plugin that drafts names its draft kinds in both languages, and the Host's words no longer do", () => {
+  const pack = (file: string) => (JSON.parse(readFileSync(new URL("../" + file, import.meta.url), "utf8")) as { messages: Record<string, string> }).messages;
   const kinds = [
-    ["workbench.context-onboarding.todo-needs-you", "要你处理", "Needs your action"],
-    ["workbench.context-onboarding.todo-your-commitment", "你的承诺", "Your commitment"],
-    ["workbench.context-onboarding.todo-waiting", "在等别人", "Waiting for someone"],
+    ["todo.onboarding.kind-request", "要你处理", "Needs your action"],
+    ["todo.onboarding.kind-commitment", "你的承诺", "Your commitment"],
+    ["todo.onboarding.kind-waiting", "在等别人", "Waiting for someone"],
   ] as const;
-  for (const locale of ["en", "zh"] as const) runWithLocale(locale, () => {
-    const page = browser(locale).text;
-    for (const [key, zh, en] of kinds) {
-      assert.equal(t.text(key), locale === "en" ? en : zh);
-      assert.equal(page(key), locale === "en" ? en : zh);
-    }
-  });
+  const todo = { zh: pack("plugins/native/todo/locales/zh.json"), en: pack("plugins/native/todo/locales/en.json") };
+  for (const [key, zh, en] of kinds) { assert.equal(todo.zh[key], zh); assert.equal(todo.en[key], en); }
+  for (const locale of ["en", "zh"] as const) {
+    const host = pack(`apps/workbench/resources/locales/${locale}.json`);
+    for (const gone of ["todo-needs-you", "todo-your-commitment", "todo-waiting", "todo-suggestion"]) assert.equal(host["workbench.context-onboarding." + gone], undefined, gone);
+  }
 });
 
 test("RAC-778 Goals scripts read owner keys; the platform Artifact text remains in the workbench resource", async () => {

@@ -305,8 +305,8 @@ test("RAC-1605 RAC-1606: a title and question list a workflow hands over are cut
   const lines = Array.from({ length: 60 }, (_, index) => `- 第 ${index + 1} 题？`);
   lines.splice(2, 0, "- " + "长".repeat(201));
   const received = await workflow.invoke(formContentActions.receive, { title: "  " + "题".repeat(100) + "  ", body: lines.join("\n"), request_id: "workflow:run-1:1" });
-  assert.equal(received.plugin, "form");
-  const { form } = await f.bound.invoke(actions.get, { id: received.item_id });
+  assert.deepEqual(received.subject.kind, "form");
+  const { form } = await f.bound.invoke(actions.get, { id: received.subject.id });
   assert.equal(form.title, "题".repeat(80), "RAC-1605: the title is cut to 80 characters");
   assert.deepEqual(form.questions.map(question => question.title), Array.from({ length: 40 }, (_, index) => `第 ${index + 1} 题？`),
     "RAC-1606: the first 40 questions are kept and a line too long to be a question is left out");
@@ -321,7 +321,7 @@ test("RAC-1699: a title and question list a workflow hands over are cut and kept
   const workflow = bindActionClient(f.client, (): ActionCallContext => ({ ...f.caller, audience: "workflow" }));
   const received = await workflow.invoke(formContentActions.receive, { title: "  a" + wide(100) + "  ",
     body: ["- " + wide(200), "- " + wide(201), "- 普通题？"].join("\n"), request_id: "workflow:run-2:1" });
-  const { form } = await f.bound.invoke(actions.get, { id: received.item_id });
+  const { form } = await f.bound.invoke(actions.get, { id: received.subject.id });
   assert.equal(form.title, "a" + wide(79), "a title past 80 characters is cut to 80 whole characters");
   assert.deepEqual(form.questions.map(question => question.title), [wide(200), "普通题？"], "a line of 200 characters is a question, one of 201 is left out");
 });

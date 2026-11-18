@@ -2087,7 +2087,7 @@ export declare const eventType: Readonly<Record<string, unknown>>;
 
 export declare const goalAcceptanceCriterionSchema: Readonly<Record<string, unknown>>;
 
-export declare function goalAction<Input, Output>(id: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, plugins?: boolean): ActionDefinition<Input, Output>;
+export declare function goalAction<Input, Output>(id: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, plugins?: boolean, intake?: ActionIntake): ActionDefinition<Input, Output>;
 
 export declare const goalArchiveResultSchema: Readonly<Record<string, unknown>>;
 
@@ -2155,7 +2155,7 @@ export declare const goalEntryActions: {
             };
             home_aggregate?: true;
             project_reach?: "person";
-            placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
+            task_serves?: import("@molis-ai/molis-work-contracts/platform/actions").TaskServesDeclaration;
             subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
             fragment_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").FragmentOfferChoice[];
             intake?: ActionIntake;
@@ -2233,7 +2233,7 @@ export declare const goalEntryActions: {
             };
             home_aggregate?: true;
             project_reach?: "person";
-            placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
+            task_serves?: import("@molis-ai/molis-work-contracts/platform/actions").TaskServesDeclaration;
             subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
             fragment_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").FragmentOfferChoice[];
             intake?: ActionIntake;
@@ -2327,7 +2327,7 @@ export declare const goalEntryActions: {
             };
             home_aggregate?: true;
             project_reach?: "person";
-            placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
+            task_serves?: import("@molis-ai/molis-work-contracts/platform/actions").TaskServesDeclaration;
             subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
             fragment_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").FragmentOfferChoice[];
             intake?: ActionIntake;
@@ -2405,7 +2405,7 @@ export declare const goalEntryActions: {
             };
             home_aggregate?: true;
             project_reach?: "person";
-            placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
+            task_serves?: import("@molis-ai/molis-work-contracts/platform/actions").TaskServesDeclaration;
             subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
             fragment_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").FragmentOfferChoice[];
             intake?: ActionIntake;
@@ -2528,11 +2528,11 @@ export declare function goalMaterialSnapshotRef(version: {
 }): string;
 
 export declare const goalPluginActions: {
-    readonly list: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<GoalListActionInput, GoalEventDirectoryPage>;
-    readonly contract: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<GoalReadActionInput, GoalContractView>;
-    readonly state: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<GoalReadActionInput, GoalEventStateView>;
-    readonly progress: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<BusinessInput<RecordGoalProgressSummaryInput>, GoalEventProgressResult>;
-    readonly receipt: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<GoalReadActionInput & {
+    readonly list: import("@molis-ai/molis-work-plugin-sdk").ActionDefinition<GoalListActionInput, GoalEventDirectoryPage>;
+    readonly contract: import("@molis-ai/molis-work-plugin-sdk").ActionDefinition<GoalReadActionInput, GoalContractView>;
+    readonly state: import("@molis-ai/molis-work-plugin-sdk").ActionDefinition<GoalReadActionInput, GoalEventStateView>;
+    readonly progress: import("@molis-ai/molis-work-plugin-sdk").ActionDefinition<BusinessInput<RecordGoalProgressSummaryInput>, GoalEventProgressResult>;
+    readonly receipt: import("@molis-ai/molis-work-plugin-sdk").ActionDefinition<GoalReadActionInput & {
         idempotency_key: string;
     }, GoalEventProgressResult | null>;
 };
@@ -2621,8 +2621,6 @@ export declare const identifier: {
     minLength: number;
 };
 
-export declare function inGoalRelation<Input, Output>(definition: ActionDefinition<Input, Output>, role: PlacementRelationRole): ActionDefinition<Input, Output>;
-
 export declare const judgment: Readonly<Record<string, unknown>>;
 
 export declare const judgmentInput: Readonly<Record<string, unknown>>;
@@ -2652,11 +2650,6 @@ export declare const progress: Readonly<Record<string, unknown>>;
 export declare const projectGuidanceEntrySchema: Readonly<Record<string, unknown>>;
 
 export declare const projectGuidanceRevisionSchema: Readonly<Record<string, unknown>>;
-
-export declare function readGoalResumeFacts(actions: Pick<BoundActionClient, "invoke">, focusGoalIds?: readonly string[]): Promise<{
-    goals: import("contract/goal-events").GoalEventDirectoryItem[];
-    observed_event_cursor: number;
-}>;
 
 export declare const reason: Readonly<Record<string, unknown>>;
 

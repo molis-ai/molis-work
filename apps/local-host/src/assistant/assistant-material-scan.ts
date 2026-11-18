@@ -1,5 +1,5 @@
 import { assistantWords } from "./assistant-saved-text.js";
-import { isSubjectReader, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, type ActionSubjectContext, type ActionView, type WorkEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isAttachRelationPart, isSubjectReader, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, type ActionSubjectContext, type ActionView, type WorkEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PersonActions } from "./assistant-executor.js";
 import type { WorkIdentity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -34,7 +34,8 @@ interface ScanEnvironment {
 }
 
 /**
- * One look for new items elsewhere that share a Goal with a live work (read from the items' owners, never guessed):
+ * One look for new items elsewhere that share what a live work is about (a Goal, any plugin's object others attach to; read from the
+ * items' owners, never guessed):
  * the notices it raises, counted. The first look only learns what is already there.
  */
 export async function scanNewMaterialOnce(env: ScanEnvironment): Promise<number> {
@@ -66,13 +67,17 @@ export async function scanNewMaterialOnce(env: ScanEnvironment): Promise<number>
       try { return await withinTime(actions!.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: subject.id })) as ActionSubjectContext; }
       catch { return null; }
     };
-    // What each live work is about: the Goals of the objects it relates to.
+    // What each live work is about: the objects other objects attach to (a Goal: any kind a plugin declares as the other end of a
+    // 「挂到…」 relation) among the objects it relates to, and the ones their owners attach them to.
+    const targets = new Set(views.flatMap(({ action }) => action.attach?.relation && isAttachRelationPart(action, "bind") ? [action.attach.item_kind] : []));
+    const subjectKey = (subject: { kind: string; id: string }) => JSON.stringify([subject.kind, subject.id]);
+    const aboutOf = (subject: { kind: string; id: string }, context: ActionSubjectContext | null) =>
+      [...(targets.has(subject.kind) ? [subjectKey(subject)] : []), ...(context?.attached_to ?? []).map(subjectKey)];
     const goals = new Map<string, Set<string>>();
     for (const work of group) {
       const ids = new Set<string>();
       for (const relation of store.relations.forWork(identity(work)).slice(-20)) {
-        if (relation.object.kind === "goal") { ids.add(relation.object.id); continue; }
-        for (const goal of (await read(relation.object))?.goal_ids ?? []) ids.add(goal);
+        for (const key of aboutOf(relation.object, targets.has(relation.object.kind) ? null : await read(relation.object))) ids.add(key);
       }
       if (ids.size) goals.set(work.work_id, ids);
     }
@@ -94,13 +99,13 @@ export async function scanNewMaterialOnce(env: ScanEnvironment): Promise<number>
         if (firstLook) continue;
         // What the Assistant made itself is not news to the work that made it.
         if (store.relations.forObject(projectId, event.subject).some(row => row.relation === "result")) continue;
-        const context = event.subject.kind === "goal" ? null : await read(event.subject);
-        const eventGoals = event.subject.kind === "goal" ? [event.subject.id] : context?.goal_ids ?? [];
+        const eventGoals = aboutOf(event.subject, targets.has(event.subject.kind) ? null : await read(event.subject));
         for (const [workId, ids] of goals) {
           const shared = eventGoals.find(goal => ids.has(goal));
           if (!shared) continue;
           const work = group.find(item => item.work_id === workId)!;
-          const goal = (await read({ kind: "goal", id: shared }))?.title, words = { source: collection.source.title, item: event.title };
+          const [kind, id] = JSON.parse(shared) as [string, string];
+          const goal = (await read({ kind, id }))?.title, words = { source: collection.source.title, item: event.title };
           const stored = store.raiseNotice(actorId, { kind: "material", work_id: work.work_id, work_title: work.title,
             text: goal ? assistantWords("workbench.assistant-notice.material", { ...words, goal })
               : assistantWords("workbench.assistant-notice.material-untitled", words) }, `material:${work.work_id}:${event.event_id}`);

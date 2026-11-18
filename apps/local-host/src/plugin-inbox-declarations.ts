@@ -1,4 +1,5 @@
-import type { AttentionInboxDeclarations, AttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { AttentionInboxDeclarations, AttentionSubjectDeclarations, AttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { PluginAttentionSubjectDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-attention";
 import { SqlitePluginRuntimeReleaseArtifactRepository, SqlitePluginRuntimeRepository, type PluginRuntimeDatabase, type PluginRuntimeReleaseArtifactDatabase } from "@molis-ai/molis-work-plugin-runtime";
 
 /**
@@ -18,4 +19,24 @@ export function inboxDeclarationsOf(db: PluginRuntimeDatabase & PluginRuntimeRel
     declared.set(record.plugin_id, own);
   }
   return declared;
+}
+
+/**
+ * How the waiting list reads each owner's entries (batch 44, C8): of each running installation in this project, the subject types its
+ * trusted Manifest declares in `attention.subjects`, with the object kind each refers to and what each reason asks of the person. Read
+ * from the same archived build as the Inbox's kinds; an owner that is not running, or a type it does not declare, is not composed.
+ */
+export function attentionDeclarationsOf(db: PluginRuntimeDatabase & PluginRuntimeReleaseArtifactDatabase): AttentionSubjectDeclarations {
+  const archive = new SqlitePluginRuntimeReleaseArtifactRepository(db), owners = new Map<string, readonly PluginAttentionSubjectDeclaration[]>();
+  for (const record of new SqlitePluginRuntimeRepository(db).list()) {
+    if (record.state !== "running") continue;
+    const subjects = archive.declaredAttention(record.plugin_id, record.publisher_signature, record.version, record.manifest_digest)?.subjects;
+    if (subjects?.length) owners.set(record.plugin_id, subjects);
+  }
+  const of = (owner: string) => owners.get(owner) ?? [];
+  return {
+    objectKind: (owner, type) => of(owner).find(subject => subject.type === type)?.object_kind,
+    subjectType: (owner, kind) => of(owner).find(subject => subject.object_kind === kind)?.type,
+    category: (owner, type, reason) => of(owner).find(subject => subject.type === type)?.reasons.find(item => item.id === reason)?.attention,
+  };
 }

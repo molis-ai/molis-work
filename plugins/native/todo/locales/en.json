@@ -294,6 +294,15 @@
     "todo.capability-library.todo-reminders-due-v1.title": "Reminders due",
     "todo.capability-library.todo-reminders-window-v1.title": "Due reminders",
     "todo.read-group.todo.description": "To-dos, their dates and due reminders",
-    "todo.read-group.todo.title": "Todo"
+    "todo.read-group.todo.title": "Todo",
+    "todo.onboarding.kind-request": "Needs your action",
+    "todo.onboarding.kind-commitment": "Your commitment",
+    "todo.onboarding.kind-waiting": "Waiting for someone",
+    "todo.onboarding.kind-suggestion": "Suggestion",
+    "todo.onboarding.due": "Due {date}",
+    "todo.onboarding.due-written": "Due {date} (as written: “{phrase}”)",
+    "todo.onboarding.waiting-who": "Waiting on {who}",
+    "todo.onboarding.owner-unclear": "Owner unclear",
+    "todo.onboarding.related-existing": "Related to an existing todo"
   }
 }

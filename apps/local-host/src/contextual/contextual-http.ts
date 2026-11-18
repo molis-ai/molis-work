@@ -73,7 +73,7 @@ const memoryAction = (views: readonly ActionView[], capabilityId: "memory.recall
 
 /**
  * Preferences and conventions for this situation, through `memory.recall` (P3): a few short items, matched by plugin,
- * object kind and Goal, and recorded by the memory service as used for ranking these actions.
+ * object kind and what it belongs to, and recorded by the memory service as used for ranking these actions.
  */
 export async function recallForJudgment(focus: SurfaceFocus, caller: Caller): Promise<{ state: "ok" | "off"; items: readonly { kind: string; text: string }[] }> {
   const view = memoryAction(await directory(caller), "memory.recall");
@@ -82,7 +82,7 @@ export async function recallForJudgment(focus: SurfaceFocus, caller: Caller): Pr
   const out = await caller.actions.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, {
     query, situation: { plugin_id: focus.plugin_id, object_kind: focus.object.kind,
       objects: [{ plugin_id: focus.plugin_id, kind: focus.object.kind, id: focus.object.id },
-        ...(focus.goal ? [{ plugin_id: "io.molis.work.goals", kind: "goal", id: focus.goal.id }] : [])] },
+        ...(focus.belongs_to ? [{ plugin_id: focus.belongs_to.plugin_id, kind: focus.belongs_to.kind, id: focus.belongs_to.id }] : [])] },
     limit: 6, budget_chars: 800, used_for: "给选中的内容排动作" }) as { state?: string; items?: readonly { kind?: unknown; text?: unknown }[] };
   if (out.state === "off") return { state: "off", items: [] };
   return { state: "ok", items: (out.items ?? []).filter(item => typeof item.text === "string" && item.text)

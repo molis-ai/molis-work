@@ -83,8 +83,11 @@ export interface PresentationOverviewDeclaration {
   readonly version: number;
   /** A sentence that does not change (Feed's 「同步来的资料不算你接下的工作」), so the action does not return it each time. */
   readonly note?: TextRef;
-  /** Where the person may start from, at most 3, each one of this Manifest's own actions; the action's `start` only picks among these. */
-  readonly start?: readonly { readonly capability_id: string; readonly version: number; readonly open?: PresentationStartForm }[];
+  /**
+   * Where the person may start from, at most 3, each one of this Manifest's own actions with an `intake.start` (contract-design §2.4); the
+   * action's `start` only picks among these, and a form to open is that intake's `start.open`.
+   */
+  readonly start?: readonly { readonly capability_id: string; readonly version: number }[];
   /**
    * The project home's main content: this Manifest's own main-area view (`navigator` or `stage`). While the plugin runs, the home shows
    * that view whole and the person can switch back to the basic home (specs/work-brief/contract-design.md §2).
@@ -92,7 +95,7 @@ export interface PresentationOverviewDeclaration {
   readonly lead?: { readonly view_id: string };
 }
 
-/** An input form on this Manifest's own stage. The Host checks that the form is bound to the declared start action. */
+/** An input form on this Manifest's own stage (`intake.start.open`). The Host checks that the form is bound to the declared start action. */
 export interface PresentationStartForm { readonly view_id: string; readonly panel: string }
 
 /**

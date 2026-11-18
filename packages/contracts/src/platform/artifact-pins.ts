@@ -2,6 +2,7 @@ import { ActionError, retainActionAuthority, type ActionCallContext, type Action
 import { bindActionHandler, inputSchemaFor } from "./action-input.js";
 import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js";
 import type { ArtifactOrigin, ArtifactReference, ArtifactVersionRecord } from "../modules/artifacts.js";
+import type { ArtifactFileDeclaration } from "./plugin-manifest.js";
 
 /**
  * How a work object is pinned into the 成果库 on the spot (specs/artifact-positioning A5): the owner fixes its current
@@ -149,10 +150,22 @@ export const ARTIFACT_CONTINUE_OUTPUT_TYPE = /* @version type.molis.artifacts.co
 export interface ArtifactContinueInput { artifact: ArtifactVersionRecord }
 export interface ArtifactContinueResult { open: { surface: string; id: string; title: string } }
 
-export function defineArtifactContinueAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactContinueInput, ArtifactContinueResult> {
+/**
+ * What a continue action starts from (contract-design §2.3): the 成果 types it continues, the files it reads when one is an imported file,
+ * and the kind of object it makes. It becomes the action's intake, which the 成果库 reads to list who can continue from a version.
+ */
+export interface ArtifactContinueFrom {
+  readonly item_kind: string;
+  readonly artifact_types: readonly { readonly artifact_type_id: string; readonly schema_version: number }[];
+  readonly file?: ArtifactFileDeclaration;
+}
+
+export function defineArtifactContinueAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[], from: ArtifactContinueFrom): ActionDefinition<ArtifactContinueInput, ArtifactContinueResult> {
   return { capability_id: capabilityId, version: version, operation: "command", action: {
     title: `从这一版新建${objectTitle}`, description: `用成果库里的一版新建一份${objectTitle}继续编辑；这一版本身不变。`,
     kind: "operation", scope: "project", audiences: ["user"], plugin: false, permissions: [...permissions], subject_kinds: [],
+    intake: { intake_id: "artifact.continue", item_kind: from.item_kind, title: objectTitle, verb: "从这一版继续", describe: `用成果库里的一版新建一份${objectTitle}继续编辑`,
+      accepts: [{ kind: "artifact", artifact_types: from.artifact_types.map(type => ({ ...type })), ...(from.file ? { file: { ...from.file, extensions: [...from.file.extensions] } } : {}) }], examples: [] },
     input_type: ARTIFACT_CONTINUE_INPUT_TYPE, output_type: ARTIFACT_CONTINUE_OUTPUT_TYPE,
     input_schema: { type: "object", properties: { artifact: { type: "object" } }, required: ["artifact"], additionalProperties: false },
     output_schema: { type: "object", properties: { open: { type: "object", properties: { surface: id, id, title: { type: "string" } }, required: ["surface", "id", "title"], additionalProperties: false } },

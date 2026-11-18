@@ -14,7 +14,7 @@ import { parsePluginManifest } from "./manifest.js";
 export { SANDBOX_VALIDATE_UPGRADE, assertSandboxUpgradeValidator, sandboxUpgradeOperation } from "./sandbox-actions.js";
 export { sandboxPluginManifest, sandboxIntegrationManifest, sandboxDerivedPermissions, sandboxRequestedPermissions, sandboxOperationPermissions, sandboxProjectedPermissions, sandboxOperationSwitches, SANDBOX_IMAGE_PERMISSIONS, effectsFromContract, type SandboxManifestInput, type SandboxIntegrationManifestInput } from "./sandbox-manifest.js";
 export { parseSandboxUi, sandboxUiContribution, sandboxUiDeclaration, type SandboxUiContribution } from "./sandbox-ui.js";
-export { sandboxOperationActions, sandboxActionId, sandboxPackageBuildId, sandboxOperationEffects, sandboxBackgroundProblems } from "./sandbox-actions.js";
+export { sandboxOperationActions, sandboxActionId, sandboxPackageBuildId, sandboxOperationEffects, sandboxBackgroundProblems, sandboxStartProblems } from "./sandbox-actions.js";
 export { assertJson as assertSandboxJson, assertSchema as assertSandboxSchema, assertMatches as assertSandboxMatches, type SandboxSchemaFailure } from "./sandbox-schema.js";
 export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
 export { inspectContentPlugin } from "./content-plugin.js";
@@ -80,10 +80,10 @@ export type {
 } from "@molis-ai/molis-work-contracts/platform/kit-report";
 export type { SubjectOffersInput, SubjectActionOffer, SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
 /** Putting what the person has in hand somewhere: declare `intake` (this command creates an Item) or `attach` (it adds to one) on the command itself. */
-export type { ActionIntake, ActionAttach, ItemAttachPosition } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ActionIntake, PersonIntake, DeliveredIntake, IntakeStart, ItemMaterial, PersonMaterial, DeliveredMaterial, ActionAttach, ItemAttachPosition } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkEventsAction, withinWorkEventWindow, assertWorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 /** The Home title bar's background tasks: a read-only project query the Home asks in every open project (`home_aggregate`). */
-export { defineBackgroundTasksAction, defineTaskServesAction, TASK_SERVES_RELATION } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineBackgroundTasksAction, defineTaskServesAction, TASK_SERVES_ROLES } from "@molis-ai/molis-work-contracts/platform/actions";
 /** System search: list what your plugin can find (by version) and read it through your subject reader. */
 export { defineSearchEntriesAction, bindSearchEntriesHandler, searchEntriesPage, searchText, searchRevisionOf, SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFileEntriesAction, defineFileContentAction, bindFileEntriesHandler, fileEntriesPage, fileContentOf, FILE_SOURCE_AUDIENCES, FILE_CONTENT_MAX_BYTES } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -275,6 +275,8 @@ export { defineWorkflowContentActions, bindWorkflowContentHandlers } from "@moli
 export {
   defineObjectMoveAction, defineObjectCopyAction, bindObjectMoveHandler, bindHomeObjectMoveHandler, bindObjectCopyHandler, PERSONAL_SPACE_PROJECT_ID, type PlacementResult,
 } from "@molis-ai/molis-work-contracts/platform/actions";
+/** 「挂到…」 for any plugin's objects, and the summary MCP reads when a project resumes (contract-design §2.2, §5): what Goals declares, any author may. */
+export { defineAttachRelationAction, defineResumeSummaryAction } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
  * Reminders the person set in your plugin (a time on a to-do): the Host asks, about once a minute, which fall due in a window
@@ -332,8 +334,8 @@ export type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult } fro
 
 export type { PluginInstallationClient, PluginInstallationProjects, PluginInstallationView } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt, PluginNotificationReceiverDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR, PLUGIN_NOTIFICATION_DELIVERY_INPUT_SCHEMA, PLUGIN_NOTIFICATION_DELIVERY_RECEIPT_SCHEMA } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { arraySchema, nullableSchema, objectSchema } from "./action-schemas.js";
 export { canonicalJsonText, canonicalJsonValue, compareCodeUnits, isRecord, parseJson } from "./json-value.js";
 

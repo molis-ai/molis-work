@@ -32,14 +32,16 @@ export interface PlacementLocation {
   access_label: string;
 }
 export type PlacementObjectState = keyof typeof STATE_VOCABULARIES.placementObject.states;
-export type PlacementAssociationType = "used_in" | "goal" | "derived_from" | "derived_into" | "copied_from" | "copied_into";
+export type PlacementAssociationType = "used_in" | "attached" | "derived_from" | "derived_into" | "copied_from" | "copied_into";
+/** What an object is attached to (「挂到…」): another plugin's object, by its subject kind, and the noun its owner gives that kind. */
+export interface PlacementAttachedTarget { kind: "attached"; project_id: string | null; object: { kind: string; id: string }; noun: string; title: string }
 export interface PlacementAssociation {
-  /** Ledger key for links the system owns; null for relations the owner plugin keeps (a document's Goal). */
+  /** Ledger key for links the system owns, and for attachments placement made; null for relations the owner plugin keeps itself. */
   key: string | null;
   type: PlacementAssociationType;
   label: string;
-  /** The other end: a project, a Goal, or another object. */
-  target: { kind: "project"; project_id: string; title: string } | { kind: "goal"; project_id: string | null; goal_id: string; title: string }
+  /** The other end: a project, what the object is attached to, or another object. */
+  target: { kind: "project"; project_id: string; title: string } | PlacementAttachedTarget
     | { kind: "object"; object: PlacedObject; title: string; state: PlacementObjectState; location: PlacementLocation | null;
       /** The plugin that keeps the object, as its owner names it; null when nothing reads it (a deleted object, a disabled plugin). */
       plugin: { plugin_id: string; title: string } | null };
@@ -72,7 +74,8 @@ export interface PlacementRelatedItem {
   since: string;
   open: PlacementOpen | null;
 }
-export type PlacementConvertTarget = { station: string } | { goal: true };
+/** A plugin's station that receives content, or a new target of a 「挂到…」 relation (its subject kind: a Goal is `goal`). */
+export type PlacementConvertTarget = { station: string } | { attach_kind: string };
 export interface PlacementConvertRequest {
   source: PlacedObject;
   to: PlacementConvertTarget;
@@ -81,13 +84,18 @@ export interface PlacementConvertRequest {
   /** What the source hands over, when it is not the object's own content (a form's responses as CSV). */
   payload?: { title: string; body: string };
 }
-export interface PlacementConvertResponse { object: PlacedObject; title: string; location: PlacementLocation; open: PlacementOpen | null }
+export interface PlacementConvertResponse {
+  object: PlacedObject; title: string; location: PlacementLocation; open: PlacementOpen | null;
+  /** Made into a target of a 「挂到…」 relation: the noun its owner gives that kind (a Goal), so the person reads what it became. */
+  noun?: string;
+}
 export interface PlacementMoveResponse { object: PlacedObject; location: PlacementLocation; open: PlacementOpen | null }
 export interface PlacementSpaceView { project_id: string; title: string; kind: "personal" | "project" }
 
 const id = { type: "string", minLength: 1, maxLength: 200 };
 const nullable = (schema: Record<string, unknown>) => ({ anyOf: [{ type: "null" }, schema] });
 const projectRef = { type: "string", minLength: 1, maxLength: 120, pattern: "^[A-Za-z0-9][A-Za-z0-9_.:-]*$" };
+const kindSchema = { type: "string", minLength: 1, maxLength: 80 };
 export const PLACED_OBJECT_SCHEMA = { type: "object", properties: { kind: { ...id, maxLength: 80 }, id, project_id: nullable(projectRef) },
   required: ["kind", "id", "project_id"], additionalProperties: false };
 const location = { type: "object", properties: { kind: { enum: ["personal", "project"] }, project_id: nullable(projectRef), title: { type: "string" },
@@ -95,7 +103,7 @@ const location = { type: "object", properties: { kind: { enum: ["personal", "pro
 const open = nullable({ type: "object", properties: { project_id: nullable(projectRef), surface: { type: "string" }, id: { type: "string" } }, required: ["project_id", "surface", "id"], additionalProperties: false });
 const state = { enum: ["ok", "missing", "unavailable"] };
 const plugin = nullable({ type: "object", properties: { plugin_id: { type: "string" }, title: { type: "string" } }, required: ["plugin_id", "title"], additionalProperties: false });
-const association = { type: "object", properties: { key: { type: ["string", "null"] }, type: { enum: ["used_in", "goal", "derived_from", "derived_into", "copied_from", "copied_into"] },
+const association = { type: "object", properties: { key: { type: ["string", "null"] }, type: { enum: ["used_in", "attached", "derived_from", "derived_into", "copied_from", "copied_into"] },
   label: { type: "string" }, target: { type: "object" }, since: { type: ["string", "null"] }, removable: { type: "boolean" } },
   required: ["key", "type", "label", "target", "since", "removable"], additionalProperties: false };
 const description = { type: "object", properties: { state, reason: { type: ["string", "null"] }, object: PLACED_OBJECT_SCHEMA, title: { type: "string" }, plugin,
@@ -140,29 +148,31 @@ export const placementActions = {
     title: "复制到另一个位置", description: "在选定的位置得到一份独立的副本，并记下“复制自”；同一请求重试不会多出一份。",
     input_schema: object({ object: PLACED_OBJECT_SCHEMA, to_project_id: projectRef, request_id: id }), output_schema: moved } } as ActionDefinition<{ object: PlacedObject; to_project_id: string; request_id: string }, PlacementMoveResponse>,
   convert: { capability_id: "placement.convert", version: /* @version action.placement.convert */ 1, operation: "command", action: { ...write,
-    title: "转成另一种内容", description: "把对象的内容交给另一个插件做成新对象（如转成文档、建成 Goal、存成数据表），并记下来源；原对象不变。",
-    input_schema: object({ source: PLACED_OBJECT_SCHEMA, to: { anyOf: [object({ station: { type: "string", pattern: "^[a-z][a-z0-9-]{1,40}$" } }), object({ goal: { const: true } })] },
+    title: "转成另一种内容", description: "把对象的内容交给另一个插件做成新对象（如转成文档、建成一个可挂接的对象、存成数据表），并记下来源；原对象不变。",
+    input_schema: object({ source: PLACED_OBJECT_SCHEMA, to: { anyOf: [object({ station: { type: "string", pattern: "^[a-z][a-z0-9-]{1,40}$" } }), object({ attach_kind: kindSchema })] },
       to_project_id: projectRef, request_id: id, payload: object({ title: { type: "string", maxLength: 200 }, body: { type: "string", maxLength: 400000 } }) }, ["source", "to", "to_project_id", "request_id"]),
-    output_schema: object({ object: PLACED_OBJECT_SCHEMA, title: { type: "string" }, location, open }) } } as ActionDefinition<PlacementConvertRequest, PlacementConvertResponse>,
+    output_schema: object({ object: PLACED_OBJECT_SCHEMA, title: { type: "string" }, location, open, noun: { type: "string" } }, ["object", "title", "location", "open"]) } } as ActionDefinition<PlacementConvertRequest, PlacementConvertResponse>,
 };
 
-export interface PlacementGoalView { goal_id: string; title: string }
-export interface PlacementCreateRequest { station: string; project_id: string; title?: string; goal_id?: string | null; request_id: string }
+/** The targets of one 「挂到…」 relation in a location: their subject kind, the noun their owner gives it, and the ones open now. */
+export interface PlacementAttachKindView { kind: string; noun: string; targets: { id: string; title: string }[] }
+export interface PlacementCreateRequest { station: string; project_id: string; title?: string; attach_to?: { kind: string; id: string } | null; request_id: string }
 
-/** Goals and creating straight into a Goal's project: Goals keeps the binding; this service only asks it. */
-export const placementGoalActions = {
-  goals: { capability_id: "placement.goals", version: /* @version action.placement.goals */ 1, operation: "query", action: { ...read,
-    title: "可以关联的目标", description: "列出一个位置里还在进行的目标，供把资料关联到目标时选择。",
-    input_schema: object({ project_id: projectRef }), output_schema: object({ goals: { type: "array", items: object({ goal_id: { type: "string" }, title: { type: "string" } }) } }) } } as ActionDefinition<{ project_id: string }, { goals: PlacementGoalView[] }>,
-  bindGoal: { capability_id: "placement.goal.bind", version: /* @version action.placement.goal.bind */ 1, operation: "command", action: { ...write,
-    title: "关联到目标", description: "把对象记为目标的绑定资料（由 Goals 记录）；不复制、不移动。对象在别处时，同时用于目标所在的项目。给了读到的版本（read_revision）时，Goals 记下内容摘要，以后能看出原文改没改。",
-    input_schema: object({ object: PLACED_OBJECT_SCHEMA, project_id: projectRef, goal_id: id, read_revision: { type: "string", minLength: 1, maxLength: 200 } }, ["object", "project_id", "goal_id"]),
-    output_schema: object({ key: { type: "string" } }) } } as ActionDefinition<{ object: PlacedObject; project_id: string; goal_id: string; read_revision?: string }, { key: string }>,
+/** 「挂到…」 and creating straight onto a target: the target's owner keeps the binding; this service only asks it. */
+export const placementAttachActions = {
+  targets: { capability_id: "placement.attach.targets", version: /* @version action.placement.attach.targets */ 1, operation: "query", action: { ...read,
+    title: "可以挂到哪里", description: "列出一个位置里可以把资料挂上去的对象（如还在进行的目标），按种类分组，供选择。",
+    input_schema: object({ project_id: projectRef }), output_schema: object({ kinds: { type: "array", items: object({ kind: { type: "string" }, noun: { type: "string" },
+      targets: { type: "array", items: object({ id: { type: "string" }, title: { type: "string" } }) } }) } }) } } as ActionDefinition<{ project_id: string }, { kinds: PlacementAttachKindView[] }>,
+  attach: { capability_id: "placement.attach", version: /* @version action.placement.attach */ 1, operation: "command", action: { ...write,
+    title: "挂到…", description: "把对象挂到另一个对象上（由对方的主人记录）；不复制、不移动。对象在别处时，同时用于对方所在的项目。给了读到的版本（read_revision）时，对方的主人记下内容摘要，以后能看出原文改没改。",
+    input_schema: object({ object: PLACED_OBJECT_SCHEMA, project_id: projectRef, target: object({ kind: kindSchema, id }), read_revision: { type: "string", minLength: 1, maxLength: 200 } }, ["object", "project_id", "target"]),
+    output_schema: object({ key: { type: "string" } }) } } as ActionDefinition<{ object: PlacedObject; project_id: string; target: { kind: string; id: string }; read_revision?: string }, { key: string }>,
   create: { capability_id: "placement.create", version: /* @version action.placement.create */ 1, operation: "command", action: { ...write,
-    title: "在这里新建", description: "在指定位置新建一份内容（文档、演示稿、数据表…），需要时同时关联到一个目标。",
+    title: "在这里新建", description: "在指定位置新建一份内容（文档、演示稿、数据表…），需要时同时挂到一个对象上。",
     input_schema: object({ station: { type: "string", pattern: "^[a-z][a-z0-9-]{1,40}$" }, project_id: projectRef, title: { type: "string", maxLength: 200 },
-      goal_id: { type: ["string", "null"] }, request_id: id }, ["station", "project_id", "request_id"]),
-    output_schema: object({ object: PLACED_OBJECT_SCHEMA, title: { type: "string" }, location, open, goal_key: { type: ["string", "null"] } }) } } as ActionDefinition<PlacementCreateRequest, PlacementConvertResponse & { goal_key: string | null }>,
+      attach_to: nullable(object({ kind: kindSchema, id })), request_id: id }, ["station", "project_id", "request_id"]),
+    output_schema: object({ object: PLACED_OBJECT_SCHEMA, title: { type: "string" }, location, open, attached_key: { type: ["string", "null"] } }) } } as ActionDefinition<PlacementCreateRequest, PlacementConvertResponse & { attached_key: string | null }>,
 };
 
 export type PlacementSubject = ActionSubject;

@@ -52,6 +52,7 @@ export interface SandboxDataOperation extends SandboxOperationFields {
     input: SandboxSchema;
     output: SandboxSchema;
     read_protocol?: never;
+    start?: SandboxOperationStart;
     trusted_review?: {
         readonly reader: string;
         readonly subject_kinds: readonly string[];
@@ -337,6 +338,10 @@ export interface SandboxOperationExample {
     error?: string;
 }
 
+export interface SandboxOperationStart extends IntakeStart {
+    readonly item_kind: string;
+}
+
 export type SandboxOperations = Record<string, (input: SandboxJson, sdk: SandboxSdk) => Promise<SandboxJson>>;
 
 export interface SandboxOriginalPart {
@@ -431,6 +436,7 @@ export interface SandboxReadOperation extends SandboxOperationFields {
     output: ActionSchema;
     background_job?: never;
     trusted_review?: never;
+    start?: never;
 }
 
 export type SandboxReadProtocol = {

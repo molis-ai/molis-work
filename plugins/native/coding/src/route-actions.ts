@@ -40,7 +40,10 @@ export const codingCreateSessionAction = { ...createSession, action: { ...create
     project_id: id, session_id: id, title: { type: "string" }, state: { const: "idle" }, archived: { const: false },
     goal_id: { type: "null" }, runtime_id: id, runtime_session_id: { type: "null" },
     created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" },
-  }) }), result_subject: { id: "session.session_id", revision: "session.updated_at" } } };
+  }) }), result_subject: { id: "session.session_id", revision: "session.updated_at" },
+  // The overview's 「从哪开始」 (contract-design §2.4): a blank session, in the words the home showed for it.
+  intake: { intake_id: "session", item_kind: "coding_session", title: "编码会话", verb: "新建编码会话", describe: "一个新的编码会话：在本机代码文件夹里分几轮完成编码任务",
+    accepts: [], examples: [], start: { title: "新建编码会话", hint: "新建一个编码会话；第一轮任务开始前不会调用模型" } } } };
 
 /** Coding's business surface: the Runtime instance redeems these, and the matching routes only forward to them. */
 export const codingRouteActions: Readonly<Record<string, { definition: ActionDefinition<Record<string, unknown>, unknown> } & Translate>> = {

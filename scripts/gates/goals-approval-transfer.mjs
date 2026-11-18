@@ -1,19 +1,8 @@
 import ts from "typescript";
 import { constantsIn, unwrapExpression } from "./upgrade-steps.mjs";
 
-// APR-19: the platform and Goals move together in the same project database transaction.
-export const GOALS_APPROVAL_TRANSFER = Object.freeze({
-  projectDefinition: "apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE",
-  goalsDefinition: "plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE",
-  pluginId: "io.molis.work.goals",
-  projectStore: "projects/*/molis-work.db",
-  goalsStore: "projects/<project_id>/molis-work.db#goals",
-  // The platform migration runs once, independent of the version on the Goals owner ledger.
-  from: 3, to: 4,
-  goalsFrom: 4, goalsTo: 5,
-  syncEntry: "sync.collection.goals.project_goals",
-  syncManifest: "plugins/native/goals/src/manifest.ts",
-});
+const literal = (node, number) => node && ts.isNumericLiteral(node) && Number(node.text) === number;
+const reference = (node, name) => node && ts.isIdentifier(node) && node.text === name;
 
 function value(object, key) {
   if (!object || !ts.isObjectLiteralExpression(object)) return undefined;
@@ -22,24 +11,57 @@ function value(object, key) {
   return properties.length === 1 && ts.isPropertyAssignment(property) ? unwrapExpression(property.initializer) : undefined;
 }
 
-const literal = (node, number) => node && ts.isNumericLiteral(node) && Number(node.text) === number;
-const reference = (node, name) => node && ts.isIdentifier(node) && node.text === name;
+/** The step spreads exactly this name (`{ from: 4, ...projectLibraryV5Upgrade }`). */
+const spreads = (object, name) => Boolean(object && ts.isObjectLiteralExpression(object)
+  && object.properties.filter(property => ts.isSpreadAssignment(property)).length === 1
+  && object.properties.some(property => ts.isSpreadAssignment(property) && reference(unwrapExpression(property.expression), name)));
 
-export function hasGoalsApprovalTransfer(read) {
+/**
+ * Project-library steps that move Goals' library in the same transaction; Goals declares no step of its own for them.
+ * - APR-19 (batch 39): project 3→4 hands the approvals to the platform; Goals 4→5.
+ * - Batch 44 D1 (`docs/system/CONTRACT-CHANGES.md`「第 44 批存量搬迁」, user 2026-11-17): project 4→5 rewrites the relations naming
+ *   Goals and Feed and moves Goals' sync collection to `project_goals@3`; Goals 5→6.
+ * `binding` is what the project library imports from `module` and the step uses; `hostStep` the step the Host exports, read by the
+ * store snapshot to check the installed writer is the one in the chain. `sync` is the step Goals' sync collection takes with it, and
+ * `sync.goals` the Goals tables a golden at the project's `from` must hold for the replay to start that collection there.
+ */
+export const GOALS_APPROVAL_TRANSFER = Object.freeze({
+  projectDefinition: "apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE",
+  goalsDefinition: "plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE",
+  pluginId: "io.molis.work.goals",
+  projectStore: "projects/*/molis-work.db",
+  goalsStore: "projects/<project_id>/molis-work.db#goals",
+  syncEntry: "sync.collection.goals.project_goals",
+  syncManifest: "plugins/native/goals/src/manifest.ts",
+  steps: Object.freeze([
+    Object.freeze({ from: 3, to: 4, goalsFrom: 4, goalsTo: 5, module: "./project-approval-upgrade.js", binding: "transferProjectApprovals", hostStep: "projectApprovalUpgrade",
+      sync: Object.freeze({ from: 1, to: 2, goals: 3 }),
+      matches: step => reference(value(step, "sql"), "PROJECT_APPROVALS_SCHEMA_SQL") && reference(value(step, "run"), "transferProjectApprovals") }),
+    Object.freeze({ from: 4, to: 5, goalsFrom: 5, goalsTo: 6, module: "./project-library-v5-upgrade.js", binding: "projectLibraryV5Upgrade", hostStep: "projectLibraryV5Step",
+      sync: Object.freeze({ from: 2, to: 3, goals: 5 }),
+      matches: step => spreads(step, "projectLibraryV5Upgrade") }),
+  ]),
+});
+
+/** The joint step a Goals row's `old → new` is, if it is one. */
+export const goalsJointStep = (from, to) => GOALS_APPROVAL_TRANSFER.steps.find(step => step.goalsFrom === from && step.goalsTo === to);
+
+/** Whether the project library's chain has this joint step, written the way the step reads, with its writer imported. */
+export function hasGoalsApprovalTransfer(read, step = GOALS_APPROVAL_TRANSFER.steps[0]) {
   const transfer = GOALS_APPROVAL_TRANSFER;
   const [file, name] = transfer.projectDefinition.split("#");
   const source = read(file);
-  if (!source || !read("apps/local-host/src/project-approval-upgrade.ts")) return false;
+  if (!source || !read("apps/local-host/src/" + step.module.slice(2).replace(/\.js$/u, ".ts"))) return false;
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const constants = constantsIn(tree), baseline = constants.get(name);
   const upgrades = value(baseline, "upgrades");
   const steps = upgrades && ts.isIdentifier(upgrades) ? constants.get(upgrades.text) : upgrades;
-  if (!literal(value(baseline, "version"), transfer.to) || !steps || !ts.isArrayLiteralExpression(steps)) return false;
-  const matching = steps.elements.map(unwrapExpression).filter(step => literal(value(step, "from"), transfer.from));
-  if (matching.length !== 1 || !reference(value(matching[0], "sql"), "PROJECT_APPROVALS_SCHEMA_SQL")
-    || !reference(value(matching[0], "run"), "transferProjectApprovals")) return false;
+  const version = value(baseline, "version");
+  if (!version || !ts.isNumericLiteral(version) || Number(version.text) < step.to || !steps || !ts.isArrayLiteralExpression(steps)) return false;
+  const matching = steps.elements.map(unwrapExpression).filter(element => literal(value(element, "from"), step.from));
+  if (matching.length !== 1 || !step.matches(matching[0])) return false;
   return tree.statements.some(statement => ts.isImportDeclaration(statement) && ts.isStringLiteralLike(statement.moduleSpecifier)
-    && statement.moduleSpecifier.text === "./project-approval-upgrade.js" && !statement.importClause?.isTypeOnly
+    && statement.moduleSpecifier.text === step.module && !statement.importClause?.isTypeOnly
     && statement.importClause?.namedBindings && ts.isNamedImports(statement.importClause.namedBindings)
-    && statement.importClause.namedBindings.elements.some(item => !item.isTypeOnly && !item.propertyName && item.name.text === "transferProjectApprovals"));
+    && statement.importClause.namedBindings.elements.some(item => !item.isTypeOnly && !item.propertyName && item.name.text === step.binding));
 }

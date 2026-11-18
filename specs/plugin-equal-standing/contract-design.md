@@ -193,7 +193,7 @@ start?: {
 
 今天内置的只各有一个承接方，所以单选组不会出现。落地页（`projectLocation()`，`context-onboarding.ts:520-525`）：交了代码文件夹去承接方打开的地方；留了草稿去 `drafts` 承接方的页面（它导航视图的 surface）；否则去 `documents` 返回的工作摘要的 `open`。一次最多交 30 份材料的种类（`code_root`）超出时，页面按 `take_result.materials`／`of` 说出「交了前 30 份，共 N 份」。`personal` 注册的排除已去掉（`onboarding-takers.ts:18-21`），本项不再改。
 
-**存着的旅程（D5，用户 2026-11-17 确认升 1→2；下列「保留」做法是评审后的修订，待用户再确认）。** 旅程库 `database.context_onboarding_baseline`（第 1 版，`context-onboarding-store.ts:155`）的正文 JSON 存着 `todo`（Todo 批次的原样）、`adoption.todo_selected`、`document_id`、每份材料的 `documents: string[]`。升第 2 版，1→2 一步：
+**存着的旅程（D5，用户 2026-11-17 确认升 1→2；下列「保留」做法是评审后的修订，用户同日再确认）。** 旅程库 `database.context_onboarding_baseline`（第 1 版，`context-onboarding-store.ts:155`）的正文 JSON 存着 `todo`（Todo 批次的原样）、`adoption.todo_selected`、`document_id`、每份材料的 `documents: string[]`。升第 2 版，1→2 一步：
 
 - `todo` → `drafts { plugin_id, status, key, batches: [{ batch_id, snapshot: OnboardingDraftBatch | null }], total, error, added?, timing }`：Todo 私有形状的批次正文换算不了，`snapshot` 置空，只留 `batch_id`（Todo 按 id 读得回，候选 id 不变）；旅程接口读到空快照时按 id 调 `get`，**只填进响应、不落盘**（旅程是整份正文覆盖着存的，读路径写回会冲掉采用任务并发写的 `phase`、`adoption`、`parts`，`service.ts:696-735`）；采用路径本来就自己 `get`。
 - `adoption.todo_selected` → `adoption.keep`，**原样保留**：它只在点了「采用」之后才存（`service.ts:684-690`），重试时 `adoption ??=` 不再收新输入，删了就会在重试时悄悄不建那些已勾的待办。还没采用的旅程，勾选只在页面内存里，没有可丢的。

@@ -1,3 +1,4 @@
+import { unassignedFeedAttention } from "./fixtures/feed-ledger.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -35,7 +36,7 @@ function feedModules(store: LocalProjectDatabase): {
     exists: (projectId, subjectType, subjectId) =>
       subjectType === "feed_item" && feed.query.exists(projectId, subjectId),
   });
-  feed = new FeedModule(fromBetterSqlite(store.db), attention, {
+  feed = new FeedModule(fromBetterSqlite(store.db), unassignedFeedAttention(attention), {
     ledger: feedLedger(createContextLedger(store.db, { authorize: (access) => access.scope.kind === "personal" })),
   });
   return { attention, feed };

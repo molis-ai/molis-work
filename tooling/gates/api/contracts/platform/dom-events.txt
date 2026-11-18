@@ -394,8 +394,8 @@ export declare const DOM_EVENTS: readonly [{
     readonly kind: "request";
     readonly owner: "placement";
     readonly on: "window";
-    readonly detail: "{ source, station | goal, payload?, note? }";
-    readonly summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).";
+    readonly detail: "{ source, station | attach_kind, payload?, note? }";
+    readonly summary: "Hand content to another plugin (or make it a new target of a 「挂到…」 relation, by its subject kind) through the shared conversion dialog. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).";
 }, {
     readonly name: "molis:placement-flush";
     readonly kind: "announcement";

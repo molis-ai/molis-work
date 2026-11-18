@@ -23,7 +23,7 @@ export const goalsPresentation = {
       card: { fields: ["title", "status", "updated_at", "summary"] }, peek: { fields: ["title", "status", "updated_at", "summary"] } },
     text: { lines: ["title", "status", "updated_at", "summary"] },
   }],
-  overview: { capability_id: overview.capability_id, version: overview.version, start: [{ ...start, open: { view_id: "stage", panel: "create-dialog" } }] },
+  overview: { capability_id: overview.capability_id, version: overview.version, start: [start] },
 } as const satisfies PresentationDeclaration;
 
 const currentGoal = (goal: GoalRecord | null | undefined): goal is GoalRecord => !!goal && !goal.trashed_at && !goal.archived_at;

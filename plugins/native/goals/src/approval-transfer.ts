@@ -2,9 +2,9 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 import type { ApprovalRuleOwner, ProjectApprovalRuleScope } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
-import { GOALS_APPROVAL_TRANSFER_BASELINES, GOALS_PROJECT_DATABASE, type GoalsApprovalSource } from "./project-database.js";
+import { GOALS_APPROVAL_TRANSFER_BASELINES, GOALS_PROJECT_DATABASE, GOALS_PROJECT_DATABASE_V5, type GoalsApprovalSource } from "./project-database.js";
 import { GOALS_TREE_EFFECTS_SQL } from "./project-database-governance.js";
-import { goalsApprovalTransferSync } from "./approval-transfer-sync.js";
+import { goalsApprovalTransferSync, goalsV5Sync } from "./approval-transfer-sync.js";
 import { readGoalApprovalOutcome } from "./approval-outcomes.js";
 
 interface TransferConnection {
@@ -35,6 +35,9 @@ export function goalsApprovalTransferManifest(manifest: PluginManifest, version:
   if (isGoalsApprovalSource(version)) return {
     ...manifest, databases: { ...manifest.databases, project: GOALS_APPROVAL_TRANSFER_BASELINES[version] },
     sync: goalsApprovalTransferSync(version),
+  };
+  if (version === GOALS_PROJECT_DATABASE_V5.version) return {
+    ...manifest, databases: { ...manifest.databases, project: GOALS_PROJECT_DATABASE_V5 }, sync: goalsV5Sync(),
   };
   if (version !== GOALS_PROJECT_DATABASE.version || manifest.databases?.project?.version !== GOALS_PROJECT_DATABASE.version
     || !manifest.sync?.collections.find(row => row.id === "project_goals")?.sections) throw invalid();

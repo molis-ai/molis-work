@@ -42,7 +42,9 @@ const declaring = <I, O>(definition: ActionDefinition<I, O>, extra: Partial<Acti
  */
 const LINGGUANG_INTAKE = { intake_id: "capture", item_kind: "lingguang_spark", title: "灵光", verb: "记下灵光", material_field: "body",
   describe: "一个想法或一闪而过的念头，先记下、稍后再想；不是要去做的事，也不是要留存的资料",
-  examples: ["也许可以让新人先看一遍历史讨论", "周报能不能自动生成", "试试把评审改到周四"], prepare: { capability_id: "lingguang.fragment.offers", version: /* @version action.lingguang.fragment.offers */ 1 } } as const;
+  examples: ["也许可以让新人先看一遍历史讨论", "周报能不能自动生成", "试试把评审改到周四"], prepare: { capability_id: "lingguang.fragment.offers", version: /* @version action.lingguang.fragment.offers */ 1 },
+  // The project home's starting point (contract-design §2.4), on the same entry.
+  start: { title: "记下一点灵感", hint: "还没想清楚，也可以先留下。", title_text: { key: "lingguang.directory.start-title" }, hint_text: { key: "lingguang.directory.start-hint" } } } as const;
 
 export const lingguangActions = {
   list: define<Record<string, never>, { sparks: LingguangSpark[] }>("list", /* @version action.lingguang.list */ 1, "灵光列表", "读取当前项目尚未丢弃的全部灵光", "query", object({}), object({ sparks: { type: "array", items: spark } }), read),

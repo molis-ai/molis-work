@@ -55,7 +55,7 @@ const entry = (item: TodoItem): SearchEntry => ({
   subject: { kind: TODO_SUBJECT_KIND, id: item.id }, revision: String(item.revision), title: item.title,
   summary: searchText(item.notes, 1000), updated_at: item.updated_at, content: "context", open: open(item.id),
 });
-const goals = (item: TodoItem) => item.links.filter(link => link.kind === "goal").map(link => link.subject.id);
+const attached = (item: TodoItem) => item.links.filter(link => link.kind === "goal").map(link => ({ kind: "goal", id: link.subject.id }));
 
 /** Still to do: what a person means to hand over as "this todo". Done, cancelled and archived ones are left to Todo's own page. */
 const pickable = (item: TodoItem) => !item.archived_at && item.status !== "done" && item.status !== "cancelled";
@@ -99,7 +99,7 @@ export function createTodoSearchHandlers(read: <T>(run: (store: TodoStore) => T)
       if (item.archived_at) throw todoErrors.not_found("这件待办已归档");
       // Todos live in the person's Home; one that belongs to a project says which (personal and unplaced leave it empty).
       return subjectContext({ subject: { kind: TODO_SUBJECT_KIND, id: item.id }, revision: String(item.revision), title: item.title,
-        content: todoText(item), goal_ids: goals(item), open: open(item.id), project_id: item.placement === "project" ? item.project_id : null });
+        content: todoText(item), attached_to: attached(item), open: open(item.id), project_id: item.placement === "project" ? item.project_id : null });
     }) },
   ];
 }

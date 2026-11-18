@@ -183,15 +183,15 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   /* ---- Converting: a plugin hands content over, the placement service makes the new object and records where it came from ---- */
   window.addEventListener("molis:placement-convert", async (event) => {
     const detail = event.detail || {};
-    if (!detail.source || !detail.source.id || !(detail.station || detail.goal)) return;
+    if (!detail.source || !detail.source.id || !(detail.station || detail.attach_kind)) return;
     const source = { kind: detail.source.kind, id: detail.source.id, project_id: detail.source.project_id === undefined ? here() : detail.source.project_id };
     const to = detail.to_project_id || source.project_id || here();
     if (!to) { card(globalThis.t.text("workbench.placement.nowhere-save"), globalThis.t.text("workbench.placement.do-personal-space-project"), [], "error"); return; }
     try {
-      const result = await api("convert", { source, to: detail.goal ? { goal: true } : { station: detail.station }, to_project_id: to, request_id: detail.request_id || crypto.randomUUID(),
+      const result = await api("convert", { source, to: detail.attach_kind ? { attach_kind: String(detail.attach_kind) } : { station: detail.station }, to_project_id: to, request_id: detail.request_id || crypto.randomUUID(),
         ...(detail.payload ? { payload: detail.payload } : {}) }, detail.page_id);
       invalidate(); repaint();
-      card(named(detail.goal ? globalThis.t.text("workbench.placement.made-into-goal") : globalThis.t.text("workbench.placement.turned-into"), result.title), [globalThis.t.text("workbench.placement.saved-place", { place: result.location.title }), detail.note || globalThis.t.text("workbench.placement.original-stays-new-item-records-where-came")].filter(Boolean).join(" · "),
+      card(named(result.noun ? globalThis.t.text("workbench.placement.made-into-noun", { noun: result.noun }) : globalThis.t.text("workbench.placement.turned-into"), result.title), [globalThis.t.text("workbench.placement.saved-place", { place: result.location.title }), detail.note || globalThis.t.text("workbench.placement.original-stays-new-item-records-where-came")].filter(Boolean).join(" · "),
         result.open ? [{ label: globalThis.t.text("common.control.open"), primary: true, run: () => openObject(result.open, result.title) }] : [], "done");
       window.dispatchEvent(new CustomEvent("molis:placement-changed", { detail: { mode: "convert", from: source, to: result.object } }));
     } catch (error) { card(globalThis.t.text("workbench.placement.couldn-t-convert"), error, [], "error"); }
@@ -295,9 +295,9 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
         const go = ghost(globalThis.t.text("workbench.placement.go-project"));
         go.onclick = () => { location.assign("/projects/" + encodeURIComponent(target.project_id) + "/"); };
         row.append(go);
-      } else if (target.kind === "goal" && target.goal_id && (target.project_id || null) === here()) {
+      } else if (target.kind === "attached" && (target.project_id || null) === here()) {
         const open = ghost(globalThis.t.text("common.control.open"));
-        open.onclick = () => { closePanel(); openItem("goals", target.goal_id, target.title); };
+        open.onclick = async () => { closePanel(); const other = await describe({ ...target.object, project_id: target.project_id }, true); if (other.open) openObject(other.open, other.title || target.title); };
         row.append(open);
       }
       if (link.removable && link.key) {
@@ -319,7 +319,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       action("use-in-project", globalThis.t.text("workbench.placement.use-project"), () => useInProject(view), view.can.use_in_project, globalThis.t.text("workbench.placement.no-other-projects-yet"));
       action("move", globalThis.t.text("workbench.placement.move"), () => moveOrCopy(view, "move"), view.can.move, view.object.project_id === null ? globalThis.t.text("workbench.placement.kind-item-only-lives-personal-space") : globalThis.t.text("workbench.placement.items-plugin-can-t-be-moved-yet"));
       action("copy", globalThis.t.text("workbench.placement.copy"), () => moveOrCopy(view, "copy"), view.can.copy, view.object.project_id === null ? globalThis.t.text("workbench.placement.kind-item-only-lives-personal-space") : globalThis.t.text("workbench.placement.items-plugin-can-t-be-copied-elsewhere-yet"));
-      action("goal", globalThis.t.text("workbench.placement.link-goal"), () => bindToGoal(view), Boolean(view.object.project_id || here()), globalThis.t.text("workbench.placement.open-project-personal-space-first"));
+      action("attach", globalThis.t.text("workbench.placement.attach-to"), () => bindToGoal(view), Boolean(view.object.project_id || here()), globalThis.t.text("workbench.placement.open-project-personal-space-first"));
     }
     panel.append(actions);
     document.body.append(panel);
@@ -373,11 +373,12 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       choice("mode", "live", globalThis.t.text("workbench.placement.follow-original"), globalThis.t.text("workbench.placement.goal-sees-now"), true), choice("mode", "fixed", globalThis.t.text("workbench.placement.fix-version"), globalThis.t.text("workbench.placement.save-version-now-later-edits-original-don-t"), false));
     return set;
   };
-  const takeAsInput = async (projectId, goalId, object, fixed) => {
+  // A version fixed now is still Goals' own route (batch 44 item 6 moves this dialog to Goals); following the object is 「挂到…」.
+  const takeAsInput = async (projectId, targetKind, goalId, object, fixed) => {
     const base = "/projects/" + encodeURIComponent(projectId), ask = (path, body) => molisWorkRequest(base + path, { body, fallback: globalThis.t.text("workbench.placement.input-was-not-recorded") });
     // A file of the project's folders is read first: followed, the Goal keeps what was read so it can tell later that the original changed; fixed, that exact version is bound.
     const seen = object.kind === "workspace_file" ? (await ask("/api/materials/read", { ref: { subject: { kind: object.kind, id: object.id }, pin: { mode: "current", read_revision: "size:0" } }, mode: "head" })).read_revision : "";
-    if (!fixed && object.kind !== "artifact") { await api("bind-goal", { object, project_id: projectId, goal_id: goalId, ...(seen ? { read_revision: seen } : {}) }); return; }
+    if (!fixed && object.kind !== "artifact") { await api("attach", { object, project_id: projectId, target: { kind: targetKind, id: goalId }, ...(seen ? { read_revision: seen } : {}) }); return; }
     if (object.kind === "workspace_file") {
       const at = object.id.indexOf(":");
       if (!/^[0-9a-f]{64}$/.test(seen)) throw new Error(globalThis.t.text("workbench.placement.long-pin"));
@@ -405,7 +406,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     dialog(globalThis.t.text("workbench.placement.add-input-goal"), globalThis.t.text("workbench.placement.versions-results-already-fixed-anything-else-can-follow"), [...rows, inputMode()], globalThis.t.text("workbench.placement.add"), async (data) => {
       const subject = JSON.parse(String(data.get("object") || "null"));
       if (!subject) throw new Error(globalThis.t.text("workbench.placement.choose-one-first"));
-      await takeAsInput(here(), goalId, { ...subject, project_id: here() }, data.get("mode") === "fixed");
+      await takeAsInput(here(), "goal", goalId, { ...subject, project_id: here() }, data.get("mode") === "fixed");
       invalidate();
       card(globalThis.t.text("workbench.placement.added-goal-s-inputs"), data.get("mode") === "fixed" || subject.kind === "artifact" ? globalThis.t.text("workbench.placement.goal-uses-version") : globalThis.t.text("workbench.placement.goal-follows-original"), [], "done");
     });
@@ -473,20 +474,20 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     };
     const found = [];
     for (const projectId of places) {
-      try { for (const goal of (await api("goals?project_id=" + encodeURIComponent(projectId))).goals || []) found.push({ goal_id: goal.goal_id, title: goal.title, project_id: projectId }); }
+      try { for (const kind of (await api("attach-targets?project_id=" + encodeURIComponent(projectId))).kinds || []) for (const target of kind.targets) found.push({ kind: kind.kind, goal_id: target.id, title: target.title, project_id: projectId }); }
       catch (error) { if (projectId === home) { card(globalThis.t.text("workbench.placement.couldn-t-read-goals"), error, [], "error"); return; } }
     }
     if (!found.length) { card(globalThis.t.text("workbench.placement.no-goals-here-yet"), globalThis.t.text("workbench.placement.create-goal-goals-first-then-link-material"), [], "error"); return; }
-    const bound = new Set(view.associations.filter((link) => link.type === "goal").map((link) => link.target.project_id + "|" + link.target.goal_id));
+    const bound = new Set(view.associations.filter((link) => link.type === "attached").map((link) => [link.target.project_id, link.target.object.kind, link.target.object.id].join("|")));
     const several = new Set(found.map((goal) => goal.project_id)).size > 1;
-    const rows = found.slice(0, 60).map((goal, index) => choice("goal", goal.project_id + "|" + goal.goal_id, goal.title,
-      [several ? nameOf(goal.project_id) : "", bound.has(goal.project_id + "|" + goal.goal_id) ? globalThis.t.text("workbench.placement.already-linked") : ""].filter(Boolean).join(" · "), index === 0));
+    const rows = found.slice(0, 60).map((goal, index) => choice("goal", [goal.project_id, goal.kind, goal.goal_id].join("|"), goal.title,
+      [several ? nameOf(goal.project_id) : "", bound.has([goal.project_id, goal.kind, goal.goal_id].join("|")) ? globalThis.t.text("workbench.placement.already-linked") : ""].filter(Boolean).join(" · "), index === 0));
     const where = home === "personal" ? globalThis.t.text("workbench.placement.personal-space") : globalThis.t.text("workbench.placement.project");
     dialog(globalThis.t.text("workbench.placement.link-title-goal", { title: view.title }), globalThis.t.text("workbench.placement.goal-s-inputs-will-list-stays-place-isn", { place: view.location ? view.location.title : where }), [...rows, inputMode()], globalThis.t.text("workbench.placement.link"), async (data) => {
-      const [projectId, goalId] = String(data.get("goal") || "").split("|");
-      await takeAsInput(projectId, goalId, view.object, data.get("mode") === "fixed");
+      const [projectId, targetKind, goalId] = String(data.get("goal") || "").split("|");
+      await takeAsInput(projectId, targetKind, goalId, view.object, data.get("mode") === "fixed");
       invalidate(); repaint();
-      const goal = found.find((entry) => entry.project_id === projectId && entry.goal_id === goalId);
+      const goal = found.find((entry) => entry.project_id === projectId && entry.kind === targetKind && entry.goal_id === goalId);
       // The Goal's materials are in its work view, not on the Frame canvas.
       const openGoal = () => {
         if (projectId === here()) { openItem("goals", goalId, goal ? goal.title : ""); if (host.openGoalWork) host.openGoalWork(); return; }
@@ -524,7 +525,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
         const remove = ghost(view.state === "ok" ? globalThis.t.text("workbench.placement.remove-link") : globalThis.t.text("workbench.placement.clean-up"));
         remove.onclick = async () => {
           try {
-            await api("unlink", { key: JSON.stringify(["goal", here(), row.dataset.goalId, row.dataset.placementBinding]) });
+            await api("unlink", { key: JSON.stringify(["attached", here(), row.dataset.placementTargetKind, row.dataset.placementTargetId, row.dataset.placementBinding]) });
             row.remove(); invalidate();
             card(globalThis.t.text("workbench.placement.link-removed"), globalThis.t.text("workbench.placement.only-entry-goal-was-removed-material-itself-unchanged"), [], "done");
           } catch (error) { card(globalThis.t.text("workbench.placement.couldn-t-remove-link"), error, [], "error"); }
@@ -566,25 +567,26 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     if (!button || !here()) return;
     event.preventDefault();
     button.disabled = true;
-    const station = button.dataset.placementCreate, goalId = button.dataset.goalId || null;
+    const station = button.dataset.placementCreate, attachTo = button.dataset.placementTargetKind && button.dataset.placementTargetId
+      ? { kind: button.dataset.placementTargetKind, id: button.dataset.placementTargetId } : null;
     // What this kind is called is the title its plugin's view declares; the button carries it (goal-inputs-html.ts), worded with that plugin's words.
     const kind = (button.textContent || "").trim() || (button.dataset.placementCreateTitle || "");
     try {
-      const result = await api("create", { station, project_id: here(), goal_id: goalId, request_id: crypto.randomUUID(), title: globalThis.t.text("workbench.placement.untitled") + kind });
+      const result = await api("create", { station, project_id: here(), attach_to: attachTo, request_id: crypto.randomUUID(), title: globalThis.t.text("workbench.placement.untitled") + kind });
       invalidate();
       const section = button.closest("[data-placement-goal-materials]");
-      if (section && result.goal_key) {
-        const parts = JSON.parse(result.goal_key);
+      if (section && result.attached_key) {
+        const parts = JSON.parse(result.attached_key);
         const row = node("article", undefined, "placement-goal-material");
         row.dataset.placementMaterial = ""; row.dataset.placementKind = result.object.kind; row.dataset.placementId = result.object.id;
-        row.dataset.placementBinding = parts[3]; row.dataset.goalId = parts[2];
+        row.dataset.placementTargetKind = parts[2]; row.dataset.placementTargetId = parts[3]; row.dataset.placementBinding = parts[4];
         const text = node("div"); text.append(node("strong", result.title)); const state = node("small", globalThis.t.text("workbench.placement.loading")); state.dataset.placementMaterialState = ""; text.append(state);
         row.append(text, node("span", undefined, "placement-goal-material-actions"));
         let list = section.querySelector(".bound-list");
         if (!list) { list = node("div", undefined, "bound-list"); section.querySelector(".empty-row")?.replaceWith(list); }
         list.prepend(row); paintMaterials();
       }
-      card(globalThis.t.text("workbench.placement.created-kind-title", { kind, title: result.title }), globalThis.t.text("workbench.placement.saved-place", { place: result.location.title }) + (goalId ? " · " + globalThis.t.text("workbench.placement.linked-goal") : ""),
+      card(globalThis.t.text("workbench.placement.created-kind-title", { kind, title: result.title }), globalThis.t.text("workbench.placement.saved-place", { place: result.location.title }) + (attachTo ? " · " + globalThis.t.text("workbench.placement.linked-goal") : ""),
         result.open ? [{ label: globalThis.t.text("common.control.open"), primary: true, run: () => openObject(result.open, result.title) }] : [], "done");
     } catch (error) { card(globalThis.t.text("workbench.placement.couldn-t-create"), error, [], "error"); }
     finally { button.disabled = false; }

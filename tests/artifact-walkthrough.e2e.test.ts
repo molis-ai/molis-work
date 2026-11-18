@@ -19,7 +19,7 @@ for (const width of [1440, 390]) {
       ...pinnedArtifact("需求说明", { kind: "pages_document", id: "brief" }, "1") });
     const scope = { kind: "personal" as const, id: projectId! };
     createContextLedger(store.db, { authorize: () => true }).commands.put({ actor_id: "web-user", scope }, { key: "goal.output:V1:fixture", type: "goal.output", cause: "goals.deliverable",
-      source: { module: "goals", id: "V1", version: null, scope }, target: { module: "artifacts", id: "pages-brief", version: 1, scope } });
+      source: { module: "plugins", plugin_id: "io.molis.work.goals", object_type: "goal", id: "V1", version: null, scope }, target: { module: "artifacts", id: "pages-brief", version: 1, scope } });
 
     // A direct link opens the workbench on the version, and the tab is named after it, not its address.
     await navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${projectId}/artifacts/pages-brief/versions/1` }, sessionId));

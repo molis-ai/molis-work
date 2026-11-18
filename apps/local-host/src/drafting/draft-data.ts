@@ -25,7 +25,8 @@ export interface DraftMaterial {
     readonly heading_path?: readonly string[];
     readonly before?: string;
     readonly after?: string;
-    readonly goal?: string;
+    /** The title of the object the passage's object belongs to (`SurfaceFocus.belongs_to`). */
+    readonly belongs_to?: string;
   };
   /** A sentence the person added to the passage. */
   readonly said?: string;
@@ -59,7 +60,7 @@ export function draftData(target: DraftTarget, material: DraftMaterial, today: s
     ...(source.heading_path?.length ? { 标题路径: source.heading_path.slice(-LIMITS.headings).map(heading => clean(heading, LIMITS.heading)) } : {}),
     ...(source.before ? { 前文: clean(source.before, LIMITS.side) } : {}),
     ...(source.after ? { 后文: clean(source.after, LIMITS.side) } : {}),
-    ...(source.goal ? { 所属目标: clean(source.goal, LIMITS.title) } : {}),
+    ...(source.belongs_to ? { 所属对象: clean(source.belongs_to, LIMITS.title) } : {}),
   } : undefined;
   const data = JSON.stringify({
     声明: NOTICE,

@@ -1,4 +1,7 @@
 import type { ActionReference } from "./actions.js";
+import type { TextRef } from "./ui-text.js";
+import type { ArtifactFileDeclaration } from "./plugin-manifest.js";
+import type { PresentationStartForm } from "./presentation-declaration.js";
 import type { SurfacePlace } from "../services/contextual.js";
 
 /**
@@ -18,8 +21,11 @@ import type { SurfacePlace } from "../services/contextual.js";
 export const ITEM_ATTACH_POSITIONS = ["cursor", "selection", "end"] as const;
 export type ItemAttachPosition = (typeof ITEM_ATTACH_POSITIONS)[number];
 
-/** What each declared word may be, so a Manifest cannot make the bar wider than its own row. */
-export const ITEM_DECLARATION_LIMITS = { id: 40, title: 40, verb: 40, describe: 240, example: 120, examples: 3 } as const;
+/**
+ * What each declared word may be, so a Manifest cannot make the bar wider than its own row. An id is 50 long: the platform names a
+ * content station's intakes `<station>.receive` and `<station>.create`, and a station id is at most 41 (contract-design §2.1).
+ */
+export const ITEM_DECLARATION_LIMITS = { id: 50, title: 40, verb: 40, describe: 240, example: 120, examples: 3, start_title: 80, hint: 200 } as const;
 
 interface DestinationDeclaration {
   /** The destination's name: 「待办」「灵光」. */
@@ -40,18 +46,110 @@ interface DestinationDeclaration {
   readonly places?: readonly SurfacePlace[];
 }
 
-/** This action creates an Item. */
-export interface ActionIntake extends DestinationDeclaration {
-  /** Stable and unique among this provider's intakes; lowercase letters, digits, `_`, `.` and `-`, at most 40. */
+/**
+ * Where a person can start one from nothing (contract-design §2.4): the home's and the overview's starting points read this. `open`, when
+ * given, opens a form on this plugin's own stage instead of calling the action at once.
+ */
+export interface IntakeStart {
+  readonly title: string;
+  readonly title_text?: TextRef;
+  readonly hint: string;
+  readonly hint_text?: TextRef;
+  /** An icon from the Host's catalog; omitted, the view's own. */
+  readonly icon?: string;
+  readonly open?: PresentationStartForm;
+}
+
+/** This action creates an Item from what a person has in hand, or from nothing (`accepts: []`). */
+export interface PersonIntake extends DestinationDeclaration {
+  /** Stable and unique among this provider's intakes; lowercase letters, digits, `_`, `.` and `-`, at most 50. */
   readonly intake_id: string;
+  /** The language key of `title`, where a list shows it to a person (「从目标新建…」); `title` stays the original. */
+  readonly title_text?: TextRef;
   /** The kind of the Item it creates, as its owner names its objects. */
   readonly item_kind: string;
-  /** One to three sentences a person might say, the first one the placeholder of the page's “✦”. */
+  /** One to three sentences a person might say, the first one the placeholder of the page's “✦”; may be empty only with `accepts: []`. */
   readonly examples: readonly string[];
   /** `proposes`: it only files a proposal that its owner confirms elsewhere (Goals); the person always sees a card first. */
   readonly effect?: "creates" | "proposes";
   /** One passage can become several Items; the person sees one card and can drop single ones. */
   readonly multiple?: boolean;
+  /** What it takes; omitted, the selected text (contract-design §2.1); `[]` makes a blank one. */
+  readonly accepts?: readonly PersonMaterial[];
+  /** A starting point for making one from nothing (§2.4). */
+  readonly start?: IntakeStart;
+}
+
+/**
+ * This action takes what the platform delivers (contract-design §2.1): a workflow's hand-in, a notification, onboarding's materials.
+ * No person picks it from a bar, so it has no words of its own; the platform shows the plugin's name when it asks who takes it. Its
+ * input and output are the platform's shape for that material, exactly.
+ */
+export interface DeliveredIntake {
+  readonly intake_id: string;
+  readonly item_kind: string;
+  readonly accepts: readonly [DeliveredMaterial];
+}
+
+export type ActionIntake = PersonIntake | DeliveredIntake;
+
+/** What a person hands over: the selected text, another object (only 「挂到…」), or a 成果 version (「从这一版继续」). */
+export type PersonMaterial =
+  | { readonly kind: "text" }
+  | { readonly kind: "object"; readonly item_kinds?: readonly string[] }
+  | { readonly kind: "artifact"; readonly artifact_types: readonly { readonly artifact_type_id: string; readonly schema_version: number }[]; readonly file?: ArtifactFileDeclaration };
+
+/**
+ * What the platform delivers. `handoff`: a workflow's content (a station's `receive`); `notification`: the platform's notifications;
+ * `code_root`, `documents`, `drafts`: onboarding's (§2.5). `drafts` names its `get` and `keep` actions of the same Manifest.
+ */
+export type DeliveredMaterial =
+  | { readonly kind: "handoff" } | { readonly kind: "notification" } | { readonly kind: "code_root" } | { readonly kind: "documents" }
+  | { readonly kind: "drafts"; readonly get: Pick<ActionReference, "capability_id" | "version">; readonly keep: Pick<ActionReference, "capability_id" | "version"> };
+
+/** What a declaration takes (contract-design §2.1). Omitted, it is `[{ kind: "text" }]`: what the person has selected. */
+export type ItemMaterial = PersonMaterial | DeliveredMaterial;
+export type DeliveredMaterialKind = DeliveredMaterial["kind"];
+export const DELIVERED_MATERIAL_KINDS: readonly DeliveredMaterialKind[] = ["handoff", "notification", "code_root", "documents", "drafts"];
+
+/** Whether an intake takes what the platform delivers (and so has no words for a person). */
+export function isDeliveredIntake(intake: ActionIntake): intake is DeliveredIntake {
+  return Array.isArray(intake.accepts) && intake.accepts.length === 1 && (DELIVERED_MATERIAL_KINDS as readonly string[]).includes(intake.accepts[0]!.kind);
+}
+
+/** The materials an intake takes, with the default made explicit: the selected text. */
+export function intakeAccepts(intake: Pick<ActionIntake, "accepts">): readonly ItemMaterial[] {
+  return intake.accepts ?? [{ kind: "text" }];
+}
+
+/** The one material of `kind` an intake takes, if it takes it. */
+export function intakeMaterial<K extends ItemMaterial["kind"]>(intake: Pick<ActionIntake, "accepts"> | undefined, kind: K): Extract<ItemMaterial, { kind: K }> | undefined {
+  return intake ? intakeAccepts(intake).find((material): material is Extract<ItemMaterial, { kind: K }> => material.kind === kind) : undefined;
+}
+
+/** A person's intake that takes the selected text: the only kind a page may draft by its id (§2.1). */
+export function takesSelectedText(intake: ActionIntake): intake is PersonIntake {
+  return !isDeliveredIntake(intake) && intakeAccepts(intake).some(material => material.kind === "text");
+}
+
+/**
+ * 「挂到…」 (batch 44 C1): the attach is a relation its owner keeps between another object and one of its own Items (a document hung
+ * on a Goal). The action that declares it attaches; the parts named here list, release, offer and make targets. Every part is an
+ * action of the same Manifest, in the platform's shape for that part (`PLACEMENT_ATTACH_SCHEMAS`); placement finds the relation by
+ * this declaration and names no plugin.
+ */
+export interface ItemAttachRelation {
+  /** The noun a person reads the other end by, and the original if the plugin's words lack `noun_text`: 「Goal」. */
+  readonly noun: string;
+  readonly noun_text?: TextRef;
+  /** The targets one object is attached to now. */
+  readonly list: Pick<ActionReference, "capability_id" | "version">;
+  /** Take one attachment off. */
+  readonly release: Pick<ActionReference, "capability_id" | "version">;
+  /** The targets it can be attached to here, by page. */
+  readonly candidates?: Pick<ActionReference, "capability_id" | "version">;
+  /** 「建成…」: make a new target from content. */
+  readonly create?: Pick<ActionReference, "capability_id" | "version">;
 }
 
 /** This action puts material into an existing Item of the provider's own kind. */
@@ -62,4 +160,7 @@ export interface ActionAttach extends DestinationDeclaration {
   readonly item_kind: string;
   /** Cursor and selection need an `expected_version` in the input, so a write to a document that changed is refused. */
   readonly positions?: readonly ItemAttachPosition[];
+  /** What it takes; omitted, the selected text. A `relation` takes `[{ kind: "object" }]` and nothing else. */
+  readonly accepts?: readonly ({ readonly kind: "text" } | { readonly kind: "object"; readonly item_kinds?: readonly string[] })[];
+  readonly relation?: ItemAttachRelation;
 }

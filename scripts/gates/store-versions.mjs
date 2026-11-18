@@ -47,7 +47,7 @@
 import ts from "typescript";
 import { VERSION_FIELD } from "../version-source.mjs";
 import { constantsIn, stepFroms, unwrapExpression, upgradesNameFor } from "./upgrade-steps.mjs";
-import { GOALS_APPROVAL_TRANSFER, hasGoalsApprovalTransfer } from "./goals-approval-transfer.mjs";
+import { GOALS_APPROVAL_TRANSFER, goalsJointStep, hasGoalsApprovalTransfer } from "./goals-approval-transfer.mjs";
 
 export const CHECKLIST_FILE = "docs/releases/CHECKLIST.md";
 export const SPEC_FILE = "docs/system/CONTRACT-CHANGES.md";
@@ -182,13 +182,13 @@ function declaredSteps(file, source, name) {
 // What is wrong with the 维护 cell of a row whose version went up, once the origin is registered.
 function upgradePointerProblems(entry, definition, read) {
   const transfer = GOALS_APPROVAL_TRANSFER;
-  const joint = entry.place === transfer.goalsStore && entry.from === transfer.goalsFrom && entry.to === transfer.goalsTo && definition === transfer.goalsDefinition;
+  const joint = entry.place === transfer.goalsStore && definition === transfer.goalsDefinition ? goalsJointStep(entry.from, entry.to) : undefined;
   if (joint) {
-    if (!hasGoalsApprovalTransfer(read)) return [`${SPEC_FILE}: ${entry.place} needs the project library's verified approval transfer from ${entry.from}`];
+    if (!hasGoalsApprovalTransfer(read, joint)) return [`${SPEC_FILE}: ${entry.place} needs the project library's verified ${joint.from === 3 ? "approval transfer" : "joint step"} from ${entry.from}`];
     definition = transfer.projectDefinition;
   }
   const name = `\`${entry.place}\` ${entry.from} → ${entry.to}`;
-  const stepFrom = joint ? transfer.from : entry.from, stepTo = joint ? transfer.to : entry.to;
+  const stepFrom = joint ? joint.from : entry.from, stepTo = joint ? joint.to : entry.to;
   const wanted = `\`${definition}#${stepFrom}→${stepTo}\``;
   const pointer = UPGRADE_POINTER.exec(entry.maintenance);
   if (!pointer) return [`${SPEC_FILE}: the row ${name} needs ${wanted} in its 维护 cell, found「${entry.maintenance}」`];

@@ -471,8 +471,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis:placement-convert", kind: "request", owner: "placement", on: "window",
-    detail: "{ source, station | goal, payload?, note? }",
-    summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",
+    detail: "{ source, station | attach_kind, payload?, note? }",
+    summary: "Hand content to another plugin (or make it a new target of a 「挂到…」 relation, by its subject kind) through the shared conversion dialog. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",
   },
   {
     name: "molis:placement-flush", kind: "announcement", owner: "placement", on: "window",

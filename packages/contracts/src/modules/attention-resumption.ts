@@ -10,16 +10,22 @@ export const modulesAttentionResumptionContract = {
   ssot: "docs/modules/attention-resumption.md",
 } as const satisfies ContractDescriptor;
 
-/** The platform's closed list of subject kinds; ownership is a separate fact, not implied by a kind. */
-export const ATTENTION_SUBJECT_TYPES = ["feed_item", "goal_decision", "source_fault"] as const;
-export type AttentionSubjectType = typeof ATTENTION_SUBJECT_TYPES[number];
+/**
+ * The shape of a subject type and of a reason. Both are the owner plugin's own words, declared in its Manifest (`attention.subjects`,
+ * `PluginAttentionDeclaration`); the platform keeps no list of them, and ownership is a separate fact, never implied by a type.
+ */
+export const ATTENTION_NAME_PATTERN = "^[a-z][a-z0-9_]{0,63}$";
+export const isAttentionName = (value: unknown): value is string => typeof value === "string" && new RegExp(ATTENTION_NAME_PATTERN, "u").test(value);
+/** A subject type its owner declared (`attention.subjects[].type`). */
+export type AttentionSubjectType = string;
 export const ATTENTION_CONTENT_REPLICA_ID = 'attention_content';
-export type AttentionReason = "manual" | "source_rule" | "goal_decision" | "source_fault" | "artifact_out_failed";
+/** Why the subject needs the person, one of the reasons its owner declared for that type (`attention.subjects[].reasons`). */
+export type AttentionReason = string;
 export type AttentionStatus = "open" | "in_progress" | "done" | "dismissed";
 
 /**
  * The minimal durable Attention fact migrated in FD2. It stores a reference and
- * a reason, never a copy of the referenced Feed, Goal, or Source content.
+ * a reason, never a copy of the referenced object's content.
  */
 export interface AttentionEntryRecord {
   project_id: string;
@@ -42,8 +48,24 @@ export interface AttentionSurfaceEntry {
   owner_plugin_id: string;
   subject: ActionSubject;
   reason: AttentionReason;
+  /** What the owner declared the reason asks of the person, when it did (`attention.subjects[].reasons[].attention`). */
+  attention?: AttentionCategory;
   revision: number;
   entered_at: string;
+}
+
+/** What a waiting entry asks of the person; the same words a presentation's status map uses (要你决定／要你验收／失败). */
+export type AttentionCategory = "needs_decision" | "needs_acceptance" | "failed";
+export const ATTENTION_CATEGORIES: readonly AttentionCategory[] = ["needs_decision", "needs_acceptance", "failed"];
+
+/**
+ * How the platform reads one owner's entries for composition, from that owner's trusted Manifest: a subject type's object kind, and the
+ * category a reason declares. A type the owner did not declare is not composed.
+ */
+export interface AttentionSubjectDeclarations {
+  objectKind(ownerPluginId: string, subjectType: AttentionSubjectType): string | undefined;
+  subjectType(ownerPluginId: string, objectKind: string): AttentionSubjectType | undefined;
+  category(ownerPluginId: string, subjectType: AttentionSubjectType, reason: AttentionReason): AttentionCategory | undefined;
 }
 
 export interface CreateAttentionEntryInput {
@@ -92,12 +114,6 @@ export interface AttentionQuery {
 
 export interface AttentionCommands {
   create(input: CreateAttentionEntryInput): { entry: AttentionEntryRecord; created: boolean };
-  ensureFeedItem(
-    projectId: string,
-    itemId: string,
-    reason: Extract<AttentionReason, "manual" | "source_rule">,
-    detail?: Record<string, unknown>,
-  ): { entry: AttentionEntryRecord; created: boolean };
   setStatus(
     projectId: string,
     entryId: string,

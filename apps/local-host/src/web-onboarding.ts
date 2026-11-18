@@ -1,7 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindLocalWebAction, bindLocalWebActions } from "./local-web-actions.js";
-import { onboardingTakers } from "./onboarding-takers.js";
+import { onboardingTakers, type OnboardingMaterialKind } from "./onboarding-takers.js";
 import { createContextOnboardingHttp } from "./web-context-onboarding.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -35,7 +35,7 @@ function refusedBeforeMaking(response: ServerResponse, homeDirectory: string | u
 /** Who takes a code folder is what Manifests declare; each is called with its own declared action's permissions only (batch12-design §7.7 C1). */
 function takePorts(ports: OnboardingHttpPorts, localHost: MolisWorkLocalHost) {
   return {
-    takers: () => onboardingTakers("code_root"),
+    takers: (kind: OnboardingMaterialKind) => onboardingTakers(kind),
     take: async (home: string, projectId: string, definition: ActionDefinition) => {
       const project = await ports.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId));
       return bindLocalWebAction(localHost, molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }), definition);
@@ -48,9 +48,9 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
     if (await createContextOnboardingHttp({ ...ports, actions: async (home, projectId, original_file) => {
       const project = await ports.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId));
       const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-      // Each provider by its own authority (PG-008): Pages and Todo by their installations' grants, the Host's by what the person holds.
-      return bindLocalWebActions(localHost, reference, ["pages:read", "pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"], original_file ? { original_file } : {});
-    }, ...takePorts(ports, localHost), homeActions: (_home, signal) => bindLocalWebActions(localHost, undefined, ["todo:read", "todo:write", "model:invoke"], { signal }) }, localHost)(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
+      // The 成果库's imports, by what the person holds (PG-008); a taker's own action is bound by itself (`take`), with its own permissions.
+      return bindLocalWebActions(localHost, reference, ["artifacts:read", "artifacts:write"], original_file ? { original_file } : {});
+    }, ...takePorts(ports, localHost), takeAtHome: (definition, signal) => bindLocalWebAction(localHost, undefined, definition, { signal }) }, localHost)(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
     if (request.method === "GET" && url.pathname === "/api/onboarding/status") {
       sendJson(response, 200, molisWorkOnboardingStatus(homeDirectory, projectCount));
       return true;

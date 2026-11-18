@@ -94,7 +94,7 @@
 
 第 39-2 批移交（2026-11-14 用户批准在隔离库实现并验证，2026-11-15 批准增加第 41 批的 v4 来源）。平台项目库 3→4 的显式升级事务同时更新 Goals 私有库到 v5，并将 `goal_event_trusted_decisions`、`goal_tree_proposal_decisions` 和 `policy_bindings` 交给平台。分别校验 Goals v1～v4 的旧库，沿原升级保留事件证据和第 17 批的风险引用，完成第 41 批的旧方法表与采用列清理。未知组合、错误发布者、未记账旧表均拒。保留原主键、关系、历史来源和规则语义，旧资料按原证据展示。消费者为 Goals、统一管理、保护决定的 Web／MCP 入口及同步恢复。Goals 同步集合升为 `project_goals@2`，旧游标、待发和冲突只保存在升级备份。同步写方和恢复边界见[移交设计](../../specs/agent-approval/trusted-decisions-design.md#3-存量交接方案)。最早支持的金样已包含平台事实时移除此转换段。
 
-第 44 批存量搬迁（2026-11-17 用户确认 A、B1、C；C 已实现，A、B1 未实现）。B1 的前提「平台认可补同步集合」在第 3 项开工时定：本批补，或明确接受补上之前第二台设备看不到要求认可；定之前不写 B1 的升级段。
+第 44 批存量搬迁（2026-11-17 用户确认 A、B1、C、D，D5 同日确认（保留做法同日再确认）；C、D1～D3 已实现，A、B1、D5 未实现）。B1 的前提「平台认可补同步集合」在第 3 项开工时定：本批补，或明确接受补上之前第二台设备看不到要求认可；定之前不写 B1 的升级段。
 
 三项的共同规则：
 - 只在持存储主人锁的升级轮里执行；
@@ -156,6 +156,35 @@ PEQ-10 要求旧指导能读，所以不提供「从空开始」的选项。
 - 删除条件：最早支持的金样不再含 v1 收据时，删这一段。
 
 另一个做法是留下断链（目标随包一起删掉）。这会在用户的运行时目录里留下坏条目，不推荐。
+
+**D 合同去插件化碰到的存量**（第 1 项，PEQ-04；用户 2026-11-17 确认 D1～D4 都按推荐做法）
+
+第 1 项删掉合同里的 Goal、Feed、Coding 取值。下面这些取值已经写进用户的库里，要么改写存量，要么换一种合同写法让旧值不再是合同取值。共同规则同上。
+
+- **D1 关联边的对象引用**（C6）。项目库 `context_edges` 的 `source_json`／`target_json` 里有 `module: "goals"`、`"feed"`；同步集合 `goal_context` 按 `module='goals'` 选边。
+  - 推荐：随 A 的项目库 4→5 同一事务改写成通用形状 `{ module: "plugins", object_type: "goal" | "feed_item", project_id }`，`id`、版本不动；`goal_context` 换成通用的「关联边」集合，凡一端是声明了同步集合的插件对象的边都同步（今天只有 Goals，选中的边与现在相同）；旧游标、待发、冲突只留在升级备份里。
+  - 另一个做法：不改存量，`module` 改成插件在 Manifest 申报的来源名（Goals 申报 `goals`）。没有搬迁，但插件对象从此有两种写法。
+- **D2 放置关联**（C1）。Home 的放置库 `placement/…` 里有关系类型 `placement.goal_in` 的边；线上的 `placement.goals`、`placement.goal.bind`、关联类型 `goal`、转交目标 `{ goal: true }` 换成通用的「挂到…」，候选取声明了「挂到…」关系的插件对象（实现时落为 `item-intake` 的 `attach.relation`，见合同设计稿 2.2 节）。
+  - 推荐：放置库 1→2 改写关系类型为 `placement.attached_in`，边上记目标插件与对象类型；金样补带挂接边的放置库。
+  - 另一个做法：存量关系名是放置服务自己的内部字符串，不改；只改线上合同。
+- **D3 等你**（C8）。项目库 `inbox_entries` 的 `subject_type`、`reason` 有 CHECK，取值含 `goal_decision`、`feed_item`、`source_fault`、`source_rule`。
+  - 推荐：类型与原因改由主人插件在 Manifest 的 `attention` 申报（`subjects` 已有，补 `reasons`），平台按 `owner_plugin_id` 核对申报；4→5 重建这张表去掉两个 CHECK，取值不动；排序只按呈现声明的状态映射（要你决定／要你验收／失败）。Goals 仍写自己的决定条目。
+  - 另一个做法（需求书原文的全量）：决定类条目改由 39-2 的平台决定服务按未决请求生成，Goals 不再写；4→5 删掉存量 `goal_decision` 条目，由平台按未决请求重建，用户对这些条目的「处理中／不看了」状态丢失。
+- **D4 技能调用方 `coding`**（PEQ-04）。`coding` 同时是技能的 `applies_to`（第三方 SKILL 与 Manifest 都在写）、`agent-definitions.db` 的 `skill_uses.caller`、记忆的场景值。
+  - 推荐：`coding` 作为通用工作类别（外部编码 Runtime 会话）保留，由调用上下文给出，不再从 `plugin_id === "io.molis.work.coding"` 推（第 5 项改推断）；PEQ-04 的「`coding` 调用方枚举」按此理解为「不由插件 id 决定」。没有搬迁。
+  - 另一个做法：改名（如 `runtime`），连带改技能声明、`skill_uses` 存量、记忆场景存量，是三个库的改写，并且第三方 SKILL 的 `applies_to` 要随之改。
+- **D5 上手旅程**（审查第 1 项，Todo、Pages 迁到上手承接声明；用户 2026-11-17 确认按推荐做法）。Home 的上手旅程库 `database.context_onboarding_baseline`（第 1 版）的正文 JSON 存着 Todo 批次的原样（`todo`）、`adoption.todo_selected`、Pages 文档的 `document_id` 与每份材料的 `documents: string[]`。
+  - 推荐（用户 2026-11-17 确认升 1→2，评审后修订的保留做法同日再确认）：升到第 2 版，1→2 一步改写成平台形状。`todo` → `drafts`，每批留 `batch_id`、快照置空（Todo 私有形状换算不了），旅程接口读到空快照时按 id 向承接方补取，只填进响应、不落盘（采用时自己再取）；`adoption.todo_selected` → `adoption.keep`，原样保留（它在点了「采用」后才存，重试不再收新输入，删了会悄悄少建已勾的待办）；`document_id` → `summary_open { surface, id, title }`、`documents` → `parts`（补 `documents` 承接方的 surface 与对象种类，即 Pages 的，这一步只认第 1 版的事实，与 D2 认 Goals 同理）。材料、摘要、已存的文档不动；摘要导入的 `request_hash` 算法与键名冻结，重试拿回原文档。金样补一份第 1 版旅程库，含做到一半与采用失败的旅程。
+  - 修订缘由（设计评审第 3、4 轮）：用户确认时的方案是「没完成的旅程删掉草稿与勾选、重新起草重新勾」；评审发现批次按 id 读得回，而勾选删了会在重试时悄悄少建待办，改为保留，丢的更少。
+  - 另一个做法：宿主内部保留旧存键，只换读写形状；做到一半的旅程里旧形状的批次仍读不对，只是推迟问题。
+  - 删除条件：最早支持的金样不再含上手旅程库第 1 版时删这一步。
+
+已实现（第 44 批第 1 项，D1、D2、D3；D4 没有搬迁）。合同的形状见 `specs/plugin-equal-standing/contract-design.md`；实现与上面确认的方案有这些出入，都在 PR 里写明：
+- D1、D3 同在项目库 4→5 一步（`apps/local-host/src/project-library-v5-upgrade.ts`，一个事务）：先重建 `inbox_entries` 去掉两个 CHECK（表上原有的触发器原样重建），再拆 Goals 的 `project_goals@2` 集合，再改写关联边，最后建 Goals 库 v6 与 `project_goals@3`。Goals 库内容不变、只升版本号（v6），因为同步集合换了声明；v5 库与 `project_goals@2` 的声明冻结在 Goals 包里（`GOALS_PROJECT_DATABASE_V5`、`goalsV5Sync()`），旧 `module='goals'` 触发器的原文冻结在 `apps/local-host/src/goal-context-history.ts`，只供升级前核对。
+- D1 账本的对象引用加了 `plugin_id`（原方案只写了 `object_type`）：同一种 `object_type` 可能有两个插件，主人要能认出自己的边。账本列表按 `plugin_id`、`object_type` 也做精确匹配。关联边里遇到第 4 版没有的 `module`、或已经带 `plugin_id` 的引用，拒绝升级、项目库保留。
+- D2 放置库 1→2（`apps/local-host/src/placement-library-v2-upgrade.ts`）：`placement.goal_in` 的每个版本改成 `placement.attached_in`，键从 `["goal_in", 种类, id, 项目]` 改成 `["attached_in", 目标插件, 目标种类, 种类, id, 项目]`，目标插件与种类记在键里（边的 target 是项目，不是目标对象）；第 1 版的挂接全是 Goals 的 `goal`。金样 `0.1.1-dev.6` 在分叉点上重新生成，放置写入多做一次「挂到 Goal」，回放走这一步。
+- D3 的「排序只按呈现声明的状态映射」落成 Manifest `attention.subjects[].reasons[].attention`（`needs_decision`／`needs_acceptance`／`failed`），工作台按它排；条目的 `subject_type` 与 `reason` 只核对是否为主人申报过的词。
+- 删除条件：最早支持的金样不再含项目库 v4、放置库 v1 时，删这两段升级与冻结的 v5 声明。
 
 ### 存储版本变更登记
 
@@ -261,6 +290,10 @@ PEQ-10 要求旧指导能读，所以不提供「从空开始」的选项。
 | `memory/memory.db` | 2 → 3 | 第 31 批合后复查 #2087（2026-11-15）：权威正文与有界历史快照归 Prologue SDK 唯一持有（变更流/配对/候选的显示副本不是事实主人），账本 `memory_revisions.body` 升级清洗为 `{version, change, by, at}` 无正文归因并移除非 `pending` 的 `memory_markers.body` 中 `$.merge`，收紧现行读取校验 | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE#2→3` |
 | `observation/observation.db` | 1 → 2 | 第 30 批（新增评测样本留存表 `evaluation_holds` 与 `evaluation_hold_records`，留存记录与证据快照豁免到期与手动清理） | `horizontal/observation/src/schema.ts#OBSERVATION_BASELINE#1→2` |
 | `agent-definitions/agent-definitions.db` | 2 → 3 | 第 42 批 #2107（用户 2026-11-16 批准：新增技能草稿 `skill_drafts`、已知答案 `skill_cases`、回放 `skill_trials`、来源 `skill_lineage` 四张空表，已有的技能设置与用量不动） | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#2→3` |
+| `projects/<project_id>/molis-work.db` | 4 → 5 | 第 44 批第 1 项（用户 2026-11-17 批准「第 44 批存量搬迁」D1、D3）：Inbox 的 `inbox_entries` 去掉列举主题类型与原因的两条 CHECK，行、索引与触发器原样；关系一端写 `module: "goals"`／`"feed"` 的改写成它们是的插件对象，Goals 的同步集合换成 `project_goals@3`。项目库备份后同一事务完成，见不认识的取值拒绝并保留原库 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#4→5` |
+| `projects/<project_id>/molis-work.db#goals` | 5 → 6 | 第 44 批第 1 项 D1：表不变，同步集合随项目库 4→5 换成 `project_goals@3`（触及目标的关系走平台通用 `relation-edges`）；Goals 自己不写升级段 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#4→5` |
+| `context-onboarding/context-onboarding.db` | 1 → 2 | 第 44 批第 1 项 D5（用户 2026-11-17「Yes, upgrade 1→2」）：旅程里 Todo 的批次换成平台形状的草稿批次（快照置空、留批次 id），`todo_selected` 改名 `keep` 原样保留，Pages 的文档 id 补成对象地址；见第 1 版没有的形状拒绝，库留在第 1 版 | `apps/local-host/src/context-onboarding-store.ts#CONTEXT_ONBOARDING_BASELINE#1→2` |
+| `placement/placement.db` | 1 → 2 | 第 44 批第 1 项 D2（用户 2026-11-17 批准「第 44 批存量搬迁」）：关系类型 `placement.goal_in` 的每个版本改成 `placement.attached_in`，键补上目标插件与种类（Goals 的 `goal`）；其他不动，见第 1 版没有的键拒绝并保留原库 | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE#1→2` |
 
 ## 4. 阶段二：起点之后，读取兼容
 

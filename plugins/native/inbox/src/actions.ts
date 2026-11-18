@@ -1,6 +1,6 @@
 import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { retainActionAuthority, ActionError, defineSubjectOffersAction, type ActionCallContext, type ActionAvailability, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionSchema, type SubjectOffersInput, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AttentionEntryRecord, AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { ATTENTION_NAME_PATTERN, type AttentionEntryRecord, type AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { INBOX_NEXT_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { PAGES_PROVIDER_ID, type InboxPagesDocument, type InboxPagesGeneration } from "./pages-shapes.js";
 import type { InboxBriefs } from "./content-actions.js";
@@ -14,8 +14,9 @@ const nullableText = { type: ["string", "null"] };
 const strings = { type: "array", items: text };
 const revision = { type: "integer", minimum: 1 };
 const entryProperties = { entry_id: text, project_id: text,
-  subject_type: { enum: ["feed_item", "goal_decision", "source_fault"] }, subject_id: text,
-  reason: { enum: ["manual", "source_rule", "goal_decision", "source_fault", "artifact_out_failed"] },
+  // Both are the owner plugin's own words, declared in its Manifest (`attention.subjects`).
+  subject_type: { type: "string", pattern: ATTENTION_NAME_PATTERN }, subject_id: text,
+  reason: { type: "string", pattern: ATTENTION_NAME_PATTERN },
   status: { enum: ["open", "in_progress", "done", "dismissed"] }, revision,
   detail: { type: "object" }, created_at: text, updated_at: text, completed_at: nullableText };
 const entrySchema = { type: "object", properties: entryProperties, required: Object.keys(entryProperties) };

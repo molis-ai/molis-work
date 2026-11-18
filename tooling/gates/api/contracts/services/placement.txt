@@ -47,12 +47,7 @@ export interface PlacementAssociation {
         kind: "project";
         project_id: string;
         title: string;
-    } | {
-        kind: "goal";
-        project_id: string | null;
-        goal_id: string;
-        title: string;
-    } | {
+    } | PlacementAttachedTarget | {
         kind: "object";
         object: PlacedObject;
         title: string;
@@ -67,7 +62,27 @@ export interface PlacementAssociation {
     removable: boolean;
 }
 
-export type PlacementAssociationType = "used_in" | "goal" | "derived_from" | "derived_into" | "copied_from" | "copied_into";
+export type PlacementAssociationType = "used_in" | "attached" | "derived_from" | "derived_into" | "copied_from" | "copied_into";
+
+export interface PlacementAttachKindView {
+    kind: string;
+    noun: string;
+    targets: {
+        id: string;
+        title: string;
+    }[];
+}
+
+export interface PlacementAttachedTarget {
+    kind: "attached";
+    project_id: string | null;
+    object: {
+        kind: string;
+        id: string;
+    };
+    noun: string;
+    title: string;
+}
 
 export interface PlacementConvertRequest {
     source: PlacedObject;
@@ -85,19 +100,23 @@ export interface PlacementConvertResponse {
     title: string;
     location: PlacementLocation;
     open: PlacementOpen | null;
+    noun?: string;
 }
 
 export type PlacementConvertTarget = {
     station: string;
 } | {
-    goal: true;
+    attach_kind: string;
 };
 
 export interface PlacementCreateRequest {
     station: string;
     project_id: string;
     title?: string;
-    goal_id?: string | null;
+    attach_to?: {
+        kind: string;
+        id: string;
+    } | null;
     request_id: string;
 }
 
@@ -119,11 +138,6 @@ export interface PlacementDescription {
         use_in_project: boolean;
     };
     open: PlacementOpen | null;
-}
-
-export interface PlacementGoalView {
-    goal_id: string;
-    title: string;
 }
 
 export interface PlacementLocation {
@@ -243,22 +257,25 @@ export declare const placementActions: {
     convert: ActionDefinition<PlacementConvertRequest, PlacementConvertResponse>;
 };
 
-export declare const placementGoalActions: {
-    goals: ActionDefinition<{
+export declare const placementAttachActions: {
+    targets: ActionDefinition<{
         project_id: string;
     }, {
-        goals: PlacementGoalView[];
+        kinds: PlacementAttachKindView[];
     }>;
-    bindGoal: ActionDefinition<{
+    attach: ActionDefinition<{
         object: PlacedObject;
         project_id: string;
-        goal_id: string;
+        target: {
+            kind: string;
+            id: string;
+        };
         read_revision?: string;
     }, {
         key: string;
     }>;
     create: ActionDefinition<PlacementCreateRequest, PlacementConvertResponse & {
-        goal_key: string | null;
+        attached_key: string | null;
     }>;
 };
 

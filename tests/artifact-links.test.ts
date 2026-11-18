@@ -36,7 +36,7 @@ test("RAC-2080: a Goal's proposed input, deliverable and confirmed ones are each
     artifact_type_id: "io.example.report", schema_version: 1, producer: { plugin_id: "io.example", plugin_version: "1", binding_signature: "s" },
     content: { kind: "inline", payload: { title: artifactId } }, ...pinnedArtifact(artifactId) });
   const edge = (goal: string, type: string, artifactId: string) => ledger.commands.put(at, { key: `${type}:${goal}:${artifactId}@1`, type, cause: "an Agent's reason",
-    source: { module: "goals", id: goal, version: null, scope: at.scope }, target: { module: "artifacts", id: artifactId, version: 1, scope: at.scope } });
+    source: { module: "plugins", plugin_id: "io.molis.work.goals", object_type: "goal", id: goal, version: null, scope: at.scope }, target: { module: "artifacts", id: artifactId, version: 1, scope: at.scope } });
   for (const id of ["input-proposed", "output-proposed", "input-confirmed", "output-confirmed"]) register(id);
   edge("G1", "goal.input.proposal", "input-proposed");
   edge("G2", "goal.output.proposal", "output-proposed");
@@ -81,7 +81,7 @@ test("RAC-420: with no Plugin declaring link kinds (Goals absent) the links and 
   const at = { actor_id: "web-user", scope: { kind: "personal" as const, id: projectId } };
   artifacts.commands.registerVersion({ project_id: projectId, actor_id: "web-user", artifact_id: "a", version: 1, artifact_type_id: "io.example.report", schema_version: 1,
     producer: { plugin_id: "io.example", plugin_version: "1", binding_signature: "s" }, content: { kind: "inline", payload: { title: "a" } }, ...pinnedArtifact("a") });
-  ledger.commands.put(at, { key: "goal.input:G1:a@1", type: "goal.input", cause: "reason", source: { module: "goals", id: "G1", version: null, scope: at.scope },
+  ledger.commands.put(at, { key: "goal.input:G1:a@1", type: "goal.input", cause: "reason", source: { module: "plugins", plugin_id: "io.molis.work.goals", object_type: "goal", id: "G1", version: null, scope: at.scope },
     target: { module: "artifacts", id: "a", version: 1, scope: at.scope } });
   const actions = new ActionService();
   actions.registerProvider({
@@ -114,8 +114,10 @@ function linkedVersion(t: { after(fn: () => void): void }, sources: readonly Art
       importDocument: async () => { throw new Error("n/a"); }, openProjectReference: async () => { throw new Error("n/a"); } }),
   });
   return {
-    edge: (module: string, type: string, id: string) => ledger.commands.put(at, { key: `${type}:${id}:a@1`, type, cause: "reason",
-      source: { module, id, version: null, scope: at.scope }, target: { module: "artifacts", id: "a", version: 1, scope: at.scope } }),
+    // Batch 44 C6: an edge's object is named by the plugin it is in (Goals' `goal`, the Notes example's `note`).
+    edge: (owner: "goals" | "notes", type: string, id: string) => ledger.commands.put(at, { key: `${type}:${id}:a@1`, type, cause: "reason",
+      source: { module: "plugins", plugin_id: owner === "goals" ? "io.molis.work.goals" : "example.notes", object_type: owner === "goals" ? "goal" : "note", id, version: null, scope: at.scope },
+      target: { module: "artifacts", id: "a", version: 1, scope: at.scope } }),
     links: (caller: ActionCallContext = person) => actions.invoke(caller, artifactsActions.links, { reference: { artifact_id: "a", version: 1 } }),
   };
 }

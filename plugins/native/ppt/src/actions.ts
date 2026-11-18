@@ -5,7 +5,7 @@ import { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { slidesFromMarkdown } from "./content-actions.js";
 import { PPT_DRAFT_OUTLINE } from "./prompts.js";
-import { PPT_ARTIFACT_TYPE_ID, PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID, type PptRecord, type PptSlideInput, PPT_SUBJECT_KIND } from "./contract.js";
+import { PPT_ARTIFACT_TYPE_ID, PPT_ARTIFACT_SCHEMA_VERSION, PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID, type PptRecord, type PptSlideInput, PPT_SUBJECT_KIND } from "./contract.js";
 import type { promotePpt } from "./promote.js";
 import type { PptStore, PptStores } from "./store.js";
 import type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -40,7 +40,7 @@ export const pptActions = {
   /** Whether a pinned version still matches the ppt object it came from (A4b, 「原文已改」); compares content, not revisions. */
   artifactCompare: defineArtifactCompareAction("ppt.artifacts.compare", /* @version action.ppt.artifacts.compare */ 1, "演示稿", read),
   /** 「从这一版继续」 (A4b): a new 演示稿 with the content of a pinned version; the version itself is unchanged. */
-  artifactContinue: defineArtifactContinueAction("ppt.artifacts.continue", /* @version action.ppt.artifacts.continue */ 1, "演示稿", write),
+  artifactContinue: defineArtifactContinueAction("ppt.artifacts.continue", /* @version action.ppt.artifacts.continue */ 1, "演示稿", write, { item_kind: PPT_SUBJECT_KIND, artifact_types: [{ artifact_type_id: PPT_ARTIFACT_TYPE_ID, schema_version: PPT_ARTIFACT_SCHEMA_VERSION }] }),
   list: define<Record<string, never>, { presentations: PptRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", /* @version action.ppt.list */ 1, "演示稿列表", "读取当前项目的演示稿，以及当前调用方能否让模型整理大纲", "query", object({}),
     object({ presentations: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { presentation: PptRecord }>("get", /* @version action.ppt.get */ 1, "读取演示稿", "读取幻灯片、配色、版本和发布状态；id 来自列表或创建结果", "query", object({ id }), changed),

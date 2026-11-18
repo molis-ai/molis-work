@@ -1,5 +1,5 @@
 import { CHARACTER_ARTIFACT_PRODUCER, characterArtifactPreviewAction } from "@molis-ai/molis-work-contracts/modules/characters";
-import { isArtifactLinkSubjectsAction, isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { intakeMaterial, isArtifactLinkSubjectsAction, isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ARTIFACTS_HOST_PRODUCER, type ArtifactLinkKinds } from "@molis-ai/molis-work-module-artifacts";
 import type { ArtifactFileDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRuntime, PluginSupervisor } from "@molis-ai/molis-work-plugin-runtime";
@@ -28,7 +28,7 @@ export interface ArtifactContinuer {
   readonly plugin_id: string;
   readonly plugin_title: string;
   readonly action: ActionDefinition;
-  /** The files it reads when the type is an imported file (`artifacts.consumes[].file`); none means it takes every one. */
+  /** The files it reads when the type is an imported file (its intake's `file`); none means it takes every one. */
   readonly file?: ArtifactFileDeclaration;
 }
 
@@ -146,13 +146,17 @@ export function artifactProducerSources(): readonly ArtifactProducerSource[] {
   ];
 }
 
-/** For each 成果 type, the plugins that declare they can continue from it. */
+/**
+ * For each 成果 type, the plugins that can continue from it: each intake that accepts `artifact` (contract-design §2.3), on the plugin's
+ * continue action, with the files it reads of an imported one.
+ */
 export function artifactContinuers(sources: readonly ArtifactProducerSource[] = artifactProducerSources()): ReadonlyMap<string, readonly ArtifactContinuer[]> {
   const continuers = new Map<string, ArtifactContinuer[]>();
-  for (const source of sources) for (const type of [...source.artifacts.produces, ...source.artifacts.consumes]) {
-    const declared = type.continue, action = declared ? source.actions.find(item => item.capability_id === declared.capability_id && item.version === declared.version) : undefined;
-    const file = "file" in type ? type.file : undefined;
-    if (action) continuers.set(type.artifact_type_id, [...continuers.get(type.artifact_type_id) ?? [], { plugin_id: source.plugin_id, plugin_title: source.name, action, ...(file ? { file } : {}) }]);
+  for (const source of sources) for (const action of source.actions) {
+    const material = intakeMaterial(action.action.intake, "artifact");
+    if (!material) continue;
+    for (const type of material.artifact_types) continuers.set(type.artifact_type_id, [...continuers.get(type.artifact_type_id) ?? [],
+      { plugin_id: source.plugin_id, plugin_title: source.name, action, ...(material.file ? { file: material.file } : {}) }]);
   }
   return continuers;
 }
@@ -194,9 +198,9 @@ export function declaredArtifactTypes(sources: readonly ArtifactProducerSource[]
  * names the other.
  */
 export function artifactLinkKinds(sources: readonly ArtifactProducerSource[] = artifactProducerSources()): ArtifactLinkKinds {
-  const kinds = new Map<string, { module: string; plugin_id: string; plugin_title: string; role: "input" | "output"; proposal: boolean }>();
+  const kinds = new Map<string, { surface: string; plugin_id: string; plugin_title: string; role: "input" | "output"; proposal: boolean }>();
   for (const source of sources) for (const link of source.artifacts.links ?? []) {
-    if (!kinds.has(link.kind)) kinds.set(link.kind, { module: source.surface, plugin_id: source.plugin_id, plugin_title: source.name, role: link.role, proposal: link.proposal === true });
+    if (!kinds.has(link.kind)) kinds.set(link.kind, { surface: source.surface, plugin_id: source.plugin_id, plugin_title: source.name, role: link.role, proposal: link.proposal === true });
   }
   return kinds;
 }

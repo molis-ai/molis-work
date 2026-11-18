@@ -1,6 +1,10 @@
 import { realpath } from "node:fs/promises";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ActionError, type ActionDefinition, type BoundActionClient, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
+import {
+  ONBOARDING_DRAFT_GET_MAX, ONBOARDING_DRAFT_KEEP_MAX, ONBOARDING_DRAFT_MATERIALS_MAX, ONBOARDING_DRAFT_PART_CHARS,
+  type OnboardingDraftBatch, type OnboardingDraftGetInput, type OnboardingDraftInput, type OnboardingDraftKeepInput,
+} from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
 import type { Readable } from "node:stream";
 import { fencedMaterials, instructed, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { ONBOARDING_NOTES, ONBOARDING_OWNER, ONBOARDING_PROPOSAL } from "./agent-definitions/system-prompts.js";
@@ -11,7 +15,6 @@ import {
   type ContextJourney,
   type ContextReference,
   type ImportFile,
-  type OnboardingTodoBatch,
 } from "./context-onboarding-store.js";
 import { codeRoot, contextFilePath, contextSources, readContextSource } from "./context-onboarding-sources.js";
 import {
@@ -43,6 +46,7 @@ import { configuredTextPort, type TextModelPort } from "./configured-text-port.j
 import { prepareContextDocument } from "./context-onboarding-documents.js";
 import { ARTIFACTS_PLUGIN_ID } from "@molis-ai/molis-work-module-artifacts";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
+import { partTitle, textParts } from "./context-onboarding-text-parts.js";
 import { assertOnboardingWritable, completeMolisWorkOnboarding } from "./onboarding.js";
 import { descriptionFromSummary, setProjectDescription } from "./project-arrival.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -50,19 +54,19 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 import { hostLog } from "./host-log.js";
 import { artifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ONBOARDING_TAKE_MATERIALS_MAX, type OnboardingCodeRootTake, type OnboardingTakeResult } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
-import type { OnboardingTaker } from "./onboarding-takers.js";
+import type { OnboardingMaterialKind, OnboardingTaker } from "./onboarding-takers.js";
 import { withObservationSource } from "@molis-ai/molis-work-service-observation";
 
 export interface ContextOnboardingPorts {
   withCatalog: LocalWebCatalogRunner;
   /** The person's actions in the new project; with `original_file`, for one import that comes with a file the Host staged. */
   actions?: (home: string, projectId: string, original_file?: HostOfferedOriginalFile) => Promise<BoundActionClient>;
-  /** The person's own (Home) actions, for todo drafts made before the project exists. */
-  homeActions?: (home: string, signal: AbortSignal) => BoundActionClient;
+  /** The person's call of one taker's own declared Home action (drafts are made before the project exists), with its permissions only. */
+  takeAtHome?: (definition: ActionDefinition, signal: AbortSignal) => BoundActionClient;
   model?: (home: string) => Promise<TextModelPort>;
   readSource?: typeof readContextSource;
-  /** The plugins that declare they take a code folder (`onboardingTakers`, batch12-design §7.3); none offered without it. */
-  takers?: () => readonly OnboardingTaker[];
+  /** The plugins that declare they take a kind of onboarding material (`onboardingTakers`, contract-design §2.5); none offered without it. */
+  takers?: (kind: OnboardingMaterialKind) => readonly OnboardingTaker[];
   /** The person's call of one taker's own declared action in the new project, with that action's permissions only (§7.7 C1). */
   take?: (home: string, projectId: string, definition: ActionDefinition) => Promise<BoundActionClient>;
 }
@@ -136,6 +140,8 @@ export function selectContextSources(home: string, id: string, input: Record<str
   }
   journey.auto_start = input.auto_start === true;
   journey.previewed = input.previewed === true;
+  // Which plugin drafts, when several declare it (contract-design §2.5); kept by its id and checked against the takers when the round runs.
+  if (typeof input.drafts_taker === "string" && input.drafts_taker.length <= 200) journey.drafts_taker = input.drafts_taker;
   if (journey.oauth_status === "pending" && !journey.sources.some(s => s.kind === "gmail" && s.selected)) {
     journey.oauth_status = "cancelled"; journey.auto_start = false;
   }
@@ -380,8 +386,8 @@ async function organize(home: string, journey: ContextJourney, runEpoch: number,
     journey.model = ai.runtimeLabel ?? null; save();
     if (!ai.completeText) { journey.needs_model = true; throw new Error(ai.unavailableReason ?? "材料已保存。请在设置中连接文字模型，再回来继续整理。"); }
     reachedModel = true;
-    // Todo drafts come from the same materials, beside the overview; a failure there never stops the overview.
-    const drafts = draftTodos(home, journey, unique, signal, ports, save);
+    // Drafts come from the same materials, beside the overview; a failure there never stops the overview.
+    const drafts = draftFromMaterials(home, journey, unique, signal, ports, save);
     const raw = await summarizeContext(home, unique, ai, journey, signal, save);
     await drafts;
     if (!isCurrent()) throw STALE_EPOCH;
@@ -547,78 +553,36 @@ export function parseContextSummary(raw: string, references: ContextReference[])
 }
 
 /**
- * A text in parts of at most `size` characters or UTF-16 units (`unit`), cut after a line end where there is one in the second half of
- * the part, and never inside a surrogate pair. A 🟢 is one character and two units. Todo's organizer reads whole characters, so its
- * parts are counted in characters; Pages limits what a body encodes to, so its parts are counted in units. Pages and Todo each take a
- * bounded text per call; a material of any length goes as several.
+ * The taker of `kind` this round uses (contract-design §2.5): the only one, or the one the person chose among several. Undefined when
+ * there is none, or several and no choice.
  */
-function textParts(text: string, size: number, unit: "characters" | "units"): string[] {
-  const parts: string[] = [];
-  for (let offset = 0; offset < text.length;) {
-    const end = unit === "characters" ? partEndByCharacters(text, offset, size) : partEndByUnits(text, offset, size);
-    parts.push(text.slice(offset, end)); offset = end;
-  }
-  return parts;
-}
-/** Where the part that starts at `offset` ends, `size` counted in UTF-16 units. */
-function partEndByUnits(text: string, offset: number, size: number): number {
-  let end = Math.min(offset + size, text.length);
-  const line = end < text.length ? text.lastIndexOf("\n", end - 1) : -1;
-  if (line >= offset + size / 2) end = line + 1;
-  else end = cutHead(text, end).length;
-  return end;
-}
-/** Where the part that starts at `offset` ends, `size` counted in characters: a pair of units is one, so a part never ends inside it. */
-function partEndByCharacters(text: string, offset: number, size: number): number {
-  let end = offset, count = 0, line = -1;
-  while (count < size && end < text.length) {
-    const code = text.codePointAt(end)!;
-    if (code === 10 && count >= size / 2) line = end + 1;
-    end += code > 0xFFFF ? 2 : 1;
-    count += 1;
-  }
-  return end < text.length && line >= 0 ? line : end;
-}
-/**
- * A part's title: the name, cut to fit, then which part it is, so the cut never takes the part number. `max` counts whole characters
- * (a 🙂 is one, though two UTF-16 units), the way Todo and Pages count a title, so a cut never ends inside a character.
- */
-function partTitle(title: string, part: number, parts: number, max: number): string {
-  const suffix = parts > 1 ? uiText.text("workbench.context-onboarding-service.part-k-n", { k: part, n: parts }) : "";
-  const characters = [...title], room = max - [...suffix].length;
-  return (characters.length <= room ? title : characters.slice(0, room - 1).join("") + "…") + suffix;
+export function chosenTaker(ports: Pick<ContextOnboardingPorts, "takers">, kind: OnboardingMaterialKind, chosen: string | undefined): OnboardingTaker | undefined {
+  const takers = ports.takers?.(kind) ?? [];
+  return takers.length === 1 ? takers[0] : takers.find(one => one.plugin_id === chosen);
 }
 
 /**
- * The providers the journey pins: the Todo and Pages that ship with the Host (#1207). It finds their actions in the catalog by
- * `capability_id@version` and declares the fields it uses below; it imports neither plugin's contract (PG-111).
- */
-const TODO_PLUGIN_ID = "io.molis.work.todo";
-/** What Todo's organizer reads of one material (`todo.organize.extract` cuts a longer one), so longer text goes in parts of this many characters (a 🟢 is one character, two UTF-16 units); pinned to Todo's own number by `tests/context-onboarding-todo.test.ts`. */
-export const TODO_PART_CHARS = 60_000;
-const TODO_MATERIALS = 50;
-/**
- * Every material for Todo's organizer, which takes 50 materials a call and reads the first TODO_PART_CHARS characters of each:
+ * Every material for the drafts taker, which takes 50 materials a call and reads ONBOARDING_DRAFT_PART_CHARS characters of each:
  * long ones in parts of that size, so all of the text is read, 50 a batch.
  */
-async function* todoBatches(home: string, id: string, references: ContextReference[]): AsyncGenerator<{ title: string; text: string }[]> {
+async function* draftBatches(home: string, id: string, references: ContextReference[]): AsyncGenerator<{ title: string; text: string }[]> {
   let batch: { title: string; text: string }[] = [];
   for (const ref of references) {
-    const parts = textParts(await readStagedText(home, id, ref.text), TODO_PART_CHARS, "characters");
+    const parts = textParts(await readStagedText(home, id, ref.text), ONBOARDING_DRAFT_PART_CHARS, "characters");
     for (const [index, text] of parts.entries()) {
       if (!text.trim()) continue;
       batch.push({ title: partTitle(ref.title, index + 1, parts.length, 200), text });
-      if (batch.length === TODO_MATERIALS) { yield batch; batch = []; }
+      if (batch.length === ONBOARDING_DRAFT_MATERIALS_MAX) { yield batch; batch = []; }
     }
   }
   if (batch.length) yield batch;
 }
 /**
- * Todo drafts from every material, beside the overview (user 2026-10-22: no 50-material cap): one organizer call per batch, each
- * kept as it lands, so a retry goes on after the last one; the batches' drafts are one list to confirm. A failure never stops the
- * overview.
+ * Drafts from every material, beside the overview (user 2026-10-22: no 50-material cap), by the `drafts` taker: one call per batch,
+ * each kept as it lands (the platform-shaped batch, as the page shows it), so a retry goes on after the last one; the batches' drafts are
+ * one list to confirm. A failure never stops the overview; with no plugin that drafts, the round goes on without drafts.
  */
-async function draftTodos(
+async function draftFromMaterials(
   home: string,
   journey: ContextJourney,
   references: ContextReference[],
@@ -626,50 +590,57 @@ async function draftTodos(
   ports: ContextOnboardingPorts,
   save: () => unknown,
 ): Promise<void> {
-  if (!ports.homeActions) return;
+  if (!ports.takeAtHome) return;
   // Batches belong to the materials they came from; after the person chose again, the drafts start over.
   const bKey = createHash("sha256").update(JSON.stringify(references.map(r => [r.source_id, r.version]))).digest("hex").slice(0, 16);
-  if (journey.todo?.key === bKey && journey.todo.status === "ready") return;
+  const taker = chosenTaker(ports, "drafts", journey.drafts_taker);
+  if (journey.drafts?.key === bKey && journey.drafts.status === "ready" && journey.drafts.plugin_id === (taker?.plugin_id ?? null)) return;
   let total = 0;
-  for await (const _ of todoBatches(home, journey.id, references)) total++;
-  const todo: NonNullable<ContextJourney["todo"]> = journey.todo = { status: "pending", key: bKey, batches: journey.todo?.key === bKey ? journey.todo.batches : [], total, error: null, timing: journey.todo?.key === bKey ? journey.todo.timing : { ms: 0, calls: 0 } }; save();
+  for await (const _ of draftBatches(home, journey.id, references)) total++;
+  const same = journey.drafts?.key === bKey && journey.drafts.plugin_id === taker?.plugin_id;
+  if (!taker) { journey.drafts = { plugin_id: null, surface: null, status: "none", key: bKey, batches: [], total, error: null, timing: { ms: 0, calls: 0 } }; save(); return; }
+  const drafts: NonNullable<ContextJourney["drafts"]> = journey.drafts = { plugin_id: taker.plugin_id, surface: taker.project_plugin_id, status: "pending", key: bKey,
+    batches: same ? journey.drafts!.batches : [], total, error: null, timing: same ? journey.drafts!.timing : { ms: 0, calls: 0 } }; save();
   try {
-    const completed = todo.batches.length;
+    const completed = drafts.batches.length;
     if (total > completed) {
-      const firstActions = ports.homeActions(home, AbortSignal.any([signal, AbortSignal.timeout(20 * 60_000)]));
-      const extract = await shipped<TodoExtract, { batch: OnboardingTodoBatch }>(firstActions, "todo.organize.extract", /* @version action.todo.organize.extract */ 1, TODO_PLUGIN_ID);
       let index = 0;
-      for await (const materials of todoBatches(home, journey.id, references)) {
+      for await (const materials of draftBatches(home, journey.id, references)) {
         signal.throwIfAborted();
         if (++index <= completed) continue;
-        // Discover once, but keep each batch's own cancellation window.
-        const todoActions = index === completed + 1 ? firstActions : ports.homeActions(home, AbortSignal.any([signal, AbortSignal.timeout(20 * 60_000)]));
-        // The journey id and the batch number make a retried pass return the same drafts instead of organizing twice.
-        const { batch } = await timedCall(todo.timing, () => todoActions.invoke(extract, { origin: "onboarding",
+        // Each batch keeps its own cancellation window.
+        const client = ports.takeAtHome(taker.take, AbortSignal.any([signal, AbortSignal.timeout(20 * 60_000)]));
+        // The journey id and the batch number make a retried pass return the same drafts instead of drafting twice.
+        const { batch } = await timedCall(drafts.timing, () => client.invoke(taker.take as ActionDefinition<OnboardingDraftInput, { batch: OnboardingDraftBatch }>, { origin: "onboarding",
           title: total > 1 ? uiText.text("workbench.context-onboarding-service.todos-found-while-getting-started-batch-k-n", { k: index, n: total }) : uiText.text("workbench.context-onboarding-service.todos-found-while-getting-started"), request_id: `onboarding:${journey.id}:${bKey}:${index}`, materials }));
-        todo.batches.push(batch); save();
+        drafts.batches.push({ batch_id: batch.batch_id, snapshot: batch }); save();
       }
     }
-    todo.status = "ready";
+    drafts.status = "ready";
   } catch (error) {
     if (error === STALE_EPOCH || signal.aborted) return;
     // Whole characters, not UTF-16 units: unit 300 can fall inside a two-unit character. The first slice bounds what is spread.
-    todo.status = "failed"; todo.error = error instanceof Error ? [...error.message.slice(0, 600)].slice(0, 300).join("") : "待办草稿没整理成";
+    drafts.status = "failed"; drafts.error = error instanceof Error ? [...error.message.slice(0, 600)].slice(0, 300).join("") : "待办草稿没整理成";
   }
   save();
 }
+
 /**
- * One action of a plugin that ships with the Host, found in the caller's directory by its public identity (PG-031): the Host names the
- * capability and that plugin's provider (pinned exactly, as for Goals: a same-named capability of another plugin is never picked, #1207),
- * and never imports the plugin's package. Not registered or not granted here: refused, nothing written.
+ * The batches a journey kept without a snapshot (drafted before version 2), read again from their taker at Home by id, at most 50 a
+ * call. Only answered, never written back: the journey is saved whole, and a write here would undo what an adoption saved meanwhile.
  */
-async function shipped<I, O>(actions: BoundActionClient, capability_id: string, version: number, provider_id: string): Promise<ActionDefinition<I, O>> {
-  const view = (await actions.discover()).find(one => one.capability_id === capability_id && one.version === version && one.provider.provider_id === provider_id);
-  if (!view) throw new ActionError("actions.dependency_missing", `${capability_id}@${version} 未在当前项目登记或未获授权`);
-  return { ...view, provider_id } as ActionDefinition<I, O>;
+export async function draftSnapshots(journey: ContextJourney, ports: Pick<ContextOnboardingPorts, "takers" | "takeAtHome">, signal: AbortSignal): Promise<ReadonlyMap<string, OnboardingDraftBatch>> {
+  const missing = journey.drafts?.batches.filter(batch => !batch.snapshot).map(batch => batch.batch_id) ?? [];
+  const taker = journey.drafts?.plugin_id ? ports.takers?.("drafts").find(one => one.plugin_id === journey.drafts!.plugin_id) : undefined;
+  if (!missing.length || !taker?.drafts || !ports.takeAtHome) return new Map();
+  const client = ports.takeAtHome(taker.drafts.get, signal), found = new Map<string, OnboardingDraftBatch>();
+  for (let start = 0; start < missing.length; start += ONBOARDING_DRAFT_GET_MAX) {
+    const { batches } = await client.invoke(taker.drafts.get as ActionDefinition<OnboardingDraftGetInput, { batches: OnboardingDraftBatch[] }>, { ids: missing.slice(start, start + ONBOARDING_DRAFT_GET_MAX) });
+    for (const batch of batches) found.set(batch.batch_id, batch);
+  }
+  return found;
 }
-type TodoExtract = { origin: "onboarding"; title: string; request_id: string; materials: { title: string; text: string }[] };
-type TodoDecision = { candidate_id: string; action: "add" | "merge" | "update" | "complete" | "reopen" };
+
 export async function adoptContextJourney(home: string, id: string, input: Record<string, unknown>, ports: ContextOnboardingPorts): Promise<ContextJourney> {
   if (running.has(key(home, id))) { await running.get(key(home, id)); return readContextJourney(home, id); }
   const journey = readContextJourney(home, id);
@@ -685,15 +656,28 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   assertOnboardingWritable(home);
   // Persist the accepted text before creating anything. A retry cannot overwrite
   // edits made later in Pages or change the adopted material set.
-  // Only drafts this round made can be kept, however many batches there were.
-  const drafted = new Set(journey.todo?.batches.flatMap(batch => batch.candidates.map(candidate => candidate.candidate_id)) ?? []);
-  const todoSelected = Array.isArray(input.todo_selected) ? [...new Set(input.todo_selected.filter((value): value is string => typeof value === "string" && drafted.has(value)))] : [];
+  // The materials and the summary are kept as documents by a plugin that declares it does (contract-design §2.5): with none, or several and
+  // no choice, nothing is made and the person is told before the project exists.
+  const chosen = journey.adoption?.documents ? undefined : chosenTaker(ports, "documents", typeof input.documents_taker === "string" ? input.documents_taker : undefined);
+  const documents = journey.adoption?.documents ?? (chosen && { plugin_id: chosen.plugin_id, project_plugin_id: chosen.project_plugin_id });
+  if (!documents) throw new Error((ports.takers?.("documents").length ?? 0) > 1 ? "请先选择用哪个插件保存文档" : "没有能保存文档的插件，项目没有建；装上一个能保存文档的插件后再继续");
+  // Only drafts this round made can be kept, however many batches there were. A batch kept without a snapshot is read again first; when
+  // that fails, what the person ticked in it is kept as ticked and the keep step answers for it.
+  const kept = Array.isArray(input.keep) ? input.keep.filter((value): value is string => typeof value === "string") : [];
+  let drafted: ReadonlySet<string> | null = new Set(journey.drafts?.batches.flatMap(batch => batch.snapshot?.candidates.map(candidate => candidate.candidate_id) ?? []) ?? []);
+  if (!journey.adoption && kept.length && journey.drafts?.batches.some(batch => !batch.snapshot)) {
+    const read = await draftSnapshots(journey, ports, AbortSignal.timeout(60_000)).catch(() => null);
+    drafted = read ? new Set([...drafted, ...[...read.values()].flatMap(batch => batch.candidates.map(candidate => candidate.candidate_id))]) : null;
+    if (running.has(key(home, id))) { await running.get(key(home, id)); return readContextJourney(home, id); }
+  }
+  const keep = [...new Set(kept.filter(value => !drafted || drafted.has(value)))];
   // The folder goes to a plugin the person picked among those that declare they take one; the folder is their own chosen folder as this
   // round read it, never a path from the request (ONB-44, batch12-design §7.3).
   const wanted = typeof input.take === "string" && input.blank !== true ? input.take : null;
-  const taker = wanted ? ports.takers?.().find(one => one.plugin_id === wanted) : undefined, root = wanted ? codeRoot(journey) : null;
+  const taker = wanted ? ports.takers?.("code_root").find(one => one.plugin_id === wanted) : undefined, root = wanted ? codeRoot(journey) : null;
   if (wanted && !journey.adoption && !(taker && root)) throw new Error("这个文件夹不能这样交出去：只有你自己选的、顶层有项目文件的文件夹，交给声明了能接手的插件");
-  journey.adoption ??= { title, body, blank: input.blank === true, todo_selected: todoSelected, ...(taker && root ? { take: { plugin_id: taker.plugin_id, project_plugin_id: taker.project_plugin_id, code_root: root } } : {}) };
+  journey.adoption ??= { title, body, blank: input.blank === true, keep, ...(taker && root ? { take: { plugin_id: taker.plugin_id, project_plugin_id: taker.project_plugin_id, code_root: root } } : {}) };
+  journey.adoption.documents ??= documents;
   journey.phase = "adopting"; journey.error = null;
   withContextJourneys(home, store => store.save(journey));
   // The person brings their own materials in (design §3「用户导入」): everything this adoption records, the actions it calls included, is an
@@ -702,7 +686,7 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
     try {
       await ports.withCatalog({ homeDirectory: home }, async catalog => {
         await catalog.createProject({ display_name: journey.adoption!.title, actor_id: LOCAL_PERSON_ACTOR_ID, project_id: journey.project_id });
-        catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: "pages", actor_id: LOCAL_PERSON_ACTOR_ID });
+        catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: journey.adoption!.documents!.project_plugin_id, actor_id: LOCAL_PERSON_ACTOR_ID });
         // Artifact imports use the platform service in every project.
         const take = journey.adoption!.take;
         if (take) {
@@ -721,8 +705,11 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
       if (!ports.actions) throw new Error("当前环境没有提供动作服务，已确认内容仍保留");
       const client = await ports.actions(home, journey.project_id);
       const actions = Object.assign(client, { forOriginal: (path: string) => ports.actions!(home, journey.project_id, { path, install_id: ARTIFACTS_PLUGIN_ID }) });
-      const handed = await importAdoptedMaterialsAndSummary({ home, id, journey, actions, shipped });
-      await adoptTodoDrafts(journey, actions);
+      const documentsTaker = ports.takers?.("documents").find(one => one.plugin_id === journey.adoption!.documents!.plugin_id);
+      if (!documentsTaker || !ports.take) throw new Error("保存文档的插件现在不可用，已确认内容仍保留；稍后可以继续保存");
+      const keeper = await ports.take(home, journey.project_id, documentsTaker.take);
+      const handed = await importAdoptedMaterialsAndSummary({ home, id, journey, actions, documents: { client: keeper, action: documentsTaker.take } });
+      await keepDrafts(home, journey, ports);
       await handToTaker(home, journey, handed, ports);
       completeMolisWorkOnboarding(home, journey.project_id); journey.phase = "complete"; journey.error = null;
       // The project now holds the materials; what the round staged goes. The project is made either way: a staging that cannot be
@@ -749,7 +736,7 @@ async function handToTaker(home: string, journey: ContextJourney, handed: readon
   if (!take || journey.take_result) return;
   const done = (result: NonNullable<ContextJourney["take_result"]>) => { journey.take_result = result; withContextJourneys(home, store => store.save(journey)); };
   const notTaken = (why: "unavailable" | "moved" | "refused") => done({ open: null, materials: 0, of: handed.length, not_taken: why });
-  const taker = ports.takers?.().find(one => one.plugin_id === take.plugin_id);
+  const taker = ports.takers?.("code_root").find(one => one.plugin_id === take.plugin_id);
   if (!taker || !ports.take) return notTaken("unavailable");
   const output = await ports.withCatalog({ homeDirectory: home }, catalog => catalog.projectDirectories(journey.project_id).directories.find(folder => folder.roles.includes("output")));
   if (!output || output.canonical_path !== await realpath(take.code_root).catch(() => null)) return notTaken("moved");
@@ -767,25 +754,30 @@ async function handToTaker(home: string, journey: ContextJourney, handed: readon
   done({ open: answered.open, materials: materials.length, of: handed.length });
 }
 
-/** The drafts the person kept, from every batch, become the new project's todos; the rest stay in Todo's “待你确认”. Safe to repeat. */
-async function adoptTodoDrafts(journey: ContextJourney, actions: BoundActionClient): Promise<void> {
-  const selected = new Set(journey.adoption?.todo_selected ?? []);
-  if (!journey.todo?.batches.length || !selected.size || journey.todo.added) return;
-  const relation = { same: "merge", update: "update", conflict: "update", maybe_done: "complete", reopen: "reopen" } as const;
-  const batches: OnboardingTodoBatch[] = [];
-  const get = await shipped<{ id: string }, { batch: OnboardingTodoBatch }>(actions, "todo.organize.get", /* @version action.todo.organize.get */ 1, TODO_PLUGIN_ID);
-  const apply = await shipped<{ id: string; expected_revision: number; decisions: TodoDecision[] }, { batch: OnboardingTodoBatch }>(actions, "todo.organize.apply", /* @version action.todo.organize.apply */ 1, TODO_PLUGIN_ID);
-  for (const kept of journey.todo.batches) {
-    let { batch } = await actions.invoke(get, { id: kept.batch_id });
-    const decisions = batch.candidates.filter(candidate => selected.has(candidate.candidate_id) && !candidate.decision)
-      .map(candidate => ({ candidate_id: candidate.candidate_id, action: candidate.existing ? relation[candidate.existing.relation] : "add" as const }));
-    // Todo takes 80 decisions a call.
-    for (let start = 0; start < decisions.length; start += 80) {
-      batch = (await actions.invoke(apply, { id: batch.batch_id, expected_revision: batch.revision, decisions: decisions.slice(start, start + 80) })).batch;
+/**
+ * The drafts the person kept, from every batch, go to the drafts taker in the new project; the rest wait there (in Todo's 「待你确认」).
+ * Each batch is read again first for its current revision, and each part of a keep goes on from the revision the last one returned, so a
+ * retry after a keep that stopped part way does not meet a stale revision; the taker skips a draft already decided. Safe to repeat.
+ */
+async function keepDrafts(home: string, journey: ContextJourney, ports: ContextOnboardingPorts): Promise<void> {
+  const keep = new Set(journey.adoption?.keep ?? []), drafts = journey.drafts;
+  if (!drafts?.batches.length || !keep.size || drafts.added || !drafts.plugin_id) return;
+  const taker = ports.takers?.("drafts").find(one => one.plugin_id === drafts.plugin_id);
+  if (!taker?.drafts || !ports.take) throw new Error("起草待办的插件现在不可用，已确认内容仍保留；稍后可以继续保存");
+  const get = taker.drafts.get as ActionDefinition<OnboardingDraftGetInput, { batches: OnboardingDraftBatch[] }>;
+  const keeper = taker.drafts.keep as ActionDefinition<OnboardingDraftKeepInput, { batch: OnboardingDraftBatch }>;
+  const reading = await ports.take(home, journey.project_id, get), keeping = await ports.take(home, journey.project_id, keeper);
+  const ids = drafts.batches.map(batch => batch.batch_id), latest: OnboardingDraftBatch[] = [];
+  for (let start = 0; start < ids.length; start += ONBOARDING_DRAFT_GET_MAX) latest.push(...(await reading.invoke(get, { ids: ids.slice(start, start + ONBOARDING_DRAFT_GET_MAX) })).batches);
+  const kept: OnboardingDraftBatch[] = [];
+  for (let batch of latest) {
+    const chosen = batch.candidates.filter(candidate => keep.has(candidate.candidate_id) && !candidate.decision).map(candidate => candidate.candidate_id);
+    for (let start = 0; start < chosen.length; start += ONBOARDING_DRAFT_KEEP_MAX) {
+      batch = (await keeping.invoke(keeper, { id: batch.batch_id, expected_revision: batch.revision, keep: chosen.slice(start, start + ONBOARDING_DRAFT_KEEP_MAX) })).batch;
     }
-    batches.push(batch);
+    kept.push(batch);
   }
-  journey.todo = { ...journey.todo, batches, added: batches.flatMap(batch => batch.candidates.flatMap(candidate => selected.has(candidate.candidate_id) && candidate.decision?.item_id ? [candidate.decision.item_id] : [])) };
+  drafts.added = kept.flatMap(batch => batch.candidates.flatMap(candidate => keep.has(candidate.candidate_id) && candidate.decision?.item_id ? [candidate.decision.item_id] : []));
 }
 
 export function updateContextDraft(home: string, id: string, input: Record<string, unknown>): ContextJourney {

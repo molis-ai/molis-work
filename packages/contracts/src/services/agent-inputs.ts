@@ -145,7 +145,11 @@ export type AgentInputTreatment = "apply-now" | "later-step" | "new-task" | "nee
 export type AgentInputKind = "supplement" | "correction" | "constraint" | "request" | "question";
 /** What the model says the input changes; declared, not observed. */
 export type AgentInputImpact = "objective" | "scope" | "priority" | "approach" | "acceptance" | "outputs" | "constraint";
-/** What a statement points at: another input, an app reference, a node of a board, an item of the round's list, a question. */
+/**
+ * What a statement points at: another input, an app reference, a node of a board, an item of the round's list, a question. These are
+ * the Prologue runtime's own target words (S4 `acknowledge-inputs`, `specs/ai-input-receipts/handoff-records.md`), passed on as given:
+ * `todo` is an item of this round's to-do list, not the Todo plugin (batch 44 contract-design §3).
+ */
 export type AgentInputTarget = { kind: "input" | "app-ref" | "todo" | "pending"; id: string } | { kind: "board-node"; board: string; id: string };
 
 /**

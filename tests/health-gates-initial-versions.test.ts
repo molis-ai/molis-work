@@ -242,6 +242,30 @@ test("APR-19 project_goals@2 requires the real joint upgrade and a golden holdin
   assert.match(check({ "plugins/native/feed/src/manifest.ts": declarations }).join("\n"), /expected 1/);
 });
 
+test("PEQ-03 project_goals@3 requires the project 4→5 step and a golden holding the project at 4 with Goals tables at 5", () => {
+  const manifest = "plugins/native/goals/src/manifest.ts", key = "sync.collection.goals.project_goals";
+  const schema = "apps/local-host/src/project-database-schema.ts", upgrades = ["apps/local-host/src/project-approval-upgrade.ts", "apps/local-host/src/project-library-v5-upgrade.ts"];
+  const source = readFileSync(new URL(`../${schema}`, import.meta.url), "utf8");
+  const declarations = `const collections = [{ id: "project_goals", schema_version: /* @version ${key} */ 3 }];`;
+  const at = (project: number, goals: number) => ({ path: "projects/p/molis-work.db", schema_version: project, plugin_tables: { "io.molis.work.goals": goals } });
+  const goldens = { "tests/fixtures/golden-homes/0.1.1-dev.4/manifest.json": JSON.stringify({ stores: [at(3, 3)] }),
+    "tests/fixtures/golden-homes/0.1.1-dev.6/manifest.json": JSON.stringify({ stores: [at(4, 5)] }) };
+  const files = { [manifest]: declarations, [schema]: source, ...Object.fromEntries(upgrades.map(file => [file, readFileSync(new URL(`../${file}`, import.meta.url), "utf8")])),
+    ...goldens, "tooling/versions.json": JSON.stringify({ versions: { [key]: 3 } }) };
+  const check = (changes: Record<string, string> = {}) => {
+    const snapshot = snapshotOf({ ...files, ...changes });
+    return versionOriginProblems(snapshot, { chains: registeredUpgradeChains(snapshot) });
+  };
+  assert.deepEqual(check(), []);
+  assert.match(check({ "tests/fixtures/golden-homes/0.1.1-dev.6/manifest.json": JSON.stringify({ stores: [at(4, 4), at(3, 5)] }) }).join("\n"),
+    /no golden Home under tests\/fixtures\/golden-homes\/ holds it at 2/u, "the 2→3 step starts only from project 4 with Goals at 5");
+  assert.match(check({ "tests/fixtures/golden-homes/0.1.1-dev.4/manifest.json": JSON.stringify({ stores: [] }) }).join("\n"), /holds it at 1/u, "the 1→2 rule is unchanged");
+  const without = source.replace("...projectLibraryV5Upgrade", "sql: \"\"");
+  assert.notEqual(without, source);
+  assert.match(check({ [schema]: without }).join("\n"), /the registered upgrade chain goes to 2/u, "without the real 4→5 step the collection's chain stops at 2");
+  assert.match(check({ [upgrades[1]!]: "" }).join("\n"), /the registered upgrade chain goes to 2/u);
+});
+
 test("UPG1-i-initial-13: the half with no build passes on this repository as it stands", () => {
   const root = new URL("../", import.meta.url);
   const files = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 30 }).split("\0").filter(Boolean);

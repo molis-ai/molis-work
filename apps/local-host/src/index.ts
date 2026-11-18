@@ -89,7 +89,7 @@ export { createProjectApprovalSyncRegistration } from './personal-project-approv
 export { projectApprovalSyncSelection } from './platform-sync-catalog.js';
 export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
 export { PROJECT_DATABASE_BASELINE, PROJECT_DATABASE_VERSION_3_SCHEMA } from "./project-database-schema.js";
-export { projectApprovalUpgrade } from "./project-database-schema.js";
+export { projectApprovalUpgrade, projectLibraryV5Step } from "./project-database-schema.js";
 
 export { openProjectVersionStores, restoreArtifactVersions, assertRestorableArtifactVersions, WORK_ASSET_RESTORE_ACTOR_ID, type RestoredArtifactVersion, type ProjectVersionStores } from "./project-version-stores.js";
 
@@ -418,6 +418,7 @@ export { createProjectGoalContent } from "./project-goal-content.js";
 
 // Trusted embedders compile declared baselines and bind their existing account/copy lease.
 export { pluginSyncDatabaseDeclaration, pluginSyncNamespace } from "./plugin-sync-database.js";
+export { goalsHistoryPlatformExtension } from "./goal-context-history.js";
 
 export type { LocalWebCatalogRunner } from "./web-project-settings.js";
 

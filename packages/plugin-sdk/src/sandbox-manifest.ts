@@ -201,7 +201,8 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
   const { contribution_id: uiId } = sandboxUiDeclaration(input);
   if (input.effects?.background?.length && !input.contract) throw pluginErrors.declaration_invalid('后台操作需要完整合同来派生动作');
   const actions = input.contract && (input.contract.presentation !== undefined || input.contract.operations.some(operation =>
-    operation.background_job || operation.effects.background?.length || operation.external !== undefined || operation.read_protocol !== undefined || operation.trusted_review !== undefined))
+    operation.background_job || operation.effects.background?.length || operation.external !== undefined || operation.read_protocol !== undefined || operation.trusted_review !== undefined
+    || operation.start !== undefined))
     ? sandboxOperationActions({ contract: input.contract, ...(input.actionIdentity ?? { buildId: sandboxPackageBuildId(input.pluginId, input.publisher.signature), version: 1 }),
       title: input.name, scope: input.runtime?.scope === 'home' ? 'home' : 'project', upgradeOperation: sandboxUpgradeOperation(sandboxUpgradeFields(input)),
       hasProjectDatabase: !!input.projectDatabase }) : undefined;

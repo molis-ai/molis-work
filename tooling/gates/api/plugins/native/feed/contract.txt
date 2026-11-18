@@ -10,8 +10,10 @@ export interface FeedApi {
     readonly events: FeedEvents;
 }
 
+export type FeedAttentionReason = "manual" | "source_rule";
+
 export interface FeedAttentionRequest {
-    reason: Extract<AttentionReason, "manual" | "source_rule">;
+    reason: FeedAttentionReason;
     detail?: Record<string, unknown>;
 }
 

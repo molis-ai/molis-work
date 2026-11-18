@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, intakeMaterial, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type WorkflowItemRef } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IntegrationProviderPort, PluginDefinition, PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HOST_CONNECTION_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin-events";
@@ -27,6 +27,9 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 import { libraryGit, publishLibrary } from "./fixtures/research-library.js";
 import { openTestHome } from "./fixtures/test-home.js";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
+
+/** A station's answer (`{ subject, title }`) as the Feed item it made. */
+const itemOf = (made: unknown) => { const { subject, title } = made as WorkflowItemRef; return { item_id: subject.id, title }; };
 
 // FI-4 step 4e-1 (specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §11): Feed as a Plugin Runtime plugin, not
 // registered anywhere yet. Started beside the platform's own services (project database, Attention, Context Ledger), it answers the
@@ -92,10 +95,11 @@ interface GoalsAsked { created: string[]; confirmed: Array<{ goal_id: string; so
  * there, and the three actions a promotion asks (`goals.directory.read`, `goals.create`, `goals.inputs.confirm`). A Goal it makes is known from then on.
  */
 function goalsStandIn(known: readonly string[], asked: GoalsAsked): PluginDefinition {
-  // The real outputs are the whole Goal and the whole receipt; these answer only what Feed reads them for. Placement's Goal relation needs Goals'
-  // whole set of actions, so the stand-in plays no part in it.
+  // The real outputs are the whole Goal and the whole receipt; these answer only what Feed reads them for. Placement's 「挂到 Goal」 is declared
+  // on `goals.attach.*`, which the stand-in does not offer, so it plays no part in it.
+  // Nor does it offer Goals' starting points: `goals.create`'s intake words are the real Goals' language pack, which the stand-in does not carry.
   const answering = (definition: ActionDefinition, output: object): ActionDefinition => {
-    const { placement_relation: _placement, ...action } = definition.action;
+    const { intake: _intake, ...action } = definition.action;
     return { ...definition, action: { ...action, output_schema: output } };
   };
   const contract = answering(goalPluginActions.contract, { type: "object", required: ["goal"] });
@@ -185,7 +189,7 @@ const receive = (requestId: string) => ({ request_id: requestId, title: `T ${req
 test("RAC-506 a Runtime Feed's content action commits the source, the item and the journal event together under the original caller", async t => {
   const { client, count } = await platform(t);
   const before = { items: count("SELECT count(*) AS n FROM feed_items"), events: count(`SELECT count(*) AS n FROM events WHERE object_type = '${FEED_OBJECT}'`) };
-  const written = await client.invoke(caller(RECEIVE).context, feedContentActions.receive, receive("one")) as { plugin: string; item_id: string; title: string };
+  const written = await client.invoke(caller(RECEIVE).context, feedContentActions.receive, receive("one")).then(itemOf);
   assert.equal(written.title, "T one");
   assert.equal(count("SELECT count(*) AS n FROM feed_items WHERE item_id = ?", written.item_id), 1);
   assert.equal(count("SELECT count(*) AS n FROM feed_items"), before.items + 1);
@@ -257,7 +261,7 @@ test("RAC-509 a rule is saved after its choices are checked, as a commit of its 
 // RAC-506 (4e-2a)
 test("RAC-506 a Runtime Feed changes a source's schedule and pause state in one commit with its journal event, under the original caller", async t => {
   const { client, count } = await platform(t);
-  const written = await client.invoke(caller(RECEIVE).context, feedContentActions.receive, receive("sourced")) as { item_id: string };
+  const written = await client.invoke(caller(RECEIVE).context, feedContentActions.receive, receive("sourced")).then(itemOf);
   const sourceId = (await client.invoke(caller(BODIES).context, feedQueryActions.item, { item_id: written.item_id }) as { item: { source_id: string } }).item.source_id;
   const events = (type: string) => count(`SELECT count(*) AS n FROM events WHERE object_type = '${FEED_PLUGIN_ID}:feed_source' AND object_id = ? AND type = ? AND actor_id = ?`, sourceId, `${FEED_PLUGIN_ID}:feed_source.${type}`, OWNER);
   const paused = await client.invoke(caller(WRITE).context, feedSourceActions.enabled, { source_id: sourceId, enabled: false }) as { source: { enabled: boolean } };
@@ -601,14 +605,14 @@ test("RAC-518 the platform's clock wakes Feed: its job is set once, and a wakeup
 // RAC-507 (4e-2d)
 test("RAC-507 feed.goals.context reads the Goal as the caller, then the item the Context Ledger links to it; nothing else is given", async t => {
   const f = await platform(t, { goals: ["goal-1"] });
-  const receiveItem = async (id: string) => (await f.client.invoke(caller(RECEIVE).context, feedContentActions.receive, receive(id)) as { item_id: string }).item_id;
+  const receiveItem = async (id: string) => (await f.client.invoke(caller(RECEIVE).context, feedContentActions.receive, receive(id)) as WorkflowItemRef).subject.id;
   const [linked, newer, unlinked] = [await receiveItem("linked"), await receiveItem("newer"), await receiveItem("unlinked")];
   // The link is Feed's edge in the project's Context Ledger, stored under Feed's namespace and read by the platform's service.
   const ledger = createContextLedger(f.store.db, { authorize: () => true, initializeSchema: false });
   const scope = { kind: "personal" as const, id: DEMO_PROJECT_ID };
   for (const id of [linked, newer]) {
-    ledger.commands.put({ actor_id: FEED_PLUGIN_ID, scope }, { key: `${FEED_PLUGIN_ID}:feed.goal:${id}`, type: "feed.goal", source: { module: "feed", id, version: null, scope },
-      target: { module: "goals", id: "goal-1", version: null, scope }, cause: "feed.link_goal" });
+    ledger.commands.put({ actor_id: FEED_PLUGIN_ID, scope }, { key: `${FEED_PLUGIN_ID}:feed.goal:${id}`, type: "feed.goal", source: { module: "plugins", plugin_id: "io.molis.work.feed", object_type: "feed_item", id, version: null, scope },
+      target: { module: "plugins", plugin_id: "io.molis.work.goals", object_type: "goal", id: "goal-1", version: null, scope }, cause: "feed.link_goal" });
   }
   f.store.db.prepare("UPDATE feed_items SET updated_at = ? WHERE item_id = ?").run("2099-01-01T00:00:00.000Z", newer);
   const ask = (input: { goal_id: string; item_id?: string }, permissions: readonly string[] = [...BODIES, "goals:read"]) =>
@@ -622,8 +626,8 @@ test("RAC-507 feed.goals.context reads the Goal as the caller, then the item the
   // The links are read live and the content is the owner's at the time of the call: a relinked item leaves, an edited one reads as edited, a removed edge ends the link.
   f.store.db.prepare("UPDATE feed_items SET title = ? WHERE item_id = ?").run("T newer, edited", newer);
   assert.match((await ask({ goal_id: "goal-1" }))!.source_context, /标题：T newer, edited/);
-  ledger.commands.put({ actor_id: FEED_PLUGIN_ID, scope }, { key: `${FEED_PLUGIN_ID}:feed.goal:${newer}`, type: "feed.goal", source: { module: "feed", id: newer, version: null, scope },
-    target: { module: "goals", id: "goal-other", version: null, scope }, cause: "feed.relink" });
+  ledger.commands.put({ actor_id: FEED_PLUGIN_ID, scope }, { key: `${FEED_PLUGIN_ID}:feed.goal:${newer}`, type: "feed.goal", source: { module: "plugins", plugin_id: "io.molis.work.feed", object_type: "feed_item", id: newer, version: null, scope },
+    target: { module: "plugins", plugin_id: "io.molis.work.goals", object_type: "goal", id: "goal-other", version: null, scope }, cause: "feed.relink" });
   assert.match((await ask({ goal_id: "goal-1" }))!.source_context, /标题：T linked/, "the relinked item no longer answers for this Goal");
   ledger.commands.remove({ actor_id: FEED_PLUGIN_ID, scope }, `${FEED_PLUGIN_ID}:feed.goal:${linked}`, "feed.item_deleted");
   assert.equal(await ask({ goal_id: "goal-1" }), null, "with no live link there is nothing to give");
@@ -860,8 +864,8 @@ test("RAC-1025 the Runtime Feed's Manifest asks for one slot per service the pla
   for (const permission of ["scenes:use", "judgments:read", "judgments:write", "actions:delegate"]) assert.equal(feedManifest.permissions.find(declared => declared.permission === permission)?.required, true, permission);
   assert.ok(declared(feedQueryActions.connections).includes("sources:pull_connector"));
   assert.ok(!declared(feedQueryActions.connections).includes("connections:use"), "the status names no source and nothing of an account");
-  // 4e-2e: the platform finds the receiver by the Manifest's declaration, and the action is for the platform's own delivery only.
-  assert.deepEqual(feedManifest.notifications, { receive: { capability_id: "feed.notifications.receive", version: 1 } });
+  // 4e-2e: the platform finds the receiver by its action's declaration (an intake of notifications, batch 44), and the action is for the platform's own delivery only.
+  assert.deepEqual(feedManifest.actions!.filter(action => intakeMaterial(action.action.intake, "notification")).map(action => action.capability_id), ["feed.notifications.receive"]);
   assert.deepEqual([RECEIVER.reference, feedManifest.actions!.find(action => action.capability_id === RECEIVER.reference.capability_id)!.action.audiences], [{ capability_id: "feed.notifications.receive", version: 1 }, ["workflow"]]);
   assert.ok(RECEIVER.permissions.includes("attention:write"), "the delivery is given what admitting the item to the Inbox needs");
 });
@@ -963,7 +967,7 @@ test("RAC-1029 feed.content.receive is one write: a delivery that fails after th
   assert.deepEqual([sources(), items()], before, "nothing of the failed delivery remains");
   // The same delivery with an item the database takes is one source and one item.
   f.store.db.exec("DROP TRIGGER refuse_item");
-  const ok = await f.client.invoke(caller(RECEIVE).context, feedContentActions.receive, { request_id: "taken", title: "Taken", body: "b" }) as { item_id: string };
+  const ok = await f.client.invoke(caller(RECEIVE).context, feedContentActions.receive, { request_id: "taken", title: "Taken", body: "b" }).then(itemOf);
   assert.deepEqual([sources(), items(), f.count("SELECT count(*) AS n FROM feed_items WHERE item_id = ?", ok.item_id)], [before[0]! + 1, before[1]! + 1, 1]);
 });
 
@@ -1020,7 +1024,7 @@ async function judging(t: TestContext, options: { goals?: readonly string[] } = 
 test("RAC-1031 a hand-in item is judged by the capture rule as the caller: the judgment is in the Home, the Inbox entry in the project, and Home and the Inbox judge what Feed opened", async t => {
   const f = await judging(t);
   const rule = await f.rule({ contains: "judge" });
-  const written = await f.client.invoke(caller(JUDGING).context, feedContentActions.receive, receive("judge-1")) as { item_id: string };
+  const written = await f.client.invoke(caller(JUDGING).context, feedContentActions.receive, receive("judge-1")).then(itemOf);
   assert.equal(f.seen.judged.length, 1, "the model was asked once");
   assert.ok(f.seen.judged[0]!.includes("T judge-1") && f.seen.judged[0]!.includes("body of judge-1"), "it read the item");
   const recorded = f.ledger().filter(row => row.scene_id === feedCaptureScene.scene_id);
@@ -1221,7 +1225,7 @@ test("RAC-1034 a binding saved through the platform's scene configuration is one
 
 test("RAC-1035 admitting an item to the Inbox asks the Inbox and Home to judge the entry it opened, as the caller, once the entry is committed", async t => {
   const f = await judging(t);
-  const item = await f.client.invoke(caller(JUDGING).context, feedContentActions.receive, { request_id: "plain-1", title: "Plain", body: "nothing here" }) as { item_id: string };
+  const item = await f.client.invoke(caller(JUDGING).context, feedContentActions.receive, { request_id: "plain-1", title: "Plain", body: "nothing here" }).then(itemOf);
   assert.deepEqual(f.seen.inbox, [], "no rule matched, so nothing was opened yet");
   const admitted = await f.client.invoke(caller(JUDGING).context, feedInboxActions.admit, { item_id: item.item_id }) as { entry_id: string; created: boolean };
   assert.ok(admitted.created);
@@ -1244,7 +1248,7 @@ test("FI-C-08 a hand-in a plain rule admits to the Inbox opens its entry with th
   const f = await platform(t);
   await f.client.invoke(caller(RULES).context, feedRuleActions.create, { name: "into the Inbox", match: { contains: "admit me" }, admission: "inbox" });
   const entries = (itemId: string) => f.store.db.prepare("SELECT reason FROM inbox_entries WHERE subject_type = 'feed_item' AND subject_id = ?").all(itemId) as Array<{ reason: string }>;
-  const admitted = await f.client.invoke(caller(RECEIVE).context, feedContentActions.receive, { request_id: "admit-1", title: "Please admit me", body: "b" }) as { item_id: string };
+  const admitted = await f.client.invoke(caller(RECEIVE).context, feedContentActions.receive, { request_id: "admit-1", title: "Please admit me", body: "b" }).then(itemOf);
   assert.deepEqual(entries(admitted.item_id).map(entry => entry.reason), ["source_rule"], "the rule admitted the item in the hand-in's own commit");
   // The rule also captures what it admits (RAC-510): the item, its entry and its 成果 are there together, and no capture failed.
   assert.equal(f.count("SELECT count(*) AS n FROM library_artifact_versions WHERE json_extract(metadata_json, '$.feed_item_id') = ?", admitted.item_id), 1);
@@ -1266,7 +1270,7 @@ test("RAC-510 a hand-in a capture rule matches pins its capture in the same comm
   const pinned = (itemId: string) => f.store.db.prepare(`SELECT i.producer_plugin_id AS plugin, i.producer_binding_signature AS signature,
     v.producer_plugin_version AS version, v.created_by AS author FROM library_artifacts i JOIN library_artifact_versions v USING (artifact_id)
     WHERE json_extract(v.metadata_json, '$.feed_item_id') = ?`).all(itemId);
-  const written = await f.client.invoke(caller(RECEIVE).context, feedContentActions.receive, { request_id: "pin-1", title: "Please pin me", body: "b" }) as { item_id: string };
+  const written = await f.client.invoke(caller(RECEIVE).context, feedContentActions.receive, { request_id: "pin-1", title: "Please pin me", body: "b" }).then(itemOf);
   assert.deepEqual(pinned(written.item_id), [{ plugin: feedManifest.plugin_id, signature: feedManifest.publisher.signature, version: feedManifest.version, author: OWNER }]);
   assert.equal(f.count("SELECT count(*) AS n FROM inbox_entries WHERE subject_id = ? AND reason = 'artifact_out_failed'", written.item_id), 0, "the capture did not fail");
   for (const definition of [feedContentActions.receive, feedNotificationActions.receive, feedRuleActions.evaluate, feedSourceActions.sync, feedSourceActions.tick]) {

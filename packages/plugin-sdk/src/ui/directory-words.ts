@@ -18,10 +18,12 @@ const fields = (manifest: DirectoryWordManifest) => [
     const place = "视图 " + view.view_id + " 的 ";
     return [
       [place + "title_text", view.title_text, 80],
-      [place + "creates.title_text", view.creates?.title_text, 40],
-      [place + "start.title_text", view.start?.title_text, 80],
-      [place + "start.hint_text", view.start?.hint_text, 200],
     ] as const;
+  }),
+  ...(manifest.actions ?? []).flatMap(({ action, capability_id }) => {
+    const intake = action.intake as { title_text?: TextRef; start?: { title_text?: TextRef; hint_text?: TextRef } } | undefined;
+    const place = "动作 " + capability_id + " 的 intake.";
+    return intake ? [[place + "title_text", intake.title_text, 40], [place + "start.title_text", intake.start?.title_text, 80], [place + "start.hint_text", intake.start?.hint_text, 200]] as const : [];
   }),
   ...(manifest.actions ?? []).flatMap(({ action, capability_id }) => action.composer_source?.title_text === undefined ? []
     : [["动作 " + capability_id + " 的 composer_source.title_text", action.composer_source.title_text, 80] as const]),

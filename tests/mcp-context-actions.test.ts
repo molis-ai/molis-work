@@ -21,7 +21,7 @@ test("official MCP connection summaries obey live action grants, preserve bindin
   const seen = new Set<string>();
   let disabled = false;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (caller, action) => {
-    if (caller.audience === "mcp" && [goalsActions.list.capability_id, goalsActions.guidanceRead.capability_id].includes(action.capability_id)) {
+    if (caller.audience === "mcp" && [goalsActions.resumeSummary.capability_id, goalsActions.guidanceRead.capability_id].includes(action.capability_id)) {
       seen.add(caller.actor_id + ":" + action.capability_id);
       if (disabled) return { available: false, code: "actions.plugin_disabled", reason: "Goals temporarily unavailable" };
     }
@@ -56,8 +56,12 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     const resolve = () => contextCall("molis_work_v1_context_resolve");
     let result = await resolve();
     assert.equal(result.status, "bound"); assert.equal(result.connection.project_id, project.project_id);
-    assert.equal(result.project_guidance, null); assert.equal(result.runtime_prompt_prefix, null); assert.equal(result.resume, null);
-    assert.ok(result.project_guidance_error.code); assert.ok(result.resume_error.code);
+    // Batch 44 C7: the resume is each granted plugin's own summary, by section; an ungranted summary is not in the directory, so there is no section.
+    const none = { sections: [] };
+    const goalsFocus = (value: { resume: { sections: Array<{ plugin_id: string; focus?: { subject: { id: string } } }> } }) =>
+      value.resume.sections.find(section => section.plugin_id === "io.molis.work.goals")?.focus?.subject.id;
+    assert.equal(result.project_guidance, null); assert.equal(result.runtime_prompt_prefix, null); assert.deepEqual(result.resume, none);
+    assert.ok(result.project_guidance_error.code); assert.equal(result.resume_error, undefined);
     assert.doesNotMatch(JSON.stringify(result), /Authorized goal content|Authorized project instruction/);
     const caller = { actor_id: "runtime:context-actions", audience: "mcp" as const, project_id: project.project_id, permissions: [] };
     const views = await host.inspectActions(caller, ref);
@@ -70,29 +74,30 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     await grant(goalsActions.guidanceRead.capability_id, true);
     result = await resolve();
     assert.match(result.runtime_prompt_prefix, /Authorized project instruction/); assert.equal(result.project_guidance_error, undefined);
-    assert.equal(result.resume, null); assert.ok(result.resume_error);
-    await grant(goalsActions.list.capability_id, true);
+    assert.deepEqual(result.resume, none, "Goals' directory alone does not answer for its resume summary");
+    await grant(goalsActions.resumeSummary.capability_id, true);
     result = await resolve();
-    assert.equal(result.resume.focus.goal_id, "CONTEXT-SECRET"); assert.equal(result.resume_error, undefined);
-    assert.ok(seen.has(caller.actor_id + ":" + goalsActions.list.capability_id));
+    assert.equal(goalsFocus(result), "CONTEXT-SECRET"); assert.equal(result.resume_error, undefined);
+    assert.ok(seen.has(caller.actor_id + ":" + goalsActions.resumeSummary.capability_id));
     await grant(goalsActions.guidanceRead.capability_id, false);
     result = await resolve();
     assert.equal(result.project_guidance, null); assert.equal(result.runtime_prompt_prefix, null); assert.ok(result.project_guidance_error);
-    assert.equal(result.resume.focus.goal_id, "CONTEXT-SECRET");
+    assert.equal(goalsFocus(result), "CONTEXT-SECRET");
     disabled = true;
     result = await resolve();
-    assert.equal(result.status, "bound"); assert.equal(result.resume, null); assert.ok(result.resume_error);
+    assert.equal(result.status, "bound"); assert.deepEqual(result.resume, none, "an unavailable summary has no section");
+    assert.doesNotMatch(JSON.stringify(result), /CONTEXT-SECRET|Authorized goal content/);
     disabled = false;
     assert.deepEqual(await withHostCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings()), bindingsBefore);
     assert.equal(await host.withProject(ref, r => r.store.eventCursor(project.project_id)), cursorBefore, "read-only recovery never claims work or rewrites project facts");
     result = await contextCall("molis_work_v1_context_bind", { project_id: second.project_id,
       user_confirmed: true, rebind_confirmed: true });
-    assert.equal(result.connection.project_id, second.project_id); assert.equal(result.resume, null);
+    assert.equal(result.connection.project_id, second.project_id); assert.deepEqual(result.resume, none);
     assert.doesNotMatch(JSON.stringify(result), /CONTEXT-SECRET|Authorized goal content/);
     result = await contextCall("molis_work_v1_context_create_and_bind", { display_name: "New ungranted project",
       user_confirmed: true, rebind_confirmed: true, idempotency_key: "new-context-project" });
     assert.equal(result.status, "bound"); assert.notEqual(result.connection.project_id, project.project_id);
-    assert.equal(result.project_guidance, null); assert.equal(result.resume, null); assert.ok(result.resume_error);
+    assert.equal(result.project_guidance, null); assert.deepEqual(result.resume, none);
     await contextCall("molis_work_v1_context_bind", { project_id: project.project_id,
       user_confirmed: true, rebind_confirmed: true });
     await grant(goalsActions.guidanceRead.capability_id, true);
@@ -122,7 +127,7 @@ for (const changed of ["project", "client"]) test(`context presentation rejects 
       if (changed === "project") connection.accept({ projectId: "other", databasePath: "/other.db", webBaseUrl: "http://127.0.0.1:4173" }, host.runtimeContext);
       else lifetime.abort();
       throw new ActionError("actions.forbidden", "Not granted");
-    }, readResumeFacts: async () => { resumeRead = true; return { goals: [] }; } });
+    }, readResumeSections: async () => { resumeRead = true; return []; } });
   // The Catalog shape is irrelevant to this race; presentation reads only its resolved connection.
   await assert.rejects(present({ connection: { project_id: "first", database_path: "/first.db" } } as never, host), { code: "mcp.context_changed" });
   assert.equal(resumeRead, false); assert.equal(connection.connection?.projectId, changed === "project" ? "other" : "first");

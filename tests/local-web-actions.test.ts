@@ -156,7 +156,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
     kind: "app", publisher: { publisher_id: "example", signature: "example-newcomer" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "newcomer:read", required: false, reason: "读取这份原始材料" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
     async start() { return { kind: "app", actions: [{ ...definition, handle: (_caller, input) => {
-      reads++; return subjectContext({ subject: { kind: "newcomer-note", id: (input as { subject_id: string }).subject_id }, revision: "1", title: "原始插件标题", content: "来自插件 owner 的真实正文", goal_ids: [] });
+      reads++; return subjectContext({ subject: { kind: "newcomer-note", id: (input as { subject_id: string }).subject_id }, revision: "1", title: "原始插件标题", content: "来自插件 owner 的真实正文" });
     } }] }; } });
   let runtime: PluginRuntime | undefined, installId: string | undefined;
   let stopImposter: (() => void) | undefined;
@@ -563,7 +563,7 @@ test("S-15 RAC-651 the permissions a route names reach a Runtime plugin's action
     kind: "app", publisher: { publisher_id: "example", signature: "example-capped" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "capped:read", required: false, reason: "读取" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
     async start() { return { kind: "app", actions: [{ ...definition, handle: (_caller, input) => {
-      reads++; return subjectContext({ subject: { kind: "capped-note", id: (input as { subject_id: string }).subject_id }, revision: "1", title: "t", content: "正文", goal_ids: [] });
+      reads++; return subjectContext({ subject: { kind: "capped-note", id: (input as { subject_id: string }).subject_id }, revision: "1", title: "t", content: "正文" });
     } }] }; } });
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
   const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });

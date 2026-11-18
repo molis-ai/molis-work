@@ -67,17 +67,24 @@ export function readStoredSettings(db: DatabaseSync): StoredObservationSettings 
   };
 }
 
-export function retentionLayer(db: DatabaseSync): { explicit: boolean; revision: number } {
-  const meta = db.prepare("SELECT value FROM writer_state WHERE key='settings.retention-layer'").get();
+type Preference = "retention" | "space-reminder";
+export function preferenceLayer(db: DatabaseSync, preference: Preference): { explicit: boolean; revision: number } {
+  const meta = db.prepare("SELECT value FROM writer_state WHERE key=?").get("settings." + preference + "-layer");
   if (meta) return JSON.parse(String(meta.value));
-  return { explicit: Boolean(db.prepare("SELECT 1 FROM writer_state WHERE key=?").get(SETTINGS_STATE_KEY)), revision: 0 };
+  const explicit = preference === "retention"
+    ? Boolean(db.prepare("SELECT 1 FROM writer_state WHERE key=?").get(SETTINGS_STATE_KEY))
+    : readStoredSettings(db).space_reminder_bytes !== null;
+  return { explicit, revision: 0 };
 }
 
-export function writeStoredSettings(db: DatabaseSync, settings: StoredObservationSettings, retentionExplicit?: boolean): void {
-  const layer = retentionLayer(db);
-  if (retentionExplicit !== undefined || !layer.explicit && layer.revision === 0)
-    db.prepare("INSERT INTO writer_state (key,value) VALUES ('settings.retention-layer',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
-      .run(JSON.stringify(retentionExplicit === undefined ? layer : { explicit: retentionExplicit, revision: layer.revision + 1 }));
+export function writeStoredSettings(db: DatabaseSync, settings: StoredObservationSettings, changes: Partial<Record<Preference, boolean>> = {}): void {
+  for (const preference of ["retention", "space-reminder"] as const) {
+    const layer = preferenceLayer(db, preference);
+    const explicit = changes[preference];
+    if (explicit !== undefined || !layer.explicit && layer.revision === 0)
+      db.prepare("INSERT INTO writer_state (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+        .run("settings." + preference + "-layer", JSON.stringify(explicit === undefined ? layer : { explicit, revision: layer.revision + 1 }));
+  }
   db.prepare("INSERT INTO writer_state (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value")
     .run(SETTINGS_STATE_KEY, JSON.stringify(settings));
 }

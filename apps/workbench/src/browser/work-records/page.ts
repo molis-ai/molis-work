@@ -1,3 +1,4 @@
+import type { SandboxJson } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import type {
   ObservationCleanupPreview,
   ObservationCleanupResult,
@@ -251,18 +252,19 @@ export function mountWorkRecords(root: HTMLElement): () => void {
     });
   };
 
-  let retentionRevision: string | undefined, pendingRetention: SettingsWriteInput | undefined;
+  const revisions = new Map<string, string>();
+  let pending: SettingsWriteInput | undefined;
   const loadAll = async () => {
     showError(null);
     try {
-      const [settings, space, retention] = await Promise.all([
+      const [settings, space, preferences] = await Promise.all([
         postObservation<ObservationSettingsView>("settings"),
         postObservation<ObservationSpaceView>("space"),
-        postObservation<SettingsValues>("preferences/read", { keys: ["observation.retention"] }),
+        postObservation<SettingsValues>("preferences/read", { keys: ["observation.retention", "observation.space_reminder"] }),
         fetchCoverage(),
       ]);
       if (!root.isConnected) return;
-      retentionRevision = retention.values[0]?.revision;
+      for (const preference of preferences.values) revisions.set(preference.key, preference.revision);
       S.settings = settings;
       S.space = space;
       render();
@@ -275,15 +277,19 @@ export function mountWorkRecords(root: HTMLElement): () => void {
     if (S.busy) return;
     S.busy = true; showError(null); render();
     try {
-      if (patch.retention_mode !== undefined) {
-        if (retentionRevision === undefined) { await loadAll(); return; }
-        if (!pendingRetention || pendingRetention.expected_revision !== retentionRevision
-          || !("set" in pendingRetention.change) || pendingRetention.change.set !== patch.retention_mode) {
-          pendingRetention = { key: "observation.retention", layer: "personal", change: { set: patch.retention_mode },
-            expected_revision: retentionRevision, request_id: crypto.randomUUID() };
+      const preference: { key: string; value: SandboxJson } | undefined = patch.retention_mode !== undefined ? { key: "observation.retention", value: patch.retention_mode }
+        : patch.space_reminder_bytes !== undefined ? { key: "observation.space_reminder", value: patch.space_reminder_bytes === null ? {} : { bytes: patch.space_reminder_bytes } }
+        : undefined;
+      if (preference) {
+        const revision = revisions.get(preference.key);
+        if (revision === undefined) { await loadAll(); return; }
+        const change = { set: preference.value };
+        if (pending?.key !== preference.key || pending.expected_revision !== revision || JSON.stringify(pending.change) !== JSON.stringify(change)) {
+          pending = { key: preference.key, layer: "personal", change, expected_revision: revision, request_id: crypto.randomUUID() };
         }
-        const saved = await postObservation<SettingsValues>("preferences/write", pendingRetention, "workbench.settings-work-records.save-failed");
-        retentionRevision = saved.values[0]?.revision; pendingRetention = undefined;
+        const saved = await postObservation<SettingsValues>("preferences/write", pending, "workbench.settings-work-records.save-failed");
+        for (const setting of saved.values) revisions.set(setting.key, setting.revision);
+        pending = undefined;
         S.settings = await postObservation<ObservationSettingsView>("settings");
       } else S.settings = await postObservation<ObservationSettingsView>("settings/set", patch, "workbench.settings-work-records.save-failed");
       const [space] = await Promise.all([postObservation<ObservationSpaceView>("space"), fetchCoverage()]);

@@ -79,7 +79,10 @@ export async function handleSettingsSet(
 
   db.exec("BEGIN IMMEDIATE");
   try {
-    writeStoredSettings(db, next, input.retention_mode === undefined ? undefined : true);
+    writeStoredSettings(db, next, {
+      ...(input.retention_mode !== undefined && { retention: true }),
+      ...(input.space_reminder_bytes !== undefined && { "space-reminder": true }),
+    });
     if (previous.paused && !nextPaused) {
       db.prepare(
         "INSERT INTO coverage_gaps (owner, fact, entry, project_id, state, started_at, ended_at, count, reason) VALUES ('observation', '*', 'workbench', '', 'by_rule', ?, ?, 0, 'recording_paused')",

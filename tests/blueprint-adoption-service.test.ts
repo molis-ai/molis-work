@@ -169,6 +169,26 @@ test("ONB-30: removing the original scene retains a setting that a second scene 
     const undone = await user.invoke(a.revert, { adoption_id: latest.adoption_id, request_id: "undo-new-writing" });
     assert.equal(undone.undo.steps[0]?.state, "restored", "older revisions of the same value have no claim on the new adoption");
     assert.equal(await user.invoke(projectSettingsCapabilities.runtime, []), null, "restores the person’s choice to inherit");
+    const interrupted = await adopt("Write before interruption");
+    const tracking = new DatabaseSync(homeSqlitePath(home, "blueprints"), { readOnly: true });
+    const undo = { adoption_id: interrupted.adoption_id, request_id: "resume-before-owner-undo" };
+    try {
+      const watched = tracking.prepare(`SELECT json_extract(undo_json,'$.state') AS state FROM adoption_steps
+        JOIN adoptions USING(preview_id) WHERE adoption_id=? AND part_id='engine'`);
+      const cutoff = bindActionClient(running.host.actionClient(project.reference), () => ({
+        ...person, assert_authority_current(ref, permissions) {
+          person.assert_authority_current?.(ref, permissions);
+          if (watched.get(interrupted.adoption_id)?.state === "pending_verification") throw new ActionError("actions.cancelled", "页面已关闭");
+        },
+      }));
+      await assert.rejects(cutoff.invoke(a.revert, undo), { code: "actions.cancelled" });
+    } finally { tracking.close(); }
+    const afterInterruption = await adopt("Reuse before undo resumes");
+    assert.equal(afterInterruption.steps[0]?.state === "applied" && afterInterruption.steps[0].outcome, "reused");
+    const resumed = await user.invoke(a.revert, undo);
+    assert.deepEqual(resumed.undo.steps[0], { part_id: "engine", state: "skipped", reason: "shared" });
+    assert.equal(await user.invoke(projectSettingsCapabilities.runtime, []), "prologue");
+
   } finally { await running.close(); await rm(home, { recursive: true, force: true }); }
 });
 

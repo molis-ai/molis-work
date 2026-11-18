@@ -200,7 +200,8 @@ export class AdoptionExecution {
           if (!current || current.key !== plan.key) throw new ActionError("actions.output_invalid", "设置读回缺失");
           if (!writing && !sameObservedLayer(plan, apply.receipt.revision, current, plan.applied_layer_revision)) result = { part_id, state: "skipped", reason: "revision_changed" };
           else if (!writing && current.state !== "ok") result = { part_id, state: "skipped", reason: "owner_unavailable" };
-          else if (!writing && this.store.sharedSetting(caller.actor_id, record.row.project_id, record.row.preview_id, plan, current.revision))
+          else if ((!writing || current.state === "ok" && current.revision === plan.undo_expected_revision)
+            && this.store.sharedSetting(caller.actor_id, record.row.project_id, record.row.preview_id, plan, current.revision))
             result = { part_id, state: "skipped", reason: "shared" };
           else {
             if (!writing) {

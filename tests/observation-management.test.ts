@@ -148,6 +148,35 @@ test("ONB-22/30 OCL-12: adopting retention commits cleanup and receipt together,
   assert.equal(readRecords(f.db()).some(r => r.fact === "notes.older"), false);
 });
 
+test("ONB-22/30 OCL-15: adopting a space reminder preserves records and an intervening manual choice", async t => {
+  const f = createFixture(t);
+  const key = "observation.space_reminder";
+  const user = () => bindActionClient(f.service, person);
+  const read = async () => (await user().invoke(retentionActions.read, { keys: [key] })).values[0]!;
+  const before = await read();
+  assert.ok(before.state === "ok" && before.source === "provider_default");
+  await f.service.invoke(person(), observationActions.settingsSet, { retention_mode: "manual" });
+  assert.deepEqual(await read(), before, "retention has its own revision");
+  const request = { key, layer: "personal" as const, expected_revision: before.revision, request_id: "warn-now", change: { set: { bytes: 0 } } };
+  const saved = await user().invoke(retentionActions.write, request);
+  assert.equal((await f.service.invoke(person(), observationActions.spaceGet, {})).reminder_status, "exceeded");
+  await f.service.invoke(pluginCaller("notes", "notes-install"), observationActions.report, {
+    facts: [{ fact: "notes.kept", outcome: "succeeded" }],
+  });
+  f.layer.flush();
+  await f.service.invoke(person(), observationActions.settingsSet, { space_reminder_bytes: 9999 });
+  f.reopen();
+  assert.deepEqual(await user().invoke(retentionActions.write, request), saved);
+  await assert.rejects(user().invoke(retentionActions.write, { ...request, request_id: "undo-space",
+    expected_revision: saved.values[0]!.revision, change: { inherit: true } }), { kind: "conflict" });
+  const manual = await read();
+  assert.ok(manual.state === "ok" && manual.source === "personal");
+  assert.deepEqual(manual.value, { bytes: 9999 });
+  assert.ok(readRecords(f.db()).some(r => r.fact === "notes.kept"));
+  await user().invoke(retentionActions.write, { ...request, request_id: "clear-space", expected_revision: manual.revision, change: { inherit: true } });
+  assert.equal((await f.service.invoke(person(), observationActions.spaceGet, {})).reminder_status, "none");
+});
+
 test("OCL-01 OCL-02 OCL-04 OCL-06 OCL-14: records.query filters by work, subject+version, platform_version, kinds and window, paginates cleanly and marks late, coalesced and clock_adjusted", async t => {
   let clockMs = Date.parse("2026-11-14T10:00:00.000Z");
   const f = createFixture(t, { now: () => new Date(clockMs), platformVersion: "0.28.0" });

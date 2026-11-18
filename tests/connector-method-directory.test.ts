@@ -212,7 +212,7 @@ test("RAC-2528 a connection pinned to a package shows 建于 and its name throug
   const render = (locale: string) => renderDirectory({ connectors: [], connector_connections: [pinned, plain] }, locale);
   const row = (html: string, id: string) => html.match(new RegExp(`data-connection-row="${id}"[\\s\\S]*?</div>`))![0];
   const zh = render("zh");
-  assert.match(row(zh, pinned.connection_id), /<small data-connection-declared-by>建于 · Example &lt;Feed&gt;<\/small>/);
+  assert.match(row(zh, pinned.connection_id), /<span data-connection-declared-by>[^<]* · 建于 · Example &lt;Feed&gt;<\/span>/);
   assert.doesNotMatch(row(zh, plain.connection_id), /data-connection-declared-by/);
   assert.match(row(render("en"), pinned.connection_id), /Made for · Example &lt;Feed&gt;/);
 });

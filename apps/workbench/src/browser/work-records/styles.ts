@@ -17,15 +17,11 @@ const PAGE_STYLES = `
   .wr-page .mw-item strong { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
   .wr-page .mw-item small { flex: 1 1 0; min-width: 0; margin: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
   .wr-page .mw-item__end { display: flex; align-items: center; gap: 8px; flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-  .wr-page .mw-settings { display: grid; width: 100%; min-width: 0; grid-template-columns: minmax(0, 1fr); border: 1px solid var(--line); border-radius: var(--r-card); background: var(--paper); }
-  .wr-page .mw-setting { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; min-height: 60px; padding: 12px 16px; min-width: 0; }
-  .wr-page .mw-setting + .mw-setting { box-shadow: inset 0 1px 0 var(--line); }
-  .wr-page .mw-setting > div:first-child { display: grid; gap: 2px; flex: 1 1 220px; min-width: 0; }
-  .wr-page .mw-setting strong { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
-  .wr-page .mw-setting p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
-  .wr-page .mw-setting > div:last-child { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; min-width: 0; }
-  .wr-page .mw-setting .mw-select { width: auto; min-width: 140px; }
-  .wr-page :is(.mw-setting, .wr-filter, .mw-ix-actions) .mw-select-picker { width: auto; min-width: 140px; }
+  /* A setting here is the settings page's own row in its card (settings-rows.ts); the card sits inside this page's titled part. */
+  .wr-page .mw-settings-section { margin: 0; }
+  .wr-page .mw-setting-row__copy > span { overflow-wrap: anywhere; }
+  .wr-page .mw-setting-row__control .mw-select { width: auto; min-width: 140px; }
+  .wr-page :is(.mw-setting-row__control, .wr-filter, .mw-ix-actions) .mw-select-picker { width: auto; min-width: 140px; }
   .wr-page .mw-stat { display: grid; align-content: start; gap: 4px; padding: 16px; min-width: 0; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--paper); }
   .wr-page .mw-stat > p { margin: 0; font-size: 12px; color: var(--muted); }
   .wr-page .mw-stat strong { font-size: 24px; line-height: 32px; font-weight: var(--weight-title, 600); color: var(--ink); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
@@ -53,7 +49,6 @@ const PAGE_STYLES = `
   .wr-block .mw-collapsible summary .mw-status { margin-left: 8px; }
   @media (max-width: 600px) {
     .mw-items > .wr-more { margin-left: 10px; }
-    .wr-page .mw-setting > div:last-child { margin-left: 0; }
     .wr-page .mw-item { align-items: flex-start; padding-block: 8px; }
     .wr-page .mw-item > span:nth-child(2) { flex-direction: column; align-items: flex-start; gap: 2px; }
     .wr-page .mw-item strong, .wr-page .mw-item small { white-space: normal; overflow-wrap: anywhere; flex: unset; }

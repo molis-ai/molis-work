@@ -5,7 +5,7 @@
  */
 export const SYNC_PROCESS_ITEMS_SCRIPT=String.raw`
     const steps=root.querySelector('[data-sync-process-items]');
-    const stepRow=(title,text,action)=>{const row=node('div','settings-setting-row'),copy=node('span','setting-copy');copy.append(node('strong','',readText(title)),node('span','settings-muted',text));row.append(copy);if(action)row.append(action);return row;};
+    const stepRow=(title,text,action)=>{const row=node('div','sync-row'),copy=node('span','setting-copy');copy.append(node('strong','',readText(title)),node('span','settings-muted',text));row.append(copy);if(action)row.append(action);return row;};
     const stepButton=(label,title,text,path)=>{const el=button(label,()=>sheet(title,node('p','',readText(text)),[[label,async()=>{const response=await request('/process-items'+path,{},'POST');if(root.isConnected){drawSteps(response.status,response);load();}}]]));el.dataset.processItemsStep=path.slice(1);return el;};
     const refusalText=(row)=>{const codes=Array.isArray(row.refusal_codes)?row.refusal_codes:[];return codes.length?codes.map(r=>readText('workbench.settings-sync.adopt-refusal.'+r.code,{...r.params,detail:r.detail})).join(readText('workbench.kit.reason-separator')):(row.refused||[]).join(readText('workbench.kit.reason-separator'));};
     const drawSteps=(view,result)=>{

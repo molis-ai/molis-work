@@ -1,5 +1,5 @@
 import type { PluginRetainedKind } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
-import { t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, renderButton, renderSettingsSection, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * 插件 in a project's settings (ac-trust T7, specs/archive/repository-anti-corruption/slices/ac-trust-install.md): what is installed in the project
  * with who signed it, what it asked for and why, what it keeps doing in the background and the agreements the person gave it; installing a
@@ -16,32 +16,22 @@ import { t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sd
 export const PLUGIN_RETAINED_ICONS = { home_library: "database", owner_files: "folder", network_credential: "key", installation_binding: "link", task_grant: "shield", declared_rule: "tune" } as const satisfies Record<PluginRetainedKind, PluginIconName>;
 
 export function renderPluginTrustSettings({ projectId, chevron, kinds }: { readText(text: string): string; projectId: string; chevron: string; kinds: Readonly<Record<string, string>> }): string {
+  // One part of the page: its title outside, one card under it. The install card's one step sits at its title's end.
+  const section = (name: string, title: string, body: string, action?: string) =>
+    renderSettingsSection({ title: uiText.text(title), id: `plugin-trust-${name}-title`, className: "settings-section", body, action });
+  const list = (name: string) => `<ul class="plugin-trust-list" data-plugin-trust-${name}><li class="settings-muted">${uiText("workbench.settings-plugins.loading")}</li></ul>`;
   return `<section class="settings-document plugin-trust-settings" aria-labelledby="plugin-trust-title" data-plugin-trust-settings data-project="${projectId}">
     <header class="settings-page-heading"><h1 id="plugin-trust-title">${uiText("workbench.settings-plugins.plugin")}</h1>
       <p>${uiText("workbench.settings-plugins.plugins-installed-project-who-signed-them-what-they")}</p></header>
     <p class="settings-form-error" data-plugin-trust-error role="alert" hidden></p>
-    <section class="settings-section mw-settings-section" aria-labelledby="plugin-trust-install-title">
-      <header class="mw-settings-section__head"><h2 id="plugin-trust-install-title">${uiText("workbench.settings-plugins.install-plugin-package")}</h2></header><div class="mw-settings-section__rows">
-      <div class="settings-setting-row"><span class="setting-copy"><span>${uiText("workbench.settings-plugins.choose-signed-plugin-package-before-anything-installed-see")}</span></span>
-        <div class="setting-value"><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-plugin-trust-choose>${uiText("workbench.settings-plugins.choose-package")}</button></div></div>
+    ${section("install", "workbench.settings-plugins.install-plugin-package", `<p class="mw-settings-section__note">${uiText("workbench.settings-plugins.choose-signed-plugin-package-before-anything-installed-see")}</p>
       <input type="file" accept=".json,application/json" hidden data-plugin-trust-pick>
-      <div data-plugin-trust-bundled hidden></div>
-      <div class="plugin-trust-preview" data-plugin-trust-preview hidden></div>
-    </div></section>
-    <section class="settings-section mw-settings-section" aria-labelledby="plugin-trust-list-title">
-      <header class="mw-settings-section__head"><h2 id="plugin-trust-list-title">${uiText("workbench.settings-plugins.installed-plugins")}</h2></header><div class="mw-settings-section__rows">
-      <ul class="plugin-trust-list" data-plugin-trust-list><li class="settings-muted">${uiText("workbench.settings-plugins.loading")}</li></ul>
-    </div></section>
-    <section class="settings-section mw-settings-section" aria-labelledby="plugin-trust-home-title">
-      <header class="mw-settings-section__head"><h2 id="plugin-trust-home-title">${uiText("workbench.settings-plugins.plugins-personal-space")}</h2></header><div class="mw-settings-section__rows">
-      <p class="mw-settings-section__note">${uiText("workbench.settings-plugins.these-plugins-run-personal-space-one-copy-shared")}</p>
-      <ul class="plugin-trust-list" data-plugin-trust-home><li class="settings-muted">${uiText("workbench.settings-plugins.loading")}</li></ul>
-    </div></section>
-    <section class="settings-section mw-settings-section" aria-labelledby="plugin-trust-publishers-title">
-      <header class="mw-settings-section__head"><h2 id="plugin-trust-publishers-title">${uiText("workbench.settings-plugins.publishers-trust")}</h2></header><div class="mw-settings-section__rows">
-      <p class="mw-settings-section__note">${uiText("workbench.settings-plugins.publishers-have-pinned-packages-they-sign-later-installed")}</p>
-      <ul class="plugin-trust-list" data-plugin-trust-publishers><li class="settings-muted">${uiText("workbench.settings-plugins.loading")}</li></ul>
-    </div></section>
+      <div class="mw-settings-section__block plugin-trust-bundled" data-plugin-trust-bundled hidden></div>
+      <div class="plugin-trust-preview" data-plugin-trust-preview hidden></div>`,
+      renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.settings-plugins.choose-package"), attrs: { "data-plugin-trust-choose": true } }))}
+    ${section("list", "workbench.settings-plugins.installed-plugins", list("list"))}
+    ${section("home", "workbench.settings-plugins.plugins-personal-space", `<p class="mw-settings-section__note">${uiText("workbench.settings-plugins.these-plugins-run-personal-space-one-copy-shared")}</p>${list("home")}`)}
+    ${section("publishers", "workbench.settings-plugins.publishers-trust", `<p class="mw-settings-section__note">${uiText("workbench.settings-plugins.publishers-have-pinned-packages-they-sign-later-installed")}</p>${list("publishers")}`)}
     <template data-plugin-trust-chevron>${chevron}</template>
     ${Object.entries(kinds).map(([kind, mark]) => `<template data-plugin-trust-kind="${kind}">${mark}</template>`).join("")}
   </section>`;

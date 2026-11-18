@@ -137,7 +137,7 @@ test("UIV-21: settings over the pages hands the bar back to the Assistant and re
   await browser.evaluate("document.querySelector('[data-directory-panel=settings] [data-settings-section=access]').click()");
   // POLISH-30: before a client is chosen 对外接入 draws no empty card; the last row of its one card says what to do next (the
   // sentence the empty card used to carry), and that sentence still starts on a line of its own under the row's name.
-  const STEP = "[data-work-surface=settings] .mcp-access-scope div.mw-setting-row > .mw-setting-row__copy";
+  const STEP = "[data-work-surface=settings] [data-mcp-access-step] > .mw-setting-row__copy";
   await browser.waitFor(`Boolean(document.querySelector('${STEP} > span'))`, 15_000);
   assert.equal(await browser.evaluate("document.querySelector('[data-work-surface=settings] .mcp-access .settings-empty')"), null, "no empty card before a client is chosen");
   assert.deepEqual(await browser.evaluate(`(() => { const step = document.querySelector('${STEP}'), title = step.querySelector('strong').getBoundingClientRect(), note = step.querySelector('span').getBoundingClientRect();

@@ -197,9 +197,9 @@ test('PCSYNC-16 cloud history is discoverable without local history, paginated a
     assert.equal(await b.evaluate("(()=>{const dialog=document.querySelector('[data-sync-dialog][open]'),outer=dialog.getBoundingClientRect();return [...dialog.querySelectorAll('button')].every(button=>{const r=button.getBoundingClientRect();return r.left>=outer.left&&r.right<=outer.right&&r.top>=outer.top&&r.bottom<=outer.bottom})})()"),true,'long identifiers must never push visible actions outside the modal');
     const shot=await b.command<{data:string}>('Page.captureScreenshot',{format:'png'},b.sessionId);await writeFile('.impeccable/qa/review/cloud-history-'+width+'-'+theme+'.png',Buffer.from(shot.data,'base64'));
   }
-  await b.click('[data-sync-dialog][open] .settings-setting-row button');await b.waitFor("document.querySelectorAll('[data-sync-dialog][open]').length===2");
-  await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open]')].at(-1)?.querySelector('.mw-form__body .settings-setting-row button')");
-  await b.click('[data-sync-dialog][open]:last-of-type .settings-setting-row button');await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open] pre')].some(pre=>pre.textContent.includes('云端保留正文'))");
+  await b.click('[data-sync-dialog][open] .sync-row button');await b.waitFor("document.querySelectorAll('[data-sync-dialog][open]').length===2");
+  await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open]')].at(-1)?.querySelector('.mw-form__body .sync-row button')");
+  await b.click('[data-sync-dialog][open]:last-of-type .sync-row button');await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open] pre')].some(pre=>pre.textContent.includes('云端保留正文'))");
   assert.equal(await b.evaluate('window.historyInjected===undefined'),true);
   await b.evaluate("[...document.querySelectorAll('[data-sync-dialog][open]')].at(-1).querySelector('footer button').click()");await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open] [role=alert]')].some(p=>p.textContent.includes('synthetic restore failure'))");
   assert.equal(await b.evaluate("document.querySelectorAll('[data-sync-dialog][open]').length"),3,'failed restore keeps the inspected preview');
@@ -207,8 +207,8 @@ test('PCSYNC-16 cloud history is discoverable without local history, paginated a
   assert.deepEqual(await b.evaluate('window.historyRestores[0]'),await b.evaluate('window.historyRestores[1]'));assert.equal(await b.evaluate('window.historyRestores[0].revision'),8);assert.equal(await b.evaluate('window.historyRestores[0].sourceRevision'),7);
   await b.evaluate("[...document.querySelectorAll('[data-sync-history] button')].find(button=>button.textContent==='云端保留版本').click()");await b.waitFor("document.querySelector('[data-sync-dialog][open] code')?.textContent==='asset'");
   await b.evaluate("[...document.querySelectorAll('[data-sync-dialog][open] button')].find(button=>button.textContent==='查看版本').click()");await b.waitFor("document.querySelectorAll('[data-sync-dialog][open]').length===2");
-  await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open]')].at(-1)?.querySelector('.mw-form__body .settings-setting-row button')");
-  await b.click('[data-sync-dialog][open]:last-of-type .settings-setting-row button');await b.waitFor("document.querySelectorAll('[data-sync-dialog][open]').length===3");
+  await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open]')].at(-1)?.querySelector('.mw-form__body .sync-row button')");
+  await b.click('[data-sync-dialog][open]:last-of-type .sync-row button');await b.waitFor("document.querySelectorAll('[data-sync-dialog][open]').length===3");
   assert.equal(await b.evaluate("[...document.querySelectorAll('[data-sync-dialog][open] button')].some(button=>button.textContent==='删除云端版本')"),false);
   assert.equal(await b.evaluate('window.historyPurges.length'),0,'PTR-01 retained cloud versions cannot be purged by the trial UI');
 });
@@ -261,7 +261,7 @@ test('BSH-14-D sync settings show the four process-item steps in order, a button
   })();`},b.sessionId);
   await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/settings/sync'},b.sessionId));
   await b.waitFor("document.querySelector('[data-sync-process-items]')?.hidden===false");
-  const rows=()=>b.evaluate<string[]>("[...document.querySelectorAll('[data-sync-process-items] .settings-setting-row')].map(row=>row.textContent)");
+  const rows=()=>b.evaluate<string[]>("[...document.querySelectorAll('[data-sync-process-items] .sync-row')].map(row=>row.textContent)");
   const buttons=()=>b.evaluate<string[]>("[...document.querySelectorAll('[data-sync-process-items] button')].map(el=>el.dataset.processItemsStep)");
   let text=await rows();
   assert.equal(text.length,4);

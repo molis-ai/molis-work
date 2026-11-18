@@ -20,7 +20,10 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // trusted-decision `data-review-version` attributes, unified authorization settings navigation, and retired `policy_bindings` removal.
 // Screen polish P5 (#2127, POLISH-29, POLISH-30) re-recorded the sixteen page-* and four settings-general entries for two intended changes,
 // checked line by line against main's drawing: the appearance page's ⓘ became one sentence under the title, and the project's maintenance
-// section became a title over one card.
+// section became a title over one card. Its second part (POLISH-29) re-recorded the same twenty for one intended change, checked hunk by
+// hunk against the drawing of #2127's head (4aae9decfa): the four appearance preference rows and the project's name and AI-tool rows are
+// now drawn by the SDK's setting row and section (the form error moved under the sentence, each choice group and field is named by its
+// row's title); nothing outside those two sections changed and the other 32 records did not move.
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);

@@ -1,5 +1,5 @@
 import { renderInteractionOptions } from "@molis-ai/molis-work-design-system";
-import { t as uiText, icon as uiIcon, renderAlert, renderButton, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, icon as uiIcon, renderAlert, renderButton, renderSettingRow, renderSettingsSection, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** Standalone hub / embed fold stack. Workbench exclusive settings use project-settings-stage. */
@@ -27,10 +27,15 @@ interface ProjectSettingsFoldsPrimitives {
   projectDeletionLabels?(): readonly string[];
 }
 
-function renderMissingPlugins(project: ProjectSettingsFoldProject, { escapeHtml }: Pick<ProjectSettingsFoldsPrimitives, "readText" | "escapeHtml">): string {
+function renderMissingPlugins(project: ProjectSettingsFoldProject, _primitives: Pick<ProjectSettingsFoldsPrimitives, "readText" | "escapeHtml">): string {
   const missing = (project.plugin_requirements ?? []).filter(plugin => !plugin.installed);
   if (!missing.length) return "";
-  return `<section class="settings-section mw-settings-section" data-project-missing-plugins><header class="mw-settings-section__head"><h2>${uiText("workbench.project-settings-folds.missing-plugins")}</h2></header><div class="mw-settings-section__rows">${missing.map(plugin => `<div class="settings-setting-row"><span class="setting-copy"><strong>${(plugin.plugin_id.match(/.{1,24}/gu) ?? []).map(escapeHtml).join("<wbr>")}</strong><span>${uiText("workbench.project-settings-folds.install-plugin-device-synced-content-kept")}</span></span><div class="setting-value">${renderStatusMark({ label: uiText.text("workbench.project-settings-folds.not-installed"), plain: true })}</div></div>`).join("")}</div></section>`;
+  // A plugin's id has no place to break, so the row lets it break anywhere (`project-missing-plugin`) and never runs past the card.
+  return renderSettingsSection({
+    title: uiText.text("workbench.project-settings-folds.missing-plugins"), className: "settings-section", attrs: { "data-project-missing-plugins": true },
+    body: missing.map(plugin => renderSettingRow({ name: plugin.plugin_id, className: "project-missing-plugin", hint: uiText.text("workbench.project-settings-folds.install-plugin-device-synced-content-kept"),
+      control: renderStatusMark({ label: uiText.text("workbench.project-settings-folds.not-installed"), plain: true }) })).join(""),
+  });
 }
 
 /**
@@ -111,20 +116,19 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
     const safe = escapeHtml(project.project_id);
     return `<section class="project-settings-page" data-project-pane="${safe}" data-settings-panel="general">
       <header class="settings-page-heading"><h1>${uiText("workbench.project-settings-folds.general")}</h1><p>${uiText("workbench.project-settings-folds.manage-project-name-data-stored-device")}</p></header>
-      <section class="settings-section" aria-label="${uiText("workbench.project-settings-folds.project-information")}">
-        <form class="settings-setting-row project-name-form" data-project-rename="${safe}" data-project-observed-name="${escapeHtml(project.display_name)}">
-          <label class="setting-copy" for="project-display-name"><strong>${uiText("workbench.project-settings-folds.project-name")}</strong><span>${uiText("workbench.project-settings-folds.shown-project-lists-navigation-workspace")}</span></label>
-          <div class="setting-value"><input id="project-display-name" name="display_name" type="text" value="${escapeHtml(project.display_name)}" required maxlength="160"><button class="mw-btn mw-btn--secondary" type="submit">${uiText("workbench.project-settings-folds.save-name")}</button></div>
-          <p class="settings-form-error" role="alert" hidden></p>
-        </form>
-        <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${uiText("workbench.project-settings-folds.local-data")}</strong><span>${uiText("workbench.project-settings-folds.view-project-id-database-location")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>${uiText("workbench.project-settings-folds.project-id")}</dt><dd>${safe}</dd></div>${project.database_path ? `<div><dt>${uiText("workbench.project-settings-folds.data-file")}</dt><dd>${escapeHtml(project.database_path)}</dd></div>` : ""}</dl></details>
-      </section>
+      ${renderSettingsSection({ className: "settings-section", attrs: { "aria-label": uiText.text("workbench.project-settings-folds.project-information") }, body: `
+        <form class="project-name-form" data-project-rename="${safe}" data-project-observed-name="${escapeHtml(project.display_name)}">${renderSettingRow({
+          name: uiText.text("workbench.project-settings-folds.project-name"), nameAttrs: { id: "project-display-name-label" }, hint: uiText.text("workbench.project-settings-folds.shown-project-lists-navigation-workspace"),
+          detail: `<small class="settings-form-error" role="alert" hidden></small>`,
+          control: `<input id="project-display-name" name="display_name" type="text" value="${escapeHtml(project.display_name)}" required maxlength="160" aria-labelledby="project-display-name-label"><button class="mw-btn mw-btn--secondary" type="submit">${uiText("workbench.project-settings-folds.save-name")}</button>`,
+        })}</form>
+        <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${uiText("workbench.project-settings-folds.local-data")}</strong><span>${uiText("workbench.project-settings-folds.view-project-id-database-location")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>${uiText("workbench.project-settings-folds.project-id")}</dt><dd>${safe}</dd></div>${project.database_path ? `<div><dt>${uiText("workbench.project-settings-folds.data-file")}</dt><dd>${escapeHtml(project.database_path)}</dd></div>` : ""}</dl></details>` })}
       ${renderMissingPlugins(project, primitives)}
-      <section class="settings-section" data-project-runtime data-runtime-prefix="/projects/${encodeURIComponent(project.project_id)}" hidden>
-        <div class="settings-setting-row"><label class="setting-copy" for="project-runtime"><strong>${uiText("workbench.project-settings-folds.agent-runtime")}</strong><span>${uiText("workbench.project-settings-folds.which-runtime-project-s-new-sessions-run-default")}</span></label>
-          <div class="setting-value"><select id="project-runtime"></select></div><p class="settings-form-error" role="alert" hidden></p></div>
-      </section>
-      <section class="settings-section mw-settings-section settings-project-maintenance"><header class="mw-settings-section__head"><h2>${uiText("workbench.project-settings-folds.project-management")}</h2></header><div class="mw-settings-section__rows">${renderDanger(project)}</div></section>
+      ${renderSettingsSection({ className: "settings-section", attrs: { "data-project-runtime": true, "data-runtime-prefix": `/projects/${encodeURIComponent(project.project_id)}`, hidden: true }, body: renderSettingRow({
+        name: uiText.text("workbench.project-settings-folds.agent-runtime"), nameAttrs: { id: "project-runtime-label" }, hint: uiText.text("workbench.project-settings-folds.which-runtime-project-s-new-sessions-run-default"),
+        detail: `<small class="settings-form-error" role="alert" hidden></small>`, control: `<select id="project-runtime" aria-labelledby="project-runtime-label"></select>`,
+      }) })}
+      ${renderSettingsSection({ title: uiText.text("workbench.project-settings-folds.project-management"), className: "settings-section settings-project-maintenance", body: renderDanger(project) })}
       ${renderProjectDeleteDialog(project, desktopShell, primitives)}
     </section>`;
   }

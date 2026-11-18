@@ -59,7 +59,7 @@ test("PCSYNC-20 missing plugin hints inspect actual local installations without 
     assert.equal(await evaluate("document.documentElement.dataset.resolvedTheme"), theme);
     await evaluate("document.querySelector('[data-project-missing-plugins]').scrollIntoView({block:'center'})");
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
-    assert.equal(await evaluate("Array.from(document.querySelectorAll('[data-project-missing-plugins] .settings-setting-row')).every(row=>row.scrollWidth<=row.clientWidth)"), true);
+    assert.equal(await evaluate("Array.from(document.querySelectorAll('[data-project-missing-plugins] .mw-setting-row')).every(row=>row.scrollWidth<=row.clientWidth)"), true);
     assert.equal(await evaluate("Array.from(document.querySelectorAll('[data-project-missing-plugins] [data-slot=status]')).every(mark=>{const rect=mark.getBoundingClientRect();return rect.height<=22&&rect.width<80})"), true, "installation status must neither wrap vertically nor stretch into a full-width bar");
     const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(`.impeccable/qa/review/project-missing-plugins-${width}-${theme}.png`, Buffer.from(shot.data, "base64"));
@@ -156,10 +156,11 @@ test("settings serve complete category pages; the project gear opens them in the
     labelFromStart: number;
   }>(`(() => {
     const title = document.querySelector('[data-work-surface=project-settings] h1');
-    const card = document.querySelector('[data-work-surface=project-settings] .settings-section');
-    const row = document.querySelector('[data-work-surface=project-settings] .settings-setting-row');
-    const copy = row?.querySelector('.setting-copy');
-    const value = row?.querySelector('.setting-value');
+    // The card is the section's rows: the section itself is the title (when it has one) over that card.
+    const card = document.querySelector('[data-work-surface=project-settings] .settings-section > .mw-settings-section__rows');
+    const row = document.querySelector('[data-work-surface=project-settings] .mw-setting-row');
+    const copy = row?.querySelector('.mw-setting-row__copy');
+    const value = row?.querySelector('.mw-setting-row__control');
     const nav = document.querySelector('[data-directory-panel=project-settings] [data-settings-section="general"]');
     const icon = nav?.querySelector('.mw-dir-row__icon');
     const label = nav?.querySelector('.mw-dir-row__copy');

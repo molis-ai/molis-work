@@ -18,9 +18,9 @@ export const SYNC_CLOUD_HISTORY_SCRIPT=String.raw`
     const cloudHistory=(collection)=>{
       const ns=namespace(collection.selection),spaceId=state?.policy?.spaceId,query='?namespace='+encodeURIComponent(ns);
       const keys=historyList("workbench.settings-sync-history.cloud-history",after=>request('/history/keys'+query+(after===undefined?'':'&after='+encodeURIComponent(after))),item=>{
-        const entry=node('div','settings-setting-row');entry.append(historyKey(item.key,true),button("workbench.settings-sync-history.view-versions",()=>{
+        const entry=node('div','sync-row');entry.append(historyKey(item.key,true),button("workbench.settings-sync-history.view-versions",()=>{
           const versions=historyList("workbench.settings-sync-history.cloud-history",before=>request('/history'+query+'&key='+encodeURIComponent(item.key)+(before===undefined?'':'&before='+before)),version=>{
-            const row=node('div','settings-setting-row'),label=globalThis.t.text(version.current ? "workbench.settings-sync-history.current-version-at" : "workbench.settings-sync-history.version-at", { revision: version.revision, date: { kind: "date", at: version.createdAt, style: "datetime-with-seconds" } });
+            const row=node('div','sync-row'),label=globalThis.t.text(version.current ? "workbench.settings-sync-history.current-version-at" : "workbench.settings-sync-history.version-at", { revision: version.revision, date: { kind: "date", at: version.createdAt, style: "datetime-with-seconds" } });
             row.append(node('span','',label),button("workbench.settings-sync-history.details",async()=>{
               try{
               const view=await request('/history/version'+query+'&key='+encodeURIComponent(item.key)+'&revision='+version.revision);

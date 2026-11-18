@@ -1,0 +1,8 @@
+{
+  "reason": "逐屏打磨 P5 第二段：同一种设置行只留 SDK 一种写法。角色页和工作记录是在浏览器里画行的，原来在脚本里手拼 mw-setting-row、mw-settings-section 的标记，换成 SDK 的 renderSettingRow、renderSettingsSection 以后，这两个函数本身进了它们的脚本。同一次改动里设置样式、工作台样式、工作台脚本、Shelf 样式、会话页脚本都变小了（删掉旧的 .settings-setting-row、.setting-value、SETTING_ROW_STYLES）。没有新增资源，单项都远低于 10 KB。",
+  "review": "specs/screen-polish/p5-settings.md「页面体积」与分支 feat/screen-polish-p5-settings-2 的 PR 评审。本机对照第一段的版本（4aae9decfa，#2127 的最终提交）的隔离构建实测（node scripts/gates/page-assets.mjs --report --json 两边各量一次，2026-11-18）：角色页脚本 +893、工作记录脚本 +410；设置样式 -358、工作台样式 -454、工作台脚本 -42、Shelf 样式 -80、会话页脚本 -18。",
+  "assets": {
+    "/assets/molis-work-plugins/characters.js": 893,
+    "/assets/molis-work-work-records.js": 410
+  }
+}

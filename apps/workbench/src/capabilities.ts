@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderSettingsSection, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ActionSceneUsage, ActionSceneView, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { SettingsRenderPrimitives } from "./settings-renderer.js";
@@ -91,7 +91,7 @@ export function createCapabilitiesRenderer(p: SettingsRenderPrimitives, model: C
     const judgments = model.history?.length ? `<div class="capability-history">${model.history.map(row => `<article><header><strong>${e(row.function_key)} · v${row.function_version}</strong><span>${e(row.outcome)}</span></header><p>${e(row.scene_id ?? uiText.text("workbench.capabilities.direct-call"))} · ${e(row.subject.id)}</p><time datetime="${e(row.created_at)}">${e(row.created_at)}</time>${row.error_code ? `<p>${uiText("workbench.capabilities.reason-failure")}${uiText("common.punctuation.label-separator")}${e(row.error_code)}</p>` : ""}${row.suggested_behavior_ids.length ? `<p>${uiText("workbench.capabilities.recommendation")}${uiText("common.punctuation.label-separator")}${e(row.suggested_behavior_ids.join(", "))}</p>` : ""}</article>`).join("")}</div>`
       : `<div class="settings-empty"><strong>${uiText("workbench.capabilities.no-judgment-records-scope")}</strong><span>${uiText("workbench.capabilities.records-appear-here-after-rule-runs-saves-its")}</span></div>`;
     return `<section class="settings-document"><header class="settings-heading"><h1>${uiText("workbench.capabilities.call-history")}</h1><p>${uiText("workbench.capabilities.recent-operations-saved-judgments-only-who-called-what")}</p><p>${uiText("workbench.capabilities.each-record-has-diagnostic-id-copy-look-up", { link: "\uFFF0" }).replace("\uFFF0", `<a href="${e(p.settingsContextHref("/settings/diagnostics", project, desktop))}">${uiText("workbench.capabilities.settings-diagnostics")}</a>`)}</p>${scopeForm()}</header>`
-      + `<section class="mw-settings-section"><header class="mw-settings-section__head"><h2>${uiText("workbench.capabilities.action")}</h2></header><div class="mw-settings-section__rows">${callList}</div></section><section class="mw-settings-section"><header class="mw-settings-section__head"><h2>${uiText("workbench.capabilities.judgments")}</h2></header><div class="mw-settings-section__rows">${judgments}</div></section></section>`;
+      + `${renderSettingsSection({ title: uiText.text("workbench.capabilities.action"), body: callList })}${renderSettingsSection({ title: uiText.text("workbench.capabilities.judgments"), body: judgments })}</section>`;
   }
   return { navigation, library, history };
 }

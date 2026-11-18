@@ -7,6 +7,9 @@ export const PLUGIN_TRUST_SETTINGS_STYLES = `
   .plugin-trust-settings .plugin-trust-rows > li { display: flex; flex-direction: column; gap: 2px; padding: 6px 0; overflow-wrap: anywhere; }
   .plugin-trust-settings .plugin-trust-rows > li > :first-child { font-weight: 500; }
   .plugin-trust-settings .plugin-trust-rows > li > :is(.mw-btn, .mw-switch) { align-self: flex-start; margin-top: 4px; }
+  .plugin-trust-settings .plugin-trust-bundled { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .plugin-trust-settings .plugin-trust-bundled > :is(h3, p) { flex: 0 0 100%; margin: 0; }
+  .plugin-trust-settings .plugin-trust-bundled > h3 { color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
   .plugin-trust-settings .plugin-trust-preview { margin-top: 16px; padding: 16px; border-radius: 12px; box-shadow: 0 0 0 1px var(--line); }
   .plugin-trust-settings .plugin-trust-review { display: flex; flex-direction: column; gap: 16px; font-size: 13px; }
   .plugin-trust-settings .plugin-trust-review h3 { margin: 0; font-size: 15px; font-weight: 600; }

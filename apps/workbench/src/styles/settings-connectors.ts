@@ -33,16 +33,17 @@ export const CONNECTOR_EXPERIENCE_STYLES = `${SERVICE_CONNECTION_ITEM_STYLES}
   .settings-connection-account, .settings-connection-manage { display: grid; gap: 12px; min-width: 0; }
   .mw-card.connection-facts { width: auto; max-width: 100%; container: connection-facts / inline-size; }
   .connection-facts .mw-card__panel { padding: 0 16px; }
-  .connection-facts .settings-setting-row { padding: 10px 0; gap: 16px; flex-direction: row; align-items: center; }
-  .connection-facts .settings-setting-row:last-child { border-bottom: 0; }
-  .connection-facts .setting-copy { flex: 1 1 auto; }
-  .connection-facts .setting-copy > strong { font-size: 13px; white-space: nowrap; }
-  .connection-facts .setting-copy > span { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .connection-facts .setting-value { flex: 0 1 auto; min-width: 0; max-width: 60%; flex-wrap: nowrap; justify-content: flex-end; color: var(--ink); font-size: 13px; }
-  .connection-facts .setting-value > :is(strong, span) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .connection-facts .setting-value > strong { font-weight: 500; }
-  .connection-facts .setting-value > [data-connection-state], .connection-facts [data-connection-retry-at] { display: flex; }
-  .connection-facts .setting-value .mw-status { max-width: 100%; min-width: 0; }
+  /* Four setting rows (settings-rows.ts) whose control is a fact: each stays on one line, the fact cut short before its name is. */
+  .connection-facts .mw-setting-row { flex-wrap: nowrap; padding: 10px 0; gap: 16px; }
+  .connection-facts .mw-setting-row:last-child { border-bottom: 0; }
+  .connection-facts .mw-setting-row__copy { flex: 1 1 auto; }
+  .connection-facts .mw-setting-row__copy > strong { white-space: nowrap; }
+  .connection-facts .mw-setting-row__copy > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .connection-facts .mw-setting-row__control { flex: 0 1 auto; min-width: 0; max-width: 60%; flex-wrap: nowrap; color: var(--ink); }
+  .connection-facts .mw-setting-row__control > :is(strong, span) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .connection-facts .mw-setting-row__control > strong { font-weight: 500; }
+  .connection-facts .mw-setting-row__control > [data-connection-state], .connection-facts [data-connection-retry-at] { display: flex; }
+  .connection-facts .mw-setting-row__control .mw-status { max-width: 100%; min-width: 0; }
   .connection-facts .mw-status > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .connection-facts small { color: var(--muted); font-size: 12px; }
   [data-connectors-settings] :is(.settings-connection-account, .settings-connection-manage, .settings-connection-switch) .settings-connection-row__actions { grid-column: auto; border-top: 0; padding-top: 0; }
@@ -125,7 +126,8 @@ export const CONNECTOR_EXPERIENCE_STYLES = `${SERVICE_CONNECTION_ITEM_STYLES}
   /* Narrow content (a phone, or a window whose content area is narrow beside the sidebar): each fact's value goes under its label,
      flush left with it, still one line each. The card's own width decides, not the window's. */
   @container connection-facts (max-width: 600px) {
-    [data-connectors-settings] .connection-facts .settings-setting-row { flex-direction: column; align-items: stretch; gap: 4px; }
-    .connection-facts .setting-value { max-width: 100%; justify-content: flex-start; text-align: start; }
+    [data-connectors-settings] .connection-facts .mw-setting-row { flex-direction: column; align-items: stretch; gap: 4px; }
+    .connection-facts .mw-setting-row__copy { flex: none; }
+    .connection-facts .mw-setting-row__control { max-width: 100%; justify-content: flex-start; text-align: start; }
   }
 `;

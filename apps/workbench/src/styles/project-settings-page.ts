@@ -35,21 +35,20 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
   :is(.project-preferences-page, .settings-stage) .settings-section + .settings-section { margin-top: 0; }
   :is(.project-preferences-page, .settings-stage) :is(.settings-section > h2) { margin: 12px 0 4px; font-size: 13px; font-weight: var(--weight-title, 600); letter-spacing: -.01em; }
   .assistant-capability-effect { color: var(--muted); font-size: 12px; white-space: nowrap; }
-  .settings-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; min-height: 60px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  /* 同步 draws its lines in its own program and cannot be opened without a signed-in space, so its row keeps the layout it had (specs/screen-polish/p5-settings.md). */
+  .sync-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; min-height: 60px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); }
   :is(.project-preferences-page, .settings-stage) .settings-section:not(.mw-settings-section) > :last-child { border-bottom: 0; }
-  :is(.project-preferences-page, .settings-stage) :is(.settings-section, .mcp-access) .settings-empty { display: grid; gap: 4px; padding: 12px 0 16px; }
-  :is(.project-preferences-page, .settings-stage) :is(.settings-section, .mcp-access) .settings-empty strong { font-size: 15px; color: var(--ink); }
-  :is(.project-preferences-page, .settings-stage) :is(.settings-section, .mcp-access) .settings-empty span { color: var(--muted); font-size: 13px; line-height: 1.5; }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-section, .mw-settings-section, .mcp-access) .settings-empty { display: grid; gap: 4px; padding: 12px 0 16px; }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-section, .mw-settings-section, .mcp-access) .settings-empty strong { font-size: 15px; color: var(--ink); }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-section, .mw-settings-section, .mcp-access) .settings-empty span { color: var(--muted); font-size: 13px; line-height: 1.5; }
   .setting-copy { display: grid; gap: 4px; min-width: 0; color: var(--ink); }
   .setting-copy > strong { font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.4; }
   .setting-copy > span { color: var(--muted); font-size: 12px; line-height: 1.5; }
   body.settings-page .settings-navigation--codex .settings-nav-body > a { gap: 12px; }
   body.settings-page .settings-navigation--codex .settings-nav-body > a svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
   .setting-number { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; }
-  .setting-value { display: flex; align-items: center; flex: none; flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: 100%; }
-  .project-name-form { flex-wrap: wrap; }
   .project-name-form input { width: 220px; min-width: 0; }
-  .project-name-form .settings-form-error { flex-basis: 100%; margin: 0; }
+  .project-missing-plugin .mw-setting-row__copy > strong { overflow-wrap: anywhere; }
   :is(.project-preferences-page, .settings-stage) :is(input:not([type=checkbox]):not([type=radio]), select, textarea) { max-width: 100%; min-height: 36px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; font-size: 13px; box-shadow: var(--lift-1); }
   :is(.project-preferences-page, .settings-stage) select { padding-right: 32px; }
   :is(.project-preferences-page, .settings-stage) textarea { width: 100%; resize: vertical; line-height: 1.65; }
@@ -70,7 +69,6 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
   :is(.project-preferences-page, .settings-stage) .project-manager-danger h3 { margin: 0 0 8px; font-size: 13px; font-weight: var(--weight-title, 600); }
   :is(.project-preferences-page, .settings-stage) .project-manager-danger p { max-width: 62ch; margin: 0 0 16px; font-size: 12px; line-height: 1.65; color: var(--muted); }
   :is(.project-preferences-page, .settings-stage) .project-manager-danger-actions { display: flex; gap: 8px; }
-  :is(.project-preferences-page, .settings-stage) .settings-toggle-row { cursor: pointer; }
   :is(.project-preferences-page, .settings-stage) input.settings-switch { appearance: none; position: relative; flex: none; width: 34px; height: 20px; margin: 0; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--line-strong); cursor: pointer; }
   :is(.project-preferences-page, .settings-stage) input.settings-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--paper); box-shadow: var(--lift-1); transition: transform 130ms var(--ease-quint); }
   :is(.project-preferences-page, .settings-stage) input.settings-switch:checked { background: var(--ink); border-color: var(--ink); }
@@ -78,12 +76,8 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
   :is(.project-preferences-page, .settings-stage) .settings-last-change { display: grid; gap: 4px; margin: 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
   :is(.project-preferences-page, .settings-stage) .settings-last-change strong { color: var(--ink); font-size: 15px; font-weight: var(--weight-control, 500); }
   :is(.project-preferences-page, .settings-stage) .settings-rules-form { margin: 0; }
-  :is(.project-preferences-page, .settings-stage) .settings-section .settings-data-disclosure .settings-setting-row:last-child { border: 0; }
+  :is(.project-preferences-page, .settings-stage) .settings-section .settings-data-disclosure .sync-row:last-child { border: 0; }
   :is(.project-preferences-page, .settings-stage) .settings-section .settings-data-disclosure > :not(summary) { padding-bottom: 8px; }
-  :is(.project-preferences-page, .settings-stage) .settings-setting-row > input:not([type=checkbox]) { width: 240px; }
-  :is(.project-preferences-page, .settings-stage) .settings-setting-row > .mw-select-picker { width: 240px; flex: none; margin-left: auto; }
-  :is(.project-preferences-page, .settings-stage) .settings-setting-row > .mw-select-picker > .mw-select-picker__trigger { width: 100%; }
-  :is(.project-preferences-page, .settings-stage) .settings-setting-row input[type=number] { width: 90px; }
   :is(.project-preferences-page, .settings-stage) .settings-change-reason { display: grid; gap: 12px; padding-top: 12px; padding-bottom: 12px; }
   :is(.project-preferences-page, .settings-stage) .settings-change-reason .settings-save-footer { margin: 4px 0 0; }
   :is(.project-preferences-page, .settings-stage) .settings-save-footer { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-top: 24px; padding: 0; border: 0; }
@@ -143,10 +137,9 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
     :is(body.project-preferences-page, .settings-stage) .settings-content { padding: 24px 24px 48px; scrollbar-gutter: auto; }
     :is(.project-preferences-page, .settings-stage) :is(.guidance-page-header) { gap: 16px; flex-wrap: wrap; }
     :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading, .guidance-page-header) h1 { font-size: 20px; }
-    .settings-setting-row { gap: 16px; }
-    :is(.project-preferences-page, .settings-stage) .settings-setting-row:not(.settings-toggle-row) { align-items: stretch; flex-direction: column; }
-    .setting-value { flex: auto; }
-    .project-name-form .setting-value input { flex: 1; width: 100%; }
+    .sync-row { align-items: stretch; flex-direction: column; }
+    .project-name-form .mw-setting-row__control { flex: 1 1 100%; flex-wrap: nowrap; }
+    .project-name-form .mw-setting-row__control input { flex: 1; width: auto; }
     :is(.project-preferences-page, .settings-stage) :is(input:not([type=checkbox]):not([type=radio]), select, textarea) { font-size: 16px; min-height: 44px; }
     :is(.project-preferences-page, .settings-stage) button { min-height: 44px; }
     :is(.project-preferences-page, .settings-stage) .settings-save-footer { flex-direction: column; align-items: stretch; }

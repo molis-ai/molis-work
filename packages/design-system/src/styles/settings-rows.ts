@@ -3,26 +3,27 @@
  * `renderListToolbar`; specs/screen-polish/p5-settings.md). Every settings page is the same thing: a title, then one card of rows, one
  * control to a row. Both rows that open are `<details>`: an object row folds on the shared clock (`DISCLOSURE_STYLES`), and what
  * a setting row opens onto rises in without a height animation (`craft-rise`), as the plan's motion table has it.
- * The component board's 设置的行 section is their specimen.
- *
- * Not `SETTING_ROW_STYLES` (`.mw-setting`), the older row the work records and the session sources still draw; the pages move
- * to these rows and that constant goes when the last of them has (specs/screen-polish/p5-settings.md「铺开」).
+ * The component board's 设置的行 section is their specimen. They are the only setting rows there are: a page that needs a row of
+ * another shape (a folder, a role, a project's permit) gives it its own class and borrows none of these.
  */
 export const SETTINGS_DOCUMENT_STYLES = `
   .mw-settings-section { min-width: 0; margin: 32px 0 0; padding: 0; border: 0; background: none; }
   .mw-settings-section[hidden] { display: none; }
   .mw-settings-section__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; margin: 0 0 8px; }
   .mw-settings-section__head > h2 { min-width: 0; margin: 0; color: var(--ink); font-size: 15px; font-weight: var(--weight-title, 600); line-height: 1.4; letter-spacing: -.01em; }
-  /* One card per section; the last hairline inside it is tucked under the card's own edge. */
+  /* One card per section; the last hairline inside it is tucked under the card's own edge. The last thing shown, that is: a message
+     kept hidden at the end of the card (an error that has not happened) or a template is not it. The rule weighs what
+     a plain last-child rule weighed, so a page's own margin on its last block still wins as it did. */
   .mw-settings-section__rows { min-width: 0; padding: 0 16px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-card, 12px); background: var(--paper); }
-  .mw-settings-section__rows > :last-child { margin-bottom: -1px; }
+  .mw-settings-section__rows > :not([hidden], template):where(:not(:has(~ :not([hidden], template)))) { margin-bottom: -1px; }
   .mw-settings-section__note { margin: 0; padding: 16px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.5; }
   /* What a card holds that is not a row (a form, a group under its own small heading): ruled off like a row, on the note's padding. */
   .mw-settings-section__block { min-width: 0; margin: 0; padding: 16px 0; border-bottom: 1px solid var(--line); color: var(--ink-soft); font-size: 13px; line-height: 1.5; }
 
   .mw-setting-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; min-width: 0; min-height: 60px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); box-sizing: border-box; }
   label.mw-setting-row { cursor: pointer; }
-  .mw-setting-row__copy { flex: 1 1 200px; min-width: 0; display: grid; gap: 2px; }
+  /* A path or an id in the sentence breaks where it has to, so it never runs past the card. */
+  .mw-setting-row__copy { flex: 1 1 200px; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; overflow-wrap: anywhere; }
   .mw-setting-row__copy > strong { color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.4; }
   .mw-setting-row__copy > span { color: var(--muted); font-size: 12px; font-weight: 400; line-height: 1.5; }
   .mw-setting-row__control { flex: none; max-width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; color: var(--ink-soft); font-size: 13px; }

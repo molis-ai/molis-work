@@ -1,6 +1,6 @@
 # 逐屏打磨 P5：设置页的三种行
 
-状态：样板四页用户已同意（2026-11-16「照此铺开」），工作台自己的设置页、Coding 和 Shelf 的设置页已铺完，在 PR molis-ai/molis-work#2127 评审中（分支 `feat/screen-polish-p5-settings`）；没铺和只铺了一部分的页另开第二个 PR。铺开进度见「铺开」一节。
+状态：样板四页用户已同意（2026-11-16「照此铺开」）。第一段（工作台自己的设置页、Coding 和 Shelf 的设置页）在 PR molis-ai/molis-work#2127（分支 `feat/screen-polish-p5-settings`）；第二段（同一种行只留一种写法、没铺的页逐页下结论，36A 第 5 项）在分支 `feat/screen-polish-p5-settings-2`，评审中。逐页结论见「铺开」一节。
 
 这一片属于[逐屏打磨第一轮](spec.md)第七节和第九节的 P5。方向已定：第十节第 4 项，用户 2026-11-15。样稿是 `docs/design/screen-polish/` 第 5、6 屏。
 
@@ -29,53 +29,80 @@
 
 ## 铺开
 
-做法：旧的行（`.settings-setting-row`）和旧的卡（`.settings-section`）在公共样式里并到新版式的尺寸；带标题的节改成 `settings-section mw-settings-section`（标题在卡外，行在 `mw-settings-section__rows` 里），旧类名留作测试和脚本的钩子。
+分两段。第一段（PR molis-ai/molis-work#2127）把旧的行和旧的卡在公共样式里并到新版式的尺寸，工作台自己的设置页、Coding 和 Shelf 的设置页铺成「标题在外加一张卡」。第二段把同一种行收成一种写法（只有 SDK 的函数写这些标记），并给第一段没铺的页逐页下结论：要么改成同一种版式，要么写明这一轮为什么不动。
 
-| 页面 | 状态 |
-| --- | --- |
-| 助理、AI 与执行工具、记忆、对外接入 | 样板，已做 |
-| 诊断 | 已做：五节都是标题在外加一张卡，去掉 ⓘ，「助理与执行服务」并进本体那张卡当一行 |
-| 调用记录 | 已做：「操作」「判断记录」各一张卡；范围选择还是标签压在下拉上 |
-| 界面与语言 | 只去掉 ⓘ（那句话改成标题下的一句）；皮肤选择和样张是单独设计过的，没动 |
-| 本机目录 | 已做：去掉卡套卡，一个插件一节；标题下三句话是 PG-049 的验收钉住的，保留 |
-| 角色 | 第 36 批（molis-ai/molis-work#2111）把这一页整页重写了（个人和项目两处、抽屉式编辑器），合并时取主线；在它的新结构上只做了一件事：每一节改成标题在外加一张卡（原来是大标题在卡里）。抽屉、导入、清单脚本没动 |
-| 更新、运行 | 只跟公共样式（本来就是一张卡一行一件事） |
-| 同步 | 只跟公共样式；演示环境里是本地空间，看不到内容，没敢盲改 |
-| 项目设置：常规、输入与输出（含写后检查）、项目资料、插件、授权与放行 | 已做 |
-| 项目设置：记忆 | 和全局记忆页同一份代码，随样板已是新版式 |
-| 项目设置：项目说明 | 没动：本来就是一张卡六行、右边一个「添加」；标题旁的 ⓘ 由 Goals 的页面基准（`tests/fixtures/goals-page-golden/`）钉着，属于 Goals 插件，留给它的主人 |
-| 项目设置：能力包 | 不动：和全局能力包同一个左右分栏的浏览页 |
-| 模型设置、服务连接、工作记录 | 不动（方案里的范本；工作记录本来就是这个样子） |
-| 能力包、能力库 | 不动：是左右分栏的浏览页，不是一行一件事的设置页 |
-| Coding 的设置页 | 已做：三节都是标题在外加一张卡；执行方式、运行时一行一个；MCP 一节第一行是当前项目加「切换项目」，下面是服务清单；「添加 MCP 服务」是单独一节，表单在卡里。标题下那行「配置模型与凭据 · 返回工作台」删了，和 P0 分支（molis-ai/molis-work#2110，写这行时还没合入 main）删的是同一行、同两条词 |
-| Shelf 的设置页 | 已做：六节都是标题在外加一张卡，标题不带图形，标题下的说明段去掉；卡里的小节用细线分开。动作排序、快捷键录制等控件和脚本没动 |
-| 授权管理（第 39 批随 main 合入的新页） | 没动：是「列表加详情」的管理页，不是一行一件事的设置页；刚合入，留给它的主人 |
-| Goals 的项目工作规则 | 第 39 批把这一页并进了授权管理，原来改的那一节随合并消失 |
-
-还没换到 SDK 函数的地方（评审 2026-11-18 提出，同一种行只留一种写法）。留下的是 SDK 的函数加 `SETTINGS_DOCUMENT_STYLES`；下面这些在第二个 PR 里换掉，换完删掉对应的旧实现：
-
-| 旧写法 | 在哪 | 第二个 PR 怎么收 |
+| 页面 | 第一段 | 第二段 |
 | --- | --- | --- |
-| 工作台的 `settingRow`（`apps/workbench/src/settings-row.ts`，`.settings-setting-row`） | 更新页、运行页 | 换成 `renderSettingRow`（标题上的 id 用 `nameAttrs`），删掉 `settings-row.ts` 和 `.settings-setting-row` 的样式 |
-| 模板里手写的 `mw-setting-row`、`mw-settings-section` 标记 | 记忆页的静态行和七节、诊断页和调用记录的节、项目设置各页、本机目录、写后检查 | 换成 `renderSettingRow`、`renderSettingsSection`；`settings-section` 这个类名留作测试和脚本的钩子时用 `className` 传 |
-| 客户端脚本里照着拼的行 | 助理页脚本的 `settingRow`（规则、能力、禁用应用的行是读回来以后画的）、本机目录脚本 | 行的模板由服务端用 SDK 函数画进 `<template>`，脚本只克隆和填字 |
-| 设计系统更早的 `SETTING_ROW_STYLES`（`.mw-settings` / `.mw-setting`） | 工作记录、会话来源 | 两处换成 SDK 的行，删掉这个常量 |
+| 助理、AI 与执行工具、记忆、对外接入 | 样板，已做 | 助理页读回来以后画的行（规则、能力、禁用应用）改成克隆服务端用 SDK 画好的 `<template>`；记忆页的七节、六行静态行换成 SDK 函数；助理页两条小修（见下） |
+| 诊断、调用记录、项目设置的项目资料和授权与放行 | 已做（调用记录的范围选择还是标签压在下拉上） | 节换成 `renderSettingsSection`，样子不变 |
+| 界面与语言 | 只去掉 ⓘ | 四行（深浅、语言、密度、终端外观）换成 SDK 的设置行，四组选择块各带读得出来的名字；皮肤选择和样张是单独设计过的，没动 |
+| 本机目录 | 已做：去掉卡套卡，一个插件一节；标题下三句话是 PG-049 的验收钉住的，保留 | 脚本不再拼节和行，克隆服务端画好的 `<template>` |
+| 角色 | 在第 36 批的新结构上，每一节改成标题在外加一张卡 | 节和编辑器里的设置行换成 SDK 函数；清单里一个角色一行是这一页自己的部件（`roles-row`：图形、名字、一句话、右边一组动作），不借设置行的类名。抽屉、导入、清单脚本没动 |
+| 更新、运行 | 只跟公共样式 | 行换成 `renderSettingRow`，工作台的 `settingRow`（`apps/workbench/src/settings-row.ts`）删了；更新页「在终端里升级」那句话是卡里的一句 |
+| 同步 | 只跟公共样式 | 这一轮不动版式：演示环境里是本地空间，登录以后的内容看不到，不盲改。只把行的类名从公共的 `.settings-setting-row` 换成这一页自己的 `.sync-row`（规则原样搬过去），公共的旧类名才能删 |
+| 项目设置：常规、输入与输出（含写后检查）、插件 | 已做 | 行换成 SDK 函数。常规页的项目名、运行方式两行是「名字、一句说明、右边输入框加按钮」；输入与输出的「添加文件夹」同样；文件夹清单的一行是这一页自己的部件（`project-directory`：图形、路径、右边一组动作）。插件页「选择插件包」按钮挪到小标题的右端（原来在卡里单占一行） |
+| 项目设置：记忆 | 和全局记忆页同一份代码 | 同上 |
+| 项目设置：项目说明 | 没动 | 这一轮不动：本来就是一张卡六行、右边一个「添加」，版式已经一致；标题旁的 ⓘ 由 Goals 的页面基准（`tests/fixtures/goals-page-golden/`）钉着，这一页属于 Goals 插件，去掉 ⓘ 留给它的主人 |
+| 模型设置、服务连接 | 不动（方案里的范本） | 版式本来就是范本，不动。展开以后的事实行（「连接方式」「凭据」「建于」等）原来是 `.settings-setting-row` 加 `.setting-value`，换成 SDK 的设置行，样式跟着改到 `.model-facts`、`.connection-facts` 下面。服务连接里「建于 · 某某插件」原来是一行小字，现在并进那一行的说明里，和说明同一个字号 |
+| 工作记录 | 不动（本来就是这个样子） | 版式不动；行和卡原来用设计系统更早的一套（`.mw-settings` / `.mw-setting`），换成 SDK 的行，样子一样 |
+| 能力包（全局和项目设置里的）、能力库 | 不动 | 这一轮不动：是左右分栏的浏览页（左边清单、右边详情），不是一行一件事的设置页，三种行套不上；外壳（标题字号、左边线、列宽）已经跟公共样式一致 |
+| 授权管理 | 没动（第 39 批随 main 合入的新页） | 这一轮不动：是「列表加详情」的管理页，不是一行一件事的设置页；列表和详情是第 39 批刚定的结构，留给它的主人 |
+| Coding 的设置页 | 已做 | 没有再改版式 |
+| Shelf 的设置页 | 已做 | 开关行换成 SDK 的设置行；权限那几句事实是卡里的一句（`mw-settings-section__note`） |
+| 会话来源里「能用什么」的清单（不是设置页，原来借了旧的行） | — | 是设计系统自己的部件：`mw-permits` 一张卡，`mw-permit` 一行，尺寸和设置行一样，样式自己带 |
 
-收齐的标准：`apps/workbench/src/settings-row.ts` 删掉；全仓搜不到 `SETTING_ROW_STYLES`、`.settings-setting-row`、`.mw-setting `（旧的那套）；设置页的模板和脚本里没有手写的 `class="mw-setting-row`、`class="mw-settings-section`、`class="mw-object-row`（只有 SDK 的 `settings-rows.ts` 写这些标记，`tests/settings-document-rows.test.ts` 加一条钉住）。
+### 同一种行只留一种写法
 
-评审留给第二个 PR 的小修：
+留下的是 SDK 的函数（`renderSettingsSection`、`renderSettingRow`、`renderObjectRow`、`renderQuestionList`、`renderListToolbar`，都在 `packages/plugin-sdk/src/ui/settings-rows.ts`）加 `SETTINGS_DOCUMENT_STYLES`。第二段换掉并删了的：
 
-| 小修 | 在哪 |
+| 旧写法 | 原来在哪 | 现在 |
+| --- | --- | --- |
+| 工作台的 `settingRow`（`.settings-setting-row`） | 更新页、运行页、界面与语言、模型设置和服务连接的事实行、Shelf 的开关行 | `renderSettingRow`；文件和公共样式里的 `.settings-setting-row`、`.setting-value`、`.settings-toggle-row` 都删了 |
+| 模板里手写的 `mw-setting-row`、`mw-settings-section` 标记 | 记忆页、诊断页、调用记录、项目设置各页（常规、输入与输出、写后检查、项目资料、插件、授权与放行）、本机目录、角色页 | `renderSettingRow`、`renderSettingsSection`；`settings-section` 这个类名留作测试和脚本的钩子，用 `className` 传 |
+| 客户端脚本里照着拼的行 | 助理页脚本、本机目录脚本 | 行由服务端用 SDK 函数画进 `<template>`，脚本只克隆和填字 |
+| 设计系统更早的 `SETTING_ROW_STYLES`（`.mw-settings` / `.mw-setting`） | 工作记录、会话来源 | 工作记录换成 SDK 的行；会话来源的清单是自己的部件；常量删了，组件板上那一格只留「条目」 |
+
+为了换得干净，SDK 的设置行多了一个参数 `detail`：说明下面由调用方给的一段标记（一条路径、一条命令、一句时有时无的提示），不放控件。写后检查的命令、项目名下面的报错、输入与输出里「先保存」那句话用的是它。这是公开接口的增加（`pnpm api:update` 已跑）。
+
+收齐的标准（`tests/settings-document-rows.test.ts` 里一条用例钉住）：
+- `apps/workbench/src/settings-row.ts` 不存在。
+- `apps`、`plugins`、`packages`、`horizontal` 下的源码（`src/*.ts`）里搜不到 `SETTING_ROW_STYLES`、`settings-setting-row`、旧的 `.mw-setting ` / `mw-settings`。
+- 这些源码里，除了 SDK 的 `settings-rows.ts`，没有哪一处在 `class` 里写 `mw-setting-row`、`mw-setting-row__control`、`mw-settings-section`、`mw-settings-section__head`、`mw-settings-section__rows`、`mw-object-row`、`mw-object-row__head`，脚本里也不拿这些名字拼标记。样式表里按这些类名写规则、脚本按它们找元素不算。
+- 不在这条标准里的：`docs/design/` 下的样稿（历史样稿，还写着旧类名）；卡里的一句（`mw-settings-section__note`）、整块（`__block`）、卡里的小标题（`mw-settings-subhead`）、清单（`mw-setting-list`）、表格行（`mw-list-row`）这几个只有类名、没有函数的部件，仍由页面自己写。
+
+没有收的两处，和原因：
+- 「数据与原始内容」这类收起来的原始数据（`settings-data-disclosure`，在项目常规页、诊断、同步、提示词页）：不是设置行，是一段默认收起的原始内容，三种行里没有它的位置，这一轮照旧。里面排字用的 `.setting-copy` 因此还在。
+- `SETTINGS_DOCUMENT_STYLES` 仍随工作台的 `PROJECT_SETTINGS_PAGE_STYLES` 下发。当初定的条件是「对象行有设置页以外的使用者时挪到设计系统组件样式一起下发」，现在还没有这样的使用者（会话来源的清单改成了自己的部件），不挪。
+
+### 评审留下的小修
+
+| 小修 | 结果 |
 | --- | --- |
-| 「更多筛选」弹层按 Esc、点外面要能关上 | `renderListToolbar` 的 `more`（`packages/plugin-sdk/src/ui/settings-rows.ts`）；平台已有的弹层关闭写法优先 |
-| 「今天的用量」一行的名字和下面那句说明重复 | `apps/workbench/src/settings-assistant.ts`，词在 `workbench.settings-assistant.*` |
-| 加完「不提醒」规则后，焦点落到新加的那条规则上 | `apps/workbench/src/settings-assistant.ts` 的 `add` |
-| 英文走查用例里钉住演示项目名的正则，换成按结构找那一行 | `tests/english-surfaces.e2e.test.ts`（VUX-40） |
-| `SETTINGS_DOCUMENT_STYLES` 现在随工作台的 `PROJECT_SETTINGS_PAGE_STYLES` 下发；对象行有设置页以外的使用者时，挪到设计系统组件样式（`.mw-switch` 那一处）一起下发 | `apps/workbench/src/styles/project-settings-page.ts`、`packages/design-system/src/styles/settings-rows.ts` |
+| 「更多筛选」弹层按 Esc、点外面要能关上 | 不用改代码：弹层是绝对定位的 `<details>` 内容，平台已有的浮层关闭程序（`packages/design-system/src/browser/floating-details.ts`）管所有这样的 `<details>`，设置页的三个外壳都带着它。真实界面里按 Esc 会关上并把焦点还给按钮，点外面也会关上；加了一条浏览器用例钉住（`tests/memory-settings-walkthrough-fixes.e2e.test.ts`，POLISH-29） |
+| 「今天的用量」一行的名字和下面那句说明重复 | 说明不再以「今天助理用了」开头，只写数；多出来的那条词删了 |
+| 加完「不提醒」规则后，焦点落到新加的那条规则上 | 加完以后焦点落在新规则那一行的开关上 |
+| 英文走查用例里钉住演示项目名的正则，换成按结构找那一行 | `tests/english-surfaces.e2e.test.ts`：按 `data-coding-project-line` 找到那一行单独核对，其余标记里不许有汉字（VUX-40），没有放宽 |
+| `SETTINGS_DOCUMENT_STYLES` 的下发位置 | 条件没触发，不挪（见上） |
+| 对外接入里搜不到能力时的空状态、第一步那一行的钩子 | 空状态标题和一句话各占一行（`tests/mcp-access-browser.test.ts` 加了核对）；第一步那一行带 `data-mcp-access-step`，用例不再按第几个子元素找 |
 
-本 PR 里已经换掉的：诊断页的行、记忆页的偏好开关行、Coding 的「添加 MCP 服务」一节、助理页的三处就地展开。
+### 第二段走查时修的
 
-铺开后的截图（9 页，浅深色，1440、1024、390，共 54 张，均无横向溢出）在 `.impeccable/qa/review/screen-polish/p5/rollout/`（不入库）。已删的旧样式：`.settings-record*`（只留写后检查还在用的 `.settings-record-title`）和 `.settings-paths`。
+在演示环境里逐页看（浅深色，1440、1024、390）时发现并修掉的，都是第一段就有的：
+
+| 现象 | 改法 |
+| --- | --- |
+| 卡里最后一行后面跟着一条还没出现的报错（`hidden`）时，那一行的细线没有收到卡的边线下面，卡底多出一条线（助理页三张卡） | 公共样式里收线的规则从「最后一个子元素」改成「最后一个看得见的子元素」（`hidden` 的和 `<template>` 不算），权重和原来一样 |
+| 设置行的说明里是一条很长的路径时，390 宽下超出卡边被切掉（诊断页的 CLI、MCP 两行） | 设置行的文字允许在任意处折行 |
+| 插件页「随安装包提供」那一块贴着卡的下边线 | 用卡里整块的留白（`mw-settings-section__block`），小标题用行名的字号 |
+| 调用记录两张卡的空状态，标题和说明挤在同一行 | 空状态「标题在上、说明在下」的规则原来只认带 `settings-section` 类名的节，补上 SDK 的节 |
+
+没有修、记作后续的一处：界面与语言页的「主题」「界面密度」「终端外观」，如果是从别的设置页切过来（这一页是后装进页面的），当前选中的那一项没有标出来，点一下以后才标。第一段的版本（4aae9decfa）同样如此；标记是 `packages/design-system/src/preferences.ts` 在页面装好时做的，后装进来的面板没有人再叫它一次。这是行为上的缺口，不是版式，留给后面单独修。
+
+### 页面体积
+
+对照第一段的版本（4aae9decfa）在同一台机器上量的下发字节：设置样式 −358、工作台样式 −454、工作台脚本 −42、Shelf 样式 −80、会话页脚本 −18；角色页脚本 +893、工作记录脚本 +410。两处增长是这两页在浏览器里画行，原来手拼的标记换成 SDK 的函数后，函数本身进了它们的脚本。都远低于 10 KB，没有新增资源；许可在 `tooling/gates/page-asset-allowances/screen-polish-p5-rows.json`，数字以合入前对照 main 的实测为准。
+
+铺开后的截图在 `.impeccable/qa/review/screen-polish/p5/rollout/`（不入库）。已删的旧样式：`.settings-record*`（只留写后检查还在用的 `.settings-record-title`）和 `.settings-paths`。
 
 ## 偏离
 
@@ -86,6 +113,10 @@
 3. 展开的动效：设置行照方案的动效表，展开的内容上浮淡入、不做高度动画（平台已有的 `craft-rise`，250ms quint）。对象行方案没有写，接在平台已有的折叠上（`DISCLOSURE_STYLES` 的 `CHEVRON_FOLDS`）：浏览器支持时内容按自然高度展开，和箭头同一个时钟，不支持时直接展开。减少动态效果时两种都直接切换。
 4. 「可能重复或冲突」：方案写「没有重复就不显示」，实现是常驻一行、右边一个「查看」按钮。有没有重复要调一次整理接口才知道，方案同时要求不增加请求（开工前检查第 9 项），所以不在打开页面时去查，改成一行加一个按钮，按了才查；它不再是一张会空着的卡（POLISH-30）。
 5. 对象行的排版靠什么：按钮不能放进 `<summary>`，又要和它同一行、排在箭头前面，所以那一行是一张三列的网格（说了什么、能做什么、箭头），`<summary>` 用 `subgrid` 跨三列、把中间一列空给按钮。`<details>` 本身写成 `display: contents`、不出盒子，这样排版不依赖浏览器怎样摆 `<details>` 自己的盒子——桌面壳是系统的 WebKit（最低 macOS 13，对应 Safari 16），WebKit 到 18.4 才有 `::details-content`。用到的两样（`subgrid`、`display: contents`）Safari 16 起都有；`<summary>` 当网格容器在 Goals 等页已经在用。**查看结果：** Chrome 里 1440/1024/390 看过（开合不重叠，按钮和开合各是各的点击区）；本机只有 macOS 26 的 WebKit，WebKit 18.4 以前的桌面壳没有实机看过，是按引擎行为推断的。**待办：** 有旧 macOS 的机器时，在桌面版里开合一行对象行，并用 VoiceOver 听一遍是否读出「已展开／已收起」（旧 WebKit 里 `display: contents` 的 `<details>` 会不会丢掉这句，从代码判断不了；功能不受影响）。
+
+6. 三种「不是设置行」的行各归各的页面（第二段）：原先的计划是把所有借用旧行类名的地方都换成 SDK 的设置行。实际看下来有三种行不是「名字、一句说明、右边一个控件」：项目的文件夹（图形、名字和角色、路径、提示、一组动作）、角色清单里的一个角色（图形、名字、一句话、一组动作）、会话来源里的一项许可（图形、名字、路径、状态、开关）。硬套设置行要么塞不下，要么得给 SDK 加一堆只有一页用的口子。所以它们各自是所在页面（会话来源那个是设计系统）的部件，带自己的类名和样式，尺寸跟设置行对齐（最小高 60px、上下 12px、行间细线）。
+7. 同步页只换了类名（第二段）：见「铺开」表。登录以后的内容在演示环境里看不到，这一轮不改它的版式。
+8. SDK 的设置行多一个 `detail`（第二段）：见「同一种行只留一种写法」。
 
 ## 验收
 

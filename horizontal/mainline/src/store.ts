@@ -72,6 +72,20 @@ export class MainlineStore {
     return row ? itemOf(row) : null;
   }
 
+  /** Resolve the name before a conversion asks the source owner to create anything. */
+  readConversionName(expected: string, itemId: string): string {
+    const name = this.lightItemName(itemId);
+    this.requireRevision(expected, this.arrangement().revision);
+    return name;
+  }
+
+  private lightItemName(itemId: string): string {
+    const item = this.item(itemId);
+    if (!item) throw missing();
+    if (!item.name) throw new ActionError("actions.input_invalid", "这件事项已经由对象变成，不能再变");
+    return item.name;
+  }
+
   /** The item an object became, if it became one. */
   itemOf(source: ActionSubject): WorkItem | null {
     const row = this.db.prepare("SELECT item_id, name, source_kind, source_id, created_at FROM mainline_items WHERE owner_actor_id = ? AND project_id = ? AND source_kind = ? AND source_id = ?")
@@ -109,11 +123,15 @@ export class MainlineStore {
     try { const result = work(); this.db.exec("COMMIT"); return result; } catch (error) { this.db.exec("ROLLBACK"); throw error; }
   }
 
+  private requireRevision(expected: string | undefined, revision: string): void {
+    if (expected !== undefined && expected !== revision) throw conflict(this.read());
+  }
+
   /** One write: the arrangement as read, checked against `expected` when given, changed and saved under a new revision. */
   private write<T>(expected: string | undefined, change: (arrangement: Arrangement) => T): T {
     return this.transaction(() => {
       const { revision, arrangement } = this.arrangement();
-      if (expected !== undefined && expected !== revision) throw conflict(this.read());
+      this.requireRevision(expected, revision);
       const result = change(arrangement);
       const next = `${Number(revision.split(".")[0]) + 1}.${randomUUID()}`, at = this.now();
       this.db.prepare(`INSERT INTO mainline_arrangements (owner_actor_id, project_id, revision, arrangement, updated_at) VALUES (?, ?, ?, ?, ?)
@@ -158,9 +176,7 @@ export class MainlineStore {
   /** A light item becomes the object made for it: what it holds stays; its name is read from the source from now on. */
   convert(expected: string, itemId: string, source: ActionSubject): WorkItem {
     return this.write(expected, () => {
-      const item = this.item(itemId);
-      if (!item) throw missing();
-      if (item.source) throw new ActionError("actions.input_invalid", "这件事项已经由对象变成，不能再变");
+      this.lightItemName(itemId);
       if (this.itemOf(source)) throw mainlineErrors.conflict("这个对象已经是另一件事项", { current: this.read() });
       this.db.prepare("UPDATE mainline_items SET name = NULL, source_kind = ?, source_id = ? WHERE owner_actor_id = ? AND project_id = ? AND item_id = ?")
         .run(source.kind, source.id, this.actorId, this.projectId, itemId);

@@ -401,3 +401,5 @@ QEA-136 保留 S-80 的包范围、声明和信任拒绝，使用真实安装记
 第 74 批从 `inbox.stage.read@1` 和 `inbox.judgment.recommendations@1` 追到原场景，再由 Attention 提供状态、Feed 提供仍需核验的原文、判断账提供历史。已忽略事项依据已有状态继续出现在列表，原文读取故障无需由用户处理。停用或原文变化仍撤回建议，原历史由判断账保留。QEA-147 与现行 Inbox 包要求共 9 文件 71 项通过，含真实隔离 Home 浏览器及原场景停止、取消和写入证据。
 
 第 75 批新增覆盖角色设置、原件与项目成员版本、助理和 Coding 的稳定引用、Agent Host 的每轮冻结及事项容器。检查 `modules/characters` 的角色动作与版本库、`horizontal/mainline` 的创建、关系、排列与工作线投影，核其 Contracts、Host 及配套浏览器入口。范围和六向判断见报告第 75 批。
+
+第 76 批从 `mainline.items.convert@1` 追到 Mainline 的修订和来源动作，再读实际 Goals 和「装进」关系。QEA-149 已经用相同输入对照主干与修复。过期请求返回最新排列且 Goals 零写入，重试后从 Goals 目录读到一个新目标，主线仍是原事项与原关系。

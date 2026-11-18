@@ -4,6 +4,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID, bindActionClient, type ActionCallCo
 import { MAINLINE_ARRANGE_PERMISSION, MAINLINE_PLACE_PERMISSION, MAINLINE_READ_PERMISSION, WORK_ITEM_KIND, mainlineActions, mainlineItemActions, type Mainline,
   type WorkLineEvent } from "@molis-ai/molis-work-contracts/services/mainline";
 import { openMainlineDatabase } from "@molis-ai/molis-work-service-mainline";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { observationKeys, readRecords, snapshotText } from "@molis-ai/molis-work-service-observation";
 import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
 import { backgroundPlugin, type BackgroundPlugin } from "./fixtures/home-background-plugin.js";
@@ -89,6 +90,32 @@ test("MLC-04 a stale revision is refused with the current mainline; adding an it
       && ((error as ActionError).details!.current as Mainline).revision === current.revision);
   }
   assert.deepEqual((await me.invoke(mainlineItemActions.read, {})).mainline, current, "nothing changed");
+});
+
+test("QEA-149 a stale conversion creates no Goal, and retry with the current arrangement creates it once", { timeout: 60_000 }, async t => {
+  const { me, notes } = await rigged(t);
+  const original = await me.invoke(mainlineItemActions.create, { name: "旧名字" });
+  notes.state.notes.set("held-note", { id: "held-note", title: "相关笔记", status: "open" });
+  const held = { kind: "note", id: "held-note" };
+  await me.invoke(mainlineItemActions.holdsBind, { subject: held, target: { kind: WORK_ITEM_KIND, id: original.item.item_id } });
+  const { mainline: current } = await me.invoke(mainlineItemActions.rename, {
+    expected_revision: original.mainline.revision, item_id: original.item.item_id, name: "当前事项的名字",
+  });
+  const request = { item_id: original.item.item_id, kind: "goal", request_id: "qea149-same-conversion" };
+  const before = (await me.invoke(goalsActions.list, {})).goals;
+  await assert.rejects(me.invoke(mainlineItemActions.convert, { ...request, expected_revision: original.mainline.revision }),
+    (error: unknown) => error instanceof ActionError && error.code === "mainline.conflict"
+      && (error.details?.current as Mainline | undefined)?.revision === current.revision);
+  assert.deepEqual((await me.invoke(mainlineItemActions.read, {})).mainline, current);
+  assert.deepEqual((await me.invoke(goalsActions.list, {})).goals, before, "an already-stale request cannot write a Goal");
+
+  const converted = await me.invoke(mainlineItemActions.convert, { ...request, expected_revision: current.revision });
+  assert.equal(converted.item.item_id, original.item.item_id);
+  assert.equal(converted.item.source?.kind, "goal");
+  const after = (await me.invoke(goalsActions.list, {})).goals;
+  assert.equal(after.length, before.length + 1);
+  assert.equal(after.find(goal => goal.goal_id === converted.item.source?.id)?.title, "当前事项的名字");
+  assert.deepEqual((await me.invoke(mainlineItemActions.contents, { item_id: original.item.item_id })).held, [held]);
 });
 
 test("MLC-05 an object becomes an item read as the caller, once; 「建成」 asks its source; a kind without a declared source offers neither", { timeout: 60_000 }, async t => {

@@ -72,7 +72,7 @@ function folderSkill(skill: CharacterImportSkill, suggested: SkillAppliesTo): He
   const files = new Map(skill.files.map((file): [string, Uint8Array] => [file.path, bytesOf(file)]));
   try {
     const read = skillFromFolder(files, { applies_to: suggested });
-    if (skill.compatibility === 'native-only') read.declaration.native_only_reason = skill.reason ?? '包含本地 Agent 才能使用的依赖。';
+    if (skill.compatibility === 'native-only') read.declaration.native_only_reason = skill.reason ?? '包含本地 Runtime 专用依赖。';
     return { read, files };
   }
   catch (error) {
@@ -102,7 +102,7 @@ export class SkillImportService {
 
   /** Reads the source and says what importing it would make, with the 「给谁用」 it pre-selects; installs nothing, signs nothing. */
   async preview(input: SkillImportPreviewRequest, who: Who): Promise<SkillImportPreview> {
-    if (input.source.kind !== 'runtime') throw skillErrors.import_source_unavailable('还不能从项目目录导入技能：请从本机 Agent 的技能目录导入');
+    if (input.source.kind !== 'runtime') throw skillErrors.import_source_unavailable('暂不支持从项目目录导入技能，请从本地 Runtime 的技能目录导入');
     const runtime = input.source.runtime_id, found = this.ports.scan(runtime);
     if (!found) throw skillErrors.import_source_unavailable(`这台电脑上没有 ${externalTool(runtime).display_name} 的技能目录`);
     // The source's kind and root name the plugin, so importing the same source again is its upgrade.

@@ -88,7 +88,7 @@ function characterActionPorts(options: CharactersHostOptions, actorId: string, p
       discover: input => discovery.discover(input),
       import: (candidateId, selection, existing) => {
         const snapshot = discovery.get(candidateId);
-        if (!snapshot) throw characterErrors.invalid("预览已过期，请重新扫描本地 Agent");
+        if (!snapshot) throw characterErrors.invalid("预览已过期，请重新扫描本地 Runtime");
         return use(service => service.import(snapshot, selection, existing));
       },
       ...characterNativeExecution({ home, actorId, projectId, workspaces, spawn, executable: runtime => discovery.executable(runtime),

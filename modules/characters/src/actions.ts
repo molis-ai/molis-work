@@ -43,18 +43,18 @@ export const charactersActions = {
     "把当前草稿发布为本项目的固定版本；内容未变时返回原版本", "command", object({ id, expected_revision: revision }),
     object({ reference, publication: { type: "object" }, replayed: { type: "boolean" } }), ["artifact:read", "artifact:write"]),
   /** Sessions cleanup SC-2: Characters' own records, without the terminal output. */
-  runs: define<{ id: string }, { runs: CharacterNativeRun[] }>("runs", /* @version action.characters.runs */ 1, "角色运行记录", "读取用本机 Agent 运行此角色的记录：何时、哪个版本、在哪个目录、是否派发成功；不含终端输出",
+  runs: define<{ id: string }, { runs: CharacterNativeRun[] }>("runs", /* @version action.characters.runs */ 1, "角色运行记录", "查看使用本地 Runtime 运行此角色的记录（时间、版本、目录与派发状态，不含终端输出）",
     "query", object({ id }), object({ runs: { type: "array", items: run } }), [], LOCAL),
-  discover: define<Record<string, unknown>, { candidates: unknown[] }>("imports.discover", /* @version action.characters.imports.discover */ 1, "查找可导入的 Agent", "在本机 Agent 配置目录中查找可导入为角色的设定",
+  discover: define<Record<string, unknown>, { candidates: unknown[] }>("imports.discover", /* @version action.characters.imports.discover */ 1, "查找可导入的 Runtime", "在本地 Runtime 配置目录中扫描可导入为角色的规则与技能",
     "query", { type: "object" }, object({ candidates: { type: "array" } }), [], LOCAL),
-  importFile: define<Record<string, unknown>, unknown>("imports.file", /* @version action.characters.imports.file */ 1, "预览导入文件", "预览一个可导入设定中的文件", "query",
+  importFile: define<Record<string, unknown>, unknown>("imports.file", /* @version action.characters.imports.file */ 1, "预览导入文件", "预览可导入设定中的单个文件内容", "query",
     { type: "object", required: ["candidate_id"] }, { type: "object" }, [], LOCAL),
-  import: define<Record<string, unknown>, { draft: unknown; replayed: boolean }>("imports.import", /* @version action.characters.imports.import */ 1, "导入为角色", "把本机 Agent 设定导入为新草稿或更新已有草稿",
+  import: define<Record<string, unknown>, { draft: unknown; replayed: boolean }>("imports.import", /* @version action.characters.imports.import */ 1, "导入为角色", "将本地 Runtime 设定导入为新角色草稿或更新现有草稿",
     "command", { type: "object", required: ["candidate_id", "selection"] }, { type: "object", required: ["draft", "replayed"] }, [], LOCAL),
-  draftFile: define<Record<string, unknown>, unknown>("drafts.file", /* @version action.characters.drafts.file */ 1, "预览草稿来源文件", "预览草稿导入快照中的文件", "query", { type: "object", required: ["id"] }, { type: "object" }, [], LOCAL),
-  publicationFile: define<Record<string, unknown>, unknown>("publications.file", /* @version action.characters.publications.file */ 1, "预览发布来源文件", "预览已发布版本导入快照中的文件", "query",
+  draftFile: define<Record<string, unknown>, unknown>("drafts.file", /* @version action.characters.drafts.file */ 1, "预览草稿来源文件", "预览草稿导入快照中的单个文件", "query", { type: "object", required: ["id"] }, { type: "object" }, [], LOCAL),
+  publicationFile: define<Record<string, unknown>, unknown>("publications.file", /* @version action.characters.publications.file */ 1, "预览发布来源文件", "预览已发布版本导入快照中的单个文件", "query",
     { type: "object", required: ["reference"] }, { type: "object" }, ["artifact:read"], LOCAL),
-  execution: define<{ reference: ArtifactReference }, unknown>("execution", /* @version action.characters.execution */ 1, "角色运行准备", "读取用本机 Agent 运行此发布版本所需的程序与工作目录",
+  execution: define<{ reference: ArtifactReference }, unknown>("execution", /* @version action.characters.execution */ 1, "角色运行准备", "查看使用本地 Runtime 运行此发布版本所需的命令与项目输出目录",
     "query", object({ reference }), { type: "object" }, ["artifact:read"], LOCAL),
   /** Defined in the contracts, where Coding (which consumes it) finds it too: whether a version can run, without the launch details. */
   runnable: characterPluginActions.runnable,
@@ -63,7 +63,7 @@ export const charactersActions = {
   /** The person's Characters as AI kit roles, in the 「你的角色」 pack (specs/capability-pack/contract-design.md §4.8). */
   kitReport: defineKitReportAction("characters.kit.report", /* @version action.characters.kit.report */ 1, "角色的能力包条目", [], { scope: "project" }),
   /** Sessions cleanup SC-2: the run is Characters' own record and the terminal is reached by its panel alone, without a Session. */
-  launch: define<CharacterLaunchInput, { run: CharacterNativeRun; spawn: { panelId: string; attachOnly: boolean } }>("launch", /* @version action.characters.launch */ 1, "用本机 Agent 运行角色", "在所选工作目录启动本机 Agent 执行任务", "command",
+  launch: define<CharacterLaunchInput, { run: CharacterNativeRun; spawn: { panelId: string; attachOnly: boolean } }>("launch", /* @version action.characters.launch */ 1, "用本地 Runtime 运行角色", "在项目输出目录启动本地 Runtime 执行任务", "command",
     { type: "object", properties: { reference, workspace_id: { type: "string" }, task: { type: "string" }, request_id: { type: "string" } },
       required: ["reference", "workspace_id", "task", "request_id"] }, object({ run, spawn: object({ panelId: id, attachOnly: { type: "boolean" } }) }), ["artifact:read"], LOCAL),
   /** System search: the person's Characters (not deleted) by title and how they work. */

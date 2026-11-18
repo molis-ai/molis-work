@@ -136,7 +136,7 @@ async function kitEntry(draft: CharacterDraft, imports: () => CharactersImportPo
 export function createCharactersActionHandlers(ports: CharactersActionPorts, runtime: CharactersActionRuntime) {
   const scope: CharacterPublicationScope = { actorId: ports.actorId, projectId: runtime.projectId, references: ports.references,
     read: reference => runtime.artifacts.read(reference), drafts: ports.drafts };
-  const imports = (): CharactersImportPorts => { if (!ports.imports) throw new Error("本地 Agent 导入服务尚未接通"); return ports.imports; };
+  const imports = (): CharactersImportPorts => { if (!ports.imports) throw new Error("本地 Runtime 导入服务尚未接通"); return ports.imports; };
   const validate: Validate = refs => validateDraftActions(runtime.agent, refs);
   return { artifactPreview: characterArtifactMarkdown,
     ...recordHandlers(ports.drafts), ...draftHandlers(ports.drafts, validate),

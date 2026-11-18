@@ -9,7 +9,7 @@
     "planning-methods.skill.domain-ai-data-product.description": "同时覆盖数据、评测、运行成本、安全和用户干预。领域；适用于：AI 功能、Agent 产品、数据产品。要拆解这类目标、排出依赖和完成证据时使用。",
     "planning-methods.skill.domain-ai-data-product.when-to-use": "要把「AI 与数据产品」这类目标拆成可独立交付、可验收的结果，并理清谁依赖谁、各自拿什么证明完成。",
     "planning-methods.skill.domain-app-product.name": "通用 App",
-    "planning-methods.skill.domain-app-product.description": "兼容历史 app task context 的产品完整性检查。领域；适用于：通用应用产品。要拆解这类目标、排出依赖和完成证据时使用。",
+    "planning-methods.skill.domain-app-product.description": "覆盖核心功能、端到端用户动线、交互反馈与信息架构的产品完整性拆解。领域；适用于：通用应用产品。要拆解这类目标、排出依赖和完成证据时使用。",
     "planning-methods.skill.domain-app-product.when-to-use": "要把「通用 App」这类目标拆成可独立交付、可验收的结果，并理清谁依赖谁、各自拿什么证明完成。",
     "planning-methods.skill.domain-brand-communication.name": "品牌与传播",
     "planning-methods.skill.domain-brand-communication.description": "从受众认知、独特机制和可信证据形成一致且可传播的品牌表达。领域；适用于：品牌定位、发布传播、内容与视觉表达。要拆解这类目标、排出依赖和完成证据时使用。",

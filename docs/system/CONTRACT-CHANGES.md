@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-18 第 38 批：公开设置写入请求支持可选的 `recovery`。场景采用时由设置主人核对并保存原层值，撤销时引用那次请求的回执；主人核对身份、设置项、层与修订后，可以恢复当时已保存但如今离线的选择。普通设置调用可继续发送原有字段。参见[场景与设置合同](../../specs/scene-and-page-contract/spec.md)。
+
 2026-11-16 第 34 批 Sessions：`packages/contracts/src/platform/external-tools.ts` 的 `ExternalToolEntry` 新增可选 `display_name_en`（28 条中文显示名补齐，页面仍不直接导入登记表，由 `/api/sessions/*` 投影）；`services/sessions` 包成熟度 `contract-only` → `partial`，新增系统动作 `sessions.connector.usages@1`，删除无抛出路径的 `sessions.suggestion_unavailable`；`modules/private-work-context` 提取 `WORK_CONTEXT_PERSON_RELATION_KEPT_CODE` 常量（类型值不变）。均为阶段一原地变更，无旧值读取、无库迁移；动作/API/库结构快照随本批更新。
 
 2026-11-14 第 12 批合后审计：`UiPageWorkspaces.readInstructions()` 的返回从 `Promise<void>` 改为 `Promise<UiPageInstructionSettings>`（`off`/`trusted`/`why_not`，与 `ProjectDirectories.instructions` 同形），工作台框桥把回执交给页面，Coding 直接更新规则菜单而不再整页重读；`contracts/platform/ui` 的 API 快照随改。阶段一原地改，不保留旧返回值读取；调用方只有本仓库的工作台框桥与 Coding。

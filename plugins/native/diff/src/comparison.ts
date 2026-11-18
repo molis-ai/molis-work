@@ -54,7 +54,7 @@ const waiting = {
   none: ["先选一组输入：两份快照、Coding 准备的变更，或 Git 的工作区改动", "diff.waiting.choose-input"],
   "git-change-set": ["在 Git 里选一处改动，这里就会显示", "diff.waiting.git-change-set"],
   "change-set": ["Coding 准备好一轮变更后，这里会显示", "diff.waiting.change-set"],
-  snapshots: ["先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异", "diff.waiting.snapshots"],
+  snapshots: ["先在文件阅读区固定「对比前」和「对比后」，这里会显示两份快照的差异", "diff.waiting.snapshots"],
 } satisfies Record<DiffInputGroup | "none", DiffWord>;
 const recovery = {
   none: ["在 Sources 里选一组输入", "diff.recovery.choose-input"],

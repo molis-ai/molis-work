@@ -340,7 +340,8 @@ test("ONB-22/29/30: a scene chooses only an existing Jelly model, then recovers 
     const beforeDisconnect = await user.invoke(scenes.preview, sameRequest);
     assert.equal(beforeDisconnect.parts[0]?.decision, "reuse");
     withConnectorConnections(home, store => store.setEnabled(connection.connection_id, false));
-    assert.equal((await user.invoke(scenes.read, { adoption_id: first.adoption_id })).apply_steps[0]?.current, "owner_unavailable");
+    const disconnected = (await user.invoke(scenes.read, { adoption_id: first.adoption_id })).apply_steps[0];
+    assert.ok(disconnected?.state === "applied"); assert.equal(disconnected.current, "owner_unavailable");
     const afterDisconnect = await user.invoke(scenes.apply, { ...apply, preview_id: beforeDisconnect.preview_id, request_id: "reuse-disconnected" });
     assert.deepEqual(afterDisconnect.steps[0], { part_id: "model", state: "skipped", reason: "owner_unavailable" });
     assert.equal((await user.invoke(scenes.preview, sameRequest)).parts[0]?.decision, "skip");

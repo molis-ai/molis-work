@@ -339,7 +339,7 @@ test("ONB-22/29 Shelf writes only the declared device group, restores inheritanc
     const catalog=join(home,"shelf","catalog.json"), before=readFileSync(catalog,"utf8");
     for(const [key,value] of [["shelf.engine","custom:missing"],["shelf.model",{provider_id:"missing",model_id:"no-model"}],["shelf.action_bar",{custom_runtimes:[]}]] as const) {
       const current=await result(key);
-      await assert.rejects(write.handle(caller,{key,layer:"personal",expected_revision:current.revision,request_id:"invalid",change:{set:value}}),{code:"shelf.invalid"});
+      await assert.rejects(async () => write.handle(caller,{key,layer:"personal",expected_revision:current.revision,request_id:"invalid",change:{set:value}}),{code:"shelf.invalid"});
     }
     assert.equal(readFileSync(catalog,"utf8"),before);
     assert.equal(store.settings().custom_runtimes[0]?.executable,"/local/fake-tool");

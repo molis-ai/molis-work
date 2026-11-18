@@ -321,6 +321,7 @@ export interface ShelfSnapshot {
     readonly runtime: ShelfRuntimeStatus;
     readonly running_jobs: readonly ShelfJobRecord[];
     readonly settings: ShelfDeviceSettings;
+    readonly action_bar_revision: string;
     readonly root: string;
 }
 

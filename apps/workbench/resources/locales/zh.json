@@ -83,6 +83,7 @@
     "workbench.scene.not_selected": "你没有选择这一项。",
     "workbench.scene.scope_mismatch": "这项设置不能写入所选范围。",
     "workbench.scene.unsupported": "当前没有支持采用这一项的主人。",
+    "workbench.scene.value_unavailable": "换一个可用的值，就能选择这项设置。",
     "workbench.scene.owner_unavailable": "当前无法从原提供方读写这项设置。",
     "workbench.scene.dependency_unmet": "需要的能力还没有准备好。",
     "workbench.scene.revision_changed": "这项设置后来有变化，已保留现在的值。",

@@ -660,7 +660,7 @@ test("Shelf hotkey recording maps KeyboardEvent.code to Carbon and rejects bare 
   assert.equal("error" in bareWrite ? bareWrite.error : null, HOTKEY_MODIFIER_REQUIRED);
   const parsed = parseSettingsWriteBody({ hotkeys: { toggle: { key_code: 14, carbon_modifiers: 6144 } } });
   assert.equal("ok" in parsed ? parsed.ok.hotkeys?.toggle?.key_code : null, 14);
-  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf_apply_hotkeys/);
+  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /molisWorkRefreshShelfPreferences/);
   assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf\.settings\.hotkey-recording/);
   assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf\.settings\.hotkey-occupied/);
   assert.doesNotMatch(SHELF_SETTINGS_CLIENT_SCRIPT, /data-shelf-settings-tab/);

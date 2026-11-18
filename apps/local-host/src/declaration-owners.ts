@@ -1,5 +1,7 @@
 import { pluginErrors, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { holdsInstalledEdition, pluginManifestDigest, readPluginReleaseManifest, type DeclarationOwner, type DeclarationOwners } from "@molis-ai/molis-work-plugin-runtime";
+import { SandboxPackageStore } from "./sandbox-package-store.js";
+import { installedManifestMatches } from "./installed-stage-identity.js";
 import { systemSettingOwners } from "./system-setting-owners.js";
 import { HOST_ARTIFACT_PRODUCERS } from "./artifact-type-registry.js";
 import { heldInstalls, sameInstallScope, type InstallScope } from "./plugin-holders.js";
@@ -8,9 +10,7 @@ import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 const settingKeys = (manifest: PluginManifest): string[] => manifest.settings_entries?.entries.map(entry => entry.key) ?? [];
 
 function exactDefinition(manifest: PluginManifest | undefined, record: PluginInstanceRecord): PluginManifest | undefined {
-  return manifest?.plugin_id === record.plugin_id && manifest.version === record.version
-    && manifest.publisher.publisher_id === record.publisher_id && manifest.publisher.signature === record.publisher_signature
-    && pluginManifestDigest(manifest) === record.manifest_digest ? manifest : undefined;
+  return installedManifestMatches(record, manifest) ? manifest : undefined;
 }
 
 /** Old keys still needed if a candidate version in this Home fails to start. Each change releases its own entry after commit or restoration. */
@@ -51,6 +51,7 @@ export function declarationOwnersFor(home: string | null, current: NonNullable<P
   running: (pluginId: string) => PluginManifest | undefined = () => undefined, versions = createSettingsVersionClaims()): DeclarationOwners {
   const shipped = shippedOwners();
   const shippedIds = new Set(shipped.map(owner => owner.plugin_id));
+  const packages = home ? new SandboxPackageStore(home) : undefined;
   const dual = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.runtime?.dual_instance);
   function ownsSettings(manifest: PluginManifest, scope: InstallScope) {
     const entry = dual.find(item => item.manifest.plugin_id === manifest.plugin_id);
@@ -73,7 +74,9 @@ export function declarationOwnersFor(home: string | null, current: NonNullable<P
       const held = artifacts || settings ? heldInstalls(home, current, artifacts ? undefined : projectSettings,
         (record, scope) => artifactOwner(record) || settingOwner(record, scope)) : [];
       return [...onlySettings ? [] : shipped, ...settings ? systemSettings() : [], ...held.map(item => {
-        const readable = item.manifest ?? (sameInstallScope(item.scope, current.scope) ? exactDefinition(running(item.record.plugin_id), item.record) : undefined);
+        // Signed packages keep their manifest in their verified bundle, including before their supervisor starts.
+        const readable = item.manifest ?? (sameInstallScope(item.scope, current.scope) ? exactDefinition(running(item.record.plugin_id), item.record) : undefined)
+          ?? exactDefinition(packages?.installedManifest(item.record), item.record);
         if (!readable) throw unreadable(item.record);
         return { plugin_id: item.record.plugin_id,
           ...(artifactOwner(item.record) ? { artifacts: readable.artifacts } : {}),

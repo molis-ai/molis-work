@@ -31,7 +31,7 @@ import { noAi } from "./job-steps.js";
 import { ShelfJobs } from "./jobs.js";
 import { recipeAvailability, SHELF_RECIPES } from "./recipes.js";
 import { detectShelfRuntime, emptyShelfRuntime, type ShelfRuntimeLookup } from "./runtimes.js";
-import { ShelfDevicePreferences, saveDevicePatch } from "./device-preferences.js";
+import { ShelfDevicePreferences, saveDevicePatch, shelfPreferenceSnapshot } from "./device-preferences.js";
 import { normalizeShelfSettings } from "./settings.js";
 
 export { SHELF_FOLDER_MAX_BYTES } from "./admissions.js";
@@ -121,6 +121,7 @@ export class ShelfStore {
       runtime,
       running_jobs: catalog.jobs.filter((job) => job.status === "running" && !isStaleJob(job, this.root)),
       settings,
+      action_bar_revision: shelfPreferenceSnapshot(catalog, "shelf.action_bar").revision,
       root: this.root,
     };
   }

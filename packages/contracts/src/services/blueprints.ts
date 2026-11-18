@@ -83,7 +83,7 @@ export type BlueprintPreviewCandidate =
   | { kind: "bundled"; plugin_id: string; version: string };
 
 const actionableDecisions = ["create", "reuse", "update", "needs_choice", "needs_install"] as const;
-const previewSkipReasons = ["unsupported", "scope_mismatch", "owner_unavailable", "dependency_unmet"] as const;
+const previewSkipReasons = ["unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "dependency_unmet"] as const;
 type PreviewDecision =
   | { decision: (typeof actionableDecisions)[number] }
   | { decision: "skip"; reason: (typeof previewSkipReasons)[number] };
@@ -127,7 +127,7 @@ export interface BlueprintOwnerReceipt {
   revision: AdoptionRevision;
 }
 
-const skipReasons = ["not_selected", "dependency_unmet", "unsupported", "scope_mismatch", "owner_unavailable", "revision_changed", "reused", "shared", "no_revert"] as const;
+const skipReasons = ["not_selected", "dependency_unmet", "unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "revision_changed", "reused", "shared", "no_revert"] as const;
 const appliedCurrentStates = ["changed", "owner_unavailable"] as const;
 type BlueprintApprovalStep = { page_id: string; version: number; approval_request_id: string };
 type BlueprintStepError = { code: string; message: string };

@@ -123,17 +123,15 @@ export function renderSceneReview(page: ReturnType<typeof sceneReviewPage>, stat
     for (const consequence of part.consequences) field(details, t("impact"), t(consequence));
     main.append(details);
     if (part.decision === "skip") main.append(node("p", t(part.reason)));
-    else {
-      main.append(check(part, t("include")));
-      if (state.editing && part.proposal.kind === "setting") {
-        const proposal = part.proposal, edit = node("details"), value = node("textarea");
-        value.className = "mw-input"; value.setAttribute("aria-label", t("proposed"));
-        value.value = printable(proposal.value); const save = button(t("refresh"), async () => {
-          const v = typeof proposal.value === "string" ? value.value : JSON.parse(value.value);
-          await controls.edit({ part_id: part.part_id, proposal: { ...proposal, value: v } });
-        });
-        edit.append(node("summary", t("edit")), value, save); main.append(edit);
-      }
+    else main.append(check(part, t("include")));
+    if (state.editing && part.proposal.kind === "setting" && (part.decision !== "skip" || part.reason === "value_unavailable")) {
+      const proposal = part.proposal, edit = node("details"), value = node("textarea");
+      value.className = "mw-input"; value.setAttribute("aria-label", t("proposed"));
+      value.value = printable(proposal.value); const save = button(t("refresh"), async () => {
+        const v = typeof proposal.value === "string" ? value.value : JSON.parse(value.value);
+        await controls.edit({ part_id: part.part_id, proposal: { ...proposal, value: v } });
+      });
+      edit.append(node("summary", t("edit")), value, save); main.append(edit);
     }
     const prev = button(t("previous"), () => controls.move(cursor - 1)), next = button(t("next"), () => controls.move(cursor + 1));
     prev.disabled ||= cursor === 0; next.disabled ||= cursor === parts.length - 1;

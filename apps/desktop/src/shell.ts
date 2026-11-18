@@ -78,9 +78,9 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
     const startShelfPreferences=()=>{
       const invoke=settings=>globalThis.__TAURI__.core.invoke("shelf_sync_device_preferences",{settings});
       if(document.body.hasAttribute("data-account-entry")){void invoke(null).catch(()=>{});return;}
-      let revision, timer, epoch=0, stopped=false;
+      let revision, timer, running, epoch=0, stopped=false;
       const api="/api/plugins/io.molis.work.shelf";
-      const read=async()=>{
+      const check=async()=>{
         const run=epoch, request=globalThis.molisWorkRequest;
         const current=()=>run===epoch&&!stopped&&!globalThis.molisWorkAccountTransition?.preparing;
         try{
@@ -97,8 +97,14 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
           }
         }catch(error){
           if(current()&&[401,403,404].includes(error.status)){revision=undefined;await invoke(null).catch(()=>{});}
-        }finally{if(!stopped)timer=setTimeout(read,3000);}
+        }
       };
+      const read=()=>{
+        clearTimeout(timer);
+        if(!running)running=check().finally(()=>{running=undefined;if(!stopped)timer=setTimeout(read,3000);});
+        return running;
+      };
+      globalThis.molisWorkRefreshShelfPreferences=async()=>{if(running)await running;if(!stopped)await read();};
       const stop=()=>{stopped=true;epoch++;clearTimeout(timer);};
       addEventListener("pagehide",stop,{once:true});
       globalThis.molisWorkAccountTransition?.page(document.body,async()=>{epoch++;},async()=>{stop();await invoke(null);},()=>{epoch++;revision=undefined;});

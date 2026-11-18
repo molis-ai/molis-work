@@ -310,6 +310,6 @@ declare const appliedCurrentStates: readonly ["changed", "owner_unavailable"];
 
 declare const dependencyChanges: readonly ["added", "removed", "changed"];
 
-declare const previewSkipReasons: readonly ["unsupported", "scope_mismatch", "owner_unavailable", "dependency_unmet"];
+declare const previewSkipReasons: readonly ["unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "dependency_unmet"];
 
-declare const skipReasons: readonly ["not_selected", "dependency_unmet", "unsupported", "scope_mismatch", "owner_unavailable", "revision_changed", "reused", "shared", "no_revert"];
+declare const skipReasons: readonly ["not_selected", "dependency_unmet", "unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "revision_changed", "reused", "shared", "no_revert"];

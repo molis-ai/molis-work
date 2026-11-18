@@ -83,6 +83,7 @@
     "workbench.scene.not_selected": "You did not select this setting.",
     "workbench.scene.scope_mismatch": "This setting cannot be written in the selected scope.",
     "workbench.scene.unsupported": "No provider currently supports applying this item.",
+    "workbench.scene.value_unavailable": "Choose an available value to include this setting.",
     "workbench.scene.owner_unavailable": "The original provider is not available for this setting.",
     "workbench.scene.dependency_unmet": "A required capability is unavailable.",
     "workbench.scene.revision_changed": "This setting changed afterwards. Its current value was kept.",

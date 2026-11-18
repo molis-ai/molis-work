@@ -102,7 +102,7 @@ export async function previewSettings(store: AdoptionStore, access: SettingsAcce
     if (!previous) return { ...details, decision: "skip", reason: "owner_unavailable" };
     assertSandboxMatches(entry.schema, proposal.value, (_kind, message) => { throw blueprintsErrors.part_unsupported(message); });
     const reuse = "set" in previous && canonicalJsonText(previous.set) === canonicalJsonText(proposal.value);
-    if (reuse && current.value_unavailable) return { ...details, decision: "skip", reason: "owner_unavailable" };
+    if (reuse && current.value_unavailable) return { ...details, decision: "skip", reason: "value_unavailable" };
     plans.set(part_id, { binding, key: entry.key, layer, change: { set: proposal.value }, previous, expected_revision: current.revision,
       ...(current.layer_revisions?.[layer] !== undefined && { original_layer_revision: current.layer_revisions[layer] }) });
     return { ...details, decision: reuse ? "reuse" : "update" };

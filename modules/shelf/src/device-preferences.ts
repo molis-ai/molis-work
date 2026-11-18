@@ -25,7 +25,7 @@ function valueProblem(settings: ShelfDeviceSettings, key: ShelfPreferenceKey, ai
     return "所选模型或连接当前不可用";
 }
 
-function snapshot(catalog: CatalogFile, key: ShelfPreferenceKey, ai?: ShelfAiPorts): SettingSnapshot {
+export function shelfPreferenceSnapshot(catalog: CatalogFile, key: ShelfPreferenceKey, ai?: ShelfAiPorts): SettingSnapshot {
   const layer = catalog.preferences.layers[key], settings = normalizeShelfSettings(catalog.settings);
   const fallback = valueOf(defaultShelfDeviceSettings(), key);
   const value = valueOf(settings, key), problem = valueProblem(settings, key, ai);
@@ -54,7 +54,7 @@ export class ShelfDevicePreferences {
 
   read(keys: readonly string[]) {
     const catalog = this.access.read();
-    return keys.map(key => snapshot(catalog, requireKey(key), this.ai));
+    return keys.map(key => shelfPreferenceSnapshot(catalog, requireKey(key), this.ai));
   }
 
   withWriteTransaction<R>(scope: SettingsOwnerScope, run: (transaction: SettingsTransaction) => R): Promise<R> {
@@ -63,7 +63,7 @@ export class ShelfDevicePreferences {
       const receiptKey = (key: string, id: string) => JSON.stringify([scope.owner_id, scope.actor_id, key, "personal", id]);
       let dirty = false;
       const result = run({
-        readCurrent: name => snapshot(catalog, requireKey(name), this.ai),
+        readCurrent: name => shelfPreferenceSnapshot(catalog, requireKey(name), this.ai),
         readReceipt: ({key, request_id}) => catalog.preferences.receipts[receiptKey(key, request_id)],
         writeChange: ({key: name, change}) => {
           const key = requireKey(name);

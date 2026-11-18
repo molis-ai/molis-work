@@ -1,0 +1,11 @@
+{
+  "reason": "引导逐项显示实际设置、范围与采用进度。Jelly、工作记录和置物架的原页面复用带版本的设置读写，桌面跟随当前设备设置。",
+  "review": "第 38 批 PR 页面资源审阅，实测基点 f1e875d11e，参与比较的都是已有资源。见本批收尾检查。",
+  "assets": {
+    "/assets/molis-work-arrival.css": 1362,
+    "/assets/molis-work-work-records.js": 726,
+    "/assets/molis-work-workbench.js": 6933,
+    "/assets/molis-work-plugins/jelly.js": 450,
+    "/assets/molis-work-plugins/shelf.js": 3449
+  }
+}

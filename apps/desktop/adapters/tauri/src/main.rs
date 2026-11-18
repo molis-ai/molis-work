@@ -1023,18 +1023,6 @@ fn shelf_hotkey_status() -> ShelfHotkeyStatus {
 }
 
 #[tauri::command]
-fn shelf_apply_hotkeys(
-    toggle: shelf_hotkeys::HotKeyChordDto,
-    capture: shelf_hotkeys::HotKeyChordDto,
-    files: shelf_hotkeys::HotKeyChordDto,
-) -> Result<ShelfHotkeyStatus, String> {
-    let toggle = shelf_hotkeys::HotKeyChord::from(toggle);
-    let capture = shelf_hotkeys::HotKeyChord::from(capture);
-    let files = shelf_hotkeys::HotKeyChord::from(files);
-    apply_shelf_chords(toggle, capture, files)
-}
-
-#[tauri::command]
 fn shelf_sync_device_preferences(
     settings: Option<shelf_hotkeys::DevicePreferences>,
 ) -> Result<(), String> {
@@ -1237,8 +1225,7 @@ fn main() {
       files_open,
       shelf_setup_status,
       shelf_hotkey_status,
-      shelf_sync_device_preferences,
-      shelf_apply_hotkeys
+      shelf_sync_device_preferences
       ];
       handle(invoke)
     })

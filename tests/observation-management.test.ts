@@ -159,7 +159,7 @@ test("ONB-22/30 OCL-15: adopting a space reminder preserves records and an inter
   assert.deepEqual(await read(), before, "retention has its own revision");
   const request = { key, layer: "personal" as const, expected_revision: before.revision, request_id: "warn-now", change: { set: { bytes: 0 } } };
   const saved = await user().invoke(retentionActions.write, request);
-  assert.equal((await f.service.invoke(person(), observationActions.spaceGet, {})).reminder_status, "exceeded");
+  assert.equal((await user().invoke(observationActions.spaceGet, {})).reminder_status, "exceeded");
   await f.service.invoke(pluginCaller("notes", "notes-install"), observationActions.report, {
     facts: [{ fact: "notes.kept", outcome: "succeeded" }],
   });
@@ -174,7 +174,7 @@ test("ONB-22/30 OCL-15: adopting a space reminder preserves records and an inter
   assert.deepEqual(manual.value, { bytes: 9999 });
   assert.ok(readRecords(f.db()).some(r => r.fact === "notes.kept"));
   await user().invoke(retentionActions.write, { ...request, request_id: "clear-space", expected_revision: manual.revision, change: { inherit: true } });
-  assert.equal((await f.service.invoke(person(), observationActions.spaceGet, {})).reminder_status, "none");
+  assert.equal((await user().invoke(observationActions.spaceGet, {})).reminder_status, "none");
 });
 
 test("OCL-01 OCL-02 OCL-04 OCL-06 OCL-14: records.query filters by work, subject+version, platform_version, kinds and window, paginates cleanly and marks late, coalesced and clock_adjusted", async t => {

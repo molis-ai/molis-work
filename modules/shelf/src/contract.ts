@@ -256,6 +256,8 @@ export interface ShelfSnapshot {
   readonly running_jobs: readonly ShelfJobRecord[];
   /** Device settings the workbench needs to paint: actions, order, runtimes. */
   readonly settings: ShelfDeviceSettings;
+  /** The revision of the action bar shown in this snapshot, for compare-and-set edits. */
+  readonly action_bar_revision: string;
   /** Where the copies live, so a drag-out can hand the real file to macOS. */
   readonly root: string;
 }

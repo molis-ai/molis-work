@@ -33,7 +33,7 @@ test('opening a local or personal Shelf again preserves an explicitly deleted sa
 test('ONB-22/29 Shelf upgrades local and personal v1 catalogs without losing materials, clipboard, settings or replication work', async t => {
   for (const personal of [false, true]) {
     const f = fixture(t, personal);
-    const open = personal ? f.open : () => openShelfStore(join(f.home, 'shelf'), openTestShelfFiles(f.home), {disabled:true});
+    const open = personal ? f.open : () => openShelfStore(join(f.home, 'shelf'), openTestShelfFiles(f.home), {});
     const store = open();
     await store.saveSettings({drop_wheel_enabled:false});
     await store.addClipboard('local clipboard');

@@ -33,6 +33,54 @@ test("ONB-22/29 Desktop receives adopted wheel and hotkeys from the active Shelf
   await waitFor(bridge + "?.drop_wheel_enabled === false && " + bridge + "?.hotkeys.toggle.key_code === 14");
 });
 
+test("ONB-22: a late Shelf settings reply cannot rebind an older desktop shortcut", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded");
+  if (!b) return;
+  const { web, command, sessionId, navigate, origin, projectId, evaluate, waitFor, click } = b;
+  const api = "/api/plugins/io.molis.work.shelf", key = "shelf.hotkeys";
+  type Chord = { key_code: number; carbon_modifiers: number };
+  type Keys = Record<"toggle" | "capture" | "files", Chord>;
+  const hotkeys = (await web.get<{ hotkeys: Keys }>(api + "/settings")).hotkeys;
+  const initialCode = hotkeys.toggle.key_code === 14 ? 15 : 14;
+  const adoptedCode = initialCode + 2;
+  await web.post(api + "/settings", { hotkeys: { toggle: { ...hotkeys.toggle, key_code: initialCode } } });
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: BRIDGE }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/?desktop=1" }, sessionId));
+  const calls = "window.__invokes.filter(e=>e.command==='shelf_sync_device_preferences')";
+  const boundCode = calls + ".at(-1)?.args.settings?.hotkeys.toggle.key_code";
+  await waitFor(boundCode + "===" + initialCode);
+  await click("[data-directory-open=settings]");
+  const entry = '[data-directory-panel=settings] [data-settings-section="shelf"]';
+  await waitFor("document.querySelector(" + JSON.stringify(entry) + ")");
+  await click(entry);
+  const reset = "[data-shelf-hotkey-slot=toggle] [data-shelf-hotkey-reset]";
+  await waitFor("document.querySelector(" + JSON.stringify(reset) + ")?.hidden===false");
+  // Only delay delivery to the settings page. Its request has already committed when the scene writes B.
+  await evaluate(`(() => {
+    const fetch = window.fetch;
+    window.fetch = async function(...args) {
+      const response = await fetch.apply(this,args);
+      if (new URL(response.url).pathname.endsWith('/preferences/write') && !window.releaseFirstSave) {
+        await new Promise(resolve => { window.releaseFirstSave=resolve; });
+      }
+      return response;
+    };
+  })()`);
+  await click(reset);
+  await waitFor("typeof window.releaseFirstSave==='function'");
+  const {values: [current]} = await web.post<{values: {revision: string; value: Keys}[]}>(api + "/preferences/read", { keys: [key] });
+  assert.ok(current);
+  assert.equal(current.value.toggle.key_code, hotkeys.toggle.key_code, "the settings page committed its reset");
+  await web.post(api + "/preferences/write", { key, expected_revision: current.revision, layer: "personal", request_id: "later-scene",
+    change: { set: { ...current.value, toggle: { ...current.value.toggle, key_code: adoptedCode } } } });
+  await waitFor(boundCode + "===" + adoptedCode);
+  const count = await evaluate<number>("window.__invokes.length");
+  await evaluate("window.releaseFirstSave()");
+  await waitFor("window.__invokes.slice(" + count + ").some(e=>e.command==='shelf_hotkey_status')");
+  assert.equal(await evaluate(boundCode), adoptedCode);
+  assert.equal(await evaluate("window.__invokes.slice(" + count + ").some(e=>e.command==='shelf_apply_hotkeys')"), false);
+});
+
 test("DESK-SHELF-01 DESK-SHELF-02 the hotkey's Shelf opens its side tab, and the shell is told that tab's box only while it shows", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;

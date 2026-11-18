@@ -116,7 +116,7 @@ async function decide(ctx: NonNullable<Awaited<ReturnType<typeof gitEditor>>>, d
 }
 
 for (const surface of ["git", "coding"] as const) {
-  test(`QEA-33 QEA-174: ${surface} restores each directory's own form through actual directory switching`, { timeout: 150_000 }, async t => {
+  test(`QEA-33 QEA-174 QEA-177: ${surface} restores each directory's own form through actual directory switching`, { timeout: 150_000 }, async t => {
     const ctx = await gitEditor(t, surface); if (!ctx) return;
     const { browser, frame, workspace, root } = ctx;
     if (surface === "coding") await browser.setViewport(780, 493);
@@ -126,7 +126,14 @@ for (const surface of ["git", "coding"] as const) {
     await addProjectInputFolder(browser.web, browser.projectId!, root);
     const other = await addProjectInputFolder(browser.web, browser.projectId!, otherRoot);
     await browser.reloadPage(); await ctx.show();
-    if (surface === "coding") await ctx.startCodingSession();
+    const selectedSession = "[data-coding-session][aria-current=true]";
+    const currentSession = `document.querySelector(${JSON.stringify(selectedSession)})?.dataset.codingSession`;
+    let codingSession: string | undefined;
+    if (surface === "coding") {
+      await ctx.startCodingSession();
+      await frame.waitFor(`Boolean(${currentSession})`);
+      codingSession = await frame.evaluate<string>(currentSession);
+    }
     const select = async (id: string, path: string, branch: string) => {
       if (surface === "git") {
         await setProjectOutputFolder(browser.web, browser.projectId!, path);
@@ -134,7 +141,7 @@ for (const surface of ["git", "coding"] as const) {
       } else {
         if (!await frame.evaluate("document.querySelector('.coding-stage').checkVisibility()")) {
           await ctx.codingFace("sessions");
-          await frame.click("[data-coding-session][aria-current=true]");
+          await frame.click(selectedSession);
         }
         if (await frame.evaluate("document.querySelector('.coding-context').hidden")) await browser.evaluate(codingAdd("context"));
         await frame.click("[data-coding-workspace-open]");
@@ -158,7 +165,12 @@ for (const surface of ["git", "coding"] as const) {
     assert.equal(await frame.evaluate("document.querySelector('[data-git-commit-message]').value"), "First directory commit");
     assert.equal(await frame.evaluate("document.querySelector('[data-git-branch-name]').value"), "first-topic");
     await select(other.workspace_id, otherRoot, "other-branch");
-    await browser.reloadPage(); await ctx.show();
+    await browser.reloadPage();
+    if (codingSession) {
+      await browser.waitFor(CODING_TAKEN);
+      await frame.waitFor(`${currentSession} === ${JSON.stringify(codingSession)}`);
+    }
+    await ctx.show();
     await frame.waitFor("document.querySelector('[data-git-branch]').textContent === 'other-branch'");
     assert.equal(await frame.evaluate("document.querySelector('[data-git-commit-message]').value"), "Second directory commit");
     assert.equal(await frame.evaluate("document.querySelector('[data-git-branch-name]').value"), "second-topic");

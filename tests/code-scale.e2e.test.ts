@@ -228,7 +228,7 @@ test("VUX-33: the Assistant sends a large block as its text and a map of its pie
   assert.match(small, /<span class="tok-keyword">/); assert.equal(small.includes("data-paint"), false);
 });
 
-test("VUX-33: the Assistant's large block streams in place, reopens as text at once and is coloured a slice a frame to the whole colouring", { timeout: 240_000 }, async (t) => {
+test("VUX-33 QEA-176: the Assistant's large block streams in place, reopens as text at once and is coloured a slice a frame to the whole colouring", { timeout: 240_000 }, async (t) => {
   // A CRLF ends the body and another separates the closing fence. Not a lone CR: a block with one is sent with its colours and
   // no paint map, as it needs a <br> for that line (assistantCodeHtml; tests/assistant-text-html.e2e.test.ts), so it has no slices.
   const code = textOf(90_000).replace(/\n$/, "\r\n");
@@ -271,8 +271,11 @@ test("VUX-33: the Assistant's large block streams in place, reopens as text at o
   const painting = samples.filter(([, , spans]) => spans < total);
   assert.ok(painting.length >= 3, `coloured over ${painting.length} frames`);
   assert.ok(painting.every(([, length]) => length === code.length), "every frame while it is coloured reads the whole code");
-  assert.ok(painting.every(([, , spans], index) => !index || spans > painting[index - 1]![2]), "each frame colours more of it");
+  const firstColour = painting.findIndex(([, , spans]) => spans > 0);
+  assert.ok(firstColour >= 1 && firstColour <= 2, `plain text appears first, then colouring starts within two frames (first coloured sample: ${firstColour})`);
+  assert.ok(painting.every(([, , spans], index) => index <= firstColour || spans > painting[index - 1]![2]), "after colouring starts each frame colours more of it");
   const gaps = painting.slice(1).map(([at], index) => at - painting[index]![0]), longest = Math.max(0, ...gaps);
+  t.diagnostic(`QEA-176 reopened ${code.length} characters, ${firstColour} plain frames, longest frame ${longest.toFixed(1)} ms`);
   assert.ok(longest < 100, `the longest frame while it is coloured: ${longest.toFixed(1)} ms`);
   const evidence = reviewEvidenceUrl("visual-ui-experience/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL("assistant-code-scale.json", evidence), JSON.stringify({ characters: code.length, frames: painting.length, longest: Math.round(longest) }, null, 2));

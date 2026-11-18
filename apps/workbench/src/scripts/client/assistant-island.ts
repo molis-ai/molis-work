@@ -406,7 +406,7 @@ ${ASSISTANT_TABS_PART}
     else void conversationObjects.update(false);
   };
   const render = () => {
-    const stick = nearBottom(), before = thread.scrollHeight;
+    const before = nearBottom() ? null : thread.scrollHeight;
     const work = view && view.work.work_id === curId ? view.work : null;
     if (work) {
       const index = works.findIndex((row) => row.work_id === work.work_id);
@@ -495,7 +495,7 @@ ${ASSISTANT_TABS_PART}
       thread.append(box);
     }
     paintSum(); paintAim(); paintList(); drawTabs(); paintSideDot(work);
-    if (stick) scrollOwner()?.pin(); else if (thread.scrollHeight > before + 4) unseen = true;
+    if (before === null) scrollOwner()?.pin(); else if (thread.scrollHeight > before + 4) unseen = true;
     paintJump();
   };
 

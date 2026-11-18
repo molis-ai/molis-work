@@ -90,7 +90,7 @@ function validateDeliverySources(input: EvaluationSampleInput): void {
     } else if (exp.source === "deterministic" && exp.rule.check === "evidence_text") {
       facts = exp.rule.facts ?? (exp.rule.fact ? [exp.rule.fact] : []);
       role = exp.rule.evidence_role;
-      requiresReply = facts.includes("agent.reply") || (!facts.length && input.work_mode === "assistant");
+      requiresReply = facts.includes("agent.reply") || (!facts.length && (input.work_mode === "assistant" || input.query.fact === "agent.reply"));
     } else continue;
     const judgesReply = requiresReply || facts.some(fact => fact.startsWith("agent.")
       || (input.work_mode === "assistant" && platformPrefixes.some(prefix => fact.startsWith(prefix + "."))));

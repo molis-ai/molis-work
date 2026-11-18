@@ -243,9 +243,10 @@ function evalDeterministic(rule: EvaluationDeterministicRule, stage: EvaluationE
       return evalDistinctVersions(rule, matched, ctx);
     case "evidence_text": {
       const requested = rule.facts ?? (rule.fact ? [rule.fact] : []);
-      const judgesReply = requested.includes("agent.reply") || (!requested.length && ctx.workMode === "assistant");
+      const judgesReply = requested.includes("agent.reply") || (!requested.length && (ctx.workMode === "assistant"
+        || matched.some(record => record.fact === "agent.reply")));
       if (stage === "delivery" && judgesReply) {
-        if (!matched.length) return absentVerdict(ctx, "模型回复");
+        if (!ctx.records.length) return absentVerdict(ctx, "模型回复");
         return evaluateRubricText({ rubric: "核对模型回复正文", evidence_source: { fact: "agent.reply", role: "reply" },
           required_evidence_terms: rule.contains_all, forbidden_evidence_terms: rule.forbids_any },
           stage, { ...ctx, records: matched, sampleAllowedVariations: [] }, []);

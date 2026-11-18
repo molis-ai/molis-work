@@ -1189,6 +1189,14 @@ test("PWA-52 OCL-17: scoring cannot use reasoning or borrowed aliases to establi
     { expectation_id: "metric", stage: "delivery", source: "deterministic", description: "核对正文", rule: {
       check: "evidence_text", fact: "agent.reply", contains_all: ["量化指标"] } },
   ] });
+  await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "mixed-reply", work_mode: "mixed",
+    query: { ...sample.query, fact: "agent.reply" }, expectations: [
+      { expectation_id: "metric", stage: "delivery", source: "deterministic", description: "核对正文", rule: {
+        check: "evidence_text", contains_all: ["量化指标"] } },
+    ] });
+  const mixed = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "mixed-reply" }) as EvaluationRunView;
+  assert.equal(mixed.effective_verdict, "failed");
+  assert.ok(mixed.expectation_results[0]?.evidence_refs.every(ref => ref.role === "reply"));
   const det = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "det-reply" }) as EvaluationRunView;
   assert.equal(det.effective_verdict, "failed");
   assert.ok(det.expectation_results[0]?.evidence_refs.every(ref => ref.role === "reply"));
@@ -1202,10 +1210,18 @@ test("PWA-52 OCL-17: scoring cannot use reasoning or borrowed aliases to establi
   fx.layer.flush();
   await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "missing-reply",
     query: { project_id: "p1", work_ref: "missing-reply" },
-    expectations: [{ ...expectation, rule: { ...base, required_facts: [], required_evidence_terms: ["量化指标"] } }] });
+    expectations: [
+      { ...expectation, rule: { ...base, required_facts: [], required_evidence_terms: ["量化指标"] } },
+      { expectation_id: "metric", stage: "delivery", source: "deterministic", description: "核对正文", rule: {
+        check: "evidence_text", fact: "agent.reply", contains_all: ["量化指标"] } },
+    ] });
   const absent = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "missing-reply" }) as EvaluationRunView;
   assert.equal(absent.effective_verdict, "unknown");
-  assert.deepEqual(absent.expectation_results[0]?.evidence_refs, []);
+  for (const result of absent.expectation_results) {
+    assert.equal(result.automated_verdict, "unknown");
+    assert.deepEqual(result.evidence_refs, []);
+    assert.ok(result.unknown_reasons.includes("evidence_missing"));
+  }
 });
 
 test("PWA-54 PWA-55 OCL-17: count confirmed owner work once, preserve legacy runs and disclose their exclusion from work totals", async t => {

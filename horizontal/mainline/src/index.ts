@@ -51,7 +51,7 @@ function reviewRefOf(value: unknown): ReviewReference<ReviewOwner> | null {
   const { id, version, owner } = value;
   if (!text(id, 2800) || !text(version, 240) || !record(owner) || !text(owner.project_id, 240)) return null;
   const projectId = owner.project_id;
-  if ((owner.kind === "agent-review" || owner.kind === "goal-acceptance") && text(owner.plugin_id, 240) && text(owner.install_id, 240)) {
+  if (owner.kind === "agent-review" && text(owner.plugin_id, 240) && text(owner.install_id, 240)) {
     return { owner: { kind: owner.kind, project_id: projectId, plugin_id: owner.plugin_id, install_id: owner.install_id }, id, version };
   }
   if (owner.kind === "trusted-decision" && (owner.scope === "home" || owner.scope === "project") && text(owner.plugin_id, 240) && text(owner.install_id, 240) && text(owner.installation_generation, 240)) {

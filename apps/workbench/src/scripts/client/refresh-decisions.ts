@@ -221,6 +221,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         }
         if (applyCollectionOnly) {
           restoreTreeCollapsed(ui.collapsed);
+          restoreDisclosures(treeScroll, ui.disclosures);
           syncGoalCollectionFolds();
           setSelectedStatuses(ui.statuses);
           filterTree("");

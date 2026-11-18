@@ -53,7 +53,7 @@ async function gitEditor(t: TestContext, surface: "git" | "coding", conflicts = 
   };
   await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=${surface}` }, browser.sessionId));
   await show();
-  return { browser, frame, root, show, git, workspace, startCodingSession };
+  return { browser, frame, root, show, git, workspace, startCodingSession, codingFace };
 }
 
 /** Use the visible Back control when the compact result covers the directory. */
@@ -116,9 +116,10 @@ async function decide(ctx: NonNullable<Awaited<ReturnType<typeof gitEditor>>>, d
 }
 
 for (const surface of ["git", "coding"] as const) {
-  test(`QEA-33: ${surface} restores each directory's own form through actual directory switching`, { timeout: 150_000 }, async t => {
+  test(`QEA-33 QEA-174: ${surface} restores each directory's own form through actual directory switching`, { timeout: 150_000 }, async t => {
     const ctx = await gitEditor(t, surface); if (!ctx) return;
     const { browser, frame, workspace, root } = ctx;
+    if (surface === "coding") await browser.setViewport(780, 493);
     const otherRoot = join(browser.homeDirectory, "second-repository");
     await mkdir(otherRoot);
     execFileSync("git", ["init", "-q", "-b", "other-branch", otherRoot]);
@@ -131,6 +132,10 @@ for (const surface of ["git", "coding"] as const) {
         await setProjectOutputFolder(browser.web, browser.projectId!, path);
         await frame.click("[data-git-refresh]");
       } else {
+        if (!await frame.evaluate("document.querySelector('.coding-stage').checkVisibility()")) {
+          await ctx.codingFace("sessions");
+          await frame.click("[data-coding-session][aria-current=true]");
+        }
         if (await frame.evaluate("document.querySelector('.coding-context').hidden")) await browser.evaluate(codingAdd("context"));
         await frame.click("[data-coding-workspace-open]");
         await frame.evaluate(`document.querySelector('[data-coding-workspace-choice]').value = ${JSON.stringify(id)}`);
@@ -163,9 +168,13 @@ for (const surface of ["git", "coding"] as const) {
 }
 
 for (const surface of ["git", "coding"] as const) {
-  test(`QEA-33 QEA-34 QEA-133: ${surface} keeps rejected and later edits, and clears only the successful snapshot after reload`, { timeout: 150_000 }, async t => {
+  test(`QEA-33 QEA-34 QEA-133 QEA-174: ${surface} keeps rejected and later edits, and clears only the successful snapshot after reload`, { timeout: 150_000 }, async t => {
     const ctx = await gitEditor(t, surface); if (!ctx) return;
     const { browser, frame, root, git, show } = ctx;
+    if (surface === "coding") {
+      await browser.setViewport(780, 493);
+      await show();
+    }
     git("config", "user.name", "Fixture"); git("config", "user.email", "fixture@example.test");
     git("config", "commit.gpgsign", "false"); git("config", "core.hooksPath", "/dev/null");
     await writeFile(join(root, "one.txt"), "changed\n"); git("add", "one.txt");
@@ -188,9 +197,33 @@ for (const surface of ["git", "coding"] as const) {
       const point = await frame.point("[data-git-notice]", "start");
       await browser.command("Input.dispatchMouseEvent", { type: "mouseWheel", ...point, deltaX: 0, deltaY: 600 }, browser.sessionId);
       await browser.waitFor(canReject);
+      const resultScroll = "document.querySelector('[data-git-reviews]').parentElement.scrollTop";
+      const beforeCover = await frame.evaluate<number>(resultScroll);
+      assert.ok(beforeCover > 0, "the compact result panel has been scrolled to the review");
       await browser.click(".navigator-project-settings");
       await frame.waitFor("document.body.hidden");
-      await browser.click("[data-cover-close]");
+      // Hold the real Host response while the replacement review slot is mounted and measured.
+      await browser.evaluate(`(() => {
+        const fetch = window.fetch;
+        let release;
+        const pending = new Promise(resolve => { release = resolve; });
+        const held = window.heldGitReviewRead = { received: false, release: () => { window.fetch = fetch; release(); } };
+        window.fetch = async (input, init) => {
+          const response = await fetch.call(window, input, init);
+          const url = new URL(input instanceof Request ? input.url : input, location.href);
+          if (response.ok && url.pathname.endsWith('/api/agent/reviews') && url.searchParams.has('workspace_id')) {
+            held.received = true;
+            await pending;
+          }
+          return response;
+        };
+      })()`);
+      try {
+        await browser.click("[data-cover-close]");
+        await browser.waitFor("window.heldGitReviewRead.received");
+        await frame.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))");
+        assert.equal(await frame.evaluate(resultScroll), beforeCover, "the pending read preserves where the review was on screen");
+      } finally { await browser.evaluate("window.heldGitReviewRead.release()"); }
       await browser.waitFor(canReject);
     }
     await decide(ctx, "reject");

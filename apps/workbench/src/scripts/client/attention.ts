@@ -20,7 +20,7 @@
 import { objectLinkAt } from "@molis-ai/molis-work-contracts/platform/object-link";
 
 export const ATTENTION_FACTORY_SCRIPT = `(host) => {
-  const { translate: readText, projectId, openItem, route: contextRoute, home = false } = host;
+  const { translate: readText, projectId, openItem, route: contextRoute, home = false, eventsPath = "/api/attention/events" } = host;
   const route = (path) => { const address = contextRoute(path); return home ? address + (address.includes("?") ? "&" : "?") + "view=home" : address; };
   if (document.body.dataset.paneEmbedded === "true") return;
   const tab = document.querySelector('[data-side-tab="tasks"]');
@@ -159,7 +159,6 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   };
   // The Host's word that something here may have changed (WLN-27): one stream, read again on each word. There is no beat; a lost
   // stream is the page losing the Host (said once, as of the last read), and it connects again, waiting longer each time.
-  const eventsPath = "/api/attention/events";
   const connect = async () => {
     clearTimeout(retry);
     if (!listening || stream) return;

@@ -94,7 +94,8 @@ export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions,
   <script>(board => board.start((${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: board.route, headers: () => ({}), project: board.project,
     showToast: board.toast, openItem: board.openItem, pluginTitle: (plugin) => plugin, receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.t.text),
     interaction: (client => (root, host) => client(root, { references: () => Promise.resolve({ items: [] }), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})) })))(globalThis.molisBoardAssistant);
-  (board => (${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.t.text, projectId: board.project.id, openItem: board.openItem, route: board.route }))(globalThis.molisBoardAssistant);</script>
+  (board => (${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.t.text, projectId: board.project.id, openItem: board.openItem,
+    route: board.route, eventsPath: board.route("/api/attention/events") }))(globalThis.molisBoardAssistant);</script>
 </body>
 </html>`;
 }

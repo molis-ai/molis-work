@@ -267,7 +267,7 @@ test("VUX-39 the board's Assistant frame loads without taking the board's focus 
 // The paths that end well beside the ones that fail: sub-tasks the plan handed on and the work they report to, the bell's
 // notices (what needs the person first, news folded, one held by a rule, a reminder that opens its item), a question that
 // is answered and lets the round finish, and a round cut off by a closed window that is checked and then ended.
-test("VUX-39 the board's Assistant shows delegated sub-tasks, the bell's notices, an answered question and an interrupted round's recovery", { timeout: 180_000 }, async (t) => {
+test("VUX-39 QEA-173 the board's Assistant shows delegated sub-tasks, the bell's notices, an answered question and an interrupted round's recovery", { timeout: 180_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, navigate, waitFor, origin } = browser;

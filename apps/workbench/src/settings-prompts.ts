@@ -22,7 +22,7 @@ export function renderPromptSettings({ displayModel }: { readText(text: string):
     <div class="prompt-settings-body" data-prompt-body aria-live="polite"><p class="settings-muted mw-loading">${uiText("workbench.settings-prompts.loading")}</p></div>
     ${renderSettingsSection({ body: renderObjectRow({ name: uiText.text("workbench.settings-prompts.developer-diagnostics"), hint: uiText.text("workbench.settings-prompts.what-each-source-registered-what-not-effect-why"),
       attrs: { id: "diagnostics", "data-prompt-diagnostics": true },
-      body: `<div data-prompt-diagnostics-body><p class="settings-muted mw-loading">${uiText("workbench.settings-prompts.loading")}</p></div>` }) })}
+      body: `<div data-prompt-diagnostics-body><p class="mw-settings-section__note mw-loading">${uiText("workbench.settings-prompts.loading")}</p></div>` }) })}
   </section>`;
 }
 
@@ -247,8 +247,10 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
       diagnosticsBody.replaceChildren(list);
     } catch (failure) { delete diagnostics.dataset.loaded; diagnosticsBody.replaceChildren(problem(failure)); }
   };
-  diagnostics.addEventListener("toggle", () => { if (diagnostics.open) loadDiagnostics(); });
-  if (address.hash === "#diagnostics") { diagnostics.open = true; loadDiagnostics(); requestAnimationFrame(() => diagnostics.scrollIntoView({ block: "start" })); }
+  // The row's own <details>: a toggle does not bubble, so it is listened for where it happens.
+  const diagnosticsFold = diagnostics.querySelector("details");
+  diagnosticsFold.addEventListener("toggle", () => { if (diagnosticsFold.open) loadDiagnostics(); });
+  if (address.hash === "#diagnostics") { diagnosticsFold.open = true; loadDiagnostics(); requestAnimationFrame(() => diagnostics.scrollIntoView({ block: "start" })); }
   root.querySelectorAll("[data-prompt-filter]").forEach((button) => button.addEventListener("click", () => {
     filter = button.dataset.promptFilter;
     root.querySelectorAll("[data-prompt-filter]").forEach((other) => other.setAttribute("aria-pressed", String(other === button)));

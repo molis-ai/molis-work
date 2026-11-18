@@ -42,7 +42,7 @@ test("W4-09-01: 设置 › 诊断 lists the server's periodic tasks from their o
   const deadline = Date.now() + 10_000;
   let row = "";
   while (Date.now() < deadline) {
-    row = (await section()).split("完成上次没删完的项目")[1]!.split("</section>")[0]!;
+    row = (await section()).split("完成上次没删完的项目")[1]!.split('data-slot="setting-row"')[0]!;
     if (row.includes("上次 ")) break;
     await new Promise(resolve => setTimeout(resolve, 100));
   }

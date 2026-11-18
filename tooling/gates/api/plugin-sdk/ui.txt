@@ -279,8 +279,6 @@ export interface MwMaterialsTrackOptions {
     readonly title?: string;
 }
 
-export type MwObjectRowTone = "ok" | "quiet" | "attention" | "bad";
-
 export interface MwRoundReportCardOptions {
     readonly statusLabel: string;
     readonly statusTone: MwStatusTone;
@@ -960,7 +958,7 @@ export declare function renderObjectRow(options: {
     mark?: string;
     state?: {
         label: string;
-        tone?: MwObjectRowTone;
+        tone?: Exclude<MwTone, "info">;
         attrs?: Record<string, AttrValue>;
     };
     action?: string;
@@ -1074,8 +1072,14 @@ export declare function renderSeparator(options?: {
 export declare function renderSettingRow(options: {
     name: string;
     hint?: string;
-    control: string;
+    control?: string;
     label?: boolean;
+    open?: {
+        label: string;
+        body: string;
+        opened?: boolean;
+        labelAttrs?: Record<string, AttrValue>;
+    };
     className?: string;
     attrs?: Record<string, AttrValue>;
     nameAttrs?: Record<string, AttrValue>;
@@ -1086,6 +1090,7 @@ export declare function renderSettingsSection(options: {
     title?: string;
     body: string;
     id?: string;
+    titleAttrs?: Record<string, AttrValue>;
     action?: string;
     lead?: string;
     className?: string;

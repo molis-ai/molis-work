@@ -541,8 +541,7 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-settings-body { display: flex; flex-direction: column; gap: 0; min-width: 0; }
   /* POLISH-29: the first section sits as close under the heading as on every other settings page. */
   [data-shelf] .shelf-settings-body > .mw-settings-section:first-child { margin-top: 0; }
-  /* POLISH-30: a block is one stretch of a section's card, parted from the next by a line. */
-  [data-shelf] .shelf-settings-block { margin: 0; padding: 12px 0; border-bottom: 1px solid var(--da-line); }
+  /* POLISH-30: a block is one stretch of a section's card, parted from the next by a line (the platform's mw-settings-section__block). */
   [data-shelf] .shelf-settings-block h3 { margin: 0 0 8px; font-size: 12px; font-weight: var(--weight-title, 600); color: var(--da-muted); }
   [data-shelf] .shelf-settings-line { margin: 0 0 8px; font-size: 13px; color: var(--da-text); line-height: 1.55; }
   [data-shelf="settings"] .settings-hint { margin: 8px 0 12px; font-size: 12px; color: var(--da-muted); line-height: 1.55; }

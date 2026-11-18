@@ -6042,6 +6042,7 @@
     "workbench.settings-call-diagnostics.how-many-projects-exist-device": "本机已经创建的项目数量。",
     "workbench.settings-call-diagnostics.install-complete": "安装完整",
     "workbench.settings-call-diagnostics.install-manifest-invalid": "安装清单无效",
+    "workbench.settings-call-diagnostics.install-repair": "在终端重新运行 molis-work install 可以修复。",
     "workbench.settings-call-diagnostics.install-missing": "尚未安装本体",
     "workbench.settings-call-diagnostics.install-state": "安装状态",
     "workbench.settings-call-diagnostics.installed-not-running": "已安装，未运行",

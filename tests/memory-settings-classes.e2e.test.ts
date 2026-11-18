@@ -62,7 +62,7 @@ test("classification controls save independent personal/project restrictions, ke
     await page.evaluate(`(() => { const node = [...document.querySelectorAll('[data-memory-settings]')].find(node => node.checkVisibility()); node.setAttribute('data-memory-classes-test', ''); })()`);
     await page.wait(`document.querySelector('${root} [data-memory-class-form] fieldset')?.disabled === false`);
     // The restrictions are one row of 谁可以用; the form opens in place under it (specs/screen-polish/p5-settings.md).
-    await page.evaluate(`void (document.querySelector('${root} [data-memory-classes-row]').open = true)`);
+    await page.evaluate(`void (document.querySelector('${root} [data-memory-classes-row] > details').open = true)`);
     assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('${root} [data-memory-class]')].filter(node =>
       node.closest('.mw-select-picker')?.querySelector('button')?.disabled).map(node => node.dataset.memoryClass)`), [],
     "the loaded form enables its actual picker controls, not only the fieldset");

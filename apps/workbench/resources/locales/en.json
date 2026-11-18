@@ -6463,6 +6463,7 @@
     "workbench.settings-call-diagnostics.how-many-projects-exist-device": "How many projects exist on this device.",
     "workbench.settings-call-diagnostics.install-complete": "Install complete",
     "workbench.settings-call-diagnostics.install-manifest-invalid": "Install manifest invalid",
+    "workbench.settings-call-diagnostics.install-repair": "Run molis-work install again in a terminal to repair it.",
     "workbench.settings-call-diagnostics.install-missing": "Install missing",
     "workbench.settings-call-diagnostics.install-state": "Install state",
     "workbench.settings-call-diagnostics.installed-not-running": "Installed, not running",

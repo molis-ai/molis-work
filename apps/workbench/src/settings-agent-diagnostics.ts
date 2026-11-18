@@ -8,7 +8,7 @@ export function renderAgentDiagnostics({ }: { readText(text: string): string }):
   return renderObjectRow({ name: uiText.text("workbench.settings-agent-diagnostics.assistant-execution-service"),
     hint: uiText.text("workbench.settings-agent-diagnostics.what-execution-service-actually-assembled-which-local-capabiliti"),
     attrs: { id: "agent-diagnostics", "data-agent-diagnostics": true },
-    body: `<div data-agent-diagnostics-body><p class="settings-muted mw-loading">${uiText("workbench.settings-agent-diagnostics.loading")}</p></div>` });
+    body: `<div data-agent-diagnostics-body><p class="mw-settings-section__note mw-loading">${uiText("workbench.settings-agent-diagnostics.loading")}</p></div>` });
 }
 
 /** Reads only when opened. No template interpolation inside. */
@@ -119,8 +119,10 @@ globalThis.molisWorkBindAgentDiagnostics = (container = document) => {
       body.replaceChildren(runtimePart(data.runtime), rounds);
     } catch (failure) { delete root.dataset.loaded; const note = el("p", "settings-form-error"); molisWorkRequest.show(note, failure); body.replaceChildren(note); }
   };
-  root.addEventListener("toggle", () => { if (root.open) load(); });
-  if (location.hash === "#agent-diagnostics") { root.open = true; load(); }
+  // The row's own <details>: a toggle does not bubble, so it is listened for where it happens.
+  const fold = root.querySelector("details");
+  fold.addEventListener("toggle", () => { if (fold.open) load(); });
+  if (location.hash === "#agent-diagnostics") { fold.open = true; load(); }
 };
 globalThis.molisWorkBindAgentDiagnostics(document);
 `;

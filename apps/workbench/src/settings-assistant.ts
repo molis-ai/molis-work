@@ -1,13 +1,10 @@
-import { t as uiText, icon, renderButton, renderListToolbar, renderObjectRow, renderSettingRow, renderSettingsSection, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, renderButton, renderListToolbar, renderObjectRow, renderSettingRow, renderSettingsSection, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** One "still tell me" exception of a rule being written: a switch whose label says which rule it belongs to (B27-AC01). */
 const exceptRow = (kind: string, label: string, checked: boolean) => renderSettingRow({
   name: uiText.text(label), label: true, className: "mw-setting-row--sub",
   control: renderSwitch({ checked, attrs: { "data-assistant-rule-except": kind } }),
 });
-/** The one control of a row that opens in place: it says what is chosen and turns its chevron. */
-const openToggle = (controls: string, label: string) =>
-  `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-setting-open-toggle aria-expanded="false" aria-controls="${controls}"><span data-setting-open-label>${label}</span>${icon("chevron-down")}</button>`;
 
 /**
  * “助理”: when the Assistant may draw attention, how much it may use, what it may use (its own grants, separate from Coding's and
@@ -27,51 +24,43 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
       body: `<div data-assistant-rules-list><p class="mw-settings-section__note">${uiText("workbench.settings-assistant.loading")}</p></div>
       <form data-assistant-rule-quiet>
         ${renderSettingRow({ name: text("workbench.settings-assistant.quiet-places"), hint: text("workbench.settings-assistant.quiet-places-hint"),
-          control: openToggle("assistant-quiet-open", uiText("workbench.settings-assistant.choose-places")) })}
-        <div class="mw-setting-open" id="assistant-quiet-open" hidden>
-          <div class="mw-choice-group" role="group" aria-label="${uiText("workbench.settings-assistant.quiet-places")}" data-assistant-rule-surfaces></div>
+          open: { label: text("workbench.settings-assistant.choose-places"), labelAttrs: { "data-setting-open-label": true }, body: `<div class="mw-choice-group" role="group" aria-label="${uiText("workbench.settings-assistant.quiet-places")}" data-assistant-rule-surfaces></div>
           ${exceptRow("failed", "workbench.settings-assistant.still-notify-failed-here", true)}
           ${exceptRow("needs-decision", "workbench.settings-assistant.still-tell-me-when-i-need-decide", false)}
           ${exceptRow("reminder", "workbench.settings-assistant.still-tell-me-when-reminder-i-set-comes", true)}
           ${exceptRow("connection", "workbench.settings-assistant.still-tell-me-when-service-connection-needs-me", true)}
-          <div class="mw-setting-open__actions">${renderButton({ label: text("workbench.settings-assistant.add-rule"), variant: "secondary", size: "sm", type: "submit" })}</div>
-        </div>
+          <div class="mw-setting-open__actions">${renderButton({ label: text("workbench.settings-assistant.add-rule"), variant: "secondary", size: "sm", type: "submit" })}</div>` } })}
       </form>
       <form data-assistant-rule-pause>
         ${renderSettingRow({ name: text("workbench.settings-assistant.pause-notices"), hint: text("workbench.settings-assistant.pause-notices-hint"),
-          control: openToggle("assistant-pause-open", uiText("workbench.settings-assistant.pause")) })}
-        <div class="mw-setting-open" id="assistant-pause-open" hidden>
-          ${renderSettingRow({ name: text("workbench.settings-assistant.how-long"), className: "mw-setting-row--sub",
+          open: { label: text("workbench.settings-assistant.pause"), body: `${renderSettingRow({ name: text("workbench.settings-assistant.how-long"), className: "mw-setting-row--sub",
             control: `<select class="mw-input" data-assistant-rule-duration aria-label="${uiText("workbench.settings-assistant.how-long")}">
             <option value="30">${uiText("workbench.settings-assistant.value-30-minutes")}</option><option value="60" selected>${uiText("workbench.settings-assistant.value-1-hour")}</option><option value="day">${uiText("workbench.settings-assistant.until-end-today")}</option>
           </select>` })}
           ${exceptRow("failed", "workbench.settings-assistant.still-notify-failed-paused", true)}
           ${exceptRow("connection", "workbench.settings-assistant.still-tell-me-when-service-connection-needs-me", true)}
-          <div class="mw-setting-open__actions">${renderButton({ label: text("workbench.settings-assistant.start-pause"), variant: "secondary", size: "sm", type: "submit" })}</div>
-        </div>
+          <div class="mw-setting-open__actions">${renderButton({ label: text("workbench.settings-assistant.start-pause"), variant: "secondary", size: "sm", type: "submit" })}</div>` } })}
       </form>
       <p class="settings-form-error" data-assistant-rules-error role="alert" hidden></p>`,
     })}
     ${renderSettingsSection({
       title: text("workbench.settings-assistant.usage-cap"), id: "assistant-usage-title", attrs: { "data-assistant-usage": true },
-      body: `${renderSettingRow({ name: text("workbench.settings-assistant.used-today"), hint: text("workbench.settings-assistant.loading"), hintAttrs: { "data-assistant-usage-today": true }, control: "" })}
+      body: `${renderSettingRow({ name: text("workbench.settings-assistant.used-today"), hint: text("workbench.settings-assistant.loading"), hintAttrs: { "data-assistant-usage-today": true } })}
       <form data-assistant-budget>${renderSettingRow({ name: text("workbench.settings-assistant.daily-cap"), hint: text("workbench.settings-assistant.assistant-tokens-per-day-input-plus-output-empty"),
         control: `<input class="mw-input" type="number" min="1000" step="1000" inputmode="numeric" data-assistant-budget-input aria-label="${uiText("workbench.settings-assistant.daily-cap")}">${renderButton({ label: text("common.control.save"), variant: "secondary", size: "sm", type: "submit" })}` })}</form>
       <p class="settings-form-error" data-assistant-budget-error role="alert" hidden></p>`,
     })}
     ${renderSettingsSection({
       title: text("workbench.settings-assistant.capabilities"), id: "assistant-capabilities-title",
-      body: `${renderSettingRow({ name: text("workbench.settings-assistant.capabilities-in-use"), hint: text("workbench.settings-assistant.reads-used-directly-each-change-asks-confirm-its"),
-        control: openToggle("assistant-capabilities-open", uiText("workbench.settings-assistant.manage-capabilities")) })}
-      <div class="mw-setting-open" id="assistant-capabilities-open" hidden>
-        ${renderListToolbar({ label: text("workbench.settings-assistant.search-capabilities"),
+      body: renderSettingRow({ name: text("workbench.settings-assistant.capabilities-in-use"), hint: text("workbench.settings-assistant.reads-used-directly-each-change-asks-confirm-its"),
+        attrs: { "data-assistant-capabilities-fold": true },
+        open: { label: text("workbench.settings-assistant.manage-capabilities"), body: `${renderListToolbar({ label: text("workbench.settings-assistant.search-capabilities"),
           search: `<input class="mw-input" type="search" data-assistant-capability-search placeholder="${uiText("workbench.settings-assistant.search-capabilities-plugins")}" aria-label="${uiText("workbench.settings-assistant.search-capabilities")}">`,
           end: `<div class="mw-toggle-group settings-segmented" role="group" aria-label="${uiText("workbench.settings-assistant.scope")}" data-assistant-scope-group>
             <button class="mw-toggle" type="button" data-assistant-scope="project" aria-pressed="true">${uiText("workbench.settings-assistant.current-project")}</button>
             <button class="mw-toggle" type="button" data-assistant-scope="personal" aria-pressed="false">${uiText("workbench.settings-assistant.personal")}</button>
           </div>` })}
-        <div data-assistant-capabilities aria-live="polite"><p class="mw-settings-section__note mw-loading">${uiText("workbench.settings-assistant.loading")}</p></div>
-      </div>`,
+        <div data-assistant-capabilities aria-live="polite"><p class="mw-settings-section__note mw-loading">${uiText("workbench.settings-assistant.loading")}</p></div>` } }),
     })}
     ${renderSettingsSection({
       title: text("workbench.settings-assistant.memory"), id: "assistant-memory-title", attrs: { "data-assistant-memory": true },
@@ -126,11 +115,6 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     if (label) toggle.setAttribute("aria-label", label);
     return { control, toggle };
   };
-  // A row whose control opens its choices in place.
-  root.querySelectorAll("[data-setting-open-toggle]").forEach((button) => button.addEventListener("click", () => {
-    const panel = root.querySelector("#" + button.getAttribute("aria-controls")), open = panel.hidden;
-    panel.hidden = !open; button.setAttribute("aria-expanded", String(open)); button.closest(".mw-setting-row").dataset.open = String(open);
-  }));
   const EFFECT = { read: "workbench.settings-assistant.read", write: "workbench.settings-assistant.change", irreversible: "workbench.settings-assistant.irreversible" };
   function paint() {
     const query = String(search.value || "").trim().toLowerCase();
@@ -187,11 +171,12 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   root.querySelectorAll("[data-assistant-scope]").forEach((button) => button.addEventListener("click", () => {
     scope = button.dataset.assistantScope;
     root.querySelectorAll("[data-assistant-scope]").forEach((other) => other.setAttribute("aria-pressed", String(other === button)));
-    contributions.dataset.loaded = ""; if (contributions.open) loadContributions();
+    contributions.dataset.loaded = ""; if (contributionsFold.open) loadContributions();
     load();
   }));
   search.addEventListener("input", paint);
-  const contributions = root.querySelector("[data-assistant-contributions]");
+  // The row's own <details>: a toggle does not bubble, so it is listened for where it happens.
+  const contributions = root.querySelector("[data-assistant-contributions]"), contributionsFold = contributions.querySelector("details");
   const contributionsBody = root.querySelector("[data-assistant-contributions-body]");
   const AREA = { context: "workbench.settings-assistant.object-context", results: "workbench.settings-assistant.result-links", capabilities: "workbench.settings-assistant.capability-descriptions" };
   const loadContributions = async () => {
@@ -216,7 +201,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
       contributionsBody.replaceChildren(data.contributions.length ? list : el("p", "mw-settings-section__note", globalThis.t.text("workbench.settings-assistant.no-plugin-opens-capabilities-assistant-here")));
     } catch (failure) { delete contributions.dataset.loaded; contributionsBody.replaceChildren(problem(failure)); }
   };
-  contributions.addEventListener("toggle", () => { if (contributions.open) loadContributions(); });
+  contributionsFold.addEventListener("toggle", () => { if (contributionsFold.open) loadContributions(); });
   // Attention rules belong to the person, not to a project: always the Home's own route.
   const rulesApi = (path, payload) => molisWorkRequest("/api/assistant" + path, { body: payload });
   // The pages a rule may name are the ones installed: the server sends them with the rules, so this page keeps no list of plugins.
@@ -264,7 +249,16 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   };
   const run = async (work) => {
     rulesError.hidden = true;
-    try { const data = await work(); if (data.pages) paintPages(data.pages); paintRules(data.rules); } catch (failure) { molisWorkRequest.show(rulesError, failure); rulesError.hidden = false; }
+    try { const data = await work(); if (data.pages) paintPages(data.pages); paintRules(data.rules); return true; } catch (failure) { molisWorkRequest.show(rulesError, failure); rulesError.hidden = false; return false; }
+  };
+  // Adding a rule: the button waits for the answer, so a second press cannot add it twice; once added, the row closes again.
+  const add = async (form, rule, added) => {
+    const submit = form.querySelector('[type="submit"]');
+    submit.disabled = true;
+    const done = await run(() => rulesApi("/rules", { rule }));
+    submit.disabled = false;
+    if (!done) return;
+    added?.(); form.querySelector("details").open = false;
   };
   const exceptOf = (form) => [...form.querySelectorAll("[data-assistant-rule-except]")].filter((box) => box.checked).map((box) => box.dataset.assistantRuleExcept);
   root.querySelector("[data-assistant-rule-quiet]").addEventListener("submit", (event) => {
@@ -272,14 +266,14 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     const form = event.currentTarget, surfaces = chosen();
     const except = exceptOf(form);
     const label = (surfaces.length ? globalThis.t.text("workbench.settings-assistant.label") + " " + surfaces.map((id) => surfaceName(id)).join(globalThis.t.text("common.list.separator")) + " " + globalThis.t.text("workbench.settings-assistant.stay-quiet-2") : globalThis.t.text("workbench.settings-assistant.stay-quiet-everywhere")) + (except.length ? globalThis.t.text("common.punctuation.clause-separator") + except.map((kind) => globalThis.t.text(KIND[kind])).join(globalThis.t.text("common.list.separator")) + globalThis.t.text("workbench.settings-assistant.excepted") : "");
-    run(() => rulesApi("/rules", { rule: { kind: "quiet", surfaces, except, label } }));
+    add(form, { kind: "quiet", surfaces, except, label }, () => { surfacesBox.querySelectorAll('[aria-pressed="true"]').forEach((chip) => chip.setAttribute("aria-pressed", "false")); paintChosen(); });
   });
   root.querySelector("[data-assistant-rule-pause]").addEventListener("submit", (event) => {
     event.preventDefault();
     const form = event.currentTarget, choice = form.querySelector("[data-assistant-rule-duration]").value;
     const until = choice === "day" ? (() => { const end = new Date(); end.setHours(23, 59, 0, 0); return end; })() : new Date(Date.now() + Number(choice) * 60000);
     const except = exceptOf(form);
-    run(() => rulesApi("/rules", { rule: { kind: "pause", surfaces: [], except, until: until.toISOString(), label: globalThis.t.text("workbench.settings-assistant.paused-until") + " " + until.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) } }));
+    add(form, { kind: "pause", surfaces: [], except, until: until.toISOString(), label: globalThis.t.text("workbench.settings-assistant.paused-until") + " " + until.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) });
   });
   run(() => rulesApi("/rules"));
   // Memory is managed on its own pages (个人 → 记忆, 项目记忆): here only how much there is and whether the Assistant may use it.
@@ -315,7 +309,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const runUsage = async (work) => { budgetError.hidden = true; try { paintUsage(await work()); } catch (failure) { molisWorkRequest.show(budgetError, failure); budgetError.hidden = false; } };
   budgetForm.addEventListener("submit", (event) => { event.preventDefault(); const raw = String(budgetInput.value || "").trim(); runUsage(() => usageApi({ daily_tokens: raw ? Number(raw) : null })); });
   runUsage(() => usageApi());
-  if (location.hash === "#contributions") { contributions.open = true; loadContributions(); }
+  if (location.hash === "#contributions") { contributionsFold.open = true; loadContributions(); }
   load();
 
   // 使用电脑: the master switch (off by default), the helper's system-permission status, and the forbidden apps the person added.

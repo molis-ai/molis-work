@@ -1,4 +1,4 @@
-import { type MwObjectRowTone, renderListToolbar, renderObjectRow, renderQuestionList, renderSettingRow, renderSettingsSection, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { type MwTone, renderListToolbar, renderObjectRow, renderQuestionList, renderSettingRow, renderSettingsSection, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SettingsRenderPrimitives } from "./settings-renderer.js";
 type Primitives = Pick<SettingsRenderPrimitives, "readText" | "escapeHtml">;
 
@@ -27,7 +27,7 @@ export interface McpAccessModel {
 const labels: Record<McpAccessEntry["status"], string> = { ungranted: "workbench.mcp-access.not-authorized", enabled: "workbench.mcp-access.authorized", disabled: "workbench.mcp-access.access-revoked", unavailable: "workbench.mcp-access.unavailable", stale: "workbench.mcp-access.reauthorization-required", missing: "workbench.mcp-access.original-capability-unavailable", public: "workbench.mcp-access.available-default" };
 export const mcpAccessEntryKey = (entry: Pick<McpAccessEntry, "capability_id" | "version" | "provider_id">) => JSON.stringify([entry.capability_id, entry.version, entry.provider_id]);
 
-const tones: Partial<Record<McpAccessEntry["status"], MwObjectRowTone>> = { enabled: "ok", public: "ok", stale: "attention" };
+const tones: Partial<Record<McpAccessEntry["status"], Exclude<MwTone, "info">>> = { enabled: "success", public: "success", stale: "warning" };
 export function renderMcpAccessRows(model: Pick<McpAccessModel, "entries" | "query" | "filter">, p: Primitives): string {
   const { escapeHtml: e } = p;
   const needle = model.query.trim().toLocaleLowerCase();
@@ -39,7 +39,7 @@ export function renderMcpAccessRows(model: Pick<McpAccessModel, "entries" | "que
     const action = (enabled: boolean, label: string) => `<button type="button" class="mw-btn mw-btn--secondary" data-mcp-grant="${e(key)}" data-grant-expected="${e(JSON.stringify(row.expected))}" data-grant-enabled="${enabled}">${uiText(label)}</button>`;
     return `<article class="mcp-access-row" data-grant-row="${e(key)}">${renderObjectRow({
       name: row.title, hint: row.description,
-      state: { label: `${uiText.text(labels[row.status])}${row.reason ? ` · ${row.reason}` : ""}`, tone: tones[row.status] ?? "quiet",
+      state: { label: `${uiText.text(labels[row.status])}${row.reason ? ` · ${row.reason}` : ""}`, tone: tones[row.status] ?? "neutral",
         attrs: { "data-status": row.status, "data-mw-state": row.status === "enabled" || row.status === "public" ? "ready" : row.status === "stale" || row.status === "ungranted" ? "reauth" : row.status === "disabled" ? "disabled" : "unavailable" } },
       action: `${row.can_enable ? action(true, row.status === "stale" ? "workbench.mcp-access.update-access" : "workbench.mcp-access.authorize-capability") : ""}${row.can_revoke ? action(false, "workbench.mcp-access.revoke-access") : ""}` || undefined,
       body: renderQuestionList({ rows: [

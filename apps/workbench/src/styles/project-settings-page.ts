@@ -1,11 +1,11 @@
-import { SETTINGS_ROW_STYLES } from "@molis-ai/molis-work-design-system";
+import { SETTINGS_DOCUMENT_STYLES } from "@molis-ai/molis-work-design-system";
 
 /**
  * Independent project preferences: one navigation rail and one content scroll. Every page is laid out alike (specs/screen-polish/p5-settings.md):
  * a 220px category column, a 760px text column whose left edge stays put, a 24px heading over one 13px sentence, and the three rows of
- * `SETTINGS_ROW_STYLES`. Pages not yet rewritten in those rows keep their grouped cards (`.settings-section`) until they are.
+ * `SETTINGS_DOCUMENT_STYLES`. Pages not yet rewritten in those rows keep their grouped cards (`.settings-section`) until they are.
  */
-export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_ROW_STYLES}
+export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
   body.settings-page:is(.project-preferences-page, .settings-stage) { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 44px minmax(0, 1fr); background: var(--page); }
   .project-preferences-chrome { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px 0 24px; border-bottom: 1px solid var(--line); color: var(--muted); background: var(--paper); font-size: 12px; }
   .project-preferences-chrome > a { display: grid; place-items: center; width: 32px; height: 32px; color: var(--muted); border-radius: 8px; }

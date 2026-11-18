@@ -1757,8 +1757,8 @@ test("FSS-35 approved library titles and Assistant settings words preserve exact
   const go = (path: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, b.sessionId));
   await go(`/projects/${b.projectId}/?settings=assistant`);
   // specs/screen-polish/p5-settings.md: the capabilities are one row; their list opens in place under it.
-  await b.waitFor("!!document.querySelector('[aria-controls=assistant-capabilities-open]')");
-  await b.click("[aria-controls=assistant-capabilities-open]");
+  await b.waitFor("!!document.querySelector('[data-assistant-capabilities-fold] > summary')");
+  await b.click("[data-assistant-capabilities-fold] > summary");
   await b.waitFor("[...document.querySelectorAll('[data-assistant-capabilities] .assistant-capability-effect')].some(node => node.textContent === '修改')");
   await b.evaluate(`void (() => { const rows = [...document.querySelectorAll('[data-assistant-capabilities] .assistant-capability')];
     window.catalogSettings = ['读取','修改'].map(word => { const row = rows.find(node => node.querySelector('.assistant-capability-effect')?.textContent === word);

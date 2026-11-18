@@ -328,16 +328,14 @@ test("RAC-2592 the workbench's page assets no longer name Coding's package or it
 });
 
 
-test("RAC-2848 Coding owns its settings rules inside its registered settings section (three since its method library went, 09; three more for the form and the server list in their cards, POLISH-30)", () => {
+test("RAC-2848 Coding owns its settings rules inside its registered settings section (three since its method library went, 09; one more for the fields of its own MCP form, POLISH-30)", () => {
   const coding = packs.find(pack => pack.project_plugin_id === "coding")!;
   const rules = [
     ".coding-settings details { margin-block: 12px; }",
     ".coding-settings summary { cursor: pointer; overflow-wrap: anywhere; }",
     ".coding-settings .mw-select { max-width: 100%; }",
-    // POLISH-30: the add form sits in the section's card, above the status line.
-    ".coding-settings [data-mcp-config] { padding-block: 16px; border-bottom: 1px solid var(--line); }",
-    ".coding-settings .mw-form-stack:not([hidden]) { display: grid; gap: 12px; }",
-    ".coding-settings [data-mcp-servers] { padding-block: 12px; font-size: 13px; }",
+    // POLISH-30: the form's fields stack; where the form and the server list sit in their cards is the platform's mw-settings-section__block.
+    ".coding-settings .coding-mcp-fields:not([hidden]) { display: grid; gap: 12px; }",
   ];
   assert.equal(coding.settingsStylesheet, undefined);
   const html = codingSettingsHtml();

@@ -1,10 +1,14 @@
 /**
  * The rows of a settings document (the SDK's `renderSettingsSection`, `renderSettingRow`, `renderObjectRow`, `renderQuestionList`,
  * `renderListToolbar`; specs/screen-polish/p5-settings.md). Every settings page is the same thing: a title, then one card of rows, one
- * control to a row.
+ * control to a row. Both rows that open are `<details>`: an object row folds on the shared clock (`DISCLOSURE_STYLES`), and what
+ * a setting row opens onto rises in without a height animation (`craft-rise`), as the plan's motion table has it.
  * The component board's 设置的行 section is their specimen.
+ *
+ * Not `SETTING_ROW_STYLES` (`.mw-setting`), the older row the work records and the session sources still draw; the pages move
+ * to these rows and that constant goes when the last of them has (specs/screen-polish/p5-settings.md「铺开」).
  */
-export const SETTINGS_ROW_STYLES = `
+export const SETTINGS_DOCUMENT_STYLES = `
   .mw-settings-section { min-width: 0; margin: 32px 0 0; padding: 0; border: 0; background: none; }
   .mw-settings-section[hidden] { display: none; }
   .mw-settings-section__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; margin: 0 0 8px; }
@@ -13,6 +17,8 @@ export const SETTINGS_ROW_STYLES = `
   .mw-settings-section__rows { min-width: 0; padding: 0 16px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-card, 12px); background: var(--paper); }
   .mw-settings-section__rows > :last-child { margin-bottom: -1px; }
   .mw-settings-section__note { margin: 0; padding: 16px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.5; }
+  /* What a card holds that is not a row (a form, a group under its own small heading): ruled off like a row, on the note's padding. */
+  .mw-settings-section__block { min-width: 0; margin: 0; padding: 16px 0; border-bottom: 1px solid var(--line); color: var(--ink-soft); font-size: 13px; line-height: 1.5; }
 
   .mw-setting-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; min-width: 0; min-height: 60px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); box-sizing: border-box; }
   label.mw-setting-row { cursor: pointer; }
@@ -21,15 +27,20 @@ export const SETTINGS_ROW_STYLES = `
   .mw-setting-row__copy > span { color: var(--muted); font-size: 12px; font-weight: 400; line-height: 1.5; }
   .mw-setting-row__control { flex: none; max-width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; color: var(--ink-soft); font-size: 13px; }
   .mw-setting-row[aria-disabled="true"] .mw-setting-row__copy > strong { color: var(--muted); }
-  /* A row that opens a choice in place: the row above keeps no line, the opened part closes the pair. */
-  .mw-setting-row[data-open="true"] { border-bottom-color: transparent; }
+  /* A row that opens a choice in place: while open the row keeps no line, the opened part closes the pair. */
+  .mw-setting-fold { min-width: 0; }
+  .mw-setting-fold > summary { list-style: none; cursor: pointer; border-radius: 8px; }
+  .mw-setting-fold > summary::-webkit-details-marker { display: none; }
+  .mw-setting-fold > summary:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
+  .mw-setting-fold[open] > summary { border-bottom-color: transparent; }
+  .mw-setting-fold__label > svg { width: 14px; height: 14px; transition: transform var(--dur-hover) var(--ease-quint); }
+  .mw-setting-fold[open] > summary .mw-setting-fold__label > svg { transform: rotate(180deg); }
+  .mw-setting-fold[open] > .mw-setting-open { animation: craft-rise var(--dur-move) var(--ease-quint); }
   /* A control keeps its own width, so several sit on one line instead of each taking the row. */
   .mw-setting-row__control > :is(input[type=text], input[type=search]) { width: 220px; }
   .mw-setting-row__control > input[type=number] { width: 120px; }
   .mw-setting-row__control > :is(select, .mw-select-picker) { width: auto; flex: 0 0 auto; }
   .mw-setting-row__control > .mw-select-picker > .mw-select-picker__trigger { width: auto; min-width: 112px; }
-  .mw-setting-row__control [aria-expanded] > svg { width: 14px; height: 14px; transition: transform var(--dur-hover) var(--ease-quint); }
-  .mw-setting-row__control [aria-expanded="true"] > svg { transform: rotate(180deg); }
   .mw-setting-row--sub { min-height: 36px; padding: 4px 0; border-bottom: 0; }
   .mw-setting-row--sub .mw-setting-row__copy > strong { color: var(--ink-soft); font-weight: 400; }
   .mw-setting-list { list-style: none; margin: 0; padding: 0; }
@@ -37,11 +48,10 @@ export const SETTINGS_ROW_STYLES = `
   .mw-setting-list > li > .mw-setting-row { border-bottom: 0; }
   .mw-setting-list > li > .mw-setting-row--sub { padding-bottom: 8px; }
   .mw-settings-subhead { margin: 0; padding: 16px 0 8px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); }
-  .mw-settings-section__note:empty { display: none; }
+  :is(.mw-settings-section__note, .mw-settings-section__block):empty { display: none; }
   .mw-setting-open { padding: 0 0 12px; border-bottom: 1px solid var(--line); }
   .mw-setting-open__actions { display: flex; justify-content: flex-end; padding-top: 8px; }
   .mw-setting-open > .mw-choice-group { padding-bottom: 8px; }
-  .mw-setting-open[hidden] { display: none; }
   .mw-setting-open .mw-choice-group { gap: 8px; }
   .mw-setting-open .mw-choice { min-width: 0; min-height: 32px; gap: 8px; font-size: 12px; background: var(--control-fill); box-shadow: none; }
   .mw-setting-open .mw-choice:hover:not([aria-pressed="true"]) { background: var(--nav-hover); box-shadow: none; }
@@ -49,11 +59,16 @@ export const SETTINGS_ROW_STYLES = `
   .mw-setting-open .mw-choice:not([aria-pressed="true"]) .mw-choice__check { display: none; }
   .mw-setting-open .mw-choice__check { order: -1; }
 
-  .mw-object-row { min-width: 0; border-bottom: 1px solid var(--line); }
-  .mw-object-row__head { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 60px; padding: 12px 0; box-sizing: border-box; list-style: none; }
-  summary.mw-object-row__head { cursor: pointer; border-radius: 8px; }
+  /* The row is a grid of what it says, what can be done, and the chevron. The part that opens it (the summary) runs under
+     all three and leaves the middle one empty: the action sits there, beside the summary and never inside it. */
+  .mw-object-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-rows: auto auto auto; min-width: 0; border-bottom: 1px solid var(--line); }
+  .mw-object-row__fold { grid-area: 1 / 1 / 4 / -1; display: grid; grid-template-columns: subgrid; grid-template-rows: subgrid; min-width: 0; }
+  .mw-object-row__fold::details-content { grid-area: 3 / 1 / 4 / -1; }
+  .mw-object-row__head { grid-area: 1 / 1 / 2 / 2; display: flex; align-items: center; min-width: 0; min-height: 60px; padding: 12px 0; box-sizing: border-box; list-style: none; }
+  summary.mw-object-row__head { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; cursor: pointer; border-radius: 8px; }
   summary.mw-object-row__head::-webkit-details-marker { display: none; }
   summary.mw-object-row__head:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
+  .mw-object-row__main { grid-column: 1; flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
   .mw-object-row__tile { flex: none; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; overflow: hidden; background: var(--control-fill); color: var(--ink-soft); }
   .mw-object-row__tile :is(svg, img) { width: 16px; height: 16px; }
   .mw-object-row__copy { flex: 1; min-width: 0; display: grid; gap: 2px; }
@@ -63,15 +78,15 @@ export const SETTINGS_ROW_STYLES = `
   .mw-object-row__state > i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-strong); }
   .mw-object-row__state > svg { flex: none; width: 14px; height: 14px; }
   .mw-object-row__state[data-mw-state] > :is(i, svg:not(.mw-state-ring)) { display: none; }
-  .mw-object-row__state[data-tone="ok"] > i { background: var(--green); }
-  .mw-object-row__state[data-tone="attention"] { color: var(--tone-attention, var(--amber)); }
-  .mw-object-row__state[data-tone="bad"] { color: var(--red); font-weight: var(--weight-control, 500); }
-  .mw-object-row__action { flex: none; display: flex; align-items: center; gap: 8px; }
-  .mw-object-row__chevron { flex: none; display: grid; color: var(--faint); transition: transform var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
+  .mw-object-row__state[data-tone="success"] > i { background: var(--green); }
+  .mw-object-row__state[data-tone="warning"] { color: var(--tone-attention, var(--amber)); }
+  .mw-object-row__state[data-tone="danger"] { color: var(--red); font-weight: var(--weight-control, 500); }
+  .mw-object-row__action { grid-area: 1 / 2 / 2 / 3; display: flex; align-items: center; gap: 8px; min-height: 60px; margin-left: 12px; }
+  .mw-object-row__chevron { grid-column: 3; display: grid; margin-left: 12px; color: var(--faint); transition: transform var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
   .mw-object-row__chevron svg { width: 14px; height: 14px; }
   summary.mw-object-row__head:hover .mw-object-row__chevron { color: var(--ink-soft); }
-  .mw-object-row[open] > summary .mw-object-row__chevron { transform: rotate(90deg); color: var(--ink-soft); }
-  .mw-object-row__body { min-width: 0; margin: 0 0 0 44px; padding: 0 0 12px; }
+  .mw-object-row__fold[open] > summary .mw-object-row__chevron { transform: rotate(90deg); color: var(--ink-soft); }
+  .mw-object-row__body { grid-area: 3 / 1 / 4 / -1; min-width: 0; margin: 0 0 0 44px; padding: 0 0 12px; }
   .mw-object-row--plain > .mw-object-row__body { margin-left: 0; }
   .mw-object-row--alert .mw-object-row__tile { color: var(--red); }
 
@@ -100,15 +115,24 @@ export const SETTINGS_ROW_STYLES = `
   .mw-list-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; min-width: 0; padding: 12px 0; border-bottom: 1px solid var(--line); }
 
   @media (max-width: 600px) {
-    .mw-object-row__head { flex-wrap: wrap; }
+    /* No room beside the name: the state goes under it, and the action takes its own line between the head and what it opens. */
+    .mw-object-row__main { flex-wrap: wrap; }
     .mw-object-row__copy { flex-basis: calc(100% - 44px); }
+    .mw-object-row:not(.mw-object-row--plain) .mw-object-row__state { margin-left: 44px; }
+    .mw-object-row__action { grid-area: 2 / 1 / 3 / -1; flex-wrap: wrap; min-height: 0; margin: -4px 0 12px 44px; }
+    .mw-object-row--plain > .mw-object-row__action { margin-left: 0; }
     .mw-object-row__body { margin-left: 0; }
     .mw-question { grid-template-columns: minmax(0, 1fr) auto; gap: 0 12px; padding: 8px 0; }
     .mw-question > dt { grid-column: 1 / -1; }
     .mw-list-toolbar__more-body { left: 0; right: auto; }
     .mw-list-row { grid-template-columns: minmax(0, 1fr); }
   }
+  /* A choice is a finger's target on a phone (DESIGN.md: 44px). */
+  @media (max-width: 760px), (pointer: coarse) {
+    .mw-setting-open .mw-choice { min-height: 44px; }
+  }
   @media (prefers-reduced-motion: reduce) {
-    .mw-object-row__chevron, .mw-list-toolbar__more > summary > svg, .mw-setting-row__control [aria-expanded] > svg { transition: none; }
+    .mw-object-row__chevron, .mw-list-toolbar__more > summary > svg, .mw-setting-fold__label > svg { transition: none; }
+    .mw-setting-fold[open] > .mw-setting-open { animation: none; }
   }
 `;

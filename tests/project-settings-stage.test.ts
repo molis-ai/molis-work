@@ -109,7 +109,9 @@ test("global diagnostics and runtime pages use the same setting rows as project 
   // POLISH-30: a section's title sits outside and its rows are one card.
   assert.match(diagnosticsHtml, /class="settings-section mw-settings-section"[^>]*><header class="mw-settings-section__head"><h2/);
   assert.doesNotMatch(diagnosticsHtml, /class="mw-hint"/);
-  assert.match(diagnosticsHtml, /class="settings-setting-row"/);
+  // The diagnostics rows are the SDK's setting row (renderSettingRow), no longer the workbench's own settingRow.
+  assert.match(diagnosticsHtml, /class="mw-setting-row" data-slot="setting-row"/);
+  assert.doesNotMatch(diagnosticsHtml, /class="settings-setting-row"/);
   assert.match(diagnosticsHtml, /class="setting-copy"/);
   assert.match(diagnosticsHtml, /id="launcher-title">启动入口/);
   assert.match(diagnosticsHtml, /class="settings-section mw-settings-section settings-project-maintenance"/);

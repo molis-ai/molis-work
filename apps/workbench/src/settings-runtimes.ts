@@ -1,4 +1,4 @@
-import { t as uiText, renderButton, renderObjectRow, renderQuestionList, renderSettingsSection, type MwObjectRowTone } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, renderButton, renderObjectRow, renderQuestionList, renderSettingsSection, type MwTone } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { RuntimeIntegrationDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { renderMcpAccess } from "./mcp-access.js";
 import type { SettingsRenderPrimitives } from "./settings-renderer.js";
@@ -6,13 +6,13 @@ import type { MolisWorkSettingsView } from "./settings-view.js";
 
 type RuntimePrimitives = Pick<SettingsRenderPrimitives, "readText" | "escapeHtml" | "icon" | "settingsContextHref">;
 
-function runtimeStatePresentation(state: RuntimeIntegrationDetection["connection_state"]): { label: string; tone: MwObjectRowTone; description: string } {
-  if (state === "connected") return { label: uiText.text("workbench.settings-runtimes.connected"), tone: "ok", description: uiText.text("workbench.settings-runtimes.mcp-molis-work-skill-both-point-install") };
-  if (state === "needs_repair") return { label: uiText.text("workbench.settings-runtimes.needs-repair"), tone: "attention", description: uiText.text("workbench.settings-runtimes.older-incomplete-molis-work-connection-was-found") };
-  if (state === "conflict") return { label: uiText.text("workbench.settings-runtimes.conflict"), tone: "bad", description: uiText.text("workbench.settings-runtimes.same-named-config-skill-not-owned-molis-work") };
-  if (state === "molis_work_unavailable") return { label: uiText.text("workbench.settings-runtimes.install-incomplete"), tone: "bad", description: uiText.text("workbench.settings-runtimes.check-diagnostics-repair-molis-work-install-first") };
-  if (state === "not_detected") return { label: uiText.text("workbench.settings-runtimes.not-found"), tone: "quiet", description: uiText.text("workbench.settings-runtimes.that-runtime-was-not-found-machine") };
-  return { label: uiText.text("workbench.settings-runtimes.not-connected"), tone: "quiet", description: uiText.text("workbench.settings-runtimes.molis-work-mcp-skill-have-not-been-written") };
+function runtimeStatePresentation(state: RuntimeIntegrationDetection["connection_state"]): { label: string; tone: Exclude<MwTone, "info">; description: string } {
+  if (state === "connected") return { label: uiText.text("workbench.settings-runtimes.connected"), tone: "success", description: uiText.text("workbench.settings-runtimes.mcp-molis-work-skill-both-point-install") };
+  if (state === "needs_repair") return { label: uiText.text("workbench.settings-runtimes.needs-repair"), tone: "warning", description: uiText.text("workbench.settings-runtimes.older-incomplete-molis-work-connection-was-found") };
+  if (state === "conflict") return { label: uiText.text("workbench.settings-runtimes.conflict"), tone: "danger", description: uiText.text("workbench.settings-runtimes.same-named-config-skill-not-owned-molis-work") };
+  if (state === "molis_work_unavailable") return { label: uiText.text("workbench.settings-runtimes.install-incomplete"), tone: "danger", description: uiText.text("workbench.settings-runtimes.check-diagnostics-repair-molis-work-install-first") };
+  if (state === "not_detected") return { label: uiText.text("workbench.settings-runtimes.not-found"), tone: "neutral", description: uiText.text("workbench.settings-runtimes.that-runtime-was-not-found-machine") };
+  return { label: uiText.text("workbench.settings-runtimes.not-connected"), tone: "neutral", description: uiText.text("workbench.settings-runtimes.molis-work-mcp-skill-have-not-been-written") };
 }
 
 /**
@@ -40,7 +40,7 @@ export function renderRuntimeSettings(view: MolisWorkSettingsView, primitives: R
       name: runtime.display_name,
       hint: blocked ? quiet.description : state.description,
       icon: "terminal",
-      state: missing ? undefined : blocked ? { label: quiet.label, tone: "quiet" } : { label: state.label, tone: state.tone },
+      state: missing ? undefined : blocked ? { label: quiet.label, tone: "neutral" } : { label: state.label, tone: state.tone },
       action,
       attrs: { "data-runtime-row": runtime.runtime_id, "data-runtime-state": runtime.connection_state },
       body: renderQuestionList({ rows: [

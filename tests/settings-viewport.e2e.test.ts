@@ -199,7 +199,7 @@ test("B27-AC01: Assistant rule scopes and the name and state of a capability swi
     await waitFor(`document.querySelector('[data-assistant-rule-surfaces] [data-assistant-rule-surface]') && ${switchDom}`);
     await evaluate("document.fonts.ready.then(() => true)");
     // The capabilities are one row of the page; their list opens in place under it.
-    await click("[aria-controls=assistant-capabilities-open]");
+    await click("[data-assistant-capabilities-fold] > summary");
   };
   const switchAX = async () => {
     const { root } = await command<{ root: { nodeId: number } }>("DOM.getDocument", {}, sessionId);
@@ -260,7 +260,7 @@ test("B27-AC01: Assistant rule scopes and the name and state of a capability swi
   type Rule = { rule_id: string; kind: string; except: string[]; surfaces: string[]; until?: string };
   const readRules = async () => (await b.web.get<{ rules: Rule[] }>("/api/assistant/rules")).rules;
   const previousIds = new Set((await readRules()).map(rule => rule.rule_id));
-  await click(quiet + " [data-setting-open-toggle]");
+  await click(quiet + " summary");
   const page = quiet + " [data-assistant-rule-surfaces] [data-assistant-rule-surface]";
   const surface = await evaluate<string>(`document.querySelector('${page}').dataset.assistantRuleSurface`);
   await click(page);
@@ -268,8 +268,10 @@ test("B27-AC01: Assistant rule scopes and the name and state of a capability swi
   await click(quiet + " " + failure);
   await click(quiet + " [type=submit]");
   await waitFor(`document.querySelectorAll('[data-assistant-rules-list] li').length === ${previousIds.size + 1}`);
+  // Once the rule is added the row closes and the choice is cleared, so a second press cannot add the same rule again.
+  await waitFor(`!document.querySelector('${quiet} details').open && !document.querySelector('${quiet} [aria-pressed="true"]')`);
   const pausedAt = Date.now();
-  await click(pause + " [data-setting-open-toggle]");
+  await click(pause + " summary");
   await click(pause + " [type=submit]");
   await waitFor(`document.querySelectorAll('[data-assistant-rules-list] li').length === ${previousIds.size + 2}`);
   await open();

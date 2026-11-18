@@ -22,15 +22,28 @@ const documentOf = (html: string) => html.slice(html.indexOf('<div class="settin
 test("the three rows: names and states are escaped, controls and answers are the caller's (POLISH-30)", () => {
   const row = renderSettingRow({ name: "A <b>", hint: "one & two", control: "<button>x</button>", label: true });
   assert.match(row, /^<label class="mw-setting-row"[^>]*><span class="mw-setting-row__copy"><strong>A &lt;b&gt;<\/strong><span>one &amp; two<\/span><\/span><span class="mw-setting-row__control"><button>x<\/button><\/span><\/label>$/);
-  assert.match(renderSettingRow({ name: "n", control: "" }), /^<div class="mw-setting-row"/, "a row whose control is a button is not a label");
+  const bare = renderSettingRow({ name: "n" });
+  assert.match(bare, /^<div class="mw-setting-row"/, "a row whose control is not a switch is not a label");
+  assert.doesNotMatch(bare, /mw-setting-row__control/, "a row that only says something has no empty place for a control");
+  // A row that opens in place is a <details>: no script, so a plugin's page opens as the workbench's does. Its summary
+  // holds what is chosen and a chevron, and nothing that could itself be pressed.
+  const fold = renderSettingRow({ name: "不提醒的地方", hint: "h", open: { label: "选择地方", body: "<p>choices</p>", labelAttrs: { "data-chosen": true } } });
+  assert.match(fold, /^<details class="mw-setting-fold" data-slot="setting-fold"><summary class="mw-setting-row">/);
+  assert.match(fold, /<span data-chosen>选择地方<\/span><svg[^>]*><use href="#icon-chevron-down">/);
+  assert.match(fold, /<\/summary><div class="mw-setting-open"><p>choices<\/p><\/div><\/details>$/);
+  assert.doesNotMatch(fold, /<button|<a /);
+  assert.match(renderSettingRow({ name: "n", open: { label: "l", body: "", opened: true } }), /^<details class="mw-setting-fold" data-slot="setting-fold" open>/);
 
-  const plain = renderObjectRow({ name: "Tool", hint: "h", icon: "terminal", state: { label: "已接入", tone: "ok" } });
+  const plain = renderObjectRow({ name: "Tool", hint: "h", icon: "terminal", state: { label: "已接入", tone: "success" } });
   assert.match(plain, /^<div class="mw-object-row"/);
   assert.doesNotMatch(plain, /<details|mw-object-row__chevron/, "nothing to open, no chevron");
-  const open = renderObjectRow({ name: "Tool", state: { label: "本体不完整", tone: "bad" }, body: "<p>inside</p>", open: true });
-  assert.match(open, /^<details class="mw-object-row mw-object-row--plain"[^>]* open>/);
-  assert.match(open, /data-tone="bad"><svg[^>]*><use href="#icon-circle-alert">/, "a state that is not fine carries a mark, not only a colour");
-  assert.match(open, /<div class="mw-object-row__body"><p>inside<\/p><\/div><\/details>$/);
+  const open = renderObjectRow({ name: "Tool", state: { label: "本体不完整", tone: "danger" }, action: "<button>修复</button>", body: "<p>inside</p>", open: true });
+  assert.match(open, /^<div class="mw-object-row mw-object-row--plain" data-slot="object-row"><details class="mw-object-row__fold" open>/);
+  assert.match(open, /data-tone="danger"><svg[^>]*><use href="#icon-circle-alert">/, "a state that is not fine carries a mark, not only a colour");
+  assert.match(open, /<div class="mw-object-row__body"><p>inside<\/p><\/div><\/details><span class="mw-object-row__action"><button>修复<\/button><\/span><\/div>$/,
+    "what can be done sits beside the part that opens the row, never inside it: a button in a summary is a button in a button");
+  assert.doesNotMatch(open.slice(open.indexOf("<summary"), open.indexOf("</summary>")), /<button/);
+  assert.match(renderObjectRow({ name: "n", state: { label: "s", tone: "loud" as never } }), /data-tone="neutral"/, "a tone the platform does not have is written as none");
 
   const questions = renderQuestionList({ rows: [{ question: "装在哪", answer: "<code>/bin/x</code>" }, { question: "连得上吗", answer: "可用", action: "<button>再检查</button>" }] });
   assert.equal((questions.match(/class="mw-question"/g) ?? []).length, 2);
@@ -58,15 +71,17 @@ test("AI 与执行工具: one tool one row, its paths inside it, and no button t
   assert.doesNotMatch(html, /settings-data-disclosure|settings-setting-row/);
   assert.doesNotMatch(html, /<button[^>]*\sdisabled/, "POLISH-32: nothing is greyed out without a reason");
   assert.doesNotMatch(html, /class="mw-hint|data-slot="hint"/, "the lead is the explanation; no ⓘ beside the heading");
-  const row = (id: string) => html.slice(html.indexOf(`data-runtime-row="${id}"`), html.indexOf("</details>", html.indexOf(`data-runtime-row="${id}"`)));
-  assert.match(row("codex"), /data-tone="ok"/);
+  // A row runs to the next row or to the end of its card: its action comes after its <details>.
+  const row = (id: string) => { const from = html.indexOf(`data-runtime-row="${id}"`), next = html.indexOf("data-runtime-row=", from + 1), end = html.indexOf("</section>", from);
+    return html.slice(from, next === -1 ? end : Math.min(next, end)); };
+  assert.match(row("codex"), /data-tone="success"/);
   assert.match(row("codex"), /mw-question__action"><button[^>]*data-runtime-plan="codex" data-runtime-action="remove"/, "a tool that is fine keeps its one action inside");
-  assert.match(row("claude"), /data-tone="attention"[\s\S]*mw-object-row__action"><button[^>]*data-runtime-plan="claude" data-runtime-action="connect"/);
+  assert.match(row("claude"), /data-tone="warning"[\s\S]*<\/details><span class="mw-object-row__action"><button[^>]*data-runtime-plan="claude" data-runtime-action="connect"/);
   // What stops every tool at once is said once, at the top, with the way out beside it; the rows it stops stay quiet.
   assert.match(html, /data-runtime-notice[\s\S]*?mw-object-row--alert[\s\S]*?mw-object-row__action"><a [^>]*href="\/settings\/diagnostics/, "red comes with a mark, a sentence and what to do");
   assert.equal((html.match(/href="\/settings\/diagnostics/g) ?? []).length, 1);
   assert.ok(html.indexOf("data-runtime-notice") < html.indexOf("data-runtime-row="));
-  assert.doesNotMatch(row("pi"), /mw-object-row__action|data-tone="bad"/);
+  assert.doesNotMatch(row("pi"), /mw-object-row__action|data-tone="danger"/);
   assert.doesNotMatch(row("grok"), /data-runtime-plan=/, "a tool that is not on this machine offers nothing to press");
   assert.match(row("grok"), /<dd>[^<]+<\/dd>/, "and says the executable was not found");
   assert.ok(html.indexOf('id="runtimes-connected"') < html.indexOf('id="runtimes-available"') && html.indexOf('id="runtimes-available"') < html.indexOf('id="runtimes-missing"'));
@@ -77,10 +92,11 @@ test("AI 与执行工具: one tool one row, its paths inside it, and no button t
 
 test("助理: the places a rule may name are one row that opens in place, not a wall of checkboxes (POLISH-31)", () => {
   const html = documentOf(page(settings("assistant")));
-  const closed = html.replace(/<div class="mw-setting-open" id="assistant-(?:quiet|pause)-open"[\s\S]*?<\/form>/g, "</form>");
+  const closed = html.replace(/<div class="mw-setting-open">[\s\S]*?<\/details>/g, "</details>");
   const boxes = (text: string) => (text.match(/type="checkbox"/g) ?? []).length;
   assert.ok(boxes(closed) <= 5, `${boxes(closed)} checkboxes before anything is opened`);
-  assert.equal((html.match(/<div class="mw-setting-open"[^>]* hidden>/g) ?? []).length, 3, "the two rule rows and the capabilities start closed");
+  assert.equal((html.match(/<details class="mw-setting-fold" data-slot="setting-fold"/g) ?? []).length, 3, "the two rule rows and the capabilities open in place");
+  assert.doesNotMatch(html, /<details class="mw-setting-fold" data-slot="setting-fold" open/, "and start closed");
   assert.doesNotMatch(html, /mw-settings-section__note">[^<]{40,}/, "no paragraph of explanation under a title; a row's own sentence says it");
   assert.match(html, /data-assistant-rule-surfaces><\/div>/, "the places are filled in as a multiple choice by the page");
   assert.doesNotMatch(html, /class="settings-check"|class="settings-section/, "switch rows, each section one card");
@@ -114,10 +130,11 @@ test("对外接入: who, where and what are rows of one card; each capability is
   assert.equal((chosen.match(/class="mw-settings-section__rows"/g) ?? []).length, 2, "the scope card, then the capabilities card");
   assert.match(chosen, /data-mcp-scope-pending[^>]*hidden/, "the scope notice is part of the third row and stays hidden until the scope changes");
   assert.equal((chosen.match(/data-grant-row=/g) ?? []).length, 4);
-  assert.equal((chosen.match(/<details class="mw-object-row/g) ?? []).length, 4, "a capability is one object row; its provider and permissions open in place");
+  assert.equal((chosen.match(/<details class="mw-object-row__fold"/g) ?? []).length, 4, "a capability is one object row; its provider and permissions open in place");
+  assert.doesNotMatch(chosen, /<summary[^>]*>(?:(?!<\/summary>)[\s\S])*<button/, "授权 and 撤销 sit beside the row's summary, not inside it");
   assert.match(chosen, /<strong>&lt;notes\.tidy&gt;<\/strong>/, "a declared title is text");
-  assert.match(chosen, /data-tone="ok" data-status="enabled" data-mw-state="ready"/, "the platform state is on the row's state, where its ring is drawn");
-  assert.match(chosen, /data-tone="attention" data-status="stale" data-mw-state="reauth"/);
+  assert.match(chosen, /data-tone="success" data-status="enabled" data-mw-state="ready"/, "the platform state is on the row's state, where its ring is drawn");
+  assert.match(chosen, /data-tone="warning" data-status="stale" data-mw-state="reauth"/);
   assert.match(chosen, /暂不可用 · 服务未连接/, "why a capability cannot be used is said on its row");
   assert.doesNotMatch(chosen, /<button[^>]*\sdisabled/, "POLISH-32: a capability that cannot be granted has no button rather than a grey one");
   const gone = chosen.slice(chosen.indexOf("notes.gone"));

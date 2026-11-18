@@ -1,4 +1,4 @@
-import { t as uiText, renderListToolbar } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, renderListToolbar, renderSettingRow, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT, renderMemoryClassSettings } from "./settings-memory-classes.js";
 import { MEMORY_EDITORS_CLIENT_SCRIPT } from "./settings-memory-editors.js";
 const attributeJson = (value: unknown): string => JSON.stringify(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -40,7 +40,7 @@ export function renderMemorySettings({ readText, scope, projectId, projects = []
       </div>
     </section>
     <section class="mw-settings-section memory-items" aria-labelledby="memory-items-title">
-      <header class="mw-settings-section__head"><h2 id="memory-items-title">${personal ? uiText.text("workbench.settings-memory.my-memories") : uiText.text("workbench.settings-memory.project-s-memories")}</h2></header>
+      <header class="mw-settings-section__head"><h2 id="memory-items-title">${personal ? uiText("workbench.settings-memory.my-memories") : uiText("workbench.settings-memory.project-s-memories")}</h2></header>
       ${renderListToolbar({ label: uiText.text("workbench.settings-memory.filter-memories"),
         search: `<input class="mw-input memory-search" type="search" maxlength="400" data-memory-filter="query" placeholder="${uiText("workbench.settings-memory.search-memories")}" aria-label="${uiText("workbench.settings-memory.search-memories")}">`,
         filters: `<select class="mw-select" data-memory-filter="scene" aria-label="${uiText("workbench.settings-memory.scene")}"><option value="">${uiText("workbench.settings-memory.all-scenes")}</option><option value="coding">${uiText("workbench.settings-memory.coding")}</option><option value="assistant">${uiText("workbench.settings-memory.assistant")}</option><option value="common">${uiText("workbench.settings-memory.common")}</option><option value="unclassified">${uiText("workbench.settings-memory.unclassified")}</option></select><select class="mw-select" data-memory-filter="state" aria-label="${uiText("workbench.settings-memory.state")}"><option value="">${uiText("workbench.settings-memory.all-states")}</option><option value="active">${uiText("workbench.settings-memory.active")}</option><option value="disabled">${uiText("workbench.settings-memory.switch-off")}</option><option value="paused">${uiText("workbench.settings-memory.paused")}</option></select>`,
@@ -106,9 +106,10 @@ export function renderMemorySettings({ readText, scope, projectId, projects = []
   </section>`;
 }
 
+/** One switch of the memory preferences: the whole row is its label. The switch waits, disabled, for the page to read what is stored. */
 function prefRow(_L: (text: string) => string, key: string, title: string, description: string): string {
-  return `<label class="mw-setting-row memory-pref"><span class="mw-setting-row__copy"><strong>${title}</strong><span>${description}</span></span>
-    <span class="mw-setting-row__control"><span class="mw-switch"><input type="checkbox" role="switch" data-memory-pref="${key}" aria-label="${title}" disabled><span class="mw-switch__track" aria-hidden="true"></span></span></span></label>`;
+  return renderSettingRow({ name: title, hint: description, label: true, className: "memory-pref",
+    control: renderSwitch({ disabled: true, attrs: { "data-memory-pref": key, "aria-label": title } }) });
 }
 
 /**

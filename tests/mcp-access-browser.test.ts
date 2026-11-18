@@ -117,6 +117,8 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
   stop(); stop = install(["fixture:write", "fixture:network"]);
   await search(id); assert.equal(await status(id), "stale");
   await click(`${row(id)} summary`);
+  // The row folds open on the shared clock; what it holds is read once it is shown.
+  await waitFor(`document.querySelector(${JSON.stringify(row(id))}).querySelector('.mw-object-row__body').checkVisibility()`);
   assert.match(await evaluate<string>(`document.querySelector(${JSON.stringify(row(id))}).innerText`), /fixture:network/);
   await grant(id, true); assert.equal(await status(id), "enabled");
   online = false; await search(id); assert.equal(await status(id), "unavailable");

@@ -1,9 +1,9 @@
 import { RUNTIME_DISPLAY_NAMES } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { t as uiText, escapeHtml, icon, renderButton, renderChoice, renderListToolbar, renderObjectRow, renderQuestionList, renderSettingRow, renderSettingsSection, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, renderButton, renderChoice, renderListToolbar, renderObjectRow, renderQuestionList, renderSettingRow, renderSettingsSection, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /**
  * The component board's 设置的行 section (specs/screen-polish/p5-settings.md): the three rows every settings page is written in
- * — 设置行, 对象行 with its 问句行, 列表行 — drawn with the SDK's own functions and the design system's `SETTINGS_ROW_STYLES`,
+ * — 设置行, 对象行 with its 问句行, 列表行 — drawn with the SDK's own functions and the design system's `SETTINGS_DOCUMENT_STYLES`,
  * at the settings document's 760px measure. The names and states are the product's own words; nothing here is stored.
  */
 const text = uiText.text;
@@ -22,17 +22,20 @@ function settingRows(): string {
 
 function openRow(): string {
   const places = ["Coding", "Pages", "Inbox", "Goals", "Feed", "Shelf", "Issue"];
-  return renderSettingsSection({ body: renderSettingRow({ name: text("workbench.settings-assistant.quiet-places"), hint: text("workbench.settings-assistant.quiet-places-hint"), attrs: { "data-open": "true" },
-    control: `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" aria-expanded="true"><span>${uiText("workbench.settings-assistant.places-count", { count: 3 })}</span>${icon("chevron-down")}</button>` })
-    + `<div class="mw-setting-open"><div class="mw-choice-group" role="group" aria-label="${uiText("workbench.settings-assistant.quiet-places")}">${places.map((label, index) => renderChoice({ label, selected: index < 3 })).join("")}</div></div>` });
+  return renderSettingsSection({ body: renderSettingRow({ name: text("workbench.settings-assistant.quiet-places"), hint: text("workbench.settings-assistant.quiet-places-hint"),
+    open: { label: text("workbench.settings-assistant.places-count", { count: 3 }), opened: true,
+      body: `<div class="mw-choice-group" role="group" aria-label="${uiText("workbench.settings-assistant.quiet-places")}">${places.map((label, index) => renderChoice({ label, selected: index < 3 })).join("")}</div>` } }) });
 }
 
 function objectRows(): string {
   const [first, second, third, fourth] = Object.values(RUNTIME_DISPLAY_NAMES) as string[];
   const code = (value: string) => `<code>${escapeHtml(value)}</code>`;
-  return renderSettingsSection({ title: text("workbench.settings-runtimes.connected"), body:
+  // What stops every row at once is said once, in a card of its own above them, with the one thing to do about it.
+  return renderSettingsSection({ body: renderObjectRow({ name: text("workbench.settings-runtimes.install-incomplete"), hint: text("workbench.settings-runtimes.check-diagnostics-repair-molis-work-install-first"),
+    icon: "circle-alert", className: "mw-object-row--alert", action: renderButton({ label: text("workbench.settings-runtimes.open-diagnostics"), variant: "secondary", size: "sm" }) }) })
+  + renderSettingsSection({ title: text("workbench.settings-runtimes.connected"), body:
     renderObjectRow({ name: first ?? "", hint: text("workbench.settings-runtimes.mcp-molis-work-skill-both-point-install"), icon: "terminal", open: true,
-      state: { label: text("workbench.settings-runtimes.connected"), tone: "ok" },
+      state: { label: text("workbench.settings-runtimes.connected"), tone: "success" },
       body: renderQuestionList({ rows: [
         { question: text("workbench.settings-runtimes.where-installed"), answer: code("~/.local/bin/codex") },
         { question: text("workbench.settings-runtimes.where-config"), answer: code("~/.codex/config.toml") },
@@ -40,9 +43,11 @@ function objectRows(): string {
           action: renderButton({ label: text("workbench.settings-runtimes.preview-removal"), variant: "secondary", size: "sm" }) },
       ] }) })
     + renderObjectRow({ name: second ?? "", hint: text("workbench.settings-runtimes.older-incomplete-molis-work-connection-was-found"), icon: "terminal",
-      state: { label: text("workbench.settings-runtimes.needs-repair"), tone: "attention" }, action: renderButton({ label: text("workbench.settings-runtimes.preview-repair"), variant: "secondary" }), body: "" })
+      state: { label: text("workbench.settings-runtimes.needs-repair"), tone: "warning" }, action: renderButton({ label: text("workbench.settings-runtimes.preview-repair"), variant: "secondary" }),
+      body: renderQuestionList({ rows: [{ question: text("workbench.settings-runtimes.where-config"), answer: code("~/.claude.json") },
+        { question: text("workbench.settings-runtimes.does-it-connect"), answer: escapeHtml(text("workbench.settings-runtimes.older-incomplete-molis-work-connection-was-found")) }] }) })
     + renderObjectRow({ name: third ?? "", hint: text("workbench.settings-runtimes.check-diagnostics-repair-molis-work-install-first"), icon: "terminal",
-      state: { label: text("workbench.settings-runtimes.install-incomplete"), tone: "bad" }, action: renderButton({ label: text("workbench.settings-runtimes.open-diagnostics"), variant: "secondary" }) })
+      state: { label: text("workbench.settings-runtimes.install-incomplete"), tone: "danger" }, action: renderButton({ label: text("workbench.settings-runtimes.open-diagnostics"), variant: "secondary" }) })
     + renderObjectRow({ name: fourth ?? "", hint: text("workbench.settings-runtimes.that-runtime-was-not-found-machine"), icon: "terminal", state: { label: text("workbench.settings-runtimes.not-found") } }) });
 }
 

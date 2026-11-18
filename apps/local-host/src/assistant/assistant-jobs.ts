@@ -142,13 +142,13 @@ export class AssistantJobs {
     this.#settleCards(work.work_id, step);
   }
 
-  /** The running cards that started the job on `step` say how it ended. */
+  /** The running cards that started the job on `step` say how it ended, in the notice's own words. */
   #settleCards(workId: string, step: JobStep): void {
+    const text = assistantWords(`workbench.assistant-job.${step.job.ended}`, { title: step.title });
     for (const card of this.ports.store.cards(workId).filter(one => one.status === "running" && one.job_step?.node_id === step.node_id)) {
       try {
-        this.ports.store.updateCard(card, card.revision, step.job.ended === "done" ? { status: "done", outcome: assistantWords("workbench.assistant-job.card-done") }
-          : step.job.ended === "failed" ? { status: "failed", outcome: assistantWords("workbench.assistant-job.card-failed") }
-          : { status: "unknown", outcome: assistantWords(step.job.ended === "expired" ? "workbench.assistant-job.card-expired" : "workbench.assistant-job.card-unchecked") });
+        this.ports.store.updateCard(card, card.revision, step.job.ended === "done" ? { status: "done", outcome: text }
+          : step.job.ended === "failed" ? { status: "failed", outcome: text } : { status: "unknown", outcome: text });
       } catch (error) { if (!(error instanceof ActionError && error.code === "assistant.conflict")) hostLog.warn("assistant", "job_card_unsettled", error); } // Changed meanwhile is expected (the notice still says how the job ended); anything else is written.
     }
   }

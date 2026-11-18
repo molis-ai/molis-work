@@ -76,7 +76,7 @@ test("BL-action-card-outcome-text: a card keeps its outcome as a platform key wi
   assert.deepEqual((await run(k, await k.draft({ todo_item_id: "x", title: "a" }))).outcome,
     { owner: "workbench", key: "common.punctuation.quoted", args: [{ name: "value", kind: "text", text: "写周报" }] });
   k.reply = async () => "";
-  assert.deepEqual((await run(k, await k.draft({ todo_item_id: "x", title: "a" }))).outcome, { owner: "workbench", key: "common.action-card.done" });
+  assert.deepEqual((await run(k, await k.draft({ todo_item_id: "x", title: "a" }))).outcome, { owner: "workbench", key: "common.presentation.done" });
   k.view = view({ action: { ...view().action, result_view: { summary: "接入方案已准备" } } });
   assert.deepEqual((await run(k, await k.draft({ todo_item_id: "x", title: "a" }))).outcome, { literal: "接入方案已准备" }, "a declared summary is the owner's words");
   const offered = await k.draft({ todo_item_id: "x", title: "a" });

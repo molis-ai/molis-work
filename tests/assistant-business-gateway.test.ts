@@ -931,7 +931,8 @@ test("W2-18-JOB-01: background work a round or a card starts is followed on the 
     assert.equal((await f.service.read(sent.work.work_id)).jobs!.find(job => job.job_id === "job-2")?.card_id, ran.card_id);
     state.value = "failed";
     const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
-    assert.deepEqual([after.status, outcomeOf(after)], ["failed", "后台没有完成"]);
+    assert.equal(after.status, "failed");
+    assert.match(outcomeOf(after) ?? "", /」在后台没有完成$/, "the card says how the job ended, as the notice does");
     assert.equal(f.service.notices.notices(null).filter(notice => /后台/.test(noticeText(notice))).length, 2, "one notice for each job's end");
   } finally { await f.close(); }
 });
@@ -957,7 +958,8 @@ test("W2-18-JOB-02: running a card whose action starts a background job follows 
     assert.deepEqual((await f.service.read(sent.work.work_id)).jobs!.map(job => [job.job_id, job.card_id ?? null]), [["job-1", ran.card_id]]);
     state.value = "completed";
     const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
-    assert.deepEqual([after.status, outcomeOf(after)], ["done", "后台已完成"]);
+    assert.equal(after.status, "done");
+    assert.match(outcomeOf(after) ?? "", /」在后台完成了$/, "the card says how the job ended, as the notice does");
     await until(() => f.service.notices.notices(null).some(notice => /后台完成了/.test(noticeText(notice))), "the person is told");
     // The Assistant built again on the same Home (as after a restart) hears every job that has ended at once: still one notice.
     const again = new AssistantService(f.store, f.ports, "web-user");
@@ -988,7 +990,8 @@ test("W2-18-JOB-04: a work that 500 newer works have passed still answers for th
     assert.equal(f.store.list("web-user", { archived: "any", limit: 500 }).some(work => work.work_id === sent.work.work_id), false, "the work is not among the latest 500");
     state.value = "completed";
     const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
-    assert.deepEqual([after.status, outcomeOf(after)], ["done", "后台已完成"], "looked at with the work's authority, not refused as gone");
+    assert.equal(after.status, "done", "looked at with the work's authority, not refused as gone");
+    assert.match(outcomeOf(after) ?? "", /」在后台完成了$/);
     await until(() => f.service.notices.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(noticeText(notice))), "the person is told");
   } finally { await f.close(); }
 });

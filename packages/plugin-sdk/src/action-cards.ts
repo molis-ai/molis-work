@@ -136,7 +136,7 @@ function summarizeResult(result: unknown): OwnedTextRef | null {
     for (const key of ["item", "document", "record", "result", "created", "updated"]) { const inner = named(row[key]); if (inner) return inner; }
     return null;
   };
-  if (typeof result === "string") return result ? ownWords(cutWithEllipsis(result, 200)) : said("done");
+  if (typeof result === "string") return result ? ownWords(cutWithEllipsis(result, 200)) : { owner: PLATFORM_TEXT_OWNER, key: "common.presentation.done" };
   const name = named(result);
   return name ? { owner: PLATFORM_TEXT_OWNER, key: "common.punctuation.quoted", args: [textArg("value", name.slice(0, 120))] } : null;
 }

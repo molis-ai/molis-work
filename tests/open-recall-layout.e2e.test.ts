@@ -215,7 +215,9 @@ test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests;
 
   // Switching side tabs, collapsing and opening the side, and recalling the moved view rebuild nothing.
   mark = since();
-  const other = await evaluate<string>(`[...document.querySelectorAll('[data-side-tabs] [data-side-tab]:not([data-side-pane])')].find(tab => tab.checkVisibility()).dataset.sideTab`);
+  // The side's views are in the list that opens from its view's name (specs/screen-polish §3 方案 C), closed at rest: one of
+  // them that is offered (not hidden), which the click below reaches by opening that list.
+  const other = await evaluate<string>(`[...document.querySelectorAll('[data-side-tabs] [data-side-tab]:not([data-side-pane])')].find(tab => !tab.hidden).dataset.sideTab`);
   await click(`[data-side-tabs] [data-side-tab="${other}"]`);
   await waitFor(`document.querySelector('[data-side-tabs] [data-side-tab="${other}"][aria-selected=true]')`);
   await click(`[data-side-tabs] [data-side-tab="${MOVED}"]`);

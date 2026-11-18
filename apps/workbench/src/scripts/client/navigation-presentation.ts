@@ -126,7 +126,7 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
   // The label is rebuilt only when what it shows changed: a press that lands on it while the Dock refits still ends on the
   // node it started on, so it is a click.
   const put = (...chips) => { const next = current.cloneNode(); next.append(...chips); if (!next.isEqualNode(current)) current.replaceChildren(...chips); };
-  let paintQueued = false;
+  let paintQueued = false, tabsWait = 0;
   // 项目首页 never folds and never shrinks: its tray is at least as wide as it is (with its name while it is the current one),
   // and the tabs beside the tray give the room. Set after the pin is painted, outside the refit, and only when it changed.
   const holdHome = () => {
@@ -143,6 +143,9 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     paintQueued = true;
     requestAnimationFrame(() => {
       paintQueued = false;
+      // The tab workspace starts after this script: until it is up, which page shows is not known, so the strip waits (a
+      // little, then draws anyway should the workspace not start).
+      if (host.tabsReady && !host.tabsReady() && tabsWait++ < 100) { setTimeout(paintCurrent, 50); return; }
       // A cover (settings, the market) is what the person looks at: the switcher names it and no
       // Dock entry claims to be current underneath it.
       const cover = document.querySelector('[data-tab-workspace]')?.dataset.exclusive;

@@ -76,8 +76,10 @@ function personGroup(_L: Say, title: string, hue: string, tabs: string): string 
 }
 
 /** A tab strip: the tablist with its scrolling tabs, and what stays at its end (undo, one pane only, all tabs). */
+// The titlebar's strip takes the room its tabs want from --tabs-hug, which the page's script measures (tab-workspace-strip.ts);
+// the board runs no such script, so its titlebar strip says it here (and its header is drawn: data-dock-drawn on it below).
 function strip(label: string, tabs: string, options: { end?: string; unfocused?: boolean; lead?: string; titlebar?: boolean } = {}): string {
-  return `<nav class="tab-strip" role="tablist" aria-label="${escapeHtml(label)}"${options.titlebar ? " data-titlebar-tabs" : ""}${options.unfocused ? " data-unfocused" : ""}>${options.lead ?? ""}<div class="tab-scroll" data-overflow-fade>${tabs}</div>${options.end ?? ""}</nav>`;
+  return `<nav class="tab-strip" role="tablist" aria-label="${escapeHtml(label)}"${options.titlebar ? ' data-titlebar-tabs style="--tabs-hug:max-content"' : ""}${options.unfocused ? " data-unfocused" : ""}>${options.lead ?? ""}<div class="tab-scroll" data-overflow-fade>${tabs}</div>${options.end ?? ""}</nav>`;
 }
 
 const sample = (_L: Say) => ({
@@ -146,7 +148,8 @@ function plusButton(_L: Say, controls: string, open: boolean): string {
 }
 
 function layoutButton(_L: Say, controls: string, open: boolean): string {
-  const attrs = { title: uiText.text("workbench.navigation-specimens.layout"), "data-nav-menu-for": controls, "data-nav-layout": true, "aria-haspopup": "menu", "aria-expanded": String(open), "aria-controls": controls };
+  // Marked as the product's is (data-layout-open), so the strip's own rules hold for it: on a phone's row it shows only while split.
+  const attrs = { title: uiText.text("workbench.navigation-specimens.layout"), "data-nav-menu-for": controls, "data-nav-layout": true, "data-layout-open": true, "aria-haspopup": "menu", "aria-expanded": String(open), "aria-controls": controls };
   return renderButton({ label: uiText.text("workbench.navigation-specimens.layout"), icon: "columns", variant: "ghost", size: "sm", iconOnly: true, attrs });
 }
 
@@ -215,7 +218,7 @@ function titlebar(readText: Say, state: "ok" | "wrong"): string {
   const side = `${sideEar("talk", `nav-side-${suffix}`, false)}${sideViews(readText, `nav-side-${suffix}`, "talk", true)}`;
   const layout = `<span class="titlebar-layout">${sideSwitch(true)}<span class="mw-navs__anchor mw-navs__anchor--end">${layoutButton(readText, `nav-layout-${suffix}`, false)}${layoutMenu(readText, `nav-layout-${suffix}`, true)}</span></span>`;
   const project = `<div class="titlebar-end"><section class="workspace-chrome project-island titlebar-chrome navigator-project" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.current-project"))}"><div class="navigator-project-primary"><button type="button" class="navigator-project-selector" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.switch-project"))} · ${escapeHtml(uiText.text("workbench.navigation-specimens.website-revamp"))}">${renderProjectMonogram(uiText.text("workbench.navigation-specimens.website-revamp"), "project-sample", escapeHtml)}</button></div></section></div>`;
-  return `<div class="mw-navs__window" data-side-open-sample><header class="workbench-header immersive-titlebar" data-dock data-nav-titlebar="${state}">${history}${pins}${mainStrip}${allMenu}${plus}<div class="desktop-titlebar-drag" aria-hidden="true"></div>${side}${layout}${project}</header><div class="mw-navs__sheets" aria-hidden="true"><span></span><span></span></div></div>`;
+  return `<div class="mw-navs__window" data-side-open-sample><header class="workbench-header immersive-titlebar" data-dock data-dock-drawn data-nav-titlebar="${state}">${history}${pins}${mainStrip}${allMenu}${plus}<div class="desktop-titlebar-drag" aria-hidden="true"></div>${side}${layout}${project}</header><div class="mw-navs__sheets" aria-hidden="true"><span></span><span></span></div></div>`;
 }
 
 function partSpecimens(readText: Say): string {
@@ -321,7 +324,9 @@ html body.mw-navs-page .mw-navs__split>.tab-workspace-panes>.tab-pane{position:r
 .mw-navs__live:empty{display:none}
 @media (min-width:761px){[data-nav-when-full][data-nav-fits]{display:none}}
 .mw-navs__live{margin:0;font-size:12px;color:var(--ink-soft)}
-@media (max-width:760px){.mw-navs__sheets>span:last-child{display:none}.mw-navs__window .mw-navs__anchor{position:static}.mw-navs__window .mw-navs__anchor>[data-nav-popover]{left:8px;right:8px;width:auto}}`;
+/* A phone's row is drawn with the side closed: there the side's own tab takes the current tab's place only while it is open
+   (it outweighs the strip's own rule for that tab, top-strip.ts). */
+@media (max-width:760px){html body .mw-navs__window .workbench-header[data-dock][data-dock][data-dock]>.side-ear{display:none}.mw-navs__sheets>span:last-child{display:none}.mw-navs__window .mw-navs__anchor{position:static}.mw-navs__window .mw-navs__anchor>[data-nav-popover]{left:8px;right:8px;width:auto}}`;
 
 /** The board's section: the frame above, in the board's language, at a fixed height that scrolls inside, like the board's other specimen frames. */
 export function renderNavigationSection(_L: Say, lang: WebLocale): string {

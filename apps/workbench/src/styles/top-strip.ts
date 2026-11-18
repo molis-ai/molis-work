@@ -60,9 +60,9 @@ ${TOP} .dock-pin-more{width:auto;min-width:30px;padding:0 6px;font-size:12px}
    first, down to that floor while it leaves the rest of the strip 360px; then the kept plugins fold; then the tabs slide. A strip
    with no tab in it is not drawn, so ＋ stands at the hairline (POLISH-03); one with a tab is at least 2px wide before the
    script has measured it, since that script measures only a strip that has a width. */
-${TABS}{order:1;align-self:stretch;flex:0 1000 var(--tabs-hug,0px);min-width:clamp(2px,var(--tabs-floor,2px),100% - 360px);height:auto;margin-right:-4px;padding:0;gap:2px}
+${TABS}{order:1;align-self:stretch;flex:0 1000 var(--tabs-hug,0px);min-width:clamp(2px,var(--tabs-floor,2px),100% - 360px);height:auto;margin-right:0;padding:0;gap:2px}
 ${TABS}:not(:has(.tab-item:not([data-kept]),.tab-view-chip,.tab-strip-button:not([hidden]),[data-tab-reorder-slot])),${TABS}>.tab-strip-spacer{display:none}
-${TABS}>.tab-scroll{align-self:stretch;align-items:center;box-sizing:border-box;height:auto;gap:2px;padding:0 10px}
+${TABS}>.tab-scroll{align-self:stretch;align-items:center;box-sizing:border-box;height:auto;gap:2px;padding:0 6px 0 10px}
 ${TABS} .tab-item{height:var(--ear-rest);border-radius:8px;background-color:transparent;box-shadow:none;color:var(--ink-soft);font-size:12px}
 ${TABS} .tab-item:not([data-ear]):hover{background-color:var(--nav-hover);color:var(--ink)}
 ${TABS} .tab-item .tab-item-icon{color:currentColor}
@@ -85,7 +85,8 @@ ${TABS}>.tab-view-chip.is-exclusive>svg{width:14px;height:14px;color:var(--accen
 ${TABS}>.tab-view-chip .tab-view-chip-close{flex:none;display:inline-grid;place-items:center;width:20px;height:20px;padding:0;border:0;border-radius:5px;background:transparent;color:var(--ink-soft);cursor:pointer}
 ${TABS}>.tab-view-chip .tab-view-chip-close:hover{background:var(--nav-active);color:var(--ink)}
 ${TABS}>.tab-view-chip .tab-view-chip-close svg{width:12px;height:12px}
-${TOP} .tab-add-button{display:none}
+/* The titlebar's tab strip has no ＋ of its own: ＋ is the start page's, right after it. */
+${TABS} .tab-add-button{display:none}
 
 /* An ear: as tall as the strip from its top edge down, paper, joined to the sheet by a concave corner on each side. These
    follow the rules of a tab and of a kept plugin at rest, which they outweigh or equal. */
@@ -179,9 +180,10 @@ ${PANE_EAR}{border-radius:9px 9px 0 0}
   /* A row that cannot hold it all scrolls rather than clips; the current tab keeps 98px (07-1 S3). */
   ${TABS}{flex:1 1 0;min-width:0;min-height:44px;margin-right:0;overflow:auto hidden}
   /* !important over the width the strip's script writes on the scroll box (tab-workspace-strip.ts shares the room on a desk). */
-  ${TABS}>.tab-scroll{flex:0 1 auto;min-width:auto;width:auto!important;padding:0;overflow:visible;mask-image:none}
+  /* The current tab gives way to 全部标签 down to its 98px, its title ending in an ellipsis: what holds it gives way too. */
+  ${TABS}>.tab-scroll{flex:0 1 auto;min-width:0;width:auto!important;padding:0;overflow:visible;mask-image:none}
   ${TABS} .tab-group:not(:has([data-ear])){display:none}
-  ${TABS} .tab-group,${TABS} .tab-group>.tab-group-pages{flex:0 1 auto;min-width:auto}
+  ${TABS} .tab-group,${TABS} .tab-group>.tab-group-pages{flex:0 1 auto;min-width:0}
   ${TABS} .tab-item{height:36px}
   ${TABS} .tab-item:not([data-ear]),${TABS}:has(>.tab-view-chip.is-exclusive) .tab-scroll,${TABS}:has(>.tab-view-chip.is-exclusive) .tab-all-button,${TABS} .tab-plugin-group::before{display:none}
   /* Only the current tab is drawn, so no group needs the room before its hairline; !important over the desk's rule, which reads

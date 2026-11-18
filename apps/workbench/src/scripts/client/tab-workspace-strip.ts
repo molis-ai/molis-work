@@ -150,7 +150,9 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
           siblingChrome += Number.parseFloat(getComputedStyle(child).minWidth) || 0;
           continue;
         }
-        siblingChrome += child.getBoundingClientRect().width;
+        // A piece's margin is room it takes too (the cover chip keeps a little air before 全部标签).
+        const box = getComputedStyle(child);
+        siblingChrome += child.getBoundingClientRect().width + (Number.parseFloat(box.marginLeft) || 0) + (Number.parseFloat(box.marginRight) || 0);
       }
       return tabScrollAllotment(innerWidth, siblingChrome, gapOf(strip), stripKids.length);
     };

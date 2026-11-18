@@ -34,7 +34,7 @@ ${STRIP_BUTTON}:hover{background:var(--nav-hover);color:var(--ink)}
 ${STRIP_BUTTON}:active{background:var(--nav-press,var(--nav-active))}
 ${STRIP_BUTTON}:focus-visible{outline:var(--focus-stroke);outline-offset:1px}
 .tab-all-button[aria-expanded="true"]{background:var(--nav-active);color:var(--ink)}
-.titlebar-layout>.mw-btn[aria-expanded="true"]{background:var(--nav-hover);color:var(--ink)}
+.titlebar-layout .mw-btn[aria-expanded="true"]{background:var(--nav-hover);color:var(--ink)}
 .tab-all-count{color:var(--muted);font-variant-numeric:tabular-nums}
 .tab-solo-chip{background:var(--accent-soft);color:var(--accent-strong,var(--accent))}
 .tab-solo-chip:hover{background:color-mix(in srgb,var(--accent) 18%,var(--paper));color:var(--accent-strong,var(--accent))}

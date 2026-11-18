@@ -159,7 +159,8 @@ test("at 390px the top strip is one row (POLISH-07)", { timeout: 180_000 }, asyn
   await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-titlebar-tabs] .tab-item[aria-current][data-plugin=pages]')");
   const tabbed = await read();
   assert.deepEqual({ height: tabbed.height, rows: tabbed.rows, overflow: tabbed.overflow }, { height: 44, rows: 1, overflow: false }, "POLISH-07: still one row with a tab open");
-  assert.deepEqual(tabbed.has, whole);
+  // 项目首页 is in the row only while the project home is the current page; with a tab current it is in the start page.
+  assert.deepEqual(tabbed.has, whole.filter((selector) => selector !== "[data-dock-pin=home]"));
   const current = await evaluate<{ shown: boolean; others: number; all: boolean }>(`(() => {
     const { header, shown } = ${READ};
     return { shown: shown(header.querySelector('[data-titlebar-tabs] .tab-item[aria-current]')), others: [...header.querySelectorAll('[data-titlebar-tabs] .tab-item:not([aria-current])')].filter(shown).length, all: shown(header.querySelector('[data-tab-all]')) };

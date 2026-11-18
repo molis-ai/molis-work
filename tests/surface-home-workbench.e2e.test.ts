@@ -12,6 +12,9 @@ const start = goals + ' [data-home-control$=":start:0"]';
 const row = goals + ' [data-home-row]';
 const title = row + ' .mw-presentation__row-title';
 const endpoint = "/api/host/surface-home";
+// 项目首页 from the start page: the browser's window is under 760px, where the strip's ⌂ shows only while the home is the
+// current page (specs/screen-polish §3 方案 C, POLISH-07), and the start page lists it at every width.
+const HOME_ENTRY = '[data-plugin-strip] [data-plugin-id="home"]';
 
 test("IUI-21 IUI-26 SCS-11 WBR-21: the project home opens Goals’ original form and renders real rows at twelve settings", { timeout: 150_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null);
@@ -28,7 +31,7 @@ test("IUI-21 IUI-26 SCS-11 WBR-21: the project home opens Goals’ original form
   await b.click('[data-create-dialog] [data-close-create]');
   await b.waitFor("!document.querySelector('[data-create-dialog]').open");
   assert.equal((await rows()).length, 0, "opening and cancelling the real form write no Goal");
-  await b.click('[data-dock-pin="home"]');
+  await b.click(HOME_ENTRY);
   await painted();
   await b.click(start);
   await b.waitFor("document.querySelector('[data-create-dialog]').open");
@@ -40,7 +43,7 @@ test("IUI-21 IUI-26 SCS-11 WBR-21: the project home opens Goals’ original form
   await b.navigate(() => b.click('[data-create-form] [type="submit"]'));
   assert.match(await b.evaluate<string>("location.pathname"), /\/goals\//u);
   assert.equal((await rows()).length, 1, "one submit creates one Goal");
-  await b.click('[data-dock-pin="home"]');
+  await b.click(HOME_ENTRY);
   await painted();
 
   // Take the actual Tab stop, then use the real browser keyboard, not a direct DOM click or focus on the dialog.
@@ -127,7 +130,7 @@ test("SCS-12 FSS-34 the project home changes its owners' words in place when the
   await select("en");
   await b.waitFor("document.documentElement.dataset.uiLanguageTag === 'en' && !document.querySelector('[data-ui-language-status]')");
   assert.equal(await b.evaluate<number>("homeWordReads.length"), readsBefore, "released grants are not read by a later switch");
-  await b.click('[data-dock-pin="home"]');
+  await b.click(HOME_ENTRY);
   await b.waitFor(`document.querySelector(${JSON.stringify(home)}).checkVisibility() && /In progress/u.test(document.querySelector(${JSON.stringify(row + " .mw-status")})?.textContent ?? "")`, 15_000);
   assert.equal(await b.evaluate("homeWordReads.at(-1)"), "en", "the home installs fresh grants in the new language");
 });

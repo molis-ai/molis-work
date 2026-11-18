@@ -16,6 +16,7 @@ import { resolveApiConnection } from "./connector-access.js";
 import { ApiOAuthError, apiOAuthConnectionId, readApiOAuthAccount } from "./connector-api-oauth.js";
 import { connectorManagementActions, connectorManagementHandlers } from "./connector-management-actions.js";
 import { connectorRecordActions, connectorRecordHandlers } from "./connector-record-actions.js";
+import { webSearchActions, webSearchHandlers } from "./web-search-actions.js";
 import { connectorLocalActions, connectorLocalHandlers } from "./connector-local-actions.js";
 import { connectorSetupAction, connectorSetupHandler } from "./connector-setup.js";
 import { connectorSetupExecuteAction, connectorSetupExecuteHandler } from "./connector-setup-execute.js";
@@ -109,7 +110,7 @@ export async function readConnectorAccount(home: string, connectionId: string, c
 export function connectorAccountActionProvider(home: string, remember: ConnectorMcpDirectory["remember"], projectMcp: ProjectMcpManagementPort = noProjectMcp, inspect?: ConnectorActionInspector, clientFor?: (caller: ActionCallContext) => ActionClient, pluginSlots?: PluginSlotDirectory): ActionProviderRegistration {
   return {
     provider: { provider_id: CONNECTOR_PROVIDER_ID, title: "服务连接", kind: "system" },
-    definitions: [connectorUsagesAction, modelConnectionUsages, connectorPluginSlotUsages, connectorUsagesSwitchAction, modelProviderSwitch, connectorPluginSlotSwitch, ...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions), connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, ...Object.values(connectorLocalActions), ...Object.values(connectorCliActions), ...Object.values(connectorPluginSlotActions)],
+    definitions: [connectorUsagesAction, modelConnectionUsages, connectorPluginSlotUsages, connectorUsagesSwitchAction, modelProviderSwitch, connectorPluginSlotSwitch, ...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions), ...Object.values(webSearchActions), connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, ...Object.values(connectorLocalActions), ...Object.values(connectorCliActions), ...Object.values(connectorPluginSlotActions)],
     handlers: [connectorUsagesHandler(home, clientFor), modelConnectionUsagesHandler(home), connectorPluginSlotUsagesHandler(home, pluginSlots), connectorUsagesSwitchHandler(home, clientFor), modelProviderSwitchHandler(home), connectorPluginSlotSwitchHandler(home, pluginSlots), { capability_id: connectorAccountActions.read.capability_id, version: connectorAccountActions.read.version,
       handle: async (caller, input) => {
         const id = (input as { connection_id: string }).connection_id, row = withConnectorConnections(home, store => store.get(id), true), revision = row?.updated_at;
@@ -120,6 +121,6 @@ export function connectorAccountActionProvider(home: string, remember: Connector
         await caller.beforeEffect(); caller.signal?.throwIfAborted();
         if (revision && !rememberConnectorCheck(home, id, { at: new Date().toISOString(), revision, outcome: "connected", authorization: "verified", account: { login: result.login, ...(result.account_id ? { account_id: result.account_id } : {}) }, ...(result.scopes?.length ? { scopes: result.scopes } : {}) })) throw accountErrors.disconnected("读取期间连接已变化，请重新检查");
         return result;
-      } }, ...connectorManagementHandlers(home, remember, projectMcp, inspect), ...connectorRecordHandlers(home), connectorSetupHandler(home), connectorSetupExecuteHandler(home, remember), connectorSetupIntentHandler(home, remember), ...connectorLocalHandlers(home, remember), ...connectorCliHandlers(home), ...connectorPluginSlotHandlers(home, pluginSlots)],
+      } }, ...connectorManagementHandlers(home, remember, projectMcp, inspect), ...connectorRecordHandlers(home), ...webSearchHandlers(home), connectorSetupHandler(home), connectorSetupExecuteHandler(home, remember), connectorSetupIntentHandler(home, remember), ...connectorLocalHandlers(home, remember), ...connectorCliHandlers(home), ...connectorPluginSlotHandlers(home, pluginSlots)],
   };
 }

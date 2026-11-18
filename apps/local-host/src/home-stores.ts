@@ -21,6 +21,7 @@ import { ASSISTANT_HOME_STORE } from "./assistant/assistant-store.js";
 import { AUTOMATION_PREFERENCES_PATH } from "@molis-ai/molis-work-service-automation-recommender";
 import { CONNECTOR_TOOLS_HOME_STORE } from "./connector-tool-download.js";
 import { CONNECTORS_HOME_STORE } from "./connectors-store.js";
+import { WEB_SEARCH_HOME_STORE } from "./web-search-store.js";
 import { OBSERVATION_HOME_STORE } from "@molis-ai/molis-work-service-observation";
 import { ACCEPTANCE_HOME_STORE } from "@molis-ai/molis-work-module-acceptance";
 import { EVALUATION_HOME_STORE } from "@molis-ai/molis-work-service-evaluation";
@@ -72,7 +73,7 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...owned("modules/sync-replication", { ...SYNC_HOME_STORE, snapshot: omittedSnapshot("Device consent, transfer queues and cursors belong to this Home", "preserve") }),
     ...owned("apps/local-host/src/installer", { path: "backups", snapshot: { emptyOnly: true } }),
     ...owned("apps/local-host", HOME_PLUGIN_RUNTIME_HOME_STORE, INSTALLED_LIBRARIES_HOME_STORE, ASSISTANT_HOME_STORE, PLACEMENT_HOME_STORE, AGENT_DEFINITIONS_HOME_STORE, AGENT_DECLARATIONS_HOME_STORE,
-      CONNECTORS_HOME_STORE, { ...CONNECTOR_TOOLS_HOME_STORE, snapshot: managedToolsSnapshot }, CONTEXT_ONBOARDING_HOME_STORE,
+      CONNECTORS_HOME_STORE, WEB_SEARCH_HOME_STORE, { ...CONNECTOR_TOOLS_HOME_STORE, snapshot: managedToolsSnapshot }, CONTEXT_ONBOARDING_HOME_STORE,
       { ...ALCHEMIST_HOME_STORE, snapshot: alchemistSnapshot }, ORIGINAL_FILES_HOME_STORE, DIRECTORY_GRANTS_HOME_STORE),
     ...owned("modules/functions", FUNCTIONS_HOME_STORE),
     ...owned("modules/artifacts", ARTIFACTS_HOME_STORE),

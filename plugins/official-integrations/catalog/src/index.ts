@@ -51,11 +51,13 @@ function catalogConnectionService(connectorId: string): PluginConnectionServiceD
       ...oauth ? [oauth] : [], ...mcp ? [mcp] : !spec.token_label || connectorId === "feishu" || connectorId === "lark" ? [{ kind: "mcp" as const }] : []] },
     auth_help: spec.auth_help,
     capabilities: [
-      { label: spec.inbound, fulfillment: feed ? "live" : "unfulfilled" },
+      { label: spec.inbound, fulfillment: feed || spec.web_search ? "live" : "unfulfilled" },
       { label: { key: "common.connector.check-current-account" }, fulfillment: "live" },
     ],
     outbound_note: { key: "common.connector.account-available-actions" },
     setup_links: spec.setup_links,
+    ...(spec.categories?.length ? { categories: spec.categories } : {}),
+    ...(spec.project_hints ? { project_hints: spec.project_hints } : {}),
   };
 }
 
@@ -63,6 +65,7 @@ function catalogConnectionService(connectorId: string): PluginConnectionServiceD
 function catalogIntegrations(connectorId: string): PluginIntegrationDeclaration[] {
   const integrations: PluginIntegrationDeclaration[] = [];
   if (getCatalogSpec(connectorId).feed_available !== false) integrations.push({ integration_id: connectorId, kind: "source", service_id: connectorId });
+  if (getCatalogSpec(connectorId).web_search) integrations.push({ integration_id: `${connectorId}-web`, kind: "web_search", service_id: connectorId });
   for (const [source, { service, methods }] of Object.entries(DOCUMENT_SOURCES)) {
     if (service === connectorId) integrations.push({ integration_id: source === connectorId ? `${source}-documents` : source, kind: "document_import",
       service_id: connectorId, document_source: source, connection_methods: methods });
@@ -135,4 +138,6 @@ export { CatalogLiveError } from "./http.js";
 export { catalogCloudOrigin } from "./targets.js";
 export type { CatalogFetch } from "./types.js";
 export { readExternalDocument, externalDocumentErrors } from "./document-import.js";
+export { searchCatalogWeb, CATALOG_WEB_SEARCH_MAX_RESULTS } from "./web-search-read.js";
+export type { CatalogWebResult } from "./types.js";
 export type { ExternalDocument, ExternalDocumentSource, ExternalDocumentImportErrorCode } from "./document-import.js";

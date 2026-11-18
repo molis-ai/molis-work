@@ -33,6 +33,7 @@ const DISPLAY_GROUPS: ReadonlyArray<{ id: string; title: string; directory: read
   { id: "chat", title: "workbench.settings-connectors.messages", directory: ["chat", "social"] },
   { id: "design", title: "workbench.settings-connectors.design", directory: ["design"] },
   { id: "crm", title: "workbench.settings-connectors.customers-sales", directory: ["crm"] },
+  { id: "search", title: "workbench.settings-connectors.web-search", directory: ["search"] },
 ];
 const MODEL_SERVICES: readonly string[] = ["model-api", "image-api"];
 

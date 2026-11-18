@@ -41,6 +41,9 @@ const CONNECTOR_SETUP_LINKS: Readonly<Record<string, readonly PluginConnectionLi
   stripe: [{ label: { key: "stripe.setup.open-stripe-api-keys" }, url: "https://dashboard.stripe.com/apikeys" }],
   x: [{ label: { key: "x.setup.open-x-developer-portal" }, url: "https://developer.x.com/en/portal/dashboard" }],
   linkedin: [{ label: { key: "linkedin.setup.open-linkedin-developer-dashboard" }, url: "https://www.linkedin.com/developers/apps" }],
+  "brave-search": [{ label: { key: "brave-search.setup.open-brave-search-api-keys" }, url: "https://api-dashboard.search.brave.com/app/keys" }],
+  "deepseek-search": [{ label: { key: "deepseek-search.setup.open-deepseek-api-keys" }, url: "https://platform.deepseek.com/api_keys" }],
+  tavily: [{ label: { key: "tavily.setup.open-tavily-api-keys" }, url: "https://app.tavily.com/home" }],
 };
 
 export function setupLinksFor(connectorId: string): readonly PluginConnectionLink[] {

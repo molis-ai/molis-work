@@ -16,6 +16,11 @@ export const supportsConnectorRecords = (connection: Pick<ConnectorConnectionRec
     : ["token", "oauth"].includes(connection.auth_method) && (["github", "gmail"].includes(connection.service_id)
       || isCatalogConnectorId(connection.service_id) && getCatalogSpec(connection.service_id).feed_available !== false);
 
+/** Whether some account of the service can be read by `connectors.records.read@1`: the same readers `supportsConnectorRecords` takes. */
+export const serviceHasRecordReader = (serviceId: string): boolean =>
+  Boolean(Object.hasOwn(CONNECTOR_CLIS, serviceId) && CONNECTOR_CLIS[serviceId]?.read)
+    || supportsConnectorRecords({ auth_method: "token", service_id: serviceId }) || supportsConnectorRecords({ auth_method: "oauth", service_id: serviceId });
+
 /** The fixed record preview already offered in settings, through its existing provider. */
 export const connectorRecordActions = {
   read: { capability_id: "connectors.records.read", version: /* @version action.connectors.records.read */ 1, operation: "query", action: {

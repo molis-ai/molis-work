@@ -562,7 +562,6 @@ test("EC-16 OCL-12 OCL-14 PWA-54 PWA-55: sample holds survive cleanup while unhe
     project_id: "p2",
     initial_intent: "产出带量化指标与下一步负责人的总结",
     query: { project_id: "p2", fact: "pages.summary_saved" },
-    allowed_variations: ["下一步责任人"],
     expectations: [
       {
         expectation_id: "exp-skill-loaded",
@@ -572,10 +571,15 @@ test("EC-16 OCL-12 OCL-14 PWA-54 PWA-55: sample holds survive cleanup while unhe
         rule: {
           evaluator_id: "summary.quality",
           evaluator_version: "initial",
-          rubric: "必须加载总结 Skill 并包含量化指标与下一步负责人",
+          rubric: "必须加载总结 Skill 并包含量化指标",
           required_skill_ids: ["skill.summary"],
-          required_evidence_terms: ["量化指标", "下一步负责人"],
+          required_evidence_terms: ["量化指标"],
         },
+      },
+      {
+        expectation_id: "exp-responsible-person", stage: "skill", source: "evaluator", description: "说明下一步负责人",
+        rule: { evaluator_id: "summary.owner", evaluator_version: "1", rubric: "说明下一步负责人",
+          required_evidence_terms: ["下一步负责人"], allowed_variations: ["下一步责任人"] },
       },
     ],
   });
@@ -1154,6 +1158,54 @@ test("PWA-52 OCL-04: delivery rubrics use the reply body and keep missing eviden
       if (expected === "unknown") assert.ok(result.unknown_reasons.includes("evidence_missing"));
     }
   }
+});
+
+test("PWA-52 OCL-17: scoring cannot use reasoning or borrowed aliases to establish delivery", async t => {
+  const fx = createEvaluationFixture(t);
+  const sink = fx.layer.sink("agent").bind({ kind: "background", actor_id: "agent:assistant", project_id: "p1", entry: "agent", call_id: "alias-case" });
+  sink.record({ fact: "agent.reply", outcome: "succeeded", work: { work_ref: "alias-case" }, evidence: [
+    { role: "reasoning", ref: { kind: "content", media_type: "text/plain", text: "量化指标" } },
+    { role: "reply", ref: { kind: "content", media_type: "text/plain", text: "下一步负责人即下一步责任人" } },
+  ] });
+  fx.layer.flush();
+  const sample: EvaluationSampleInput = {
+    sample_id: "aliases", version: 1, title: "量化与跟进", purpose: "validation", work_mode: "assistant",
+    project_id: "p1", initial_intent: "同时说明两个要点", query: { project_id: "p1", work_ref: "alias-case" },
+    expectations: [],
+  };
+  const base = { evaluator_id: "quality", evaluator_version: "1", rubric: "核对正文", required_facts: ["agent.reply"] };
+  const expectation = { expectation_id: "answer", stage: "delivery" as const, source: "evaluator" as const, description: "核对正文" };
+  for (const source of [{ fact: "agent.reply", role: "reasoning" }, { fact: "agent.model_request", role: "request" }, { fact: "action.call", role: "input" }]) {
+    await assert.rejects(fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample,
+      expectations: [{ ...expectation, rule: { ...base, required_facts: [], evidence_source: source, required_evidence_terms: ["量化指标"] } }] }),
+      /agent.reply.*reply/);
+  }
+  await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, expectations: [
+    { ...expectation, rule: { ...base, required_evidence_terms: ["量化指标", "下一步负责人"], allowed_variations: ["下一步责任人"] } },
+    { ...expectation, expectation_id: "metric", rule: { ...base, required_evidence_terms: ["量化指标"] } },
+  ] });
+  const run = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: sample.sample_id }) as EvaluationRunView;
+  await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "det-reply", expectations: [
+    { expectation_id: "metric", stage: "delivery", source: "deterministic", description: "核对正文", rule: {
+      check: "evidence_text", fact: "agent.reply", contains_all: ["量化指标"] } },
+  ] });
+  const det = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "det-reply" }) as EvaluationRunView;
+  assert.equal(det.effective_verdict, "failed");
+  assert.ok(det.expectation_results[0]?.evidence_refs.every(ref => ref.role === "reply"));
+  assert.equal(run.expectation_results[0]?.automated_verdict, "unknown");
+  assert.deepEqual(run.expectation_results[0]?.unknown_reasons, ["awaiting_human_review"]);
+  assert.equal(run.expectation_results[1]?.automated_verdict, "failed");
+
+  await fx.service.invoke(pluginCaller("pages"), observationActions.report, { facts: [{ fact: "pages.summary",
+    outcome: "succeeded", work: { work_ref: "missing-reply" },
+    evidence: [{ role: "output", ref: { kind: "content", media_type: "text/plain", text: "量化指标" } }] }] });
+  fx.layer.flush();
+  await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "missing-reply",
+    query: { project_id: "p1", work_ref: "missing-reply" },
+    expectations: [{ ...expectation, rule: { ...base, required_facts: [], required_evidence_terms: ["量化指标"] } }] });
+  const absent = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "missing-reply" }) as EvaluationRunView;
+  assert.equal(absent.effective_verdict, "unknown");
+  assert.deepEqual(absent.expectation_results[0]?.evidence_refs, []);
 });
 
 test("PWA-54 PWA-55 OCL-17: count confirmed owner work once, preserve legacy runs and disclose their exclusion from work totals", async t => {

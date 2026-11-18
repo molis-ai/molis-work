@@ -9,6 +9,7 @@ import {
   type EvaluationOpportunityPosture,
   type EvaluationUnknownReason,
   type EvaluationVerdict,
+  type EvaluationWorkMode,
 } from "@molis-ai/molis-work-contracts/services/evaluation";
 import type {
   ObservationEvidenceItemView,
@@ -22,6 +23,8 @@ export interface RuleEvaluationContext {
   readonly funnel: EvaluationFunnelCounts;
   readonly runCoverageUnknowns: readonly EvaluationUnknownReason[];
   readonly sampleAllowedVariations: readonly string[];
+  readonly sampleTextTermCount: number;
+  readonly workMode: EvaluationWorkMode;
 }
 
 interface RawVerdict {
@@ -209,7 +212,7 @@ function evalNoSelfCertifyingSuccess(ctx: RuleEvaluationContext, matched: readon
   return { verdict: "passed", unknownReasons: [], rationale: "不存在脱离真实结果证据的模型自证成功", pointers: pointersFor(matched, ctx.evidenceByRecord) };
 }
 
-function evalDeterministic(rule: EvaluationDeterministicRule, ctx: RuleEvaluationContext): RawVerdict {
+function evalDeterministic(rule: EvaluationDeterministicRule, stage: EvaluationExpectation["stage"], ctx: RuleEvaluationContext): RawVerdict {
   if (rule.require_exposure_for_feedback && ctx.funnel.presented === 0) {
     return { verdict: "unknown", unknownReasons: ["unexposed"], rationale: "机会或建议尚未向用户呈现，不能计为正负反馈", pointers: [] };
   }
@@ -238,8 +241,17 @@ function evalDeterministic(rule: EvaluationDeterministicRule, ctx: RuleEvaluatio
       return evalStageSequence(rule, ctx);
     case "distinct_owner_versions":
       return evalDistinctVersions(rule, matched, ctx);
-    case "evidence_text":
+    case "evidence_text": {
+      const requested = rule.facts ?? (rule.fact ? [rule.fact] : []);
+      const judgesReply = requested.includes("agent.reply") || (!requested.length && ctx.workMode === "assistant");
+      if (stage === "delivery" && judgesReply) {
+        if (!matched.length) return absentVerdict(ctx, "模型回复");
+        return evaluateRubricText({ rubric: "核对模型回复正文", evidence_source: { fact: "agent.reply", role: "reply" },
+          required_evidence_terms: rule.contains_all, forbidden_evidence_terms: rule.forbids_any },
+          stage, { ...ctx, records: matched, sampleAllowedVariations: [] }, []);
+      }
       return evalEvidenceText(rule, matched, ctx);
+    }
     case "evidence_absent": {
       if (ctx.records.length === 0 || matched.length === 0) {
         return noCheckableMatchVerdict(ctx, "不应留存明文证据检查");
@@ -358,11 +370,13 @@ function inferObservedPosture(records: readonly ObservationQueriedRecord[]): Eva
   return undefined;
 }
 
+type TextRubric = Pick<EvaluationEvaluatorRule, "rubric" | "evidence_source" | "required_facts" | "required_evidence_terms" | "forbidden_evidence_terms" | "allowed_variations">;
+
 /** Material and policy rubrics can inspect their selected inputs. Delivery rubrics need an identifiable output. */
-function rubricTextEvidence(rule: EvaluationEvaluatorRule, stage: EvaluationExpectation["stage"], ctx: RuleEvaluationContext) {
+function rubricTextEvidence(rule: TextRubric, stage: EvaluationExpectation["stage"], ctx: RuleEvaluationContext) {
   const reply = { fact: "agent.reply", role: "reply" };
   const expectsReply = rule.required_facts?.includes(reply.fact)
-    || stage === "delivery" && ctx.records.some(record => record.fact === reply.fact);
+    || stage === "delivery" && (ctx.workMode === "assistant" || ctx.records.some(record => record.fact === reply.fact));
   const source = rule.evidence_source ?? (expectsReply ? reply : undefined);
   const records = source ? ctx.records.filter(record => record.fact === source.fact) : ctx.records;
   const items: ObservationEvidenceItemView[] = [];
@@ -389,9 +403,8 @@ function rubricTextEvidence(rule: EvaluationEvaluatorRule, stage: EvaluationExpe
   return { texts: items.flatMap(item => item.status === "available" ? [item.text] : []), pointers, incomplete, ambiguousReply: replyRecords > 1 };
 }
 
-function evaluateRubricText(rule: EvaluationEvaluatorRule, stage: EvaluationExpectation["stage"], ctx: RuleEvaluationContext,
-  variations: readonly string[]): RawVerdict | undefined {
-  if (!rule.required_evidence_terms?.length && !rule.forbidden_evidence_terms?.length) return undefined;
+function evaluateRubricText(rule: TextRubric, stage: EvaluationExpectation["stage"], ctx: RuleEvaluationContext,
+  variations: readonly string[]): RawVerdict {
   const { texts, pointers, incomplete, ambiguousReply } = rubricTextEvidence(rule, stage, ctx);
   if (ambiguousReply) {
     return { verdict: "unknown", unknownReasons: ["evidence_missing"], pointers,
@@ -404,9 +417,15 @@ function evaluateRubricText(rule: EvaluationEvaluatorRule, stage: EvaluationExpe
   if (forbidden) return { verdict: "failed", unknownReasons: [], pointers, rationale: `产出包含禁止表述「${forbidden}」` };
   const required = rule.required_evidence_terms ?? [];
   const missing = required.filter(term => !contains(term));
-  // A flat alternatives list can resolve a single missing point. A word already credited to a different point cannot count twice.
-  const matched = required.filter(contains);
-  const equivalent = missing.length === 1 && variations.some(alt => contains(alt) && !matched.some(term => term.includes(alt)));
+  // An alternative has a known meaning only if its declaring rule (or sample) has exactly one required point.
+  const equivalent = required.length === 1 && (rule.allowed_variations?.some(contains)
+    || ctx.sampleTextTermCount === 1 && ctx.sampleAllowedVariations.some(contains));
+  if (missing.length && !equivalent) {
+    const matched = required.filter(contains);
+    const unassigned = variations.some(alt => contains(alt) && !matched.some(term => term.includes(alt)));
+    if (unassigned) return { verdict: "unknown", unknownReasons: ["awaiting_human_review"], pointers,
+      rationale: "命中了未绑定具体要点的等价说法，需独立核对该要点" };
+  }
   const needsMoreEvidence = (missing.length > 0 && !equivalent) || Boolean(rule.forbidden_evidence_terms?.length);
   if (!texts.length || (needsMoreEvidence && reasons.length > 0)) {
     return { verdict: "unknown", unknownReasons: [...new Set(reasons)], pointers, rationale: "可核对的正文或观察窗口不完整" };
@@ -424,7 +443,8 @@ function evalEvaluatorRule(rule: EvaluationEvaluatorRule, stage: EvaluationExpec
       return { verdict: "failed", unknownReasons: [], rationale: `[${rule.evaluator_id}@${rule.evaluator_version}] 触发禁止动作事实 ${forbidden}（准则：${rule.rubric}）`, pointers: pointersFor([hit], ctx.evidenceByRecord) };
     }
   }
-  const textVerdict = evaluateRubricText(rule, stage, ctx, variations);
+  const textVerdict = rule.required_evidence_terms?.length || rule.forbidden_evidence_terms?.length
+    ? evaluateRubricText(rule, stage, ctx, variations) : undefined;
   if (textVerdict && textVerdict.verdict !== "passed") return textVerdict;
   for (const required of rule.required_facts ?? []) {
     if (!ctx.records.some((r) => r.fact === required)) {
@@ -559,7 +579,7 @@ export function evaluateExpectation(expectation: EvaluationExpectation, ctx: Rul
       evidence_refs: raw.pointers,
     };
   }
-  const raw = applyRequiredEvidenceGuard(expectation, evalDeterministic(expectation.rule, ctx));
+  const raw = applyRequiredEvidenceGuard(expectation, evalDeterministic(expectation.rule, expectation.stage, ctx));
   return {
     expectation_id: expectation.expectation_id,
     stage: expectation.stage,

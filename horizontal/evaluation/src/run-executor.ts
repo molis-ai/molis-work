@@ -162,6 +162,8 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
   const observedConditions = extractObservedConditions(records);
   const outcomeCounts = countWorkOutcomes(records);
 
+  const sampleTextTermCount = sample.expectations.reduce((count, exp) =>
+    count + (exp.source === "evaluator" ? exp.rule.required_evidence_terms?.length ?? 0 : 0), 0);
   const expectationResults = sample.expectations.map((expectation) =>
     evaluateExpectation(expectation, {
       records,
@@ -169,6 +171,8 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
       funnel,
       runCoverageUnknowns,
       sampleAllowedVariations: sample.allowed_variations ?? [],
+      sampleTextTermCount,
+      workMode: sample.work_mode,
     }),
   );
 

@@ -37,7 +37,7 @@ export interface SettingsTransaction {
   /** The revision covers every layer and the provider default, including changes that restore a previous value. */
   readCurrent(key: string): SettingSnapshot;
   /** Enforce any owner-specific limits and update the layer's revision inside this transaction. */
-  writeChange(input: Pick<SettingsWriteInput, "key" | "layer" | "change">): void;
+  writeChange(input: Pick<SettingsWriteInput, "key" | "layer" | "change">, restoringOriginal?: boolean): void;
   saveReceipt(identity: SettingsRequestIdentity, receipt: SettingsWriteReceipt): void;
 }
 
@@ -133,6 +133,27 @@ async function readSettings(owner: SettingsOwner | SettingsFileOwner, scope: Set
   return { values: order.map(key => resolveEffectiveSetting(currentSetting(byKey.get(key), key))) };
 }
 
+/** An offline choice may be restored only from this owner's receipt for the same still-current layer. */
+function verifyRecovery(owner: SettingsOwner | SettingsFileOwner, tx: SettingsTransaction, input: SettingsWriteInput, current: SettingSnapshot): boolean {
+  const { recovery, key, layer } = input;
+  if (!recovery) return false;
+  if (current.state !== "ok") throw owner.errors.setting_conflict("当前无法核对设置的原层");
+  if ("previous" in recovery) {
+    const prior = Object.hasOwn(current.layers, layer) ? { set: current.layers[layer] } : { inherit: true };
+    if (canonicalJsonText(prior) !== canonicalJsonText(recovery.previous)) throw owner.errors.setting_conflict("原层与读取时不同");
+    return false;
+  }
+  const original = requireSynchronous(tx.readReceipt({ key, layer, request_id: recovery.undo_of }), synchronous);
+  const proof = original?.request.recovery, written = original?.result.values[0];
+  if (!original || original.request.key !== key || original.request.layer !== layer || original.request.request_id !== recovery.undo_of
+    || !proof || !("previous" in proof) || canonicalJsonText(proof.previous) !== canonicalJsonText(input.change)
+    || !written || written.key !== key || written.state !== "ok") throw owner.errors.setting_conflict("原设置写入回执与撤销不符");
+  const applied = written.layer_revisions?.[layer], now = current.layer_revisions?.[layer];
+  if (applied !== undefined && now !== undefined ? applied !== now : written.revision !== current.revision)
+    throw owner.errors.setting_conflict("采用后这项设置已改变");
+  return true;
+}
+
 async function writeSetting(owner: SettingsOwner | SettingsFileOwner, scope: SettingsOwnerScope, caller: ActionExecutionContext,
   entries: ReadonlyMap<string, SettingEntryDeclaration>, input: SettingsWriteInput): Promise<SettingsValues> {
   if (caller.audience !== "user") throw new ActionError("actions.forbidden", "只有本人能写入设置");
@@ -141,7 +162,7 @@ async function writeSetting(owner: SettingsOwner | SettingsFileOwner, scope: Set
   const invalidJson: SandboxSchemaFailure = (_kind, reason) => { throw owner.errors.setting_invalid(reason); };
   if ("set" in input.change) assertJson(input.change.set, invalidJson);
   const change = structuredClone(input.change);
-  const request: SettingsWriteInput = { key, layer, expected_revision, request_id, change };
+  const request: SettingsWriteInput = { key, layer, expected_revision, request_id, change, ...(input.recovery && { recovery: structuredClone(input.recovery) }) };
   const identity = { key, layer, request_id };
   await caller.beforeEffect();
   const submit = (transaction: SettingsTransaction) => {
@@ -156,7 +177,8 @@ async function writeSetting(owner: SettingsOwner | SettingsFileOwner, scope: Set
     const current = currentSetting(requireSynchronous(transaction.readCurrent(key), synchronous), key);
     if (current.revision !== expected_revision) throw owner.errors.setting_conflict("设置读取后已变化，请刷新再提交", { revision: current.revision });
     if ("set" in change) assertMatches(entry.schema, change.set, invalidJson);
-    requireSynchronous(transaction.writeChange({ key, layer, change: structuredClone(change) }), synchronous);
+    const restoringOriginal = verifyRecovery(owner, transaction, request, current);
+    requireSynchronous(transaction.writeChange({ key, layer, change: structuredClone(change) }, restoringOriginal), synchronous);
     const readback = currentSetting(requireSynchronous(transaction.readCurrent(key), synchronous), key);
     const result = { values: [resolveEffectiveSetting(readback)] };
     requireSynchronous(transaction.saveReceipt(identity, { request, result }), synchronous);

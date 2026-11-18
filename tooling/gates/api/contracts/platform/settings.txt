@@ -172,11 +172,22 @@ export interface SettingsValues {
 export interface SettingsWriteInput {
     key: string;
     layer: SettingLayer;
-    change: {
-        set: SandboxJson;
-    } | {
-        inherit: true;
-    };
+    change: LayerChange<SandboxJson>;
+    recovery?: SettingRecovery<SandboxJson>;
     expected_revision: string;
     request_id: string;
 }
+
+// Declarations the exports above refer to, which no entry exports itself:
+
+type LayerChange<T> = {
+    set: T;
+} | {
+    inherit: true;
+};
+
+type SettingRecovery<T> = {
+    previous: LayerChange<T>;
+} | {
+    undo_of: string;
+};

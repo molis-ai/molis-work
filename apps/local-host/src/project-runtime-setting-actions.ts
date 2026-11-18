@@ -32,7 +32,7 @@ export function runtimeSettingSnapshot(key: string, pick: ReturnType<ProjectRunt
   const selected = pick?.runtime_id ?? null, current = resolveProjectRuntime(runtimes, selected);
   const revision = JSON.stringify([pick?.revision ?? 0, fallback ?? null, current.runtime?.runtime_id ?? null]);
   if (!current.runtime && selected === null) return { key, revision, state: "unavailable", reason: current.reason };
-  return { key, revision, state: "ok", ...(!current.runtime && { value_unavailable: current.reason }), layers: {
+  return { key, revision, state: "ok", layer_revisions: { project: String(pick?.revision ?? 0) }, ...(!current.runtime && { value_unavailable: current.reason }), layers: {
     ...(selected === null ? {} : { project: selected }), ...(fallback ? { provider_default: fallback } : {}),
   } };
 }
@@ -52,10 +52,10 @@ export function projectRuntimeSettingProvider(projectId: string, db: SqliteDatab
       return db.transaction(() => run({
         readCurrent: snapshot,
         readReceipt: identity => store.receipt(projectId, scope.actor_id, identity.request_id),
-        writeChange({ change }) {
+        writeChange({ change }, restoringOriginal) {
           const value = "set" in change ? change.set : null;
           if (value !== null && typeof value !== "string") throw hostErrors.setting_invalid("运行时标识必须是字符串");
-          if (value !== null) {
+          if (value !== null && !restoringOriginal) {
             const choice = resolveProjectRuntime(directory(), value);
             if (!choice.runtime) throw hostErrors.setting_invalid(choice.reason);
           }

@@ -47,10 +47,15 @@ export type EffectiveSetting = { key: string; revision: string } & (
 
 export interface SettingsValues { values: EffectiveSetting[] }
 
+type LayerChange<T> = { set: T } | { inherit: true };
+type SettingRecovery<T> = { previous: LayerChange<T> } | { undo_of: string };
+
 export interface SettingsWriteInput {
   key: string;
   layer: SettingLayer;
-  change: { set: SandboxJson } | { inherit: true };
+  change: LayerChange<SandboxJson>;
+  /** An original write binds the observed layer. Its undo names that verified request. */
+  recovery?: SettingRecovery<SandboxJson>;
   expected_revision: string;
   request_id: string;
 }
@@ -65,14 +70,17 @@ export const SETTINGS_READ_INPUT_SCHEMA = inputSchemaFor<SettingsReadInput>()(cl
 }));
 
 // The gateway checks the envelope. The SDK checks bounded JSON and the setting's value schema.
-type SettingsWriteEnvelope = Omit<SettingsWriteInput, "change"> & { change: { set: InferActionInput<typeof json> } | { inherit: true } };
+type JsonEnvelope = InferActionInput<typeof json>;
+type SettingsWriteEnvelope = Omit<SettingsWriteInput, "change" | "recovery"> & { change: LayerChange<JsonEnvelope>; recovery?: SettingRecovery<JsonEnvelope> };
+const change = { oneOf: [closedObjectSchema({ set: json }), closedObjectSchema({ inherit: { const: true } })] } as const;
 export const SETTINGS_WRITE_INPUT_SCHEMA = inputSchemaFor<SettingsWriteEnvelope>()(closedObjectSchema({
   key: SETTING_KEY_SCHEMA,
   layer: { type: "string", enum: SETTINGS_LAYERS },
-  change: { oneOf: [closedObjectSchema({ set: json }), closedObjectSchema({ inherit: { const: true } })] },
+  change,
+  recovery: { oneOf: [closedObjectSchema({ previous: change }), closedObjectSchema({ undo_of: nonblank })] },
   expected_revision: nonblank,
   request_id: nonblank,
-}));
+}, ["key", "layer", "change", "expected_revision", "request_id"]));
 
 const observation = { key: SETTING_KEY_SCHEMA, revision: nonblank };
 const layers = closedObjectSchema({ project: json, personal: json, provider_default: json }, []);

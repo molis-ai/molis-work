@@ -204,4 +204,8 @@ test("ONB-22/30: change an unavailable Jelly model in the review and read the re
   await click(".arrival-bar .bar-end .mw-btn--primary");
   await waitFor("location.search.includes('adoption=') && document.querySelector('[data-scene-main] details:not([open])')");
   assert.deepEqual((await web.get<{selection: typeof after}>(jelly)).selection, after);
+  await click("[data-scene-aside] button");
+  await waitFor("document.querySelector('[data-scene-main]').innerText.match(/已恢复原设置|Previous setting restored/)");
+  assert.deepEqual((await web.get<{selection: typeof before}>(jelly)).selection, before);
+  assert.equal(withConnectorConnections(homeDirectory, store => store.get(originalConnection)?.enabled), false);
 });

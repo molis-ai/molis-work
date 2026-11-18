@@ -123,7 +123,7 @@ export class AdoptionExecution {
             await this.change(caller, record, step, pending, "apply");
           }
           writing = true;
-          const accepted = await access.write(plan.binding, { key: plan.key, layer: plan.layer, change: plan.change,
+          const accepted = await access.write(plan.binding, { key: plan.key, layer: plan.layer, change: plan.change, recovery: { previous: plan.previous },
             expected_revision: plan.apply_expected_revision ?? plan.expected_revision, request_id: requestId });
           if (accepted.key !== plan.key) continue;
           const observed = accepted.state === "ok" ? accepted.layer_revisions?.[plan.layer] : undefined;
@@ -210,7 +210,7 @@ export class AdoptionExecution {
             }
             writing = true;
             const saved = await access.write(plan.binding, { key: plan.key, layer: plan.layer, change: plan.previous,
-              expected_revision: plan.undo_expected_revision ?? String(apply.receipt.revision), request_id: requestId });
+              recovery: { undo_of: input.adoption_id + ":" + part_id }, expected_revision: plan.undo_expected_revision ?? String(apply.receipt.revision), request_id: requestId });
             if (saved.key !== plan.key) throw new ActionError("actions.output_invalid", "主人没有回执这项设置");
             result = { part_id, state: "restored", receipt: ownerReceipt(plan, saved) };
           }

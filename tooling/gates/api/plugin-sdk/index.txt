@@ -555,7 +555,7 @@ export type SettingsRequestIdentity = Pick<SettingsWriteInput, "key" | "layer" |
 export interface SettingsTransaction {
     readReceipt(identity: SettingsRequestIdentity): SettingsWriteReceipt | undefined;
     readCurrent(key: string): SettingSnapshot;
-    writeChange(input: Pick<SettingsWriteInput, "key" | "layer" | "change">): void;
+    writeChange(input: Pick<SettingsWriteInput, "key" | "layer" | "change">, restoringOriginal?: boolean): void;
     saveReceipt(identity: SettingsRequestIdentity, receipt: SettingsWriteReceipt): void;
 }
 

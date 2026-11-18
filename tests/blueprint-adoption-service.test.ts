@@ -90,6 +90,24 @@ test("SPC-02/03/07, ONB-22/28/30: preview, adopt, reopen and undo through the Ho
     const removed = await user.invoke(a.remove, { adoption_id: adopted.adoption_id, request_id: "remove" });
     assert.deepEqual(removed.undo.steps[0], { part_id: "engine", state: "skipped", reason: "revision_changed" });
     assert.equal(await user.invoke(projectSettingsCapabilities.runtime, []), "another");
+    // SPC-04/07: the owner's receipt can restore a previous offline choice, without admitting an arbitrary offline choice.
+    const repaired = await preview();
+    const repair = await user.invoke(a.apply, { ...request, preview_id: repaired.preview_id, request_id: "replace-offline" });
+    const applied = repair.steps[0];
+    assert.ok(applied?.state === "applied" && "receipt" in applied);
+    const write = { capability_id: "projects.settings.write", version: 1 };
+    const current = { key: "projects.runtime", layer: "project", expected_revision: applied.receipt.revision, request_id: "try-other" };
+    await assert.rejects(user.invoke(write, { ...current, change: { set: "unregistered" } }), { code: "host.setting_invalid" });
+    await assert.rejects(user.invoke(write, { ...current, change: { set: "unregistered" }, recovery: { undo_of: repair.adoption_id + ":engine" } }), { code: "host.setting_conflict" });
+    await assert.rejects(user.invoke(write, { ...current, change: { set: "prologue" }, recovery: { previous: { set: "unregistered" } } }), { code: "host.setting_conflict" });
+    assert.equal(await user.invoke(projectSettingsCapabilities.runtime, []), "prologue");
+    await running.close(); running = await open(home); user = await inProject();
+    const restored = await user.invoke(a.revert, { adoption_id: repair.adoption_id, request_id: "restore-offline" });
+    assert.equal(restored.undo.steps[0]?.state, "restored");
+    await running.close(); running = await open(home);
+    const choice = await running.web.web.get<{ selected: string; problem: string }>("/projects/" + project.project_id + "/api/project-settings/runtime");
+    assert.equal(choice.selected, "another");
+    assert.match(choice.problem, /another/);
   } finally { await running.close(); await rm(home, { recursive: true, force: true }); }
 });
 

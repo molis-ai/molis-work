@@ -65,7 +65,7 @@ export class ShelfDevicePreferences {
       const result = run({
         readCurrent: name => shelfPreferenceSnapshot(catalog, requireKey(name), this.ai),
         readReceipt: ({key, request_id}) => catalog.preferences.receipts[receiptKey(key, request_id)],
-        writeChange: ({key: name, change}) => {
+        writeChange: ({key: name, change}, restoringOriginal) => {
           const key = requireKey(name);
           const fields = SHELF_PREFERENCE_FIELDS[key];
           const value = "set" in change ? change.set : valueOf(defaultShelfDeviceSettings(), key);
@@ -76,7 +76,7 @@ export class ShelfDevicePreferences {
           const next = normalizeShelfSettings(mergeShelfSettings(catalog.settings, patch.ok));
           if (canonicalJsonText(valueOf(next, key)) !== canonicalJsonText(value)) throw shelfErrors.invalid("设置内容不完整或引用了未知的动作");
           const problem = valueProblem(next, key, this.ai);
-          if (problem) throw shelfErrors.invalid(problem);
+          if (problem && !restoringOriginal) throw shelfErrors.invalid(problem);
           catalog.settings = next;
           advance(catalog, key, "set" in change);
         },

@@ -343,5 +343,20 @@ test("ONB-22/29 Shelf writes only the declared device group, restores inheritanc
     }
     assert.equal(readFileSync(catalog,"utf8"),before);
     assert.equal(store.settings().custom_runtimes[0]?.executable,"/local/fake-tool");
+    // SPC-04/07: recovering an old terminal selection does not reinstall or start the removed tool.
+    await store.saveSettings({engine:"custom:local"});
+    await store.saveSettings({custom_runtimes:[]});
+    const offline = await result("shelf.engine");
+    assert.ok(offline.state === "ok" && offline.value_unavailable);
+    const replace = {key:"shelf.engine",layer:"personal",expected_revision:offline.revision,request_id:"replace-tool",
+      change:{set:"auto"},recovery:{previous:{set:"custom:local"}}};
+    await write.handle(caller,replace);
+    const selected = await result("shelf.engine");
+    await write.handle(caller,{...replace,request_id:"restore-tool",expected_revision:selected.revision,
+      change:{set:"custom:local"},recovery:{undo_of:"replace-tool"}});
+    const restored = await result("shelf.engine");
+    assert.ok(restored.state === "ok" && restored.value_unavailable);
+    assert.equal(restored.value,"custom:local");
+    assert.deepEqual(store.settings().custom_runtimes,[]);
   });
 });

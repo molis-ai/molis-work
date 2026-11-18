@@ -32,13 +32,14 @@ export function modelPreferenceOwner(home: string, declaration: ConsumerModelCon
       const result = run({
         readCurrent: () => snapshot(state),
         readReceipt: identity => state.receipts[receiptKey(identity)],
-        writeChange({ change }) {
+        writeChange({ change }, restoringOriginal) {
           let choice: PluginModelSelection | null = null;
           if ("set" in change) {
             const requested = change.set;
             if (!requested || typeof requested !== "object" || Array.isArray(requested) || typeof requested.provider_id !== "string" || typeof requested.model_id !== "string" ||
               Object.keys(requested).length !== 2) throw errors.setting_invalid("请选择已配置的供应商和模型");
-            choice = configuredSelection(home, { provider_id: requested.provider_id, model_id: requested.model_id });
+            const selection = { provider_id: requested.provider_id, model_id: requested.model_id };
+            choice = restoringOriginal ? selection : configuredSelection(home, selection);
             if (!choice) throw errors.setting_invalid("所选模型或连接当前不可用");
           }
           state.selection = choice; state.revision++;

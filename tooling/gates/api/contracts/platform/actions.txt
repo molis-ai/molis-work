@@ -1188,7 +1188,7 @@ export declare const BACKGROUND_TASK_COLLECTION_SCHEMA: {
                                                 readonly type: "object";
                                                 readonly properties: {
                                                     readonly kind: {
-                                                        readonly enum: readonly ["agent-review", "goal-acceptance"];
+                                                        readonly const: "agent-review";
                                                     };
                                                     readonly project_id: {
                                                         readonly type: "string";
@@ -1444,7 +1444,7 @@ export declare const BACKGROUND_TASK_DECISION_SCHEMA: {
                         readonly type: "object";
                         readonly properties: {
                             readonly kind: {
-                                readonly enum: readonly ["agent-review", "goal-acceptance"];
+                                readonly const: "agent-review";
                             };
                             readonly project_id: {
                                 readonly type: "string";
@@ -1786,7 +1786,7 @@ export declare const BACKGROUND_TASK_SCHEMA: {
                                     readonly type: "object";
                                     readonly properties: {
                                         readonly kind: {
-                                            readonly enum: readonly ["agent-review", "goal-acceptance"];
+                                            readonly const: "agent-review";
                                         };
                                         readonly project_id: {
                                             readonly type: "string";

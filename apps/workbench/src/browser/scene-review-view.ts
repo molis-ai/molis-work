@@ -28,7 +28,7 @@ export function sceneReviewPage(words: Words, say: (ref: OwnedTextRef) => string
     return control;
   };
   const link = (label: string, to: string) => { const a = node("a", label); a.className = "mw-btn mw-btn--ghost"; a.href = to; return a; };
-  const printable = (v: unknown) => typeof v === "string" ? v : JSON.stringify(v, null, 2);
+  const printable = (v: unknown) => typeof v === "boolean" ? t(v ? "on" : "off") : typeof v === "string" ? v : JSON.stringify(v, null, 2);
   const titleOf = (part: BlueprintPreviewPart) => part.title ? name(part.title) : part.proposal.kind === "setting" ? part.proposal.key : part.part_id;
   function sceneContext(title: TextRef, purpose?: TextRef) {
     const context = frame.querySelector<HTMLElement>("[data-scene-context]")!, lead = frame.querySelector<HTMLElement>("[data-scene-purpose]")!;
@@ -125,9 +125,16 @@ export function renderSceneReview(page: ReturnType<typeof sceneReviewPage>, stat
     if (part.decision === "skip") main.append(node("p", t(part.reason)));
     else main.append(check(part, t("include")));
     if (state.editing && part.proposal.kind === "setting" && (part.decision !== "skip" || part.reason === "value_unavailable")) {
-      const proposal = part.proposal, edit = node("details"), value = node("textarea");
+      const proposal = part.proposal, edit = node("details");
+      const value = typeof proposal.value === "boolean" ? node("select") : node("textarea");
+      if (value instanceof HTMLSelectElement) {
+        for (const enabled of [true, false]) {
+          const option = node("option", printable(enabled)); option.value = String(enabled); value.append(option);
+        }
+      }
       value.className = "mw-input"; value.setAttribute("aria-label", t("proposed"));
-      value.value = printable(proposal.value); const save = button(t("refresh"), async () => {
+      value.value = typeof proposal.value === "boolean" ? String(proposal.value) : printable(proposal.value);
+      const save = button(t("refresh"), async () => {
         const v = typeof proposal.value === "string" ? value.value : JSON.parse(value.value);
         await controls.edit({ part_id: part.part_id, proposal: { ...proposal, value: v } });
       });

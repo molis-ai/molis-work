@@ -10,6 +10,7 @@ import type { WorkbenchAppearancePorts } from "./appearance-document.js";
 
 type OnboardingIcon = PluginIconName;
 export interface OnboardingRenderPrimitives {
+  catalogTextPacks: import("./project-settings-pages.js").ProjectSettingsPagePorts["catalogTextPacks"];
   accountRegistration?: boolean;
   appearance?: WorkbenchAppearancePorts;
   readText(text: string, values?: Record<string, string | number>): string;

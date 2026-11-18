@@ -86,8 +86,16 @@ test("ONB-21/22/28/30: review actual setting values one by one, resume from the 
   await waitFor("document.querySelector('[data-scene-aside] a[href*=adoption]')");
   await navigate(() => click("[data-scene-aside] a[href*=adoption]"));
   await waitFor("document.querySelector('[data-scene-aside] button') && document.querySelectorAll('[data-scene-main] details:not([open])').length === 2");
+  // SPC-12: a second window reads its baseline once and receives the other window's undo from the progress stream.
+  const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url: "about:blank", background: true });
+  const observer = await b.openPage(targetId);
+  await observer.command("Page.navigate", { url: await evaluate<string>("location.href") });
+  await observer.wait("document.querySelectorAll('[data-scene-main] details:not([open])').length === 2");
   await click("[data-scene-aside] button");
-  await waitFor("document.querySelector('[data-scene-main]').textContent.match(/已恢复原设置|Previous setting restored/)");
+  const restored = "document.querySelector('[data-scene-main]').textContent.match(/已恢复原设置|Previous setting restored/)";
+  await waitFor(restored);
+  await observer.wait(restored);
+  assert.equal(await observer.evaluate("performance.getEntriesByType('resource').filter(r => new URL(r.name).pathname.endsWith('/api/blueprints/library')).length"), 1);
   assert.equal(await user.invoke(projectSettingsCapabilities.runtime, []), null);
 });
 
@@ -181,6 +189,11 @@ test("ONB-22/30: change an unavailable Jelly model in the review and read the re
   assert.equal(await evaluate("document.querySelector('[data-scene-main] input[type=checkbox]')===null"), true);
   await click("[data-scene-aside] button:nth-of-type(2)");
   await waitFor("document.querySelector('[data-scene-main]').innerText.match(/仅此设备|This device only/i)");
+  assert.match(await evaluate<string>("document.querySelector('[data-scene-main] h2').textContent"), /拖放轮盘|Drop wheel/i);
+  assert.match(await evaluate<string>("document.querySelector('[data-scene-main] dl').innerText"), /开启|\bOn\b/i);
+  assert.match(await evaluate<string>("document.querySelector('[data-scene-main] dl').innerText"), /关闭|\bOff\b/i);
+  await click("[data-scene-main] details summary");
+  assert.equal(await evaluate("document.querySelector('[data-scene-main] select').value"), "false");
   await click("[data-scene-aside] button");
   await click("[data-scene-main] details summary");
   await evaluate("document.querySelector('[data-scene-main] textarea').value=" + JSON.stringify(JSON.stringify(after)));

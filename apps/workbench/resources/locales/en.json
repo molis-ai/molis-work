@@ -43,6 +43,8 @@
     "workbench.scene.impact": "Effect",
     "workbench.scene.project": "This project",
     "workbench.scene.current_project": "Current project",
+    "workbench.scene.on": "On",
+    "workbench.scene.off": "Off",
     "workbench.scene.device-only": "This device only",
   "workbench.scene.personal": "Personal defaults",
     "workbench.scene.new_project": "New project",

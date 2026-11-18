@@ -29,7 +29,7 @@ async function open(home: string) {
   return { host, web, close: async () => { await web.close(); await host.close(); } };
 }
 
-test("ONB-22/28/30: preview, adopt, reopen and undo through the Host preserve the real runtime setting and later edits", async () => {
+test("SPC-02/03/07, ONB-22/28/30: preview, adopt, reopen and undo through the Host preserve the real runtime setting and later edits", async () => {
   const home = await mkdtemp(join(tmpdir(), "blueprint-host-"));
   let running = await open(home);
   try {
@@ -93,7 +93,7 @@ test("ONB-22/28/30: preview, adopt, reopen and undo through the Host preserve th
   } finally { await running.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("ONB-22/29: a new project starts with inherited settings and resumes using its own grants and stable catalog identity", async () => {
+test("SPC-16, ONB-22/29: a new project starts with inherited settings and resumes using its own grants and stable catalog identity", async () => {
   const home = await mkdtemp(join(tmpdir(), "blueprint-new-project-"));
   const running = await open(home);
   try {
@@ -132,10 +132,17 @@ test("ONB-22/29: a new project starts with inherited settings and resumes using 
     assert.deepEqual((await recreated.invoke(a.library, {})).adoptions, []);
     await assert.rejects(recreated.invoke(a.library, { adoption_id: first.adoption_id }), { code: "actions.missing" });
     assert.equal((await inside.invoke(a.library, { adoption_id: first.adoption_id })).adoptions[0]?.adoption_id, first.adoption_id);
+    const deletedTarget = await running.web.web.post<ProjectDeletionResult>("/api/settings/projects/" + id + "/delete",
+      { delete_confirmed: true, idempotency_key: "delete-scene-target", output_files: "keep" });
+    assert.equal(deletedTarget.deletion.cleanup_state, "complete");
+    const db = new DatabaseSync(homeSqlitePath(home, "blueprints"), { readOnly: true });
+    try {
+      assert.equal(db.prepare("SELECT count(*) AS count FROM adoptions WHERE adoption_id=?").get(first.adoption_id)!.count, 0);
+    } finally { db.close(); }
   } finally { await running.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("ONB-30: removing the original scene retains a setting that a second scene reused in the same project", async () => {
+test("SPC-07, ONB-30: removing the original scene retains a setting that a second scene reused in the same project", async () => {
   const home = await mkdtemp(join(tmpdir(), "blueprint-shared-"));
   const running = await open(home);
   try {
@@ -332,4 +339,18 @@ test("ONB-22/29/30: adopting a Shelf device preference from a project and contin
     assert.equal((await local.invoke(shelfActions.settings, {})).drop_wheel_enabled,true);
   }
   await assert.rejects(running.host.homeActionClient().invoke({...homeCaller,audience:"agent"},shelfManifest.settings_entries!.read,{keys:[key]}), {code:"actions.forbidden"});
+  // SPC-09/16, ONB-33: a stopped owner cannot accept a new setting or undo a previously adopted one.
+  const target = { kind: "personal" as const };
+  const previewWheel = () => client.invoke(a.preview, { source: draft.source, target, part_ids: ["engine"] });
+  const preview = await previewWheel();
+  const accepted = await local.invoke(a.apply, { preview_id: preview.preview_id, part_ids: ["engine"], request_id: "before-stop" });
+  assert.equal(accepted.steps[0]?.state, "applied");
+  const platform = await running.host.homePlugins!.ready();
+  const installation = platform.supervisor.state(shelfManifest.plugin_id)?.install_id;
+  assert.ok(installation);
+  platform.supervisor.revoke(shelfManifest.plugin_id);
+  await platform.runtime.stop(installation);
+  assert.equal((await previewWheel()).parts[0]?.decision, "skip");
+  const unavailable = await local.invoke(a.revert, { adoption_id: accepted.adoption_id, request_id: "after-stop" });
+  assert.deepEqual(unavailable.undo.steps[0], { part_id: "engine", state: "skipped", reason: "owner_unavailable" });
 });

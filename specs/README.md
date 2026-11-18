@@ -20,6 +20,8 @@
 
 刚合入、等真实 Home 采用或本人验收的项也留在这里，状态写在条目上。
 
+- [batch-36-audit-fixes](batch-36-audit-fixes/spec.md)：第 36 批合后核查确认的角色、主线与记录修复；ROLE-14 仍待本人看实物。
+
 - [batch-06-shared-tools](batch-06-shared-tools/spec.md)：第 06 批成果固定、平台资料产生者与 SDK 公用工具；已随 #2009 合入 `a720834a09`（2026-11-13），剩余真实 Home 采用与本人验收。
 - [batch-06-call-cost](batch-06-call-cost/spec.md)：第 06 批调用成本整治；已随 #2009 合入 `a720834a09`，剩余 N42 首片范围与 BL-943 后续；BCC-09 直测已补。
 - [batch-06-runtime-cost](batch-06-runtime-cost/spec.md)：第 06 批各包调用成本；已随 #2009 合入 `a720834a09`，N47/N48/N49/N50/N51 的实现与定向证据见文内，绝对计数为探针证据。

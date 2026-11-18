@@ -9,7 +9,7 @@ import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { CHARACTER_ARTIFACT_TYPE, characterRoleActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, charactersProvider, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { AGENT_RUNTIME_CAPABILITIES, agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { AGENT_RUNTIME_CAPABILITIES, agentHostCapabilities as agent, type AgentFrozenCharacter, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
@@ -29,6 +29,7 @@ test("ROLE-07 ROLE-13 Coding saves a stable role choice, blocks an unavailable o
   const sessions = codingSessions(store);
   for (const id of ["app", "new", "fresh"]) await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() });
   const starts: AgentStartRequest[] = []; let created = 0;
+  let pinned: AgentFrozenCharacter | undefined;
   // Characters is the Host's own provider since CHR-1 (project-host.ts registers it for each project); this harness has no Host,
   // so it registers the same provider in each project registry it builds, over the person's drafts and the project's 成果库.
   const withCharacters = new WeakSet<object>();
@@ -63,7 +64,10 @@ test("ROLE-07 ROLE-13 Coding saves a stable role choice, blocks an unavailable o
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.createSession.capability_id) { created++; return { runtime_id: "prologue", session_id: `sdk-${created}` } as Output; }
       if (definition.capability_id === agent.startRun.capability_id) { starts.push(structuredClone((args as any[])[1])); return { ref: { session_id: "sdk", run_id: "run" } } as Output; }
-      if (definition.capability_id === agent.readSession.capability_id) return { runs: [] } as Output;
+      const [session] = args as [{ session_id: string }];
+      const prior = pinned && session?.session_id === "sdk-1" ? { ref: { session_id: "sdk-1", run_id: "previous" }, frozen: { character: pinned } } : undefined;
+      if (definition.capability_id === agent.readSession.capability_id) return (prior ? { runs: [prior.ref], latest_run: prior } : { runs: [] }) as Output;
+      if (definition.capability_id === agent.readRun.capability_id && prior) return prior as Output;
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
@@ -94,16 +98,24 @@ test("ROLE-07 ROLE-13 Coding saves a stable role choice, blocks an unavailable o
     for (const character of [{ ...ref, version: 99 }, { kind: "project", member_id: "foreign-member" }]) assert.equal((await start({ character }, "new")).status, 400);
     assert.equal(created, 1);
     await ok(request("", "PATCH", { character: ref }, "new"));
+    const current = personal.service.roles.memberRole(DEMO_PROJECT_ID, ref.member_id)!;
+    pinned = personal.service.roles.snapshot(DEMO_PROJECT_ID, current.current);
+    personal.service.update(draft.character_id, 2, { title: "原角色", instructions: "后来的要求", host_tools: null, action_tools: [] });
+    const afterChange = await counted(() => ok(start()));
+    assert.equal(afterChange.list, 0, "B36F-01: a continuation prepares tools from the already frozen role after its original changes");
     personal.service.roles.setMemberState(DEMO_PROJECT_ID, ref.member_id, member.revision, "disabled");
+    const continuation = await counted(() => ok(start()));
+    assert.equal(continuation.list, 0, "B36F-01: the pinned role is still used when choosing it anew is forbidden");
+    assert.deepEqual(starts.at(-1)?.character, ref);
     // Plan C: a turned-off role is not chosen anew, but the session that already holds it keeps its task draft.
     assert.equal((await request("", "PATCH", { character: ref }, "new")).status, 400);
     await ok(request("", "PATCH", { draft: "来源停用仍能保存",expected_input_revision:0 }, "new"));
-    assert.equal((await start({}, "new")).status, 400);assert.equal(created, 1);assert.equal(starts.length, 1);
+    assert.equal((await start({}, "new")).status, 400);assert.equal(created, 1);assert.equal(starts.length, 3);
     assert.equal((await request("", "GET", undefined, "new")).body.draft, "来源停用仍能保存");
     const turnedOff = (await request("/characters")).body.characters.find((item: any) => item.ref.member_id === ref.member_id);
     assert.deepEqual([turnedOff.available, turnedOff.reason], [false, "disabled"]);
     await ok(request("", "PATCH", { character: null }, "new"));
-    await ok(start({}, "new"));assert.equal(starts[1].character, null);
+    await ok(start({}, "new"));assert.equal(starts.at(-1)?.character, null);
     assert.equal((await request("", "PATCH", { character: { ...ref, version: 0 } })).status, 400);
     assert.deepEqual(starts[0].character, ref);
     // ROLE-13: a session with no choice of its own takes the default in one roles.resolve at its first round, checked in one roles.list.

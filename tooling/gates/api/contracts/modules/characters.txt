@@ -383,10 +383,15 @@ export type CharacterMemberSaveInput = {
     member_id: string;
     expected_revision: string;
     expected_original_version: number;
+    expected_original_draft_revision?: number;
     work_style?: {
         instructions: string;
     };
     capabilities?: Pick<CharacterRoleContent, "host_tools" | "action_tools">;
+};
+
+export type CharacterMemberSaveResult = CharacterMemberResult & {
+    original_draft_revision?: number;
 };
 
 export type CharacterMemberSectionInput = {
@@ -424,6 +429,7 @@ export type CharacterRestoreInput = {
     version: ProjectCharacterVersionRef;
     expected_revision: string;
     expected_original_version: number;
+    expected_original_draft_revision?: number;
 };
 
 export type CharacterRole = {
@@ -708,7 +714,7 @@ export declare const characterRoleActions: {
         versions: CharacterRoleVersionEntry[];
     }>;
     memberAdd: ActionDefinition<CharacterMemberAddInput, CharacterMemberResult>;
-    memberSave: ActionDefinition<CharacterMemberSaveInput, CharacterMemberResult>;
+    memberSave: ActionDefinition<CharacterMemberSaveInput, CharacterMemberSaveResult>;
     memberSection: ActionDefinition<CharacterMemberSectionInput, CharacterMemberResult>;
     memberState: ActionDefinition<CharacterMemberStateInput, {
         role: CharacterMemberResult["role"] | null;
@@ -721,6 +727,8 @@ export declare const characterRoleActions: {
         effective: EffectiveCharacterSelection;
     }>;
 };
+
+export declare function characterVersionMatchesSelection(version: CharacterRoleVersionRef, selection: CharacterTaskSelection): boolean;
 
 export declare const modulesCharactersContract: {
     readonly contractId: "io.molis.work.module.characters.v1";

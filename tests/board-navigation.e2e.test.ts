@@ -91,6 +91,9 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
       assert.ok((phone.title.fits || phone.title.ellipsis) && phone.title.whole, `${lang} ${state}: the current tab's title reads in full or ends in an ellipsis, whole in its title and name (${JSON.stringify(phone.title)})`);
       assert.ok(phone.count, `${lang} ${state}: 全部标签 shows its whole count`);
       assert.deepEqual([phone.shown, phone.squeezed], [1, 0], `${lang} ${state}: only the current tab shows, at full width`);
+      // The undo chip arrives sliding in (tab-undo-arrive): measured mid-slide its box can read a hair under its 44px, so the targets
+      // are measured once the row has stopped moving.
+      await waitFor(`!document.querySelector('[data-nav-titlebar=${state}]').getAnimations({ subtree: true }).some((animation) => animation.playState === 'running')`);
       const small = await evaluate<string[]>(`[...document.querySelectorAll('[data-nav-titlebar=${state}] :is(.tab-add-button, .tab-all-button, [data-nav-side-switch], .tab-undo-chip)')].flatMap((b) => {
         const box = b.getBoundingClientRect(); return box.width >= 44 && box.height >= 44 ? [] : [String(b.className).split(' ').pop() + ' ' + Math.round(box.width) + '×' + Math.round(box.height)]; })`);
       assert.deepEqual(small, [], `${lang} ${state}: ＋, 全部标签, the side's switch and the undo chip are 44 × 44 targets`);

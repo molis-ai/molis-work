@@ -151,7 +151,7 @@ export function createLocalWebAssets(ports: {
         // The project list's personal search (BL-041), fetched on the first press of its button.
         : pathname === "/assets/molis-work-chooser-search.js"
         ? { body: renderMolisWorkChooserSearchClientScript(), contentType: "text/javascript; charset=utf-8" }
-        // 角色 is the Host's page since CHR-1; its client keeps the address its plugin pack had (D5, BL-378).
+        // 角色 is the Host's page since CHR-1; its client keeps the address its plugin pack had (D5, BL-378; CHARACTERS_CLIENT_PATH).
         : pathname === "/assets/molis-work-plugins/characters.js"
         ? { body: renderMolisWorkCharactersClientScript(), contentType: "text/javascript; charset=utf-8" }
         // 外部会话 (`sessions`) is a Host surface loaded on demand when opened or when its Read Scope overlay is called.

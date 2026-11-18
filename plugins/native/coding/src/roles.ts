@@ -39,7 +39,7 @@ export const CODING_ROLE_IDS = [
 export type CodingRoleId = (typeof CODING_ROLE_IDS)[number];
 
 export const codingAgentManifest: AgentManifest = {
-  characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader", "planner", "reviewer", "writer", "builder"] },
+  characters: { selection: "optional-role", scope: "owner", role_ids: ["reader", "planner", "reviewer", "writer", "builder"] },
   // A named child role brings the tools it declares, as far as its parent holds them (the user's "just give the tools"):
   // a parent that leaves one out of its dispatch list no longer fails the dispatch, and a child never exceeds its parent.
   subagents: { parent_role_ids: ["coordinator", "writers"], roles: [

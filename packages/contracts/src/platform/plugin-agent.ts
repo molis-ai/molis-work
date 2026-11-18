@@ -278,7 +278,7 @@ export interface AgentManifest {
   ending_review?: AgentEndingReviewDeclaration;
   skills?: AgentSkillDeclaration[];
   mcp?: boolean;
-  /** Absent means Character input is not accepted. Selection always names a fixed Artifact. */
-  characters?: { selection: "optional-exact-artifact"; scope: "project-owner"; role_ids: string[] };
+  /** Absent means a role is not accepted. The caller names a stable choice; the Host pins the version (the person's own roles only). */
+  characters?: { selection: "optional-role"; scope: "owner"; role_ids: string[] };
   subagents?: AgentSubagentsDeclaration;
 }

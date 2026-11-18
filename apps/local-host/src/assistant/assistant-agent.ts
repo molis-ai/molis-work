@@ -97,9 +97,9 @@ export const ASSISTANT_AGENT: AgentManifest = {
     role_id: ASSISTANT_DELEGATED_ROLE_ID, version: /* @version role.assistant-delegated */ 1, name: "委派的子任务", workspace: "business", execution: "operate",
     prompts: ["assistant-base", "assistant-delegated"], host_tools: [...BUSINESS_HOST_TOOLS],
   }],
-  // A Character the person published in the work's project may carry a round: exact version, their own, this project only.
   subagents: { parent_role_ids: [ASSISTANT_ROLE_ID, ASSISTANT_MAIN_ROLE_ID], roles: [
     { role_id: ASSISTANT_DELEGATED_ROLE_ID, version: /* @version prompt.assistant-delegated */ 2, name: "委派的子任务", execution: "operate", host_tools: [...BUSINESS_HOST_TOOLS] },
   ] },
-  characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: [ASSISTANT_ROLE_ID, ASSISTANT_MAIN_ROLE_ID, ASSISTANT_DELEGATED_ROLE_ID] },
+  // The Host freezes the chosen Character version in the work's own scope.
+  characters: { selection: "optional-role", scope: "owner", role_ids: [ASSISTANT_ROLE_ID, ASSISTANT_MAIN_ROLE_ID, ASSISTANT_DELEGATED_ROLE_ID] },
 };

@@ -5,6 +5,8 @@ import { AssistantSubtaskReports } from "./assistant-subtask-reports.js";
 import { assertSubtaskWork } from "./assistant-subtask-binding.js";
 import { subtaskInputSessions } from "./assistant-subtask-inputs.js";
 import { changeAssistantSessionLifecycle } from "./assistant-session-lifecycle.js";
+import type { CharacterRoleCatalog } from "@molis-ai/molis-work-contracts/modules/characters";
+import { catalogChoice, parseRoleRef, roleKey } from "./assistant-characters.js";
 import type { MethodHandoff } from "./assistant-signed-materials.js";
 import { sentOriginal } from "./assistant-round-start.js";
 import { memoryInputSource } from "../memory/memory-source-identity.js";
@@ -20,7 +22,7 @@ import { say } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { waitForAssistantWork } from "./assistant-wait.js";
 import { AssistantDelegations } from "./assistant-delegation.js";
 import { AssistantOffers } from "./assistant-offers.js";
-import type { AssistantCharacterChoice, AssistantCharacterRef, AssistantContextSnapshot, AssistantControl, AssistantRecovery, AssistantScope, AssistantSendInput, AssistantSendResult, AssistantWork, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantCharacterRef, AssistantContextSnapshot, AssistantControl, AssistantRecovery, AssistantScope, AssistantSendInput, AssistantSendResult, AssistantWork, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { withinTime } from "./assistant-material-scan.js";
 import { adoptSession } from "./assistant-executor-session.js";
 import { linkSent } from "./assistant-relations.js";
@@ -274,6 +276,9 @@ export class AssistantService {
         const previous = stillCurrent; stillCurrent = () => inputHold!.current() && (!previous || previous());
       }
       work = await this.chooseCharacter(work, input.character, assertInput);
+      // A new work of the Assistant's own takes the role a new task gets (task → project default → my default → the Assistant), once;
+      // a main conversation is with the counterpart it names.
+      if (created && input.character === undefined && !work.main && !work.delegated_by && work.executor.kind === "assistant" && this.ports.resolveRole) work = await defaultCharacter(this.store, this.actorId, this.ports.resolveRole, work, assertInput);
       if (created && work.main && work.character) work = this.store.update(this.actorId, work.work_id, null, { title: `与「${work.character.title}」的对话` }, false);
       if (materials.some(item => item.reference)) materials = await this.materials.readReferences(work, materials);
       const handoffs: MethodHandoff[] = [];
@@ -396,26 +401,48 @@ export class AssistantService {
 
   takeBack(childId: string, caller?: AgentActionReviewControl): Promise<AssistantWorkView> { return this.delegations.takeBack(childId, caller); }
 
-  /** The Characters the person may choose for a work: only project work has them, and only the Assistant's own rounds use them. */
-  async characters(workId: string | undefined, caller: AssistantCaller): Promise<AssistantCharacterChoice[]> {
+  /**
+   * The roles the person may choose for a work, read once (`characters.roles.list`): this project's members in project work, their
+   * originals in personal work, with the defaults and the role a new task gets. Only the Assistant's own rounds use them.
+   */
+  async characters(workId: string | undefined, caller: AssistantCaller): Promise<CharacterRoleCatalog | null> {
     const work = workId ? this.store.get(this.actorId, workId) : undefined;
-    const project = work ? work.project_ref : caller.project_ref;
-    if (!project || !this.ports.characters || work?.executor.kind === "plugin") return [];
+    const project = work ? work.project_ref ?? null : caller.project_ref ?? null;
+    if (!this.ports.characters || work?.executor.kind === "plugin") return null;
     return this.ports.characters(project);
   }
 
   /** The person's choice of Character for this work from its next round on: checked now, never swapped for another. */
-  private async chooseCharacter(work: StoredWork, choice: AssistantCharacterRef | null | undefined, assertCurrent?: () => void): Promise<StoredWork> {
-    if (choice === undefined) return work;
-    if (choice === null) return work.character ? this.store.update(this.actorId, work.work_id, null, { character: undefined }, false) : work;
-    if (typeof choice !== "object" || typeof choice.artifact_id !== "string" || !Number.isSafeInteger(choice.version)) throw assistantErrors.invalid("Character 版本引用无效");
-    if (work.executor.kind === "plugin") throw assistantErrors.invalid("这项工作由执行方插件负责，它的角色在插件自己的会话里选择");
-    if (!work.project_ref || !this.ports.characters) throw assistantErrors.invalid("Character 发布在项目里，个人工作暂时不能指定角色；在项目里发起这项工作就可以选择");
-    const found = (await this.ports.characters(work.project_ref)).find(item => item.reference.artifact_id === choice.artifact_id && item.reference.version === choice.version);
-    if (!found) throw assistantErrors.invalid("这个项目里没有这个 Character 版本");
-    if (!found.available) throw assistantErrors.character_unavailable(found.reason ?? "所选 Character 版本不可用，请明确选择其他版本，或不指定角色", { action: "重新选择角色" });
-    if (work.character?.artifact_id === choice.artifact_id && work.character.version === choice.version) return work;
-    assertCurrent?.();
-    return this.store.update(this.actorId, work.work_id, null, { character: { artifact_id: choice.artifact_id, version: choice.version, title: found.title } }, false);
+  private chooseCharacter(work: StoredWork, choice: AssistantCharacterRef | null | undefined, assertCurrent?: () => void): Promise<StoredWork> {
+    return chooseCharacter(this.store, this.actorId, this.ports.characters, work, choice, assertCurrent);
   }
+}
+
+/** The effective role for a new work, kept as its stable choice; the Assistant itself keeps none. */
+async function defaultCharacter(store: AssistantStore, actorId: string, resolveRole: NonNullable<AssistantServicePorts["resolveRole"]>, work: StoredWork,
+  assertCurrent?: () => void): Promise<StoredWork> {
+  const resolved = await resolveRole(work.project_ref ?? null);
+  if (!resolved) return work;
+  const ref = resolved.selection.kind === "assistant" ? null : resolved.selection;
+  if (!ref || !resolved.title || resolved.effective.kind !== "role") return work;
+  const version = resolved.effective.version, character_id = version.kind === "personal" ? version.character_id : version.original.character_id;
+  assertCurrent?.();
+  return store.update(actorId, work.work_id, null, { character: { ref, title: resolved.title, character_id } }, false);
+}
+
+/** A choice of role checked against the roles the person may choose for this work now; a role that cannot run is refused, never swapped. */
+async function chooseCharacter(store: AssistantStore, actorId: string, characters: AssistantServicePorts["characters"], work: StoredWork,
+  choice: AssistantCharacterRef | null | undefined, assertCurrent?: () => void): Promise<StoredWork> {
+  if (choice === undefined) return work;
+  if (choice === null) return work.character ? store.update(actorId, work.work_id, null, { character: undefined }, false) : work;
+  const ref = parseRoleRef(choice);
+  if (!ref) throw assistantErrors.invalid("角色选择无效");
+  if (work.executor.kind === "plugin") throw assistantErrors.invalid("这项工作由执行方插件负责，它的角色在插件自己的会话里选择");
+  if (!characters) throw assistantErrors.invalid("角色服务尚未接通");
+  const catalog = await characters(work.project_ref ?? null), found = catalog ? catalogChoice(catalog, ref) : null;
+  if (!found) throw assistantErrors.invalid(work.project_ref ? "这个项目里没有这个角色" : "没有这个角色");
+  if (!found.available) throw assistantErrors.character_unavailable("所选角色已停用或还没保存成版本，请另选一个，或不指定角色", { action: "重新选择角色" });
+  if (roleKey(work.character?.ref) === roleKey(ref) && work.character?.title === found.character.title) return work;
+  assertCurrent?.();
+  return store.update(actorId, work.work_id, null, { character: found.character }, false);
 }

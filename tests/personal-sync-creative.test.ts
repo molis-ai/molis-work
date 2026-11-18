@@ -36,7 +36,7 @@ test('Host exposes and transfers all registered creative collections through the
   const jelly=(()=>{const s=openJellyStore(f.homes[0]);try{return s.execute({type:'note.create',title:'跨设备笔记',markdown:'同步内容'}).notes[0]!.id;}finally{s.close();}})();
   const todo=(()=>{const s=openTodoStore(f.homes[0]);try{return s.create({title:'跨设备待办'},{projectId:null,projectIds:[],actor:'user',actorId:'alice'}).item.id;}finally{s.close();}})();
   const character=(()=>{const s=openCharacters(f.homes[0],LOCAL_PERSON_ACTOR_ID);try{
-    const draft=s.service.create();return s.service.update(draft.character_id,draft.revision,{title:'跨设备角色',instructions:'核对事实',host_tools:null}).character_id;
+    return s.service.create({title:'跨设备角色',instructions:'核对事实',host_tools:null}).character_id;
   }finally{s.close();}})();
   const scheduleStore=new LocalProjectDatabase(project.database_path);
   let feedRuleId='';

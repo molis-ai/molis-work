@@ -13,9 +13,16 @@ export function subagentExecution(authority: AgentStartAuthority, runtimeId: str
     if (!role || (role.execution ?? "read-only") !== parent.execution || parent.host_tools.some(tool => !role.host_tools?.includes(tool))) {
       throw agentErrors.role_execution_exceeded("原父角色或工具权限已不可用");
     }
-    if (parent.character && (!authority.resolveCharacter || !authority.manifest.characters?.role_ids.includes(parent.role_id)
-      || !currentCharacterMatches(parent.character, authority.resolveCharacter(parent.character.reference, owner.actor_id), owner.project_id, owner.actor_id))) {
-      throw agentErrors.role_execution_exceeded("原 Character 已不可用");
+    const character = parent.character;
+    if (character) {
+      const declared = authority.manifest.characters;
+      if (declared?.selection !== "optional-role" || declared.scope !== "owner" || !declared.role_ids.includes(parent.role_id) || !authority.characterVersion) {
+        throw agentErrors.role_execution_exceeded("原角色已不可用");
+      }
+      const current = authority.characterVersion(character.version, owner.actor_id);
+      if (!currentCharacterMatches(character, current, owner.project_id, owner.actor_id)) {
+        throw agentErrors.role_execution_exceeded("原角色已不可用");
+      }
     }
   };
   const assertSubagent = (role: Pick<AgentFrozenSubagentRole, "role_id" | "version" | "execution" | "host_tools">) => {

@@ -1,7 +1,7 @@
 import { readRollbackHold, readRollbackPoint } from "./installer/home-rollback.js";
 import { refusedOwner } from "./web-owner-unavailable.js";
 import type { CapabilitySection, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
-import { findPluginSettingsNavItem, pluginSettingsDataAction, renderCharactersSettingsEntry, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
+import { findPluginSettingsNavItem, pluginSettingsDataAction, renderCharacters, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
 import type { SettingsPageContext, SettingsPageModel } from "@molis-ai/molis-work-contracts/platform/ui";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
@@ -20,6 +20,7 @@ import { molisWorkHostProjectReference } from "./project-host.js";
 import { shownProjectPlugins } from "./plugin-registry.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { readText, currentLocale, inLanguagePreview } from "./web-locale.js";
+import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { openedAgentDefinitions } from "./agent-definitions/agent-definitions.js";
 import { agentDisplayModel } from "./agent-definitions/display-words.js";
 import type { LocalWebComposition } from "./web-composition.js";
@@ -61,8 +62,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     sendJson(response, 404, { error: "找不到所选项目，请返回能力库重新选择。" });
     return true;
   }
-  const characters = section === "characters" ? charactersSettings(projects, contextProject, isDesktopShellRequest(request, url)) : undefined;
-  if (characters && "location" in characters) { response.writeHead(302, { location: characters.location, "cache-control": "no-store" }); response.end(); return true; }
+  const characters = section === "characters" ? charactersSettings(serverOptions.homeDirectory) : undefined;
   const capabilities = capabilitySection && serverOptions.homeDirectory ? await capabilitiesView({ section: capabilitySection, url,
     homeDirectory: serverOptions.homeDirectory, host: localHost, withCatalog: composition.withCatalog }) : undefined;
   const mcp_access = section === "mcp" && serverOptions.homeDirectory ? await mcpAccessPageModel({
@@ -175,15 +175,13 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
 }
 
 /**
- * Settings › 角色, a host section since CHR-1: the 角色 page lives in a project (publishing lands in one), so with a project it
- * opens there, in the workbench's settings; without one the page offers the projects to open it in.
+ * Settings › 角色 (docs/design/role-scope, plan C): the person's default and their own roles, read in the personal space where every
+ * Characters action already answers; a project's default and members are in that project's settings. System and plugin roles are
+ * listed here too.
  */
-function charactersSettings(projects: readonly { project_id: string; display_name: string }[], contextProject: { project_id: string } | null,
-  desktop: boolean): { location: string } | { html: string } {
-  const inProject = (projectId: string) => `/projects/${encodeURIComponent(projectId)}/?settings=characters${desktop ? "&desktop=1" : ""}`;
-  if (contextProject) return { location: inProject(contextProject.project_id) };
-  return { html: renderCharactersSettingsEntry({ primitives: { escape: escapeSettingsHtml },
-    projects: projects.map(project => ({ project_id: project.project_id, name: project.display_name, href: inProject(project.project_id) })) }) };
+function charactersSettings(home: string | undefined): { html: string } {
+  return { html: renderCharacters({ route_prefix: `/projects/${PERSONAL_SPACE_PROJECT_ID}`, scope: "personal", primitives: { escape: escapeSettingsHtml },
+    ...(home && inLanguagePreview() ? { agent_display_model: agentDisplayModel(openedAgentDefinitions(home)?.registrations() ?? [], currentLocale() ?? undefined, "role") } : {}) }) };
 }
 
 function escapeSettingsHtml(value: unknown): string {

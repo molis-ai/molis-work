@@ -29,6 +29,16 @@ export function renderBadge(options: { label: string; tone?: MwTone; className?:
 }
 
 /**
+ * A quiet note under a control: one line of small muted text with a mark, for what a choice means or does not do ("choosing a role
+ * never grants anything"). Not an alert: it asks nothing of the person. `tone: "warning"` is only for something worth checking before
+ * going on, and shows it in shape (an alert mark) as well as colour; anything the person must act on is `renderAlert({ tone: "warning" })`.
+ */
+export function renderNote(options: { text: string; icon?: PluginIconName; tone?: Extract<MwTone, "neutral" | "warning">; className?: string; attrs?: Record<string, AttrValue> }): string {
+  const warning = options.tone === "warning";
+  return `<p class="${cx("mw-note", warning && "is-warning", options.className)}" data-slot="note"${renderAttrs(options.attrs)}>${icon(options.icon ?? (warning ? "circle-alert" : "info"))}<span>${escapeHtml(options.text)}</span></p>`;
+}
+
+/**
  * A notice. With `actions` it carries the buttons that answer it, in a row under its words (`mw-alert__actions`); they default to
  * ghost, so the caller names the one primary. `state` puts a state mark before the title. `rise` is for the moment it first
  * appears: it rises in and its mark settles; a repaint of the same notice leaves it off so nothing moves again. To send someone

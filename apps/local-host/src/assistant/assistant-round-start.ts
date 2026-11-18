@@ -48,7 +48,7 @@ export function roundStartInput(work: StoredWork, round: {
     history: "session", queued: "carry", budget: { max_turns: ROUND_TURNS, ...(round.tokens_left === undefined ? {} : { max_total_tokens: round.tokens_left }) }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
     // The project's side panel browser is the person's work surface: a work delegated in the background never drives it.
     ...(work.delegated_by || work.reply_target || round.report_only ? { browser: false as const } : {}),
-    // The chosen Character really carries the round: the Host freezes its exact version or refuses, never another.
-    ...(work.character ? { character: { artifact_id: work.character.artifact_id, version: work.character.version } } : {}),
+    // The chosen role really carries the round: the Host pins its version (the session's earlier one for the same choice) or refuses.
+    ...(work.character ? { character: work.character.ref } : {}),
   };
 }

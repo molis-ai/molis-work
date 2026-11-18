@@ -340,11 +340,11 @@ ${ASSISTANT_STRIP_PART}
     paintStrip();
     if (!metaEl) return;
     const characters = allowsCharacter() ? characterChoices() : null;
-    // A chooser only when there is something to choose: a project's published Characters.
+    // A chooser only when there is something to choose: the project's roles, or the person's own in personal work.
     const hasChoices = Boolean(characters && characters.length);
     const chosen = chosenCharacter();
     const signature = JSON.stringify([work && work.work_id, work && work.executor, work && work.scope, work && work.character, work && isLive(work.state), pendingChar,
-      nextExec, nextScope, nextMode, nextChar, executors.map((one) => [one.plugin_id, one.title, one.problem, one.modes]), executorSession(nextExec), characters && characters.map((c) => [c.reference, c.available])]);
+      nextExec, nextScope, nextMode, nextChar, executors.map((one) => [one.plugin_id, one.title, one.problem, one.modes]), executorSession(nextExec), characters && characters.map((c) => [roleKey(c.ref), c.tag, c.available])]);
     if (metaEl.dataset.signature === signature) return;
     metaEl.dataset.signature = signature;
     keepFocus(metaEl, () => {
@@ -354,14 +354,13 @@ ${ASSISTANT_STRIP_PART}
         const select = el("select", "mw-select"); select.setAttribute("aria-label", readText("workbench.assistant-island.which-character-carries-next-turn"));
         const own = el("option", "", readText("workbench.assistant-island.assistant-itself")); own.value = ""; select.append(own);
         (characters || []).forEach((choice) => {
-          const option = el("option", "", choice.title + " v" + choice.reference.version + (choice.available ? "" : " · " + (choice.reason || readText("workbench.assistant-island.unavailable-now"))));
-          option.value = choice.reference.artifact_id + "@" + choice.reference.version; option.disabled = !choice.available;
-          option.selected = Boolean(chosen && chosen.artifact_id === choice.reference.artifact_id && chosen.version === choice.reference.version);
+          const option = el("option", "", choice.title + (choice.tag ? " · " + choice.tag : "") + (choice.available ? "" : " · " + choice.reason));
+          option.value = roleKey(choice.ref); option.disabled = !choice.available;
+          option.selected = Boolean(chosen && roleKey(chosen.ref) === roleKey(choice.ref));
           select.append(option);
         });
         select.addEventListener("change", () => {
-          const choice = (characters || []).find((one) => one.reference.artifact_id + "@" + one.reference.version === select.value);
-          const value = choice ? { artifact_id: choice.reference.artifact_id, version: choice.reference.version, title: choice.title } : null;
+          const value = asChosen((characters || []).find((one) => roleKey(one.ref) === select.value));
           if (getWork()) pendingChar = value; else nextChar = value;
           paintAim(); paintSum();
         });

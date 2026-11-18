@@ -5,10 +5,12 @@ import { DatabaseSync } from "node:sqlite";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { applySqliteBaseline } from "@molis-ai/molis-work-storage";
 import { CHARACTERS_HOME_STORE, CHARACTERS_STORE_BASELINE } from "./open.js";
+import { purgeRoleProjectRows } from "./roles.js";
 
 /**
- * The project is deleted: the native runs Characters recorded in it go, whoever launched them. The drafts are the person's
- * and name no project, so they stay. Works on the library's file, so any process on the Home can run it; a Home with no
+ * The project is deleted: the native runs Characters recorded in it go, whoever launched them, and so do its role members, their
+ * versions, its default role and its adoption receipts. The originals and their versions are the person's and name no project, so
+ * they stay. Works on the library's file, so any process on the Home can run it; a Home with no
  * library has nothing to clear and gets none, a store at another version is refused like anywhere else, and running it again
  * finds nothing.
  */
@@ -22,6 +24,7 @@ export function purgeCharactersProject(homeDirectory: string, projectId: string)
     db.exec("BEGIN IMMEDIATE");
     try {
       db.prepare("DELETE FROM character_runs WHERE project_id = ?").run(projectId);
+      purgeRoleProjectRows(db, projectId);
       db.exec("COMMIT");
     } catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
   } finally { db.close(); }

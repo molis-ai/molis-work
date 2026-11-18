@@ -288,12 +288,14 @@ test("S-18 Characters publish: a caller gone after its beforeWrite is refused by
   // Characters checks nothing of its own after `await beforeWrite()`, and its library only reads inside the publish: the 成果
   // is the one write. The caller goes away in that window, after every wait has passed and before the 成果 is written.
   let gone: (() => void) | undefined;
-  const characterPorts = { actorId: "user", drafts: characters.service,
-    references: () => artifacts.query.listArtifacts(DEMO_PROJECT_ID).map(record => ({ artifact_id: record.artifact_id, version: record.version })),
-    publish: (id: string, revision: number, publisher: Parameters<typeof characters.service.publish>[2]) => { gone?.(); return characters.service.publish(id, revision, publisher); } };
+  // The store each call opens is the person's, with its publish reached through the window where the caller goes away.
+  const service: typeof characters.service = Object.assign(Object.create(characters.service), {
+    publish: (...args: Parameters<typeof characters.service.publish>) => { gone?.(); return characters.service.publish(...args); } });
+  const characterPorts = { actorId: "user", open: () => ({ service, close: () => {} }),
+    references: () => artifacts.query.listArtifacts(DEMO_PROJECT_ID).map(record => ({ artifact_id: record.artifact_id, version: record.version })) };
   t.after(actions.registry.registerProvider(charactersProvider({ project_id: DEMO_PROJECT_ID, artifacts, processItems: new ProcessItemsModule(ports) }, characterPorts)));
-  const created = characters.service.create();
-  const draft = characters.service.update(created.character_id, created.revision, { title: "Guarded", instructions: "Fixed instructions", host_tools: null });
+  // A new original is saved as its first version when it is created (role-service-design §3).
+  const draft = characters.service.create({ title: "Guarded", instructions: "Fixed instructions", host_tools: null });
   for (const failure of ["revoke", "cancel", "none"] as const) {
     const abort = new AbortController();
     let revoked = false;

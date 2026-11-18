@@ -292,8 +292,7 @@ export interface AssistantWork {
   created_at: string;
   updated_at: string;
   archived: boolean;
-  /** The role the person (or a default) chose to carry this work's rounds, as a stable choice in force from the next round on; the Host
-   * pins the version each round runs with. Personal work can have one too (an original). */
+  /** Stable role choice for the next round onward. Host pins the version. Personal work selects an original. */
   character?: AssistantCharacter;
   /** A saved selection is invalid and the person must explicitly select a role or the Assistant before sending. */
   character_selection_required?: true;

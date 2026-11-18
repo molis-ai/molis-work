@@ -122,7 +122,8 @@ async function browserFixture(t: TestContext, f: Awaited<ReturnType<typeof fixtu
     const url = new URL(source, f.origin);
     assert.equal(url.pathname, `/projects/${project.project_id}/plugins/${REACH_PLUGIN_ID}`);
     assert.equal(url.searchParams.get("frame"), "workbench");
-    await child.waitFor("!!document.querySelector('[data-field=text]')");
+    // The installed component reports when its update and the frame's action bindings are ready.
+    await child.waitFor("globalThis.__molisPluginReady === true && !!document.querySelector('[data-field=text]')");
   };
   const openPackage = async (project = f.a) => {
     await navigate(`/projects/${project.project_id}/`);

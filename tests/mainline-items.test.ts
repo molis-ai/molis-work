@@ -332,10 +332,21 @@ test("MLC-13 a 「建成」 retried under the same request makes one object; two
   const operation = as(person(projectId, { call_id: "one-operation" }));
   const a = await operation.invoke(mainlineItemActions.create, { create_as: { kind: "note", name: "甲" } }), b = await operation.invoke(mainlineItemActions.create, { create_as: { kind: "note", name: "乙" } });
   assert.notEqual(a.item.source!.id, b.item.source!.id);
-  // A converted item retried after a conflict: the same note.
+  // A conversion whose source has already committed can race a later arrangement edit.
   const light = await me.invoke(mainlineItemActions.create, { name: "先记下" });
-  await me.invoke(mainlineItemActions.rename, { expected_revision: light.mainline.revision, item_id: light.item.item_id, name: "先记下" });
-  await assert.rejects(me.invoke(mainlineItemActions.convert, { expected_revision: light.mainline.revision, item_id: light.item.item_id, kind: "note", request_id: "c-1" }), code("mainline.conflict"));
+  const beforeConversion = notes.state.made.size;
+  const created = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>();
+  notes.state.afterCreate = () => { created.resolve(); return finish.promise; };
+  const pending = me.invoke(mainlineItemActions.convert, { expected_revision: light.mainline.revision, item_id: light.item.item_id, kind: "note", request_id: "c-1" });
+  try {
+    await Promise.race([created.promise, pending.then(() => assert.fail("the source must be held before the arrangement changes"))]);
+    assert.equal(notes.state.made.size, beforeConversion + 1);
+    await me.invoke(mainlineItemActions.move, { expected_revision: light.mainline.revision, item_id: light.item.item_id, group_id: "next", index: 0 });
+  } finally {
+    notes.state.afterCreate = undefined;
+    finish.resolve();
+  }
+  await assert.rejects(pending, code("mainline.conflict"));
   const current = (await me.invoke(mainlineItemActions.read, {})).mainline.revision, made = notes.state.made.size;
   const converted = await me.invoke(mainlineItemActions.convert, { expected_revision: current, item_id: light.item.item_id, kind: "note", request_id: "c-1" });
   assert.equal(notes.state.made.size, made, "the note the conflicted call made is the one the item became");

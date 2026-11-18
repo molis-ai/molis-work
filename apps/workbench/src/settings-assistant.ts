@@ -34,7 +34,7 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
       <form data-assistant-rule-pause>
         ${renderSettingRow({ name: text("workbench.settings-assistant.pause-notices"), hint: text("workbench.settings-assistant.pause-notices-hint"),
           fold: { label: text("workbench.settings-assistant.pause"), body: `${renderSettingRow({ name: text("workbench.settings-assistant.how-long"), className: "mw-setting-row--sub",
-            control: `<select class="mw-input" data-assistant-rule-duration aria-label="${uiText("workbench.settings-assistant.how-long")}">
+            control: `<select class="mw-select" data-assistant-rule-duration aria-label="${uiText("workbench.settings-assistant.how-long")}">
             <option value="30">${uiText("workbench.settings-assistant.value-30-minutes")}</option><option value="60" selected>${uiText("workbench.settings-assistant.value-1-hour")}</option><option value="day">${uiText("workbench.settings-assistant.until-end-today")}</option>
           </select>` })}
           ${exceptRow("failed", "workbench.settings-assistant.still-notify-failed-paused", true)}

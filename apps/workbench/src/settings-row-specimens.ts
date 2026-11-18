@@ -1,5 +1,5 @@
 import { RUNTIME_DISPLAY_NAMES } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { t as uiText, escapeHtml, renderButton, renderChoice, renderListToolbar, renderObjectRow, renderQuestionList, renderSettingRow, renderSettingsSection, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, renderButton, renderChoice, renderListToolbar, renderObjectRow, renderQuestionList, renderSelect, renderSettingRow, renderSettingsSection, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /**
  * The component board's 设置的行 section (specs/screen-polish/p5-settings.md): the three rows every settings page is written in
@@ -10,7 +10,7 @@ const text = uiText.text;
 const figure = (caption: string, body: string) =>
   `<figure class="mw-catalog__specimen"><figcaption>${escapeHtml(text(caption))}</figcaption><div class="mw-settings-board">${body}</div></figure>`;
 const select = (label: string, options: readonly string[]) =>
-  `<select class="mw-input" aria-label="${escapeHtml(text(label))}">${options.map(option => `<option>${escapeHtml(text(option))}</option>`).join("")}</select>`;
+  renderSelect({ attrs: { "aria-label": text(label) }, optionsHtml: options.map(option => `<option>${escapeHtml(text(option))}</option>`).join("") });
 
 function settingRows(): string {
   return renderSettingsSection({ title: text("workbench.settings-assistant.attention-rules"), body:

@@ -24,8 +24,8 @@ export interface AgentManifest {
     skills?: AgentSkillDeclaration[];
     mcp?: boolean;
     characters?: {
-        selection: "optional-exact-artifact";
-        scope: "project-owner";
+        selection: "optional-role";
+        scope: "owner";
         role_ids: string[];
     };
     subagents?: AgentSubagentsDeclaration;

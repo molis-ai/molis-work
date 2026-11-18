@@ -1,4 +1,7 @@
+import type { CharacterRoleCatalog } from "@molis-ai/molis-work-contracts/modules/characters";
+import { roleKey } from "./assistant-characters.js";
 import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { eventBehind } from "./assistant-line-actions.js";
 import { deliveryOf, handedBackLines, hangRequirements, readStanding, requirementsBrief, type WorkAcceptancePort } from "./assistant-delegated-delivery.js";
@@ -8,7 +11,7 @@ import type { AgentWorkGraphPort, AgentWorkNode } from "@molis-ai/molis-work-con
 import { isTerminalAgentPhase, type AgentActionReviewControl, type AgentDelegatedWork, type AgentDelegation, type AgentDelivery, type AgentRunView, type AgentRuntimeAdapter, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { AssistantCharacterChoice, AssistantCharacterRef, AssistantMaterial, AssistantSavedText, AssistantWork, AssistantWorkState, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantCharacter, AssistantCharacterRef, AssistantMaterial, AssistantSavedText, AssistantWork, AssistantWorkState, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assistantWords } from "./assistant-saved-text.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { identity } from "./assistant-relations.js";
@@ -43,7 +46,7 @@ interface DelegationPorts {
   store: AssistantStore;
   actorId: string;
   host(): Promise<AgentHost>;
-  characters?(project: LocalHostProjectReference): Promise<AssistantCharacterChoice[]>;
+  characters?(project: LocalHostProjectReference | null): Promise<CharacterRoleCatalog | null>;
   stateOf(host: AgentHost, work: StoredWork): Promise<AssistantWorkState>;
   latestRun(host: AgentHost, work: StoredWork): Promise<AgentRunView | null>;
   /** The work's latest reply in its own words, if it gave one. */
@@ -58,6 +61,21 @@ interface DelegationPorts {
   read(workId: string): Promise<AssistantWorkView>;
   /** Tell the person, once per key. */
   notify(work: StoredWork, text: AssistantSavedText, key: string): void;
+}
+
+/**
+ * A professional role, when asked for: exactly one the person can choose here now, by its id (or a title only it has) — never a
+ * stand-in, and never a guess between two of the same name.
+ */
+function delegationRole(catalog: CharacterRoleCatalog | null, wanted: string): AssistantCharacter {
+  const all = catalog ? [...catalog.members.map(item => ({ ref: { kind: "project" as const, member_id: item.role.current.member_id }, title: item.title, available: item.availability.available, character_id: item.role.current.original.character_id })),
+    ...(catalog.in_project ? [] : catalog.originals.map(item => ({ ref: item.ref, title: item.title, available: item.availability.available, character_id: item.ref.character_id })))] : [];
+  const byId = all.filter(item => roleKey(item.ref) === wanted), named = byId.length ? byId : all.filter(item => item.title === wanted);
+  if (!named.length) throw assistantErrors.not_found(`没有「${wanted}」这个专业角色（只能用「可委托的专业角色」里列出的）；没有换成别的角色`);
+  if (named.length > 1) throw assistantErrors.invalid(`叫「${wanted}」的角色不止一个，请用它的 id：${named.map(item => roleKey(item.ref)).join(t.text("common.list.separator"))}`);
+  const found = named[0]!;
+  if (!found.available) throw assistantErrors.character_unavailable(`角色「${found.title}」现在不能用（已停用或还没保存成版本）；没有换成别的角色`);
+  return { ref: found.ref, title: found.title, character_id: found.character_id };
 }
 
 /**
@@ -108,16 +126,8 @@ export class AssistantDelegations {
       start: async input => {
         const host = await this.ports.host(), assertCurrent = await this.#holdParent(host, parent);
         const graphs = await this.#graphs(host), graph_id = graphOf();
-        // A professional role, when asked for: exactly one the person published here and can run now — never a stand-in.
-        let role: AssistantCharacterChoice | undefined;
-        if (input.character) {
-          const choices = parent.project_ref && this.ports.characters ? await this.ports.characters(parent.project_ref) : [];
-          const named = choices.filter(item => item.reference.artifact_id === input.character || item.title === input.character)
-            .sort((a, b) => Number(b.available) - Number(a.available) || b.reference.version - a.reference.version);
-          role = named[0];
-          if (!role) throw assistantErrors.not_found(`没有叫「${input.character}」的专业角色（只能用「可委托的专业角色」里列出的）；没有换成别的角色`);
-          if (!role.available) throw assistantErrors.character_unavailable(`角色「${role.title}」现在不能用：${role.reason ?? "不可用"}；没有换成别的角色`);
-        }
+        // A professional role, when asked for: exactly one the person can choose here now — never a stand-in.
+        const role = input.character ? delegationRole(this.ports.characters ? await this.ports.characters(parent.project_ref ?? null) : null, input.character) : undefined;
         const nodes = await graphs.read(graph_id);
         assertCurrent();
         const children = store.delegatedBy(actorId, { graph_id }, "any");
@@ -146,7 +156,7 @@ export class AssistantDelegations {
         try {
           // A Character's own main conversation hands its parts to itself unless it names another role: the task is done, and
           // reported back, by the one the person is talking to (WLN-40).
-          const carrier = role?.reference ?? (parent.main && parent.character ? { artifact_id: parent.character.artifact_id, version: parent.character.version } : undefined);
+          const carrier = role?.ref ?? (parent.main && parent.character ? parent.character.ref : undefined);
           const assigned = carrier ? await this.ports.chooseCharacter(child, carrier) : child;
           // What being delegated means is the delegated role's own layer; the message is only this part's brief and its bar.
           // Written as the sub-task itself, before its first round: what it is measured against stands before it starts.

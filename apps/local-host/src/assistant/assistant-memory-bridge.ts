@@ -34,7 +34,7 @@ export class AssistantMemoryBridge {
     return { actor_id: this.actorId, project_id: work ? work.project_ref?.project_id ?? null : projectId, consumer: "assistant",
       ...(work ? { work: { work_id: work.work_id, title: work.title } } : {}), ...(person ? { person: true } : {}),
       // The Character carrying this work: its own memories come along, and only in its work.
-      ...(work?.character && work.project_ref ? { character: { id: work.character.artifact_id, title: work.character.title } } : {}) };
+      ...(work?.character ? { character: { id: work.character.character_id, title: work.character.title } } : {}) };
   }
 
   /** The person's memories: personal ones, and — given a project — that project's. Disabled ones are listed as such. */

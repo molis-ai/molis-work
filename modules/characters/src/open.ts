@@ -11,13 +11,16 @@ import { createCharactersReplica, initializeCharactersReplication, CHARACTERS_SY
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import { CharacterRunsRepository, type CharacterRuns } from "./runs.js";
+import { CHARACTER_ROLE_TABLES_SQL } from "./role-schema.js";
+import { CharacterRoles } from "./roles.js";
 
 /**
  * The one current schema of `characters/characters.sqlite`; any other version, or tables without one, is refused (repository-anti-corruption §4.1).
- * The current schema includes `character_runs`, the native runs Characters records itself (Sessions cleanup SC-2, D3).
- * Clean Homes start at the current baseline; an existing file at another version is not upgraded on open.
+ * The current schema includes `character_runs`, the native runs Characters records itself (Sessions cleanup SC-2, D3), and the role
+ * tables (role-service-design §2). Clean Homes start at the current baseline; 1 → 2 only creates the role tables, empty, and is run by
+ * the upgrade process, not on open.
  */
-export const CHARACTERS_STORE_BASELINE: SqliteBaseline = { version: /* @version database.characters_store_baseline */ 1, schema: (`CREATE TABLE character_drafts (
+export const CHARACTERS_STORE_BASELINE: SqliteBaseline = { version: /* @version database.characters_store_baseline */ 2, schema: (`CREATE TABLE character_drafts (
   character_id TEXT PRIMARY KEY,
   owner_actor_id TEXT NOT NULL,
   revision INTEGER NOT NULL,
@@ -43,7 +46,8 @@ CREATE TABLE character_runs (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
-CREATE INDEX character_runs_by_character ON character_runs (owner_actor_id, project_id, character_id, created_at);`)+replicaSchemaSql('characters') + CHARACTERS_SYNC_TRIGGERS };
+CREATE INDEX character_runs_by_character ON character_runs (owner_actor_id, project_id, character_id, created_at);`)+CHARACTER_ROLE_TABLES_SQL+replicaSchemaSql('characters') + CHARACTERS_SYNC_TRIGGERS,
+  upgrades: [{ from: 1, sql: CHARACTER_ROLE_TABLES_SQL }] };
 
 /** The Characters store in the Home's store registry (W4-11): `characters/characters.sqlite`. */
 export const CHARACTERS_HOME_STORE = { path: "characters", library: { baseline: CHARACTERS_STORE_BASELINE, file: "characters.sqlite" }, replication: createCharactersReplicationBinding } as const satisfies HomeStoreDeclaration;
@@ -83,8 +87,8 @@ function openStore(homeDirectory: string, actorId: string): DatabaseSync {
 
 /** Installation-level personal drafts. No production credential store is opened. */
 export function openCharacters(homeDirectory: string, actorId: string): { service: CharactersService; close(): void } {
-  const db = openStore(homeDirectory, actorId);
-  return { service: new CharactersService(new CharactersRepository(db, actorId), actorId), close: () => db.close() };
+  const db = openStore(homeDirectory, actorId), repository = new CharactersRepository(db, actorId);
+  return { service: new CharactersService(repository, actorId, new CharacterRoles(db, actorId, repository)), close: () => db.close() };
 }
 
 /** One person's native Character runs in one project, in the same store as the drafts. */

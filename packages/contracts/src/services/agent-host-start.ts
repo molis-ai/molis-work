@@ -1,9 +1,9 @@
 /** The agent-host contract (`services/agent-host`): what a run is started with, frozen when it starts — workspace, materials, references, budget, the Character and its role, the action client — and the authority checks the Host adds. */
 import type { UiLanguageTag } from "../platform/ui-text.js";
 import type { ActionCallOrigin, ActionSubject, ExactActionReference, ActionView } from "../platform/actions.js";
-import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
+import type { ArtifactReference } from "../modules/artifacts.js";
 import type { MaterialRef } from "../platform/project-materials.js";
-import type { CharacterContent } from "../modules/characters.js";
+import type { CharacterRoleSnapshot, CharacterTaskSelection } from "../modules/characters.js";
 import type { RunDirectories } from "../modules/projects.js";
 import type { AgentRoleExecution, AgentPromptLayer, AgentPromptText } from "../platform/plugin-agent.js";
 import type { SkillRef } from "./agent-definitions.js";
@@ -211,16 +211,10 @@ export interface AgentExecutionPlan {
 }
 
 /**
- * Exactly what the Host froze for one Run. Later settings changes never alter a
- * started Run; the product shows this, not the next-run selection.
+ * Exactly what the Host froze for one Run: the role's fixed version and what it said. Later settings changes never alter a started
+ * Run; the product shows this, not the next-run selection. `project_id` is the member's project, null for a personal original.
  */
-export interface AgentFrozenCharacter extends CharacterContent {
-  reference: ArtifactReference;
-  project_id: string;
-  content_digest: string;
-  producer: ArtifactProducerIdentity;
-  published_at: string;
-}
+export type AgentFrozenCharacter = CharacterRoleSnapshot;
 
 /** What a round recorded of the repository's instruction files it was given (`frozen.instructions`). */
 export interface AgentRunInstructions {
@@ -545,8 +539,12 @@ interface AgentStartInputFields {
   history?: "session" | "digest";
   /** Selected child roots; the Host must independently verify every directory grant. */
   subagent_workspaces?: AgentSubagentWorkspace[];
-  /** Only a reference is accepted from the caller; the Host resolves its immutable content. */
-  character?: ArtifactReference | null;
+  /**
+   * The role chosen for the task, as a stable choice (an original, a member of this project, or the Assistant itself); never a
+   * version. The Host pins the version: a session keeps the version its earlier round froze for the same choice, and a new choice
+   * is resolved by Characters now, which refuses one that is turned off.
+   */
+  character?: CharacterTaskSelection | null;
   session: AgentSessionRef;
   /** The assembled task for this Run; it may contain Host-derived text and is not proof of personal authorship. */
   task: string;

@@ -162,10 +162,10 @@ function agentRoleProblems(agent: AgentManifest, role: AgentRoleDeclaration, pro
 function agentCharacterProblems(agent: AgentManifest, roleIds: ReadonlySet<string>): string[] {
   const selection = agent.characters;
   if (!selection) return [];
-  if (selection.selection !== "optional-exact-artifact" || selection.scope !== "project-owner"
+  if (selection.selection !== "optional-role" || selection.scope !== "owner"
     || !Array.isArray(selection.role_ids) || !selection.role_ids.length
     || new Set(selection.role_ids).size !== selection.role_ids.length
-    || selection.role_ids.some(id => !roleIds.has(id))) return ["Agent Character 必须声明本项目本人范围、精确版本选择和已声明的角色"];
+    || selection.role_ids.some(id => !roleIds.has(id))) return ["Agent Character 必须声明本人范围、角色选择和已声明的角色"];
   return [];
 }
 

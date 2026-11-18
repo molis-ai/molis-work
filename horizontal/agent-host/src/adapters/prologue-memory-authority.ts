@@ -136,7 +136,7 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
       || memory.consumer !== current.consumer || memory.current_scene !== current.current_scene) return undefined;
     return { ...current, run_explicit: true, class_restrictions: structuredClone(policy),
       ...(memory.facts ? { facts: structuredClone(memory.facts) } : {}),
-      ...(frame.attempt.frozen.character ? { character_id: frame.attempt.frozen.character.reference.artifact_id } : {}) };
+      ...(frame.attempt.frozen.character ? { character_id: frame.attempt.frozen.character.character_id } : {}) };
   };
   const boundCaller = (requested: MemoryCallerContext) => {
     const caller = calls.getStore()?.caller;

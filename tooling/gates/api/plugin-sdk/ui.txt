@@ -331,6 +331,14 @@ export interface MwScopeDeltaItem {
     readonly detail?: string;
 }
 
+export interface MwSourceLayer {
+    readonly name: string;
+    readonly value: string;
+    readonly state: MwSourceLayerState;
+}
+
+export type MwSourceLayerState = "on" | "under" | "empty" | "off";
+
 export type MwStatusTone = "idle" | "progress" | "attention" | "hold" | "blocked" | "done" | "quiet";
 
 export interface MwSubtaskAction {
@@ -910,6 +918,14 @@ export declare function renderMeter(options: {
     className?: string;
 }): string;
 
+export declare function renderNote(options: {
+    text: string;
+    icon?: PluginIconName;
+    tone?: Extract<MwTone, "neutral" | "warning">;
+    className?: string;
+    attrs?: Record<string, AttrValue>;
+}): string;
+
 export declare function renderNumberField(options: {
     name?: string;
     value?: number | string;
@@ -1074,6 +1090,13 @@ export declare function renderSlider(options: {
     label?: string;
     disabled?: boolean;
     className?: string;
+}): string;
+
+export declare function renderSourceLadder(options: {
+    label: string;
+    layers: readonly MwSourceLayer[];
+    className?: string;
+    attrs?: Record<string, AttrValue>;
 }): string;
 
 export declare function renderSpinner(options?: {

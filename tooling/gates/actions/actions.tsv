@@ -294,6 +294,8 @@ goals.inputs.bind	1	io.molis.work.goals	io.molis.work.goals	command	operation	pr
 goals.inputs.confirm	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	concurrent	agent,mcp,user,workflow	context-ledger:write,goals:write	goal	-	-	3f9dc5d3fbad	a50779e05950	9a20bdba744a
 goals.inputs.list	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	concurrent	agent,mcp,user,workflow	goals:read	goal	-	-	1b72d3bb5995	88f3e0d5af3c	b80a53a84313
 goals.inputs.release	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	13352bb01dc1	946832ab5da4	6790fb1f17ec
+goals.items.create	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	concurrent	agent,mcp,user	goals:write	goal	-	-	2f6662cf612c	99b557e4a48f	-
+goals.items.next	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	concurrent	agent,mcp,user,workflow	goals:read	goal	-	-	e8e92080905f	74ce4211fd19	-
 goals.list	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,plugin,user,workflow	goals:read	goal	-	-	573ae9304527	480d8bdde906	f5c6d5ca749e
 goals.note	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,plugin,user,workflow	goals:write	goal	-	-	18b4ad2fcc5a	66058b0bebac	9a20bdba744a
 goals.planning.graph.check	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	d746974fa9af	64f64391c046	-

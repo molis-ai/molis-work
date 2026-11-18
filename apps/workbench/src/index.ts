@@ -97,8 +97,9 @@ export { renderMolisWorkKnowledgeClientScript } from "./settings-knowledge.js";
 export { renderMolisWorkKitClientScript } from "./settings-kit.js";
 export { renderMolisWorkWorkRecordsClientScript } from "./settings-work-records.js";
 export { renderMolisWorkChooserSearchClientScript } from "./arrival/chooser-search.js";
-export { renderCharacters, renderCharactersSettingsEntry } from "./characters/ui.js";
+export { renderCharacters } from "./characters/ui.js";
 export { renderMolisWorkCharactersClientScript } from "./characters/client-asset.js";
+export { CHARACTERS_CLIENT_PATH } from "./characters/client-path.js";
 export { renderMolisWorkSessionsClientScript } from "./sessions/client-asset.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";

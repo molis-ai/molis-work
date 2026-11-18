@@ -21,6 +21,8 @@ export const codingPresentation = {
     forms: { chip: { fields: ["title"] }, row: { fields: ["title", "status", "updated_at"] },
       card: { fields: ["title", "status", "created_at", "updated_at"] }, peek: { fields: ["title", "status", "created_at", "updated_at"] } },
     text: { lines: ["title", "status", "updated_at"] },
+    // A session can be made into a work item on the mainline; Coding offers no 「建成」 or next step of its own.
+    item: {},
   }],
   overview: { capability_id: overview.capability_id, version: overview.version, start: [start] },
 } as const satisfies PresentationDeclaration;

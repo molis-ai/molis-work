@@ -97,9 +97,9 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
       frame = requestAnimationFrame(land);
     },
     toLatest() {
+      const animate = state === DETACHED && !matchMedia("(prefers-reduced-motion: reduce)").matches;
       follower.resume();
-      const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-      scroller.scrollTo({ top: scroller.scrollHeight, behavior: still ? "auto" : "smooth" });
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior: animate ? "smooth" : "instant" });
     },
     resume() { lastInput = -Infinity; set(FOLLOWING); },
     restore(place) { scroller.scrollTop = place; before = followDistance(scroller); top = scroller.scrollTop; set(before <= FOLLOW_NEAR_PX ? FOLLOWING : DETACHED); },

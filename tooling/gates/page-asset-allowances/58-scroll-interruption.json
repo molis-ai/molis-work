@@ -1,18 +1,18 @@
 {
-  "reason": "B58-02 跟随时先停止旧的「回到最新」，随后交给浏览器处理同一个滚轮动作。进入阅读状态后，控制器切回原先的被动滚动监听。工作台与插件框架复用这份控制器。",
-  "review": "VUX-26 与 B58-02。对 565840cce4 的隔离构建实测插件框架脚本增加 143 B，工作台脚本增加 182 B。到达页和选择页增加 283 B 冷启动、140 B 热启动，两种工作台增加 325 B 冷启动。",
+  "reason": "B58-02 已在跟随时直接对齐末尾。从阅读位置平滑返回的过程中，控制器先停止旧滚动，再交给浏览器处理同一个向上滚轮。阅读状态沿用被动滚动监听。",
+  "review": "VUX-26 与 B58-02。对 565840cce4 的隔离构建实测插件框架脚本增加 155 B，工作台脚本增加 195 B。到达页和选择页增加 306 B 冷启动、151 B 热启动，两种工作台增加 350 B 冷启动。",
   "assets": {
-    "/assets/molis-work-plugin-frame.js": 143,
-    "/assets/molis-work-workbench.js": 182
+    "/assets/molis-work-plugin-frame.js": 155,
+    "/assets/molis-work-workbench.js": 195
   },
   "pages": {
-    "arrival-empty/zh": { "cold": 283, "warm": 140 },
-    "arrival-empty/en": { "cold": 283, "warm": 140 },
-    "chooser/zh": { "cold": 283, "warm": 140 },
-    "chooser/en": { "cold": 283, "warm": 140 },
-    "workbench-default/zh": { "cold": 325, "warm": 0 },
-    "workbench-default/en": { "cold": 325, "warm": 0 },
-    "workbench-all-plugins/zh": { "cold": 325, "warm": 0 },
-    "workbench-all-plugins/en": { "cold": 325, "warm": 0 }
+    "arrival-empty/zh": { "cold": 306, "warm": 151 },
+    "arrival-empty/en": { "cold": 306, "warm": 151 },
+    "chooser/zh": { "cold": 306, "warm": 151 },
+    "chooser/en": { "cold": 306, "warm": 151 },
+    "workbench-default/zh": { "cold": 350, "warm": 0 },
+    "workbench-default/en": { "cold": 350, "warm": 0 },
+    "workbench-all-plugins/zh": { "cold": 350, "warm": 0 },
+    "workbench-all-plugins/en": { "cold": 350, "warm": 0 }
   }
 }

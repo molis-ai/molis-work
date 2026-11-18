@@ -36,7 +36,7 @@ export function createPositionViews(host: PositionHost) {
       send: (correct, signal) => read({ ...source(), correct, ...(expanded ? { expanded: true } : {}) }, signal), changed: host.changed, note: host.receipt });
     const suspend = () => { peek.scrub(); corrections.suspend(); };
     const paint = (value: SurfaceHomeDisplay, index = group) => {
-      suspend();
+      peek.scrub();
       data = value; controls.clear();
       const { html, overflow } = renderPositionGroup(value, index, controls, undefined, corrections.rendering(value));
       reconcileSurfaceRows(root, html + (overflow ? homeButton("expand", uiText.text("workbench.position.more", { count: overflow })) : ""), markup);
@@ -49,7 +49,7 @@ export function createPositionViews(host: PositionHost) {
     };
     const update = async (force = true) => {
       if (destroyed || !visible(root) || (!force && (!dirty || reading))) return;
-      reading?.abort(); suspend();
+      reading?.abort(); peek.scrub();
       const task = reading = new AbortController();
       try {
         const recovery = corrections.recovery();

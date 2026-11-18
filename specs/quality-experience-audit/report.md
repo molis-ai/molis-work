@@ -1,6 +1,6 @@
 # Molis Work 审查报告与优化策略
 
-整项进行中，负责人 Codex。本轮验收以 main `feffe94db0` 为合并基点。登记范围覆盖候选中的 75 个包、84 个 contracts 子路径及根入口，另复核本轮从主干移除的 WebQuery 包。报告有 94 项编号发现和 16 项平台候选，列明处置和实测结果。[逐包覆盖](coverage.md)、[六方向结论](#六个方向的独立结论)、[平台候选及处置](#平台化与通用化检查及处置)、[需求实现度](#需求整体实现度)、[BL 清理与保留事项](#bl-与事项清理建议)和[验收编号](spec.md)均可按入口查阅。
+整项进行中，负责人 Codex。本轮验收基点为 main `651432a3ba`，该提交相对 `feffe94db0` 仅同步已合入的测试文字断言。登记范围覆盖候选中的 75 个包、84 个 contracts 子路径及根入口，另复核本轮从主干移除的 WebQuery 包。报告有 95 项编号发现和 16 项平台候选，列明处置和实测结果。[逐包覆盖](coverage.md)、[六方向结论](#六个方向的独立结论)、[平台候选及处置](#平台化与通用化检查及处置)、[需求实现度](#需求整体实现度)、[BL 清理与保留事项](#bl-与事项清理建议)和[验收编号](spec.md)均可按入口查阅。
 
 第 53–55 批 8 文件 78 项定向通过。第 56–59 批 8 文件 144 项及长材料 2 项通过，验证改写、回放、起草、引导、信息方案和真实采用。固定 `4c54241e96` 的受影响包级复验 55/55 文件、463/463 项通过。第 60 批 Git、Coding 与工作台 77 文件、521 项通过，含真实提交、拒绝、暂存和编辑恢复。第 62 批 Placement 与工作台 22 文件、194 项通过。第 52 批冻结头的 104/105 个包回归文件通过，唯一失败定位到 Feed 已失效的发布版本例外。
 
@@ -283,6 +283,9 @@ Host JSON、原件上传原来都没有把断连传给已支持取消的 artifac
 | PF-11 动作绑定：公共 bindActionHandler 与多插件本地副本 | 纯换参/类型断言重复、元数据接入容易漂移 | 公共合同管绑定，插件保留业务上下文。Feed query/inbox/rule 三处已验；另五插件已迁移，9 处 availability 因实际业务职责保留；QEA-26消费者定向通过，最终组合CI待完成 | 本轮已做/低 |
 | PF-12 固定成果与过程项：`plugins/native/dataset/src/promote.ts`、`plugins/native/ppt/src/promote.ts` 已用 owner 事务与 artifacts 联合提交；成果导入走同一服务 | 局部再存一份最终正文或把过程项当成果，会产生两个版本主人 | 业务编辑稿归插件；固定可引用成果归 artifacts，过程项走声明。复用已有联合提交，不统一各插件的编辑状态 | 保持并检查采用/中 |
 | PF-13 批量证据读取：`horizontal/evaluation/src/observation-bridge.ts:71-85` 的fetchObservationEvidenceMap对每条记录调用 `observation.evidence.get@1`；当前消费者为评测执行器 | 新main已修复500条静默截断，完整大样本随后产生N次解封动作；正确性保持，但调用成本随证据数线性增加 | 观测层拥有证据解封、用途及跨项目授权；评测拥有样本选择和unknown判定。归现有[BL-evaluation-read-cost](../backlog/BL-evaluation-read-cost.md)，补观测批量公开动作并迁移实际评测消费者；保留逐项拒绝/不可读原因，不跨读私有表、不让评测复制授权规则 | P3/中 |
+| [PF-14](#pf-14--p3复用能力包的导航控件) 能力包导航控件 | 工作坊页签、比较分段和创作页范围分段重复写样式及无障碍标记 | 页面拥有动作与当前选择，复用 Design System 导航控件 | 本轮实施 |
+| [PF-15](#qf-83--p3-英文资料侧栏仍显示中文的来源分组pf-15) 资料来源显示名 | 成果和置物架通过动作的固定标题展示，英文页面仍显示中文分组 | 提供方声明 TextRef，平台按当前语言取名，迁移侧栏的正常消费者 | P3/中，后续合同 |
+| [PF-16](#qf-94--p3-原件关系卡的目标类型名未随中文界面切换pf-16) 原件关系的类型名 | Placement 公共 `noun` 在目标关系卡上直接显示 | 提供方声明类型名，Placement 维护关系并按页面语言呈现。迁移现有灵光等读取端 | P3/中，后续合同 |
 
 PF-03/05/07/13 是采用或职责收口候选，即使目前只有一个实际消费者也须按 owner 判断；PF-08/12 同时列出不该平台化的业务部分。PF-01/09/12 是保留现有方案的判断，不冒充新发现。以上是本基线处置建议，不是全部已经交付。
 
@@ -1431,7 +1434,9 @@ PF-15 复核。合并后的资料侧栏入口仍按原动作 `title` 展示成�
 
 真实浏览器记录五个页面 × 中英文 × 冷热共 20 次。Home 共用通知在项目选择及三种工作台的 16 次观测每次请求一次。到达页没有发该请求。第 60 批以来，未登记 API 的路径与查询字段没有新增组合，仍有当前四类动态组合及缺少完整账号条件的采样项。证据 `/tmp/quality-audit-b111-browser-first-screen/{audit,browser}.json`。
 
-Verify 首轮只有固定 Auth 浏览器子项失败，之前的 Work 认证与安装隔离步骤已通过。Auth `82341ae269` 的 v2 用例在 :541 未找到安全编辑框中的电话输入，对应第 91 批同一触发点。Molis Work 分支与当前基点的 Auth 固定值和工作流相同。全量仍在收集各片结果。保留同提交的 Auth 单项复跑。[Verify](https://github.com/molis-ai/molis-work/actions/runs/44300285782) · [Auth 首轮](https://github.com/molis-ai/molis-work/actions/runs/44300285782/job/134787933009) · [Full](https://github.com/molis-ai/molis-work/actions/runs/44300274321)
+Verify 首轮只有固定 Auth 浏览器子项失败，之前的 Work 认证与安装隔离步骤已通过。Auth `82341ae269` 的 v2 用例在 :541 未找到安全编辑框中的电话输入，对应第 91 批同一触发点。Molis Work 分支与当前基点的 Auth 固定值和工作流相同。同提交单独复跑 Auth 成功，Verify 第二轮以通过结束。Full 是另一组结果。[Verify](https://github.com/molis-ai/molis-work/actions/runs/44300285782/attempts/2) · [Auth 首轮](https://github.com/molis-ai/molis-work/actions/runs/44300285782/job/134787933009) · [Full](https://github.com/molis-ai/molis-work/actions/runs/44300274321)
+
+Full 按集成分支完成 48 片。38 片通过，10 片失败。第 10、13、20、24、29、31、38、42、45、46 片失败的用例和日志已核对，分别在第 112–115 批处理。第 46 片 Coding 中英路径失败的是中文说明的旧称，已由主干 #2128 接收。[第 46 片](https://github.com/molis-ai/molis-work/actions/runs/44300274321/job/134787910424)
 
 ### QF-93 / P2 助理的参考内容标题在资料到达后被旧称覆盖
 
@@ -1448,3 +1453,29 @@ PF-16 的现行消费者是 Placement 描述、灵光和其他关联原件的界
 ### 第 113 批现行服务连接与项目目录验收
 
 第 10 片真实模型配置拒绝了直接传入密钥，旧测试仍匹配退役页名 Connectors。QEA-185 对当前 Host 错误码和「设置 › 服务连接」精确匹配，保留原有供应商、密钥与实际推理读回。第 20 片的 Coding 已列出真实目录内容，`coding.files.working` 已显示「项目目录」。QEA-186 保留真文件、固定快照、Diff 和 Git 的原验收，匹配现行标签。Cognia 同片的首轮超时按原 25 秒用例重试通过。[模型设置](../../apps/local-host/src/model-configuration.ts#L59) · [第 10 片](https://github.com/molis-ai/molis-work/actions/runs/44300274321/job/134787904192) · [第 20 片](https://github.com/molis-ai/molis-work/actions/runs/44300274321/job/134787904551)
+
+上述改动在独立工作树跑过实际 Coding 的两条浏览器路径和 Jelly 的 12 项模型配置及归属测试。QEA-184 同一隔离 Home 的灵光、Pages、目标与两项目置物架全路径也通过。日志 `quality-audit-b113-{coding-fixed,jelly-fixed,repro-fixed}.log`。
+
+### 第 114 批主干一致性与实操验收准备
+
+第 29 片的 Goals 合并驱动验收发现记录缩进变成两格。按原记录器的一格格式复原，逐项顺序、52 份哈希和字节数均保持一致。QEA-187 的格式修复对比 `9ce951d49b` 只有空白差异。第 38 片的逐项审阅文案对齐已批准的自述及证据说明，QEA-188 进一步核对实际认可和退回按钮，保留已请求版本与实际决定的读取。[Goals 记录器](../../tests/goals-page-golden.test.ts#L305) · [自述与证据显示](../../apps/workbench/src/work-acceptance-parts.ts#L21) · [第 29 片](https://github.com/molis-ai/molis-work/actions/runs/44300274321/job/134787904645) · [第 38 片](https://github.com/molis-ai/molis-work/actions/runs/44300274321/job/134787907411)
+
+同步 main `651432a3ba` 的现行文案断言。此前第 13 片引导的文件清点与首次建项目、第 42 片 Pages 只读保护、第 45 片目标留在主画布使用的是尚未同步的旧文字。合并接收这三处及 Coding 英文工作台的断言，保留每条原用户路径，助理组标题以经 QEA-183 修正的首绘词汇为准。[主干 #2128](https://github.com/molis-ai/molis-work/pull/2128)
+
+### QF-95 / P2 位置后台刷新会收起正在使用的菜单和确认
+
+等你位置收到助理效果或目标列表更新时，普通读取和重绘原先各调用一次 `suspend`。它会中止位置纠正并关闭当前确认。默认设置菜单还会因 open 属性与新 DOM 不同而被替换。第 13 片的浏览器在既有移走后的真实回执之后等不到确认。工作台现在复用不变的菜单渲染，普通重读交同一个位置控制器按实际修订保留或失效确认。位置退出、读取失败及新修订仍关闭过期内容。清除的位置范围照原已批准确认，实际纠正、本人身份和修订由 Host 和 Surfaces 核对。成本低，未改合同或持久结构。[重读](../../apps/workbench/src/browser/project-position.ts#L38) · [菜单](../../apps/workbench/src/browser/project-home.ts#L44) · [确认](../../apps/workbench/src/browser/project-position-corrections.ts#L26) · [Surfaces 写点](../../horizontal/surfaces/src/corrections.ts#L70) · [第 13 片](https://github.com/molis-ai/molis-work/actions/runs/44300274321/job/134787904522)
+
+### 第 115 批首屏复量
+
+同口径实测 67 条静态资源、十组首屏 HTTP。相对 `9ce951d49b` 只新增 258 B 的工作台脚本内容，静态路径没有新增。删除重复词条后内容地址为中文 `/assets/locale/workbench.zh.ae54fb08ac73d15bb50b32f3.js`、英文 `/assets/locale/workbench.en.84c25955f4ea98463078b005.js`。既有授权的按语言内容定址范围及其他入口共匹配 22 条实际请求。相对产品源文件相同的主干构建，控量页面最大冷增 2,070 B、热增 20 B，静态最大净增仍为 Git 脚本 8,403 B。全插件页依既有 Linux 路径证据额外复算冷加载各 8 B。[资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+
+| 页面 | 中文冷 / 热，B | 英文冷 / 热，B |
+| --- | ---: | ---: |
+| 到达页 | −6 / 0 | −26 / 0 |
+| 项目选择 | −14 / −8 | −34 / −8 |
+| 默认工作台 | +252 / 0 | +232 / 0 |
+| 全插件工作台 | +252 / 0 | +232 / 0 |
+| 示例工作台 | +252 / 0 | +232 / 0 |
+
+表内相对 `9ce951d49b`。原静态及首屏策略比较零超额，按已验证 Linux 路径长度复算也通过。完整构建、源码健康、包边界、111 份 API 快照、640 项清单动作及 617 项宿主注册动作、44 个结构快照和自有版本一致。源数据 `quality-audit-b115-candidate-{assets,http}.json` 与 `quality-audit-b115-resource-proof.json`。

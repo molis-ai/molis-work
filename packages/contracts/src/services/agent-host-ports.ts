@@ -143,6 +143,8 @@ export interface AgentSubagentConversation {
   approvals: Array<{ pending_id: string; pending_revision?: number }>;
   /** A retained scope, recovery or attempt-budget refusal. Reads remain available. */
   input_unavailable?: string;
+  /** The existing attempt budget may be extended for this exact authorized child Run. */
+  extend_budget_available?: true;
 }
 
 /** A page freezes these references before awaiting anything. actor/authority are never payload fields. */

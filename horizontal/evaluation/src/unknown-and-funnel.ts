@@ -52,8 +52,8 @@ export function computeFunnelCounts(records: readonly ObservationQueriedRecord[]
   let presented = 0;
   let viewed = 0;
   let selected = 0;
-  let executed = 0;
-  let completed = 0;
+  const executed = new Set<string>();
+  const completed = new Set<string>();
   let adopted = 0;
   let modifiedAfterAdoption = 0;
   let undoneOrReworked = 0;
@@ -61,14 +61,12 @@ export function computeFunnelCounts(records: readonly ObservationQueriedRecord[]
     if (PRESENTED_FACTS.has(record.fact) || record.stage === "presented") presented += 1;
     if (VIEWED_FACTS.has(record.fact) || record.stage === "viewed") viewed += 1;
     if (SELECTED_FACTS.has(record.fact) || record.stage === "selected") selected += 1;
-    const isExecution = (record.fact === "action.call" && record.detail.operation !== "query")
-      || record.fact.startsWith("agent.")
-      || record.stage === "executed";
-    if (isExecution) {
-      executed += 1;
-      if (record.outcome === "succeeded") completed += 1;
-    } else if (record.stage === "completed" && record.outcome === "succeeded") {
-      completed += 1;
+    // Only the business owner's explicit stage can attest a unit. A gateway receipt or Agent event describes the machinery.
+    const businessOwner = record.owner.kind === "plugin" || (record.owner.kind === "service" && record.owner.id === "assistant");
+    if (businessOwner && record.work.work_ref && (record.stage === "executed" || record.stage === "completed")) {
+      const key = JSON.stringify([record.project_id, record.install_id, record.owner.kind, record.owner.id, record.work.work_ref]);
+      if (record.outcome === "succeeded" || record.stage === "executed" && record.outcome === "failed") executed.add(key);
+      if (record.stage === "completed" && record.outcome === "succeeded") completed.add(key);
     }
     if (ADOPTED_FACTS.has(record.fact) || record.stage === "adopted" || record.detail.adopted === true) {
       adopted += 1;
@@ -94,8 +92,9 @@ export function computeFunnelCounts(records: readonly ObservationQueriedRecord[]
     presented,
     viewed,
     selected,
-    executed,
-    completed,
+    execution_basis: "owner_work",
+    executed: executed.size,
+    completed: completed.size,
     adopted,
     modified_after_adoption: modifiedAfterAdoption,
     undone_or_reworked: undoneOrReworked,

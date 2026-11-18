@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assistantTextHtml } from "@molis-ai/molis-work-app-workbench";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -81,6 +82,88 @@ test("WLN-35: with the dialog closed the latest reply stays above the input besi
   // Opening the dialog puts the row away.
   await evaluate("document.querySelector('[data-reply-peek] [data-dialog-open]').click()");
   await waitFor("!document.querySelector('[data-assistant-panel]').hidden && !document.querySelector('[data-reply-peek]') && !document.querySelector('[data-reply-mini]')");
+});
+
+// screen-polish P0, three defects of the row above the input (WLN-35), each seen in the product before:
+// 1. it showed the reply's Markdown source (`## 现状 - …`) where the dialog shows the rendered reply;
+// 2. a press inside a plugin's page (its own document) did not fold it;
+// 3. folded, it came back over the next page the person opened (settings), though no new reply had come.
+// Review of #2110: a named object is a button in the dialog whose words belong to the sentence; the row keeps those words.
+test("WLN-35: the reply above the input reads as the dialog draws it, folds on a press inside a plugin's page, and stays folded when the page loads again", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, evaluate, waitFor } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  const load = async () => {
+    await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+    await waitFor("document.querySelector('[data-assistant-panel]')?.hidden && Boolean(document.querySelector('[data-reply-mini]'))", 20_000);
+  };
+  await load();
+  // A reply as the conversation draws one: its Markdown source in data-text, the Host's rendered blocks inside, its copy button.
+  const SOURCE = "## 现状\n\n- 发布说明写进 `CHANGELOG.md`\n- **没有**按版本分节，已把「发布说明」放进项目";
+  const RENDERED = "<h2>现状</h2><ul><li>发布说明写进 <code>CHANGELOG.md</code></li><li><strong>没有</strong>按版本分节，已把<button class=\"assistant-inline-object\" type=\"button\" data-assistant-object=\"0\">发布说明</button>放进项目</li></ul><button type=\"button\" class=\"assistant-copy\">复制</button>";
+  const reply = (source: string, rendered: string) => `(() => { const bubble = document.createElement('div'); bubble.className = 'assistant-msg assistant-msg--assistant'; bubble.dataset.text = ${JSON.stringify(source)}; bubble.innerHTML = ${JSON.stringify(rendered)}; document.querySelector('[data-assistant-thread]').append(bubble); })()`;
+  const BODY = "document.querySelector('[data-reply-peek] .work-reply-peek-body')";
+  await evaluate(reply(SOURCE, RENDERED));
+  await waitFor(`Boolean(${BODY}?.querySelector('h2'))`);
+  assert.deepEqual(await evaluate(`[${BODY}.querySelector('h2').textContent, ${BODY}.querySelectorAll('li').length, ${BODY}.querySelector('strong').textContent, ${BODY}.querySelector('code').textContent]`),
+    ["现状", 2, "没有", "CHANGELOG.md"], "the reply's own blocks are drawn");
+  assert.equal(await evaluate(`/[#*\`]|^- /m.test(${BODY}.textContent)`), false, "no Markdown marks are shown");
+  assert.equal(await evaluate(`${BODY}.querySelector('button')`), null, "the reply's buttons stay in the dialog");
+  assert.equal(await evaluate(`${BODY}.querySelectorAll('li')[1].textContent`), "没有按版本分节，已把发布说明放进项目", "a named object keeps its words in the sentence");
+  // WLN-35 / VUX-33: a syntax pass changes nodes in the dialog, while a genuine revision changes the preview.
+  const message = "document.querySelector('[data-assistant-thread] .assistant-msg--assistant:last-child')";
+  await evaluate(`const figure = document.createElement('figure'); figure.className = 'assistant-code';
+    figure.innerHTML = '<pre><code>const x = 1</code></pre>'; ${message}.append(figure);`);
+  await waitFor(`${BODY}.querySelector('pre code')?.textContent === 'const x = 1'`);
+  await evaluate(`window.previewHeading = ${BODY}.querySelector('h2');
+    const code = ${message}.querySelector('pre code'), token = document.createElement('span');
+    token.className = 'tok-keyword'; token.textContent = 'const'; code.replaceChildren(token, ' x = 1');`);
+  assert.equal(await evaluate(`${BODY}.querySelector('h2') === window.previewHeading`), true, "new syntax nodes leave the preview and its live region in place");
+  // Three lines: a heading stands at the words' own size, and nothing of the reply runs out of the row.
+  assert.deepEqual(await evaluate(`(() => { const body = ${BODY}, h = body.querySelector('h2'); return [getComputedStyle(h).fontSize === getComputedStyle(body).fontSize, body.getBoundingClientRect().height <= parseFloat(getComputedStyle(body).fontSize) * 4.95 + 1]; })()`), [true, true]);
+  await mkdir(shots, { recursive: true });
+  await writeFile(new URL("reply-peek-rendered-1440.png", shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+
+  await evaluate(`${message}.dataset.text += '!'; ${message}.querySelector('h2').textContent = '最新进展'`);
+  await waitFor(`${BODY}.querySelector('h2')?.textContent === '最新进展'`);
+  await evaluate(`${message}.dataset.text = ${JSON.stringify(SOURCE)}; ${message}.querySelector('h2').textContent = '现状'`);
+  await waitFor(`${BODY}.querySelector('h2')?.textContent === '现状'`);
+
+  // HTML highlighting puts the CR after the tag name and the LF inside the following attribute span.
+  const htmlCode = '<a\r\nhref="x">\r\nthird\r\nfourth', fenced = "```html\n" + htmlCode + "\n```";
+  await evaluate(reply(fenced, assistantTextHtml(fenced, [], key => key)));
+  await waitFor(`${BODY}.querySelector('pre code')?.textContent === ${JSON.stringify(htmlCode.slice(0, htmlCode.lastIndexOf("\r\n")))}`);
+  await evaluate(reply(SOURCE, RENDERED));
+  await waitFor(`${BODY}.querySelector('h2')?.textContent === '现状'`);
+
+  // A plugin's page tells the shell of a press inside it (molis:surface-interaction, plugin-frame/parent.ts): the row folds.
+  await evaluate("window.dispatchEvent(new CustomEvent('molis:surface-interaction'))");
+  await waitFor("!document.querySelector('[data-reply-peek]') && Boolean(document.querySelector('[data-reply-mini]'))");
+
+  // The page loads again with the same reply the latest: it stays folded. Another reply shows.
+  await load();
+  await evaluate(reply(SOURCE, RENDERED));
+  await new Promise(resolve => setTimeout(resolve, 600));
+  assert.deepEqual(await evaluate("[Boolean(document.querySelector('[data-reply-peek]')), Boolean(document.querySelector('[data-reply-mini]'))]"), [false, true], "the reply the person put away does not come back with the page");
+  await evaluate(reply("改好了。", "<p>改好了。</p>"));
+  await waitFor(`${BODY}?.textContent === '改好了。' && !document.querySelector('[data-reply-mini]')`);
+
+  // Settings comes over the work without a press on it (as a key opens it): the row folds, and nothing stands over settings.
+  await evaluate("document.querySelector('[data-directory-open=settings]').click()");
+  await waitFor("document.querySelector('.tab-workspace')?.dataset.exclusive === 'settings' && !document.querySelector('[data-reply-peek]') && Boolean(document.querySelector('[data-reply-mini]'))");
+
+  // The workbench opened at a settings address, in a window that never put the reply away: the reply found under the cover
+  // stays folded, and one that comes while settings stands (the person asked from there) shows.
+  await evaluate("sessionStorage.removeItem('molis.assistant.reply-folded')");
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?settings=appearance` }, sessionId));
+  await waitFor("document.querySelector('.tab-workspace')?.dataset.exclusive === 'settings' && document.querySelector('[data-assistant-panel]')?.hidden", 20_000);
+  await evaluate(reply(SOURCE, RENDERED));
+  await new Promise(resolve => setTimeout(resolve, 600));
+  assert.deepEqual(await evaluate("[Boolean(document.querySelector('[data-reply-peek]')), Boolean(document.querySelector('[data-reply-mini]'))]"), [false, true], "nothing of an earlier reply stands over settings opened by its address");
+  await evaluate(reply("改好了。", "<p>改好了。</p>"));
+  await waitFor(`${BODY}?.textContent === '改好了。'`);
 });
 
 test("specs/work-line §4.2 手边: the input's ＋ lists Shelf, 灵光 and 项目资料, and one opens beside the work", { timeout: 120_000 }, async t => {

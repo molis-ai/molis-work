@@ -81,7 +81,7 @@ export interface AssistantCard {
         question: string;
     }>;
     status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
-    outcome?: string;
+    outcome?: OwnedTextRef;
     presentation?: ActionResultPresentation;
     from?: {
         surface: string;
@@ -811,6 +811,7 @@ export interface AssistantWork {
     updated_at: string;
     archived: boolean;
     character?: AssistantCharacter;
+    character_selection_required?: true;
     delegated_by?: {
         work_id: string;
         title: string;

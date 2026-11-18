@@ -96,6 +96,36 @@ test("ROLE-05: a new task's role is the task's own, else the project's, else the
   }
 });
 
+test("B36F-05 saving to the original and undoing use one guarded write for both roles", async t => {
+  const service = space(t), original = service.create(content), member = service.roles.addMember(PROJECT, original.character_id);
+  const handlers = createCharactersActionHandlers({ actorId: "actor-a", open: () => ({ service, close: () => {} }), references: () => [] },
+    { projectId: PROJECT, artifacts: { publish: async () => { throw new Error("unused"); }, read: async () => { throw new Error("unused"); } } as never });
+  const id = member.current.member_id;
+  const before = service.roles.saveMember(PROJECT, id, member.revision, 1, { work_style: { instructions: "项目原先的做法" }, capabilities: { host_tools: [] } });
+  const input = { member_id: id, expected_revision: before.revision, expected_original_version: 1, expected_original_draft_revision: 1, work_style: { instructions: "以后原件也这样做" } };
+  await assert.rejects(handlers.memberSave({ ...input, expected_revision: member.revision }), refused("characters.conflict"));
+  assert.deepEqual(service.get(original.character_id), original);
+  assert.deepEqual(service.roles.memberRole(PROJECT, id), before);
+  const saved = await handlers.memberSave(input);
+  assert.equal(saved.original_draft_revision, 2);
+  assert.equal(saved.role.current.original.version, 2);
+  assert.equal(service.get(original.character_id)?.instructions, "以后原件也这样做");
+  assert.deepEqual(service.get(original.character_id)?.host_tools, original.host_tools);
+  assert.deepEqual(saved.role.sections.work_style, { mode: "follow" });
+  assert.deepEqual(saved.role.sections.capabilities, before.sections.capabilities);
+
+  const undo = { version: before.current, expected_revision: saved.role.revision, expected_original_version: 2, expected_original_draft_revision: 2 };
+  await assert.rejects(handlers.restore({ ...undo, expected_original_draft_revision: 1 }), refused("characters.conflict"));
+  assert.deepEqual(service.roles.memberRole(PROJECT, id), saved.role);
+  assert.equal(service.get(original.character_id)?.instructions, "以后原件也这样做");
+  const restored = await handlers.restore(undo);
+  assert.equal(restored.role.layer, "project");
+  assert.equal(service.get(original.character_id)?.instructions, original.instructions);
+  assert.equal(restored.role.current.original.version, 3);
+  assert.deepEqual(restored.role.sections, before.sections);
+  assert.equal(service.roles.content(PROJECT, restored.role.current).content.instructions, "项目原先的做法");
+});
+
 test("ROLE-06: a turned-off project default gives the Assistant naming it, without falling back to the person's default; the setting stays", t => {
   const service = space(t), mine = service.create(content), original = service.create({ ...content, title: "写作者" });
   const member = service.roles.addMember(PROJECT, original.character_id), memberRef = { kind: "project", member_id: member.current.member_id } as const;
@@ -159,6 +189,21 @@ test("ROLE-12: template adoption creates or reuses once per request, replays its
   assert.equal((first as { current: unknown }).current, null);
   assert.equal(missing.kind, "missing");
   handlers.dispose();
+});
+
+test("B36F-03 ROLE-12: personal reuse rejects a stale preview and still replays the original receipt", async t => {
+  const service = space(t), original = service.create(content);
+  const handlers = createCharactersActionHandlers({ actorId: "actor-a", open: () => ({ service, close: () => {} }), references: () => [] },
+    { projectId: PROJECT, artifacts: { publish: async () => { throw new Error("unused"); }, read: async () => { throw new Error("unused"); } } as never });
+  t.after(() => handlers.dispose());
+  const reuse = { layer: "personal", origin: { source: { kind: "package", plugin_id: "io.molis.work.weekly-scene", version: "1.2.0" }, part_id: "weekly-writer" },
+    request_id: "first", selection: { kind: "reuse", role: { kind: "personal", character_id: original.character_id, version: 1 } } } as const;
+  const receipt = await handlers.fromTemplate(reuse);
+  service.update(original.character_id, original.revision, { ...content, instructions: "新的做事方式" });
+  await assert.rejects(handlers.fromTemplate({ ...reuse, request_id: "stale" }), refused("characters.conflict"));
+  assert.deepEqual(service.roles.read(PROJECT, [{ by: "receipt", layer: "personal", request_id: "stale" }]), [{ kind: "missing" }]);
+  assert.deepEqual(await handlers.fromTemplate(reuse), receipt);
+  assert.equal(service.list().length, 1);
 });
 
 test("ROLE-13: one roles.list read holds everything the picker and both settings pages show", t => {

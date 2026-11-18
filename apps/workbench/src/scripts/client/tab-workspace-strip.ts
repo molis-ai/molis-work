@@ -147,7 +147,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
           siblingChrome += Number.parseFloat(getComputedStyle(child).minWidth) || 0;
           continue;
         }
-        // A piece's margin is room it takes too (the cover chip keeps a little air before 全部标签).
+        // With its own margins: a cover's chip and the divider after it stand 12px apart from the tabs, which the tabs do not get.
         const box = getComputedStyle(child);
         siblingChrome += child.getBoundingClientRect().width + (Number.parseFloat(box.marginLeft) || 0) + (Number.parseFloat(box.marginRight) || 0);
       }
@@ -160,7 +160,10 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     // The titlebar's strip is as wide as its tabs want (＋ follows them). Its box takes that from here, not from its content, so
     // sharing the widths below cannot move the box it was measured in.
     if (strip.hasAttribute("data-titlebar-tabs")) {
-      const around = reserved + (innerWidth - allotted) + (strip.clientWidth - innerWidth) + 1;
+      // A cover's chip (settings) is the one sibling that gives way: arriving in a strip still as wide as before it came, it is
+      // measured with its name cut. The strip wants it whole, so what its name lacks is asked for too.
+      const lacking = [...strip.querySelectorAll(":scope > .tab-view-chip > span")].reduce((sum, name) => sum + Math.max(0, name.scrollWidth - name.clientWidth), 0);
+      const around = reserved + (innerWidth - allotted) + (strip.clientWidth - innerWidth) + 1 + lacking;
       const sizes = { "--tabs-hug": hugs.reduce((sum, hug) => sum + hug, 0), "--tabs-floor": hugs.reduce((sum, hug) => sum + Math.min(hug, min), 0) };
       const write = () => { for (const name in sizes) { const value = Math.ceil(around + sizes[name]) + "px"; if (strip.style.getPropertyValue(name) !== value) strip.style.setProperty(name, value); } };
       write();

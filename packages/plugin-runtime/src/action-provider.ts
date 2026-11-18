@@ -4,6 +4,7 @@ import { pluginActionAvailability, pluginReadOnlyCallback } from "./action-avail
 import { currentPluginInvocation, pluginActionBeforeEffect, reservePluginInvocationPlace, runInPluginAction, type PluginInstance } from "./action-scope.js";
 import { pluginSceneHandler } from "./scene-provider.js";
 import { pluginCallbackContext, withoutIssuedIdentity } from "./callback-context.js";
+import { tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** The permission that lets a Home-level plugin's action be given the projects the person may reach (PG-014); the Manifest declares it, the person grants it. */
 export const PROJECT_REACH_PERMISSION = "projects:reach";
@@ -33,6 +34,9 @@ export interface PluginRuntimeActions {
 export function pluginActionProvider(manifest: PluginManifest, contribution: PluginContribution, instance: PluginInstance, providerId: string, projectId: string | undefined,
   state: { record(): PluginInstanceRecord | null; live(): boolean; bounded: boolean; checkGrant(permission: string): void; capturePermissions(permissions: readonly string[]): void }, projectReach?: PluginProjectReach): ActionProviderRegistration {
   const installId = instance.install_id, { installation_generation } = instance;
+  // The name where it is kept and shown later: the Manifest's `name_text` bound to this plugin, falling back to its `name` as written.
+  const bound = manifest.name_text === undefined ? null : tryOwnedTextRef(manifest.name_text, manifest.plugin_id);
+  const nameText = bound && ("literal" in bound ? bound : { ...bound, fallback: bound.fallback ?? manifest.name });
   const grantAvailability = (permissions: readonly string[], own?: (context: ActionCallContext) => ActionAvailability) =>
     (context: ActionCallContext): ActionAvailability => {
       try { for (const permission of permissions) state.checkGrant(permission); }
@@ -41,7 +45,7 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
     };
   return {
     provider: { provider_id: providerId, plugin_install_id: installId, plugin_id: manifest.plugin_id, title: manifest.name, kind: "plugin",
-      ...(projectId ? { project_id: projectId } : {}) },
+      ...(nameText ? { title_text: nameText } : {}), ...(projectId ? { project_id: projectId } : {}) },
     definitions: manifest.actions ?? [], handlers: (contribution.actions ?? []).map(h => {
       const definition = manifest.actions!.find(d => d.capability_id === h.capability_id && d.version === h.version)!;
       // The Plugin's services ask which action is running; the Host answers, the Plugin does not say. The call's own `beforeEffect`

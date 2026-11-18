@@ -125,7 +125,7 @@ test("APR-19 and APR-17 the normal Home upgrade reopens a v3 project with v4 Goa
     assert.equal(event.record.review.requirements[0]?.disposition, "accepted");
     assert.equal((await web.web.post<ReviewRequest>(endpoint + "/request", { reference: prepared.reference })).decision?.decision_id, event.record.decision_id);
     await host.withProject(reference, ({ store }) => {
-      assert.equal(store.db.pragma("user_version", { simple: true }), 4);
+      assert.equal(store.db.pragma("user_version", { simple: true }), 5);
       assert.equal(store.db.prepare<[], { approval_id: string }>("SELECT approval_id FROM goal_tree_item_effects WHERE item_id='item-new'").get()?.approval_id, result.record.decision_id);
       assert.ok(store.db.prepare("SELECT goal_id FROM goals WHERE goal_id='goal-new'").get());
       assert.equal(store.db.prepare<[], { count: number }>("SELECT count(*) AS count FROM project_review_decisions").get()?.count, 4);
@@ -141,7 +141,7 @@ test("APR-19 moves v1–v4 approvals to Goals v5 in the project upgrade transact
     const source = db.prepare("SELECT * FROM goal_event_trusted_decisions").get();
     const backup = path + ".before";
     await db.backup(backup);
-    assert.deepEqual(runSqliteUpgrade(db, path, baseline), { from: 3, to: 4 });
+    assert.deepEqual(runSqliteUpgrade(db, path, baseline), { from: 3, to: 5 });
     assert.equal(db.prepare<[string], { version: number }>("SELECT version FROM plugin_project_databases WHERE plugin_id=?").get(goalsManifest.plugin_id)?.version, 5);
     assert.equal(tables(db).some(name => name.startsWith(old! + "_")), false);
     assert.equal(tables(db).some(name => ["goal_event_trusted_decisions","goal_tree_proposal_decisions","policy_bindings","planning_method_packs"].includes(name)), false);
@@ -218,7 +218,7 @@ test("APR-19 keeps the complete old owner and schema on late failure, wrong publ
 
 test("APR-19 establishes the current project tables in a library that never had Goals", t => {
   const { db, path } = library(t);
-  assert.deepEqual(runSqliteUpgrade(db, path, baseline), { from: 3, to: 4 });
+  assert.deepEqual(runSqliteUpgrade(db, path, baseline), { from: 3, to: 5 });
   assert.deepEqual(db.prepare("SELECT plugin_id FROM plugin_project_databases").all(), []);
   assert.deepEqual(projectApprovalRules(db, project).read().rules, []);
 });

@@ -1,6 +1,9 @@
 import { WORKBENCH, SHELL, ASSIST, RAIL_LINK, PAGES } from "./craft-finish-selectors.js";
 import { composerFoldRules, composerRestRules, composerRestTouch } from "../composer-styles.js";
 
+const RESTING_ASSISTANT = ".assistant-composer > .mw-composer[data-rest]";
+const RESTING_ASSISTANT_WITH_ROLE = `${SHELL} ${RESTING_ASSISTANT}:has([data-composer-control="character"])`;
+
 /** The finish layer, first part: tokens, the desk and sheet, titlebar tabs, the plugin rail and the bottom bar down to the switcher and the work tabs. */
 export const CRAFT_BAR_STYLES = `
   /* ─── Browser defaults: no system blue, purple or yellow anywhere (zero specificity, so any real rule wins) ─── */
@@ -306,10 +309,14 @@ export const CRAFT_BAR_STYLES = `
   /* Its menus (＋, @, the delivery ▾) rise over the open Assistant panel above the bar (z 50), as the island's menus did (z 60). */
   ${SHELL} .assistant-composer :is(.mw-compose__menu, .mw-composer__controls) { z-index: 60; }
   /* At rest the bar's input is one row at every size (user 2026-11-10, one input): ＋, who it goes to, the hint, the scene
-     controls, send; writing grows it. Only the bar has this class, so the short scope. */${composerRestRules(".assistant-composer > .mw-composer[data-rest]")}
+     controls, send; writing grows it. Only the bar has this class, so the short scope. */${composerRestRules(RESTING_ASSISTANT)}
   /* Where the one row cannot hold them and still leave the words their room, the scene controls wait behind 更多 (the bar has no
      side columns since its plugin icons moved up, so its box is wider than the narrow box's 480px, but not wide enough for them). */
-  @container mw-composer (max-width: 600px) {${composerFoldRules(".assistant-composer > .mw-composer[data-rest]")} }
+  @container mw-composer (max-width: 600px) {${composerFoldRules(RESTING_ASSISTANT)} }
+  /* The role choice sits with the receiver. Opening the details panel takes over the choice without shifting the input's right edge. */
+  ${RESTING_ASSISTANT_WITH_ROLE} > .mw-composer__box { grid-template-columns: auto var(--bar-receiver-track, auto) auto minmax(var(--bar-input-minimum, 0px), 1fr) auto; }
+  ${RESTING_ASSISTANT_WITH_ROLE} .mw-composer__text { grid-column: 4; }
+  ${RESTING_ASSISTANT_WITH_ROLE} :is(.mw-composer__more, .mw-composer__controls) { grid-column: 3; }
   @media (min-width: 601px) { ${SHELL} .assistant-composer > .mw-composer[data-rest] > .mw-composer__box { box-sizing: border-box; min-height: var(--bar-row); } }
   /* A fine pointer keeps the bar's sizes from 601px (touch-targets.ts): at rest the box's buttons follow --bar-row rather than the
      narrow window's 44px controls, so in a short window the input is the Dock's height too and the work keeps those 8px. */
@@ -317,11 +324,18 @@ export const CRAFT_BAR_STYLES = `
     ${SHELL} .assistant-composer > .mw-composer[data-rest] > .mw-composer__box { --control-h: min(44px, calc(var(--bar-row) - 4px)); }
     ${SHELL} .assistant-composer > .mw-composer[data-rest] > .mw-composer__box .mw-btn--primary { min-height: var(--control-h); }
   }
-  @media (max-width: 600px), (pointer: coarse) {${composerRestTouch(".assistant-composer > .mw-composer[data-rest]")} }
   /* The receiver's name opens its conversation (the island's click). At rest, one row, a long name (a session titled by its task)
      gives way to the hint beside it: about nine characters, the rest under the pointer. */
   ${SHELL} .assistant-composer .mw-composer__to .mw-tag { cursor: pointer; }
   ${SHELL} .assistant-composer > .mw-composer[data-rest] .mw-composer__to .mw-tag { max-width: 9em; }
+  @media (max-width: 600px), (pointer: coarse) {${composerRestTouch(RESTING_ASSISTANT)}
+    /* Reserve the 44px input plus its inline padding; the receiver's name gives way when the More button needs a column. */
+    ${SHELL} ${RESTING_ASSISTANT} > .mw-composer__box {
+      --bar-receiver-track: minmax(0, max-content); --bar-input-minimum: 58px;
+      grid-template-columns: auto var(--bar-receiver-track) minmax(var(--bar-input-minimum), 1fr) auto auto;
+    }
+    ${SHELL} .assistant-composer > .mw-composer[data-rest] .mw-composer__to .mw-tag { max-width: min(100%, 9em); }
+  }
   /* 「发给」 (one input, O4): the platform's menu in the top layer, risen from the tag (the island places it), the receiver now on the nav's active wash. */
   ${SHELL} .assistant-send-to:popover-open { position: fixed; inset: auto; margin: 0; max-height: min(440px, 60vh); overflow-y: auto; animation-name: craft-rise-from-bar; }
   ${SHELL} .assistant-send-to .mw-menu__item[aria-checked="true"] { background: var(--nav-active); }

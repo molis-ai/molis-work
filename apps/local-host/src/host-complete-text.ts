@@ -2,7 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createFileSecretStore, resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { modelRequestShape, type ModelApiFormat, type ModelPromptCacheMode } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
-import { prologueProtocolFor, promptIncludesCache, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
+import { prologueProtocolFor, promptIncludesCache, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, UNMARKED_IMAGES_NOTE, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { MODEL_DATA_MAX_CHARS } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -90,6 +90,7 @@ function readHostTextGeneration(options: HostTextOptions): HostTextGeneration | 
           const before = current();
           if (!before) throw unavailable();
           assertVisionInput(request, before.model.vision);
+          const sent = withUnmarkedImagesNote(request, before.model.vision);
           const config = { ...before.provider, model_id: before.model.model_id };
           const apiKey = runWithMolisWorkHome(home, () => createFileSecretStore().get(before.provider.credential_ref))?.trim();
           if (!apiKey) throw unavailable();
@@ -97,7 +98,7 @@ function readHostTextGeneration(options: HostTextOptions): HostTextGeneration | 
           return guardedGeneration(() => completeTextRequest(config, before.provider.credential_ref, () => {
             if (JSON.stringify(current()) !== JSON.stringify(before)) throw unavailable();
             return apiKey;
-          }, prompt, home, request, options.resolveInference,
+          }, prompt, home, sent, options.resolveInference,
           () => JSON.stringify(current()) !== JSON.stringify(before)), () => JSON.stringify(current()) !== JSON.stringify(before));
         };
       }
@@ -168,9 +169,15 @@ function environmentModel(env: NodeJS.ProcessEnv): { config: TextConfiguration; 
   return { config: { base_url: validateTextModelUrl(base_url), api_format, model_id }, key };
 }
 
-/** One rule with an Agent round's (decision 50): only a model marked as not seeing images is refused; an unmarked one is sent the pictures. */
+/** One rule with an Agent round's (decision 51 ③): only a model marked as not seeing images is refused; an unmarked one is sent the pictures. */
 function assertVisionInput(request: HostTextRequestOptions | undefined, vision: boolean | undefined): void {
   if (request?.images?.length && vision === false) throw new ActionError("actions.connection_required", "当前模型在模型设置里标为不能看图，原图未发送；请换一个能看图的模型");
+}
+
+/** An unmarked model sent pictures is told, as an Agent round's is, to say so if it cannot see them rather than guess. */
+function withUnmarkedImagesNote(request: HostTextRequestOptions | undefined, vision: boolean | undefined): HostTextRequestOptions | undefined {
+  if (!request?.images?.length || vision !== undefined) return request;
+  return { ...request, system: request.system ? `${request.system}\n\n${UNMARKED_IMAGES_NOTE}` : UNMARKED_IMAGES_NOTE };
 }
 
 // A prompt is counted in characters, like a schema's maxLength (Ajv counts code points), so text a schema accepts is not refused here for having two UTF-16 units a character.

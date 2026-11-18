@@ -179,6 +179,15 @@ export async function forgetInstallationAttachments(home: string, pluginId: stri
   await forget(home, "plugin_id = ? AND install_id = ? AND project_id = ?", [pluginId, installId, projectId ?? ""]);
 }
 
+/** Some of one owner's attachments, by reference, once nothing of the owner names them any more; bytes no other row names go with them. */
+export async function forgetOwnedAttachments(home: string, owner: AttachmentOwner, refs: readonly MaterialRef[]): Promise<void> {
+  const digests = [...new Set(refs.map(digestOf).filter((sha): sha is string => sha !== null))];
+  for (let at = 0; at < digests.length; at += 200) {
+    const part = digests.slice(at, at + 200);
+    await forget(home, `plugin_id = ? AND install_id = ? AND project_id = ? AND sha256 IN (${part.map(() => "?").join(", ")})`, [...ownerKey(owner), ...part]);
+  }
+}
+
 async function forget(home: string, where: string, values: string[]): Promise<void> {
   if (!existsSync(homeSqlitePath(home, CONVERSATION_ATTACHMENTS_HOME_STORE.path))) return;
   const orphaned = withStore(home, db => {

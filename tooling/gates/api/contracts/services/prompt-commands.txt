@@ -33,6 +33,12 @@ export declare const personalPromptCommandsCapability: ActionDefinition<Record<s
     commands: PromptCommandFile[];
 }>;
 
+export declare const projectPromptCommandsCapability: ActionDefinition<{
+    workspace_id: string;
+}, {
+    commands: PromptCommandFile[];
+}>;
+
 // Declarations the exports above refer to, which no entry exports itself:
 
 interface PromptCommandPlace {

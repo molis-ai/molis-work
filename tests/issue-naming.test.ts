@@ -73,33 +73,33 @@ test("ISSUE-50 one bounded model call names a page draft and saves it once: the 
   assert.deepEqual(await drafts.name(draft_id, caller, fake.client), { status: "saved", issue: saved }); assert.equal(fake.calls.length, 1); assert.equal(count(), 1);
 });
 
-test("ISSUE-50 screenshots go to the model only when the model in use declares that it reads images; the words alone still go on without them", async t => {
+test("ISSUE-50 screenshots go to the model unless the model in use is marked as not reading images (an unmarked one gets them, decision 51); the words alone still go on without them", async t => {
   const { drafts } = await issues(t);
   for (const vision of [true, false, undefined]) for (const description of ["", "列表里的按钮显示错位"]) {
-    if (description === "" && vision !== true) continue; // screenshots alone for a model that cannot read them: the next test
+    if (description === "" && vision === false) continue; // screenshots alone for a model marked as not reading them: the next test
     const draft_id = crypto.randomUUID();
     await drafts.prepare({ draft_id, description, images: shots }, caller);
     const fake = model(() => ({ status: "named", title: "列表截图里的按钮显示错位", type: "bug" }), { available: true, ...(vision === undefined ? {} : { vision }) });
     assert.equal((await drafts.name(draft_id, caller, fake.client)).status, "saved");
     const [call] = fake.calls;
     assert.equal(fake.calls.length, 1, "one call whatever the model reads");
-    assert.equal(data(call!).screenshots.attached, vision === true, String(vision)); assert.equal(data(call!).screenshots.count, 2);
-    if (vision !== true) { assert.equal(call!.request!.images, undefined); continue; }
+    assert.equal(data(call!).screenshots.attached, vision !== false, String(vision)); assert.equal(data(call!).screenshots.count, 2);
+    if (vision === false) { assert.equal(call!.request!.images, undefined); continue; }
     const bytes = Buffer.from(png.slice(png.indexOf(",") + 1), "base64");
     assert.deepEqual(call!.request!.images!.map(image => [image.label, Buffer.from(image.bytes).equals(bytes)]), [["截图 1", true], ["截图 2", true]]);
   }
 });
 
-test("FSS-36 ISSUE-50 screenshots alone for a model not declared to read images: the model is not asked, the one fixed question comes back, nothing is written", async t => {
+test("FSS-36 ISSUE-50 screenshots alone for a model marked as not reading images: the model is not asked, the one fixed question comes back, nothing is written", async t => {
   const { store, drafts, count } = await issues(t);
-  for (const locale of ["zh", "en"] as const) for (const vision of [false, undefined]) for (const description of ["", "  \n "]) {
-    const draft_id = crypto.randomUUID(), state = { available: true as const, ...(vision === undefined ? {} : { vision }) };
+  for (const locale of ["zh", "en"] as const) for (const description of ["", "  \n "]) {
+    const draft_id = crypto.randomUUID(), state = { available: true as const, vision: false };
     await drafts.prepare({ draft_id, description, images: shots }, caller);
     const off = model(() => assert.fail("a model that cannot read the screenshots is not asked about nothing but screenshots"), state);
     const answer = await issueText(locale, () => drafts.name(draft_id, caller, off.client));
     assert.equal(answer.status, "needs_input");
     const question = answer.question;
-    const clues = locale === "zh" ? ["未声明能看图", "已设为不能看图", "截图没有交给它", "写一句话", "设置 → 模型 → 供应商的模型列表", "能看图并保存"]
+    const clues = locale === "zh" ? ["已设为不能看图", "截图没有交给它", "写一句话", "设置 → 模型 → 供应商的模型列表", "能看图并保存"]
       : ["cannot read screenshots", "Add a sentence", "Settings → Models and save"];
     for (const clue of clues) assert.ok(question.includes(clue), clue);
     assert.ok(question.length <= 200 && !/[\r\n]/.test(question));

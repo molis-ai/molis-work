@@ -1,14 +1,14 @@
 import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores, personalPromptCommands } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores, personalPromptCommands, projectPromptCommands } from "@molis-ai/molis-work-app-local-host";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
-import { workspaceReadActions, type WorkspaceFileQuery } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { personalPromptCommandsCapability } from "@molis-ai/molis-work-contracts/services/prompt-commands";
+import { personalPromptCommandsCapability, projectPromptCommandsCapability } from "@molis-ai/molis-work-contracts/services/prompt-commands";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 // Coding A2 (specs/coding-plugin/next-requirements.md, docs/design/coding-daily-basics scheme A): Coding lists the project's commands
@@ -33,17 +33,12 @@ async function codingServer(t: test.TestContext) {
   t.after(() => { if (prior === undefined) delete process.env.HOME; else process.env.HOME = prior; });
   mkdirSync(molis); await seedConfiguredModels(molis); seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const actions = pluginActions(store, DEMO_PROJECT_ID);
-  // The Host's workspace reader as Coding sees it (a link is neither file nor folder, and is not read), and the person's own commands
-  // read by the Host's own reader (tests/security-invariants-prompt-commands.test.ts holds its refusals).
-  actions.registry.registerProvider({ provider: { provider_id: "host-reads-fixture", title: "宿主读取", kind: "system" }, definitions: [workspaceReadActions.file, personalPromptCommandsCapability],
-    handlers: [{ ...workspaceReadActions.file, handle: (_caller, given) => {
-      const query = given as WorkspaceFileQuery, at = join(workspace, ...query.path);
-      if (query.workspace_id !== "work") return { outcome: "denied" };
-      const info = (() => { try { return lstatSync(at); } catch { return null; } })();
-      if (!info) return { outcome: "missing" };
-      if (query.kind === "directory") return info.isDirectory() ? { outcome: "directory", truncated: false, entries: readdirSync(at, { withFileTypes: true })
-        .map(entry => ({ name: entry.name, path: [...query.path, entry.name], kind: entry.isSymbolicLink() ? "other" : entry.isDirectory() ? "directory" : entry.isFile() ? "file" : "other" })) } : { outcome: "missing" };
-      return info.isFile() ? { outcome: "text", text: readFileSync(at, "utf8"), fingerprint: "f" } : { outcome: "unsupported" };
+  // The Host's own command readers, for the project's folder "work" and the person's home directory (their refusals are held by
+  // tests/security-invariants-prompt-commands.test.ts); a folder that is not the project's is refused, as the Host does.
+  actions.registry.registerProvider({ provider: { provider_id: "host-reads-fixture", title: "宿主读取", kind: "system" }, definitions: [projectPromptCommandsCapability, personalPromptCommandsCapability],
+    handlers: [{ ...projectPromptCommandsCapability, handle: async (_caller, given) => {
+      if ((given as { workspace_id: string }).workspace_id !== "work") throw new ActionError("actions.forbidden", "not this project's folder");
+      return { commands: await projectPromptCommands(workspace) };
     } }, { ...personalPromptCommandsCapability, handle: async () => ({ commands: await personalPromptCommands() }) }] });
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: molis, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
@@ -68,7 +63,7 @@ test("Coding A2 lists the project's commands and the person's own, the project's
   assert.equal(listed.status, 200, JSON.stringify(listed.body));
   const rows = listed.body.commands.map(one => [one.name, one.origin, one.location, one.unreadable ?? "ok"]);
   assert.deepEqual(rows, [
-    ["outside", "project", ".molis/commands", "unreadable"],
+    ["outside", "project", ".molis/commands", "link"],
     ["release:check", "project", ".molis/commands", "front-matter"],
     ["补测试", "project", ".molis/commands", "ok"],
     ["lint", "project", ".claude/commands", "ok"],
@@ -81,4 +76,6 @@ test("Coding A2 lists the project's commands and the person's own, the project's
   assert.ok(!JSON.stringify(listed.body).includes("Bash(rm"), "front matter beyond description and argument-hint is not carried");
   // No workspace: the person's own only.
   assert.deepEqual((await get("/commands")).body.commands.map(one => one.name), ["lint", "review-ui"]);
+  // A folder that is not the project's: the person's own only, nothing read from it.
+  assert.deepEqual((await get("/commands?workspace=elsewhere")).body.commands.map(one => one.name), ["lint", "review-ui"]);
 });

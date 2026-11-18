@@ -1,11 +1,13 @@
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { ConversationAttachment, ConversationAttachmentContent, ConversationAttachmentRequest, MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
 import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
-import { attachConversationFile, holdsConversationAttachment, readConversationAttachment, type AttachmentOwner } from "../material-attachments.js";
+import { attachConversationFile, forgetOwnedAttachments, holdsConversationAttachment, readConversationAttachment, type AttachmentOwner } from "../material-attachments.js";
 
 /**
  * The Assistant's files, kept by the platform's material service like any plugin's (platform capability audit §6): the Assistant is a
- * Home-level caller, so what the person brings to any of its works belongs to it in the Home, whichever project a work runs in.
+ * Home-level caller, so what the person brings to any of its works belongs to it in the Home, whichever project a work runs in. A
+ * document is kept only until its text is read into the Send; a picture stays while a round of a work names it, and goes when the last
+ * work naming it goes with its project (`purgeAssistantProject`).
  */
 export const ASSISTANT_ATTACHMENT_OWNER: AttachmentOwner = { plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, project_id: null };
 
@@ -14,6 +16,8 @@ export interface AssistantAttachmentPort {
   read(ref: MaterialRef, request: ConversationAttachmentRequest): Promise<ConversationAttachmentContent>;
   /** Whether the bytes are still kept: an attachment the person can see and send again. */
   holds(ref: MaterialRef | undefined): boolean;
+  /** Drops attachments nothing names any more. */
+  forget(refs: readonly MaterialRef[]): Promise<void>;
 }
 
 export function assistantAttachments(home: string): AssistantAttachmentPort {
@@ -21,6 +25,7 @@ export function assistantAttachments(home: string): AssistantAttachmentPort {
     attach: (upload, options) => attachConversationFile(home, ASSISTANT_ATTACHMENT_OWNER, upload, options ?? {}),
     read: (ref, request) => readConversationAttachment(home, ASSISTANT_ATTACHMENT_OWNER, ref, request),
     holds: ref => holdsConversationAttachment(home, ASSISTANT_ATTACHMENT_OWNER, ref),
+    forget: refs => forgetOwnedAttachments(home, ASSISTANT_ATTACHMENT_OWNER, refs),
   };
 }
 

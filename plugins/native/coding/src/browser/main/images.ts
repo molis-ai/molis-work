@@ -8,7 +8,7 @@ import { api, sessionPath } from "./request.js";
  * as this session's attachment (`POST …/attachments`) and shows on the composer's row of thumbnails with its size and 「已存一份」. A
  * picture over 5 MB is not sent: its row says so and the line above the box offers to shrink it, which puts the smaller copy in its
  * place. When the chosen model is marked as not seeing pictures, the send waits for the person to switch model or send the words
- * alone; nothing is dropped silently. A model with no mark is sent the pictures, and the line says it may not see them (decision 50).
+ * alone; nothing is dropped silently. A model with no mark is sent the pictures, and the line says it may not see them (decision 51).
  */
 
 export const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"] as const;

@@ -206,6 +206,7 @@ characters.usages	1	io.molis.work.characters	query	query	project	read	concurrent
 characters.versions.read	1	io.molis.work.characters	query	query	project	read	-	agent,mcp,user,workflow	-	character	-	-	9b485c93f8d0	6848cfd25e4c	5e0374458cf9
 characters.versions.restore	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user	-	character	-	-	354f8a238a63	2f6a46dc5577	5e0374458cf9
 commands.personal.list	1	platform	query	query	project	read	-	plugin	commands:read	-	-	-	99334726611c	4fa862b577a9	-
+commands.project.list	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	614f112549e5	4fa862b577a9	-
 connectors.account.read	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:account:read	connector	-	-	7d42269d0825	e14fa014b7b4	-
 connectors.authorization.cancel	1	system.connectors	command	operation	home	write	-	agent,mcp,user	connectors:management:write	connector	-	-	f204a0118ca6	a2c799262a3c	-
 connectors.authorization.read	1	system.connectors	query	query	home	read	-	agent,mcp,user	connectors:management:read	connector	-	-	f204a0118ca6	a2c799262a3c	-

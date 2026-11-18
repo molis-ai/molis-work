@@ -11,7 +11,7 @@ import { GOALS_ACTIONS } from "./goals-actions.js";
 import { KNOWLEDGE_READ_PERMISSION, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { SKILLS_READ_PERMISSION, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
-import { PROMPT_COMMANDS_READ_PERMISSION, personalPromptCommandsCapability } from "@molis-ai/molis-work-contracts/services/prompt-commands";
+import { PROMPT_COMMANDS_READ_PERMISSION, personalPromptCommandsCapability, projectPromptCommandsCapability } from "@molis-ai/molis-work-contracts/services/prompt-commands";
 import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
 import {
   CODING_CHANGESET_TYPE,
@@ -113,6 +113,7 @@ export const codingManifest: PluginManifest = {
       skillCatalogActions.readBodies.capability_id,
       projectDirectoryActions.get.capability_id,
       personalPromptCommandsCapability.capability_id,
+      projectPromptCommandsCapability.capability_id,
       workspaceReadActions.file.capability_id,
       workspaceReadActions.git.capability_id,
       projectSettingsCapabilities.runtime.capability_id,

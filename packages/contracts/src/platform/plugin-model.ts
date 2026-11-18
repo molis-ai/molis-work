@@ -76,8 +76,10 @@ export type PluginModelFailure = ActionError & {
 };
 
 /**
- * Model display metadata only; never a credential reference or endpoint. `vision` is true when the model this call would use
- * declares that it reads images: `complete()` refuses images otherwise, so a plugin attaches them only when this is true.
+ * Model display metadata only; never a credential reference or endpoint. `vision` is what the model settings say about the model
+ * this call would use: true reads images, false does not, absent when the person has not marked it. `complete()` refuses images
+ * only for false; an unmarked model is sent them with a line telling it to say so rather than guess (decision 51 ③), so a plugin
+ * attaches them unless this is false.
  */
 export type PluginModelAvailability = ActionAvailability & { readonly runtime_label?: string; readonly vision?: boolean };
 

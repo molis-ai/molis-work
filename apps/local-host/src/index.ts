@@ -309,8 +309,8 @@ export { adoptContextJourney, readContextJourney, selectContextSources, startCon
 // Existing work in AI tools read into a round as the project's AI (batch 35 item 1, SRB-09), and the clients that read as the person or as it.
 export { readOnboardingSessions, sessionKeyOf } from "./context-onboarding-sessions.js";
 export { bindLocalWebActions, bindLocalWebProjectAiActions } from "./local-web-actions.js";
-// The person's own prompt commands (Coding A2) and where the Host registers them, with the identity a plugin call carries (S-prompt-commands).
-export { personalPromptCommands } from "./prompt-commands.js";
+// The person's own and a project folder's prompt commands (Coding A2) and where the Host registers them, with the identity a plugin call carries (S-prompt-commands).
+export { personalPromptCommands, projectPromptCommands } from "./prompt-commands.js";
 export { registerProjectCapabilities } from "./project-capabilities.js";
 export { issuePluginCaller } from "./plugin-callers.js";
 export { classifyContextModelFailure } from "./context-onboarding-delta.js";

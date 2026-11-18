@@ -4,7 +4,7 @@ import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform
 export interface CodingModelChoice { provider_id: string; model_id: string; label: string;
   /** The person marked this model as taking a reasoning effort; only then is one offered and sent. */
   reasoning_effort?: boolean;
-  /** What the person marked in model settings: true sees pictures, false does not; absent when unmarked (decision 50: sent, with a note). */
+  /** What the person marked in model settings: true sees pictures, false does not; absent when unmarked (decision 51: sent, with a note). */
   vision?: boolean }
 
 /** Why the chosen model cannot run now, in the words the page shows. */

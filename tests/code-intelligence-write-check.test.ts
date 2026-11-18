@@ -4,9 +4,9 @@
 // "no errors". CLS-03: a server that is missing or fails does not pass for a clean check.
 
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { createCodeIntelligence, languageServersFrom, registerWriteChecks, writeCheckKey } from "@molis-ai/molis-work-service-agent-host";
@@ -78,4 +78,19 @@ test("A4-2 F-1: the round's hook rewrites a write and an edit to the formatted t
   assert.deepEqual(await handler!({ toolName: "edit", input: { path: "src/a.go", find: "zzz", replace: "q" } }), { kind: "allow" }, "an edit that cannot be worked out passes as it is");
   stop();
   assert.equal(handler, undefined, "the hook goes when the round ends");
+});
+
+test("A4-2 the round's hook reads nothing outside the round's directory: through `..` or a link, a write passes on untouched", async (t) => {
+  const { root, intelligence } = round(t);
+  const outside = mkdtempSync(join(tmpdir(), "write-check-outside-"));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  writeFileSync(join(outside, "secret.go"), "package secret\nold\n");
+  symlinkSync(join(outside, "secret.go"), join(root, "src", "linked.go"));
+  let handler: ((context: { toolName?: string; input: unknown }) => Promise<{ kind: string; input?: unknown }>) | undefined;
+  const store = new Map();
+  registerWriteChecks({ hooks: { register: (hook: { handler: typeof handler }) => { handler = hook.handler; }, unregister: () => undefined } } as never, store, { sessionId: "s2", rootPath: root, intelligence });
+  for (const input of [{ path: "src/linked.go", find: "old", replace: "new  " }, { path: `../${basename(outside)}/secret.go`, find: "old", replace: "new  " }]) {
+    assert.deepEqual(await handler!({ toolName: "edit", input }), { kind: "allow" }, input.path);
+  }
+  assert.equal(store.size, 0, "nothing was read or checked for a file outside the directory");
 });

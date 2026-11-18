@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import type { Runtime } from "@prologue/sdk";
 import type { AgentWriteChecks } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -26,6 +26,20 @@ export function keepWriteCheck(store: Map<string, AgentWriteChecks>, key: string
   for (const old of store.keys()) { if (store.size <= KEPT) break; store.delete(old); }
 }
 
+/** Whether the file (or, for a new one, the nearest folder that exists above it) really is inside the directory, links resolved. */
+async function insideDirectory(root: string, target: string): Promise<boolean> {
+  const base = await realpath(root).catch(() => null);
+  if (!base) return false;
+  let at = target;
+  for (;;) {
+    const real = await realpath(at).catch(() => null);
+    if (real) return real === base || real.startsWith(base + path.sep);
+    const parent = path.dirname(at);
+    if (parent === at) return false;
+    at = parent;
+  }
+}
+
 /** Register the session's hook; returns the way to take it off. Only `write` and `edit` inside the round's directory are touched. */
 export function registerWriteChecks(runtime: Runtime, store: Map<string, AgentWriteChecks>, input: { readonly sessionId: string; readonly rootPath: string; readonly intelligence: CodeIntelligence }): () => void {
   const id = `molis-write-check-${input.sessionId}`;
@@ -35,6 +49,8 @@ export function registerWriteChecks(runtime: Runtime, store: Map<string, AgentWr
     const args = context.input as { path?: unknown; text?: unknown; find?: unknown; replace?: unknown } | undefined;
     if (typeof args?.path !== "string") return { kind: "allow" as const };
     const file = args.path;
+    // Outside the round's directory, through `..` or a link, is not this hook's to read: the write goes on to the runtime's own boundary.
+    if (!await insideDirectory(input.rootPath, path.resolve(input.rootPath, file))) return { kind: "allow" as const };
     const before = await readFile(path.resolve(input.rootPath, file), "utf8").catch(() => undefined);
     const after = proposedText(context.toolName, args, before);
     if (after === undefined) return { kind: "allow" as const };

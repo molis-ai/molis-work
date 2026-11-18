@@ -7,6 +7,12 @@ import type { AgentStartAuthority } from "./index.js";
 export const RUN_IMAGES_MAX = 6;
 
 /**
+ * Told to a model the settings do not mark as seeing images, when pictures go with its round or call (decision 51 ③): the pictures
+ * are sent, and it says so if it cannot see them rather than guess. One wording for an Agent round and a single completion.
+ */
+export const UNMARKED_IMAGES_NOTE = "这一轮带了图片。模型设置里没有标注你能不能看图：看不到图片内容就直接说看不到，不要猜测图里有什么。";
+
+/**
  * The pictures a round brings, read for the caller from its own conversation attachments (platform capability audit §6): only
  * references come in the request, and the bytes are the platform's, so a picture attached before a restart still goes. A reference
  * that is not an attachment, one the caller does not own, or one that is not a picture the model can be shown refuses the round.

@@ -4,11 +4,12 @@ import type { ActionDefinition } from "../platform/actions.js";
  * Prompt commands (Coding A2, specs/coding-plugin/next-requirements.md): a command is a Markdown file whose text becomes the task, with
  * `$ARGUMENTS` replaced, as written, by what the person typed after it. A command is only prompt text: no permission, tool or model comes
  * with it, whatever its front matter says. A project keeps its own in `.molis/commands` (and `.claude/commands` is read too); the
- * person's own, for every project, are in the same two folders under their home directory, read by the Host (`commands.personal.list@1`).
+ * person's own, for every project, are in the same two folders under their home directory. The Host reads both, with one walk: the
+ * project's from one of its folders (`commands.project.list@1`), the person's (`commands.personal.list@1`).
  * The file is read by `readPromptCommand` in the plugin SDK, one reading for every caller.
  */
 
-/** A plugin that lists the person's own commands declares this; the project's are read with `workspace:read` like any of its files. */
+/** A plugin that lists the person's own commands declares this; the project's are read with `workspace:read` like the rest of its folder. */
 export const PROMPT_COMMANDS_READ_PERMISSION = "commands:read";
 /** Where commands are, in a project's folder and in the person's home directory: Molis's own first, so its command wins a clash. */
 export const PROMPT_COMMAND_LOCATIONS = [".molis/commands", ".claude/commands"] as const;
@@ -56,3 +57,12 @@ export const personalPromptCommandsCapability = {
     input_schema: { type: "object", properties: {}, additionalProperties: false },
     output_schema: { type: "object", required: ["commands"], additionalProperties: false, properties: { commands: { type: "array", maxItems: PROMPT_COMMAND_LIMITS.files * PROMPT_COMMAND_LOCATIONS.length, items: commandFile } } } },
 } as ActionDefinition<Record<string, never>, { commands: PromptCommandFile[] }>;
+
+/** The project's commands in one of its folders, read by the Host in one call; a folder that is not the current project's is refused. */
+export const projectPromptCommandsCapability = {
+  capability_id: "commands.project.list", version: /* @version action.commands.project.list */ 1, operation: "query",
+  action: { title: "项目的命令", description: "列出项目某个已关联工作目录里的命令（.molis/commands 与 .claude/commands 里的 .md）；只读，命令只是一段提示文字，不带任何权限",
+    kind: "query", scope: "project", audiences: ["plugin"], permissions: ["workspace:read"], subject_kinds: ["workspace"],
+    input_schema: { type: "object", required: ["workspace_id"], properties: { workspace_id: { type: "string", minLength: 1, title: "工作目录" } }, additionalProperties: false },
+    output_schema: { type: "object", required: ["commands"], additionalProperties: false, properties: { commands: { type: "array", maxItems: PROMPT_COMMAND_LIMITS.files * PROMPT_COMMAND_LOCATIONS.length, items: commandFile } } } },
+} as ActionDefinition<{ workspace_id: string }, { commands: PromptCommandFile[] }>;

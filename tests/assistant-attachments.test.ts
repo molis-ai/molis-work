@@ -9,7 +9,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { existsSync } from "node:fs";
+import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, UNMARKED_IMAGES_NOTE } from "@molis-ai/molis-work-service-agent-host";
 import { installHostUiText, LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
@@ -77,12 +78,17 @@ test("a PDF the person brings is kept as a conversation attachment and read once
   const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { pages: async () => ["home"], host: async () => host, attachments,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set()), attachmentImage: assistantAttachmentImage(attachments) }) }, "web-user");
   try {
-    const material = await service.materials.readAttachment({ name: "brief.pdf", data: pdf(["Q4 plan brief", "Weekly sync moves to Wednesday"]).toString("base64") });
+    const brief = pdf(["Q4 plan brief", "Weekly sync moves to Wednesday"]);
+    const material = await service.materials.readAttachment({ name: "brief.pdf", data: brief.toString("base64") });
     assert.equal(material.kind, "file");
+    // S-conversation-attachments: only the text goes on with the Send; the document is not kept once it is read.
+    const digest = createHash("sha256").update(brief).digest("hex");
+    assert.equal(attachments.holds({ subject: { kind: "conversation_attachment", id: `ca_${digest}` }, pin: { mode: "current", read_revision: digest } }), false);
+    assert.equal(existsSync(join(home, "conversation-attachments", "blobs", digest)), false, "no copy of the document stays on disk");
     assert.equal(material.explicit, true);
     assert.equal(material.title, "brief.pdf（1 页）");
     assert.match(material.text ?? "", /Q4 plan brief[\s\S]*Weekly sync moves to Wednesday/);
-    await assert.rejects(service.materials.readAttachment({ name: "broken.pdf", data: Buffer.from("%PDF-1.4\nnot really a pdf").toString("base64") }), (error: unknown) => error instanceof ActionError && error.code === "assistant.invalid");
+    await assert.rejects(service.materials.readAttachment({ name: "broken.pdf", data: Buffer.from("%PDF-1.4\nnot really a pdf").toString("base64") }), (error: unknown) => error instanceof ActionError && error.code === "assistant.invalid" && /PDF/i.test(error.message), "a damaged PDF says why");
     await assert.rejects(service.materials.readAttachment({ name: "archive.zip", data: Buffer.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4]).toString("base64") }), (error: unknown) => error instanceof ActionError && error.code === "assistant.unsupported" && /这种文件还读不了/.test(error.message));
     await assert.rejects(service.materials.readAttachment({ name: "empty.pdf", data: "" }), /没有收到文件/);
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
@@ -121,6 +127,7 @@ test("a picture the person brings is kept by the platform's attachments and show
     assert.ok(first.includes(bytes), "the model call carries the picture itself");
     assert.match(first, /"type":"image"/);
     assert.ok(first.includes("看不到图片内容就直接说看不到"), "the model is told not to guess");
+    assert.ok(first.includes(UNMARKED_IMAGES_NOTE), "the platform tells an unmarked model too, as it does every caller's round (decision 51)");
     assert.equal((await service.read(sent.work.work_id)).rounds[0]!.materials[0]!.kind, "image");
     // The picture can be looked at again from the work (the side panel shows it), exactly as it was brought.
     assert.deepEqual(await service.materials.materialImage(sent.work.work_id, material.material_id), { media_type: "image/png", data: bytes });

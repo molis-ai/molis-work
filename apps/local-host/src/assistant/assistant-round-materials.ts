@@ -310,7 +310,9 @@ export class AssistantRoundMaterials {
       return { material_id: `image-${randomUUID()}`, kind: "image", title: name, explicit: true,
         image: { attachment: attached.ref, media_type: attached.media_type, byte_length: attached.byte_length } };
     }
-    const read = await attachments.read(attached.ref, { as: "text", ...(control.signal ? { signal: control.signal } : {}) }).catch(error => { throw assistantErrors.invalid(said(error)); });
+    // Only the text goes on with the Send: the kept document is dropped once it is read, read or not.
+    const read = await attachments.read(attached.ref, { as: "text", ...(control.signal ? { signal: control.signal } : {}) }).catch(error => { throw assistantErrors.invalid(said(error)); })
+      .finally(() => attachments.forget([attached.ref]));
     const whole = read.text ?? "";
     if (!whole.trim()) throw assistantErrors.invalid(`「${name}」里没有读到文字${attached.text?.issues.length ? `（${attached.text.issues.slice(0, 2).join("；")}）` : ""}`);
     const text = whole.slice(0, MAX_ATTACHMENT_TEXT), truncated = whole.length > MAX_ATTACHMENT_TEXT || attached.text?.truncated === true;

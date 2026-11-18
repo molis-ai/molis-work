@@ -1,6 +1,6 @@
 import { ProjectRuntimeSettings } from "./project-runtime-settings.js";
-import { personalPromptCommandsCapability } from "@molis-ai/molis-work-contracts/services/prompt-commands";
-import { personalPromptCommands } from "./prompt-commands.js";
+import { personalPromptCommandsCapability, projectPromptCommandsCapability } from "@molis-ai/molis-work-contracts/services/prompt-commands";
+import { personalPromptCommands, projectPromptCommands } from "./prompt-commands.js";
 import { ActionError, bindActionHandler, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -94,6 +94,15 @@ export function registerProjectCapabilities(
     caller.assert_authority_current?.();
     return readWorkspaceFile(query, selected);
   });
+  // The project's commands (Coding A2): one call for a folder of the current project, read with the same walk as the person's own.
+  const readCommands = bindActionHandler(projectPromptCommandsCapability, async (query: { workspace_id: string }, caller) => {
+    const folder = (await current(caller.project_id!)).find(item => item.workspace_id === query.workspace_id && item.realpath_verified);
+    if (!folder) throw new ActionError("actions.forbidden", "此工作区不属于当前项目或已取消授权");
+    if (!await made(caller.project_id!, folder.workspace_id)) return { commands: [] };
+    const commands = await projectPromptCommands(folder.canonical_path);
+    caller.assert_authority_current?.();
+    return { commands };
+  });
   // The person's own commands (Coding A2): read from their home directory, whatever the project; only plain `.md` files.
   host.registerAction(personalPromptCommandsCapability, async () => ({ commands: await personalPromptCommands() }));
   // The Runtime pick does not depend on where the project's folders are kept: it is registered with the other current-project settings.
@@ -107,5 +116,5 @@ export function registerProjectCapabilities(
   // Project folders belong to the Catalog. This read can precede opening the project.
   host.registerAction(workspaceReadActions.git, readGit);
   return [{ provider: { provider_id: HOST_PROVIDER_ID, title: "Molis Work", kind: "system" },
-    definitions: [workspaceReadActions.file], handlers: [readFile] }];
+    definitions: [workspaceReadActions.file, projectPromptCommandsCapability], handlers: [readFile, readCommands] }];
 }

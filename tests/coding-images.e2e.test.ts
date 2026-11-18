@@ -11,7 +11,7 @@ import { CODING_BOX, CODING_COMPOSER, CODING_COMPOSER_STATUS, CODING_SEND, codin
 // Coding A3 (docs/design/coding-daily-basics scheme A): pictures pasted into the bar while a Coding session is on show sit in the
 // composer's row of thumbnails with their size and 「已存一份」; one over 5 MB says so and the line above the box offers to shrink it;
 // a model marked as not seeing pictures holds the send until the person switches model or sends the words alone; an unmarked model
-// gets them with a note (decision 50). The round names the pictures by the platform's references, never their bytes.
+// gets them with a note (decision 51). The round names the pictures by the platform's references, never their bytes.
 
 const ROWS = `${CODING_COMPOSER} .mw-composer__files.is-pictures [data-composer-file]`;
 const NOTICE = `${CODING_COMPOSER} .mw-composer__notice`;
@@ -135,7 +135,7 @@ test("A3 a round sent with pictures names them by reference, gives them to the m
   const { runWithMolisWorkHome, resetSecretStoreCache } = await import("@molis-ai/molis-work-storage");
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   t.after(() => { if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); });
-  // A local model with no mark either way (decision 50: it is sent the pictures); it answers each call with one line.
+  // A local model with no mark either way (decision 51: it is sent the pictures); it answers each call with one line.
   const calls: string[] = [];
   const model = createServer(async (req, res) => {
     const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));

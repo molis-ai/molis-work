@@ -8,6 +8,7 @@ import type { PrologueAdapterPorts, PrologueModelConfiguration, PrologueRuntimeP
 import { isEnded, type PrologueRunStore, type RunRecord, type SessionRecord } from "./prologue-run-store.js";
 import { RunMemoryBinding } from "./prologue-run-memory.js";
 import { runStreamState } from "./prologue-stream.js";
+import { UNMARKED_IMAGES_NOTE } from "../run-images.js";
 
 /** What starting a round needs from the adapter (prologue.ts). */
 export interface RunStartContext {
@@ -90,7 +91,8 @@ function startInput(request: AgentStartRequest, role: FrozenRole, model: Prologu
       id: role.role_id,
       version: role.version,
       name: role.role_id,
-      instructions: role.prompts.map((prompt) => prompt.body).join("\n\n"),
+      // Pictures for a model not marked either way go with a line telling it not to guess (decision 51 ③); one marked as not seeing them never starts.
+      instructions: [...role.prompts.map((prompt) => prompt.body), ...(materials.image_materials?.length && model.vision === undefined ? [UNMARKED_IMAGES_NOTE] : [])].join("\n\n"),
       tools: [...role.host_tools],
     },
     ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: provenance.frozen.compaction?.above_tokens ?? role.compaction.above_tokens } } : {}), ...(role.ending_review ? { ending_review: { prompt: role.ending_review.prompt.body } } : {}),

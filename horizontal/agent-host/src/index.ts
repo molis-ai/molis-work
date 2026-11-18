@@ -48,7 +48,7 @@ export { effectiveContextWindow, effectiveCompactionAboveTokens } from "./adapte
 export { SUBAGENT_DEFAULT_MAX_ATTEMPTS } from "./adapters/prologue-subagents.js";
 export { createPrologueImageIntake } from "./adapters/prologue-images.js";
 export { takeImagesIn } from "./adapters/prologue-run-start.js";
-export { attachedImages, RUN_IMAGES_MAX } from "./run-images.js";
+export { attachedImages, RUN_IMAGES_MAX, UNMARKED_IMAGES_NOTE } from "./run-images.js";
 export { SUBAGENT_KEY_PATTERN } from "./adapters/prologue-collaboration.js";
 export { reviewPresentation, reviewText, type ReviewWord, type ReviewWords } from "./review-presentation.js";
 export type { AgentRoundSkillCatalog, AgentSkillSource } from "./round-skills.js";

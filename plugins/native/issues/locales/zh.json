@@ -63,7 +63,7 @@
     "issues.models-link": "模型设置",
     "issues.naming.connect-text-model": "请先在「模型设置」里连接文字模型",
     "issues.naming.incomplete-answer": "模型没有给出可用的标题和类型，点开补全后保存",
-    "issues.naming.screenshots-unread": "当前模型未声明能看图或已设为不能看图，截图没有交给它；写一句话再整理，或在设置 → 模型 → 供应商的模型列表中将读图能力设为能看图并保存",
+    "issues.naming.screenshots-unread": "当前模型已设为不能看图，截图没有交给它；写一句话再整理，或在设置 → 模型 → 供应商的模型列表中将读图能力设为能看图并保存",
     "issues.review.changed": "内容已变化，请重新整理。",
     "issues.review.done": "已重新整理，确认后保存。",
     "issues.review.failed": "没能重新整理，修改已保留，可以重试或直接保存。",

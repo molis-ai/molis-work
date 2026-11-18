@@ -1,5 +1,5 @@
 /**
- * Whether a round's directory can be understood (Coding A4, CLS-01～03, decision 50): which languages it uses and whether the program
+ * Whether a round's directory can be understood (Coding A4, CLS-01～03, decision 51): which languages it uses and whether the program
  * that understands each is here. It is checked once when the round starts and recorded with it, so the person sees before any review
  * which file types will be checked and which will not. Nothing is downloaded or started here: a program is either on this machine (an
  * absolute path or a name on PATH) or complete in this Home's own tools folder; anything else is `missing`, and that language is

@@ -162,7 +162,8 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   assert.equal(kept.state, "ok", "the spark stays");
   const labels = kept.associations.map(link => link.label).join(" | ");
   assert.match(labels, /已转成《展台改成开放式》/u);
-  assert.match(labels, /已转为目标《展台改成开放式》/u);
+  // The association names the relation's declared target type.
+  assert.match(labels, /已建成 Goal《展台改成开放式》/u);
   await screenshot("lingguang-converted");
 
   // 4. AC4 — one Shelf item used in two projects: no copies; deleted, both projects say so and can clean the row up.

@@ -1468,6 +1468,8 @@ PF-16 的现行消费者是 Placement 描述、灵光和其他关联原件的界
 
 QEA-189 在原位置实现上接收相同修订的真实 HTTP 回答后，复现当前菜单被收起。未插入此刷新交错的原用例也有一次通过记录。候选 `01539451ea` 沿相同隔离 Home 路径验证菜单、对话框与焦点都能保留，取消前后修订相同。另一笔实际写入生成新修订时关闭旧确认、返回菜单，重新进入且确认后只增一次修订，原 Feed 条目保持原修订。候选测试用时 14.4 秒。日志 `quality-audit-b115-position-{base,before,actual}.log`。[实际路径](../../tests/surface-cross-positions.e2e.test.ts#L598)
 
+`01539451ea` 的 Linux Full 第 13 片也通过，包括这一位置交互与引导。 [Linux 第 13 片](https://github.com/molis-ai/molis-work/actions/runs/44309173320/job/134818540367)
+
 ### 第 115 批首屏复量
 
 同口径实测 67 条静态资源、十组首屏 HTTP。相对 `9ce951d49b` 只新增 258 B 的工作台脚本内容，静态路径没有新增。删除重复词条后内容地址为中文 `/assets/locale/workbench.zh.ae54fb08ac73d15bb50b32f3.js`、英文 `/assets/locale/workbench.en.84c25955f4ea98463078b005.js`。既有授权的按语言内容定址范围及其他入口共匹配 22 条实际请求。相对产品源文件相同的主干构建，控量页面最大冷增 2,070 B、热增 20 B，静态最大净增仍为 Git 脚本 8,403 B。全插件页依既有 Linux 路径证据额外复算冷加载各 8 B。[资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
@@ -1485,3 +1487,33 @@ QEA-189 在原位置实现上接收相同修订的真实 HTTP 回答后，复现
 ### 第 116 批 Linux 首屏实测
 
 `01539451ea` 的远端静态预算通过，67 条资源齐备。Linux 首屏的默认工作台中英文冷增 508／414 B，各比本机估值多 8 B。全插件工作台冷增 1,756／1,673 B，符合此前按每种语言各 8 B 的登记。到达页、选择页和热加载额度均通过，最大冷增仍是项目选择中文的 2,070 B。此次提交仅补默认工作台两条各 8 B 的冷加载记录及验收证据。 [Linux 作业](https://github.com/molis-ai/molis-work/actions/runs/44309181949/job/134818804848) · [资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+
+本机沿实际工作台、组件板和位置等入口复验 32 文件、301 项通过，Goals 的两个原录制用例按既有运行模式跳过。覆盖引导建项目和 3,000 份资料清点、Pages 只读拒写、Coding 两种目录读回及两种语言、Jelly 密钥隔离、灵光及两个真实关系目标、认可退回和改要求、共享位置的 9 项浏览器和 8 项服务、52 份规范化页面快照，以及工作台包必跑。日志 `quality-audit-b115-consumers.log`。
+
+用 CI 的全部十组实际总量复算，默认、全插件和示例工作台相对本机的冷热净额均多 8 B，热轮仍整体减少。正式策略对本机和 Linux 都零超额，22 条需批准入口的匹配相同。补记提交 `9c4087e1e9` 仅改报告、规格与任务资源登记。GitHub 生成的 PR 合并树与其候选树一致。 [当前 Verify](https://github.com/molis-ai/molis-work/actions/runs/44312190871) · [上一候选 Full](https://github.com/molis-ai/molis-work/actions/runs/44309173320)
+
+`9c4087e1e9` 的 Linux 包边界作业通过。实际重测默认工作台冷增仍为中文 508 B、英文 414 B，热量分别减少 8,453 B、8,440 B，静态 67 路径和首屏两项通过。 [资源及包边界](https://github.com/molis-ai/molis-work/actions/runs/44312190871/job/134829224828)
+
+当前 Verify 首轮的产品子集第 1 片有 66 文件通过。Goals 刷新文件内完成的 13 个场景都通过，文件到 240 秒时被统一超时终止。准确生产构建的本机复验保留 240 秒上限，15 项在 122.2 秒通过，含在途覆盖保护、失败恢复、关系写入、侧栏焦点及图刷新。同一提交的远端第 1 片已复跑。 [首轮日志](https://github.com/molis-ai/molis-work/actions/runs/44312190871/job/134829225273) · [同提交复跑](https://github.com/molis-ai/molis-work/actions/runs/44312190871/attempts/2)
+
+`9c4087e1e9` 的同提交复跑中，Goals 刷新 185.2 秒通过，产品子集第 1 片 67/67 文件通过。远端 Verify 已成功。 [复跑分片](https://github.com/molis-ai/molis-work/actions/runs/44312190871/job/134842565410) · [Verify](https://github.com/molis-ai/molis-work/actions/runs/44312190871/job/134847310471)
+
+上一提交 Full 第 31 片的助理组件板 3 项通过。同片项目设置导航的引导返回测试在原单项 60 秒处结束。本机复验原文件 8 项全过，浏览器在 Web、桌面和窄窗真实点击返回用时 4.8 秒，保留进入前后的原项目目录比较。日志 `quality-audit-b116-heavy-browser.log`，同源代码由最终提交 Full 继续复验。 [上一轮第 31 片](https://github.com/molis-ai/molis-work/actions/runs/44309173320/job/134818540650)
+
+上一提交的 Full 完成 48 片，47 片通过。核对唯一失败后，将草稿和集成分支推至同一 `9c4087e1e9`，启动完整 48 片。期间最新主干 `72ee7666e4` 是 iframe 任务焦点独立修复，四个文件与本轮差异无重叠，Git 合并检查无冲突。当前验收固定在已有实际测量的 `651432a3ba`。 [上一轮 Full](https://github.com/molis-ai/molis-work/actions/runs/44309173320) · [当前 Full](https://github.com/molis-ai/molis-work/actions/runs/44317467475)
+
+当前 Full 的第 31 片已通过，含上一轮超时的三种布局引导返回。第 13 片的 QEA-189 已通过，同片的讨论用例在实际点击 Pages 原件后等待目标标签页超时。正常速度本机复跑 1 次通过。另在四倍 CPU 限速下分别重建隔离 Home，记录三次真实按下、松开、点击、同一消息位置的打开请求及浏览器最后标签。每次正好一条打开请求，HTTP 200，真实 Pages 标签页均打开。远端未打开的具体阶段仍待同提交复跑确认。源码和等待上限维持现行用例。日志 `quality-audit-b116-discussion-{probe,stress}.log`。 [讨论发起](../../apps/workbench/src/browser/project-position-discussion.ts#L51) · [Host 读取](../../apps/local-host/src/im-discussion-surfaces.ts#L125) · [工作台导航](../../apps/workbench/src/scripts/client/tab-workspace-plugins.ts#L396) · [第 13 片](https://github.com/molis-ai/molis-work/actions/runs/44317467475/job/134847280233) · [第 31 片](https://github.com/molis-ai/molis-work/actions/runs/44317467475/job/134847280331)
+
+第 47 片的 QEA-124 在点 Home 助理的草稿回执后得到浏览器调试连接的「目标已导航或关闭」。同一构建本机三个现行场景全过，实际进入对应编辑器、读回原 ID、正文及同一 SQLite 记录。临时诊断在真实文档请求暂停期间遇到旧页面读取超时，释放同一真实请求后可进入目标编辑器并保持零新增写入。该诊断展示导航期间的读取时序。远端首轮的具体调用需要结合复跑判断。日志 `quality-audit-b116-draft-receipt{,-stress,-release}.log`。 [实际路径](../../tests/assistant-chooser-open-result.e2e.test.ts#L92) · [第 47 片](https://github.com/molis-ai/molis-work/actions/runs/44317467475/job/134847286582)
+
+第 32 片的 QEA-34 在进入实际 Git 冲突前未找到 Coding 「＋」中的 `/context`。本机正常路径 14.5 秒通过，四倍 CPU 限速路径 19.0 秒通过，真实输入目录拒写、修改磁盘后重新读取、拒绝使用旧版本、后续原审查批准一次写入的断言均保持。限速时观察到会话已接管输入栏且公开命令已登记，输入框和「＋」仍因首次草稿读取而停用，稍后同一接管状态内启用。旧用例单核对已接管，未等控件可操作。已定位待增强的验收时序，远端实际复跑沿相同源码和上限。日志 `quality-audit-b116-git-context{,-stress}.log`。 [用例等待](../../tests/git-edit-drafts.e2e.test.ts#L45) · [实际命令](../../plugins/native/coding/src/browser/main/commands.ts#L54) · [第 32 片](https://github.com/molis-ai/molis-work/actions/runs/44317467475/job/134847279824)
+
+首轮完成 48 片，45 片通过。三片失败已按同一 `9c4087e1e9` 提交复跑。 [Full 复跑](https://github.com/molis-ai/molis-work/actions/runs/44317467475/attempts/2)
+
+第 13 片复跑 46/46 文件通过，跨位置的全部 9 条浏览器用例通过。第 47 片复跑 46/46 文件通过，助理的回执文件 3/3 项通过。 [复跑第 13 片](https://github.com/molis-ai/molis-work/actions/runs/44317467475/job/134878307987) · [复跑第 47 片](https://github.com/molis-ai/molis-work/actions/runs/44317467475/job/134878307753)
+
+第 32 片复跑 48/48 文件通过，Git 草稿的 26 条真实用例通过。候选 `9c4087e1e9` 在同提交复跑后累计 48/48 片通过，汇总成功。草稿 Verify 构建的合并树 `12bb0e786649` 与候选树完全相同。此次通过的范围固定于主干 `651432a3ba`。 [复跑第 32 片](https://github.com/molis-ai/molis-work/actions/runs/44317467475/job/134878306846) · [Full 汇总](https://github.com/molis-ai/molis-work/actions/runs/44317467475/job/134895689835)
+
+### 第 117 批主干组合
+
+同提交验收完成后，主干已合入任务 iframe 回焦与角色及事项归属修复。以 `8c844c5bb6` 计算，出现 Home 数据说明、spec 索引与主线测试三处实际文本冲突，助理调用、事项事务和生成快照也有重叠。上一候选证据归档。新组合按 QEA-191～193 复验。 [回焦修复](https://github.com/molis-ai/molis-work/pull/2129) · [角色与事项修复](https://github.com/molis-ai/molis-work/pull/2121) · [当前验收](spec.md#第-117-批整合任务回焦角色与事项归属合同)

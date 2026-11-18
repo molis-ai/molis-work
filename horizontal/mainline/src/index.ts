@@ -4,7 +4,7 @@ import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, TASK_SERVES_RELATION, WORK_E
   type ActionSubject, type ActionView, type BackgroundTask, type BackgroundTaskAnswer, type BackgroundTaskCollection, type BackgroundTaskCommand, type BackgroundTaskDecision, type BackgroundTaskPhrase, type OpenTarget, type TaskServesRole, type WorkEvent,
   type WorkEventCollection, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { STATE_RING_FAMILIES, type ReviewOwner, type ReviewReference, type StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
-import { mainlineErrors, type BackgroundTaskCommandRequest, type BackgroundTaskCommandResult, type BackgroundTaskDecideRequest, type BackgroundTaskDecideResult, type BackgroundTaskRow, type BackgroundTasksReadResult, type MainlineIssue, type ObjectOpenRequest, type ObjectOpenResult, type TaskPlaceRequest, type TaskPlaceResult,
+import { MAINLINE_ARRANGE_PERMISSION, mainlineErrors, type BackgroundTaskCommandRequest, type BackgroundTaskCommandResult, type BackgroundTaskDecideRequest, type BackgroundTaskDecideResult, type BackgroundTaskRow, type BackgroundTasksReadResult, type MainlineIssue, type ObjectOpenRequest, type ObjectOpenResult, type TaskPlaceRequest, type TaskPlaceResult,
   type WaitingItem, type WaitingReadResult, type WorkLineEvent, type WorkLineReadRequest, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { PRESENTATION_VALUES_INPUT_TYPE, PRESENTATION_VALUES_OUTPUT_TYPE, type OwnedPresentationObject, type PresentationValues } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { itemLineScope, placeInItem, type ItemLineScope, type MainlineItemPorts } from "./items.js";
@@ -376,16 +376,20 @@ function servesOf(output: unknown): ActionSubject[] {
  * registrant the caller can read reports it in the window. The owner then records the change; nothing of it is kept here, and nothing
  * of the task's authority, budget or data scope is touched. With `item`, only the mainline's own `holds` relation changes.
  */
-export async function placeTask(caller: ActionCallContext, client: ActionClient, request: TaskPlaceRequest, items?: MainlineItemPorts): Promise<TaskPlaceResult> {
+export async function placeTask(caller: ActionExecutionContext, client: ActionClient, request: TaskPlaceRequest, items?: MainlineItemPorts): Promise<TaskPlaceResult> {
   if (!request.to && !request.item) throw new ActionError("actions.input_invalid", "安放要说明为哪个事件办，或在哪件事项里");
-  if (request.item && !items) throw mainlineErrors.source_unavailable("这里读不到主线的事项");
+  if (request.item) {
+    if ((request.item.kind === "item") !== (request.item.item_id !== undefined)) throw new ActionError("actions.input_invalid", "放进事项要说明哪一件；不归事项时不带事项");
+    if (!caller.permissions.includes(MAINLINE_ARRANGE_PERMISSION)) throw new ActionError("actions.forbidden", "缺少排列事项的权限");
+    if (!items) throw mainlineErrors.source_unavailable("这里读不到主线的事项");
+  }
   // One discovery for the whole placement: the owner's serves parts, and the task table that says the caller sees the task.
   const directory = await client.discover(caller);
   const placed = request.to ? await placeServes(caller, client, { ...request, to: request.to }, directory) : { task: request.task, serves: await currentServes(caller, client, request.task, directory) };
   // The second dimension: which work item it is in. Only `holds` changes; the task goes on as it was (WLN-32).
   if (!request.item) return placed;
   const visible = async () => (await readBackgroundTasks({ ...caller, query_only: true }, client, directory)).tasks.some(task => sameSubject(task.subject, request.task));
-  return { ...placed, items: await placeInItem(caller as ActionExecutionContext, items!, request.task, request.item, visible) };
+  return { ...placed, items: await placeInItem(caller, items!, request.task, request.item, visible) };
 }
 
 /** What the task serves now, by its owner's `list` part; none when no owner keeps the relation for its kind. */
@@ -412,10 +416,22 @@ async function placeServes(caller: ActionCallContext, client: ActionClient, requ
     if (!answers.some(answer => answer.events?.some(reported => sameSubject(reported.subject, event)))) throw mainlineErrors.event_unreadable("线上没有这个事件，或你读不到它");
     if (before.length === 1 && sameSubject(before[0]!, event)) return { task, serves: before };
   } else if (to.kind === "none" && !before.length) return { task, serves: [] };
-  const serves = servesOf(await client.invoke(caller, change, to.kind === "event" ? { task, event: to.subject } : { task }));
+  const writer = request.item ? withArrangePermission(caller) : caller;
+  if (request.item) await caller.validate_permissions?.([MAINLINE_ARRANGE_PERMISSION]);
+  const serves = servesOf(await client.invoke(writer, change, to.kind === "event" ? { task, event: to.subject } : { task }));
   const done = to.kind === "event" ? serves.length === 1 && sameSubject(serves[0]!, to.subject!) : to.kind === "none" ? serves.length === 0 : serves.length === 1;
   if (!done) throw mainlineErrors.owner_answer_invalid("任务的主人没有按要求记下去处，请重新读取后再试");
   return { task, serves };
+}
+
+/** Carry the combined request's permission into the task owner's own final effect check. */
+function withArrangePermission(caller: ActionCallContext): ActionCallContext {
+  const permissionsFor = (required: readonly string[] = []) => required.includes(MAINLINE_ARRANGE_PERMISSION)
+    ? required : [...required, MAINLINE_ARRANGE_PERMISSION];
+  return { ...caller,
+    validate_permissions: required => caller.validate_permissions?.(permissionsFor(required)),
+    assert_authority_current: (ref, required) => caller.assert_authority_current?.(ref, permissionsFor(required)),
+  };
 }
 
 /**

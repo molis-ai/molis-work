@@ -327,11 +327,18 @@ test("顶条与事项线：输入框常驻在线上，回答在上方先写问�
       line: past.right<=composer.left+1 && composer.right<=next.left+1 && composer.bottom<=innerHeight,
       foot: document.querySelectorAll('.workbench-bar[data-work-bar] :is([data-dock-pin],[data-plugin-picker-toggle],.navigator-project-selector)').length };
   })()`), { strip: true, project: [true, 30], line: true, foot: 0 }, "the strip reads kept plugins · tabs · ＋ · the person's own · project; the input stands on the line; the foot holds no plugin entry");
-  // At rest the bar is the input (K3, UIV-12): its receiver names the project and the Assistant, with nothing to reset
-  // and no chooser nobody changed; “+” only adds (files, methods, capabilities) — who carries a new work and where it lives
-  // are chosen in its tab.
-  assert.ok(await evaluate(`(()=>{const shown=(sel)=>Boolean(document.querySelector(sel)?.getClientRects().length);
-    return document.querySelector('[data-assistant-composer] [data-composer-receiver]')?.textContent === '目录交互验证 · 助理' && !shown('[data-assistant-composer] .mw-composer__to [data-tag-remove]') && !document.querySelector('[data-assistant-composer] [data-composer-control]');})()`), "a new work goes to the Assistant and shows no default chooser");
+  // K3, UIV-12, B36F-04: the receiver is still the Assistant. The bar offers the task's role picker; the work's executor and scope
+  // are chosen in its tab, and “+” only adds files, methods and capabilities.
+  await waitFor("!!document.querySelector('[data-assistant-composer] [data-composer-control=character]')");
+  assert.deepEqual(await evaluate(`(() => {
+    const composer = document.querySelector('[data-assistant-composer]');
+    return {
+      receiver: composer.querySelector('[data-composer-receiver]')?.textContent,
+      reset: Boolean(composer.querySelector('.mw-composer__to [data-tag-remove]')?.getClientRects().length),
+      controls: [...composer.querySelectorAll('[data-composer-control]')].map(control => control.dataset.composerControl),
+    };
+  })()`), { receiver: "目录交互验证 · 助理", reset: false, controls: ["character"] },
+  "a new work goes to the Assistant and exposes the role picker without another work control");
   await click("[data-assistant-composer] [data-composer-add]");
   await waitFor("!document.querySelector('[data-assistant-composer] [data-compose-menu]').hidden && /添加文件/.test(document.querySelector('[data-assistant-composer] [data-compose-menu]').textContent)");
   assert.ok(await evaluate("(()=>{const t=document.querySelector('[data-assistant-composer] [data-compose-menu]').textContent;return /用一个技能或能力/.test(t) && !/由谁来做|新工作放在/.test(t);})()"), "“+” adds things; it holds no choices about the work");

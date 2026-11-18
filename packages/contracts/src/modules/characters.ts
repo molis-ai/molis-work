@@ -8,7 +8,7 @@ import { parseCharacterImportSnapshot, type CharacterImportSnapshot } from "./ch
 import {
   CHARACTER_ROLE_READ_INPUT_SCHEMA, CHARACTER_ROLE_READ_OUTPUT_SCHEMA, CHARACTER_ROLE_SCHEMAS, CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA,
   personalVersion, projectRef, type CharacterDefaultSelection, type CharacterDefaults, type CharacterMemberAddInput, type CharacterMemberResult,
-  type CharacterMemberSaveInput, type CharacterMemberSectionInput, type CharacterMemberStateInput, type CharacterRestoreInput, type CharacterRole,
+  type CharacterMemberSaveInput, type CharacterMemberSaveResult, type CharacterMemberSectionInput, type CharacterMemberStateInput, type CharacterRestoreInput, type CharacterRole,
   type CharacterRoleCatalog, type CharacterRoleListInput, type CharacterRoleReadInput, type CharacterRoleReadOutput, type CharacterRoleResolution,
   type CharacterRoleResolveInput, type CharacterRoleVersionEntry, type CharacterTemplateAdoptionResult, type CharacterVersionsReadInput,
   type EffectiveCharacterSelection, type PersonalCharacterVersionRef, type ProjectCharacterMemberRef,
@@ -31,6 +31,7 @@ export {
   type CharacterMemberEntry,
   type CharacterMemberResult,
   type CharacterMemberSaveInput,
+  type CharacterMemberSaveResult,
   type CharacterMemberSectionInput,
   type CharacterMemberStateInput,
   type CharacterOriginalEntry,
@@ -52,6 +53,7 @@ export {
   CHARACTER_ROLE_READ_RESULT_SCHEMA,
   CHARACTER_ROLE_VERSION_REF_SCHEMA,
   CHARACTER_TASK_SELECTION_SCHEMA,
+  characterVersionMatchesSelection,
   CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA,
   type CharacterDefaultSelection,
   type CharacterRole,
@@ -199,7 +201,7 @@ export const characterRoleActions: {
   resolve: ActionDefinition<CharacterRoleResolveInput, CharacterRoleResolution>;
   versions: ActionDefinition<CharacterVersionsReadInput, { versions: CharacterRoleVersionEntry[] }>;
   memberAdd: ActionDefinition<CharacterMemberAddInput, CharacterMemberResult>;
-  memberSave: ActionDefinition<CharacterMemberSaveInput, CharacterMemberResult>;
+  memberSave: ActionDefinition<CharacterMemberSaveInput, CharacterMemberSaveResult>;
   memberSection: ActionDefinition<CharacterMemberSectionInput, CharacterMemberResult>;
   memberState: ActionDefinition<CharacterMemberStateInput, { role: CharacterMemberResult["role"] | null }>;
   restore: ActionDefinition<CharacterRestoreInput, { role: CharacterRole }>;
@@ -215,14 +217,14 @@ export const characterRoleActions: {
     "按「这一次 → 项目默认 → 我的默认 → 助理自己」得出新任务的角色和要存在任务上的稳定选择；这一次另选的角色不能用时拒绝并说原因，不换成别的", READERS, CHARACTER_ROLE_SCHEMAS.resolve),
   versions: roleAction("characters.versions.read", /* @version action.characters.versions.read */ 1, "query", "角色的版本", "读一个角色保存过的固定版本与各版内容，最新的在前", VERSION_READERS, CHARACTER_ROLE_SCHEMAS.versions),
   memberAdd: roleAction("characters.members.add", /* @version action.characters.members.add */ 1, "command", "把角色加进本项目", "把我的一个角色加进当前项目，两节都跟随原件", WRITERS, CHARACTER_ROLE_SCHEMAS.memberAdd),
-  memberSave: roleAction("characters.members.save", /* @version action.characters.members.save */ 1, "command", "只改本项目的角色",
-    "在本项目里改做事方式或能用什么：只改给出的那一节，另一节保持原样；存成新的一版，不改原件与别的项目", WRITERS, CHARACTER_ROLE_SCHEMAS.memberSave),
+  memberSave: roleAction("characters.members.save", /* @version action.characters.members.save */ 1, "command", "保存项目角色的修改",
+    "仅保存给出的节。提供已确认的原件草稿修订号时，同时修改原件并恢复这些节的跟随；否则只改本项目", WRITERS, CHARACTER_ROLE_SCHEMAS.memberSave),
   memberSection: roleAction("characters.members.section", /* @version action.characters.members.section */ 1, "command", "恢复跟随或保持本项目的",
     "本项目改过的一节：恢复跟随原件（存成新的一版），或确认保持本项目的写法（不再提示原件的这次改动）", WRITERS, CHARACTER_ROLE_SCHEMAS.memberSection),
   memberState: roleAction("characters.members.state", /* @version action.characters.members.state */ 1, "command", "启用、停用或移出本项目的角色",
     "只改本项目里的这个角色；移出不删原件；已开始的任务照旧用原来的版本", WRITERS, CHARACTER_ROLE_SCHEMAS.memberState),
   restore: roleAction("characters.versions.restore", /* @version action.characters.versions.restore */ 1, "command", "恢复角色的某一版",
-    "把某一版存成新的一版，不盖掉之后的修改", WRITERS, CHARACTER_ROLE_SCHEMAS.restore),
+    "把某一版存成新的一版；提供已确认的原件草稿修订号时，一并恢复成员与原件", WRITERS, CHARACTER_ROLE_SCHEMAS.restore),
   defaults: roleAction("characters.defaults.set", /* @version action.characters.defaults.set */ 1, "command", "设默认角色",
     "设我的默认或本项目的默认；本项目可选「助理自己」，不选就沿用我的默认", WRITERS, CHARACTER_ROLE_SCHEMAS.defaults),
 };

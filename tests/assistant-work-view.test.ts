@@ -36,7 +36,7 @@ test("W2-18-A4-VIEW-01 a work's view holds exactly the AssistantWork fields, wha
   const part = store.create({ actor_id: "web-user", title: "查数据", scope: { kind: "personal" }, origin: null,
     delegated_by: { graph_id: "graph-parent", node_id: "p-1", title: "季度计划", acceptance: "列出三项" } });
   const reply_target = { provider_id: "pages", subject_kind: "page", subject_id: "s1", thread_id: "t1", title: "讨论" };
-  const character = { artifact_id: "a1", version: 2, title: "分析师" };
+  const character = { ref: { kind: "personal", character_id: "c1" }, character_id: "c1", title: "分析师" };
   // Its `delegated_by` also carries a key the current shape does not have: the asker is still the one its graph names.
   storeBody(part.work_id, { reply_target, scope_title: "个人", character, budget_tokens: 5000, handed_back_run: "run-2",
     delegated_by: { ...store.get("web-user", part.work_id).delegated_by, work_id: "work-elsewhere", owed: 1 } });
@@ -44,4 +44,10 @@ test("W2-18-A4-VIEW-01 a work's view holds exactly the AssistantWork fields, wha
   assert.deepEqual(Object.keys(full).sort(), [...REQUIRED, "budget_tokens", "character", "delegated_by", "reply_target", "scope_title"].sort());
   assert.deepEqual(full.delegated_by, { work_id: parent.work_id, title: "季度计划", acceptance: "列出三项" }, "which work asked, never the graph's own ids");
   assert.deepEqual([full.reply_target, full.scope_title, full.character, full.budget_tokens], [reply_target, "个人", character, 5000]);
+
+  // B36F-02: a retired selection projects only the recovery marker.
+  storeBody(part.work_id, { character: { artifact_id: "a1", version: 2, title: "分析师" } });
+  const needsChoice = service.saveDraft(part.work_id, "");
+  assert.deepEqual(Object.keys(needsChoice).sort(), [...REQUIRED, "budget_tokens", "character_selection_required", "delegated_by", "reply_target", "scope_title"].sort());
+  assert.equal(needsChoice.character_selection_required, true);
 });

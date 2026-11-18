@@ -1,4 +1,5 @@
 import { mountCharacters } from "./client.js";
+import { mountTaskRolePicker } from "./task-picker.js";
 
 /** The factories the workbench's deferred loader finds by plugin bundle (`globalThis.molisWorkbenchPluginFactories`). */
 type PluginFactories = Record<string, (host: object) => void>;
@@ -11,4 +12,5 @@ const page = globalThis as { molisWorkbenchPluginFactories?: PluginFactories };
 page.molisWorkbenchPluginFactories ||= {};
 page.molisWorkbenchPluginFactories.characters = () => mountCharacters();
 mountCharacters();
+mountTaskRolePicker();
 document.addEventListener("molis-work:settings-embed", () => mountCharacters());

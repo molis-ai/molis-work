@@ -6,7 +6,7 @@ import test, { type TestContext } from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { addProjectInputFolder, setProjectOutputFolder } from "./fixtures/project-directories-http.js";
-import { CODING_TAKEN, codingAdd } from "./fixtures/coding-composer.js";
+import { CODING_OPEN, CODING_TAKEN, codingAdd } from "./fixtures/coding-composer.js";
 
 async function gitEditor(t: TestContext, surface: "git" | "coding", conflicts = false) {
   const browser = await openGoalBrowser(t, "seeded");
@@ -355,6 +355,8 @@ test("QEA-34: making a read-only conflict directory writable reopens current dis
   await setProjectOutputFolder(browser.web, browser.projectId!, other);
   await browser.reloadPage(); await ctx.show();
   await ctx.startCodingSession();
+  // QEA-192: the bar can belong to Coding before its first draft is ready for input.
+  await browser.waitFor(CODING_OPEN);
   if (await frame.evaluate("document.querySelector('.coding-context').hidden")) await browser.evaluate(codingAdd("context"));
   await frame.click("[data-coding-workspace-open]");
   await frame.evaluate(`document.querySelector('[data-coding-workspace-choice]').value = ${JSON.stringify(workspace.workspace_id)}`);

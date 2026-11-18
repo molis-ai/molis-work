@@ -1,9 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
-import { ActionError, isItemPartAction, parseItemPartReference, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionExecutionContext,
+import { ActionError, isItemPartAction, parseItemPartReference, requireSynchronous, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionExecutionContext,
   type ActionReference, type ActionSubject, type ActionSubjectContext, type ActionView, type SubjectContextRequest, type WorkItemCreateResult, type WorkItemNextResult,
   type WorkItemNextStep, type WorkItemPart, type WorkItemRelatedResult } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { OwnedPresentationObject } from "@molis-ai/molis-work-contracts/platform/presentation";
-import { WORK_ITEM_KIND, mainlineErrors, type Mainline, type MainlineContentsRequest, type MainlineContentsResult, type MainlineCounts, type MainlineGroupEditRequest,
+import { MAINLINE_ARRANGE_PERMISSION, WORK_ITEM_KIND, mainlineErrors, type Mainline, type MainlineContentsRequest, type MainlineContentsResult, type MainlineCounts, type MainlineGroupEditRequest,
   type MainlineIssue, type MainlineItemCompleteRequest, type MainlineItemConvertRequest, type MainlineItemCreateRequest, type MainlineItemMoveRequest, type MainlineItemRemoveRequest,
   type MainlineItemRenameRequest, type MainlineItemResult, type MainlineItemSource, type MainlineReadRequest, type MainlineReadResult, type MainlineResult,
   type MainlineSwitchRequest, type WorkItem } from "@molis-ai/molis-work-contracts/services/mainline";
@@ -238,15 +238,12 @@ export async function holdsCreate(caller: ActionExecutionContext, client: Action
  */
 export async function placeInItem(caller: ActionExecutionContext, ports: MainlineItemPorts, subject: ActionSubject,
   item: { kind: "item" | "none"; item_id?: string }, visible: () => Promise<boolean>): Promise<ActionSubject[]> {
-  if ((item.kind === "item") !== (item.item_id !== undefined)) throw new ActionError("actions.input_invalid", "放进事项要说明哪一件；不归事项时不带事项");
   if (!await visible()) throw mainlineErrors.subject_unreadable("读不到这个任务，不能放进事项");
+  const required = [MAINLINE_ARRANGE_PERMISSION];
+  await caller.validate_permissions?.(required);
   await caller.beforeEffect();
-  return withStore(caller, ports, store => {
-    if (item.kind === "item" && !store.item(item.item_id!)) throw mainlineErrors.item_missing("主线上没有这件事项");
-    store.release(null, subject);
-    if (item.kind === "item") store.hold(item.item_id!, subject);
-    return store.holding(subject).map(asTarget);
-  });
+  requireSynchronous(caller.assert_authority_current?.(undefined, required));
+  return withStore(caller, ports, store => store.placeOnly(item.item_id ?? null, subject));
 }
 
 // ---- one item's line -----------------------------------------------------------------------------------------------------------------

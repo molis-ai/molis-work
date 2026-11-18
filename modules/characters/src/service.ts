@@ -1,6 +1,6 @@
 import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
 import { externalTool } from "@molis-ai/molis-work-contracts/platform/external-tools";
-import type { CharacterImportSnapshot, CharacterImportSelection, CharacterContent, CharacterDraft, CharacterDraftPatch, CharacterRoleContent, CharacterState, CharactersCommand, CharactersQuery, PersonalCharacterVersionRef } from "@molis-ai/molis-work-contracts/modules/characters";
+import type { CharacterImportSnapshot, CharacterImportSelection, CharacterContent, CharacterDraft, CharacterDraftPatch, CharacterMemberSaveInput, CharacterMemberSaveResult, CharacterRoleContent, CharacterState, CharactersCommand, CharactersQuery, PersonalCharacterVersionRef, ProjectCharacterVersionRef } from "@molis-ai/molis-work-contracts/modules/characters";
 import { parseCharacterContent, parseCharacterTools, selectCharacterImportSnapshot } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { CharactersRepository } from "./repository.js";
 import type { CharacterRoles } from "./roles.js";
@@ -73,13 +73,39 @@ export class CharactersService implements CharactersQuery, CharactersCommand {
 
   /** An earlier version saved as the next one (`characters.versions.restore`): later versions stay. */
   restore(ref: PersonalCharacterVersionRef, expectedRevision: number): CharacterDraft {
-    return this.repository.immediate(() => {
-      const current = this.confirmed(ref.character_id, expectedRevision), past = this.roles.version(ref.character_id, ref.version);
-      if (!past) throw characterErrors.not_found("找不到这个版本");
-      const { action_tools: _a, import_snapshot: _i, ...rest } = current, content = past.content;
-      return this.save(current, { ...rest, title: content.title, instructions: content.instructions, host_tools: content.host_tools,
-        ...(content.action_tools === undefined ? {} : { action_tools: content.action_tools }), ...(content.import_snapshot ? { import_snapshot: content.import_snapshot } : {}) });
+    return this.repository.immediate(() => this.restoreDraft(ref, expectedRevision));
+  }
+
+  saveMember(projectId: string, input: CharacterMemberSaveInput): CharacterMemberSaveResult {
+    const { member_id, expected_revision, expected_original_version, expected_original_draft_revision, work_style, capabilities } = input;
+    const sections = { work_style, capabilities };
+    if (expected_original_draft_revision === undefined) {
+      return { role: this.roles.saveMember(projectId, member_id, expected_revision, expected_original_version, sections) };
+    }
+    if (!work_style && !capabilities) throw characterErrors.invalid("至少选择一节保存到原件");
+    let original_draft_revision: number | undefined;
+    const role = this.roles.saveMemberFollowing(projectId, member_id, expected_revision, expected_original_version, sections, id => {
+      const current = this.confirmed(id, expected_original_draft_revision);
+      const next = { ...current, ...work_style, ...capabilities };
+      if (capabilities && capabilities.action_tools === undefined) delete next.action_tools;
+      original_draft_revision = this.save(current, next).revision;
+      return this.roles.latestVersion(id)!.version;
     });
+    return { role, original_draft_revision };
+  }
+
+  restoreMember(projectId: string, ref: ProjectCharacterVersionRef, expectedRevision: string, expectedOriginalVersion: number, expectedDraftRevision?: number) {
+    return this.roles.restoreMember(projectId, ref, expectedRevision, expectedOriginalVersion, expectedDraftRevision === undefined ? undefined : original => {
+      this.restoreDraft(original, expectedDraftRevision);
+      return this.roles.latestVersion(original.character_id)!.version;
+    });
+  }
+
+  private restoreDraft(ref: PersonalCharacterVersionRef, expectedRevision: number): CharacterDraft {
+    const current = this.confirmed(ref.character_id, expectedRevision), past = this.roles.version(ref.character_id, ref.version);
+    if (!past) throw characterErrors.not_found("找不到这个版本");
+    const { action_tools: _a, import_snapshot: _i, ...rest } = current;
+    return this.save(current, { ...rest, ...past.content });
   }
 
   private content(patch: CharacterDraftPatch, previousActions?: CharacterDraft["action_tools"]): CharacterRoleContent {

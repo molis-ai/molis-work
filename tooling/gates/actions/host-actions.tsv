@@ -189,7 +189,7 @@ characters.imports.import	1	io.molis.work.characters	command	operation	project	w
 characters.kit.report	1	io.molis.work.characters	query	query	project	read	concurrent	user	-	-	molis.kit-report.input.v1	molis.kit-report.output.v1	d746974fa9af	81f8c9271a2c	-
 characters.launch	1	io.molis.work.characters	command	operation	project	write	-	user	artifact:read	character	-	-	c94cb65f2031	b89894b8524e	-
 characters.members.add	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user	-	character	-	-	44df6cdf3dc3	1852aa4b8410	5e0374458cf9
-characters.members.save	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user	-	character	-	-	8fb7d412cb36	1852aa4b8410	5e0374458cf9
+characters.members.save	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user	-	character	-	-	01d8e9474901	b2ad461cfc86	5e0374458cf9
 characters.members.section	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user	-	character	-	-	dd14cc425608	1852aa4b8410	5e0374458cf9
 characters.members.state	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user	-	character	-	-	807976509108	c2ee03acce07	5e0374458cf9
 characters.publications.file	1	io.molis.work.characters	query	query	project	read	-	user	artifact:read	character	-	-	697fcc6c755e	a2c799262a3c	-
@@ -204,7 +204,7 @@ characters.subject.read	1	io.molis.work.characters	query	query	project	read	conc
 characters.update	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user,workflow	-	character	-	-	637cd9b480db	5479a296af31	-
 characters.usages	1	io.molis.work.characters	query	query	project	read	concurrent	agent,mcp,plugin,user	-	-	molis.action-usages.input.v1	molis.action-usages.output.v1	8fc50332e9ea	d6491f838975	-
 characters.versions.read	1	io.molis.work.characters	query	query	project	read	-	agent,mcp,user,workflow	-	character	-	-	9b485c93f8d0	6848cfd25e4c	5e0374458cf9
-characters.versions.restore	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user	-	character	-	-	354f8a238a63	2f6a46dc5577	5e0374458cf9
+characters.versions.restore	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user	-	character	-	-	e98c1ce1dd9b	2f6a46dc5577	5e0374458cf9
 connectors.account.read	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:account:read	connector	-	-	7d42269d0825	e14fa014b7b4	-
 connectors.authorization.cancel	1	system.connectors	command	operation	home	write	-	agent,mcp,user	connectors:management:write	connector	-	-	f204a0118ca6	a2c799262a3c	-
 connectors.authorization.read	1	system.connectors	query	query	home	read	-	agent,mcp,user	connectors:management:read	connector	-	-	f204a0118ca6	a2c799262a3c	-

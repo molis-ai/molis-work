@@ -6,6 +6,8 @@ import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { putInput, sendBrowser, waitWork } from "./fixtures/assistant-send-journey.js";
+import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 
 // The role drawer (apps/workbench/src/browser/characters/drawer.ts, plan C): an edit stays in this tab's session storage until it is
 // saved, keyed by the version it was typed over, so a version saved elsewhere is neither overwritten nor lets the edit go; the edit is
@@ -102,6 +104,132 @@ test("RAC-1608: a member's edit saved to the original after a conflict keeps wha
   const saved = personal.service.get(original.character_id)!;
   assert.equal(saved.instructions, "抽屉里的做法", "the edited section goes to the original");
   assert.deepEqual(saved.host_tools, ["read-file", "search"], "the section not edited here keeps what the original says now");
+  await click("[data-roles-drawer=undo]");
+  await waitFor("document.querySelector('[data-character-notice]')?.textContent.includes('已撤销')");
+  assert.equal(personal.service.get(original.character_id)?.instructions, "原来的做法", "B36F-05 undo restores the previous original");
+  assert.deepEqual(personal.service.get(original.character_id)?.host_tools, ["read-file", "search"]);
+  assert.deepEqual(personal.service.roles.memberRole(b.projectId!, member.current.member_id)?.sections.work_style, { mode: "follow" });
+  // The member version is unchanged when a followed original changes, so reopen must compare the original version as well.
+  personal.service.update(original.character_id, personal.service.get(original.character_id)!.revision, {
+    title: "核对者", instructions: "原来的做法", host_tools: ["search"],
+  });
+  await b.reloadPage();
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(row)}))`, 60_000);
+  await click(row); await waitFor(DRAWER_READ); await waitFor(CONFLICT);
+  await click("[data-roles-drawer=merge]");
+  await waitFor(`!(${CONFLICT}) && document.querySelector('[data-roles-drawer=save]')?.disabled === false`);
+  assert.equal(await evaluate("document.querySelector('[data-character-instructions]').value"), "抽屉里的做法");
+  assert.equal(await evaluate("document.querySelector('[data-character-tools]').value"), "search");
+
+  const savedMember = personal.service.roles.memberRole(b.projectId!, member.current.member_id)!;
+  personal.service.roles.saveMember(b.projectId!, member.current.member_id, savedMember.revision, savedMember.current.original.version, {
+    work_style: { instructions: "不要显示这节的差异" }, capabilities: { host_tools: ["read-file"], action_tools: [] },
+  });
+  const beforeUpstream = personal.service.get(original.character_id)!;
+  personal.service.update(original.character_id, beforeUpstream.revision, { title: beforeUpstream.title, instructions: beforeUpstream.instructions, host_tools: ["search", "read-file"] });
+  await b.reloadPage();
+  const diff = `[data-roles-act=diff][data-roles-arg="${member.current.member_id}"]`;
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(diff)}))`, 60_000);
+  await click(diff); await waitFor("Boolean(document.querySelector('.roles-diff'))");
+  const comparison = await evaluate<string>("document.querySelector('.roles-diff').textContent");
+  assert.ok(comparison.includes("能用什么") && comparison.includes("read-file") && comparison.includes("search"));
+  assert.ok(!comparison.includes("不要显示这节的差异"), "only the changed upstream section is compared");
+});
+
+test("B36F-04 the task role picker uses the shared editor and sets defaults in place", { timeout: 180_000 }, async t => {
+  const b = await sendBrowser(t); if (!b) return;
+  const { click, evaluate, waitFor } = b;
+  const characters = openCharacters(b.homeDirectory, "web-user"); t.after(() => characters.close());
+  const good = characters.service.create({ title: "本项目审稿", instructions: "看结构", host_tools: [] });
+  const limited = characters.service.create({ title: "工具不合适", instructions: "需要读文件", host_tools: ["read-file"] });
+  const member = characters.service.roles.addMember(b.projectId!, good.character_id);
+  characters.service.roles.addMember(b.projectId!, limited.character_id);
+  characters.service.roles.setDefault(b.projectId!, { layer: "project", selection: { kind: "project", member_id: member.current.member_id } });
+  const pick = "[data-task-role-select]", role = "project:" + member.current.member_id;
+  const choose = (value: string) => evaluate(`(() => { const select = document.querySelector("${pick}"); select.value = ${JSON.stringify(value)}; select.dispatchEvent(new Event("change", { bubbles: true })); })()`);
+  const action = (name: string) => click(`[data-task-role-act="${name}"]`);
+  const button = '[data-composer-control="character"]';
+  const side = "[data-assistant-role-picker]";
+  const source = () => evaluate<string>("document.querySelector('[data-task-role-source]').textContent");
+  const send = async (prior: string | null, rounds: number) => {
+    await click("[data-assistant-composer] [data-composer-send]");
+    if (prior) await waitFor(`${CURRENT_WORK} && ${CURRENT_WORK} !== ${JSON.stringify(prior)}`);
+    else await waitFor(CURRENT_WORK);
+    return waitWork(b, await evaluate<string>(CURRENT_WORK), view => view.rounds.length === rounds && view.work.state === "completed");
+  };
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/` }, b.sessionId));
+  const more = "[data-assistant-composer] [data-composer-more]";
+  const open = async () => {
+    await click('[data-assistant-composer] .mw-composer__input');
+    if (await evaluate(`Boolean(document.querySelector("${more}")?.getClientRects().length)`)) await click(more);
+    await click(button); await waitFor(`document.querySelector("${pick}")?.options.length > 2`, 60_000);
+  };
+  const path = await evaluate("location.pathname");
+  await open();
+  assert.equal(await source(), "助理自己", "the empty Now conversation skips the project default");
+  assert.equal(await evaluate(`!!document.querySelector("${pick} option[value=inherit]")`), false);
+  await action("close");
+  await waitFor("!document.querySelector('[data-task-role-picker]')");
+  await putInput(b, "先和助理对话");
+  const main = await send(null, 1);
+  assert.equal(main.work.main, true);
+  assert.equal(main.rounds[0]?.character, undefined);
+  await click("[data-assistant-new]");
+  await click("[data-assistant-panel-close]");
+
+  await putInput(b, "选角前已输入的草稿");
+  await open();
+  assert.match(await source(), /项目默认 · 本项目审稿/);
+  assert.equal(await evaluate(`[...document.querySelector("${pick}").options].find(row => row.textContent.includes("工具不合适"))?.disabled`), true);
+  await choose(role);
+  await action("project"); await action("apply");
+  await waitFor("document.querySelector('[data-task-role-notice]')?.textContent.includes('本项目的新任务从现在起用它')");
+  assert.deepEqual(characters.service.roles.catalog(b.projectId!, characters.service.list()).defaults.project, { kind: "project", member_id: member.current.member_id });
+  await action("personal");
+  assert.equal(await evaluate(`document.querySelector("${pick}").value`), "personal:" + good.character_id, "the personal default mode selects the member's original");
+  await action("apply");
+  await waitFor("document.querySelector('[data-task-role-notice]')?.textContent.includes('你的默认已改')");
+  assert.deepEqual(characters.service.roles.catalog(null, characters.service.list()).defaults.personal, { kind: "personal", character_id: good.character_id });
+  await choose(role);
+  await action("edit");
+  await waitFor(DRAWER_READ);
+  assert.equal(await evaluate("document.querySelector('[data-character-instructions]').value"), "看结构");
+  await click("[data-roles-drawer=close]");
+  await waitFor("!document.querySelector('[data-character-drawer]')");
+  await action("new");
+  await waitFor("document.querySelector('[data-character-drawer]')?.open === true");
+  await evaluate(`(() => {
+    for (const [field, value] of [["title", "本次新角色"], ["instructions", "先归纳"]]) {
+      const input = document.querySelector("[data-character-" + field + "]"); input.value = value; input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  })()`);
+  await click("[data-roles-drawer=save]");
+  await waitFor("document.querySelector('[data-character-drawer-notices]')?.textContent.includes('已保存')");
+  await click("[data-roles-drawer=close]");
+  await waitFor(`document.querySelector("${pick}")?.selectedOptions[0]?.textContent === "本次新角色"`);
+  await action("apply");
+  assert.equal(await evaluate("location.pathname"), path);
+  await waitFor(`Array.from(document.querySelectorAll(${JSON.stringify(button)})).some(node => node.textContent.includes("本次新角色"))`);
+  await waitFor(`document.activeElement.matches(${JSON.stringify(button)})`);
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "选角前已输入的草稿");
+  assert.deepEqual(characters.service.roles.catalog(b.projectId!, characters.service.list()).defaults.project, { kind: "project", member_id: member.current.member_id });
+
+  const work = await send(main.work.work_id, 1);
+  assert.equal(work.rounds[0]?.character?.title, "本次新角色");
+  await waitFor(`Boolean(document.querySelector("${side}")?.getClientRects().length)`);
+  await evaluate(`document.querySelector("${side}").focus()`);
+  await b.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", text: "\r", windowsVirtualKeyCode: 13 }, b.sessionId);
+  await b.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, b.sessionId);
+  await waitFor(`document.querySelector("${pick}")?.options.length > 2`);
+  assert.match(await source(), /任务里另选 · 本次新角色/);
+  await choose("assistant");
+  assert.equal(await source(), "助理自己");
+  await action("apply");
+  await waitFor(`document.activeElement.matches("${side}")`);
+  await putInput(b, "这轮助理自己做");
+  const again = await send(null, 2);
+  assert.equal(again.work.work_id, work.work.work_id);
+  assert.equal(again.rounds[1]?.character, undefined);
 });
 
 test("RAC-2851 RAC-2852 Characters keeps its own styles on first open, cached reopen and project changes", { timeout: 180_000 }, async t => {

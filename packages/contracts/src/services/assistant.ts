@@ -292,9 +292,10 @@ export interface AssistantWork {
   created_at: string;
   updated_at: string;
   archived: boolean;
-  /** The role the person (or a default) chose to carry this work's rounds, as a stable choice in force from the next round on; the Host
-   * pins the version each round runs with. Absent means the Assistant itself. Personal work can have one too (an original). */
+  /** Stable role choice for the next round onward. Host pins the version. Personal work selects an original. */
   character?: AssistantCharacter;
+  /** A saved selection is invalid and the person must explicitly select a role or the Assistant before sending. */
+  character_selection_required?: true;
   /** Set on a work another work delegated: which one, what it was asked to deliver, and (`taken_back_at`) when the person took this part back into it (it stopped; what it made stays). */
   delegated_by?: { work_id: string; title: string; acceptance: string; taken_back_at?: string };
   /** The person's cap on this work's tokens (input plus output, its sub-tasks included). Absent means no cap of its own. */

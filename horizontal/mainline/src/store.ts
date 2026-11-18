@@ -280,23 +280,34 @@ export class MainlineStore {
 
   /** Put in; an object already in the item stays as it was. The arrangement is not touched, so its revision stays. */
   hold(itemId: string, subject: ActionSubject): void {
+    this.transaction(() => this.insertHold(itemId, subject));
+  }
+
+  private insertHold(itemId: string, subject: ActionSubject): void {
     if (subject.kind === WORK_ITEM_KIND) throw new ActionError("actions.input_invalid", "事项不能装进事项");
-    this.transaction(() => {
-      if (!this.item(itemId)) throw missing();
-      if (this.holding(subject).includes(itemId)) return;
-      const count = (this.db.prepare("SELECT COUNT(*) AS n FROM mainline_holds WHERE owner_actor_id = ? AND project_id = ? AND item_id = ?").get(this.actorId, this.projectId, itemId) as { n: number }).n;
-      if (count >= MAINLINE_LIMITS.held) throw mainlineErrors.limit(`一件事项最多装 ${MAINLINE_LIMITS.held} 个对象`);
-      this.db.prepare("INSERT INTO mainline_holds (owner_actor_id, project_id, item_id, subject_kind, subject_id, added_at) VALUES (?, ?, ?, ?, ?, ?)")
-        .run(this.actorId, this.projectId, itemId, subject.kind, subject.id, this.now());
+    if (!this.item(itemId)) throw missing();
+    if (this.holding(subject).includes(itemId)) return;
+    const count = (this.db.prepare("SELECT COUNT(*) AS n FROM mainline_holds WHERE owner_actor_id = ? AND project_id = ? AND item_id = ?").get(this.actorId, this.projectId, itemId) as { n: number }).n;
+    if (count >= MAINLINE_LIMITS.held) throw mainlineErrors.limit(`一件事项最多装 ${MAINLINE_LIMITS.held} 个对象`);
+    this.db.prepare("INSERT INTO mainline_holds (owner_actor_id, project_id, item_id, subject_kind, subject_id, added_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(this.actorId, this.projectId, itemId, subject.kind, subject.id, this.now());
+  }
+
+  /** Change the task's single placement in one transaction. A rejected destination leaves its existing holds intact. */
+  placeOnly(itemId: string | null, subject: ActionSubject): ActionSubject[] {
+    return this.transaction(() => {
+      if (itemId !== null) this.insertHold(itemId, subject);
+      this.db.prepare("DELETE FROM mainline_holds WHERE owner_actor_id = ? AND project_id = ? AND subject_kind = ? AND subject_id = ? AND (? IS NULL OR item_id != ?)")
+        .run(this.actorId, this.projectId, subject.kind, subject.id, itemId, itemId);
+      return this.holding(subject).map(id => ({ kind: WORK_ITEM_KIND, id }));
     });
   }
 
-  /** Taken out of one item, or of every item when `itemId` is null. */
-  release(itemId: string | null, subject: ActionSubject): void {
+  release(itemId: string, subject: ActionSubject): void {
     this.transaction(() => {
-      if (itemId !== null && !this.item(itemId)) throw missing();
-      this.db.prepare(`DELETE FROM mainline_holds WHERE owner_actor_id = ? AND project_id = ? AND subject_kind = ? AND subject_id = ?${itemId === null ? "" : " AND item_id = ?"}`)
-        .run(...[this.actorId, this.projectId, subject.kind, subject.id, ...(itemId === null ? [] : [itemId])]);
+      if (!this.item(itemId)) throw missing();
+      this.db.prepare("DELETE FROM mainline_holds WHERE owner_actor_id = ? AND project_id = ? AND subject_kind = ? AND subject_id = ? AND item_id = ?")
+        .run(this.actorId, this.projectId, subject.kind, subject.id, itemId);
     });
   }
 }

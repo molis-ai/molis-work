@@ -51,7 +51,7 @@ export function pageTaskFloat(options: {
         const mounted = projected;
         return { projected: mounted, destroy() { if (cached === mounted) cached = undefined; mounted.scope.dispose(); content.remove(); } };
       }, {
-        onClose: returnFocus => { intent++; if (scope.alive && scope.visible && returnFocus) { frame.focus(); port.postMessage({ type: "task-return-focus" } satisfies FrameDown); } },
+        onClose: returnFocus => { intent++; if (scope.alive && scope.visible && returnFocus) { frame.focus(); port.postMessage({ type: "task-return-focus", id: message.id } satisfies FrameDown); } },
         async prepare(signal) {
           try { html = await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal); }
           catch (error) { current(signal); if (denied(error)) forgetTaskFloatContent(owner); throw error; }

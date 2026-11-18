@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, bindActionClient, type ActionCallContext, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MAINLINE_ARRANGE_PERMISSION, MAINLINE_PLACE_PERMISSION, MAINLINE_READ_PERMISSION, WORK_ITEM_KIND, mainlineActions, mainlineItemActions, type Mainline,
+import { MAINLINE_ARRANGE_PERMISSION, MAINLINE_LIMITS, MAINLINE_PLACE_PERMISSION, MAINLINE_READ_PERMISSION, WORK_ITEM_KIND, mainlineActions, mainlineItemActions, type Mainline,
   type WorkLineEvent } from "@molis-ai/molis-work-contracts/services/mainline";
-import { openMainlineDatabase } from "@molis-ai/molis-work-service-mainline";
+import { MainlineStore, openMainlineDatabase } from "@molis-ai/molis-work-service-mainline";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { observationKeys, readRecords, snapshotText } from "@molis-ai/molis-work-service-observation";
 import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
@@ -286,6 +286,42 @@ test("MLC-11 MLC-14 placing a task into an item, into another, or into none chan
   assert.equal((await me.invoke(mainlineItemActions.subject, { subject_id: one.item_id })).title, "第一件");
   assert.equal((await me.invoke(mainlineItemActions.subject, { subject_id: two.item_id })).title, "笔记一");
   assert.equal((await me.invoke(mainlineActions.open, { subject: { kind: WORK_ITEM_KIND, id: one.item_id } })).title, "第一件", "found by kind like any object");
+});
+
+test("B36F-06 S-mainline-own-line: failed or unauthorized task placement retains the original item", { timeout: 60_000 }, async t => {
+  const background = backgroundPlugin(() => ({ source: SOURCE, tasks: [task(T1.id, { serves: [N1] })] }));
+  background.state.serves.set(T1.id, [N1]);
+  const { me, as, home, projectId } = await rigged(t, background);
+  const { item: from } = await me.invoke(mainlineItemActions.create, { name: "原事项" });
+  const { item: full } = await me.invoke(mainlineItemActions.create, { name: "已满" });
+  await me.invoke(mainlineActions.place, { task: T1, item: { kind: "item", item_id: from.item_id } });
+  const db = openMainlineDatabase(home);
+  try {
+    const store = new MainlineStore(db, LOCAL_PERSON_ACTOR_ID, projectId);
+    for (let i = 0; i < MAINLINE_LIMITS.held; i++) store.hold(full.item_id, { kind: "note", id: `fixture-${i}` });
+  } finally { db.close(); }
+
+  await assert.rejects(me.invoke(mainlineActions.place, { task: T1, item: { kind: "item", item_id: full.item_id } }), code("mainline.limit"));
+  const onlyEvent = as(person(projectId, { permissions: [MAINLINE_PLACE_PERMISSION, "homebg:read"] }));
+  await assert.rejects(onlyEvent.invoke(mainlineActions.place, { task: T1, to: { kind: "none" }, item: { kind: "none" } }), code("actions.forbidden"));
+  assert.deepEqual(background.state.serves.get(T1.id), [N1], "the denied combined request never changes the task owner's relation");
+  const withdrawn = as(person(projectId, { validate_permissions: permissions => {
+    if (permissions.includes(MAINLINE_ARRANGE_PERMISSION)) throw new ActionError("actions.forbidden", "withdrawn");
+  } }));
+  await assert.rejects(withdrawn.invoke(mainlineActions.place, { task: T1, item: { kind: "none" } }), code("actions.forbidden"));
+  const combined = { task: T1, to: { kind: "none" }, item: { kind: "none" } } as const;
+  await assert.rejects(withdrawn.invoke(mainlineActions.place, combined), code("actions.forbidden"));
+  const withdrawnAtOwner = as(person(projectId, { assert_authority_current: (ref, permissions) => {
+    if (ref?.capability_id === "homebg.serves.release" && permissions?.includes(MAINLINE_ARRANGE_PERMISSION)) {
+      throw new ActionError("actions.forbidden", "withdrawn at owner");
+    }
+  } }));
+  await assert.rejects(withdrawnAtOwner.invoke(mainlineActions.place, combined), code("actions.forbidden"));
+  await assert.rejects(me.invoke(mainlineActions.place, { ...combined, item: { kind: "item" } }), code("actions.input_invalid"));
+  assert.ok(background.state.servesCalls.every(call => call.role === "list"), "the owner never handles a denied write");
+  assert.deepEqual(background.state.serves.get(T1.id), [N1], "the original event is kept");
+  assert.deepEqual(await me.invoke(mainlineItemActions.holdsList, { subject: T1 }), { targets: [{ kind: WORK_ITEM_KIND, id: from.item_id }] });
+  assert.deepEqual(await onlyEvent.invoke(mainlineActions.place, { task: T1, to: { kind: "none" } }), { task: T1, serves: [] });
 });
 
 test("MLC-12 putting in, moving, switching and completing each leave one work record with the actor and the item, and no object's body; the contract has no status flow, assignee, due or comment", { timeout: 60_000 }, async t => {

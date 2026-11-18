@@ -93,7 +93,7 @@ CREATE TABLE assistant_requests (
 ${CONTEXT_LEDGER_SCHEMA}` };
 
 /** A work as stored: the public record plus the project reference its actions and sessions are bound to. */
-export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by"> {
+export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by" | "character_selection_required"> {
   actor_id: string;
   thread_round?: AssistantThreadRound;
   /** What the next plugin round is told of the work so far, once, after the Assistant handed it over. Never shown as the work. */

@@ -281,7 +281,7 @@ export const mainlineActions = {
    * the task's authority, budget or data scope is touched, and the service keeps no record of its own.
    */
   place: { capability_id: "mainline.place", version: /* @version action.mainline.place */ 1, operation: "command", action: { ...metadata,
-    title: "安放后台任务", description: "说明一个后台任务为线上的哪个事件办、登记成新事件，或不属于事件；由任务的主人记下，任务不停、不重做，授权、预算与数据范围不变。",
+    title: "安放后台任务", description: "改变后台任务为哪个事件办，或它在哪件事项里。改变事项归属还需 mainline:arrange。任务继续执行，授权、预算与数据范围不变。",
     kind: "operation", effect: "write", audiences: ["user", "agent", "mcp"], permissions: [MAINLINE_PLACE_PERMISSION],
     input_schema: inputSchemaFor<TaskPlaceRequest>()({ type: "object", properties: { task: ACTION_SUBJECT_SCHEMA,
       to: { type: "object", properties: { kind: { enum: ["event", "new_event", "none"] }, subject: ACTION_SUBJECT_SCHEMA }, required: ["kind"], additionalProperties: false }, window: WORK_EVENT_WINDOW_SCHEMA,

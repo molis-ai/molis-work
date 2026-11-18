@@ -103,7 +103,8 @@ for (const scope of ["home", "project"] as const) test(`QEA-124 the ${scope} ass
   const href = `${prefix}/settings/kit?draft=${draft!.draft_id}`;
   const receipt = `[data-assistant-thread] [data-card] a[data-ix-press=open][href=${JSON.stringify(href)}]`;
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(receipt)})?.textContent.trim()`), "打开草稿", "successful receipt points to the original draft");
-  await click(receipt);
+  // QEA-192: wait for the destination document before reading its editor.
+  await navigate(() => click(receipt));
   await waitFor(`document.querySelector('#au-name')?.value === ${JSON.stringify(fields.name)}`, 20_000);
   assert.equal(await evaluate("document.querySelector('#au-body')?.value"), fields.body);
   assert.equal(await evaluate("document.querySelector('[data-kit-settings]')?.dataset.project"), scope === "home" ? "" : projectId);

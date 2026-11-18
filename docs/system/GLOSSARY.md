@@ -105,7 +105,9 @@
 | 送达方式 | AI 运行中再发一句时的三种送法：补充（默认，模型边界读到）、打断并改向、下一轮再做；键位说明里「下一轮再做」叫排队 | 补充、打断并改向、下一轮再做；英文 Add、Interrupt and redirect、Do it next turn | 这一轮结束后再做、打断（单写，指它时） |
 | 接收者（发给谁） | 输入框里这句话发给的对象：助理、某项工作或任务、子任务、项目讨论的群或话题。一个输入框（§10.2 甲）里页面登记给底栏的接收对象，代码与框架桥里也叫「收件人」，与这个是同一件事 | 「发给：对象」；英文 Send to；代码与框架桥「收件人」 | 目标（界面上「目标」只指 Goal）、发到 |
 | 一个输入框（one input） | 第 11 批按用户 2026-11-10 选「甲」：工作台底栏的唯一输入框；插件页面不挂自己的框，登记为收件人，底栏在前台是它时发给它（specs/unified-input-voice/spec.md §10.2～§10.4） | 一个输入框、收件人 | 三个入口各挂一个输入框、第二个框 |
-| 事项（work item） | 一件要办成的事的容器：事项线的线头显示并切换的那一个（一条线属于一个事项；没选时是项目的线）。事项的事实归主线服务（`specs/mainline/spec.md`） | 事项 | 把线上的一项叫事项（那是事件）、任务（指它时） |
+| 事项来源（work-item source） | 在呈现声明提供 `item` 的对象类型，负责自己对象和可选的创建、关联、下一步 | 事项来源 | 主线复制的对象 |
+| 主线排列（mainline arrangement） | 一个人为一个项目安排的事项分组、顺序、固定与当前事项，由主线服务保存 | 主线、排列 | 事项线事件本身 |
+| 事项（work item） | 一件要办成的事的容器：事项线的线头显示并切换的那一个（一条线属于一个事项；没选时是项目的线）。事项的事实归主线服务（`specs/work-mainline/spec.md`） | 事项 | 把线上的一项叫事项（那是事件）、任务（指它时） |
 | 线上的事件（work event） | 事项线上的一项：插件或助理按 Manifest 声明的事件读取动作登记的一件值得跟的事，名字与状态词由登记方当次给出，平台不存标题（`specs/work-line/spec.md` §5、WLN-37）。界面与文档里单写「事件」只在事项线的语境里指它，别处加限定（见 2.5） | 事件 | 事项（指它时）、任务（指它时）、插件事件／宿主事件（那是另外几种事件） |
 | 后台任务（事项线的） | 一个事件背后的一次后台执行，或一项不属于任何事件的后台执行：谁在办、到哪一步、为哪个事件、结果交回给谁。各插件与平台按同一形状报到后台任务总表，在助理对话框的后台任务面板里看（`specs/work-line/spec.md` §4.5、§6.4，WLN-39）。和「后台作业」的关系见 2.5 | 后台任务（面板标题）；任务（行与卡里） | 事件（指它时）、后台作业（指面板里的一项时） |
 | 事项线 | 工作台底部那条高度固定的线：线头（事项）、左翼（发生过和正在办的事件）、输入框、右翼（接下来的事件）。后台任务不在线上，在后台任务面板里（用户 2026-11-14 定） | 无（用户看到的是线本身） | 后台任务条、任务线、Dock（指它时） |
@@ -235,7 +237,7 @@
 
 **Character**
 
-- 定义：个人拥有的 AI 做事方式：标题、指令、可选的内置工具范围和动作范围（用来限制，不授予权限）、可附带导入的规则与 Skill 快照。草稿归 `modules/characters`，发布到项目后是成果的一个固定版本（类型 `character.definition.v1`）。起跑时按精确版本选用，且只对插件在 Manifest 的 `agent` 块里用 `characters.role_ids` 声明接受 Character 的 Agent role 开放（声明类型 `AgentManifest`，`packages/contracts/src/platform/plugin-agent.ts:189`；Coding 的声明在 `plugins/native/coding/src/roles.ts:38`；起跑时的核对在 `horizontal/agent-host/src/index.ts:466`）。
+- 定义：个人拥有的 AI 做事方式：标题、指令、可选的内置工具范围和动作范围（用来限制，不授予权限）、可附带导入的规则与 Skill 快照。原件、版本及项目成员归 `modules/characters`。任务存原件或成员的稳定引用，由 Agent Host 在运行开始时钉固定版本。项目成员的做事方式与能用什么默认各自跟随原件，项目改过的一节可恢复跟随。发布为成果 `character.definition.v1` 是独立操作。插件须在 Manifest 的 `characters.role_ids` 声明哪些 Agent role 接受个人角色。
 - 归属（2026-10-08 用户决定，`specs/archive/repository-anti-corruption/spec.md` §1「Characters 的代码身份」）：Characters 不是插件，是宿主设置里的一节，界面仍是「设置 › 角色」；代码并进宿主或一个 Module（2026-10-18 定为 `modules/characters`），它的安装记录与 Runtime 条目一起删。文档按「设置的一节」写；只有讲落地前的代码时才写「Characters 插件」。（CHR-1 已落地，2026-10-22；旧安装记录改走维护，见 `docs/releases/CHECKLIST.md`。）
 - 现行代码（CHR-1，2026-10-22 已落地；之前是 `plugins/native/characters`，一个经 Plugin Runtime 装配的插件）：Characters 没有自己的包、Manifest、`registration` 和监督器条目。动作声明、处理器与归属绑定在 `modules/characters`，宿主侧有 5 个文件：`apps/local-host/src/characters-host.ts`（为每个项目注册动作提供方）、`apps/local-host/src/characters-http.ts`（页面 14 个地址的门）、`apps/local-host/src/character-import-discovery.ts`、`apps/local-host/src/character-import-plugins.ts`、`apps/local-host/src/character-native-execution.ts`。动作提供方仍叫 `io.molis.work.characters`（`kind: "plugin"`，标题 Characters，D1），所以动作引用、MCP 工具名与已发布的生产者继续对得上；有了 Module 这一种之后叫什么，是 BL-378。已发布的版本里存着生产者身份（`CHARACTER_PLUGIN_ID`、`CHARACTER_PUBLISHER_SIGNATURE`，`packages/contracts/src/modules/characters.ts:14-15`），`modules/characters/src/publications.ts:26` 读取时核对，两个值保留；发布写入的 `producer_plugin_version` 是产品版本（D4）。这是代码身份，不属于术语改名。
 - 代码：`CharacterDraft`、`CharacterContent`（`packages/contracts/src/modules/characters.ts`）。

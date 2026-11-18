@@ -113,10 +113,10 @@ agent.session.recovery	1	platform	query	query	project	read	-	plugin	-	-	-	-	39ce
 agent.session.unarchive	1	platform	command	operation	project	write	-	plugin	-	-	-	-	39ce5b1e5db9	4e73391f1121	-
 agent.sessions.status	1	platform	query	query	project	read	-	plugin	-	-	-	-	b1def1398a94	d41ff5436dd7	-
 agent.subagents.command	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	d641c98b5b5d	fd39317e4722	-
-agent.subagents.conversation	1	platform	query	query	project	read	-	plugin	-	-	-	-	a6e720313ceb	ae78fe550bd0	-
+agent.subagents.conversation	1	platform	query	query	project	read	-	plugin	-	-	-	-	a6e720313ceb	09a6c57fc09a	-
 agent.subagents.list	1	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060871	3a246608b069	-
 agent.subagents.request	1	platform	query	query	project	read	-	plugin	-	-	-	-	0b4d42c12d48	fd39317e4722	-
-agent.subagents.wait	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	6fa1756fd794	870735418f81	046efc93b6ac
+agent.subagents.wait	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	6fa1756fd794	208b25271bb7	046efc93b6ac
 agent.task_grants.clear	1	system.task-grants	command	operation	project	write	-	plugin,user	-	-	-	-	2f8424427527	939c976f491f	-
 agent.task_grants.list	1	system.task-grants	query	query	project	read	-	plugin,user	-	-	-	-	90f264064219	e5f995eece15	-
 agent.task_grants.set	1	system.task-grants	command	operation	project	write	-	user	projects:settings	project	-	-	65c4dcc42cc6	84610c1025f6	-

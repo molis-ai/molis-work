@@ -4,6 +4,7 @@ import type { AssistantNotice, AssistantScope, AssistantSendResult, AssistantWor
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { recordingTextModel, type ModelWire } from "./fixtures/recording-text-model.js";
 import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
+import { holdSubtaskDraft } from "./fixtures/subtask-draft-barrier.js";
 
 const userTexts = (body: ModelWire) => body.messages.filter(message => message.role === "user").map(message => typeof message.content === "string" ? message.content : JSON.stringify(message.content));
 
@@ -62,6 +63,16 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
   if (!await browser.evaluate("document.querySelector('.assistant-subtask-name').getBoundingClientRect().width > 0")) await browser.click("[data-assistant-side-toggle]");
   await browser.evaluate(`(() => { const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.value='main draft stays';input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
   if (place === "home" && source === "sdk") {
+    // B59-FIX-03: an unchanged Assistant wait does not project the original question and review widgets again.
+    const sdkTasks = current?.sdk_subtasks;
+    assert.ok(sdkTasks && "children" in sdkTasks && sdkTasks.children[0]?.state === "completed");
+    const child = sdkTasks.children[0]!;
+    const waitPath = base + "/works/" + sent.work.work_id + "/sdk-subtasks/" + child.parent_run.run_id + "/" + child.subagent_id + "/wait?timeout=0";
+    const wait = (suffix = "") => browser.evaluate<{ version: string; conversation?: unknown }>(`fetch(${JSON.stringify(waitPath + suffix)}).then(r=>r.json())`);
+    const first = await wait();
+    assert.ok(first.version && first.conversation);
+    assert.deepEqual(await wait("&since=" + encodeURIComponent(first.version)), { version: first.version });
+
     // SAI-04/11: the first load is still pending when its parent is closed; a late error cannot reopen it.
     const held = Promise.withResolvers<{ requestId: string; session: string | undefined }>();
     const off = browser.on("Fetch.requestPaused", (event, session) => held.resolve({ requestId: String(event.requestId), session }));
@@ -78,6 +89,11 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
     if (!await browser.evaluate("document.querySelector('.assistant-subtask-name')?.getBoundingClientRect().width > 0")) await browser.click("[data-assistant-side-toggle]");
     await browser.waitFor("document.querySelector('.assistant-subtask-name')?.getBoundingClientRect().width > 0");
   }
+  const workPath = source === "work" ? base + "/works/" + current!.delegated![0]!.work_id : undefined;
+  const draftPath = place === "home" ? workPath : undefined;
+  const followUpText = `FOLLOW_UP_${source}_59`;
+  const writeDraft = (draft: string) => browser.evaluate<boolean>(`fetch(${JSON.stringify(draftPath + "/draft")},{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({draft:${JSON.stringify(draft)}})}).then(response=>response.ok)`);
+  if (draftPath) assert.equal(await writeDraft(followUpText), true);
   await browser.evaluate("window.__subtaskEntry=document.querySelector('.assistant-subtask-name')");
   await browser.click(".assistant-subtask-name");
   try { await browser.waitFor("document.querySelector('[data-work-task-float] .mw-subtask__composer .mw-composer__input')", 15_000); }
@@ -93,14 +109,38 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
   assert.ok(layout.left >= 0 && layout.right <= layout.viewport + 1 && layout.top >= 0 && layout.bottom <= layout.height + 1, JSON.stringify(layout));
   assert.equal(layout.theme, theme); assert.ok(layout.locale.startsWith(locale));
   const before = childCalls;
-  await browser.evaluate(`(() => { const input=${childInput};input.value='FOLLOW_UP_${source}_59';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus(); })()`);
+  const failedDraft = place === "project" && workPath ? Promise.withResolvers<{ requestId: string; session: string | undefined }>() : undefined;
+  if (failedDraft) {
+    t.after(browser.on("Fetch.requestPaused", (event, session) => failedDraft.resolve({ requestId: String(event.requestId), session })));
+    await browser.command("Fetch.enable", { patterns: [{ urlPattern: `*${workPath}/draft` }] }, browser.sessionId);
+  }
+  if (draftPath) {
+    // B59-FIX-02: Work restored the first revision. A later owner write must survive sending the visible text.
+    await browser.waitFor(`${childInput}.value === ${JSON.stringify(followUpText)}`);
+    assert.equal(await writeDraft("a newer draft from another page"), true);
+    await browser.evaluate(`${childInput}.focus()`);
+  } else {
+    await browser.evaluate(`(() => { const input=${childInput};input.value=${JSON.stringify(followUpText)};input.dispatchEvent(new Event('input',{bubbles:true}));input.focus(); })()`);
+  }
   await browser.command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, browser.sessionId);
   await browser.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, browser.sessionId);
+  if (failedDraft) {
+    // B59-FIX-02: a failed Work autosave must leave the same edit retryable without retyping it.
+    const failure = await failedDraft.promise;
+    await browser.command("Fetch.failRequest", { requestId: failure.requestId, errorReason: "ConnectionFailed" }, failure.session);
+    await browser.command("Fetch.disable", {}, browser.sessionId);
+    const retry = '[data-work-task-float] [data-composer-status-action="retry"]';
+    await browser.waitFor(`document.querySelector(${JSON.stringify(retry)})`);
+    assert.equal(await browser.evaluate(`${childInput}.value`), followUpText);
+    assert.equal(childCalls, before);
+    await browser.click(retry);
+  }
   try { await browser.waitFor(`document.querySelector('[data-work-task-float]')?.textContent.includes('FOLLOW_UP_${source}_59')`, 20_000); }
   catch (error) { t.diagnostic(JSON.stringify({ parentCalls, childCalls, view: await read(), ui: await browser.evaluate("({errors:window.__subtaskErrors,float:document.querySelector('[data-work-task-float]')?.outerHTML})") })); throw error; }
   for (const end = Date.now() + 20_000; childCalls === before && Date.now() < end;) await new Promise(resolve => setTimeout(resolve, 50));
   assert.equal(childCalls, before + 1);
   assert.ok(bodies.some(body => userTexts(body).some(text => text.includes(`FOLLOW_UP_${source}_59`))));
+  if (draftPath) assert.equal((await browser.evaluate<AssistantWorkView>(`fetch(${JSON.stringify(draftPath)}).then(response=>response.json())`)).work.draft, "a newer draft from another page");
   assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "main draft stays");
   await browser.evaluate("window.dispatchEvent(new Event('focus'))");
   try { await browser.waitFor("!window.__subtaskEntry.isConnected", 15_000); }
@@ -133,4 +173,42 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
   assert.equal((await read()).rounds.length, source === "work" ? 2 : 1, "result observation never restarts the parent");
   await browser.evaluate(`fetch(${JSON.stringify(base + "/notices")},{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({notice_id:${JSON.stringify(updates[0]!.notice_id)},state:'seen'})}).then(r=>r.json())`);
   assert.equal((await notices()).notices.filter(one => one.work_id === sent.work.work_id && one.kind === "result").length, 0, "original result replay preserves the read state");
+  if (place === "home" && source === "sdk") {
+    // B59-FIX-01/02: a close before the first budget POST leaves the same action usable on the actual Home float.
+    await browser.evaluate("document.dispatchEvent(new CustomEvent('molis:assistant-open',{detail:{work_id:" + JSON.stringify(sent.work.work_id) + "}}))");
+    await browser.waitFor("document.querySelector('.assistant-subtask-name')");
+    if (!await browser.evaluate("document.querySelector('.assistant-subtask-name').getBoundingClientRect().width > 0")) await browser.click("[data-assistant-side-toggle]");
+    const extend = "[data-work-task-float] [data-subtask-action=extend-budget]";
+    await browser.click(".assistant-subtask-name");
+    await browser.waitFor("document.querySelector(" + JSON.stringify(extend) + ") && " + childInput + ".disabled");
+    const held = await holdSubtaskDraft(browser, "extend-budget");
+    try {
+      await browser.click(extend);
+      await held.wait();
+      await browser.click("[data-work-task-float] [data-subtask-close]");
+      await browser.waitFor("!document.querySelector('[data-work-task-float]')");
+    } finally { await held.release(); }
+    await browser.click(".assistant-subtask-name");
+    await browser.waitFor("document.querySelector(" + JSON.stringify(extend + ":not(:disabled)") + ")");
+    assert.equal(held.posts(), 0, "closing during draft CAS prevents the intercepted request");
+    assert.equal(childCalls, 2);
+    await browser.click(extend);
+    await browser.waitFor(childInput + " && !" + childInput + ".disabled");
+    assert.equal(held.posts(), 1);
+    held.dispose();
+    assert.equal(childCalls, 2, "extending the original budget does not dispatch a run");
+    const beforeRetry = (await read()).sdk_subtasks;
+    assert.ok(beforeRetry && "children" in beforeRetry && beforeRetry.children[0]?.budget?.max_attempts === 5);
+    await browser.evaluate("(() => { const input=" + childInput + ";input.value='SAI_THIRD_ASSISTANT';input.dispatchEvent(new Event('input',{bubbles:true})); })()");
+    await browser.click("[data-work-task-float] [data-composer-send]");
+    await browser.waitFor("document.querySelector('[data-work-task-float]')?.textContent.includes('Child answer 3')");
+    assert.equal(childCalls, 3);
+    assert.ok(bodies.some(body => userTexts(body).join("\n").includes("SAI_THIRD_ASSISTANT") && JSON.stringify(body.messages).includes("Child answer 2")));
+    const afterRetry = await read(), children = afterRetry.sdk_subtasks;
+    assert.ok(children && "children" in children);
+    assert.equal(children.children[0]?.subagent_id, beforeRetry.children[0]!.subagent_id);
+    assert.equal(children.children[0]?.child_run?.session_id, beforeRetry.children[0]!.child_run!.session_id);
+    assert.notEqual(children.children[0]?.child_run?.run_id, beforeRetry.children[0]!.child_run!.run_id);
+    assert.equal(afterRetry.rounds.length, 1);
+  }
 });

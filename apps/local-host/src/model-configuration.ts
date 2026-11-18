@@ -58,7 +58,7 @@ function readSettings(home: string, declaration: ConsumerModelConfigurationDecla
 }
 function saveSettings(home: string, declaration: ConsumerModelConfigurationDeclaration, input: PluginModelConfigurationInput): PluginModelConfigurationView {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw errors.model_configuration_invalid("模型设置必须是对象");
-  if (Object.keys(input).some(key => !["provider_id", "model_id", "base_url", "api_format", "connection_id"].includes(key))) throw errors.model_configuration_invalid("模型设置包含不支持的字段；请在 Connectors 中管理模型 API Key");
+  if (Object.keys(input).some(key => !["provider_id", "model_id", "base_url", "api_format", "connection_id"].includes(key))) throw errors.model_configuration_invalid("模型设置包含不支持的字段；请在「设置 › 服务连接」中管理模型 API Key");
   for (const key of ["provider_id", "model_id", "base_url", "api_format", "connection_id"] as const) if (input[key] !== undefined && typeof input[key] !== "string") throw errors.model_configuration_invalid("模型设置字段必须是文本");
   const custom = input.base_url !== undefined || input.api_format !== undefined || input.connection_id !== undefined || input.provider_id === declaration.custom_provider.provider_id;
   if (custom && input.provider_id && input.provider_id !== declaration.custom_provider.provider_id) throw errors.model_configuration_invalid("只能选择已有供应商；自定义设置仅修改此消费者专用供应商");

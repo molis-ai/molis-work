@@ -124,9 +124,9 @@ test("the new-task form carries two hidden hints, one per missing thing, and not
     assert.match(hint, /\bhidden\b/, "shown only once the Host says it is missing");
     assert.match(hint, /role="status"/);
   }
-  assert.match(form, /还没有配置文字模型/);
-  assert.match(form, /还没有绑定工作区/);
-  assert.match(form, /仍可以创建/, "says the task can still be created");
+  assert.match(form, /还没有设置可用的 AI 模型/);
+  assert.match(form, /还没有添加文件夹/);
+  assert.match(form, /你仍可先建好任务/, "says the task can still be created");
   assert.match(form, /<button class="mw-btn mw-btn--primary" type="submit">/);
   assert.doesNotMatch(form, /type="submit"[^>]*disabled/);
 });

@@ -3191,7 +3191,7 @@ Dreaming 是连接这四层的后台过程：拿原文核对笔记、补漏、�
 
 #### P2-03 按需查原文
 
-- **Molis：** 经动作目录登记一个只读的会话原文查询，Agent（助理、Coding）、第 64 批的历史搜索和整理（P2-04）共用。范围只取调用方获准的会话（项目、owner、AI 读取许可、未撤权），返回会话、轮次、事件位置和短摘录，界面能跳回原文。结果作不可信数据进上下文、计入本 Run 预算，不自动注入，不写记忆。
+- **Molis：** 经动作目录登记一个只读的会话原文查询，Agent（助理、Coding）、64-6 的历史搜索和整理（P2-04）共用。范围只取调用方获准的会话（项目、owner、AI 读取许可、未撤权），返回会话、轮次、事件位置和短摘录，界面能跳回原文。结果作不可信数据进上下文、计入本 Run 预算，不自动注入，不写记忆。
 - **Prologue（上游已做：#121，`endSeq`、`scannedSessions`、`truncatedBy`）：** 点名会话直接按 id 读，不先翻全部列表，也不被会话数上限静默跳过；连续的 `text-delta`／`reasoning-delta` 先合成一段（保留起止序号）再匹配；报告扫描覆盖（扫了几条、因上限没扫几条、不可读几条）、截断原因和取消。时间过滤仍等事件带 Host 时刻，不在本项编造。
 - **会不会去查。** 文章指出旧模型常常不读自己的记忆目录。工具说明讲清楚「引用过去的工作、上次的结论时先查」，并单列一个观察项：需要历史的样本里 Agent 实际去查记忆或原文的比例。
 
@@ -3232,7 +3232,7 @@ Dreaming 是连接这四层的后台过程：拿原文核对笔记、补漏、�
 
 #### P2-05 常驻层
 
-- 第 64 批「工作记忆」的热缓存（[主动助理 §5.7](../proactive-assistant/spec.md)）就是这里的常驻层，不另建事实：选入的仍是正式条目的引用，注入前由 SDK 重读复核，删除、停用、撤权后不再注入。
+- 64-5「工作记忆」的热缓存（[主动助理 §5.7](../proactive-assistant/spec.md)）就是这里的常驻层，不另建事实：选入的仍是正式条目的引用，注入前由 SDK 重读复核，删除、停用、撤权后不再注入。
 - **选入：** 经本人确认（手动保存或本人认可）、跨多次不同任务被用到、不是临时要求、没有未决冲突的短条目，例如常用人名昵称、内部术语、明确偏好。由整理提议，按设置生效。
 - **上限：** 按 token 设上限并占记忆总预算的一部分（`config.memory` 的阈值，默认值归 memory 模块），不是每格各领一份。文章与 Claude Code 文档都提醒注入越长遵循越差；建议起步小于 §5.7 写的 50–80 行（见 §15.9 ③）。
 - **形态：** 短句加引用，较长背景按需展开（条目读取或 P2-03）。当前明确要求在其适用范围内优先于常驻偏好；常驻内容以参考资料进 Context，不升格为指令。
@@ -3289,21 +3289,23 @@ Dreaming 是连接这四层的后台过程：拿原文核对笔记、补漏、�
 | MEM-75 | 首组样本：「这次投资人周报先写现金流」被误记为通用偏好，用户在另一会话纠正；跑一次整理后，分别写投资人版、内部版和另一个项目的周报，只在适用场景使用并能给出依据；另覆盖同义补漏、来源撤回与重启后遗忘 | [人工] 同模型、同参数多次成对回放，独立标注；按形成、召回、裁剪、遵循逐段定位；本人走查另记 |
 | MEM-76 | （仅在 P2-06 触发后）导览每条都能跳回来源；来源变化后更新或清掉失效链接；篇幅相对来源有上限；同一冻结问题集上「搜索 + 导览」优于「只搜索」，否则停止试点 | 冻结问题集对照、链接有效性检查、遗忘后的派生清理 |
 
-### 15.8 批次落点（拟定）
+### 15.8 批次落点（2026-11-18 用户确认，P2-01～P2-05 合成独立的 63A）
 
 | 内容 | 落点 | 说明 |
 | --- | --- | --- |
 | P1 短合同补整理变更的撤销窗口与自动改动 `policy` + `trigger_evidence`；P2-02 的「空常驻不发召回」（上游 molis-ai/molis-prologue#121 已做，已随第 31 批换入公开 main `3825662d` 官方包生效、不改 Agent Host，并记下 `BL-1072` 方法下的零模型诊断值） | [31-2](../post-anticorruption-roadmap/reference/batches/31.md#batch-31-item-2)（已完成） | 同在 P1 历史与换包这一处 |
 | 请 Prologue 补：会话检索（上游 #121 已做）、按 P2-01 合同需要的「提炼结果带关系与目标版本」（视合同） | [62](../post-anticorruption-roadmap/reference/batches/62.md)「记忆与会话检索清单」 | 阶段 3 的换包窗口；候选公平的 Host 侧与开轮召回的 Molis 接入见 64-9 |
 | 记忆样本与逐段定位进评测平台 | [63](../post-anticorruption-roadmap/reference/batches/63.md) | 与 64 共同消费，到 76 汇合 |
-| P2-05 常驻层并进工作记忆 | [64-5](../post-anticorruption-roadmap/reference/batches/64.md#batch-64-item-5) | 热缓存即常驻层，叠在 64-9 上 |
-| P2-01 形成质量 | [64-8](../post-anticorruption-roadmap/reference/batches/64.md#batch-64-item-8)（新） | 与整理共用判断合同，先于 64-9 |
-| P2-02 的 Molis 消费（含候选按 scope 公平收的 Host 侧）、P2-03、P2-04、用户控制 | [64-9](../post-anticorruption-roadmap/reference/batches/64.md#batch-64-item-9)（新） | 等 64-8、62 的清单里仍属上游的第 4 项（视 P2-01 合同）、32-2、44-2 |
+| P2-05 常驻层（工作记忆的热缓存） | [63A-3](../post-anticorruption-roadmap/reference/batches/63a.md#batch-63a-item-3) | 热缓存即常驻层，叠在 63A-2 上；64-5 只读它 |
+| P2-01 形成质量 | [63A-1](../post-anticorruption-roadmap/reference/batches/63a.md#batch-63a-item-1) | 与整理共用判断合同，先于 63A-2 |
+| P2-02 的 Molis 消费（含候选按 scope 公平收的 Host 侧）、P2-03、P2-04、用户控制 | [63A-2](../post-anticorruption-roadmap/reference/batches/63a.md#batch-63a-item-2) | 等 63A-1、44-5、62 的清单里仍属上游的第 4 项（视 P2-01 合同）、32-2、44-2 |
 | 整理与常驻的长期观察 | [76](../post-anticorruption-roadmap/reference/batches/76.md) | 观察期满再下结论 |
 | P2-06 主题导览 | [BL-memory-topic-guide](../backlog/BL-memory-topic-guide.md) | 条件触发，不排批 |
 | 语义／混合召回、规模与查询下推 | 仍按 BL-memory-p2-semantic-recall、BL-memory-p2-scale 触发 | 触发前先过 MEM-65 的逐段定位 |
 
 ### 15.9 要用户定的事
+
+**2026-11-18 用户定**（[路线书决定 52](../post-anticorruption-roadmap/reference/decisions.md#decision-52) ④）：① 改为「退出自动召回、仍可显式查与原文查」，MEM-70 按此验；② 确认排批，P2-01～P2-05 合成独立的 [63A](../post-anticorruption-roadmap/reference/batches/63a.md)；③ 常驻层不设硬上限，§5.7 的 50～80 行改为可调整的参考值，按 token 计量；④ 仍按触发条件。下面是当时的问法，留作记录。
 
 - ① **90 天没用的自动条目。** 现行是停用（`auto_disabled`）。推荐改为「退出自动召回、仍可显式查与原文查」，它改产品语义和条目状态合同，要用户定；不定则 MEM-70 按现行停用验。
 - ② **P2 部分排批。** [决定 36](../post-anticorruption-roadmap/reference/decisions.md#decision-36) 定过「P2 不排批，测到问题才做」。本节依据 §15.1 已核实的代码缺口和 P0 对照结果，拟把 P2-01～P2-05 排进 31-2、62、63、64、76，P2-06 和语义、规模两项仍按触发；见 [决定 46](../post-anticorruption-roadmap/reference/decisions.md#decision-46)。

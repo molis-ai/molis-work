@@ -100,8 +100,8 @@ test("RAC-130 the actual English Skill catalog translates Todo names and usage g
   const answer = await f.host.homeActionClient().invoke({ ...person(SKILLS_PERMISSIONS), locale: "en" }, skillCatalogActions.list, {}) as { skills: SkillCatalogEntry[] };
   const rows = answer.skills.filter(skill => skill.pack.plugin_id === todoManifest.plugin_id);
   assert.deepEqual(rows.map(skill => [skill.ref.skill_id, skill.name]), [["todo-organize", "Organize todos"], ["todo-advance", "Advance a todo"]]);
-  assert.equal(rows[0]!.description, "Use when the user wants tasks extracted from mail, files, meeting notes, web pages or current content, asks about missed tasks, or asks how an email changes existing plans. Present proposed tasks for confirmation first.");
-  assert.equal(rows[1]!.description, "Use when the user asks to move a specific todo forward. Identify the next step and blockers, create useful drafts, and propose status changes without applying them unasked.");
+  assert.equal(rows[0]!.description, "Use when the user wants tasks extracted from mail, files, meeting notes, web pages, or current content, checks for missed tasks, or asks how an email affects plans. Present candidates for confirmation first.");
+  assert.equal(rows[1]!.description, "Use when the user asks to move a specific todo forward. Clarify the next step and blockers, draft useful outputs, and propose status changes without applying them unasked.");
   for (const row of rows) {
     assert.equal(row.pack.title, "Todo");
     assert.ok(row.when_to_use && row.when_not_to_use, "the directory includes both usage boundaries");

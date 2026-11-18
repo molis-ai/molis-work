@@ -90,7 +90,7 @@ test("BL-135 refused closure keeps unmet reasons beside the form after the docum
       `BL-135: after read-back the closure form should keep 「收尾未生效」 and ${JSON.stringify(message)}; status=${JSON.stringify(shown.statusText)} toast=${JSON.stringify(shown.toast)} hero=${JSON.stringify(shown.hero)}`,
     );
   }
-  assert.equal(shown.toast, "收尾未生效。顶部已按当前权威状态更新。");
+  assert.equal(shown.toast, "收尾未生效，顶部已更新为当前状态。");
   assert.ok(shown.hero.includes(messages[0]!), `hero=${JSON.stringify(shown.hero)}`);
   assert.equal(shown.hero.includes("已有完成结论"), false);
 

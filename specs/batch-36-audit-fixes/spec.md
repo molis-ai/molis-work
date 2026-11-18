@@ -1,6 +1,6 @@
 # 第 36 批合后修复
 
-状态：合后修复见 [#2121](https://github.com/molis-ai/molis-work/pull/2121)。依据 [第 36 批原需求与合入记录](../post-anticorruption-roadmap/reference/batches/36.md)、[角色服务](../onboarding-coverage/role-service-design.md) 与 [主线合同](../work-mainline/contract-design.md)。原合并提交 `bdfcc36454`，修复从 `8d9f1fb01e` 开始，当前基点为 `eaa6b47492`。验证使用隔离 Home。
+状态：合后修复见 [#2121](https://github.com/molis-ai/molis-work/pull/2121)。依据 [第 36 批原需求与合入记录](../post-anticorruption-roadmap/reference/batches/36.md)、[角色服务](../onboarding-coverage/role-service-design.md) 与 [主线合同](../work-mainline/contract-design.md)。原合并提交 `bdfcc36454`，修复从 `8d9f1fb01e` 开始。当前基点 `e56bd6701a` 含独立合入的 [B58-02 滚动修复 #2124](https://github.com/molis-ai/molis-work/pull/2124)。验证使用隔离 Home。
 
 | 编号 | 场景与验收 |
 | --- | --- |

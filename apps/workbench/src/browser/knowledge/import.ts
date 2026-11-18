@@ -57,6 +57,7 @@ const originalHeaders = (file: File, accept?: string): Record<string, string> =>
 
 /** A row's note, cut to one line; the whole of it on hover. */
 const note = (mark: HTMLElement | null | undefined, text: string) => { if (mark) { mark.textContent = text; mark.title = text; } };
+const importWarning = (saved: Imported) => saved.warnings[0] === undefined ? undefined : globalThis.say.text(saved.warnings[0]);
 const FAILED = () => uiText.text("workbench.import.import-failed-check-file-link-document-permissions-connector");
 type ImportBatch = { kind: "files" | "online" | "transcription"; phase: "running" | "stopping" };
 const stopping = (batch: ImportBatch): boolean => batch.phase === "stopping";
@@ -97,7 +98,7 @@ function bindModelConsent(dialog: HTMLDialogElement, base: string, exclusive: (r
           } });
         if (saved.text_available) { done += 1; row?.classList.add("is-done"); }
         else { retry.push(item); row?.classList.add("is-failed"); }
-        note(mark, saved.warnings[0] ?? uiText.text("workbench.import.imported"));
+        note(mark, importWarning(saved) ?? uiText.text("workbench.import.imported"));
       } catch (error) {
         retry.push(item);
         row?.classList.add("is-failed");
@@ -254,7 +255,7 @@ export function bindKnowledgeImport(root: HTMLElement): void {
         if (saved.model_required) { untranscribed.push(item); bytes ??= saved.model_required.approximate_bytes; }
         // A file still waiting on the speech model is not done yet: its note stays neutral until it is transcribed.
         if (!saved.model_required) rows[index]?.classList.add("is-done");
-        note(mark, saved.model_required ? uiText.text("workbench.import.no-text-yet") : saved.reused ? uiText.text("workbench.import.unchanged") : saved.warnings.length ? saved.warnings[0]! : uiText.text("workbench.import.imported"));
+        note(mark, saved.model_required ? uiText.text("workbench.import.no-text-yet") : saved.reused ? uiText.text("workbench.import.unchanged") : importWarning(saved) ?? uiText.text("workbench.import.imported"));
       } catch (error) {
         failed += 1;
         rows[index]?.classList.add("is-failed");

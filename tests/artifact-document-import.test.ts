@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,7 +9,8 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { MolisWorkLocalHost, withConnectorConnections, DEMO_PROJECT_ID, LocalProjectDatabase, openProjectVersionStores, homeIntegrationRegistry, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { artifactsActions, artifactAnalysisContext, artifactOriginalPath, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument, type ArtifactDocumentImportPorts, type ImportedArtifactDocument } from "@molis-ai/molis-work-module-artifacts";
+import { ARTIFACT_PRODUCER, ArtifactsModule, artifactsActions, artifactAnalysisContext, artifactOriginalPath, artifactVersionPath, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument, type ArtifactDocumentImportPorts, type ArtifactImportResult, type ImportedArtifactDocument } from "@molis-ai/molis-work-module-artifacts";
+import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { documentImportConnections, importLocalArtifactDocument } from "../apps/local-host/dist/artifact-document-import.js";
 import { blankPng, epub, odt, pptx, rtf, xlsx } from "./fixtures/office-files.js";
@@ -67,7 +68,7 @@ test("document file HTTP import registers, previews, exports, reuses and survive
   const file = { source: "file", filename: "导入验收.md", content: markdown };
   const response = await post(file, "first-file-import");
   assert.equal(response.status, 201);
-  const imported = await response.json() as { artifact_id: string; version: number; reused: boolean; url: string; warnings: string[]; text_available: boolean };
+  const imported = await response.json() as ArtifactImportResult;
   assert.equal(imported.text_available, true); // QEA-28: the import result reports text, not just a saved version.
   assert.equal(imported.version, 1);
   assert.equal(imported.reused, false);
@@ -119,15 +120,17 @@ test("document file HTTP import registers, previews, exports, reuses and survive
   for (const field of ["goals", "evidence", "runs", "reviews"] as const) assert.deepEqual(after[field], before[field]);
 });
 
-test("HTML import extracts readable content, preserves its source and never executes its markup", async t => {
+test("QEA-79: HTML import extracts readable content, preserves its source and never executes its markup", async t => {
   const { library, post, get } = await fixture(t);
   const original = '<!doctype html><html><head><title>导出的文档</title></head><body><h1>导出的文档</h1><p>真实正文 <strong>保留文字</strong> &#x1f642; &#999999999999;</p><script>htmlAttack()</script><template>hiddenTemplate</template><script>unfinishedScript()';
   const response = await post({ source: "file", filename: "export.html", content: original });
   assert.equal(response.status, 201);
-  const imported = await response.json() as { artifact_id: string; version: number; url: string; warnings: string[] };
-  assert.ok(imported.warnings.length > 0);
+  const imported = await response.json() as ArtifactImportResult;
+  assert.deepEqual(imported.warnings, [{ owner: "workbench", key: "workbench.import.warning-html-snapshot" }]);
   const artifact = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, imported)!;
+  assert.equal(artifact.schema_version, 2);
   const payload = artifact.payload as Record<string, unknown>;
+  assert.deepEqual(payload.warnings, [{ key: "workbench.import.warning-html-snapshot" }]);
   assert.equal(payload.original_html, original);
   assert.equal(payload.title, "导出的文档");
   assert.match(String(payload.content), /真实正文/);
@@ -139,6 +142,60 @@ test("HTML import extracts readable content, preserves its source and never exec
   assert.doesNotMatch(html, /<script>htmlAttack\(\)<\/script>/);
   const exported = await (await get(`/api${imported.url}/export`)).json() as { payload: Record<string, unknown> };
   assert.equal(exported.payload.original_html, original);
+});
+
+test("QEA-80: a schema 1 import stays exact through restart, download and reimport as schema 2", async t => {
+  const { store, library, post, get, headers, origin, restart } = await fixture(t);
+  const artifacts = library.artifacts, project_id = DEMO_PROJECT_ID, filename = "snapshot.html", source_id = "fixed-html-source";
+  const original = "<!doctype html><title>Fixed snapshot</title><p>Fixed body</p>";
+  const sourceFile = { filename, mime: "text/html", data_base64: Buffer.from(original).toString("base64") };
+  const importedId = (source: string) => `document-${createHash("sha256").update(JSON.stringify([project_id, "file", source])).digest("hex")}`;
+  const snapshot = (source: string, schema_version: number): RegisterArtifactVersionInput => ({
+    project_id, actor_id: LOCAL_PERSON_ACTOR_ID, artifact_id: importedId(source), version: 1,
+    artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version, producer: ARTIFACT_PRODUCER,
+    scope: "personal", title: "Fixed snapshot", media_type: "text/markdown", origin: { kind: "imported", file_name: filename },
+    content: { kind: "inline", payload: { source: "file", source_id: source, source_url: null, title: "Fixed snapshot", content: "Fixed body",
+      format: "markdown", warnings: ["冻结版本原有导入说明。"], original_html: original, original_file: sourceFile } },
+  });
+  // Versions saved by a different release. The current Host still owns every new import and refuses writes of those schemas.
+  const history = new ArtifactsModule({ db: store.db, homeOwner: LOCAL_PERSON_ACTOR_ID, appendEvent: store.appendEvent.bind(store), eventCursor: store.eventCursor.bind(store) });
+  const historical = snapshot(source_id, 1);
+  assert.throws(() => artifacts.commands.registerVersion(historical), { code: "artifacts.artifact.type_undeclared" });
+  const earlier = history.commands.registerVersion(historical).artifact, future = history.commands.registerVersion(snapshot("future-fixed-source", 3)).artifact;
+  const earlierPath = artifactVersionPath(earlier), futurePath = artifactVersionPath(future);
+  assert.match(await (await get(earlierPath)).text(), /冻结版本原有导入说明。/u);
+  const input = { source: "file", source_id, filename, content: original, original_file: sourceFile };
+  const response = await post(input);
+  assert.equal(response.status, 201, await response.clone().text());
+  const current = await response.json() as ArtifactImportResult;
+  assert.deepEqual([current.artifact_id, current.version, current.reused], [earlier.artifact_id, 2, false]);
+  assert.equal(artifacts.query.getArtifactVersion(project_id, current)?.schema_version, 2);
+  const repeated = await post(input);
+  assert.equal(repeated.status, 200);
+  assert.deepEqual(await repeated.json(), { ...current, reused: true });
+  for (const reference of [earlier, current]) {
+    const path = artifactVersionPath(reference);
+    const page = await (await get(path)).text();
+    assert.equal([...page.matchAll(/data-artifact-continue="io\.molis\.work\.pages"/gu)].length, 1);
+    assert.equal(await (await get(`/api${path}/file`)).text(), original);
+    const continued = await fetch(origin + "/api/artifacts/continue", { method: "POST", headers: headers(),
+      body: JSON.stringify({ reference: { artifact_id: reference.artifact_id, version: reference.version }, plugin_id: "io.molis.work.pages" }) });
+    assert.equal(continued.status, 201, await continued.clone().text());
+    assert.equal((await continued.json()).open.surface, "pages");
+  }
+  for (const path of [futurePath, `/api${futurePath}/file`]) {
+    const refused = await get(path);
+    assert.equal(refused.status, 503);
+    assert.match(await refused.text(), /artifacts\.document\.unsupported_version/u);
+  }
+  const unknown = await post({ ...input, source_id: "future-fixed-source" });
+  assert.equal(unknown.status, 503);
+  assert.match(await unknown.text(), /artifacts\.document\.unsupported_version/u);
+  assert.deepEqual(artifacts.query.latestArtifactVersion(project_id, future.artifact_id), future);
+  await restart();
+  assert.deepEqual(await (await get(`/api${earlierPath}/export`)).json(), earlier, "the original payload, digest, timestamp and reference survive restart");
+  assert.match(await (await get(earlierPath)).text(), /冻结版本原有导入说明。/u);
+  assert.match(await (await get(current.url)).text(), /已提取 HTML 文本/u);
 });
 
 for (const stop of ["cancel", "revoke"] as const) test(`HTML import ${stop} after real parsing leaves no Artifact and a fresh call recovers`, async t => {
@@ -340,7 +397,7 @@ test("catalog project HTTP imports keep independent snapshots and all read paths
       "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() },
     body: JSON.stringify(file),
   });
-  const imported: Array<{ prefix: string; artifact_id: string; version: number; url: string; reused: boolean; warnings: string[] }> = [];
+  const imported: Array<ArtifactImportResult & { prefix: string }> = [];
   for (const project of [alpha, beta]) {
     const prefix = `/projects/${project.project_id}`;
     for (const locator of ["project://result.txt", "result.txt"]) {
@@ -448,7 +505,7 @@ test("PMAT-14 a PDF or Word file keeps its original, and the text read out of it
   const saved = async (body: unknown) => {
     const response = await post(body);
     assert.equal(response.status, 201, await response.clone().text());
-    const result = await response.json() as { artifact_id: string; version: number; warnings: string[] };
+    const result = await response.json() as ArtifactImportResult;
     return { result, record: library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)! };
   };
 
@@ -474,7 +531,7 @@ test("PMAT-14 a PDF or Word file keeps its original, and the text read out of it
   // knowledge lists it by its name and sends it to no model (PMAT-44).
   const broken = await saved(original("scan.pdf", "application/pdf", Buffer.from("%PDF-1.4\nnot really a pdf\n%%EOF\n", "latin1")));
   assert.equal((broken.record.payload as { content: string }).content, "");
-  assert.match(broken.result.warnings.join("\n"), /Agent 只能看到它的名字/u, "the import says no text was read, and what that means");
+  assert.deepEqual(broken.result.warnings, [{ owner: "workbench", key: "workbench.import.warning-unreadable" }]);
   assert.equal(artifactAnalysisContext(broken.record).content, "");
 });
 
@@ -483,7 +540,7 @@ test("PMAT-47 Office, OpenDocument, EPUB and RTF files are read as Markdown; an 
   const imported = async (filename: string, mime: string, bytes: Uint8Array) => {
     const response = await post({ source: "file", filename, original_file: { filename, mime, data_base64: Buffer.from(bytes).toString("base64") } });
     assert.equal(response.status, 201, await response.clone().text());
-    const result = await response.json() as { artifact_id: string; version: number; warnings: string[] };
+    const result = await response.json() as ArtifactImportResult;
     return { warnings: result.warnings, content: (library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)!.payload as { content: string }).content };
   };
   const sheet = await imported("价目.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", xlsx([["型号", "价格"], ["TP-2", "1299"]]));
@@ -498,7 +555,10 @@ test("PMAT-47 Office, OpenDocument, EPUB and RTF files are read as Markdown; an 
   // original is kept with no text and the warning says what agents can see.
   const image = await imported("空白.png", "image/png", blankPng());
   assert.equal(image.content, "");
-  assert.match(image.warnings.join("\n"), /^(?:图片里没有识别出文字|这台电脑不能识别文字（需要 macOS 的文字识别组件）)，只保存了原件；Agent 只能看到它的名字。$/u);
+  assert.equal(image.warnings.length, 1);
+  const warning = image.warnings[0];
+  assert.ok(warning && "key" in warning && warning.owner === "workbench");
+  assert.ok(["workbench.import.warning-empty-image", "workbench.import.warning-ocr-unavailable"].includes(warning.key), warning.key);
 });
 
 // Onboarding limits (user 2026-10-22, ONB-LIM-01): an original over the inline 6 MB is sent as the raw body, offered to the 成果库 by
@@ -585,7 +645,7 @@ test("ONB-LIM-08 an original over 2 GB is kept whole without its text, and the i
   const result = await importArtifactDocument({ source: "file", filename: "录像.mov", original_file: { filename: "录像.mov", mime: "video/quicktime" } }, ports);
   assert.equal(readText, 0, "no text is read from bytes the Host could not hold");
   assert.equal(result.text_available, false); // QEA-28: an original-only result remains successful without claiming text.
-  assert.deepEqual(result.warnings, ["文件超过 2 GB，没有读取正文；原件完整保存。"]);
+  assert.deepEqual(result.warnings, [{ owner: "workbench", key: "workbench.import.warning-original-too-big" }]);
   const original = (library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)!.payload as { original_file: Record<string, unknown> }).original_file;
   assert.deepEqual([original.sha256, original.size_bytes], [stored.sha256, stored.size_bytes]);
 });

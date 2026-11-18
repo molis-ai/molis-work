@@ -144,7 +144,7 @@ Git 冲突主区及迟到反馈 QF-23/46 已保存于 `ff006e19f0`，冻结该�
 
 位置：`apps/local-host/src/artifact-original-text.ts:18-45,65` 组装中文 warnings，`modules/artifacts/src/artifact-document-import.ts:20-35,128-147` 随固定版本保存，`apps/workbench/src/browser/knowledge/import.ts:100,232` 直接呈现。英文 390px 转写实操截图 `import-stopped-transcription-en-390-dark.png` 已出现“正文是转写出的文字，可能有错字；原件完整保存。”，因此是实际语言混用，不只是字符串扫描命中。
 
-影响与处置：用户切到英文仍收到中文提取结果；页面不应据该文案决定状态，也不能靠翻译字符串反推失败种类。QF-14 先把完成判断交还 owner 的正文事实。提示本身应由提取 owner 提供稳定键/参数，展示时翻译；固定版本历史 warnings 的格式处理必须沿现有内容版本/升级约定，不静默改历史版本，不为英文临时覆盖原警告。此项已确认，语义迁移与历史处置尚待实施；不能把当前双语截图整体称为语言验收通过。
+影响是英文界面的提取反馈仍为中文。QF-14 已把完成判断交还 owner 的正文事实。用户于 2026-11-17 批准提示与固定版本合同的调整。本地实现以稳定键和参数保存新导入，旧版本的正文、原警告、时间、摘要和精确引用沿历史记录读取。新旧入口已隔离实操。词包与接续远端验收见第 87 批。
 
 ## 最新主干 Sessions 增量：已整合与复现，修复验收中
 
@@ -1202,3 +1202,15 @@ Linux CI 中全插件冷加载两种语言各比本机的门禁差额多 52 B。
 索引准备和原有刷新统一使用 `apps/local-host/src/workspace-git.ts:53` 的配置覆盖。读取配置后再核调用权限，受审文件的转换和一次原 hook 保持原流程。实际锁、暂存与工作文件保持各自原写入边界。迁移成本低，已有索引无需改版。仓库配置被其他进程并发改写的原窗口保留在 S-53。QEA-162 检查预览、写入、刷新和原钩子次数。[安全边界](../../docs/system/SECURITY-INVARIANTS.md)
 
 本地复验中，插件样式预算通过，相关构建规则与源码边界 7 文件 102 项通过。Coding 的布局、生命周期、Git 交接 3 文件 6 项通过，最终夹具加三倍 CPU 节流再验交接 1/1。Goal 原产品子集在有其他本地任务运行时 162.3 秒通过 15/15，同一时限在 Linux 上重新验证。Git 2.56.1 的全部 20 项操作测试通过，系统 Git 下操作、Host 动作、真实产品 HTTP 和状态共 4 文件 30 项通过。记录 `quality-audit-b84-browser.log`、`quality-audit-b85-local-goals-subset/report.json`、`quality-audit-b86-{handoff-throttle,gate-tests,git-v256-operations,git-system-corrected}.log`。
+
+提交 `03ed575a31` 相对 main 涉及 512 个文件。[常规 Verify](https://github.com/molis-ai/molis-work/actions/runs/44241235505) 通过，含资源、包边界、安全与产品子集。[Full](https://github.com/molis-ai/molis-work/actions/runs/44241265336) 的第 22 片在 `tests/contextual-pages-goals.e2e.test.ts:279` 检查无效链接与建议展开状态时失败两次。几何用例一次失败、重跑通过。该 Full 仍未通过。
+
+### 第 87 批获准的导入警告合同
+
+`apps/local-host/src/artifact-original-text.ts`、`modules/artifacts/src/artifact-document-import.ts` 与 `plugins/official-integrations/catalog/src/document-import.ts` 提供键及参数。导入 owner 用可信 Workbench 身份绑定回执。`apps/local-host/src/artifact-display-words.ts` 按实际类型、schema 和生产签名读取固定记录，`apps/workbench/src/artifacts/browser-ui.ts` 及其导入面板按当前语言显示。旧版本照原文读取。成功导入 Google Docs 的说明聚焦这次实际保存的内容，连接授权处理仍从原入口给出。
+
+`apps/local-host/src/artifact-type-registry.ts` 的继续处理按确切类型及 schema 匹配。Host 建议展示和实际派发复用同一判断，Pages 声明两种可读 schema，同一版本只显示一个入口。SQLite 与同步 envelope 无结构变化。`artifacts.import.file/external@1` 的 `warnings` 从字符串改为 OwnedTextRef，现有工作台调用方已迁移，直接消费回执的 MCP 或工作流调用方按新输出结构读取。版本门禁只接入已批准的导入固定格式 2，未知 3 与无关格式 2 的反证通过。[合同登记](../../docs/system/CONTRACT-CHANGES.md#当前保留机制)
+
+QEA-79 在真实隔离 Home 新导入及固定版本预览验证中、英文，三种宽度和两种主题生成 12 张本地验收图，切换语言后固定记录及摘要逐项相等。原转写失败、空正文、超时回复及恢复 3/3 通过。QEA-80 的独立 Host 实操通过原 schema 1 的下载、重启后逐字段导出、重导追加、重复导入复用、两种版本分别走 Pages，以及未知格式拒绝。当前发布动作也实际拒绝新写 schema 1。同步记录的原文与键参数在同一真实 codec 往返后相等。定向回归累计 9 文件 80 项有通过证据。第一次新历史夹具缺少 media_type、随后碰到当前写入拒绝，夹具改为准备已存在的历史快照并保留写入拒绝断言。旧成果继续浏览器文件初次跑在机器争用下的 1440 项超时，单独复验仍待结算。
+
+同口径实报相对 `03ed575a31`，最大冷加载再增 921 B，热加载实测相同。现有 `molis-work-knowledge.js` 再增 38 B。中文词包内容地址 `edfbad487ed13f33cb345453`，英文 `d2cfe764e8fa4c8bc25d0542`。该测量使用 `6b0e8a4f83` 为门禁基点，随最新 main 比较后登记到同一草稿 PR。原实操日志 `quality-audit-qf15-{browser,tests,legacy,http-retry}.log`。

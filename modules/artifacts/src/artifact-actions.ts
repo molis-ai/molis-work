@@ -9,13 +9,14 @@ import { linkKindOf, type ArtifactLinkKind, type ArtifactLinkKinds } from "./art
 import type { ExternalDocumentSource, ModelRequired } from "./artifact-document-import.js";
 import { DOCUMENT_ARTIFACT_TYPE } from "./artifact-document-type.js";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { OWNED_TEXT_REF_SCHEMA, type OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import { arraySchema as array, createActionDefinition, nullableSchema as nullable, objectSchema as object } from "@molis-ai/molis-work-plugin-sdk";
 import { text, id, version, reference, consumerTypes, record } from "./plugin-action-schemas.js";
 const selection = { selected: nullable(record), requested: nullable(reference), compatibility: nullable(object({ artifact: reference,
   consumable: { type: "boolean" }, reason: { enum: ["compatible_consumer", "consumer_missing", "artifact_unavailable", "artifact_archived"] } })) };
 const browser = object({ versions: array(record), ...selection });
-const imported = object({ artifact_id: id, version, title: text, reused: { type: "boolean" }, url: text, warnings: array(text), text_available: { type: "boolean" },
+const imported = object({ artifact_id: id, version, title: text, reused: { type: "boolean" }, url: text, warnings: array(OWNED_TEXT_REF_SCHEMA), text_available: { type: "boolean" },
   model_required: object({ approximate_bytes: nullable({ type: "integer", minimum: 1 }) }) }, ["artifact_id", "version", "title", "reused", "url", "warnings", "text_available"]);
 const sources = { enum: ["notion", "feishu", "lark", "google-docs"] };
 const read = ["artifacts:read"], write = [...read, "artifacts:write"];
@@ -33,7 +34,7 @@ export interface ArtifactFileImport { source: "file"; filename: string; content?
   /** The person agreed to download the local speech model for this transcription; the Host honours it only from a person (S-39, PMAT-48). */
   allow_model_download?: boolean }
 export interface ArtifactExternalImport { source: ExternalDocumentSource; url: string; connection_id?: string }
-export interface ArtifactImportResult { artifact_id: string; version: number; title: string; reused: boolean; url: string; warnings: string[];
+export interface ArtifactImportResult { artifact_id: string; version: number; title: string; reused: boolean; url: string; warnings: OwnedTextRef[];
   /** Whether the saved or reused version contains readable text. Saving an original alone does not imply successful extraction. */
   text_available: boolean;
   /** The transcription needs the local speech model first (PMAT-48): ask the person, then import again with `allow_model_download`. */

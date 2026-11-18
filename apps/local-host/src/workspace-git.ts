@@ -49,19 +49,16 @@ async function tracksFileMode(root: string): Promise<boolean> {
   try { return (await git(root, ["config", "--bool", "--get", "core.filemode"])).toString().trim() !== "false"; }
   catch (error) { if ((error as { code?: number }).code === 1) return true; throw error; }
 }
-/**
- * `git status` that executes no repository helper. Even `status` can invoke clean/process filters for dirty files, so every
- * configured driver is disabled for this read; a submodule's work tree is not opened either, because its own config can name
- * filters this one cannot see. A submodule whose checked-out commit moved still shows: the command line outranks an `ignore`
- * the repository's `.gitmodules` or config sets. Overrides travel as `GIT_CONFIG_*`, since a driver's name may contain "=".
- */
-async function disabledContentFilters(root: string): Promise<Array<readonly [string, string]>> {
+/** Disable the currently configured content filters for a Git read or an index bookkeeping command. */
+export async function disabledContentFilters(root: string): Promise<Array<readonly [string, string]>> {
   let keys = "";
   try { keys = (await git(root, ["config", "--null", "--name-only", "--get-regexp", "^filter\\..*\\.(clean|process|required)$"])).toString(); }
   catch (error) { if ((error as { code?: number }).code !== 1) throw error; }
   const drivers = new Set(keys.split("\0").map(key => /^(filter\..+)\.(clean|process|required)$/i.exec(key)?.[1]).filter((item): item is string => Boolean(item)));
   return [...drivers].flatMap(driver => [[driver + ".clean", ""], [driver + ".process", ""], [driver + ".required", "false"]] as const);
 }
+
+/** Read a submodule's commit without inspecting its work tree, which can have its own content filters. */
 export async function statusWithoutHelpers(root: string, args: readonly string[]): Promise<Buffer> {
   return git(root, ["status", "--ignore-submodules=dirty", ...args], undefined, { configuration: await disabledContentFilters(root) });
 }

@@ -6,7 +6,7 @@ import path from "node:path";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { parseFilePath, type GitOperation, type WorkspaceGitResult, type WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { parsePorcelainStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { runWorkspaceGit, statusWithoutHelpers, refreshIndexStatsWithoutHelpers } from "./workspace-git.js";
+import { disabledContentFilters, refreshIndexStatsWithoutHelpers, runWorkspaceGit, statusWithoutHelpers } from "./workspace-git.js";
 
 /**
  * Committing, branching, pushing and opening a pull request, each as one Host-reviewed operation.
@@ -396,8 +396,10 @@ async function resolveConflict(root: string, reviewed: ConflictSnapshot, content
       const converted = (await runWorkspaceGit(root, ["hash-object", "--stdin", `--path=${reviewed.name}`], undefined, { input: content })).toString().trim();
       if (converted !== oid) throw new Error("Git 内容转换会改变审查正文，本次未写入；请在编辑器里处理");
       const mode = reviewed.identity.mode & 0o100 ? "100755" : "100644";
+      // While writing the index Git can recheck other entries whose timestamps match the index's.
+      const configuration = await disabledContentFilters(root);
       assertCurrent?.(); await runWorkspaceGit(root, ["update-index", "-z", "--index-info"], undefined,
-        { indexFile: temporaryIndex, input: `0 ${"0".repeat(oid.length)}\t${reviewed.name}\0${mode} ${oid}\t${reviewed.name}\0` });
+        { indexFile: temporaryIndex, configuration, input: `0 ${"0".repeat(oid.length)}\t${reviewed.name}\0${mode} ${oid}\t${reviewed.name}\0` });
       await check();
       if ((await readHeld(root, reviewed.name, file)).fingerprint !== reviewed.fingerprint) throw new Error("冲突正文或文件身份在审查期间变化了，原操作未执行");
       assertCurrent?.(); written = true;

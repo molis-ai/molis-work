@@ -375,7 +375,7 @@ test("QEA-40: a reviewed resolution can be followed immediately by a reviewed me
   assert.equal(await readFile(f.file, "utf8"), "main\n");
 });
 
-test("QEA-40 S-53: resolution refresh preserves other staged blobs and runs no extra repository helpers", async t => {
+test("QEA-40 QEA-162 S-53: resolution refresh preserves other staged blobs and runs no extra repository helpers", async t => {
   const f = await conflictedRepository(t);
   await writeFile(path.join(f.root, "other.txt"), "staged\n");
   await writeFile(path.join(f.root, "missing.txt"), "keep in index\n");
@@ -394,10 +394,11 @@ test("QEA-40 S-53: resolution refresh preserves other staged blobs and runs no e
   await f.git("config", "core.hooksPath", hooks);
   const conflict = await readConflictFile(f.workspace, "nested/a.txt");
   const prepared = await prepareGitOperation(f.workspace, conflict.revision, { action: "resolve", path: "nested/a.txt", content: "reviewed resolution\n" });
+  await assert.rejects(readFile(filterRan), { code: "ENOENT" }, "preview and preparation do not execute the other file's clean filter");
   await prepared.execute();
   assert.equal((await f.git("ls-files", "--stage", "other.txt", "missing.txt")).stdout, other, "refresh cannot stage, remove or change unrelated entries");
   assert.equal(await readFile(path.join(f.root, "other.txt"), "utf8"), "edited\n");
   assert.equal((await f.git("show", ":nested/a.txt")).stdout, "reviewed resolution\n");
-  await assert.rejects(readFile(filterRan), { code: "ENOENT" }, "refresh does not execute the other file's clean filter");
+  await assert.rejects(readFile(filterRan), { code: "ENOENT" }, "writing and refreshing the index do not execute the other file's clean filter");
   assert.equal(await readFile(hookRan, "utf8"), "hook\n", "only the existing approved index update invokes post-index-change");
 });

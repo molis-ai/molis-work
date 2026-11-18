@@ -28,7 +28,7 @@ export const CODING_STYLES = `
 .coding-directory .mw-dir__body { min-height:0; }
 .coding-directory .mw-dir__add { flex:none; margin-top:8px; }
 [data-coding-workbench]:not([data-coding-detail=true],[data-companion-open=true]) :is(.coding-dialogue,.coding-tools) { display:none; }
-[data-coding-workbench]:is([data-coding-detail=true],[data-companion-open=true]) .coding-start { display:none; }
+:is([data-coding-detail=true],[data-companion-open=true]) .coding-start { display:none; }
 /* Each face owns the directory column: the session list and its search only show on the sessions face. */
 .coding-directory:not([data-coding-current-face=sessions]) :is(.coding-query,[data-coding-sessions],[data-coding-new],[data-coding-search-toggle]) { display:none; }
 [data-companion-open=true] [data-coding-tools]>:not([data-git-results]):not(.coding-tool-tabs) { display:none; }
@@ -362,8 +362,7 @@ ${CODING_FOOTNOTE_STYLES}
 @media (prefers-reduced-motion:no-preference) { .coding-dialogue .coding-jump:not([hidden]) { animation:craft-rise var(--dur-move) var(--ease-quint) both; } }
 [data-companion-open=true] .coding-stage { grid-template-columns:minmax(0,1fr); }
 [data-companion-open=true] .coding-stage > .coding-dialogue { display:none; }
-/* No :has() here is anchored on a box that holds the conversation or a change with something after it (".x:has(…) .y"): the
-   browser restyles all of such a box on every node put in it. The change reader marks the tools (data-coding-reading). */
+/* Visibility flags avoid restyling the transcript as messages are appended. */
 [data-companion-open=true] .coding-stage > [data-coding-tools],
 .coding-stage > [data-coding-tools][data-coding-reading] { display:block; }
 /* Changes open beside the conversation, so reading a diff never loses the thread that produced it. */
@@ -378,7 +377,7 @@ ${CODING_FOOTNOTE_STYLES}
 @container molis-coding (max-width:760px) {
   .coding-layout { grid-template-columns:minmax(0,1fr); }
   [data-coding-workbench]:not([data-coding-detail=true],[data-companion-open=true]) .coding-stage { display:none; }
-  [data-coding-workbench]:is([data-coding-detail=true],[data-companion-open=true]) .coding-directory { display:none; }
+  :is([data-coding-detail=true],[data-companion-open=true]) .coding-directory { display:none; }
   .coding-directory-back { display:inline-flex; }
   .mw-layout-primitives .coding-directory { width:100%; }
   .mw-layout-primitives .coding-dialogue-head { padding:16px 16px 8px; }

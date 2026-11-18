@@ -143,8 +143,9 @@ for (const destination of ["home", "settings"] as const) {
   });
 }
 
+// QEA-161: these projection cases use a normal new project with Goals and the Workbench.
 test("QEA-113 a hidden Goal keeps its document while the background collection receives an external write", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, true); if (!b) return;
+  const b = await openGoalBrowser(t, "user"); if (!b) return;
   const prefix = `/projects/${b.projectId}`;
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
   await openDocument(b);
@@ -161,18 +162,18 @@ test("QEA-113 a hidden Goal keeps its document while the background collection r
     };
   })()`);
   await addGoal(b.origin, prefix, "HIDDEN-COLLECTION");
-  const after = boardSnapshot(b.store, DEMO_PROJECT_ID);
+  const after = boardSnapshot(b.store, b.projectId!);
   await b.waitFor("document.querySelector('.tree-node[data-select-goal=HIDDEN-COLLECTION]')", 15_000);
   assert.equal(await b.evaluate("document.querySelector('[data-goal-event-document]') === globalThis.__oldGoalDocument"), true, "the hidden document was not replaced");
   const paths = await b.evaluate<string[]>("globalThis.__collectionRequests");
   assert.ok(paths.length > 0);
   assert.ok(paths.every(path => new URLSearchParams(path).get("projection") === "collection" && !new URLSearchParams(path).has("goal_id")), JSON.stringify(paths));
   assert.equal(await b.evaluate("document.body.dataset.desktopSurface"), "home");
-  assert.deepEqual(boardSnapshot(b.store, DEMO_PROJECT_ID), after);
+  assert.deepEqual(boardSnapshot(b.store, b.projectId!), after);
 });
 
 test("QEA-113 a visible Goal Frame refreshes its collection without reading the hidden workspace document", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, true); if (!b) return;
+  const b = await openGoalBrowser(t, "user"); if (!b) return;
   const prefix = `/projects/${b.projectId}`;
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
   await b.waitFor("document.querySelector('[data-goal-frame-surface]')?.checkVisibility({visibilityProperty:true})");
@@ -188,7 +189,7 @@ test("QEA-113 a visible Goal Frame refreshes its collection without reading the 
     };
   })()`);
   await addGoal(b.origin, prefix, "FRAME-COLLECTION");
-  const after = boardSnapshot(b.store, DEMO_PROJECT_ID);
+  const after = boardSnapshot(b.store, b.projectId!);
   await b.waitFor("document.querySelector('.tree-node[data-select-goal=FRAME-COLLECTION]')", 12_000);
   assert.equal(await b.evaluate("document.querySelector('[data-goal-event-document]') === globalThis.__oldGoalDocument"), true);
   const reads = await b.evaluate<string[]>("globalThis.__frameRefreshes");
@@ -196,11 +197,11 @@ test("QEA-113 a visible Goal Frame refreshes its collection without reading the 
   await openDocument(b);
   await b.waitFor("globalThis.__frameRefreshes.some(path => !new URLSearchParams(path).has('projection'))", 12_000);
   await b.waitFor("document.querySelector('[data-goal-event-document]') !== globalThis.__oldGoalDocument");
-  assert.deepEqual(boardSnapshot(b.store, DEMO_PROJECT_ID), after);
+  assert.deepEqual(boardSnapshot(b.store, b.projectId!), after);
 });
 
 test("QEA-113 hidden handwritten Goal input survives a collection refresh without blocking new directory facts", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, true); if (!b) return;
+  const b = await openGoalBrowser(t, "user"); if (!b) return;
   const prefix = `/projects/${b.projectId}`, goal = "DIRTY-COLLECTION";
   await addGoal(b.origin, prefix, goal);
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/" + goal + "?desktop=1" }, b.sessionId));
@@ -213,16 +214,16 @@ test("QEA-113 hidden handwritten Goal input survives a collection refresh withou
   await b.click('[data-dock-pin="home"]');
   await b.waitFor("document.body.dataset.desktopSurface === 'home'");
   await addGoal(b.origin, prefix, "AFTER-DIRTY");
-  const after = boardSnapshot(b.store, DEMO_PROJECT_ID);
+  const after = boardSnapshot(b.store, b.projectId!);
   await b.waitFor("document.querySelector('.tree-node[data-select-goal=AFTER-DIRTY]')", 12_000);
   assert.equal(await b.evaluate("document.querySelector('[data-event-form=concern] [name=statement]') === globalThis.__dirtyConcern"), true);
   assert.equal(await b.evaluate("globalThis.__dirtyConcern.value"), "Unsubmitted concern stays with its author");
   assert.equal(await b.evaluate("globalThis.__dirtyConcern.closest('form').dataset.liveDirty"), "true");
-  assert.deepEqual(boardSnapshot(b.store, DEMO_PROJECT_ID), after);
+  assert.deepEqual(boardSnapshot(b.store, b.projectId!), after);
 });
 
 test("QEA-114 the last hidden collection failure recovers on the normal poll without replacing the document or falling back to a full page", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, true); if (!b) return;
+  const b = await openGoalBrowser(t, "user"); if (!b) return;
   const prefix = `/projects/${b.projectId}`;
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
   await openDocument(b);
@@ -245,7 +246,7 @@ test("QEA-114 the last hidden collection failure recovers on the normal poll wit
     };
   })()`);
   await addGoal(b.origin, prefix, "COLLECTION-RECOVERY");
-  const after = boardSnapshot(b.store, DEMO_PROJECT_ID);
+  const after = boardSnapshot(b.store, b.projectId!);
   await b.waitFor("globalThis.__collectionFailed");
   assert.equal(await b.evaluate("Boolean(document.querySelector('.tree-node[data-select-goal=COLLECTION-RECOVERY]'))"), false);
   assert.equal(await b.evaluate("document.querySelector('#molis-work-data').boardCursor"), before.observed_event_cursor, "a failed projection never acknowledges its hint");
@@ -254,11 +255,11 @@ test("QEA-114 the last hidden collection failure recovers on the normal poll wit
   await b.waitFor("document.querySelector('.tree-node[data-select-goal=COLLECTION-RECOVERY]')", 12_000);
   assert.deepEqual(await b.evaluate("globalThis.__pageFallbacks"), []);
   assert.equal(await b.evaluate("document.querySelector('[data-goal-event-document]') === globalThis.__oldGoalDocument"), true);
-  assert.deepEqual(boardSnapshot(b.store, DEMO_PROJECT_ID), after);
+  assert.deepEqual(boardSnapshot(b.store, b.projectId!), after);
 });
 
 test("QEA-114 an attention hint received during a held collection read remains pending until its own projection applies", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, true); if (!b) return;
+  const b = await openGoalBrowser(t, "user"); if (!b) return;
   const prefix = `/projects/${b.projectId}`;
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
   await openDocument(b);
@@ -285,7 +286,7 @@ test("QEA-114 an attention hint received during a held collection read remains p
     await addGoal(b.origin, prefix, "COLLECTION-FIRST");
     await b.waitFor("globalThis.__held[0]");
     await addGoal(b.origin, prefix, "COLLECTION-LAST");
-    const latest = await cursor(), after = boardSnapshot(b.store, DEMO_PROJECT_ID);
+    const latest = await cursor(), after = boardSnapshot(b.store, b.projectId!);
     await b.waitFor(`globalThis.__attentionCursor >= ${latest}`, 12_000);
     await b.evaluate("globalThis.__release[0]()");
     await b.waitFor("globalThis.__held[1]");
@@ -295,12 +296,12 @@ test("QEA-114 an attention hint received during a held collection read remains p
     await b.evaluate("globalThis.__release[1]()");
     await b.waitFor(`document.querySelector('.tree-node[data-select-goal=COLLECTION-LAST]') && document.querySelector('#molis-work-data').boardCursor >= ${latest}`);
     assert.equal(await b.evaluate("document.querySelector('[data-goal-event-document]') === globalThis.__oldGoalDocument"), true);
-    assert.deepEqual(boardSnapshot(b.store, DEMO_PROJECT_ID), after);
+    assert.deepEqual(boardSnapshot(b.store, b.projectId!), after);
   } finally { await b.evaluate("globalThis.__release.forEach(release => release?.())").catch(() => {}); }
 });
 
 test("QEA-114 a late collection response cannot navigate back to an archived Frame after the person selects another Goal", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, true); if (!b) return;
+  const b = await openGoalBrowser(t, "user"); if (!b) return;
   await b.setViewport(1440, 1000);
   const prefix = `/projects/${b.projectId}`;
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/CORE?desktop=1" }, b.sessionId));
@@ -328,13 +329,13 @@ test("QEA-114 a late collection response cannot navigate back to an archived Fra
     assert.equal(await b.evaluate("globalThis.__heldProjection"), "collection");
     await b.openGoalFrame('.tree-node[data-select-goal="RELEASE"]');
     await b.waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'RELEASE'");
-    const address = await b.evaluate<string>("location.href"), saved = boardSnapshot(b.store, DEMO_PROJECT_ID);
+    const address = await b.evaluate<string>("location.href"), saved = boardSnapshot(b.store, b.projectId!);
     await b.evaluate("globalThis.__release()");
     await b.waitFor(`JSON.parse(document.querySelector('#molis-work-data').textContent).snapshot.cursor === ${saved.cursor}`);
     assert.equal(await b.evaluate("document.querySelector('[data-goal-frame-surface]').dataset.frameGoal"), "RELEASE");
     assert.equal(await b.evaluate("location.href"), address);
     assert.equal(await b.evaluate("globalThis.__delivered"), true);
-    assert.deepEqual(boardSnapshot(b.store, DEMO_PROJECT_ID), saved);
+    assert.deepEqual(boardSnapshot(b.store, b.projectId!), saved);
   } finally {
     offNavigation(); t.diagnostic(`QEA-114 requested navigations ${JSON.stringify(navigations)}`);
     await b.evaluate("globalThis.__release?.()").catch(() => {});
@@ -342,7 +343,7 @@ test("QEA-114 a late collection response cannot navigate back to an archived Fra
 });
 
 test("QEA-114 a relation save queues its forced refresh behind an earlier response and settles the actual write once", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, true); if (!b) return;
+  const b = await openGoalBrowser(t, "user"); if (!b) return;
   await b.setViewport(1440, 1000);
   const prefix = `/projects/${b.projectId}`, reason = "Forced refresh retains the confirmed direction";
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/CORE?desktop=1" }, b.sessionId));
@@ -372,12 +373,12 @@ test("QEA-114 a relation save queues its forced refresh behind an earlier respon
     await b.click('[data-relation-form] button[type=submit]');
     await b.waitFor("globalThis.__relationResult && document.querySelector('[data-relation-form]').getAttribute('aria-busy') === 'true'");
     assert.equal(await b.evaluate("Boolean(globalThis.__relationResult.error)"), false);
-    const saved = boardSnapshot(b.store, DEMO_PROJECT_ID);
+    const saved = boardSnapshot(b.store, b.projectId!);
     assert.equal(saved.relations.filter(row => row.reason === reason).length, 1);
     await b.evaluate("globalThis.__release()");
     await b.waitFor(`[...document.querySelectorAll('.relation-record')].some(node => node.textContent.includes(${JSON.stringify(reason)}))`, 12_000);
     assert.equal(await b.evaluate("globalThis.__relationWrites"), 1);
-    assert.deepEqual(boardSnapshot(b.store, DEMO_PROJECT_ID), saved);
+    assert.deepEqual(boardSnapshot(b.store, b.projectId!), saved);
   } finally { await b.evaluate("globalThis.__release?.()").catch(() => {}); }
 });
 

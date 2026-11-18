@@ -4,6 +4,7 @@ import { bindSettingsHandlers, defineSettingsActions } from "@molis-ai/molis-wor
 import { assistantErrors } from "./assistant-errors.js";
 import type { AssistantStore } from "./assistant-store.js";
 import { DAILY_CAP_KEY, LOOKBACK_KEY } from "./assistant-setting-values.js";
+import { REPORT_SCHEDULE_KEY, reportScheduleSchema } from "./assistant-report-preference.js";
 
 export const assistantSettingActions = defineSettingsActions({
   scope: "home",
@@ -17,6 +18,8 @@ const declaration: SettingsDeclaration = {
     { key: LOOKBACK_KEY, title: { key: "workbench.settings-assistant.lookback" }, layers: ["personal"], consequence: ["reach"],
       schema: { type: "object", additionalProperties: false, required: ["count", "unit"], properties: {
         count: { type: "integer", minimum: 1 }, unit: { type: "string", enum: ["hours", "days", "weeks"] } } } },
+    { key: REPORT_SCHEDULE_KEY, title: { key: "workbench.settings-assistant.report-schedule" },
+      summary: { key: "workbench.settings-assistant.report-effect" }, layers: ["personal"], consequence: ["schedule"], schema: reportScheduleSchema },
     { key: DAILY_CAP_KEY, title: { key: "workbench.settings-assistant.daily-cap" }, summary: { key: "workbench.settings-assistant.cap-range" },
       layers: ["personal"], consequence: ["cost"], schema: { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER } },
   ],

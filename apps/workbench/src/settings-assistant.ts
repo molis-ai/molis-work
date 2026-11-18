@@ -45,6 +45,26 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
       <p class="settings-muted" data-lookback-source></p>
       <p class="settings-form-error" data-lookback-error role="alert" hidden></p>
     </section>
+    <section class="settings-section" aria-labelledby="assistant-report-title">
+      <h2 id="assistant-report-title">${uiText("workbench.settings-assistant.report-schedule")}</h2>
+      <p class="settings-muted">${uiText("workbench.settings-assistant.report-effect")}</p>
+      <form class="assistant-rule-form" data-assistant-report>
+        <label class="settings-check"><input type="checkbox" name="enabled"> ${uiText("workbench.settings-assistant.report-enabled")}</label>
+        <label class="settings-field"><span>${uiText("workbench.settings-assistant.report-frequency")}</span>
+          <select class="mw-input" name="frequency"><option value="daily">${uiText("workbench.settings-assistant.report-daily")}</option>
+            <option value="weekly">${uiText("workbench.settings-assistant.report-weekly")}</option><option value="monthly">${uiText("workbench.settings-assistant.report-monthly")}</option></select></label>
+        <label class="settings-field" data-report-week hidden><span>${uiText("workbench.settings-assistant.report-weekday")}</span><select class="mw-input" name="weekday"></select></label>
+        <label class="settings-field" data-report-month hidden><span>${uiText("workbench.settings-assistant.report-month-day")}</span>
+          <input class="mw-input" type="number" name="month_day" min="1" max="31" step="1" value="1"></label>
+        <label class="settings-field"><span>${uiText("workbench.settings-assistant.report-time")}</span><input class="mw-input" type="time" name="time" required></label>
+        <label class="settings-field"><span>${uiText("workbench.settings-assistant.report-timezone")}</span>
+          <input class="mw-input" name="time_zone" list="assistant-report-zones" required><datalist id="assistant-report-zones"></datalist></label>
+        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit" disabled>${uiText("common.control.save")}</button>
+        <button class="mw-btn mw-btn--ghost mw-btn--sm" data-inherit type="button" hidden>${uiText("workbench.settings-assistant.use-default")}</button>
+      </form>
+      <p class="settings-muted" data-report-source></p>
+      <p class="settings-form-error" data-report-error role="alert" hidden></p>
+    </section>
     <section class="settings-section assistant-usage" aria-labelledby="assistant-usage-title" data-assistant-usage>
       <h2 id="assistant-usage-title">${uiText("workbench.settings-assistant.usage-cap")}</h2>
       <p class="settings-muted" data-assistant-usage-today>${uiText("workbench.settings-assistant.loading")}</p>
@@ -332,9 +352,28 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     () => ({ count: Number(count.value), unit: unit.value }), value => { count.value = String(value.count); unit.value = value.unit; });
   preference("assistant.daily_tokens", budgetForm, root.querySelector("[data-budget-inherit]"), root.querySelector("[data-budget-source]"), budgetError,
     () => Number(budgetInput.value || 0), value => { budgetInput.value = value ? String(value) : ""; });
+  const report = root.querySelector("[data-assistant-report]"), reportError = root.querySelector("[data-report-error]");
+  const r = report.elements;
+  const dayNames = new Intl.DateTimeFormat(document.documentElement.lang, { weekday: "long", timeZone: "UTC" });
+  for (let day = 1; day <= 7; day++) r.weekday.add(new Option(dayNames.format(Date.UTC(2024, 0, day)), String(day)));
+  const zoneList = report.querySelector("datalist");
+  for (const zone of new Set(["UTC", ...Intl.supportedValuesOf("timeZone")])) zoneList.append(new Option(zone, zone));
+  function reportFields() {
+    r.weekday.disabled = report.querySelector("[data-report-week]").hidden = r.frequency.value !== "weekly";
+    r.month_day.disabled = report.querySelector("[data-report-month]").hidden = r.frequency.value !== "monthly";
+    r.month_day.required = !r.month_day.disabled;
+  }
+  r.frequency.addEventListener("change", reportFields);
+  preference("assistant.report_schedule", report, report.querySelector("[data-inherit]"), root.querySelector("[data-report-source]"), reportError,
+    () => ({ enabled: r.enabled.checked, frequency: r.frequency.value, time: r.time.value, time_zone: r.time_zone.value.trim(),
+      ...(r.frequency.value === "weekly" && { weekday: Number(r.weekday.value) }), ...(r.frequency.value === "monthly" && { month_day: Number(r.month_day.value) }) }),
+    value => {
+      r.enabled.checked = value.enabled; r.frequency.value = value.frequency; r.time.value = value.time; r.time_zone.value = value.time_zone;
+      r.weekday.value = String(value.weekday ?? 1); r.month_day.value = String(value.month_day ?? 1); reportFields();
+    });
   async function loadPreferences() {
     try { for (const item of (await rulesApi("/preferences")).values) fields.get(item.key)?.(item); }
-    catch (failure) { for (const error of [budgetError, rangeError]) { molisWorkRequest.show(error, failure); error.hidden = false; } }
+    catch (failure) { for (const error of [budgetError, rangeError, reportError]) { molisWorkRequest.show(error, failure); error.hidden = false; } }
   }
   void loadPreferences(); void refreshUsage();
   if (location.hash === "#contributions") { contributions.open = true; loadContributions(); }

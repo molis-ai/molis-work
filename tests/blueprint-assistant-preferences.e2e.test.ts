@@ -112,3 +112,59 @@ test("ONB-28/29: after a partial adoption the reopened page retries only the unc
     assert.equal(db.prepare("SELECT count(*) AS n FROM assistant_settings WHERE key LIKE 'preferences/receipt/%' AND actor_id=?").get(caller.actor_id)!.n, 2);
   } finally { db.close(); }
 });
+
+test("ONB-23/34: the Assistant's report preference follows the scene, then the person's local calendar choice without creating a standing delegation", async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null);
+  if (!b) return;
+  const { localHost, origin, command, sessionId, navigate, evaluate, waitFor, click } = b;
+  assert.ok(localHost);
+  const caller = await localHost.localPersonContext(), raw = localHost.homeActionClient(), person = bindActionClient(raw, () => caller);
+  const key = "assistant.report_schedule", title = { literal: "Friday review" };
+  const read = { capability_id: "assistant.preferences.read", version: 1, provider_id: "system.assistant-settings" };
+  const write = { ...read, capability_id: "assistant.preferences.write" };
+  const current = async () => (await raw.invoke(caller, read, { keys: [key] }) as SettingsValues).values[0]!;
+  const initial = await current();
+  assert.ok(initial.state === "ok" && initial.source === "provider_default");
+  const friday = { enabled: true, frequency: "weekly", weekday: 5, time: "17:30", time_zone: "Asia/Shanghai" };
+  for (const invalid of [{ ...friday, time_zone: "no/such-zone" }, { ...friday, time: "25:00" }, { ...friday, frequency: "daily" }]) {
+    await assert.rejects(raw.invoke(caller, write, { key, layer: "personal", expected_revision: initial.revision, change: { set: invalid }, request_id: "invalid" }),
+      { code: "assistant.setting_invalid" });
+  }
+  assert.deepEqual(await current(), initial);
+  const { draft } = await person.invoke(blueprintActions.draftSave, { expected_revision: null, blueprint: {
+    title, purpose: { audience: title, work: title, inputs: title, outputs: title, first_result: title },
+    parts: [{ part_id: "calendar", layer: "personal", required: true, proposal: { kind: "setting", key, value: friday } },
+      { part_id: "note", layer: "project", required: false, proposal: { kind: "content", type: "notes.outline.v1", body: {} } }],
+    steps: [{ step_id: "review", title, part_ids: ["calendar", "note"] }],
+    example_task: { title, input: title, step_ids: ["review"], result: { part_id: "note", location: title } },
+  } });
+  const preview = await person.invoke(blueprintActions.preview, { source: draft.source, target: { kind: "personal" }, part_ids: ["calendar"] });
+  assert.deepEqual(preview.parts[0]?.consequences, ["schedule"]);
+  const request = { preview_id: preview.preview_id, part_ids: ["calendar"], request_id: "prepare-fridays" };
+  const result = await person.invoke(blueprintActions.apply, request);
+  assert.equal(result.steps[0]?.state, "applied");
+
+  const form = "document.querySelector('[data-assistant-report]')", fields = form + ".elements";
+  await navigate(() => command("Page.navigate", { url: origin + "/settings/assistant" }, sessionId));
+  await waitFor(form + " && " + fields + ".weekday.value === '5' && " + fields + ".time_zone.value === 'Asia/Shanghai'");
+  assert.equal(await evaluate(fields + ".time.value"), "17:30");
+  await evaluate(fields + ".frequency.value = 'monthly'; " + fields + ".frequency.dispatchEvent(new Event('change')); " +
+    fields + ".month_day.value = '12'; " + fields + ".time.value = '08:45'; " + fields + ".time_zone.value = 'America/Los_Angeles'; " + fields + ".enabled.checked = false");
+  await click("[data-assistant-report] button[type=submit]");
+  await waitFor("!" + form + ".querySelector('button[type=submit]').disabled");
+  const revised = await current();
+  assert.deepEqual(revised.state === "ok" && revised.value, { enabled: false, frequency: "monthly", month_day: 12, time: "08:45", time_zone: "America/Los_Angeles" });
+  await b.reloadPage();
+  await waitFor(form + " && " + fields + ".month_day.value === '12' && !" + fields + ".enabled.checked && " + fields + ".weekday.disabled");
+  assert.equal((await person.invoke(blueprintActions.apply, request)).adoption_id, result.adoption_id);
+  await person.invoke(blueprintActions.revert, { adoption_id: result.adoption_id, request_id: "remove-fridays" });
+  assert.deepEqual(await current(), revised);
+  const db = new DatabaseSync(homeSqlitePath(b.homeDirectory, "assistant"), { readOnly: true });
+  try {
+    assert.equal(db.prepare("SELECT count(*) AS n FROM assistant_followups").get()!.n, 0);
+  } finally { db.close(); }
+  await click("[data-assistant-report] [data-inherit]");
+  await waitFor(form + ".querySelector('[data-inherit]').hidden && " + fields + ".frequency.value === 'daily'");
+  const inherited = await current();
+  assert.deepEqual(inherited.state === "ok" && inherited.value, initial.value);
+});

@@ -3,8 +3,9 @@ import type { SettingSnapshot, SettingsOwnerScope, SettingsRequestIdentity, Sett
 import type { SandboxJson } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { assistantErrors } from "./assistant-errors.js";
 import { DAILY_CAP_KEY, LOOKBACK_DEFAULT, LOOKBACK_KEY, dailyTokenLimit, lookbackHours } from "./assistant-setting-values.js";
+import { defaultReportSchedule, REPORT_SCHEDULE_KEY, validateReportSchedule } from "./assistant-report-preference.js";
 
-const names = new Map([[LOOKBACK_KEY, "lookback"], [DAILY_CAP_KEY, "daily_tokens"]]);
+const names = new Map([[LOOKBACK_KEY, "lookback"], [DAILY_CAP_KEY, "daily_tokens"], [REPORT_SCHEDULE_KEY, "report_schedule"]]);
 
 export const assistantReceiptPrefix = (projectId: string | null) => "preferences/receipt/" + JSON.stringify(projectId) + "/";
 
@@ -40,11 +41,12 @@ export class AssistantSettingRecords {
     const name = names.get(key);
     if (!name) throw assistantErrors.setting_invalid("助理没有声明这项偏好");
     const row = this.row(actor, name), revision = String(row?.revision ?? 0);
-    const fallback = key === LOOKBACK_KEY ? LOOKBACK_DEFAULT : 0;
+    const fallback = key === REPORT_SCHEDULE_KEY ? defaultReportSchedule() : key === LOOKBACK_KEY ? LOOKBACK_DEFAULT : 0;
     if (!row || this.get(actor, "inherited/" + name) === revision) return { key, revision, state: "ok", layers: { provider_default: fallback } };
     try {
-      const value: SandboxJson = key === LOOKBACK_KEY ? JSON.parse(String(row.value)) : dailyTokenLimit(row.value) ?? 0;
+      const value: SandboxJson = key === DAILY_CAP_KEY ? dailyTokenLimit(row.value) ?? 0 : JSON.parse(String(row.value));
       if (key === LOOKBACK_KEY) lookbackHours(value);
+      if (key === REPORT_SCHEDULE_KEY) validateReportSchedule(value);
       return { key, revision, state: "ok", layers: { provider_default: fallback, personal: value } };
     } catch { return { key, revision, state: "unavailable", reason: "助理保存的偏好无法读取" }; }
   }
@@ -64,7 +66,10 @@ export class AssistantSettingRecords {
         if (!name) throw assistantErrors.setting_invalid("助理没有声明这项偏好");
         const value = "set" in change ? change.set : null;
         let encoded: string;
-        if (key === LOOKBACK_KEY) {
+        if (key === REPORT_SCHEDULE_KEY) {
+          if ("set" in change) validateReportSchedule(value);
+          encoded = JSON.stringify(value ?? defaultReportSchedule());
+        } else if (key === LOOKBACK_KEY) {
           if ("set" in change) lookbackHours(value);
           encoded = JSON.stringify(value ?? LOOKBACK_DEFAULT);
         } else {

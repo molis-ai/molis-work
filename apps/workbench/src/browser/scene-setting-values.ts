@@ -5,6 +5,8 @@ import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 /** Only the scene document needs these presentations. Choices are fetched when the person opens the editor. */
 export function sceneSettingValues(words: (key: string) => string, request: UiRequest) {
   const locale = document.documentElement.lang;
+  const calendarDay = (day: SandboxJson | undefined, maximum: number): day is number =>
+    typeof day === "number" && Number.isInteger(day) && day >= 1 && day <= maximum;
   function describe(key: string, value: SandboxJson, modelSelection?: true) {
     if (typeof value === "boolean") return words(value ? "workbench.scene.on" : "workbench.scene.off");
     if (typeof value === "string") return value;
@@ -15,15 +17,20 @@ export function sceneSettingValues(words: (key: string) => string, request: UiRe
         const unit = value.unit === "hours" ? "hour" : value.unit === "days" ? "day" : value.unit === "weeks" ? "week" : undefined;
         if (unit) return new Intl.NumberFormat(locale, { style: "unit", unit, unitDisplay: "long" }).format(value.count);
       }
-      if (key === "assistant.report_schedule" && ["daily", "weekly", "monthly"].includes(String(value.frequency))) {
-        const parts = [words("workbench.settings-assistant.report-" + value.frequency)];
-        if (value.frequency === "weekly" && typeof value.weekday === "number") {
-          const weekday = new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" });
-          parts.push(weekday.format(Date.UTC(2024, 0, value.weekday)));
-        }
-        if (value.frequency === "monthly" && typeof value.month_day === "number")
-          parts.push(words("workbench.settings-assistant.report-month-day") + " " + new Intl.NumberFormat(locale).format(value.month_day));
-        parts.push(String(value.time), String(value.time_zone));
+      if (key === "assistant.report_schedule" && typeof value.enabled === "boolean" && typeof value.time === "string" && typeof value.time_zone === "string") {
+        const { frequency, weekday, month_day } = value;
+        // Skipped proposals have not necessarily passed their owner's schema.
+        const parts: string[] = [];
+        if (frequency === "weekly" && calendarDay(weekday, 7)) {
+          const dayName = new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" });
+          parts.push(words("workbench.settings-assistant.report-weekly"), dayName.format(Date.UTC(2024, 0, weekday)));
+        } else if (frequency === "monthly" && calendarDay(month_day, 31)) {
+          parts.push(words("workbench.settings-assistant.report-monthly"),
+            words("workbench.settings-assistant.report-month-day") + " " + new Intl.NumberFormat(locale).format(month_day));
+        } else if (frequency === "daily") {
+          parts.push(words("workbench.settings-assistant.report-daily"));
+        } else return JSON.stringify(value, null, 2);
+        parts.push(value.time, value.time_zone);
         if (!value.enabled) parts.unshift(words("workbench.scene.off"));
         return parts.join(" · ");
       }

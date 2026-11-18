@@ -77,10 +77,12 @@ test("ONB-28/29: after a partial adoption the reopened page retries only the unc
   const title = { literal: "A week of editing" };
   const { draft } = await person.invoke(blueprintActions.draftSave, { expected_revision: null, blueprint: {
     title, purpose: { audience: title, work: title, inputs: title, outputs: title, first_result: title },
-    parts: [{ part_id: "range", layer: "personal", required: true, proposal: { kind: "setting", key: "assistant.lookback", value: { count: 1, unit: "weeks" } } },
+    parts: [{ part_id: "invalid-report", layer: "project", required: false, proposal: { kind: "setting", key: "assistant.report_schedule",
+      value: { enabled: true, frequency: "weekly", weekday: 1700000000000, time: "09:00", time_zone: "UTC" } } },
+      { part_id: "range", layer: "personal", required: true, proposal: { kind: "setting", key: "assistant.lookback", value: { count: 1, unit: "weeks" } } },
       { part_id: "cap", layer: "personal", required: true, proposal: { kind: "setting", key: "assistant.daily_tokens", value: 5000 } },
       { part_id: "note", layer: "project", required: false, proposal: { kind: "content", type: "notes.outline.v1", body: {} } }],
-    steps: [{ step_id: "prepare", title, part_ids: ["range", "cap", "note"] }],
+    steps: [{ step_id: "prepare", title, part_ids: ["invalid-report", "range", "cap", "note"] }],
     example_task: { title, input: title, step_ids: ["prepare"], result: { part_id: "note", location: title } },
   } });
   const db = new DatabaseSync(homeSqlitePath(b.homeDirectory, "assistant"));
@@ -91,6 +93,10 @@ test("ONB-28/29: after a partial adoption the reopened page retries only the unc
     await waitFor("document.querySelector('[name=scene-target]')");
     await click("[name=scene-target][value=personal]");
     await click(".arrival-bar .bar-end .mw-btn--primary");
+    await waitFor("document.querySelector('[data-scene-main] dl')");
+    assert.match(await evaluate<string>("document.querySelector('[data-scene-main]').innerText"), /不能写入所选范围|cannot be written in the selected scope/i);
+    assert.equal(await evaluate("document.querySelector('[data-scene-main] input[type=checkbox]')"), null);
+    await click("[data-scene-aside] button:nth-of-type(2)");
     await waitFor("document.querySelector('[data-scene-main] input[type=checkbox]')?.checked");
     assert.match(await evaluate<string>("document.querySelector('[data-scene-main] dl').innerText"), /1\s*(周|week)/i);
     await click(".arrival-bar .bar-end .mw-btn--primary");
@@ -107,7 +113,7 @@ test("ONB-28/29: after a partial adoption the reopened page retries only the unc
     db.exec("DROP TRIGGER budget_unavailable");
     await b.reloadPage(); await waitFor(partial);
     await click(".arrival-bar .bar-end .mw-btn--primary");
-    await waitFor("document.querySelectorAll('[data-scene-main] details').length === 3 && !document.querySelector('.arrival-bar .bar-end .mw-btn--primary') && document.querySelector('[data-scene-aside] button')");
+    await waitFor("document.querySelectorAll('[data-scene-main] details').length === 4 && !document.querySelector('.arrival-bar .bar-end .mw-btn--primary') && document.querySelector('[data-scene-aside] button')");
     assert.deepEqual(db.prepare("SELECT value, revision FROM assistant_settings WHERE actor_id=? AND key='lookback'").get(caller.actor_id), appliedRange);
     assert.equal(db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key='daily_tokens'").get(caller.actor_id)!.value, "5000");
     assert.equal(db.prepare("SELECT count(*) AS n FROM assistant_settings WHERE key LIKE 'preferences/receipt/%' AND actor_id=?").get(caller.actor_id)!.n, 2);

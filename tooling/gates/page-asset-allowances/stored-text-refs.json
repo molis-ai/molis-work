@@ -1,0 +1,8 @@
+{
+  "reason": "Work Brief 的来源名与下一步结果改存文字引用（存键和参数，不存译文）后，简报页在画的时候解析它们：六处 say.text(...) 与「读不到」原因的括号改用平台 common.punctuation.in-parens（不再把中文括号拼在模板里）。最初从 SDK 引入 say 把文字解析打进了包（+13241 B）；改用插件框架与 t、format 一起装好的 globalThis.say 后降到 +116 B。试过把括号收进 parts.ts 的小函数，反而 +124 B，已撤回。",
+  "review": "PR #2118（fix(text): 卡片结果与 Work Brief 来源名存键和参数，不存译文）评审；本机 pnpm build 后 node scripts/gates/page-assets.mjs --report 实测 37756 B，对照 merge-base dbcf562a67 的 37640 B。",
+  "userApproval": "用户于 2026-11-17 在会话中选「Add 116-byte allowance」，批准 work-brief.js 的这 116 字节增长。",
+  "assets": {
+    "/assets/molis-work-plugins/work-brief.js": 116
+  }
+}

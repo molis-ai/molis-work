@@ -23,6 +23,8 @@ function value(object, key) {
 }
 
 const literal = (node, number) => node && ts.isNumericLiteral(node) && Number(node.text) === number;
+// The project library may move past the version the transfer reached, as long as the step that made it stays in the chain.
+const atLeast = (node, number) => node && ts.isNumericLiteral(node) && Number(node.text) >= number;
 const reference = (node, name) => node && ts.isIdentifier(node) && node.text === name;
 
 export function hasGoalsApprovalTransfer(read) {
@@ -34,7 +36,7 @@ export function hasGoalsApprovalTransfer(read) {
   const constants = constantsIn(tree), baseline = constants.get(name);
   const upgrades = value(baseline, "upgrades");
   const steps = upgrades && ts.isIdentifier(upgrades) ? constants.get(upgrades.text) : upgrades;
-  if (!literal(value(baseline, "version"), transfer.to) || !steps || !ts.isArrayLiteralExpression(steps)) return false;
+  if (!atLeast(value(baseline, "version"), transfer.to) || !steps || !ts.isArrayLiteralExpression(steps)) return false;
   const matching = steps.elements.map(unwrapExpression).filter(step => literal(value(step, "from"), transfer.from));
   if (matching.length !== 1 || !reference(value(matching[0], "sql"), "PROJECT_APPROVALS_SCHEMA_SQL")
     || !reference(value(matching[0], "run"), "transferProjectApprovals")) return false;

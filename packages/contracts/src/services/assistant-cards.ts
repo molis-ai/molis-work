@@ -1,4 +1,5 @@
 import type { ActionResultPresentation } from "../platform/action-result.js";
+import type { OwnedTextRef } from "../platform/ui-text.js";
 
 /** An action a page prepared from what the person selected, for a card (see `AssistantPluginMessage.card`). */
 export interface AssistantPreparedCard {
@@ -36,8 +37,11 @@ export interface AssistantCard {
   fields: Array<{ key: string; label: string; value: string; editable: boolean; raw?: string; options?: Array<{ value: string; label: string }>; input?: "date" | "datetime" }>;
   missing: Array<{ field: string; question: string }>;
   status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
-  /** What happened, or why not, in the owner's words. */
-  outcome?: string;
+  /**
+   * What happened, or why not: a key and its raw values, resolved when the card is drawn, so it reads in the language shown then.
+   * The owner's own words (its error message, its declared result summary) are a `literal`.
+   */
+  outcome?: OwnedTextRef;
   /** The original successful action's bounded result view, kept with this card. */
   presentation?: ActionResultPresentation;
   /** A card a page prepared (not the Assistant's own suggestion): which page, and what the selection came from. */

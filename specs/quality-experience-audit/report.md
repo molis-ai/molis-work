@@ -1,6 +1,6 @@
 # Molis Work 审查报告与优化策略
 
-整项进行中，负责人 Codex。审查基准为 main `e56bd6701a`。登记范围覆盖候选中的 75 个包、84 个 contracts 子路径及根入口，另复核本轮从主干移除的 WebQuery 包。报告有 92 项编号发现和 15 项平台候选，列明处置和实测结果。[逐包覆盖](coverage.md)、[六方向结论](#六个方向的独立结论)、[平台候选及处置](#平台化与通用化检查及处置)、[需求实现度](#需求整体实现度)、[BL 清理与保留事项](#bl-与事项清理建议)和[验收编号](spec.md)均可按入口查阅。
+整项进行中，负责人 Codex。本轮验收以 main `feffe94db0` 为合并基点。登记范围覆盖候选中的 75 个包、84 个 contracts 子路径及根入口，另复核本轮从主干移除的 WebQuery 包。报告有 92 项编号发现和 15 项平台候选，列明处置和实测结果。[逐包覆盖](coverage.md)、[六方向结论](#六个方向的独立结论)、[平台候选及处置](#平台化与通用化检查及处置)、[需求实现度](#需求整体实现度)、[BL 清理与保留事项](#bl-与事项清理建议)和[验收编号](spec.md)均可按入口查阅。
 
 第 53–55 批 8 文件 78 项定向通过。第 56–59 批 8 文件 144 项及长材料 2 项通过，验证改写、回放、起草、引导、信息方案和真实采用。固定 `4c54241e96` 的受影响包级复验 55/55 文件、463/463 项通过。第 60 批 Git、Coding 与工作台 77 文件、521 项通过，含真实提交、拒绝、暂存和编辑恢复。第 62 批 Placement 与工作台 22 文件、194 项通过。第 52 批冻结头的 104/105 个包回归文件通过，唯一失败定位到 Feed 已失效的发布版本例外。
 
@@ -1403,8 +1403,16 @@ main `43a3c3fa2f` 与候选独立构建并实测了 67 个静态资源和十组�
 
 共享滚动组件在恢复页面位置时清除上一手势，在放开跟随时沿原离开尾部的转换截停未结束的自动回尾。新一笔真实手势继续经原监听器识别。处理在取得归属的同一个组件内，所有已接入界面共同受益，无存储迁移。旧反证日志 `quality-audit-b110-scroll-before.log`。[滚动转换](../../packages/design-system/src/browser/scroll-follow.ts#L99)
 
+修复后 QEA-181 两个交错均保持 `detached`。助理实际脱离与回尾、子任务 18 项、子任务和条件组件板，以及共享滚动的合计 5 文件 22 项通过。日志 `quality-audit-b110-scroll-consumers.log`。
+
 ### 第 109–110 批资源复量
 
 主干基点为独立构建的 `e56bd6701a`。67 条静态资源及十组页面冷、热回放完成，22 项待核对的首屏内容地址及动态请求仍由原许可匹配。两条工作台词包继续使用上节的内容地址。相对含主干滚动中断的第 109 批，插件帧加 2 B、工作台脚本加 1 B，单页冷加载加 3 B，热加载最多加 1 B。当前基点上页面净增最多冷 2,096 B、热 20 B，最大静态净增仍是 Git 脚本 8,403 B。
 
 相对上次推送 `704773fe8e`，四类入门页面中最大冷增 759 B、热增 266 B，另外测量的示例项目最大冷增 1,069 B、热增 261 B。静态只有原工作台和插件帧脚本各净增 315 B、156 B，这包含第 108 批在内的改动和主干滚动中断。首次测量项目选择页的资料摘要超时，原量法重跑已完整收集。基线实报 `quality-audit-b109-main-{http,assets}.json`、候选实报 `quality-audit-b110-candidate-{http,assets}.json`、逐页比较 `quality-audit-b110-resources-verified.json`。[登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+
+### 第 111 批持久化界面文字和事实归属
+
+主干 `#2118` 将卡片结果的常见反馈转为 SDK 生成的键和参数，由原卡片持久化并随 Workbench 语言显示。Assistant 自有库从 1 到 2 对历史内容转为原文引用。项目库从 4 到 5 沿 Runtime 的私值转换，只迁移 Coding 正式安装声明的值。Work Brief 自有库从 1 到 2，保留已写历史原文，新来源取 Manifest 的名称引用。该版本已审批的转换与本轮资料导入固定版本是不同事实，结构与回读分别验收。[卡片结果](../../packages/plugin-sdk/src/action-cards.ts#L124) · [项目升级](../../apps/local-host/src/project-database-schema.ts#L67) · [简报升级](../../plugins/native/work-brief/src/database.ts#L43) · [原批准 PR](https://github.com/molis-ai/molis-work/pull/2118)
+
+PF-15 复核。合并后的资料侧栏入口仍按原动作 `title` 展示成果和置物架来源，现行 Work Brief 已提供真实的 Manifest `name_text` 读取场景。后续资料来源合同可复用现有 TextRef 和实际语言读取，需先统一两个页面消费的同一个来源描述。[资料来源](../../apps/local-host/src/side-files-http.ts#L48) · [置物架声明](../../plugins/native/shelf/src/search.ts#L45)

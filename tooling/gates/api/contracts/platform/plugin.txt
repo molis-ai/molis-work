@@ -656,6 +656,7 @@ export type ActionProgressEvent = Parameters<NonNullable<ActionCallContext["on_p
 export interface ActionProvider {
     readonly provider_id: string;
     readonly title: string;
+    readonly title_text?: OwnedTextRef;
     readonly kind: "system" | "plugin" | "mcp";
     readonly project_id?: string;
     readonly plugin_id?: string;

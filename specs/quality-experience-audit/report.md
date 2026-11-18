@@ -8,7 +8,7 @@
 
 冻结 `630481472a` 的完整安全批次结束，447 次调度中 442 次通过，覆盖 444 个不同文件。五个失败文件之中三个需调整测试入口，两个暴露已确认的生产回执退化。五个文件均在更新的安装回归中复验通过。第 66–67 批的 18 个安装及界面回归文件共 164 项均有通过证据。公开合同批次 68 文件、970 项通过，公开 API、动作、43 个库的结构及生成版本均匹配源码。
 
-第 82 批已按用户批准登记实际首屏和资源、清除 Feed 的失效版本例外。组合提交 `03ed575a31` 的常规 Verify 已通过。第 87 批已按获准合同实施并本地验收历史导入警告。第 88 批修复第三轮 Full 中复现的 Goal 建议折叠，原 Pages 到 Goals 的正常入口主用例 3/3 通过。词包、资源和准确组合 Full 待结算。[第 87 批验收](#第-87-批获准的导入警告合同) · [草稿 PR #2101](https://github.com/molis-ai/molis-work/pull/2101)
+第 82 批已按用户批准登记实际首屏和资源、清除 Feed 的失效版本例外。组合提交 `03ed575a31` 的常规 Verify 已通过。第 87 批按获准合同实施并本地验收导入警告。第 88 批修复第三轮 Full 中复现的 Goal 建议折叠，原 Pages 到 Goals 的正常入口主用例 3/3 通过。两批组合的实际资源已对照正式政策核准，组合 Verify 与 Full 沿草稿继续。[第 87 批验收](#第-87-批获准的导入警告合同) · [草稿 PR #2101](https://github.com/molis-ai/molis-work/pull/2101)
 
 第 74 批的已测组合相对 `dbcf562a67` 涉及 499 个文件，包含源码、测试、公开合同快照和验收文档。本地签名安装生命周期补验见 `613991fcd1` 和 `f77365233c`。第 68–71 批复核双 Goal 窗格预算、修复分栏覆盖层与灵光历史，并沿恢复后的 Goal 工作区走视觉对照。第 72–73 批修复签名换版的项目同意呈现和同意清理，正常路径 8 文件 73 项及工作台、Runtime 包要求 64 文件 917 项通过。第 74 批修复 Inbox 已处理事项的建议读取，9 文件 71 项通过。
 
@@ -1236,7 +1236,9 @@ QEA-79 在真实隔离 Home 新导入及固定版本预览验证中、英文，�
 | 到达、项目选择 | 883 B | 844 B |
 | 默认、全插件和示例工作台 | 902 B | 863 B |
 
-这次实际增加的静态文件为 `/assets/molis-work-knowledge.js` +38 B，工作台脚本减少 19 B。以最新 main 合并基点计算，最大冷增 2,100 B，最大热增 19 B。正式量法还需到达与项目选择的中英文冷额度 663／624 B，全插件工作台中英文冷额度 693／654 B。按第 83 批验证过的路径长度，再计全插件 Linux 冷额度各 8 B。新增词包为 `/assets/locale/workbench.zh.edfbad487ed13f33cb345453.js`、`/assets/locale/workbench.en.d2cfe764e8fa4c8bc25d0542.js`。本次待核准的是这两个内容地址和上述增量。原实报 `quality-audit-b89-{main,candidate}-{http,assets}.json`，对比 `quality-audit-b89-gate-comparison.json`。
+这次实际增加的静态文件为 `/assets/molis-work-knowledge.js` +38 B，工作台脚本减少 19 B。以最新 main 合并基点计算，最大冷增 2,100 B，最大热增 19 B。正式量法还需到达与项目选择的中英文冷额度 663／624 B，全插件工作台中英文冷额度 693／654 B。按第 83 批验证过的路径长度，再计全插件 Linux 冷额度各 8 B。新增词包为 `/assets/locale/workbench.zh.edfbad487ed13f33cb345453.js`、`/assets/locale/workbench.en.d2cfe764e8fa4c8bc25d0542.js`。用户于 2026-11-17 批准这两个内容地址和所列增量。原实报 `quality-audit-b89-{main,candidate}-{http,assets}.json`，对比 `quality-audit-b89-gate-comparison.json`。[批准记录](../../tooling/gates/page-asset-allowances/quality-experience-audit-import-warnings.json)
+
+加入第 88 批后，将 67 条实际静态资源及各页面的冷、热读回交给现行检查，两个检查均通过本机对照，已知 Linux 目录差额的对照也通过。组合相对上一推送最大首屏冷增 937 B、热增 0 B。新资源仅为已批准的两个词包地址。证据 `quality-audit-b90-resource-gates.log`。
 
 ### QF-83 / P3 英文资料侧栏仍显示中文的来源分组（PF-15）
 

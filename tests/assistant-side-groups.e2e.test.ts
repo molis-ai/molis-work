@@ -161,7 +161,7 @@ test("VUX-08 VUX-09: 上下文 keeps what waits to be sent, what this round used
     pending: ${box}.querySelector('.assistant-drop').textContent,
     groups: [...${box}.querySelectorAll('.assistant-group')].map((g) => [g.querySelector('.assistant-block-sub').textContent, g.querySelector('.assistant-tiles').textContent]),
     badge: ${box}.querySelector('.assistant-block-badge').textContent }))()`);
-  assert.equal(read.title, "参考内容");
+  assert.equal(read.title, "上下文");
   assert.match(read.pending, /待发送/);
   assert.doesNotMatch(read.pending, /本周数据|本周计划|旧会议纪要|上周周报/, "nothing already used is shown as waiting");
   assert.deepEqual(read.groups.map(([label]) => label), ["本次使用", "历史引用"]);

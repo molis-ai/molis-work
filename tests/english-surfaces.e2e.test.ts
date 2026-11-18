@@ -208,7 +208,7 @@ test("VUX-40: the Coding page, its own script's words and Coding settings speak 
   const coding = `${origin}/projects/${projectId}/?openPlugin=coding`, settings = `${origin}/settings/coding-settings?project=${projectId}`;
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   const zh = await evaluate<{ found: boolean; han: string[] }>(HAN_IN_MARKUP(coding, "[data-coding-workbench]"));
-  assert.ok(zh.found && zh.han.includes("与 Agent 协作编写代码"), "Coding in Chinese says 「与 Agent 协作编写代码」");
+  assert.ok(zh.found && zh.han.includes("和 Agent 一起写代码"), "Coding in Chinese says 「和 Agent 一起写代码」");
   assert.ok((await evaluate<{ han: string[] }>(HAN_IN_MARKUP(settings, "[data-coding-settings]"))).han.includes("内置执行方式"));
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=en&next=%2F` }, sessionId));
   assert.deepEqual(await evaluate(HAN_IN_MARKUP(coding, "[data-coding-workbench]")), { found: true, han: [] }, "Coding in English");

@@ -13,7 +13,7 @@ interface Mounted {
 }
 
 /** Same root + same owner adapter keeps the unified composer's pending request and selections across navigation. */
-export function subtaskComposer(root: HTMLElement, source: SubtaskConversationSource, changed: (target: string) => void) {
+export function subtaskComposer(root: HTMLElement, source: SubtaskConversationSource, changed: (target: string) => void, laidOut: () => void) {
   const pending = new Map<string, { requestId: string; settled: boolean }>();
   const drafts = new WeakMap<ComposerDraftAdapter, ComposerDraftAdapter>();
   let current: Mounted | undefined;
@@ -87,6 +87,8 @@ export function subtaskComposer(root: HTMLElement, source: SubtaskConversationSo
         return Reflect.get(mounted.options, key);
       } }) as ComposerOptions;
       mounted.handle = window.molisComposer?.(root, live);
+      // The initial draft may resize the input after paint. Restore the saved outer position only for this live mount.
+      void mounted.handle?.ready().then(() => mounted.loaded).then(() => { if (current === mounted) laidOut(); }).catch(() => { /* Original composer owns load failure and cancellation. */ });
       // Keep the object the original composer captured; a language refresh updates its words without remounting an active send.
     } else {
       current.view = view; current.options = options;

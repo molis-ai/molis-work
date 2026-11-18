@@ -38,7 +38,7 @@ export function restorePrologueRun(saved: PrologueRestoredSession["runs"][number
   let firstPrompt = true;
   let endedAt: string | null = null;
   for (const event of saved.events ?? []) {
-    if (event.type === "prompt" && event.role === "user" && firstPrompt) {
+    if (event.type === "prompt" && event.role === "user" && event.source === undefined && event.steerId === undefined && event.carried === undefined && event.injection === undefined && firstPrompt) {
       firstPrompt = false;
       if (event.text === saved.task) continue;
     }

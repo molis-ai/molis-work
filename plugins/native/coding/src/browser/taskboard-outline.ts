@@ -25,6 +25,7 @@ export function drawOutlineRow(readText: Translate, targets: Map<string, BoardTa
   const item = el("li", "", "coding-outline-item");
   item.style.setProperty("--board-depth", String(depth));
   const node = el("button", "", "coding-outline-row");
+  node.id = "coding-outline-" + encodeURIComponent(JSON.stringify(row.target));
   node.type = "button";
   node.dataset.boardKey = row.key;
   if (row.hint) node.title = row.hint;

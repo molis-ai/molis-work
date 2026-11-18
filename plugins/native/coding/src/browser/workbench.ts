@@ -2,6 +2,7 @@ import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiPageWorkspaces, UiPageReviews } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { CodingHost } from "./main/host.js";
 import { mountCodingDirectory } from "./main/directory-mount.js";
+import { mountCodingSubtask } from "./subtask-conversation.js";
 import { mountCoding } from "./main/mount.js";
 
 /** What Git's client hands back; it reads through its own plugin's routes. */
@@ -38,6 +39,7 @@ export interface CodingWorkbenchHost {
   readonly clients: Readonly<Record<string, CompanionClient | undefined>>;
   readonly invokeAction: CodingHost["invokeAction"];
   readonly reviews: UiPageReviews<Element>;
+  readonly view: CodingHost["view"];
   readonly drafts: CodingHost["drafts"];
   readonly returns: CodingHost["returns"];
 }
@@ -53,6 +55,7 @@ export function codingWorkbench(host: CodingWorkbenchHost): void {
     if (directory) mountCodingDirectory({ ...host, root: directory });
     return;
   }
+  if (host.view.task) { mountCodingSubtask(host); return; }
   const { mountPluginClient, readRefusal, pluginId, pluginRoute, confirm, clients } = host;
   // What every client mounted here gets besides its own ports.
   const lent = { mountPluginClient, readRefusal, pluginId, pluginRoute, confirm };
@@ -73,7 +76,7 @@ export function codingWorkbench(host: CodingWorkbenchHost): void {
   };
   const gitBrowser: CompanionBrowser | null = codingRoot ? clients.git?.({ root: codingRoot,
     openResult: () => openCompanionResult("git"), closeResult: closeCompanionResult }) ?? null : null;
-  mountCoding({ ...lent, interaction: host.interaction, receipts: host.receipts, drafts: host.drafts, returns: host.returns,
+  mountCoding({ ...lent, view: host.view, interaction: host.interaction, receipts: host.receipts, drafts: host.drafts, returns: host.returns,
     revealTask: () => { if (matchMedia("(max-width: 600px)").matches) host.hideDirectory?.(); closeCompanionResult(); },
     onDirectoryFace: (face: string) => { gitBrowser?.show?.(face); },
     showReviews,

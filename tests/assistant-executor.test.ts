@@ -30,7 +30,7 @@ function fakeExecutor(pluginId = PLUGIN, kind = KIND) {
   const calls: Call[] = [];
   const started: Array<{ session_id: string; task: string; mode: string }> = [];
   // What the executor's control says became of a supplement: the round took it, unless a test says it had just ended.
-  const receipt = { delivered: "run" as "run" | "queued" };
+  const receipt = { delivered: "run" as "run" | "queued", accepted: true };
   const views = roleViews(pluginId, "样例 Agent", kind);
   const run = (id: string, task: string): AgentRunView => ({ ref: { run_id: id }, phase: "completed", turns: [{ turn_id: "u", kind: "user", text: task }],
     activity: [], awaiting_input: [], usage: {}, started_at: "2026-09-28T00:00:00.000Z", ended_at: "2026-09-28T00:00:01.000Z" }) as AgentRunView;
@@ -51,7 +51,7 @@ function fakeExecutor(pluginId = PLUGIN, kind = KIND) {
         session!.runs.push(run(run_id, task)); started.push({ session_id: sessionId, task, mode: session!.mode ?? "execute" });
         return { run_id };
       }
-      case "run.control": return input.kind === "steer" ? { accepted: true, receipt: { input_id: "steer-1", replayed: false, delivered: receipt.delivered } } : { accepted: true };
+      case "run.control": return input.kind === "steer" ? { accepted: true, receipt: { input_id: "steer-1", replayed: false, delivered: receipt.delivered } } : { accepted: receipt.accepted };
     }
   };
   const actions: BoundActionClient = { discover: async () => views,
@@ -75,7 +75,7 @@ function fixture(executors: Array<ReturnType<typeof fakeExecutor>> = [fakeExecut
   const caller = { project_ref: PROJECT_REF };
   const plugin = { kind: "plugin" as const, plugin_id: PLUGIN };
   const project = { kind: "project" as const, project_id: "project" };
-  return { exec, store, service, caller, plugin, project };
+  return { exec, store, service, caller, plugin, project, host };
 }
 
 test("W2-18-FOLLOWUP-DELETE-04 the person's bound client, carrying the follow-up's control, refuses a deleted request after the final beforeEffect await", async () => {
@@ -433,4 +433,50 @@ test("CHO-04 an executor that cannot be found says why: a version short of the p
   assert.match(reasons[1]!, /不在这个项目里/, "the plugin is not in the project");
   assert.match(reasons[2]!, /没有运行/, "the plugin is in the project and not running");
   assert.equal(new Set(reasons).size, 3, "three causes, three different sentences");
+});
+
+test("SAI-08/09: request recovery follows original executor relations after handover and rejects a foreign Host Session", async t => {
+  const f = fixture(), installId = "fixture-install";
+  for (const view of f.exec.views) view.provider.plugin_install_id = installId;
+  const sent = await f.service.send({ executor: f.plugin, scope: f.project, text: "执行", request_id: "sai-executor-first" }, f.caller);
+  const workId = sent.work.work_id, requestId = "sai-executor-lost";
+  f.store.requests.claimRequest("web-user", requestId, workId);
+  const invoke = f.exec.actions.invoke.bind(f.exec.actions);
+  t.mock.method(f.exec.actions, "invoke", async (definition, input, context) => {
+    const result = await invoke(definition, input, context);
+    return roleOfCapability(PLUGIN, definition.capability_id) === "session.read" ? { ...result as object, runtime_session_id: "original-runtime" } : result;
+  });
+  let owner = { actor_id: "web-user", project_id: "project", plugin_id: PLUGIN, install_id: installId }, reads = 0;
+  const ref = { session_id: "original-runtime", run_id: "accepted-original-run" };
+  const adapter = { sessionLifecycle: { read: async () => ({ owner }) }, readSession: async () => ({}), read: async () => null,
+    readOriginalInput: async (input: { session_id: string; input_id: string }) => {
+      reads++; assert.deepEqual(input, { session_id: "original-runtime", input_id: requestId, version: 1 });
+      return { accepted_run: ref };
+    } };
+  t.mock.method(f.host, "adapter", () => adapter);
+  // The original relation, written by the real dispatch above, remains after returning the Work to the Assistant.
+  f.store.update("web-user", workId, null, { executor: { kind: "assistant" } });
+  assert.deepEqual(await f.service.checkSubtaskRequest(workId, requestId), { state: "applied", run: ref });
+  assert.equal(reads, 1);
+  for (const field of ["actor_id", "project_id", "plugin_id", "install_id"] as const) {
+    const before = owner; owner = { ...owner, [field]: "foreign" };
+    await assert.rejects(f.service.checkSubtaskRequest(workId, requestId), (error: unknown) => (error as { code?: string }).code === "assistant.scope");
+    assert.equal(reads, 1, "foreign history is never read"); owner = before;
+  }
+  f.service.continuations.close();
+});
+
+test("SAI-06: an executor's explicit answer refusal cannot become an answered receipt", async () => {
+  const { service, exec, caller, plugin, project } = fixture();
+  const sent = await service.send({ executor: plugin, scope: project, text: "Ask before proceeding", request_id: randomUUID() }, caller);
+  const session = [...exec.sessions.values()][0]!, run = session.runs[0]!;
+  run.phase = "awaiting-input";
+  run.awaiting_input = [{ pending_id: "original-question", pending_revision: 1, kind: "clarification", prompt: "What next?", options: [], allows_free_text: true, answerable: true }];
+  exec.receipt.accepted = false;
+  let accepted = 0;
+  await assert.rejects(service.outcomes.answer(sent.work.work_id, { run_id: run.ref.run_id, pending_id: "original-question", pending_revision: 1, text: "Proceed" }, caller,
+    { beforeEffect: async () => {}, assertCurrent() {}, handed() {}, accepted() { accepted++; } }), { code: "assistant.state", details: { answer_accepted: false } });
+  assert.equal(accepted, 0);
+  assert.equal(exec.controls().at(-1)!.input.continue_after_answer, false);
+  assert.equal(exec.started.length, 1, "an answer-only refusal starts no next round");
 });

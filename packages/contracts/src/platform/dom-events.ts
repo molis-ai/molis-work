@@ -79,6 +79,10 @@ export const PAGE_STATE_OWNERS = {
     files: ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts", "apps/workbench/src/scripts/client/context-card-target.ts", "apps/workbench/src/scripts/client/context-landing.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],
     state: "What the person has in hand on the focused surface, where it would land on the left, the ranked actions offered for it, and the starters offered for the open Work.",
   },
+  "task-float": {
+    files: ["apps/workbench/src/browser/task-float-content.ts", "apps/workbench/src/browser/work-task-panel.ts", "apps/workbench/src/browser/plugin-frame/task-parent.ts", "apps/workbench/src/browser/assistant-subtasks.ts"],
+    state: "The existing task float and the lifetime of its trusted content mounts; task facts remain with their original service.",
+  },
   "context-toolbar": {
     files: ["packages/design-system/src/context-toolbar.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],
     state: "The toolbar next to what the person has in hand, in the document that owns it: the tools a plugin offered for the open context, and the small form under it.",
@@ -379,6 +383,11 @@ export const DOM_EVENTS = [
     detail: "{ owner, id, title }", summary: "Focus or open one system-owned object in the common tab layout.",
   },
   {
+    name: "molis-work:task-float", kind: "request", owner: "task-float", on: "document",
+    detail: "Trusted shell-only TaskFloatRequest: open/close/forget with an opaque mount owner and lifecycle callbacks; never forwarded from a plugin frame.",
+    summary: "The separately bundled frame bridge asks the existing task panel to mount its independently authorized child projection. The panel alone owns visibility, cancellation and cache lifetime; the callback does not carry task facts or grant authority.",
+  },
+  {
     name: "molis-work:task-role-picked", kind: "announcement", owner: "character-picker", on: "element",
     detail: "{ target, character?: { ref, title, character_id } | null, reset?: true }; null selects the Assistant, reset returns a new task to its defaults",
     summary: "A role picker changed the roles or applied a choice to its originating task.",
@@ -442,6 +451,11 @@ export const DOM_EVENTS = [
     name: "molis:assistant-starters-request", kind: "request", owner: "context-actions", on: "document",
     detail: "{ context, request_id }",
     summary: "The Assistant asks which starters the Host offers for the context it shows.",
+  },
+  {
+    name: "molis:assistant-subtask-open", kind: "request", owner: "task-float", on: "document",
+    detail: "{ base, signal, focus, interaction, reviews, work_id, parent_run_id?, child_id? }; Native Host entry supplies the frozen route, lifetime and original UI factories; never forwarded through a plugin frame. Work alone selects a delegated Work; both execution fields select that Work's original SDK child.",
+    summary: "Open an authorized child in the shared task float without changing the main conversation or its input receiver. The original service checks every supplied reference.",
   },
   {
     name: "molis:assistant-surface-changed", kind: "request", owner: "assistant", on: "window",

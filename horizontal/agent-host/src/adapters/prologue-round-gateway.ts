@@ -16,7 +16,7 @@ type Memory = RoundState["memoryRounds"] extends Map<string, infer M> ? M : neve
  * The round's actions: the business gateway's three tools, or one tool per frozen action. What the round really keeps,
  * forgets and changes is counted for the stop check; a call to a capability that is gone is refused before review.
  */
-export function roundGateway(deps: Pick<RunDeps, "state" | "runtime" | "options">, input: PrologueStartInput, none: boolean, stopping: () => boolean, work: PrologueWorkDelegation | undefined, mcp: RoundMcp | undefined) {
+export function roundGateway(deps: Pick<RunDeps, "state" | "runtime" | "options">, input: Pick<PrologueStartInput, "action_gateway" | "actions" | "assertBeforeDispatch" | "character" | "root_path" | "session_id" | "text_materials">, none: boolean, stopping: () => boolean, work: PrologueWorkDelegation | undefined, mcp: RoundMcp | undefined) {
   const { state, runtime } = deps;
   const actionController = new AbortController();
   const reviews = new PrologueActionReviews(input.session_id, () => {

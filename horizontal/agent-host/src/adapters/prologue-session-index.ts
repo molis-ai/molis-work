@@ -19,7 +19,7 @@ export interface ChildOpeningFact {
   parent_run: string;
   session: ExactRef<"session">;
   run: ExactRef<"run">;
-  format: "caller-only-v1";
+  format: "caller-only-v2";
 }
 
 export interface SessionIndex {
@@ -44,6 +44,8 @@ export interface SessionIndex {
     subagent_attempt_sources?: Record<string, import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentRetrySource>;
     subagent_attempt_reasons?: Record<string, string>;
     subagent_retry_tasks?: Record<string, string>;
+    /** Exact Run ids admitted through the protected personal continue input; retry source alone is not authorship. */
+    subagent_person_continuations?: string[];
     subagent_nodes?: Record<string, string>;
     /** Parent model selection and resolved model frozen at round start so subagent retries inherit the exact chosen model (BL-051). */
     model_selection?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStartRequest["model_selection"];

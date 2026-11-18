@@ -11,14 +11,23 @@ export function canonicalCallerOpening(events: readonly ModelEvent[]): string | 
   return callers.length === 1 && callers[0]!.trim() ? callers[0] : undefined;
 }
 const sameRef = (left: ExactRef<string> | null | undefined, right: ExactRef<string>) => !!left && left.kind === right.kind && left.id === right.id && left.revision === right.revision;
+/** Optional authorship evidence cannot outlive the unique accepted parent attempt that wrote it. */
+export function personalContinuationOpenings(attempts: SessionIndex["attempts"]): Record<string, string> | undefined {
+  if (attempts.length !== 1 || attempts[0]!.refused) return undefined;
+  const attempt = attempts[0]!, ids = attempt.subagent_person_continuations;
+  if (!Array.isArray(ids) || ids.some(id => typeof id !== "string" || !id) || new Set(ids).size !== ids.length) return undefined;
+  return Object.fromEntries(ids.flatMap(id => {
+    const text = attempt.subagent_retry_tasks?.[id]; return typeof text === "string" && text.trim() ? [[id, text]] : [];
+  }));
+}
 function childGeneration(facts: unknown, parentRun: string, session: ExactRef<"session">, run: ExactRef<"run">): boolean {
   // This optional persisted proof cannot make the original raw history unreadable.
   if (!Array.isArray(facts) || !facts.every((fact: Partial<ChildOpeningFact> | null) => fact && typeof fact === "object"
-    && typeof fact.parent_run === "string" && fact.format === "caller-only-v1"
+    && typeof fact.parent_run === "string" && fact.format === "caller-only-v2"
     && fact.session?.kind === "session" && typeof fact.session.id === "string" && Number.isInteger(fact.session.revision) && fact.session.revision > 0
     && fact.run?.kind === "run" && typeof fact.run.id === "string" && Number.isInteger(fact.run.revision) && fact.run.revision > 0)) return false;
   const matching = facts.filter(fact => fact.parent_run === parentRun && sameRef(fact.session, session) && sameRef(fact.run, run));
-  return matching.length === 1 && matching[0]!.format === "caller-only-v1";
+  return matching.length === 1 && matching[0]!.format === "caller-only-v2";
 }
 /** A safe task is exact text from the attested child's one caller opening, never the raw all-user display string. */
 export function childCallerTask(facts: readonly ChildOpeningFact[], parentRun: string, session: ExactRef<"session">, run: ExactRef<"run">, events: readonly ModelEvent[]): string | undefined {

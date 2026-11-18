@@ -473,11 +473,11 @@ function hostConditionChecks(options: AgentHostCompositionOptions): NonNullable<
   return { directoryAuthorized: async (project, directory) => await runsIn(project, directory) !== undefined,
     workspaceAt: runsIn,
     holdCommandWorkspace: (project, id, directory, tree) => holdCommandWorkspace(options.localHost, project, id, directory, tree),
-    holdMcpDirectory: async (project, directory) => {
+    holdWorkspaceDirectory: async (project, directory, worktreeId) => {
       const places = await runPlaces(options, project);
       if (!places.output) return undefined;
-      const tree = directory === places.output.canonical_path ? undefined : (await places.worktrees()).find(row => row.canonical_path === directory);
-      if (directory !== places.output.canonical_path && !tree) return undefined;
+      const tree = directory === places.output.canonical_path ? undefined : (await places.worktrees()).find(row => row.canonical_path === directory && (!worktreeId || row.worktree_id === worktreeId));
+      if ((worktreeId || directory !== places.output.canonical_path) && !tree) return undefined;
       return holdCommandWorkspace(options.localHost, project, places.output.workspace_id, directory, tree?.worktree_id);
     },
     owned: assistantConnectionCheckers(home, options.localHost), workAuthority: workAuthorityCheck(options.localHost) };

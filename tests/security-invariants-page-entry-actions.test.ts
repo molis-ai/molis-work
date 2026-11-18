@@ -92,17 +92,24 @@ test("S-page-entry-actions 4: a request that closed before its action runs reach
 
 /** The smallest input the schema accepts, so a refusal is the door's and not the schema's. */
 function minimalInput(schema: unknown): unknown {
-  const shape = schema as { properties?: Record<string, { type?: unknown; enum?: unknown[]; pattern?: string }>; required?: string[] };
-  const input: Record<string, unknown> = {};
-  for (const name of shape.required ?? []) {
-    const property = shape.properties?.[name] ?? {};
-    input[name] = property.enum ? property.enum[0]
-      : property.type === "object" ? minimalInput(property)
-      : property.type === "integer" || property.type === "number" ? 0
-      : property.type === "boolean" ? false
-      : property.type === "array" ? []
-      : Array.isArray(property.type) && property.type.includes("null") ? null
-      : "x";
+  const shape = schema as {
+    type?: unknown;
+    anyOf?: readonly unknown[];
+    const?: unknown;
+    enum?: readonly unknown[];
+    properties?: Record<string, unknown>;
+    required?: readonly string[];
+    minimum?: number;
+  };
+  if (shape.anyOf?.length) return minimalInput(shape.anyOf[0]);
+  if (shape.const !== undefined) return shape.const;
+  if (shape.enum) return shape.enum[0];
+  if (shape.type === "object") {
+    return Object.fromEntries((shape.required ?? []).map(name => [name, minimalInput(shape.properties?.[name] ?? {})]));
   }
-  return input;
+  if (shape.type === "integer" || shape.type === "number") return shape.minimum ?? 0;
+  if (shape.type === "boolean") return false;
+  if (shape.type === "array") return [];
+  if (shape.type === "null" || (Array.isArray(shape.type) && shape.type.includes("null"))) return null;
+  return "x";
 }

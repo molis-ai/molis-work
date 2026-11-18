@@ -119,3 +119,5 @@ export { artifactReferenceUiContribution, isProjectReference, artifactBrowserUiC
 
 export { accountCacheOwner, ACCOUNT_CACHE_SCOPE_MISSING } from './account-cache-owner.js';
 export { pageSessionScope } from './account-cache-key.js';
+
+export { renderMolisWorkAssistantSubtasksClientScript } from "./assistant-subtasks-client.js";

@@ -1,0 +1,94 @@
+/* 底栏第七版的可点原型。只做编排：颜色都引用 ../kit/kit.css 的变量；卡、记号、清单行沿用 dirs.css、focus.css。不是产品样式。 */
+.sp-win.c.bx{height:700px;grid-template-rows:44px minmax(0,1fr) 68px;transition:width var(--dur-move) var(--ease-quint)}
+.sp-win.c.bx .sp-stage.swap{animation:fx-swap 220ms var(--ease-quint)}
+
+/* 底部一行：左翼、中间、右翼。68 = 标签 24 + 输入框 38 + 底边 6 */
+.qb{position:relative;z-index:6;display:grid;grid-template-columns:minmax(0,1fr) var(--mid,560px) minmax(0,1fr);gap:22px;align-items:end;padding:0 14px 6px;box-sizing:border-box;--over:80px}
+.qb *{box-sizing:border-box}
+.qb [hidden]{display:none!important}
+.qb [role=button]{cursor:pointer}
+.qw{position:relative;display:flex;align-items:center;gap:4px;height:38px;min-width:0;white-space:nowrap}
+.qw.l{justify-content:flex-end}
+.qw .dv{flex:none;height:28px;max-width:none;background:none}
+.qw .dv:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
+.qw .dv.on{background:var(--popover)}
+.qw .dv.next small,.qw .dv.run small{color:var(--muted)}
+.qw .dv.pulse{animation:fx-pulse var(--dur-moment) var(--ease-quint)}
+.qw .dn{background:none;cursor:pointer}
+.q-vr{flex:none;width:1px;height:14px;margin:0 6px;background:var(--line-strong)}
+.qm{position:relative;height:62px}
+.qu{position:absolute;left:0;right:0;bottom:0}
+
+/* 一张纸：亮着的标签、对话区、输入框。阴影打在合起来的形状上 */
+.qs{position:relative;display:flex;flex-direction:column;padding-top:24px;filter:drop-shadow(0 1px 1.5px color-mix(in srgb,var(--shadow-color) 14%,transparent)) drop-shadow(0 10px 26px color-mix(in srgb,var(--shadow-color) 16%,transparent))}
+.qp{position:absolute;top:0;height:24px;border-radius:9px 9px 0 0;background:var(--popover)}
+.qp::before,.qp::after{content:"";position:absolute;bottom:0;width:8px;height:8px}
+.qp::before{left:-8px;background:radial-gradient(circle at 0 0,transparent 7.5px,var(--popover) 8px)}
+.qp::after{right:-8px;background:radial-gradient(circle at 100% 0,transparent 7.5px,var(--popover) 8px)}
+.qc{position:relative;background:var(--popover);border-radius:16px}
+.qv{display:flex;flex-direction:column;min-height:0;margin:0 calc(-1 * var(--over));background:var(--popover);border-radius:16px;animation:fx-up var(--dur-move) var(--ease-quint)}
+.qu.open .qc{border-radius:0 0 16px 16px}
+.qu.open .qc::before,.qu.open .qc::after{content:"";position:absolute;top:0;width:16px;height:16px;pointer-events:none}
+.qu.open .qc::before{left:-16px;background:radial-gradient(circle at 0 100%,transparent 15.5px,var(--popover) 16px)}
+.qu.open .qc::after{right:-16px;background:radial-gradient(circle at 100% 100%,transparent 15.5px,var(--popover) 16px)}
+
+/* 标签一排：事项 */
+.qt{position:absolute;top:0;left:0;right:0;z-index:2;display:flex;align-items:flex-end;gap:2px;height:24px;padding:0 6px 0 22px;white-space:nowrap}
+.qu.open .qt{left:calc(-1 * var(--over));right:calc(-1 * var(--over))}
+.q-tab{position:relative;flex:0 1 auto;min-width:44px;display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:9px 9px 0 0;font-size:12.5px;color:var(--ink-soft);transition:color var(--dur-hover)}
+.q-tab:hover{color:var(--ink)}
+.q-tab .cut{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.q-tab.on{flex-shrink:0;max-width:380px;color:var(--ink);font-weight:600}
+.q-tab.home{flex:none;min-width:0;padding:0 8px}
+.q-tab svg{color:var(--muted)}.q-tab svg.sep{margin:0 -3px;color:var(--faint)}
+.q-tab .sub{display:inline-flex;align-items:center;gap:6px;min-width:0;font-weight:500}
+.q-tab .n{flex:none;display:inline-grid;place-items:center;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:var(--amber-soft);color:var(--amber);font-size:10.5px;font-weight:600;font-style:normal}
+.q-tab .x{flex:none;display:grid;place-items:center;width:16px;height:16px;margin:0 -4px 0 -2px;border-radius:5px;color:var(--faint)}
+.q-tab .x:hover{background:var(--control-fill);color:var(--ink)}
+.q-k{flex:none;display:grid;place-items:center;width:24px;height:22px;margin-bottom:1px;border-radius:7px;color:var(--muted)}
+.q-k:hover{background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink)}
+.tm{position:absolute;left:0;bottom:calc(100% + 6px);z-index:3;width:300px;padding:8px;background:var(--popover);border-radius:14px;box-shadow:0 0 0 1px var(--line),var(--lift-3);font-size:12.5px;animation:fx-up var(--dur-move) var(--ease-quint)}
+.tm .dl-r{cursor:pointer}.tm .dl-r:hover,.tm .dl-r.on{background:var(--control-fill)}
+.tm .dl-r svg{color:var(--muted)}
+
+/* 输入框：字那一行永远在最下面，不因为点进去或打字挪位置；多了才向上长。带上的是卡里字上面的一排片 */
+.qc .pc{flex-wrap:nowrap;align-items:flex-end;min-height:38px;padding:5px 6px}
+.qc .dc-k{width:28px;height:28px}
+.qb .pc textarea{flex:1;min-width:0;height:26px;max-height:132px;margin:1px 0;padding:3px 6px!important;border:0!important;outline:0!important;border-radius:0;box-shadow:none!important;background:none!important;resize:none;overflow-y:auto;font:inherit;font-size:13.5px;line-height:20px;color:var(--ink)}
+.qchips{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px 1px}
+.qchips .dc-chip [role=button]{display:inline-grid}
+.qchips .dc-chip.who{background:var(--accent-soft);color:var(--accent)}.qchips .dc-chip.who svg{color:currentColor}
+.q-way{flex:none;display:inline-flex;align-items:center;gap:2px;height:28px;padding:0 4px 0 8px;border-radius:8px;font-size:12px;color:var(--accent);white-space:nowrap}
+.q-way:hover{background:var(--control-fill)}
+.q-way svg{color:currentColor;opacity:.7}
+.pm .dl-r svg:last-child:not(:first-child){color:var(--accent)}
+/* ＋ 的菜单压在标签之上：没开对话时开在标签那一排上面，开了对话就贴着卡（位置在 bar.js 里按卡高算） */
+.qu>.pm{z-index:4}
+
+/* 对话区和答复位 */
+.qv-b{display:flex;flex-direction:column;gap:10px;max-height:var(--convmax,470px);padding:20px 44px 14px;overflow-y:auto;font-size:13.5px;line-height:1.7;color:var(--ink)}
+.qv-b .dd-me{align-self:flex-end;max-width:76%;padding:7px 12px;border-radius:12px;background:var(--control-fill)}
+.qv-b .dd-it{max-width:92%}
+.qa{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 44px 14px}
+.qa:empty{display:none}
+.qa-t{display:inline-flex;align-items:center;gap:8px;margin-right:4px;font-size:13px;color:var(--ink-soft)}
+.qa .dc-act{height:30px;padding:0 12px;font-size:12.5px}
+.qk{display:flex;flex-direction:column;gap:8px;padding:11px 14px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);font-size:13px;transition:background var(--dur-hover)}
+.qk[role=button]:hover{background:var(--control-fill)}
+.qk.here{background:color-mix(in srgb,var(--control-fill) 60%,transparent);box-shadow:none}
+.qk-h{display:flex;align-items:center;gap:8px;min-width:0}
+.qk-h b{font-weight:600}
+.qk-h small{font-size:12px;color:var(--muted)}.qk-h small.you{color:var(--amber);font-weight:600}
+.qk-h svg{color:var(--faint)}
+.qk-s{display:flex;gap:16px;font-size:12px;color:var(--muted)}
+.qk-s span{display:inline-flex;align-items:center;gap:6px}
+
+/* 标出六个固定区域（原型说明用，不是产品界面） */
+.bx.marks [data-mark]{position:relative}
+.bx .mk-l{display:none}
+.bx.marks .mk-l{position:absolute;z-index:9;display:block;padding:1px 7px;border-radius:7px;background:var(--accent);color:var(--on-accent);font-size:11px;font-weight:600;line-height:17px;white-space:nowrap;pointer-events:none}
+.bx.marks .qw,.bx.marks .qt,.bx.marks .qv-b,.bx.marks .qa,.bx.marks .qc{outline:1.5px dashed color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:-1px}
+.bx.marks .qv-b,.bx.marks .qa{outline-offset:-6px}
+.bx.marks .qv-b,.bx.marks .qa{position:relative}
+.qw .dt{flex:none}
+.qw.r{overflow:hidden}.qw.l{overflow:hidden}

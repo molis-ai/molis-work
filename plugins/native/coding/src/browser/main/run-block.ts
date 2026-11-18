@@ -117,6 +117,8 @@ function placeTray(page: Page, block: HTMLElement, run: RunView, all: readonly R
 function settle(block: HTMLElement, ordered: readonly HTMLElement[]) {
   let cursor = block.firstElementChild;
   for (const node of ordered) {
+    // Configuration anchors the readiness panel independently. Keep the entries after it in place.
+    if (cursor?.hasAttribute("data-coding-env-checklist")) cursor = cursor.nextElementSibling;
     if (node !== cursor) block.insertBefore(node, cursor);
     cursor = node.nextElementSibling;
   }

@@ -1,6 +1,6 @@
 # 第 36 批合后修复
 
-状态：合后修复见 [#2121](https://github.com/molis-ai/molis-work/pull/2121)。依据 [第 36 批原需求与合入记录](../post-anticorruption-roadmap/reference/batches/36.md)、[角色服务](../onboarding-coverage/role-service-design.md) 与 [主线合同](../work-mainline/contract-design.md)。原合并提交 `bdfcc36454`，修复从 `8d9f1fb01e` 开始。当前基点 `e56bd6701a` 含独立合入的 [B58-02 滚动修复 #2124](https://github.com/molis-ai/molis-work/pull/2124)。验证使用隔离 Home。
+状态：合后修复见 [#2121](https://github.com/molis-ai/molis-work/pull/2121)。依据 [第 36 批原需求与合入记录](../post-anticorruption-roadmap/reference/batches/36.md)、[角色服务](../onboarding-coverage/role-service-design.md) 与 [主线合同](../work-mainline/contract-design.md)。原合并提交 `bdfcc36454`，修复从 `8d9f1fb01e` 开始。当前基点 `72ee7666e4` 包含独立的 [B58-02 滚动修复 #2124](https://github.com/molis-ai/molis-work/pull/2124)、[文案断言修复 #2128](https://github.com/molis-ai/molis-work/pull/2128) 和 [Coding 回焦修复 #2129](https://github.com/molis-ai/molis-work/pull/2129)。验证使用隔离 Home。
 
 | 编号 | 场景与验收 |
 | --- | --- |
@@ -54,7 +54,7 @@ Characters 负责角色写入与恢复，Agent Host 负责运行准入。工作�
 ## 收尾检查
 
 1. 本次验证对照 B36F-01～07。ROLE-14 由一骏验收，按原待办跟踪。
-2. 同步第 59 批后，工作回执、助理服务、项目切换与 DOM 事件共同验证。同步 #2119 后重新生成和核对 API 与动作快照。
+2. 同步第 59 批后，工作回执、助理服务、项目切换与 DOM 事件共同验证。同步 #2119 后重新生成和核对 API 与动作快照。同步 #2118 后重新生成助理 API 快照，回归卡片文字存储、助理工作续接与 Coding 角色读取。
 3. 独立评审退回的安放撤权、角色续跑、选角来源与回焦、差异比较均在修复范围内。第 36 批未排入本修复的事项按原待办和后续批次接续。[评审记录](https://github.com/molis-ai/molis-work/pull/2121#issuecomment-6968569923)
 4. 角色选择器和设置复用同一抽屉与角色动作，主线经通用 placement 关系调用任务主人。
 5. 角色事实归 Characters，运行固定版由 Host 准备，主线存自己的事项及归属。库结构沿用现行版本。

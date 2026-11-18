@@ -345,6 +345,8 @@ memory.operations.list	1	system.memory	query	query	home	read	-	user	memory:confi
 memory.page	1	system.memory	query	query	home	read	concurrent	user	memory:read	-	-	-	618c5b548a9d	4fe5fa189c4e	5e0374458cf9
 memory.pairs.list	1	system.memory	query	query	home	read	-	user	memory:read	-	-	-	8fae6285b822	983c812a2083	-
 memory.pairs.resolve	1	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	29218ac07da5	8cee623341f8	-
+memory.preferences.read	1	system.memory	query	query	home	read	-	agent,plugin,user	memory:configure	-	molis.settings.read.request.v1	molis.settings.values.v1	169508f33c70	aec621cbbb17	-
+memory.preferences.write	1	system.memory	command	operation	home	write	-	user	memory:configure	-	molis.settings.write.request.v1	molis.settings.values.v1	f62a1dbc1db6	aec621cbbb17	-
 memory.prefs.read	1	system.memory	query	query	home	read	-	user	memory:configure	-	-	-	f0c071b0cd86	192b3d5adac1	-
 memory.prefs.write	1	system.memory	command	operation	home	write	-	user	memory:configure	-	-	-	180044f1f196	192b3d5adac1	-
 memory.recall	1	system.memory	query	query	home	read	concurrent	agent,mcp,user,workflow	memory:recall	-	-	-	58082104fed9	91c77f638c8a	5e0374458cf9

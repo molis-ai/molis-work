@@ -8,4 +8,5 @@
 - 公开入口 `@molis-ai/molis-work-service-blueprints`。动作合同见 [场景合同第七节](../../specs/scene-and-page-contract/spec.md#7-保存与恢复)。
 - 嵌套动作沿用调用者的身份、项目及授权。等待主人返回后重新检查授权，再提交对应步骤的进度。
 - 同一采用只按第一次确认的范围继续。核对写入用原请求编号与原始请求。撤销用主人写入时返回的版本。
+- 第二个场景已复用同一层的设置时，撤销第一个会保留那个值。只复用过的场景在移除时只解除自己的关联。多个场景同时操作同一设置层时按顺序处理。
 - 改动后运行 `node scripts/run-tests.mjs --jobs 1 tests/blueprint-adoption-service.test.ts tests/blueprint-adoption-contract.test.ts`。

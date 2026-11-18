@@ -71,7 +71,8 @@ export async function handleBlueprintHttp(request: IncomingMessage, response: Se
     assertCurrent();
     if (request.method === "GET") {
       const id = url.searchParams.get("id");
-      if (path === "library") sendLocalWebJson(response, 200, await client.invoke(a.library, id ? { adoption_id: id } : {}));
+      const previewId = url.searchParams.get("preview");
+      if (path === "library") sendLocalWebJson(response, 200, await client.invoke(a.library, id ? { adoption_id: id } : previewId ? { preview_id: previewId } : {}));
       else if (path === "draft" && id) sendLocalWebJson(response, 200, await client.invoke(a.draftRead, { draft_id: id }));
       else if (path === "events" && id) await progress(host, client, response, id, reference?.project_id ?? null, assertCurrent);
       else sendLocalWebJson(response, 404, {});

@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
+import { memoryPreferenceMarkerPrefix } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCandidateRecord, MemoryChangeRecord, MemoryForgettingFacts, MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
 import type { openHomeSqliteDatabase } from "../home-sqlite.js";
 
@@ -94,7 +95,11 @@ export function createMemoryLedgerRetention(db: ReturnType<typeof openHomeSqlite
       drop("memory_pairs", "pair_id");
       for (const item of input.scopes) db.prepare("DELETE FROM memory_owners WHERE scope=? AND owner=?").run(item.scope, item.owner);
       db.prepare("DELETE FROM memory_owners WHERE project_id=?").run(input.project_id);
-      for (const key of input.prefs_keys) db.prepare("DELETE FROM memory_prefs WHERE key=?").run(key);
+      for (const key of input.prefs_keys) {
+        db.prepare("DELETE FROM memory_prefs WHERE key=?").run(key);
+        const prefix = memoryPreferenceMarkerPrefix(key);
+        db.prepare("DELETE FROM memory_markers WHERE substr(key,1,length(?))=?").run(prefix, prefix);
+      }
       for (const key of input.marker_keys) if (!key.startsWith("memory-forgotten:")) db.prepare("DELETE FROM memory_markers WHERE key=?").run(key);
       for (const row of db.prepare("SELECT actor_id,key,body FROM memory_markers WHERE key LIKE 'memory-operation:%'").all()) {
         const mark = JSON.parse(String(row.body)) as { scope?: string; owner?: string; merge?: unknown; trigger_evidence?: unknown };

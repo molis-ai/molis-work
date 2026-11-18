@@ -4,6 +4,10 @@
   "locale": "en",
   "messages": {
     "workbench.scene.title": "Apply scene settings",
+    "workbench.scene.memory-personal": "Personal memory preferences",
+    "workbench.settings-memory.follow-default": "Use the default settings",
+    "workbench.settings-memory.value-source": "Settings source: {source}",
+    "workbench.scene.memory-project": "Project memory preferences",
     "workbench.scene.retention": "Work record retention period",
     "workbench.scene.retention-effect": "A shorter period clears expired records immediately. Undo can restore the period. Cleared records cannot be recovered.",
     "workbench.scene.drafts": "Scene drafts",

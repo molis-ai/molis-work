@@ -4,6 +4,10 @@
   "locale": "zh",
   "messages": {
     "workbench.scene.title": "采用场景设置",
+    "workbench.scene.memory-personal": "个人记忆偏好",
+    "workbench.settings-memory.follow-default": "恢复沿用默认设置",
+    "workbench.settings-memory.value-source": "当前使用的设置来自{source}。",
+    "workbench.scene.memory-project": "项目记忆偏好",
     "workbench.scene.retention": "工作记录保留期限",
     "workbench.scene.retention-effect": "缩短期限会立即清理过期记录。撤销可恢复原期限，已清理的记录无法找回。",
     "workbench.scene.drafts": "场景草稿",

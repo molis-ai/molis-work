@@ -50,12 +50,12 @@ async function readCandidates(access: SettingsAccess, wanted: ReadonlySet<string
   const declared = (await access.discover()).filter(item => wanted.has(item.entry.key));
   if (new Set(declared.map(item => item.entry.key)).size !== declared.length)
     throw blueprintsErrors.step_conflict("多个提供方声明了同一个设置，请先检查安装");
-  const values = await readOwnerValues(access, declared.map(({ entry, binding }) => ({ key: entry.key, binding })), caller);
+  const values = await readOwnerValues(access, declared.filter(item => !item.unavailable).map(({ entry, binding }) => ({ key: entry.key, binding })), caller);
   return new Map<string, ObservedSetting>(declared.map(item => [item.entry.key, { ...item, current: values.get(item.entry.key) }]));
 }
 
-function currentValue(current: EffectiveSetting | undefined): BlueprintCurrentValue {
-  if (!current || current.state === "unavailable") return { state: "unavailable", reason: current?.reason ?? "暂时读不到此设置" };
+function currentValue(current: EffectiveSetting | undefined, unavailable?: string): BlueprintCurrentValue {
+  if (!current || current.state === "unavailable") return { state: "unavailable", reason: current?.reason ?? unavailable ?? "暂时读不到此设置" };
   return { state: "present", value: current.value, revision: current.revision, origin: null, setting_source: current.source };
 }
 
@@ -93,7 +93,7 @@ export async function previewSettings(store: AdoptionStore, access: SettingsAcce
     const { current, binding, entry } = owner;
     const title = "literal" in entry.title ? entry.title : { ...entry.title, owner: owner.text_owner };
     const summary = entry.summary && ("literal" in entry.summary ? entry.summary : { ...entry.summary, owner: owner.text_owner });
-    const details = { ...result, title, ...(summary && { summary }), candidates: [{ kind: "owner" as const, action: binding.write, subject: { kind: "setting", id: entry.key }, current: currentValue(current) }],
+    const details = { ...result, title, ...(summary && { summary }), candidates: [{ kind: "owner" as const, action: binding.write, subject: { kind: "setting", id: entry.key }, current: currentValue(current, owner.unavailable) }],
       consequences: entry.consequence ?? [] };
     if (!entry.layers.includes(layer) || input.target.kind === "personal" && layer === "project") return { ...details, decision: "skip", reason: "scope_mismatch" };
     if (!current || current.state === "unavailable") return { ...details, decision: "skip", reason: "owner_unavailable" };

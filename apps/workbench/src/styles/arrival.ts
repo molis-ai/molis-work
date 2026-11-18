@@ -174,6 +174,25 @@ export const ARRIVAL_STYLES = String.raw`
   .onboard .welcome-scene { min-height: 0; padding: 48px clamp(24px, 5vw, 72px) 48px 0; }
   .ob-right { width: min(600px, 100%); max-height: 100%; overflow: auto; padding: 20px 24px 24px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: var(--lift-1); }
   .ob-right.is-empty { display: grid; justify-items: center; gap: 16px; background: none; box-shadow: none; }
+  .scene-sheet { display: grid; padding: clamp(28px, 6vh, 80px) clamp(22px, 5vw, 80px); }
+  .scene-columns { width: min(100%, 1080px); margin: auto; display: grid; grid-template-columns: minmax(0, .75fr) minmax(0, 1.35fr); gap: clamp(28px, 5vw, 80px); align-items: start; }
+  .scene-columns h1 { font-size: clamp(28px, 3.25vw, 44px); font-weight: var(--weight-title); line-height: 1.18; letter-spacing: -.03em; }
+  .scene-columns header p { color: var(--muted); line-height: 1.6; margin-block: 10px; overflow-wrap: anywhere; }
+  .scene-review { min-width: 0; overflow-wrap: anywhere; }
+  .scene-review h2 { font-size: 19px; margin: 0 0 12px; }
+  .scene-review dl { margin: 12px 0; display: grid; grid-template-columns: minmax(85px, .6fr) minmax(0, 1.4fr); gap: 8px 18px; padding-block: 14px; border-block: 1px solid var(--line); }
+  .scene-review dt { color: var(--muted); }
+  .scene-review dd { margin: 0; white-space: pre-wrap; }
+  .scene-review :is(summary, label) { cursor: pointer; padding-block: 7px; }
+  .scene-review label { display: flex; align-items: center; gap: 8px; font-size: inherit; }
+  .scene-review :is(textarea, select, input.mw-input) { width: 100%; max-width: 100%; }
+  .scene-review [data-scene-aside] { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+  .scene-review [data-scene-aside] :is(p, h2, details) { flex-basis: 100%; margin: 0; }
+  .scene-review ul { list-style: none; padding: 0; }
+  @media (max-width: 720px) {
+    .scene-columns { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+    .scene-sheet { display: block; }
+  }
   .ob-scene-note { color: var(--muted); font-size: 12px; text-align: center; }
   .ob-stage-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
   .ob-stage-head h2 { font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; }

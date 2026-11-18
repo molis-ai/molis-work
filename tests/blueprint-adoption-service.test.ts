@@ -53,6 +53,10 @@ test("ONB-22/28/30: preview, adopt, reopen and undo through the Host preserve th
     assert.equal(owner.current.setting_source, "provider_default");
     assert.equal(await user.invoke(projectSettingsCapabilities.runtime, []), null);
     const request = { preview_id: first.preview_id, part_ids: ["engine"], request_id: "apply-weekly" };
+    const person = await running.host.localPersonContext(project.reference);
+    await assert.rejects(running.host.actionClient(project.reference).invoke({ ...person, actor_id: "system.blueprints" }, a.apply, request), { code: "actions.forbidden" });
+    assert.deepEqual((await user.invoke(a.library, { preview_id: first.preview_id })).adoptions, []);
+    assert.equal(await user.invoke(projectSettingsCapabilities.runtime, []), null);
     const receiptCount = () => {
       const db = new DatabaseSync(project.database_path, { readOnly: true });
       try { return db.prepare("SELECT count(*) AS n FROM project_runtime_setting_receipts").get()!.n; } finally { db.close(); }
@@ -114,6 +118,31 @@ test("ONB-22/29: a new project starts with inherited settings and resumes using 
     assert.equal((await inside.invoke(a.apply, request)).steps[0]?.state, "applied");
     assert.equal(await inside.invoke(projectSettingsCapabilities.runtime, []), "prologue");
     assert.equal(await from.invoke(projectSettingsCapabilities.runtime, []), "unavailable-in-existing-project");
+  } finally { await running.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("ONB-30: removing the original scene retains a setting that a second scene reused in the same project", async () => {
+  const home = await mkdtemp(join(tmpdir(), "blueprint-shared-"));
+  const running = await open(home);
+  try {
+    const project = await running.web.createProject("Shared work");
+    const person = await running.host.localPersonContext(project.reference);
+    const user = bindActionClient(running.host.actionClient(project.reference), () => person);
+    const adopt = async (name: string) => {
+      const { draft } = await user.invoke(a.draftSave, { expected_revision: null, blueprint: { ...body, title: { literal: name } } });
+      const { preview_id } = await user.invoke(a.preview, { source: draft.source, target: { kind: "current_project" }, part_ids: ["engine"] });
+      return user.invoke(a.apply, { preview_id, part_ids: ["engine"], request_id: name });
+    };
+    const first = await adopt("Writing"), second = await adopt("Editing");
+    assert.deepEqual(second.steps[0], { part_id: "engine", state: "applied", outcome: "reused" });
+    const removed = await user.invoke(a.remove, { adoption_id: first.adoption_id, request_id: "remove-writing" });
+    assert.deepEqual(removed.undo.steps[0], { part_id: "engine", state: "skipped", reason: "shared" });
+    assert.equal(await user.invoke(projectSettingsCapabilities.runtime, []), "prologue");
+    assert.deepEqual((await user.invoke(a.read, { adoption_id: second.adoption_id })).apply_steps, second.steps);
+    const detached = await user.invoke(a.remove, { adoption_id: second.adoption_id, request_id: "remove-editing" });
+    assert.equal(detached.undo.steps[0]?.state, "detached", "a scene which only reused a value cannot claim the original write");
+    assert.deepEqual((await user.invoke(a.remove, { adoption_id: first.adoption_id, request_id: "remove-writing" })).undo, removed.undo);
+    assert.equal(await user.invoke(projectSettingsCapabilities.runtime, []), "prologue");
   } finally { await running.close(); await rm(home, { recursive: true, force: true }); }
 });
 

@@ -796,6 +796,8 @@
     "action.memory.page": 1,
     "action.memory.pairs.list": 1,
     "action.memory.pairs.resolve": 1,
+    "action.memory.preferences.read": 1,
+    "action.memory.preferences.write": 1,
     "action.memory.prefs.read": 1,
     "action.memory.prefs.write": 1,
     "action.memory.recall": 1,

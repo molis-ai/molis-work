@@ -254,7 +254,7 @@ P-1 可先在独占的新合同／SDK settings 文件形成待接片，最终统
 | --- | --- |
 | `defineSettingsActions(options)` | 主人给共同的 `scope`，以及读写各自的 `capability_id`、`version`、标题、说明和权限。SDK 返回可用于 Manifest 和运行时绑定的 `{ read, write }` 两个动作定义。读为 `query`，受众为 `user`、`plugin`、`agent`。写为 `command`，受众仅 `user`。 |
 | `validateSettingsDeclaration({ settings_entries, actions, plugin_id })` | 返回带字段路径的声明问题。按 `capability_id` 和 `version` 找本主人的动作，用 `canonicalJsonText` 比较固定 schema，并核对类型 ID、读写效果和受众。校验条目的 key、可写层及后果枚举，拒绝重复 key。条目标题和摘要沿呈现声明复用 `textRefProblems` 和 `tryOwnedTextRef`，接入 `parsePluginManifest` 的 `refuseDeclarations`。 |
-| `resolveEffectiveSetting(snapshot)` | 主人给 `key`、有效 `revision` 与各层值，或不可用状态与原因。返回 `EffectiveSetting`，按项目、个人、提供方默认取第一个存在的值，保留 `null`、`false`、`0` 等有效值。 |
+| `resolveEffectiveSetting(snapshot)` | 主人给 `key`、有效 `revision` 与各层原值，或不可用状态与原因。按项目、个人、提供方默认确定来源，保留 `null`、`false`、`0` 等有效值。逐字段合并的主人（如记忆的逐插件规则）可同时给出实际生效的 `effective_value`。设置页显示该值，场景撤销仍使用目标层原值。 |
 | `bindSettingsHandlers(actions, declaration, owner)` | 返回两个 `ActionHandlerBinding`，复用 `bindActionHandler`。主人提供 `read(scope, keys)` 批量返回层快照，以及 `transaction(scope, run)` 同步提供 §4 所列四项存取。读取与写后回读都用 `resolveEffectiveSetting`。 |
 
 在 `platform/settings` 导出类型和固定动作 schema。读输入为 `SettingsReadInput`，写输入为 `SettingsWriteInput`。两者输出共用 `SettingsValues`（`{ values: EffectiveSetting[] }`）及 `SETTINGS_READ_OUTPUT_TYPE`，写只返回一项事务内回读结果。闭合输入对象，`change` 只收 `set` 与 `inherit: true` 其中一种。动作网关检查固定形状，SDK 再按条目校验 `set` 的值和允许写入的层，写项目层必须有可信项目上下文。新增协议类型 ID 的 v1 在 `tooling/versions.json` 首次登记，实际 owner 动作版本在该动作首次声明时登记。

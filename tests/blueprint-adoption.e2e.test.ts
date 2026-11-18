@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { blueprintActions } from "@molis-ai/molis-work-contracts/services/blueprints";
@@ -31,9 +33,44 @@ test("ONB-21/22/28/30: review actual setting values one by one, resume from the 
   await waitFor("document.querySelector('[data-scene-main] dd') && document.querySelector('[data-scene-main] input[type=checkbox]')?.checked");
   assert.match(await evaluate<string>("document.querySelector('[data-scene-main]').textContent"), /prologue/);
   assert.equal(await user.invoke(projectSettingsCapabilities.runtime, []), null);
+  const selected = "[data-scene-main] input[type=checkbox]";
+  await click(selected);
+  await click("[data-scene-aside] button:nth-of-type(2)");
+  await waitFor("document.activeElement === document.querySelector('[data-scene-main] h2') && location.search.includes('preview=')");
+  await b.reloadPage();
+  await waitFor("document.querySelector('[data-scene-aside] button:nth-of-type(2)')?.disabled");
+  await evaluate("document.querySelector('[data-scene-aside] button').focus()");
+  const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 };
+  await command("Input.dispatchKeyEvent", { type: "keyDown", ...enter, text: "\r" }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", ...enter }, sessionId);
+  await waitFor("document.querySelector('[data-scene-main] input[type=checkbox]') && document.activeElement === document.querySelector('[data-scene-main] h2')");
+  assert.equal(await evaluate<boolean>("document.querySelector('[data-scene-main] input').checked"), false, "reload keeps an explicit exclusion");
+  await click(selected);
+  await click("[data-scene-main] details summary");
+  await evaluate("document.querySelector('[data-scene-main] textarea').value = ''");
+  await click("[data-scene-main] details button");
+  await waitFor("!document.querySelector('[data-scene-error]').hidden");
+  assert.ok(await evaluate<boolean>("document.querySelector('[data-scene-main] details').open && document.querySelector('[data-scene-main] textarea').value === ''"),
+    "the rejected edit stays on screen for correction");
+  await evaluate("document.querySelector('[data-scene-main] textarea').value = 'prologue'");
+  await click("[data-scene-main] details button");
+  await waitFor("document.querySelector('[data-scene-workspace]').getAttribute('aria-busy') === 'false' && document.querySelector('[data-scene-error]').hidden");
+  const reviewDir = join(process.cwd(), ".impeccable", "qa", "review", "batch-38");
+  await mkdir(reviewDir, { recursive: true });
   for (const width of [1440, 1024, 390]) {
     await b.setViewport(width, width === 390 ? 844 : 950, width === 390);
+    const mode = width === 1024 ? "dark" : "light";
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: mode }] }, sessionId);
+    if (width === 1024) {
+      await command("Network.setCookie", { name: "molis_work_locale", value: "en", url: origin }, sessionId);
+    }
+    await b.reloadPage();
+    await waitFor("document.querySelector('[data-scene-main] input')?.checked");
+    if (width !== 1440) assert.match(await evaluate<string>("document.documentElement.lang"), /^en/);
+    await waitFor("document.documentElement.dataset.resolvedTheme === " + JSON.stringify(mode));
     assert.ok(await evaluate<boolean>("document.documentElement.scrollWidth <= innerWidth + 1"));
+    const shot = await command<{data: string}>("Page.captureScreenshot", { format: "png" }, sessionId);
+    await writeFile(join(reviewDir, "review-" + width + "-" + mode + ".png"), Buffer.from(shot.data, "base64"));
   }
   await click("[data-scene-aside] details summary");
   await waitFor("document.querySelector('[data-scene-aside] details')?.open");

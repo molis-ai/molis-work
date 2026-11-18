@@ -70,6 +70,8 @@ export function renderMemorySettings({ readText, scope, projectId, projects = []
     ${renderMemoryClassSettings()}
     <section class="settings-section memory-prefs" aria-labelledby="memory-form-title">
       <h2 id="memory-form-title">${uiText("workbench.settings-memory.how-memories-form")}</h2>
+      <p class="settings-muted" data-memory-preference-source></p>
+      <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-memory-preference-inherit hidden>${uiText("workbench.settings-memory.follow-default")}</button>
       ${prefRow(readText, "form", uiText.text("workbench.settings-memory.allow-remembering"), personal ? uiText.text("workbench.settings-memory.main-switch-off-no-new-memories-no-suggestions") : uiText.text("workbench.settings-memory.off-no-new-memories-suggestions-project"))}
       <div class="settings-setting-row memory-pref-static" data-memory-pref-ask><span class="setting-copy"><strong>${uiText("workbench.settings-memory.remember-when-ask")}</strong><span data-memory-pref-ask-copy>${uiText("workbench.settings-memory.when-say-now-remember-kept-once-told-where")}</span></span><span class="setting-value settings-muted" data-memory-pref-ask-value>${uiText("workbench.settings-memory.always")}</span></div>
       ${prefRow(readText, "auto", uiText.text("workbench.settings-memory.keep-low-risk-preferences-lessons-automatically"), uiText.text("workbench.settings-memory.kept-automatically-when-ask-same-thing-two-different"))}
@@ -624,15 +626,25 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       });
     }
 
+    async function writePreference(patch) {
+      const setting = data.preference_setting;
+      const layer = scope === "project" ? "project" : "personal";
+      const basePrefs = setting.layers[layer] ?? { ...setting.value, plugins: [] };
+      const change = patch ? { set: { ...basePrefs, ...patch, consumers: { ...basePrefs.consumers, ...patch.consumers } } } : { inherit: true };
+      const saved = await api("/prefs", { key: setting.key, layer, expected_revision: setting.revision, request_id: crypto.randomUUID(), change });
+      Object.assign(data, saved);
+    }
     const paintClasses = sessionMode ? () => {} : (${MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT})(L, part, el, button, () => data?.prefs, async rows => {
-      // Keep the accepted prefs even when the following list refresh fails.
-      data.prefs = (await api("/prefs", { scope, prefs: { class_restrictions: rows } })).prefs;
+      await writePreference({ class_restrictions: rows });
       await load().catch(fail);
     });
 
     function paintPrefs() {
       paintClasses();
       const prefs = (data.prefs) || {};
+      const setting = data.preference_setting, layer = scope === "project" ? "project" : "personal";
+      part("preference-source").textContent = setting ? globalThis.t.text("workbench.settings-memory.value-source", { source: globalThis.t.text("workbench.scene." + setting.source) }) : "";
+      part("preference-inherit").hidden = !setting || !Object.hasOwn(setting.layers, layer);
       root.querySelectorAll("[data-memory-pref]").forEach((box) => {
         const path = box.dataset.memoryPref.split(".");
         const value = path.length === 2 ? (prefs[path[0]] || {})[path[1]] : prefs[path[0]];
@@ -767,10 +779,11 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       clearPreview = null; showClear(globalThis.t.text("workbench.settings-memory.next-clear-will-preview-current-scope-ask-confirmation"));
       focusBack(resetClear, clearButton);
     }));
+    part("preference-inherit")?.addEventListener("click", () => run(() => writePreference(null), "workbench.settings-memory.saved"));
     root.querySelectorAll("[data-memory-pref]").forEach((box) => box.addEventListener("change", () => {
       const path = box.dataset.memoryPref.split(".");
       const prefs = path.length === 2 ? { [path[0]]: { [path[1]]: box.checked } } : { [path[0]]: box.checked };
-      run(() => api("/prefs", { scope, prefs }), "workbench.settings-memory.saved");
+      run(() => writePreference(prefs), "workbench.settings-memory.saved");
     }));
     document.addEventListener("click", (event) => root.querySelectorAll(".memory-more[open]").forEach((menu) => { if (!menu.contains(event.target)) menu.open = false; }));
     load().catch(fail);

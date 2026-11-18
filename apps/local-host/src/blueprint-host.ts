@@ -7,6 +7,7 @@ import { blueprintsErrors, type BlueprintAdoptionTarget } from "@molis-ai/molis-
 import { resolveEffectiveSetting } from "@molis-ai/molis-work-plugin-sdk";
 import { blueprintProvider, type AdoptionProgress, type DiscoveredSetting, type SettingBinding, type SettingsAccess } from "@molis-ai/molis-work-service-blueprints";
 import { projectRuntimeSettingOwner, runtimeSettingSnapshot } from "./project-runtime-setting-actions.js";
+import { restrictLocalCallerToHome } from "./local-web-actions.js";
 import { systemSettingOwners } from "./system-setting-owners.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -39,7 +40,12 @@ export function hostBlueprints(home: string, host: MolisWorkLocalHost, catalog: 
   changes.set(host, events);
   async function access(caller: ActionExecutionContext, project: string | null, preview?: BlueprintAdoptionTarget): Promise<SettingsAccess> {
     if (project && project !== caller.project_id) throw new ActionError("actions.scope_mismatch", "请回到这次采用的目标项目");
-    const client = clientFor(caller), nested = retainActionAuthority(caller, caller.current_action!);
+    const origin = retainActionAuthority(caller, caller.current_action!);
+    // A personal target, or a preview before its project exists, reads at Home. Keep the origin's restrictions and
+    // check the actual Home authority too: identical installation ids in a project and at Home have separate grants.
+    const nested: ActionCallContext = !project && caller.project_id ? await restrictLocalCallerToHome(host, origin)
+      : { ...origin, project_id: project, user_action: undefined };
+    const client = clientFor(nested);
     const reference = project ? host.projects().find(item => item.project_id === project) : undefined;
     const directory = await client.discover(nested);
     const state = reference && await host.projectActionInstallations(reference);
@@ -51,11 +57,12 @@ export function hostBlueprints(home: string, host: MolisWorkLocalHost, catalog: 
       validateCaller(caller);
       if (!candidate.install_id) return;
       const current = installation(candidate);
-      if (!current || current.state !== "running" || current.installation_generation !== candidate.generation) throw blueprintsErrors.dependency_unmet("原设置主人已停用或更换");
+      if (!current || current.execution !== "host" || current.state !== "running" || current.installation_generation !== candidate.generation)
+        throw blueprintsErrors.dependency_unmet("原设置主人已停用、更换或不支持采用");
     };
     const discovered: DiscoveredSetting[] = [];
-    const add = (owner: SettingBinding, declaration: SettingsDeclaration, text_owner: string) => {
-      for (const entry of declaration.entries) discovered.push({ entry, binding: owner, text_owner });
+    const add = (owner: SettingBinding, declaration: SettingsDeclaration, text_owner: string, unavailable?: string) => {
+      for (const entry of declaration.entries) discovered.push({ entry, binding: owner, text_owner, ...(unavailable && { unavailable }) });
     };
     const listed = new Set<string>();
     for (const view of directory) {
@@ -72,13 +79,17 @@ export function hostBlueprints(home: string, host: MolisWorkLocalHost, catalog: 
         const install = projectScoped ? state?.get(provider.plugin_install_id) : host.homePlugins?.installation(provider.plugin_install_id);
         const manifest = projectScoped ? state?.manifest(provider.plugin_install_id) : host.homePlugins?.manifest(provider.plugin_id);
         declaration = manifest?.settings_entries;
-        if (install?.state === "running" && install.plugin_id === provider.plugin_id && declaration)
+        if (install?.execution === "host" && install.state === "running" && install.plugin_id === provider.plugin_id && declaration)
           owner = binding(id, projectScoped, declaration, install);
       }
       if (!declaration || !owner) continue;
-      const offered = (action: ExactActionReference) => directory.some(v => v.provider.provider_id === id && v.provider.project_id === provider.project_id
-        && v.capability_id === action.capability_id && v.version === action.version && v.availability.available);
-      if (offered(owner.read) && offered(owner.write)) add(owner, declaration, provider.plugin_id ?? "workbench");
+      const unavailable = (action: ExactActionReference) => {
+        const view = directory.find(v => v.provider.provider_id === id && v.provider.project_id === provider.project_id
+          && v.capability_id === action.capability_id && v.version === action.version);
+        if (!view) return "当前调用无法使用这项设置";
+        return view.availability.available ? undefined : view.availability.reason;
+      };
+      add(owner, declaration, provider.plugin_id ?? "workbench", unavailable(owner.read) ?? unavailable(owner.write));
     }
     const defaults = preview?.kind === "new_project" ? await runtimes() : null;
     if (defaults) add(binding(projectRuntimeSettingOwner.provider_id, true, projectRuntimeSettingOwner.settings_entries), projectRuntimeSettingOwner.settings_entries, "workbench");

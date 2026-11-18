@@ -5,7 +5,7 @@ import type { Blueprint, BlueprintPart } from "@molis-ai/molis-work-contracts/pl
 import type { EffectiveSetting, SettingEntryDeclaration, SettingsWriteInput } from "@molis-ai/molis-work-contracts/platform/settings";
 import { blueprintsErrors, type BlueprintAdoptionPreviewResult, type BlueprintApplyStep, type BlueprintDraftResult,
   type BlueprintDraftSaveInput, type BlueprintLibraryInput, type BlueprintLibraryResult, type BlueprintOwnerReceipt, type UndoStep } from "@molis-ai/molis-work-contracts/services/blueprints";
-import { inspectBlueprint } from "@molis-ai/molis-work-plugin-sdk";
+import { canonicalJsonText, inspectBlueprint } from "@molis-ai/molis-work-plugin-sdk";
 import { homeSqlitePath, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { BLUEPRINTS_BASELINE, BLUEPRINTS_STORE } from "./schema.js";
 
@@ -29,6 +29,7 @@ export interface DiscoveredSetting {
   text_owner: string;
   entry: SettingEntryDeclaration;
   binding: SettingBinding;
+  unavailable?: string;
 }
 export interface ObservedSetting extends DiscoveredSetting {
   current: EffectiveSetting | undefined;
@@ -167,6 +168,23 @@ export class AdoptionStore {
   writeStep(previewId: string, step: StepRecord, outcome: BlueprintApplyStep | UndoStep, operation: "apply" | "undo"): boolean {
     return this.access(db => Boolean(db.prepare(`UPDATE adoption_steps SET ${operation === "apply" ? "apply_json" : "undo_json"}=?, revision=revision+1
       WHERE preview_id=? AND part_id=? AND revision=?`).run(JSON.stringify(outcome), previewId, step.part_id, step.revision).changes));
+  }
+
+  /** A second scene may have adopted the same explicit layer without writing a new owner revision. */
+  sharedSetting(actor: string, project: string | null, previewId: string, plan: SettingPlan): boolean {
+    const scoped = plan.layer === "project" || plan.binding.project_scoped;
+    return this.access(db => {
+      const rows = db.prepare(`SELECT s.plan_json FROM adoption_steps s JOIN adoptions a USING (preview_id)
+        WHERE a.actor_id=? AND a.preview_id<>? AND a.adoption_id IS NOT NULL AND (?=0 OR a.project_id IS ?)
+        AND json_extract(s.plan_json,'$.key')=? AND json_extract(s.plan_json,'$.layer')=?
+        AND json_extract(s.apply_json,'$.state')='applied'
+        AND (s.undo_json IS NULL OR json_extract(s.undo_json,'$.state') IN ('pending_verification','failed')
+          OR json_extract(s.undo_json,'$.reason')='owner_unavailable')`).all(actor, previewId, Number(scoped), project, plan.key, plan.layer);
+      return rows.some(row => {
+        const other = JSON.parse(String(row.plan_json)) as SettingPlan;
+        return canonicalJsonText(other.binding) === canonicalJsonText(plan.binding) && canonicalJsonText(other.change) === canonicalJsonText(plan.change);
+      });
+    });
   }
 
   startUndo(scope: Scope, adoptionId: string, op: "revert" | "remove", request: string): void {

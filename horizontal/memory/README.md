@@ -4,6 +4,8 @@
 
 包名：`@molis-ai/molis-work-service-memory`。工作区内部包，通过仓库构建和 Host 装配使用。
 
+本人在设置页或场景里改记忆偏好，都经 `memory.preferences.read/write` 访问同一份设置。个人记忆只有个人层；项目记忆可以单独设置，也可以沿用所有项目的默认值。项目仍能逐插件继承规则。撤销时恢复项目原来的选择。设置、修订和回执在原记忆库的同一事务保存，旧管理入口也更新同一修订。见 `tests/blueprint-memory-preferences.test.ts` 和 `tests/memory-settings-classes.e2e.test.ts`。
+
 ## 分类分页与条件改类
 
 本人管理经 `memory.page` 读取当前授权范围内的一页，支持场景、六种正式类别、保留类型、状态、来源、到期与文本筛选。`managementPages` 只配置页大小与整次扫描限额；不承诺底层目录枚举有界。项目设置按既有 owner 关系逐页包含角色记忆。游标绑定本人、项目、使用方、当前 owner 集合及查询；异步返回前重新检查取消与 owner 集合。不能证明精确总数时明确返回 unknown，读取不补分类或改写原件。总开关关闭不阻挡本人管理读取。

@@ -10,7 +10,7 @@ type Operation = UndoResult["operation"];
 type RecordView = ReturnType<AdoptionStore["load"]>;
 type Guard = ActionExecutionContext;
 export type AdoptionProgress = { preview_id: string; adoption_id: string; project_id: string | null } & (
-  { kind: "accepted" } | { kind: "apply"; step: BlueprintApplyStep } | { kind: "undo"; step: UndoStep }
+  { kind: "accepted" } | { kind: "apply"; step: BlueprintApplyStep } | { kind: "undo"; undo: Pick<UndoResult, "request_id" | "operation">; step: UndoStep }
 );
 
 export function assertCurrent(caller: Guard): void {
@@ -53,7 +53,7 @@ export class AdoptionExecution {
     step.revision++;
     const identity = { preview_id: record.row.preview_id, project_id: record.row.project_id, adoption_id: record.row.adoption_id! };
     this.notify(scope.actor_id, operation === "apply" ? { ...identity, kind: operation, step: next as BlueprintApplyStep }
-      : { ...identity, kind: operation, step: next as UndoStep });
+      : { ...identity, kind: operation, undo: { operation: record.row.undo_operation!, request_id: record.row.undo_request! }, step: next as UndoStep });
   }
 
   async apply(caller: Guard, input: BlueprintAdoptionApplyInput, now: number,
@@ -76,7 +76,7 @@ export class AdoptionExecution {
     }
     const access = await accessFor(record.row.project_id);
     const owners = await access.discover();
-    const available = (plan: SettingPlan) => owners.some(owner => owner.entry.key === plan.key && sameBinding(owner.binding, plan.binding));
+    const available = (plan: SettingPlan) => owners.some(owner => !owner.unavailable && owner.entry.key === plan.key && sameBinding(owner.binding, plan.binding));
     const recovery = await readOwnerValues(access, record.steps.flatMap(step =>
       step.apply.state === "pending_verification" && step.plan && available(step.plan) ? [step.plan] : []), caller);
     const toVerify: { step: StepRecord; plan: SettingPlan; receipt?: BlueprintOwnerReceipt }[] = [];
@@ -130,7 +130,7 @@ export class AdoptionExecution {
     const access = await accessFor(record.row.project_id);
     const owners = await access.discover();
     const values = await readOwnerValues(access, record.steps.flatMap(({ plan, apply }) => plan && apply.state === "applied" && "receipt" in apply
-      && owners.some(owner => owner.entry.key === plan.key && sameBinding(owner.binding, plan.binding)) ? [plan] : []), caller);
+      && owners.some(owner => !owner.unavailable && owner.entry.key === plan.key && sameBinding(owner.binding, plan.binding)) ? [plan] : []), caller);
     const applied = record.steps.map(({ plan, apply }): BlueprintApplyStep => {
       if (!plan || apply.state !== "applied" || !("receipt" in apply)) return apply;
       const current = values.get(plan.key);
@@ -152,14 +152,19 @@ export class AdoptionExecution {
     if (record.steps.some(step => step.apply.state === "pending_verification"))
       throw blueprintsErrors.step_conflict("有一步的结果还没确认，请先继续核对，再撤销");
     this.store.startUndo(caller, input.adoption_id, op, input.request_id);
+    record.row.undo_operation = op; record.row.undo_request = input.request_id;
     const results: UndoStep[] = [];
     for (const step of record.steps) {
       assertCurrent(caller);
       const { plan, apply, part_id } = step;
-      if (step.undo?.state === "restored" || step.undo?.state === "detached") { results.push(step.undo); continue; }
+      if (step.undo?.state === "restored" || step.undo?.state === "detached" || step.undo?.state === "skipped" && step.undo.reason === "shared") {
+        results.push(step.undo); continue;
+      }
       let result: UndoStep;
       if (!plan || apply.state !== "applied" || !("receipt" in apply)) result = { part_id, state: "detached" };
-      else if (!owners.some(owner => owner.entry.key === plan.key && sameBinding(owner.binding, plan.binding))) result = { part_id, state: "skipped", reason: "owner_unavailable" };
+      else if (!owners.some(owner => !owner.unavailable && owner.entry.key === plan.key && sameBinding(owner.binding, plan.binding))) {
+        result = step.undo?.state === "pending_verification" ? step.undo : { part_id, state: "skipped", reason: "owner_unavailable" };
+      }
       else {
         const requestId = input.adoption_id + ":undo:" + part_id;
         const pending = { part_id, state: "pending_verification" as const, request_id: requestId };
@@ -169,12 +174,15 @@ export class AdoptionExecution {
           assertCurrent(caller);
           if (!current || current.key !== plan.key) throw new ActionError("actions.output_invalid", "设置读回缺失");
           if (!writing && current.revision !== apply.receipt.revision) result = { part_id, state: "skipped", reason: "revision_changed" };
+          else if (!writing && current.state !== "ok") result = { part_id, state: "skipped", reason: "owner_unavailable" };
+          else if (!writing && this.store.sharedSetting(caller.actor_id, record.row.project_id, record.row.preview_id, plan))
+            result = { part_id, state: "skipped", reason: "shared" };
           else {
             if (!writing) await this.change(caller, record, step, pending, "undo");
             writing = true;
             const saved = await access.write(plan.binding, { key: plan.key, layer: plan.layer, change: plan.previous,
               expected_revision: String(apply.receipt.revision), request_id: requestId });
-            if (saved.key !== plan.key) throw new ActionError("actions.output_invalid", "主人没有回执这项设置");
+            if (saved.key !== plan.key || saved.state !== "ok") throw new ActionError("actions.output_invalid", "主人没有回执这项设置");
             result = { part_id, state: "restored", receipt: ownerReceipt(plan, saved) };
           }
         } catch (error) {

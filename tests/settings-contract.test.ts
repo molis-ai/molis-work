@@ -95,6 +95,10 @@ test("SPC-C01: resolving a snapshot preserves each value and reports unavailabil
   }
   const unavailable = { ...observed, state: "unavailable", reason: "Owner offline" } as const;
   assert.deepEqual(resolveEffectiveSetting(unavailable), unavailable);
+  const layers = { personal: { notes: true }, project: { coding: false } };
+  const merged = { notes: true, coding: false };
+  assert.deepEqual(resolveEffectiveSetting({ ...observed, state: "ok", layers, effective_value: merged }),
+    { ...observed, state: "ok", value: merged, source: "project", layers }, "SPC-04: show the merged value while retaining the exact project override");
   assert.equal(resolveEffectiveSetting({ ...observed, state: "ok", layers: {} }).state, "unavailable");
 });
 

@@ -8,6 +8,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/settings";
 import { isText } from "./action-declarations.js";
 import { canonicalJsonText } from "./json-value.js";
+import type { SandboxJson } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { assertJson, assertMatches, isJsonObject, type SandboxSchemaFailure } from "./sandbox-schema.js";
 import { settingsActionProblems, type SettingsActions } from "./settings-declaration.js";
 
@@ -18,7 +19,9 @@ export interface SettingsOwnerScope {
 }
 
 export type SettingSnapshot = { readonly key: string; readonly revision: string } & (
-  | { readonly state: "ok"; readonly layers: SettingLayers }
+  | { readonly state: "ok"; readonly layers: SettingLayers;
+      /** The owner's effective value when it merges individual fields across layers. The original layers remain available for undo. */
+      readonly effective_value?: SandboxJson }
   | { readonly state: "unavailable"; readonly reason: string }
 );
 
@@ -69,7 +72,11 @@ export function resolveEffectiveSetting(snapshot: SettingSnapshot): EffectiveSet
   }
   for (const source of SETTINGS_SOURCES) {
     const value = layers[source];
-    if (value !== undefined) return { key, revision, state: "ok", value, source, layers };
+    if (value !== undefined) {
+      if (snapshot.effective_value === undefined) return { key, revision, state: "ok", value, source, layers };
+      assertJson(snapshot.effective_value, invalidJsonOutput);
+      return { key, revision, state: "ok", value: snapshot.effective_value, source, layers };
+    }
   }
   return { key, revision, state: "unavailable", reason: "当前没有有效设置值" };
 }

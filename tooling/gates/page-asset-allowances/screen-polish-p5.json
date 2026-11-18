@@ -1,0 +1,26 @@
+{
+  "reason": "逐屏打磨 P5：设置页统一成一种版式（每一节标题在卡外、下面一张圆角卡，一行一件事、右边一个控件，就地展开）。设计系统新增设置行的公共样式 SETTINGS_ROW_STYLES，由设置页和工作台两张样式表各带一份（设置样式 +4200、工作台样式 +4424，已扣掉各页删掉的旧卡片、旧记录行和 ⓘ 的规则）；工作台脚本是助理页「不提醒的地方」「暂停提醒」「管理能力」就地展开和记忆页工具栏的接线（+719）；角色页脚本是每一节改成标题在外加一张卡的模板（+97）；能力页脚本是对外接入页范围提示的一处空值保护（+6）。到达页样式（-451）和 Shelf 样式（-313）变小。工作台中英文词包因新增设置行的词、删掉不再用的说明段和 ⓘ 的词而内容变化，文件名带内容指纹，所以首屏门禁把它们记成新条目。没有新增资源，单项都低于 10 KB。",
+  "review": "specs/screen-polish/p5-settings.md 与分支 feat/screen-polish-p5-settings 的 PR 评审。本机对照 main eaa6b47492 的隔离构建实测（node scripts/gates/page-assets.mjs --base origin/main、node scripts/gates/first-screen.mjs --base origin/main，2026-11-18）：到达页与项目选择页冷 zh +3349 / en +3405，工作台默认与全部插件冷 zh +4196 / en +4248，热启动都不变。许可按实测值填，不留余量。",
+  "userApproval": "用户于 2026-11-18 看过上列数字后批准（「批准，写许可」）：工作台中英文词包换名，以及上列各资源和各页首屏的增长。",
+  "entryApprovals": [
+    { "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"], "locale": "zh", "entry": "/assets/locale/workbench.zh.<digest>.js", "change": "new" },
+    { "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"], "locale": "en", "entry": "/assets/locale/workbench.en.<digest>.js", "change": "new" }
+  ],
+  "assets": {
+    "/assets/molis-work-capabilities.js": 6,
+    "/assets/molis-work-plugins/characters.js": 97,
+    "/assets/molis-work-settings.css": 4200,
+    "/assets/molis-work-workbench.css": 4424,
+    "/assets/molis-work-workbench.js": 719
+  },
+  "pages": {
+    "arrival-empty/zh": { "cold": 3349, "warm": 0 },
+    "arrival-empty/en": { "cold": 3405, "warm": 0 },
+    "chooser/zh": { "cold": 3349, "warm": 0 },
+    "chooser/en": { "cold": 3405, "warm": 0 },
+    "workbench-default/zh": { "cold": 4196, "warm": 0 },
+    "workbench-default/en": { "cold": 4248, "warm": 0 },
+    "workbench-all-plugins/zh": { "cold": 4196, "warm": 0 },
+    "workbench-all-plugins/en": { "cold": 4248, "warm": 0 }
+  }
+}

@@ -37,8 +37,6 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_ROW_STYLES}
   .assistant-capability-effect { color: var(--muted); font-size: 12px; white-space: nowrap; }
   .settings-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; min-height: 60px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); }
   :is(.project-preferences-page, .settings-stage) .settings-section:not(.mw-settings-section) > :last-child { border-bottom: 0; }
-  :is(.project-preferences-page, .settings-stage) .settings-section > [data-runtime-row] { display: contents; }
-  :is(.project-preferences-page, .settings-stage) .settings-section > [data-runtime-row]:last-child > :last-child { border-bottom: 0; }
   :is(.project-preferences-page, .settings-stage) :is(.settings-section, .mcp-access) .settings-empty { display: grid; gap: 4px; padding: 12px 0 16px; }
   :is(.project-preferences-page, .settings-stage) :is(.settings-section, .mcp-access) .settings-empty strong { font-size: 15px; color: var(--ink); }
   :is(.project-preferences-page, .settings-stage) :is(.settings-section, .mcp-access) .settings-empty span { color: var(--muted); font-size: 13px; line-height: 1.5; }
@@ -68,7 +66,7 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_ROW_STYLES}
   .settings-data-list dt { color: var(--muted); }
   .settings-data-list dd { margin: 0; overflow-wrap: anywhere; font-family: var(--font-mono, monospace); }
   :is(.project-preferences-page, .settings-stage) .project-manager-danger { margin: 0; padding: 16px 0; border: 0; background: none; }
-  :is(.project-preferences-page, .settings-stage) .settings-section > .project-manager-danger:has(+ .settings-data-disclosure) { padding: 12px 0 4px; }
+  :is(.project-preferences-page, .settings-stage) .mw-settings-section__rows > .project-manager-danger:has(+ .settings-data-disclosure) { padding: 12px 0 4px; }
   :is(.project-preferences-page, .settings-stage) .project-manager-danger h3 { margin: 0 0 8px; font-size: 13px; font-weight: var(--weight-title, 600); }
   :is(.project-preferences-page, .settings-stage) .project-manager-danger p { max-width: 62ch; margin: 0 0 16px; font-size: 12px; line-height: 1.65; color: var(--muted); }
   :is(.project-preferences-page, .settings-stage) .project-manager-danger-actions { display: flex; gap: 8px; }

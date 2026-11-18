@@ -60,7 +60,6 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .tree-pane .settings-directory-nav { display: grid; gap: 0; padding: 4px 8px 16px; }
   body.immersive-workbench .tree-pane .settings-directory-nav .settings-directory-group { margin: 0; padding: 16px 8px 4px; color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); line-height: 1.5; }
   body.immersive-workbench .tree-pane .settings-directory-nav .settings-directory-group:first-child { padding-top: 4px; }
-  body.immersive-workbench .tree-pane .settings-directory-nav .mw-dir-row.is-selected { background: var(--accent-soft); }
   body.immersive-workbench .tree-pane .settings-directory-nav .mw-dir-row {
     display: flex; justify-content: flex-start; align-items: center;
     height: 32px; min-height: 32px; padding: 0 8px; border-radius: 10px; gap: 8px;

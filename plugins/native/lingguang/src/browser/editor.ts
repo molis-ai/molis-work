@@ -100,13 +100,24 @@ export function installEditor(page: LingguangPage): void {
     if (el.workbench.getAttribute("data-expanded") === "false") void page.leaveBlank().catch(() => {});
   });
 
+  const revealEditor = () => {
+    el.workbench.setAttribute("data-expanded", "true");
+    el.workspace.hidden = false;
+  };
+
+  page.resumeEditor = (id) => {
+    if (!el.workspace.hidden) return;
+    revealEditor();
+    page.markSelected(id);
+    page.publishContext(el.saveStatus.dataset.mwState !== "saved");
+  };
+
   page.fillEditor = (record) => {
     const left = s.selected && s.selected.id !== record.id ? s.selected.id : undefined;
     s.selected = record;
     s.editorBase = { record };
     s.conversation = null;
-    el.workbench.setAttribute("data-expanded", "true");
-    el.workspace.hidden = false;
+    revealEditor();
     page.showChat(false);
     el.titleEl.textContent = record.title;
     page.showSave("saved");

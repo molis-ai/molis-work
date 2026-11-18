@@ -182,7 +182,7 @@ test("PIF-ESC-02 visible menus and dialogs take Escape before the settings cover
   }
 });
 
-test("a plugin's page keeps what was open in it across switches and a reload", { timeout: 120_000 }, async (t) => {
+test("QEA-143 a plugin's page keeps what was open in it across switches and a reload", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, reloadPage } = browser;
@@ -230,6 +230,14 @@ test("a plugin's page keeps what was open in it across switches and a reload", {
   await lingguang.waitFor(opened(newId));
   await click("[data-workspace-history=back]");
   await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'false'");
+  const savedSparks = async () => (await browser.web.get<{ sparks: { id: string; body: string; updated_at: string }[] }>(
+    `/projects/${projectId}/api/plugins/io.molis.work.lingguang/sparks`,
+  )).sparks;
+  const before = await savedSparks();
+  assert.equal(before.find(spark => spark.id === noteId)?.body, "第一条灵光");
+  assert.equal(before.find(spark => spark.id === newId)?.body, "第二条灵光");
   await click("[data-workspace-history=forward]");
   await lingguang.waitFor(opened(newId));
+  assert.equal(await lingguang.evaluate("document.querySelector('[data-lingguang-body]').value"), "第二条灵光");
+  assert.deepEqual(await savedSparks(), before, "history restores the existing editor without changing either saved record");
 });
